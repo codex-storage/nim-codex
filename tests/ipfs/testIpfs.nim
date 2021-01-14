@@ -1,7 +1,7 @@
 import std/os
 import pkg/asynctest
 import pkg/chronos
-import pkg/dagger
+import pkg/ipfs
 
 suite "integration":
 

@@ -1,5 +1,5 @@
 import std/unittest
-import pkg/dagger/repo
+import pkg/ipfs/repo
 
 suite "repo":
 

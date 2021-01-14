@@ -1,6 +1,6 @@
 version = "0.1.0"
 author = "Dagger Team"
-description = "Dagger Storage Network"
+description = "Decentralized storage in Nim"
 license = "MIT"
 
 requires "nim >= 1.4.2 & < 2.0.0"

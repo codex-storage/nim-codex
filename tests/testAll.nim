@@ -1,6 +1,6 @@
-import ./dagger/testMerkleDag
-import ./dagger/testChunking
-import ./dagger/testRepo
-import ./dagger/testDagger
+import ./ipfs/testMerkleDag
+import ./ipfs/testChunking
+import ./ipfs/testRepo
+import ./ipfs/testIpfs
 
 {.warning[UnusedImport]: off.}
