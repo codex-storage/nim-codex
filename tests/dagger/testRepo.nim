@@ -12,11 +12,11 @@ suite "repo":
   test "stores Merkle DAGs":
     repo.store(dag)
 
-  test "retrieves Merkle DAGs by their root hash":
+  test "retrieves Merkle DAGs by their root id":
     repo.store(dag)
-    check repo.retrieve(dag.rootHash) == dag
+    check repo.retrieve(dag.rootId) == dag
 
-  test "knows which hashes are stored":
-    check repo.contains(dag.rootHash) == false
+  test "knows which ids are stored":
+    check repo.contains(dag.rootId) == false
     repo.store(dag)
-    check repo.contains(dag.rootHash) == true
+    check repo.contains(dag.rootId) == true

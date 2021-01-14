@@ -1,21 +1,22 @@
 import std/tables
 import std/hashes
+import pkg/libp2p
 import ./merkledag
 
 export merkledag
 
 type
   Repo* = ref object
-    storage: Table[MultiHash, MerkleDag]
+    storage: Table[Cid, MerkleDag]
 
-proc hash(multihash: MultiHash): Hash =
-  hash($multihash)
+proc hash(id: Cid): Hash =
+  hash($id)
 
 proc store*(repo: Repo, dag: MerkleDag) =
-  repo.storage[dag.rootHash] = dag
+  repo.storage[dag.rootId] = dag
 
-proc contains*(repo: Repo, hash: MultiHash): bool =
-  repo.storage.hasKey(hash)
+proc contains*(repo: Repo, id: Cid): bool =
+  repo.storage.hasKey(id)
 
-proc retrieve*(repo: Repo, hash: MultiHash): MerkleDag =
-  repo.storage[hash]
+proc retrieve*(repo: Repo, id: Cid): MerkleDag =
+  repo.storage[id]
