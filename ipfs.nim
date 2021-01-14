@@ -1,22 +1,22 @@
 import pkg/chronos
 
 type
-  DaggerPeer* = ref object
+  Ipfs* = ref object
 
-proc newDaggerPeer*: DaggerPeer =
-  DaggerPeer()
+proc create*(t: typedesc[Ipfs]): Ipfs =
+  Ipfs()
 
-proc listen*(peer: DaggerPeer, address: TransportAddress) =
+proc listen*(peer: Ipfs, address: TransportAddress) =
   discard
 
-proc dial*(peer: DaggerPeer, address: TransportAddress) =
+proc connect*(peer: Ipfs, address: TransportAddress) =
   discard
 
-proc upload*(peer: DaggerPeer, input: File): Future[string] {.async.} =
+proc add*(peer: Ipfs, input: File): Future[string] {.async.} =
   discard
 
-proc download*(peer: DaggerPeer, identifier: string, output: File) {.async.} =
+proc get*(peer: Ipfs, identifier: string, output: File) {.async.} =
   discard
 
-proc close*(peer: DaggerPeer) =
+proc stop*(peer: Ipfs) =
   discard

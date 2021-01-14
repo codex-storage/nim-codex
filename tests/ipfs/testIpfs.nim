@@ -7,14 +7,14 @@ suite "integration":
 
   let address = initTAddress("127.0.0.1:48952")
 
-  var peer1, peer2: DaggerPeer
+  var peer1, peer2: Ipfs
   var input, output: File
 
   proc setupPeers =
-    peer1 = newDaggerPeer()
-    peer2 = newDaggerPeer()
+    peer1 = Ipfs.create()
+    peer2 = Ipfs.create()
     peer1.listen(address)
-    peer2.dial(address)
+    peer2.connect(address)
 
   proc setupFiles =
     input = open("tests/input.txt", fmReadWrite)
@@ -23,8 +23,8 @@ suite "integration":
     input.setFilePos(0)
 
   proc teardownPeers =
-    peer1.close()
-    peer2.close()
+    peer1.stop()
+    peer2.stop()
 
   proc teardownFiles =
     input.close()
@@ -41,8 +41,8 @@ suite "integration":
     teardownFiles()
 
   test "file can be transferred from one peer to another":
-    let identifier = await peer1.upload(input)
-    await peer2.download(identifier, output)
+    let identifier = await peer1.add(input)
+    await peer2.get(identifier, output)
 
     input.setFilePos(0)
     output.setFilePos(0)
