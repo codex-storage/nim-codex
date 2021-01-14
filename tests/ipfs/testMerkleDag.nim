@@ -1,6 +1,6 @@
 import std/unittest
 import pkg/libp2p
-import pkg/dagger/merkledag
+import pkg/ipfs/merkledag
 
 suite "Merkle DAG":
 
