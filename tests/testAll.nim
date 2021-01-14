@@ -1,4 +1,4 @@
-import ./ipfs/testMerkleDag
+import ./ipfs/testObject
 import ./ipfs/testChunking
 import ./ipfs/testRepo
 import ./ipfs/testIpfs
