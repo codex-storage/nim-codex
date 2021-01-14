@@ -18,12 +18,12 @@ suite "chunking":
     removeFile("tests/input.txt")
     removeFile("tests/output.txt")
 
-  test "creates a Merkle DAG from a file":
-    check createChunks(input) != MerkleDag.default
+  test "creates an IPFS object from a file":
+    check createObject(input) != IpfsObject.default
 
-  test "creates a file from a Merkle DAG":
-    let dag = createChunks(input)
-    assembleChunks(dag, output)
+  test "writes an IPFS object to a file":
+    let obj = createObject(input)
+    writeToFile(obj, output)
 
     input.setFilePos(0)
     output.setFilePos(0)

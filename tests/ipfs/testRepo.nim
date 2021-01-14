@@ -3,20 +3,20 @@ import pkg/ipfs/repo
 
 suite "repo":
 
-  let dag = MerkleDag(data: @[1'u8, 2'u8, 3'u8])
+  let obj = IpfsObject(data: @[1'u8, 2'u8, 3'u8])
   var repo: Repo
 
   setup:
     repo = Repo()
 
-  test "stores Merkle DAGs":
-    repo.store(dag)
+  test "stores IPFS objects":
+    repo.store(obj)
 
-  test "retrieves Merkle DAGs by their root id":
-    repo.store(dag)
-    check repo.retrieve(dag.rootId) == dag
+  test "retrieves IPFS objects by their content id":
+    repo.store(obj)
+    check repo.retrieve(obj.cid) == obj
 
-  test "knows which ids are stored":
-    check repo.contains(dag.rootId) == false
-    repo.store(dag)
-    check repo.contains(dag.rootId) == true
+  test "knows which content ids are stored":
+    check repo.contains(obj.cid) == false
+    repo.store(obj)
+    check repo.contains(obj.cid) == true

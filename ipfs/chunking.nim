@@ -1,10 +1,10 @@
-import ./merkledag
+import ./ipfsobject
 
-export merkledag
+export ipfsobject
 
-proc createChunks*(file: File): MerkleDag =
+proc createObject*(file: File): IpfsObject =
   let contents = file.readAll()
-  MerkleDag(data: cast[seq[byte]](contents))
+  IpfsObject(data: cast[seq[byte]](contents))
 
-proc assembleChunks*(dag: MerkleDag, output: File) =
-  output.write(cast[string](dag.data))
+proc writeToFile*(obj: IpfsObject, output: File) =
+  output.write(cast[string](obj.data))
