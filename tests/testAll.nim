@@ -4,6 +4,7 @@ import ./ipfs/testRepo
 import ./ipfs/testDhtRouting
 import ./ipfs/testProtobuf
 import ./ipfs/testBitswapMessages
+import ./ipfs/testBitswapProtocol
 import ./ipfs/testIpfs
 
 {.warning[UnusedImport]: off.}
