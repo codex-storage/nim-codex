@@ -1,0 +1,48 @@
+import std/options
+import pkg/chronos
+import pkg/libp2p/cid
+import ./ipfsobject
+import ./repo
+import ./p2p/switch
+import ./bitswap/protocol
+import ./bitswap/exchange
+
+export options
+export Cid
+export Switch
+
+type
+  Bitswap* = ref object
+    repo: Repo
+    switch: Switch
+    exchanges: seq[Exchange] # TODO: never cleaned
+
+proc startExchange(bitswap: Bitswap, stream: BitswapStream) =
+  let exchange = Exchange.start(bitswap.repo, stream)
+  bitswap.exchanges.add(exchange)
+
+proc start*(_: type Bitswap, switch: Switch, repo = Repo()): Bitswap =
+  let bitswap = Bitswap(repo: repo, switch: switch)
+  let protocol = BitswapProtocol.new()
+  proc acceptLoop {.async.} =
+    while true:
+      let stream = await protocol.accept()
+      bitswap.startExchange(stream)
+  asyncSpawn acceptLoop()
+  switch.mount(protocol)
+  bitswap
+
+proc connect*(bitswap: Bitswap, peer: PeerInfo) {.async.} =
+  let stream = await bitswap.switch.dial(peer, BitswapProtocol)
+  bitswap.startExchange(stream)
+
+proc store*(bitswap: Bitswap, obj: IpfsObject) =
+  bitswap.repo.store(obj)
+
+proc retrieve*(bitswap: Bitswap, cid: Cid): Future[Option[IpfsObject]] {.async.} =
+  result = bitswap.repo.retrieve(cid)
+  if result.isNone:
+    for exchange in bitswap.exchanges:
+      await exchange.want(cid)
+    await sleepAsync(1.seconds) # TODO
+    result = bitswap.repo.retrieve(cid)
