@@ -1,8 +1,10 @@
+import std/options
 import std/tables
 import std/hashes
 import pkg/libp2p
 import ./ipfsobject
 
+export options
 export ipfsobject
 
 type
@@ -18,5 +20,8 @@ proc store*(repo: Repo, obj: IpfsObject) =
 proc contains*(repo: Repo, id: Cid): bool =
   repo.storage.hasKey(id)
 
-proc retrieve*(repo: Repo, id: Cid): IpfsObject =
-  repo.storage[id]
+proc retrieve*(repo: Repo, id: Cid): Option[IpfsObject] =
+  if repo.contains(id):
+    repo.storage[id].some
+  else:
+    IpfsObject.none

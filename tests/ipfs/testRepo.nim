@@ -14,7 +14,10 @@ suite "repo":
 
   test "retrieves IPFS objects by their content id":
     repo.store(obj)
-    check repo.retrieve(obj.cid) == obj
+    check repo.retrieve(obj.cid).get() == obj
+
+  test "signals retrieval failure":
+    check repo.retrieve(obj.cid).isNone
 
   test "knows which content ids are stored":
     check repo.contains(obj.cid) == false
