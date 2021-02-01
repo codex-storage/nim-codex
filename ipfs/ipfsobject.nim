@@ -1,4 +1,8 @@
-import pkg/libp2p
+import pkg/libp2p/multihash
+import pkg/libp2p/multicodec
+import pkg/libp2p/cid
+
+export cid
 
 type
   IpfsObject* = object

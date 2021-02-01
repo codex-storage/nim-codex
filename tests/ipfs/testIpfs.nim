@@ -5,16 +5,15 @@ import pkg/ipfs
 
 suite "integration":
 
-  let address = initTAddress("127.0.0.1:48952")
+  let address = MultiAddress.init("/ip4/127.0.0.1/tcp/48952").get()
 
   var peer1, peer2: Ipfs
   var input, output: File
 
-  proc setupPeers =
-    peer1 = Ipfs.create()
-    peer2 = Ipfs.create()
-    peer1.listen(address)
-    peer2.connect(address)
+  proc setupPeers {.async.} =
+    peer1 = await Ipfs.start(address)
+    peer2 = await Ipfs.start()
+    await peer2.connect(peer1.info)
 
   proc setupFiles =
     input = open("tests/input.txt", fmReadWrite)
@@ -22,9 +21,9 @@ suite "integration":
     input.write("foo")
     input.setFilePos(0)
 
-  proc teardownPeers =
-    peer1.stop()
-    peer2.stop()
+  proc teardownPeers {.async.} =
+    await peer1.stop()
+    await peer2.stop()
 
   proc teardownFiles =
     input.close()
@@ -33,11 +32,11 @@ suite "integration":
     removeFile("tests/output.txt")
 
   setup:
-    setupPeers()
+    await setupPeers()
     setupFiles()
 
   teardown:
-    teardownPeers()
+    await teardownPeers()
     teardownFiles()
 
   test "file can be transferred from one peer to another":
@@ -46,5 +45,4 @@ suite "integration":
 
     input.setFilePos(0)
     output.setFilePos(0)
-    # TODO: enable this when all parts are in place:
-    # check output.readAll() == input.readAll()
+    check output.readAll() == input.readAll()
