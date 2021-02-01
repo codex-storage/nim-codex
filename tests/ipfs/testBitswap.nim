@@ -33,7 +33,7 @@ suite "bitswap":
     check (await bitswap1.retrieve(obj.cid)).get() == obj
 
   test "signals retrieval failure":
-    check (await bitswap1.retrieve(obj.cid)).isNone
+    check (await bitswap1.retrieve(obj.cid, 100.milliseconds)).isNone
 
   test "retrieves objects from network":
     bitswap1.store(obj)

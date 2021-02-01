@@ -39,10 +39,12 @@ proc connect*(bitswap: Bitswap, peer: PeerInfo) {.async.} =
 proc store*(bitswap: Bitswap, obj: IpfsObject) =
   bitswap.repo.store(obj)
 
-proc retrieve*(bitswap: Bitswap, cid: Cid): Future[Option[IpfsObject]] {.async.} =
+proc retrieve*(bitswap: Bitswap,
+               cid: Cid,
+               timeout = 30.seconds): Future[Option[IpfsObject]] {.async.} =
   result = bitswap.repo.retrieve(cid)
   if result.isNone:
     for exchange in bitswap.exchanges:
       await exchange.want(cid)
-    await sleepAsync(1.seconds) # TODO
+    await bitswap.repo.wait(cid, timeout)
     result = bitswap.repo.retrieve(cid)
