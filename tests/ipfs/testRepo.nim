@@ -1,4 +1,5 @@
-import std/unittest
+import pkg/asynctest
+import pkg/chronos
 import pkg/ipfs/repo
 
 suite "repo":
@@ -23,3 +24,13 @@ suite "repo":
     check repo.contains(obj.cid) == false
     repo.store(obj)
     check repo.contains(obj.cid) == true
+
+  test "waits for IPFS object to arrive":
+    let waiting = repo.wait(obj.cid, 1.minutes)
+    check not waiting.finished
+    repo.store(obj)
+    check waiting.finished
+
+  test "does not wait when IPFS object is already stored":
+    repo.store(obj)
+    check repo.wait(obj.cid, 1.minutes).finished

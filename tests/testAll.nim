@@ -1,5 +1,6 @@
 import ./ipfs/testObject
 import ./ipfs/testChunking
+import ./ipfs/testWaitingList
 import ./ipfs/testRepo
 import ./ipfs/testDhtRouting
 import ./ipfs/testProtobuf
