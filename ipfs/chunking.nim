@@ -16,7 +16,7 @@ const
 
 type
   # default reader type
-  Reader* = proc(maxSize: int): seq[byte] {.gcsafe, closure.}
+  Reader* = proc(data: var openarray[byte]): int {.gcsafe, closure.}
 
   ChunkerType {.pure.} = enum
     SizedChunker
@@ -24,26 +24,68 @@ type
 
   Chunker = object of RootObj
     reader: Reader
+    len: Natural
     case kind: ChunkerType:
     of SizedChunker:
-      size*: int
+      chunkSize*: Natural
       pad*: bool # pad last block if less than size
     of RabinChunker:
       min*, max*: int
 
 proc getBytes*(c: Chunker): seq[byte] =
-  var bytes = c.reader(c.size)
-  if bytes.len < c.size and c.pad:
-    bytes.setLen(c.size)
+  var bytes = newSeq[byte](c.len)
+  var total = 0
+  while true:
+    let read = c.reader(bytes)
+    if read <= 0:
+      break
+
+    total += read
+
+  if not c.pad:
+    bytes.setLen(total)
 
   return bytes
 
-proc newFixedSizeChunker*(
+proc newFileChunker*(
   T: type Chunker,
-  reader: Reader,
-  size = DefaultBlockSize,
+  file: File,
+  kind = ChunkerType.SizedChunker,
+  chunkSize = DefaultBlockSize,
   pad = false): T =
+
+  proc reader(data: var openarray[byte]): int =
+    return file.readBytes(data, 0, data.len)
+
   Chunker(
     kind: ChunkerType.SizedChunker,
-    size: size,
+    reader: reader,
+    len: file.getFileSize(),
     pad: pad)
+
+proc new*(
+  T: type Chunker,
+  kind = ChunkerType.SizedChunker,
+  reader: Reader,
+  len: Natural,
+  chunkSize = DefaultBlockSize,
+  pad = false): T =
+  Chunker(
+    kind: kind,
+    reader: reader,
+    len: len,
+    pad: pad)
+
+when isMainModule:
+  var file: File
+  if not file.open("./ipfs/repo.nim"):
+    echo "cant open"
+    quit()
+
+  let chunker = Chunker.newFileChunker(file)
+  while true:
+    let bytes = chunker.getBytes()
+    if bytes.len <= 0:
+      break
+
+    echo cast[string](bytes)
