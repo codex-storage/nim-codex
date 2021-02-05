@@ -33,6 +33,10 @@ type
       min*, max*: int
 
 proc getBytes*(c: Chunker): seq[byte] =
+  ## returns a chunk of bytes from
+  ## the instantiated chunker
+  ##
+
   var bytes = newSeq[byte](c.len)
   var total = 0
   while true:
@@ -47,12 +51,22 @@ proc getBytes*(c: Chunker): seq[byte] =
 
   return bytes
 
+iterator iterms*(c: Chunker): seq[byte] =
+  while true:
+    let bytes = c.getBytes()
+    if bytes.len <= 0:
+      break
+
+    yield bytes
+
 proc newFileChunker*(
   T: type Chunker,
   file: File,
   kind = ChunkerType.SizedChunker,
   chunkSize = DefaultBlockSize,
   pad = false): T =
+  ## create the default File chunker
+  ##
 
   proc reader(data: var openarray[byte]): int =
     return file.readBytes(data, 0, data.len)
