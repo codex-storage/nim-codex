@@ -20,7 +20,7 @@ type
 
 proc new*(
   T: type Block,
-  data: openarray[byte],
+  data: openarray[byte] = [],
   version = CIDv0,
   hash = "sha2-256",
   multicodec = "dag-pb"): T =
