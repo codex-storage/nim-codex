@@ -1,8 +1,8 @@
 import pkg/chronos
 import pkg/asynctest
-import pkg/ipfs/p2p/switch
-import pkg/ipfs/bitswap/messages
-import pkg/ipfs/bitswap/protocol
+import pkg/dagger/p2p/switch
+import pkg/dagger/bitswap/messages
+import pkg/dagger/bitswap/protocol
 
 suite "bitswap protocol":
 

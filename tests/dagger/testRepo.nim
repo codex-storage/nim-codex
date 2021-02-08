@@ -1,6 +1,6 @@
 import pkg/asynctest
 import pkg/chronos
-import pkg/ipfs/repo
+import pkg/dagger/repo
 
 suite "repo":
 

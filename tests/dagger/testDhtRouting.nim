@@ -1,6 +1,6 @@
 import std/unittest
-import pkg/ipfs/ipfsobject
-import pkg/ipfs/dht/routing
+import pkg/dagger/ipfsobject
+import pkg/dagger/dht/routing
 
 suite "DHT routing table":
 

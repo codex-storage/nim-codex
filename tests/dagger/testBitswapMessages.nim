@@ -1,7 +1,7 @@
 import std/unittest
 import pkg/libp2p
-import pkg/ipfs/protobuf/bitswap
-import pkg/ipfs/bitswap/messages
+import pkg/dagger/protobuf/bitswap
+import pkg/dagger/bitswap/messages
 import ../helpers/examples
 
 suite "bitswap messages":

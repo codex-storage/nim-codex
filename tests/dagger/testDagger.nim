@@ -1,18 +1,18 @@
 import std/os
 import pkg/asynctest
 import pkg/chronos
-import pkg/ipfs
+import pkg/dagger
 
 suite "integration":
 
   let address = MultiAddress.init("/ip4/127.0.0.1/tcp/48952").get()
 
-  var peer1, peer2: Ipfs
+  var peer1, peer2: Dagger
   var input, output: File
 
   proc setupPeers {.async.} =
-    peer1 = await Ipfs.start(address)
-    peer2 = await Ipfs.start()
+    peer1 = await Dagger.start(address)
+    peer2 = await Dagger.start()
     await peer2.connect(peer1.info)
 
   proc setupFiles =

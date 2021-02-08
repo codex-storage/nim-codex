@@ -1,6 +1,6 @@
 import std/unittest
 import std/os
-import pkg/ipfs/chunking
+import pkg/dagger/chunking
 
 suite "chunking":
 

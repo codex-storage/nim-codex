@@ -1,6 +1,6 @@
 import std/unittest
 import pkg/libp2p
-import pkg/ipfs/ipfsobject
+import pkg/dagger/ipfsobject
 
 suite "IPFS Object":
 

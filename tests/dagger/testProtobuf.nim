@@ -1,7 +1,7 @@
 import std/unittest
 import pkg/libp2p
 import pkg/protobuf_serialization
-import pkg/ipfs/protobuf/bitswap
+import pkg/dagger/protobuf/bitswap
 import ../helpers/examples
 
 suite "protobuf messages":

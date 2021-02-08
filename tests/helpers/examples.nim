@@ -1,7 +1,7 @@
 import std/sequtils
 import std/random
 import pkg/libp2p
-import pkg/ipfs/ipfsobject
+import pkg/dagger/ipfsobject
 
 proc example*(t: type seq[byte]): seq[byte] =
   newSeqWith(10, rand(byte))

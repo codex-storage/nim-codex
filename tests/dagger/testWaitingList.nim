@@ -1,6 +1,6 @@
 import pkg/asynctest
 import pkg/chronos
-import ipfs/repo/waitinglist
+import pkg/dagger/repo/waitinglist
 
 suite "waiting list":
 
