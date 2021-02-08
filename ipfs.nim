@@ -19,7 +19,7 @@ proc info*(ipfs: Ipfs): PeerInfo =
   ipfs.switch.peerInfo
 
 proc start*(_: type Ipfs, addresses: seq[MultiAddress]): Future[Ipfs] {.async.} =
-  let repo = Repo()
+  let repo = Repo.new()
   let switch = Switch.create()
   let bitswap = Bitswap.start(switch, repo)
   switch.peerInfo.addrs.add(addresses)

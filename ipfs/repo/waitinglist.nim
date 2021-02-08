@@ -1,7 +1,7 @@
 import std/tables
 import pkg/chronos
 
-type WaitingList*[T] = object
+type WaitingList*[T] = ref object
   futures: Table[T, seq[Future[void]]]
 
 proc wait*[T](list: var WaitingList, item: T, timeout: Duration): Future[void] =

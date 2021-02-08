@@ -14,6 +14,9 @@ type
     storage: Table[Cid, IpfsObject]
     waiting: WaitingList[Cid]
 
+proc new*(_: type Repo): Repo =
+  Repo(waiting: WaitingList[Cid]())
+
 proc hash(id: Cid): Hash =
   hash($id)
 

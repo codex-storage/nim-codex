@@ -21,7 +21,7 @@ proc startExchange(bitswap: Bitswap, stream: BitswapStream) =
   let exchange = Exchange.start(bitswap.repo, stream)
   bitswap.exchanges.add(exchange)
 
-proc start*(_: type Bitswap, switch: Switch, repo = Repo()): Bitswap =
+proc start*(_: type Bitswap, switch: Switch, repo = Repo.new()): Bitswap =
   let bitswap = Bitswap(repo: repo, switch: switch)
   let protocol = BitswapProtocol.new()
   proc acceptLoop {.async.} =

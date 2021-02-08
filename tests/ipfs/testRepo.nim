@@ -8,7 +8,7 @@ suite "repo":
   var repo: Repo
 
   setup:
-    repo = Repo()
+    repo = Repo.new()
 
   test "stores IPFS objects":
     repo.store(obj)
