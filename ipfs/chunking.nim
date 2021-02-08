@@ -7,4 +7,5 @@ proc createObject*(file: File): IpfsObject =
   IpfsObject(data: cast[seq[byte]](contents))
 
 proc writeToFile*(obj: IpfsObject, output: File) =
-  output.write(cast[string](obj.data))
+  if obj.data.len > 0:
+    discard output.writeBuffer(unsafeAddr obj.data[0], obj.data.len)
