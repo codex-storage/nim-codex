@@ -18,10 +18,10 @@ suite "chunking":
     removeFile("tests/input.txt")
     removeFile("tests/output.txt")
 
-  test "creates an IPFS object from a file":
-    check createObject(input) != IpfsObject.default
+  test "creates an object from a file":
+    check createObject(input) != Object.default
 
-  test "writes an IPFS object to a file":
+  test "writes an object to a file":
     let obj = createObject(input)
     writeToFile(obj, output)
 

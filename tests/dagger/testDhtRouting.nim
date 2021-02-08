@@ -1,5 +1,5 @@
 import std/unittest
-import pkg/dagger/ipfsobject
+import pkg/dagger/obj
 import pkg/dagger/dht/routing
 
 suite "DHT routing table":
@@ -7,7 +7,7 @@ suite "DHT routing table":
   test "finds peers closest to some content":
     let peer1 = PeerInfo(peerId: PeerId(data: @[1'u8]))
     let peer2 = PeerInfo(peerId: PeerId(data: @[2'u8]))
-    let contentId = IpfsObject(data: @[]).cid
+    let contentId = Object(data: @[]).cid
 
     var table = RoutingTable()
     table.add(peer1)

@@ -1,13 +1,13 @@
 import pkg/chronos
 import pkg/asynctest
-import pkg/dagger/ipfsobject
+import pkg/dagger/obj
 import pkg/dagger/p2p/switch
 import pkg/dagger/bitswap
 
 suite "bitswap":
 
   let address = MultiAddress.init("/ip4/127.0.0.1/tcp/40981").get()
-  let obj = IpfsObject(data: @[1'u8, 2'u8, 3'u8])
+  let obj = Object(data: @[1'u8, 2'u8, 3'u8])
 
   var bitswap1, bitswap2: Bitswap
   var peer1, peer2: Switch
@@ -25,7 +25,7 @@ suite "bitswap":
     await peer1.stop()
     await peer2.stop()
 
-  test "stores ipfs objects":
+  test "stores objects":
     bitswap1.store(obj)
 
   test "retrieves local objects":

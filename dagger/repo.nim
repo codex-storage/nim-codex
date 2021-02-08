@@ -3,21 +3,21 @@ import std/tables
 import std/hashes
 import pkg/chronos
 import pkg/libp2p
-import ./ipfsobject
+import ./obj
 import ./repo/waitinglist
 
 export options
-export ipfsobject
+export obj
 
 type
   Repo* = ref object
-    storage: Table[Cid, IpfsObject]
+    storage: Table[Cid, Object]
     waiting: WaitingList[Cid]
 
 proc hash(id: Cid): Hash =
   hash($id)
 
-proc store*(repo: Repo, obj: IpfsObject) =
+proc store*(repo: Repo, obj: Object) =
   let id = obj.cid
   repo.storage[id] = obj
   repo.waiting.deliver(id)
@@ -25,11 +25,11 @@ proc store*(repo: Repo, obj: IpfsObject) =
 proc contains*(repo: Repo, id: Cid): bool =
   repo.storage.hasKey(id)
 
-proc retrieve*(repo: Repo, id: Cid): Option[IpfsObject] =
+proc retrieve*(repo: Repo, id: Cid): Option[Object] =
   if repo.contains(id):
     repo.storage[id].some
   else:
-    IpfsObject.none
+    Object.none
 
 proc wait*(repo: Repo, id: Cid, timeout: Duration): Future[void] =
   var future: Future[void]

@@ -1,7 +1,7 @@
 import std/options
 import pkg/chronos
 import pkg/libp2p/cid
-import ./ipfsobject
+import ./obj
 import ./repo
 import ./p2p/switch
 import ./bitswap/protocol
@@ -36,12 +36,12 @@ proc connect*(bitswap: Bitswap, peer: PeerInfo) {.async.} =
   let stream = await bitswap.switch.dial(peer, BitswapProtocol)
   bitswap.startExchange(stream)
 
-proc store*(bitswap: Bitswap, obj: IpfsObject) =
+proc store*(bitswap: Bitswap, obj: Object) =
   bitswap.repo.store(obj)
 
 proc retrieve*(bitswap: Bitswap,
                cid: Cid,
-               timeout = 30.seconds): Future[Option[IpfsObject]] {.async.} =
+               timeout = 30.seconds): Future[Option[Object]] {.async.} =
   result = bitswap.repo.retrieve(cid)
   if result.isNone:
     for exchange in bitswap.exchanges:

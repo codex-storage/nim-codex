@@ -11,12 +11,12 @@ type Exchange* = object
 proc want*(exchange: Exchange, cid: Cid) {.async.} =
   await exchange.stream.write(Message.want(cid))
 
-proc send*(exchange: Exchange, obj: IpfsObject) {.async.} =
+proc send*(exchange: Exchange, obj: Object) {.async.} =
   await exchange.stream.write(Message.send(obj.data))
 
 proc handlePayload(exchange: Exchange, message: Message) {.async.} =
   for bloc in message.payload:
-    let obj = IpfsObject(data: bloc.data)
+    let obj = Object(data: bloc.data)
     exchange.repo.store(obj)
 
 proc handleWants(exchange: Exchange, message: Message) {.async.} =

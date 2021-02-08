@@ -1,10 +1,10 @@
-import ./ipfsobject
+import ./obj
 
-export ipfsobject
+export obj
 
-proc createObject*(file: File): IpfsObject =
+proc createObject*(file: File): Object =
   let contents = file.readAll()
-  IpfsObject(data: cast[seq[byte]](contents))
+  Object(data: cast[seq[byte]](contents))
 
-proc writeToFile*(obj: IpfsObject, output: File) =
+proc writeToFile*(obj: Object, output: File) =
   output.write(cast[string](obj.data))
