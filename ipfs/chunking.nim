@@ -1,10 +1,11 @@
+import pkg/stew/byteutils
 import ./ipfsobject
 
 export ipfsobject
 
 proc createObject*(file: File): IpfsObject =
   let contents = file.readAll()
-  IpfsObject(data: cast[seq[byte]](contents))
+  IpfsObject(data: contents.toBytes)
 
 proc writeToFile*(obj: IpfsObject, output: File) =
   if obj.data.len > 0:
