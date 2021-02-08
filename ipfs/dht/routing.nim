@@ -1,4 +1,8 @@
-import pkg/libp2p
+import pkg/libp2p/peerinfo
+import pkg/libp2p/cid
+
+export peerinfo
+export cid
 
 type
   RoutingTable* = object
