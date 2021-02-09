@@ -8,7 +8,6 @@
 ## those terms.
 
 import chronos
-import libp2p
 import ./blocktype
 
 export blocktype
@@ -18,14 +17,11 @@ type
 
   BlockProvider* = ref object of RootObj
 
-  BlockStore* = object of RootObj
+  BlockStore* = object of BlockProvider
     changeHandlers: seq[BlocksChangeHandler]
     providers: seq[BlockProvider]
 
 method getBlock*(b: BlockProvider, cid: Cid): Future[Block] {.base.} =
-  discard
-
-method hasBlock*(b: BlockProvider, cid: Cid): bool {.base.} =
   discard
 
 proc addBlockChageHandler*(s: var BlockStore, handler: BlocksChangeHandler) =
@@ -34,8 +30,14 @@ proc addBlockChageHandler*(s: var BlockStore, handler: BlocksChangeHandler) =
 proc removeBlockChageHandler*(s: var BlockStore, handler: BlocksChangeHandler) =
   discard
 
-proc getBlock*(s: BlockStore, cids: Cid | seq[Cid]): seq[Block] =
-  ## get a block/s from the blockstore
+proc putBlock*(s: var BlockStore, cids: Block | seq[Block]) =
+  ## Put a block to the blockstore
+  ##
+
+  discard
+
+method getBlock*(b: BlockStore, cid: Cid): Future[Block] =
+  ## Get a block from block providers
   ##
 
   discard
