@@ -13,20 +13,16 @@ import pkg/chronicles
 import pkg/chronos
 
 import pkg/libp2p
-import pkg/libp2p/switch
-import pkg/libp2p/stream/connection
-import pkg/libp2p/protocols/protocol
 
 import ../blocktype as bt
-import ./networkpeer
 import ./protobuf/bitswap as pb
+import ./networkpeer
 
 const Codec = "/ipfs/bitswap/1.2.0"
 
 type
   WantListHandler* = proc(peer: PeerID, wantList: WantList) {.gcsafe.}
   BlocksHandler* = proc(peer: PeerID, blocks: seq[byte]) {.gcsafe.}
-  PayloadHandler* = proc(peer: PeerID, payload: seq[pb.Block])
   BlockPresenceHandler* = proc(peer: PeerID, precense: seq[BlockPresence]) {.gcsafe.}
 
   BitswapNetwork* = ref object of LPProtocol
@@ -34,7 +30,6 @@ type
     switch: Switch
     onWantList*: WantListHandler
     onBlocks*: BlocksHandler
-    onPayload*: PayloadHandler
     onBlockPresence*: BlockPresenceHandler
 
 proc handleWantList(
@@ -46,10 +41,11 @@ proc handleWantList(
 proc sendWantList*(
   b: BitswapNetwork,
   id: PeerID,
-  cid: Cid,
+  cids: seq[Cid],
   priority: int32 = 0,
   cancel: bool = false,
   wantType: WantType = WantType.wantHave,
+  full: bool = false,
   sendDontHave: bool = false) {.async.} =
   ## send a want message to peer
   ##
@@ -57,14 +53,16 @@ proc sendWantList*(
   if id notin b.peers:
     return
 
-  let entry = Entry(
-    `block`: cid.data.buffer,
-    priority: priority,
-    cancel: cancel,
-    wantType: wantType,
-    sendDontHave: sendDontHave)
+  var entries: seq[Entry]
+  for cid in cids:
+    entries.add(Entry(
+      `block`: cid.data.buffer,
+      priority: priority,
+      cancel: cancel,
+      wantType: wantType,
+      sendDontHave: sendDontHave))
 
-  let wantList = WantList(entries: @[entry], full: true)
+  let wantList = WantList(entries: entries, full: full)
   await b.peers[id].send(Message(wantlist: wantList))
 
 proc handleBlocks(
@@ -179,13 +177,11 @@ proc new*(
   switch: Switch,
   onWantList: WantListHandler,
   onBlocks: BlocksHandler,
-  onPayload: PayloadHandler,
   onBlockPresence: BlockPresenceHandler): T =
   let b = BitswapNetwork(
     switch: switch,
     onWantList: onWantList,
     onBlocks: onBlocks,
-    onPayload: onPayload,
     onBlockPresence: onBlockPresence)
 
   b.init()
