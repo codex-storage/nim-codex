@@ -8,6 +8,7 @@
 ## those terms.
 
 import std/hashes
+import std/heapqueue
 import std/options
 import std/tables
 import std/sequtils
@@ -22,29 +23,37 @@ import ./protobuf/bitswap as pb
 import ../blocktype as bt
 import ../blockstore
 import ./network
+import ../utils/asyncheapqueue
 
 const
   DefaultTimeout = 500.milliseconds
+  DefaultTaskQueueSize = 100
 
 type
   BitswapPeerCtx* = ref object
     id: PeerID
-    sentWants: seq[Cid] # peers we've sent WANTs recently
-    peerHave: seq[Cid]  # remote peers have lists
-    peerWants: seq[Cid] # remote peers want lists
+    sentWants: seq[Cid]               # peers we've sent WANTs recently
+    peerHave: seq[Cid]                # remote peers have lists
+    # TODO: we don't need an async queue here,
+    # but it has a sync api that is much nicer than
+    # the std one
+    peerWants: AsyncHeapQueue[Entry]  # remote peers want lists
+    bytesSent: int                    # bytes sent to remote
+    bytesRecv: int                    # bytes received from remote
+    exchanged: int                    # times peer has exchanged with us
+    lastExchange: Moment              # last time peer has exchanged with us
 
   Bitswap* = ref object of BlockProvider
     store: BlockStore                           # where we store blocks for the entire app
     network: BitswapNetwork                     # our network interface to send/recv blocks
     peers: seq[BitswapPeerCtx]                  # peers we're currently activelly exchanging with
+    tasksQueue: AsyncHeapQueue[BitswapPeerCtx]  # peers we're currently processing tasks for
     wantList: seq[Cid]                          # local wants list
     pendingBlocks: Table[Cid, Future[bt.Block]] # pending bt.Block requests
+    # TODO: probably a good idea to have several
+    # tasks running in parallel
     bitswapTask: Future[void]                   # future to control bitswap task
     bitswapRunning: bool                        # indicates if the bitswap task is running
-
-# TODO: move to libp2p
-proc hash*(cid: Cid): Hash {.inline.} =
-  hash(cid.data.buffer)
 
 proc contains*(a: openarray[BitswapPeerCtx], b: PeerID): bool {.inline.} =
   ## Convenience method to check for peer precense
@@ -53,6 +62,9 @@ proc contains*(a: openarray[BitswapPeerCtx], b: PeerID): bool {.inline.} =
   a.filterIt( it.id == b ).len > 0
 
 proc cid(e: Entry): Cid {.inline.} =
+  ## Helper to conver raw bytes to Cid
+  ##
+
   Cid.init(e.`block`).get()
 
 proc contains*(a: openarray[Entry], b: Cid): bool {.inline.} =
@@ -60,6 +72,29 @@ proc contains*(a: openarray[Entry], b: Cid): bool {.inline.} =
   ##
 
   a.filterIt( it.cid == b ).len > 0
+
+proc `==`*(a: Entry, cid: Cid): bool {.inline.} =
+  return a.cid == cid
+
+proc contains[T](a: AsyncHeapQueue[T], b: Cid): bool {.inline.} =
+  ## Convenience method to check for entry precense
+  ##
+
+  a.filterIt( it.cid == b ).len > 0
+
+proc debtRatio(b: BitswapPeerCtx): float =
+  b.bytesSent / (b.bytesRecv + 1)
+
+proc `<`(a, b: BitswapPeerCtx): bool =
+  a.debtRatio < b.debtRatio
+
+proc `<`(a, b: Entry): bool =
+  a.priority < b.priority
+
+iterator items[T](h: HeapQueue[T]): T =
+  var i = 0
+  while i <= h.len:
+    yield h[i]
 
 proc getPeerCtx(b: Bitswap, peerId: PeerID): BitswapPeerCtx {.inline} =
   ## Get the peer's context
@@ -73,17 +108,41 @@ method getBlock*(b: Bitswap, cid: Cid): Future[bt.Block] =
   ## Get a block from a remote peer
   discard
 
-proc start(b: Bitswap) {.async.} =
+proc bitswapTaskRunner(b: Bitswap) {.async.} =
+  while b.bitswapRunning:
+    let peerCtx = await b.tasksQueue.pop()
+    var wants: seq[Entry]
+    for entry in peerCtx.peerWants:
+      discard
+
+proc start*(b: Bitswap) {.async.} =
   ## Start the bitswap task
   ##
 
-  discard
+  trace "bitswap start"
 
-proc stop(b: Bitswap) {.async.} =
+  if not b.bitswapTask.isNil:
+    warn "Starting bitswap twice"
+    return
+
+  b.bitswapRunning = true
+  b.bitswapTask = b.bitswapTaskRunner
+
+proc stop*(b: Bitswap) {.async.} =
   ## Stop the bitswap bitswap
   ##
 
-  discard
+  trace "bitswap stop"
+  if b.bitswapTask.isNil:
+    warn "Stopping bitswap without starting it"
+    return
+
+  b.bitswapRunning = false
+  if not b.bitswapTask.finished:
+    trace "awaiting last task"
+    await b.bitswapTask
+    trace "bitswap stopped"
+    b.bitswapTask = nil
 
 proc addBlockEvent(
   b: Bitswap,
@@ -122,7 +181,7 @@ proc requestBlocks(
   # add events for pending blocks
   var blocks = cids.mapIt( b.addBlockEvent(it) )
 
-  let blockPeer = b.peers[0] # TODO: this should be a heapqueu
+  let blockPeer = b.peers[0]
   # attempt to get the block from the best peer
   await b.network.sendWantList(
     blockPeer.id,
@@ -136,10 +195,16 @@ proc requestBlocks(
     await b.network.sendWantList(
       info.id, cids, wantType = WantType.wantHave)
 
+  var pending: seq[Future[void]]
+  var i = 1
+
+  # we don't particularly care about the
+  # order after we've sent the WANT BLOCK
+  while i <= b.peers.len:
+    pending.add(sendWants(b.peers[i]))
+
   # send a WANT message to all other peers
-  checkFutures(
-    await allFinished(b.peers[1..b.peers.high]
-    .map(sendWants)))
+  checkFutures(await allFinished(pending))
 
   let finished = await allFinished(blocks) # return pending blocks
   return finished.mapIt(
@@ -152,7 +217,7 @@ proc requestBlocks(
 proc blockPresenceHandler(
   b: Bitswap,
   peer: PeerID,
-  presence: seq[BlockPresence]) {.async.} =
+  presence: seq[BlockPresence]) =
   ## Handle block presence
   ##
 
@@ -169,7 +234,7 @@ proc blockPresenceHandler(
 proc blocksHandler(
   b: Bitswap,
   peer: PeerID,
-  blocks: seq[bt.Block]) {.async.} =
+  blocks: seq[bt.Block]) =
   ## handle incoming blocks
   ##
 
@@ -186,7 +251,7 @@ proc blocksHandler(
 proc wantListHandler(
   b: Bitswap,
   peer: PeerID,
-  entries: seq[pb.Entry]) {.async.} =
+  entries: seq[pb.Entry]) =
   ## Handle incoming want lists
   ##
 
@@ -195,21 +260,24 @@ proc wantListHandler(
   if not isNil(peerCtx):
     for e in entries:
       let ccid = e.cid
+      # peer doesn't want this block anymore
       if ccid in peerCtx.peerWants and e.cancel:
-        peerCtx.peerWants.keepItIf( it != ccid )
+        let i = peerCtx.peerWants.find(ccid)
+        if i > -1:
+          peerCtx.peerWants.del(i)
       elif ccid notin peerCtx.peerWants:
-        peerCtx.peerWants.add(ccid)
+        peerCtx.peerWants.pushNoWait(e)
         if e.sendDontHave and not(b.store.hasBlock(ccid)):
           dontHaves.add(ccid)
 
+  # send don't have's to remote
   if dontHaves.len > 0:
-    b.network
-    .sendBlockPresense(
+    b.network.sendBlockPresense(
       peer,
       dontHaves.mapIt(
         BlockPresence(
           cid: it.data.buffer,
-          type: BlockPresenceType.presenceDontHave)))
+          `type`: BlockPresenceType.presenceDontHave)))
 
 proc setupPeer(b: Bitswap, peer: PeerID) =
   ## Perform initial setup, such as want
@@ -218,7 +286,8 @@ proc setupPeer(b: Bitswap, peer: PeerID) =
 
   if peer notin b.peers:
     b.peers.add(BitswapPeerCtx(
-      id: peer
+      id: peer,
+      peerWants: newAsyncHeapQueue[Entry]()
     ))
 
   # broadcast our want list, the other peer will do the same
@@ -246,6 +315,7 @@ proc new*(T: type Bitswap, store: BlockStore, network: BitswapNetwork): T =
   let b = Bitswap(
     store: store,
     network: network,
+    taskQueue: newAsyncHeapQueue[BitswapPeerCtx](DefaultTaskQueueSize),
     pendingWants: pendingWants)
 
   proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
