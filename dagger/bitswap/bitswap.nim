@@ -199,7 +199,7 @@ proc wantListHandler(
         peerCtx.peerWants.keepItIf( it != ccid )
       elif ccid notin peerCtx.peerWants:
         peerCtx.peerWants.add(ccid)
-        if e.sendDontHave and not(b.store.has(ccid)):
+        if e.sendDontHave and not(b.store.hasBlock(ccid)):
           dontHaves.add(ccid)
 
   if dontHaves.len > 0:
