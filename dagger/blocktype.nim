@@ -15,7 +15,9 @@ import pkg/stew/byteutils
 export cid, multihash, multicodec
 
 type
-  Block* = object
+  CidDontMatchError* = object of CatchableError
+
+  Block* = object of RootObj
     cid*: Cid
     data*: seq[byte]
 
@@ -25,11 +27,29 @@ proc `$`*(b: Block): string =
 
 proc new*(
   T: type Block,
+  cid: Cid,
+  data: openarray[byte],
+  verify: bool = false): T =
+  let b = Block.new(
+    data,
+    cid.cidver,
+    cid.mhash.get().mcodec,
+    cid.mcodec
+  )
+
+  if verify and cid != b.cid:
+    raise newException(CidDontMatchError,
+      "The suplied Cid doesn't match the data!")
+
+  return b
+
+proc new*(
+  T: type Block,
   data: openarray[byte] = [],
   version = CIDv0,
-  hash = "sha2-256",
+  hcodec = multiCodec("sha2-256"),
   codec = multiCodec("dag-pb")): T =
-  let hash =  MultiHash.digest(hash, data).get()
+  let hash =  MultiHash.digest($hcodec, data).get()
   Block(
     cid: Cid.init(version, codec, hash).get(),
     data: @data)
