@@ -21,7 +21,7 @@ import pkg/libp2p/errors
 
 import ./protobuf/bitswap as pb
 import ../blocktype as bt
-import ../store/blockstore
+import ../stores/blockstore
 import ../utils/asyncheapqueue
 
 import ./network
@@ -39,7 +39,7 @@ type
     bitswapTask: Future[void]                   # future to control bitswap task
     bitswapRunning: bool                        # indicates if the bitswap task is running
 
-method getBlock*(b: Bitswap, cid: Cid | seq[Cid]): Future[seq[bt.Block]] =
+method getBlocks*(b: Bitswap, cid: seq[Cid]): Future[seq[bt.Block]] =
   ## Get a block from a remote peer
   ##
 
@@ -82,8 +82,32 @@ proc stop*(b: Bitswap) {.async.} =
     trace "bitswap stopped"
     b.bitswapTask = nil
 
+proc setupPeer*(b: Bitswap, peer: PeerID) =
+  ## Perform initial setup, such as want
+  ## list exchange
+  ##
+
+  b.engine.setupPeer(peer)
+
+proc dropPeer*(b: Bitswap, peer: PeerID) =
+  ## Cleanup disconnected peer
+  ##
+
+  b.engine.dropPeer(peer)
+
 proc new*(T: type Bitswap, store: BlockStore, network: BitswapNetwork): T =
-  Bitswap(
+  let b = Bitswap(
     engine: BitswapEngine.new(store, network),
     taskQueue: newAsyncHeapQueue[BitswapPeerCtx]()
   )
+
+  proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
+    if event.kind == PeerEventKind.Joined:
+      b.setupPeer(peerId)
+    else:
+      b.dropPeer(peerId)
+
+  network.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Joined)
+  network.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)
+
+  return b
