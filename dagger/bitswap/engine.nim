@@ -20,7 +20,7 @@ import ./protobuf/bitswap as pb
 import ./network
 
 import ../blocktype as bt
-import ../blockstore
+import ../stores/blockstore
 import ../utils/asyncheapqueue
 
 const
@@ -38,7 +38,7 @@ type
     lastExchange: Moment              # last time peer has exchanged with us
 
   BitswapEngine* = ref object of RootObj
-    store: BlockStore                           # where we store blocks for the entire app
+    store: BlockStore                           # where we store blocks for this instance
     network: BitswapNetwork                     # our network interface to send/recv blocks
     peers: seq[BitswapPeerCtx]                  # peers we're currently activelly exchanging with
     wantList: seq[Cid]                          # local wants list
@@ -179,16 +179,7 @@ proc blocksHandler*(
   blocks: seq[bt.Block]) =
   ## handle incoming blocks
   ##
-
-  for blk in blocks:
-    # resolve any pending blocks
-    if blk.cid in b.pendingBlocks:
-      let pending = b.pendingBlocks[blk.cid]
-      if not pending.finished:
-        pending.complete(blk)
-        b.pendingBlocks.del(blk.cid)
-
-    b.store.putBlock(blk)
+  b.store.putBlocks(blocks)
 
 proc wantListHandler*(
   b: BitswapEngine,
@@ -244,29 +235,22 @@ proc dropPeer*(b: BitswapEngine, peer: PeerID) =
 
 proc new*(T: type BitswapEngine, store: BlockStore, network: BitswapNetwork): T =
 
-  proc onBlocks(blocks: seq[bt.Block]) =
-    # TODO: a block might have been added to the store
-    # externally, for example by sharing a new file,
-    # in this case notify all listeners in `pendingBlocks`
-    # that we now have the block and sent `unwant` request
-    # to relevant peers
-    discard
-
-  store.addChangeHandler(onBlocks)
-  let pendingWants = initTable[Table[PeerID, Table[Cid, Future[void]]]]
   let b = BitswapEngine(
     store: store,
     network: network,
-    pendingWants: pendingWants)
+    pendingBlocks: initTable[Cid, Future[bt.Block]]())
 
-  proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
-    if event.kind == PeerEventKind.Joined:
-      b.setupPeer(peerId)
-    else:
-      b.dropPeer(peerId)
+  proc onBlocks(evt: BlockStoreChangeEvt) =
+    if evt.kind == ChangeType.Added:
+      for blk in evt.blocks:
+        # resolve any pending blocks
+        if blk.cid in b.pendingBlocks:
+          let pending = b.pendingBlocks[blk.cid]
+          if not pending.finished:
+            pending.complete(blk)
+            b.pendingBlocks.del(blk.cid)
 
-  network.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Joined)
-  network.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)
+  store.addChangeHandler(onBlocks, ChangeType.Added)
 
   proc blockPresenceHandler(
     peer: PeerID,
@@ -278,6 +262,6 @@ proc new*(T: type BitswapEngine, store: BlockStore, network: BitswapNetwork): T 
     blocks: seq[Block]) {.gcsafe.} =
     asyncCheck b.blockHandler(peer, blocks)
 
-  b.onBlockHandler = blockHandler
-  b.onBlockPresence = blockPresenceHandler
+  b.network.onBlockHandler = blockHandler
+  b.network.onBlockPresence = blockPresenceHandler
   return b
