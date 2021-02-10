@@ -10,6 +10,7 @@
 import pkg/libp2p/multihash
 import pkg/libp2p/multicodec
 import pkg/libp2p/cid
+import pkg/stew/byteutils
 
 export cid, multihash, multicodec
 
@@ -18,12 +19,17 @@ type
     cid*: Cid
     data*: seq[byte]
 
+proc `$`*(b: Block): string =
+  result &= "cid: " & $b.cid
+  result &= "\ndata: " & string.fromBytes(b.data)
+
 proc new*(
   T: type Block,
   data: openarray[byte] = [],
   version = CIDv0,
   hash = "sha2-256",
-  multicodec = "dag-pb"): T =
-  let codec = multiCodec("dag-pb")
-  let hash =  MultiHash.digest("sha2-256", data).get()
-  return Block(cid: Cid.init(version, multicodec, hash).get(), data: data)
+  codec = multiCodec("dag-pb")): T =
+  let hash =  MultiHash.digest(hash, data).get()
+  Block(
+    cid: Cid.init(version, codec, hash).get(),
+    data: @data)
