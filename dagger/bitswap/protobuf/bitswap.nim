@@ -32,6 +32,9 @@ proc contains*(a: openarray[Entry], b: Cid): bool {.inline.} =
 proc `==`*(a: Entry, cid: Cid): bool {.inline.} =
   return a.cid == cid
 
+proc `<`*(a, b: Entry): bool =
+  a.priority < b.priority
+
 proc cid*(e: BlockPresence): Cid {.inline.} =
   ## Helper to convert raw bytes to Cid
   ##
