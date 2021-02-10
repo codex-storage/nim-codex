@@ -137,7 +137,7 @@ proc broadcastBlocks*(
 
   asyncCheck b.peers[id].send(pb.Message(payload: makeBlocks(blocks)))
 
-proc handleBlockPresense(
+proc handleBlockPresence(
   b: BitswapNetwork,
   peer: NetworkPeer,
   presence: seq[BlockPresence]) =
@@ -150,7 +150,7 @@ proc handleBlockPresense(
   b.onBlockPresence(peer.id, presence)
 
 
-proc broadcastBlockPresense*(
+proc broadcastBlockPresence*(
   b: BitswapNetwork,
   id: PeerID,
   presence: seq[BlockPresence]) =
@@ -172,7 +172,7 @@ proc rpcHandler(b: BitswapNetwork, peer: NetworkPeer, msg: Message) {.async.} =
       b.handleBlocks(peer, msg.payload)
 
     if msg.blockPresences.len > 0:
-      b.handleBlockPresense(peer, msg.blockPresences)
+      b.handleBlockPresence(peer, msg.blockPresences)
 
   except CatchableError as exc:
     trace "Exception in bitswap rpc handler", exc = exc.msg
