@@ -28,7 +28,7 @@ proc `$`*(b: Block): string =
 proc new*(
   T: type Block,
   cid: Cid,
-  data: openarray[byte],
+  data: openarray[byte] = [],
   verify: bool = false): T =
   let b = Block.new(
     data,
