@@ -7,7 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/tables
 import std/sequtils
 import pkg/chronos
 import pkg/libp2p
@@ -47,17 +46,16 @@ method putBlocks*(s: MemoryStore, cids: seq[Block]) =
   s.blocks.add(cids)
   procCall BlockStore(s).putBlocks(cids)
 
-method delBlocks*(s: var MemoryStore, cids: seq[Cid]) =
+method delBlocks*(s: MemoryStore, cids: seq[Cid]) =
   ## delete a block/s from the block store
   ##
 
-  var res: seq[Block]
   for c in cids:
     s.blocks.keepItIf( it.cid != c )
 
   procCall BlockStore(s).delBlocks(cids)
 
-proc new*(T: type MemoryStore, blocks: seq[Block]): MemoryStore =
+proc new*(T: type MemoryStore, blocks: openarray[Block] = []): MemoryStore =
   MemoryStore(
-    blocks: blocks
+    blocks: @blocks
   )
