@@ -10,8 +10,7 @@
 import pkg/chronos
 import pkg/chronicles
 import pkg/protobuf_serialization
-import pkg/libp2p/stream/connection
-import pkg/libp2p/peerid
+import pkg/libp2p
 
 import ./protobuf/bitswap
 
@@ -19,17 +18,16 @@ const MaxMessageSize = 8 * 1024 * 1024
 
 type
   RPCHandler* = proc(peer: NetworkPeer, msg: Message): Future[void] {.gcsafe.}
-  GetConn* = proc(): Future[Connection]
 
   NetworkPeer* = ref object of RootObj
     id*: PeerId
     handler*: RPCHandler
     sendConn: Connection
-    getConn: GetConn
+    getConn: ConnProvider
 
 proc connected*(b: NetworkPeer): bool =
-  not b.sendConn.isNil and not
-    (b.sendConn.closed or b.sendConn.atEof)
+  not(isNil(b.sendConn)) and
+  not(b.sendConn.closed or b.sendConn.atEof)
 
 proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
   if isNil(conn):
@@ -54,13 +52,22 @@ proc connect*(b: NetworkPeer): Future[Connection] {.async.} =
   return b.sendConn
 
 proc send*(b: NetworkPeer, msg: Message) {.async.} =
-  await (await b.connect()).writeLp(Protobuf.encode(msg))
+  let conn = await b.connect()
+
+  if isNil(conn):
+    trace "unable to get send connection for peer message not sent", peer = b.peer
+    return
+
+  await conn.writeLp(Protobuf.encode(msg))
 
 proc new*(
   T: type NetworkPeer,
   peer: PeerId,
-  connProvider: GetConn,
+  connProvider: ConnProvider,
   rpcHandler: RPCHandler): T =
+
+  doAssert(not isNil(connProvider),
+    "should supply connection provider")
 
   NetworkPeer(
     id: peer,

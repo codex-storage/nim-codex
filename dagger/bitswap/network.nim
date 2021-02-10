@@ -8,6 +8,7 @@
 ## those terms.
 
 import std/tables
+import std/sequtils
 
 import pkg/chronicles
 import pkg/chronos
@@ -20,11 +21,11 @@ import ./networkpeer
 
 export pb, networkpeer
 
-const Codec = "/ipfs/bitswap/1.2.0"
+const Codec* = "/ipfs/bitswap/1.2.0"
 
 type
   WantListHandler* = proc(peer: PeerID, wantList: WantList) {.gcsafe.}
-  BlocksHandler* = proc(peer: PeerID, blocks: seq[byte]) {.gcsafe.}
+  BlocksHandler* = proc(peer: PeerID, blocks: seq[bt.Block]) {.gcsafe.}
   BlockPresenceHandler* = proc(peer: PeerID, precense: seq[BlockPresence]) {.gcsafe.}
 
   BitswapNetwork* = ref object of LPProtocol
@@ -33,14 +34,40 @@ type
     onWantList*: WantListHandler
     onBlocks*: BlocksHandler
     onBlockPresence*: BlockPresenceHandler
+    getConn: ConnProvider
 
 proc handleWantList(
   b: BitswapNetwork,
   peer: NetworkPeer,
   list: WantList) =
-  discard
+  ## Handle incoming want list
+  ##
 
-proc sendWantList*(
+  if isNil(b.onWantList):
+    return
+
+  b.onWantList(peer.id, list)
+
+# TODO: make into a template
+proc makeWantList*(
+  cids: seq[Cid],
+  priority: int = 0,
+  cancel: bool = false,
+  wantType: WantType = WantType.wantHave,
+  full: bool = false,
+  sendDontHave: bool = false): WantList =
+  var entries: seq[Entry]
+  for cid in cids:
+    entries.add(Entry(
+      `block`: cid.data.buffer,
+      priority: priority.int32,
+      cancel: cancel,
+      wantType: wantType,
+      sendDontHave: sendDontHave))
+
+  WantList(entries: entries, full: full)
+
+proc broadcastWantList*(
   b: BitswapNetwork,
   id: PeerID,
   cids: seq[Cid],
@@ -48,62 +75,92 @@ proc sendWantList*(
   cancel: bool = false,
   wantType: WantType = WantType.wantHave,
   full: bool = false,
-  sendDontHave: bool = false) {.async.} =
+  sendDontHave: bool = false) =
   ## send a want message to peer
   ##
 
   if id notin b.peers:
     return
 
-  var entries: seq[Entry]
-  for cid in cids:
-    entries.add(Entry(
-      `block`: cid.data.buffer,
-      priority: priority,
-      cancel: cancel,
-      wantType: wantType,
-      sendDontHave: sendDontHave))
-
-  let wantList = WantList(entries: entries, full: full)
-  await b.peers[id].send(Message(wantlist: wantList))
+  let wantList = makeWantList(
+    cids,
+    priority,
+    cancel,
+    wantType,
+    full,
+    sendDontHave)
+  asyncCheck b.peers[id].send(Message(wantlist: wantList))
 
 proc handleBlocks(
   b: BitswapNetwork,
   peer: NetworkPeer,
   blocks: seq[auto]) =
-  discard
+  ## Handle incoming blocks
+  ##
 
-proc sendBlocks*(
-  b: BitswapNetwork,
-  peer: PeerID,
-  blocks: seq[auto]) =
-  discard
+  if isNil(b.onBlocks):
+    return
 
-proc handlePayload(
-  b: BitswapNetwork,
-  peer: NetworkPeer,
-  payload: seq[pb.Block]) =
-  discard
+  var blks: seq[bt.Block]
+  for blk in blocks:
+    when blk is pb.Block:
+      blks.add(bt.Block.new(Cid.init(blk.prefix).get(), blk.data))
+    elif blk is seq[byte]:
+      blks.add(bt.Block.new(Cid.init(blk).get(), blk))
+    else:
+      error("Invalid block type")
 
-proc sendPayload*(
+  b.onBlocks(peer.id, blks)
+
+template makeBlocks*(
+  blocks: seq[bt.Block]):
+  seq[pb.Block] =
+  var blks: seq[pb.Block]
+  for blk in blocks:
+    # for now only send bitswap `1.1.0`
+    blks.add(pb.Block(
+      prefix: blk.cid.data.buffer,
+      data: blk.data
+    ))
+
+  blks
+
+proc broadcastBlocks*(
   b: BitswapNetwork,
-  peer: PeerID,
-  payload: seq[pb.Block]) =
-  discard
+  id: PeerID,
+  blocks: seq[bt.Block]) =
+  ## Send blocks to remote
+  ##
+
+  if id notin b.peers:
+    return
+
+  asyncCheck b.peers[id].send(pb.Message(payload: makeBlocks(blocks)))
 
 proc handleBlockPresense(
   b: BitswapNetwork,
   peer: NetworkPeer,
   presence: seq[BlockPresence]) =
-  discard
+  ## Handle block presence
+  ##
 
-proc sendBlockPresense*(
+  if isNil(b.onBlockPresence):
+    return
+
+  b.onBlockPresence(peer.id, presence)
+
+
+proc broadcastBlockPresense*(
   b: BitswapNetwork,
-  peer: PeerID,
+  id: PeerID,
   presence: seq[BlockPresence]) =
-  discard
+  ## Send presence to remote
+  ##
 
-proc rpcHandler*(b: BitswapNetwork, peer: NetworkPeer, msg: Message) {.async.} =
+  if id in b.peers:
+    asyncCheck b.peers[id].send(Message(blockPresences: presence))
+
+proc rpcHandler(b: BitswapNetwork, peer: NetworkPeer, msg: Message) {.async.} =
   try:
     if msg.wantlist.entries.len > 0:
       b.handleWantList(peer, msg.wantlist)
@@ -112,7 +169,7 @@ proc rpcHandler*(b: BitswapNetwork, peer: NetworkPeer, msg: Message) {.async.} =
       b.handleBlocks(peer, msg.blocks)
 
     if msg.payload.len > 0:
-      b.handlePayload(peer, msg.payload)
+      b.handleBlocks(peer, msg.payload)
 
     if msg.blockPresences.len > 0:
       b.handleBlockPresense(peer, msg.blockPresences)
@@ -127,10 +184,16 @@ proc getOrCreatePeer(b: BitswapNetwork, peer: PeerID): NetworkPeer =
   if peer in b.peers:
     return b.peers[peer]
 
-  proc getConn(): Future[Connection] =
-    b.switch.dial(peer, Codec)
+  var getConn = proc(): Future[Connection] {.async.} =
+    try:
+      return await b.switch.dial(peer, Codec)
+    except CatchableError as exc:
+      trace "unable to connect to bitswap peer", exc = exc.msg
 
-  proc rpcHandler(p: NetworkPeer, msg: Message): Future[void] =
+  if not isNil(b.getConn):
+    getConn = b.getConn
+
+  let rpcHandler = proc (p: NetworkPeer, msg: Message): Future[void] =
     b.rpcHandler(p, msg)
 
   # create new pubsub peer
@@ -138,6 +201,7 @@ proc getOrCreatePeer(b: BitswapNetwork, peer: PeerID): NetworkPeer =
   debug "created new bitswap peer", peer
 
   b.peers[peer] = bitSwapPeer
+
   return bitSwapPeer
 
 proc setupPeer*(b: BitswapNetwork, peer: PeerID) =
@@ -179,12 +243,17 @@ proc new*(
   switch: Switch,
   onWantList: WantListHandler = nil,
   onBlocks: BlocksHandler = nil,
-  onBlockPresence: BlockPresenceHandler = nil): T =
+  onBlockPresence: BlockPresenceHandler = nil,
+  connProvider: ConnProvider = nil): T =
+  ## Create a new BitswapNetwork instance
+  ##
+
   let b = BitswapNetwork(
     switch: switch,
     onWantList: onWantList,
     onBlocks: onBlocks,
-    onBlockPresence: onBlockPresence)
+    onBlockPresence: onBlockPresence,
+    getConn: connProvider)
 
   b.init()
 
