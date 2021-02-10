@@ -50,21 +50,6 @@ proc contains*(a: openarray[BitswapPeerCtx], b: PeerID): bool {.inline.} =
 
   a.filterIt( it.id == b ).len > 0
 
-proc cid(e: Entry): Cid {.inline.} =
-  ## Helper to conver raw bytes to Cid
-  ##
-
-  Cid.init(e.`block`).get()
-
-proc contains*(a: openarray[Entry], b: Cid): bool {.inline.} =
-  ## Convenience method to check for peer precense
-  ##
-
-  a.filterIt( it.cid == b ).len > 0
-
-proc `==`*(a: Entry, cid: Cid): bool {.inline.} =
-  return a.cid == cid
-
 proc contains[T](a: AsyncHeapQueue[T], b: Cid): bool {.inline.} =
   ## Convenience method to check for entry precense
   ##
@@ -168,10 +153,9 @@ proc blockPresenceHandler*(
     for blk in presence:
       let cid = Cid.init(blk.cid).get()
 
-      if not isNil(peerCtx):
-        if cid notin peerCtx.peerHave:
-          if blk.type == BlockPresenceType.presenceHave:
-            peerCtx.peerHave.add(cid)
+      if cid notin peerCtx.peerHave:
+        if blk.type == BlockPresenceType.presenceHave:
+          peerCtx.peerHave.add(cid)
 
 proc blocksHandler*(
   b: BitswapEngine,
@@ -179,6 +163,7 @@ proc blocksHandler*(
   blocks: seq[bt.Block]) =
   ## handle incoming blocks
   ##
+
   b.store.putBlocks(blocks)
 
 proc wantListHandler*(
