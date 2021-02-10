@@ -18,6 +18,8 @@ import ../blocktype as bt
 import ./protobuf/bitswap as pb
 import ./networkpeer
 
+export pb, networkpeer
+
 const Codec = "/ipfs/bitswap/1.2.0"
 
 type
@@ -138,14 +140,14 @@ proc getOrCreatePeer(b: BitswapNetwork, peer: PeerID): NetworkPeer =
   b.peers[peer] = bitSwapPeer
   return bitSwapPeer
 
-proc setupPeer(b: BitswapNetwork, peer: PeerID) =
+proc setupPeer*(b: BitswapNetwork, peer: PeerID) =
   ## Perform initial setup, such as want
   ## list exchange
   ##
 
   discard b.getOrCreatePeer(peer)
 
-proc dropPeer(b: BitswapNetwork, peer: PeerID) =
+proc dropPeer*(b: BitswapNetwork, peer: PeerID) =
   ## Cleanup disconnected peer
   ##
 
@@ -175,9 +177,9 @@ method init*(b: BitswapNetwork) =
 proc new*(
   T: type BitswapNetwork,
   switch: Switch,
-  onWantList: WantListHandler,
-  onBlocks: BlocksHandler,
-  onBlockPresence: BlockPresenceHandler): T =
+  onWantList: WantListHandler = nil,
+  onBlocks: BlocksHandler = nil,
+  onBlockPresence: BlockPresenceHandler = nil): T =
   let b = BitswapNetwork(
     switch: switch,
     onWantList: onWantList,
@@ -185,3 +187,5 @@ proc new*(
     onBlockPresence: onBlockPresence)
 
   b.init()
+
+  return b
