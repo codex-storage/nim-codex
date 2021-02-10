@@ -185,7 +185,7 @@ suite "Bitswap Network e2e tests":
 
     network2.onBlockPresence = presenceHandler
 
-    network1.broadcastBlockPresense(
+    network1.broadcastBlockPresence(
       switch2.peerInfo.peerId,
       blocks.mapIt(
         BlockPresence(
