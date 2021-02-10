@@ -29,7 +29,7 @@ type
     changeHandlers: array[ChangeType, seq[BlocksChangeHandler]]
     blockProviders: seq[BlockProvider]
 
-method getBlocks*(b: BlockProvider, cid: Cid | seq[Cid]): Future[seq[Block]] {.base.} =
+method getBlocks*(b: BlockProvider, cid: seq[Cid]): Future[seq[Block]] {.base.} =
   ## Get a block from the stores
   ##
 
@@ -65,13 +65,13 @@ method hasBlock*(s: BlockStore, cid: Cid): bool {.base.} =
 
   return false
 
-method putBlocks*(s: BlockStore, blocks: Block | seq[Block]) {.base.} =
+method putBlocks*(s: BlockStore, blocks: seq[Block]) {.base.} =
   ## Put a block to the blockstore
   ##
 
   s.triggerChange(ChangeType.Added, blocks.mapIt( it.cid ))
 
-method delBlocks*(s: BlockStore, blocks: Cid | seq[Cid]) {.base.} =
+method delBlocks*(s: BlockStore, blocks: seq[Cid]) {.base.} =
   ## delete a block/s from the block store
   ##
 
