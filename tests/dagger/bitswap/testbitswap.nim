@@ -67,8 +67,8 @@ suite "Bitswap engine":
     await allFuturesThrowing(awaiters)
 
   test "should exchange want lists on connect":
-    let peerCtx2 = bitswap1.engine.getPeerCtx(peerId2)
+    let peerCtx2 = bitswap1.getPeerCtx(peerId2)
     check not isNil(peerCtx2)
 
-    let peerCtx1 = bitswap2.engine.getPeerCtx(peerId1)
+    let peerCtx1 = bitswap2.getPeerCtx(peerId1)
     check not isNil(peerCtx1)
