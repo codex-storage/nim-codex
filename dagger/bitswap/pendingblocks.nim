@@ -34,8 +34,7 @@ proc addOrAwait*(
     return await blk
   except CancelledError as exc:
     trace "Block cancelled", exc = exc.msg
-    if not blk.finished:
-      blk.cancel()
+    raise exc
   except CatchableError as exc:
     trace "Pending WANT failed or expired", exc = exc.msg
   finally:
