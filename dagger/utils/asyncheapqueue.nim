@@ -55,13 +55,15 @@ proc heapCmp[T](x, y: T): bool {.inline.} =
   return (x < y)
 
 proc siftdown[T](heap: AsyncHeapQueue[T], startpos, p: int) =
-  ## 'heap' is a heap at all indices >= startpos, except possibly for pos.  pos
-  ## is the index of a leaf with a possibly out-of-order value.  Restore the
-  ## heap invariant.
+  ## 'heap' is a heap at all indices >= startpos, except
+  ## possibly for pos.  pos is the index of a leaf with a
+  ## possibly out-of-order value. Restore the heap invariant.
+  ##
+
   var pos = p
   var newitem = heap[pos]
-  # Follow the path to the root, moving parents down until finding a place
-  # newitem fits.
+  # Follow the path to the root, moving parents down until
+  # finding a place newitem fits.
   while pos > startpos:
     let parentpos = (pos - 1) shr 1
     let parent = heap[parentpos]
@@ -125,7 +127,7 @@ proc push*[T](heap: AsyncHeapQueue[T], item: T) {.async, gcsafe.} =
   ##
 
   while heap.full():
-    var putter = newFuture[void]("AsyncHeapQueue.addFirst")
+    var putter = newFuture[void]("AsyncHeapQueue.push")
     heap.putters.add(putter)
     try:
       await putter
@@ -181,6 +183,37 @@ proc del*[T](heap: AsyncHeapQueue[T], index: Natural) =
   heap.queue.setLen(newLen)
   if index < newLen:
     heap.siftup(index)
+
+proc delete*[T](heap: AsyncHeapQueue[T], item: T) =
+  ## Find and delete an `item` from the `heap`
+  ##
+
+  let index = heap.find(item)
+  if index > -1:
+    heap.del(index)
+
+proc update*[T](heap: AsyncHeapQueue[T], item: T): bool =
+  ## Update an entry in the heap by reshufling its
+  ## possition, maintaining the heap invariant.
+  ##
+
+  let index = heap.find(item)
+  if index > -1:
+    # replace item with new one in case it's a copy
+    heap.queue[index] = item
+    # re-establish heap order
+    # TODO: don't start at 0 to avoid reshuffling
+    # entire heap
+    heap.siftup(0)
+    return true
+
+proc pushOrUpdate*[T](heap: AsyncHeapQueue[T], item: T) {.async.} =
+  ## Update an entry in the heap by reshufling its
+  ## possition, maintaining the heap invariant.
+  ##
+
+  if not heap.update(item):
+    await heap.push(item)
 
 proc replace*[T](heap: AsyncHeapQueue[T], item: T): T =
   ## Pop and return the current smallest value, and add the new item.
