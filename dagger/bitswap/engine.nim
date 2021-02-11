@@ -18,6 +18,7 @@ import pkg/libp2p/errors
 
 import ./protobuf/bitswap as pb
 import ./network
+import ./pendingblocks
 
 import ../blocktype as bt
 import ../stores/blockstore
@@ -28,27 +29,20 @@ const
 
 type
   BitswapPeerCtx* = ref object of RootObj
-    id: PeerID
-    sentWants: seq[Cid]               # peers we've sent WANTs recently
-    peerHave: seq[Cid]                # remote peers have lists
-    peerWants: AsyncHeapQueue[Entry]  # remote peers want lists
-    bytesSent: int                    # bytes sent to remote
-    bytesRecv: int                    # bytes received from remote
-    exchanged: int                    # times peer has exchanged with us
-    lastExchange: Moment              # last time peer has exchanged with us
+    id*: PeerID
+    peerHave*: seq[Cid]                # remote peers have lists
+    peerWants*: AsyncHeapQueue[Entry]  # remote peers want lists
+    bytesSent*: int                    # bytes sent to remote
+    bytesRecv*: int                    # bytes received from remote
+    exchanged*: int                    # times peer has exchanged with us
+    lastExchange*: Moment              # last time peer has exchanged with us
 
   BitswapEngine* = ref object of RootObj
     store: BlockStore                           # where we store blocks for this instance
     network: BitswapNetwork                     # our network interface to send/recv blocks
     peers: seq[BitswapPeerCtx]                  # peers we're currently activelly exchanging with
     wantList: seq[Cid]                          # local wants list
-    pendingBlocks: Table[Cid, Future[bt.Block]] # pending bt.Block requests
-
-proc contains*(a: openarray[BitswapPeerCtx], b: PeerID): bool {.inline.} =
-  ## Convenience method to check for peer precense
-  ##
-
-  a.filterIt( it.id == b ).len > 0
+    pendingBlocks: PendingBlocksManager         # blocks we're awaiting to be resolved
 
 proc contains[T](a: AsyncHeapQueue[T], b: Cid): bool {.inline.} =
   ## Convenience method to check for entry precense
@@ -56,16 +50,19 @@ proc contains[T](a: AsyncHeapQueue[T], b: Cid): bool {.inline.} =
 
   a.filterIt( it.cid == b ).len > 0
 
+proc contains(a: openarray[BitswapPeerCtx], b: PeerID): bool {.inline.} =
+  ## Convenience method to check for peer precense
+  ##
+
+  a.filterIt( it.id == b ).len > 0
+
 proc debtRatio(b: BitswapPeerCtx): float =
   b.bytesSent / (b.bytesRecv + 1)
 
 proc `<`(a, b: BitswapPeerCtx): bool =
   a.debtRatio < b.debtRatio
 
-proc `<`(a, b: Entry): bool =
-  a.priority < b.priority
-
-proc getPeerCtx(b: BitswapEngine, peerId: PeerID): BitswapPeerCtx {.inline} =
+proc getPeerCtx*(b: BitswapEngine, peerId: PeerID): BitswapPeerCtx {.inline} =
   ## Get the peer's context
   ##
 
@@ -73,31 +70,10 @@ proc getPeerCtx(b: BitswapEngine, peerId: PeerID): BitswapPeerCtx {.inline} =
   if peer.len > 0:
     return peer[0]
 
-proc addBlockEvent(
-  b: BitswapEngine,
-  cid: Cid,
-  timeout = DefaultTimeout): Future[bt.Block] {.async.} =
-  ## Add an inflight block to wait list
-  ##
-
-  var pendingBlock: Future[bt.Block]
-  var pendingList = b.pendingBlocks
-
-  if cid in pendingList:
-    pendingBlock = pendingList[cid]
-  else:
-    pendingBlock = newFuture[bt.Block]().wait(timeout)
-    pendingList[cid] = pendingBlock
-
-  try:
-    return await pendingBlock
-  except CatchableError as exc:
-    trace "Pending WANT failed or expired", exc = exc.msg
-    pendingList.del(cid)
-
 proc requestBlocks*(
   b: BitswapEngine,
-  cids: seq[Cid]):
+  cids: seq[Cid],
+  timeout = DefaultTimeout):
   Future[seq[Option[bt.Block]]] {.async.} =
   ## Request a block from remotes
   ##
@@ -107,32 +83,39 @@ proc requestBlocks*(
     # TODO: run discovery here to get peers for the block
     return
 
-  # add events for pending blocks
-  var blocks = cids.mapIt( b.addBlockEvent(it) )
+  var blocks: seq[Future[bt.Block]] # this are blocks that we need right now
+  var wantCids: seq[Cid] # filter out Cids that we're already waiting on
+  for c in cids:
+    if c notin b.pendingBlocks:
+      wantCids.add(c)
+      blocks.add(
+        b.pendingBlocks.addOrAwait(c)
+        .wait(timeout))
+
+  # no Cids to request
+  if wantCids.len == 0:
+    return
 
   let peerCtx = b.peers[0]
-  # attempt to get the block from the a peer
-  await b.network.sendWantList(
+  # attempt to get the block from the
+  # peer with the least debt ratio
+  b.network.broadcastWantList(
     peerCtx.id,
-    cids,
-    wantType = WantType.wantBlock)
+    wantCids,
+    wantType = WantType.wantBlock) # we want this remote to send us a block
 
-  proc sendWants(info: BitswapPeerCtx) {.async.} =
-    # TODO: check `ctx.sentList` that we havent
-    # sent a WANT already and only send if we
-    # haven't
-    await b.network.sendWantList(
-      info.id, cids, wantType = WantType.wantHave)
+  proc sendWants(ctx: BitswapPeerCtx) =
+    b.network.broadcastWantList(
+      ctx.id,
+      wantCids.filterIt( it notin ctx.peerHave ), # filter out those that we already know about
+      wantType = WantType.wantHave) # we only want to know if the peer has the block
 
-  var pending: seq[Future[void]]
-
-  var i = 1
-  while i <= b.peers.len:
-    pending.add(sendWants(b.peers[i]))
+  # send a want-have to all other peers,
+  # ie starting from 1
+  for i in 1..<b.peers.len:
+    sendWants(b.peers[i])
 
   # send a WANT message to all other peers
-  checkFutures(await allFinished(pending))
-
   let resolvedBlocks = await allFinished(blocks) # return pending blocks
   return resolvedBlocks.mapIt(
     if it.finished and not it.failed:
@@ -149,13 +132,14 @@ proc blockPresenceHandler*(
   ##
 
   let peerCtx = b.getPeerCtx(peer)
-  if not isNil(peerCtx):
-    for blk in presence:
-      let cid = Cid.init(blk.cid).get()
+  if isNil(peerCtx):
+    return
 
-      if cid notin peerCtx.peerHave:
-        if blk.type == BlockPresenceType.presenceHave:
-          peerCtx.peerHave.add(cid)
+  for blk in presence:
+    let cid = Cid.init(blk.cid).get()
+    if cid notin peerCtx.peerHave:
+      if blk.type == BlockPresenceType.presenceHave:
+        peerCtx.peerHave.add(cid)
 
 proc blocksHandler*(
   b: BitswapEngine,
@@ -165,32 +149,35 @@ proc blocksHandler*(
   ##
 
   b.store.putBlocks(blocks)
+  b.pendingBlocks.resolvePending(blocks)
 
 proc wantListHandler*(
   b: BitswapEngine,
   peer: PeerID,
-  entries: seq[pb.Entry]) =
+  wantList: WantList) =
   ## Handle incoming want lists
   ##
 
   let peerCtx = b.getPeerCtx(peer)
+  if isNil(peerCtx):
+    return
+
   var dontHaves: seq[Cid]
-  if not isNil(peerCtx):
-    for e in entries:
-      let ccid = e.cid
-      # peer doesn't want this block anymore
-      if ccid in peerCtx.peerWants and e.cancel:
-        let i = peerCtx.peerWants.find(ccid)
-        if i > -1:
-          peerCtx.peerWants.del(i)
-      elif ccid notin peerCtx.peerWants:
-        peerCtx.peerWants.pushNoWait(e)
-        if e.sendDontHave and not(b.store.hasBlock(ccid)):
-          dontHaves.add(ccid)
+  let entries = wantList.entries
+  for e in entries:
+    # peer doesn't want this block anymore
+    if e.cid in peerCtx.peerWants and e.cancel:
+      let i = peerCtx.peerWants.find(e.cid)
+      if i > -1:
+        peerCtx.peerWants.del(i)
+    elif e.cid notin peerCtx.peerWants:
+      peerCtx.peerWants.pushNoWait(e)
+      if e.sendDontHave and not(b.store.hasBlock(e.cid)):
+        dontHaves.add(e.cid)
 
   # send don't have's to remote
   if dontHaves.len > 0:
-    b.network.sendBlockPresense(
+    b.network.broadcastBlockPresence(
       peer,
       dontHaves.mapIt(
         BlockPresence(
@@ -209,7 +196,7 @@ proc setupPeer*(b: BitswapEngine, peer: PeerID) =
     ))
 
   # broadcast our want list, the other peer will do the same
-  asyncCheck b.network.sendWantList(peer, b.wantList, full = true)
+  b.network.broadcastWantList(peer, b.wantList, full = true)
 
 proc dropPeer*(b: BitswapEngine, peer: PeerID) =
   ## Cleanup disconnected peer
@@ -223,30 +210,35 @@ proc new*(T: type BitswapEngine, store: BlockStore, network: BitswapNetwork): T 
   let b = BitswapEngine(
     store: store,
     network: network,
-    pendingBlocks: initTable[Cid, Future[bt.Block]]())
+    pendingBlocks: PendingBlocksManager.new())
 
   proc onBlocks(evt: BlockStoreChangeEvt) =
-    if evt.kind == ChangeType.Added:
-      for blk in evt.blocks:
-        # resolve any pending blocks
-        if blk.cid in b.pendingBlocks:
-          let pending = b.pendingBlocks[blk.cid]
-          if not pending.finished:
-            pending.complete(blk)
-            b.pendingBlocks.del(blk.cid)
+    doAssert(evt.kind == ChangeType.Added,
+      "change handler called for invalid event type")
+    # TODO: need to retrieve blocks from store but need
+    # to be careful not to endup calling ourself in a
+    # loop - this should not happen, but want to add
+    # more check before adding this logic.
 
   store.addChangeHandler(onBlocks, ChangeType.Added)
+
+  proc blockWantListHandler(
+    peer: PeerID,
+    wantList: WantList) {.gcsafe.} =
+    b.wantListHandler(peer, wantList)
 
   proc blockPresenceHandler(
     peer: PeerID,
     presence: seq[BlockPresence]) {.gcsafe.} =
-    asyncCheck b.blockPresenceHandler(peer, presence)
+    b.blockPresenceHandler(peer, presence)
 
-  proc blockHandler(
+  proc blocksHandler(
     peer: PeerID,
-    blocks: seq[Block]) {.gcsafe.} =
-    asyncCheck b.blockHandler(peer, blocks)
+    blocks: seq[bt.Block]) {.gcsafe.} =
+    b.blocksHandler(peer, blocks)
 
-  b.network.onBlockHandler = blockHandler
+  b.network.onWantList = blockWantListHandler
+  b.network.onBlocks = blocksHandler
   b.network.onBlockPresence = blockPresenceHandler
+
   return b

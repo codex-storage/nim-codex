@@ -27,23 +27,30 @@ import ../utils/asyncheapqueue
 import ./network
 import ./engine
 
+export engine, network, blockstore
+
 const
   DefaultTaskQueueSize = 100
 
 type
-  Bitswap* = ref object of BlockProvider
-    engine: BitswapEngine                       # bitswap decision engine
-    tasksQueue: AsyncHeapQueue[BitswapPeerCtx]  # peers we're currently processing tasks for
+  Bitswap* = ref object of BlockStore
+    engine*: BitswapEngine                      # bitswap decision engine
+    taskQueue: AsyncHeapQueue[BitswapPeerCtx]   # peers we're currently processing tasks for
     # TODO: probably a good idea to have several
     # tasks running in parallel
     bitswapTask: Future[void]                   # future to control bitswap task
     bitswapRunning: bool                        # indicates if the bitswap task is running
 
-method getBlocks*(b: Bitswap, cid: seq[Cid]): Future[seq[bt.Block]] =
+method getBlocks*(b: Bitswap, cid: seq[Cid]): Future[seq[bt.Block]] {.async.} =
   ## Get a block from a remote peer
   ##
 
-  b.engine.requestBlocks(cid)
+  let blocks = await b.engine.requestBlocks(cid)
+  return blocks.filterIt(
+    it.isSome
+  ).mapIt(
+    it.get
+  )
 
 proc bitswapTaskRunner(b: Bitswap) {.async.} =
   discard
