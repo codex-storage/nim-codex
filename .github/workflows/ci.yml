@@ -192,12 +192,6 @@ jobs:
         with:
           go-version: '^1.15.5'
 
-      - name: Install p2pd
-        shell: bash
-        run: |
-          cd nim-dagger
-          V=1 bash scripts/build_p2pd.sh p2pdCache v0.3.0
-
       - name: Run nim-dagger tests
         shell: bash
         run: |
