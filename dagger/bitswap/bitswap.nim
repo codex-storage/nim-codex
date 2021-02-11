@@ -153,7 +153,7 @@ proc requestBlocks*(
     wantCids,
     wantType = WantType.wantBlock) # we want this remote to send us a block
 
-  proc sendWants(ctx: BitswapPeerCtx) =
+  template sendWants(ctx: BitswapPeerCtx) =
     b.network.broadcastWantList(
       ctx.id,
       wantCids.filterIt( it notin ctx.peerHave ), # filter out those that we already know about
