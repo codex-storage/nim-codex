@@ -1,20 +1,23 @@
 import pkg/chronos
 import pkg/asynctest
+import pkg/stew/results
+
 import pkg/dagger/utils/asyncheapqueue
 import pkg/dagger/p2p/rng
 
 proc toSortedSeq[T](h: AsyncHeapQueue[T]): seq[T] =
   var tmp = newAsyncHeapQueue[T]()
-  for d in h: tmp.pushNoWait(d)
+  for d in h:
+    check tmp.pushNoWait(d).isOk
   while tmp.len > 0:
-    result.add(popNoWait(tmp))
+    result.add(popNoWait(tmp).get())
 
 suite "synchronous tests":
   test "test pushNoWait":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
     for item in data:
-      heap.pushNoWait(item)
+      check heap.pushNoWait(item).isOk
 
     check heap[0] == 0
     check heap.toSortedSeq == @[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -23,18 +26,21 @@ suite "synchronous tests":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
     for item in data:
-      heap.pushNoWait(item)
+      check heap.pushNoWait(item).isOk
 
     var res: seq[int]
     while heap.len > 0:
-      res.add(heap.popNoWait())
+      let r = heap.popNoWait()
+      if r.isOk:
+        res.add(r.get)
 
     check res == @[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
   test "test del": # Test del
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
-    for item in data: heap.pushNoWait(item)
+    for item in data:
+      check heap.pushNoWait(item).isOk
 
     heap.del(0)
     doAssert(heap[0] == 1)
@@ -54,7 +60,8 @@ suite "synchronous tests":
   test "del last": # Test del last
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 2, 3]
-    for item in data: heap.pushNoWait(item)
+    for item in data:
+      check heap.pushNoWait(item).isOk
 
     heap.del(2)
     check heap.toSortedSeq == @[1, 2]
@@ -67,19 +74,22 @@ suite "synchronous tests":
 
   test "should throw popping from an empty queue":
     var heap = newAsyncHeapQueue[int]()
-    expect AsyncHeapQueueEmptyError:
-      discard heap.popNoWait()
+    let err = heap.popNoWait()
+    check err.isErr
+    check err.error == AsyncHQErrors.Empty
 
-  test "should throw pushing to an empty queue":
+  test "should throw pushing to an full queue":
     var heap = newAsyncHeapQueue[int](1)
-    heap.pushNoWait(1)
-    expect AsyncHeapQueueFullError:
-      heap.pushNoWait(2)
+    check heap.pushNoWait(1).isOk
+    let err = heap.pushNoWait(2)
+    check err.isErr
+    check err.error == AsyncHQErrors.Full
 
   test "test clear":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
-    for item in data: heap.pushNoWait(item)
+    for item in data:
+      check heap.pushNoWait(item).isOk
 
     check heap.len == 10
     heap.clear()
@@ -131,7 +141,7 @@ suite "asynchronous tests":
     var heap = newAsyncHeapQueue[Task](5)
 
     for item in [("a", 4), ("b", 3), ("c", 2)]:
-      heap.pushNoWait(item)
+      check heap.pushNoWait(item).isOk
 
     check heap[0] == (name: "c", priority: 2)
     check heap.update((name: "a", priority: 1))
@@ -141,7 +151,7 @@ suite "asynchronous tests":
     var heap = newAsyncHeapQueue[Task](3)
 
     for item in [("a", 4), ("b", 3), ("c", 2)]:
-      heap.pushNoWait(item)
+      check heap.pushNoWait(item).isOk
 
     check heap[0] == (name: "c", priority: 2)
     await heap.pushOrUpdate((name: "a", priority: 1))
@@ -151,12 +161,12 @@ suite "asynchronous tests":
     var heap = newAsyncHeapQueue[Task](2)
 
     for item in [("a", 4), ("b", 3)]:
-      heap.pushNoWait(item)
+      check heap.pushNoWait(item).isOk
 
     check heap[0] == ("b", 3)             # sanity check for order
 
     let fut = heap.pushOrUpdate(("c", 2)) # attempt to push a non existen item but block
-    check heap.popNoWait() == ("b", 3)    # pop one off
+    check heap.popNoWait().get() == ("b", 3)    # pop one off
     await fut                             # wait for push to complete
 
     check heap[0] == (name: "c", priority: 2) # check order again
@@ -165,7 +175,7 @@ suite "asynchronous tests":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
     for item in data:
-      heap.pushNoWait(item)
+      check heap.pushNoWait(item).isOk
 
     var res: seq[int]
     while heap.len > 0:
@@ -178,10 +188,10 @@ suite "asynchronous tests":
     let data = ["d", "b", "c", "a", "h", "e", "f", "g"]
 
     for item in data:
-      heap.pushNoWait((
+      check heap.pushNoWait((
         name: item,
         priority: Rng.instance().rand(data.len)
-      ))
+      )).isOk
 
     let del = heap[3]
     heap.delete(del)

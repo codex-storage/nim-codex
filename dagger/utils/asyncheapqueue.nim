@@ -9,13 +9,11 @@
 
 import std/sequtils
 import pkg/chronos
+import pkg/stew/results
 
 # Based on chronos AsyncHeapQueue and std/heapqueue
 
 type
-  AsyncHeapQueueFullError* = CatchableError
-  AsyncHeapQueueEmptyError* = CatchableError
-
   AsyncHeapQueue*[T] = ref object of RootRef
     ## A priority queue
     ##
@@ -27,6 +25,9 @@ type
     putters: seq[Future[void]]
     queue: seq[T]
     maxsize: int
+
+  AsyncHQErrors* {.pure.} = enum
+    Empty, Full
 
 proc newAsyncHeapQueue*[T](maxsize: int = 0): AsyncHeapQueue[T] =
   ## Creates a new asynchronous queue ``AsyncHeapQueue``.
@@ -109,17 +110,18 @@ proc empty*[T](heap: AsyncHeapQueue[T]): bool {.inline.} =
   ## Return ``true`` if the queue is empty, ``false`` otherwise.
   (len(heap.queue) == 0)
 
-proc pushNoWait*[T](heap: AsyncHeapQueue[T], item: T) =
+proc pushNoWait*[T](heap: AsyncHeapQueue[T], item: T): Result[void, AsyncHQErrors] =
   ## Push `item` onto heap, maintaining the heap invariant.
   ##
 
   if heap.full():
-    raise newException(AsyncHeapQueueFullError,
-      "AsyncHeapQueue is full!")
+    return err(AsyncHQErrors.Full)
 
   heap.queue.add(item)
   siftdown(heap, 0, len(heap)-1)
   heap.getters.wakeupNext()
+
+  return ok()
 
 proc push*[T](heap: AsyncHeapQueue[T], item: T) {.async, gcsafe.} =
   ## Push item into the queue, awaiting for an available slot
@@ -135,24 +137,24 @@ proc push*[T](heap: AsyncHeapQueue[T], item: T) {.async, gcsafe.} =
       if not(heap.full()) and not(putter.cancelled()):
         heap.putters.wakeupNext()
       raise exc
-  heap.pushNoWait(item)
 
-proc popNoWait*[T](heap: AsyncHeapQueue[T]): T =
+  heap.pushNoWait(item).tryGet()
+
+proc popNoWait*[T](heap: AsyncHeapQueue[T]): Result[T, AsyncHQErrors] =
   ## Pop and return the smallest item from `heap`,
   ## maintaining the heap invariant.
   ##
 
   if heap.empty():
-    raise newException(AsyncHeapQueueEmptyError,
-      "AsyncHeapQueue is empty!")
+    return err(AsyncHQErrors.Empty)
 
   let lastelt = heap.queue.pop()
   if heap.len > 0:
-    result = heap[0]
+    result = ok(heap[0])
     heap.queue[0] = lastelt
     siftup(heap, 0)
   else:
-    result = lastelt
+    result = ok(lastelt)
 
   heap.putters.wakeupNext()
 
@@ -168,7 +170,8 @@ proc pop*[T](heap: AsyncHeapQueue[T]): Future[T] {.async.} =
       if not(heap.empty()) and not(getter.cancelled()):
         heap.getters.wakeupNext()
       raise exc
-  return heap.popNoWait()
+
+  return heap.popNoWait().tryGet()
 
 proc del*[T](heap: AsyncHeapQueue[T], index: Natural) =
   ## Removes the element at `index` from `heap`,
@@ -183,6 +186,8 @@ proc del*[T](heap: AsyncHeapQueue[T], index: Natural) =
   heap.queue.setLen(newLen)
   if index < newLen:
     heap.siftup(index)
+
+  heap.putters.wakeupNext()
 
 proc delete*[T](heap: AsyncHeapQueue[T], item: T) =
   ## Find and delete an `item` from the `heap`
@@ -207,15 +212,24 @@ proc update*[T](heap: AsyncHeapQueue[T], item: T): bool =
     heap.siftup(0)
     return true
 
+proc pushOrUpdateNoWait*[T](heap: AsyncHeapQueue[T], item: T): Result[void, AsyncHQErrors] =
+  ## Update an item if it exists or push a new one
+  ##
+
+  if heap.update(item):
+    return ok
+
+  return heap.pushNoWait(item)
+
 proc pushOrUpdate*[T](heap: AsyncHeapQueue[T], item: T) {.async.} =
-  ## Update an entry in the heap by reshufling its
-  ## possition, maintaining the heap invariant.
+  ## Update an item if it exists or push a new one
+  ## awaiting until a slot becomes available
   ##
 
   if not heap.update(item):
     await heap.push(item)
 
-proc replace*[T](heap: AsyncHeapQueue[T], item: T): T =
+proc replace*[T](heap: AsyncHeapQueue[T], item: T): Result[T, AsyncHQErrors] =
   ## Pop and return the current smallest value, and add the new item.
   ## This is more efficient than pop() followed by push(), and can be
   ## more appropriate when using a fixed-size heap. Note that the value
@@ -228,20 +242,18 @@ proc replace*[T](heap: AsyncHeapQueue[T], item: T): T =
   ##
 
   if heap.empty():
-    raise newException(AsyncHeapQueueEmptyError,
-      "AsyncHeapQueue is empty!")
+    error(AsyncHQErrors.Empty)
 
   result = heap[0]
   heap.queue[0] = item
   siftup(heap, 0)
 
-proc pushPopNoWait*[T](heap: AsyncHeapQueue[T], item: T): T =
+proc pushPopNoWait*[T](heap: AsyncHeapQueue[T], item: T): Result[T, AsyncHQErrors] =
   ## Fast version of a push followed by a pop.
   ##
 
   if heap.empty():
-    raise newException(AsyncHeapQueueEmptyError,
-      "AsyncHeapQueue is empty!")
+    err(AsyncHQErrors.Empty)
 
   if heap.len > 0 and heapCmp(heap[0], item):
     swap(item, heap[0])
