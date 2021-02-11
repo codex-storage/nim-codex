@@ -45,10 +45,10 @@ proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
 
 proc connect*(b: NetworkPeer): Future[Connection] {.async.} =
   if b.connected:
-    return
+    return b.sendConn
 
   b.sendConn = await b.getConn()
-  asyncCheck b.readLoop(b.sendConn)
+  asyncSpawn b.readLoop(b.sendConn)
   return b.sendConn
 
 proc send*(b: NetworkPeer, msg: Message) {.async.} =

@@ -89,7 +89,7 @@ proc broadcastWantList*(
     wantType,
     full,
     sendDontHave)
-  asyncCheck b.peers[id].send(Message(wantlist: wantList))
+  asyncSpawn b.peers[id].send(Message(wantlist: wantList))
 
 proc handleBlocks(
   b: BitswapNetwork,
@@ -135,7 +135,7 @@ proc broadcastBlocks*(
   if id notin b.peers:
     return
 
-  asyncCheck b.peers[id].send(pb.Message(payload: makeBlocks(blocks)))
+  asyncSpawn b.peers[id].send(pb.Message(payload: makeBlocks(blocks)))
 
 proc handleBlockPresence(
   b: BitswapNetwork,
@@ -149,7 +149,6 @@ proc handleBlockPresence(
 
   b.onBlockPresence(peer.id, presence)
 
-
 proc broadcastBlockPresence*(
   b: BitswapNetwork,
   id: PeerID,
@@ -158,7 +157,7 @@ proc broadcastBlockPresence*(
   ##
 
   if id in b.peers:
-    asyncCheck b.peers[id].send(Message(blockPresences: presence))
+    asyncSpawn b.peers[id].send(Message(blockPresences: presence))
 
 proc rpcHandler(b: BitswapNetwork, peer: NetworkPeer, msg: Message) {.async.} =
   try:
