@@ -164,34 +164,6 @@ jobs:
           rm -rf dist
           rm -rf .git
 
-      # - name: Install library dependencies (Linux amd64)
-      #   if: runner.os == 'Linux' && matrix.target.cpu == 'amd64'
-      #   run: |
-      #     sudo DEBIAN_FRONTEND='noninteractive' apt-fast install \
-      #       --no-install-recommends -yq libgmp-dev
-      #
-      # - name: Install library dependencies (Linux i386)
-      #   if: runner.os == 'Linux' && matrix.target.cpu == 'i386'
-      #   run: |
-      #     sudo DEBIAN_FRONTEND='noninteractive' apt-fast install \
-      #       libgmp-dev:i386
-      #
-      # - name: Install library dependencies (macOS)
-      #   if: runner.os == 'macOS'
-      #   run: brew install gmp
-      #
-      # - name: Install library dependencies (Windows)
-      #   if: runner.os == 'Windows'
-      #   shell: bash
-      #   run: |
-      #       choco install msys2
-      #       pacman -S mingw-w64-x86_64-gmp
-
-      - name: Setup Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: '^1.15.5'
-
       - name: Run nim-dagger tests
         shell: bash
         run: |
