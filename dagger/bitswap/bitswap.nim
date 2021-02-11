@@ -32,6 +32,7 @@ export network, blockstore
 const
   DefaultTimeout = 500.milliseconds
   DefaultTaskQueueSize = 100
+  DefaultConcurrentTasks = 10
 
 type
   BitswapPeerCtx* = ref object of RootObj
@@ -44,7 +45,7 @@ type
     lastExchange*: Moment              # last time peer has exchanged with us
 
   Bitswap* = ref object of BlockStore
-    store: BlockStore                           # where we store blocks for this instance
+    storeManager: BlockStore                    # where we storeManager blocks for this instance
     network: BitswapNetwork                     # our network interface to send/recv blocks
     peers: seq[BitswapPeerCtx]                  # peers we're currently activelly exchanging with
     wantList: seq[Cid]                          # local wants list
@@ -53,8 +54,9 @@ type
 
     # TODO: probably a good idea to have several
     # tasks running in parallel
-    bitswapTask: Future[void]                   # future to control bitswap task
+    bitswapTasks: seq[Future[void]]             # future to control bitswap task
     bitswapRunning: bool                        # indicates if the bitswap task is running
+    concurrentTasks: int                        # number of concurrent peers we're serving at any given time
 
 proc contains*(a: AsyncHeapQueue[Entry], b: Cid): bool =
   ## Convenience method to check for entry precense
@@ -83,12 +85,45 @@ proc getPeerCtx*(b: Bitswap, peerId: PeerID): BitswapPeerCtx =
     return peer[0]
 
 proc bitswapTaskRunner(b: Bitswap) {.async.} =
-  discard
-  # while b.bitswapRunning:
-  #   let peerCtx = await b.tasksQueue.pop()
-  #   var wants: seq[Entry]
-  #   for entry in peerCtx.peerWants:
-  #     discard
+  ## process tasks in order of least amount of
+  ## debt ratio
+  ##
+
+  while b.bitswapRunning:
+    let peerCtx = await b.taskQueue.pop()
+    var wantsBlocks, wantsWants: seq[Entry]
+    # get blocks and wants to send to the remote
+    while peerCtx.peerWants.len > 0:
+      let e = await peerCtx.peerWants.pop()
+      if e.wantType == WantType.wantBlock:
+        wantsBlocks.add(e)
+      else:
+        wantsWants.add(e)
+
+    # TODO: There should be all sorts of accounting of
+    # bytes sent/received here
+    if wantsWants.len > 0:
+      let blocks = await b.storeManager.getBlocks(
+        wantsBlocks.mapIt(
+          it.cid
+      ))
+
+      b.network.broadcastBlocks(peerCtx.id, blocks)
+
+    if wantsWants.len > 0:
+      let haves = wantsWants.filterIt(
+        b.storeManager.hasBlock(it.cid)
+      ).mapIt(
+        it.cid
+      )
+
+      b.network.broadcastBlockPresence(
+        peerCtx.id, haves.mapIt(
+          BlockPresence(
+            cid: it.data.buffer,
+            `type`: BlockPresenceType.presenceHave
+          )
+      ))
 
 proc start*(b: Bitswap) {.async.} =
   ## Start the bitswap task
@@ -96,28 +131,31 @@ proc start*(b: Bitswap) {.async.} =
 
   trace "bitswap start"
 
-  if not b.bitswapTask.isNil:
+  if b.bitswapTasks.len > 0:
     warn "Starting bitswap twice"
     return
 
   b.bitswapRunning = true
-  b.bitswapTask = b.bitswapTaskRunner
+  for i in 0..<b.concurrentTasks:
+    b.bitswapTasks.add(b.bitswapTaskRunner)
 
 proc stop*(b: Bitswap) {.async.} =
   ## Stop the bitswap bitswap
   ##
 
-  trace "bitswap stop"
-  if b.bitswapTask.isNil:
+  trace "Bitswap stop"
+  if b.bitswapTasks.len <= 0:
     warn "Stopping bitswap without starting it"
     return
 
   b.bitswapRunning = false
-  if not b.bitswapTask.finished:
-    trace "awaiting last task"
-    await b.bitswapTask
-    trace "bitswap stopped"
-    b.bitswapTask = nil
+  for t in b.bitswapTasks:
+    if not t.finished:
+      trace "Awaiting task to stop"
+      await t
+      trace "Task stopped"
+
+  trace "Bitswap stopped"
 
 proc requestBlocks*(
   b: Bitswap,
@@ -198,7 +236,7 @@ proc blocksHandler*(
   ## handle incoming blocks
   ##
 
-  b.store.putBlocks(blocks)
+  b.storeManager.putBlocks(blocks)
   b.pendingBlocks.resolvePending(blocks)
 
 proc wantListHandler*(
@@ -219,9 +257,9 @@ proc wantListHandler*(
     if e.cid in peerCtx.peerWants and e.cancel:
       peerCtx.peerWants.delete(e)
     elif e.cid notin peerCtx.peerWants:
-      peerCtx.peerWants.pushNoWait(e)
-      if e.sendDontHave and not(b.store.hasBlock(e.cid)):
-        dontHaves.add(e.cid)
+      if peerCtx.peerWants.pushOrUpdateNoWait(e).isOk:
+        if e.sendDontHave and not(b.storeManager.hasBlock(e.cid)):
+          dontHaves.add(e.cid)
 
   # send don't have's to remote
   if dontHaves.len > 0:
@@ -231,6 +269,8 @@ proc wantListHandler*(
         BlockPresence(
           cid: it.data.buffer,
           `type`: BlockPresenceType.presenceDontHave)))
+
+  asyncSpawn b.taskQueue.pushOrUpdate(peerCtx)
 
 proc setupPeer*(b: Bitswap, peer: PeerID) =
   ## Perform initial setup, such as want
@@ -264,12 +304,18 @@ method getBlocks*(b: Bitswap, cid: seq[Cid]): Future[seq[bt.Block]] {.async.} =
     it.get
   )
 
-proc new*(T: type Bitswap, store: BlockStore, network: BitswapNetwork): T =
+proc new*(
+  T: type Bitswap,
+  storeManager: BlockStore,
+  network: BitswapNetwork,
+  concurrentTasks = DefaultConcurrentTasks): T =
+
   let b = Bitswap(
-    store: store,
+    storeManager: storeManager,
     network: network,
     pendingBlocks: PendingBlocksManager.new(),
     taskQueue: newAsyncHeapQueue[BitswapPeerCtx](),
+    concurrentTasks: concurrentTasks,
   )
 
   proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
@@ -284,12 +330,12 @@ proc new*(T: type Bitswap, store: BlockStore, network: BitswapNetwork): T =
   proc onBlocks(evt: BlockStoreChangeEvt) =
     doAssert(evt.kind == ChangeType.Added,
       "change handler called for invalid event type")
-    # TODO: need to retrieve blocks from store but need
+    # TODO: need to retrieve blocks from storeManager but need
     # to be careful not to endup calling ourself in a
     # loop - this should not happen, but want to add
     # more check before adding this logic.
 
-  store.addChangeHandler(onBlocks, ChangeType.Added)
+  storeManager.addChangeHandler(onBlocks, ChangeType.Added)
 
   proc blockWantListHandler(
     peer: PeerID,
