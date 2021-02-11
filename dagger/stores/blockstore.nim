@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import std/sets
 import std/sequtils
 import chronos
 import ../blocktype
@@ -23,17 +24,8 @@ type
 
   BlocksChangeHandler* = proc(evt: BlockStoreChangeEvt) {.gcsafe, closure.}
 
-  BlockProvider* = ref object of RootObj
-
-  BlockStore* = ref object of BlockProvider
+  BlockStore* = ref object of RootObj
     changeHandlers: array[ChangeType, seq[BlocksChangeHandler]]
-    blockProviders: seq[BlockProvider]
-
-method getBlocks*(b: BlockProvider, cid: seq[Cid]): Future[seq[Block]] {.base.} =
-  ## Get a block from the stores
-  ##
-
-  doAssert(false, "Not implemented!")
 
 proc addChangeHandler*(
   s: BlockStore,
@@ -58,6 +50,12 @@ proc triggerChange(
 
   for handler in s.changeHandlers[changeType]:
     handler(evt)
+
+method getBlocks*(b: BlockStore, cid: seq[Cid]): Future[seq[Block]] {.base.} =
+  ## Get a block from the stores
+  ##
+
+  doAssert(false, "Not implemented!")
 
 method hasBlock*(s: BlockStore, cid: Cid): bool {.base.} =
   ## check if the block exists in the blockstore

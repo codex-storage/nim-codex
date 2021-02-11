@@ -30,7 +30,7 @@ type
 
   BitswapNetwork* = ref object of LPProtocol
     peers*: Table[PeerID, NetworkPeer]
-    switch: Switch
+    switch*: Switch
     onWantList*: WantListHandler
     onBlocks*: BlocksHandler
     onBlockPresence*: BlockPresenceHandler

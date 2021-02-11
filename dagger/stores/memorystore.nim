@@ -18,7 +18,7 @@ export blockstore
 
 type
   MemoryStore* = ref object of BlockStore
-    blocks: seq[Block]
+    blocks: seq[Block] # TODO: Should be an LRU cache
 
 method getBlocks*(
   s: MemoryStore,

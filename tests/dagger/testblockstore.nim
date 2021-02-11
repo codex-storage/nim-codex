@@ -20,7 +20,7 @@ suite "Memory Store":
     store = MemoryStore.new(blocks)
 
   test "getBlocks single":
-    let blk = await store.getBlocks(blocks[0].cid)
+    let blk = await store.getBlocks(@[blocks[0].cid])
     check blk[0] == blocks[0]
 
   test "getBlocks multiple":
