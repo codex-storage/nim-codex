@@ -56,13 +56,13 @@ type
     bitswapTask: Future[void]                   # future to control bitswap task
     bitswapRunning: bool                        # indicates if the bitswap task is running
 
-proc contains[T](a: AsyncHeapQueue[T], b: Cid): bool {.inline.} =
+proc contains*(a: AsyncHeapQueue[Entry], b: Cid): bool =
   ## Convenience method to check for entry precense
   ##
 
   a.filterIt( it.cid == b ).len > 0
 
-proc contains(a: openarray[BitswapPeerCtx], b: PeerID): bool {.inline.} =
+proc contains*(a: openarray[BitswapPeerCtx], b: PeerID): bool =
   ## Convenience method to check for peer precense
   ##
 
@@ -71,10 +71,10 @@ proc contains(a: openarray[BitswapPeerCtx], b: PeerID): bool {.inline.} =
 proc debtRatio(b: BitswapPeerCtx): float =
   b.bytesSent / (b.bytesRecv + 1)
 
-proc `<`(a, b: BitswapPeerCtx): bool =
+proc `<`*(a, b: BitswapPeerCtx): bool =
   a.debtRatio < b.debtRatio
 
-proc getPeerCtx*(b: Bitswap, peerId: PeerID): BitswapPeerCtx {.inline} =
+proc getPeerCtx*(b: Bitswap, peerId: PeerID): BitswapPeerCtx =
   ## Get the peer's context
   ##
 
@@ -164,6 +164,7 @@ proc requestBlocks*(
   for i in 1..<b.peers.len:
     sendWants(b.peers[i])
 
+  # TODO: Move this out, so this proc doesn't need to be async
   # send a WANT message to all other peers
   let resolvedBlocks = await allFinished(blocks) # return pending blocks
   return resolvedBlocks.mapIt(
@@ -216,9 +217,7 @@ proc wantListHandler*(
   for e in entries:
     # peer doesn't want this block anymore
     if e.cid in peerCtx.peerWants and e.cancel:
-      let i = peerCtx.peerWants.find(e.cid)
-      if i > -1:
-        peerCtx.peerWants.del(i)
+      peerCtx.peerWants.delete(e)
     elif e.cid notin peerCtx.peerWants:
       peerCtx.peerWants.pushNoWait(e)
       if e.sendDontHave and not(b.store.hasBlock(e.cid)):
