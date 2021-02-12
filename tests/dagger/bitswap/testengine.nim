@@ -158,6 +158,7 @@ suite "Bitswap engine blocks":
   setup:
     done = newFuture[void]()
     engine = BitswapEngine.new(MemoryStore.new())
+    peersCtx = @[]
 
     for i in 0..3:
       let seckey = PrivateKey.random(rng[]).tryGet()
@@ -169,21 +170,21 @@ suite "Bitswap engine blocks":
       ))
 
     # set debt ratios
-    peersCtx[0].bytesSent = 10000
+    peersCtx[0].bytesSent = 1000
     peersCtx[0].bytesRecv = 100
 
     peersCtx[1].bytesSent = 100
-    peersCtx[1].bytesRecv = 10000
+    peersCtx[1].bytesRecv = 1000
 
     peersCtx[2].bytesSent = 100
-    peersCtx[2].bytesRecv = 100
+    peersCtx[2].bytesRecv = 99
 
     peersCtx[3].bytesSent = 100
     peersCtx[3].bytesRecv = 100
 
     engine.peers = peersCtx
 
-  test "should select correct peer to retrieve blocks from":
+  test "should select peer with least debt ratio":
     proc sendWantList(
       id: PeerID,
       cids: seq[Cid],
@@ -201,6 +202,29 @@ suite "Bitswap engine blocks":
 
     engine.request.sendWantList = sendWantList
 
+    let pending = engine.requestBlocks(blocks.mapIt( it.cid ))
+    let resolved = await allFinished(pending)
+    check resolved.mapIt( it.read ) == blocks
+
+  test "should select peer with least debt ratio and have CIDs":
+    proc sendWantList(
+      id: PeerID,
+      cids: seq[Cid],
+      priority: int32 = 0,
+      cancel: bool = false,
+      wantType: WantType = WantType.wantHave,
+      full: bool = false,
+      sendDontHave: bool = false) {.gcsafe.} =
+        check cids == blocks.mapIt( it.cid )
+        if peersCtx[3].id == id: # 4th peer has the least debt ratio and cids
+          check wantType == WantType.wantBlock
+          engine.storeManager.putBlocks(blocks)
+        else:
+          check wantType == WantType.wantHave
+
+    engine.request.sendWantList = sendWantList
+
+    peersCtx[3].peerHave = blocks.mapIt( it.cid )
     let pending = engine.requestBlocks(blocks.mapIt( it.cid ))
     let resolved = await allFinished(pending)
     check resolved.mapIt( it.read ) == blocks

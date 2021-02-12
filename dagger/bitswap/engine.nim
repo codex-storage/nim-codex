@@ -116,17 +116,23 @@ proc requestBlocks*(
   # get the first peer with at least one (any)
   # matching cid
   var blockPeer: BitswapPeerCtx
-  for p in sortedPeers:
+  for i, p in sortedPeers:
     let has = cids.anyIt(
       it in p.peerHave
     )
 
-    if has: break
+    if has:
+      blockPeer = p
+      break
 
   # didn't find any peer with matching cids
   # use the first one in the sorted array
   if isNil(blockPeer):
     blockPeer = sortedPeers[0]
+
+  sortedPeers.keepItIf(
+    it != blockPeer
+  )
 
   # request block
   b.request.sendWantList(
@@ -147,7 +153,7 @@ proc requestBlocks*(
   # filter out the peer we've already requested from
   var stop = sortedPeers.high
   if stop > b.peersPerRequest: stop = b.peersPerRequest
-  for p in sortedPeers[1..stop]:
+  for p in sortedPeers[0..stop]:
     sendWants(p)
 
   return blocks
