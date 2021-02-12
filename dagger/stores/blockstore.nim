@@ -58,7 +58,7 @@ method getBlocks*(b: BlockStore, cid: seq[Cid]): Future[seq[Block]] {.base.} =
   doAssert(false, "Not implemented!")
 
 method hasBlock*(s: BlockStore, cid: Cid): bool {.base.} =
-  ## check if the block exists in the blockstore
+  ## Check if the block exists in the blockstore
   ##
 
   return false
@@ -70,7 +70,7 @@ method putBlocks*(s: BlockStore, blocks: seq[Block]) {.base.} =
   s.triggerChange(ChangeType.Added, blocks.mapIt( it.cid ))
 
 method delBlocks*(s: BlockStore, blocks: seq[Cid]) {.base.} =
-  ## delete a block/s from the block store
+  ## Delete a block/s from the block store
   ##
 
   s.triggerChange(ChangeType.Removed, blocks)
