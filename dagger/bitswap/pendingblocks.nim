@@ -40,7 +40,7 @@ proc addOrAwait*(
   finally:
     p.blocks.del(cid)
 
-proc resolvePending*(
+proc resolve*(
   p: PendingBlocksManager,
   blocks: seq[Block]) =
   ## Resolve pending blocks

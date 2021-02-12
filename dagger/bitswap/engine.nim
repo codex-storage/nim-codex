@@ -61,7 +61,7 @@ proc contains*(a: openarray[BitswapPeerCtx], b: PeerID): bool =
 
   a.filterIt( it.id == b ).len > 0
 
-proc debtRatio(b: BitswapPeerCtx): float =
+proc debtRatio*(b: BitswapPeerCtx): float =
   b.bytesSent / (b.bytesRecv + 1)
 
 proc `<`*(a, b: BitswapPeerCtx): bool =
@@ -82,23 +82,21 @@ proc requestBlocks*(
   ## Request a block from remotes
   ##
 
+  # no Cids to request
+  if cids.len == 0:
+    return
+
   if b.peers.len <= 0:
     warn "No peers to request blocks from"
     # TODO: run discovery here to get peers for the block
     return
 
-  var blocks: seq[Future[bt.Block]] # this are blocks that we need right now
-  var wantCids: seq[Cid] # filter out Cids that we're already requested on
+  var blocks: seq[Future[bt.Block]]
   for c in cids:
     if c notin b.pendingBlocks:
-      wantCids.add(c)
+      # install events to await blocks incoming from different sources
       blocks.add(
-        b.pendingBlocks.addOrAwait(c)
-        .wait(timeout))
-
-  # no Cids to request
-  if wantCids.len == 0:
-    return
+        b.pendingBlocks.addOrAwait(c).wait(timeout))
 
   proc cmp(a, b: BitswapPeerCtx): int =
     if a.debtRatio == b.debtRatio:
@@ -108,7 +106,8 @@ proc requestBlocks*(
     else:
       -1
 
-  # sort it so we get it from the peer with the lowest
+  # sort the peers so that we request
+  # the blocks from a peer with the lowest
   # debt ratio
   var sortedPeers = b.peers.sorted(
     cmp
@@ -116,37 +115,39 @@ proc requestBlocks*(
 
   # get the first peer with at least one (any)
   # matching cid
-  var peerCtx: BitswapPeerCtx
-  var i = 0
+  var blockPeer: BitswapPeerCtx
   for p in sortedPeers:
-    inc(i)
-    if wantCids.anyIt(
+    let has = cids.anyIt(
       it in p.peerHave
-    ): peerCtx = p; break
+    )
 
-  # didnt find any peer with matching cids
+    if has: break
+
+  # didn't find any peer with matching cids
   # use the first one in the sorted array
-  if isNil(peerCtx):
-    i = 1
-    peerCtx = sortedPeers[0]
+  if isNil(blockPeer):
+    blockPeer = sortedPeers[0]
 
+  # request block
   b.request.sendWantList(
-    peerCtx.id,
-    wantCids,
+    blockPeer.id,
+    cids,
     wantType = WantType.wantBlock) # we want this remote to send us a block
 
+  if sortedPeers.len == 0:
+    return blocks # no peers to send wants to
+
   template sendWants(ctx: BitswapPeerCtx) =
+    # just send wants
     b.request.sendWantList(
       ctx.id,
-      wantCids.filterIt( it notin ctx.peerHave ), # filter out those that we already know about
+      cids.filterIt( it notin ctx.peerHave ), # filter out those that we already know about
       wantType = WantType.wantHave) # we only want to know if the peer has the block
 
   # filter out the peer we've already requested from
   var stop = sortedPeers.high
-  if stop > b.peersPerRequest:
-    stop = b.peersPerRequest
-
-  for p in sortedPeers[i..stop]:
+  if stop > b.peersPerRequest: stop = b.peersPerRequest
+  for p in sortedPeers[1..stop]:
     sendWants(p)
 
   return blocks
@@ -176,7 +177,7 @@ proc blocksHandler*(
   ##
 
   b.storeManager.putBlocks(blocks)
-  b.pendingBlocks.resolvePending(blocks)
+  b.pendingBlocks.resolve(blocks)
 
 proc wantListHandler*(
   b: BitswapEngine,
@@ -301,14 +302,22 @@ proc new*(
     if evt.kind != ChangeType.Added:
       return
 
-    for c in evt.cids:        # for each block
-      for p in b.peers:
-        if c in p.peerWants:  # see if a peer wants at least one cid
-          if not b.scheduleTask(p):
-            # TODO: This breaks with
-            #`chronicles.nim(336, 21) Error: undeclared identifier: 'activeChroniclesStream'`
-            # trace "Unable to schedule a on new blocks for peer", peer = p.id
-            discard
+    proc resolveBlocks() {.async.} =
+      let blocks = await b.storeManager.getBlocks(evt.cids)
+      b.pendingBlocks.resolve(blocks)
+
+    asyncSpawn resolveBlocks()
+
+    # schedule any new peers to provide blocks to
+    for p in b.peers:
+      for c in evt.cids:      # for each block
+          if c in p.peerWants:  # see if a peer wants at least one cid
+            if not b.scheduleTask(p):
+              # TODO: This breaks with
+              #`chronicles.nim(336, 21) Error: undeclared identifier: 'activeChroniclesStream'`
+              # trace "Unable to schedule a on new blocks for peer", peer = p.id
+              discard
+            break # do next peer
 
   storeManager.addChangeHandler(onBlocks, ChangeType.Added)
 
