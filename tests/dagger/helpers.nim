@@ -1,5 +1,4 @@
 import std/sequtils
-import pkg/libp2p
 import pkg/libp2p/varint
 
 import pkg/dagger/p2p/rng
