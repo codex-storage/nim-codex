@@ -5,6 +5,15 @@ import pkg/stew/results
 import pkg/dagger/utils/asyncheapqueue
 import pkg/dagger/p2p/rng
 
+type
+  Task* = tuple[name: string, priority: int]
+
+proc `<`*(a, b: Task): bool =
+  a.priority < b.priority
+
+proc `==`*(a, b: Task): bool =
+  a.name == b.name
+
 proc toSortedSeq[T](h: AsyncHeapQueue[T]): seq[T] =
   var tmp = newAsyncHeapQueue[T]()
   for d in h:
@@ -94,15 +103,6 @@ suite "synchronous tests":
     check heap.len == 10
     heap.clear()
     check heap.len == 0
-
-type
-  Task* = tuple[name: string, priority: int]
-
-proc `<`*(a, b: Task): bool =
-  a.priority < b.priority
-
-proc `==`*(a, b: Task): bool =
-  a.name == b.name
 
 suite "asynchronous tests":
 
