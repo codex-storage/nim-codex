@@ -1,9 +1,7 @@
 import std/sequtils
-import std/algorithm
 
 import pkg/asynctest
 import pkg/chronos
-import pkg/stew/byteutils
 import pkg/libp2p
 import pkg/libp2p/errors
 
@@ -53,7 +51,7 @@ suite "Bitswap engine basic":
 
     await done
 
-suite "Bitswap engine test handlers":
+suite "Bitswap engine handlers":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
@@ -143,3 +141,66 @@ suite "Bitswap engine test handlers":
       )))
 
     check peerCtx.peerHave == blocks.mapIt( it.cid )
+
+suite "Bitswap engine blocks":
+
+  let
+    rng = Rng.instance()
+    chunker = newRandomChunker(Rng.instance(), size = 2048, chunkSize = 256)
+    blocks = chunker.mapIt( bt.Block.new(it) )
+
+  var
+    engine: BitswapEngine
+    peersCtx: seq[BitswapPeerCtx]
+    peers: seq[PeerID]
+    done: Future[void]
+
+  setup:
+    done = newFuture[void]()
+    engine = BitswapEngine.new(MemoryStore.new())
+
+    for i in 0..3:
+      let seckey = PrivateKey.random(rng[]).tryGet()
+      peers.add(PeerID.init(seckey.getKey().tryGet()).tryGet())
+
+      peersCtx.add(BitswapPeerCtx(
+        id: peers[i],
+        peerWants: newAsyncHeapQueue[Entry]()
+      ))
+
+    # set debt ratios
+    peersCtx[0].bytesSent = 10000
+    peersCtx[0].bytesRecv = 100
+
+    peersCtx[1].bytesSent = 100
+    peersCtx[1].bytesRecv = 10000
+
+    peersCtx[2].bytesSent = 100
+    peersCtx[2].bytesRecv = 100
+
+    peersCtx[3].bytesSent = 100
+    peersCtx[3].bytesRecv = 100
+
+    engine.peers = peersCtx
+
+  test "should select correct peer to retrieve blocks from":
+    proc sendWantList(
+      id: PeerID,
+      cids: seq[Cid],
+      priority: int32 = 0,
+      cancel: bool = false,
+      wantType: WantType = WantType.wantHave,
+      full: bool = false,
+      sendDontHave: bool = false) {.gcsafe.} =
+        check cids == blocks.mapIt( it.cid )
+        if peersCtx[1].id == id: # second peer has the least debt ratio
+          check wantType == WantType.wantBlock
+          engine.storeManager.putBlocks(blocks)
+        else:
+          check wantType == WantType.wantHave
+
+    engine.request.sendWantList = sendWantList
+
+    let pending = engine.requestBlocks(blocks.mapIt( it.cid ))
+    let resolved = await allFinished(pending)
+    check resolved.mapIt( it.read ) == blocks
