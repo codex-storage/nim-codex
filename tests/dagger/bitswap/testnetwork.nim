@@ -58,7 +58,7 @@ suite "Bitswap network unit tests":
 
       done.complete()
 
-    network.onWantList = wantListHandler
+    network.handlers.onWantList = wantListHandler
 
     let wantList = makeWantList(
       blocks.mapIt( it.cid ),
@@ -75,7 +75,7 @@ suite "Bitswap network unit tests":
       check blks == blocks
       done.complete()
 
-    network.onBlocks = blocksHandler
+    network.handlers.onBlocks = blocksHandler
 
     let msg = Message(payload: makeBlocks(blocks))
     await buffer.pushData(lenPrefix(Protobuf.encode(msg)))
@@ -90,7 +90,7 @@ suite "Bitswap network unit tests":
 
       done.complete()
 
-    network.onBlockPresence = presenceHandler
+    network.handlers.onPresence = presenceHandler
 
     let msg = Message(
       blockPresences: blocks.mapIt(
@@ -154,7 +154,7 @@ suite "Bitswap Network e2e tests":
 
       done.complete()
 
-    network2.onWantList = wantListHandler
+    network2.handlers.onWantList = wantListHandler
     network1.broadcastWantList(
       switch2.peerInfo.peerId,
       blocks.mapIt( it.cid ),
@@ -168,7 +168,7 @@ suite "Bitswap Network e2e tests":
       check blks == blocks
       done.complete()
 
-    network2.onBlocks = blocksHandler
+    network2.handlers.onBlocks = blocksHandler
     network1.broadcastBlocks(
       switch2.peerInfo.peerId,
       blocks)
@@ -183,7 +183,7 @@ suite "Bitswap Network e2e tests":
 
       done.complete()
 
-    network2.onBlockPresence = presenceHandler
+    network2.handlers.onPresence = presenceHandler
 
     network1.broadcastBlockPresence(
       switch2.peerInfo.peerId,
