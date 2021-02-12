@@ -64,16 +64,16 @@ suite "Bitswap engine":
     )
 
     # initialize our want lists
-    bitswap1.wantList = blocks2.mapIt( it.cid )
-    bitswap2.wantList = blocks1.mapIt( it.cid )
+    bitswap1.engine.wantList = blocks2.mapIt( it.cid )
+    bitswap2.engine.wantList = blocks1.mapIt( it.cid )
 
     await switch1.connect(
       switch2.peerInfo.peerId,
       switch2.peerInfo.addrs)
 
     await sleepAsync(1.seconds) # give some time to exchange lists
-    peerCtx2 = bitswap1.getPeerCtx(peerId2)
-    peerCtx1 = bitswap2.getPeerCtx(peerId1)
+    peerCtx2 = bitswap1.engine.getPeerCtx(peerId2)
+    peerCtx1 = bitswap2.engine.getPeerCtx(peerId1)
 
   teardown:
     await allFuturesThrowing(
@@ -90,10 +90,10 @@ suite "Bitswap engine":
 
     check:
       peerCtx1.peerHave.mapIt( $it ).sorted(cmp[string]) ==
-        bitswap2.wantList.mapIt( $it ).sorted(cmp[string])
+        bitswap2.engine.wantList.mapIt( $it ).sorted(cmp[string])
 
       peerCtx2.peerHave.mapIt( $it ).sorted(cmp[string]) ==
-        bitswap1.wantList.mapIt( $it ).sorted(cmp[string])
+        bitswap1.engine.wantList.mapIt( $it ).sorted(cmp[string])
 
   test "should send want-have for block":
     let blk = bt.Block.new("Block 1".toBytes)
@@ -108,4 +108,6 @@ suite "Bitswap engine":
 
     check peerCtx1.peerWants.pushOrUpdateNoWait(entry).isOk
     check bitswap2.taskQueue.pushOrUpdateNoWait(peerCtx1).isOk
-    await sleepAsync(10.seconds)
+    await sleepAsync(1.seconds)
+
+    check store1.hasBlock(blk.cid)
