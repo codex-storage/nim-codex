@@ -28,12 +28,33 @@ type
   BlocksHandler* = proc(peer: PeerID, blocks: seq[bt.Block]) {.gcsafe.}
   BlockPresenceHandler* = proc(peer: PeerID, precense: seq[BlockPresence]) {.gcsafe.}
 
+  BitswapHandlers* = object
+    onWantList*: WantListHandler
+    onBlocks*: BlocksHandler
+    onPresence*: BlockPresenceHandler
+
+  WantListBroadcaster* = proc(
+    id: PeerID,
+    cids: seq[Cid],
+    priority: int32 = 0,
+    cancel: bool = false,
+    wantType: WantType = WantType.wantHave,
+    full: bool = false,
+    sendDontHave: bool = false) {.gcsafe.}
+
+  BlocksBroadcaster* = proc(peer: PeerID, presence: seq[bt.Block]) {.gcsafe.}
+  PresenceBroadcaster* = proc(peer: PeerID, presence: seq[BlockPresence]) {.gcsafe.}
+
+  BitswapRequest* = object
+    sendWantList*: WantListBroadcaster
+    sendBlocks*: BlocksBroadcaster
+    sendPresence*: PresenceBroadcaster
+
   BitswapNetwork* = ref object of LPProtocol
     peers*: Table[PeerID, NetworkPeer]
     switch*: Switch
-    onWantList*: WantListHandler
-    onBlocks*: BlocksHandler
-    onBlockPresence*: BlockPresenceHandler
+    handlers*: BitswapHandlers
+    request*: BitswapRequest
     getConn: ConnProvider
 
 proc handleWantList(
@@ -43,10 +64,10 @@ proc handleWantList(
   ## Handle incoming want list
   ##
 
-  if isNil(b.onWantList):
+  if isNil(b.handlers.onWantList):
     return
 
-  b.onWantList(peer.id, list)
+  b.handlers.onWantList(peer.id, list)
 
 # TODO: make into a template
 proc makeWantList*(
@@ -98,7 +119,7 @@ proc handleBlocks(
   ## Handle incoming blocks
   ##
 
-  if isNil(b.onBlocks):
+  if isNil(b.handlers.onBlocks):
     return
 
   var blks: seq[bt.Block]
@@ -110,7 +131,7 @@ proc handleBlocks(
     else:
       error("Invalid block type")
 
-  b.onBlocks(peer.id, blks)
+  b.handlers.onBlocks(peer.id, blks)
 
 template makeBlocks*(
   blocks: seq[bt.Block]):
@@ -144,10 +165,10 @@ proc handleBlockPresence(
   ## Handle block presence
   ##
 
-  if isNil(b.onBlockPresence):
+  if isNil(b.handlers.onPresence):
     return
 
-  b.onBlockPresence(peer.id, presence)
+  b.handlers.onPresence(peer.id, presence)
 
 proc broadcastBlockPresence*(
   b: BitswapNetwork,
@@ -240,19 +261,37 @@ method init*(b: BitswapNetwork) =
 proc new*(
   T: type BitswapNetwork,
   switch: Switch,
-  onWantList: WantListHandler = nil,
-  onBlocks: BlocksHandler = nil,
-  onBlockPresence: BlockPresenceHandler = nil,
   connProvider: ConnProvider = nil): T =
   ## Create a new BitswapNetwork instance
   ##
 
   let b = BitswapNetwork(
     switch: switch,
-    onWantList: onWantList,
-    onBlocks: onBlocks,
-    onBlockPresence: onBlockPresence,
     getConn: connProvider)
+
+  proc sendWantList(
+    id: PeerID,
+    cids: seq[Cid],
+    priority: int32 = 0,
+    cancel: bool = false,
+    wantType: WantType = WantType.wantHave,
+    full: bool = false,
+    sendDontHave: bool = false) {.gcsafe.} =
+    b.broadcastWantList(
+      id, cids, priority, cancel,
+      wantType, full, sendDontHave)
+
+  proc sendBlocks(id: PeerID, blocks: seq[bt.Block]) {.gcsafe.} =
+    b.broadcastBlocks(id, blocks)
+
+  proc sendPresence(id: PeerID, presence: seq[BlockPresence]) {.gcsafe.} =
+    b.broadcastBlockPresence(id, presence)
+
+  b.request = BitswapRequest(
+    sendWantList: sendWantList,
+    sendBlocks: sendBlocks,
+    sendPresence: sendPresence,
+  )
 
   b.init()
 
