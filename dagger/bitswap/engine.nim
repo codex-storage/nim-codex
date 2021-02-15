@@ -235,7 +235,7 @@ proc setupPeer*(b: BitswapEngine, peer: PeerID) =
   if peer notin b.peers:
     b.peers.add(BitswapPeerCtx(
       id: peer,
-      peerWants: newAsyncHeapQueue[Entry]()
+      peerWants: newAsyncHeapQueue[Entry](queueType = QueueType.Max)
     ))
 
   # broadcast our want list, the other peer will do the same
@@ -271,19 +271,18 @@ proc taskHandler*(b: BitswapEngine, task: BitswapPeerCtx) {.gcsafe, async.} =
     b.request.sendBlocks(task.id, blocks)
 
   if wantsWants.len > 0:
-    let haves = wantsWants.filterIt(
-      b.storeManager.hasBlock(it.cid)
-    ).mapIt(
-      it.cid
+    let wants = wantsWants.mapIt(
+        BlockPresence(
+          cid: it.`block`,
+          `type`: if b.storeManager.hasBlock(it.cid):
+              BlockPresenceType.presenceHave
+            else:
+              BlockPresenceType.presenceDontHave
+        )
     )
 
     b.request.sendPresence(
-      task.id, haves.mapIt(
-        BlockPresence(
-          cid: it.data.buffer,
-          `type`: BlockPresenceType.presenceHave
-        )
-    ))
+      task.id, wants)
 
 proc new*(
   T: type BitswapEngine,
@@ -316,7 +315,7 @@ proc new*(
 
     # schedule any new peers to provide blocks to
     for p in b.peers:
-      for c in evt.cids:      # for each block
+      for c in evt.cids:        # for each block
           if c in p.peerWants:  # see if a peer wants at least one cid
             if not b.scheduleTask(p):
               # TODO: This breaks with
@@ -326,5 +325,4 @@ proc new*(
             break # do next peer
 
   storeManager.addChangeHandler(onBlocks, ChangeType.Added)
-
   return b
