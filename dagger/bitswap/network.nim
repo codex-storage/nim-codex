@@ -8,7 +8,6 @@
 ## those terms.
 
 import std/tables
-import std/sequtils
 
 import pkg/chronicles
 import pkg/chronos
@@ -294,5 +293,4 @@ proc new*(
   )
 
   b.init()
-
   return b

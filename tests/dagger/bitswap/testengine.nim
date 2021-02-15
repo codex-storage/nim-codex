@@ -1,5 +1,6 @@
 import std/sequtils
 
+import pkg/stew/byteutils
 import pkg/asynctest
 import pkg/chronos
 import pkg/libp2p
@@ -69,7 +70,7 @@ suite "Bitswap engine handlers":
     engine = BitswapEngine.new(MemoryStore.new())
     peerCtx = BitswapPeerCtx(
       id: peerId,
-      peerWants: newAsyncHeapQueue[Entry]()
+      peerWants: newAsyncHeapQueue[Entry](queueType = QueueType.Max)
     )
     engine.peers.add(peerCtx)
 
@@ -166,19 +167,24 @@ suite "Bitswap engine blocks":
 
       peersCtx.add(BitswapPeerCtx(
         id: peers[i],
-        peerWants: newAsyncHeapQueue[Entry]()
+        peerWants: newAsyncHeapQueue[Entry](queueType = QueueType.Max)
       ))
 
     # set debt ratios
+
+    # ratio > 1
     peersCtx[0].bytesSent = 1000
     peersCtx[0].bytesRecv = 100
 
+    # ratio < 1
     peersCtx[1].bytesSent = 100
     peersCtx[1].bytesRecv = 1000
 
+    # ratio > 1
     peersCtx[2].bytesSent = 100
     peersCtx[2].bytesRecv = 99
 
+    # ratio == 0
     peersCtx[3].bytesSent = 100
     peersCtx[3].bytesRecv = 100
 
@@ -216,7 +222,7 @@ suite "Bitswap engine blocks":
       full: bool = false,
       sendDontHave: bool = false) {.gcsafe.} =
         check cids == blocks.mapIt( it.cid )
-        if peersCtx[3].id == id: # 4th peer has the least debt ratio and cids
+        if peersCtx[3].id == id: # 4th peer has the least debt ratio and has cids
           check wantType == WantType.wantBlock
           engine.storeManager.putBlocks(blocks)
         else:
@@ -228,3 +234,116 @@ suite "Bitswap engine blocks":
     let pending = engine.requestBlocks(blocks.mapIt( it.cid ))
     let resolved = await allFinished(pending)
     check resolved.mapIt( it.read ) == blocks
+
+
+suite "Task Handler":
+
+  let
+    rng = Rng.instance()
+    chunker = newRandomChunker(Rng.instance(), size = 2048, chunkSize = 256)
+    blocks = chunker.mapIt( bt.Block.new(it) )
+
+  var
+    engine: BitswapEngine
+    peersCtx: seq[BitswapPeerCtx]
+    peers: seq[PeerID]
+    done: Future[void]
+
+  setup:
+    done = newFuture[void]()
+    engine = BitswapEngine.new(MemoryStore.new())
+    peersCtx = @[]
+
+    for i in 0..3:
+      let seckey = PrivateKey.random(rng[]).tryGet()
+      peers.add(PeerID.init(seckey.getKey().tryGet()).tryGet())
+
+      peersCtx.add(BitswapPeerCtx(
+        id: peers[i],
+        peerWants: newAsyncHeapQueue[Entry](queueType = QueueType.Max)
+      ))
+
+    engine.peers = peersCtx
+
+  test "Should send want-blocks in priority order":
+    proc sendBlocks(
+      id: PeerID,
+      blks: seq[bt.Block]) {.gcsafe.} =
+      check blks.len == 2
+      check:
+        blks[1].cid == blocks[0].cid
+        blks[0].cid == blocks[1].cid
+
+    engine.storeManager.putBlocks(blocks)
+    engine.request.sendBlocks = sendBlocks
+
+    # second block to send by priority
+    check peersCtx[0].peerWants.pushNoWait(
+      Entry(
+        `block`: blocks[0].cid.data.buffer,
+        priority: 49,
+        cancel: false,
+        wantType: WantType.wantBlock,
+        sendDontHave: false)
+    ).isOk
+
+    # first block to send by priority
+    check peersCtx[0].peerWants.pushNoWait(
+      Entry(
+        `block`: blocks[1].cid.data.buffer,
+        priority: 50,
+        cancel: false,
+        wantType: WantType.wantBlock,
+        sendDontHave: false)
+    ).isOk
+
+    await engine.taskHandler(peersCtx[0])
+
+  test "Should send presence":
+    proc sendPresence(
+      id: PeerID,
+      presence: seq[BlockPresence]) {.gcsafe.} =
+      check presence.len == 3
+      check:
+        presence[0].cid == blocks[0].cid.data.buffer
+        presence[0].`type` == BlockPresenceType.presenceHave
+
+        presence[1].cid == blocks[1].cid.data.buffer
+        presence[1].`type` == BlockPresenceType.presenceHave
+
+        presence[2].`type` == BlockPresenceType.presenceDontHave
+
+    engine.storeManager.putBlocks(blocks)
+    engine.request.sendPresence = sendPresence
+
+    # have block
+    check peersCtx[0].peerWants.pushNoWait(
+      Entry(
+        `block`: blocks[0].cid.data.buffer,
+        priority: 1,
+        cancel: false,
+        wantType: WantType.wantHave,
+        sendDontHave: false)
+    ).isOk
+
+    # have block
+    check peersCtx[0].peerWants.pushNoWait(
+      Entry(
+        `block`: blocks[1].cid.data.buffer,
+        priority: 1,
+        cancel: false,
+        wantType: WantType.wantHave,
+        sendDontHave: false)
+    ).isOk
+
+    # don't have block
+    check peersCtx[0].peerWants.pushNoWait(
+      Entry(
+        `block`: bt.Block.new("Block 1".toBytes).cid.data.buffer,
+        priority: 1,
+        cancel: false,
+        wantType: WantType.wantHave,
+        sendDontHave: false)
+    ).isOk
+
+    await engine.taskHandler(peersCtx[0])
