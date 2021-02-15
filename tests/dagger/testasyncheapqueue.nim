@@ -14,15 +14,15 @@ proc `<`*(a, b: Task): bool =
 proc `==`*(a, b: Task): bool =
   a.name == b.name
 
-proc toSortedSeq[T](h: AsyncHeapQueue[T]): seq[T] =
-  var tmp = newAsyncHeapQueue[T]()
+proc toSortedSeq[T](h: AsyncHeapQueue[T], queueType = QueueType.Min): seq[T] =
+  var tmp = newAsyncHeapQueue[T](queueType = queueType)
   for d in h:
     check tmp.pushNoWait(d).isOk
   while tmp.len > 0:
     result.add(popNoWait(tmp).get())
 
 suite "synchronous tests":
-  test "test pushNoWait":
+  test "test pushNoWait - Min":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
     for item in data:
@@ -30,6 +30,15 @@ suite "synchronous tests":
 
     check heap[0] == 0
     check heap.toSortedSeq == @[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+  test "test pushNoWait - Max":
+    var heap = newAsyncHeapQueue[int](queueType = QueueType.Max)
+    let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
+    for item in data:
+      check heap.pushNoWait(item).isOk
+
+    check heap[0] == 9
+    check heap.toSortedSeq(QueueType.Max) == @[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
 
   test "test popNoWait":
     var heap = newAsyncHeapQueue[int]()
@@ -44,6 +53,20 @@ suite "synchronous tests":
         res.add(r.get)
 
     check res == @[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+  test "test popNoWait - Max":
+    var heap = newAsyncHeapQueue[int](queueType = QueueType.Max)
+    let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
+    for item in data:
+      check heap.pushNoWait(item).isOk
+
+    var res: seq[int]
+    while heap.len > 0:
+      let r = heap.popNoWait()
+      if r.isOk:
+        res.add(r.get)
+
+    check res == @[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
 
   test "test del": # Test del
     var heap = newAsyncHeapQueue[int]()
@@ -163,11 +186,11 @@ suite "asynchronous tests":
     for item in [("a", 4), ("b", 3)]:
       check heap.pushNoWait(item).isOk
 
-    check heap[0] == ("b", 3)             # sanity check for order
+    check heap[0] == ("b", 3)                 # sanity check for order
 
-    let fut = heap.pushOrUpdate(("c", 2)) # attempt to push a non existen item but block
-    check heap.popNoWait().get() == ("b", 3)    # pop one off
-    await fut                             # wait for push to complete
+    let fut = heap.pushOrUpdate(("c", 2))     # attempt to push a non existen item but block
+    check heap.popNoWait().get() == ("b", 3)  # pop one off
+    await fut                                 # wait for push to complete
 
     check heap[0] == (name: "c", priority: 2) # check order again
 

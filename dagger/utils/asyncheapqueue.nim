@@ -14,6 +14,9 @@ import pkg/stew/results
 # Based on chronos AsyncHeapQueue and std/heapqueue
 
 type
+  QueueType* {.pure.} = enum
+    Min, Max
+
   AsyncHeapQueue*[T] = ref object of RootRef
     ## A priority queue
     ##
@@ -21,6 +24,7 @@ type
     ## infinite. If it is an integer greater than ``0``, then "await put()"
     ## will block when the queue reaches ``maxsize``, until an item is
     ## removed by "await get()".
+    queueType: QueueType
     getters: seq[Future[void]]
     putters: seq[Future[void]]
     queue: seq[T]
@@ -29,14 +33,18 @@ type
   AsyncHQErrors* {.pure.} = enum
     Empty, Full
 
-proc newAsyncHeapQueue*[T](maxsize: int = 0): AsyncHeapQueue[T] =
+proc newAsyncHeapQueue*[T](
+  maxsize: int = 0,
+  queueType: QueueType = QueueType.Min): AsyncHeapQueue[T] =
   ## Creates a new asynchronous queue ``AsyncHeapQueue``.
+  ##
 
   AsyncHeapQueue[T](
     getters: newSeq[Future[void]](),
     putters: newSeq[Future[void]](),
     queue: newSeqOfCap[T](maxsize),
-    maxsize: maxsize
+    maxsize: maxsize,
+    queueType: queueType,
   )
 
 proc wakeupNext(waiters: var seq[Future[void]]) {.inline.} =
@@ -52,8 +60,11 @@ proc wakeupNext(waiters: var seq[Future[void]]) {.inline.} =
   if i > 0:
     waiters.delete(0, i - 1)
 
-proc heapCmp[T](x, y: T): bool {.inline.} =
-  return (x < y)
+proc heapCmp[T](x, y: T, max: bool = false): bool {.inline.} =
+  if max:
+    return (y < x)
+  else:
+    return (x < y)
 
 proc siftdown[T](heap: AsyncHeapQueue[T], startpos, p: int) =
   ## 'heap' is a heap at all indices >= startpos, except
@@ -68,7 +79,7 @@ proc siftdown[T](heap: AsyncHeapQueue[T], startpos, p: int) =
   while pos > startpos:
     let parentpos = (pos - 1) shr 1
     let parent = heap[parentpos]
-    if heapCmp(newitem, parent):
+    if heapCmp(newitem, parent, heap.queueType == QueueType.Max):
       heap.queue[pos] = parent
       pos = parentpos
     else:
@@ -85,7 +96,8 @@ proc siftup[T](heap: AsyncHeapQueue[T], p: int) =
   while childpos < endpos:
     # Set childpos to index of smaller child.
     let rightpos = childpos + 1
-    if rightpos < endpos and not heapCmp(heap[childpos], heap[rightpos]):
+    if rightpos < endpos and
+      not heapCmp(heap[childpos], heap[rightpos], heap.queueType == QueueType.Max):
       childpos = rightpos
     # Move the smaller child up.
     heap.queue[pos] = heap[childpos]
@@ -255,7 +267,7 @@ proc pushPopNoWait*[T](heap: AsyncHeapQueue[T], item: T): Result[T, AsyncHQError
   if heap.empty():
     err(AsyncHQErrors.Empty)
 
-  if heap.len > 0 and heapCmp(heap[0], item):
+  if heap.len > 0 and heapCmp(heap[0], item, heap.queueType == QueueType.Max):
     swap(item, heap[0])
     siftup(heap, 0)
   return item
