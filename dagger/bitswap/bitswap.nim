@@ -85,11 +85,11 @@ method getBlocks*(b: Bitswap, cid: seq[Cid]): Future[seq[bt.Block]] {.async.} =
   ##
 
   let blocks = await allFinished(b.engine.requestBlocks(cid))
-  result.add(blocks.filterIt(
+  return blocks.filterIt(
     not it.failed
   ).mapIt(
     it.read
-  ))
+  )
 
 proc new*(
   T: type Bitswap,
