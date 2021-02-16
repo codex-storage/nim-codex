@@ -28,7 +28,7 @@ proc `$`*(b: Block): string =
 proc new*(
   T: type Block,
   cid: Cid,
-  data: openarray[byte] = [],
+  data: openArray[byte] = [],
   verify: bool = false): T =
   let b = Block.new(
     data,
@@ -45,7 +45,7 @@ proc new*(
 
 proc new*(
   T: type Block,
-  data: openarray[byte] = [],
+  data: openArray[byte] = [],
   version = CIDv0,
   hcodec = multiCodec("sha2-256"),
   codec = multiCodec("dag-pb")): T =

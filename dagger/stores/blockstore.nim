@@ -74,3 +74,6 @@ method delBlocks*(s: BlockStore, blocks: seq[Cid]) {.base.} =
   ##
 
   s.triggerChange(ChangeType.Removed, blocks)
+
+proc contains*(s: BlockStore, blk: Cid): bool =
+  s.hasBlock(blk)

@@ -16,7 +16,7 @@ const
 
 type
   # default reader type
-  Reader* = proc(data: var openarray[byte]): int {.gcsafe, closure.}
+  Reader* = proc(data: var openArray[byte]): int {.gcsafe, closure.}
 
   ChunkerType* {.pure.} = enum
     SizedChunker
@@ -79,7 +79,7 @@ proc newFileChunker*(
   ## create the default File chunker
   ##
 
-  proc reader(data: var openarray[byte]): int =
+  proc reader(data: var openArray[byte]): int =
     return file.readBytes(data, 0, data.len)
 
   Chunker.new(

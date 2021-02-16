@@ -22,8 +22,7 @@ type
 
 method getBlocks*(
   s: MemoryStore,
-  cids: seq[Cid]):
-  Future[seq[Block]] {.async.} =
+  cids: seq[Cid]): Future[seq[Block]] {.async.} =
   ## Get a block from the stores
   ##
 
@@ -39,12 +38,12 @@ method hasBlock*(s: MemoryStore, cid: Cid): bool =
 
   s.blocks.filterIt( it.cid == cid ).len > 0
 
-method putBlocks*(s: MemoryStore, cids: seq[Block]) =
+method putBlocks*(s: MemoryStore, blocks: seq[Block]) =
   ## Put a block to the blockstore
   ##
 
-  s.blocks.add(cids)
-  procCall BlockStore(s).putBlocks(cids)
+  s.blocks.add(blocks)
+  procCall BlockStore(s).putBlocks(blocks)
 
 method delBlocks*(s: MemoryStore, cids: seq[Cid]) =
   ## delete a block/s from the block store
@@ -55,7 +54,7 @@ method delBlocks*(s: MemoryStore, cids: seq[Cid]) =
 
   procCall BlockStore(s).delBlocks(cids)
 
-proc new*(T: type MemoryStore, blocks: openarray[Block] = []): MemoryStore =
+proc new*(T: type MemoryStore, blocks: openArray[Block] = []): MemoryStore =
   MemoryStore(
     blocks: @blocks
   )
