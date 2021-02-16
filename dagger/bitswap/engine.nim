@@ -23,6 +23,9 @@ import ../utils/asyncheapqueue
 import ./network
 import ./pendingblocks
 
+logScope:
+  topics = "dagger bitswap engine"
+
 const
   DefaultTimeout* = 500.milliseconds
   DefaultMaxPeersPerRequest* = 10
@@ -34,7 +37,7 @@ type
   BitswapPeerCtx* = ref object of RootObj
     id*: PeerID
     peerHave*: seq[Cid]                # remote peers have lists
-    peerWants*: AsyncHeapQueue[Entry]  # remote peers want lists
+    peerWants*: seq[Entry]         # remote peers want lists
     bytesSent*: int                    # bytes sent to remote
     bytesRecv*: int                    # bytes received from remote
     exchanged*: int                    # times peer has exchanged with us
@@ -53,13 +56,13 @@ proc contains*(a: AsyncHeapQueue[Entry], b: Cid): bool =
   ## Convenience method to check for entry precense
   ##
 
-  a.filterIt( it.cid == b ).len > 0
+  a.anyIt( it.cid == b )
 
-proc contains*(a: openarray[BitswapPeerCtx], b: PeerID): bool =
+proc contains*(a: openArray[BitswapPeerCtx], b: PeerID): bool =
   ## Convenience method to check for peer precense
   ##
 
-  a.filterIt( it.id == b ).len > 0
+  a.anyIt( it.id == b )
 
 proc debtRatio*(b: BitswapPeerCtx): float =
   b.bytesSent / (b.bytesRecv + 1)
@@ -134,6 +137,7 @@ proc requestBlocks*(
     it != blockPeer
   )
 
+  trace "Requesting blocks from peer", peer = blockPeer.id, len = cids.len
   # request block
   b.request.sendWantList(
     blockPeer.id,
@@ -153,6 +157,7 @@ proc requestBlocks*(
   # filter out the peer we've already requested from
   var stop = sortedPeers.high
   if stop > b.peersPerRequest: stop = b.peersPerRequest
+  trace "Sending want list requests to remaining peers", count = stop + 1
   for p in sortedPeers[0..stop]:
     sendWants(p)
 
@@ -175,6 +180,25 @@ proc blockPresenceHandler*(
       if blk.type == BlockPresenceType.presenceHave:
         peerCtx.peerHave.add(cid)
 
+proc resolveBlocks*(b: BitswapEngine, blocks: seq[bt.Block]) =
+  ## Resolve pending blocks from the pending blocks manager
+  ## and schedule any new task to be ran
+  ##
+
+  trace "Resolving blocks"
+  b.pendingBlocks.resolve(blocks)
+
+  let cids = blocks.mapIt( it.cid )
+  # schedule any new peers to provide blocks to
+  for p in b.peers:
+    for c in cids: # for each cid
+        # schedule a peer if it wants at least one
+        # cid and we have it in our local store
+        if c in p.peerWants and c in b.localStore:
+          if not b.scheduleTask(p):
+            trace "Unable to schedule task for peer", peer = p.id
+          break # do next peer
+
 proc blocksHandler*(
   b: BitswapEngine,
   peer: PeerID,
@@ -182,8 +206,9 @@ proc blocksHandler*(
   ## handle incoming blocks
   ##
 
+  trace "Got blocks from peer", peer, len = blocks.len
   b.localStore.putBlocks(blocks)
-  b.pendingBlocks.resolve(blocks)
+  b.resolveBlocks(blocks)
 
 proc wantListHandler*(
   b: BitswapEngine,
@@ -192,8 +217,7 @@ proc wantListHandler*(
   ## Handle incoming want lists
   ##
 
-  trace "got want list from peer", peer
-
+  trace "Got want list for peer", peer
   let peerCtx = b.getPeerCtx(peer)
   if isNil(peerCtx):
     return
@@ -201,14 +225,18 @@ proc wantListHandler*(
   var dontHaves: seq[Cid]
   let entries = wantList.entries
   for e in entries:
-    if e.cid in peerCtx.peerWants:
+    let idx = peerCtx.peerWants.find(e)
+    if idx > -1:
       # peer doesn't want this block anymore
       if e.cancel:
-        peerCtx.peerWants.delete(e)
+        peerCtx.peerWants.del(idx)
         continue
+
+      peerCtx.peerWants[idx] = e # update entry
     else:
-      if peerCtx.peerWants.pushOrUpdateNoWait(e).isErr:
-        trace "Cant add want cid", cid = $e.cid
+      peerCtx.peerWants.add(e)
+
+    trace "Added entry to peer's want list", peer = peerCtx.id, cid = $e.cid
 
     # peer might want to ask for the same cid with
     # different want params
@@ -232,33 +260,33 @@ proc setupPeer*(b: BitswapEngine, peer: PeerID) =
   ## list exchange
   ##
 
+  trace "Setting up new peer", peer
   if peer notin b.peers:
     b.peers.add(BitswapPeerCtx(
-      id: peer,
-      peerWants: newAsyncHeapQueue[Entry](queueType = QueueType.Max)
+      id: peer
     ))
 
   # broadcast our want list, the other peer will do the same
-  b.request.sendWantList(peer, b.wantList, full = true)
+  if b.wantList.len > 0:
+    b.request.sendWantList(peer, b.wantList, full = true)
 
 proc dropPeer*(b: BitswapEngine, peer: PeerID) =
   ## Cleanup disconnected peer
   ##
 
+  trace "Dropping peer", peer
+
   # drop the peer from the peers table
   b.peers.keepItIf( it.id != peer )
 
 proc taskHandler*(b: BitswapEngine, task: BitswapPeerCtx) {.gcsafe, async.} =
-  var wantsBlocks, wantsWants: seq[Entry]
+  trace "Handling task for peer", peer = task.id
+
+  var wantsBlocks = newAsyncHeapQueue[Entry](queueType = QueueType.Max)
   # get blocks and wants to send to the remote
-  while task.peerWants.len > 0:
-    let want = task.peerWants.popNoWait()
-    if want.isOk:
-      let e = want.get()
-      if e.wantType == WantType.wantBlock:
-        wantsBlocks.add(e)
-      else:
-        wantsWants.add(e)
+  for e in task.peerWants:
+    if e.wantType == WantType.wantBlock:
+      await wantsBlocks.push(e)
 
   # TODO: There should be all sorts of accounting of
   # bytes sent/received here
@@ -268,21 +296,31 @@ proc taskHandler*(b: BitswapEngine, task: BitswapPeerCtx) {.gcsafe, async.} =
         it.cid
     ))
 
-    b.request.sendBlocks(task.id, blocks)
+    if blocks.len > 0:
+      b.request.sendBlocks(task.id, blocks)
 
-  if wantsWants.len > 0:
-    let wants = wantsWants.mapIt(
-        BlockPresence(
-          cid: it.`block`,
-          `type`: if b.localStore.hasBlock(it.cid):
-              BlockPresenceType.presenceHave
-            else:
-              BlockPresenceType.presenceDontHave
-        )
+    # Remove succesfully sent blocks
+    task.peerWants.keepIf(
+      proc(e: Entry): bool =
+        blocks.anyIt( it.cid == e.cid )
     )
 
-    b.request.sendPresence(
-      task.id, wants)
+  var wants: seq[BlockPresence]
+  # do not remove wants from the queue unless
+  # we send the block or get a cancel
+  for e in task.peerWants:
+    if e.wantType == WantType.wantHave:
+      wants.add(
+        BlockPresence(
+            cid: e.`block`,
+            `type`: if b.localStore.hasBlock(e.cid):
+                BlockPresenceType.presenceHave
+              else:
+                BlockPresenceType.presenceDontHave
+        ))
+
+  if wants.len > 0:
+    b.request.sendPresence(task.id, wants)
 
 proc new*(
   T: type BitswapEngine,
@@ -303,26 +341,4 @@ proc new*(
     request: request,
   )
 
-  proc onBlocks(evt: BlockStoreChangeEvt) =
-    if evt.kind != ChangeType.Added:
-      return
-
-    proc resolveBlocks() {.async.} =
-      let blocks = await b.localStore.getBlocks(evt.cids)
-      b.pendingBlocks.resolve(blocks)
-
-    asyncSpawn resolveBlocks()
-
-    # schedule any new peers to provide blocks to
-    for p in b.peers:
-      for c in evt.cids:        # for each block
-          if c in p.peerWants:  # see if a peer wants at least one cid
-            if not b.scheduleTask(p):
-              # TODO: This breaks with
-              #`chronicles.nim(336, 21) Error: undeclared identifier: 'activeChroniclesStream'`
-              # trace "Unable to schedule a on new blocks for peer", peer = p.id
-              discard
-            break # do next peer
-
-  localStore.addChangeHandler(onBlocks, ChangeType.Added)
   return b
