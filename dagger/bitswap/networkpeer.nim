@@ -14,6 +14,9 @@ import pkg/libp2p
 
 import ./protobuf/bitswap
 
+logScope:
+  topics = "dagger bitswap networkpeer"
+
 const MaxMessageSize = 8 * 1024 * 1024
 
 type
@@ -37,6 +40,7 @@ proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
     while not conn.atEof:
       let data = await conn.readLp(MaxMessageSize)
       let msg: Message = Protobuf.decode(data, Message)
+      trace "Got message for peer", peer = b.id, msg
       await b.handler(b, msg)
   except CatchableError as exc:
     trace "Exception in bitswap read loop", exc = exc.msg
@@ -55,9 +59,10 @@ proc send*(b: NetworkPeer, msg: Message) {.async.} =
   let conn = await b.connect()
 
   if isNil(conn):
-    trace "unable to get send connection for peer message not sent", peer = b.peer
+    trace "Unable to get send connection for peer message not sent", peer = b.id
     return
 
+  trace "Sending message to remote", peer = b.id, msg = $msg
   await conn.writeLp(Protobuf.encode(msg))
 
 proc new*(

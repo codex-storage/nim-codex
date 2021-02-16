@@ -27,7 +27,7 @@ proc newRandomChunker*(
   ##
 
   var total = 0
-  proc reader(data: var openarray[byte]): int =
+  proc reader(data: var openArray[byte]): int =
     if total >= size:
       return 0
 

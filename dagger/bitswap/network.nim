@@ -20,6 +20,9 @@ import ./networkpeer
 
 export pb, networkpeer
 
+logScope:
+  topics = "dagger bitswap network"
+
 const Codec* = "/ipfs/bitswap/1.2.0"
 
 type
@@ -66,6 +69,7 @@ proc handleWantList(
   if isNil(b.handlers.onWantList):
     return
 
+  trace "Handling want list for peer", peer = peer.id
   b.handlers.onWantList(peer.id, list)
 
 # TODO: make into a template
@@ -102,6 +106,8 @@ proc broadcastWantList*(
   if id notin b.peers:
     return
 
+  trace "Sending want list to peer", peer = id, `type` = $wantType, len = cids.len
+
   let wantList = makeWantList(
     cids,
     priority,
@@ -120,6 +126,8 @@ proc handleBlocks(
 
   if isNil(b.handlers.onBlocks):
     return
+
+  trace "Handling blocks for peer", peer = peer.id
 
   var blks: seq[bt.Block]
   for blk in blocks:
@@ -155,6 +163,7 @@ proc broadcastBlocks*(
   if id notin b.peers:
     return
 
+  trace "Sending blocks to peer", peer = id, len = blocks.len
   asyncSpawn b.peers[id].send(pb.Message(payload: makeBlocks(blocks)))
 
 proc handleBlockPresence(
@@ -167,6 +176,7 @@ proc handleBlockPresence(
   if isNil(b.handlers.onPresence):
     return
 
+  trace "Handling block presence for peer", peer = peer.id
   b.handlers.onPresence(peer.id, presence)
 
 proc broadcastBlockPresence*(
@@ -176,8 +186,11 @@ proc broadcastBlockPresence*(
   ## Send presence to remote
   ##
 
-  if id in b.peers:
-    asyncSpawn b.peers[id].send(Message(blockPresences: presence))
+  if id notin b.peers:
+    return
+
+  trace "Sending presence to peer", peer = id
+  asyncSpawn b.peers[id].send(Message(blockPresences: presence))
 
 proc rpcHandler(b: BitswapNetwork, peer: NetworkPeer, msg: Message) {.async.} =
   try:

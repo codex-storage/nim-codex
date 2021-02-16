@@ -69,8 +69,7 @@ suite "Bitswap engine handlers":
     done = newFuture[void]()
     engine = BitswapEngine.new(MemoryStore.new())
     peerCtx = BitswapPeerCtx(
-      id: peerId,
-      peerWants: newAsyncHeapQueue[Entry](queueType = QueueType.Max)
+      id: peerId
     )
     engine.peers.add(peerCtx)
 
@@ -166,8 +165,7 @@ suite "Bitswap engine blocks":
       peers.add(PeerID.init(seckey.getKey().tryGet()).tryGet())
 
       peersCtx.add(BitswapPeerCtx(
-        id: peers[i],
-        peerWants: newAsyncHeapQueue[Entry](queueType = QueueType.Max)
+        id: peers[i]
       ))
 
     # set debt ratios
@@ -202,7 +200,7 @@ suite "Bitswap engine blocks":
         check cids == blocks.mapIt( it.cid )
         if peersCtx[1].id == id: # second peer has the least debt ratio
           check wantType == WantType.wantBlock
-          engine.localStore.putBlocks(blocks)
+          engine.resolveBlocks(blocks)
         else:
           check wantType == WantType.wantHave
 
@@ -224,7 +222,7 @@ suite "Bitswap engine blocks":
         check cids == blocks.mapIt( it.cid )
         if peersCtx[3].id == id: # 4th peer has the least debt ratio and has cids
           check wantType == WantType.wantBlock
-          engine.localStore.putBlocks(blocks)
+          engine.resolveBlocks(blocks)
         else:
           check wantType == WantType.wantHave
 
@@ -259,8 +257,7 @@ suite "Task Handler":
       peers.add(PeerID.init(seckey.getKey().tryGet()).tryGet())
 
       peersCtx.add(BitswapPeerCtx(
-        id: peers[i],
-        peerWants: newAsyncHeapQueue[Entry](queueType = QueueType.Max)
+        id: peers[i]
       ))
 
     engine.peers = peersCtx
@@ -278,24 +275,24 @@ suite "Task Handler":
     engine.request.sendBlocks = sendBlocks
 
     # second block to send by priority
-    check peersCtx[0].peerWants.pushNoWait(
+    peersCtx[0].peerWants.add(
       Entry(
         `block`: blocks[0].cid.data.buffer,
         priority: 49,
         cancel: false,
         wantType: WantType.wantBlock,
         sendDontHave: false)
-    ).isOk
+    )
 
     # first block to send by priority
-    check peersCtx[0].peerWants.pushNoWait(
+    peersCtx[0].peerWants.add(
       Entry(
         `block`: blocks[1].cid.data.buffer,
         priority: 50,
         cancel: false,
         wantType: WantType.wantBlock,
         sendDontHave: false)
-    ).isOk
+    )
 
     await engine.taskHandler(peersCtx[0])
 
@@ -317,33 +314,33 @@ suite "Task Handler":
     engine.request.sendPresence = sendPresence
 
     # have block
-    check peersCtx[0].peerWants.pushNoWait(
+    peersCtx[0].peerWants.add(
       Entry(
         `block`: blocks[0].cid.data.buffer,
         priority: 1,
         cancel: false,
         wantType: WantType.wantHave,
         sendDontHave: false)
-    ).isOk
+    )
 
     # have block
-    check peersCtx[0].peerWants.pushNoWait(
+    peersCtx[0].peerWants.add(
       Entry(
         `block`: blocks[1].cid.data.buffer,
         priority: 1,
         cancel: false,
         wantType: WantType.wantHave,
         sendDontHave: false)
-    ).isOk
+    )
 
     # don't have block
-    check peersCtx[0].peerWants.pushNoWait(
+    peersCtx[0].peerWants.add(
       Entry(
         `block`: bt.Block.new("Block 1".toBytes).cid.data.buffer,
         priority: 1,
         cancel: false,
         wantType: WantType.wantHave,
         sendDontHave: false)
-    ).isOk
+    )
 
     await engine.taskHandler(peersCtx[0])

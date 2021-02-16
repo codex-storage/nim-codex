@@ -1,3 +1,5 @@
+
+import std/sets
 import std/sequtils
 import std/algorithm
 
@@ -12,6 +14,7 @@ import pkg/dagger/bitswap/bitswap
 import pkg/dagger/stores/memorystore
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
+import pkg/dagger/utils/asyncheapqueue
 
 import ../helpers
 
@@ -70,8 +73,8 @@ suite "Bitswap engine":
 
   teardown:
     await allFuturesThrowing(
-      bitswap1.start(),
-      bitswap2.start(),
+      bitswap1.stop(),
+      bitswap2.stop(),
       switch1.stop(),
       switch2.stop())
 
@@ -99,8 +102,32 @@ suite "Bitswap engine":
       wantType: WantType.wantBlock,
       sendDontHave: false)
 
-    check peerCtx1.peerWants.pushOrUpdateNoWait(entry).isOk
+    peerCtx1.peerWants.add(entry)
     check bitswap2.taskQueue.pushOrUpdateNoWait(peerCtx1).isOk
-    await sleepAsync(1.seconds)
+    await sleepAsync(100.millis)
 
     check bitswap1.engine.localStore.hasBlock(blk.cid)
+
+  test "should get blocks from remote":
+    let blocks = await bitswap1.getBlocks(blocks2.mapIt( it.cid ))
+    check blocks == blocks2
+
+  # test "remote should send blocks when available":
+  #   let blk = bt.Block.new("Block 1".toBytes)
+
+  #   # should fail retrieving block from remote
+  #   var blocks = await bitswap1.getBlocks(@[blk.cid])
+  #   check blocks.len == 0
+
+  #   proc onBlocks(evt: BlockStoreChangeEvt) =
+  #     writeStackTrace()
+  #     if not done.finished:
+  #       done.complete()
+
+  #   bitswap1.engine.localStore.addChangeHandler(onBlocks, ChangeType.Added)
+
+  #   # now add the block to the second node
+  #   bitswap2.engine.localStore.putBlocks(@[blk])
+  #   bitswap2.putBlocks(@[blk])
+
+  #   await done

@@ -15,6 +15,9 @@ import pkg/libp2p
 
 import ../blocktype
 
+logScope:
+  topics = "dagger bitswap pendingblocks"
+
 type
   PendingBlocksManager* = ref object of RootObj
     blocks*: Table[Cid, Future[Block]] # pending Block requests
@@ -28,12 +31,13 @@ proc addOrAwait*(
 
   if cid notin p.blocks:
      p.blocks[cid] = newFuture[Block]()
+     trace "Adding pending future for block", cid
 
   let blk = p.blocks[cid]
   try:
     return await blk
   except CancelledError as exc:
-    trace "Block cancelled", exc = exc.msg
+    trace "Blocks cancelled", exc = exc.msg, cid
     raise exc
   except CatchableError as exc:
     trace "Pending WANT failed or expired", exc = exc.msg
@@ -51,6 +55,7 @@ proc resolve*(
     if blk.cid in p.blocks:
       let pending = p.blocks[blk.cid]
       if not pending.finished:
+        trace "Resolving block", cid = $blk.cid
         pending.complete(blk)
         p.blocks.del(blk.cid)
 
