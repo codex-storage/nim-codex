@@ -1,31 +1,39 @@
 import std/unittest
-import std/os
-import pkg/ipfs/chunking
+import pkg/stew/byteutils
+import pkg/dagger/chunker
 
-suite "chunking":
+suite "Chunking":
+  test "should return proper size chunks":
+    proc reader(data: var openArray[byte], offset: Natural = 0): int {.gcsafe, closure.} =
+      let contents = "1234567890".toBytes
+      copyMem(addr data[0], unsafeAddr contents[offset], data.len)
+      return data.len
 
-  var input, output: File
+    let chunker = Chunker.new(
+      reader = reader,
+      size = 10,
+      chunkSize = 2)
 
-  setup:
-    input = open("tests/input.txt", fmReadWrite)
-    output = open("tests/output.txt", fmReadWrite)
-    input.write("foo")
-    input.setFilePos(0)
+    check chunker.getBytes() == "12".toBytes
+    check chunker.getBytes() == "34".toBytes
+    check chunker.getBytes() == "56".toBytes
+    check chunker.getBytes() == "78".toBytes
+    check chunker.getBytes() == "90".toBytes
+    check chunker.getBytes() == "".toBytes
 
-  teardown:
-    input.close()
-    output.close()
-    removeFile("tests/input.txt")
-    removeFile("tests/output.txt")
+  test "should chunk file":
+    let (fileName, _, _) = instantiationInfo() # get this file's name
+    let path = "tests/dagger/" & filename
+    let file = open(path)
+    let fileChunker = newFileChunker(file = file)
 
-  test "creates an IPFS object from a file":
-    check createObject(input) != IpfsObject.default
+    var data: seq[byte]
+    while true:
+      let buff = fileChunker.getBytes()
+      if buff.len <= 0:
+        break
 
-  test "writes an IPFS object to a file":
-    let obj = createObject(input)
-    writeToFile(obj, output)
+      check buff.len <= fileChunker.chunkSize
+      data.add(buff)
 
-    input.setFilePos(0)
-    output.setFilePos(0)
-    check output.readAll() == input.readAll()
-
+    check string.fromBytes(data) == readFile(path)

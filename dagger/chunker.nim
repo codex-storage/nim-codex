@@ -7,6 +7,9 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import std/sequtils
+
+import ./p2p/rng
 import ./blocktype
 
 export blocktype
@@ -16,15 +19,16 @@ const
 
 type
   # default reader type
-  Reader* = proc(data: var openArray[byte]): int {.gcsafe, closure.}
+  Reader* = proc(data: var openArray[byte], offset: Natural = 0): int {.gcsafe, closure.}
 
   ChunkerType* {.pure.} = enum
     SizedChunker
     RabinChunker
 
-  Chunker* = object of RootObj
+  Chunker* = ref object of RootObj
     reader*: Reader
     size*: Natural
+    pos*: Natural
     case kind*: ChunkerType:
     of SizedChunker:
       chunkSize*: Natural
@@ -37,10 +41,14 @@ proc getBytes*(c: Chunker): seq[byte] =
   ## the instantiated chunker
   ##
 
-  var bytes = newSeq[byte](c.chunkSize)
-  let read = c.reader(bytes)
+  if c.pos >= c.size:
+    return
 
-  if not c.pad:
+  var bytes = newSeq[byte](c.chunkSize)
+  let read = c.reader(bytes, c.pos)
+  c.pos += read
+
+  if not c.pad and bytes.len != read:
     bytes.setLen(read)
 
   return bytes
@@ -71,6 +79,38 @@ proc new*(
 
   return chunker
 
+proc newRandomChunker*(
+  rng: Rng,
+  size: int64,
+  kind = ChunkerType.SizedChunker,
+  chunkSize = DefaultChunkSize,
+  pad = false): Chunker =
+  ## create a chunker that produces
+  ## random data
+  ##
+
+  proc reader(data: var openArray[byte], offset: Natural = 0): int =
+    var alpha = toSeq(byte('A')..byte('z'))
+
+    var read = 0
+    while read <= data.high:
+      rng.shuffle(alpha)
+      for a in alpha:
+        if read > data.high:
+          break
+
+        data[read] = a
+        read.inc
+
+    return read
+
+  Chunker.new(
+    kind = ChunkerType.SizedChunker,
+    reader = reader,
+    size = size,
+    pad = pad,
+    chunkSize = chunkSize)
+
 proc newFileChunker*(
   file: File,
   kind = ChunkerType.SizedChunker,
@@ -79,7 +119,7 @@ proc newFileChunker*(
   ## create the default File chunker
   ##
 
-  proc reader(data: var openArray[byte]): int =
+  proc reader(data: var openArray[byte], offset: Natural = 0): int =
     return file.readBytes(data, 0, data.len)
 
   Chunker.new(
