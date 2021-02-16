@@ -112,22 +112,24 @@ suite "Bitswap engine":
     let blocks = await bitswap1.getBlocks(blocks2.mapIt( it.cid ))
     check blocks == blocks2
 
-  # test "remote should send blocks when available":
-  #   let blk = bt.Block.new("Block 1".toBytes)
+  test "remote should send blocks when available":
+    let blk = bt.Block.new("Block 1".toBytes)
 
-  #   # should fail retrieving block from remote
-  #   var blocks = await bitswap1.getBlocks(@[blk.cid])
-  #   check blocks.len == 0
+    # should fail retrieving block from remote
+    var blocks = await bitswap1.getBlocks(@[blk.cid])
+    check blocks.len == 0
 
-  #   proc onBlocks(evt: BlockStoreChangeEvt) =
-  #     writeStackTrace()
-  #     if not done.finished:
-  #       done.complete()
+    proc onBlocks(evt: BlockStoreChangeEvt) =
+      check evt.cids == @[blk.cid]
+      done.complete()
 
-  #   bitswap1.engine.localStore.addChangeHandler(onBlocks, ChangeType.Added)
+    bitswap1.engine.localStore.addChangeHandler(onBlocks, ChangeType.Added)
 
-  #   # now add the block to the second node
-  #   bitswap2.engine.localStore.putBlocks(@[blk])
-  #   bitswap2.putBlocks(@[blk])
+    # first put the required block in the local store
+    bitswap2.engine.localStore.putBlocks(@[blk])
 
-  #   await done
+    # second trigger bitswap to resolve any pending requests
+    # for the block
+    bitswap2.putBlocks(@[blk])
+
+    await done
