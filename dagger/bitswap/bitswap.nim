@@ -93,7 +93,7 @@ method getBlocks*(b: Bitswap, cid: seq[Cid]): Future[seq[bt.Block]] {.async.} =
 
 proc new*(
   T: type Bitswap,
-  storeManager: BlockStore,
+  localStore: BlockStore,
   network: BitswapNetwork,
   concurrentTasks = DefaultConcurrentTasks,
   maxRetries = DefaultMaxRetries,
@@ -118,7 +118,7 @@ proc new*(
     network.broadcastBlockPresence(id, presence)
 
   let engine = BitswapEngine.new(
-    storeManager = storeManager,
+    localStore = localStore,
     peersPerRequest = peersPerRequest,
     request = network.request,
   )

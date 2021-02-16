@@ -116,7 +116,7 @@ suite "Bitswap engine handlers":
       done.complete()
 
     engine.request = BitswapRequest(sendPresence: sendPresence)
-    engine.storeManager.putBlocks(@[blocks[0], blocks[1]])
+    engine.localStore.putBlocks(@[blocks[0], blocks[1]])
     engine.wantListHandler(peerId, wantList)
 
     await done
@@ -130,7 +130,7 @@ suite "Bitswap engine handlers":
     let resolved = await allFinished(pending)
     check resolved.mapIt( it.read ) == blocks
     for b in blocks:
-      check engine.storeManager.hasBlock(b.cid)
+      check engine.localStore.hasBlock(b.cid)
 
   test "should handle block presence":
     engine.blockPresenceHandler(
@@ -202,7 +202,7 @@ suite "Bitswap engine blocks":
         check cids == blocks.mapIt( it.cid )
         if peersCtx[1].id == id: # second peer has the least debt ratio
           check wantType == WantType.wantBlock
-          engine.storeManager.putBlocks(blocks)
+          engine.localStore.putBlocks(blocks)
         else:
           check wantType == WantType.wantHave
 
@@ -224,7 +224,7 @@ suite "Bitswap engine blocks":
         check cids == blocks.mapIt( it.cid )
         if peersCtx[3].id == id: # 4th peer has the least debt ratio and has cids
           check wantType == WantType.wantBlock
-          engine.storeManager.putBlocks(blocks)
+          engine.localStore.putBlocks(blocks)
         else:
           check wantType == WantType.wantHave
 
@@ -274,7 +274,7 @@ suite "Task Handler":
         blks[1].cid == blocks[0].cid
         blks[0].cid == blocks[1].cid
 
-    engine.storeManager.putBlocks(blocks)
+    engine.localStore.putBlocks(blocks)
     engine.request.sendBlocks = sendBlocks
 
     # second block to send by priority
@@ -313,7 +313,7 @@ suite "Task Handler":
 
         presence[2].`type` == BlockPresenceType.presenceDontHave
 
-    engine.storeManager.putBlocks(blocks)
+    engine.localStore.putBlocks(blocks)
     engine.request.sendPresence = sendPresence
 
     # have block

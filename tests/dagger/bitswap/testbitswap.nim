@@ -28,7 +28,6 @@ suite "Bitswap engine":
     network1, network2: BitswapNetwork
     bitswap1, bitswap2: Bitswap
     awaiters: seq[Future[void]]
-    store1, store2: MemoryStore
     peerId1, peerId2: PeerID
     peerCtx1, peerCtx2: BitswapPeerCtx
     done: Future[void]
@@ -44,19 +43,13 @@ suite "Bitswap engine":
     peerId1 = switch1.peerInfo.peerId
     peerId2 = switch2.peerInfo.peerId
 
-    network1 = BitswapNetwork.new(
-      switch = switch1)
+    network1 = BitswapNetwork.new(switch = switch1)
+    bitswap1 = Bitswap.new(MemoryStore.new(blocks1), network1)
     switch1.mount(network1)
 
-    store1 = MemoryStore.new(blocks1)
-    bitswap1 = Bitswap.new(store1, network1)
-
-    network2 = BitswapNetwork.new(
-      switch = switch2)
+    network2 = BitswapNetwork.new(switch = switch2)
+    bitswap2 = Bitswap.new(MemoryStore.new(blocks2), network2)
     switch2.mount(network2)
-
-    store2 = MemoryStore.new(blocks2)
-    bitswap2 = Bitswap.new(store2, network2)
 
     await allFuturesThrowing(
       bitswap1.start(),
@@ -97,7 +90,7 @@ suite "Bitswap engine":
 
   test "should send want-have for block":
     let blk = bt.Block.new("Block 1".toBytes)
-    store2.putBlocks(@[blk])
+    bitswap2.engine.localStore.putBlocks(@[blk])
 
     let entry = Entry(
       `block`: blk.cid.data.buffer,
@@ -110,4 +103,4 @@ suite "Bitswap engine":
     check bitswap2.taskQueue.pushOrUpdateNoWait(peerCtx1).isOk
     await sleepAsync(1.seconds)
 
-    check store1.hasBlock(blk.cid)
+    check bitswap1.engine.localStore.hasBlock(blk.cid)

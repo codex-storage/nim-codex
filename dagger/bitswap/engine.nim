@@ -41,7 +41,7 @@ type
     lastExchange*: Moment              # last time peer has exchanged with us
 
   BitswapEngine* = ref object of RootObj
-    storeManager*: BlockStore                   # where we storeManager blocks for this instance
+    localStore*: BlockStore                     # where we localStore blocks for this instance
     peers*: seq[BitswapPeerCtx]                 # peers we're currently activelly exchanging with
     wantList*: seq[Cid]                         # local wants list
     pendingBlocks*: PendingBlocksManager        # blocks we're awaiting to be resolved
@@ -182,7 +182,7 @@ proc blocksHandler*(
   ## handle incoming blocks
   ##
 
-  b.storeManager.putBlocks(blocks)
+  b.localStore.putBlocks(blocks)
   b.pendingBlocks.resolve(blocks)
 
 proc wantListHandler*(
@@ -212,7 +212,7 @@ proc wantListHandler*(
 
     # peer might want to ask for the same cid with
     # different want params
-    if e.sendDontHave and not(b.storeManager.hasBlock(e.cid)):
+    if e.sendDontHave and not(b.localStore.hasBlock(e.cid)):
       dontHaves.add(e.cid)
 
   # send don't have's to remote
@@ -263,7 +263,7 @@ proc taskHandler*(b: BitswapEngine, task: BitswapPeerCtx) {.gcsafe, async.} =
   # TODO: There should be all sorts of accounting of
   # bytes sent/received here
   if wantsBlocks.len > 0:
-    let blocks = await b.storeManager.getBlocks(
+    let blocks = await b.localStore.getBlocks(
       wantsBlocks.mapIt(
         it.cid
     ))
@@ -274,7 +274,7 @@ proc taskHandler*(b: BitswapEngine, task: BitswapPeerCtx) {.gcsafe, async.} =
     let wants = wantsWants.mapIt(
         BlockPresence(
           cid: it.`block`,
-          `type`: if b.storeManager.hasBlock(it.cid):
+          `type`: if b.localStore.hasBlock(it.cid):
               BlockPresenceType.presenceHave
             else:
               BlockPresenceType.presenceDontHave
@@ -286,7 +286,7 @@ proc taskHandler*(b: BitswapEngine, task: BitswapPeerCtx) {.gcsafe, async.} =
 
 proc new*(
   T: type BitswapEngine,
-  storeManager: BlockStore,
+  localStore: BlockStore,
   request: BitswapRequest = BitswapRequest(),
   scheduleTask: TaskScheduler = nil,
   peersPerRequest = DefaultMaxPeersPerRequest): T =
@@ -296,7 +296,7 @@ proc new*(
       return scheduleTask(task)
 
   let b = BitswapEngine(
-    storeManager: storeManager,
+    localStore: localStore,
     pendingBlocks: PendingBlocksManager.new(),
     peersPerRequest: peersPerRequest,
     scheduleTask: taskScheduler,
@@ -308,7 +308,7 @@ proc new*(
       return
 
     proc resolveBlocks() {.async.} =
-      let blocks = await b.storeManager.getBlocks(evt.cids)
+      let blocks = await b.localStore.getBlocks(evt.cids)
       b.pendingBlocks.resolve(blocks)
 
     asyncSpawn resolveBlocks()
@@ -324,5 +324,5 @@ proc new*(
               discard
             break # do next peer
 
-  storeManager.addChangeHandler(onBlocks, ChangeType.Added)
+  localStore.addChangeHandler(onBlocks, ChangeType.Added)
   return b
