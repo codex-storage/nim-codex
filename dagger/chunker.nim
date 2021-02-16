@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+# TODO: This is super inneficient and merits a rewrite, but it'll do for now
+
 import std/sequtils
 
 import ./p2p/rng
