@@ -16,7 +16,7 @@ import pkg/dagger/blocktype as bt
 
 import ../helpers
 
-suite "Bitswap network unit tests":
+suite "Bitswap network":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
@@ -102,7 +102,7 @@ suite "Bitswap network unit tests":
 
     await done.wait(500.millis)
 
-suite "Bitswap Network e2e tests":
+suite "Bitswap Network - e2e":
   let
     chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
     blocks = chunker.mapIt( bt.Block.new(it) )
