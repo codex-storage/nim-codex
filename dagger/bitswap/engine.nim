@@ -180,13 +180,8 @@ proc blockPresenceHandler*(
       if blk.type == BlockPresenceType.presenceHave:
         peerCtx.peerHave.add(cid)
 
-proc resolveBlocks*(b: BitswapEngine, blocks: seq[bt.Block]) =
-  ## Resolve pending blocks from the pending blocks manager
-  ## and schedule any new task to be ran
-  ##
-
-  trace "Resolving blocks"
-  b.pendingBlocks.resolve(blocks)
+proc scheduleTasks(b: BitswapEngine, blocks: seq[bt.Block]) =
+  trace "Schedule a task for new blocks"
 
   let cids = blocks.mapIt( it.cid )
   # schedule any new peers to provide blocks to
@@ -198,6 +193,15 @@ proc resolveBlocks*(b: BitswapEngine, blocks: seq[bt.Block]) =
           if not b.scheduleTask(p):
             trace "Unable to schedule task for peer", peer = p.id
           break # do next peer
+
+proc resolveBlocks*(b: BitswapEngine, blocks: seq[bt.Block]) =
+  ## Resolve pending blocks from the pending blocks manager
+  ## and schedule any new task to be ran
+  ##
+
+  trace "Resolving blocks"
+  b.pendingBlocks.resolve(blocks)
+  b.scheduleTasks(blocks)
 
 proc blocksHandler*(
   b: BitswapEngine,
@@ -302,7 +306,7 @@ proc taskHandler*(b: BitswapEngine, task: BitswapPeerCtx) {.gcsafe, async.} =
     # Remove succesfully sent blocks
     task.peerWants.keepIf(
       proc(e: Entry): bool =
-        blocks.anyIt( it.cid == e.cid )
+        not blocks.anyIt( it.cid == e.cid )
     )
 
   var wants: seq[BlockPresence]
