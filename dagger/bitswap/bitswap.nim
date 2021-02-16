@@ -24,6 +24,9 @@ import ./engine
 
 export network, blockstore, asyncheapqueue, engine
 
+logScope:
+  topics = "dagger bitswap"
+
 const
   DefaultTaskQueueSize = 100
   DefaultConcurrentTasks = 10
@@ -47,6 +50,8 @@ proc bitswapTaskRunner(b: Bitswap) {.async.} =
   while b.bitswapRunning:
     let peerCtx = await b.taskQueue.pop()
     asyncSpawn b.taskHandler(peerCtx)
+
+  trace "Exiting bitswap task runner"
 
 proc start*(b: Bitswap) {.async.} =
   ## Start the bitswap task
@@ -75,7 +80,7 @@ proc stop*(b: Bitswap) {.async.} =
   for t in b.bitswapTasks:
     if not t.finished:
       trace "Awaiting task to stop"
-      await t
+      t.cancel()
       trace "Task stopped"
 
   trace "Bitswap stopped"
@@ -90,6 +95,11 @@ method getBlocks*(b: Bitswap, cid: seq[Cid]): Future[seq[bt.Block]] {.async.} =
   ).mapIt(
     it.read
   )
+
+method putBlocks*(b: Bitswap, blocks: seq[bt.Block]) =
+  b.engine.resolveBlocks(blocks)
+
+  procCall BlockStore(b).putBlocks(blocks)
 
 proc new*(
   T: type Bitswap,
