@@ -117,8 +117,8 @@ suite "Bitswap engine - 2 nodes":
     let blk = bt.Block.new("Block 1".toBytes)
 
     # should fail retrieving block from remote
-    var blocks = await bitswap1.getBlocks(@[blk.cid])
-    check blocks.len == 0
+    check not await bitswap1.getBlocks(@[blk.cid])
+      .withTimeout(100.millis) # should expire
 
     proc onBlocks(evt: BlockStoreChangeEvt) =
       check evt.cids == @[blk.cid]
