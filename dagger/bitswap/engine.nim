@@ -36,12 +36,12 @@ type
 
   BitswapPeerCtx* = ref object of RootObj
     id*: PeerID
-    peerHave*: seq[Cid]                # remote peers have lists
-    peerWants*: seq[Entry]         # remote peers want lists
-    bytesSent*: int                    # bytes sent to remote
-    bytesRecv*: int                    # bytes received from remote
-    exchanged*: int                    # times peer has exchanged with us
-    lastExchange*: Moment              # last time peer has exchanged with us
+    peerHave*: seq[Cid]     # remote peers have lists
+    peerWants*: seq[Entry]  # remote peers want lists
+    bytesSent*: int         # bytes sent to remote
+    bytesRecv*: int         # bytes received from remote
+    exchanged*: int         # times peer has exchanged with us
+    lastExchange*: Moment   # last time peer has exchanged with us
 
   BitswapEngine* = ref object of RootObj
     localStore*: BlockStore                     # where we localStore blocks for this instance
