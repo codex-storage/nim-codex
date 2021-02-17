@@ -1,7 +1,5 @@
-import std/sequtils
 import pkg/libp2p/varint
 
-import pkg/dagger/p2p/rng
 import pkg/dagger/chunker
 import pkg/dagger/blocktype
 
