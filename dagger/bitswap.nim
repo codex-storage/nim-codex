@@ -14,13 +14,13 @@ import pkg/chronos
 import pkg/libp2p
 import pkg/libp2p/errors
 
-import ./protobuf/bitswap as pb
-import ../blocktype as bt
-import ../stores/blockstore
-import ../utils/asyncheapqueue
+import ./bitswap/protobuf/bitswap as pb
+import ./blocktype as bt
+import ./stores/blockstore
+import ./utils/asyncheapqueue
 
-import ./network
-import ./engine
+import ./bitswap/network
+import ./bitswap/engine
 
 export network, blockstore, asyncheapqueue, engine
 

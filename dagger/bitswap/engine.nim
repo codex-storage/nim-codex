@@ -45,21 +45,21 @@ type
 
   BitswapEngine* = ref object of RootObj
     localStore*: BlockStore                     # where we localStore blocks for this instance
-    peers*: seq[BitswapPeerCtx]                 # peers we're currently activelly exchanging with
+    peers*: seq[BitswapPeerCtx]                 # peers we're currently actively exchanging with
     wantList*: seq[Cid]                         # local wants list
     pendingBlocks*: PendingBlocksManager        # blocks we're awaiting to be resolved
     peersPerRequest: int                        # max number of peers to request from
-    scheduleTask*: TaskScheduler                # schedule a new task with the task runnuer
+    scheduleTask*: TaskScheduler                # schedule a new task with the task runner
     request*: BitswapRequest                    # bitswap network requests
 
 proc contains*(a: AsyncHeapQueue[Entry], b: Cid): bool =
-  ## Convenience method to check for entry precense
+  ## Convenience method to check for entry prepense
   ##
 
   a.anyIt( it.cid == b )
 
 proc contains*(a: openArray[BitswapPeerCtx], b: PeerID): bool =
-  ## Convenience method to check for peer precense
+  ## Convenience method to check for peer prepense
   ##
 
   a.anyIt( it.id == b )
@@ -303,7 +303,7 @@ proc taskHandler*(b: BitswapEngine, task: BitswapPeerCtx) {.gcsafe, async.} =
     if blocks.len > 0:
       b.request.sendBlocks(task.id, blocks)
 
-    # Remove succesfully sent blocks
+    # Remove successfully sent blocks
     task.peerWants.keepIf(
       proc(e: Entry): bool =
         not blocks.anyIt( it.cid == e.cid )
