@@ -27,7 +27,7 @@ logScope:
   topics = "dagger bitswap engine"
 
 const
-  DefaultTimeout* = 10.seconds
+  DefaultTimeout* = 5.seconds
   DefaultMaxPeersPerRequest* = 10
 
 type

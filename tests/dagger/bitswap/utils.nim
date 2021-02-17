@@ -16,7 +16,7 @@ proc generateNodes*(
 
   for i in 0..<num:
     let
-      switch = newStandardSwitch()
+      switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
       network = BitswapNetwork.new(switch = switch)
       bitswap = Bitswap.new(MemoryStore.new(blocks), network)
 

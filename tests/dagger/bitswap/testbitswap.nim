@@ -10,15 +10,16 @@ import pkg/libp2p
 import pkg/libp2p/errors
 
 import pkg/dagger/p2p/rng
-import pkg/dagger/bitswap/bitswap
+import pkg/dagger/bitswap
 import pkg/dagger/stores/memorystore
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
 import pkg/dagger/utils/asyncheapqueue
 
+import ./utils
 import ../helpers
 
-suite "Bitswap engine":
+suite "Bitswap engine - 2 nodes":
 
   let
     chunker1 = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
@@ -133,3 +134,68 @@ suite "Bitswap engine":
     bitswap2.putBlocks(@[blk])
 
     await done
+
+suite "Bitswap - multiple nodes":
+  let
+    chunker = newRandomChunker(Rng.instance(), size = 4096, chunkSize = 256)
+    blocks = chunker.mapIt( bt.Block.new(it) )
+
+  var
+    switch: seq[Switch]
+    bitswap: seq[Bitswap]
+    awaiters: seq[Future[void]]
+
+  setup:
+    for e in generateNodes(5):
+      switch.add(e.switch)
+      bitswap.add(e.bitswap)
+      await e.bitswap.start()
+
+    awaiters = switch.mapIt(
+      (await it.start())
+    ).concat()
+
+  teardown:
+    await allFuturesThrowing(
+      switch.mapIt( it.stop() )
+    )
+
+    await allFuturesThrowing(awaiters)
+
+  test "should receive haves for own want list":
+    let
+      downloader = bitswap[4]
+      engine = downloader.engine
+
+    # Add blocks from 1st peer to want list
+    engine.wantList &= blocks[0..3].mapIt( it.cid )
+    engine.wantList &= blocks[12..15].mapIt( it.cid )
+
+    bitswap[0].engine.localStore.putBlocks(blocks[0..3])
+    bitswap[1].engine.localStore.putBlocks(blocks[4..7])
+    bitswap[2].engine.localStore.putBlocks(blocks[8..11])
+    bitswap[3].engine.localStore.putBlocks(blocks[12..15])
+
+    await connectNodes(switch)
+
+    await sleepAsync(1.seconds)
+    check engine.peers[0].peerHave == blocks[0..3].mapIt( it.cid )
+    check engine.peers[3].peerHave == blocks[12..15].mapIt( it.cid )
+
+  test "should exchange blocks with multiple nodes":
+    let
+      downloader = bitswap[4]
+      engine = downloader.engine
+
+    # Add blocks from 1st peer to want list
+    engine.wantList &= blocks[0..3].mapIt( it.cid )
+    engine.wantList &= blocks[12..15].mapIt( it.cid )
+
+    bitswap[0].engine.localStore.putBlocks(blocks[0..3])
+    bitswap[1].engine.localStore.putBlocks(blocks[4..7])
+    bitswap[2].engine.localStore.putBlocks(blocks[8..11])
+    bitswap[3].engine.localStore.putBlocks(blocks[12..15])
+
+    await connectNodes(switch)
+    let wantListBlocks = await downloader.getBlocks(blocks[0..3].mapIt( it.cid ))
+    check wantListBlocks == blocks[0..3]
