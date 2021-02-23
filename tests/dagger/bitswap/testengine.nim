@@ -7,7 +7,7 @@ import pkg/libp2p
 import pkg/libp2p/errors
 
 import pkg/dagger/p2p/rng
-import pkg/dagger/bitswap/bitswap
+import pkg/dagger/bitswap
 import pkg/dagger/bitswap/pendingblocks
 import pkg/dagger/stores/memorystore
 import pkg/dagger/chunker
