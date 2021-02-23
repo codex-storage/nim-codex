@@ -7,12 +7,11 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/libp2p
+import pkg/libp2p/crypto/crypto
 import pkg/bearssl
 
 type
-  Rng* = RandomNumberGenerator
-  RandomNumberGenerator = ref BrHmacDrbgContext
+  Rng* = ref BrHmacDrbgContext
 
 var rng {.threadvar.}: Rng
 
@@ -21,7 +20,7 @@ proc instance*(t: type Rng): Rng =
     rng = newRng()
   rng
 
-## Random helpers: similar as in stdlib, but with BrHmacDrbgContext rng
+# Random helpers: similar as in stdlib, but with BrHmacDrbgContext rng
 # TODO: Move these somewhere else?
 const randMax = 18_446_744_073_709_551_615'u64
 
