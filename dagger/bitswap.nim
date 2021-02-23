@@ -148,7 +148,7 @@ proc new*(
   # attach task scheduler to engine
   engine.scheduleTask = proc(task: BitswapPeerCtx):
     bool {.gcsafe} =
-    b.taskQueue.pushOrUpdateNoWait(task).isOk
+    b.taskQueue.pushOrUpdateNoWait(task).isOk()
 
   proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
     if event.kind == PeerEventKind.Joined:

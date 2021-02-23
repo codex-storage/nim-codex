@@ -229,7 +229,7 @@ proc pushOrUpdateNoWait*[T](heap: AsyncHeapQueue[T], item: T): Result[void, Asyn
   ##
 
   if heap.update(item):
-    return ok
+    return ok()
 
   return heap.pushNoWait(item)
 
