@@ -1,12 +1,7 @@
-import ./ipfs/testObject
-import ./ipfs/testChunking
-import ./ipfs/testWaitingList
-import ./ipfs/testRepo
-import ./ipfs/testDhtRouting
-import ./ipfs/testProtobuf
-import ./ipfs/testBitswapMessages
-import ./ipfs/testBitswapProtocol
-import ./ipfs/testBitswap
-import ./ipfs/testIpfs
+import ./dagger/bitswap/testbitswap
+import ./dagger/bitswap/testnetwork
+import ./dagger/testasyncheapqueue
+import ./dagger/testblockstore
+import ./dagger/testchunking
 
 {.warning[UnusedImport]: off.}
