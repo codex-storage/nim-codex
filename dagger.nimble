@@ -13,5 +13,4 @@ requires "nim >= 1.2.6",
          "secp256k1",
          "stew#head",
          "protobufserialization >= 0.2.0 & < 0.3.0",
-         "asynctest >= 0.2.1 & < 0.3.0",
-         "stew"
+         "asynctest >= 0.2.1 & < 0.3.0"
