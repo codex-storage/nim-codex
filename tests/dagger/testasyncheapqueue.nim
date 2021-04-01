@@ -145,7 +145,7 @@ suite "asynchronous tests":
       for item in data:
         await push(heap, item)
 
-    asyncCheck pushTask()
+    asyncSpawn pushTask()
 
     check heap.len == 5
     check heap[0] == 1 # because we haven't pushed 0 yet

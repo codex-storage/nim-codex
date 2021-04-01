@@ -7,7 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/sets
 import std/sequtils
 import chronos
 import ../blocktype
@@ -51,6 +50,8 @@ proc triggerChange(
   for handler in s.changeHandlers[changeType]:
     handler(evt)
 
+{.push locks:"unknown".}
+
 method getBlocks*(b: BlockStore, cid: seq[Cid]): Future[seq[Block]] {.base.} =
   ## Get a block from the stores
   ##
@@ -74,6 +75,8 @@ method delBlocks*(s: BlockStore, blocks: seq[Cid]) {.base.} =
   ##
 
   s.triggerChange(ChangeType.Removed, blocks)
+
+{.pop.}
 
 proc contains*(s: BlockStore, blk: Cid): bool =
   s.hasBlock(blk)
