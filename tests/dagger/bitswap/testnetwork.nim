@@ -4,7 +4,6 @@ import std/tables
 import pkg/asynctest
 import pkg/chronos
 import pkg/libp2p
-import pkg/libp2p/standard_setup
 import pkg/libp2p/errors
 import pkg/protobuf_serialization
 
