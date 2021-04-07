@@ -37,6 +37,7 @@ suite "Bitswap network":
     buffer = newBufferStream()
     network = BitswapNetwork.new(
       switch = newStandardSwitch(),
+      wallet = Wallet.init(EthPrivateKey.random()),
       connProvider = getConn)
     network.setupPeer(peerId)
     networkPeer = network.peers[peerId]
@@ -108,6 +109,7 @@ suite "Bitswap Network - e2e":
 
   var
     switch1, switch2: Switch
+    wallet1, wallet2: Wallet
     network1, network2: BitswapNetwork
     awaiters: seq[Future[void]]
     done: Future[void]
@@ -116,15 +118,15 @@ suite "Bitswap Network - e2e":
     done = newFuture[void]()
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
+    wallet1 = Wallet.init(EthPrivateKey.random())
+    wallet2 = Wallet.init(EthPrivateKey.random())
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
 
-    network1 = BitswapNetwork.new(
-      switch = switch1)
+    network1 = BitswapNetwork.new(switch1, wallet1)
     switch1.mount(network1)
 
-    network2 = BitswapNetwork.new(
-      switch = switch2)
+    network2 = BitswapNetwork.new(switch2, wallet2)
     switch2.mount(network2)
 
     await switch1.connect(

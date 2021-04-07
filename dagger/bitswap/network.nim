@@ -13,12 +13,14 @@ import pkg/chronicles
 import pkg/chronos
 
 import pkg/libp2p
+import pkg/nitro
 
 import ../blocktype as bt
 import ./protobuf/bitswap as pb
 import ./networkpeer
 
 export pb, networkpeer
+export nitro
 
 logScope:
   topics = "dagger bitswap network"
@@ -55,6 +57,7 @@ type
   BitswapNetwork* = ref object of LPProtocol
     peers*: Table[PeerID, NetworkPeer]
     switch*: Switch
+    wallet*: Wallet
     handlers*: BitswapHandlers
     request*: BitswapRequest
     getConn: ConnProvider
@@ -273,12 +276,14 @@ method init*(b: BitswapNetwork) =
 proc new*(
   T: type BitswapNetwork,
   switch: Switch,
+  wallet: Wallet,
   connProvider: ConnProvider = nil): T =
   ## Create a new BitswapNetwork instance
   ##
 
   let b = BitswapNetwork(
     switch: switch,
+    wallet: wallet,
     getConn: connProvider)
 
   proc sendWantList(

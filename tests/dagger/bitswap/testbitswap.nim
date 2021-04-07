@@ -27,6 +27,7 @@ suite "Bitswap engine - 2 nodes":
 
   var
     switch1, switch2: Switch
+    wallet1, wallet2: Wallet
     network1, network2: BitswapNetwork
     bitswap1, bitswap2: Bitswap
     awaiters: seq[Future[void]]
@@ -39,17 +40,19 @@ suite "Bitswap engine - 2 nodes":
 
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
+    wallet1 = Wallet.init(EthPrivateKey.random())
+    wallet2 = Wallet.init(EthPrivateKey.random())
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
 
     peerId1 = switch1.peerInfo.peerId
     peerId2 = switch2.peerInfo.peerId
 
-    network1 = BitswapNetwork.new(switch = switch1)
+    network1 = BitswapNetwork.new(switch1, wallet1)
     bitswap1 = Bitswap.new(MemoryStore.new(blocks1), network1)
     switch1.mount(network1)
 
-    network2 = BitswapNetwork.new(switch = switch2)
+    network2 = BitswapNetwork.new(switch2, wallet2)
     bitswap2 = Bitswap.new(MemoryStore.new(blocks2), network2)
     switch2.mount(network2)
 
