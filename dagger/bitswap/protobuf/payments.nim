@@ -6,6 +6,7 @@ import pkg/upraises
 import_proto3 "payments.proto"
 
 export PricingMessage
+export StateChannelUpdate
 
 export nitro
 
@@ -44,3 +45,9 @@ func init*(_: type Pricing, message: PricingMessage): ?Pricing =
   if address.isNone or asset.isNone or price.isNone:
     return Pricing.none
   Pricing(address: address.get, asset: asset.get, price: price.get).some
+
+func init*(_: type StateChannelUpdate, state: SignedState): StateChannelUpdate =
+  StateChannelUpdate(update: state.toJson.toBytes)
+
+proc init*(_: type SignedState, update: StateChannelUpdate): ?SignedState =
+  SignedState.fromJson(string.fromBytes(update.update))

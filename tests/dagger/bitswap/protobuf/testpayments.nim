@@ -1,5 +1,6 @@
 import pkg/asynctest
 import pkg/chronos
+import pkg/stew/byteutils
 import ../../examples
 import ../../../../dagger/bitswap/protobuf/payments
 
@@ -43,3 +44,19 @@ suite "pricing protobuf messages":
     var incorrect = message
     incorrect.price = newSeq[byte](33)
     check Pricing.init(incorrect).isNone
+
+suite "channel update messages":
+
+  let state = SignedState.example
+  let update = StateChannelUpdate.init(state)
+
+  test "encodes a nitro signed state":
+    check update.update == state.toJson.toBytes
+
+  test "decodes a channel update":
+    check SignedState.init(update) == state.some
+
+  test "fails to decode incorrect channel update":
+    var incorrect = update
+    incorrect.update.del(0)
+    check SignedState.init(incorrect).isNone

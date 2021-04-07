@@ -7,3 +7,7 @@ message PricingMessage {
   bytes asset = 2;    // Asset (coin) with which to pay
   bytes price = 3;    // Amount of assets to pay per byte (UInt256)
 }
+
+message StateChannelUpdate {
+  bytes update = 1; // Signed Nitro state, serialized as JSON
+}
