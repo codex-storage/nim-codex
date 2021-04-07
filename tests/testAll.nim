@@ -1,6 +1,7 @@
 import ./dagger/bitswap/testbitswap
 import ./dagger/bitswap/testengine
 import ./dagger/bitswap/testnetwork
+import ./dagger/bitswap/protobuf/testpayments
 import ./dagger/testasyncheapqueue
 import ./dagger/testblockstore
 import ./dagger/testchunking
