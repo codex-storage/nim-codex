@@ -1,12 +1,15 @@
 import pkg/protobuf_serialization
 import pkg/nitro
 import pkg/questionable
+import pkg/upraises
 
 import_proto3 "payments.proto"
 
 export PricingMessage
 
 export nitro
+
+push: {.upraises: [].}
 
 type
   Pricing* = object
