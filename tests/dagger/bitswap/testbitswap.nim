@@ -16,6 +16,7 @@ import pkg/dagger/utils/asyncheapqueue
 
 import ./utils
 import ../helpers
+import ../examples
 
 suite "Bitswap engine - 2 nodes":
 
@@ -28,6 +29,7 @@ suite "Bitswap engine - 2 nodes":
   var
     switch1, switch2: Switch
     wallet1, wallet2: Wallet
+    pricing1, pricing2: Pricing
     network1, network2: BitswapNetwork
     bitswap1, bitswap2: Bitswap
     awaiters: seq[Future[void]]
@@ -42,6 +44,8 @@ suite "Bitswap engine - 2 nodes":
     switch2 = newStandardSwitch()
     wallet1 = Wallet.init(EthPrivateKey.random())
     wallet2 = Wallet.init(EthPrivateKey.random())
+    pricing1 = Pricing.example
+    pricing2 = Pricing.example
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
 
@@ -64,6 +68,9 @@ suite "Bitswap engine - 2 nodes":
     # initialize our want lists
     bitswap1.engine.wantList = blocks2.mapIt( it.cid )
     bitswap2.engine.wantList = blocks1.mapIt( it.cid )
+
+    bitswap1.engine.pricing = pricing1.some
+    bitswap2.engine.pricing = pricing2.some
 
     await switch1.connect(
       switch2.peerInfo.peerId,
@@ -92,6 +99,10 @@ suite "Bitswap engine - 2 nodes":
 
       peerCtx2.peerHave.mapIt( $it ).sorted(cmp[string]) ==
         bitswap1.engine.wantList.mapIt( $it ).sorted(cmp[string])
+
+  test "exchanges pricing on connect":
+    check peerCtx1.pricing == pricing1.some
+    check peerCtx2.pricing == pricing2.some
 
   test "should send want-have for block":
     let blk = bt.Block.new("Block 1".toBytes)
