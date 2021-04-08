@@ -118,6 +118,20 @@ suite "Bitswap network":
 
     await done.wait(100.millis)
 
+  test "handles payment messages":
+    let payment = SignedState.example
+
+    proc handlePayment(peer: PeerID, received: SignedState) =
+      check received == payment
+      done.complete()
+
+    network.handlers.onPayment = handlePayment
+
+    let message = Message(payment: StateChannelUpdate.init(payment))
+    await buffer.pushData(lenPrefix(Protobuf.encode(message)))
+
+    await done.wait(100.millis)
+
 suite "Bitswap Network - e2e":
   let
     chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
