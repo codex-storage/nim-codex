@@ -109,24 +109,6 @@ proc new*(
   maxRetries = DefaultMaxRetries,
   peersPerRequest = DefaultMaxPeersPerRequest): T =
 
-  proc sendWantList(
-    id: PeerID,
-    cids: seq[Cid],
-    priority: int32 = 0,
-    cancel: bool = false,
-    wantType: WantType = WantType.wantHave,
-    full: bool = false,
-    sendDontHave: bool = false) {.gcsafe.} =
-    network.broadcastWantList(
-      id, cids, priority, cancel,
-      wantType, full, sendDontHave)
-
-  proc sendBlocks(id: PeerID, blocks: seq[bt.Block]) {.gcsafe.} =
-    network.broadcastBlocks(id, blocks)
-
-  proc sendPresence(id: PeerID, presence: seq[BlockPresence]) {.gcsafe.} =
-    network.broadcastBlockPresence(id, presence)
-
   let engine = BitswapEngine.new(
     localStore = localStore,
     peersPerRequest = peersPerRequest,
