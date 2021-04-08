@@ -17,10 +17,12 @@ import pkg/nitro
 
 import ../blocktype as bt
 import ./protobuf/bitswap as pb
+import ./protobuf/payments
 import ./networkpeer
 
 export pb, networkpeer
 export nitro
+export payments
 
 logScope:
   topics = "dagger bitswap network"
@@ -31,11 +33,13 @@ type
   WantListHandler* = proc(peer: PeerID, wantList: WantList) {.gcsafe.}
   BlocksHandler* = proc(peer: PeerID, blocks: seq[bt.Block]) {.gcsafe.}
   BlockPresenceHandler* = proc(peer: PeerID, precense: seq[BlockPresence]) {.gcsafe.}
+  PricingHandler* = proc(peer: PeerID, pricing: Pricing) {.gcsafe.}
 
   BitswapHandlers* = object
     onWantList*: WantListHandler
     onBlocks*: BlocksHandler
     onPresence*: BlockPresenceHandler
+    onPricing*: PricingHandler
 
   WantListBroadcaster* = proc(
     id: PeerID,
@@ -195,6 +199,13 @@ proc broadcastBlockPresence*(
   trace "Sending presence to peer", peer = id
   asyncSpawn b.peers[id].send(Message(blockPresences: presence))
 
+proc handlePricing(network: BitswapNetwork,
+                   peer: NetworkPeer,
+                   pricing: Pricing) =
+  if network.handlers.onPricing.isNil:
+    return
+  network.handlers.onPricing(peer.id, pricing)
+
 proc rpcHandler(b: BitswapNetwork, peer: NetworkPeer, msg: Message) {.async.} =
   try:
     if msg.wantlist.entries.len > 0:
@@ -208,6 +219,9 @@ proc rpcHandler(b: BitswapNetwork, peer: NetworkPeer, msg: Message) {.async.} =
 
     if msg.blockPresences.len > 0:
       b.handleBlockPresence(peer, msg.blockPresences)
+
+    if pricing =? Pricing.init(msg.pricing):
+      b.handlePricing(peer, pricing)
 
   except CatchableError as exc:
     trace "Exception in bitswap rpc handler", exc = exc.msg

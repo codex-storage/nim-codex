@@ -1,5 +1,6 @@
 import std/random
 import pkg/nitro
+import pkg/dagger/bitswap/protobuf/payments
 
 proc example*(_: type EthAddress): EthAddress =
   EthPrivateKey.random().toPublicKey.toAddress
@@ -21,3 +22,10 @@ proc example*(_: type SignedState): SignedState =
   let nonce = UInt48.example
   let channel = wallet.openLedgerChannel(hub, chainId, nonce, asset, amount).get
   wallet.pay(channel, asset, receiver, amount).get
+
+proc example*(_: type Pricing): Pricing =
+  Pricing(
+    address: EthAddress.example,
+    asset: EthAddress.example,
+    price: UInt256.example()
+  )
