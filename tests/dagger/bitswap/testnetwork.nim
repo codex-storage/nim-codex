@@ -225,3 +225,16 @@ suite "Bitswap Network - e2e":
       )))
 
     await done.wait(500.millis)
+
+  test "broadcasts pricing":
+    let pricing = Pricing.example
+
+    proc handlePricing(peer: PeerID, received: Pricing) =
+      check received == pricing
+      done.complete()
+
+    network2.handlers.onPricing = handlePricing
+
+    network1.broadcastPricing(switch2.peerInfo.peerId, pricing)
+
+    await done.wait(100.millis)
