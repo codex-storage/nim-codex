@@ -2,8 +2,7 @@ import pkg/protobuf_serialization
 import pkg/nitro
 import pkg/questionable
 import pkg/upraises
-
-import_proto3 "payments.proto"
+import ./bitswap
 
 export PricingMessage
 export StateChannelUpdate

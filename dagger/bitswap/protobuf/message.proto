@@ -37,9 +37,21 @@ message Message {
     BlockPresenceType type = 2;
   }
 
+  message PricingMessage {
+    bytes address = 1;  // Ethereum address to which payments should be made
+    bytes asset = 2;    // Asset (coin) with which to pay
+    bytes price = 3;    // Amount of assets to pay per byte (UInt256)
+  }
+
+  message StateChannelUpdate {
+    bytes update = 1; // Signed Nitro state, serialized as JSON
+  }
+
   Wantlist wantlist = 1;
   repeated bytes blocks = 2;    // used to send Blocks in bitswap 1.0.0
   repeated Block payload = 3;   // used to send Blocks in bitswap 1.1.0
   repeated BlockPresence blockPresences = 4;
   int32 pendingBytes = 5;
+  PricingMessage pricing = 6;
+  StateChannelUpdate payment = 7;
 }
