@@ -9,11 +9,13 @@ import pkg/protobuf_serialization
 
 import pkg/dagger/stores/memorystore
 import pkg/dagger/bitswap/network
+import pkg/dagger/bitswap/protobuf/payments
 import pkg/dagger/p2p/rng
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
 
 import ../helpers
+import ../examples
 
 suite "Bitswap network":
   let
@@ -101,6 +103,20 @@ suite "Bitswap network":
     await buffer.pushData(lenPrefix(Protobuf.encode(msg)))
 
     await done.wait(500.millis)
+
+  test "handles pricing messages":
+    let pricing = Pricing.example
+
+    proc handlePricing(peer: PeerID, received: Pricing) =
+      check received == pricing
+      done.complete()
+
+    network.handlers.onPricing = handlePricing
+
+    let message = Message(pricing: PricingMessage.init(pricing))
+    await buffer.pushData(lenPrefix(Protobuf.encode(message)))
+
+    await done.wait(100.millis)
 
 suite "Bitswap Network - e2e":
   let
