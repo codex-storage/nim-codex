@@ -238,3 +238,16 @@ suite "Bitswap Network - e2e":
     network1.broadcastPricing(switch2.peerInfo.peerId, pricing)
 
     await done.wait(100.millis)
+
+  test "broadcasts payment":
+    let payment = SignedState.example
+
+    proc handlePayment(peer: PeerID, received: SignedState) =
+      check received == payment
+      done.complete()
+
+    network2.handlers.onPayment = handlePayment
+
+    network1.broadcastPayment(switch2.peerInfo.peerId, payment)
+
+    await done.wait(100.millis)
