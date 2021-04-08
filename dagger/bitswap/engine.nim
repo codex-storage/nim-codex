@@ -42,6 +42,7 @@ type
     bytesRecv*: int         # bytes received from remote
     exchanged*: int         # times peer has exchanged with us
     lastExchange*: Moment   # last time peer has exchanged with us
+    pricing*: ?Pricing      # optional bandwidth price for this peer
 
   BitswapEngine* = ref object of RootObj
     localStore*: BlockStore                     # where we localStore blocks for this instance
@@ -51,6 +52,7 @@ type
     peersPerRequest: int                        # max number of peers to request from
     scheduleTask*: TaskScheduler                # schedule a new task with the task runner
     request*: BitswapRequest                    # bitswap network requests
+    pricing*: ?Pricing                          # optional bandwidth pricing
 
 proc contains*(a: AsyncHeapQueue[Entry], b: Cid): bool =
   ## Convenience method to check for entry prepense
@@ -259,6 +261,13 @@ proc wantListHandler*(
   if not b.scheduleTask(peerCtx):
     trace "Unable to schedule task for peer", peer
 
+proc pricingHandler*(engine: BitswapEngine, peer: PeerID, pricing: Pricing) =
+  let context = engine.getPeerCtx(peer)
+  if context.isNil:
+    return
+
+  context.pricing = pricing.some
+
 proc setupPeer*(b: BitswapEngine, peer: PeerID) =
   ## Perform initial setup, such as want
   ## list exchange
@@ -273,6 +282,9 @@ proc setupPeer*(b: BitswapEngine, peer: PeerID) =
   # broadcast our want list, the other peer will do the same
   if b.wantList.len > 0:
     b.request.sendWantList(peer, b.wantList, full = true)
+
+  if b.pricing.isSome:
+    b.request.sendPricing(peer, b.pricing.get)
 
 proc dropPeer*(b: BitswapEngine, peer: PeerID) =
   ## Cleanup disconnected peer

@@ -14,6 +14,7 @@ import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
 
 import ../helpers
+import ../examples
 
 suite "Bitswap engine basic":
   let
@@ -51,6 +52,21 @@ suite "Bitswap engine basic":
     engine.setupPeer(peerId)
 
     await done
+
+  test "sends pricing to new peers":
+    let pricing = Pricing.example
+
+    proc sendPricing(peer: PeerID, toBeSent: Pricing) =
+      check toBeSent == pricing
+      done.complete()
+
+    let request = BitswapRequest(sendPricing: sendPricing)
+    let engine = BitswapEngine.new(MemoryStore.new, request)
+    engine.pricing = pricing.some
+
+    engine.setupPeer(peerId)
+
+    await done.wait(100.millis)
 
 suite "Bitswap engine handlers":
   let

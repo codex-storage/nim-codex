@@ -174,10 +174,14 @@ proc new*(
     blocks: seq[bt.Block]) {.gcsafe.} =
     engine.blocksHandler(peer, blocks)
 
+  proc pricingHandler(peer: PeerId, pricing: Pricing) =
+    engine.pricingHandler(peer, pricing)
+
   network.handlers = BitswapHandlers(
     onWantList: blockWantListHandler,
     onBlocks: blocksHandler,
     onPresence: blockPresenceHandler,
+    onPricing: pricingHandler
   )
 
   return b
