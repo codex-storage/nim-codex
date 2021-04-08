@@ -208,6 +208,15 @@ proc handlePricing(network: BitswapNetwork,
     return
   network.handlers.onPricing(peer.id, pricing)
 
+proc broadcastPricing*(network: BitswapNetwork,
+                      id: PeerId,
+                      pricing: Pricing) =
+  if id notin network.peers:
+    return
+
+  let message = Message(pricing: PricingMessage.init(pricing))
+  asyncSpawn network.peers[id].send(message)
+
 proc handlePayment(network: BitswapNetwork,
                    peer: NetworkPeer,
                    payment: SignedState) =
