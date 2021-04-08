@@ -1,4 +1,5 @@
 import pkg/protobuf_serialization
+import pkg/stew/byteutils
 import pkg/nitro
 import pkg/questionable
 import pkg/upraises

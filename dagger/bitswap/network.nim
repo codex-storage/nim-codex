@@ -34,12 +34,14 @@ type
   BlocksHandler* = proc(peer: PeerID, blocks: seq[bt.Block]) {.gcsafe.}
   BlockPresenceHandler* = proc(peer: PeerID, precense: seq[BlockPresence]) {.gcsafe.}
   PricingHandler* = proc(peer: PeerID, pricing: Pricing) {.gcsafe.}
+  PaymentHandler* = proc(peer: PeerID, payment: SignedState) {.gcsafe.}
 
   BitswapHandlers* = object
     onWantList*: WantListHandler
     onBlocks*: BlocksHandler
     onPresence*: BlockPresenceHandler
     onPricing*: PricingHandler
+    onPayment*: PaymentHandler
 
   WantListBroadcaster* = proc(
     id: PeerID,
@@ -206,6 +208,13 @@ proc handlePricing(network: BitswapNetwork,
     return
   network.handlers.onPricing(peer.id, pricing)
 
+proc handlePayment(network: BitswapNetwork,
+                   peer: NetworkPeer,
+                   payment: SignedState) =
+  if network.handlers.onPayment.isNil:
+    return
+  network.handlers.onPayment(peer.id, payment)
+
 proc rpcHandler(b: BitswapNetwork, peer: NetworkPeer, msg: Message) {.async.} =
   try:
     if msg.wantlist.entries.len > 0:
@@ -222,6 +231,9 @@ proc rpcHandler(b: BitswapNetwork, peer: NetworkPeer, msg: Message) {.async.} =
 
     if pricing =? Pricing.init(msg.pricing):
       b.handlePricing(peer, pricing)
+
+    if payment =? SignedState.init(msg.payment):
+      b.handlePayment(peer, payment)
 
   except CatchableError as exc:
     trace "Exception in bitswap rpc handler", exc = exc.msg
