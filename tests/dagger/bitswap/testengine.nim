@@ -23,6 +23,7 @@ suite "Bitswap engine basic":
     peerId = PeerID.init(seckey.getKey().tryGet()).tryGet()
     chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
     blocks = chunker.mapIt( bt.Block.new(it) )
+    wallet = Wallet.example
 
   var
     done: Future[void]
@@ -47,7 +48,7 @@ suite "Bitswap engine basic":
       sendWantList: sendWantList,
     )
 
-    let engine = BitswapEngine.new(MemoryStore.new(blocks), request)
+    let engine = BitswapEngine.new(MemoryStore.new(blocks), wallet, request)
     engine.wantList = blocks.mapIt( it.cid )
     engine.setupPeer(peerId)
 
@@ -61,7 +62,7 @@ suite "Bitswap engine basic":
       done.complete()
 
     let request = BitswapRequest(sendPricing: sendPricing)
-    let engine = BitswapEngine.new(MemoryStore.new, request)
+    let engine = BitswapEngine.new(MemoryStore.new, wallet, request)
     engine.pricing = pricing.some
 
     engine.setupPeer(peerId)
@@ -75,6 +76,7 @@ suite "Bitswap engine handlers":
     peerId = PeerID.init(seckey.getKey().tryGet()).tryGet()
     chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
     blocks = chunker.mapIt( bt.Block.new(it) )
+    wallet = Wallet.example
 
   var
     engine: BitswapEngine
@@ -83,7 +85,7 @@ suite "Bitswap engine handlers":
 
   setup:
     done = newFuture[void]()
-    engine = BitswapEngine.new(MemoryStore.new())
+    engine = BitswapEngine.new(MemoryStore.new(), wallet)
     peerCtx = BitswapPeerCtx(
       id: peerId
     )
@@ -164,6 +166,7 @@ suite "Bitswap engine blocks":
     rng = Rng.instance()
     chunker = newRandomChunker(Rng.instance(), size = 2048, chunkSize = 256)
     blocks = chunker.mapIt( bt.Block.new(it) )
+    wallet = Wallet.example
 
   var
     engine: BitswapEngine
@@ -173,7 +176,7 @@ suite "Bitswap engine blocks":
 
   setup:
     done = newFuture[void]()
-    engine = BitswapEngine.new(MemoryStore.new())
+    engine = BitswapEngine.new(MemoryStore.new(), wallet)
     peersCtx = @[]
 
     for i in 0..3:
@@ -256,6 +259,7 @@ suite "Task Handler":
     rng = Rng.instance()
     chunker = newRandomChunker(Rng.instance(), size = 2048, chunkSize = 256)
     blocks = chunker.mapIt( bt.Block.new(it) )
+    wallet = Wallet.example
 
   var
     engine: BitswapEngine
@@ -265,7 +269,7 @@ suite "Task Handler":
 
   setup:
     done = newFuture[void]()
-    engine = BitswapEngine.new(MemoryStore.new())
+    engine = BitswapEngine.new(MemoryStore.new(), wallet)
     peersCtx = @[]
 
     for i in 0..3:

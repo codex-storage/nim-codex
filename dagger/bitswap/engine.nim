@@ -52,6 +52,7 @@ type
     peersPerRequest: int                        # max number of peers to request from
     scheduleTask*: TaskScheduler                # schedule a new task with the task runner
     request*: BitswapRequest                    # bitswap network requests
+    wallet*: Wallet                             # nitro wallet for micropayments
     pricing*: ?Pricing                          # optional bandwidth pricing
 
 proc contains*(a: AsyncHeapQueue[Entry], b: Cid): bool =
@@ -341,6 +342,7 @@ proc taskHandler*(b: BitswapEngine, task: BitswapPeerCtx) {.gcsafe, async.} =
 proc new*(
   T: type BitswapEngine,
   localStore: BlockStore,
+  wallet: Wallet,
   request: BitswapRequest = BitswapRequest(),
   scheduleTask: TaskScheduler = nil,
   peersPerRequest = DefaultMaxPeersPerRequest): T =
@@ -355,6 +357,7 @@ proc new*(
     peersPerRequest: peersPerRequest,
     scheduleTask: taskScheduler,
     request: request,
+    wallet: wallet
   )
 
   return b
