@@ -82,7 +82,7 @@ suite "Bitswap network":
 
     await done.wait(500.millis)
 
-  test "Precense Handler":
+  test "Presence Handler":
     proc presenceHandler(peer: PeerID, precense: seq[BlockPresence]) {.gcsafe.} =
       for b in blocks:
         check:
