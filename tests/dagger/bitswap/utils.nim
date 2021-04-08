@@ -7,6 +7,8 @@ import pkg/dagger/bitswap
 import pkg/dagger/stores/memorystore
 import pkg/dagger/blocktype as bt
 
+import ../examples
+
 proc generateNodes*(
   num: Natural,
   blocks: openArray[bt.Block] = [],
@@ -17,8 +19,9 @@ proc generateNodes*(
   for i in 0..<num:
     let
       switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
-      network = BitswapNetwork.new(switch = switch)
-      bitswap = Bitswap.new(MemoryStore.new(blocks), network)
+      wallet = Wallet.example
+      network = BitswapNetwork.new(switch)
+      bitswap = Bitswap.new(MemoryStore.new(blocks), wallet, network)
 
     switch.mount(network)
 

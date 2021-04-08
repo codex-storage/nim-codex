@@ -104,6 +104,7 @@ method putBlocks*(b: Bitswap, blocks: seq[bt.Block]) =
 proc new*(
   T: type Bitswap,
   localStore: BlockStore,
+  wallet: Wallet,
   network: BitswapNetwork,
   concurrentTasks = DefaultConcurrentTasks,
   maxRetries = DefaultMaxRetries,
@@ -111,6 +112,7 @@ proc new*(
 
   let engine = BitswapEngine.new(
     localStore = localStore,
+    wallet = wallet,
     peersPerRequest = peersPerRequest,
     request = network.request,
   )
