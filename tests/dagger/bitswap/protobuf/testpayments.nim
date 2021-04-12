@@ -22,13 +22,13 @@ suite "pricing protobuf messages":
     check message.price == @(price.toBytesBE)
 
   test "decodes recipient of payments":
-    check Pricing.init(message)?.address == address.some
+    check Pricing.init(message).?address == address.some
 
   test "decodes address of asset":
-    check Pricing.init(message)?.asset == asset.some
+    check Pricing.init(message).?asset == asset.some
 
   test "decodes price":
-    check Pricing.init(message)?.price == price.some
+    check Pricing.init(message).?price == price.some
 
   test "fails to decode when address has incorrect number of bytes":
     var incorrect = message
