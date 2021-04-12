@@ -22,6 +22,9 @@ import ../utils/asyncheapqueue
 
 import ./network
 import ./pendingblocks
+import ./peercontext
+
+export peercontext
 
 logScope:
   topics = "dagger bitswap engine"
@@ -33,16 +36,6 @@ const
 type
   TaskHandler* = proc(task: BitswapPeerCtx): Future[void] {.gcsafe.}
   TaskScheduler* = proc(task: BitswapPeerCtx): bool {.gcsafe.}
-
-  BitswapPeerCtx* = ref object of RootObj
-    id*: PeerID
-    peerHave*: seq[Cid]     # remote peers have lists
-    peerWants*: seq[Entry]  # remote peers want lists
-    bytesSent*: int         # bytes sent to remote
-    bytesRecv*: int         # bytes received from remote
-    exchanged*: int         # times peer has exchanged with us
-    lastExchange*: Moment   # last time peer has exchanged with us
-    pricing*: ?Pricing      # optional bandwidth price for this peer
 
   BitswapEngine* = ref object of RootObj
     localStore*: BlockStore                     # where we localStore blocks for this instance
@@ -60,18 +53,6 @@ proc contains*(a: AsyncHeapQueue[Entry], b: Cid): bool =
   ##
 
   a.anyIt( it.cid == b )
-
-proc contains*(a: openArray[BitswapPeerCtx], b: PeerID): bool =
-  ## Convenience method to check for peer prepense
-  ##
-
-  a.anyIt( it.id == b )
-
-proc debtRatio*(b: BitswapPeerCtx): float =
-  b.bytesSent / (b.bytesRecv + 1)
-
-proc `<`*(a, b: BitswapPeerCtx): bool =
-  a.debtRatio < b.debtRatio
 
 proc getPeerCtx*(b: BitswapEngine, peerId: PeerID): BitswapPeerCtx =
   ## Get the peer's context
