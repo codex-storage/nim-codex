@@ -10,7 +10,7 @@ export peercontext
 push: {.upraises: [].}
 
 const ChainId = 0.u256 # invalid chain id for now
-const AmountPerChannel = (10^18).u256 # 1 asset, ERC20 default is 18 decimals
+const AmountPerChannel = (10'u64^18).u256 # 1 asset, ERC20 default is 18 decimals
 
 func openLedgerChannel*(wallet: var Wallet,
                         hub: EthAddress,
