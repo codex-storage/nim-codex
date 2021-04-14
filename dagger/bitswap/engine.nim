@@ -23,6 +23,7 @@ import ../utils/asyncheapqueue
 import ./network
 import ./pendingblocks
 import ./peercontext
+import ./engine/payments
 
 export peercontext
 
@@ -187,6 +188,20 @@ proc resolveBlocks*(b: BitswapEngine, blocks: seq[bt.Block]) =
   b.pendingBlocks.resolve(blocks)
   b.scheduleTasks(blocks)
 
+proc payForBlocks(engine: BitswapEngine,
+                  peer: BitswapPeerCtx,
+                  blocks: seq[bt.Block]) =
+  let sendPayment = engine.request.sendPayment
+  if sendPayment.isNil:
+    return
+
+  var amountOfBytes = 0
+  for blck in blocks:
+    amountOfBytes += blck.data.len
+
+  if payment =? engine.wallet.pay(peer, amountOfBytes):
+    sendPayment(peer.id, payment)
+
 proc blocksHandler*(
   b: BitswapEngine,
   peer: PeerID,
@@ -197,6 +212,10 @@ proc blocksHandler*(
   trace "Got blocks from peer", peer, len = blocks.len
   b.localStore.putBlocks(blocks)
   b.resolveBlocks(blocks)
+
+  let peerCtx = b.getPeerCtx(peer)
+  if peerCtx != nil:
+    b.payForBlocks(peerCtx, blocks)
 
 proc wantListHandler*(
   b: BitswapEngine,
