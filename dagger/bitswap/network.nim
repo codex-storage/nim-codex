@@ -53,12 +53,14 @@ type
   BlocksBroadcaster* = proc(peer: PeerID, presence: seq[bt.Block]) {.gcsafe.}
   PresenceBroadcaster* = proc(peer: PeerID, presence: seq[BlockPresence]) {.gcsafe.}
   PricingBroadcaster* = proc(peer: PeerID, pricing: Pricing) {.gcsafe.}
+  PaymentBroadcaster* = proc(peer: PeerID, payment: SignedState) {.gcsafe.}
 
   BitswapRequest* = object
     sendWantList*: WantListBroadcaster
     sendBlocks*: BlocksBroadcaster
     sendPresence*: PresenceBroadcaster
     sendPricing*: PricingBroadcaster
+    sendPayment*: PaymentBroadcaster
 
   BitswapNetwork* = ref object of LPProtocol
     peers*: Table[PeerID, NetworkPeer]

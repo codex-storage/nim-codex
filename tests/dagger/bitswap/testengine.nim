@@ -138,7 +138,7 @@ suite "Bitswap engine handlers":
 
     await done
 
-  test "should handle blocks":
+  test "stores blocks in local store":
     let pending = blocks.mapIt(
       engine.pendingBlocks.addOrAwait( it.cid )
     )
@@ -148,6 +148,21 @@ suite "Bitswap engine handlers":
     check resolved.mapIt( it.read ) == blocks
     for b in blocks:
       check engine.localStore.hasBlock(b.cid)
+
+  test "sends payments for received blocks":
+    let pricing = Pricing.example
+    engine.getPeerCtx(peerId).pricing = pricing.some
+
+    engine.request.sendPayment = proc(receiver: PeerID, payment: SignedState) =
+      let amount = blocks.mapIt(it.data.len).foldl(a+b).u256 * pricing.price
+      let balances = payment.state.outcome.balances(pricing.asset).get
+      check receiver == peerId
+      check balances[pricing.address.toDestination] == amount
+      done.complete()
+
+    engine.blocksHandler(peerId, blocks)
+
+    await done.wait(100.millis)
 
   test "should handle block presence":
     engine.blockPresenceHandler(
