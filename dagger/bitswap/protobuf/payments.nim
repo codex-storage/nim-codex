@@ -1,5 +1,6 @@
 import pkg/protobuf_serialization
 import pkg/stew/byteutils
+import pkg/stint
 import pkg/nitro
 import pkg/questionable
 import pkg/upraises
@@ -8,6 +9,7 @@ import ./bitswap
 export PricingMessage
 export StateChannelUpdate
 
+export stint
 export nitro
 
 push: {.upraises: [].}
