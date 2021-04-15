@@ -155,7 +155,7 @@ suite "Bitswap engine handlers":
 
     engine.request.sendPayment = proc(receiver: PeerID, payment: SignedState) =
       let amount = blocks.mapIt(it.data.len).foldl(a+b).u256 * pricing.price
-      let balances = payment.state.outcome.balances(pricing.asset).get
+      let balances = !payment.state.outcome.balances(pricing.asset)
       check receiver == peerId
       check balances[pricing.address.toDestination] == amount
       done.complete()
