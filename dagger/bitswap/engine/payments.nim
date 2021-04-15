@@ -19,13 +19,13 @@ func openLedgerChannel*(wallet: var Wallet,
 
 func getOrOpenChannel(wallet: var Wallet, peer: BitswapPeerCtx): ?!ChannelId =
   if channel =? peer.paymentChannel:
-    channel.success
+    success channel
   elif pricing =? peer.pricing:
     let channel = ?wallet.openLedgerChannel(pricing.address, pricing.asset)
     peer.paymentChannel = channel.some
-    channel.success
+    success channel
   else:
-    ChannelId.failure "no pricing set for peer"
+    failure "no pricing set for peer"
 
 func pay*(wallet: var Wallet,
           peer: BitswapPeerCtx,
@@ -37,4 +37,4 @@ func pay*(wallet: var Wallet,
     let channel = ?wallet.getOrOpenChannel(peer)
     wallet.pay(channel, asset, receiver, amount)
   else:
-    SignedState.failure "no pricing set for peer"
+    failure "no pricing set for peer"

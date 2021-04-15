@@ -15,15 +15,15 @@ suite "engine payments":
     peer.pricing = Pricing.example.some
 
   test "pays for received bytes":
-    let payment = wallet.pay(peer, amountOfBytes).get
-    let pricing = peer.pricing.get
+    let payment = !wallet.pay(peer, amountOfBytes)
+    let pricing = !peer.pricing
     let balances = payment.state.outcome.balances(pricing.asset)
     let destination = pricing.address.toDestination
-    check balances[destination].get == amountOfBytes.u256 * pricing.price
+    check !balances[destination] == amountOfBytes.u256 * pricing.price
 
   test "no payment when no price is set":
     peer.pricing = Pricing.none
-    check wallet.pay(peer, amountOfBytes).isErr
+    check wallet.pay(peer, amountOfBytes).isFailure
 
   test "uses same channel for consecutive payments":
     let payment1, payment2 = wallet.pay(peer, amountOfBytes)

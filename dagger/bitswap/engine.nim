@@ -284,8 +284,8 @@ proc setupPeer*(b: BitswapEngine, peer: PeerID) =
   if b.wantList.len > 0:
     b.request.sendWantList(peer, b.wantList, full = true)
 
-  if b.pricing.isSome:
-    b.request.sendPricing(peer, b.pricing.get)
+  if pricing =? b.pricing:
+    b.request.sendPricing(peer, pricing)
 
 proc dropPeer*(b: BitswapEngine, peer: PeerID) =
   ## Cleanup disconnected peer
