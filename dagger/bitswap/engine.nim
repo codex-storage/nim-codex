@@ -269,6 +269,19 @@ proc pricingHandler*(engine: BitswapEngine, peer: PeerID, pricing: Pricing) =
 
   context.pricing = pricing.some
 
+proc paymentHandler*(engine: BitswapEngine, peer: PeerId, payment: SignedState) =
+  without context =? engine.getPeerCtx(peer).option and
+          contextPricing =? context.pricing and
+          enginePricing =? engine.pricing:
+    return
+
+  if channel =? context.paymentChannel:
+    let asset = enginePricing.asset
+    let sender = contextPricing.address
+    discard engine.wallet.acceptPayment(channel, asset, sender, payment)
+  else:
+    context.paymentChannel = engine.wallet.acceptChannel(payment).option
+
 proc setupPeer*(b: BitswapEngine, peer: PeerID) =
   ## Perform initial setup, such as want
   ## list exchange

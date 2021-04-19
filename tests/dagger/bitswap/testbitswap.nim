@@ -69,6 +69,8 @@ suite "Bitswap engine - 2 nodes":
     bitswap1.engine.wantList = blocks2.mapIt( it.cid )
     bitswap2.engine.wantList = blocks1.mapIt( it.cid )
 
+    pricing1.address = wallet1.address
+    pricing2.address = wallet2.address
     bitswap1.engine.pricing = pricing1.some
     bitswap2.engine.pricing = pricing2.some
 
@@ -146,6 +148,13 @@ suite "Bitswap engine - 2 nodes":
     bitswap2.putBlocks(@[blk])
 
     await done
+
+  test "receives payments for blocks that were sent":
+    let blocks = await bitswap1.getBlocks(blocks2.mapIt(it.cid))
+    let pricing = !bitswap2.engine.pricing
+    await sleepAsync(100.millis)
+    let channel = !peerCtx1.paymentChannel
+    check wallet2.balance(channel, pricing.asset) > 0
 
 suite "Bitswap - multiple nodes":
   let

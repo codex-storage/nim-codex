@@ -350,11 +350,15 @@ proc new*(
   proc sendPricing(id: PeerID, pricing: Pricing) =
     b.broadcastPricing(id, pricing)
 
+  proc sendPayment(id: PeerID, payment: SignedState) =
+    b.broadcastPayment(id, payment)
+
   b.request = BitswapRequest(
     sendWantList: sendWantList,
     sendBlocks: sendBlocks,
     sendPresence: sendPresence,
-    sendPricing: sendPricing
+    sendPricing: sendPricing,
+    sendPayment: sendPayment
   )
 
   b.init()
