@@ -104,7 +104,7 @@ method putBlocks*(b: Bitswap, blocks: seq[bt.Block]) =
 proc new*(
   T: type Bitswap,
   localStore: BlockStore,
-  wallet: Wallet,
+  wallet: WalletRef,
   network: BitswapNetwork,
   concurrentTasks = DefaultConcurrentTasks,
   maxRetries = DefaultMaxRetries,

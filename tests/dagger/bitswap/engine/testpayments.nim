@@ -6,11 +6,11 @@ suite "engine payments":
 
   let amountOfBytes = 42
 
-  var wallet: Wallet
+  var wallet: WalletRef
   var peer: BitswapPeerCtx
 
   setup:
-    wallet = Wallet.example
+    wallet = WalletRef.example
     peer = BitswapPeerCtx.example
     peer.pricing = Pricing.example.some
 

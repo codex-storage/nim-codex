@@ -23,6 +23,9 @@ proc example*(_: type UInt48): UInt48 =
 proc example*(_: type Wallet): Wallet =
   Wallet.init(EthPrivateKey.random())
 
+proc example*(_: type WalletRef): WalletRef =
+  WalletRef.new(EthPrivateKey.random())
+
 proc example*(_: type SignedState): SignedState =
   var wallet = Wallet.example
   let hub, asset, receiver = EthAddress.example
