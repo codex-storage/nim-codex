@@ -161,11 +161,15 @@ proc new*(
   proc pricingHandler(peer: PeerId, pricing: Pricing) =
     engine.pricingHandler(peer, pricing)
 
+  proc paymentHandler(peer: PeerId, payment: SignedState) =
+    engine.paymentHandler(peer, payment)
+
   network.handlers = BitswapHandlers(
     onWantList: blockWantListHandler,
     onBlocks: blocksHandler,
     onPresence: blockPresenceHandler,
-    onPricing: pricingHandler
+    onPricing: pricingHandler,
+    onPayment: paymentHandler
   )
 
   return b
