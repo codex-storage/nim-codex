@@ -23,7 +23,7 @@ suite "Bitswap engine basic":
     peerId = PeerID.init(seckey.getKey().tryGet()).tryGet()
     chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
     blocks = chunker.mapIt( bt.Block.new(it) )
-    wallet = Wallet.example
+    wallet = WalletRef.example
 
   var
     done: Future[void]
@@ -76,7 +76,7 @@ suite "Bitswap engine handlers":
     peerId = PeerID.init(seckey.getKey().tryGet()).tryGet()
     chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
     blocks = chunker.mapIt( bt.Block.new(it) )
-    wallet = Wallet.example
+    wallet = WalletRef.example
 
   var
     engine: BitswapEngine
@@ -181,7 +181,7 @@ suite "Bitswap engine blocks":
     rng = Rng.instance()
     chunker = newRandomChunker(Rng.instance(), size = 2048, chunkSize = 256)
     blocks = chunker.mapIt( bt.Block.new(it) )
-    wallet = Wallet.example
+    wallet = WalletRef.example
 
   var
     engine: BitswapEngine
@@ -274,7 +274,7 @@ suite "Task Handler":
     rng = Rng.instance()
     chunker = newRandomChunker(Rng.instance(), size = 2048, chunkSize = 256)
     blocks = chunker.mapIt( bt.Block.new(it) )
-    wallet = Wallet.example
+    wallet = WalletRef.example
 
   var
     engine: BitswapEngine

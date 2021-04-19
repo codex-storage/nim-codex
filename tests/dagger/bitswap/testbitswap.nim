@@ -28,7 +28,7 @@ suite "Bitswap engine - 2 nodes":
 
   var
     switch1, switch2: Switch
-    wallet1, wallet2: Wallet
+    wallet1, wallet2: WalletRef
     pricing1, pricing2: Pricing
     network1, network2: BitswapNetwork
     bitswap1, bitswap2: Bitswap
@@ -42,8 +42,8 @@ suite "Bitswap engine - 2 nodes":
 
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
-    wallet1 = Wallet.example
-    wallet2 = Wallet.example
+    wallet1 = WalletRef.example
+    wallet2 = WalletRef.example
     pricing1 = Pricing.example
     pricing2 = Pricing.example
     awaiters.add(await switch1.start())

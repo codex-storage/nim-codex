@@ -19,7 +19,7 @@ proc generateNodes*(
   for i in 0..<num:
     let
       switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
-      wallet = Wallet.example
+      wallet = WalletRef.example
       network = BitswapNetwork.new(switch)
       bitswap = Bitswap.new(MemoryStore.new(blocks), wallet, network)
 

@@ -12,12 +12,12 @@ push: {.upraises: [].}
 const ChainId = 0.u256 # invalid chain id for now
 const AmountPerChannel = (10'u64^18).u256 # 1 asset, ERC20 default is 18 decimals
 
-func openLedgerChannel*(wallet: var Wallet,
+func openLedgerChannel*(wallet: WalletRef,
                         hub: EthAddress,
                         asset: EthAddress): ?!ChannelId =
   wallet.openLedgerChannel(hub, ChainId, asset, AmountPerChannel)
 
-func getOrOpenChannel(wallet: var Wallet, peer: BitswapPeerCtx): ?!ChannelId =
+func getOrOpenChannel(wallet: WalletRef, peer: BitswapPeerCtx): ?!ChannelId =
   if channel =? peer.paymentChannel:
     success channel
   elif pricing =? peer.pricing:
@@ -27,7 +27,7 @@ func getOrOpenChannel(wallet: var Wallet, peer: BitswapPeerCtx): ?!ChannelId =
   else:
     failure "no pricing set for peer"
 
-func pay*(wallet: var Wallet,
+func pay*(wallet: WalletRef,
           peer: BitswapPeerCtx,
           amountOfBytes: int): ?!SignedState =
   if pricing =? peer.pricing:
