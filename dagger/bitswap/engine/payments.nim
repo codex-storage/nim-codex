@@ -9,7 +9,8 @@ export peercontext
 
 push: {.upraises: [].}
 
-const ChainId = 0.u256 # invalid chain id for now
+const ChainId* = 0.u256 # invalid chain id for now
+const Asset* = EthAddress.zero # invalid ERC20 asset address for now
 const AmountPerChannel = (10'u64^18).u256 # 1 asset, ERC20 default is 18 decimals
 
 func openLedgerChannel*(wallet: WalletRef,
@@ -21,7 +22,7 @@ func getOrOpenChannel(wallet: WalletRef, peer: BitswapPeerCtx): ?!ChannelId =
   if channel =? peer.paymentChannel:
     success channel
   elif pricing =? peer.pricing:
-    let channel = ?wallet.openLedgerChannel(pricing.address, pricing.asset)
+    let channel = ?wallet.openLedgerChannel(pricing.address, Asset)
     peer.paymentChannel = channel.some
     success channel
   else:
@@ -32,7 +33,7 @@ func pay*(wallet: WalletRef,
           amountOfBytes: int): ?!SignedState =
   if pricing =? peer.pricing:
     let amount = amountOfBytes.u256 * pricing.price
-    let asset = pricing.asset
+    let asset = Asset
     let receiver = pricing.address
     let channel = ?wallet.getOrOpenChannel(peer)
     wallet.pay(channel, asset, receiver, amount)
