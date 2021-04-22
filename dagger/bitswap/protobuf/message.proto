@@ -39,7 +39,6 @@ message Message {
 
   message PricingMessage {
     bytes address = 1;  // Ethereum address to which payments should be made
-    bytes asset = 2;    // Asset (coin) with which to pay
     bytes price = 3;    // Amount of assets to pay per byte (UInt256)
   }
 

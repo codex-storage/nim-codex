@@ -276,9 +276,8 @@ proc paymentHandler*(engine: BitswapEngine, peer: PeerId, payment: SignedState) 
     return
 
   if channel =? context.paymentChannel:
-    let asset = enginePricing.asset
     let sender = contextPricing.address
-    discard engine.wallet.acceptPayment(channel, asset, sender, payment)
+    discard engine.wallet.acceptPayment(channel, Asset, sender, payment)
   else:
     context.paymentChannel = engine.wallet.acceptChannel(payment).option
 

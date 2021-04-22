@@ -17,7 +17,7 @@ suite "engine payments":
   test "pays for received bytes":
     let payment = !wallet.pay(peer, amountOfBytes)
     let pricing = !peer.pricing
-    let balances = payment.state.outcome.balances(pricing.asset)
+    let balances = payment.state.outcome.balances(Asset)
     let destination = pricing.address.toDestination
     check !balances[destination] == amountOfBytes.u256 * pricing.price
 

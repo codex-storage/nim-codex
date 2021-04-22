@@ -9,6 +9,7 @@ import pkg/libp2p/errors
 
 import pkg/dagger/p2p/rng
 import pkg/dagger/bitswap
+import pkg/dagger/bitswap/engine/payments
 import pkg/dagger/stores/memorystore
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
@@ -154,7 +155,7 @@ suite "Bitswap engine - 2 nodes":
     let pricing = !bitswap2.engine.pricing
     await sleepAsync(100.millis)
     let channel = !peerCtx1.paymentChannel
-    check wallet2.balance(channel, pricing.asset) > 0
+    check wallet2.balance(channel, Asset) > 0
 
 suite "Bitswap - multiple nodes":
   let

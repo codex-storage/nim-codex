@@ -9,6 +9,7 @@ import pkg/libp2p/errors
 import pkg/dagger/p2p/rng
 import pkg/dagger/bitswap
 import pkg/dagger/bitswap/pendingblocks
+import pkg/dagger/bitswap/engine/payments
 import pkg/dagger/stores/memorystore
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
@@ -155,7 +156,7 @@ suite "Bitswap engine handlers":
 
     engine.request.sendPayment = proc(receiver: PeerID, payment: SignedState) =
       let amount = blocks.mapIt(it.data.len).foldl(a+b).u256 * pricing.price
-      let balances = !payment.state.outcome.balances(pricing.asset)
+      let balances = !payment.state.outcome.balances(Asset)
       check receiver == peerId
       check balances[pricing.address.toDestination] == amount
       done.complete()
