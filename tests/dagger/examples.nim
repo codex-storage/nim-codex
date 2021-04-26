@@ -51,3 +51,6 @@ proc example*(_: type PeerId): PeerID =
 
 proc example*(_: type BitswapPeerCtx): BitswapPeerCtx =
   BitswapPeerCtx(id: PeerID.example)
+
+proc example*(_: type Cid): Cid =
+  Block.example.cid

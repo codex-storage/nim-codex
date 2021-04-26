@@ -35,6 +35,7 @@ message Message {
   message BlockPresence {
     bytes cid = 1;
     BlockPresenceType type = 2;
+    bytes price = 3;    // Amount of assets to pay per byte (UInt256)
   }
 
   message PricingMessage {
