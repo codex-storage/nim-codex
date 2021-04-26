@@ -16,6 +16,7 @@ import pkg/libp2p
 import pkg/libp2p/errors
 
 import ./protobuf/bitswap as pb
+import ./protobuf/presence
 import ../blocktype as bt
 import ../stores/blockstore
 import ../utils/asyncheapqueue
@@ -151,7 +152,7 @@ proc requestBlocks*(
 proc blockPresenceHandler*(
   b: BitswapEngine,
   peer: PeerID,
-  presence: seq[BlockPresence]) =
+  blocks: seq[BlockPresence]) =
   ## Handle block presence
   ##
 
@@ -159,11 +160,9 @@ proc blockPresenceHandler*(
   if isNil(peerCtx):
     return
 
-  for blk in presence:
-    let cid = Cid.init(blk.cid).get()
-    if cid notin peerCtx.peerHave:
-      if blk.type == BlockPresenceType.presenceHave:
-        peerCtx.peerHave.add(cid)
+  for blk in blocks:
+    if presence =? Presence.init(blk):
+      peerCtx.updatePresence(presence)
 
 proc scheduleTasks(b: BitswapEngine, blocks: seq[bt.Block]) =
   trace "Schedule a task for new blocks"

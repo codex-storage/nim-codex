@@ -10,6 +10,7 @@ import pkg/dagger/p2p/rng
 import pkg/dagger/bitswap
 import pkg/dagger/bitswap/pendingblocks
 import pkg/dagger/bitswap/engine/payments
+import pkg/dagger/bitswap/protobuf/presence
 import pkg/dagger/stores/memorystore
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
@@ -166,15 +167,20 @@ suite "Bitswap engine handlers":
     await done.wait(100.millis)
 
   test "should handle block presence":
+    let price = UInt256.example
     engine.blockPresenceHandler(
       peerId,
       blocks.mapIt(
-        BlockPresence(
-        cid: it.cid.data.buffer,
-        `type`: BlockPresenceType.presenceHave
-      )))
+        PresenceMessage.init(
+          Presence(
+            cid: it.cid,
+            have: true,
+            price: price
+      ))))
 
-    check peerCtx.peerHave == blocks.mapIt( it.cid )
+    for cid in blocks.mapIt(it.cid):
+      check peerCtx.peerHave.contains(cid)
+      check peerCtx.peerPrices[cid] == price
 
 suite "Bitswap engine blocks":
 
