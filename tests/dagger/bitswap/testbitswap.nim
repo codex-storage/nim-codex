@@ -201,8 +201,12 @@ suite "Bitswap - multiple nodes":
     await connectNodes(switch)
 
     await sleepAsync(1.seconds)
-    check engine.peers[0].peerHave == blocks[0..3].mapIt( it.cid )
-    check engine.peers[3].peerHave == blocks[12..15].mapIt( it.cid )
+
+    check:
+      engine.peers[0].peerHave.mapIt($it).sorted(cmp[string]) ==
+        blocks[0..3].mapIt( it.cid ).mapIt($it).sorted(cmp[string])
+      engine.peers[3].peerHave.mapIt($it).sorted(cmp[string]) ==
+        blocks[12..15].mapIt( it.cid ).mapIt($it).sorted(cmp[string])
 
   test "should exchange blocks with multiple nodes":
     let
