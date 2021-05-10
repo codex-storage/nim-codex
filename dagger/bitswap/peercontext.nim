@@ -21,6 +21,9 @@ type
     pricing*: ?Pricing          # optional bandwidth price for this peer
     paymentChannel*: ?ChannelId # payment channel id
 
+proc peerHave*(context: BitswapPeerCtx): seq[Cid] =
+  toSeq(context.peerPrices.keys)
+
 proc contains*(a: openArray[BitswapPeerCtx], b: PeerID): bool =
   ## Convenience method to check for peer prepense
   ##
@@ -32,10 +35,8 @@ func updatePresence*(context: BitswapPeerCtx, presence: Presence) =
   let price = presence.price
 
   if cid notin context.peerHave and presence.have:
-    context.peerHave.add(cid)
     context.peerPrices[cid] = price
   elif cid in context.peerHave and not presence.have:
-    context.peerHave.keepItIf(it != cid)
     context.peerPrices.del(cid)
 
 func price*(context: BitswapPeerCtx, cids: seq[Cid]): UInt256 =
