@@ -103,16 +103,16 @@ suite "Bitswap network":
 
     await done.wait(500.millis)
 
-  test "handles pricing messages":
-    let pricing = Pricing.example
+  test "handles account messages":
+    let account = Account(address: EthAddress.example)
 
-    proc handlePricing(peer: PeerID, received: Pricing) =
-      check received == pricing
+    proc handleAccount(peer: PeerID, received: Account) =
+      check received == account
       done.complete()
 
-    network.handlers.onPricing = handlePricing
+    network.handlers.onAccount = handleAccount
 
-    let message = Message(pricing: PricingMessage.init(pricing))
+    let message = Message(account: AccountMessage.init(account))
     await buffer.pushData(lenPrefix(Protobuf.encode(message)))
 
     await done.wait(100.millis)
@@ -224,16 +224,16 @@ suite "Bitswap Network - e2e":
 
     await done.wait(500.millis)
 
-  test "broadcasts pricing":
-    let pricing = Pricing.example
+  test "broadcasts account":
+    let account = Account(address: EthAddress.example)
 
-    proc handlePricing(peer: PeerID, received: Pricing) =
-      check received == pricing
+    proc handleAccount(peer: PeerID, received: Account) =
+      check received == account
       done.complete()
 
-    network2.handlers.onPricing = handlePricing
+    network2.handlers.onAccount = handleAccount
 
-    network1.broadcastPricing(switch2.peerInfo.peerId, pricing)
+    network1.broadcastAccount(switch2.peerInfo.peerId, account)
 
     await done.wait(100.millis)
 

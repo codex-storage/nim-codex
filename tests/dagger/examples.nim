@@ -5,6 +5,7 @@ import pkg/nitro
 import pkg/dagger/p2p/rng
 import pkg/dagger/bitswap/protobuf/payments
 import pkg/dagger/bitswap/peercontext
+import pkg/dagger/bitswap/engine
 import pkg/dagger/blocktype
 
 proc example*(_: type EthAddress): EthAddress =

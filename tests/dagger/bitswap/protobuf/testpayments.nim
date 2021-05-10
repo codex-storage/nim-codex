@@ -4,34 +4,21 @@ import pkg/stew/byteutils
 import ../../examples
 import ../../../../dagger/bitswap/protobuf/payments
 
-suite "pricing protobuf messages":
+suite "account protobuf messages":
 
-  let address = EthAddress.example
-  let price = UInt256.example
-  let pricing = Pricing(address: address, price: price)
-  let message = PricingMessage.init(pricing)
+  let account = Account(address: EthAddress.example)
+  let message = AccountMessage.init(account)
 
   test "encodes recipient of payments":
-    check message.address == @(address.toArray)
-
-  test "encodes price per byte":
-    check message.price == @(price.toBytesBE)
+    check message.address == @(account.address.toArray)
 
   test "decodes recipient of payments":
-    check Pricing.init(message).?address == address.some
-
-  test "decodes price":
-    check Pricing.init(message).?price == price.some
+    check Account.init(message).?address == account.address.some
 
   test "fails to decode when address has incorrect number of bytes":
     var incorrect = message
     incorrect.address.del(0)
-    check Pricing.init(incorrect).isNone
-
-  test "fails to decode when price has too many bytes":
-    var incorrect = message
-    incorrect.price = newSeq[byte](33)
-    check Pricing.init(incorrect).isNone
+    check Account.init(incorrect).isNone
 
 suite "channel update messages":
 

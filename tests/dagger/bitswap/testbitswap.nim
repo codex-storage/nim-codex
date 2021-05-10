@@ -103,9 +103,9 @@ suite "Bitswap engine - 2 nodes":
       peerCtx2.peerHave.mapIt( $it ).sorted(cmp[string]) ==
         bitswap1.engine.wantList.mapIt( $it ).sorted(cmp[string])
 
-  test "exchanges pricing on connect":
-    check peerCtx1.pricing == pricing1.some
-    check peerCtx2.pricing == pricing2.some
+  test "exchanges accounts on connect":
+    check peerCtx1.account.?address == pricing1.address.some
+    check peerCtx2.account.?address == pricing2.address.some
 
   test "should send want-have for block":
     let blk = bt.Block.new("Block 1".toBytes)
@@ -152,7 +152,6 @@ suite "Bitswap engine - 2 nodes":
 
   test "receives payments for blocks that were sent":
     let blocks = await bitswap1.getBlocks(blocks2.mapIt(it.cid))
-    let pricing = !bitswap2.engine.pricing
     await sleepAsync(100.millis)
     let channel = !peerCtx1.paymentChannel
     check wallet2.balance(channel, Asset) > 0

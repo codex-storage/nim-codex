@@ -57,14 +57,14 @@ suite "Bitswap engine basic":
 
     await done
 
-  test "sends pricing to new peers":
+  test "sends account to new peers":
     let pricing = Pricing.example
 
-    proc sendPricing(peer: PeerID, toBeSent: Pricing) =
-      check toBeSent == pricing
+    proc sendAccount(peer: PeerID, account: Account) =
+      check account.address == pricing.address
       done.complete()
 
-    let request = BitswapRequest(sendPricing: sendPricing)
+    let request = BitswapRequest(sendAccount: sendAccount)
     let engine = BitswapEngine.new(MemoryStore.new, wallet, request)
     engine.pricing = pricing.some
 
@@ -153,16 +153,16 @@ suite "Bitswap engine handlers":
       check engine.localStore.hasBlock(b.cid)
 
   test "sends payments for received blocks":
-    let pricing = Pricing.example
+    let account = Account(address: EthAddress.example)
     let peerContext = engine.getPeerCtx(peerId)
-    peerContext.pricing = pricing.some
+    peerContext.account = account.some
     peerContext.peerPrices = blocks.mapIt((it.cid, rand(uint16).u256)).toTable
 
     engine.request.sendPayment = proc(receiver: PeerID, payment: SignedState) =
       let amount = blocks.mapIt(peerContext.peerPrices[it.cid]).foldl(a+b)
       let balances = !payment.state.outcome.balances(Asset)
       check receiver == peerId
-      check balances[pricing.address.toDestination] == amount
+      check balances[account.address.toDestination] == amount
       done.complete()
 
     engine.blocksHandler(peerId, blocks)

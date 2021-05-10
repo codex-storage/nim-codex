@@ -35,12 +35,11 @@ message Message {
   message BlockPresence {
     bytes cid = 1;
     BlockPresenceType type = 2;
-    bytes price = 3;    // Amount of assets to pay per byte (UInt256)
+    bytes price = 3;    // Amount of assets to pay for the block (UInt256)
   }
 
-  message PricingMessage {
-    bytes address = 1;  // Ethereum address to which payments should be made
-    bytes price = 3;    // Amount of assets to pay per byte (UInt256)
+  message AccountMessage {
+    bytes address = 1; // Ethereum address to which payments should be made
   }
 
   message StateChannelUpdate {
@@ -52,6 +51,6 @@ message Message {
   repeated Block payload = 3;   // used to send Blocks in bitswap 1.1.0
   repeated BlockPresence blockPresences = 4;
   int32 pendingBytes = 5;
-  PricingMessage pricing = 6;
+  AccountMessage account = 6;
   StateChannelUpdate payment = 7;
 }
