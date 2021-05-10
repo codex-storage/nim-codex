@@ -31,8 +31,6 @@ func parse(_: type UInt256, bytes: seq[byte]): ?UInt256 =
   UInt256.fromBytesBE(bytes).some
 
 func init*(_: type Presence, message: PresenceMessage): ?Presence =
-  mixin parsedCid, parsedPrice
-
   without parsedCid =? Cid.init(message.cid):
     return none Presence
 

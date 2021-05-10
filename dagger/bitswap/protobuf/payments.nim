@@ -39,11 +39,10 @@ func parse(_: type UInt256, bytes: seq[byte]): ?UInt256 =
   UInt256.fromBytesBE(bytes).some
 
 func init*(_: type Pricing, message: PricingMessage): ?Pricing =
-  let address = EthAddress.parse(message.address)
-  let price = UInt256.parse(message.price)
-  if address.isNone or price.isNone:
+  without address =? EthAddress.parse(message.address) and
+          price =? UInt256.parse(message.price):
     return Pricing.none
-  Pricing(address: address.get, price: price.get).some
+  Pricing(address: address, price: price).some
 
 func init*(_: type StateChannelUpdate, state: SignedState): StateChannelUpdate =
   StateChannelUpdate(update: state.toJson.toBytes)
