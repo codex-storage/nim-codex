@@ -1,4 +1,5 @@
 import std/sequtils
+import std/random
 
 import pkg/stew/byteutils
 import pkg/asynctest
@@ -153,10 +154,12 @@ suite "Bitswap engine handlers":
 
   test "sends payments for received blocks":
     let pricing = Pricing.example
-    engine.getPeerCtx(peerId).pricing = pricing.some
+    let peerContext = engine.getPeerCtx(peerId)
+    peerContext.pricing = pricing.some
+    peerContext.peerPrices = blocks.mapIt((it.cid, rand(uint16).u256)).toTable
 
     engine.request.sendPayment = proc(receiver: PeerID, payment: SignedState) =
-      let amount = blocks.mapIt(it.data.len).foldl(a+b).u256 * pricing.price
+      let amount = blocks.mapIt(peerContext.peerPrices[it.cid]).foldl(a+b)
       let balances = !payment.state.outcome.balances(Asset)
       check receiver == peerId
       check balances[pricing.address.toDestination] == amount

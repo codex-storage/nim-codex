@@ -46,3 +46,8 @@ func updatePresence*(context: BitswapPeerCtx, presence: Presence) =
   elif cid in context.peerHave and not presence.have:
     context.peerHave.keepItIf(it != cid)
     context.peerPrices.del(cid)
+
+func price*(context: BitswapPeerCtx, cids: seq[Cid]): UInt256 =
+  for cid in cids:
+    if price =? context.peerPrices.?[cid]:
+      result += price

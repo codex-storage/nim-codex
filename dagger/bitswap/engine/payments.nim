@@ -30,9 +30,8 @@ func getOrOpenChannel(wallet: WalletRef, peer: BitswapPeerCtx): ?!ChannelId =
 
 func pay*(wallet: WalletRef,
           peer: BitswapPeerCtx,
-          amountOfBytes: int): ?!SignedState =
+          amount: UInt256): ?!SignedState =
   if pricing =? peer.pricing:
-    let amount = amountOfBytes.u256 * pricing.price
     let asset = Asset
     let receiver = pricing.address
     let channel = ?wallet.getOrOpenChannel(peer)

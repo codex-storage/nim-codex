@@ -37,7 +37,7 @@ proc example*(_: type SignedState): SignedState =
 proc example*(_: type Pricing): Pricing =
   Pricing(
     address: EthAddress.example,
-    price: uint32.example.u256
+    price: uint32.rand.u256
   )
 
 proc example*(_: type Block): Block =
