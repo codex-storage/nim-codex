@@ -338,15 +338,11 @@ proc taskHandler*(b: BitswapEngine, task: BitswapPeerCtx) {.gcsafe, async.} =
   # we send the block or get a cancel
   for e in task.peerWants:
     if e.wantType == WantType.wantHave:
-      wants.add(
-        BlockPresence(
-            cid: e.`block`,
-            `type`: if b.localStore.hasBlock(e.cid):
-                BlockPresenceType.presenceHave
-              else:
-                BlockPresenceType.presenceDontHave
-        ))
-
+      var presence = Presence(cid: e.cid)
+      presence.have = b.localStore.hasblock(presence.cid)
+      if presence.have and price =? b.pricing.?price:
+        presence.price = price
+      wants.add(BlockPresence.init(presence))
   if wants.len > 0:
     b.request.sendPresence(task.id, wants)
 
