@@ -31,14 +31,12 @@ func parse(_: type UInt256, bytes: seq[byte]): ?UInt256 =
   UInt256.fromBytesBE(bytes).some
 
 func init*(_: type Presence, message: PresenceMessage): ?Presence =
-  without parsedCid =? Cid.init(message.cid):
-    return none Presence
-
-  without parsedPrice =? UInt256.parse(message.price):
+  without cid =? Cid.init(message.cid) and
+          price =? UInt256.parse(message.price):
     return none Presence
 
   some Presence(
-    cid: parsedCid,
+    cid: cid,
     have: message.`type` == presenceHave,
-    price: parsedPrice
+    price: price
   )
