@@ -87,25 +87,13 @@ proc requestBlocks*(
       blocks.add(
         b.pendingBlocks.addOrAwait(c).wait(timeout))
 
-  proc cmp(a, b: BitswapPeerCtx): int =
-    if a.debtRatio == b.debtRatio:
-      0
-    elif a.debtRatio > b.debtRatio:
-      1
-    else:
-      -1
 
-  # sort the peers so that we request
-  # the blocks from a peer with the lowest
-  # debt ratio
-  var sortedPeers = b.peers.sorted(
-    cmp
-  )
+  var peers = b.peers
 
   # get the first peer with at least one (any)
   # matching cid
   var blockPeer: BitswapPeerCtx
-  for i, p in sortedPeers:
+  for i, p in peers:
     let has = cids.anyIt(
       it in p.peerHave
     )
@@ -117,9 +105,9 @@ proc requestBlocks*(
   # didn't find any peer with matching cids
   # use the first one in the sorted array
   if isNil(blockPeer):
-    blockPeer = sortedPeers[0]
+    blockPeer = peers[0]
 
-  sortedPeers.keepItIf(
+  peers.keepItIf(
     it != blockPeer
   )
 
@@ -130,7 +118,7 @@ proc requestBlocks*(
     cids,
     wantType = WantType.wantBlock) # we want this remote to send us a block
 
-  if sortedPeers.len == 0:
+  if peers.len == 0:
     return blocks # no peers to send wants to
 
   template sendWants(ctx: BitswapPeerCtx) =
@@ -141,10 +129,10 @@ proc requestBlocks*(
       wantType = WantType.wantHave) # we only want to know if the peer has the block
 
   # filter out the peer we've already requested from
-  var stop = sortedPeers.high
+  var stop = peers.high
   if stop > b.peersPerRequest: stop = b.peersPerRequest
   trace "Sending want list requests to remaining peers", count = stop + 1
-  for p in sortedPeers[0..stop]:
+  for p in peers[0..stop]:
     sendWants(p)
 
   return blocks

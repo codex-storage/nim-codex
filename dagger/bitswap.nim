@@ -43,8 +43,7 @@ type
     taskHandler: TaskHandler                     # handler provided by the engine called by the runner
 
 proc bitswapTaskRunner(b: Bitswap) {.async.} =
-  ## process tasks in order of least amount of
-  ## debt ratio
+  ## process tasks
   ##
 
   while b.bitswapRunning:
