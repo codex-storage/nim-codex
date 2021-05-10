@@ -194,11 +194,8 @@ proc payForBlocks(engine: BitswapEngine,
   if sendPayment.isNil:
     return
 
-  var amountOfBytes = 0
-  for blck in blocks:
-    amountOfBytes += blck.data.len
-
-  if payment =? engine.wallet.pay(peer, amountOfBytes):
+  let cids = blocks.mapIt(it.cid)
+  if payment =? engine.wallet.pay(peer, peer.price(cids)):
     sendPayment(peer.id, payment)
 
 proc blocksHandler*(
