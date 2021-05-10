@@ -339,18 +339,15 @@ suite "Task Handler":
     await engine.taskHandler(peersCtx[0])
 
   test "Should send presence":
-    proc sendPresence(
-      id: PeerID,
-      presence: seq[BlockPresence]) {.gcsafe.} =
-      check presence.len == 3
-      check:
-        presence[0].cid == blocks[0].cid.data.buffer
-        presence[0].`type` == BlockPresenceType.presenceHave
+    let present = blocks
+    let missing = @[bt.Block.new("missing".toBytes)]
 
-        presence[1].cid == blocks[1].cid.data.buffer
-        presence[1].`type` == BlockPresenceType.presenceHave
-
-        presence[2].`type` == BlockPresenceType.presenceDontHave
+    proc sendPresence(id: PeerID, presence: seq[BlockPresence]) =
+      check presence.mapIt(!Presence.init(it)) == @[
+        Presence(cid: present[0].cid, have: true),
+        Presence(cid: present[1].cid, have: true),
+        Presence(cid: missing[0].cid, have: false)
+      ]
 
     engine.localStore.putBlocks(blocks)
     engine.request.sendPresence = sendPresence
@@ -358,7 +355,7 @@ suite "Task Handler":
     # have block
     peersCtx[0].peerWants.add(
       Entry(
-        `block`: blocks[0].cid.data.buffer,
+        `block`: present[0].cid.data.buffer,
         priority: 1,
         cancel: false,
         wantType: WantType.wantHave,
@@ -368,7 +365,7 @@ suite "Task Handler":
     # have block
     peersCtx[0].peerWants.add(
       Entry(
-        `block`: blocks[1].cid.data.buffer,
+        `block`: present[1].cid.data.buffer,
         priority: 1,
         cancel: false,
         wantType: WantType.wantHave,
@@ -378,7 +375,7 @@ suite "Task Handler":
     # don't have block
     peersCtx[0].peerWants.add(
       Entry(
-        `block`: bt.Block.new("Block 1".toBytes).cid.data.buffer,
+        `block`: missing[0].cid.data.buffer,
         priority: 1,
         cancel: false,
         wantType: WantType.wantHave,
