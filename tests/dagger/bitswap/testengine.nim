@@ -303,6 +303,7 @@ suite "Task Handler":
       ))
 
     engine.peers = peersCtx
+    engine.pricing = Pricing.example.some
 
   test "Should send want-blocks in priority order":
     proc sendBlocks(
@@ -341,11 +342,12 @@ suite "Task Handler":
   test "Should send presence":
     let present = blocks
     let missing = @[bt.Block.new("missing".toBytes)]
+    let price = (!engine.pricing).price
 
     proc sendPresence(id: PeerID, presence: seq[BlockPresence]) =
       check presence.mapIt(!Presence.init(it)) == @[
-        Presence(cid: present[0].cid, have: true),
-        Presence(cid: present[1].cid, have: true),
+        Presence(cid: present[0].cid, have: true, price: price),
+        Presence(cid: present[1].cid, have: true, price: price),
         Presence(cid: missing[0].cid, have: false)
       ]
 
