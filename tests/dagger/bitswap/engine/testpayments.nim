@@ -4,6 +4,7 @@ import ../../examples
 
 suite "engine payments":
 
+  let address = EthAddress.example
   let amount = 42.u256
 
   var wallet: WalletRef
@@ -12,17 +13,16 @@ suite "engine payments":
   setup:
     wallet = WalletRef.example
     peer = BitswapPeerCtx.example
-    peer.pricing = Pricing.example.some
+    peer.account = Account(address: address).some
 
   test "pays for received blocks":
     let payment = !wallet.pay(peer, amount)
-    let pricing = !peer.pricing
     let balances = payment.state.outcome.balances(Asset)
-    let destination = pricing.address.toDestination
+    let destination = address.toDestination
     check !balances[destination] == amount
 
-  test "no payment when no price is set":
-    peer.pricing = Pricing.none
+  test "no payment when no account is set":
+    peer.account = Account.none
     check wallet.pay(peer, amount).isFailure
 
   test "uses same channel for consecutive payments":

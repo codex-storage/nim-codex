@@ -6,7 +6,7 @@ import pkg/questionable
 import pkg/upraises
 import ./bitswap
 
-export PricingMessage
+export AccountMessage
 export StateChannelUpdate
 
 export stint
@@ -15,15 +15,11 @@ export nitro
 push: {.upraises: [].}
 
 type
-  Pricing* = object
+  Account* = object
     address*: EthAddress
-    price*: UInt256
 
-func init*(_: type PricingMessage, pricing: Pricing): PricingMessage =
-  PricingMessage(
-    address: @(pricing.address.toArray),
-    price: @(pricing.price.toBytesBE)
-  )
+func init*(_: type AccountMessage, account: Account): AccountMessage =
+  AccountMessage(address: @(account.address.toArray))
 
 func parse(_: type EthAddress, bytes: seq[byte]): ?EthAddress =
   var address: array[20, byte]
@@ -33,16 +29,10 @@ func parse(_: type EthAddress, bytes: seq[byte]): ?EthAddress =
     address[i] = bytes[i]
   EthAddress(address).some
 
-func parse(_: type UInt256, bytes: seq[byte]): ?UInt256 =
-  if bytes.len > 32:
-    return UInt256.none
-  UInt256.fromBytesBE(bytes).some
-
-func init*(_: type Pricing, message: PricingMessage): ?Pricing =
-  without address =? EthAddress.parse(message.address) and
-          price =? UInt256.parse(message.price):
-    return Pricing.none
-  Pricing(address: address, price: price).some
+func init*(_: type Account, message: AccountMessage): ?Account =
+  without address =? EthAddress.parse(message.address):
+    return none Account
+  some Account(address: address)
 
 func init*(_: type StateChannelUpdate, state: SignedState): StateChannelUpdate =
   StateChannelUpdate(update: state.toJson.toBytes)

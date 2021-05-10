@@ -17,7 +17,7 @@ import_proto3 "message.proto"
 export Message
 export Wantlist, WantType, Entry
 export Block, BlockPresenceType, BlockPresence
-export PricingMessage, StateChannelUpdate
+export AccountMessage, StateChannelUpdate
 
 proc hash*(e: Entry): Hash =
   hash(e.`block`)

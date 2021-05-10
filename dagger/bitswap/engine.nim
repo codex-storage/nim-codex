@@ -50,6 +50,10 @@ type
     wallet*: WalletRef                          # nitro wallet for micropayments
     pricing*: ?Pricing                          # optional bandwidth pricing
 
+  Pricing* = object
+    address*: EthAddress
+    price*: UInt256
+
 proc contains*(a: AsyncHeapQueue[Entry], b: Cid): bool =
   ## Convenience method to check for entry prepense
   ##
@@ -246,21 +250,20 @@ proc wantListHandler*(
   if not b.scheduleTask(peerCtx):
     trace "Unable to schedule task for peer", peer
 
-proc pricingHandler*(engine: BitswapEngine, peer: PeerID, pricing: Pricing) =
+proc accountHandler*(engine: BitswapEngine, peer: PeerID, account: Account) =
   let context = engine.getPeerCtx(peer)
   if context.isNil:
     return
 
-  context.pricing = pricing.some
+  context.account = account.some
 
 proc paymentHandler*(engine: BitswapEngine, peer: PeerId, payment: SignedState) =
   without context =? engine.getPeerCtx(peer).option and
-          contextPricing =? context.pricing and
-          enginePricing =? engine.pricing:
+          account =? context.account:
     return
 
   if channel =? context.paymentChannel:
-    let sender = contextPricing.address
+    let sender = account.address
     discard engine.wallet.acceptPayment(channel, Asset, sender, payment)
   else:
     context.paymentChannel = engine.wallet.acceptChannel(payment).option
@@ -280,8 +283,8 @@ proc setupPeer*(b: BitswapEngine, peer: PeerID) =
   if b.wantList.len > 0:
     b.request.sendWantList(peer, b.wantList, full = true)
 
-  if pricing =? b.pricing:
-    b.request.sendPricing(peer, pricing)
+  if address =? b.pricing.?address:
+    b.request.sendAccount(peer, Account(address: address))
 
 proc dropPeer*(b: BitswapEngine, peer: PeerID) =
   ## Cleanup disconnected peer

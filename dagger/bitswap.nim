@@ -157,8 +157,8 @@ proc new*(
     blocks: seq[bt.Block]) {.gcsafe.} =
     engine.blocksHandler(peer, blocks)
 
-  proc pricingHandler(peer: PeerId, pricing: Pricing) =
-    engine.pricingHandler(peer, pricing)
+  proc accountHandler(peer: PeerId, account: Account) =
+    engine.accountHandler(peer, account)
 
   proc paymentHandler(peer: PeerId, payment: SignedState) =
     engine.paymentHandler(peer, payment)
@@ -167,7 +167,7 @@ proc new*(
     onWantList: blockWantListHandler,
     onBlocks: blocksHandler,
     onPresence: blockPresenceHandler,
-    onPricing: pricingHandler,
+    onAccount: accountHandler,
     onPayment: paymentHandler
   )
 

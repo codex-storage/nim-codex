@@ -31,14 +31,14 @@ type
   WantListHandler* = proc(peer: PeerID, wantList: WantList) {.gcsafe.}
   BlocksHandler* = proc(peer: PeerID, blocks: seq[bt.Block]) {.gcsafe.}
   BlockPresenceHandler* = proc(peer: PeerID, precense: seq[BlockPresence]) {.gcsafe.}
-  PricingHandler* = proc(peer: PeerID, pricing: Pricing) {.gcsafe.}
+  AccountHandler* = proc(peer: PeerID, account: Account) {.gcsafe.}
   PaymentHandler* = proc(peer: PeerID, payment: SignedState) {.gcsafe.}
 
   BitswapHandlers* = object
     onWantList*: WantListHandler
     onBlocks*: BlocksHandler
     onPresence*: BlockPresenceHandler
-    onPricing*: PricingHandler
+    onAccount*: AccountHandler
     onPayment*: PaymentHandler
 
   WantListBroadcaster* = proc(
@@ -52,14 +52,14 @@ type
 
   BlocksBroadcaster* = proc(peer: PeerID, presence: seq[bt.Block]) {.gcsafe.}
   PresenceBroadcaster* = proc(peer: PeerID, presence: seq[BlockPresence]) {.gcsafe.}
-  PricingBroadcaster* = proc(peer: PeerID, pricing: Pricing) {.gcsafe.}
+  AccountBroadcaster* = proc(peer: PeerID, account: Account) {.gcsafe.}
   PaymentBroadcaster* = proc(peer: PeerID, payment: SignedState) {.gcsafe.}
 
   BitswapRequest* = object
     sendWantList*: WantListBroadcaster
     sendBlocks*: BlocksBroadcaster
     sendPresence*: PresenceBroadcaster
-    sendPricing*: PricingBroadcaster
+    sendAccount*: AccountBroadcaster
     sendPayment*: PaymentBroadcaster
 
   BitswapNetwork* = ref object of LPProtocol
@@ -202,20 +202,20 @@ proc broadcastBlockPresence*(
   trace "Sending presence to peer", peer = id
   asyncSpawn b.peers[id].send(Message(blockPresences: presence))
 
-proc handlePricing(network: BitswapNetwork,
+proc handleAccount(network: BitswapNetwork,
                    peer: NetworkPeer,
-                   pricing: Pricing) =
-  if network.handlers.onPricing.isNil:
+                   account: Account) =
+  if network.handlers.onAccount.isNil:
     return
-  network.handlers.onPricing(peer.id, pricing)
+  network.handlers.onAccount(peer.id, account)
 
-proc broadcastPricing*(network: BitswapNetwork,
-                      id: PeerId,
-                      pricing: Pricing) =
+proc broadcastAccount*(network: BitswapNetwork,
+                       id: PeerId,
+                       account: Account) =
   if id notin network.peers:
     return
 
-  let message = Message(pricing: PricingMessage.init(pricing))
+  let message = Message(account: AccountMessage.init(account))
   asyncSpawn network.peers[id].send(message)
 
 proc broadcastPayment*(network: BitswapNetwork,
@@ -248,8 +248,8 @@ proc rpcHandler(b: BitswapNetwork, peer: NetworkPeer, msg: Message) {.async.} =
     if msg.blockPresences.len > 0:
       b.handleBlockPresence(peer, msg.blockPresences)
 
-    if pricing =? Pricing.init(msg.pricing):
-      b.handlePricing(peer, pricing)
+    if account =? Account.init(msg.account):
+      b.handleAccount(peer, account)
 
     if payment =? SignedState.init(msg.payment):
       b.handlePayment(peer, payment)
@@ -347,8 +347,8 @@ proc new*(
   proc sendPresence(id: PeerID, presence: seq[BlockPresence]) {.gcsafe.} =
     b.broadcastBlockPresence(id, presence)
 
-  proc sendPricing(id: PeerID, pricing: Pricing) =
-    b.broadcastPricing(id, pricing)
+  proc sendAccount(id: PeerID, account: Account) =
+    b.broadcastAccount(id, account)
 
   proc sendPayment(id: PeerID, payment: SignedState) =
     b.broadcastPayment(id, payment)
@@ -357,7 +357,7 @@ proc new*(
     sendWantList: sendWantList,
     sendBlocks: sendBlocks,
     sendPresence: sendPresence,
-    sendPricing: sendPricing,
+    sendAccount: sendAccount,
     sendPayment: sendPayment
   )
 

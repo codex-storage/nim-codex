@@ -18,7 +18,7 @@ type
     peerWants*: seq[Entry]      # remote peers want lists
     exchanged*: int             # times peer has exchanged with us
     lastExchange*: Moment       # last time peer has exchanged with us
-    pricing*: ?Pricing          # optional bandwidth price for this peer
+    account*: ?Account          # ethereum account of this peer
     paymentChannel*: ?ChannelId # payment channel id
 
 proc peerHave*(context: BitswapPeerCtx): seq[Cid] =
