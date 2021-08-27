@@ -17,7 +17,7 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ../blocktype as bt
-import ./protobuf/bitswap as pb
+import ./protobuf/blockexc
 import ./protobuf/payments
 import ./networkpeer
 
@@ -25,9 +25,9 @@ export pb, networkpeer
 export payments
 
 logScope:
-  topics = "dagger bitswap network"
+  topics = "dagger blockexc network"
 
-const Codec* = "/ipfs/bitswap/1.2.0"
+const Codec* = "/dagger/blockexc/1.0.0"
 
 type
   WantListHandler* = proc(peer: PeerID, wantList: WantList) {.gcsafe.}
@@ -36,7 +36,7 @@ type
   AccountHandler* = proc(peer: PeerID, account: Account) {.gcsafe.}
   PaymentHandler* = proc(peer: PeerID, payment: SignedState) {.gcsafe.}
 
-  BitswapHandlers* = object
+  BlockExcHandlers* = object
     onWantList*: WantListHandler
     onBlocks*: BlocksHandler
     onPresence*: BlockPresenceHandler
@@ -57,22 +57,22 @@ type
   AccountBroadcaster* = proc(peer: PeerID, account: Account) {.gcsafe.}
   PaymentBroadcaster* = proc(peer: PeerID, payment: SignedState) {.gcsafe.}
 
-  BitswapRequest* = object
+  BlockExcRequest* = object
     sendWantList*: WantListBroadcaster
     sendBlocks*: BlocksBroadcaster
     sendPresence*: PresenceBroadcaster
     sendAccount*: AccountBroadcaster
     sendPayment*: PaymentBroadcaster
 
-  BitswapNetwork* = ref object of LPProtocol
+  BlockExcNetwork* = ref object of LPProtocol
     peers*: Table[PeerID, NetworkPeer]
     switch*: Switch
-    handlers*: BitswapHandlers
-    request*: BitswapRequest
+    handlers*: BlockExcHandlers
+    request*: BlockExcRequest
     getConn: ConnProvider
 
 proc handleWantList(
-  b: BitswapNetwork,
+  b: BlockExcNetwork,
   peer: NetworkPeer,
   list: WantList) =
   ## Handle incoming want list
@@ -104,7 +104,7 @@ proc makeWantList*(
   WantList(entries: entries, full: full)
 
 proc broadcastWantList*(
-  b: BitswapNetwork,
+  b: BlockExcNetwork,
   id: PeerID,
   cids: seq[Cid],
   priority: int32 = 0,
@@ -130,7 +130,7 @@ proc broadcastWantList*(
   asyncSpawn b.peers[id].send(Message(wantlist: wantList))
 
 proc handleBlocks(
-  b: BitswapNetwork,
+  b: BlockExcNetwork,
   peer: NetworkPeer,
   blocks: seq[auto]) =
   ## Handle incoming blocks
@@ -159,7 +159,6 @@ template makeBlocks*(
   seq[pb.Block] =
   var blks: seq[pb.Block]
   for blk in blocks:
-    # for now only send bitswap `1.1.0`
     blks.add(pb.Block(
       prefix: blk.cid.data.buffer,
       data: blk.data
@@ -168,7 +167,7 @@ template makeBlocks*(
   blks
 
 proc broadcastBlocks*(
-  b: BitswapNetwork,
+  b: BlockExcNetwork,
   id: PeerID,
   blocks: seq[bt.Block]) =
   ## Send blocks to remote
@@ -181,7 +180,7 @@ proc broadcastBlocks*(
   asyncSpawn b.peers[id].send(pb.Message(payload: makeBlocks(blocks)))
 
 proc handleBlockPresence(
-  b: BitswapNetwork,
+  b: BlockExcNetwork,
   peer: NetworkPeer,
   presence: seq[BlockPresence]) =
   ## Handle block presence
@@ -194,7 +193,7 @@ proc handleBlockPresence(
   b.handlers.onPresence(peer.id, presence)
 
 proc broadcastBlockPresence*(
-  b: BitswapNetwork,
+  b: BlockExcNetwork,
   id: PeerID,
   presence: seq[BlockPresence]) =
   ## Send presence to remote
@@ -206,14 +205,14 @@ proc broadcastBlockPresence*(
   trace "Sending presence to peer", peer = id
   asyncSpawn b.peers[id].send(Message(blockPresences: presence))
 
-proc handleAccount(network: BitswapNetwork,
+proc handleAccount(network: BlockExcNetwork,
                    peer: NetworkPeer,
                    account: Account) =
   if network.handlers.onAccount.isNil:
     return
   network.handlers.onAccount(peer.id, account)
 
-proc broadcastAccount*(network: BitswapNetwork,
+proc broadcastAccount*(network: BlockExcNetwork,
                        id: PeerId,
                        account: Account) =
   if id notin network.peers:
@@ -222,7 +221,7 @@ proc broadcastAccount*(network: BitswapNetwork,
   let message = Message(account: AccountMessage.init(account))
   asyncSpawn network.peers[id].send(message)
 
-proc broadcastPayment*(network: BitswapNetwork,
+proc broadcastPayment*(network: BlockExcNetwork,
                        id: PeerId,
                        payment: SignedState) =
   if id notin network.peers:
@@ -231,14 +230,14 @@ proc broadcastPayment*(network: BitswapNetwork,
   let message = Message(payment: StateChannelUpdate.init(payment))
   asyncSpawn network.peers[id].send(message)
 
-proc handlePayment(network: BitswapNetwork,
+proc handlePayment(network: BlockExcNetwork,
                    peer: NetworkPeer,
                    payment: SignedState) =
   if network.handlers.onPayment.isNil:
     return
   network.handlers.onPayment(peer.id, payment)
 
-proc rpcHandler(b: BitswapNetwork, peer: NetworkPeer, msg: Message) {.async.} =
+proc rpcHandler(b: BlockExcNetwork, peer: NetworkPeer, msg: Message) {.async.} =
   try:
     if msg.wantlist.entries.len > 0:
       b.handleWantList(peer, msg.wantlist)
@@ -259,10 +258,10 @@ proc rpcHandler(b: BitswapNetwork, peer: NetworkPeer, msg: Message) {.async.} =
       b.handlePayment(peer, payment)
 
   except CatchableError as exc:
-    trace "Exception in bitswap rpc handler", exc = exc.msg
+    trace "Exception in blockexc rpc handler", exc = exc.msg
 
-proc getOrCreatePeer(b: BitswapNetwork, peer: PeerID): NetworkPeer =
-  ## Creates or retrieves a BitswapNetwork Peer
+proc getOrCreatePeer(b: BlockExcNetwork, peer: PeerID): NetworkPeer =
+  ## Creates or retrieves a BlockExcNetwork Peer
   ##
 
   if peer in b.peers:
@@ -272,7 +271,7 @@ proc getOrCreatePeer(b: BitswapNetwork, peer: PeerID): NetworkPeer =
     try:
       return await b.switch.dial(peer, Codec)
     except CatchableError as exc:
-      trace "unable to connect to bitswap peer", exc = exc.msg
+      trace "unable to connect to blockexc peer", exc = exc.msg
 
   if not isNil(b.getConn):
     getConn = b.getConn
@@ -281,27 +280,27 @@ proc getOrCreatePeer(b: BitswapNetwork, peer: PeerID): NetworkPeer =
     b.rpcHandler(p, msg)
 
   # create new pubsub peer
-  let bitSwapPeer = NetworkPeer.new(peer, getConn, rpcHandler)
-  debug "created new bitswap peer", peer
+  let blockExcPeer = NetworkPeer.new(peer, getConn, rpcHandler)
+  debug "created new blockexc peer", peer
 
-  b.peers[peer] = bitSwapPeer
+  b.peers[peer] = blockExcPeer
 
-  return bitSwapPeer
+  return blockExcPeer
 
-proc setupPeer*(b: BitswapNetwork, peer: PeerID) =
+proc setupPeer*(b: BlockExcNetwork, peer: PeerID) =
   ## Perform initial setup, such as want
   ## list exchange
   ##
 
   discard b.getOrCreatePeer(peer)
 
-proc dropPeer*(b: BitswapNetwork, peer: PeerID) =
+proc dropPeer*(b: BlockExcNetwork, peer: PeerID) =
   ## Cleanup disconnected peer
   ##
 
   b.peers.del(peer)
 
-method init*(b: BitswapNetwork) =
+method init*(b: BlockExcNetwork) =
   ## Perform protocol initialization
   ##
 
@@ -320,20 +319,20 @@ method init*(b: BitswapNetwork) =
 
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
     let peerId = conn.peerInfo.peerId
-    let bitswapPeer = b.getOrCreatePeer(peerId)
-    await bitswapPeer.readLoop(conn)  # attach read loop
+    let blockexcPeer = b.getOrCreatePeer(peerId)
+    await blockexcPeer.readLoop(conn)  # attach read loop
 
   b.handler = handle
   b.codec = Codec
 
-proc new*(
-  T: type BitswapNetwork,
+func new*(
+  T: type BlockExcNetwork,
   switch: Switch,
   connProvider: ConnProvider = nil): T =
-  ## Create a new BitswapNetwork instance
+  ## Create a new BlockExcNetwork instance
   ##
 
-  let b = BitswapNetwork(
+  let b = BlockExcNetwork(
     switch: switch,
     getConn: connProvider)
 
@@ -361,7 +360,7 @@ proc new*(
   proc sendPayment(id: PeerID, payment: SignedState) =
     b.broadcastPayment(id, payment)
 
-  b.request = BitswapRequest(
+  b.request = BlockExcRequest(
     sendWantList: sendWantList,
     sendBlocks: sendBlocks,
     sendPresence: sendPresence,

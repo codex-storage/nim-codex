@@ -12,10 +12,10 @@ import pkg/chronicles
 import pkg/protobuf_serialization
 import pkg/libp2p
 
-import ./protobuf/bitswap
+import ./protobuf/blockexc
 
 logScope:
-  topics = "dagger bitswap networkpeer"
+  topics = "dagger blockexc networkpeer"
 
 const MaxMessageSize = 8 * 1024 * 1024
 
@@ -43,7 +43,7 @@ proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
       trace "Got message for peer", peer = b.id, msg
       await b.handler(b, msg)
   except CatchableError as exc:
-    trace "Exception in bitswap read loop", exc = exc.msg
+    trace "Exception in blockexc read loop", exc = exc.msg
   finally:
     await conn.close()
 
@@ -65,7 +65,7 @@ proc send*(b: NetworkPeer, msg: Message) {.async.} =
   trace "Sending message to remote", peer = b.id, msg = $msg
   await conn.writeLp(Protobuf.encode(msg))
 
-proc new*(
+func new*(
   T: type NetworkPeer,
   peer: PeerId,
   connProvider: ConnProvider,

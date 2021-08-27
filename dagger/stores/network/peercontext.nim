@@ -4,7 +4,7 @@ import pkg/libp2p
 import pkg/chronos
 import pkg/nitro
 import pkg/questionable
-import ./protobuf/bitswap
+import ./protobuf/blockexc
 import ./protobuf/payments
 import ./protobuf/presence
 
@@ -12,7 +12,7 @@ export payments
 export nitro
 
 type
-  BitswapPeerCtx* = ref object of RootObj
+  BlockExcPeerCtx* = ref object of RootObj
     id*: PeerID
     peerPrices*: Table[Cid, UInt256] # remote peer have list including price
     peerWants*: seq[Entry]      # remote peers want lists
@@ -21,16 +21,16 @@ type
     account*: ?Account          # ethereum account of this peer
     paymentChannel*: ?ChannelId # payment channel id
 
-proc peerHave*(context: BitswapPeerCtx): seq[Cid] =
+proc peerHave*(context: BlockExcPeerCtx): seq[Cid] =
   toSeq(context.peerPrices.keys)
 
-proc contains*(a: openArray[BitswapPeerCtx], b: PeerID): bool =
+proc contains*(a: openArray[BlockExcPeerCtx], b: PeerID): bool =
   ## Convenience method to check for peer prepense
   ##
 
   a.anyIt( it.id == b )
 
-func updatePresence*(context: BitswapPeerCtx, presence: Presence) =
+func updatePresence*(context: BlockExcPeerCtx, presence: Presence) =
   let cid = presence.cid
   let price = presence.price
 
@@ -39,7 +39,7 @@ func updatePresence*(context: BitswapPeerCtx, presence: Presence) =
   elif cid in context.peerHave and not presence.have:
     context.peerPrices.del(cid)
 
-func price*(context: BitswapPeerCtx, cids: seq[Cid]): UInt256 =
+func price*(context: BlockExcPeerCtx, cids: seq[Cid]): UInt256 =
   for cid in cids:
     if price =? context.peerPrices.?[cid]:
       result += price

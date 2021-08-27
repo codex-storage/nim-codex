@@ -54,7 +54,7 @@ method delBlocks*(s: MemoryStore, cids: seq[Cid]) =
 
   procCall BlockStore(s).delBlocks(cids)
 
-proc new*(T: type MemoryStore, blocks: openArray[Block] = []): MemoryStore =
+func new*(T: type MemoryStore, blocks: openArray[Block] = []): MemoryStore =
   MemoryStore(
     blocks: @blocks
   )
