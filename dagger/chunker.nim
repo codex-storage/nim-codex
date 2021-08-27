@@ -7,9 +7,14 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-# TODO: This is super inneficient and merits a rewrite, but it'll do for now
+# TODO: This is super inneficient and needs a rewrite, but it'll do for now
+
+{.push raises: [Defect].}
 
 import std/sequtils
+
+import pkg/questionable
+import pkg/questionable/results
 
 import ./p2p/rng
 import ./blocktype
@@ -21,7 +26,9 @@ const
 
 type
   # default reader type
-  Reader* = proc(data: var openArray[byte], offset: Natural = 0): int {.gcsafe, closure.}
+  Reader* =
+    proc(data: var openArray[byte], offset: Natural = 0): int
+    {.gcsafe, closure, raises: [Defect].}
 
   ChunkerType* {.pure.} = enum
     SizedChunker
@@ -63,7 +70,7 @@ iterator items*(c: Chunker): seq[byte] =
 
     yield chunk
 
-proc new*(
+proc new(
   T: type Chunker,
   kind = ChunkerType.SizedChunker,
   reader: Reader,
@@ -122,11 +129,15 @@ proc newFileChunker*(
   ##
 
   proc reader(data: var openArray[byte], offset: Natural = 0): int =
-    return file.readBytes(data, 0, data.len)
+    try:
+      return file.readBytes(data, 0, data.len)
+    except IOError as exc:
+      # TODO: revisit error handling - should this be fatal?
+      raise newException(Defect, exc.msg)
 
   Chunker.new(
     kind = ChunkerType.SizedChunker,
     reader = reader,
-    size = file.getFileSize(),
+    size = try: file.getFileSize() except: 0, # TODO: should do something smarter abou this
     pad = pad,
     chunkSize = chunkSize)
