@@ -7,17 +7,18 @@ import pkg/libp2p
 import pkg/libp2p/errors
 import pkg/protobuf_serialization
 
-import pkg/dagger/stores/memorystore
-import pkg/dagger/bitswap/network
-import pkg/dagger/bitswap/protobuf/payments
 import pkg/dagger/rng
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
+import pkg/dagger/stores/memorystore
+import pkg/dagger/stores/network/network
+import pkg/dagger/stores/network/protobuf/blockexc
+import pkg/dagger/stores/network/protobuf/payments
 
 import ../helpers
 import ../examples
 
-suite "Bitswap network":
+suite "BlockExc network":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
@@ -26,7 +27,7 @@ suite "Bitswap network":
     blocks = chunker.mapIt( !bt.Block.new(it) )
 
   var
-    network: BitswapNetwork
+    network: BlockExcNetwork
     networkPeer: NetworkPeer
     buffer: BufferStream
     done: Future[void]
@@ -37,7 +38,7 @@ suite "Bitswap network":
   setup:
     done = newFuture[void]()
     buffer = newBufferStream()
-    network = BitswapNetwork.new(
+    network = BlockExcNetwork.new(
       switch = newStandardSwitch(),
       connProvider = getConn)
     network.setupPeer(peerId)
@@ -131,14 +132,14 @@ suite "Bitswap network":
 
     await done.wait(100.millis)
 
-suite "Bitswap Network - e2e":
+suite "BlockExc Network - e2e":
   let
     chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
     blocks = chunker.mapIt( !bt.Block.new(it) )
 
   var
     switch1, switch2: Switch
-    network1, network2: BitswapNetwork
+    network1, network2: BlockExcNetwork
     awaiters: seq[Future[void]]
     done: Future[void]
 
@@ -149,11 +150,11 @@ suite "Bitswap Network - e2e":
     awaiters.add(await switch1.start())
     awaiters.add(await switch2.start())
 
-    network1 = BitswapNetwork.new(
+    network1 = BlockExcNetwork.new(
       switch = switch1)
     switch1.mount(network1)
 
-    network2 = BitswapNetwork.new(
+    network2 = BlockExcNetwork.new(
       switch = switch2)
     switch2.mount(network2)
 

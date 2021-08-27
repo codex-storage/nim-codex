@@ -14,13 +14,13 @@ import pkg/chronos
 import pkg/libp2p
 import pkg/libp2p/errors
 
-import ./blockexc/protobuf/blockexc as pb
+import ./stores/network/protobuf/blockexc as pb
 import ./blocktype as bt
 import ./stores/blockstore
 import ./utils/asyncheapqueue
 
-import ./blockexc/network
-import ./blockexc/engine
+import ./stores/network/network
+import ./stores/network/engine
 
 export network, blockstore, asyncheapqueue, engine
 
@@ -100,7 +100,7 @@ method putBlocks*(b: BlockExc, blocks: seq[bt.Block]) =
 
   procCall BlockStore(b).putBlocks(blocks)
 
-func new*(
+proc new*(
   T: type BlockExc,
   localStore: BlockStore,
   wallet: WalletRef,

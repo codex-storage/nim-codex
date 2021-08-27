@@ -16,12 +16,12 @@ import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
 
-import ../blocktype as bt
-import ./protobuf/blockexc
+import ../../blocktype as bt
+import ./protobuf/blockexc as pb
 import ./protobuf/payments
 import ./networkpeer
 
-export pb, networkpeer
+export networkpeer
 export payments
 
 logScope:
@@ -242,9 +242,6 @@ proc rpcHandler(b: BlockExcNetwork, peer: NetworkPeer, msg: Message) {.async.} =
     if msg.wantlist.entries.len > 0:
       b.handleWantList(peer, msg.wantlist)
 
-    if msg.blocks.len > 0:
-      b.handleBlocks(peer, msg.blocks)
-
     if msg.payload.len > 0:
       b.handleBlocks(peer, msg.payload)
 
@@ -325,7 +322,7 @@ method init*(b: BlockExcNetwork) =
   b.handler = handle
   b.codec = Codec
 
-func new*(
+proc new*(
   T: type BlockExcNetwork,
   switch: Switch,
   connProvider: ConnProvider = nil): T =

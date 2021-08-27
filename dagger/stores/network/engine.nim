@@ -17,7 +17,7 @@ import pkg/libp2p/errors
 
 import ./protobuf/blockexc
 import ./protobuf/presence
-import ../blocktype as bt
+import ../../blocktype as bt
 import ../blockstore
 import ../../utils/asyncheapqueue
 

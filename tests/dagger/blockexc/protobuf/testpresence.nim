@@ -2,7 +2,7 @@ import std/sequtils
 import pkg/asynctest
 import pkg/chronos
 import pkg/libp2p
-import ../../../../dagger/bitswap/protobuf/presence
+import pkg/dagger/stores/network/protobuf/presence
 import ../../examples
 
 suite "block presence protobuf messages":

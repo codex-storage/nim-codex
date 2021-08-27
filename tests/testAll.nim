@@ -1,9 +1,9 @@
-import ./dagger/bitswap/testbitswap
-import ./dagger/bitswap/testengine
-import ./dagger/bitswap/testnetwork
-import ./dagger/bitswap/protobuf/testpayments as testprotobufpayments
-import ./dagger/bitswap/protobuf/testpresence
-import ./dagger/bitswap/engine/testpayments as testenginepayments
+import ./dagger/blockexc/testblockexc
+import ./dagger/blockexc/testengine
+import ./dagger/blockexc/testnetwork
+import ./dagger/blockexc/protobuf/testpayments as testprotobufpayments
+import ./dagger/blockexc/protobuf/testpresence
+import ./dagger/blockexc/engine/testpayments as testenginepayments
 import ./dagger/testasyncheapqueue
 import ./dagger/testblockstore
 import ./dagger/testchunking

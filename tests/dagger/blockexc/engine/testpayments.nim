@@ -1,5 +1,5 @@
 import std/unittest
-import pkg/dagger/bitswap/engine/payments
+import pkg/dagger/stores/network/engine/payments
 import ../../examples
 
 suite "engine payments":
@@ -8,11 +8,11 @@ suite "engine payments":
   let amount = 42.u256
 
   var wallet: WalletRef
-  var peer: BitswapPeerCtx
+  var peer: BlockExcPeerCtx
 
   setup:
     wallet = WalletRef.example
-    peer = BitswapPeerCtx.example
+    peer = BlockExcPeerCtx.example
     peer.account = Account(address: address).some
 
   test "pays for received blocks":

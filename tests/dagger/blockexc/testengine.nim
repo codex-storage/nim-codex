@@ -8,10 +8,11 @@ import pkg/libp2p
 import pkg/libp2p/errors
 
 import pkg/dagger/rng
-import pkg/dagger/bitswap
-import pkg/dagger/bitswap/pendingblocks
-import pkg/dagger/bitswap/engine/payments
-import pkg/dagger/bitswap/protobuf/presence
+import pkg/dagger/blockexc
+import pkg/dagger/stores/network/protobuf/blockexc as pb
+import pkg/dagger/stores/network/pendingblocks
+import pkg/dagger/stores/network/engine/payments
+import pkg/dagger/stores/network/protobuf/presence
 import pkg/dagger/stores/memorystore
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
@@ -19,7 +20,7 @@ import pkg/dagger/blocktype as bt
 import ../helpers
 import ../examples
 
-suite "Bitswap engine basic":
+suite "BlockExc engine basic":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
@@ -47,11 +48,11 @@ suite "Bitswap engine basic":
 
         done.complete()
 
-    let request = BitswapRequest(
+    let request = BlockExcRequest(
       sendWantList: sendWantList,
     )
 
-    let engine = BitswapEngine.new(MemoryStore.new(blocks), wallet, request)
+    let engine = BlockExcEngine.new(MemoryStore.new(blocks), wallet, request)
     engine.wantList = blocks.mapIt( it.cid )
     engine.setupPeer(peerId)
 
@@ -64,14 +65,14 @@ suite "Bitswap engine basic":
       check account.address == pricing.address
       done.complete()
 
-    let request = BitswapRequest(sendAccount: sendAccount)
-    let engine = BitswapEngine.new(MemoryStore.new, wallet, request)
+    let request = BlockExcRequest(sendAccount: sendAccount)
+    let engine = BlockExcEngine.new(MemoryStore.new, wallet, request)
     engine.pricing = pricing.some
 
     engine.setupPeer(peerId)
     await done.wait(100.millis)
 
-suite "Bitswap engine handlers":
+suite "BlockExc engine handlers":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
@@ -81,21 +82,21 @@ suite "Bitswap engine handlers":
     wallet = WalletRef.example
 
   var
-    engine: BitswapEngine
-    peerCtx: BitswapPeerCtx
+    engine: BlockExcEngine
+    peerCtx: BlockExcPeerCtx
     done: Future[void]
 
   setup:
     done = newFuture[void]()
-    engine = BitswapEngine.new(MemoryStore.new(), wallet)
-    peerCtx = BitswapPeerCtx(
+    engine = BlockExcEngine.new(MemoryStore.new(), wallet)
+    peerCtx = BlockExcPeerCtx(
       id: peerId
     )
     engine.peers.add(peerCtx)
 
   test "should handle want list":
     let  wantList = makeWantList(blocks.mapIt( it.cid ))
-    proc taskScheduler(ctx: BitswapPeerCtx): bool =
+    proc taskScheduler(ctx: BlockExcPeerCtx): bool =
       check ctx.id == peerId
       check ctx.peerWants.mapIt( it.cid ) == blocks.mapIt( it.cid )
 
@@ -116,7 +117,7 @@ suite "Bitswap engine handlers":
 
       done.complete()
 
-    engine.request = BitswapRequest(
+    engine.request = BlockExcRequest(
         sendPresence: sendPresence
     )
 
@@ -134,7 +135,7 @@ suite "Bitswap engine handlers":
 
       done.complete()
 
-    engine.request = BitswapRequest(sendPresence: sendPresence)
+    engine.request = BlockExcRequest(sendPresence: sendPresence)
     engine.localStore.putBlocks(@[blocks[0], blocks[1]])
     engine.wantListHandler(peerId, wantList)
 
@@ -193,21 +194,21 @@ suite "Task Handler":
     wallet = WalletRef.example
 
   var
-    engine: BitswapEngine
-    peersCtx: seq[BitswapPeerCtx]
+    engine: BlockExcEngine
+    peersCtx: seq[BlockExcPeerCtx]
     peers: seq[PeerID]
     done: Future[void]
 
   setup:
     done = newFuture[void]()
-    engine = BitswapEngine.new(MemoryStore.new(), wallet)
+    engine = BlockExcEngine.new(MemoryStore.new(), wallet)
     peersCtx = @[]
 
     for i in 0..3:
       let seckey = PrivateKey.random(rng[]).tryGet()
       peers.add(PeerID.init(seckey.getKey().tryGet()).tryGet())
 
-      peersCtx.add(BitswapPeerCtx(
+      peersCtx.add(BlockExcPeerCtx(
         id: peers[i]
       ))
 
