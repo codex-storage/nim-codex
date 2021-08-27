@@ -45,7 +45,7 @@ func new*(
     cid: Cid.init(version, codec, hash).get(),
     data: @data)
 
-proc new*(
+func new*(
   T: type Block,
   cid: Cid,
   data: openArray[byte] = [],
