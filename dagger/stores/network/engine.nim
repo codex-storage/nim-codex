@@ -15,11 +15,11 @@ import pkg/chronicles
 import pkg/libp2p
 import pkg/libp2p/errors
 
-import ./protobuf/bitswap as pb
+import ./protobuf/blockexc
 import ./protobuf/presence
 import ../blocktype as bt
-import ../stores/blockstore
-import ../utils/asyncheapqueue
+import ../blockstore
+import ../../utils/asyncheapqueue
 
 import ./network
 import ./pendingblocks
@@ -29,24 +29,24 @@ import ./engine/payments
 export peercontext
 
 logScope:
-  topics = "dagger bitswap engine"
+  topics = "dagger blockexc engine"
 
 const
   DefaultTimeout* = 5.seconds
   DefaultMaxPeersPerRequest* = 10
 
 type
-  TaskHandler* = proc(task: BitswapPeerCtx): Future[void] {.gcsafe.}
-  TaskScheduler* = proc(task: BitswapPeerCtx): bool {.gcsafe.}
+  TaskHandler* = proc(task: BlockExcPeerCtx): Future[void] {.gcsafe.}
+  TaskScheduler* = proc(task: BlockExcPeerCtx): bool {.gcsafe.}
 
-  BitswapEngine* = ref object of RootObj
+  BlockExcEngine* = ref object of RootObj
     localStore*: BlockStore                     # where we localStore blocks for this instance
-    peers*: seq[BitswapPeerCtx]                 # peers we're currently actively exchanging with
+    peers*: seq[BlockExcPeerCtx]                 # peers we're currently actively exchanging with
     wantList*: seq[Cid]                         # local wants list
     pendingBlocks*: PendingBlocksManager        # blocks we're awaiting to be resolved
     peersPerRequest: int                        # max number of peers to request from
     scheduleTask*: TaskScheduler                # schedule a new task with the task runner
-    request*: BitswapRequest                    # bitswap network requests
+    request*: BlockExcRequest                    # block exchange network requests
     wallet*: WalletRef                          # nitro wallet for micropayments
     pricing*: ?Pricing                          # optional bandwidth pricing
 
@@ -60,7 +60,7 @@ proc contains*(a: AsyncHeapQueue[Entry], b: Cid): bool =
 
   a.anyIt( it.cid == b )
 
-proc getPeerCtx*(b: BitswapEngine, peerId: PeerID): BitswapPeerCtx =
+proc getPeerCtx*(b: BlockExcEngine, peerId: PeerID): BlockExcPeerCtx =
   ## Get the peer's context
   ##
 
@@ -69,7 +69,7 @@ proc getPeerCtx*(b: BitswapEngine, peerId: PeerID): BitswapPeerCtx =
     return peer[0]
 
 proc requestBlocks*(
-  b: BitswapEngine,
+  b: BlockExcEngine,
   cids: seq[Cid],
   timeout = DefaultTimeout): seq[Future[bt.Block]] =
   ## Request a block from remotes
@@ -91,12 +91,11 @@ proc requestBlocks*(
       blocks.add(
         b.pendingBlocks.addOrAwait(c).wait(timeout))
 
-
   var peers = b.peers
 
   # get the first peer with at least one (any)
   # matching cid
-  var blockPeer: BitswapPeerCtx
+  var blockPeer: BlockExcPeerCtx
   for i, p in peers:
     let has = cids.anyIt(
       it in p.peerHave
@@ -125,7 +124,7 @@ proc requestBlocks*(
   if peers.len == 0:
     return blocks # no peers to send wants to
 
-  template sendWants(ctx: BitswapPeerCtx) =
+  template sendWants(ctx: BlockExcPeerCtx) =
     # just send wants
     b.request.sendWantList(
       ctx.id,
@@ -142,7 +141,7 @@ proc requestBlocks*(
   return blocks
 
 proc blockPresenceHandler*(
-  b: BitswapEngine,
+  b: BlockExcEngine,
   peer: PeerID,
   blocks: seq[BlockPresence]) =
   ## Handle block presence
@@ -156,7 +155,7 @@ proc blockPresenceHandler*(
     if presence =? Presence.init(blk):
       peerCtx.updatePresence(presence)
 
-proc scheduleTasks(b: BitswapEngine, blocks: seq[bt.Block]) =
+proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) =
   trace "Schedule a task for new blocks"
 
   let cids = blocks.mapIt( it.cid )
@@ -170,7 +169,7 @@ proc scheduleTasks(b: BitswapEngine, blocks: seq[bt.Block]) =
             trace "Unable to schedule task for peer", peer = p.id
           break # do next peer
 
-proc resolveBlocks*(b: BitswapEngine, blocks: seq[bt.Block]) =
+proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) =
   ## Resolve pending blocks from the pending blocks manager
   ## and schedule any new task to be ran
   ##
@@ -179,8 +178,8 @@ proc resolveBlocks*(b: BitswapEngine, blocks: seq[bt.Block]) =
   b.pendingBlocks.resolve(blocks)
   b.scheduleTasks(blocks)
 
-proc payForBlocks(engine: BitswapEngine,
-                  peer: BitswapPeerCtx,
+proc payForBlocks(engine: BlockExcEngine,
+                  peer: BlockExcPeerCtx,
                   blocks: seq[bt.Block]) =
   let sendPayment = engine.request.sendPayment
   if sendPayment.isNil:
@@ -191,7 +190,7 @@ proc payForBlocks(engine: BitswapEngine,
     sendPayment(peer.id, payment)
 
 proc blocksHandler*(
-  b: BitswapEngine,
+  b: BlockExcEngine,
   peer: PeerID,
   blocks: seq[bt.Block]) =
   ## handle incoming blocks
@@ -206,7 +205,7 @@ proc blocksHandler*(
     b.payForBlocks(peerCtx, blocks)
 
 proc wantListHandler*(
-  b: BitswapEngine,
+  b: BlockExcEngine,
   peer: PeerID,
   wantList: WantList) =
   ## Handle incoming want lists
@@ -250,14 +249,14 @@ proc wantListHandler*(
   if not b.scheduleTask(peerCtx):
     trace "Unable to schedule task for peer", peer
 
-proc accountHandler*(engine: BitswapEngine, peer: PeerID, account: Account) =
+proc accountHandler*(engine: BlockExcEngine, peer: PeerID, account: Account) =
   let context = engine.getPeerCtx(peer)
   if context.isNil:
     return
 
   context.account = account.some
 
-proc paymentHandler*(engine: BitswapEngine, peer: PeerId, payment: SignedState) =
+proc paymentHandler*(engine: BlockExcEngine, peer: PeerId, payment: SignedState) =
   without context =? engine.getPeerCtx(peer).option and
           account =? context.account:
     return
@@ -268,14 +267,14 @@ proc paymentHandler*(engine: BitswapEngine, peer: PeerId, payment: SignedState) 
   else:
     context.paymentChannel = engine.wallet.acceptChannel(payment).option
 
-proc setupPeer*(b: BitswapEngine, peer: PeerID) =
+proc setupPeer*(b: BlockExcEngine, peer: PeerID) =
   ## Perform initial setup, such as want
   ## list exchange
   ##
 
   trace "Setting up new peer", peer
   if peer notin b.peers:
-    b.peers.add(BitswapPeerCtx(
+    b.peers.add(BlockExcPeerCtx(
       id: peer
     ))
 
@@ -286,7 +285,7 @@ proc setupPeer*(b: BitswapEngine, peer: PeerID) =
   if address =? b.pricing.?address:
     b.request.sendAccount(peer, Account(address: address))
 
-proc dropPeer*(b: BitswapEngine, peer: PeerID) =
+proc dropPeer*(b: BlockExcEngine, peer: PeerID) =
   ## Cleanup disconnected peer
   ##
 
@@ -295,7 +294,7 @@ proc dropPeer*(b: BitswapEngine, peer: PeerID) =
   # drop the peer from the peers table
   b.peers.keepItIf( it.id != peer )
 
-proc taskHandler*(b: BitswapEngine, task: BitswapPeerCtx) {.gcsafe, async.} =
+proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
   trace "Handling task for peer", peer = task.id
 
   var wantsBlocks = newAsyncHeapQueue[Entry](queueType = QueueType.Max)
@@ -334,19 +333,19 @@ proc taskHandler*(b: BitswapEngine, task: BitswapPeerCtx) {.gcsafe, async.} =
   if wants.len > 0:
     b.request.sendPresence(task.id, wants)
 
-proc new*(
-  T: type BitswapEngine,
+func new*(
+  T: type BlockExcEngine,
   localStore: BlockStore,
   wallet: WalletRef,
-  request: BitswapRequest = BitswapRequest(),
+  request: BlockExcRequest = BlockExcRequest(),
   scheduleTask: TaskScheduler = nil,
   peersPerRequest = DefaultMaxPeersPerRequest): T =
 
-  proc taskScheduler(task: BitswapPeerCtx): bool =
+  proc taskScheduler(task: BlockExcPeerCtx): bool =
     if not isNil(scheduleTask):
       return scheduleTask(task)
 
-  let b = BitswapEngine(
+  let b = BlockExcEngine(
     localStore: localStore,
     pendingBlocks: PendingBlocksManager.new(),
     peersPerRequest: peersPerRequest,

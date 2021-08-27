@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package bitswap.message.pb;
+package blockexc.message.pb;
 
 message Message {
 
@@ -11,7 +11,7 @@ message Message {
     }
 
     message Entry {
-      bytes block = 1;       // the block cid (cidV0 in bitswap 1.0.0, cidV1 in bitswap 1.1.0)
+      bytes block = 1;       // the block cid
       int32 priority = 2;    // the priority (normalized). default to 1
       bool cancel = 3;       // whether this revokes an entry
       WantType wantType = 4; // Note: defaults to enum 0, ie Block
@@ -47,10 +47,9 @@ message Message {
   }
 
   Wantlist wantlist = 1;
-  repeated bytes blocks = 2;    // used to send Blocks in bitswap 1.0.0
-  repeated Block payload = 3;   // used to send Blocks in bitswap 1.1.0
-  repeated BlockPresence blockPresences = 4;
-  int32 pendingBytes = 5;
-  AccountMessage account = 6;
-  StateChannelUpdate payment = 7;
+  repeated Block payload = 2;
+  repeated BlockPresence blockPresences = 3;
+  int32 pendingBytes = 4;
+  AccountMessage account = 5;
+  StateChannelUpdate payment = 6;
 }

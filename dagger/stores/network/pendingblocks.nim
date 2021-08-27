@@ -16,7 +16,7 @@ import pkg/libp2p
 import ../blocktype
 
 logScope:
-  topics = "dagger bitswap pendingblocks"
+  topics = "dagger blockexc pendingblocks"
 
 type
   PendingBlocksManager* = ref object of RootObj
@@ -67,7 +67,7 @@ proc contains*(
   p: PendingBlocksManager,
   cid: Cid): bool = p.pending(cid)
 
-proc new*(T: type PendingBlocksManager): T =
+func new*(T: type PendingBlocksManager): T =
   T(
     blocks: initTable[Cid, Future[Block]]()
   )

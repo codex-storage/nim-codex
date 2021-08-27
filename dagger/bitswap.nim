@@ -14,18 +14,18 @@ import pkg/chronos
 import pkg/libp2p
 import pkg/libp2p/errors
 
-import ./bitswap/protobuf/bitswap as pb
+import ./blockexc/protobuf/blockexc as pb
 import ./blocktype as bt
 import ./stores/blockstore
 import ./utils/asyncheapqueue
 
-import ./bitswap/network
-import ./bitswap/engine
+import ./blockexc/network
+import ./blockexc/engine
 
 export network, blockstore, asyncheapqueue, engine
 
 logScope:
-  topics = "dagger bitswap"
+  topics = "dagger blockexc"
 
 const
   DefaultTaskQueueSize = 100
@@ -33,58 +33,58 @@ const
   DefaultMaxRetries = 3
 
 type
-  Bitswap* = ref object of BlockStore
-    engine*: BitswapEngine                       # bitswap decision engine
-    taskQueue*: AsyncHeapQueue[BitswapPeerCtx]   # peers we're currently processing tasks for
-    bitswapTasks: seq[Future[void]]              # future to control bitswap task
-    bitswapRunning: bool                         # indicates if the bitswap task is running
+  BlockExc* = ref object of BlockStore
+    engine*: BlockExcEngine                       # blockexc decision engine
+    taskQueue*: AsyncHeapQueue[BlockExcPeerCtx]   # peers we're currently processing tasks for
+    blockexcTasks: seq[Future[void]]              # future to control blockexc task
+    blockexcRunning: bool                         # indicates if the blockexc task is running
     concurrentTasks: int                         # number of concurrent peers we're serving at any given time
     maxRetries: int                              # max number of tries for a failed block
     taskHandler: TaskHandler                     # handler provided by the engine called by the runner
 
-proc bitswapTaskRunner(b: Bitswap) {.async.} =
+proc blockexcTaskRunner(b: BlockExc) {.async.} =
   ## process tasks
   ##
 
-  while b.bitswapRunning:
+  while b.blockexcRunning:
     let peerCtx = await b.taskQueue.pop()
     asyncSpawn b.taskHandler(peerCtx)
 
-  trace "Exiting bitswap task runner"
+  trace "Exiting blockexc task runner"
 
-proc start*(b: Bitswap) {.async.} =
-  ## Start the bitswap task
+proc start*(b: BlockExc) {.async.} =
+  ## Start the blockexc task
   ##
 
-  trace "bitswap start"
+  trace "blockexc start"
 
-  if b.bitswapTasks.len > 0:
-    warn "Starting bitswap twice"
+  if b.blockexcTasks.len > 0:
+    warn "Starting blockexc twice"
     return
 
-  b.bitswapRunning = true
+  b.blockexcRunning = true
   for i in 0..<b.concurrentTasks:
-    b.bitswapTasks.add(b.bitswapTaskRunner)
+    b.blockexcTasks.add(b.blockexcTaskRunner)
 
-proc stop*(b: Bitswap) {.async.} =
-  ## Stop the bitswap bitswap
+proc stop*(b: BlockExc) {.async.} =
+  ## Stop the blockexc blockexc
   ##
 
-  trace "Bitswap stop"
-  if b.bitswapTasks.len <= 0:
-    warn "Stopping bitswap without starting it"
+  trace "BlockExc stop"
+  if b.blockexcTasks.len <= 0:
+    warn "Stopping blockexc without starting it"
     return
 
-  b.bitswapRunning = false
-  for t in b.bitswapTasks:
+  b.blockexcRunning = false
+  for t in b.blockexcTasks:
     if not t.finished:
       trace "Awaiting task to stop"
       t.cancel()
       trace "Task stopped"
 
-  trace "Bitswap stopped"
+  trace "BlockExc stopped"
 
-method getBlocks*(b: Bitswap, cid: seq[Cid]): Future[seq[bt.Block]] {.async.} =
+method getBlocks*(b: BlockExc, cid: seq[Cid]): Future[seq[bt.Block]] {.async.} =
   ## Get a block from a remote peer
   ##
 
@@ -95,42 +95,40 @@ method getBlocks*(b: Bitswap, cid: seq[Cid]): Future[seq[bt.Block]] {.async.} =
     it.read
   )
 
-method putBlocks*(b: Bitswap, blocks: seq[bt.Block]) =
+method putBlocks*(b: BlockExc, blocks: seq[bt.Block]) =
   b.engine.resolveBlocks(blocks)
 
   procCall BlockStore(b).putBlocks(blocks)
 
-proc new*(
-  T: type Bitswap,
+func new*(
+  T: type BlockExc,
   localStore: BlockStore,
   wallet: WalletRef,
-  network: BitswapNetwork,
+  network: BlockExcNetwork,
   concurrentTasks = DefaultConcurrentTasks,
   maxRetries = DefaultMaxRetries,
   peersPerRequest = DefaultMaxPeersPerRequest): T =
 
-  let engine = BitswapEngine.new(
+  let engine = BlockExcEngine.new(
     localStore = localStore,
     wallet = wallet,
     peersPerRequest = peersPerRequest,
     request = network.request,
   )
 
-  let b = Bitswap(
+  let b = BlockExc(
     engine: engine,
-    taskQueue: newAsyncHeapQueue[BitswapPeerCtx](DefaultTaskQueueSize),
+    taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize),
     concurrentTasks: concurrentTasks,
     maxRetries: maxRetries,
   )
 
   # attach engine's task handler
-  b.taskHandler = proc(task: BitswapPeerCtx):
-    Future[void] {.gcsafe.} =
+  b.taskHandler = proc(task: BlockExcPeerCtx): Future[void] {.gcsafe.} =
     engine.taskHandler(task)
 
   # attach task scheduler to engine
-  engine.scheduleTask = proc(task: BitswapPeerCtx):
-    bool {.gcsafe} =
+  engine.scheduleTask = proc(task: BlockExcPeerCtx): bool {.gcsafe} =
     b.taskQueue.pushOrUpdateNoWait(task).isOk()
 
   proc peerEventHandler(peerInfo: PeerInfo, event: PeerEvent) {.async.} =
@@ -167,7 +165,7 @@ proc new*(
   proc paymentHandler(peer: PeerId, payment: SignedState) =
     engine.paymentHandler(peer, payment)
 
-  network.handlers = BitswapHandlers(
+  network.handlers = BlockExcHandlers(
     onWantList: blockWantListHandler,
     onBlocks: blocksHandler,
     onPresence: blockPresenceHandler,

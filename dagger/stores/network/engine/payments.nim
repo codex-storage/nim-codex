@@ -18,7 +18,7 @@ func openLedgerChannel*(wallet: WalletRef,
                         asset: EthAddress): ?!ChannelId =
   wallet.openLedgerChannel(hub, ChainId, asset, AmountPerChannel)
 
-func getOrOpenChannel(wallet: WalletRef, peer: BitswapPeerCtx): ?!ChannelId =
+func getOrOpenChannel(wallet: WalletRef, peer: BlockExcPeerCtx): ?!ChannelId =
   if channel =? peer.paymentChannel:
     success channel
   elif account =? peer.account:
@@ -29,7 +29,7 @@ func getOrOpenChannel(wallet: WalletRef, peer: BitswapPeerCtx): ?!ChannelId =
     failure "no account set for peer"
 
 func pay*(wallet: WalletRef,
-          peer: BitswapPeerCtx,
+          peer: BlockExcPeerCtx,
           amount: UInt256): ?!SignedState =
   if account =? peer.account:
     let asset = Asset

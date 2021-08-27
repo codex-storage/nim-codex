@@ -4,7 +4,7 @@ import pkg/stint
 import pkg/nitro
 import pkg/questionable
 import pkg/upraises
-import ./bitswap
+import ./blockexc
 
 export AccountMessage
 export StateChannelUpdate

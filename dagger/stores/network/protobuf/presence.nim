@@ -3,7 +3,7 @@ import pkg/stint
 import pkg/questionable
 import pkg/questionable/results
 import pkg/upraises
-import ./bitswap
+import ./blockexc
 
 export questionable
 export stint
@@ -12,7 +12,7 @@ export BlockPresenceType
 upraises.push: {.upraises: [].}
 
 type
-  PresenceMessage* = bitswap.BlockPresence
+  PresenceMessage* = blockexc.BlockPresence
   Presence* = object
     cid*: Cid
     have*: bool
