@@ -301,7 +301,11 @@ method init*(b: BitswapNetwork) =
   ## Perform protocol initialization
   ##
 
-  proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
+  proc peerEventHandler(peerInfo: PeerInfo, event: PeerEvent) {.async.} =
+    # TODO: temporary until libp2p moves back to PeerID
+    let
+      peerId = peerInfo.peerId
+
     if event.kind == PeerEventKind.Joined:
       b.setupPeer(peerId)
     else:
