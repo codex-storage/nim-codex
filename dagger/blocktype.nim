@@ -7,12 +7,11 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/libp2p/multihash
-import pkg/libp2p/multicodec
-import pkg/libp2p/cid
-import pkg/stew/byteutils
+{.push raises: [Defect].}
 
-export cid, multihash, multicodec
+import pkg/libp2p
+import pkg/questionable
+import pkg/stew/byteutils
 
 type
   CidDontMatchError* = object of CatchableError
@@ -46,9 +45,9 @@ proc new*(
 proc new*(
   T: type Block,
   data: openArray[byte] = [],
-  version = CIDv0,
+  version = CIDv1,
   hcodec = multiCodec("sha2-256"),
-  codec = multiCodec("dag-pb")): T =
+  codec = multiCodec("raw")): T =
   let hash =  MultiHash.digest($hcodec, data).get()
   Block(
     cid: Cid.init(version, codec, hash).get(),
