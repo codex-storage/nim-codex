@@ -36,17 +36,6 @@ func new*(
 
 func new*(
   T: type Block,
-  data: openArray[byte] = [],
-  version = CIDv1,
-  hcodec = multiCodec("sha2-256"),
-  codec = multiCodec("raw")): ?!T =
-  let hash =  MultiHash.digest($hcodec, data).get()
-  success Block(
-    cid: Cid.init(version, codec, hash).get(),
-    data: @data)
-
-func new*(
-  T: type Block,
   cid: Cid,
   data: openArray[byte] = [],
   verify: bool = false): ?!T =
