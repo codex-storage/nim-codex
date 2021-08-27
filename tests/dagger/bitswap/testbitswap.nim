@@ -7,7 +7,7 @@ import pkg/stew/byteutils
 import pkg/libp2p
 import pkg/libp2p/errors
 
-import pkg/dagger/p2p/rng
+import pkg/dagger/rng
 import pkg/dagger/bitswap
 import pkg/dagger/bitswap/engine/payments
 import pkg/dagger/stores/memorystore
@@ -23,9 +23,9 @@ suite "Bitswap engine - 2 nodes":
 
   let
     chunker1 = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-    blocks1 = chunker1.mapIt( bt.Block.new(it) )
+    blocks1 = chunker1.mapIt( !bt.Block.new(it) )
     chunker2 = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-    blocks2 = chunker2.mapIt( bt.Block.new(it) )
+    blocks2 = chunker2.mapIt( !bt.Block.new(it) )
 
   var
     switch1, switch2: Switch
@@ -108,7 +108,7 @@ suite "Bitswap engine - 2 nodes":
     check peerCtx2.account.?address == pricing2.address.some
 
   test "should send want-have for block":
-    let blk = bt.Block.new("Block 1".toBytes)
+    let blk = !bt.Block.new("Block 1".toBytes)
     bitswap2.engine.localStore.putBlocks(@[blk])
 
     let entry = Entry(
@@ -129,7 +129,7 @@ suite "Bitswap engine - 2 nodes":
     check blocks == blocks2
 
   test "remote should send blocks when available":
-    let blk = bt.Block.new("Block 1".toBytes)
+    let blk = !bt.Block.new("Block 1".toBytes)
 
     # should fail retrieving block from remote
     check not await bitswap1.getBlocks(@[blk.cid])
@@ -159,7 +159,7 @@ suite "Bitswap engine - 2 nodes":
 suite "Bitswap - multiple nodes":
   let
     chunker = newRandomChunker(Rng.instance(), size = 4096, chunkSize = 256)
-    blocks = chunker.mapIt( bt.Block.new(it) )
+    blocks = chunker.mapIt( !bt.Block.new(it) )
 
   var
     switch: seq[Switch]

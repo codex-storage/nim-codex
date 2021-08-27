@@ -10,7 +10,7 @@ import pkg/protobuf_serialization
 import pkg/dagger/stores/memorystore
 import pkg/dagger/bitswap/network
 import pkg/dagger/bitswap/protobuf/payments
-import pkg/dagger/p2p/rng
+import pkg/dagger/rng
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
 
@@ -23,7 +23,7 @@ suite "Bitswap network":
     seckey = PrivateKey.random(rng[]).tryGet()
     peerId = PeerID.init(seckey.getKey().tryGet()).tryGet()
     chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-    blocks = chunker.mapIt( bt.Block.new(it) )
+    blocks = chunker.mapIt( !bt.Block.new(it) )
 
   var
     network: BitswapNetwork
@@ -134,7 +134,7 @@ suite "Bitswap network":
 suite "Bitswap Network - e2e":
   let
     chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-    blocks = chunker.mapIt( bt.Block.new(it) )
+    blocks = chunker.mapIt( !bt.Block.new(it) )
 
   var
     switch1, switch2: Switch

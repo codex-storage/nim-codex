@@ -2,7 +2,7 @@ import std/random
 import std/sequtils
 import pkg/libp2p
 import pkg/nitro
-import pkg/dagger/p2p/rng
+import pkg/dagger/rng
 import pkg/dagger/bitswap/protobuf/payments
 import pkg/dagger/bitswap/peercontext
 import pkg/dagger/bitswap/engine
@@ -44,7 +44,7 @@ proc example*(_: type Pricing): Pricing =
 proc example*(_: type Block): Block =
   let length = rand(4096)
   let bytes = newSeqWith(length, rand(uint8))
-  Block.new(bytes)
+  !Block.new(bytes)
 
 proc example*(_: type PeerId): PeerID =
   let key = PrivateKey.random(Rng.instance[]).get

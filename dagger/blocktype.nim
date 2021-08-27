@@ -11,11 +11,10 @@
 
 import pkg/libp2p
 import pkg/questionable
+import pkg/questionable/results
 import pkg/stew/byteutils
 
 type
-  CidDontMatchError* = object of CatchableError
-
   Block* = object of RootObj
     cid*: Cid
     data*: seq[byte]
@@ -26,29 +25,29 @@ proc `$`*(b: Block): string =
 
 proc new*(
   T: type Block,
+  data: openArray[byte] = [],
+  version = CIDv1,
+  hcodec = multiCodec("sha2-256"),
+  codec = multiCodec("raw")): ?!T =
+  let hash =  MultiHash.digest($hcodec, data).get()
+  success Block(
+    cid: Cid.init(version, codec, hash).get(),
+    data: @data)
+
+proc new*(
+  T: type Block,
   cid: Cid,
   data: openArray[byte] = [],
-  verify: bool = false): T =
-  let b = Block.new(
+  verify: bool = false): ?!T =
+  let res = Block.new(
     data,
     cid.cidver,
     cid.mhash.get().mcodec,
     cid.mcodec
   )
 
-  if verify and cid != b.cid:
-    raise newException(CidDontMatchError,
-      "The suplied Cid doesn't match the data!")
+  if b =? res:
+    if verify and cid != b.cid:
+      return failure("The suplied Cid doesn't match the data!")
 
-  return b
-
-proc new*(
-  T: type Block,
-  data: openArray[byte] = [],
-  version = CIDv1,
-  hcodec = multiCodec("sha2-256"),
-  codec = multiCodec("raw")): T =
-  let hash =  MultiHash.digest($hcodec, data).get()
-  Block(
-    cid: Cid.init(version, codec, hash).get(),
-    data: @data)
+  res

@@ -13,6 +13,8 @@ import pkg/chronicles
 import pkg/chronos
 
 import pkg/libp2p
+import pkg/questionable
+import pkg/questionable/results
 
 import ../blocktype as bt
 import ./protobuf/bitswap as pb
@@ -142,9 +144,11 @@ proc handleBlocks(
   var blks: seq[bt.Block]
   for blk in blocks:
     when blk is pb.Block:
-      blks.add(bt.Block.new(Cid.init(blk.prefix).get(), blk.data))
+      if b =? bt.Block.new(Cid.init(blk.prefix).get(), blk.data):
+        blks.add(b)
     elif blk is seq[byte]:
-      blks.add(bt.Block.new(Cid.init(blk).get(), blk))
+      if b =? bt.Block.new(Cid.init(blk).get(), blk):
+        blks.add(b)
     else:
       error("Invalid block type")
 

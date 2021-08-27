@@ -1,10 +1,12 @@
 import std/sequtils
+
 import pkg/chronos
 import pkg/asynctest
 import pkg/libp2p
 import pkg/stew/byteutils
-
-import pkg/dagger/p2p/rng
+import pkg/questionable
+import pkg/questionable/results
+import pkg/dagger/rng
 import pkg/dagger/stores/memorystore
 import pkg/dagger/chunker
 
@@ -14,7 +16,7 @@ suite "Memory Store":
 
   var store: MemoryStore
   var chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-  var blocks = chunker.mapIt( Block.new(it) )
+  var blocks = chunker.mapIt( !Block.new(it) )
 
   setup:
     store = MemoryStore.new(blocks)
@@ -40,9 +42,9 @@ suite "Memory Store":
 
   test "add blocks change handler":
     let blocks = @[
-      Block.new("Block 1".toBytes),
-      Block.new("Block 2".toBytes),
-      Block.new("Block 3".toBytes),
+      !Block.new("Block 1".toBytes),
+      !Block.new("Block 2".toBytes),
+      !Block.new("Block 3".toBytes),
     ]
 
     var triggered = false
@@ -59,9 +61,9 @@ suite "Memory Store":
 
   test "add blocks change handler":
     let blocks = @[
-      Block.new("Block 1".toBytes),
-      Block.new("Block 2".toBytes),
-      Block.new("Block 3".toBytes),
+      !Block.new("Block 1".toBytes),
+      !Block.new("Block 2".toBytes),
+      !Block.new("Block 3".toBytes),
     ]
 
     var triggered = false

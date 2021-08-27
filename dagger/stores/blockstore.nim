@@ -8,10 +8,13 @@
 ## those terms.
 
 import std/sequtils
-import chronos
+
+import pkg/chronos
+import pkg/libp2p
+
 import ../blocktype
 
-export blocktype
+export blocktype, libp2p
 
 type
   ChangeType* {.pure.} = enum

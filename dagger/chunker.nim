@@ -16,7 +16,7 @@ import std/sequtils
 import pkg/questionable
 import pkg/questionable/results
 
-import ./p2p/rng
+import ./rng
 import ./blocktype
 
 export blocktype

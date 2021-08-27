@@ -7,7 +7,7 @@ import pkg/chronos
 import pkg/libp2p
 import pkg/libp2p/errors
 
-import pkg/dagger/p2p/rng
+import pkg/dagger/rng
 import pkg/dagger/bitswap
 import pkg/dagger/bitswap/pendingblocks
 import pkg/dagger/bitswap/engine/payments
@@ -25,7 +25,7 @@ suite "Bitswap engine basic":
     seckey = PrivateKey.random(rng[]).tryGet()
     peerId = PeerID.init(seckey.getKey().tryGet()).tryGet()
     chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-    blocks = chunker.mapIt( bt.Block.new(it) )
+    blocks = chunker.mapIt( !bt.Block.new(it) )
     wallet = WalletRef.example
 
   var
@@ -69,7 +69,6 @@ suite "Bitswap engine basic":
     engine.pricing = pricing.some
 
     engine.setupPeer(peerId)
-
     await done.wait(100.millis)
 
 suite "Bitswap engine handlers":
@@ -78,7 +77,7 @@ suite "Bitswap engine handlers":
     seckey = PrivateKey.random(rng[]).tryGet()
     peerId = PeerID.init(seckey.getKey().tryGet()).tryGet()
     chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-    blocks = chunker.mapIt( bt.Block.new(it) )
+    blocks = chunker.mapIt( !bt.Block.new(it) )
     wallet = WalletRef.example
 
   var
@@ -190,7 +189,7 @@ suite "Task Handler":
   let
     rng = Rng.instance()
     chunker = newRandomChunker(Rng.instance(), size = 2048, chunkSize = 256)
-    blocks = chunker.mapIt( bt.Block.new(it) )
+    blocks = chunker.mapIt( !bt.Block.new(it) )
     wallet = WalletRef.example
 
   var
@@ -251,7 +250,7 @@ suite "Task Handler":
 
   test "Should send presence":
     let present = blocks
-    let missing = @[bt.Block.new("missing".toBytes)]
+    let missing = @[!bt.Block.new("missing".toBytes)]
     let price = (!engine.pricing).price
 
     proc sendPresence(id: PeerID, presence: seq[BlockPresence]) =
