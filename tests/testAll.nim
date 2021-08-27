@@ -7,5 +7,6 @@ import ./dagger/bitswap/engine/testpayments as testenginepayments
 import ./dagger/testasyncheapqueue
 import ./dagger/testblockstore
 import ./dagger/testchunking
+import ./dagger/testblockset
 
 {.warning[UnusedImport]: off.}

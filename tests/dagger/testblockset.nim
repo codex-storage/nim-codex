@@ -14,7 +14,7 @@ import pkg/dagger/blockset
 
 import ./helpers
 
-suite "Data set":
+suite "BlockSet":
   test "Should produce valid tree hash checksum":
     let
       blocks = @[
