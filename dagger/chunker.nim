@@ -70,7 +70,7 @@ iterator items*(c: Chunker): seq[byte] =
 
     yield chunk
 
-func new(
+func new*(
   T: type Chunker,
   kind = ChunkerType.SizedChunker,
   reader: Reader,
