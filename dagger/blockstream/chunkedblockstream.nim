@@ -13,7 +13,7 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ./blockstream
-import ./chunker
+import ../chunker
 
 type
   ChunkedBlockStreamRef* = ref object of BlockStreamRef
@@ -22,7 +22,7 @@ type
 method nextBlock*(c: ChunkedBlockStreamRef): ?!Block =
   let data: seq[byte] = c.chunker.getBytes()
   if data.len > 0:
-    return success Block.new(data)
+    return Block.new(data)
 
-proc new*(T: type ChunkedBlockStreamRef, chunker: Chunker): T =
+func new*(T: type ChunkedBlockStreamRef, chunker: Chunker): T =
   T(chunker: chunker)

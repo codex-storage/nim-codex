@@ -23,7 +23,7 @@ proc `$`*(b: Block): string =
   result &= "cid: " & $b.cid
   result &= "\ndata: " & string.fromBytes(b.data)
 
-proc new*(
+func new*(
   T: type Block,
   data: openArray[byte] = [],
   version = CIDv1,
@@ -34,7 +34,7 @@ proc new*(
     cid: Cid.init(version, codec, hash).get(),
     data: @data)
 
-proc new*(
+func new*(
   T: type Block,
   cid: Cid,
   data: openArray[byte] = [],
