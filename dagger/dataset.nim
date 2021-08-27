@@ -26,10 +26,8 @@ proc hashBytes*(mh: MultiHash): seq[byte] =
   mh.data.buffer[mh.dpos..(mh.dpos + mh.size - 1)]
 
 proc hashBytes*(b: Block): seq[byte] =
-  without mh =? b.cid.mhash:
-    return
-
-  mh.hashBytes()
+  if mh =? b.cid.mhash:
+    mh.hashBytes()
 
 method nextBlock*(d: BlockSetRef): ?!Block =
   d.stream.nextBlock()
