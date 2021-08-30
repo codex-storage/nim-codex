@@ -3,7 +3,7 @@ import pkg/asynctest
 import pkg/stew/results
 
 import pkg/dagger/utils/asyncheapqueue
-import pkg/dagger/p2p/rng
+import pkg/dagger/rng
 
 type
   Task* = tuple[name: string, priority: int]

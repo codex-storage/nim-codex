@@ -2,10 +2,8 @@ import std/random
 import std/sequtils
 import pkg/libp2p
 import pkg/nitro
-import pkg/dagger/p2p/rng
-import pkg/dagger/bitswap/protobuf/payments
-import pkg/dagger/bitswap/peercontext
-import pkg/dagger/bitswap/engine
+import pkg/dagger/rng
+import pkg/dagger/stores
 import pkg/dagger/blocktype
 
 proc example*(_: type EthAddress): EthAddress =
@@ -44,14 +42,14 @@ proc example*(_: type Pricing): Pricing =
 proc example*(_: type Block): Block =
   let length = rand(4096)
   let bytes = newSeqWith(length, rand(uint8))
-  Block.new(bytes)
+  !Block.new(bytes)
 
 proc example*(_: type PeerId): PeerID =
   let key = PrivateKey.random(Rng.instance[]).get
   PeerId.init(key.getKey().get).get
 
-proc example*(_: type BitswapPeerCtx): BitswapPeerCtx =
-  BitswapPeerCtx(id: PeerID.example)
+proc example*(_: type BlockExcPeerCtx): BlockExcPeerCtx =
+  BlockExcPeerCtx(id: PeerID.example)
 
 proc example*(_: type Cid): Cid =
   Block.example.cid

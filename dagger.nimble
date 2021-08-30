@@ -4,7 +4,7 @@ description = "The hardrive for Web3"
 license = "MIT"
 
 requires "nim >= 1.2.6",
-         "libp2p >= 0.0.2 & < 0.1.0",
+         "libp2p#unstable",
          "nimcrypto >= 0.4.1",
          "bearssl >= 0.1.4",
          "chronicles >= 0.7.2",

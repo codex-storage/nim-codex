@@ -4,7 +4,8 @@ import pkg/dagger/chunker
 
 suite "Chunking":
   test "should return proper size chunks":
-    proc reader(data: var openArray[byte], offset: Natural = 0): int {.gcsafe, closure.} =
+    proc reader(data: var openArray[byte], offset: Natural = 0): int
+      {.gcsafe, closure, raises: [Defect].} =
       let contents = "1234567890".toBytes
       copyMem(addr data[0], unsafeAddr contents[offset], data.len)
       return data.len

@@ -7,16 +7,14 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/libp2p/multihash
-import pkg/libp2p/multicodec
-import pkg/libp2p/cid
+{.push raises: [Defect].}
+
+import pkg/libp2p
+import pkg/questionable
+import pkg/questionable/results
 import pkg/stew/byteutils
 
-export cid, multihash, multicodec
-
 type
-  CidDontMatchError* = object of CatchableError
-
   Block* = object of RootObj
     cid*: Cid
     data*: seq[byte]
@@ -25,31 +23,31 @@ proc `$`*(b: Block): string =
   result &= "cid: " & $b.cid
   result &= "\ndata: " & string.fromBytes(b.data)
 
-proc new*(
+func new*(
+  T: type Block,
+  data: openArray[byte] = [],
+  version = CIDv1,
+  hcodec = multiCodec("sha2-256"),
+  codec = multiCodec("raw")): ?!T =
+  let hash =  MultiHash.digest($hcodec, data).get()
+  success Block(
+    cid: Cid.init(version, codec, hash).get(),
+    data: @data)
+
+func new*(
   T: type Block,
   cid: Cid,
   data: openArray[byte] = [],
-  verify: bool = false): T =
-  let b = Block.new(
+  verify: bool = false): ?!T =
+  let res = Block.new(
     data,
     cid.cidver,
     cid.mhash.get().mcodec,
     cid.mcodec
   )
 
-  if verify and cid != b.cid:
-    raise newException(CidDontMatchError,
-      "The suplied Cid doesn't match the data!")
+  if b =? res:
+    if verify and cid != b.cid:
+      return failure("The suplied Cid doesn't match the data!")
 
-  return b
-
-proc new*(
-  T: type Block,
-  data: openArray[byte] = [],
-  version = CIDv0,
-  hcodec = multiCodec("sha2-256"),
-  codec = multiCodec("dag-pb")): T =
-  let hash =  MultiHash.digest($hcodec, data).get()
-  Block(
-    cid: Cid.init(version, codec, hash).get(),
-    data: @data)
+  res
