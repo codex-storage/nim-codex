@@ -8,14 +8,11 @@ import pkg/libp2p
 import pkg/libp2p/errors
 
 import pkg/dagger/rng
-import pkg/dagger/blockexc
-import pkg/dagger/stores/network/protobuf/blockexc as pb
-import pkg/dagger/stores/network/pendingblocks
-import pkg/dagger/stores/network/engine/payments
-import pkg/dagger/stores/network/protobuf/presence
-import pkg/dagger/stores/memorystore
+import pkg/dagger/blockexchange
+import pkg/dagger/stores
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
+import pkg/dagger/utils/asyncheapqueue
 
 import ../helpers
 import ../examples

@@ -3,9 +3,7 @@ import std/sequtils
 import pkg/libp2p
 import pkg/nitro
 import pkg/dagger/rng
-import pkg/dagger/stores/network/protobuf/payments
-import pkg/dagger/stores/network/peercontext
-import pkg/dagger/stores/network/engine
+import pkg/dagger/stores
 import pkg/dagger/blocktype
 
 proc example*(_: type EthAddress): EthAddress =

@@ -1,5 +1,6 @@
 import std/unittest
-import pkg/dagger/stores/network/engine/payments
+
+import pkg/dagger/stores
 import ../../examples
 
 suite "engine payments":

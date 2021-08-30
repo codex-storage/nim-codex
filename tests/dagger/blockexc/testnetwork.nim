@@ -5,15 +5,14 @@ import pkg/asynctest
 import pkg/chronos
 import pkg/libp2p
 import pkg/libp2p/errors
+import questionable
+import questionable/results
 import pkg/protobuf_serialization
 
 import pkg/dagger/rng
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
-import pkg/dagger/stores/memorystore
-import pkg/dagger/stores/network/network
-import pkg/dagger/stores/network/protobuf/blockexc
-import pkg/dagger/stores/network/protobuf/payments
+import pkg/dagger/blockexchange
 
 import ../helpers
 import ../examples

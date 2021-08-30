@@ -2,7 +2,7 @@ import pkg/asynctest
 import pkg/chronos
 import pkg/stew/byteutils
 import ../../examples
-import pkg/dagger/stores/network/protobuf/payments
+import pkg/dagger/stores
 
 suite "account protobuf messages":
 
