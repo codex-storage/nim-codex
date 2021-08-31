@@ -82,7 +82,7 @@ type Tau = object
   t: TauZero
   signature: array[512, byte]
 
-proc rsaKeygen(): (PublicKey, PrivateKey) =
+proc rsaKeygen*(): (PublicKey, PrivateKey) =
   let rng = newRng()
   var seckey = PrivateKey.random(RSA, rng[], keysize).get()
   var pubkey = seckey.getKey().get()
@@ -112,7 +112,7 @@ proc generateAuthenticator(i: int64, s: int64, t: TauZero, filep: ptr ZChar, ssk
   # result = (hashNameI(t.name, i) * productory).powmod(getPrivex(ssk), N)
   result = rsaDecode((hashNameI(t.name, i) * productory) mod N, ssk)
 
-proc st(ssk: PrivateKey, file: string): (Tau, seq[BigInt]) =
+proc st*(ssk: PrivateKey, file: string): (Tau, seq[BigInt]) =
   let (filep, s, n) = openFile(file)
   var t = TauZero(n: n)
 
@@ -138,7 +138,7 @@ type QElement = object
   I: int64
   V: BigInt
 
-proc generateQuery(
+proc generateQuery*(
     tau: Tau,
     spk: PublicKey,
     l: int = querylen # query elements
@@ -153,7 +153,7 @@ proc generateQuery(
     q.V = initBigInt(rand(uint64)) #TODO: fix range
     result.add(q)
 
-proc generateProof(q: openArray[QElement], authenticators: openArray[BigInt], spk: PublicKey, file: string): (seq[BigInt], BigInt) =
+proc generateProof*(q: openArray[QElement], authenticators: openArray[BigInt], spk: PublicKey, file: string): (seq[BigInt], BigInt) =
   let (filep, s, _) = openFile(file)
   let N = spk.getModulus()
 
@@ -174,7 +174,7 @@ proc generateProof(q: openArray[QElement], authenticators: openArray[BigInt], sp
 
   return (mu, sigma)
 
-proc verifyProof(tau: Tau, q: openArray[QElement], mus: openArray[BigInt], sigma: BigInt, spk: PublicKey): bool =
+proc verifyProof*(tau: Tau, q: openArray[QElement], mus: openArray[BigInt], sigma: BigInt, spk: PublicKey): bool =
   # TODO: check that values are in range
   let N = spk.getModulus()
 
@@ -192,26 +192,3 @@ proc verifyProof(tau: Tau, q: openArray[QElement], mus: openArray[BigInt], sigma
                     N)
 
   return mulmod(first, second, N) == rsaEncode(sigma, spk)
-
-proc test() : bool =
-  let (spk, ssk) = pos.rsaKeygen()
-  echo "Key generated!"
-
-  let (tau, authenticators) = pos.st(ssk, "example.txt")
-  echo "Signed!"
-  echo "Auth: ", authenticators
-
-  echo "Generating challenge..."
-  let q = pos.generateQuery(tau, spk)
-  echo "Generated!", " q:", q
-
-  echo "Issuing proof..."
-  let (mu, sigma) = pos.generateProof(q, authenticators, spk, "example.txt")
-  echo "Issued!", " mu:", mu, " sigma:", sigma  
-
-  echo "Verifying proof..."
-  result = pos.verifyProof(tau, q, mu, sigma, spk)
-  echo "Result: ", result
-
-randomize()
-let r = test()
