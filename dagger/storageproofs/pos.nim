@@ -174,7 +174,7 @@ proc generateProof(q: openArray[QElement], authenticators: openArray[BigInt], sp
 
   return (mu, sigma)
 
-proc Verify_two(tau: Tau, q: openArray[QElement], mus: openArray[BigInt], sigma: BigInt, spk: PublicKey): bool =
+proc verifyProof(tau: Tau, q: openArray[QElement], mus: openArray[BigInt], sigma: BigInt, spk: PublicKey): bool =
   # TODO: check that values are in range
   let N = spk.getModulus()
 
@@ -210,7 +210,7 @@ proc test() : bool =
   echo "Issued!", " mu:", mu, " sigma:", sigma  
 
   echo "Verifying proof..."
-  result = pos.Verify_two(tau, q, mu, sigma, spk)
+  result = pos.verifyProof(tau, q, mu, sigma, spk)
   echo "Result: ", result
 
 randomize()
