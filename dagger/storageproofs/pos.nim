@@ -9,8 +9,6 @@
 
 import libp2p/crypto/crypto # for RSA
 import bearssl
-import memfiles
-import math
 import nimcrypto # for SHA512
 import random
 
@@ -18,7 +16,7 @@ import ./bigint/stint2
 #import ./bigint/bigints2
 
 const keysize = 2048
-const sectorsperblock = 4
+const sectorsperblock = 4.int64
 const bytespersector = 128
 const querylen = 22
 assert bytespersector < keysize div 8 # TODO: not strict
@@ -29,8 +27,9 @@ proc fromBytesBE(nptr: ptr cuchar, nlen: int): BigInt =
   let nptra = cast[ptr array[0xffffffff,byte]](nptr)
   result = fromBytesBE(nptra[], nlen)
 
-proc getSector(filep: ptr ZChar, blockid: int64, sectorid: int64, spb: int64): Zchar =
-  result = cast[ptr array[0xffffffff, ZChar]](filep)[blockid * spb + sectorid]
+proc getSector(f: File, blockid: int64, sectorid: int64, spb: int64): ZChar =
+  f.setFilePos(blockid * spb + sectorid)
+  let r = f.readBytes(result, 0, sizeof(result))
 
 proc fromBytesBE(sector: ZChar): BigInt =
   result = fromBytesBE(sector, sizeof(ZChar))
@@ -88,32 +87,31 @@ proc rsaKeygen*(): (PublicKey, PrivateKey) =
   var pubkey = seckey.getKey().get()
   return (pubkey, seckey)
 
-proc openFile(file: string, s = sectorsperblock, c = sizeof(ZChar)): (ptr ZChar, int64, int64) =
-  let mm = memfiles.open(file)
-  
-  let size = mm.size
-  let n = int64(ceil(float64(size / (s * c))))
+proc split(f: File): (int64, int64) =
+  let size = f.getFileSize()
+  let n = ((size - 1) div (sectorsperblock * sizeof(ZChar))) + 1
  
-  return (cast[ptr ZChar](mm.mem), int64(s), n)
+  return (sectorsperblock, n)
 
 proc hashNameI(name: openArray[byte], i: int64): BigInt =
   let hashString = $sha512.digest($name & $i)
   return fromBytesBE(cast[seq[byte]](hashString), hashString.len()) # TODO: use better way to convert
 
-proc generateAuthenticator(i: int64, s: int64, t: TauZero, filep: ptr ZChar, ssk: PrivateKey): BigInt =
+proc generateAuthenticator(i: int64, s: int64, t: TauZero, f: File, ssk: PrivateKey): BigInt =
   let N = ssk.getModulus()
 
   var productory = BigInt.one
   for j in 0 ..< s:
     productory = mulmod(productory,
-                        powmod(t.u[j], fromBytesBE(getSector(filep, i, j, s)), N),
+                        powmod(t.u[j], fromBytesBE(getSector(f, i, j, s)), N),
                         N)
 
   # result = (hashNameI(t.name, i) * productory).powmod(getPrivex(ssk), N)
   result = rsaDecode((hashNameI(t.name, i) * productory) mod N, ssk)
 
-proc st*(ssk: PrivateKey, file: string): (Tau, seq[BigInt]) =
-  let (filep, s, n) = openFile(file)
+proc st*(ssk: PrivateKey, filename: string): (Tau, seq[BigInt]) =
+  let file = open(filename)
+  let (s, n) = split(file)
   var t = TauZero(n: n)
 
   # generate a random name
@@ -130,8 +128,9 @@ proc st*(ssk: PrivateKey, file: string): (Tau, seq[BigInt]) =
   #generate sigmas
   var sigmas: seq[BigInt]
   for i in 0 ..< n :
-    sigmas.add(generateAuthenticator(i, s, t, filep, ssk)) #TODO: int64 sizes?
+    sigmas.add(generateAuthenticator(i, s, t, file, ssk)) #TODO: int64 sizes?
 
+  file.close()
   result = (tau, sigmas)
 
 type QElement = object
@@ -153,15 +152,16 @@ proc generateQuery*(
     q.V = initBigInt(rand(uint64)) #TODO: fix range
     result.add(q)
 
-proc generateProof*(q: openArray[QElement], authenticators: openArray[BigInt], spk: PublicKey, file: string): (seq[BigInt], BigInt) =
-  let (filep, s, _) = openFile(file)
+proc generateProof*(q: openArray[QElement], authenticators: openArray[BigInt], spk: PublicKey, filename: string): (seq[BigInt], BigInt) =
+  let file = open(filename)
   let N = spk.getModulus()
+  let s = sectorsperblock
 
   var mu: seq[BigInt]
   for j in 0 ..< s :
     var muj = BigInt.zero
     for qelem in q :
-      let sector = fromBytesBE(getSector(filep, qelem.I, j, s))
+      let sector = fromBytesBE(getSector(file, qelem.I, j, s))
       muj += qelem.V * sector
       #muj = addmod(muj, mulmod(qelem.V, sector, N), N)
     mu.add(muj)
@@ -172,6 +172,7 @@ proc generateProof*(q: openArray[QElement], authenticators: openArray[BigInt], s
                    powmod(authenticators[qelem.I], qelem.V, N),
                    N)
 
+  file.close()
   return (mu, sigma)
 
 proc verifyProof*(tau: Tau, q: openArray[QElement], mus: openArray[BigInt], sigma: BigInt, spk: PublicKey): bool =
