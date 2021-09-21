@@ -16,24 +16,65 @@
 # - n: number of blocks
 # - s: number of sectors per block
 #
-# In Z_p:
-# - m_{ij}: sectors of file
-# - α: pos secret key
-# - name
-# - μ_j 
+# In Z_p: modulo curve order
+# - m_{ij}: sectors of the file i:0..n-1 j:0..s-1
+# - α: PoS secret key
+# - name: random string
+# - μ_j: part of proof, j:0..s-1
 #
 # In G_1: multiplicative cyclic group
-# - H: {0,1}∗ →G_1 
-# - u_1,…,u_s ←R G_1 
+# - H: {0,1}∗ →G_1 : hash function
+# - u_1,…,u_s ←R G_1 : random coefficients
 # - σ_i: authenticators
 # - σ: part of proof
 #
 # In G_2: multiplicative cyclic group
-# - g: generator
-# - v ← g^α: pos public key
+# - g: generator of G_2
+# - v ← g^α: PoS public key
 #
 # In G_T:
-# - two pairings for validation
+# - used only to calculate the two pairings during validation
+#
+# Implementation:
+# Our implementation uses additive cyclic groups instead of the multiplicative
+# cyclic group in the paper, thus changing operations as in blscurve and blst.
+#
+# Number of operations:
+# The following table summarizes the number of operations in different phases
+# using the following notation:
+#  - f: file size expressed in units of 31 bytes
+#  - n: number of blocks
+#  - s: number of sectors per block
+#  - q: number of query items
+#
+# Since f = n * s and s is a parameter of the scheme, it is better to express
+# the cost as a function of f and s. This only matters for Setup, all other
+# phases are independent of the file size assuming a given q.
+#
+# |                |         Setup             | Challenge |   Proof   | Verify    |
+# |----------------|-----------|---------------|-----------|-----------|-----------|
+# | G1 random      | s         = s             | q         |           |           |
+# | G1 scalar mult | n * (s+1) = f * (1 + 1/s) |           | q         | q + s     |
+# | G1 add         | n * s     = f             |           | q-1       | q-1 + s-1 |
+# | Hash to G1     | n         = f / s         |           |           | q         |
+# | Z_p mult       |           =               |           | s * q     |           |
+# | Z_p add        |           =               |           | s * (q-1) |           |
+# | pairing        |           =               |           |           | 2         |
+#
+#
+# Storage and communication cost:
+# The storage overhead for a file of f_b bytes is given by the n authenticators
+# calculated in the setup phase.
+#   f_b = f * 31 = n * s * 31
+# Each authenticator is a point on G_1, which occupies 48 bytes in compressed form.
+# Thus, the overall sorage size in bytes is:
+#   f_pos = fb + n * 48 = fb * (1 + (48/31) * (1/s))
+#
+# Communicaiton cost in the Setup phase is simply related to the storage cost.
+# The size of the challenge is
+#   q * (8 + 48) bytes
+# The size of the proof is instead
+#   s * 32 + 48 bytes
 
 import blscurve
 import blscurve/blst/blst_abi
