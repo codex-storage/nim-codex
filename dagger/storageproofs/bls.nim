@@ -174,7 +174,7 @@ proc split(f: File): (int64, int64) =
   return (sectorsperblock, n)
 
 proc hashToG1(msg: string): blst_p1 =
-  const dst = "BLS_SIG_BLS12381G2-SHA256-SSWU-RO_POP_"
+  const dst = "DAGGER-PROOF-OF-CONCEPT"
   result.blst_hash_to_g1(msg, dst, aug = "")
  
 proc hashNameI(name: openArray[byte], i: int64): blst_p1 =
