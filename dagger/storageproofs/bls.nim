@@ -271,6 +271,11 @@ proc pairing(q: blst_p2, p: blst_p1): blst_fp12 =
   blst_miller_loop(l, qa, pa)
   blst_final_exp(result, l)
 
+proc verifyPairings(q1: blst_p2, p1: blst_p1, q2: blst_p2, p2: blst_p1) : bool =
+  let e1 = pairing(q1, p1)
+  let e2 = pairing(q2, p2)
+  return e1 == e2
+
 proc verifyProof*(tau: Tau, q: openArray[QElement], mus: openArray[blst_scalar], sigma: blst_p1, spk: PublicKey): bool =
   var first: blst_p1
   for qelem in q :
@@ -290,9 +295,7 @@ proc verifyProof*(tau: Tau, q: openArray[QElement], mus: openArray[blst_scalar],
   var sum: blst_p1
   sum.blst_p1_add(first, second)
 
-  let e1 = pairing(spk.key, sum)
-  
   var g{.noInit.}: blst_p2
   g.blst_p2_from_affine(BLS12_381_G2) 
-  let e2 = pairing(g, sigma)
-  return e1 == e2
+
+  return verifyPairings(spk.key, sum, g, sigma)
