@@ -78,7 +78,7 @@
 
 import blscurve
 import blscurve/blst/blst_abi
-import random
+import ../rng
 
 const sectorsperblock = 1024.int64
 const bytespersector = 31 # r is 255 bits long 
@@ -126,7 +126,7 @@ proc rndScalar(): blst_scalar =
 
   while true:
     for val in scal.mitems:
-      val = byte rand(0xFF)
+      val = byte Rng.instance.rand(0xFF)
     scalar.blst_scalar_from_bendian(scal)
     if blst_scalar_fr_check(scalar).bool:
       break
@@ -154,10 +154,9 @@ proc keygen*(): (PublicKey, SecretKey) =
   var pk: PublicKey
   var sk: SecretKey
   var ikm: array[32, byte]
-  var RNG = initRand(0xFACADE)
 
   for b in ikm.mitems:
-    b = byte RNG.rand(0xFF)
+    b = byte Rng.instance.rand(0xFF)
   doAssert ikm.keyGen(pk.signkey, sk.signkey)
 
   (pk.key, sk.key) = posKeygen()
@@ -198,7 +197,7 @@ proc st*(ssk: SecretKey, filename: string): (Tau, seq[blst_p1]) =
 
   # generate a random name
   for i in 0 ..< 512 :
-    t.name[i] = rand(byte)
+    t.name[i] = byte Rng.instance.rand(0xFF)
 
   # generate the coefficient vector for combining sectors of a block: U
   for i  in 0 ..< s :
@@ -231,7 +230,7 @@ proc generateQuery*(
 
   for i in 0 ..< l :
     var q: QElement
-    q.I = rand((int)n-1) #TODO: dedup
+    q.I = Rng.instance.rand(n-1) #TODO: dedup
     q.V = rndScalar() #TODO: fix range
     result.add(q)
 

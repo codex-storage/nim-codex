@@ -8,7 +8,6 @@
 ## those terms.
 
 import bls
-import random
 import benchmark
 import strutils
 
@@ -32,5 +31,4 @@ proc testbls() : bool =
     result = bls.verifyProof(tau, q, mu, sigma, spk)
   echo "Result: ", result
 
-randomize()
 let r = testbls()
