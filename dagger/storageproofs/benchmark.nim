@@ -1,4 +1,5 @@
 import times, strutils
+export strutils.formatFloat
 
 template benchmark*(benchmarkName: string, code: untyped) =
   let t0 = epochTime()
