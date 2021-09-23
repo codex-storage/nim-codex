@@ -261,18 +261,18 @@ proc generateProof*(q: openArray[QElement], authenticators: openArray[blst_p1], 
   file.close()
   return (mu, sigma)
 
-proc pairing(q: blst_p2, p: blst_p1): blst_fp12 =
-  var qa: blst_p2_affine
-  var pa: blst_p1_affine
-  blst_p2_to_affine(qa, q)
-  blst_p1_to_affine(pa, p)
+proc pairing(a: blst_p1, b: blst_p2): blst_fp12 =
+  var aa: blst_p1_affine
+  var bb: blst_p2_affine
+  blst_p1_to_affine(aa, a)
+  blst_p2_to_affine(bb, b)
   var l: blst_fp12 
-  blst_miller_loop(l, qa, pa)
+  blst_miller_loop(l, bb, aa)
   blst_final_exp(result, l)
 
-proc verifyPairings(q1: blst_p2, p1: blst_p1, q2: blst_p2, p2: blst_p1) : bool =
-  let e1 = pairing(q1, p1)
-  let e2 = pairing(q2, p2)
+proc verifyPairings(a1: blst_p1, a2: blst_p2, b1: blst_p1, b2: blst_p2) : bool =
+  let e1 = pairing(a1, a2)
+  let e2 = pairing(b1, b2)
   return e1 == e2
 
 proc verifyProof*(tau: Tau, q: openArray[QElement], mus: openArray[blst_scalar], sigma: blst_p1, spk: PublicKey): bool =
@@ -297,4 +297,4 @@ proc verifyProof*(tau: Tau, q: openArray[QElement], mus: openArray[blst_scalar],
   var g{.noInit.}: blst_p2
   g.blst_p2_from_affine(BLS12_381_G2) 
 
-  return verifyPairings(spk.key, sum, g, sigma)
+  return verifyPairings(sum, spk.key, sigma, g)
