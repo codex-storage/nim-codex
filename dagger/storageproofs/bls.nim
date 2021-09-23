@@ -270,10 +270,36 @@ proc pairing(a: blst_p1, b: blst_p2): blst_fp12 =
   blst_miller_loop(l, bb, aa)
   blst_final_exp(result, l)
 
-proc verifyPairings(a1: blst_p1, a2: blst_p2, b1: blst_p1, b2: blst_p2) : bool =
+proc verifyPairingsNaive(a1: blst_p1, a2: blst_p2, b1: blst_p1, b2: blst_p2) : bool =
   let e1 = pairing(a1, a2)
   let e2 = pairing(b1, b2)
   return e1 == e2
+
+proc verifyPairingsNeg(a1: blst_p1, a2: blst_p2, b1: blst_p1, b2: blst_p2) : bool =
+  # based on https://github.com/benjaminion/c-kzg/blob/main/src/bls12_381.c
+  var
+    loop0, loop1, gt_point: blst_fp12
+    aa1, bb1: blst_p1_affine
+    aa2, bb2: blst_p2_affine
+
+  var a1neg = a1
+  blst_p1_cneg(a1neg, 1)
+
+  blst_p1_to_affine(aa1, a1neg)
+  blst_p1_to_affine(bb1, b1)
+  blst_p2_to_affine(aa2, a2)
+  blst_p2_to_affine(bb2, b2)
+
+  blst_miller_loop(loop0, aa2, aa1)
+  blst_miller_loop(loop1, bb2, bb1)
+
+  blst_fp12_mul(gt_point, loop0, loop1)
+  blst_final_exp(gt_point, gt_point)
+
+  return blst_fp12_is_one(gt_point).bool
+
+proc verifyPairings(a1: blst_p1, a2: blst_p2, b1: blst_p1, b2: blst_p2) : bool =
+  verifyPairingsNaive(a1, a2, b1, b2)
 
 proc verifyProof*(tau: Tau, q: openArray[QElement], mus: openArray[blst_scalar], sigma: blst_p1, spk: PublicKey): bool =
   var first: blst_p1
