@@ -179,7 +179,7 @@ proc hashToG1(msg: string): blst_p1 =
 proc hashNameI(name: openArray[byte], i: int64): blst_p1 =
   return hashToG1($name & $i)
 
-proc generateAuthenticator(i: int64, s: int64, t: TauZero, f: File, ssk: SecretKey): blst_p1 =
+proc generateAuthenticatorNaive(i: int64, s: int64, t: TauZero, ubase: openArray[blst_scalar], f: File, ssk: SecretKey): blst_p1 =
 
   var sum: blst_p1
   for j in 0 ..< s:
@@ -189,6 +189,27 @@ proc generateAuthenticator(i: int64, s: int64, t: TauZero, f: File, ssk: SecretK
 
   blst_p1_add(result, hashNameI(t.name, i), sum)
   result.blst_p1_mult(result, ssk.key, 255)
+
+proc generateAuthenticatorOpt(i: int64, s: int64, t: TauZero, ubase: openArray[blst_scalar], f: File, ssk: SecretKey): blst_p1 =
+
+  var sum: blst_fr
+  var sums: blst_scalar
+  for j in 0 ..< s:
+    var a, b, x: blst_fr
+    a.blst_fr_from_scalar(ubase[j])
+    b.blst_fr_from_scalar(fromBytesBE(getSector(f, i, j, s)))
+    x.blst_fr_mul(a, b)
+    sum.blst_fr_add(sum, x)
+  sums.blst_scalar_from_fr(sum)
+
+  result.blst_p1_from_affine(BLS12_381_G1)
+  result.blst_p1_mult(result, sums, 255)
+
+  result.blst_p1_add(result, hashNameI(t.name, i))
+  result.blst_p1_mult(result, ssk.key, 255)
+
+proc generateAuthenticator(i: int64, s: int64, t: TauZero, ubase: openArray[blst_scalar], f: File, ssk: SecretKey): blst_p1 =
+  generateAuthenticatorOpt(i, s, t, ubase, f, ssk)
 
 proc st*(ssk: SecretKey, filename: string): (Tau, seq[blst_p1]) =
   let file = open(filename)
@@ -200,9 +221,11 @@ proc st*(ssk: SecretKey, filename: string): (Tau, seq[blst_p1]) =
     t.name[i] = byte Rng.instance.rand(0xFF)
 
   # generate the coefficient vector for combining sectors of a block: U
+  var ubase: seq[blst_scalar]
   for i  in 0 ..< s :
-    let (u, _) = rndP1()
+    let (u, ub) = rndP1()
     t.u.add(u)
+    ubase.add(ub)
    
   #TODO: sign for tau
   let tau = Tau(t: t)
@@ -210,7 +233,7 @@ proc st*(ssk: SecretKey, filename: string): (Tau, seq[blst_p1]) =
   #generate sigmas
   var sigmas: seq[blst_p1]
   for i in 0 ..< n :
-    sigmas.add(generateAuthenticator(i, s, t, file, ssk))
+    sigmas.add(generateAuthenticator(i, s, t, ubase, file, ssk))
 
   file.close()
   result = (tau, sigmas)
