@@ -18,19 +18,19 @@ proc testbls() : bool =
   benchmark "Key generation":
     let (spk, ssk) = bls.keygen()
 
-  benchmark "Auth generation":
+  benchmark "Auth generation (s=" & $sectorsperblock & ")":
     let (tau, authenticators) = bls.setup(ssk, sectorsperblock, "example.txt")
   #echo "Auth: ", authenticators
 
-  benchmark "Generating challenge...":
+  benchmark "Generating challenge (q=" & $querylen & ")":
     let q = bls.generateQuery(tau, spk, querylen)
   #echo "Generated!" #, " q:", q
 
-  benchmark "Issuing proof...":
+  benchmark "Issuing proof":
     let (mu, sigma) = bls.generateProof(q, authenticators, spk, sectorsperblock, "example.txt")
   #echo "Issued!" #, " mu:", mu, " sigma:", sigma
 
-  benchmark "Verifying proof...":
+  benchmark "Verifying proof":
     result = bls.verifyProof(tau, q, mu, sigma, spk)
   echo "Result: ", result
 
