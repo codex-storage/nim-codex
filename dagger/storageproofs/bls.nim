@@ -80,9 +80,7 @@ import blscurve
 import blscurve/blst/blst_abi
 import ../rng
 
-const sectorsperblock = 1024.int64
 const bytespersector = 31 # r is 255 bits long 
-const querylen = 22
 
 type ZChar = array[bytespersector, byte]
 
@@ -214,9 +212,8 @@ proc generateAuthenticator(i: int64, s: int64, t: TauZero, ubase: openArray[blst
   # doAssert(a.blst_p1_is_equal(b).bool)
   return b
 
-proc st*(ssk: SecretKey, filename: string): (Tau, seq[blst_p1]) =
+proc setup*(ssk: SecretKey, s:int64, filename: string): (Tau, seq[blst_p1]) =
   let file = open(filename)
-  let s = sectorsperblock
   let n = split(file, s)
   var t = TauZero(n: n)
 
@@ -249,7 +246,7 @@ type QElement = object
 proc generateQuery*(
     tau: Tau,
     spk: PublicKey,
-    l: int = querylen # query elements
+    l: int # query elements
   ): seq[QElement] =
   # verify signature on Tau
 
@@ -261,9 +258,8 @@ proc generateQuery*(
     q.V = rndScalar() #TODO: fix range
     result.add(q)
 
-proc generateProof*(q: openArray[QElement], authenticators: openArray[blst_p1], spk: PublicKey, filename: string): (seq[blst_scalar], blst_p1) =
+proc generateProof*(q: openArray[QElement], authenticators: openArray[blst_p1], spk: PublicKey, s: int64, filename: string): (seq[blst_scalar], blst_p1) =
   let file = open(filename)
-  let s = sectorsperblock
 
   var mu: seq[blst_scalar]
   for j in 0 ..< s :

@@ -11,20 +11,23 @@ import bls
 import benchmark
 import strutils
 
+const sectorsperblock = 1024.int64
+const querylen = 22
+
 proc testbls() : bool =
   benchmark "Key generation":
     let (spk, ssk) = bls.keygen()
 
   benchmark "Auth generation":
-    let (tau, authenticators) = bls.st(ssk, "example.txt")
+    let (tau, authenticators) = bls.setup(ssk, sectorsperblock, "example.txt")
   #echo "Auth: ", authenticators
 
   benchmark "Generating challenge...":
-    let q = bls.generateQuery(tau, spk)
+    let q = bls.generateQuery(tau, spk, querylen)
   #echo "Generated!" #, " q:", q
 
   benchmark "Issuing proof...":
-    let (mu, sigma) = bls.generateProof(q, authenticators, spk, "example.txt")
+    let (mu, sigma) = bls.generateProof(q, authenticators, spk, sectorsperblock, "example.txt")
   #echo "Issued!" #, " mu:", mu, " sigma:", sigma
 
   benchmark "Verifying proof...":
