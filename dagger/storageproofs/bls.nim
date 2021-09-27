@@ -185,9 +185,9 @@ proc generateAuthenticatorNaive(i: int64, s: int64, t: TauZero, ubase: openArray
   for j in 0 ..< s:
     var prod: blst_p1
     prod.blst_p1_mult(t.u[j], fromBytesBE(getSector(f, i, j, s)), 255)
-    sum.blst_p1_add(sum, prod)
+    sum.blst_p1_add_or_double(sum, prod)
 
-  blst_p1_add(result, hashNameI(t.name, i), sum)
+  blst_p1_add_or_double(result, hashNameI(t.name, i), sum)
   result.blst_p1_mult(result, ssk.key, 255)
 
 proc generateAuthenticatorOpt(i: int64, s: int64, t: TauZero, ubase: openArray[blst_scalar], f: File, ssk: SecretKey): blst_p1 =
@@ -205,11 +205,14 @@ proc generateAuthenticatorOpt(i: int64, s: int64, t: TauZero, ubase: openArray[b
   result.blst_p1_from_affine(BLS12_381_G1)
   result.blst_p1_mult(result, sums, 255)
 
-  result.blst_p1_add(result, hashNameI(t.name, i))
+  result.blst_p1_add_or_double(result, hashNameI(t.name, i))
   result.blst_p1_mult(result, ssk.key, 255)
 
 proc generateAuthenticator(i: int64, s: int64, t: TauZero, ubase: openArray[blst_scalar], f: File, ssk: SecretKey): blst_p1 =
-  generateAuthenticatorOpt(i, s, t, ubase, f, ssk)
+  # let a = generateAuthenticatorNaive(i, s, t, ubase, f, ssk)
+  let b = generateAuthenticatorOpt(i, s, t, ubase, f, ssk)
+  # doAssert(a.blst_p1_is_equal(b).bool)
+  return b
 
 proc st*(ssk: SecretKey, filename: string): (Tau, seq[blst_p1]) =
   let file = open(filename)
@@ -279,7 +282,7 @@ proc generateProof*(q: openArray[QElement], authenticators: openArray[blst_p1], 
   for qelem in q:
     var prod: blst_p1
     prod.blst_p1_mult(authenticators[qelem.I], qelem.V, 255)
-    sigma.blst_p1_add(sigma, prod)
+    sigma.blst_p1_add_or_double(sigma, prod)
 
   file.close()
   return (mu, sigma)
@@ -329,7 +332,7 @@ proc verifyProof*(tau: Tau, q: openArray[QElement], mus: openArray[blst_scalar],
   for qelem in q :
     var prod: blst_p1
     prod.blst_p1_mult(hashNameI(tau.t.name, qelem.I), qelem.V, 255)
-    first.blst_p1_add(first, prod)
+    first.blst_p1_add_or_double(first, prod)
     doAssert(blst_p1_on_curve(first).bool)
 
   let us = tau.t.u
@@ -337,11 +340,11 @@ proc verifyProof*(tau: Tau, q: openArray[QElement], mus: openArray[blst_scalar],
   for j in 0 ..< len(us) :
     var prod: blst_p1
     prod.blst_p1_mult(us[j], mus[j], 255)
-    second.blst_p1_add(second, prod)
+    second.blst_p1_add_or_double(second, prod)
     doAssert(blst_p1_on_curve(second).bool)
 
   var sum: blst_p1
-  sum.blst_p1_add(first, second)
+  sum.blst_p1_add_or_double(first, second)
 
   var g{.noInit.}: blst_p2
   g.blst_p2_from_affine(BLS12_381_G2) 
