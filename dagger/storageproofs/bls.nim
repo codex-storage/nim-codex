@@ -162,15 +162,15 @@ proc keygen*(): (PublicKey, SecretKey) =
   (pk.key, sk.key) = posKeygen()
   return (pk, sk)
 
-proc split(f: File): (int64, int64) =
+proc split(f: File, s: int64): int64 =
   let size = f.getFileSize()
-  let n = ((size - 1) div (sectorsperblock * sizeof(ZChar))) + 1
+  let n = ((size - 1) div (s * sizeof(ZChar))) + 1
   echo "File size=", size, " bytes",
     ", blocks=", n,
-    ", sectors/block=", $sectorsperblock,
+    ", sectors/block=", $s,
     ", sectorsize=", $sizeof(ZChar), " bytes" 
  
-  return (sectorsperblock, n)
+  return n
 
 proc hashToG1(msg: string): blst_p1 =
   const dst = "DAGGER-PROOF-OF-CONCEPT"
@@ -216,7 +216,8 @@ proc generateAuthenticator(i: int64, s: int64, t: TauZero, ubase: openArray[blst
 
 proc st*(ssk: SecretKey, filename: string): (Tau, seq[blst_p1]) =
   let file = open(filename)
-  let (s, n) = split(file)
+  let s = sectorsperblock
+  let n = split(file, s)
   var t = TauZero(n: n)
 
   # generate a random name
