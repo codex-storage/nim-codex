@@ -117,7 +117,7 @@ proc fromBytesBE(a: openArray[byte]): blst_scalar =
   doAssert(blst_scalar_fr_check(result).bool)
 
 proc getSector(f: File, blockid: int64, sectorid: int64, spb: int64): ZChar =
-  f.setFilePos(blockid * spb + sectorid)
+  f.setFilePos((blockid * spb + sectorid) * sizeof(result))
   let r = f.readBytes(result, 0, sizeof(result))
 
 proc rndScalar(): blst_scalar =
