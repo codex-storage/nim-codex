@@ -177,7 +177,7 @@ proc hashToG1(msg: string): blst_p1 =
 proc hashNameI(name: openArray[byte], i: int64): blst_p1 =
   return hashToG1($name & $i)
 
-proc generateAuthenticatorNaive(i: int64, s: int64, t: TauZero, ubase: openArray[blst_scalar], f: File, ssk: SecretKey): blst_p1 =
+proc generateAuthenticatorNaive(i: int64, s: int64, t: TauZero, f: File, ssk: SecretKey): blst_p1 =
 
   var sum: blst_p1
   for j in 0 ..< s:
@@ -207,7 +207,7 @@ proc generateAuthenticatorOpt(i: int64, s: int64, t: TauZero, ubase: openArray[b
   result.blst_p1_mult(result, ssk.key, 255)
 
 proc generateAuthenticator(i: int64, s: int64, t: TauZero, ubase: openArray[blst_scalar], f: File, ssk: SecretKey): blst_p1 =
-  # let a = generateAuthenticatorNaive(i, s, t, ubase, f, ssk)
+  # let a = generateAuthenticatorNaive(i, s, t, f, ssk)
   let b = generateAuthenticatorOpt(i, s, t, ubase, f, ssk)
   # doAssert(a.blst_p1_is_equal(b).bool)
   return b
