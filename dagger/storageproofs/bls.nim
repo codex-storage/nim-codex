@@ -178,6 +178,9 @@ proc hashNameI(name: openArray[byte], i: int64): blst_p1 =
   return hashToG1($name & $i)
 
 proc generateAuthenticatorNaive(i: int64, s: int64, t: TauZero, f: File, ssk: SecretKey): blst_p1 =
+  ## Naive implementation of authenticator as in the S&W paper.
+  ## With the paper's multiplicative notation:
+  ##   \sigmai=\(H(file||i)\cdot\prod{j=0}^{s-1}{uj^{m[i][j]}})^{\alpha}
 
   var sum: blst_p1
   for j in 0 ..< s:
@@ -189,6 +192,13 @@ proc generateAuthenticatorNaive(i: int64, s: int64, t: TauZero, f: File, ssk: Se
   result.blst_p1_mult(result, ssk.key, 255)
 
 proc generateAuthenticatorOpt(i: int64, s: int64, t: TauZero, ubase: openArray[blst_scalar], f: File, ssk: SecretKey): blst_p1 =
+  ## Optimized implementation of authenticator generation
+  ## This implementation is reduces the number of scalar multiplications
+  ## from s+1 to 1+1 , using knowledge about the scalars (r_j)
+  ## used to generate u_j as u_j = g^{r_j}
+  ##
+  ## With the paper's multiplicative notation, we use:
+  ##   (H(file||i)\cdot g^{\sum{j=0}^{s-1}{r_j \cdot m[i][j]}})^{\alpha}
 
   var sum: blst_fr
   var sums: blst_scalar
