@@ -99,7 +99,7 @@ type TauZero = object
 
 type Tau = object
   t: TauZero
-  signature: array[512, byte]
+  signature: array[96, byte]
 
 proc fromBytesBE(a: array[32, byte]): blst_scalar =
   blst_scalar_from_bendian(result, a)
@@ -233,13 +233,14 @@ proc setup*(ssk: SecretKey, s:int64, filename: string): (Tau, seq[blst_p1]) =
 
   # generate the coefficient vector for combining sectors of a block: U
   var ubase: seq[blst_scalar]
-  for i  in 0..<s:
+  for i  in 0 ..< s :
     let (u, ub) = rndP1()
     t.u.add(u)
     ubase.add(ub)
-
-  #TODO: sign for tau
-  let tau = Tau(t: t)
+   
+  #TODO: a better bytearray conversion of TauZero for the signature might be needed
+  let signature = sign(ssk.signkey, $t)
+  let tau = Tau(t: t, signature: signature.exportRaw())
 
   #generate sigmas
   var sigmas: seq[blst_p1]
@@ -335,6 +336,14 @@ proc verifyPairings(a1: blst_p1, a2: blst_p2, b1: blst_p1, b2: blst_p2) : bool =
   verifyPairingsNaive(a1, a2, b1, b2)
 
 proc verifyProof*(tau: Tau, q: openArray[QElement], mus: openArray[blst_scalar], sigma: blst_p1, spk: PublicKey): bool =
+
+  # verify signature on Tau
+  var signature: Signature
+  if not signature.fromBytes(tau.signature):
+    return false
+  if not verify(spk.signkey, $tau.t, signature):
+    return false
+
   var first: blst_p1
   for qelem in q :
     var prod: blst_p1
