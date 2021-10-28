@@ -37,7 +37,9 @@
 #
 # Implementation:
 # Our implementation uses additive cyclic groups instead of the multiplicative
-# cyclic group in the paper, thus changing operations as in blscurve and blst.
+# cyclic group in the paper, thus changing the name of the group operation as in 
+# blscurve and blst. Thus, point multiplication becomes point addition, and scalar
+# exponentiation becomes scalar multiplicaiton.
 #
 # Number of operations:
 # The following table summarizes the number of operations in different phases
@@ -80,32 +82,41 @@ import blscurve
 import blscurve/blst/blst_abi
 import ../rng
 
-const bytespersector = 31 # r is 255 bits long
+# sector size in bytes. Must be smaller than the subgroup order r
+# which is 255 bits long for BLS12-381
+const bytespersector = 31
 
+# a single sector
 type ZChar = array[bytespersector, byte]
 
+# secret key combining the metadata signing key and the POR generation key
 type SecretKey = object
   signkey: blscurve.SecretKey
   key: blst_scalar
 
+# public key combining the metadata signing key and the POR validation key
 type PublicKey = object
   signkey: blscurve.PublicKey
   key: blst_p2
 
+# POR metadata 
 type TauZero = object
   name: array[512,byte]
   n:    int64
   u:    seq[blst_p1]
 
+# signed POR metadata
 type Tau = object
   t: TauZero
   signature: array[96, byte]
 
 proc fromBytesBE(a: array[32, byte]): blst_scalar =
+  ## Convert data to blst native form
   blst_scalar_from_bendian(result, a)
   doAssert(blst_scalar_fr_check(result).bool)
 
 proc fromBytesBE(a: openArray[byte]): blst_scalar =
+  ## Convert data to blst native form
   var b: array[32, byte]
   doAssert(a.len <= b.len)
   let d = b.len - a.len
@@ -115,10 +126,12 @@ proc fromBytesBE(a: openArray[byte]): blst_scalar =
   doAssert(blst_scalar_fr_check(result).bool)
 
 proc getSector(f: File, blockid: int64, sectorid: int64, spb: int64): ZChar =
+  ## Read file sector at given <blockid, sectorid> postion
   f.setFilePos((blockid * spb + sectorid) * sizeof(result))
   let r = f.readBytes(result, 0, sizeof(result))
 
 proc rndScalar(): blst_scalar =
+  ## Generate random scalar within the subroup order r
   var scal{.noInit.}: array[32, byte]
   var scalar{.noInit.}: blst_scalar
 
@@ -132,6 +145,7 @@ proc rndScalar(): blst_scalar =
   return scalar
 
 proc rndP2(): (blst_p2, blst_scalar) =
+  ## Generate random point on G2
   var x{.noInit.}: blst_p2
   x.blst_p2_from_affine(BLS12_381_G2) # init from generator
   let scalar = rndScalar()
@@ -139,6 +153,7 @@ proc rndP2(): (blst_p2, blst_scalar) =
   return (x, scalar)
 
 proc rndP1(): (blst_p1, blst_scalar) =
+  ## Generate random point on G1
   var x{.noInit.}: blst_p1
   x.blst_p1_from_affine(BLS12_381_G1) # init from generator
   let scalar = rndScalar()
@@ -146,9 +161,11 @@ proc rndP1(): (blst_p1, blst_scalar) =
   return (x, scalar)
 
 proc posKeygen(): (blst_p2, blst_scalar) =
+  ## Generate POS key pair
   rndP2()
 
 proc keygen*(): (PublicKey, SecretKey) =
+  ## Generate key pair for signing metadata and for POS tags
   var pk: PublicKey
   var sk: SecretKey
   var ikm: array[32, byte]
@@ -161,6 +178,7 @@ proc keygen*(): (PublicKey, SecretKey) =
   return (pk, sk)
 
 proc split(f: File, s: int64): int64 =
+  ## Calculate number of blocks for a file
   let size = f.getFileSize()
   let n = ((size - 1) div (s * sizeof(ZChar))) + 1
   echo "File size=", size, " bytes",
@@ -171,17 +189,18 @@ proc split(f: File, s: int64): int64 =
   return n
 
 proc hashToG1(msg: string): blst_p1 =
+  ## Hash to curve with Dagger specific domain separation
   const dst = "DAGGER-PROOF-OF-CONCEPT"
   result.blst_hash_to_g1(msg, dst, aug = "")
 
 proc hashNameI(name: openArray[byte], i: int64): blst_p1 =
+  ## Calculate unique filname and block index based hash
   return hashToG1($name & $i)
 
 proc generateAuthenticatorNaive(i: int64, s: int64, t: TauZero, f: File, ssk: SecretKey): blst_p1 =
   ## Naive implementation of authenticator as in the S&W paper.
   ## With the paper's multiplicative notation:
   ##   \sigmai=\(H(file||i)\cdot\prod{j=0}^{s-1}{uj^{m[i][j]}})^{\alpha}
-
   var sum: blst_p1
   for j in 0 ..< s:
     var prod: blst_p1
@@ -199,7 +218,6 @@ proc generateAuthenticatorOpt(i: int64, s: int64, t: TauZero, ubase: openArray[b
   ##
   ## With the paper's multiplicative notation, we use:
   ##   (H(file||i)\cdot g^{\sum{j=0}^{s-1}{r_j \cdot m[i][j]}})^{\alpha}
-
   var sum: blst_fr
   var sums: blst_scalar
   for j in 0 ..< s:
@@ -217,12 +235,15 @@ proc generateAuthenticatorOpt(i: int64, s: int64, t: TauZero, ubase: openArray[b
   result.blst_p1_mult(result, ssk.key, 255)
 
 proc generateAuthenticator(i: int64, s: int64, t: TauZero, ubase: openArray[blst_scalar], f: File, ssk: SecretKey): blst_p1 =
+  ## Wrapper to select tag generator implementation
+
   # let a = generateAuthenticatorNaive(i, s, t, f, ssk)
   let b = generateAuthenticatorOpt(i, s, t, ubase, f, ssk)
   # doAssert(a.blst_p1_is_equal(b).bool)
   return b
 
 proc setup*(ssk: SecretKey, s:int64, filename: string): (Tau, seq[blst_p1]) =
+  ## Set up the POR scheme by generating tags and metadata
   let file = open(filename)
   let n = split(file, s)
   var t = TauZero(n: n)
@@ -254,13 +275,8 @@ type QElement = object
   I: int64
   V: blst_scalar
 
-proc generateQuery*(
-    tau: Tau,
-    spk: PublicKey,
-    l: int # query elements
-  ): seq[QElement] =
-  # verify signature on Tau
-
+proc generateQuery*(tau: Tau, spk: PublicKey, l: int): seq[QElement] =
+  ## Generata a random BLS query of given sizxe
   let n = tau.t.n # number of blocks
 
   for i in 0 ..< l :
@@ -270,6 +286,7 @@ proc generateQuery*(
     result.add(q)
 
 proc generateProof*(q: openArray[QElement], authenticators: openArray[blst_p1], spk: PublicKey, s: int64, filename: string): (seq[blst_scalar], blst_p1) =
+  ## Generata BLS proofs for a given query
   let file = open(filename)
 
   var mu: seq[blst_scalar]
@@ -296,6 +313,7 @@ proc generateProof*(q: openArray[QElement], authenticators: openArray[blst_p1], 
   return (mu, sigma)
 
 proc pairing(a: blst_p1, b: blst_p2): blst_fp12 =
+  ## Calculate pairing G_1,G_2 -> G_T
   var aa: blst_p1_affine
   var bb: blst_p2_affine
   blst_p1_to_affine(aa, a)
@@ -310,7 +328,8 @@ proc verifyPairingsNaive(a1: blst_p1, a2: blst_p2, b1: blst_p1, b2: blst_p2) : b
   return e1 == e2
 
 proc verifyPairingsNeg(a1: blst_p1, a2: blst_p2, b1: blst_p1, b2: blst_p2) : bool =
-  # based on https://github.com/benjaminion/c-kzg/blob/main/src/bls12_381.c
+  ## Faster pairing verification using 2 miller loops but ony one final exponentiation
+  ## based on https://github.com/benjaminion/c-kzg/blob/main/src/bls12_381.c
   var
     loop0, loop1, gt_point: blst_fp12
     aa1, bb1: blst_p1_affine
@@ -333,9 +352,12 @@ proc verifyPairingsNeg(a1: blst_p1, a2: blst_p2, b1: blst_p1, b2: blst_p2) : boo
   return blst_fp12_is_one(gt_point).bool
 
 proc verifyPairings(a1: blst_p1, a2: blst_p2, b1: blst_p1, b2: blst_p2) : bool =
+  ## Wrapper to select verify pairings implementation
   verifyPairingsNaive(a1, a2, b1, b2)
+  #verifyPairingsNeg(a1, a2, b1, b2)
 
 proc verifyProof*(tau: Tau, q: openArray[QElement], mus: openArray[blst_scalar], sigma: blst_p1, spk: PublicKey): bool =
+  ## Verify a BLS proof given a query
 
   # verify signature on Tau
   var signature: Signature
