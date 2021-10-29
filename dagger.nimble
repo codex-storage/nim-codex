@@ -1,9 +1,9 @@
 version = "0.1.0"
 author = "Dagger Team"
-description = "The hardrive for Web3"
+description = "p2p data durability engine"
 license = "MIT"
 
-requires "nim >= 1.2.6",
+requires "nim >= 1.4.6",
          "libp2p#unstable",
          "nimcrypto >= 0.4.1",
          "bearssl >= 0.1.4",
