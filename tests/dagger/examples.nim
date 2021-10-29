@@ -46,7 +46,7 @@ proc example*(_: type Block): Block =
 
 proc example*(_: type PeerId): PeerID =
   let key = PrivateKey.random(Rng.instance[]).get
-  PeerId.init(key.getKey().get).get
+  PeerId.init(key.getPublicKey().get).get
 
 proc example*(_: type BlockExcPeerCtx): BlockExcPeerCtx =
   BlockExcPeerCtx(id: PeerID.example)
