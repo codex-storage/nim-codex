@@ -300,11 +300,7 @@ method init*(b: BlockExcNetwork) =
   ## Perform protocol initialization
   ##
 
-  proc peerEventHandler(peerInfo: PeerInfo, event: PeerEvent) {.async.} =
-    # TODO: temporary until libp2p moves back to PeerID
-    let
-      peerId = peerInfo.peerId
-
+  proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
     if event.kind == PeerEventKind.Joined:
       b.setupPeer(peerId)
     else:
@@ -314,7 +310,7 @@ method init*(b: BlockExcNetwork) =
   b.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)
 
   proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
-    let peerId = conn.peerInfo.peerId
+    let peerId = conn.peerId
     let blockexcPeer = b.getOrCreatePeer(peerId)
     await blockexcPeer.readLoop(conn)  # attach read loop
 

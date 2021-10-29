@@ -21,7 +21,7 @@ suite "BlockExc network":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
-    peerId = PeerID.init(seckey.getKey().tryGet()).tryGet()
+    peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
     chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
     blocks = chunker.mapIt( !bt.Block.new(it) )
 
@@ -36,7 +36,7 @@ suite "BlockExc network":
 
   setup:
     done = newFuture[void]()
-    buffer = newBufferStream()
+    buffer = BufferStream.new()
     network = BlockExcNetwork.new(
       switch = newStandardSwitch(),
       connProvider = getConn)

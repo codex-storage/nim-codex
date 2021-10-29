@@ -21,7 +21,7 @@ suite "BlockExc engine basic":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
-    peerId = PeerID.init(seckey.getKey().tryGet()).tryGet()
+    peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
     chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
     blocks = chunker.mapIt( !bt.Block.new(it) )
     wallet = WalletRef.example
@@ -73,7 +73,7 @@ suite "BlockExc engine handlers":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
-    peerId = PeerID.init(seckey.getKey().tryGet()).tryGet()
+    peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
     chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
     blocks = chunker.mapIt( !bt.Block.new(it) )
     wallet = WalletRef.example
@@ -203,7 +203,7 @@ suite "Task Handler":
 
     for i in 0..3:
       let seckey = PrivateKey.random(rng[]).tryGet()
-      peers.add(PeerID.init(seckey.getKey().tryGet()).tryGet())
+      peers.add(PeerID.init(seckey.getPublicKey().tryGet()).tryGet())
 
       peersCtx.add(BlockExcPeerCtx(
         id: peers[i]
