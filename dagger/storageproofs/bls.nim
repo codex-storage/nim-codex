@@ -7,10 +7,10 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-# Implementation of the BLS-based public PoS scheme from 
-# Shacham H., Waters B., "Compact Proofs of Retrievability" 
-# using pairing over BLS12-381 ECC 
-# 
+# Implementation of the BLS-based public PoS scheme from
+# Shacham H., Waters B., "Compact Proofs of Retrievability"
+# using pairing over BLS12-381 ECC
+#
 # Notation from the paper
 # In Z:
 # - n: number of blocks
@@ -80,7 +80,7 @@ import blscurve
 import blscurve/blst/blst_abi
 import ../rng
 
-const bytespersector = 31 # r is 255 bits long 
+const bytespersector = 31 # r is 255 bits long
 
 type ZChar = array[bytespersector, byte]
 
@@ -135,14 +135,14 @@ proc rndP2(): (blst_p2, blst_scalar) =
   var x{.noInit.}: blst_p2
   x.blst_p2_from_affine(BLS12_381_G2) # init from generator
   let scalar = rndScalar()
-  x.blst_p2_mult(x, scalar, 255) 
+  x.blst_p2_mult(x, scalar, 255)
   return (x, scalar)
 
 proc rndP1(): (blst_p1, blst_scalar) =
   var x{.noInit.}: blst_p1
   x.blst_p1_from_affine(BLS12_381_G1) # init from generator
   let scalar = rndScalar()
-  x.blst_p1_mult(x, scalar, 255) 
+  x.blst_p1_mult(x, scalar, 255)
   return (x, scalar)
 
 proc posKeygen(): (blst_p2, blst_scalar) =
@@ -166,14 +166,14 @@ proc split(f: File, s: int64): int64 =
   echo "File size=", size, " bytes",
     ", blocks=", n,
     ", sectors/block=", $s,
-    ", sectorsize=", $sizeof(ZChar), " bytes" 
- 
+    ", sectorsize=", $sizeof(ZChar), " bytes"
+
   return n
 
 proc hashToG1(msg: string): blst_p1 =
   const dst = "DAGGER-PROOF-OF-CONCEPT"
   result.blst_hash_to_g1(msg, dst, aug = "")
- 
+
 proc hashNameI(name: openArray[byte], i: int64): blst_p1 =
   return hashToG1($name & $i)
 
@@ -223,11 +223,11 @@ proc setup*(ssk: SecretKey, s:int64, filename: string): (Tau, seq[blst_p1]) =
 
   # generate the coefficient vector for combining sectors of a block: U
   var ubase: seq[blst_scalar]
-  for i  in 0 ..< s :
+  for i  in 0..<s:
     let (u, ub) = rndP1()
     t.u.add(u)
     ubase.add(ub)
-   
+
   #TODO: sign for tau
   let tau = Tau(t: t)
 
@@ -289,7 +289,7 @@ proc pairing(a: blst_p1, b: blst_p2): blst_fp12 =
   var bb: blst_p2_affine
   blst_p1_to_affine(aa, a)
   blst_p2_to_affine(bb, b)
-  var l: blst_fp12 
+  var l: blst_fp12
   blst_miller_loop(l, bb, aa)
   blst_final_exp(result, l)
 
@@ -344,6 +344,6 @@ proc verifyProof*(tau: Tau, q: openArray[QElement], mus: openArray[blst_scalar],
   sum.blst_p1_add_or_double(first, second)
 
   var g{.noInit.}: blst_p2
-  g.blst_p2_from_affine(BLS12_381_G2) 
+  g.blst_p2_from_affine(BLS12_381_G2)
 
   return verifyPairings(sum, spk.key, sigma, g)

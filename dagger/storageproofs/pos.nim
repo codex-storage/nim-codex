@@ -37,7 +37,7 @@ proc fromBytesBE(sector: ZChar): BigInt =
 proc getModulus(pubkey: PublicKey): BigInt =
   result = fromBytesBE(pubkey.rsakey.key.n, pubkey.rsakey.key.nlen)
 
-proc getModulus(seckey: PrivateKey): BigInt =  
+proc getModulus(seckey: PrivateKey): BigInt =
   result = fromBytesBE(seckey.rsakey.pubk.n, seckey.rsakey.pubk.nlen)
 
 proc getPubex(pubkey: PublicKey): BigInt =
@@ -84,13 +84,13 @@ type Tau = object
 proc rsaKeygen*(): (PublicKey, PrivateKey) =
   let rng = newRng()
   var seckey = PrivateKey.random(RSA, rng[], keysize).get()
-  var pubkey = seckey.getKey().get()
+  var pubkey = seckey.getPublicKey().get()
   return (pubkey, seckey)
 
 proc split(f: File): (int64, int64) =
   let size = f.getFileSize()
   let n = ((size - 1) div (sectorsperblock * sizeof(ZChar))) + 1
- 
+
   return (sectorsperblock, n)
 
 proc hashNameI(name: openArray[byte], i: int64): BigInt =
@@ -121,7 +121,7 @@ proc st*(ssk: PrivateKey, filename: string): (Tau, seq[BigInt]) =
   # generate the coefficient vector for combining sectors of a block: U
   for i  in 0 ..< s :
     t.u.add(initBigInt(rand(uint32))) #TODO: fix limit
-    
+
   #TODO: sign for tau
   let tau = Tau(t: t)
 
@@ -181,7 +181,7 @@ proc verifyProof*(tau: Tau, q: openArray[QElement], mus: openArray[BigInt], sigm
 
   var first = BigInt.one
   for qelem in q :
-    first = mulmod(first, 
+    first = mulmod(first,
                    powmod(hashNameI(tau.t.name, qelem.I), qelem.V, N),
                    N)
 
