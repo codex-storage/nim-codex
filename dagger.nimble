@@ -3,7 +3,7 @@ author = "Dagger Team"
 description = "p2p data durability engine"
 license = "MIT"
 
-requires "nim >= 1.4.6",
+requires "nim >= 1.4.2",
          "libp2p#unstable",
          "nimcrypto >= 0.4.1",
          "bearssl >= 0.1.4",
