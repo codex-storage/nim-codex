@@ -8,7 +8,6 @@
 ## those terms.
 
 import std/sequtils
-import std/algorithm
 
 import pkg/chronos
 import pkg/chronicles
