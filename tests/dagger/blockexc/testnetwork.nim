@@ -235,7 +235,7 @@ suite "BlockExc Network - e2e":
 
     network1.broadcastAccount(switch2.peerInfo.peerId, account)
 
-    await done.wait(100.millis)
+    await done.wait(500.millis)
 
   test "broadcasts payment":
     let payment = SignedState.example
@@ -248,4 +248,4 @@ suite "BlockExc Network - e2e":
 
     network1.broadcastPayment(switch2.peerInfo.peerId, payment)
 
-    await done.wait(100.millis)
+    await done.wait(500.millis)
