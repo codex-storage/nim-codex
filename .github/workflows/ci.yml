@@ -174,3 +174,10 @@ jobs:
         working-directory: nim-dagger
         run: |
           make test
+
+      - name: Build and run localstore experiment
+        if: matrix.target.os != 'windows'
+        shell: bash
+        working-directory: nim-dagger
+        run: |
+          ./env.sh nimble localstore
