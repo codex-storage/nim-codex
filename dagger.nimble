@@ -9,7 +9,7 @@ requires "libp2p#unstable",
          "nimcrypto >= 0.4.1",
          "bearssl >= 0.1.4",
          "chronicles >= 0.7.2",
-         "chronos >= 2.5.2",
+         "https://github.com/michaelsbradleyjr/nim-chronos.git#export-selector-field",
          "metrics",
          "secp256k1",
          "stew#head",
@@ -36,3 +36,42 @@ proc test(name: string, params = "-d:chronicles_log_level=DEBUG", lang = "c") =
 
 task testAll, "Build & run Waku v1 tests":
   test "testAll", "-d:chronicles_log_level=WARN"
+
+import os
+
+const build_opts =
+  when defined(danger) or defined(release):
+    (if defined(danger): " --define:danger" else: " --define:release") &
+    " --define:strip" &
+    " --hints:off" &
+    " --opt:size" &
+    " --passC:-flto" &
+    " --passL:-flto"
+  else:
+    " --debugger:native" &
+    " --define:chronicles_line_numbers" &
+    " --define:debug" &
+    " --linetrace:on" &
+    " --stacktrace:on"
+
+const common_opts =
+  " --define:ssl" &
+  " --threads:on" &
+  " --tlsEmulation:off"
+
+const chronos_preferred =
+  " --path:\"" &
+  getEnv("HOME") / ".nimble" / "pkgs" / "chronos-#export-selector-field" &
+  "\""
+
+task localstore, "Build localstore experiment":
+  var commands = [
+    "nim c" &
+    build_opts &
+    common_opts &
+    chronos_preferred &
+    " experiments/localstore.nim",
+    "experiments/localstore"
+  ]
+  for command in commands:
+    exec command
