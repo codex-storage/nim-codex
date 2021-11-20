@@ -61,8 +61,8 @@ const common_opts =
 
 const chronos_preferred =
   " --path:\"" &
-  getEnv("HOME") / ".nimble" / "pkgs" / "chronos-#export-selector-field" &
-  "\""
+  staticExec("nimble path chronos --silent").parentDir /
+  "chronos-#export-selector-field\""
 
 task localstore, "Build localstore experiment":
   var commands = [
