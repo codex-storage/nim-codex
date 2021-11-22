@@ -1,13 +1,18 @@
 import std/os
 
 import pkg/[chronicles, stew/byteutils, task_runner]
+import pkg/[chronos/apps/http/httpcommon, chronos/apps/http/httpserver]
 
 logScope:
   topics = "localstore"
 
 type LocalstoreArg = ref object of ContextArg
 
-const localstore = "localstore"
+const
+  host {.strdefine.} = "127.0.0.1"
+  localstore = "localstore"
+  maxRequestBodySize {.intdefine.} = 10 * 1_048_576
+  port {.strdefine.} = "30080"
 
 proc localstoreContext(arg: ContextArg) {.async, gcsafe, nimcall,
   raises: [Defect].} =
@@ -15,32 +20,35 @@ proc localstoreContext(arg: ContextArg) {.async, gcsafe, nimcall,
   let contextArg = cast[LocalstoreArg](arg)
   discard
 
-proc readFromStreamWriteToFile(rfd: int, destFilePath: string)
+proc readFromStreamWriteToFile(rfd: int, destPath: string)
   {.task(kind=no_rts, stoppable=false).} =
 
-  let task = taskArg.taskName
-
   let reader = cast[AsyncFD](rfd).fromPipe
-  var destFile = destFilePath.open(fmWrite)
+  var destFile = destPath.open(fmWrite)
 
-  while workerRunning[].load:
-    let data = await reader.read(12)
-    discard destFile.writeBytes(data, 0, 12)
+  proc pred(data: openarray[byte]): tuple[consumed: int, done: bool]
+    {.gcsafe, raises: [Defect].} =
 
+    debug "task pred got data", byteCount=data.len
+
+    if data.len > 0:
+      try:
+        discard destFile.writeBytes(data, 0, data.len)
+      except Exception as e:
+        debug "exception raised when task wrote to file", error=e.msg
+
+      (data.len, data.len < 4096)
+
+    else:
+      (0, true)
+
+  await reader.readMessage(pred)
+  await reader.closeWait
+  destFile.flushFile
   destFile.close
 
-proc runTasks(runner: TaskRunner) {.async.} =
-  let (rfd, wfd) = createAsyncPipe()
-  asyncSpawn readFromStreamWriteToFile(runner, localstore, rfd.int,
-    currentSourcePath.parentDir / "foo.txt")
-
-  let writer = wfd.fromPipe
-  while runner.running.load:
-    let n = await writer.write("hello there ".toBytes)
-    await sleepAsync 10.milliseconds
-
 proc scheduleStop(runner: TaskRunner, s: Duration) {.async.} =
-  await sleepAsync 10.seconds
+  await sleepAsync s
   await runner.stop
 
 proc main() {.async.} =
@@ -50,12 +58,57 @@ proc main() {.async.} =
     runnerPtr {.threadvar.}: pointer
 
   runnerPtr = cast[pointer](runner)
-  proc stop() {.noconv.} = waitFor cast[TaskRunner](runnerPtr).stop
+
+  proc process(r: RequestFence): Future[HttpResponseRef] {.async.} =
+    let
+      request = r.tryGet
+      filename = ($request.uri).split("/")[^1]
+      destPath = currentSourcePath.parentDir / "files" / filename
+      (rfd, wfd) = createAsyncPipe()
+      writer = wfd.fromPipe
+
+    proc pred(data: openarray[byte]): tuple[consumed: int, done: bool]
+      {.gcsafe, raises: [Defect].} =
+
+      debug "http server pred got data", byteCount=data.len
+
+      if data.len > 0:
+        try:
+          # discard waitFor writer.write(@data, data.len)
+          discard writer.write(@data, data.len)
+        except Exception as e:
+          debug "exception raised when http server wrote to task",
+            error=e.msg, stacktrace=getStackTrace(e)
+
+        (data.len, false)
+
+      else:
+        (0, true)
+
+    asyncSpawn readFromStreamWriteToFile(runner, localstore, rfd.int, destPath)
+    await request.getBodyReader.tryGet.readMessage(pred)
+    await writer.closeWait
+    discard request.respond(Http200)
+
+  let
+    address = initTAddress(host & ":" & port)
+    socketFlags = {ServerFlags.TcpNoDelay, ServerFlags.ReuseAddr}
+    server = HttpServerRef.new(address, process,
+      socketFlags = socketFlags, maxRequestBodySize = maxRequestBodySize).tryGet
+
+  var serverPtr {.threadvar.}: pointer
+  serverPtr = cast[pointer](server)
+
+  proc stop() {.noconv.} =
+    waitFor cast[HttpServerRef](serverPtr).stop
+    waitFor cast[TaskRunner](runnerPtr).stop
+
   setControlCHook(stop)
 
-  runner.createWorker(thread, localstore, localstoreContext, localstoreArg)
+  runner.createWorker(pool, localstore, localstoreContext, localstoreArg, 8)
+  runner.workers[localstore].worker.awaitTasks = false
   await runner.start
-  asyncSpawn runner.runTasks
+  server.start
   asyncSpawn runner.scheduleStop(10.seconds)
 
   while runner.running.load: poll()

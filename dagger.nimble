@@ -39,39 +39,55 @@ task testAll, "Build & run Waku v1 tests":
 
 import os
 
-const build_opts =
-  when defined(danger) or defined(release):
-    (if defined(danger): " --define:danger" else: " --define:release") &
-    " --define:strip" &
-    " --hints:off" &
-    " --opt:size" &
-    " --passC:-flto" &
-    " --passL:-flto"
-  else:
-    " --debugger:native" &
-    " --define:chronicles_line_numbers" &
-    " --define:debug" &
-    " --linetrace:on" &
-    " --stacktrace:on"
-
-const common_opts =
-  " --define:ssl" &
-  " --threads:on" &
-  " --tlsEmulation:off"
-
-const chronos_preferred =
-  " --path:\"" &
-  staticExec("nimble path chronos --silent").parentDir /
-  "chronos-#export-selector-field\""
-
 task localstore, "Build localstore experiment":
+  const
+    build_opts =
+      when defined(danger) or defined(release):
+      (if defined(danger): " --define:danger" else: " --define:release") &
+        " --define:strip" &
+        " --hints:off" &
+        " --opt:size" &
+        " --passC:-flto" &
+        " --passL:-flto"
+      else:
+        " --debugger:native" &
+        " --define:chronicles_line_numbers" &
+        " --define:debug" &
+        " --linetrace:on" &
+        " --stacktrace:on"
+
+    common_opts =
+      " --define:ssl" &
+      " --threads:on" &
+      " --tlsEmulation:off"
+
+    chronos_preferred =
+      " --path:\"" &
+      staticExec("nimble path chronos --silent").parentDir /
+      "chronos-#export-selector-field\""
+
+    chronicles_log_level {.strdefine.} =
+     when defined(danger) or defined(release):
+       "INFO"
+     else:
+       "DEBUG"
+
+    host {.strdefine.} = ""
+    maxRequestBodySize {.strdefine.} = ""
+    port {.strdefine.} = ""
+
   var commands = [
     "nim c" &
     build_opts &
     common_opts &
     chronos_preferred &
+    " --define:chronicles_log_level=" & chronicles_log_level &
+    (when host != "": " --define:host=" & host else: "") &
+    (when maxRequestBodySize != "": " --define:maxRequestBodySize=" & maxRequestBodySize else: "") &
+    (when port != "": " --define:port=" & port else: "") &
     " experiments/localstore.nim",
     "experiments/localstore"
   ]
+
   for command in commands:
     exec command
