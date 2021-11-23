@@ -1,0 +1,132 @@
+[submodule "vendor/nimbus-build-system"]
+	path = vendor/nimbus-build-system
+	url = https://github.com/status-im/nimbus-build-system.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-libp2p"]
+	path = vendor/nim-libp2p
+	url = https://github.com/status-im/nim-libp2p.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nimcrypto"]
+	path = vendor/nimcrypto
+	url = https://github.com/cheatfate/nimcrypto.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/bearssl"]
+	path = vendor/bearssl
+	url = https://github.com/status-im/bearssl.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-chronicles"]
+	path = vendor/nim-chronicles
+	url = https://github.com/status-im/nim-chronicles.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-metrics"]
+	path = vendor/nim-metrics
+	url = https://github.com/status-im/nim-metrics.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-secp256k1"]
+	path = vendor/nim-secp256k1
+	url = https://github.com/status-im/nim-secp256k1.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-stew"]
+	path = vendor/nim-stew
+	url = https://github.com/status-im/nim-stew.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-protobufserialization"]
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-protobuf-serialization"]
+	path = vendor/nim-protobuf-serialization
+	url = https://github.com/status-im/nim-protobuf-serialization.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-nitro"]
+	path = vendor/nim-nitro
+	url = https://github.com/status-im/nim-nitro.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-questionable"]
+	ignore = untracked
+	branch = master
+[submodule "vendor/questionable"]
+	path = vendor/questionable
+	url = https://github.com/status-im/questionable.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/upraises"]
+	ignore = untracked
+	branch = master
+	path = vendor/upraises
+	url = https://github.com/markspanbroek/upraises.git
+[submodule "vendor/asynctest"]
+	path = vendor/asynctest
+	url = https://github.com/status-im/asynctest.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-presto"]
+	path = vendor/nim-presto
+	url = https://github.com/status-im/nim-presto.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-confutils"]
+	path = vendor/nim-confutils
+	url = https://github.com/status-im/nim-confutils.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-nat-traversal"]
+	path = vendor/nim-nat-traversal
+	url = https://github.com/status-im/nim-nat-traversal.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-libbacktrace"]
+	path = vendor/nim-libbacktrace
+	url = https://github.com/status-im/nim-libbacktrace.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-chronos"]
+	path = vendor/nim-chronos
+	url = https://github.com/status-im/nim-chronos.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-faststreams"]
+	path = vendor/nim-faststreams
+	url = https://github.com/status-im/nim-faststreams.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-son_serialization"]
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-json_serialization"]
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-json-serialization"]
+	path = vendor/nim-json-serialization
+	url = https://github.com/status-im/nim-json-serialization.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-serialization"]
+	path = vendor/nim-serialization
+	url = https://github.com/status-im/nim-serialization.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-bearssl"]
+	path = vendor/nim-bearssl
+	url = https://github.com/status-im/nim-bearssl.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/combparser"]
+	path = vendor/combparser
+	url = https://github.com/PMunch/combparser.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/stint"]
+	path = vendor/stint
+	url = https://github.com/status-im/stint.git
+	ignore = untracked
+	branch = master
