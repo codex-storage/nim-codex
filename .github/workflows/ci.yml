@@ -19,9 +19,9 @@ jobs:
           - os: macos
             cpu: amd64
             TEST_KIND: unit-tests
-          - os: windows
-            cpu: i386
-            TEST_KIND: unit-tests
+          # - os: windows
+          #   cpu: i386
+          #   TEST_KIND: unit-tests
           - os: windows
             cpu: amd64
             TEST_KIND: unit-tests
