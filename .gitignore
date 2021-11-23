@@ -1,5 +1,20 @@
-*
-!*/
-!*.*
-nimcache/*
-vendor/*
+nimcache/
+
+# Executables shall be put in an ignored build/ directory
+build/
+
+# Nimble packages
+/vendor/.nimble
+
+# ntags/ctags output
+/tags
+
+# vscode
+.vscode
+
+# Each developer can create a personal .env file with
+# local settings overrides (e.g. WEB3_URL)
+.env
+
+.update.timestamp
+dagger.nims
