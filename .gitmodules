@@ -38,9 +38,6 @@
 	url = https://github.com/status-im/nim-stew.git
 	ignore = untracked
 	branch = master
-[submodule "vendor/nim-protobufserialization"]
-	ignore = untracked
-	branch = master
 [submodule "vendor/nim-protobuf-serialization"]
 	path = vendor/nim-protobuf-serialization
 	url = https://github.com/status-im/nim-protobuf-serialization.git
@@ -49,9 +46,6 @@
 [submodule "vendor/nim-nitro"]
 	path = vendor/nim-nitro
 	url = https://github.com/status-im/nim-nitro.git
-	ignore = untracked
-	branch = master
-[submodule "vendor/nim-questionable"]
 	ignore = untracked
 	branch = master
 [submodule "vendor/questionable"]
@@ -97,12 +91,6 @@
 [submodule "vendor/nim-faststreams"]
 	path = vendor/nim-faststreams
 	url = https://github.com/status-im/nim-faststreams.git
-	ignore = untracked
-	branch = master
-[submodule "vendor/nim-son_serialization"]
-	ignore = untracked
-	branch = master
-[submodule "vendor/nim-json_serialization"]
 	ignore = untracked
 	branch = master
 [submodule "vendor/nim-json-serialization"]
