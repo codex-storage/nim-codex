@@ -174,5 +174,4 @@ jobs:
         run: |
           export UCPU="$cpu"
           cd nim-dagger
-          nimble install -y --depsOnly
-          nimble test
+          make test
