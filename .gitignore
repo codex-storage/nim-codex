@@ -6,9 +6,6 @@ build/
 # Nimble packages
 /vendor/.nimble
 
-# ntags/ctags output
-/tags
-
 # vscode
 .vscode
 
