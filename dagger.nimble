@@ -1,3 +1,5 @@
+mode = ScriptMode.Verbose
+
 version = "0.1.0"
 author = "Dagger Team"
 description = "p2p data durability engine"
@@ -16,3 +18,20 @@ requires "libp2p#unstable",
          "questionable >= 0.9.1 & < 0.10.0",
          "upraises >= 0.1.0 & < 0.2.0",
          "asynctest >= 0.3.0 & < 0.4.0"
+
+### Helper functions
+proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
+  if not dirExists "build":
+    mkDir "build"
+  # allow something like "nim nimbus --verbosity:0 --hints:off nimbus.nims"
+  var extra_params = params
+  for i in 2..<paramCount():
+    extra_params &= " " & paramStr(i)
+  exec "nim " & lang & " --out:build/" & name & " " & extra_params & " " & srcDir & name & ".nim"
+
+proc test(name: string, params = "-d:chronicles_log_level=DEBUG", lang = "c") =
+  buildBinary name, "tests/", params
+  exec "build/" & name
+
+task testAll, "Build & run Waku v1 tests":
+  test "testAll", "-d:chronicles_log_level=WARN"
