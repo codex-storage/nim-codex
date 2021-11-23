@@ -118,3 +118,11 @@
 	url = https://github.com/status-im/stint.git
 	ignore = untracked
 	branch = master
+[submodule "vendor/nim-httputils"]
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-http-utils"]
+	path = vendor/nim-http-utils
+	url = https://github.com/status-im/nim-http-utils.git
+	ignore = untracked
+	branch = master
