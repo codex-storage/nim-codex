@@ -157,7 +157,7 @@ jobs:
         id: nim-cache
         uses: actions/cache@v2
         with:
-          path: nim
+          path: nim-dagger/NimBinaries
           key: 'nim-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.nimbus_build_system }}'
 
       - name: Build Nim and Dagger dependencies
@@ -171,7 +171,6 @@ jobs:
 
       - name: Run nim-dagger tests
         shell: bash
+        working-directory: nim-dagger
         run: |
-          export UCPU="$cpu"
-          cd nim-dagger
           make test
