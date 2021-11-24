@@ -10,13 +10,13 @@
 # {.push raises: [Defect].}
 
 import pkg/chronicles
-import pkg/confutils
+import pkg/confutils/defs
 import pkg/libp2p
 
 import std/os
 
 type
-  StartUpCommand* = enum
+  StartUpCommand* {.pure.} = enum
     noCommand
     # TODO: add commands that a
     # hipotetical client will be able
@@ -38,27 +38,29 @@ type
       defaultValueDesc: "8080"
       abbr: "p" }: int
 
+    daggerDir* {.
+      desc: "The directory where dagger will store config data."
+      # defaultValue: config.defaultDataDir()
+      defaultValue: "~/.config/dagger"
+      defaultValueDesc: ""
+      abbr: "d" }: OutDir
+
+    repoDir* {.
+      desc: "The directory where dagger will store all data."
+      # defaultValue: config.defaultDataDir() / "repo"
+      defaultValue: "~/.config/dagger/repo"
+      defaultValueDesc: ""
+      abbr: "r" }: OutDir
+
     case cmd* {.
       command
       defaultValue: noCommand }: StartUpCommand
 
     of noCommand:
-      daggerDir* {.
-        desc: "The directory where dagger will store config data."
-        defaultValue: config.defaultDataDir()
-        defaultValueDesc: ""
-        abbr: "d" }: OutDir
-
-      repoDir* {.
-        desc: "The directory where dagger will store all data."
-        defaultValue: config.defaultDataDir() / "repo"
-        defaultValueDesc: ""
-        abbr: "r" }: OutDir
-
       listenAddrs* {.
         desc: "Specifies one or more listening multiaddrs for the node to listen on."
-        defaultValue: MultiAddress.init("/ip4/0.0.0.0/tcp/0")
-        defaultValueDesc: "0.0.0.0:0"
+        defaultValue: @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+        defaultValueDesc: "/ip4/0.0.0.0/tcp/0"
         abbr: "a"
         name: "listen-addrs" }: seq[MultiAddress]
 
@@ -77,16 +79,17 @@ type
         desc: "Node agent string which is used as identifier in network"
         name: "agent-string" }: string
 
+proc defaultDataDir(config: DaggerConf): string = discard
+  # let dataDir = when defined(windows):
+  #   "AppData" / "Roaming" / "Dagger"
+  # elif defined(macosx):
+  #   "Library" / "Application Support" / "Dagger"
+  # else:
+  #   ".cache" / "dagger"
+
+  # ""
+  # getHomeDir() / dataDir
+
 func parseCmdArg*(T: type MultiAddress, input: TaintedString): T
-                 {.raises: [ValueError, Defect].} =
-  ?MultiAddress.init(input)
-
-proc defaultDataDir(config: DaggerConf): string =
-  let dataDir = when defined(windows):
-    "AppData" / "Roaming" / "Dagger"
-  elif defined(macosx):
-    "Library" / "Application Support" / "Dagger"
-  else:
-    ".cache" / "dagger"
-
-  getHomeDir() / dataDir
+                 {.raises: [ValueError, LPError, Defect].} =
+  MultiAddress.init($input).tryGet()

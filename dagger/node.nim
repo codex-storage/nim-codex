@@ -7,27 +7,43 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import std/options
+
 import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
+
+# TODO: remove once exported by libp2p
+import pkg/libp2p/routing_record
+import pkg/libp2p/signed_envelope
 
 import ./conf
 
 type
   DaggerNodeRef* = ref object
     switch*: Switch
-    switchFuts: seq[Future[void]]
+    config*: DaggerConf
 
 proc start*(node: DaggerNodeRef) {.async.} =
-  node.switchFuts = await node.switch.start()
+  discard await node.switch.start()
+  echo "NODES ", $node.switch.peerInfo.peerId
 
 proc stop*(node: DaggerNodeRef) {.async.} =
   await node.switch.stop()
-  await allFuturesThrowing(
-    allFinished(node.switchFuts))
+
+proc findPeer*(
+  node: DaggerNodeRef,
+  peerId: PeerID): Future[Result[PeerRecord, string]] {.async.} =
+  discard
+
+proc connect*(
+  node: DaggerNodeRef,
+  peerId: PeerID,
+  addrs: seq[MultiAddress]): Future[void] =
+  node.switch.connect(peerId, addrs)
 
 proc new*(
   T: type DaggerNodeRef,
   switch: Switch,
-  conf: DaggerConf): T =
-  T(switch: switch)
+  config: DaggerConf): T =
+  T(switch: switch, config: config)

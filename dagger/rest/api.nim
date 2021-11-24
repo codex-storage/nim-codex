@@ -9,10 +9,14 @@
 
 {.push raises: [Defect].}
 
+import std/sequtils
+
 import pkg/chronicles
 import pkg/chronos
 import pkg/presto
 import pkg/libp2p
+
+import pkg/libp2p/routing_record
 
 import ../node
 
@@ -35,12 +39,62 @@ proc decodeString(T: type Cid, value: string): Result[Cid, cstring] =
     of CidError.Overrun: err("Overrun Cid")
     else: err("Error parsing Cid")
 
+proc encodeString(peerId: PeerID): Result[string, cstring] =
+  ok($peerId)
+
+proc decodeString(T: type PeerID, value: string): Result[PeerID, cstring] =
+  let peer = PeerID.init(value)
+  if peer.isOk:
+    ok(peer.get())
+  else:
+    err(peer.error())
+
+proc encodeString(address: MultiAddress): Result[string, cstring] =
+  ok($address)
+
+proc decodeString(T: type MultiAddress, value: string): Result[MultiAddress, cstring] =
+  let address = MultiAddress.init(value)
+  if address.isOk:
+    ok(address.get())
+  else:
+    err(cstring(address.error()))
+
 proc initRestApi*(node: DaggerNodeRef): RestRouter =
   var router = RestRouter.init(validate)
   router.api(
     MethodGet,
     "/api/dagger/v1/download/{id}") do (id: Cid) -> RestApiResponse:
-      echo $id
+      if id.isErr:
+        return RestApiResponse.error(
+          Http400,
+          $id.error())
+
+      return RestApiResponse.response($id.tryGet().version)
+
+  router.api(
+    MethodGet,
+    "/api/dagger/v1/connect/{peerId}") do (
+      peerId: PeerID,
+      addrs: seq[MultiAddress]) -> RestApiResponse:
+      if peerId.isErr:
+        return RestApiResponse.error(
+          Http400,
+          $peerId.error())
+
+      let addresess = if addrs.isOk and addrs.get().len > 0:
+            addrs.get()
+          else:
+            let peerRecord = await node.findPeer(peerId.get())
+            if peerRecord.isErr:
+              return RestApiResponse.error(
+                Http400,
+                "Unable to find Peer!")
+
+            peerRecord.get().addresses.mapIt(
+              it.address
+            )
+
+      await node.connect(peerId.get(), addresess)
       return RestApiResponse.response("")
 
-  router
+  return router
