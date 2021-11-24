@@ -28,8 +28,8 @@ proc start*(node: DaggerNodeRef) {.async.} =
   discard await node.switch.start()
   echo "NODES ", $node.switch.peerInfo.peerId
 
-proc stop*(node: DaggerNodeRef) {.async.} =
-  await node.switch.stop()
+proc stop*(node: DaggerNodeRef): Future[void] =
+  node.switch.stop()
 
 proc findPeer*(
   node: DaggerNodeRef,

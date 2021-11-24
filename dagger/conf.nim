@@ -9,34 +9,27 @@
 
 # {.push raises: [Defect].}
 
+import std/os
+import std/options
+
 import pkg/chronicles
 import pkg/confutils/defs
 import pkg/libp2p
 
-import std/os
+import ./rng
+
+const
+  DefaultTcpListenMultiAddr = "/ip4/0.0.0.0/tcp/0"
 
 type
   StartUpCommand* {.pure.} = enum
-    noCommand
-    # TODO: add commands that a
-    # hipotetical client will be able
-    # to execute against the daemon
-    #
-    # upload,
-    # stream,
-    # download,
-    # etc...
+    noCommand,
+    initNode
 
   DaggerConf* = object
     logLevel* {.
       defaultValue: LogLevel.INFO
       desc: "Sets the log level" }: LogLevel
-
-    apiPort* {.
-      desc: "The REST Api port",
-      defaultValue: 8080
-      defaultValueDesc: "8080"
-      abbr: "p" }: int
 
     daggerDir* {.
       desc: "The directory where dagger will store config data."
@@ -52,6 +45,10 @@ type
       defaultValueDesc: ""
       abbr: "r" }: OutDir
 
+    privateKey* {.
+      desc: "The private key for this instance"
+      }: Option[PrivateKey]
+
     case cmd* {.
       command
       defaultValue: noCommand }: StartUpCommand
@@ -59,8 +56,8 @@ type
     of noCommand:
       listenAddrs* {.
         desc: "Specifies one or more listening multiaddrs for the node to listen on."
-        defaultValue: @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-        defaultValueDesc: "/ip4/0.0.0.0/tcp/0"
+        defaultValue: @[MultiAddress.init(DefaultTcpListenMultiAddr).tryGet()]
+        # defaultValueDesc: $DefaultTcpListenMultiAddr
         abbr: "a"
         name: "listen-addrs" }: seq[MultiAddress]
 
@@ -75,20 +72,33 @@ type
         name: "max-peers" }: int
 
       agentString* {.
-        defaultValue: "Dagger",
+        defaultValue: "Dagger"
         desc: "Node agent string which is used as identifier in network"
         name: "agent-string" }: string
 
-proc defaultDataDir(config: DaggerConf): string = discard
-  # let dataDir = when defined(windows):
-  #   "AppData" / "Roaming" / "Dagger"
-  # elif defined(macosx):
-  #   "Library" / "Application Support" / "Dagger"
-  # else:
-  #   ".cache" / "dagger"
+      apiPort* {.
+        desc: "The REST Api port",
+        defaultValue: 8080
+        defaultValueDesc: "8080"
+        abbr: "p" }: int
 
-  # ""
-  # getHomeDir() / dataDir
+    of initNode:
+      privateKeyPath* {.
+        desc: "Private key path"
+        defaultValue: ""
+        name: "key-path"}: InputFile
+
+proc defaultDataDir*(#[config: DaggerConf]#): string =
+  let dataDir = when defined(windows):
+    "AppData" / "Roaming" / "Dagger"
+  elif defined(macosx):
+    "Library" / "Application Support" / "Dagger"
+  else:
+    ".cache" / "dagger"
+
+  getHomeDir() / dataDir
+
+echo defaultDataDir()
 
 func parseCmdArg*(T: type MultiAddress, input: TaintedString): T
                  {.raises: [ValueError, LPError, Defect].} =
