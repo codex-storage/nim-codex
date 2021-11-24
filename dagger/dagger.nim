@@ -46,8 +46,7 @@ proc new(T: type DaggerServer, config: DaggerConf): T =
   let
     switch = SwitchBuilder
     .new()
-    # .withPrivateKey(seckey) # TODO: add static secret key
-    .withAddress(config.listenAddrs[0]) # TODO: pass multiple addrs
+    .withAddresses(config.listenAddrs)
     .withRng(Rng.instance())
     .withNoise()
     .withMplex(5.minutes, 5.minutes)

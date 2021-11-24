@@ -69,7 +69,8 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
           Http400,
           $id.error())
 
-      return RestApiResponse.response($id.tryGet().version)
+      await node.download(id.get())
+      return RestApiResponse.response("")
 
   router.api(
     MethodGet,

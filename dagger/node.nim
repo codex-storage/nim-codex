@@ -23,10 +23,12 @@ type
   DaggerNodeRef* = ref object
     switch*: Switch
     config*: DaggerConf
+    networkId*: PeerID
 
 proc start*(node: DaggerNodeRef) {.async.} =
   discard await node.switch.start()
-  echo "NODES ", $node.switch.peerInfo.peerId
+  node.networkId = node.switch.peerInfo.peerId
+  trace "Started dagger node", id = node.networkId, addrs = node.switch.peerInfo.addrs
 
 proc stop*(node: DaggerNodeRef): Future[void] =
   node.switch.stop()
@@ -41,6 +43,11 @@ proc connect*(
   peerId: PeerID,
   addrs: seq[MultiAddress]): Future[void] =
   node.switch.connect(peerId, addrs)
+
+proc download*(
+  node: DaggerNodeRef,
+  cid: Cid): Future[void] =
+  discard
 
 proc new*(
   T: type DaggerNodeRef,

@@ -45,10 +45,6 @@ type
       defaultValueDesc: ""
       abbr: "r" }: OutDir
 
-    privateKey* {.
-      desc: "The private key for this instance"
-      }: Option[PrivateKey]
-
     case cmd* {.
       command
       defaultValue: noCommand }: StartUpCommand
@@ -56,8 +52,8 @@ type
     of noCommand:
       listenAddrs* {.
         desc: "Specifies one or more listening multiaddrs for the node to listen on."
-        defaultValue: @[MultiAddress.init(DefaultTcpListenMultiAddr).tryGet()]
-        # defaultValueDesc: $DefaultTcpListenMultiAddr
+        defaultValue: @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+        defaultValueDesc: "/ip4/0.0.0.0/tcp/0"
         abbr: "a"
         name: "listen-addrs" }: seq[MultiAddress]
 
@@ -80,13 +76,11 @@ type
         desc: "The REST Api port",
         defaultValue: 8080
         defaultValueDesc: "8080"
+        name: "api-port"
         abbr: "p" }: int
 
     of initNode:
-      privateKeyPath* {.
-        desc: "Private key path"
-        defaultValue: ""
-        name: "key-path"}: InputFile
+      discard
 
 proc defaultDataDir*(#[config: DaggerConf]#): string =
   let dataDir = when defined(windows):
