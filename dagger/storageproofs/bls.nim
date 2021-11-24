@@ -81,6 +81,7 @@
 import blscurve
 import blscurve/blst/blst_abi
 import ../rng
+import endians
 
 # sector size in bytes. Must be smaller than the subgroup order r
 # which is 255 bits long for BLS12-381
@@ -204,7 +205,16 @@ proc hashToG1[T: byte|char](msg: openArray[T]): blst_p1 =
 
 proc hashNameI(name: array[namelen, byte], i: int64): blst_p1 =
   ## Calculate unique filname and block index based hash
-  return hashToG1($name & $i)
+
+  # # naive implementation, hashing a long string representation
+  # # such as "[255, 242, 23]1"
+  # return hashToG1($name & $i)
+
+  # more compact and faster implementation
+  var namei: array[sizeof(name) + sizeof(int64), byte]
+  namei[0..sizeof(name)-1] = name
+  bigEndian64(addr(namei[sizeof(name)]), unsafeAddr(i))
+  return hashToG1(namei)
 
 proc generateAuthenticatorNaive(i: int64, s: int64, t: TauZero, f: File, ssk: SecretKey): blst_p1 =
   ## Naive implementation of authenticator as in the S&W paper.
