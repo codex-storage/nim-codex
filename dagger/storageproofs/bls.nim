@@ -86,6 +86,9 @@ import ../rng
 # which is 255 bits long for BLS12-381
 const bytespersector = 31
 
+# length in bytes of the unique (random) name
+const namelen = 512
+
 type
   # a single sector
   ZChar = array[bytespersector, byte]
@@ -102,7 +105,7 @@ type
 
   # POR metadata (called "file tag t_0" in the original paper)
   TauZero = object
-    name: array[512,byte]
+    name: array[namelen, byte]
     n:    int64
     u:    seq[blst_p1]
 
@@ -199,7 +202,7 @@ proc hashToG1(msg: string): blst_p1 =
   const dst = "DAGGER-PROOF-OF-CONCEPT"
   result.blst_hash_to_g1(msg, dst, aug = "")
 
-proc hashNameI(name: openArray[byte], i: int64): blst_p1 =
+proc hashNameI(name: array[namelen, byte], i: int64): blst_p1 =
   ## Calculate unique filname and block index based hash
   return hashToG1($name & $i)
 
