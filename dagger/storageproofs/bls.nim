@@ -197,7 +197,7 @@ proc split(f: File, s: int64): int64 =
 
   return n
 
-proc hashToG1(msg: string): blst_p1 =
+proc hashToG1[T: byte|char](msg: openArray[T]): blst_p1 =
   ## Hash to curve with Dagger specific domain separation
   const dst = "DAGGER-PROOF-OF-CONCEPT"
   result.blst_hash_to_g1(msg, dst, aug = "")
