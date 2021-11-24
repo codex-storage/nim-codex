@@ -86,29 +86,35 @@ import ../rng
 # which is 255 bits long for BLS12-381
 const bytespersector = 31
 
-# a single sector
-type ZChar = array[bytespersector, byte]
+type
+  # a single sector
+  ZChar = array[bytespersector, byte]
 
-# secret key combining the metadata signing key and the POR generation key
-type SecretKey = object
-  signkey: blscurve.SecretKey
-  key: blst_scalar
+  # secret key combining the metadata signing key and the POR generation key
+  SecretKey = object
+    signkey: blscurve.SecretKey
+    key: blst_scalar
 
-# public key combining the metadata signing key and the POR validation key
-type PublicKey = object
-  signkey: blscurve.PublicKey
-  key: blst_p2
+  # public key combining the metadata signing key and the POR validation key
+  PublicKey = object
+    signkey: blscurve.PublicKey
+    key: blst_p2
 
-# POR metadata 
-type TauZero = object
-  name: array[512,byte]
-  n:    int64
-  u:    seq[blst_p1]
+  # POR metadata
+  TauZero = object
+    name: array[512,byte]
+    n:    int64
+    u:    seq[blst_p1]
 
-# signed POR metadata
-type Tau = object
-  t: TauZero
-  signature: array[96, byte]
+  # signed POR metadata
+  Tau = object
+    t: TauZero
+    signature: array[96, byte]
+
+  # PoR query element
+  QElement = object
+    I: int64
+    V: blst_scalar
 
 proc fromBytesBE(a: array[32, byte]): blst_scalar =
   ## Convert data to blst native form
@@ -270,10 +276,6 @@ proc setup*(ssk: SecretKey, s:int64, filename: string): (Tau, seq[blst_p1]) =
 
   file.close()
   result = (tau, sigmas)
-
-type QElement = object
-  I: int64
-  V: blst_scalar
 
 proc generateQuery*(tau: Tau, spk: PublicKey, l: int): seq[QElement] =
   ## Generata a random BLS query of given sizxe
