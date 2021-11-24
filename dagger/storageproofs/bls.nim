@@ -100,13 +100,13 @@ type
     signkey: blscurve.PublicKey
     key: blst_p2
 
-  # POR metadata
+  # POR metadata (called "file tag t_0" in the original paper)
   TauZero = object
     name: array[512,byte]
     n:    int64
     u:    seq[blst_p1]
 
-  # signed POR metadata
+  # signed POR metadata (called "signed file tag t" in the original paper)
   Tau = object
     t: TauZero
     signature: array[96, byte]
@@ -266,6 +266,7 @@ proc setup*(ssk: SecretKey, s:int64, filename: string): (Tau, seq[blst_p1]) =
     ubase.add(ub)
    
   #TODO: a better bytearray conversion of TauZero for the signature might be needed
+  #      the current conversion using $t might be architecture dependent and not unique
   let signature = sign(ssk.signkey, $t)
   let tau = Tau(t: t, signature: signature.exportRaw())
 
