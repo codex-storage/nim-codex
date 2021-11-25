@@ -182,6 +182,10 @@ suite "BlockExc - multiple nodes":
 
     await allFuturesThrowing(awaiters)
 
+    switch = @[]
+    blockexc = @[]
+    awaiters = @[]
+
   test "should receive haves for own want list":
     let
       downloader = blockexc[4]
@@ -197,12 +201,12 @@ suite "BlockExc - multiple nodes":
     blockexc[3].engine.localStore.putBlocks(blocks[12..15])
 
     await connectNodes(switch)
-
     await sleepAsync(1.seconds)
 
     check:
       engine.peers[0].peerHave.mapIt($it).sorted(cmp[string]) ==
         blocks[0..3].mapIt( it.cid ).mapIt($it).sorted(cmp[string])
+
       engine.peers[3].peerHave.mapIt($it).sorted(cmp[string]) ==
         blocks[12..15].mapIt( it.cid ).mapIt($it).sorted(cmp[string])
 
@@ -221,5 +225,7 @@ suite "BlockExc - multiple nodes":
     blockexc[3].engine.localStore.putBlocks(blocks[12..15])
 
     await connectNodes(switch)
+    await sleepAsync(1.seconds)
+
     let wantListBlocks = await downloader.getBlocks(blocks[0..3].mapIt( it.cid ))
     check wantListBlocks == blocks[0..3]
