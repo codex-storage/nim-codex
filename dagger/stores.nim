@@ -1,3 +1,3 @@
-import ./stores/[memorystore, blockstore, blockexchange]
+import ./stores/[memorystore, blockstore, networkstore]
 
-export memorystore, blockstore, blockexchange
+export memorystore, blockstore, networkstore

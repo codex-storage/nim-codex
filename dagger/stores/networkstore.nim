@@ -34,7 +34,7 @@ const
   DefaultMaxRetries = 3
 
 type
-  BlockExc* = ref object of BlockStore
+  NetworkStore* = ref object of BlockStore
     engine*: BlockExcEngine                       # blockexc decision engine
     taskQueue*: AsyncHeapQueue[BlockExcPeerCtx]   # peers we're currently processing tasks for
     blockexcTasks: seq[Future[void]]              # future to control blockexc task
@@ -43,7 +43,7 @@ type
     maxRetries: int                              # max number of tries for a failed block
     taskHandler: TaskHandler                     # handler provided by the engine called by the runner
 
-proc blockexcTaskRunner(b: BlockExc) {.async.} =
+proc blockexcTaskRunner(b: NetworkStore) {.async.} =
   ## process tasks
   ##
 
@@ -53,7 +53,7 @@ proc blockexcTaskRunner(b: BlockExc) {.async.} =
 
   trace "Exiting blockexc task runner"
 
-proc start*(b: BlockExc) {.async.} =
+proc start*(b: NetworkStore) {.async.} =
   ## Start the blockexc task
   ##
 
@@ -67,11 +67,11 @@ proc start*(b: BlockExc) {.async.} =
   for i in 0..<b.concurrentTasks:
     b.blockexcTasks.add(b.blockexcTaskRunner)
 
-proc stop*(b: BlockExc) {.async.} =
+proc stop*(b: NetworkStore) {.async.} =
   ## Stop the blockexc blockexc
   ##
 
-  trace "BlockExc stop"
+  trace "NetworkStore stop"
   if b.blockexcTasks.len <= 0:
     warn "Stopping blockexc without starting it"
     return
@@ -83,9 +83,9 @@ proc stop*(b: BlockExc) {.async.} =
       t.cancel()
       trace "Task stopped"
 
-  trace "BlockExc stopped"
+  trace "NetworkStore stopped"
 
-method getBlocks*(b: BlockExc, cid: seq[Cid]): Future[seq[bt.Block]] {.async.} =
+method getBlocks*(b: NetworkStore, cid: seq[Cid]): Future[seq[bt.Block]] {.async.} =
   ## Get a block from a remote peer
   ##
 
@@ -96,13 +96,13 @@ method getBlocks*(b: BlockExc, cid: seq[Cid]): Future[seq[bt.Block]] {.async.} =
     it.read
   )
 
-method putBlocks*(b: BlockExc, blocks: seq[bt.Block]) =
+method putBlocks*(b: NetworkStore, blocks: seq[bt.Block]) =
   b.engine.resolveBlocks(blocks)
 
   procCall BlockStore(b).putBlocks(blocks)
 
 proc new*(
-  T: type BlockExc,
+  T: type NetworkStore,
   localStore: BlockStore,
   wallet: WalletRef,
   network: BlockExcNetwork,
@@ -117,7 +117,7 @@ proc new*(
     request = network.request,
   )
 
-  let b = BlockExc(
+  let b = NetworkStore(
     engine: engine,
     taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize),
     concurrentTasks: concurrentTasks,

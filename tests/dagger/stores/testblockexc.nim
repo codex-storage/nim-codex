@@ -18,7 +18,7 @@ import ./utils
 import ../helpers
 import ../examples
 
-suite "BlockExc engine - 2 nodes":
+suite "NetworkStore engine - 2 nodes":
 
   let
     chunker1 = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
@@ -31,7 +31,7 @@ suite "BlockExc engine - 2 nodes":
     wallet1, wallet2: WalletRef
     pricing1, pricing2: Pricing
     network1, network2: BlockExcNetwork
-    blockexc1, blockexc2: BlockExc
+    blockexc1, blockexc2: NetworkStore
     awaiters: seq[Future[void]]
     peerId1, peerId2: PeerID
     peerCtx1, peerCtx2: BlockExcPeerCtx
@@ -53,11 +53,11 @@ suite "BlockExc engine - 2 nodes":
     peerId2 = switch2.peerInfo.peerId
 
     network1 = BlockExcNetwork.new(switch = switch1)
-    blockexc1 = BlockExc.new(MemoryStore.new(blocks1), wallet1, network1)
+    blockexc1 = NetworkStore.new(MemoryStore.new(blocks1), wallet1, network1)
     switch1.mount(network1)
 
     network2 = BlockExcNetwork.new(switch = switch2)
-    blockexc2 = BlockExc.new(MemoryStore.new(blocks2), wallet2, network2)
+    blockexc2 = NetworkStore.new(MemoryStore.new(blocks2), wallet2, network2)
     switch2.mount(network2)
 
     await allFuturesThrowing(
@@ -155,14 +155,14 @@ suite "BlockExc engine - 2 nodes":
     let channel = !peerCtx1.paymentChannel
     check wallet2.balance(channel, Asset) > 0
 
-suite "BlockExc - multiple nodes":
+suite "NetworkStore - multiple nodes":
   let
     chunker = newRandomChunker(Rng.instance(), size = 4096, chunkSize = 256)
     blocks = chunker.mapIt( !bt.Block.new(it) )
 
   var
     switch: seq[Switch]
-    blockexc: seq[BlockExc]
+    blockexc: seq[NetworkStore]
     awaiters: seq[Future[void]]
 
   setup:

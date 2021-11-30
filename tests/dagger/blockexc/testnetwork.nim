@@ -17,7 +17,7 @@ import pkg/dagger/blockexchange
 import ../helpers
 import ../examples
 
-suite "BlockExc network":
+suite "NetworkStore network":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
@@ -131,7 +131,7 @@ suite "BlockExc network":
 
     await done.wait(100.millis)
 
-suite "BlockExc Network - e2e":
+suite "NetworkStore Network - e2e":
   let
     chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
     blocks = chunker.mapIt( !bt.Block.new(it) )

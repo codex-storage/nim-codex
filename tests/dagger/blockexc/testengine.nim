@@ -17,7 +17,7 @@ import pkg/dagger/utils/asyncheapqueue
 import ../helpers
 import ../examples
 
-suite "BlockExc engine basic":
+suite "NetworkStore engine basic":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
@@ -69,7 +69,7 @@ suite "BlockExc engine basic":
     engine.setupPeer(peerId)
     await done.wait(100.millis)
 
-suite "BlockExc engine handlers":
+suite "NetworkStore engine handlers":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()

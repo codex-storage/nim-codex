@@ -13,13 +13,13 @@ proc generateNodes*(
   blocks: openArray[bt.Block] = [],
   secureManagers: openarray[SecureProtocol] = [
     SecureProtocol.Noise,
-  ]): seq[tuple[switch: Switch, blockexc: BlockExc]] =
+  ]): seq[tuple[switch: Switch, blockexc: NetworkStore]] =
   for i in 0..<num:
     let
       switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
       wallet = WalletRef.example
       network = BlockExcNetwork.new(switch)
-      blockexc = BlockExc.new(MemoryStore.new(blocks), wallet, network)
+      blockexc = NetworkStore.new(MemoryStore.new(blocks), wallet, network)
 
     switch.mount(network)
 
