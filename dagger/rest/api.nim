@@ -15,10 +15,14 @@ import pkg/chronicles
 import pkg/chronos
 import pkg/presto
 import pkg/libp2p
+import pkg/stew/byteutils
 
 import pkg/libp2p/routing_record
 
 import ../node
+
+const
+  MaxFileChunkSize* = 1 shl 16 # 65K
 
 proc validate(
   pattern: string,
@@ -96,6 +100,41 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
             )
 
       await node.connect(peerId.get(), addresess)
+      return RestApiResponse.response("")
+
+  router.rawApi(
+    MethodPost,
+    "/api/dagger/v1/upload") do (
+    ) -> RestApiResponse:
+      trace "Handling file upload"
+      var bodyReader = request.getBodyReader()
+      if bodyReader.isErr():
+        return RestApiResponse.error(Http500)
+
+      var reader = bodyReader.get()
+      try:
+        # Attempt to handle `Expect` header
+        # some clients (curl), waits 1000ms
+        # before giving up
+        #
+        await request.handleExpect()
+        var bytes = 0
+        while not reader.atEof:
+          var buff = newSeq[byte](MaxFileChunkSize)
+          let res = await reader.readOnce(addr buff[0], buff.len)
+          bytes += res
+
+        trace "Uploaded file", bytes
+        await reader.closeWait()
+      except CancelledError as exc:
+        if not(isNil(reader)):
+          await reader.closeWait()
+        return RestApiResponse.error(Http500)
+      except AsyncStreamError:
+        if not(isNil(reader)):
+          await reader.closeWait()
+        return RestApiResponse.error(Http500)
+
       return RestApiResponse.response("")
 
   return router
