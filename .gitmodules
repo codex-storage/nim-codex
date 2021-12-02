@@ -118,3 +118,6 @@
 	url = https://github.com/michaelsbradleyjr/nim-chronos.git
 	ignore = untracked
 	branch = master
+[submodule "vendor/nim-task-runner"]
+	path = vendor/nim-task-runner
+	url = https://github.com/status-im/nim-task-runner.git
