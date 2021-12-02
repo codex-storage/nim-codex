@@ -52,6 +52,9 @@ proc scheduleStop(runner: TaskRunner, s: Duration) {.async.} =
   await runner.stop
 
 proc main() {.async.} =
+  const destDir = currentSourcePath.parentDir.parentDir / "build" / "files"
+  createDir(destDir)
+
   var
     localstoreArg = LocalstoreArg()
     runner = TaskRunner.new
@@ -63,7 +66,7 @@ proc main() {.async.} =
     let
       request = r.tryGet
       filename = ($request.uri).split("/")[^1]
-      destPath = currentSourcePath.parentDir / "files" / filename
+      destPath = destDir / filename
       (rfd, wfd) = createAsyncPipe()
       writer = wfd.fromPipe
 

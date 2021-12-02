@@ -58,6 +58,7 @@ task localstore, "Build localstore experiment":
 
     common_opts =
       " --define:ssl" &
+      " --out:build/localstore" &
       " --threads:on" &
       " --tlsEmulation:off"
 
@@ -86,7 +87,7 @@ task localstore, "Build localstore experiment":
     (when maxRequestBodySize != "": " --define:maxRequestBodySize=" & maxRequestBodySize else: "") &
     (when port != "": " --define:port=" & port else: "") &
     " experiments/localstore.nim",
-    "experiments/localstore"
+    "build/localstore"
   ]
 
   for command in commands:
