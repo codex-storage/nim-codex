@@ -121,3 +121,6 @@
 [submodule "vendor/nim-task-runner"]
 	path = vendor/nim-task-runner
 	url = https://github.com/status-im/nim-task-runner.git
+[submodule "vendor/nim-http-utils"]
+	path = vendor/nim-http-utils
+	url = https://github.com/status-im/nim-http-utils.git
