@@ -112,7 +112,7 @@ proc main() {.async.} =
   runner.workers[experiment].worker.awaitTasks = false
   await runner.start
   server.start
-  # asyncSpawn runner.scheduleStop(10.seconds)
+  asyncSpawn runner.scheduleStop(10.seconds)
 
   while runner.running.load: poll()
 
