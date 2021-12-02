@@ -83,11 +83,6 @@
 	url = https://github.com/status-im/nim-libbacktrace.git
 	ignore = untracked
 	branch = master
-[submodule "vendor/nim-chronos"]
-	path = vendor/nim-chronos
-	url = https://github.com/status-im/nim-chronos.git
-	ignore = untracked
-	branch = master
 [submodule "vendor/nim-faststreams"]
 	path = vendor/nim-faststreams
 	url = https://github.com/status-im/nim-faststreams.git
@@ -116,5 +111,10 @@
 [submodule "vendor/stint"]
 	path = vendor/stint
 	url = https://github.com/status-im/stint.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-chronos"]
+	path = vendor/nim-chronos
+	url = https://github.com/michaelsbradleyjr/nim-chronos.git
 	ignore = untracked
 	branch = master
