@@ -176,7 +176,6 @@ jobs:
           make test
 
       - name: Build and run task_runner_streams experiment
-        if: matrix.target.os != 'windows'
         shell: bash
         working-directory: nim-dagger
         run: |
