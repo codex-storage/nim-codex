@@ -37,8 +37,6 @@ proc test(name: string, params = "-d:chronicles_log_level=DEBUG", lang = "c") =
 task testAll, "Build & run Waku v1 tests":
   test "testAll", "-d:chronicles_log_level=WARN"
 
-import os
-
 task task_runner_streams, "Build task_runner_streams experiment":
   const
     build_opts =
