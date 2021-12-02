@@ -62,11 +62,6 @@ task task_runner_streams, "Build task_runner_streams experiment":
       " --threads:on" &
       " --tlsEmulation:off"
 
-    chronos_preferred =
-      " --path:\"" &
-      staticExec("nimble path chronos --silent").parentDir /
-      "chronos-#export-selector-field\""
-
     chronicles_log_level {.strdefine.} =
      when defined(danger) or defined(release):
        "INFO"
@@ -81,7 +76,6 @@ task task_runner_streams, "Build task_runner_streams experiment":
     "nim c" &
     build_opts &
     common_opts &
-    chronos_preferred &
     " --define:chronicles_log_level=" & chronicles_log_level &
     (when host != "": " --define:host=" & host else: "") &
     (when maxRequestBodySize != "": " --define:maxRequestBodySize=" & maxRequestBodySize else: "") &
