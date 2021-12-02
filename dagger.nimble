@@ -39,7 +39,7 @@ task testAll, "Build & run Waku v1 tests":
 
 import os
 
-task localstore, "Build localstore experiment":
+task task_runner_streams, "Build task_runner_streams experiment":
   const
     build_opts =
       when defined(danger) or defined(release):
@@ -58,7 +58,7 @@ task localstore, "Build localstore experiment":
 
     common_opts =
       " --define:ssl" &
-      " --out:build/localstore" &
+      " --out:build/task_runner_streams" &
       " --threads:on" &
       " --tlsEmulation:off"
 
@@ -86,8 +86,8 @@ task localstore, "Build localstore experiment":
     (when host != "": " --define:host=" & host else: "") &
     (when maxRequestBodySize != "": " --define:maxRequestBodySize=" & maxRequestBodySize else: "") &
     (when port != "": " --define:port=" & port else: "") &
-    " experiments/localstore.nim",
-    "build/localstore"
+    " experiments/task_runner_streams.nim",
+    "build/task_runner_streams"
   ]
 
   for command in commands:

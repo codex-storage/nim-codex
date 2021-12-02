@@ -175,9 +175,9 @@ jobs:
         run: |
           make test
 
-      - name: Build and run localstore experiment
+      - name: Build and run task_runner_streams experiment
         if: matrix.target.os != 'windows'
         shell: bash
         working-directory: nim-dagger
         run: |
-          ./env.sh nimble localstore
+          ./env.sh nimble task_runner_streams

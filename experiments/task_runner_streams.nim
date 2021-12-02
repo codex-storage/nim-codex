@@ -4,20 +4,20 @@ import pkg/[chronicles, stew/byteutils, task_runner]
 import pkg/[chronos/apps/http/httpcommon, chronos/apps/http/httpserver]
 
 logScope:
-  topics = "localstore"
+  topics = "experiment"
 
-type LocalstoreArg = ref object of ContextArg
+type ExperimentArg = ref object of ContextArg
 
 const
+  experiment = "experiment"
   host {.strdefine.} = "127.0.0.1"
-  localstore = "localstore"
   maxRequestBodySize {.intdefine.} = 10 * 1_048_576
   port {.strdefine.} = "30080"
 
-proc localstoreContext(arg: ContextArg) {.async, gcsafe, nimcall,
+proc experimentContext(arg: ContextArg) {.async, gcsafe, nimcall,
   raises: [Defect].} =
 
-  let contextArg = cast[LocalstoreArg](arg)
+  let contextArg = cast[ExperimentArg](arg)
   discard
 
 proc readFromStreamWriteToFile(rfd: int, destPath: string)
@@ -56,7 +56,7 @@ proc main() {.async.} =
   createDir(destDir)
 
   var
-    localstoreArg = LocalstoreArg()
+    experimentArg = ExperimentArg()
     runner = TaskRunner.new
     runnerPtr {.threadvar.}: pointer
 
@@ -88,7 +88,7 @@ proc main() {.async.} =
       else:
         (0, true)
 
-    asyncSpawn readFromStreamWriteToFile(runner, localstore, rfd.int, destPath)
+    asyncSpawn readFromStreamWriteToFile(runner, experiment, rfd.int, destPath)
     await request.getBodyReader.tryGet.readMessage(pred)
     await writer.closeWait
     discard request.respond(Http200)
@@ -108,11 +108,11 @@ proc main() {.async.} =
 
   setControlCHook(stop)
 
-  runner.createWorker(pool, localstore, localstoreContext, localstoreArg, 8)
-  runner.workers[localstore].worker.awaitTasks = false
+  runner.createWorker(pool, experiment, experimentContext, experimentArg, 8)
+  runner.workers[experiment].worker.awaitTasks = false
   await runner.start
   server.start
-  asyncSpawn runner.scheduleStop(10.seconds)
+  # asyncSpawn runner.scheduleStop(10.seconds)
 
   while runner.running.load: poll()
 
