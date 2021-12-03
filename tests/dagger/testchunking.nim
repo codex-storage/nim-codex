@@ -1,36 +1,68 @@
-import std/unittest
+import pkg/asynctest
 import pkg/stew/byteutils
 import pkg/dagger/chunker
+import pkg/chronicles
+import pkg/chronos
+import pkg/libp2p
 
 suite "Chunking":
   test "should return proper size chunks":
-    proc reader(data: var openArray[byte], offset: Natural = 0): int
-      {.gcsafe, closure, raises: [Defect].} =
-      let contents = "1234567890".toBytes
-      copyMem(addr data[0], unsafeAddr contents[offset], data.len)
-      return data.len
+    var offset = 0
+    let contents = [1.byte, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+    proc reader(data: ChunkBuffer, len: int): Future[int]
+      {.gcsafe, async, raises: [Defect].} =
+      if offset >= contents.len:
+        return 0
+
+      copyMem(data, unsafeAddr contents[offset], len)
+      offset += 2
+      return len
 
     let chunker = Chunker.new(
       reader = reader,
-      size = 10,
       chunkSize = 2)
 
-    check chunker.getBytes() == "12".toBytes
-    check chunker.getBytes() == "34".toBytes
-    check chunker.getBytes() == "56".toBytes
-    check chunker.getBytes() == "78".toBytes
-    check chunker.getBytes() == "90".toBytes
-    check chunker.getBytes() == "".toBytes
+    check:
+      (await chunker.getBytes()) == [1.byte, 2]
+      (await chunker.getBytes()) == [3.byte, 4]
+      (await chunker.getBytes()) == [5.byte, 6]
+      (await chunker.getBytes()) == [7.byte, 8]
+      (await chunker.getBytes()) == [9.byte, 0]
+      (await chunker.getBytes()) == []
+
+  test "should chunk LPStream":
+    var offset = 0
+    let stream = BufferStream.new()
+    let chunker = LPStreamChunker.new(
+      stream = stream,
+      chunkSize = 2)
+
+    proc writer() {.async.} =
+      for d in [@[1.byte, 2], @[3.byte, 4], @[5.byte, 6], @[7.byte, 8], @[9.byte, 0]]:
+        await stream.pushData(d)
+      await stream.pushEof()
+      await stream.close()
+
+    asyncSpawn writer()
+
+
+    check:
+      (await chunker.getBytes()) == [1.byte, 2]
+      (await chunker.getBytes()) == [3.byte, 4]
+      (await chunker.getBytes()) == [5.byte, 6]
+      (await chunker.getBytes()) == [7.byte, 8]
+      (await chunker.getBytes()) == [9.byte, 0]
+      (await chunker.getBytes()) == []
 
   test "should chunk file":
-    let (fileName, _, _) = instantiationInfo() # get this file's name
-    let path = "tests/dagger/" & filename
-    let file = open(path)
-    let fileChunker = newFileChunker(file = file)
+    let
+      (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
+      file = open(path)
+      fileChunker = FileChunker.new(file = file, chunkSize = 256)
 
     var data: seq[byte]
     while true:
-      let buff = fileChunker.getBytes()
+      let buff = await fileChunker.getBytes()
       if buff.len <= 0:
         break
 

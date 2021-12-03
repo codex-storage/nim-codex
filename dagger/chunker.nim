@@ -15,6 +15,9 @@ import std/sequtils
 
 import pkg/questionable
 import pkg/questionable/results
+import pkg/chronos
+import pkg/libp2p
+import pkg/chronicles
 
 import ./rng
 import ./blocktype
@@ -26,79 +29,72 @@ const
 
 type
   # default reader type
+  ChunkBuffer* = ptr UncheckedArray[byte]
   Reader* =
-    proc(data: var openArray[byte], offset: Natural = 0): int
-    {.gcsafe, closure, raises: [Defect].}
+    proc(data: ChunkBuffer, len: int): Future[int] {.gcsafe, raises: [Defect].}
 
   ChunkerType* {.pure.} = enum
-    SizedChunker
+    FixedChunker
     RabinChunker
 
   Chunker* = ref object of RootObj
     reader*: Reader
-    size*: Natural
-    pos*: Natural
     case kind*: ChunkerType:
-    of SizedChunker:
+    of FixedChunker:
       chunkSize*: Natural
       pad*: bool # pad last block if less than size
     of RabinChunker:
       discard
 
-proc getBytes*(c: Chunker): seq[byte] =
+  FileChunker* = Chunker
+  LPStreamChunker* = Chunker
+  RandomChunker* = Chunker
+
+proc getBytes*(c: Chunker): Future[seq[byte]] {.async.} =
   ## returns a chunk of bytes from
   ## the instantiated chunker
   ##
 
-  if c.pos >= c.size:
-    return
+  var buff = newSeq[byte](c.chunkSize)
+  let read = await c.reader(cast[ChunkBuffer](addr buff[0]), buff.len)
 
-  var bytes = newSeq[byte](c.chunkSize)
-  let read = c.reader(bytes, c.pos)
-  c.pos += read
+  if read <= 0:
+    return @[]
 
-  if not c.pad and bytes.len != read:
-    bytes.setLen(read)
+  if not c.pad and buff.len != read:
+    buff.setLen(read)
 
-  return bytes
-
-iterator items*(c: Chunker): seq[byte] =
-  while true:
-    let chunk = c.getBytes()
-    if chunk.len <= 0:
-      break
-
-    yield chunk
+  return buff
 
 func new*(
   T: type Chunker,
-  kind = ChunkerType.SizedChunker,
+  kind = ChunkerType.FixedChunker,
   reader: Reader,
-  size: Natural,
   chunkSize = DefaultChunkSize,
   pad = false): T =
   var chunker = Chunker(
     kind: kind,
-    reader: reader,
-    size: size)
+    reader: reader)
 
-  if kind == ChunkerType.SizedChunker:
+  if kind == ChunkerType.FixedChunker:
     chunker.pad = pad
     chunker.chunkSize = chunkSize
 
   return chunker
 
-proc newRandomChunker*(
+proc new*(
+  T: type RandomChunker,
   rng: Rng,
   size: int64,
-  kind = ChunkerType.SizedChunker,
+  kind = ChunkerType.FixedChunker,
   chunkSize = DefaultChunkSize,
-  pad = false): Chunker =
+  pad = false): T =
   ## create a chunker that produces
   ## random data
   ##
 
-  proc reader(data: var openArray[byte], offset: Natural = 0): int =
+  proc reader(data: ChunkBuffer, len: int): Future[int]
+    {.gcsafe, raises: [Defect].} =
     var alpha = toSeq(byte('A')..byte('z'))
 
     var read = 0
@@ -114,30 +110,57 @@ proc newRandomChunker*(
     return read
 
   Chunker.new(
-    kind = ChunkerType.SizedChunker,
+    kind = ChunkerType.FixedChunker,
     reader = reader,
-    size = size,
     pad = pad,
     chunkSize = chunkSize)
 
-proc newFileChunker*(
-  file: File,
-  kind = ChunkerType.SizedChunker,
+proc new*(
+  T: type LPStreamChunker,
+  stream: LPStream,
+  kind = ChunkerType.FixedChunker,
   chunkSize = DefaultChunkSize,
-  pad = false): Chunker =
+  pad = false): T =
   ## create the default File chunker
   ##
 
-  proc reader(data: var openArray[byte], offset: Natural = 0): int =
+  proc reader(data: ChunkBuffer, len: int): Future[int]
+    {.gcsafe, async, raises: [Defect].} =
     try:
-      return file.readBytes(data, 0, data.len)
+      await stream.readExactly(data, len)
+      return len
+    except LPStreamEOFError as exc:
+      return 0
+      trace "LPStreamChunker stream Eof", exc = exc.msg
+    except CatchableError as exc:
+      trace "LPStreamChunker exception", exc = exc.msg
+      raise newException(Defect, exc.msg)
+
+  Chunker.new(
+    kind = ChunkerType.FixedChunker,
+    reader = reader,
+    pad = pad,
+    chunkSize = chunkSize)
+
+proc new*(
+  T: type FileChunker,
+  file: File,
+  kind = ChunkerType.FixedChunker,
+  chunkSize = DefaultChunkSize,
+  pad = false): T =
+  ## create the default File chunker
+  ##
+
+  proc reader(data: ChunkBuffer, len: int): Future[int]
+    {.gcsafe, async, raises: [Defect].} =
+    try:
+      return file.readBuffer(addr data[0], len)
     except IOError as exc:
       # TODO: revisit error handling - should this be fatal?
       raise newException(Defect, exc.msg)
 
   Chunker.new(
-    kind = ChunkerType.SizedChunker,
+    kind = ChunkerType.FixedChunker,
     reader = reader,
-    size = try: file.getFileSize() except: 0, # TODO: should do something smarter abou this
     pad = pad,
     chunkSize = chunkSize)
