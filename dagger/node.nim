@@ -12,12 +12,17 @@ import std/options
 import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
+import pkg/stew/byteutils
 
 # TODO: remove once exported by libp2p
 import pkg/libp2p/routing_record
 import pkg/libp2p/signed_envelope
 
 import ./conf
+import ./chunker
+
+const
+  FileChunkSize* = 4096 # file chunk read size
 
 type
   DaggerNodeRef* = ref object
@@ -44,10 +49,23 @@ proc connect*(
   addrs: seq[MultiAddress]): Future[void] =
   node.switch.connect(peerId, addrs)
 
-proc download*(
+proc retrieve*(
   node: DaggerNodeRef,
-  cid: Cid): Future[void] =
+  cid: Cid): Future[LPStream] =
   discard
+
+proc store*(
+  node: DaggerNodeRef,
+  stream: LPStream): Future[Cid] {.async.} =
+  while not stream.atEof:
+    var buff = newSeq[byte](FileChunkSize)
+    let len = await stream.readOnce(addr buff[0], buff.len)
+
+  let
+    hash =  MultiHash.digest("sha2-256", "HELLO!".toBytes()).get()
+    cid = Cid.init(CIDv1, multiCodec("raw"), hash).get()
+
+  return cid
 
 proc new*(
   T: type DaggerNodeRef,

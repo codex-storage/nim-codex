@@ -21,9 +21,6 @@ import pkg/libp2p/routing_record
 
 import ../node
 
-const
-  MaxFileChunkSize* = 1 shl 16 # 65K
-
 proc validate(
   pattern: string,
   value: string): int {.gcsafe, raises: [Defect].} =
@@ -73,7 +70,12 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
           Http400,
           $id.error())
 
-      await node.download(id.get())
+      # let stream = await node.retrieve(id.get())
+      # while true:
+      #   var buff = newSeq[byte](FileChunkSize)
+      #   let len = await strea.readOnce(addr buff[0], buff.len)
+      #   # TODO: stream back with request
+
       return RestApiResponse.response("")
 
   router.api(
@@ -118,14 +120,24 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
         # before giving up
         #
         await request.handleExpect()
-        var bytes = 0
+
+        var
+          bytes = 0
+          stream = BufferStream.new()
+          storeFut = node.store(stream)
+
         while not reader.atEof:
-          var buff = newSeq[byte](MaxFileChunkSize)
+          var buff = newSeq[byte](FileChunkSize)
           let res = await reader.readOnce(addr buff[0], buff.len)
+          await stream.pushData(buff)
           bytes += res
 
-        trace "Uploaded file", bytes
+        await stream.pushEof()
+        await stream.close()
+        let cid = await storeFut
+        trace "Uploaded file", bytes, cid = $cid
         await reader.closeWait()
+        return RestApiResponse.response($cid)
       except CancelledError as exc:
         if not(isNil(reader)):
           await reader.closeWait()
@@ -135,6 +147,7 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
           await reader.closeWait()
         return RestApiResponse.error(Http500)
 
-      return RestApiResponse.response("")
+      # if we got here something went wrong?
+      return RestApiResponse.error(Http500)
 
   return router
