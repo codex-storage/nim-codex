@@ -12,51 +12,92 @@
 import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
+import pkg/chronicles
+import pkg/chronos
 
-import ./blockstream
-export blockstream
+import ./blocktype
+import ./utils/asyncfutures
+
+const
+  HCodec* = multiCodec("sha2-256")
+  Codec* = multiCodec("dag-pb")
 
 type
-  BlockSetRef* = ref object of BlockStreamRef
-    stream*: BlockStreamRef
+  BlockSetRef* = ref object
+    blocks*: seq[Cid]
+    version*: CidVersion
     hcodec*: MultiCodec
+    codec*: MultiCodec
 
-proc hashBytes*(mh: MultiHash): seq[byte] =
+proc hashBytes(mh: MultiHash): seq[byte] =
   mh.data.buffer[mh.dpos..(mh.dpos + mh.size - 1)]
 
-proc hashBytes*(b: Block): seq[byte] =
-  if mh =? b.cid.mhash:
-    return mh.hashBytes()
-
-method nextBlock*(d: BlockSetRef): ?!Block =
-  d.stream.nextBlock()
-
-proc treeHash*(d: BlockSetRef): ?!MultiHash =
+proc treeHash*(b: BlockSetRef): ?Cid =
   var
-    stack: seq[seq[byte]]
+    stack: seq[MultiHash]
 
-  while true:
-    let (blk1, blk2) = (d.nextBlock().option, d.nextBlock().option)
-    if blk1.isNone and blk2.isNone and stack.len == 1:
-      let res = MultiHash.digest($d.hcodec, stack[0])
-      if mh =? res:
-        return success mh
-
-      return failure($res.error)
-
-    if blk1.isSome: stack.add((!blk1).hashBytes())
-    if blk2.isSome: stack.add((!blk2).hashBytes())
+  for cid in b.blocks:
+    if mhash =? cid.mhash:
+      stack.add(mhash)
 
     while stack.len > 1:
-      let (b1, b2) = (stack.pop(), stack.pop())
-      let res = MultiHash.digest($d.hcodec, b1 & b2)
-      if mh =? res:
-        stack.add(mh.hashBytes())
-      else:
-        return failure($res.error)
+      let
+        (b1, b2) = (stack.pop(), stack.pop())
+        digest = MultiHash.digest(
+          $b.hcodec,
+          (b1.hashBytes() & b2.hashBytes()))
+
+      without mh =? digest:
+        return Cid.none
+
+      stack.add(mh)
+
+  if stack.len == 1:
+    let
+      cid = Cid.init(b.version, b.codec, stack[0])
+
+    if cid.isOk:
+      return cid.get().some
+
+proc encode*(b: BlockSetRef): seq[byte] =
+  discard
+
+proc decode*(b: BlockSetRef, data: var openArray[byte]) =
+  discard
 
 func new*(
   T: type BlockSetRef,
-  stream: BlockStreamRef,
-  hcodec: MultiCodec = multiCodec("sha2-256")): T =
-  T(stream: stream, hcodec: hcodec)
+  version = CIDv1,
+  hcodec = HCodec,
+  codec = Codec): T =
+  T(
+    version: version,
+    codec: codec,
+    hcodec: hcodec)
+
+proc toStream*(
+  blocks: AsyncFutureStream[?Block],
+  blockSet: BlockSetRef): AsyncFutureStream[?Block] =
+  let
+    stream = AsyncPushable[?Block].new()
+
+  proc pusher() {.async, nimcall, raises: [Defect].} =
+    try:
+      for blockFut in blocks:
+        let
+          blk = await blockFut
+
+        if blk.isSome:
+          blockSet.blocks.add((!blk).cid)
+
+        await stream.push(blk)
+    except AsyncFutureStreamError as exc:
+      trace "Exception pushing to futures stream", exc = exc.msg
+    except CatchableError as exc:
+      trace "Unknown exception, raising defect", exc = exc.msg
+      raiseAssert exc.msg
+    finally:
+      stream.finish()
+
+  asyncSpawn pusher()
+  return stream

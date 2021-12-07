@@ -10,9 +10,13 @@
 {.push raises: [Defect].}
 
 import pkg/libp2p
+import pkg/chronos
+import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/byteutils
+
+import ./utils/asyncfutures
 
 type
   Block* = object of RootObj
@@ -28,26 +32,45 @@ func new*(
   data: openArray[byte] = [],
   version = CIDv1,
   hcodec = multiCodec("sha2-256"),
-  codec = multiCodec("raw")): ?!T =
+  codec = multiCodec("raw")): ?T =
   let hash =  MultiHash.digest($hcodec, data).get()
-  success Block(
+  Block(
     cid: Cid.init(version, codec, hash).get(),
-    data: @data)
+    data: @data).some
 
 func new*(
   T: type Block,
   cid: Cid,
   data: openArray[byte] = [],
-  verify: bool = false): ?!T =
-  let res = Block.new(
+  verify: bool = false): ?T =
+  Block.new(
     data,
     cid.cidver,
     cid.mhash.get().mcodec,
     cid.mcodec
   )
 
-  if b =? res:
-    if verify and cid != b.cid:
-      return failure("The suplied Cid doesn't match the data!")
+proc toStream*(
+  bytes: AsyncFutureStream[seq[byte]]):
+  AsyncFutureStream[?Block] =
 
-  res
+  let
+    stream = AsyncPushable[?Block].new()
+
+  proc pusher() {.async, nimcall, raises: [Defect].} =
+    try:
+      for bytesFut in bytes:
+        let
+          blk = Block.new((await bytesFut))
+
+        await stream.push(blk)
+    except AsyncFutureStreamError as exc:
+      trace "Exception pushing to futures stream", exc = exc.msg
+    except CatchableError as exc:
+      trace "Unknown exception, raising defect", exc = exc.msg
+      raiseAssert exc.msg
+    finally:
+      stream.finish()
+
+  asyncSpawn pusher()
+  return stream

@@ -21,6 +21,7 @@ import pkg/chronicles
 
 import ./rng
 import ./blocktype
+import ./utils/asyncfutures
 
 export blocktype
 
@@ -127,13 +128,19 @@ proc new*(
   proc reader(data: ChunkBuffer, len: int): Future[int]
     {.gcsafe, async, raises: [Defect].} =
     try:
-      await stream.readExactly(data, len)
-      return len
+      var res = 0
+      while res <= len:
+        if stream.atEof and stream.closed:
+          break
+
+        res += await stream.readOnce(data, len)
+
+      return res
     except LPStreamEOFError as exc:
       return 0
       trace "LPStreamChunker stream Eof", exc = exc.msg
     except CatchableError as exc:
-      trace "LPStreamChunker exception", exc = exc.msg
+      trace "CatchableError exception", exc = exc.msg
       raise newException(Defect, exc.msg)
 
   Chunker.new(
@@ -164,3 +171,27 @@ proc new*(
     reader = reader,
     pad = pad,
     chunkSize = chunkSize)
+
+proc toStream*(
+  chunker: Chunker): AsyncFutureStream[seq[byte]] =
+  let
+    stream = AsyncPushable[seq[byte]].new()
+
+  proc pusher() {.async, nimcall, raises: [Defect].} =
+    try:
+      while true:
+        let buf = await chunker.getBytes()
+        if buf.len <= 0:
+          break
+
+        await stream.push(buf)
+    except AsyncFutureStreamError as exc:
+      trace "Exception pushing to futures stream", exc = exc.msg
+    except CatchableError as exc:
+      trace "Unknown exception, raising defect", exc = exc.msg
+      raiseAssert exc.msg
+    finally:
+      stream.finish()
+
+  asyncSpawn pusher()
+  return stream
