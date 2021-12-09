@@ -15,70 +15,74 @@ import ../helpers
 suite "Memory Store":
 
   var store: MemoryStore
-  var chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-  var blocks = chunker.mapIt( !Block.new(it) )
+  var chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
+  var blocks: seq[?Block]
 
   setup:
+    while true:
+      let chunk = await chunker.getBytes()
+      if chunk.len <= 0:
+        break
+
+      blocks.add(Block.new(chunk).some)
+
     store = MemoryStore.new(blocks)
 
   test "getBlocks single":
-    let blk = await store.getBlocks(@[blocks[0].cid])
-    check blk[0] == blocks[0]
-
-  test "getBlocks multiple":
-    let blk = await store.getBlocks(blocks[0..2].mapIt( it.cid ))
-    check blk == blocks[0..2]
+    let blk = await store.getBlock((!blocks[0]).cid)
+    check blk == blocks[0]
 
   test "hasBlock":
-    check store.hasBlock(blocks[0].cid)
+    check store.hasBlock((!blocks[0]).cid)
 
   test "delBlocks single":
-    let blks = blocks[1..3].mapIt( it.cid )
-    store.delBlocks(blks)
+    await store.delBlock((!blocks[0]).cid)
+    await store.delBlock((!blocks[1]).cid)
+    await store.delBlock((!blocks[2]).cid)
 
-    check not store.hasBlock(blks[0])
-    check not store.hasBlock(blks[1])
-    check not store.hasBlock(blks[2])
+    check not store.hasBlock((!blocks[0]).cid)
+    check not store.hasBlock((!blocks[1]).cid)
+    check not store.hasBlock((!blocks[2]).cid)
 
-  test "add blocks change handler":
-    let blocks = @[
-      !Block.new("Block 1".toBytes),
-      !Block.new("Block 2".toBytes),
-      !Block.new("Block 3".toBytes),
-    ]
+  # test "add blocks change handler":
+  #   let blocks = @[
+  #     !Block.new("Block 1".toBytes),
+  #     !Block.new("Block 2".toBytes),
+  #     !Block.new("Block 3".toBytes),
+  #   ]
 
-    var triggered = false
-    store.addChangeHandler(
-      proc(evt: BlockStoreChangeEvt) =
-        check evt.kind == ChangeType.Added
-        check evt.cids == blocks.mapIt( it.cid )
-        triggered = true
-      , ChangeType.Added
-    )
+  #   var triggered = false
+  #   store.addChangeHandler(
+  #     proc(evt: BlockStoreChangeEvt) =
+  #       check evt.kind == ChangeType.Added
+  #       check evt.cids == blocks.mapIt( it.cid )
+  #       triggered = true
+  #     , ChangeType.Added
+  #   )
 
-    store.putBlocks(blocks)
-    check triggered
+  #   store.putBlocks(blocks)
+  #   check triggered
 
-  test "add blocks change handler":
-    let blocks = @[
-      !Block.new("Block 1".toBytes),
-      !Block.new("Block 2".toBytes),
-      !Block.new("Block 3".toBytes),
-    ]
+  # test "add blocks change handler":
+  #   let blocks = @[
+  #     !Block.new("Block 1".toBytes),
+  #     !Block.new("Block 2".toBytes),
+  #     !Block.new("Block 3".toBytes),
+  #   ]
 
-    var triggered = false
-    store.addChangeHandler(
-      proc(evt: BlockStoreChangeEvt) =
-        check evt.kind == ChangeType.Removed
-        check evt.cids == blocks.mapIt( it.cid )
-        triggered = true
-      , ChangeType.Removed
-    )
+  #   var triggered = false
+  #   store.addChangeHandler(
+  #     proc(evt: BlockStoreChangeEvt) =
+  #       check evt.kind == ChangeType.Removed
+  #       check evt.cids == blocks.mapIt( it.cid )
+  #       triggered = true
+  #     , ChangeType.Removed
+  #   )
 
-    store.putBlocks(blocks)
-    check store.hasBlock(blocks[0].cid)
-    check store.hasBlock(blocks[1].cid)
-    check store.hasBlock(blocks[2].cid)
+  #   store.putBlocks(blocks)
+  #   check store.hasBlock(blocks[0].cid)
+  #   check store.hasBlock(blocks[1].cid)
+  #   check store.hasBlock(blocks[2].cid)
 
-    store.delBlocks(blocks.mapIt( it.cid ))
-    check triggered
+  #   store.delBlocks(blocks.mapIt( it.cid ))
+  #   check triggered

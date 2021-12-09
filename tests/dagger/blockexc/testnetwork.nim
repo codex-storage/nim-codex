@@ -22,19 +22,26 @@ suite "NetworkStore network":
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
     peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
-    chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-    blocks = chunker.mapIt( !bt.Block.new(it) )
+    chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
 
   var
     network: BlockExcNetwork
     networkPeer: NetworkPeer
     buffer: BufferStream
+    blocks: seq[bt.Block]
     done: Future[void]
 
   proc getConn(): Future[Connection] {.async.} =
     return Connection(buffer)
 
   setup:
+    while true:
+      let chunk = await chunker.getBytes()
+      if chunk.len <= 0:
+        break
+
+      blocks.add(bt.Block.new(chunk))
+
     done = newFuture[void]()
     buffer = BufferStream.new()
     network = BlockExcNetwork.new(
@@ -45,7 +52,7 @@ suite "NetworkStore network":
     discard await networkPeer.connect()
 
   test "Want List handler":
-    proc wantListHandler(peer: PeerID, wantList: WantList) {.gcsafe.} =
+    proc wantListHandler(peer: PeerID, wantList: WantList) {.gcsafe, async.} =
       # check that we got the correct amount of entries
       check wantList.entries.len == 4
 
@@ -72,7 +79,7 @@ suite "NetworkStore network":
     await done.wait(500.millis)
 
   test "Blocks Handler":
-    proc blocksHandler(peer: PeerID, blks: seq[bt.Block]) {.gcsafe.} =
+    proc blocksHandler(peer: PeerID, blks: seq[bt.Block]) {.gcsafe, async.} =
       check blks == blocks
       done.complete()
 
@@ -84,7 +91,9 @@ suite "NetworkStore network":
     await done.wait(500.millis)
 
   test "Presence Handler":
-    proc presenceHandler(peer: PeerID, precense: seq[BlockPresence]) {.gcsafe.} =
+    proc presenceHandler(
+      peer: PeerID,
+      precense: seq[BlockPresence]) {.gcsafe, async.} =
       for b in blocks:
         check:
           b.cid in precense
@@ -106,7 +115,7 @@ suite "NetworkStore network":
   test "handles account messages":
     let account = Account(address: EthAddress.example)
 
-    proc handleAccount(peer: PeerID, received: Account) =
+    proc handleAccount(peer: PeerID, received: Account) {.gcsafe, async.} =
       check received == account
       done.complete()
 
@@ -120,7 +129,7 @@ suite "NetworkStore network":
   test "handles payment messages":
     let payment = SignedState.example
 
-    proc handlePayment(peer: PeerID, received: SignedState) =
+    proc handlePayment(peer: PeerID, received: SignedState) {.gcsafe, async.} =
       check received == payment
       done.complete()
 
@@ -133,16 +142,23 @@ suite "NetworkStore network":
 
 suite "NetworkStore Network - e2e":
   let
-    chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-    blocks = chunker.mapIt( !bt.Block.new(it) )
+    chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
 
   var
     switch1, switch2: Switch
     network1, network2: BlockExcNetwork
     awaiters: seq[Future[void]]
+    blocks: seq[bt.Block]
     done: Future[void]
 
   setup:
+    while true:
+      let chunk = await chunker.getBytes()
+      if chunk.len <= 0:
+        break
+
+      blocks.add(bt.Block.new(chunk))
+
     done = newFuture[void]()
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
@@ -169,7 +185,7 @@ suite "NetworkStore Network - e2e":
     await allFuturesThrowing(awaiters)
 
   test "broadcast want list":
-    proc wantListHandler(peer: PeerID, wantList: WantList) {.gcsafe.} =
+    proc wantListHandler(peer: PeerID, wantList: WantList) {.gcsafe, async.} =
       # check that we got the correct amount of entries
       check wantList.entries.len == 4
 
@@ -193,7 +209,7 @@ suite "NetworkStore Network - e2e":
     await done.wait(500.millis)
 
   test "broadcast blocks":
-    proc blocksHandler(peer: PeerID, blks: seq[bt.Block]) {.gcsafe.} =
+    proc blocksHandler(peer: PeerID, blks: seq[bt.Block]) {.gcsafe, async.} =
       check blks == blocks
       done.complete()
 
@@ -205,7 +221,9 @@ suite "NetworkStore Network - e2e":
     await done.wait(500.millis)
 
   test "broadcast precense":
-    proc presenceHandler(peer: PeerID, precense: seq[BlockPresence]) {.gcsafe.} =
+    proc presenceHandler(
+      peer: PeerID,
+      precense: seq[BlockPresence]) {.gcsafe, async.} =
       for b in blocks:
         check:
           b.cid in precense
@@ -227,7 +245,7 @@ suite "NetworkStore Network - e2e":
   test "broadcasts account":
     let account = Account(address: EthAddress.example)
 
-    proc handleAccount(peer: PeerID, received: Account) =
+    proc handleAccount(peer: PeerID, received: Account) {.gcsafe, async.} =
       check received == account
       done.complete()
 
@@ -240,7 +258,7 @@ suite "NetworkStore Network - e2e":
   test "broadcasts payment":
     let payment = SignedState.example
 
-    proc handlePayment(peer: PeerID, received: SignedState) =
+    proc handlePayment(peer: PeerID, received: SignedState) {.gcsafe, async.} =
       check received == payment
       done.complete()
 

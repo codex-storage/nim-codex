@@ -22,14 +22,21 @@ suite "NetworkStore engine basic":
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
     peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
-    chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-    blocks = chunker.mapIt( !bt.Block.new(it) )
+    chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
     wallet = WalletRef.example
 
   var
+    blocks: seq[bt.Block]
     done: Future[void]
 
   setup:
+    while true:
+      let chunk = await chunker.getBytes()
+      if chunk.len <= 0:
+        break
+
+      blocks.add(bt.Block.new(chunk))
+
     done = newFuture[void]()
 
   test "should send want list to new peers":
@@ -49,7 +56,10 @@ suite "NetworkStore engine basic":
       sendWantList: sendWantList,
     )
 
-    let engine = BlockExcEngine.new(MemoryStore.new(blocks), wallet, request)
+    let engine = BlockExcEngine.new(
+      MemoryStore.new(blocks.mapIt( it.some )),
+      wallet,
+      request)
     engine.wantList = blocks.mapIt( it.cid )
     engine.setupPeer(peerId)
 
@@ -74,16 +84,23 @@ suite "NetworkStore engine handlers":
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
     peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
-    chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-    blocks = chunker.mapIt( !bt.Block.new(it) )
+    chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
     wallet = WalletRef.example
 
   var
     engine: BlockExcEngine
     peerCtx: BlockExcPeerCtx
     done: Future[void]
+    blocks: seq[bt.Block]
 
   setup:
+    while true:
+      let chunk = await chunker.getBytes()
+      if chunk.len <= 0:
+        break
+
+      blocks.add(bt.Block.new(chunk))
+
     done = newFuture[void]()
     engine = BlockExcEngine.new(MemoryStore.new(), wallet)
     peerCtx = BlockExcPeerCtx(
@@ -100,7 +117,7 @@ suite "NetworkStore engine handlers":
       done.complete()
 
     engine.scheduleTask = taskScheduler
-    engine.wantListHandler(peerId, wantList)
+    await engine.wantListHandler(peerId, wantList)
 
     await done
 
@@ -118,7 +135,7 @@ suite "NetworkStore engine handlers":
         sendPresence: sendPresence
     )
 
-    engine.wantListHandler(peerId, wantList)
+    await engine.wantListHandler(peerId, wantList)
 
     await done
 
@@ -133,8 +150,9 @@ suite "NetworkStore engine handlers":
       done.complete()
 
     engine.request = BlockExcRequest(sendPresence: sendPresence)
-    engine.localStore.putBlocks(@[blocks[0], blocks[1]])
-    engine.wantListHandler(peerId, wantList)
+    await engine.localStore.putBlock(blocks[0])
+    await engine.localStore.putBlock(blocks[1])
+    await engine.wantListHandler(peerId, wantList)
 
     await done
 
@@ -143,9 +161,9 @@ suite "NetworkStore engine handlers":
       engine.pendingBlocks.addOrAwait( it.cid )
     )
 
-    engine.blocksHandler(peerId, blocks)
+    await engine.blocksHandler(peerId, blocks)
     let resolved = await allFinished(pending)
-    check resolved.mapIt( it.read ) == blocks
+    check resolved.mapIt( !it.read ) == blocks
     for b in blocks:
       check engine.localStore.hasBlock(b.cid)
 
@@ -162,13 +180,13 @@ suite "NetworkStore engine handlers":
       check balances[account.address.toDestination] == amount
       done.complete()
 
-    engine.blocksHandler(peerId, blocks)
+    await engine.blocksHandler(peerId, blocks)
 
     await done.wait(100.millis)
 
   test "should handle block presence":
     let price = UInt256.example
-    engine.blockPresenceHandler(
+    await engine.blockPresenceHandler(
       peerId,
       blocks.mapIt(
         PresenceMessage.init(
@@ -186,8 +204,7 @@ suite "Task Handler":
 
   let
     rng = Rng.instance()
-    chunker = newRandomChunker(Rng.instance(), size = 2048, chunkSize = 256)
-    blocks = chunker.mapIt( !bt.Block.new(it) )
+    chunker = RandomChunker.new(Rng.instance(), size = 2048, chunkSize = 256)
     wallet = WalletRef.example
 
   var
@@ -195,8 +212,16 @@ suite "Task Handler":
     peersCtx: seq[BlockExcPeerCtx]
     peers: seq[PeerID]
     done: Future[void]
+    blocks: seq[bt.Block]
 
   setup:
+    while true:
+      let chunk = await chunker.getBytes()
+      if chunk.len <= 0:
+        break
+
+      blocks.add(bt.Block.new(chunk))
+
     done = newFuture[void]()
     engine = BlockExcEngine.new(MemoryStore.new(), wallet)
     peersCtx = @[]
@@ -221,7 +246,8 @@ suite "Task Handler":
         blks[1].cid == blocks[0].cid
         blks[0].cid == blocks[1].cid
 
-    engine.localStore.putBlocks(blocks)
+    for blk in blocks:
+      await engine.localStore.putBlock(blk)
     engine.request.sendBlocks = sendBlocks
 
     # second block to send by priority
@@ -248,7 +274,7 @@ suite "Task Handler":
 
   test "Should send presence":
     let present = blocks
-    let missing = @[!bt.Block.new("missing".toBytes)]
+    let missing = @[bt.Block.new("missing".toBytes)]
     let price = (!engine.pricing).price
 
     proc sendPresence(id: PeerID, presence: seq[BlockPresence]) =
@@ -258,7 +284,8 @@ suite "Task Handler":
         Presence(cid: missing[0].cid, have: false)
       ]
 
-    engine.localStore.putBlocks(blocks)
+    for blk in blocks:
+      await engine.localStore.putBlock(blk)
     engine.request.sendPresence = sendPresence
 
     # have block

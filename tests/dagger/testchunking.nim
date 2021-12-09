@@ -43,9 +43,7 @@ suite "Chunking":
       await stream.pushEof()
       await stream.close()
 
-    asyncSpawn writer()
-
-
+    let writerFut = writer()
     check:
       (await chunker.getBytes()) == [1.byte, 2]
       (await chunker.getBytes()) == [3.byte, 4]
@@ -53,6 +51,8 @@ suite "Chunking":
       (await chunker.getBytes()) == [7.byte, 8]
       (await chunker.getBytes()) == [9.byte, 0]
       (await chunker.getBytes()) == []
+
+    await writerFut
 
   test "should chunk file":
     let
