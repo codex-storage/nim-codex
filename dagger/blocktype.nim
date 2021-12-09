@@ -32,17 +32,17 @@ func new*(
   data: openArray[byte] = [],
   version = CIDv1,
   hcodec = multiCodec("sha2-256"),
-  codec = multiCodec("raw")): ?T =
+  codec = multiCodec("raw")): T =
   let hash =  MultiHash.digest($hcodec, data).get()
   Block(
     cid: Cid.init(version, codec, hash).get(),
-    data: @data).some
+    data: @data)
 
 func new*(
   T: type Block,
   cid: Cid,
   data: openArray[byte] = [],
-  verify: bool = false): ?T =
+  verify: bool = false): T =
   Block.new(
     data,
     cid.cidver,
@@ -52,10 +52,10 @@ func new*(
 
 proc toStream*(
   bytes: AsyncFutureStream[seq[byte]]):
-  AsyncFutureStream[?Block] =
+  AsyncFutureStream[Block] =
 
   let
-    stream = AsyncPushable[?Block].new()
+    stream = AsyncPushable[Block].new()
 
   proc pusher() {.async, nimcall, raises: [Defect].} =
     try:
@@ -64,10 +64,8 @@ proc toStream*(
           blk = Block.new((await bytesFut))
 
         await stream.push(blk)
-    except AsyncFutureStreamError as exc:
-      trace "Exception pushing to futures stream", exc = exc.msg
     except CatchableError as exc:
-      trace "Unknown exception, raising defect", exc = exc.msg
+      trace "Unknown exception, raising Defect", exc = exc.msg
       raiseAssert exc.msg
     finally:
       stream.finish()
