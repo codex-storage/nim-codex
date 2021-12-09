@@ -9,6 +9,7 @@
 
 import std/options
 
+import pkg/questionable
 import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
@@ -20,6 +21,10 @@ import pkg/libp2p/signed_envelope
 
 import ./conf
 import ./chunker
+import ./blocktype
+import ./blockset
+import ./utils/asyncfutures
+import ./stores/blockstore
 
 const
   FileChunkSize* = 4096 # file chunk read size
@@ -29,6 +34,7 @@ type
     switch*: Switch
     config*: DaggerConf
     networkId*: PeerID
+    blockStore*: BlockStore
 
 proc start*(node: DaggerNodeRef) {.async.} =
   discard await node.switch.start()
@@ -57,18 +63,29 @@ proc retrieve*(
 proc store*(
   node: DaggerNodeRef,
   stream: LPStream): Future[Cid] {.async.} =
-  while not stream.atEof:
-    var buff = newSeq[byte](FileChunkSize)
-    let len = await stream.readOnce(addr buff[0], buff.len)
 
   let
-    hash =  MultiHash.digest("sha2-256", "HELLO!".toBytes()).get()
-    cid = Cid.init(CIDv1, multiCodec("raw"), hash).get()
+    blockSet = BlockSetRef.new()
+    blocks = LPStreamChunker
+    .new(stream)
+    .toStream()
+    .toStream()
+    .toStream(blockSet)
+
+  for b in blocks:
+    await node.blockStore.putBlock((await b))
+
+  without cid =? blockSet.treeHash():
+    return default(Cid)
 
   return cid
 
 proc new*(
   T: type DaggerNodeRef,
   switch: Switch,
+  store: BlockStore,
   config: DaggerConf): T =
-  T(switch: switch, config: config)
+  T(
+    switch: switch,
+    config: config,
+    blockStore: store)

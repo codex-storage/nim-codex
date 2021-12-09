@@ -82,7 +82,7 @@ type
     of initNode:
       discard
 
-proc defaultDataDir*(#[config: DaggerConf]#): string =
+proc defaultDataDir*(): string =
   let dataDir = when defined(windows):
     "AppData" / "Roaming" / "Dagger"
   elif defined(macosx):
@@ -91,8 +91,6 @@ proc defaultDataDir*(#[config: DaggerConf]#): string =
     ".cache" / "dagger"
 
   getHomeDir() / dataDir
-
-echo defaultDataDir()
 
 func parseCmdArg*(T: type MultiAddress, input: TaintedString): T
                  {.raises: [ValueError, LPError, Defect].} =

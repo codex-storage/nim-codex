@@ -22,6 +22,7 @@ import ./node
 import ./conf
 import ./rng
 import ./rest/api
+import ./stores/memorystore
 
 type
   DaggerServer = ref object
@@ -56,7 +57,8 @@ proc new(T: type DaggerServer, config: DaggerConf): T =
     .build()
 
   let
-    daggerNode = DaggerNodeRef.new(switch, config)
+    store = MemoryStore.new()
+    daggerNode = DaggerNodeRef.new(switch, store, config)
     restServer = RestServerRef.new(
       daggerNode.initRestApi(),
       initTAddress("127.0.0.1" , config.apiPort),
