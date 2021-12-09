@@ -15,6 +15,7 @@ import pkg/libp2p
 import pkg/libp2p/errors
 
 import ../blocktype as bt
+import ../utils/asyncfutures
 import ../utils/asyncheapqueue
 
 import ./blockstore
@@ -36,12 +37,13 @@ const
 type
   NetworkStore* = ref object of BlockStore
     engine*: BlockExcEngine                       # blockexc decision engine
+    localStore*: BlockStore                       # local block store
     taskQueue*: AsyncHeapQueue[BlockExcPeerCtx]   # peers we're currently processing tasks for
     blockexcTasks: seq[Future[void]]              # future to control blockexc task
     blockexcRunning: bool                         # indicates if the blockexc task is running
-    concurrentTasks: int                         # number of concurrent peers we're serving at any given time
-    maxRetries: int                              # max number of tries for a failed block
-    taskHandler: TaskHandler                     # handler provided by the engine called by the runner
+    concurrentTasks: int                          # number of concurrent peers we're serving at any given time
+    maxRetries: int                               # max number of tries for a failed block
+    taskHandler: TaskHandler                      # handler provided by the engine called by the runner
 
 proc blockexcTaskRunner(b: NetworkStore) {.async.} =
   ## process tasks
@@ -85,21 +87,22 @@ proc stop*(b: NetworkStore) {.async.} =
 
   trace "NetworkStore stopped"
 
-method getBlocks*(b: NetworkStore, cid: seq[Cid]): Future[seq[bt.Block]] {.async.} =
+method getBlock*(
+  b: NetworkStore,
+  cid: Cid): Future[?bt.Block] {.async.} =
   ## Get a block from a remote peer
   ##
 
-  let blocks = await allFinished(b.engine.requestBlocks(cid))
-  return blocks.filterIt(
-    not it.failed
-  ).mapIt(
-    it.read
-  )
+  without blk =? (await b.localStore.getBlock(cid)):
+    return await b.engine.requestBlock(cid)
 
-method putBlocks*(b: NetworkStore, blocks: seq[bt.Block]) =
-  b.engine.resolveBlocks(blocks)
+  return blk.some
 
-  procCall BlockStore(b).putBlocks(blocks)
+method putBlock*(
+  b: NetworkStore,
+  blk: bt.Block) {.async.} =
+  await b.localStore.putBlock(blk)
+  b.engine.resolveBlocks(@[blk])
 
 proc new*(
   T: type NetworkStore,
@@ -118,6 +121,7 @@ proc new*(
   )
 
   let b = NetworkStore(
+    localStore: localStore,
     engine: engine,
     taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize),
     concurrentTasks: concurrentTasks,
@@ -144,23 +148,23 @@ proc new*(
 
   proc blockWantListHandler(
     peer: PeerID,
-    wantList: WantList) {.gcsafe.} =
+    wantList: WantList): Future[void] {.gcsafe.} =
     engine.wantListHandler(peer, wantList)
 
   proc blockPresenceHandler(
     peer: PeerID,
-    presence: seq[BlockPresence]) {.gcsafe.} =
+    presence: seq[BlockPresence]): Future[void] {.gcsafe.} =
     engine.blockPresenceHandler(peer, presence)
 
   proc blocksHandler(
     peer: PeerID,
-    blocks: seq[bt.Block]) {.gcsafe.} =
+    blocks: seq[bt.Block]): Future[void] {.gcsafe.} =
     engine.blocksHandler(peer, blocks)
 
-  proc accountHandler(peer: PeerId, account: Account) =
+  proc accountHandler(peer: PeerId, account: Account): Future[void] {.gcsafe.} =
     engine.accountHandler(peer, account)
 
-  proc paymentHandler(peer: PeerId, payment: SignedState) =
+  proc paymentHandler(peer: PeerId, payment: SignedState): Future[void] {.gcsafe.} =
     engine.paymentHandler(peer, payment)
 
   network.handlers = BlockExcHandlers(

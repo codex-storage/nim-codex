@@ -8,53 +8,60 @@
 ## those terms.
 
 import std/sequtils
+
 import pkg/chronos
 import pkg/libp2p
+import pkg/chronicles
+import pkg/questionable
 
-import ../stores/blockstore
+import ./blockstore
 import ../blocktype
+import ../utils/asyncfutures
 
 export blockstore
 
 type
   MemoryStore* = ref object of BlockStore
-    blocks: seq[Block] # TODO: Should be an LRU cache
+    blocks: seq[?Block] # TODO: Should be an LRU cache
 
-method getBlocks*(
-  s: MemoryStore,
-  cids: seq[Cid]): Future[seq[Block]] {.async.} =
+method getBlock*(
+  b: MemoryStore,
+  cid: Cid): Future[?Block] {.async.} =
   ## Get a block from the stores
   ##
 
-  var res: seq[Block]
-  for c in cids:
-    res.add(s.blocks.filterIt( it.cid == c ))
+  let found = b.blocks.filterIt(
+    (!it).cid == cid
+  )
 
-  return res
+  if found.len <= 0:
+    return Block.none
+
+  return found[0]
 
 method hasBlock*(s: MemoryStore, cid: Cid): bool =
   ## check if the block exists
   ##
 
-  s.blocks.filterIt( it.cid == cid ).len > 0
+  s.blocks.filterIt( (!it).cid == cid ).len > 0
 
-method putBlocks*(s: MemoryStore, blocks: seq[Block]) =
+method putBlock*(
+  s: MemoryStore,
+  blk: Block) {.async.} =
   ## Put a block to the blockstore
   ##
 
-  s.blocks.add(blocks)
-  procCall BlockStore(s).putBlocks(blocks)
+  s.blocks.add(blk.some)
 
-method delBlocks*(s: MemoryStore, cids: seq[Cid]) =
+method delBlock*(
+  s: MemoryStore,
+  cid: Cid) {.async.} =
   ## delete a block/s from the block store
   ##
 
-  for c in cids:
-    s.blocks.keepItIf( it.cid != c )
+  s.blocks.keepItIf( (!it).cid != cid )
 
-  procCall BlockStore(s).delBlocks(cids)
-
-func new*(T: type MemoryStore, blocks: openArray[Block] = []): MemoryStore =
+func new*(_: type MemoryStore, blocks: openArray[?Block] = []): MemoryStore =
   MemoryStore(
     blocks: @blocks
   )

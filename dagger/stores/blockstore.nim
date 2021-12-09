@@ -11,8 +11,10 @@ import std/sequtils
 
 import pkg/chronos
 import pkg/libp2p
+import pkg/questionable
 
 import ../blocktype
+import ../utils/asyncfutures
 
 export blocktype, libp2p
 
@@ -55,31 +57,37 @@ proc triggerChange(
 
 {.push locks:"unknown".}
 
-method getBlocks*(b: BlockStore, cid: seq[Cid]): Future[seq[Block]] {.base.} =
+method getBlock*(
+  b: BlockStore,
+  cid: Cid): Future[?Block] {.base.} =
   ## Get a block from the stores
   ##
 
   doAssert(false, "Not implemented!")
+
+method putBlock*(
+  s: BlockStore,
+  blk: Block): Future[void] {.base.} =
+  ## Put a block to the blockstore
+  ##
+
+  doAssert(false, "Not implemented!")
+
+method delBlock*(
+  s: BlockStore,
+  cid: Cid): Future[void] {.base.} =
+  ## Delete a block/s from the block store
+  ##
+
+  doAssert(false, "Not implemented!")
+
+{.pop.}
 
 method hasBlock*(s: BlockStore, cid: Cid): bool {.base.} =
   ## Check if the block exists in the blockstore
   ##
 
   return false
-
-method putBlocks*(s: BlockStore, blocks: seq[Block]) {.base.} =
-  ## Put a block to the blockstore
-  ##
-
-  s.triggerChange(ChangeType.Added, blocks.mapIt( it.cid ))
-
-method delBlocks*(s: BlockStore, blocks: seq[Cid]) {.base.} =
-  ## Delete a block/s from the block store
-  ##
-
-  s.triggerChange(ChangeType.Removed, blocks)
-
-{.pop.}
 
 proc contains*(s: BlockStore, blk: Cid): bool =
   s.hasBlock(blk)
