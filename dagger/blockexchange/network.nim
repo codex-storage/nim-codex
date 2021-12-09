@@ -29,11 +29,11 @@ logScope:
 const Codec* = "/dagger/blockexc/1.0.0"
 
 type
-  WantListHandler* = proc(peer: PeerID, wantList: WantList) {.gcsafe.}
-  BlocksHandler* = proc(peer: PeerID, blocks: seq[bt.Block]) {.gcsafe.}
-  BlockPresenceHandler* = proc(peer: PeerID, precense: seq[BlockPresence]) {.gcsafe.}
-  AccountHandler* = proc(peer: PeerID, account: Account) {.gcsafe.}
-  PaymentHandler* = proc(peer: PeerID, payment: SignedState) {.gcsafe.}
+  WantListHandler* = proc(peer: PeerID, wantList: WantList): Future[void] {.gcsafe.}
+  BlocksHandler* = proc(peer: PeerID, blocks: seq[bt.Block]): Future[void] {.gcsafe.}
+  BlockPresenceHandler* = proc(peer: PeerID, precense: seq[BlockPresence]): Future[void] {.gcsafe.}
+  AccountHandler* = proc(peer: PeerID, account: Account): Future[void] {.gcsafe.}
+  PaymentHandler* = proc(peer: PeerID, payment: SignedState): Future[void] {.gcsafe.}
 
   BlockExcHandlers* = object
     onWantList*: WantListHandler
@@ -73,7 +73,7 @@ type
 proc handleWantList(
   b: BlockExcNetwork,
   peer: NetworkPeer,
-  list: WantList) =
+  list: WantList): Future[void] =
   ## Handle incoming want list
   ##
 
@@ -131,7 +131,7 @@ proc broadcastWantList*(
 proc handleBlocks(
   b: BlockExcNetwork,
   peer: NetworkPeer,
-  blocks: seq[auto]) =
+  blocks: seq[auto]): Future[void] =
   ## Handle incoming blocks
   ##
 
@@ -181,7 +181,7 @@ proc broadcastBlocks*(
 proc handleBlockPresence(
   b: BlockExcNetwork,
   peer: NetworkPeer,
-  presence: seq[BlockPresence]) =
+  presence: seq[BlockPresence]): Future[void] =
   ## Handle block presence
   ##
 
@@ -206,7 +206,7 @@ proc broadcastBlockPresence*(
 
 proc handleAccount(network: BlockExcNetwork,
                    peer: NetworkPeer,
-                   account: Account) =
+                   account: Account): Future[void] =
   if network.handlers.onAccount.isNil:
     return
   network.handlers.onAccount(peer.id, account)
@@ -231,7 +231,7 @@ proc broadcastPayment*(network: BlockExcNetwork,
 
 proc handlePayment(network: BlockExcNetwork,
                    peer: NetworkPeer,
-                   payment: SignedState) =
+                   payment: SignedState): Future[void] =
   if network.handlers.onPayment.isNil:
     return
   network.handlers.onPayment(peer.id, payment)
@@ -239,19 +239,19 @@ proc handlePayment(network: BlockExcNetwork,
 proc rpcHandler(b: BlockExcNetwork, peer: NetworkPeer, msg: Message) {.async.} =
   try:
     if msg.wantlist.entries.len > 0:
-      b.handleWantList(peer, msg.wantlist)
+      await b.handleWantList(peer, msg.wantlist)
 
     if msg.payload.len > 0:
-      b.handleBlocks(peer, msg.payload)
+      await b.handleBlocks(peer, msg.payload)
 
     if msg.blockPresences.len > 0:
-      b.handleBlockPresence(peer, msg.blockPresences)
+      await b.handleBlockPresence(peer, msg.blockPresences)
 
     if account =? Account.init(msg.account):
-      b.handleAccount(peer, account)
+      await b.handleAccount(peer, account)
 
     if payment =? SignedState.init(msg.payment):
-      b.handlePayment(peer, payment)
+      await b.handlePayment(peer, payment)
 
   except CatchableError as exc:
     trace "Exception in blockexc rpc handler", exc = exc.msg

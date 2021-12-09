@@ -9,6 +9,7 @@
 
 import std/tables
 
+import pkg/questionable
 import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
@@ -20,22 +21,20 @@ logScope:
 
 type
   PendingBlocksManager* = ref object of RootObj
-    blocks*: Table[Cid, Future[Block]] # pending Block requests
+    blocks*: Table[Cid, Future[?Block]] # pending Block requests
 
 proc addOrAwait*(
   p: PendingBlocksManager,
-  cid: Cid):
-  Future[Block] {.async.} =
+  cid: Cid): Future[?Block] {.async.} =
   ## Add an event for a block
   ##
 
   if cid notin p.blocks:
-     p.blocks[cid] = newFuture[Block]()
+     p.blocks[cid] = newFuture[?Block]()
      trace "Adding pending future for block", cid
 
-  let blk = p.blocks[cid]
   try:
-    return await blk
+    return await p.blocks[cid]
   except CancelledError as exc:
     trace "Blocks cancelled", exc = exc.msg, cid
     raise exc
@@ -56,7 +55,7 @@ proc resolve*(
       let pending = p.blocks[blk.cid]
       if not pending.finished:
         trace "Resolving block", cid = $blk.cid
-        pending.complete(blk)
+        pending.complete(blk.some)
         p.blocks.del(blk.cid)
 
 proc pending*(
@@ -69,5 +68,5 @@ proc contains*(
 
 func new*(T: type PendingBlocksManager): T =
   T(
-    blocks: initTable[Cid, Future[Block]]()
+    blocks: initTable[Cid, Future[?Block]]()
   )

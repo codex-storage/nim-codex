@@ -16,6 +16,7 @@ import pkg/libp2p/errors
 
 import ../stores/blockstore
 import ../blocktype as bt
+import ../utils/asyncfutures
 import ../utils/asyncheapqueue
 
 import ./protobuf/blockexc
@@ -41,12 +42,12 @@ type
 
   BlockExcEngine* = ref object of RootObj
     localStore*: BlockStore                     # where we localStore blocks for this instance
-    peers*: seq[BlockExcPeerCtx]                 # peers we're currently actively exchanging with
+    peers*: seq[BlockExcPeerCtx]                # peers we're currently actively exchanging with
     wantList*: seq[Cid]                         # local wants list
     pendingBlocks*: PendingBlocksManager        # blocks we're awaiting to be resolved
     peersPerRequest: int                        # max number of peers to request from
     scheduleTask*: TaskScheduler                # schedule a new task with the task runner
-    request*: BlockExcRequest                    # block exchange network requests
+    request*: BlockExcRequest                   # block exchange network requests
     wallet*: WalletRef                          # nitro wallet for micropayments
     pricing*: ?Pricing                          # optional bandwidth pricing
 
@@ -68,28 +69,20 @@ proc getPeerCtx*(b: BlockExcEngine, peerId: PeerID): BlockExcPeerCtx =
   if peer.len > 0:
     return peer[0]
 
-proc requestBlocks*(
+proc requestBlock*(
   b: BlockExcEngine,
-  cids: seq[Cid],
-  timeout = DefaultTimeout): seq[Future[bt.Block]] =
+  cid: Cid,
+  timeout = DefaultTimeout): Future[?bt.Block] =
   ## Request a block from remotes
   ##
-
-  # no Cids to request
-  if cids.len == 0:
-    return
 
   if b.peers.len <= 0:
     warn "No peers to request blocks from"
     # TODO: run discovery here to get peers for the block
     return
 
-  var blocks: seq[Future[bt.Block]]
-  for c in cids:
-    if c notin b.pendingBlocks:
-      # install events to await blocks incoming from different sources
-      blocks.add(
-        b.pendingBlocks.addOrAwait(c).wait(timeout))
+  let
+    blk = b.pendingBlocks.addOrAwait(cid).wait(timeout)
 
   var peers = b.peers
 
@@ -97,11 +90,7 @@ proc requestBlocks*(
   # matching cid
   var blockPeer: BlockExcPeerCtx
   for i, p in peers:
-    let has = cids.anyIt(
-      it in p.peerHave
-    )
-
-    if has:
+    if cid in p.peerHave:
       blockPeer = p
       break
 
@@ -114,22 +103,23 @@ proc requestBlocks*(
     it != blockPeer
   )
 
-  trace "Requesting blocks from peer", peer = blockPeer.id, len = cids.len
+  trace "Requesting block from peer", peer = blockPeer.id, cid
   # request block
   b.request.sendWantList(
     blockPeer.id,
-    cids,
+    @[cid],
     wantType = WantType.wantBlock) # we want this remote to send us a block
 
   if peers.len == 0:
-    return blocks # no peers to send wants to
+    return blk # no peers to send wants to
 
   template sendWants(ctx: BlockExcPeerCtx) =
-    # just send wants
-    b.request.sendWantList(
-      ctx.id,
-      cids.filterIt( it notin ctx.peerHave ), # filter out those that we already know about
-      wantType = WantType.wantHave) # we only want to know if the peer has the block
+    if cid notin ctx.peerHave:
+      # just send wants
+      b.request.sendWantList(
+        ctx.id,
+        @[cid],
+        wantType = WantType.wantHave) # we only want to know if the peer has the block
 
   # filter out the peer we've already requested from
   var stop = peers.high
@@ -138,12 +128,12 @@ proc requestBlocks*(
   for p in peers[0..stop]:
     sendWants(p)
 
-  return blocks
+  return blk
 
 proc blockPresenceHandler*(
   b: BlockExcEngine,
   peer: PeerID,
-  blocks: seq[BlockPresence]) =
+  blocks: seq[BlockPresence]) {.async.} =
   ## Handle block presence
   ##
 
@@ -192,14 +182,15 @@ proc payForBlocks(engine: BlockExcEngine,
 proc blocksHandler*(
   b: BlockExcEngine,
   peer: PeerID,
-  blocks: seq[bt.Block]) =
+  blocks: seq[bt.Block]) {.async.} =
   ## handle incoming blocks
   ##
 
   trace "Got blocks from peer", peer, len = blocks.len
-  b.localStore.putBlocks(blocks)
-  b.resolveBlocks(blocks)
+  for blk in blocks:
+    await b.localStore.putBlock(blk)
 
+  b.resolveBlocks(blocks)
   let peerCtx = b.getPeerCtx(peer)
   if peerCtx != nil:
     b.payForBlocks(peerCtx, blocks)
@@ -207,7 +198,7 @@ proc blocksHandler*(
 proc wantListHandler*(
   b: BlockExcEngine,
   peer: PeerID,
-  wantList: WantList) =
+  wantList: WantList) {.async.} =
   ## Handle incoming want lists
   ##
 
@@ -234,7 +225,7 @@ proc wantListHandler*(
 
     # peer might want to ask for the same cid with
     # different want params
-    if e.sendDontHave and not(b.localStore.hasBlock(e.cid)):
+    if e.sendDontHave and e.cid notin b.localStore:
       dontHaves.add(e.cid)
 
   # send don't have's to remote
@@ -249,14 +240,14 @@ proc wantListHandler*(
   if not b.scheduleTask(peerCtx):
     trace "Unable to schedule task for peer", peer
 
-proc accountHandler*(engine: BlockExcEngine, peer: PeerID, account: Account) =
+proc accountHandler*(engine: BlockExcEngine, peer: PeerID, account: Account) {.async.} =
   let context = engine.getPeerCtx(peer)
   if context.isNil:
     return
 
   context.account = account.some
 
-proc paymentHandler*(engine: BlockExcEngine, peer: PeerId, payment: SignedState) =
+proc paymentHandler*(engine: BlockExcEngine, peer: PeerId, payment: SignedState) {.async.} =
   without context =? engine.getPeerCtx(peer).option and
           account =? context.account:
     return
@@ -306,13 +297,18 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
   # TODO: There should be all sorts of accounting of
   # bytes sent/received here
   if wantsBlocks.len > 0:
-    let blocks = await b.localStore.getBlocks(
-      wantsBlocks.mapIt(
-        it.cid
+    let blockFuts = await allFinished(wantsBlocks.mapIt(
+        b.localStore.getBlock(it.cid)
     ))
 
+    let blocks = blockFuts
+      .filterIt((not it.failed) and it.read.isSome)
+      .mapIt(!it.read)
+
     if blocks.len > 0:
-      b.request.sendBlocks(task.id, blocks)
+      b.request.sendBlocks(
+        task.id,
+        blocks)
 
     # Remove successfully sent blocks
     task.peerWants.keepIf(
@@ -330,6 +326,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       if presence.have and price =? b.pricing.?price:
         presence.price = price
       wants.add(BlockPresence.init(presence))
+
   if wants.len > 0:
     b.request.sendPresence(task.id, wants)
 
