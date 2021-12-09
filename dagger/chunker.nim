@@ -16,7 +16,7 @@ import std/sequtils
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronos
-import pkg/libp2p
+import pkg/libp2p except shuffle
 import pkg/chronicles
 
 import ./rng
@@ -86,28 +86,33 @@ func new*(
 proc new*(
   T: type RandomChunker,
   rng: Rng,
-  size: int64,
   kind = ChunkerType.FixedChunker,
   chunkSize = DefaultChunkSize,
+  size: int,
   pad = false): T =
   ## create a chunker that produces
   ## random data
   ##
 
+  var consumed = 0
   proc reader(data: ChunkBuffer, len: int): Future[int]
-    {.gcsafe, raises: [Defect].} =
+    {.async, gcsafe, raises: [Defect].} =
     var alpha = toSeq(byte('A')..byte('z'))
 
+    if consumed >= size:
+      return 0
+
     var read = 0
-    while read <= data.high:
+    while read < len:
       rng.shuffle(alpha)
       for a in alpha:
-        if read > data.high:
+        if read >= len:
           break
 
         data[read] = a
         read.inc
 
+    consumed += read
     return read
 
   Chunker.new(
@@ -127,21 +132,17 @@ proc new*(
 
   proc reader(data: ChunkBuffer, len: int): Future[int]
     {.gcsafe, async, raises: [Defect].} =
+    var res = 0
     try:
-      var res = 0
-      while res <= len:
-        if stream.atEof and stream.closed:
-          break
-
-        res += await stream.readOnce(data, len)
-
-      return res
+      while res < len:
+        res += await stream.readOnce(data, len - res)
     except LPStreamEOFError as exc:
-      return 0
       trace "LPStreamChunker stream Eof", exc = exc.msg
     except CatchableError as exc:
       trace "CatchableError exception", exc = exc.msg
       raise newException(Defect, exc.msg)
+
+    return res
 
   Chunker.new(
     kind = ChunkerType.FixedChunker,
@@ -185,10 +186,8 @@ proc toStream*(
           break
 
         await stream.push(buf)
-    except AsyncFutureStreamError as exc:
-      trace "Exception pushing to futures stream", exc = exc.msg
     except CatchableError as exc:
-      trace "Unknown exception, raising defect", exc = exc.msg
+      trace "Unknown exception, raising Defect", exc = exc.msg
       raiseAssert exc.msg
     finally:
       stream.finish()
