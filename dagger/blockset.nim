@@ -62,24 +62,23 @@ proc treeHash*(b: BlockSetRef): ?Cid =
 proc encode*(b: BlockSetRef): seq[byte] =
   discard
 
-proc decode*(b: BlockSetRef, data: var openArray[byte]) =
-  discard
-
 func new*(
   T: type BlockSetRef,
+  blocks: openArray[Cid] = [],
   version = CIDv1,
   hcodec = HCodec,
   codec = Codec): T =
   T(
+    blocks: @blocks,
     version: version,
     codec: codec,
     hcodec: hcodec)
 
 proc toStream*(
-  blocks: AsyncFutureStream[?Block],
-  blockSet: BlockSetRef): AsyncFutureStream[?Block] =
+  blocks: AsyncFutureStream[Block],
+  blockSet: BlockSetRef): AsyncFutureStream[Block] =
   let
-    stream = AsyncPushable[?Block].new()
+    stream = AsyncPushable[Block].new()
 
   proc pusher() {.async, nimcall, raises: [Defect].} =
     try:
@@ -87,14 +86,10 @@ proc toStream*(
         let
           blk = await blockFut
 
-        if blk.isSome:
-          blockSet.blocks.add((!blk).cid)
-
+        blockSet.blocks.add(blk.cid)
         await stream.push(blk)
-    except AsyncFutureStreamError as exc:
-      trace "Exception pushing to futures stream", exc = exc.msg
     except CatchableError as exc:
-      trace "Unknown exception, raising defect", exc = exc.msg
+      trace "Unknown exception, raising Defect", exc = exc.msg
       raiseAssert exc.msg
     finally:
       stream.finish()
