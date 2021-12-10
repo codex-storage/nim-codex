@@ -10,6 +10,7 @@
 {.push raises: [Defect].}
 
 import pkg/libp2p
+import pkg/libp2p/protobuf/minprotobuf
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronicles
@@ -19,8 +20,7 @@ import ./blocktype
 import ./utils/asyncfutures
 
 const
-  HCodec* = multiCodec("sha2-256")
-  Codec* = multiCodec("dag-pb")
+  ManifestCodec* = multiCodec("dag-pb")
 
 type
   BlockSetRef* = ref object
@@ -59,20 +59,69 @@ proc treeHash*(b: BlockSetRef): ?Cid =
     if cid.isOk:
       return cid.get().some
 
-proc encode*(b: BlockSetRef): seq[byte] =
-  discard
+proc encode*(_: type BlockSetRef, b: BlockSetRef): ?!seq[byte] =
+  var pbNode = initProtoBuffer()
+
+  for cid in b.blocks:
+    var pbLink = initProtoBuffer()
+    pbLink.write(1, cid.data.buffer) # write hash
+    pbLink.finish()
+    pbNode.write(2, pbLink)
+
+  without cid =? b.treeHash():
+    return failure(
+      newException(DaggerError, "Unable to generate tree hash"))
+
+  pbNode.write(1, cid.data.buffer)
+
+  pbNode.finish()
+  return pbNode.buffer.success
+
+proc decode*(_: type BlockSetRef, data: seq[byte]): ?!(Cid, seq[Cid]) =
+  var pbNode = initProtoBuffer(data)
+  var
+    cidBuf: seq[byte]
+    blocks: seq[Cid]
+
+  if pbNode.getField(1, cidBuf).isOk:
+    if cid =? Cid.init(cidBuf):
+      var linksBuf: seq[seq[byte]]
+      if pbNode.getRepeatedField(2, linksBuf).isOk:
+        for pbLinkBuf in linksBuf:
+          var
+            blocksBuf: seq[seq[byte]]
+            blockBuf: seq[byte]
+            pbLink = initProtoBuffer(pbLinkBuf)
+
+          if pbLink.getField(1, blockBuf).isOk:
+            let cidRes = Cid.init(blockBuf)
+            if cidRes.isOk:
+              blocks.add(cidRes.get())
+
+      return (cid, blocks).success
 
 func new*(
   T: type BlockSetRef,
   blocks: openArray[Cid] = [],
   version = CIDv1,
-  hcodec = HCodec,
-  codec = Codec): T =
+  hcodec = multiCodec("sha2-256"),
+  codec = multiCodec("raw")): T =
   T(
     blocks: @blocks,
     version: version,
     codec: codec,
     hcodec: hcodec)
+
+func new*(
+  T: type BlockSetRef,
+  blk: Block): T =
+
+  let res = BlockSetRef.decode(blk.data)
+  if res.isOk:
+    let
+      (cid, blocks) = res.get()
+    # TODO: check that the treeHash and cid match!
+    return T(blocks: blocks)
 
 proc toStream*(
   blocks: AsyncFutureStream[Block],
