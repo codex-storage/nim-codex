@@ -17,12 +17,15 @@ import pkg/chronos
 import pkg/presto
 import pkg/libp2p
 import pkg/confutils
+import pkg/nitro
 
 import ./node
 import ./conf
 import ./rng
 import ./rest/api
 import ./stores/memorystore
+import ./stores/networkstore
+import ./blockexchange
 
 type
   DaggerServer = ref object
@@ -57,8 +60,12 @@ proc new(T: type DaggerServer, config: DaggerConf): T =
     .build()
 
   let
-    store = MemoryStore.new()
-    daggerNode = DaggerNodeRef.new(switch, store, config)
+    wallet = WalletRef.new(EthPrivateKey.random())
+    network = BlockExcNetwork.new(switch)
+    localStore = MemoryStore.new()
+    engine = BlockExcEngine.new(localStore, wallet, network)
+    store = NetworkStore.new(engine, localStore)
+    daggerNode = DaggerNodeRef.new(switch, store, engine, config)
     restServer = RestServerRef.new(
       daggerNode.initRestApi(),
       initTAddress("127.0.0.1" , config.apiPort),
@@ -66,6 +73,7 @@ proc new(T: type DaggerServer, config: DaggerConf): T =
       maxRequestBodySize = int.high)
       .tryGet()
 
+  switch.mount(network)
   T(
     config: config,
     daggerNode: daggerNode,

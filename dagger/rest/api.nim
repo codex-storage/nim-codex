@@ -11,6 +11,8 @@
 
 import std/sequtils
 
+import pkg/questionable
+import pkg/questionable/results
 import pkg/chronicles
 import pkg/chronos
 import pkg/presto
@@ -64,19 +66,32 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
   var router = RestRouter.init(validate)
   router.api(
     MethodGet,
-    "/api/dagger/v1/download/{id}") do (id: Cid) -> RestApiResponse:
+    "/api/dagger/v1/download/{id}") do (
+      id: Cid, resp: HttpResponseRef) -> RestApiResponse:
       if id.isErr:
         return RestApiResponse.error(
           Http400,
           $id.error())
 
-      # let stream = await node.retrieve(id.get())
-      # while true:
-      #   var buff = newSeq[byte](FileChunkSize)
-      #   let len = await strea.readOnce(addr buff[0], buff.len)
-      #   # TODO: stream back with request
+      let streamRes = await node.retrieve(id.get())
+      without stream =? streamRes:
+        return RestApiResponse.error(
+          Http500, streamRes.error.msg)
 
-      return RestApiResponse.response("")
+      await resp.prepareChunked()
+      try:
+        while true:
+          var buff = newSeq[byte](FileChunkSize)
+          buff.setLen(
+            (await stream.readOnce(addr buff[0], buff.len)))
+          if buff.len <= 0:
+            break
+
+          await resp.sendChunk(addr buff[0], buff.len)
+      except CatchableError as exc:
+        trace "Excepting streaming blocks", exc = exc.msg
+      finally:
+        await resp.finish()
 
   router.api(
     MethodGet,
@@ -134,9 +149,11 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
 
         await stream.pushEof()
         await stream.close()
-        let cid = await storeFut
-        trace "Uploaded file", bytes, cid = $cid
         await reader.closeWait()
+        without cid =? (await storeFut):
+          return RestApiResponse.error(Http500)
+
+        trace "Uploaded file", bytes, cid = $cid
         return RestApiResponse.response($cid)
       except CancelledError as exc:
         if not(isNil(reader)):

@@ -43,12 +43,9 @@ func new*(
   cid: Cid,
   data: openArray[byte] = [],
   verify: bool = false): T =
-  Block.new(
-    data,
-    cid.cidver,
-    cid.mhash.get().mcodec,
-    cid.mcodec
-  )
+  Block(
+    cid: cid,
+    data: @data)
 
 proc toStream*(
   bytes: AsyncFutureStream[seq[byte]]):
