@@ -34,6 +34,8 @@ suite "NetworkStore engine - 2 nodes":
     peerId1, peerId2: PeerID
     peerCtx1, peerCtx2: BlockExcPeerCtx
     blocks1, blocks2: seq[bt.Block]
+    engine1, engine2: BlockExcEngine
+    localStore1, localStore2: BlockStore
 
   setup:
     while true:
@@ -62,23 +64,21 @@ suite "NetworkStore engine - 2 nodes":
     peerId1 = switch1.peerInfo.peerId
     peerId2 = switch2.peerInfo.peerId
 
+    localStore1 = MemoryStore.new(blocks1.mapIt( it.some ))
     network1 = BlockExcNetwork.new(switch = switch1)
-    blockexc1 = NetworkStore.new(
-      MemoryStore.new(blocks1.mapIt( it.some )),
-      wallet1,
-      network1)
+    engine1 = BlockExcEngine.new(localStore1, wallet1, network1)
+    blockexc1 = NetworkStore.new(engine1, localStore1)
     switch1.mount(network1)
 
+    localStore2 = MemoryStore.new(blocks2.mapIt( it.some ))
     network2 = BlockExcNetwork.new(switch = switch2)
-    blockexc2 = NetworkStore.new(
-      MemoryStore.new(blocks2.mapIt( it.some )),
-      wallet2,
-      network2)
+    engine2 = BlockExcEngine.new(localStore2, wallet2, network2)
+    blockexc2 = NetworkStore.new(engine2, localStore2)
     switch2.mount(network2)
 
     await allFuturesThrowing(
-      blockexc1.start(),
-      blockexc2.start(),
+      engine1.start(),
+      engine2.start(),
     )
 
     # initialize our want lists
@@ -100,8 +100,8 @@ suite "NetworkStore engine - 2 nodes":
 
   teardown:
     await allFuturesThrowing(
-      blockexc1.stop(),
-      blockexc2.stop(),
+      engine1.stop(),
+      engine2.stop(),
       switch1.stop(),
       switch2.stop())
 
@@ -134,7 +134,7 @@ suite "NetworkStore engine - 2 nodes":
       sendDontHave: false)
 
     peerCtx1.peerWants.add(entry)
-    check blockexc2.taskQueue.pushOrUpdateNoWait(peerCtx1).isOk
+    check blockexc2.engine.taskQueue.pushOrUpdateNoWait(peerCtx1).isOk
     await sleepAsync(100.millis)
 
     check blockexc1.engine.localStore.hasBlock(blk.cid)
@@ -190,7 +190,7 @@ suite "NetworkStore - multiple nodes":
     for e in generateNodes(5):
       switch.add(e.switch)
       blockexc.add(e.blockexc)
-      await e.blockexc.start()
+      await e.blockexc.engine.start()
 
     awaiters = switch.mapIt(
       (await it.start())

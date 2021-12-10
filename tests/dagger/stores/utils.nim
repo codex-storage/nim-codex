@@ -19,14 +19,16 @@ proc generateNodes*(
       switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
       wallet = WalletRef.example
       network = BlockExcNetwork.new(switch)
-      blockexc = NetworkStore.new(MemoryStore.new(blocks.mapIt( it.some )), wallet, network)
+      localStore = MemoryStore.new(blocks.mapIt( it.some ))
+      engine = BlockExcEngine.new(localStore, wallet, network)
+      networkStore = NetworkStore.new(engine, localStore)
 
     switch.mount(network)
 
     # initialize our want lists
-    blockexc.engine.wantList = blocks.mapIt( it.cid )
+    engine.wantList = blocks.mapIt( it.cid )
     switch.mount(network)
-    result.add((switch, blockexc))
+    result.add((switch, networkStore))
 
 proc connectNodes*(nodes: seq[Switch]) {.async.} =
   for dialer in nodes:
