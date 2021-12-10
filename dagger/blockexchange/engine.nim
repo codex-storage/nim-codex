@@ -33,23 +33,30 @@ logScope:
   topics = "dagger blockexc engine"
 
 const
-  DefaultTimeout* = 5.seconds
+  DefaultBlockTimeout* = 5.minutes
   DefaultMaxPeersPerRequest* = 10
+  DefaultTaskQueueSize = 100
+  DefaultConcurrentTasks = 10
+  DefaultMaxRetries = 3
 
 type
   TaskHandler* = proc(task: BlockExcPeerCtx): Future[void] {.gcsafe.}
   TaskScheduler* = proc(task: BlockExcPeerCtx): bool {.gcsafe.}
 
   BlockExcEngine* = ref object of RootObj
-    localStore*: BlockStore                     # where we localStore blocks for this instance
-    peers*: seq[BlockExcPeerCtx]                # peers we're currently actively exchanging with
-    wantList*: seq[Cid]                         # local wants list
-    pendingBlocks*: PendingBlocksManager        # blocks we're awaiting to be resolved
-    peersPerRequest: int                        # max number of peers to request from
-    scheduleTask*: TaskScheduler                # schedule a new task with the task runner
-    request*: BlockExcRequest                   # block exchange network requests
-    wallet*: WalletRef                          # nitro wallet for micropayments
-    pricing*: ?Pricing                          # optional bandwidth pricing
+    localStore*: BlockStore                       # where we localStore blocks for this instance
+    network*: BlockExcNetwork                     # network interface
+    peers*: seq[BlockExcPeerCtx]                  # peers we're currently actively exchanging with
+    wantList*: seq[Cid]                           # local wants list
+    taskQueue*: AsyncHeapQueue[BlockExcPeerCtx]   # peers we're currently processing tasks for
+    concurrentTasks: int                          # number of concurrent peers we're serving at any given time
+    maxRetries: int                               # max number of tries for a failed block
+    blockexcTasks: seq[Future[void]]              # future to control blockexc task
+    blockexcRunning: bool                         # indicates if the blockexc task is running
+    pendingBlocks*: PendingBlocksManager          # blocks we're awaiting to be resolved
+    peersPerRequest: int                          # max number of peers to request from
+    wallet*: WalletRef                            # nitro wallet for micropayments
+    pricing*: ?Pricing                            # optional bandwidth pricing
 
   Pricing* = object
     address*: EthAddress
@@ -69,20 +76,58 @@ proc getPeerCtx*(b: BlockExcEngine, peerId: PeerID): BlockExcPeerCtx =
   if peer.len > 0:
     return peer[0]
 
+# attach task scheduler to engine
+proc scheduleTask(b: BlockExcEngine, task: BlockExcPeerCtx): bool {.gcsafe} =
+  b.taskQueue.pushOrUpdateNoWait(task).isOk()
+
+proc blockexcTaskRunner(b: BlockExcEngine): Future[void] {.gcsafe.}
+
+proc start*(b: BlockExcEngine) {.async.} =
+  ## Start the blockexc task
+  ##
+
+  trace "blockexc start"
+
+  if b.blockexcTasks.len > 0:
+    warn "Starting blockexc twice"
+    return
+
+  b.blockexcRunning = true
+  for i in 0..<b.concurrentTasks:
+    b.blockexcTasks.add(blockexcTaskRunner(b))
+
+proc stop*(b: BlockExcEngine) {.async.} =
+  ## Stop the blockexc blockexc
+  ##
+
+  trace "NetworkStore stop"
+  if b.blockexcTasks.len <= 0:
+    warn "Stopping blockexc without starting it"
+    return
+
+  b.blockexcRunning = false
+  for t in b.blockexcTasks:
+    if not t.finished:
+      trace "Awaiting task to stop"
+      t.cancel()
+      trace "Task stopped"
+
+  trace "NetworkStore stopped"
+
 proc requestBlock*(
   b: BlockExcEngine,
   cid: Cid,
-  timeout = DefaultTimeout): Future[?bt.Block] =
+  timeout = DefaultBlockTimeout): Future[?bt.Block] =
   ## Request a block from remotes
   ##
+
+  let
+    blk = b.pendingBlocks.addOrAwait(cid).wait(timeout)
 
   if b.peers.len <= 0:
     warn "No peers to request blocks from"
     # TODO: run discovery here to get peers for the block
-    return
-
-  let
-    blk = b.pendingBlocks.addOrAwait(cid).wait(timeout)
+    return blk
 
   var peers = b.peers
 
@@ -105,7 +150,7 @@ proc requestBlock*(
 
   trace "Requesting block from peer", peer = blockPeer.id, cid
   # request block
-  b.request.sendWantList(
+  b.network.request.sendWantList(
     blockPeer.id,
     @[cid],
     wantType = WantType.wantBlock) # we want this remote to send us a block
@@ -116,7 +161,7 @@ proc requestBlock*(
   template sendWants(ctx: BlockExcPeerCtx) =
     if cid notin ctx.peerHave:
       # just send wants
-      b.request.sendWantList(
+      b.network.request.sendWantList(
         ctx.id,
         @[cid],
         wantType = WantType.wantHave) # we only want to know if the peer has the block
@@ -171,7 +216,7 @@ proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) =
 proc payForBlocks(engine: BlockExcEngine,
                   peer: BlockExcPeerCtx,
                   blocks: seq[bt.Block]) =
-  let sendPayment = engine.request.sendPayment
+  let sendPayment = engine.network.request.sendPayment
   if sendPayment.isNil:
     return
 
@@ -230,7 +275,7 @@ proc wantListHandler*(
 
   # send don't have's to remote
   if dontHaves.len > 0:
-    b.request.sendPresence(
+    b.network.request.sendPresence(
       peer,
       dontHaves.mapIt(
         BlockPresence(
@@ -271,10 +316,10 @@ proc setupPeer*(b: BlockExcEngine, peer: PeerID) =
 
   # broadcast our want list, the other peer will do the same
   if b.wantList.len > 0:
-    b.request.sendWantList(peer, b.wantList, full = true)
+    b.network.request.sendWantList(peer, b.wantList, full = true)
 
   if address =? b.pricing.?address:
-    b.request.sendAccount(peer, Account(address: address))
+    b.network.request.sendAccount(peer, Account(address: address))
 
 proc dropPeer*(b: BlockExcEngine, peer: PeerID) =
   ## Cleanup disconnected peer
@@ -306,7 +351,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       .mapIt(!it.read)
 
     if blocks.len > 0:
-      b.request.sendBlocks(
+      b.network.request.sendBlocks(
         task.id,
         blocks)
 
@@ -328,27 +373,75 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       wants.add(BlockPresence.init(presence))
 
   if wants.len > 0:
-    b.request.sendPresence(task.id, wants)
+    b.network.request.sendPresence(task.id, wants)
 
-func new*(
+proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
+  ## process tasks
+  ##
+
+  while b.blockexcRunning:
+    let peerCtx = await b.taskQueue.pop()
+    asyncSpawn b.taskHandler(peerCtx)
+
+  trace "Exiting blockexc task runner"
+
+proc new*(
   T: type BlockExcEngine,
   localStore: BlockStore,
   wallet: WalletRef,
-  request: BlockExcRequest = BlockExcRequest(),
-  scheduleTask: TaskScheduler = nil,
+  network: BlockExcNetwork,
+  concurrentTasks = DefaultConcurrentTasks,
+  maxRetries = DefaultMaxRetries,
   peersPerRequest = DefaultMaxPeersPerRequest): T =
 
-  proc taskScheduler(task: BlockExcPeerCtx): bool =
-    if not isNil(scheduleTask):
-      return scheduleTask(task)
-
-  let b = BlockExcEngine(
+  let engine = BlockExcEngine(
     localStore: localStore,
     pendingBlocks: PendingBlocksManager.new(),
     peersPerRequest: peersPerRequest,
-    scheduleTask: taskScheduler,
-    request: request,
-    wallet: wallet
+    network: network,
+    wallet: wallet,
+    concurrentTasks: concurrentTasks,
+    maxRetries: maxRetries,
+    taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize))
+
+  proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
+    # TODO: temporary until libp2p moves back to PeerID
+    if event.kind == PeerEventKind.Joined:
+      engine.setupPeer(peerId)
+    else:
+      engine.dropPeer(peerId)
+
+  if not isNil(network.switch):
+    network.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Joined)
+    network.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)
+
+  proc blockWantListHandler(
+    peer: PeerID,
+    wantList: WantList): Future[void] {.gcsafe.} =
+    engine.wantListHandler(peer, wantList)
+
+  proc blockPresenceHandler(
+    peer: PeerID,
+    presence: seq[BlockPresence]): Future[void] {.gcsafe.} =
+    engine.blockPresenceHandler(peer, presence)
+
+  proc blocksHandler(
+    peer: PeerID,
+    blocks: seq[bt.Block]): Future[void] {.gcsafe.} =
+    engine.blocksHandler(peer, blocks)
+
+  proc accountHandler(peer: PeerId, account: Account): Future[void] {.gcsafe.} =
+    engine.accountHandler(peer, account)
+
+  proc paymentHandler(peer: PeerId, payment: SignedState): Future[void] {.gcsafe.} =
+    engine.paymentHandler(peer, payment)
+
+  network.handlers = BlockExcHandlers(
+    onWantList: blockWantListHandler,
+    onBlocks: blocksHandler,
+    onPresence: blockPresenceHandler,
+    onAccount: accountHandler,
+    onPayment: paymentHandler
   )
 
-  return b
+  return engine
