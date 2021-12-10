@@ -38,9 +38,10 @@ proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
 
   try:
     while not conn.atEof:
-      let data = await conn.readLp(MaxMessageSize)
-      let msg: Message = Protobuf.decode(data, Message)
-      trace "Got message for peer", peer = b.id, msg
+      let
+        data = await conn.readLp(MaxMessageSize)
+        msg: Message = Protobuf.decode(data, Message)
+      trace "Got message for peer", peer = b.id
       await b.handler(b, msg)
   except CatchableError as exc:
     trace "Exception in blockexc read loop", exc = exc.msg
@@ -62,7 +63,7 @@ proc send*(b: NetworkPeer, msg: Message) {.async.} =
     trace "Unable to get send connection for peer message not sent", peer = b.id
     return
 
-  trace "Sending message to remote", peer = b.id, msg = $msg
+  trace "Sending message to remote", peer = b.id
   await conn.writeLp(Protobuf.encode(msg))
 
 func new*(
