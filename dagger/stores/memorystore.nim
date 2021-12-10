@@ -20,6 +20,9 @@ import ../utils/asyncfutures
 
 export blockstore
 
+logScope:
+  topics = "dagger memstore"
+
 type
   MemoryStore* = ref object of BlockStore
     blocks: seq[?Block] # TODO: Should be an LRU cache
@@ -30,12 +33,15 @@ method getBlock*(
   ## Get a block from the stores
   ##
 
+  trace "Getting block", cid
   let found = b.blocks.filterIt(
     (!it).cid == cid
   )
 
   if found.len <= 0:
     return Block.none
+
+  trace "Retrieved block", cid
 
   return found[0]
 
@@ -51,6 +57,7 @@ method putBlock*(
   ## Put a block to the blockstore
   ##
 
+  trace "Putting block", cid = blk.cid
   s.blocks.add(blk.some)
 
 method delBlock*(
