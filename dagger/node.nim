@@ -24,7 +24,7 @@ import pkg/libp2p/signed_envelope
 import ./conf
 import ./chunker
 import ./blocktype as bt
-import ./blockset
+import ./manifest
 import ./utils/asyncfutures
 import ./stores/blockstore
 import ./blockexchange
@@ -37,7 +37,6 @@ type
 
   DaggerNodeRef* = ref object
     switch*: Switch
-    config*: DaggerConf
     networkId*: PeerID
     blockStore*: BlockStore
     engine*: BlockExcEngine
@@ -109,11 +108,15 @@ proc retrieve*(
 
   if mc == MultiCodec.codec("dag-pb"):
     trace "Retrieving data set", cid, mc
-    let
-      blockSet = BlockSetRef.new(blk)
 
-    var
-      blockRequests = blockSet.blocks.mapIt(
+    let
+      blockManifestRes = BlocksManifest.init(blk)
+
+    if blockManifestRes.isErr:
+      return failure(blockManifestRes.error)
+
+    let
+      blockRequests = blockManifestRes.get().blocks.mapIt(
         node.blockStore.getBlock(it)
       )
 
@@ -135,19 +138,22 @@ proc store*(
   stream: LPStream): Future[?!Cid] {.async.} =
   trace "Storing data"
 
+  without var blockManifest =? BlocksManifest.init():
+    return failure("Unable to create Block Set")
+
   let
-    blockSet = BlockSetRef.new()
     blocks = LPStreamChunker
     .new(stream)
     .toStream()
     .toStream()
-    .toStream(blockSet)
 
   for b in blocks:
-    await node.blockStore.putBlock((await b))
+    let blk = await b
+    blockManifest.put(blk.cid)
+    await node.blockStore.putBlock(blk)
 
   # Generate manifest
-  without data =? BlockSetRef.encode(blockSet):
+  without data =? blockManifest.encode():
     return failure(
       newException(DaggerError, "Could not generate dataset manifest!"))
 
@@ -163,10 +169,8 @@ proc new*(
   T: type DaggerNodeRef,
   switch: Switch,
   store: BlockStore,
-  engine: BlockExcEngine,
-  config: DaggerConf): T =
+  engine: BlockExcEngine): T =
   T(
     switch: switch,
-    config: config,
     blockStore: store,
     engine: engine)
