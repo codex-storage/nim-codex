@@ -80,10 +80,11 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
 
       await resp.prepareChunked()
       try:
-        while true:
-          var buff = newSeq[byte](FileChunkSize)
-          buff.setLen(
-            (await stream.readOnce(addr buff[0], buff.len)))
+        while not stream.atEof:
+          var
+            buff = newSeq[byte](FileChunkSize)
+            len = await stream.readOnce(addr buff[0], buff.len)
+          buff.setLen(len)
           if buff.len <= 0:
             break
 
@@ -141,15 +142,19 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
           stream = BufferStream.new()
           storeFut = node.store(stream)
 
-        while not reader.atEof:
-          var buff = newSeq[byte](FileChunkSize)
-          let res = await reader.readOnce(addr buff[0], buff.len)
-          await stream.pushData(buff)
-          bytes += res
+        try:
+          while not reader.atEof:
+            var
+              buff = newSeq[byte](FileChunkSize)
+              len = await reader.readOnce(addr buff[0], buff.len)
+            buff.setLen(len)
+            await stream.pushData(buff)
+            bytes += len
+        finally:
+          await stream.pushEof()
+          await stream.close()
+          await reader.closeWait()
 
-        await stream.pushEof()
-        await stream.close()
-        await reader.closeWait()
         without cid =? (await storeFut):
           return RestApiResponse.error(Http500)
 
