@@ -65,7 +65,7 @@ proc new(T: type DaggerServer, config: DaggerConf): T =
     localStore = MemoryStore.new()
     engine = BlockExcEngine.new(localStore, wallet, network)
     store = NetworkStore.new(engine, localStore)
-    daggerNode = DaggerNodeRef.new(switch, store, engine, config)
+    daggerNode = DaggerNodeRef.new(switch, store, engine)
     restServer = RestServerRef.new(
       daggerNode.initRestApi(),
       initTAddress("127.0.0.1" , config.apiPort),
