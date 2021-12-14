@@ -141,7 +141,7 @@ proc store*(
     return failure("Unable to create Block Set")
 
   let
-    chunker = LPStreamChunker.new(stream, chunkSize = 256)
+    chunker = LPStreamChunker.new(stream)
 
   while (
     let chunk = await chunker.getBytes();
