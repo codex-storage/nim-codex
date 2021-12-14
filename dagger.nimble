@@ -61,10 +61,10 @@ task task_runner_streams, "Build task_runner_streams experiment":
       " --tlsEmulation:off"
 
     chronicles_log_level {.strdefine.} =
-     when defined(danger) or defined(release):
-       "INFO"
-     else:
-       "DEBUG"
+      when defined(danger) or defined(release):
+        "INFO"
+      else:
+        "DEBUG"
 
     host {.strdefine.} = ""
     maxRequestBodySize {.strdefine.} = ""
