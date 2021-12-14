@@ -23,18 +23,23 @@ const
 
 type
   BlocksManifest* = object
-    blocks*: seq[Cid]
+    blocks: seq[Cid]
     htree: ?Cid
     version*: CidVersion
     hcodec*: MultiCodec
     codec*: MultiCodec
-    cidEmpty: Cid
     cidEmptyDigest: MultiHash
+
+proc len*(b: BlocksManifest): int = b.blocks.len
+
+iterator items*(b: BlocksManifest): Cid =
+  for b in b.blocks:
+    yield b
 
 proc hashBytes(mh: MultiHash): seq[byte] =
   mh.data.buffer[mh.dpos..(mh.dpos + mh.size - 1)]
 
-proc treeHash*(b: var BlocksManifest): ?Cid =
+proc cid*(b: var BlocksManifest): ?Cid =
   if b.htree.isSome:
     return b.htree
 
@@ -74,7 +79,11 @@ proc put*(b: var BlocksManifest, cid: Cid) =
   if b.htree.isSome:
     b.htree = Cid.none
 
+  trace "Adding cid to manifest", cid
   b.blocks.add(cid)
+
+proc contains*(b: BlocksManifest, cid: Cid): bool =
+  cid in b.blocks
 
 proc encode*(b: var BlocksManifest): ?!seq[byte] =
   ## Encode the manifest into a ``ManifestCodec``
@@ -87,7 +96,7 @@ proc encode*(b: var BlocksManifest): ?!seq[byte] =
     pbLink.finish()
     pbNode.write(2, pbLink)
 
-  without cid =? b.treeHash():
+  without cid =? b.cid:
     return failure("Unable to generate tree hash")
 
   pbNode.write(1, cid.data.buffer) # set the treeHash Cid as the data field
@@ -152,7 +161,6 @@ func init*(
     version: version,
     codec: codec,
     hcodec: hcodec,
-    cidEmpty: cidEmpty,
     cidEmptyDigest: cidEmptyDigest
     ).success
 
@@ -180,7 +188,7 @@ func init*(
       cid.mcodec):
     return failure("Unable to get construct block manifest")
 
-  without manifestCid =? manifest.treeHash():
+  without manifestCid =? manifest.cid:
     return failure("Couldn't get manifest tree hash")
 
   if cid != manifestCid:

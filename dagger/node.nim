@@ -115,7 +115,7 @@ proc retrieve*(
       return failure(blockManifestRes.error)
 
     let
-      blockRequests = blockManifestRes.get().blocks.mapIt(
+      blockRequests = blockManifestRes.get().mapIt(
         node.blockStore.getBlock(it)
       )
 
@@ -141,15 +141,15 @@ proc store*(
     return failure("Unable to create Block Set")
 
   let
-    checkerStream = LPStreamChunker.new(stream)
+    chunker = LPStreamChunker.new(stream, chunkSize = 256)
 
-  while true:
-    var buf = await checkerStream.getBytes()
-    if buf.len <= 0:
-      break
+  while (
+    let chunk = await chunker.getBytes();
+    chunk.len > 0):
 
+    trace "Got data from stream", len = chunk.len, chunk
     let
-      blk = bt.Block.new(buf)
+      blk = bt.Block.new(chunk)
 
     blockManifest.put(blk.cid)
     await node.blockStore.putBlock(blk)
@@ -163,7 +163,9 @@ proc store*(
   let manifest = bt.Block.new(data = data, codec = ManifestCodec)
   await node.blockStore.putBlock(manifest)
 
-  trace "Stored data", cid = manifest.cid
+  trace "Stored data", manifestCid = manifest.cid,
+                       contentCid = blockManifest.cid,
+                       blocks = blockManifest.len
 
   return manifest.cid.success
 
