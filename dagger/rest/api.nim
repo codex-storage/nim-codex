@@ -84,10 +84,12 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
           var
             buff = newSeq[byte](FileChunkSize)
             len = await stream.readOnce(addr buff[0], buff.len)
+
           buff.setLen(len)
           if buff.len <= 0:
             break
 
+          trace "Sending cunk", size = buff.len
           await resp.sendChunk(addr buff[0], buff.len)
       except CatchableError as exc:
         trace "Excepting streaming blocks", exc = exc.msg
@@ -147,7 +149,9 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
             var
               buff = newSeq[byte](FileChunkSize)
               len = await reader.readOnce(addr buff[0], buff.len)
+
             buff.setLen(len)
+            trace "Got chunk from endpoint", len = buff.len
             await stream.pushData(buff)
             bytes += len
         finally:
