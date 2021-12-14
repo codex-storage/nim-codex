@@ -13,13 +13,12 @@
 
 import std/sequtils
 
+import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronos
 import pkg/libp2p except shuffle
-import pkg/chronicles
 
-import ./rng
 import ./blocktype
 
 export blocktype
@@ -48,7 +47,6 @@ type
 
   FileChunker* = Chunker
   LPStreamChunker* = Chunker
-  RandomChunker* = Chunker
 
 proc getBytes*(c: Chunker): Future[seq[byte]] {.async.} =
   ## returns a chunk of bytes from
@@ -61,7 +59,7 @@ proc getBytes*(c: Chunker): Future[seq[byte]] {.async.} =
   if read <= 0:
     return @[]
 
-  if not c.pad and buff.len != read:
+  if not c.pad and buff.len > read:
     buff.setLen(read)
 
   return buff
@@ -83,44 +81,6 @@ func new*(
   return chunker
 
 proc new*(
-  T: type RandomChunker,
-  rng: Rng,
-  kind = ChunkerType.FixedChunker,
-  chunkSize = DefaultChunkSize,
-  size: int,
-  pad = false): T =
-  ## create a chunker that produces
-  ## random data
-  ##
-
-  var consumed = 0
-  proc reader(data: ChunkBuffer, len: int): Future[int]
-    {.async, gcsafe, raises: [Defect].} =
-    var alpha = toSeq(byte('A')..byte('z'))
-
-    if consumed >= size:
-      return 0
-
-    var read = 0
-    while read < len:
-      rng.shuffle(alpha)
-      for a in alpha:
-        if read >= len:
-          break
-
-        data[read] = a
-        read.inc
-
-    consumed += read
-    return read
-
-  Chunker.new(
-    kind = ChunkerType.FixedChunker,
-    reader = reader,
-    pad = pad,
-    chunkSize = chunkSize)
-
-proc new*(
   T: type LPStreamChunker,
   stream: LPStream,
   kind = ChunkerType.FixedChunker,
@@ -134,7 +94,7 @@ proc new*(
     var res = 0
     try:
       while res < len:
-        res += await stream.readOnce(data, len - res)
+        res += await stream.readOnce(addr data[res], len - res)
     except LPStreamEOFError as exc:
       trace "LPStreamChunker stream Eof", exc = exc.msg
     except CatchableError as exc:
@@ -163,13 +123,15 @@ proc new*(
     var total = 0
     try:
       while total < len:
-        let res = file.readBuffer(data, len - total)
+        let res = file.readBuffer(addr data[total], len - total)
         if res <= 0:
           break
 
         total += res
     except IOError as exc:
-      # TODO: revisit error handling - should this be fatal?
+      trace "Exception reading file", exc = exc.msg
+    except CatchableError as exc:
+      trace "CatchableError exception", exc = exc.msg
       raise newException(Defect, exc.msg)
 
     return total
