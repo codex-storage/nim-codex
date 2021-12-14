@@ -19,6 +19,7 @@ import pkg/dagger/node
 import pkg/dagger/conf
 import pkg/dagger/manifest
 import pkg/dagger/blocktype as bt
+import pkg/chronicles
 
 import ./helpers
 import ./examples
@@ -63,8 +64,8 @@ suite "Test Node":
       while (
         let chunk = await chunker.getBytes();
         chunk.len > 0):
-        manifest.put(bt.Block.new(chunk).cid)
         await stream.pushData(chunk)
+        manifest.put(bt.Block.new(chunk).cid)
     finally:
       await stream.pushEof()
       await stream.close()
@@ -72,12 +73,16 @@ suite "Test Node":
     let
       manifestCid = (await storeFut).tryGet()
 
-    check manifestCid in localStore
+    check:
+      manifestCid in localStore
 
-    var localManifest = BlocksManifest.init(
-      (await localStore.getBlock(manifestCid)).get()).tryGet()
+    var
+      manifestBlock = (await localStore.getBlock(manifestCid)).get()
+      localManifest = BlocksManifest.init(manifestBlock).tryGet()
 
-    check manifest.treeHash() == localManifest.treeHash()
+    check:
+      manifest.len == localManifest.len
+      manifest.cid == localManifest.cid
 
   test "Retrieve Data Stream":
     let
@@ -97,8 +102,8 @@ suite "Test Node":
         blk = bt.Block.new(chunk)
 
       original &= chunk
-      manifest.put(blk.cid)
       await localStore.putBlock(blk)
+      manifest.put(blk.cid)
 
     let
       manifestBlock = bt.Block.new(

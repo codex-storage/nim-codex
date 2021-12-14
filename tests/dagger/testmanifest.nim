@@ -39,7 +39,7 @@ suite "Manifest":
       fail
 
     let checkSumCid = Cid.init(manifest.version, manifest.codec, mh).get()
-    check checkSumCid == !(manifest.treeHash())
+    check checkSumCid == !(manifest.cid)
 
   test "Should encode/decode to/from manifest":
     let

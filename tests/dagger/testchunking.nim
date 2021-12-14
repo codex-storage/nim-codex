@@ -38,7 +38,7 @@ suite "Chunking":
       chunkSize = 2)
 
     proc writer() {.async.} =
-      for d in [@[1.byte, 2], @[3.byte, 4], @[5.byte, 6], @[7.byte, 8], @[9.byte, 0]]:
+      for d in [@[1.byte, 2, 3, 4], @[5.byte, 6, 7, 8], @[9.byte, 0]]:
         await stream.pushData(d)
       await stream.pushEof()
       await stream.close()
