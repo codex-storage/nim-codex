@@ -16,8 +16,6 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/byteutils
 
-import ./utils/asyncfutures
-
 type
   Block* = object of RootObj
     cid*: Cid
@@ -46,26 +44,3 @@ func new*(
   Block(
     cid: cid,
     data: @data)
-
-proc toStream*(
-  bytes: AsyncFutureStream[seq[byte]]):
-  AsyncFutureStream[Block] =
-
-  let
-    stream = AsyncPushable[Block].new()
-
-  proc pusher() {.async, nimcall, raises: [Defect].} =
-    try:
-      for bytesFut in bytes:
-        let
-          blk = Block.new((await bytesFut))
-
-        await stream.push(blk)
-    except CatchableError as exc:
-      trace "Unknown exception, raising Defect", exc = exc.msg
-      raiseAssert exc.msg
-    finally:
-      stream.finish()
-
-  asyncSpawn pusher()
-  return stream

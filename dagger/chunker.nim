@@ -172,25 +172,3 @@ proc new*(
     reader = reader,
     pad = pad,
     chunkSize = chunkSize)
-
-proc toStream*(
-  chunker: Chunker): AsyncFutureStream[seq[byte]] =
-  let
-    stream = AsyncPushable[seq[byte]].new()
-
-  proc pusher() {.async, nimcall, raises: [Defect].} =
-    try:
-      while true:
-        let buf = await chunker.getBytes()
-        if buf.len <= 0:
-          break
-
-        await stream.push(buf)
-    except CatchableError as exc:
-      trace "Unknown exception, raising Defect", exc = exc.msg
-      raiseAssert exc.msg
-    finally:
-      stream.finish()
-
-  asyncSpawn pusher()
-  return stream

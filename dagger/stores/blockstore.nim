@@ -14,7 +14,6 @@ import pkg/libp2p
 import pkg/questionable
 
 import ../blocktype
-import ../utils/asyncfutures
 
 export blocktype, libp2p
 

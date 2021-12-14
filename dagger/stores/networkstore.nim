@@ -15,7 +15,6 @@ import pkg/libp2p
 import pkg/libp2p/errors
 
 import ../blocktype as bt
-import ../utils/asyncfutures
 import ../utils/asyncheapqueue
 
 import ./blockstore

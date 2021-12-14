@@ -16,7 +16,6 @@ import pkg/questionable
 
 import ./blockstore
 import ../blocktype
-import ../utils/asyncfutures
 
 export blockstore
 
