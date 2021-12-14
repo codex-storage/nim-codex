@@ -21,7 +21,6 @@ import pkg/chronicles
 
 import ./rng
 import ./blocktype
-import ./utils/asyncfutures
 
 export blocktype
 
@@ -161,11 +160,19 @@ proc new*(
 
   proc reader(data: ChunkBuffer, len: int): Future[int]
     {.gcsafe, async, raises: [Defect].} =
+    var total = 0
     try:
-      return file.readBuffer(addr data[0], len)
+      while total < len:
+        let res = file.readBuffer(data, len - total)
+        if res <= 0:
+          break
+
+        total += res
     except IOError as exc:
       # TODO: revisit error handling - should this be fatal?
       raise newException(Defect, exc.msg)
+
+    return total
 
   Chunker.new(
     kind = ChunkerType.FixedChunker,
