@@ -10,7 +10,6 @@ import pkg/nitro
 import pkg/libp2p
 import pkg/libp2p/errors
 
-import pkg/dagger/utils/asyncfutures
 import pkg/dagger/rng
 import pkg/dagger/stores
 import pkg/dagger/blockexchange
@@ -52,7 +51,7 @@ suite "Test Node":
     let
       (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
       file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
-      chunker = FileChunker.new(file = file, chunkSize = 4096)
+      chunker = FileChunker.new(file = file)
 
     let
       stream = BufferStream.new()
@@ -62,12 +61,14 @@ suite "Test Node":
       fail()
 
     try:
-      for chunkFut in chunker.toStream():
+      while true:
         let
-          chunk = await chunkFut
-          blk = bt.Block.new(chunk)
+          chunk = await chunker.getBytes()
 
-        manifest.put(blk.cid)
+        if chunk.len <= 0:
+          break
+
+        manifest.put(bt.Block.new(chunk).cid)
         await stream.pushData(chunk)
     finally:
       await stream.pushEof()
@@ -84,6 +85,4 @@ suite "Test Node":
     without var localManifest =? BlocksManifest.init(manifestBlock):
       fail()
 
-    echo "MANIFEST ", manifest.blocks
-    echo "LOCAL MANIFEST ", localManifest.blocks
-    # check manifest.treeHash() == localManifest.treeHash()
+    check manifest.treeHash() == localManifest.treeHash()

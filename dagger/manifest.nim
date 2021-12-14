@@ -17,7 +17,6 @@ import pkg/chronicles
 import pkg/chronos
 
 import ./blocktype
-import ./utils/asyncfutures
 
 const
   ManifestCodec* = multiCodec("dag-pb")
@@ -82,9 +81,9 @@ proc encode*(b: var BlocksManifest): ?!seq[byte] =
   ## multicodec container (Dag-pb) for now
   var pbNode = initProtoBuffer()
 
-  for cid in b.blocks:
+  for c in b.blocks:
     var pbLink = initProtoBuffer()
-    pbLink.write(1, cid.data.buffer) # write Cid links
+    pbLink.write(1, c.data.buffer) # write Cid links
     pbLink.finish()
     pbNode.write(2, pbLink)
 
@@ -92,8 +91,8 @@ proc encode*(b: var BlocksManifest): ?!seq[byte] =
     return failure("Unable to generate tree hash")
 
   pbNode.write(1, cid.data.buffer) # set the treeHash Cid as the data field
-
   pbNode.finish()
+
   return pbNode.buffer.success
 
 proc decode*(_: type BlocksManifest, data: seq[byte]): ?!(Cid, seq[Cid]) =
