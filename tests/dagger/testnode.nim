@@ -1,6 +1,7 @@
 import std/os
 import std/sequtils
 import std/algorithm
+import std/options
 
 import pkg/asynctest
 import pkg/chronos
@@ -47,42 +48,78 @@ suite "Test Node":
   teardown:
     await node.stop()
 
-  test "Test store":
+  test "Store Data Stream":
     let
       (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
       file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
       chunker = FileChunker.new(file = file)
-
-    let
       stream = BufferStream.new()
       storeFut = node.store(stream)
 
-    without var manifest =? BlocksManifest.init():
-      fail()
+    var
+      manifest = BlocksManifest.init().tryGet()
 
     try:
-      while true:
-        let
-          chunk = await chunker.getBytes()
-
-        if chunk.len <= 0:
-          break
-
+      while (
+        let chunk = await chunker.getBytes();
+        chunk.len > 0):
         manifest.put(bt.Block.new(chunk).cid)
         await stream.pushData(chunk)
     finally:
       await stream.pushEof()
       await stream.close()
 
-    without manifestCid =? (await storeFut):
-      fail()
+    let
+      manifestCid = (await storeFut).tryGet()
 
     check manifestCid in localStore
 
-    without manifestBlock =? await localStore.getBlock(manifestCid):
-      fail()
-
-    without var localManifest =? BlocksManifest.init(manifestBlock):
-      fail()
+    var localManifest = BlocksManifest.init(
+      (await localStore.getBlock(manifestCid)).get()).tryGet()
 
     check manifest.treeHash() == localManifest.treeHash()
+
+  test "Retrieve Data Stream":
+    let
+      (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
+      file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
+      chunker = FileChunker.new(file = file)
+
+    var
+      manifest = BlocksManifest.init().tryGet()
+      original: seq[byte]
+
+    while (
+      let chunk = await chunker.getBytes();
+      chunk.len > 0):
+
+      let
+        blk = bt.Block.new(chunk)
+
+      original &= chunk
+      manifest.put(blk.cid)
+      await localStore.putBlock(blk)
+
+    let
+      manifestBlock = bt.Block.new(
+        manifest.encode().tryGet(),
+        codec = ManifestCodec)
+
+    await localStore.putBlock(manifestBlock)
+
+    let
+      stream = (await node.retrieve(manifestBlock.cid)).tryGet()
+
+    var data: seq[byte]
+    while true:
+      var
+        buf = newSeq[byte](FileChunkSize)
+        res = await stream.readOnce(addr buf[0], buf.len)
+
+      if res <= 0:
+        break
+
+      buf.setLen(res)
+      data &= buf
+
+    check data == original
