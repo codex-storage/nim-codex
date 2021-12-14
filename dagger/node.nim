@@ -25,7 +25,6 @@ import ./conf
 import ./chunker
 import ./blocktype as bt
 import ./manifest
-import ./utils/asyncfutures
 import ./stores/blockstore
 import ./blockexchange
 
@@ -142,13 +141,16 @@ proc store*(
     return failure("Unable to create Block Set")
 
   let
-    blocks = LPStreamChunker
-    .new(stream)
-    .toStream()
-    .toStream()
+    checkerStream = LPStreamChunker.new(stream)
 
-  for b in blocks:
-    let blk = await b
+  while true:
+    var buf = await checkerStream.getBytes()
+    if buf.len <= 0:
+      break
+
+    let
+      blk = bt.Block.new(buf)
+
     blockManifest.put(blk.cid)
     await node.blockStore.putBlock(blk)
 
