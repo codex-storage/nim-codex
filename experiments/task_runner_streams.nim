@@ -29,15 +29,17 @@ proc readFromStreamWriteToFile(rfd: int, destPath: string)
   proc pred(data: openarray[byte]): tuple[consumed: int, done: bool]
     {.gcsafe, raises: [Defect].} =
 
-    debug "task pred got data", byteCount=data.len
+    let dataCopy = @data
 
-    if data.len > 0:
+    debug "task pred got data", byteCount=dataCopy.len
+
+    if dataCopy.len > 0:
       try:
-        discard destFile.writeBytes(data, 0, data.len)
+        discard destFile.writeBytes(dataCopy, 0, dataCopy.len)
       except Exception as e:
-        debug "exception raised when task wrote to file", error=e.msg
+        error "exception raised when task wrote to file", error=e.msg
 
-      (data.len, data.len < 4096)
+      (dataCopy.len, dataCopy.len < 4096)
 
     else:
       (0, true)
@@ -73,17 +75,19 @@ proc main() {.async.} =
     proc pred(data: openarray[byte]): tuple[consumed: int, done: bool]
       {.gcsafe, raises: [Defect].} =
 
-      debug "http server pred got data", byteCount=data.len
+      let dataCopy = @data
 
-      if data.len > 0:
+      debug "http server pred got data", byteCount=dataCopy.len
+
+      if dataCopy.len > 0:
         try:
-          # discard waitFor writer.write(@data, data.len)
-          discard writer.write(@data, data.len)
+          # discard waitFor writer.write(dataCopy, dataCopy.len)
+          discard writer.write(dataCopy, dataCopy.len)
         except Exception as e:
-          debug "exception raised when http server wrote to task",
+          error "exception raised when http server wrote to task",
             error=e.msg, stacktrace=getStackTrace(e)
 
-        (data.len, false)
+        (dataCopy.len, false)
 
       else:
         (0, true)
