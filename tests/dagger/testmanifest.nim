@@ -1,3 +1,5 @@
+import std/sequtils
+
 import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
@@ -40,14 +42,8 @@ suite "Manifest":
     check checkSumCid == !(manifest.treeHash())
 
   test "Should encode/decode to/from manifest":
-    let blocks = @[
-            Block.new("Block 1".toBytes).cid,
-            Block.new("Block 2".toBytes).cid,
-            Block.new("Block 3".toBytes).cid,
-            Block.new("Block 4".toBytes).cid,
-            Block.new("Block 5".toBytes).cid,
-            Block.new("Block 6".toBytes).cid,
-            Block.new("Block 7".toBytes).cid]
+    let
+      blocks = (0..<1000).mapIt( Block.new(("Block " & $it).toBytes).cid )
 
     var
       manifest = BlocksManifest.init(blocks).get()
