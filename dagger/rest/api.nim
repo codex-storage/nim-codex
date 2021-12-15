@@ -25,7 +25,8 @@ import ../node
 
 proc validate(
   pattern: string,
-  value: string): int {.gcsafe, raises: [Defect].} =
+  value: string): int
+  {.gcsafe, raises: [Defect].} =
   0
 
 proc encodeString(cid: type Cid): Result[string, cstring] =
@@ -139,50 +140,47 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
       if bodyReader.isErr():
         return RestApiResponse.error(Http500)
 
-      var reader = bodyReader.get()
+      # Attempt to handle `Expect` header
+      # some clients (curl), waits 1000ms
+      # before giving up
+      #
+      await request.handleExpect()
+
+      let
+        reader = bodyReader.get()
+        stream = BufferStream.new()
+        storeFut = node.store(stream)
+
+      var bytes = 0
       try:
-        # Attempt to handle `Expect` header
-        # some clients (curl), waits 1000ms
-        # before giving up
-        #
-        await request.handleExpect()
+        while not reader.atEof:
+          var
+            buff = newSeqUninitialized[byte](FileChunkSize)
+            len = await reader.readOnce(addr buff[0], buff.len)
 
-        var
-          bytes = 0
-          stream = BufferStream.new()
-          storeFut = node.store(stream)
+          buff.setLen(len)
+          if len <= 0:
+            break
 
-        try:
-          while not reader.atEof:
-            var
-              buff = newSeqUninitialized[byte](FileChunkSize)
-              len = await reader.readOnce(addr buff[0], buff.len)
+          trace "Got chunk from endpoint", len = buff.len
+          await stream.pushData(buff)
+          bytes += len
 
-            buff.setLen(len)
-            if len <= 0:
-              break
-
-            trace "Got chunk from endpoint", len = buff.len
-            await stream.pushData(buff)
-            bytes += len
-        finally:
-          await stream.pushEof()
-          await reader.closeWait()
-
+        await stream.pushEof()
         without cid =? (await storeFut):
           return RestApiResponse.error(Http500)
 
-        await stream.close()
         trace "Uploaded file", bytes, cid = $cid
         return RestApiResponse.response($cid)
       except CancelledError as exc:
-        if not(isNil(reader)):
-          await reader.closeWait()
+        await reader.closeWait()
         return RestApiResponse.error(Http500)
       except AsyncStreamError:
-        if not(isNil(reader)):
-          await reader.closeWait()
+        await reader.closeWait()
         return RestApiResponse.error(Http500)
+      finally:
+        await stream.close()
+        await reader.closeWait()
 
       # if we got here something went wrong?
       return RestApiResponse.error(Http500)
