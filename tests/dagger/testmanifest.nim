@@ -35,8 +35,7 @@ suite "Manifest":
                   171, 160, 77, 167, 91, 145]
 
     var mh: MultiHash
-    if MultiHash.decode(checksum, mh).get() < -1:
-      fail
+    check MultiHash.decode(checksum, mh).get() > 0
 
     let checkSumCid = Cid.init(manifest.version, manifest.codec, mh).get()
     check checkSumCid == !(manifest.cid)
