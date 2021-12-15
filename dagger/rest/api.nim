@@ -66,6 +66,32 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
   var router = RestRouter.init(validate)
   router.api(
     MethodGet,
+    "/api/dagger/v1/connect/{peerId}") do (
+      peerId: PeerID,
+      addrs: seq[MultiAddress]) -> RestApiResponse:
+      if peerId.isErr:
+        return RestApiResponse.error(
+          Http400,
+          $peerId.error())
+
+      let addresess = if addrs.isOk and addrs.get().len > 0:
+            addrs.get()
+          else:
+            let peerRecord = await node.findPeer(peerId.get())
+            if peerRecord.isErr:
+              return RestApiResponse.error(
+                Http400,
+                "Unable to find Peer!")
+
+            peerRecord.get().addresses.mapIt(
+              it.address
+            )
+
+      await node.connect(peerId.get(), addresess)
+      return RestApiResponse.response("")
+
+  router.api(
+    MethodGet,
     "/api/dagger/v1/download/{id}") do (
       id: Cid, resp: HttpResponseRef) -> RestApiResponse:
       if id.isErr:
@@ -103,32 +129,6 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
         trace "Sent bytes", cid = id.get(), bytes
         await stream.close()
         await resp.finish()
-
-  router.api(
-    MethodGet,
-    "/api/dagger/v1/connect/{peerId}") do (
-      peerId: PeerID,
-      addrs: seq[MultiAddress]) -> RestApiResponse:
-      if peerId.isErr:
-        return RestApiResponse.error(
-          Http400,
-          $peerId.error())
-
-      let addresess = if addrs.isOk and addrs.get().len > 0:
-            addrs.get()
-          else:
-            let peerRecord = await node.findPeer(peerId.get())
-            if peerRecord.isErr:
-              return RestApiResponse.error(
-                Http400,
-                "Unable to find Peer!")
-
-            peerRecord.get().addresses.mapIt(
-              it.address
-            )
-
-      await node.connect(peerId.get(), addresess)
-      return RestApiResponse.response("")
 
   router.rawApi(
     MethodPost,
