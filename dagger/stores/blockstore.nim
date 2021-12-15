@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/sequtils
 
 import pkg/chronos
@@ -18,41 +20,7 @@ import ../blocktype
 export blocktype, libp2p
 
 type
-  ChangeType* {.pure.} = enum
-    Added, Removed
-
-  BlockStoreChangeEvt* = object
-    cids*: seq[Cid]
-    kind*: ChangeType
-
-  BlocksChangeHandler* = proc(evt: BlockStoreChangeEvt) {.gcsafe, closure.}
-
   BlockStore* = ref object of RootObj
-    changeHandlers: array[ChangeType, seq[BlocksChangeHandler]]
-
-proc addChangeHandler*(
-  s: BlockStore,
-  handler: BlocksChangeHandler,
-  changeType: ChangeType) =
-  s.changeHandlers[changeType].add(handler)
-
-proc removeChangeHandler*(
-  s: BlockStore,
-  handler: BlocksChangeHandler,
-  changeType: ChangeType) =
-  s.changeHandlers[changeType].keepItIf( it != handler )
-
-proc triggerChange(
-  s: BlockStore,
-  changeType: ChangeType,
-  cids: seq[Cid]) =
-  let evt = BlockStoreChangeEvt(
-    kind: changeType,
-    cids: cids,
-  )
-
-  for handler in s.changeHandlers[changeType]:
-    handler(evt)
 
 {.push locks:"unknown".}
 
