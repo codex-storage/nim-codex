@@ -73,27 +73,35 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
           Http400,
           $id.error())
 
-      let streamRes = await node.retrieve(id.get())
-      without stream =? streamRes:
-        return RestApiResponse.error(
-          Http500, streamRes.error.msg)
+      let
+        stream = BufferStream.new()
 
-      await resp.prepareChunked()
+      var bytes = 0
       try:
+        if (
+            let retr = await node.retrieve(stream, id.get());
+            retr.isErr):
+            return RestApiResponse.error(Http400, retr.error.msg)
+
+        await resp.prepareChunked()
         while not stream.atEof:
           var
-            buff = newSeq[byte](FileChunkSize)
+            buff = newSeqUninitialized[byte](FileChunkSize)
             len = await stream.readOnce(addr buff[0], buff.len)
 
           buff.setLen(len)
           if buff.len <= 0:
             break
 
+          bytes += buff.len
           trace "Sending cunk", size = buff.len
           await resp.sendChunk(addr buff[0], buff.len)
       except CatchableError as exc:
         trace "Excepting streaming blocks", exc = exc.msg
+        return RestApiResponse.error(Http500)
       finally:
+        trace "Sent bytes", cid = id.get(), bytes
+        await stream.close()
         await resp.finish()
 
   router.api(
@@ -147,21 +155,24 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
         try:
           while not reader.atEof:
             var
-              buff = newSeq[byte](FileChunkSize)
+              buff = newSeqUninitialized[byte](FileChunkSize)
               len = await reader.readOnce(addr buff[0], buff.len)
 
             buff.setLen(len)
+            if len <= 0:
+              break
+
             trace "Got chunk from endpoint", len = buff.len
             await stream.pushData(buff)
             bytes += len
         finally:
           await stream.pushEof()
-          await stream.close()
           await reader.closeWait()
 
         without cid =? (await storeFut):
           return RestApiResponse.error(Http500)
 
+        await stream.close()
         trace "Uploaded file", bytes, cid = $cid
         return RestApiResponse.response($cid)
       except CancelledError as exc:

@@ -112,8 +112,8 @@ suite "Test Node":
 
     await localStore.putBlock(manifestBlock)
 
-    let
-      stream = (await node.retrieve(manifestBlock.cid)).tryGet()
+    let stream = BufferStream.new()
+    check (await node.retrieve(stream, manifestBlock.cid)).isOk
 
     var data: seq[byte]
     while true:

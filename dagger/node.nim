@@ -80,22 +80,24 @@ proc streamBlocks*(
       )
 
       if retrieved =? (await retrievedFut):
+        trace "Streaming block data", cid = retrieved.cid, bytes = retrieved.data.len
         await stream.pushData(retrieved.data)
+
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     trace "Exception retrieving blocks", exc = exc.msg
   finally:
     await stream.pushEof()
-    await stream.close()
 
 proc retrieve*(
   node: DaggerNodeRef,
-  cid: Cid): Future[?!LPStream] {.async.} =
+  stream: BufferStream,
+  cid: Cid): Future[?!void] {.async.} =
 
   trace "Received retrieval request", cid
   let
     blkRes = await node.blockStore.getBlock(cid)
-    stream = BufferStream.new()
-    streamRes = LPStream(stream).success
 
   without blk =? blkRes:
     return failure(
@@ -127,10 +129,9 @@ proc retrieve*(
       except CatchableError as exc:
         trace "Unable to send block", cid
       finally:
-        await stream.pushEof()
-        await stream.close())()
+        await stream.pushEof())()
 
-  return streamRes
+  return success()
 
 proc store*(
   node: DaggerNodeRef,
@@ -143,16 +144,23 @@ proc store*(
   let
     chunker = LPStreamChunker.new(stream)
 
-  while (
-    let chunk = await chunker.getBytes();
-    chunk.len > 0):
+  try:
+    while (
+      let chunk = await chunker.getBytes();
+      chunk.len > 0):
 
-    trace "Got data from stream", len = chunk.len, chunk
-    let
-      blk = bt.Block.new(chunk)
+      trace "Got data from stream", len = chunk.len
+      let
+        blk = bt.Block.new(chunk)
 
-    blockManifest.put(blk.cid)
-    await node.blockStore.putBlock(blk)
+      blockManifest.put(blk.cid)
+      await node.blockStore.putBlock(blk)
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    return failure(exc.msg)
+  finally:
+    await stream.close()
 
   # Generate manifest
   without data =? blockManifest.encode():
