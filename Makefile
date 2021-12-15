@@ -25,7 +25,8 @@ LINK_PCRE := 0
 	update \
 	test \
 	clean \
-	libbacktrace
+	libbacktrace \
+	nimlsp
 
 ifeq ($(NIM_PARAMS),)
 # "variables.mk" was not included, so we update the submodules.
@@ -91,6 +92,16 @@ dagger.nims:
 # nim-libbacktrace
 libbacktrace:
 	+ $(MAKE) -C vendor/nim-libbacktrace --no-print-directory BUILD_CXX_LIB=0
+
+# nimlsp
+NIMLSP := vendor/nimlsp/nimlsp
+$(NIMLSP): | deps-common
+	echo -e $(BUILD_MSG) "$@" && cd vendor/nimlsp && \
+		$(ENV_SCRIPT) nim c \
+			-d:danger -d:nimcore -d:nimsuggest --hints:off --opt:speed --threads:on \
+			--verbosity:0 -o:nimlsp src/nimlsp
+
+nimlsp: $(NIMLSP)
 
 # usual cleaning
 clean: | clean-common

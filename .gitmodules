@@ -118,3 +118,12 @@
 	url = https://github.com/status-im/stint.git
 	ignore = untracked
 	branch = master
+[submodule "vendor/nimlsp"]
+	path = vendor/nimlsp
+	url = https://github.com/PMunch/nimlsp.git
+[submodule "vendor/jsonschema"]
+	path = vendor/jsonschema
+	url = https://github.com/PMunch/jsonschema.git
+[submodule "vendor/ast-pattern-matching"]
+	path = vendor/ast-pattern-matching
+	url = https://github.com/krux02/ast-pattern-matching.git
