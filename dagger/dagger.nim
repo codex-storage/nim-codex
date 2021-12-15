@@ -8,16 +8,16 @@
 ## those terms.
 
 import std/sequtils
-
-when defined(posix):
-  import system/ansi_c
+import std/os
 
 import pkg/chronicles
 import pkg/chronos
 import pkg/presto
 import pkg/libp2p
 import pkg/confutils
+import pkg/confutils/defs
 import pkg/nitro
+import pkg/stew/io2
 
 import ./node
 import ./conf
@@ -26,15 +26,16 @@ import ./rest/api
 import ./stores/memorystore
 import ./stores/networkstore
 import ./blockexchange
+import ./datastore
 
 type
-  DaggerServer = ref object
+  DaggerServer* = ref object
     runHandle: Future[void]
     config: DaggerConf
     restServer: RestServerRef
     daggerNode: DaggerNodeRef
 
-proc run(s: DaggerServer) {.async.} =
+proc run*(s: DaggerServer) {.async.} =
   s.restServer.start()
   await s.daggerNode.start()
 
@@ -43,10 +44,11 @@ proc run(s: DaggerServer) {.async.} =
   await allFuturesThrowing(
     s.restServer.stop(), s.daggerNode.stop())
 
-proc shutdown(s: DaggerServer) =
+proc shutdown*(s: DaggerServer) =
   s.runHandle.complete()
 
-proc new(T: type DaggerServer, config: DaggerConf): T =
+proc new*(T: type DaggerServer, config: DaggerConf): T =
+
   let
     switch = SwitchBuilder
     .new()
@@ -79,36 +81,3 @@ proc new(T: type DaggerServer, config: DaggerConf): T =
     daggerNode: daggerNode,
     restServer: restServer)
 
-let
-  config = DaggerConf.load()
-
-case config.cmd:
-of StartUpCommand.noCommand:
-  let server = DaggerServer.new(config)
-
-  ## Ctrl+C handling
-  proc controlCHandler() {.noconv.} =
-    when defined(windows):
-      # workaround for https://github.com/nim-lang/Nim/issues/4057
-      try:
-        setupForeignThreadGc()
-      except Exception as exc: raiseAssert exc.msg # shouldn't happen
-    notice "Shutting down after having received SIGINT"
-    server.shutdown()
-
-  try:
-    setControlCHook(controlCHandler)
-  except Exception as exc: # TODO Exception
-    warn "Cannot set ctrl-c handler", msg = exc.msg
-
-  # equivalent SIGTERM handler
-  when defined(posix):
-    proc SIGTERMHandler(signal: cint) {.noconv.} =
-      notice "Shutting down after having received SIGTERM"
-      server.shutdown()
-
-    c_signal(SIGTERM, SIGTERMHandler)
-
-  waitFor server.run()
-of StartUpCommand.initNode:
-  discard
