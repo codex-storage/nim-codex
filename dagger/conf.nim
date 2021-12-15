@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-# {.push raises: [Defect].}
+{.push raises: [Defect].}
 
 import std/os
 import std/options
@@ -31,19 +31,12 @@ type
       defaultValue: LogLevel.INFO
       desc: "Sets the log level" }: LogLevel
 
-    daggerDir* {.
-      desc: "The directory where dagger will store config data."
-      # defaultValue: config.defaultDataDir()
-      defaultValue: "~/.config/dagger"
+    dataDir* {.
+      desc: "The directory where dagger will store configuration and data."
+      defaultValue: defaultDataDir()
       defaultValueDesc: ""
-      abbr: "d" }: OutDir
-
-    repoDir* {.
-      desc: "The directory where dagger will store all data."
-      # defaultValue: config.defaultDataDir() / "repo"
-      defaultValue: "~/.config/dagger/repo"
-      defaultValueDesc: ""
-      abbr: "r" }: OutDir
+      abbr: "d"
+      name: "data-dir" }: OutDir
 
     case cmd* {.
       command
