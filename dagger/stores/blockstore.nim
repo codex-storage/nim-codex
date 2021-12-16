@@ -34,7 +34,7 @@ method getBlock*(
 
 method putBlock*(
   s: BlockStore,
-  blk: Block): Future[void] {.base.} =
+  blk: Block): Future[bool] {.base.} =
   ## Put a block to the blockstore
   ##
 
@@ -42,7 +42,7 @@ method putBlock*(
 
 method delBlock*(
   s: BlockStore,
-  cid: Cid): Future[void] {.base.} =
+  cid: Cid): Future[bool] {.base.} =
   ## Delete a block/s from the block store
   ##
 

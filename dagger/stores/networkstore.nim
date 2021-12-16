@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [Defect].}
+
 import std/sequtils
 
 import pkg/chronicles
@@ -30,29 +32,51 @@ logScope:
 
 type
   NetworkStore* = ref object of BlockStore
-    engine*: BlockExcEngine                       # blockexc decision engine
-    localStore*: BlockStore                       # local block store
+    engine*: BlockExcEngine # blockexc decision engine
+    localStore*: BlockStore # local block store
 
 method getBlock*(
-  b: NetworkStore,
+  self: NetworkStore,
   cid: Cid): Future[?bt.Block] {.async.} =
   ## Get a block from a remote peer
   ##
 
   trace "Getting block", cid
-  without blk =? (await b.localStore.getBlock(cid)):
+  without blk =? (await self.localStore.getBlock(cid)):
     trace "Couldn't get from local store", cid
-    return await b.engine.requestBlock(cid)
+    return await self.engine.requestBlock(cid)
 
   trace "Retrieved block from local store", cid
   return blk.some
 
 method putBlock*(
-  b: NetworkStore,
-  blk: bt.Block) {.async.} =
+  self: NetworkStore,
+  blk: bt.Block): Future[bool] {.async.} =
   trace "Puting block", cid = blk.cid
-  await b.localStore.putBlock(blk)
-  b.engine.resolveBlocks(@[blk])
+
+  if not (await self.localStore.putBlock(blk)):
+    return false
+
+  self.engine.resolveBlocks(@[blk])
+  return true
+
+method delBlock*(
+  self: NetworkStore,
+  cid: Cid): Future[bool] =
+  ## Delete a block/s from the block store
+  ##
+
+  self.localStore.delBlock(cid)
+
+{.pop.}
+
+method hasBlock*(
+  self: NetworkStore,
+  cid: Cid): bool =
+  ## Check if the block exists in the blockstore
+  ##
+
+  self.localStore.hasBlock(cid)
 
 proc new*(
   T: type NetworkStore,
