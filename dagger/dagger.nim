@@ -23,7 +23,7 @@ import ./node
 import ./conf
 import ./rng
 import ./rest/api
-import ./stores/memorystore
+import ./stores/localstore
 import ./stores/networkstore
 import ./blockexchange
 import ./datastore
@@ -64,7 +64,7 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
   let
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
-    localStore = MemoryStore.new()
+    localStore = LocalStore.new(config.dataDir / "repo")
     engine = BlockExcEngine.new(localStore, wallet, network)
     store = NetworkStore.new(engine, localStore)
     daggerNode = DaggerNodeRef.new(switch, store, engine)
