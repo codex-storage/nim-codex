@@ -33,10 +33,14 @@ of StartUpCommand.noCommand:
     # permissions are insecure.
     quit QuitFailure
 
+  trace "Data dir initialized", dir = config.dataDir
+
   if not(checkAndCreateDataDir((config.dataDir / "repo").string)):
     # We are unable to access/create data folder or data folder's
     # permissions are insecure.
     quit QuitFailure
+
+  trace "Repo dir initialized", dir = config.dataDir / "repo"
 
   let server = DaggerServer.new(config)
 
