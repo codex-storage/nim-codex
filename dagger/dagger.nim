@@ -26,7 +26,7 @@ import ./rest/api
 import ./stores/localstore
 import ./stores/networkstore
 import ./blockexchange
-import ./datastore
+import ./utils/fileutils
 
 type
   DaggerServer* = ref object
@@ -80,4 +80,3 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
     config: config,
     daggerNode: daggerNode,
     restServer: restServer)
-

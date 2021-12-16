@@ -17,7 +17,7 @@ import pkg/libp2p
 
 import ./dagger/conf
 import ./dagger/dagger
-import ./dagger/datastore
+import ./dagger/utils/fileutils
 
 when defined(posix):
   import system/ansi_c
