@@ -110,7 +110,7 @@ proc retrieve*(
     return failure(
       newException(DaggerError, "Couldn't identify Cid!"))
 
-  if mc == MultiCodec.codec("dag-pb"):
+  if mc == ManifestCodec:
     trace "Retrieving data set", cid, mc
 
     let
