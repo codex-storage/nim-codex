@@ -28,6 +28,9 @@ import ./manifest
 import ./stores/blockstore
 import ./blockexchange
 
+logScope:
+  topics = "dagger node"
+
 const
   FileChunkSize* = 4096 # file chunk read size
 
@@ -44,7 +47,7 @@ proc start*(node: DaggerNodeRef) {.async.} =
   discard await node.switch.start()
   await node.engine.start()
   node.networkId = node.switch.peerInfo.peerId
-  trace "Started dagger node", id = node.networkId, addrs = node.switch.peerInfo.addrs
+  notice "Started dagger node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
 
 proc stop*(node: DaggerNodeRef) {.async.} =
   await node.engine.stop()
@@ -154,7 +157,10 @@ proc store*(
         blk = bt.Block.new(chunk)
 
       blockManifest.put(blk.cid)
-      await node.blockStore.putBlock(blk)
+      if not (await node.blockStore.putBlock(blk)):
+        trace "Unable to store block", cid = blk.cid
+        return failure("Unable to store block " & $blk.cid)
+
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -169,7 +175,9 @@ proc store*(
 
   # Store as a dag-pb block
   let manifest = bt.Block.new(data = data, codec = ManifestCodec)
-  await node.blockStore.putBlock(manifest)
+  if not (await node.blockStore.putBlock(manifest)):
+    trace "Unable to store manifest", cid = manifest.cid
+    return failure("Unable to store manifest " & $manifest.cid)
 
   trace "Stored data", manifestCid = manifest.cid,
                        contentCid = blockManifest.cid,
