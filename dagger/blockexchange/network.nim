@@ -126,7 +126,7 @@ proc broadcastWantList*(
     wantType,
     full,
     sendDontHave)
-  asyncSpawn b.peers[id].send(Message(wantlist: wantList))
+  b.peers[id].broadcast(Message(wantlist: wantList))
 
 proc handleBlocks(
   b: BlockExcNetwork,
@@ -176,7 +176,7 @@ proc broadcastBlocks*(
     return
 
   trace "Sending blocks to peer", peer = id, len = blocks.len
-  asyncSpawn b.peers[id].send(pb.Message(payload: makeBlocks(blocks)))
+  b.peers[id].broadcast(pb.Message(payload: makeBlocks(blocks)))
 
 proc handleBlockPresence(
   b: BlockExcNetwork,
@@ -202,7 +202,7 @@ proc broadcastBlockPresence*(
     return
 
   trace "Sending presence to peer", peer = id
-  asyncSpawn b.peers[id].send(Message(blockPresences: presence))
+  b.peers[id].broadcast(Message(blockPresences: presence))
 
 proc handleAccount(network: BlockExcNetwork,
                    peer: NetworkPeer,
@@ -218,7 +218,7 @@ proc broadcastAccount*(network: BlockExcNetwork,
     return
 
   let message = Message(account: AccountMessage.init(account))
-  asyncSpawn network.peers[id].send(message)
+  network.peers[id].broadcast(message)
 
 proc broadcastPayment*(network: BlockExcNetwork,
                        id: PeerId,
@@ -227,7 +227,7 @@ proc broadcastPayment*(network: BlockExcNetwork,
     return
 
   let message = Message(payment: StateChannelUpdate.init(payment))
-  asyncSpawn network.peers[id].send(message)
+  network.peers[id].broadcast(message)
 
 proc handlePayment(network: BlockExcNetwork,
                    peer: NetworkPeer,

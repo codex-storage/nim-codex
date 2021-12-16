@@ -232,7 +232,9 @@ proc blocksHandler*(
 
   trace "Got blocks from peer", peer, len = blocks.len
   for blk in blocks:
-    await b.localStore.putBlock(blk)
+    if not (await b.localStore.putBlock(blk)):
+      trace "Unable to store block", cid = blk.cid
+      continue
 
   b.resolveBlocks(blocks)
   let peerCtx = b.getPeerCtx(peer)

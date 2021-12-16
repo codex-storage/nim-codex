@@ -66,6 +66,15 @@ proc send*(b: NetworkPeer, msg: Message) {.async.} =
   trace "Sending message to remote", peer = b.id
   await conn.writeLp(Protobuf.encode(msg))
 
+proc broadcast*(b: NetworkPeer, msg: Message) =
+  proc sendAwaiter() {.async.} =
+    try:
+      await b.send(msg)
+    except CatchableError as exc:
+      trace "Exception broadcasting message to peer", peer = b.id, exc = exc.msg
+
+  asyncSpawn sendAwaiter()
+
 func new*(
   T: type NetworkPeer,
   peer: PeerId,
