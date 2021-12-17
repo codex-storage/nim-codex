@@ -185,4 +185,15 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
       # if we got here something went wrong?
       return RestApiResponse.error(Http500)
 
+  router.api(
+    MethodGet,
+    "/api/dagger/v1/info") do () -> RestApiResponse:
+      var addrs: string
+      for a in node.switch.peerInfo.addrs:
+        addrs &= "- " & $a & "\n"
+
+      return RestApiResponse.response(
+        "Id: " & $node.switch.peerInfo.peerId &
+        "\nAddrs: \n" & addrs & "\n")
+
   return router
