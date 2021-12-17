@@ -31,10 +31,10 @@ type
   LocalStore* = ref object of BlockStore
     cache: BlockStore
     repoDir: string
-    prefixLen*: int
+    postfixLen*: int
 
 template blockPath(self: LocalStore, cid: Cid): string =
-  self.repoDir / ($cid)[0..<self.prefixLen]
+  self.repoDir / ($cid)[(($cid).len - self.postfixLen)..<($cid).len]
 
 proc contains*(s: LocalStore, cid: Cid): bool =
   s.hasBlock(cid)
@@ -66,7 +66,7 @@ method putBlock*(
   ##
 
   if blk.cid in self:
-    return
+    return true
 
   # if directory exists it wont fail
   if io2.createPath(self.blockPath(blk.cid)).isErr:
@@ -110,9 +110,9 @@ method hasBlock*(self: LocalStore, cid: Cid): bool =
 proc new*(
   T: type LocalStore,
   repoDir: string,
-  prefixLen: int = 2,
+  postfixLen = 2,
   cache: BlockStore = MemoryStore.new()): T =
   T(
-    prefixLen: prefixLen,
+    postfixLen: postfixLen,
     repoDir: repoDir,
     cache: cache)
