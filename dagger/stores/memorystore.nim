@@ -54,20 +54,23 @@ method hasBlock*(s: MemoryStore, cid: Cid): bool =
 
 method putBlock*(
   s: MemoryStore,
-  blk: Block) {.async.} =
+  blk: Block): Future[bool] {.async.} =
   ## Put a block to the blockstore
   ##
 
   trace "Putting block", cid = blk.cid
   s.blocks.add(blk.some)
 
+  return blk.cid in s
+
 method delBlock*(
   s: MemoryStore,
-  cid: Cid) {.async.} =
+  cid: Cid): Future[bool] {.async.} =
   ## delete a block/s from the block store
   ##
 
   s.blocks.keepItIf( (!it).cid != cid )
+  return cid notin s
 
 func new*(_: type MemoryStore, blocks: openArray[?Block] = []): MemoryStore =
   MemoryStore(
