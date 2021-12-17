@@ -102,7 +102,7 @@ suite "Test Node":
         blk = bt.Block.new(chunk)
 
       original &= chunk
-      await localStore.putBlock(blk)
+      check await localStore.putBlock(blk)
       manifest.put(blk.cid)
 
     let
@@ -110,7 +110,7 @@ suite "Test Node":
         manifest.encode().tryGet(),
         codec = ManifestCodec)
 
-    await localStore.putBlock(manifestBlock)
+    check await localStore.putBlock(manifestBlock)
 
     let stream = BufferStream.new()
     check (await node.retrieve(stream, manifestBlock.cid)).isOk

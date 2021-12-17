@@ -147,7 +147,6 @@ suite "NetworkStore Network - e2e":
   var
     switch1, switch2: Switch
     network1, network2: BlockExcNetwork
-    awaiters: seq[Future[void]]
     blocks: seq[bt.Block]
     done: Future[void]
 
@@ -162,8 +161,8 @@ suite "NetworkStore Network - e2e":
     done = newFuture[void]()
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
+    await switch1.start()
+    await switch2.start()
 
     network1 = BlockExcNetwork.new(
       switch = switch1)
@@ -181,8 +180,6 @@ suite "NetworkStore Network - e2e":
     await allFuturesThrowing(
       switch1.stop(),
       switch2.stop())
-
-    await allFuturesThrowing(awaiters)
 
   test "broadcast want list":
     proc wantListHandler(peer: PeerID, wantList: WantList) {.gcsafe, async.} =

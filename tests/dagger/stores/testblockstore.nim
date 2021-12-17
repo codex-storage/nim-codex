@@ -36,9 +36,9 @@ suite "Memory Store":
     check store.hasBlock((!blocks[0]).cid)
 
   test "delBlocks single":
-    await store.delBlock((!blocks[0]).cid)
-    await store.delBlock((!blocks[1]).cid)
-    await store.delBlock((!blocks[2]).cid)
+    check await store.delBlock((!blocks[0]).cid)
+    check await store.delBlock((!blocks[1]).cid)
+    check await store.delBlock((!blocks[2]).cid)
 
     check not store.hasBlock((!blocks[0]).cid)
     check not store.hasBlock((!blocks[1]).cid)

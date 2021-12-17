@@ -158,8 +158,8 @@ suite "NetworkStore engine handlers":
       sendPresence: sendPresence
     ))
 
-    await engine.localStore.putBlock(blocks[0])
-    await engine.localStore.putBlock(blocks[1])
+    check await engine.localStore.putBlock(blocks[0])
+    check await engine.localStore.putBlock(blocks[1])
     await engine.wantListHandler(peerId, wantList)
 
     await done
@@ -257,7 +257,7 @@ suite "Task Handler":
         blks[0].cid == blocks[1].cid
 
     for blk in blocks:
-      await engine.localStore.putBlock(blk)
+      check await engine.localStore.putBlock(blk)
     engine.network.request.sendBlocks = sendBlocks
 
     # second block to send by priority
@@ -295,7 +295,7 @@ suite "Task Handler":
       ]
 
     for blk in blocks:
-      await engine.localStore.putBlock(blk)
+      check await engine.localStore.putBlock(blk)
     engine.network.request.sendPresence = sendPresence
 
     # have block

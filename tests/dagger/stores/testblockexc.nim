@@ -30,7 +30,6 @@ suite "NetworkStore engine - 2 nodes":
     pricing1, pricing2: Pricing
     network1, network2: BlockExcNetwork
     blockexc1, blockexc2: NetworkStore
-    awaiters: seq[Future[void]]
     peerId1, peerId2: PeerID
     peerCtx1, peerCtx2: BlockExcPeerCtx
     blocks1, blocks2: seq[bt.Block]
@@ -58,8 +57,8 @@ suite "NetworkStore engine - 2 nodes":
     wallet2 = WalletRef.example
     pricing1 = Pricing.example
     pricing2 = Pricing.example
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
+    await switch1.start()
+    await switch2.start()
 
     peerId1 = switch1.peerInfo.peerId
     peerId2 = switch2.peerInfo.peerId
@@ -105,8 +104,6 @@ suite "NetworkStore engine - 2 nodes":
       switch1.stop(),
       switch2.stop())
 
-    await allFuturesThrowing(awaiters)
-
   test "should exchange want lists on connect":
     check not isNil(peerCtx1)
     check not isNil(peerCtx2)
@@ -124,7 +121,7 @@ suite "NetworkStore engine - 2 nodes":
 
   test "should send want-have for block":
     let blk = bt.Block.new("Block 1".toBytes)
-    await blockexc2.engine.localStore.putBlock(blk)
+    check await blockexc2.engine.localStore.putBlock(blk)
 
     let entry = Entry(
       `block`: blk.cid.data.buffer,
@@ -134,7 +131,10 @@ suite "NetworkStore engine - 2 nodes":
       sendDontHave: false)
 
     peerCtx1.peerWants.add(entry)
-    check blockexc2.engine.taskQueue.pushOrUpdateNoWait(peerCtx1).isOk
+    check blockexc2
+      .engine
+      .taskQueue
+      .pushOrUpdateNoWait(peerCtx1).isOk
     await sleepAsync(100.millis)
 
     check blockexc1.engine.localStore.hasBlock(blk.cid)
@@ -152,11 +152,11 @@ suite "NetworkStore engine - 2 nodes":
       .withTimeout(100.millis) # should expire
 
     # first put the required block in the local store
-    await blockexc2.engine.localStore.putBlock(blk)
+    check await blockexc2.engine.localStore.putBlock(blk)
 
     # second trigger blockexc to resolve any pending requests
     # for the block
-    await blockexc2.putBlock(blk)
+    check await blockexc2.putBlock(blk)
 
     # should fail retrieving block from remote
     check await blockexc1.getBlock(blk.cid)
@@ -176,7 +176,6 @@ suite "NetworkStore - multiple nodes":
   var
     switch: seq[Switch]
     blockexc: seq[NetworkStore]
-    awaiters: seq[Future[void]]
     blocks: seq[bt.Block]
 
   setup:
@@ -192,20 +191,17 @@ suite "NetworkStore - multiple nodes":
       blockexc.add(e.blockexc)
       await e.blockexc.engine.start()
 
-    awaiters = switch.mapIt(
-      (await it.start())
-    ).concat()
+    await allFuturesThrowing(
+      switch.mapIt( it.start() )
+    )
 
   teardown:
     await allFuturesThrowing(
       switch.mapIt( it.stop() )
     )
 
-    await allFuturesThrowing(awaiters)
-
     switch = @[]
     blockexc = @[]
-    awaiters = @[]
 
   test "should receive haves for own want list":
     let
