@@ -44,7 +44,7 @@ type
     engine*: BlockExcEngine
 
 proc start*(node: DaggerNodeRef) {.async.} =
-  discard await node.switch.start()
+  await node.switch.start()
   await node.engine.start()
   node.networkId = node.switch.peerInfo.peerId
   notice "Started dagger node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
