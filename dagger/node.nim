@@ -67,24 +67,19 @@ proc connect*(
 proc streamBlocks*(
   node: DaggerNodeRef,
   stream: BufferStream,
-  blockRequests: seq[Future[?bt.Block]]) {.async.} =
+  blockManifest: BlocksManifest) {.async.} =
 
   try:
-    var
-      blockRequests = blockRequests # copy to be able to modify
+    # TODO: Read sequentially for now
+    # to prevent slurping the entire dataset
+    # since disk IO is blocking
+    for c in blockManifest:
+      without blk =? (await node.blockStore.getBlock(c)):
+        trace "Couldn't retrieve block", cid = c
+        continue
 
-    while true:
-      if blockRequests.len <= 0:
-        break
-
-      let retrievedFut = await one(blockRequests)
-      blockRequests.keepItIf(
-        it != retrievedFut
-      )
-
-      if retrieved =? (await retrievedFut):
-        trace "Streaming block data", cid = retrieved.cid, bytes = retrieved.data.len
-        await stream.pushData(retrieved.data)
+      trace "Streaming block data", cid = blk.cid, bytes = blk.data.len
+      await stream.pushData(blk.data)
 
   except CancelledError as exc:
     raise exc
@@ -113,18 +108,11 @@ proc retrieve*(
   if mc == ManifestCodec:
     trace "Retrieving data set", cid, mc
 
-    let
-      blockManifestRes = BlocksManifest.init(blk)
+    let res = BlocksManifest.init(blk)
+    if (res.isErr):
+      return failure(res.error)
 
-    if blockManifestRes.isErr:
-      return failure(blockManifestRes.error)
-
-    let
-      blockRequests = blockManifestRes.get().mapIt(
-        node.blockStore.getBlock(it)
-      )
-
-    asyncSpawn node.streamBlocks(stream, blockRequests)
+    asyncSpawn node.streamBlocks(stream, res.get())
   else:
     asyncSpawn (proc(): Future[void] {.async.} =
       try:
