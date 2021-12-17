@@ -158,7 +158,7 @@ suite "NetworkStore engine - 2 nodes":
     # for the block
     check await blockexc2.putBlock(blk)
 
-    # should fail retrieving block from remote
+    # should succede retrieving block from remote
     check await blockexc1.getBlock(blk.cid)
       .withTimeout(100.millis) # should succede
 
