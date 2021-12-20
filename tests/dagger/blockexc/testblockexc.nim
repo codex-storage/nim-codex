@@ -14,7 +14,6 @@ import pkg/dagger/blockexchange
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
 
-import ./utils
 import ../helpers
 import ../examples
 
