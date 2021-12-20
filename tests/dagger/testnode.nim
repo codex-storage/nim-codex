@@ -128,3 +128,18 @@ suite "Test Node":
       data &= buf
 
     check data == original
+
+  test "Retrieve One Block":
+    let
+      testString = "Block 1"
+      blk = bt.Block.new(testString.toBytes)
+
+    var
+      stream = BufferStream.new()
+
+    check (await localStore.putBlock(blk))
+    check (await node.retrieve(stream, blk.cid)).isOk
+
+    var data = newSeq[byte](testString.len)
+    await stream.readExactly(addr data[0], data.len)
+    check string.fromBytes(data) == testString
