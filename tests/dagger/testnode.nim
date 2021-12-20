@@ -25,8 +25,12 @@ import ./helpers
 import ./examples
 
 suite "Test Node":
+  let
+    (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
 
   var
+    file: File
+    chunker: Chunker
     switch: Switch
     wallet: WalletRef
     network: BlockExcNetwork
@@ -36,6 +40,8 @@ suite "Test Node":
     node: DaggerNodeRef
 
   setup:
+    file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
+    chunker = FileChunker.new(file = file)
     switch = newStandardSwitch()
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
@@ -47,13 +53,11 @@ suite "Test Node":
     await node.start()
 
   teardown:
+    close(file)
     await node.stop()
 
   test "Store Data Stream":
     let
-      (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
-      file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
-      chunker = FileChunker.new(file = file)
       stream = BufferStream.new()
       storeFut = node.store(stream)
 
@@ -85,11 +89,6 @@ suite "Test Node":
       manifest.cid == localManifest.cid
 
   test "Retrieve Data Stream":
-    let
-      (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
-      file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
-      chunker = FileChunker.new(file = file)
-
     var
       manifest = BlocksManifest.init().tryGet()
       original: seq[byte]
