@@ -25,22 +25,19 @@ import ../blocktype
 export blockstore
 
 logScope:
-  topics = "dagger localstore"
+  topics = "dagger fsstore"
 
 type
-  LocalStore* = ref object of BlockStore
+  FSStore* = ref object of BlockStore
     cache: BlockStore
     repoDir: string
     postfixLen*: int
 
-template blockPath(self: LocalStore, cid: Cid): string =
+template blockPath(self: FSStore, cid: Cid): string =
   self.repoDir / ($cid)[(($cid).len - self.postfixLen)..<($cid).len]
 
-proc contains*(s: LocalStore, cid: Cid): bool =
-  s.hasBlock(cid)
-
 method getBlock*(
-  self: LocalStore,
+  self: FSStore,
   cid: Cid): Future[?Block] {.async.} =
   ## Get a block from the stores
   ##
@@ -60,7 +57,7 @@ method getBlock*(
   return Block.new(cid, data).some
 
 method putBlock*(
-  self: LocalStore,
+  self: FSStore,
   blk: Block): Future[bool] {.async.} =
   ## Put a block to the blockstore
   ##
@@ -84,7 +81,7 @@ method putBlock*(
   return true
 
 method delBlock*(
-  self: LocalStore,
+  self: FSStore,
   cid: Cid): Future[bool] {.async.} =
   ## Delete a block/s from the block store
   ##
@@ -101,14 +98,14 @@ method delBlock*(
 
 {.pop.}
 
-method hasBlock*(self: LocalStore, cid: Cid): bool =
+method hasBlock*(self: FSStore, cid: Cid): bool =
   ## Check if the block exists in the blockstore
   ##
 
   isFile(self.blockPath(cid) / $cid)
 
 proc new*(
-  T: type LocalStore,
+  T: type FSStore,
   repoDir: string,
   postfixLen = 2,
   cache: BlockStore = MemoryStore.new()): T =
