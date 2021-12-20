@@ -113,18 +113,16 @@ suite "NetworkStore engine handlers":
     )
     engine.peers.add(peerCtx)
 
-  # test "should handle want list":
-  #   let  wantList = makeWantList(blocks.mapIt( it.cid ))
-  #   proc taskScheduler(ctx: BlockExcPeerCtx): bool =
-  #     check ctx.id == peerId
-  #     check ctx.peerWants.mapIt( it.cid ) == blocks.mapIt( it.cid )
+  test "should handle want list":
+    let  wantList = makeWantList(blocks.mapIt( it.cid ))
+    proc handler() {.async.} =
+      let ctx = await engine.taskQueue.pop()
+      check ctx.id == peerId
+      check ctx.peerWants.mapIt( it.cid ) == blocks.mapIt( it.cid )
 
-  #     done.complete()
-
-  #   engine.scheduleTask = taskScheduler
-  #   await engine.wantListHandler(peerId, wantList)
-
-  #   await done
+    let done = handler()
+    await engine.wantListHandler(peerId, wantList)
+    await done
 
   test "should handle want list - `dont-have`":
     let  wantList = makeWantList(blocks.mapIt( it.cid ), sendDontHave = true)
