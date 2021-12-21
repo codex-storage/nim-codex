@@ -75,7 +75,7 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
           Http400,
           $peerId.error())
 
-      let addresess = if addrs.isOk and addrs.get().len > 0:
+      let addresses = if addrs.isOk and addrs.get().len > 0:
             addrs.get()
           else:
             let peerRecord = await node.findPeer(peerId.get())
@@ -88,7 +88,7 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
               it.address
             )
 
-      await node.connect(peerId.get(), addresess)
+      await node.connect(peerId.get(), addresses)
       return RestApiResponse.response("")
 
   router.api(
