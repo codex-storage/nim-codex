@@ -34,7 +34,7 @@ type
     postfixLen*: int
 
 template blockPath(self: FSStore, cid: Cid): string =
-  self.repoDir / ($cid)[(($cid).len - self.postfixLen)..<($cid).len]
+  self.repoDir / ($cid)[^self.postfixLen..^1] / $cid
 
 method getBlock*(
   self: FSStore,
@@ -46,7 +46,7 @@ method getBlock*(
     return Block.none
 
   var data: seq[byte]
-  let path = self.blockPath(cid) / $cid
+  let path = self.blockPath(cid)
   if (
     let res = io2.readFile(path, data);
     res.isErr):
@@ -66,11 +66,11 @@ method putBlock*(
     return true
 
   # if directory exists it wont fail
-  if io2.createPath(self.blockPath(blk.cid)).isErr:
-    trace "Unable to create block prefix dir", dir = self.blockPath(blk.cid)
+  if io2.createPath(self.blockPath(blk.cid).parentDir).isErr:
+    trace "Unable to create block prefix dir", dir = self.blockPath(blk.cid).parentDir
     return false
 
-  let path = self.blockPath(blk.cid) / $blk.cid
+  let path = self.blockPath(blk.cid)
   if (
     let res = io2.writeFile(path, blk.data);
     res.isErr):
@@ -102,7 +102,7 @@ method hasBlock*(self: FSStore, cid: Cid): bool =
   ## Check if the block exists in the blockstore
   ##
 
-  isFile(self.blockPath(cid) / $cid)
+  self.blockPath(cid).isFile()
 
 proc new*(
   T: type FSStore,
