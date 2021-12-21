@@ -157,20 +157,16 @@ proc requestBlock*(
   if peers.len == 0:
     return blk # no peers to send wants to
 
-  template sendWants(ctx: BlockExcPeerCtx) =
-    if cid notin ctx.peerHave:
-      # just send wants
-      b.network.request.sendWantList(
-        ctx.id,
-        @[cid],
-        wantType = WantType.wantHave) # we only want to know if the peer has the block
-
   # filter out the peer we've already requested from
-  var stop = peers.high
-  if stop > b.peersPerRequest: stop = b.peersPerRequest
+  let stop = min(peers.high, b.peersPerRequest)
   trace "Sending want list requests to remaining peers", count = stop + 1
   for p in peers[0..stop]:
-    sendWants(p)
+    if cid notin p.peerHave:
+      # just send wants
+      b.network.request.sendWantList(
+        p.id,
+        @[cid],
+        wantType = WantType.wantHave) # we only want to know if the peer has the block
 
   return blk
 
