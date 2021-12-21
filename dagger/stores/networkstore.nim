@@ -9,8 +9,6 @@
 
 {.push raises: [Defect].}
 
-import std/sequtils
-
 import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
@@ -23,7 +21,6 @@ import ./blockstore
 import ../blockexchange/network
 import ../blockexchange/engine
 import ../blockexchange/peercontext
-import ../blockexchange/protobuf/blockexc as pb
 
 export blockstore, network, engine, asyncheapqueue
 

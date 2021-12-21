@@ -9,8 +9,6 @@
 
 {.push raises: [Defect].}
 
-import std/sequtils
-
 import pkg/chronos
 import pkg/libp2p
 import pkg/questionable

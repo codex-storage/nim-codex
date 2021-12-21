@@ -16,8 +16,6 @@ import pkg/chronicles
 import pkg/confutils/defs
 import pkg/libp2p
 
-import ./rng
-
 const
   DefaultTcpListenMultiAddr = "/ip4/0.0.0.0/tcp/0"
 

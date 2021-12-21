@@ -11,8 +11,6 @@
 
 {.push raises: [Defect].}
 
-import std/sequtils
-
 import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results

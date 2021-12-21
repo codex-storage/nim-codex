@@ -1,6 +1,4 @@
 import std/os
-import std/sequtils
-import std/algorithm
 import std/options
 
 import pkg/asynctest
@@ -11,18 +9,14 @@ import pkg/nitro
 import pkg/libp2p
 import pkg/libp2p/errors
 
-import pkg/dagger/rng
 import pkg/dagger/stores
 import pkg/dagger/blockexchange
 import pkg/dagger/chunker
 import pkg/dagger/node
-import pkg/dagger/conf
 import pkg/dagger/manifest
 import pkg/dagger/blocktype as bt
-import pkg/chronicles
 
 import ./helpers
-import ./examples
 
 suite "Test Node":
   let
