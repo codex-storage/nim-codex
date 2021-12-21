@@ -62,13 +62,13 @@ suite "NetworkStore engine - 2 nodes":
     peerId1 = switch1.peerInfo.peerId
     peerId2 = switch2.peerInfo.peerId
 
-    localStore1 = MemoryStore.new(blocks1.mapIt( it.some ))
+    localStore1 = MemoryStore.new(blocks1.mapIt( it ))
     network1 = BlockExcNetwork.new(switch = switch1)
     engine1 = BlockExcEngine.new(localStore1, wallet1, network1)
     blockexc1 = NetworkStore.new(engine1, localStore1)
     switch1.mount(network1)
 
-    localStore2 = MemoryStore.new(blocks2.mapIt( it.some ))
+    localStore2 = MemoryStore.new(blocks2.mapIt( it ))
     network2 = BlockExcNetwork.new(switch = switch2)
     engine2 = BlockExcEngine.new(localStore2, wallet2, network2)
     blockexc2 = NetworkStore.new(engine2, localStore2)

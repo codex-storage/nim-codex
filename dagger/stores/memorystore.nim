@@ -26,7 +26,7 @@ logScope:
 
 type
   MemoryStore* = ref object of BlockStore
-    blocks: seq[?Block] # TODO: Should be an LRU cache
+    blocks: seq[Block] # TODO: Should be an LRU cache
 
 method getBlock*(
   b: MemoryStore,
@@ -36,7 +36,7 @@ method getBlock*(
 
   trace "Getting block", cid
   let found = b.blocks.filterIt(
-    (!it).cid == cid
+    it.cid == cid
   )
 
   if found.len <= 0:
@@ -44,13 +44,13 @@ method getBlock*(
 
   trace "Retrieved block", cid
 
-  return found[0]
+  return found[0].some
 
 method hasBlock*(s: MemoryStore, cid: Cid): bool =
   ## check if the block exists
   ##
 
-  s.blocks.filterIt( (!it).cid == cid ).len > 0
+  s.blocks.anyIt( it.cid == cid )
 
 method putBlock*(
   s: MemoryStore,
@@ -59,7 +59,7 @@ method putBlock*(
   ##
 
   trace "Putting block", cid = blk.cid
-  s.blocks.add(blk.some)
+  s.blocks.add(blk)
 
   return blk.cid in s
 
@@ -69,10 +69,10 @@ method delBlock*(
   ## delete a block/s from the block store
   ##
 
-  s.blocks.keepItIf( (!it).cid != cid )
+  s.blocks.keepItIf( it.cid != cid )
   return cid notin s
 
-func new*(_: type MemoryStore, blocks: openArray[?Block] = []): MemoryStore =
+func new*(_: type MemoryStore, blocks: openArray[Block] = []): MemoryStore =
   MemoryStore(
     blocks: @blocks
   )

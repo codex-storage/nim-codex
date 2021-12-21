@@ -58,7 +58,7 @@ suite "NetworkStore engine basic":
       ))
 
       engine = BlockExcEngine.new(
-        MemoryStore.new(blocks.mapIt( it.some )),
+        MemoryStore.new(blocks.mapIt( it )),
         wallet,
         network)
     engine.wantList = blocks.mapIt( it.cid )
