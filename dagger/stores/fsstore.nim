@@ -33,7 +33,7 @@ type
     repoDir: string
     postfixLen*: int
 
-template blockPath(self: FSStore, cid: Cid): string =
+template blockPath*(self: FSStore, cid: Cid): string =
   self.repoDir / ($cid)[^self.postfixLen..^1] / $cid
 
 method getBlock*(
@@ -54,7 +54,7 @@ method getBlock*(
     trace "Cannot read file", path , error
     return Block.none
 
-  return Block.new(cid, data).some
+  return Block.init(cid, data).some
 
 method putBlock*(
   self: FSStore,

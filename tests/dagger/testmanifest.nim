@@ -17,13 +17,13 @@ suite "Manifest":
   test "Should produce valid tree hash checksum":
     without var manifest =? BlocksManifest.init(
         blocks = @[
-            Block.new("Block 1".toBytes).cid,
-            Block.new("Block 2".toBytes).cid,
-            Block.new("Block 3".toBytes).cid,
-            Block.new("Block 4".toBytes).cid,
-            Block.new("Block 5".toBytes).cid,
-            Block.new("Block 6".toBytes).cid,
-            Block.new("Block 7".toBytes).cid,
+            Block.init("Block 1".toBytes).cid,
+            Block.init("Block 2".toBytes).cid,
+            Block.init("Block 3".toBytes).cid,
+            Block.init("Block 4".toBytes).cid,
+            Block.init("Block 5".toBytes).cid,
+            Block.init("Block 6".toBytes).cid,
+            Block.init("Block 7".toBytes).cid,
           ]):
         fail()
 
@@ -42,7 +42,7 @@ suite "Manifest":
 
   test "Should encode/decode to/from manifest":
     let
-      blocks = (0..<1000).mapIt( Block.new(("Block " & $it).toBytes).cid )
+      blocks = (0..<1000).mapIt( Block.init(("Block " & $it).toBytes).cid )
 
     var
       manifest = BlocksManifest.init(blocks).get()

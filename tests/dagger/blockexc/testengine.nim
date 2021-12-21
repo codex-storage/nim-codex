@@ -35,7 +35,7 @@ suite "NetworkStore engine basic":
       if chunk.len <= 0:
         break
 
-      blocks.add(bt.Block.new(chunk))
+      blocks.add(bt.Block.init(chunk))
 
     done = newFuture[void]()
 
@@ -104,7 +104,7 @@ suite "NetworkStore engine handlers":
       if chunk.len <= 0:
         break
 
-      blocks.add(bt.Block.new(chunk))
+      blocks.add(bt.Block.init(chunk))
 
     done = newFuture[void]()
     engine = BlockExcEngine.new(MemoryStore.new(), wallet, BlockExcNetwork())
@@ -228,7 +228,7 @@ suite "Task Handler":
       if chunk.len <= 0:
         break
 
-      blocks.add(bt.Block.new(chunk))
+      blocks.add(bt.Block.init(chunk))
 
     done = newFuture[void]()
     engine = BlockExcEngine.new(MemoryStore.new(), wallet, BlockExcNetwork())
@@ -282,7 +282,7 @@ suite "Task Handler":
 
   test "Should send presence":
     let present = blocks
-    let missing = @[bt.Block.new("missing".toBytes)]
+    let missing = @[bt.Block.init("missing".toBytes)]
     let price = (!engine.pricing).price
 
     proc sendPresence(id: PeerID, presence: seq[BlockPresence]) =

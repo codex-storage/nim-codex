@@ -1,3 +1,7 @@
-import ./stores/[memorystore, blockstore, networkstore]
+import ./stores/[
+  memorystore,
+  blockstore,
+  networkstore,
+  fsstore]
 
-export memorystore, blockstore, networkstore
+export memorystore, blockstore, networkstore, fsstore

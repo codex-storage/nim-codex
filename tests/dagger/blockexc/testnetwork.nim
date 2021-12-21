@@ -40,7 +40,7 @@ suite "NetworkStore network":
       if chunk.len <= 0:
         break
 
-      blocks.add(bt.Block.new(chunk))
+      blocks.add(bt.Block.init(chunk))
 
     done = newFuture[void]()
     buffer = BufferStream.new()
@@ -156,7 +156,7 @@ suite "NetworkStore Network - e2e":
       if chunk.len <= 0:
         break
 
-      blocks.add(bt.Block.new(chunk))
+      blocks.add(bt.Block.init(chunk))
 
     done = newFuture[void]()
     switch1 = newStandardSwitch()

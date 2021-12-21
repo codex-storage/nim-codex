@@ -63,7 +63,7 @@ suite "Test Node":
         let chunk = await chunker.getBytes();
         chunk.len > 0):
         await stream.pushData(chunk)
-        manifest.put(bt.Block.new(chunk).cid)
+        manifest.put(bt.Block.init(chunk).cid)
     finally:
       await stream.pushEof()
       await stream.close()
@@ -92,14 +92,14 @@ suite "Test Node":
       chunk.len > 0):
 
       let
-        blk = bt.Block.new(chunk)
+        blk = bt.Block.init(chunk)
 
       original &= chunk
       check await localStore.putBlock(blk)
       manifest.put(blk.cid)
 
     let
-      manifestBlock = bt.Block.new(
+      manifestBlock = bt.Block.init(
         manifest.encode().tryGet(),
         codec = ManifestCodec)
 
@@ -125,7 +125,7 @@ suite "Test Node":
   test "Retrieve One Block":
     let
       testString = "Block 1"
-      blk = bt.Block.new(testString.toBytes)
+      blk = bt.Block.init(testString.toBytes)
 
     var
       stream = BufferStream.new()
