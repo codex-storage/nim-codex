@@ -10,6 +10,7 @@
 {.push raises: [Defect].}
 
 import std/sequtils
+import std/sugar
 
 import pkg/questionable
 import pkg/questionable/results
@@ -17,7 +18,6 @@ import pkg/chronicles
 import pkg/chronos
 import pkg/presto
 import pkg/libp2p
-import pkg/stew/byteutils
 
 import pkg/libp2p/routing_record
 
@@ -33,35 +33,27 @@ proc encodeString(cid: type Cid): Result[string, cstring] =
   ok($cid)
 
 proc decodeString(T: type Cid, value: string): Result[Cid, cstring] =
-  let cid = Cid.init(value)
-  if cid.isOk:
-    ok(cid.get())
-  else:
-    case cid.error
-    of CidError.Incorrect: err("Incorrect Cid")
-    of CidError.Unsupported: err("Unsupported Cid")
-    of CidError.Overrun: err("Overrun Cid")
-    else: err("Error parsing Cid")
+  Cid.init(value)
+    .mapErr do(e: CidError) -> cstring:
+      case e
+      of CidError.Incorrect: "Incorrect Cid"
+      of CidError.Unsupported: "Unsupported Cid"
+      of CidError.Overrun: "Overrun Cid"
+      else: "Error parsing Cid"
 
 proc encodeString(peerId: PeerID): Result[string, cstring] =
   ok($peerId)
 
 proc decodeString(T: type PeerID, value: string): Result[PeerID, cstring] =
-  let peer = PeerID.init(value)
-  if peer.isOk:
-    ok(peer.get())
-  else:
-    err(peer.error())
+  PeerID.init(value)
 
 proc encodeString(address: MultiAddress): Result[string, cstring] =
   ok($address)
 
 proc decodeString(T: type MultiAddress, value: string): Result[MultiAddress, cstring] =
-  let address = MultiAddress.init(value)
-  if address.isOk:
-    ok(address.get())
-  else:
-    err(cstring(address.error()))
+  MultiAddress
+    .init(value)
+    .mapErr do(e: string) -> cstring: cstring(e)
 
 proc initRestApi*(node: DaggerNodeRef): RestRouter =
   var router = RestRouter.init(validate)
