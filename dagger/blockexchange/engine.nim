@@ -406,7 +406,6 @@ proc new*(
     taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize))
 
   proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
-    # TODO: temporary until libp2p moves back to PeerID
     if event.kind == PeerEventKind.Joined:
       engine.setupPeer(peerId)
     else:
