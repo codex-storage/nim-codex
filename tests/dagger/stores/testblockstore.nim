@@ -3,7 +3,6 @@ import std/sequtils
 import pkg/chronos
 import pkg/asynctest
 import pkg/libp2p
-import pkg/stew/byteutils
 import pkg/questionable
 import pkg/questionable/results
 import pkg/dagger/rng
@@ -16,7 +15,7 @@ suite "Memory Store":
 
   var store: MemoryStore
   var chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
-  var blocks: seq[?Block]
+  var blocks: seq[Block]
 
   setup:
     while true:
@@ -24,22 +23,23 @@ suite "Memory Store":
       if chunk.len <= 0:
         break
 
-      blocks.add(Block.new(chunk).some)
+      blocks.add(Block.new(chunk))
 
     store = MemoryStore.new(blocks)
 
   test "getBlocks single":
-    let blk = await store.getBlock((!blocks[0]).cid)
-    check blk == blocks[0]
+    let blk = await store.getBlock(blocks[0].cid)
+    check blk.isSome
+    check !blk == blocks[0]
 
   test "hasBlock":
-    check store.hasBlock((!blocks[0]).cid)
+    check store.hasBlock(blocks[0].cid)
 
   test "delBlocks single":
-    check await store.delBlock((!blocks[0]).cid)
-    check await store.delBlock((!blocks[1]).cid)
-    check await store.delBlock((!blocks[2]).cid)
+    check await store.delBlock(blocks[0].cid)
+    check await store.delBlock(blocks[1].cid)
+    check await store.delBlock(blocks[2].cid)
 
-    check not store.hasBlock((!blocks[0]).cid)
-    check not store.hasBlock((!blocks[1]).cid)
-    check not store.hasBlock((!blocks[2]).cid)
+    check not store.hasBlock(blocks[0].cid)
+    check not store.hasBlock(blocks[1].cid)
+    check not store.hasBlock(blocks[2].cid)
