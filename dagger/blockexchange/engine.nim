@@ -87,7 +87,7 @@ proc start*(b: BlockExcEngine) {.async.} =
 
   trace "blockexc start"
 
-  if b.blockexcTasks.len > 0:
+  if b.blockexcRunning:
     warn "Starting blockexc twice"
     return
 
@@ -100,7 +100,7 @@ proc stop*(b: BlockExcEngine) {.async.} =
   ##
 
   trace "NetworkStore stop"
-  if b.blockexcTasks.len <= 0:
+  if not b.blockexcRunning:
     warn "Stopping blockexc without starting it"
     return
 
