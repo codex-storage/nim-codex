@@ -8,20 +8,17 @@
 ## those terms.
 
 import std/options
-import std/sequtils
 
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
-import pkg/stew/byteutils
 
 # TODO: remove once exported by libp2p
 import pkg/libp2p/routing_record
 import pkg/libp2p/signed_envelope
 
-import ./conf
 import ./chunker
 import ./blocktype as bt
 import ./manifest
