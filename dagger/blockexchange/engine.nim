@@ -116,7 +116,7 @@ proc stop*(b: BlockExcEngine) {.async.} =
 proc requestBlock*(
   b: BlockExcEngine,
   cid: Cid,
-  timeout = DefaultBlockTimeout): Future[?bt.Block] =
+  timeout = DefaultBlockTimeout): Future[bt.Block] =
   ## Request a block from remotes
   ##
 
@@ -344,7 +344,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
     ))
 
     let blocks = blockFuts
-      .filterIt((not it.failed) and it.read.isSome)
+      .filterIt((not it.failed) and it.read.isOk)
       .mapIt(!it.read)
 
     if blocks.len > 0:

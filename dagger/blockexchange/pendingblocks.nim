@@ -21,16 +21,16 @@ logScope:
 
 type
   PendingBlocksManager* = ref object of RootObj
-    blocks*: Table[Cid, Future[?Block]] # pending Block requests
+    blocks*: Table[Cid, Future[Block]] # pending Block requests
 
 proc addOrAwait*(
   p: PendingBlocksManager,
-  cid: Cid): Future[?Block] {.async.} =
+  cid: Cid): Future[Block] {.async.} =
   ## Add an event for a block
   ##
 
   if cid notin p.blocks:
-     p.blocks[cid] = newFuture[?Block]()
+     p.blocks[cid] = newFuture[Block]()
      trace "Adding pending future for block", cid
 
   try:
@@ -55,7 +55,7 @@ proc resolve*(
       let pending = p.blocks[blk.cid]
       if not pending.finished:
         trace "Resolving block", cid = $blk.cid
-        pending.complete(blk.some)
+        pending.complete(blk)
         p.blocks.del(blk.cid)
 
 proc pending*(
@@ -68,5 +68,5 @@ proc contains*(
 
 func new*(T: type PendingBlocksManager): T =
   T(
-    blocks: initTable[Cid, Future[?Block]]()
+    blocks: initTable[Cid, Future[Block]]()
   )
