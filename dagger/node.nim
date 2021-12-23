@@ -77,9 +77,6 @@ proc streamBlocks*(
 
       trace "Streaming block data", cid = blk.cid, bytes = blk.data.len
       await stream.pushData(blk.data)
-
-  except CancelledError as exc:
-    raise exc
   except CatchableError as exc:
     trace "Exception retrieving blocks", exc = exc.msg
   finally:
@@ -91,10 +88,7 @@ proc retrieve*(
   cid: Cid): Future[?!void] {.async.} =
 
   trace "Received retrieval request", cid
-  let
-    blkRes = await node.blockStore.getBlock(cid)
-
-  without blk =? blkRes:
+  without blk =? await node.blockStore.getBlock(cid):
     return failure(
       newException(DaggerError, "Couldn't retrieve block for Cid!"))
 
@@ -107,7 +101,7 @@ proc retrieve*(
 
     let res = BlocksManifest.init(blk)
     if (res.isErr):
-      return failure(res.error)
+      return failure(res.error.msg)
 
     asyncSpawn node.streamBlocks(stream, res.get())
   else:
@@ -116,6 +110,7 @@ proc retrieve*(
         await stream.pushData(blk.data)
       except CatchableError as exc:
         trace "Unable to send block", cid
+        discard
       finally:
         await stream.pushEof())()
 
@@ -143,7 +138,7 @@ proc store*(
 
       blockManifest.put(blk.cid)
       if not (await node.blockStore.putBlock(blk)):
-        trace "Unable to store block", cid = blk.cid
+        # trace "Unable to store block", cid = blk.cid
         return failure("Unable to store block " & $blk.cid)
 
   except CancelledError as exc:
@@ -164,8 +159,13 @@ proc store*(
     trace "Unable to store manifest", cid = manifest.cid
     return failure("Unable to store manifest " & $manifest.cid)
 
+  var cid: ?!Cid
+  if (cid = blockManifest.cid; cid.isErr):
+    trace "Unable to generate manifest Cid!", exc = cid.error.msg
+    return failure(cid.error.msg)
+
   trace "Stored data", manifestCid = manifest.cid,
-                       contentCid = blockManifest.cid,
+                       contentCid = !cid,
                        blocks = blockManifest.len
 
   return manifest.cid.success
