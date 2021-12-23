@@ -10,10 +10,6 @@
 {.push raises: [Defect].}
 
 import pkg/libp2p
-import pkg/chronos
-import pkg/chronicles
-import pkg/questionable
-import pkg/questionable/results
 import pkg/stew/byteutils
 
 type
