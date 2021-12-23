@@ -15,6 +15,7 @@ import pkg/chronos
 import pkg/libp2p
 import pkg/chronicles
 import pkg/questionable
+import pkg/questionable/results
 
 import ./blockstore
 import ../blocktype
@@ -30,7 +31,7 @@ type
 
 method getBlock*(
   b: MemoryStore,
-  cid: Cid): Future[?Block] {.async.} =
+  cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the stores
   ##
 
@@ -40,11 +41,11 @@ method getBlock*(
   )
 
   if found.len <= 0:
-    return Block.none
+    return failure("Couldn't get block")
 
   trace "Retrieved block", cid
 
-  return found[0].some
+  return found[0].success
 
 method hasBlock*(s: MemoryStore, cid: Cid): bool =
   ## check if the block exists

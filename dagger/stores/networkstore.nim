@@ -34,17 +34,21 @@ type
 
 method getBlock*(
   self: NetworkStore,
-  cid: Cid): Future[?bt.Block] {.async.} =
+  cid: Cid): Future[?!bt.Block] {.async.} =
   ## Get a block from a remote peer
   ##
 
   trace "Getting block", cid
-  without blk =? (await self.localStore.getBlock(cid)):
+  without var blk =? (await self.localStore.getBlock(cid)):
     trace "Couldn't get from local store", cid
-    return await self.engine.requestBlock(cid)
+    blk = try:
+      await self.engine.requestBlock(cid)
+    except CatchableError as exc:
+      trace "Exception requestig block", cid, exc = exc.msg
+      return failure(exc.msg)
 
   trace "Retrieved block from local store", cid
-  return blk.some
+  return blk.success
 
 method putBlock*(
   self: NetworkStore,

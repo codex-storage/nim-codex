@@ -12,6 +12,7 @@
 import pkg/chronos
 import pkg/libp2p
 import pkg/questionable
+import pkg/questionable/results
 
 import ../blocktype
 
@@ -24,7 +25,7 @@ type
 
 method getBlock*(
   b: BlockStore,
-  cid: Cid): Future[?Block] {.base.} =
+  cid: Cid): Future[?!Block] {.base.} =
   ## Get a block from the stores
   ##
 

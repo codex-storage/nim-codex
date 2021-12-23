@@ -38,12 +38,12 @@ template blockPath*(self: FSStore, cid: Cid): string =
 
 method getBlock*(
   self: FSStore,
-  cid: Cid): Future[?Block] {.async.} =
+  cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the stores
   ##
 
   if cid notin self:
-    return Block.none
+    return Block.failure("Couldn't find block in fs store")
 
   var data: seq[byte]
   let path = self.blockPath(cid)
@@ -51,10 +51,10 @@ method getBlock*(
     let res = io2.readFile(path, data);
     res.isErr):
     let error = io2.ioErrorMsg(res.error)
-    trace "Cannot read file", path , error
-    return Block.none
+    trace "Cannot read file from fs store", path , error
+    return Block.failure("Cannot read file from fs store")
 
-  return Block.init(cid, data).some
+  return Block.init(cid, data).success
 
 method putBlock*(
   self: FSStore,
