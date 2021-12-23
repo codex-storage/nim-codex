@@ -27,7 +27,8 @@ suite "Memory Store tests":
       store = MemoryStore.new(@[newBlock])
 
     let blk = await store.getBlock(newBlock.cid)
-    check blk == newBlock.some
+    check blk.isOk
+    check blk == newBlock.success
 
   test "fail getBlock":
     let
@@ -35,7 +36,7 @@ suite "Memory Store tests":
       store = MemoryStore.new(@[])
 
     let blk = await store.getBlock(newBlock.cid)
-    check blk == Block.none
+    check blk.isErr
 
   test "hasBlock":
     let

@@ -42,11 +42,11 @@ suite "FS Store":
     createDir(store.blockPath(newBlock.cid).parentDir)
     writeFile(store.blockPath(newBlock.cid), newBlock.data)
     let blk = await store.getBlock(newBlock.cid)
-    check blk == newBlock.some
+    check blk.option == newBlock.some
 
   test "fail getBlock":
     let blk = await store.getBlock(newBlock.cid)
-    check blk == Block.none
+    check blk.isErr
 
   test "hasBlock":
     createDir(store.blockPath(newBlock.cid).parentDir)

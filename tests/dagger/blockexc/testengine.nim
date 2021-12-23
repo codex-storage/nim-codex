@@ -169,7 +169,7 @@ suite "NetworkStore engine handlers":
 
     await engine.blocksHandler(peerId, blocks)
     let resolved = await allFinished(pending)
-    check resolved.mapIt( !it.read ) == blocks
+    check resolved.mapIt( it.read ) == blocks
     for b in blocks:
       check engine.localStore.hasBlock(b.cid)
 
