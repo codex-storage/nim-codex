@@ -39,9 +39,9 @@ iterator items*(b: BlocksManifest): Cid =
 proc hashBytes(mh: MultiHash): seq[byte] =
   mh.data.buffer[mh.dpos..(mh.dpos + mh.size - 1)]
 
-proc cid*(b: var BlocksManifest): ?Cid =
-  if b.htree.isSome:
-    return b.htree
+proc cid*(b: var BlocksManifest): ?!Cid =
+  if htree =? b.htree:
+    return htree.success
 
   var
     stack: seq[MultiHash]
@@ -63,22 +63,17 @@ proc cid*(b: var BlocksManifest): ?Cid =
           (b1.hashBytes() & b2.hashBytes()))
 
       without mh =? digest:
-        return Cid.none
+        return Cid.failure($digest.error)
 
       stack.add(mh)
 
   if stack.len == 1:
-    let
-      cid = Cid.init(b.version, b.codec, stack[0])
-
-    if cid.isOk:
-      b.htree = cid.get().some
-      return cid.get().some
+    if cid =? Cid.init(b.version, b.codec, stack[0]):
+      b.htree = cid.some
+      return cid.success
 
 proc put*(b: var BlocksManifest, cid: Cid) =
-  if b.htree.isSome:
-    b.htree = Cid.none
-
+  b.htree = Cid.none
   trace "Adding cid to manifest", cid
   b.blocks.add(cid)
 
