@@ -17,6 +17,7 @@ import pkg/chronicles
 import pkg/chronos
 
 import ./blocktype
+import ./errors
 
 const
   ManifestCodec* = multiCodec("dag-pb")
@@ -28,7 +29,7 @@ type
     version*: CidVersion
     hcodec*: MultiCodec
     codec*: MultiCodec
-    cidEmptyDigest: MultiHash
+    emptyDigest: MultiHash
 
 proc len*(b: BlocksManifest): int = b.blocks.len
 
@@ -47,30 +48,25 @@ proc cid*(b: var BlocksManifest): ?!Cid =
     stack: seq[MultiHash]
 
   if stack.len == 1:
-    stack.add(b.cidEmptyDigest)
+    stack.add(b.emptyDigest)
 
   for cid in b.blocks:
     if mhash =? cid.mhash:
       stack.add(mhash)
 
     while stack.len > 1:
-      var
+      let
         (b1, b2) = (stack.pop(), stack.pop())
-
-      var
-        digest = MultiHash.digest(
+        mh = ? MultiHash.digest(
           $b.hcodec,
           (b1.hashBytes() & b2.hashBytes()))
-
-      without mh =? digest:
-        return Cid.failure($digest.error)
-
+          .mapFailure
       stack.add(mh)
 
   if stack.len == 1:
-    if cid =? Cid.init(b.version, b.codec, stack[0]):
-      b.htree = cid.some
-      return cid.success
+    let cid = ? Cid.init(b.version, b.codec, stack[0]).mapFailure
+    b.htree = cid.some
+    return cid.success
 
 proc put*(b: var BlocksManifest, cid: Cid) =
   b.htree = Cid.none
@@ -91,9 +87,7 @@ proc encode*(b: var BlocksManifest): ?!seq[byte] =
     pbLink.finish()
     pbNode.write(2, pbLink)
 
-  without cid =? b.cid:
-    return failure("Unable to generate tree hash")
-
+  let cid = ? b.cid
   pbNode.write(1, cid.data.buffer) # set the treeHash Cid as the data field
   pbNode.finish()
 
@@ -102,25 +96,25 @@ proc encode*(b: var BlocksManifest): ?!seq[byte] =
 proc decode*(_: type BlocksManifest, data: seq[byte]): ?!(Cid, seq[Cid]) =
   ## Decode a manifest from a byte seq
   ##
-  var pbNode = initProtoBuffer(data)
   var
+    pbNode = initProtoBuffer(data)
     cidBuf: seq[byte]
     blocks: seq[Cid]
 
   if pbNode.getField(1, cidBuf).isOk:
-    if cid =? Cid.init(cidBuf):
-      var linksBuf: seq[seq[byte]]
-      if pbNode.getRepeatedField(2, linksBuf).isOk:
-        for pbLinkBuf in linksBuf:
-          var
-            blocksBuf: seq[seq[byte]]
-            blockBuf: seq[byte]
-            pbLink = initProtoBuffer(pbLinkBuf)
+    let cid = ? Cid.init(cidBuf).mapFailure
+    var linksBuf: seq[seq[byte]]
+    if pbNode.getRepeatedField(2, linksBuf).isOk:
+      for pbLinkBuf in linksBuf:
+        var
+          blocksBuf: seq[seq[byte]]
+          blockBuf: seq[byte]
+          pbLink = initProtoBuffer(pbLinkBuf)
 
-          if pbLink.getField(1, blockBuf).isOk:
-            let cidRes = Cid.init(blockBuf)
-            if cidRes.isOk:
-              blocks.add(cidRes.get())
+        if pbLink.getField(1, blockBuf).isOk:
+          let cidRes = Cid.init(blockBuf)
+          if cidRes.isOk:
+            blocks.add(cidRes.get())
 
       return (cid, blocks).success
 
@@ -135,28 +129,23 @@ func init*(
 
   # TODO: The CIDs should be initialized at compile time,
   # but the VM fails due to a `memmove` being invoked somewhere
-  let cidEmptyRes = if version == CIDv1:
-      Cid.init("bafybeihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku")
+  let
+    cid = if version == CIDv1:
+      ? Cid.init("bafybeihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku").mapFailure
     else:
-      Cid.init("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
+      ? Cid.init("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n").mapFailure
 
-  without cidEmpty =? cidEmptyRes:
-    return failure("Unable to create empty Cid")
-
-  without cidEmptyMHash =? cidEmpty.mhash:
-    return failure("Unable to get multihash from empty Cid")
-
-  without cidEmptyDigest =? MultiHash.digest(
+    mhash = ? cid.mhash.mapFailure
+    digest = ? MultiHash.digest(
       $hcodec,
-      cidEmptyMHash.hashBytes()):
-    return failure("Unable to generate digest for empty Cid")
+      mhash.hashBytes()).mapFailure
 
   T(
     blocks: @blocks,
     version: version,
     codec: codec,
     hcodec: hcodec,
-    cidEmptyDigest: cidEmptyDigest
+    emptyDigest: digest
     ).success
 
 func init*(
@@ -166,27 +155,18 @@ func init*(
   ## (in dag-pb for for now)
   ##
 
-  let res = BlocksManifest.decode(blk.data)
-  if res.isErr:
-    return failure("Unable to decode Block to a Block Set!")
-
   let
-    (cid, blocks) = res.get()
+    (cid, blocks) = ? BlocksManifest.decode(blk.data)
+    mhash = ? cid.mhash.mapFailure
 
-  without mhash =? cid.mhash:
-    return failure("Unable to get contents mhash!")
-
-  without var manifest =? BlocksManifest.init(
+  var
+    manifest = ? BlocksManifest.init(
       blocks,
       cid.version,
       mhash.mcodec,
-      cid.mcodec):
-    return failure("Unable to get construct block manifest")
+      cid.mcodec)
 
-  without manifestCid =? manifest.cid:
-    return failure("Couldn't get manifest tree hash")
-
-  if cid != manifestCid:
+  if cid != (? manifest.cid):
     return failure("Content hashes don't match!")
 
   return manifest.success
