@@ -143,11 +143,9 @@ proc handleBlocks(
   var blks: seq[bt.Block]
   for blk in blocks:
     when blk is pb.Block:
-      if b =? bt.Block.init(Cid.init(blk.prefix).get(), blk.data):
-        blks.add(b)
+      blks.add(bt.Block.init(Cid.init(blk.prefix).get(), blk.data))
     elif blk is seq[byte]:
-      if b =? bt.Block.init(Cid.init(blk).get(), blk):
-        blks.add(b)
+      blks.add(bt.Block.init(Cid.init(blk).get(), blk))
     else:
       error("Invalid block type")
 

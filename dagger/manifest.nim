@@ -51,8 +51,7 @@ proc cid*(b: var BlocksManifest): ?!Cid =
     stack.add(b.emptyDigest)
 
   for cid in b.blocks:
-    if mhash =? cid.mhash:
-      stack.add(mhash)
+    stack.add(? cid.mhash.mapFailure)
 
     while stack.len > 1:
       let
