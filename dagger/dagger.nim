@@ -41,10 +41,11 @@ proc run*(s: DaggerServer) {.async.} =
 
   s.runHandle = newFuture[void]()
   await s.runHandle
+
+proc shutdown*(s: DaggerServer) {.async.} =
   await allFuturesThrowing(
     s.restServer.stop(), s.daggerNode.stop())
 
-proc shutdown*(s: DaggerServer) =
   s.runHandle.complete()
 
 proc new*(T: type DaggerServer, config: DaggerConf): T =
