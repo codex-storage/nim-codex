@@ -57,7 +57,7 @@ when isMainModule:
           setupForeignThreadGc()
         except Exception as exc: raiseAssert exc.msg # shouldn't happen
       notice "Shutting down after having received SIGINT"
-      server.shutdown()
+      waitFor server.shutdown()
 
     try:
       setControlCHook(controlCHandler)
@@ -68,7 +68,7 @@ when isMainModule:
     when defined(posix):
       proc SIGTERMHandler(signal: cint) {.noconv.} =
         notice "Shutting down after having received SIGTERM"
-        server.shutdown()
+        waitFor server.shutdown()
 
       c_signal(SIGTERM, SIGTERMHandler)
 
