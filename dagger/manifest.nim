@@ -22,6 +22,9 @@ import ./errors
 const
   ManifestCodec* = multiCodec("dag-pb")
 
+var
+  emptyDigest {.threadvar.}: array[CidVersion, MultiHash]
+
 type
   BlocksManifest* = object
     blocks: seq[Cid]
@@ -29,7 +32,6 @@ type
     version*: CidVersion
     hcodec*: MultiCodec
     codec*: MultiCodec
-    emptyDigest: MultiHash
 
 proc len*(b: BlocksManifest): int = b.blocks.len
 
@@ -48,7 +50,7 @@ proc cid*(b: var BlocksManifest): ?!Cid =
     stack: seq[MultiHash]
 
   if stack.len == 1:
-    stack.add(b.emptyDigest)
+    stack.add(emptyDigest[b.version])
 
   for cid in b.blocks:
     stack.add(? cid.mhash.mapFailure)
@@ -117,7 +119,7 @@ proc decode*(_: type BlocksManifest, data: seq[byte]): ?!(Cid, seq[Cid]) =
 
       return (cid, blocks).success
 
-func init*(
+proc init*(
   T: type BlocksManifest,
   blocks: openArray[Cid] = [],
   version = CIDv1,
@@ -126,28 +128,33 @@ func init*(
   ## Create a manifest using array of `Cid`s
   ##
 
-  # TODO: The CIDs should be initialized at compile time,
-  # but the VM fails due to a `memmove` being invoked somewhere
-  let
-    cid = if version == CIDv1:
-      ? Cid.init("bafybeihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku").mapFailure
-    else:
-      ? Cid.init("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n").mapFailure
+  # Only gets initialized once
+  once:
+    # TODO: The CIDs should be initialized at compile time,
+    # but the VM fails due to a `memmove` being invoked somewhere
 
-    mhash = ? cid.mhash.mapFailure
-    digest = ? MultiHash.digest(
-      $hcodec,
-      mhash.hashBytes()).mapFailure
+    for v in [CIDv0, CIDv1]:
+      let
+        cid = if v == CIDv1:
+          ? Cid.init("bafybeihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku").mapFailure
+        else:
+          ? Cid.init("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n").mapFailure
+
+        mhash = ? cid.mhash.mapFailure
+        digest = ? MultiHash.digest(
+          $hcodec,
+          mhash.hashBytes()).mapFailure
+
+      emptyDigest[v] = digest
 
   T(
     blocks: @blocks,
     version: version,
     codec: codec,
     hcodec: hcodec,
-    emptyDigest: digest
     ).success
 
-func init*(
+proc init*(
   T: type BlocksManifest,
   blk: Block): ?!T =
   ## Create manifest from a raw manifest block
