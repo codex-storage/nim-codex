@@ -61,6 +61,14 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
     "/api/dagger/v1/connect/{peerId}") do (
       peerId: PeerID,
       addrs: seq[MultiAddress]) -> RestApiResponse:
+      ## Connect to a peer
+      ##
+      ## If `addrs` param is supplied, it will be used to
+      ## dial the peer, otherwise the `peerId` is used
+      ## to invoke peer discovery, if it successedes
+      ## the returned addresses will be used to dial
+      ##
+
       if peerId.isErr:
         return RestApiResponse.error(
           Http400,
@@ -86,6 +94,10 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
     MethodGet,
     "/api/dagger/v1/download/{id}") do (
       id: Cid, resp: HttpResponseRef) -> RestApiResponse:
+      ## Download a file from the node in a streaming
+      ## manner
+      ##
+
       if id.isErr:
         return RestApiResponse.error(
           Http400,
@@ -126,13 +138,16 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
     MethodPost,
     "/api/dagger/v1/upload") do (
     ) -> RestApiResponse:
+      ## Upload a file in a streamming manner
+      ##
+
       trace "Handling file upload"
       var bodyReader = request.getBodyReader()
       if bodyReader.isErr():
         return RestApiResponse.error(Http500)
 
       # Attempt to handle `Expect` header
-      # some clients (curl), waits 1000ms
+      # some clients (curl), wait 1000ms
       # before giving up
       #
       await request.handleExpect()
@@ -179,6 +194,9 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
   router.api(
     MethodGet,
     "/api/dagger/v1/info") do () -> RestApiResponse:
+      ## Print rudimentary node information
+      ##
+
       var addrs: string
       for a in node.switch.peerInfo.addrs:
         addrs &= "- " & $a & "\n"
