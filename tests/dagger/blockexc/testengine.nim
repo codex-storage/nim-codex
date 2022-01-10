@@ -20,8 +20,8 @@ import ../examples
 suite "NetworkStore engine basic":
   let
     rng = Rng.instance()
-    seckey = PrivateKey.random(rng[]).tryGet()
-    peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
+    seckey = PrivateKey.random(rng[]).get()
+    peerId = PeerID.init(seckey.getPublicKey().get()).get()
     chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
     wallet = WalletRef.example
 
@@ -35,7 +35,7 @@ suite "NetworkStore engine basic":
       if chunk.len <= 0:
         break
 
-      blocks.add(bt.Block.init(chunk))
+      blocks.add(bt.Block.init(chunk).get())
 
     done = newFuture[void]()
 
@@ -87,8 +87,8 @@ suite "NetworkStore engine basic":
 suite "NetworkStore engine handlers":
   let
     rng = Rng.instance()
-    seckey = PrivateKey.random(rng[]).tryGet()
-    peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
+    seckey = PrivateKey.random(rng[]).get()
+    peerId = PeerID.init(seckey.getPublicKey().get()).get()
     chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
     wallet = WalletRef.example
 
@@ -104,7 +104,7 @@ suite "NetworkStore engine handlers":
       if chunk.len <= 0:
         break
 
-      blocks.add(bt.Block.init(chunk))
+      blocks.add(bt.Block.init(chunk).get())
 
     done = newFuture[void]()
     engine = BlockExcEngine.new(MemoryStore.new(), wallet, BlockExcNetwork())
@@ -228,15 +228,15 @@ suite "Task Handler":
       if chunk.len <= 0:
         break
 
-      blocks.add(bt.Block.init(chunk))
+      blocks.add(bt.Block.init(chunk).get())
 
     done = newFuture[void]()
     engine = BlockExcEngine.new(MemoryStore.new(), wallet, BlockExcNetwork())
     peersCtx = @[]
 
     for i in 0..3:
-      let seckey = PrivateKey.random(rng[]).tryGet()
-      peers.add(PeerID.init(seckey.getPublicKey().tryGet()).tryGet())
+      let seckey = PrivateKey.random(rng[]).get()
+      peers.add(PeerID.init(seckey.getPublicKey().get()).get())
 
       peersCtx.add(BlockExcPeerCtx(
         id: peers[i]
@@ -282,7 +282,7 @@ suite "Task Handler":
 
   test "Should send presence":
     let present = blocks
-    let missing = @[bt.Block.init("missing".toBytes)]
+    let missing = @[bt.Block.init("missing".toBytes).get()]
     let price = (!engine.pricing).price
 
     proc sendPresence(id: PeerID, presence: seq[BlockPresence]) =
