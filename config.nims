@@ -32,6 +32,7 @@ else:
     # ("-fno-asynchronous-unwind-tables" breaks Nim's exception raising, sometimes)
     switch("passC", "-mno-avx512vl")
 
+--tlsEmulation:off
 --threads:on
 --opt:speed
 --excessiveStackTrace:on

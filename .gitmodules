@@ -118,3 +118,40 @@
 	url = https://github.com/status-im/stint.git
 	ignore = untracked
 	branch = master
+[submodule "vendor/nim-httputils"]
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-http-utils"]
+	path = vendor/nim-http-utils
+	url = https://github.com/status-im/nim-http-utils.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-toml-serialization"]
+	path = vendor/nim-toml-serialization
+	url = https://github.com/status-im/nim-toml-serialization.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/unittest2"]
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-unittest2"]
+	path = vendor/nim-unittest2
+	url = https://github.com/status-im/nim-unittest2.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nameresolver"]
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-nameresolver"]
+	ignore = untracked
+	branch = master
+[submodule "vendor/dnsclient.nim"]
+	path = vendor/dnsclient.nim
+	url = https://github.com/ba0f3/dnsclient.nim.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-websock"]
+	path = vendor/nim-websock
+	url = https://github.com/status-im/nim-websock.git
+	ignore = untracked
+	branch = master

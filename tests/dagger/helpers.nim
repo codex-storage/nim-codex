@@ -1,22 +1,14 @@
 import pkg/libp2p/varint
 
-import pkg/dagger/chunker
 import pkg/dagger/blocktype
-import pkg/dagger/blockstream
 
 import pkg/questionable
 import pkg/questionable/results
 
-export chunker
+import ./helpers/nodeutils
+import ./helpers/randomchunker
 
-type
-  TestStreamProc* = proc(): ?!Block {.raises: [Defect].}
-
-  TestStream* = ref object of BlockStreamRef
-    handler*: TestStreamProc
-
-method nextBlock*(b: TestStream): ?!Block =
-  b.handler()
+export randomchunker, nodeutils
 
 proc lenPrefix*(msg: openArray[byte]): seq[byte] =
   ## Write `msg` with a varint-encoded length prefix

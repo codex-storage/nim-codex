@@ -2,6 +2,7 @@ import ./dagger/teststores
 import ./dagger/testblockexc
 import ./dagger/testasyncheapqueue
 import ./dagger/testchunking
-import ./dagger/testblockset
+import ./dagger/testmanifest
+import ./dagger/testnode
 
 {.warning[UnusedImport]: off.}

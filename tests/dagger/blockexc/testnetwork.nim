@@ -17,24 +17,31 @@ import pkg/dagger/blockexchange
 import ../helpers
 import ../examples
 
-suite "BlockExc network":
+suite "NetworkStore network":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
     peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
-    chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-    blocks = chunker.mapIt( !bt.Block.new(it) )
+    chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
 
   var
     network: BlockExcNetwork
     networkPeer: NetworkPeer
     buffer: BufferStream
+    blocks: seq[bt.Block]
     done: Future[void]
 
   proc getConn(): Future[Connection] {.async.} =
     return Connection(buffer)
 
   setup:
+    while true:
+      let chunk = await chunker.getBytes()
+      if chunk.len <= 0:
+        break
+
+      blocks.add(bt.Block.init(chunk))
+
     done = newFuture[void]()
     buffer = BufferStream.new()
     network = BlockExcNetwork.new(
@@ -45,7 +52,7 @@ suite "BlockExc network":
     discard await networkPeer.connect()
 
   test "Want List handler":
-    proc wantListHandler(peer: PeerID, wantList: WantList) {.gcsafe.} =
+    proc wantListHandler(peer: PeerID, wantList: WantList) {.gcsafe, async.} =
       # check that we got the correct amount of entries
       check wantList.entries.len == 4
 
@@ -72,7 +79,7 @@ suite "BlockExc network":
     await done.wait(500.millis)
 
   test "Blocks Handler":
-    proc blocksHandler(peer: PeerID, blks: seq[bt.Block]) {.gcsafe.} =
+    proc blocksHandler(peer: PeerID, blks: seq[bt.Block]) {.gcsafe, async.} =
       check blks == blocks
       done.complete()
 
@@ -84,7 +91,9 @@ suite "BlockExc network":
     await done.wait(500.millis)
 
   test "Presence Handler":
-    proc presenceHandler(peer: PeerID, precense: seq[BlockPresence]) {.gcsafe.} =
+    proc presenceHandler(
+      peer: PeerID,
+      precense: seq[BlockPresence]) {.gcsafe, async.} =
       for b in blocks:
         check:
           b.cid in precense
@@ -106,7 +115,7 @@ suite "BlockExc network":
   test "handles account messages":
     let account = Account(address: EthAddress.example)
 
-    proc handleAccount(peer: PeerID, received: Account) =
+    proc handleAccount(peer: PeerID, received: Account) {.gcsafe, async.} =
       check received == account
       done.complete()
 
@@ -120,7 +129,7 @@ suite "BlockExc network":
   test "handles payment messages":
     let payment = SignedState.example
 
-    proc handlePayment(peer: PeerID, received: SignedState) =
+    proc handlePayment(peer: PeerID, received: SignedState) {.gcsafe, async.} =
       check received == payment
       done.complete()
 
@@ -131,23 +140,29 @@ suite "BlockExc network":
 
     await done.wait(100.millis)
 
-suite "BlockExc Network - e2e":
+suite "NetworkStore Network - e2e":
   let
-    chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-    blocks = chunker.mapIt( !bt.Block.new(it) )
+    chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
 
   var
     switch1, switch2: Switch
     network1, network2: BlockExcNetwork
-    awaiters: seq[Future[void]]
+    blocks: seq[bt.Block]
     done: Future[void]
 
   setup:
+    while true:
+      let chunk = await chunker.getBytes()
+      if chunk.len <= 0:
+        break
+
+      blocks.add(bt.Block.init(chunk))
+
     done = newFuture[void]()
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
+    await switch1.start()
+    await switch2.start()
 
     network1 = BlockExcNetwork.new(
       switch = switch1)
@@ -166,10 +181,8 @@ suite "BlockExc Network - e2e":
       switch1.stop(),
       switch2.stop())
 
-    await allFuturesThrowing(awaiters)
-
   test "broadcast want list":
-    proc wantListHandler(peer: PeerID, wantList: WantList) {.gcsafe.} =
+    proc wantListHandler(peer: PeerID, wantList: WantList) {.gcsafe, async.} =
       # check that we got the correct amount of entries
       check wantList.entries.len == 4
 
@@ -193,7 +206,7 @@ suite "BlockExc Network - e2e":
     await done.wait(500.millis)
 
   test "broadcast blocks":
-    proc blocksHandler(peer: PeerID, blks: seq[bt.Block]) {.gcsafe.} =
+    proc blocksHandler(peer: PeerID, blks: seq[bt.Block]) {.gcsafe, async.} =
       check blks == blocks
       done.complete()
 
@@ -205,7 +218,9 @@ suite "BlockExc Network - e2e":
     await done.wait(500.millis)
 
   test "broadcast precense":
-    proc presenceHandler(peer: PeerID, precense: seq[BlockPresence]) {.gcsafe.} =
+    proc presenceHandler(
+      peer: PeerID,
+      precense: seq[BlockPresence]) {.gcsafe, async.} =
       for b in blocks:
         check:
           b.cid in precense
@@ -227,7 +242,7 @@ suite "BlockExc Network - e2e":
   test "broadcasts account":
     let account = Account(address: EthAddress.example)
 
-    proc handleAccount(peer: PeerID, received: Account) =
+    proc handleAccount(peer: PeerID, received: Account) {.gcsafe, async.} =
       check received == account
       done.complete()
 
@@ -240,7 +255,7 @@ suite "BlockExc Network - e2e":
   test "broadcasts payment":
     let payment = SignedState.example
 
-    proc handlePayment(peer: PeerID, received: SignedState) =
+    proc handlePayment(peer: PeerID, received: SignedState) {.gcsafe, async.} =
       check received == payment
       done.complete()
 

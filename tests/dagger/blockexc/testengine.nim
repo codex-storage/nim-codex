@@ -17,19 +17,26 @@ import pkg/dagger/utils/asyncheapqueue
 import ../helpers
 import ../examples
 
-suite "BlockExc engine basic":
+suite "NetworkStore engine basic":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
     peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
-    chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-    blocks = chunker.mapIt( !bt.Block.new(it) )
+    chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
     wallet = WalletRef.example
 
   var
+    blocks: seq[bt.Block]
     done: Future[void]
 
   setup:
+    while true:
+      let chunk = await chunker.getBytes()
+      if chunk.len <= 0:
+        break
+
+      blocks.add(bt.Block.init(chunk))
+
     done = newFuture[void]()
 
   test "should send want list to new peers":
@@ -45,11 +52,15 @@ suite "BlockExc engine basic":
 
         done.complete()
 
-    let request = BlockExcRequest(
-      sendWantList: sendWantList,
-    )
+    let
+      network = BlockExcNetwork(request: BlockExcRequest(
+        sendWantList: sendWantList,
+      ))
 
-    let engine = BlockExcEngine.new(MemoryStore.new(blocks), wallet, request)
+      engine = BlockExcEngine.new(
+        MemoryStore.new(blocks.mapIt( it )),
+        wallet,
+        network)
     engine.wantList = blocks.mapIt( it.cid )
     engine.setupPeer(peerId)
 
@@ -62,30 +73,41 @@ suite "BlockExc engine basic":
       check account.address == pricing.address
       done.complete()
 
-    let request = BlockExcRequest(sendAccount: sendAccount)
-    let engine = BlockExcEngine.new(MemoryStore.new, wallet, request)
-    engine.pricing = pricing.some
+    let
+      network = BlockExcNetwork(request: BlockExcRequest(
+        sendAccount: sendAccount,
+      ))
 
+      engine = BlockExcEngine.new(MemoryStore.new, wallet, network)
+
+    engine.pricing = pricing.some
     engine.setupPeer(peerId)
     await done.wait(100.millis)
 
-suite "BlockExc engine handlers":
+suite "NetworkStore engine handlers":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
     peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
-    chunker = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-    blocks = chunker.mapIt( !bt.Block.new(it) )
+    chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
     wallet = WalletRef.example
 
   var
     engine: BlockExcEngine
     peerCtx: BlockExcPeerCtx
     done: Future[void]
+    blocks: seq[bt.Block]
 
   setup:
+    while true:
+      let chunk = await chunker.getBytes()
+      if chunk.len <= 0:
+        break
+
+      blocks.add(bt.Block.init(chunk))
+
     done = newFuture[void]()
-    engine = BlockExcEngine.new(MemoryStore.new(), wallet)
+    engine = BlockExcEngine.new(MemoryStore.new(), wallet, BlockExcNetwork())
     peerCtx = BlockExcPeerCtx(
       id: peerId
     )
@@ -93,15 +115,13 @@ suite "BlockExc engine handlers":
 
   test "should handle want list":
     let  wantList = makeWantList(blocks.mapIt( it.cid ))
-    proc taskScheduler(ctx: BlockExcPeerCtx): bool =
+    proc handler() {.async.} =
+      let ctx = await engine.taskQueue.pop()
       check ctx.id == peerId
       check ctx.peerWants.mapIt( it.cid ) == blocks.mapIt( it.cid )
 
-      done.complete()
-
-    engine.scheduleTask = taskScheduler
-    engine.wantListHandler(peerId, wantList)
-
+    let done = handler()
+    await engine.wantListHandler(peerId, wantList)
     await done
 
   test "should handle want list - `dont-have`":
@@ -114,11 +134,11 @@ suite "BlockExc engine handlers":
 
       done.complete()
 
-    engine.request = BlockExcRequest(
-        sendPresence: sendPresence
-    )
+    engine.network = BlockExcNetwork(request: BlockExcRequest(
+      sendPresence: sendPresence
+    ))
 
-    engine.wantListHandler(peerId, wantList)
+    await engine.wantListHandler(peerId, wantList)
 
     await done
 
@@ -132,9 +152,13 @@ suite "BlockExc engine handlers":
 
       done.complete()
 
-    engine.request = BlockExcRequest(sendPresence: sendPresence)
-    engine.localStore.putBlocks(@[blocks[0], blocks[1]])
-    engine.wantListHandler(peerId, wantList)
+    engine.network = BlockExcNetwork(request: BlockExcRequest(
+      sendPresence: sendPresence
+    ))
+
+    check await engine.localStore.putBlock(blocks[0])
+    check await engine.localStore.putBlock(blocks[1])
+    await engine.wantListHandler(peerId, wantList)
 
     await done
 
@@ -143,7 +167,7 @@ suite "BlockExc engine handlers":
       engine.pendingBlocks.addOrAwait( it.cid )
     )
 
-    engine.blocksHandler(peerId, blocks)
+    await engine.blocksHandler(peerId, blocks)
     let resolved = await allFinished(pending)
     check resolved.mapIt( it.read ) == blocks
     for b in blocks:
@@ -155,20 +179,22 @@ suite "BlockExc engine handlers":
     peerContext.account = account.some
     peerContext.peerPrices = blocks.mapIt((it.cid, rand(uint16).u256)).toTable
 
-    engine.request.sendPayment = proc(receiver: PeerID, payment: SignedState) =
-      let amount = blocks.mapIt(peerContext.peerPrices[it.cid]).foldl(a+b)
-      let balances = !payment.state.outcome.balances(Asset)
-      check receiver == peerId
-      check balances[account.address.toDestination] == amount
-      done.complete()
+    engine.network = BlockExcNetwork(request: BlockExcRequest(
+      sendPayment: proc(receiver: PeerID, payment: SignedState) =
+        let amount = blocks.mapIt(peerContext.peerPrices[it.cid]).foldl(a+b)
+        let balances = !payment.state.outcome.balances(Asset)
+        check receiver == peerId
+        check balances[account.address.toDestination] == amount
+        done.complete()
+    ))
 
-    engine.blocksHandler(peerId, blocks)
+    await engine.blocksHandler(peerId, blocks)
 
     await done.wait(100.millis)
 
   test "should handle block presence":
     let price = UInt256.example
-    engine.blockPresenceHandler(
+    await engine.blockPresenceHandler(
       peerId,
       blocks.mapIt(
         PresenceMessage.init(
@@ -186,8 +212,7 @@ suite "Task Handler":
 
   let
     rng = Rng.instance()
-    chunker = newRandomChunker(Rng.instance(), size = 2048, chunkSize = 256)
-    blocks = chunker.mapIt( !bt.Block.new(it) )
+    chunker = RandomChunker.new(Rng.instance(), size = 2048, chunkSize = 256)
     wallet = WalletRef.example
 
   var
@@ -195,10 +220,18 @@ suite "Task Handler":
     peersCtx: seq[BlockExcPeerCtx]
     peers: seq[PeerID]
     done: Future[void]
+    blocks: seq[bt.Block]
 
   setup:
+    while true:
+      let chunk = await chunker.getBytes()
+      if chunk.len <= 0:
+        break
+
+      blocks.add(bt.Block.init(chunk))
+
     done = newFuture[void]()
-    engine = BlockExcEngine.new(MemoryStore.new(), wallet)
+    engine = BlockExcEngine.new(MemoryStore.new(), wallet, BlockExcNetwork())
     peersCtx = @[]
 
     for i in 0..3:
@@ -221,8 +254,9 @@ suite "Task Handler":
         blks[1].cid == blocks[0].cid
         blks[0].cid == blocks[1].cid
 
-    engine.localStore.putBlocks(blocks)
-    engine.request.sendBlocks = sendBlocks
+    for blk in blocks:
+      check await engine.localStore.putBlock(blk)
+    engine.network.request.sendBlocks = sendBlocks
 
     # second block to send by priority
     peersCtx[0].peerWants.add(
@@ -248,7 +282,7 @@ suite "Task Handler":
 
   test "Should send presence":
     let present = blocks
-    let missing = @[!bt.Block.new("missing".toBytes)]
+    let missing = @[bt.Block.init("missing".toBytes)]
     let price = (!engine.pricing).price
 
     proc sendPresence(id: PeerID, presence: seq[BlockPresence]) =
@@ -258,8 +292,9 @@ suite "Task Handler":
         Presence(cid: missing[0].cid, have: false)
       ]
 
-    engine.localStore.putBlocks(blocks)
-    engine.request.sendPresence = sendPresence
+    for blk in blocks:
+      check await engine.localStore.putBlock(blk)
+    engine.network.request.sendPresence = sendPresence
 
     # have block
     peersCtx[0].peerWants.add(

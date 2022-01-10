@@ -1,4 +1,4 @@
-import ./stores/testblockexc
-import ./stores/testblockstore
+import ./stores/testfsstore
+import ./stores/testmemorystore
 
 {.warning[UnusedImport]: off.}

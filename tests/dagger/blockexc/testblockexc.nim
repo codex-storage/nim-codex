@@ -14,31 +14,41 @@ import pkg/dagger/blockexchange
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
 
-import ./utils
 import ../helpers
 import ../examples
 
-suite "BlockExc engine - 2 nodes":
+suite "NetworkStore engine - 2 nodes":
 
   let
-    chunker1 = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-    blocks1 = chunker1.mapIt( !bt.Block.new(it) )
-    chunker2 = newRandomChunker(Rng.instance(), size = 1024, chunkSize = 256)
-    blocks2 = chunker2.mapIt( !bt.Block.new(it) )
+    chunker1 = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
+    chunker2 = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
 
   var
     switch1, switch2: Switch
     wallet1, wallet2: WalletRef
     pricing1, pricing2: Pricing
     network1, network2: BlockExcNetwork
-    blockexc1, blockexc2: BlockExc
-    awaiters: seq[Future[void]]
+    blockexc1, blockexc2: NetworkStore
     peerId1, peerId2: PeerID
     peerCtx1, peerCtx2: BlockExcPeerCtx
-    done: Future[void]
+    blocks1, blocks2: seq[bt.Block]
+    engine1, engine2: BlockExcEngine
+    localStore1, localStore2: BlockStore
 
   setup:
-    done = newFuture[void]()
+    while true:
+      let chunk = await chunker1.getBytes()
+      if chunk.len <= 0:
+        break
+
+      blocks1.add(bt.Block.init(chunk))
+
+    while true:
+      let chunk = await chunker2.getBytes()
+      if chunk.len <= 0:
+        break
+
+      blocks2.add(bt.Block.init(chunk))
 
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
@@ -46,23 +56,27 @@ suite "BlockExc engine - 2 nodes":
     wallet2 = WalletRef.example
     pricing1 = Pricing.example
     pricing2 = Pricing.example
-    awaiters.add(await switch1.start())
-    awaiters.add(await switch2.start())
+    await switch1.start()
+    await switch2.start()
 
     peerId1 = switch1.peerInfo.peerId
     peerId2 = switch2.peerInfo.peerId
 
+    localStore1 = MemoryStore.new(blocks1.mapIt( it ))
     network1 = BlockExcNetwork.new(switch = switch1)
-    blockexc1 = BlockExc.new(MemoryStore.new(blocks1), wallet1, network1)
+    engine1 = BlockExcEngine.new(localStore1, wallet1, network1)
+    blockexc1 = NetworkStore.new(engine1, localStore1)
     switch1.mount(network1)
 
+    localStore2 = MemoryStore.new(blocks2.mapIt( it ))
     network2 = BlockExcNetwork.new(switch = switch2)
-    blockexc2 = BlockExc.new(MemoryStore.new(blocks2), wallet2, network2)
+    engine2 = BlockExcEngine.new(localStore2, wallet2, network2)
+    blockexc2 = NetworkStore.new(engine2, localStore2)
     switch2.mount(network2)
 
     await allFuturesThrowing(
-      blockexc1.start(),
-      blockexc2.start(),
+      engine1.start(),
+      engine2.start(),
     )
 
     # initialize our want lists
@@ -84,12 +98,10 @@ suite "BlockExc engine - 2 nodes":
 
   teardown:
     await allFuturesThrowing(
-      blockexc1.stop(),
-      blockexc2.stop(),
+      engine1.stop(),
+      engine2.stop(),
       switch1.stop(),
       switch2.stop())
-
-    await allFuturesThrowing(awaiters)
 
   test "should exchange want lists on connect":
     check not isNil(peerCtx1)
@@ -107,8 +119,8 @@ suite "BlockExc engine - 2 nodes":
     check peerCtx2.account.?address == pricing2.address.some
 
   test "should send want-have for block":
-    let blk = !bt.Block.new("Block 1".toBytes)
-    blockexc2.engine.localStore.putBlocks(@[blk])
+    let blk = bt.Block.init("Block 1".toBytes)
+    check await blockexc2.engine.localStore.putBlock(blk)
 
     let entry = Entry(
       `block`: blk.cid.data.buffer,
@@ -118,69 +130,77 @@ suite "BlockExc engine - 2 nodes":
       sendDontHave: false)
 
     peerCtx1.peerWants.add(entry)
-    check blockexc2.taskQueue.pushOrUpdateNoWait(peerCtx1).isOk
+    check blockexc2
+      .engine
+      .taskQueue
+      .pushOrUpdateNoWait(peerCtx1).isOk
     await sleepAsync(100.millis)
 
     check blockexc1.engine.localStore.hasBlock(blk.cid)
 
   test "should get blocks from remote":
-    let blocks = await blockexc1.getBlocks(blocks2.mapIt( it.cid ))
-    check blocks == blocks2
+    let blocks = await allFinished(
+      blocks2.mapIt( blockexc1.getBlock(it.cid) ))
+    check blocks.mapIt( !it.read ) == blocks2
 
   test "remote should send blocks when available":
-    let blk = !bt.Block.new("Block 1".toBytes)
+    let blk = bt.Block.init("Block 1".toBytes)
 
     # should fail retrieving block from remote
-    check not await blockexc1.getBlocks(@[blk.cid])
+    check not await blockexc1.getBlock(blk.cid)
       .withTimeout(100.millis) # should expire
 
-    proc onBlocks(evt: BlockStoreChangeEvt) =
-      check evt.cids == @[blk.cid]
-      done.complete()
-
-    blockexc1.engine.localStore.addChangeHandler(onBlocks, ChangeType.Added)
-
     # first put the required block in the local store
-    blockexc2.engine.localStore.putBlocks(@[blk])
+    check await blockexc2.engine.localStore.putBlock(blk)
 
     # second trigger blockexc to resolve any pending requests
     # for the block
-    blockexc2.putBlocks(@[blk])
+    check await blockexc2.putBlock(blk)
 
-    await done
+    # should succeed retrieving block from remote
+    check await blockexc1.getBlock(blk.cid)
+      .withTimeout(100.millis) # should succede
 
   test "receives payments for blocks that were sent":
-    let blocks = await blockexc1.getBlocks(blocks2.mapIt(it.cid))
+    let blocks = await allFinished(
+      blocks2.mapIt( blockexc1.getBlock(it.cid) ))
     await sleepAsync(100.millis)
     let channel = !peerCtx1.paymentChannel
     check wallet2.balance(channel, Asset) > 0
 
-suite "BlockExc - multiple nodes":
+suite "NetworkStore - multiple nodes":
   let
-    chunker = newRandomChunker(Rng.instance(), size = 4096, chunkSize = 256)
-    blocks = chunker.mapIt( !bt.Block.new(it) )
+    chunker = RandomChunker.new(Rng.instance(), size = 4096, chunkSize = 256)
 
   var
     switch: seq[Switch]
-    blockexc: seq[BlockExc]
-    awaiters: seq[Future[void]]
+    blockexc: seq[NetworkStore]
+    blocks: seq[bt.Block]
 
   setup:
+    while true:
+      let chunk = await chunker.getBytes()
+      if chunk.len <= 0:
+        break
+
+      blocks.add(bt.Block.init(chunk))
+
     for e in generateNodes(5):
       switch.add(e.switch)
       blockexc.add(e.blockexc)
-      await e.blockexc.start()
+      await e.blockexc.engine.start()
 
-    awaiters = switch.mapIt(
-      (await it.start())
-    ).concat()
+    await allFuturesThrowing(
+      switch.mapIt( it.start() )
+    )
 
   teardown:
     await allFuturesThrowing(
       switch.mapIt( it.stop() )
     )
 
-    await allFuturesThrowing(awaiters)
+    switch = @[]
+    blockexc = @[]
 
   test "should receive haves for own want list":
     let
@@ -191,18 +211,22 @@ suite "BlockExc - multiple nodes":
     engine.wantList &= blocks[0..3].mapIt( it.cid )
     engine.wantList &= blocks[12..15].mapIt( it.cid )
 
-    blockexc[0].engine.localStore.putBlocks(blocks[0..3])
-    blockexc[1].engine.localStore.putBlocks(blocks[4..7])
-    blockexc[2].engine.localStore.putBlocks(blocks[8..11])
-    blockexc[3].engine.localStore.putBlocks(blocks[12..15])
+    await allFutures(
+      blocks[0..3].mapIt( blockexc[0].engine.localStore.putBlock(it) ))
+    await allFutures(
+      blocks[4..7].mapIt( blockexc[1].engine.localStore.putBlock(it) ))
+    await allFutures(
+      blocks[8..11].mapIt( blockexc[2].engine.localStore.putBlock(it) ))
+    await allFutures(
+      blocks[12..15].mapIt( blockexc[3].engine.localStore.putBlock(it) ))
 
     await connectNodes(switch)
-
     await sleepAsync(1.seconds)
 
     check:
       engine.peers[0].peerHave.mapIt($it).sorted(cmp[string]) ==
         blocks[0..3].mapIt( it.cid ).mapIt($it).sorted(cmp[string])
+
       engine.peers[3].peerHave.mapIt($it).sorted(cmp[string]) ==
         blocks[12..15].mapIt( it.cid ).mapIt($it).sorted(cmp[string])
 
@@ -215,11 +239,18 @@ suite "BlockExc - multiple nodes":
     engine.wantList &= blocks[0..3].mapIt( it.cid )
     engine.wantList &= blocks[12..15].mapIt( it.cid )
 
-    blockexc[0].engine.localStore.putBlocks(blocks[0..3])
-    blockexc[1].engine.localStore.putBlocks(blocks[4..7])
-    blockexc[2].engine.localStore.putBlocks(blocks[8..11])
-    blockexc[3].engine.localStore.putBlocks(blocks[12..15])
+    await allFutures(
+      blocks[0..3].mapIt( blockexc[0].engine.localStore.putBlock(it) ))
+    await allFutures(
+      blocks[4..7].mapIt( blockexc[1].engine.localStore.putBlock(it) ))
+    await allFutures(
+      blocks[8..11].mapIt( blockexc[2].engine.localStore.putBlock(it) ))
+    await allFutures(
+      blocks[12..15].mapIt( blockexc[3].engine.localStore.putBlock(it) ))
 
     await connectNodes(switch)
-    let wantListBlocks = await downloader.getBlocks(blocks[0..3].mapIt( it.cid ))
-    check wantListBlocks == blocks[0..3]
+    await sleepAsync(1.seconds)
+
+    let wantListBlocks = await allFinished(
+      blocks[0..3].mapIt( downloader.getBlock(it.cid) ))
+    check wantListBlocks.mapIt( !it.read ) == blocks[0..3]

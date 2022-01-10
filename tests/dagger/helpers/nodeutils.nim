@@ -13,20 +13,22 @@ proc generateNodes*(
   blocks: openArray[bt.Block] = [],
   secureManagers: openarray[SecureProtocol] = [
     SecureProtocol.Noise,
-  ]): seq[tuple[switch: Switch, blockexc: BlockExc]] =
+  ]): seq[tuple[switch: Switch, blockexc: NetworkStore]] =
   for i in 0..<num:
     let
       switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
       wallet = WalletRef.example
       network = BlockExcNetwork.new(switch)
-      blockexc = BlockExc.new(MemoryStore.new(blocks), wallet, network)
+      localStore = MemoryStore.new(blocks.mapIt( it ))
+      engine = BlockExcEngine.new(localStore, wallet, network)
+      networkStore = NetworkStore.new(engine, localStore)
 
     switch.mount(network)
 
     # initialize our want lists
-    blockexc.engine.wantList = blocks.mapIt( it.cid )
+    engine.wantList = blocks.mapIt( it.cid )
     switch.mount(network)
-    result.add((switch, blockexc))
+    result.add((switch, networkStore))
 
 proc connectNodes*(nodes: seq[Switch]) {.async.} =
   for dialer in nodes:

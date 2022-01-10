@@ -9,6 +9,7 @@
 
 import std/tables
 
+import pkg/questionable
 import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
@@ -24,8 +25,7 @@ type
 
 proc addOrAwait*(
   p: PendingBlocksManager,
-  cid: Cid):
-  Future[Block] {.async.} =
+  cid: Cid): Future[Block] {.async.} =
   ## Add an event for a block
   ##
 
@@ -33,9 +33,8 @@ proc addOrAwait*(
      p.blocks[cid] = newFuture[Block]()
      trace "Adding pending future for block", cid
 
-  let blk = p.blocks[cid]
   try:
-    return await blk
+    return await p.blocks[cid]
   except CancelledError as exc:
     trace "Blocks cancelled", exc = exc.msg, cid
     raise exc

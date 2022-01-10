@@ -10,8 +10,6 @@
 {.push raises: [Defect].}
 
 import pkg/libp2p
-import pkg/questionable
-import pkg/questionable/results
 import pkg/stew/byteutils
 
 type
@@ -23,31 +21,22 @@ proc `$`*(b: Block): string =
   result &= "cid: " & $b.cid
   result &= "\ndata: " & string.fromBytes(b.data)
 
-func new*(
+func init*(
   T: type Block,
   data: openArray[byte] = [],
   version = CIDv1,
   hcodec = multiCodec("sha2-256"),
-  codec = multiCodec("raw")): ?!T =
+  codec = multiCodec("raw")): T =
   let hash =  MultiHash.digest($hcodec, data).get()
-  success Block(
+  Block(
     cid: Cid.init(version, codec, hash).get(),
     data: @data)
 
-func new*(
+func init*(
   T: type Block,
   cid: Cid,
   data: openArray[byte] = [],
-  verify: bool = false): ?!T =
-  let res = Block.new(
-    data,
-    cid.cidver,
-    cid.mhash.get().mcodec,
-    cid.mcodec
-  )
-
-  if b =? res:
-    if verify and cid != b.cid:
-      return failure("The suplied Cid doesn't match the data!")
-
-  res
+  verify: bool = false): T =
+  Block(
+    cid: cid,
+    data: @data)
