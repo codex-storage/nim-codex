@@ -56,27 +56,27 @@ suite "Test Node":
       storeFut = node.store(stream)
 
     var
-      manifest = BlocksManifest.init().tryGet()
+      manifest = BlocksManifest.init().get()
 
     try:
       while (
         let chunk = await chunker.getBytes();
         chunk.len > 0):
         await stream.pushData(chunk)
-        manifest.put(bt.Block.init(chunk).cid)
+        manifest.put(bt.Block.init(chunk).get().cid)
     finally:
       await stream.pushEof()
       await stream.close()
 
     let
-      manifestCid = (await storeFut).tryGet()
+      manifestCid = (await storeFut).get()
 
     check:
       manifestCid in localStore
 
     var
       manifestBlock = (await localStore.getBlock(manifestCid)).get()
-      localManifest = BlocksManifest.init(manifestBlock).tryGet()
+      localManifest = BlocksManifest.init(manifestBlock).get()
 
     check:
       manifest.len == localManifest.len
@@ -84,7 +84,7 @@ suite "Test Node":
 
   test "Retrieve Data Stream":
     var
-      manifest = BlocksManifest.init().tryGet()
+      manifest = BlocksManifest.init().get()
       original: seq[byte]
 
     while (
@@ -92,7 +92,7 @@ suite "Test Node":
       chunk.len > 0):
 
       let
-        blk = bt.Block.init(chunk)
+        blk = bt.Block.init(chunk).get()
 
       original &= chunk
       check await localStore.putBlock(blk)
@@ -100,8 +100,8 @@ suite "Test Node":
 
     let
       manifestBlock = bt.Block.init(
-        manifest.encode().tryGet(),
-        codec = ManifestCodec)
+        manifest.encode().get(),
+        codec = ManifestCodec).get()
 
     check await localStore.putBlock(manifestBlock)
 
@@ -125,7 +125,7 @@ suite "Test Node":
   test "Retrieve One Block":
     let
       testString = "Block 1"
-      blk = bt.Block.init(testString.toBytes)
+      blk = bt.Block.init(testString.toBytes).get()
 
     var
       stream = BufferStream.new()

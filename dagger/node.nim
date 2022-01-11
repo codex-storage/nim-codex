@@ -133,8 +133,8 @@ proc store*(
       chunk.len > 0):
 
       trace "Got data from stream", len = chunk.len
-      let
-        blk = bt.Block.init(chunk)
+      without blk =? bt.Block.init(chunk):
+        return failure("Unable to init block from chunk!")
 
       blockManifest.put(blk.cid)
       if not (await node.blockStore.putBlock(blk)):
@@ -154,7 +154,10 @@ proc store*(
       newException(DaggerError, "Could not generate dataset manifest!"))
 
   # Store as a dag-pb block
-  let manifest = bt.Block.init(data = data, codec = ManifestCodec)
+  without manifest =? bt.Block.init(data = data, codec = ManifestCodec):
+    trace "Unable to init block from manifest data!"
+    return failure("Unable to init block from manifest data!")
+
   if not (await node.blockStore.putBlock(manifest)):
     trace "Unable to store manifest", cid = manifest.cid
     return failure("Unable to store manifest " & $manifest.cid)
@@ -165,8 +168,8 @@ proc store*(
     return failure(cid.error.msg)
 
   trace "Stored data", manifestCid = manifest.cid,
-                       contentCid = !cid,
-                       blocks = blockManifest.len
+                      contentCid = !cid,
+                      blocks = blockManifest.len
 
   return manifest.cid.success
 

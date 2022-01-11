@@ -15,7 +15,7 @@ import ../helpers
 suite "Memory Store tests":
   test "putBlock":
     let
-      newBlock = Block.init("New Block".toBytes())
+      newBlock = Block.init("New Block".toBytes()).get()
       store = MemoryStore.new()
 
     check await store.putBlock(newBlock)
@@ -23,7 +23,7 @@ suite "Memory Store tests":
 
   test "getBlock":
     let
-      newBlock = Block.init("New Block".toBytes())
+      newBlock = Block.init("New Block".toBytes()).get()
       store = MemoryStore.new(@[newBlock])
 
     let blk = await store.getBlock(newBlock.cid)
@@ -32,7 +32,7 @@ suite "Memory Store tests":
 
   test "fail getBlock":
     let
-      newBlock = Block.init("New Block".toBytes())
+      newBlock = Block.init("New Block".toBytes()).get()
       store = MemoryStore.new(@[])
 
     let blk = await store.getBlock(newBlock.cid)
@@ -40,21 +40,21 @@ suite "Memory Store tests":
 
   test "hasBlock":
     let
-      newBlock = Block.init("New Block".toBytes())
+      newBlock = Block.init("New Block".toBytes()).get()
       store = MemoryStore.new(@[newBlock])
 
     check store.hasBlock(newBlock.cid)
 
   test "fail hasBlock":
     let
-      newBlock = Block.init("New Block".toBytes())
+      newBlock = Block.init("New Block".toBytes()).get()
       store = MemoryStore.new(@[])
 
     check not store.hasBlock(newBlock.cid)
 
   test "delBlock":
     let
-      newBlock = Block.init("New Block".toBytes())
+      newBlock = Block.init("New Block".toBytes()).get()
       store = MemoryStore.new(@[newBlock])
 
     check await store.delBlock(newBlock.cid)

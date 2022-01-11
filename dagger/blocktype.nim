@@ -11,6 +11,10 @@
 
 import pkg/libp2p
 import pkg/stew/byteutils
+import pkg/questionable
+import pkg/questionable/results
+
+import ./errors
 
 type
   Block* = object of RootObj
@@ -25,18 +29,32 @@ func init*(
   T: type Block,
   data: openArray[byte] = [],
   version = CIDv1,
-  hcodec = multiCodec("sha2-256"),
-  codec = multiCodec("raw")): T =
-  let hash =  MultiHash.digest($hcodec, data).get()
-  Block(
-    cid: Cid.init(version, codec, hash).get(),
+  mcodec = multiCodec("sha2-256"),
+  codec = multiCodec("raw")): ?!T =
+
+  let
+    hash = ? MultiHash.digest($mcodec, data).mapFailure
+    cid = ? Cid.init(version, codec, hash).mapFailure
+
+  success Block(
+    cid: cid,
     data: @data)
 
 func init*(
   T: type Block,
   cid: Cid,
-  data: openArray[byte] = [],
-  verify: bool = false): T =
-  Block(
-    cid: cid,
-    data: @data)
+  data: openArray[byte],
+  verify: bool = false): ?!T =
+
+  let
+    mhash = ? cid.mhash.mapFailure
+    b = ? Block.init(
+      data = @data,
+      version = cid.cidver,
+      codec = cid.mcodec,
+      mcodec = mhash.mcodec)
+
+  if verify and cid != b.cid:
+    return failure "Cid's don't match!"
+
+  success b

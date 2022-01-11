@@ -131,7 +131,7 @@ proc broadcastWantList*(
 proc handleBlocks(
   b: BlockExcNetwork,
   peer: NetworkPeer,
-  blocks: seq[auto]): Future[void] =
+  blocks: seq[pb.Block]): Future[void] =
   ## Handle incoming blocks
   ##
 
@@ -141,13 +141,14 @@ proc handleBlocks(
   trace "Handling blocks for peer", peer = peer.id
 
   var blks: seq[bt.Block]
-  for blk in blocks:
-    when blk is pb.Block:
-      blks.add(bt.Block.init(Cid.init(blk.prefix).get(), blk.data))
-    elif blk is seq[byte]:
-      blks.add(bt.Block.init(Cid.init(blk).get(), blk))
-    else:
-      error("Invalid block type")
+  for blob in blocks:
+    without cid =? Cid.init(blob.prefix):
+      trace "Unable to initialize Cid from protobuf message"
+
+    without blk =? bt.Block.init(cid, blob.data, verify = true):
+      trace "Unable to initialize Block from data"
+
+    blks.add(blk)
 
   b.handlers.onBlocks(peer.id, blks)
 

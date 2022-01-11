@@ -41,14 +41,14 @@ suite "NetworkStore engine - 2 nodes":
       if chunk.len <= 0:
         break
 
-      blocks1.add(bt.Block.init(chunk))
+      blocks1.add(bt.Block.init(chunk).get())
 
     while true:
       let chunk = await chunker2.getBytes()
       if chunk.len <= 0:
         break
 
-      blocks2.add(bt.Block.init(chunk))
+      blocks2.add(bt.Block.init(chunk).get())
 
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
@@ -119,7 +119,7 @@ suite "NetworkStore engine - 2 nodes":
     check peerCtx2.account.?address == pricing2.address.some
 
   test "should send want-have for block":
-    let blk = bt.Block.init("Block 1".toBytes)
+    let blk = bt.Block.init("Block 1".toBytes).get()
     check await blockexc2.engine.localStore.putBlock(blk)
 
     let entry = Entry(
@@ -144,7 +144,7 @@ suite "NetworkStore engine - 2 nodes":
     check blocks.mapIt( !it.read ) == blocks2
 
   test "remote should send blocks when available":
-    let blk = bt.Block.init("Block 1".toBytes)
+    let blk = bt.Block.init("Block 1".toBytes).get()
 
     # should fail retrieving block from remote
     check not await blockexc1.getBlock(blk.cid)
@@ -183,7 +183,7 @@ suite "NetworkStore - multiple nodes":
       if chunk.len <= 0:
         break
 
-      blocks.add(bt.Block.init(chunk))
+      blocks.add(bt.Block.init(chunk).get())
 
     for e in generateNodes(5):
       switch.add(e.switch)
