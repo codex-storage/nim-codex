@@ -79,9 +79,6 @@ proc cid*(b: var BlocksManifest): ?!Cid =
   var
     stack: seq[MultiHash]
 
-  if stack.len == 1:
-    stack.add((? EmptyDigests[b.version][b.hcodec].catch))
-
   for cid in b.blocks:
     stack.add(? cid.mhash.mapFailure)
 
@@ -95,7 +92,11 @@ proc cid*(b: var BlocksManifest): ?!Cid =
       stack.add(mh)
 
   if stack.len == 1:
-    let cid = ? Cid.init(b.version, b.codec, stack[0]).mapFailure
+    let cid = ? Cid.init(
+      b.version,
+      b.codec,
+      (? EmptyDigests[b.version][b.hcodec].catch))
+      .mapFailure
     b.htree = cid.some
     return cid.success
 
