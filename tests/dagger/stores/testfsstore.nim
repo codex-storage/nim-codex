@@ -1,4 +1,3 @@
-import std/sequtils
 import std/os
 
 import pkg/questionable
@@ -9,7 +8,6 @@ import pkg/asynctest
 import pkg/libp2p
 import pkg/stew/byteutils
 
-import pkg/dagger/rng
 import pkg/dagger/stores/memorystore
 import pkg/dagger/chunker
 import pkg/dagger/stores
