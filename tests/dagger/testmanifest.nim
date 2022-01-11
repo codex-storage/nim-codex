@@ -28,17 +28,17 @@ suite "Manifest":
         fail()
 
     let
-      checksum = @[18.byte, 32, 14, 78, 178, 161,
-                  50, 175, 26, 57, 68, 6, 163, 128,
-                  19, 131, 212, 203, 93, 98, 219,
-                  34, 243, 217, 132, 191, 86, 255,
-                  171, 160, 77, 167, 91, 145]
+      checksum = @[18.byte, 32, 227, 176, 196, 66, 152,
+                  252, 28, 20, 154, 251, 244, 200, 153,
+                  111, 185, 36, 39, 174, 65, 228, 100,
+                  155, 147, 76, 164, 149, 153, 27, 120,
+                  82, 184, 85]
 
     var mh: MultiHash
     check MultiHash.decode(checksum, mh).get() > 0
 
     let checkSumCid = Cid.init(manifest.version, manifest.codec, mh).get()
-    check checkSumCid == !(manifest.cid)
+    check checkSumCid == manifest.cid.get()
 
   test "Should encode/decode to/from manifest":
     let
