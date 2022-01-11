@@ -9,6 +9,8 @@
 
 {.push raises: [Defect].}
 
+import std/tables
+
 import pkg/libp2p
 import pkg/libp2p/protobuf/minprotobuf
 import pkg/questionable
@@ -23,7 +25,29 @@ const
   ManifestCodec* = multiCodec("dag-pb")
 
 var
-  emptyDigest {.threadvar.}: array[CidVersion, MultiHash]
+  emptyDigests {.threadvar.}: array[CIDv0..CIDv1, Table[MultiCodec, MultiHash]]
+  once {.threadvar.}: bool
+
+template EmptyDigests: untyped =
+  if not once:
+    emptyDigests = [
+      CIDv0: {
+        multiCodec("sha2-256"): Cid
+        .init("bafybeihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku")
+        .get()
+        .mhash
+        .get()
+      }.toTable,
+      CIDv1: {
+        multiCodec("sha2-256"): Cid.init("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
+        .get()
+        .mhash
+        .get()
+      }.toTable,
+    ]
+
+  once = true
+  emptyDigests
 
 type
   BlocksManifest* = object
@@ -40,9 +64,15 @@ iterator items*(b: BlocksManifest): Cid =
     yield b
 
 proc hashBytes(mh: MultiHash): seq[byte] =
+  ## get the hash bytes of a multihash object
+  ##
+
   mh.data.buffer[mh.dpos..(mh.dpos + mh.size - 1)]
 
 proc cid*(b: var BlocksManifest): ?!Cid =
+  ## Generate a root hash using the treehash algorithm
+  ##
+
   if htree =? b.htree:
     return htree.success
 
@@ -50,7 +80,7 @@ proc cid*(b: var BlocksManifest): ?!Cid =
     stack: seq[MultiHash]
 
   if stack.len == 1:
-    stack.add(emptyDigest[b.version])
+    stack.add((? EmptyDigests[b.version][b.hcodec].catch))
 
   for cid in b.blocks:
     stack.add(? cid.mhash.mapFailure)
@@ -128,24 +158,8 @@ proc init*(
   ## Create a manifest using array of `Cid`s
   ##
 
-  # Only gets initialized once
-  once:
-    # TODO: The CIDs should be initialized at compile time,
-    # but the VM fails due to a `memmove` being invoked somewhere
-
-    for v in [CIDv0, CIDv1]:
-      let
-        cid = if v == CIDv1:
-          ? Cid.init("bafybeihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku").mapFailure
-        else:
-          ? Cid.init("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n").mapFailure
-
-        mhash = ? cid.mhash.mapFailure
-        digest = ? MultiHash.digest(
-          $hcodec,
-          mhash.hashBytes()).mapFailure
-
-      emptyDigest[v] = digest
+  if hcodec notin EmptyDigests[version]:
+    return failure("Unsuported manifest hash codec!")
 
   T(
     blocks: @blocks,
