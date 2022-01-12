@@ -96,8 +96,6 @@ method delBlock*(
 
   return true
 
-{.pop.}
-
 method hasBlock*(self: FSStore, cid: Cid): bool =
   ## Check if the block exists in the blockstore
   ##

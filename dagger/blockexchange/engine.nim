@@ -12,7 +12,6 @@ import std/sequtils
 import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
-import pkg/libp2p/errors
 
 import ../stores/blockstore
 import ../blocktype as bt
