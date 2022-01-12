@@ -5,8 +5,6 @@ import pkg/asynctest
 import pkg/chronos
 import pkg/libp2p
 import pkg/libp2p/errors
-import questionable
-import questionable/results
 import pkg/protobuf_serialization
 
 import pkg/dagger/rng

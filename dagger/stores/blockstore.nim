@@ -20,8 +20,6 @@ export blocktype, libp2p
 type
   BlockStore* = ref object of RootObj
 
-{.push locks:"unknown".}
-
 method getBlock*(
   b: BlockStore,
   cid: Cid): Future[?!Block] {.base.} =
@@ -45,8 +43,6 @@ method delBlock*(
   ##
 
   doAssert(false, "Not implemented!")
-
-{.pop.}
 
 method hasBlock*(s: BlockStore, cid: Cid): bool {.base.} =
   ## Check if the block exists in the blockstore

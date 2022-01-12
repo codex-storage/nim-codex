@@ -33,5 +33,5 @@ proc test(name: string, params = "-d:chronicles_log_level=DEBUG", lang = "c") =
   buildBinary name, "tests/", params
   exec "build/" & name
 
-task testAll, "Build & run Waku v1 tests":
+task testAll, "Build & run Dagger tests":
   test "testAll", "-d:chronicles_log_level=WARN"

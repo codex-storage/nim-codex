@@ -12,7 +12,6 @@
 import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
-import pkg/libp2p/errors
 
 import ../blocktype as bt
 import ../utils/asyncheapqueue

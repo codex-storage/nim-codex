@@ -34,7 +34,7 @@ type
     FixedChunker
     RabinChunker
 
-  Chunker* = ref object
+  Chunker* = object
     reader*: Reader
     case kind*: ChunkerType:
     of FixedChunker:

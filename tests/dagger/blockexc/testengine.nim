@@ -5,7 +5,6 @@ import pkg/stew/byteutils
 import pkg/asynctest
 import pkg/chronos
 import pkg/libp2p
-import pkg/libp2p/errors
 
 import pkg/dagger/rng
 import pkg/dagger/blockexchange
