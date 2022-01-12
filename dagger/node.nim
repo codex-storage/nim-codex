@@ -72,8 +72,8 @@ proc streamBlocks*(
     # since disk IO is blocking
     for c in blockManifest:
       without blk =? (await node.blockStore.getBlock(c)):
-        trace "Couldn't retrieve block", cid = c
-        continue
+        warn "Couldn't retrieve block", cid = c
+        break # abort if we couldn't get a block
 
       trace "Streaming block data", cid = blk.cid, bytes = blk.data.len
       await stream.pushData(blk.data)
