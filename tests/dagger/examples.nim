@@ -42,7 +42,7 @@ proc example*(_: type Pricing): Pricing =
 proc example*(_: type Block): Block =
   let length = rand(4096)
   let bytes = newSeqWith(length, rand(uint8))
-  Block.init(bytes).get()
+  Block.init(bytes).tryGet()
 
 proc example*(_: type PeerId): PeerID =
   let key = PrivateKey.random(Rng.instance[]).get

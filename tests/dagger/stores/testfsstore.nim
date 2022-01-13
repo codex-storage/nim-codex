@@ -21,7 +21,7 @@ suite "FS Store":
   var
     store: FSStore
     repoDir: string
-    newBlock = Block.init("New Block".toBytes()).get()
+    newBlock = Block.init("New Block".toBytes()).tryGet()
 
   setup:
     repoDir = path.parentDir / "repo"

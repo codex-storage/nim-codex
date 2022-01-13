@@ -17,13 +17,13 @@ suite "Manifest":
   test "Should produce valid tree hash checksum":
     without var manifest =? BlocksManifest.init(
         blocks = @[
-            Block.init("Block 1".toBytes).get().cid,
-            Block.init("Block 2".toBytes).get().cid,
-            Block.init("Block 3".toBytes).get().cid,
-            Block.init("Block 4".toBytes).get().cid,
-            Block.init("Block 5".toBytes).get().cid,
-            Block.init("Block 6".toBytes).get().cid,
-            Block.init("Block 7".toBytes).get().cid,
+            Block.init("Block 1".toBytes).tryGet().cid,
+            Block.init("Block 2".toBytes).tryGet().cid,
+            Block.init("Block 3".toBytes).tryGet().cid,
+            Block.init("Block 4".toBytes).tryGet().cid,
+            Block.init("Block 5".toBytes).tryGet().cid,
+            Block.init("Block 6".toBytes).tryGet().cid,
+            Block.init("Block 7".toBytes).tryGet().cid,
           ]):
         fail()
 
@@ -35,22 +35,22 @@ suite "Manifest":
                   82, 184, 85]
 
     var mh: MultiHash
-    check MultiHash.decode(checksum, mh).get() > 0
+    check MultiHash.decode(checksum, mh).tryGet() > 0
 
-    let checkSumCid = Cid.init(manifest.version, manifest.codec, mh).get()
-    check checkSumCid == manifest.cid.get()
+    let checkSumCid = Cid.init(manifest.version, manifest.codec, mh).tryGet()
+    check checkSumCid == manifest.cid.tryGet()
 
   test "Should encode/decode to/from manifest":
     let
       blocks = (0..<1000).mapIt(
-        Block.init(("Block " & $it).toBytes).get().cid
+        Block.init(("Block " & $it).toBytes).tryGet().cid
       )
 
     var
-      manifest = BlocksManifest.init(blocks).get()
+      manifest = BlocksManifest.init(blocks).tryGet()
 
     let
-      e = manifest.encode().get()
-      (cid, decoded) = BlocksManifest.decode(e).get()
+      e = manifest.encode().tryGet()
+      (cid, decoded) = BlocksManifest.decode(e).tryGet()
 
     check decoded == blocks
