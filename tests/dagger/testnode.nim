@@ -75,7 +75,7 @@ suite "Test Node":
 
     var
       manifestBlock = (await localStore.getBlock(manifestCid)).tryGet()
-      localManifest = BlocksManifest.init(manifestBlock).tryGet()
+      localManifest = BlocksManifest.init(manifestBlock.data).tryGet()
 
     check:
       manifest.len == localManifest.len

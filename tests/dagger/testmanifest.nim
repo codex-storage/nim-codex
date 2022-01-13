@@ -47,10 +47,10 @@ suite "Manifest":
       )
 
     var
-      manifest = BlocksManifest.init(blocks).tryGet()
+      blocksManifest = BlocksManifest.init(blocks).tryGet()
 
     let
-      e = manifest.encode().tryGet()
-      (cid, decoded) = BlocksManifest.decode(e).tryGet()
+      e = blocksManifest.encode().tryGet()
+      manifest = Manifest.decode(e).tryGet()
 
     check manifest.blocks == blocks
