@@ -19,7 +19,7 @@ proc toSortedSeq[T](h: AsyncHeapQueue[T], queueType = QueueType.Min): seq[T] =
   for d in h:
     check tmp.pushNoWait(d).isOk
   while tmp.len > 0:
-    result.add(popNoWait(tmp).get())
+    result.add(popNoWait(tmp).tryGet())
 
 suite "synchronous tests":
   test "test pushNoWait - Min":
@@ -189,7 +189,7 @@ suite "asynchronous tests":
     check heap[0] == ("b", 3)                 # sanity check for order
 
     let fut = heap.pushOrUpdate(("c", 2))     # attempt to push a non existen item but block
-    check heap.popNoWait().get() == ("b", 3)  # pop one off
+    check heap.popNoWait().tryGet() == ("b", 3)  # pop one off
     await fut                                 # wait for push to complete
 
     check heap[0] == (name: "c", priority: 2) # check order again

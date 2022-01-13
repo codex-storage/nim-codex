@@ -18,8 +18,8 @@ import ../examples
 suite "NetworkStore network":
   let
     rng = Rng.instance()
-    seckey = PrivateKey.random(rng[]).get()
-    peerId = PeerID.init(seckey.getPublicKey().get()).get()
+    seckey = PrivateKey.random(rng[]).tryGet()
+    peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
     chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
 
   var
@@ -38,7 +38,7 @@ suite "NetworkStore network":
       if chunk.len <= 0:
         break
 
-      blocks.add(bt.Block.init(chunk).get())
+      blocks.add(bt.Block.init(chunk).tryGet())
 
     done = newFuture[void]()
     buffer = BufferStream.new()
@@ -154,7 +154,7 @@ suite "NetworkStore Network - e2e":
       if chunk.len <= 0:
         break
 
-      blocks.add(bt.Block.init(chunk).get())
+      blocks.add(bt.Block.init(chunk).tryGet())
 
     done = newFuture[void]()
     switch1 = newStandardSwitch()
