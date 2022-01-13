@@ -53,4 +53,4 @@ suite "Manifest":
       e = manifest.encode().tryGet()
       (cid, decoded) = BlocksManifest.decode(e).tryGet()
 
-    check decoded == blocks
+    check manifest.blocks == blocks

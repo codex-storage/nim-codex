@@ -99,11 +99,10 @@ proc retrieve*(
   if mc == ManifestCodec:
     trace "Retrieving data set", cid, mc
 
-    let res = BlocksManifest.init(blk)
-    if (res.isErr):
-      return failure(res.error.msg)
+    without blockManifest =? BlocksManifest.init(blk.data):
+      return failure("Unable to construct manifest!")
 
-    asyncSpawn node.streamBlocks(stream, res.get())
+    asyncSpawn node.streamBlocks(stream, blockManifest)
   else:
     asyncSpawn (proc(): Future[void] {.async.} =
       try:
@@ -168,8 +167,8 @@ proc store*(
     return failure(cid.error.msg)
 
   trace "Stored data", manifestCid = manifest.cid,
-                      contentCid = !cid,
-                      blocks = blockManifest.len
+                       contentCid = !cid,
+                       blocks = blockManifest.len
 
   return manifest.cid.success
 

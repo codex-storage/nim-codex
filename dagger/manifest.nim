@@ -50,20 +50,23 @@ template EmptyDigests: untyped =
   emptyDigests
 
 type
+  Manifest* = object
+    cid*: ?Cid
+    blocks*: seq[Cid]
+
   BlocksManifest* = object
-    blocks: seq[Cid]
-    htree: ?Cid
+    manifest: Manifest
     version*: CidVersion
     hcodec*: MultiCodec
     codec*: MultiCodec
 
-proc len*(b: BlocksManifest): int = b.blocks.len
+proc len*(b: BlocksManifest): int = b.manifest.blocks.len
 
 iterator items*(b: BlocksManifest): Cid =
-  for b in b.blocks:
+  for b in b.manifest.blocks:
     yield b
 
-proc hashBytes(mh: MultiHash): seq[byte] =
+template hashBytes(mh: MultiHash): seq[byte] =
   ## get the hash bytes of a multihash object
   ##
 
@@ -73,13 +76,13 @@ proc cid*(b: var BlocksManifest): ?!Cid =
   ## Generate a root hash using the treehash algorithm
   ##
 
-  if htree =? b.htree:
+  if htree =? b.manifest.cid:
     return htree.success
 
   var
     stack: seq[MultiHash]
 
-  for cid in b.blocks:
+  for cid in b.manifest.blocks:
     stack.add(? cid.mhash.mapFailure)
 
     while stack.len > 1:
@@ -97,23 +100,26 @@ proc cid*(b: var BlocksManifest): ?!Cid =
       b.codec,
       (? EmptyDigests[b.version][b.hcodec].catch))
       .mapFailure
-    b.htree = cid.some
+
+    b.manifest.cid = cid.some
     return cid.success
 
 proc put*(b: var BlocksManifest, cid: Cid) =
-  b.htree = Cid.none
+  b.manifest.cid = Cid.none
   trace "Adding cid to manifest", cid
-  b.blocks.add(cid)
+  b.manifest.blocks.add(cid)
 
 proc contains*(b: BlocksManifest, cid: Cid): bool =
-  cid in b.blocks
+  cid in b.manifest.blocks
 
 proc encode*(b: var BlocksManifest): ?!seq[byte] =
   ## Encode the manifest into a ``ManifestCodec``
   ## multicodec container (Dag-pb) for now
+  ##
+
   var pbNode = initProtoBuffer()
 
-  for c in b.blocks:
+  for c in b.manifest.blocks:
     var pbLink = initProtoBuffer()
     pbLink.write(1, c.data.buffer) # write Cid links
     pbLink.finish()
@@ -125,30 +131,31 @@ proc encode*(b: var BlocksManifest): ?!seq[byte] =
 
   return pbNode.buffer.success
 
-proc decode*(_: type BlocksManifest, data: seq[byte]): ?!(Cid, seq[Cid]) =
-  ## Decode a manifest from a byte seq
+proc decode*(_: type BlocksManifest, data: openArray[byte]): ?!Manifest =
+  ## Decode a manifest from a data blob
   ##
+
   var
     pbNode = initProtoBuffer(data)
     cidBuf: seq[byte]
     blocks: seq[Cid]
 
-  if pbNode.getField(1, cidBuf).isOk:
-    let cid = ? Cid.init(cidBuf).mapFailure
-    var linksBuf: seq[seq[byte]]
-    if pbNode.getRepeatedField(2, linksBuf).isOk:
-      for pbLinkBuf in linksBuf:
-        var
-          blocksBuf: seq[seq[byte]]
-          blockBuf: seq[byte]
-          pbLink = initProtoBuffer(pbLinkBuf)
+  if pbNode.getField(1, cidBuf).isErr:
+    return failure("Unable to decode Cid from manifest!")
 
-        if pbLink.getField(1, blockBuf).isOk:
-          let cidRes = Cid.init(blockBuf)
-          if cidRes.isOk:
-            blocks.add(cidRes.get())
+  let cid = ? Cid.init(cidBuf).mapFailure
+  var linksBuf: seq[seq[byte]]
+  if pbNode.getRepeatedField(2, linksBuf).isOk:
+    for pbLinkBuf in linksBuf:
+      var
+        blocksBuf: seq[seq[byte]]
+        blockBuf: seq[byte]
+        pbLink = initProtoBuffer(pbLinkBuf)
 
-      return (cid, blocks).success
+      if pbLink.getField(1, blockBuf).isOk:
+        blocks.add(? Cid.init(blockBuf).mapFailure)
+
+  Manifest(cid: cid.some, blocks: blocks).success
 
 proc init*(
   T: type BlocksManifest,
@@ -160,10 +167,10 @@ proc init*(
   ##
 
   if hcodec notin EmptyDigests[version]:
-    return failure("Unsuported manifest hash codec!")
+    return failure("Unsupported manifest hash codec!")
 
   T(
-    blocks: @blocks,
+    manifest: Manifest(blocks: @blocks),
     version: version,
     codec: codec,
     hcodec: hcodec,
@@ -171,23 +178,23 @@ proc init*(
 
 proc init*(
   T: type BlocksManifest,
-  blk: Block): ?!T =
-  ## Create manifest from a raw manifest block
+  data: openArray[byte]): ?!T =
+  ## Create manifest from a raw data blob
   ## (in dag-pb for for now)
   ##
 
   let
-    (cid, blocks) = ? BlocksManifest.decode(blk.data)
+    manifest = ? BlocksManifest.decode(data)
+    cid = !manifest.cid
     mhash = ? cid.mhash.mapFailure
 
-  var
-    manifest = ? BlocksManifest.init(
-      blocks,
-      cid.version,
-      mhash.mcodec,
-      cid.mcodec)
+  var blockManifest = ? BlocksManifest.init(
+    manifest.blocks,
+    cid.version,
+    mhash.mcodec,
+    cid.mcodec)
 
-  if cid != (? manifest.cid):
-    return failure("Content hashes don't match!")
+  if cid != ? blockManifest.cid:
+    return failure("Decoded content hash doesn't match!")
 
-  return manifest.success
+  blockManifest.success
