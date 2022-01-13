@@ -12,7 +12,7 @@ import pkg/dagger/stores
 import pkg/dagger/blockexchange
 import pkg/dagger/chunker
 import pkg/dagger/node
-import pkg/dagger/manifest
+import pkg/dagger/blocksmanifest
 import pkg/dagger/blocktype as bt
 
 import ./helpers
@@ -75,7 +75,7 @@ suite "Test Node":
 
     var
       manifestBlock = (await localStore.getBlock(manifestCid)).tryGet()
-      localManifest = BlocksManifest.init(manifestBlock).tryGet()
+      localManifest = BlocksManifest.init(manifestBlock.data).tryGet()
 
     check:
       manifest.len == localManifest.len

@@ -9,7 +9,7 @@ import pkg/stew/byteutils
 
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
-import pkg/dagger/manifest
+import pkg/dagger/blocksmanifest
 
 import ./helpers
 
@@ -47,10 +47,10 @@ suite "Manifest":
       )
 
     var
-      manifest = BlocksManifest.init(blocks).tryGet()
+      blocksManifest = BlocksManifest.init(blocks).tryGet()
 
     let
-      e = manifest.encode().tryGet()
-      (cid, decoded) = BlocksManifest.decode(e).tryGet()
+      e = blocksManifest.encode().tryGet()
+      manifest = Manifest.decode(e).tryGet()
 
-    check decoded == blocks
+    check manifest.blocks == blocks
