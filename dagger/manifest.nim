@@ -131,7 +131,7 @@ proc encode*(b: var BlocksManifest): ?!seq[byte] =
 
   return pbNode.buffer.success
 
-proc decode*(_: type BlocksManifest, data: openArray[byte]): ?!Manifest =
+proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
   ## Decode a manifest from a data blob
   ##
 
@@ -184,7 +184,7 @@ proc init*(
   ##
 
   let
-    manifest = ? BlocksManifest.decode(data)
+    manifest = ? Manifest.decode(data)
     cid = !manifest.cid
     mhash = ? cid.mhash.mapFailure
 
