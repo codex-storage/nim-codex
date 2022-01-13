@@ -12,7 +12,7 @@ import pkg/dagger/stores
 import pkg/dagger/blockexchange
 import pkg/dagger/chunker
 import pkg/dagger/node
-import pkg/dagger/manifest
+import pkg/dagger/blocksmanifest
 import pkg/dagger/blocktype as bt
 
 import ./helpers

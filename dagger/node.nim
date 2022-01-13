@@ -21,7 +21,7 @@ import pkg/libp2p/signed_envelope
 
 import ./chunker
 import ./blocktype as bt
-import ./manifest
+import ./blocksmanifest
 import ./stores/blockstore
 import ./blockexchange
 

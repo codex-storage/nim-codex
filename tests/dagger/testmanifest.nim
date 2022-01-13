@@ -9,7 +9,7 @@ import pkg/stew/byteutils
 
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
-import pkg/dagger/manifest
+import pkg/dagger/blocksmanifest
 
 import ./helpers
 
