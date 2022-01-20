@@ -86,9 +86,14 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
             peerRecord.get().addresses.mapIt(
               it.address
             )
+      try:
+        await node.connect(peerId.get(), addresses)
+        return RestApiResponse.response("Successfully connected to peer")
+      except DialFailedError as e:
+        return RestApiResponse.error(Http400, "Unable to dial peer")
+      except CatchableError as e:
+        return RestApiResponse.error(Http400, "Unknown error dialling peer")
 
-      await node.connect(peerId.get(), addresses)
-      return RestApiResponse.response("")
 
   router.api(
     MethodGet,
@@ -113,6 +118,7 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
             retr.isErr):
             return RestApiResponse.error(Http404, retr.error.msg)
 
+        resp.addHeader("Content-Type", "application/octet-stream")
         await resp.prepareChunked()
         while not stream.atEof:
           var
