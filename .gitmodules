@@ -54,10 +54,10 @@
 	ignore = untracked
 	branch = master
 [submodule "vendor/upraises"]
-	ignore = untracked
-	branch = master
 	path = vendor/upraises
 	url = https://github.com/markspanbroek/upraises.git
+	ignore = untracked
+	branch = master
 [submodule "vendor/asynctest"]
 	path = vendor/asynctest
 	url = https://github.com/status-im/asynctest.git
@@ -118,9 +118,6 @@
 	url = https://github.com/status-im/stint.git
 	ignore = untracked
 	branch = master
-[submodule "vendor/nim-httputils"]
-	ignore = untracked
-	branch = master
 [submodule "vendor/nim-http-utils"]
 	path = vendor/nim-http-utils
 	url = https://github.com/status-im/nim-http-utils.git
@@ -131,18 +128,9 @@
 	url = https://github.com/status-im/nim-toml-serialization.git
 	ignore = untracked
 	branch = master
-[submodule "vendor/unittest2"]
-	ignore = untracked
-	branch = master
 [submodule "vendor/nim-unittest2"]
 	path = vendor/nim-unittest2
 	url = https://github.com/status-im/nim-unittest2.git
-	ignore = untracked
-	branch = master
-[submodule "vendor/nameresolver"]
-	ignore = untracked
-	branch = master
-[submodule "vendor/nim-nameresolver"]
 	ignore = untracked
 	branch = master
 [submodule "vendor/dnsclient.nim"]
@@ -155,3 +143,19 @@
 	url = https://github.com/status-im/nim-websock.git
 	ignore = untracked
 	branch = master
+[submodule "vendor/dagger-contracts"]
+	path = vendor/dagger-contracts
+	url = https://github.com/status-im/dagger-contracts
+	ignore = dirty
+[submodule "vendor/nim-contract-abi"]
+	path = vendor/nim-contract-abi
+	url = https://github.com/status-im/nim-contract-abi
+[submodule "vendor/nim-json-rpc"]
+	path = vendor/nim-json-rpc
+	url = https://github.com/status-im/nim-json-rpc
+[submodule "vendor/nim-zlib"]
+	path = vendor/nim-zlib
+	url = https://github.com/status-im/nim-zlib
+[submodule "vendor/nim-ethers"]
+	path = vendor/nim-ethers
+	url = https://github.com/status-im/nim-ethers

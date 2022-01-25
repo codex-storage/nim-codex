@@ -29,9 +29,27 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
     extra_params &= " " & paramStr(i)
   exec "nim " & lang & " --out:build/" & name & " " & extra_params & " " & srcDir & name & ".nim"
 
-proc test(name: string, params = "-d:chronicles_log_level=DEBUG", lang = "c") =
-  buildBinary name, "tests/", params
+proc test(name: string, srcDir = "tests/", params = "-d:chronicles_log_level=DEBUG", lang = "c") =
+  buildBinary name, srcDir, params
   exec "build/" & name
 
+task testContracts, "Build, deploy and test contracts":
+  exec "cd vendor/dagger-contracts && npm install"
+
+  # start node
+  # Note: combining this command with the previous does not work
+  exec "cd vendor/dagger-contracts && npx hardhat node --no-deploy &"
+
+  # deploy contracts
+  exec "sleep 3 && " &
+       "cd vendor/dagger-contracts && npx hardhat deploy --network localhost --export '../../deployment-localhost.json'"
+
+  # run contract tests using deployed contracts
+  try:
+    test "testContracts", "tests/", "-d:chronicles_log_level=WARN"
+  finally:
+    # kill simulator processes
+    exec "ps -ef | grep hardhat | grep -v grep | awk '{ print $2 }' | xargs kill"
+
 task testAll, "Build & run Dagger tests":
-  test "testAll", "-d:chronicles_log_level=WARN"
+  test "testAll", params = "-d:chronicles_log_level=WARN"

@@ -21,3 +21,4 @@ build/
 
 .update.timestamp
 dagger.nims
+deployment-localhost.json
