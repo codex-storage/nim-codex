@@ -1,9 +1,12 @@
 import std/sequtils
 
+import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
+import pkg/nitro/wallet
 
 import pkg/dagger/stores
+import pkg/dagger/blockexchange
 import pkg/dagger/blocktype as bt
 
 import ../examples
@@ -13,22 +16,22 @@ proc generateNodes*(
   blocks: openArray[bt.Block] = [],
   secureManagers: openarray[SecureProtocol] = [
     SecureProtocol.Noise,
-  ]): seq[tuple[switch: Switch, blockexc: NetworkStore]] =
+  ]): seq[tuple[switch: Switch, blockexc: BlockExcEngine]] =
   for i in 0..<num:
     let
       switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
       wallet = WalletRef.example
       network = BlockExcNetwork.new(switch)
-      localStore = MemoryStore.new(blocks.mapIt( it ))
-      engine = BlockExcEngine.new(localStore, wallet, network)
-      networkStore = NetworkStore.new(engine, localStore)
+      localStore: BlockStore = MemoryStore.new(blocks.mapIt( it ))
+      blockStoreMgr = BlockStoreManager.new(@[localStore])
+      engine = BlockExcEngine.new(wallet, network, blockStoreMgr)
 
     switch.mount(network)
 
     # initialize our want lists
     engine.wantList = blocks.mapIt( it.cid )
     switch.mount(network)
-    result.add((switch, networkStore))
+    result.add((switch, engine))
 
 proc connectNodes*(nodes: seq[Switch]) {.async.} =
   for dialer in nodes:

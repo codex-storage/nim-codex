@@ -1,5 +1,6 @@
 import std/unittest
 
+import pkg/dagger/blockexchange
 import pkg/dagger/stores
 import ../../examples
 

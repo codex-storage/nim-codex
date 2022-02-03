@@ -2,9 +2,10 @@ import std/random
 import std/sequtils
 import pkg/libp2p
 import pkg/nitro
+import pkg/dagger/blockexchange
 import pkg/dagger/rng
 import pkg/dagger/stores
-import pkg/dagger/blocktype
+import pkg/dagger/blocktype as bt
 
 proc example*(_: type EthAddress): EthAddress =
   EthPrivateKey.random().toPublicKey.toAddress
@@ -39,7 +40,7 @@ proc example*(_: type Pricing): Pricing =
     price: uint32.rand.u256
   )
 
-proc example*(_: type Block): Block =
+proc example*(_: type bt.Block): bt.Block =
   let length = rand(4096)
   let bytes = newSeqWith(length, rand(uint8))
   Block.init(bytes).tryGet()

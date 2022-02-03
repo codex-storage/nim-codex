@@ -2,6 +2,7 @@ import pkg/asynctest
 import pkg/chronos
 import pkg/stew/byteutils
 import ../../examples
+import pkg/dagger/blockexchange
 import pkg/dagger/stores
 
 suite "account protobuf messages":

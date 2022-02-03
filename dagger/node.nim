@@ -22,7 +22,7 @@ import pkg/libp2p/signed_envelope
 import ./chunker
 import ./blocktype as bt
 import ./blocksmanifest
-import ./stores/blockstore
+import ./stores/manager
 import ./blockexchange
 
 logScope:
@@ -37,7 +37,6 @@ type
   DaggerNodeRef* = ref object
     switch*: Switch
     networkId*: PeerID
-    blockStore*: BlockStore
     engine*: BlockExcEngine
 
 proc start*(node: DaggerNodeRef) {.async.} =
@@ -71,7 +70,7 @@ proc streamBlocks*(
     # to prevent slurping the entire dataset
     # since disk IO is blocking
     for c in blockManifest:
-      without blk =? (await node.blockStore.getBlock(c)):
+      without blk =? (await node.engine.retrieve(c)):
         warn "Couldn't retrieve block", cid = c
         break # abort if we couldn't get a block
 
@@ -88,7 +87,7 @@ proc retrieve*(
   cid: Cid): Future[?!void] {.async.} =
 
   trace "Received retrieval request", cid
-  without blk =? await node.blockStore.getBlock(cid):
+  without blk =? await node.engine.retrieve(cid):
     return failure(
       newException(DaggerError, "Couldn't retrieve block for Cid!"))
 
@@ -136,9 +135,10 @@ proc store*(
         return failure("Unable to init block from chunk!")
 
       blockManifest.put(blk.cid)
-      if not (await node.blockStore.putBlock(blk)):
+      if not (await node.engine.store(blk)):
         # trace "Unable to store block", cid = blk.cid
         return failure("Unable to store block " & $blk.cid)
+      node.engine.resolveBlocks(@[blk])
 
   except CancelledError as exc:
     raise exc
@@ -157,9 +157,10 @@ proc store*(
     trace "Unable to init block from manifest data!"
     return failure("Unable to init block from manifest data!")
 
-  if not (await node.blockStore.putBlock(manifest)):
+  if not (await node.engine.store(manifest)):
     trace "Unable to store manifest", cid = manifest.cid
     return failure("Unable to store manifest " & $manifest.cid)
+  node.engine.resolveBlocks(@[manifest])
 
   var cid: ?!Cid
   if (cid = blockManifest.cid; cid.isErr):
@@ -175,9 +176,7 @@ proc store*(
 proc new*(
   T: type DaggerNodeRef,
   switch: Switch,
-  store: BlockStore,
   engine: BlockExcEngine): T =
   T(
     switch: switch,
-    blockStore: store,
     engine: engine)

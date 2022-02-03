@@ -27,9 +27,9 @@ suite "Test Node":
     switch: Switch
     wallet: WalletRef
     network: BlockExcNetwork
-    localStore: MemoryStore
+    localStore: BlockStore
     engine: BlockExcEngine
-    store: NetworkStore
+    blockStoreMgr: BlockStoreManager
     node: DaggerNodeRef
 
   setup:
@@ -39,9 +39,9 @@ suite "Test Node":
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
     localStore = MemoryStore.new()
-    engine = BlockExcEngine.new(localStore, wallet, network)
-    store = NetworkStore.new(engine, localStore)
-    node = DaggerNodeRef.new(switch, store, engine)
+    blockStoreMgr = BlockStoreManager.new(@[localStore])
+    engine = BlockExcEngine.new(wallet, network, blockStoreMgr)
+    node = DaggerNodeRef.new(switch, engine)
 
     await node.start()
 

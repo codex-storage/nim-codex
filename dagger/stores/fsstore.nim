@@ -29,7 +29,6 @@ logScope:
 
 type
   FSStore* = ref object of BlockStore
-    cache: BlockStore
     repoDir: string
     postfixLen*: int
 
@@ -105,9 +104,7 @@ method hasBlock*(self: FSStore, cid: Cid): bool =
 proc new*(
   T: type FSStore,
   repoDir: string,
-  postfixLen = 2,
-  cache: BlockStore = MemoryStore.new()): T =
+  postfixLen = 2): T =
   T(
     postfixLen: postfixLen,
-    repoDir: repoDir,
-    cache: cache)
+    repoDir: repoDir)

@@ -55,11 +55,12 @@ suite "NetworkStore engine basic":
       network = BlockExcNetwork(request: BlockExcRequest(
         sendWantList: sendWantList,
       ))
-
+      memStore: BlockStore = MemoryStore.new(blocks.mapIt( it ))
+      blockStoreMgr = BlockStoreManager.new(@[memStore])
       engine = BlockExcEngine.new(
-        MemoryStore.new(blocks.mapIt( it )),
         wallet,
-        network)
+        network,
+        blockStoreMgr)
     engine.wantList = blocks.mapIt( it.cid )
     engine.setupPeer(peerId)
 
@@ -76,8 +77,10 @@ suite "NetworkStore engine basic":
       network = BlockExcNetwork(request: BlockExcRequest(
         sendAccount: sendAccount,
       ))
+      memStore: BlockStore = MemoryStore.new()
+      blockStoreMgr = BlockStoreManager.new(@[memStore])
 
-      engine = BlockExcEngine.new(MemoryStore.new, wallet, network)
+      engine = BlockExcEngine.new(wallet, network, blockStoreMgr)
 
     engine.pricing = pricing.some
     engine.setupPeer(peerId)
@@ -94,6 +97,7 @@ suite "NetworkStore engine handlers":
   var
     engine: BlockExcEngine
     peerCtx: BlockExcPeerCtx
+    blockStoreMgr: BlockStoreManager
     done: Future[void]
     blocks: seq[bt.Block]
 
@@ -106,7 +110,9 @@ suite "NetworkStore engine handlers":
       blocks.add(bt.Block.init(chunk).tryGet())
 
     done = newFuture[void]()
-    engine = BlockExcEngine.new(MemoryStore.new(), wallet, BlockExcNetwork())
+    let memStore: BlockStore = MemoryStore.new()
+    blockStoreMgr = BlockStoreManager.new(@[memStore])
+    engine = BlockExcEngine.new(wallet, BlockExcNetwork(), blockStoreMgr)
     peerCtx = BlockExcPeerCtx(
       id: peerId
     )
@@ -155,8 +161,8 @@ suite "NetworkStore engine handlers":
       sendPresence: sendPresence
     ))
 
-    check await engine.localStore.putBlock(blocks[0])
-    check await engine.localStore.putBlock(blocks[1])
+    check await engine.store(blocks[0])
+    check await engine.store(blocks[1])
     await engine.wantListHandler(peerId, wantList)
 
     await done
@@ -170,7 +176,7 @@ suite "NetworkStore engine handlers":
     let resolved = await allFinished(pending)
     check resolved.mapIt( it.read ) == blocks
     for b in blocks:
-      check engine.localStore.hasBlock(b.cid)
+      check engine.exists(b.cid)
 
   test "sends payments for received blocks":
     let account = Account(address: EthAddress.example)
@@ -216,6 +222,7 @@ suite "Task Handler":
 
   var
     engine: BlockExcEngine
+    blockStoreMgr: BlockStoreManager
     peersCtx: seq[BlockExcPeerCtx]
     peers: seq[PeerID]
     done: Future[void]
@@ -230,7 +237,9 @@ suite "Task Handler":
       blocks.add(bt.Block.init(chunk).tryGet())
 
     done = newFuture[void]()
-    engine = BlockExcEngine.new(MemoryStore.new(), wallet, BlockExcNetwork())
+    let memStore: BlockStore = MemoryStore.new()
+    blockStoreMgr = BlockStoreManager.new(@[memStore])
+    engine = BlockExcEngine.new(wallet, BlockExcNetwork(), blockStoreMgr)
     peersCtx = @[]
 
     for i in 0..3:
@@ -254,7 +263,7 @@ suite "Task Handler":
         blks[0].cid == blocks[1].cid
 
     for blk in blocks:
-      check await engine.localStore.putBlock(blk)
+      check await engine.store(blk)
     engine.network.request.sendBlocks = sendBlocks
 
     # second block to send by priority
@@ -292,7 +301,7 @@ suite "Task Handler":
       ]
 
     for blk in blocks:
-      check await engine.localStore.putBlock(blk)
+      check await engine.store(blk)
     engine.network.request.sendPresence = sendPresence
 
     # have block

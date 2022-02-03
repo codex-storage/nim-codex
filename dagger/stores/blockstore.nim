@@ -18,7 +18,13 @@ import ../blocktype
 export blocktype, libp2p
 
 type
+  PutFail* = proc(self: BlockStore, blk: Block): Future[void] {.gcsafe.}
+  DelFail* = proc(self: BlockStore, cid: Cid): Future[void] {.gcsafe.}
+
   BlockStore* = ref object of RootObj
+    canFail*: bool       # Allow put/del operations to fail optimistically
+    onPutFail*: PutFail
+    onDelFail*: DelFail
 
 method getBlock*(
   b: BlockStore,
@@ -50,5 +56,5 @@ method hasBlock*(s: BlockStore, cid: Cid): bool {.base.} =
 
   return false
 
-proc contains*(s: BlockStore, blk: Cid): bool =
+method contains*(s: BlockStore, blk: Cid): bool {.base.} =
   s.hasBlock(blk)
