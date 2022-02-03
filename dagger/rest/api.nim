@@ -111,7 +111,7 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
         if (
             let retr = await node.retrieve(stream, id.get());
             retr.isErr):
-            return RestApiResponse.error(Http400, retr.error.msg)
+            return RestApiResponse.error(Http404, retr.error.msg)
 
         await resp.prepareChunked()
         while not stream.atEof:
@@ -124,15 +124,15 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
             break
 
           bytes += buff.len
-          trace "Sending cunk", size = buff.len
+          trace "Sending chunk", size = buff.len
           await resp.sendChunk(addr buff[0], buff.len)
+        await resp.finish()
       except CatchableError as exc:
         trace "Excepting streaming blocks", exc = exc.msg
         return RestApiResponse.error(Http500)
       finally:
         trace "Sent bytes", cid = id.get(), bytes
         await stream.close()
-        await resp.finish()
 
   router.rawApi(
     MethodPost,
