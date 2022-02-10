@@ -32,8 +32,10 @@ type
     size: Positive                # in number of blocks
     cache: LruCache[Cid, Block]
 
-const MiB = 1024 * 1024 # bytes, 1 mebibyte = 1,048,576 bytes
-const DefaultCacheSize = 100 * MiB
+const
+  MiB* = 1024 * 1024 # bytes, 1 mebibyte = 1,048,576 bytes
+  DefaultCacheSizeMiB* = 100
+  DefaultCacheSize* = DefaultCacheSizeMiB * MiB
 
 method getBlock*(
   b: CacheStore,
@@ -44,8 +46,8 @@ method getBlock*(
   return b.cache[cid].catch()
 
 method hasBlock*(s: CacheStore, cid: Cid): bool =
-#   ## check if the block exists
-#   ##
+  ## check if the block exists
+  ##
 
   s.cache.contains(cid)
 
@@ -57,8 +59,6 @@ method putBlock*(
 
   s.cache[blk.cid] = blk
   return true
-
-#   return blk.cid in s
 
 method delBlock*(
   s: CacheStore,

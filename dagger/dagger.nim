@@ -62,6 +62,13 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
     .withTcpTransport({ServerFlags.ReuseAddr})
     .build()
 
+  # Most Local > Most Remote: order is important!
+  var stores: seq[BlockStore]
+  if config.cacheSize > 0:
+    stores.add CacheStore.new(cacheSize = config.cacheSize * MiB)
+
+  stores.add FSStore.new(config.dataDir / "repo")
+
   let
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
