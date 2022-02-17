@@ -9,6 +9,7 @@
 
 {.push raises: [Defect].}
 
+import std/options
 import std/sequtils
 
 import pkg/chronicles
@@ -21,6 +22,7 @@ import pkg/questionable/results
 import ./blockstore
 import ../blocktype
 import ../chunker
+import ../errors
 
 export blockstore
 
@@ -29,45 +31,72 @@ logScope:
 
 type
   CacheStore* = ref object of BlockStore
-    size: Positive                # in number of blocks
+    currentSize*: Natural          # in bytes
+    size*: Positive                # in bytes
     cache: LruCache[Cid, Block]
+
+  InvalidBlockSize* = object of DaggerError
 
 const
   MiB* = 1024 * 1024 # bytes, 1 mebibyte = 1,048,576 bytes
   DefaultCacheSizeMiB* = 100
-  DefaultCacheSize* = DefaultCacheSizeMiB * MiB
+  DefaultCacheSize* = DefaultCacheSizeMiB * MiB # bytes
 
 method getBlock*(
-  b: CacheStore,
+  self: CacheStore,
   cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the stores
   ##
 
-  return b.cache[cid].catch()
+  return self.cache[cid].catch()
 
-method hasBlock*(s: CacheStore, cid: Cid): bool =
+method hasBlock*(self: CacheStore, cid: Cid): bool =
   ## check if the block exists
   ##
 
-  s.cache.contains(cid)
+  self.cache.contains(cid)
+
+func putBlockSync(self: CacheStore, blk: Block): bool =
+
+  let blkSize = blk.data.len # in bytes
+
+  if blkSize > self.size:
+    return false
+
+  while self.currentSize + blkSize > self.size:
+    try:
+      let removed = self.cache.removeLru()
+      self.currentSize -= removed.data.len
+    except EmptyLruCacheError:
+      # if the cache is empty, can't remove anything, so break and add item
+      # to the cache
+      break
+
+  self.cache[blk.cid] = blk
+  self.currentSize += blkSize
+  return true
 
 method putBlock*(
-  s: CacheStore,
+  self: CacheStore,
   blk: Block): Future[bool] {.async.} =
   ## Put a block to the blockstore
   ##
-
-  s.cache[blk.cid] = blk
-  return true
+  return self.putBlockSync(blk)
 
 method delBlock*(
-  s: CacheStore,
+  self: CacheStore,
   cid: Cid): Future[bool] {.async.} =
   ## delete a block/s from the block store
   ##
 
-  s.cache.del(cid)
-  return true
+  try:
+    let removed = self.cache.del(cid)
+    if removed.isSome:
+      self.currentSize -= removed.get.data.len
+      return true
+    return false
+  except EmptyLruCacheError:
+    return false
 
 func new*(
     _: type CacheStore,
@@ -79,19 +108,17 @@ func new*(
   if cacheSize < chunkSize:
     raise newException(ValueError, "cacheSize cannot be less than chunkSize")
 
+  var currentSize = 0
   let
     size = cacheSize div chunkSize
-    blks =
-      if blocks.len > size:
-        let start = blocks.len - size
-        blocks[start..^1]
-      else: @blocks
     cache = newLruCache[Cid, Block](size)
+    store = CacheStore(
+      cache: cache,
+      currentSize: currentSize,
+      size: cacheSize
+    )
 
-  for blk in blks:
-    cache[blk.cid] = blk
+  for blk in blocks:
+    discard store.putBlockSync(blk)
 
-  CacheStore(
-    cache: cache,
-    size: size
-  )
+  return store
