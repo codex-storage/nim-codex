@@ -22,7 +22,7 @@ import ./blocktype
 export blocktype
 
 const
-  DefaultChunkSize*: int64 = 1024 * 256
+  DefaultChunkSize*: Positive = 1024 * 256
 
 type
   # default reader type

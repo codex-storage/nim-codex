@@ -1,7 +1,7 @@
 import ./stores/[
-  memorystore,
+  cachestore,
   blockstore,
   networkstore,
   fsstore]
 
-export memorystore, blockstore, networkstore, fsstore
+export cachestore, blockstore, networkstore, fsstore
