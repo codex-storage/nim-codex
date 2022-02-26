@@ -162,3 +162,8 @@
 [submodule "vendor/lrucache.nim"]
 	path = vendor/lrucache.nim
 	url = https://github.com/status-im/lrucache.nim
+[submodule "vendor/leopard"]
+	path = vendor/leopard
+	url = https://github.com/catid/leopard
+	ignore = untracked
+	branch = master
