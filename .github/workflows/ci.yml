@@ -7,7 +7,6 @@ jobs:
       fail-fast: false
       max-parallel: 20
       matrix:
-        branch: [v1.4.6]
         target:
           # Unit tests
           - os: linux
@@ -35,7 +34,7 @@ jobs:
           - target:
               os: windows
             builder: windows-2019
-    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (${{ matrix.branch }})'
+    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }}'
     runs-on: ${{ matrix.builder }}
     steps:
       - name: Checkout nim-dagger
@@ -93,6 +92,7 @@ jobs:
           EOF
           chmod 755 external/bin/gcc external/bin/g++
           echo '${{ github.workspace }}/external/bin' >> $GITHUB_PATH
+          echo "LIBLEOPARD_CMAKE_FLAGS=-DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32" >> $GITHUB_ENV
 
       - name: Restore MinGW-W64 (Windows) from cache
         if: runner.os == 'Windows'

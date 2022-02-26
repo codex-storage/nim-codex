@@ -23,9 +23,12 @@ LINK_PCRE := 0
 	all \
 	deps \
 	update \
+	leopard \
+	testAll \
 	test \
-	clean \
-	libbacktrace
+	libbacktrace \
+	clean-leopard \
+	clean
 
 ifeq ($(NIM_PARAMS),)
 # "variables.mk" was not included, so we update the submodules.
@@ -48,6 +51,16 @@ all: | test
 # must be included after the default target
 -include $(BUILD_SYSTEM_DIR)/makefiles/targets.mk
 
+# detecting the os
+ifeq ($(OS),Windows_NT) # is Windows_NT on XP, 2000, 7, Vista, 10...
+detected_OS := Windows
+else ifeq ($(strip $(shell uname)),Darwin)
+detected_OS := macOS
+else
+ # e.g. Linux
+detected_OS := $(strip $(shell uname))
+endif
+
 # "-d:release" implies "--stacktrace:off" and it cannot be added to config.nims
 ifeq ($(USE_LIBBACKTRACE), 0)
 NIM_PARAMS := $(NIM_PARAMS) -d:debug -d:disable_libbacktrace
@@ -55,7 +68,7 @@ else
 NIM_PARAMS := $(NIM_PARAMS) -d:release
 endif
 
-deps: | deps-common nat-libs dagger.nims
+deps: | deps-common nat-libs dagger.nims leopard
 ifneq ($(USE_LIBBACKTRACE), 0)
 deps: | libbacktrace
 endif
@@ -67,19 +80,36 @@ update: | update-common
 
 # a phony target, because teaching `make` how to do conditional recompilation of Nim projects is too complicated
 
+LIBLEOPARD := $(shell pwd)/vendor/leopard/build/liblibleopard.a
+LIBLEOPARD_HEADER := $(shell pwd)/vendor/leopard/leopard.h
+
+ifeq ($(detected_OS),Windows)
+LIBLEOPARD_CMAKE_FLAGS ?= -G"MSYS Makefiles" -DCMAKE_BUILD_TYPE=Release
+else
+LIBLEOPARD_CMAKE_FLAGS ?= -DCMAKE_BUILD_TYPE=Release
+endif
+
+ifeq ($(detected_OS),Windows)
+NIM_PARAMS += --passC:"-I$(shell cygpath -m $(shell dirname $(LIBLEOPARD_HEADER)))" --passL:"$(shell cygpath -m $(LIBLEOPARD))"
+else
+NIM_PARAMS += --passC:"-I$(shell dirname $(LIBLEOPARD_HEADER))" --passL:"$(LIBLEOPARD)"
+endif
+
+ifneq ($(detected_OS),macOS)
+NIM_PARAMS += --passL:"-fopenmp"
+endif
+
+$(LIBLEOPARD):
+	cd vendor/leopard && \
+	mkdir -p build && cd build && \
+	cmake .. $(LIBLEOPARD_CMAKE_FLAGS) && \
+	$(MAKE)
+
+leopard: $(LIBLEOPARD)
+
 testAll: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) dagger.nims
-
-# detecting the os
-ifeq ($(OS),Windows_NT) # is Windows_NT on XP, 2000, 7, Vista, 10...
- detected_OS := Windows
-else ifeq ($(strip $(shell uname)),Darwin)
- detected_OS := macOS
-else
- # e.g. Linux
- detected_OS := $(strip $(shell uname))
-endif
 
 # Builds and run the test suite (Waku v1 + v2)
 test: | testAll
@@ -92,8 +122,11 @@ dagger.nims:
 libbacktrace:
 	+ $(MAKE) -C vendor/nim-libbacktrace --no-print-directory BUILD_CXX_LIB=0
 
+clean-leopard:
+	rm -rf $(shell dirname $(LIBLEOPARD))
+
 # usual cleaning
-clean: | clean-common
+clean: | clean-common clean-leopard
 	rm -rf build
 ifneq ($(USE_LIBBACKTRACE), 0)
 	+ $(MAKE) -C vendor/nim-libbacktrace clean $(HANDLE_OUTPUT)
