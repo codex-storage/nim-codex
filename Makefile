@@ -96,14 +96,16 @@ NIM_PARAMS += --passC:"-I$(shell dirname $(LIBLEOPARD_HEADER))" --passL:"$(LIBLE
 endif
 
 ifneq ($(detected_OS),macOS)
-NIM_PARAMS += --passL:"-fopenmp"
+NIM_PARAMS += --passL:-fopenmp
 endif
+
+NIM_PARAMS += $(NIM_EXTRA_PARAMS)
 
 $(LIBLEOPARD):
 	cd vendor/leopard && \
 	mkdir -p build && cd build && \
 	cmake .. $(LIBLEOPARD_CMAKE_FLAGS) && \
-	$(MAKE)
+	$(MAKE) libleopard
 
 leopard: $(LIBLEOPARD)
 
