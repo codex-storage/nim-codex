@@ -23,8 +23,7 @@ import ./node
 import ./conf
 import ./rng
 import ./rest/api
-import ./stores/fsstore
-import ./stores/networkstore
+import ./stores
 import ./blockexchange
 import ./utils/fileutils
 
@@ -62,17 +61,16 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
     .withTcpTransport({ServerFlags.ReuseAddr})
     .build()
 
-  # Most Local > Most Remote: order is important!
-  var stores: seq[BlockStore]
-  if config.cacheSize > 0:
-    stores.add CacheStore.new(cacheSize = config.cacheSize * MiB)
-
-  stores.add FSStore.new(config.dataDir / "repo")
+  let cache =
+    if config.cacheSize > 0:
+      CacheStore.new(cacheSize = config.cacheSize * MiB)
+    else:
+      CacheStore.new()
 
   let
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
-    localStore = FSStore.new(config.dataDir / "repo")
+    localStore = FSStore.new(config.dataDir / "repo", cache = cache)
     engine = BlockExcEngine.new(localStore, wallet, network)
     store = NetworkStore.new(engine, localStore)
     daggerNode = DaggerNodeRef.new(switch, store, engine)
