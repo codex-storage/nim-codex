@@ -12,21 +12,22 @@ type
 const
   header = "leopard.h"
 
-{.pragma: leo, cdecl, header: header, importCpp.}
+{.pragma: leo, cdecl, header: header.}
 
-proc leo_init*(): cint {.leo.}
+proc leo_init*(): cint {.leo, importCpp.}
 
-func leo_result_string*(res: LeopardResult): cstring {.leo.}
+func leo_result_string*(res: LeopardResult): cstring {.leo, importc.}
 
 func leo_encode_work_count*(original_count, recovery_count: cuint): cuint
-  {.leo.}
+  {.leo, importc.}
 
 proc leo_encode*(buffer_bytes: uint64, original_count, recovery_count,
-  work_count: cuint, original_data, work_data: pointer): LeopardResult {.leo.}
+  work_count: cuint, original_data, work_data: pointer): LeopardResult
+  {.leo, importc.}
 
 func leo_decode_work_count*(original_count, recovery_count: cuint): cuint
-  {.leo.}
+  {.leo, importc.}
 
 proc leo_decode*(buffer_bytes: uint64, original_count, recovery_count,
   work_count: cuint, original_data, recovery_data, work_data: pointer):
-  LeopardResult {.leo.}
+  LeopardResult {.leo, importc.}
