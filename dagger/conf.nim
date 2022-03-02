@@ -16,6 +16,10 @@ import pkg/chronicles
 import pkg/confutils/defs
 import pkg/libp2p
 
+import ./stores/cachestore
+
+export DefaultCacheSizeMiB
+
 const
   DefaultTcpListenMultiAddr = "/ip4/0.0.0.0/tcp/0"
 
@@ -69,6 +73,13 @@ type
         defaultValueDesc: "8080"
         name: "api-port"
         abbr: "p" }: int
+
+      cacheSize* {.
+        desc: "The size in MiB of the block cache, 0 disables the cache"
+        defaultValue: DefaultCacheSizeMiB
+        defaultValueDesc: $DefaultCacheSizeMiB
+        name: "cache-size"
+        abbr: "c" }: Natural
 
     of initNode:
       discard

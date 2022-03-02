@@ -8,7 +8,7 @@ import pkg/asynctest
 import pkg/libp2p
 import pkg/stew/byteutils
 
-import pkg/dagger/stores/memorystore
+import pkg/dagger/stores/cachestore
 import pkg/dagger/chunker
 import pkg/dagger/stores
 

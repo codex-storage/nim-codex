@@ -53,3 +53,6 @@ task testContracts, "Build, deploy and test contracts":
 
 task testAll, "Build & run Dagger tests":
   test "testAll", params = "-d:chronicles_log_level=WARN"
+
+task dagger, "build dagger binary":
+  buildBinary "dagger"

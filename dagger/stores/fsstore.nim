@@ -18,7 +18,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/io2
 
-import ./memorystore
+import ./cachestore
 import ./blockstore
 import ../blocktype
 
@@ -106,7 +106,7 @@ proc new*(
   T: type FSStore,
   repoDir: string,
   postfixLen = 2,
-  cache: BlockStore = MemoryStore.new()): T =
+  cache: BlockStore = CacheStore.new()): T =
   T(
     postfixLen: postfixLen,
     repoDir: repoDir,

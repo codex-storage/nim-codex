@@ -19,7 +19,7 @@ proc generateNodes*(
       switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
       wallet = WalletRef.example
       network = BlockExcNetwork.new(switch)
-      localStore = MemoryStore.new(blocks.mapIt( it ))
+      localStore = CacheStore.new(blocks.mapIt( it ))
       engine = BlockExcEngine.new(localStore, wallet, network)
       networkStore = NetworkStore.new(engine, localStore)
 
