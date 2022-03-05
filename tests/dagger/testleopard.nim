@@ -1,168 +1,185 @@
-# import std/os
-# import std/random
 import std/sequtils
 import std/strformat
 
 import pkg/dagger/leopard
+import pkg/dagger/rng
 import pkg/stew/byteutils
+import pkg/stew/ptrops
+
+import pkg/libp2p/varint
+
+const
+  LEO_ALIGN_BYTES = 16'u
 
 type
   TestParameters = object
-    original_count: cuint
-    recovery_count: cuint
-    buffer_bytes  : cuint
-    loss_count    : cuint
-    seed          : cuint
+    originalCount: cuint
+    recoveryCount: cuint
+    bufferBytes  : cuint
+    lossCount    : cuint
+    seed         : cuint
 
-  Vec = seq[pointer]
+proc randomCRCPacket(rng: Rng, data: var openArray[byte]) =
+  if data.len < 16:
+    data[0] = rng.rand(data.len).byte
+    for i in 1..<data.len:
+      data[i] = data[0]
+  else:
+    var
+      crc = data.len.uint32
+      length = data.len.uint
+      outlen = 0
 
-proc init(
-    T: type TestParameters,
-    original_count: cuint = 100,
-    recovery_count: cuint = 10,
-    buffer_bytes  : cuint = 64000,
-    loss_count    : cuint = 32768,
-    seed          : cuint = 2): T =
-  T(original_count: original_count,
-    recovery_count: recovery_count,
-    buffer_bytes  : buffer_bytes,
-    loss_count    : loss_count,
-    seed          : seed)
+    if PB.putUVarint(data.toOpenArray(0, data.len - 1), outlen, length).isOk:
+      for i in outlen..<data.len:
+        let v = rng.rand(data.len).byte
+        data[i] = v
+        crc = (crc shl 3) and (crc shr (32 - 3))
+        crc += v
 
-proc new(T: type Vec, input: seq[seq[byte]]): T =
-  input.mapIt(cast[pointer](unsafeAddr it[0]))
+    PB.putUVarint(data.toOpenArray(outlen, sizeof(uint32)), outlen, crc).tryGet
+
+proc checkCRCPacket(data: openArray[byte]) =
+  if data.len < 16:
+    for d in data[1..data.high]:
+      if d != data[0]:
+        raise (ref Defect)(msg: "Packet don't match")
+  else:
+    var
+      crc = data.len.uint32
+      packCrc: uint
+      outlen: int
+      packSize: uint
+
+    if PB.getVarint(data.toOpenArray(0, data.len - 1), outlen, packSize).isErr:
+      raise (ref Defect)(msg: "Unable to read packet size!")
+
+    if packSize != data.len.uint:
+      raise (ref Defect)(msg: "Packet size don't match!")
+
+    for i in outlen..<data.len:
+      let v = data[i]
+      crc = (crc shl 3) and (crc shr (32 - 3))
+      crc += v
+
+    if PB.getVarint(data.toOpenArray(outlen, sizeof(uint32)), outlen, packCrc).isErr:
+      raise (ref Defect)(msg: "Unable to read packet CRC!")
+
+    if packCrc != crc:
+      raise (ref Defect)(msg: "Packet CRC doesn't match!")
+
+proc SIMDSafeAllocate(size: int): pointer {.inline.}  =
+  var
+    data = alloc0(LEO_ALIGN_BYTES + size.uint)
+
+  if not isNil(data):
+    var
+      doffset = cast[uint](data) mod LEO_ALIGN_BYTES
+
+    data = offset(data, (LEO_ALIGN_BYTES + doffset).int)
+    var
+      offsetPtr = cast[pointer](cast[uint](data) - 1'u)
+    moveMem(offsetPtr, addr doffset, sizeof(doffset))
+
+    return data
+
+proc SIMDSafeFree(data: pointer) {.inline.} =
+  var data = data
+  if not isNil(data):
+    let offset = cast[uint](data) - 1'u
+    if offset >= LEO_ALIGN_BYTES:
+        return
+
+    data = cast[pointer](cast[uint](data) - (LEO_ALIGN_BYTES - offset))
+    dealloc(data)
 
 proc benchmark(params: TestParameters) =
-  var
-    # original_data = newSeqWith(params.original_count.int,
-    #   newSeq[byte](params.buffer_bytes))
+  let
+    rng = Rng.instance()
+    encodeWorkCount = leoEncodeWorkCount(
+      params.originalCount,
+      params.recoveryCount)
+    decodeWorkCount = leoDecodeWorkCount(
+      params.originalCount,
+      params.recoveryCount)
 
-    # original_data_0 = newSeqWith(params.original_count.int, hello.toBytes)
-    # original_data = Vec.new(original_data_0)
-
-    hello01 = "hello world01                                                   "
-    hello02 = "hello world02                                                   "
-    hello03 = "hello world03                                                   "
-    hello04 = "hello world04                                                   "
-    hello05 = "hello world05                                                   "
-    hello06 = "hello world06                                                   "
-    hello07 = "hello world07                                                   "
-    hello08 = "hello world08                                                   "
-    hello09 = "hello world09                                                   "
-    hello10 = "hello world10                                                   "
-    hello11 = "hello world11                                                   "
-    hello12 = "hello world12                                                   "
-    hello13 = "hello world13                                                   "
-    hello14 = "hello world14                                                   "
-    hello15 = "hello world15                                                   "
-    hello16 = "hello world16                                                   "
-    hello17 = "hello world17                                                   "
-    hello18 = "hello world18                                                   "
-    hello19 = "hello world19                                                   "
-    hello20 = "hello world20                                                   "
-
-    original_data_0 = @[
-      hello01.toBytes,
-      hello02.toBytes,
-      hello03.toBytes,
-      hello04.toBytes,
-      hello05.toBytes,
-      hello06.toBytes,
-      hello07.toBytes,
-      hello08.toBytes,
-      hello09.toBytes,
-      hello10.toBytes,
-      hello11.toBytes,
-      hello12.toBytes,
-      hello13.toBytes,
-      hello14.toBytes,
-      hello15.toBytes,
-      hello16.toBytes,
-      hello17.toBytes,
-      hello18.toBytes,
-      hello19.toBytes,
-      hello20.toBytes
-    ]
-
-    original_data = Vec.new(original_data_0)
-
-  # debugEcho $original_data_0.mapIt(repr it)
-  # debugEcho $original_data.mapIt(repr cast[seq[byte]](cast[pointer](cast[int](it) - 16)))
-  debugEcho $original_data.mapIt(cast[int](it))
+  debugEcho "original work count: " & $params.originalCount
+  debugEcho "encode work count: " & $encodeWorkCount
+  debugEcho "decode work count: " & $decodeWorkCount
 
   let
-    encode_work_count = leo_encode_work_count(params.original_count,
-      params.recovery_count)
-    decode_work_count = leo_decode_work_count(params.original_count,
-      params.recovery_count)
+    totalBytes = (params.buffer_bytes * params.originalCount).uint64
 
-  debugEcho "encode_work_count: " & $encode_work_count
-  debugEcho "decode_work_count: " & $decode_work_count
-
-  let
-    total_bytes = (params.buffer_bytes * params.original_count).uint64
-
-  debugEcho "total_bytes: " & $total_bytes
+  debugEcho "total_bytes: " & $totalBytes
 
   var
-    encode_work_data_0 = newSeqWith(encode_work_count.int,
-      newSeq[byte](params.buffer_bytes))
+    originalData    = newSeq[pointer](params.originalCount)
+    encodeWorkData  = newSeq[pointer](encodeWorkCount)
+    decodeWorkData  = newSeq[pointer](decodeWorkCount)
 
-    encode_work_data = Vec.new(encode_work_data_0)
+  for i in 0..<params.originalCount:
+    originalData[i] = SIMDSafeAllocate(params.bufferBytes.int)
+    var
+      data = cast[ptr UncheckedArray[byte]](originalData[i])
+    rng.randomCRCPacket(data.toOpenArray(0, params.bufferBytes.int - 1))
 
-    decode_work_data_0 = newSeqWith(decode_work_count.int,
-      newSeq[byte](params.buffer_bytes))
+  for i in 0..<encodeWorkCount.int:
+    encodeWorkData[i] = SIMDSafeAllocate(params.bufferBytes.int)
 
-    decode_work_data = Vec.new(decode_work_data_0)
+  for i in 0..<decodeWorkCount.int:
+    decodeWorkData[i] = SIMDSafeAllocate(params.bufferBytes.int)
 
   let
-    encodeResult = leo_encode(
-      params.buffer_bytes,
-      params.original_count,
-      params.recovery_count,
-      encode_work_count,
-      addr original_data[0],
-      addr encode_work_data[0]
+    encodeResult = leoEncode(
+      params.bufferBytes,
+      params.originalCount,
+      params.recoveryCount,
+      encodeWorkCount,
+      addr originalData[0],
+      addr encodeWorkData[0]
     )
 
-  debugEcho "encodeResult: " & $leo_result_string(encodeResult)
+  debugEcho "encodeResult: " & $leoResultString(encodeResult)
 
-  original_data[0]  = nil
-  original_data[17] = nil
-
-  encode_work_data[0] = nil
-  encode_work_data[1] = nil
-  # encode_work_data[2] = nil
-  encode_work_data[3] = nil
-  encode_work_data[4] = nil
-  encode_work_data[5] = nil
-  encode_work_data[6] = nil
-  encode_work_data[7] = nil
-  encode_work_data[8] = nil
-  # encode_work_data[9] = nil
+  SIMDSafeFree(originalData[0])
+  originalData[0] = nil
 
   let
     decodeResult = leo_decode(
-      params.buffer_bytes,
-      params.original_count,
-      params.recovery_count,
-      decode_work_count,
-      addr original_data[0],
-      addr encode_work_data[0],
-      addr decode_work_data[0]
+      params.bufferBytes,
+      params.originalCount,
+      params.recoveryCount,
+      decodeWorkCount,
+      addr originalData[0],
+      addr encodeWorkData[0],
+      addr decodeWorkData[0]
     )
 
   debugEcho "decodeResult: " & $leo_result_string(decodeResult)
+  if originalData[0].isNil:
+    var
+      data = cast[ptr UncheckedArray[byte]](decodeWorkData[0])
 
-  debugEcho $original_data.mapIt((if it.isNil: @[] else: cast[seq[byte]](cast[pointer](cast[int](it) - 16))).len)
-  debugEcho $encode_work_data.mapIt((if it.isNil: @[] else: cast[seq[byte]](cast[pointer](cast[int](it) - 16))).len)
-  debugEcho $decode_work_data.mapIt(cast[seq[byte]](cast[pointer](cast[int](it) - 16)).len)
-  # debugEcho $decode_work_data.mapIt(cast[seq[byte]](cast[pointer](cast[int](it) - 16)))
+    checkCRCPacket(data.toOpenArray(0, params.bufferBytes.int - 1))
+    # debugEcho "Decoded Data: ", cast[ptr char](decodeWorkData[0])
+
+proc init(
+  T: type TestParameters,
+  originalCount: cuint = 100,
+  recoveryCount: cuint = 10,
+  bufferBytes  : cuint = 64000,
+  lossCount    : cuint = 32768,
+  seed         : cuint = 2): T =
+  T(originalCount: original_count,
+    recoveryCount: recovery_count,
+    bufferBytes  : buffer_bytes,
+    lossCount    : loss_count,
+    seed         : seed)
 
 proc main() =
-  if leo_init() != 0: raise (ref Defect)(msg: "Leopard failed to initialize")
+  if leoInit() != 0: raise (ref Defect)(msg: "Leopard failed to initialize")
 
-  var params = TestParameters.init(buffer_bytes = 64, original_count = 20)
+  var params = TestParameters.init(buffer_bytes = 64, original_count = 10)
 
   debugEcho fmt(
     "Parameters: "                              &
@@ -175,6 +192,4 @@ proc main() =
 
   benchmark params
 
-when true: # isMainModule:
-  # randomize()
-  main()
+main()
