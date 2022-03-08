@@ -162,3 +162,8 @@
 [submodule "vendor/lrucache.nim"]
 	path = vendor/lrucache.nim
 	url = https://github.com/status-im/lrucache.nim
+[submodule "vendor/nim-blscurve"]
+	path = vendor/nim-blscurve
+	url = https://github.com/status-im/nim-blscurve.git
+	ignore = untracked
+	branch = master
