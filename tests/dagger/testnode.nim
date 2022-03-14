@@ -3,6 +3,7 @@ import std/options
 
 import pkg/asynctest
 import pkg/chronos
+import pkg/chronicles
 import pkg/stew/byteutils
 
 import pkg/nitro
@@ -12,7 +13,7 @@ import pkg/dagger/stores
 import pkg/dagger/blockexchange
 import pkg/dagger/chunker
 import pkg/dagger/node
-import pkg/dagger/blocksmanifest
+import pkg/dagger/manifest
 import pkg/dagger/blocktype as bt
 
 import ./helpers
@@ -55,14 +56,14 @@ suite "Test Node":
       storeFut = node.store(stream)
 
     var
-      manifest = BlocksManifest.init().tryGet()
+      manifest = Manifest.init().tryGet()
 
     try:
       while (
         let chunk = await chunker.getBytes();
         chunk.len > 0):
         await stream.pushData(chunk)
-        manifest.put(bt.Block.init(chunk).tryGet().cid)
+        manifest.add(bt.Block.init(chunk).tryGet().cid)
     finally:
       await stream.pushEof()
       await stream.close()
@@ -75,7 +76,7 @@ suite "Test Node":
 
     var
       manifestBlock = (await localStore.getBlock(manifestCid)).tryGet()
-      localManifest = BlocksManifest.init(manifestBlock.data).tryGet()
+      localManifest = Manifest.decode(manifestBlock.data).tryGet()
 
     check:
       manifest.len == localManifest.len
@@ -83,7 +84,7 @@ suite "Test Node":
 
   test "Retrieve Data Stream":
     var
-      manifest = BlocksManifest.init().tryGet()
+      manifest = Manifest.init().tryGet()
       original: seq[byte]
 
     while (
@@ -95,12 +96,13 @@ suite "Test Node":
 
       original &= chunk
       check await localStore.putBlock(blk)
-      manifest.put(blk.cid)
+      manifest.add(blk.cid)
 
     let
       manifestBlock = bt.Block.init(
         manifest.encode().tryGet(),
-        codec = ManifestCodec).tryGet()
+        codec = DagPBCodec)
+        .tryGet()
 
     check await localStore.putBlock(manifestBlock)
 

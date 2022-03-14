@@ -9,13 +9,13 @@ import pkg/stew/byteutils
 
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
-import pkg/dagger/blocksmanifest
+import pkg/dagger/manifest
 
 import ./helpers
 
 suite "Manifest":
   test "Should produce valid tree hash checksum":
-    without var manifest =? BlocksManifest.init(
+    without var manifest =? Manifest.init(
         blocks = @[
             Block.init("Block 1".toBytes).tryGet().cid,
             Block.init("Block 2".toBytes).tryGet().cid,
@@ -47,7 +47,7 @@ suite "Manifest":
       )
 
     var
-      blocksManifest = BlocksManifest.init(blocks).tryGet()
+      blocksManifest = Manifest.init(blocks).tryGet()
 
     let
       e = blocksManifest.encode().tryGet()

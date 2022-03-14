@@ -8,6 +8,7 @@
 ## those terms.
 
 import std/options
+import std/tables
 
 import pkg/questionable
 import pkg/questionable/results
@@ -21,7 +22,7 @@ import pkg/libp2p/signed_envelope
 
 import ./chunker
 import ./blocktype as bt
-import ./blocksmanifest
+import ./manifest
 import ./stores/blockstore
 import ./blockexchange
 
@@ -64,7 +65,7 @@ proc connect*(
 proc streamBlocks*(
   node: DaggerNodeRef,
   stream: BufferStream,
-  blockManifest: BlocksManifest) {.async.} =
+  blockManifest: Manifest) {.async.} =
 
   try:
     # TODO: Read sequentially for now
@@ -96,10 +97,10 @@ proc retrieve*(
     return failure(
       newException(DaggerError, "Couldn't identify Cid!"))
 
-  if mc == ManifestCodec:
+  if $mc in ManifestContainers:
     trace "Retrieving data set", cid, mc
 
-    without blockManifest =? BlocksManifest.init(blk.data):
+    without blockManifest =? Manifest.decode(blk.data, ManifestContainers[$mc]):
       return failure("Unable to construct manifest!")
 
     asyncSpawn node.streamBlocks(stream, blockManifest)
@@ -120,7 +121,7 @@ proc store*(
   stream: LPStream): Future[?!Cid] {.async.} =
   trace "Storing data"
 
-  without var blockManifest =? BlocksManifest.init():
+  without var blockManifest =? Manifest.init():
     return failure("Unable to create Block Set")
 
   let
@@ -135,7 +136,7 @@ proc store*(
       without blk =? bt.Block.init(chunk):
         return failure("Unable to init block from chunk!")
 
-      blockManifest.put(blk.cid)
+      blockManifest.add(blk.cid)
       if not (await node.blockStore.putBlock(blk)):
         # trace "Unable to store block", cid = blk.cid
         return failure("Unable to store block " & $blk.cid)
@@ -153,7 +154,7 @@ proc store*(
       newException(DaggerError, "Could not generate dataset manifest!"))
 
   # Store as a dag-pb block
-  without manifest =? bt.Block.init(data = data, codec = ManifestCodec):
+  without manifest =? bt.Block.init(data = data, codec = DagPBCodec):
     trace "Unable to init block from manifest data!"
     return failure("Unable to init block from manifest data!")
 
