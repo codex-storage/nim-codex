@@ -1,7 +1,9 @@
+import std/os
+
 if defined(release):
-  switch("nimcache", "nimcache/release/$projectName")
+  switch("nimcache", joinPath(currentSourcePath.parentDir, "nimcache/release/$projectName"))
 else:
-  switch("nimcache", "nimcache/debug/$projectName")
+  switch("nimcache", joinPath(currentSourcePath.parentDir, "nimcache/debug/$projectName"))
 
 if defined(windows):
   # disable timestamps in Windows PE headers - https://wiki.debian.org/ReproducibleBuilds/TimestampsInPEBinaries
