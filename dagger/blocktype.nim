@@ -16,6 +16,9 @@ import pkg/questionable/results
 
 import ./errors
 
+const
+  BlockSize* = 4096 # file chunk read size
+
 type
   Block* = object of RootObj
     cid*: Cid

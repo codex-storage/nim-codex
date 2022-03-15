@@ -40,6 +40,7 @@ template EmptyDigests*: untyped =
 type
   Manifest* = object of RootObj
     rootHash*: ?Cid
+    blockSize*: int
     blocks*: seq[Cid]
     version*: CidVersion
     hcodec*: MultiCodec

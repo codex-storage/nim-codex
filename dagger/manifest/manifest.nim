@@ -19,6 +19,7 @@ import pkg/chronicles
 import ./types
 import ./coders
 import ../errors
+import ../blocktype
 
 export coders, Manifest
 
@@ -30,16 +31,21 @@ const
 func len*(self: Manifest): int =
   self.blocks.len
 
+func size*(self: Manifest): int =
+  self.blocks.len * self.blockSize
+
 func `[]`*(self: Manifest, i: Natural): Cid =
   self.blocks[i]
 
 func `[]=`*(self: var Manifest, i: Natural, item: Cid) =
+  self.rootHash = Cid.none
   self.blocks[i] = item
 
 func `[]`*(self: Manifest, i: BackwardsIndex): Cid =
   self.blocks[self.len - i.int]
 
 func `[]=`*(self: var Manifest, i: BackwardsIndex, item: Cid) =
+  self.rootHash = Cid.none
   self.blocks[self.len - i.int] = item
 
 proc add*(self: var Manifest, cid: Cid) =
@@ -61,6 +67,10 @@ template hashBytes(mh: MultiHash): seq[byte] =
   mh.data.buffer[mh.dpos..(mh.dpos + mh.size - 1)]
 
 proc makeRoot(self: var Manifest): ?!void =
+  ## Create a tree hash root of the contained
+  ## block hashes
+  ##
+
   var
     stack: seq[MultiHash]
 
@@ -119,7 +129,8 @@ proc init*(
   blocks: openArray[Cid] = [],
   version = CIDv1,
   hcodec = multiCodec("sha2-256"),
-  codec = multiCodec("raw")): ?!T =
+  codec = multiCodec("raw"),
+  blockSize = BlockSize): ?!T =
   ## Create a manifest using array of `Cid`s
   ##
 
@@ -131,4 +142,5 @@ proc init*(
     version: version,
     codec: codec,
     hcodec: hcodec,
+    blockSize: blockSize
     ).success

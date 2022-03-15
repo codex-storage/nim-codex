@@ -27,20 +27,20 @@ type
   ManifestCoderType*[codec: static MultiCodec] = object
   DagPBCoder* = ManifestCoderType[multiCodec("dag-pb")]
 
-func encode*(_: DagPBCoder, b: Manifest): ?!seq[byte] =
+func encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   ## Encode the manifest into a ``ManifestCodec``
   ## multicodec container (Dag-pb) for now
   ##
 
   var pbNode = initProtoBuffer()
 
-  for c in b.blocks:
+  for c in manifest.blocks:
     var pbLink = initProtoBuffer()
     pbLink.write(1, c.data.buffer) # write Cid links
     pbLink.finish()
     pbNode.write(2, pbLink)
 
-  let cid = !b.rootHash
+  let cid = !manifest.rootHash
   pbNode.write(1, cid.data.buffer) # set the rootHash Cid as the data field
   pbNode.finish()
 
