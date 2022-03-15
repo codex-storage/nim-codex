@@ -51,8 +51,12 @@ task testContracts, "Build, deploy and test contracts":
     # kill simulator processes
     exec "ps -ef | grep hardhat | grep -v grep | awk '{ print $2 }' | xargs kill"
 
-task testAll, "Build & run Dagger tests":
-  test "testAll", params = "-d:chronicles_log_level=WARN"
+task testDagger, "Build & run Dagger tests":
+  test "testDagger", params = "-d:chronicles_log_level=WARN"
+
+task test, "Run all tests":
+  testDaggerTask()
+  testContractsTask()
 
 task dagger, "build dagger binary":
   buildBinary "dagger"

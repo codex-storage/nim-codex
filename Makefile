@@ -65,12 +65,6 @@ update: | update-common
 	rm -rf dagger.nims && \
 		$(MAKE) dagger.nims $(HANDLE_OUTPUT)
 
-# a phony target, because teaching `make` how to do conditional recompilation of Nim projects is too complicated
-
-testAll: | build deps
-	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) dagger.nims
-
 # detecting the os
 ifeq ($(OS),Windows_NT) # is Windows_NT on XP, 2000, 7, Vista, 10...
  detected_OS := Windows
@@ -81,8 +75,10 @@ else
  detected_OS := $(strip $(shell uname))
 endif
 
-# Builds and run the test suite (Waku v1 + v2)
-test: | testAll
+# Builds and run the test suite
+test: | build deps
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim test $(NIM_PARAMS) dagger.nims
 
 # symlink
 dagger.nims:
