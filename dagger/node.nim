@@ -29,9 +29,6 @@ import ./blockexchange
 logScope:
   topics = "dagger node"
 
-const
-  FileChunkSize* = 4096 # file chunk read size
-
 type
   DaggerError = object of CatchableError
 

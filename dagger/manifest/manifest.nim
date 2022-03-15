@@ -16,30 +16,61 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/chronicles
 
-import ./types
-import ./coders
 import ../errors
+import ../blocktype
 
-export coders, Manifest
+template EmptyDigests: untyped =
+  var
+    emptyDigests {.global, threadvar.}:
+      array[CIDv0..CIDv1, Table[MultiCodec, MultiHash]]
 
-const
-  ManifestContainers* = {
-    $DagPBCodec: DagPBCoder()
-  }.toTable
+  once:
+    emptyDigests = [
+      CIDv0: {
+        multiCodec("sha2-256"): Cid
+        .init("bafybeihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku")
+        .get()
+        .mhash
+        .get()
+      }.toTable,
+      CIDv1: {
+        multiCodec("sha2-256"): Cid
+        .init("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
+        .get()
+        .mhash
+        .get()
+      }.toTable,
+    ]
+
+  emptyDigests
+
+type
+  Manifest* = object of RootObj
+    rootHash*: ?Cid       # root (tree) hash of the contained data set
+    blockSize*: int       # size of each contained block (might not be needed if blocks are len-prefixed)
+    blocks*: seq[Cid]     # block Cid
+    version*: CidVersion  # Cid version
+    hcodec*: MultiCodec   # Multihash codec
+    codec*: MultiCodec    # Data set codec
 
 func len*(self: Manifest): int =
   self.blocks.len
+
+func size*(self: Manifest): int =
+  self.blocks.len * self.blockSize
 
 func `[]`*(self: Manifest, i: Natural): Cid =
   self.blocks[i]
 
 func `[]=`*(self: var Manifest, i: Natural, item: Cid) =
+  self.rootHash = Cid.none
   self.blocks[i] = item
 
 func `[]`*(self: Manifest, i: BackwardsIndex): Cid =
   self.blocks[self.len - i.int]
 
 func `[]=`*(self: var Manifest, i: BackwardsIndex, item: Cid) =
+  self.rootHash = Cid.none
   self.blocks[self.len - i.int] = item
 
 proc add*(self: var Manifest, cid: Cid) =
@@ -60,7 +91,11 @@ template hashBytes(mh: MultiHash): seq[byte] =
 
   mh.data.buffer[mh.dpos..(mh.dpos + mh.size - 1)]
 
-proc makeRoot(self: var Manifest): ?!void =
+proc makeRoot*(self: var Manifest): ?!void =
+  ## Create a tree hash root of the contained
+  ## block hashes
+  ##
+
   var
     stack: seq[MultiHash]
 
@@ -96,30 +131,13 @@ proc cid*(self: var Manifest): ?!Cid =
 
   (!self.rootHash).success
 
-proc encode*(self: var Manifest, encoder = ManifestContainers[$DagPBCodec]): ?!seq[byte] =
-  ## Encode a manifest using `encoder`
-  ##
-
-  if self.rootHash.isNone:
-    ? self.makeRoot()
-
-  encoder.encode(self)
-
-func decode*(
-  _: type Manifest,
-  data: openArray[byte],
-  decoder = ManifestContainers[$DagPBCodec]): ?!Manifest =
-  ## Decode a manifest using `decoder`
-  ##
-
-  decoder.decode(data)
-
 proc init*(
   T: type Manifest,
   blocks: openArray[Cid] = [],
   version = CIDv1,
   hcodec = multiCodec("sha2-256"),
-  codec = multiCodec("raw")): ?!T =
+  codec = multiCodec("raw"),
+  blockSize = BlockSize): ?!T =
   ## Create a manifest using array of `Cid`s
   ##
 
@@ -131,4 +149,10 @@ proc init*(
     version: version,
     codec: codec,
     hcodec: hcodec,
+    blockSize: blockSize
     ).success
+
+proc init*(
+  T: type Manifest,
+  data: openArray[byte]): ?!T =
+  Manifest.decode(data)
