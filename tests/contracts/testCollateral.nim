@@ -4,9 +4,9 @@ import dagger/contracts
 import dagger/contracts/testtoken
 import ./ethertest
 
-ethersuite "Staking":
+ethersuite "Collateral":
 
-  let stakeAmount = 100.u256
+  let collateralAmount = 100.u256
 
   var storage: Storage
   var token: TestToken
@@ -17,16 +17,16 @@ ethersuite "Staking":
     token = TestToken.new(!deployment.address(TestToken), provider.getSigner())
     await token.mint(accounts[0], 1000.u256)
 
-  test "increases stake":
-    await token.approve(storage.address, stakeAmount)
-    await storage.increaseStake(stakeAmount)
-    let stake = await storage.stake(accounts[0])
-    check stake == stakeAmount
+  test "increases collateral":
+    await token.approve(storage.address, collateralAmount)
+    await storage.deposit(collateralAmount)
+    let collateral = await storage.balanceOf(accounts[0])
+    check collateral == collateralAmount
 
-  test "withdraws stake":
-    await token.approve(storage.address, stakeAmount)
-    await storage.increaseStake(stakeAmount)
+  test "withdraws collateral":
+    await token.approve(storage.address, collateralAmount)
+    await storage.deposit(collateralAmount)
     let balanceBefore = await token.balanceOf(accounts[0])
-    await storage.withdrawStake()
+    await storage.withdraw()
     let balanceAfter = await token.balanceOf(accounts[0])
-    check (balanceAfter - balanceBefore) == stakeAmount
+    check (balanceAfter - balanceBefore) == collateralAmount
