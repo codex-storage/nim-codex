@@ -11,10 +11,10 @@ type
   Storage* = ref object of Contract
   Id = array[32, byte]
 
-proc stakeAmount*(storage: Storage): UInt256 {.contract, view.}
-proc increaseStake*(storage: Storage, amount: UInt256) {.contract.}
-proc withdrawStake*(storage: Storage) {.contract.}
-proc stake*(storage: Storage, account: Address): UInt256 {.contract, view.}
+proc collateralAmount*(storage: Storage): UInt256 {.contract, view.}
+proc deposit*(storage: Storage, amount: UInt256) {.contract.}
+proc withdraw*(storage: Storage) {.contract.}
+proc balanceOf*(storage: Storage, account: Address): UInt256 {.contract, view.}
 proc duration*(storage: Storage, id: Id): UInt256 {.contract, view.}
 proc size*(storage: Storage, id: Id): UInt256 {.contract, view.}
 proc contentHash*(storage: Storage, id: Id): array[32, byte] {.contract, view.}
