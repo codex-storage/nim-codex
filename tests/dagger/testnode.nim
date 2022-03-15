@@ -112,7 +112,7 @@ suite "Test Node":
     var data: seq[byte]
     while true:
       var
-        buf = newSeq[byte](FileChunkSize)
+        buf = newSeq[byte](BlockSize)
         res = await stream.readOnce(addr buf[0], buf.len)
 
       if res <= 0:
