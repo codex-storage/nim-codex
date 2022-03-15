@@ -39,15 +39,17 @@ func init*(
     hash = ? MultiHash.digest($mcodec, data).mapFailure
     cid = ? Cid.init(version, codec, hash).mapFailure
 
-  success Block(
+  # TODO: If the hash is `>=` to the data,
+  # use the Cid as a container!
+  Block(
     cid: cid,
-    data: @data)
+    data: @data).success
 
 func init*(
   T: type Block,
   cid: Cid,
   data: openArray[byte],
-  verify: bool = false): ?!T =
+  verify: bool = true): ?!T =
 
   let
     mhash = ? cid.mhash.mapFailure
