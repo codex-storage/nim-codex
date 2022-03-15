@@ -37,12 +37,7 @@ task testContracts, "Build, deploy and test contracts":
   exec "cd vendor/dagger-contracts && npm install"
 
   # start node
-  # Note: combining this command with the previous does not work
-  exec "cd vendor/dagger-contracts && npx hardhat node --no-deploy &"
-
-  # deploy contracts
-  exec "sleep 3 && " &
-       "cd vendor/dagger-contracts && npx hardhat deploy --network localhost --export '../../deployment-localhost.json'"
+  exec "cd vendor/dagger-contracts && npm start &"
 
   # run contract tests using deployed contracts
   try:
