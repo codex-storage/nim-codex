@@ -21,8 +21,8 @@ proc toSortedSeq[T](h: AsyncHeapQueue[T], queueType = QueueType.Min): seq[T] =
   while tmp.len > 0:
     result.add(popNoWait(tmp).tryGet())
 
-suite "synchronous tests":
-  test "test pushNoWait - Min":
+suite "Synchronous tests":
+  test "Test pushNoWait - Min":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
     for item in data:
@@ -31,7 +31,7 @@ suite "synchronous tests":
     check heap[0] == 0
     check heap.toSortedSeq == @[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-  test "test pushNoWait - Max":
+  test "Test pushNoWait - Max":
     var heap = newAsyncHeapQueue[int](queueType = QueueType.Max)
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
     for item in data:
@@ -40,7 +40,7 @@ suite "synchronous tests":
     check heap[0] == 9
     check heap.toSortedSeq(QueueType.Max) == @[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
 
-  test "test popNoWait":
+  test "Test popNoWait":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
     for item in data:
@@ -54,7 +54,7 @@ suite "synchronous tests":
 
     check res == @[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-  test "test popNoWait - Max":
+  test "Test popNoWait - Max":
     var heap = newAsyncHeapQueue[int](queueType = QueueType.Max)
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
     for item in data:
@@ -68,7 +68,7 @@ suite "synchronous tests":
 
     check res == @[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
 
-  test "test del": # Test del
+  test "Test del": # Test del
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
     for item in data:
@@ -89,7 +89,7 @@ suite "synchronous tests":
     heap.del(heap.find(2))
     check heap.toSortedSeq == @[1, 3, 4, 8, 9]
 
-  test "del last": # Test del last
+  test "Test del last": # Test del last
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 2, 3]
     for item in data:
@@ -104,20 +104,20 @@ suite "synchronous tests":
     heap.del(0)
     check heap.toSortedSeq == newSeq[int]() # empty seq has no type
 
-  test "should throw popping from an empty queue":
+  test "Should throw popping from an empty queue":
     var heap = newAsyncHeapQueue[int]()
     let err = heap.popNoWait()
     check err.isErr
     check err.error == AsyncHQErrors.Empty
 
-  test "should throw pushing to an full queue":
+  test "Should throw pushing to an full queue":
     var heap = newAsyncHeapQueue[int](1)
     check heap.pushNoWait(1).isOk
     let err = heap.pushNoWait(2)
     check err.isErr
     check err.error == AsyncHQErrors.Full
 
-  test "test clear":
+  test "Test clear":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
     for item in data:
@@ -127,9 +127,9 @@ suite "synchronous tests":
     heap.clear()
     check heap.len == 0
 
-suite "asynchronous tests":
+suite "Asynchronous Tests":
 
-  test "test push":
+  test "Test push":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
     for item in data:
@@ -137,7 +137,7 @@ suite "asynchronous tests":
     check heap[0] == 0
     check heap.toSortedSeq == @[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-  test "test push and pop with maxSize":
+  test "Test push and pop with maxSize":
     var heap = newAsyncHeapQueue[int](5)
     let data = [1, 9, 5, 3, 7, 4, 2]
 
@@ -160,7 +160,7 @@ suite "asynchronous tests":
     check (await heap.pop) == 2
     check (await heap.pop) == 4
 
-  test "test update":
+  test "Test update":
     var heap = newAsyncHeapQueue[Task](5)
 
     for item in [("a", 4), ("b", 3), ("c", 2)]:
@@ -170,7 +170,7 @@ suite "asynchronous tests":
     check heap.update((name: "a", priority: 1))
     check heap[0] == (name: "a", priority: 1)
 
-  test "test pushOrUpdate - update":
+  test "Test pushOrUpdate - update":
     var heap = newAsyncHeapQueue[Task](3)
 
     for item in [("a", 4), ("b", 3), ("c", 2)]:
@@ -180,7 +180,7 @@ suite "asynchronous tests":
     await heap.pushOrUpdate((name: "a", priority: 1))
     check heap[0] == (name: "a", priority: 1)
 
-  test "test pushOrUpdate - push":
+  test "Test pushOrUpdate - push":
     var heap = newAsyncHeapQueue[Task](2)
 
     for item in [("a", 4), ("b", 3)]:
@@ -194,7 +194,7 @@ suite "asynchronous tests":
 
     check heap[0] == (name: "c", priority: 2) # check order again
 
-  test "test pop":
+  test "Test pop":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
     for item in data:
@@ -206,7 +206,7 @@ suite "asynchronous tests":
 
     check res == @[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-  test "test delete":
+  test "Test delete":
     var heap = newAsyncHeapQueue[Task]()
     let data = ["d", "b", "c", "a", "h", "e", "f", "g"]
 
