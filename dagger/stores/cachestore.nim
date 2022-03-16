@@ -115,8 +115,7 @@ func new*(
     store = CacheStore(
       cache: cache,
       currentSize: currentSize,
-      size: cacheSize
-    )
+      size: cacheSize)
 
   for blk in blocks:
     discard store.putBlockSync(blk)
