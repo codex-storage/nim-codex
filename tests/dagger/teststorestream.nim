@@ -87,8 +87,4 @@ suite "StoreStream":
     check buf == [byte 0, 1, 2, 3, 4]
 
   test "Read exact bytes outside of block boundary":
-    var
-      buf = newSeq[byte](15)
-
-    await stream.readExactly(addr buf[0], 15)
     check buf == [byte 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
