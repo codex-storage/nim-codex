@@ -15,7 +15,7 @@ import ./helpers
 
 suite "Manifest":
   test "Should produce valid tree hash checksum":
-    without var manifest =? Manifest.init(
+    var manifest = Manifest.new(
         blocks = @[
             Block.init("Block 1".toBytes).tryGet().cid,
             Block.init("Block 2".toBytes).tryGet().cid,
@@ -24,8 +24,7 @@ suite "Manifest":
             Block.init("Block 5".toBytes).tryGet().cid,
             Block.init("Block 6".toBytes).tryGet().cid,
             Block.init("Block 7".toBytes).tryGet().cid,
-          ]):
-        fail()
+          ]).tryGet()
 
     let
       checksum = @[18.byte, 32, 227, 176, 196, 66, 152,
@@ -47,7 +46,7 @@ suite "Manifest":
       )
 
     var
-      blocksManifest = Manifest.init(blocks).tryGet()
+      blocksManifest = Manifest.new(blocks).tryGet()
 
     let
       e = blocksManifest.encode().tryGet()
