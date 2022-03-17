@@ -160,6 +160,11 @@ jobs:
           path: nim-dagger/NimBinaries
           key: 'nim-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.nimbus_build_system }}'
 
+      - name: Install NodeJS
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+
       - name: Build Nim and Dagger dependencies
         shell: bash
         working-directory: nim-dagger
