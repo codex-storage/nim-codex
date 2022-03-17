@@ -45,7 +45,7 @@ template EmptyDigests: untyped =
   emptyDigests
 
 type
-  Manifest* = object of RootObj
+  Manifest* = ref object of RootObj
     rootHash*: ?Cid       # root (tree) hash of the contained data set
     blockSize*: int       # size of each contained block (might not be needed if blocks are len-prefixed)
     blocks*: seq[Cid]     # block Cid
@@ -69,11 +69,11 @@ func `[]=`*(self: var Manifest, i: Natural, item: Cid) =
 func `[]`*(self: Manifest, i: BackwardsIndex): Cid =
   self.blocks[self.len - i.int]
 
-func `[]=`*(self: var Manifest, i: BackwardsIndex, item: Cid) =
+func `[]=`*(self: Manifest, i: BackwardsIndex, item: Cid) =
   self.rootHash = Cid.none
   self.blocks[self.len - i.int] = item
 
-proc add*(self: var Manifest, cid: Cid) =
+proc add*(self: Manifest, cid: Cid) =
   self.rootHash = Cid.none
   trace "Adding cid to manifest", cid
   self.blocks.add(cid)
@@ -91,7 +91,7 @@ template hashBytes(mh: MultiHash): seq[byte] =
 
   mh.data.buffer[mh.dpos..(mh.dpos + mh.size - 1)]
 
-proc makeRoot*(self: var Manifest): ?!void =
+proc makeRoot*(self: Manifest): ?!void =
   ## Create a tree hash root of the contained
   ## block hashes
   ##
@@ -122,7 +122,7 @@ proc makeRoot*(self: var Manifest): ?!void =
 
   ok()
 
-proc cid*(self: var Manifest): ?!Cid =
+proc cid*(self: Manifest): ?!Cid =
   ## Generate a root hash using the treehash algorithm
   ##
 
@@ -131,7 +131,7 @@ proc cid*(self: var Manifest): ?!Cid =
 
   (!self.rootHash).success
 
-proc init*(
+proc new*(
   T: type Manifest,
   blocks: openArray[Cid] = [],
   version = CIDv1,
@@ -152,7 +152,7 @@ proc init*(
     blockSize: blockSize
     ).success
 
-proc init*(
+proc new*(
   T: type Manifest,
   data: openArray[byte]): ?!T =
   Manifest.decode(data)

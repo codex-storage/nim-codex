@@ -56,7 +56,7 @@ suite "Test Node":
       storeFut = node.store(stream)
 
     var
-      manifest = Manifest.init().tryGet()
+      manifest = Manifest.new().tryGet()
 
     try:
       while (
@@ -84,7 +84,7 @@ suite "Test Node":
 
   test "Retrieve Data Stream":
     var
-      manifest = Manifest.init().tryGet()
+      manifest = Manifest.new().tryGet()
       original: seq[byte]
 
     while (

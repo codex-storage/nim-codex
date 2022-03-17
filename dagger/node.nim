@@ -118,7 +118,7 @@ proc store*(
   stream: LPStream): Future[?!Cid] {.async.} =
   trace "Storing data"
 
-  without var blockManifest =? Manifest.init():
+  without var blockManifest =? Manifest.new():
     return failure("Unable to create Block Set")
 
   let
