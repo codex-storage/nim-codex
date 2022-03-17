@@ -1,98 +1,92 @@
+import std/json
 import pkg/chronos
 import pkg/nimcrypto
 import dagger/contracts
 import dagger/contracts/testtoken
 import ./ethertest
 import ./examples
+import ./time
+import ./periods
 
 ethersuite "Storage contracts":
-
-  let (request, bid) = (StorageRequest, StorageBid).example
 
   var client, host: Signer
   var storage: Storage
   var token: TestToken
-  var stakeAmount: UInt256
+  var collateralAmount: UInt256
+  var periodicity: Periodicity
+  var request: StorageRequest
+  var offer: StorageOffer
+  var id: array[32, byte]
+
+  proc switchAccount(account: Signer) =
+    storage = storage.connect(account)
+    token = token.connect(account)
 
   setup:
-    let deployment = deployment()
     client = provider.getSigner(accounts[0])
     host = provider.getSigner(accounts[1])
+
+    let deployment = deployment()
     storage = Storage.new(!deployment.address(Storage), provider.getSigner())
     token = TestToken.new(!deployment.address(TestToken), provider.getSigner())
-    await token.connect(client).mint(await client.getAddress(), 1000.u256)
-    await token.connect(host).mint(await host.getAddress(), 1000.u256)
-    stakeAmount = await storage.stakeAmount()
 
-  proc newContract(): Future[array[32, byte]] {.async.} =
-    await token.connect(host).approve(Address(storage.address), stakeAmount)
-    await storage.connect(host).increaseStake(stakeAmount)
-    await token.connect(client).approve(Address(storage.address), bid.price)
-    let requestHash = hashRequest(request)
-    let bidHash = hashBid(bid)
-    let requestSignature = await client.signMessage(@requestHash)
-    let bidSignature = await host.signMessage(@bidHash)
-    await storage.connect(client).newContract(
-      request,
-      bid,
-      await host.getAddress(),
-      requestSignature,
-      bidSignature
-    )
-    let id = bidHash
-    return id
+    await token.mint(await client.getAddress(), 1000.u256)
+    await token.mint(await host.getAddress(), 1000.u256)
 
-  proc mineUntilProofRequired(id: array[32, byte]): Future[UInt256] {.async.} =
-    var blocknumber: UInt256
-    var done = false
-    while not done:
-      blocknumber = await provider.getBlockNumber()
-      done = await storage.isProofRequired(id, blocknumber)
-      if not done:
-        discard await provider.send("evm_mine")
-    return blocknumber
+    collateralAmount = await storage.collateralAmount()
+    periodicity = Periodicity(seconds: await storage.proofPeriod())
 
-  proc mineUntilProofTimeout(id: array[32, byte]) {.async.} =
-    let timeout = await storage.proofTimeout(id)
-    for _ in 0..<timeout.truncate(int):
-      discard await provider.send("evm_mine")
+    request = StorageRequest.example
+    request.client = await client.getAddress()
 
-  proc mineUntilEnd(id: array[32, byte]) {.async.} =
-    let proofEnd = await storage.proofEnd(id)
-    while (await provider.getBlockNumber()) < proofEnd:
-      discard await provider.send("evm_mine")
+    offer = StorageOffer.example
+    offer.host = await host.getAddress()
+    offer.requestId = request.id
 
-  test "can be created":
-    let id = await newContract()
-    check (await storage.duration(id)) == request.duration
-    check (await storage.size(id)) == request.size
-    check (await storage.contentHash(id)) == request.contentHash
-    check (await storage.proofPeriod(id)) == request.proofPeriod
-    check (await storage.proofTimeout(id)) == request.proofTimeout
-    check (await storage.price(id)) == bid.price
-    check (await storage.host(id)) == (await host.getAddress())
+    switchAccount(client)
+    await token.approve(storage.address, request.maxPrice)
+    await storage.requestStorage(request)
+    switchAccount(host)
+    await token.approve(storage.address, collateralAmount)
+    await storage.deposit(collateralAmount)
+    await storage.offerStorage(offer)
+    switchAccount(client)
+    await storage.selectOffer(offer.id)
+    id = offer.id
+
+  proc waitUntilProofRequired(id: array[32, byte]) {.async.} =
+    let currentPeriod = periodicity.periodOf(await provider.currentTime())
+    await provider.advanceTimeTo(periodicity.periodEnd(currentPeriod))
+    while not (
+      (await storage.isProofRequired(id)) and
+      (await storage.getPointer(id)) < 250
+    ):
+      await provider.advanceTime(periodicity.seconds)
 
   test "can be started by the host":
-    let id = await newContract()
-    await storage.connect(host).startContract(id)
+    switchAccount(host)
+    await storage.startContract(id)
     let proofEnd = await storage.proofEnd(id)
     check proofEnd > 0
 
   test "accept storage proofs":
-    let id = await newContract()
-    await storage.connect(host).startContract(id)
-    let blocknumber = await mineUntilProofRequired(id)
-    await storage.connect(host).submitProof(id, blocknumber, true)
+    switchAccount(host)
+    await storage.startContract(id)
+    await waitUntilProofRequired(id)
+    await storage.submitProof(id, true)
 
-  test "marks missing proofs":
-    let id = await newContract()
-    await storage.connect(host).startContract(id)
-    let blocknumber = await mineUntilProofRequired(id)
-    await mineUntilProofTimeout(id)
-    await storage.connect(client).markProofAsMissing(id, blocknumber)
+  test "can mark missing proofs":
+    switchAccount(host)
+    await storage.startContract(id)
+    await waitUntilProofRequired(id)
+    let missingPeriod = periodicity.periodOf(await provider.currentTime())
+    await provider.advanceTime(periodicity.seconds)
+    switchAccount(client)
+    await storage.markProofAsMissing(id, missingPeriod)
 
   test "can be finished":
-    let id = await newContract()
-    await storage.connect(host).startContract(id)
-    await mineUntilEnd(id)
-    await storage.connect(host).finishContract(id)
+    switchAccount(host)
+    await storage.startContract(id)
+    await provider.advanceTimeTo(await storage.proofEnd(id))
+    await storage.finishContract(id)

@@ -1,42 +1,30 @@
 import pkg/stint
-import pkg/contractabi except Address
+import pkg/contractabi
 import pkg/nimcrypto
 import pkg/chronos
 
 export stint
 
 type
-  StorageRequest* = object
-    duration*: UInt256
-    size*: UInt256
-    contentHash*: Hash
-    proofPeriod*: UInt256
-    proofTimeout*: UInt256
-    nonce*: array[32, byte]
-  StorageBid* = object
-    requestHash*: Hash
-    bidExpiry*: UInt256
-    price*: UInt256
-  Hash = array[32, byte]
-  Signature = array[65, byte]
+  StorageRequest* = tuple
+    client: Address
+    duration: UInt256
+    size: UInt256
+    contentHash: array[32, byte]
+    proofProbability: UInt256
+    maxPrice: UInt256
+    expiry: UInt256
+    nonce: array[32, byte]
+  StorageOffer* = tuple
+    host: Address
+    requestId: array[32, byte]
+    price: UInt256
+    expiry: UInt256
 
-func hashRequest*(request: StorageRequest): Hash =
-  let encoding = AbiEncoder.encode: (
-    "[dagger.request.v1]",
-    request.duration,
-    request.size,
-    request.contentHash,
-    request.proofPeriod,
-    request.proofTimeout,
-    request.nonce
-  )
+func id*(request: StorageRequest): array[32, byte] =
+  let encoding = AbiEncoder.encode(request)
   keccak256.digest(encoding).data
 
-func hashBid*(bid: StorageBid): Hash =
-  let encoding = AbiEncoder.encode: (
-    "[dagger.bid.v1]",
-    bid.requestHash,
-    bid.bidExpiry,
-    bid.price
-  )
+func id*(offer: StorageOffer): array[32, byte] =
+  let encoding = AbiEncoder.encode(offer)
   keccak256.digest(encoding).data

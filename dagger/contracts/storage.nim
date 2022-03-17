@@ -12,59 +12,28 @@ type
   Id = array[32, byte]
 
 proc collateralAmount*(storage: Storage): UInt256 {.contract, view.}
+proc slashMisses*(storage: Storage): UInt256 {.contract, view.}
+proc slashPercentage*(storage: Storage): UInt256 {.contract, view.}
+
 proc deposit*(storage: Storage, amount: UInt256) {.contract.}
 proc withdraw*(storage: Storage) {.contract.}
 proc balanceOf*(storage: Storage, account: Address): UInt256 {.contract, view.}
-proc duration*(storage: Storage, id: Id): UInt256 {.contract, view.}
-proc size*(storage: Storage, id: Id): UInt256 {.contract, view.}
-proc contentHash*(storage: Storage, id: Id): array[32, byte] {.contract, view.}
-proc proofPeriod*(storage: Storage, id: Id): UInt256 {.contract, view.}
-proc proofTimeout*(storage: Storage, id: Id): UInt256 {.contract, view.}
-proc price*(storage: Storage, id: Id): UInt256 {.contract, view.}
-proc host*(storage: Storage, id: Id): Address {.contract, view.}
+
+proc requestStorage*(storage: Storage, request: StorageRequest) {.contract.}
+proc offerStorage*(storage: Storage, offer: StorageOffer) {.contract.}
+proc selectOffer*(storage: Storage, id: Id) {.contract.}
+
 proc startContract*(storage: Storage, id: Id) {.contract.}
-proc proofEnd*(storage: Storage, id: Id): UInt256 {.contract, view.}
-proc isProofRequired*(storage: Storage,
-                      id: Id,
-                      blocknumber: UInt256): bool {.contract, view.}
-proc submitProof*(storage: Storage,
-                  id: Id,
-                  blocknumber: UInt256,
-                  proof: bool) {.contract.}
-proc markProofAsMissing*(storage: Storage,
-                          id: Id,
-                          blocknumber: UInt256) {.contract.}
 proc finishContract*(storage: Storage, id: Id) {.contract.}
 
-proc newContract(storage: Storage,
-                 duration: UInt256,
-                 size: UInt256,
-                 contentHash: array[32, byte],
-                 proofPeriod: UInt256,
-                 proofTimeout: UInt256,
-                 nonce: array[32, byte],
-                 price: UInt256,
-                 host: Address,
-                 bidExpiry: UInt256,
-                 requestSignature: seq[byte],
-                 bidSignature: seq[byte]) {.contract.}
+proc proofPeriod*(storage: Storage): UInt256 {.contract, view.}
+proc proofTimeout*(storage: Storage): UInt256 {.contract, view.}
 
-proc newContract*(storage: Storage,
-                  request: StorageRequest,
-                  bid: StorageBid,
-                  host: Address,
-                  requestSignature: seq[byte],
-                  bidSignature: seq[byte]) {.async.} =
-  await storage.newContract(
-    request.duration,
-    request.size,
-    request.contentHash,
-    request.proofPeriod,
-    request.proofTimeout,
-    request.nonce,
-    bid.price,
-    host,
-    bid.bidExpiry,
-    requestSignature,
-    bidSignature
-  )
+proc proofEnd*(storage: Storage, id: Id): UInt256 {.contract, view.}
+proc missingProofs*(storage: Storage, id: Id): UInt256 {.contract, view.}
+proc isProofRequired*(storage: Storage, id: Id): bool {.contract, view.}
+proc getChallenge*(storage: Storage, id: Id): array[32, byte] {.contract, view.}
+proc getPointer*(storage: Storage, id: Id): uint8 {.contract, view.}
+
+proc submitProof*(storage: Storage, id: Id, proof: bool) {.contract.}
+proc markProofAsMissing*(storage: Storage, id: Id, period: UInt256) {.contract.}
