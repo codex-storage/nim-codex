@@ -10,7 +10,6 @@
 {.push raises: [Defect].}
 
 import std/options
-import std/sequtils
 
 import pkg/chronicles
 import pkg/chronos

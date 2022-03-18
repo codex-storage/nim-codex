@@ -7,7 +7,9 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push raises: [Defect].}
+import pkg/upraises
+
+push: {.upraises: [].}
 
 import pkg/chronos
 import pkg/libp2p
@@ -26,7 +28,7 @@ method getBlock*(
   ## Get a block from the stores
   ##
 
-  doAssert(false, "Not implemented!")
+  raiseAssert("Not implemented!")
 
 method putBlock*(
   s: BlockStore,
@@ -34,7 +36,7 @@ method putBlock*(
   ## Put a block to the blockstore
   ##
 
-  doAssert(false, "Not implemented!")
+  raiseAssert("Not implemented!")
 
 method delBlock*(
   s: BlockStore,
@@ -42,7 +44,7 @@ method delBlock*(
   ## Delete a block/s from the block store
   ##
 
-  doAssert(false, "Not implemented!")
+  raiseAssert("Not implemented!")
 
 method hasBlock*(s: BlockStore, cid: Cid): bool {.base.} =
   ## Check if the block exists in the blockstore
