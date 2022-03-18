@@ -145,7 +145,7 @@ proc handleBlocks(
     without cid =? Cid.init(blob.prefix):
       trace "Unable to initialize Cid from protobuf message"
 
-    without blk =? bt.Block.init(cid, blob.data, verify = true):
+    without blk =? bt.Block.new(cid, blob.data, verify = true):
       trace "Unable to initialize Block from data"
 
     blks.add(blk)

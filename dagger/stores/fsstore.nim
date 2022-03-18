@@ -54,7 +54,7 @@ method getBlock*(
     trace "Cannot read file from fs store", path , error
     return Block.failure("Cannot read file from fs store")
 
-  return Block.init(cid, data)
+  return Block.new(cid, data)
 
 method putBlock*(
   self: FSStore,

@@ -16,10 +16,10 @@ suite "Cache Store tests":
     store: CacheStore
 
   setup:
-    newBlock = Block.init("New Kids on the Block".toBytes()).tryGet()
-    newBlock1 = Block.init("1".repeat(100).toBytes()).tryGet()
-    newBlock2 = Block.init("2".repeat(100).toBytes()).tryGet()
-    newBlock3 = Block.init("3".repeat(100).toBytes()).tryGet()
+    newBlock = Block.new("New Kids on the Block".toBytes()).tryGet()
+    newBlock1 = Block.new("1".repeat(100).toBytes()).tryGet()
+    newBlock2 = Block.new("2".repeat(100).toBytes()).tryGet()
+    newBlock3 = Block.new("3".repeat(100).toBytes()).tryGet()
     store = CacheStore.new()
 
   test "constructor":
