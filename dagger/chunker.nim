@@ -9,7 +9,9 @@
 
 # TODO: This is super inneficient and needs a rewrite, but it'll do for now
 
-{.push raises: [Defect].}
+import pkg/upraises
+
+push: {.upraises: [].}
 
 import pkg/chronicles
 import pkg/questionable

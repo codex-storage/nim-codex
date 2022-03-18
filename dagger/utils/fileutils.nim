@@ -9,7 +9,9 @@
 
 ## Partially taken from nim beacon chain
 
-{.push raises: [Defect].}
+import pkg/upraises
+
+push: {.upraises: [].}
 
 import std/strutils
 
