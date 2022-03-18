@@ -17,13 +17,13 @@ suite "Manifest":
   test "Should produce valid tree hash checksum":
     var manifest = Manifest.new(
         blocks = @[
-            Block.init("Block 1".toBytes).tryGet().cid,
-            Block.init("Block 2".toBytes).tryGet().cid,
-            Block.init("Block 3".toBytes).tryGet().cid,
-            Block.init("Block 4".toBytes).tryGet().cid,
-            Block.init("Block 5".toBytes).tryGet().cid,
-            Block.init("Block 6".toBytes).tryGet().cid,
-            Block.init("Block 7".toBytes).tryGet().cid,
+            Block.new("Block 1".toBytes).tryGet().cid,
+            Block.new("Block 2".toBytes).tryGet().cid,
+            Block.new("Block 3".toBytes).tryGet().cid,
+            Block.new("Block 4".toBytes).tryGet().cid,
+            Block.new("Block 5".toBytes).tryGet().cid,
+            Block.new("Block 6".toBytes).tryGet().cid,
+            Block.new("Block 7".toBytes).tryGet().cid,
           ]).tryGet()
 
     let
@@ -42,7 +42,7 @@ suite "Manifest":
   test "Should encode/decode to/from manifest":
     let
       blocks = (0..<1000).mapIt(
-        Block.init(("Block " & $it).toBytes).tryGet().cid
+        Block.new(("Block " & $it).toBytes).tryGet().cid
       )
 
     var

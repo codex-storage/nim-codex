@@ -20,7 +20,7 @@ const
   BlockSize* = 4096 # file chunk read size
 
 type
-  Block* = object of RootObj
+  Block* = ref object of RootObj
     cid*: Cid
     data*: seq[byte]
 
@@ -28,7 +28,7 @@ proc `$`*(b: Block): string =
   result &= "cid: " & $b.cid
   result &= "\ndata: " & string.fromBytes(b.data)
 
-func init*(
+func new*(
   T: type Block,
   data: openArray[byte] = [],
   version = CIDv1,
@@ -45,7 +45,7 @@ func init*(
     cid: cid,
     data: @data).success
 
-func init*(
+func new*(
   T: type Block,
   cid: Cid,
   data: openArray[byte],
@@ -53,13 +53,13 @@ func init*(
 
   let
     mhash = ? cid.mhash.mapFailure
-    b = ? Block.init(
+    b = ? Block.new(
       data = @data,
       version = cid.cidver,
       codec = cid.mcodec,
       mcodec = mhash.mcodec)
 
   if verify and cid != b.cid:
-    return failure "Cid's don't match!"
+    return "Cid's don't match!".failure
 
   success b

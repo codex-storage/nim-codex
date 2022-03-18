@@ -38,7 +38,7 @@ suite "StoreStream":
 
     for d in data:
       let
-        blk = Block.init(d).tryGet()
+        blk = Block.new(d).tryGet()
 
       manifest.add(blk.cid)
       if not (await store.putBlock(blk)):

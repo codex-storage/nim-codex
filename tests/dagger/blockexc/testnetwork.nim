@@ -38,7 +38,7 @@ suite "NetworkStore network":
       if chunk.len <= 0:
         break
 
-      blocks.add(bt.Block.init(chunk).tryGet())
+      blocks.add(bt.Block.new(chunk).tryGet())
 
     done = newFuture[void]()
     buffer = BufferStream.new()
@@ -154,7 +154,7 @@ suite "NetworkStore Network - e2e":
       if chunk.len <= 0:
         break
 
-      blocks.add(bt.Block.init(chunk).tryGet())
+      blocks.add(bt.Block.new(chunk).tryGet())
 
     done = newFuture[void]()
     switch1 = newStandardSwitch()
@@ -215,7 +215,7 @@ suite "NetworkStore Network - e2e":
 
     await done.wait(500.millis)
 
-  test "broadcast precense":
+  test "broadcast presence":
     proc presenceHandler(
       peer: PeerID,
       precense: seq[BlockPresence]) {.gcsafe, async.} =
