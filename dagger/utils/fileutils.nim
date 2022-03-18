@@ -9,6 +9,8 @@
 
 ## Partially taken from nim beacon chain
 
+import pkg/upraises
+
 push: {.upraises: [].}
 
 import std/strutils
