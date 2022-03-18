@@ -40,7 +40,7 @@ proc deleteBlocks(store: BlockStore, manifest: Manifest, blks, bytes: int) {.asy
     pos.add(i)
     var
       blk = (await store.getBlock(manifest[i])).tryGet()
-      bytePos = seq[int]
+      bytePos: seq[int]
 
     while true:
       if bytePos.len> bytes:
