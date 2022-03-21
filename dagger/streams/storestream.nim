@@ -7,18 +7,22 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push raises: [Defect].}
+import pkg/upraises
+
+push: {.upraises: [].}
 
 import pkg/libp2p
 import pkg/chronos
 import pkg/chronicles
 import pkg/stew/ptrops
 
-import ./stores
-import ./manifest
-import ./blocktype
+import ../stores
+import ../manifest
+import ../blocktype
 
-export stores
+import ./seekablestream
+
+export stores, blocktype, manifest, chronos
 
 logScope:
   topics = "dagger storestream"
@@ -28,11 +32,10 @@ type
     Sequential,
     Grid
 
-  StoreStream* = ref object of LPStream
+  StoreStream* = ref object of SeekableStream
     store*: BlockStore
     manifest*: Manifest
     pattern*: ReadPattern
-    offset*: int
 
 proc init*(
   T: type StoreStream,
@@ -46,6 +49,9 @@ proc init*(
     offset: 0)
 
   result.initStream()
+
+method size*(self: StoreStream): int =
+  self.manifest.len * self.manifest.blockSize
 
 method readOnce*(
   self: StoreStream,
@@ -61,8 +67,6 @@ method readOnce*(
   while read < nbytes and self.atEof.not:
     let
       pos = self.offset div self.manifest.blockSize
-
-    let
       blk = (await self.store.getBlock(self.manifest[pos])).tryGet()
       blockOffset = if self.offset >= self.manifest.blockSize:
           self.offset mod self.manifest.blockSize
