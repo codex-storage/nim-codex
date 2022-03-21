@@ -1,11 +1,12 @@
 import std/json
+import std/os
 import pkg/ethers
 import pkg/questionable
 
 type Deployment* = object
   json: JsonNode
 
-const defaultFile = "vendor/dagger-contracts/deployment-localhost.json"
+const defaultFile = "vendor" / "dagger-contracts" / "deployment-localhost.json"
 
 ## Reads deployment information from a json file. It expects a file that has
 ## been exported with Hardhat deploy.

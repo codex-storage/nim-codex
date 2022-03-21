@@ -34,21 +34,11 @@ proc test(name: string, srcDir = "tests/", params = "-d:chronicles_log_level=DEB
   buildBinary name, srcDir, params
   exec "build/" & name
 
-task testContracts, "Build, deploy and test contracts":
-  exec "cd vendor/dagger-contracts && npm install"
-
-  # start node
-  exec "cd vendor/dagger-contracts && npm start &"
-
-  # run contract tests using deployed contracts
-  try:
-    test "testContracts", "tests/", "-d:chronicles_log_level=WARN"
-  finally:
-    # kill simulator processes
-    exec "ps -ef | grep hardhat | grep -v grep | awk '{ print $2 }' | xargs kill"
-
 task testDagger, "Build & run Dagger tests":
   test "testDagger", params = "-d:chronicles_log_level=WARN"
+
+task testContracts, "Build & run Dagger Contract tests":
+  test "testContracts", "tests/", "-d:chronicles_log_level=WARN"
 
 task test, "Run all tests":
   testDaggerTask()
