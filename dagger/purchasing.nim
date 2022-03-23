@@ -41,7 +41,7 @@ proc getNonce(): array[32, byte] =
   doAssert randomBytes(result) == 32
 
 proc purchase*(purchasing: Purchasing, request: PurchaseRequest): Purchase =
-  let request: StorageRequest = (
+  let request = StorageRequest(
     client: Address.default, # TODO
     duration: request.duration,
     size: request.size,
