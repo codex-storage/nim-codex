@@ -2,7 +2,8 @@ import pkg/ethers
 import pkg/json_rpc/rpcclient
 import pkg/stint
 import pkg/chronos
-import ./marketplace
+import ./requests
+import ./offers
 
 export stint
 export contract
