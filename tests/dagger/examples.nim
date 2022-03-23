@@ -2,9 +2,11 @@ import std/random
 import std/sequtils
 import pkg/libp2p
 import pkg/nitro
+import pkg/stint
 import pkg/dagger/rng
 import pkg/dagger/stores
 import pkg/dagger/blocktype
+import pkg/dagger/purchasing
 
 proc example*(_: type EthAddress): EthAddress =
   EthPrivateKey.random().toPublicKey.toAddress
@@ -18,6 +20,13 @@ proc example*(_: type UInt256): UInt256 =
 proc example*(_: type UInt48): UInt48 =
   # workaround for https://github.com/nim-lang/Nim/issues/17670
   uint64.rand mod (UInt48.high + 1)
+
+proc example*[T: SomeInteger](_: type T): T =
+  rand(T)
+
+proc example*[T,N](_: type array[N, T]): array[N, T] =
+  for item in result.mitems:
+    item = T.example
 
 proc example*(_: type Wallet): Wallet =
   Wallet.init(EthPrivateKey.random())
@@ -53,3 +62,10 @@ proc example*(_: type BlockExcPeerCtx): BlockExcPeerCtx =
 
 proc example*(_: type Cid): Cid =
   Block.example.cid
+
+proc example*(_: type PurchaseRequest): PurchaseRequest =
+  PurchaseRequest(
+    duration: uint16.example.u256,
+    size: uint32.example.u256,
+    contentHash: array[32, byte].example
+  )
