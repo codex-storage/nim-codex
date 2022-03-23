@@ -2,7 +2,7 @@ import std/times
 import pkg/stint
 import pkg/nimcrypto
 import pkg/ethers
-import dagger/contracts/marketplace
+import dagger/contracts
 
 proc randomBytes(amount: static int): array[amount, byte] =
   doAssert randomBytes(result) == amount
