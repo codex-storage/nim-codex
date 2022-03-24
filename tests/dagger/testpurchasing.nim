@@ -10,32 +10,36 @@ suite "Purchasing":
 
   var purchasing: Purchasing
   var market: MockMarket
-  var purchaseRequest: PurchaseRequest
+  var request: StorageRequest
 
   setup:
     market = MockMarket.new()
     purchasing = Purchasing.new(market)
-    purchaseRequest = PurchaseRequest.example
+    request = StorageRequest(
+      duration: uint16.example.u256,
+      size: uint32.example.u256,
+      contentHash: array[32, byte].example
+    )
 
   test "submits a storage request when asked":
-    await purchasing.purchase(purchaseRequest).wait()
-    let storageRequest = market.requests[0]
-    check storageRequest.duration == purchaseRequest.duration
-    check storageRequest.size == purchaseRequest.size
-    check storageRequest.contentHash == purchaseRequest.contentHash
-    check storageRequest.maxPrice == purchaseRequest.maxPrice
+    await purchasing.purchase(request).wait()
+    let submitted = market.requests[0]
+    check submitted.duration == request.duration
+    check submitted.size == request.size
+    check submitted.contentHash == request.contentHash
+    check submitted.maxPrice == request.maxPrice
 
   test "has a default value for proof probability":
     check purchasing.proofProbability != 0.u256
 
   test "can change default value for proof probability":
     purchasing.proofProbability = 42.u256
-    await purchasing.purchase(purchaseRequest).wait()
+    await purchasing.purchase(request).wait()
     check market.requests[0].proofProbability == 42.u256
 
   test "can override proof probability per request":
-    purchaseRequest.proofProbability = some 42.u256
-    await purchasing.purchase(purchaseRequest).wait()
+    request.proofProbability = 42.u256
+    await purchasing.purchase(request).wait()
     check market.requests[0].proofProbability == 42.u256
 
   test "has a default value for request expiration interval":
@@ -44,16 +48,16 @@ suite "Purchasing":
   test "can change default value for request expiration interval":
     purchasing.requestExpiryInterval = 42.u256
     let start = getTime().toUnix()
-    await purchasing.purchase(purchaseRequest).wait()
+    await purchasing.purchase(request).wait()
     check market.requests[0].expiry == (start + 42).u256
 
   test "can override expiry time per request":
     let expiry = (getTime().toUnix() + 42).u256
-    purchaseRequest.expiry = some expiry
-    await purchasing.purchase(purchaseRequest).wait()
+    request.expiry = expiry
+    await purchasing.purchase(request).wait()
     check market.requests[0].expiry == expiry
 
   test "includes a random nonce in every storage request":
-    await purchasing.purchase(purchaseRequest).wait()
-    await purchasing.purchase(purchaseRequest).wait()
+    await purchasing.purchase(request).wait()
+    await purchasing.purchase(request).wait()
     check market.requests[0].nonce != market.requests[1].nonce

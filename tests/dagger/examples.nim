@@ -6,7 +6,6 @@ import pkg/stint
 import pkg/dagger/rng
 import pkg/dagger/stores
 import pkg/dagger/blocktype
-import pkg/dagger/purchasing
 
 proc example*(_: type EthAddress): EthAddress =
   EthPrivateKey.random().toPublicKey.toAddress
@@ -62,10 +61,3 @@ proc example*(_: type BlockExcPeerCtx): BlockExcPeerCtx =
 
 proc example*(_: type Cid): Cid =
   Block.example.cid
-
-proc example*(_: type PurchaseRequest): PurchaseRequest =
-  PurchaseRequest(
-    duration: uint16.example.u256,
-    size: uint32.example.u256,
-    contentHash: array[32, byte].example
-  )
