@@ -14,9 +14,16 @@ type
     proofProbability*: UInt256
     requestExpiryInterval*: UInt256
   Purchase* = ref object
+    future: Future[void]
+    market: Market
+    request*: StorageRequest
+    offers*: seq[StorageOffer]
+    selected*: ?StorageOffer
 
 const DefaultProofProbability = 100.u256
 const DefaultRequestExpiryInterval = (10 * 60).u256
+
+proc start(purchase: Purchase) {.gcsafe.}
 
 proc new*(_: type Purchasing, market: Market): Purchasing =
   Purchasing(
@@ -25,15 +32,27 @@ proc new*(_: type Purchasing, market: Market): Purchasing =
     requestExpiryInterval: DefaultRequestExpiryInterval
   )
 
+proc populate*(purchasing: Purchasing, request: StorageRequest): StorageRequest =
+  result = request
+  if result.proofProbability == 0.u256:
+    result.proofProbability = purchasing.proofProbability
+  if result.expiry == 0.u256:
+    result.expiry = (getTime().toUnix().u256 + purchasing.requestExpiryInterval)
+  if result.nonce == array[32, byte].default:
+    doAssert randomBytes(result.nonce) == 32
+
 proc purchase*(purchasing: Purchasing, request: StorageRequest): Purchase =
-  var request = request
-  if request.proofProbability == 0.u256:
-    request.proofProbability = purchasing.proofProbability
-  if request.expiry == 0.u256:
-    request.expiry = (getTime().toUnix().u256 + purchasing.requestExpiryInterval)
-  if request.nonce == array[32, byte].default:
-    doAssert randomBytes(request.nonce) == 32
-  asyncSpawn purchasing.market.requestStorage(request)
+  let request = purchasing.populate(request)
+  let purchase = Purchase(request: request, market: purchasing.market)
+  purchase.start()
+  purchase
+
+proc run(purchase: Purchase) {.async.} =
+  await purchase.market.requestStorage(purchase.request)
+
+proc start(purchase: Purchase) =
+  purchase.future = purchase.run()
+  asyncSpawn purchase.future
 
 proc wait*(purchase: Purchase) {.async.} =
-  discard
+  await purchase.future
