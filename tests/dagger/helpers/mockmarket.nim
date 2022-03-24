@@ -2,7 +2,7 @@ import pkg/dagger/market
 
 type
   MockMarket* = ref object of Market
-    requests*: seq[StorageRequest]
+    requested*: seq[StorageRequest]
 
 method requestStorage*(market: MockMarket, request: StorageRequest) {.async.} =
-  market.requests.add(request)
+  market.requested.add(request)
