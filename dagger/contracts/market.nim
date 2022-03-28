@@ -1,5 +1,6 @@
 import pkg/ethers
 import pkg/upraises
+import pkg/questionable
 import ../market
 import ./storage
 
@@ -15,7 +16,9 @@ type
 export market
 
 func new*(_: type OnChainMarket, contract: Storage): OnChainMarket =
-  OnChainMarket(contract: contract, signer: !contract.signer)
+  without signer =? contract.signer:
+    raiseAssert("Storage contract should have a signer")
+  OnChainMarket(contract: contract, signer: signer)
 
 method subscribeRequests(market: OnChainMarket,
                          callback: OnRequest):
