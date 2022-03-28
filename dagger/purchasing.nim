@@ -47,8 +47,27 @@ proc purchase*(purchasing: Purchasing, request: StorageRequest): Purchase =
   purchase.start()
   purchase
 
+proc selectOffer(purchase: Purchase) {.async.} =
+  var cheapest: ?StorageOffer
+  for offer in purchase.offers:
+    if current =? cheapest:
+      if current.price > offer.price:
+        cheapest = some offer
+    else:
+      cheapest = some offer
+  if cheapest =? cheapest:
+    await purchase.market.selectOffer(cheapest.id)
+
 proc run(purchase: Purchase) {.async.} =
-  await purchase.market.requestStorage(purchase.request)
+  proc onOffer(offer: StorageOffer) =
+    purchase.offers.add(offer)
+  let market = purchase.market
+  let request = purchase.request
+  let subscription = await market.subscribeOffers(request.id, onOffer)
+  await market.requestStorage(request)
+  await market.waitUntil(request.expiry)
+  await purchase.selectOffer()
+  await subscription.unsubscribe()
 
 proc start(purchase: Purchase) =
   purchase.future = purchase.run()
