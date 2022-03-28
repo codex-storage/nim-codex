@@ -98,3 +98,20 @@ suite "Purchasing":
     market.advanceTimeTo(request.expiry)
     await purchase.wait()
     check market.selected[0] == offer1.id
+
+  test "has a default expiration margin for offers":
+    check purchasing.offerExpiryMargin != 0.u256
+
+  test "ignores offers that are about to expire":
+    let expiryMargin = purchasing.offerExpiryMargin
+    let purchase = purchasing.purchase(request)
+    let request = market.requested[0]
+    var offer1, offer2 = request.createOffer()
+    offer1.price = 20.u256
+    offer2.price = 10.u256
+    offer2.expiry = getTime().toUnix().u256 + expiryMargin - 1
+    await market.offerStorage(offer1)
+    await market.offerStorage(offer2)
+    market.advanceTimeTo(request.expiry)
+    await purchase.wait()
+    check market.selected[0] == offer1.id
