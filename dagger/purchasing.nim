@@ -13,15 +13,18 @@ type
     market: Market
     proofProbability*: UInt256
     requestExpiryInterval*: UInt256
+    offerExpiryMargin*: UInt256
   Purchase* = ref object
     future: Future[void]
     market: Market
+    offerExpiryMargin: UInt256
     request*: StorageRequest
     offers*: seq[StorageOffer]
     selected*: ?StorageOffer
 
 const DefaultProofProbability = 100.u256
 const DefaultRequestExpiryInterval = (10 * 60).u256
+const DefaultOfferExpiryMargin = (8 * 60).u256
 
 proc start(purchase: Purchase) {.gcsafe.}
 
@@ -29,7 +32,8 @@ proc new*(_: type Purchasing, market: Market): Purchasing =
   Purchasing(
     market: market,
     proofProbability: DefaultProofProbability,
-    requestExpiryInterval: DefaultRequestExpiryInterval
+    requestExpiryInterval: DefaultRequestExpiryInterval,
+    offerExpiryMargin: DefaultOfferExpiryMargin
   )
 
 proc populate*(purchasing: Purchasing, request: StorageRequest): StorageRequest =
@@ -43,14 +47,18 @@ proc populate*(purchasing: Purchasing, request: StorageRequest): StorageRequest 
 
 proc purchase*(purchasing: Purchasing, request: StorageRequest): Purchase =
   let request = purchasing.populate(request)
-  let purchase = Purchase(request: request, market: purchasing.market)
+  let purchase = Purchase(
+    request: request,
+    market: purchasing.market,
+    offerExpiryMargin: purchasing.offerExpiryMargin
+  )
   purchase.start()
   purchase
 
 proc selectOffer(purchase: Purchase) {.async.} =
   var cheapest: ?StorageOffer
   for offer in purchase.offers:
-    without offer.expiry > getTime().toUnix().u256:
+    without getTime().toUnix().u256 < offer.expiry - purchase.offerExpiryMargin:
       continue
     without current =? cheapest:
       cheapest = some offer
