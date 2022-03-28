@@ -50,10 +50,12 @@ proc purchase*(purchasing: Purchasing, request: StorageRequest): Purchase =
 proc selectOffer(purchase: Purchase) {.async.} =
   var cheapest: ?StorageOffer
   for offer in purchase.offers:
-    if current =? cheapest:
-      if current.price > offer.price:
-        cheapest = some offer
-    else:
+    without offer.expiry > getTime().toUnix().u256:
+      continue
+    without current =? cheapest:
+      cheapest = some offer
+      continue
+    if current.price > offer.price:
       cheapest = some offer
   if cheapest =? cheapest:
     await purchase.market.selectOffer(cheapest.id)

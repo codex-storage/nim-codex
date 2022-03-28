@@ -67,13 +67,34 @@ suite "Purchasing":
     await purchaseAndWait(request)
     check market.requested[0].nonce != market.requested[1].nonce
 
+  proc createOffer(request: StorageRequest): StorageOffer =
+    StorageOffer(
+      requestId: request.id,
+      expiry: (getTime() + initDuration(hours = 1)).toUnix().u256
+    )
+
   test "selects the cheapest offer":
     let purchase = purchasing.purchase(request)
     let request = market.requested[0]
-    let offer1 = StorageOffer(requestId: request.id, price: 20.u256)
-    let offer2 = StorageOffer(requestId: request.id, price: 10.u256)
+    var offer1, offer2 = createOffer(request)
+    offer1.price = 20.u256
+    offer2.price = 10.u256
     await market.offerStorage(offer1)
     await market.offerStorage(offer2)
     market.advanceTimeTo(request.expiry)
     await purchase.wait()
     check market.selected[0] == offer2.id
+
+  test "ignores offers that expired":
+    let expired = (getTime() - initTimeInterval(hours = 1)).toUnix().u256
+    let purchase = purchasing.purchase(request)
+    let request = market.requested[0]
+    var offer1, offer2 = request.createOffer()
+    offer1.price = 20.u256
+    offer2.price = 10.u256
+    offer2.expiry = expired
+    await market.offerStorage(offer1)
+    await market.offerStorage(offer2)
+    market.advanceTimeTo(request.expiry)
+    await purchase.wait()
+    check market.selected[0] == offer1.id
