@@ -75,10 +75,15 @@ else
  detected_OS := $(strip $(shell uname))
 endif
 
-# Builds and run the test suite
+# Builds and run a part of the test suite
 test: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim test $(NIM_PARAMS) dagger.nims
+
+# Builds and runs all tests
+testAll: | build deps
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) dagger.nims
 
 # symlink
 dagger.nims:

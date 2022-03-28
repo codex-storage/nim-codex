@@ -185,4 +185,4 @@ jobs:
         shell: bash
         working-directory: nim-dagger
         run: |
-          make test
+          make testAll
