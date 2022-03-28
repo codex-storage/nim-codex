@@ -3,12 +3,12 @@ import pkg/stint
 import pkg/nimcrypto
 import pkg/ethers
 import dagger/contracts
+import ../examples
 
-proc randomBytes(amount: static int): array[amount, byte] =
-  doAssert randomBytes(result) == amount
+export examples
 
 proc example*(_: type Address): Address =
-  Address(randomBytes(20))
+  Address(array[20, byte].example)
 
 proc example*(_: type StorageRequest): StorageRequest =
   StorageRequest(
@@ -19,7 +19,7 @@ proc example*(_: type StorageRequest): StorageRequest =
     proofProbability: 4.u256, # require a proof roughly once every 4 periods
     maxPrice: 84.u256,
     expiry: (getTime() + initDuration(hours=1)).toUnix.u256,
-    nonce: randomBytes(32)
+    nonce: array[32, byte].example
   )
 
 proc example*(_: type StorageOffer): StorageOffer =
