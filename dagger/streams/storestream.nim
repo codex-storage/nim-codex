@@ -77,7 +77,7 @@ method readOnce*(
         else:
           min(nbytes - read, self.manifest.blockSize)
 
-    copyMem(pbytes.offset(read), unsafeAddr blk.data[blockOffset], readBytes)
+    copyMem(pbytes.offset(read), addr blk.data[blockOffset], readBytes)
     self.offset += readBytes
     read += readBytes
 
