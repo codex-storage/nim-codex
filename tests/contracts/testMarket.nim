@@ -16,6 +16,11 @@ ethersuite "On-Chain Market":
     await token.mint(accounts[0], 1000.u256)
     market = OnChainMarket.new(storage)
 
+  test "fails to instantiate when contract does not have a signer":
+    let storageWithoutSigner = storage.connect(provider)
+    expect AssertionError:
+      discard OnChainMarket.new(storageWithoutSigner)
+
   test "supports storage requests":
     var submitted: seq[StorageRequest]
     proc onRequest(request: StorageRequest) =
