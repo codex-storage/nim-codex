@@ -11,6 +11,9 @@ export contract
 type
   Storage* = ref object of Contract
   Id = array[32, byte]
+  StorageRequested* = object of Event
+    requestId*: Id
+    request*: StorageRequest
 
 proc collateralAmount*(storage: Storage): UInt256 {.contract, view.}
 proc slashMisses*(storage: Storage): UInt256 {.contract, view.}

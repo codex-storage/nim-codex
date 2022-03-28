@@ -1,4 +1,5 @@
 import pkg/chronos
+import pkg/upraises
 import ./contracts/requests
 import ./contracts/offers
 
@@ -9,8 +10,8 @@ export offers
 type
   Market* = ref object of RootObj
   Subscription* = ref object of RootObj
-  OnRequest* = proc(request: StorageRequest) {.gcsafe.}
-  OnOffer* = proc(offer: StorageOffer) {.gcsafe.}
+  OnRequest* = proc(request: StorageRequest) {.gcsafe, upraises:[].}
+  OnOffer* = proc(offer: StorageOffer) {.gcsafe, upraises:[].}
 
 method requestStorage*(market: Market, request: StorageRequest) {.base, async.} =
   raiseAssert("not implemented")
