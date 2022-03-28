@@ -40,7 +40,10 @@ task testDagger, "Build & run Dagger tests":
 task testContracts, "Build & run Dagger Contract tests":
   test "testContracts", "tests/", "-d:chronicles_log_level=WARN"
 
-task test, "Run all tests":
+task test, "Run tests":
+  testDaggerTask()
+
+task testAll, "Run all tests":
   testDaggerTask()
   testContractsTask()
 
