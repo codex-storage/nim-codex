@@ -6,7 +6,7 @@ import ./requests
 import ./offers
 
 export stint
-export contract
+export ethers
 
 type
   Storage* = ref object of Contract
@@ -14,6 +14,10 @@ type
   StorageRequested* = object of Event
     requestId*: Id
     request*: StorageRequest
+  StorageOffered* = object of Event
+    offerId*: Id
+    offer*: StorageOffer
+    requestId* {.indexed.}: Id
 
 proc collateralAmount*(storage: Storage): UInt256 {.contract, view.}
 proc slashMisses*(storage: Storage): UInt256 {.contract, view.}
