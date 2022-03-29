@@ -58,7 +58,7 @@ suite "Chunking":
     let
       (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
       file = open(path)
-      fileChunker = FileChunker.new(file = file, chunkSize = 256)
+      fileChunker = FileChunker.new(file = file, chunkSize = 256, pad = false)
 
     var data: seq[byte]
     while true:

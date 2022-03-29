@@ -38,7 +38,6 @@ type
     networkId*: PeerID
     blockStore*: BlockStore
     engine*: BlockExcEngine
-    erasure*: Erasure
 
 proc start*(node: DaggerNodeRef) {.async.} =
   await node.switch.start()
