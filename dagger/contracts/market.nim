@@ -30,6 +30,9 @@ method offerStorage(market: OnChainMarket, offer: StorageOffer) {.async.} =
   offer.host = await market.signer.getAddress()
   await market.contract.offerStorage(offer)
 
+method selectOffer(market: OnChainMarket, offerId: array[32, byte]) {.async.} =
+  await market.contract.selectOffer(offerId)
+
 method subscribeRequests(market: OnChainMarket,
                          callback: OnRequest):
                         Future[MarketSubscription] {.async.} =
@@ -46,6 +49,16 @@ method subscribeOffers(market: OnChainMarket,
     if event.requestId == requestId:
       callback(event.offer)
   let subscription = await market.contract.subscribe(StorageOffered, onEvent)
+  return OnChainMarketSubscription(eventSubscription: subscription)
+
+method subscribeSelection(market: OnChainMarket,
+                          requestId: array[32, byte],
+                          callback: OnSelect):
+                         Future[MarketSubscription] {.async.} =
+  proc onSelect(event: OfferSelected) {.upraises: [].} =
+    if event.requestId == requestId:
+      callback(event.offerId)
+  let subscription = await market.contract.subscribe(OfferSelected, onSelect)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
 method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =

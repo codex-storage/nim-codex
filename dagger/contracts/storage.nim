@@ -18,6 +18,9 @@ type
     offerId*: Id
     offer*: StorageOffer
     requestId* {.indexed.}: Id
+  OfferSelected* = object of Event
+    offerId*: Id
+    requestId* {.indexed.}: Id
 
 proc collateralAmount*(storage: Storage): UInt256 {.contract, view.}
 proc slashMisses*(storage: Storage): UInt256 {.contract, view.}
