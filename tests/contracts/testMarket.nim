@@ -93,3 +93,29 @@ ethersuite "On-Chain Market":
     await market.offerStorage(offerWithoutHost)
 
     check submitted.host == accounts[0]
+
+  test "subscribes only to offers for a certain request":
+    var otherRequest = StorageRequest.example
+    var otherOffer = StorageOffer.example
+    otherRequest.client = accounts[0]
+    otherOffer.host = accounts[0]
+    otherOffer.requestId = otherRequest.id
+    otherOffer.price = otherRequest.maxPrice
+
+    await token.approve(storage.address, request.maxPrice)
+    await market.requestStorage(request)
+    await token.approve(storage.address, otherRequest.maxPrice)
+    await market.requestStorage(otherRequest)
+
+    var submitted: seq[StorageOffer]
+    proc onOffer(offer: StorageOffer) =
+      submitted.add(offer)
+
+    let subscription = await market.subscribeOffers(request.id, onOffer)
+
+    await market.offerStorage(offer)
+    await market.offerStorage(otherOffer)
+
+    check submitted == @[offer]
+
+    await subscription.unsubscribe()
