@@ -1,8 +1,9 @@
-import std/times
-import ./ethertest
+import pkg/chronos
 import dagger/contracts
 import dagger/contracts/testtoken
+import ./ethertest
 import ./examples
+import ./time
 
 ethersuite "On-Chain Market":
 
@@ -163,3 +164,19 @@ ethersuite "On-Chain Market":
     check selected == @[offer.id]
 
     await subscription.unsubscribe()
+
+  test "supports waiting for expiry of a request or offer":
+    let pollInterval = 100.milliseconds
+    market.pollInterval = pollInterval
+
+    proc waitForPoll {.async.} =
+      await sleepAsync(pollInterval + 10.milliseconds)
+
+    let future = market.waitUntil(request.expiry)
+    check not future.completed
+    await provider.advanceTimeTo(request.expiry - 1)
+    await waitForPoll()
+    check not future.completed
+    await provider.advanceTimeTo(request.expiry)
+    await waitForPoll()
+    check future.completed
