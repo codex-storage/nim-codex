@@ -119,3 +119,47 @@ ethersuite "On-Chain Market":
     check submitted == @[offer]
 
     await subscription.unsubscribe()
+
+  test "supports selection of an offer":
+    await token.approve(storage.address, request.maxPrice)
+    await market.requestStorage(request)
+    await market.offerStorage(offer)
+
+    var selected: seq[array[32, byte]]
+    proc onSelect(offerId: array[32, byte]) =
+      selected.add(offerId)
+    let subscription = await market.subscribeSelection(request.id, onSelect)
+
+    await market.selectOffer(offer.id)
+
+    check selected == @[offer.id]
+
+    await subscription.unsubscribe()
+
+  test "subscribes only to selection for a certain request":
+    var otherRequest = StorageRequest.example
+    var otherOffer = StorageOffer.example
+    otherRequest.client = accounts[0]
+    otherOffer.host = accounts[0]
+    otherOffer.requestId = otherRequest.id
+    otherOffer.price = otherRequest.maxPrice
+
+    await token.approve(storage.address, request.maxPrice)
+    await market.requestStorage(request)
+    await market.offerStorage(offer)
+    await token.approve(storage.address, otherRequest.maxPrice)
+    await market.requestStorage(otherRequest)
+    await market.offerStorage(otherOffer)
+
+    var selected: seq[array[32, byte]]
+    proc onSelect(offerId: array[32, byte]) =
+      selected.add(offerId)
+
+    let subscription = await market.subscribeSelection(request.id, onSelect)
+
+    await market.selectOffer(offer.id)
+    await market.selectOffer(otherOffer.id)
+
+    check selected == @[offer.id]
+
+    await subscription.unsubscribe()
