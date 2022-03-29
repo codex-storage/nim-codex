@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import std/strformat
+
 import pkg/upraises
 
 push: {.upraises: [].}
@@ -28,24 +30,17 @@ logScope:
   topics = "dagger storestream"
 
 type
-  ReadPattern* {.pure.} = enum
-    Sequential,
-    Grid
-
   StoreStream* = ref object of SeekableStream
     store*: BlockStore
     manifest*: Manifest
-    pattern*: ReadPattern
 
-proc init*(
+proc new*(
   T: type StoreStream,
   store: BlockStore,
-  manifest: Manifest,
-  pattern = ReadPattern.Sequential): T =
+  manifest: Manifest): T =
   result = T(
     store: store,
     manifest: manifest,
-    pattern: pattern,
     offset: 0)
 
   result.initStream()
@@ -64,16 +59,20 @@ method readOnce*(
   var
     read = 0
 
-  while read < nbytes and self.atEof.not:
+  while read < nbytes and not self.atEof:
     let
       pos = self.offset div self.manifest.blockSize
       blk = (await self.store.getBlock(self.manifest[pos])).tryGet()
-      blockOffset = if self.offset >= self.manifest.blockSize:
+
+    let
+      blockOffset =
+        if self.offset >= self.manifest.blockSize:
           self.offset mod self.manifest.blockSize
         else:
           self.offset
 
-      readBytes = if (nbytes - read) >= (self.manifest.blockSize - blockOffset):
+      readBytes =
+        if (nbytes - read) >= (self.manifest.blockSize - blockOffset):
           self.manifest.blockSize - blockOffset
         else:
           min(nbytes - read, self.manifest.blockSize)
@@ -89,11 +88,11 @@ method atEof*(self: StoreStream): bool =
 
 method closeImpl*(self: StoreStream) {.async.} =
   try:
-    trace "Closing StoreStream", self
+    trace "Closing StoreStream"
     self.offset = self.manifest.len * self.manifest.blockSize # set Eof
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "Error closing StoreStream", s, msg = exc.msg
+    trace "Error closing StoreStream", msg = exc.msg
 
   await procCall LPStream(self).closeImpl()
