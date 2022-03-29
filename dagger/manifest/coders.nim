@@ -64,7 +64,7 @@ func encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   var header = initProtoBuffer()
   header.write(1, cid.data.buffer)
   header.write(2, manifest.blockSize.uint32)
-  header.write(3, manifest.blocks.len.uint32)
+  header.write(3, manifest.len.uint32)
 
   pbNode.write(1, header.buffer) # set the rootHash Cid as the data field
   pbNode.finish()
