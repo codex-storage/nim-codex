@@ -111,18 +111,20 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
           Http400,
           $id.error())
 
-      let
-        stream = BufferStream.new()
+      var
+        stream: LPStream
 
       var bytes = 0
       try:
         if (
-            let retr = await node.retrieve(stream, id.get());
+            let retr = await node.retrieve(id.get());
             retr.isErr):
             return RestApiResponse.error(Http404, retr.error.msg)
 
         resp.addHeader("Content-Type", "application/octet-stream")
         await resp.prepareChunked()
+
+        stream = retr.get()
         while not stream.atEof:
           var
             buff = newSeqUninitialized[byte](FileChunkSize)
@@ -141,7 +143,8 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
         return RestApiResponse.error(Http500)
       finally:
         trace "Sent bytes", cid = id.get(), bytes
-        await stream.close()
+        if not stream.isNil:
+          await stream.close()
 
   router.rawApi(
     MethodPost,
