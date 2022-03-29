@@ -24,7 +24,7 @@ import ./blocktype
 export blocktype
 
 const
-  DefaultChunkSize*: Positive = 1024 * 256
+  DefaultChunkSize* = BlockSize
 
 type
   # default reader type
@@ -69,7 +69,7 @@ func new*(
   kind = ChunkerType.FixedChunker,
   reader: Reader,
   chunkSize = DefaultChunkSize,
-  pad = false): T =
+  pad = true): T =
   var chunker = Chunker(
     kind: kind,
     reader: reader)
@@ -85,7 +85,7 @@ proc new*(
   stream: LPStream,
   kind = ChunkerType.FixedChunker,
   chunkSize = DefaultChunkSize,
-  pad = false): T =
+  pad = true): T =
   ## create the default File chunker
   ##
 
@@ -114,7 +114,7 @@ proc new*(
   file: File,
   kind = ChunkerType.FixedChunker,
   chunkSize = DefaultChunkSize,
-  pad = false): T =
+  pad = true): T =
   ## create the default File chunker
   ##
 
