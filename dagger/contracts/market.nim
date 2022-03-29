@@ -4,21 +4,28 @@ import pkg/questionable
 import ../market
 import ./storage
 
+export market
+
 type
   OnChainMarket* = ref object of Market
     contract: Storage
     signer: Signer
+    pollInterval*: Duration
   MarketSubscription = market.Subscription
   EventSubscription = ethers.Subscription
   OnChainMarketSubscription = ref object of MarketSubscription
     eventSubscription: EventSubscription
 
-export market
+const DefaultPollInterval = 3.seconds
 
 func new*(_: type OnChainMarket, contract: Storage): OnChainMarket =
   without signer =? contract.signer:
     raiseAssert("Storage contract should have a signer")
-  OnChainMarket(contract: contract, signer: signer)
+  OnChainMarket(
+    contract: contract,
+    signer: signer,
+    pollInterval: DefaultPollInterval
+  )
 
 method requestStorage(market: OnChainMarket, request: StorageRequest) {.async.} =
   var request = request
@@ -32,6 +39,15 @@ method offerStorage(market: OnChainMarket, offer: StorageOffer) {.async.} =
 
 method selectOffer(market: OnChainMarket, offerId: array[32, byte]) {.async.} =
   await market.contract.selectOffer(offerId)
+
+proc getTime(market: OnChainMarket): Future[UInt256] {.async.} =
+  let provider = market.contract.provider
+  let blck = !await provider.getBlock(BlockTag.latest)
+  return blck.timestamp
+
+method waitUntil*(market: OnChainMarket, expiry: UInt256) {.async.} =
+  while not ((time =? await market.getTime()) and (time >= expiry)):
+    await sleepAsync(market.pollInterval)
 
 method subscribeRequests(market: OnChainMarket,
                          callback: OnRequest):
