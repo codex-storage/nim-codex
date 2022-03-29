@@ -33,7 +33,7 @@ suite "StoreStream":
   setup:
     store = CacheStore.new()
     manifest = Manifest.new(blockSize = 10).tryGet()
-    stream = StoreStream.init(store, manifest)
+    stream = StoreStream.new(store, manifest)
 
     for d in data:
       let
