@@ -170,11 +170,11 @@ ethersuite "On-Chain Market":
     check (await market.getTime()) == latestBlock.timestamp
 
   test "supports waiting for expiry of a request or offer":
-    let pollInterval = 100.milliseconds
+    let pollInterval = 200.milliseconds
     market.pollInterval = pollInterval
 
     proc waitForPoll {.async.} =
-      await sleepAsync(pollInterval + 10.milliseconds)
+      await sleepAsync(pollInterval * 2)
 
     let future = market.waitUntil(request.expiry)
     check not future.completed
