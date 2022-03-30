@@ -35,7 +35,7 @@ suite "Test Node":
 
   setup:
     file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
-    chunker = FileChunker.new(file = file)
+    chunker = FileChunker.new(file = file, chunkSize = BlockSize)
     switch = newStandardSwitch()
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
@@ -106,19 +106,15 @@ suite "Test Node":
 
     check await localStore.putBlock(manifestBlock)
 
-    let stream = BufferStream.new()
-    check (await node.retrieve(stream, manifestBlock.cid)).isOk
-
+    let stream = (await node.retrieve(manifestBlock.cid)).tryGet()
     var data: seq[byte]
-    while true:
+    while not stream.atEof:
       var
         buf = newSeq[byte](BlockSize)
-        res = await stream.readOnce(addr buf[0], buf.len)
-
-      if res <= 0:
-        break
+        res = await stream.readOnce(addr buf[0], BlockSize div 2)
 
       buf.setLen(res)
+
       data &= buf
 
     check data == original
@@ -128,11 +124,8 @@ suite "Test Node":
       testString = "Block 1"
       blk = bt.Block.new(testString.toBytes).tryGet()
 
-    var
-      stream = BufferStream.new()
-
     check (await localStore.putBlock(blk))
-    check (await node.retrieve(stream, blk.cid)).isOk
+    let stream = (await node.retrieve(blk.cid)).tryGet()
 
     var data = newSeq[byte](testString.len)
     await stream.readExactly(addr data[0], data.len)

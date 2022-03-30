@@ -25,6 +25,7 @@ import ./blocktype as bt
 import ./manifest
 import ./stores/blockstore
 import ./blockexchange
+import ./streams
 
 logScope:
   topics = "dagger node"
@@ -45,8 +46,13 @@ proc start*(node: DaggerNodeRef) {.async.} =
   notice "Started dagger node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
 
 proc stop*(node: DaggerNodeRef) {.async.} =
-  await node.engine.stop()
-  await node.switch.stop()
+  trace "Stopping node"
+
+  if not node.engine.isNil:
+    await node.engine.stop()
+
+  if not node.switch.isNil:
+    await node.switch.stop()
 
 proc findPeer*(
   node: DaggerNodeRef,
@@ -59,31 +65,9 @@ proc connect*(
   addrs: seq[MultiAddress]): Future[void] =
   node.switch.connect(peerId, addrs)
 
-proc streamBlocks*(
-  node: DaggerNodeRef,
-  stream: BufferStream,
-  blockManifest: Manifest) {.async.} =
-
-  try:
-    # TODO: Read sequentially for now
-    # to prevent slurping the entire dataset
-    # since disk IO is blocking
-    for c in blockManifest:
-      without blk =? (await node.blockStore.getBlock(c)):
-        warn "Couldn't retrieve block", cid = c
-        break # abort if we couldn't get a block
-
-      trace "Streaming block data", cid = blk.cid, bytes = blk.data.len
-      await stream.pushData(blk.data)
-  except CatchableError as exc:
-    trace "Exception retrieving blocks", exc = exc.msg
-  finally:
-    await stream.pushEof()
-
 proc retrieve*(
   node: DaggerNodeRef,
-  stream: BufferStream,
-  cid: Cid): Future[?!void] {.async.} =
+  cid: Cid): Future[?!LPStream] {.async.} =
 
   trace "Received retrieval request", cid
   without blk =? await node.blockStore.getBlock(cid):
@@ -94,24 +78,29 @@ proc retrieve*(
     return failure(
       newException(DaggerError, "Couldn't identify Cid!"))
 
+  # if we got a manifest, stream the blocks
   if $mc in ManifestContainers:
     trace "Retrieving data set", cid, mc
 
-    without blockManifest =? Manifest.decode(blk.data, ManifestContainers[$mc]):
+    without manifest =? Manifest.decode(blk.data, ManifestContainers[$mc]):
       return failure("Unable to construct manifest!")
 
-    asyncSpawn node.streamBlocks(stream, blockManifest)
-  else:
-    asyncSpawn (proc(): Future[void] {.async.} =
-      try:
-        await stream.pushData(blk.data)
-      except CatchableError as exc:
-        trace "Unable to send block", cid
-        discard
-      finally:
-        await stream.pushEof())()
+    return LPStream(StoreStream.new(node.blockStore, manifest)).success
 
-  return success()
+  let
+    stream = BufferStream.new()
+
+  proc streamOneBlock(): Future[void] {.async.} =
+    try:
+      await stream.pushData(blk.data)
+    except CatchableError as exc:
+      trace "Unable to send block", cid
+      discard
+    finally:
+      await stream.pushEof()
+
+  asyncSpawn streamOneBlock()
+  return LPStream(stream).success()
 
 proc store*(
   node: DaggerNodeRef,
@@ -122,7 +111,7 @@ proc store*(
     return failure("Unable to create Block Set")
 
   let
-    chunker = LPStreamChunker.new(stream)
+    chunker = LPStreamChunker.new(stream, chunkSize = BlockSize)
 
   try:
     while (
@@ -159,13 +148,12 @@ proc store*(
     trace "Unable to store manifest", cid = manifest.cid
     return failure("Unable to store manifest " & $manifest.cid)
 
-  var cid: ?!Cid
-  if (cid = blockManifest.cid; cid.isErr):
-    trace "Unable to generate manifest Cid!", exc = cid.error.msg
-    return failure(cid.error.msg)
+  without cid =? blockManifest.cid, error:
+    trace "Unable to generate manifest Cid!", exc = error.msg
+    return failure(error.msg)
 
   trace "Stored data", manifestCid = manifest.cid,
-                       contentCid = !cid,
+                       contentCid = cid,
                        blocks = blockManifest.len
 
   return manifest.cid.success

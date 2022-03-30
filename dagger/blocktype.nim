@@ -19,7 +19,7 @@ import pkg/questionable/results
 import ./errors
 
 const
-  BlockSize* = 4096 # file chunk read size
+  BlockSize* = 31 * 64 * 4 # file chunk read size
 
 type
   Block* = ref object of RootObj
