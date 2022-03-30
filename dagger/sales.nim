@@ -1,3 +1,4 @@
+import std/times
 import std/sequtils
 import pkg/questionable
 import pkg/upraises
@@ -7,12 +8,14 @@ import ./market
 
 export stint
 
+const DefaultOfferExpiryInterval = (10 * 60).u256
+
 type
   Sales* = ref object
     market: Market
     available*: seq[Availability]
     subscription: ?Subscription
-
+    offerExpiryInterval*: UInt256
   Availability* = object
     id*: array[32, byte]
     size*: uint64
@@ -20,7 +23,7 @@ type
     minPrice*: UInt256
 
 func new*(_: type Sales, market: Market): Sales =
-  Sales(market: market)
+  Sales(market: market, offerExpiryInterval: DefaultOfferExpiryInterval)
 
 proc init*(_: type Availability,
           size: uint64,
@@ -43,12 +46,13 @@ func findAvailability(sales: Sales, request: StorageRequest): ?Availability =
        request.maxPrice >= availability.minPrice:
       return some availability
 
-func createOffer(sales: Sales,
+proc createOffer(sales: Sales,
                  request: StorageRequest,
                  availability: Availability): StorageOffer =
   StorageOffer(
     requestId: request.id,
-    price: request.maxPrice
+    price: request.maxPrice,
+    expiry: getTime().toUnix().u256 + sales.offerExpiryInterval
   )
 
 proc handleRequest(sales: Sales, request: StorageRequest) {.async.} =
