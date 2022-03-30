@@ -22,7 +22,7 @@ type
 func new*(_: type Sales, market: Market): Sales =
   Sales(market: market)
 
-proc new*(_: type Availability,
+proc init*(_: type Availability,
           size: uint64,
           duration: uint64,
           minPrice: UInt256): Availability =
