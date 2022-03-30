@@ -32,12 +32,12 @@ suite "Sales":
     check sales.available.len == 0
 
   test "generates unique ids for storage availability":
-    let availability1 = Availability.new(size=1, duration=2, minPrice=3.u256)
-    let availability2 = Availability.new(size=1, duration=2, minPrice=3.u256)
+    let availability1 = Availability.init(size=1, duration=2, minPrice=3.u256)
+    let availability2 = Availability.init(size=1, duration=2, minPrice=3.u256)
     check availability1.id != availability2.id
 
   test "offers available storage when matching request comes in":
-    let availability = Availability.new(size=100, duration=60, minPrice=42.u256)
+    let availability = Availability.init(size=100, duration=60, minPrice=42.u256)
     sales.add(availability)
     sales.start()
     let request = StorageRequest(duration:60.u256, size:100.u256, maxPrice:42.u256)
@@ -47,7 +47,7 @@ suite "Sales":
     sales.stop()
 
   test "ignores request when no matching storage is available":
-    let availability = Availability.new(size=99, duration=60, minPrice=42.u256)
+    let availability = Availability.init(size=99, duration=60, minPrice=42.u256)
     sales.add(availability)
     sales.start()
     let request = StorageRequest(duration:60.u256, size:100.u256, maxPrice:42.u256)
@@ -56,7 +56,7 @@ suite "Sales":
     sales.stop()
 
   test "makes storage unavailable when offer is submitted":
-    let availability = Availability.new(size=100, duration=60, minPrice=42.u256)
+    let availability = Availability.init(size=100, duration=60, minPrice=42.u256)
     sales.add(availability)
     sales.start()
     let request = StorageRequest(duration:60.u256, size:100.u256, maxPrice:42.u256)

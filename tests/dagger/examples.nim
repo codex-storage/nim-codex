@@ -54,4 +54,4 @@ proc example*(_: type Cid): Cid =
   Block.example.cid
 
 proc example*(_: type Availability): Availability =
-  Availability.new(uint16.example, uint16.example, uint64.example.u256)
+  Availability.init(uint16.example, uint16.example, uint64.example.u256)
