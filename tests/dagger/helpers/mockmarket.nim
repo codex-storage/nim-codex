@@ -2,6 +2,8 @@ import std/sequtils
 import std/heapqueue
 import pkg/dagger/market
 
+export market
+
 type
   MockMarket* = ref object of Market
     requested*: seq[StorageRequest]
