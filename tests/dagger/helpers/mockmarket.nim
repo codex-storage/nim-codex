@@ -71,6 +71,9 @@ method unsubscribe*(subscription: OfferSubscription) {.async.} =
 func `<`(a, b: Expiry): bool =
   a.expiry < b.expiry
 
+method getTime*(market: MockMarket): Future[UInt256] {.async.} =
+  return market.time
+
 method waitUntil*(market: MockMarket, expiry: UInt256): Future[void] =
   let future = Future[void]()
   if expiry > market.time:
