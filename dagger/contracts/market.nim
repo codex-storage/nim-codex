@@ -40,7 +40,7 @@ method offerStorage(market: OnChainMarket, offer: StorageOffer) {.async.} =
 method selectOffer(market: OnChainMarket, offerId: array[32, byte]) {.async.} =
   await market.contract.selectOffer(offerId)
 
-proc getTime(market: OnChainMarket): Future[UInt256] {.async.} =
+method getTime(market: OnChainMarket): Future[UInt256] {.async.} =
   let provider = market.contract.provider
   let blck = !await provider.getBlock(BlockTag.latest)
   return blck.timestamp
