@@ -6,5 +6,6 @@ import ./dagger/testmanifest
 import ./dagger/testnode
 import ./dagger/teststorestream
 import ./dagger/testpurchasing
+import ./dagger/testsales
 
 {.warning[UnusedImport]: off.}

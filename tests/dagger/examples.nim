@@ -6,6 +6,7 @@ import pkg/stint
 import pkg/dagger/rng
 import pkg/dagger/stores
 import pkg/dagger/blocktype
+import pkg/dagger/sales
 import ../examples
 
 export examples
@@ -51,3 +52,6 @@ proc example*(_: type BlockExcPeerCtx): BlockExcPeerCtx =
 
 proc example*(_: type Cid): Cid =
   Block.example.cid
+
+proc example*(_: type Availability): Availability =
+  Availability.new(uint16.example, uint16.example, uint64.example.u256)
