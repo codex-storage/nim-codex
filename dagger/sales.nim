@@ -13,14 +13,16 @@ const DefaultOfferExpiryInterval = (10 * 60).u256
 type
   Sales* = ref object
     market: Market
-    available*: seq[Availability]
     subscription: ?Subscription
+    available*: seq[Availability]
     offerExpiryInterval*: UInt256
+    onSale*: OnSale
   Availability* = object
     id*: array[32, byte]
     size*: uint64
     duration*: uint64
     minPrice*: UInt256
+  OnSale = proc(offer: StorageOffer) {.gcsafe, upraises: [].}
 
 func new*(_: type Sales, market: Market): Sales =
   Sales(market: market, offerExpiryInterval: DefaultOfferExpiryInterval)
@@ -56,10 +58,20 @@ proc createOffer(sales: Sales,
   )
 
 proc handleRequest(sales: Sales, request: StorageRequest) {.async.} =
-  if availability =? sales.findAvailability(request):
-    sales.remove(availability)
-    let offer = sales.createOffer(request, availability)
-    await sales.market.offerStorage(offer)
+  without availability =? sales.findAvailability(request):
+    return
+
+  sales.remove(availability)
+
+  let offer = sales.createOffer(request, availability)
+  await sales.market.offerStorage(offer)
+
+  var subscription: ?Subscription
+  proc onSelect(offerId: array[32, byte]) {.gcsafe, upraises:[].} =
+    if subscription =? subscription:
+      asyncSpawn subscription.unsubscribe()
+    sales.onSale(offer)
+  subscription = some await sales.market.subscribeSelection(request.id, onSelect)
 
 proc start*(sales: Sales) =
   doAssert sales.subscription.isNone, "Sales already started"

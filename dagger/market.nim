@@ -46,5 +46,5 @@ method subscribeSelection*(market: Market,
                           Future[Subscription] {.base, async.} =
   raiseAssert("not implemented")
 
-method unsubscribe*(subscription: Subscription) {.base, async.} =
+method unsubscribe*(subscription: Subscription) {.base, async, upraises:[].} =
   raiseAssert("not implemented")

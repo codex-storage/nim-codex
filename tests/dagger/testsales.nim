@@ -74,3 +74,17 @@ suite "Sales":
     await market.requestStorage(request)
     check market.offered[0].expiry == now + sales.offerExpiryInterval
     sales.stop()
+
+  test "call onSale when offer is selected":
+    let availability = Availability.init(size=100, duration=60, minPrice=42.u256)
+    sales.add(availability)
+    var selectedOffer: StorageOffer
+    sales.onSale = proc(offer: StorageOffer) =
+      selectedOffer = offer
+    sales.start()
+    let request = StorageRequest(duration:60.u256, size:100.u256, maxPrice:42.u256)
+    await market.requestStorage(request)
+    let offer = market.offered[0]
+    await market.selectOffer(offer.id)
+    check selectedOffer == offer
+    sales.stop()
