@@ -7,12 +7,17 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import pkg/upraises
+
+push: {.upraises: [].}
+
 import pkg/chronos
 import pkg/chronicles
 
 import ../manifest
 import ../stores
 import ../errors
+import ../blocktype
 
 import ./backend
 
@@ -78,17 +83,17 @@ proc encode*(
 
   let
     # total number of blocks to encode + padding blocks
-    roundedBlocks =
+    rounded =
       if (manifest.len mod blocks) != 0:
         manifest.len + (blocks - (manifest.len mod blocks))
       else:
         manifest.len
-    steps = roundedBlocks div blocks # number of blocks per row
-    manifestLen = roundedBlocks + (steps * parity)
+    steps = rounded div blocks # number of blocks per row
+    manifestLen = rounded + (steps * parity)
 
   logScope:
     steps           = steps
-    new_blocks      = roundedBlocks
+    new_blocks      = rounded
     new_manifest    = manifestLen
 
   trace "New dataset geometry is"
@@ -96,8 +101,11 @@ proc encode*(
     encodedBlocks = newSeq[Cid](manifestLen)
 
   # copy original manifest blocks
-  for i, b in manifest:
-    encodedBlocks[i] = b
+  for i in 0..<rounded:
+    if i < manifest.len:
+      encodedBlocks[i] = manifest[i]
+    else:
+      encodedBlocks[i] = EmptyCid[manifest.version][manifest.hcodec]
 
   var
     encoder = self.encoderProvider(blockSize, blocks, parity)
@@ -120,7 +128,7 @@ proc encode*(
           data.add(blk.data)
         else:
           trace "Padding with empty block", pos = idx
-          data.add(newSeq[byte](blockSize)) # empty seq of size
+          data.add(newSeq[byte](blockSize)) # empty seq of block size
 
         idx.inc(steps)
         count.inc()
@@ -133,7 +141,7 @@ proc encode*(
         return failure($err.error)
 
       count = 0
-      idx = roundedBlocks + i
+      idx = rounded + i
       while count < parity:
         without blk =? Block.new(parityData[count]), error:
           trace "Unable to create parity block", err = error.msg
@@ -142,6 +150,7 @@ proc encode*(
         trace "Adding parity block", cid = blk.cid, pos = idx
         encodedBlocks[idx] = blk.cid
         if not (await store.putBlock(blk)):
+          trace "Unable to store block!", cid = blk.cid
           return failure("Unable to store block!")
 
         idx.inc(steps)
