@@ -35,10 +35,13 @@ method requestStorage(market: OnChainMarket,
   await market.contract.requestStorage(request)
   return request
 
-method offerStorage(market: OnChainMarket, offer: StorageOffer) {.async.} =
+method offerStorage(market: OnChainMarket,
+                    offer: StorageOffer):
+                   Future[StorageOffer] {.async.} =
   var offer = offer
   offer.host = await market.signer.getAddress()
   await market.contract.offerStorage(offer)
+  return offer
 
 method selectOffer(market: OnChainMarket, offerId: array[32, byte]) {.async.} =
   await market.contract.selectOffer(offerId)

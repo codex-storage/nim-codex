@@ -63,8 +63,8 @@ proc handleRequest(sales: Sales, request: StorageRequest) {.async.} =
 
   sales.remove(availability)
 
-  let offer = sales.createOffer(request, availability)
-  await sales.market.offerStorage(offer)
+  var offer = sales.createOffer(request, availability)
+  offer = await sales.market.offerStorage(offer)
 
   var subscription: ?Subscription
   proc onSelect(offerId: array[32, byte]) {.gcsafe, upraises:[].} =

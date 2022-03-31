@@ -19,7 +19,9 @@ method requestStorage*(market: Market,
                       Future[StorageRequest] {.base, async.} =
   raiseAssert("not implemented")
 
-method offerStorage*(market: Market, offer: StorageOffer) {.base, async.} =
+method offerStorage*(market: Market,
+                     offer: StorageOffer):
+                    Future[StorageOffer] {.base, async.} =
   raiseAssert("not implemented")
 
 method selectOffer*(market: Market, id: array[32, byte]) {.base, async.} =
