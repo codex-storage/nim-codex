@@ -18,6 +18,9 @@ import ./backend
 
 export backend
 
+logScope:
+  topics = "dagger erasure"
+
 type
   EncoderProvider* = proc(size, blocks, parity: int): EncoderBackend
     {.raises: [Defect], noSideEffect.}
@@ -36,15 +39,59 @@ proc encode*(
   blocks: int,
   parity: int,
   blockSize = BlockSize): Future[?!Manifest] {.async.} =
-  trace "Erasure coding manifest", cid = manifest.cid.get(), len = manifest.len, blocks, parity
+  ## Encode a manifest into a manifest that is erasure
+  ## protected.
+  ##
+  ## The new manifest has a matrix geometry where each
+  ## `blocks` (K), are encoded into additional `parity`
+  ## blocks (M). The resulting dataset is logically
+  ## divided into rows where each column of K blocks is
+  ## extended with M parity blocks.
+  ##
+  ## The encoding is systematic and the rows can be
+  ## read sequentially by any node without decoding.
+  ## Decoding is possible with any combination of
+  ## K rows or partial K columns or any combination
+  ## there of.
+  ##
+  ## NOTE: The resulting dataset might be padded with extra
+  ## blocks. This is blocks might be eventually excluded
+  ## from transmission, but they aren't right now.
+  ##
+  ## `manifest`   - the original manifest to be encoded
+  ## `store`      - the blocks store used to retrieve blocks
+  ## `blocks`     - the number of blocks to be encoded - K
+  ## `parity`     - the number of parity blocks to generate - M
+  ## `blockSize`  - size of each individual blocks - all blocks
+  ##                should have equal size
+  ##
+
+  logScope:
+    original_cid = manifest.cid.get()
+    original_len = manifest.len
+    blocks       = blocks
+    parity       = parity
+
+  trace "Erasure coding manifest", blocks, parity
 
   let
     # total number of blocks to encode + padding blocks
-    roundedBlocks = manifest.len + (blocks - (manifest.len mod blocks))
-    blocksPerRow = roundedBlocks div blocks # number of blocks per row
+    roundedBlocks =
+      if (manifest.len mod blocks) != 0:
+        manifest.len + (blocks - (manifest.len mod blocks))
+      else:
+        manifest.len
+    steps = roundedBlocks div blocks # number of blocks per row
+    manifestLen = roundedBlocks + (steps * parity)
 
+  logScope:
+    steps           = steps
+    new_blocks      = roundedBlocks
+    new_manifest    = manifestLen
+
+  trace "New dataset geometry is"
   var
-    encodedBlocks = newSeq[Cid](roundedBlocks + (blocksPerRow * parity))
+    encodedBlocks = newSeq[Cid](manifestLen)
 
   # copy original manifest blocks
   for i, b in manifest:
@@ -54,7 +101,7 @@ proc encode*(
     encoder = self.encoderProvider(blockSize, blocks, parity)
 
   try:
-    for i in 0..<blocksPerRow:
+    for i in 0..<steps:
       var
         data = newSeqOfCap[seq[byte]](blocks) # number of blocks to encode
         parityData = newSeqOfCap[seq[byte]](parity)
@@ -64,16 +111,18 @@ proc encode*(
         count = 0
 
       while count < blocks:
-        idx.inc(blocksPerRow)
-        count.inc()
-
         if idx < manifest.len:
           without var blk =? (await store.getBlock(encodedBlocks[idx])), error:
             trace "Unable to retrieve block", msg = error.msg
             return error.failure
+
+          trace "Encoding block", cid = blk.cid, pos = idx
           data.add(blk.data)
         else:
           data.add(newSeq[byte](blockSize)) # empty seq of size
+
+        idx.inc(steps)
+        count.inc()
 
       for _ in 0..<parity:
         parityData.add(newSeq[byte](blockSize))
@@ -88,16 +137,17 @@ proc encode*(
           trace "Unable to create parity block", err = error.msg
           return failure(error)
 
+        trace "Adding parity block", cid = blk.cid, pos = idx
         encodedBlocks[idx] = blk.cid
         if not (await store.putBlock(blk)):
           return failure("Unable to store block!")
 
-        idx.inc(blocksPerRow)
+        idx.inc(steps)
         count.inc()
   finally:
     encoder.release()
 
-  trace "New manifest will contain", blocks = encodedBlocks.len, blocksPerRow
+  trace "New manifest will contain"
   without var encoded =? Manifest.new(blocks = encodedBlocks), error:
     trace "Unable to create manifest", msg = error.msg
     return error.failure
