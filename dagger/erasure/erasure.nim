@@ -42,11 +42,11 @@ proc encode*(
   ## Encode a manifest into one that is erasure protected.
   ##
   ## The new manifest has a square shape where each
-  ## `blocks` (K), are encoded into additional `parity`
-  ## blocks (M). The resulting dataset is padded with
+  ## K `blocks`, are encoded into additional M `parity`
+  ## blocks. The resulting dataset is padded with
   ## empty blocks if it doesn't have a square shape.
-  ## The padding blocks can be eventually excluded from
-  ## transmission, but they aren't now.
+  ## NOTE: The padding blocks can be eventually excluded
+  ## from transmission, but they aren't now.
   ##
   ## The resulting dataset is logically divided into rows
   ## where each column of K blocks is extended with M parity
