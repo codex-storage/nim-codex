@@ -52,14 +52,9 @@ proc start*(node: DaggerNodeRef) {.async.} =
 proc stop*(node: DaggerNodeRef) {.async.} =
   trace "Stopping node"
 
-  if not node.engine.isNil:
-    await node.engine.stop()
-
-  if not node.switch.isNil:
-    await node.switch.stop()
-
-  if not node.erasure.isNil:
-    await node.erasure.stop()
+  await node.engine.stop()
+  await node.switch.stop()
+  await node.erasure.stop()
 
 proc findPeer*(
   node: DaggerNodeRef,
