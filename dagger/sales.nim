@@ -16,7 +16,7 @@ type
     subscription: ?Subscription
     available*: seq[Availability]
     offerExpiryInterval*: UInt256
-    onSale*: OnSale
+    onSale: ?OnSale
   Availability* = object
     id*: array[32, byte]
     size*: uint64
@@ -34,6 +34,9 @@ proc init*(_: type Availability,
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
   Availability(id: id, size: size, duration: duration, minPrice: minPrice)
+
+proc `onSale=`*(sales: Sales, callback: OnSale) =
+  sales.onSale = some callback
 
 func add*(sales: Sales, availability: Availability) =
   sales.available.add(availability)
@@ -70,8 +73,8 @@ proc handleRequest(sales: Sales, request: StorageRequest) {.async.} =
   proc onSelect(offerId: array[32, byte]) {.gcsafe, upraises:[].} =
     if subscription =? subscription:
       asyncSpawn subscription.unsubscribe()
-    if offer.id == offerId:
-      sales.onSale(offer)
+    if onSale =? sales.onSale and offer.id == offerId:
+      onSale(offer)
   subscription = some await sales.market.subscribeSelection(request.id, onSelect)
 
 proc start*(sales: Sales) =
