@@ -38,35 +38,29 @@ ethersuite "On-Chain Market":
       discard OnChainMarket.new(storageWithoutSigner)
 
   test "supports storage requests":
-    var submitted: seq[StorageRequest]
-    proc onRequest(request: StorageRequest) =
-      submitted.add(request)
-    let subscription = await market.subscribeRequests(onRequest)
     await token.approve(storage.address, request.maxPrice)
-
-    await market.requestStorage(request)
-
-    check submitted == @[request]
-
-    await subscription.unsubscribe()
+    check (await market.requestStorage(request)) == request
 
   test "sets client address when submitting storage request":
     var requestWithoutClient = request
     requestWithoutClient.client = Address.default
+    await token.approve(storage.address, request.maxPrice)
+    let submitted = await market.requestStorage(requestWithoutClient)
+    check submitted.client == accounts[0]
 
-    var submitted: StorageRequest
+  test "supports request subscriptions":
+    var received: seq[StorageRequest]
     proc onRequest(request: StorageRequest) =
-      submitted = request
+      received.add(request)
     let subscription = await market.subscribeRequests(onRequest)
     await token.approve(storage.address, request.maxPrice)
-
-    await market.requestStorage(requestWithoutClient)
-
-    check submitted.client == accounts[0]
+    discard await market.requestStorage(request)
+    check received == @[request]
+    await subscription.unsubscribe()
 
   test "supports storage offers":
     await token.approve(storage.address, request.maxPrice)
-    await market.requestStorage(request)
+    discard await market.requestStorage(request)
 
     var submitted: seq[StorageOffer]
     proc onOffer(offer: StorageOffer) =
@@ -84,7 +78,7 @@ ethersuite "On-Chain Market":
     offerWithoutHost.host = Address.default
 
     await token.approve(storage.address, request.maxPrice)
-    await market.requestStorage(request)
+    discard await market.requestStorage(request)
 
     var submitted: StorageOffer
     proc onOffer(offer: StorageOffer) =
@@ -104,9 +98,9 @@ ethersuite "On-Chain Market":
     otherOffer.price = otherRequest.maxPrice
 
     await token.approve(storage.address, request.maxPrice)
-    await market.requestStorage(request)
+    discard await market.requestStorage(request)
     await token.approve(storage.address, otherRequest.maxPrice)
-    await market.requestStorage(otherRequest)
+    discard await market.requestStorage(otherRequest)
 
     var submitted: seq[StorageOffer]
     proc onOffer(offer: StorageOffer) =
@@ -123,7 +117,7 @@ ethersuite "On-Chain Market":
 
   test "supports selection of an offer":
     await token.approve(storage.address, request.maxPrice)
-    await market.requestStorage(request)
+    discard await market.requestStorage(request)
     await market.offerStorage(offer)
 
     var selected: seq[array[32, byte]]
@@ -146,10 +140,10 @@ ethersuite "On-Chain Market":
     otherOffer.price = otherRequest.maxPrice
 
     await token.approve(storage.address, request.maxPrice)
-    await market.requestStorage(request)
+    discard await market.requestStorage(request)
     await market.offerStorage(offer)
     await token.approve(storage.address, otherRequest.maxPrice)
-    await market.requestStorage(otherRequest)
+    discard await market.requestStorage(otherRequest)
     await market.offerStorage(otherOffer)
 
     var selected: seq[array[32, byte]]
