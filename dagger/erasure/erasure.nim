@@ -39,24 +39,25 @@ proc encode*(
   blocks: int,
   parity: int,
   blockSize = BlockSize): Future[?!Manifest] {.async.} =
-  ## Encode a manifest into a manifest that is erasure
-  ## protected.
+  ## Encode a manifest into one that is erasure protected.
   ##
-  ## The new manifest has a matrix geometry where each
+  ## The new manifest has a square shape where each
   ## `blocks` (K), are encoded into additional `parity`
-  ## blocks (M). The resulting dataset is logically
-  ## divided into rows where each column of K blocks is
-  ## extended with M parity blocks.
+  ## blocks (M). The resulting dataset is padded with
+  ## empty blocks if it doesn't have a square shape.
+  ## The padding blocks can be eventually excluded from
+  ## transmission, but they aren't now.
+  ##
+  ## The resulting dataset is logically divided into rows
+  ## where each column of K blocks is extended with M parity
+  ## blocks, producing M additional parity rows.
   ##
   ## The encoding is systematic and the rows can be
   ## read sequentially by any node without decoding.
-  ## Decoding is possible with any combination of
-  ## K rows or partial K columns or any combination
-  ## there of.
   ##
-  ## NOTE: The resulting dataset might be padded with extra
-  ## blocks. This is blocks might be eventually excluded
-  ## from transmission, but they aren't right now.
+  ## Decoding is possible with any K rows or partial K
+  ## columns (with up to M blocks missing per column),
+  ## or any combination there of.
   ##
   ## `manifest`   - the original manifest to be encoded
   ## `store`      - the blocks store used to retrieve blocks
@@ -105,8 +106,6 @@ proc encode*(
       var
         data = newSeqOfCap[seq[byte]](blocks) # number of blocks to encode
         parityData = newSeqOfCap[seq[byte]](parity)
-
-      var
         idx = i
         count = 0
 
@@ -119,6 +118,7 @@ proc encode*(
           trace "Encoding block", cid = blk.cid, pos = idx
           data.add(blk.data)
         else:
+          trace "Padding with empty block", pos = idx
           data.add(newSeq[byte](blockSize)) # empty seq of size
 
         idx.inc(steps)
@@ -132,6 +132,7 @@ proc encode*(
         return failure($err.error)
 
       count = 0
+      idx = roundedBlocks + i
       while count < parity:
         without blk =? Block.new(parityData[count]), error:
           trace "Unable to create parity block", err = error.msg
