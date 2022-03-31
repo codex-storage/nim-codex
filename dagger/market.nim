@@ -14,7 +14,9 @@ type
   OnOffer* = proc(offer: StorageOffer) {.gcsafe, upraises:[].}
   OnSelect* = proc(offerId: array[32, byte]) {.gcsafe, upraises: [].}
 
-method requestStorage*(market: Market, request: StorageRequest) {.base, async.} =
+method requestStorage*(market: Market,
+                       request: StorageRequest):
+                      Future[StorageRequest] {.base, async.} =
   raiseAssert("not implemented")
 
 method offerStorage*(market: Market, offer: StorageOffer) {.base, async.} =

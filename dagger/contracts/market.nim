@@ -27,10 +27,13 @@ func new*(_: type OnChainMarket, contract: Storage): OnChainMarket =
     pollInterval: DefaultPollInterval
   )
 
-method requestStorage(market: OnChainMarket, request: StorageRequest) {.async.} =
+method requestStorage(market: OnChainMarket,
+                      request: StorageRequest):
+                     Future[StorageRequest] {.async.} =
   var request = request
   request.client = await market.signer.getAddress()
   await market.contract.requestStorage(request)
+  return request
 
 method offerStorage(market: OnChainMarket, offer: StorageOffer) {.async.} =
   var offer = offer

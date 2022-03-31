@@ -42,7 +42,7 @@ suite "Sales":
     sales.add(availability)
     sales.start()
     let request = StorageRequest(duration:60.u256, size:100.u256, maxPrice:42.u256)
-    await market.requestStorage(request)
+    discard await market.requestStorage(request)
     check market.offered.len == 1
     check market.offered[0].price == 42.u256
     sales.stop()
@@ -52,7 +52,7 @@ suite "Sales":
     sales.add(availability)
     sales.start()
     let request = StorageRequest(duration:60.u256, size:100.u256, maxPrice:42.u256)
-    await market.requestStorage(request)
+    discard await market.requestStorage(request)
     check market.offered.len == 0
     sales.stop()
 
@@ -61,7 +61,7 @@ suite "Sales":
     sales.add(availability)
     sales.start()
     let request = StorageRequest(duration:60.u256, size:100.u256, maxPrice:42.u256)
-    await market.requestStorage(request)
+    discard await market.requestStorage(request)
     check sales.available.len == 0
     sales.stop()
 
@@ -71,7 +71,7 @@ suite "Sales":
     sales.start()
     let request = StorageRequest(duration:60.u256, size:100.u256, maxPrice:42.u256)
     let now = getTime().toUnix().u256
-    await market.requestStorage(request)
+    discard await market.requestStorage(request)
     check market.offered[0].expiry == now + sales.offerExpiryInterval
     sales.stop()
 
@@ -83,7 +83,7 @@ suite "Sales":
       selectedOffer = offer
     sales.start()
     let request = StorageRequest(duration:60.u256, size:100.u256, maxPrice:42.u256)
-    await market.requestStorage(request)
+    discard await market.requestStorage(request)
     let offer = market.offered[0]
     await market.selectOffer(offer.id)
     check selectedOffer == offer

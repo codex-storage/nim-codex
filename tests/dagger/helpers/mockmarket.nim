@@ -32,11 +32,14 @@ type
     future: Future[void]
     expiry: UInt256
 
-method requestStorage*(market: MockMarket, request: StorageRequest) {.async.} =
+method requestStorage*(market: MockMarket,
+                       request: StorageRequest):
+                      Future[StorageRequest] {.async.} =
   market.requested.add(request)
   let subscriptions = market.subscriptions.onRequest
   for subscription in subscriptions:
     subscription.callback(request)
+  return request
 
 method offerStorage*(market: MockMarket, offer: StorageOffer) {.async.} =
   market.offered.add(offer)

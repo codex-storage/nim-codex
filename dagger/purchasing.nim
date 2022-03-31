@@ -72,10 +72,9 @@ proc run(purchase: Purchase) {.async.} =
   proc onOffer(offer: StorageOffer) =
     purchase.offers.add(offer)
   let market = purchase.market
-  let request = purchase.request
-  let subscription = await market.subscribeOffers(request.id, onOffer)
-  await market.requestStorage(request)
-  await market.waitUntil(request.expiry)
+  purchase.request = await market.requestStorage(purchase.request)
+  let subscription = await market.subscribeOffers(purchase.request.id, onOffer)
+  await market.waitUntil(purchase.request.expiry)
   await purchase.selectOffer()
   await subscription.unsubscribe()
 
