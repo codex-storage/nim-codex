@@ -26,6 +26,7 @@ import ./manifest
 import ./stores/blockstore
 import ./blockexchange
 import ./streams
+import ./erasure
 
 logScope:
   topics = "dagger node"
@@ -38,10 +39,13 @@ type
     networkId*: PeerID
     blockStore*: BlockStore
     engine*: BlockExcEngine
+    erasure*: Erasure
 
 proc start*(node: DaggerNodeRef) {.async.} =
   await node.switch.start()
   await node.engine.start()
+  await node.erasure.start()
+
   node.networkId = node.switch.peerInfo.peerId
   notice "Started dagger node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
 
@@ -53,6 +57,9 @@ proc stop*(node: DaggerNodeRef) {.async.} =
 
   if not node.switch.isNil:
     await node.switch.stop()
+
+  if not node.erasure.isNil:
+    await node.erasure.stop()
 
 proc findPeer*(
   node: DaggerNodeRef,
@@ -158,12 +165,25 @@ proc store*(
 
   return manifest.cid.success
 
+proc requestStorage*(
+  self: DaggerNodeRef,
+  cid: Cid,
+  ppb: uint,
+  duration: Duration,
+  nodeCount: uint,
+  tolerance: uint,
+  autoRenew: bool = false): Future[?!Cid] {.async.} =
+  trace "Received a request for storage!", cid, ppb, duration, nodeCount, tolerance, autoRenew
+  return cid.success
+
 proc new*(
   T: type DaggerNodeRef,
   switch: Switch,
   store: BlockStore,
-  engine: BlockExcEngine): T =
+  engine: BlockExcEngine,
+  erasure: Erasure): T =
   T(
     switch: switch,
     blockStore: store,
-    engine: engine)
+    engine: engine,
+    erasure: erasure)

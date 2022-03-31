@@ -11,9 +11,26 @@ import ../manifest
 import ../stores
 
 type
-  Backend* = object of RootObj
+  Backend* = ref object of RootObj
     blockSize*: int # block size in bytes
-    K*: int         # number of original pieces
-    M*: int         # number of redundancy pieces
+    buffers*: int   # number of original pieces
+    parity*: int    # number of redundancy pieces
 
+  EncoderBackend* = ref object of Backend
+  DecoderBackend* = ref object of Backend
 
+method destroy*(self: Backend) {.base.} =
+  raiseAssert("not implemented!")
+
+method encode*(
+  self: EncoderBackend,
+  buffers,
+  parity: var openArray[seq[byte]]): Result[void, cstring] {.base.} =
+  raiseAssert("not implemented!")
+
+method decode*(
+  self: DecoderBackend,
+  buffers,
+  parity,
+  recovered: var openArray[seq[byte]]): Result[void, cstring] {.base.} =
+  raiseAssert("not implemented!")
