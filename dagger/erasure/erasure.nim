@@ -46,12 +46,13 @@ proc encode*(
   blockSize = BlockSize): Future[?!Manifest] {.async.} =
   ## Encode a manifest into one that is erasure protected.
   ##
-  ## The new manifest has a square shape where each
-  ## K `blocks`, are encoded into additional M `parity`
-  ## blocks. The resulting dataset is padded with
-  ## empty blocks if it doesn't have a square shape.
-  ## NOTE: The padding blocks can be eventually excluded
-  ## from transmission, but they aren't now.
+  ## The new manifest has K `blocks` that are encoded into
+  ## additional M `parity` blocks. The resulting dataset
+  ## is padded with empty blocks if it doesn't have a square
+  ## shape.
+  ##
+  ## NOTE: The padding blocks could be excluded
+  ## from transmission, but they aren't for now.
   ##
   ## The resulting dataset is logically divided into rows
   ## where a row is made up of B blocks. There are then,
