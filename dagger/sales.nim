@@ -29,6 +29,7 @@ type
     offer: ?StorageOffer
     subscription: ?Subscription
     waiting: ?Future[void]
+    finished: bool
   OnSale = proc(offer: StorageOffer) {.gcsafe, upraises: [].}
 
 func new*(_: type Sales, market: Market): Sales =
@@ -69,16 +70,29 @@ proc sendOffer(negotiation: Negotiation) {.async.} =
   let offer = negotiation.createOffer()
   negotiation.offer = some await negotiation.sales.market.offerStorage(offer)
 
-proc onSelect(negotiation: Negotiation, offerId: array[32, byte]) =
+proc finish(negotiation: Negotiation, success: bool) =
+  if negotiation.finished:
+    return
+
+  negotiation.finished = true
+
   if subscription =? negotiation.subscription:
     asyncSpawn subscription.unsubscribe()
-  without offer =? negotiation.offer:
-    return
-  if offer.id == offerId:
+
+  if waiting =? negotiation.waiting:
+    waiting.cancel()
+
+  if success and offer =? negotiation.offer:
     if onSale =? negotiation.sales.onSale:
       onSale(offer)
   else:
     negotiation.sales.add(negotiation.availability)
+
+proc onSelect(negotiation: Negotiation, offerId: array[32, byte]) =
+  if offer =? negotiation.offer and offer.id == offerId:
+    negotiation.finish(success = true)
+  else:
+    negotiation.finish(success = false)
 
 proc subscribeSelect(negotiation: Negotiation) {.async.} =
   without offer =? negotiation.offer:
@@ -93,6 +107,7 @@ proc waitForExpiry(negotiation: Negotiation) {.async.} =
   without offer =? negotiation.offer:
     return
   await negotiation.sales.market.waitUntil(offer.expiry)
+  negotiation.finish(success = false)
 
 proc start(negotiation: Negotiation) {.async.} =
   let sales = negotiation.sales
@@ -100,7 +115,7 @@ proc start(negotiation: Negotiation) {.async.} =
   sales.remove(availability)
   await negotiation.sendOffer()
   await negotiation.subscribeSelect()
-  await negotiation.waitForExpiry()
+  negotiation.waiting = some negotiation.waitForExpiry()
 
 proc handleRequest(sales: Sales, request: StorageRequest) {.async.} =
   without availability =? sales.findAvailability(request):

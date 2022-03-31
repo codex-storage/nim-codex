@@ -95,3 +95,11 @@ suite "Sales":
     otherOffer = await market.offerStorage(otherOffer)
     await market.selectOffer(otherOffer.id)
     check sales.available.contains(availability)
+
+  test "makes storage available again when offer expires":
+    sales.add(availability)
+    discard await market.requestStorage(request)
+    let offer = market.offered[0]
+    market.advanceTimeTo(offer.expiry)
+    await sleepAsync(chronos.seconds(1))
+    check sales.available.contains(availability)
