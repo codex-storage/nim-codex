@@ -19,7 +19,7 @@ type
   EncoderBackend* = ref object of Backend
   DecoderBackend* = ref object of Backend
 
-method destroy*(self: Backend) {.base.} =
+method release*(self: Backend) {.base.} =
   raiseAssert("not implemented!")
 
 method encode*(

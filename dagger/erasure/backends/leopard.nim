@@ -54,11 +54,11 @@ method decode*(
 
   decoder.decode(data, parity, recovered)
 
-method destroy*(self: LeoEncoderBackend) =
+method release*(self: LeoEncoderBackend) =
   if self.encoder.isSome:
     self.encoder.get().free()
 
-method destroy*(self: LeoDecoderBackend) =
+method release*(self: LeoDecoderBackend) =
   if self.decoder.isSome:
     self.decoder.get().free()
 
