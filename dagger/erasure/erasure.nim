@@ -43,14 +43,12 @@ proc encode*(
     roundedBlocks = manifest.len + (blocks - (manifest.len mod blocks))
     blocksPerRow = roundedBlocks div blocks # number of blocks per row
 
-  trace "New manifest will contain", blocks = roundedBlocks, blocksPerRow
-  without var encoded =? Manifest.new(), error:
-    trace "Unable to create manifest", msg = error.msg
-    return error.failure
+  var
+    encodedBlocks = newSeq[Cid](roundedBlocks + (blocksPerRow * parity))
 
   # copy original manifest blocks
-  for b in manifest:
-    encoded.add(b)
+  for i, b in manifest:
+    encodedBlocks[i] = b
 
   var
     encoder = self.encoderProvider(blockSize, blocks, parity)
@@ -70,12 +68,12 @@ proc encode*(
         count.inc()
 
         if idx < manifest.len:
-          without var blk =? (await store.getBlock(encoded[idx])), error:
+          without var blk =? (await store.getBlock(encodedBlocks[idx])), error:
             trace "Unable to retrieve block", msg = error.msg
             return error.failure
           data.add(blk.data)
         else:
-          data.add(newSeq[byte](blockSize))
+          data.add(newSeq[byte](blockSize)) # empty seq of size
 
       for _ in 0..<parity:
         parityData.add(newSeq[byte](blockSize))
@@ -84,17 +82,25 @@ proc encode*(
         trace "Unable to encode manifest!", err = $err.error
         return failure($err.error)
 
-      for j in 0..<parityData.len:
-        without blk =? Block.new(parityData[j]), error:
+      count = 0
+      while count < parity:
+        without blk =? Block.new(parityData[count]), error:
           trace "Unable to create parity block", err = error.msg
           return failure(error)
 
-        encoded.add(blk.cid)
+        encodedBlocks[idx] = blk.cid
         if not (await store.putBlock(blk)):
           return failure("Unable to store block!")
 
+        idx.inc(blocksPerRow)
+        count.inc()
   finally:
-    encoder.destroy()
+    encoder.release()
+
+  trace "New manifest will contain", blocks = encodedBlocks.len, blocksPerRow
+  without var encoded =? Manifest.new(blocks = encodedBlocks), error:
+    trace "Unable to create manifest", msg = error.msg
+    return error.failure
 
   return encoded.success
 
@@ -115,11 +121,11 @@ proc decode*(
     # decoder.decode()
     discard
   finally:
-    decoder.destroy()
+    decoder.release()
 
   return decoded.success
 
-proc start(self: Erasure) {.async.} =
+proc start*(self: Erasure) {.async.} =
   discard
 
 proc stop*(self: Erasure) {.async.} =
