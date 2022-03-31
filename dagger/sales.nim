@@ -70,7 +70,8 @@ proc handleRequest(sales: Sales, request: StorageRequest) {.async.} =
   proc onSelect(offerId: array[32, byte]) {.gcsafe, upraises:[].} =
     if subscription =? subscription:
       asyncSpawn subscription.unsubscribe()
-    sales.onSale(offer)
+    if offer.id == offerId:
+      sales.onSale(offer)
   subscription = some await sales.market.subscribeSelection(request.id, onSelect)
 
 proc start*(sales: Sales) =

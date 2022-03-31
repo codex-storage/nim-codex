@@ -88,3 +88,18 @@ suite "Sales":
     await market.selectOffer(offer.id)
     check selectedOffer == offer
     sales.stop()
+
+  test "does not call onSale when a different offer is selected":
+    let availability = Availability.init(size=100, duration=60, minPrice=42.u256)
+    sales.add(availability)
+    var onSaleWasCalled: bool
+    sales.onSale = proc(offer: StorageOffer) =
+      onSaleWasCalled = true
+    sales.start()
+    var request = StorageRequest(duration:60.u256, size:100.u256, maxPrice:42.u256)
+    request = await market.requestStorage(request)
+    var otherOffer = StorageOffer(requestId: request.id, price: 1.u256)
+    otherOffer = await market.offerStorage(otherOffer)
+    await market.selectOffer(otherOffer.id)
+    check not onSaleWasCalled
+    sales.stop()
