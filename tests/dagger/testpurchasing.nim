@@ -79,8 +79,8 @@ suite "Purchasing":
     var offer1, offer2 = createOffer(request)
     offer1.price = 20.u256
     offer2.price = 10.u256
-    await market.offerStorage(offer1)
-    await market.offerStorage(offer2)
+    discard await market.offerStorage(offer1)
+    discard await market.offerStorage(offer2)
     market.advanceTimeTo(request.expiry)
     await purchase.wait()
     check market.selected[0] == offer2.id
@@ -93,8 +93,8 @@ suite "Purchasing":
     offer1.price = 20.u256
     offer2.price = 10.u256
     offer2.expiry = expired
-    await market.offerStorage(offer1)
-    await market.offerStorage(offer2)
+    discard await market.offerStorage(offer1)
+    discard await market.offerStorage(offer2)
     market.advanceTimeTo(request.expiry)
     await purchase.wait()
     check market.selected[0] == offer1.id
@@ -110,8 +110,8 @@ suite "Purchasing":
     offer1.price = 20.u256
     offer2.price = 10.u256
     offer2.expiry = getTime().toUnix().u256 + expiryMargin - 1
-    await market.offerStorage(offer1)
-    await market.offerStorage(offer2)
+    discard await market.offerStorage(offer1)
+    discard await market.offerStorage(offer2)
     market.advanceTimeTo(request.expiry)
     await purchase.wait()
     check market.selected[0] == offer1.id

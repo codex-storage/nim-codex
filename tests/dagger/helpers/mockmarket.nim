@@ -41,12 +41,15 @@ method requestStorage*(market: MockMarket,
     subscription.callback(request)
   return request
 
-method offerStorage*(market: MockMarket, offer: StorageOffer) {.async.} =
+method offerStorage*(market: MockMarket,
+                     offer: StorageOffer):
+                    Future[StorageOffer] {.async.} =
   market.offered.add(offer)
   let subscriptions = market.subscriptions.onOffer
   for subscription in subscriptions:
     if subscription.requestId == offer.requestId:
       subscription.callback(offer)
+  return offer
 
 proc findOffer(market: MockMarket, id: array[32, byte]): ?StorageOffer =
   for offer in market.offered:
