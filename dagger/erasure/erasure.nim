@@ -49,8 +49,9 @@ proc encode*(
   ## from transmission, but they aren't now.
   ##
   ## The resulting dataset is logically divided into rows
-  ## where each column of K blocks is extended with M parity
-  ## blocks, producing M additional parity rows.
+  ## where a row is made up of B blocks. There are then,
+  ## K + M = N rows in total, each of length B blocks. Rows
+  ## are assumed to be of the same number of blocks.
   ##
   ## The encoding is systematic and the rows can be
   ## read sequentially by any node without decoding.
