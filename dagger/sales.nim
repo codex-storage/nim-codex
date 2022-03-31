@@ -22,6 +22,13 @@ type
     size*: uint64
     duration*: uint64
     minPrice*: UInt256
+  Negotiation = ref object
+    sales: Sales
+    request: StorageRequest
+    availability: Availability
+    offer: ?StorageOffer
+    subscription: ?Subscription
+    waiting: ?Future[void]
   OnSale = proc(offer: StorageOffer) {.gcsafe, upraises: [].}
 
 func new*(_: type Sales, market: Market): Sales =
@@ -51,34 +58,61 @@ func findAvailability(sales: Sales, request: StorageRequest): ?Availability =
        request.maxPrice >= availability.minPrice:
       return some availability
 
-proc createOffer(sales: Sales,
-                 request: StorageRequest,
-                 availability: Availability): StorageOffer =
+proc createOffer(negotiation: Negotiation): StorageOffer =
   StorageOffer(
-    requestId: request.id,
-    price: request.maxPrice,
-    expiry: getTime().toUnix().u256 + sales.offerExpiryInterval
+    requestId: negotiation.request.id,
+    price: negotiation.request.maxPrice,
+    expiry: getTime().toUnix().u256 + negotiation.sales.offerExpiryInterval
   )
+
+proc sendOffer(negotiation: Negotiation) {.async.} =
+  let offer = negotiation.createOffer()
+  negotiation.offer = some await negotiation.sales.market.offerStorage(offer)
+
+proc onSelect(negotiation: Negotiation, offerId: array[32, byte]) =
+  if subscription =? negotiation.subscription:
+    asyncSpawn subscription.unsubscribe()
+  without offer =? negotiation.offer:
+    return
+  if offer.id == offerId:
+    if onSale =? negotiation.sales.onSale:
+      onSale(offer)
+  else:
+    negotiation.sales.add(negotiation.availability)
+
+proc subscribeSelect(negotiation: Negotiation) {.async.} =
+  without offer =? negotiation.offer:
+    return
+  proc onSelect(offerId: array[32, byte]) {.gcsafe, upraises:[].} =
+    negotiation.onSelect(offerId)
+  let market = negotiation.sales.market
+  let subscription = await market.subscribeSelection(offer.requestId, onSelect)
+  negotiation.subscription = some subscription
+
+proc waitForExpiry(negotiation: Negotiation) {.async.} =
+  without offer =? negotiation.offer:
+    return
+  await negotiation.sales.market.waitUntil(offer.expiry)
+
+proc start(negotiation: Negotiation) {.async.} =
+  let sales = negotiation.sales
+  let availability = negotiation.availability
+  sales.remove(availability)
+  await negotiation.sendOffer()
+  await negotiation.subscribeSelect()
+  await negotiation.waitForExpiry()
 
 proc handleRequest(sales: Sales, request: StorageRequest) {.async.} =
   without availability =? sales.findAvailability(request):
     return
 
-  sales.remove(availability)
+  let negotiation = Negotiation(
+    sales: sales,
+    request: request,
+    availability: availability
+  )
 
-  var offer = sales.createOffer(request, availability)
-  offer = await sales.market.offerStorage(offer)
-
-  var subscription: ?Subscription
-  proc onSelect(offerId: array[32, byte]) {.gcsafe, upraises:[].} =
-    if subscription =? subscription:
-      asyncSpawn subscription.unsubscribe()
-    if offer.id == offerId:
-      if onSale =? sales.onSale:
-        onSale(offer)
-    else:
-      sales.add(availability)
-  subscription = some await sales.market.subscribeSelection(request.id, onSelect)
+  asyncSpawn negotiation.start()
 
 proc start*(sales: Sales) =
   doAssert sales.subscription.isNone, "Sales already started"
