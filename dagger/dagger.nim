@@ -74,7 +74,7 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
     localStore = FSStore.new(config.dataDir / "repo", cache = cache)
     engine = BlockExcEngine.new(localStore, wallet, network)
     store = NetworkStore.new(engine, localStore)
-    erasure = Erasure.new(leoEncoderProvider, leoDecoderProvider)
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     daggerNode = DaggerNodeRef.new(switch, store, engine, erasure)
     restServer = RestServerRef.new(
       daggerNode.initRestApi(),

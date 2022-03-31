@@ -36,11 +36,11 @@ type
   Erasure* = ref object
     encoderProvider*: EncoderProvider
     decoderProvider*: DecoderProvider
+    store*: BlockStore
 
 proc encode*(
   self: Erasure,
   manifest: Manifest,
-  store: BlockStore,
   blocks: int,
   parity: int,
   blockSize = BlockSize): Future[?!Manifest] {.async.} =
@@ -67,7 +67,6 @@ proc encode*(
   ## or any combination there of.
   ##
   ## `manifest`   - the original manifest to be encoded
-  ## `store`      - the blocks store used to retrieve blocks
   ## `blocks`     - the number of blocks to be encoded - K
   ## `parity`     - the number of parity blocks to generate - M
   ## `blockSize`  - size of each individual blocks - all blocks
@@ -83,8 +82,7 @@ proc encode*(
   trace "Erasure coding manifest", blocks, parity
 
   let
-    # total number of blocks to encode + padding blocks
-    rounded =
+    rounded = # total number of blocks to encode + padding blocks, rounded up
       if (manifest.len mod blocks) != 0:
         manifest.len + (blocks - (manifest.len mod blocks))
       else:
@@ -121,7 +119,7 @@ proc encode*(
 
       while count < blocks:
         if idx < manifest.len:
-          without var blk =? (await store.getBlock(encodedBlocks[idx])), error:
+          without var blk =? (await self.store.getBlock(encodedBlocks[idx])), error:
             trace "Unable to retrieve block", msg = error.msg
             return error.failure
 
@@ -150,7 +148,7 @@ proc encode*(
 
         trace "Adding parity block", cid = blk.cid, pos = idx
         encodedBlocks[idx] = blk.cid
-        if not (await store.putBlock(blk)):
+        if not (await self.store.putBlock(blk)):
           trace "Unable to store block!", cid = blk.cid
           return failure("Unable to store block!")
 
@@ -169,7 +167,6 @@ proc encode*(
 proc decode*(
   self: Erasure,
   manifest: Manifest,
-  store: BlockStore,
   blocks: int,
   parity: int,
   blockSize = BlockSize): Future[?!Manifest] {.async.} =
@@ -195,9 +192,11 @@ proc stop*(self: Erasure) {.async.} =
 
 proc new*(
   T: type Erasure,
+  store: BlockStore,
   encoderProvider: EncoderProvider,
   decoderProvider: DecoderProvider): Erasure =
 
   Erasure(
+    store: store,
     encoderProvider: encoderProvider,
     decoderProvider: decoderProvider)
