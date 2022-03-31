@@ -87,3 +87,11 @@ suite "Sales":
     otherOffer = await market.offerStorage(otherOffer)
     await market.selectOffer(otherOffer.id)
     check not didSell
+
+  test "makes storage available again when different offer is selected":
+    sales.add(availability)
+    let request = await market.requestStorage(request)
+    var otherOffer = StorageOffer(requestId: request.id, price: 1.u256)
+    otherOffer = await market.offerStorage(otherOffer)
+    await market.selectOffer(otherOffer.id)
+    check sales.available.contains(availability)
