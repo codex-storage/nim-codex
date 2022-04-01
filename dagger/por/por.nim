@@ -140,10 +140,9 @@ proc getSector(f: File, blockid: int64, sectorid: int64, spb: int64): ZChar =
   f.setFilePos((blockid * spb + sectorid) * sizeof(result))
   let r = f.readBytes(result, 0, sizeof(result))
 
-proc rndScalar(): blst_scalar =
+proc rndScalar(scalar: var blst_scalar): void =
   ## Generate random scalar within the subroup order r
   var scal{.noInit.}: array[32, byte]
-  var scalar{.noInit.}: blst_scalar
 
   while true:
     for val in scal.mitems:
@@ -152,27 +151,20 @@ proc rndScalar(): blst_scalar =
     if blst_scalar_fr_check(scalar).bool:
       break
 
-  return scalar
-
-proc rndP2(): (blst_p2, blst_scalar) =
+proc rndP2(x: var blst_p2, scalar: var blst_scalar): void =
   ## Generate random point on G2
-  var x{.noInit.}: blst_p2
   x.blst_p2_from_affine(BLS12_381_G2) # init from generator
-  let scalar = rndScalar()
+  scalar.rndScalar()
   x.blst_p2_mult(x, scalar, 255)
-  return (x, scalar)
 
-proc rndP1(): (blst_p1, blst_scalar) =
+proc rndP1(x: var blst_p1, scalar: var blst_scalar): void =
   ## Generate random point on G1
-  var x{.noInit.}: blst_p1
   x.blst_p1_from_affine(BLS12_381_G1) # init from generator
-  let scalar = rndScalar()
+  scalar.rndScalar()
   x.blst_p1_mult(x, scalar, 255)
-  return (x, scalar)
 
-proc posKeygen(): (blst_p2, blst_scalar) =
+let posKeygen = rndP2
   ## Generate POS key pair
-  rndP2()
 
 proc keygen*(): (PublicKey, SecretKey) =
   ## Generate key pair for signing metadata and for POS tags
@@ -184,7 +176,7 @@ proc keygen*(): (PublicKey, SecretKey) =
     b = byte Rng.instance.rand(0xFF)
   doAssert ikm.keyGen(pk.signkey, sk.signkey)
 
-  (pk.key, sk.key) = posKeygen()
+  posKeygen(pk.key, sk.key)
   return (pk, sk)
 
 proc split(f: File, s: int64): int64 =
@@ -274,7 +266,10 @@ proc setup*(ssk: SecretKey, s:int64, filename: string): (Tau, seq[blst_p1]) =
   # generate the coefficient vector for combining sectors of a block: U
   var ubase: seq[blst_scalar]
   for i  in 0 ..< s :
-    let (u, ub) = rndP1()
+    var
+      u: blst_p1
+      ub: blst_scalar
+    rndP1(u, ub)
     t.u.add(u)
     ubase.add(ub)
 
@@ -298,7 +293,7 @@ proc generateQuery*(tau: Tau, spk: PublicKey, l: int): seq[QElement] =
   for i in 0 ..< l :
     var q: QElement
     q.I = Rng.instance.rand(n-1) #TODO: dedup
-    q.V = rndScalar() #TODO: fix range
+    q.V.rndScalar() #TODO: fix range
     result.add(q)
 
 proc generateProof*(q: openArray[QElement], authenticators: openArray[blst_p1], spk: PublicKey, s: int64, filename: string): (seq[blst_scalar], blst_p1) =
