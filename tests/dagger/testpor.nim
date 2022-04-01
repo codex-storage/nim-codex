@@ -22,10 +22,9 @@ import ./helpers
 
 const
   SectorSize = 31
-  BlockSize = 310
   SectorsPerBlock = BlockSize div SectorSize
   QueryLen = 22
-  DataSetSize = BlockSize * 1024
+  DataSetSize = BlockSize * 100
 
 proc deleteBlocks(store: BlockStore, manifest: Manifest, blks, bytes: int) {.async.} =
   var pos: seq[int]
@@ -82,7 +81,7 @@ suite "BLS PoR":
   test "Test setup":
     let
       (tau, authenticators) = await setupPor(
-        StoreStream.init(store, manifest),
+        StoreStream.new(store, manifest),
         ssk,
         SectorsPerBlock)
 
@@ -94,7 +93,7 @@ suite "BLS PoR":
 
     let
       (mu, sigma) = await generateProof(
-        StoreStream.init(store, manifest),
+        StoreStream.new(store, manifest),
         q,
         authenticators,
         SectorsPerBlock)
