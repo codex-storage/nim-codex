@@ -155,7 +155,7 @@ proc getSector(
 
   var res: ZChar
   stream.setPos(((blockid * spb + sectorid) * ZChar.high).int)
-  discard await stream.readOnce(addr res[0], ZChar.high)
+  await stream.readExactly(addr res[0], ZChar.high)
   return res
 
 proc rndScalar(): blst_scalar =
