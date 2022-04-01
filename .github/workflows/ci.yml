@@ -7,6 +7,7 @@ jobs:
       fail-fast: false
       max-parallel: 20
       matrix:
+        branch: [v1.2.18, v1.4.8, v1.6.4]
         target:
           # Unit tests
           - os: linux
@@ -176,7 +177,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: nim-dagger/NimBinaries
-          key: 'nim-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.nimbus_build_system }}'
+          key: 'nim-${{ matrix.branch }}-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.nimbus_build_system }}'
 
       - name: Install NodeJS
         uses: actions/setup-node@v2
@@ -190,7 +191,7 @@ jobs:
           if [[ "${{ runner.os }}" == "macOS" ]]; then
             ulimit -n 1024
           fi
-          make -j$ncpu ARCH_OVERRIDE=$PLATFORM CI_CACHE=NimBinaries QUICK_AND_DIRTY_COMPILER=1 update
+          make -j$ncpu ARCH_OVERRIDE=$PLATFORM CI_CACHE=NimBinaries NIM_COMMIT="${{ matrix.branch }}" QUICK_AND_DIRTY_COMPILER=1 update
 
       - name: Start Ethereum Node with Dagger contracts
         shell: bash
@@ -203,7 +204,9 @@ jobs:
         shell: bash
         working-directory: nim-dagger
         run: |
-          make testAll
+          ./env.sh nim --version
+          echo
+          make NIM_COMMIT="${{ matrix.branch }}" testAll
           if [[ ${{ runner.os }} = macOS ]]; then
             echo
             echo otool -L build/testDagger
