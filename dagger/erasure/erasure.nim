@@ -67,15 +67,12 @@ proc encode*(
   self: Erasure,
   manifest: Manifest,
   blocks: int,
-  parity: int,
-  blockSize = BlockSize): Future[?!Manifest] {.async.} =
+  parity: int): Future[?!Manifest] {.async.} =
   ## Encode a manifest into one that is erasure protected.
   ##
   ## `manifest`   - the original manifest to be encoded
   ## `blocks`     - the number of blocks to be encoded - K
   ## `parity`     - the number of parity blocks to generate - M
-  ## `blockSize`  - size of each individual blocks - all blocks
-  ##                should have equal size
   ##
 
   logScope:
@@ -97,14 +94,14 @@ proc encode*(
     new_manifest    = encoded.len
 
   var
-    encoder = self.encoderProvider(blockSize, blocks, parity)
+    encoder = self.encoderProvider(manifest.blockSize, blocks, parity)
 
   try:
     for i in 0..<encoded.steps:
       # TODO: Don't allocate a new seq everytime, allocate once and zero out
       var
         data = newSeq[seq[byte]](blocks) # number of blocks to encode
-        parityData = newSeqWith[seq[byte]](parity, newSeq[byte](blockSize))
+        parityData = newSeqWith[seq[byte]](parity, newSeq[byte](manifest.blockSize))
         # calculate block indexes to retrieve
         blockIdx = toSeq(countup(i, encoded.rounded - 1, encoded.steps))
         # request all blocks from the store
@@ -122,9 +119,11 @@ proc encode*(
           shallowCopy(data[j], blk.data)
         else:
           trace "Padding with empty block", pos = idx
-          data[j] = newSeq[byte](blockSize)
+          data[j] = newSeq[byte](manifest.blockSize)
 
-      if (let err = encoder.encode(data, parityData); err.isErr):
+      if (
+        let err = encoder.encode(data, parityData);
+        err.isErr):
         trace "Unable to encode manifest!", err = $err.error
         return failure($err.error)
 
@@ -143,7 +142,7 @@ proc encode*(
     trace "Erasure coding encoding cancelled"
     raise exc
   except CatchableError as exc:
-    trace "Erasure coding error", exc = exc.msg
+    trace "Erasure coding encoding error", exc = exc.msg
     return failure(exc)
   finally:
     encoder.release()
@@ -152,21 +151,83 @@ proc encode*(
 
 proc decode*(
   self: Erasure,
-  manifest: Manifest,
-  blocks: int,
-  parity: int,
-  blockSize = BlockSize): Future[?!Manifest] {.async.} =
-  var
-    decoder = self.decoderProvider(blockSize, blocks, parity)
+  encoded: Manifest): Future[?!Manifest] {.async.} =
+  ## Decode a protected manifest into it's original manifest
+  ##
+  ## `encoded` - the encoded (protected) manifest to be recovered
+  ##
 
-  without var decoded =? Manifest.new(), error:
-    return error.failure
+  var
+    decoder = self.decoderProvider(encoded.blockSize, encoded.K, encoded.M)
 
   try:
-    # decoder.decode()
-    discard
+    for i in 0..<encoded.steps:
+      # TODO: Don't allocate a new seq everytime, allocate once and zero out
+      let
+        # calculate block indexes to retrieve
+        blockIdx = toSeq(countup(i, encoded.len - 1, encoded.steps))
+        # request all blocks from the store
+        pendingBlocks = blockIdx.mapIt(
+            self.store.getBlock(encoded[it]) # Get the data blocks (first K)
+        )
+
+      var
+        data = newSeq[seq[byte]](encoded.K) # number of blocks to encode
+        parityData = newSeqWith[seq[byte]](encoded.M, newSeq[byte](encoded.blockSize))
+        recovered = newSeqWith[seq[byte]](encoded.K, newSeq[byte](encoded.blockSize))
+        idxPendingBlocks = pendingBlocks # copy futures to make using with `one` easier
+        resolved = 0
+
+      while true:
+        if resolved > encoded.K:
+          break
+
+        let
+          done = await one(idxPendingBlocks)
+          idx = pendingBlocks.find(done)
+
+        idxPendingBlocks.del(idxPendingBlocks.find(done))
+
+        without blk =? (await done), error:
+          trace "Failed retrieving blocks", exc = error.msg
+
+        if blk.isNil:
+          continue
+
+        if idx >= encoded.K:
+          shallowCopy(parityData[idx - encoded.K], blk.data)
+        else:
+          shallowCopy(data[idx], blk.data)
+
+        resolved.inc
+
+      if (
+        let err = decoder.decode(data, parityData, recovered);
+        err.isErr):
+        trace "Unable to decode manifest!", err = $err.error
+        return failure($err.error)
+
+      for i in 0..<encoded.K:
+        if data[i].len <= 0:
+          without blk =? Block.new(recovered[i]), error:
+            trace "Unable to create block!", exc = error.msg
+            return failure(error)
+
+          if not (await self.store.putBlock(blk)):
+            trace "Unable to store block!", cid = blk.cid
+            return failure("Unable to store block!")
+
+  except CancelledError as exc:
+    trace "Erasure coding decoding cancelled"
+    raise exc
+  except CatchableError as exc:
+    trace "Erasure coding decoding error", exc = exc.msg
+    return failure(exc)
   finally:
     decoder.release()
+
+  without decoded =? Manifest.new(blocks = encoded.blocks[0..<encoded.originalLen]), error:
+    return error.failure
 
   return decoded.success
 
