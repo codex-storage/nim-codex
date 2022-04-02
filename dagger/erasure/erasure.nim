@@ -93,7 +93,7 @@ proc encode*(
 
   logScope:
     steps           = encoded.steps
-    new_blocks      = encoded.rounded
+    rounded_blocks  = encoded.rounded
     new_manifest    = encoded.len
 
   var
@@ -113,7 +113,7 @@ proc encode*(
 
       for j in 0..<blocks:
         let idx = blockIdx[j]
-        if idx < (manifest.len - 1):
+        if idx < manifest.len:
           without var blk =? await dataBlocks[j], error:
             trace "Unable to retrieve block", msg = error.msg
             return error.failure
@@ -129,7 +129,7 @@ proc encode*(
         return failure($err.error)
 
       for j in 0..<parity:
-        let idx = encoded.rounded + i
+        let idx = encoded.rounded + blockIdx[j]
         without blk =? Block.new(parityData[j]), error:
           trace "Unable to create parity block", err = error.msg
           return failure(error)
