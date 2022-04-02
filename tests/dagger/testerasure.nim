@@ -1,5 +1,6 @@
 import pkg/asynctest
 import pkg/chronos
+import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
 
@@ -21,8 +22,8 @@ suite "Erasure":
   setup:
     chunker = RandomChunker.new(Rng.instance(), size = BlockSize * 127, chunkSize = BlockSize)
     manifest = Manifest.new().tryGet()
-    store = CacheStore.new()
-    erasure = Erasure.new(leoEncoderProvider, leoDecoderProvider)
+    store = CacheStore.new(cacheSize = (BlockSize * 127) * 2, chunkSize = BlockSize)
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
 
     while (
       let chunk = await chunker.getBytes();
@@ -32,6 +33,21 @@ suite "Erasure":
       manifest.add(blk.cid)
       check (await store.putBlock(blk))
 
-  test "Test manifest encode":
-    var encoded = (await erasure.encode(manifest, store, 10, 5)).tryGet()
-    echo encoded.len
+  test "Test encode/decode":
+    const
+      buffers = 20
+      parity = 10
+
+    var encoded = (await erasure.encode(
+      manifest,
+      buffers,
+      parity,
+      BlockSize)).tryGet()
+
+    check encoded.len mod (buffers + parity) == 0 # check correct geometry
+
+    # var decoded = (await erasure.decode(
+    #   encoded,
+    #   buffers,
+    #   parity,
+    #   BlockSize))
