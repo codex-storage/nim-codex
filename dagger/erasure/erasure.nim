@@ -82,8 +82,6 @@ proc encode*(
     parity       = parity
 
   trace "Erasure coding manifest", blocks, parity
-
-  trace "New dataset geometry is"
   without var encoded =? Manifest.new(manifest, blocks, parity), error:
     trace "Unable to create manifest", msg = error.msg
     return error.failure
@@ -140,7 +138,7 @@ proc encode*(
           return failure("Unable to store block!")
   except CancelledError as exc:
     trace "Erasure coding encoding cancelled"
-    raise exc
+    raise exc # cancellation needs to be propagated
   except CatchableError as exc:
     trace "Erasure coding encoding error", exc = exc.msg
     return failure(exc)
@@ -152,10 +150,17 @@ proc encode*(
 proc decode*(
   self: Erasure,
   encoded: Manifest): Future[?!Manifest] {.async.} =
-  ## Decode a protected manifest into it's original manifest
+  ## Decode a protected manifest into it's original
+  ## manifest
   ##
-  ## `encoded` - the encoded (protected) manifest to be recovered
+  ## `encoded` - the encoded (protected) manifest to
+  ##             be recovered
   ##
+
+  logScope:
+    steps           = encoded.steps
+    rounded_blocks  = encoded.rounded
+    new_manifest    = encoded.len
 
   var
     decoder = self.decoderProvider(encoded.blockSize, encoded.K, encoded.M)
@@ -176,10 +181,11 @@ proc decode*(
         parityData = newSeqWith[seq[byte]](encoded.M, newSeq[byte](encoded.blockSize))
         recovered = newSeqWith[seq[byte]](encoded.K, newSeq[byte](encoded.blockSize))
         idxPendingBlocks = pendingBlocks # copy futures to make using with `one` easier
+        emptyBlock = newSeq[byte](encoded.blockSize)
         resolved = 0
 
       while true:
-        if resolved > encoded.K:
+        if resolved >= (encoded.K + encoded.K) or idxPendingBlocks.len <= 0:
           break
 
         let
@@ -189,17 +195,28 @@ proc decode*(
         idxPendingBlocks.del(idxPendingBlocks.find(done))
 
         without blk =? (await done), error:
-          trace "Failed retrieving blocks", exc = error.msg
+          trace "Failed retrieving block", exc = error.msg
 
         if blk.isNil:
           continue
 
         if idx >= encoded.K:
+          trace "Retrieved parity block", cid = blk.cid, idx
           shallowCopy(parityData[idx - encoded.K], blk.data)
         else:
-          shallowCopy(data[idx], blk.data)
+          trace "Retrieved data block", cid = blk.cid, idx
+          shallowCopy(data[idx], if blk.isEmpty: emptyBlock else: blk.data)
 
         resolved.inc
+
+      let
+        dataPieces = data.filterIt( it.len > 0 ).len
+        parityPieces = parityData.filterIt( it.len > 0 ).len
+
+      trace "Retrieved data and parity blocks", data = dataPieces, parity = parityPieces
+      if dataPieces >= encoded.K:
+        trace "Retrieved all the required data blocks, skipping decoding"
+        continue
 
       if (
         let err = decoder.decode(data, parityData, recovered);
@@ -213,13 +230,14 @@ proc decode*(
             trace "Unable to create block!", exc = error.msg
             return failure(error)
 
+          trace "Recovered block", cid = blk.cid
           if not (await self.store.putBlock(blk)):
             trace "Unable to store block!", cid = blk.cid
             return failure("Unable to store block!")
 
   except CancelledError as exc:
     trace "Erasure coding decoding cancelled"
-    raise exc
+    raise exc # cancellation needs to be propagated
   except CatchableError as exc:
     trace "Erasure coding decoding error", exc = exc.msg
     return failure(exc)
@@ -232,10 +250,10 @@ proc decode*(
   return decoded.success
 
 proc start*(self: Erasure) {.async.} =
-  discard
+  return
 
 proc stop*(self: Erasure) {.async.} =
-  discard
+  return
 
 proc new*(
   T: type Erasure,
