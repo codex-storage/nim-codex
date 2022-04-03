@@ -1,3 +1,6 @@
+import std/random
+import std/sequtils
+
 import pkg/asynctest
 import pkg/chronos
 import pkg/libp2p
@@ -12,18 +15,20 @@ import pkg/dagger/rng
 
 import ./helpers
 
-suite "Erasure":
-  var
-    chunker: Chunker
-    manifest: Manifest
-    store: BlockStore
-    erasure: Erasure
+randomize()
 
-  setup:
-    chunker = RandomChunker.new(Rng.instance(), size = BlockSize * 127, chunkSize = BlockSize)
-    manifest = Manifest.new().tryGet()
-    store = CacheStore.new(cacheSize = (BlockSize * 127) * 2, chunkSize = BlockSize)
-    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+suite "Erasure encode/decode":
+  test "Should tolerate loosing M data blocks in a single random column":
+    const
+      buffers = 20
+      parity = 10
+      dataSetSize = BlockSize * 123 # weird geometry
+
+    var
+      chunker = RandomChunker.new(Rng.instance(), size = dataSetSize, chunkSize = BlockSize)
+      manifest = Manifest.new(blockSize = BlockSize).tryGet()
+      store = CacheStore.new(cacheSize = (dataSetSize * 2), chunkSize = BlockSize)
+      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
 
     while (
       let chunk = await chunker.getBytes();
@@ -33,21 +38,33 @@ suite "Erasure":
       manifest.add(blk.cid)
       check (await store.putBlock(blk))
 
-  test "Test encode/decode":
-    const
-      buffers = 20
-      parity = 10
+    let
+      encoded = (await erasure.encode(
+        manifest,
+        buffers,
+        parity)).tryGet()
 
-    var encoded = (await erasure.encode(
-      manifest,
-      buffers,
-      parity,
-      BlockSize)).tryGet()
+    check:
+      encoded.len mod (buffers + parity) == 0
+      encoded.rounded == (manifest.len + (buffers - (manifest.len mod buffers)))
+      encoded.steps == encoded.rounded div buffers
 
-    check encoded.len mod (buffers + parity) == 0 # check correct geometry
+    var
+      column = rand(0..(encoded.len div encoded.steps)) # random column
+      dropped: seq[Cid]
 
-    # var decoded = (await erasure.decode(
-    #   encoded,
-    #   buffers,
-    #   parity,
-    #   BlockSize))
+    for _ in 0..<encoded.M:
+      dropped.add(encoded[column])
+      check (await store.delBlock(encoded[column]))
+      column.inc(encoded.steps)
+
+    var
+      decoded = (await erasure.decode(encoded)).tryGet()
+
+    check:
+      decoded.cid.tryGet() == manifest.cid.tryGet()
+      decoded.cid.tryGet() == encoded.originalCid
+      decoded.len == encoded.originalLen
+
+    for d in dropped:
+      check d in store
