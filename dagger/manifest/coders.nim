@@ -52,10 +52,17 @@ func encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   # contains the following protobuf `Message`
   #
   # ```protobuf
+  #   Message ErasureInfo {
+  #     optional uint32 K = 1;          # number of encoded blocks
+  #     optional uint32 M = 2;          # number of parity blocks
+  #     optional bytes cid = 3;         # cid of the original dataset
+  #     optional uint32 original = 4;   # number of original blocks
+  #   }
   #   Message Header {
-  #     optional bytes rootHash = 1;    # the root (tree) hash
-  #     optional uint32 blockSize = 2;  # size of a single block
-  #     optional uint32 blocksLen = 3;  # total amount of blocks
+  #     optional bytes rootHash = 1;      # the root (tree) hash
+  #     optional uint32 blockSize = 2;    # size of a single block
+  #     optional uint32 blocksLen = 3;    # total amount of blocks
+  #     optional ErasureInfo erasure = 4; # erasure coding info
   #   }
   # ```
   #
@@ -65,8 +72,17 @@ func encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   header.write(1, cid.data.buffer)
   header.write(2, manifest.blockSize.uint32)
   header.write(3, manifest.len.uint32)
+  if manifest.protected:
+    var erasureInfo = initProtoBuffer()
+    erasureInfo.write(1, manifest.K.uint32)
+    erasureInfo.write(2, manifest.M.uint32)
+    erasureInfo.write(3, manifest.originalCid.data.buffer)
+    erasureInfo.write(4, manifest.originalLen.uint32)
+    erasureInfo.finish()
 
-  pbNode.write(1, header.buffer) # set the rootHash Cid as the data field
+    header.write(4, erasureInfo)
+
+  pbNode.write(1, header) # set the rootHash Cid as the data field
   pbNode.finish()
 
   return pbNode.buffer.success
@@ -78,9 +94,13 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
   var
     pbNode = initProtoBuffer(data)
     pbHeader: ProtoBuffer
+    pbErasureInfo: ProtoBuffer
     rootHash: seq[byte]
+    originalCid: seq[byte]
     blockSize: uint32
     blocksLen: uint32
+    originalLen: uint32
+    K, M: uint32
     blocks: seq[Cid]
 
   # Decode `Header` message
@@ -97,6 +117,22 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
   if pbHeader.getField(3, blocksLen).isErr:
     return failure("Unable to decode `blocksLen` from manifest!")
 
+  if pbHeader.getField(4, pbErasureInfo).isErr:
+    return failure("Unable to decode `erasureInfo` from manifest!")
+
+  if pbErasureInfo.buffer.len > 0:
+    if pbErasureInfo.getField(1, K).isErr:
+      return failure("Unable to decode `K` from manifest!")
+
+    if pbErasureInfo.getField(2, M).isErr:
+      return failure("Unable to decode `M` from manifest!")
+
+    if pbErasureInfo.getField(3, originalCid).isErr:
+      return failure("Unable to decode `originalCid` from manifest!")
+
+    if pbErasureInfo.getField(4, originalLen).isErr:
+      return failure("Unable to decode `originalLen` from manifest!")
+
   let rootHashCid = ? Cid.init(rootHash).mapFailure
   var linksBuf: seq[seq[byte]]
   if pbNode.getRepeatedField(2, linksBuf).isOk:
@@ -112,15 +148,27 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
   if blocksLen.int != blocks.len:
     return failure("Total blocks and length of blocks in header don't match!")
 
-  Manifest(
-    rootHash: rootHashCid.some,
-    blockSize: blockSize.int,
-    blocks: blocks,
-    hcodec: (? rootHashCid.mhash.mapFailure).mcodec,
-    codec: rootHashCid.mcodec,
-    version: rootHashCid.cidver).success
+  var
+    self = Manifest(
+      rootHash: rootHashCid.some,
+      blockSize: blockSize.int,
+      blocks: blocks,
+      hcodec: (? rootHashCid.mhash.mapFailure).mcodec,
+      codec: rootHashCid.mcodec,
+      version: rootHashCid.cidver,
+      protected: pbErasureInfo.buffer.len > 0)
 
-proc encode*(self: var Manifest, encoder = ManifestContainers[$DagPBCodec]): ?!seq[byte] =
+  if self.protected:
+    self.K = K.int
+    self.M = M.int
+    self.originalCid = ? Cid.init(originalCid).mapFailure
+    self.originalLen = originalLen.int
+
+  self.success
+
+proc encode*(
+  self: Manifest,
+  encoder = ManifestContainers[$DagPBCodec]): ?!seq[byte] =
   ## Encode a manifest using `encoder`
   ##
 
