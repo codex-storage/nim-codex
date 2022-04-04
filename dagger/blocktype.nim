@@ -7,6 +7,9 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import std/tables
+export tables
+
 import pkg/upraises
 
 push: {.upraises: [].}
@@ -18,13 +21,99 @@ import pkg/questionable/results
 
 import ./errors
 
+template EmptyCid*: untyped =
+  var
+    emptyCid {.global, threadvar.}:
+      array[CIDv0..CIDv1, Table[MultiCodec, Cid]]
+
+  once:
+    emptyCid = [
+      CIDv0: {
+        multiCodec("sha2-256"): Cid
+        .init("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
+        .get()
+      }.toTable,
+      CIDv1: {
+        multiCodec("sha2-256"): Cid
+        .init("bafybeihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku")
+        .get()
+      }.toTable,
+    ]
+
+  emptyCid
+
+template EmptyDigests*: untyped =
+  var
+    emptyDigests {.global, threadvar.}:
+      array[CIDv0..CIDv1, Table[MultiCodec, MultiHash]]
+
+  once:
+    emptyDigests = [
+      CIDv0: {
+        multiCodec("sha2-256"): EmptyCid[CIDv0]
+        .catch
+        .get()[multiCodec("sha2-256")]
+        .catch
+        .get()
+        .mhash
+        .get()
+      }.toTable,
+      CIDv1: {
+        multiCodec("sha2-256"): EmptyCid[CIDv0]
+        .catch
+        .get()[multiCodec("sha2-256")]
+        .catch
+        .get()
+        .mhash
+        .get()
+      }.toTable,
+    ]
+
+  emptyDigests
+
+template EmptyBlock*: untyped =
+  var
+    emptyBlock {.global, threadvar.}:
+      array[CIDv0..CIDv1, Table[MultiCodec, Block]]
+
+  once:
+    emptyBlock = [
+      CIDv0: {
+        multiCodec("sha2-256"): Block(
+          cid: EmptyCid[CIDv1][multiCodec("sha2-256")])
+      }.toTable,
+      CIDv1: {
+        multiCodec("sha2-256"): Block(
+          cid: EmptyCid[CIDv1][multiCodec("sha2-256")])
+      }.toTable,
+    ]
+
+  emptyBlock
+
 const
-  BlockSize* = 31 * 64 * 4 # file chunk read size
+  BlockSize* = 31 * 64 * 4 # block size
 
 type
   Block* = ref object of RootObj
     cid*: Cid
     data*: seq[byte]
+
+proc isEmpty*(cid: Cid): bool =
+  cid == EmptyCid[cid.cidver]
+  .catch
+  .get()[cid.mhash.get().mcodec]
+  .catch
+  .get()
+
+proc isEmpty*(blk: Block): bool =
+  blk.cid.isEmpty
+
+proc emptyBlock*(cid: Cid): Block =
+  EmptyBlock[cid.cidver]
+  .catch
+  .get()[cid.mhash.get().mcodec]
+  .catch
+  .get()
 
 proc `$`*(b: Block): string =
   result &= "cid: " & $b.cid
@@ -62,6 +151,6 @@ func new*(
       mcodec = mhash.mcodec)
 
   if verify and cid != b.cid:
-    return "Cid's don't match!".failure
+    return "Cid and content don't match!".failure
 
   success b
