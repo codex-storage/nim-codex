@@ -22,7 +22,6 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ./blockstore
-import ../blocktype
 import ../chunker
 import ../errors
 
@@ -50,28 +49,40 @@ method getBlock*(
   ## Get a block from the stores
   ##
 
+  trace "Getting block from cache", cid
+  if cid.isEmpty:
+    trace "Empty block, ignoring"
+    return cid.emptyBlock.success
+
   return self.cache[cid].catch()
 
 method hasBlock*(self: CacheStore, cid: Cid): bool =
   ## check if the block exists
   ##
 
-  self.cache.contains(cid)
+  trace "Checking for block presence in cache", cid
+  if cid.isEmpty:
+    trace "Empty block, ignoring"
+    return true
+
+  cid in self.cache
 
 func putBlockSync(self: CacheStore, blk: Block): bool =
 
   let blkSize = blk.data.len # in bytes
 
   if blkSize > self.size:
+    trace "Block size is larger than cache size", blk = blkSize, cache = self.size
     return false
 
   while self.currentSize + blkSize > self.size:
     try:
       let removed = self.cache.removeLru()
       self.currentSize -= removed.data.len
-    except EmptyLruCacheError:
+    except EmptyLruCacheError as exc:
       # if the cache is empty, can't remove anything, so break and add item
       # to the cache
+      trace "Exception puting block to cache", exc = exc.msg
       break
 
   self.cache[blk.cid] = blk
@@ -83,6 +94,12 @@ method putBlock*(
   blk: Block): Future[bool] {.async.} =
   ## Put a block to the blockstore
   ##
+
+  trace "Storing block in cache", cid = blk.cid
+  if blk.isEmpty:
+    trace "Empty block, ignoring"
+    return true
+
   return self.putBlockSync(blk)
 
 method delBlock*(
@@ -90,6 +107,11 @@ method delBlock*(
   cid: Cid): Future[bool] {.async.} =
   ## delete a block/s from the block store
   ##
+
+  trace "Deleting block from cache", cid
+  if cid.isEmpty:
+    trace "Empty block, ignoring"
+    return true
 
   try:
     let removed = self.cache.del(cid)
