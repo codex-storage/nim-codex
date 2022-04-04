@@ -8,5 +8,6 @@ import ./dagger/teststorestream
 import ./dagger/testpurchasing
 import ./dagger/testsales
 import ./dagger/testerasure
+import ./dagger/testproving
 
 {.warning[UnusedImport]: off.}
