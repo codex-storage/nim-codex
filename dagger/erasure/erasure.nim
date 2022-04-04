@@ -119,6 +119,7 @@ proc encode*(
           trace "Padding with empty block", pos = idx
           data[j] = newSeq[byte](manifest.blockSize)
 
+      trace "Erasure coding data", data = data.len, parity = parityData.len
       if (
         let err = encoder.encode(data, parityData);
         err.isErr):
@@ -178,14 +179,14 @@ proc decode*(
 
       var
         data = newSeq[seq[byte]](encoded.K) # number of blocks to encode
-        parityData = newSeqWith[seq[byte]](encoded.M, newSeq[byte](encoded.blockSize))
+        parityData = newSeq[seq[byte]](encoded.M)
         recovered = newSeqWith[seq[byte]](encoded.K, newSeq[byte](encoded.blockSize))
         idxPendingBlocks = pendingBlocks # copy futures to make using with `one` easier
         emptyBlock = newSeq[byte](encoded.blockSize)
         resolved = 0
 
       while true:
-        if resolved >= (encoded.K + encoded.K) or idxPendingBlocks.len <= 0:
+        if resolved >= (encoded.K + encoded.M) or idxPendingBlocks.len <= 0:
           break
 
         let
@@ -202,7 +203,7 @@ proc decode*(
 
         if idx >= encoded.K:
           trace "Retrieved parity block", cid = blk.cid, idx
-          shallowCopy(parityData[idx - encoded.K], blk.data)
+          shallowCopy(parityData[idx - encoded.K], if blk.isEmpty: emptyBlock else: blk.data)
         else:
           trace "Retrieved data block", cid = blk.cid, idx
           shallowCopy(data[idx], if blk.isEmpty: emptyBlock else: blk.data)
@@ -213,11 +214,11 @@ proc decode*(
         dataPieces = data.filterIt( it.len > 0 ).len
         parityPieces = parityData.filterIt( it.len > 0 ).len
 
-      trace "Retrieved data and parity blocks", data = dataPieces, parity = parityPieces
       if dataPieces >= encoded.K:
-        trace "Retrieved all the required data blocks, skipping decoding"
+        trace "Retrieved all the required data blocks", data = dataPieces, parity = parityPieces
         continue
 
+      trace "Erasure decoding data", data = dataPieces, parity = parityPieces
       if (
         let err = decoder.decode(data, parityData, recovered);
         err.isErr):
@@ -234,7 +235,6 @@ proc decode*(
           if not (await self.store.putBlock(blk)):
             trace "Unable to store block!", cid = blk.cid
             return failure("Unable to store block!")
-
   except CancelledError as exc:
     trace "Erasure coding decoding cancelled"
     raise exc # cancellation needs to be propagated
