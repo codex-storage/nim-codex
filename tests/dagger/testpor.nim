@@ -78,15 +78,13 @@ suite "BLS PoR":
       if not (await store.putBlock(blk)):
         raise newException(CatchableError, "Unable to store block " & $blk.cid)
 
+  # TODO: quick and dirty smoke test, needs more elaborate tests
   test "Test setup":
     let
       (tau, authenticators) = await setupPor(
         StoreStream.new(store, manifest),
         ssk,
         SectorsPerBlock)
-
-    # echo "Auth: ", authenticators
-    # echo "Tau: ", tau
 
     let q = generateQuery(tau, QueryLen)
     # echo "Generated!" , " q:", q
@@ -98,6 +96,4 @@ suite "BLS PoR":
         authenticators,
         SectorsPerBlock)
 
-    # echo " mu:", mu
-    # echo " sigma:", sigma
     check verifyProof(spk, tau, q, mu, sigma)
