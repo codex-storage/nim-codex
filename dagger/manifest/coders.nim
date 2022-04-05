@@ -21,19 +21,7 @@ import pkg/chronos
 
 import ./manifest
 import ../errors
-
-const
-  DagPBCodec* = multiCodec("dag-pb")
-
-type
-  ManifestCoderType*[codec: static MultiCodec] = object
-  DagPBCoder* = ManifestCoderType[multiCodec("dag-pb")]
-
-const
-  # TODO: move somewhere better?
-  ManifestContainers* = {
-    $DagPBCodec: DagPBCoder()
-  }.toTable
+import ./types
 
 func encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   ## Encode the manifest into a ``ManifestCodec``
