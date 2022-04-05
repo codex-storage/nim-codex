@@ -106,6 +106,11 @@ proc encode*(
         dataBlocks = await allFinished(
           blockIdx.mapIt( self.store.getBlock(encoded[it]) ))
 
+      # TODO: this is a tight blocking loop so we sleep here to allow
+      # other events to be processed, this should be addressed
+      # by threading
+      await sleepAsync(10.millis)
+
       for j in 0..<blocks:
         let idx = blockIdx[j]
         if idx < manifest.len:
@@ -176,6 +181,11 @@ proc decode*(
         pendingBlocks = blockIdx.mapIt(
             self.store.getBlock(encoded[it]) # Get the data blocks (first K)
         )
+
+      # TODO: this is a tight blocking loop so we sleep here to allow
+      # other events to be processed, this should be addressed
+      # by threading
+      await sleepAsync(10.millis)
 
       var
         data = newSeq[seq[byte]](encoded.K) # number of blocks to encode
