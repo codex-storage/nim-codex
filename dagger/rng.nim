@@ -7,10 +7,15 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import pkg/upraises
+
+push: {.upraises: [].}
+
 import pkg/libp2p/crypto/crypto
 import pkg/bearssl
 
 type
+  RngSampleError = object of CatchableError
   Rng* = ref BrHmacDrbgContext
 
 var rng {.threadvar.}: Rng
@@ -35,6 +40,19 @@ proc rand*(rng: Rng, max: Natural): int =
 
 proc sample*[T](rng: Rng, a: openArray[T]): T =
   result = a[rng.rand(a.high)]
+
+proc sample*[T](
+  rng: Rng, sample, exclude: openArray[T]): T
+  {.raises: [Defect, RngSampleError].} =
+  if sample == exclude:
+    raise newException(RngSampleError, "Sample and exclude arrays are the same!")
+
+  while true:
+    result = rng.sample(sample)
+    if exclude.find(result) != -1:
+      continue
+
+    break
 
 proc shuffle*[T](rng: Rng, a: var openArray[T]) =
   for i in countdown(a.high, 1):
