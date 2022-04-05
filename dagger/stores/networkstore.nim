@@ -54,6 +54,10 @@ method getBlock*(
 method putBlock*(
   self: NetworkStore,
   blk: bt.Block): Future[bool] {.async.} =
+  ## Store block locally and notify the
+  ## network
+  ##
+
   trace "Puting block", cid = blk.cid
 
   if not (await self.localStore.putBlock(blk)):
