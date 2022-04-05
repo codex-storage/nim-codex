@@ -26,7 +26,8 @@ func add*(proving: Proving, id: ContractId) =
 proc run(proving: Proving) {.async.} =
   while not proving.stopped:
     for id in proving.contracts:
-      if await proving.timing.isProofRequired(id):
+      if (await proving.timing.isProofRequired(id)) or
+         (await proving.timing.willProofBeRequired(id)):
         if callback =? proving.onProofRequired:
           callback(id)
     await proving.timing.waitUntilNextPeriod()

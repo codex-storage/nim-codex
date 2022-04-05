@@ -6,6 +6,7 @@ type
     periodicity: Periodicity
     waiting: seq[Future[void]]
     proofsRequired: HashSet[ContractId]
+    proofsToBeRequired: HashSet[ContractId]
 
 const DefaultPeriodLength = 10.u256
 
@@ -27,6 +28,16 @@ proc setProofRequired*(mock: MockProofTiming, id: ContractId, required: bool) =
 method isProofRequired*(mock: MockProofTiming,
                         id: ContractId): Future[bool] {.async.} =
   return mock.proofsRequired.contains(id)
+
+proc setProofToBeRequired*(mock: MockProofTiming, id: ContractId, required: bool) =
+  if required:
+    mock.proofsToBeRequired.incl(id)
+  else:
+    mock.proofsToBeRequired.excl(id)
+
+method willProofBeRequired*(mock: MockProofTiming,
+                            id: ContractId): Future[bool] {.async.} =
+  return mock.proofsToBeRequired.contains(id)
 
 proc advanceToNextPeriod*(mock: MockProofTiming) =
   for future in mock.waiting:

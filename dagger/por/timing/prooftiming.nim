@@ -21,6 +21,10 @@ method isProofRequired*(proofTiming: ProofTiming,
                         id: ContractId): Future[bool] {.base, async.} =
   raiseAssert("not implemented")
 
+method willProofBeRequired*(proofTiming: ProofTiming,
+                            id: ContractId): Future[bool] {.base, async.} =
+  raiseAssert("not implemented")
+
 func periodOf*(periodicity: Periodicity, timestamp: Timestamp): Period =
   timestamp div periodicity.seconds
 

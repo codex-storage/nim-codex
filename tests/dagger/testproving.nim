@@ -61,3 +61,16 @@ suite "Proving":
     timing.advanceToNextPeriod()
     await sleepAsync(1.milliseconds)
     check callbackIds == @[id1, id2]
+
+  test "invokes callback when proof is about to be required":
+    let id = ContractId.example
+    proving.add(id)
+    var called: bool
+    proc onProofRequired(id: ContractId) =
+      called = true
+    proving.onProofRequired = onProofRequired
+    timing.setProofRequired(id, false)
+    timing.setProofToBeRequired(id, true)
+    timing.advanceToNextPeriod()
+    await sleepAsync(1.milliseconds)
+    check called
