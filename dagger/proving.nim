@@ -1,4 +1,5 @@
 import std/sets
+import std/times
 import pkg/upraises
 import pkg/questionable
 import ./por/timing/prooftiming
@@ -23,8 +24,17 @@ proc `onProofRequired=`*(proving: Proving, callback: OnProofRequired) =
 func add*(proving: Proving, id: ContractId) =
   proving.contracts.incl(id)
 
+proc removeEndedContracts(proving: Proving) {.async.} =
+  let now = getTime().toUnix().u256
+  var ended: HashSet[ContractId]
+  for id in proving.contracts:
+    if now >= (await proving.timing.getProofEnd(id)):
+      ended.incl(id)
+  proving.contracts.excl(ended)
+
 proc run(proving: Proving) {.async.} =
   while not proving.stopped:
+    await proving.removeEndedContracts()
     for id in proving.contracts:
       if (await proving.timing.isProofRequired(id)) or
          (await proving.timing.willProofBeRequired(id)):

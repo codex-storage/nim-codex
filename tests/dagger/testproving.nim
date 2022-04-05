@@ -1,3 +1,4 @@
+from std/times import getTime, toUnix
 import pkg/asynctest
 import pkg/chronos
 import pkg/dagger/proving
@@ -74,3 +75,18 @@ suite "Proving":
     timing.advanceToNextPeriod()
     await sleepAsync(1.milliseconds)
     check called
+
+  test "stops watching when contract has ended":
+    let id = ContractId.example
+    proving.add(id)
+    timing.setProofEnd(id, getTime().toUnix().u256)
+    timing.advanceToNextPeriod()
+    await sleepAsync(1.milliseconds)
+    var called: bool
+    proc onProofRequired(id: ContractId) =
+      called = true
+    proving.onProofRequired = onProofRequired
+    timing.setProofRequired(id, true)
+    timing.advanceToNextPeriod()
+    await sleepAsync(1.milliseconds)
+    check not called

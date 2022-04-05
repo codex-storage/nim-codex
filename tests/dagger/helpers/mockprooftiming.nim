@@ -1,4 +1,5 @@
 import std/sets
+import std/tables
 import pkg/dagger/por/timing/prooftiming
 
 type
@@ -7,6 +8,7 @@ type
     waiting: seq[Future[void]]
     proofsRequired: HashSet[ContractId]
     proofsToBeRequired: HashSet[ContractId]
+    proofEnds: Table[ContractId, UInt256]
 
 const DefaultPeriodLength = 10.u256
 
@@ -38,6 +40,16 @@ proc setProofToBeRequired*(mock: MockProofTiming, id: ContractId, required: bool
 method willProofBeRequired*(mock: MockProofTiming,
                             id: ContractId): Future[bool] {.async.} =
   return mock.proofsToBeRequired.contains(id)
+
+proc setProofEnd*(mock: MockProofTiming, id: ContractId, proofEnd: UInt256) =
+  mock.proofEnds[id] = proofEnd
+
+method getProofEnd*(mock: MockProofTiming,
+                    id: ContractId): Future[UInt256] {.async.} =
+  if mock.proofEnds.hasKey(id):
+    return mock.proofEnds[id]
+  else:
+    return UInt256.high
 
 proc advanceToNextPeriod*(mock: MockProofTiming) =
   for future in mock.waiting:
