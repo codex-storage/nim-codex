@@ -27,17 +27,18 @@ suite "Manifest":
           ]).tryGet()
 
     let
-      checksum = @[18.byte, 32, 227, 176, 196, 66, 152,
+      encoded = @[byte 18, 32, 227, 176, 196, 66, 152,
                   252, 28, 20, 154, 251, 244, 200, 153,
                   111, 185, 36, 39, 174, 65, 228, 100,
                   155, 147, 76, 164, 149, 153, 27, 120,
                   82, 184, 85]
 
     var mh: MultiHash
-    check MultiHash.decode(checksum, mh).tryGet() > 0
+    check MultiHash.decode(encoded, mh).tryGet() > 0
 
-    let checkSumCid = Cid.init(manifest.version, manifest.codec, mh).tryGet()
-    check checkSumCid == manifest.cid.tryGet()
+    let encodedCid = Cid.init(manifest.version, manifest.codec, mh).tryGet()
+    check:
+      encodedCid == manifest.cid.tryGet()
 
   test "Should encode/decode to/from manifest":
     let
@@ -46,10 +47,51 @@ suite "Manifest":
       )
 
     var
-      blocksManifest = Manifest.new(blocks).tryGet()
+      manifest = Manifest.new(blocks).tryGet()
 
     let
-      e = blocksManifest.encode().tryGet()
-      manifest = Manifest.decode(e).tryGet()
+      e = manifest.encode().tryGet()
+      decoded = Manifest.decode(e).tryGet()
 
-    check manifest.blocks == blocks
+    check:
+      decoded.blocks == blocks
+      decoded.protected == false
+
+  test "Should produce a protected manifest":
+    let
+      blocks = (0..<333).mapIt(
+        Block.new(("Block " & $it).toBytes).tryGet().cid
+      )
+      manifest = Manifest.new(blocks).tryGet()
+      protected = Manifest.new(manifest, 2, 2).tryGet()
+
+    check:
+        protected.originalCid == manifest.cid.tryGet()
+        protected.blocks[0..<333] == manifest.blocks
+        protected.protected == true
+        protected.originalLen == manifest.len
+
+    # fill up with empty Cid's
+    for i in protected.rounded..<protected.len:
+      protected.blocks[i] = EmptyCid[manifest.version]
+        .catch
+        .get()[manifest.hcodec]
+        .catch
+        .get()
+
+    var
+      encoded = protected.encode().tryGet()
+      decoded = Manifest.decode(encoded).tryGet()
+
+    check:
+      decoded.protected == true
+      decoded.originalLen == manifest.len
+
+      decoded.K == protected.K
+      decoded.M == protected.M
+
+      decoded.originalCid == protected.originalCid
+      decoded.originalCid == manifest.cid.tryGet()
+
+      decoded.blocks == protected.blocks
+      decoded.blocks[0..<333] == manifest.blocks

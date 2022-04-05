@@ -11,7 +11,6 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
-import std/tables
 import pkg/libp2p/protobuf/minprotobuf
 import pkg/libp2p
 import pkg/questionable
@@ -21,39 +20,22 @@ import pkg/chronicles
 import ../errors
 import ../blocktype
 
-template EmptyDigests: untyped =
-  var
-    emptyDigests {.global, threadvar.}:
-      array[CIDv0..CIDv1, Table[MultiCodec, MultiHash]]
-
-  once:
-    emptyDigests = [
-      CIDv0: {
-        multiCodec("sha2-256"): Cid
-        .init("bafybeihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku")
-        .get()
-        .mhash
-        .get()
-      }.toTable,
-      CIDv1: {
-        multiCodec("sha2-256"): Cid
-        .init("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
-        .get()
-        .mhash
-        .get()
-      }.toTable,
-    ]
-
-  emptyDigests
-
 type
   Manifest* = ref object of RootObj
-    rootHash*: ?Cid       # root (tree) hash of the contained data set
-    blockSize*: int       # size of each contained block (might not be needed if blocks are len-prefixed)
-    blocks*: seq[Cid]     # block Cid
-    version*: CidVersion  # Cid version
-    hcodec*: MultiCodec   # Multihash codec
-    codec*: MultiCodec    # Data set codec
+    rootHash*: ?Cid         # root (tree) hash of the contained data set
+    blockSize*: int         # size of each contained block (might not be needed if blocks are len-prefixed)
+    blocks*: seq[Cid]       # block Cid
+    version*: CidVersion    # Cid version
+    hcodec*: MultiCodec     # Multihash codec
+    codec*: MultiCodec      # Data set codec
+    case protected*: bool   # Protected datasets have erasure coded info
+    of true:
+      K*: int               # Number of blocks to encode
+      M*: int               # Number of resulting parity blocks
+      originalCid*: Cid     # The original Cid of the dataset being erasure coded
+      originalLen*: int     # The length of the original manifest
+    else:
+      discard
 
 func len*(self: Manifest): int =
   self.blocks.len
@@ -83,6 +65,10 @@ proc add*(self: Manifest, cid: Cid) =
 iterator items*(self: Manifest): Cid =
   for b in self.blocks:
     yield b
+
+iterator pairs*(self: Manifest): tuple[key: int, val: Cid] =
+  for pair in self.blocks.pairs():
+    yield pair
 
 func contains*(self: Manifest, cid: Cid): bool =
   cid in self.blocks
@@ -122,7 +108,16 @@ proc makeRoot*(self: Manifest): ?!void =
 
     self.rootHash = cid.some
 
-  ok()
+  success()
+
+func rounded*(self: Manifest): int =
+  if (self.originalLen mod self.K) != 0:
+    return self.originalLen + (self.K - (self.originalLen mod self.K))
+
+  self.originalLen
+
+func steps*(self: Manifest): int =
+  self.rounded div self.K # number of blocks per row
 
 proc cid*(self: Manifest): ?!Cid =
   ## Generate a root hash using the treehash algorithm
@@ -136,6 +131,7 @@ proc cid*(self: Manifest): ?!Cid =
 proc new*(
   T: type Manifest,
   blocks: openArray[Cid] = [],
+  protected = false,
   version = CIDv1,
   hcodec = multiCodec("sha2-256"),
   codec = multiCodec("raw"),
@@ -151,8 +147,45 @@ proc new*(
     version: version,
     codec: codec,
     hcodec: hcodec,
-    blockSize: blockSize
-    ).success
+    blockSize: blockSize,
+    protected: protected).success
+
+proc new*(
+  T: type Manifest,
+  manifest: Manifest,
+  K, M: int): ?!Manifest =
+  ## Create an erasure protected dataset from an
+  ## un-protected one
+  ##
+
+  var
+    self = Manifest(
+      version: manifest.version,
+      codec: manifest.codec,
+      hcodec: manifest.hcodec,
+      blockSize: manifest.blockSize,
+      protected: true,
+      K: K, M: M,
+      originalCid: ? manifest.cid,
+      originalLen: manifest.len)
+
+  let
+    encodedLen = self.rounded + (self.steps * M)
+
+  self.blocks = newSeq[Cid](encodedLen)
+
+  # copy original manifest blocks
+  for i in 0..<self.rounded:
+    if i < manifest.len:
+      self.blocks[i] = manifest[i]
+    else:
+      self.blocks[i] = EmptyCid[manifest.version]
+      .catch
+      .get()[manifest.hcodec]
+      .catch
+      .get()
+
+  self.success
 
 proc new*(
   T: type Manifest,
