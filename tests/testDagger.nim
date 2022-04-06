@@ -7,6 +7,7 @@ import ./dagger/testnode
 import ./dagger/teststorestream
 import ./dagger/testpurchasing
 import ./dagger/testsales
+import ./dagger/testerasure
 
 # to check that everything compiles
 import ../dagger

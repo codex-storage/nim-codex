@@ -22,7 +22,6 @@ import pkg/stew/io2
 
 import ./cachestore
 import ./blockstore
-import ../blocktype
 
 export blockstore
 
@@ -44,6 +43,13 @@ method getBlock*(
   ## Get a block from the stores
   ##
 
+  if cid.isEmpty:
+    trace "Empty block, ignoring"
+    return cid.emptyBlock.success
+
+  if cid in self.cache:
+    return await self.cache.getBlock(cid)
+
   if cid notin self:
     return Block.failure("Couldn't find block in fs store")
 
@@ -64,6 +70,10 @@ method putBlock*(
   ## Put a block to the blockstore
   ##
 
+  if blk.isEmpty:
+    trace "Empty block, ignoring"
+    return true
+
   if blk.cid in self:
     return true
 
@@ -80,6 +90,9 @@ method putBlock*(
     trace "Unable to store block", path, cid = blk.cid, error
     return false
 
+  if await self.cache.putBlock(blk):
+    trace "Unable to store block in cache", cid = blk.cid
+
   return true
 
 method delBlock*(
@@ -87,6 +100,10 @@ method delBlock*(
   cid: Cid): Future[bool] {.async.} =
   ## Delete a block/s from the block store
   ##
+
+  if cid.isEmpty:
+    trace "Empty block, ignoring"
+    return true
 
   let path = self.blockPath(cid)
   if (
@@ -96,11 +113,19 @@ method delBlock*(
     trace "Unable to delete block", path, cid, error
     return false
 
+  if await self.cache.delBlock(cid):
+    trace "Unable to store block in cache", cid
+
   return true
 
 method hasBlock*(self: FSStore, cid: Cid): bool =
   ## Check if the block exists in the blockstore
   ##
+
+  trace "Checking for block existence", cid
+  if cid.isEmpty:
+    trace "Empty block, ignoring"
+    return true
 
   self.blockPath(cid).isFile()
 

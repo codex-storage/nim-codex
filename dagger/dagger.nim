@@ -26,6 +26,7 @@ import ./rest/api
 import ./stores
 import ./blockexchange
 import ./utils/fileutils
+import ./erasure
 
 type
   DaggerServer* = ref object
@@ -34,14 +35,14 @@ type
     restServer: RestServerRef
     daggerNode: DaggerNodeRef
 
-proc run*(s: DaggerServer) {.async.} =
+proc start*(s: DaggerServer) {.async.} =
   s.restServer.start()
   await s.daggerNode.start()
 
   s.runHandle = newFuture[void]()
   await s.runHandle
 
-proc shutdown*(s: DaggerServer) {.async.} =
+proc stop*(s: DaggerServer) {.async.} =
   await allFuturesThrowing(
     s.restServer.stop(), s.daggerNode.stop())
 
@@ -73,7 +74,8 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
     localStore = FSStore.new(config.dataDir / "repo", cache = cache)
     engine = BlockExcEngine.new(localStore, wallet, network)
     store = NetworkStore.new(engine, localStore)
-    daggerNode = DaggerNodeRef.new(switch, store, engine)
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+    daggerNode = DaggerNodeRef.new(switch, store, engine, erasure)
     restServer = RestServerRef.new(
       daggerNode.initRestApi(),
       initTAddress("127.0.0.1" , config.apiPort),
