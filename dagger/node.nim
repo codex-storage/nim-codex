@@ -72,7 +72,12 @@ proc stop*(node: DaggerNodeRef) {.async.} =
 proc findPeer*(
   node: DaggerNodeRef,
   peerId: PeerID): Future[?!PeerRecord] {.async.} =
-  discard
+  let node = await node.discovery.resolve(toNodeId(peerId))
+  if node.isSome():
+    result.ok(node.get().record.data)
+  else:
+    result.err(newException(IOError, "can't find peer"))
+  return result
 
 proc connect*(
   node: DaggerNodeRef,
