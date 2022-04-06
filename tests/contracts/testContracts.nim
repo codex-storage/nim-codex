@@ -3,10 +3,10 @@ import pkg/chronos
 import pkg/nimcrypto
 import dagger/contracts
 import dagger/contracts/testtoken
+import dagger/por/timing/periods
 import ./ethertest
 import ./examples
 import ./time
-import ./periods
 
 ethersuite "Storage contracts":
 

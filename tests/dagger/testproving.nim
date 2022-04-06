@@ -1,14 +1,21 @@
 import pkg/asynctest
 import pkg/chronos
 import pkg/dagger/proving
+import ./helpers/mockprooftiming
 import ./examples
 
 suite "Proving":
 
   var proving: Proving
+  var timing: MockProofTiming
 
   setup:
-    proving = Proving.new()
+    timing = MockProofTiming.new()
+    proving = Proving.new(timing)
+    proving.start()
+
+  teardown:
+    proving.stop()
 
   test "maintains a list of contract ids to watch":
     let id1, id2 = ContractId.example
@@ -24,3 +31,13 @@ suite "Proving":
     proving.add(id)
     proving.add(id)
     check proving.contracts.len == 1
+
+  test "invokes callback when proof is required":
+    var called: bool
+    proc onProofRequired() =
+      called = true
+    proving.onProofRequired = onProofRequired
+    timing.setProofRequired(true)
+    timing.advanceToNextPeriod()
+    await sleepAsync(1.milliseconds)
+    check called
