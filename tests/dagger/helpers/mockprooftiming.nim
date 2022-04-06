@@ -1,10 +1,11 @@
+import std/sets
 import pkg/dagger/por/timing/prooftiming
 
 type
   MockProofTiming* = ref object of ProofTiming
     periodicity: Periodicity
     waiting: seq[Future[void]]
-    isProofRequired: bool
+    proofsRequired: HashSet[ContractId]
 
 const DefaultPeriodLength = 10.u256
 
@@ -17,11 +18,15 @@ func setPeriodicity*(mock: MockProofTiming, periodicity: Periodicity) =
 method periodicity*(mock: MockProofTiming): Future[Periodicity] {.async.} =
   return mock.periodicity
 
-proc setProofRequired*(mock: MockProofTiming, isProofRequired: bool) =
-  mock.isProofRequired = isProofRequired
+proc setProofRequired*(mock: MockProofTiming, id: ContractId, required: bool) =
+  if required:
+    mock.proofsRequired.incl(id)
+  else:
+    mock.proofsRequired.excl(id)
 
-method isProofRequired*(mock: MockProofTiming): Future[bool] {.async.} =
-  return mock.isProofRequired
+method isProofRequired*(mock: MockProofTiming,
+                        id: ContractId): Future[bool] {.async.} =
+  return mock.proofsRequired.contains(id)
 
 proc advanceToNextPeriod*(mock: MockProofTiming) =
   for future in mock.waiting:

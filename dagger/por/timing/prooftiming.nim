@@ -8,6 +8,7 @@ export periods
 
 type
   ProofTiming* = ref object of RootObj
+  ContractId* = array[32, byte]
 
 method periodicity*(proofTiming: ProofTiming):
                    Future[Periodicity] {.base, async.} =
@@ -16,7 +17,8 @@ method periodicity*(proofTiming: ProofTiming):
 method waitUntilNextPeriod*(proofTiming: ProofTiming) {.base, async.} =
   raiseAssert("not implemented")
 
-method isProofRequired*(proofTiming: ProofTiming): Future[bool] {.base, async.} =
+method isProofRequired*(proofTiming: ProofTiming,
+                        id: ContractId): Future[bool] {.base, async.} =
   raiseAssert("not implemented")
 
 func periodOf*(periodicity: Periodicity, timestamp: Timestamp): Period =

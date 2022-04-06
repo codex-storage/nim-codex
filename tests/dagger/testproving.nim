@@ -33,11 +33,31 @@ suite "Proving":
     check proving.contracts.len == 1
 
   test "invokes callback when proof is required":
+    let id = ContractId.example
+    proving.add(id)
     var called: bool
-    proc onProofRequired() =
+    proc onProofRequired(id: ContractId) =
       called = true
     proving.onProofRequired = onProofRequired
-    timing.setProofRequired(true)
+    timing.setProofRequired(id, true)
     timing.advanceToNextPeriod()
     await sleepAsync(1.milliseconds)
     check called
+
+  test "callback receives id of contract for which proof is required":
+    let id1, id2 = ContractId.example
+    proving.add(id1)
+    proving.add(id2)
+    var callbackIds: seq[ContractId]
+    proc onProofRequired(id: ContractId) =
+      callbackIds.add(id)
+    proving.onProofRequired = onProofRequired
+    timing.setProofRequired(id1, true)
+    timing.advanceToNextPeriod()
+    await sleepAsync(1.milliseconds)
+    check callbackIds == @[id1]
+    timing.setProofRequired(id1, false)
+    timing.setProofRequired(id2, true)
+    timing.advanceToNextPeriod()
+    await sleepAsync(1.milliseconds)
+    check callbackIds == @[id1, id2]

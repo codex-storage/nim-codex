@@ -4,6 +4,7 @@ import pkg/questionable
 import ./por/timing/prooftiming
 
 export sets
+export prooftiming
 
 type
   Proving* = ref object
@@ -11,8 +12,7 @@ type
     stopped: bool
     contracts*: HashSet[ContractId]
     onProofRequired: ?OnProofRequired
-  ContractId* = array[32, byte]
-  OnProofRequired* = proc () {.gcsafe, upraises:[].}
+  OnProofRequired* = proc (id: ContractId) {.gcsafe, upraises:[].}
 
 func new*(_: type Proving, timing: ProofTiming): Proving =
   Proving(timing: timing)
@@ -25,9 +25,10 @@ func add*(proving: Proving, id: ContractId) =
 
 proc run(proving: Proving) {.async.} =
   while not proving.stopped:
-    if await proving.timing.isProofRequired():
-      if callback =? proving.onProofRequired:
-        callback()
+    for id in proving.contracts:
+      if await proving.timing.isProofRequired(id):
+        if callback =? proving.onProofRequired:
+          callback(id)
     await proving.timing.waitUntilNextPeriod()
 
 proc start*(proving: Proving) =
