@@ -68,8 +68,8 @@ type
 
       discoveryPort* {.
         desc: "Specify the discovery (UDP) port"
-        defaultValue: Port(8080)
-        defaultValueDesc: "8080"
+        defaultValue: Port(8090)
+        defaultValueDesc: "8090"
         name: "udp-port" }: Port
 
       netPrivKeyFile* {.
@@ -80,7 +80,7 @@ type
       bootstrapNodes* {.
         desc: "Specifies one or more bootstrap nodes to use when connecting to the network."
         abbr: "b"
-        name: "bootstrap-nodes" }: seq[MultiAddress]
+        name: "bootstrap-nodes" }: seq[string]
 
       maxPeers* {.
         desc: "The maximum number of peers to connect to"

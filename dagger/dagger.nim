@@ -9,6 +9,7 @@
 
 import std/sequtils
 import std/os
+import std/sugar
 
 import pkg/chronicles
 import pkg/chronos
@@ -112,12 +113,20 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
     engine = BlockExcEngine.new(localStore, wallet, network)
     store = NetworkStore.new(engine, localStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+    discoveryBootstrapNodes = collect(newSeq):
+      for bootstrap in config.bootstrapNodes:
+        var res: SignedPeerRecord
+        if not res.fromURI(bootstrap):
+          warn "Invalid bootstrap uri", uri=bootstrap
+          quit QuitFailure
+        res
     discovery = newProtocol(
         privateKey,
         bindPort = config.discoveryPort,
         #TODO because we create the discovery here when the switch isn't started, the SPR
         #is not updated. Either create it later, or update it OTF
         record = switch.peerInfo.signedPeerRecord,
+        bootstrapRecords = discoveryBootstrapNodes,
         rng = Rng.instance()
       )
     daggerNode = DaggerNodeRef.new(switch, store, engine, erasure, discovery)
