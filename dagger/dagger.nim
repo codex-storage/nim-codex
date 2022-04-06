@@ -123,8 +123,6 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
     discovery = newProtocol(
         privateKey,
         bindPort = config.discoveryPort,
-        #TODO because we create the discovery here when the switch isn't started, the SPR
-        #is not updated. Either create it later, or update it OTF
         record = switch.peerInfo.signedPeerRecord,
         bootstrapRecords = discoveryBootstrapNodes,
         rng = Rng.instance()
