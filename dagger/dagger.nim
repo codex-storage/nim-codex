@@ -107,12 +107,6 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
       CacheStore.new()
 
   let
-    wallet = WalletRef.new(EthPrivateKey.random())
-    network = BlockExcNetwork.new(switch)
-    localStore = FSStore.new(config.dataDir / "repo", cache = cache)
-    engine = BlockExcEngine.new(localStore, wallet, network)
-    store = NetworkStore.new(engine, localStore)
-    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     discoveryBootstrapNodes = collect(newSeq):
       for bootstrap in config.bootstrapNodes:
         var res: SignedPeerRecord
@@ -127,6 +121,13 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
         bootstrapRecords = discoveryBootstrapNodes,
         rng = Rng.instance()
       )
+
+    wallet = WalletRef.new(EthPrivateKey.random())
+    network = BlockExcNetwork.new(switch)
+    localStore = FSStore.new(config.dataDir / "repo", cache = cache)
+    engine = BlockExcEngine.new(localStore, wallet, network, discovery)
+    store = NetworkStore.new(engine, localStore)
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     daggerNode = DaggerNodeRef.new(switch, store, engine, erasure, discovery)
     restServer = RestServerRef.new(
       daggerNode.initRestApi(),
