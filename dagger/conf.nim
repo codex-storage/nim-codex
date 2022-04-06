@@ -54,6 +54,11 @@ type
         abbr: "a"
         name: "listen-addrs" }: seq[MultiAddress]
 
+      netPrivKeyFile* {.
+        desc: "Source of network (secp256k1) private key file (random|<path>)"
+        defaultValue: "random"
+        name: "net-privkey" }: string
+
       bootstrapNodes* {.
         desc: "Specifies one or more bootstrap nodes to use when connecting to the network."
         abbr: "b"

@@ -51,9 +51,41 @@ proc stop*(s: DaggerServer) {.async.} =
 
 proc new*(T: type DaggerServer, config: DaggerConf): T =
 
+  const SafePermissions = {UserRead, UserWrite}
+  let
+    privateKey =
+      if config.netPrivKeyFile == "random":
+        PrivateKey.random(Rng.instance()[]).get()
+      else:
+        let path =
+          if config.netPrivKeyFile.isAbsolute:
+            config.netPrivKeyFile
+          else:
+            config.dataDir / config.netPrivKeyFile
+
+        if path.fileAccessible({AccessFlags.Find}):
+          info "Found a network private key"
+
+          if path.getPermissionsSet().get() != SafePermissions:
+            warn "The network private key file is not safe, aborting"
+            quit QuitFailure
+
+          PrivateKey.init(path.readAllBytes().expect("accessible private key file")).
+            expect("valid private key file")
+        else:
+          info "Creating a private key and saving it"
+          let
+            res = PrivateKey.random(Rng.instance()[]).get()
+            bytes = res.getBytes().get()
+
+          path.writeFile(bytes, SafePermissions.toInt()).expect("writing private key file")
+
+          PrivateKey.init(bytes).expect("valid key bytes")
+
   let
     switch = SwitchBuilder
     .new()
+    .withPrivateKey(privateKey)
     .withAddresses(config.listenAddrs)
     .withRng(Rng.instance())
     .withNoise()
@@ -80,7 +112,7 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
     #directly
     listenPort = Port(parseInt(config.listenAddrs[0].toString().get().split('/')[4]))
     discovery = newProtocol(
-        switch.peerInfo.privateKey,
+        privateKey,
         some(ValidIpAddress.init("127.0.0.1")),
         some(Port(listenPort)),
         none(Port),
