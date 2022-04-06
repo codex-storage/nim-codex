@@ -42,7 +42,7 @@ suite "Test Node":
     localStore = CacheStore.new()
     engine = BlockExcEngine.new(localStore, wallet, network)
     store = NetworkStore.new(engine, localStore)
-    node = DaggerNodeRef.new(switch, store, engine)
+    node = DaggerNodeRef.new(switch, store, engine, nil) # TODO: pass `Erasure`
 
     await node.start()
 

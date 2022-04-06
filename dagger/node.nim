@@ -26,6 +26,7 @@ import ./manifest
 import ./stores/blockstore
 import ./blockexchange
 import ./streams
+import ./erasure
 
 logScope:
   topics = "dagger node"
@@ -38,21 +39,22 @@ type
     networkId*: PeerID
     blockStore*: BlockStore
     engine*: BlockExcEngine
+    erasure*: Erasure
 
 proc start*(node: DaggerNodeRef) {.async.} =
   await node.switch.start()
   await node.engine.start()
+  await node.erasure.start()
+
   node.networkId = node.switch.peerInfo.peerId
   notice "Started dagger node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
 
 proc stop*(node: DaggerNodeRef) {.async.} =
   trace "Stopping node"
 
-  if not node.engine.isNil:
-    await node.engine.stop()
-
-  if not node.switch.isNil:
-    await node.switch.stop()
+  await node.engine.stop()
+  await node.switch.stop()
+  await node.erasure.stop()
 
 proc findPeer*(
   node: DaggerNodeRef,
@@ -84,6 +86,16 @@ proc retrieve*(
 
     without manifest =? Manifest.decode(blk.data, ManifestContainers[$mc]):
       return failure("Unable to construct manifest!")
+
+    if manifest.protected:
+      proc erasureJob(): Future[void] {.async.} =
+        try:
+          without res =? (await node.erasure.decode(manifest)), error: # spawn an erasure decoding job
+            trace "Unable to erasure decode manigest", cid, exc = error.msg
+        except CatchableError as exc:
+          trace "Exception decoding manifest", cid
+
+      asyncSpawn erasureJob()
 
     return LPStream(StoreStream.new(node.blockStore, manifest)).success
 
@@ -158,12 +170,69 @@ proc store*(
 
   return manifest.cid.success
 
+proc requestStorage*(
+  self: DaggerNodeRef,
+  cid: Cid,
+  ppb: uint,
+  duration: Duration,
+  nodes: uint,
+  tolerance: uint,
+  autoRenew: bool = false): Future[?!Cid] {.async.} =
+  ## Initiate a request for storage sequence, this might
+  ## be a multistep procedure.
+  ##
+  ## Roughly the flow is as follows:
+  ## - Get the original cid from the store (should have already been uploaded)
+  ## - Erasure code it according to the nodes and tolerance parameters
+  ## - Run the PoR setup on the erasure dataset
+  ## - Call into the marketplace and purchasing contracts
+  ##
+  trace "Received a request for storage!", cid, ppb, duration, nodes, tolerance, autoRenew
+
+  without blk =? (await self.blockStore.getBlock(cid)), error:
+    trace "Unable to retrieve manifest block", cid
+    return failure(error)
+
+  without mc =? blk.cid.contentType():
+    trace "Couldn't identify Cid!", cid
+    return failure("Couldn't identify Cid! " & $cid)
+
+  # if we got a manifest, stream the blocks
+  if $mc notin ManifestContainers:
+    trace "Not a manifest type!", cid, mc
+    return failure("Not a manifest type!")
+
+  without var manifest =? Manifest.decode(blk.data), error:
+    trace "Unable to decode manifest from block", cid
+    return failure(error)
+
+  # Erasure code the dataset according to provided parameters
+  without encoded =? (await self.erasure.encode(manifest, nodes.int, tolerance.int)), error:
+    trace "Unable to erasure code dataset", cid
+    return failure(error)
+
+  without encodedData =? encoded.encode(), error:
+    trace "Unable to encode protected manifest"
+    return failure(error)
+
+  without encodedBlk =? bt.Block.new(data = encodedData, codec = DagPBCodec), error:
+    trace "Unable to create block from encoded manifest"
+    return failure(error)
+
+  if not (await self.blockStore.putBlock(encodedBlk)):
+    trace "Unable to store encoded manifest block", cid = encodedBlk.cid
+    return failure("Unable to store encoded manifest block")
+
+  return encodedBlk.cid.success
+
 proc new*(
   T: type DaggerNodeRef,
   switch: Switch,
   store: BlockStore,
-  engine: BlockExcEngine): T =
+  engine: BlockExcEngine,
+  erasure: Erasure): T =
   T(
     switch: switch,
     blockStore: store,
-    engine: engine)
+    engine: engine,
+    erasure: erasure)
