@@ -20,6 +20,8 @@ import pkg/libp2p
 import pkg/libp2p/routing_record
 import pkg/libp2p/signed_envelope
 
+import pkg/libp2pdht/discv5/protocol as discv5
+
 import ./chunker
 import ./blocktype as bt
 import ./manifest
@@ -31,6 +33,10 @@ import ./erasure
 logScope:
   topics = "dagger node"
 
+# pretty mapping
+type Discovery* = discv5.Protocol
+export discv5
+
 type
   DaggerError = object of CatchableError
 
@@ -40,9 +46,11 @@ type
     blockStore*: BlockStore
     engine*: BlockExcEngine
     erasure*: Erasure
+    discovery*: Discovery
 
 proc start*(node: DaggerNodeRef) {.async.} =
   await node.switch.start()
+  node.discovery.open()
   await node.engine.start()
   await node.erasure.start()
 
@@ -55,6 +63,9 @@ proc stop*(node: DaggerNodeRef) {.async.} =
   await node.engine.stop()
   await node.switch.stop()
   await node.erasure.stop()
+
+  if not node.discovery.isNil:
+    await node.discovery.closeWait()
 
 proc findPeer*(
   node: DaggerNodeRef,
@@ -230,9 +241,11 @@ proc new*(
   switch: Switch,
   store: BlockStore,
   engine: BlockExcEngine,
-  erasure: Erasure): T =
+  erasure: Erasure,
+  discovery: Discovery): T =
   T(
     switch: switch,
     blockStore: store,
     engine: engine,
-    erasure: erasure)
+    erasure: erasure,
+    discovery: discovery)

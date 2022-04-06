@@ -67,3 +67,4 @@ switch("warning", "ObservableStores:off")
 # Too many false positives for "Warning: method has lock level <unknown>, but another method has 0 [LockLevel]"
 switch("warning", "LockLevel:off")
 
+switch("define", "libp2p_pki_schemes=secp256k1")

@@ -18,6 +18,7 @@ import pkg/confutils
 import pkg/confutils/defs
 import pkg/nitro
 import pkg/stew/io2
+import pkg/stew/shims/net as stewnet
 
 import ./node
 import ./conf
@@ -75,7 +76,18 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
     engine = BlockExcEngine.new(localStore, wallet, network)
     store = NetworkStore.new(engine, localStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-    daggerNode = DaggerNodeRef.new(switch, store, engine, erasure)
+    #TODO discovery should take it's SPR from libp2p
+    #directly
+    listenPort = Port(parseInt(config.listenAddrs[0].toString().get().split('/')[4]))
+    discovery = newProtocol(
+        switch.peerInfo.privateKey,
+        some(ValidIpAddress.init("127.0.0.1")),
+        some(Port(listenPort)),
+        none(Port),
+        bindPort = Port(listenPort),
+        rng = Rng.instance()
+      )
+    daggerNode = DaggerNodeRef.new(switch, store, engine, erasure, discovery)
     restServer = RestServerRef.new(
       daggerNode.initRestApi(),
       initTAddress("127.0.0.1" , config.apiPort),
@@ -87,4 +99,5 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
   T(
     config: config,
     daggerNode: daggerNode,
-    restServer: restServer)
+    restServer: restServer,
+    )
