@@ -83,15 +83,19 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
           PrivateKey.init(bytes).expect("valid key bytes")
 
   let
+    addresses =
+      config.listenPorts.mapIt(MultiAddress.init("/ip4/" & $config.listenIp & "/tcp/" & $(it.int)).tryGet()) &
+        @[MultiAddress.init("/ip4/" & $config.listenIp & "/udp/" & $(config.discoveryPort.int)).tryGet()]
     switch = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)
-    .withAddresses(config.listenAddrs)
+    .withAddresses(addresses)
     .withRng(Rng.instance())
     .withNoise()
     .withMplex(5.minutes, 5.minutes)
     .withMaxConnections(config.maxPeers)
     .withAgentVersion(config.agentString)
+    .withSignedPeerRecord(true)
     .withTcpTransport({ServerFlags.ReuseAddr})
     .build()
 
@@ -108,15 +112,12 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
     engine = BlockExcEngine.new(localStore, wallet, network)
     store = NetworkStore.new(engine, localStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-    #TODO discovery should take it's SPR from libp2p
-    #directly
-    listenPort = Port(parseInt(config.listenAddrs[0].toString().get().split('/')[4]))
     discovery = newProtocol(
         privateKey,
-        some(ValidIpAddress.init("127.0.0.1")),
-        some(Port(listenPort)),
-        none(Port),
-        bindPort = Port(listenPort),
+        bindPort = config.discoveryPort,
+        #TODO because we create the discovery here when the switch isn't started, the SPR
+        #is not updated. Either create it later, or update it OTF
+        record = switch.peerInfo.signedPeerRecord,
         rng = Rng.instance()
       )
     daggerNode = DaggerNodeRef.new(switch, store, engine, erasure, discovery)

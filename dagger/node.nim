@@ -50,7 +50,9 @@ type
 
 proc start*(node: DaggerNodeRef) {.async.} =
   await node.switch.start()
+  node.discovery.updateRecord(node.switch.peerInfo.signedPeerRecord).expect("updating SPR")
   node.discovery.open()
+  node.discovery.start()
   await node.engine.start()
   await node.erasure.start()
 
