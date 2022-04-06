@@ -78,7 +78,7 @@
 # The size of the proof is instead
 #   s * 32 + 48 bytes
 
-import ./backends/backend_blst
+import ./backends/backend_constantine
 
 import ../rng
 import endians
@@ -191,7 +191,7 @@ proc split(f: File, s: int64): int64 =
 
   return n
 
-proc hashToG1[T: byte|char](msg: openArray[T]): ec_p1 =
+proc hashToG1(msg: openArray[byte]): ec_p1 =
   ## Hash to curve with Dagger specific domain separation
   const dst = "DAGGER-PROOF-OF-CONCEPT"
   result.ec_hash_to_g1(msg, dst, aug = "")

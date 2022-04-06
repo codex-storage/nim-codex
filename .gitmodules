@@ -178,3 +178,6 @@
 [submodule "vendor/nim-leopard"]
 	path = vendor/nim-leopard
 	url = https://github.com/status-im/nim-leopard.git
+[submodule "vendor/constantine"]
+	path = vendor/constantine
+	url = https://github.com/mratsim/constantine
