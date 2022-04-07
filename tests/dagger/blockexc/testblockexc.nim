@@ -7,6 +7,7 @@ import pkg/stew/byteutils
 
 import pkg/libp2p
 import pkg/libp2p/errors
+import pkg/libp2pdht/discv5/protocol as discv5
 
 import pkg/dagger/rng
 import pkg/dagger/stores
@@ -34,6 +35,7 @@ suite "NetworkStore engine - 2 nodes":
     blocks1, blocks2: seq[bt.Block]
     engine1, engine2: BlockExcEngine
     localStore1, localStore2: BlockStore
+    discovery1, discovery2: discv5.Protocol
 
   setup:
     while true:
@@ -63,14 +65,16 @@ suite "NetworkStore engine - 2 nodes":
     peerId2 = switch2.peerInfo.peerId
 
     localStore1 = CacheStore.new(blocks1.mapIt( it ))
+    discovery1 = newProtocol(switch1.peerInfo.privateKey, bindPort = Port(0), record = switch1.peerInfo.signedPeerRecord)
     network1 = BlockExcNetwork.new(switch = switch1)
-    engine1 = BlockExcEngine.new(localStore1, wallet1, network1)
+    engine1 = BlockExcEngine.new(localStore1, wallet1, network1, discovery1)
     blockexc1 = NetworkStore.new(engine1, localStore1)
     switch1.mount(network1)
 
     localStore2 = CacheStore.new(blocks2.mapIt( it ))
+    discovery2 = newProtocol(switch2.peerInfo.privateKey, bindPort = Port(0), record = switch2.peerInfo.signedPeerRecord)
     network2 = BlockExcNetwork.new(switch = switch2)
-    engine2 = BlockExcEngine.new(localStore2, wallet2, network2)
+    engine2 = BlockExcEngine.new(localStore2, wallet2, network2, discovery2)
     blockexc2 = NetworkStore.new(engine2, localStore2)
     switch2.mount(network2)
 

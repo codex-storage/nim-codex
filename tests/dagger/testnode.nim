@@ -8,6 +8,7 @@ import pkg/stew/byteutils
 
 import pkg/nitro
 import pkg/libp2p
+import pkg/libp2pdht/discv5/protocol as discv5
 
 import pkg/dagger/stores
 import pkg/dagger/blockexchange
@@ -32,6 +33,7 @@ suite "Test Node":
     engine: BlockExcEngine
     store: NetworkStore
     node: DaggerNodeRef
+    discovery: discv5.Protocol
 
   setup:
     file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
@@ -40,9 +42,10 @@ suite "Test Node":
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
     localStore = CacheStore.new()
-    engine = BlockExcEngine.new(localStore, wallet, network)
+    discovery = newProtocol(switch.peerInfo.privateKey, bindPort = Port(0), record = switch.peerInfo.signedPeerRecord)
+    engine = BlockExcEngine.new(localStore, wallet, network, discovery)
     store = NetworkStore.new(engine, localStore)
-    node = DaggerNodeRef.new(switch, store, engine, nil) # TODO: pass `Erasure`
+    node = DaggerNodeRef.new(switch, store, engine, nil, discovery) # TODO: pass `Erasure`
 
     await node.start()
 

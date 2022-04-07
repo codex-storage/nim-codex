@@ -158,6 +158,7 @@ proc discoverOnDht(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
 
 proc publishOnDht(b: BlockExcEngine, cid: Cid) {.async.} =
   let bid = cid.toNodeId()
+  if isNil(b.network) or isNil(b.network.switch): return #TODO this is just for tests without network to pass
   discard await b.discovery.addProvider(bid, b.network.switch.peerInfo.signedPeerRecord)
 
 proc stopAdvertisingBlock*(b: BlockExcEngine, cid: Cid) =
@@ -188,7 +189,6 @@ proc discoverLoop(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
         foundPeerNew = true
 
     if foundPeerNew:
-      bd.discoveredProvider.clear()
       bd.discoveredProvider.fire()
       continue
 
@@ -244,6 +244,7 @@ proc requestBlock*(
 
   # Just take the first discovered peer
   await timeoutFut or blk or discovery.discoveredProvider.wait()
+  discovery.discoveredProvider.clear()
 
   if timeoutFut.finished:
     # TODO this is wrong, because other user may rely on us
@@ -326,7 +327,6 @@ proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) =
     b.pendingBlocks.resolve(blocks)
     b.scheduleTasks(blocks)
 
-    b.blockAdded.reset()
     b.blockAdded.fire()
 
 proc payForBlocks(engine: BlockExcEngine,
@@ -465,6 +465,7 @@ proc advertiseLoop(b: BlockExcEngine) {.async, gcsafe.} =
       else:
         30.minutes
     await sleepAsync(toSleep) or b.blockAdded.wait()
+    b.blockAdded.clear()
 
 proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
   trace "Handling task for peer", peer = task.id

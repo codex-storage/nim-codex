@@ -5,6 +5,8 @@ import pkg/stew/byteutils
 import pkg/asynctest
 import pkg/chronos
 import pkg/libp2p
+import pkg/libp2p/routing_record
+import pkg/libp2pdht/discv5/protocol as discv5
 
 import pkg/dagger/rng
 import pkg/dagger/blockexchange
@@ -23,6 +25,7 @@ suite "NetworkStore engine basic":
     peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
     chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
     wallet = WalletRef.example
+    discovery = newProtocol(seckey, bindPort = Port(0), record = SignedPeerRecord.init(seckey, PeerRecord.init(peerId, newSeq[MultiAddress]())).get)
 
   var
     blocks: seq[bt.Block]
@@ -59,7 +62,8 @@ suite "NetworkStore engine basic":
       engine = BlockExcEngine.new(
         CacheStore.new(blocks.mapIt( it )),
         wallet,
-        network)
+        network,
+        discovery)
     engine.wantList = blocks.mapIt( it.cid )
     engine.setupPeer(peerId)
 
@@ -77,7 +81,7 @@ suite "NetworkStore engine basic":
         sendAccount: sendAccount,
       ))
 
-      engine = BlockExcEngine.new(CacheStore.new, wallet, network)
+      engine = BlockExcEngine.new(CacheStore.new, wallet, network, discovery)
 
     engine.pricing = pricing.some
     engine.setupPeer(peerId)
@@ -90,6 +94,7 @@ suite "NetworkStore engine handlers":
     peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
     chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
     wallet = WalletRef.example
+    discovery = newProtocol(seckey, bindPort = Port(0), record = SignedPeerRecord.init(seckey, PeerRecord.init(peerId, newSeq[MultiAddress]())).get)
 
   var
     engine: BlockExcEngine
@@ -106,7 +111,7 @@ suite "NetworkStore engine handlers":
       blocks.add(bt.Block.new(chunk).tryGet())
 
     done = newFuture[void]()
-    engine = BlockExcEngine.new(CacheStore.new(), wallet, BlockExcNetwork())
+    engine = BlockExcEngine.new(CacheStore.new(), wallet, BlockExcNetwork(), discovery)
     peerCtx = BlockExcPeerCtx(
       id: peerId
     )
@@ -230,7 +235,7 @@ suite "Task Handler":
       blocks.add(bt.Block.new(chunk).tryGet())
 
     done = newFuture[void]()
-    engine = BlockExcEngine.new(CacheStore.new(), wallet, BlockExcNetwork())
+    engine = BlockExcEngine.new(CacheStore.new(), wallet, BlockExcNetwork(), (discv5.Protocol)())
     peersCtx = @[]
 
     for i in 0..3:
