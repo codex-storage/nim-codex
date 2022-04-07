@@ -33,6 +33,7 @@ type
   StoreStream* = ref object of SeekableStream
     store*: BlockStore
     manifest*: Manifest
+    emptyBlock*: seq[byte]
 
 proc new*(
   T: type StoreStream,
@@ -41,7 +42,8 @@ proc new*(
   result = T(
     store: store,
     manifest: manifest,
-    offset: 0)
+    offset: 0,
+    emptyBlock: newSeq[byte](manifest.blockSize))
 
   result.initStream()
 
@@ -59,12 +61,12 @@ method readOnce*(
   var
     read = 0
 
+  trace "Reading from manifest", cid = self.manifest.cid.get(), blocks = self.manifest.len
   while read < nbytes and not self.atEof:
     let
       pos = self.offset div self.manifest.blockSize
       blk = (await self.store.getBlock(self.manifest[pos])).tryGet()
 
-    let
       blockOffset =
         if self.offset >= self.manifest.blockSize:
           self.offset mod self.manifest.blockSize
@@ -77,7 +79,15 @@ method readOnce*(
         else:
           min(nbytes - read, self.manifest.blockSize)
 
-    copyMem(pbytes.offset(read), unsafeAddr blk.data[blockOffset], readBytes)
+    trace "Reading bytes from store stream", pos, cid = blk.cid, bytes = readBytes, blockOffset = blockOffset
+    copyMem(
+      pbytes.offset(read),
+      if blk.isEmpty:
+          self.emptyBlock[blockOffset].addr
+        else:
+          blk.data[blockOffset].addr,
+      readBytes)
+
     self.offset += readBytes
     read += readBytes
 
