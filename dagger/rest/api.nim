@@ -181,7 +181,7 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
       ##
       ## Cid            - the cid of the previously uploaded dataset
       ## ppb            - the price per byte the client is willing to pay
-      ## duration       - the duration of the contract
+      ## duration       - the duration of the contract in minutes
       ## nodeCount      - the total amount of the nodes storing the dataset, including `lossTolerance`
       ## lossTolerance  - the number of nodes losses the user is willing to tolerate
       ## autoRenew      - should the contract be autorenewed -
