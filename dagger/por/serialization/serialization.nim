@@ -118,7 +118,7 @@ func fromMessage*(self: PubKeyMessage): Result[por.PublicKey, string] =
     spk: por.PublicKey
     keyAffine: blst_p2_affine
 
-  if not spk.signkey.fromBytes(self.signkey.toOpenArray(0, 95)):
+  if not spk.signkey.fromBytes(self.signkey.toOpenArray(0, 47)):
     return err("Unable to deserialize public key!")
 
   if blst_p2_uncompress(keyAffine, toArray(96, self.key)) != BLST_SUCCESS:
