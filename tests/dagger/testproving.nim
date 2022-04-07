@@ -18,6 +18,11 @@ suite "Proving":
   teardown:
     proving.stop()
 
+  proc advanceToNextPeriod(timing: MockProofTiming) {.async.} =
+    let current = await timing.getCurrentPeriod()
+    timing.advanceToPeriod(current + 1)
+    await sleepAsync(1.milliseconds)
+
   test "maintains a list of contract ids to watch":
     let id1, id2 = ContractId.example
     check proving.contracts.len == 0
@@ -41,8 +46,7 @@ suite "Proving":
       called = true
     proving.onProofRequired = onProofRequired
     timing.setProofRequired(id, true)
-    timing.advanceToNextPeriod()
-    await sleepAsync(1.milliseconds)
+    await timing.advanceToNextPeriod()
     check called
 
   test "callback receives id of contract for which proof is required":
@@ -54,13 +58,11 @@ suite "Proving":
       callbackIds.add(id)
     proving.onProofRequired = onProofRequired
     timing.setProofRequired(id1, true)
-    timing.advanceToNextPeriod()
-    await sleepAsync(1.milliseconds)
+    await timing.advanceToNextPeriod()
     check callbackIds == @[id1]
     timing.setProofRequired(id1, false)
     timing.setProofRequired(id2, true)
-    timing.advanceToNextPeriod()
-    await sleepAsync(1.milliseconds)
+    await timing.advanceToNextPeriod()
     check callbackIds == @[id1, id2]
 
   test "invokes callback when proof is about to be required":
@@ -72,21 +74,18 @@ suite "Proving":
     proving.onProofRequired = onProofRequired
     timing.setProofRequired(id, false)
     timing.setProofToBeRequired(id, true)
-    timing.advanceToNextPeriod()
-    await sleepAsync(1.milliseconds)
+    await timing.advanceToNextPeriod()
     check called
 
   test "stops watching when contract has ended":
     let id = ContractId.example
     proving.add(id)
     timing.setProofEnd(id, getTime().toUnix().u256)
-    timing.advanceToNextPeriod()
-    await sleepAsync(1.milliseconds)
+    await timing.advanceToNextPeriod()
     var called: bool
     proc onProofRequired(id: ContractId) =
       called = true
     proving.onProofRequired = onProofRequired
     timing.setProofRequired(id, true)
-    timing.advanceToNextPeriod()
-    await sleepAsync(1.milliseconds)
+    await timing.advanceToNextPeriod()
     check not called

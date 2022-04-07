@@ -34,13 +34,14 @@ proc removeEndedContracts(proving: Proving) {.async.} =
 
 proc run(proving: Proving) {.async.} =
   while not proving.stopped:
+    let currentPeriod = await proving.timing.getCurrentPeriod()
     await proving.removeEndedContracts()
     for id in proving.contracts:
       if (await proving.timing.isProofRequired(id)) or
          (await proving.timing.willProofBeRequired(id)):
         if callback =? proving.onProofRequired:
           callback(id)
-    await proving.timing.waitUntilNextPeriod()
+    await proving.timing.waitUntilPeriod(currentPeriod + 1)
 
 proc start*(proving: Proving) =
   asyncSpawn proving.run()

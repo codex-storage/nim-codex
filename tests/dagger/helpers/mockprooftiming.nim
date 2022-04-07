@@ -5,7 +5,8 @@ import pkg/dagger/por/timing/prooftiming
 type
   MockProofTiming* = ref object of ProofTiming
     periodicity: Periodicity
-    waiting: seq[Future[void]]
+    currentPeriod: Period
+    waiting: Table[Period, seq[Future[void]]]
     proofsRequired: HashSet[ContractId]
     proofsToBeRequired: HashSet[ContractId]
     proofEnds: Table[ContractId, UInt256]
@@ -51,12 +52,21 @@ method getProofEnd*(mock: MockProofTiming,
   else:
     return UInt256.high
 
-proc advanceToNextPeriod*(mock: MockProofTiming) =
-  for future in mock.waiting:
-    future.complete()
-  mock.waiting = @[]
+proc advanceToPeriod*(mock: MockProofTiming, period: Period) =
+  doAssert period >= mock.currentPeriod
+  for key in mock.waiting.keys:
+    if key <= period:
+      for future in mock.waiting[key]:
+        future.complete()
+      mock.waiting[key] = @[]
 
-method waitUntilNextPeriod*(mock: MockProofTiming) {.async.} =
-  let future = Future[void]()
-  mock.waiting.add(future)
-  await future
+method getCurrentPeriod*(mock: MockProofTiming): Future[Period] {.async.} =
+  return mock.currentPeriod
+
+method waitUntilPeriod*(mock: MockProofTiming, period: Period) {.async.} =
+  if period > mock.currentPeriod:
+    let future = Future[void]()
+    if not mock.waiting.hasKey(period):
+      mock.waiting[period] = @[]
+    mock.waiting[period].add(future)
+    await future

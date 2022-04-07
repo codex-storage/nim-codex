@@ -17,14 +17,14 @@ method periodicity*(timing: OnChainProofTiming): Future[Periodicity] {.async.} =
   let period = await timing.storage.proofPeriod()
   return Periodicity(seconds: period)
 
-method waitUntilNextPeriod*(timing: OnChainProofTiming) {.async.} =
-  let provider = timing.storage.provider
+method getCurrentPeriod*(timing: OnChainProofTiming): Future[Period] {.async.} =
   let periodicity = await timing.periodicity()
-  proc getCurrentPeriod: Future[Period] {.async.} =
-    let blk = !await provider.getBlock(BlockTag.latest)
-    return periodicity.periodOf(blk.timestamp)
-  let startPeriod = await getCurrentPeriod()
-  while (await getCurrentPeriod()) == startPeriod:
+  let blk = !await timing.storage.provider.getBlock(BlockTag.latest)
+  return periodicity.periodOf(blk.timestamp)
+
+method waitUntilPeriod*(timing: OnChainProofTiming,
+                        period: Period) {.async.} =
+  while (await timing.getCurrentPeriod()) < period:
     await sleepAsync(timing.pollInterval)
 
 method isProofRequired*(timing: OnChainProofTiming,

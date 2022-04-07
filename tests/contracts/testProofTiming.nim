@@ -20,7 +20,7 @@ ethersuite "On-Chain Proof Timing":
 
   test "supports waiting until next period":
     let periodicity = await timing.periodicity()
-    let currentPeriod = periodicity.periodOf(await provider.currentTime())
+    let currentPeriod = await timing.getCurrentPeriod()
 
     let pollInterval = 200.milliseconds
     timing.pollInterval = pollInterval
@@ -28,7 +28,7 @@ ethersuite "On-Chain Proof Timing":
     proc waitForPoll {.async.} =
       await sleepAsync(pollInterval * 2)
 
-    let future = timing.waitUntilNextPeriod()
+    let future = timing.waitUntilPeriod(currentPeriod + 1)
 
     check not future.completed
 

@@ -14,7 +14,12 @@ method periodicity*(proofTiming: ProofTiming):
                    Future[Periodicity] {.base, async.} =
   raiseAssert("not implemented")
 
-method waitUntilNextPeriod*(proofTiming: ProofTiming) {.base, async.} =
+method getCurrentPeriod*(proofTiming: ProofTiming):
+                        Future[Period] {.base, async.} =
+  raiseAssert("not implemented")
+
+method waitUntilPeriod*(proofTiming: ProofTiming,
+                        period: Period) {.base, async.} =
   raiseAssert("not implemented")
 
 method isProofRequired*(proofTiming: ProofTiming,
