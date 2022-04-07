@@ -26,7 +26,7 @@ import ./pendingblocks
 import ./peercontext
 import ./engine/payments
 
-export peercontext, payments, pendingblocks
+export peercontext, payments, pendingblocks, discv5
 
 logScope:
   topics = "dagger blockexc engine"
@@ -145,8 +145,8 @@ proc discoverLoop(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
   #
   # TODO add a global timeout
   while true:
-    #TODO do smarter thing here
     # wait for iwant replies
+    #TODO do smarter thing here
     await sleepAsync(1.milliseconds)
 
     var foundPeerNew = false
@@ -169,7 +169,8 @@ proc discoverLoop(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
         b.network.request.sendWantList(
           p.id,
           @[bd.toDiscover],
-          wantType = WantType.wantHave)
+          wantType = WantType.wantHave,
+          sendDontHave = true)
 
     if bd.inflightIWant.len < 3 and #TODO or a timeout
       bd.lastDhtQuery > Moment.fromNow(5.seconds):

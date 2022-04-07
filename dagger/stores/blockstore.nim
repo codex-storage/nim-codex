@@ -52,5 +52,11 @@ method hasBlock*(s: BlockStore, cid: Cid): bool {.base.} =
 
   return false
 
+method blockList*(s: BlockStore): Future[seq[Cid]] {.base.} =
+  ## Get the list of blocks in the BlockStore. This is an intensive operation
+  ##
+
+  raiseAssert("Not implemented!")
+
 proc contains*(s: BlockStore, blk: Cid): bool =
   s.hasBlock(blk)

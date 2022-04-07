@@ -17,10 +17,11 @@ proc generateNodes*(
   for i in 0..<num:
     let
       switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
+      discovery = newProtocol(switch.peerInfo.privateKey, bindPort = Port(0), record = switch.peerInfo.signedPeerRecord)
       wallet = WalletRef.example
       network = BlockExcNetwork.new(switch)
       localStore = CacheStore.new(blocks.mapIt( it ))
-      engine = BlockExcEngine.new(localStore, wallet, network)
+      engine = BlockExcEngine.new(localStore, wallet, network, discovery)
       networkStore = NetworkStore.new(engine, localStore)
 
     switch.mount(network)
