@@ -170,6 +170,7 @@ proc decode*(
 
   var
     decoder = self.decoderProvider(encoded.blockSize, encoded.K, encoded.M)
+    emptyBlock = newSeq[byte](encoded.blockSize)
 
   try:
     for i in 0..<encoded.steps:
@@ -192,7 +193,6 @@ proc decode*(
         parityData = newSeq[seq[byte]](encoded.M)
         recovered = newSeqWith[seq[byte]](encoded.K, newSeq[byte](encoded.blockSize))
         idxPendingBlocks = pendingBlocks # copy futures to make using with `one` easier
-        emptyBlock = newSeq[byte](encoded.blockSize)
         resolved = 0
 
       while true:
