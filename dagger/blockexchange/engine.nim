@@ -207,7 +207,6 @@ proc discoverLoop(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
         #start query
         asyncSpawn b.discoverOnDht(bd)
 
-
 proc discoverBlock(b: BlockExcEngine, cid: Cid): BlockDiscovery =
   if cid in b.runningDiscoveries:
     return b.runningDiscoveries[cid]
@@ -219,6 +218,11 @@ proc discoverBlock(b: BlockExcEngine, cid: Cid): BlockDiscovery =
     result.discoveryLoop = b.discoverLoop(result)
     b.runningDiscoveries[cid] = result
     return result
+
+proc stopDiscovery(b: BlockExcEngine, cid: Cid) =
+  if cid in b.runningDiscoveries:
+    b.runningDiscoveries[cid].discoveryLoop.cancel()
+    b.runningDiscoveries.del(cid)
 
 proc requestBlock*(
   b: BlockExcEngine,
@@ -232,6 +236,11 @@ proc requestBlock*(
   # be requesting multiple chunks, and running discovery
   # less often
 
+  if cid in b.localStore:
+    return (await b.localStore.getBlock(cid)).get()
+
+  # be careful, don't give back control to main loop here
+  # otherwise, the block might slip in
 
   if cid in b.pendingBlocks:
     return await b.pendingBlocks.blocks[cid].wait(timeout)
@@ -243,8 +252,14 @@ proc requestBlock*(
     discovery = b.discoverBlock(cid)
 
   # Just take the first discovered peer
-  await timeoutFut or blk or discovery.discoveredProvider.wait()
-  discovery.discoveredProvider.clear()
+  try:
+    await timeoutFut or blk or discovery.discoveredProvider.wait()
+    discovery.discoveredProvider.clear()
+  except CancelledError as exc:
+    #TODO also wrong, same issue as below
+    blk.cancel()
+    b.stopDiscovery(cid)
+    raise exc
 
   if timeoutFut.finished:
     # TODO this is wrong, because other user may rely on us
@@ -252,18 +267,20 @@ proc requestBlock*(
     #
     # Other people may be using the discovery or blk
     # so don't kill them
+    blk.cancel()
+    b.stopDiscovery(cid)
     raise newException(AsyncTimeoutError, "")
 
   if blk.finished:
     # a peer sent us the block out of the blue, why not
-    discovery.discoveryLoop.cancel()
+    b.stopDiscovery(cid)
     return await blk
 
   # We got a provider
   # Currently, we just ask him for the block, and hope he gives it to us
   #
   # In reality, we could keep discovering until we find a suitable price, etc
-  discovery.discoveryLoop.cancel()
+  b.stopDiscovery(cid)
   timeoutFut.cancel()
 
   assert discovery.provides.len > 0
@@ -292,7 +309,9 @@ proc blockPresenceHandler*(
       if not isNil(peerCtx):
         peerCtx.updatePresence(presence)
       if not presence.have and presence.cid in b.runningDiscoveries:
-        b.runningDiscoveries[presence.cid].inflightIWant.excl(peer)
+        let bd = b.runningDiscoveries[presence.cid]
+        bd.inflightIWant.excl(peer)
+        bd.treatedPeer.incl(peer)
 
 proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) =
   trace "Schedule a task for new blocks"
