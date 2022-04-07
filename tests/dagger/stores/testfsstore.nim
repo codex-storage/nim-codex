@@ -58,7 +58,6 @@ suite "FS Store":
 
     check (await store.blockList()) == @[newBlock.cid]
 
-
   test "fail hasBlock":
     check not store.hasBlock(newBlock.cid)
 
