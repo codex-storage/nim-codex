@@ -81,19 +81,20 @@ suite "BLS PoR":
   # TODO: quick and dirty smoke test, needs more elaborate tests
   test "Test setup":
     let
-      (tau, authenticators) = await setupPor(
+      por = await PoR.init(
         StoreStream.new(store, manifest),
         ssk,
+        spk,
         SectorsPerBlock)
 
-    let q = generateQuery(tau, QueryLen)
+    let q = generateQuery(por.tau, QueryLen)
     # echo "Generated!" , " q:", q
 
     let
-      (mu, sigma) = await generateProof(
+      proof = await generateProof(
         StoreStream.new(store, manifest),
         q,
-        authenticators,
+        por.authenticators,
         SectorsPerBlock)
 
-    check verifyProof(spk, tau, q, mu, sigma)
+    check por.verifyProof(q, proof.mu, proof.sigma)
