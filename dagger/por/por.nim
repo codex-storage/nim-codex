@@ -100,29 +100,39 @@ type
 
   # secret key combining the metadata signing key and the POR generation key
   SecretKey* = object
-    signkey: blscurve.SecretKey
-    key: blst_scalar
+    signkey*: blscurve.SecretKey
+    key*: blst_scalar
 
   # public key combining the metadata signing key and the POR validation key
   PublicKey* = object
-    signkey: blscurve.PublicKey
-    key: blst_p2
+    signkey*: blscurve.PublicKey
+    key*: blst_p2
 
   # POR metadata (called "file tag t_0" in the original paper)
-  TauZero = object
-    name: array[Namelen, byte]
-    n:    int64
-    u:    seq[blst_p1]
+  TauZero* = object
+    name*: array[Namelen, byte]
+    n*:    int64
+    u*:    seq[blst_p1]
 
   # signed POR metadata (called "signed file tag t" in the original paper)
-  Tau = object
-    t: TauZero
-    signature: array[96, byte]
+  Tau* = object
+    t*: TauZero
+    signature*: array[96, byte]
+
+  Proof* = object
+    mu*: seq[blst_scalar]
+    sigma*: blst_p1
 
   # PoR query element
-  QElement = object
-    I: int64
-    V: blst_scalar
+  QElement* = object
+    I*: int64
+    V*: blst_scalar
+
+  PoR* = object
+    ssk*: SecretKey
+    spk*: PublicKey
+    tau*: Tau
+    authenticators*: seq[blst_p1]
 
 proc fromBytesBE(a: array[32, byte]): blst_scalar =
   ## Convert data to blst native form
@@ -154,8 +164,8 @@ proc getSector(
   ##
 
   var res: ZChar
-  stream.setPos(((blockid * spb + sectorid) * ZChar.high).int)
-  discard await stream.readOnce(addr res[0], ZChar.high)
+  stream.setPos(((blockid * spb + sectorid) * ZChar.len).int)
+  discard await stream.readOnce(addr res[0], ZChar.len)
   return res
 
 proc rndScalar(): blst_scalar =
@@ -218,6 +228,7 @@ proc keyGen*(): (PublicKey, SecretKey) =
 
   for b in ikm.mitems:
     b = byte Rng.instance.rand(0xFF)
+
   doAssert ikm.keyGen(pk.signkey, sk.signkey)
 
   (pk.key, sk.key) = posKeygen()
@@ -324,10 +335,12 @@ proc generateAuthenticator(
   return generateAuthenticatorOpt(stream, ssk, i, s, t, ubase)
   # doAssert(a.blst_p1_is_equal(b).bool)
 
-proc setupPor*(
+proc init*(
+  T: type PoR,
   stream: SeekableStream,
   ssk: SecretKey,
-  s: int64): Future[(Tau, seq[blst_p1])] {.async.} =
+  spk: PublicKey,
+  s: int64): Future[PoR] {.async.} =
   ## Set up the POR scheme by generating tags and metadata
   ##
 
@@ -356,7 +369,7 @@ proc setupPor*(
   for i in 0..<n:
     sigmas.add((await stream.generateAuthenticator(ssk, i, s, t, ubase)))
 
-  result = (tau, sigmas)
+  return PoR(ssk: ssk, spk: spk, tau: tau, authenticators: sigmas)
 
 proc generateQuery*(tau: Tau, l: int): seq[QElement] =
   ## Generata a random BLS query of given size
@@ -374,7 +387,7 @@ proc generateProof*(
   stream: SeekableStream,
   q: seq[QElement],
   authenticators: seq[blst_p1],
-  s: int64): Future[(seq[blst_scalar], blst_p1)] {.async.} =
+  s: int64): Future[Proof] {.async.} =
   ## Generata BLS proofs for a given query
   ##
 
@@ -413,7 +426,7 @@ proc generateProof*(
     prod.blst_p1_mult(authenticators[qelem.I], qelem.V, 255)
     sigma.blst_p1_add_or_double(sigma, prod)
 
-  return (mu, sigma)
+  return Proof(mu: mu, sigma: sigma)
 
 proc pairing(a: blst_p1, b: blst_p2): blst_fp12 =
   ## Calculate pairing G_1,G_2 -> G_T
@@ -469,8 +482,7 @@ proc verifyPairings(a1: blst_p1, a2: blst_p2, b1: blst_p1, b2: blst_p2) : bool =
   #verifyPairingsNeg(a1, a2, b1, b2)
 
 proc verifyProof*(
-  spk: PublicKey,
-  tau: Tau,
+  self: PoR,
   q: seq[QElement],
   mus: seq[blst_scalar],
   sigma: blst_p1): bool =
@@ -479,20 +491,20 @@ proc verifyProof*(
 
   # verify signature on Tau
   var signature: blscurve.Signature
-  if not signature.fromBytes(tau.signature):
+  if not signature.fromBytes(self.tau.signature):
     return false
 
-  if not verify(spk.signkey, $tau.t, signature):
+  if not verify(self.spk.signkey, $self.tau.t, signature):
     return false
 
   var first: blst_p1
-  for qelem in q :
+  for qelem in q:
     var prod: blst_p1
-    prod.blst_p1_mult(hashNameI(tau.t.name, qelem.I), qelem.V, 255)
+    prod.blst_p1_mult(hashNameI(self.tau.t.name, qelem.I), qelem.V, 255)
     first.blst_p1_add_or_double(first, prod)
     doAssert(blst_p1_on_curve(first).bool)
 
-  let us = tau.t.u
+  let us = self.tau.t.u
   var second: blst_p1
   for j in 0..<len(us):
     var prod: blst_p1
@@ -506,7 +518,7 @@ proc verifyProof*(
   var g {.noInit.}: blst_p2
   g.blst_p2_from_affine(BLS12_381_G2)
 
-  return verifyPairings(sum, spk.key, sigma, g)
+  return verifyPairings(sum, self.spk.key, sigma, g)
 
 proc verifyProofIndex*(
   spk: PublicKey,
