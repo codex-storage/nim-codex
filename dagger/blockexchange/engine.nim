@@ -165,14 +165,6 @@ proc publishOnDht(b: BlockExcEngine, cid: Cid) {.async.} =
   if isNil(b.network) or isNil(b.network.switch): return #TODO this is just for tests without network to pass
   discard await b.discovery.addProvider(bid, b.network.switch.peerInfo.signedPeerRecord)
 
-proc stopAdvertisingBlock*(b: BlockExcEngine, cid: Cid) =
-  ## Must be called everytime we loose access to a block!
-  
-  let idx = b.advertisedBlocks.find(cid)
-  if idx >= 0:
-    # Don't preserve ordering
-    b.advertisedBlocks.delete(idx)
-
 proc discoverLoop(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
   # First, try connected peers
   # After a percent of peers declined, or a timeout passed, query DHT
@@ -477,7 +469,13 @@ proc advertiseLoop(b: BlockExcEngine) {.async, gcsafe.} =
       b.advertisedIndex = 0
       b.advertisementFrequency = BlockAdvertisementFrequency
 
-    #publish one
+    # check that we still have this block.
+    while
+      b.advertisedIndex < b.advertisedBlocks.len and
+      not(b.localStore.contains(b.advertisedBlocks[b.advertisedIndex])):
+        b.advertisedBlocks.delete(b.advertisedIndex)
+
+    #publish it
     if b.advertisedIndex < b.advertisedBlocks.len:
       asyncSpawn b.publishOnDht(b.advertisedBlocks[b.advertisedIndex])
 
