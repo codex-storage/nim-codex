@@ -15,6 +15,7 @@ import pkg/dagger/chunker
 import pkg/dagger/node
 import pkg/dagger/manifest
 import pkg/dagger/blocktype as bt
+import pkg/dagger/erasure
 
 import ./helpers
 
@@ -31,6 +32,7 @@ suite "Test Node":
     localStore: CacheStore
     engine: BlockExcEngine
     store: NetworkStore
+    erasure: Erasure
     node: DaggerNodeRef
 
   setup:
@@ -39,10 +41,11 @@ suite "Test Node":
     switch = newStandardSwitch()
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
-    localStore = CacheStore.new()
+    localStore = CacheStore.new(cacheSize = (file.getFileSize * 5), chunkSize = BlockSize)
     engine = BlockExcEngine.new(localStore, wallet, network)
     store = NetworkStore.new(engine, localStore)
-    node = DaggerNodeRef.new(switch, store, engine, nil) # TODO: pass `Erasure`
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+    node = DaggerNodeRef.new(switch, store, engine, erasure)
 
     await node.start()
 
@@ -130,3 +133,25 @@ suite "Test Node":
     var data = newSeq[byte](testString.len)
     await stream.readExactly(addr data[0], data.len)
     check string.fromBytes(data) == testString
+
+  test "Request storage":
+    let
+      stream = BufferStream.new()
+      storeFut = node.store(stream)
+
+    var
+      manifest = Manifest.new().tryGet()
+
+    try:
+      while (
+        let chunk = await chunker.getBytes();
+        chunk.len > 0):
+        await stream.pushData(chunk)
+        manifest.add(bt.Block.new(chunk).tryGet().cid)
+    finally:
+      await stream.pushEof()
+      await stream.close()
+
+    let
+      manifestCid = (await storeFut).tryGet()
+      requestCid = (await node.requestStorage(manifestCid, 100, 1.weeks, 20, 10)).tryGet()
