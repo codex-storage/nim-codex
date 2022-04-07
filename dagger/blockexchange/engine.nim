@@ -143,12 +143,16 @@ proc stop*(b: BlockExcEngine) {.async.} =
 
   trace "NetworkStore stopped"
 
+proc toDiscoveryId*(cid: Cid): NodeId =
+  ## To discovery id
+  readUintBE[256](keccak256.digest(cid.data.buffer).data)
+
 proc discoverOnDht(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
   bd.lastDhtQuery = Moment.fromNow(10.hours)
   defer: bd.lastDhtQuery = Moment.now()
 
   let
-    blockId = bd.toDiscover.toNodeId()
+    blockId = bd.toDiscover.toDiscoveryId()
     discoveredProviders = await b.discovery.getProviders(blockId)
 
   if discoveredProviders.isOk:
@@ -157,7 +161,7 @@ proc discoverOnDht(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
       asyncSpawn b.network.dialPeer(peer.data)
 
 proc publishOnDht(b: BlockExcEngine, cid: Cid) {.async.} =
-  let bid = cid.toNodeId()
+  let bid = cid.toDiscoveryId()
   if isNil(b.network) or isNil(b.network.switch): return #TODO this is just for tests without network to pass
   discard await b.discovery.addProvider(bid, b.network.switch.peerInfo.signedPeerRecord)
 
