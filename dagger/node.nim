@@ -27,6 +27,7 @@ import ./stores/blockstore
 import ./blockexchange
 import ./streams
 import ./erasure
+import ./por
 
 logScope:
   topics = "dagger node"
@@ -52,9 +53,14 @@ proc start*(node: DaggerNodeRef) {.async.} =
 proc stop*(node: DaggerNodeRef) {.async.} =
   trace "Stopping node"
 
-  await node.engine.stop()
-  await node.switch.stop()
-  await node.erasure.stop()
+  if not isNil(node.engine):
+    await node.engine.stop()
+
+  if not isNil(node.switch):
+    await node.switch.stop()
+
+  if not isNil(node.erasure):
+    await node.erasure.stop()
 
 proc findPeer*(
   node: DaggerNodeRef,
@@ -222,6 +228,14 @@ proc requestStorage*(
   if not (await self.blockStore.putBlock(encodedBlk)):
     trace "Unable to store encoded manifest block", cid = encodedBlk.cid
     return failure("Unable to store encoded manifest block")
+
+  let
+    (spk, ssk) = keyGen()
+    por = (await PoR.init(
+      StoreStream.new(self.blockStore, encoded),
+      ssk,
+      spk,
+      encoded.blockSize div 31))
 
   return encodedBlk.cid.success
 
