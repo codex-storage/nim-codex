@@ -183,8 +183,3 @@
 	url = https://github.com/status-im/nim-libp2p-dht.git
 	ignore = untracked
 	branch = master
-[submodule "vendor/nim-eth"]
-	path = vendor/nim-eth
-	url = https://github.com/status-im/nim-eth.git
-	ignore = untracked
-	branch = master
