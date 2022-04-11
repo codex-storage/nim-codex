@@ -8,7 +8,6 @@ import ./helpers
 import pkg/dagger/streams
 import pkg/dagger/stores
 import pkg/dagger/manifest
-import pkg/dagger/rng
 
 suite "StoreStream":
   var
