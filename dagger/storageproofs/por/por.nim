@@ -83,13 +83,13 @@ import pkg/chronos
 import pkg/blscurve
 import pkg/blscurve/blst/blst_abi
 
-import ../rng
-import ../streams
+import ../../rng
+import ../../streams
 
 # sector size in bytes. Must be smaller than the subgroup order r
 # which is 255 bits long for BLS12-381
 const
-  BytesPerSector = 31
+  BytesPerSector* = 31
 
   # length in bytes of the unique (random) name
   Namelen = 512
@@ -340,11 +340,18 @@ proc init*(
   stream: SeekableStream,
   ssk: SecretKey,
   spk: PublicKey,
-  s: int64): Future[PoR] {.async.} =
+  blockSize: int64): Future[PoR] {.async.} =
   ## Set up the POR scheme by generating tags and metadata
   ##
 
-  let n = stream.sectorsCount(s)
+  doAssert(
+    (blockSize mod BytesPerSector) == 0,
+    "Block size should be divisible by `BytesPerSector`")
+
+  let
+    s = blockSize div BytesPerSector
+    n = stream.sectorsCount(s)
+
   var t = TauZero(n: n)
 
   # generate a random name

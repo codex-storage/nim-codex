@@ -1,0 +1,6 @@
+syntax = "proto3";
+
+message AuthExchangeMessage {
+  byte cid = 1;
+  repeated byte authenticators = 2;
+}

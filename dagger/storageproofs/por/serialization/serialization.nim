@@ -24,7 +24,7 @@ import ../por
 func toMessage*(self: Proof): ProofMessage =
   var
     message = ProofMessage()
-    sigma: array[48, byte]
+    sigma: array[96, byte]
 
   for mu in self.mu:
     var
@@ -32,7 +32,7 @@ func toMessage*(self: Proof): ProofMessage =
     blst_bendian_from_scalar(serialized, mu)
     message.mu.add(toSeq(serialized))
 
-  blst_p1_compress(sigma, self.sigma)
+  blst_p1_serialize(sigma, self.sigma)
   message.sigma = toSeq(sigma)
 
   message
@@ -42,7 +42,7 @@ func fromMessage*(self: ProofMessage): Result[Proof, string] =
     proof = Proof()
     sigmaAffine: blst_p1_affine
 
-  if blst_p1_uncompress(sigmaAffine, toArray(48, self.sigma)) != BLST_SUCCESS:
+  if blst_p1_deserialize(sigmaAffine, toArray(96, self.sigma)) != BLST_SUCCESS:
     return err("Unable to decompress sigma")
 
   blst_p1_from_affine(proof.sigma, sigmaAffine)
@@ -64,10 +64,10 @@ func toMessage*(self: TauZero, compress = false): TauZeroMessage =
 
   for u in self.u:
     var
-      serialized: array[48, byte]
+      serialized: array[96, byte]
 
     # serialized and compresses the points
-    blst_p1_compress(serialized, u)
+    blst_p1_serialize(serialized, u)
     message.u.add(toSeq(serialized))
 
   message
@@ -84,7 +84,7 @@ func fromMessage*(self: TauZeroMessage): Result[TauZero, string] =
       uuAffine: blst_p1_affine
       uu: blst_p1
 
-    if blst_p1_uncompress(uuAffine, toArray(48, u)) != BLST_SUCCESS:
+    if blst_p1_deserialize(uuAffine, toArray(96, u)) != BLST_SUCCESS:
       return err("Unable to decompress u")
 
     blst_p1_from_affine(uu, uuAffine)
@@ -106,9 +106,9 @@ func fromMessage*(self: TauMessage): Result[Tau, string] =
 func toMessage*(self: por.PublicKey): PubKeyMessage =
   var
     message = PubKeyMessage(signkey: toSeq(self.signkey.exportRaw()))
-    key: array[96, byte]
+    key: array[192, byte]
 
-  blst_p2_compress(key, self.key)
+  blst_p2_serialize(key, self.key)
   message.key = toSeq(key)
 
   message
@@ -121,7 +121,7 @@ func fromMessage*(self: PubKeyMessage): Result[por.PublicKey, string] =
   if not spk.signkey.fromBytes(self.signkey.toOpenArray(0, 47)):
     return err("Unable to deserialize public key!")
 
-  if blst_p2_uncompress(keyAffine, toArray(96, self.key)) != BLST_SUCCESS:
+  if blst_p2_deserialize(keyAffine, toArray(192, self.key)) != BLST_SUCCESS:
     return err("Unable to decompress key!")
 
   blst_p2_from_affine(spk.key, keyAffine)
@@ -136,10 +136,10 @@ func toMessage*(self: PoR): PoRMessage =
 
   for sigma in self.authenticators:
     var
-      compressed: array[48, byte]
+      serialized: array[96, byte]
 
-    blst_p1_compress(compressed, sigma)
-    message.authenticators.add(toSeq(compressed))
+    blst_p1_serialize(serialized, sigma)
+    message.authenticators.add(toSeq(serialized))
 
   message
 
@@ -154,7 +154,7 @@ func fromMessage*(self: PoRMessage): Result[PoR, string] =
       sigmaAffine: blst_p1_affine
       authenticator: blst_p1
 
-    if blst_p1_uncompress(sigmaAffine, toArray(48, sigma)) != BLST_SUCCESS:
+    if blst_p1_deserialize(sigmaAffine, toArray(96, sigma)) != BLST_SUCCESS:
       return err("Unable to decompress sigma")
 
     blst_p1_from_affine(authenticator, sigmaAffine)
