@@ -1,24 +1,15 @@
-## Nim-POS
-## Copyright (c) 2021 Status Research & Development GmbH
-## Licensed under either of
-##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-## at your option.
-## This file may not be copied, modified, or distributed except according to
-## those terms.
-
 import pkg/chronos
 import pkg/asynctest
 
 import pkg/dagger/streams
-import pkg/dagger/por
+import pkg/dagger/storageproofs/por
 import pkg/dagger/stores
 import pkg/dagger/manifest
 import pkg/dagger/chunker
 import pkg/dagger/rng
 import pkg/dagger/blocktype
 
-import ./helpers
+import ../helpers
 
 const
   SectorSize = 31
@@ -42,7 +33,7 @@ proc deleteBlocks(store: BlockStore, manifest: Manifest, blks, bytes: int) {.asy
       bytePos: seq[int]
 
     while true:
-      if bytePos.len> bytes:
+      if bytePos.len > bytes:
         break
 
       var ii = -1
@@ -85,7 +76,7 @@ suite "BLS PoR":
         StoreStream.new(store, manifest),
         ssk,
         spk,
-        SectorsPerBlock)
+        BlockSize)
 
     let q = generateQuery(por.tau, QueryLen)
     # echo "Generated!" , " q:", q
