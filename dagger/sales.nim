@@ -24,7 +24,8 @@ type
     minPrice*: UInt256
   Negotiation = ref object
     sales: Sales
-    request: StorageRequest
+    requestId: array[32, byte]
+    ask: StorageAsk
     availability: Availability
     offer: ?StorageOffer
     subscription: ?Subscription
@@ -52,17 +53,17 @@ func add*(sales: Sales, availability: Availability) =
 func remove*(sales: Sales, availability: Availability) =
   sales.available.keepItIf(it != availability)
 
-func findAvailability(sales: Sales, request: StorageRequest): ?Availability =
+func findAvailability(sales: Sales, ask: StorageAsk): ?Availability =
   for availability in sales.available:
-    if request.size <= availability.size.u256 and
-       request.duration <= availability.duration.u256 and
-       request.maxPrice >= availability.minPrice:
+    if ask.size <= availability.size.u256 and
+       ask.duration <= availability.duration.u256 and
+       ask.maxPrice >= availability.minPrice:
       return some availability
 
 proc createOffer(negotiation: Negotiation): StorageOffer =
   StorageOffer(
-    requestId: negotiation.request.id,
-    price: negotiation.request.maxPrice,
+    requestId: negotiation.requestId,
+    price: negotiation.ask.maxPrice,
     expiry: getTime().toUnix().u256 + negotiation.sales.offerExpiryInterval
   )
 
@@ -117,13 +118,16 @@ proc start(negotiation: Negotiation) {.async.} =
   await negotiation.subscribeSelect()
   negotiation.waiting = some negotiation.waitForExpiry()
 
-proc handleRequest(sales: Sales, request: StorageRequest) {.async.} =
-  without availability =? sales.findAvailability(request):
+proc handleRequest(sales: Sales,
+                   requestId: array[32, byte],
+                   ask: StorageAsk) {.async.} =
+  without availability =? sales.findAvailability(ask):
     return
 
   let negotiation = Negotiation(
     sales: sales,
-    request: request,
+    requestId: requestId,
+    ask: ask,
     availability: availability
   )
 
@@ -132,8 +136,8 @@ proc handleRequest(sales: Sales, request: StorageRequest) {.async.} =
 proc start*(sales: Sales) =
   doAssert sales.subscription.isNone, "Sales already started"
 
-  proc onRequest(request: StorageRequest) {.gcsafe, upraises:[].} =
-    asyncSpawn sales.handleRequest(request)
+  proc onRequest(requestId: array[32, byte], ask: StorageAsk) {.gcsafe, upraises:[].} =
+    asyncSpawn sales.handleRequest(requestId, ask)
 
   proc subscribe {.async.} =
     sales.subscription = some await sales.market.subscribeRequests(onRequest)

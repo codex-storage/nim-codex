@@ -8,7 +8,9 @@ import ./examples
 suite "Sales":
 
   let availability = Availability.init(size=100, duration=60, minPrice=42.u256)
-  let request = StorageRequest(duration: 60.u256, size: 100.u256, maxPrice:42.u256)
+  let request = StorageRequest(
+    ask: StorageAsk(duration: 60.u256, size: 100.u256, maxPrice:42.u256)
+  )
 
   var sales: Sales
   var market: MockMarket
@@ -52,7 +54,7 @@ suite "Sales":
   test "ignores request when no matching storage is available":
     sales.add(availability)
     var tooBig = request
-    tooBig.size = request.size + 1
+    tooBig.ask.size = request.ask.size + 1
     discard await market.requestStorage(tooBig)
     check market.offered.len == 0
 

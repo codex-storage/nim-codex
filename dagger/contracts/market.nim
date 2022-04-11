@@ -59,7 +59,7 @@ method subscribeRequests(market: OnChainMarket,
                          callback: OnRequest):
                         Future[MarketSubscription] {.async.} =
   proc onEvent(event: StorageRequested) {.upraises:[].} =
-    callback(event.request)
+    callback(event.requestId, event.ask)
   let subscription = await market.contract.subscribe(StorageRequested, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
