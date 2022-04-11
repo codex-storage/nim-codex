@@ -1,7 +1,5 @@
 syntax = "proto3";
 
-package blockexc.message.pb;
-
 message Message {
 
   message Wantlist {
