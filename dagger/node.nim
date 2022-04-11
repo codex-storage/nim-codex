@@ -27,7 +27,7 @@ import ./stores/blockstore
 import ./blockexchange
 import ./streams
 import ./erasure
-import ./por
+import ./storageproofs
 
 logScope:
   topics = "dagger node"
@@ -229,14 +229,7 @@ proc requestStorage*(
     trace "Unable to store encoded manifest block", cid = encodedBlk.cid
     return failure("Unable to store encoded manifest block")
 
-  let
-    (spk, ssk) = keyGen()
-    por = (await PoR.init(
-      StoreStream.new(self.blockStore, encoded),
-      ssk,
-      spk,
-      encoded.blockSize div 31))
-
+  # TODO: wire in storageproofs and contract flow
   return encodedBlk.cid.success
 
 proc new*(
