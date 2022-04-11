@@ -1,5 +1,10 @@
 name: nim-dagger CI
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -7,21 +12,15 @@ jobs:
       fail-fast: false
       max-parallel: 20
       matrix:
-        branch: [v1.2.18, v1.4.8, v1.6.4]
+        branch: [v1.2.18, v1.6.4]
         target:
           # Unit tests
           - os: linux
             cpu: amd64
             TEST_KIND: unit-tests
-          - os: linux
-            cpu: i386
-            TEST_KIND: unit-tests
           - os: macos
             cpu: amd64
             TEST_KIND: unit-tests
-          # - os: windows
-          #   cpu: i386
-          #   TEST_KIND: unit-tests
           - os: windows
             cpu: amd64
             TEST_KIND: unit-tests
@@ -35,7 +34,7 @@ jobs:
           - target:
               os: windows
             builder: windows-2019
-    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }}'
+    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ matrix.branch }}'
     runs-on: ${{ matrix.builder }}
     steps:
       - name: Checkout nim-dagger
