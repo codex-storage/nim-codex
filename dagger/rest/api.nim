@@ -11,7 +11,6 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
-
 import std/sequtils
 
 import pkg/questionable

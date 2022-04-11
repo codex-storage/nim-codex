@@ -12,6 +12,10 @@ import ./erasure/backends/leopard
 
 export erasure
 
+import pkg/upraises
+
+push: {.upraises: [].}
+
 func leoEncoderProvider*(size, buffers, parity: int): EncoderBackend {.raises: [Defect].} =
   LeoEncoderBackend.new(size, buffers, parity)
 

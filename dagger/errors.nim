@@ -8,6 +8,9 @@
 ## those terms.
 
 import pkg/stew/results
+import pkg/upraises
+
+push: {.upraises: [].}
 
 type
   DaggerError* = object of CatchableError # base dagger error
