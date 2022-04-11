@@ -9,7 +9,7 @@ import ./dagger/testpurchasing
 import ./dagger/testsales
 import ./dagger/testerasure
 import ./dagger/testproving
-import ./dagger/testpor
+import ./dagger/teststorageproofs
 
 # to check that everything compiles
 import ../dagger
