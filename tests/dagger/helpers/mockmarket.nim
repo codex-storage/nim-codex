@@ -38,7 +38,7 @@ method requestStorage*(market: MockMarket,
   market.requested.add(request)
   let subscriptions = market.subscriptions.onRequest
   for subscription in subscriptions:
-    subscription.callback(request)
+    subscription.callback(request.id, request.ask)
   return request
 
 method offerStorage*(market: MockMarket,

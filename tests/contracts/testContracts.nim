@@ -45,7 +45,7 @@ ethersuite "Storage contracts":
     offer.requestId = request.id
 
     switchAccount(client)
-    await token.approve(storage.address, request.maxPrice)
+    await token.approve(storage.address, request.ask.maxPrice)
     await storage.requestStorage(request)
     switchAccount(host)
     await token.approve(storage.address, collateralAmount)

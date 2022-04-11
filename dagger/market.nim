@@ -10,7 +10,7 @@ export offers
 type
   Market* = ref object of RootObj
   Subscription* = ref object of RootObj
-  OnRequest* = proc(request: StorageRequest) {.gcsafe, upraises:[].}
+  OnRequest* = proc(id: array[32, byte], ask: StorageAsk) {.gcsafe, upraises:[].}
   OnOffer* = proc(offer: StorageOffer) {.gcsafe, upraises:[].}
   OnSelect* = proc(offerId: array[32, byte]) {.gcsafe, upraises: [].}
 

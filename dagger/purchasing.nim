@@ -38,8 +38,8 @@ proc new*(_: type Purchasing, market: Market): Purchasing =
 
 proc populate*(purchasing: Purchasing, request: StorageRequest): StorageRequest =
   result = request
-  if result.proofProbability == 0.u256:
-    result.proofProbability = purchasing.proofProbability
+  if result.ask.proofProbability == 0.u256:
+    result.ask.proofProbability = purchasing.proofProbability
   if result.expiry == 0.u256:
     result.expiry = (getTime().toUnix().u256 + purchasing.requestExpiryInterval)
   if result.nonce == array[32, byte].default:

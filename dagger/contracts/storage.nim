@@ -13,7 +13,7 @@ type
   Id = array[32, byte]
   StorageRequested* = object of Event
     requestId*: Id
-    request*: StorageRequest
+    ask*: StorageAsk
   StorageOffered* = object of Event
     offerId*: Id
     offer*: StorageOffer

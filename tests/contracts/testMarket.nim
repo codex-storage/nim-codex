@@ -30,7 +30,7 @@ ethersuite "On-Chain Market":
     request.client = accounts[0]
     offer.host = accounts[0]
     offer.requestId = request.id
-    offer.price = request.maxPrice
+    offer.price = request.ask.maxPrice
 
   test "fails to instantiate when contract does not have a signer":
     let storageWithoutSigner = storage.connect(provider)
@@ -38,33 +38,36 @@ ethersuite "On-Chain Market":
       discard OnChainMarket.new(storageWithoutSigner)
 
   test "supports storage requests":
-    await token.approve(storage.address, request.maxPrice)
+    await token.approve(storage.address, request.ask.maxPrice)
     check (await market.requestStorage(request)) == request
 
   test "sets client address when submitting storage request":
     var requestWithoutClient = request
     requestWithoutClient.client = Address.default
-    await token.approve(storage.address, request.maxPrice)
+    await token.approve(storage.address, request.ask.maxPrice)
     let submitted = await market.requestStorage(requestWithoutClient)
     check submitted.client == accounts[0]
 
   test "supports request subscriptions":
-    var received: seq[StorageRequest]
-    proc onRequest(request: StorageRequest) =
-      received.add(request)
+    var receivedIds: seq[array[32, byte]]
+    var receivedAsks: seq[StorageAsk]
+    proc onRequest(id: array[32, byte], ask: StorageAsk) =
+      receivedIds.add(id)
+      receivedAsks.add(ask)
     let subscription = await market.subscribeRequests(onRequest)
-    await token.approve(storage.address, request.maxPrice)
+    await token.approve(storage.address, request.ask.maxPrice)
     discard await market.requestStorage(request)
-    check received == @[request]
+    check receivedIds == @[request.id]
+    check receivedAsks == @[request.ask]
     await subscription.unsubscribe()
 
   test "supports storage offers":
-    await token.approve(storage.address, request.maxPrice)
+    await token.approve(storage.address, request.ask.maxPrice)
     discard await market.requestStorage(request)
     check (await market.offerStorage(offer)) == offer
 
   test "sets host address when submitting storage offer":
-    await token.approve(storage.address, request.maxPrice)
+    await token.approve(storage.address, request.ask.maxPrice)
     discard await market.requestStorage(request)
     var offerWithoutHost = offer
     offerWithoutHost.host = Address.default
@@ -72,7 +75,7 @@ ethersuite "On-Chain Market":
     check submitted.host == accounts[0]
 
   test "supports offer subscriptions":
-    await token.approve(storage.address, request.maxPrice)
+    await token.approve(storage.address, request.ask.maxPrice)
     discard await market.requestStorage(request)
     var received: seq[StorageOffer]
     proc onOffer(offer: StorageOffer) =
@@ -88,11 +91,11 @@ ethersuite "On-Chain Market":
     otherRequest.client = accounts[0]
     otherOffer.host = accounts[0]
     otherOffer.requestId = otherRequest.id
-    otherOffer.price = otherRequest.maxPrice
+    otherOffer.price = otherrequest.ask.maxPrice
 
-    await token.approve(storage.address, request.maxPrice)
+    await token.approve(storage.address, request.ask.maxPrice)
     discard await market.requestStorage(request)
-    await token.approve(storage.address, otherRequest.maxPrice)
+    await token.approve(storage.address, otherrequest.ask.maxPrice)
     discard await market.requestStorage(otherRequest)
 
     var submitted: seq[StorageOffer]
@@ -109,7 +112,7 @@ ethersuite "On-Chain Market":
     await subscription.unsubscribe()
 
   test "supports selection of an offer":
-    await token.approve(storage.address, request.maxPrice)
+    await token.approve(storage.address, request.ask.maxPrice)
     discard await market.requestStorage(request)
     discard await market.offerStorage(offer)
 
@@ -130,12 +133,12 @@ ethersuite "On-Chain Market":
     otherRequest.client = accounts[0]
     otherOffer.host = accounts[0]
     otherOffer.requestId = otherRequest.id
-    otherOffer.price = otherRequest.maxPrice
+    otherOffer.price = otherrequest.ask.maxPrice
 
-    await token.approve(storage.address, request.maxPrice)
+    await token.approve(storage.address, request.ask.maxPrice)
     discard await market.requestStorage(request)
     discard await market.offerStorage(offer)
-    await token.approve(storage.address, otherRequest.maxPrice)
+    await token.approve(storage.address, otherrequest.ask.maxPrice)
     discard await market.requestStorage(otherRequest)
     discard await market.offerStorage(otherOffer)
 
