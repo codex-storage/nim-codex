@@ -122,7 +122,7 @@ func ec_export_raw*(signature: Signature): array[96, byte] {.inline, noinit.} =
   let ok = result.serialize_signature_compressed(signature)
   doAssert ok == cttBLS_Success
 
-proc ec_sign*[T: byte|char](secretKey: SecretKey, message: openarray[T]): Signature =
+proc ec_sign*(secretKey: SecretKey, message: openarray[char]): Signature =
   let ok = result.sign(secretKey, message)
   doAssert ok == cttBLS_Success
 
