@@ -66,4 +66,4 @@ switch("warning", "ObservableStores:off")
 
 # Too many false positives for "Warning: method has lock level <unknown>, but another method has 0 [LockLevel]"
 switch("warning", "LockLevel:off")
-
+switch("define", "chronicles_sinks=textlines[dynamic],json[dynamic]")
