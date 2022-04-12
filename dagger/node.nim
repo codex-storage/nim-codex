@@ -29,7 +29,6 @@ import ./streams
 import ./erasure
 import ./discovery
 
-export discovery
 
 logScope:
   topics = "dagger node"

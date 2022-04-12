@@ -15,6 +15,7 @@ import pkg/dagger/blockexchange
 import pkg/dagger/chunker
 import pkg/dagger/node
 import pkg/dagger/manifest
+import pkg/dagger/discovery
 import pkg/dagger/blocktype as bt
 
 import ./helpers
