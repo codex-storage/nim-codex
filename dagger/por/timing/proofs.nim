@@ -7,29 +7,29 @@ export stint
 export periods
 
 type
-  ProofTiming* = ref object of RootObj
+  Proofs* = ref object of RootObj
   ContractId* = array[32, byte]
 
-method periodicity*(proofTiming: ProofTiming):
+method periodicity*(proofs: Proofs):
                    Future[Periodicity] {.base, async.} =
   raiseAssert("not implemented")
 
-method getCurrentPeriod*(proofTiming: ProofTiming):
+method getCurrentPeriod*(proofs: Proofs):
                         Future[Period] {.base, async.} =
   raiseAssert("not implemented")
 
-method waitUntilPeriod*(proofTiming: ProofTiming,
+method waitUntilPeriod*(proofs: Proofs,
                         period: Period) {.base, async.} =
   raiseAssert("not implemented")
 
-method isProofRequired*(proofTiming: ProofTiming,
+method isProofRequired*(proofs: Proofs,
                         id: ContractId): Future[bool] {.base, async.} =
   raiseAssert("not implemented")
 
-method willProofBeRequired*(proofTiming: ProofTiming,
+method willProofBeRequired*(proofs: Proofs,
                             id: ContractId): Future[bool] {.base, async.} =
   raiseAssert("not implemented")
 
-method getProofEnd*(proofTiming: ProofTiming,
+method getProofEnd*(proofs: Proofs,
                     id: ContractId): Future[UInt256] {.base, async.} =
   raiseAssert("not implemented")

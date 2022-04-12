@@ -3,32 +3,32 @@ import dagger/contracts
 import ./examples
 import ./time
 
-ethersuite "On-Chain Proof Timing":
+ethersuite "On-Chain Proofs":
 
-  var timing: OnChainProofTiming
+  var proofs: OnChainProofs
   var storage: Storage
 
   setup:
     let deployment = deployment()
     storage = Storage.new(!deployment.address(Storage), provider)
-    timing = OnChainProofTiming.new(storage)
+    proofs = OnChainProofs.new(storage)
 
   test "can retrieve proof periodicity":
-    let periodicity = await timing.periodicity()
+    let periodicity = await proofs.periodicity()
     let periodLength = await storage.proofPeriod()
     check periodicity.seconds == periodLength
 
   test "supports waiting until next period":
-    let periodicity = await timing.periodicity()
-    let currentPeriod = await timing.getCurrentPeriod()
+    let periodicity = await proofs.periodicity()
+    let currentPeriod = await proofs.getCurrentPeriod()
 
     let pollInterval = 200.milliseconds
-    timing.pollInterval = pollInterval
+    proofs.pollInterval = pollInterval
 
     proc waitForPoll {.async.} =
       await sleepAsync(pollInterval * 2)
 
-    let future = timing.waitUntilPeriod(currentPeriod + 1)
+    let future = proofs.waitUntilPeriod(currentPeriod + 1)
 
     check not future.completed
 
@@ -38,10 +38,10 @@ ethersuite "On-Chain Proof Timing":
     check future.completed
 
   test "supports checking whether proof is required now":
-    check (await timing.isProofRequired(ContractId.example)) == false
+    check (await proofs.isProofRequired(ContractId.example)) == false
 
   test "supports checking whether proof is required soon":
-    check (await timing.willProofBeRequired(ContractId.example)) == false
+    check (await proofs.willProofBeRequired(ContractId.example)) == false
 
   test "retrieves proof end time":
-    check (await timing.getProofEnd(ContractId.example)) == 0.u256
+    check (await proofs.getProofEnd(ContractId.example)) == 0.u256
