@@ -42,17 +42,17 @@ const C = BLS12_381
 type
   ec_SecretKey* = SecretKey
   ec_PublicKey* = PublicKey
-  ec_p1* = ECP_ShortW_Jac[Fp2[C], G2]
-  ec_p1_affine = ECP_ShortW_Aff[Fp2[C], G2]
-  ec_p2* = ECP_ShortW_Jac[Fp[C], G1]
-  ec_p2_affine = ECP_ShortW_Aff[Fp[C], G1]
+  ec_p1* = ECP_ShortW_Jac[Fp[C], G1]
+  ec_p1_affine = ECP_ShortW_Aff[Fp[C], G1]
+  ec_p2* = ECP_ShortW_Jac[Fp2[C], G2]
+  ec_p2_affine = ECP_ShortW_Aff[Fp2[C], G2]
   ec_scalar* = matchingOrderBigInt(C)
   ec_fr* = Fr[C]
   ec_signature* = Signature
 
 let
-  EC_G1* = C.getGenerator($G2)
-  EC_G2* = C.getGenerator($G1)
+  EC_G1* = C.getGenerator($G1)
+  EC_G2* = C.getGenerator($G2)
 
 func ec_p1_from_affine*(dst: var ec_p1, a: ec_p1_affine) = 
   dst.fromAffine(a)
@@ -107,7 +107,7 @@ func ec_fr_mul*(res: var Fr[C], a, b: Fr[C]) =
 func ec_p1_on_curve*(p: ec_p1) : bool =
   var aff : ec_p1_affine
   aff.affine(p)
-  (bool) isOnCurve(aff.x, aff.y, G2)
+  (bool) isOnCurve(aff.x, aff.y, G1)
 
 func ec_keygen*(ikm: array[32, byte], pk: var PublicKey, sk: var SecretKey) : bool =
   # TODO: HKDF key generation as in spec (https://tools.ietf.org/html/draft-irtf-cfrg-bls-signature#section-2.3)
@@ -146,7 +146,7 @@ proc verifyPairings*(a1: ec_p1, a2: ec_p2, b1: ec_p1, b2: ec_p2) : bool =
   a2aff.affine(a2)
   negb2aff.affine(b2)
   negb2aff.neg(negb2aff)
-  gt.pairing([a2aff, negb2aff], [a1aff, b1aff])
+  gt.pairing([a1aff, b1aff], [a2aff, negb2aff])
   return gt.isOne().bool()
 
 func ec_from_bytes*(
