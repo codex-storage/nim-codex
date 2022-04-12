@@ -71,10 +71,11 @@ ethersuite "Storage contracts":
     check proofEnd > 0
 
   test "accept storage proofs":
+    let proof = seq[byte].example
     switchAccount(host)
     await storage.startContract(id)
     await waitUntilProofRequired(id)
-    await storage.submitProof(id, true)
+    await storage.submitProof(id, proof)
 
   test "can mark missing proofs":
     switchAccount(host)
