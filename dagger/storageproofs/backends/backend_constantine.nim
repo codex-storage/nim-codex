@@ -34,6 +34,7 @@ export matchingBigInt
 export getNonResidueFp
 
 when defined(debugConstantine):
+  import   constantine/math/config/type_bigint
   export `$`
 
 const C = BLS12_381
