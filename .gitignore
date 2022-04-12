@@ -12,6 +12,10 @@ build/
 # Nimble packages
 /vendor/.nimble
 
+# Nimble user files
+nimble.develop
+nimble.paths
+
 # vscode
 .vscode
 

@@ -4,21 +4,32 @@ version = "0.1.0"
 author = "Dagger Team"
 description = "p2p data durability engine"
 license = "MIT"
+binDir = "build"
+srcDir = "."
 
-requires "libp2p#unstable",
-         "nimcrypto >= 0.4.1",
+requires "nim >= 1.2.0",
+         "asynctest >= 0.3.0 & < 0.4.0",
          "bearssl >= 0.1.4",
          "chronicles >= 0.7.2",
          "chronos >= 2.5.2",
+         "confutils",
+         "ethers >= 0.1.3 & < 0.2.0",
+         "libbacktrace",
+         "libp2p",
          "metrics",
-         "secp256k1",
-         "stew#head",
-         "protobufserialization >= 0.2.0 & < 0.3.0",
-         "https://github.com/status-im/nim-nitro >= 0.4.0 & < 0.5.0",
-         "https://github.com/status-im/nim-ethers >= 0.1.3 & < 0.2.0",
+         "nimcrypto >= 0.4.1",
+         "nitro >= 0.4.0 & < 0.5.0",
+         "presto",
+         "protobuf_serialization >= 0.2.0 & < 0.3.0",
          "questionable >= 0.9.1 & < 0.10.0",
-         "upraises >= 0.1.0 & < 0.2.0",
-         "asynctest >= 0.3.0 & < 0.4.0"
+         "secp256k1",
+         "stew",
+         "upraises >= 0.1.0 & < 0.2.0"
+
+when declared(namedBin):
+  namedBin = {
+    "dagger/dagger": "dagger"
+  }.toTable()
 
 ### Helper functions
 proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
@@ -30,15 +41,15 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
     extra_params &= " " & paramStr(i)
   exec "nim " & lang & " --out:build/" & name & " " & extra_params & " " & srcDir & name & ".nim"
 
-proc test(name: string, srcDir = "tests/", params = "-d:chronicles_log_level=DEBUG", lang = "c") =
-  buildBinary name, srcDir, params
+proc test(name: string, srcDir = "tests/", lang = "c") =
+  buildBinary name, srcDir
   exec "build/" & name
 
 task testDagger, "Build & run Dagger tests":
-  test "testDagger", params = "-d:chronicles_log_level=WARN"
+  test "testDagger"
 
 task testContracts, "Build & run Dagger Contract tests":
-  test "testContracts", "tests/", "-d:chronicles_log_level=WARN"
+  test "testContracts"
 
 task test, "Run tests":
   testDaggerTask()
