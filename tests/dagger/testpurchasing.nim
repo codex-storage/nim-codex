@@ -16,9 +16,10 @@ suite "Purchasing":
     market = MockMarket.new()
     purchasing = Purchasing.new(market)
     request = StorageRequest(
-      duration: uint16.example.u256,
-      size: uint32.example.u256,
-      contentHash: array[32, byte].example
+      ask: StorageAsk(
+        duration: uint16.example.u256,
+        size: uint32.example.u256,
+      )
     )
 
   proc purchaseAndWait(request: StorageRequest) {.async.} =
@@ -29,10 +30,9 @@ suite "Purchasing":
   test "submits a storage request when asked":
     await purchaseAndWait(request)
     let submitted = market.requested[0]
-    check submitted.duration == request.duration
-    check submitted.size == request.size
-    check submitted.contentHash == request.contentHash
-    check submitted.maxPrice == request.maxPrice
+    check submitted.ask.duration == request.ask.duration
+    check submitted.ask.size == request.ask.size
+    check submitted.ask.maxPrice == request.ask.maxPrice
 
   test "has a default value for proof probability":
     check purchasing.proofProbability != 0.u256
@@ -40,12 +40,12 @@ suite "Purchasing":
   test "can change default value for proof probability":
     purchasing.proofProbability = 42.u256
     await purchaseAndWait(request)
-    check market.requested[0].proofProbability == 42.u256
+    check market.requested[0].ask.proofProbability == 42.u256
 
   test "can override proof probability per request":
-    request.proofProbability = 42.u256
+    request.ask.proofProbability = 42.u256
     await purchaseAndWait(request)
-    check market.requested[0].proofProbability == 42.u256
+    check market.requested[0].ask.proofProbability == 42.u256
 
   test "has a default value for request expiration interval":
     check purchasing.requestExpiryInterval != 0.u256

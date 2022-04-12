@@ -8,5 +8,9 @@ import ./dagger/teststorestream
 import ./dagger/testpurchasing
 import ./dagger/testsales
 import ./dagger/testerasure
+import ./dagger/testproving
+
+# to check that everything compiles
+import ../dagger
 
 {.warning[UnusedImport]: off.}

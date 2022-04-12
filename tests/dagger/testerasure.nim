@@ -211,7 +211,13 @@ suite "Erasure encode/decode":
         blockIdx = toSeq(countup(offset, encoded.len - 1, encoded.steps))
 
       for _ in 0..<encoded.M + 1: # NOTE: the +1
-        blocks.add(rng.sample(blockIdx, blocks))
+        var idx: int
+        while true:
+          idx = rng.sample(blockIdx, blocks)
+          if not encoded[idx].isEmpty:
+            break
+
+        blocks.add(idx)
       offset.inc
 
     for idx in blocks:

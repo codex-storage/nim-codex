@@ -3,10 +3,10 @@ import pkg/chronos
 import pkg/nimcrypto
 import dagger/contracts
 import dagger/contracts/testtoken
+import dagger/por/timing/periods
 import ./ethertest
 import ./examples
 import ./time
-import ./periods
 
 ethersuite "Storage contracts":
 
@@ -45,7 +45,7 @@ ethersuite "Storage contracts":
     offer.requestId = request.id
 
     switchAccount(client)
-    await token.approve(storage.address, request.maxPrice)
+    await token.approve(storage.address, request.ask.maxPrice)
     await storage.requestStorage(request)
     switchAccount(host)
     await token.approve(storage.address, collateralAmount)

@@ -13,7 +13,7 @@ type
   Id = array[32, byte]
   StorageRequested* = object of Event
     requestId*: Id
-    request*: StorageRequest
+    ask*: StorageAsk
   StorageOffered* = object of Event
     offerId*: Id
     offer*: StorageOffer
@@ -43,6 +43,7 @@ proc proofTimeout*(storage: Storage): UInt256 {.contract, view.}
 proc proofEnd*(storage: Storage, id: Id): UInt256 {.contract, view.}
 proc missingProofs*(storage: Storage, id: Id): UInt256 {.contract, view.}
 proc isProofRequired*(storage: Storage, id: Id): bool {.contract, view.}
+proc willProofBeRequired*(storage: Storage, id: Id): bool {.contract, view.}
 proc getChallenge*(storage: Storage, id: Id): array[32, byte] {.contract, view.}
 proc getPointer*(storage: Storage, id: Id): uint8 {.contract, view.}
 
