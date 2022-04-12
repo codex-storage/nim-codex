@@ -134,7 +134,7 @@ proc ec_hash_to_g1*(dst: var ec_p1,
 
 proc verifyPairings*(a1: ec_p1, a2: ec_p2, b1: ec_p1, b2: ec_p2) : bool =
   when C.getEmbeddingDegree() == 12:
-    var gt {.noInit.}: Fp12[C]
+    var gt1, gt2 {.noInit.}: Fp12[C]
   else:
     {.error: "Not implemented: signature on k=" & $C.getEmbeddingDegree() & " for curve " & $$C.}
 
@@ -144,8 +144,9 @@ proc verifyPairings*(a1: ec_p1, a2: ec_p2, b1: ec_p1, b2: ec_p2) : bool =
   b1aff.affine(b1)
   a2aff.affine(a2)
   b2aff.affine(b2)
-  gt.pairing([a2aff, b2aff], [a1aff, b1aff])
-  return gt.isOne().bool()
+  gt1.pairing(a2aff, a1aff)
+  gt2.pairing(b2aff, b1aff)
+  return bool(gt1 == gt2)
 
 func ec_from_bytes*(
        dst: var Signature,
