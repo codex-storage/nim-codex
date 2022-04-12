@@ -33,7 +33,7 @@ suite "Test Node":
     engine: BlockExcEngine
     store: NetworkStore
     node: DaggerNodeRef
-    discovery: discv5.Protocol
+    discovery: Discovery
 
   setup:
     file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
@@ -42,7 +42,7 @@ suite "Test Node":
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
     localStore = CacheStore.new()
-    discovery = newProtocol(switch.peerInfo.privateKey, bindPort = Port(0), record = switch.peerInfo.signedPeerRecord)
+    discovery = Discovery.new(switch.peerInfo, Port(0))
     engine = BlockExcEngine.new(localStore, wallet, network, discovery)
     store = NetworkStore.new(engine, localStore)
     node = DaggerNodeRef.new(switch, store, engine, nil, discovery) # TODO: pass `Erasure`

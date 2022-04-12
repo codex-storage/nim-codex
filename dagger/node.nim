@@ -20,8 +20,6 @@ import pkg/libp2p
 import pkg/libp2p/routing_record
 import pkg/libp2p/signed_envelope
 
-import pkg/libp2pdht/discv5/protocol as discv5
-
 import ./chunker
 import ./blocktype as bt
 import ./manifest
@@ -29,13 +27,12 @@ import ./stores/blockstore
 import ./blockexchange
 import ./streams
 import ./erasure
+import ./discovery
+
+export discovery
 
 logScope:
   topics = "dagger node"
-
-# pretty mapping
-type Discovery* = discv5.Protocol
-export discv5
 
 type
   DaggerError = object of CatchableError
@@ -50,11 +47,9 @@ type
 
 proc start*(node: DaggerNodeRef) {.async.} =
   await node.switch.start()
-  node.discovery.updateRecord(node.switch.peerInfo.signedPeerRecord).expect("updating SPR")
-  node.discovery.open()
-  node.discovery.start()
   await node.engine.start()
   await node.erasure.start()
+  await node.discovery.start()
 
   node.networkId = node.switch.peerInfo.peerId
   notice "Started dagger node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
@@ -65,19 +60,12 @@ proc stop*(node: DaggerNodeRef) {.async.} =
   await node.engine.stop()
   await node.switch.stop()
   await node.erasure.stop()
-
-  if not node.discovery.isNil:
-    await node.discovery.closeWait()
+  await node.discovery.stop()
 
 proc findPeer*(
   node: DaggerNodeRef,
-  peerId: PeerID): Future[?!PeerRecord] {.async.} =
-  let node = await node.discovery.resolve(toNodeId(peerId))
-  if node.isSome():
-    result.ok(node.get().record.data)
-  else:
-    result.err(newException(IOError, "can't find peer"))
-  return result
+  peerId: PeerID): Future[?PeerRecord] {.async.} =
+  return await node.discovery.findPeer(peerId)
 
 proc connect*(
   node: DaggerNodeRef,

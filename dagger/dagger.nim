@@ -29,6 +29,7 @@ import ./stores
 import ./blockexchange
 import ./utils/fileutils
 import ./erasure
+import ./discovery
 
 type
   DaggerServer* = ref object
@@ -114,12 +115,10 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
           warn "Invalid bootstrap uri", uri=bootstrap
           quit QuitFailure
         res
-    discovery = newProtocol(
-        privateKey,
-        bindPort = config.discoveryPort,
-        record = switch.peerInfo.signedPeerRecord,
-        bootstrapRecords = discoveryBootstrapNodes,
-        rng = Rng.instance()
+    discovery = Discovery.new(
+        switch.peerInfo,
+        discoveryPort = config.discoveryPort,
+        bootstrapNodes = discoveryBootstrapNodes
       )
 
     wallet = WalletRef.new(EthPrivateKey.random())

@@ -12,6 +12,7 @@ import pkg/dagger/rng
 import pkg/dagger/blockexchange
 import pkg/dagger/stores
 import pkg/dagger/chunker
+import pkg/dagger/discovery
 import pkg/dagger/blocktype as bt
 import pkg/dagger/utils/asyncheapqueue
 
@@ -25,7 +26,7 @@ suite "NetworkStore engine basic":
     peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
     chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
     wallet = WalletRef.example
-    discovery = newProtocol(seckey, bindPort = Port(0), record = SignedPeerRecord.init(seckey, PeerRecord.init(peerId, newSeq[MultiAddress]())).get)
+    discovery = Discovery.new()
 
   var
     blocks: seq[bt.Block]
@@ -94,7 +95,7 @@ suite "NetworkStore engine handlers":
     peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
     chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
     wallet = WalletRef.example
-    discovery = newProtocol(seckey, bindPort = Port(0), record = SignedPeerRecord.init(seckey, PeerRecord.init(peerId, newSeq[MultiAddress]())).get)
+    discovery = Discovery.new()
 
   var
     engine: BlockExcEngine
@@ -235,7 +236,7 @@ suite "Task Handler":
       blocks.add(bt.Block.new(chunk).tryGet())
 
     done = newFuture[void]()
-    engine = BlockExcEngine.new(CacheStore.new(), wallet, BlockExcNetwork(), (discv5.Protocol)())
+    engine = BlockExcEngine.new(CacheStore.new(), wallet, BlockExcNetwork(), Discovery.new())
     peersCtx = @[]
 
     for i in 0..3:

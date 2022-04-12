@@ -13,6 +13,7 @@ import pkg/dagger/rng
 import pkg/dagger/stores
 import pkg/dagger/blockexchange
 import pkg/dagger/chunker
+import pkg/dagger/discovery
 import pkg/dagger/blocktype as bt
 
 import ../helpers
@@ -35,7 +36,7 @@ suite "NetworkStore engine - 2 nodes":
     blocks1, blocks2: seq[bt.Block]
     engine1, engine2: BlockExcEngine
     localStore1, localStore2: BlockStore
-    discovery1, discovery2: discv5.Protocol
+    discovery1, discovery2: Discovery
 
   setup:
     while true:
@@ -65,14 +66,14 @@ suite "NetworkStore engine - 2 nodes":
     peerId2 = switch2.peerInfo.peerId
 
     localStore1 = CacheStore.new(blocks1.mapIt( it ))
-    discovery1 = newProtocol(switch1.peerInfo.privateKey, bindPort = Port(0), record = switch1.peerInfo.signedPeerRecord)
+    discovery1 = Discovery.new(switch1.peerInfo, Port(0))
     network1 = BlockExcNetwork.new(switch = switch1)
     engine1 = BlockExcEngine.new(localStore1, wallet1, network1, discovery1)
     blockexc1 = NetworkStore.new(engine1, localStore1)
     switch1.mount(network1)
 
     localStore2 = CacheStore.new(blocks2.mapIt( it ))
-    discovery2 = newProtocol(switch2.peerInfo.privateKey, bindPort = Port(0), record = switch2.peerInfo.signedPeerRecord)
+    discovery2 = Discovery.new(switch2.peerInfo, Port(0))
     network2 = BlockExcNetwork.new(switch = switch2)
     engine2 = BlockExcEngine.new(localStore2, wallet2, network2, discovery2)
     blockexc2 = NetworkStore.new(engine2, localStore2)

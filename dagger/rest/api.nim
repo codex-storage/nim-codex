@@ -106,15 +106,11 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
       let addresses = if addrs.isOk and addrs.get().len > 0:
             addrs.get()
           else:
-            let peerRecord = await node.findPeer(peerId.get())
-            if peerRecord.isErr:
+            without peerRecord =? (await node.findPeer(peerId.get())):
               return RestApiResponse.error(
                 Http400,
                 "Unable to find Peer!")
-
-            peerRecord.get().addresses.mapIt(
-              it.address
-            )
+            peerRecord.addresses.mapIt(it.address)
       try:
         await node.connect(peerId.get(), addresses)
         return RestApiResponse.response("Successfully connected to peer")

@@ -3,6 +3,7 @@ import std/sequtils
 import pkg/chronos
 import pkg/libp2p
 
+import pkg/dagger/discovery
 import pkg/dagger/stores
 import pkg/dagger/blocktype as bt
 
@@ -17,7 +18,7 @@ proc generateNodes*(
   for i in 0..<num:
     let
       switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
-      discovery = newProtocol(switch.peerInfo.privateKey, bindPort = Port(0), record = switch.peerInfo.signedPeerRecord)
+      discovery = Discovery.new(switch.peerInfo, Port(0))
       wallet = WalletRef.example
       network = BlockExcNetwork.new(switch)
       localStore = CacheStore.new(blocks.mapIt( it ))

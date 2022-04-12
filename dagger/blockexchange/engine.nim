@@ -12,11 +12,11 @@ import std/[sequtils, sets, tables]
 import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
-import pkg/libp2pdht/discv5/protocol as discv5
 
 import ../stores/blockstore
 import ../blocktype as bt
 import ../utils/asyncheapqueue
+import ../discovery
 
 import ./protobuf/blockexc
 import ./protobuf/presence
@@ -26,12 +26,11 @@ import ./pendingblocks
 import ./peercontext
 import ./engine/payments
 
-export peercontext, payments, pendingblocks, discv5
+export peercontext, payments, pendingblocks
 
 logScope:
   topics = "dagger blockexc engine"
 
-type Discovery = discv5.Protocol
 const
   DefaultBlockTimeout* = 5.minutes
   DefaultMaxPeersPerRequest* = 10
@@ -143,27 +142,14 @@ proc stop*(b: BlockExcEngine) {.async.} =
 
   trace "NetworkStore stopped"
 
-proc toDiscoveryId*(cid: Cid): NodeId =
-  ## To discovery id
-  readUintBE[256](keccak256.digest(cid.data.buffer).data)
-
 proc discoverOnDht(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
   bd.lastDhtQuery = Moment.fromNow(10.hours)
   defer: bd.lastDhtQuery = Moment.now()
 
-  let
-    blockId = bd.toDiscover.toDiscoveryId()
-    discoveredProviders = await b.discovery.getProviders(blockId)
+  let discoveredProviders = await b.discovery.findBlockProviders(bd.toDiscover)
 
-  if discoveredProviders.isOk:
-    let dp = discoveredProviders.get()
-    for peer in dp:
-      asyncSpawn b.network.dialPeer(peer.data)
-
-proc publishOnDht(b: BlockExcEngine, cid: Cid) {.async.} =
-  let bid = cid.toDiscoveryId()
-  if isNil(b.network) or isNil(b.network.switch): return #TODO this is just for tests without network to pass
-  discard await b.discovery.addProvider(bid, b.network.switch.peerInfo.signedPeerRecord)
+  for peer in discoveredProviders:
+    asyncSpawn b.network.dialPeer(peer.data)
 
 proc discoverLoop(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
   # First, try connected peers
@@ -335,7 +321,7 @@ proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) =
     if bl.cid notin b.advertisedBlocks: #TODO that's very slow, maybe a ordered hashset instead
       #TODO could do some smarter ordering here (insert it just before b.advertisedIndex, or similar)
       b.advertisedBlocks.add(bl.cid)
-      asyncSpawn b.publishOnDht(bl.cid)
+      asyncSpawn b.discovery.publishProvide(bl.cid)
       gotNewBlocks = true
 
   if gotNewBlocks:
@@ -477,7 +463,7 @@ proc advertiseLoop(b: BlockExcEngine) {.async, gcsafe.} =
 
     #publish it
     if b.advertisedIndex < b.advertisedBlocks.len:
-      asyncSpawn b.publishOnDht(b.advertisedBlocks[b.advertisedIndex])
+      asyncSpawn b.discovery.publishProvide(b.advertisedBlocks[b.advertisedIndex])
 
     inc b.advertisedIndex
     let toSleep =
