@@ -69,3 +69,8 @@ switch("warning", "LockLevel:off")
 
 switch("define", "libp2p_pki_schemes=secp256k1")
 switch("define", "chronicles_sinks=textlines[dynamic],json[dynamic]")
+
+# begin Nimble config (version 1)
+when system.fileExists("nimble.paths"):
+  include "nimble.paths"
+# end Nimble config
