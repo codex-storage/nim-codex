@@ -68,3 +68,4 @@ switch("warning", "ObservableStores:off")
 switch("warning", "LockLevel:off")
 
 switch("define", "libp2p_pki_schemes=secp256k1")
+switch("define", "chronicles_sinks=textlines[dynamic],json[dynamic]")
