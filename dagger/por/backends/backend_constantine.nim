@@ -154,7 +154,7 @@ func ec_from_bytes*(
        raw: array[96, byte] or array[192, byte]
       ): bool {.inline.} =
   let ok = dst.deserialize_signature_compressed(raw)
-  doAssert ok == cttBLS_Success
+  ok == cttBLS_Success
 
 func ec_verify*(
        publicKey: PublicKey,
