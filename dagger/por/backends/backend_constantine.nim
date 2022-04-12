@@ -106,7 +106,7 @@ func ec_fr_mul*(res: var Fr[C], a, b: Fr[C]) =
 func ec_p1_on_curve*(p: ec_p1) : bool =
   var aff : ec_p1_affine
   aff.affine(p)
-  (bool) isOnCurve(aff.x, aff.y, G1)
+  (bool) isOnCurve(aff.x, aff.y, G2)
 
 func ec_keygen*(ikm: array[32, byte], pk: var PublicKey, sk: var SecretKey) : bool =
   # TODO: HKDF key generation as in spec (https://tools.ietf.org/html/draft-irtf-cfrg-bls-signature#section-2.3)
