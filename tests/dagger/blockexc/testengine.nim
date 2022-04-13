@@ -1,5 +1,6 @@
 import std/sequtils
 import std/random
+import std/algorithm
 
 import pkg/stew/byteutils
 import pkg/asynctest
@@ -51,7 +52,7 @@ suite "NetworkStore engine basic":
       wantType: WantType = WantType.wantHave,
       full: bool = false,
       sendDontHave: bool = false) {.gcsafe.} =
-        check cids == blocks.mapIt( it.cid )
+        check cids.mapIt($it).sorted == blocks.mapIt( $it.cid ).sorted
 
         done.complete()
 
@@ -65,7 +66,8 @@ suite "NetworkStore engine basic":
         wallet,
         network,
         discovery)
-    engine.wantList = blocks.mapIt( it.cid )
+    for b in blocks:
+      discard engine.discoverBlock(b.cid)
     engine.setupPeer(peerId)
 
     await done

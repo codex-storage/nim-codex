@@ -27,8 +27,6 @@ proc generateNodes*(
 
     switch.mount(network)
 
-    # initialize our want lists
-    engine.wantList = blocks.mapIt( it.cid )
     switch.mount(network)
     result.add((switch, networkStore))
 

@@ -85,8 +85,8 @@ suite "NetworkStore engine - 2 nodes":
     )
 
     # initialize our want lists
-    blockexc1.engine.wantList = blocks2.mapIt( it.cid )
-    blockexc2.engine.wantList = blocks1.mapIt( it.cid )
+    for b in blocks2: discard blockexc1.engine.discoverBlock(b.cid)
+    for b in blocks1: discard blockexc2.engine.discoverBlock(b.cid)
 
     pricing1.address = wallet1.address
     pricing2.address = wallet2.address
@@ -97,7 +97,7 @@ suite "NetworkStore engine - 2 nodes":
       switch2.peerInfo.peerId,
       switch2.peerInfo.addrs)
 
-    await sleepAsync(1.seconds) # give some time to exchange lists
+    await sleepAsync(100.milliseconds) # give some time to exchange lists
     peerCtx2 = blockexc1.engine.getPeerCtx(peerId2)
     peerCtx1 = blockexc2.engine.getPeerCtx(peerId1)
 
@@ -114,10 +114,10 @@ suite "NetworkStore engine - 2 nodes":
 
     check:
       peerCtx1.peerHave.mapIt( $it ).sorted(cmp[string]) ==
-        blockexc2.engine.wantList.mapIt( $it ).sorted(cmp[string])
+        toSeq(blockexc2.engine.runningDiscoveries.keys()).mapIt( $it ).sorted(cmp[string])
 
       peerCtx2.peerHave.mapIt( $it ).sorted(cmp[string]) ==
-        blockexc1.engine.wantList.mapIt( $it ).sorted(cmp[string])
+        toSeq(blockexc1.engine.runningDiscoveries.keys()).mapIt( $it ).sorted(cmp[string])
 
   test "exchanges accounts on connect":
     check peerCtx1.account.?address == pricing1.address.some
@@ -213,8 +213,10 @@ suite "NetworkStore - multiple nodes":
       engine = downloader.engine
 
     # Add blocks from 1st peer to want list
-    engine.wantList &= blocks[0..3].mapIt( it.cid )
-    engine.wantList &= blocks[12..15].mapIt( it.cid )
+    for b in blocks[0..3]:
+      discard engine.discoverBlock(b.cid)
+    for b in blocks[12..15]:
+      discard engine.discoverBlock(b.cid)
 
     await allFutures(
       blocks[0..3].mapIt( blockexc[0].engine.localStore.putBlock(it) ))
@@ -241,8 +243,10 @@ suite "NetworkStore - multiple nodes":
       engine = downloader.engine
 
     # Add blocks from 1st peer to want list
-    engine.wantList &= blocks[0..3].mapIt( it.cid )
-    engine.wantList &= blocks[12..15].mapIt( it.cid )
+    for b in blocks[0..3]:
+      discard engine.discoverBlock(b.cid)
+    for b in blocks[12..15]:
+      discard engine.discoverBlock(b.cid)
 
     await allFutures(
       blocks[0..3].mapIt( blockexc[0].engine.localStore.putBlock(it) ))

@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[sequtils, sets, tables]
+import std/[sequtils, sets, tables, sugar]
 
 import pkg/chronos
 import pkg/chronicles
@@ -53,6 +53,7 @@ type
     toDiscover: Cid
     treatedPeer: HashSet[PeerId]
     inflightIWant: HashSet[PeerId]
+    gotIWantResponse: AsyncEvent
     provides: seq[PeerId]
     lastDhtQuery: Moment
 
@@ -60,7 +61,6 @@ type
     localStore*: BlockStore                       # where we localStore blocks for this instance
     network*: BlockExcNetwork                     # network interface
     peers*: seq[BlockExcPeerCtx]                  # peers we're currently actively exchanging with
-    wantList*: seq[Cid]                           # local wants list
     taskQueue*: AsyncHeapQueue[BlockExcPeerCtx]   # peers we're currently processing tasks for
     concurrentTasks: int                          # number of concurrent peers we're serving at any given time
     maxRetries: int                               # max number of tries for a failed block
@@ -73,7 +73,7 @@ type
     advertisedBlocks: seq[Cid]
     advertisedIndex: int
     advertisementFrequency: Duration
-    runningDiscoveries: Table[Cid, BlockDiscovery]
+    runningDiscoveries*: Table[Cid, BlockDiscovery]
     blockAdded: AsyncEvent
     discovery: Discovery
 
@@ -140,6 +140,11 @@ proc stop*(b: BlockExcEngine) {.async.} =
       await t.cancelAndWait()
       trace "Task stopped"
 
+  for _, bd in b.runningDiscoveries:
+    await bd.discoveryLoop.cancelAndWait()
+
+  b.runningDiscoveries.clear()
+
   trace "NetworkStore stopped"
 
 proc discoverOnDht(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
@@ -157,10 +162,12 @@ proc discoverLoop(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
   # rinse & repeat
   #
   # TODO add a global timeout
+
+  bd.gotIWantResponse.fire()
   while true:
     # wait for iwant replies
-    #TODO do smarter thing here
-    await sleepAsync(1.milliseconds)
+    await bd.gotIWantResponse.wait()
+    bd.gotIWantResponse.clear()
 
     var foundPeerNew = false
     for p in b.peers:
@@ -185,17 +192,18 @@ proc discoverLoop(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
           sendDontHave = true)
 
     if bd.inflightIWant.len < 3 and #TODO or a timeout
-      bd.lastDhtQuery > Moment.fromNow(5.seconds):
+      bd.lastDhtQuery < Moment.now() - 5.seconds:
         #start query
         asyncSpawn b.discoverOnDht(bd)
 
-proc discoverBlock(b: BlockExcEngine, cid: Cid): BlockDiscovery =
+proc discoverBlock*(b: BlockExcEngine, cid: Cid): BlockDiscovery =
   if cid in b.runningDiscoveries:
     return b.runningDiscoveries[cid]
   else:
     result = BlockDiscovery(
       toDiscover: cid,
-      discoveredProvider: newAsyncEvent()
+      discoveredProvider: newAsyncEvent(),
+      gotIWantResponse: newAsyncEvent(),
     )
     result.discoveryLoop = b.discoverLoop(result)
     b.runningDiscoveries[cid] = result
@@ -290,10 +298,12 @@ proc blockPresenceHandler*(
     if presence =? Presence.init(blk):
       if not isNil(peerCtx):
         peerCtx.updatePresence(presence)
-      if not presence.have and presence.cid in b.runningDiscoveries:
+      if presence.cid in b.runningDiscoveries:
         let bd = b.runningDiscoveries[presence.cid]
-        bd.inflightIWant.excl(peer)
-        bd.treatedPeer.incl(peer)
+        if not presence.have:
+          bd.inflightIWant.excl(peer)
+          bd.treatedPeer.incl(peer)
+        bd.gotIWantResponse.fire()
 
 proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) =
   trace "Schedule a task for new blocks"
@@ -434,8 +444,13 @@ proc setupPeer*(b: BlockExcEngine, peer: PeerID) =
     ))
 
   # broadcast our want list, the other peer will do the same
-  if b.wantList.len > 0:
-    b.network.request.sendWantList(peer, b.wantList, full = true)
+  let wantList = collect(newSeqOfCap(b.runningDiscoveries.len)):
+    for cid, bd in b.runningDiscoveries:
+      bd.inflightIWant.incl(peer)
+      cid
+
+  if wantList.len > 0:
+    b.network.request.sendWantList(peer, wantList, full = true, sendDontHave = true)
 
   if address =? b.pricing.?address:
     b.network.request.sendAccount(peer, Account(address: address))
