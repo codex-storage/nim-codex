@@ -18,6 +18,7 @@ export discv5
 
 type
   Discovery* = ref object
+    findBlockProviders_var*: proc(d: Discovery, cid: Cid): seq[SignedPeerRecord] {.gcsafe.}
 
 proc new*(
   T: type Discovery,
@@ -36,7 +37,9 @@ proc findPeer*(
 proc findBlockProviders*(
   d: Discovery,
   cid: Cid): Future[seq[SignedPeerRecord]] {.async.} =
-  return newSeq[SignedPeerRecord]()
+  if isNil(d.findBlockProviders_var): return
+
+  return d.findBlockProviders_var(d, cid)
 
 proc publishProvide*(d: Discovery, cid: Cid) {.async.} =
   return

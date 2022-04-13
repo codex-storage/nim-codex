@@ -75,7 +75,7 @@ type
     advertisementFrequency: Duration
     runningDiscoveries*: Table[Cid, BlockDiscovery]
     blockAdded: AsyncEvent
-    discovery: Discovery
+    discovery*: Discovery
 
   Pricing* = object
     address*: EthAddress
@@ -163,6 +163,8 @@ proc discoverLoop(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
   #
   # TODO add a global timeout
 
+  debug "starting block discovery", cid=bd.toDiscover
+
   bd.gotIWantResponse.fire()
   while true:
     # wait for iwant replies
@@ -181,6 +183,7 @@ proc discoverLoop(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
       bd.discoveredProvider.fire()
       continue
 
+    trace "asking peers", cid=bd.toDiscover, peers=b.peers.len, treated=bd.treatedPeer.len, inflight=bd.inflightIWant.len
     for p in b.peers:
       if p.id notin bd.treatedPeer and p.id notin bd.inflightIWant:
         # just send wants
@@ -220,6 +223,8 @@ proc requestBlock*(
   timeout = DefaultBlockTimeout): Future[bt.Block] {.async.} =
   ## Request a block from remotes
   ##
+
+  debug "requesting block", cid
 
   # TODO
   # we could optimize "groups of related chunks"
