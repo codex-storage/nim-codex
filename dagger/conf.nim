@@ -23,12 +23,10 @@ import pkg/confutils/std/net
 import pkg/stew/shims/net as stewnet
 import pkg/libp2p
 
+import ./discovery
 import ./stores/cachestore
 
 export DefaultCacheSizeMiB, net
-
-const
-  DefaultTcpListenMultiAddr = "/ip4/0.0.0.0/tcp/0"
 
 type
   StartUpCommand* {.pure.} = enum
@@ -73,7 +71,7 @@ type
         defaultValue: @[Port(0)]
         defaultValueDesc: "0"
         abbr: "l"
-        name: "listen-ports" }: seq[Port]
+        name: "listen-port" }: seq[Port]
 
       # TODO We should have two options: the listen IP and the public IP
       # Currently, they are tied together, so we can't be discoverable
@@ -99,7 +97,7 @@ type
       bootstrapNodes* {.
         desc: "Specifies one or more bootstrap nodes to use when connecting to the network."
         abbr: "b"
-        name: "bootstrap-nodes" }: seq[string]
+        name: "bootstrap-nodes" }: seq[SignedPeerRecord]
 
       maxPeers* {.
         desc: "The maximum number of peers to connect to"
@@ -141,6 +139,17 @@ proc defaultDataDir*(): string =
 func parseCmdArg*(T: type MultiAddress, input: TaintedString): T
                  {.raises: [ValueError, LPError, Defect].} =
   MultiAddress.init($input).tryGet()
+
+proc parseCmdArg*(T: type SignedPeerRecord, uri: TaintedString): T =
+  var res: SignedPeerRecord
+  try:
+    if not res.fromURI(uri):
+      warn "Invalid SignedPeerRecord uri", uri=uri
+      quit QuitFailure
+  except CatchableError as exc:
+    warn "Invalid SignedPeerRecord uri", uri=uri, error=exc.msg
+    quit QuitFailure
+  res
 
 # silly chronicles, colors is a compile-time property
 proc stripAnsi(v: string): string =

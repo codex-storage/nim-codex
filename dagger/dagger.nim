@@ -108,13 +108,7 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
       CacheStore.new()
 
   let
-    discoveryBootstrapNodes = collect(newSeq):
-      for bootstrap in config.bootstrapNodes:
-        var res: SignedPeerRecord
-        if not res.fromURI(bootstrap):
-          warn "Invalid bootstrap uri", uri=bootstrap
-          quit QuitFailure
-        res
+    discoveryBootstrapNodes = config.bootstrapNodes
     discovery = Discovery.new(
         switch.peerInfo,
         discoveryPort = config.discoveryPort,
