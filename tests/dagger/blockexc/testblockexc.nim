@@ -308,17 +308,24 @@ suite "NetworkStore - discovery":
     # Distribute the blocks amongst 1..3
     # Ask 0 to download everything without connecting him beforehand
 
+    var advertised: Table[Cid, SignedPeerRecord]
+
+    blockexc[1].engine.discovery.publishProvide_var = proc(d: Discovery, cid: Cid) =
+      advertised[cid] = switch[1].peerInfo.signedPeerRecord
+
+    blockexc[2].engine.discovery.publishProvide_var = proc(d: Discovery, cid: Cid) =
+      advertised[cid] = switch[2].peerInfo.signedPeerRecord
+
+    blockexc[3].engine.discovery.publishProvide_var = proc(d: Discovery, cid: Cid) =
+      advertised[cid] = switch[3].peerInfo.signedPeerRecord
+
     await blockexc[1].engine.blocksHandler(switch[0].peerInfo.peerId, blocks[0..5])
     await blockexc[2].engine.blocksHandler(switch[0].peerInfo.peerId, blocks[4..10])
     await blockexc[3].engine.blocksHandler(switch[0].peerInfo.peerId, blocks[10..15])
 
     blockexc[0].engine.discovery.findBlockProviders_var = proc(d: Discovery, cid: Cid): seq[SignedPeerRecord] =
-      if cid in blocks[0..5].mapIt(it.cid):
-        result.add(switch[1].peerInfo.signedPeerRecord)
-      if cid in blocks[4..10].mapIt(it.cid):
-        result.add(switch[2].peerInfo.signedPeerRecord)
-      if cid in blocks[10..15].mapIt(it.cid):
-        result.add(switch[3].peerInfo.signedPeerRecord)
+      if cid in advertised:
+        result.add(advertised[cid])
 
     let futs = collect(newSeq):
       for b in blocks:
