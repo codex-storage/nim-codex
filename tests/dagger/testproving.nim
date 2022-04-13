@@ -89,3 +89,28 @@ suite "Proving":
     proofs.setProofRequired(id, true)
     await proofs.advanceToNextPeriod()
     check not called
+
+  test "submits proofs":
+    let id = ContractId.example
+    let proof = seq[byte].example
+    await proving.submitProof(id, proof)
+
+  test "supports proof submission subscriptions":
+    let id = ContractId.example
+    let proof = seq[byte].example
+
+    var receivedIds: seq[ContractId]
+    var receivedProofs: seq[seq[byte]]
+
+    proc onProofSubmission(id: ContractId, proof: seq[byte]) =
+      receivedIds.add(id)
+      receivedProofs.add(proof)
+
+    let subscription = await proving.subscribeProofSubmission(onProofSubmission)
+
+    await proving.submitProof(id, proof)
+
+    check receivedIds == @[id]
+    check receivedProofs == @[proof]
+
+    await subscription.unsubscribe()

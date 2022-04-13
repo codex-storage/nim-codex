@@ -48,3 +48,11 @@ proc start*(proving: Proving) =
 
 proc stop*(proving: Proving) =
   proving.stopped = true
+
+proc submitProof*(proving: Proving, id: ContractId, proof: seq[byte]) {.async.} =
+  await proving.proofs.submitProof(id, proof)
+
+proc subscribeProofSubmission*(proving: Proving,
+                               callback: OnProofSubmitted):
+                              Future[Subscription] =
+  proving.proofs.subscribeProofSubmission(callback)

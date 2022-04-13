@@ -1,5 +1,7 @@
 import std/sets
 import std/tables
+import std/sequtils
+import pkg/upraises
 import pkg/dagger/por/timing/proofs
 
 type
@@ -10,6 +12,10 @@ type
     proofsRequired: HashSet[ContractId]
     proofsToBeRequired: HashSet[ContractId]
     proofEnds: Table[ContractId, UInt256]
+    subscriptions: seq[MockSubscription]
+  MockSubscription* = ref object of Subscription
+    proofs: MockProofs
+    callback: OnProofSubmitted
 
 const DefaultPeriodLength = 10.u256
 
@@ -70,3 +76,19 @@ method waitUntilPeriod*(mock: MockProofs, period: Period) {.async.} =
       mock.waiting[period] = @[]
     mock.waiting[period].add(future)
     await future
+
+method submitProof*(mock: MockProofs,
+                    id: ContractId,
+                    proof: seq[byte]) {.async.} =
+  for subscription in mock.subscriptions:
+    subscription.callback(id, proof)
+
+method subscribeProofSubmission*(mock: MockProofs,
+                                 callback: OnProofSubmitted):
+                                Future[Subscription] {.async.} =
+  let subscription = MockSubscription(proofs: mock, callback: callback)
+  mock.subscriptions.add(subscription)
+  return subscription
+
+method unsubscribe*(subscription: MockSubscription) {.async, upraises:[].} =
+  subscription.proofs.subscriptions.keepItIf(it != subscription)
