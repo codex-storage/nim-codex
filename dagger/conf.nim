@@ -19,14 +19,14 @@ import std/typetraits
 import pkg/chronicles
 import pkg/chronicles/topics_registry
 import pkg/confutils/defs
+import pkg/confutils/std/net
+import pkg/stew/shims/net as stewnet
 import pkg/libp2p
 
+import ./discovery
 import ./stores/cachestore
 
-export DefaultCacheSizeMiB
-
-const
-  DefaultTcpListenMultiAddr = "/ip4/0.0.0.0/tcp/0"
+export DefaultCacheSizeMiB, net
 
 type
   StartUpCommand* {.pure.} = enum
@@ -66,17 +66,38 @@ type
       defaultValue: noCommand }: StartUpCommand
 
     of noCommand:
-      listenAddrs* {.
-        desc: "Specifies one or more listening multiaddrs for the node to listen on."
-        defaultValue: @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-        defaultValueDesc: "/ip4/0.0.0.0/tcp/0"
-        abbr: "a"
-        name: "listen-addrs" }: seq[MultiAddress]
+      listenPorts* {.
+        desc: "Specifies one or more listening ports for the node to listen on."
+        defaultValue: @[Port(0)]
+        defaultValueDesc: "0"
+        abbr: "l"
+        name: "listen-port" }: seq[Port]
+
+      # TODO We should have two options: the listen IP and the public IP
+      # Currently, they are tied together, so we can't be discoverable
+      # behind a NAT
+      listenIp* {.
+        desc: "The public IP"
+        defaultValue: ValidIpAddress.init("0.0.0.0")
+        defaultValueDesc: "0.0.0.0"
+        abbr: "i"
+        name: "listen-ip" }: ValidIpAddress
+
+      discoveryPort* {.
+        desc: "Specify the discovery (UDP) port"
+        defaultValue: Port(8090)
+        defaultValueDesc: "8090"
+        name: "udp-port" }: Port
+
+      netPrivKeyFile* {.
+        desc: "Source of network (secp256k1) private key file (random|<path>)"
+        defaultValue: "random"
+        name: "net-privkey" }: string
 
       bootstrapNodes* {.
         desc: "Specifies one or more bootstrap nodes to use when connecting to the network."
         abbr: "b"
-        name: "bootstrap-nodes" }: seq[MultiAddress]
+        name: "bootstrap-nodes" }: seq[SignedPeerRecord]
 
       maxPeers* {.
         desc: "The maximum number of peers to connect to"
@@ -118,6 +139,17 @@ proc defaultDataDir*(): string =
 func parseCmdArg*(T: type MultiAddress, input: TaintedString): T
                  {.raises: [ValueError, LPError, Defect].} =
   MultiAddress.init($input).tryGet()
+
+proc parseCmdArg*(T: type SignedPeerRecord, uri: TaintedString): T =
+  var res: SignedPeerRecord
+  try:
+    if not res.fromURI(uri):
+      warn "Invalid SignedPeerRecord uri", uri=uri
+      quit QuitFailure
+  except CatchableError as exc:
+    warn "Invalid SignedPeerRecord uri", uri=uri, error=exc.msg
+    quit QuitFailure
+  res
 
 # silly chronicles, colors is a compile-time property
 proc stripAnsi(v: string): string =

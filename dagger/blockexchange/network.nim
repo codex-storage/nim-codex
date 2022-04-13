@@ -8,6 +8,7 @@
 ## those terms.
 
 import std/tables
+import std/sequtils
 
 import pkg/chronicles
 import pkg/chronos
@@ -288,6 +289,12 @@ proc setupPeer*(b: BlockExcNetwork, peer: PeerID) =
   ##
 
   discard b.getOrCreatePeer(peer)
+
+proc dialPeer*(b: BlockExcNetwork, peer: PeerRecord) {.async.} =
+  try:
+    await b.switch.connect(peer.peerId, peer.addresses.mapIt(it.address))
+  except CatchableError as exc:
+    debug "Failed to connect to peer", error=exc.msg
 
 proc dropPeer*(b: BlockExcNetwork, peer: PeerID) =
   ## Cleanup disconnected peer

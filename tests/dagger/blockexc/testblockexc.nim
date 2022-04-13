@@ -1,4 +1,5 @@
 import std/sequtils
+import std/sugar
 import std/algorithm
 
 import pkg/asynctest
@@ -7,11 +8,13 @@ import pkg/stew/byteutils
 
 import pkg/libp2p
 import pkg/libp2p/errors
+import pkg/libp2pdht/discv5/protocol as discv5
 
 import pkg/dagger/rng
 import pkg/dagger/stores
 import pkg/dagger/blockexchange
 import pkg/dagger/chunker
+import pkg/dagger/discovery
 import pkg/dagger/blocktype as bt
 
 import ../helpers
@@ -34,6 +37,7 @@ suite "NetworkStore engine - 2 nodes":
     blocks1, blocks2: seq[bt.Block]
     engine1, engine2: BlockExcEngine
     localStore1, localStore2: BlockStore
+    discovery1, discovery2: Discovery
 
   setup:
     while true:
@@ -63,14 +67,16 @@ suite "NetworkStore engine - 2 nodes":
     peerId2 = switch2.peerInfo.peerId
 
     localStore1 = CacheStore.new(blocks1.mapIt( it ))
+    discovery1 = Discovery.new(switch1.peerInfo, Port(0))
     network1 = BlockExcNetwork.new(switch = switch1)
-    engine1 = BlockExcEngine.new(localStore1, wallet1, network1)
+    engine1 = BlockExcEngine.new(localStore1, wallet1, network1, discovery1)
     blockexc1 = NetworkStore.new(engine1, localStore1)
     switch1.mount(network1)
 
     localStore2 = CacheStore.new(blocks2.mapIt( it ))
+    discovery2 = Discovery.new(switch2.peerInfo, Port(0))
     network2 = BlockExcNetwork.new(switch = switch2)
-    engine2 = BlockExcEngine.new(localStore2, wallet2, network2)
+    engine2 = BlockExcEngine.new(localStore2, wallet2, network2, discovery2)
     blockexc2 = NetworkStore.new(engine2, localStore2)
     switch2.mount(network2)
 
@@ -80,8 +86,8 @@ suite "NetworkStore engine - 2 nodes":
     )
 
     # initialize our want lists
-    blockexc1.engine.wantList = blocks2.mapIt( it.cid )
-    blockexc2.engine.wantList = blocks1.mapIt( it.cid )
+    for b in blocks2: discard blockexc1.engine.discoverBlock(b.cid)
+    for b in blocks1: discard blockexc2.engine.discoverBlock(b.cid)
 
     pricing1.address = wallet1.address
     pricing2.address = wallet2.address
@@ -92,7 +98,7 @@ suite "NetworkStore engine - 2 nodes":
       switch2.peerInfo.peerId,
       switch2.peerInfo.addrs)
 
-    await sleepAsync(1.seconds) # give some time to exchange lists
+    await sleepAsync(100.milliseconds) # give some time to exchange lists
     peerCtx2 = blockexc1.engine.getPeerCtx(peerId2)
     peerCtx1 = blockexc2.engine.getPeerCtx(peerId1)
 
@@ -109,10 +115,10 @@ suite "NetworkStore engine - 2 nodes":
 
     check:
       peerCtx1.peerHave.mapIt( $it ).sorted(cmp[string]) ==
-        blockexc2.engine.wantList.mapIt( $it ).sorted(cmp[string])
+        toSeq(blockexc2.engine.runningDiscoveries.keys()).mapIt( $it ).sorted(cmp[string])
 
       peerCtx2.peerHave.mapIt( $it ).sorted(cmp[string]) ==
-        blockexc1.engine.wantList.mapIt( $it ).sorted(cmp[string])
+        toSeq(blockexc1.engine.runningDiscoveries.keys()).mapIt( $it ).sorted(cmp[string])
 
   test "exchanges accounts on connect":
     check peerCtx1.account.?address == pricing1.address.some
@@ -169,8 +175,7 @@ suite "NetworkStore engine - 2 nodes":
     check wallet2.balance(channel, Asset) > 0
 
 suite "NetworkStore - multiple nodes":
-  let
-    chunker = RandomChunker.new(Rng.instance(), size = 4096, chunkSize = 256)
+  let chunker = RandomChunker.new(Rng.instance(), size = 4096, chunkSize = 256)
 
   var
     switch: seq[Switch]
@@ -208,8 +213,10 @@ suite "NetworkStore - multiple nodes":
       engine = downloader.engine
 
     # Add blocks from 1st peer to want list
-    engine.wantList &= blocks[0..3].mapIt( it.cid )
-    engine.wantList &= blocks[12..15].mapIt( it.cid )
+    for b in blocks[0..3]:
+      discard engine.discoverBlock(b.cid)
+    for b in blocks[12..15]:
+      discard engine.discoverBlock(b.cid)
 
     await allFutures(
       blocks[0..3].mapIt( blockexc[0].engine.localStore.putBlock(it) ))
@@ -236,8 +243,10 @@ suite "NetworkStore - multiple nodes":
       engine = downloader.engine
 
     # Add blocks from 1st peer to want list
-    engine.wantList &= blocks[0..3].mapIt( it.cid )
-    engine.wantList &= blocks[12..15].mapIt( it.cid )
+    for b in blocks[0..3]:
+      discard engine.discoverBlock(b.cid)
+    for b in blocks[12..15]:
+      discard engine.discoverBlock(b.cid)
 
     await allFutures(
       blocks[0..3].mapIt( blockexc[0].engine.localStore.putBlock(it) ))
@@ -254,3 +263,71 @@ suite "NetworkStore - multiple nodes":
     let wantListBlocks = await allFinished(
       blocks[0..3].mapIt( downloader.getBlock(it.cid) ))
     check wantListBlocks.mapIt( !it.read ) == blocks[0..3]
+
+suite "NetworkStore - discovery":
+  let chunker = RandomChunker.new(Rng.instance(), size = 4096, chunkSize = 256)
+
+  var
+    switch: seq[Switch]
+    blockexc: seq[NetworkStore]
+    blocks: seq[bt.Block]
+
+  setup:
+    while true:
+      let chunk = await chunker.getBytes()
+      if chunk.len <= 0:
+        break
+
+      blocks.add(bt.Block.new(chunk).tryGet())
+
+    for e in generateNodes(4):
+      switch.add(e.switch)
+      blockexc.add(e.blockexc)
+      await e.blockexc.engine.start()
+
+    await allFuturesThrowing(
+      switch.mapIt( it.start() )
+    )
+
+  teardown:
+    await allFuturesThrowing(
+      switch.mapIt( it.stop() )
+    )
+
+    switch = @[]
+    blockexc = @[]
+
+  test "Shouldn't launch discovery request if we are already connected":
+    await blockexc[0].engine.blocksHandler(switch[1].peerInfo.peerId, blocks)
+    blockexc[0].engine.discovery.findBlockProviders_var = proc(d: Discovery, cid: Cid): seq[SignedPeerRecord] =
+      check false
+    await connectNodes(switch)
+    let blk = await blockexc[1].engine.requestBlock(blocks[0].cid)
+
+  test "E2E discovery":
+    # Distribute the blocks amongst 1..3
+    # Ask 0 to download everything without connecting him beforehand
+
+    var advertised: Table[Cid, SignedPeerRecord]
+
+    blockexc[1].engine.discovery.publishProvide_var = proc(d: Discovery, cid: Cid) =
+      advertised[cid] = switch[1].peerInfo.signedPeerRecord
+
+    blockexc[2].engine.discovery.publishProvide_var = proc(d: Discovery, cid: Cid) =
+      advertised[cid] = switch[2].peerInfo.signedPeerRecord
+
+    blockexc[3].engine.discovery.publishProvide_var = proc(d: Discovery, cid: Cid) =
+      advertised[cid] = switch[3].peerInfo.signedPeerRecord
+
+    await blockexc[1].engine.blocksHandler(switch[0].peerInfo.peerId, blocks[0..5])
+    await blockexc[2].engine.blocksHandler(switch[0].peerInfo.peerId, blocks[4..10])
+    await blockexc[3].engine.blocksHandler(switch[0].peerInfo.peerId, blocks[10..15])
+
+    blockexc[0].engine.discovery.findBlockProviders_var = proc(d: Discovery, cid: Cid): seq[SignedPeerRecord] =
+      if cid in advertised:
+        result.add(advertised[cid])
+
+    let futs = collect(newSeq):
+      for b in blocks:
+        blockexc[0].engine.requestBlock(b.cid)
+    await allFutures(futs)

@@ -3,6 +3,7 @@ import std/sequtils
 import pkg/chronos
 import pkg/libp2p
 
+import pkg/dagger/discovery
 import pkg/dagger/stores
 import pkg/dagger/blocktype as bt
 
@@ -17,16 +18,15 @@ proc generateNodes*(
   for i in 0..<num:
     let
       switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
+      discovery = Discovery.new(switch.peerInfo, Port(0))
       wallet = WalletRef.example
       network = BlockExcNetwork.new(switch)
       localStore = CacheStore.new(blocks.mapIt( it ))
-      engine = BlockExcEngine.new(localStore, wallet, network)
+      engine = BlockExcEngine.new(localStore, wallet, network, discovery)
       networkStore = NetworkStore.new(engine, localStore)
 
     switch.mount(network)
 
-    # initialize our want lists
-    engine.wantList = blocks.mapIt( it.cid )
     switch.mount(network)
     result.add((switch, networkStore))
 

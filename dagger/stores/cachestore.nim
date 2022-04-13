@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import std/sequtils
 import pkg/upraises
 
 push: {.upraises: [].}
@@ -66,6 +67,9 @@ method hasBlock*(self: CacheStore, cid: Cid): bool =
     return true
 
   cid in self.cache
+
+method blockList*(s: CacheStore): Future[seq[Cid]] {.async.} =
+  return toSeq(s.cache.keys)
 
 func putBlockSync(self: CacheStore, blk: Block): bool =
 

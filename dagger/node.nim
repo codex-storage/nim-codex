@@ -27,6 +27,7 @@ import ./stores/blockstore
 import ./blockexchange
 import ./streams
 import ./erasure
+import ./discovery
 
 logScope:
   topics = "dagger node"
@@ -40,11 +41,13 @@ type
     blockStore*: BlockStore
     engine*: BlockExcEngine
     erasure*: Erasure
+    discovery*: Discovery
 
 proc start*(node: DaggerNodeRef) {.async.} =
   await node.switch.start()
   await node.engine.start()
   await node.erasure.start()
+  await node.discovery.start()
 
   node.networkId = node.switch.peerInfo.peerId
   notice "Started dagger node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
@@ -55,11 +58,12 @@ proc stop*(node: DaggerNodeRef) {.async.} =
   await node.engine.stop()
   await node.switch.stop()
   await node.erasure.stop()
+  await node.discovery.stop()
 
 proc findPeer*(
   node: DaggerNodeRef,
-  peerId: PeerID): Future[?!PeerRecord] {.async.} =
-  discard
+  peerId: PeerID): Future[?PeerRecord] {.async.} =
+  return await node.discovery.findPeer(peerId)
 
 proc connect*(
   node: DaggerNodeRef,
@@ -230,9 +234,11 @@ proc new*(
   switch: Switch,
   store: BlockStore,
   engine: BlockExcEngine,
-  erasure: Erasure): T =
+  erasure: Erasure,
+  discovery: Discovery): T =
   T(
     switch: switch,
     blockStore: store,
     engine: engine,
-    erasure: erasure)
+    erasure: erasure,
+    discovery: discovery)

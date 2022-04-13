@@ -1,15 +1,19 @@
 import std/sequtils
 import std/random
+import std/algorithm
 
 import pkg/stew/byteutils
 import pkg/asynctest
 import pkg/chronos
 import pkg/libp2p
+import pkg/libp2p/routing_record
+import pkg/libp2pdht/discv5/protocol as discv5
 
 import pkg/dagger/rng
 import pkg/dagger/blockexchange
 import pkg/dagger/stores
 import pkg/dagger/chunker
+import pkg/dagger/discovery
 import pkg/dagger/blocktype as bt
 import pkg/dagger/utils/asyncheapqueue
 
@@ -23,6 +27,7 @@ suite "NetworkStore engine basic":
     peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
     chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
     wallet = WalletRef.example
+    discovery = Discovery.new()
 
   var
     blocks: seq[bt.Block]
@@ -47,7 +52,7 @@ suite "NetworkStore engine basic":
       wantType: WantType = WantType.wantHave,
       full: bool = false,
       sendDontHave: bool = false) {.gcsafe.} =
-        check cids == blocks.mapIt( it.cid )
+        check cids.mapIt($it).sorted == blocks.mapIt( $it.cid ).sorted
 
         done.complete()
 
@@ -59,8 +64,10 @@ suite "NetworkStore engine basic":
       engine = BlockExcEngine.new(
         CacheStore.new(blocks.mapIt( it )),
         wallet,
-        network)
-    engine.wantList = blocks.mapIt( it.cid )
+        network,
+        discovery)
+    for b in blocks:
+      discard engine.discoverBlock(b.cid)
     engine.setupPeer(peerId)
 
     await done
@@ -77,7 +84,7 @@ suite "NetworkStore engine basic":
         sendAccount: sendAccount,
       ))
 
-      engine = BlockExcEngine.new(CacheStore.new, wallet, network)
+      engine = BlockExcEngine.new(CacheStore.new, wallet, network, discovery)
 
     engine.pricing = pricing.some
     engine.setupPeer(peerId)
@@ -90,6 +97,7 @@ suite "NetworkStore engine handlers":
     peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
     chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
     wallet = WalletRef.example
+    discovery = Discovery.new()
 
   var
     engine: BlockExcEngine
@@ -106,7 +114,7 @@ suite "NetworkStore engine handlers":
       blocks.add(bt.Block.new(chunk).tryGet())
 
     done = newFuture[void]()
-    engine = BlockExcEngine.new(CacheStore.new(), wallet, BlockExcNetwork())
+    engine = BlockExcEngine.new(CacheStore.new(), wallet, BlockExcNetwork(), discovery)
     peerCtx = BlockExcPeerCtx(
       id: peerId
     )
@@ -230,7 +238,7 @@ suite "Task Handler":
       blocks.add(bt.Block.new(chunk).tryGet())
 
     done = newFuture[void]()
-    engine = BlockExcEngine.new(CacheStore.new(), wallet, BlockExcNetwork())
+    engine = BlockExcEngine.new(CacheStore.new(), wallet, BlockExcNetwork(), Discovery.new())
     peersCtx = @[]
 
     for i in 0..3:

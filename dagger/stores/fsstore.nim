@@ -129,6 +129,22 @@ method hasBlock*(self: FSStore, cid: Cid): bool =
 
   self.blockPath(cid).isFile()
 
+method blockList*(s: FSStore): Future[seq[Cid]] {.async.} =
+  ## Very expensive AND blocking!
+
+  debug "finding all blocks in store"
+  for (pkind, folderPath) in s.repoDir.walkDir():
+    if pkind != pcDir: continue
+    let baseName = basename(folderPath)
+    if baseName.len != s.postfixLen: continue
+
+    for (fkind, filePath) in folderPath.walkDir(false):
+      if fkind != pcFile: continue
+      let cid = Cid.init(basename(filePath))
+      if cid.isOk:
+        result.add(cid.get())
+  return result
+
 proc new*(
   T: type FSStore,
   repoDir: string,
