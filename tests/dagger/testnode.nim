@@ -46,7 +46,7 @@ suite "Test Node":
     discovery = Discovery.new(switch.peerInfo, Port(0))
     engine = BlockExcEngine.new(localStore, wallet, network, discovery)
     store = NetworkStore.new(engine, localStore)
-    node = DaggerNodeRef.new(switch, store, engine, nil, discovery) # TODO: pass `Erasure`
+    node = DaggerNodeRef.new(switch, store, engine, nil, discovery, nil) # TODO: pass `Erasure`
 
     await node.start()
 

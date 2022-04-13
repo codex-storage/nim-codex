@@ -28,6 +28,7 @@ import ./blockexchange
 import ./streams
 import ./erasure
 import ./discovery
+import ./contracts
 
 logScope:
   topics = "dagger node"
@@ -42,6 +43,7 @@ type
     engine*: BlockExcEngine
     erasure*: Erasure
     discovery*: Discovery
+    contracts*: ContractInteractions
 
 proc start*(node: DaggerNodeRef) {.async.} =
   await node.switch.start()
@@ -235,10 +237,12 @@ proc new*(
   store: BlockStore,
   engine: BlockExcEngine,
   erasure: Erasure,
-  discovery: Discovery): T =
+  discovery: Discovery,
+  contracts: ContractInteractions): T =
   T(
     switch: switch,
     blockStore: store,
     engine: engine,
     erasure: erasure,
-    discovery: discovery)
+    discovery: discovery,
+    contracts: contracts)
