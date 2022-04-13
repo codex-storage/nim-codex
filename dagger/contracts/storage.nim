@@ -21,6 +21,9 @@ type
   OfferSelected* = object of Event
     offerId*: Id
     requestId* {.indexed.}: Id
+  ProofSubmitted* = object of Event
+    id*: Id
+    proof*: seq[byte]
 
 proc collateralAmount*(storage: Storage): UInt256 {.contract, view.}
 proc slashMisses*(storage: Storage): UInt256 {.contract, view.}

@@ -1,3 +1,4 @@
+import pkg/ethers
 import ../por/timing/proofs
 import ./storage
 
@@ -7,6 +8,10 @@ type
   OnChainProofs* = ref object of Proofs
     storage: Storage
     pollInterval*: Duration
+  ProofsSubscription = proofs.Subscription
+  EventSubscription = ethers.Subscription
+  OnChainProofsSubscription = ref object of ProofsSubscription
+    eventSubscription: EventSubscription
 
 const DefaultPollInterval = 3.seconds
 
@@ -38,3 +43,19 @@ method willProofBeRequired*(proofs: OnChainProofs,
 method getProofEnd*(proofs: OnChainProofs,
                     id: ContractId): Future[UInt256] {.async.} =
   return await proofs.storage.proofEnd(id)
+
+method submitProof*(proofs: OnChainProofs,
+                    id: ContractId,
+                    proof: seq[byte]) {.async.} =
+  await proofs.storage.submitProof(id, proof)
+
+method subscribeProofSubmission*(proofs: OnChainProofs,
+                                 callback: OnProofSubmitted):
+                                Future[ProofsSubscription] {.async.} =
+  proc onEvent(event: ProofSubmitted) {.upraises: [].} =
+    callback(event.id, event.proof)
+  let subscription = await proofs.storage.subscribe(ProofSubmitted, onEvent)
+  return OnChainProofsSubscription(eventSubscription: subscription)
+
+method unsubscribe*(subscription: OnChainProofsSubscription) {.async, upraises:[].} =
+  await subscription.eventSubscription.unsubscribe()
