@@ -21,6 +21,9 @@ type
   OfferSelected* = object of Event
     offerId*: Id
     requestId* {.indexed.}: Id
+  ProofSubmitted* = object of Event
+    id*: Id
+    proof*: seq[byte]
 
 proc collateralAmount*(storage: Storage): UInt256 {.contract, view.}
 proc slashMisses*(storage: Storage): UInt256 {.contract, view.}
@@ -47,5 +50,5 @@ proc willProofBeRequired*(storage: Storage, id: Id): bool {.contract, view.}
 proc getChallenge*(storage: Storage, id: Id): array[32, byte] {.contract, view.}
 proc getPointer*(storage: Storage, id: Id): uint8 {.contract, view.}
 
-proc submitProof*(storage: Storage, id: Id, proof: bool) {.contract.}
+proc submitProof*(storage: Storage, id: Id, proof: seq[byte]) {.contract.}
 proc markProofAsMissing*(storage: Storage, id: Id, period: UInt256) {.contract.}
