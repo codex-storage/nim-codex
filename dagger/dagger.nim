@@ -122,7 +122,7 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
     engine = BlockExcEngine.new(localStore, wallet, network, discovery)
     store = NetworkStore.new(engine, localStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-    contracts = ContractInteractions.new()
+    contracts = ContractInteractions.new(config.ethProvider, config.ethAccount)
     daggerNode = DaggerNodeRef.new(switch, store, engine, erasure, discovery, contracts)
     restServer = RestServerRef.new(
       daggerNode.initRestApi(),
