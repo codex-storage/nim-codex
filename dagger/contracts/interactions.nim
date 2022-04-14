@@ -29,7 +29,16 @@ proc new*(_: type ContractInteractions,
     proving: Proving.new(proofs)
   )
 
-proc new*(_: type ContractInteractions): ContractInteractions =
-  let provider = JsonRpcProvider.new("ws://localhost:8545")
-  let signer = provider.getSigner()
+proc new*(_: type ContractInteractions,
+          providerUrl: string,
+          account = Address.default): ContractInteractions =
+  let provider = JsonRpcProvider.new(providerUrl)
+  var signer: Signer
+  if account == Address.default:
+    signer = provider.getSigner()
+  else:
+    signer = provider.getSigner(account)
   ContractInteractions.new(signer, deployment())
+
+proc new*(_: type ContractInteractions): ContractInteractions =
+  ContractInteractions.new("ws://localhost:8545")
