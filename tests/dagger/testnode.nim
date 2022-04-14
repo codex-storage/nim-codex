@@ -17,6 +17,7 @@ import pkg/dagger/node
 import pkg/dagger/manifest
 import pkg/dagger/discovery
 import pkg/dagger/blocktype as bt
+import pkg/dagger/contracts
 
 import ./helpers
 
@@ -35,6 +36,7 @@ suite "Test Node":
     store: NetworkStore
     node: DaggerNodeRef
     discovery: Discovery
+    contracts: ContractInteractions
 
   setup:
     file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
@@ -46,7 +48,8 @@ suite "Test Node":
     discovery = Discovery.new(switch.peerInfo, Port(0))
     engine = BlockExcEngine.new(localStore, wallet, network, discovery)
     store = NetworkStore.new(engine, localStore)
-    node = DaggerNodeRef.new(switch, store, engine, nil, discovery, nil) # TODO: pass `Erasure`
+    contracts = ContractInteractions.new()
+    node = DaggerNodeRef.new(switch, store, engine, nil, discovery, contracts) # TODO: pass `Erasure`
 
     await node.start()
 
