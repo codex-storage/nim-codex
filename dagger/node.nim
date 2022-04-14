@@ -86,7 +86,7 @@ proc retrieve*(
 
   # if we got a manifest, stream the blocks
   if $mc in ManifestContainers:
-    trace "Retrieving data set", cid, mc
+    trace "Retrieving data set", cid, mc = $mc
 
     without manifest =? Manifest.decode(blk.data, ManifestContainers[$mc]):
       return failure("Unable to construct manifest!")
@@ -203,7 +203,7 @@ proc requestStorage*(
 
   # if we got a manifest, stream the blocks
   if $mc notin ManifestContainers:
-    trace "Not a manifest type!", cid, mc
+    trace "Not a manifest type!", cid, mc = $mc
     return failure("Not a manifest type!")
 
   without var manifest =? Manifest.decode(blk.data), error:

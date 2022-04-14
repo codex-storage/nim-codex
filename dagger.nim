@@ -41,7 +41,7 @@ when isMainModule:
       # permissions are insecure.
       quit QuitFailure
 
-    trace "Data dir initialized", dir = config.dataDir
+    trace "Data dir initialized", dir = $config.dataDir
 
     if not(checkAndCreateDataDir((config.dataDir / "repo").string)):
       # We are unable to access/create data folder or data folder's
