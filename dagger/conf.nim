@@ -25,6 +25,7 @@ import pkg/metrics
 import pkg/metrics/chronos_httpserver
 import pkg/stew/shims/net as stewnet
 import pkg/libp2p
+import pkg/ethers
 
 import ./discovery
 import ./stores/cachestore
@@ -141,8 +142,22 @@ type
         name: "cache-size"
         abbr: "c" }: Natural
 
+      ethProvider* {.
+        desc: "The URL of the JSON-RPC API of the Ethereum node"
+        defaultValue: "ws://localhost:8545"
+        name: "eth-provider"
+      .}: string
+
+      ethAccount* {.
+        desc: "The Ethereum account that is used for storage contracts"
+        defaultValue: EthAddress.default
+        name: "eth-account"
+      .}: EthAddress
+
     of initNode:
       discard
+
+  EthAddress* = ethers.Address
 
 const
   gitRevision* = strip(staticExec("git rev-parse --short HEAD"))[0..5]
@@ -181,6 +196,13 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: TaintedString): T =
     warn "Invalid SignedPeerRecord uri", uri=uri, error=exc.msg
     quit QuitFailure
   res
+
+func parseCmdArg*(T: type EthAddress, address: TaintedString): T =
+  EthAddress.init($address).get()
+
+# no idea why confutils needs this:
+proc completeCmdArg*(T: type EthAddress; val: TaintedString): seq[string] =
+  discard
 
 # silly chronicles, colors is a compile-time property
 proc stripAnsi(v: string): string =
