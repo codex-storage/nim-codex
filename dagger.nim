@@ -27,7 +27,9 @@ when isMainModule:
   when defined(posix):
     import system/ansi_c
 
-  let config = DaggerConf.load()
+  let config = DaggerConf.load(
+    version = daggerFullVersion
+  )
   config.setupLogging()
   config.setupMetrics()
 

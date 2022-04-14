@@ -14,6 +14,7 @@ push: {.upraises: [].}
 import std/os
 import std/terminal
 import std/options
+import std/strutils
 import std/typetraits
 
 import pkg/chronicles
@@ -142,6 +143,19 @@ type
 
     of initNode:
       discard
+
+const
+  gitRevision* = strip(staticExec("git rev-parse --short HEAD"))[0..5]
+
+  nimBanner* = staticExec("nim --version | grep Version")
+
+  #TODO add versionMajor, Minor & Fix when we switch to semver
+  daggerVersion* = gitRevision
+
+  daggerFullVersion* =
+    "Dagger build " & daggerVersion & "\p" &
+    nimBanner
+
 
 proc defaultDataDir*(): string =
   let dataDir = when defined(windows):
