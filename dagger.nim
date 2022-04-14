@@ -29,6 +29,7 @@ when isMainModule:
 
   let config = DaggerConf.load()
   config.setupLogging()
+  config.setupMetrics()
 
   case config.cmd:
   of StartUpCommand.noCommand:

@@ -20,6 +20,8 @@ import pkg/chronicles
 import pkg/chronicles/topics_registry
 import pkg/confutils/defs
 import pkg/confutils/std/net
+import pkg/metrics
+import pkg/metrics/chronos_httpserver
 import pkg/stew/shims/net as stewnet
 import pkg/libp2p
 
@@ -53,6 +55,21 @@ type
       defaultValue: LogKind.Auto
       name: "log-format" }: LogKind
 
+    metricsEnabled* {.
+      desc: "Enable the metrics server"
+      defaultValue: false
+      name: "metrics" }: bool
+
+    metricsAddress* {.
+      desc: "Listening address of the metrics server"
+      defaultValue: ValidIpAddress.init("127.0.0.1")
+      defaultValueDesc: "127.0.0.1"
+      name: "metrics-address" }: ValidIpAddress
+
+    metricsPort* {.
+      desc: "Listening HTTP port of the metrics server"
+      defaultValue: 8008
+      name: "metrics-port" }: Port
 
     dataDir* {.
       desc: "The directory where dagger will store configuration and data."
@@ -97,7 +114,7 @@ type
       bootstrapNodes* {.
         desc: "Specifies one or more bootstrap nodes to use when connecting to the network."
         abbr: "b"
-        name: "bootstrap-nodes" }: seq[SignedPeerRecord]
+        name: "bootstrap-node" }: seq[SignedPeerRecord]
 
       maxPeers* {.
         desc: "The maximum number of peers to connect to"
@@ -223,3 +240,15 @@ proc setupLogging*(conf: DaggerConf) =
         noOutput
 
     setLogLevel(conf.logLevel)
+
+proc setupMetrics*(config: DaggerConf) =
+  if config.metricsEnabled:
+    let metricsAddress = config.metricsAddress
+    notice "Starting metrics HTTP server",
+      url = "http://" & $metricsAddress & ":" & $config.metricsPort & "/metrics"
+    try:
+      startMetricsHttpServer($metricsAddress, config.metricsPort)
+    except CatchableError as exc:
+      raiseAssert exc.msg
+    except Exception as exc:
+      raiseAssert exc.msg # TODO fix metrics
