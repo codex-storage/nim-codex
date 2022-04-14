@@ -280,7 +280,8 @@ proc requestBlock*(
 
   assert discovery.provides.len > 0
 
-  trace "Requesting block from peer", peer = blockPeer.id, cid
+  debug "Requesting block from peer", providerCount = discovery.provides.len,
+    peer = discovery.provides[0], cid
   # request block
   b.network.request.sendWantList(
     discovery.provides[0],
