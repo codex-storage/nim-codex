@@ -205,7 +205,7 @@ jobs:
         run: |
           ./env.sh nim --version
           echo
-          nim c -d:chronicles_log_level=TRACE dagger.nim
+          ./env.sh nim c -d:chronicles_log_level=TRACE dagger.nim
           make NIM_COMMIT="${{ matrix.branch }}" testAll
           if [[ ${{ runner.os }} = macOS ]]; then
             echo
