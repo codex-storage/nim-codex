@@ -17,7 +17,7 @@ import ./protobuf/blockexc
 logScope:
   topics = "dagger blockexc networkpeer"
 
-const MaxMessageSize = 100 * 1024 * 1024 # manifest files can be big
+const MaxMessageSize = 8 * 1024 * 1024
 
 type
   RPCHandler* = proc(peer: NetworkPeer, msg: Message): Future[void] {.gcsafe.}

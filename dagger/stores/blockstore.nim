@@ -20,7 +20,6 @@ import ../blocktype
 export blocktype, libp2p
 
 type
-  OnBlock* = proc(cid: Cid): Future[void] {.upraises: [], gcsafe.}
   BlockStore* = ref object of RootObj
 
 method getBlock*(
@@ -53,7 +52,7 @@ method hasBlock*(s: BlockStore, cid: Cid): bool {.base.} =
 
   return false
 
-method listBlocks*(s: BlockStore, onBlock: OnBlock): Future[void] {.base.} =
+method blockList*(s: BlockStore): Future[seq[Cid]] {.base.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 

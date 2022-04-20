@@ -106,15 +106,3 @@ suite "Cache Store tests":
       await store.delBlock(newBlock2.cid)
       store.currentSize == 200
       newBlock2.cid notin store
-
-  test "listBlocks":
-    discard await store.putBlock(newBlock1)
-
-    var listed = false
-    await store.listBlocks(
-      proc(cid: Cid) {.gcsafe, async.} =
-        check cid in store
-        listed = true
-    )
-
-    check listed

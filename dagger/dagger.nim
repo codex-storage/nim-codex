@@ -123,7 +123,7 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     daggerNode = DaggerNodeRef.new(switch, store, engine, erasure, discovery)
     restServer = RestServerRef.new(
-      daggerNode.initRestApi(config),
+      daggerNode.initRestApi(),
       initTAddress("127.0.0.1" , config.apiPort),
       bufferSize = (1024 * 64),
       maxRequestBodySize = int.high)

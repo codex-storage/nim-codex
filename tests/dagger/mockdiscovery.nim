@@ -12,15 +12,17 @@ import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/shims/net
-import pkg/dagger/discovery
+import pkg/libp2pdht/discv5/protocol as discv5
+
+export discv5
 
 type
-  MockDiscovery* = ref object of Discovery
-    findBlockProvidersHandler*: proc(d: MockDiscovery, cid: Cid): seq[SignedPeerRecord] {.gcsafe.}
-    publishProvideHandler*: proc(d: MockDiscovery, cid: Cid) {.gcsafe.}
+  Discovery* = ref object
+    findBlockProviders_var*: proc(d: Discovery, cid: Cid): seq[SignedPeerRecord] {.gcsafe.}
+    publishProvide_var*: proc(d: Discovery, cid: Cid) {.gcsafe.}
 
 proc new*(
-  T: type MockDiscovery,
+  T: type Discovery,
   localInfo: PeerInfo,
   discoveryPort: Port,
   bootstrapNodes = newSeq[SignedPeerRecord](),
@@ -33,16 +35,17 @@ proc findPeer*(
   peerId: PeerID): Future[?PeerRecord] {.async.} =
   return none(PeerRecord)
 
-method findBlockProviders*(
-  d: MockDiscovery,
+proc findBlockProviders*(
+  d: Discovery,
   cid: Cid): Future[seq[SignedPeerRecord]] {.async.} =
-  if isNil(d.findBlockProvidersHandler): return
+  if isNil(d.findBlockProviders_var): return
 
-  return d.findBlockProvidersHandler(d, cid)
+  return d.findBlockProviders_var(d, cid)
 
-method provideBlock*(d: MockDiscovery, cid: Cid) {.async.} =
-  if isNil(d.publishProvideHandler): return
-  d.publishProvideHandler(d, cid)
+proc publishProvide*(d: Discovery, cid: Cid) {.async.} =
+  if isNil(d.publishProvide_var): return
+  d.publishProvide_var(d, cid)
+
 
 proc start*(d: Discovery) {.async.} =
   discard

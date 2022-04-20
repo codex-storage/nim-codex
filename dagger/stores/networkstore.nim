@@ -42,10 +42,10 @@ method getBlock*(
   trace "Getting block", cid
   without var blk =? (await self.localStore.getBlock(cid)):
     trace "Couldn't get from local store", cid
-    try:
-      blk = await self.engine.requestBlock(cid)
+    blk = try:
+      await self.engine.requestBlock(cid)
     except CatchableError as exc:
-      trace "Exception requesting block", cid, exc = exc.msg
+      trace "Exception requestig block", cid, exc = exc.msg
       return failure(exc.msg)
 
   trace "Retrieved block from local store", cid
