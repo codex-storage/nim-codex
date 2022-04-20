@@ -120,14 +120,16 @@ proc broadcastWantList*(
 
   trace "Sending want list to peer", peer = id, `type` = $wantType, len = cids.len
 
-  let wantList = makeWantList(
-    cids,
-    priority,
-    cancel,
-    wantType,
-    full,
-    sendDontHave)
-  b.peers[id].broadcast(Message(wantlist: wantList))
+  let
+    wantList = makeWantList(
+      cids,
+      priority,
+      cancel,
+      wantType,
+      full,
+      sendDontHave)
+  b.peers.withValue(id, peer):
+    peer[].broadcast(Message(wantlist: wantList))
 
 proc handleBlocks(
   b: BlockExcNetwork,
@@ -153,9 +155,7 @@ proc handleBlocks(
 
   b.handlers.onBlocks(peer.id, blks)
 
-template makeBlocks*(
-  blocks: seq[bt.Block]):
-  seq[pb.Block] =
+template makeBlocks*(blocks: seq[bt.Block]): seq[pb.Block] =
   var blks: seq[pb.Block]
   for blk in blocks:
     blks.add(pb.Block(
@@ -176,7 +176,8 @@ proc broadcastBlocks*(
     return
 
   trace "Sending blocks to peer", peer = id, len = blocks.len
-  b.peers[id].broadcast(pb.Message(payload: makeBlocks(blocks)))
+  b.peers.withValue(id, peer):
+    peer[].broadcast(pb.Message(payload: makeBlocks(blocks)))
 
 proc handleBlockPresence(
   b: BlockExcNetwork,
@@ -202,7 +203,8 @@ proc broadcastBlockPresence*(
     return
 
   trace "Sending presence to peer", peer = id
-  b.peers[id].broadcast(Message(blockPresences: presence))
+  b.peers.withValue(id, peer):
+    peer[].broadcast(Message(blockPresences: @presence))
 
 proc handleAccount(network: BlockExcNetwork,
                    peer: NetworkPeer,
@@ -218,7 +220,8 @@ proc broadcastAccount*(network: BlockExcNetwork,
     return
 
   let message = Message(account: AccountMessage.init(account))
-  network.peers[id].broadcast(message)
+  network.peers.withValue(id, peer):
+    peer[].broadcast(message)
 
 proc broadcastPayment*(network: BlockExcNetwork,
                        id: PeerId,
@@ -227,7 +230,8 @@ proc broadcastPayment*(network: BlockExcNetwork,
     return
 
   let message = Message(payment: StateChannelUpdate.init(payment))
-  network.peers[id].broadcast(message)
+  network.peers.withValue(id, peer):
+    peer[].broadcast(message)
 
 proc handlePayment(network: BlockExcNetwork,
                    peer: NetworkPeer,
@@ -261,7 +265,7 @@ proc getOrCreatePeer(b: BlockExcNetwork, peer: PeerID): NetworkPeer =
   ##
 
   if peer in b.peers:
-    return b.peers[peer]
+    return b.peers.getOrDefault(peer, nil)
 
   var getConn = proc(): Future[Connection] {.async.} =
     try:
@@ -363,8 +367,7 @@ proc new*(
     sendBlocks: sendBlocks,
     sendPresence: sendPresence,
     sendAccount: sendAccount,
-    sendPayment: sendPayment
-  )
+    sendPayment: sendPayment)
 
   b.init()
   return b
