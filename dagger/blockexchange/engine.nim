@@ -105,9 +105,9 @@ proc discoveryLoopRunner(b: BlockExcEngine) {.async.} =
     await sleepAsync(30.seconds)
 
 proc advertiseLoopRunner*(b: BlockExcEngine) {.async.} =
-  proc onBlock(blk: bt.Block) {.async.} =
+  proc onBlock(cid: Cid) {.async.} =
     try:
-      await b.advertiseQueue.put(blk.cid)
+      await b.advertiseQueue.put(cid)
     except CatchableError as exc:
       trace "Exception listing blocks", exc = exc.msg
 
