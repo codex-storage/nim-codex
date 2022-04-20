@@ -2,6 +2,7 @@ import std/sets
 import std/times
 import pkg/upraises
 import pkg/questionable
+import pkg/chronicles
 import ./por/timing/proofs
 
 export sets
@@ -33,15 +34,18 @@ proc removeEndedContracts(proving: Proving) {.async.} =
   proving.contracts.excl(ended)
 
 proc run(proving: Proving) {.async.} =
-  while not proving.stopped:
-    let currentPeriod = await proving.proofs.getCurrentPeriod()
-    await proving.removeEndedContracts()
-    for id in proving.contracts:
-      if (await proving.proofs.isProofRequired(id)) or
-         (await proving.proofs.willProofBeRequired(id)):
-        if callback =? proving.onProofRequired:
-          callback(id)
-    await proving.proofs.waitUntilPeriod(currentPeriod + 1)
+  try:
+    while not proving.stopped:
+      let currentPeriod = await proving.proofs.getCurrentPeriod()
+      await proving.removeEndedContracts()
+      for id in proving.contracts:
+        if (await proving.proofs.isProofRequired(id)) or
+          (await proving.proofs.willProofBeRequired(id)):
+          if callback =? proving.onProofRequired:
+            callback(id)
+      await proving.proofs.waitUntilPeriod(currentPeriod + 1)
+  except CatchableError as e:
+    error "Proving failed", msg = e.msg
 
 proc start*(proving: Proving) =
   asyncSpawn proving.run()
