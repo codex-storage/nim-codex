@@ -21,11 +21,13 @@ import pkg/chronos
 import pkg/presto
 import pkg/libp2p
 import pkg/stew/base10
+import pkg/confutils
 
 import pkg/libp2p/routing_record
 
 import ../node
 import ../blocktype
+import ../conf
 
 proc validate(
   pattern: string,
@@ -83,7 +85,7 @@ proc decodeString(T: type bool, value: string): Result[T, cstring] =
 proc encodeString(value: bool): Result[string, cstring] =
   ok($value)
 
-proc initRestApi*(node: DaggerNodeRef): RestRouter =
+proc initRestApi*(node: DaggerNodeRef, conf: DaggerConf): RestRouter =
   var router = RestRouter.init(validate)
   router.api(
     MethodGet,
@@ -318,6 +320,7 @@ proc initRestApi*(node: DaggerNodeRef): RestRouter =
 
       return RestApiResponse.response(
         "Id: " & $node.switch.peerInfo.peerId &
-        "\nAddrs: \n" & addrs & "\n")
+        "\nAddrs: \n" & addrs &
+        "\nRoot Dir: " & $conf.dataDir)
 
   return router
