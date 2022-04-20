@@ -68,8 +68,12 @@ method hasBlock*(self: CacheStore, cid: Cid): bool =
 
   cid in self.cache
 
-method blockList*(s: CacheStore): Future[seq[Cid]] {.async.} =
-  return toSeq(s.cache.keys)
+method listBlocks*(s: CacheStore, onBlock: OnBlock) {.async.} =
+  for cid in toSeq(s.cache.keys):
+    without blk =? (await s.getBlock(cid)):
+      trace "Couldn't get block", cid = $cid
+
+    await onBlock(blk)
 
 func putBlockSync(self: CacheStore, blk: Block): bool =
 

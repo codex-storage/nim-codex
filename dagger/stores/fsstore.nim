@@ -90,7 +90,7 @@ method putBlock*(
     trace "Unable to store block", path, cid = blk.cid, error
     return false
 
-  if await self.cache.putBlock(blk):
+  if not (await self.cache.putBlock(blk)):
     trace "Unable to store block in cache", cid = blk.cid
 
   return true
@@ -113,8 +113,8 @@ method delBlock*(
     trace "Unable to delete block", path, cid, error
     return false
 
-  if await self.cache.delBlock(cid):
-    trace "Unable to store block in cache", cid
+  if not (await self.cache.delBlock(cid)):
+    trace "Unable to delete block from cache", cid
 
   return true
 
@@ -129,21 +129,25 @@ method hasBlock*(self: FSStore, cid: Cid): bool =
 
   self.blockPath(cid).isFile()
 
-method blockList*(s: FSStore): Future[seq[Cid]] {.async.} =
-  ## Very expensive AND blocking!
-
-  debug "finding all blocks in store"
-  for (pkind, folderPath) in s.repoDir.walkDir():
+method listBlocks*(self: FSStore, onBlock: OnBlock) {.async.} =
+  debug "Finding all blocks in store"
+  for (pkind, folderPath) in self.repoDir.walkDir():
     if pkind != pcDir: continue
     let baseName = basename(folderPath)
-    if baseName.len != s.postfixLen: continue
+    if baseName.len != self.postfixLen: continue
 
     for (fkind, filePath) in folderPath.walkDir(false):
       if fkind != pcFile: continue
       let cid = Cid.init(basename(filePath))
       if cid.isOk:
-        result.add(cid.get())
-  return result
+        # getting a weird `Error: unhandled exception: index 1 not in 0 .. 0 [IndexError]`
+        # compilation error if using different syntax/construct bellow
+        try:
+          await onBlock((await self.getBlock(cid.tryGet())).tryGet())
+        except CatchableError as exc:
+          trace "Couldn't get block", cid = $(cid.get())
+
+      await sleepAsync(100.millis) # avoid blocking
 
 proc new*(
   T: type FSStore,
