@@ -117,7 +117,7 @@ suite "E2E - Multiple Nodes Discovery":
         discovery = MockDiscovery.new(s.peerInfo, 0.Port)
         wallet = WalletRef.example
         network = BlockExcNetwork.new(s)
-        localStore = CacheStore.new(blocks.mapIt( it ))
+        localStore = CacheStore.new()
         engine = BlockExcEngine.new(localStore, wallet, network, discovery)
         networkStore = NetworkStore.new(engine, localStore)
 
