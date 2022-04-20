@@ -334,7 +334,7 @@ proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) =
 
   b.pendingBlocks.resolve(blocks)
   b.scheduleTasks(blocks)
-  asyncCheck b.queueProvideBlocksReq(blocks.mapIt( it.cid ))
+  asyncSpawn b.queueProvideBlocksReq(blocks.mapIt( it.cid ))
 
 proc payForBlocks(engine: BlockExcEngine,
                   peer: BlockExcPeerCtx,
