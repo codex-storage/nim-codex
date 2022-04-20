@@ -60,11 +60,11 @@ type
     wallet*: WalletRef                            # nitro wallet for micropayments
     pricing*: ?Pricing                            # optional bandwidth pricing
     discovery*: Discovery                         # Discovery interface
-    concurrentAdvReqs: int                        # Concurent advertise requests
+    concurrentAdvReqs: int                        # Concurrent advertise requests
     advertiseLoop*: Future[void]                  # Advertise loop task handle
     advertiseQueue*: AsyncQueue[Cid]              # Advertise queue
     advertiseTasks*: seq[Future[void]]            # Advertise tasks
-    concurrentDiscReqs: int                       # Concurent discovery requests
+    concurrentDiscReqs: int                       # Concurrent discovery requests
     discoveryLoop*: Future[void]                  # Discovery loop task handle
     discoveryTasks*: seq[Future[void]]            # Discovery tasks
     discoveryQueue*: AsyncQueue[Cid]              # Discovery queue
