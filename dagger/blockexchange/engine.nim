@@ -245,6 +245,7 @@ proc requestBlock*(
 
   # get the first peer with at least one (any)
   # matching cid
+  # TODO: this should be sorted by best to worst
   var blockPeer: BlockExcPeerCtx
   for p in peers:
     if cid in p.peerHave:
@@ -252,12 +253,11 @@ proc requestBlock*(
       break
 
   # didn't find any peer with matching cids
-  # use the first one in the sorted array
   if isNil(blockPeer):
     blockPeer = peers[0]
 
   peers.keepItIf(
-    it != blockPeer
+    it != blockPeer and cid notin it.peerHave
   )
 
   # request block
@@ -306,10 +306,8 @@ proc blockPresenceHandler*(
     )
 
   if cids.len > 0:
-    b.network.request.sendWantList(
-      peerCtx.id,
-      cids,
-      wantType = WantType.wantBlock) # we want this remote to send us a block
+    for cid in cids:
+      asyncCheck b.requestBlock(cid)
 
 proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) =
   trace "Schedule a task for new blocks"
