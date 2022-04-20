@@ -109,7 +109,7 @@ proc encode*(
       # TODO: this is a tight blocking loop so we sleep here to allow
       # other events to be processed, this should be addressed
       # by threading
-      await sleepAsync(10.millis)
+      await sleepAsync(100.millis)
 
       for j in 0..<blocks:
         let idx = blockIdx[j]
