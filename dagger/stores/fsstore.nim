@@ -143,7 +143,7 @@ method listBlocks*(self: FSStore, onBlock: OnBlock) {.async.} =
         # getting a weird `Error: unhandled exception: index 1 not in 0 .. 0 [IndexError]`
         # compilation error if using different syntax/construct bellow
         try:
-          await onBlock((await self.getBlock(cid.tryGet())).tryGet())
+          await onBlock(cid.get())
         except CatchableError as exc:
           trace "Couldn't get block", cid = $(cid.get())
 

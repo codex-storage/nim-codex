@@ -57,8 +57,8 @@ suite "FS Store":
     writeFile(store.blockPath(newBlock.cid), newBlock.data)
 
     await store.listBlocks(
-      proc(blk: Block) {.gcsafe, async.} =
-        check blk.cid == newBlock.cid)
+      proc(cid: Cid) {.gcsafe, async.} =
+        check cid == newBlock.cid)
 
   test "fail hasBlock":
     check not store.hasBlock(newBlock.cid)

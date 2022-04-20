@@ -112,8 +112,8 @@ suite "Cache Store tests":
 
     var listed = false
     await store.listBlocks(
-      proc(blk: Block) {.gcsafe, async.} =
-        check blk.cid in store
+      proc(cid: Cid) {.gcsafe, async.} =
+        check cid in store
         listed = true
     )
 

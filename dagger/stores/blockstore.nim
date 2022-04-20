@@ -20,7 +20,7 @@ import ../blocktype
 export blocktype, libp2p
 
 type
-  OnBlock* = proc(blk: Block): Future[void] {.upraises: [], gcsafe.}
+  OnBlock* = proc(cid: Cid): Future[void] {.upraises: [], gcsafe.}
   BlockStore* = ref object of RootObj
 
 method getBlock*(

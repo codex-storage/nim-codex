@@ -70,10 +70,7 @@ method hasBlock*(self: CacheStore, cid: Cid): bool =
 
 method listBlocks*(s: CacheStore, onBlock: OnBlock) {.async.} =
   for cid in toSeq(s.cache.keys):
-    without blk =? (await s.getBlock(cid)):
-      trace "Couldn't get block", cid = $cid
-
-    await onBlock(blk)
+    await onBlock(cid)
 
 func putBlockSync(self: CacheStore, blk: Block): bool =
 
