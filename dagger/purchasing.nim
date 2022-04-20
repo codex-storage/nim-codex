@@ -80,7 +80,6 @@ proc run(purchase: Purchase) {.async.} =
 
 proc start(purchase: Purchase) =
   purchase.future = purchase.run()
-  asyncSpawn purchase.future
 
 proc wait*(purchase: Purchase) {.async.} =
   await purchase.future

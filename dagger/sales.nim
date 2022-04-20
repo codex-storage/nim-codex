@@ -4,6 +4,7 @@ import pkg/questionable
 import pkg/upraises
 import pkg/stint
 import pkg/nimcrypto
+import pkg/chronicles
 import ./market
 
 export stint
@@ -111,16 +112,17 @@ proc waitForExpiry(negotiation: Negotiation) {.async.} =
   negotiation.finish(success = false)
 
 proc start(negotiation: Negotiation) {.async.} =
-  let sales = negotiation.sales
-  let availability = negotiation.availability
-  sales.remove(availability)
-  await negotiation.sendOffer()
-  await negotiation.subscribeSelect()
-  negotiation.waiting = some negotiation.waitForExpiry()
+  try:
+    let sales = negotiation.sales
+    let availability = negotiation.availability
+    sales.remove(availability)
+    await negotiation.sendOffer()
+    await negotiation.subscribeSelect()
+    negotiation.waiting = some negotiation.waitForExpiry()
+  except CatchableError as e:
+    error "Negotiation failed", msg = e.msg
 
-proc handleRequest(sales: Sales,
-                   requestId: array[32, byte],
-                   ask: StorageAsk) {.async.} =
+proc handleRequest(sales: Sales, requestId: array[32, byte], ask: StorageAsk) =
   without availability =? sales.findAvailability(ask):
     return
 
@@ -137,14 +139,24 @@ proc start*(sales: Sales) =
   doAssert sales.subscription.isNone, "Sales already started"
 
   proc onRequest(requestId: array[32, byte], ask: StorageAsk) {.gcsafe, upraises:[].} =
-    asyncSpawn sales.handleRequest(requestId, ask)
+    sales.handleRequest(requestId, ask)
 
   proc subscribe {.async.} =
-    sales.subscription = some await sales.market.subscribeRequests(onRequest)
+    try:
+      sales.subscription = some await sales.market.subscribeRequests(onRequest)
+    except CatchableError as e:
+      error "Unable to start sales", msg = e.msg
 
   asyncSpawn subscribe()
 
 proc stop*(sales: Sales) =
   if subscription =? sales.subscription:
-    asyncSpawn subscription.unsubscribe()
     sales.subscription = Subscription.none
+
+    proc unsubscribe {.async.} =
+      try:
+        await subscription.unsubscribe()
+      except CatchableError as e:
+        warn "Unsubscribe failed", msg = e.msg
+
+    asyncSpawn unsubscribe()
