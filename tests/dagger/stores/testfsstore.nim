@@ -52,11 +52,13 @@ suite "FS Store":
 
     check store.hasBlock(newBlock.cid)
 
-  test "blockList":
+  test "listBlocks":
     createDir(store.blockPath(newBlock.cid).parentDir)
     writeFile(store.blockPath(newBlock.cid), newBlock.data)
 
-    check (await store.blockList()) == @[newBlock.cid]
+    await store.listBlocks(
+      proc(blk: Block) {.gcsafe, async.} =
+        check blk.cid == newBlock.cid)
 
   test "fail hasBlock":
     check not store.hasBlock(newBlock.cid)
