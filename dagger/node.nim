@@ -46,10 +46,17 @@ type
     contracts*: ?ContractInteractions
 
 proc start*(node: DaggerNodeRef) {.async.} =
-  await node.switch.start()
-  await node.engine.start()
-  await node.erasure.start()
-  await node.discovery.start()
+  if not node.switch.isNil:
+    await node.switch.start()
+
+  if not node.engine.isNil:
+    await node.engine.start()
+
+  if not node.erasure.isNil:
+    await node.erasure.start()
+
+  if not node.discovery.isNil:
+    await node.discovery.start()
 
   if contracts =? node.contracts:
     await contracts.start()
@@ -60,10 +67,17 @@ proc start*(node: DaggerNodeRef) {.async.} =
 proc stop*(node: DaggerNodeRef) {.async.} =
   trace "Stopping node"
 
-  await node.engine.stop()
-  await node.switch.stop()
-  await node.erasure.stop()
-  await node.discovery.stop()
+  if not node.engine.isNil:
+    await node.engine.stop()
+
+  if not node.switch.isNil:
+    await node.switch.stop()
+
+  if not node.erasure.isNil:
+    await node.erasure.stop()
+
+  if not node.discovery.isNil:
+    await node.discovery.stop()
 
   if contracts =? node.contracts:
     await contracts.stop()
