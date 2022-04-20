@@ -12,9 +12,7 @@ import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/shims/net
-import pkg/libp2pdht/discv5/protocol as discv5
-
-export discv5
+import pkg/dagger/discovery
 
 type
   MockDiscovery* = ref object of Discovery
@@ -22,7 +20,7 @@ type
     publishProvideHandler*: proc(d: MockDiscovery, cid: Cid) {.gcsafe.}
 
 proc new*(
-  T: type Discovery,
+  T: type MockDiscovery,
   localInfo: PeerInfo,
   discoveryPort: Port,
   bootstrapNodes = newSeq[SignedPeerRecord](),
@@ -35,8 +33,8 @@ proc findPeer*(
   peerId: PeerID): Future[?PeerRecord] {.async.} =
   return none(PeerRecord)
 
-proc findBlockProviders*(
-  d: Discovery,
+method findBlockProviders*(
+  d: MockDiscovery,
   cid: Cid): Future[seq[SignedPeerRecord]] {.async.} =
   if isNil(d.findBlockProvidersHandler): return
 
@@ -45,7 +43,6 @@ proc findBlockProviders*(
 method provideBlock*(d: MockDiscovery, cid: Cid) {.async.} =
   if isNil(d.publishProvideHandler): return
   d.publishProvideHandler(d, cid)
-
 
 proc start*(d: Discovery) {.async.} =
   discard

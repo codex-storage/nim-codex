@@ -260,8 +260,6 @@ proc requestBlock*(
     it != blockPeer
   )
 
-  debug "Requesting block from peer", providerCount = discovery.provides.len,
-    peer = discovery.provides[0], cid
   # request block
   b.network.request.sendWantList(
     blockPeer.id,
