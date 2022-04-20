@@ -66,8 +66,9 @@ suite "NetworkStore engine basic":
         wallet,
         network,
         discovery)
+
     for b in blocks:
-      discard engine.discoverBlock(b.cid)
+      discard engine.pendingBlocks.getWantHandle(b.cid)
     engine.setupPeer(peerId)
 
     await done
@@ -171,7 +172,7 @@ suite "NetworkStore engine handlers":
 
   test "stores blocks in local store":
     let pending = blocks.mapIt(
-      engine.pendingBlocks.addOrAwait( it.cid )
+      engine.pendingBlocks.getWantHandle( it.cid )
     )
 
     await engine.blocksHandler(peerId, blocks)
