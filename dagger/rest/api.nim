@@ -28,6 +28,7 @@ import pkg/libp2p/routing_record
 import ../node
 import ../blocktype
 import ../conf
+import ../contracts
 
 proc validate(
   pattern: string,
@@ -84,6 +85,12 @@ proc decodeString(T: type bool, value: string): Result[T, cstring] =
 
 proc encodeString(value: bool): Result[string, cstring] =
   ok($value)
+
+proc decodeString(_: type UInt256, value: string): Result[UInt256, cstring] =
+  try:
+    ok UInt256.fromHex(value)
+  except ValueError as e:
+    err e.msg.cstring
 
 proc initRestApi*(node: DaggerNodeRef, conf: DaggerConf): RestRouter =
   var router = RestRouter.init(validate)
@@ -322,5 +329,33 @@ proc initRestApi*(node: DaggerNodeRef, conf: DaggerConf): RestRouter =
         "Id: " & $node.switch.peerInfo.peerId &
         "\nAddrs: \n" & addrs &
         "\nRoot Dir: " & $conf.dataDir)
+
+  router.api(
+    MethodPost,
+    "/api/dagger/v1/sales/availability") do (
+      size: Option[uint64],
+      duration: Option[uint64],
+      minPrice: Option[UInt256]) -> RestApiResponse:
+      ## Add available storage to sell
+      ##
+      ## size       - size of available storage in bytes
+      ## duration   - maximum time the storage should be sold for (in seconds)
+      ## minPrice   - minimum price to be paid (in amount of tokens)
+
+      without size =? size.?get():
+        return RestApiResponse.error(Http400, "Missing or incorrect size")
+
+      without duration =? duration.?get():
+        return RestApiResponse.error(Http400, "Missing or incorrect duration")
+
+      without minPrice =? minPrice.?get():
+        return RestApiResponse.error(Http400, "Missing or incorrect minPrice")
+
+      without contracts =? node.contracts:
+        return RestApiResponse.error(Http503, "Sales unavailable")
+
+      let availability = Availability.init(size, duration, minPrice)
+      contracts.sales.add(availability)
+      return RestApiResponse.response(availability.id.toHex)
 
   return router
