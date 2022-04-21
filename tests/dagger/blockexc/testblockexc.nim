@@ -280,7 +280,7 @@ suite "NetworkStore - discovery":
 
       blocks.add(bt.Block.new(chunk).tryGet())
 
-    for e in generateNodes(4):
+    for e in generateNodes(5):
       switch.add(e.switch)
       blockexc.add(e.blockexc)
       await e.blockexc.engine.start()
@@ -299,7 +299,7 @@ suite "NetworkStore - discovery":
 
   test "Shouldn't launch discovery request if we are already connected":
     await blockexc[0].engine.blocksHandler(switch[1].peerInfo.peerId, blocks)
-    blockexc[0].engine.discovery.findBlockProviders_var = proc(d: Discovery, cid: Cid): seq[SignedPeerRecord] =
+    blockexc[1].engine.discovery.findBlockProviders_var = proc(d: Discovery, cid: Cid): seq[SignedPeerRecord] =
       check false
     await connectNodes(switch)
     let blk = await blockexc[1].engine.requestBlock(blocks[0].cid)
