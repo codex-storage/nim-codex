@@ -97,8 +97,8 @@ type
       # behind a NAT
       listenIp* {.
         desc: "The public IP"
-        defaultValue: ValidIpAddress.init("0.0.0.0")
-        defaultValueDesc: "0.0.0.0"
+        defaultValue: ValidIpAddress.init(IPv4_loopback())
+        defaultValueDesc: "127.0.0.1"
         abbr: "i"
         name: "listen-ip" }: ValidIpAddress
 
