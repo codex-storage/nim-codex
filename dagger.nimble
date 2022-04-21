@@ -45,11 +45,18 @@ proc test(name: string, srcDir = "tests/", lang = "c") =
   buildBinary name, srcDir
   exec "build/" & name
 
+task dagger, "build dagger binary":
+  buildBinary "dagger"
+
 task testDagger, "Build & run Dagger tests":
   test "testDagger"
 
 task testContracts, "Build & run Dagger Contract tests":
   test "testContracts"
+
+task testIntegration, "Run integration tests":
+  daggerTask()
+  test "testIntegration"
 
 task test, "Run tests":
   testDaggerTask()
@@ -57,6 +64,4 @@ task test, "Run tests":
 task testAll, "Run all tests":
   testDaggerTask()
   testContractsTask()
-
-task dagger, "build dagger binary":
-  buildBinary "dagger"
+  testIntegrationTask()
