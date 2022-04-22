@@ -230,3 +230,50 @@ suite "E2E - Multiple Nodes Discovery":
       blockexc.mapIt( it.engine.stop() ) &
       switch.mapIt( it.stop() )
     )
+
+  test "E2E - Should advertise and discover blocks with peers already connected":
+    # Distribute the blocks amongst 1..3
+    # Ask 0 to download everything without connecting him beforehand
+
+    var advertised: Table[Cid, SignedPeerRecord]
+
+    MockDiscovery(blockexc[1].engine.discovery)
+      .publishProvideHandler = proc(d: MockDiscovery, cid: Cid) =
+        advertised.add(cid, switch[1].peerInfo.signedPeerRecord)
+
+    MockDiscovery(blockexc[2].engine.discovery)
+      .publishProvideHandler = proc(d: MockDiscovery, cid: Cid) =
+        advertised.add(cid, switch[2].peerInfo.signedPeerRecord)
+
+    MockDiscovery(blockexc[3].engine.discovery)
+      .publishProvideHandler = proc(d: MockDiscovery, cid: Cid) =
+        advertised.add(cid, switch[3].peerInfo.signedPeerRecord)
+
+    await blockexc[1].engine.blocksHandler(switch[0].peerInfo.peerId, blocks[0..5])
+    await blockexc[2].engine.blocksHandler(switch[0].peerInfo.peerId, blocks[4..10])
+    await blockexc[3].engine.blocksHandler(switch[0].peerInfo.peerId, blocks[10..15])
+
+    MockDiscovery(blockexc[0].engine.discovery)
+      .findBlockProvidersHandler = proc(d: MockDiscovery, cid: Cid): seq[SignedPeerRecord] =
+        if cid in advertised:
+          result.add(advertised[cid])
+
+    await allFuturesThrowing(
+      switch.mapIt( it.start() ) &
+      blockexc.mapIt( it.engine.start() )
+    )
+
+    # Connect to the two first nodes
+    discard await blockexc[0].engine.requestBlock(blocks[0].cid)
+    discard await blockexc[0].engine.requestBlock(blocks[6].cid)
+
+    let futs = collect(newSeq):
+      for b in blocks:
+        blockexc[0].engine.requestBlock(b.cid)
+
+    await allFutures(futs).wait(10.seconds)
+
+    await allFuturesThrowing(
+      blockexc.mapIt( it.engine.stop() ) &
+      switch.mapIt( it.stop() )
+    )
