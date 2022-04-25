@@ -16,5 +16,11 @@ proc deployment*(file = defaultFile): Deployment =
   Deployment(json: parseFile(file))
 
 proc address*(deployment: Deployment, Contract: typedesc): ?Address =
-  let address = deployment.json["contracts"][$Contract]["address"].getStr()
-  Address.init(address)
+  if deployment.json == nil:
+    return none Address
+
+  try:
+    let address = deployment.json["contracts"][$Contract]["address"].getStr()
+    Address.init(address)
+  except KeyError:
+    none Address

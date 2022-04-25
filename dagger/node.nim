@@ -43,7 +43,7 @@ type
     engine*: BlockExcEngine
     erasure*: Erasure
     discovery*: Discovery
-    contracts*: ContractInteractions
+    contracts*: ?ContractInteractions
 
 proc start*(node: DaggerNodeRef) {.async.} =
   await node.switch.start()
@@ -51,8 +51,8 @@ proc start*(node: DaggerNodeRef) {.async.} =
   await node.erasure.start()
   await node.discovery.start()
 
-  if not node.contracts.isNil:
-    await node.contracts.start()
+  if contracts =? node.contracts:
+    await contracts.start()
 
   node.networkId = node.switch.peerInfo.peerId
   notice "Started dagger node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
@@ -65,8 +65,8 @@ proc stop*(node: DaggerNodeRef) {.async.} =
   await node.erasure.stop()
   await node.discovery.stop()
 
-  if not node.contracts.isNil:
-    await node.contracts.stop()
+  if contracts =? node.contracts:
+    await contracts.stop()
 
 proc findPeer*(
   node: DaggerNodeRef,
@@ -244,7 +244,7 @@ proc new*(
   engine: BlockExcEngine,
   erasure: Erasure,
   discovery: Discovery,
-  contracts: ContractInteractions): T =
+  contracts: ?ContractInteractions): T =
   T(
     switch: switch,
     blockStore: store,
