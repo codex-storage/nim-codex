@@ -154,6 +154,12 @@ type
         name: "eth-account"
       .}: EthAddress
 
+      ethDeployment* {.
+        desc: "The json file describing the contract deployment"
+        defaultValue: string.default
+        name: "eth-deployment"
+      .}: string
+
     of initNode:
       discard
 

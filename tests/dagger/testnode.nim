@@ -36,7 +36,7 @@ suite "Test Node":
     store: NetworkStore
     node: DaggerNodeRef
     discovery: Discovery
-    contracts: ContractInteractions
+    contracts: ?ContractInteractions
 
   setup:
     file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
