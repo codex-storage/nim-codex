@@ -331,7 +331,7 @@ proc initRestApi*(node: DaggerNodeRef, conf: DaggerConf): RestRouter =
         "\nRoot Dir: " & $conf.dataDir)
 
   router.api(
-    MethodPost,
+    MethodGet,
     "/api/dagger/v1/sales/availability") do (
       size: Option[uint64],
       duration: Option[uint64],
