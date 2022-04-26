@@ -38,3 +38,8 @@ suite "Integration tests":
     let info1 = client.get("http://localhost:8080/api/dagger/v1/info").body
     let info2 = client.get("http://localhost:8081/api/dagger/v1/info").body
     check info1 != info2
+
+  test "node handles new storage availability":
+    let baseurl = "http://localhost:8080/api/dagger/v1"
+    let url = baseurl & "/sales/availability?size=1&duration=1&minPrice=0x2A"
+    check client.get(url).status == "200 OK"
