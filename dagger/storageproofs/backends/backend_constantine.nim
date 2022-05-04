@@ -37,6 +37,8 @@ when defined(debugConstantine):
   import   constantine/math/config/type_bigint
   export `$`
 
+#set up curve and G1/G2
+#const C = BN254_Snarks
 const C = BLS12_381
 
 type
@@ -133,14 +135,30 @@ proc ec_hash_to_g1*(dst: var ec_p1,
                        aug: openArray[char]) =
   sha256.hashToCurve(128, dst, aug, msg, domainSepTag) #TODO: fix k
 
-proc verifyPairings*(a1: ec_p1, a2: ec_p2, b1: ec_p1, b2: ec_p2) : bool =
+proc verifyPairingsNaive[C](a1: ECP_ShortW_Jac[Fp[C], G1], a2: ec_p2, b1: ec_p1, b2: ec_p2) : bool =
+  # first parameter is in extended form to allow inference of C
+  var
+    e1, e2: Fp12[C]
+    a1aff, b1aff {.noInit.}: ec_p1_affine
+    a2aff, b2aff {.noInit.}: ec_p2_affine
+  a1aff.affine(a1)
+  b1aff.affine(b1)
+  a2aff.affine(a2)
+  b2aff.affine(b2)
+  pairing(e1, a1aff, a2aff)
+  pairing(e2, b1aff, b2aff)
+  return (e1 == e2).bool()
+
+proc verifyPairingsNeg[C](a1: ECP_ShortW_Jac[Fp[C], G1], a2: ec_p2, b1: ec_p1, b2: ec_p2) : bool =
+  # first parameter is in extended form to allow inference of C
   when C.getEmbeddingDegree() == 12:
     var gt {.noInit.}: Fp12[C]
   else:
     {.error: "Not implemented: signature on k=" & $C.getEmbeddingDegree() & " for curve " & $$C.}
 
-  var a1aff, b1aff {.noInit.}: ec_p1_affine
-  var a2aff, negb2aff {.noInit.}: ec_p2_affine
+  var
+    a1aff, b1aff {.noInit.}: ec_p1_affine
+    a2aff, negb2aff {.noInit.}: ec_p2_affine
   a1aff.affine(a1)
   b1aff.affine(b1)
   a2aff.affine(a2)
@@ -148,6 +166,14 @@ proc verifyPairings*(a1: ec_p1, a2: ec_p2, b1: ec_p1, b2: ec_p2) : bool =
   negb2aff.neg(negb2aff)
   gt.pairing([a1aff, b1aff], [a2aff, negb2aff])
   return gt.isOne().bool()
+
+proc verifyPairings*(a1: ec_p1, a2: ec_p2, b1: ec_p1, b2: ec_p2) : bool =
+  ## Wrapper to select verify pairings implementation
+  when C == BLS12_381:
+    verifyPairingsNeg(a1, a2, b1, b2)
+  else:
+    verifyPairingsNaive(a1, a2, b1, b2)
+
 
 func ec_from_bytes*(
        dst: var Signature,
