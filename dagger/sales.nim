@@ -20,8 +20,8 @@ type
     onSale: ?OnSale
   Availability* = object
     id*: array[32, byte]
-    size*: uint64
-    duration*: uint64
+    size*: UInt256
+    duration*: UInt256
     minPrice*: UInt256
   Negotiation = ref object
     sales: Sales
@@ -38,8 +38,8 @@ func new*(_: type Sales, market: Market): Sales =
   Sales(market: market, offerExpiryInterval: DefaultOfferExpiryInterval)
 
 proc init*(_: type Availability,
-          size: uint64,
-          duration: uint64,
+          size: UInt256,
+          duration: UInt256,
           minPrice: UInt256): Availability =
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
@@ -56,8 +56,8 @@ func remove*(sales: Sales, availability: Availability) =
 
 func findAvailability(sales: Sales, ask: StorageAsk): ?Availability =
   for availability in sales.available:
-    if ask.size <= availability.size.u256 and
-       ask.duration <= availability.duration.u256 and
+    if ask.size <= availability.size and
+       ask.duration <= availability.duration and
        ask.maxPrice >= availability.minPrice:
       return some availability
 
