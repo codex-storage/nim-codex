@@ -332,6 +332,17 @@ proc initRestApi*(node: DaggerNodeRef, conf: DaggerConf): RestRouter =
         "\nAddrs: \n" & addrs &
         "\nRoot Dir: " & $conf.dataDir)
 
+  router.api(
+    MethodGet,
+    "/api/dagger/v1/sales/availability") do () -> RestApiResponse:
+      ## Returns storage that is for sale
+
+      without contracts =? node.contracts:
+        return RestApiResponse.error(Http503, "Sales unavailable")
+
+      let json = %contracts.sales.available
+      return RestApiResponse.response($json)
+
   router.rawApi(
     MethodPost,
     "/api/dagger/v1/sales/availability") do () -> RestApiResponse:
@@ -341,15 +352,17 @@ proc initRestApi*(node: DaggerNodeRef, conf: DaggerConf): RestRouter =
       ## duration   - maximum time the storage should be sold for (in seconds)
       ## minPrice   - minimum price to be paid (in amount of tokens)
 
+      without contracts =? node.contracts:
+        return RestApiResponse.error(Http503, "Sales unavailable")
+
       let body = await request.getBody()
 
       without availability =? Availability.fromJson(body), error:
         return RestApiResponse.error(Http400, error.msg)
 
-      without contracts =? node.contracts:
-        return RestApiResponse.error(Http503, "Sales unavailable")
-
       contracts.sales.add(availability)
-      return RestApiResponse.response(availability.id.toHex)
+
+      let json = %availability
+      return RestApiResponse.response($json)
 
   return router
