@@ -30,6 +30,8 @@ import ../blocktype
 import ../conf
 import ../contracts
 
+import ./json
+
 proc validate(
   pattern: string,
   value: string): int
@@ -330,31 +332,23 @@ proc initRestApi*(node: DaggerNodeRef, conf: DaggerConf): RestRouter =
         "\nAddrs: \n" & addrs &
         "\nRoot Dir: " & $conf.dataDir)
 
-  router.api(
-    MethodGet,
-    "/api/dagger/v1/sales/availability") do (
-      size: Option[uint64],
-      duration: Option[uint64],
-      minPrice: Option[UInt256]) -> RestApiResponse:
+  router.rawApi(
+    MethodPost,
+    "/api/dagger/v1/sales/availability") do () -> RestApiResponse:
       ## Add available storage to sell
       ##
       ## size       - size of available storage in bytes
       ## duration   - maximum time the storage should be sold for (in seconds)
       ## minPrice   - minimum price to be paid (in amount of tokens)
 
-      without size =? size.?get():
-        return RestApiResponse.error(Http400, "Missing or incorrect size")
+      let body = await request.getBody()
 
-      without duration =? duration.?get():
-        return RestApiResponse.error(Http400, "Missing or incorrect duration")
-
-      without minPrice =? minPrice.?get():
-        return RestApiResponse.error(Http400, "Missing or incorrect minPrice")
+      without availability =? Availability.fromJson(body), error:
+        return RestApiResponse.error(Http400, error.msg)
 
       without contracts =? node.contracts:
         return RestApiResponse.error(Http503, "Sales unavailable")
 
-      let availability = Availability.init(size, duration, minPrice)
       contracts.sales.add(availability)
       return RestApiResponse.response(availability.id.toHex)
 
