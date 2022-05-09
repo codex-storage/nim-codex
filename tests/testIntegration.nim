@@ -3,6 +3,7 @@ import std/os
 import std/streams
 import std/strutils
 import std/httpclient
+import std/json
 import pkg/asynctest
 import pkg/chronos
 
@@ -41,5 +42,11 @@ suite "Integration tests":
 
   test "node handles new storage availability":
     let baseurl = "http://localhost:8080/api/dagger/v1"
-    let url = baseurl & "/sales/availability?size=1&duration=1&minPrice=0x2A"
-    check client.get(url).status == "200 OK"
+    let url = baseurl & "/sales/availability"
+    let json = %*{
+      "size": "0x1",
+      "duration": "0x2",
+      "minPrice": "0x3"
+    }
+    let response = client.post(url, $json)
+    check response.status == "200 OK"
