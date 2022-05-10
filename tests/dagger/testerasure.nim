@@ -15,18 +15,21 @@ import pkg/dagger/rng
 import ./helpers
 
 suite "Erasure encode/decode":
-  test "Should tolerate loosing M data blocks in a single random column":
-    const
-      buffers = 20
-      parity = 10
-      dataSetSize = BlockSize * 123 # weird geometry
 
-    var
-      chunker = RandomChunker.new(Rng.instance(), size = dataSetSize, chunkSize = BlockSize)
-      manifest = Manifest.new(blockSize = BlockSize).tryGet()
-      store = CacheStore.new(cacheSize = (dataSetSize * 2), chunkSize = BlockSize)
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-      rng = Rng.instance
+  const dataSetSize = BlockSize * 123 # weird geometry
+
+  var rng: Rng
+  var chunker: Chunker
+  var manifest: Manifest
+  var store: BlockStore
+  var erasure: Erasure
+
+  setup:
+    rng = Rng.instance()
+    chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = BlockSize)
+    manifest = !Manifest.new(blockSize = BlockSize)
+    store = CacheStore.new(cacheSize = (dataSetSize * 2), chunkSize = BlockSize)
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
 
     while (
       let chunk = await chunker.getBytes();
@@ -36,6 +39,7 @@ suite "Erasure encode/decode":
       manifest.add(blk.cid)
       check (await store.putBlock(blk))
 
+  proc encode(buffers, parity: int): Future[Manifest] {.async.} =
     let
       encoded = (await erasure.encode(
         manifest,
@@ -46,6 +50,15 @@ suite "Erasure encode/decode":
       encoded.len mod (buffers + parity) == 0
       encoded.rounded == (manifest.len + (buffers - (manifest.len mod buffers)))
       encoded.steps == encoded.rounded div buffers
+
+    return encoded
+
+  test "Should tolerate loosing M data blocks in a single random column":
+    const
+      buffers = 20
+      parity = 10
+
+    let encoded = await encode(buffers, parity)
 
     var
       column = rng.rand(encoded.len div encoded.steps) # random column
@@ -71,33 +84,8 @@ suite "Erasure encode/decode":
     const
       buffers = 20
       parity = 10
-      dataSetSize = BlockSize * 123 # weird geometry
 
-    var
-      chunker = RandomChunker.new(Rng.instance(), size = dataSetSize, chunkSize = BlockSize)
-      manifest = Manifest.new(blockSize = BlockSize).tryGet()
-      store = CacheStore.new(cacheSize = (dataSetSize * 2), chunkSize = BlockSize)
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-      rng = Rng.instance
-
-    while (
-      let chunk = await chunker.getBytes();
-      chunk.len > 0):
-
-      let blk = bt.Block.new(chunk).tryGet()
-      manifest.add(blk.cid)
-      check (await store.putBlock(blk))
-
-    let
-      encoded = (await erasure.encode(
-        manifest,
-        buffers,
-        parity)).tryGet()
-
-    check:
-      encoded.len mod (buffers + parity) == 0
-      encoded.rounded == (manifest.len + (buffers - (manifest.len mod buffers)))
-      encoded.steps == encoded.rounded div buffers
+    let encoded = await encode(buffers, parity)
 
     var
       column = rng.rand(encoded.len div encoded.steps) # random column
@@ -121,33 +109,8 @@ suite "Erasure encode/decode":
     const
       buffers = 20
       parity = 10
-      dataSetSize = BlockSize * 123 # weird geometry
 
-    var
-      chunker = RandomChunker.new(Rng.instance(), size = dataSetSize, chunkSize = BlockSize)
-      manifest = Manifest.new(blockSize = BlockSize).tryGet()
-      store = CacheStore.new(cacheSize = (dataSetSize * 5), chunkSize = BlockSize)
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-      rng = Rng.instance
-
-    while (
-      let chunk = await chunker.getBytes();
-      chunk.len > 0):
-
-      let blk = bt.Block.new(chunk).tryGet()
-      manifest.add(blk.cid)
-      check (await store.putBlock(blk))
-
-    let
-      encoded = (await erasure.encode(
-        manifest,
-        buffers,
-        parity)).tryGet()
-
-    check:
-      encoded.len mod (buffers + parity) == 0
-      encoded.rounded == (manifest.len + (buffers - (manifest.len mod buffers)))
-      encoded.steps == encoded.rounded div buffers
+    let encoded = await encode(buffers, parity)
 
     var
       blocks: seq[int]
@@ -164,8 +127,7 @@ suite "Erasure encode/decode":
     for idx in blocks:
       check (await store.delBlock(encoded[idx]))
 
-    var
-      decoded = (await erasure.decode(encoded)).tryGet()
+    discard (await erasure.decode(encoded)).tryGet()
 
     for d in manifest:
       check d in store
@@ -174,33 +136,8 @@ suite "Erasure encode/decode":
     const
       buffers = 20
       parity = 10
-      dataSetSize = BlockSize * 123 # weird geometry
 
-    var
-      chunker = RandomChunker.new(Rng.instance(), size = dataSetSize, chunkSize = BlockSize)
-      manifest = Manifest.new(blockSize = BlockSize).tryGet()
-      store = CacheStore.new(cacheSize = (dataSetSize * 5), chunkSize = BlockSize)
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-      rng = Rng.instance
-
-    while (
-      let chunk = await chunker.getBytes();
-      chunk.len > 0):
-
-      let blk = bt.Block.new(chunk).tryGet()
-      manifest.add(blk.cid)
-      check (await store.putBlock(blk))
-
-    let
-      encoded = (await erasure.encode(
-        manifest,
-        buffers,
-        parity)).tryGet()
-
-    check:
-      encoded.len mod (buffers + parity) == 0
-      encoded.rounded == (manifest.len + (buffers - (manifest.len mod buffers)))
-      encoded.steps == encoded.rounded div buffers
+    let encoded = await encode(buffers, parity)
 
     var
       blocks: seq[int]
@@ -233,39 +170,13 @@ suite "Erasure encode/decode":
     const
       buffers = 20
       parity = 10
-      dataSetSize = BlockSize * 123 # weird geometry
 
-    var
-      chunker = RandomChunker.new(Rng.instance(), size = dataSetSize, chunkSize = BlockSize)
-      manifest = Manifest.new(blockSize = BlockSize).tryGet()
-      store = CacheStore.new(cacheSize = (dataSetSize * 5), chunkSize = BlockSize)
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-      rng = Rng.instance
-
-    while (
-      let chunk = await chunker.getBytes();
-      chunk.len > 0):
-
-      let blk = bt.Block.new(chunk).tryGet()
-      manifest.add(blk.cid)
-      check (await store.putBlock(blk))
-
-    let
-      encoded = (await erasure.encode(
-        manifest,
-        buffers,
-        parity)).tryGet()
-
-    check:
-      encoded.len mod (buffers + parity) == 0
-      encoded.rounded == (manifest.len + (buffers - (manifest.len mod buffers)))
-      encoded.steps == encoded.rounded div buffers
+    let encoded = await encode(buffers, parity)
 
     for b in encoded.blocks[0..<encoded.steps * encoded.M]:
       check (await store.delBlock(b))
 
-    var
-      decoded = (await erasure.decode(encoded)).tryGet()
+    discard (await erasure.decode(encoded)).tryGet()
 
     for d in manifest:
       check d in store
@@ -274,39 +185,13 @@ suite "Erasure encode/decode":
     const
       buffers = 20
       parity = 10
-      dataSetSize = BlockSize * 123 # weird geometry
 
-    var
-      chunker = RandomChunker.new(Rng.instance(), size = dataSetSize, chunkSize = BlockSize)
-      manifest = Manifest.new(blockSize = BlockSize).tryGet()
-      store = CacheStore.new(cacheSize = (dataSetSize * 5), chunkSize = BlockSize)
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-      rng = Rng.instance
-
-    while (
-      let chunk = await chunker.getBytes();
-      chunk.len > 0):
-
-      let blk = bt.Block.new(chunk).tryGet()
-      manifest.add(blk.cid)
-      check (await store.putBlock(blk))
-
-    let
-      encoded = (await erasure.encode(
-        manifest,
-        buffers,
-        parity)).tryGet()
-
-    check:
-      encoded.len mod (buffers + parity) == 0
-      encoded.rounded == (manifest.len + (buffers - (manifest.len mod buffers)))
-      encoded.steps == encoded.rounded div buffers
+    let encoded = await encode(buffers, parity)
 
     for b in encoded.blocks[^(encoded.steps * encoded.M)..^1]:
       check (await store.delBlock(b))
 
-    var
-      decoded = (await erasure.decode(encoded)).tryGet()
+    discard (await erasure.decode(encoded)).tryGet()
 
     for d in manifest:
       check d in store
@@ -315,39 +200,7 @@ suite "Erasure encode/decode":
     const
       buffers = 20
       parity = 0
-      dataSetSize = BlockSize * 123 # weird geometry
 
-    var
-      chunker = RandomChunker.new(Rng.instance(), size = dataSetSize, chunkSize = BlockSize)
-      manifest = Manifest.new(blockSize = BlockSize).tryGet()
-      store = CacheStore.new(cacheSize = (dataSetSize * 5), chunkSize = BlockSize)
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-      rng = Rng.instance
+    let encoded = await encode(buffers, parity)
 
-    while (
-      let chunk = await chunker.getBytes();
-      chunk.len > 0):
-
-      let blk = Block.new(chunk).tryGet()
-      manifest.add(blk.cid)
-      check (await store.putBlock(blk))
-
-    let
-      encoded = (await erasure.encode(
-        manifest,
-        buffers,
-        parity)).tryGet()
-
-    check:
-      encoded.len mod (buffers + parity) == 0
-      encoded.rounded == (manifest.len + (buffers - (manifest.len mod buffers)))
-      encoded.steps == encoded.rounded div buffers
-
-    for b in encoded.blocks[^(encoded.steps * encoded.M)..^1]:
-      check (await store.delBlock(b))
-
-    var
-      decoded = (await erasure.decode(encoded)).tryGet()
-
-    for d in manifest:
-      check d in store
+    discard (await erasure.decode(encoded)).tryGet()
