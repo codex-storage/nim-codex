@@ -141,7 +141,7 @@ suite "E2E - Multiple Nodes Discovery":
         check false
 
     await connectNodes(switch)
-    await sleepAsync(3.seconds)
+    await sleepAsync(10.seconds)
     let blk = await blockexc[1].engine.requestBlock(blocks[0].cid)
 
     await allFuturesThrowing(
