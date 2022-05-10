@@ -1,4 +1,4 @@
-name: CI
+name: Coverage
 on:
   push:
     branches:
@@ -12,28 +12,28 @@ jobs:
       fail-fast: false
       max-parallel: 20
       matrix:
-        branch: [v1.2.18, v1.6.6]
+        branch: [v1.6.6]
         target:
           # Unit tests
           - os: linux
             cpu: amd64
             TEST_KIND: unit-tests
-          - os: macos
-            cpu: amd64
-            TEST_KIND: unit-tests
-          - os: windows
-            cpu: amd64
-            TEST_KIND: unit-tests
+          # - os: macos
+          #   cpu: amd64
+          #   TEST_KIND: unit-tests
+          # - os: windows
+          #   cpu: amd64
+          #   TEST_KIND: unit-tests
         include:
           - target:
               os: linux
             builder: ubuntu-18.04
-          - target:
-              os: macos
-            builder: macos-10.15
-          - target:
-              os: windows
-            builder: windows-2019
+          # - target:
+          #     os: macos
+          #   builder: macos-10.15
+          # - target:
+          #     os: windows
+          #   builder: windows-2019
     name: '${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ matrix.branch }}'
     runs-on: ${{ matrix.builder }}
     steps:
@@ -72,6 +72,12 @@ jobs:
           [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=1
           echo "ncpu=$ncpu" >> $GITHUB_ENV
           echo "ext=$ext" >> $GITHUB_ENV
+
+      - name: Install coverage dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lcov
 
       - name: Install build dependencies (Linux i386)
         if: runner.os == 'Linux' && matrix.target.cpu == 'i386'
@@ -199,21 +205,20 @@ jobs:
           npm install
           npm start &
 
-      - name: Run nim-codex tests
+      - name: Run nim-codex tests and generate coverage data
         shell: bash
         working-directory: nim-codex
         run: |
           ./env.sh nim --version
           echo
-          make NIM_COMMIT="${{ matrix.branch }}" testAll
-          if [[ ${{ runner.os }} = macOS ]]; then
-            echo
-            echo otool -L build/testDagger
-            otool -L build/testDagger
-          else
-            echo
-            echo ldd build/testDagger
-            ldd build/testDagger
-          fi
-          echo "Testing TRACE log level"
-          ./env.sh nim c -d:chronicles_log_level=TRACE dagger.nim
+          make NIM_COMMIT="${{ matrix.branch }}" coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v2
+        with:
+          directory: ./nim-codex/coverage/
+          fail_ci_if_error: true
+          files: ./nim-codex/coverage/coverage.f.info
+          flags: unittests
+          name: codecov-umbrella
+          verbose: true

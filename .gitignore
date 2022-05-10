@@ -9,6 +9,9 @@ nimcache/
 # Executables shall be put in an ignored build/ directory
 build/
 
+# Coverage data shall be put in an ignored coverage/ directory
+coverage/
+
 # Nimble packages
 /vendor/.nimble
 

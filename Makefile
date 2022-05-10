@@ -21,11 +21,12 @@ LINK_PCRE := 0
 
 .PHONY: \
 	all \
-	deps \
-	update \
-	test \
 	clean \
-	libbacktrace
+	coverage \
+	deps \
+	libbacktrace \
+	test \
+	update
 
 ifeq ($(NIM_PARAMS),)
 # "variables.mk" was not included, so we update the submodules.
@@ -82,7 +83,7 @@ test: | build deps
 
 # Builds and runs all tests
 testAll: | build deps
-	echo -e $(BUILD_MSG) "build/$@" && \
+	echo -e $(BUILD_MSG) "build/testDagger" "build/testContracts" && \
 		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) dagger.nims
 
 # symlink
@@ -92,6 +93,18 @@ dagger.nims:
 # nim-libbacktrace
 libbacktrace:
 	+ $(MAKE) -C vendor/nim-libbacktrace --no-print-directory BUILD_CXX_LIB=0
+
+coverage:
+	$(MAKE) NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage" testAll
+	cd nimcache/release/testDagger && rm -f *.c
+	cd nimcache/release/testContracts && rm -f *.c
+	mkdir -p coverage
+	lcov --capture --directory nimcache/release/testDagger --directory nimcache/release/testContracts --output-file coverage/coverage.info
+	shopt -s globstar && ls $$(pwd)/dagger/{*,**/*}.nim
+	shopt -s globstar && lcov --extract coverage/coverage.info $$(pwd)/dagger/{*,**/*}.nim --output-file coverage/coverage.f.info
+	echo -e $(BUILD_MSG) "coverage/report/index.html"
+	genhtml coverage/coverage.f.info --output-directory coverage/report
+	if which open >/dev/null; then (echo -e "\e[92mOpening\e[39m HTML coverage report in browser..." && open coverage/report/index.html) || true; fi
 
 # usual cleaning
 clean: | clean-common
