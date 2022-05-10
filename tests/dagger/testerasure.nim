@@ -310,3 +310,44 @@ suite "Erasure encode/decode":
 
     for d in manifest:
       check d in store
+
+  test "handles edge case of 0 parity blocks":
+    const
+      buffers = 20
+      parity = 0
+      dataSetSize = BlockSize * 123 # weird geometry
+
+    var
+      chunker = RandomChunker.new(Rng.instance(), size = dataSetSize, chunkSize = BlockSize)
+      manifest = Manifest.new(blockSize = BlockSize).tryGet()
+      store = CacheStore.new(cacheSize = (dataSetSize * 5), chunkSize = BlockSize)
+      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+      rng = Rng.instance
+
+    while (
+      let chunk = await chunker.getBytes();
+      chunk.len > 0):
+
+      let blk = Block.new(chunk).tryGet()
+      manifest.add(blk.cid)
+      check (await store.putBlock(blk))
+
+    let
+      encoded = (await erasure.encode(
+        manifest,
+        buffers,
+        parity)).tryGet()
+
+    check:
+      encoded.len mod (buffers + parity) == 0
+      encoded.rounded == (manifest.len + (buffers - (manifest.len mod buffers)))
+      encoded.steps == encoded.rounded div buffers
+
+    for b in encoded.blocks[^(encoded.steps * encoded.M)..^1]:
+      check (await store.delBlock(b))
+
+    var
+      decoded = (await erasure.decode(encoded)).tryGet()
+
+    for d in manifest:
+      check d in store

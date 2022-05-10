@@ -26,6 +26,9 @@ method encode*(
   data,
   parity: var openArray[seq[byte]]): Result[void, cstring] =
 
+  if parity.len == 0:
+    return ok()
+
   var encoder = if self.encoder.isNone:
       self.encoder = (? LeoEncoder.init(
         self.blockSize,
