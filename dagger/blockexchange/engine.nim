@@ -233,6 +233,9 @@ proc requestBlock*(
   ## Request a block from remotes
   ##
 
+  if cid in b.pendingBlocks:
+    return b.pendingBlocks.getWantHandle(cid, timeout)
+
   let
     blk = b.pendingBlocks.getWantHandle(cid, timeout)
 
