@@ -9,6 +9,7 @@
 
 import std/options
 import std/tables
+import std/sequtils
 
 import pkg/questionable
 import pkg/questionable/results
@@ -117,12 +118,22 @@ proc retrieve*(
       proc erasureJob(): Future[void] {.async.} =
         try:
           without res =? (await node.erasure.decode(manifest)), error: # spawn an erasure decoding job
-            trace "Unable to erasure decode manigest", cid, exc = error.msg
+            trace "Unable to erasure decode manifest", cid, exc = error.msg
         except CatchableError as exc:
           trace "Exception decoding manifest", cid
 
       asyncSpawn erasureJob()
 
+    proc prefetchBlocks() {.async.} =
+      ## Initiates requests to all blocks in the manifest
+      ##
+      try:
+        discard await allFinished(
+          manifest.mapIt( node.blockStore.getBlock( it ) ))
+      except CatchableError as exc:
+        trace "Exception prefetching blocks", exc = exc.msg
+
+    asyncSpawn prefetchBlocks()
     return LPStream(StoreStream.new(node.blockStore, manifest)).success
 
   let
