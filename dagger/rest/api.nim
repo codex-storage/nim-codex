@@ -175,90 +175,35 @@ proc initRestApi*(node: DaggerNodeRef, conf: DaggerConf): RestRouter =
         if not stream.isNil:
           await stream.close()
 
-  router.api(
+  router.rawApi(
     MethodPost,
-    "/api/dagger/v1/storage/request/{cid}") do (
-      cid: Cid,
-      ppb: Option[uint],
-      duration: Option[Duration],
-      nodes: Option[uint],
-      loss: Option[uint],
-      renew: Option[bool]) -> RestApiResponse:
+    "/api/dagger/v1/storage/request/{cid}") do (cid: Cid) -> RestApiResponse:
       ## Create a request for storage
       ##
-      ## Cid            - the cid of the previously uploaded dataset
-      ## ppb            - the price per byte the client is willing to pay
+      ## cid            - the cid of a previously uploaded dataset
       ## duration       - the duration of the contract
-      ## nodeCount      - the total amount of the nodes storing the dataset, including `lossTolerance`
-      ## lossTolerance  - the number of nodes losses the user is willing to tolerate
-      ## autoRenew      - should the contract be autorenewed -
-      ##                  will fail unless the user has enough funds lockedup
-      ##
+      ## maxPrice       - the maximum price the client is willing to pay
 
-      var
-        cid =
-          if cid.isErr:
-            return RestApiResponse.error(Http400, $cid.error())
-          else:
-            cid.get()
+      # TODO: store on multiple nodes
+      let nodes: uint = 1
+      let tolerance: uint = 0
 
-        ppb =
-          if ppb.isNone:
-            return RestApiResponse.error(Http400, "Missing ppb")
-          else:
-            if ppb.get().isErr:
-              return RestApiResponse.error(Http500, $ppb.get().error)
-            else:
-              ppb.get().get()
+      without cid =? cid.tryGet.catch, error:
+        return RestApiResponse.error(Http400, error.msg)
 
-        duration =
-          if duration.isNone:
-            return RestApiResponse.error(Http400, "Missing duration")
-          else:
-            if duration.get().isErr:
-              return RestApiResponse.error(Http500, $duration.get().error)
-            else:
-              duration.get().get()
+      let body = await request.getBody()
 
-        nodes =
-          if nodes.isNone:
-            return RestApiResponse.error(Http400, "Missing node count")
-          else:
-            if nodes.get().isErr:
-              return RestApiResponse.error(Http500, $nodes.get().error)
-            else:
-              nodes.get().get()
+      without params =? StorageRequestParams.fromJson(body), error:
+        return RestApiResponse.error(Http400, error.msg)
 
-        loss =
-          if loss.isNone:
-            return RestApiResponse.error(Http400, "Missing loss tolerance")
-          else:
-            if loss.get().isErr:
-              return RestApiResponse.error(Http500, $loss.get().error)
-            else:
-              loss.get().get()
+      without storageCid =? await node.requestStorage(cid,
+                                                      params.duration,
+                                                      nodes,
+                                                      tolerance,
+                                                      params.maxPrice), error:
+        return RestApiResponse.error(Http500, error.msg)
 
-        renew = if renew.isNone:
-            false
-          else:
-            if renew.get().isErr:
-              return RestApiResponse.error(Http500, $renew.get().error)
-            else:
-              renew.get().get()
-
-      try:
-        without storageCid =? (await node.requestStorage(
-            cid,
-            ppb,
-            duration,
-            nodes,
-            loss,
-            renew)), error:
-          return RestApiResponse.error(Http500, error.msg)
-
-        return RestApiResponse.response($storageCid)
-      except CatchableError as exc:
-        return RestApiResponse.error(Http500, exc.msg)
+      return RestApiResponse.response($storageCid)
 
   router.rawApi(
     MethodPost,

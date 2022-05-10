@@ -6,6 +6,7 @@ import std/httpclient
 import std/json
 import pkg/asynctest
 import pkg/chronos
+import pkg/stew/byteutils
 
 suite "Integration tests":
 
@@ -43,6 +44,11 @@ suite "Integration tests":
     let info2 = client.get(baseurl2 & "/info").body
     check info1 != info2
 
+  test "node accepts file uploads":
+    let url = baseurl1 & "/upload"
+    let response = client.post(url, "some file contents")
+    check response.status == "200 OK"
+
   test "node handles new storage availability":
     let url = baseurl1 & "/sales/availability"
     let json = %*{"size": "0x1", "duration": "0x2", "minPrice": "0x3"}
@@ -55,3 +61,10 @@ suite "Integration tests":
     let response = client.get(url)
     check response.status == "200 OK"
     check parseJson(response.body) == %*[availability]
+
+  test "node handles storage request":
+    let cid = client.post(baseurl1 & "/upload", "some file contents").body
+    let url = baseurl1 & "/storage/request/" & cid
+    let json = %*{"duration": "0x1", "maxPrice": "0x2"}
+    let response = client.post(url, $json)
+    check response.status == "200 OK"
