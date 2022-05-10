@@ -152,14 +152,16 @@ proc discoveryTaskRunner(b: BlockExcEngine) {.async.} =
 proc queueFindBlocksReq(b: BlockExcEngine, cids: seq[Cid]) {.async.} =
   try:
     for cid in cids:
-      await b.discoveryQueue.put(cid)
+      if cid notin b.discoveryQueue:
+        await b.discoveryQueue.put(cid)
   except CatchableError as exc:
     trace "Exception queueing discovery request", exc = exc.msg
 
 proc queueProvideBlocksReq(b: BlockExcEngine, cids: seq[Cid]) {.async.} =
   try:
     for cid in cids:
-      await b.advertiseQueue.put(cid)
+      if cid notin b.advertiseQueue:
+        await b.advertiseQueue.put(cid)
   except CatchableError as exc:
     trace "Exception queueing discovery request", exc = exc.msg
 
@@ -303,14 +305,22 @@ proc blockPresenceHandler*(
     if presence =? Presence.init(blk):
       peerCtx.updatePresence(presence)
 
-  let
+  var
     cids = toSeq(b.pendingBlocks.wantList).filterIt(
       it in peerCtx.peerHave
     )
 
   if cids.len > 0:
-    for cid in cids:
-      asyncCheck b.requestBlock(cid)
+    b.network.request.sendWantList(
+      peer,
+      cids,
+      wantType = WantType.wantBlock) # we want this remote to send us a block
+
+  # if none of the connected peers report our wants in their have list,
+  # fire up discovery
+  asyncSpawn b.queueFindBlocksReq(
+    toSeq(b.pendingBlocks.wantList).filter(proc(cid: Cid): bool =
+      (not b.peers.anyIt( cid in it.peerHave ))))
 
 proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) =
   trace "Schedule a task for new blocks"
