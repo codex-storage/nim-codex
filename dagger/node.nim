@@ -207,14 +207,12 @@ proc store*(
 
   return manifest.cid.success
 
-proc requestStorage*(
-  self: DaggerNodeRef,
-  cid: Cid,
-  ppb: uint,
-  duration: Duration,
-  nodes: uint,
-  tolerance: uint,
-  autoRenew: bool = false): Future[?!Cid] {.async.} =
+proc requestStorage*(self: DaggerNodeRef,
+                     cid: Cid,
+                     duration: UInt256,
+                     nodes: uint,
+                     tolerance: uint,
+                     maxPrice: UInt256): Future[?!Cid] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
   ##
@@ -224,7 +222,7 @@ proc requestStorage*(
   ## - Run the PoR setup on the erasure dataset
   ## - Call into the marketplace and purchasing contracts
   ##
-  trace "Received a request for storage!", cid, ppb, duration, nodes, tolerance, autoRenew
+  trace "Received a request for storage!", cid, duration, nodes, tolerance, maxPrice
 
   without blk =? (await self.blockStore.getBlock(cid)), error:
     trace "Unable to retrieve manifest block", cid
