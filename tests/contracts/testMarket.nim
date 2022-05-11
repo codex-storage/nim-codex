@@ -1,7 +1,7 @@
 import pkg/chronos
 import dagger/contracts
 import dagger/contracts/testtoken
-import ./ethertest
+import ../ethertest
 import ./examples
 import ./time
 

@@ -1,5 +1,5 @@
-import ./ethertest
 import dagger/contracts
+import ../ethertest
 import ./examples
 import ./time
 

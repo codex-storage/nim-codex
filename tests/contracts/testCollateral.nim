@@ -2,7 +2,7 @@ import pkg/chronos
 import pkg/stint
 import dagger/contracts
 import dagger/contracts/testtoken
-import ./ethertest
+import ../ethertest
 
 ethersuite "Collateral":
 
