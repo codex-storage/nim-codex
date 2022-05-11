@@ -129,7 +129,7 @@ suite "E2E - Multiple Nodes Discovery":
     switch = @[]
     blockexc = @[]
 
-  test "Should not launch discovery request if we are already connected":
+  test "E2E - Should not launch discovery if peers reported block":
     await allFuturesThrowing(
       blockexc.mapIt( it.engine.start() ) &
       switch.mapIt( it.start() )
@@ -141,7 +141,7 @@ suite "E2E - Multiple Nodes Discovery":
         check false
 
     await connectNodes(switch)
-    await sleepAsync(10.seconds)
+    await sleepAsync(30.seconds)
     let blk = await blockexc[1].engine.requestBlock(blocks[0].cid)
 
     await allFuturesThrowing(
