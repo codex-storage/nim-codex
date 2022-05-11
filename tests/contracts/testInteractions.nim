@@ -1,6 +1,6 @@
 import std/os
-import ./ethertest
 import dagger/contracts
+import ../ethertest
 import ./examples
 
 ethersuite "Storage Contract Interactions":
