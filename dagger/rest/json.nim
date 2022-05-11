@@ -3,6 +3,7 @@ import std/strutils
 import pkg/stew/byteutils
 import pkg/questionable/results
 import ../sales
+import ../purchasing
 
 type
   StorageRequestParams* = object
@@ -22,3 +23,19 @@ proc fromJson*(_: type StorageRequestParams,
   let duration = ?catch UInt256.fromHex(json["duration"].getStr)
   let maxPrice = ?catch UInt256.fromHex(json["maxPrice"].getStr)
   success StorageRequestParams(duration: duration, maxPrice: maxPrice)
+
+func `%`*(address: Address): JsonNode =
+  % $address
+
+func `%`*(stint: StInt|StUInt): JsonNode =
+  %("0x" & stint.toHex)
+
+func `%`*(arr: openArray[byte]): JsonNode =
+  %("0x" & arr.toHex)
+
+func `%`*(purchase: Purchase): JsonNode =
+  %*{
+    "request": %purchase.request,
+    "offers": %purchase.offers,
+    "selected": %purchase.selected
+  }

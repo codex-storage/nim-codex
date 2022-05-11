@@ -68,3 +68,13 @@ suite "Integration tests":
     let json = %*{"duration": "0x1", "maxPrice": "0x2"}
     let response = client.post(url, $json)
     check response.status == "200 OK"
+
+  test "node retrieves purchase status":
+    let cid = client.post(baseurl1 & "/upload", "some file contents").body
+    let request = %*{"duration": "0x1", "maxPrice": "0x2"}
+    let id = client.post(baseurl1 & "/storage/request/" & cid, $request).body
+    let response = client.get(baseurl1 & "/storage/purchases/" & id)
+    check response.status == "200 OK"
+    let json = parseJson(response.body)
+    check json["request"]["ask"]["duration"].getStr == "0x1"
+    check json["request"]["ask"]["maxPrice"].getStr == "0x2"
