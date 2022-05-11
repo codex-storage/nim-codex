@@ -212,7 +212,7 @@ proc requestStorage*(self: DaggerNodeRef,
                      duration: UInt256,
                      nodes: uint,
                      tolerance: uint,
-                     maxPrice: UInt256): Future[?!Cid] {.async.} =
+                     maxPrice: UInt256): Future[?!array[32, byte]] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
   ##
@@ -223,6 +223,10 @@ proc requestStorage*(self: DaggerNodeRef,
   ## - Call into the marketplace and purchasing contracts
   ##
   trace "Received a request for storage!", cid, duration, nodes, tolerance, maxPrice
+
+  without contracts =? self.contracts:
+    trace "Purchasing not available"
+    return failure "Purchasing not available"
 
   without blk =? (await self.blockStore.getBlock(cid)), error:
     trace "Unable to retrieve manifest block", cid
@@ -258,7 +262,29 @@ proc requestStorage*(self: DaggerNodeRef,
     trace "Unable to store encoded manifest block", cid = encodedBlk.cid
     return failure("Unable to store encoded manifest block")
 
-  return encodedBlk.cid.success
+  let request = StorageRequest(
+    ask: StorageAsk(
+      size: encoded.size.u256,
+      duration: duration,
+      maxPrice: maxPrice
+    ),
+    content: StorageContent(
+      cid: $encodedBlk.cid,
+      erasure: StorageErasure(
+        totalChunks: encoded.len.uint64,
+        totalNodes: 1,  # TODO: store on multiple nodes
+        nodeId: 0       # TODO: store on multiple nodes
+      ),
+      por: StoragePor(
+        u: @[],         # TODO: PoR setup
+        publicKey: @[], # TODO: PoR setup
+        name: @[]       # TODO: PoR setup
+      )
+    )
+  )
+
+  let purchase = contracts.purchasing.purchase(request)
+  return success purchase.id
 
 proc new*(
   T: type DaggerNodeRef,
