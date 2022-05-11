@@ -34,6 +34,12 @@ suite "Purchasing":
     check submitted.ask.size == request.ask.size
     check submitted.ask.maxPrice == request.ask.maxPrice
 
+  test "remembers purchases":
+    let purchase1 = purchasing.purchase(request)
+    let purchase2 = purchasing.purchase(request)
+    check purchasing.getPurchase(purchase1.id) == some purchase1
+    check purchasing.getPurchase(purchase2.id) == some purchase2
+
   test "has a default value for proof probability":
     check purchasing.proofProbability != 0.u256
 

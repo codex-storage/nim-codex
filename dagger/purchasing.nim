@@ -1,4 +1,5 @@
 import std/times
+import std/tables
 import pkg/stint
 import pkg/chronos
 import pkg/questionable
@@ -11,6 +12,7 @@ export market
 type
   Purchasing* = ref object
     market: Market
+    purchases: Table[array[32, byte], Purchase]
     proofProbability*: UInt256
     requestExpiryInterval*: UInt256
     offerExpiryMargin*: UInt256
@@ -27,6 +29,7 @@ const DefaultRequestExpiryInterval = (10 * 60).u256
 const DefaultOfferExpiryMargin = (8 * 60).u256
 
 proc start(purchase: Purchase) {.gcsafe.}
+func id*(purchase: Purchase): array[32, byte]
 
 proc new*(_: type Purchasing, market: Market): Purchasing =
   Purchasing(
@@ -53,7 +56,14 @@ proc purchase*(purchasing: Purchasing, request: StorageRequest): Purchase =
     offerExpiryMargin: purchasing.offerExpiryMargin
   )
   purchase.start()
+  purchasing.purchases[purchase.id] = purchase
   purchase
+
+func getPurchase*(purchasing: Purchasing, id: array[32, byte]): ?Purchase =
+  if purchasing.purchases.hasKey(id):
+    some purchasing.purchases[id]
+  else:
+    none Purchase
 
 proc selectOffer(purchase: Purchase) {.async.} =
   var cheapest: ?StorageOffer
