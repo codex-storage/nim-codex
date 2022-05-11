@@ -21,6 +21,7 @@ import pkg/chronos
 import pkg/presto
 import pkg/libp2p
 import pkg/stew/base10
+import pkg/stew/byteutils
 import pkg/confutils
 
 import pkg/libp2p/routing_record
@@ -91,6 +92,13 @@ proc encodeString(value: bool): Result[string, cstring] =
 proc decodeString(_: type UInt256, value: string): Result[UInt256, cstring] =
   try:
     ok UInt256.fromHex(value)
+  except ValueError as e:
+    err e.msg.cstring
+
+proc decodeString(_: type array[32, byte],
+                  value: string): Result[array[32, byte], cstring] =
+  try:
+    ok array[32, byte].fromHex(value)
   except ValueError as e:
     err e.msg.cstring
 
@@ -309,5 +317,24 @@ proc initRestApi*(node: DaggerNodeRef, conf: DaggerConf): RestRouter =
 
       let json = %availability
       return RestApiResponse.response($json)
+
+  router.api(
+    MethodGet,
+    "/api/dagger/v1/storage/purchases/{id}") do (
+      id: array[32, byte]) -> RestApiResponse:
+
+      without contracts =? node.contracts:
+        return RestApiResponse.error(Http503, "Purchasing unavailable")
+
+      without id =? id.tryGet.catch, error:
+        return RestApiResponse.error(Http400, error.msg)
+
+      without purchase =? contracts.purchasing.getPurchase(id):
+        return RestApiResponse.error(Http404)
+
+      let json = %purchase
+
+      return RestApiResponse.response($json)
+
 
   return router
