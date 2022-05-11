@@ -83,3 +83,6 @@ proc start(purchase: Purchase) =
 
 proc wait*(purchase: Purchase) {.async.} =
   await purchase.future
+
+func id*(purchase: Purchase): array[32, byte] =
+  purchase.request.id

@@ -196,14 +196,14 @@ proc initRestApi*(node: DaggerNodeRef, conf: DaggerConf): RestRouter =
       without params =? StorageRequestParams.fromJson(body), error:
         return RestApiResponse.error(Http400, error.msg)
 
-      without storageCid =? await node.requestStorage(cid,
+      without purchaseId =? await node.requestStorage(cid,
                                                       params.duration,
                                                       nodes,
                                                       tolerance,
                                                       params.maxPrice), error:
         return RestApiResponse.error(Http500, error.msg)
 
-      return RestApiResponse.response($storageCid)
+      return RestApiResponse.response(purchaseId.toHex)
 
   router.rawApi(
     MethodPost,
