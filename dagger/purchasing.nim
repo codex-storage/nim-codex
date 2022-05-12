@@ -96,3 +96,12 @@ proc wait*(purchase: Purchase) {.async.} =
 
 func id*(purchase: Purchase): array[32, byte] =
   purchase.request.id
+
+func finished*(purchase: Purchase): bool =
+  purchase.future.finished
+
+func error*(purchase: Purchase): ?(ref CatchableError) =
+  if purchase.future.failed:
+    some purchase.future.error
+  else:
+    none (ref CatchableError)
