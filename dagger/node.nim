@@ -9,6 +9,7 @@
 
 import std/options
 import std/tables
+import std/sequtils
 
 import pkg/questionable
 import pkg/questionable/results
@@ -46,10 +47,17 @@ type
     contracts*: ?ContractInteractions
 
 proc start*(node: DaggerNodeRef) {.async.} =
-  await node.switch.start()
-  await node.engine.start()
-  await node.erasure.start()
-  await node.discovery.start()
+  if not node.switch.isNil:
+    await node.switch.start()
+
+  if not node.engine.isNil:
+    await node.engine.start()
+
+  if not node.erasure.isNil:
+    await node.erasure.start()
+
+  if not node.discovery.isNil:
+    await node.discovery.start()
 
   if contracts =? node.contracts:
     await contracts.start()
@@ -60,10 +68,17 @@ proc start*(node: DaggerNodeRef) {.async.} =
 proc stop*(node: DaggerNodeRef) {.async.} =
   trace "Stopping node"
 
-  await node.engine.stop()
-  await node.switch.stop()
-  await node.erasure.stop()
-  await node.discovery.stop()
+  if not node.engine.isNil:
+    await node.engine.stop()
+
+  if not node.switch.isNil:
+    await node.switch.stop()
+
+  if not node.erasure.isNil:
+    await node.erasure.stop()
+
+  if not node.discovery.isNil:
+    await node.discovery.stop()
 
   if contracts =? node.contracts:
     await contracts.stop()
@@ -103,12 +118,22 @@ proc retrieve*(
       proc erasureJob(): Future[void] {.async.} =
         try:
           without res =? (await node.erasure.decode(manifest)), error: # spawn an erasure decoding job
-            trace "Unable to erasure decode manigest", cid, exc = error.msg
+            trace "Unable to erasure decode manifest", cid, exc = error.msg
         except CatchableError as exc:
           trace "Exception decoding manifest", cid
 
       asyncSpawn erasureJob()
 
+    proc prefetchBlocks() {.async.} =
+      ## Initiates requests to all blocks in the manifest
+      ##
+      try:
+        discard await allFinished(
+          manifest.mapIt( node.blockStore.getBlock( it ) ))
+      except CatchableError as exc:
+        trace "Exception prefetching blocks", exc = exc.msg
+
+    asyncSpawn prefetchBlocks()
     return LPStream(StoreStream.new(node.blockStore, manifest)).success
 
   let

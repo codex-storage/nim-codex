@@ -37,9 +37,9 @@
 #
 # Implementation:
 # Our implementation uses additive cyclic groups instead of the multiplicative
-# cyclic group in the paper, thus changing the name of the group operation as in 
+# cyclic group in the paper, thus changing the name of the group operation as in
 # blscurve and blst. Thus, point multiplication becomes point addition, and scalar
-# exponentiation becomes scalar multiplicaiton.
+# exponentiation becomes scalar multiplication.
 #
 # Number of operations:
 # The following table summarizes the number of operations in different phases
@@ -277,7 +277,7 @@ proc setup*(ssk: SecretKey, s:int64, filename: string): (Tau, seq[blst_p1]) =
     let (u, ub) = rndP1()
     t.u.add(u)
     ubase.add(ub)
-   
+
   #TODO: a better bytearray conversion of TauZero for the signature might be needed
   #      the current conversion using $t might be architecture dependent and not unique
   let signature = sign(ssk.signkey, $t)

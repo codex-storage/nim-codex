@@ -7,7 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[sequtils, sets, tables, sugar]
+import std/sequtils
+import std/sets
 
 import pkg/chronos
 import pkg/chronicles
@@ -15,7 +16,7 @@ import pkg/libp2p
 
 import ../stores/blockstore
 import ../blocktype as bt
-import ../utils/asyncheapqueue
+import ../utils
 import ../discovery
 
 import ./protobuf/blockexc
@@ -32,30 +33,19 @@ logScope:
   topics = "dagger blockexc engine"
 
 const
-  DefaultBlockTimeout* = 5.minutes
   DefaultMaxPeersPerRequest* = 10
   DefaultTaskQueueSize = 100
   DefaultConcurrentTasks = 10
   DefaultMaxRetries = 3
-
-  # Current advertisement is meant to be more efficient than
-  # correct, so blocks could be advertised more slowly than that
-  # Put some margin
-  BlockAdvertisementFrequency = 30.minutes
+  DefaultConcurrentDiscRequests = 10
+  DefaultConcurrentAdvertRequests = 10
+  DefaultDiscoveryTimeout = 1.minutes
+  DefaultMaxQueriedBlocksCache = 1000
+  DefaultMinPeersPerBlock = 3
 
 type
   TaskHandler* = proc(task: BlockExcPeerCtx): Future[void] {.gcsafe.}
   TaskScheduler* = proc(task: BlockExcPeerCtx): bool {.gcsafe.}
-
-  BlockDiscovery* = ref object
-    discoveredProvider: AsyncEvent
-    discoveryLoop: Future[void]
-    toDiscover: Cid
-    treatedPeer: HashSet[PeerId]
-    inflightIWant: HashSet[PeerId]
-    gotIWantResponse: AsyncEvent
-    provides: seq[PeerId]
-    lastDhtQuery: Moment
 
   BlockExcEngine* = ref object of RootObj
     localStore*: BlockStore                       # where we localStore blocks for this instance
@@ -70,12 +60,16 @@ type
     peersPerRequest: int                          # max number of peers to request from
     wallet*: WalletRef                            # nitro wallet for micropayments
     pricing*: ?Pricing                            # optional bandwidth pricing
-    advertisedBlocks: seq[Cid]
-    advertisedIndex: int
-    advertisementFrequency: Duration
-    runningDiscoveries*: Table[Cid, BlockDiscovery]
-    blockAdded: AsyncEvent
-    discovery*: Discovery
+    discovery*: Discovery                         # Discovery interface
+    concurrentAdvReqs: int                        # Concurrent advertise requests
+    advertiseLoop*: Future[void]                  # Advertise loop task handle
+    advertiseQueue*: AsyncQueue[Cid]              # Advertise queue
+    advertiseTasks*: seq[Future[void]]            # Advertise tasks
+    concurrentDiscReqs: int                       # Concurrent discovery requests
+    discoveryLoop*: Future[void]                  # Discovery loop task handle
+    discoveryTasks*: seq[Future[void]]            # Discovery tasks
+    discoveryQueue*: AsyncQueue[Cid]              # Discovery queue
+    minPeersPerBlock*: int                        # Max number of peers with block
 
   Pricing* = object
     address*: EthAddress
@@ -100,7 +94,95 @@ proc scheduleTask(b: BlockExcEngine, task: BlockExcPeerCtx): bool {.gcsafe} =
   b.taskQueue.pushOrUpdateNoWait(task).isOk()
 
 proc blockexcTaskRunner(b: BlockExcEngine): Future[void] {.gcsafe.}
-proc advertiseLoop(b: BlockExcEngine): Future[void] {.gcsafe.}
+
+proc discoveryLoopRunner(b: BlockExcEngine) {.async.} =
+  while b.blockexcRunning:
+    for cid in toSeq(b.pendingBlocks.wantList):
+      try:
+        await b.discoveryQueue.put(cid)
+      except CatchableError as exc:
+        trace "Exception in discovery loop", exc = exc.msg
+
+    trace "About to sleep, number of wanted blocks", wanted = b.pendingBlocks.len
+    await sleepAsync(30.seconds)
+
+proc advertiseLoopRunner*(b: BlockExcEngine) {.async.} =
+  proc onBlock(cid: Cid) {.async.} =
+    try:
+      await b.advertiseQueue.put(cid)
+    except CatchableError as exc:
+      trace "Exception listing blocks", exc = exc.msg
+
+  while b.blockexcRunning:
+    await b.localStore.listBlocks(onBlock)
+    await sleepAsync(30.seconds)
+
+  trace "Exiting advertise task loop"
+
+proc advertiseTaskRunner(b: BlockExcEngine) {.async.} =
+  ## Run advertise tasks
+  ##
+
+  while b.blockexcRunning:
+    try:
+      let cid = await b.advertiseQueue.get()
+      await b.discovery.provideBlock(cid)
+    except CatchableError as exc:
+      trace "Exception in advertise task runner", exc = exc.msg
+
+  trace "Exiting advertise task runner"
+
+proc discoveryTaskRunner(b: BlockExcEngine) {.async.} =
+  ## Run discovery tasks
+  ##
+
+  while b.blockexcRunning:
+    try:
+      let
+        cid = await b.discoveryQueue.get()
+        haves = b.peers.filterIt(
+          it.peerHave.anyIt( it == cid )
+        )
+
+      trace "Got peers for block", cid = $cid, count = haves.len
+      let
+        providers =
+          if haves.len < b.minPeersPerBlock:
+            await b.discovery
+              .findBlockProviders(cid)
+              .wait(DefaultDiscoveryTimeout)
+          else:
+            @[]
+
+      checkFutures providers.mapIt( b.network.dialPeer(it.data) )
+    except CatchableError as exc:
+      trace "Exception in discovery task runner", exc = exc.msg
+
+  trace "Exiting discovery task runner"
+
+template queueFindBlocksReq(b: BlockExcEngine, cids: seq[Cid]) =
+  proc queueReq() {.async.} =
+    try:
+      for cid in cids:
+        if cid notin b.discoveryQueue:
+          trace "Queueing find block request", cid = $cid
+          await b.discoveryQueue.put(cid)
+    except CatchableError as exc:
+      trace "Exception queueing discovery request", exc = exc.msg
+
+  asyncSpawn queueReq()
+
+template queueProvideBlocksReq(b: BlockExcEngine, cids: seq[Cid]) =
+  proc queueReq() {.async.} =
+    try:
+      for cid in cids:
+        if cid notin b.advertiseQueue:
+          trace "Queueing provide block request", cid = $cid
+          await b.advertiseQueue.put(cid)
+    except CatchableError as exc:
+      trace "Exception queueing discovery request", exc = exc.msg
+
+  asyncSpawn queueReq()
 
 proc start*(b: BlockExcEngine) {.async.} =
   ## Start the blockexc task
@@ -116,14 +198,14 @@ proc start*(b: BlockExcEngine) {.async.} =
   for i in 0..<b.concurrentTasks:
     b.blockexcTasks.add(blockexcTaskRunner(b))
 
-  info "Getting existing block list"
-  # TODO: should be reworked by #89
-  # let blocks = await b.localStore.blockList()
-  # b.advertisedBlocks = blocks
-  # We start faster to publish everything ASAP
-  b.advertisementFrequency = 5.seconds
+  for i in 0..<b.concurrentAdvReqs:
+    b.advertiseTasks.add(advertiseTaskRunner(b))
 
-  b.blockexcTasks.add(b.advertiseLoop())
+  for i in 0..<b.concurrentDiscReqs:
+    b.discoveryTasks.add(discoveryTaskRunner(b))
+
+  b.advertiseLoop = advertiseLoopRunner(b)
+  b.discoveryLoop = discoveryLoopRunner(b)
 
 proc stop*(b: BlockExcEngine) {.async.} =
   ## Stop the blockexc blockexc
@@ -141,156 +223,93 @@ proc stop*(b: BlockExcEngine) {.async.} =
       await t.cancelAndWait()
       trace "Task stopped"
 
-  for _, bd in b.runningDiscoveries:
-    await bd.discoveryLoop.cancelAndWait()
+  for t in b.advertiseTasks:
+    if not t.finished:
+      trace "Awaiting task to stop"
+      await t.cancelAndWait()
+      trace "Task stopped"
 
-  b.runningDiscoveries.clear()
+  for t in b.discoveryTasks:
+    if not t.finished:
+      trace "Awaiting task to stop"
+      await t.cancelAndWait()
+      trace "Task stopped"
+
+  if not b.advertiseLoop.isNil and not b.advertiseLoop.finished:
+    trace "Awaiting advertise loop to stop"
+    await b.advertiseLoop.cancelAndWait()
+    trace "Advertise loop stopped"
+
+  if not b.discoveryLoop.isNil and not b.discoveryLoop.finished:
+    trace "Awaiting discovery loop to stop"
+    await b.discoveryLoop.cancelAndWait()
+    trace "Discovery loop stopped"
 
   trace "NetworkStore stopped"
-
-proc discoverOnDht(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
-  bd.lastDhtQuery = Moment.fromNow(10.hours)
-  defer: bd.lastDhtQuery = Moment.now()
-
-  let discoveredProviders = await b.discovery.findBlockProviders(bd.toDiscover)
-
-  for peer in discoveredProviders:
-    asyncSpawn b.network.dialPeer(peer.data)
-
-proc discoverLoop(b: BlockExcEngine, bd: BlockDiscovery) {.async.} =
-  # First, try connected peers
-  # After a percent of peers declined, or a timeout passed, query DHT
-  # rinse & repeat
-  #
-  # TODO add a global timeout
-
-  debug "starting block discovery", cid=bd.toDiscover
-
-  bd.gotIWantResponse.fire()
-  while true:
-    # wait for iwant replies
-    await bd.gotIWantResponse.wait()
-    bd.gotIWantResponse.clear()
-
-    var foundPeerNew = false
-    for p in b.peers:
-      if bd.toDiscover in p.peerHave and p.id notin bd.treatedPeer:
-        bd.provides.add(p.id)
-        bd.treatedPeer.incl(p.id)
-        bd.inflightIWant.excl(p.id)
-        foundPeerNew = true
-
-    if foundPeerNew:
-      bd.discoveredProvider.fire()
-      continue
-
-    trace "asking peers", cid=bd.toDiscover, peers=b.peers.len, treated=bd.treatedPeer.len, inflight=bd.inflightIWant.len
-    for p in b.peers:
-      if p.id notin bd.treatedPeer and p.id notin bd.inflightIWant:
-        # just send wants
-        bd.inflightIWant.incl(p.id)
-        b.network.request.sendWantList(
-          p.id,
-          @[bd.toDiscover],
-          wantType = WantType.wantHave,
-          sendDontHave = true)
-
-    if bd.inflightIWant.len < 3 and #TODO or a timeout
-      bd.lastDhtQuery < Moment.now() - 5.seconds:
-        #start query
-        asyncSpawn b.discoverOnDht(bd)
-
-proc discoverBlock*(b: BlockExcEngine, cid: Cid): BlockDiscovery =
-  if cid in b.runningDiscoveries:
-    return b.runningDiscoveries[cid]
-  else:
-    result = BlockDiscovery(
-      toDiscover: cid,
-      discoveredProvider: newAsyncEvent(),
-      gotIWantResponse: newAsyncEvent(),
-    )
-    result.discoveryLoop = b.discoverLoop(result)
-    b.runningDiscoveries[cid] = result
-    return result
-
-proc stopDiscovery(b: BlockExcEngine, cid: Cid) =
-  if cid in b.runningDiscoveries:
-    b.runningDiscoveries[cid].discoveryLoop.cancel()
-    b.runningDiscoveries.del(cid)
 
 proc requestBlock*(
   b: BlockExcEngine,
   cid: Cid,
-  timeout = DefaultBlockTimeout): Future[bt.Block] {.async.} =
+  timeout = DefaultBlockTimeout): Future[bt.Block] =
   ## Request a block from remotes
   ##
 
-  debug "requesting block", cid
-
-  # TODO
-  # we could optimize "groups of related chunks"
-  # be requesting multiple chunks, and running discovery
-  # less often
-
-  if cid in b.localStore:
-    return (await b.localStore.getBlock(cid)).get()
-
-  # be careful, don't give back control to main loop here
-  # otherwise, the block might slip in
+  trace "Requesting block", cid = $cid
 
   if cid in b.pendingBlocks:
-    return await b.pendingBlocks.blocks[cid].wait(timeout)
+    return b.pendingBlocks.getWantHandle(cid, timeout)
 
-  # We are the first one to request this block, so we handle it
   let
-    timeoutFut = sleepAsync(timeout)
-    blk = b.pendingBlocks.addOrAwait(cid)
-    discovery = b.discoverBlock(cid)
+    blk = b.pendingBlocks.getWantHandle(cid, timeout)
 
-  # Just take the first discovered peer
-  try:
-    await timeoutFut or blk or discovery.discoveredProvider.wait()
-    discovery.discoveredProvider.clear()
-  except CancelledError as exc:
-    #TODO also wrong, same issue as below
-    blk.cancel()
-    b.stopDiscovery(cid)
-    raise exc
+  if b.peers.len <= 0:
+    trace "No peers to request blocks from", cid = $cid
+    b.queueFindBlocksReq(@[cid])
+    return blk
 
-  if timeoutFut.finished:
-    # TODO this is wrong, because other user may rely on us
-    # to handle this block. This proc should be asyncSpawned
-    #
-    # Other people may be using the discovery or blk
-    # so don't kill them
-    blk.cancel()
-    b.stopDiscovery(cid)
-    raise newException(AsyncTimeoutError, "")
+  var peers = b.peers
 
-  if blk.finished:
-    # a peer sent us the block out of the blue, why not
-    b.stopDiscovery(cid)
-    return await blk
+  # get the first peer with at least one (any)
+  # matching cid
+  # TODO: this should be sorted by best to worst
+  var blockPeer: BlockExcPeerCtx
+  for p in peers:
+    if cid in p.peerHave:
+      blockPeer = p
+      break
 
-  # We got a provider
-  # Currently, we just ask him for the block, and hope he gives it to us
-  #
-  # In reality, we could keep discovering until we find a suitable price, etc
-  b.stopDiscovery(cid)
-  timeoutFut.cancel()
+  # didn't find any peer with matching cids
+  if isNil(blockPeer):
+    blockPeer = peers[0]
+    trace "No peers with block, sending to first peer", peer = blockPeer.id
 
-  assert discovery.provides.len > 0
+  peers.keepItIf(
+    it != blockPeer and cid notin it.peerHave
+  )
 
-  debug "Requesting block from peer", providerCount = discovery.provides.len,
-    peer = discovery.provides[0], cid
   # request block
   b.network.request.sendWantList(
-    discovery.provides[0],
+    blockPeer.id,
     @[cid],
     wantType = WantType.wantBlock) # we want this remote to send us a block
 
-  #TODO substract the discovery time
-  return await blk.wait(timeout)
+  if peers.len == 0:
+    trace "Not enough peers to send want list to", cid = $cid
+    b.queueFindBlocksReq(@[cid])
+    return blk # no peers to send wants to
+
+  # filter out the peer we've already requested from
+  let stop = min(peers.high, b.peersPerRequest)
+  trace "Sending want list requests to remaining peers", count = stop + 1
+  for p in peers[0..stop]:
+    if cid notin p.peerHave:
+      # just send wants
+      b.network.request.sendWantList(
+        p.id,
+        @[cid],
+        wantType = WantType.wantHave) # we only want to know if the peer has the block
+
+  return blk
 
 proc blockPresenceHandler*(
   b: BlockExcEngine,
@@ -299,18 +318,33 @@ proc blockPresenceHandler*(
   ## Handle block presence
   ##
 
+  trace "Received presence update for peer", peer
   let peerCtx = b.getPeerCtx(peer)
+  if isNil(peerCtx):
+    return
 
   for blk in blocks:
     if presence =? Presence.init(blk):
-      if not isNil(peerCtx):
-        peerCtx.updatePresence(presence)
-      if presence.cid in b.runningDiscoveries:
-        let bd = b.runningDiscoveries[presence.cid]
-        if not presence.have:
-          bd.inflightIWant.excl(peer)
-          bd.treatedPeer.incl(peer)
-        bd.gotIWantResponse.fire()
+      peerCtx.updatePresence(presence)
+
+  var
+    cids = toSeq(b.pendingBlocks.wantList).filterIt(
+      it in peerCtx.peerHave
+    )
+
+  trace "Received presence update for cids", peer, cids = $cids
+
+  if cids.len > 0:
+    b.network.request.sendWantList(
+      peer,
+      cids,
+      wantType = WantType.wantBlock) # we want this remote to send us a block
+
+  # if none of the connected peers report our wants in their have list,
+  # fire up discovery
+  b.queueFindBlocksReq(toSeq(b.pendingBlocks.wantList)
+    .filter(proc(cid: Cid): bool =
+        (not b.peers.anyIt( cid in it.peerHave ))))
 
 proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) =
   trace "Schedule a task for new blocks"
@@ -331,21 +365,11 @@ proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) =
   ## and schedule any new task to be ran
   ##
 
-  trace "Resolving blocks"
+  trace "Resolving blocks", blocks = blocks.len
 
-  var gotNewBlocks = false
-  for bl in blocks:
-    if bl.cid notin b.advertisedBlocks: #TODO that's very slow, maybe a ordered hashset instead
-      #TODO could do some smarter ordering here (insert it just before b.advertisedIndex, or similar)
-      b.advertisedBlocks.add(bl.cid)
-      asyncSpawn b.discovery.publishProvide(bl.cid)
-      gotNewBlocks = true
-
-  if gotNewBlocks:
-    b.pendingBlocks.resolve(blocks)
-    b.scheduleTasks(blocks)
-
-    b.blockAdded.fire()
+  b.pendingBlocks.resolve(blocks)
+  b.scheduleTasks(blocks)
+  b.queueProvideBlocksReq(blocks.mapIt( it.cid ))
 
 proc payForBlocks(engine: BlockExcEngine,
                   peer: BlockExcPeerCtx,
@@ -421,14 +445,20 @@ proc wantListHandler*(
   if not b.scheduleTask(peerCtx):
     trace "Unable to schedule task for peer", peer
 
-proc accountHandler*(engine: BlockExcEngine, peer: PeerID, account: Account) {.async.} =
+proc accountHandler*(
+  engine: BlockExcEngine,
+  peer: PeerID,
+  account: Account) {.async.} =
   let context = engine.getPeerCtx(peer)
   if context.isNil:
     return
 
   context.account = account.some
 
-proc paymentHandler*(engine: BlockExcEngine, peer: PeerId, payment: SignedState) {.async.} =
+proc paymentHandler*(
+  engine: BlockExcEngine,
+  peer: PeerId,
+  payment: SignedState) {.async.} =
   without context =? engine.getPeerCtx(peer).option and
           account =? context.account:
     return
@@ -451,13 +481,8 @@ proc setupPeer*(b: BlockExcEngine, peer: PeerID) =
     ))
 
   # broadcast our want list, the other peer will do the same
-  let wantList = collect(newSeqOfCap(b.runningDiscoveries.len)):
-    for cid, bd in b.runningDiscoveries:
-      bd.inflightIWant.incl(peer)
-      cid
-
-  if wantList.len > 0:
-    b.network.request.sendWantList(peer, wantList, full = true, sendDontHave = true)
+  if b.pendingBlocks.len > 0:
+    b.network.request.sendWantList(peer, toSeq(b.pendingBlocks.wantList), full = true)
 
   if address =? b.pricing.?address:
     b.network.request.sendAccount(peer, Account(address: address))
@@ -470,31 +495,6 @@ proc dropPeer*(b: BlockExcEngine, peer: PeerID) =
 
   # drop the peer from the peers table
   b.peers.keepItIf( it.id != peer )
-
-proc advertiseLoop(b: BlockExcEngine) {.async, gcsafe.} =
-  while true:
-    if b.advertisedIndex >= b.advertisedBlocks.len:
-      b.advertisedIndex = 0
-      b.advertisementFrequency = BlockAdvertisementFrequency
-
-    # check that we still have this block.
-    while
-      b.advertisedIndex < b.advertisedBlocks.len and
-      not(b.localStore.contains(b.advertisedBlocks[b.advertisedIndex])):
-        b.advertisedBlocks.delete(b.advertisedIndex)
-
-    #publish it
-    if b.advertisedIndex < b.advertisedBlocks.len:
-      asyncSpawn b.discovery.publishProvide(b.advertisedBlocks[b.advertisedIndex])
-
-    inc b.advertisedIndex
-    let toSleep =
-      if b.advertisedBlocks.len > 0:
-        b.advertisementFrequency div b.advertisedBlocks.len
-      else:
-        30.minutes
-    await sleepAsync(toSleep) or b.blockAdded.wait()
-    b.blockAdded.clear()
 
 proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
   trace "Handling task for peer", peer = task.id
@@ -517,6 +517,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       .mapIt(!it.read)
 
     if blocks.len > 0:
+      trace "Sending blocks to peer", peer = task.id, blocks = blocks.len
       b.network.request.sendBlocks(
         task.id,
         blocks)
@@ -559,19 +560,27 @@ proc new*(
   discovery: Discovery,
   concurrentTasks = DefaultConcurrentTasks,
   maxRetries = DefaultMaxRetries,
-  peersPerRequest = DefaultMaxPeersPerRequest): T =
+  peersPerRequest = DefaultMaxPeersPerRequest,
+  concurrentAdvReqs = DefaultConcurrentAdvertRequests,
+  concurrentDiscReqs = DefaultConcurrentDiscRequests,
+  minPeersPerBlock = DefaultMinPeersPerBlock): T =
 
-  let engine = BlockExcEngine(
-    localStore: localStore,
-    pendingBlocks: PendingBlocksManager.new(),
-    blockAdded: newAsyncEvent(),
-    peersPerRequest: peersPerRequest,
-    network: network,
-    wallet: wallet,
-    concurrentTasks: concurrentTasks,
-    maxRetries: maxRetries,
-    discovery: discovery,
-    taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize))
+  let
+    engine = BlockExcEngine(
+      localStore: localStore,
+      pendingBlocks: PendingBlocksManager.new(),
+      peersPerRequest: peersPerRequest,
+      network: network,
+      wallet: wallet,
+      concurrentTasks: concurrentTasks,
+      concurrentAdvReqs: concurrentAdvReqs,
+      concurrentDiscReqs: concurrentDiscReqs,
+      maxRetries: maxRetries,
+      taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize),
+      discovery: discovery,
+      advertiseQueue: newAsyncQueue[Cid](DefaultTaskQueueSize),
+      discoveryQueue: newAsyncQueue[Cid](DefaultTaskQueueSize),
+      minPeersPerBlock: minPeersPerBlock)
 
   proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
     if event.kind == PeerEventKind.Joined:
@@ -609,7 +618,6 @@ proc new*(
     onBlocks: blocksHandler,
     onPresence: blockPresenceHandler,
     onAccount: accountHandler,
-    onPayment: paymentHandler
-  )
+    onPayment: paymentHandler)
 
   return engine

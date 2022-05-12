@@ -129,7 +129,7 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
     )
     daggerNode = DaggerNodeRef.new(switch, store, engine, erasure, discovery, contracts)
     restServer = RestServerRef.new(
-      daggerNode.initRestApi(),
+      daggerNode.initRestApi(config),
       initTAddress("127.0.0.1" , config.apiPort),
       bufferSize = (1024 * 64),
       maxRequestBodySize = int.high)
