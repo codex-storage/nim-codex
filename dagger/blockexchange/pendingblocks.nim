@@ -9,6 +9,10 @@
 
 import std/tables
 
+import pkg/upraises
+
+push: {.upraises: [].}
+
 import pkg/questionable
 import pkg/chronicles
 import pkg/chronos
@@ -52,11 +56,11 @@ proc resolve*(
   for blk in blocks:
     # resolve any pending blocks
     if blk.cid in p.blocks:
-      let pending = p.blocks[blk.cid]
-      if not pending.finished:
-        trace "Resolving block", cid = $blk.cid
-        pending.complete(blk)
-        p.blocks.del(blk.cid)
+      p.blocks.withValue(blk.cid, pending):
+        if not pending[].finished:
+          trace "Resolving block", cid = $blk.cid
+          pending[].complete(blk)
+          p.blocks.del(blk.cid)
 
 proc pending*(
   p: PendingBlocksManager,
