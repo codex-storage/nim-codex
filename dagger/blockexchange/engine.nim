@@ -160,21 +160,29 @@ proc discoveryTaskRunner(b: BlockExcEngine) {.async.} =
 
   trace "Exiting discovery task runner"
 
-proc queueFindBlocksReq(b: BlockExcEngine, cids: seq[Cid]) {.async.} =
-  try:
-    for cid in cids:
-      if cid notin b.discoveryQueue:
-        await b.discoveryQueue.put(cid)
-  except CatchableError as exc:
-    trace "Exception queueing discovery request", exc = exc.msg
+template queueFindBlocksReq(b: BlockExcEngine, cids: seq[Cid]) =
+  proc queueReq() {.async.} =
+    try:
+      for cid in cids:
+        if cid notin b.discoveryQueue:
+          trace "Queueing find block request", cid = $cid
+          await b.discoveryQueue.put(cid)
+    except CatchableError as exc:
+      trace "Exception queueing discovery request", exc = exc.msg
 
-proc queueProvideBlocksReq(b: BlockExcEngine, cids: seq[Cid]) {.async.} =
-  try:
-    for cid in cids:
-      if cid notin b.advertiseQueue:
-        await b.advertiseQueue.put(cid)
-  except CatchableError as exc:
-    trace "Exception queueing discovery request", exc = exc.msg
+  asyncSpawn queueReq()
+
+template queueProvideBlocksReq(b: BlockExcEngine, cids: seq[Cid]) =
+  proc queueReq() {.async.} =
+    try:
+      for cid in cids:
+        if cid notin b.advertiseQueue:
+          trace "Queueing provide block request", cid = $cid
+          await b.advertiseQueue.put(cid)
+    except CatchableError as exc:
+      trace "Exception queueing discovery request", exc = exc.msg
+
+  asyncSpawn queueReq()
 
 proc start*(b: BlockExcEngine) {.async.} =
   ## Start the blockexc task
