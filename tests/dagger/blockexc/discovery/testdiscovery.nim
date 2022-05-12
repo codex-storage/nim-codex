@@ -25,9 +25,13 @@ suite "Block Advertising and Discovery":
   let chunker = RandomChunker.new(Rng.instance(), size = 4096, chunkSize = 256)
 
   var
-    switch: seq[Switch]
-    blockexc: seq[NetworkStore]
     blocks: seq[bt.Block]
+    switch: Switch
+    discovery: MockDiscovery
+    wallet: WalletRef
+    network: BlockExcNetwork
+    localStore: CacheStore
+    engine: BlockExcEngine
 
   setup:
     while true:
@@ -37,26 +41,15 @@ suite "Block Advertising and Discovery":
 
       blocks.add(bt.Block.new(chunk).tryGet())
 
-  teardown:
-    switch = @[]
-    blockexc = @[]
+    switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
+    discovery = MockDiscovery.new(switch.peerInfo, 0.Port)
+    wallet = WalletRef.example
+    network = BlockExcNetwork.new(switch)
+    localStore = CacheStore.new(blocks.mapIt( it ))
+    engine = BlockExcEngine.new(localStore, wallet, network, discovery, minPeersPerBlock = 1)
+    switch.mount(network)
 
   test "Should discover want list":
-    let
-      s = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
-      discovery = MockDiscovery.new(s.peerInfo, 0.Port)
-      wallet = WalletRef.example
-      network = BlockExcNetwork.new(s)
-      localStore = CacheStore.new(blocks.mapIt( it ))
-      engine = BlockExcEngine.new(localStore, wallet, network, discovery)
-
-    s.mount(network)
-    switch.add(s)
-
-    await allFuturesThrowing(
-      switch.mapIt( it.start() )
-    )
-
     let
       pendingBlocks = blocks.mapIt(
         engine.pendingBlocks.getWantHandle(it.cid)
@@ -67,22 +60,12 @@ suite "Block Advertising and Discovery":
       proc(d: MockDiscovery, cid: Cid): seq[SignedPeerRecord] =
         engine.resolveBlocks(blocks.filterIt( it.cid == cid ))
 
-  test "Should advertise have blocks":
-    let
-      s = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
-      discovery = MockDiscovery.new(s.peerInfo, 0.Port)
-      wallet = WalletRef.example
-      network = BlockExcNetwork.new(s)
-      localStore = CacheStore.new(blocks.mapIt( it ))
-      engine = BlockExcEngine.new(localStore, wallet, network, discovery)
-
-    s.mount(network)
-    switch.add(s)
-
     await allFuturesThrowing(
-      switch.mapIt( it.start() )
-    )
+      allFinished(pendingBlocks))
 
+    await engine.stop()
+
+  test "Should advertise have blocks":
     let
       advertised = initTable.collect:
         for b in blocks: {b.cid: newFuture[void]()}
@@ -94,6 +77,35 @@ suite "Block Advertising and Discovery":
     await engine.start() # fire up advertise loop
     await allFuturesThrowing(
       allFinished(toSeq(advertised.values)))
+
+    await engine.stop()
+
+  test "Should not launch discovery if remote peer has block":
+    let
+      pendingBlocks = blocks.mapIt(
+        engine.pendingBlocks.getWantHandle(it.cid)
+      )
+      peerId = PeerID.example
+      haves = collect(initTable()):
+        for blk in blocks: {blk.cid: 0.u256}
+
+    engine.peers.add(
+      BlockExcPeerCtx(
+        id: peerId,
+        peerPrices: haves
+    ))
+
+    discovery.findBlockProvidersHandler =
+      proc(d: MockDiscovery, cid: Cid): seq[SignedPeerRecord] =
+        check false
+
+    await engine.start() # fire up discovery loop
+    engine.pendingBlocks.resolve(blocks)
+
+    await allFuturesThrowing(
+      allFinished(pendingBlocks))
+
+    await engine.stop()
 
 suite "E2E - Multiple Nodes Discovery":
   let chunker = RandomChunker.new(Rng.instance(), size = 4096, chunkSize = 256)
@@ -118,7 +130,7 @@ suite "E2E - Multiple Nodes Discovery":
         wallet = WalletRef.example
         network = BlockExcNetwork.new(s)
         localStore = CacheStore.new()
-        engine = BlockExcEngine.new(localStore, wallet, network, discovery)
+        engine = BlockExcEngine.new(localStore, wallet, network, discovery, minPeersPerBlock = 1)
         networkStore = NetworkStore.new(engine, localStore)
 
       s.mount(network)
@@ -128,26 +140,6 @@ suite "E2E - Multiple Nodes Discovery":
   teardown:
     switch = @[]
     blockexc = @[]
-
-  test "E2E - Should not launch discovery if peers reported block":
-    await allFuturesThrowing(
-      blockexc.mapIt( it.engine.start() ) &
-      switch.mapIt( it.start() )
-    )
-
-    await blockexc[0].engine.blocksHandler(switch[1].peerInfo.peerId, blocks)
-    MockDiscovery(blockexc[1].engine.discovery)
-      .findBlockProvidersHandler = proc(d: MockDiscovery, cid: Cid): seq[SignedPeerRecord] =
-        check false
-
-    await connectNodes(switch)
-    await sleepAsync(30.seconds)
-    let blk = await blockexc[1].engine.requestBlock(blocks[0].cid)
-
-    await allFuturesThrowing(
-      blockexc.mapIt( it.engine.stop() ) &
-      switch.mapIt( it.stop() )
-    )
 
   test "E2E - Should advertise and discover blocks":
     # Distribute the blocks amongst 1..3
