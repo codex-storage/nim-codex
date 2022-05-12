@@ -35,7 +35,9 @@ func `%`*(arr: openArray[byte]): JsonNode =
 
 func `%`*(purchase: Purchase): JsonNode =
   %*{
-    "request": %purchase.request,
-    "offers": %purchase.offers,
-    "selected": %purchase.selected
+    "finished": purchase.finished,
+    "error": purchase.error.?msg,
+    "request": purchase.request,
+    "offers": purchase.offers,
+    "selected": purchase.selected
   }
