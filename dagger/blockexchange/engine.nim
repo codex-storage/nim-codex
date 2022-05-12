@@ -254,6 +254,8 @@ proc requestBlock*(
   ## Request a block from remotes
   ##
 
+  trace "Requesting block", cid = $cid
+
   if cid in b.pendingBlocks:
     return b.pendingBlocks.getWantHandle(cid, timeout)
 
@@ -262,7 +264,7 @@ proc requestBlock*(
 
   if b.peers.len <= 0:
     trace "No peers to request blocks from", cid = $cid
-    asyncSpawn b.queueFindBlocksReq(@[cid])
+    b.queueFindBlocksReq(@[cid])
     return blk
 
   var peers = b.peers
@@ -279,6 +281,7 @@ proc requestBlock*(
   # didn't find any peer with matching cids
   if isNil(blockPeer):
     blockPeer = peers[0]
+    trace "No peers with block, sending to first peer", peer = blockPeer.id
 
   peers.keepItIf(
     it != blockPeer and cid notin it.peerHave
@@ -292,7 +295,7 @@ proc requestBlock*(
 
   if peers.len == 0:
     trace "Not enough peers to send want list to", cid = $cid
-    asyncSpawn b.queueFindBlocksReq(@[cid])
+    b.queueFindBlocksReq(@[cid])
     return blk # no peers to send wants to
 
   # filter out the peer we've already requested from
@@ -329,6 +332,8 @@ proc blockPresenceHandler*(
       it in peerCtx.peerHave
     )
 
+  trace "Received presence update for cids", peer, cids = $cids
+
   if cids.len > 0:
     b.network.request.sendWantList(
       peer,
@@ -337,9 +342,9 @@ proc blockPresenceHandler*(
 
   # if none of the connected peers report our wants in their have list,
   # fire up discovery
-  asyncSpawn b.queueFindBlocksReq(
-    toSeq(b.pendingBlocks.wantList).filter(proc(cid: Cid): bool =
-      (not b.peers.anyIt( cid in it.peerHave ))))
+  b.queueFindBlocksReq(toSeq(b.pendingBlocks.wantList)
+    .filter(proc(cid: Cid): bool =
+        (not b.peers.anyIt( cid in it.peerHave ))))
 
 proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) =
   trace "Schedule a task for new blocks"
@@ -364,7 +369,7 @@ proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) =
 
   b.pendingBlocks.resolve(blocks)
   b.scheduleTasks(blocks)
-  asyncSpawn b.queueProvideBlocksReq(blocks.mapIt( it.cid ))
+  b.queueProvideBlocksReq(blocks.mapIt( it.cid ))
 
 proc payForBlocks(engine: BlockExcEngine,
                   peer: BlockExcPeerCtx,
@@ -557,7 +562,8 @@ proc new*(
   maxRetries = DefaultMaxRetries,
   peersPerRequest = DefaultMaxPeersPerRequest,
   concurrentAdvReqs = DefaultConcurrentAdvertRequests,
-  concurrentDiscReqs = DefaultConcurrentDiscRequests): T =
+  concurrentDiscReqs = DefaultConcurrentDiscRequests,
+  minPeersPerBlock = DefaultMinPeersPerBlock): T =
 
   let
     engine = BlockExcEngine(
@@ -573,6 +579,7 @@ proc new*(
       taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize),
       discovery: discovery,
       advertiseQueue: newAsyncQueue[Cid](DefaultTaskQueueSize),
+      discoveryQueue: newAsyncQueue[Cid](DefaultTaskQueueSize),
       minPeersPerBlock: minPeersPerBlock)
 
   proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
