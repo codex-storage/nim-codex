@@ -13,12 +13,12 @@ export payments, nitro
 type
   BlockExcPeerCtx* = ref object of RootObj
     id*: PeerID
-    peerPrices*: Table[Cid, UInt256] # remote peer have list including price
-    peerWants*: seq[Entry]      # remote peers want lists
-    exchanged*: int             # times peer has exchanged with us
-    lastExchange*: Moment       # last time peer has exchanged with us
-    account*: ?Account          # ethereum account of this peer
-    paymentChannel*: ?ChannelId # payment channel id
+    peerPrices*: Table[Cid, UInt256]  # remote peer have list including price
+    peerWants*: seq[Entry]            # remote peers want lists
+    exchanged*: int                   # times peer has exchanged with us
+    lastExchange*: Moment             # last time peer has exchanged with us
+    account*: ?Account                # ethereum account of this peer
+    paymentChannel*: ?ChannelId       # payment channel id
 
 proc peerHave*(context: BlockExcPeerCtx): seq[Cid] =
   toSeq(context.peerPrices.keys)
