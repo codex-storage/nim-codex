@@ -117,8 +117,9 @@ proc start*(b: BlockExcEngine) {.async.} =
     b.blockexcTasks.add(blockexcTaskRunner(b))
 
   info "Getting existing block list"
-  let blocks = await b.localStore.blockList()
-  b.advertisedBlocks = blocks
+  # TODO: should be reworked by #89
+  # let blocks = await b.localStore.blockList()
+  # b.advertisedBlocks = blocks
   # We start faster to publish everything ASAP
   b.advertisementFrequency = 5.seconds
 
