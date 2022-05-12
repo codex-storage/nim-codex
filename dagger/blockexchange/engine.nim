@@ -41,6 +41,7 @@ const
   DefaultConcurrentAdvertRequests = 10
   DefaultDiscoveryTimeout = 1.minutes
   DefaultMaxQueriedBlocksCache = 1000
+  DefaultMinPeersPerBlock = 3
 
 type
   TaskHandler* = proc(task: BlockExcPeerCtx): Future[void] {.gcsafe.}
@@ -68,6 +69,7 @@ type
     discoveryLoop*: Future[void]                  # Discovery loop task handle
     discoveryTasks*: seq[Future[void]]            # Discovery tasks
     discoveryQueue*: AsyncQueue[Cid]              # Discovery queue
+    minPeersPerBlock*: int                        # Max number of peers with block
 
   Pricing* = object
     address*: EthAddress
@@ -138,12 +140,21 @@ proc discoveryTaskRunner(b: BlockExcEngine) {.async.} =
     try:
       let
         cid = await b.discoveryQueue.get()
-        providers = await b.discovery
-          .findBlockProviders(cid)
-          .wait(DefaultDiscoveryTimeout)
+        haves = b.peers.filterIt(
+          it.peerHave.anyIt( it == cid )
+        )
 
-      await allFuturesThrowing(
-        allFinished(providers.mapIt( b.network.dialPeer(it.data) )))
+      trace "Got peers for block", cid = $cid, count = haves.len
+      let
+        providers =
+          if haves.len < b.minPeersPerBlock:
+            await b.discovery
+              .findBlockProviders(cid)
+              .wait(DefaultDiscoveryTimeout)
+          else:
+            @[]
+
+      checkFutures providers.mapIt( b.network.dialPeer(it.data) )
     except CatchableError as exc:
       trace "Exception in discovery task runner", exc = exc.msg
 
@@ -554,7 +565,7 @@ proc new*(
       taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize),
       discovery: discovery,
       advertiseQueue: newAsyncQueue[Cid](DefaultTaskQueueSize),
-      discoveryQUeue: newAsyncQueue[Cid](DefaultTaskQueueSize))
+      minPeersPerBlock: minPeersPerBlock)
 
   proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
     if event.kind == PeerEventKind.Joined:
