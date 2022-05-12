@@ -1,31 +1,15 @@
 import std/osproc
-import std/os
-import std/streams
-import std/strutils
 import std/httpclient
 import std/json
 import pkg/asynctest
 import pkg/chronos
-import pkg/stew/byteutils
+import ./integration/nodes
 
 suite "Integration tests":
-
-  let workingDir = currentSourcePath() / ".." / ".."
 
   var node1, node2: Process
   var baseurl1, baseurl2: string
   var client: HttpClient
-
-  proc startNode(args: openArray[string]): Process =
-    result = startProcess("build" / "dagger", workingDir, args)
-    for line in result.outputStream.lines:
-      if line.contains("Started dagger node"):
-        break
-
-  proc stop(node: Process) =
-    node.terminate()
-    discard node.waitForExit()
-    node.close()
 
   setup:
     node1 = startNode ["--api-port=8080", "--udp-port=8090"]
