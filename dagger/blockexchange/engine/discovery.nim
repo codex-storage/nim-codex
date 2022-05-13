@@ -17,11 +17,13 @@ import ../protobuf/blockexc
 import ../protobuf/presence
 
 import ../network
-import ../pendingblocks
+import ../peers
 
 import ../../utils
 import ../../discovery
-import ../../stores
+import ../../stores/blockstore
+
+import ./pendingblocks
 
 logScope:
   topics = "dagger discovery engine"
@@ -32,14 +34,16 @@ const
   DefaultDiscoveryTimeout = 1.minutes
   DefaultMaxQueriedBlocksCache = 1000
   DefaultMinPeersPerBlock = 3
+  DefaultTaskQueueSize = 100
 
 type
-  DiscoveryEngine = ref object of RootObj
-    localStore*: BlockStore               # Local store for this instance
-    discEngineRunning*: bool              # Indicates if discovery is running
-    pendingBlocks*: PendingBlocksManager  # blocks we're awaiting to be resolved
+  DiscoveryEngine* = ref object of RootObj
+    localStore*: BlockStore               # Local block store for this instance
+    peers*: PeerCtxStore                  # Peer context store
     network*: BlockExcNetwork             # Network interface
     discovery*: Discovery                 # Discovery interface
+    pendingBlocks*: PendingBlocksManager  # Blocks we're awaiting to be resolved
+    discEngineRunning*: bool              # Indicates if discovery is running
     concurrentAdvReqs: int                # Concurrent advertise requests
     advertiseLoop*: Future[void]          # Advertise loop task handle
     advertiseQueue*: AsyncQueue[Cid]      # Advertise queue
@@ -95,21 +99,17 @@ proc discoveryTaskRunner(b: DiscoveryEngine) {.async.} =
     try:
       let
         cid = await b.discoveryQueue.get()
-      #   haves = b.peers.filterIt(
-      #     it.peerHave.anyIt( it == cid )
-      #   )
+        haves = b.peers.peersHave(cid)
 
-      # trace "Got peers for block", cid = $cid, count = haves.len
-      # let
-      #   providers =
-      #     if haves.len < b.minPeersPerBlock:
-      #       await b.discovery
-      #         .findBlockProviders(cid)
-      #         .wait(DefaultDiscoveryTimeout)
-      #     else:
-      #       @[]
+      trace "Current number of peers for block", cid = $cid, count = haves.len
+      if haves.len < b.minPeersPerBlock:
+        let
+          providers = await b.discovery
+            .findBlockProviders(cid)
+            .wait(DefaultDiscoveryTimeout)
 
-      # checkFutures providers.mapIt( b.network.dialPeer(it.data) )
+        checkFutures providers.mapIt( b.network.dialPeer(it.data) )
+
     except CatchableError as exc:
       trace "Exception in discovery task runner", exc = exc.msg
 
@@ -195,7 +195,22 @@ proc stop*(b: DiscoveryEngine) {.async.} =
 
 proc new*(
   T: type DiscoveryEngine,
+  localStore: BlockStore,
+  peers: PeerCtxStore,
+  network: BlockExcNetwork,
+  discovery: Discovery,
+  pendingBlocks: PendingBlocksManager,
   concurrentAdvReqs = DefaultConcurrentAdvertRequests,
   concurrentDiscReqs = DefaultConcurrentDiscRequests,
   minPeersPerBlock = DefaultMinPeersPerBlock): DiscoveryEngine =
-  discard
+  T(
+    localStore: localStore,
+    peers: peers,
+    network: network,
+    discovery: discovery,
+    pendingBlocks: pendingBlocks,
+    concurrentAdvReqs: concurrentAdvReqs,
+    concurrentDiscReqs: concurrentDiscReqs,
+    advertiseQueue: newAsyncQueue[Cid](DefaultTaskQueueSize),
+    discoveryQueue: newAsyncQueue[Cid](DefaultTaskQueueSize),
+    minPeersPerBlock: minPeersPerBlock)
