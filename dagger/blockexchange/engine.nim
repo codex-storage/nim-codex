@@ -1,4 +1,5 @@
-import ./engine/engine
-import ./engine/payments
+import ./engine/discovery
+import ./engine/blockexc
+import ./engine/pendingblocks
 
-export engine, payments
+export discovery, blockexc, pendingblocks
