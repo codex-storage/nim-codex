@@ -1,11 +1,11 @@
 import std/math
 import pkg/nitro
 import pkg/questionable/results
-import ../peercontext
+import ../peers
 
 export nitro
 export results
-export peercontext
+export peers
 
 push: {.upraises: [].}
 
