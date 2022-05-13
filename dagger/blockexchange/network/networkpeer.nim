@@ -12,7 +12,7 @@ import pkg/chronicles
 import pkg/protobuf_serialization
 import pkg/libp2p
 
-import ./protobuf/blockexc
+import ../protobuf/blockexc
 
 logScope:
   topics = "dagger blockexc networkpeer"
