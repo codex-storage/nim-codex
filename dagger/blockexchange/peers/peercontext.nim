@@ -4,9 +4,10 @@ import pkg/libp2p
 import pkg/chronos
 import pkg/nitro
 import pkg/questionable
-import ./protobuf/blockexc
-import ./protobuf/payments
-import ./protobuf/presence
+
+import ../protobuf/blockexc
+import ../protobuf/payments
+import ../protobuf/presence
 
 export payments, nitro
 
