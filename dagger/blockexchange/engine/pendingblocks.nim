@@ -19,7 +19,7 @@ import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
 
-import ../blocktype
+import ../../blocktype
 
 logScope:
   topics = "dagger blockexc pendingblocks"
@@ -51,12 +51,6 @@ proc getWantHandle*(
     trace "Pending WANT failed or expired", exc = exc.msg
   finally:
     p.blocks.del(cid)
-
-proc addOrAwait*(
-  p: PendingBlocksManager,
-  cid: Cid,
-  timeout = DefaultBlockTimeout): Future[Block] {.deprecated: "Use getWantHandle".} =
-  p.getWantHandle(cid, timeout)
 
 proc resolve*(
   p: PendingBlocksManager,
@@ -94,5 +88,4 @@ func len*(p: PendingBlocksManager): int =
 
 func new*(T: type PendingBlocksManager): T =
   T(
-    blocks: initTable[Cid, Future[Block]]()
-  )
+    blocks: initTable[Cid, Future[Block]]())
