@@ -37,14 +37,17 @@ proc findPeer*(
 
 method findBlockProviders*(
   d: MockDiscovery,
-  cid: Cid): Future[seq[SignedPeerRecord]] =
-  if isNil(d.findBlockProvidersHandler): return
+  cid: Cid): Future[seq[SignedPeerRecord]] {.async.} =
+  if isNil(d.findBlockProvidersHandler):
+    return
 
-  return d.findBlockProvidersHandler(d, cid)
+  return await d.findBlockProvidersHandler(d, cid)
 
-method provideBlock*(d: MockDiscovery, cid: Cid): Future[void] =
-  if isNil(d.publishProvideHandler): return
-  d.publishProvideHandler(d, cid)
+method provideBlock*(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
+  if isNil(d.publishProvideHandler):
+    return
+
+  await d.publishProvideHandler(d, cid)
 
 proc start*(d: Discovery) {.async.} =
   discard
