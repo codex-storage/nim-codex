@@ -32,29 +32,33 @@ const
   DefaultConcurrentDiscRequests = 10
   DefaultConcurrentAdvertRequests = 10
   DefaultDiscoveryTimeout = 1.minutes
-  DefaultMaxQueriedBlocksCache = 1000
   DefaultMinPeersPerBlock = 3
-  DefaultTaskQueueSize = 100
+  DefaultDiscoveryLoopSleep = 30.seconds
+  DefaultAdvertiseLoopSleep = 30.seconds
 
 type
   DiscoveryEngine* = ref object of RootObj
-    localStore*: BlockStore               # Local block store for this instance
-    peers*: PeerCtxStore                  # Peer context store
-    network*: BlockExcNetwork             # Network interface
-    discovery*: Discovery                 # Discovery interface
-    pendingBlocks*: PendingBlocksManager  # Blocks we're awaiting to be resolved
-    discEngineRunning*: bool              # Indicates if discovery is running
-    concurrentAdvReqs: int                # Concurrent advertise requests
-    advertiseLoop*: Future[void]          # Advertise loop task handle
-    advertiseQueue*: AsyncQueue[Cid]      # Advertise queue
-    advertiseTasks*: seq[Future[void]]    # Advertise tasks
-    concurrentDiscReqs: int               # Concurrent discovery requests
-    discoveryLoop*: Future[void]          # Discovery loop task handle
-    discoveryTasks*: seq[Future[void]]    # Discovery tasks
-    discoveryQueue*: AsyncQueue[Cid]      # Discovery queue
-    minPeersPerBlock*: int                # Max number of peers with block
+    localStore*: BlockStore                                      # Local block store for this instance
+    peers*: PeerCtxStore                                         # Peer context store
+    network*: BlockExcNetwork                                    # Network interface
+    discovery*: Discovery                                        # Discovery interface
+    pendingBlocks*: PendingBlocksManager                         # Blocks we're awaiting to be resolved
+    discEngineRunning*: bool                                     # Indicates if discovery is running
+    concurrentAdvReqs: int                                       # Concurrent advertise requests
+    advertiseLoop*: Future[void]                                 # Advertise loop task handle
+    advertiseQueue*: AsyncQueue[Cid]                             # Advertise queue
+    advertiseTasks*: seq[Future[void]]                           # Advertise tasks
+    concurrentDiscReqs: int                                      # Concurrent discovery requests
+    discoveryLoop*: Future[void]                                 # Discovery loop task handle
+    discoveryTasks*: seq[Future[void]]                           # Discovery tasks
+    discoveryQueue*: AsyncQueue[Cid]                             # Discovery queue
+    minPeersPerBlock*: int                                       # Max number of peers with block
+    discoveryLoopSleep: Duration                                 # Discovery loop sleep
+    advertiseLoopSleep: Duration                                 # Advertise loop sleep
+    inFlightDiscReqs*: Table[Cid, Future[seq[SignedPeerRecord]]] # Inflight discovery requests
+    inFlightAdvReqs*: Table[Cid, Future[void]]                   # Inflight advertise requests
 
-proc discoveryLoopRunner(b: DiscoveryEngine) {.async.} =
+proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
   while b.discEngineRunning:
     for cid in toSeq(b.pendingBlocks.wantList):
       try:
@@ -63,9 +67,9 @@ proc discoveryLoopRunner(b: DiscoveryEngine) {.async.} =
         trace "Exception in discovery loop", exc = exc.msg
 
     trace "About to sleep, number of wanted blocks", wanted = b.pendingBlocks.len
-    await sleepAsync(30.seconds)
+    await sleepAsync(b.discoveryLoopSleep)
 
-proc advertiseLoopRunner*(b: DiscoveryEngine) {.async.} =
+proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
   proc onBlock(cid: Cid) {.async.} =
     try:
       await b.advertiseQueue.put(cid)
@@ -74,24 +78,35 @@ proc advertiseLoopRunner*(b: DiscoveryEngine) {.async.} =
 
   while b.discEngineRunning:
     await b.localStore.listBlocks(onBlock)
-    await sleepAsync(30.seconds)
+    await sleepAsync(b.advertiseLoopSleep)
 
   trace "Exiting advertise task loop"
 
-proc advertiseTaskRunner(b: DiscoveryEngine) {.async.} =
+proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
   ## Run advertise tasks
   ##
 
   while b.discEngineRunning:
     try:
-      let cid = await b.advertiseQueue.get()
-      await b.discovery.provideBlock(cid)
+      let
+        cid = await b.advertiseQueue.get()
+
+      if cid in b.inFlightAdvReqs:
+        trace "Advertise request already in progress", cid = $cid
+        continue
+
+      try:
+        let request = b.discovery.provideBlock(cid)
+        b.inFlightAdvReqs[cid] = request
+        await request
+      finally:
+        b.inFlightAdvReqs.del(cid)
     except CatchableError as exc:
       trace "Exception in advertise task runner", exc = exc.msg
 
   trace "Exiting advertise task runner"
 
-proc discoveryTaskRunner(b: DiscoveryEngine) {.async.} =
+proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
   ## Run discovery tasks
   ##
 
@@ -99,23 +114,34 @@ proc discoveryTaskRunner(b: DiscoveryEngine) {.async.} =
     try:
       let
         cid = await b.discoveryQueue.get()
+
+      if cid in b.inFlightDiscReqs:
+        trace "Discovery request already in progress", cid = $cid
+        continue
+
+      let
         haves = b.peers.peersHave(cid)
 
       trace "Current number of peers for block", cid = $cid, count = haves.len
       if haves.len < b.minPeersPerBlock:
-        let
-          providers = await b.discovery
-            .findBlockProviders(cid)
-            .wait(DefaultDiscoveryTimeout)
+        trace "Issuing discovery request", cid = $cid
+        try:
+          let
+            request = b.discovery
+              .findBlockProviders(cid)
+              .wait(DefaultDiscoveryTimeout)
 
-        checkFutures providers.mapIt( b.network.dialPeer(it.data) )
+          b.inFlightDiscReqs[cid] = request
 
+          checkFutures (await request).mapIt( b.network.dialPeer(it.data) )
+        finally:
+          b.inFlightDiscReqs.del(cid)
     except CatchableError as exc:
       trace "Exception in discovery task runner", exc = exc.msg
 
   trace "Exiting discovery task runner"
 
-template queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) =
+proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
   proc queueReq() {.async.} =
     try:
       for cid in cids:
@@ -127,7 +153,7 @@ template queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) =
 
   asyncSpawn queueReq()
 
-template queueProvideBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) =
+proc queueProvideBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
   proc queueReq() {.async.} =
     try:
       for cid in cids:
@@ -151,13 +177,13 @@ proc start*(b: DiscoveryEngine) {.async.} =
 
   b.discEngineRunning = true
   for i in 0..<b.concurrentAdvReqs:
-    b.advertiseTasks.add(advertiseTaskRunner(b))
+    b.advertiseTasks.add(advertiseTaskLoop(b))
 
   for i in 0..<b.concurrentDiscReqs:
-    b.discoveryTasks.add(discoveryTaskRunner(b))
+    b.discoveryTasks.add(discoveryTaskLoop(b))
 
-  b.advertiseLoop = advertiseLoopRunner(b)
-  b.discoveryLoop = discoveryLoopRunner(b)
+  b.advertiseLoop = advertiseQueueLoop(b)
+  b.discoveryLoop = discoveryQueueLoop(b)
 
 proc stop*(b: DiscoveryEngine) {.async.} =
   ## Stop the discovery engine
@@ -202,7 +228,9 @@ proc new*(
   pendingBlocks: PendingBlocksManager,
   concurrentAdvReqs = DefaultConcurrentAdvertRequests,
   concurrentDiscReqs = DefaultConcurrentDiscRequests,
-  minPeersPerBlock = DefaultMinPeersPerBlock): DiscoveryEngine =
+  discoveryLoopSleep = DefaultDiscoveryLoopSleep,
+  advertiseLoopSleep = DefaultAdvertiseLoopSleep,
+  minPeersPerBlock = DefaultMinPeersPerBlock,): DiscoveryEngine =
   T(
     localStore: localStore,
     peers: peers,
@@ -211,6 +239,8 @@ proc new*(
     pendingBlocks: pendingBlocks,
     concurrentAdvReqs: concurrentAdvReqs,
     concurrentDiscReqs: concurrentDiscReqs,
-    advertiseQueue: newAsyncQueue[Cid](DefaultTaskQueueSize),
-    discoveryQueue: newAsyncQueue[Cid](DefaultTaskQueueSize),
+    advertiseQueue: newAsyncQueue[Cid](concurrentAdvReqs),
+    discoveryQueue: newAsyncQueue[Cid](concurrentDiscReqs),
+    inFlightDiscReqs: initTable[Cid, Future[seq[SignedPeerRecord]]](),
+    inFlightAdvReqs: initTable[Cid, Future[void]](),
     minPeersPerBlock: minPeersPerBlock)
