@@ -6,6 +6,7 @@ import pkg/libp2p
 import pkg/dagger/discovery
 import pkg/dagger/stores
 import pkg/dagger/blocktype as bt
+import pkg/dagger/blockexchange
 
 import ../examples
 
@@ -16,11 +17,14 @@ proc generateNodes*(
   for i in 0..<num:
     let
       switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
-      discovery = Discovery.new(switch.peerInfo, Port(0))
+      blockDiscovery = Discovery.new(switch.peerInfo, Port(0))
       wallet = WalletRef.example
       network = BlockExcNetwork.new(switch)
       localStore = CacheStore.new(blocks.mapIt( it ))
-      engine = BlockExcEngine.new(localStore, wallet, network, discovery)
+      peerStore = PeerCtxStore.new()
+      pendingBlocks = PendingBlocksManager.new()
+      discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
+      engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
       networkStore = NetworkStore.new(engine, localStore)
 
     switch.mount(network)
