@@ -27,7 +27,7 @@ export peercontext
 
 type
   PeerCtxStore* = ref object of RootObj
-    peers: Table[PeerID, BlockExcPeerCtx]
+    peers*: Table[PeerID, BlockExcPeerCtx]
 
 iterator items*(self: PeerCtxStore): BlockExcPeerCtx =
   for p in self.peers.values:
@@ -39,7 +39,7 @@ func contains*(self: PeerCtxStore, peerId: PeerID): bool =
 func add*(self: PeerCtxStore, peer: BlockExcPeerCtx) =
   self.peers[peer.id] = peer
 
-func del*(self: PeerCtxStore, peerId: PeerID) =
+func remove*(self: PeerCtxStore, peerId: PeerID) =
    self.peers.del(peerId)
 
 func get*(self: PeerCtxStore, peerId: PeerID): BlockExcPeerCtx =
@@ -54,14 +54,11 @@ func peersHave*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
 func peersWant*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
   toSeq(self.peers.values).filterIt( it.peerWants.anyIt( it.cid == cid ) )
 
-func selectPeers*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt( toSeq(it.peerPrices.keys).anyIt( it == cid ) )
-
 func selectCheapest*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
   var
-    peers = self.selectPeers(cid)
+    peers = self.peersHave(cid)
 
-  peers.sort do(a, b: BlockExcPeerCtx) -> int:
+  func cmp(a, b: BlockExcPeerCtx): int =
     # Can't do (a - b) without cast[int](a - b)
     if a.peerPrices.getOrDefault(cid, 0.u256) ==
       b.peerPrices.getOrDefault(cid, 0.u256):
@@ -71,6 +68,9 @@ func selectCheapest*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
       1
     else:
       -1
+
+  peers.sort(cmp)
+  return peers
 
 proc new*(T: type PeerCtxStore): PeerCtxStore =
   T(peers: initTable[PeerID, BlockExcPeerCtx]())
