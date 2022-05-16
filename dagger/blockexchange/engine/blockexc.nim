@@ -343,7 +343,7 @@ proc dropPeer*(b: BlockExcEngine, peer: PeerID) =
   trace "Dropping peer", peer
 
   # drop the peer from the peers table
-  b.peers.del(peer)
+  b.peers.remove(peer)
 
 proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
   trace "Handling task for peer", peer = task.id
