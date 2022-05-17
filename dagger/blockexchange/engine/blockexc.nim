@@ -83,7 +83,7 @@ proc start*(b: BlockExcEngine) {.async.} =
   ## Start the blockexc task
   ##
 
-  trace "blockexc start"
+  trace "blockexc starting with concurrent tasks", tasks = b.concurrentTasks
 
   if b.blockexcRunning:
     warn "Starting blockexc twice"
@@ -125,12 +125,16 @@ proc requestBlock*(
 
   let
     blk = b.pendingBlocks.getWantHandle(cid, timeout)
+
+  var
     peers = b.peers.selectCheapest(cid)
 
   if peers.len <= 0:
-    trace "No peers to request blocks from", cid = $cid
-    b.discovery.queueFindBlocksReq(@[cid])
-    return blk
+    peers = toSeq(b.peers) # Get any peer
+    if peers.len <= 0:
+      trace "No peers to request blocks from", cid = $cid
+      b.discovery.queueFindBlocksReq(@[cid])
+      return blk
 
   let
     blockPeer = peers[0] # get cheapest
@@ -198,16 +202,21 @@ proc blockPresenceHandler*(
 proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) =
   trace "Schedule a task for new blocks"
 
-  let cids = blocks.mapIt( it.cid )
+  let
+    cids = blocks.mapIt( it.cid )
+
   # schedule any new peers to provide blocks to
   for p in b.peers:
     for c in cids: # for each cid
-        # schedule a peer if it wants at least one
-        # cid and we have it in our local store
-        if c in p.peerWants and c in b.localStore:
-          if not b.scheduleTask(p):
-            trace "Unable to schedule task for peer", peer = p.id
-          break # do next peer
+      # schedule a peer if it wants at least one
+      # cid and we have it in our local store
+      if c in p.peerWants and c in b.localStore:
+        if b.scheduleTask(p):
+          trace "Task scheduled for peer", peer = p.id
+        else:
+          trace "Unable to schedule task for peer", peer = p.id
+
+        break # do next peer
 
 proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) =
   ## Resolve pending blocks from the pending blocks manager
@@ -395,8 +404,12 @@ proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
   ## process tasks
   ##
 
+  trace "Starting blockexc task runner"
   while b.blockexcRunning:
-    let peerCtx = await b.taskQueue.pop()
+    let
+      peerCtx = await b.taskQueue.pop()
+
+    trace "Got new task from queue", peerId = peerCtx.id
     asyncSpawn b.taskHandler(peerCtx)
 
   trace "Exiting blockexc task runner"
