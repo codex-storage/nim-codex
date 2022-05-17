@@ -77,6 +77,7 @@ func selectCheapest*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
       -1
 
   peers.sort(cmp)
+  trace "Selected cheapest peers", peers = peers.len
   return peers
 
 proc new*(T: type PeerCtxStore): PeerCtxStore =
