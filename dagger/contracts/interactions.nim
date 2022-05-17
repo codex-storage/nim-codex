@@ -66,8 +66,8 @@ proc new*(_: type ContractInteractions): ?ContractInteractions =
 
 proc start*(interactions: ContractInteractions) {.async.} =
   interactions.sales.start()
-  interactions.proving.start()
+  await interactions.proving.start()
 
 proc stop*(interactions: ContractInteractions) {.async.} =
   interactions.sales.stop()
-  interactions.proving.stop()
+  await interactions.proving.stop()

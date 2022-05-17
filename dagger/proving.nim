@@ -11,7 +11,7 @@ export proofs
 type
   Proving* = ref object
     proofs: Proofs
-    stopped: bool
+    loop: ?Future[void]
     contracts*: HashSet[ContractId]
     onProofRequired: ?OnProofRequired
   OnProofRequired* = proc (id: ContractId) {.gcsafe, upraises:[].}
@@ -35,7 +35,7 @@ proc removeEndedContracts(proving: Proving) {.async.} =
 
 proc run(proving: Proving) {.async.} =
   try:
-    while not proving.stopped:
+    while true:
       let currentPeriod = await proving.proofs.getCurrentPeriod()
       await proving.removeEndedContracts()
       for id in proving.contracts:
@@ -47,11 +47,17 @@ proc run(proving: Proving) {.async.} =
   except CatchableError as e:
     error "Proving failed", msg = e.msg
 
-proc start*(proving: Proving) =
-  asyncSpawn proving.run()
+proc start*(proving: Proving) {.async.} =
+  if proving.loop.isSome:
+    return
 
-proc stop*(proving: Proving) =
-  proving.stopped = true
+  proving.loop = some proving.run()
+
+proc stop*(proving: Proving) {.async.} =
+  if loop =? proving.loop:
+    proving.loop = Future[void].none
+    if not loop.finished:
+      await loop.cancelAndWait()
 
 proc submitProof*(proving: Proving, id: ContractId, proof: seq[byte]) {.async.} =
   await proving.proofs.submitProof(id, proof)
