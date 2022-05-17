@@ -144,6 +144,9 @@ method listBlocks*(self: FSStore, onBlock: OnBlock) {.async.} =
         # compilation error if using different syntax/construct bellow
         try:
           await onBlock(cid.get())
+        except CancelledError as exc:
+          trace "Cancelling list blocks"
+          raise exc
         except CatchableError as exc:
           trace "Couldn't get block", cid = $(cid.get())
 

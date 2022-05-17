@@ -73,6 +73,9 @@ proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
   proc onBlock(cid: Cid) {.async.} =
     try:
       await b.advertiseQueue.put(cid)
+    except CancelledError as exc:
+      trace "Cancelling block listing"
+      raise exc
     except CatchableError as exc:
       trace "Exception listing blocks", exc = exc.msg
 
