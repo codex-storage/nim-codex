@@ -30,7 +30,7 @@ logScope:
 
 type
   PeerCtxStore* = ref object of RootObj
-    peers*: Table[PeerID, BlockExcPeerCtx]
+    peers*: OrderedTable[PeerID, BlockExcPeerCtx]
 
 iterator items*(self: PeerCtxStore): BlockExcPeerCtx =
   for p in self.peers.values:
@@ -49,8 +49,7 @@ func remove*(self: PeerCtxStore, peerId: PeerID) =
 
 func get*(self: PeerCtxStore, peerId: PeerID): BlockExcPeerCtx =
   trace "Retrieving peer from peer context store", peer = peerId
-  self.peers.withValue(peerId, peer):
-    return peer[]
+  self.peers.getOrDefault(peerId, nil)
 
 func len*(self: PeerCtxStore): int =
   self.peers.len
@@ -81,4 +80,4 @@ func selectCheapest*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
   return peers
 
 proc new*(T: type PeerCtxStore): PeerCtxStore =
-  T(peers: initTable[PeerID, BlockExcPeerCtx]())
+  T(peers: initOrderedTable[PeerID, BlockExcPeerCtx]())
