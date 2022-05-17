@@ -25,8 +25,14 @@ if defined(windows):
 # and larger arithmetic use cases, along with register starvation issues. When
 # engineering a more portable binary release, this should be tweaked but still
 # use at least -msse2 or -msse3.
+
 if defined(disableMarchNative):
-  switch("passC", "-msse3")
+  if defined(i386) or defined(amd64):
+    switch("passC", "-mssse3")
+elif defined(macosx) and defined(arm64):
+  # Apple's Clang can't handle "-march=native" on M1: https://github.com/status-im/nimbus-eth2/issues/2758
+  switch("passC", "-mcpu=apple-a14")
+  # TODO: newer Clang >=15.0 can: https://github.com/llvm/llvm-project/commit/fcca10c69aaab539962d10fcc59a5f074b73b0de
 else:
   switch("passC", "-march=native")
   if defined(windows):
