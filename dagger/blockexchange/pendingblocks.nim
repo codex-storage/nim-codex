@@ -8,7 +8,6 @@
 ## those terms.
 
 import std/tables
-import std/sequtils
 
 import pkg/upraises
 

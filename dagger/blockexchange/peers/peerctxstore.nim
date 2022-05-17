@@ -7,7 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/sugar
 import std/sequtils
 import std/tables
 import std/algorithm

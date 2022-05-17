@@ -150,6 +150,8 @@ method listBlocks*(self: FSStore, onBlock: OnBlock) {.async.} =
         except CatchableError as exc:
           trace "Couldn't get block", cid = $(cid.get())
 
+      # TODO: this should run on a thread which
+      # wouldn't need the sleep
       await sleepAsync(100.millis) # avoid blocking
 
 proc new*(
