@@ -34,7 +34,7 @@ proc new*(_: type ContractInteractions,
   let proofs = OnChainProofs.new(contract)
   let clock = OnChainClock.new(signer.provider)
   some ContractInteractions(
-    purchasing: Purchasing.new(market),
+    purchasing: Purchasing.new(market, clock),
     sales: Sales.new(market),
     proving: Proving.new(proofs, clock),
     clock: clock

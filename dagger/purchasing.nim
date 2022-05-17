@@ -1,10 +1,10 @@
-import std/times
 import std/tables
 import pkg/stint
 import pkg/chronos
 import pkg/questionable
 import pkg/nimcrypto
 import ./market
+import ./clock
 
 export questionable
 export market
@@ -12,6 +12,7 @@ export market
 type
   Purchasing* = ref object
     market: Market
+    clock: Clock
     purchases: Table[array[32, byte], Purchase]
     proofProbability*: UInt256
     requestExpiryInterval*: UInt256
@@ -19,6 +20,7 @@ type
   Purchase* = ref object
     future: Future[void]
     market: Market
+    clock: Clock
     offerExpiryMargin: UInt256
     request*: StorageRequest
     offers*: seq[StorageOffer]
@@ -31,9 +33,10 @@ const DefaultOfferExpiryMargin = (8 * 60).u256
 proc start(purchase: Purchase) {.gcsafe.}
 func id*(purchase: Purchase): array[32, byte]
 
-proc new*(_: type Purchasing, market: Market): Purchasing =
+proc new*(_: type Purchasing, market: Market, clock: Clock): Purchasing =
   Purchasing(
     market: market,
+    clock: clock,
     proofProbability: DefaultProofProbability,
     requestExpiryInterval: DefaultRequestExpiryInterval,
     offerExpiryMargin: DefaultOfferExpiryMargin
@@ -44,7 +47,7 @@ proc populate*(purchasing: Purchasing, request: StorageRequest): StorageRequest 
   if result.ask.proofProbability == 0.u256:
     result.ask.proofProbability = purchasing.proofProbability
   if result.expiry == 0.u256:
-    result.expiry = (getTime().toUnix().u256 + purchasing.requestExpiryInterval)
+    result.expiry = (purchasing.clock.now().u256 + purchasing.requestExpiryInterval)
   if result.nonce == array[32, byte].default:
     doAssert randomBytes(result.nonce) == 32
 
@@ -53,6 +56,7 @@ proc purchase*(purchasing: Purchasing, request: StorageRequest): Purchase =
   let purchase = Purchase(
     request: request,
     market: purchasing.market,
+    clock: purchasing.clock,
     offerExpiryMargin: purchasing.offerExpiryMargin
   )
   purchase.start()
@@ -68,7 +72,7 @@ func getPurchase*(purchasing: Purchasing, id: array[32, byte]): ?Purchase =
 proc selectOffer(purchase: Purchase) {.async.} =
   var cheapest: ?StorageOffer
   for offer in purchase.offers:
-    without getTime().toUnix().u256 < offer.expiry - purchase.offerExpiryMargin:
+    without purchase.clock.now().u256 < offer.expiry - purchase.offerExpiryMargin:
       continue
     without current =? cheapest:
       cheapest = some offer

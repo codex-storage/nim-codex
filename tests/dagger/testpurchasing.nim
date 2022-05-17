@@ -4,17 +4,20 @@ import pkg/chronos
 import pkg/stint
 import pkg/dagger/purchasing
 import ./helpers/mockmarket
+import ./helpers/mockclock
 import ./examples
 
 suite "Purchasing":
 
   var purchasing: Purchasing
   var market: MockMarket
+  var clock: MockClock
   var request: StorageRequest
 
   setup:
     market = MockMarket.new()
-    purchasing = Purchasing.new(market)
+    clock = MockClock.new()
+    purchasing = Purchasing.new(market, clock)
     request = StorageRequest(
       ask: StorageAsk(
         duration: uint16.example.u256,
