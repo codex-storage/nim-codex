@@ -65,9 +65,9 @@ proc new*(_: type ContractInteractions): ?ContractInteractions =
   ContractInteractions.new("ws://localhost:8545")
 
 proc start*(interactions: ContractInteractions) {.async.} =
-  interactions.sales.start()
+  await interactions.sales.start()
   await interactions.proving.start()
 
 proc stop*(interactions: ContractInteractions) {.async.} =
-  interactions.sales.stop()
+  await interactions.sales.stop()
   await interactions.proving.stop()
