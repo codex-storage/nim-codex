@@ -17,13 +17,16 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronos
+import pkg/chronicles
 import pkg/libp2p
 
 import ../protobuf/blockexc
 
 import ./peercontext
-
 export peercontext
+
+logScope:
+  topics = "dagger blockexc peerctxstore"
 
 type
   PeerCtxStore* = ref object of RootObj
@@ -37,16 +40,20 @@ func contains*(self: PeerCtxStore, peerId: PeerID): bool =
   peerId in self.peers
 
 func add*(self: PeerCtxStore, peer: BlockExcPeerCtx) =
+  trace "Adding peer to peer context store", peer = peer.id
   self.peers[peer.id] = peer
 
 func remove*(self: PeerCtxStore, peerId: PeerID) =
-   self.peers.del(peerId)
+  trace "Removing peer from peer context store", peer = peerId
+  self.peers.del(peerId)
 
 func get*(self: PeerCtxStore, peerId: PeerID): BlockExcPeerCtx =
+  trace "Retrieving peer from peer context store", peer = peerId
   self.peers.withValue(peerId, peer):
     return peer[]
 
-func len*(self: PeerCtxStore): int = self.peers.len
+func len*(self: PeerCtxStore): int =
+  self.peers.len
 
 func peersHave*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
   toSeq(self.peers.values).filterIt( it.peerHave.anyIt( it == cid ) )
