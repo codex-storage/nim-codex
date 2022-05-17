@@ -1,4 +1,3 @@
-import std/times
 import std/sequtils
 import pkg/questionable
 import pkg/upraises
@@ -6,6 +5,7 @@ import pkg/stint
 import pkg/nimcrypto
 import pkg/chronicles
 import ./market
+import ./clock
 
 export stint
 
@@ -14,6 +14,7 @@ const DefaultOfferExpiryInterval = (10 * 60).u256
 type
   Sales* = ref object
     market: Market
+    clock: Clock
     subscription: ?Subscription
     available*: seq[Availability]
     offerExpiryInterval*: UInt256
@@ -34,8 +35,12 @@ type
     finished: bool
   OnSale = proc(offer: StorageOffer) {.gcsafe, upraises: [].}
 
-func new*(_: type Sales, market: Market): Sales =
-  Sales(market: market, offerExpiryInterval: DefaultOfferExpiryInterval)
+func new*(_: type Sales, market: Market, clock: Clock): Sales =
+  Sales(
+    market: market,
+    clock: clock,
+    offerExpiryInterval: DefaultOfferExpiryInterval
+  )
 
 proc init*(_: type Availability,
           size: UInt256,
@@ -62,10 +67,11 @@ func findAvailability(sales: Sales, ask: StorageAsk): ?Availability =
       return some availability
 
 proc createOffer(negotiation: Negotiation): StorageOffer =
+  let sales = negotiation.sales
   StorageOffer(
     requestId: negotiation.requestId,
     price: negotiation.ask.maxPrice,
-    expiry: getTime().toUnix().u256 + negotiation.sales.offerExpiryInterval
+    expiry: sales.clock.now().u256 + sales.offerExpiryInterval
   )
 
 proc sendOffer(negotiation: Negotiation) {.async.} =
