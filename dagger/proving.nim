@@ -1,9 +1,9 @@
 import std/sets
-import std/times
 import pkg/upraises
 import pkg/questionable
 import pkg/chronicles
 import ./por/timing/proofs
+import ./clock
 
 export sets
 export proofs
@@ -11,13 +11,14 @@ export proofs
 type
   Proving* = ref object
     proofs: Proofs
+    clock: Clock
     loop: ?Future[void]
     contracts*: HashSet[ContractId]
     onProofRequired: ?OnProofRequired
   OnProofRequired* = proc (id: ContractId) {.gcsafe, upraises:[].}
 
-func new*(_: type Proving, proofs: Proofs): Proving =
-  Proving(proofs: proofs)
+func new*(_: type Proving, proofs: Proofs, clock: Clock): Proving =
+  Proving(proofs: proofs, clock: clock)
 
 proc `onProofRequired=`*(proving: Proving, callback: OnProofRequired) =
   proving.onProofRequired = some callback
@@ -26,7 +27,7 @@ func add*(proving: Proving, id: ContractId) =
   proving.contracts.incl(id)
 
 proc removeEndedContracts(proving: Proving) {.async.} =
-  let now = getTime().toUnix().u256
+  let now = proving.clock.now().u256
   var ended: HashSet[ContractId]
   for id in proving.contracts:
     if now >= (await proving.proofs.getProofEnd(id)):
