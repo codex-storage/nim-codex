@@ -82,8 +82,9 @@ proc start*(b: BlockExcEngine) {.async.} =
   ## Start the blockexc task
   ##
 
-  trace "blockexc starting with concurrent tasks", tasks = b.concurrentTasks
+  await b.discovery.start()
 
+  trace "Blockexc starting with concurrent tasks", tasks = b.concurrentTasks
   if b.blockexcRunning:
     warn "Starting blockexc twice"
     return
@@ -95,6 +96,8 @@ proc start*(b: BlockExcEngine) {.async.} =
 proc stop*(b: BlockExcEngine) {.async.} =
   ## Stop the blockexc blockexc
   ##
+
+  await b.discovery.stop()
 
   trace "NetworkStore stop"
   if not b.blockexcRunning:

@@ -192,7 +192,7 @@ proc stop*(b: DiscoveryEngine) {.async.} =
   ## Stop the discovery engine
   ##
 
-  trace "NetworkStore stop"
+  trace "Discovery engine stop"
   if not b.discEngineRunning:
     warn "Stopping discovery engine without starting it"
     return
@@ -200,15 +200,15 @@ proc stop*(b: DiscoveryEngine) {.async.} =
   b.discEngineRunning = false
   for t in b.advertiseTasks:
     if not t.finished:
-      trace "Awaiting task to stop"
+      trace "Awaiting advertise task to stop"
       await t.cancelAndWait()
-      trace "Task stopped"
+      trace "Advertise task stopped"
 
   for t in b.discoveryTasks:
     if not t.finished:
-      trace "Awaiting task to stop"
+      trace "Awaiting discovery task to stop"
       await t.cancelAndWait()
-      trace "Task stopped"
+      trace "Discovery task stopped"
 
   if not b.advertiseLoop.isNil and not b.advertiseLoop.finished:
     trace "Awaiting advertise loop to stop"
@@ -220,7 +220,7 @@ proc stop*(b: DiscoveryEngine) {.async.} =
     await b.discoveryLoop.cancelAndWait()
     trace "Discovery loop stopped"
 
-  trace "NetworkStore stopped"
+  trace "Discovery engine stopped"
 
 proc new*(
   T: type DiscoveryEngine,
