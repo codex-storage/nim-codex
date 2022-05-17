@@ -164,6 +164,7 @@ suite "E2E - Multiple Nodes Discovery":
         localStore = CacheStore.new()
         peerStore = PeerCtxStore.new()
         pendingBlocks = PendingBlocksManager.new()
+
         discovery = DiscoveryEngine.new(
           localStore,
           peerStore,
@@ -171,6 +172,7 @@ suite "E2E - Multiple Nodes Discovery":
           blockDiscovery,
           pendingBlocks,
           minPeersPerBlock = 1)
+
         engine = BlockExcEngine.new(
           localStore,
           wallet,
