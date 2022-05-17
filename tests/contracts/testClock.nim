@@ -3,12 +3,12 @@ import pkg/chronos
 import dagger/contracts/clock
 import ../ethertest
 
-ethersuite "Clock":
+ethersuite "On-Chain Clock":
 
-  var clock: Clock
+  var clock: OnChainClock
 
   setup:
-    clock = Clock.new(provider)
+    clock = OnChainClock.new(provider)
     await clock.start()
 
   teardown:
@@ -32,7 +32,7 @@ ethersuite "Clock":
 
   test "raises when not started":
     expect AssertionError:
-      discard Clock.new(provider).now()
+      discard OnChainClock.new(provider).now()
 
   test "raises when stopped":
     await clock.stop()
