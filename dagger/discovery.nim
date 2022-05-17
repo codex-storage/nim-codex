@@ -28,8 +28,8 @@ type
 proc new*(
   T: type Discovery,
   localInfo: PeerInfo,
-  discoveryPort: Port,
-  bootstrapNodes = newSeq[SignedPeerRecord](),
+  discoveryPort = 0.Port,
+  bootstrapNodes: seq[SignedPeerRecord] = @[],
   ): T =
 
   T(
@@ -40,8 +40,7 @@ proc new*(
       bootstrapRecords = bootstrapNodes,
       rng = Rng.instance()
     ),
-    localInfo: localInfo
-  )
+    localInfo: localInfo)
 
 proc findPeer*(
   d: Discovery,
