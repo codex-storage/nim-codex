@@ -3,6 +3,7 @@ import pkg/asynctest
 import pkg/chronos
 import pkg/dagger/sales
 import ./helpers/mockmarket
+import ./helpers/mockclock
 import ./examples
 
 suite "Sales":
@@ -20,10 +21,12 @@ suite "Sales":
 
   var sales: Sales
   var market: MockMarket
+  var clock: MockClock
 
   setup:
     market = MockMarket.new()
-    sales = Sales.new(market)
+    clock = MockClock.new()
+    sales = Sales.new(market, clock)
     await sales.start()
 
   teardown:
