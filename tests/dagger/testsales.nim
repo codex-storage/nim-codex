@@ -24,10 +24,10 @@ suite "Sales":
   setup:
     market = MockMarket.new()
     sales = Sales.new(market)
-    sales.start()
+    await sales.start()
 
   teardown:
-    sales.stop()
+    await sales.stop()
 
   test "has no availability initially":
     check sales.available.len == 0

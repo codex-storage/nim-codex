@@ -135,28 +135,21 @@ proc handleRequest(sales: Sales, requestId: array[32, byte], ask: StorageAsk) =
 
   asyncSpawn negotiation.start()
 
-proc start*(sales: Sales) =
+proc start*(sales: Sales) {.async.} =
   doAssert sales.subscription.isNone, "Sales already started"
 
   proc onRequest(requestId: array[32, byte], ask: StorageAsk) {.gcsafe, upraises:[].} =
     sales.handleRequest(requestId, ask)
 
-  proc subscribe {.async.} =
-    try:
-      sales.subscription = some await sales.market.subscribeRequests(onRequest)
-    except CatchableError as e:
-      error "Unable to start sales", msg = e.msg
+  try:
+    sales.subscription = some await sales.market.subscribeRequests(onRequest)
+  except CatchableError as e:
+    error "Unable to start sales", msg = e.msg
 
-  asyncSpawn subscribe()
-
-proc stop*(sales: Sales) =
+proc stop*(sales: Sales) {.async.} =
   if subscription =? sales.subscription:
     sales.subscription = Subscription.none
-
-    proc unsubscribe {.async.} =
-      try:
-        await subscription.unsubscribe()
-      except CatchableError as e:
-        warn "Unsubscribe failed", msg = e.msg
-
-    asyncSpawn unsubscribe()
+    try:
+      await subscription.unsubscribe()
+    except CatchableError as e:
+      warn "Unsubscribe failed", msg = e.msg
