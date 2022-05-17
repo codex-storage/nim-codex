@@ -9,6 +9,7 @@ import pkg/dagger/streams
 import pkg/dagger/stores
 import pkg/dagger/manifest
 import pkg/dagger/rng
+import pkg/dagger/blocktype as bt
 
 suite "StoreStream":
   var
@@ -37,7 +38,7 @@ suite "StoreStream":
 
     for d in data:
       let
-        blk = Block.new(d).tryGet()
+        blk = bt.Block.new(d).tryGet()
 
       manifest.add(blk.cid)
       if not (await store.putBlock(blk)):
