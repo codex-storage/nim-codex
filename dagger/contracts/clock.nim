@@ -2,19 +2,19 @@ import std/times
 import pkg/ethers
 import pkg/chronos
 import pkg/stint
+import ../clock
 
 type
-  Clock* = ref object
+  OnChainClock* = ref object of Clock
     provider: Provider
     subscription: Subscription
     offset: int64
     started: bool
-  SecondsSince1970* = int64
 
-proc new*(_: type Clock, provider: Provider): Clock =
-  Clock(provider: provider)
+proc new*(_: type OnChainClock, provider: Provider): OnChainClock =
+  OnChainClock(provider: provider)
 
-proc start*(clock: Clock) {.async.} =
+proc start*(clock: OnChainClock) {.async.} =
   if clock.started:
     return
   clock.started = true
@@ -28,13 +28,13 @@ proc start*(clock: Clock) {.async.} =
 
   clock.subscription = await clock.provider.subscribe(onBlock)
 
-proc stop*(clock: Clock) {.async.} =
+proc stop*(clock: OnChainClock) {.async.} =
   if not clock.started:
     return
   clock.started = false
 
   await clock.subscription.unsubscribe()
 
-proc now*(clock: Clock): SecondsSince1970 =
+method now*(clock: OnChainClock): SecondsSince1970 =
   doAssert clock.started, "clock should be started before calling now()"
   getTime().toUnix + clock.offset
