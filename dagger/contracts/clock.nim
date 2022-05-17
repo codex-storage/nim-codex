@@ -4,6 +4,8 @@ import pkg/chronos
 import pkg/stint
 import ../clock
 
+export clock
+
 type
   OnChainClock* = ref object of Clock
     provider: Provider

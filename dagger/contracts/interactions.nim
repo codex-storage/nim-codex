@@ -7,6 +7,7 @@ import ./deployment
 import ./storage
 import ./market
 import ./proofs
+import ./clock
 
 export purchasing
 export sales
@@ -18,6 +19,7 @@ type
     purchasing*: Purchasing
     sales*: Sales
     proving*: Proving
+    clock: OnChainClock
 
 proc new*(_: type ContractInteractions,
           signer: Signer,
@@ -30,10 +32,12 @@ proc new*(_: type ContractInteractions,
   let contract = Storage.new(address, signer)
   let market = OnChainMarket.new(contract)
   let proofs = OnChainProofs.new(contract)
+  let clock = OnChainClock.new(signer.provider)
   some ContractInteractions(
     purchasing: Purchasing.new(market),
     sales: Sales.new(market),
-    proving: Proving.new(proofs)
+    proving: Proving.new(proofs, clock),
+    clock: clock
   )
 
 proc new*(_: type ContractInteractions,
@@ -65,9 +69,11 @@ proc new*(_: type ContractInteractions): ?ContractInteractions =
   ContractInteractions.new("ws://localhost:8545")
 
 proc start*(interactions: ContractInteractions) {.async.} =
+  await interactions.clock.start()
   await interactions.sales.start()
   await interactions.proving.start()
 
 proc stop*(interactions: ContractInteractions) {.async.} =
   await interactions.sales.stop()
   await interactions.proving.stop()
+  await interactions.clock.stop()

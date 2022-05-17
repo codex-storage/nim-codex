@@ -1,18 +1,20 @@
-from std/times import getTime, toUnix
 import pkg/asynctest
 import pkg/chronos
 import pkg/dagger/proving
 import ./helpers/mockproofs
+import ./helpers/mockclock
 import ./examples
 
 suite "Proving":
 
   var proving: Proving
   var proofs: MockProofs
+  var clock: MockClock
 
   setup:
     proofs = MockProofs.new()
-    proving = Proving.new(proofs)
+    clock = MockClock.new()
+    proving = Proving.new(proofs, clock)
     await proving.start()
 
   teardown:
@@ -80,7 +82,7 @@ suite "Proving":
   test "stops watching when contract has ended":
     let id = ContractId.example
     proving.add(id)
-    proofs.setProofEnd(id, getTime().toUnix().u256)
+    proofs.setProofEnd(id, clock.now().u256)
     await proofs.advanceToNextPeriod()
     var called: bool
     proc onProofRequired(id: ContractId) =
