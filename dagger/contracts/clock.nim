@@ -26,7 +26,8 @@ proc start*(clock: OnChainClock) {.async.} =
     let computerTime = getTime().toUnix
     clock.offset = blockTime - computerTime
 
-  onBlock(!await clock.provider.getBlock(BlockTag.latest))
+  if latestBlock =? (await clock.provider.getBlock(BlockTag.latest)):
+    onBlock(latestBlock)
 
   clock.subscription = await clock.provider.subscribe(onBlock)
 
