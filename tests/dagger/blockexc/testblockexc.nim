@@ -51,11 +51,9 @@ suite "NetworkStore engine - 2 nodes":
     await allFuturesThrowing(
       nodeCmps1.switch.start(),
       nodeCmps1.blockDiscovery.start(),
-      nodeCmps1.discovery.start(),
       nodeCmps1.engine.start(),
       nodeCmps2.switch.start(),
       nodeCmps2.blockDiscovery.start(),
-      nodeCmps2.discovery.start(),
       nodeCmps2.engine.start())
 
     # initialize our want lists
@@ -81,11 +79,9 @@ suite "NetworkStore engine - 2 nodes":
   teardown:
     await allFuturesThrowing(
       nodeCmps1.blockDiscovery.stop(),
-      nodeCmps1.discovery.stop(),
       nodeCmps1.engine.stop(),
       nodeCmps1.switch.stop(),
       nodeCmps2.blockDiscovery.stop(),
-      nodeCmps2.discovery.stop(),
       nodeCmps2.engine.stop(),
       nodeCmps2.switch.stop())
 

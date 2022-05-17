@@ -74,7 +74,6 @@ suite "Block Advertising and Discovery":
         engine.pendingBlocks.getWantHandle(it.cid)
       )
 
-    await discovery.start()
     await engine.start()
 
     blockDiscovery.publishProvideHandler =
@@ -88,7 +87,6 @@ suite "Block Advertising and Discovery":
     await allFuturesThrowing(
       allFinished(pendingBlocks))
 
-    await discovery.stop()
     await engine.stop()
 
   test "Should advertise have blocks":
@@ -100,12 +98,10 @@ suite "Block Advertising and Discovery":
       if cid in advertised and not advertised[cid].finished():
         advertised[cid].complete()
 
-    await discovery.start() # fire up advertise loop
     await engine.start() # fire up advertise loop
     await allFuturesThrowing(
       allFinished(toSeq(advertised.values)))
 
-    await discovery.stop()
     await engine.stop()
 
   test "Should not launch discovery if remote peer has block":
@@ -127,14 +123,12 @@ suite "Block Advertising and Discovery":
       proc(d: MockDiscovery, cid: Cid): Future[seq[SignedPeerRecord]] =
         check false
 
-    await discovery.start() # fire up discovery loop
     await engine.start() # fire up discovery loop
     engine.pendingBlocks.resolve(blocks)
 
     await allFuturesThrowing(
       allFinished(pendingBlocks))
 
-    await discovery.stop()
     await engine.stop()
 
 suite "E2E - Multiple Nodes Discovery":
@@ -222,13 +216,11 @@ suite "E2E - Multiple Nodes Discovery":
 
     await allFuturesThrowing(
       switch.mapIt( it.start() ) &
-      blockexc.mapIt( it.engine.discovery.start() ) &
       blockexc.mapIt( it.engine.start() ))
 
     await allFutures(futs)
 
     await allFuturesThrowing(
-      blockexc.mapIt( it.engine.discovery.stop() ) &
       blockexc.mapIt( it.engine.stop() ) &
       switch.mapIt( it.stop() ))
 
@@ -265,12 +257,10 @@ suite "E2E - Multiple Nodes Discovery":
 
     await allFuturesThrowing(
       switch.mapIt( it.start() ) &
-      blockexc.mapIt( it.engine.discovery.start() ) &
       blockexc.mapIt( it.engine.start() ))
 
     await allFutures(futs).wait(10.seconds)
 
     await allFuturesThrowing(
-      blockexc.mapIt( it.engine.discovery.stop() ) &
       blockexc.mapIt( it.engine.stop() ) &
       switch.mapIt( it.stop() ))
