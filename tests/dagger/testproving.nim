@@ -13,10 +13,10 @@ suite "Proving":
   setup:
     proofs = MockProofs.new()
     proving = Proving.new(proofs)
-    proving.start()
+    await proving.start()
 
   teardown:
-    proving.stop()
+    await proving.stop()
 
   proc advanceToNextPeriod(proofs: MockProofs) {.async.} =
     let current = await proofs.getCurrentPeriod()
