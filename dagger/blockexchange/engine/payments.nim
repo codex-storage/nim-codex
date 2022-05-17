@@ -5,7 +5,6 @@ import ../peers
 
 export nitro
 export results
-export peers
 
 push: {.upraises: [].}
 

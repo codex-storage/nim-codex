@@ -1,11 +1,9 @@
 import std/sequtils
 import std/sugar
-import std/algorithm
 import std/tables
 
 import pkg/asynctest
 import pkg/chronos
-import pkg/stew/byteutils
 
 import pkg/libp2p
 import pkg/libp2p/errors
@@ -16,7 +14,7 @@ import pkg/dagger/blockexchange
 import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
 
-import ./mockdiscovery
+import ../../helpers/mockdiscovery
 
 import ../../helpers
 import ../../examples
@@ -225,15 +223,14 @@ suite "E2E - Multiple Nodes Discovery":
     await allFuturesThrowing(
       switch.mapIt( it.start() ) &
       blockexc.mapIt( it.engine.discovery.start() ) &
-      blockexc.mapIt( it.engine.start() )
-    )
+      blockexc.mapIt( it.engine.start() ))
 
     await allFutures(futs)
+
     await allFuturesThrowing(
       blockexc.mapIt( it.engine.discovery.stop() ) &
       blockexc.mapIt( it.engine.stop() ) &
-      switch.mapIt( it.stop() )
-    )
+      switch.mapIt( it.stop() ))
 
   test "E2E - Should advertise and discover blocks with peers already connected":
     # Distribute the blocks amongst 1..3
@@ -263,7 +260,9 @@ suite "E2E - Multiple Nodes Discovery":
         if cid in advertised:
           return @[advertised[cid]]
 
-    let futs = blocks.mapIt( blockexc[0].engine.requestBlock( it.cid ) )
+    let
+      futs = blocks.mapIt( blockexc[0].engine.requestBlock( it.cid ) )
+
     await allFuturesThrowing(
       switch.mapIt( it.start() ) &
       blockexc.mapIt( it.engine.discovery.start() ) &
@@ -274,49 +273,4 @@ suite "E2E - Multiple Nodes Discovery":
     await allFuturesThrowing(
       blockexc.mapIt( it.engine.discovery.stop() ) &
       blockexc.mapIt( it.engine.stop() ) &
-      switch.mapIt( it.stop() )
-    )
-
-  test "E2E - Should advertise and discover blocks with peers already connected":
-    # Distribute the blocks amongst 1..3
-    # Ask 0 to download everything without connecting him beforehand
-
-    var advertised: Table[Cid, SignedPeerRecord]
-
-    MockDiscovery(blockexc[1].engine.discovery.discovery)
-      .publishProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
-        advertised[cid] = switch[1].peerInfo.signedPeerRecord
-
-    MockDiscovery(blockexc[2].engine.discovery.discovery)
-      .publishProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
-        advertised[cid] = switch[2].peerInfo.signedPeerRecord
-
-    MockDiscovery(blockexc[3].engine.discovery.discovery)
-      .publishProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
-        advertised[cid] = switch[3].peerInfo.signedPeerRecord
-
-    await blockexc[1].engine.blocksHandler(switch[0].peerInfo.peerId, blocks[0..5])
-    await blockexc[2].engine.blocksHandler(switch[0].peerInfo.peerId, blocks[4..10])
-    await blockexc[3].engine.blocksHandler(switch[0].peerInfo.peerId, blocks[10..15])
-
-    MockDiscovery(blockexc[0].engine.discovery.discovery)
-      .findBlockProvidersHandler = proc(d: MockDiscovery, cid: Cid):
-      Future[seq[SignedPeerRecord]] {.async.} =
-        if cid in advertised:
-          return @[advertised[cid]]
-
-    let futs = collect(newSeq):
-      for b in blocks:
-        blockexc[0].engine.requestBlock(b.cid)
-
-    await allFuturesThrowing(
-      switch.mapIt( it.start() ) &
-      blockexc.mapIt( it.engine.discovery.start() ) &
-      blockexc.mapIt( it.engine.start() ))
-
-    await allFutures(futs).wait(10.seconds)
-
-    await allFuturesThrowing(
-      blockexc.mapIt( it.engine.stop() ) &
-      switch.mapIt( it.stop() )
-    )
+      switch.mapIt( it.stop() ))

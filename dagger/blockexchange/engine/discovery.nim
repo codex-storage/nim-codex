@@ -23,7 +23,7 @@ import ../../utils
 import ../../discovery
 import ../../stores/blockstore
 
-import ./pendingblocks
+import ../pendingblocks
 
 logScope:
   topics = "dagger discovery engine"

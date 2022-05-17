@@ -15,7 +15,7 @@ import pkg/dagger/chunker
 import pkg/dagger/blocktype as bt
 import pkg/dagger/blockexchange/engine
 
-import ./mockdiscovery
+import ../../helpers/mockdiscovery
 
 import ../../helpers
 import ../../examples

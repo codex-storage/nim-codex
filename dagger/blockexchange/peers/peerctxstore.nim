@@ -22,7 +22,7 @@ import pkg/libp2p
 
 import ../protobuf/blockexc
 
-import ./peercontext
+import ../peercontext
 export peercontext
 
 logScope:

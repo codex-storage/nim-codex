@@ -19,7 +19,7 @@ import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
 
-import ../../blocktype
+import ../blocktype
 
 logScope:
   topics = "dagger blockexc pendingblocks"
