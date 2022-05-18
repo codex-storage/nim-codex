@@ -18,5 +18,5 @@ proc startNode*(args: openArray[string], debug = false): Process =
 
 proc stop*(node: Process) =
   node.terminate()
-  discard node.waitForExit()
+  discard node.waitForExit(timeout=5_000)
   node.close()
