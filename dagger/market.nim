@@ -27,12 +27,6 @@ method offerStorage*(market: Market,
 method selectOffer*(market: Market, id: array[32, byte]) {.base, async.} =
   raiseAssert("not implemented")
 
-method getTime*(market: Market): Future[UInt256] {.base, async.} =
-  raiseAssert("not implemented")
-
-method waitUntil*(market: Market, expiry: UInt256) {.base, async.} =
-  raiseAssert("not implemented")
-
 method subscribeRequests*(market: Market,
                           callback: OnRequest):
                          Future[Subscription] {.base, async.} =

@@ -106,23 +106,3 @@ method unsubscribe*(subscription: OfferSubscription) {.async.} =
 
 method unsubscribe*(subscription: SelectSubscription) {.async.} =
   subscription.market.subscriptions.onSelect.keepItIf(it != subscription)
-
-func `<`(a, b: Expiry): bool =
-  a.expiry < b.expiry
-
-method getTime*(market: MockMarket): Future[UInt256] {.async.} =
-  return market.time
-
-method waitUntil*(market: MockMarket, expiry: UInt256): Future[void] =
-  let future = Future[void]()
-  if expiry > market.time:
-    market.waiting.push(Expiry(future: future, expiry: expiry))
-  else:
-    future.complete()
-  future
-
-proc advanceTimeTo*(market: MockMarket, time: UInt256) =
-  doAssert(time >= market.time)
-  market.time = time
-  while market.waiting.len > 0 and market.waiting[0].expiry <= time:
-    market.waiting.pop().future.complete()

@@ -88,7 +88,7 @@ proc run(purchase: Purchase) {.async.} =
   let market = purchase.market
   purchase.request = await market.requestStorage(purchase.request)
   let subscription = await market.subscribeOffers(purchase.request.id, onOffer)
-  await market.waitUntil(purchase.request.expiry)
+  await purchase.clock.waitUntil(purchase.request.expiry.truncate(int64))
   await purchase.selectOffer()
   await subscription.unsubscribe()
 

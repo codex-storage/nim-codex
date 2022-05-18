@@ -114,7 +114,7 @@ proc subscribeSelect(negotiation: Negotiation) {.async.} =
 proc waitForExpiry(negotiation: Negotiation) {.async.} =
   without offer =? negotiation.offer:
     return
-  await negotiation.sales.market.waitUntil(offer.expiry)
+  await negotiation.sales.clock.waitUntil(offer.expiry.truncate(int64))
   negotiation.finish(success = false)
 
 proc start(negotiation: Negotiation) {.async.} =
