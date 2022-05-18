@@ -1,19 +1,32 @@
 import std/osproc
 import std/httpclient
 import std/json
-import pkg/asynctest
 import pkg/chronos
+import ./ethertest
+import ./contracts/time
 import ./integration/nodes
+import ./integration/tokens
 
-suite "Integration tests":
+ethersuite "Integration tests":
 
   var node1, node2: Process
   var baseurl1, baseurl2: string
   var client: HttpClient
 
   setup:
-    node1 = startNode ["--api-port=8080", "--udp-port=8090"]
-    node2 = startNode ["--api-port=8081", "--udp-port=8091"]
+    await provider.getSigner(accounts[0]).mint()
+    await provider.getSigner(accounts[1]).mint()
+    await provider.getSigner(accounts[1]).deposit()
+    node1 = startNode [
+      "--api-port=8080",
+      "--udp-port=8090",
+      "--eth-account=" & $accounts[0]
+    ]
+    node2 = startNode [
+      "--api-port=8081",
+      "--udp-port=8091",
+      "--eth-account=" & $accounts[1]
+    ]
     baseurl1 = "http://localhost:8080/api/dagger/v1"
     baseurl2 = "http://localhost:8081/api/dagger/v1"
     client = newHttpClient()
@@ -62,3 +75,35 @@ suite "Integration tests":
     let json = parseJson(response.body)
     check json["request"]["ask"]["duration"].getStr == "0x1"
     check json["request"]["ask"]["maxPrice"].getStr == "0x2"
+
+  test "nodes negotiate contracts on the marketplace":
+
+    proc sell =
+      let json = %*{"size": "0x1F00", "duration": "0x200", "minPrice": "0x300"}
+      discard client.post(baseurl2 & "/sales/availability", $json)
+
+    proc available: JsonNode =
+      client.get(baseurl2 & "/sales/availability").body.parseJson
+
+    proc upload: string =
+      client.post(baseurl1 & "/upload", "some file contents").body
+
+    proc buy(cid: string): string =
+      let expiry = ((waitFor provider.currentTime()) + 5).toHex
+      let json = %*{"duration": "0x100", "maxPrice": "0x400", "expiry": expiry}
+      client.post(baseurl1 & "/storage/request/" & cid, $json).body
+
+    proc finish(purchase: string): JsonNode =
+      while true:
+        let response = client.get(baseurl1 & "/storage/purchases/" & purchase)
+        result = parseJson(response.body)
+        if result["finished"].getBool:
+          break
+        waitFor sleepAsync(1.seconds)
+
+    sell()
+    let purchase = upload().buy().finish()
+
+    check purchase["error"].getStr == ""
+    check purchase["selected"].len > 0
+    check available().len == 0
