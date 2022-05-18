@@ -28,7 +28,7 @@ ethersuite "On-Chain Clock":
   test "updates time using wall-clock in-between blocks":
     let past = clock.now()
     await sleepAsync(chronos.seconds(1))
-    check clock.now() == past + 1
+    check clock.now() > past
 
   test "raises when not started":
     expect AssertionError:
