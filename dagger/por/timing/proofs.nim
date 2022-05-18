@@ -17,14 +17,6 @@ method periodicity*(proofs: Proofs):
                    Future[Periodicity] {.base, async.} =
   raiseAssert("not implemented")
 
-method getCurrentPeriod*(proofs: Proofs):
-                        Future[Period] {.base, async.} =
-  raiseAssert("not implemented")
-
-method waitUntilPeriod*(proofs: Proofs,
-                        period: Period) {.base, async.} =
-  raiseAssert("not implemented")
-
 method isProofRequired*(proofs: Proofs,
                         id: ContractId): Future[bool] {.base, async.} =
   raiseAssert("not implemented")

@@ -7,8 +7,6 @@ import pkg/dagger/por/timing/proofs
 type
   MockProofs* = ref object of Proofs
     periodicity: Periodicity
-    currentPeriod: Period
-    waiting: Table[Period, seq[Future[void]]]
     proofsRequired: HashSet[ContractId]
     proofsToBeRequired: HashSet[ContractId]
     proofEnds: Table[ContractId, UInt256]
@@ -57,25 +55,6 @@ method getProofEnd*(mock: MockProofs,
     return mock.proofEnds[id]
   else:
     return UInt256.high
-
-proc advanceToPeriod*(mock: MockProofs, period: Period) =
-  doAssert period >= mock.currentPeriod
-  for key in mock.waiting.keys:
-    if key <= period:
-      for future in mock.waiting[key]:
-        future.complete()
-      mock.waiting[key] = @[]
-
-method getCurrentPeriod*(mock: MockProofs): Future[Period] {.async.} =
-  return mock.currentPeriod
-
-method waitUntilPeriod*(mock: MockProofs, period: Period) {.async.} =
-  if period > mock.currentPeriod:
-    let future = Future[void]()
-    if not mock.waiting.hasKey(period):
-      mock.waiting[period] = @[]
-    mock.waiting[period].add(future)
-    await future
 
 method submitProof*(mock: MockProofs,
                     id: ContractId,
