@@ -53,6 +53,8 @@ proc run(proving: Proving) {.async.} =
           if callback =? proving.onProofRequired:
             callback(id)
       await proving.waitUntilPeriod(currentPeriod + 1)
+  except CancelledError:
+    discard
   except CatchableError as e:
     error "Proving failed", msg = e.msg
 
