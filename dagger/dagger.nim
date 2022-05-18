@@ -130,7 +130,7 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
       config.ethDeployment,
       config.ethAccount
     )
-    daggerNode = DaggerNodeRef.new(switch, store, engine, erasure, discovery, contracts)
+    daggerNode = DaggerNodeRef.new(switch, store, engine, erasure, blockDiscovery, contracts)
     restServer = RestServerRef.new(
       daggerNode.initRestApi(config),
       initTAddress("127.0.0.1" , config.apiPort),
