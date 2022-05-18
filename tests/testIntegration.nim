@@ -89,7 +89,7 @@ ethersuite "Integration tests":
       client.post(baseurl1 & "/upload", "some file contents").body
 
     proc buy(cid: string): string =
-      let expiry = ((waitFor provider.currentTime()) + 5).toHex
+      let expiry = ((waitFor provider.currentTime()) + 10).toHex
       let json = %*{"duration": "0x100", "maxPrice": "0x400", "expiry": expiry}
       client.post(baseurl1 & "/storage/request/" & cid, $json).body
 
