@@ -66,7 +66,11 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
       except CatchableError as exc:
         trace "Exception in discovery loop", exc = exc.msg
 
-    trace "About to sleep, number of wanted blocks", wanted = b.pendingBlocks.len
+    logScope:
+      sleep = b.discoveryLoopSleep
+      wanted = b.pendingBlocks.len
+
+    trace "About to sleep discovery loop, number of wanted blocks"
     await sleepAsync(b.discoveryLoopSleep)
 
 proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
@@ -81,6 +85,8 @@ proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
 
   while b.discEngineRunning:
     await b.localStore.listBlocks(onBlock)
+
+    trace "About to sleep advertise loop", sleep = b.advertiseLoopSleep
     await sleepAsync(b.advertiseLoopSleep)
 
   trace "Exiting advertise task loop"
@@ -246,4 +252,6 @@ proc new*(
     discoveryQueue: newAsyncQueue[Cid](concurrentDiscReqs),
     inFlightDiscReqs: initTable[Cid, Future[seq[SignedPeerRecord]]](),
     inFlightAdvReqs: initTable[Cid, Future[void]](),
+    discoveryLoopSleep: discoveryLoopSleep,
+    advertiseLoopSleep: advertiseLoopSleep,
     minPeersPerBlock: minPeersPerBlock)
