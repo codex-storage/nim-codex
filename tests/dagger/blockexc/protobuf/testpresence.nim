@@ -1,4 +1,3 @@
-import std/sequtils
 import pkg/asynctest
 import pkg/chronos
 import pkg/libp2p

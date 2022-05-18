@@ -9,7 +9,6 @@
 
 import std/sequtils
 import std/sets
-import std/sugar
 
 import pkg/chronos
 import pkg/chronicles

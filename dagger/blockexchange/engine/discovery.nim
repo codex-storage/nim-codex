@@ -13,7 +13,6 @@ import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
 
-import ../protobuf/blockexc
 import ../protobuf/presence
 
 import ../network
