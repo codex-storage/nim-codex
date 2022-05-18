@@ -208,7 +208,8 @@ proc initRestApi*(node: DaggerNodeRef, conf: DaggerConf): RestRouter =
                                                       params.duration,
                                                       nodes,
                                                       tolerance,
-                                                      params.maxPrice), error:
+                                                      params.maxPrice,
+                                                      params.expiry), error:
         return RestApiResponse.error(Http500, error.msg)
 
       return RestApiResponse.response(purchaseId.toHex)

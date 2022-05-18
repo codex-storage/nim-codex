@@ -212,7 +212,8 @@ proc requestStorage*(self: DaggerNodeRef,
                      duration: UInt256,
                      nodes: uint,
                      tolerance: uint,
-                     maxPrice: UInt256): Future[?!array[32, byte]] {.async.} =
+                     maxPrice: UInt256,
+                     expiry = UInt256.none): Future[?!array[32, byte]] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
   ##
@@ -280,7 +281,8 @@ proc requestStorage*(self: DaggerNodeRef,
         publicKey: @[], # TODO: PoR setup
         name: @[]       # TODO: PoR setup
       )
-    )
+    ),
+    expiry: expiry |? 0.u256
   )
 
   let purchase = contracts.purchasing.purchase(request)
