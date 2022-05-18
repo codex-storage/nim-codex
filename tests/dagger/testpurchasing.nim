@@ -27,7 +27,7 @@ suite "Purchasing":
 
   proc purchaseAndWait(request: StorageRequest) {.async.} =
     let purchase = purchasing.purchase(request)
-    market.advanceTimeTo(market.requested[^1].expiry)
+    clock.set(market.requested[^1].expiry.truncate(int64))
     await purchase.wait()
 
   test "submits a storage request when asked":
@@ -90,7 +90,7 @@ suite "Purchasing":
     offer2.price = 10.u256
     discard await market.offerStorage(offer1)
     discard await market.offerStorage(offer2)
-    market.advanceTimeTo(request.expiry)
+    clock.set(request.expiry.truncate(int64))
     await purchase.wait()
     check market.selected[0] == offer2.id
 
@@ -104,7 +104,7 @@ suite "Purchasing":
     offer2.expiry = expired
     discard await market.offerStorage(offer1)
     discard await market.offerStorage(offer2)
-    market.advanceTimeTo(request.expiry)
+    clock.set(request.expiry.truncate(int64))
     await purchase.wait()
     check market.selected[0] == offer1.id
 
@@ -121,6 +121,6 @@ suite "Purchasing":
     offer2.expiry = getTime().toUnix().u256 + expiryMargin - 1
     discard await market.offerStorage(offer1)
     discard await market.offerStorage(offer2)
-    market.advanceTimeTo(request.expiry)
+    clock.set(request.expiry.truncate(int64))
     await purchase.wait()
     check market.selected[0] == offer1.id

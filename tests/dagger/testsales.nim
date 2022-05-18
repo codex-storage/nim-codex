@@ -74,7 +74,7 @@ suite "Sales":
 
   test "sets expiry time of offer":
     sales.add(availability)
-    let now = getTime().toUnix().u256
+    let now = clock.now().u256
     discard await market.requestStorage(request)
     check market.offered[0].expiry == now + sales.offerExpiryInterval
 
@@ -111,6 +111,6 @@ suite "Sales":
     sales.add(availability)
     discard await market.requestStorage(request)
     let offer = market.offered[0]
-    market.advanceTimeTo(offer.expiry)
-    await sleepAsync(chronos.seconds(1))
+    clock.set(offer.expiry.truncate(int64))
+    await sleepAsync(chronos.seconds(2))
     check sales.available.contains(availability)

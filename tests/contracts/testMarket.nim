@@ -154,23 +154,3 @@ ethersuite "On-Chain Market":
     check selected == @[offer.id]
 
     await subscription.unsubscribe()
-
-  test "can retrieve current block time":
-    let latestBlock = !await provider.getBlock(BlockTag.latest)
-    check (await market.getTime()) == latestBlock.timestamp
-
-  test "supports waiting for expiry of a request or offer":
-    let pollInterval = 200.milliseconds
-    market.pollInterval = pollInterval
-
-    proc waitForPoll {.async.} =
-      await sleepAsync(pollInterval * 2)
-
-    let future = market.waitUntil(request.expiry)
-    check not future.completed
-    await provider.advanceTimeTo(request.expiry - 1)
-    await waitForPoll()
-    check not future.completed
-    await provider.advanceTimeTo(request.expiry)
-    await waitForPoll()
-    check future.completed
