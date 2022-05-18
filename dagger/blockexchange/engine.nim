@@ -411,7 +411,7 @@ proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
       peerCtx = await b.taskQueue.pop()
 
     trace "Got new task from queue", peerId = peerCtx.id
-    asyncSpawn b.taskHandler(peerCtx)
+    await b.taskHandler(peerCtx)
 
   trace "Exiting blockexc task runner"
 
