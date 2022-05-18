@@ -44,10 +44,10 @@ type
     pendingBlocks*: PendingBlocksManager                         # Blocks we're awaiting to be resolved
     discEngineRunning*: bool                                     # Indicates if discovery is running
     concurrentAdvReqs: int                                       # Concurrent advertise requests
+    concurrentDiscReqs: int                                      # Concurrent discovery requests
     advertiseLoop*: Future[void]                                 # Advertise loop task handle
     advertiseQueue*: AsyncQueue[Cid]                             # Advertise queue
     advertiseTasks*: seq[Future[void]]                           # Advertise tasks
-    concurrentDiscReqs: int                                      # Concurrent discovery requests
     discoveryLoop*: Future[void]                                 # Discovery loop task handle
     discoveryTasks*: seq[Future[void]]                           # Discovery tasks
     discoveryQueue*: AsyncQueue[Cid]                             # Discovery queue
