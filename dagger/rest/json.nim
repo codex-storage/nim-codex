@@ -9,6 +9,7 @@ type
   StorageRequestParams* = object
     duration*: UInt256
     maxPrice*: UInt256
+    expiry*: ?UInt256
 
 proc fromJson*(_: type Availability, bytes: seq[byte]): ?!Availability =
   let json = ?catch parseJson(string.fromBytes(bytes))
@@ -22,7 +23,12 @@ proc fromJson*(_: type StorageRequestParams,
   let json = ?catch parseJson(string.fromBytes(bytes))
   let duration = ?catch UInt256.fromHex(json["duration"].getStr)
   let maxPrice = ?catch UInt256.fromHex(json["maxPrice"].getStr)
-  success StorageRequestParams(duration: duration, maxPrice: maxPrice)
+  let expiry = UInt256.fromHex(json["expiry"].getStr).catch.option
+  success StorageRequestParams(
+    duration: duration,
+    maxPrice: maxPrice,
+    expiry: expiry
+  )
 
 func `%`*(address: Address): JsonNode =
   % $address
