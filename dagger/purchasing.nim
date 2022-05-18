@@ -81,6 +81,7 @@ proc selectOffer(purchase: Purchase) {.async.} =
       cheapest = some offer
   if cheapest =? cheapest:
     await purchase.market.selectOffer(cheapest.id)
+    purchase.selected = some cheapest
 
 proc run(purchase: Purchase) {.async.} =
   proc onOffer(offer: StorageOffer) =

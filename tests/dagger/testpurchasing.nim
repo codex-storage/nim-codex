@@ -92,6 +92,7 @@ suite "Purchasing":
     discard await market.offerStorage(offer2)
     clock.set(request.expiry.truncate(int64))
     await purchase.wait()
+    check purchase.selected == some offer2
     check market.selected[0] == offer2.id
 
   test "ignores offers that expired":
