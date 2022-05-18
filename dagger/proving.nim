@@ -26,6 +26,14 @@ proc `onProofRequired=`*(proving: Proving, callback: OnProofRequired) =
 func add*(proving: Proving, id: ContractId) =
   proving.contracts.incl(id)
 
+proc getCurrentPeriod(proving: Proving): Future[Period] {.async.} =
+  let periodicity = await proving.proofs.periodicity()
+  return periodicity.periodOf(proving.clock.now().u256)
+
+proc waitUntilPeriod(proving: Proving, period: Period) {.async.} =
+  let periodicity = await proving.proofs.periodicity()
+  await proving.clock.waitUntil(periodicity.periodStart(period).truncate(int64))
+
 proc removeEndedContracts(proving: Proving) {.async.} =
   let now = proving.clock.now().u256
   var ended: HashSet[ContractId]
@@ -37,14 +45,14 @@ proc removeEndedContracts(proving: Proving) {.async.} =
 proc run(proving: Proving) {.async.} =
   try:
     while true:
-      let currentPeriod = await proving.proofs.getCurrentPeriod()
+      let currentPeriod = await proving.getCurrentPeriod()
       await proving.removeEndedContracts()
       for id in proving.contracts:
         if (await proving.proofs.isProofRequired(id)) or
           (await proving.proofs.willProofBeRequired(id)):
           if callback =? proving.onProofRequired:
             callback(id)
-      await proving.proofs.waitUntilPeriod(currentPeriod + 1)
+      await proving.waitUntilPeriod(currentPeriod + 1)
   except CatchableError as e:
     error "Proving failed", msg = e.msg
 

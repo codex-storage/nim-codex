@@ -21,9 +21,9 @@ suite "Proving":
     await proving.stop()
 
   proc advanceToNextPeriod(proofs: MockProofs) {.async.} =
-    let current = await proofs.getCurrentPeriod()
-    proofs.advanceToPeriod(current + 1)
-    await sleepAsync(1.milliseconds)
+    let periodicity = await proofs.periodicity()
+    clock.advance(periodicity.seconds.truncate(int64))
+    await sleepAsync(2.seconds)
 
   test "maintains a list of contract ids to watch":
     let id1, id2 = ContractId.example
