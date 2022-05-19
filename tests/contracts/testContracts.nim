@@ -1,9 +1,9 @@
 import std/json
 import pkg/chronos
 import pkg/nimcrypto
-import dagger/contracts
-import dagger/contracts/testtoken
-import dagger/por/timing/periods
+import codex/contracts
+import codex/contracts/testtoken
+import codex/por/timing/periods
 import ../ethertest
 import ./examples
 import ./time

@@ -1,7 +1,7 @@
 import std/times
 import pkg/stint
 import pkg/ethers
-import dagger/contracts
+import codex/contracts
 import ../examples
 
 export examples

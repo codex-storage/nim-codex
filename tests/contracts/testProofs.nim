@@ -1,4 +1,4 @@
-import dagger/contracts
+import codex/contracts
 import ../ethertest
 import ./examples
 import ./time
