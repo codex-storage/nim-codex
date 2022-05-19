@@ -130,7 +130,7 @@ method hasBlock*(self: FSStore, cid: Cid): bool =
   self.blockPath(cid).isFile()
 
 method listBlocks*(self: FSStore, onBlock: OnBlock) {.async.} =
-  debug "Finding all blocks in store"
+  debug "Listing all blocks in store"
   for (pkind, folderPath) in self.repoDir.walkDir():
     if pkind != pcDir: continue
     let baseName = basename(folderPath)

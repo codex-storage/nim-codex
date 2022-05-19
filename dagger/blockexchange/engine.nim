@@ -185,8 +185,7 @@ proc blockPresenceHandler*(
       it in peerCtx.peerHave
     )
 
-  trace "Received presence update for cids", peer, cids = $cids
-
+  trace "Received presence update for cids", peer, count = cids.len
   if cids.len > 0:
     b.network.request.sendWantList(
       peer,
