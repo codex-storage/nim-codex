@@ -20,3 +20,4 @@ coverage:
         # `informational`: https://docs.codecov.com/docs/commit-status#informational
         # `threshold`: https://docs.codecov.com/docs/commit-status#threshold
         informational: true
+comment: false
