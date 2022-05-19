@@ -169,10 +169,8 @@ proc verifyPairingsNeg[C](a1: ECP_ShortW_Jac[Fp[C], G1], a2: ec_p2, b1: ec_p1, b
 
 proc verifyPairings*(a1: ec_p1, a2: ec_p2, b1: ec_p1, b2: ec_p2) : bool =
   ## Wrapper to select verify pairings implementation
-  when C == BLS12_381:
-    verifyPairingsNeg(a1, a2, b1, b2)
-  else:
-    verifyPairingsNaive(a1, a2, b1, b2)
+  verifyPairingsNeg(a1, a2, b1, b2)
+  #verifyPairingsNaive(a1, a2, b1, b2)
 
 
 func ec_from_bytes*(
