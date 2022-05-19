@@ -8,7 +8,6 @@
 ## those terms.
 
 import std/tables
-import std/sequtils
 
 import pkg/upraises
 
@@ -52,12 +51,6 @@ proc getWantHandle*(
   finally:
     p.blocks.del(cid)
 
-proc addOrAwait*(
-  p: PendingBlocksManager,
-  cid: Cid,
-  timeout = DefaultBlockTimeout): Future[Block] {.deprecated: "Use getWantHandle".} =
-  p.getWantHandle(cid, timeout)
-
 proc resolve*(
   p: PendingBlocksManager,
   blocks: seq[Block]) =
@@ -94,5 +87,4 @@ func len*(p: PendingBlocksManager): int =
 
 func new*(T: type PendingBlocksManager): T =
   T(
-    blocks: initTable[Cid, Future[Block]]()
-  )
+    blocks: initTable[Cid, Future[Block]]())

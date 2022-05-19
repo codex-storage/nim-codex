@@ -35,7 +35,10 @@ suite "Test Node":
     engine: BlockExcEngine
     store: NetworkStore
     node: DaggerNodeRef
-    discovery: Discovery
+    blockDiscovery: Discovery
+    peerStore: PeerCtxStore
+    pendingBlocks: PendingBlocksManager
+    discovery: DiscoveryEngine
     contracts: ?ContractInteractions
 
   setup:
@@ -45,11 +48,14 @@ suite "Test Node":
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
     localStore = CacheStore.new()
-    discovery = Discovery.new(switch.peerInfo, Port(0))
-    engine = BlockExcEngine.new(localStore, wallet, network, discovery)
+    blockDiscovery = Discovery.new(switch.peerInfo, Port(0))
+    peerStore = PeerCtxStore.new()
+    pendingBlocks = PendingBlocksManager.new()
+    discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
+    engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
     contracts = ContractInteractions.new()
-    node = DaggerNodeRef.new(switch, store, engine, nil, discovery, contracts) # TODO: pass `Erasure`
+    node = DaggerNodeRef.new(switch, store, engine, nil, blockDiscovery, contracts) # TODO: pass `Erasure`
 
     await node.start()
 

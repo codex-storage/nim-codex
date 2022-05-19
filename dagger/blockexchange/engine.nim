@@ -17,17 +17,17 @@ import pkg/libp2p
 import ../stores/blockstore
 import ../blocktype as bt
 import ../utils
-import ../discovery
 
 import ./protobuf/blockexc
 import ./protobuf/presence
 
 import ./network
-import ./pendingblocks
-import ./peercontext
+import ./peers
 import ./engine/payments
+import ./engine/discovery
+import ./pendingblocks
 
-export peercontext, payments, pendingblocks
+export peers, pendingblocks, payments, discovery
 
 logScope:
   topics = "dagger blockexc engine"
@@ -48,28 +48,18 @@ type
   TaskScheduler* = proc(task: BlockExcPeerCtx): bool {.gcsafe.}
 
   BlockExcEngine* = ref object of RootObj
-    localStore*: BlockStore                       # where we localStore blocks for this instance
-    network*: BlockExcNetwork                     # network interface
-    peers*: seq[BlockExcPeerCtx]                  # peers we're currently actively exchanging with
-    taskQueue*: AsyncHeapQueue[BlockExcPeerCtx]   # peers we're currently processing tasks for
-    concurrentTasks: int                          # number of concurrent peers we're serving at any given time
-    maxRetries: int                               # max number of tries for a failed block
-    blockexcTasks: seq[Future[void]]              # future to control blockexc task
-    blockexcRunning: bool                         # indicates if the blockexc task is running
-    pendingBlocks*: PendingBlocksManager          # blocks we're awaiting to be resolved
-    peersPerRequest: int                          # max number of peers to request from
-    wallet*: WalletRef                            # nitro wallet for micropayments
-    pricing*: ?Pricing                            # optional bandwidth pricing
-    discovery*: Discovery                         # Discovery interface
-    concurrentAdvReqs: int                        # Concurrent advertise requests
-    advertiseLoop*: Future[void]                  # Advertise loop task handle
-    advertiseQueue*: AsyncQueue[Cid]              # Advertise queue
-    advertiseTasks*: seq[Future[void]]            # Advertise tasks
-    concurrentDiscReqs: int                       # Concurrent discovery requests
-    discoveryLoop*: Future[void]                  # Discovery loop task handle
-    discoveryTasks*: seq[Future[void]]            # Discovery tasks
-    discoveryQueue*: AsyncQueue[Cid]              # Discovery queue
-    minPeersPerBlock*: int                        # Max number of peers with block
+    localStore*: BlockStore                       # Local block store for this instance
+    network*: BlockExcNetwork                     # Petwork interface
+    peers*: PeerCtxStore                          # Peers we're currently actively exchanging with
+    taskQueue*: AsyncHeapQueue[BlockExcPeerCtx]   # Peers we're currently processing tasks for
+    concurrentTasks: int                          # Number of concurrent peers we're serving at any given time
+    blockexcTasks: seq[Future[void]]              # Future to control blockexc task
+    blockexcRunning: bool                         # Indicates if the blockexc task is running
+    pendingBlocks*: PendingBlocksManager          # Blocks we're awaiting to be resolved
+    peersPerRequest: int                          # Max number of peers to request from
+    wallet*: WalletRef                            # Nitro wallet for micropayments
+    pricing*: ?Pricing                            # Optional bandwidth pricing
+    discovery*: DiscoveryEngine
 
   Pricing* = object
     address*: EthAddress
@@ -81,115 +71,19 @@ proc contains*(a: AsyncHeapQueue[Entry], b: Cid): bool =
 
   a.anyIt( it.cid == b )
 
-proc getPeerCtx*(b: BlockExcEngine, peerId: PeerID): BlockExcPeerCtx =
-  ## Get the peer's context
-  ##
-
-  let peer = b.peers.filterIt( it.id == peerId )
-  if peer.len > 0:
-    return peer[0]
-
 # attach task scheduler to engine
 proc scheduleTask(b: BlockExcEngine, task: BlockExcPeerCtx): bool {.gcsafe} =
   b.taskQueue.pushOrUpdateNoWait(task).isOk()
 
 proc blockexcTaskRunner(b: BlockExcEngine): Future[void] {.gcsafe.}
 
-proc discoveryLoopRunner(b: BlockExcEngine) {.async.} =
-  while b.blockexcRunning:
-    for cid in toSeq(b.pendingBlocks.wantList):
-      try:
-        await b.discoveryQueue.put(cid)
-      except CatchableError as exc:
-        trace "Exception in discovery loop", exc = exc.msg
-
-    trace "About to sleep, number of wanted blocks", wanted = b.pendingBlocks.len
-    await sleepAsync(30.seconds)
-
-proc advertiseLoopRunner*(b: BlockExcEngine) {.async.} =
-  proc onBlock(cid: Cid) {.async.} =
-    try:
-      await b.advertiseQueue.put(cid)
-    except CatchableError as exc:
-      trace "Exception listing blocks", exc = exc.msg
-
-  while b.blockexcRunning:
-    await b.localStore.listBlocks(onBlock)
-    await sleepAsync(30.seconds)
-
-  trace "Exiting advertise task loop"
-
-proc advertiseTaskRunner(b: BlockExcEngine) {.async.} =
-  ## Run advertise tasks
-  ##
-
-  while b.blockexcRunning:
-    try:
-      let cid = await b.advertiseQueue.get()
-      await b.discovery.provideBlock(cid)
-    except CatchableError as exc:
-      trace "Exception in advertise task runner", exc = exc.msg
-
-  trace "Exiting advertise task runner"
-
-proc discoveryTaskRunner(b: BlockExcEngine) {.async.} =
-  ## Run discovery tasks
-  ##
-
-  while b.blockexcRunning:
-    try:
-      let
-        cid = await b.discoveryQueue.get()
-        haves = b.peers.filterIt(
-          it.peerHave.anyIt( it == cid )
-        )
-
-      trace "Got peers for block", cid = $cid, count = haves.len
-      let
-        providers =
-          if haves.len < b.minPeersPerBlock:
-            await b.discovery
-              .findBlockProviders(cid)
-              .wait(DefaultDiscoveryTimeout)
-          else:
-            @[]
-
-      checkFutures providers.mapIt( b.network.dialPeer(it.data) )
-    except CatchableError as exc:
-      trace "Exception in discovery task runner", exc = exc.msg
-
-  trace "Exiting discovery task runner"
-
-template queueFindBlocksReq(b: BlockExcEngine, cids: seq[Cid]) =
-  proc queueReq() {.async.} =
-    try:
-      for cid in cids:
-        if cid notin b.discoveryQueue:
-          trace "Queueing find block request", cid = $cid
-          await b.discoveryQueue.put(cid)
-    except CatchableError as exc:
-      trace "Exception queueing discovery request", exc = exc.msg
-
-  asyncSpawn queueReq()
-
-template queueProvideBlocksReq(b: BlockExcEngine, cids: seq[Cid]) =
-  proc queueReq() {.async.} =
-    try:
-      for cid in cids:
-        if cid notin b.advertiseQueue:
-          trace "Queueing provide block request", cid = $cid
-          await b.advertiseQueue.put(cid)
-    except CatchableError as exc:
-      trace "Exception queueing discovery request", exc = exc.msg
-
-  asyncSpawn queueReq()
-
 proc start*(b: BlockExcEngine) {.async.} =
   ## Start the blockexc task
   ##
 
-  trace "blockexc start"
+  await b.discovery.start()
 
+  trace "Blockexc starting with concurrent tasks", tasks = b.concurrentTasks
   if b.blockexcRunning:
     warn "Starting blockexc twice"
     return
@@ -198,18 +92,11 @@ proc start*(b: BlockExcEngine) {.async.} =
   for i in 0..<b.concurrentTasks:
     b.blockexcTasks.add(blockexcTaskRunner(b))
 
-  for i in 0..<b.concurrentAdvReqs:
-    b.advertiseTasks.add(advertiseTaskRunner(b))
-
-  for i in 0..<b.concurrentDiscReqs:
-    b.discoveryTasks.add(discoveryTaskRunner(b))
-
-  b.advertiseLoop = advertiseLoopRunner(b)
-  b.discoveryLoop = discoveryLoopRunner(b)
-
 proc stop*(b: BlockExcEngine) {.async.} =
   ## Stop the blockexc blockexc
   ##
+
+  await b.discovery.stop()
 
   trace "NetworkStore stop"
   if not b.blockexcRunning:
@@ -222,28 +109,6 @@ proc stop*(b: BlockExcEngine) {.async.} =
       trace "Awaiting task to stop"
       await t.cancelAndWait()
       trace "Task stopped"
-
-  for t in b.advertiseTasks:
-    if not t.finished:
-      trace "Awaiting task to stop"
-      await t.cancelAndWait()
-      trace "Task stopped"
-
-  for t in b.discoveryTasks:
-    if not t.finished:
-      trace "Awaiting task to stop"
-      await t.cancelAndWait()
-      trace "Task stopped"
-
-  if not b.advertiseLoop.isNil and not b.advertiseLoop.finished:
-    trace "Awaiting advertise loop to stop"
-    await b.advertiseLoop.cancelAndWait()
-    trace "Advertise loop stopped"
-
-  if not b.discoveryLoop.isNil and not b.discoveryLoop.finished:
-    trace "Awaiting discovery loop to stop"
-    await b.discoveryLoop.cancelAndWait()
-    trace "Discovery loop stopped"
 
   trace "NetworkStore stopped"
 
@@ -262,30 +127,18 @@ proc requestBlock*(
   let
     blk = b.pendingBlocks.getWantHandle(cid, timeout)
 
-  if b.peers.len <= 0:
-    trace "No peers to request blocks from", cid = $cid
-    b.queueFindBlocksReq(@[cid])
-    return blk
+  var
+    peers = b.peers.selectCheapest(cid)
 
-  var peers = b.peers
+  if peers.len <= 0:
+    peers = toSeq(b.peers) # Get any peer
+    if peers.len <= 0:
+      trace "No peers to request blocks from", cid = $cid
+      b.discovery.queueFindBlocksReq(@[cid])
+      return blk
 
-  # get the first peer with at least one (any)
-  # matching cid
-  # TODO: this should be sorted by best to worst
-  var blockPeer: BlockExcPeerCtx
-  for p in peers:
-    if cid in p.peerHave:
-      blockPeer = p
-      break
-
-  # didn't find any peer with matching cids
-  if isNil(blockPeer):
-    blockPeer = peers[0]
-    trace "No peers with block, sending to first peer", peer = blockPeer.id
-
-  peers.keepItIf(
-    it != blockPeer and cid notin it.peerHave
-  )
+  let
+    blockPeer = peers[0] # get cheapest
 
   # request block
   b.network.request.sendWantList(
@@ -293,15 +146,15 @@ proc requestBlock*(
     @[cid],
     wantType = WantType.wantBlock) # we want this remote to send us a block
 
-  if peers.len == 0:
+  if (peers.len - 1) == 0:
     trace "Not enough peers to send want list to", cid = $cid
-    b.queueFindBlocksReq(@[cid])
+    b.discovery.queueFindBlocksReq(@[cid])
     return blk # no peers to send wants to
 
   # filter out the peer we've already requested from
   let stop = min(peers.high, b.peersPerRequest)
   trace "Sending want list requests to remaining peers", count = stop + 1
-  for p in peers[0..stop]:
+  for p in peers[1..stop]:
     if cid notin p.peerHave:
       # just send wants
       b.network.request.sendWantList(
@@ -319,7 +172,7 @@ proc blockPresenceHandler*(
   ##
 
   trace "Received presence update for peer", peer
-  let peerCtx = b.getPeerCtx(peer)
+  let peerCtx = b.peers.get(peer)
   if isNil(peerCtx):
     return
 
@@ -332,8 +185,7 @@ proc blockPresenceHandler*(
       it in peerCtx.peerHave
     )
 
-  trace "Received presence update for cids", peer, cids = $cids
-
+  trace "Received presence update for cids", peer, count = cids.len
   if cids.len > 0:
     b.network.request.sendWantList(
       peer,
@@ -342,23 +194,29 @@ proc blockPresenceHandler*(
 
   # if none of the connected peers report our wants in their have list,
   # fire up discovery
-  b.queueFindBlocksReq(toSeq(b.pendingBlocks.wantList)
-    .filter(proc(cid: Cid): bool =
-        (not b.peers.anyIt( cid in it.peerHave ))))
+  b.discovery.queueFindBlocksReq(
+    toSeq(b.pendingBlocks.wantList)
+    .filter do(cid: Cid) -> bool:
+      not b.peers.anyIt( cid in it.peerHave ))
 
 proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) =
   trace "Schedule a task for new blocks"
 
-  let cids = blocks.mapIt( it.cid )
+  let
+    cids = blocks.mapIt( it.cid )
+
   # schedule any new peers to provide blocks to
   for p in b.peers:
     for c in cids: # for each cid
-        # schedule a peer if it wants at least one
-        # cid and we have it in our local store
-        if c in p.peerWants and c in b.localStore:
-          if not b.scheduleTask(p):
-            trace "Unable to schedule task for peer", peer = p.id
-          break # do next peer
+      # schedule a peer if it wants at least one
+      # cid and we have it in our local store
+      if c in p.peerWants and c in b.localStore:
+        if b.scheduleTask(p):
+          trace "Task scheduled for peer", peer = p.id
+        else:
+          trace "Unable to schedule task for peer", peer = p.id
+
+        break # do next peer
 
 proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) =
   ## Resolve pending blocks from the pending blocks manager
@@ -369,7 +227,7 @@ proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) =
 
   b.pendingBlocks.resolve(blocks)
   b.scheduleTasks(blocks)
-  b.queueProvideBlocksReq(blocks.mapIt( it.cid ))
+  b.discovery.queueProvideBlocksReq(blocks.mapIt( it.cid ))
 
 proc payForBlocks(engine: BlockExcEngine,
                   peer: BlockExcPeerCtx,
@@ -396,7 +254,7 @@ proc blocksHandler*(
       continue
 
   b.resolveBlocks(blocks)
-  let peerCtx = b.getPeerCtx(peer)
+  let peerCtx = b.peers.get(peer)
   if peerCtx != nil:
     b.payForBlocks(peerCtx, blocks)
 
@@ -408,7 +266,7 @@ proc wantListHandler*(
   ##
 
   trace "Got want list for peer", peer
-  let peerCtx = b.getPeerCtx(peer)
+  let peerCtx = b.peers.get(peer)
   if isNil(peerCtx):
     return
 
@@ -449,7 +307,7 @@ proc accountHandler*(
   engine: BlockExcEngine,
   peer: PeerID,
   account: Account) {.async.} =
-  let context = engine.getPeerCtx(peer)
+  let context = engine.peers.get(peer)
   if context.isNil:
     return
 
@@ -459,7 +317,7 @@ proc paymentHandler*(
   engine: BlockExcEngine,
   peer: PeerId,
   payment: SignedState) {.async.} =
-  without context =? engine.getPeerCtx(peer).option and
+  without context =? engine.peers.get(peer).option and
           account =? context.account:
     return
 
@@ -494,7 +352,7 @@ proc dropPeer*(b: BlockExcEngine, peer: PeerID) =
   trace "Dropping peer", peer
 
   # drop the peer from the peers table
-  b.peers.keepItIf( it.id != peer )
+  b.peers.remove(peer)
 
 proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
   trace "Handling task for peer", peer = task.id
@@ -546,9 +404,13 @@ proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
   ## process tasks
   ##
 
+  trace "Starting blockexc task runner"
   while b.blockexcRunning:
-    let peerCtx = await b.taskQueue.pop()
-    asyncSpawn b.taskHandler(peerCtx)
+    let
+      peerCtx = await b.taskQueue.pop()
+
+    trace "Got new task from queue", peerId = peerCtx.id
+    await b.taskHandler(peerCtx)
 
   trace "Exiting blockexc task runner"
 
@@ -557,30 +419,23 @@ proc new*(
   localStore: BlockStore,
   wallet: WalletRef,
   network: BlockExcNetwork,
-  discovery: Discovery,
+  discovery: DiscoveryEngine,
+  peerStore: PeerCtxStore,
+  pendingBlocks: PendingBlocksManager,
   concurrentTasks = DefaultConcurrentTasks,
-  maxRetries = DefaultMaxRetries,
-  peersPerRequest = DefaultMaxPeersPerRequest,
-  concurrentAdvReqs = DefaultConcurrentAdvertRequests,
-  concurrentDiscReqs = DefaultConcurrentDiscRequests,
-  minPeersPerBlock = DefaultMinPeersPerBlock): T =
+  peersPerRequest = DefaultMaxPeersPerRequest): T =
 
   let
     engine = BlockExcEngine(
       localStore: localStore,
-      pendingBlocks: PendingBlocksManager.new(),
+      peers: peerStore,
+      pendingBlocks: pendingBlocks,
       peersPerRequest: peersPerRequest,
       network: network,
       wallet: wallet,
       concurrentTasks: concurrentTasks,
-      concurrentAdvReqs: concurrentAdvReqs,
-      concurrentDiscReqs: concurrentDiscReqs,
-      maxRetries: maxRetries,
       taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize),
-      discovery: discovery,
-      advertiseQueue: newAsyncQueue[Cid](DefaultTaskQueueSize),
-      discoveryQueue: newAsyncQueue[Cid](DefaultTaskQueueSize),
-      minPeersPerBlock: minPeersPerBlock)
+      discovery: discovery)
 
   proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
     if event.kind == PeerEventKind.Joined:

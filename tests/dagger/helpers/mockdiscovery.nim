@@ -16,8 +16,10 @@ import pkg/dagger/discovery
 
 type
   MockDiscovery* = ref object of Discovery
-    findBlockProvidersHandler*: proc(d: MockDiscovery, cid: Cid): seq[SignedPeerRecord] {.gcsafe.}
-    publishProvideHandler*: proc(d: MockDiscovery, cid: Cid) {.gcsafe.}
+    findBlockProvidersHandler*: proc(d: MockDiscovery, cid: Cid):
+      Future[seq[SignedPeerRecord]] {.gcsafe.}
+    publishProvideHandler*: proc(d: MockDiscovery, cid: Cid):
+      Future[void] {.gcsafe.}
 
 proc new*(
   T: type MockDiscovery,
@@ -36,13 +38,16 @@ proc findPeer*(
 method findBlockProviders*(
   d: MockDiscovery,
   cid: Cid): Future[seq[SignedPeerRecord]] {.async.} =
-  if isNil(d.findBlockProvidersHandler): return
+  if isNil(d.findBlockProvidersHandler):
+    return
 
-  return d.findBlockProvidersHandler(d, cid)
+  return await d.findBlockProvidersHandler(d, cid)
 
-method provideBlock*(d: MockDiscovery, cid: Cid) {.async.} =
-  if isNil(d.publishProvideHandler): return
-  d.publishProvideHandler(d, cid)
+method provideBlock*(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
+  if isNil(d.publishProvideHandler):
+    return
+
+  await d.publishProvideHandler(d, cid)
 
 proc start*(d: Discovery) {.async.} =
   discard

@@ -19,11 +19,9 @@ import ../blocktype as bt
 import ../utils/asyncheapqueue
 
 import ./blockstore
-import ../blockexchange/network
-import ../blockexchange/engine
-import ../blockexchange/peercontext
+import ../blockexchange
 
-export blockstore, network, engine, asyncheapqueue
+export blockstore, blockexchange, asyncheapqueue
 
 logScope:
   topics = "dagger networkstore"

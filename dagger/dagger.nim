@@ -110,7 +110,7 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
 
   let
     discoveryBootstrapNodes = config.bootstrapNodes
-    discovery = Discovery.new(
+    blockDiscovery = Discovery.new(
         switch.peerInfo,
         discoveryPort = config.discoveryPort,
         bootstrapNodes = discoveryBootstrapNodes
@@ -119,7 +119,10 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
     localStore = FSStore.new(config.dataDir / "repo", cache = cache)
-    engine = BlockExcEngine.new(localStore, wallet, network, discovery)
+    peerStore = PeerCtxStore.new()
+    pendingBlocks = PendingBlocksManager.new()
+    discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
+    engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     contracts = ContractInteractions.new(
@@ -127,7 +130,7 @@ proc new*(T: type DaggerServer, config: DaggerConf): T =
       config.ethDeployment,
       config.ethAccount
     )
-    daggerNode = DaggerNodeRef.new(switch, store, engine, erasure, discovery, contracts)
+    daggerNode = DaggerNodeRef.new(switch, store, engine, erasure, blockDiscovery, contracts)
     restServer = RestServerRef.new(
       daggerNode.initRestApi(config),
       initTAddress("127.0.0.1" , config.apiPort),

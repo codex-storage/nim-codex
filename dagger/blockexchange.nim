@@ -1,11 +1,10 @@
 import ./blockexchange/[
   network,
   engine,
-  peercontext]
+  peers]
 
 import ./blockexchange/protobuf/[
   blockexc,
-  payments,
   presence]
 
-export network, engine, peercontext, blockexc, payments, presence
+export network, engine, blockexc, presence, peers

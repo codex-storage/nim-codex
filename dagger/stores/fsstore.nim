@@ -130,7 +130,7 @@ method hasBlock*(self: FSStore, cid: Cid): bool =
   self.blockPath(cid).isFile()
 
 method listBlocks*(self: FSStore, onBlock: OnBlock) {.async.} =
-  debug "Finding all blocks in store"
+  debug "Listing all blocks in store"
   for (pkind, folderPath) in self.repoDir.walkDir():
     if pkind != pcDir: continue
     let baseName = basename(folderPath)
@@ -144,9 +144,14 @@ method listBlocks*(self: FSStore, onBlock: OnBlock) {.async.} =
         # compilation error if using different syntax/construct bellow
         try:
           await onBlock(cid.get())
+        except CancelledError as exc:
+          trace "Cancelling list blocks"
+          raise exc
         except CatchableError as exc:
           trace "Couldn't get block", cid = $(cid.get())
 
+      # TODO: this should run on a thread which
+      # wouldn't need the sleep
       await sleepAsync(100.millis) # avoid blocking
 
 proc new*(

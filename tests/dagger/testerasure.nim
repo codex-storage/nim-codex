@@ -9,7 +9,7 @@ import pkg/questionable/results
 import pkg/dagger/erasure
 import pkg/dagger/manifest
 import pkg/dagger/stores
-import pkg/dagger/blocktype
+import pkg/dagger/blocktype as bt
 import pkg/dagger/rng
 
 import ./helpers
@@ -32,7 +32,7 @@ suite "Erasure encode/decode":
       let chunk = await chunker.getBytes();
       chunk.len > 0):
 
-      let blk = Block.new(chunk).tryGet()
+      let blk = bt.Block.new(chunk).tryGet()
       manifest.add(blk.cid)
       check (await store.putBlock(blk))
 
@@ -84,7 +84,7 @@ suite "Erasure encode/decode":
       let chunk = await chunker.getBytes();
       chunk.len > 0):
 
-      let blk = Block.new(chunk).tryGet()
+      let blk = bt.Block.new(chunk).tryGet()
       manifest.add(blk.cid)
       check (await store.putBlock(blk))
 
@@ -134,7 +134,7 @@ suite "Erasure encode/decode":
       let chunk = await chunker.getBytes();
       chunk.len > 0):
 
-      let blk = Block.new(chunk).tryGet()
+      let blk = bt.Block.new(chunk).tryGet()
       manifest.add(blk.cid)
       check (await store.putBlock(blk))
 
@@ -187,7 +187,7 @@ suite "Erasure encode/decode":
       let chunk = await chunker.getBytes();
       chunk.len > 0):
 
-      let blk = Block.new(chunk).tryGet()
+      let blk = bt.Block.new(chunk).tryGet()
       manifest.add(blk.cid)
       check (await store.putBlock(blk))
 
@@ -246,7 +246,7 @@ suite "Erasure encode/decode":
       let chunk = await chunker.getBytes();
       chunk.len > 0):
 
-      let blk = Block.new(chunk).tryGet()
+      let blk = bt.Block.new(chunk).tryGet()
       manifest.add(blk.cid)
       check (await store.putBlock(blk))
 
@@ -287,7 +287,7 @@ suite "Erasure encode/decode":
       let chunk = await chunker.getBytes();
       chunk.len > 0):
 
-      let blk = Block.new(chunk).tryGet()
+      let blk = bt.Block.new(chunk).tryGet()
       manifest.add(blk.cid)
       check (await store.putBlock(blk))
 

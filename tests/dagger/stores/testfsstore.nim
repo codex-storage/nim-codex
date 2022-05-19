@@ -11,6 +11,7 @@ import pkg/stew/byteutils
 import pkg/dagger/stores/cachestore
 import pkg/dagger/chunker
 import pkg/dagger/stores
+import pkg/dagger/blocktype as bt
 
 import ../helpers
 
@@ -21,7 +22,7 @@ suite "FS Store":
   var
     store: FSStore
     repoDir: string
-    newBlock = Block.new("New Block".toBytes()).tryGet()
+    newBlock = bt.Block.new("New Block".toBytes()).tryGet()
 
   setup:
     repoDir = path.parentDir / "repo"

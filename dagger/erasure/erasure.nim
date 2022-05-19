@@ -19,7 +19,7 @@ import pkg/chronicles
 import ../manifest
 import ../stores
 import ../errors
-import ../blocktype
+import ../blocktype as bt
 
 import ./backend
 
@@ -96,7 +96,7 @@ proc encode*(
 
   try:
     for i in 0..<encoded.steps:
-      # TODO: Don't allocate a new seq everytime, allocate once and zero out
+      # TODO: Don't allocate a new seq every time, allocate once and zero out
       var
         data = newSeq[seq[byte]](blocks) # number of blocks to encode
         parityData = newSeqWith[seq[byte]](parity, newSeq[byte](manifest.blockSize))
@@ -133,7 +133,7 @@ proc encode*(
 
       for j in 0..<parity:
         let idx = encoded.rounded + blockIdx[j]
-        without blk =? Block.new(parityData[j]), error:
+        without blk =? bt.Block.new(parityData[j]), error:
           trace "Unable to create parity block", err = error.msg
           return failure(error)
 
@@ -173,7 +173,7 @@ proc decode*(
 
   try:
     for i in 0..<encoded.steps:
-      # TODO: Don't allocate a new seq everytime, allocate once and zero out
+      # TODO: Don't allocate a new seq every time, allocate once and zero out
       let
         # calculate block indexes to retrieve
         blockIdx = toSeq(countup(i, encoded.len - 1, encoded.steps))
@@ -237,7 +237,7 @@ proc decode*(
 
       for i in 0..<encoded.K:
         if data[i].len <= 0:
-          without blk =? Block.new(recovered[i]), error:
+          without blk =? bt.Block.new(recovered[i]), error:
             trace "Unable to create block!", exc = error.msg
             return failure(error)
 
