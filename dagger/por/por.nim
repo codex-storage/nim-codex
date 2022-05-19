@@ -78,7 +78,12 @@
 # The size of the proof is instead
 #   s * 32 + 48 bytes
 
-import ./backends/backend_constantine
+# Select backend to use
+#  - blst supports only the BLS12-381 curve
+#  - constantine is more experimental, supports BLS and BN curves as well
+# As of now configuration of backends is in the backend_* file itself
+import ./backends/backend_blst
+#import ./backends/backend_constantine
 
 import ../rng
 import endians
