@@ -32,8 +32,8 @@ const
   DefaultConcurrentAdvertRequests = 10
   DefaultDiscoveryTimeout = 1.minutes
   DefaultMinPeersPerBlock = 3
-  DefaultDiscoveryLoopSleep = 30.seconds
-  DefaultAdvertiseLoopSleep = 30.seconds
+  DefaultDiscoveryLoopSleep = 3.seconds
+  DefaultAdvertiseLoopSleep = 3.seconds
 
 type
   DiscoveryEngine* = ref object of RootObj
@@ -69,7 +69,7 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
       sleep = b.discoveryLoopSleep
       wanted = b.pendingBlocks.len
 
-    trace "About to sleep discovery loop, number of wanted blocks"
+    trace "About to sleep discovery loop"
     await sleepAsync(b.discoveryLoopSleep)
 
 proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
@@ -104,6 +104,7 @@ proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
         continue
 
       try:
+        trace "Advertising block", cid = $cid
         let request = b.discovery.provideBlock(cid)
         b.inFlightAdvReqs[cid] = request
         await request
@@ -132,7 +133,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
 
       trace "Current number of peers for block", cid = $cid, count = haves.len
       if haves.len < b.minPeersPerBlock:
-        trace "Issuing discovery request", cid = $cid
+        trace "Discovering block", cid = $cid
         try:
           let
             request = b.discovery
@@ -140,8 +141,12 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
               .wait(DefaultDiscoveryTimeout)
 
           b.inFlightDiscReqs[cid] = request
+          let
+            peers = await request
 
-          checkFutures (await request).mapIt( b.network.dialPeer(it.data) )
+          trace "Discovered peers", peers = peers.len
+          checkFutures(
+            await allFinished(peers.mapIt( b.network.dialPeer(it.data))))
         finally:
           b.inFlightDiscReqs.del(cid)
     except CatchableError as exc:
