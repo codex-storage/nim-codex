@@ -1,5 +1,5 @@
 import std/os
-import dagger/contracts
+import codex/contracts
 import ../ethertest
 import ./examples
 

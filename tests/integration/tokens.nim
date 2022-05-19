@@ -1,5 +1,5 @@
-import dagger/contracts
-import dagger/contracts/testtoken
+import codex/contracts
+import codex/contracts/testtoken
 
 proc mint*(signer: Signer, amount = 1_000_000.u256) {.async.} =
   ## Mints a considerable amount of tokens and approves them for transfer to

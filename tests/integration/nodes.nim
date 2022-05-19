@@ -4,7 +4,7 @@ import std/streams
 import std/strutils
 
 const workingDir = currentSourcePath() / ".." / ".." / ".."
-const executable = "build" / "dagger"
+const executable = "build" / "codex"
 
 proc startNode*(args: openArray[string], debug = false): Process =
   if debug:
@@ -13,7 +13,7 @@ proc startNode*(args: openArray[string], debug = false): Process =
   else:
     result = startProcess(executable, workingDir, args)
     for line in result.outputStream.lines:
-      if line.contains("Started dagger node"):
+      if line.contains("Started codex node"):
         break
 
 proc stop*(node: Process) =

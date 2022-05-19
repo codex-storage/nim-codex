@@ -1,6 +1,6 @@
 import pkg/chronos
-import dagger/contracts
-import dagger/contracts/testtoken
+import codex/contracts
+import codex/contracts/testtoken
 import ../ethertest
 import ./examples
 import ./time

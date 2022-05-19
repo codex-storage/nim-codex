@@ -1,6 +1,6 @@
 import std/times
 import pkg/chronos
-import dagger/contracts/clock
+import codex/contracts/clock
 import ../ethertest
 
 ethersuite "On-Chain Clock":

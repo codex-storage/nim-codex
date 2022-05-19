@@ -27,8 +27,8 @@ ethersuite "Integration tests":
       "--udp-port=8091",
       "--eth-account=" & $accounts[1]
     ]
-    baseurl1 = "http://localhost:8080/api/dagger/v1"
-    baseurl2 = "http://localhost:8081/api/dagger/v1"
+    baseurl1 = "http://localhost:8080/api/codex/v1"
+    baseurl2 = "http://localhost:8081/api/codex/v1"
     client = newHttpClient()
 
   teardown:
