@@ -174,10 +174,11 @@ proc broadcastBlocks*(
   ##
 
   if id notin b.peers:
+    trace "Unable to send blocks, peer disconnected", peer = id
     return
 
-  trace "Sending blocks to peer", peer = id, len = blocks.len
   b.peers.withValue(id, peer):
+    trace "Sending blocks to peer", peer = id, len = blocks.len
     peer[].broadcast(pb.Message(payload: makeBlocks(blocks)))
 
 proc handleBlockPresence(
@@ -244,19 +245,19 @@ proc handlePayment(network: BlockExcNetwork,
 proc rpcHandler(b: BlockExcNetwork, peer: NetworkPeer, msg: Message) {.async.} =
   try:
     if msg.wantlist.entries.len > 0:
-      await b.handleWantList(peer, msg.wantlist)
+      asyncSpawn b.handleWantList(peer, msg.wantlist)
 
     if msg.payload.len > 0:
-      await b.handleBlocks(peer, msg.payload)
+      asyncSpawn b.handleBlocks(peer, msg.payload)
 
     if msg.blockPresences.len > 0:
-      await b.handleBlockPresence(peer, msg.blockPresences)
+      asyncSpawn b.handleBlockPresence(peer, msg.blockPresences)
 
     if account =? Account.init(msg.account):
-      await b.handleAccount(peer, account)
+      asyncSpawn b.handleAccount(peer, account)
 
     if payment =? SignedState.init(msg.payment):
-      await b.handlePayment(peer, payment)
+      asyncSpawn b.handlePayment(peer, payment)
 
   except CatchableError as exc:
     trace "Exception in blockexc rpc handler", exc = exc.msg
@@ -299,7 +300,7 @@ proc dialPeer*(b: BlockExcNetwork, peer: PeerRecord) {.async.} =
   try:
     await b.switch.connect(peer.peerId, peer.addresses.mapIt(it.address))
   except CatchableError as exc:
-    debug "Failed to connect to peer", error=exc.msg
+    debug "Failed to connect to peer", error = exc.msg, peer
 
 proc dropPeer*(b: BlockExcNetwork, peer: PeerID) =
   ## Cleanup disconnected peer
