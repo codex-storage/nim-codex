@@ -15,8 +15,8 @@ import pkg/codex/chunker
 import pkg/codex/discovery
 import pkg/codex/blocktype as bt
 
-import ../helpers
-import ../examples
+import ../../helpers
+import ../../examples
 
 suite "NetworkStore engine - 2 nodes":
   let
