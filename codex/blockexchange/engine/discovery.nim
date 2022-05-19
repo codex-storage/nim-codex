@@ -22,7 +22,7 @@ import ../../utils
 import ../../discovery
 import ../../stores/blockstore
 
-import ../pendingblocks
+import ./pendingblocks
 
 logScope:
   topics = "codex discovery engine"

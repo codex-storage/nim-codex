@@ -1,3 +1,12 @@
+## Nim-Codex
+## Copyright (c) 2021 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
+
 import std/sequtils
 import std/tables
 import pkg/libp2p
@@ -5,9 +14,9 @@ import pkg/chronos
 import pkg/nitro
 import pkg/questionable
 
-import ./protobuf/blockexc
-import ./protobuf/payments
-import ./protobuf/presence
+import ../protobuf/blockexc
+import ../protobuf/payments
+import ../protobuf/presence
 
 export payments, nitro
 

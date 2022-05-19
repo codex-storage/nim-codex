@@ -17,8 +17,8 @@ import pkg/codex/discovery
 import pkg/codex/blocktype as bt
 import pkg/codex/utils/asyncheapqueue
 
-import ../helpers
-import ../examples
+import ../../helpers
+import ../../examples
 
 suite "NetworkStore engine basic":
   var
