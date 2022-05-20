@@ -130,9 +130,8 @@ proc retrieve*(
       try:
         let
           divisor = manifest.blocks.len div 100
-          steps = manifest.blocks.len div divisor
-        trace "Prefetching with divisor, in steps", divisor, steps
-        for blks in manifest.blocks.distribute(steps, true):
+        trace "Prefetching with divisor, in steps", divisor
+        for blks in manifest.blocks.distribute(divisor, true):
           discard await allFinished(
             blks.mapIt( node.blockStore.getBlock( it ) ))
       except CatchableError as exc:
