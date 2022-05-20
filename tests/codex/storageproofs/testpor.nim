@@ -51,11 +51,7 @@ suite "BLS PoR":
         ssk,
         spk,
         BlockSize)
-
-    let q = generateQuery(por.tau, QueryLen)
-    # echo "Generated!" , " q:", q
-
-    let
+      q = generateQuery(por.tau, QueryLen)
       proof = await generateProof(
         StoreStream.new(store, manifest),
         q,
