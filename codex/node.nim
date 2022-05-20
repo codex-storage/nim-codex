@@ -128,8 +128,13 @@ proc retrieve*(
       ## Initiates requests to all blocks in the manifest
       ##
       try:
-        discard await allFinished(
-          manifest.mapIt( node.blockStore.getBlock( it ) ))
+        let
+          divisor = manifest.blocks.len div 100
+          steps = manifest.blocks.len div divisor
+        trace "Prefetching with divisor, in steps", divisor, steps
+        for blks in manifest.blocks.distribute(steps, true):
+          discard await allFinished(
+            blks.mapIt( node.blockStore.getBlock( it ) ))
       except CatchableError as exc:
         trace "Exception prefetching blocks", exc = exc.msg
 
