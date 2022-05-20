@@ -82,7 +82,7 @@ proc handleWantList(
   if isNil(b.handlers.onWantList):
     return
 
-  trace "Handling want list for peer", peer = peer.id
+  trace "Handling want list for peer", peer = peer.id, items = list.entries.len
   b.handlers.onWantList(peer.id, list)
 
 # TODO: make into a template
@@ -119,7 +119,7 @@ proc broadcastWantList*(
   if id notin b.peers:
     return
 
-  trace "Sending want list to peer", peer = id, `type` = $wantType, len = cids.len
+  trace "Sending want list to peer", peer = id, `type` = $wantType, items = cids.len
 
   let
     wantList = makeWantList(
@@ -142,7 +142,7 @@ proc handleBlocks(
   if isNil(b.handlers.onBlocks):
     return
 
-  trace "Handling blocks for peer", peer = peer.id
+  trace "Handling blocks for peer", peer = peer.id, items = blocks.len
 
   var blks: seq[bt.Block]
   for blob in blocks:
@@ -178,7 +178,7 @@ proc broadcastBlocks*(
     return
 
   b.peers.withValue(id, peer):
-    trace "Sending blocks to peer", peer = id, len = blocks.len
+    trace "Sending blocks to peer", peer = id, items = blocks.len
     peer[].broadcast(pb.Message(payload: makeBlocks(blocks)))
 
 proc handleBlockPresence(
@@ -191,7 +191,7 @@ proc handleBlockPresence(
   if isNil(b.handlers.onPresence):
     return
 
-  trace "Handling block presence for peer", peer = peer.id
+  trace "Handling block presence for peer", peer = peer.id, items = presence.len
   b.handlers.onPresence(peer.id, presence)
 
 proc broadcastBlockPresence*(
@@ -204,7 +204,7 @@ proc broadcastBlockPresence*(
   if id notin b.peers:
     return
 
-  trace "Sending presence to peer", peer = id
+  trace "Sending presence to peer", peer = id, items = presence.len
   b.peers.withValue(id, peer):
     peer[].broadcast(Message(blockPresences: @presence))
 
