@@ -2,7 +2,7 @@ import std/sets
 import std/tables
 import std/sequtils
 import pkg/upraises
-import pkg/codex/por/timing/proofs
+import pkg/codex/storageproofs
 
 type
   MockProofs* = ref object of Proofs
