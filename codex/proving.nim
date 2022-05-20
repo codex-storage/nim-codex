@@ -6,7 +6,7 @@ import ./storageproofs
 import ./clock
 
 export sets
-export proofs
+export storageproofs
 
 type
   Proving* = ref object

@@ -1,4 +1,4 @@
-import ./periods
-import ./proofs
+import ./timing/periods
+import ./timing/proofs
 
 export periods, proofs
