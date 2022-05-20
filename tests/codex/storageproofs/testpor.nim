@@ -14,20 +14,18 @@ import ../helpers
 const
   SectorSize = 31
   SectorsPerBlock = BlockSize div SectorSize
-  QueryLen = 22
   DataSetSize = BlockSize * 100
 
 suite "BLS PoR":
-  let
-    chunker = RandomChunker.new(Rng.instance(), size = DataSetSize, chunkSize = BlockSize)
-
   var
+    chunker: RandomChunker
     manifest: Manifest
     store: BlockStore
     ssk: por.SecretKey
     spk: por.PublicKey
 
   setup:
+    chunker = RandomChunker.new(Rng.instance(), size = DataSetSize, chunkSize = BlockSize)
     store = CacheStore.new(cacheSize = DataSetSize, chunkSize = BlockSize)
     manifest = Manifest.new(blockSize = BlockSize).tryGet()
     (spk, ssk) = por.keyGen()
@@ -43,15 +41,14 @@ suite "BLS PoR":
       if not (await store.putBlock(blk)):
         raise newException(CatchableError, "Unable to store block " & $blk.cid)
 
-  # TODO: quick and dirty smoke test, needs more elaborate tests
-  test "Test setup":
+  test "Test PoR without corruption":
     let
       por = await PoR.init(
         StoreStream.new(store, manifest),
         ssk,
         spk,
         BlockSize)
-      q = generateQuery(por.tau, QueryLen)
+      q = generateQuery(por.tau, 22)
       proof = await generateProof(
         StoreStream.new(store, manifest),
         q,
@@ -59,3 +56,21 @@ suite "BLS PoR":
         SectorsPerBlock)
 
     check por.verifyProof(q, proof.mu, proof.sigma)
+
+  test "Test PoR with corruption - query: 22, corrupted blocks: 300, bytes: 10":
+    let
+      por = await PoR.init(
+        StoreStream.new(store, manifest),
+        ssk,
+        spk,
+        BlockSize)
+      pos = await store.corruptBlocks(manifest, 30, 10)
+      q = generateQuery(por.tau, 22)
+      proof = await generateProof(
+        StoreStream.new(store, manifest),
+        q,
+        por.authenticators,
+        SectorsPerBlock)
+
+    check pos.len == 30
+    check not por.verifyProof(q, proof.mu, proof.sigma)

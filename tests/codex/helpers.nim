@@ -28,10 +28,10 @@ proc lenPrefix*(msg: openArray[byte]): seq[byte] =
 
   return buf
 
-proc deleteBlocks(
+proc corruptBlocks*(
   store: BlockStore,
   manifest: Manifest,
-  blks, bytes: int) {.async.} =
+  blks, bytes: int): Future[seq[int]] {.async.} =
   var pos: seq[int]
   while true:
     if pos.len >= blks:
@@ -56,3 +56,5 @@ proc deleteBlocks(
 
       bytePos.add(ii)
       blk.data[ii] = byte 0
+
+  return pos
