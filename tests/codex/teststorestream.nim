@@ -8,7 +8,6 @@ import ./helpers
 import pkg/codex/streams
 import pkg/codex/stores
 import pkg/codex/manifest
-import pkg/codex/rng
 import pkg/codex/blocktype as bt
 
 suite "StoreStream":
