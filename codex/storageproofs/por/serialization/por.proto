@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+message PoREnvelope {
+  message TauZeroMessage {
+    bytes name = 1;
+    int64 n = 2;
+    repeated bytes u = 3;
+  }
+
+  message TauMessage {
+    TauZeroMessage t = 1;
+    bytes signature = 2;
+  }
+
+  message ProofMessage {
+    repeated bytes mu = 1;
+    bytes sigma = 2;
+  }
+
+  message PubKeyMessage {
+    bytes signkey = 1;
+    bytes key = 2;
+  }
+
+  message PorMessage {
+    TauMessage tau = 1;
+    PubKeyMessage spk = 2;
+    repeated bytes authenticators = 3;
+  }
+
+  PorMessage por = 1;
+  ProofMessage proof = 2;
+}
