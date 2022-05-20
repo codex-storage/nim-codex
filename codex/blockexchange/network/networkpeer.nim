@@ -38,7 +38,7 @@ proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
     return
 
   try:
-    while not conn.atEof:
+    while not conn.atEof or not conn.closed:
       let
         data = await conn.readLp(MaxMessageSize)
         msg: Message = Protobuf.decode(data, Message)

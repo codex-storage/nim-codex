@@ -34,6 +34,9 @@ import ./contracts
 logScope:
   topics = "codex node"
 
+const
+  PrefetchBatch = 100
+
 type
   CodexError = object of CatchableError
 
@@ -128,8 +131,12 @@ proc retrieve*(
       ## Initiates requests to all blocks in the manifest
       ##
       try:
-        discard await allFinished(
-          manifest.mapIt( node.blockStore.getBlock( it ) ))
+        let
+          batch = manifest.blocks.len div PrefetchBatch
+        trace "Prefetching in batches of", batch
+        for blks in manifest.blocks.distribute(batch, true):
+          discard await allFinished(
+            blks.mapIt( node.blockStore.getBlock( it ) ))
       except CatchableError as exc:
         trace "Exception prefetching blocks", exc = exc.msg
 
