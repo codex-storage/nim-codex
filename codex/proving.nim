@@ -2,7 +2,7 @@ import std/sets
 import pkg/upraises
 import pkg/questionable
 import pkg/chronicles
-import ./por/timing/proofs
+import ./storageproofs
 import ./clock
 
 export sets
