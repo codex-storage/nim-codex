@@ -17,7 +17,11 @@ import pkg/blscurve/blst/blst_abi
 
 import_proto3 "por.proto"
 
-export TauZeroMessage, TauMessage, ProofMessage, PorMessage, PoREnvelope
+export TauZeroMessage
+export TauMessage
+export ProofMessage
+export PorMessage
+export PoREnvelope
 
 import ../por
 
@@ -56,7 +60,7 @@ func fromMessage*(self: ProofMessage): Result[Proof, string] =
 
   ok(proof)
 
-func toMessage*(self: TauZero, compress = false): TauZeroMessage =
+func toMessage*(self: TauZero): TauZeroMessage =
   var
     message = TauZeroMessage(
       name: toSeq(self.name),
@@ -93,7 +97,9 @@ func fromMessage*(self: TauZeroMessage): Result[TauZero, string] =
   ok(tauZero)
 
 func toMessage*(self: Tau): TauMessage =
-  TauMessage(t: self.t.toMessage(), signature: toSeq(self.signature))
+  TauMessage(
+    t: self.t.toMessage(),
+    signature: toSeq(self.signature)) # signature is already in serialized form
 
 func fromMessage*(self: TauMessage): Result[Tau, string] =
   var
@@ -105,7 +111,8 @@ func fromMessage*(self: TauMessage): Result[Tau, string] =
 
 func toMessage*(self: por.PublicKey): PubKeyMessage =
   var
-    message = PubKeyMessage(signkey: toSeq(self.signkey.exportRaw()))
+    signkey = toSeq(self.signkey.exportUncompressed())
+    message = PubKeyMessage(signkey: signkey)
     key: array[192, byte]
 
   blst_p2_serialize(key, self.key)
@@ -118,7 +125,7 @@ func fromMessage*(self: PubKeyMessage): Result[por.PublicKey, string] =
     spk: por.PublicKey
     keyAffine: blst_p2_affine
 
-  if not spk.signkey.fromBytes(self.signkey.toOpenArray(0, 47)):
+  if not spk.signkey.fromBytes(self.signkey.toOpenArray(0, 95)):
     return err("Unable to deserialize public key!")
 
   if blst_p2_deserialize(keyAffine, toArray(192, self.key)) != BLST_SUCCESS:
