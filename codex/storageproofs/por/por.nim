@@ -335,49 +335,6 @@ proc generateAuthenticator(
   return generateAuthenticatorOpt(stream, ssk, i, s, t, ubase)
   # doAssert(a.blst_p1_is_equal(b).bool)
 
-proc init*(
-  T: type PoR,
-  stream: SeekableStream,
-  ssk: SecretKey,
-  spk: PublicKey,
-  blockSize: int64): Future[PoR] {.async.} =
-  ## Set up the POR scheme by generating tags and metadata
-  ##
-
-  doAssert(
-    (blockSize mod BytesPerSector) == 0,
-    "Block size should be divisible by `BytesPerSector`")
-
-  let
-    s = blockSize div BytesPerSector
-    n = stream.sectorsCount(s)
-
-  var t = TauZero(n: n)
-
-  # generate a random name
-  for i in 0..<Namelen:
-    t.name[i] = byte Rng.instance.rand(0xFF)
-
-  # generate the coefficient vector for combining sectors of a block: U
-  var ubase: seq[blst_scalar]
-  for i in 0..<s:
-    let (u, ub) = rndP1()
-    t.u.add(u)
-    ubase.add(ub)
-
-  #TODO: a better bytearray conversion of TauZero for the signature might be needed
-  #      the current conversion using $t might be architecture dependent and not unique
-  let
-    signature = sign(ssk.signkey, $t)
-    tau = Tau(t: t, signature: signature.exportRaw())
-
-  #generate sigmas
-  var sigmas: seq[blst_p1]
-  for i in 0..<n:
-    sigmas.add((await stream.generateAuthenticator(ssk, i, s, t, ubase)))
-
-  return PoR(ssk: ssk, spk: spk, tau: tau, authenticators: sigmas)
-
 proc generateQuery*(tau: Tau, l: int): seq[QElement] =
   ## Generata a random BLS query of given size
   ##
@@ -526,3 +483,51 @@ proc verifyProof*(
   g.blst_p2_from_affine(BLS12_381_G2)
 
   return verifyPairings(sum, self.spk.key, sigma, g)
+
+proc init*(
+  T: type PoR,
+  stream: SeekableStream,
+  ssk: SecretKey,
+  spk: PublicKey,
+  blockSize: int64): Future[PoR] {.async.} =
+  ## Set up the POR scheme by generating tags and metadata
+  ##
+
+  doAssert(
+    (blockSize mod BytesPerSector) == 0,
+    "Block size should be divisible by `BytesPerSector`")
+
+  let
+    s = blockSize div BytesPerSector
+    n = stream.sectorsCount(s)
+
+  # generate a random name
+  var t = TauZero(n: n)
+  for i in 0..<Namelen:
+    t.name[i] = byte Rng.instance.rand(0xFF)
+
+  # generate the coefficient vector for combining sectors of a block: U
+  var ubase: seq[blst_scalar]
+  for i in 0..<s:
+    let (u, ub) = rndP1()
+    t.u.add(u)
+    ubase.add(ub)
+
+  #TODO: a better bytearray conversion of TauZero for the signature might be needed
+  #      the current conversion using $t might be architecture dependent and not unique
+  let
+    signature = sign(ssk.signkey, $t)
+    tau = Tau(t: t, signature: signature.exportRaw())
+
+  # generate sigmas
+  var
+    sigmas: seq[blst_p1]
+
+  for i in 0..<n:
+    sigmas.add((await stream.generateAuthenticator(ssk, i, s, t, ubase)))
+
+  return PoR(
+    ssk: ssk,
+    spk: spk,
+    tau: tau,
+    authenticators: sigmas)
