@@ -12,6 +12,6 @@ import ./codex/testerasure
 import ./codex/testproving
 
 # to check that everything compiles
-# import ../codex
+import ../codex
 
 {.warning[UnusedImport]: off.}
