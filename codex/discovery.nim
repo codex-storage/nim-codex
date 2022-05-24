@@ -17,7 +17,7 @@ import pkg/libp2p/signed_envelope
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/shims/net
-import pkg/contractabi/address as cta
+import pkg/contractabi/address as ca
 import pkg/libp2pdht/discv5/protocol as discv5
 
 import ./rng
@@ -61,7 +61,7 @@ proc toDiscoveryId*(cid: Cid): NodeId =
   ## To discovery id
   readUintBE[256](keccak256.digest(cid.data.buffer).data)
 
-proc toDiscoveryId*(host: cta.Address): NodeId =
+proc toDiscoveryId*(host: ca.Address): NodeId =
   ## To discovery id
   readUintBE[256](keccak256.digest(host.toArray).data)
 
@@ -95,7 +95,7 @@ method provide*(d: Discovery, cid: Cid) {.async, base.} =
 
 method find*(
   d: Discovery,
-  host: cta.Address): Future[seq[SignedPeerRecord]] {.async, base.} =
+  host: ca.Address): Future[seq[SignedPeerRecord]] {.async, base.} =
   ## Find host providers
   ##
 
@@ -114,7 +114,7 @@ method find*(
 
   return providers
 
-method provide*(d: Discovery, host: cta.Address) {.async, base.} =
+method provide*(d: Discovery, host: ca.Address) {.async, base.} =
   ## Provide hosts
   ##
 
