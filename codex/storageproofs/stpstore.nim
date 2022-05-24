@@ -21,14 +21,14 @@ import pkg/protobuf_serialization
 import ./por
 
 type
-  PorStore* = object
+  StpStore* = object
     authDir*: string
     postfixLen*: int
 
-template stpPath*(self: PorStore, cid: Cid): string =
+template stpPath*(self: StpStore, cid: Cid): string =
   self.authDir / ($cid)[^self.postfixLen..^1] / $cid
 
-proc retrieve*(self: PorStore, cid: Cid): Future[?!PorMessage] {.async.} =
+proc retrieve*(self: StpStore, cid: Cid): Future[?!PorMessage] {.async.} =
   ## Retrieve authenticators from data store
   ##
 
@@ -43,7 +43,7 @@ proc retrieve*(self: PorStore, cid: Cid): Future[?!PorMessage] {.async.} =
 
   return Protobuf.decode(data, PorMessage).success
 
-proc store*(self: PorStore, por: PoR, cid: Cid): Future[?!void] {.async.} =
+proc store*(self: StpStore, por: PoR, cid: Cid): Future[?!void] {.async.} =
   ## Persist storage proofs
   ##
 
@@ -66,9 +66,9 @@ proc store*(self: PorStore, por: PoR, cid: Cid): Future[?!void] {.async.} =
   return success()
 
 proc init*(
-  T: type PorStore,
+  T: type StpStore,
   authDir: string,
-  postfixLen: int = 2): PorStore =
+  postfixLen: int = 2): StpStore =
   T(
     authDir: authDir,
     postfixLen: postfixLen)

@@ -26,7 +26,7 @@ suite "Test PoR store":
     ssk: st.SecretKey
     spk: st.PublicKey
     repoDir: string
-    porstore: st.PorStore
+    porstore: st.StpStore
     por: PoR
     cid: Cid
 
@@ -55,7 +55,7 @@ suite "Test PoR store":
 
     repoDir = path.parentDir / "stp"
     createDir(repoDir)
-    porstore = st.PorStore.init(repoDir)
+    porstore = st.StpStore.init(repoDir)
 
   teardownAll:
     removeDir(repoDir)
