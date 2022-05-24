@@ -11,7 +11,6 @@ import pkg/codex/chunker
 import pkg/codex/rng
 import pkg/codex/blocktype as bt
 
-
 import ../helpers
 
 const
@@ -162,3 +161,5 @@ suite "Test Serialization":
     check:
       proof.sigma.blst_p1_is_equal(pproof.sigma).bool
       proof.mu == pproof.mu
+
+    check por.verifyProof(q, pproof.mu, pproof.sigma)
