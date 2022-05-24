@@ -47,10 +47,10 @@ proc decodeString(T: type Cid, value: string): Result[Cid, cstring] =
   .init(value)
   .mapErr do(e: CidError) -> cstring:
     case e
-    of CidError.Incorrect: "Incorrect Cid"
-    of CidError.Unsupported: "Unsupported Cid"
-    of CidError.Overrun: "Overrun Cid"
-    else: "Error parsing Cid"
+    of CidError.Incorrect: "Incorrect Cid".cstring
+    of CidError.Unsupported: "Unsupported Cid".cstring
+    of CidError.Overrun: "Overrun Cid".cstring
+    else: "Error parsing Cid".cstring
 
 proc encodeString(peerId: PeerID): Result[string, cstring] =
   ok($peerId)

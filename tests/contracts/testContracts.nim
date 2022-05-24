@@ -3,7 +3,7 @@ import pkg/chronos
 import pkg/nimcrypto
 import codex/contracts
 import codex/contracts/testtoken
-import codex/por/timing/periods
+import codex/storageproofs
 import ../ethertest
 import ./examples
 import ./time

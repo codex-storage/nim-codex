@@ -59,7 +59,7 @@ template EmptyDigests*: untyped =
         .get()
       }.toTable,
       CIDv1: {
-        multiCodec("sha2-256"): EmptyCid[CIDv0]
+        multiCodec("sha2-256"): EmptyCid[CIDv1]
         .catch
         .get()[multiCodec("sha2-256")]
         .catch

@@ -1,5 +1,5 @@
 import pkg/ethers
-import ../por/timing/proofs
+import ../storageproofs/timing/proofs
 import ./storage
 
 export proofs

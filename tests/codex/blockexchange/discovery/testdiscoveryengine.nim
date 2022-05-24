@@ -5,7 +5,6 @@ import std/tables
 import pkg/asynctest
 
 import pkg/chronos
-import pkg/chronicles
 import pkg/libp2p
 
 import pkg/codex/rng
