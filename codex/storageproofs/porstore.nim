@@ -25,16 +25,14 @@ type
     authDir*: string
     postfixLen*: int
 
-template authPath*(self: PorStore, cid: Cid): string =
+template stpPath*(self: PorStore, cid: Cid): string =
   self.authDir / ($cid)[^self.postfixLen..^1] / $cid
 
-proc retrieve*(
-  self: PorStore,
-  cid: Cid): Future[?!PorMessage] {.async.} =
+proc retrieve*(self: PorStore, cid: Cid): Future[?!PorMessage] {.async.} =
   ## Retrieve authenticators from data store
   ##
 
-  let path = self.authPath(cid)
+  let path = self.stpPath(cid)
   var data: seq[byte]
   if (
     let res = io2.readFile(path, data);
@@ -45,21 +43,18 @@ proc retrieve*(
 
   return Protobuf.decode(data, PorMessage).success
 
-proc store*(
-  self: PorStore,
-  por: PoR,
-  cid: Cid): Future[?!void] {.async.} =
+proc store*(self: PorStore, por: PoR, cid: Cid): Future[?!void] {.async.} =
   ## Persist storage proofs
   ##
 
   let
-    dir = self.authPath(cid).parentDir
+    dir = self.stpPath(cid).parentDir
 
   if io2.createPath(dir).isErr:
     trace "Unable to create storage proofs prefix dir", dir
     return failure(&"Unable to create storage proofs prefix dir ${dir}")
 
-  let path = self.authPath(cid)
+  let path = self.stpPath(cid)
   if (
     let res = io2.writeFile(path, Protobuf.encode(por.toMessage()));
     res.isErr):
