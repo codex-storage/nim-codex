@@ -76,7 +76,7 @@ suite "Block Advertising and Discovery":
 
     await engine.start()
 
-    blockDiscovery.publishProvideHandler =
+    blockDiscovery.publishBlockProvideHandler =
       proc(d: MockDiscovery, cid: Cid): Future[void] {.async, gcsafe.} =
         return
 
@@ -94,7 +94,7 @@ suite "Block Advertising and Discovery":
       advertised = initTable.collect:
         for b in blocks: {b.cid: newFuture[void]()}
 
-    blockDiscovery.publishProvideHandler = proc(d: MockDiscovery, cid: Cid) {.async.} =
+    blockDiscovery.publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid) {.async.} =
       if cid in advertised and not advertised[cid].finished():
         advertised[cid].complete()
 
@@ -189,15 +189,15 @@ suite "E2E - Multiple Nodes Discovery":
     var advertised: Table[Cid, SignedPeerRecord]
 
     MockDiscovery(blockexc[1].engine.discovery.discovery)
-      .publishProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
+      .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
         advertised.add(cid, switch[1].peerInfo.signedPeerRecord)
 
     MockDiscovery(blockexc[2].engine.discovery.discovery)
-      .publishProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
+      .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
         advertised.add(cid, switch[2].peerInfo.signedPeerRecord)
 
     MockDiscovery(blockexc[3].engine.discovery.discovery)
-      .publishProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
+      .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
         advertised.add(cid, switch[3].peerInfo.signedPeerRecord)
 
     await blockexc[1].engine.blocksHandler(switch[0].peerInfo.peerId, blocks[0..5])
@@ -231,15 +231,15 @@ suite "E2E - Multiple Nodes Discovery":
     var advertised: Table[Cid, SignedPeerRecord]
 
     MockDiscovery(blockexc[1].engine.discovery.discovery)
-      .publishProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
+      .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
         advertised[cid] = switch[1].peerInfo.signedPeerRecord
 
     MockDiscovery(blockexc[2].engine.discovery.discovery)
-      .publishProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
+      .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
         advertised[cid] = switch[2].peerInfo.signedPeerRecord
 
     MockDiscovery(blockexc[3].engine.discovery.discovery)
-      .publishProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
+      .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
         advertised[cid] = switch[3].peerInfo.signedPeerRecord
 
     await blockexc[1].engine.blocksHandler(switch[0].peerInfo.peerId, blocks[0..5])

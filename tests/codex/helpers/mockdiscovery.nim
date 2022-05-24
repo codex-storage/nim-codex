@@ -13,12 +13,17 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/shims/net
 import pkg/codex/discovery
+import pkg/contractabi/address as ca
 
 type
   MockDiscovery* = ref object of Discovery
     findBlockProvidersHandler*: proc(d: MockDiscovery, cid: Cid):
       Future[seq[SignedPeerRecord]] {.gcsafe.}
-    publishProvideHandler*: proc(d: MockDiscovery, cid: Cid):
+    publishBlockProvideHandler*: proc(d: MockDiscovery, cid: Cid):
+      Future[void] {.gcsafe.}
+    findHostProvidersHandler*: proc(d: MockDiscovery, host: ca.Address):
+      Future[seq[SignedPeerRecord]] {.gcsafe.}
+    publishHostProvideHandler*: proc(d: MockDiscovery, host: ca.Address):
       Future[void] {.gcsafe.}
 
 proc new*(
@@ -44,10 +49,24 @@ method find*(
   return await d.findBlockProvidersHandler(d, cid)
 
 method provide*(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
-  if isNil(d.publishProvideHandler):
+  if isNil(d.publishBlockProvideHandler):
     return
 
-  await d.publishProvideHandler(d, cid)
+  await d.publishBlockProvideHandler(d, cid)
+
+method find*(
+  d: MockDiscovery,
+  host: ca.Address): Future[seq[SignedPeerRecord]] {.async.} =
+  if isNil(d.findHostProvidersHandler):
+    return
+
+  return await d.findHostProvidersHandler(d, host)
+
+method provide*(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
+  if isNil(d.publishHostProvideHandler):
+    return
+
+  await d.publishHostProvideHandler(d, cid)
 
 proc start*(d: Discovery) {.async.} =
   discard
