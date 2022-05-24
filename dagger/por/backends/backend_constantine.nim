@@ -11,6 +11,9 @@
 # Shacham H., Waters B., "Compact Proofs of Retrievability"
 # using pairing over BLS12-381 ECC
 
+# use BLS12_381 curve by default.
+# Specify -d:por_curve_bn254 to use BN254_Snarks
+
 import
   constantine,
   # constantine/platforms/abstractions,
@@ -38,8 +41,10 @@ when defined(debugConstantine):
   export `$`
 
 #set up curve and G1/G2
-#const C = BN254_Snarks
-const C = BLS12_381
+when defined(por_curve_bn254):
+  const C = BN254_Snarks
+else:
+  const C = BLS12_381
 
 type
   ec_SecretKey* = SecretKey

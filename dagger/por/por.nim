@@ -9,7 +9,15 @@
 
 # Implementation of the BLS-based public PoS scheme from
 # Shacham H., Waters B., "Compact Proofs of Retrievability"
-# using pairing over BLS12-381 ECC
+# using pairing over the BLS12-381 ECC or BN254_Starks
+#
+# The implementation supports two backends:
+#  - BLST (default)
+#  - Constantine (-d:por_backend_constantine)
+#
+# The implementation supports PoR over the following curves:
+#  - BLS12-381 (default)
+#  - BN254_Starks (use -d:por_backend_constantine -d:por_curve_bn254)
 #
 # Notation from the paper
 # In Z:
@@ -82,8 +90,10 @@
 #  - blst supports only the BLS12-381 curve
 #  - constantine is more experimental, supports BLS and BN curves as well
 # As of now configuration of backends is in the backend_* file itself
-import ./backends/backend_blst
-#import ./backends/backend_constantine
+when defined(por_backend_constantine):
+  import ./backends/backend_constantine
+else:
+  import ./backends/backend_blst
 
 import ../rng
 import endians
