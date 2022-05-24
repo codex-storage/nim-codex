@@ -26,7 +26,7 @@ suite "Test PoR store":
     ssk: st.SecretKey
     spk: st.PublicKey
     repoDir: string
-    porstore: st.StpStore
+    stpstore: st.StpStore
     por: PoR
     cid: Cid
 
@@ -55,14 +55,14 @@ suite "Test PoR store":
 
     repoDir = path.parentDir / "stp"
     createDir(repoDir)
-    porstore = st.StpStore.init(repoDir)
+    stpstore = st.StpStore.init(repoDir)
 
   teardownAll:
     removeDir(repoDir)
 
-  test "Should store and retrieve Storage Proof":
-    check (await porstore.store(por, cid)).isOk
-    check fileExists(porstore.stpPath(cid))
+  test "Should store Storage Proofs":
+    check (await stpstore.store(por, cid)).isOk
+    check fileExists(stpstore.stpPath(cid))
 
   test "Should retrieve Storage Proofs":
-    discard (await porstore.retrieve(cid)).tryGet()
+    discard (await stpstore.retrieve(cid)).tryGet()
