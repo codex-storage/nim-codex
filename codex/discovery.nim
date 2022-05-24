@@ -25,6 +25,10 @@ import ./errors
 
 export discv5
 
+# TODO: If generics in methods had not been
+# deprecated, this could have been implemented
+# much more elegantly.
+
 type
   Discovery* = ref object of RootObj
     protocol: discv5.Protocol
@@ -47,23 +51,29 @@ proc new*(
     ),
     localInfo: localInfo)
 
+proc toDiscoveryId*(cid: Cid): NodeId =
+  ## Cid to discovery id
+  ##
+
+  readUintBE[256](keccak256.digest(cid.data.buffer).data)
+
+proc toDiscoveryId*(host: ca.Address): NodeId =
+  ## Eth address to discovery id
+  ##
+
+  readUintBE[256](keccak256.digest(host.toArray).data)
+
 proc findPeer*(
   d: Discovery,
   peerId: PeerID): Future[?PeerRecord] {.async.} =
-  let node = await d.protocol.resolve(toNodeId(peerId))
+  let
+    node = await d.protocol.resolve(toNodeId(peerId))
+
   return
     if node.isSome():
       some(node.get().record.data)
     else:
       none(PeerRecord)
-
-proc toDiscoveryId*(cid: Cid): NodeId =
-  ## To discovery id
-  readUintBE[256](keccak256.digest(cid.data.buffer).data)
-
-proc toDiscoveryId*(host: ca.Address): NodeId =
-  ## To discovery id
-  readUintBE[256](keccak256.digest(host.toArray).data)
 
 method find*(
   d: Discovery,
