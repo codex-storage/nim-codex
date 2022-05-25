@@ -15,16 +15,10 @@ import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/contractabi/address as ca
-
-import ../discovery
-
 import pkg/protobuf_serialization
 
-import_proto3 "stp.proto"
-
-export StorageProofsMessage
-export TagsMessage
-export Tag
+import ./stpproto
+import ../discovery
 
 const
   Codec* = "/dagger/storageproofs/1.0.0"
