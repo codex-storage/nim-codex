@@ -109,14 +109,14 @@ method find*(
   ## Find host providers
   ##
 
-  trace "Finding providers for host", host = host.toHex
+  trace "Finding providers for host", host = $host
   without var providers =?
     (await d.protocol.getProviders(host.toNodeId())).mapFailure, error:
-    trace "Error finding providers for host", cid, error
+    trace "Error finding providers for host", host = $host, exc = error.msg
     return
 
   if providers.len <= 0:
-    trace "No providers found", host = host.toHex
+    trace "No providers found", host = $host
     return
 
   providers.sort do(a, b: SignedPeerRecord) -> int:
@@ -128,7 +128,7 @@ method provide*(d: Discovery, host: ca.Address) {.async, base.} =
   ## Provide hosts
   ##
 
-  trace "Providing host", host = host.toHex
+  trace "Providing host", host = $host
   let
     nodes = await d.protocol.addProvider(
     host.toNodeId(),
