@@ -19,7 +19,7 @@ const
 suite "Test PoR store":
   let
     (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
-    blocks = toSeq([1, 5, 10, 14, 20, 12, 22])
+    blocks = toSeq([1, 5, 10, 14, 20, 12, 22]) # TODO: maybe make them random
 
   var
     chunker: RandomChunker
