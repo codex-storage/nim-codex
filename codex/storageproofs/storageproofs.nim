@@ -11,7 +11,7 @@ import pkg/chronos
 import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
-import pkg/contractabi/address as cta
+import pkg/contractabi/address as ca
 
 import ../stores
 import ../manifest
@@ -20,27 +20,32 @@ import ../utils
 
 import ./por
 import ./stpnetwork
-import ./porstore
+import ./stpstore
+import ./timing
 
-export stpnetwork
+export stpnetwork, stpstore, por, timing
 
 type
   StorageProofs* = object
     store*: BlockStore
     network*: StpNetwork
-    porStore*: PorStore
+    porStore*: StpStore
 
 proc upload*(
   self: StorageProofs,
-  manifest: Manifest,
-  host: cta.Address): Future[?!void] {.async.} =
-  let cid = manifest.cid.get()
+  cid: Cid,
+  indexes: openArray[int],
+  host: ca.Address): Future[?!void] {.async.} =
+  ## Upload authenticators
+  ##
+
   without por =? (await self.porStore.retrieve(cid)):
     trace "Unable to retrieve por data from store", cid
     return failure("Unable to retrieve por data from store")
 
-  return await self.network.submitAuthenticators(
+  return await self.network.uploadTags(
     cid,
+    indexes,
     por.authenticators,
     host)
 
@@ -56,8 +61,10 @@ proc setupProofs*(
   ## Setup storage authentication
   ##
 
+  without cid =? manifest.cid:
+    return failure("Unable to retrieve Cid from manifest!")
+
   let
-    cid = manifest.cid.get()
     (spk, ssk) = keyGen()
     por = await PoR.init(
       StoreStream.new(self.store, manifest),
@@ -71,8 +78,16 @@ proc init*(
   T: type StorageProofs,
   network: StpNetwork,
   store: BlockStore,
-  porStore: PorStore): StorageProofs =
-  T(
-    store: store,
-    porStore: PorStore,
-    network: StpNetwork)
+  porStore: StpStore): StorageProofs =
+
+  var
+    self = T(
+      store: store,
+      porStore: porStore,
+      network: network)
+
+  proc tagsHandler(msg: TagsMessage) {.async, gcsafe.} =
+    discard
+
+  self.network.tagsHandler = tagsHandler
+  self

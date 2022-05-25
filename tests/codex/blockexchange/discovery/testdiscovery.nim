@@ -43,7 +43,7 @@ suite "Block Advertising and Discovery":
       blocks.add(bt.Block.new(chunk).tryGet())
 
     switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
-    blockDiscovery = MockDiscovery.new(switch.peerInfo, 0.Port)
+    blockDiscovery = MockDiscovery.new()
     wallet = WalletRef.example
     network = BlockExcNetwork.new(switch)
     localStore = CacheStore.new(blocks.mapIt( it ))
@@ -150,7 +150,7 @@ suite "E2E - Multiple Nodes Discovery":
     for _ in 0..<4:
       let
         s = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
-        blockDiscovery = MockDiscovery.new(s.peerInfo, 0.Port)
+        blockDiscovery = MockDiscovery.new()
         wallet = WalletRef.example
         network = BlockExcNetwork.new(s)
         localStore = CacheStore.new()

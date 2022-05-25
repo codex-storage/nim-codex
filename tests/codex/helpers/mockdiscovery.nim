@@ -27,11 +27,7 @@ type
       Future[void] {.gcsafe.}
 
 proc new*(
-  T: type MockDiscovery,
-  localInfo: PeerInfo,
-  discoveryPort: Port,
-  bootstrapNodes = newSeq[SignedPeerRecord](),
-  ): T =
+  T: type MockDiscovery): T =
 
   T()
 
@@ -62,11 +58,11 @@ method find*(
 
   return await d.findHostProvidersHandler(d, host)
 
-method provide*(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
+method provide*(d: MockDiscovery, host: ca.Address): Future[void] {.async.} =
   if isNil(d.publishHostProvideHandler):
     return
 
-  await d.publishHostProvideHandler(d, cid)
+  await d.publishHostProvideHandler(d, host)
 
 proc start*(d: Discovery) {.async.} =
   discard

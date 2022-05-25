@@ -51,13 +51,13 @@ proc new*(
     ),
     localInfo: localInfo)
 
-proc toDiscoveryId*(cid: Cid): NodeId =
+proc toNodeId*(cid: Cid): NodeId =
   ## Cid to discovery id
   ##
 
   readUintBE[256](keccak256.digest(cid.data.buffer).data)
 
-proc toDiscoveryId*(host: ca.Address): NodeId =
+proc toNodeId*(host: ca.Address): NodeId =
   ## Eth address to discovery id
   ##
 
@@ -83,7 +83,7 @@ method find*(
 
   trace "Finding providers for block", cid = $cid
   without providers =?
-    (await d.protocol.getProviders(cid.toDiscoveryId())).mapFailure, error:
+    (await d.protocol.getProviders(cid.toNodeId())).mapFailure, error:
     trace "Error finding providers for block", cid = $cid, error = error.msg
 
   return providers
@@ -95,7 +95,7 @@ method provide*(d: Discovery, cid: Cid) {.async, base.} =
   trace "Providing block", cid = $cid
   let
     nodes = await d.protocol.addProvider(
-      cid.toDiscoveryId(),
+      cid.toNodeId(),
       d.localInfo.signedPeerRecord)
 
   if nodes.len <= 0:
@@ -111,7 +111,7 @@ method find*(
 
   trace "Finding providers for host", host = host.toHex
   without var providers =?
-    (await d.protocol.getProviders(host.toDiscoveryId())).mapFailure, error:
+    (await d.protocol.getProviders(host.toNodeId())).mapFailure, error:
     trace "Error finding providers for host", cid, error
     return
 
@@ -131,7 +131,7 @@ method provide*(d: Discovery, host: ca.Address) {.async, base.} =
   trace "Providing host", host = host.toHex
   let
     nodes = await d.protocol.addProvider(
-    host.toDiscoveryId(),
+    host.toNodeId(),
     d.localInfo.signedPeerRecord)
   if nodes.len > 0:
     trace "Provided to nodes", nodes = nodes.len
