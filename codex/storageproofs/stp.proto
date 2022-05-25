@@ -1,10 +1,15 @@
 syntax = "proto3";
 
 message StorageProofsMessage {
-  message AuthExchangeMessage {
-    bytes cid = 1;
-    repeated bytes authenticators = 2;
+  message Tag {
+    int64 idx = 1;
+    bytes tag = 2;
   }
 
-  AuthExchangeMessage authenticators = 1;
+  message TagsMessage {
+    bytes cid = 1;
+    repeated Tag tags = 2;
+  }
+
+  TagsMessage tagsMsg = 1;
 }

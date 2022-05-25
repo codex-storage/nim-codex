@@ -14,7 +14,7 @@ import pkg/libp2p
 import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
-import pkg/contractabi/address as cta
+import pkg/contractabi/address as ca
 
 import ../discovery
 
@@ -22,50 +22,53 @@ import pkg/protobuf_serialization
 
 import_proto3 "stp.proto"
 
-export AuthExchangeMessage, StorageProofsMessage
+export StorageProofsMessage
+export TagsMessage
+export Tag
 
 const
   Codec* = "/dagger/storageproofs/1.0.0"
+  MaxMessageSize* = 1 shl 22 # 4MB
 
 logScope:
   topics = "dagger storageproofs network"
 
 type
-  AuthenticatorsHandler* = proc(msg: AuthExchangeMessage):
+  TagsHandler* = proc(msg: TagsMessage):
     Future[void] {.raises: [Defect], gcsafe.}
 
   StpNetwork* = ref object of LPProtocol
     switch*: Switch
     discovery*: Discovery
-    handleAuthenticators*: AuthenticatorsHandler
+    tagsHandle*: TagsHandler
 
-proc submitAuthenticators*(
+proc uploadTags*(
   self: StpNetwork,
   cid: Cid,
-  authenticators: seq[seq[byte]],
-  host: cta.Address): Future[?!void] {.async.} =
-  ## Submit authenticators to `host`
+  indexes: openArray[int],
+  tags: seq[seq[byte]],
+  host: ca.Address): Future[?!void] {.async.} =
+  ## Upload tags to `host`
   ##
 
-  var msg = AuthExchangeMessage(cid: cid.data.buffer)
-  for a in authenticators:
-    msg.authenticators.add(a)
+  var msg = TagsMessage(cid: cid.data.buffer)
+  for i in indexes:
+    msg.tags.add(Tag(idx: i, tag: tags[i]))
 
   let
     peers = await self.discovery.find(host)
-    connFut = await one(peers.mapIt(
+    conn = await (await one(peers.mapIt(
       self.switch.dial(
         it.data.peerId,
         it.data.addresses.mapIt( it.address ),
-        @[Codec])))
-    conn = await connFut
+        @[Codec]))))
 
   try:
     await conn.writeLp(Protobuf.encode(msg))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "Exception submitting authenticators", cid, exc = exc.msg
+    trace "Exception submitting tags", cid, exc = exc.msg
     return failure(exc.msg)
   finally:
     await conn.close()
@@ -79,11 +82,11 @@ method init*(self: StpNetwork) =
   proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
     try:
       let
-        msg = await conn.readLp(1024)
+        msg = await conn.readLp(MaxMessageSize)
         message = Protobuf.decode(msg, StorageProofsMessage)
 
-      if message.authenticators.authenticators.len > 0:
-        await self.handleAuthenticators(message.authenticators)
+      if message.tagsMsg.tags.len > 0 and not self.tagsHandle.isNil:
+        await self.tagsHandle(message.tagsMsg)
     except CatchableError as exc:
       trace "Exception handling Storage Proofs message", exc = exc.msg
     finally:
