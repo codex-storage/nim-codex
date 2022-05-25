@@ -61,9 +61,3 @@ method provide*(d: MockDiscovery, host: ca.Address): Future[void] {.async.} =
     return
 
   await d.publishHostProvideHandler(d, host)
-
-proc start*(d: Discovery) {.async.} =
-  discard
-
-proc stop*(d: Discovery) {.async.} =
-  discard
