@@ -34,7 +34,7 @@ type
 proc upload*(
   self: StorageProofs,
   cid: Cid,
-  indexes: openArray[int],
+  indexes: seq[int],
   host: ca.Address): Future[?!void] {.async.} =
   ## Upload authenticators
   ##

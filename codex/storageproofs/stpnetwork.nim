@@ -39,7 +39,7 @@ type
 proc uploadTags*(
   self: StpNetwork,
   cid: Cid,
-  indexes: openArray[int],
+  indexes: seq[int],
   tags: seq[seq[byte]],
   host: ca.Address): Future[?!void] {.async.} =
   ## Upload tags to `host`
