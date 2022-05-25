@@ -26,9 +26,7 @@ type
     publishHostProvideHandler*: proc(d: MockDiscovery, host: ca.Address):
       Future[void] {.gcsafe.}
 
-proc new*(
-  T: type MockDiscovery): T =
-
+proc new*(T: type MockDiscovery): T =
   T()
 
 proc findPeer*(
