@@ -42,8 +42,8 @@ proc uploadTags*(
   indexes: seq[int],
   tags: seq[seq[byte]],
   host: ca.Address): Future[?!void] {.async.} =
-  ## Upload tags to `host`
-  ##
+  # Upload tags to `host`
+  #
 
   var msg = TagsMessage(cid: cid.data.buffer)
   for i in indexes:
@@ -51,14 +51,16 @@ proc uploadTags*(
 
   let
     peers = await self.discovery.find(host)
-    conn = await (await one(peers.mapIt(
+    connFut = await one(peers.mapIt(
       self.switch.dial(
         it.data.peerId,
         it.data.addresses.mapIt( it.address ),
-        @[Codec]))))
+        @[Codec])))
+    conn = await connFut
 
   try:
-    await conn.writeLp(Protobuf.encode(msg))
+    await conn.writeLp(
+      Protobuf.encode(StorageProofsMessage(tagsMsg: msg)))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
