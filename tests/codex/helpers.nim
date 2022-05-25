@@ -8,8 +8,9 @@ import pkg/codex/rng
 
 import ./helpers/nodeutils
 import ./helpers/randomchunker
+import ./helpers/mockdiscovery
 
-export randomchunker, nodeutils
+export randomchunker, nodeutils, mockdiscovery
 
 # NOTE: The meaning of equality for blocks
 # is changed here, because blocks are now `ref`
