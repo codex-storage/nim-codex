@@ -12,11 +12,6 @@ message PoREnvelope {
     bytes signature = 2;
   }
 
-  message ProofMessage {
-    repeated bytes mu = 1;
-    bytes sigma = 2;
-  }
-
   message PubKeyMessage {
     bytes signkey = 1;
     bytes key = 2;
@@ -26,6 +21,11 @@ message PoREnvelope {
     TauMessage tau = 1;
     PubKeyMessage spk = 2;
     repeated bytes authenticators = 3;
+  }
+
+  message ProofMessage {
+    repeated bytes mu = 1;
+    bytes sigma = 2;
   }
 
   PorMessage por = 1;
