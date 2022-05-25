@@ -1,40 +1,93 @@
+import std/os
+import std/sequtils
+
 import pkg/asynctest
 import pkg/chronos
 import pkg/libp2p
 import pkg/libp2p/errors
 import pkg/protobuf_serialization
+import pkg/contractabi as ca
 
 import pkg/codex/rng
 import pkg/codex/chunker
 import pkg/codex/storageproofs
 import pkg/codex/discovery
-import pkg/codex/hostaddress
+import pkg/codex/manifest
+import pkg/codex/stores
+import pkg/codex/storageproofs as st
+import pkg/codex/blocktype as bt
+import pkg/codex/streams
 
 import ../examples
 import ../helpers
 
-suite "StorageProofs Network":
+const
+  SectorSize = 31
+  SectorsPerBlock = BlockSize div SectorSize
+  DataSetSize = BlockSize * 100
+
+suite "Storage Proofs Network":
   let
     rng = Rng.instance()
     seckey1 = PrivateKey.random(rng[]).tryGet()
     seckey2 = PrivateKey.random(rng[]).tryGet()
-    hostAddr1 = HostAddress(array[20, byte].example)
-    hostAddr2 = HostAddress(array[20, byte].example)
+    hostAddr1 = ca.Address.example
+    hostAddr2 = ca.Address.example
+    blocks = toSeq([1, 5, 10, 14, 20, 12, 22]) # TODO: maybe make them random
 
   var
     stpNetwork1: StpNetwork
     stpNetwork2: StpNetwork
     switch1: Switch
     switch2: Switch
-    discovery1: Discovery
-    discovery2: Discovery
+    discovery1: MockDiscovery
+    discovery2: MockDiscovery
+
+    chunker: RandomChunker
+    manifest: Manifest
+    store: BlockStore
+    ssk: st.SecretKey
+    spk: st.PublicKey
+    repoDir: string
+    stpstore: st.StpStore
+    porMsg: PorMessage
+    cid: Cid
+    por: PoR
+    tags: seq[Tag]
+
+  setupAll:
+    chunker = RandomChunker.new(Rng.instance(), size = DataSetSize, chunkSize = BlockSize)
+    store = CacheStore.new(cacheSize = DataSetSize, chunkSize = BlockSize)
+    manifest = Manifest.new(blockSize = BlockSize).tryGet()
+    (spk, ssk) = st.keyGen()
+
+    while (
+      let chunk = await chunker.getBytes();
+      chunk.len > 0):
+
+      let
+        blk = bt.Block.new(chunk).tryGet()
+
+      manifest.add(blk.cid)
+      if not (await store.putBlock(blk)):
+        raise newException(CatchableError, "Unable to store block " & $blk.cid)
+
+    cid = manifest.cid.tryGet()
+    por = await PoR.init(
+      StoreStream.new(store, manifest),
+      ssk, spk,
+      BlockSize)
+
+    porMsg = por.toMessage()
+    tags = blocks.mapIt(
+      Tag(idx: it, tag: porMsg.authenticators[it]) )
 
   setup:
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
 
-    discovery1 = Discovery.new(switch1.peerInfo)
-    discovery2 = Discovery.new(switch2.peerInfo)
+    discovery1 = MockDiscovery.new(switch1.peerInfo)
+    discovery2 = MockDiscovery.new(switch2.peerInfo)
 
     stpNetwork1 = StpNetwork.new(switch1, discovery1)
     stpNetwork2 = StpNetwork.new(switch2, discovery2)
@@ -45,19 +98,31 @@ suite "StorageProofs Network":
     await switch1.start()
     await switch2.start()
 
-    await discovery1.start()
-    await discovery2.start()
-
   teardown:
     await switch1.stop()
     await switch2.stop()
 
-    await discovery1.stop()
-    await discovery2.stop()
-
   test "Should upload to host":
-    let
-      conn = await switch1.dial(
-        switch2.peerInfo.peerId,
-        switch2.peerInfo.addrs,
-        storageproofs.Codec)
+    var
+      done = newFuture[void]()
+
+    discovery1.findHostProvidersHandler = proc(d: MockDiscovery, host: ca.Address):
+      Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
+        check hostAddr2 == host
+        return @[switch2.peerInfo.signedPeerRecord]
+
+    proc tagsHandler(msg: TagsMessage) {.async, gcsafe.} =
+      check:
+        Cid.init(msg.cid).tryGet() == cid
+        msg.tags == tags
+
+      done.complete()
+
+    stpNetwork2.tagsHandle = tagsHandler
+    (await stpNetwork1.uploadTags(
+      cid,
+      blocks,
+      porMsg.authenticators,
+      hostAddr2)).tryGet()
+
+    await done.wait(1.seconds)
