@@ -1,4 +1,5 @@
 import std/os
+import std/sequtils
 
 import pkg/chronos
 import pkg/asynctest
@@ -18,6 +19,7 @@ const
 suite "Test PoR store":
   let
     (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
+    blocks = toSeq([1, 5, 10, 14, 20, 12, 22])
 
   var
     chunker: RandomChunker
@@ -28,7 +30,9 @@ suite "Test PoR store":
     repoDir: string
     stpstore: st.StpStore
     por: PoR
+    porMsg: PorMessage
     cid: Cid
+    tags: seq[Tag]
 
   setupAll:
     chunker = RandomChunker.new(Rng.instance(), size = DataSetSize, chunkSize = BlockSize)
@@ -53,6 +57,10 @@ suite "Test PoR store":
       ssk, spk,
       BlockSize)
 
+    porMsg = por.toMessage()
+    tags = blocks.mapIt(
+      Tag(idx: it, tag: porMsg.authenticators[it]) )
+
     repoDir = path.parentDir / "stp"
     createDir(repoDir)
     stpstore = st.StpStore.init(repoDir)
@@ -61,8 +69,16 @@ suite "Test PoR store":
     removeDir(repoDir)
 
   test "Should store Storage Proofs":
-    check (await stpstore.store(por, cid)).isOk
-    check fileExists(stpstore.stpPath(cid))
+    check (await stpstore.store(por.toMessage(), cid)).isOk
+    check fileExists(stpstore.stpPath(cid) / "por")
 
   test "Should retrieve Storage Proofs":
-    discard (await stpstore.retrieve(cid)).tryGet()
+    check (await stpstore.retrieve(cid)).tryGet() == porMsg
+
+  test "Should store tags":
+    check (await stpstore.store(tags, cid)).isOk
+    for t in tags:
+      check fileExists(stpstore.stpPath(cid) / $t.idx )
+
+  test "Should retrieve tags":
+    check (await stpstore.retrieve(cid, blocks)).tryGet() == tags
