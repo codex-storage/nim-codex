@@ -11,8 +11,8 @@
 # Shacham H., Waters B., "Compact Proofs of Retrievability"
 # using pairing over BLS12-381 ECC
 
-import blscurve
-import blscurve/blst/blst_abi
+import pkg/blscurve
+import pkg/blscurve/blst/blst_abi
 
 type
   ec_SecretKey* = blscurve.SecretKey
@@ -25,15 +25,39 @@ type
   ec_fr* = blst_fr
   ec_signature* = Signature
 
+const
+  EC_SUCCESS*: bool = true
+
 # these need to be template as a workaround for const
 template EC_G1* : blst_p1_affine = BLS12_381_G1
 template EC_G2* : blst_p2_affine = BLS12_381_G2
+
+func ec_p1_serialize*(dst: var array[96, byte]; src: ec_p1) =
+  blst_p1_serialize(dst, src)
+
+func ec_p1_deserialize*(dst: var ec_p1_affine; src: array[96, byte]): bool =
+  blst_p1_deserialize(dst, src) == BLST_SUCCESS
+
+func ec_p2_serialize*(dst: var array[192, byte]; src: ec_p2) =
+  blst_p2_serialize(dst, src)
+
+func ec_p2_deserialize*(dst: var ec_p2_affine; src: array[192, byte]): bool =
+  blst_p2_deserialize(dst, src) == BLST_SUCCESS
+
+func ec_export_uncompressed*(publicKey: ec_PublicKey): array[96, byte] {.inline, noinit.} =
+  blscurve.exportUncompressed(publicKey)
+
+func ec_export_uncompressed*(signature: ec_Signature): array[192, byte] {.inline, noinit.} =
+  blscurve.exportUncompressed(signature)
 
 func ec_p1_from_affine*(dst: var ec_p1, src: ec_p1_affine) =
   blst_p1_from_affine(dst, src)
 
 func ec_scalar_from_bendian*(ret: var ec_scalar, a: array[32, byte]) =
   blst_scalar_from_bendian(ret, a)
+
+func ec_bendian_from_scalar*(ret: var array[32, byte], a: ec_scalar) =
+  blst_bendian_from_scalar(ret, a)
 
 func ec_scalar_fr_check*(a: ec_scalar): CTBool =
   blst_scalar_fr_check(a)
@@ -127,6 +151,12 @@ proc verifyPairings*(a1: ec_p1, a2: ec_p2, b1: ec_p1, b2: ec_p2) : bool =
 func ec_from_bytes*(
        obj: var (Signature|ProofOfPossession),
        raw: array[96, byte] or array[192, byte]
+      ): bool {.inline.} =
+  fromBytes(obj, raw)
+
+func ec_from_bytes*(
+       obj: var PublicKey,
+       raw: array[48, byte] or array[96, byte] or openArray[byte]
       ): bool {.inline.} =
   fromBytes(obj, raw)
 
