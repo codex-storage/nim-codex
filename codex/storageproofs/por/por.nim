@@ -97,8 +97,6 @@ else:
   import ../backends/backend_blst
 
 import pkg/chronos
-import pkg/blscurve
-import pkg/blscurve/blst/blst_abi
 
 import ../../rng
 import ../../streams
@@ -138,8 +136,8 @@ type
     signature*: array[96, byte]
 
   Proof* = object
-    mu*: seq[blst_scalar]
-    sigma*: blst_p1
+    mu*: seq[ec_scalar]
+    sigma*: ec_p1
 
   # PoR query element
   QElement* = object
@@ -300,7 +298,7 @@ proc generateAuthenticatorOpt(
   i: int64,
   s: int64,
   t: TauZero,
-  ubase: seq[blst_scalar]): Future[ec_p1] {.async.} =
+  ubase: seq[ec_scalar]): Future[ec_p1] {.async.} =
   ## Optimized implementation of authenticator generation
   ## This implementation is reduces the number of scalar multiplications
   ## from s+1 to 1+1 , using knowledge about the scalars (r_j)
@@ -473,7 +471,7 @@ proc init*(
   #      the current conversion using $t might be architecture dependent and not unique
   let
     signature = ec_sign(ssk.signkey, $t)
-    tau = Tau(t: t, signature: signature.exportRaw())
+    tau = Tau(t: t, signature: signature.ec_export_raw())
 
   # generate sigmas
   var
