@@ -19,6 +19,8 @@ type
   ec_PublicKey* = blscurve.PublicKey
   ec_p1* = blst_p1
   ec_p2* = blst_p2
+  ec_p1_affine* = blst_p1_affine
+  ec_p2_affine* = blst_p2_affine
   ec_scalar* = blst_scalar
   ec_fr* = blst_fr
   ec_signature* = Signature
@@ -27,20 +29,44 @@ type
 template EC_G1* : blst_p1_affine = BLS12_381_G1
 template EC_G2* : blst_p2_affine = BLS12_381_G2
 
-let
-  ec_p1_from_affine* = blst_p1_from_affine
-  ec_scalar_from_bendian* = blst_scalar_from_bendian
-  ec_scalar_fr_check* = blst_scalar_fr_check
-  ec_p2_from_affine* = blst_p2_from_affine
-  ec_p2_mult* = blst_p2_mult
-  ec_p1_mult* = blst_p1_mult
-  ec_p1_add_or_double* = blst_p1_add_or_double
-  ec_fr_from_scalar* = blst_fr_from_scalar
-  ec_fr_mul* = blst_fr_mul
-  ec_scalar_from_fr* = blst_scalar_from_fr
-  ec_fr_add* = blst_fr_add
-  ec_p1_on_curve* = blst_p1_on_curve
-  ec_keygen* = blscurve.keyGen
+func ec_p1_from_affine*(dst: var ec_p1, src: ec_p1_affine) =
+  blst_p1_from_affine(dst, src)
+
+func ec_scalar_from_bendian*(ret: var ec_scalar, a: array[32, byte]) =
+  blst_scalar_from_bendian(ret, a)
+
+func ec_scalar_fr_check*(a: ec_scalar): CTBool =
+  blst_scalar_fr_check(a)
+
+func ec_p2_from_affine*(dst: var ec_p2, src: ec_p2_affine) =
+  blst_p2_from_affine(dst, src)
+
+func ec_p2_mult*(dst: var blst_p2, p: blst_p2, scalar: blst_scalar, nbits: uint) =
+  blst_p2_mult(dst, p, scalar, nbits)
+
+func ec_p1_mult*(dst: var ec_p1, p: ec_p1, scalar: ec_scalar, nbits: uint) =
+  blst_p1_mult(dst, p, scalar, nbits)
+
+func ec_p1_add_or_double*(dst: var ec_p1, a: ec_p1, b: ec_p1) =
+  blst_p1_add_or_double(dst, a, b)
+
+func ec_fr_from_scalar*(ret: var ec_fr, a: ec_scalar) =
+  blst_fr_from_scalar(ret, a)
+
+func ec_fr_mul*(ret: var ec_fr, a: ec_fr, b: ec_fr) =
+  blst_fr_mul(ret, a, b)
+
+func ec_scalar_from_fr*(ret: var ec_scalar, a: ec_fr) =
+  blst_scalar_from_fr(ret, a)
+
+func ec_fr_add*(ret: var ec_fr, a: ec_fr, b: ec_fr) =
+  blst_fr_add(ret, a, b)
+
+func ec_p1_on_curve*(p: ec_p1): CTBool =
+  blst_p1_on_curve(p)
+
+func ec_keygen*(ikm: openarray[byte], publicKey: var ec_PublicKey, secretKey: var ec_SecretKey): bool =
+  blscurve.keyGen(ikm, publicKey, secretKey)
 
 func ec_export_raw*(signature: Signature): array[96, byte] {.inline, noinit.} =
     blscurve.exportRaw(signature)
