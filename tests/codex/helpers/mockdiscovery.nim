@@ -13,21 +13,20 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/shims/net
 import pkg/codex/discovery
+import pkg/contractabi/address as ca
 
 type
   MockDiscovery* = ref object of Discovery
     findBlockProvidersHandler*: proc(d: MockDiscovery, cid: Cid):
       Future[seq[SignedPeerRecord]] {.gcsafe.}
-    publishProvideHandler*: proc(d: MockDiscovery, cid: Cid):
+    publishBlockProvideHandler*: proc(d: MockDiscovery, cid: Cid):
+      Future[void] {.gcsafe.}
+    findHostProvidersHandler*: proc(d: MockDiscovery, host: ca.Address):
+      Future[seq[SignedPeerRecord]] {.gcsafe.}
+    publishHostProvideHandler*: proc(d: MockDiscovery, host: ca.Address):
       Future[void] {.gcsafe.}
 
-proc new*(
-  T: type MockDiscovery,
-  localInfo: PeerInfo,
-  discoveryPort: Port,
-  bootstrapNodes = newSeq[SignedPeerRecord](),
-  ): T =
-
+proc new*(T: type MockDiscovery): T =
   T()
 
 proc findPeer*(
@@ -35,7 +34,7 @@ proc findPeer*(
   peerId: PeerID): Future[?PeerRecord] {.async.} =
   return none(PeerRecord)
 
-method findBlockProviders*(
+method find*(
   d: MockDiscovery,
   cid: Cid): Future[seq[SignedPeerRecord]] {.async.} =
   if isNil(d.findBlockProvidersHandler):
@@ -43,14 +42,22 @@ method findBlockProviders*(
 
   return await d.findBlockProvidersHandler(d, cid)
 
-method provideBlock*(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
-  if isNil(d.publishProvideHandler):
+method provide*(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
+  if isNil(d.publishBlockProvideHandler):
     return
 
-  await d.publishProvideHandler(d, cid)
+  await d.publishBlockProvideHandler(d, cid)
 
-proc start*(d: Discovery) {.async.} =
-  discard
+method find*(
+  d: MockDiscovery,
+  host: ca.Address): Future[seq[SignedPeerRecord]] {.async.} =
+  if isNil(d.findHostProvidersHandler):
+    return
 
-proc stop*(d: Discovery) {.async.} =
-  discard
+  return await d.findHostProvidersHandler(d, host)
+
+method provide*(d: MockDiscovery, host: ca.Address): Future[void] {.async.} =
+  if isNil(d.publishHostProvideHandler):
+    return
+
+  await d.publishHostProvideHandler(d, host)

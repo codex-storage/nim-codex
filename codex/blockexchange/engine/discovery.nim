@@ -105,7 +105,7 @@ proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
 
       try:
         trace "Advertising block", cid = $cid
-        let request = b.discovery.provideBlock(cid)
+        let request = b.discovery.provide(cid)
         b.inFlightAdvReqs[cid] = request
         await request
       finally:
@@ -137,7 +137,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
         try:
           let
             request = b.discovery
-              .findBlockProviders(cid)
+              .find(cid)
               .wait(DefaultDiscoveryTimeout)
 
           b.inFlightDiscReqs[cid] = request

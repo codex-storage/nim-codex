@@ -79,7 +79,7 @@ suite "Test Discovery Engine":
         for b in blocks:
           { b.cid: newFuture[void]() }
 
-    blockDiscovery.publishProvideHandler =
+    blockDiscovery.publishBlockProvideHandler =
       proc(d: MockDiscovery, cid: Cid) {.async, gcsafe.} =
         if not haves[cid].finished:
           haves[cid].complete
@@ -124,7 +124,7 @@ suite "Test Discovery Engine":
         discoveryLoopSleep = 100.millis)
       have = newFuture[void]()
 
-    blockDiscovery.publishProvideHandler =
+    blockDiscovery.publishBlockProvideHandler =
       proc(d: MockDiscovery, cid: Cid) {.async, gcsafe.} =
         check cid == blocks[0].cid
         if not have.finished:
@@ -216,7 +216,7 @@ suite "Test Discovery Engine":
       reqs = newFuture[void]()
       count = 0
 
-    blockDiscovery.publishProvideHandler =
+    blockDiscovery.publishBlockProvideHandler =
       proc(d: MockDiscovery, cid: Cid) {.async, gcsafe.} =
         check cid == blocks[0].cid
         if count > 0:

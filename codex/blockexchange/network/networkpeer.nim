@@ -18,7 +18,7 @@ logScope:
   topics = "codex blockexc networkpeer"
 
 const
-  MaxMessageSize = 100 * 1024 * 1024 # manifest files can be big
+  MaxMessageSize = 100 * 1 shl 20 # manifest files can be big
 
 type
   RPCHandler* = proc(peer: NetworkPeer, msg: Message): Future[void] {.gcsafe.}
