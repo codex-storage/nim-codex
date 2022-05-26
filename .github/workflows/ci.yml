@@ -36,7 +36,7 @@ jobs:
             builder: windows-2019
     name: '${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ matrix.branch }}'
     runs-on: ${{ matrix.builder }}
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - name: Checkout nim-codex
         uses: actions/checkout@v2
@@ -209,12 +209,12 @@ jobs:
           make NIM_COMMIT="${{ matrix.branch }}" testAll
           if [[ ${{ runner.os }} = macOS ]]; then
             echo
-            echo otool -L build/testDagger
-            otool -L build/testDagger
+            echo otool -L build/testCodex
+            otool -L build/testCodex
           else
             echo
-            echo ldd build/testDagger
-            ldd build/testDagger
+            echo ldd build/testCodex
+            ldd build/testCodex
           fi
           echo "Testing TRACE log level"
-          ./env.sh nim c -d:chronicles_log_level=TRACE dagger.nim
+          ./env.sh nim c -d:chronicles_log_level=TRACE codex.nim

@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+message StorageProofsMessage {
+  message Tag {
+    int64 idx = 1;
+    bytes tag = 2;
+  }
+
+  message TagsMessage {
+    bytes cid = 1;
+    repeated Tag tags = 2;
+  }
+
+  TagsMessage tagsMsg = 1;
+}

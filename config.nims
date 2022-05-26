@@ -75,8 +75,8 @@ switch("warning", "LockLevel:off")
 
 switch("define", "libp2p_pki_schemes=secp256k1")
 #TODO this infects everything in this folder, ideally it would only
-# apply to dagger.nim, but since dagger.nims is used for other purpose
-# we can't use it. And dagger.cfg doesn't work
+# apply to codex.nim, but since codex.nims is used for other purpose
+# we can't use it. And codex.cfg doesn't work
 switch("define", "chronicles_sinks=textlines[dynamic],json[dynamic]")
 
 # begin Nimble config (version 1)

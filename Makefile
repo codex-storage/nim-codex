@@ -56,15 +56,15 @@ else
 NIM_PARAMS := $(NIM_PARAMS) -d:release
 endif
 
-deps: | deps-common nat-libs dagger.nims
+deps: | deps-common nat-libs codex.nims
 ifneq ($(USE_LIBBACKTRACE), 0)
 deps: | libbacktrace
 endif
 
-#- deletes and recreates "dagger.nims" which on Windows is a copy instead of a proper symlink
+#- deletes and recreates "codex.nims" which on Windows is a copy instead of a proper symlink
 update: | update-common
-	rm -rf dagger.nims && \
-		$(MAKE) dagger.nims $(HANDLE_OUTPUT)
+	rm -rf codex.nims && \
+		$(MAKE) codex.nims $(HANDLE_OUTPUT)
 
 # detecting the os
 ifeq ($(OS),Windows_NT) # is Windows_NT on XP, 2000, 7, Vista, 10...
@@ -79,16 +79,16 @@ endif
 # Builds and run a part of the test suite
 test: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim test $(NIM_PARAMS) dagger.nims
+		$(ENV_SCRIPT) nim test $(NIM_PARAMS) codex.nims
 
 # Builds and runs all tests
 testAll: | build deps
-	echo -e $(BUILD_MSG) "build/testDagger" "build/testContracts" && \
-		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) dagger.nims
+	echo -e $(BUILD_MSG) "build/testCodex" "build/testContracts" && \
+		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) codex.nims
 
 # symlink
-dagger.nims:
-	ln -s dagger.nimble $@
+codex.nims:
+	ln -s codex.nimble $@
 
 # nim-libbacktrace
 libbacktrace:
@@ -96,12 +96,12 @@ libbacktrace:
 
 coverage:
 	$(MAKE) NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage" testAll
-	cd nimcache/release/testDagger && rm -f *.c
+	cd nimcache/release/testCodex && rm -f *.c
 	cd nimcache/release/testContracts && rm -f *.c
 	mkdir -p coverage
-	lcov --capture --directory nimcache/release/testDagger --directory nimcache/release/testContracts --output-file coverage/coverage.info
-	shopt -s globstar && ls $$(pwd)/dagger/{*,**/*}.nim
-	shopt -s globstar && lcov --extract coverage/coverage.info $$(pwd)/dagger/{*,**/*}.nim --output-file coverage/coverage.f.info
+	lcov --capture --directory nimcache/release/testCodex --directory nimcache/release/testContracts --output-file coverage/coverage.info
+	shopt -s globstar && ls $$(pwd)/codex/{*,**/*}.nim
+	shopt -s globstar && lcov --extract coverage/coverage.info $$(pwd)/codex/{*,**/*}.nim --output-file coverage/coverage.f.info
 	echo -e $(BUILD_MSG) "coverage/report/index.html"
 	genhtml coverage/coverage.f.info --output-directory coverage/report
 	if which open >/dev/null; then (echo -e "\e[92mOpening\e[39m HTML coverage report in browser..." && open coverage/report/index.html) || true; fi
