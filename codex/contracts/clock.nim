@@ -21,13 +21,13 @@ proc start*(clock: OnChainClock) {.async.} =
     return
   clock.started = true
 
-  proc onBlock(blck: Block) {.gcsafe, upraises:[].} =
+  proc onBlock(blck: Block) {.async, upraises:[].} =
     let blockTime = blck.timestamp.truncate(int64)
     let computerTime = getTime().toUnix
     clock.offset = blockTime - computerTime
 
   if latestBlock =? (await clock.provider.getBlock(BlockTag.latest)):
-    onBlock(latestBlock)
+    await onBlock(latestBlock)
 
   clock.subscription = await clock.provider.subscribe(onBlock)
 
