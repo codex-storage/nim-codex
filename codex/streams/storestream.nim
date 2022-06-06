@@ -45,8 +45,12 @@ proc new*(
 
   result.initStream()
 
-method size*(self: StoreStream): int =
+method `size`*(self: StoreStream): int =
   self.manifest.len * self.manifest.blockSize
+
+proc `size=`*(self: StoreStream, size: int)
+  {.error: "Setting the size is forbidden".} =
+  discard
 
 method readOnce*(
   self: StoreStream,
