@@ -34,8 +34,11 @@ proc new*(
   C: type AsyncStreamWrapper,
   reader: AsyncStreamReader = nil,
   writer: AsyncStreamWriter = nil): AsyncStreamWrapper =
-  let stream = C(reader: reader, writer: writer)
+  let
+    stream = C(reader: reader, writer: writer)
+
   stream.initStream()
+  return stream
 
 template withExceptions(body: untyped) =
   try:
@@ -57,14 +60,16 @@ method readOnce*(
   pbytes: pointer,
   nbytes: int): Future[int] {.async.} =
 
+  trace "Reading bytes from reader", bytes = nbytes
   if isNil(self.reader):
+    error "Async stream wrapper reader nil"
     raiseAssert("Async stream wrapper reader nil")
 
   if self.atEof:
     raise newLPStreamEOFError()
 
   withExceptions:
-    result = await self.reader.readOnce(pbytes, nbytes)
+    return await self.reader.readOnce(pbytes, nbytes)
 
 proc completeWrite(
     self: AsyncStreamWrapper,
@@ -78,7 +83,9 @@ method write*(self: AsyncStreamWrapper, msg: seq[byte]): Future[void] =
   # Avoid a copy of msg being kept in the closure created by `{.async.}` as this
   # drives up memory usage
 
+  trace "Writing bytes to writer", bytes = msg.len
   if isNil(self.writer):
+    error "Async stream wrapper writer nil"
     raiseAssert("Async stream wrapper writer nil")
 
   if self.closed:
@@ -86,7 +93,7 @@ method write*(self: AsyncStreamWrapper, msg: seq[byte]): Future[void] =
     fut.fail(newLPStreamClosedError())
     return fut
 
-  self.completeWrite(self.writer.write(unsafeAddr msg[0], msg.len), msg.len)
+  self.completeWrite(self.writer.write(msg, msg.len), msg.len)
 
 method closed*(self: AsyncStreamWrapper): bool =
   var
