@@ -106,8 +106,6 @@ method atEof*(self: AsyncStreamWrapper): bool =
 
 method closeImpl*(self: AsyncStreamWrapper) {.async.} =
   try:
-    trace "Shutting down async chronos stream", address = $self.client.remoteAddress(), s
-
     if not self.closed():
       if not isNil(self.reader) and not self.reader.closed():
         await self.writer.closeWait()
@@ -115,11 +113,11 @@ method closeImpl*(self: AsyncStreamWrapper) {.async.} =
       if not isNil(self.writer) and not self.writer.closed():
           await self.writer.closeWait()
 
-    trace "Shutdown async chronos stream", address = $self.client.remoteAddress(), s
+    trace "Shutdown async chronos stream"
 
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "Error closing async chronos stream", self, msg = exc.msg
+    trace "Error closing async chronos stream", msg = exc.msg
 
   await procCall LPStream(self).closeImpl()

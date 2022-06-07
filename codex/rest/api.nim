@@ -241,7 +241,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
           await node.store(AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)))), error:
           return RestApiResponse.error(Http500, error.msg)
 
-        trace "Uploaded file", bytes, cid = $cid
+        trace "Uploaded file", cid = $cid
         return RestApiResponse.response($cid)
       except CancelledError as exc:
         return RestApiResponse.error(Http500)
