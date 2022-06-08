@@ -41,10 +41,10 @@ ethersuite "Integration tests":
     let info2 = client.get(baseurl2 & "/info").body
     check info1 != info2
 
-  # test "node accepts file uploads":
-  #   let url = baseurl1 & "/upload"
-  #   let response = client.post(url, "some file contents")
-  #   check response.status == "200 OK"
+  test "node accepts file uploads":
+    let url = baseurl1 & "/upload"
+    let response = client.post(url, "some file contents")
+    check response.status == "200 OK"
 
   test "node handles new storage availability":
     let url = baseurl1 & "/sales/availability"

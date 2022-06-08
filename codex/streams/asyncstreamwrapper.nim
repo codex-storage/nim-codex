@@ -113,15 +113,15 @@ method atEof*(self: AsyncStreamWrapper): bool =
 
 method closeImpl*(self: AsyncStreamWrapper) {.async.} =
   try:
+    trace "Shutting down async chronos stream"
     if not self.closed():
       if not isNil(self.reader) and not self.reader.closed():
-        await self.writer.closeWait()
+        await self.reader.closeWait()
 
       if not isNil(self.writer) and not self.writer.closed():
           await self.writer.closeWait()
 
     trace "Shutdown async chronos stream"
-
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
