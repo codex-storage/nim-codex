@@ -11,8 +11,8 @@ import por
 import benchmark
 import strutils
 
-const sectorsperblock = 1024.int64
-const querylen = 22
+const sectorsperblock = 1.int64
+const querylen = 1
 
 proc testbls() : bool =
   benchmark "Key generation":
