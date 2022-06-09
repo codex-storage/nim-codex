@@ -57,7 +57,7 @@ ethersuite "Integration tests":
     let availability = parseJson(client.post(url, $json).body)
     let response = client.get(url)
     check response.status == "200 OK"
-    check parseJson(response.body) == %*[availability]
+    check %*availability in parseJson(response.body)
 
   test "node handles storage request":
     let cid = client.post(baseurl1 & "/upload", "some file contents").body
