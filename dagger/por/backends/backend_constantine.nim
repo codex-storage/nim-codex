@@ -22,6 +22,7 @@ import
   # constantine/math/pairing/cyclotomic_subgroup,
   # constantine/math/io/io_extfields,
   constantine/math/io/io_bigints,
+  constantine/math/io/io_ec,
   # constantine/math/config/[curves_declaration, type_ff],
   constantine/math/config/type_ff,
   constantine/blssig_pop_on_bls12381_g2,
@@ -187,3 +188,6 @@ func ec_verify*(
        message: openarray[char],
        signature: Signature) : bool =
   publicKey.verify(message, signature) == cttBLS_Success
+
+proc `$`*(x: ec_p1|ec_p2|ec_scalar): string =
+  result &= toHex(x)

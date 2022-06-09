@@ -20,15 +20,16 @@ proc testbls() : bool =
 
   benchmark "Auth generation (s=" & $sectorsperblock & ")":
     let (tau, authenticators) = por.setup(ssk, sectorsperblock, "example.txt")
-  #echo "Auth: ", authenticators
+  echo "tau: ", tau
+  echo "Auth: ", authenticators
 
   benchmark "Generating challenge (q=" & $querylen & ")":
     let q = por.generateQuery(tau, spk, querylen)
-  #echo "Generated!" #, " q:", q
+  echo "Generated!", "\nq:", q
 
   benchmark "Issuing proof":
     let (mu, sigma) = por.generateProof(q, authenticators, spk, sectorsperblock, "example.txt")
-  #echo "Issued!" #, " mu:", mu, " sigma:", sigma
+  echo "Issued!", "\nmu:", mu, "\nsigma:", sigma
 
   benchmark "Verifying proof":
     result = por.verifyProof(tau, q, mu, sigma, spk)

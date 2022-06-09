@@ -13,6 +13,7 @@
 
 import blscurve
 import blscurve/blst/blst_abi
+import stew/byteutils # for toHex
 
 type
   ec_SecretKey* = blscurve.SecretKey
@@ -109,3 +110,26 @@ func ec_verify*[T: byte|char](
        message: openarray[T],
        signature: Signature) : bool =
   verify(publicKey, message, signature)
+
+func toHex*(
+       obj: blst_p1|blst_p2|ec_scalar,
+     ): string =
+  ## Return the hex representation of a BLS object
+  ## They are serialized in compressed form
+  when obj is blst_p1:
+    const size = 48
+    var bytes{.noInit.}: array[size, byte]
+    bytes.blst_p1_compress(obj)
+  elif obj is blst_p2:
+    const size = 96
+    var bytes{.noInit.}: array[size, byte]
+    bytes.blst_p2_compress(obj)
+  elif obj is blst_scalar:
+    const size = 32
+    var bytes{.noInit.}: array[size, byte]
+    bytes.blst_bendian_from_scalar(obj)
+
+  result = bytes.toHex()
+
+proc `$`*(x: ec_p1|ec_p2|ec_scalar): string =
+  result &= toHex(x)

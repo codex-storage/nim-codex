@@ -83,10 +83,13 @@
 #  - constantine is more experimental, supports BLS and BN curves as well
 # As of now configuration of backends is in the backend_* file itself
 import ./backends/backend_blst
+export backend_blst.`$`
 #import ./backends/backend_constantine
+#export backend_constantine.`$`
 
 import ../rng
 import endians
+import pkg/stew/byteutils
 
 # sector size in bytes. Must be smaller than the subgroup order r
 # which is 255 bits long for BLS12-381
@@ -361,3 +364,11 @@ proc verifyProof*(tau: Tau, q: openArray[QElement], mus: openArray[ec_scalar], s
   g.ec_p2_from_affine(EC_G2)
 
   return verifyPairings(sum, spk.key, sigma, g)
+
+proc `$`*(t0: TauZero): string =
+  result &= "\nname: " & toHex(t0.name)
+  result &= "\nn: " & $t0.n
+  result &= "\nu: " & $t0.u
+
+proc `$`*(x: array[96, byte]): string =
+  result &= toHex(x)
