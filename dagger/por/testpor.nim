@@ -17,6 +17,8 @@ const querylen = 1
 proc testbls() : bool =
   benchmark "Key generation":
     let (spk, ssk) = por.keygen()
+  echo "Public key: ", $ spk
+  echo "Private key: ", $ ssk
 
   benchmark "Auth generation (s=" & $sectorsperblock & ")":
     let (tau, authenticators) = por.setup(ssk, sectorsperblock, "example.txt")
