@@ -86,6 +86,11 @@ testAll: | build deps
 	echo -e $(BUILD_MSG) "build/testCodex" "build/testContracts" && \
 		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) codex.nims
 
+# Builds the codex binary
+exec: | build deps
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim codex codex.nims
+
 # symlink
 codex.nims:
 	ln -s codex.nimble $@

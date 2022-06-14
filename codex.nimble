@@ -46,7 +46,7 @@ proc test(name: string, srcDir = "tests/", lang = "c") =
   exec "build/" & name
 
 task codex, "build codex binary":
-  buildBinary "codex"
+  buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
 task testCodex, "Build & run Codex tests":
   test "testCodex"
