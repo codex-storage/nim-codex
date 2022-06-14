@@ -45,7 +45,7 @@ codex initNode
 ./build/codex --data-dir=`pwd`"/Codex1" -i=127.0.0.1
 ```
 
-This will start codex with a data directory pointing to a `Codex` under the current execution directory and announce itself under `127.0.0.1` on the DHT.
+This will start codex with a data directory pointing to `Codex` under the current execution directory and announce itself on the DHT under `127.0.0.1`.
 
 ```bash
 ./build/codex --data-dir=`pwd`"/Codex2" -i=127.0.0.1 --api-port=8081 --udp-port=8091 --bootstrap-node=spr:CiUIAhIhAmqg5fVU2yxPStLdUOWgwrkWZMHW2MHf6i6l8IjA4tssEgIDARpICicAJQgCEiECaqDl9VTbLE9K0t1Q5aDCuRZkwdbYwd_qLqXwiMDi2ywQ5v2VlAYaCwoJBH8AAAGRAh-aGgoKCAR_AAABBts3KkcwRQIhAPOKl38CviplVbMVnA_9q3N1K_nk5oGuNp7DWeOqiJzzAiATQ2acPyQvPxLU9YS-TiVo4RUXndRcwMFMX2Yjhw8k3A
