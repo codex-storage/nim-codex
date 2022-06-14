@@ -30,6 +30,7 @@ import ../node
 import ../blocktype
 import ../conf
 import ../contracts
+import ../streams
 
 import ./json
 
@@ -234,38 +235,20 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
       let
         reader = bodyReader.get()
-        stream = BufferStream.new()
-        storeFut = node.store(stream)
 
-      var bytes = 0
       try:
-        while not reader.atEof:
-          var
-            buff = newSeqUninitialized[byte](BlockSize)
-            len = await reader.readOnce(addr buff[0], buff.len)
-
-          buff.setLen(len)
-          if len <= 0:
-            break
-
-          trace "Got chunk from endpoint", len = buff.len
-          await stream.pushData(buff)
-          bytes += len
-
-        await stream.pushEof()
-        without cid =? (await storeFut), error:
+        without cid =? (
+          await node.store(AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)))), error:
+          trace "Error uploading file", exc = error.msg
           return RestApiResponse.error(Http500, error.msg)
 
-        trace "Uploaded file", bytes, cid = $cid
+        trace "Uploaded file", cid = $cid
         return RestApiResponse.response($cid)
       except CancelledError as exc:
-        await reader.closeWait()
         return RestApiResponse.error(Http500)
       except AsyncStreamError:
-        await reader.closeWait()
         return RestApiResponse.error(Http500)
       finally:
-        await stream.close()
         await reader.closeWait()
 
       # if we got here something went wrong?
