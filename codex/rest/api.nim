@@ -25,6 +25,7 @@ import pkg/stew/byteutils
 import pkg/confutils
 
 import pkg/libp2p/routing_record
+import pkg/libp2pdht/discv5/spr as spr
 
 import ../node
 import ../blocktype
@@ -260,14 +261,14 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       ## Print rudimentary node information
       ##
 
-      var addrs: string
-      for a in node.switch.peerInfo.addrs:
-        addrs &= "- " & $a & "\n"
+      let json = %*{
+        "id": $node.switch.peerInfo.peerId,
+        "addrs": node.switch.peerInfo.addrs.mapIt( $it ),
+        "repo": $conf.dataDir,
+        "spr": node.switch.peerInfo.signedPeerRecord.toURI
+      }
 
-      return RestApiResponse.response(
-        "Id: " & $node.switch.peerInfo.peerId &
-        "\nAddrs: \n" & addrs &
-        "\nRoot Dir: " & $conf.dataDir)
+      return RestApiResponse.response($json)
 
   router.api(
     MethodGet,
