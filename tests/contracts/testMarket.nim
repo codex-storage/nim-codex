@@ -6,6 +6,7 @@ import ./examples
 import ./time
 
 ethersuite "On-Chain Market":
+  let proof = seq[byte].example
 
   var market: OnChainMarket
   var storage: Storage
@@ -61,96 +62,40 @@ ethersuite "On-Chain Market":
     check receivedAsks == @[request.ask]
     await subscription.unsubscribe()
 
-  test "supports storage offers":
+  test "supports fulfilling of requests":
     await token.approve(storage.address, request.ask.maxPrice)
     discard await market.requestStorage(request)
-    check (await market.offerStorage(offer)) == offer
+    await market.fulfillRequest(request.id, proof)
 
-  test "sets host address when submitting storage offer":
+  test "support fulfillment subscriptions":
     await token.approve(storage.address, request.ask.maxPrice)
     discard await market.requestStorage(request)
-    var offerWithoutHost = offer
-    offerWithoutHost.host = Address.default
-    let submitted = await market.offerStorage(offerWithoutHost)
-    check submitted.host == accounts[0]
-
-  test "supports offer subscriptions":
-    await token.approve(storage.address, request.ask.maxPrice)
-    discard await market.requestStorage(request)
-    var received: seq[StorageOffer]
-    proc onOffer(offer: StorageOffer) =
-      received.add(offer)
-    let subscription = await market.subscribeOffers(request.id, onOffer)
-    discard await market.offerStorage(offer)
-    check received == @[offer]
+    var receivedIds: seq[array[32, byte]]
+    proc onFulfillment(id: array[32, byte]) =
+      receivedIds.add(id)
+    let subscription = await market.subscribeFulfillment(request.id, onFulfillment)
+    await market.fulfillRequest(request.id, proof)
+    check receivedIds == @[request.id]
     await subscription.unsubscribe()
 
-  test "subscribes only to offers for a certain request":
+  test "subscribes only to fulfillmentof a certain request":
     var otherRequest = StorageRequest.example
-    var otherOffer = StorageOffer.example
     otherRequest.client = accounts[0]
-    otherOffer.host = accounts[0]
-    otherOffer.requestId = otherRequest.id
-    otherOffer.price = otherrequest.ask.maxPrice
 
     await token.approve(storage.address, request.ask.maxPrice)
     discard await market.requestStorage(request)
     await token.approve(storage.address, otherrequest.ask.maxPrice)
     discard await market.requestStorage(otherRequest)
 
-    var submitted: seq[StorageOffer]
-    proc onOffer(offer: StorageOffer) =
-      submitted.add(offer)
+    var receivedIds: seq[array[32, byte]]
+    proc onFulfillment(id: array[32, byte]) =
+      receivedIds.add(id)
 
-    let subscription = await market.subscribeOffers(request.id, onOffer)
+    let subscription = await market.subscribeFulfillment(request.id, onFulfillment)
 
-    discard await market.offerStorage(offer)
-    discard await market.offerStorage(otherOffer)
+    await market.fulfillRequest(request.id, proof)
+    await market.fulfillRequest(otherRequest.id, proof)
 
-    check submitted == @[offer]
-
-    await subscription.unsubscribe()
-
-  test "supports selection of an offer":
-    await token.approve(storage.address, request.ask.maxPrice)
-    discard await market.requestStorage(request)
-    discard await market.offerStorage(offer)
-
-    var selected: seq[array[32, byte]]
-    proc onSelect(offerId: array[32, byte]) =
-      selected.add(offerId)
-    let subscription = await market.subscribeSelection(request.id, onSelect)
-
-    await market.selectOffer(offer.id)
-
-    check selected == @[offer.id]
-
-    await subscription.unsubscribe()
-
-  test "subscribes only to selection for a certain request":
-    var otherRequest = StorageRequest.example
-    var otherOffer = StorageOffer.example
-    otherRequest.client = accounts[0]
-    otherOffer.host = accounts[0]
-    otherOffer.requestId = otherRequest.id
-    otherOffer.price = otherrequest.ask.maxPrice
-
-    await token.approve(storage.address, request.ask.maxPrice)
-    discard await market.requestStorage(request)
-    discard await market.offerStorage(offer)
-    await token.approve(storage.address, otherrequest.ask.maxPrice)
-    discard await market.requestStorage(otherRequest)
-    discard await market.offerStorage(otherOffer)
-
-    var selected: seq[array[32, byte]]
-    proc onSelect(offerId: array[32, byte]) =
-      selected.add(offerId)
-
-    let subscription = await market.subscribeSelection(request.id, onSelect)
-
-    await market.selectOffer(offer.id)
-    await market.selectOffer(otherOffer.id)
-
-    check selected == @[offer.id]
+    check receivedIds == @[request.id]
 
     await subscription.unsubscribe()

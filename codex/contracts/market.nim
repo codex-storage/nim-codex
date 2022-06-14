@@ -31,16 +31,10 @@ method requestStorage(market: OnChainMarket,
   await market.contract.requestStorage(request)
   return request
 
-method offerStorage(market: OnChainMarket,
-                    offer: StorageOffer):
-                   Future[StorageOffer] {.async.} =
-  var offer = offer
-  offer.host = await market.signer.getAddress()
-  await market.contract.offerStorage(offer)
-  return offer
-
-method selectOffer(market: OnChainMarket, offerId: array[32, byte]) {.async.} =
-  await market.contract.selectOffer(offerId)
+method fulfillRequest(market: OnChainMarket,
+                      requestId: array[32, byte],
+                      proof: seq[byte]) {.async.} =
+  await market.contract.fulfillRequest(requestId, proof)
 
 method subscribeRequests(market: OnChainMarket,
                          callback: OnRequest):
@@ -50,24 +44,14 @@ method subscribeRequests(market: OnChainMarket,
   let subscription = await market.contract.subscribe(StorageRequested, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
-method subscribeOffers(market: OnChainMarket,
-                       requestId: array[32, byte],
-                       callback: OnOffer):
-                      Future[MarketSubscription] {.async.} =
-  proc onEvent(event: StorageOffered) {.upraises:[].} =
+method subscribeFulfillment(market: OnChainMarket,
+                            requestId: array[32, byte],
+                            callback: OnFulfillment):
+                           Future[MarketSubscription] {.async.} =
+  proc onEvent(event: RequestFulfilled) {.upraises:[].} =
     if event.requestId == requestId:
-      callback(event.offer)
-  let subscription = await market.contract.subscribe(StorageOffered, onEvent)
-  return OnChainMarketSubscription(eventSubscription: subscription)
-
-method subscribeSelection(market: OnChainMarket,
-                          requestId: array[32, byte],
-                          callback: OnSelect):
-                         Future[MarketSubscription] {.async.} =
-  proc onSelect(event: OfferSelected) {.upraises: [].} =
-    if event.requestId == requestId:
-      callback(event.offerId)
-  let subscription = await market.contract.subscribe(OfferSelected, onSelect)
+      callback(event.requestId)
+  let subscription = await market.contract.subscribe(RequestFulfilled, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
 method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =
