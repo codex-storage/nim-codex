@@ -49,6 +49,12 @@ ethersuite "On-Chain Market":
     let submitted = await market.requestStorage(requestWithoutClient)
     check submitted.client == accounts[0]
 
+  test "can retrieve previously submitted requests":
+    check (await market.getRequest(request.id)) == none StorageRequest
+    await token.approve(storage.address, request.ask.maxPrice)
+    discard await market.requestStorage(request)
+    check (await market.getRequest(request.id)) == some request
+
   test "supports request subscriptions":
     var receivedIds: seq[array[32, byte]]
     var receivedAsks: seq[StorageAsk]

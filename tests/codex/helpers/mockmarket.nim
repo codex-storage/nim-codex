@@ -30,6 +30,13 @@ method requestStorage*(market: MockMarket,
     subscription.callback(request.id, request.ask)
   return request
 
+method getRequest(market: MockMarket,
+                  id: array[32, byte]): Future[?StorageRequest] {.async.} =
+  for request in market.requested:
+    if request.id == id:
+      return some request
+  return none StorageRequest
+
 method fulfillRequest*(market: MockMarket,
                        requestId: array[32, byte],
                        proof: seq[byte]) {.async.} =
