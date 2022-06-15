@@ -13,7 +13,7 @@
 
 ## Build and Run
 
-To build the project clone it and run `make exec`, the executable will be placed under the `build` directory under the project root.
+To build the project clone it and run `make update` and `make exec`, the executable will be placed under the `build` directory under the project root.
 
 ```
 ./build/codex --help
