@@ -31,6 +31,14 @@ method requestStorage(market: OnChainMarket,
   await market.contract.requestStorage(request)
   return request
 
+method getRequest(market: OnChainMarket,
+                  id: array[32, byte]): Future[?StorageRequest] {.async.} =
+  let request = await market.contract.getRequest(id)
+  if request != StorageRequest.default:
+    return some request
+  else:
+    return none StorageRequest
+
 method fulfillRequest(market: OnChainMarket,
                       requestId: array[32, byte],
                       proof: seq[byte]) {.async.} =

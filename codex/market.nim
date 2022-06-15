@@ -1,9 +1,11 @@
 import pkg/chronos
 import pkg/upraises
+import pkg/questionable
 import ./contracts/requests
 import ./contracts/offers
 
 export chronos
+export questionable
 export requests
 export offers
 
@@ -16,6 +18,11 @@ type
 method requestStorage*(market: Market,
                        request: StorageRequest):
                       Future[StorageRequest] {.base, async.} =
+  raiseAssert("not implemented")
+
+method getRequest*(market: Market,
+                   id: array[32, byte]):
+                  Future[?StorageRequest] {.base, async.} =
   raiseAssert("not implemented")
 
 method fulfillRequest*(market: Market,
