@@ -228,12 +228,12 @@
     },
     "libbacktrace": {
       "version": "0.0.8",
-      "vcsRevision": "ce966b1c469dda179b54346feaaf1a62202c984f",
+      "vcsRevision": "d4a9115a430d7f87fe14516bb557572743e73862",
       "url": "https://github.com/status-im/nim-libbacktrace",
       "downloadMethod": "git",
       "dependencies": [],
       "checksums": {
-        "sha1": "ba7a2f3d21db894ace7bb4ebe0a5b06af995d68b"
+        "sha1": "e3bdf40ee179349ecc86629284e2ba189da8ac76"
       }
     },
     "dnsclient": {
@@ -342,6 +342,70 @@
       ],
       "checksums": {
         "sha1": "1edab14b434aca6ae28e2385982fa60d623c600a"
+      }
+    },
+    "contractabi": {
+      "version": "0.4.5",
+      "vcsRevision": "df55276f1d7bed529cf8d423a5077ca8a2a2d4ca",
+      "url": "https://github.com/status-im/nim-contract-abi",
+      "downloadMethod": "git",
+      "dependencies": [
+        "stint",
+        "stew",
+        "nimcrypto",
+        "questionable",
+        "upraises"
+      ],
+      "checksums": {
+        "sha1": "11387226c5e355e207f587382e3bcca1cc5cf687"
+      }
+    },
+    "news": {
+      "version": "0.5",
+      "vcsRevision": "9094ae314754908838979fe0840b9b33c0e0a603",
+      "url": "https://github.com/status-im/news",
+      "downloadMethod": "git",
+      "dependencies": [],
+      "checksums": {
+        "sha1": "db9d3265b01c039bb9c7e7d304c23c744344c507"
+      }
+    },
+    "json_rpc": {
+      "version": "0.0.2",
+      "vcsRevision": "335f292a5816910aebf215e3a88db8a665133e0e",
+      "url": "https://github.com/status-im/nim-json-rpc",
+      "downloadMethod": "git",
+      "dependencies": [
+        "stew",
+        "nimcrypto",
+        "stint",
+        "chronos",
+        "httputils",
+        "chronicles",
+        "news",
+        "websock",
+        "json_serialization"
+      ],
+      "checksums": {
+        "sha1": "7addcdfd8b2b1c955cf3f34339ecc1d9ce94f176"
+      }
+    },
+    "ethers": {
+      "version": "0.1.9",
+      "vcsRevision": "a626070532a12e2367eb7f8ae883a750179a75d7",
+      "url": "https://github.com/status-im/nim-ethers",
+      "downloadMethod": "git",
+      "dependencies": [
+        "chronos",
+        "contractabi",
+        "questionable",
+        "upraises",
+        "json_rpc",
+        "stint",
+        "stew"
+      ],
+      "checksums": {
+        "sha1": "19390d32f8c90a4640d67d7e7ec6e0b6f62a3504"
       }
     }
   }
