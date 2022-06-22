@@ -62,7 +62,7 @@ Same as the first example, but this time the REST api is listening on port 8081 
 
 ## Interacting with the client
 
-The client exposes a REST api that can be invoked with any http client, the following examples assume the use of the `curl` command.
+The client exposes a REST API that can be used to interact with the clients. These commands could be invoked with any HTTP client, however the following endpoints assume the use of the `curl` command.
 
 #### `/api/codex/v1/connect/{peerId}`
 
