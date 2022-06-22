@@ -14,15 +14,19 @@
 ## Build and Run
 
 To build the project, clone it and run:
-``bash
+
+```bash
 make update && make exec
-``
+```
+
 The executable will be placed under the `build` directory under the project root.
 
 Run the client with:
-``bash
+
+```bash
 ./build/codex
-``
+```
+
 ### CLI Options
 
 ```
