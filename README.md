@@ -46,7 +46,7 @@ Available sub-commands:
 codex initNode
 ```
 
-### Examples:
+### Example: running two Codex clients
 
 ```bash
 ./build/codex --data-dir=`pwd`"/Codex1" -i=127.0.0.1
