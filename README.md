@@ -13,7 +13,17 @@
 
 ## Build and Run
 
-To build the project clone it and run `make update` and `make exec`, the executable will be placed under the `build` directory under the project root.
+To build the project, clone it and run:
+``bash
+make update && make exec
+``
+The executable will be placed under the `build` directory under the project root.
+
+Run the client with:
+``bash
+./build/codex
+``
+### CLI Options
 
 ```
 ./build/codex --help
