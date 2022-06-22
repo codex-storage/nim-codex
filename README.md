@@ -74,7 +74,7 @@ Same as the first example, but this time the REST api is listening on port 8081 
 
 The client exposes a REST API that can be used to interact with the clients. These commands could be invoked with any HTTP client, however the following endpoints assume the use of the `curl` command.
 
-#### `/api/codex/v1/connect/{peerId}`
+### `/api/codex/v1/connect/{peerId}`
 
 Connect to a peer identified by its peer id. Takes an optional `addrs` parameter with a list of valid [multiaddresses](https://multiformats.io/multiaddr/). If `addrs` is absent, the peer will be discovered over the DHT.
 
