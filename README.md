@@ -109,7 +109,7 @@ Example:
 curl "127.0.0.1:8080/api/codex/v1/connect/<peer id>?addrs=<multiaddress>"
 ```
 
-#### `/api/codex/v1/download/{id}`
+### `/api/codex/v1/download/{id}`
 
 Download data identified by a `Cid`.
 
@@ -119,7 +119,7 @@ Example:
  curl -vvv "127.0.0.1:8080/api/codex/v1/download/<Cid of the content>" --output <name of output file>
  ```
 
-#### `/api/codex/v1/upload`
+### `/api/codex/v1/upload`
 
 Upload a file, upon success returns the `Cid` of the uploaded file.
 
@@ -129,7 +129,7 @@ Example:
 curl -vvv -H "Tranfer-Encoding: chunked" "127.0.0.1:8080 api/codex/v1/upload" -X POST --data-binary "@<path to file>"
 ```
 
-#### `/api/codex/v1/info`
+### `/api/codex/v1/info`
 
 Get useful node info such as its peer id, address and SPR.
 
