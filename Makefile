@@ -96,8 +96,18 @@ codex.nims:
 	ln -s codex.nimble $@
 
 # nim-libbacktrace
+LIBBACKTRACE_MAKE_FLAGS := -C vendor/nim-libbacktrace --no-print-directory BUILD_CXX_LIB=0
 libbacktrace:
-	+ $(MAKE) -C vendor/nim-libbacktrace --no-print-directory BUILD_CXX_LIB=0
+ifeq ($(detected_OS), Windows)
+# MSYS2 detection
+ifneq ($(MSYSTEM),)
+	+ $(MAKE) $(LIBBACKTRACE_MAKE_FLAGS) CMAKE_ARGS="-G'MSYS Makefiles'"
+else
+	+ $(MAKE) $(LIBBACKTRACE_MAKE_FLAGS)
+endif
+else
+	+ $(MAKE) $(LIBBACKTRACE_MAKE_FLAGS)
+endif
 
 coverage:
 	$(MAKE) NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage" testAll
