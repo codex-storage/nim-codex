@@ -64,7 +64,7 @@ codex initNode
 ### Example: running two Codex clients
 
 ```bash
-./build/codex --data-dir=`pwd`"/Codex1" -i=127.0.0.1
+./build/codex --data-dir="$(pwd)/Codex1" -i=127.0.0.1
 ```
 
 This will start codex with a data directory pointing to `Codex` under the current execution directory and announce itself on the DHT under `127.0.0.1`.
