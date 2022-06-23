@@ -131,7 +131,7 @@ curl -vvv -H "Tranfer-Encoding: chunked" "127.0.0.1:8080 api/codex/v1/upload" -X
 
 #### `/api/codex/v1/info`
 
-Get useful node info such as it's peer id, address and Spr.
+Get useful node info such as its peer id, address and SPR.
 
 Example:
 
