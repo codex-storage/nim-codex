@@ -93,17 +93,18 @@ suite "Cache Store tests":
 
   test "delBlock":
     # empty cache
-    check not await store.delBlock(newBlock1.cid)
+    (await store.delBlock(newBlock1.cid)).tryGet()
 
     # successfully deleted
     discard await store.putBlock(newBlock1)
-    check await store.delBlock(newBlock1.cid)
+    (await store.delBlock(newBlock1.cid)).tryGet()
 
     # deletes item should decrement size
     store = CacheStore.new(@[newBlock1, newBlock2, newBlock3])
     check:
       store.currentSize == 300
-      await store.delBlock(newBlock2.cid)
+    (await store.delBlock(newBlock2.cid)).tryGet()
+    check:
       store.currentSize == 200
       newBlock2.cid notin store
 

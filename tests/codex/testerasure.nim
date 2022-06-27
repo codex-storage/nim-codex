@@ -66,7 +66,7 @@ suite "Erasure encode/decode":
 
     for _ in 0..<encoded.M:
       dropped.add(encoded[column])
-      check (await store.delBlock(encoded[column]))
+      (await store.delBlock(encoded[column])).tryGet()
       column.inc(encoded.steps)
 
     var
@@ -93,7 +93,7 @@ suite "Erasure encode/decode":
 
     for _ in 0..<encoded.M + 1:
       dropped.add(encoded[column])
-      check (await store.delBlock(encoded[column]))
+      (await store.delBlock(encoded[column])).tryGet()
       column.inc(encoded.steps)
 
     var
@@ -125,7 +125,7 @@ suite "Erasure encode/decode":
       offset.inc
 
     for idx in blocks:
-      check (await store.delBlock(encoded[idx]))
+      (await store.delBlock(encoded[idx])).tryGet()
 
     discard (await erasure.decode(encoded)).tryGet()
 
@@ -158,7 +158,7 @@ suite "Erasure encode/decode":
       offset.inc
 
     for idx in blocks:
-      check (await store.delBlock(encoded[idx]))
+      (await store.delBlock(encoded[idx])).tryGet()
 
     var
       decoded: Manifest
@@ -174,7 +174,7 @@ suite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     for b in encoded.blocks[0..<encoded.steps * encoded.M]:
-      check (await store.delBlock(b))
+      (await store.delBlock(b)).tryGet()
 
     discard (await erasure.decode(encoded)).tryGet()
 
@@ -189,7 +189,7 @@ suite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     for b in encoded.blocks[^(encoded.steps * encoded.M)..^1]:
-      check (await store.delBlock(b))
+      (await store.delBlock(b)).tryGet()
 
     discard (await erasure.decode(encoded)).tryGet()
 

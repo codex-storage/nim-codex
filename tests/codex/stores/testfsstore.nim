@@ -68,5 +68,5 @@ suite "FS Store":
     createDir(store.blockPath(newBlock.cid).parentDir)
     writeFile(store.blockPath(newBlock.cid), newBlock.data)
 
-    check await store.delBlock(newBlock.cid)
+    (await store.delBlock(newBlock.cid)).tryGet()
     check not fileExists(store.blockPath(newBlock.cid))

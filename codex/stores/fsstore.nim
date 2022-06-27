@@ -97,26 +97,25 @@ method putBlock*(
 
 method delBlock*(
   self: FSStore,
-  cid: Cid): Future[bool] {.async.} =
-  ## Delete a block/s from the block store
+  cid: Cid): Future[?!void] {.async.} =
+  ## Delete a block from the blockstore
   ##
 
+  trace "Deleting block from filestore", cid
   if cid.isEmpty:
     trace "Empty block, ignoring"
-    return true
+    return success()
 
-  let path = self.blockPath(cid)
-  if (
-    let res = io2.removeFile(path);
-    res.isErr):
-    let error = io2.ioErrorMsg(res.error)
-    trace "Unable to delete block", path, cid, error
-    return false
+  let
+    path = self.blockPath(cid)
+    res = io2.removeFile(path)
 
-  if not (await self.cache.delBlock(cid)):
-    trace "Unable to delete block from cache", cid
+  if res.isErr:
+    let errmsg = io2.ioErrorMsg(res.error)
+    trace "Unable to delete block", path, cid, errmsg
+    return errmsg.failure
 
-  return true
+  return await self.cache.delBlock(cid)
 
 method hasBlock*(self: FSStore, cid: Cid): bool =
   ## Check if the block exists in the blockstore

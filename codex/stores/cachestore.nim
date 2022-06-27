@@ -109,23 +109,20 @@ method putBlock*(
 
 method delBlock*(
   self: CacheStore,
-  cid: Cid): Future[bool] {.async.} =
-  ## delete a block/s from the block store
+  cid: Cid): Future[?!void] {.async.} =
+  ## Delete a block from the blockstore
   ##
 
   trace "Deleting block from cache", cid
   if cid.isEmpty:
     trace "Empty block, ignoring"
-    return true
+    return success()
 
-  try:
-    let removed = self.cache.del(cid)
-    if removed.isSome:
-      self.currentSize -= removed.get.data.len
-      return true
-    return false
-  except EmptyLruCacheError:
-    return false
+  let removed = self.cache.del(cid)
+  if removed.isSome:
+    self.currentSize -= removed.get.data.len
+
+  return success()
 
 func new*(
     _: type CacheStore,
