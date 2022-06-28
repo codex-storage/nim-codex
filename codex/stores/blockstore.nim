@@ -41,8 +41,8 @@ method putBlock*(
 
 method delBlock*(
   s: BlockStore,
-  cid: Cid): Future[bool] {.base.} =
-  ## Delete a block/s from the block store
+  cid: Cid): Future[?!void] {.base.} =
+  ## Delete a block from the blockstore
   ##
 
   raiseAssert("Not implemented!")

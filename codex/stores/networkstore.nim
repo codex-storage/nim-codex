@@ -66,11 +66,12 @@ method putBlock*(
 
 method delBlock*(
   self: NetworkStore,
-  cid: Cid): Future[bool] =
-  ## Delete a block/s from the block store
+  cid: Cid): Future[?!void] =
+  ## Delete a block from the blockstore
   ##
 
-  self.localStore.delBlock(cid)
+  trace "Deleting block from networkstore", cid
+  return self.localStore.delBlock(cid)
 
 {.pop.}
 
