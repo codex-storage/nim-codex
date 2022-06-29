@@ -122,7 +122,8 @@ suite "NetworkStore engine - 2 nodes":
       .pushOrUpdateNoWait(peerCtx1).isOk
     await sleepAsync(100.millis)
 
-    check nodeCmps1.localStore.hasBlock(blk.cid)
+    let present = await nodeCmps1.localStore.hasBlock(blk.cid)
+    check present.tryGet()
 
   test "Should get blocks from remote":
     let blocks = await allFinished(

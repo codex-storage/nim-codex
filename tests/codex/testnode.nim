@@ -85,7 +85,7 @@ suite "Test Node":
       manifestCid = (await storeFut).tryGet()
 
     check:
-      manifestCid in localStore
+      (await localStore.hasBlock(manifestCid)).tryGet()
 
     var
       manifestBlock = (await localStore.getBlock(manifestCid)).tryGet()
