@@ -78,7 +78,8 @@ suite "Erasure encode/decode":
       decoded.len == encoded.originalLen
 
     for d in dropped:
-      check d in store
+      let present = await store.hasBlock(d)
+      check present.tryGet()
 
   test "Should not tolerate loosing more than M data blocks in a single random column":
     const
@@ -103,7 +104,8 @@ suite "Erasure encode/decode":
       decoded = (await erasure.decode(encoded)).tryGet()
 
     for d in dropped:
-      check d notin store
+      let present = await store.hasBlock(d)
+      check not present.tryGet()
 
   test "Should tolerate loosing M data blocks in M random columns":
     const
@@ -130,7 +132,8 @@ suite "Erasure encode/decode":
     discard (await erasure.decode(encoded)).tryGet()
 
     for d in manifest:
-      check d in store
+      let present = await store.hasBlock(d)
+      check present.tryGet()
 
   test "Should not tolerate loosing more than M data blocks in M random columns":
     const
@@ -179,7 +182,8 @@ suite "Erasure encode/decode":
     discard (await erasure.decode(encoded)).tryGet()
 
     for d in manifest:
-      check d in store
+      let present = await store.hasBlock(d)
+      check present.tryGet()
 
   test "Should tolerate loosing M (a.k.a row) contiguous parity blocks":
     const
@@ -194,7 +198,8 @@ suite "Erasure encode/decode":
     discard (await erasure.decode(encoded)).tryGet()
 
     for d in manifest:
-      check d in store
+      let present = await store.hasBlock(d)
+      check present.tryGet()
 
   test "handles edge case of 0 parity blocks":
     const

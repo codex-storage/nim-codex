@@ -47,11 +47,11 @@ method delBlock*(
 
   raiseAssert("Not implemented!")
 
-method hasBlock*(s: BlockStore, cid: Cid): bool {.base.} =
+method hasBlock*(s: BlockStore, cid: Cid): Future[?!bool] {.base.} =
   ## Check if the block exists in the blockstore
   ##
 
-  return false
+  raiseAssert("Not implemented!")
 
 method listBlocks*(s: BlockStore, onBlock: OnBlock): Future[void] {.base.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
@@ -59,5 +59,9 @@ method listBlocks*(s: BlockStore, onBlock: OnBlock): Future[void] {.base.} =
 
   raiseAssert("Not implemented!")
 
-proc contains*(s: BlockStore, blk: Cid): bool =
-  s.hasBlock(blk)
+proc contains*(s: BlockStore, blk: Cid): Future[bool] {.async.} =
+  ## Check if the block exists in the blockstore.
+  ## Return false if error encountered
+  ##
+
+  return (await s.hasBlock(blk)) |? false

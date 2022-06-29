@@ -242,7 +242,8 @@ suite "NetworkStore engine handlers":
     let resolved = await allFinished(pending)
     check resolved.mapIt( it.read ) == blocks
     for b in blocks:
-      check engine.localStore.hasBlock(b.cid)
+      let present = await engine.localStore.hasBlock(b.cid)
+      check present.tryGet()
 
   test "Should send payments for received blocks":
     let account = Account(address: EthAddress.example)

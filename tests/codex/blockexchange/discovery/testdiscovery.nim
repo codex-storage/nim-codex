@@ -82,7 +82,7 @@ suite "Block Advertising and Discovery":
 
     blockDiscovery.findBlockProvidersHandler =
       proc(d: MockDiscovery, cid: Cid): Future[seq[SignedPeerRecord]] {.async.} =
-        engine.resolveBlocks(blocks.filterIt( it.cid == cid ))
+        await engine.resolveBlocks(blocks.filterIt( it.cid == cid ))
 
     await allFuturesThrowing(
       allFinished(pendingBlocks))

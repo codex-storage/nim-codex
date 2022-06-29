@@ -23,9 +23,11 @@ suite "Cache Store tests":
     store = CacheStore.new()
 
   test "constructor":
+    echo "testcachestore: before exception"
     # cache size cannot be smaller than chunk size
     expect ValueError:
       discard CacheStore.new(cacheSize = 1, chunkSize = 2)
+    echo "testcachestore: after exception"
 
     store = CacheStore.new(cacheSize = 100, chunkSize = 1)
     check store.currentSize == 0
@@ -50,7 +52,7 @@ suite "Cache Store tests":
 
     check:
       await store.putBlock(newBlock1)
-      newBlock1.cid in store
+      (await store.hasBlock(newBlock1.cid)).tryGet()
 
     # block size bigger than entire cache
     store = CacheStore.new(cacheSize = 99, chunkSize = 98)
@@ -62,9 +64,9 @@ suite "Cache Store tests":
               cacheSize = 200,
               chunkSize = 1)
     check:
-      not store.hasBlock(newBlock1.cid)
-      store.hasBlock(newBlock2.cid)
-      store.hasBlock(newBlock3.cid)
+      not (await store.hasBlock(newBlock1.cid)).tryGet()
+      (await store.hasBlock(newBlock2.cid)).tryGet()
+      (await store.hasBlock(newBlock2.cid)).tryGet()
       store.currentSize == newBlock2.data.len + newBlock3.data.len # 200
 
   test "getBlock":
@@ -85,11 +87,14 @@ suite "Cache Store tests":
 
   test "hasBlock":
     let store = CacheStore.new(@[newBlock])
-
-    check store.hasBlock(newBlock.cid)
+    check:
+      (await store.hasBlock(newBlock.cid)).tryGet()
+      await newBlock.cid in store
 
   test "fail hasBlock":
-    check not store.hasBlock(newBlock.cid)
+    check:
+      not (await store.hasBlock(newBlock.cid)).tryGet()
+      not (await newBlock.cid in store)
 
   test "delBlock":
     # empty cache
@@ -103,10 +108,12 @@ suite "Cache Store tests":
     store = CacheStore.new(@[newBlock1, newBlock2, newBlock3])
     check:
       store.currentSize == 300
+
     (await store.delBlock(newBlock2.cid)).tryGet()
+
     check:
       store.currentSize == 200
-      newBlock2.cid notin store
+      not (await store.hasBlock(newBlock2.cid)).tryGet()
 
   test "listBlocks":
     discard await store.putBlock(newBlock1)
@@ -114,7 +121,7 @@ suite "Cache Store tests":
     var listed = false
     await store.listBlocks(
       proc(cid: Cid) {.gcsafe, async.} =
-        check cid in store
+        check (await store.hasBlock(cid)).tryGet()
         listed = true
     )
 

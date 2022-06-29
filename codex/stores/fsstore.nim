@@ -43,24 +43,31 @@ method getBlock*(
   ## Get a block from the stores
   ##
 
+  trace "Getting block from filestore", cid
   if cid.isEmpty:
     trace "Empty block, ignoring"
     return cid.emptyBlock.success
 
-  if cid in self.cache:
-    return await self.cache.getBlock(cid)
+  # Try to get this block from the cache
+  let cachedBlock = await self.cache.getBlock(cid)
+  if cachedBlock.isOK:  # TODO: check for success and non-emptiness
+    return cachedBlock
 
-  if cid notin self:
-    return Block.failure("Couldn't find block in fs store")
-
+  # Read file contents
   var data: seq[byte]
-  let path = self.blockPath(cid)
-  if (
-    let res = io2.readFile(path, data);
-    res.isErr):
-    let error = io2.ioErrorMsg(res.error)
-    trace "Cannot read file from fs store", path , error
-    return Block.failure("Cannot read file from fs store")
+  let
+    path = self.blockPath(cid)
+    res = io2.readFile(path, data)
+
+  # TODO: If file doesn't exist - return empty block,
+  # other I/O errors are signaled as failures
+  if res.isErr:
+    if not isFile(path):
+      return Block.failure("Couldn't find block in filestore")
+    else:
+      let error = io2.ioErrorMsg(res.error)
+      trace "Cannot read file from filestore", path, error
+      return Block.failure("Cannot read file from filestore")
 
   return Block.new(cid, data)
 
@@ -74,15 +81,16 @@ method putBlock*(
     trace "Empty block, ignoring"
     return true
 
-  if blk.cid in self:
+  let path = self.blockPath(blk.cid)
+  if isFile(path):
     return true
 
   # if directory exists it wont fail
-  if io2.createPath(self.blockPath(blk.cid).parentDir).isErr:
-    trace "Unable to create block prefix dir", dir = self.blockPath(blk.cid).parentDir
+  let dir = path.parentDir
+  if io2.createPath(dir).isErr:
+    trace "Unable to create block prefix dir", dir
     return false
 
-  let path = self.blockPath(blk.cid)
   if (
     let res = io2.writeFile(path, blk.data);
     res.isErr):
@@ -117,16 +125,16 @@ method delBlock*(
 
   return await self.cache.delBlock(cid)
 
-method hasBlock*(self: FSStore, cid: Cid): bool =
+method hasBlock*(self: FSStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
   ##
 
-  trace "Checking for block existence", cid
+  trace "Checking filestore for block existence", cid
   if cid.isEmpty:
     trace "Empty block, ignoring"
-    return true
+    return true.success
 
-  self.blockPath(cid).isFile()
+  return self.blockPath(cid).isFile().success
 
 method listBlocks*(self: FSStore, onBlock: OnBlock) {.async.} =
   debug "Listing all blocks in store"

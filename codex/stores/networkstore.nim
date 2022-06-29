@@ -61,7 +61,7 @@ method putBlock*(
   if not (await self.localStore.putBlock(blk)):
     return false
 
-  self.engine.resolveBlocks(@[blk])
+  await self.engine.resolveBlocks(@[blk])
   return true
 
 method delBlock*(
@@ -75,13 +75,12 @@ method delBlock*(
 
 {.pop.}
 
-method hasBlock*(
-  self: NetworkStore,
-  cid: Cid): bool =
+method hasBlock*(self: NetworkStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
   ##
 
-  self.localStore.hasBlock(cid)
+  trace "Checking NetworkStore for block existence", cid
+  return await self.localStore.hasBlock(cid)
 
 proc new*(
   T: type NetworkStore,
