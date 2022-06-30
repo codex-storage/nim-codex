@@ -23,11 +23,9 @@ suite "Cache Store tests":
     store = CacheStore.new()
 
   test "constructor":
-    echo "testcachestore: before exception"
     # cache size cannot be smaller than chunk size
     expect ValueError:
       discard CacheStore.new(cacheSize = 1, chunkSize = 2)
-    echo "testcachestore: after exception"
 
     store = CacheStore.new(cacheSize = 100, chunkSize = 1)
     check store.currentSize == 0

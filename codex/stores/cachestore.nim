@@ -59,12 +59,9 @@ method getBlock*(
 #    return Block.failure("Block not found")  # TODO: return nil
 
   try:
-    echo "cachestore: before exception"
     let x = self.cache[cid]
-    echo "cachestore: after exception"
     return x.success
   except CatchableError as e:
-    echo "cachestore: exception catched"
     return Block.failure(e)
 
 #  return self.cache[cid].catch()
