@@ -81,7 +81,7 @@ suite "Cache Store tests":
 
     check:
       blk.isErr
-      blk.error of system.KeyError
+      #blk.error of system.KeyError
 
   test "hasBlock":
     let store = CacheStore.new(@[newBlock])
