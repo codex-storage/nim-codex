@@ -58,7 +58,7 @@ method getBlock*(
   if cid notin self.cache:
     return Block.failure("Block not found")  # TODO: return nil
 
-  return self.cache[cid]
+  return self.cache[cid].catch()
 
 method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
