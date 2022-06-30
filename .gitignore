@@ -1,6 +1,7 @@
 *
 !*/
 !*.*
+*.exe
 
 !Makefile
 
