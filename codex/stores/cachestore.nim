@@ -55,8 +55,8 @@ method getBlock*(
     trace "Empty block, ignoring"
     return cid.emptyBlock.success
 
-  if cid notin self.cache:
-    return Block.failure("Block not found")  # TODO: return nil
+  # if cid notin self.cache:
+  #   return Block.failure("Block not found")  # TODO: return nil
 
   return self.cache[cid].catch()
 
