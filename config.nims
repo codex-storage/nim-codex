@@ -6,6 +6,9 @@ else:
   switch("nimcache", joinPath(currentSourcePath.parentDir, "nimcache/debug/$projectName"))
 
 if defined(windows):
+  # https://github.com/nim-lang/Nim/pull/19891
+  switch("define", "nimRawSetjmp")
+
   # disable timestamps in Windows PE headers - https://wiki.debian.org/ReproducibleBuilds/TimestampsInPEBinaries
   switch("passL", "-Wl,--no-insert-timestamp")
   # increase stack size
