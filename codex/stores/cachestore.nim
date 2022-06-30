@@ -55,16 +55,10 @@ method getBlock*(
     trace "Empty block, ignoring"
     return cid.emptyBlock.success
 
-#  if cid notin self.cache:
-#    return Block.failure("Block not found")  # TODO: return nil
+  if cid notin self.cache:
+    return Block.failure("Block not found")  # TODO: return nil
 
-  try:
-    let x = self.cache[cid]
-    return x.success
-  except CatchableError as e:
-    return Block.failure(e)
-
-#  return self.cache[cid].catch()
+  return self.cache[cid]
 
 method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
