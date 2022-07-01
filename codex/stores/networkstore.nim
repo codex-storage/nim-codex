@@ -64,9 +64,7 @@ method putBlock*(
   await self.engine.resolveBlocks(@[blk])
   return true
 
-method delBlock*(
-  self: NetworkStore,
-  cid: Cid): Future[?!void] =
+method delBlock*(self: NetworkStore, cid: Cid): Future[?!void] =
   ## Delete a block from the blockstore
   ##
 

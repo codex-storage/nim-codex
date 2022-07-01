@@ -71,9 +71,14 @@ method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
 
   return (cid in self.cache).success
 
-method listBlocks*(s: CacheStore, onBlock: OnBlock) {.async.} =
+method listBlocks*(s: CacheStore, onBlock: OnBlock): Future[?!void] {.async.} =
+  ## Get the list of blocks in the BlockStore. This is an intensive operation
+  ##
+
   for cid in toSeq(s.cache.keys):
     await onBlock(cid)
+
+  return success()
 
 func putBlockSync(self: CacheStore, blk: Block): bool =
 

@@ -39,9 +39,7 @@ method putBlock*(
 
   raiseAssert("Not implemented!")
 
-method delBlock*(
-  s: BlockStore,
-  cid: Cid): Future[?!void] {.base.} =
+method delBlock*(s: BlockStore, cid: Cid): Future[?!void] {.base.} =
   ## Delete a block from the blockstore
   ##
 
@@ -53,7 +51,7 @@ method hasBlock*(s: BlockStore, cid: Cid): Future[?!bool] {.base.} =
 
   raiseAssert("Not implemented!")
 
-method listBlocks*(s: BlockStore, onBlock: OnBlock): Future[void] {.base.} =
+method listBlocks*(s: BlockStore, onBlock: OnBlock): Future[?!void] {.base.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 

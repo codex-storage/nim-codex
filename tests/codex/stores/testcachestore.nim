@@ -117,10 +117,10 @@ suite "Cache Store tests":
     discard await store.putBlock(newBlock1)
 
     var listed = false
-    await store.listBlocks(
+    (await store.listBlocks(
       proc(cid: Cid) {.gcsafe, async.} =
         check (await store.hasBlock(cid)).tryGet()
         listed = true
-    )
+    )).tryGet()
 
     check listed

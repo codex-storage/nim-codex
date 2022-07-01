@@ -136,16 +136,18 @@ method hasBlock*(self: FSStore, cid: Cid): Future[?!bool] {.async.} =
 
   return self.blockPath(cid).isFile().success
 
-method listBlocks*(self: FSStore, onBlock: OnBlock) {.async.} =
-  debug "Listing all blocks in store"
+method listBlocks*(self: FSStore, onBlock: OnBlock): Future[?!void] {.async.} =
+  ## Get the list of blocks in the BlockStore. This is an intensive operation
+  ##
+
+  trace "Listing all blocks in filestore"
   for (pkind, folderPath) in self.repoDir.walkDir():
     if pkind != pcDir: continue
-    let baseName = basename(folderPath)
-    if baseName.len != self.postfixLen: continue
+    if len(folderPath.basename) != self.postfixLen: continue
 
-    for (fkind, filePath) in folderPath.walkDir(false):
+    for (fkind, filename) in folderPath.walkDir(relative = true):
       if fkind != pcFile: continue
-      let cid = Cid.init(basename(filePath))
+      let cid = Cid.init(filename)
       if cid.isOk:
         # getting a weird `Error: unhandled exception: index 1 not in 0 .. 0 [IndexError]`
         # compilation error if using different syntax/construct bellow
@@ -156,6 +158,8 @@ method listBlocks*(self: FSStore, onBlock: OnBlock) {.async.} =
           raise exc
         except CatchableError as exc:
           trace "Couldn't get block", cid = $(cid.get())
+
+  return success()
 
 proc new*(
   T: type FSStore,

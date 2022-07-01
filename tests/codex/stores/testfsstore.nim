@@ -66,9 +66,10 @@ suite "FS Store":
     createDir(store.blockPath(newBlock.cid).parentDir)
     writeFile(store.blockPath(newBlock.cid), newBlock.data)
 
-    await store.listBlocks(
+    (await store.listBlocks(
       proc(cid: Cid) {.gcsafe, async.} =
-        check cid == newBlock.cid)
+        check cid == newBlock.cid
+    )).tryGet()
 
   test "delBlock":
     createDir(store.blockPath(newBlock.cid).parentDir)
