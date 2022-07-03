@@ -139,7 +139,7 @@ proc encode*(
 
         trace "Adding parity block", cid = blk.cid, pos = idx
         encoded[idx] = blk.cid
-        if not (await self.store.putBlock(blk)):
+        if isErr (await self.store.putBlock(blk)):
           trace "Unable to store block!", cid = blk.cid
           return failure("Unable to store block!")
   except CancelledError as exc:
@@ -242,7 +242,7 @@ proc decode*(
             return failure(error)
 
           trace "Recovered block", cid = blk.cid
-          if not (await self.store.putBlock(blk)):
+          if isErr (await self.store.putBlock(blk)):
             trace "Unable to store block!", cid = blk.cid
             return failure("Unable to store block!")
   except CancelledError as exc:

@@ -48,13 +48,13 @@ suite "Cache Store tests":
 
   test "putBlock":
 
-    check:
-      await store.putBlock(newBlock1)
-      (await store.hasBlock(newBlock1.cid)).tryGet()
+    (await store.putBlock(newBlock1)).tryGet()
+    check (await store.hasBlock(newBlock1.cid)).tryGet()
 
     # block size bigger than entire cache
     store = CacheStore.new(cacheSize = 99, chunkSize = 98)
-    check not await store.putBlock(newBlock1)
+    (await store.putBlock(newBlock1)).tryGet()
+    check not (await store.hasBlock(newBlock1.cid)).tryGet()
 
     # block being added causes removal of LRU block
     store = CacheStore.new(
@@ -97,10 +97,14 @@ suite "Cache Store tests":
   test "delBlock":
     # empty cache
     (await store.delBlock(newBlock1.cid)).tryGet()
+    check not (await store.hasBlock(newBlock1.cid)).tryGet()
+
+    (await store.putBlock(newBlock1)).tryGet()
+    check (await store.hasBlock(newBlock1.cid)).tryGet()
 
     # successfully deleted
-    discard await store.putBlock(newBlock1)
     (await store.delBlock(newBlock1.cid)).tryGet()
+    check not (await store.hasBlock(newBlock1.cid)).tryGet()
 
     # deletes item should decrement size
     store = CacheStore.new(@[newBlock1, newBlock2, newBlock3])
@@ -114,7 +118,7 @@ suite "Cache Store tests":
       not (await store.hasBlock(newBlock2.cid)).tryGet()
 
   test "listBlocks":
-    discard await store.putBlock(newBlock1)
+    (await store.putBlock(newBlock1)).tryGet()
 
     var listed = false
     (await store.listBlocks(

@@ -106,7 +106,7 @@ suite "NetworkStore engine - 2 nodes":
 
   test "Should send want-have for block":
     let blk = bt.Block.new("Block 1".toBytes).tryGet()
-    check await nodeCmps2.localStore.putBlock(blk)
+    (await nodeCmps2.localStore.putBlock(blk)).tryGet()
 
     let entry = Entry(
       `block`: blk.cid.data.buffer,
@@ -139,7 +139,7 @@ suite "NetworkStore engine - 2 nodes":
 
     # second trigger blockexc to resolve any pending requests
     # for the block
-    check await nodeCmps2.networkStore.putBlock(blk)
+    (await nodeCmps2.networkStore.putBlock(blk)).tryGet()
 
     # should succeed retrieving block from remote
     check await nodeCmps1.networkStore.getBlock(blk.cid)
@@ -199,14 +199,8 @@ suite "NetworkStore - multiple nodes":
       pendingBlocks1 = blocks[0..3].mapIt( engine.pendingBlocks.getWantHandle( it.cid ) )
       pendingBlocks2 = blocks[12..15].mapIt( engine.pendingBlocks.getWantHandle( it.cid ))
 
-    await allFutures(
-      blocks[0..3].mapIt( networkStore[0].engine.localStore.putBlock(it) ))
-    await allFutures(
-      blocks[4..7].mapIt( networkStore[1].engine.localStore.putBlock(it) ))
-    await allFutures(
-      blocks[8..11].mapIt( networkStore[2].engine.localStore.putBlock(it) ))
-    await allFutures(
-      blocks[12..15].mapIt( networkStore[3].engine.localStore.putBlock(it) ))
+    for i in 0..15:
+      (await networkStore[i div 4].engine.localStore.putBlock(blocks[i])).tryGet()
 
     await connectNodes(switch)
     await sleepAsync(1.seconds)
@@ -235,14 +229,8 @@ suite "NetworkStore - multiple nodes":
       pendingBlocks1 = blocks[0..3].mapIt( engine.pendingBlocks.getWantHandle( it.cid ) )
       pendingBlocks2 = blocks[12..15].mapIt( engine.pendingBlocks.getWantHandle( it.cid ))
 
-    await allFutures(
-      blocks[0..3].mapIt( networkStore[0].engine.localStore.putBlock(it) ))
-    await allFutures(
-      blocks[4..7].mapIt( networkStore[1].engine.localStore.putBlock(it) ))
-    await allFutures(
-      blocks[8..11].mapIt( networkStore[2].engine.localStore.putBlock(it) ))
-    await allFutures(
-      blocks[12..15].mapIt( networkStore[3].engine.localStore.putBlock(it) ))
+    for i in 0..15:
+      (await networkStore[i div 4].engine.localStore.putBlock(blocks[i])).tryGet()
 
     await connectNodes(switch)
     await sleepAsync(1.seconds)

@@ -23,43 +23,39 @@ type
   OnBlock* = proc(cid: Cid): Future[void] {.upraises: [], gcsafe.}
   BlockStore* = ref object of RootObj
 
-method getBlock*(
-  b: BlockStore,
-  cid: Cid): Future[?!Block] {.base.} =
+method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
   ## Get a block from the stores
   ##
 
   raiseAssert("Not implemented!")
 
-method putBlock*(
-  s: BlockStore,
-  blk: Block): Future[bool] {.base.} =
+method putBlock*(self: BlockStore, blk: Block): Future[?!void] {.base.} =
   ## Put a block to the blockstore
   ##
 
   raiseAssert("Not implemented!")
 
-method delBlock*(s: BlockStore, cid: Cid): Future[?!void] {.base.} =
+method delBlock*(self: BlockStore, cid: Cid): Future[?!void] {.base.} =
   ## Delete a block from the blockstore
   ##
 
   raiseAssert("Not implemented!")
 
-method hasBlock*(s: BlockStore, cid: Cid): Future[?!bool] {.base.} =
+method hasBlock*(self: BlockStore, cid: Cid): Future[?!bool] {.base.} =
   ## Check if the block exists in the blockstore
   ##
 
   raiseAssert("Not implemented!")
 
-method listBlocks*(s: BlockStore, onBlock: OnBlock): Future[?!void] {.base.} =
+method listBlocks*(self: BlockStore, onBlock: OnBlock): Future[?!void] {.base.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 
   raiseAssert("Not implemented!")
 
-proc contains*(s: BlockStore, blk: Cid): Future[bool] {.async.} =
+proc contains*(self: BlockStore, blk: Cid): Future[bool] {.async.} =
   ## Check if the block exists in the blockstore.
   ## Return false if error encountered
   ##
 
-  return (await s.hasBlock(blk)) |? false
+  return (await self.hasBlock(blk)) |? false

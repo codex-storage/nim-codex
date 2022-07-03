@@ -33,8 +33,8 @@ suite "FS Store":
     removeDir(repoDir)
 
   test "putBlock":
+    (await store.putBlock(newBlock)).tryGet()
     check:
-      await store.putBlock(newBlock)
       fileExists(store.blockPath(newBlock.cid))
       (await store.hasBlock(newBlock.cid)).tryGet()
       await newBlock.cid in store

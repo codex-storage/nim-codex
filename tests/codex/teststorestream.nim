@@ -36,22 +36,18 @@ suite "StoreStream":
     stream = StoreStream.new(store, manifest)
 
     for d in data:
-      let
-        blk = bt.Block.new(d).tryGet()
-
+      let blk = bt.Block.new(d).tryGet()
       manifest.add(blk.cid)
-      if not (await store.putBlock(blk)):
-        raise newException(CatchableError, "Unable to store block " & $blk.cid)
+      (await store.putBlock(blk)).tryGet()
 
   test "Read all blocks < blockSize":
     var
       buf = newSeq[byte](8)
 
     while not stream.atEof:
-      let
-        read = (await stream.readOnce(addr buf[0], buf.len))
+      let read = (await stream.readOnce(addr buf[0], buf.len))
 
-      if stream.atEof.not:
+      if not stream.atEof:
         check read == 8
       else:
         check read == 4
@@ -61,9 +57,7 @@ suite "StoreStream":
       buf = newSeq[byte](10)
 
     while not stream.atEof:
-      let
-        read = (await stream.readOnce(addr buf[0], buf.len))
-
+      let read = (await stream.readOnce(addr buf[0], buf.len))
       check read == 10
 
   test "Read all blocks > blockSize":
@@ -71,10 +65,9 @@ suite "StoreStream":
       buf = newSeq[byte](11)
 
     while not stream.atEof:
-      let
-        read = (await stream.readOnce(addr buf[0], buf.len))
+      let read = (await stream.readOnce(addr buf[0], buf.len))
 
-      if stream.atEof.not:
+      if not stream.atEof:
         check read == 11
       else:
         check read == 1

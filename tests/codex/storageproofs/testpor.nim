@@ -36,12 +36,9 @@ suite "BLS PoR":
       let chunk = await chunker.getBytes();
       chunk.len > 0):
 
-      let
-        blk = bt.Block.new(chunk).tryGet()
-
+      let blk = bt.Block.new(chunk).tryGet()
       manifest.add(blk.cid)
-      if not (await store.putBlock(blk)):
-        raise newException(CatchableError, "Unable to store block " & $blk.cid)
+      (await store.putBlock(blk)).tryGet()
 
   test "Test PoR without corruption":
     let
@@ -97,12 +94,9 @@ suite "Test Serialization":
       let chunk = await chunker.getBytes();
       chunk.len > 0):
 
-      let
-        blk = bt.Block.new(chunk).tryGet()
-
+      let blk = bt.Block.new(chunk).tryGet()
       manifest.add(blk.cid)
-      if not (await store.putBlock(blk)):
-        raise newException(CatchableError, "Unable to store block " & $blk.cid)
+      (await store.putBlock(blk)).tryGet()
 
     (spk, ssk) = st.keyGen()
     por = await PoR.init(

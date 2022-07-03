@@ -37,7 +37,7 @@ suite "Erasure encode/decode":
 
       let blk = bt.Block.new(chunk).tryGet()
       manifest.add(blk.cid)
-      check (await store.putBlock(blk))
+      (await store.putBlock(blk)).tryGet()
 
   proc encode(buffers, parity: int): Future[Manifest] {.async.} =
     let

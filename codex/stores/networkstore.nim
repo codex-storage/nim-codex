@@ -49,20 +49,18 @@ method getBlock*(
   trace "Retrieved block from local store", cid
   return blk.success
 
-method putBlock*(
-  self: NetworkStore,
-  blk: bt.Block): Future[bool] {.async.} =
-  ## Store block locally and notify the
-  ## network
+method putBlock*(self: NetworkStore, blk: bt.Block): Future[?!void] {.async.} =
+  ## Store block locally and notify the network
   ##
 
-  trace "Puting block", cid = blk.cid
+  trace "Puting block into networkstore", cid = blk.cid
 
-  if not (await self.localStore.putBlock(blk)):
-    return false
+  let res = await self.localStore.putBlock(blk)
+  if res.isErr:
+    return res
 
   await self.engine.resolveBlocks(@[blk])
-  return true
+  return success()
 
 method delBlock*(self: NetworkStore, cid: Cid): Future[?!void] =
   ## Delete a block from the blockstore

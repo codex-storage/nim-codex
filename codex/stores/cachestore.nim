@@ -102,22 +102,19 @@ func putBlockSync(self: CacheStore, blk: Block): bool =
   self.currentSize += blkSize
   return true
 
-method putBlock*(
-  self: CacheStore,
-  blk: Block): Future[bool] {.async.} =
+method putBlock*(self: CacheStore, blk: Block): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 
   trace "Storing block in cache", cid = blk.cid
   if blk.isEmpty:
     trace "Empty block, ignoring"
-    return true
+    return success()
 
-  return self.putBlockSync(blk)
+  discard self.putBlockSync(blk)
+  return success()
 
-method delBlock*(
-  self: CacheStore,
-  cid: Cid): Future[?!void] {.async.} =
+method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
   ## Delete a block from the blockstore
   ##
 

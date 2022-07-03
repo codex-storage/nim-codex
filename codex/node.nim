@@ -179,7 +179,7 @@ proc store*(
         return failure("Unable to init block from chunk!")
 
       blockManifest.add(blk.cid)
-      if not (await node.blockStore.putBlock(blk)):
+      if isErr (await node.blockStore.putBlock(blk)):
         # trace "Unable to store block", cid = blk.cid
         return failure("Unable to store block " & $blk.cid)
 
@@ -200,7 +200,7 @@ proc store*(
     trace "Unable to init block from manifest data!"
     return failure("Unable to init block from manifest data!")
 
-  if not (await node.blockStore.putBlock(manifest)):
+  if isErr (await node.blockStore.putBlock(manifest)):
     trace "Unable to store manifest", cid = manifest.cid
     return failure("Unable to store manifest " & $manifest.cid)
 
@@ -266,7 +266,7 @@ proc requestStorage*(self: CodexNodeRef,
     trace "Unable to create block from encoded manifest"
     return failure(error)
 
-  if not (await self.blockStore.putBlock(encodedBlk)):
+  if isErr (await self.blockStore.putBlock(encodedBlk)):
     trace "Unable to store encoded manifest block", cid = encodedBlk.cid
     return failure("Unable to store encoded manifest block")
 

@@ -71,41 +71,37 @@ method getBlock*(
 
   return Block.new(cid, data)
 
-method putBlock*(
-  self: FSStore,
-  blk: Block): Future[bool] {.async.} =
-  ## Put a block to the blockstore
+method putBlock*(self: FSStore, blk: Block): Future[?!void] {.async.} =
+  ## Write block contents to file with name based on blk.cid,
+  ## save second copy to the cache
   ##
 
   if blk.isEmpty:
     trace "Empty block, ignoring"
-    return true
+    return success()
 
   let path = self.blockPath(blk.cid)
   if isFile(path):
-    return true
+    return success()
 
-  # if directory exists it wont fail
+  # If directory exists createPath wont fail
   let dir = path.parentDir
   if io2.createPath(dir).isErr:
     trace "Unable to create block prefix dir", dir
-    return false
+    return failure("Unable to create block prefix dir")
 
-  if (
-    let res = io2.writeFile(path, blk.data);
-    res.isErr):
+  let res = io2.writeFile(path, blk.data)
+  if res.isErr:
     let error = io2.ioErrorMsg(res.error)
     trace "Unable to store block", path, cid = blk.cid, error
-    return false
+    return failure("Unable to store block")
 
-  if not (await self.cache.putBlock(blk)):
+  if isErr (await self.cache.putBlock(blk)):
     trace "Unable to store block in cache", cid = blk.cid
 
-  return true
+  return success()
 
-method delBlock*(
-  self: FSStore,
-  cid: Cid): Future[?!void] {.async.} =
+method delBlock*(self: FSStore, cid: Cid): Future[?!void] {.async.} =
   ## Delete a block from the blockstore
   ##
 
@@ -119,9 +115,9 @@ method delBlock*(
     res = io2.removeFile(path)
 
   if res.isErr:
-    let errmsg = io2.ioErrorMsg(res.error)
-    trace "Unable to delete block", path, cid, errmsg
-    return errmsg.failure
+    let error = io2.ioErrorMsg(res.error)
+    trace "Unable to delete block", path, cid, error
+    return error.failure
 
   return await self.cache.delBlock(cid)
 
