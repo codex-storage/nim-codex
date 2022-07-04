@@ -15,6 +15,9 @@ type
   OnRequest* = proc(id: array[32, byte], ask: StorageAsk) {.gcsafe, upraises:[].}
   OnFulfillment* = proc(requestId: array[32, byte]) {.gcsafe, upraises: [].}
 
+method getSigner*(market: Market): Future[Address] {.base, async.} =
+  raiseAssert("not implemented")
+
 method requestStorage*(market: Market,
                        request: StorageRequest):
                       Future[StorageRequest] {.base, async.} =

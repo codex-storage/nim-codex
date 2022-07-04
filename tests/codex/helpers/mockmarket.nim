@@ -7,6 +7,7 @@ type
   MockMarket* = ref object of Market
     requested*: seq[StorageRequest]
     fulfilled*: seq[Fulfillment]
+    signer: Address
     subscriptions: Subscriptions
   Fulfillment* = object
     requestId: array[32, byte]
@@ -22,6 +23,12 @@ type
     market: MockMarket
     requestId: array[32, byte]
     callback: OnFulfillment
+
+proc new*(_: type MockMarket): MockMarket =
+  MockMarket(signer: Address.example)
+
+method getSigner*(market: MockMarket): Future[Address] {.async.} =
+  return market.signer
 
 method requestStorage*(market: MockMarket,
                        request: StorageRequest):
@@ -58,7 +65,7 @@ proc fulfillRequest*(market: MockMarket,
 method fulfillRequest*(market: MockMarket,
                        requestId: array[32, byte],
                        proof: seq[byte]) {.async.} =
-  market.fulfillRequest(requestid, proof, Address.default)
+  market.fulfillRequest(requestid, proof, market.signer)
 
 method subscribeRequests*(market: MockMarket,
                           callback: OnRequest):

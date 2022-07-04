@@ -23,6 +23,9 @@ func new*(_: type OnChainMarket, contract: Storage): OnChainMarket =
     signer: signer,
   )
 
+method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
+  return await market.signer.getAddress()
+
 method requestStorage(market: OnChainMarket,
                       request: StorageRequest):
                      Future[StorageRequest] {.async.} =
