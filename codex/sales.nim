@@ -76,7 +76,7 @@ proc createOffer(negotiation: Negotiation): StorageOffer =
 
 proc sendOffer(negotiation: Negotiation) {.async.} =
   let offer = negotiation.createOffer()
-  negotiation.offer = some await negotiation.sales.market.offerStorage(offer)
+  # negotiation.offer = some await negotiation.sales.market.offerStorage(offer)
 
 proc finish(negotiation: Negotiation, success: bool) =
   if negotiation.finished:
@@ -108,8 +108,8 @@ proc subscribeSelect(negotiation: Negotiation) {.async.} =
   proc onSelect(offerId: array[32, byte]) {.gcsafe, upraises:[].} =
     negotiation.onSelect(offerId)
   let market = negotiation.sales.market
-  let subscription = await market.subscribeSelection(offer.requestId, onSelect)
-  negotiation.subscription = some subscription
+  # let subscription = await market.subscribeSelection(offer.requestId, onSelect)
+  # negotiation.subscription = some subscription
 
 proc waitForExpiry(negotiation: Negotiation) {.async.} =
   without offer =? negotiation.offer:
