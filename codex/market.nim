@@ -25,6 +25,10 @@ method getRequest*(market: Market,
                   Future[?StorageRequest] {.base, async.} =
   raiseAssert("not implemented")
 
+method getHost*(market: Market,
+                requestId: array[32, byte]): Future[?Address] {.base, async.} =
+  raiseAssert("not implemented")
+
 method fulfillRequest*(market: Market,
                        requestId: array[32, byte],
                        proof: seq[byte]) {.base, async.} =

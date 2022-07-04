@@ -73,6 +73,13 @@ ethersuite "On-Chain Market":
     discard await market.requestStorage(request)
     await market.fulfillRequest(request.id, proof)
 
+  test "can retrieve host that fulfilled request":
+    await token.approve(storage.address, request.ask.maxPrice)
+    discard await market.requestStorage(request)
+    check (await market.getHost(request.id)) == none Address
+    await market.fulfillRequest(request.id, proof)
+    check (await market.getHost(request.id)) == some accounts[0]
+
   test "support fulfillment subscriptions":
     await token.approve(storage.address, request.ask.maxPrice)
     discard await market.requestStorage(request)

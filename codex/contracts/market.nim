@@ -39,6 +39,14 @@ method getRequest(market: OnChainMarket,
   else:
     return none StorageRequest
 
+method getHost(market: OnChainMarket,
+               id: array[32, byte]): Future[?Address] {.async.} =
+  let address = await market.contract.getHost(id)
+  if address != Address.default:
+    return some address
+  else:
+    return none Address
+
 method fulfillRequest(market: OnChainMarket,
                       requestId: array[32, byte],
                       proof: seq[byte]) {.async.} =

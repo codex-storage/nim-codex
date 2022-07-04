@@ -11,6 +11,7 @@ type
   Fulfillment* = object
     requestId: array[32, byte]
     proof: seq[byte]
+    host: Address
   Subscriptions = object
     onRequest: seq[RequestSubscription]
     onFulfillment: seq[FulfillmentSubscription]
@@ -37,13 +38,27 @@ method getRequest(market: MockMarket,
       return some request
   return none StorageRequest
 
-method fulfillRequest*(market: MockMarket,
-                       requestId: array[32, byte],
-                       proof: seq[byte]) {.async.} =
-  market.fulfilled.add(Fulfillment(requestId: requestId, proof: proof))
+method getHost(market: MockMarket,
+               id: array[32, byte]): Future[?Address] {.async.} =
+  for fulfillment in market.fulfilled:
+    if fulfillment.requestId == id:
+      return some fulfillment.host
+  return none Address
+
+proc fulfillRequest*(market: MockMarket,
+                     requestId: array[32, byte],
+                     proof: seq[byte],
+                     host: Address) =
+  let fulfillment = Fulfillment(requestId: requestId, proof: proof, host: host)
+  market.fulfilled.add(fulfillment)
   for subscription in market.subscriptions.onFulfillment:
     if subscription.requestId == requestId:
       subscription.callback(requestId)
+
+method fulfillRequest*(market: MockMarket,
+                       requestId: array[32, byte],
+                       proof: seq[byte]) {.async.} =
+  market.fulfillRequest(requestid, proof, Address.default)
 
 method subscribeRequests*(market: MockMarket,
                           callback: OnRequest):

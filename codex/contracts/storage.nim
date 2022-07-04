@@ -31,6 +31,7 @@ proc balanceOf*(storage: Storage, account: Address): UInt256 {.contract, view.}
 proc requestStorage*(storage: Storage, request: StorageRequest) {.contract.}
 proc fulfillRequest*(storage: Storage, id: Id, proof: seq[byte]) {.contract.}
 proc getRequest*(storage: Storage, id: Id): StorageRequest {.contract, view.}
+proc getHost*(storage: Storage, id: Id): Address {.contract, view.}
 
 proc finishContract*(storage: Storage, id: Id) {.contract.}
 
