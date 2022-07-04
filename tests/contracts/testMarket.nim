@@ -38,6 +38,9 @@ ethersuite "On-Chain Market":
     expect AssertionError:
       discard OnChainMarket.new(storageWithoutSigner)
 
+  test "knows signer address":
+    check (await market.getSigner()) == (await provider.getSigner().getAddress())
+
   test "supports storage requests":
     await token.approve(storage.address, request.ask.maxPrice)
     check (await market.requestStorage(request)) == request
