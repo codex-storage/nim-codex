@@ -23,6 +23,7 @@ suite "Sales":
       cid: "some cid"
     )
   )
+  let proof = seq[byte].example
 
   var sales: Sales
   var market: MockMarket
@@ -33,7 +34,7 @@ suite "Sales":
     clock = MockClock.new()
     sales = Sales.new(market, clock)
     sales.retrieve = proc(_: string) {.async.} = discard
-    sales.prove = proc(_: string): Future[seq[byte]] {.async.} = discard
+    sales.prove = proc(_: string): Future[seq[byte]] {.async.} = return proof
     await sales.start()
 
   teardown:
@@ -93,6 +94,14 @@ suite "Sales":
     sales.add(availability)
     discard await market.requestStorage(request)
     check provingCid == request.content.cid
+
+  test "fulfills request":
+    sales.add(availability)
+    discard await market.requestStorage(request)
+    check market.fulfilled.len == 1
+    check market.fulfilled[0].requestId == request.id
+    check market.fulfilled[0].proof == proof
+    check market.fulfilled[0].host == await market.getSigner()
 
   # test "calls onSale when offer is selected":
   #   var sold: StorageOffer
