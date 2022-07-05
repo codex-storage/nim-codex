@@ -153,6 +153,7 @@ proc start(negotiation: Negotiation) {.async.} =
     negotiation.waiting = some negotiation.waitForExpiry()
   except CatchableError as e:
     error "Negotiation failed", msg = e.msg
+    negotiation.finish(success = false)
 
 proc handleRequest(sales: Sales, requestId: array[32, byte], ask: StorageAsk) =
   without availability =? sales.findAvailability(ask):

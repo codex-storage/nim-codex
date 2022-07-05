@@ -80,6 +80,13 @@ suite "Sales":
     discard await market.requestStorage(request)
     check retrievingCid == request.content.cid
 
+  test "makes storage available again when data retrieval fails":
+    let error = newException(IOError, "data retrieval failed")
+    sales.retrieve = proc(cid: string) {.async.} = raise error
+    sales.add(availability)
+    discard await market.requestStorage(request)
+    check sales.available == @[availability]
+
   test "generates proof of storage":
     var provingCid: string
     sales.prove = proc(cid: string): Future[seq[byte]] {.async.} = provingCid = cid
