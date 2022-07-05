@@ -33,6 +33,7 @@ suite "Sales":
     clock = MockClock.new()
     sales = Sales.new(market, clock)
     sales.retrieve = proc(_: string) {.async.} = discard
+    sales.prove = proc(_: string): Future[seq[byte]] {.async.} = discard
     await sales.start()
 
   teardown:
@@ -80,6 +81,13 @@ suite "Sales":
     sales.add(availability)
     discard await market.requestStorage(request)
     check sales.available.len == 0
+
+  test "generates proof of storage":
+    var provingCid: string
+    sales.prove = proc(cid: string): Future[seq[byte]] {.async.} = provingCid = cid
+    sales.add(availability)
+    discard await market.requestStorage(request)
+    check provingCid == request.content.cid
 
   # test "sets expiry time of offer":
   #   sales.add(availability)
