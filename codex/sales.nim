@@ -31,13 +31,14 @@ type
     requestId: array[32, byte]
     ask: StorageAsk
     availability: Availability
+    request: ?StorageRequest
     offer: ?StorageOffer
     subscription: ?Subscription
     waiting: ?Future[void]
     finished: bool
   Retrieve = proc(cid: string): Future[void] {.gcsafe, upraises: [].}
   Prove = proc(cid: string): Future[seq[byte]] {.gcsafe, upraises: [].}
-  OnSale = proc(offer: StorageOffer) {.gcsafe, upraises: [].}
+  OnSale = proc(availability: Availability, request: StorageRequest) {.gcsafe, upraises: [].}
 
 func new*(_: type Sales, market: Market, clock: Clock): Sales =
   Sales(
@@ -100,9 +101,9 @@ proc finish(negotiation: Negotiation, success: bool) =
   if waiting =? negotiation.waiting:
     waiting.cancel()
 
-  if success and offer =? negotiation.offer:
+  if success and request =? negotiation.request:
     if onSale =? negotiation.sales.onSale:
-      onSale(offer)
+      onSale(negotiation.availability, request)
   else:
     negotiation.sales.add(negotiation.availability)
 
@@ -141,13 +142,15 @@ proc start(negotiation: Negotiation) {.async.} =
   try:
     sales.remove(availability)
 
-    without request =? await market.getRequest(negotiation.requestId):
+    negotiation.request = await market.getRequest(negotiation.requestId)
+    without request =? negotiation.request:
       negotiation.finish(success = false)
       return
 
     await retrieve(request.content.cid)
     let proof = await prove(request.content.cid)
     await market.fulfillRequest(request.id, proof)
+    negotiation.finish(success = true)
 
     await negotiation.sendOffer()
     await negotiation.subscribeSelect()

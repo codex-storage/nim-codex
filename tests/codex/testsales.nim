@@ -103,15 +103,16 @@ suite "Sales":
     check market.fulfilled[0].proof == proof
     check market.fulfilled[0].host == await market.getSigner()
 
-  # test "calls onSale when offer is selected":
-  #   var sold: StorageOffer
-  #   sales.onSale = proc(offer: StorageOffer) =
-  #     sold = offer
-  #   sales.add(availability)
-  #   discard await market.requestStorage(request)
-  #   let offer = market.offered[0]
-  #   await market.selectOffer(offer.id)
-  #   check sold == offer
+  test "calls onSale when request is fulfilled":
+    var soldAvailability: Availability
+    var soldRequest: StorageRequest
+    sales.onSale = proc(availability: Availability, request: StorageRequest) =
+      soldAvailability = availability
+      soldRequest = request
+    sales.add(availability)
+    discard await market.requestStorage(request)
+    check soldAvailability == availability
+    check soldRequest == request
 
   # test "does not call onSale when a different offer is selected":
   #   var didSell: bool
