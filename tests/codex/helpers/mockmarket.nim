@@ -10,9 +10,9 @@ type
     signer: Address
     subscriptions: Subscriptions
   Fulfillment* = object
-    requestId: array[32, byte]
-    proof: seq[byte]
-    host: Address
+    requestId*: array[32, byte]
+    proof*: seq[byte]
+    host*: Address
   Subscriptions = object
     onRequest: seq[RequestSubscription]
     onFulfillment: seq[FulfillmentSubscription]

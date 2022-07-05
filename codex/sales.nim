@@ -147,6 +147,7 @@ proc start(negotiation: Negotiation) {.async.} =
 
     await retrieve(request.content.cid)
     let proof = await prove(request.content.cid)
+    await market.fulfillRequest(request.id, proof)
 
     await negotiation.sendOffer()
     await negotiation.subscribeSelect()
