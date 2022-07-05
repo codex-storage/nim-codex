@@ -34,6 +34,7 @@ type
     request: ?StorageRequest
     offer: ?StorageOffer
     subscription: ?Subscription
+    running: ?Future[void]
     waiting: ?Future[void]
     finished: bool
   Retrieve = proc(cid: string): Future[void] {.gcsafe, upraises: [].}
@@ -77,18 +78,6 @@ func findAvailability(sales: Sales, ask: StorageAsk): ?Availability =
        ask.maxPrice >= availability.minPrice:
       return some availability
 
-proc createOffer(negotiation: Negotiation): StorageOffer =
-  let sales = negotiation.sales
-  StorageOffer(
-    requestId: negotiation.requestId,
-    price: negotiation.ask.maxPrice,
-    expiry: sales.clock.now().u256 + sales.offerExpiryInterval
-  )
-
-proc sendOffer(negotiation: Negotiation) {.async.} =
-  let offer = negotiation.createOffer()
-  # negotiation.offer = some await negotiation.sales.market.offerStorage(offer)
-
 proc finish(negotiation: Negotiation, success: bool) =
   if negotiation.finished:
     return
@@ -97,6 +86,9 @@ proc finish(negotiation: Negotiation, success: bool) =
 
   if subscription =? negotiation.subscription:
     asyncSpawn subscription.unsubscribe()
+
+  if running =? negotiation.running:
+    running.cancel()
 
   if waiting =? negotiation.waiting:
     waiting.cancel()
@@ -107,20 +99,21 @@ proc finish(negotiation: Negotiation, success: bool) =
   else:
     negotiation.sales.add(negotiation.availability)
 
-proc onSelect(negotiation: Negotiation, offerId: array[32, byte]) =
-  if offer =? negotiation.offer and offer.id == offerId:
-    negotiation.finish(success = true)
-  else:
+proc onFulfill(negotiation: Negotiation, requestId: array[32, byte]) {.async.} =
+  try:
+    let market = negotiation.sales.market
+    let host = await market.getHost(requestId)
+    let me = await market.getSigner()
+    negotiation.finish(success = (host == me.some))
+  except CatchableError:
     negotiation.finish(success = false)
 
-proc subscribeSelect(negotiation: Negotiation) {.async.} =
-  without offer =? negotiation.offer:
-    return
-  proc onSelect(offerId: array[32, byte]) {.gcsafe, upraises:[].} =
-    negotiation.onSelect(offerId)
+proc subscribeFulfill(negotiation: Negotiation) {.async.} =
+  proc onFulfill(requestId: array[32, byte]) {.gcsafe, upraises:[].} =
+    asyncSpawn negotiation.onFulfill(requestId)
   let market = negotiation.sales.market
-  # let subscription = await market.subscribeSelection(offer.requestId, onSelect)
-  # negotiation.subscription = some subscription
+  let subscription = await market.subscribeFulfillment(negotiation.requestId, onFulfill)
+  negotiation.subscription = some subscription
 
 proc waitForExpiry(negotiation: Negotiation) {.async.} =
   without offer =? negotiation.offer:
@@ -129,18 +122,20 @@ proc waitForExpiry(negotiation: Negotiation) {.async.} =
   negotiation.finish(success = false)
 
 proc start(negotiation: Negotiation) {.async.} =
-  let sales = negotiation.sales
-  let market = sales.market
-  let availability = negotiation.availability
-
-  without retrieve =? sales.retrieve:
-    raiseAssert "retrieve proc not set"
-
-  without prove =? sales.prove:
-    raiseAssert "prove proc not set"
-
   try:
+    let sales = negotiation.sales
+    let market = sales.market
+    let availability = negotiation.availability
+
+    without retrieve =? sales.retrieve:
+      raiseAssert "retrieve proc not set"
+
+    without prove =? sales.prove:
+      raiseAssert "prove proc not set"
+
     sales.remove(availability)
+
+    await negotiation.subscribeFulfill()
 
     negotiation.request = await market.getRequest(negotiation.requestId)
     without request =? negotiation.request:
@@ -150,11 +145,10 @@ proc start(negotiation: Negotiation) {.async.} =
     await retrieve(request.content.cid)
     let proof = await prove(request.content.cid)
     await market.fulfillRequest(request.id, proof)
-    negotiation.finish(success = true)
 
-    await negotiation.sendOffer()
-    await negotiation.subscribeSelect()
     negotiation.waiting = some negotiation.waitForExpiry()
+  except CancelledError:
+    raise
   except CatchableError as e:
     error "Negotiation failed", msg = e.msg
     negotiation.finish(success = false)
@@ -170,7 +164,7 @@ proc handleRequest(sales: Sales, requestId: array[32, byte], ask: StorageAsk) =
     availability: availability
   )
 
-  asyncSpawn negotiation.start()
+  negotiation.running = some negotiation.start()
 
 proc start*(sales: Sales) {.async.} =
   doAssert sales.subscription.isNone, "Sales already started"

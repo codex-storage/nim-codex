@@ -1,4 +1,3 @@
-import std/times
 import pkg/asynctest
 import pkg/chronos
 import pkg/codex/sales
@@ -114,24 +113,13 @@ suite "Sales":
     check soldAvailability == availability
     check soldRequest == request
 
-  # test "does not call onSale when a different offer is selected":
-  #   var didSell: bool
-  #   sales.onSale = proc(offer: StorageOffer) =
-  #     didSell = true
-  #   sales.add(availability)
-  #   let request = await market.requestStorage(request)
-  #   var otherOffer = StorageOffer(requestId: request.id, price: 1.u256)
-  #   otherOffer = await market.offerStorage(otherOffer)
-  #   await market.selectOffer(otherOffer.id)
-  #   check not didSell
-
-  # test "makes storage available again when different offer is selected":
-  #   sales.add(availability)
-  #   let request = await market.requestStorage(request)
-  #   var otherOffer = StorageOffer(requestId: request.id, price: 1.u256)
-  #   otherOffer = await market.offerStorage(otherOffer)
-  #   await market.selectOffer(otherOffer.id)
-  #   check sales.available.contains(availability)
+  test "makes storage available again when other host fulfills request":
+    let otherHost = Address.example
+    sales.retrieve = proc(_: string) {.async.} = await sleepAsync(1.hours)
+    sales.add(availability)
+    discard await market.requestStorage(request)
+    market.fulfillRequest(request.id, proof, otherHost)
+    check sales.available == @[availability]
 
   # test "makes storage available again when offer expires":
   #   sales.add(availability)
