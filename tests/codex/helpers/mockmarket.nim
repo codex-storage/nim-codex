@@ -34,7 +34,8 @@ method requestStorage*(market: MockMarket,
                        request: StorageRequest):
                       Future[StorageRequest] {.async.} =
   market.requested.add(request)
-  for subscription in market.subscriptions.onRequest:
+  var subscriptions = market.subscriptions.onRequest
+  for subscription in subscriptions:
     subscription.callback(request.id, request.ask)
   return request
 
@@ -58,7 +59,8 @@ proc fulfillRequest*(market: MockMarket,
                      host: Address) =
   let fulfillment = Fulfillment(requestId: requestId, proof: proof, host: host)
   market.fulfilled.add(fulfillment)
-  for subscription in market.subscriptions.onFulfillment:
+  var subscriptions = market.subscriptions.onFulfillment
+  for subscription in subscriptions:
     if subscription.requestId == requestId:
       subscription.callback(requestId)
 
