@@ -13,11 +13,16 @@ suite "Sales":
     duration=60.u256,
     minPrice=42.u256
   )
-  let request = StorageRequest(ask: StorageAsk(
-    duration: 60.u256,
-    size: 100.u256,
-    maxPrice:42.u256
-  ))
+  let request = StorageRequest(
+    ask: StorageAsk(
+      duration: 60.u256,
+      size: 100.u256,
+      maxPrice:42.u256
+    ),
+    content: StorageContent(
+      cid: "some cid"
+    )
+  )
 
   var sales: Sales
   var market: MockMarket
@@ -27,6 +32,7 @@ suite "Sales":
     market = MockMarket.new()
     clock = MockClock.new()
     sales = Sales.new(market, clock)
+    sales.retrieve = proc(_: string) {.async.} = discard
     await sales.start()
 
   teardown:
@@ -54,18 +60,21 @@ suite "Sales":
     let availability2 = Availability.init(1.u256, 2.u256, 3.u256)
     check availability1.id != availability2.id
 
-  # test "offers available storage when matching request comes in":
-  #   sales.add(availability)
-  #   discard await market.requestStorage(request)
-  #   check market.offered.len == 1
-  #   check market.offered[0].price == 42.u256
+  test "retrieves data when matching request comes in":
+    var retrievingCid: string
+    sales.retrieve = proc(cid: string) {.async.} = retrievingCid = cid
+    sales.add(availability)
+    discard await market.requestStorage(request)
+    check retrievingCid == request.content.cid
 
-  # test "ignores request when no matching storage is available":
-  #   sales.add(availability)
-  #   var tooBig = request
-  #   tooBig.ask.size = request.ask.size + 1
-  #   discard await market.requestStorage(tooBig)
-  #   check market.offered.len == 0
+  test "ignores request when no matching storage is available":
+    var retrieveCalled = false
+    sales.retrieve = proc(cid: string) {.async.} = retrieveCalled = true
+    sales.add(availability)
+    var tooBig = request
+    tooBig.ask.size = request.ask.size + 1
+    discard await market.requestStorage(tooBig)
+    check not retrieveCalled
 
   test "makes storage unavailable when offer is submitted":
     sales.add(availability)
