@@ -61,26 +61,24 @@ suite "Sales":
     let availability2 = Availability.init(1.u256, 2.u256, 3.u256)
     check availability1.id != availability2.id
 
-  test "retrieves data when matching request comes in":
+  test "makes storage unavailable when matching request comes in":
+    sales.add(availability)
+    discard await market.requestStorage(request)
+    check sales.available.len == 0
+
+  test "ignores request when no matching storage is available":
+    sales.add(availability)
+    var tooBig = request
+    tooBig.ask.size = request.ask.size + 1
+    discard await market.requestStorage(tooBig)
+    check sales.available == @[availability]
+
+  test "retrieves data":
     var retrievingCid: string
     sales.retrieve = proc(cid: string) {.async.} = retrievingCid = cid
     sales.add(availability)
     discard await market.requestStorage(request)
     check retrievingCid == request.content.cid
-
-  test "ignores request when no matching storage is available":
-    var retrieveCalled = false
-    sales.retrieve = proc(cid: string) {.async.} = retrieveCalled = true
-    sales.add(availability)
-    var tooBig = request
-    tooBig.ask.size = request.ask.size + 1
-    discard await market.requestStorage(tooBig)
-    check not retrieveCalled
-
-  test "makes storage unavailable when offer is submitted":
-    sales.add(availability)
-    discard await market.requestStorage(request)
-    check sales.available.len == 0
 
   test "generates proof of storage":
     var provingCid: string
@@ -88,12 +86,6 @@ suite "Sales":
     sales.add(availability)
     discard await market.requestStorage(request)
     check provingCid == request.content.cid
-
-  # test "sets expiry time of offer":
-  #   sales.add(availability)
-  #   let now = clock.now().u256
-  #   discard await market.requestStorage(request)
-  #   check market.offered[0].expiry == now + sales.offerExpiryInterval
 
   # test "calls onSale when offer is selected":
   #   var sold: StorageOffer
