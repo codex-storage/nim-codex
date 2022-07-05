@@ -12,7 +12,7 @@ suite "Sales":
     duration=60.u256,
     minPrice=42.u256
   )
-  let request = StorageRequest(
+  var request = StorageRequest(
     ask: StorageAsk(
       duration: 60.u256,
       size: 100.u256,
@@ -35,6 +35,7 @@ suite "Sales":
     sales.retrieve = proc(_: string) {.async.} = discard
     sales.prove = proc(_: string): Future[seq[byte]] {.async.} = return proof
     await sales.start()
+    request.expiry = (clock.now() + 42).u256
 
   teardown:
     await sales.stop()
@@ -121,10 +122,10 @@ suite "Sales":
     market.fulfillRequest(request.id, proof, otherHost)
     check sales.available == @[availability]
 
-  # test "makes storage available again when offer expires":
-  #   sales.add(availability)
-  #   discard await market.requestStorage(request)
-  #   let offer = market.offered[0]
-  #   clock.set(offer.expiry.truncate(int64))
-  #   await sleepAsync(chronos.seconds(2))
-  #   check sales.available.contains(availability)
+  test "makes storage available again when request expires":
+    sales.retrieve = proc(_: string) {.async.} = await sleepAsync(1.hours)
+    sales.add(availability)
+    discard await market.requestStorage(request)
+    clock.set(request.expiry.truncate(int64))
+    await sleepAsync(2.seconds)
+    check sales.available == @[availability]

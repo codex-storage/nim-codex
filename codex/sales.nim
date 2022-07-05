@@ -116,9 +116,9 @@ proc subscribeFulfill(negotiation: Negotiation) {.async.} =
   negotiation.subscription = some subscription
 
 proc waitForExpiry(negotiation: Negotiation) {.async.} =
-  without offer =? negotiation.offer:
+  without request =? negotiation.request:
     return
-  await negotiation.sales.clock.waitUntil(offer.expiry.truncate(int64))
+  await negotiation.sales.clock.waitUntil(request.expiry.truncate(int64))
   negotiation.finish(success = false)
 
 proc start(negotiation: Negotiation) {.async.} =
@@ -142,11 +142,11 @@ proc start(negotiation: Negotiation) {.async.} =
       negotiation.finish(success = false)
       return
 
+    negotiation.waiting = some negotiation.waitForExpiry()
+
     await retrieve(request.content.cid)
     let proof = await prove(request.content.cid)
     await market.fulfillRequest(request.id, proof)
-
-    negotiation.waiting = some negotiation.waitForExpiry()
   except CancelledError:
     raise
   except CatchableError as e:
