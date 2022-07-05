@@ -19,6 +19,7 @@ type
     available*: seq[Availability]
     offerExpiryInterval*: UInt256
     retrieve: ?Retrieve
+    prove: ?Prove
     onSale: ?OnSale
   Availability* = object
     id*: array[32, byte]
@@ -35,6 +36,7 @@ type
     waiting: ?Future[void]
     finished: bool
   Retrieve = proc(cid: string): Future[void] {.gcsafe, upraises: [].}
+  Prove = proc(cid: string): Future[seq[byte]] {.gcsafe, upraises: [].}
   OnSale = proc(offer: StorageOffer) {.gcsafe, upraises: [].}
 
 func new*(_: type Sales, market: Market, clock: Clock): Sales =
@@ -54,6 +56,9 @@ proc init*(_: type Availability,
 
 proc `retrieve=`*(sales: Sales, retrieve: Retrieve) =
   sales.retrieve = some retrieve
+
+proc `prove=`*(sales: Sales, prove: Prove) =
+  sales.prove = some prove
 
 proc `onSale=`*(sales: Sales, callback: OnSale) =
   sales.onSale = some callback
@@ -130,6 +135,9 @@ proc start(negotiation: Negotiation) {.async.} =
   without retrieve =? sales.retrieve:
     raiseAssert "retrieve proc not set"
 
+  without prove =? sales.prove:
+    raiseAssert "prove proc not set"
+
   try:
     sales.remove(availability)
 
@@ -138,6 +146,7 @@ proc start(negotiation: Negotiation) {.async.} =
       return
 
     await retrieve(request.content.cid)
+    let proof = await prove(request.content.cid)
 
     await negotiation.sendOffer()
     await negotiation.subscribeSelect()
