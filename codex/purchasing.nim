@@ -24,7 +24,7 @@ type
     offerExpiryMargin: UInt256
     request*: StorageRequest
     offers*: seq[StorageOffer]
-    selected*: ?StorageOffer
+    selected*: ?Address
   PurchaseTimeout* = Timeout
 
 const DefaultProofProbability = 100.u256
@@ -85,6 +85,7 @@ proc run(purchase: Purchase) {.async.} =
     let subscription = await market.subscribeFulfillment(request.id, callback)
     try:
       await done
+      purchase.selected = await market.getHost(request.id)
     finally:
       await subscription.unsubscribe()
 
