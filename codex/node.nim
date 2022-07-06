@@ -132,7 +132,7 @@ proc retrieve*(
       ##
       try:
         let
-          batch = manifest.blocks.len div PrefetchBatch
+          batch = max(1, manifest.blocks.len div PrefetchBatch)
         trace "Prefetching in batches of", batch
         for blks in manifest.blocks.distribute(batch, true):
           discard await allFinished(
