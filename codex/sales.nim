@@ -9,15 +9,12 @@ import ./clock
 
 export stint
 
-const DefaultOfferExpiryInterval = (10 * 60).u256
-
 type
   Sales* = ref object
     market: Market
     clock: Clock
     subscription: ?Subscription
     available*: seq[Availability]
-    offerExpiryInterval*: UInt256
     retrieve: ?Retrieve
     prove: ?Prove
     onSale: ?OnSale
@@ -32,7 +29,6 @@ type
     ask: StorageAsk
     availability: Availability
     request: ?StorageRequest
-    offer: ?StorageOffer
     subscription: ?Subscription
     running: ?Future[void]
     waiting: ?Future[void]
@@ -45,7 +41,6 @@ func new*(_: type Sales, market: Market, clock: Clock): Sales =
   Sales(
     market: market,
     clock: clock,
-    offerExpiryInterval: DefaultOfferExpiryInterval
   )
 
 proc init*(_: type Availability,

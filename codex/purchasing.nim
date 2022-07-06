@@ -16,20 +16,16 @@ type
     purchases: Table[array[32, byte], Purchase]
     proofProbability*: UInt256
     requestExpiryInterval*: UInt256
-    offerExpiryMargin*: UInt256
   Purchase* = ref object
     future: Future[void]
     market: Market
     clock: Clock
-    offerExpiryMargin: UInt256
     request*: StorageRequest
-    offers*: seq[StorageOffer]
     selected*: ?Address
   PurchaseTimeout* = Timeout
 
 const DefaultProofProbability = 100.u256
 const DefaultRequestExpiryInterval = (10 * 60).u256
-const DefaultOfferExpiryMargin = (8 * 60).u256
 
 proc start(purchase: Purchase) {.gcsafe.}
 func id*(purchase: Purchase): array[32, byte]
@@ -40,7 +36,6 @@ proc new*(_: type Purchasing, market: Market, clock: Clock): Purchasing =
     clock: clock,
     proofProbability: DefaultProofProbability,
     requestExpiryInterval: DefaultRequestExpiryInterval,
-    offerExpiryMargin: DefaultOfferExpiryMargin
   )
 
 proc populate*(purchasing: Purchasing, request: StorageRequest): StorageRequest =
@@ -58,7 +53,6 @@ proc purchase*(purchasing: Purchasing, request: StorageRequest): Purchase =
     request: request,
     market: purchasing.market,
     clock: purchasing.clock,
-    offerExpiryMargin: purchasing.offerExpiryMargin
   )
   purchase.start()
   purchasing.purchases[purchase.id] = purchase

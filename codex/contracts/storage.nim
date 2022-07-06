@@ -3,7 +3,6 @@ import pkg/json_rpc/rpcclient
 import pkg/stint
 import pkg/chronos
 import ./requests
-import ./offers
 
 export stint
 export ethers
