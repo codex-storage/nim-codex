@@ -12,7 +12,6 @@ ethersuite "On-Chain Market":
   var storage: Storage
   var token: TestToken
   var request: StorageRequest
-  var offer: StorageOffer
 
   setup:
     let deployment = deployment()
@@ -27,11 +26,7 @@ ethersuite "On-Chain Market":
     market = OnChainMarket.new(storage)
 
     request = StorageRequest.example
-    offer = StorageOffer.example
     request.client = accounts[0]
-    offer.host = accounts[0]
-    offer.requestId = request.id
-    offer.price = request.ask.maxPrice
 
   test "fails to instantiate when contract does not have a signer":
     let storageWithoutSigner = storage.connect(provider)

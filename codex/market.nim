@@ -2,12 +2,10 @@ import pkg/chronos
 import pkg/upraises
 import pkg/questionable
 import ./contracts/requests
-import ./contracts/offers
 
 export chronos
 export questionable
 export requests
-export offers
 
 type
   Market* = ref object of RootObj

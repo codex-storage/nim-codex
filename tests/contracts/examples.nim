@@ -34,11 +34,3 @@ proc example*(_: type StorageRequest): StorageRequest =
     expiry: (getTime() + initDuration(hours=1)).toUnix.u256,
     nonce: array[32, byte].example
   )
-
-proc example*(_: type StorageOffer): StorageOffer =
-  StorageOffer(
-    host: Address.example,
-    requestId: StorageRequest.example.id,
-    price: 42.u256,
-    expiry: (getTime() + initDuration(hours=1)).toUnix.u256,
-  )

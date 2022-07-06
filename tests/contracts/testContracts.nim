@@ -17,7 +17,6 @@ ethersuite "Storage contracts":
   var collateralAmount: UInt256
   var periodicity: Periodicity
   var request: StorageRequest
-  var offer: StorageOffer
   var id: array[32, byte]
 
   proc switchAccount(account: Signer) =
@@ -40,10 +39,6 @@ ethersuite "Storage contracts":
 
     request = StorageRequest.example
     request.client = await client.getAddress()
-
-    offer = StorageOffer.example
-    offer.host = await host.getAddress()
-    offer.requestId = request.id
 
     switchAccount(client)
     await token.approve(storage.address, request.ask.maxPrice)
