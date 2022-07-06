@@ -107,5 +107,5 @@ ethersuite "Integration tests":
     let purchase = waitFor upload().buy().finish()
 
     check purchase["error"].getStr == ""
-    check purchase["selected"].len > 0
+    check purchase["selected"].getStr == $accounts[1]
     check available().len == 0
