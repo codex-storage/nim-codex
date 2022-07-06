@@ -49,43 +49,6 @@ type
     discovery*: Discovery
     contracts*: ?ContractInteractions
 
-proc start*(node: CodexNodeRef) {.async.} =
-  if not node.switch.isNil:
-    await node.switch.start()
-
-  if not node.engine.isNil:
-    await node.engine.start()
-
-  if not node.erasure.isNil:
-    await node.erasure.start()
-
-  if not node.discovery.isNil:
-    await node.discovery.start()
-
-  if contracts =? node.contracts:
-    await contracts.start()
-
-  node.networkId = node.switch.peerInfo.peerId
-  notice "Started codex node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
-
-proc stop*(node: CodexNodeRef) {.async.} =
-  trace "Stopping node"
-
-  if not node.engine.isNil:
-    await node.engine.stop()
-
-  if not node.switch.isNil:
-    await node.switch.stop()
-
-  if not node.erasure.isNil:
-    await node.erasure.stop()
-
-  if not node.discovery.isNil:
-    await node.discovery.stop()
-
-  if contracts =? node.contracts:
-    await contracts.stop()
-
 proc findPeer*(
   node: CodexNodeRef,
   peerId: PeerID): Future[?PeerRecord] {.async.} =
@@ -310,3 +273,47 @@ proc new*(
     erasure: erasure,
     discovery: discovery,
     contracts: contracts)
+
+proc start*(node: CodexNodeRef) {.async.} =
+  if not node.switch.isNil:
+    await node.switch.start()
+
+  if not node.engine.isNil:
+    await node.engine.start()
+
+  if not node.erasure.isNil:
+    await node.erasure.start()
+
+  if not node.discovery.isNil:
+    await node.discovery.start()
+
+  if contracts =? node.contracts:
+    contracts.sales.retrieve = proc(cid: string) {.async.} =
+      let stream = (await node.retrieve(Cid.init(cid).tryGet())).tryGet()
+      while not stream.atEof():
+        var buffer: array[4096, byte]
+        discard await readOnce(stream, addr buffer[0], buffer.len)
+    contracts.sales.prove = proc(cid: string): Future[seq[byte]] {.async.} =
+      return @[42'u8] # TODO: generate actual proof
+    await contracts.start()
+
+  node.networkId = node.switch.peerInfo.peerId
+  notice "Started codex node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
+
+proc stop*(node: CodexNodeRef) {.async.} =
+  trace "Stopping node"
+
+  if not node.engine.isNil:
+    await node.engine.stop()
+
+  if not node.switch.isNil:
+    await node.switch.stop()
+
+  if not node.erasure.isNil:
+    await node.erasure.stop()
+
+  if not node.discovery.isNil:
+    await node.discovery.stop()
+
+  if contracts =? node.contracts:
+    await contracts.stop()
