@@ -7,6 +7,24 @@ import pkg/chronicles
 import ./market
 import ./clock
 
+## Sales holds a list of available storage that it may sell.
+##
+## When storage is requested on the market that matches availability, the Sales
+## object will instruct the Codex node to persist the requested data. Once the
+## data has been persisted, it uploads a proof of storage to the market in an
+## attempt to win a storage contract.
+##
+##    Node                        Sales                   Market
+##     |                          |                         |
+##     | -- add availability  --> |                         |
+##     |                          | <-- storage request --- |
+##     | <----- store data ------ |                         |
+##     | -----------------------> |                         |
+##     |                          |                         |
+##     | <----- prove data ----   |                         |
+##     | -----------------------> |                         |
+##     |                          | ---- storage proof ---> |
+
 export stint
 
 type
