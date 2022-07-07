@@ -35,7 +35,7 @@ logScope:
   topics = "codex node"
 
 const
-  PrefetchBatch = 100
+  FetchBatch = 100
 
 type
   CodexError = object of CatchableError
@@ -86,8 +86,8 @@ proc retrieve*(
       ##
       try:
         let
-          batch = max(1, manifest.blocks.len div PrefetchBatch)
-        trace "Prefetching in batches of", batch
+          batch = max(1, manifest.blocks.len div FetchBatch)
+        trace "Prefetching in batches of", FetchBatch
         for blks in manifest.blocks.distribute(batch, true):
           discard await allFinished(
             blks.mapIt( node.blockStore.getBlock( it ) ))
