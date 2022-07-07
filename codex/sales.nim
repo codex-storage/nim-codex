@@ -23,7 +23,7 @@ type
     size*: UInt256
     duration*: UInt256
     minPrice*: UInt256
-  Negotiation = ref object
+  SalesAgent = ref object
     sales: Sales
     requestId: array[32, byte]
     ask: StorageAsk
@@ -73,54 +73,54 @@ func findAvailability(sales: Sales, ask: StorageAsk): ?Availability =
        ask.maxPrice >= availability.minPrice:
       return some availability
 
-proc finish(negotiation: Negotiation, success: bool) =
-  if negotiation.finished:
+proc finish(agent: SalesAgent, success: bool) =
+  if agent.finished:
     return
 
-  negotiation.finished = true
+  agent.finished = true
 
-  if subscription =? negotiation.subscription:
+  if subscription =? agent.subscription:
     asyncSpawn subscription.unsubscribe()
 
-  if running =? negotiation.running:
+  if running =? agent.running:
     running.cancel()
 
-  if waiting =? negotiation.waiting:
+  if waiting =? agent.waiting:
     waiting.cancel()
 
-  if success and request =? negotiation.request:
-    if onSale =? negotiation.sales.onSale:
-      onSale(negotiation.availability, request)
+  if success and request =? agent.request:
+    if onSale =? agent.sales.onSale:
+      onSale(agent.availability, request)
   else:
-    negotiation.sales.add(negotiation.availability)
+    agent.sales.add(agent.availability)
 
-proc onFulfill(negotiation: Negotiation, requestId: array[32, byte]) {.async.} =
+proc onFulfill(agent: SalesAgent, requestId: array[32, byte]) {.async.} =
   try:
-    let market = negotiation.sales.market
+    let market = agent.sales.market
     let host = await market.getHost(requestId)
     let me = await market.getSigner()
-    negotiation.finish(success = (host == me.some))
+    agent.finish(success = (host == me.some))
   except CatchableError:
-    negotiation.finish(success = false)
+    agent.finish(success = false)
 
-proc subscribeFulfill(negotiation: Negotiation) {.async.} =
+proc subscribeFulfill(agent: SalesAgent) {.async.} =
   proc onFulfill(requestId: array[32, byte]) {.gcsafe, upraises:[].} =
-    asyncSpawn negotiation.onFulfill(requestId)
-  let market = negotiation.sales.market
-  let subscription = await market.subscribeFulfillment(negotiation.requestId, onFulfill)
-  negotiation.subscription = some subscription
+    asyncSpawn agent.onFulfill(requestId)
+  let market = agent.sales.market
+  let subscription = await market.subscribeFulfillment(agent.requestId, onFulfill)
+  agent.subscription = some subscription
 
-proc waitForExpiry(negotiation: Negotiation) {.async.} =
-  without request =? negotiation.request:
+proc waitForExpiry(agent: SalesAgent) {.async.} =
+  without request =? agent.request:
     return
-  await negotiation.sales.clock.waitUntil(request.expiry.truncate(int64))
-  negotiation.finish(success = false)
+  await agent.sales.clock.waitUntil(request.expiry.truncate(int64))
+  agent.finish(success = false)
 
-proc start(negotiation: Negotiation) {.async.} =
+proc start(agent: SalesAgent) {.async.} =
   try:
-    let sales = negotiation.sales
+    let sales = agent.sales
     let market = sales.market
-    let availability = negotiation.availability
+    let availability = agent.availability
 
     without retrieve =? sales.retrieve:
       raiseAssert "retrieve proc not set"
@@ -130,14 +130,14 @@ proc start(negotiation: Negotiation) {.async.} =
 
     sales.remove(availability)
 
-    await negotiation.subscribeFulfill()
+    await agent.subscribeFulfill()
 
-    negotiation.request = await market.getRequest(negotiation.requestId)
-    without request =? negotiation.request:
-      negotiation.finish(success = false)
+    agent.request = await market.getRequest(agent.requestId)
+    without request =? agent.request:
+      agent.finish(success = false)
       return
 
-    negotiation.waiting = some negotiation.waitForExpiry()
+    agent.waiting = some agent.waitForExpiry()
 
     await retrieve(request.content.cid)
     let proof = await prove(request.content.cid)
@@ -145,21 +145,21 @@ proc start(negotiation: Negotiation) {.async.} =
   except CancelledError:
     raise
   except CatchableError as e:
-    error "Negotiation failed", msg = e.msg
-    negotiation.finish(success = false)
+    error "SalesAgent failed", msg = e.msg
+    agent.finish(success = false)
 
 proc handleRequest(sales: Sales, requestId: array[32, byte], ask: StorageAsk) =
   without availability =? sales.findAvailability(ask):
     return
 
-  let negotiation = Negotiation(
+  let agent = SalesAgent(
     sales: sales,
     requestId: requestId,
     ask: ask,
     availability: availability
   )
 
-  negotiation.running = some negotiation.start()
+  agent.running = some agent.start()
 
 proc start*(sales: Sales) {.async.} =
   doAssert sales.subscription.isNone, "Sales already started"
