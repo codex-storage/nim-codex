@@ -32,7 +32,7 @@ suite "Sales":
     market = MockMarket.new()
     clock = MockClock.new()
     sales = Sales.new(market, clock)
-    sales.retrieve = proc(_: string) {.async.} = discard
+    sales.store = proc(_: string) {.async.} = discard
     sales.prove = proc(_: string): Future[seq[byte]] {.async.} = return proof
     await sales.start()
     request.expiry = (clock.now() + 42).u256
@@ -74,16 +74,16 @@ suite "Sales":
     discard await market.requestStorage(tooBig)
     check sales.available == @[availability]
 
-  test "retrieves data":
-    var retrievingCid: string
-    sales.retrieve = proc(cid: string) {.async.} = retrievingCid = cid
+  test "retrieves and stores data locally":
+    var storingCid: string
+    sales.store = proc(cid: string) {.async.} = storingCid = cid
     sales.add(availability)
     discard await market.requestStorage(request)
-    check retrievingCid == request.content.cid
+    check storingCid == request.content.cid
 
   test "makes storage available again when data retrieval fails":
     let error = newException(IOError, "data retrieval failed")
-    sales.retrieve = proc(cid: string) {.async.} = raise error
+    sales.store = proc(cid: string) {.async.} = raise error
     sales.add(availability)
     discard await market.requestStorage(request)
     check sales.available == @[availability]
@@ -116,14 +116,14 @@ suite "Sales":
 
   test "makes storage available again when other host fulfills request":
     let otherHost = Address.example
-    sales.retrieve = proc(_: string) {.async.} = await sleepAsync(1.hours)
+    sales.store = proc(_: string) {.async.} = await sleepAsync(1.hours)
     sales.add(availability)
     discard await market.requestStorage(request)
     market.fulfillRequest(request.id, proof, otherHost)
     check sales.available == @[availability]
 
   test "makes storage available again when request expires":
-    sales.retrieve = proc(_: string) {.async.} = await sleepAsync(1.hours)
+    sales.store = proc(_: string) {.async.} = await sleepAsync(1.hours)
     sales.add(availability)
     discard await market.requestStorage(request)
     clock.set(request.expiry.truncate(int64))

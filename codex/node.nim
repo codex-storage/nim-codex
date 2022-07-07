@@ -168,6 +168,39 @@ proc store*(
 
   return manifest.cid.success
 
+proc store(node: CodexNodeRef, cid: Cid): Future[?!void] {.async.}
+
+proc store(node: CodexNodeRef, cids: seq[Cid]): Future[?!void] {.async.} =
+  ## Retrieves multiple datasets from the network, and stores them locally
+
+  let batches = max(1, cids.len div FetchBatch)
+  for batch in cids.distribute(batches, true):
+    let results = await allFinished(cids.mapIt(node.store(it)))
+    for future in results:
+      let res = await future
+      if res.isFailure:
+        return failure res.error
+
+  return success()
+
+proc store(node: CodexNodeRef, cid: Cid): Future[?!void] {.async.} =
+  ## Retrieves dataset from the network, and stores it locally
+
+  if node.blockstore.hasBlock(cid):
+    return success()
+
+  without blk =? await node.blockstore.getBlock(cid):
+    return failure newException(CodexError, "Unable to retrieve block " & $cid)
+
+  if not (await node.blockstore.putBlock(blk)):
+    return failure newException(CodexError, "Unable to store block " & $cid)
+
+  if manifest =? Manifest.decode(blk.data, blk.cid):
+
+    let res = await node.store(manifest.blocks)
+    if res.isFailure:
+      return failure res.error
+
 proc requestStorage*(self: CodexNodeRef,
                      cid: Cid,
                      duration: UInt256,
@@ -279,11 +312,8 @@ proc start*(node: CodexNodeRef) {.async.} =
     await node.discovery.start()
 
   if contracts =? node.contracts:
-    contracts.sales.retrieve = proc(cid: string) {.async.} =
-      let stream = (await node.retrieve(Cid.init(cid).tryGet())).tryGet()
-      while not stream.atEof():
-        var buffer: array[4096, byte]
-        discard await readOnce(stream, addr buffer[0], buffer.len)
+    contracts.sales.store = proc(cid: string) {.async.} =
+      (await node.store(Cid.init(cid).tryGet())).tryGet()
     contracts.sales.prove = proc(cid: string): Future[seq[byte]] {.async.} =
       return @[42'u8] # TODO: generate actual proof
     await contracts.start()

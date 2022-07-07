@@ -15,7 +15,7 @@ type
     clock: Clock
     subscription: ?Subscription
     available*: seq[Availability]
-    retrieve: ?Retrieve
+    store: ?Store
     prove: ?Prove
     onSale: ?OnSale
   Availability* = object
@@ -33,7 +33,7 @@ type
     running: ?Future[void]
     waiting: ?Future[void]
     finished: bool
-  Retrieve = proc(cid: string): Future[void] {.gcsafe, upraises: [].}
+  Store = proc(cid: string): Future[void] {.gcsafe, upraises: [].}
   Prove = proc(cid: string): Future[seq[byte]] {.gcsafe, upraises: [].}
   OnSale = proc(availability: Availability, request: StorageRequest) {.gcsafe, upraises: [].}
 
@@ -51,8 +51,8 @@ proc init*(_: type Availability,
   doAssert randomBytes(id) == 32
   Availability(id: id, size: size, duration: duration, minPrice: minPrice)
 
-proc `retrieve=`*(sales: Sales, retrieve: Retrieve) =
-  sales.retrieve = some retrieve
+proc `store=`*(sales: Sales, store: Store) =
+  sales.store = some store
 
 proc `prove=`*(sales: Sales, prove: Prove) =
   sales.prove = some prove
@@ -122,8 +122,8 @@ proc start(agent: SalesAgent) {.async.} =
     let market = sales.market
     let availability = agent.availability
 
-    without retrieve =? sales.retrieve:
-      raiseAssert "retrieve proc not set"
+    without store =? sales.store:
+      raiseAssert "store proc not set"
 
     without prove =? sales.prove:
       raiseAssert "prove proc not set"
@@ -139,7 +139,7 @@ proc start(agent: SalesAgent) {.async.} =
 
     agent.waiting = some agent.waitForExpiry()
 
-    await retrieve(request.content.cid)
+    await store(request.content.cid)
     let proof = await prove(request.content.cid)
     await market.fulfillRequest(request.id, proof)
   except CancelledError:
