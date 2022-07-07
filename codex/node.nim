@@ -312,10 +312,15 @@ proc start*(node: CodexNodeRef) {.async.} =
     await node.discovery.start()
 
   if contracts =? node.contracts:
-    contracts.sales.store = proc(cid: string) {.async.} =
+    contracts.sales.store = proc(cid: string, _: Availability) {.async.} =
+      # store data in local storage
       (await node.store(Cid.init(cid).tryGet())).tryGet()
+    contracts.sales.onClear = proc(availability: Availability, request: StorageRequest) =
+      # TODO: remove data from local storage
+      discard
     contracts.sales.prove = proc(cid: string): Future[seq[byte]] {.async.} =
-      return @[42'u8] # TODO: generate actual proof
+      # TODO: generate proof
+      return @[42'u8]
     await contracts.start()
 
   node.networkId = node.switch.peerInfo.peerId
