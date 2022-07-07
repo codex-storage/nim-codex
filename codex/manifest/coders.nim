@@ -173,3 +173,9 @@ func decode*(
   ##
 
   decoder.decode(data)
+
+func decode*(_: type Manifest, data: openArray[byte], cid: Cid): ?!Manifest =
+  without contentType =? cid.contentType() and
+          containerType =? ManifestContainers.?[$contentType]:
+    return failure "CID has invalid content type for manifest"
+  Manifest.decode(data, containerType)

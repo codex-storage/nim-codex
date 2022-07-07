@@ -69,16 +69,7 @@ proc retrieve*(
     return failure(
       newException(CodexError, "Couldn't retrieve block for Cid!"))
 
-  without mc =? blk.cid.contentType():
-    return failure(
-      newException(CodexError, "Couldn't identify Cid!"))
-
-  # if we got a manifest, stream the blocks
-  if $mc in ManifestContainers:
-    trace "Retrieving data set", cid, mc = $mc
-
-    without manifest =? Manifest.decode(blk.data, ManifestContainers[$mc]):
-      return failure("Unable to construct manifest!")
+  if manifest =? Manifest.decode(blk.data, blk.cid):
 
     if manifest.protected:
       proc erasureJob(): Future[void] {.async.} =
