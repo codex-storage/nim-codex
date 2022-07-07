@@ -32,9 +32,9 @@ suite "Sales":
     market = MockMarket.new()
     clock = MockClock.new()
     sales = Sales.new(market, clock)
-    sales.store = proc(cid: string, availability: Availability) {.async.} =
+    sales.onStore = proc(cid: string, availability: Availability) {.async.} =
       discard
-    sales.prove = proc(cid: string): Future[seq[byte]] {.async.} =
+    sales.onProve = proc(cid: string): Future[seq[byte]] {.async.} =
       return proof
     await sales.start()
     request.expiry = (clock.now() + 42).u256
@@ -79,7 +79,7 @@ suite "Sales":
   test "retrieves and stores data locally":
     var storingCid: string
     var storingAvailability: Availability
-    sales.store = proc(cid: string, availability: Availability) {.async.} =
+    sales.onStore = proc(cid: string, availability: Availability) {.async.} =
       storingCid = cid
       storingAvailability = availability
     sales.add(availability)
@@ -88,7 +88,7 @@ suite "Sales":
 
   test "makes storage available again when data retrieval fails":
     let error = newException(IOError, "data retrieval failed")
-    sales.store = proc(cid: string, availability: Availability) {.async.} =
+    sales.onStore = proc(cid: string, availability: Availability) {.async.} =
       raise error
     sales.add(availability)
     discard await market.requestStorage(request)
@@ -96,7 +96,7 @@ suite "Sales":
 
   test "generates proof of storage":
     var provingCid: string
-    sales.prove = proc(cid: string): Future[seq[byte]] {.async.} = provingCid = cid
+    sales.onProve = proc(cid: string): Future[seq[byte]] {.async.} = provingCid = cid
     sales.add(availability)
     discard await market.requestStorage(request)
     check provingCid == request.content.cid
@@ -121,7 +121,7 @@ suite "Sales":
     check soldRequest == request
 
   test "calls onClear when storage becomes available again":
-    sales.prove = proc(cid: string): Future[seq[byte]] {.async.} =
+    sales.onProve = proc(cid: string): Future[seq[byte]] {.async.} =
       raise newException(IOError, "proof failed")
     var clearedAvailability: Availability
     var clearedRequest: StorageRequest
@@ -135,7 +135,7 @@ suite "Sales":
 
   test "makes storage available again when other host fulfills request":
     let otherHost = Address.example
-    sales.store = proc(cid: string, availability: Availability) {.async.} =
+    sales.onStore = proc(cid: string, availability: Availability) {.async.} =
       await sleepAsync(1.hours)
     sales.add(availability)
     discard await market.requestStorage(request)
@@ -143,7 +143,7 @@ suite "Sales":
     check sales.available == @[availability]
 
   test "makes storage available again when request expires":
-    sales.store = proc(cid: string, availability: Availability) {.async.} =
+    sales.onStore = proc(cid: string, availability: Availability) {.async.} =
       await sleepAsync(1.hours)
     sales.add(availability)
     discard await market.requestStorage(request)
