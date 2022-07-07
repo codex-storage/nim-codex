@@ -15,8 +15,8 @@ type
     clock: Clock
     subscription: ?Subscription
     available*: seq[Availability]
-    store: ?Store
-    prove: ?Prove
+    onStore: ?OnStore
+    onProve: ?OnProve
     onClear: ?OnClear
     onSale: ?OnSale
   Availability* = object
@@ -34,8 +34,8 @@ type
     running: ?Future[void]
     waiting: ?Future[void]
     finished: bool
-  Store = proc(cid: string, availability: Availability): Future[void] {.gcsafe, upraises: [].}
-  Prove = proc(cid: string): Future[seq[byte]] {.gcsafe, upraises: [].}
+  OnStore = proc(cid: string, availability: Availability): Future[void] {.gcsafe, upraises: [].}
+  OnProve = proc(cid: string): Future[seq[byte]] {.gcsafe, upraises: [].}
   OnClear = proc(availability: Availability, request: StorageRequest) {.gcsafe, upraises: [].}
   OnSale = proc(availability: Availability, request: StorageRequest) {.gcsafe, upraises: [].}
 
@@ -53,11 +53,11 @@ proc init*(_: type Availability,
   doAssert randomBytes(id) == 32
   Availability(id: id, size: size, duration: duration, minPrice: minPrice)
 
-proc `store=`*(sales: Sales, store: Store) =
-  sales.store = some store
+proc `onStore=`*(sales: Sales, onStore: OnStore) =
+  sales.onStore = some onStore
 
-proc `prove=`*(sales: Sales, prove: Prove) =
-  sales.prove = some prove
+proc `onProve=`*(sales: Sales, onProve: OnProve) =
+  sales.onProve = some onProve
 
 proc `onClear=`*(sales: Sales, onClear: OnClear) =
   sales.onClear = some onClear
@@ -129,11 +129,11 @@ proc start(agent: SalesAgent) {.async.} =
     let market = sales.market
     let availability = agent.availability
 
-    without store =? sales.store:
-      raiseAssert "store proc not set"
+    without onStore =? sales.onStore:
+      raiseAssert "onStore callback not set"
 
-    without prove =? sales.prove:
-      raiseAssert "prove proc not set"
+    without onProve =? sales.onProve:
+      raiseAssert "onProve callback not set"
 
     sales.remove(availability)
 
@@ -146,8 +146,8 @@ proc start(agent: SalesAgent) {.async.} =
 
     agent.waiting = some agent.waitForExpiry()
 
-    await store(request.content.cid, availability)
-    let proof = await prove(request.content.cid)
+    await onStore(request.content.cid, availability)
+    let proof = await onProve(request.content.cid)
     await market.fulfillRequest(request.id, proof)
   except CancelledError:
     raise
