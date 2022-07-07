@@ -17,6 +17,7 @@ type
     available*: seq[Availability]
     store: ?Store
     prove: ?Prove
+    onClear: ?OnClear
     onSale: ?OnSale
   Availability* = object
     id*: array[32, byte]
@@ -33,8 +34,9 @@ type
     running: ?Future[void]
     waiting: ?Future[void]
     finished: bool
-  Store = proc(cid: string): Future[void] {.gcsafe, upraises: [].}
+  Store = proc(cid: string, availability: Availability): Future[void] {.gcsafe, upraises: [].}
   Prove = proc(cid: string): Future[seq[byte]] {.gcsafe, upraises: [].}
+  OnClear = proc(availability: Availability, request: StorageRequest) {.gcsafe, upraises: [].}
   OnSale = proc(availability: Availability, request: StorageRequest) {.gcsafe, upraises: [].}
 
 func new*(_: type Sales, market: Market, clock: Clock): Sales =
@@ -56,6 +58,9 @@ proc `store=`*(sales: Sales, store: Store) =
 
 proc `prove=`*(sales: Sales, prove: Prove) =
   sales.prove = some prove
+
+proc `onClear=`*(sales: Sales, onClear: OnClear) =
+  sales.onClear = some onClear
 
 proc `onSale=`*(sales: Sales, callback: OnSale) =
   sales.onSale = some callback
@@ -88,10 +93,12 @@ proc finish(agent: SalesAgent, success: bool) =
   if waiting =? agent.waiting:
     waiting.cancel()
 
-  if success and request =? agent.request:
-    if onSale =? agent.sales.onSale:
+  if success:
+    if onSale =? agent.sales.onSale and request =? agent.request:
       onSale(agent.availability, request)
   else:
+    if onClear =? agent.sales.onClear and request =? agent.request:
+      onClear(agent.availability, request)
     agent.sales.add(agent.availability)
 
 proc onFulfill(agent: SalesAgent, requestId: array[32, byte]) {.async.} =
@@ -139,7 +146,7 @@ proc start(agent: SalesAgent) {.async.} =
 
     agent.waiting = some agent.waitForExpiry()
 
-    await store(request.content.cid)
+    await store(request.content.cid, availability)
     let proof = await prove(request.content.cid)
     await market.fulfillRequest(request.id, proof)
   except CancelledError:
