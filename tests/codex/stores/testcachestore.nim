@@ -76,7 +76,7 @@ suite "Cache Store tests":
 
   test "fail getBlock":
     let blk = await store.getBlock(newBlock.cid)
-    check blk.tryGet() == Block.none
+    check blk.tryGet().isNone()
 
   test "hasBlock":
     let store = CacheStore.new(@[newBlock])
