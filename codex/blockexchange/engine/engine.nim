@@ -10,6 +10,7 @@
 import std/sequtils
 import std/sets
 import std/options
+import std/algorithm
 
 import pkg/chronos
 import pkg/chronicles
@@ -363,15 +364,14 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
   # PART 1: Send to the peer blocks he wants to get,
   # if they present in our local store
 
-  var wantsBlocks = newAsyncHeapQueue[Entry](queueType = QueueType.Max)
-  # get blocks and wants to send to the remote
-  for e in task.peerWants:
-    if e.wantType == WantType.wantBlock:
-      await wantsBlocks.push(e)
-
   # TODO: There should be all sorts of accounting of
   # bytes sent/received here
+
+  var wantsBlocks = task.peerWants.filterIt(it.wantType == WantType.wantBlock)
+
   if wantsBlocks.len > 0:
+    wantsBlocks.sort(SortOrder.Descending)
+
     let blockFuts = await allFinished(wantsBlocks.mapIt(
         b.localStore.getBlock(it.cid)
     ))
