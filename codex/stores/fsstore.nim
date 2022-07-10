@@ -37,20 +37,20 @@ type
 template blockPath*(self: FSStore, cid: Cid): string =
   self.repoDir / ($cid)[^self.postfixLen..^1] / $cid
 
-method getBlock*(
-  self: FSStore,
-  cid: Cid): Future[?!Block] {.async.} =
+method getBlock*(self: FSStore, cid: Cid): Future[?! (? Block)] {.async.} =
   ## Get a block from the stores
   ##
 
   trace "Getting block from filestore", cid
   if cid.isEmpty:
     trace "Empty block, ignoring"
-    return cid.emptyBlock.success
+    return cid.emptyBlock.some.success
 
-  # Try to get this block from the cache
   let cachedBlock = await self.cache.getBlock(cid)
-  if cachedBlock.isOK:  # TODO: check for success and non-emptiness
+  if cachedBlock.isErr:
+    return cachedBlock
+  if cachedBlock.get.isSome:
+    trace "Retrieved block from cache", cid
     return cachedBlock
 
   # Read file contents
@@ -59,17 +59,19 @@ method getBlock*(
     path = self.blockPath(cid)
     res = io2.readFile(path, data)
 
-  # TODO: If file doesn't exist - return empty block,
-  # other I/O errors are signaled as failures
   if res.isErr:
-    if not isFile(path):
-      return Block.failure("Couldn't find block in filestore")
+    if not isFile(path):   # May be, check instead that "res.error == ERROR_FILE_NOT_FOUND" ?
+      return Block.none.success
     else:
       let error = io2.ioErrorMsg(res.error)
       trace "Cannot read file from filestore", path, error
-      return Block.failure("Cannot read file from filestore")
+      return failure("Cannot read file from filestore")
 
-  return Block.new(cid, data)
+  without var blk =? Block.new(cid, data), error:
+    return error.failure
+
+  # TODO: add block to the cache
+  return blk.some.success
 
 method putBlock*(self: FSStore, blk: Block): Future[?!void] {.async.} =
   ## Write block contents to file with name based on blk.cid,

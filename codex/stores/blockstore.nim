@@ -13,6 +13,7 @@ push: {.upraises: [].}
 
 import pkg/chronos
 import pkg/libp2p
+import pkg/questionable
 import pkg/questionable/results
 
 import ../blocktype
@@ -23,8 +24,8 @@ type
   OnBlock* = proc(cid: Cid): Future[void] {.upraises: [], gcsafe.}
   BlockStore* = ref object of RootObj
 
-method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
-  ## Get a block from the stores
+method getBlock*(self: BlockStore, cid: Cid): Future[?! (? Block)] {.base.} =
+  ## Get a block from the blockstore
   ##
 
   raiseAssert("Not implemented!")

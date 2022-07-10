@@ -1,4 +1,5 @@
 import std/strutils
+import std/options
 
 import pkg/chronos
 import pkg/asynctest
@@ -71,17 +72,11 @@ suite "Cache Store tests":
     store = CacheStore.new(@[newBlock])
 
     let blk = await store.getBlock(newBlock.cid)
-
-    check:
-      blk.isOk
-      blk.get == newBlock
+    check blk.tryGet().get() == newBlock
 
   test "fail getBlock":
     let blk = await store.getBlock(newBlock.cid)
-
-    check:
-      blk.isErr
-      blk.error of system.KeyError
+    check blk.tryGet() == Block.none
 
   test "hasBlock":
     let store = CacheStore.new(@[newBlock])

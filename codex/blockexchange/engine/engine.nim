@@ -9,6 +9,7 @@
 
 import std/sequtils
 import std/sets
+import std/options
 
 import pkg/chronos
 import pkg/chronicles
@@ -359,6 +360,9 @@ proc dropPeer*(b: BlockExcEngine, peer: PeerID) =
 proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
   trace "Handling task for peer", peer = task.id
 
+  # PART 1: Send to the peer blocks he wants to get,
+  # if they present in our local store
+
   var wantsBlocks = newAsyncHeapQueue[Entry](queueType = QueueType.Max)
   # get blocks and wants to send to the remote
   for e in task.peerWants:
@@ -372,9 +376,10 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
         b.localStore.getBlock(it.cid)
     ))
 
+    # Extract succesfully received blocks
     let blocks = blockFuts
-      .filterIt((not it.failed) and it.read.isOk)
-      .mapIt(!it.read)
+      .filterIt(it.completed and it.read.isOk and it.read.get.isSome)
+      .mapIt(it.read.get.get)
 
     if blocks.len > 0:
       trace "Sending blocks to peer", peer = task.id, blocks = blocks.len
@@ -382,11 +387,15 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
         task.id,
         blocks)
 
-    # Remove successfully sent blocks
-    task.peerWants.keepIf(
-      proc(e: Entry): bool =
-        not blocks.anyIt( it.cid == e.cid )
-    )
+      # Remove successfully sent blocks
+      task.peerWants.keepIf(
+        proc(e: Entry): bool =
+          not blocks.anyIt( it.cid == e.cid )
+      )
+
+
+  # PART 2: Send to the peer prices of the blocks he wants to discover,
+  # if they present in our local store
 
   var wants: seq[BlockPresence]
   # do not remove wants from the queue unless

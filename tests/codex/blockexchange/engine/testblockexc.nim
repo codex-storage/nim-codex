@@ -128,7 +128,7 @@ suite "NetworkStore engine - 2 nodes":
   test "Should get blocks from remote":
     let blocks = await allFinished(
       blocks2.mapIt( nodeCmps1.networkStore.getBlock(it.cid) ))
-    check blocks.mapIt( !it.read ) == blocks2
+    check blocks.mapIt( it.read().tryGet().get() ) == blocks2
 
   test "Remote should send blocks when available":
     let blk = bt.Block.new("Block 1".toBytes).tryGet()

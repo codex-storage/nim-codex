@@ -1,4 +1,5 @@
 import std/os
+import std/options
 
 import pkg/questionable
 import pkg/questionable/results
@@ -43,11 +44,11 @@ suite "FS Store":
     createDir(store.blockPath(newBlock.cid).parentDir)
     writeFile(store.blockPath(newBlock.cid), newBlock.data)
     let blk = await store.getBlock(newBlock.cid)
-    check blk.option == newBlock.some
+    check blk.tryGet().get() == newBlock
 
   test "fail getBlock":
     let blk = await store.getBlock(newBlock.cid)
-    check blk.isErr
+    check blk.tryGet().isNone
 
   test "hasBlock":
     createDir(store.blockPath(newBlock.cid).parentDir)

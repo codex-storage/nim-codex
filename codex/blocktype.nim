@@ -21,6 +21,14 @@ import pkg/questionable/results
 
 import ./errors
 
+const
+  BlockSize* = 31 * 64 * 4 # block size
+
+type
+  Block* = ref object of RootObj
+    cid*: Cid
+    data*: seq[byte]
+
 template EmptyCid*: untyped =
   var
     emptyCid {.global, threadvar.}:
@@ -89,14 +97,6 @@ template EmptyBlock*: untyped =
     ]
 
   emptyBlock
-
-const
-  BlockSize* = 31 * 64 * 4 # block size
-
-type
-  Block* = ref object of RootObj
-    cid*: Cid
-    data*: seq[byte]
 
 proc isEmpty*(cid: Cid): bool =
   cid == EmptyCid[cid.cidver]

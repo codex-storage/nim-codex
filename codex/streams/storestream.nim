@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import std/options
+
 import pkg/upraises
 
 push: {.upraises: [].}
@@ -67,7 +69,7 @@ method readOnce*(
   while read < nbytes and not self.atEof:
     let
       pos = self.offset div self.manifest.blockSize
-      blk = (await self.store.getBlock(self.manifest[pos])).tryGet()
+      blk = (await self.store.getBlock(self.manifest[pos])).tryGet().get()
 
       blockOffset =
         if self.offset >= self.manifest.blockSize:

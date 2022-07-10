@@ -44,21 +44,24 @@ const
   DefaultCacheSizeMiB* = 100
   DefaultCacheSize* = DefaultCacheSizeMiB * MiB # bytes
 
-method getBlock*(
-  self: CacheStore,
-  cid: Cid): Future[?!Block] {.async.} =
+method getBlock*(self: CacheStore, cid: Cid): Future[?! (? Block)] {.async.} =
   ## Get a block from the stores
   ##
 
   trace "Getting block from cache", cid
   if cid.isEmpty:
     trace "Empty block, ignoring"
-    return cid.emptyBlock.success
+    return cid.emptyBlock.some.success
 
-  # if cid notin self.cache:
-  #   return Block.failure("Block not found")  # TODO: return nil
+  if cid notin self.cache:
+    return Block.none.success
 
-  return self.cache[cid].catch()
+  try:
+    let blk = self.cache[cid]
+    return blk.some.success
+  except CatchableError as exc:
+    trace "Exception requesting block", cid, exc = exc.msg
+    return failure(exc)
 
 method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore

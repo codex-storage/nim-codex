@@ -102,9 +102,12 @@ proc retrieve*(
   cid: Cid): Future[?!LPStream] {.async.} =
 
   trace "Received retrieval request", cid
-  without blk =? await node.blockStore.getBlock(cid):
-    return failure(
-      newException(CodexError, "Couldn't retrieve block for Cid!"))
+  without blkOrNone =? await node.blockStore.getBlock(cid), error:
+    return failure(error)
+
+  without blk =? blkOrNone:
+    trace "Block not found", cid
+    return failure("Block not found")
 
   without mc =? blk.cid.contentType():
     return failure(
@@ -236,9 +239,13 @@ proc requestStorage*(self: CodexNodeRef,
     trace "Purchasing not available"
     return failure "Purchasing not available"
 
-  without blk =? (await self.blockStore.getBlock(cid)), error:
+  without blkOrNone =? (await self.blockStore.getBlock(cid)), error:
     trace "Unable to retrieve manifest block", cid
     return failure(error)
+
+  without blk =? blkOrNone:
+    trace "Manifest block not found", cid
+    return failure("Manifest block not found")
 
   without mc =? blk.cid.contentType():
     trace "Couldn't identify Cid!", cid
