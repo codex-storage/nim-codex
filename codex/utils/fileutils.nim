@@ -13,6 +13,8 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
+import std/strutils
+
 import pkg/chronicles
 import stew/io2
 
