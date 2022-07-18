@@ -60,6 +60,7 @@ proc connect*(
   addrs: seq[MultiAddress]): Future[void] =
   node.switch.connect(peerId, addrs)
 
+# TODO: move code that retrieves blocks in manifest into blockstore
 proc retrieve*(
   node: CodexNodeRef,
   cid: Cid): Future[?!LPStream] {.async.} =
@@ -312,6 +313,7 @@ proc start*(node: CodexNodeRef) {.async.} =
     await node.discovery.start()
 
   if contracts =? node.contracts:
+    # TODO: remove Sales callbacks, pass BlockStore and StorageProofs instead
     contracts.sales.onStore = proc(cid: string, _: Availability) {.async.} =
       # store data in local storage
       (await node.store(Cid.init(cid).tryGet())).tryGet()
