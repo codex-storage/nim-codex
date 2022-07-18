@@ -120,9 +120,8 @@ suite "NetworkStore engine - 2 nodes":
       .engine
       .taskQueue
       .pushOrUpdateNoWait(peerCtx1).isOk
-    await sleepAsync(100.millis)
 
-    check nodeCmps1.localStore.hasBlock(blk.cid)
+    check eventually nodeCmps1.localStore.hasBlock(blk.cid)
 
   test "Should get blocks from remote":
     let blocks = await allFinished(
@@ -148,11 +147,10 @@ suite "NetworkStore engine - 2 nodes":
     let blocks = await allFinished(
       blocks2.mapIt( nodeCmps1.networkStore.getBlock(it.cid) ))
 
-    await sleepAsync(100.millis)
+    let channel = !peerCtx1.paymentChannel
+    let wallet = nodeCmps2.wallet
 
-    let
-      channel = !peerCtx1.paymentChannel
-    check nodeCmps2.wallet.balance(channel, Asset) > 0
+    check eventually wallet.balance(channel, Asset) > 0
 
 suite "NetworkStore - multiple nodes":
   let
