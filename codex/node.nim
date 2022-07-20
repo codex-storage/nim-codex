@@ -268,8 +268,6 @@ proc requestStorage*(self: CodexNodeRef,
       cid: $encodedBlk.cid,
       erasure: StorageErasure(
         totalChunks: encoded.len.uint64,
-        totalNodes: 1,  # TODO: store on multiple nodes
-        nodeId: 0       # TODO: store on multiple nodes
       ),
       por: StoragePor(
         u: @[],         # TODO: PoR setup

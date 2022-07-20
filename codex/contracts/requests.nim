@@ -17,14 +17,13 @@ type
     duration*: UInt256
     proofProbability*: UInt256
     reward*: UInt256
+    slots*: uint64
   StorageContent* = object
     cid*: string
     erasure*: StorageErasure
     por*: StoragePoR
   StorageErasure* = object
     totalChunks*: uint64
-    totalNodes*: uint64
-    nodeId*: uint64
   StoragePoR* = object
     u*: seq[byte]
     publicKey*: seq[byte]
@@ -44,7 +43,8 @@ func fromTuple(_: type StorageAsk, tupl: tuple): StorageAsk =
     size: tupl[0],
     duration: tupl[1],
     proofProbability: tupl[2],
-    reward: tupl[3]
+    reward: tupl[3],
+    slots: tupl[4]
   )
 
 func fromTuple(_: type StorageContent, tupl: tuple): StorageContent =
@@ -56,9 +56,7 @@ func fromTuple(_: type StorageContent, tupl: tuple): StorageContent =
 
 func fromTuple(_: type StorageErasure, tupl: tuple): StorageErasure =
   StorageErasure(
-    totalChunks: tupl[0],
-    totalNodes: tupl[1],
-    nodeId: tupl[2]
+    totalChunks: tupl[0]
   )
 
 func fromTuple(_: type StoragePoR, tupl: tuple): StoragePoR =
