@@ -1,6 +1,5 @@
 import std/json
 import pkg/chronos
-import pkg/nimcrypto
 import codex/contracts
 import codex/contracts/testtoken
 import codex/storageproofs
@@ -31,8 +30,8 @@ ethersuite "Storage contracts":
     storage = Storage.new(!deployment.address(Storage), provider.getSigner())
     token = TestToken.new(!deployment.address(TestToken), provider.getSigner())
 
-    await token.mint(await client.getAddress(), 1000.u256)
-    await token.mint(await host.getAddress(), 1000.u256)
+    await token.mint(await client.getAddress(), 1_000_000_000.u256)
+    await token.mint(await host.getAddress(), 1000_000_000.u256)
 
     collateralAmount = await storage.collateralAmount()
     periodicity = Periodicity(seconds: await storage.proofPeriod())
@@ -41,13 +40,13 @@ ethersuite "Storage contracts":
     request.client = await client.getAddress()
 
     switchAccount(client)
-    await token.approve(storage.address, request.ask.reward)
+    await token.approve(storage.address, request.price)
     await storage.requestStorage(request)
     switchAccount(host)
     await token.approve(storage.address, collateralAmount)
     await storage.deposit(collateralAmount)
-    await storage.fulfillRequest(request.id, proof)
-    id = request.id
+    await storage.fillSlot(request.id, 0.u256, proof)
+    id = request.slotId(0.u256)
 
   proc waitUntilProofRequired(id: array[32, byte]) {.async.} =
     let currentPeriod = periodicity.periodOf(await provider.currentTime())
@@ -71,7 +70,7 @@ ethersuite "Storage contracts":
     switchAccount(client)
     await storage.markProofAsMissing(id, missingPeriod)
 
-  test "can be finished":
+  test "can be payed out at the end":
     switchAccount(host)
     await provider.advanceTimeTo(await storage.proofEnd(id))
-    await storage.finishContract(id)
+    await storage.payoutSlot(request.id, 0.u256)
