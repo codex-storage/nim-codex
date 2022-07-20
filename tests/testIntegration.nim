@@ -62,19 +62,19 @@ ethersuite "Integration tests":
   test "node handles storage request":
     let cid = client.post(baseurl1 & "/upload", "some file contents").body
     let url = baseurl1 & "/storage/request/" & cid
-    let json = %*{"duration": "0x1", "maxPrice": "0x2"}
+    let json = %*{"duration": "0x1", "reward": "0x2"}
     let response = client.post(url, $json)
     check response.status == "200 OK"
 
   test "node retrieves purchase status":
     let cid = client.post(baseurl1 & "/upload", "some file contents").body
-    let request = %*{"duration": "0x1", "maxPrice": "0x2"}
+    let request = %*{"duration": "0x1", "reward": "0x2"}
     let id = client.post(baseurl1 & "/storage/request/" & cid, $request).body
     let response = client.get(baseurl1 & "/storage/purchases/" & id)
     check response.status == "200 OK"
     let json = parseJson(response.body)
     check json["request"]["ask"]["duration"].getStr == "0x1"
-    check json["request"]["ask"]["maxPrice"].getStr == "0x2"
+    check json["request"]["ask"]["reward"].getStr == "0x2"
 
   test "nodes negotiate contracts on the marketplace":
     proc sell =
@@ -89,7 +89,7 @@ ethersuite "Integration tests":
 
     proc buy(cid: string): string =
       let expiry = ((waitFor provider.currentTime()) + 30).toHex
-      let json = %*{"duration": "0x100", "maxPrice": "0x400", "expiry": expiry}
+      let json = %*{"duration": "0x100", "reward": "0x400", "expiry": expiry}
       client.post(baseurl1 & "/storage/request/" & cid, $json).body
 
     proc finish(purchase: string): Future[JsonNode] {.async.} =

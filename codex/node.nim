@@ -220,7 +220,7 @@ proc requestStorage*(self: CodexNodeRef,
                      duration: UInt256,
                      nodes: uint,
                      tolerance: uint,
-                     maxPrice: UInt256,
+                     reward: UInt256,
                      expiry = UInt256.none): Future[?!array[32, byte]] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
@@ -231,7 +231,7 @@ proc requestStorage*(self: CodexNodeRef,
   ## - Run the PoR setup on the erasure dataset
   ## - Call into the marketplace and purchasing contracts
   ##
-  trace "Received a request for storage!", cid, duration, nodes, tolerance, maxPrice
+  trace "Received a request for storage!", cid, duration, nodes, tolerance, reward
 
   without contracts =? self.contracts:
     trace "Purchasing not available"
@@ -262,7 +262,7 @@ proc requestStorage*(self: CodexNodeRef,
     ask: StorageAsk(
       size: encoded.size.u256,
       duration: duration,
-      maxPrice: maxPrice
+      reward: reward
     ),
     content: StorageContent(
       cid: $encodedBlk.cid,

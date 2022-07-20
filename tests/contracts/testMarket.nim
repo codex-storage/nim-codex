@@ -37,19 +37,19 @@ ethersuite "On-Chain Market":
     check (await market.getSigner()) == (await provider.getSigner().getAddress())
 
   test "supports storage requests":
-    await token.approve(storage.address, request.ask.maxPrice)
+    await token.approve(storage.address, request.ask.reward)
     check (await market.requestStorage(request)) == request
 
   test "sets client address when submitting storage request":
     var requestWithoutClient = request
     requestWithoutClient.client = Address.default
-    await token.approve(storage.address, request.ask.maxPrice)
+    await token.approve(storage.address, request.ask.reward)
     let submitted = await market.requestStorage(requestWithoutClient)
     check submitted.client == accounts[0]
 
   test "can retrieve previously submitted requests":
     check (await market.getRequest(request.id)) == none StorageRequest
-    await token.approve(storage.address, request.ask.maxPrice)
+    await token.approve(storage.address, request.ask.reward)
     discard await market.requestStorage(request)
     check (await market.getRequest(request.id)) == some request
 
@@ -60,26 +60,26 @@ ethersuite "On-Chain Market":
       receivedIds.add(id)
       receivedAsks.add(ask)
     let subscription = await market.subscribeRequests(onRequest)
-    await token.approve(storage.address, request.ask.maxPrice)
+    await token.approve(storage.address, request.ask.reward)
     discard await market.requestStorage(request)
     check receivedIds == @[request.id]
     check receivedAsks == @[request.ask]
     await subscription.unsubscribe()
 
   test "supports fulfilling of requests":
-    await token.approve(storage.address, request.ask.maxPrice)
+    await token.approve(storage.address, request.ask.reward)
     discard await market.requestStorage(request)
     await market.fulfillRequest(request.id, proof)
 
   test "can retrieve host that fulfilled request":
-    await token.approve(storage.address, request.ask.maxPrice)
+    await token.approve(storage.address, request.ask.reward)
     discard await market.requestStorage(request)
     check (await market.getHost(request.id)) == none Address
     await market.fulfillRequest(request.id, proof)
     check (await market.getHost(request.id)) == some accounts[0]
 
   test "support fulfillment subscriptions":
-    await token.approve(storage.address, request.ask.maxPrice)
+    await token.approve(storage.address, request.ask.reward)
     discard await market.requestStorage(request)
     var receivedIds: seq[array[32, byte]]
     proc onFulfillment(id: array[32, byte]) =
@@ -93,9 +93,9 @@ ethersuite "On-Chain Market":
     var otherRequest = StorageRequest.example
     otherRequest.client = accounts[0]
 
-    await token.approve(storage.address, request.ask.maxPrice)
+    await token.approve(storage.address, request.ask.reward)
     discard await market.requestStorage(request)
-    await token.approve(storage.address, otherrequest.ask.maxPrice)
+    await token.approve(storage.address, otherrequest.ask.reward)
     discard await market.requestStorage(otherRequest)
 
     var receivedIds: seq[array[32, byte]]

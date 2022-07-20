@@ -16,7 +16,7 @@ proc example*(_: type StorageRequest): StorageRequest =
       size: (1 * 1024 * 1024 * 1024).u256, # 1 Gigabyte
       duration: (10 * 60 * 60).u256, # 10 hours
       proofProbability: 4.u256, # require a proof roughly once every 4 periods
-      maxPrice: 84.u256
+      reward: 84.u256
     ),
     content: StorageContent(
       cid: "zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob",

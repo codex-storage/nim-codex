@@ -30,7 +30,7 @@ suite "Purchasing":
     let submitted = market.requested[0]
     check submitted.ask.duration == request.ask.duration
     check submitted.ask.size == request.ask.size
-    check submitted.ask.maxPrice == request.ask.maxPrice
+    check submitted.ask.reward == request.ask.reward
 
   test "remembers purchases":
     let purchase1 = purchasing.purchase(request)

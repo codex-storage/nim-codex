@@ -192,7 +192,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       ##
       ## cid            - the cid of a previously uploaded dataset
       ## duration       - the duration of the contract
-      ## maxPrice       - the maximum price the client is willing to pay
+      ## reward       - the maximum price the client is willing to pay
 
       # TODO: store on multiple nodes
       let nodes: uint = 1
@@ -210,7 +210,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
                                                       params.duration,
                                                       nodes,
                                                       tolerance,
-                                                      params.maxPrice,
+                                                      params.reward,
                                                       params.expiry), error:
         return RestApiResponse.error(Http500, error.msg)
 
