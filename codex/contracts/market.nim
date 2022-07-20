@@ -55,6 +55,12 @@ method fulfillRequest(market: OnChainMarket,
                       proof: seq[byte]) {.async.} =
   await market.contract.fulfillRequest(requestId, proof)
 
+method fillSlot(market: OnChainMarket,
+                requestId: array[32, byte],
+                slotIndex: UInt256,
+                proof: seq[byte]) {.async.} =
+  await market.contract.fillSlot(requestId, slotIndex, proof)
+
 method subscribeRequests(market: OnChainMarket,
                          callback: OnRequest):
                         Future[MarketSubscription] {.async.} =

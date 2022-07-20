@@ -17,7 +17,7 @@ proc example*(_: type StorageRequest): StorageRequest =
       duration: (10 * 60 * 60).u256, # 10 hours
       proofProbability: 4.u256, # require a proof roughly once every 4 periods
       reward: 84.u256,
-      slots: 42
+      slots: 4
     ),
     content: StorageContent(
       cid: "zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob",
