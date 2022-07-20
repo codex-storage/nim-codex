@@ -28,7 +28,8 @@ proc withdraw*(storage: Storage) {.contract.}
 proc balanceOf*(storage: Storage, account: Address): UInt256 {.contract, view.}
 
 proc requestStorage*(storage: Storage, request: StorageRequest) {.contract.}
-proc fulfillRequest*(storage: Storage, id: Id, proof: seq[byte]) {.contract.}
+proc fillSlot*(storage: Storage, requestId: Id, slotIndex: UInt256, proof: seq[byte]) {.contract.}
+proc payoutSlot*(storage: Storage, requestId: Id, slotIndex: UInt256) {.contract.}
 proc getRequest*(storage: Storage, id: Id): StorageRequest {.contract, view.}
 proc getHost*(storage: Storage, id: Id): Address {.contract, view.}
 

@@ -119,3 +119,10 @@ func decode*(decoder: var AbiDecoder, T: type StorageRequest): ?!T =
 func id*(request: StorageRequest): array[32, byte] =
   let encoding = AbiEncoder.encode((request, ))
   keccak256.digest(encoding).data
+
+func slotId*(request: StorageRequest, slot: UInt256): array[32, byte] =
+  let encoding = AbiEncoder.encode((request.id, slot))
+  keccak256.digest(encoding).data
+
+func price*(request: StorageRequest): UInt256 =
+  request.ask.slots.u256 * request.ask.duration * request.ask.reward
