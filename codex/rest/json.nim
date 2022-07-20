@@ -8,7 +8,7 @@ import ../purchasing
 type
   StorageRequestParams* = object
     duration*: UInt256
-    maxPrice*: UInt256
+    reward*: UInt256
     expiry*: ?UInt256
 
 proc fromJson*(_: type Availability, bytes: seq[byte]): ?!Availability =
@@ -22,11 +22,11 @@ proc fromJson*(_: type StorageRequestParams,
                bytes: seq[byte]): ?! StorageRequestParams =
   let json = ?catch parseJson(string.fromBytes(bytes))
   let duration = ?catch UInt256.fromHex(json["duration"].getStr)
-  let maxPrice = ?catch UInt256.fromHex(json["maxPrice"].getStr)
+  let reward = ?catch UInt256.fromHex(json["reward"].getStr)
   let expiry = UInt256.fromHex(json["expiry"].getStr).catch.option
   success StorageRequestParams(
     duration: duration,
-    maxPrice: maxPrice,
+    reward: reward,
     expiry: expiry
   )
 

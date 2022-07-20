@@ -16,7 +16,7 @@ suite "Sales":
     ask: StorageAsk(
       duration: 60.u256,
       size: 100.u256,
-      maxPrice:42.u256
+      reward:42.u256
     ),
     content: StorageContent(
       cid: "some cid"
