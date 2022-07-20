@@ -35,6 +35,12 @@ method fulfillRequest*(market: Market,
                        proof: seq[byte]) {.base, async.} =
   raiseAssert("not implemented")
 
+method fillSlot*(market: Market,
+                 requestId: array[32, byte],
+                 slotIndex: UInt256,
+                 proof: seq[byte]) {.base, async.} =
+  raiseAssert("not implemented")
+
 method subscribeRequests*(market: Market,
                           callback: OnRequest):
                          Future[Subscription] {.base, async.} =
