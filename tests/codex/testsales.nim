@@ -16,7 +16,8 @@ suite "Sales":
     ask: StorageAsk(
       duration: 60.u256,
       size: 100.u256,
-      reward:42.u256
+      reward:42.u256,
+      slots: 4
     ),
     content: StorageContent(
       cid: "some cid"
@@ -101,24 +102,30 @@ suite "Sales":
     discard await market.requestStorage(request)
     check provingCid == request.content.cid
 
-  test "fulfills request":
+  test "fills a slot":
     sales.add(availability)
     discard await market.requestStorage(request)
-    check market.fulfilled.len == 1
-    check market.fulfilled[0].requestId == request.id
-    check market.fulfilled[0].proof == proof
-    check market.fulfilled[0].host == await market.getSigner()
+    check market.filled.len == 1
+    check market.filled[0].requestId == request.id
+    check market.filled[0].slotIndex < request.ask.slots.u256
+    check market.filled[0].proof == proof
+    check market.filled[0].host == await market.getSigner()
 
-  test "calls onSale when request is fulfilled":
+  test "calls onSale when slot is filled":
     var soldAvailability: Availability
     var soldRequest: StorageRequest
-    sales.onSale = proc(availability: Availability, request: StorageRequest) =
+    var soldSlotIndex: UInt256
+    sales.onSale = proc(availability: Availability,
+                        request: StorageRequest,
+                        slotIndex: UInt256) =
       soldAvailability = availability
       soldRequest = request
+      soldSlotIndex = slotIndex
     sales.add(availability)
     discard await market.requestStorage(request)
     check soldAvailability == availability
     check soldRequest == request
+    check soldSlotIndex < request.ask.slots.u256
 
   test "calls onClear when storage becomes available again":
     sales.onProve = proc(cid: string): Future[seq[byte]] {.async.} =
@@ -133,13 +140,14 @@ suite "Sales":
     check clearedAvailability == availability
     check clearedRequest == request
 
-  test "makes storage available again when other host fulfills request":
+  test "makes storage available again when other host fills the slot":
     let otherHost = Address.example
     sales.onStore = proc(cid: string, availability: Availability) {.async.} =
       await sleepAsync(1.hours)
     sales.add(availability)
     discard await market.requestStorage(request)
-    market.fulfillRequest(request.id, proof, otherHost)
+    for slotIndex in 0..<request.ask.slots:
+      market.fillSlot(request.id, slotIndex.u256, proof, otherHost)
     check sales.available == @[availability]
 
   test "makes storage available again when request expires":
