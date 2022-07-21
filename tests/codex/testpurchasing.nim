@@ -74,8 +74,7 @@ suite "Purchasing":
   test "succeeds when request is fulfilled":
     let purchase = purchasing.purchase(request)
     let request = market.requested[0]
-    let proof = seq[byte].example
-    await market.fulfillRequest(request.id, proof)
+    market.emitRequestFulfilled(request.id)
     await purchase.wait()
     check purchase.error.isNone
 
