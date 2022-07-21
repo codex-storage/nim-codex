@@ -12,6 +12,7 @@ type
   Subscription* = ref object of RootObj
   OnRequest* = proc(id: array[32, byte], ask: StorageAsk) {.gcsafe, upraises:[].}
   OnFulfillment* = proc(requestId: array[32, byte]) {.gcsafe, upraises: [].}
+  OnSlotFilled* = proc(requestId: array[32, byte], slotIndex: UInt256) {.gcsafe, upraises:[].}
 
 method getSigner*(market: Market): Future[Address] {.base, async.} =
   raiseAssert("not implemented")
@@ -35,6 +36,11 @@ method fulfillRequest*(market: Market,
                        proof: seq[byte]) {.base, async.} =
   raiseAssert("not implemented")
 
+method getHost*(market: Market,
+                requestId: array[32, byte],
+                slotIndex: UInt256): Future[?Address] {.base, async.} =
+  raiseAssert("not implemented")
+
 method fillSlot*(market: Market,
                  requestId: array[32, byte],
                  slotIndex: UInt256,
@@ -50,6 +56,13 @@ method subscribeFulfillment*(market: Market,
                              requestId: array[32, byte],
                              callback: OnFulfillment):
                             Future[Subscription] {.base, async.} =
+  raiseAssert("not implemented")
+
+method subscribeSlotFilled*(market: Market,
+                            requestId: array[32, byte],
+                            slotIndex: UInt256,
+                            callback: OnSlotFilled):
+                           Future[Subscription] {.base, async.} =
   raiseAssert("not implemented")
 
 method unsubscribe*(subscription: Subscription) {.base, async, upraises:[].} =

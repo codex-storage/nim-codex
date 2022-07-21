@@ -55,7 +55,9 @@ type
   OnStore = proc(cid: string, availability: Availability): Future[void] {.gcsafe, upraises: [].}
   OnProve = proc(cid: string): Future[seq[byte]] {.gcsafe, upraises: [].}
   OnClear = proc(availability: Availability, request: StorageRequest) {.gcsafe, upraises: [].}
-  OnSale = proc(availability: Availability, request: StorageRequest) {.gcsafe, upraises: [].}
+  OnSale = proc(availability: Availability,
+                request: StorageRequest,
+                slotIndex: UInt256) {.gcsafe, upraises: [].}
 
 func new*(_: type Sales, market: Market, clock: Clock): Sales =
   Sales(
@@ -113,26 +115,31 @@ proc finish(agent: SalesAgent, success: bool) =
 
   if success:
     if onSale =? agent.sales.onSale and request =? agent.request:
-      onSale(agent.availability, request)
+      onSale(agent.availability, request, 0.u256) # TODO: slot index
   else:
     if onClear =? agent.sales.onClear and request =? agent.request:
       onClear(agent.availability, request)
     agent.sales.add(agent.availability)
 
-proc onFulfill(agent: SalesAgent, requestId: array[32, byte]) {.async.} =
+proc onSlotFilled(agent: SalesAgent,
+                  requestId: array[32, byte],
+                  slotIndex: UInt256) {.async.} =
   try:
     let market = agent.sales.market
-    let host = await market.getHost(requestId)
+    let host = await market.getHost(requestId, slotIndex)
     let me = await market.getSigner()
     agent.finish(success = (host == me.some))
   except CatchableError:
     agent.finish(success = false)
 
-proc subscribeFulfill(agent: SalesAgent) {.async.} =
-  proc onFulfill(requestId: array[32, byte]) {.gcsafe, upraises:[].} =
-    asyncSpawn agent.onFulfill(requestId)
+proc subscribeSlotFilled(agent: SalesAgent) {.async.} =
+  proc onSlotFilled(requestId: array[32, byte],
+                    slotIndex: UInt256) {.gcsafe, upraises:[].} =
+    asyncSpawn agent.onSlotFilled(requestId, slotIndex)
   let market = agent.sales.market
-  let subscription = await market.subscribeFulfillment(agent.requestId, onFulfill)
+  let subscription = await market.subscribeSlotFilled(agent.requestId,
+                                                      0.u256,
+                                                      onSlotFilled) # TODO: slot index
   agent.subscription = some subscription
 
 proc waitForExpiry(agent: SalesAgent) {.async.} =
@@ -155,7 +162,7 @@ proc start(agent: SalesAgent) {.async.} =
 
     sales.remove(availability)
 
-    await agent.subscribeFulfill()
+    await agent.subscribeSlotFilled()
 
     agent.request = await market.getRequest(agent.requestId)
     without request =? agent.request:
@@ -166,7 +173,7 @@ proc start(agent: SalesAgent) {.async.} =
 
     await onStore(request.content.cid, availability)
     let proof = await onProve(request.content.cid)
-    await market.fulfillRequest(request.id, proof)
+    await market.fillSlot(request.id, 0.u256, proof) # TODO: slot index
   except CancelledError:
     raise
   except CatchableError as e:
