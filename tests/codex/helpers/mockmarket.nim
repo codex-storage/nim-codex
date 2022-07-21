@@ -89,6 +89,21 @@ method getHost(market: MockMarket,
       return some slot.host
   return none Address
 
+proc emitSlotFilled*(market: MockMarket,
+                     requestId: array[32, byte],
+                     slotIndex: UInt256) =
+  var subscriptions = market.subscriptions.onSlotFilled
+  for subscription in subscriptions:
+    if subscription.requestId == requestId and
+       subscription.slotIndex == slotIndex:
+      subscription.callback(requestId, slotIndex)
+
+proc emitRequestFulfilled*(market: MockMarket, requestId: array[32, byte]) =
+  var subscriptions = market.subscriptions.onFulfillment
+  for subscription in subscriptions:
+    if subscription.requestId == requestId:
+      subscription.callback(requestId)
+
 proc fillSlot*(market: MockMarket,
                requestId: array[32, byte],
                slotIndex: UInt256,
@@ -101,11 +116,7 @@ proc fillSlot*(market: MockMarket,
     host: host
   )
   market.filled.add(slot)
-  var subscriptions = market.subscriptions.onSlotFilled
-  for subscription in subscriptions:
-    if subscription.requestId == requestId and
-       subscription.slotIndex == slotIndex:
-      subscription.callback(requestId, slotIndex)
+  market.emitSlotFilled(requestId, slotIndex)
 
 method fillSlot*(market: MockMarket,
                  requestId: array[32, byte],
