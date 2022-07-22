@@ -18,7 +18,6 @@ const
 
 suite "Test PoR store":
   let
-    (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
     blocks = toSeq([1, 5, 10, 14, 20, 12, 22]) # TODO: maybe make them random
 
   var
@@ -58,7 +57,7 @@ suite "Test PoR store":
     tags = blocks.mapIt(
       Tag(idx: it, tag: porMsg.authenticators[it]) )
 
-    repoDir = path.parentDir / "stp"
+    repoDir = getAppDir() / "stp"
     createDir(repoDir)
     stpstore = st.StpStore.init(repoDir)
 

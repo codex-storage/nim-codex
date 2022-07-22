@@ -11,7 +11,7 @@ import pkg/codex/chunker
 
 import ../helpers
 
-suite "Cache Store tests":
+suite "Cache Store":
   var
     newBlock, newBlock1, newBlock2, newBlock3: Block
     store: CacheStore

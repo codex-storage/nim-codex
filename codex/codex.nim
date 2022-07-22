@@ -118,7 +118,7 @@ proc new*(T: type CodexServer, config: CodexConf): T =
 
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
-    localStore = FSStore.new(config.dataDir / "repo", cache = cache)
+    localStore = SQLiteStore.new(config.dataDir / "repo", cache = cache)
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
     discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)

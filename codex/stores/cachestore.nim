@@ -12,7 +12,6 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
-
 import std/options
 
 import pkg/chronicles
@@ -131,6 +130,12 @@ method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
     self.currentSize -= removed.get.data.len
 
   return success()
+
+method close*(self: CacheStore): Future[void] {.async.} =
+  ## Close the blockstore, a no-op for this implementation
+  ##
+
+  discard
 
 func new*(
     _: type CacheStore,

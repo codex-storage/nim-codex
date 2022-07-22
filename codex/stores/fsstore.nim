@@ -146,18 +146,15 @@ method listBlocks*(self: FSStore, onBlock: OnBlock): Future[?!void] {.async.} =
     for (fkind, filename) in folderPath.walkDir(relative = true):
       if fkind != pcFile: continue
       let cid = Cid.init(filename)
-      if cid.isOk:
-        # getting a weird `Error: unhandled exception: index 1 not in 0 .. 0 [IndexError]`
-        # compilation error if using different syntax/construct bellow
-        try:
-          await onBlock(cid.get())
-        except CancelledError as exc:
-          trace "Cancelling list blocks"
-          raise exc
-        except CatchableError as exc:
-          trace "Couldn't get block", cid = $(cid.get())
+      if cid.isOk: await onBlock(cid.get())
 
   return success()
+
+method close*(self: FSStore): Future[void] {.async.} =
+  ## Close the underlying cache
+  ##
+
+  if not self.cache.isNil: await self.cache.close
 
 proc new*(
   T: type FSStore,
