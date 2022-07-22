@@ -365,3 +365,6 @@ proc stop*(node: CodexNodeRef) {.async.} =
 
   if contracts =? node.contracts:
     await contracts.stop()
+
+  if not node.blockStore.isNil:
+    await node.blockStore.close

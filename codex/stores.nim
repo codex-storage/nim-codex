@@ -2,6 +2,7 @@ import ./stores/[
   cachestore,
   blockstore,
   networkstore,
-  fsstore]
+  fsstore,
+  sqlitestore]
 
-export cachestore, blockstore, networkstore, fsstore
+export cachestore, blockstore, networkstore, fsstore, sqlitestore

@@ -54,6 +54,13 @@ method listBlocks*(self: BlockStore, onBlock: OnBlock): Future[?!void] {.base.} 
 
   raiseAssert("Not implemented!")
 
+method close*(self: Blockstore): Future[void] {.base.} =
+  ## Close the blockstore, cleaning up resources managed by it.
+  ## For some implementations this may be a no-op
+  ##
+
+  raiseAssert("Not implemented!")
+
 proc contains*(self: BlockStore, blk: Cid): Future[bool] {.async.} =
   ## Check if the block exists in the blockstore.
   ## Return false if error encountered

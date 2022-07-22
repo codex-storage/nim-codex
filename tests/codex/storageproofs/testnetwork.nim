@@ -48,7 +48,6 @@ suite "Storage Proofs Network":
     store: BlockStore
     ssk: st.SecretKey
     spk: st.PublicKey
-    repoDir: string
     stpstore: st.StpStore
     porMsg: PorMessage
     cid: Cid

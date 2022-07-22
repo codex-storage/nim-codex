@@ -17,16 +17,13 @@ import pkg/codex/blocktype as bt
 import ../helpers
 
 suite "FS Store":
-  let
-    (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
-
   var
     store: FSStore
     repoDir: string
     newBlock = bt.Block.new("New Block".toBytes()).tryGet()
 
   setup:
-    repoDir = path.parentDir / "repo"
+    repoDir = getAppDir() / "repo"
     createDir(repoDir)
     store = FSStore.new(repoDir)
 
