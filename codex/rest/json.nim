@@ -44,5 +44,4 @@ func `%`*(purchase: Purchase): JsonNode =
     "finished": purchase.finished,
     "error": purchase.error.?msg,
     "request": purchase.request,
-    "selected": purchase.selected
   }

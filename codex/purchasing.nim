@@ -21,7 +21,6 @@ type
     market: Market
     clock: Clock
     request*: StorageRequest
-    selected*: ?Address
   PurchaseTimeout* = Timeout
 
 const DefaultProofProbability = 100.u256
@@ -77,11 +76,8 @@ proc run(purchase: Purchase) {.async.} =
       done.complete()
     let request = purchase.request
     let subscription = await market.subscribeFulfillment(request.id, callback)
-    try:
-      await done
-      purchase.selected = await market.getHost(request.id)
-    finally:
-      await subscription.unsubscribe()
+    await done
+    await subscription.unsubscribe()
 
   proc withTimeout(future: Future[void]) {.async.} =
     let expiry = purchase.request.expiry.truncate(int64)
