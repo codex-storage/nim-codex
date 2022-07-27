@@ -78,11 +78,7 @@ method readOnce*(
     let
       blockNum    = self.offset div self.manifest.blockSize
       blockOffset = self.offset mod self.manifest.blockSize
-      readBytes   =
-        if (nbytes - read) >= (self.manifest.blockSize - blockOffset):
-          self.manifest.blockSize - blockOffset
-        else:
-          min(nbytes - read, self.manifest.blockSize)
+      readBytes   = min(nbytes - read, self.manifest.blockSize - blockOffset)
 
     # Read contents of block `blockNum`
     without blkOrNone =? await self.store.getBlock(self.manifest[blockNum]), error:
