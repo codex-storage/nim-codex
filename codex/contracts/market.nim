@@ -42,18 +42,20 @@ method getRequest(market: OnChainMarket,
   else:
     return none StorageRequest
 
-method getHost(market: OnChainMarket,
-               id: array[32, byte]): Future[?Address] {.async.} =
-  let address = await market.contract.getHost(id)
-  if address != Address.default:
-    return some address
-  else:
-    return none Address
-
 method fulfillRequest(market: OnChainMarket,
                       requestId: array[32, byte],
                       proof: seq[byte]) {.async.} =
   await market.contract.fulfillRequest(requestId, proof)
+
+method getHost(market: OnChainMarket,
+               requestId: array[32, byte],
+               slotIndex: UInt256): Future[?Address] {.async.} =
+  let slotId = slotId(requestId, slotIndex)
+  let address = await market.contract.getHost(slotId)
+  if address != Address.default:
+    return some address
+  else:
+    return none Address
 
 method fillSlot(market: OnChainMarket,
                 requestId: array[32, byte],

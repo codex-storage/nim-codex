@@ -77,9 +77,9 @@ ethersuite "On-Chain Market":
   test "can retrieve host that filled slot":
     await token.approve(storage.address, request.price)
     discard await market.requestStorage(request)
-    check (await market.getHost(request.slotId(slotIndex))) == none Address
+    check (await market.getHost(request.id, slotIndex)) == none Address
     await market.fillSlot(request.id, slotIndex, proof)
-    check (await market.getHost(request.slotId(slotIndex))) == some accounts[0]
+    check (await market.getHost(request.id, slotIndex)) == some accounts[0]
 
   test "support fulfillment subscriptions":
     await token.approve(storage.address, request.price)

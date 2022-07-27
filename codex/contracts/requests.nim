@@ -120,9 +120,12 @@ func id*(request: StorageRequest): array[32, byte] =
   let encoding = AbiEncoder.encode((request, ))
   keccak256.digest(encoding).data
 
-func slotId*(request: StorageRequest, slot: UInt256): array[32, byte] =
-  let encoding = AbiEncoder.encode((request.id, slot))
+func slotId*(requestId: array[32, byte], slot: UInt256): array[32, byte] =
+  let encoding = AbiEncoder.encode((requestId, slot))
   keccak256.digest(encoding).data
+
+func slotId*(request: StorageRequest, slot: UInt256): array[32, byte] =
+  slotId(request.id, slot)
 
 func price*(request: StorageRequest): UInt256 =
   request.ask.slots.u256 * request.ask.duration * request.ask.reward
