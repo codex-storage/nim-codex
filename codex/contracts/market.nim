@@ -42,11 +42,6 @@ method getRequest(market: OnChainMarket,
   else:
     return none StorageRequest
 
-method fulfillRequest(market: OnChainMarket,
-                      requestId: array[32, byte],
-                      proof: seq[byte]) {.async.} =
-  await market.contract.fulfillRequest(requestId, proof)
-
 method getHost(market: OnChainMarket,
                requestId: array[32, byte],
                slotIndex: UInt256): Future[?Address] {.async.} =
