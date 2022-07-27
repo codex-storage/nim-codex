@@ -77,7 +77,6 @@ ethersuite "Integration tests":
     check json["request"]["ask"]["maxPrice"].getStr == "0x2"
 
   test "nodes negotiate contracts on the marketplace":
-
     proc sell =
       let json = %*{"size": "0x1F00", "duration": "0x200", "minPrice": "0x300"}
       discard client.post(baseurl2 & "/sales/availability", $json)
@@ -89,21 +88,20 @@ ethersuite "Integration tests":
       client.post(baseurl1 & "/upload", "some file contents").body
 
     proc buy(cid: string): string =
-      let expiry = ((waitFor provider.currentTime()) + 10).toHex
+      let expiry = ((waitFor provider.currentTime()) + 30).toHex
       let json = %*{"duration": "0x100", "maxPrice": "0x400", "expiry": expiry}
       client.post(baseurl1 & "/storage/request/" & cid, $json).body
 
-    proc finish(purchase: string): JsonNode =
+    proc finish(purchase: string): Future[JsonNode] {.async.} =
       while true:
         let response = client.get(baseurl1 & "/storage/purchases/" & purchase)
-        result = parseJson(response.body)
-        if result["finished"].getBool:
-          break
-        waitFor sleepAsync(1.seconds)
+        let json = parseJson(response.body)
+        if json["finished"].getBool: return json
+        await sleepAsync(1.seconds)
 
     sell()
-    let purchase = upload().buy().finish()
+    let purchase = waitFor upload().buy().finish()
 
     check purchase["error"].getStr == ""
-    check purchase["selected"].len > 0
+    check purchase["selected"].getStr == $accounts[1]
     check available().len == 0

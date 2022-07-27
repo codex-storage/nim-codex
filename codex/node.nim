@@ -35,7 +35,7 @@ logScope:
   topics = "codex node"
 
 const
-  PrefetchBatch = 100
+  FetchBatch = 100
 
 type
   CodexError = object of CatchableError
@@ -49,43 +49,6 @@ type
     discovery*: Discovery
     contracts*: ?ContractInteractions
 
-proc start*(node: CodexNodeRef) {.async.} =
-  if not node.switch.isNil:
-    await node.switch.start()
-
-  if not node.engine.isNil:
-    await node.engine.start()
-
-  if not node.erasure.isNil:
-    await node.erasure.start()
-
-  if not node.discovery.isNil:
-    await node.discovery.start()
-
-  if contracts =? node.contracts:
-    await contracts.start()
-
-  node.networkId = node.switch.peerInfo.peerId
-  notice "Started codex node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
-
-proc stop*(node: CodexNodeRef) {.async.} =
-  trace "Stopping node"
-
-  if not node.engine.isNil:
-    await node.engine.stop()
-
-  if not node.switch.isNil:
-    await node.switch.stop()
-
-  if not node.erasure.isNil:
-    await node.erasure.stop()
-
-  if not node.discovery.isNil:
-    await node.discovery.stop()
-
-  if contracts =? node.contracts:
-    await contracts.stop()
-
 proc findPeer*(
   node: CodexNodeRef,
   peerId: PeerID): Future[?PeerRecord] {.async.} =
@@ -97,6 +60,7 @@ proc connect*(
   addrs: seq[MultiAddress]): Future[void] =
   node.switch.connect(peerId, addrs)
 
+# TODO: move code that retrieves blocks in manifest into blockstore
 proc retrieve*(
   node: CodexNodeRef,
   cid: Cid): Future[?!LPStream] {.async.} =
@@ -109,16 +73,7 @@ proc retrieve*(
     trace "Block not found", cid
     return failure("Block not found")
 
-  without mc =? blk.cid.contentType():
-    return failure(
-      newException(CodexError, "Couldn't identify Cid!"))
-
-  # if we got a manifest, stream the blocks
-  if $mc in ManifestContainers:
-    trace "Retrieving data set", cid, mc = $mc
-
-    without manifest =? Manifest.decode(blk.data, ManifestContainers[$mc]):
-      return failure("Unable to construct manifest!")
+  if manifest =? Manifest.decode(blk.data, blk.cid):
 
     if manifest.protected:
       proc erasureJob(): Future[void] {.async.} =
@@ -135,8 +90,8 @@ proc retrieve*(
       ##
       try:
         let
-          batch = manifest.blocks.len div PrefetchBatch
-        trace "Prefetching in batches of", batch
+          batch = max(1, manifest.blocks.len div FetchBatch)
+        trace "Prefetching in batches of", FetchBatch
         for blks in manifest.blocks.distribute(batch, true):
           discard await allFinished(
             blks.mapIt( node.blockStore.getBlock( it ) ))
@@ -216,6 +171,39 @@ proc store*(
                        blocks = blockManifest.len
 
   return manifest.cid.success
+
+proc store(node: CodexNodeRef, cid: Cid): Future[?!void] {.async.}
+
+proc store(node: CodexNodeRef, cids: seq[Cid]): Future[?!void] {.async.} =
+  ## Retrieves multiple datasets from the network, and stores them locally
+
+  let batches = max(1, cids.len div FetchBatch)
+  for batch in cids.distribute(batches, true):
+    let results = await allFinished(cids.mapIt(node.store(it)))
+    for future in results:
+      let res = await future
+      if res.isFailure:
+        return failure res.error
+
+  return success()
+
+proc store(node: CodexNodeRef, cid: Cid): Future[?!void] {.async.} =
+  ## Retrieves dataset from the network, and stores it locally
+
+  if node.blockstore.hasBlock(cid):
+    return success()
+
+  without blk =? await node.blockstore.getBlock(cid):
+    return failure newException(CodexError, "Unable to retrieve block " & $cid)
+
+  if not (await node.blockstore.putBlock(blk)):
+    return failure newException(CodexError, "Unable to store block " & $cid)
+
+  if manifest =? Manifest.decode(blk.data, blk.cid):
+
+    let res = await node.store(manifest.blocks)
+    if res.isFailure:
+      return failure res.error
 
 proc requestStorage*(self: CodexNodeRef,
                      cid: Cid,
@@ -317,3 +305,50 @@ proc new*(
     erasure: erasure,
     discovery: discovery,
     contracts: contracts)
+
+proc start*(node: CodexNodeRef) {.async.} =
+  if not node.switch.isNil:
+    await node.switch.start()
+
+  if not node.engine.isNil:
+    await node.engine.start()
+
+  if not node.erasure.isNil:
+    await node.erasure.start()
+
+  if not node.discovery.isNil:
+    await node.discovery.start()
+
+  if contracts =? node.contracts:
+    # TODO: remove Sales callbacks, pass BlockStore and StorageProofs instead
+    contracts.sales.onStore = proc(cid: string, _: Availability) {.async.} =
+      # store data in local storage
+      (await node.store(Cid.init(cid).tryGet())).tryGet()
+    contracts.sales.onClear = proc(availability: Availability, request: StorageRequest) =
+      # TODO: remove data from local storage
+      discard
+    contracts.sales.onProve = proc(cid: string): Future[seq[byte]] {.async.} =
+      # TODO: generate proof
+      return @[42'u8]
+    await contracts.start()
+
+  node.networkId = node.switch.peerInfo.peerId
+  notice "Started codex node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
+
+proc stop*(node: CodexNodeRef) {.async.} =
+  trace "Stopping node"
+
+  if not node.engine.isNil:
+    await node.engine.stop()
+
+  if not node.switch.isNil:
+    await node.switch.stop()
+
+  if not node.erasure.isNil:
+    await node.erasure.stop()
+
+  if not node.discovery.isNil:
+    await node.discovery.stop()
+
+  if contracts =? node.contracts:
+    await contracts.stop()

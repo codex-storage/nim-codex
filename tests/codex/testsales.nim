@@ -1,4 +1,3 @@
-import std/times
 import pkg/asynctest
 import pkg/chronos
 import pkg/codex/sales
@@ -13,11 +12,17 @@ suite "Sales":
     duration=60.u256,
     minPrice=42.u256
   )
-  let request = StorageRequest(ask: StorageAsk(
-    duration: 60.u256,
-    size: 100.u256,
-    maxPrice:42.u256
-  ))
+  var request = StorageRequest(
+    ask: StorageAsk(
+      duration: 60.u256,
+      size: 100.u256,
+      maxPrice:42.u256
+    ),
+    content: StorageContent(
+      cid: "some cid"
+    )
+  )
+  let proof = seq[byte].example
 
   var sales: Sales
   var market: MockMarket
@@ -27,7 +32,12 @@ suite "Sales":
     market = MockMarket.new()
     clock = MockClock.new()
     sales = Sales.new(market, clock)
+    sales.onStore = proc(cid: string, availability: Availability) {.async.} =
+      discard
+    sales.onProve = proc(cid: string): Future[seq[byte]] {.async.} =
+      return proof
     await sales.start()
+    request.expiry = (clock.now() + 42).u256
 
   teardown:
     await sales.stop()
@@ -54,63 +64,89 @@ suite "Sales":
     let availability2 = Availability.init(1.u256, 2.u256, 3.u256)
     check availability1.id != availability2.id
 
-  test "offers available storage when matching request comes in":
+  test "makes storage unavailable when matching request comes in":
     sales.add(availability)
     discard await market.requestStorage(request)
-    check market.offered.len == 1
-    check market.offered[0].price == 42.u256
+    check sales.available.len == 0
 
   test "ignores request when no matching storage is available":
     sales.add(availability)
     var tooBig = request
     tooBig.ask.size = request.ask.size + 1
     discard await market.requestStorage(tooBig)
-    check market.offered.len == 0
+    check sales.available == @[availability]
 
-  test "makes storage unavailable when offer is submitted":
+  test "retrieves and stores data locally":
+    var storingCid: string
+    var storingAvailability: Availability
+    sales.onStore = proc(cid: string, availability: Availability) {.async.} =
+      storingCid = cid
+      storingAvailability = availability
     sales.add(availability)
     discard await market.requestStorage(request)
-    check sales.available.len == 0
+    check storingCid == request.content.cid
 
-  test "sets expiry time of offer":
-    sales.add(availability)
-    let now = clock.now().u256
-    discard await market.requestStorage(request)
-    check market.offered[0].expiry == now + sales.offerExpiryInterval
-
-  test "calls onSale when offer is selected":
-    var sold: StorageOffer
-    sales.onSale = proc(offer: StorageOffer) =
-      sold = offer
+  test "makes storage available again when data retrieval fails":
+    let error = newException(IOError, "data retrieval failed")
+    sales.onStore = proc(cid: string, availability: Availability) {.async.} =
+      raise error
     sales.add(availability)
     discard await market.requestStorage(request)
-    let offer = market.offered[0]
-    await market.selectOffer(offer.id)
-    check sold == offer
+    check sales.available == @[availability]
 
-  test "does not call onSale when a different offer is selected":
-    var didSell: bool
-    sales.onSale = proc(offer: StorageOffer) =
-      didSell = true
-    sales.add(availability)
-    let request = await market.requestStorage(request)
-    var otherOffer = StorageOffer(requestId: request.id, price: 1.u256)
-    otherOffer = await market.offerStorage(otherOffer)
-    await market.selectOffer(otherOffer.id)
-    check not didSell
-
-  test "makes storage available again when different offer is selected":
-    sales.add(availability)
-    let request = await market.requestStorage(request)
-    var otherOffer = StorageOffer(requestId: request.id, price: 1.u256)
-    otherOffer = await market.offerStorage(otherOffer)
-    await market.selectOffer(otherOffer.id)
-    check sales.available.contains(availability)
-
-  test "makes storage available again when offer expires":
+  test "generates proof of storage":
+    var provingCid: string
+    sales.onProve = proc(cid: string): Future[seq[byte]] {.async.} = provingCid = cid
     sales.add(availability)
     discard await market.requestStorage(request)
-    let offer = market.offered[0]
-    clock.set(offer.expiry.truncate(int64))
-    await sleepAsync(chronos.seconds(2))
-    check sales.available.contains(availability)
+    check provingCid == request.content.cid
+
+  test "fulfills request":
+    sales.add(availability)
+    discard await market.requestStorage(request)
+    check market.fulfilled.len == 1
+    check market.fulfilled[0].requestId == request.id
+    check market.fulfilled[0].proof == proof
+    check market.fulfilled[0].host == await market.getSigner()
+
+  test "calls onSale when request is fulfilled":
+    var soldAvailability: Availability
+    var soldRequest: StorageRequest
+    sales.onSale = proc(availability: Availability, request: StorageRequest) =
+      soldAvailability = availability
+      soldRequest = request
+    sales.add(availability)
+    discard await market.requestStorage(request)
+    check soldAvailability == availability
+    check soldRequest == request
+
+  test "calls onClear when storage becomes available again":
+    sales.onProve = proc(cid: string): Future[seq[byte]] {.async.} =
+      raise newException(IOError, "proof failed")
+    var clearedAvailability: Availability
+    var clearedRequest: StorageRequest
+    sales.onClear = proc(availability: Availability, request: StorageRequest) =
+      clearedAvailability = availability
+      clearedRequest = request
+    sales.add(availability)
+    discard await market.requestStorage(request)
+    check clearedAvailability == availability
+    check clearedRequest == request
+
+  test "makes storage available again when other host fulfills request":
+    let otherHost = Address.example
+    sales.onStore = proc(cid: string, availability: Availability) {.async.} =
+      await sleepAsync(1.hours)
+    sales.add(availability)
+    discard await market.requestStorage(request)
+    market.fulfillRequest(request.id, proof, otherHost)
+    check sales.available == @[availability]
+
+  test "makes storage available again when request expires":
+    sales.onStore = proc(cid: string, availability: Availability) {.async.} =
+      await sleepAsync(1.hours)
+    sales.add(availability)
+    discard await market.requestStorage(request)
+    clock.set(request.expiry.truncate(int64))
+    await sleepAsync(2.seconds)
+    check sales.available == @[availability]

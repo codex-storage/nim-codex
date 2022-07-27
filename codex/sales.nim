@@ -7,9 +7,25 @@ import pkg/chronicles
 import ./market
 import ./clock
 
-export stint
+## Sales holds a list of available storage that it may sell.
+##
+## When storage is requested on the market that matches availability, the Sales
+## object will instruct the Codex node to persist the requested data. Once the
+## data has been persisted, it uploads a proof of storage to the market in an
+## attempt to win a storage contract.
+##
+##    Node                        Sales                   Market
+##     |                          |                         |
+##     | -- add availability  --> |                         |
+##     |                          | <-- storage request --- |
+##     | <----- store data ------ |                         |
+##     | -----------------------> |                         |
+##     |                          |                         |
+##     | <----- prove data ----   |                         |
+##     | -----------------------> |                         |
+##     |                          | ---- storage proof ---> |
 
-const DefaultOfferExpiryInterval = (10 * 60).u256
+export stint
 
 type
   Sales* = ref object
@@ -17,29 +33,34 @@ type
     clock: Clock
     subscription: ?Subscription
     available*: seq[Availability]
-    offerExpiryInterval*: UInt256
+    onStore: ?OnStore
+    onProve: ?OnProve
+    onClear: ?OnClear
     onSale: ?OnSale
   Availability* = object
     id*: array[32, byte]
     size*: UInt256
     duration*: UInt256
     minPrice*: UInt256
-  Negotiation = ref object
+  SalesAgent = ref object
     sales: Sales
     requestId: array[32, byte]
     ask: StorageAsk
     availability: Availability
-    offer: ?StorageOffer
+    request: ?StorageRequest
     subscription: ?Subscription
+    running: ?Future[void]
     waiting: ?Future[void]
     finished: bool
-  OnSale = proc(offer: StorageOffer) {.gcsafe, upraises: [].}
+  OnStore = proc(cid: string, availability: Availability): Future[void] {.gcsafe, upraises: [].}
+  OnProve = proc(cid: string): Future[seq[byte]] {.gcsafe, upraises: [].}
+  OnClear = proc(availability: Availability, request: StorageRequest) {.gcsafe, upraises: [].}
+  OnSale = proc(availability: Availability, request: StorageRequest) {.gcsafe, upraises: [].}
 
 func new*(_: type Sales, market: Market, clock: Clock): Sales =
   Sales(
     market: market,
     clock: clock,
-    offerExpiryInterval: DefaultOfferExpiryInterval
   )
 
 proc init*(_: type Availability,
@@ -49,6 +70,15 @@ proc init*(_: type Availability,
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
   Availability(id: id, size: size, duration: duration, minPrice: minPrice)
+
+proc `onStore=`*(sales: Sales, onStore: OnStore) =
+  sales.onStore = some onStore
+
+proc `onProve=`*(sales: Sales, onProve: OnProve) =
+  sales.onProve = some onProve
+
+proc `onClear=`*(sales: Sales, onClear: OnClear) =
+  sales.onClear = some onClear
 
 proc `onSale=`*(sales: Sales, callback: OnSale) =
   sales.onSale = some callback
@@ -66,80 +96,95 @@ func findAvailability(sales: Sales, ask: StorageAsk): ?Availability =
        ask.maxPrice >= availability.minPrice:
       return some availability
 
-proc createOffer(negotiation: Negotiation): StorageOffer =
-  let sales = negotiation.sales
-  StorageOffer(
-    requestId: negotiation.requestId,
-    price: negotiation.ask.maxPrice,
-    expiry: sales.clock.now().u256 + sales.offerExpiryInterval
-  )
-
-proc sendOffer(negotiation: Negotiation) {.async.} =
-  let offer = negotiation.createOffer()
-  negotiation.offer = some await negotiation.sales.market.offerStorage(offer)
-
-proc finish(negotiation: Negotiation, success: bool) =
-  if negotiation.finished:
+proc finish(agent: SalesAgent, success: bool) =
+  if agent.finished:
     return
 
-  negotiation.finished = true
+  agent.finished = true
 
-  if subscription =? negotiation.subscription:
+  if subscription =? agent.subscription:
     asyncSpawn subscription.unsubscribe()
 
-  if waiting =? negotiation.waiting:
+  if running =? agent.running:
+    running.cancel()
+
+  if waiting =? agent.waiting:
     waiting.cancel()
 
-  if success and offer =? negotiation.offer:
-    if onSale =? negotiation.sales.onSale:
-      onSale(offer)
+  if success:
+    if onSale =? agent.sales.onSale and request =? agent.request:
+      onSale(agent.availability, request)
   else:
-    negotiation.sales.add(negotiation.availability)
+    if onClear =? agent.sales.onClear and request =? agent.request:
+      onClear(agent.availability, request)
+    agent.sales.add(agent.availability)
 
-proc onSelect(negotiation: Negotiation, offerId: array[32, byte]) =
-  if offer =? negotiation.offer and offer.id == offerId:
-    negotiation.finish(success = true)
-  else:
-    negotiation.finish(success = false)
-
-proc subscribeSelect(negotiation: Negotiation) {.async.} =
-  without offer =? negotiation.offer:
-    return
-  proc onSelect(offerId: array[32, byte]) {.gcsafe, upraises:[].} =
-    negotiation.onSelect(offerId)
-  let market = negotiation.sales.market
-  let subscription = await market.subscribeSelection(offer.requestId, onSelect)
-  negotiation.subscription = some subscription
-
-proc waitForExpiry(negotiation: Negotiation) {.async.} =
-  without offer =? negotiation.offer:
-    return
-  await negotiation.sales.clock.waitUntil(offer.expiry.truncate(int64))
-  negotiation.finish(success = false)
-
-proc start(negotiation: Negotiation) {.async.} =
+proc onFulfill(agent: SalesAgent, requestId: array[32, byte]) {.async.} =
   try:
-    let sales = negotiation.sales
-    let availability = negotiation.availability
+    let market = agent.sales.market
+    let host = await market.getHost(requestId)
+    let me = await market.getSigner()
+    agent.finish(success = (host == me.some))
+  except CatchableError:
+    agent.finish(success = false)
+
+proc subscribeFulfill(agent: SalesAgent) {.async.} =
+  proc onFulfill(requestId: array[32, byte]) {.gcsafe, upraises:[].} =
+    asyncSpawn agent.onFulfill(requestId)
+  let market = agent.sales.market
+  let subscription = await market.subscribeFulfillment(agent.requestId, onFulfill)
+  agent.subscription = some subscription
+
+proc waitForExpiry(agent: SalesAgent) {.async.} =
+  without request =? agent.request:
+    return
+  await agent.sales.clock.waitUntil(request.expiry.truncate(int64))
+  agent.finish(success = false)
+
+proc start(agent: SalesAgent) {.async.} =
+  try:
+    let sales = agent.sales
+    let market = sales.market
+    let availability = agent.availability
+
+    without onStore =? sales.onStore:
+      raiseAssert "onStore callback not set"
+
+    without onProve =? sales.onProve:
+      raiseAssert "onProve callback not set"
+
     sales.remove(availability)
-    await negotiation.sendOffer()
-    await negotiation.subscribeSelect()
-    negotiation.waiting = some negotiation.waitForExpiry()
+
+    await agent.subscribeFulfill()
+
+    agent.request = await market.getRequest(agent.requestId)
+    without request =? agent.request:
+      agent.finish(success = false)
+      return
+
+    agent.waiting = some agent.waitForExpiry()
+
+    await onStore(request.content.cid, availability)
+    let proof = await onProve(request.content.cid)
+    await market.fulfillRequest(request.id, proof)
+  except CancelledError:
+    raise
   except CatchableError as e:
-    error "Negotiation failed", msg = e.msg
+    error "SalesAgent failed", msg = e.msg
+    agent.finish(success = false)
 
 proc handleRequest(sales: Sales, requestId: array[32, byte], ask: StorageAsk) =
   without availability =? sales.findAvailability(ask):
     return
 
-  let negotiation = Negotiation(
+  let agent = SalesAgent(
     sales: sales,
     requestId: requestId,
     ask: ask,
     availability: availability
   )
 
-  asyncSpawn negotiation.start()
+  agent.running = some agent.start()
 
 proc start*(sales: Sales) {.async.} =
   doAssert sales.subscription.isNone, "Sales already started"

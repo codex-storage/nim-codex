@@ -16,19 +16,16 @@ type
     purchases: Table[array[32, byte], Purchase]
     proofProbability*: UInt256
     requestExpiryInterval*: UInt256
-    offerExpiryMargin*: UInt256
   Purchase* = ref object
     future: Future[void]
     market: Market
     clock: Clock
-    offerExpiryMargin: UInt256
     request*: StorageRequest
-    offers*: seq[StorageOffer]
-    selected*: ?StorageOffer
+    selected*: ?Address
+  PurchaseTimeout* = Timeout
 
 const DefaultProofProbability = 100.u256
 const DefaultRequestExpiryInterval = (10 * 60).u256
-const DefaultOfferExpiryMargin = (8 * 60).u256
 
 proc start(purchase: Purchase) {.gcsafe.}
 func id*(purchase: Purchase): array[32, byte]
@@ -39,7 +36,6 @@ proc new*(_: type Purchasing, market: Market, clock: Clock): Purchasing =
     clock: clock,
     proofProbability: DefaultProofProbability,
     requestExpiryInterval: DefaultRequestExpiryInterval,
-    offerExpiryMargin: DefaultOfferExpiryMargin
   )
 
 proc populate*(purchasing: Purchasing, request: StorageRequest): StorageRequest =
@@ -57,7 +53,6 @@ proc purchase*(purchasing: Purchasing, request: StorageRequest): Purchase =
     request: request,
     market: purchasing.market,
     clock: purchasing.clock,
-    offerExpiryMargin: purchasing.offerExpiryMargin
   )
   purchase.start()
   purchasing.purchases[purchase.id] = purchase
@@ -69,29 +64,31 @@ func getPurchase*(purchasing: Purchasing, id: array[32, byte]): ?Purchase =
   else:
     none Purchase
 
-proc selectOffer(purchase: Purchase) {.async.} =
-  var cheapest: ?StorageOffer
-  for offer in purchase.offers:
-    without purchase.clock.now().u256 < offer.expiry - purchase.offerExpiryMargin:
-      continue
-    without current =? cheapest:
-      cheapest = some offer
-      continue
-    if current.price > offer.price:
-      cheapest = some offer
-  if cheapest =? cheapest:
-    await purchase.market.selectOffer(cheapest.id)
-    purchase.selected = some cheapest
-
 proc run(purchase: Purchase) {.async.} =
-  proc onOffer(offer: StorageOffer) =
-    purchase.offers.add(offer)
   let market = purchase.market
-  purchase.request = await market.requestStorage(purchase.request)
-  let subscription = await market.subscribeOffers(purchase.request.id, onOffer)
-  await purchase.clock.waitUntil(purchase.request.expiry.truncate(int64))
-  await purchase.selectOffer()
-  await subscription.unsubscribe()
+  let clock = purchase.clock
+
+  proc requestStorage {.async.} =
+    purchase.request = await market.requestStorage(purchase.request)
+
+  proc waitUntilFulfilled {.async.} =
+    let done = newFuture[void]()
+    proc callback(_: array[32, byte]) =
+      done.complete()
+    let request = purchase.request
+    let subscription = await market.subscribeFulfillment(request.id, callback)
+    try:
+      await done
+      purchase.selected = await market.getHost(request.id)
+    finally:
+      await subscription.unsubscribe()
+
+  proc withTimeout(future: Future[void]) {.async.} =
+    let expiry = purchase.request.expiry.truncate(int64)
+    await future.withTimeout(clock, expiry)
+
+  await requestStorage()
+  await waitUntilFulfilled().withTimeout()
 
 proc start(purchase: Purchase) =
   purchase.future = purchase.run()

@@ -9,6 +9,7 @@ import ./examples
 import ./time
 
 ethersuite "Storage contracts":
+  let proof = seq[byte].example
 
   var client, host: Signer
   var storage: Storage
@@ -16,7 +17,6 @@ ethersuite "Storage contracts":
   var collateralAmount: UInt256
   var periodicity: Periodicity
   var request: StorageRequest
-  var offer: StorageOffer
   var id: array[32, byte]
 
   proc switchAccount(account: Signer) =
@@ -40,20 +40,14 @@ ethersuite "Storage contracts":
     request = StorageRequest.example
     request.client = await client.getAddress()
 
-    offer = StorageOffer.example
-    offer.host = await host.getAddress()
-    offer.requestId = request.id
-
     switchAccount(client)
     await token.approve(storage.address, request.ask.maxPrice)
     await storage.requestStorage(request)
     switchAccount(host)
     await token.approve(storage.address, collateralAmount)
     await storage.deposit(collateralAmount)
-    await storage.offerStorage(offer)
-    switchAccount(client)
-    await storage.selectOffer(offer.id)
-    id = offer.id
+    await storage.fulfillRequest(request.id, proof)
+    id = request.id
 
   proc waitUntilProofRequired(id: array[32, byte]) {.async.} =
     let currentPeriod = periodicity.periodOf(await provider.currentTime())
@@ -64,22 +58,13 @@ ethersuite "Storage contracts":
     ):
       await provider.advanceTime(periodicity.seconds)
 
-  test "can be started by the host":
-    switchAccount(host)
-    await storage.startContract(id)
-    let proofEnd = await storage.proofEnd(id)
-    check proofEnd > 0
-
   test "accept storage proofs":
-    let proof = seq[byte].example
     switchAccount(host)
-    await storage.startContract(id)
     await waitUntilProofRequired(id)
     await storage.submitProof(id, proof)
 
   test "can mark missing proofs":
     switchAccount(host)
-    await storage.startContract(id)
     await waitUntilProofRequired(id)
     let missingPeriod = periodicity.periodOf(await provider.currentTime())
     await provider.advanceTime(periodicity.seconds)
@@ -88,6 +73,5 @@ ethersuite "Storage contracts":
 
   test "can be finished":
     switchAccount(host)
-    await storage.startContract(id)
     await provider.advanceTimeTo(await storage.proofEnd(id))
     await storage.finishContract(id)

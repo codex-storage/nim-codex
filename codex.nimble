@@ -13,7 +13,7 @@ requires "nim >= 1.2.0",
          "chronicles >= 0.7.2",
          "chronos >= 2.5.2",
          "confutils",
-         "ethers >= 0.1.7 & < 0.2.0",
+         "ethers >= 0.2.0 & < 0.3.0",
          "libbacktrace",
          "libp2p",
          "metrics",
@@ -24,7 +24,11 @@ requires "nim >= 1.2.0",
          "questionable >= 0.10.2 & < 0.11.0",
          "secp256k1",
          "stew",
-         "upraises >= 0.1.0 & < 0.2.0"
+         "upraises >= 0.1.0 & < 0.2.0",
+         "lrucache",
+         "leopard",
+         "blscurve",
+         "libp2pdht"
 
 when declared(namedBin):
   namedBin = {

@@ -3,7 +3,6 @@ import pkg/json_rpc/rpcclient
 import pkg/stint
 import pkg/chronos
 import ./requests
-import ./offers
 
 export stint
 export ethers
@@ -14,12 +13,7 @@ type
   StorageRequested* = object of Event
     requestId*: Id
     ask*: StorageAsk
-  StorageOffered* = object of Event
-    offerId*: Id
-    offer*: StorageOffer
-    requestId* {.indexed.}: Id
-  OfferSelected* = object of Event
-    offerId*: Id
+  RequestFulfilled* = object of Event
     requestId* {.indexed.}: Id
   ProofSubmitted* = object of Event
     id*: Id
@@ -34,10 +28,10 @@ proc withdraw*(storage: Storage) {.contract.}
 proc balanceOf*(storage: Storage, account: Address): UInt256 {.contract, view.}
 
 proc requestStorage*(storage: Storage, request: StorageRequest) {.contract.}
-proc offerStorage*(storage: Storage, offer: StorageOffer) {.contract.}
-proc selectOffer*(storage: Storage, id: Id) {.contract.}
+proc fulfillRequest*(storage: Storage, id: Id, proof: seq[byte]) {.contract.}
+proc getRequest*(storage: Storage, id: Id): StorageRequest {.contract, view.}
+proc getHost*(storage: Storage, id: Id): Address {.contract, view.}
 
-proc startContract*(storage: Storage, id: Id) {.contract.}
 proc finishContract*(storage: Storage, id: Id) {.contract.}
 
 proc proofPeriod*(storage: Storage): UInt256 {.contract, view.}

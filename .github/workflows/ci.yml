@@ -1,3 +1,6 @@
+# Adapted from:
+# https://github.com/status-im/nimbus-eth2/blob/stable/.github/workflows/ci.yml
+
 name: CI
 on:
   push:
@@ -10,54 +13,158 @@ jobs:
   build:
     strategy:
       fail-fast: false
-      max-parallel: 20
       matrix:
-        branch: [v1.2.18, v1.6.6]
+        cache_nonce: [ 0 ] # Allows for easily busting actions/cache caches
         target:
-          # Unit tests
           - os: linux
             cpu: amd64
-            TEST_KIND: unit-tests
+          # - os: linux
+          #   cpu: i386
           - os: macos
             cpu: amd64
-            TEST_KIND: unit-tests
           - os: windows
             cpu: amd64
-            TEST_KIND: unit-tests
+          # - os: windows
+          #   cpu: i386
+        nim_branch: [version-1-2, version-1-6]
+        cov_branch: [version-1-6]
         include:
           - target:
               os: linux
-            builder: ubuntu-18.04
+            builder: ubuntu-latest
+            shell: bash --noprofile --norc -eo pipefail
           - target:
               os: macos
-            builder: macos-10.15
+            builder: macos-latest
+            shell: bash --noprofile --norc -eo pipefail
           - target:
               os: windows
-            builder: windows-2019
-    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ matrix.branch }}'
+            builder: windows-latest
+            shell: msys2
+
+    defaults:
+      run:
+        shell: ${{ matrix.shell }} {0}
+
+    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (Nim ${{ matrix.nim_branch }})'
     runs-on: ${{ matrix.builder }}
-    timeout-minutes: 60
+    timeout-minutes: 80
     steps:
-      - name: Checkout nim-codex
-        uses: actions/checkout@v2
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: APT (Linux amd64)
+        if: runner.os == 'Linux' && matrix.target.cpu == 'amd64'
+        run: |
+          sudo apt-fast update -qq
+          sudo DEBIAN_FRONTEND='noninteractive' apt-fast install \
+            --no-install-recommends -yq lcov
+
+      - name: APT (Linux i386)
+        if: runner.os == 'Linux' && matrix.target.cpu == 'i386'
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-fast update -qq
+          sudo DEBIAN_FRONTEND='noninteractive' apt-fast install \
+            --no-install-recommends -yq gcc-multilib g++-multilib
+
+      - name: Homebrew (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install libomp
+
+      - name: MSYS2 (Windows amd64)
+        if: runner.os == 'Windows' && matrix.target.cpu == 'amd64'
+        uses: msys2/setup-msys2@v2
         with:
-          path: nim-codex
-          submodules: true
+          msystem: UCRT64
+          install: >
+            base-devel
+            git
+            mingw-w64-ucrt-x86_64-toolchain
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ntldd-git
+
+      - name: MSYS2 (Windows i386)
+        if: runner.os == 'Windows' && matrix.target.cpu == 'i386'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW32
+          install: >
+            base-devel
+            git
+            mingw-w64-i686-toolchain
+            mingw-w64-i686-cmake
+            mingw-w64-i686-ntldd-git
 
       - name: Derive environment variables
-        shell: bash
         run: |
+          quote () {
+            local quoted=${1//\'/\'\\\'\'};
+            printf "'%s'" "$quoted"
+          }
+
           if [[ '${{ matrix.target.cpu }}' == 'amd64' ]]; then
-            ARCH=64
             PLATFORM=x64
           else
-            ARCH=32
             PLATFORM=x86
           fi
-          echo "ARCH=$ARCH" >> $GITHUB_ENV
-          echo "PLATFORM=$PLATFORM" >> $GITHUB_ENV
-          ncpu=
-          ext=
+          echo "PLATFORM=${PLATFORM}" >> ${GITHUB_ENV}
+
+          # Stack usage on Linux amd64
+          if [[ '${{ runner.os }}' == 'Linux' && '${{ matrix.target.cpu }}' == 'amd64' ]]; then
+            NIMFLAGS="${NIMFLAGS} -d:limitStackUsage"
+            echo "NIMFLAGS=${NIMFLAGS}" >> $GITHUB_ENV
+          fi
+
+          # Disable ADX on Linux i386
+          if [[ '${{ runner.os }}' == 'Linux' && '${{ matrix.target.cpu }}' == 'i386' ]]; then
+            CFLAGS="${CFLAGS} -m32 -mno-adx"
+            echo "CFLAGS=${CFLAGS}" >> ${GITHUB_ENV}
+            CXXFLAGS="${CXXFLAGS} -m32 -mno-adx"
+            echo "CXXFLAGS=${CXXFLAGS}" >> ${GITHUB_ENV}
+            mkdir -p external/bin
+            cat << EOF > external/bin/gcc
+          #!/bin/bash
+          exec $(which gcc) -m32 -mno-adx "\$@"
+          EOF
+            cat << EOF > external/bin/g++
+          #!/bin/bash
+          exec $(which g++) -m32 -mno-adx "\$@"
+          EOF
+            chmod 755 external/bin/gcc external/bin/g++
+            echo "$(pwd)/external/bin" >> ${GITHUB_PATH}
+            # --passC:'-m32 -mno-adx' is redundant but harmless, and can be
+            # helpful when reviewing build output with increased verbosity
+            NIMFLAGS="${NIMFLAGS} $(quote "--passC:'-m32 -mno-adx' -d:LeopardCmakeFlags='-DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=$(pwd)/external/bin/gcc -DCMAKE_CXX_COMPILER=$(pwd)/external/bin/g++'")"
+            echo "NIMFLAGS=${NIMFLAGS}" >> $GITHUB_ENV
+          fi
+
+          # Disable ADX on Windows i386
+          if [[ '${{ runner.os }}' == 'Windows' && '${{ matrix.target.cpu }}' == 'i386' ]]; then
+            CFLAGS="${CFLAGS} -mno-adx"
+            echo "CFLAGS=${CFLAGS}" >> ${GITHUB_ENV}
+            CXXFLAGS="${CXXFLAGS} -mno-adx"
+            echo "CXXFLAGS=${CXXFLAGS}" >> ${GITHUB_ENV}
+            NIMFLAGS="${NIMFLAGS} --passC:-mno-adx"
+            echo "NIMFLAGS=${NIMFLAGS}" >> $GITHUB_ENV
+          fi
+
+          # Enable OpenMP on macOS
+          if [[ '${{ runner.os }}' == 'macOS' ]]; then
+            libomp_lib_dir="$(brew --prefix)/opt/libomp/lib"
+            # See https://github.com/actions/virtual-environments/pull/5819
+            llvm_dir="$(ls -d $(brew --prefix)/opt/llvm* | tail -1)"
+            llvm_bin_dir="${llvm_dir}/bin"
+            llvm_lib_dir="${llvm_dir}/lib"
+            echo "${llvm_bin_dir}" >> ${GITHUB_PATH}
+            echo "LDFLAGS=${LDFLAGS} -L${libomp_lib_dir} -L${llvm_lib_dir} -Wl,-rpath,${llvm_lib_dir}" >> ${GITHUB_ENV}
+            NIMFLAGS="${NIMFLAGS} $(quote "-d:LeopardCmakeFlags='-DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=${llvm_bin_dir}/clang -DCMAKE_CXX_COMPILER=${llvm_bin_dir}/clang++' -d:LeopardExtraCompilerlags='-fopenmp' -d:LeopardExtraLinkerFlags='-fopenmp -L${libomp_lib_dir}'")"
+            echo "NIMFLAGS=${NIMFLAGS}" >> $GITHUB_ENV
+          fi
+
+          # Use all available CPUs for build process
+          ncpu=""
           case '${{ runner.os }}' in
           'Linux')
             ncpu=$(nproc)
@@ -66,155 +173,69 @@ jobs:
             ncpu=$(sysctl -n hw.ncpu)
             ;;
           'Windows')
-            ncpu=$NUMBER_OF_PROCESSORS
-            ext=.exe
+            ncpu=${NUMBER_OF_PROCESSORS}
             ;;
           esac
           [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=1
-          echo "ncpu=$ncpu" >> $GITHUB_ENV
-          echo "ext=$ext" >> $GITHUB_ENV
+          echo "ncpu=${ncpu}" >> ${GITHUB_ENV}
 
-      - name: Install build dependencies (Linux i386)
-        if: runner.os == 'Linux' && matrix.target.cpu == 'i386'
-        run: |
-          sudo dpkg --add-architecture i386
-          sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND='noninteractive' apt-get install \
-            --no-install-recommends -yq gcc-multilib g++-multilib \
-            libssl-dev:i386
-          mkdir -p external/bin
-          cat << EOF > external/bin/gcc
-          #!/bin/bash
-          exec $(which gcc) -m32 "\$@"
-          EOF
-          cat << EOF > external/bin/g++
-          #!/bin/bash
-          exec $(which g++) -m32 "\$@"
-          EOF
-          chmod 755 external/bin/gcc external/bin/g++
-          echo '${{ github.workspace }}/external/bin' >> $GITHUB_PATH
-          NIMFLAGS="-d:LeopardCmakeFlags='-DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32'"
-          quote () {
-            local quoted=${1//\'/\'\\\'\'};
-            printf "'%s'" "$quoted"
-          }
-          echo "NIMFLAGS=$(quote "${NIMFLAGS}")" >> $GITHUB_ENV
-
-      - name: Install build dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install libomp
-          echo "$(brew --prefix)/opt/llvm/bin" >> $GITHUB_PATH
-          echo "LDFLAGS=-L$(brew --prefix)/opt/libomp/lib -L$(brew --prefix)/opt/llvm/lib -Wl,-rpath,$(brew --prefix)/opt/llvm/lib" >> $GITHUB_ENV
-          NIMFLAGS="-d:LeopardCmakeFlags='-DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=$(brew --prefix)/opt/llvm/bin/clang -DCMAKE_CXX_COMPILER=$(brew --prefix)/opt/llvm/bin/clang++' -d:LeopardExtraCompilerlags='-fopenmp' -d:LeopardExtraLinkerFlags='-fopenmp -L$(brew --prefix)/opt/libomp/lib'"
-          quote () {
-            local quoted=${1//\'/\'\\\'\'};
-            printf "'%s'" "$quoted"
-          }
-          echo "NIMFLAGS=$(quote "${NIMFLAGS}")" >> $GITHUB_ENV
-
-      - name: Restore MinGW-W64 (Windows) from cache
-        if: runner.os == 'Windows'
-        id: windows-mingw-cache
-        uses: actions/cache@v2
-        with:
-          path: external/mingw-${{ matrix.target.cpu }}
-          key: 'mingw-${{ matrix.target.cpu }}'
-
-      - name: Restore Nim DLLs dependencies (Windows) from cache
-        if: runner.os == 'Windows'
-        id: windows-dlls-cache
-        uses: actions/cache@v2
-        with:
-          path: external/dlls-${{ matrix.target.cpu }}
-          key: 'dlls-${{ matrix.target.cpu }}'
-
-      - name: Install MinGW64 dependency (Windows)
-        if: >
-          steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
-          runner.os == 'Windows'
-        shell: bash
-        run: |
-          mkdir -p external
-          curl -L "https://nim-lang.org/download/mingw$ARCH.7z" -o "external/mingw-${{ matrix.target.cpu }}.7z"
-          7z x -y "external/mingw-${{ matrix.target.cpu }}.7z" -oexternal/
-          mv external/mingw$ARCH external/mingw-${{ matrix.target.cpu }}
-
-      - name: Install DLLs dependencies (Windows)
-        if: >
-          steps.windows-dlls-cache.outputs.cache-hit != 'true' &&
-          runner.os == 'Windows'
-        shell: bash
-        run: |
-          mkdir -p external
-          curl -L "https://nim-lang.org/download/windeps.zip" -o external/windeps.zip
-          7z x -y external/windeps.zip -oexternal/dlls-${{ matrix.target.cpu }}
-
-      - name: Path to cached dependencies (Windows)
-        if: >
-          runner.os == 'Windows'
-        shell: bash
-        run: |
-          echo "${{ github.workspace }}/external/mingw-${{ matrix.target.cpu }}/bin" >> $GITHUB_PATH
-          echo "${{ github.workspace }}/external/dlls-${{ matrix.target.cpu }}" >> $GITHUB_PATH
-
-      - name: Setup environment
-        shell: bash
-        run: echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
-
-      - name: Get latest nimbus-build-system commit hash
-        id: versions
-        shell: bash
-        run: |
-          getHash() {
-            git ls-remote "https://github.com/$1" "${2:-HEAD}" | cut -f 1
-          }
-          nbsHash=$(getHash status-im/nimbus-build-system)
-          echo "::set-output name=nimbus_build_system::$nbsHash"
-
-      - name: Restore prebuilt Nim binaries from cache
+      - name: Restore Nim toolchain binaries from cache
         id: nim-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
-          path: nim-codex/NimBinaries
-          key: 'nim-${{ matrix.branch }}-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.nimbus_build_system }}'
-
-      - name: Install NodeJS
-        uses: actions/setup-node@v2
-        with:
-          node-version: '14'
+          path: NimBinaries
+          key: ${{ matrix.target.os }}-${{ matrix.target.cpu }}-nim-${{ matrix.nim_branch }}-cache_nonce:${{ matrix.cache_nonce }}
 
       - name: Build Nim and Codex dependencies
-        shell: bash
-        working-directory: nim-codex
         run: |
-          if [[ "${{ runner.os }}" == "macOS" ]]; then
-            ulimit -n 1024
-          fi
-          make -j$ncpu ARCH_OVERRIDE=$PLATFORM CI_CACHE=NimBinaries NIM_COMMIT="${{ matrix.branch }}" QUICK_AND_DIRTY_COMPILER=1 update
+          make -j${ncpu} CI_CACHE=NimBinaries NIM_COMMIT=${{ matrix.nim_branch }} ARCH_OVERRIDE=${PLATFORM} QUICK_AND_DIRTY_COMPILER=1 update
+          echo
+          ./env.sh nim --version
 
-      - name: Start Ethereum Node with Codex contracts
-        shell: bash
-        working-directory: nim-codex/vendor/dagger-contracts
+      # Rely on NodeJS LTS installed in GitHub Actions virtual environments
+      - name: Start Ethereum node with Codex contracts
+        working-directory: vendor/dagger-contracts
         run: |
+          if [[ '${{ runner.os }}' == 'Windows' ]]; then
+            export PATH="/c/Program Files/nodejs:${PATH}"
+            export PATH="$(cygpath -u "$(npm --location=global prefix 2>/dev/null)"):${PATH}"
+          fi
+          echo node --version
+          node --version
+          echo npm --version
+          npm --version 2>/dev/null
+          echo
           npm install
           npm start &
 
-      - name: Run nim-codex tests
-        shell: bash
-        working-directory: nim-codex
+      - name: Build and run Codex tests
         run: |
-          ./env.sh nim --version
+          make -j${ncpu} NIM_COMMIT="${{ matrix.nim_branch }}" testAll
           echo
-          make NIM_COMMIT="${{ matrix.branch }}" testAll
-          if [[ ${{ runner.os }} = macOS ]]; then
-            echo
-            echo otool -L build/testCodex
-            otool -L build/testCodex
+          if [[ '${{ runner.os }}' == macOS ]]; then
+            echo otool -L build/codex
+            otool -L build/codex
+          elif [[ '${{ runner.os }}' == 'Windows' ]]; then
+            echo ntldd build/codex
+            ntldd build/codex
           else
-            echo
-            echo ldd build/testCodex
-            ldd build/testCodex
+            echo ldd build/codex
+            ldd build/codex
           fi
-          echo "Testing TRACE log level"
-          ./env.sh nim c -d:chronicles_log_level=TRACE codex.nim
+
+      - name: Generate coverage data (Linux amd64, Nim ${{ matrix.cov_branch }})
+        if: runner.os == 'Linux' && matrix.target.cpu == 'amd64' && matrix.nim_branch == matrix.cov_branch
+        run: |
+          rm -rf build nimcache
+          make -j${ncpu} NIM_COMMIT="${{ matrix.nim_branch }}" coverage
+
+      - name: Upload coverage data to Codecov (Linux amd64, Nim ${{ matrix.cov_branch }})
+        if: runner.os == 'Linux' && matrix.target.cpu == 'amd64' && matrix.nim_branch == matrix.cov_branch
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./coverage/
+          fail_ci_if_error: true
+          files: ./coverage/coverage.f.info
+          flags: unittests
+          name: codecov-umbrella
+          verbose: true
