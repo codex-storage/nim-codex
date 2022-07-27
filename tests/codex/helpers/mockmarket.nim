@@ -58,13 +58,6 @@ method getRequest(market: MockMarket,
       return some request
   return none StorageRequest
 
-method getHost(market: MockMarket,
-               id: array[32, byte]): Future[?Address] {.async.} =
-  for fulfillment in market.fulfilled:
-    if fulfillment.requestId == id:
-      return some fulfillment.host
-  return none Address
-
 proc fulfillRequest*(market: MockMarket,
                      requestId: array[32, byte],
                      proof: seq[byte],
