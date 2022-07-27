@@ -85,7 +85,10 @@ method readOnce*(
           min(nbytes - read, self.manifest.blockSize)
 
     # Read contents of block `blockNum`
-    let blk = (await self.store.getBlock(self.manifest[blockNum])).tryGet().get()
+    without blkOrNone =? await self.store.getBlock(self.manifest[blockNum]), error:
+      raise newLPStreamReadError(error)
+    without blk =? blkOrNone:
+      raise newLPStreamReadError("Block not found")
     trace "Reading bytes from store stream", blockNum, cid = blk.cid, bytes = readBytes, blockOffset
 
     # Copy `readBytes` bytes starting at `blockOffset` from the block into the outbuf
