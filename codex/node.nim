@@ -60,24 +60,6 @@ proc connect*(
   addrs: seq[MultiAddress]): Future[void] =
   node.switch.connect(peerId, addrs)
 
-proc fetchBlocksJob(
-  node: CodexNodeRef,
-  manifest: Manifest,
-  batch = FetchBatch) {.async.} =
-  ## Initiates requests to all blocks in the manifest
-  ## and stores the blocks on the local store
-  ##
-
-  try:
-    let
-      batch = max(1, manifest.blocks.len div batch)
-    trace "Prefetching in batches of", FetchBatch
-    for blks in manifest.blocks.distribute(batch, true):
-      discard await allFinished(
-        blks.mapIt( node.blockStore.getBlock( it ) ))
-  except CatchableError as exc:
-    trace "Exception prefetching blocks", exc = exc.msg
-
 proc fetchManifest*(
   node: CodexNodeRef,
   cid: Cid): Future[?!Manifest] {.async.} =
@@ -96,26 +78,37 @@ proc fetchManifest*(
     return failure(
       newException(CodexError, "Unable to decode as manifest"))
 
-  if manifest.protected:
-    proc erasureJob(): Future[void] {.async.} =
-      try:
-        without res =? (await node.erasure.decode(manifest)), error: # spawn an erasure decoding job
-          trace "Unable to erasure decode manifest", cid, exc = error.msg
-      except CatchableError as exc:
-        trace "Exception decoding manifest", cid
-
-    asyncSpawn erasureJob()
-
   return manifest.success
 
-# TODO: move code that retrieves blocks in manifest into blockstore
 proc retrieve*(
   node: CodexNodeRef,
   cid: Cid): Future[?!LPStream] {.async.} =
-  ## Retrieve a
+  ## Retrieve a block or manifest
+  ##
 
   if manifest =? (await node.fetchManifest(cid)):
-    asyncSpawn node.fetchBlocksJob(manifest)
+    if manifest.protected:
+      proc erasureJob(): Future[void] {.async.} =
+        try:
+          without res =? (await node.erasure.decode(manifest)), error: # spawn an erasure decoding job
+            trace "Unable to erasure decode manifest", cid, exc = error.msg
+        except CatchableError as exc:
+          trace "Exception decoding manifest", cid
+
+      asyncSpawn erasureJob()
+    else:
+      proc fetchBlocksJob() {.async.} =
+        try:
+          let batch = max(1, manifest.blocks.len div FetchBatch)
+          trace "Prefetching in batches of", FetchBatch
+          for blks in manifest.blocks.distribute(batch, true):
+            discard await allFinished(
+              blks.mapIt( node.blockStore.getBlock( it ) ))
+        except CatchableError as exc:
+          trace "Exception prefetching blocks", exc = exc.msg
+
+      asyncSpawn fetchBlocksJob()
+
     return LPStream(StoreStream.new(node.blockStore, manifest)).success
 
   let
@@ -319,7 +312,11 @@ proc start*(node: CodexNodeRef) {.async.} =
         return
 
       trace "Fetching block for cid", cid
-      await node.fetchBlocksJob(manifest)
+      let batch = max(1, manifest.blocks.len div FetchBatch)
+      trace "Prefetching in batches of", FetchBatch
+      for blks in manifest.blocks.distribute(batch, true):
+        discard await allFinished(
+          blks.mapIt( node.blockStore.getBlock( it ) ))
 
     contracts.sales.onClear = proc(availability: Availability, request: StorageRequest) =
       # TODO: remove data from local storage
