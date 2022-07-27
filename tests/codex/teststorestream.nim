@@ -16,6 +16,13 @@ suite "StoreStream":
     store: BlockStore
     stream: StoreStream
 
+  # Check that `buf` contains `size` bytes with values start, start+1...
+  proc sequential_bytes(buf: seq[byte], size: int, start: int): bool =
+    for i in 0..<size:
+      if int(buf[i]) != start+i:
+        return false
+    return true
+
   let
     data = [
       [byte 0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
@@ -43,6 +50,7 @@ suite "StoreStream":
   test "Read all blocks < blockSize":
     var
       buf = newSeq[byte](8)
+      n = 0
 
     while not stream.atEof:
       let read = (await stream.readOnce(addr buf[0], buf.len))
@@ -52,17 +60,24 @@ suite "StoreStream":
       else:
         check read == 4
 
+      check sequential_bytes(buf,read,n)
+      n += read
+
   test "Read all blocks == blockSize":
     var
       buf = newSeq[byte](10)
+      n = 0
 
     while not stream.atEof:
       let read = (await stream.readOnce(addr buf[0], buf.len))
       check read == 10
+      check sequential_bytes(buf,read,n)
+      n += read
 
   test "Read all blocks > blockSize":
     var
       buf = newSeq[byte](11)
+      n = 0
 
     while not stream.atEof:
       let read = (await stream.readOnce(addr buf[0], buf.len))
@@ -72,16 +87,19 @@ suite "StoreStream":
       else:
         check read == 1
 
+      check sequential_bytes(buf,read,n)
+      n += read
+
   test "Read exact bytes within block boundary":
     var
       buf = newSeq[byte](5)
 
     await stream.readExactly(addr buf[0], 5)
-    check buf == [byte 0, 1, 2, 3, 4]
+    check sequential_bytes(buf,5,0)
 
   test "Read exact bytes outside of block boundary":
     var
       buf = newSeq[byte](15)
 
     await stream.readExactly(addr buf[0], 15)
-    check buf == [byte 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+    check sequential_bytes(buf,15,0)
