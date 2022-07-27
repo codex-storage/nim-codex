@@ -190,13 +190,17 @@ proc store(node: CodexNodeRef, cids: seq[Cid]): Future[?!void] {.async.} =
 proc store(node: CodexNodeRef, cid: Cid): Future[?!void] {.async.} =
   ## Retrieves dataset from the network, and stores it locally
 
-  if node.blockstore.hasBlock(cid):
+  without present =? await node.blockstore.hasBlock(cid):
+    return failure newException(CodexError, "Unable to find block " & $cid)
+  if present:
     return success()
 
-  without blk =? await node.blockstore.getBlock(cid):
+  without blkOrNone =? await node.blockstore.getBlock(cid):
+    return failure newException(CodexError, "Unable to retrieve block " & $cid)
+  without blk =? blkOrNone:
     return failure newException(CodexError, "Unable to retrieve block " & $cid)
 
-  if not (await node.blockstore.putBlock(blk)):
+  if isErr (await node.blockstore.putBlock(blk)):
     return failure newException(CodexError, "Unable to store block " & $cid)
 
   if manifest =? Manifest.decode(blk.data, blk.cid):
