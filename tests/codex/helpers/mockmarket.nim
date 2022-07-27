@@ -58,22 +58,6 @@ method getRequest(market: MockMarket,
       return some request
   return none StorageRequest
 
-proc fulfillRequest*(market: MockMarket,
-                     requestId: array[32, byte],
-                     proof: seq[byte],
-                     host: Address) =
-  let fulfillment = Fulfillment(requestId: requestId, proof: proof, host: host)
-  market.fulfilled.add(fulfillment)
-  var subscriptions = market.subscriptions.onFulfillment
-  for subscription in subscriptions:
-    if subscription.requestId == requestId:
-      subscription.callback(requestId)
-
-method fulfillRequest*(market: MockMarket,
-                       requestId: array[32, byte],
-                       proof: seq[byte]) {.async.} =
-  market.fulfillRequest(requestid, proof, market.signer)
-
 method getHost(market: MockMarket,
                requestId: array[32, byte],
                slotIndex: UInt256): Future[?Address] {.async.} =
