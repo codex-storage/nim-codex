@@ -118,14 +118,14 @@ proc stop*(b: BlockExcEngine) {.async.} =
 proc requestBlock*(
   b: BlockExcEngine,
   cid: Cid,
-  timeout = DefaultBlockTimeout): Future[bt.Block] =
+  timeout = DefaultBlockTimeout): Future[bt.Block] {.async.} =
   ## Request a block from remotes
   ##
 
   trace "Requesting block", cid = $cid
 
   if cid in b.pendingBlocks:
-    return b.pendingBlocks.getWantHandle(cid, timeout)
+    return await b.pendingBlocks.getWantHandle(cid, timeout)
 
   let
     blk = b.pendingBlocks.getWantHandle(cid, timeout)
@@ -138,13 +138,13 @@ proc requestBlock*(
     if peers.len <= 0:
       trace "No peers to request blocks from", cid = $cid
       b.discovery.queueFindBlocksReq(@[cid])
-      return blk
+      return await blk
 
   let
     blockPeer = peers[0] # get cheapest
 
   # request block
-  b.network.request.sendWantList(
+  await b.network.request.sendWantList(
     blockPeer.id,
     @[cid],
     wantType = WantType.wantBlock) # we want this remote to send us a block
@@ -152,7 +152,7 @@ proc requestBlock*(
   if (peers.len - 1) == 0:
     trace "Not enough peers to send want list to", cid = $cid
     b.discovery.queueFindBlocksReq(@[cid])
-    return blk # no peers to send wants to
+    return await blk # no peers to send wants to
 
   # filter out the peer we've already requested from
   let stop = min(peers.high, b.peersPerRequest)
@@ -160,12 +160,12 @@ proc requestBlock*(
   for p in peers[1..stop]:
     if cid notin p.peerHave:
       # just send wants
-      b.network.request.sendWantList(
+      await b.network.request.sendWantList(
         p.id,
         @[cid],
         wantType = WantType.wantHave) # we only want to know if the peer has the block
 
-  return blk
+  return await blk
 
 proc blockPresenceHandler*(
   b: BlockExcEngine,
@@ -190,7 +190,7 @@ proc blockPresenceHandler*(
 
   trace "Received presence update for cids", peer, count = cids.len
   if cids.len > 0:
-    b.network.request.sendWantList(
+    await b.network.request.sendWantList(
       peer,
       cids,
       wantType = WantType.wantBlock) # we want this remote to send us a block
@@ -235,14 +235,14 @@ proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) {.async.} =
 
 proc payForBlocks(engine: BlockExcEngine,
                   peer: BlockExcPeerCtx,
-                  blocks: seq[bt.Block]) =
+                  blocks: seq[bt.Block]) {.async.} =
   let sendPayment = engine.network.request.sendPayment
   if sendPayment.isNil:
     return
 
   let cids = blocks.mapIt(it.cid)
   if payment =? engine.wallet.pay(peer, peer.price(cids)):
-    sendPayment(peer.id, payment)
+    await sendPayment(peer.id, payment)
 
 proc blocksHandler*(
   b: BlockExcEngine,
@@ -259,7 +259,7 @@ proc blocksHandler*(
   await b.resolveBlocks(blocks)
   let peerCtx = b.peers.get(peer)
   if peerCtx != nil:
-    b.payForBlocks(peerCtx, blocks)
+    await b.payForBlocks(peerCtx, blocks)
 
 proc wantListHandler*(
   b: BlockExcEngine,
@@ -297,7 +297,7 @@ proc wantListHandler*(
 
   # send don't have's to remote
   if dontHaves.len > 0:
-    b.network.request.sendPresence(
+    await b.network.request.sendPresence(
       peer,
       dontHaves.mapIt(
         BlockPresence(
@@ -331,7 +331,7 @@ proc paymentHandler*(
   else:
     context.paymentChannel = engine.wallet.acceptChannel(payment).option
 
-proc setupPeer*(b: BlockExcEngine, peer: PeerID) =
+proc setupPeer*(b: BlockExcEngine, peer: PeerID) {.async.} =
   ## Perform initial setup, such as want
   ## list exchange
   ##
@@ -344,10 +344,11 @@ proc setupPeer*(b: BlockExcEngine, peer: PeerID) =
 
   # broadcast our want list, the other peer will do the same
   if b.pendingBlocks.len > 0:
-    b.network.request.sendWantList(peer, toSeq(b.pendingBlocks.wantList), full = true)
+    await b.network.request.sendWantList(
+      peer, toSeq(b.pendingBlocks.wantList), full = true)
 
   if address =? b.pricing.?address:
-    b.network.request.sendAccount(peer, Account(address: address))
+    await b.network.request.sendAccount(peer, Account(address: address))
 
 proc dropPeer*(b: BlockExcEngine, peer: PeerID) =
   ## Cleanup disconnected peer
@@ -383,7 +384,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
 
     if blocks.len > 0:
       trace "Sending blocks to peer", peer = task.id, blocks = blocks.len
-      b.network.request.sendBlocks(
+      await b.network.request.sendBlocks(
         task.id,
         blocks)
 
@@ -409,7 +410,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       wants.add(BlockPresence.init(presence))
 
   if wants.len > 0:
-    b.network.request.sendPresence(task.id, wants)
+    await b.network.request.sendPresence(task.id, wants)
 
 proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
   ## process tasks
@@ -450,7 +451,7 @@ proc new*(
 
   proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
     if event.kind == PeerEventKind.Joined:
-      engine.setupPeer(peerId)
+      await engine.setupPeer(peerId)
     else:
       engine.dropPeer(peerId)
 
