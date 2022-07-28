@@ -13,11 +13,16 @@ type
   StorageRequested* = object of Event
     requestId*: Id
     ask*: StorageAsk
+  SlotFilled* = object of Event
+    requestId* {.indexed.}: Id
+    slotIndex* {.indexed.}: UInt256
+    slotId* {.indexed.}: Id
   RequestFulfilled* = object of Event
     requestId* {.indexed.}: Id
   ProofSubmitted* = object of Event
     id*: Id
     proof*: seq[byte]
+
 
 proc collateralAmount*(storage: Storage): UInt256 {.contract, view.}
 proc slashMisses*(storage: Storage): UInt256 {.contract, view.}
