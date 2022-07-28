@@ -63,6 +63,33 @@ suite "Test Node":
     close(file)
     await node.stop()
 
+  test "Fetch Manifest":
+    var
+      manifest = Manifest.new().tryGet()
+
+    while (
+      let chunk = await chunker.getBytes();
+      chunk.len > 0):
+
+      let blk = bt.Block.new(chunk).tryGet()
+      (await localStore.putBlock(blk)).tryGet()
+      manifest.add(blk.cid)
+
+    let
+      manifestBlock = bt.Block.new(
+          manifest.encode().tryGet(),
+          codec = DagPBCodec
+        ).tryGet()
+
+    (await localStore.putBlock(manifestBlock)).tryGet()
+
+    let
+      fetched = (await node.fetchManifest(manifestBlock.cid)).tryGet()
+
+    check:
+      fetched.cid == manifest.cid
+      fetched.blocks == manifest.blocks
+
   test "Store Data Stream":
     let
       stream = BufferStream.new()
