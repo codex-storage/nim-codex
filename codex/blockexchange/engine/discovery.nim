@@ -83,7 +83,7 @@ proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
       trace "Exception listing blocks", exc = exc.msg
 
   while b.discEngineRunning:
-    await b.localStore.listBlocks(onBlock)
+    discard await b.localStore.listBlocks(onBlock)
 
     trace "About to sleep advertise loop", sleep = b.advertiseLoopSleep
     await sleepAsync(b.advertiseLoopSleep)

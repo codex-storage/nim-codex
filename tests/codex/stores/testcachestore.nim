@@ -1,4 +1,5 @@
 import std/strutils
+import std/options
 
 import pkg/chronos
 import pkg/asynctest
@@ -48,13 +49,13 @@ suite "Cache Store tests":
 
   test "putBlock":
 
-    check:
-      await store.putBlock(newBlock1)
-      newBlock1.cid in store
+    (await store.putBlock(newBlock1)).tryGet()
+    check (await store.hasBlock(newBlock1.cid)).tryGet()
 
     # block size bigger than entire cache
     store = CacheStore.new(cacheSize = 99, chunkSize = 98)
-    check not await store.putBlock(newBlock1)
+    (await store.putBlock(newBlock1)).tryGet()
+    check not (await store.hasBlock(newBlock1.cid)).tryGet()
 
     # block being added causes removal of LRU block
     store = CacheStore.new(
@@ -62,60 +63,63 @@ suite "Cache Store tests":
               cacheSize = 200,
               chunkSize = 1)
     check:
-      not store.hasBlock(newBlock1.cid)
-      store.hasBlock(newBlock2.cid)
-      store.hasBlock(newBlock3.cid)
+      not (await store.hasBlock(newBlock1.cid)).tryGet()
+      (await store.hasBlock(newBlock2.cid)).tryGet()
+      (await store.hasBlock(newBlock2.cid)).tryGet()
       store.currentSize == newBlock2.data.len + newBlock3.data.len # 200
 
   test "getBlock":
     store = CacheStore.new(@[newBlock])
 
     let blk = await store.getBlock(newBlock.cid)
-
-    check:
-      blk.isOk
-      blk.get == newBlock
+    check blk.tryGet().get() == newBlock
 
   test "fail getBlock":
     let blk = await store.getBlock(newBlock.cid)
-
-    check:
-      blk.isErr
-      blk.error of system.KeyError
+    check blk.tryGet().isNone()
 
   test "hasBlock":
     let store = CacheStore.new(@[newBlock])
-
-    check store.hasBlock(newBlock.cid)
+    check:
+      (await store.hasBlock(newBlock.cid)).tryGet()
+      await newBlock.cid in store
 
   test "fail hasBlock":
-    check not store.hasBlock(newBlock.cid)
+    check:
+      not (await store.hasBlock(newBlock.cid)).tryGet()
+      not (await newBlock.cid in store)
 
   test "delBlock":
     # empty cache
     (await store.delBlock(newBlock1.cid)).tryGet()
+    check not (await store.hasBlock(newBlock1.cid)).tryGet()
+
+    (await store.putBlock(newBlock1)).tryGet()
+    check (await store.hasBlock(newBlock1.cid)).tryGet()
 
     # successfully deleted
-    discard await store.putBlock(newBlock1)
     (await store.delBlock(newBlock1.cid)).tryGet()
+    check not (await store.hasBlock(newBlock1.cid)).tryGet()
 
     # deletes item should decrement size
     store = CacheStore.new(@[newBlock1, newBlock2, newBlock3])
     check:
       store.currentSize == 300
+
     (await store.delBlock(newBlock2.cid)).tryGet()
+
     check:
       store.currentSize == 200
-      newBlock2.cid notin store
+      not (await store.hasBlock(newBlock2.cid)).tryGet()
 
   test "listBlocks":
-    discard await store.putBlock(newBlock1)
+    (await store.putBlock(newBlock1)).tryGet()
 
     var listed = false
-    await store.listBlocks(
+    (await store.listBlocks(
       proc(cid: Cid) {.gcsafe, async.} =
-        check cid in store
+        check (await store.hasBlock(cid)).tryGet()
         listed = true
-    )
+    )).tryGet()
 
     check listed

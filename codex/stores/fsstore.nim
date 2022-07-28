@@ -37,67 +37,73 @@ type
 template blockPath*(self: FSStore, cid: Cid): string =
   self.repoDir / ($cid)[^self.postfixLen..^1] / $cid
 
-method getBlock*(
-  self: FSStore,
-  cid: Cid): Future[?!Block] {.async.} =
+method getBlock*(self: FSStore, cid: Cid): Future[?! (? Block)] {.async.} =
   ## Get a block from the stores
   ##
 
+  trace "Getting block from filestore", cid
   if cid.isEmpty:
     trace "Empty block, ignoring"
-    return cid.emptyBlock.success
+    return cid.emptyBlock.some.success
 
-  if cid in self.cache:
-    return await self.cache.getBlock(cid)
+  let cachedBlock = await self.cache.getBlock(cid)
+  if cachedBlock.isErr:
+    return cachedBlock
+  if cachedBlock.get.isSome:
+    trace "Retrieved block from cache", cid
+    return cachedBlock
 
-  if cid notin self:
-    return Block.failure("Couldn't find block in fs store")
-
+  # Read file contents
   var data: seq[byte]
-  let path = self.blockPath(cid)
-  if (
-    let res = io2.readFile(path, data);
-    res.isErr):
-    let error = io2.ioErrorMsg(res.error)
-    trace "Cannot read file from fs store", path , error
-    return Block.failure("Cannot read file from fs store")
+  let
+    path = self.blockPath(cid)
+    res = io2.readFile(path, data)
 
-  return Block.new(cid, data)
+  if res.isErr:
+    if not isFile(path):   # May be, check instead that "res.error == ERROR_FILE_NOT_FOUND" ?
+      return Block.none.success
+    else:
+      let error = io2.ioErrorMsg(res.error)
+      trace "Cannot read file from filestore", path, error
+      return failure("Cannot read file from filestore")
 
-method putBlock*(
-  self: FSStore,
-  blk: Block): Future[bool] {.async.} =
-  ## Put a block to the blockstore
+  without var blk =? Block.new(cid, data), error:
+    return error.failure
+
+  # TODO: add block to the cache
+  return blk.some.success
+
+method putBlock*(self: FSStore, blk: Block): Future[?!void] {.async.} =
+  ## Write block contents to file with name based on blk.cid,
+  ## save second copy to the cache
   ##
 
   if blk.isEmpty:
     trace "Empty block, ignoring"
-    return true
-
-  if blk.cid in self:
-    return true
-
-  # if directory exists it wont fail
-  if io2.createPath(self.blockPath(blk.cid).parentDir).isErr:
-    trace "Unable to create block prefix dir", dir = self.blockPath(blk.cid).parentDir
-    return false
+    return success()
 
   let path = self.blockPath(blk.cid)
-  if (
-    let res = io2.writeFile(path, blk.data);
-    res.isErr):
+  if isFile(path):
+    return success()
+
+  # If directory exists createPath wont fail
+  let dir = path.parentDir
+  if io2.createPath(dir).isErr:
+    trace "Unable to create block prefix dir", dir
+    return failure("Unable to create block prefix dir")
+
+  let res = io2.writeFile(path, blk.data)
+  if res.isErr:
     let error = io2.ioErrorMsg(res.error)
     trace "Unable to store block", path, cid = blk.cid, error
-    return false
+    return failure("Unable to store block")
 
-  if not (await self.cache.putBlock(blk)):
+  if isErr (await self.cache.putBlock(blk)):
     trace "Unable to store block in cache", cid = blk.cid
 
-  return true
+  return success()
 
-method delBlock*(
-  self: FSStore,
-  cid: Cid): Future[?!void] {.async.} =
+method delBlock*(self: FSStore, cid: Cid): Future[?!void] {.async.} =
   ## Delete a block from the blockstore
   ##
 
@@ -111,33 +117,35 @@ method delBlock*(
     res = io2.removeFile(path)
 
   if res.isErr:
-    let errmsg = io2.ioErrorMsg(res.error)
-    trace "Unable to delete block", path, cid, errmsg
-    return errmsg.failure
+    let error = io2.ioErrorMsg(res.error)
+    trace "Unable to delete block", path, cid, error
+    return error.failure
 
   return await self.cache.delBlock(cid)
 
-method hasBlock*(self: FSStore, cid: Cid): bool =
+method hasBlock*(self: FSStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
   ##
 
-  trace "Checking for block existence", cid
+  trace "Checking filestore for block existence", cid
   if cid.isEmpty:
     trace "Empty block, ignoring"
-    return true
+    return true.success
 
-  self.blockPath(cid).isFile()
+  return self.blockPath(cid).isFile().success
 
-method listBlocks*(self: FSStore, onBlock: OnBlock) {.async.} =
-  debug "Listing all blocks in store"
+method listBlocks*(self: FSStore, onBlock: OnBlock): Future[?!void] {.async.} =
+  ## Get the list of blocks in the BlockStore. This is an intensive operation
+  ##
+
+  trace "Listing all blocks in filestore"
   for (pkind, folderPath) in self.repoDir.walkDir():
     if pkind != pcDir: continue
-    let baseName = basename(folderPath)
-    if baseName.len != self.postfixLen: continue
+    if len(folderPath.basename) != self.postfixLen: continue
 
-    for (fkind, filePath) in folderPath.walkDir(false):
+    for (fkind, filename) in folderPath.walkDir(relative = true):
       if fkind != pcFile: continue
-      let cid = Cid.init(basename(filePath))
+      let cid = Cid.init(filename)
       if cid.isOk:
         # getting a weird `Error: unhandled exception: index 1 not in 0 .. 0 [IndexError]`
         # compilation error if using different syntax/construct bellow
@@ -148,6 +156,8 @@ method listBlocks*(self: FSStore, onBlock: OnBlock) {.async.} =
           raise exc
         except CatchableError as exc:
           trace "Couldn't get block", cid = $(cid.get())
+
+  return success()
 
 proc new*(
   T: type FSStore,

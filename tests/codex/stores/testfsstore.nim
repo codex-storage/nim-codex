@@ -1,4 +1,5 @@
 import std/os
+import std/options
 
 import pkg/questionable
 import pkg/questionable/results
@@ -33,36 +34,43 @@ suite "FS Store":
     removeDir(repoDir)
 
   test "putBlock":
-    check await store.putBlock(newBlock)
-    check fileExists(store.blockPath(newBlock.cid))
-    check newBlock.cid in store
+    (await store.putBlock(newBlock)).tryGet()
+    check:
+      fileExists(store.blockPath(newBlock.cid))
+      (await store.hasBlock(newBlock.cid)).tryGet()
+      await newBlock.cid in store
 
   test "getBlock":
     createDir(store.blockPath(newBlock.cid).parentDir)
     writeFile(store.blockPath(newBlock.cid), newBlock.data)
     let blk = await store.getBlock(newBlock.cid)
-    check blk.option == newBlock.some
+    check blk.tryGet().get() == newBlock
 
   test "fail getBlock":
     let blk = await store.getBlock(newBlock.cid)
-    check blk.isErr
+    check blk.tryGet().isNone
 
   test "hasBlock":
     createDir(store.blockPath(newBlock.cid).parentDir)
     writeFile(store.blockPath(newBlock.cid), newBlock.data)
 
-    check store.hasBlock(newBlock.cid)
+    check:
+      (await store.hasBlock(newBlock.cid)).tryGet()
+      await newBlock.cid in store
+
+  test "fail hasBlock":
+    check:
+      not (await store.hasBlock(newBlock.cid)).tryGet()
+      not (await newBlock.cid in store)
 
   test "listBlocks":
     createDir(store.blockPath(newBlock.cid).parentDir)
     writeFile(store.blockPath(newBlock.cid), newBlock.data)
 
-    await store.listBlocks(
+    (await store.listBlocks(
       proc(cid: Cid) {.gcsafe, async.} =
-        check cid == newBlock.cid)
-
-  test "fail hasBlock":
-    check not store.hasBlock(newBlock.cid)
+        check cid == newBlock.cid
+    )).tryGet()
 
   test "delBlock":
     createDir(store.blockPath(newBlock.cid).parentDir)

@@ -44,12 +44,9 @@ suite "Test PoR store":
       let chunk = await chunker.getBytes();
       chunk.len > 0):
 
-      let
-        blk = bt.Block.new(chunk).tryGet()
-
+      let blk = bt.Block.new(chunk).tryGet()
       manifest.add(blk.cid)
-      if not (await store.putBlock(blk)):
-        raise newException(CatchableError, "Unable to store block " & $blk.cid)
+      (await store.putBlock(blk)).tryGet()
 
     cid = manifest.cid.tryGet()
     por = await PoR.init(

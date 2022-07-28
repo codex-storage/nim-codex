@@ -9,6 +9,8 @@
 
 import std/sequtils
 import std/sets
+import std/options
+import std/algorithm
 
 import pkg/chronos
 import pkg/chronicles
@@ -200,7 +202,7 @@ proc blockPresenceHandler*(
     .filter do(cid: Cid) -> bool:
       not b.peers.anyIt( cid in it.peerHave ))
 
-proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) =
+proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) {.async.} =
   trace "Schedule a task for new blocks"
 
   let
@@ -209,17 +211,18 @@ proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) =
   # schedule any new peers to provide blocks to
   for p in b.peers:
     for c in cids: # for each cid
-      # schedule a peer if it wants at least one
-      # cid and we have it in our local store
-      if c in p.peerWants and c in b.localStore:
-        if b.scheduleTask(p):
-          trace "Task scheduled for peer", peer = p.id
-        else:
-          trace "Unable to schedule task for peer", peer = p.id
+      # schedule a peer if it wants at least one cid
+      # and we have it in our local store
+      if c in p.peerWants:
+        if await (c in b.localStore):
+          if b.scheduleTask(p):
+            trace "Task scheduled for peer", peer = p.id
+          else:
+            trace "Unable to schedule task for peer", peer = p.id
 
-        break # do next peer
+          break # do next peer
 
-proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) =
+proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) {.async.} =
   ## Resolve pending blocks from the pending blocks manager
   ## and schedule any new task to be ran
   ##
@@ -227,7 +230,7 @@ proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) =
   trace "Resolving blocks", blocks = blocks.len
 
   b.pendingBlocks.resolve(blocks)
-  b.scheduleTasks(blocks)
+  await b.scheduleTasks(blocks)
   b.discovery.queueProvideBlocksReq(blocks.mapIt( it.cid ))
 
 proc payForBlocks(engine: BlockExcEngine,
@@ -250,11 +253,10 @@ proc blocksHandler*(
 
   trace "Got blocks from peer", peer, len = blocks.len
   for blk in blocks:
-    if not (await b.localStore.putBlock(blk)):
+    if isErr (await b.localStore.putBlock(blk)):
       trace "Unable to store block", cid = blk.cid
-      continue
 
-  b.resolveBlocks(blocks)
+  await b.resolveBlocks(blocks)
   let peerCtx = b.peers.get(peer)
   if peerCtx != nil:
     b.payForBlocks(peerCtx, blocks)
@@ -289,8 +291,9 @@ proc wantListHandler*(
 
     # peer might want to ask for the same cid with
     # different want params
-    if e.sendDontHave and e.cid notin b.localStore:
-      dontHaves.add(e.cid)
+    if e.sendDontHave:
+      if not(await e.cid in b.localStore):
+        dontHaves.add(e.cid)
 
   # send don't have's to remote
   if dontHaves.len > 0:
@@ -358,22 +361,25 @@ proc dropPeer*(b: BlockExcEngine, peer: PeerID) =
 proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
   trace "Handling task for peer", peer = task.id
 
-  var wantsBlocks = newAsyncHeapQueue[Entry](queueType = QueueType.Max)
-  # get blocks and wants to send to the remote
-  for e in task.peerWants:
-    if e.wantType == WantType.wantBlock:
-      await wantsBlocks.push(e)
+  # PART 1: Send to the peer blocks he wants to get,
+  # if they present in our local store
 
   # TODO: There should be all sorts of accounting of
   # bytes sent/received here
+
+  var wantsBlocks = task.peerWants.filterIt(it.wantType == WantType.wantBlock)
+
   if wantsBlocks.len > 0:
+    wantsBlocks.sort(SortOrder.Descending)
+
     let blockFuts = await allFinished(wantsBlocks.mapIt(
         b.localStore.getBlock(it.cid)
     ))
 
+    # Extract succesfully received blocks
     let blocks = blockFuts
-      .filterIt((not it.failed) and it.read.isOk)
-      .mapIt(!it.read)
+      .filterIt(it.completed and it.read.isOk and it.read.get.isSome)
+      .mapIt(it.read.get.get)
 
     if blocks.len > 0:
       trace "Sending blocks to peer", peer = task.id, blocks = blocks.len
@@ -381,11 +387,15 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
         task.id,
         blocks)
 
-    # Remove successfully sent blocks
-    task.peerWants.keepIf(
-      proc(e: Entry): bool =
-        not blocks.anyIt( it.cid == e.cid )
-    )
+      # Remove successfully sent blocks
+      task.peerWants.keepIf(
+        proc(e: Entry): bool =
+          not blocks.anyIt( it.cid == e.cid )
+      )
+
+
+  # PART 2: Send to the peer prices of the blocks he wants to discover,
+  # if they present in our local store
 
   var wants: seq[BlockPresence]
   # do not remove wants from the queue unless
@@ -393,7 +403,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
   for e in task.peerWants:
     if e.wantType == WantType.wantHave:
       var presence = Presence(cid: e.cid)
-      presence.have = b.localStore.hasblock(presence.cid)
+      presence.have = await (presence.cid in b.localStore)
       if presence.have and price =? b.pricing.?price:
         presence.price = price
       wants.add(BlockPresence.init(presence))

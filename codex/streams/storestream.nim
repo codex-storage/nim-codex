@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import std/options
+
 import pkg/upraises
 
 push: {.upraises: [].}
@@ -52,36 +54,40 @@ proc `size=`*(self: StoreStream, size: int)
   {.error: "Setting the size is forbidden".} =
   discard
 
+method atEof*(self: StoreStream): bool =
+  self.offset >= self.size
+
 method readOnce*(
   self: StoreStream,
   pbytes: pointer,
   nbytes: int): Future[int] {.async.} =
+  ## Read `nbytes` from current position in the StoreStream into output buffer pointed by `pbytes`.
+  ## Return how many bytes were actually read before EOF was encountered.
+  ## Raise exception if we are already at EOF.
 
+  trace "Reading from manifest", cid = self.manifest.cid.get(), blocks = self.manifest.len
   if self.atEof:
     raise newLPStreamEOFError()
 
-  var
-    read = 0
-
-  trace "Reading from manifest", cid = self.manifest.cid.get(), blocks = self.manifest.len
+  # The loop iterates over blocks in the StoreStream,
+  # reading them and copying their data into outbuf
+  var read = 0  # Bytes read so far, and thus write offset in the outbuf
   while read < nbytes and not self.atEof:
+    # Compute from the current stream position `self.offset` the block num/offset to read
+    # Compute how many bytes to read from this block
     let
-      pos = self.offset div self.manifest.blockSize
-      blk = (await self.store.getBlock(self.manifest[pos])).tryGet()
+      blockNum    = self.offset div self.manifest.blockSize
+      blockOffset = self.offset mod self.manifest.blockSize
+      readBytes   = min(nbytes - read, self.manifest.blockSize - blockOffset)
 
-      blockOffset =
-        if self.offset >= self.manifest.blockSize:
-          self.offset mod self.manifest.blockSize
-        else:
-          self.offset
+    # Read contents of block `blockNum`
+    without blkOrNone =? await self.store.getBlock(self.manifest[blockNum]), error:
+      raise newLPStreamReadError(error)
+    without blk =? blkOrNone:
+      raise newLPStreamReadError("Block not found")
+    trace "Reading bytes from store stream", blockNum, cid = blk.cid, bytes = readBytes, blockOffset
 
-      readBytes =
-        if (nbytes - read) >= (self.manifest.blockSize - blockOffset):
-          self.manifest.blockSize - blockOffset
-        else:
-          min(nbytes - read, self.manifest.blockSize)
-
-    trace "Reading bytes from store stream", pos, cid = blk.cid, bytes = readBytes, blockOffset = blockOffset
+    # Copy `readBytes` bytes starting at `blockOffset` from the block into the outbuf
     copyMem(
       pbytes.offset(read),
       if blk.isEmpty:
@@ -90,13 +96,11 @@ method readOnce*(
           blk.data[blockOffset].addr,
       readBytes)
 
+    # Update current positions in the stream and outbuf
     self.offset += readBytes
     read += readBytes
 
   return read
-
-method atEof*(self: StoreStream): bool =
-  self.offset >= self.manifest.len * self.manifest.blockSize
 
 method closeImpl*(self: StoreStream) {.async.} =
   try:

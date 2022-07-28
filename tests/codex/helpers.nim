@@ -1,3 +1,5 @@
+import std/options
+
 import pkg/chronos
 import pkg/libp2p
 import pkg/libp2p/varint
@@ -17,7 +19,7 @@ export randomchunker, nodeutils, mockdiscovery, eventually
 # is changed here, because blocks are now `ref`
 # types. This is only in tests!!!
 func `==`*(a, b: bt.Block): bool =
-  (a.cid == b.cid) and (a.data == b.  data)
+  (a.cid == b.cid) and (a.data == b.data)
 
 proc lenPrefix*(msg: openArray[byte]): seq[byte] =
   ## Write `msg` with a varint-encoded length prefix
@@ -45,7 +47,7 @@ proc corruptBlocks*(
 
     pos.add(i)
     var
-      blk = (await store.getBlock(manifest[i])).tryGet()
+      blk = (await store.getBlock(manifest[i])).tryGet().get()
       bytePos: seq[int]
 
     while true:

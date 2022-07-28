@@ -114,9 +114,13 @@ proc encode*(
       for j in 0..<blocks:
         let idx = blockIdx[j]
         if idx < manifest.len:
-          without var blk =? await dataBlocks[j], error:
-            trace "Unable to retrieve block", msg = error.msg
+          without blkOrNone =? await dataBlocks[j], error:
+            trace "Unable to retrieve block", error = error.msg
             return error.failure
+
+          without blk =? blkOrNone:
+            trace "Block not found", cid = encoded[idx]
+            return failure("Block not found")
 
           trace "Encoding block", cid = blk.cid, pos = idx
           shallowCopy(data[j], blk.data)
@@ -125,11 +129,11 @@ proc encode*(
           data[j] = newSeq[byte](manifest.blockSize)
 
       trace "Erasure coding data", data = data.len, parity = parityData.len
-      if (
-        let err = encoder.encode(data, parityData);
-        err.isErr):
-        trace "Unable to encode manifest!", err = $err.error
-        return failure($err.error)
+
+      let res = encoder.encode(data, parityData);
+      if res.isErr:
+        trace "Unable to encode manifest!", error = $res.error
+        return failure($res.error)
 
       for j in 0..<parity:
         let idx = encoded.rounded + blockIdx[j]
@@ -139,7 +143,7 @@ proc encode*(
 
         trace "Adding parity block", cid = blk.cid, pos = idx
         encoded[idx] = blk.cid
-        if not (await self.store.putBlock(blk)):
+        if isErr (await self.store.putBlock(blk)):
           trace "Unable to store block!", cid = blk.cid
           return failure("Unable to store block!")
   except CancelledError as exc:
@@ -205,10 +209,12 @@ proc decode*(
 
         idxPendingBlocks.del(idxPendingBlocks.find(done))
 
-        without blk =? (await done), error:
+        without blkOrNone =? (await done), error:
           trace "Failed retrieving block", exc = error.msg
+          return error.failure
 
-        if blk.isNil:
+        without blk =? blkOrNone:
+          trace "Block not found"
           continue
 
         if idx >= encoded.K:
@@ -242,7 +248,7 @@ proc decode*(
             return failure(error)
 
           trace "Recovered block", cid = blk.cid
-          if not (await self.store.putBlock(blk)):
+          if isErr (await self.store.putBlock(blk)):
             trace "Unable to store block!", cid = blk.cid
             return failure("Unable to store block!")
   except CancelledError as exc:

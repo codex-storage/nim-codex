@@ -44,33 +44,44 @@ const
   DefaultCacheSizeMiB* = 100
   DefaultCacheSize* = DefaultCacheSizeMiB * MiB # bytes
 
-method getBlock*(
-  self: CacheStore,
-  cid: Cid): Future[?!Block] {.async.} =
+method getBlock*(self: CacheStore, cid: Cid): Future[?! (? Block)] {.async.} =
   ## Get a block from the stores
   ##
 
   trace "Getting block from cache", cid
   if cid.isEmpty:
     trace "Empty block, ignoring"
-    return cid.emptyBlock.success
+    return cid.emptyBlock.some.success
 
-  return self.cache[cid].catch()
+  if cid notin self.cache:
+    return Block.none.success
 
-method hasBlock*(self: CacheStore, cid: Cid): bool =
-  ## check if the block exists
+  try:
+    let blk = self.cache[cid]
+    return blk.some.success
+  except CatchableError as exc:
+    trace "Exception requesting block", cid, exc = exc.msg
+    return failure(exc)
+
+method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
+  ## Check if the block exists in the blockstore
   ##
 
-  trace "Checking for block presence in cache", cid
+  trace "Checking CacheStore for block presence", cid
   if cid.isEmpty:
     trace "Empty block, ignoring"
-    return true
+    return true.success
 
-  cid in self.cache
+  return (cid in self.cache).success
 
-method listBlocks*(s: CacheStore, onBlock: OnBlock) {.async.} =
+method listBlocks*(s: CacheStore, onBlock: OnBlock): Future[?!void] {.async.} =
+  ## Get the list of blocks in the BlockStore. This is an intensive operation
+  ##
+
   for cid in toSeq(s.cache.keys):
     await onBlock(cid)
+
+  return success()
 
 func putBlockSync(self: CacheStore, blk: Block): bool =
 
@@ -94,22 +105,19 @@ func putBlockSync(self: CacheStore, blk: Block): bool =
   self.currentSize += blkSize
   return true
 
-method putBlock*(
-  self: CacheStore,
-  blk: Block): Future[bool] {.async.} =
+method putBlock*(self: CacheStore, blk: Block): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 
   trace "Storing block in cache", cid = blk.cid
   if blk.isEmpty:
     trace "Empty block, ignoring"
-    return true
+    return success()
 
-  return self.putBlockSync(blk)
+  discard self.putBlockSync(blk)
+  return success()
 
-method delBlock*(
-  self: CacheStore,
-  cid: Cid): Future[?!void] {.async.} =
+method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
   ## Delete a block from the blockstore
   ##
 

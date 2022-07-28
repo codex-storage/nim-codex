@@ -85,10 +85,10 @@ suite "Test Node":
       manifestCid = (await storeFut).tryGet()
 
     check:
-      manifestCid in localStore
+      (await localStore.hasBlock(manifestCid)).tryGet()
 
     var
-      manifestBlock = (await localStore.getBlock(manifestCid)).tryGet()
+      manifestBlock = (await localStore.getBlock(manifestCid)).tryGet().get()
       localManifest = Manifest.decode(manifestBlock.data).tryGet()
 
     check:
@@ -104,20 +104,18 @@ suite "Test Node":
       let chunk = await chunker.getBytes();
       chunk.len > 0):
 
-      let
-        blk = bt.Block.new(chunk).tryGet()
-
+      let blk = bt.Block.new(chunk).tryGet()
       original &= chunk
-      check await localStore.putBlock(blk)
+      (await localStore.putBlock(blk)).tryGet()
       manifest.add(blk.cid)
 
     let
       manifestBlock = bt.Block.new(
-        manifest.encode().tryGet(),
-        codec = DagPBCodec)
-        .tryGet()
+          manifest.encode().tryGet(),
+          codec = DagPBCodec
+        ).tryGet()
 
-    check await localStore.putBlock(manifestBlock)
+    (await localStore.putBlock(manifestBlock)).tryGet()
 
     let stream = (await node.retrieve(manifestBlock.cid)).tryGet()
     var data: seq[byte]
@@ -125,9 +123,7 @@ suite "Test Node":
       var
         buf = newSeq[byte](BlockSize)
         res = await stream.readOnce(addr buf[0], BlockSize div 2)
-
       buf.setLen(res)
-
       data &= buf
 
     check data == original
@@ -137,7 +133,7 @@ suite "Test Node":
       testString = "Block 1"
       blk = bt.Block.new(testString.toBytes).tryGet()
 
-    check (await localStore.putBlock(blk))
+    (await localStore.putBlock(blk)).tryGet()
     let stream = (await node.retrieve(blk.cid)).tryGet()
 
     var data = newSeq[byte](testString.len)
