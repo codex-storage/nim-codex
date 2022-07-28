@@ -60,7 +60,7 @@ suite "NetworkStore engine basic":
       cancel: bool = false,
       wantType: WantType = WantType.wantHave,
       full: bool = false,
-      sendDontHave: bool = false) {.gcsafe.} =
+      sendDontHave: bool = false) {.gcsafe, async.} =
         check cids.mapIt($it).sorted == blocks.mapIt( $it.cid ).sorted
         done.complete()
 
@@ -87,20 +87,21 @@ suite "NetworkStore engine basic":
 
     for b in blocks:
       discard engine.pendingBlocks.getWantHandle(b.cid)
-    engine.setupPeer(peerId)
+    await engine.setupPeer(peerId)
 
     await done.wait(100.millis)
 
   test "Should send account to new peers":
     let pricing = Pricing.example
 
-    proc sendAccount(peer: PeerID, account: Account) =
+    proc sendAccount(peer: PeerID, account: Account) {.gcsafe, async.} =
       check account.address == pricing.address
       done.complete()
 
     let
-      network = BlockExcNetwork(request: BlockExcRequest(
-        sendAccount: sendAccount
+      network = BlockExcNetwork(
+        request: BlockExcRequest(
+          sendAccount: sendAccount
       ))
 
       localStore = CacheStore.new()
@@ -120,7 +121,7 @@ suite "NetworkStore engine basic":
         pendingBlocks)
 
     engine.pricing = pricing.some
-    engine.setupPeer(peerId)
+    await engine.setupPeer(peerId)
 
     await done.wait(100.millis)
 
@@ -197,7 +198,7 @@ suite "NetworkStore engine handlers":
 
   test "Should handle want list - `dont-have`":
     let  wantList = makeWantList(blocks.mapIt( it.cid ), sendDontHave = true)
-    proc sendPresence(peerId: PeerID, presence: seq[BlockPresence]) =
+    proc sendPresence(peerId: PeerID, presence: seq[BlockPresence]) {.gcsafe, async.} =
       check presence.mapIt( it.cid ) == wantList.entries.mapIt( it.`block` )
       for p in presence:
         check:
@@ -215,7 +216,7 @@ suite "NetworkStore engine handlers":
 
   test "Should handle want list - `dont-have` some blocks":
     let  wantList = makeWantList(blocks.mapIt( it.cid ), sendDontHave = true)
-    proc sendPresence(peerId: PeerID, presence: seq[BlockPresence]) =
+    proc sendPresence(peerId: PeerID, presence: seq[BlockPresence]) {.gcsafe, async.} =
       check presence.mapIt( it.cid ) == blocks[2..blocks.high].mapIt( it.cid.data.buffer )
       for p in presence:
         check:
@@ -252,7 +253,7 @@ suite "NetworkStore engine handlers":
     peerContext.peerPrices = blocks.mapIt((it.cid, rand(uint16).u256)).toTable
 
     engine.network = BlockExcNetwork(request: BlockExcRequest(
-      sendPayment: proc(receiver: PeerID, payment: SignedState) =
+      sendPayment: proc(receiver: PeerID, payment: SignedState) {.gcsafe, async.} =
         let amount = blocks.mapIt(peerContext.peerPrices[it.cid]).foldl(a+b)
         let balances = !payment.state.outcome.balances(Asset)
         check receiver == peerId
@@ -349,7 +350,7 @@ suite "Task Handler":
   test "Should send want-blocks in priority order":
     proc sendBlocks(
       id: PeerID,
-      blks: seq[bt.Block]) {.gcsafe.} =
+      blks: seq[bt.Block]) {.gcsafe, async.} =
       check blks.len == 2
       check:
         blks[1].cid == blocks[0].cid
@@ -386,7 +387,7 @@ suite "Task Handler":
     let missing = @[bt.Block.new("missing".toBytes).tryGet()]
     let price = (!engine.pricing).price
 
-    proc sendPresence(id: PeerID, presence: seq[BlockPresence]) =
+    proc sendPresence(id: PeerID, presence: seq[BlockPresence]) {.gcsafe, async.} =
       check presence.mapIt(!Presence.init(it)) == @[
         Presence(cid: present[0].cid, have: true, price: price),
         Presence(cid: present[1].cid, have: true, price: price),
