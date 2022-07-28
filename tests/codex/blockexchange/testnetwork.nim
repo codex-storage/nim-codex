@@ -15,7 +15,7 @@ import pkg/codex/blockexchange
 import ../helpers
 import ../examples
 
-suite "NetworkStore network":
+suite "Network - Handlers":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
@@ -110,7 +110,7 @@ suite "NetworkStore network":
 
     await done.wait(500.millis)
 
-  test "handles account messages":
+  test "Handles account messages":
     let account = Account(address: EthAddress.example)
 
     proc handleAccount(peer: PeerID, received: Account) {.gcsafe, async.} =
@@ -124,7 +124,7 @@ suite "NetworkStore network":
 
     await done.wait(100.millis)
 
-  test "handles payment messages":
+  test "Handles payment messages":
     let payment = SignedState.example
 
     proc handlePayment(peer: PeerID, received: SignedState) {.gcsafe, async.} =
@@ -138,7 +138,7 @@ suite "NetworkStore network":
 
     await done.wait(100.millis)
 
-suite "NetworkStore Network - e2e":
+suite "Network - Senders":
   let
     chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
 
@@ -179,7 +179,7 @@ suite "NetworkStore Network - e2e":
       switch1.stop(),
       switch2.stop())
 
-  test "broadcast want list":
+  test "Send want list":
     proc wantListHandler(peer: PeerID, wantList: WantList) {.gcsafe, async.} =
       # check that we got the correct amount of entries
       check wantList.entries.len == 4
@@ -195,7 +195,7 @@ suite "NetworkStore Network - e2e":
       done.complete()
 
     network2.handlers.onWantList = wantListHandler
-    network1.broadcastWantList(
+    await network1.sendWantList(
       switch2.peerInfo.peerId,
       blocks.mapIt( it.cid ),
       1, true, WantType.wantHave,
@@ -203,19 +203,19 @@ suite "NetworkStore Network - e2e":
 
     await done.wait(500.millis)
 
-  test "broadcast blocks":
+  test "send blocks":
     proc blocksHandler(peer: PeerID, blks: seq[bt.Block]) {.gcsafe, async.} =
       check blks == blocks
       done.complete()
 
     network2.handlers.onBlocks = blocksHandler
-    network1.broadcastBlocks(
+    await network1.sendBlocks(
       switch2.peerInfo.peerId,
       blocks)
 
     await done.wait(500.millis)
 
-  test "broadcast presence":
+  test "send presence":
     proc presenceHandler(
       peer: PeerID,
       precense: seq[BlockPresence]) {.gcsafe, async.} =
@@ -227,7 +227,7 @@ suite "NetworkStore Network - e2e":
 
     network2.handlers.onPresence = presenceHandler
 
-    network1.broadcastBlockPresence(
+    await network1.sendBlockPresence(
       switch2.peerInfo.peerId,
       blocks.mapIt(
         BlockPresence(
@@ -237,7 +237,7 @@ suite "NetworkStore Network - e2e":
 
     await done.wait(500.millis)
 
-  test "broadcasts account":
+  test "send account":
     let account = Account(address: EthAddress.example)
 
     proc handleAccount(peer: PeerID, received: Account) {.gcsafe, async.} =
@@ -246,11 +246,10 @@ suite "NetworkStore Network - e2e":
 
     network2.handlers.onAccount = handleAccount
 
-    network1.broadcastAccount(switch2.peerInfo.peerId, account)
-
+    await network1.sendAccount(switch2.peerInfo.peerId, account)
     await done.wait(500.millis)
 
-  test "broadcasts payment":
+  test "send payment":
     let payment = SignedState.example
 
     proc handlePayment(peer: PeerID, received: SignedState) {.gcsafe, async.} =
@@ -259,6 +258,50 @@ suite "NetworkStore Network - e2e":
 
     network2.handlers.onPayment = handlePayment
 
-    network1.broadcastPayment(switch2.peerInfo.peerId, payment)
-
+    await network1.sendPayment(switch2.peerInfo.peerId, payment)
     await done.wait(500.millis)
+
+suite "Network - Test Limits":
+  var
+    switch1, switch2: Switch
+    network1, network2: BlockExcNetwork
+    blocks: seq[bt.Block]
+    done: Future[void]
+
+  setup:
+    done = newFuture[void]()
+    switch1 = newStandardSwitch()
+    switch2 = newStandardSwitch()
+    await switch1.start()
+    await switch2.start()
+
+    network1 = BlockExcNetwork.new(
+      switch = switch1,
+      maxInflight = 0)
+    switch1.mount(network1)
+
+    network2 = BlockExcNetwork.new(
+      switch = switch2)
+    switch2.mount(network2)
+
+    await switch1.connect(
+      switch2.peerInfo.peerId,
+      switch2.peerInfo.addrs)
+
+  teardown:
+    await allFuturesThrowing(
+      switch1.stop(),
+      switch2.stop())
+
+  test "Concurrent Sends":
+    let account = Account(address: EthAddress.example)
+    network2.handlers.onAccount =
+      proc(peer: PeerID, received: Account) {.gcsafe, async.} =
+        check false
+
+    let fut = network1.send(
+      switch2.peerInfo.peerId,
+      Message(account: AccountMessage.init(account)))
+
+    await sleepAsync(100.millis)
+    check not fut.finished
