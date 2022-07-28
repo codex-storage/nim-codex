@@ -81,6 +81,34 @@ ethersuite "On-Chain Market":
     await market.fillSlot(request.id, slotIndex, proof)
     check (await market.getHost(request.id, slotIndex)) == some accounts[0]
 
+  test "support slot filled subscriptions":
+    await token.approve(storage.address, request.price)
+    discard await market.requestStorage(request)
+    var receivedIds: seq[array[32, byte]]
+    var receivedSlotIndices: seq[UInt256]
+    proc onSlotFilled(id: array[32, byte], slotIndex: UInt256) =
+      receivedIds.add(id)
+      receivedSlotIndices.add(slotIndex)
+    let subscription = await market.subscribeSlotFilled(request.id, slotIndex, onSlotFilled)
+    await market.fillSlot(request.id, slotIndex, proof)
+    check receivedIds == @[request.id]
+    check receivedSlotIndices == @[slotIndex]
+    await subscription.unsubscribe()
+
+  test "subscribes only to a certain slot":
+    var otherSlot = slotIndex - 1
+    await token.approve(storage.address, request.price)
+    discard await market.requestStorage(request)
+    var receivedSlotIndices: seq[UInt256]
+    proc onSlotFilled(requestId: array[32, byte], slotIndex: UInt256) =
+      receivedSlotIndices.add(slotIndex)
+    let subscription = await market.subscribeSlotFilled(request.id, slotIndex, onSlotFilled)
+    await market.fillSlot(request.id, slotIndex - 1, proof)
+    check receivedSlotIndices.len == 0
+    await market.fillSlot(request.id, slotIndex, proof)
+    check receivedSlotIndices == @[slotIndex]
+    await subscription.unsubscribe()
+
   test "support fulfillment subscriptions":
     await token.approve(storage.address, request.price)
     discard await market.requestStorage(request)

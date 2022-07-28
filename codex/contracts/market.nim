@@ -66,6 +66,17 @@ method subscribeRequests(market: OnChainMarket,
   let subscription = await market.contract.subscribe(StorageRequested, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
+method subscribeSlotFilled*(market: OnChainMarket,
+                            requestId: array[32, byte],
+                            slotIndex: UInt256,
+                            callback: OnSlotFilled):
+                           Future[MarketSubscription] {.async.} =
+  proc onEvent(event: SlotFilled) {.upraises:[].} =
+    if event.requestId == requestId and event.slotIndex == slotIndex:
+      callback(event.requestId, event.slotIndex)
+  let subscription = await market.contract.subscribe(SlotFilled, onEvent)
+  return OnChainMarketSubscription(eventSubscription: subscription)
+
 method subscribeFulfillment(market: OnChainMarket,
                             requestId: array[32, byte],
                             callback: OnFulfillment):
