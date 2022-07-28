@@ -302,21 +302,25 @@ proc start*(node: CodexNodeRef) {.async.} =
   if contracts =? node.contracts:
     # TODO: remove Sales callbacks, pass BlockStore and StorageProofs instead
     contracts.sales.onStore = proc(cid: string, _: Availability) {.async.} =
-      # store data in local storage
+      ## store data in local storage
+      ##
+
       without cid =? Cid.init(cid):
         trace "Unable to parse Cid", cid
-        return
+        raise newException(CodexError, "Unable to parse Cid")
 
-      without manifest =? await node.fetchManifest(cid):
+      without manifest =? await node.fetchManifest(cid), error:
         trace "Unable to fetch manifest for cid", cid
-        return
+        raise error
 
       trace "Fetching block for cid", cid
       let batch = max(1, manifest.blocks.len div FetchBatch)
       trace "Prefetching in batches of", FetchBatch
       for blks in manifest.blocks.distribute(batch, true):
-        discard await allFinished(
-          blks.mapIt( node.blockStore.getBlock( it ) ))
+        await allFuturesThrowing(
+          allFinished(blks.mapIt(
+            node.blockStore.getBlock( it )
+          )))
 
     contracts.sales.onClear = proc(availability: Availability, request: StorageRequest) =
       # TODO: remove data from local storage
