@@ -35,9 +35,11 @@ logScope:
   topics = "codex node"
 
 const
-  FetchBatch = 100
+  FetchBatch = 200
 
 type
+  BatchProc* = proc(blocks: seq[bt.Block]): Future[void] {.gcsafe, raises: [Defect].}
+
   CodexError = object of CatchableError
 
   CodexNodeRef* = ref object
@@ -80,6 +82,31 @@ proc fetchManifest*(
 
   return manifest.success
 
+proc fetchBatched*(
+  node: CodexNodeRef,
+  manifest: Manifest,
+  batchSize = FetchBatch,
+  onBatch: BatchProc = nil): Future[?!void] {.async, gcsafe.} =
+  ## Fetch manifest in batches of `batchSize`
+  ##
+
+  let batch = max(1, manifest.blocks.len div batchSize)
+  trace "Fetching blocks in batches of", size = batchSize
+  for blks in manifest.blocks.distribute(batch, true):
+    try:
+      let
+        blocks = blks.mapIt(node.blockStore.getBlock( it ))
+
+      await allFuturesThrowing(allFinished(blocks))
+      if not onBatch.isNil:
+        await onBatch(blocks.mapIt( it.read.get.get ))
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as exc:
+      return failure(exc.msg)
+
+  return success()
+
 proc retrieve*(
   node: CodexNodeRef,
   cid: Cid): Future[?!LPStream] {.async.} =
@@ -97,18 +124,13 @@ proc retrieve*(
 
       asyncSpawn erasureJob()
     else:
-      proc fetchBlocksJob() {.async.} =
+      proc prefetchBlocks() {.async, raises: [Defect].} =
         try:
-          let batch = max(1, manifest.blocks.len div FetchBatch)
-          trace "Prefetching in batches of", FetchBatch
-          for blks in manifest.blocks.distribute(batch, true):
-            discard await allFinished(
-              blks.mapIt( node.blockStore.getBlock( it ) ))
+          discard await node.fetchBatched(manifest)
         except CatchableError as exc:
           trace "Exception prefetching blocks", exc = exc.msg
 
-      asyncSpawn fetchBlocksJob()
-
+      asyncSpawn prefetchBlocks()
     return LPStream(StoreStream.new(node.blockStore, manifest)).success
 
   let
@@ -313,14 +335,14 @@ proc start*(node: CodexNodeRef) {.async.} =
         trace "Unable to fetch manifest for cid", cid
         raise error
 
-      trace "Fetching block for cid", cid
-      let batch = max(1, manifest.blocks.len div FetchBatch)
-      trace "Prefetching in batches of", FetchBatch
-      for blks in manifest.blocks.distribute(batch, true):
-        await allFuturesThrowing(
-          allFinished(blks.mapIt(
-            node.blockStore.getBlock( it )
-          )))
+      trace "Fetching block for manifest", cid
+      # TODO: This will probably require a call to `getBlock` either way,
+      # since fetching of blocks will have be selective according
+      # to a combination of parameters, such as node slot position
+      # and dataset geometry
+      let fetchRes = await node.fetchBatched(manifest)
+      if fetchRes.isErr:
+        raise newException(CodexError, "Unable to retrieve blocks")
 
     contracts.sales.onClear = proc(availability: Availability, request: StorageRequest) =
       # TODO: remove data from local storage
