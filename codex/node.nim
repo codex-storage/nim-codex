@@ -94,9 +94,13 @@ proc fetchBatched*(
   ## Fetch manifest in batches of `batchSize`
   ##
 
-  let batch = max(1, manifest.blocks.len div batchSize)
+  let
+    batches =
+      (manifest.blocks.len div batchSize) +
+      (manifest.blocks.len mod batchSize)
+
   trace "Fetching blocks in batches of", size = batchSize
-  for blks in manifest.blocks.distribute(batch, true):
+  for blks in manifest.blocks.distribute(max(1, batches), true):
     try:
       let
         blocks = blks.mapIt(node.blockStore.getBlock( it ))
