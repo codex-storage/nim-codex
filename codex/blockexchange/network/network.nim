@@ -14,6 +14,7 @@ import pkg/chronicles
 import pkg/chronos
 
 import pkg/libp2p
+import pkg/libp2p/utils/semaphore
 import pkg/questionable
 import pkg/questionable/results
 
@@ -28,7 +29,9 @@ export network, payments
 logScope:
   topics = "codex blockexc network"
 
-const Codec* = "/codex/blockexc/1.0.0"
+const
+  Codec* = "/codex/blockexc/1.0.0"
+  MaxInflight* = 100
 
 type
   WantListHandler* = proc(peer: PeerID, wantList: WantList): Future[void] {.gcsafe.}
@@ -36,6 +39,14 @@ type
   BlockPresenceHandler* = proc(peer: PeerID, precense: seq[BlockPresence]): Future[void] {.gcsafe.}
   AccountHandler* = proc(peer: PeerID, account: Account): Future[void] {.gcsafe.}
   PaymentHandler* = proc(peer: PeerID, payment: SignedState): Future[void] {.gcsafe.}
+  WantListSender* = proc(
+    id: PeerID,
+    cids: seq[Cid],
+    priority: int32 = 0,
+    cancel: bool = false,
+    wantType: WantType = WantType.wantHave,
+    full: bool = false,
+    sendDontHave: bool = false): Future[void] {.gcsafe.}
 
   BlockExcHandlers* = object
     onWantList*: WantListHandler
@@ -44,26 +55,17 @@ type
     onAccount*: AccountHandler
     onPayment*: PaymentHandler
 
-  WantListBroadcaster* = proc(
-    id: PeerID,
-    cids: seq[Cid],
-    priority: int32 = 0,
-    cancel: bool = false,
-    wantType: WantType = WantType.wantHave,
-    full: bool = false,
-    sendDontHave: bool = false) {.gcsafe.}
-
-  BlocksBroadcaster* = proc(peer: PeerID, presence: seq[bt.Block]) {.gcsafe.}
-  PresenceBroadcaster* = proc(peer: PeerID, presence: seq[BlockPresence]) {.gcsafe.}
-  AccountBroadcaster* = proc(peer: PeerID, account: Account) {.gcsafe.}
-  PaymentBroadcaster* = proc(peer: PeerID, payment: SignedState) {.gcsafe.}
+  BlocksSender* = proc(peer: PeerID, presence: seq[bt.Block]): Future[void] {.gcsafe.}
+  PresenceSender* = proc(peer: PeerID, presence: seq[BlockPresence]): Future[void] {.gcsafe.}
+  AccountSender* = proc(peer: PeerID, account: Account): Future[void] {.gcsafe.}
+  PaymentSender* = proc(peer: PeerID, payment: SignedState): Future[void] {.gcsafe.}
 
   BlockExcRequest* = object
-    sendWantList*: WantListBroadcaster
-    sendBlocks*: BlocksBroadcaster
-    sendPresence*: PresenceBroadcaster
-    sendAccount*: AccountBroadcaster
-    sendPayment*: PaymentBroadcaster
+    sendWantList*: WantListSender
+    sendBlocks*: BlocksSender
+    sendPresence*: PresenceSender
+    sendAccount*: AccountSender
+    sendPayment*: PaymentSender
 
   BlockExcNetwork* = ref object of LPProtocol
     peers*: Table[PeerID, NetworkPeer]
@@ -71,19 +73,32 @@ type
     handlers*: BlockExcHandlers
     request*: BlockExcRequest
     getConn: ConnProvider
+    inflightSema: AsyncSemaphore
+
+proc send*(b: BlockExcNetwork, id: PeerId, msg: pb.Message) {.async.} =
+  ## Send message to peer
+  ##
+
+  b.peers.withValue(id, peer):
+    try:
+      await b.inflightSema.acquire()
+      trace "Sending message to peer", peer = id
+      await peer[].send(msg)
+    finally:
+      b.inflightSema.release()
+  do:
+    trace "Unable to send, peer not found", peerId = id
 
 proc handleWantList(
   b: BlockExcNetwork,
   peer: NetworkPeer,
-  list: WantList): Future[void] =
+  list: WantList) {.async.} =
   ## Handle incoming want list
   ##
 
-  if isNil(b.handlers.onWantList):
-    return
-
-  trace "Handling want list for peer", peer = peer.id, items = list.entries.len
-  b.handlers.onWantList(peer.id, list)
+  if not b.handlers.onWantList.isNil:
+    trace "Handling want list for peer", peer = peer.id, items = list.entries.len
+    await b.handlers.onWantList(peer.id, list)
 
 # TODO: make into a template
 proc makeWantList*(
@@ -93,18 +108,17 @@ proc makeWantList*(
   wantType: WantType = WantType.wantHave,
   full: bool = false,
   sendDontHave: bool = false): WantList =
-  var entries: seq[Entry]
-  for cid in cids:
-    entries.add(Entry(
-      `block`: cid.data.buffer,
-      priority: priority.int32,
-      cancel: cancel,
-      wantType: wantType,
-      sendDontHave: sendDontHave))
+  WantList(
+    entries: cids.mapIt(
+      Entry(
+        `block`: it.data.buffer,
+        priority: priority.int32,
+        cancel: cancel,
+        wantType: wantType,
+        sendDontHave: sendDontHave) ),
+    full: full)
 
-  WantList(entries: entries, full: full)
-
-proc broadcastWantList*(
+proc sendWantList*(
   b: BlockExcNetwork,
   id: PeerID,
   cids: seq[Cid],
@@ -112,49 +126,42 @@ proc broadcastWantList*(
   cancel: bool = false,
   wantType: WantType = WantType.wantHave,
   full: bool = false,
-  sendDontHave: bool = false) =
-  ## send a want message to peer
+  sendDontHave: bool = false): Future[void] =
+  ## Send a want message to peer
   ##
 
-  if id notin b.peers:
-    return
-
   trace "Sending want list to peer", peer = id, `type` = $wantType, items = cids.len
+  let msg = makeWantList(
+        cids,
+        priority,
+        cancel,
+        wantType,
+        full,
+        sendDontHave)
 
-  let
-    wantList = makeWantList(
-      cids,
-      priority,
-      cancel,
-      wantType,
-      full,
-      sendDontHave)
-  b.peers.withValue(id, peer):
-    peer[].broadcast(Message(wantlist: wantList))
+  b.send(id, Message(wantlist: msg))
 
 proc handleBlocks(
   b: BlockExcNetwork,
   peer: NetworkPeer,
-  blocks: seq[pb.Block]): Future[void] =
+  blocks: seq[pb.Block]) {.async.} =
   ## Handle incoming blocks
   ##
 
-  if isNil(b.handlers.onBlocks):
-    return
+  if not b.handlers.onBlocks.isNil:
+    trace "Handling blocks for peer", peer = peer.id, items = blocks.len
 
-  trace "Handling blocks for peer", peer = peer.id, items = blocks.len
+    var blks: seq[bt.Block]
+    for blob in blocks:
+      without cid =? Cid.init(blob.prefix):
+        trace "Unable to initialize Cid from protobuf message"
 
-  var blks: seq[bt.Block]
-  for blob in blocks:
-    without cid =? Cid.init(blob.prefix):
-      trace "Unable to initialize Cid from protobuf message"
+      without blk =? bt.Block.new(cid, blob.data, verify = true):
+        trace "Unable to initialize Block from data"
 
-    without blk =? bt.Block.new(cid, blob.data, verify = true):
-      trace "Unable to initialize Block from data"
+      blks.add(blk)
 
-    blks.add(blk)
-
-  b.handlers.onBlocks(peer.id, blks)
+    await b.handlers.onBlocks(peer.id, blks)
 
 template makeBlocks*(blocks: seq[bt.Block]): seq[pb.Block] =
   var blks: seq[pb.Block]
@@ -166,81 +173,72 @@ template makeBlocks*(blocks: seq[bt.Block]): seq[pb.Block] =
 
   blks
 
-proc broadcastBlocks*(
+proc sendBlocks*(
   b: BlockExcNetwork,
   id: PeerID,
-  blocks: seq[bt.Block]) =
+  blocks: seq[bt.Block]): Future[void] =
   ## Send blocks to remote
   ##
 
-  if id notin b.peers:
-    trace "Unable to send blocks, peer disconnected", peer = id
-    return
-
-  b.peers.withValue(id, peer):
-    trace "Sending blocks to peer", peer = id, items = blocks.len
-    peer[].broadcast(pb.Message(payload: makeBlocks(blocks)))
+  b.send(id, pb.Message(payload: makeBlocks(blocks)))
 
 proc handleBlockPresence(
   b: BlockExcNetwork,
   peer: NetworkPeer,
-  presence: seq[BlockPresence]): Future[void] =
+  presence: seq[BlockPresence]) {.async.} =
   ## Handle block presence
   ##
 
-  if isNil(b.handlers.onPresence):
-    return
+  if not b.handlers.onPresence.isNil:
+    trace "Handling block presence for peer", peer = peer.id, items = presence.len
+    await b.handlers.onPresence(peer.id, presence)
 
-  trace "Handling block presence for peer", peer = peer.id, items = presence.len
-  b.handlers.onPresence(peer.id, presence)
-
-proc broadcastBlockPresence*(
+proc sendBlockPresence*(
   b: BlockExcNetwork,
   id: PeerID,
-  presence: seq[BlockPresence]) =
+  presence: seq[BlockPresence]): Future[void] =
   ## Send presence to remote
   ##
 
-  if id notin b.peers:
-    return
+  b.send(id, Message(blockPresences: @presence))
 
-  trace "Sending presence to peer", peer = id, items = presence.len
-  b.peers.withValue(id, peer):
-    peer[].broadcast(Message(blockPresences: @presence))
+proc handleAccount(
+  network: BlockExcNetwork,
+  peer: NetworkPeer,
+  account: Account) {.async.} =
+  ## Handle account info
+  ##
 
-proc handleAccount(network: BlockExcNetwork,
-                   peer: NetworkPeer,
-                   account: Account): Future[void] =
-  if network.handlers.onAccount.isNil:
-    return
-  network.handlers.onAccount(peer.id, account)
+  if not network.handlers.onAccount.isNil:
+    await network.handlers.onAccount(peer.id, account)
 
-proc broadcastAccount*(network: BlockExcNetwork,
-                       id: PeerId,
-                       account: Account) =
-  if id notin network.peers:
-    return
+proc sendAccount*(
+  b: BlockExcNetwork,
+  id: PeerId,
+  account: Account): Future[void] =
+  ## Send account info to remote
+  ##
 
-  let message = Message(account: AccountMessage.init(account))
-  network.peers.withValue(id, peer):
-    peer[].broadcast(message)
+  b.send(id, Message(account: AccountMessage.init(account)))
 
-proc broadcastPayment*(network: BlockExcNetwork,
-                       id: PeerId,
-                       payment: SignedState) =
-  if id notin network.peers:
-    return
+proc sendPayment*(
+  b: BlockExcNetwork,
+  id: PeerId,
+  payment: SignedState): Future[void] =
+  ## Send payment to remote
+  ##
 
-  let message = Message(payment: StateChannelUpdate.init(payment))
-  network.peers.withValue(id, peer):
-    peer[].broadcast(message)
+  b.send(id, Message(payment: StateChannelUpdate.init(payment)))
 
-proc handlePayment(network: BlockExcNetwork,
-                   peer: NetworkPeer,
-                   payment: SignedState): Future[void] =
-  if network.handlers.onPayment.isNil:
-    return
-  network.handlers.onPayment(peer.id, payment)
+proc handlePayment(
+  network: BlockExcNetwork,
+  peer: NetworkPeer,
+  payment: SignedState) {.async.} =
+  ## Handle payment
+  ##
+
+  if not network.handlers.onPayment.isNil:
+    await network.handlers.onPayment(peer.id, payment)
 
 proc rpcHandler(b: BlockExcNetwork, peer: NetworkPeer, msg: Message) {.async.} =
   try:
@@ -297,10 +295,7 @@ proc setupPeer*(b: BlockExcNetwork, peer: PeerID) =
   discard b.getOrCreatePeer(peer)
 
 proc dialPeer*(b: BlockExcNetwork, peer: PeerRecord) {.async.} =
-  try:
-    await b.switch.connect(peer.peerId, peer.addresses.mapIt(it.address))
-  except CatchableError as exc:
-    debug "Failed to connect to peer", error = exc.msg, peer
+  await b.switch.connect(peer.peerId, peer.addresses.mapIt(it.address))
 
 proc dropPeer*(b: BlockExcNetwork, peer: PeerID) =
   ## Cleanup disconnected peer
@@ -332,13 +327,15 @@ method init*(b: BlockExcNetwork) =
 proc new*(
   T: type BlockExcNetwork,
   switch: Switch,
-  connProvider: ConnProvider = nil): T =
+  connProvider: ConnProvider = nil,
+  maxInflight = MaxInflight): T =
   ## Create a new BlockExcNetwork instance
   ##
 
-  let b = BlockExcNetwork(
+  let self = BlockExcNetwork(
     switch: switch,
-    getConn: connProvider)
+    getConn: connProvider,
+    inflightSema: newAsyncSemaphore(maxInflight))
 
   proc sendWantList(
     id: PeerID,
@@ -347,29 +344,29 @@ proc new*(
     cancel: bool = false,
     wantType: WantType = WantType.wantHave,
     full: bool = false,
-    sendDontHave: bool = false) {.gcsafe.} =
-    b.broadcastWantList(
+    sendDontHave: bool = false): Future[void] {.gcsafe.} =
+    self.sendWantList(
       id, cids, priority, cancel,
       wantType, full, sendDontHave)
 
-  proc sendBlocks(id: PeerID, blocks: seq[bt.Block]) {.gcsafe.} =
-    b.broadcastBlocks(id, blocks)
+  proc sendBlocks(id: PeerID, blocks: seq[bt.Block]): Future[void] {.gcsafe.} =
+    self.sendBlocks(id, blocks)
 
-  proc sendPresence(id: PeerID, presence: seq[BlockPresence]) {.gcsafe.} =
-    b.broadcastBlockPresence(id, presence)
+  proc sendPresence(id: PeerID, presence: seq[BlockPresence]): Future[void] {.gcsafe.} =
+    self.sendBlockPresence(id, presence)
 
-  proc sendAccount(id: PeerID, account: Account) =
-    b.broadcastAccount(id, account)
+  proc sendAccount(id: PeerID, account: Account): Future[void] {.gcsafe.} =
+    self.sendAccount(id, account)
 
-  proc sendPayment(id: PeerID, payment: SignedState) =
-    b.broadcastPayment(id, payment)
+  proc sendPayment(id: PeerID, payment: SignedState): Future[void] {.gcsafe.} =
+    self.sendPayment(id, payment)
 
-  b.request = BlockExcRequest(
+  self.request = BlockExcRequest(
     sendWantList: sendWantList,
     sendBlocks: sendBlocks,
     sendPresence: sendPresence,
     sendAccount: sendAccount,
     sendPayment: sendPayment)
 
-  b.init()
-  return b
+  self.init()
+  return self
