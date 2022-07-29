@@ -19,7 +19,6 @@ type
   DagPBCoder* = ManifestCoderType[multiCodec("dag-pb")]
 
 const
-  # TODO: move somewhere better?
   ManifestContainers* = {
     $DagPBCodec: DagPBCoder()
   }.toTable

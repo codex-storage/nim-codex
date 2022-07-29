@@ -90,6 +90,52 @@ suite "Test Node":
       fetched.cid == manifest.cid
       fetched.blocks == manifest.blocks
 
+  test "Block Batching":
+    var
+      manifest = Manifest.new().tryGet()
+
+    while (
+      let chunk = await chunker.getBytes();
+      chunk.len > 0):
+
+      let blk = bt.Block.new(chunk).tryGet()
+      (await localStore.putBlock(blk)).tryGet()
+      manifest.add(blk.cid)
+
+    let
+      manifestBlock = bt.Block.new(
+          manifest.encode().tryGet(),
+          codec = DagPBCodec
+        ).tryGet()
+
+    (await node.fetchBatched(
+      manifest,
+      batchSize = 3,
+      proc(blocks: seq[bt.Block]) {.gcsafe, async.} =
+        check blocks.len > 0 and blocks.len <= 3
+    )).tryGet()
+
+    (await node.fetchBatched(
+      manifest,
+      batchSize = 6,
+      proc(blocks: seq[bt.Block]) {.gcsafe, async.} =
+        check blocks.len > 0 and blocks.len <= 6
+    )).tryGet()
+
+    (await node.fetchBatched(
+      manifest,
+      batchSize = 9,
+      proc(blocks: seq[bt.Block]) {.gcsafe, async.} =
+        check blocks.len > 0 and blocks.len <= 9
+    )).tryGet()
+
+    (await node.fetchBatched(
+      manifest,
+      batchSize = 11,
+      proc(blocks: seq[bt.Block]) {.gcsafe, async.} =
+        check blocks.len > 0 and blocks.len <= 11
+    )).tryGet()
+
   test "Store Data Stream":
     let
       stream = BufferStream.new()
@@ -116,7 +162,7 @@ suite "Test Node":
 
     var
       manifestBlock = (await localStore.getBlock(manifestCid)).tryGet().get()
-      localManifest = Manifest.decode(manifestBlock.data).tryGet()
+      localManifest = Manifest.decode(manifestBlock).tryGet()
 
     check:
       manifest.len == localManifest.len

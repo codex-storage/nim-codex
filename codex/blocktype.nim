@@ -88,7 +88,7 @@ template EmptyBlock*: untyped =
     emptyBlock = [
       CIDv0: {
         multiCodec("sha2-256"): Block(
-          cid: EmptyCid[CIDv1][multiCodec("sha2-256")])
+          cid: EmptyCid[CIDv0][multiCodec("sha2-256")])
       }.toTable,
       CIDv1: {
         multiCodec("sha2-256"): Block(
