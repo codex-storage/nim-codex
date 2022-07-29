@@ -68,6 +68,10 @@ proc fetchManifest*(
   ## Fetch and decode a manifest block
   ##
 
+  without contentType =? cid.contentType() and
+          containerType =? ManifestContainers.?[$contentType]:
+    return failure "CID has invalid content type for manifest"
+
   trace "Received retrieval request", cid
   without blkOrNone =? await node.blockStore.getBlock(cid), error:
     return failure(error)
@@ -76,7 +80,7 @@ proc fetchManifest*(
     trace "Block not found", cid
     return failure("Block not found")
 
-  without manifest =? Manifest.decode(blk.data, blk.cid):
+  without manifest =? Manifest.decode(blk):
     return failure(
       newException(CodexError, "Unable to decode as manifest"))
 
@@ -229,26 +233,9 @@ proc requestStorage*(self: CodexNodeRef,
     trace "Purchasing not available"
     return failure "Purchasing not available"
 
-  without blkOrNone =? (await self.blockStore.getBlock(cid)), error:
-    trace "Unable to retrieve manifest block", cid
-    return failure(error)
-
-  without blk =? blkOrNone:
-    trace "Manifest block not found", cid
-    return failure("Manifest block not found")
-
-  without mc =? blk.cid.contentType():
-    trace "Couldn't identify Cid!", cid
-    return failure("Couldn't identify Cid! " & $cid)
-
-  # if we got a manifest, stream the blocks
-  if $mc notin ManifestContainers:
-    trace "Not a manifest type!", cid, mc = $mc
-    return failure("Not a manifest type!")
-
-  without var manifest =? Manifest.decode(blk.data), error:
-    trace "Unable to decode manifest from block", cid
-    return failure(error)
+  without manifest =? await self.fetchManifest(cid), error:
+    trace "Unable to fetch manifest for cid", cid
+    raise error
 
   # Erasure code the dataset according to provided parameters
   without encoded =? (await self.erasure.encode(manifest, nodes.int, tolerance.int)), error:
@@ -337,7 +324,7 @@ proc start*(node: CodexNodeRef) {.async.} =
 
       trace "Fetching block for manifest", cid
       # TODO: This will probably require a call to `getBlock` either way,
-      # since fetching of blocks will have be selective according
+      # since fetching of blocks will have to be selective according
       # to a combination of parameters, such as node slot position
       # and dataset geometry
       let fetchRes = await node.fetchBatched(manifest)
