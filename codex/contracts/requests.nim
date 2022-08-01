@@ -127,5 +127,11 @@ func slotId*(requestId: array[32, byte], slot: UInt256): array[32, byte] =
 func slotId*(request: StorageRequest, slot: UInt256): array[32, byte] =
   slotId(request.id, slot)
 
+func pricePerSlot*(ask: StorageAsk): UInt256 =
+  ask.duration * ask.reward
+
+func price*(ask: StorageAsk): UInt256 =
+  ask.slots.u256 * ask.pricePerSlot
+
 func price*(request: StorageRequest): UInt256 =
-  request.ask.slots.u256 * request.ask.duration * request.ask.reward
+  request.ask.price

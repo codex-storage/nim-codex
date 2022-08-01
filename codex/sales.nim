@@ -97,7 +97,7 @@ func findAvailability(sales: Sales, ask: StorageAsk): ?Availability =
   for availability in sales.available:
     if ask.size <= availability.size and
        ask.duration <= availability.duration and
-       ask.reward >= availability.minPrice:
+       ask.pricePerSlot >= availability.minPrice:
       return some availability
 
 proc finish(agent: SalesAgent, success: bool) =

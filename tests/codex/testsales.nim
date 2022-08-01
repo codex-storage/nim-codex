@@ -10,13 +10,13 @@ suite "Sales":
   let availability = Availability.init(
     size=100.u256,
     duration=60.u256,
-    minPrice=42.u256
+    minPrice=600.u256
   )
   var request = StorageRequest(
     ask: StorageAsk(
       duration: 60.u256,
       size: 100.u256,
-      reward:42.u256,
+      reward: 10.u256,
       slots: 4
     ),
     content: StorageContent(
@@ -75,6 +75,13 @@ suite "Sales":
     var tooBig = request
     tooBig.ask.size = request.ask.size + 1
     discard await market.requestStorage(tooBig)
+    check sales.available == @[availability]
+
+  test "ignores request when reward is too low":
+    sales.add(availability)
+    var tooCheap = request
+    tooCheap.ask.reward = request.ask.reward - 1
+    discard await market.requestStorage(tooCheap)
     check sales.available == @[availability]
 
   test "retrieves and stores data locally":
