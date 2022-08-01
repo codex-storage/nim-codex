@@ -4,6 +4,7 @@ import pkg/upraises
 import pkg/stint
 import pkg/nimcrypto
 import pkg/chronicles
+import ./rng
 import ./market
 import ./clock
 
@@ -48,6 +49,7 @@ type
     ask: StorageAsk
     availability: Availability
     request: ?StorageRequest
+    slotIndex: ?UInt256
     subscription: ?Subscription
     running: ?Future[void]
     waiting: ?Future[void]
@@ -114,12 +116,19 @@ proc finish(agent: SalesAgent, success: bool) =
     waiting.cancel()
 
   if success:
-    if onSale =? agent.sales.onSale and request =? agent.request:
-      onSale(agent.availability, request, 0.u256) # TODO: slot index
+    if onSale =? agent.sales.onSale and
+       request =? agent.request and
+       slotIndex =? agent.slotIndex:
+      onSale(agent.availability, request, slotIndex)
   else:
     if onClear =? agent.sales.onClear and request =? agent.request:
       onClear(agent.availability, request)
     agent.sales.add(agent.availability)
+
+proc selectSlot(agent: SalesAgent)  =
+  let rng = Rng.instance
+  let slotIndex = rng.rand(agent.ask.slots - 1)
+  agent.slotIndex = some slotIndex.u256
 
 proc onSlotFilled(agent: SalesAgent,
                   requestId: array[32, byte],
@@ -132,14 +141,14 @@ proc onSlotFilled(agent: SalesAgent,
   except CatchableError:
     agent.finish(success = false)
 
-proc subscribeSlotFilled(agent: SalesAgent) {.async.} =
+proc subscribeSlotFilled(agent: SalesAgent, slotIndex: UInt256) {.async.} =
   proc onSlotFilled(requestId: array[32, byte],
                     slotIndex: UInt256) {.gcsafe, upraises:[].} =
     asyncSpawn agent.onSlotFilled(requestId, slotIndex)
   let market = agent.sales.market
   let subscription = await market.subscribeSlotFilled(agent.requestId,
-                                                      0.u256,
-                                                      onSlotFilled) # TODO: slot index
+                                                      slotIndex,
+                                                      onSlotFilled)
   agent.subscription = some subscription
 
 proc waitForExpiry(agent: SalesAgent) {.async.} =
@@ -162,7 +171,11 @@ proc start(agent: SalesAgent) {.async.} =
 
     sales.remove(availability)
 
-    await agent.subscribeSlotFilled()
+    agent.selectSlot()
+    without slotIndex =? agent.slotIndex:
+      raiseAssert "no slot selected"
+
+    await agent.subscribeSlotFilled(slotIndex)
 
     agent.request = await market.getRequest(agent.requestId)
     without request =? agent.request:
@@ -173,7 +186,7 @@ proc start(agent: SalesAgent) {.async.} =
 
     await onStore(request.content.cid, availability)
     let proof = await onProve(request.content.cid)
-    await market.fillSlot(request.id, 0.u256, proof) # TODO: slot index
+    await market.fillSlot(request.id, slotIndex, proof)
   except CancelledError:
     raise
   except CatchableError as e:
