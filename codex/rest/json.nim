@@ -10,6 +10,8 @@ type
     duration*: UInt256
     reward*: UInt256
     expiry*: ?UInt256
+    nodes*: ?uint
+    tolerance*: ?uint
 
 proc fromJson*(_: type Availability, bytes: seq[byte]): ?!Availability =
   let json = ?catch parseJson(string.fromBytes(bytes))
@@ -24,10 +26,14 @@ proc fromJson*(_: type StorageRequestParams,
   let duration = ?catch UInt256.fromHex(json["duration"].getStr)
   let reward = ?catch UInt256.fromHex(json["reward"].getStr)
   let expiry = UInt256.fromHex(json["expiry"].getStr).catch.option
+  let nodes = strutils.fromHex[uint](json["nodes"].getStr).catch.option
+  let tolerance = strutils.fromHex[uint](json["tolerance"].getStr).catch.option
   success StorageRequestParams(
     duration: duration,
     reward: reward,
-    expiry: expiry
+    expiry: expiry,
+    nodes: nodes,
+    tolerance: tolerance
   )
 
 func `%`*(address: Address): JsonNode =

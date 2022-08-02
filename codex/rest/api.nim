@@ -194,10 +194,6 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       ## duration       - the duration of the contract
       ## reward       - the maximum price the client is willing to pay
 
-      # TODO: store on multiple nodes
-      let nodes: uint = 1
-      let tolerance: uint = 0
-
       without cid =? cid.tryGet.catch, error:
         return RestApiResponse.error(Http400, error.msg)
 
@@ -205,6 +201,9 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
       without params =? StorageRequestParams.fromJson(body), error:
         return RestApiResponse.error(Http400, error.msg)
+
+      let nodes = params.nodes |? 1
+      let tolerance = params.nodes |? 0
 
       without purchaseId =? await node.requestStorage(cid,
                                                       params.duration,
