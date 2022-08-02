@@ -95,7 +95,7 @@ func remove*(sales: Sales, availability: Availability) =
 
 func findAvailability(sales: Sales, ask: StorageAsk): ?Availability =
   for availability in sales.available:
-    if ask.size <= availability.size and
+    if ask.slotSize <= availability.size and
        ask.duration <= availability.duration and
        ask.pricePerSlot >= availability.minPrice:
       return some availability

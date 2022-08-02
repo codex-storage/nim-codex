@@ -260,7 +260,8 @@ proc requestStorage*(self: CodexNodeRef,
 
   let request = StorageRequest(
     ask: StorageAsk(
-      size: encoded.size.u256,
+      slots: nodes + tolerance,
+      slotSize: (encoded.blockSize * encoded.steps).u256,
       duration: duration,
       reward: reward
     ),

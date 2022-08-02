@@ -20,16 +20,19 @@ suite "Purchasing":
     purchasing = Purchasing.new(market, clock)
     request = StorageRequest(
       ask: StorageAsk(
+        slots: uint8.example.uint64,
+        slotSize: uint32.example.u256,
         duration: uint16.example.u256,
-        size: uint32.example.u256,
+        reward: uint8.example.u256
       )
     )
 
   test "submits a storage request when asked":
     discard purchasing.purchase(request)
     let submitted = market.requested[0]
+    check submitted.ask.slots == request.ask.slots
+    check submitted.ask.slotSize == request.ask.slotSize
     check submitted.ask.duration == request.ask.duration
-    check submitted.ask.size == request.ask.size
     check submitted.ask.reward == request.ask.reward
 
   test "remembers purchases":

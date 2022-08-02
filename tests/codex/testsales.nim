@@ -14,10 +14,10 @@ suite "Sales":
   )
   var request = StorageRequest(
     ask: StorageAsk(
+      slots: 4,
+      slotSize: 100.u256,
       duration: 60.u256,
-      size: 100.u256,
       reward: 10.u256,
-      slots: 4
     ),
     content: StorageContent(
       cid: "some cid"
@@ -73,7 +73,7 @@ suite "Sales":
   test "ignores request when no matching storage is available":
     sales.add(availability)
     var tooBig = request
-    tooBig.ask.size = request.ask.size + 1
+    tooBig.ask.slotSize = request.ask.slotSize + 1
     discard await market.requestStorage(tooBig)
     check sales.available == @[availability]
 
