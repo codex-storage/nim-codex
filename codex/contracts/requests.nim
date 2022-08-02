@@ -13,11 +13,11 @@ type
     expiry*: UInt256
     nonce*: array[32, byte]
   StorageAsk* = object
-    size*: UInt256
+    slots*: uint64
+    slotSize*: UInt256
     duration*: UInt256
     proofProbability*: UInt256
     reward*: UInt256
-    slots*: uint64
   StorageContent* = object
     cid*: string
     erasure*: StorageErasure
@@ -40,11 +40,11 @@ func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
 
 func fromTuple(_: type StorageAsk, tupl: tuple): StorageAsk =
   StorageAsk(
-    size: tupl[0],
-    duration: tupl[1],
-    proofProbability: tupl[2],
-    reward: tupl[3],
-    slots: tupl[4]
+    slots: tupl[0],
+    slotSize: tupl[1],
+    duration: tupl[2],
+    proofProbability: tupl[3],
+    reward: tupl[4]
   )
 
 func fromTuple(_: type StorageContent, tupl: tuple): StorageContent =
@@ -135,3 +135,6 @@ func price*(ask: StorageAsk): UInt256 =
 
 func price*(request: StorageRequest): UInt256 =
   request.ask.price
+
+func size*(ask: StorageAsk): UInt256 =
+  ask.slots.u256 * ask.slotSize

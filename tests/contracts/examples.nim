@@ -13,11 +13,11 @@ proc example*(_: type StorageRequest): StorageRequest =
   StorageRequest(
     client: Address.example,
     ask: StorageAsk(
-      size: (1 * 1024 * 1024 * 1024).u256, # 1 Gigabyte
+      slots: 4,
+      slotSize: (1 * 1024 * 1024 * 1024).u256, # 1 Gigabyte
       duration: (10 * 60 * 60).u256, # 10 hours
       proofProbability: 4.u256, # require a proof roughly once every 4 periods
-      reward: 84.u256,
-      slots: 4
+      reward: 84.u256
     ),
     content: StorageContent(
       cid: "zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob",
