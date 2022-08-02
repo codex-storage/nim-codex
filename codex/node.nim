@@ -339,8 +339,8 @@ proc start*(node: CodexNodeRef) {.async.} =
     contracts.sales.onClear = proc(availability: Availability, request: StorageRequest) =
       # TODO: remove data from local storage
       discard
-
-    contracts.sales.onProve = proc(cid: string): Future[seq[byte]] {.async.} =
+    contracts.sales.onProve = proc(request: StorageRequest,
+                                   slot: UInt256): Future[seq[byte]] {.async.} =
       # TODO: generate proof
       return @[42'u8]
 

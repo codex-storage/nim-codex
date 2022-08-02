@@ -37,7 +37,8 @@ suite "Sales":
                          slot: UInt256,
                          availability: Availability) {.async.} =
       discard
-    sales.onProve = proc(cid: string): Future[seq[byte]] {.async.} =
+    sales.onProve = proc(request: StorageRequest,
+                         slot: UInt256): Future[seq[byte]] {.async.} =
       return proof
     await sales.start()
     request.expiry = (clock.now() + 42).u256
@@ -113,11 +114,16 @@ suite "Sales":
     check sales.available == @[availability]
 
   test "generates proof of storage":
-    var provingCid: string
-    sales.onProve = proc(cid: string): Future[seq[byte]] {.async.} = provingCid = cid
+    var provingRequest: StorageRequest
+    var provingSlot: UInt256
+    sales.onProve = proc(request: StorageRequest,
+                         slot: UInt256): Future[seq[byte]] {.async.} =
+      provingRequest = request
+      provingSlot = slot
     sales.add(availability)
-    discard await market.requestStorage(request)
-    check provingCid == request.content.cid
+    let requested = await market.requestStorage(request)
+    check provingRequest == requested
+    check provingSlot < request.ask.slots.u256
 
   test "fills a slot":
     sales.add(availability)
@@ -145,7 +151,8 @@ suite "Sales":
     check soldSlotIndex < request.ask.slots.u256
 
   test "calls onClear when storage becomes available again":
-    sales.onProve = proc(cid: string): Future[seq[byte]] {.async.} =
+    sales.onProve = proc(request: StorageRequest,
+                         slot: UInt256): Future[seq[byte]] {.async.} =
       raise newException(IOError, "proof failed")
     var clearedAvailability: Availability
     var clearedRequest: StorageRequest
