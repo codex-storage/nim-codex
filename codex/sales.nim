@@ -54,7 +54,9 @@ type
     running: ?Future[void]
     waiting: ?Future[void]
     finished: bool
-  OnStore = proc(cid: string, availability: Availability): Future[void] {.gcsafe, upraises: [].}
+  OnStore = proc(request: StorageRequest,
+                 slot: UInt256,
+                 availability: Availability): Future[void] {.gcsafe, upraises: [].}
   OnProve = proc(cid: string): Future[seq[byte]] {.gcsafe, upraises: [].}
   OnClear = proc(availability: Availability, request: StorageRequest) {.gcsafe, upraises: [].}
   OnSale = proc(availability: Availability,
@@ -184,7 +186,7 @@ proc start(agent: SalesAgent) {.async.} =
 
     agent.waiting = some agent.waitForExpiry()
 
-    await onStore(request.content.cid, availability)
+    await onStore(request, slotIndex, availability)
     let proof = await onProve(request.content.cid)
     await market.fillSlot(request.id, slotIndex, proof)
   except CancelledError:

@@ -33,7 +33,9 @@ suite "Sales":
     market = MockMarket.new()
     clock = MockClock.new()
     sales = Sales.new(market, clock)
-    sales.onStore = proc(cid: string, availability: Availability) {.async.} =
+    sales.onStore = proc(request: StorageRequest,
+                         slot: UInt256,
+                         availability: Availability) {.async.} =
       discard
     sales.onProve = proc(cid: string): Future[seq[byte]] {.async.} =
       return proof
@@ -85,18 +87,26 @@ suite "Sales":
     check sales.available == @[availability]
 
   test "retrieves and stores data locally":
-    var storingCid: string
+    var storingRequest: StorageRequest
+    var storingSlot: UInt256
     var storingAvailability: Availability
-    sales.onStore = proc(cid: string, availability: Availability) {.async.} =
-      storingCid = cid
+    sales.onStore = proc(request: StorageRequest,
+                         slot: UInt256,
+                         availability: Availability) {.async.} =
+      storingRequest = request
+      storingSlot = slot
       storingAvailability = availability
     sales.add(availability)
-    discard await market.requestStorage(request)
-    check storingCid == request.content.cid
+    let requested = await market.requestStorage(request)
+    check storingRequest == requested
+    check storingSlot < request.ask.slots.u256
+    check storingAvailability == availability
 
   test "makes storage available again when data retrieval fails":
     let error = newException(IOError, "data retrieval failed")
-    sales.onStore = proc(cid: string, availability: Availability) {.async.} =
+    sales.onStore = proc(request: StorageRequest,
+                         slot: UInt256,
+                         availability: Availability) {.async.} =
       raise error
     sales.add(availability)
     discard await market.requestStorage(request)
@@ -149,7 +159,9 @@ suite "Sales":
 
   test "makes storage available again when other host fills the slot":
     let otherHost = Address.example
-    sales.onStore = proc(cid: string, availability: Availability) {.async.} =
+    sales.onStore = proc(request: StorageRequest,
+                         slot: UInt256,
+                         availability: Availability) {.async.} =
       await sleepAsync(1.hours)
     sales.add(availability)
     discard await market.requestStorage(request)
@@ -158,7 +170,9 @@ suite "Sales":
     check sales.available == @[availability]
 
   test "makes storage available again when request expires":
-    sales.onStore = proc(cid: string, availability: Availability) {.async.} =
+    sales.onStore = proc(request: StorageRequest,
+                         slot: UInt256,
+                         availability: Availability) {.async.} =
       await sleepAsync(1.hours)
     sales.add(availability)
     discard await market.requestStorage(request)

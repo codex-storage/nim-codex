@@ -313,11 +313,13 @@ proc start*(node: CodexNodeRef) {.async.} =
 
   if contracts =? node.contracts:
     # TODO: remove Sales callbacks, pass BlockStore and StorageProofs instead
-    contracts.sales.onStore = proc(cid: string, _: Availability) {.async.} =
+    contracts.sales.onStore = proc(request: StorageRequest,
+                                   slot: UInt256,
+                                   availability: Availability) {.async.} =
       ## store data in local storage
       ##
 
-      without cid =? Cid.init(cid):
+      without cid =? Cid.init(request.content.cid):
         trace "Unable to parse Cid", cid
         raise newException(CodexError, "Unable to parse Cid")
 
