@@ -150,9 +150,9 @@ type
 
       ethAccount* {.
         desc: "The Ethereum account that is used for storage contracts"
-        defaultValue: EthAddress.default
+        defaultValue: EthAddress.none
         name: "eth-account"
-      .}: EthAddress
+      .}: Option[EthAddress]
 
       ethDeployment* {.
         desc: "The json file describing the contract deployment"

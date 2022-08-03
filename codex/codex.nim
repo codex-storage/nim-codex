@@ -108,6 +108,16 @@ proc new*(T: type CodexServer, config: CodexConf): T =
     else:
       CacheStore.new()
 
+  let contracts =
+    if account =? config.ethAccount:
+      ContractInteractions.new(
+        config.ethProvider,
+        account,
+        config.ethDeployment
+      )
+    else:
+      ContractInteractions.none
+
   let
     discoveryBootstrapNodes = config.bootstrapNodes
     blockDiscovery = Discovery.new(
@@ -125,11 +135,6 @@ proc new*(T: type CodexServer, config: CodexConf): T =
     engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-    contracts = ContractInteractions.new(
-      config.ethProvider,
-      config.ethAccount,
-      config.ethDeployment
-    )
     codexNode = CodexNodeRef.new(switch, store, engine, erasure, blockDiscovery, contracts)
     restServer = RestServerRef.new(
       codexNode.initRestApi(config),
