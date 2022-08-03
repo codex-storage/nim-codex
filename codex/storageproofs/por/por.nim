@@ -9,7 +9,15 @@
 
 # Implementation of the BLS-based public PoS scheme from
 # Shacham H., Waters B., "Compact Proofs of Retrievability"
-# using pairing over BLS12-381 ECC
+# using pairing over the BLS12-381 ECC or BN254_Starks
+#
+# The implementation supports two backends:
+#  - BLST (default)
+#  - Constantine (-d:por_backend_constantine)
+#
+# The implementation supports PoR over the following curves:
+#  - BLS12-381 (default)
+#  - BN254_Starks (use -d:por_backend_constantine -d:por_curve_bn254)
 #
 # Notation from the paper
 # In Z:
@@ -79,9 +87,16 @@
 #   s * 32 + 48 bytes
 import std/endians
 
+# Select backend to use
+#  - blst supports only the BLS12-381 curve
+#  - constantine is more experimental, supports BLS and BN curves as well
+# As of now configuration of backends is in the backend_* file itself
+when defined(por_backend_constantine):
+  import ../backends/backend_constantine
+else:
+  import ../backends/backend_blst
+
 import pkg/chronos
-import pkg/blscurve
-import pkg/blscurve/blst/blst_abi
 
 import ../../rng
 import ../../streams
@@ -94,25 +109,26 @@ const
   # length in bytes of the unique (random) name
   Namelen = 512
 
+
 type
   # a single sector
   ZChar* = array[BytesPerSector, byte]
 
   # secret key combining the metadata signing key and the POR generation key
   SecretKey* = object
-    signkey*: blscurve.SecretKey
-    key*: blst_scalar
+    signkey*: ec_SecretKey
+    key*: ec_scalar
 
   # public key combining the metadata signing key and the POR validation key
   PublicKey* = object
-    signkey*: blscurve.PublicKey
-    key*: blst_p2
+    signkey*: ec_PublicKey
+    key*: ec_p2
 
   # POR metadata (called "file tag t_0" in the original paper)
   TauZero* = object
     name*: array[Namelen, byte]
     n*:    int64
-    u*:    seq[blst_p1]
+    u*:    seq[ec_p1]
 
   # signed POR metadata (called "signed file tag t" in the original paper)
   Tau* = object
@@ -120,29 +136,29 @@ type
     signature*: array[96, byte]
 
   Proof* = object
-    mu*: seq[blst_scalar]
-    sigma*: blst_p1
+    mu*: seq[ec_scalar]
+    sigma*: ec_p1
 
   # PoR query element
   QElement* = object
     I*: int64
-    V*: blst_scalar
+    V*: ec_scalar
 
   PoR* = object
     ssk*: SecretKey
     spk*: PublicKey
     tau*: Tau
-    authenticators*: seq[blst_p1]
+    authenticators*: seq[ec_p1]
 
-proc fromBytesBE(a: array[32, byte]): blst_scalar =
-  ## Convert data to blst native form
+proc fromBytesBE(a: array[32, byte]): ec_scalar =
+  ## Convert data to native form
   ##
 
-  blst_scalar_from_bendian(result, a)
-  doAssert(blst_scalar_fr_check(result).bool)
+  ec_scalar_from_bendian(result, a)
+  doAssert(ec_scalar_fr_check(result).bool)
 
-proc fromBytesBE(a: openArray[byte]): blst_scalar =
-  ## Convert data to blst native form
+proc fromBytesBE(a: openArray[byte]): ec_scalar =
+  ## Convert data to native form
   ##
 
   var b: array[32, byte]
@@ -152,8 +168,8 @@ proc fromBytesBE(a: openArray[byte]): blst_scalar =
   for i in 0..<a.len:
     b[i+d] = a[i]
 
-  blst_scalar_from_bendian(result, b)
-  doAssert(blst_scalar_fr_check(result).bool)
+  ec_scalar_from_bendian(result, b)
+  doAssert(ec_scalar_fr_check(result).bool)
 
 proc getSector(
   stream: SeekableStream,
@@ -168,54 +184,41 @@ proc getSector(
   discard await stream.readOnce(addr res[0], ZChar.len)
   return res
 
-proc rndScalar(): blst_scalar =
+proc rndScalar(scalar: var ec_scalar): void =
   ## Generate random scalar within the subroup order r
   ##
 
   var scal {.noInit.}: array[32, byte]
-  var scalar {.noInit.}: blst_scalar
 
   while true:
     for val in scal.mitems:
       val = byte Rng.instance.rand(0xFF)
 
-    scalar.blst_scalar_from_bendian(scal)
-    if blst_scalar_fr_check(scalar).bool:
+    scalar.ec_scalar_from_bendian(scal)
+    if ec_scalar_fr_check(scalar).bool:
       break
 
-  return scalar
-
-proc rndP2(): (blst_p2, blst_scalar) =
+proc rndP2(x: var ec_p2, scalar: var ec_scalar): void =
   ## Generate random point on G2
   ##
 
-  var
-    x {.noInit.}: blst_p2
-  x.blst_p2_from_affine(BLS12_381_G2) # init from generator
+  x.ec_p2_from_affine(EC_G2) # init from generator
+  scalar.rndScalar()
+  x.ec_p2_mult(x, scalar, 255)
 
-  let
-    scalar = rndScalar()
-  x.blst_p2_mult(x, scalar, 255)
-
-  return (x, scalar)
-
-proc rndP1(): (blst_p1, blst_scalar) =
+proc rndP1(x: var ec_p1, scalar: var ec_scalar): void =
   ## Generate random point on G1
-  var
-    x {.noInit.}: blst_p1
-  x.blst_p1_from_affine(BLS12_381_G1) # init from generator
+  ##
 
-  let
-    scalar = rndScalar()
-  x.blst_p1_mult(x, scalar, 255)
+  x.ec_p1_from_affine(EC_G1) # init from generator
+  scalar.rndScalar()
+  x.ec_p1_mult(x, scalar, 255)
 
-  return (x, scalar)
-
-template posKeygen(): (blst_p2, blst_scalar) =
+template posKeygen(x: var ec_p2, scalar: var ec_scalar): void =
   ## Generate POS key pair
   ##
 
-  rndP2()
+  rndP2(x, scalar)
 
 proc keyGen*(): (PublicKey, SecretKey) =
   ## Generate key pair for signing metadata and for POS tags
@@ -229,9 +232,9 @@ proc keyGen*(): (PublicKey, SecretKey) =
   for b in ikm.mitems:
     b = byte Rng.instance.rand(0xFF)
 
-  doAssert ikm.keyGen(pk.signkey, sk.signkey)
+  doAssert ikm.ec_keygen(pk.signkey, sk.signkey)
 
-  (pk.key, sk.key) = posKeygen()
+  posKeygen(pk.key, sk.key)
   return (pk, sk)
 
 proc sectorsCount(stream: SeekableStream, s: int64): int64 =
@@ -248,15 +251,15 @@ proc sectorsCount(stream: SeekableStream, s: int64): int64 =
 
   return n
 
-proc hashToG1[T: byte|char](msg: openArray[T]): blst_p1 =
+proc hashToG1(msg: openArray[byte]): ec_p1 =
   ## Hash to curve with Dagger specific domain separation
   ##
 
   const dst = "DAGGER-PROOF-OF-CONCEPT"
-  result.blst_hash_to_g1(msg, dst, aug = "")
+  result.ec_hash_to_g1(msg, dst, aug = "")
 
-proc hashNameI(name: array[Namelen, byte], i: int64): blst_p1 =
-  ## Calculate unique filename and block index based hash
+proc hashNameI(name: array[Namelen, byte], i: int64): ec_p1 =
+  ## Calculate unique filname and block index based hash
   ##
 
   # # naive implementation, hashing a long string representation
@@ -274,20 +277,20 @@ proc generateAuthenticatorNaive(
   ssk: SecretKey,
   i: int64,
   s: int64,
-  t: TauZero): Future[blst_p1] {.async.} =
+  t: TauZero): Future[ec_p1] {.async.} =
   ## Naive implementation of authenticator as in the S&W paper.
   ## With the paper's multiplicative notation:
   ##   \sigmai=\(H(file||i)\cdot\prod{j=0}^{s-1}{uj^{m[i][j]}})^{\alpha}
   ##
 
-  var sum: blst_p1
+  var sum: ec_p1
   for j in 0..<s:
-    var prod: blst_p1
-    prod.blst_p1_mult(t.u[j], fromBytesBE((await stream.getSector(i, j, s))), 255)
-    sum.blst_p1_add_or_double(sum, prod)
+    var prod: ec_p1
+    prod.ec_p1_mult(t.u[j], fromBytesBE((await stream.getSector(i, j, s))), 255)
+    sum.ec_p1_add_or_double(sum, prod)
 
-  blst_p1_add_or_double(result, hashNameI(t.name, i), sum)
-  result.blst_p1_mult(result, ssk.key, 255)
+  ec_p1_add_or_double(result, hashNameI(t.name, i), sum)
+  result.ec_p1_mult(result, ssk.key, 255)
 
 proc generateAuthenticatorOpt(
   stream: SeekableStream,
@@ -295,7 +298,7 @@ proc generateAuthenticatorOpt(
   i: int64,
   s: int64,
   t: TauZero,
-  ubase: seq[blst_scalar]): Future[blst_p1] {.async.} =
+  ubase: seq[ec_scalar]): Future[ec_p1] {.async.} =
   ## Optimized implementation of authenticator generation
   ## This implementation is reduces the number of scalar multiplications
   ## from s+1 to 1+1 , using knowledge about the scalars (r_j)
@@ -305,21 +308,21 @@ proc generateAuthenticatorOpt(
   ##   (H(file||i)\cdot g^{\sum{j=0}^{s-1}{r_j \cdot m[i][j]}})^{\alpha}
   ##
 
-  var sum: blst_fr
-  var sums: blst_scalar
+  var sum: ec_fr
+  var sums: ec_scalar
   for j in 0..<s:
-    var a, b, x: blst_fr
-    a.blst_fr_from_scalar(ubase[j])
-    b.blst_fr_from_scalar(fromBytesBE((await stream.getSector(i, j, s))))
-    x.blst_fr_mul(a, b)
-    sum.blst_fr_add(sum, x)
-  sums.blst_scalar_from_fr(sum)
+    var a, b, x: ec_fr
+    a.ec_fr_from_scalar(ubase[j])
+    b.ec_fr_from_scalar(fromBytesBE((await stream.getSector(i, j, s))))
+    x.ec_fr_mul(a, b)
+    sum.ec_fr_add(sum, x)
+  sums.ec_scalar_from_fr(sum)
 
-  result.blst_p1_from_affine(BLS12_381_G1)
-  result.blst_p1_mult(result, sums, 255)
+  result.ec_p1_from_affine(EC_G1)
+  result.ec_p1_mult(result, sums, 255)
 
-  result.blst_p1_add_or_double(result, hashNameI(t.name, i))
-  result.blst_p1_mult(result, ssk.key, 255)
+  result.ec_p1_add_or_double(result, hashNameI(t.name, i))
+  result.ec_p1_mult(result, ssk.key, 255)
 
 proc generateAuthenticator(
   stream: SeekableStream,
@@ -327,13 +330,13 @@ proc generateAuthenticator(
   i: int64,
   s: int64,
   t: TauZero,
-  ubase: seq[blst_scalar]): Future[blst_p1] =
+  ubase: seq[ec_scalar]): Future[ec_p1] =
   ## Wrapper to select tag generator implementation
   ##
 
-  # let a = generateAuthenticatorNaive(i, s, t, f, ssk)
+  # let a = generateAuthenticatorNaive(stream, ssk, i, s, t, ubase)
   return generateAuthenticatorOpt(stream, ssk, i, s, t, ubase)
-  # doAssert(a.blst_p1_is_equal(b).bool)
+  # doAssert(a.ec_p1_is_equal(b).bool)
 
 proc generateQuery*(tau: Tau, l: int): seq[QElement] =
   ## Generata a random BLS query of given size
@@ -344,143 +347,90 @@ proc generateQuery*(tau: Tau, l: int): seq[QElement] =
   for i in 0..<l:
     var q: QElement
     q.I = Rng.instance.rand(n-1) #TODO: dedup
-    q.V = rndScalar() #TODO: fix range
+    q.V.rndScalar() #TODO: fix range
     result.add(q)
 
 proc generateProof*(
   stream: SeekableStream,
   q: seq[QElement],
-  authenticators: seq[blst_p1],
+  authenticators: seq[ec_p1],
   s: int64): Future[Proof] {.async.} =
   ## Generata BLS proofs for a given query
   ##
 
   var
-    mu: seq[blst_scalar]
+    mu: seq[ec_scalar]
 
   for j in 0..<s:
     var
-      muj: blst_fr
+      muj: ec_fr
 
     for qelem in q:
       let
         sect = fromBytesBE((await stream.getSector(qelem.I, j, s)))
 
       var
-        x, v, sector: blst_fr
+        x, v, sector: ec_fr
 
-      sector.blst_fr_from_scalar(sect)
-      v.blst_fr_from_scalar(qelem.V)
-      x.blst_fr_mul(v, sector)
-      muj.blst_fr_add(muj, x)
+      sector.ec_fr_from_scalar(sect)
+      v.ec_fr_from_scalar(qelem.V)
+      x.ec_fr_mul(v, sector)
+      muj.ec_fr_add(muj, x)
 
     var
-      mujs: blst_scalar
+      mujs: ec_scalar
 
-    mujs.blst_scalar_from_fr(muj)
+    mujs.ec_scalar_from_fr(muj)
     mu.add(mujs)
 
   var
-    sigma: blst_p1
+    sigma: ec_p1
 
   for qelem in q:
     var
-      prod: blst_p1
+      prod: ec_p1
 
-    prod.blst_p1_mult(authenticators[qelem.I], qelem.V, 255)
-    sigma.blst_p1_add_or_double(sigma, prod)
+    prod.ec_p1_mult(authenticators[qelem.I], qelem.V, 255)
+    sigma.ec_p1_add_or_double(sigma, prod)
 
   return Proof(mu: mu, sigma: sigma)
-
-proc pairing(a: blst_p1, b: blst_p2): blst_fp12 =
-  ## Calculate pairing G_1,G_2 -> G_T
-  ##
-
-  var
-    aa: blst_p1_affine
-    bb: blst_p2_affine
-    l: blst_fp12
-
-  blst_p1_to_affine(aa, a)
-  blst_p2_to_affine(bb, b)
-
-  blst_miller_loop(l, bb, aa)
-  blst_final_exp(result, l)
-
-proc verifyPairingsNaive(a1: blst_p1, a2: blst_p2, b1: blst_p1, b2: blst_p2) : bool =
-  let e1 = pairing(a1, a2)
-  let e2 = pairing(b1, b2)
-  return e1 == e2
-
-proc verifyPairingsNeg(a1: blst_p1, a2: blst_p2, b1: blst_p1, b2: blst_p2) : bool =
-  ## Faster pairing verification using 2 miller loops but ony one final exponentiation
-  ## based on https://github.com/benjaminion/c-kzg/blob/main/src/bls12_381.c
-  ##
-
-  var
-    loop0, loop1, gt_point: blst_fp12
-    aa1, bb1: blst_p1_affine
-    aa2, bb2: blst_p2_affine
-
-  var a1neg = a1
-  blst_p1_cneg(a1neg, 1)
-
-  blst_p1_to_affine(aa1, a1neg)
-  blst_p1_to_affine(bb1, b1)
-  blst_p2_to_affine(aa2, a2)
-  blst_p2_to_affine(bb2, b2)
-
-  blst_miller_loop(loop0, aa2, aa1)
-  blst_miller_loop(loop1, bb2, bb1)
-
-  blst_fp12_mul(gt_point, loop0, loop1)
-  blst_final_exp(gt_point, gt_point)
-
-  return blst_fp12_is_one(gt_point).bool
-
-proc verifyPairings(a1: blst_p1, a2: blst_p2, b1: blst_p1, b2: blst_p2) : bool =
-  ## Wrapper to select verify pairings implementation
-  ##
-
-  verifyPairingsNaive(a1, a2, b1, b2)
-  #verifyPairingsNeg(a1, a2, b1, b2)
 
 proc verifyProof*(
   self: PoR,
   q: seq[QElement],
-  mus: seq[blst_scalar],
-  sigma: blst_p1): bool =
+  mus: seq[ec_scalar],
+  sigma: ec_p1): bool =
   ## Verify a BLS proof given a query
   ##
 
   # verify signature on Tau
-  var signature: blscurve.Signature
-  if not signature.fromBytes(self.tau.signature):
+  var signature: ec_signature
+  if not signature.ec_from_bytes(self.tau.signature):
     return false
 
-  if not verify(self.spk.signkey, $self.tau.t, signature):
+  if not ec_verify(self.spk.signkey, $self.tau.t, signature):
     return false
 
-  var first: blst_p1
+  var first: ec_p1
   for qelem in q:
-    var prod: blst_p1
-    prod.blst_p1_mult(hashNameI(self.tau.t.name, qelem.I), qelem.V, 255)
-    first.blst_p1_add_or_double(first, prod)
-    doAssert(blst_p1_on_curve(first).bool)
+    var prod: ec_p1
+    prod.ec_p1_mult(hashNameI(self.tau.t.name, qelem.I), qelem.V, 255)
+    first.ec_p1_add_or_double(first, prod)
+    doAssert(ec_p1_on_curve(first).bool)
 
   let us = self.tau.t.u
-  var second: blst_p1
+  var second: ec_p1
   for j in 0..<len(us):
-    var prod: blst_p1
-    prod.blst_p1_mult(us[j], mus[j], 255)
-    second.blst_p1_add_or_double(second, prod)
-    doAssert(blst_p1_on_curve(second).bool)
+    var prod: ec_p1
+    prod.ec_p1_mult(us[j], mus[j], 255)
+    second.ec_p1_add_or_double(second, prod)
+    doAssert(ec_p1_on_curve(second).bool)
 
-  var sum: blst_p1
-  sum.blst_p1_add_or_double(first, second)
+  var sum: ec_p1
+  sum.ec_p1_add_or_double(first, second)
 
-  var g {.noInit.}: blst_p2
-  g.blst_p2_from_affine(BLS12_381_G2)
+  var g {.noInit.}: ec_p2
+  g.ec_p2_from_affine(EC_G2)
 
   return verifyPairings(sum, self.spk.key, sigma, g)
 
@@ -507,21 +457,25 @@ proc init*(
     t.name[i] = byte Rng.instance.rand(0xFF)
 
   # generate the coefficient vector for combining sectors of a block: U
-  var ubase: seq[blst_scalar]
+  var ubase: seq[ec_scalar]
   for i in 0..<s:
-    let (u, ub) = rndP1()
+    var
+      u: ec_p1
+      ub: ec_scalar
+  
+    rndP1(u, ub)
     t.u.add(u)
     ubase.add(ub)
-
+  
   #TODO: a better bytearray conversion of TauZero for the signature might be needed
   #      the current conversion using $t might be architecture dependent and not unique
   let
-    signature = sign(ssk.signkey, $t)
-    tau = Tau(t: t, signature: signature.exportRaw())
+    signature = ec_sign(ssk.signkey, $t)
+    tau = Tau(t: t, signature: signature.ec_export_raw())
 
   # generate sigmas
   var
-    sigmas: seq[blst_p1]
+    sigmas: seq[ec_p1]
 
   for i in 0..<n:
     sigmas.add((await stream.generateAuthenticator(ssk, i, s, t, ubase)))

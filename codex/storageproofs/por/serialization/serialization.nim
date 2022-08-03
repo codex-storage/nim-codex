@@ -12,8 +12,10 @@ import std/sequtils
 import pkg/protobuf_serialization
 import pkg/stew/results
 import pkg/stew/objects
-import pkg/blscurve
-import pkg/blscurve/blst/blst_abi
+when defined(por_backend_constantine):
+  import ../../backends/backend_constantine
+else:
+  import ../../backends/backend_blst
 
 import_proto3 "por.proto"
 
@@ -33,10 +35,10 @@ func toMessage*(self: Proof): ProofMessage =
   for mu in self.mu:
     var
       serialized: array[32, byte]
-    blst_bendian_from_scalar(serialized, mu)
+    ec_bendian_from_scalar(serialized, mu)
     message.mu.add(toSeq(serialized))
 
-  blst_p1_serialize(sigma, self.sigma)
+  ec_p1_serialize(sigma, self.sigma)
   message.sigma = toSeq(sigma)
 
   message
@@ -44,17 +46,17 @@ func toMessage*(self: Proof): ProofMessage =
 func fromMessage*(self: ProofMessage): Result[Proof, string] =
   var
     proof = Proof()
-    sigmaAffine: blst_p1_affine
+    sigmaAffine: ec_p1_affine
 
-  if blst_p1_deserialize(sigmaAffine, toArray(96, self.sigma)) != BLST_SUCCESS:
+  if ec_p1_deserialize(sigmaAffine, toArray(96, self.sigma)) != EC_SUCCESS:
     return err("Unable to decompress sigma")
 
-  blst_p1_from_affine(proof.sigma, sigmaAffine)
+  ec_p1_from_affine(proof.sigma, sigmaAffine)
 
   for mu in self.mu:
     var
-      muScalar: blst_scalar
-    blst_scalar_from_bendian(muScalar, toArray(32, mu))
+      muScalar: ec_scalar
+    ec_scalar_from_bendian(muScalar, toArray(32, mu))
 
     proof.mu.add(muScalar)
 
@@ -71,7 +73,7 @@ func toMessage*(self: TauZero): TauZeroMessage =
       serialized: array[96, byte]
 
     # serialized and compresses the points
-    blst_p1_serialize(serialized, u)
+    ec_p1_serialize(serialized, u)
     message.u.add(toSeq(serialized))
 
   message
@@ -85,13 +87,13 @@ func fromMessage*(self: TauZeroMessage): Result[TauZero, string] =
 
   for u in self.u:
     var
-      uuAffine: blst_p1_affine
-      uu: blst_p1
+      uuAffine: ec_p1_affine
+      uu: ec_p1
 
-    if blst_p1_deserialize(uuAffine, toArray(96, u)) != BLST_SUCCESS:
+    if ec_p1_deserialize(uuAffine, toArray(96, u)) != EC_SUCCESS:
       return err("Unable to decompress u")
 
-    blst_p1_from_affine(uu, uuAffine)
+    ec_p1_from_affine(uu, uuAffine)
     tauZero.u.add(uu)
 
   ok(tauZero)
@@ -111,11 +113,11 @@ func fromMessage*(self: TauMessage): Result[Tau, string] =
 
 func toMessage*(self: por.PublicKey): PubKeyMessage =
   var
-    signkey = toSeq(self.signkey.exportUncompressed())
+    signkey = toSeq(self.signkey.ec_export_uncompressed())
     message = PubKeyMessage(signkey: signkey)
     key: array[192, byte]
 
-  blst_p2_serialize(key, self.key)
+  ec_p2_serialize(key, self.key)
   message.key = toSeq(key)
 
   message
@@ -123,15 +125,15 @@ func toMessage*(self: por.PublicKey): PubKeyMessage =
 func fromMessage*(self: PubKeyMessage): Result[por.PublicKey, string] =
   var
     spk: por.PublicKey
-    keyAffine: blst_p2_affine
+    keyAffine: ec_p2_affine
 
-  if not spk.signkey.fromBytes(self.signkey.toOpenArray(0, 95)):
+  if not spk.signkey.ec_from_bytes(self.signkey.toOpenArray(0, 95)):
     return err("Unable to deserialize public key!")
 
-  if blst_p2_deserialize(keyAffine, toArray(192, self.key)) != BLST_SUCCESS:
+  if ec_p2_deserialize(keyAffine, toArray(192, self.key)) != EC_SUCCESS:
     return err("Unable to decompress key!")
 
-  blst_p2_from_affine(spk.key, keyAffine)
+  ec_p2_from_affine(spk.key, keyAffine)
 
   ok(spk)
 
@@ -145,7 +147,7 @@ func toMessage*(self: PoR): PorMessage =
     var
       serialized: array[96, byte]
 
-    blst_p1_serialize(serialized, sigma)
+    ec_p1_serialize(serialized, sigma)
     message.authenticators.add(toSeq(serialized))
 
   message
@@ -158,13 +160,13 @@ func fromMessage*(self: PorMessage): Result[PoR, string] =
 
   for sigma in self.authenticators:
     var
-      sigmaAffine: blst_p1_affine
-      authenticator: blst_p1
+      sigmaAffine: ec_p1_affine
+      authenticator: ec_p1
 
-    if blst_p1_deserialize(sigmaAffine, toArray(96, sigma)) != BLST_SUCCESS:
+    if ec_p1_deserialize(sigmaAffine, toArray(96, sigma)) != EC_SUCCESS:
       return err("Unable to decompress sigma")
 
-    blst_p1_from_affine(authenticator, sigmaAffine)
+    ec_p1_from_affine(authenticator, sigmaAffine)
     por.authenticators.add(authenticator)
 
   return ok(por)

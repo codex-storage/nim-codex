@@ -183,3 +183,6 @@
 	url = https://github.com/status-im/nim-libp2p-dht.git
 	ignore = untracked
 	branch = master
+[submodule "vendor/constantine"]
+	path = vendor/constantine
+	url = https://github.com/mratsim/constantine
