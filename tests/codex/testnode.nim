@@ -17,7 +17,6 @@ import pkg/codex/node
 import pkg/codex/manifest
 import pkg/codex/discovery
 import pkg/codex/blocktype as bt
-import pkg/codex/contracts
 
 import ./helpers
 
@@ -39,7 +38,6 @@ suite "Test Node":
     peerStore: PeerCtxStore
     pendingBlocks: PendingBlocksManager
     discovery: DiscoveryEngine
-    contracts: ?ContractInteractions
 
   setup:
     file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
@@ -54,8 +52,7 @@ suite "Test Node":
     discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
     engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
-    contracts = ContractInteractions.new()
-    node = CodexNodeRef.new(switch, store, engine, nil, blockDiscovery, contracts) # TODO: pass `Erasure`
+    node = CodexNodeRef.new(switch, store, engine, nil, blockDiscovery) # TODO: pass `Erasure`
 
     await node.start()
 

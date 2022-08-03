@@ -42,16 +42,11 @@ proc new*(_: type ContractInteractions,
 
 proc new*(_: type ContractInteractions,
           providerUrl: string,
-          deploymentFile: string = string.default,
-          account = Address.default): ?ContractInteractions =
+          account: Address,
+          deploymentFile: string = string.default): ?ContractInteractions =
 
   let provider = JsonRpcProvider.new(providerUrl)
-
-  var signer: Signer
-  if account == Address.default:
-    signer = provider.getSigner()
-  else:
-    signer = provider.getSigner(account)
+  let signer = provider.getSigner(account)
 
   var deploy: Deployment
   try:
@@ -65,8 +60,9 @@ proc new*(_: type ContractInteractions,
 
   ContractInteractions.new(signer, deploy)
 
-proc new*(_: type ContractInteractions): ?ContractInteractions =
-  ContractInteractions.new("ws://localhost:8545")
+proc new*(_: type ContractInteractions,
+          account: Address): ?ContractInteractions =
+  ContractInteractions.new("ws://localhost:8545", account)
 
 proc start*(interactions: ContractInteractions) {.async.} =
   await interactions.clock.start()

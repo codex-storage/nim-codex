@@ -127,8 +127,8 @@ proc new*(T: type CodexServer, config: CodexConf): T =
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     contracts = ContractInteractions.new(
       config.ethProvider,
-      config.ethDeployment,
-      config.ethAccount
+      config.ethAccount,
+      config.ethDeployment
     )
     codexNode = CodexNodeRef.new(switch, store, engine, erasure, blockDiscovery, contracts)
     restServer = RestServerRef.new(

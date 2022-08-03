@@ -289,7 +289,7 @@ proc new*(
   engine: BlockExcEngine,
   erasure: Erasure,
   discovery: Discovery,
-  contracts: ?ContractInteractions): T =
+  contracts = ContractInteractions.none): T =
   T(
     switch: switch,
     blockStore: store,
