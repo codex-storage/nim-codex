@@ -344,7 +344,11 @@ proc start*(node: CodexNodeRef) {.async.} =
       # TODO: generate proof
       return @[42'u8]
 
-    await contracts.start()
+    try:
+      await contracts.start()
+    except CatchableError as error:
+      error "Unable to start contract interactions: ", error=error.msg
+      node.contracts = ContractInteractions.none
 
   node.networkId = node.switch.peerInfo.peerId
   notice "Started codex node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
