@@ -62,11 +62,10 @@ proc new(_: type ContractInteractions, config: CodexConf): ?ContractInteractions
     error "Ethereum interactions enabled, but no Ethereum account was set"
     quit QuitFailure
 
-  ContractInteractions.new(
-    config.ethProvider,
-    account,
-    config.ethDeployment
-  )
+  if deployment =? config.ethDeployment:
+    ContractInteractions.new(config.ethProvider, account, deployment)
+  else:
+    ContractInteractions.new(config.ethProvider, account)
 
 proc new*(T: type CodexServer, config: CodexConf): T =
 

@@ -162,9 +162,9 @@ type
 
       ethDeployment* {.
         desc: "The json file describing the contract deployment"
-        defaultValue: string.default
+        defaultValue: string.none
         name: "eth-deployment"
-      .}: string
+      .}: Option[string]
 
     of initNode:
       discard
