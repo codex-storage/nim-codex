@@ -102,11 +102,11 @@ proc new*(T: type CodexServer, config: CodexConf): T =
     .withTcpTransport({ServerFlags.ReuseAddr})
     .build()
 
-  let cache =
-    if config.cacheSize > 0:
-      CacheStore.new(cacheSize = config.cacheSize * MiB)
-    else:
-      CacheStore.new()
+  var
+    cache: CacheStore
+
+  if config.cacheSize > 0:
+    cache = CacheStore.new(cacheSize = config.cacheSize * MiB)
 
   let
     discoveryBootstrapNodes = config.bootstrapNodes

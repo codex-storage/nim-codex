@@ -70,17 +70,21 @@ method getBlock*(
   ## Save a copy to the cache if present in the database but not in the cache
   ##
 
-  trace "Getting block from cache or database", cid
+  if not self.cache.isNil:
+    trace "Getting block from cache or database", cid
+  else:
+    trace "Getting block from database", cid
 
   if cid.isEmpty:
     trace "Empty block, ignoring"
     return success cid.emptyBlock.some
 
-  without cachedBlkOpt =? await self.cache.getBlock(cid), error:
-    trace "Unable to read block from cache", cid, error = error.msg
+  if not self.cache.isNil:
+    without cachedBlkOpt =? await self.cache.getBlock(cid), error:
+      trace "Unable to read block from cache", cid, error = error.msg
 
-  if cachedBlkOpt.isSome:
-    return success cachedBlkOpt
+    if cachedBlkOpt.isSome:
+      return success cachedBlkOpt
 
   without blkKey =? blockKey(cid), error:
     return failure error
@@ -96,11 +100,12 @@ method getBlock*(
     trace "Unable to construct block from data", cid, error = error.msg
     return failure error
 
-  let
-    putCachedRes = await self.cache.putBlock(blk)
+  if not self.cache.isNil:
+    let
+      putCachedRes = await self.cache.putBlock(blk)
 
-  if putCachedRes.isErr:
-    trace "Unable to store block in cache", cid, error = putCachedRes.error.msg
+    if putCachedRes.isErr:
+      trace "Unable to store block in cache", cid, error = putCachedRes.error.msg
 
   return success blk.some
 
@@ -111,7 +116,10 @@ method putBlock*(
   ## Save a copy to the cache
   ##
 
-  trace "Putting block into database and cache", cid = blk.cid
+  if not self.cache.isNil:
+    trace "Putting block into database and cache", cid = blk.cid
+  else:
+    trace "Putting block into database", cid = blk.cid
 
   if blk.isEmpty:
     trace "Empty block, ignoring"
@@ -127,11 +135,12 @@ method putBlock*(
     trace "Unable to store block in database", key = blkKey.id, error = putRes.error.msg
     return failure putRes.error
 
-  let
-    putCachedRes = await self.cache.putBlock(blk)
+  if not self.cache.isNil:
+    let
+      putCachedRes = await self.cache.putBlock(blk)
 
-  if putCachedRes.isErr:
-    trace "Unable to store block in cache", cid = blk.cid, error = putCachedRes.error.msg
+    if putCachedRes.isErr:
+      trace "Unable to store block in cache", cid = blk.cid, error = putCachedRes.error.msg
 
   return success()
 
@@ -141,17 +150,21 @@ method delBlock*(
   ## Delete a block from the database and cache
   ##
 
-  trace "Deleting block from cache and database", cid
+  if not self.cache.isNil:
+    trace "Deleting block from cache and database", cid
+  else:
+    trace "Deleting block from database", cid
 
   if cid.isEmpty:
     trace "Empty block, ignoring"
     return success()
 
-  let
-    delCachedRes = await self.cache.delBlock(cid)
+  if not self.cache.isNil:
+    let
+      delCachedRes = await self.cache.delBlock(cid)
 
-  if delCachedRes.isErr:
-    trace "Unable to delete block from cache", cid, error = delCachedRes.error.msg
+    if delCachedRes.isErr:
+      trace "Unable to delete block from cache", cid, error = delCachedRes.error.msg
 
   without blkKey =? blockKey(cid), error:
     return failure error
