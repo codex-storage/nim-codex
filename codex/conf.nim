@@ -142,6 +142,12 @@ type
         name: "cache-size"
         abbr: "c" }: Natural
 
+      ethEnabled* {.
+        desc: "Enables interactions with an Ethereum node"
+        defaultValue: false
+        name: "enable-eth"
+      .}: bool
+
       ethProvider* {.
         desc: "The URL of the JSON-RPC API of the Ethereum node"
         defaultValue: "ws://localhost:8545"

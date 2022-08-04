@@ -20,11 +20,13 @@ ethersuite "Integration tests":
     node1 = startNode [
       "--api-port=8080",
       "--udp-port=8090",
+      "--enable-eth",
       "--eth-account=" & $accounts[0]
     ]
     node2 = startNode [
       "--api-port=8081",
       "--udp-port=8091",
+      "--enable-eth",
       "--eth-account=" & $accounts[1]
     ]
     baseurl1 = "http://localhost:8080/api/codex/v1"

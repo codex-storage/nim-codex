@@ -52,6 +52,22 @@ proc stop*(s: CodexServer) {.async.} =
 
   s.runHandle.complete()
 
+proc new(_: type ContractInteractions, config: CodexConf): ?ContractInteractions =
+  if not config.ethEnabled:
+    if config.ethAccount.isSome:
+      warn "Ethereum account was set, but Ethereum interaction are not enabled"
+    return
+
+  without account =? config.ethAccount:
+    error "Ethereum interactions enabled, but no Ethereum account was set"
+    quit QuitFailure
+
+  ContractInteractions.new(
+    config.ethProvider,
+    account,
+    config.ethDeployment
+  )
+
 proc new*(T: type CodexServer, config: CodexConf): T =
 
   const SafePermissions = {UserRead, UserWrite}
@@ -108,16 +124,6 @@ proc new*(T: type CodexServer, config: CodexConf): T =
     else:
       CacheStore.new()
 
-  let contracts =
-    if account =? config.ethAccount:
-      ContractInteractions.new(
-        config.ethProvider,
-        account,
-        config.ethDeployment
-      )
-    else:
-      ContractInteractions.none
-
   let
     discoveryBootstrapNodes = config.bootstrapNodes
     blockDiscovery = Discovery.new(
@@ -135,6 +141,7 @@ proc new*(T: type CodexServer, config: CodexConf): T =
     engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+    contracts = ContractInteractions.new(config)
     codexNode = CodexNodeRef.new(switch, store, engine, erasure, blockDiscovery, contracts)
     restServer = RestServerRef.new(
       codexNode.initRestApi(config),
