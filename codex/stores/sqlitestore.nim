@@ -19,6 +19,7 @@ import pkg/datastore/sqlite_datastore
 import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
+import pkg/sqlite3_abi
 
 import ./blockstore
 import ./cachestore
@@ -29,14 +30,20 @@ logScope:
   topics = "codex sqlitestore"
 
 type
+  ListBlocksQueryResponse = string
+
+  ListBlocksQueryStmt = SQLiteStmt[(string), void]
+
   SQLiteStore* = ref object of BlockStore
     cache: BlockStore
     datastore: SQLiteDatastore
 
 const
-  allBlocks = when (let keyRes = Key.init("*"); true):
-    if keyRes.isOk: Query.init(keyRes.get)
-    else: raise (ref Defect)(msg: keyRes.error.msg)
+  listBlocksQueryStmtStr = """
+    SELECT """ & idColName & """ FROM """ & tableName & """;
+  """
+
+  listBlocksQueryStmtIdCol = 0
 
 proc new*(
   T: type SQLiteStore,
@@ -195,6 +202,31 @@ method hasBlock*(
 
   return await self.datastore.contains(blkKey)
 
+iterator listBlocksQuery(self: SQLiteStore): ListBlocksQueryResponse =
+  without listBlocksQueryStmt =? ListBlocksQueryStmt.prepare(self.datastore.env,
+    listBlocksQueryStmtStr), error:
+
+    raise (ref Defect)(msg: error.msg)
+
+  let
+    s = RawStmtPtr(listBlocksQueryStmt)
+
+  defer:
+    discard sqlite3_reset(s)
+    s.dispose
+
+  while true:
+    let
+      v = sqlite3_step(s)
+
+    case v
+    of SQLITE_ROW:
+      yield $sqlite3_column_text_not_null(s, listBlocksQueryStmtIdCol)
+    of SQLITE_DONE:
+      break
+    else:
+      raise (ref Defect)(msg: $sqlite3_errstr(v))
+
 method listBlocks*(
   self: SQLiteStore,
   onBlock: OnBlock): Future[?!void] {.async.} =
@@ -202,15 +234,16 @@ method listBlocks*(
   ## This is an intensive operation
   ##
 
-  for kd in self.datastore.query(allBlocks):
+  for id in self.listBlocksQuery():
     let
-      (key, _) = await kd
-      cidRes = Cid.init(key.name)
+      # keys stored in id column of SQLiteDatastore are serialized Key
+      # instances that start with "/", so drop the first character
+      cidRes = Cid.init(id[1..^1])
 
     if cidRes.isOk:
       await onBlock(cidRes.get)
     else:
-      trace "Unable to construct CID from key", key = key.id, error = $cidRes.error
+      trace "Unable to construct CID from key", key = id, error = $cidRes.error
 
   return success()
 
