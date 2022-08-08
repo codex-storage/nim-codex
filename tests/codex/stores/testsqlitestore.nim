@@ -38,6 +38,7 @@ proc runSuite(cache: bool) =
     setup:
       removeDir(repoDir)
       require(not dirExists(repoDir))
+      createDir(repoDir)
 
       if cache:
         store = SQLiteStore.new(repoDir)
