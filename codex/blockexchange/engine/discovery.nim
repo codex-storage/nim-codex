@@ -12,6 +12,7 @@ import std/sequtils
 import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
+import pkg/metrics
 
 import ../protobuf/presence
 
@@ -26,6 +27,8 @@ import ./pendingblocks
 
 logScope:
   topics = "codex discovery engine"
+
+declareGauge(codex_inflight_discovery, "inflight discovery requests")
 
 const
   DefaultConcurrentDiscRequests = 10
@@ -104,12 +107,15 @@ proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
         continue
 
       try:
-        trace "Advertising block", cid = $cid
         let request = b.discovery.provide(cid)
         b.inFlightAdvReqs[cid] = request
+        codex_inflight_discovery.set(b.inFlightAdvReqs.len.int64)
+        trace "Advertising block", cid = $cid, inflight = b.inFlightAdvReqs.len
         await request
       finally:
         b.inFlightAdvReqs.del(cid)
+        codex_inflight_discovery.set(b.inFlightAdvReqs.len.int64)
+        trace "Advertised block", cid = $cid, inflight = b.inFlightAdvReqs.len
     except CatchableError as exc:
       trace "Exception in advertise task runner", exc = exc.msg
 
@@ -141,6 +147,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
               .wait(DefaultDiscoveryTimeout)
 
           b.inFlightDiscReqs[cid] = request
+          codex_inflight_discovery.set(b.inFlightAdvReqs.len.int64)
           let
             peers = await request
 
@@ -149,6 +156,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
             await allFinished(peers.mapIt( b.network.dialPeer(it.data))))
         finally:
           b.inFlightDiscReqs.del(cid)
+          codex_inflight_discovery.set(b.inFlightAdvReqs.len.int64)
     except CatchableError as exc:
       trace "Exception in discovery task runner", exc = exc.msg
 
