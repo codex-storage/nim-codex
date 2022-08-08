@@ -53,13 +53,13 @@ proc stop*(s: CodexServer) {.async.} =
   s.runHandle.complete()
 
 proc new(_: type ContractInteractions, config: CodexConf): ?ContractInteractions =
-  if not config.ethEnabled:
+  if not config.persistence:
     if config.ethAccount.isSome:
-      warn "Ethereum account was set, but Ethereum interaction are not enabled"
+      warn "Ethereum account was set, but persistence is not enabled"
     return
 
   without account =? config.ethAccount:
-    error "Ethereum interactions enabled, but no Ethereum account was set"
+    error "Persistence enabled, but no Ethereum account was set"
     quit QuitFailure
 
   if deployment =? config.ethDeployment:

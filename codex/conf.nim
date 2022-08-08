@@ -142,10 +142,10 @@ type
         name: "cache-size"
         abbr: "c" }: Natural
 
-      ethEnabled* {.
-        desc: "Enables interactions with an Ethereum node"
+      persistence* {.
+        desc: "Enables persistence mechanism, requires an Ethereum node"
         defaultValue: false
-        name: "enable-eth"
+        name: "persistence"
       .}: bool
 
       ethProvider* {.
