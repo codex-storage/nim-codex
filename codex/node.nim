@@ -107,7 +107,7 @@ proc fetchBatched*(
 
       await allFuturesThrowing(allFinished(blocks))
       if not onBatch.isNil:
-        await onBatch(blocks.mapIt( it.read.get.get ))
+        await onBatch(blocks.mapIt( it.read.get ))
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:

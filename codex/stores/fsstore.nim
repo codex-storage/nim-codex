@@ -37,46 +37,69 @@ type
 template blockPath*(self: FSStore, cid: Cid): string =
   self.repoDir / ($cid)[^self.postfixLen..^1] / $cid
 
-method getBlock*(self: FSStore, cid: Cid): Future[?! (? Block)] {.async.} =
-  ## Get a block from the stores
+method getBlock*(self: FSStore, cid: Cid): Future[?!Block] {.async.} =
+  ## Get a block from the cache or filestore.
+  ## Save a copy to the cache if present in the filestore but not in the cache
   ##
 
-  trace "Getting block from filestore", cid
+  if not self.cache.isNil:
+    trace "Getting block from cache or filestore", cid
+  else:
+    trace "Getting block from filestore", cid
+
   if cid.isEmpty:
     trace "Empty block, ignoring"
-    return cid.emptyBlock.some.success
+    return success cid.emptyBlock
 
-  let cachedBlock = await self.cache.getBlock(cid)
-  if cachedBlock.isErr:
-    return cachedBlock
-  if cachedBlock.get.isSome:
-    trace "Retrieved block from cache", cid
-    return cachedBlock
+  if not self.cache.isNil:
+    let
+      cachedBlockRes = await self.cache.getBlock(cid)
+
+    if not cachedBlockRes.isErr:
+      return cachedBlockRes
+    else:
+      trace "Unable to read block from cache", cid, error = cachedBlockRes.error.msg
 
   # Read file contents
-  var data: seq[byte]
+  var
+    data: seq[byte]
+
   let
     path = self.blockPath(cid)
     res = io2.readFile(path, data)
 
   if res.isErr:
     if not isFile(path):   # May be, check instead that "res.error == ERROR_FILE_NOT_FOUND" ?
-      return Block.none.success
+      return failure "Block not in filestore"
     else:
-      let error = io2.ioErrorMsg(res.error)
-      trace "Cannot read file from filestore", path, error
-      return failure("Cannot read file from filestore")
+      let
+        error = io2.ioErrorMsg(res.error)
 
-  without var blk =? Block.new(cid, data), error:
-    return error.failure
+      trace "Error requesting block from filestore", path, error
+      return failure "Error requesting block from filestore: " & error
 
-  # TODO: add block to the cache
-  return blk.some.success
+  without blk =? Block.new(cid, data), error:
+    trace "Unable to construct block from data", cid, error = error.msg
+    return failure error
+
+  if not self.cache.isNil:
+    let
+      putCachedRes = await self.cache.putBlock(blk)
+
+    if putCachedRes.isErr:
+      trace "Unable to store block in cache", cid, error = putCachedRes.error.msg
+
+  return success blk
 
 method putBlock*(self: FSStore, blk: Block): Future[?!void] {.async.} =
-  ## Write block contents to file with name based on blk.cid,
-  ## save second copy to the cache
+  ## Write a block's contents to a file with name based on blk.cid.
+  ## Save a copy to the cache
   ##
+
+  if not self.cache.isNil:
+    trace "Putting block into filestore and cache", cid = blk.cid
+  else:
+    trace "Putting block into filestore", cid = blk.cid
 
   if blk.isEmpty:
     trace "Empty block, ignoring"
@@ -98,19 +121,34 @@ method putBlock*(self: FSStore, blk: Block): Future[?!void] {.async.} =
     trace "Unable to store block", path, cid = blk.cid, error
     return failure("Unable to store block")
 
-  if isErr (await self.cache.putBlock(blk)):
-    trace "Unable to store block in cache", cid = blk.cid
+  if not self.cache.isNil:
+    let
+      putCachedRes = await self.cache.putBlock(blk)
+
+    if putCachedRes.isErr:
+      trace "Unable to store block in cache", cid = blk.cid, error = putCachedRes.error.msg
 
   return success()
 
 method delBlock*(self: FSStore, cid: Cid): Future[?!void] {.async.} =
-  ## Delete a block from the blockstore
+  ## Delete a block from the cache and filestore
   ##
 
-  trace "Deleting block from filestore", cid
+  if not self.cache.isNil:
+    trace "Deleting block from cache and filestore", cid
+  else:
+    trace "Deleting block from filestore", cid
+
   if cid.isEmpty:
     trace "Empty block, ignoring"
     return success()
+
+  if not self.cache.isNil:
+    let
+      delCachedRes = await self.cache.delBlock(cid)
+
+    if delCachedRes.isErr:
+      trace "Unable to delete block from cache", cid, error = delCachedRes.error.msg
 
   let
     path = self.blockPath(cid)
@@ -121,10 +159,10 @@ method delBlock*(self: FSStore, cid: Cid): Future[?!void] {.async.} =
     trace "Unable to delete block", path, cid, error
     return error.failure
 
-  return await self.cache.delBlock(cid)
+  return success()
 
 method hasBlock*(self: FSStore, cid: Cid): Future[?!bool] {.async.} =
-  ## Check if the block exists in the blockstore
+  ## Check if a block exists in the filestore
   ##
 
   trace "Checking filestore for block existence", cid
@@ -135,7 +173,8 @@ method hasBlock*(self: FSStore, cid: Cid): Future[?!bool] {.async.} =
   return self.blockPath(cid).isFile().success
 
 method listBlocks*(self: FSStore, onBlock: OnBlock): Future[?!void] {.async.} =
-  ## Get the list of blocks in the BlockStore. This is an intensive operation
+  ## Process list of all blocks in the filestore via callback.
+  ## This is an intensive operation
   ##
 
   trace "Listing all blocks in filestore"

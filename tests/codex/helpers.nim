@@ -47,7 +47,7 @@ proc corruptBlocks*(
 
     pos.add(i)
     var
-      blk = (await store.getBlock(manifest[i])).tryGet().get()
+      blk = (await store.getBlock(manifest[i])).tryGet()
       bytePos: seq[int]
 
     while true:
