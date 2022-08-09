@@ -142,6 +142,12 @@ type
         name: "cache-size"
         abbr: "c" }: Natural
 
+      persistence* {.
+        desc: "Enables persistence mechanism, requires an Ethereum node"
+        defaultValue: false
+        name: "persistence"
+      .}: bool
+
       ethProvider* {.
         desc: "The URL of the JSON-RPC API of the Ethereum node"
         defaultValue: "ws://localhost:8545"
@@ -150,15 +156,15 @@ type
 
       ethAccount* {.
         desc: "The Ethereum account that is used for storage contracts"
-        defaultValue: EthAddress.default
+        defaultValue: EthAddress.none
         name: "eth-account"
-      .}: EthAddress
+      .}: Option[EthAddress]
 
       ethDeployment* {.
         desc: "The json file describing the contract deployment"
-        defaultValue: string.default
+        defaultValue: string.none
         name: "eth-deployment"
-      .}: string
+      .}: Option[string]
 
     of initNode:
       discard
