@@ -16,62 +16,73 @@ import pkg/codex/blocktype as bt
 
 import ../helpers
 
-suite "FS Store":
-  var
-    store: FSStore
-    repoDir: string
-    newBlock = bt.Block.new("New Block".toBytes()).tryGet()
+proc runSuite(cache: bool) =
+  suite "FS Store " & (if cache: "(cache enabled)" else: "(cache disabled)"):
+    var
+      store: FSStore
+      repoDir: string
+      newBlock = bt.Block.new("New Block".toBytes()).tryGet()
 
-  setup:
-    repoDir = getAppDir() / "repo"
-    createDir(repoDir)
-    store = FSStore.new(repoDir)
+    setup:
+      repoDir = getAppDir() / "repo"
+      createDir(repoDir)
 
-  teardown:
-    removeDir(repoDir)
+      if cache:
+        store = FSStore.new(repoDir)
+      else:
+        store = FSStore.new(repoDir, postfixLen = 2, cache = nil)
 
-  test "putBlock":
-    (await store.putBlock(newBlock)).tryGet()
-    check:
-      fileExists(store.blockPath(newBlock.cid))
-      (await store.hasBlock(newBlock.cid)).tryGet()
-      await newBlock.cid in store
+    teardown:
+      removeDir(repoDir)
 
-  test "getBlock":
-    createDir(store.blockPath(newBlock.cid).parentDir)
-    writeFile(store.blockPath(newBlock.cid), newBlock.data)
-    let blk = await store.getBlock(newBlock.cid)
-    check blk.tryGet().get() == newBlock
+    test "putBlock":
+      (await store.putBlock(newBlock)).tryGet()
+      check:
+        fileExists(store.blockPath(newBlock.cid))
+        (await store.hasBlock(newBlock.cid)).tryGet()
+        await newBlock.cid in store
 
-  test "fail getBlock":
-    let blk = await store.getBlock(newBlock.cid)
-    check blk.tryGet().isNone
+    test "getBlock":
+      createDir(store.blockPath(newBlock.cid).parentDir)
+      writeFile(store.blockPath(newBlock.cid), newBlock.data)
+      let blk = await store.getBlock(newBlock.cid)
+      check blk.tryGet() == newBlock
 
-  test "hasBlock":
-    createDir(store.blockPath(newBlock.cid).parentDir)
-    writeFile(store.blockPath(newBlock.cid), newBlock.data)
+    test "fail getBlock":
+      let blk = await store.getBlock(newBlock.cid)
+      check:
+        blk.isErr
+        blk.error.kind == BlockNotFoundErr
 
-    check:
-      (await store.hasBlock(newBlock.cid)).tryGet()
-      await newBlock.cid in store
+    test "hasBlock":
+      createDir(store.blockPath(newBlock.cid).parentDir)
+      writeFile(store.blockPath(newBlock.cid), newBlock.data)
 
-  test "fail hasBlock":
-    check:
-      not (await store.hasBlock(newBlock.cid)).tryGet()
-      not (await newBlock.cid in store)
+      check:
+        (await store.hasBlock(newBlock.cid)).tryGet()
+        await newBlock.cid in store
 
-  test "listBlocks":
-    createDir(store.blockPath(newBlock.cid).parentDir)
-    writeFile(store.blockPath(newBlock.cid), newBlock.data)
+    test "fail hasBlock":
+      check:
+        not (await store.hasBlock(newBlock.cid)).tryGet()
+        not (await newBlock.cid in store)
 
-    (await store.listBlocks(
-      proc(cid: Cid) {.gcsafe, async.} =
-        check cid == newBlock.cid
-    )).tryGet()
+    test "listBlocks":
+      createDir(store.blockPath(newBlock.cid).parentDir)
+      writeFile(store.blockPath(newBlock.cid), newBlock.data)
 
-  test "delBlock":
-    createDir(store.blockPath(newBlock.cid).parentDir)
-    writeFile(store.blockPath(newBlock.cid), newBlock.data)
+      (await store.listBlocks(
+        proc(cid: Cid) {.gcsafe, async.} =
+          check cid == newBlock.cid
+      )).tryGet()
 
-    (await store.delBlock(newBlock.cid)).tryGet()
-    check not fileExists(store.blockPath(newBlock.cid))
+    test "delBlock":
+      createDir(store.blockPath(newBlock.cid).parentDir)
+      writeFile(store.blockPath(newBlock.cid), newBlock.data)
+
+      (await store.delBlock(newBlock.cid)).tryGet()
+
+      check not fileExists(store.blockPath(newBlock.cid))
+
+runSuite(cache = true)
+runSuite(cache = false)

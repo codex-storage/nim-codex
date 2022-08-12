@@ -114,13 +114,15 @@ proc encode*(
       for j in 0..<blocks:
         let idx = blockIdx[j]
         if idx < manifest.len:
-          without blkOrNone =? await dataBlocks[j], error:
-            trace "Unable to retrieve block", error = error.msg
-            return error.failure
+          let
+            getRes = dataBlocks[j].read
 
-          without blk =? blkOrNone:
-            trace "Block not found", cid = encoded[idx]
-            return failure("Block not found")
+          if getRes.isErr:
+            trace "Unable to retrieve block", error = getRes.error.msg
+            return failure getRes.error
+
+          let
+            blk = getRes.get
 
           trace "Encoding block", cid = blk.cid, pos = idx
           shallowCopy(data[j], blk.data)
@@ -209,13 +211,15 @@ proc decode*(
 
         idxPendingBlocks.del(idxPendingBlocks.find(done))
 
-        without blkOrNone =? (await done), error:
-          trace "Failed retrieving block", exc = error.msg
-          return error.failure
+        let
+          getRes = await done
 
-        without blk =? blkOrNone:
-          trace "Block not found"
+        if getRes.isErr:
+          trace "Failed retrieving block", exc = getRes.error.msg
           continue
+
+        let
+          blk = getRes.get
 
         if idx >= encoded.K:
           trace "Retrieved parity block", cid = blk.cid, idx

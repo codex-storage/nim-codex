@@ -43,7 +43,7 @@ proc runSuite(cache: bool) =
       if cache:
         store = SQLiteStore.new(repoDir)
       else:
-        store = SQLiteStore.new(repoDir, nil)
+        store = SQLiteStore.new(repoDir, cache = nil)
 
       newBlock = randomBlock()
 
@@ -132,37 +132,24 @@ proc runSuite(cache: bool) =
         # get from database
         getRes = await store.getBlock(newBlock.cid)
 
-      check: getRes.isOk
-
-      var
-        blkOpt = getRes.get
-
       check:
-        blkOpt.isSome
-        blkOpt.get == newBlock
+        getRes.isOk
+        getRes.get == newBlock
 
       # get from enabled cache
       getRes = await store.getBlock(newBlock.cid)
 
-      check: getRes.isOk
-
-      blkOpt = getRes.get
-
       check:
-        blkOpt.isSome
-        blkOpt.get == newBlock
+        getRes.isOk
+        getRes.get == newBlock
 
     test "fail getBlock":
       let
-        getRes = await store.getBlock(newBlock.cid)
+        blkRes = await store.getBlock(newBlock.cid)
 
-      assert getRes.isOk
-
-      let
-        blkOpt = getRes.get
-
-      check: blkOpt.isNone
-
+      check:
+        blkRes.isErr
+        blkRes.error.kind == BlockNotFoundErr
 
     test "hasBlock":
       let

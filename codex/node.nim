@@ -73,14 +73,13 @@ proc fetchManifest*(
     return failure "CID has invalid content type for manifest"
 
   trace "Received retrieval request", cid
-  without blkOrNone =? await node.blockStore.getBlock(cid), error:
-    return failure(error)
 
-  without blk =? blkOrNone:
-    trace "Block not found", cid
-    return failure("Block not found")
+  let
+    getRes = await node.blockStore.getBlock(cid)
 
-  without manifest =? Manifest.decode(blk):
+  if getRes.isErr: return failure getRes.error
+
+  without manifest =? Manifest.decode(getRes.get):
     return failure(
       newException(CodexError, "Unable to decode as manifest"))
 
@@ -107,7 +106,7 @@ proc fetchBatched*(
 
       await allFuturesThrowing(allFinished(blocks))
       if not onBatch.isNil:
-        await onBatch(blocks.mapIt( it.read.get.get ))
+        await onBatch(blocks.mapIt( it.read.get ))
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:

@@ -24,7 +24,7 @@ type
   OnBlock* = proc(cid: Cid): Future[void] {.upraises: [], gcsafe.}
   BlockStore* = ref object of RootObj
 
-method getBlock*(self: BlockStore, cid: Cid): Future[?! (? Block)] {.base.} =
+method getBlock*(self: BlockStore, cid: Cid): Future[BlockResult] {.base.} =
   ## Get a block from the blockstore
   ##
 

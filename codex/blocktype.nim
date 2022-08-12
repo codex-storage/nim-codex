@@ -29,6 +29,18 @@ type
     cid*: Cid
     data*: seq[byte]
 
+  BlockErrorKind* = enum
+    BlockConstructErr,
+    BlockKeyErr,
+    BlockNetReqErr,
+    BlockNotFoundErr,
+    BlockReadErr
+
+  BlockError* = object of CodexError
+    kind*: BlockErrorKind
+
+  BlockResult* = Result[Block, ref BlockError]
+
 template EmptyCid*: untyped =
   var
     emptyCid {.global, threadvar.}:
