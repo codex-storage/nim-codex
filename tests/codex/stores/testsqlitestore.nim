@@ -144,7 +144,42 @@ proc runSuite(cache: bool) =
         getRes.get == newBlock
 
     test "fail getBlock":
-      check: (await store.getBlock(newBlock.cid)).isErr
+      let
+        getRes = await store.getBlock(newBlock.cid)
+
+      check: getRes.isErr
+
+      # PASS!
+      when getRes.error is (ref CatchableError):
+        echo "PASS: when getRes.error is (ref CatchableError)"
+        check: getRes.error.msg == "Block not in database"
+        echo "NOTE: I am sure msg string is what we expect: " & getRes.error.msg
+      else:
+        check: false
+
+      # FAIL!
+      when getRes.error is CatchableError:
+        check: true
+      else:
+        echo "FAIL: when getRes.error is CatchableError"
+        check: false
+        echo "NOTE: this is only sanity check for ref vs. non-ref, but msg string is still what we expect: " & getRes.error.msg
+
+      # FAIL!
+      when getRes.error is (ref CodexError):
+        check: true
+      else:
+        echo "FAIL: when getRes.error is (ref CodexError)"
+        check: false
+        echo "NOTE: msg string is still what we expect: " & getRes.error.msg
+
+      # FAIL!
+      when getRes.error is (ref BlockNotFoundError):
+        check: true
+      else:
+        echo "FAIL: when getRes.error is (ref BlockNotFoundError)"
+        check: false
+        echo "NOTE: msg string is still what we expect: " & getRes.error.msg
 
     test "hasBlock":
       let
@@ -213,5 +248,5 @@ proc runSuite(cache: bool) =
         delRes.isOk
         not (await newBlock.cid in store)
 
-runSuite(cache = true)
+# runSuite(cache = true)
 runSuite(cache = false)

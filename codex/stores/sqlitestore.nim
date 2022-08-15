@@ -27,6 +27,11 @@ export blockstore, sqlite_datastore
 logScope:
   topics = "codex sqlitestore"
 
+import ../errors
+export errors
+type
+  BlockNotFoundError* = object of CodexError
+
 type
   ListBlocksQueryResponse = string
 
@@ -101,7 +106,7 @@ method getBlock*(
     return failure error
 
   without data =? dataOpt:
-    return failure "Block not in database"
+    return failure (ref BlockNotFoundError)(msg: "Block not in database")
 
   without blk =? Block.new(cid, data), error:
     trace "Unable to construct block from data", cid, error = error.msg
