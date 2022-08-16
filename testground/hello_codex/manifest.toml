@@ -11,7 +11,7 @@ enabled = true
 
 [[testcases]]
 name= "hello_codex"
-instances = { min = 2, default = 2, max = 2 }
+instances = { min = 2, default = 2, max = 200 }
 
 # [testcases.params]
 # payload = { type = "string", default = "Hello!" }
