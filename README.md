@@ -126,7 +126,7 @@ Upload a file, upon success returns the `Cid` of the uploaded file.
 Example:
 
 ```bash
-curl -vvv -H "Tranfer-Encoding: chunked" "127.0.0.1:8080/api/codex/v1/upload" -X POST --data-binary "@<path to file>"
+curl -vvv -H "content-type: application/octet-stream" -H Expect: -T "127.0.0.1:8080/api/codex/v1/upload" -X POST "<path to file>"
 ```
 
 ### `/api/codex/v1/info`
