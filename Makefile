@@ -24,8 +24,10 @@ LINK_PCRE := 0
 	clean \
 	coverage \
 	deps \
+	hello_codex \
 	libbacktrace \
 	test \
+	testground \
 	update
 
 ifeq ($(NIM_PARAMS),)
@@ -122,6 +124,14 @@ coverage:
 	echo -e $(BUILD_MSG) "coverage/report/index.html"
 	genhtml coverage/coverage.f.info --output-directory coverage/report
 	if which open >/dev/null; then (echo -e "\e[92mOpening\e[39m HTML coverage report in browser..." && open coverage/report/index.html) || true; fi
+
+testground:
+	mkdir -p scratch && rm -rf scratch/* && git clone --depth=1 "file://$${PWD}" "scratch/$$(basename $${PWD})"
+	testground plan import --from=testground/hello_codex
+	testground run single --builder=docker:generic --runner=local:docker --plan=hello_codex --testcase=hello_codex --instances=2
+
+hello_codex: | build deps
+	$(ENV_SCRIPT) nim hello_codex codex.nims
 
 # usual cleaning
 clean: | clean-common
