@@ -13,6 +13,9 @@ build/
 # Coverage data shall be put in an ignored coverage/ directory
 coverage/
 
+# Shallow clone of the repo will be placed her for use with testground
+scratch/
+
 # Nimble packages
 /vendor/.nimble
 
