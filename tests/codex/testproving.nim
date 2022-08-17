@@ -26,25 +26,25 @@ suite "Proving":
     await sleepAsync(2.seconds)
 
   test "maintains a list of contract ids to watch":
-    let id1, id2 = ContractId.example
-    check proving.contracts.len == 0
+    let id1, id2 = SlotId.example
+    check proving.slots.len == 0
     proving.add(id1)
-    check proving.contracts.contains(id1)
+    check proving.slots.contains(id1)
     proving.add(id2)
-    check proving.contracts.contains(id1)
-    check proving.contracts.contains(id2)
+    check proving.slots.contains(id1)
+    check proving.slots.contains(id2)
 
   test "removes duplicate contract ids":
-    let id = ContractId.example
+    let id = SlotId.example
     proving.add(id)
     proving.add(id)
-    check proving.contracts.len == 1
+    check proving.slots.len == 1
 
   test "invokes callback when proof is required":
-    let id = ContractId.example
+    let id = SlotId.example
     proving.add(id)
     var called: bool
-    proc onProofRequired(id: ContractId) =
+    proc onProofRequired(id: SlotId) =
       called = true
     proving.onProofRequired = onProofRequired
     proofs.setProofRequired(id, true)
@@ -52,11 +52,11 @@ suite "Proving":
     check called
 
   test "callback receives id of contract for which proof is required":
-    let id1, id2 = ContractId.example
+    let id1, id2 = SlotId.example
     proving.add(id1)
     proving.add(id2)
-    var callbackIds: seq[ContractId]
-    proc onProofRequired(id: ContractId) =
+    var callbackIds: seq[SlotId]
+    proc onProofRequired(id: SlotId) =
       callbackIds.add(id)
     proving.onProofRequired = onProofRequired
     proofs.setProofRequired(id1, true)
@@ -68,10 +68,10 @@ suite "Proving":
     check callbackIds == @[id1, id2]
 
   test "invokes callback when proof is about to be required":
-    let id = ContractId.example
+    let id = SlotId.example
     proving.add(id)
     var called: bool
-    proc onProofRequired(id: ContractId) =
+    proc onProofRequired(id: SlotId) =
       called = true
     proving.onProofRequired = onProofRequired
     proofs.setProofRequired(id, false)
@@ -80,12 +80,12 @@ suite "Proving":
     check called
 
   test "stops watching when contract has ended":
-    let id = ContractId.example
+    let id = SlotId.example
     proving.add(id)
     proofs.setProofEnd(id, clock.now().u256)
     await proofs.advanceToNextPeriod()
     var called: bool
-    proc onProofRequired(id: ContractId) =
+    proc onProofRequired(id: SlotId) =
       called = true
     proving.onProofRequired = onProofRequired
     proofs.setProofRequired(id, true)
@@ -93,18 +93,18 @@ suite "Proving":
     check not called
 
   test "submits proofs":
-    let id = ContractId.example
+    let id = SlotId.example
     let proof = seq[byte].example
     await proving.submitProof(id, proof)
 
   test "supports proof submission subscriptions":
-    let id = ContractId.example
+    let id = SlotId.example
     let proof = seq[byte].example
 
-    var receivedIds: seq[ContractId]
+    var receivedIds: seq[SlotId]
     var receivedProofs: seq[seq[byte]]
 
-    proc onProofSubmission(id: ContractId, proof: seq[byte]) =
+    proc onProofSubmission(id: SlotId, proof: seq[byte]) =
       receivedIds.add(id)
       receivedProofs.add(proof)
 

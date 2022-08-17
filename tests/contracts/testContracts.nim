@@ -16,7 +16,7 @@ ethersuite "Storage contracts":
   var collateralAmount: UInt256
   var periodicity: Periodicity
   var request: StorageRequest
-  var id: array[32, byte]
+  var slotId: SlotId
 
   proc switchAccount(account: Signer) =
     storage = storage.connect(account)
@@ -46,31 +46,31 @@ ethersuite "Storage contracts":
     await token.approve(storage.address, collateralAmount)
     await storage.deposit(collateralAmount)
     await storage.fillSlot(request.id, 0.u256, proof)
-    id = request.slotId(0.u256)
+    slotId = request.slotId(0.u256)
 
-  proc waitUntilProofRequired(id: array[32, byte]) {.async.} =
+  proc waitUntilProofRequired(slotId: SlotId) {.async.} =
     let currentPeriod = periodicity.periodOf(await provider.currentTime())
     await provider.advanceTimeTo(periodicity.periodEnd(currentPeriod))
     while not (
-      (await storage.isProofRequired(id)) and
-      (await storage.getPointer(id)) < 250
+      (await storage.isProofRequired(slotId)) and
+      (await storage.getPointer(slotId)) < 250
     ):
       await provider.advanceTime(periodicity.seconds)
 
   test "accept storage proofs":
     switchAccount(host)
-    await waitUntilProofRequired(id)
-    await storage.submitProof(id, proof)
+    await waitUntilProofRequired(slotId)
+    await storage.submitProof(slotId, proof)
 
   test "can mark missing proofs":
     switchAccount(host)
-    await waitUntilProofRequired(id)
+    await waitUntilProofRequired(slotId)
     let missingPeriod = periodicity.periodOf(await provider.currentTime())
     await provider.advanceTime(periodicity.seconds)
     switchAccount(client)
-    await storage.markProofAsMissing(id, missingPeriod)
+    await storage.markProofAsMissing(slotId, missingPeriod)
 
   test "can be payed out at the end":
     switchAccount(host)
-    await provider.advanceTimeTo(await storage.proofEnd(id))
+    await provider.advanceTimeTo(await storage.proofEnd(slotId))
     await storage.payoutSlot(request.id, 0.u256)

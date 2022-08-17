@@ -305,7 +305,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   router.api(
     MethodGet,
     "/api/codex/v1/storage/purchases/{id}") do (
-      id: array[32, byte]) -> RestApiResponse:
+      id: PurchaseId) -> RestApiResponse:
 
       without contracts =? node.contracts:
         return RestApiResponse.error(Http503, "Purchasing unavailable")

@@ -13,9 +13,9 @@ type
     proofs: Proofs
     clock: Clock
     loop: ?Future[void]
-    contracts*: HashSet[ContractId]
+    slots*: HashSet[SlotId]
     onProofRequired: ?OnProofRequired
-  OnProofRequired* = proc (id: ContractId) {.gcsafe, upraises:[].}
+  OnProofRequired* = proc (id: SlotId) {.gcsafe, upraises:[].}
 
 func new*(_: type Proving, proofs: Proofs, clock: Clock): Proving =
   Proving(proofs: proofs, clock: clock)
@@ -23,8 +23,8 @@ func new*(_: type Proving, proofs: Proofs, clock: Clock): Proving =
 proc `onProofRequired=`*(proving: Proving, callback: OnProofRequired) =
   proving.onProofRequired = some callback
 
-func add*(proving: Proving, id: ContractId) =
-  proving.contracts.incl(id)
+func add*(proving: Proving, id: SlotId) =
+  proving.slots.incl(id)
 
 proc getCurrentPeriod(proving: Proving): Future[Period] {.async.} =
   let periodicity = await proving.proofs.periodicity()
@@ -36,18 +36,18 @@ proc waitUntilPeriod(proving: Proving, period: Period) {.async.} =
 
 proc removeEndedContracts(proving: Proving) {.async.} =
   let now = proving.clock.now().u256
-  var ended: HashSet[ContractId]
-  for id in proving.contracts:
+  var ended: HashSet[SlotId]
+  for id in proving.slots:
     if now >= (await proving.proofs.getProofEnd(id)):
       ended.incl(id)
-  proving.contracts.excl(ended)
+  proving.slots.excl(ended)
 
 proc run(proving: Proving) {.async.} =
   try:
     while true:
       let currentPeriod = await proving.getCurrentPeriod()
       await proving.removeEndedContracts()
-      for id in proving.contracts:
+      for id in proving.slots:
         if (await proving.proofs.isProofRequired(id)) or
           (await proving.proofs.willProofBeRequired(id)):
           if callback =? proving.onProofRequired:
@@ -70,7 +70,7 @@ proc stop*(proving: Proving) {.async.} =
     if not loop.finished:
       await loop.cancelAndWait()
 
-proc submitProof*(proving: Proving, id: ContractId, proof: seq[byte]) {.async.} =
+proc submitProof*(proving: Proving, id: SlotId, proof: seq[byte]) {.async.} =
   await proving.proofs.submitProof(id, proof)
 
 proc subscribeProofSubmission*(proving: Proving,

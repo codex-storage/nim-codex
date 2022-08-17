@@ -2,35 +2,36 @@ import pkg/chronos
 import pkg/stint
 import pkg/upraises
 import ./periods
+from ../../contracts/requests import SlotId, RequestId
 
 export chronos
 export stint
 export periods
+export SlotId, RequestId
 
 type
   Proofs* = ref object of RootObj
   Subscription* = ref object of RootObj
-  OnProofSubmitted* = proc(id: ContractId, proof: seq[byte]) {.gcsafe, upraises:[].}
-  ContractId* = array[32, byte]
+  OnProofSubmitted* = proc(id: SlotId, proof: seq[byte]) {.gcsafe, upraises:[].}
 
 method periodicity*(proofs: Proofs):
                    Future[Periodicity] {.base, async.} =
   raiseAssert("not implemented")
 
 method isProofRequired*(proofs: Proofs,
-                        id: ContractId): Future[bool] {.base, async.} =
+                        id: SlotId): Future[bool] {.base, async.} =
   raiseAssert("not implemented")
 
 method willProofBeRequired*(proofs: Proofs,
-                            id: ContractId): Future[bool] {.base, async.} =
+                            id: SlotId): Future[bool] {.base, async.} =
   raiseAssert("not implemented")
 
 method getProofEnd*(proofs: Proofs,
-                    id: ContractId): Future[UInt256] {.base, async.} =
+                    id: SlotId): Future[UInt256] {.base, async.} =
   raiseAssert("not implemented")
 
 method submitProof*(proofs: Proofs,
-                    id: ContractId,
+                    id: SlotId,
                     proof: seq[byte]) {.base, async.} =
   raiseAssert("not implemented")
 

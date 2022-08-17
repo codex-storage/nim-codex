@@ -13,7 +13,7 @@ type
   Purchasing* = ref object
     market: Market
     clock: Clock
-    purchases: Table[array[32, byte], Purchase]
+    purchases: Table[PurchaseId, Purchase]
     proofProbability*: UInt256
     requestExpiryInterval*: UInt256
   Purchase* = ref object
@@ -22,12 +22,13 @@ type
     clock: Clock
     request*: StorageRequest
   PurchaseTimeout* = Timeout
+  PurchaseId* = array[32, byte]
 
 const DefaultProofProbability = 100.u256
 const DefaultRequestExpiryInterval = (10 * 60).u256
 
 proc start(purchase: Purchase) {.gcsafe.}
-func id*(purchase: Purchase): array[32, byte]
+func id*(purchase: Purchase): PurchaseId
 
 proc new*(_: type Purchasing, market: Market, clock: Clock): Purchasing =
   Purchasing(
@@ -43,7 +44,7 @@ proc populate*(purchasing: Purchasing, request: StorageRequest): StorageRequest 
     result.ask.proofProbability = purchasing.proofProbability
   if result.expiry == 0.u256:
     result.expiry = (purchasing.clock.now().u256 + purchasing.requestExpiryInterval)
-  if result.nonce == array[32, byte].default:
+  if result.nonce == Nonce.default:
     doAssert randomBytes(result.nonce) == 32
 
 proc purchase*(purchasing: Purchasing, request: StorageRequest): Purchase =
@@ -57,7 +58,7 @@ proc purchase*(purchasing: Purchasing, request: StorageRequest): Purchase =
   purchasing.purchases[purchase.id] = purchase
   purchase
 
-func getPurchase*(purchasing: Purchasing, id: array[32, byte]): ?Purchase =
+func getPurchase*(purchasing: Purchasing, id: PurchaseId): ?Purchase =
   if purchasing.purchases.hasKey(id):
     some purchasing.purchases[id]
   else:
@@ -72,7 +73,7 @@ proc run(purchase: Purchase) {.async.} =
 
   proc waitUntilFulfilled {.async.} =
     let done = newFuture[void]()
-    proc callback(_: array[32, byte]) =
+    proc callback(_: RequestId) =
       done.complete()
     let request = purchase.request
     let subscription = await market.subscribeFulfillment(request.id, callback)
@@ -92,7 +93,7 @@ proc start(purchase: Purchase) =
 proc wait*(purchase: Purchase) {.async.} =
   await purchase.future
 
-func id*(purchase: Purchase): array[32, byte] =
+func id*(purchase: Purchase): PurchaseId =
   purchase.request.id
 
 func finished*(purchase: Purchase): bool =
