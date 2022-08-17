@@ -92,9 +92,9 @@ suite "Purchasing":
   test "supports request cancelled subscription when request times out":
     let purchase = purchasing.purchase(request)
     let request = market.requested[0]
-    var receivedIds: seq[array[32, byte]]
+    var receivedIds: seq[RequestId]
     clock.set(request.expiry.truncate(int64))
-    proc onRequestCancelled(id: array[32, byte]) {.gcsafe, upraises:[].} =
+    proc onRequestCancelled(id: RequestId) {.gcsafe, upraises:[].} =
       receivedIds.add(id)
     let subscription = await market.subscribeRequestCancelled(
                                       request.id,

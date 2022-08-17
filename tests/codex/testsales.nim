@@ -205,8 +205,8 @@ suite "Sales":
                         request: StorageRequest,
                         slotIndex: UInt256) =
       soldSlotIndex = slotIndex
-    check proving.contracts.len == 0
+    check proving.slots.len == 0
     sales.add(availability)
     discard await market.requestStorage(request)
-    check proving.contracts.len == 1
-    check proving.contracts.contains(request.slotId(soldSlotIndex))
+    check proving.slots.len == 1
+    check proving.slots.contains(request.slotId(soldSlotIndex))
