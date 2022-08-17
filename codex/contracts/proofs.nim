@@ -23,11 +23,11 @@ method periodicity*(proofs: OnChainProofs): Future[Periodicity] {.async.} =
   return Periodicity(seconds: period)
 
 method isSlotCancelled*(proofs: OnChainProofs,
-                        id: ContractId): Future[bool] {.async.} =
+                        id: SlotId): Future[bool] {.async.} =
   return await proofs.storage.isSlotCancelled(id)
 
 method isCancelled*(proofs: OnChainProofs,
-                    id: array[32, byte]): Future[bool] {.async.} =
+                    id: RequestId): Future[bool] {.async.} =
   return await proofs.storage.isCancelled(id)
 
 method isProofRequired*(proofs: OnChainProofs,

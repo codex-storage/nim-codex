@@ -19,7 +19,7 @@ type
   RequestFulfilled* = object of Event
     requestId* {.indexed.}: RequestId
   RequestCancelled* = object of Event
-    requestId* {.indexed.}: Id
+    requestId* {.indexed.}: RequestId
   ProofSubmitted* = object of Event
     id*: SlotId
     proof*: seq[byte]
@@ -35,7 +35,7 @@ proc balanceOf*(storage: Storage, account: Address): UInt256 {.contract, view.}
 
 proc requestStorage*(storage: Storage, request: StorageRequest) {.contract.}
 proc fillSlot*(storage: Storage, requestId: RequestId, slotIndex: UInt256, proof: seq[byte]) {.contract.}
-proc withdrawFunds*(storage: Storage, requestId: Id) {.contract.}
+proc withdrawFunds*(storage: Storage, requestId: RequestId) {.contract.}
 proc payoutSlot*(storage: Storage, requestId: RequestId, slotIndex: UInt256) {.contract.}
 proc getRequest*(storage: Storage, id: RequestId): StorageRequest {.contract, view.}
 proc getHost*(storage: Storage, id: SlotId): Address {.contract, view.}
@@ -45,8 +45,8 @@ proc proofTimeout*(storage: Storage): UInt256 {.contract, view.}
 
 proc proofEnd*(storage: Storage, id: SlotId): UInt256 {.contract, view.}
 proc missingProofs*(storage: Storage, id: SlotId): UInt256 {.contract, view.}
-proc isCancelled*(storage: Storage, id: Id): bool {.contract, view.}
-proc isSlotCancelled*(storage: Storage, id: Id): bool {.contract, view.}
+proc isCancelled*(storage: Storage, id: RequestId): bool {.contract, view.}
+proc isSlotCancelled*(storage: Storage, id: SlotId): bool {.contract, view.}
 proc isProofRequired*(storage: Storage, id: SlotId): bool {.contract, view.}
 proc willProofBeRequired*(storage: Storage, id: SlotId): bool {.contract, view.}
 proc getChallenge*(storage: Storage, id: SlotId): array[32, byte] {.contract, view.}

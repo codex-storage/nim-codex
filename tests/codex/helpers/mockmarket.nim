@@ -38,7 +38,7 @@ type
     callback: OnSlotFilled
   RequestCancelledSubscription* = ref object of Subscription
     market: MockMarket
-    requestId: array[32, byte]
+    requestId: RequestId
     callback: OnRequestCancelled
 
 proc new*(_: type MockMarket): MockMarket =
@@ -81,7 +81,7 @@ proc emitSlotFilled*(market: MockMarket,
       subscription.callback(requestId, slotIndex)
 
 proc emitRequestCancelled*(market: MockMarket,
-                     requestId: array[32, byte]) =
+                     requestId: RequestId) =
   var subscriptions = market.subscriptions.onRequestCancelled
   for subscription in subscriptions:
     if subscription.requestId == requestId:
@@ -114,7 +114,7 @@ method fillSlot*(market: MockMarket,
   market.fillSlot(requestId, slotIndex, proof, market.signer)
 
 method withdrawFunds*(market: MockMarket,
-                      requestId: array[32, byte]) {.async.} =
+                      requestId: RequestId) {.async.} =
   market.emitRequestCancelled(requestId)
 
 method subscribeRequests*(market: MockMarket,
@@ -154,7 +154,7 @@ method subscribeSlotFilled*(market: MockMarket,
   return subscription
 
 method subscribeRequestCancelled*(market: MockMarket,
-                            requestId: array[32, byte],
+                            requestId: RequestId,
                             callback: OnRequestCancelled):
                            Future[Subscription] {.async.} =
   let subscription = RequestCancelledSubscription(

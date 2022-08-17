@@ -43,11 +43,11 @@ proc removeEndedContracts(proving: Proving) {.async.} =
   proving.slots.excl(ended)
 
 proc removeCancelledContracts(proving: Proving) {.async.} =
-  var cancelled: HashSet[ContractId]
-  for id in proving.contracts:
+  var cancelled: HashSet[SlotId]
+  for id in proving.slots:
     if (await proving.proofs.isSlotCancelled(id)):
       cancelled.incl(id)
-  proving.contracts.excl(cancelled)
+  proving.slots.excl(cancelled)
 
 proc run(proving: Proving) {.async.} =
   try:
