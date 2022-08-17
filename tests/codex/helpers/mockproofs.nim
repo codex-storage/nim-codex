@@ -7,6 +7,7 @@ import pkg/codex/storageproofs
 type
   MockProofs* = ref object of Proofs
     periodicity: Periodicity
+    cancelledRequests: HashSet[ContractId]
     proofsRequired: HashSet[SlotId]
     proofsToBeRequired: HashSet[SlotId]
     proofEnds: Table[SlotId, UInt256]
@@ -31,6 +32,20 @@ proc setProofRequired*(mock: MockProofs, id: SlotId, required: bool) =
     mock.proofsRequired.incl(id)
   else:
     mock.proofsRequired.excl(id)
+
+proc setCancelled*(mock: MockProofs, id: ContractId, required: bool) =
+  if required:
+    mock.cancelledRequests.incl(id)
+  else:
+    mock.cancelledRequests.excl(id)
+
+method isCancelled*(mock: MockProofs,
+                    id: array[32, byte]): Future[bool] {.async.} =
+  return mock.cancelledRequests.contains(id)
+
+method isSlotCancelled*(mock: MockProofs,
+                        id: ContractId): Future[bool] {.async.} =
+  return mock.cancelledRequests.contains(id)
 
 method isProofRequired*(mock: MockProofs,
                         id: SlotId): Future[bool] {.async.} =

@@ -92,6 +92,20 @@ suite "Proving":
     await proofs.advanceToNextPeriod()
     check not called
 
+  test "stops watching when contract is cancelled":
+    let id = ContractId.example
+    proving.add(id)
+    var called: bool
+    proc onProofRequired(id: ContractId) =
+      called = true
+    proofs.setProofRequired(id, true)
+    await proofs.advanceToNextPeriod()
+    proving.onProofRequired = onProofRequired
+    proofs.setCancelled(id, true)
+    await proofs.advanceToNextPeriod()
+    check not proving.contracts.contains(id)
+    check not called
+
   test "submits proofs":
     let id = SlotId.example
     let proof = seq[byte].example

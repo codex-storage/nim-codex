@@ -1,5 +1,8 @@
+import std/sets
 import pkg/asynctest
 import pkg/chronos
+import pkg/codex/contracts/requests
+import pkg/codex/proving
 import pkg/codex/sales
 import ./helpers/mockmarket
 import ./helpers/mockclock
@@ -28,11 +31,13 @@ suite "Sales":
   var sales: Sales
   var market: MockMarket
   var clock: MockClock
+  var proving: Proving
 
   setup:
     market = MockMarket.new()
     clock = MockClock.new()
-    sales = Sales.new(market, clock)
+    proving = Proving.new()
+    sales = Sales.new(market, clock, proving)
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
                          availability: Availability) {.async.} =
@@ -151,18 +156,25 @@ suite "Sales":
     check soldSlotIndex < request.ask.slots.u256
 
   test "calls onClear when storage becomes available again":
+    # fail the proof intentionally to trigger `agent.finish(success=false)`,
+    # which then calls the onClear callback
     sales.onProve = proc(request: StorageRequest,
                          slot: UInt256): Future[seq[byte]] {.async.} =
       raise newException(IOError, "proof failed")
     var clearedAvailability: Availability
     var clearedRequest: StorageRequest
-    sales.onClear = proc(availability: Availability, request: StorageRequest) =
+    var clearedSlotIndex: UInt256
+    sales.onClear = proc(availability: Availability,
+                         request: StorageRequest,
+                         slotIndex: UInt256) =
       clearedAvailability = availability
       clearedRequest = request
+      clearedSlotIndex = slotIndex
     sales.add(availability)
     discard await market.requestStorage(request)
     check clearedAvailability == availability
     check clearedRequest == request
+    check clearedSlotIndex < request.ask.slots.u256
 
   test "makes storage available again when other host fills the slot":
     let otherHost = Address.example
@@ -186,3 +198,15 @@ suite "Sales":
     clock.set(request.expiry.truncate(int64))
     await sleepAsync(2.seconds)
     check sales.available == @[availability]
+
+  test "adds proving for slot when slot is filled":
+    var soldSlotIndex: UInt256
+    sales.onSale = proc(availability: Availability,
+                        request: StorageRequest,
+                        slotIndex: UInt256) =
+      soldSlotIndex = slotIndex
+    check proving.contracts.len == 0
+    sales.add(availability)
+    discard await market.requestStorage(request)
+    check proving.contracts.len == 1
+    check proving.contracts.contains(request.slotId(soldSlotIndex))
