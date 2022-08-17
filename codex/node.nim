@@ -343,9 +343,12 @@ proc start*(node: CodexNodeRef) {.async.} =
       if fetchRes.isErr:
         raise newException(CodexError, "Unable to retrieve blocks")
 
-    contracts.sales.onClear = proc(availability: Availability, request: StorageRequest) =
+    contracts.sales.onClear = proc(availability: Availability,
+                                   request: StorageRequest,
+                                   slotIndex: UInt256) =
       # TODO: remove data from local storage
       discard
+
     contracts.sales.onProve = proc(request: StorageRequest,
                                    slot: UInt256): Future[seq[byte]] {.async.} =
       # TODO: generate proof
