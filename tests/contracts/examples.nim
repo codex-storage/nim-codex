@@ -31,5 +31,5 @@ proc example*(_: type StorageRequest): StorageRequest =
       )
     ),
     expiry: (getTime() + initDuration(hours=1)).toUnix.u256,
-    nonce: array[32, byte].example
+    nonce: Nonce.example
   )

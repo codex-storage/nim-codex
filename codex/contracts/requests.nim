@@ -11,7 +11,7 @@ type
     ask*: StorageAsk
     content*: StorageContent
     expiry*: UInt256
-    nonce*: array[32, byte]
+    nonce*: Nonce
   StorageAsk* = object
     slots*: uint64
     slotSize*: UInt256
@@ -28,6 +28,9 @@ type
     u*: seq[byte]
     publicKey*: seq[byte]
     name*: seq[byte]
+  SlotId* = array[32, byte]
+  RequestId* = array[32, byte]
+  Nonce* = array[32, byte]
 
 func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
   StorageRequest(
@@ -116,15 +119,15 @@ func decode*(decoder: var AbiDecoder, T: type StorageRequest): ?!T =
   let tupl = ?decoder.read(StorageRequest.fieldTypes)
   success StorageRequest.fromTuple(tupl)
 
-func id*(request: StorageRequest): array[32, byte] =
+func id*(request: StorageRequest): RequestId =
   let encoding = AbiEncoder.encode((request, ))
   keccak256.digest(encoding).data
 
-func slotId*(requestId: array[32, byte], slot: UInt256): array[32, byte] =
+func slotId*(requestId: RequestId, slot: UInt256): SlotId =
   let encoding = AbiEncoder.encode((requestId, slot))
   keccak256.digest(encoding).data
 
-func slotId*(request: StorageRequest, slot: UInt256): array[32, byte] =
+func slotId*(request: StorageRequest, slot: UInt256): SlotId =
   slotId(request.id, slot)
 
 func pricePerSlot*(ask: StorageAsk): UInt256 =

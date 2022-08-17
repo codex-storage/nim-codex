@@ -5,7 +5,7 @@ import ./time
 
 ethersuite "On-Chain Proofs":
 
-  let contractId = ContractId.example
+  let contractId = SlotId.example
   let proof = seq[byte].example
 
   var proofs: OnChainProofs
@@ -34,10 +34,10 @@ ethersuite "On-Chain Proofs":
     await proofs.submitProof(contractId, proof)
 
   test "supports proof submission subscriptions":
-    var receivedIds: seq[ContractId]
+    var receivedIds: seq[SlotId]
     var receivedProofs: seq[seq[byte]]
 
-    proc onProofSubmission(id: ContractId, proof: seq[byte]) =
+    proc onProofSubmission(id: SlotId, proof: seq[byte]) =
       receivedIds.add(id)
       receivedProofs.add(proof)
 

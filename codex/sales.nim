@@ -45,7 +45,7 @@ type
     minPrice*: UInt256
   SalesAgent = ref object
     sales: Sales
-    requestId: array[32, byte]
+    requestId: RequestId
     ask: StorageAsk
     availability: Availability
     request: ?StorageRequest
@@ -134,7 +134,7 @@ proc selectSlot(agent: SalesAgent)  =
   agent.slotIndex = some slotIndex.u256
 
 proc onSlotFilled(agent: SalesAgent,
-                  requestId: array[32, byte],
+                  requestId: RequestId,
                   slotIndex: UInt256) {.async.} =
   try:
     let market = agent.sales.market
@@ -145,7 +145,7 @@ proc onSlotFilled(agent: SalesAgent,
     agent.finish(success = false)
 
 proc subscribeSlotFilled(agent: SalesAgent, slotIndex: UInt256) {.async.} =
-  proc onSlotFilled(requestId: array[32, byte],
+  proc onSlotFilled(requestId: RequestId,
                     slotIndex: UInt256) {.gcsafe, upraises:[].} =
     asyncSpawn agent.onSlotFilled(requestId, slotIndex)
   let market = agent.sales.market
@@ -196,7 +196,7 @@ proc start(agent: SalesAgent) {.async.} =
     error "SalesAgent failed", msg = e.msg
     agent.finish(success = false)
 
-proc handleRequest(sales: Sales, requestId: array[32, byte], ask: StorageAsk) =
+proc handleRequest(sales: Sales, requestId: RequestId, ask: StorageAsk) =
   without availability =? sales.findAvailability(ask):
     return
 
@@ -212,7 +212,7 @@ proc handleRequest(sales: Sales, requestId: array[32, byte], ask: StorageAsk) =
 proc start*(sales: Sales) {.async.} =
   doAssert sales.subscription.isNone, "Sales already started"
 
-  proc onRequest(requestId: array[32, byte], ask: StorageAsk) {.gcsafe, upraises:[].} =
+  proc onRequest(requestId: RequestId, ask: StorageAsk) {.gcsafe, upraises:[].} =
     sales.handleRequest(requestId, ask)
 
   try:

@@ -9,18 +9,18 @@ export ethers
 
 type
   Storage* = ref object of Contract
-  Id = array[32, byte]
   StorageRequested* = object of Event
-    requestId*: Id
+    requestId*: RequestId
     ask*: StorageAsk
   SlotFilled* = object of Event
-    requestId* {.indexed.}: Id
+    requestId* {.indexed.}: RequestId
     slotIndex* {.indexed.}: UInt256
-    slotId* {.indexed.}: Id
+    slotId* {.indexed.}: SlotId
   RequestFulfilled* = object of Event
-    requestId* {.indexed.}: Id
+    requestId* {.indexed.}: RequestId
+
   ProofSubmitted* = object of Event
-    id*: Id
+    id*: SlotId
     proof*: seq[byte]
 
 
@@ -33,22 +33,20 @@ proc withdraw*(storage: Storage) {.contract.}
 proc balanceOf*(storage: Storage, account: Address): UInt256 {.contract, view.}
 
 proc requestStorage*(storage: Storage, request: StorageRequest) {.contract.}
-proc fillSlot*(storage: Storage, requestId: Id, slotIndex: UInt256, proof: seq[byte]) {.contract.}
-proc payoutSlot*(storage: Storage, requestId: Id, slotIndex: UInt256) {.contract.}
-proc getRequest*(storage: Storage, id: Id): StorageRequest {.contract, view.}
-proc getHost*(storage: Storage, id: Id): Address {.contract, view.}
-
-proc finishContract*(storage: Storage, id: Id) {.contract.}
+proc fillSlot*(storage: Storage, requestId: RequestId, slotIndex: UInt256, proof: seq[byte]) {.contract.}
+proc payoutSlot*(storage: Storage, requestId: RequestId, slotIndex: UInt256) {.contract.}
+proc getRequest*(storage: Storage, id: RequestId): StorageRequest {.contract, view.}
+proc getHost*(storage: Storage, id: SlotId): Address {.contract, view.}
 
 proc proofPeriod*(storage: Storage): UInt256 {.contract, view.}
 proc proofTimeout*(storage: Storage): UInt256 {.contract, view.}
 
-proc proofEnd*(storage: Storage, id: Id): UInt256 {.contract, view.}
-proc missingProofs*(storage: Storage, id: Id): UInt256 {.contract, view.}
-proc isProofRequired*(storage: Storage, id: Id): bool {.contract, view.}
-proc willProofBeRequired*(storage: Storage, id: Id): bool {.contract, view.}
-proc getChallenge*(storage: Storage, id: Id): array[32, byte] {.contract, view.}
-proc getPointer*(storage: Storage, id: Id): uint8 {.contract, view.}
+proc proofEnd*(storage: Storage, id: SlotId): UInt256 {.contract, view.}
+proc missingProofs*(storage: Storage, id: SlotId): UInt256 {.contract, view.}
+proc isProofRequired*(storage: Storage, id: SlotId): bool {.contract, view.}
+proc willProofBeRequired*(storage: Storage, id: SlotId): bool {.contract, view.}
+proc getChallenge*(storage: Storage, id: SlotId): array[32, byte] {.contract, view.}
+proc getPointer*(storage: Storage, id: SlotId): uint8 {.contract, view.}
 
-proc submitProof*(storage: Storage, id: Id, proof: seq[byte]) {.contract.}
-proc markProofAsMissing*(storage: Storage, id: Id, period: UInt256) {.contract.}
+proc submitProof*(storage: Storage, id: SlotId, proof: seq[byte]) {.contract.}
+proc markProofAsMissing*(storage: Storage, id: SlotId, period: UInt256) {.contract.}

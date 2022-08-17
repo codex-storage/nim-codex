@@ -57,9 +57,9 @@ ethersuite "On-Chain Market":
     check (await market.getRequest(request.id)) == some request
 
   test "supports request subscriptions":
-    var receivedIds: seq[array[32, byte]]
+    var receivedIds: seq[RequestId]
     var receivedAsks: seq[StorageAsk]
-    proc onRequest(id: array[32, byte], ask: StorageAsk) =
+    proc onRequest(id: RequestId, ask: StorageAsk) =
       receivedIds.add(id)
       receivedAsks.add(ask)
     let subscription = await market.subscribeRequests(onRequest)
@@ -84,9 +84,9 @@ ethersuite "On-Chain Market":
   test "support slot filled subscriptions":
     await token.approve(storage.address, request.price)
     discard await market.requestStorage(request)
-    var receivedIds: seq[array[32, byte]]
+    var receivedIds: seq[RequestId]
     var receivedSlotIndices: seq[UInt256]
-    proc onSlotFilled(id: array[32, byte], slotIndex: UInt256) =
+    proc onSlotFilled(id: RequestId, slotIndex: UInt256) =
       receivedIds.add(id)
       receivedSlotIndices.add(slotIndex)
     let subscription = await market.subscribeSlotFilled(request.id, slotIndex, onSlotFilled)
@@ -100,7 +100,7 @@ ethersuite "On-Chain Market":
     await token.approve(storage.address, request.price)
     discard await market.requestStorage(request)
     var receivedSlotIndices: seq[UInt256]
-    proc onSlotFilled(requestId: array[32, byte], slotIndex: UInt256) =
+    proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
       receivedSlotIndices.add(slotIndex)
     let subscription = await market.subscribeSlotFilled(request.id, slotIndex, onSlotFilled)
     await market.fillSlot(request.id, slotIndex - 1, proof)
@@ -112,8 +112,8 @@ ethersuite "On-Chain Market":
   test "support fulfillment subscriptions":
     await token.approve(storage.address, request.price)
     discard await market.requestStorage(request)
-    var receivedIds: seq[array[32, byte]]
-    proc onFulfillment(id: array[32, byte]) =
+    var receivedIds: seq[RequestId]
+    proc onFulfillment(id: RequestId) =
       receivedIds.add(id)
     let subscription = await market.subscribeFulfillment(request.id, onFulfillment)
     for slotIndex in 0..<request.ask.slots:
@@ -130,8 +130,8 @@ ethersuite "On-Chain Market":
     await token.approve(storage.address, otherrequest.price)
     discard await market.requestStorage(otherRequest)
 
-    var receivedIds: seq[array[32, byte]]
-    proc onFulfillment(id: array[32, byte]) =
+    var receivedIds: seq[RequestId]
+    proc onFulfillment(id: RequestId) =
       receivedIds.add(id)
 
     let subscription = await market.subscribeFulfillment(request.id, onFulfillment)

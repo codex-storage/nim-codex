@@ -11,11 +11,11 @@ type
     signer: Address
     subscriptions: Subscriptions
   Fulfillment* = object
-    requestId*: array[32, byte]
+    requestId*: RequestId
     proof*: seq[byte]
     host*: Address
   Slot* = object
-    requestId*: array[32, byte]
+    requestId*: RequestId
     slotIndex*: UInt256
     proof*: seq[byte]
     host*: Address
@@ -28,11 +28,11 @@ type
     callback: OnRequest
   FulfillmentSubscription* = ref object of Subscription
     market: MockMarket
-    requestId: array[32, byte]
+    requestId: RequestId
     callback: OnFulfillment
   SlotFilledSubscription* = ref object of Subscription
     market: MockMarket
-    requestId: array[32, byte]
+    requestId: RequestId
     slotIndex: UInt256
     callback: OnSlotFilled
 
@@ -52,14 +52,14 @@ method requestStorage*(market: MockMarket,
   return request
 
 method getRequest(market: MockMarket,
-                  id: array[32, byte]): Future[?StorageRequest] {.async.} =
+                  id: RequestId): Future[?StorageRequest] {.async.} =
   for request in market.requested:
     if request.id == id:
       return some request
   return none StorageRequest
 
 method getHost(market: MockMarket,
-               requestId: array[32, byte],
+               requestId: RequestId,
                slotIndex: UInt256): Future[?Address] {.async.} =
   for slot in market.filled:
     if slot.requestId == requestId and slot.slotIndex == slotIndex:
@@ -67,7 +67,7 @@ method getHost(market: MockMarket,
   return none Address
 
 proc emitSlotFilled*(market: MockMarket,
-                     requestId: array[32, byte],
+                     requestId: RequestId,
                      slotIndex: UInt256) =
   var subscriptions = market.subscriptions.onSlotFilled
   for subscription in subscriptions:
@@ -75,14 +75,14 @@ proc emitSlotFilled*(market: MockMarket,
        subscription.slotIndex == slotIndex:
       subscription.callback(requestId, slotIndex)
 
-proc emitRequestFulfilled*(market: MockMarket, requestId: array[32, byte]) =
+proc emitRequestFulfilled*(market: MockMarket, requestId: RequestId) =
   var subscriptions = market.subscriptions.onFulfillment
   for subscription in subscriptions:
     if subscription.requestId == requestId:
       subscription.callback(requestId)
 
 proc fillSlot*(market: MockMarket,
-               requestId: array[32, byte],
+               requestId: RequestId,
                slotIndex: UInt256,
                proof: seq[byte],
                host: Address) =
@@ -96,7 +96,7 @@ proc fillSlot*(market: MockMarket,
   market.emitSlotFilled(requestId, slotIndex)
 
 method fillSlot*(market: MockMarket,
-                 requestId: array[32, byte],
+                 requestId: RequestId,
                  slotIndex: UInt256,
                  proof: seq[byte]) {.async.} =
   market.fillSlot(requestId, slotIndex, proof, market.signer)
@@ -112,7 +112,7 @@ method subscribeRequests*(market: MockMarket,
   return subscription
 
 method subscribeFulfillment*(market: MockMarket,
-                             requestId: array[32, byte],
+                             requestId: RequestId,
                              callback: OnFulfillment):
                             Future[Subscription] {.async.} =
   let subscription = FulfillmentSubscription(
@@ -124,7 +124,7 @@ method subscribeFulfillment*(market: MockMarket,
   return subscription
 
 method subscribeSlotFilled*(market: MockMarket,
-                            requestId: array[32, byte],
+                            requestId: RequestId,
                             slotIndex: UInt256,
                             callback: OnSlotFilled):
                            Future[Subscription] {.async.} =

@@ -221,7 +221,7 @@ proc requestStorage*(self: CodexNodeRef,
                      nodes: uint,
                      tolerance: uint,
                      reward: UInt256,
-                     expiry = UInt256.none): Future[?!array[32, byte]] {.async.} =
+                     expiry = UInt256.none): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
   ##

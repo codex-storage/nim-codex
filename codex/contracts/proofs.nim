@@ -23,19 +23,19 @@ method periodicity*(proofs: OnChainProofs): Future[Periodicity] {.async.} =
   return Periodicity(seconds: period)
 
 method isProofRequired*(proofs: OnChainProofs,
-                        id: ContractId): Future[bool] {.async.} =
+                        id: SlotId): Future[bool] {.async.} =
   return await proofs.storage.isProofRequired(id)
 
 method willProofBeRequired*(proofs: OnChainProofs,
-                            id: ContractId): Future[bool] {.async.} =
+                            id: SlotId): Future[bool] {.async.} =
   return await proofs.storage.willProofBeRequired(id)
 
 method getProofEnd*(proofs: OnChainProofs,
-                    id: ContractId): Future[UInt256] {.async.} =
+                    id: SlotId): Future[UInt256] {.async.} =
   return await proofs.storage.proofEnd(id)
 
 method submitProof*(proofs: OnChainProofs,
-                    id: ContractId,
+                    id: SlotId,
                     proof: seq[byte]) {.async.} =
   await proofs.storage.submitProof(id, proof)
 

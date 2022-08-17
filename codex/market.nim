@@ -10,9 +10,9 @@ export requests
 type
   Market* = ref object of RootObj
   Subscription* = ref object of RootObj
-  OnRequest* = proc(id: array[32, byte], ask: StorageAsk) {.gcsafe, upraises:[].}
-  OnFulfillment* = proc(requestId: array[32, byte]) {.gcsafe, upraises: [].}
-  OnSlotFilled* = proc(requestId: array[32, byte], slotIndex: UInt256) {.gcsafe, upraises:[].}
+  OnRequest* = proc(id: RequestId, ask: StorageAsk) {.gcsafe, upraises:[].}
+  OnFulfillment* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
+  OnSlotFilled* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises:[].}
 
 method getSigner*(market: Market): Future[Address] {.base, async.} =
   raiseAssert("not implemented")
@@ -23,17 +23,17 @@ method requestStorage*(market: Market,
   raiseAssert("not implemented")
 
 method getRequest*(market: Market,
-                   id: array[32, byte]):
+                   id: RequestId):
                   Future[?StorageRequest] {.base, async.} =
   raiseAssert("not implemented")
 
 method getHost*(market: Market,
-                requestId: array[32, byte],
+                requestId: RequestId,
                 slotIndex: UInt256): Future[?Address] {.base, async.} =
   raiseAssert("not implemented")
 
 method fillSlot*(market: Market,
-                 requestId: array[32, byte],
+                 requestId: RequestId,
                  slotIndex: UInt256,
                  proof: seq[byte]) {.base, async.} =
   raiseAssert("not implemented")
@@ -44,13 +44,13 @@ method subscribeRequests*(market: Market,
   raiseAssert("not implemented")
 
 method subscribeFulfillment*(market: Market,
-                             requestId: array[32, byte],
+                             requestId: RequestId,
                              callback: OnFulfillment):
                             Future[Subscription] {.base, async.} =
   raiseAssert("not implemented")
 
 method subscribeSlotFilled*(market: Market,
-                            requestId: array[32, byte],
+                            requestId: RequestId,
                             slotIndex: UInt256,
                             callback: OnSlotFilled):
                            Future[Subscription] {.base, async.} =

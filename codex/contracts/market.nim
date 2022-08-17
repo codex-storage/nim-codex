@@ -35,7 +35,7 @@ method requestStorage(market: OnChainMarket,
   return request
 
 method getRequest(market: OnChainMarket,
-                  id: array[32, byte]): Future[?StorageRequest] {.async.} =
+                  id: RequestId): Future[?StorageRequest] {.async.} =
   let request = await market.contract.getRequest(id)
   if request != StorageRequest.default:
     return some request
@@ -43,7 +43,7 @@ method getRequest(market: OnChainMarket,
     return none StorageRequest
 
 method getHost(market: OnChainMarket,
-               requestId: array[32, byte],
+               requestId: RequestId,
                slotIndex: UInt256): Future[?Address] {.async.} =
   let slotId = slotId(requestId, slotIndex)
   let address = await market.contract.getHost(slotId)
@@ -53,7 +53,7 @@ method getHost(market: OnChainMarket,
     return none Address
 
 method fillSlot(market: OnChainMarket,
-                requestId: array[32, byte],
+                requestId: RequestId,
                 slotIndex: UInt256,
                 proof: seq[byte]) {.async.} =
   await market.contract.fillSlot(requestId, slotIndex, proof)
@@ -67,7 +67,7 @@ method subscribeRequests(market: OnChainMarket,
   return OnChainMarketSubscription(eventSubscription: subscription)
 
 method subscribeSlotFilled*(market: OnChainMarket,
-                            requestId: array[32, byte],
+                            requestId: RequestId,
                             slotIndex: UInt256,
                             callback: OnSlotFilled):
                            Future[MarketSubscription] {.async.} =
@@ -78,7 +78,7 @@ method subscribeSlotFilled*(market: OnChainMarket,
   return OnChainMarketSubscription(eventSubscription: subscription)
 
 method subscribeFulfillment(market: OnChainMarket,
-                            requestId: array[32, byte],
+                            requestId: RequestId,
                             callback: OnFulfillment):
                            Future[MarketSubscription] {.async.} =
   proc onEvent(event: RequestFulfilled) {.upraises:[].} =
