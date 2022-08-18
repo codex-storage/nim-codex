@@ -151,35 +151,154 @@ proc runSuite(cache: bool) =
 
       # PASS!
       when getRes.error is (ref CatchableError):
+        check: true
         echo "PASS: when getRes.error is (ref CatchableError)"
+        echo "NOTE: msg string is what we expect: " & getRes.error.msg
         check: getRes.error.msg == "Block not in database"
-        echo "NOTE: I am sure msg string is what we expect: " & getRes.error.msg
       else:
         check: false
 
-      # FAIL!
+      # sanity check
       when getRes.error is CatchableError:
         check: true
       else:
-        echo "FAIL: when getRes.error is CatchableError"
         check: false
-        echo "NOTE: this is only sanity check for ref vs. non-ref, but msg string is still what we expect: " & getRes.error.msg
+        echo "FAIL: when getRes.error is CatchableError"
+        echo "NOTE: sanity check for ref vs. non-ref; msg string is what we expect: " & getRes.error.msg
+        check: getRes.error.msg == "Block not in database"
+
+      # `when..is` does not work for error types that inherit from
+      # CatchableError, need to use a runtime check not a compile-time check
 
       # FAIL!
       when getRes.error is (ref CodexError):
         check: true
       else:
-        echo "FAIL: when getRes.error is (ref CodexError)"
         check: false
-        echo "NOTE: msg string is still what we expect: " & getRes.error.msg
+        echo "FAIL: when getRes.error is (ref CodexError)"
+        echo "NOTE: msg string is what we expect: " & getRes.error.msg
+        check: getRes.error.msg == "Block not in database"
 
       # FAIL!
       when getRes.error is (ref BlockNotFoundError):
         check: true
       else:
-        echo "FAIL: when getRes.error is (ref BlockNotFoundError)"
         check: false
-        echo "NOTE: msg string is still what we expect: " & getRes.error.msg
+        echo "FAIL: when getRes.error is (ref BlockNotFoundError)"
+        echo "NOTE: msg string is what we expect: " & getRes.error.msg
+        check: getRes.error.msg == "Block not in database"
+
+      # PASS!
+      if getRes.error is (ref CatchableError):
+        check: true
+        echo "PASS: if getRes.error is (ref CatchableError)"
+        echo "NOTE: msg string is what we expect: " & getRes.error.msg
+        check: getRes.error.msg == "Block not in database"
+      else:
+        check: false
+
+      # sanity check
+      if getRes.error is CatchableError:
+        check: true
+      else:
+        check: false
+        echo "FAIL: if getRes.error is CatchableError"
+        echo "NOTE: sanity check for ref vs. non-ref; msg string is what we expect: " & getRes.error.msg
+        check: getRes.error.msg == "Block not in database"
+
+      # `if..is` does not work either
+
+      # FAIL!
+      if getRes.error is (ref CodexError):
+        check: true
+      else:
+        check: false
+        echo "FAIL: if getRes.error is (ref CodexError)"
+        echo "NOTE: msg string is what we expect: " & getRes.error.msg
+        check: getRes.error.msg == "Block not in database"
+
+      if getRes.error is (ref BlockNotFoundError):
+        check: true
+      else:
+        check: false
+        echo "FAIL: if getRes.error is (ref BlockNotFoundError)"
+        echo "NOTE: msg string is what we expect: " & getRes.error.msg
+        check: getRes.error.msg == "Block not in database"
+
+      # `case..of` does not compile with `of [type]` or `of (ref [type])`
+      # but `if..of` does work!
+
+      # PASS!
+      if getRes.error of (ref CatchableError):
+        check: true
+        echo "PASS: if getRes.error of (ref CatchableError)"
+        echo "NOTE: msg string is what we expect: " & getRes.error.msg
+        check: getRes.error.msg == "Block not in database"
+      else:
+        check: false
+
+      # PASS!
+      if getRes.error of CatchableError:
+        check: true
+        echo "PASS: if getRes.error of CatchableError"
+        echo "NOTE: msg string is what we expect: " & getRes.error.msg
+        check: getRes.error.msg == "Block not in database"
+      else:
+        check: false
+
+      # PASS!
+      if getRes.error of (ref CodexError):
+        check: true
+        echo "PASS: if getRes.error of (ref CodexError)"
+        echo "NOTE: msg string is what we expect: " & getRes.error.msg
+        check: getRes.error.msg == "Block not in database"
+      else:
+        check: false
+
+        # PASS!
+      if getRes.error of CodexError:
+        check: true
+        echo "PASS: if getRes.error of CodexError"
+        echo "NOTE: msg string is what we expect: " & getRes.error.msg
+        check: getRes.error.msg == "Block not in database"
+      else:
+        check: false
+
+      # PASS!
+      if getRes.error of (ref BlockNotFoundError):
+        check: true
+        echo "PASS: if getRes.error of (ref BlockNotFoundError)"
+        echo "NOTE: msg string is what we expect: " & getRes.error.msg
+        check: getRes.error.msg == "Block not in database"
+      else:
+        check: false
+
+      # PASS!
+      if getRes.error of BlockNotFoundError:
+        check: true
+        echo "PASS: if getRes.error of BlockNotFoundError"
+        echo "NOTE: msg string is what we expect: " & getRes.error.msg
+        check: getRes.error.msg == "Block not in database"
+      else:
+        check: false
+
+      # sanity check
+      if getRes.error of (ref ValueError):
+        check: true
+      else:
+        check: false
+        echo "FAIL: if getRes.error of (ref ValueError)"
+        echo "NOTE: sanity check for error type not in inheritance chain; msg string is what we expect: " & getRes.error.msg
+        check: getRes.error.msg == "Block not in database"
+
+      # sanity check
+      if getRes.error of ValueError:
+        check: true
+      else:
+        check: false
+        echo "FAIL: if getRes.error of ValueError"
+        echo "NOTE: sanity check for error type not in inheritance chain; msg string is what we expect: " & getRes.error.msg
+        check: getRes.error.msg == "Block not in database"
 
     test "hasBlock":
       let
