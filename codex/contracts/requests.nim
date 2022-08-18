@@ -1,3 +1,4 @@
+import std/hashes
 import pkg/contractabi
 import pkg/nimcrypto
 import pkg/ethers/fields
@@ -28,9 +29,17 @@ type
     u*: seq[byte]
     publicKey*: seq[byte]
     name*: seq[byte]
-  SlotId* = array[32, byte]
-  RequestId* = array[32, byte]
-  Nonce* = array[32, byte]
+  SlotId* = distinct array[32, byte]
+  RequestId* = distinct array[32, byte]
+  Nonce* = distinct array[32, byte]
+
+proc `==`*(x, y: Nonce): bool {.borrow.}
+proc `==`*(x, y: RequestId): bool {.borrow.}
+proc `==`*(x, y: SlotId): bool {.borrow.}
+proc hash*(x: SlotId): Hash {.borrow.}
+
+func toArray*(id: RequestId | SlotId | Nonce): array[32, byte] =
+  array[32, byte](id)
 
 func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
   StorageRequest(
@@ -84,6 +93,9 @@ func solidityType*(_: type StorageAsk): string =
 func solidityType*(_: type StorageRequest): string =
   solidityType(StorageRequest.fieldTypes)
 
+func solidityType*[T: RequestId | SlotId | Nonce](_: type T): string =
+  solidityType(array[32, byte])
+
 func encode*(encoder: var AbiEncoder, por: StoragePoR) =
   encoder.write(por.fieldValues)
 
@@ -96,8 +108,16 @@ func encode*(encoder: var AbiEncoder, content: StorageContent) =
 func encode*(encoder: var AbiEncoder, ask: StorageAsk) =
   encoder.write(ask.fieldValues)
 
+func encode*(encoder: var AbiEncoder, id: RequestId | SlotId | Nonce) =
+  encoder.write(id.toArray)
+
 func encode*(encoder: var AbiEncoder, request: StorageRequest) =
   encoder.write(request.fieldValues)
+
+func decode*[T: RequestId | SlotId | Nonce](decoder: var AbiDecoder,
+                                            _: type T): ?!T =
+  let nonce = ?decoder.read(type array[32, byte])
+  success T(nonce)
 
 func decode*(decoder: var AbiDecoder, T: type StoragePoR): ?!T =
   let tupl = ?decoder.read(StoragePoR.fieldTypes)
@@ -121,11 +141,11 @@ func decode*(decoder: var AbiDecoder, T: type StorageRequest): ?!T =
 
 func id*(request: StorageRequest): RequestId =
   let encoding = AbiEncoder.encode((request, ))
-  keccak256.digest(encoding).data
+  RequestId(keccak256.digest(encoding).data)
 
 func slotId*(requestId: RequestId, slot: UInt256): SlotId =
   let encoding = AbiEncoder.encode((requestId, slot))
-  keccak256.digest(encoding).data
+  SlotId(keccak256.digest(encoding).data)
 
 func slotId*(request: StorageRequest, slot: UInt256): SlotId =
   slotId(request.id, slot)

@@ -2,12 +2,12 @@ import pkg/chronos
 import pkg/stint
 import pkg/upraises
 import ./periods
-from ../../contracts/requests import SlotId, RequestId
+import ../../contracts/requests
 
 export chronos
 export stint
 export periods
-export SlotId, RequestId
+export requests
 
 type
   Proofs* = ref object of RootObj
