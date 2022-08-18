@@ -31,13 +31,15 @@ requires "nim >= 1.2.0",
          "libp2pdht",
          "eth"
 
+import std/strutils
+
 when declared(namedBin):
   namedBin = {
     "codex/codex": "codex"
   }.toTable()
 
 ### Helper functions
-proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
+proc buildBinary(name: string, outName = "", srcDir = "./", params = "", lang = "c") =
   if not dirExists "build":
     mkDir "build"
   # allow something like "nim nimbus --verbosity:0 --hints:off nimbus.nims"
@@ -49,18 +51,17 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
     for i in 2..<paramCount():
       extra_params &= " " & paramStr(i)
 
-
-  exec "nim " & lang & " --out:build/" & name & " " & extra_params & " " & srcDir & name & ".nim"
+  exec "nim " & lang & " --out:build/" & (if outName != "": outName else: name) & " " & extra_params & " " & srcDir & name & ".nim"
 
 proc test(name: string, srcDir = "tests/", lang = "c") =
-  buildBinary name, srcDir
+  buildBinary name, srcDir = srcDir
   exec "build/" & name
 
 task codex, "build codex binary":
   buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
-task hello_codex, "build hello_codex binary":
-  buildBinary "hello_codex", srcDir = "testground/hello_codex/", params = "-d:chronicles_runtime_filtering"
+task testground_exec, "build codex_testground binary":
+  buildBinary "main", outName = "codex_testground", srcDir = "testground/" & getEnv("TESTGROUND_PLAN").strip & "/"
 
 task testCodex, "Build & run Codex tests":
   test "testCodex"
