@@ -1,6 +1,7 @@
 import std/times
 import pkg/asynctest
 import pkg/chronos
+import pkg/upraises
 import pkg/stint
 import pkg/codex/purchasing
 import ./helpers/mockmarket
@@ -87,3 +88,19 @@ suite "Purchasing":
     clock.set(request.expiry.truncate(int64))
     expect PurchaseTimeout:
       await purchase.wait()
+
+  test "supports request cancelled subscription when request times out":
+    let purchase = purchasing.purchase(request)
+    let request = market.requested[0]
+    var receivedIds: seq[array[32, byte]]
+    clock.set(request.expiry.truncate(int64))
+    proc onRequestCancelled(id: array[32, byte]) {.gcsafe, upraises:[].} =
+      receivedIds.add(id)
+    let subscription = await market.subscribeRequestCancelled(
+                                      request.id,
+                                      onRequestCancelled)
+    try:
+      await purchase.wait()
+    except PurchaseTimeout:
+      check receivedIds == @[request.id]
+      await subscription.unsubscribe()
