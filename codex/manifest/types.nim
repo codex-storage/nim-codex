@@ -25,9 +25,10 @@ const
 
 type
   Manifest* = ref object of RootObj
-    rootHash*: ?Cid         # root (tree) hash of the contained data set
-    blockSize*: int         # size of each contained block (might not be needed if blocks are len-prefixed)
-    blocks*: seq[Cid]       # block Cid
+    rootHash*: ?Cid         # Root (tree) hash of the contained data set
+    originalBytes*: int     # Exact file size
+    blockSize*: int         # Size of each contained block (might not be needed if blocks are len-prefixed)
+    blocks*: seq[Cid]       # Block Cid
     version*: CidVersion    # Cid version
     hcodec*: MultiCodec     # Multihash codec
     codec*: MultiCodec      # Data set codec

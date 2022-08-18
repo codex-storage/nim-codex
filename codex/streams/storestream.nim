@@ -30,25 +30,32 @@ logScope:
   topics = "dagger storestream"
 
 type
+  # Make SeekableStream from a sequence of blocks stored in Manifest
   StoreStream* = ref object of SeekableStream
-    store*: BlockStore
-    manifest*: Manifest
+    store*: BlockStore          # Store where to lookup block contents
+    manifest*: Manifest         # List of block CIDs
     emptyBlock*: seq[byte]
+    pad*: bool                  # Pad last block to manifest.blockSize?
 
 proc new*(
   T: type StoreStream,
   store: BlockStore,
-  manifest: Manifest): T =
+  manifest: Manifest,
+  pad = true): T =
   result = T(
     store: store,
     manifest: manifest,
+    pad: pad,
     offset: 0,
     emptyBlock: newSeq[byte](manifest.blockSize))
 
   result.initStream()
 
 method `size`*(self: StoreStream): int =
-  self.manifest.len * self.manifest.blockSize
+  if self.pad:
+    self.manifest.len * self.manifest.blockSize
+  else:
+    self.manifest.originalBytes
 
 proc `size=`*(self: StoreStream, size: int)
   {.error: "Setting the size is forbidden".} =
@@ -78,7 +85,7 @@ method readOnce*(
     let
       blockNum    = self.offset div self.manifest.blockSize
       blockOffset = self.offset mod self.manifest.blockSize
-      readBytes   = min(nbytes - read, self.manifest.blockSize - blockOffset)
+      readBytes   = min([nbytes - read, self.manifest.blockSize - blockOffset, self.size - self.offset])
 
     # Read contents of block `blockNum`
     without blk =? await self.store.getBlock(self.manifest[blockNum]), error:

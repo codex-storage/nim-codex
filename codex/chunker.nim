@@ -36,12 +36,14 @@ type
     FixedChunker
     RabinChunker
 
-  Chunker* = object
-    reader*: Reader
+  # Reader that splits input data into fixed-size chunks [or using Rabin Chunking - not supported ATM]
+  Chunker* = ref object
+    reader*: Reader               # Procedure called to actually read the data
+    offset*: int                  # Bytes read so far (position in the stream)
     case kind*: ChunkerType:
     of FixedChunker:
-      chunkSize*: Natural
-      pad*: bool # pad last block if less than size
+      chunkSize*: Natural         # Size of each chunk
+      pad*: bool                  # Pad last block to chunkSize?
     of RabinChunker:
       discard
 
@@ -58,6 +60,8 @@ proc getBytes*(c: Chunker): Future[seq[byte]] {.async.} =
 
   if read <= 0:
     return @[]
+
+  c.offset += read
 
   if not c.pad and buff.len > read:
     buff.setLen(read)

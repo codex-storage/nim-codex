@@ -120,23 +120,28 @@ proc retrieve*(
 
   if manifest =? (await node.fetchManifest(cid)):
     if manifest.protected:
+      # Retrieve, decode and save to the local store all EС groups
       proc erasureJob(): Future[void] {.async.} =
         try:
-          without res =? (await node.erasure.decode(manifest)), error: # spawn an erasure decoding job
+          # Spawn an erasure decoding job
+          without res =? (await node.erasure.decode(manifest)), error:
             trace "Unable to erasure decode manifest", cid, exc = error.msg
         except CatchableError as exc:
           trace "Exception decoding manifest", cid
-
+      #
       asyncSpawn erasureJob()
     else:
+      # Prefetch the entire dataset into the local store
       proc prefetchBlocks() {.async, raises: [Defect].} =
         try:
           discard await node.fetchBatched(manifest)
         except CatchableError as exc:
           trace "Exception prefetching blocks", exc = exc.msg
-
+      #
       asyncSpawn prefetchBlocks()
-    return LPStream(StoreStream.new(node.blockStore, manifest)).success
+    #
+    # Retrieve all blocks of the dataset sequentially from the local store or network
+    return LPStream(StoreStream.new(node.blockStore, manifest, pad = false)).success
 
   let
     stream = BufferStream.new()
@@ -189,6 +194,7 @@ proc store*(
     await stream.close()
 
   # Generate manifest
+  blockManifest.originalBytes = chunker.offset  # store the exact file size
   without data =? blockManifest.encode():
     return failure(
       newException(CodexError, "Could not generate dataset manifest!"))
