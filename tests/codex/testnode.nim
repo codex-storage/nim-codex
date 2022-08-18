@@ -179,6 +179,9 @@ suite "Test Node":
       (await localStore.putBlock(blk)).tryGet()
       manifest.add(blk.cid)
 
+    manifest.originalBytes = chunker.offset  # store the exact file size
+    original.setLen(manifest.originalBytes)
+
     let
       manifestBlock = bt.Block.new(
           manifest.encode().tryGet(),
