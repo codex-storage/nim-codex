@@ -1,3 +1,4 @@
+import std/hashes
 import std/tables
 import pkg/stint
 import pkg/chronos
@@ -22,13 +23,16 @@ type
     clock: Clock
     request*: StorageRequest
   PurchaseTimeout* = Timeout
-  PurchaseId* = array[32, byte]
+  PurchaseId* = distinct array[32, byte]
 
 const DefaultProofProbability = 100.u256
 const DefaultRequestExpiryInterval = (10 * 60).u256
 
 proc start(purchase: Purchase) {.gcsafe.}
 func id*(purchase: Purchase): PurchaseId
+proc `==`*(x, y: PurchaseId): bool {.borrow.}
+proc hash*(x: PurchaseId): Hash {.borrow.}
+proc toHex*(x: PurchaseId): string {.borrow.}
 
 proc new*(_: type Purchasing, market: Market, clock: Clock): Purchasing =
   Purchasing(
@@ -45,7 +49,9 @@ proc populate*(purchasing: Purchasing, request: StorageRequest): StorageRequest 
   if result.expiry == 0.u256:
     result.expiry = (purchasing.clock.now().u256 + purchasing.requestExpiryInterval)
   if result.nonce == Nonce.default:
-    doAssert randomBytes(result.nonce) == 32
+    var id = result.nonce.toArray
+    doAssert randomBytes(id) == 32
+    result.nonce = Nonce(id)
 
 proc purchase*(purchasing: Purchasing, request: StorageRequest): Purchase =
   let request = purchasing.populate(request)
@@ -94,7 +100,7 @@ proc wait*(purchase: Purchase) {.async.} =
   await purchase.future
 
 func id*(purchase: Purchase): PurchaseId =
-  purchase.request.id
+  PurchaseId(purchase.request.id)
 
 func finished*(purchase: Purchase): bool =
   purchase.future.finished

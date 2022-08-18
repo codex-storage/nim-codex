@@ -1,5 +1,6 @@
 import std/random
 import std/sequtils
+import pkg/codex/proving
 import pkg/stint
 
 proc example*[T: SomeInteger](_: type T): T =
@@ -15,3 +16,6 @@ proc example*[T](_: type seq[T]): seq[T] =
 
 proc example*(_: type UInt256): UInt256 =
   UInt256.fromBytes(array[32, byte].example)
+
+proc example*[T: RequestId | SlotId | Nonce](_: type T): T =
+  T(array[32, byte].example)

@@ -45,6 +45,9 @@ func `%`*(stint: StInt|StUInt): JsonNode =
 func `%`*(arr: openArray[byte]): JsonNode =
   %("0x" & arr.toHex)
 
+func `%`*(id: RequestId | SlotId | Nonce): JsonNode =
+  % id.toArray
+
 func `%`*(purchase: Purchase): JsonNode =
   %*{
     "finished": purchase.finished,

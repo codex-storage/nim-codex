@@ -13,6 +13,7 @@ push: {.upraises: [].}
 
 
 import std/sequtils
+import std/sugar
 
 import pkg/questionable
 import pkg/questionable/results
@@ -103,6 +104,10 @@ proc decodeString(_: type array[32, byte],
     ok array[32, byte].fromHex(value)
   except ValueError as e:
     err e.msg.cstring
+
+proc decodeString[T: PurchaseId | RequestId | Nonce](_: type T,
+                  value: string): Result[T, cstring] =
+  array[32, byte].decodeString(value).map(id => T(id))
 
 proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   var router = RestRouter.init(validate)
