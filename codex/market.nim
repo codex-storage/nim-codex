@@ -10,9 +10,10 @@ export requests
 type
   Market* = ref object of RootObj
   Subscription* = ref object of RootObj
-  OnRequest* = proc(id: RequestId, ask: StorageAsk) {.gcsafe, upraises:[].}
-  OnFulfillment* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
-  OnSlotFilled* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises:[].}
+  OnRequest* = proc(id: array[32, byte], ask: StorageAsk) {.gcsafe, upraises:[].}
+  OnFulfillment* = proc(requestId: array[32, byte]) {.gcsafe, upraises: [].}
+  OnSlotFilled* = proc(requestId: array[32, byte], slotIndex: UInt256) {.gcsafe, upraises:[].}
+  OnRequestCancelled* = proc(requestId: array[32, byte]) {.gcsafe, upraises:[].}
 
 method getSigner*(market: Market): Future[Address] {.base, async.} =
   raiseAssert("not implemented")
@@ -38,6 +39,10 @@ method fillSlot*(market: Market,
                  proof: seq[byte]) {.base, async.} =
   raiseAssert("not implemented")
 
+method withdrawFunds*(market: Market,
+                      requestId: array[32, byte]) {.base, async.} =
+  raiseAssert("not implemented")
+
 method subscribeRequests*(market: Market,
                           callback: OnRequest):
                          Future[Subscription] {.base, async.} =
@@ -53,6 +58,12 @@ method subscribeSlotFilled*(market: Market,
                             requestId: RequestId,
                             slotIndex: UInt256,
                             callback: OnSlotFilled):
+                           Future[Subscription] {.base, async.} =
+  raiseAssert("not implemented")
+
+method subscribeRequestCancelled*(market: Market,
+                            requestId: array[32, byte],
+                            callback: OnRequestCancelled):
                            Future[Subscription] {.base, async.} =
   raiseAssert("not implemented")
 

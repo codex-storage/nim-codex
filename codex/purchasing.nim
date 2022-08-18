@@ -23,6 +23,12 @@ type
     clock: Clock
     request*: StorageRequest
   PurchaseTimeout* = Timeout
+  RequestState* = enum
+    New         = 1, # [default] waiting to fill slots
+    Started     = 2, # all slots filled, accepting regular proofs
+    Cancelled   = 3, # not enough slots filled before expiry
+    Finished    = 4, # successfully completed
+    Failed      = 5  # too many nodes have failed to provide proofs, data lost
   PurchaseId* = distinct array[32, byte]
 
 const DefaultProofProbability = 100.u256
@@ -75,6 +81,7 @@ func getPurchase*(purchasing: Purchasing, id: PurchaseId): ?Purchase =
 proc run(purchase: Purchase) {.async.} =
   let market = purchase.market
   let clock = purchase.clock
+  var state = RequestState.New
 
   proc requestStorage {.async.} =
     purchase.request = await market.requestStorage(purchase.request)
@@ -87,13 +94,26 @@ proc run(purchase: Purchase) {.async.} =
     let subscription = await market.subscribeFulfillment(request.id, callback)
     await done
     await subscription.unsubscribe()
+    state = RequestState.Started
 
   proc withTimeout(future: Future[void]) {.async.} =
     let expiry = purchase.request.expiry.truncate(int64)
     await future.withTimeout(clock, expiry)
 
   await requestStorage()
-  await waitUntilFulfilled().withTimeout()
+  try:
+    await waitUntilFulfilled().withTimeout()
+  except PurchaseTimeout as e:
+    if state != RequestState.Started:
+      # If contract was fulfilled, the state would be RequestState.Started.
+      # Otherwise, the request would have timed out and should be considered
+      # cancelled. However, the request state hasn't been updated to
+      # RequestState.Cancelled yet so we can't check for that state or listen for
+      # an event emission. Instead, the state will be updated when the client
+      # requests to withdraw funds from the storage request.
+      await market.withdrawFunds(purchase.request.id)
+      state = RequestState.Cancelled
+    raise e
 
 proc start(purchase: Purchase) =
   purchase.future = purchase.run()
@@ -103,6 +123,9 @@ proc wait*(purchase: Purchase) {.async.} =
 
 func id*(purchase: Purchase): PurchaseId =
   PurchaseId(purchase.request.id)
+
+func cancelled*(purchase: Purchase): bool =
+  purchase.future.cancelled
 
 func finished*(purchase: Purchase): bool =
   purchase.future.finished

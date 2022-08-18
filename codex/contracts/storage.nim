@@ -18,7 +18,8 @@ type
     slotId* {.indexed.}: SlotId
   RequestFulfilled* = object of Event
     requestId* {.indexed.}: RequestId
-
+  RequestCancelled* = object of Event
+    requestId* {.indexed.}: Id
   ProofSubmitted* = object of Event
     id*: SlotId
     proof*: seq[byte]
@@ -34,6 +35,7 @@ proc balanceOf*(storage: Storage, account: Address): UInt256 {.contract, view.}
 
 proc requestStorage*(storage: Storage, request: StorageRequest) {.contract.}
 proc fillSlot*(storage: Storage, requestId: RequestId, slotIndex: UInt256, proof: seq[byte]) {.contract.}
+proc withdrawFunds*(storage: Storage, requestId: Id) {.contract.}
 proc payoutSlot*(storage: Storage, requestId: RequestId, slotIndex: UInt256) {.contract.}
 proc getRequest*(storage: Storage, id: RequestId): StorageRequest {.contract, view.}
 proc getHost*(storage: Storage, id: SlotId): Address {.contract, view.}

@@ -58,6 +58,10 @@ method fillSlot(market: OnChainMarket,
                 proof: seq[byte]) {.async.} =
   await market.contract.fillSlot(requestId, slotIndex, proof)
 
+method withdrawFunds(market: OnChainMarket,
+                     requestId: array[32, byte]) {.async.} =
+  await market.contract.withdrawFunds(requestId)
+
 method subscribeRequests(market: OnChainMarket,
                          callback: OnRequest):
                         Future[MarketSubscription] {.async.} =
@@ -85,6 +89,16 @@ method subscribeFulfillment(market: OnChainMarket,
     if event.requestId == requestId:
       callback(event.requestId)
   let subscription = await market.contract.subscribe(RequestFulfilled, onEvent)
+  return OnChainMarketSubscription(eventSubscription: subscription)
+
+method subscribeRequestCancelled*(market: OnChainMarket,
+                                  requestId: array[32, byte],
+                                  callback: OnRequestCancelled):
+                                Future[MarketSubscription] {.async.} =
+  proc onEvent(event: RequestCancelled) {.upraises:[].} =
+    if event.requestId == requestId:
+      callback(event.requestId)
+  let subscription = await market.contract.subscribe(RequestCancelled, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
 method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =

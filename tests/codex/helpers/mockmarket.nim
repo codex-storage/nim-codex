@@ -23,6 +23,7 @@ type
     onRequest: seq[RequestSubscription]
     onFulfillment: seq[FulfillmentSubscription]
     onSlotFilled: seq[SlotFilledSubscription]
+    onRequestCancelled: seq[RequestCancelledSubscription]
   RequestSubscription* = ref object of Subscription
     market: MockMarket
     callback: OnRequest
@@ -35,6 +36,10 @@ type
     requestId: RequestId
     slotIndex: UInt256
     callback: OnSlotFilled
+  RequestCancelledSubscription* = ref object of Subscription
+    market: MockMarket
+    requestId: array[32, byte]
+    callback: OnRequestCancelled
 
 proc new*(_: type MockMarket): MockMarket =
   MockMarket(signer: Address.example)
@@ -75,6 +80,13 @@ proc emitSlotFilled*(market: MockMarket,
        subscription.slotIndex == slotIndex:
       subscription.callback(requestId, slotIndex)
 
+proc emitRequestCancelled*(market: MockMarket,
+                     requestId: array[32, byte]) =
+  var subscriptions = market.subscriptions.onRequestCancelled
+  for subscription in subscriptions:
+    if subscription.requestId == requestId:
+      subscription.callback(requestId)
+
 proc emitRequestFulfilled*(market: MockMarket, requestId: RequestId) =
   var subscriptions = market.subscriptions.onFulfillment
   for subscription in subscriptions:
@@ -100,6 +112,10 @@ method fillSlot*(market: MockMarket,
                  slotIndex: UInt256,
                  proof: seq[byte]) {.async.} =
   market.fillSlot(requestId, slotIndex, proof, market.signer)
+
+method withdrawFunds*(market: MockMarket,
+                      requestId: array[32, byte]) {.async.} =
+  market.emitRequestCancelled(requestId)
 
 method subscribeRequests*(market: MockMarket,
                           callback: OnRequest):
@@ -137,6 +153,18 @@ method subscribeSlotFilled*(market: MockMarket,
   market.subscriptions.onSlotFilled.add(subscription)
   return subscription
 
+method subscribeRequestCancelled*(market: MockMarket,
+                            requestId: array[32, byte],
+                            callback: OnRequestCancelled):
+                           Future[Subscription] {.async.} =
+  let subscription = RequestCancelledSubscription(
+    market: market,
+    requestId: requestId,
+    callback: callback
+  )
+  market.subscriptions.onRequestCancelled.add(subscription)
+  return subscription
+
 method unsubscribe*(subscription: RequestSubscription) {.async.} =
   subscription.market.subscriptions.onRequest.keepItIf(it != subscription)
 
@@ -145,3 +173,6 @@ method unsubscribe*(subscription: FulfillmentSubscription) {.async.} =
 
 method unsubscribe*(subscription: SlotFilledSubscription) {.async.} =
   subscription.market.subscriptions.onSlotFilled.keepItIf(it != subscription)
+
+method unsubscribe*(subscription: RequestCancelledSubscription) {.async.} =
+  subscription.market.subscriptions.onRequestCancelled.keepItIf(it != subscription)
