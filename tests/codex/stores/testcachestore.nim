@@ -72,11 +72,13 @@ suite "Cache Store":
     store = CacheStore.new(@[newBlock])
 
     let blk = await store.getBlock(newBlock.cid)
-    check blk.tryGet().get() == newBlock
+    check blk.tryGet() == newBlock
 
   test "fail getBlock":
     let blk = await store.getBlock(newBlock.cid)
-    check blk.tryGet().isNone()
+    check:
+      blk.isErr
+      blk.error of BlockNotFoundError
 
   test "hasBlock":
     let store = CacheStore.new(@[newBlock])

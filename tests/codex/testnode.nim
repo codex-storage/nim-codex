@@ -158,7 +158,7 @@ suite "Test Node":
       (await localStore.hasBlock(manifestCid)).tryGet()
 
     var
-      manifestBlock = (await localStore.getBlock(manifestCid)).tryGet().get()
+      manifestBlock = (await localStore.getBlock(manifestCid)).tryGet()
       localManifest = Manifest.decode(manifestBlock).tryGet()
 
     check:

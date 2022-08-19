@@ -29,6 +29,8 @@ type
     cid*: Cid
     data*: seq[byte]
 
+  BlockNotFoundError* = object of CodexError
+
 template EmptyCid*: untyped =
   var
     emptyCid {.global, threadvar.}:
