@@ -11,8 +11,6 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
-import std/options
-
 import pkg/chronos
 import pkg/chronicles
 import pkg/datastore/sqlite_datastore
@@ -72,7 +70,7 @@ proc blockKey*(blockCid: Cid): ?!Key =
 
 method getBlock*(
   self: SQLiteStore,
-  cid: Cid): Future[?!(?Block)] {.async.} =
+  cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the cache or database.
   ## Save a copy to the cache if present in the database but not in the cache
   ##
@@ -84,24 +82,26 @@ method getBlock*(
 
   if cid.isEmpty:
     trace "Empty block, ignoring"
-    return success cid.emptyBlock.some
+    return success cid.emptyBlock
 
   if not self.cache.isNil:
-    without cachedBlkOpt =? await self.cache.getBlock(cid), error:
-      trace "Unable to read block from cache", cid, error = error.msg
+    let
+      cachedBlockRes = await self.cache.getBlock(cid)
 
-    if cachedBlkOpt.isSome:
-      return success cachedBlkOpt
+    if cachedBlockRes.isOk:
+      return success cachedBlockRes.get
+    else:
+      trace "Unable to read block from cache", cid, error = cachedBlockRes.error.msg
 
   without blkKey =? blockKey(cid), error:
     return failure error
 
   without dataOpt =? await self.datastore.get(blkKey), error:
-    trace "Unable to read block from database", key = blkKey.id, error = error.msg
+    trace "Error requesting block from database", key = blkKey.id, error = error.msg
     return failure error
 
   without data =? dataOpt:
-    return success Block.none
+    return failure (ref BlockNotFoundError)(msg: "Block not in database")
 
   without blk =? Block.new(cid, data), error:
     trace "Unable to construct block from data", cid, error = error.msg
@@ -114,7 +114,7 @@ method getBlock*(
     if putCachedRes.isErr:
       trace "Unable to store block in cache", cid, error = putCachedRes.error.msg
 
-  return success blk.some
+  return success blk
 
 method putBlock*(
   self: SQLiteStore,
@@ -154,7 +154,7 @@ method putBlock*(
 method delBlock*(
   self: SQLiteStore,
   cid: Cid): Future[?!void] {.async.} =
-  ## Delete a block from the database and cache
+  ## Delete a block from the cache and database
   ##
 
   if not self.cache.isNil:

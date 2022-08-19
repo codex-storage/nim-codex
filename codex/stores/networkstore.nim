@@ -31,28 +31,20 @@ type
     engine*: BlockExcEngine # blockexc decision engine
     localStore*: BlockStore # local block store
 
-method getBlock*(self: NetworkStore, cid: Cid): Future[?! (? bt.Block)] {.async.} =
+method getBlock*(self: NetworkStore, cid: Cid): Future[?!bt.Block] {.async.} =
   ## Get a block from a remote peer
   ##
 
-  trace "Getting block from network store", cid
+  trace "Getting block from local store or network", cid
 
-  let blk = await self.localStore.getBlock(cid)
-  if blk.isErr:
-    return blk
-  if blk.get.isSome:
-    trace "Retrieved block from local store", cid
-    return blk
-
-  trace "Block not found in local store", cid
-  try:
+  without blk =? await self.localStore.getBlock(cid), error:
+    if not (error of BlockNotFoundError): return failure error
+    trace "Block not in local store", cid
     # TODO: What if block isn't available in the engine too?
-    let blk = await self.engine.requestBlock(cid)
-    # TODO: add block to the local store
-    return blk.some.success
-  except CatchableError as exc:
-    trace "Exception requesting block", cid, exc = exc.msg
-    return failure(exc)
+    # TODO: add retrieved block to the local store
+    return (await self.engine.requestBlock(cid)).catch
+
+  return success blk
 
 method putBlock*(self: NetworkStore, blk: bt.Block): Future[?!void] {.async.} =
   ## Store block locally and notify the network

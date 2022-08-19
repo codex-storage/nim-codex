@@ -379,8 +379,8 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
 
     # Extract succesfully received blocks
     let blocks = blockFuts
-      .filterIt(it.completed and it.read.isOk and it.read.get.isSome)
-      .mapIt(it.read.get.get)
+      .filterIt(it.completed and it.read.isOk)
+      .mapIt(it.read.get)
 
     if blocks.len > 0:
       trace "Sending blocks to peer", peer = task.id, blocks = blocks.len
