@@ -29,23 +29,14 @@ const
 type
   # default reader type
   ChunkBuffer* = ptr UncheckedArray[byte]
-  Reader* =
-    proc(data: ChunkBuffer, len: int): Future[int] {.gcsafe, raises: [Defect].}
+  Reader* = proc(data: ChunkBuffer, len: int): Future[int] {.gcsafe, raises: [Defect].}
 
-  ChunkerType* {.pure.} = enum
-    FixedChunker
-    RabinChunker
-
-  # Reader that splits input data into fixed-size chunks [or using Rabin Chunking - not supported ATM]
+  # Reader that splits input data into fixed-size chunks
   Chunker* = ref object
-    reader*: Reader               # Procedure called to actually read the data
-    offset*: int                  # Bytes read so far (position in the stream)
-    case kind*: ChunkerType:
-    of FixedChunker:
-      chunkSize*: Natural         # Size of each chunk
-      pad*: bool                  # Pad last block to chunkSize?
-    of RabinChunker:
-      discard
+    reader*: Reader             # Procedure called to actually read the data
+    offset*: int                # Bytes read so far (position in the stream)
+    chunkSize*: Natural         # Size of each chunk
+    pad*: bool                  # Pad last chunk to chunkSize?
 
   FileChunker* = Chunker
   LPStreamChunker* = Chunker
@@ -70,24 +61,19 @@ proc getBytes*(c: Chunker): Future[seq[byte]] {.async.} =
 
 func new*(
   T: type Chunker,
-  kind = ChunkerType.FixedChunker,
   reader: Reader,
   chunkSize = DefaultChunkSize,
   pad = true): T =
-  var chunker = Chunker(
-    kind: kind,
-    reader: reader)
 
-  if kind == ChunkerType.FixedChunker:
-    chunker.pad = pad
-    chunker.chunkSize = chunkSize
-
-  return chunker
+  Chunker(
+    reader: reader,
+    offset: 0,
+    chunkSize: chunkSize,
+    pad: pad)
 
 proc new*(
   T: type LPStreamChunker,
   stream: LPStream,
-  kind = ChunkerType.FixedChunker,
   chunkSize = DefaultChunkSize,
   pad = true): T =
   ## create the default File chunker
@@ -108,15 +94,13 @@ proc new*(
     return res
 
   Chunker.new(
-    kind = ChunkerType.FixedChunker,
     reader = reader,
-    pad = pad,
-    chunkSize = chunkSize)
+    chunkSize = chunkSize,
+    pad = pad)
 
 proc new*(
   T: type FileChunker,
   file: File,
-  kind = ChunkerType.FixedChunker,
   chunkSize = DefaultChunkSize,
   pad = true): T =
   ## create the default File chunker
@@ -141,7 +125,6 @@ proc new*(
     return total
 
   Chunker.new(
-    kind = ChunkerType.FixedChunker,
     reader = reader,
-    pad = pad,
-    chunkSize = chunkSize)
+    chunkSize = chunkSize,
+    pad = pad)
