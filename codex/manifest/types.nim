@@ -26,7 +26,7 @@ const
 type
   Manifest* = ref object of RootObj
     rootHash*: ?Cid         # Root (tree) hash of the contained data set
-    originalBytes*: int     # Exact file size
+    originalBytes*: int     # Exact size of the original (uploaded) file
     blockSize*: int         # Size of each contained block (might not be needed if blocks are len-prefixed)
     blocks*: seq[Cid]       # Block Cid
     version*: CidVersion    # Cid version

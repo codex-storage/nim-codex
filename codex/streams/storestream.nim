@@ -31,6 +31,7 @@ logScope:
 
 type
   # Make SeekableStream from a sequence of blocks stored in Manifest
+  # (only original file data - see StoreStream.size)
   StoreStream* = ref object of SeekableStream
     store*: BlockStore          # Store where to lookup block contents
     manifest*: Manifest         # List of block CIDs
@@ -53,7 +54,7 @@ proc new*(
 
 method `size`*(self: StoreStream): int =
   if self.pad:
-    self.manifest.len * self.manifest.blockSize
+    self.manifest.originalBytesPadded
   else:
     self.manifest.originalBytes
 
@@ -109,12 +110,6 @@ method readOnce*(
   return read
 
 method closeImpl*(self: StoreStream) {.async.} =
-  try:
-    trace "Closing StoreStream"
-    self.offset = self.manifest.len * self.manifest.blockSize # set Eof
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "Error closing StoreStream", msg = exc.msg
-
+  trace "Closing StoreStream"
+  self.offset = self.size  # set Eof
   await procCall LPStream(self).closeImpl()

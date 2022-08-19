@@ -25,8 +25,12 @@ import ./coders
 func len*(self: Manifest): int =
   self.blocks.len
 
-func size*(self: Manifest): int =
-  self.blocks.len * self.blockSize
+func originalBytesPadded*(self: Manifest): int =
+  ## Size of the original file, padded to blockSize
+  if self.protected:
+    self.originalLen * self.blockSize
+  else:
+    self.len * self.blockSize
 
 func `[]`*(self: Manifest, i: Natural): Cid =
   self.blocks[i]
