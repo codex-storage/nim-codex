@@ -14,6 +14,8 @@
 
 ## Build and Run
 
+For detailed instructions on preparing to build nim-codex see [*Building Codex*](BUILDING.md).
+
 To build the project, clone it and run:
 
 ```bash
@@ -25,13 +27,13 @@ The executable will be placed under the `build` directory under the project root
 Run the client with:
 
 ```bash
-./build/codex
+build/codex
 ```
 
 ### CLI Options
 
 ```
-./build/codex --help
+build/codex --help
 Usage:
 
 codex [OPTIONS]... command
@@ -52,9 +54,10 @@ The following options are available:
      --agent-string         Node agent string which is used as identifier in network [=Codex].
  -p, --api-port             The REST Api port [=8080].
  -c, --cache-size           The size in MiB of the block cache, 0 disables the cache [=100].
+     --persistence          Enables persistence mechanism, requires an Ethereum node [=false].
      --eth-provider         The URL of the JSON-RPC API of the Ethereum node [=ws://localhost:8545].
-     --eth-account          The Ethereum account that is used for storage contracts [=EthAddress.default].
-     --eth-deployment       The json file describing the contract deployment [=string.default].
+     --eth-account          The Ethereum account that is used for storage contracts [=EthAddress.none].
+     --eth-deployment       The json file describing the contract deployment [=string.none].
 
 Available sub-commands:
 
@@ -64,10 +67,10 @@ codex initNode
 ### Example: running two Codex clients
 
 ```bash
-./build/codex --data-dir="$(pwd)/Codex1" -i=127.0.0.1
+build/codex --data-dir="$(pwd)/Codex1" -i=127.0.0.1
 ```
 
-This will start codex with a data directory pointing to `Codex` under the current execution directory and announce itself on the DHT under `127.0.0.1`.
+This will start codex with a data directory pointing to `Codex1` under the current execution directory and announce itself on the DHT under `127.0.0.1`.
 
 To run a second client that automatically discovers nodes on the network, we need to get the Signed Peer Record (SPR) of first client, Client1. We can do this by querying the `/info` endpoint of the node's REST API.
 
@@ -90,7 +93,7 @@ This should output information about Client1, including its PeerID, TCP/UDP addr
 Now, let's start a second client, Client2. Because we're already using the default ports TCP (:8080) and UDP (:8090) for the first client, we have to specify new ports to avoid a collision. Additionally, we can specify the SPR from Client1 as the bootstrap node for discovery purposes, allowing Client2 to determine where content is located in the network.
 
 ```bash
-./build/codex --data-dir="$(pwd)/Codex2" -i=127.0.0.1 --api-port=8081 --udp-port=8091 --bootstrap-node=spr:CiUIAhIhAmqg5fVU2yxPStLdUOWgwrkWZMHW2MHf6i6l8IjA4tssEgIDARpICicAJQgCEiECaqDl9VTbLE9K0t1Q5aDCuRZkwdbYwd_qLqXwiMDi2ywQ5v2VlAYaCwoJBH8AAAGRAh-aGgoKCAR_AAABBts3KkcwRQIhAPOKl38CviplVbMVnA_9q3N1K_nk5oGuNp7DWeOqiJzzAiATQ2acPyQvPxLU9YS-TiVo4RUXndRcwMFMX2Yjhw8k3A
+build/codex --data-dir="$(pwd)/Codex2" -i=127.0.0.1 --api-port=8081 --udp-port=8091 --bootstrap-node=spr:CiUIAhIhAmqg5fVU2yxPStLdUOWgwrkWZMHW2MHf6i6l8IjA4tssEgIDARpICicAJQgCEiECaqDl9VTbLE9K0t1Q5aDCuRZkwdbYwd_qLqXwiMDi2ywQ5v2VlAYaCwoJBH8AAAGRAh-aGgoKCAR_AAABBts3KkcwRQIhAPOKl38CviplVbMVnA_9q3N1K_nk5oGuNp7DWeOqiJzzAiATQ2acPyQvPxLU9YS-TiVo4RUXndRcwMFMX2Yjhw8k3A
 ```
 
 There are now two clients running. We could upload a file to Client1 and download that file (given its CID) using Client2, by using the clients' REST API.
