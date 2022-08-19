@@ -35,7 +35,6 @@ type
   StoreStream* = ref object of SeekableStream
     store*: BlockStore          # Store where to lookup block contents
     manifest*: Manifest         # List of block CIDs
-    emptyBlock*: seq[byte]
     pad*: bool                  # Pad last block to manifest.blockSize?
 
 proc new*(
@@ -43,12 +42,12 @@ proc new*(
   store: BlockStore,
   manifest: Manifest,
   pad = true): T =
+
   result = T(
     store: store,
     manifest: manifest,
     pad: pad,
-    offset: 0,
-    emptyBlock: newSeq[byte](manifest.blockSize))
+    offset: 0)
 
   result.initStream()
 
@@ -95,13 +94,10 @@ method readOnce*(
     trace "Reading bytes from store stream", blockNum, cid = blk.cid, bytes = readBytes, blockOffset
 
     # Copy `readBytes` bytes starting at `blockOffset` from the block into the outbuf
-    copyMem(
-      pbytes.offset(read),
-      if blk.isEmpty:
-          self.emptyBlock[blockOffset].addr
-        else:
-          blk.data[blockOffset].addr,
-      readBytes)
+    if blk.isEmpty:
+      zeroMem(pbytes.offset(read), readBytes)
+    else:
+      copyMem(pbytes.offset(read), blk.data[blockOffset].addr, readBytes)
 
     # Update current positions in the stream and outbuf
     self.offset += readBytes

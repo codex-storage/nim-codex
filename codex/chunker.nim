@@ -65,8 +65,7 @@ func new*(
   chunkSize = DefaultChunkSize,
   pad = true): T =
 
-  Chunker(
-    reader: reader,
+  T(reader: reader,
     offset: 0,
     chunkSize: chunkSize,
     pad: pad)
@@ -93,7 +92,7 @@ proc new*(
 
     return res
 
-  Chunker.new(
+  T.new(
     reader = reader,
     chunkSize = chunkSize,
     pad = pad)
@@ -124,7 +123,7 @@ proc new*(
 
     return total
 
-  Chunker.new(
+  T.new(
     reader = reader,
     chunkSize = chunkSize,
     pad = pad)
