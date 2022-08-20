@@ -18,6 +18,7 @@ import pkg/questionable/results
 import pkg/chronicles
 
 import ../errors
+import ../utils
 import ../blocktype
 import ./types
 import ./coders
@@ -50,6 +51,7 @@ proc add*(self: Manifest, cid: Cid) =
   self.rootHash = Cid.none
   trace "Adding cid to manifest", cid
   self.blocks.add(cid)
+  self.originalBytes = self.blocks.len * self.blockSize
 
 iterator items*(self: Manifest): Cid =
   for b in self.blocks:
@@ -100,13 +102,12 @@ proc makeRoot*(self: Manifest): ?!void =
   success()
 
 func rounded*(self: Manifest): int =
-  if (self.originalLen mod self.K) != 0:
-    return self.originalLen + (self.K - (self.originalLen mod self.K))
-
-  self.originalLen
+  ## Number of data blocks in *protected* manifest including padding at the end
+  roundUp(self.originalLen, self.K)
 
 func steps*(self: Manifest): int =
-  self.rounded div self.K # number of blocks per row
+  ## Number of EC groups in *protected* manifest
+  divUp(self.originalLen, self.K)
 
 proc cid*(self: Manifest): ?!Cid =
   ## Generate a root hash using the treehash algorithm
@@ -116,6 +117,17 @@ proc cid*(self: Manifest): ?!Cid =
     ? self.makeRoot()
 
   (!self.rootHash).success
+
+proc verify*(self: Manifest) =
+  ## Check manifest correctness
+  ##
+  let originalLen = (if self.protected: self.originalLen else: self.len)
+
+  if divUp(self.originalBytes, self.blockSize) != originalLen:
+    raise newException(Defect, "Broken manifest: wrong originalBytes")
+
+  if self.protected and (self.len != self.steps * (self.K + self.M)):
+    raise newException(Defect, "Broken manifest: wrong originalLen")
 
 proc new*(
   T: type Manifest,
@@ -137,6 +149,7 @@ proc new*(
     codec: codec,
     hcodec: hcodec,
     blockSize: blockSize,
+    originalBytes: blocks.len * blockSize,
     protected: protected).success
 
 proc new*(
@@ -152,6 +165,7 @@ proc new*(
       version: manifest.version,
       codec: manifest.codec,
       hcodec: manifest.hcodec,
+      originalBytes: manifest.originalBytes,
       blockSize: manifest.blockSize,
       protected: true,
       K: K, M: M,
@@ -174,6 +188,7 @@ proc new*(
       .catch
       .get()
 
+  self.verify
   self.success
 
 proc new*(
