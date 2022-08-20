@@ -200,7 +200,9 @@ proc decode*(
         resolved = 0
 
       while true:
-        if resolved >= (encoded.K + encoded.M) or idxPendingBlocks.len <= 0:
+        # Continue to receive blocks until we have just enough for decoding
+        # or no more blocks can arrive
+        if (resolved >= encoded.K) or (idxPendingBlocks.len == 0):
           break
 
         let
