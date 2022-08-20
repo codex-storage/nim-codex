@@ -25,12 +25,12 @@ import ./coders
 func len*(self: Manifest): int =
   self.blocks.len
 
-func originalBytesPadded*(self: Manifest): int =
-  ## Size of the original file, padded to blockSize
-  if self.protected:
-    self.originalLen * self.blockSize
-  else:
+func bytes*(self: Manifest, pad = true): int =
+  ## Compute how many bytes corresponding StoreStream(Manifest, pad) will return
+  if pad or self.protected:
     self.len * self.blockSize
+  else:
+    self.originalBytes
 
 func `[]`*(self: Manifest, i: Natural): Cid =
   self.blocks[i]

@@ -52,10 +52,7 @@ proc new*(
   result.initStream()
 
 method `size`*(self: StoreStream): int =
-  if self.pad:
-    self.manifest.originalBytesPadded
-  else:
-    self.manifest.originalBytes
+  bytes(self.manifest, self.pad)
 
 proc `size=`*(self: StoreStream, size: int)
   {.error: "Setting the size is forbidden".} =
