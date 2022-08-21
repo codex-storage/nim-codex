@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+# This module defines Manifest and all related types
+
 import std/tables
 import pkg/libp2p
 import pkg/questionable

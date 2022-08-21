@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+# This module defines all operations on Manifest
+
 import pkg/upraises
 
 push: {.upraises: [].}
@@ -23,15 +25,12 @@ import ../blocktype
 import ./types
 import ./coders
 
+############################################################
+# Operations on block list
+############################################################
+
 func len*(self: Manifest): int =
   self.blocks.len
-
-func bytes*(self: Manifest, pad = true): int =
-  ## Compute how many bytes corresponding StoreStream(Manifest, pad) will return
-  if pad or self.protected:
-    self.len * self.blockSize
-  else:
-    self.originalBytes
 
 func `[]`*(self: Manifest, i: Natural): Cid =
   self.blocks[i]
@@ -63,6 +62,42 @@ iterator pairs*(self: Manifest): tuple[key: int, val: Cid] =
 
 func contains*(self: Manifest, cid: Cid): bool =
   cid in self.blocks
+
+
+############################################################
+# Various sizes and verification
+############################################################
+
+func bytes*(self: Manifest, pad = true): int =
+  ## Compute how many bytes corresponding StoreStream(Manifest, pad) will return
+  if pad or self.protected:
+    self.len * self.blockSize
+  else:
+    self.originalBytes
+
+func rounded*(self: Manifest): int =
+  ## Number of data blocks in *protected* manifest including padding at the end
+  roundUp(self.originalLen, self.K)
+
+func steps*(self: Manifest): int =
+  ## Number of EC groups in *protected* manifest
+  divUp(self.originalLen, self.K)
+
+func verify*(self: Manifest) =
+  ## Check manifest correctness
+  ##
+  let originalLen = (if self.protected: self.originalLen else: self.len)
+
+  if divUp(self.originalBytes, self.blockSize) != originalLen:
+    raise newException(Defect, "Broken manifest: wrong originalBytes")
+
+  if self.protected and (self.len != self.steps * (self.K + self.M)):
+    raise newException(Defect, "Broken manifest: wrong originalLen")
+
+
+############################################################
+# Cid computation
+############################################################
 
 template hashBytes(mh: MultiHash): seq[byte] =
   ## get the hash bytes of a multihash object
@@ -101,14 +136,6 @@ proc makeRoot*(self: Manifest): ?!void =
 
   success()
 
-func rounded*(self: Manifest): int =
-  ## Number of data blocks in *protected* manifest including padding at the end
-  roundUp(self.originalLen, self.K)
-
-func steps*(self: Manifest): int =
-  ## Number of EC groups in *protected* manifest
-  divUp(self.originalLen, self.K)
-
 proc cid*(self: Manifest): ?!Cid =
   ## Generate a root hash using the treehash algorithm
   ##
@@ -118,16 +145,10 @@ proc cid*(self: Manifest): ?!Cid =
 
   (!self.rootHash).success
 
-proc verify*(self: Manifest) =
-  ## Check manifest correctness
-  ##
-  let originalLen = (if self.protected: self.originalLen else: self.len)
 
-  if divUp(self.originalBytes, self.blockSize) != originalLen:
-    raise newException(Defect, "Broken manifest: wrong originalBytes")
-
-  if self.protected and (self.len != self.steps * (self.K + self.M)):
-    raise newException(Defect, "Broken manifest: wrong originalLen")
+############################################################
+# Constructors
+############################################################
 
 proc new*(
   T: type Manifest,

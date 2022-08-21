@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+# This module implements serialization and deserialization of Manifest
+
 import pkg/upraises
 
 push: {.upraises: [].}
