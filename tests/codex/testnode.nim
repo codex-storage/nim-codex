@@ -1,5 +1,6 @@
 import std/os
 import std/options
+import std/math
 
 import pkg/asynctest
 import pkg/chronos
@@ -38,6 +39,24 @@ suite "Test Node":
     peerStore: PeerCtxStore
     pendingBlocks: PendingBlocksManager
     discovery: DiscoveryEngine
+
+  proc retrieve(cid: Cid): Future[seq[byte]] {.async.} =
+    # Retrieve an entire file contents by file Cid
+    let
+      oddChunkSize = math.trunc(BlockSize/1.359).int  # Let's check that node.retrieve can correctly rechunk data
+      stream = (await node.retrieve(cid)).tryGet()
+    var
+      data: seq[byte]
+
+    while not stream.atEof:
+      var
+        buf = newSeq[byte](oddChunkSize)
+        res = await stream.readOnce(addr buf[0], oddChunkSize)
+      check res <= oddChunkSize
+      buf.setLen(res)
+      data &= buf
+
+    return data
 
   setup:
     file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
@@ -133,73 +152,40 @@ suite "Test Node":
         check blocks.len > 0 and blocks.len <= 11
     )).tryGet()
 
-  test "Store Data Stream":
+  test "Store and retrieve Data Stream":
     let
       stream = BufferStream.new()
       storeFut = node.store(stream)
-
+      oddChunkSize = math.trunc(BlockSize/1.618).int  # Let's check that node.store can correctly rechunk these odd chunks
+      oddChunker = FileChunker.new(file = file, chunkSize = oddChunkSize, pad = false)  # TODO: doesn't work with pad=tue
     var
-      manifest = Manifest.new().tryGet()
+      original: seq[byte]
 
     try:
       while (
-        let chunk = await chunker.getBytes();
+        let chunk = await oddChunker.getBytes();
         chunk.len > 0):
+        original &= chunk
         await stream.pushData(chunk)
-        manifest.add(bt.Block.new(chunk).tryGet().cid)
     finally:
       await stream.pushEof()
       await stream.close()
 
     let
       manifestCid = (await storeFut).tryGet()
-
     check:
       (await localStore.hasBlock(manifestCid)).tryGet()
 
-    var
+    let
       manifestBlock = (await localStore.getBlock(manifestCid)).tryGet()
       localManifest = Manifest.decode(manifestBlock).tryGet()
 
-    check:
-      manifest.len == localManifest.len
-      manifest.cid == localManifest.cid
-
-  test "Retrieve Data Stream":
-    var
-      manifest = Manifest.new().tryGet()
-      original: seq[byte]
-
-    while (
-      let chunk = await chunker.getBytes();
-      chunk.len > 0):
-
-      let blk = bt.Block.new(chunk).tryGet()
-      original &= chunk
-      (await localStore.putBlock(blk)).tryGet()
-      manifest.add(blk.cid)
-
-    manifest.originalBytes = chunker.offset  # store the exact file size
-    original.setLen(manifest.originalBytes)
-
     let
-      manifestBlock = bt.Block.new(
-          manifest.encode().tryGet(),
-          codec = DagPBCodec
-        ).tryGet()
-
-    (await localStore.putBlock(manifestBlock)).tryGet()
-
-    let stream = (await node.retrieve(manifestBlock.cid)).tryGet()
-    var data: seq[byte]
-    while not stream.atEof:
-      var
-        buf = newSeq[byte](BlockSize)
-        res = await stream.readOnce(addr buf[0], BlockSize div 2)
-      buf.setLen(res)
-      data &= buf
-
-    check data == original
+      data = await retrieve(manifestCid)
+    check:
+      data.len == localManifest.originalBytes
+      data.len == original.len
+      sha256.digest(data) == sha256.digest(original)
 
   test "Retrieve One Block":
     let
