@@ -40,6 +40,21 @@ suite "Test Node":
     pendingBlocks: PendingBlocksManager
     discovery: DiscoveryEngine
 
+  proc fetch(T: type Manifest, chunker: Chunker): Future[Manifest] {.async.} =
+    # Collect blocks from Chunker into Manifest
+    var
+      manifest = Manifest.new().tryGet()
+
+    while (
+      let chunk = await chunker.getBytes();
+      chunk.len > 0):
+
+      let blk = bt.Block.new(chunk).tryGet()
+      (await localStore.putBlock(blk)).tryGet()
+      manifest.add(blk.cid)
+
+    return manifest
+
   proc retrieve(cid: Cid): Future[seq[byte]] {.async.} =
     # Retrieve an entire file contents by file Cid
     let
@@ -80,18 +95,9 @@ suite "Test Node":
     await node.stop()
 
   test "Fetch Manifest":
-    var
-      manifest = Manifest.new().tryGet()
-
-    while (
-      let chunk = await chunker.getBytes();
-      chunk.len > 0):
-
-      let blk = bt.Block.new(chunk).tryGet()
-      (await localStore.putBlock(blk)).tryGet()
-      manifest.add(blk.cid)
-
     let
+      manifest = await Manifest.fetch(chunker)
+
       manifestBlock = bt.Block.new(
           manifest.encode().tryGet(),
           codec = DagPBCodec
@@ -107,50 +113,16 @@ suite "Test Node":
       fetched.blocks == manifest.blocks
 
   test "Block Batching":
-    var
-      manifest = Manifest.new().tryGet()
-
-    while (
-      let chunk = await chunker.getBytes();
-      chunk.len > 0):
-
-      let blk = bt.Block.new(chunk).tryGet()
-      (await localStore.putBlock(blk)).tryGet()
-      manifest.add(blk.cid)
-
     let
-      manifestBlock = bt.Block.new(
-          manifest.encode().tryGet(),
-          codec = DagPBCodec
-        ).tryGet()
+      manifest = await Manifest.fetch(chunker)
 
-    (await node.fetchBatched(
-      manifest,
-      batchSize = 3,
-      proc(blocks: seq[bt.Block]) {.gcsafe, async.} =
-        check blocks.len > 0 and blocks.len <= 3
-    )).tryGet()
-
-    (await node.fetchBatched(
-      manifest,
-      batchSize = 6,
-      proc(blocks: seq[bt.Block]) {.gcsafe, async.} =
-        check blocks.len > 0 and blocks.len <= 6
-    )).tryGet()
-
-    (await node.fetchBatched(
-      manifest,
-      batchSize = 9,
-      proc(blocks: seq[bt.Block]) {.gcsafe, async.} =
-        check blocks.len > 0 and blocks.len <= 9
-    )).tryGet()
-
-    (await node.fetchBatched(
-      manifest,
-      batchSize = 11,
-      proc(blocks: seq[bt.Block]) {.gcsafe, async.} =
-        check blocks.len > 0 and blocks.len <= 11
-    )).tryGet()
+    for batchSize in 1..12:
+      (await node.fetchBatched(
+        manifest,
+        batchSize = batchSize,
+        proc(blocks: seq[bt.Block]) {.gcsafe, async.} =
+          check blocks.len > 0 and blocks.len <= batchSize
+      )).tryGet()
 
   test "Store and retrieve Data Stream":
     let
