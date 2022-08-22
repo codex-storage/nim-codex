@@ -96,6 +96,8 @@ suite "Test Node":
     close(file)
     await node.stop()
 
+    checkTrackers()
+
   test "Fetch Manifest":
     let
       manifest = await Manifest.fetch(chunker)

@@ -37,6 +37,12 @@ suite "StoreStream":
       [byte 90, 91, 92, 93, 94, 95, 96, 97, 98, 99],
     ]
 
+  teardown:
+    await stream.close()
+
+    # echo getTracker(StoreStreamTrackerName).dump()
+    check getTracker(StoreStreamTrackerName).isLeaked() == false
+
   setup:
     store = CacheStore.new()
     manifest = Manifest.new(blockSize = 10).tryGet()
