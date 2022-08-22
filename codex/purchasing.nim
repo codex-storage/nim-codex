@@ -32,7 +32,9 @@ proc start(purchase: Purchase) {.gcsafe.}
 func id*(purchase: Purchase): PurchaseId
 proc `==`*(x, y: PurchaseId): bool {.borrow.}
 proc hash*(x: PurchaseId): Hash {.borrow.}
-proc toHex*(x: PurchaseId): string {.borrow.}
+# Using {.borrow.} for toHex does not borrow correctly and causes a
+# C-compilation error, so we must do it long form
+proc toHex*(x: PurchaseId): string = array[32, byte](x).toHex
 
 proc new*(_: type Purchasing, market: Market, clock: Clock): Purchasing =
   Purchasing(
