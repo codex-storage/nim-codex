@@ -84,16 +84,18 @@ func steps*(self: Manifest): int =
   ## Number of EC groups in *protected* manifest
   divUp(self.originalLen, self.K)
 
-func verify*(self: Manifest) =
+func verify*(self: Manifest): ?!void =
   ## Check manifest correctness
   ##
   let originalLen = (if self.protected: self.originalLen else: self.len)
 
   if divUp(self.originalBytes, self.blockSize) != originalLen:
-    raise newException(Defect, "Broken manifest: wrong originalBytes")
+    return failure newException(CodexError, "Broken manifest: wrong originalBytes")
 
   if self.protected and (self.len != self.steps * (self.K + self.M)):
-    raise newException(Defect, "Broken manifest: wrong originalLen")
+    return failure newException(CodexError, "Broken manifest: wrong originalLen")
+
+  return success()
 
 
 ############################################################
@@ -210,7 +212,7 @@ proc new*(
       .catch
       .get()
 
-  self.verify
+  ? self.verify()
   self.success
 
 proc new*(

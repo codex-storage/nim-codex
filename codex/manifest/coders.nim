@@ -31,7 +31,7 @@ func encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   ## multicodec container (Dag-pb) for now
   ##
 
-  manifest.verify
+  ? manifest.verify()
   var pbNode = initProtoBuffer()
 
   for c in manifest.blocks:
@@ -163,7 +163,7 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     self.originalCid = ? Cid.init(originalCid).mapFailure
     self.originalLen = originalLen.int
 
-  self.verify
+  ? self.verify()
   self.success
 
 proc encode*(
