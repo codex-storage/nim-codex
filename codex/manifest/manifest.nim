@@ -47,6 +47,7 @@ func `[]=`*(self: Manifest, i: BackwardsIndex, item: Cid) =
   self.blocks[self.len - i.int] = item
 
 proc add*(self: Manifest, cid: Cid) =
+  assert not self.protected  # we expect that protected manifests are created with properly-sized self.blocks
   self.rootHash = Cid.none
   trace "Adding cid to manifest", cid
   self.blocks.add(cid)

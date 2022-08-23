@@ -166,11 +166,11 @@ proc store*(
   stream: LPStream): Future[?!Cid] {.async.} =
   trace "Storing data"
 
-  without var blockManifest =? Manifest.new():
+  without var blockManifest =? Manifest.new(blockSize = BlockSize):
     return failure("Unable to create Block Set")
 
-  let
-    chunker = LPStreamChunker.new(stream, chunkSize = BlockSize)
+  # Manifest and chunker should have the same chunk size
+  let chunker = LPStreamChunker.new(stream, chunkSize = BlockSize)
 
   try:
     while (
