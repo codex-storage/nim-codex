@@ -115,7 +115,7 @@ proc fetchBatched*(
 proc retrieve*(
   node: CodexNodeRef,
   cid: Cid): Future[?!LPStream] {.async.} =
-  ## Retrieve a block or manifest
+  ## Retrieve by Cid a single block or an entire dataset described by manifest
   ##
 
   if manifest =? (await node.fetchManifest(cid)):
@@ -163,14 +163,18 @@ proc retrieve*(
 
 proc store*(
   node: CodexNodeRef,
-  stream: LPStream): Future[?!Cid] {.async.} =
+  stream: LPStream,
+  blockSize = BlockSize): Future[?!Cid] {.async.} =
+  ## Save stream contents as dataset with given blockSize
+  ## to nodes's BlockStore, and return Cid of its manifest
+  ##
   trace "Storing data"
 
-  without var blockManifest =? Manifest.new(blockSize = BlockSize):
+  without var blockManifest =? Manifest.new(blockSize = blockSize):
     return failure("Unable to create Block Set")
 
-  # Manifest and chunker should have the same chunk size
-  let chunker = LPStreamChunker.new(stream, chunkSize = BlockSize)
+  # Manifest and chunker should use the same blockSize
+  let chunker = LPStreamChunker.new(stream, chunkSize = blockSize)
 
   try:
     while (
