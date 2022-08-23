@@ -22,7 +22,7 @@ The exposed metrics can be aggregate by the [Prometheus](https://prometheus.io/)
 
 This directory contains both the default `prometheus.yml` config file as well as a basic `codex-grafana-dashboard.json` file that can be augmented with additional panels and metrics on an as needed basis.
 
-Additionally, please consider installing the [node_explorer](https://github.com/prometheus/node_exporter) agent to collect machine level metrics such as overall memory, process, networking, disc IO, etc...
+Additionally, please consider installing the [node_exporter](https://github.com/prometheus/node_exporter) agent to collect machine level metrics such as overall memory, process, networking, disc IO, etc...
 
 ### Using the Grafana dashboard
 
@@ -36,7 +36,7 @@ This will take you to the import page.
 
 Use either one of the presented methods (upload json, load from a url or copy paste the json into the text-box), to upload the `codex-grafana-dashboard.json` file.
 
-Finally, you'll be presented with a the following screen where you can change the name and the `UID` of the imported dashboard. This is only necessary if there is already a dashboard with the same name or `UID`.
+Finally, you'll be presented with the following screen where you can change the name and the `UID` of the imported dashboard. This is only necessary if there is already a dashboard with the same name or `UID`.
 
 ![](./assets/imported.png)
 
