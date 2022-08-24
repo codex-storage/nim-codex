@@ -161,27 +161,28 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   router.rawApi(
     MethodPost,
     "/api/codex/v1/upload") do (
+      blockSize: Option[uint]
     ) -> RestApiResponse:
-      ## Upload a file in a streamming manner
+      ## Upload a file in a streamming manner,
+      ## split it into blocks of blockSize,
+      ## and save to the node's BlockStore
       ##
 
       trace "Handling file upload"
       var bodyReader = request.getBodyReader()
       if bodyReader.isErr():
-        return RestApiResponse.error(Http500)
+        return RestApiResponse.error(Http500, bodyReader.error)
 
-      # Attempt to handle `Expect` header
-      # some clients (curl), wait 1000ms
-      # before giving up
-      #
+      # Attempt to handle `Expect` header some clients (curl),
+      # wait 1000ms before giving up
       await request.handleExpect()
 
-      let
-        reader = bodyReader.get()
-
       try:
-        without cid =? (
-          await node.store(AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)))), error:
+        let
+          bodyStream = AsyncStreamWrapper.new(reader = AsyncStreamReader(bodyReader.get))
+          blockSize = (blockSize.get |? BlockSize).int
+
+        without cid =? (await node.store(bodyStream, blockSize)), error:
           trace "Error uploading file", exc = error.msg
           return RestApiResponse.error(Http500, error.msg)
 
@@ -192,7 +193,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       except AsyncStreamError:
         return RestApiResponse.error(Http500)
       finally:
-        await reader.closeWait()
+        await bodyReader.get.closeWait()
 
       # if we got here something went wrong?
       return RestApiResponse.error(Http500)
