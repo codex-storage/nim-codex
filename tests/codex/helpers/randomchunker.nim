@@ -13,7 +13,6 @@ type
 proc new*(
   T: type RandomChunker,
   rng: Rng,
-  kind = ChunkerType.FixedChunker,
   chunkSize = DefaultChunkSize,
   size: int,
   pad = false): T =
@@ -43,7 +42,6 @@ proc new*(
     return read
 
   Chunker.new(
-    kind = ChunkerType.FixedChunker,
     reader = reader,
     pad = pad,
     chunkSize = chunkSize)

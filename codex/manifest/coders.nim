@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+# This module implements serialization and deserialization of Manifest
+
 import pkg/upraises
 
 push: {.upraises: [].}
@@ -29,6 +31,7 @@ func encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   ## multicodec container (Dag-pb) for now
   ##
 
+  ? manifest.verify()
   var pbNode = initProtoBuffer()
 
   for c in manifest.blocks:
@@ -52,6 +55,7 @@ func encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   #     optional uint32 blockSize = 2;    # size of a single block
   #     optional uint32 blocksLen = 3;    # total amount of blocks
   #     optional ErasureInfo erasure = 4; # erasure coding info
+  #     optional uint64 originalBytes = 5;# exact file size
   #   }
   # ```
   #
@@ -61,6 +65,7 @@ func encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   header.write(1, cid.data.buffer)
   header.write(2, manifest.blockSize.uint32)
   header.write(3, manifest.len.uint32)
+  header.write(5, manifest.originalBytes.uint64)
   if manifest.protected:
     var erasureInfo = initProtoBuffer()
     erasureInfo.write(1, manifest.K.uint32)
@@ -86,6 +91,7 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     pbErasureInfo: ProtoBuffer
     rootHash: seq[byte]
     originalCid: seq[byte]
+    originalBytes: uint64
     blockSize: uint32
     blocksLen: uint32
     originalLen: uint32
@@ -105,6 +111,9 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
 
   if pbHeader.getField(3, blocksLen).isErr:
     return failure("Unable to decode `blocksLen` from manifest!")
+
+  if pbHeader.getField(5, originalBytes).isErr:
+    return failure("Unable to decode `originalBytes` from manifest!")
 
   if pbHeader.getField(4, pbErasureInfo).isErr:
     return failure("Unable to decode `erasureInfo` from manifest!")
@@ -140,6 +149,7 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
   var
     self = Manifest(
       rootHash: rootHashCid.some,
+      originalBytes: originalBytes.int,
       blockSize: blockSize.int,
       blocks: blocks,
       hcodec: (? rootHashCid.mhash.mapFailure).mcodec,
@@ -153,6 +163,7 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     self.originalCid = ? Cid.init(originalCid).mapFailure
     self.originalLen = originalLen.int
 
+  ? self.verify()
   self.success
 
 proc encode*(

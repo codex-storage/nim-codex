@@ -11,12 +11,14 @@ suite "Chunking":
     let contents = [1.byte, 2, 3, 4, 5, 6, 7, 8, 9, 0]
     proc reader(data: ChunkBuffer, len: int): Future[int]
       {.gcsafe, async, raises: [Defect].} =
-      if offset >= contents.len:
+
+      let read = min(contents.len - offset, len)
+      if read == 0:
         return 0
 
-      copyMem(data, unsafeAddr contents[offset], len)
-      offset += 2
-      return len
+      copyMem(data, unsafeAddr contents[offset], read)
+      offset += read
+      return read
 
     let chunker = Chunker.new(
       reader = reader,
@@ -29,9 +31,9 @@ suite "Chunking":
       (await chunker.getBytes()) == [7.byte, 8]
       (await chunker.getBytes()) == [9.byte, 0]
       (await chunker.getBytes()) == []
+      chunker.offset == offset
 
   test "should chunk LPStream":
-    var offset = 0
     let stream = BufferStream.new()
     let chunker = LPStreamChunker.new(
       stream = stream,
@@ -51,6 +53,7 @@ suite "Chunking":
       (await chunker.getBytes()) == [7.byte, 8]
       (await chunker.getBytes()) == [9.byte, 0]
       (await chunker.getBytes()) == []
+      chunker.offset == 10
 
     await writerFut
 
@@ -69,4 +72,7 @@ suite "Chunking":
       check buff.len <= fileChunker.chunkSize
       data.add(buff)
 
-    check string.fromBytes(data) == readFile(path)
+    check:
+      string.fromBytes(data) == readFile(path)
+      fileChunker.offset == data.len
+

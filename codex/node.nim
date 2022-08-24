@@ -115,28 +115,33 @@ proc fetchBatched*(
 proc retrieve*(
   node: CodexNodeRef,
   cid: Cid): Future[?!LPStream] {.async.} =
-  ## Retrieve a block or manifest
+  ## Retrieve by Cid a single block or an entire dataset described by manifest
   ##
 
   if manifest =? (await node.fetchManifest(cid)):
     if manifest.protected:
+      # Retrieve, decode and save to the local store all EС groups
       proc erasureJob(): Future[void] {.async.} =
         try:
-          without res =? (await node.erasure.decode(manifest)), error: # spawn an erasure decoding job
+          # Spawn an erasure decoding job
+          without res =? (await node.erasure.decode(manifest)), error:
             trace "Unable to erasure decode manifest", cid, exc = error.msg
         except CatchableError as exc:
           trace "Exception decoding manifest", cid
-
+      #
       asyncSpawn erasureJob()
     else:
+      # Prefetch the entire dataset into the local store
       proc prefetchBlocks() {.async, raises: [Defect].} =
         try:
           discard await node.fetchBatched(manifest)
         except CatchableError as exc:
           trace "Exception prefetching blocks", exc = exc.msg
-
+      #
       asyncSpawn prefetchBlocks()
-    return LPStream(StoreStream.new(node.blockStore, manifest)).success
+    #
+    # Retrieve all blocks of the dataset sequentially from the local store or network
+    return LPStream(StoreStream.new(node.blockStore, manifest, pad = false)).success
 
   let
     stream = BufferStream.new()
@@ -158,14 +163,18 @@ proc retrieve*(
 
 proc store*(
   node: CodexNodeRef,
-  stream: LPStream): Future[?!Cid] {.async.} =
+  stream: LPStream,
+  blockSize = BlockSize): Future[?!Cid] {.async.} =
+  ## Save stream contents as dataset with given blockSize
+  ## to nodes's BlockStore, and return Cid of its manifest
+  ##
   trace "Storing data"
 
-  without var blockManifest =? Manifest.new():
+  without var blockManifest =? Manifest.new(blockSize = blockSize):
     return failure("Unable to create Block Set")
 
-  let
-    chunker = LPStreamChunker.new(stream, chunkSize = BlockSize)
+  # Manifest and chunker should use the same blockSize
+  let chunker = LPStreamChunker.new(stream, chunkSize = blockSize)
 
   try:
     while (
@@ -189,6 +198,7 @@ proc store*(
     await stream.close()
 
   # Generate manifest
+  blockManifest.originalBytes = chunker.offset  # store the exact file size
   without data =? blockManifest.encode():
     return failure(
       newException(CodexError, "Could not generate dataset manifest!"))

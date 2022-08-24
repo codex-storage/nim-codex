@@ -30,25 +30,29 @@ logScope:
   topics = "dagger storestream"
 
 type
+  # Make SeekableStream from a sequence of blocks stored in Manifest
+  # (only original file data - see StoreStream.size)
   StoreStream* = ref object of SeekableStream
-    store*: BlockStore
-    manifest*: Manifest
-    emptyBlock*: seq[byte]
+    store*: BlockStore          # Store where to lookup block contents
+    manifest*: Manifest         # List of block CIDs
+    pad*: bool                  # Pad last block to manifest.blockSize?
 
 proc new*(
   T: type StoreStream,
   store: BlockStore,
-  manifest: Manifest): T =
+  manifest: Manifest,
+  pad = true): T =
+
   result = T(
     store: store,
     manifest: manifest,
-    offset: 0,
-    emptyBlock: newSeq[byte](manifest.blockSize))
+    pad: pad,
+    offset: 0)
 
   result.initStream()
 
 method `size`*(self: StoreStream): int =
-  self.manifest.len * self.manifest.blockSize
+  bytes(self.manifest, self.pad)
 
 proc `size=`*(self: StoreStream, size: int)
   {.error: "Setting the size is forbidden".} =
@@ -78,7 +82,7 @@ method readOnce*(
     let
       blockNum    = self.offset div self.manifest.blockSize
       blockOffset = self.offset mod self.manifest.blockSize
-      readBytes   = min(nbytes - read, self.manifest.blockSize - blockOffset)
+      readBytes   = min([self.size - self.offset, nbytes - read, self.manifest.blockSize - blockOffset])
 
     # Read contents of block `blockNum`
     without blk =? await self.store.getBlock(self.manifest[blockNum]), error:
@@ -87,13 +91,10 @@ method readOnce*(
     trace "Reading bytes from store stream", blockNum, cid = blk.cid, bytes = readBytes, blockOffset
 
     # Copy `readBytes` bytes starting at `blockOffset` from the block into the outbuf
-    copyMem(
-      pbytes.offset(read),
-      if blk.isEmpty:
-          self.emptyBlock[blockOffset].addr
-        else:
-          blk.data[blockOffset].addr,
-      readBytes)
+    if blk.isEmpty:
+      zeroMem(pbytes.offset(read), readBytes)
+    else:
+      copyMem(pbytes.offset(read), blk.data[blockOffset].addr, readBytes)
 
     # Update current positions in the stream and outbuf
     self.offset += readBytes
@@ -102,12 +103,6 @@ method readOnce*(
   return read
 
 method closeImpl*(self: StoreStream) {.async.} =
-  try:
-    trace "Closing StoreStream"
-    self.offset = self.manifest.len * self.manifest.blockSize # set Eof
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "Error closing StoreStream", msg = exc.msg
-
+  trace "Closing StoreStream"
+  self.offset = self.size  # set Eof
   await procCall LPStream(self).closeImpl()
