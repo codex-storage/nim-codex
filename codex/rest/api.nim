@@ -161,10 +161,10 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   router.rawApi(
     MethodPost,
     "/api/codex/v1/upload") do (
-      blockSize: Option[uint]
+      chunk: Option[uint]
     ) -> RestApiResponse:
       ## Upload a file in a streamming manner,
-      ## split it into blocks of blockSize,
+      ## split it into blocks of `chunk` bytes,
       ## and save to the node's BlockStore
       ##
 
@@ -177,12 +177,16 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       # wait 1000ms before giving up
       await request.handleExpect()
 
-      let
-        bodyStream = AsyncStreamWrapper.new(reader = AsyncStreamReader(bodyReader.get))
-        blockSize = (blockSize.get |? BlockSize).int
+      let bodyStream = AsyncStreamWrapper.new(reader = AsyncStreamReader(bodyReader.get))
 
       try:
-        without cid =? (await node.store(bodyStream, blockSize)), error:
+        let runUpload =
+          if blockSize =? chunk.get:
+            node.store(bodyStream, blockSize = blockSize.int)
+          else:
+            node.store(bodyStream)
+
+        without cid =? (await runUpload), error:
           trace "Error uploading file", exc = error.msg
           return RestApiResponse.error(Http500, error.msg)
 
