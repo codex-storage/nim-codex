@@ -169,7 +169,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       ##
 
       trace "Handling file upload"
-      var bodyReader = request.getBodyReader()
+      let bodyReader = request.getBodyReader()
       if bodyReader.isErr():
         return RestApiResponse.error(Http500, bodyReader.error)
 
@@ -177,11 +177,11 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       # wait 1000ms before giving up
       await request.handleExpect()
 
-      try:
-        let
-          bodyStream = AsyncStreamWrapper.new(reader = AsyncStreamReader(bodyReader.get))
-          blockSize = (blockSize.get |? BlockSize).int
+      let
+        bodyStream = AsyncStreamWrapper.new(reader = AsyncStreamReader(bodyReader.get))
+        blockSize = (blockSize.get |? BlockSize).int
 
+      try:
         without cid =? (await node.store(bodyStream, blockSize)), error:
           trace "Error uploading file", exc = error.msg
           return RestApiResponse.error(Http500, error.msg)
@@ -193,7 +193,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       except AsyncStreamError:
         return RestApiResponse.error(Http500)
       finally:
-        await bodyReader.get.closeWait()
+        await bodyStream.closeImpl()
 
       # if we got here something went wrong?
       return RestApiResponse.error(Http500)
