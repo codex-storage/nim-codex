@@ -181,7 +181,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
       try:
         let runUpload =
-          if blockSize =? chunk.get:
+          if (chunkOpt =? chunk) and (blockSize =? chunkOpt) and (blockSize <= MaxBlockSize):
             node.store(bodyStream, blockSize = blockSize.int)
           else:
             node.store(bodyStream)
