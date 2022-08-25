@@ -96,14 +96,15 @@ Example:
  curl -vvv "127.0.0.1:8080/api/codex/v1/download/<Cid of the content>" --output <name of output file>
  ```
 
-### `/api/codex/v1/upload`
+### `/api/codex/v1/upload[?chunk=N]`
 
 Upload a file, upon success returns the `Cid` of the uploaded file.
+The optional 'chunk' parameter specifies Manifest.blockSize.
 
 Example:
 
 ```bash
-curl -vvv -H "content-type: application/octet-stream" -H Expect: -T "<path to file>" "127.0.0.1:8080/api/codex/v1/upload" -X POST
+curl -vvv -H "content-type: application/octet-stream" -H Expect: -T "127.0.0.1:8080/api/codex/v1/upload?chunk=65536" -X POST "<path to file>"
 ```
 
 ### `/api/codex/v1/debug/info`
