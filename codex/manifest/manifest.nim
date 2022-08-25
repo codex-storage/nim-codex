@@ -153,6 +153,32 @@ proc cid*(self: Manifest): ?!Cid =
 # Constructors
 ############################################################
 
+func copyAllScalarFields(original: Manifest): Manifest =
+  # Sometimes we need to copy all but a few fields
+  # from a manifest to another one.
+  # It can be mplemented by copying all fields and then
+  # making a few edits, but it is inefficient to copy
+  # an entire `blocks` array only to drop it.
+  # So we made a helper that copies all scalar fields,
+  # i.e. all fields except for `blocks`.
+  var copy = Manifest(
+    rootHash: original.rootHash,
+    originalBytes: original.originalBytes,
+    blockSize: original.blockSize,
+    blocks: @[],
+    version: original.version,
+    hcodec: original.hcodec,
+    codec: original.codec,
+    protected: original.protected)
+
+  if original.protected:
+    copy.K = original.K
+    copy.M = original.M
+    copy.originalCid = original.originalCid
+    copy.originalLen = original.originalLen
+
+  return copy
+
 proc new*(
   T: type Manifest,
   blocks: openArray[Cid] = [],
@@ -167,8 +193,7 @@ proc new*(
   if hcodec notin EmptyDigests[version]:
     return failure("Unsupported manifest hash codec!")
 
-  T(
-    blocks: @blocks,
+  T(blocks: @blocks,
     version: version,
     codec: codec,
     hcodec: hcodec,
@@ -184,21 +209,18 @@ proc new*(
   ## un-protected one
   ##
 
-  var
-    self = Manifest(
-      version: manifest.version,
-      codec: manifest.codec,
-      hcodec: manifest.hcodec,
-      originalBytes: manifest.originalBytes,
-      blockSize: manifest.blockSize,
-      protected: true,
-      K: K, M: M,
-      originalCid: ? manifest.cid,
-      originalLen: manifest.len)
+  ? manifest.verify()
+  if manifest.protected:
+    return failure newException(CodexError, "Trying to protect already protected manifest")
 
-  let
-    encodedLen = self.rounded + (self.steps * M)
+  var self = copyAllScalarFields(manifest)
+  self.protected = true
+  self.K = K
+  self.M = M
+  self.originalCid = ? manifest.cid
+  self.originalLen = manifest.len
 
+  let encodedLen = self.rounded + (self.steps * M)
   self.blocks = newSeq[Cid](encodedLen)
 
   # copy original manifest blocks
