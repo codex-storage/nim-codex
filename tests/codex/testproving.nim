@@ -101,7 +101,7 @@ suite "Proving":
     proofs.setProofRequired(id, true)
     await proofs.advanceToNextPeriod()
     proving.onProofRequired = onProofRequired
-    proofs.setCancelled(id, true)
+    proofs.setSlotCancelled(id, true)
     await proofs.advanceToNextPeriod()
     check not proving.slots.contains(id)
     check not called
