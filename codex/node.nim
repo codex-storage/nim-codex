@@ -270,7 +270,8 @@ proc requestStorage*(self: CodexNodeRef,
       slots: nodes + tolerance,
       slotSize: (encoded.blockSize * encoded.steps).u256,
       duration: duration,
-      reward: reward
+      reward: reward,
+      maxSlotLoss: tolerance
     ),
     content: StorageContent(
       cid: $encodedBlk.cid,
