@@ -15,7 +15,7 @@ type
   SlotFilled* = object of Event
     requestId* {.indexed.}: RequestId
     slotIndex* {.indexed.}: UInt256
-    slotId* {.indexed.}: SlotId
+    slotId*: SlotId
   RequestFulfilled* = object of Event
     requestId* {.indexed.}: RequestId
   RequestCancelled* = object of Event
@@ -28,6 +28,7 @@ type
 proc collateralAmount*(storage: Storage): UInt256 {.contract, view.}
 proc slashMisses*(storage: Storage): UInt256 {.contract, view.}
 proc slashPercentage*(storage: Storage): UInt256 {.contract, view.}
+proc minCollateralThreshold*(storage: Storage): UInt256 {.contract, view.}
 
 proc deposit*(storage: Storage, amount: UInt256) {.contract.}
 proc withdraw*(storage: Storage) {.contract.}

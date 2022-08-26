@@ -19,6 +19,7 @@ type
     duration*: UInt256
     proofProbability*: UInt256
     reward*: UInt256
+    maxSlotLoss*: uint64
   StorageContent* = object
     cid*: string
     erasure*: StorageErasure
@@ -56,7 +57,8 @@ func fromTuple(_: type StorageAsk, tupl: tuple): StorageAsk =
     slotSize: tupl[1],
     duration: tupl[2],
     proofProbability: tupl[3],
-    reward: tupl[4]
+    reward: tupl[4],
+    maxSlotLoss: tupl[5]
   )
 
 func fromTuple(_: type StorageContent, tupl: tuple): StorageContent =

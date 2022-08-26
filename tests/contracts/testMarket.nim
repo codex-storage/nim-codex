@@ -135,7 +135,7 @@ ethersuite "On-Chain Market":
 
     await token.approve(storage.address, request.price)
     discard await market.requestStorage(request)
-    await token.approve(storage.address, otherrequest.price)
+    await token.approve(storage.address, otherRequest.price)
     discard await market.requestStorage(otherRequest)
 
     var receivedIds: seq[RequestId]
