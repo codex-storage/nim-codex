@@ -153,7 +153,10 @@ proc cid*(self: Manifest): ?!Cid =
 # Constructors
 ############################################################
 
-func copyAllScalarFields(original: Manifest): Manifest =
+func copyAllScalarFields(
+  original: Manifest,
+  protected: bool
+  ): Manifest =
   # Sometimes we need to copy all but a few fields
   # from a manifest to another one.
   # It can be mplemented by copying all fields and then
@@ -169,9 +172,9 @@ func copyAllScalarFields(original: Manifest): Manifest =
     version: original.version,
     hcodec: original.hcodec,
     codec: original.codec,
-    protected: original.protected)
+    protected: protected)
 
-  if original.protected:
+  if copy.protected and original.protected:
     copy.K = original.K
     copy.M = original.M
     copy.originalCid = original.originalCid
@@ -187,7 +190,7 @@ proc new*(
   hcodec = multiCodec("sha2-256"),
   codec = multiCodec("raw"),
   blockSize = BlockSize): ?!T =
-  ## Create a manifest using array of `Cid`s
+  ## Create a dataset from an array of `Cid`s
   ##
 
   if hcodec notin EmptyDigests[version]:
@@ -205,16 +208,14 @@ proc new*(
   T: type Manifest,
   manifest: Manifest,
   K, M: int): ?!Manifest =
-  ## Create an erasure protected dataset from an
-  ## un-protected one
+  ## Create an erasure protected dataset from an unprotected one
   ##
 
   ? manifest.verify()
   if manifest.protected:
     return failure newException(CodexError, "Trying to protect already protected manifest")
 
-  var self = copyAllScalarFields(manifest)
-  self.protected = true
+  var self = copyAllScalarFields(manifest, protected = true)
   self.K = K
   self.M = M
   self.originalCid = ? manifest.cid
@@ -236,6 +237,24 @@ proc new*(
 
   ? self.verify()
   self.success
+
+proc unprotect*(
+  manifest: Manifest,
+  blocks: openArray[Cid] = []
+  ): ?!Manifest =
+  ## Create an unprotected dataset from an erasure protected one
+  ##
+
+  ? manifest.verify()
+  if not manifest.protected:
+    return failure newException(CodexError, "Trying to unprotect already non-protected manifest")
+
+  var self = copyAllScalarFields(manifest, protected = false)
+  self.blocks = @blocks
+
+  ? self.verify()
+  self.success
+
 
 proc new*(
   T: type Manifest,

@@ -156,8 +156,7 @@ proc encode*(
 proc decode*(
   self: Erasure,
   encoded: Manifest): Future[?!Manifest] {.async.} =
-  ## Decode a protected manifest into it's original
-  ## manifest
+  ## Decode a protected manifest into its original manifest
   ##
   ## `encoded` - the encoded (protected) manifest to
   ##             be recovered
@@ -254,10 +253,10 @@ proc decode*(
   finally:
     decoder.release()
 
-  without decoded =? Manifest.new(blocks = encoded.blocks[0..<encoded.originalLen]), error:
-    return error.failure
+  without decoded =? encoded.unprotect(blocks = encoded.blocks[0..<encoded.originalLen]), error:
+    return failure error
 
-  return decoded.success
+  return success decoded
 
 proc start*(self: Erasure) {.async.} =
   return
