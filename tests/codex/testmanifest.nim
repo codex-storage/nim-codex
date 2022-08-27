@@ -54,22 +54,33 @@ suite "Manifest":
       decoded = Manifest.decode(e).tryGet()
 
     check:
-      decoded.blocks == blocks
       decoded.protected == false
+      decoded.cid.tryGet() == manifest.cid.tryGet()
+      decoded.blocks == manifest.blocks
 
   test "Should produce a protected manifest":
     let
-      blocks = (0..<333).mapIt(
+      N = 333
+      blocks = (0..<N).mapIt(
         Block.new(("Block " & $it).toBytes).tryGet().cid
       )
       manifest = Manifest.new(blocks).tryGet()
-      protected = manifest.addProtection(2, 2).tryGet()
 
+    let
+      protected = manifest.addProtection(2, 2).tryGet()
     check:
-        protected.originalCid == manifest.cid.tryGet()
-        protected.blocks[0..<333] == manifest.blocks
-        protected.protected == true
-        protected.originalLen == manifest.len
+      protected.protected == true
+      protected.originalLen == manifest.len
+      protected.originalCid == manifest.cid.tryGet()
+      protected.blocks[0..<N] == manifest.blocks
+
+    let
+      unprotected = protected.removeProtection().tryGet()
+    check:
+      unprotected.protected == false
+      unprotected.cid.tryGet() == manifest.cid.tryGet()
+      unprotected.blocks == manifest.blocks
+
 
     # fill up with empty Cid's
     for i in protected.rounded..<protected.len:
@@ -94,4 +105,4 @@ suite "Manifest":
       decoded.originalCid == manifest.cid.tryGet()
 
       decoded.blocks == protected.blocks
-      decoded.blocks[0..<333] == manifest.blocks
+      decoded.blocks[0..<N] == manifest.blocks
