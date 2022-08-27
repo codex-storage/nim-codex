@@ -204,11 +204,10 @@ proc new*(
     originalBytes: blocks.len * blockSize,
     protected: protected).success
 
-proc new*(
-  T: type Manifest,
+proc addProtection*(
   manifest: Manifest,
   K, M: int): ?!Manifest =
-  ## Create an erasure protected dataset from an unprotected one
+  ## Create an erasure protected dataset manifest from an unprotected one
   ##
 
   ? manifest.verify()
@@ -238,11 +237,10 @@ proc new*(
   ? self.verify()
   self.success
 
-proc unprotect*(
-  manifest: Manifest,
-  blocks: openArray[Cid] = []
+proc removeProtection*(
+  manifest: Manifest
   ): ?!Manifest =
-  ## Create an unprotected dataset from an erasure protected one
+  ## Create an unprotected dataset manifest from an erasure protected one
   ##
 
   ? manifest.verify()
@@ -250,7 +248,7 @@ proc unprotect*(
     return failure newException(CodexError, "Trying to unprotect already non-protected manifest")
 
   var self = copyAllScalarFields(manifest, protected = false)
-  self.blocks = @blocks
+  self.blocks = manifest.blocks[0..<manifest.originalLen]
 
   ? self.verify()
   self.success

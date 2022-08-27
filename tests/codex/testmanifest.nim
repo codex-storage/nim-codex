@@ -63,7 +63,7 @@ suite "Manifest":
         Block.new(("Block " & $it).toBytes).tryGet().cid
       )
       manifest = Manifest.new(blocks).tryGet()
-      protected = Manifest.new(manifest, 2, 2).tryGet()
+      protected = manifest.addProtection(2, 2).tryGet()
 
     check:
         protected.originalCid == manifest.cid.tryGet()
