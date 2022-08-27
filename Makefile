@@ -89,7 +89,7 @@ testAll: | build deps
 # Builds the codex binary
 exec: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim codex codex.nims
+		$(ENV_SCRIPT) nim codex $(NIM_PARAMS) codex.nims
 
 # symlink
 codex.nims:
