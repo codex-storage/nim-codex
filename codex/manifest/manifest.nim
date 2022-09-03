@@ -157,13 +157,15 @@ func copyAllScalarFields(
   original: Manifest,
   protected: bool
   ): Manifest =
-  # Sometimes we need to copy all but a few fields
-  # from a manifest to another one.
-  # It can be mplemented by copying all fields and then
-  # making a few edits, but it is inefficient to copy
-  # an entire `blocks` array only to drop it.
-  # So we made a helper that copies all scalar fields,
-  # i.e. all fields except for `blocks`.
+  ## Sometimes we need to copy all but a few fields
+  ## from a manifest to another one.
+  ## It can be mplemented by copying all fields and then
+  ## making a few edits, but it is inefficient to copy
+  ## an entire `blocks` array only to drop it.
+  ## So we made a helper that copies all scalar fields,
+  ## i.e. all fields except for `blocks`.
+  ##
+
   var copy = Manifest(
     rootHash: original.rootHash,
     originalBytes: original.originalBytes,
@@ -252,7 +254,6 @@ proc removeProtection*(
 
   ? self.verify()
   self.success
-
 
 proc new*(
   T: type Manifest,

@@ -195,8 +195,17 @@ proc decode*(
         resolved = 0
 
       while true:
-        # Continue to receive blocks until we have just enough for decoding
-        # or no more blocks can arrive
+        # Continue to receive blocks until one of the following:
+        # - we received K blocks
+        # - there are no more blocks to wait
+        #
+        # In the former case, we received just enough blocks to decode ECC group.
+        #   Since Leopard decoding is very fast (~~ 1 GB/sec), it may be faster
+        #   to reconstruct not yet arrived data blocks rather than wait more.
+        #
+        # We can replace this condition with dataPieces>=K to conserve some CPU resources.
+        # Or, develop a more complex algorithm with parallel downloading of multiple groups
+        #   and timeouts.
         if (resolved >= encoded.K) or (idxPendingBlocks.len == 0):
           break
 
