@@ -16,7 +16,10 @@ import ./helpers
 
 suite "Erasure encode/decode":
 
-  const dataSetSize = BlockSize * 123 # weird geometry
+  const
+    localBlockSize = 43*64  # check that code can work with non-default BlockSize
+                            # (but it should be x*64 for Leopard)
+    dataSetSize = BlockSize * 123  # ... and weird geometry
 
   var rng: Rng
   var chunker: Chunker
@@ -26,9 +29,9 @@ suite "Erasure encode/decode":
 
   setup:
     rng = Rng.instance()
-    chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = BlockSize)
-    manifest = !Manifest.new(blockSize = BlockSize)
-    store = CacheStore.new(cacheSize = (dataSetSize * 2), chunkSize = BlockSize)
+    chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = localBlockSize)
+    manifest = !Manifest.new(blockSize = localBlockSize)
+    store = CacheStore.new(cacheSize = dataSetSize*2, chunkSize = localBlockSize)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
 
     while (
