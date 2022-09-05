@@ -125,15 +125,22 @@ coverage:
 	genhtml coverage/coverage.f.info --output-directory coverage/report
 	if which open >/dev/null; then (echo -e "\e[92mOpening\e[39m HTML coverage report in browser..." && open coverage/report/index.html) || true; fi
 
+SCRATCH_IGNORE ?= "\.update\.timestamp\|Would skip\|build/\|codex\.nims\|nimcache/\|scratch/\|vendor/\.nimble"
 TESTGROUND_BUILDER ?= docker:generic
+TESTGROUND_OPTIONS ?= --instances=2
 TESTGROUND_PLAN ?= hello_codex
 TESTGROUND_RUNNER ?= local:docker
 TESTGROUND_TESTCASE ?= hello
 
 testground:
 	mkdir -p scratch && rm -rf scratch/* && git clone --depth=1 "file://$${PWD}" "scratch/$$(basename $${PWD})"
+	git diff --merge-base HEAD > "scratch/$$(basename $${PWD})/scratch.patch"
+	cd "scratch/$$(basename $${PWD})" && git apply scratch.patch
+	rm "scratch/$$(basename $${PWD})/scratch.patch"
+	git clean -ndfx | grep -v $(SCRATCH_IGNORE) | awk '{ print $$3 }' | xargs -I{} bash -c "test -d '{}' && echo '{}' || true" | xargs -I{} mkdir -p scratch/nim-codex/{}
+	git clean -ndfx | grep -v $(SCRATCH_IGNORE) | awk '{ print $$3 }' | xargs -I{} cp -R {} scratch/nim-codex/{}
 	testground plan import --from=testground/$(TESTGROUND_PLAN)
-	testground run single --builder=$(TESTGROUND_BUILDER) --runner=$(TESTGROUND_RUNNER) --plan=$(TESTGROUND_PLAN) --testcase=$(TESTGROUND_TESTCASE) --instances=2
+	testground run single --builder=$(TESTGROUND_BUILDER) --runner=$(TESTGROUND_RUNNER) --plan=$(TESTGROUND_PLAN) --testcase=$(TESTGROUND_TESTCASE) $(TESTGROUND_OPTIONS)
 
 testground_exec: | build deps
 	TESTGROUND_PLAN=$(TESTGROUND_PLAN) $(ENV_SCRIPT) nim testground_exec codex.nims
