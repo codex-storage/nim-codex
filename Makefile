@@ -141,9 +141,9 @@ TESTGROUND_TESTCASE ?= hello
 
 testground:
 	mkdir -p scratch && rm -rf scratch/* && git clone --depth=1 "file://$${PWD}" "scratch/$$(basename $${PWD})"
-	git diff --merge-base HEAD > "scratch/$$(basename $${PWD})/scratch.patch"
-	cd "scratch/$$(basename $${PWD})" && git apply scratch.patch
-	rm "scratch/$$(basename $${PWD})/scratch.patch"
+	[[ $$(git status --porcelain) == "" ]] || (git diff --merge-base HEAD > "scratch/$$(basename $${PWD})/scratch.patch")
+	[[ $$(git status --porcelain) == "" ]] || (cd "scratch/$$(basename $${PWD})" && git apply scratch.patch)
+	rm -f "scratch/$$(basename $${PWD})/scratch.patch"
 	git clean -ndfx | grep -v $(SCRATCH_IGNORE) | awk '{ print $$3 }' | xargs -I{} bash -c "test -d '{}' && echo '{}' || true" | xargs -I{} mkdir -p scratch/nim-codex/{}
 	git clean -ndfx | grep -v $(SCRATCH_IGNORE) | awk '{ print $$3 }' | xargs -I{} cp -R {} scratch/nim-codex/{}
 	testground plan import --from=testground/$(TESTGROUND_PLAN)
