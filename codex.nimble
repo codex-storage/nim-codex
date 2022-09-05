@@ -40,8 +40,7 @@ when declared(namedBin):
 
 ### Helper functions
 proc buildBinary(name: string, outName = "", srcDir = "./", params = "", lang = "c") =
-  if not dirExists "build":
-    mkDir "build"
+  if not dirExists "build": mkDir "build"
   # allow something like "nim nimbus --verbosity:0 --hints:off nimbus.nims"
   var extra_params = params
   when compiles(commandLineParams):
@@ -60,9 +59,6 @@ proc test(name: string, srcDir = "tests/", lang = "c") =
 task codex, "build codex binary":
   buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
-task testground_exec, "build codex_testground binary":
-  buildBinary "main", outName = "codex_testground", srcDir = "testground/" & getEnv("TESTGROUND_PLAN").strip & "/"
-
 task testCodex, "Build & run Codex tests":
   test "testCodex"
 
@@ -80,3 +76,6 @@ task testAll, "Run all tests":
   testCodexTask()
   testContractsTask()
   testIntegrationTask()
+
+task testground_exec, "build codex_testground binary":
+  buildBinary "main", outName = "codex_testground", srcDir = "testground/" & getEnv("TESTGROUND_PLAN").strip & "/"
