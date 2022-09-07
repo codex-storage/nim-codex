@@ -1,6 +1,7 @@
 import pkg/chronos
 import codex/contracts
 import codex/contracts/testtoken
+import stew/byteutils # delete me
 import ../ethertest
 import ./examples
 import ./time
@@ -54,7 +55,14 @@ ethersuite "On-Chain Market":
     check (await market.getRequest(request.id)) == none StorageRequest
     await token.approve(storage.address, request.price)
     discard await market.requestStorage(request)
-    check (await market.getRequest(request.id)) == some request
+    let r = await market.getRequest(request.id)
+    check (r) == some request
+
+  test "supports withdrawing of funds":
+    await token.approve(storage.address, request.price)
+    discard await market.requestStorage(request)
+    await provider.advanceTimeTo(request.expiry)
+    await market.withdrawFunds(request.id)
 
   test "supports request subscriptions":
     var receivedIds: seq[RequestId]
@@ -143,4 +151,38 @@ ethersuite "On-Chain Market":
 
     check receivedIds == @[request.id]
 
+    await subscription.unsubscribe()
+
+  test "support request cancelled subscriptions":
+    await token.approve(storage.address, request.price)
+    discard await market.requestStorage(request)
+
+    var receivedIds: seq[RequestId]
+    proc onRequestCancelled(id: RequestId) =
+      receivedIds.add(id)
+    let subscription = await market.subscribeRequestCancelled(request.id, onRequestCancelled)
+
+    await provider.advanceTimeTo(request.expiry)
+    await market.withdrawFunds(request.id)
+    check receivedIds == @[request.id]
+    await subscription.unsubscribe()
+
+  test "subscribes only to a certain request cancellation":
+    let otherRequest = StorageRequest.example
+    await token.approve(storage.address, request.price)
+    discard await market.requestStorage(request)
+    await token.approve(storage.address, otherRequest.price)
+    discard await market.requestStorage(otherRequest)
+
+    var receivedIds: seq[RequestId]
+    proc onRequestCancelled(requestId: RequestId) =
+      receivedIds.add(requestId)
+
+    let subscription = await market.subscribeRequestCancelled(request.id, onRequestCancelled)
+    await provider.advanceTimeTo(request.expiry) # shares expiry with otherRequest
+    expect ValueError:
+      await market.withdrawFunds(otherRequest.id)
+    check receivedIds.len == 0
+    await market.withdrawFunds(request.id)
+    check receivedIds == @[request.id]
     await subscription.unsubscribe()

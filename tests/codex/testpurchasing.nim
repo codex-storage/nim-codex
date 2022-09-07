@@ -89,18 +89,25 @@ suite "Purchasing":
     expect PurchaseTimeout:
       await purchase.wait()
 
-  test "supports request cancelled subscription when request times out":
+  test "checks that funds were withdrawn when purchase times out":
     let purchase = purchasing.purchase(request)
     let request = market.requested[0]
     var receivedIds: seq[RequestId]
     clock.set(request.expiry.truncate(int64))
+
     proc onRequestCancelled(id: RequestId) {.gcsafe, upraises:[].} =
       receivedIds.add(id)
+
+    # will only be fired when `withdrawFunds` is called on purchase timeout
     let subscription = await market.subscribeRequestCancelled(
                                       request.id,
                                       onRequestCancelled)
+    var purchaseTimedOut = false
     try:
       await purchase.wait()
     except PurchaseTimeout:
-      check receivedIds == @[request.id]
-      await subscription.unsubscribe()
+      purchaseTimedOut = true
+
+    await subscription.unsubscribe()
+    check purchaseTimedOut
+    check receivedIds == @[request.id]
