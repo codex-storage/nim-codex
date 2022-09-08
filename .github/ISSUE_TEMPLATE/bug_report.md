@@ -24,9 +24,10 @@ A clear and concise description of what you expected to happen.
 If applicable, add screenshots to help explain your problem.
 
 **Environment:**
- - OS: [e.g. iOS]
+ - OS: [e.g. MacOs 12.2.1]
  - Version: [e.g. v1.0.0]
  - Tag/Commit [e.g. 824296e695842b2]:
+ - Arch [e.g. amd64]:
 
 **Additional context**
 Add any other context about the problem here.
