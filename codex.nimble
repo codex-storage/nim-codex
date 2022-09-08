@@ -28,7 +28,8 @@ requires "nim >= 1.2.0",
          "lrucache",
          "leopard",
          "blscurve",
-         "libp2pdht"
+         "libp2pdht",
+         "eth"
 
 when declared(namedBin):
   namedBin = {
