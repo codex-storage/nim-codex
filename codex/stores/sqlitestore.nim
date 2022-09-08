@@ -75,7 +75,10 @@ method getBlock*(
   ## Save a copy to the cache if present in the database but not in the cache
   ##
 
-  notice "  == getBlock"
+  var counter {.global.} = 0
+  inc(counter)
+  if counter mod 1024 == 0:
+    echo counter
 
   if not self.cache.isNil:
     trace "Getting block from cache or database", cid
