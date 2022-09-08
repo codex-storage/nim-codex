@@ -76,20 +76,10 @@ ethersuite "Storage contracts":
     await provider.advanceTimeTo(await storage.proofEnd(slotId))
     await storage.payoutSlot(request.id, 0.u256)
 
-  test "a request is cancelled after expiry":
-    check not await storage.isCancelled(request.id)
-    await provider.advanceTimeTo(request.expiry + 1)
-    check await storage.isCancelled(request.id)
-
-  test "a slot is cancelled after expiry":
-    check not await storage.isSlotCancelled(slotId)
-    await provider.advanceTimeTo(request.expiry + 1)
-    check await storage.isSlotCancelled(slotId)
-
   test "cannot mark proofs missing for cancelled request":
     await provider.advanceTimeTo(request.expiry + 1)
     switchAccount(client)
     let missingPeriod = periodicity.periodOf(await provider.currentTime())
     await provider.advanceTime(periodicity.seconds)
-    revertsWith "Request was cancelled":
+    revertsWith "Slot not accepting proofs":
       await storage.markProofAsMissing(slotId, missingPeriod)

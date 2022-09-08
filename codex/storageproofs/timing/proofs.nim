@@ -18,14 +18,6 @@ method periodicity*(proofs: Proofs):
                    Future[Periodicity] {.base, async.} =
   raiseAssert("not implemented")
 
-method isSlotCancelled*(proofs: Proofs,
-                        id: SlotId): Future[bool] {.base, async.} =
-  raiseAssert("not implemented")
-
-method isCancelled*(proofs: Proofs,
-                    id: RequestId): Future[bool] {.base, async.} =
-  raiseAssert("not implemented")
-
 method isProofRequired*(proofs: Proofs,
                         id: SlotId): Future[bool] {.base, async.} =
   raiseAssert("not implemented")

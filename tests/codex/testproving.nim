@@ -90,19 +90,6 @@ suite "Proving":
     proving.onProofRequired = onProofRequired
     proofs.setProofRequired(id, true)
     await proofs.advanceToNextPeriod()
-    check not called
-
-  test "stops watching when contract is cancelled":
-    let id = SlotId.example
-    proving.add(id)
-    var called: bool
-    proc onProofRequired(id: SlotId) =
-      called = true
-    proofs.setProofRequired(id, true)
-    await proofs.advanceToNextPeriod()
-    proving.onProofRequired = onProofRequired
-    proofs.setSlotCancelled(id, true)
-    await proofs.advanceToNextPeriod()
     check not proving.slots.contains(id)
     check not called
 

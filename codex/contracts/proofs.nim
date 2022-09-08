@@ -22,14 +22,6 @@ method periodicity*(proofs: OnChainProofs): Future[Periodicity] {.async.} =
   let period = await proofs.storage.proofPeriod()
   return Periodicity(seconds: period)
 
-method isSlotCancelled*(proofs: OnChainProofs,
-                        id: SlotId): Future[bool] {.async.} =
-  return await proofs.storage.isSlotCancelled(id)
-
-method isCancelled*(proofs: OnChainProofs,
-                    id: RequestId): Future[bool] {.async.} =
-  return await proofs.storage.isCancelled(id)
-
 method isProofRequired*(proofs: OnChainProofs,
                         id: SlotId): Future[bool] {.async.} =
   return await proofs.storage.isProofRequired(id)

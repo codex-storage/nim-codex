@@ -42,19 +42,11 @@ proc removeEndedContracts(proving: Proving) {.async.} =
       ended.incl(id)
   proving.slots.excl(ended)
 
-proc removeCancelledContracts(proving: Proving) {.async.} =
-  var cancelled: HashSet[SlotId]
-  for id in proving.slots:
-    if (await proving.proofs.isSlotCancelled(id)):
-      cancelled.incl(id)
-  proving.slots.excl(cancelled)
-
 proc run(proving: Proving) {.async.} =
   try:
     while true:
       let currentPeriod = await proving.getCurrentPeriod()
       await proving.removeEndedContracts()
-      await proving.removeCancelledContracts()
       for id in proving.slots:
         if (await proving.proofs.isProofRequired(id)) or
           (await proving.proofs.willProofBeRequired(id)):
