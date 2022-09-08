@@ -75,6 +75,8 @@ method getBlock*(
   ## Save a copy to the cache if present in the database but not in the cache
   ##
 
+  notice "  == getBlock"
+
   if not self.cache.isNil:
     trace "Getting block from cache or database", cid
   else:
@@ -191,6 +193,7 @@ method hasBlock*(
   ## Check if a block exists in the database
   ##
 
+  notice "  == hasBlock"
   trace "Checking database for block existence", cid
 
   if cid.isEmpty:
@@ -234,6 +237,8 @@ method listBlocks*(
   ## This is an intensive operation
   ##
 
+  notice "== List started =="
+
   for id in self.listBlocksQuery():
     let
       # keys stored in id column of SQLiteDatastore are serialized Key
@@ -244,6 +249,8 @@ method listBlocks*(
       await onBlock(cidRes.get)
     else:
       trace "Unable to construct CID from key", key = id, error = $cidRes.error
+
+  notice "== List finished"
 
   return success()
 
