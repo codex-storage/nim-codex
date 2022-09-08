@@ -76,9 +76,11 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
     await sleepAsync(b.discoveryLoopSleep)
 
 proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
+  var x=0
   proc onBlock(cid: Cid) {.async.} =
     try:
-      await b.advertiseQueue.put(cid)
+      #await b.advertiseQueue.put(cid)
+      x = x+1
     except CancelledError as exc:
       trace "Cancelling block listing"
       raise exc
@@ -87,6 +89,7 @@ proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
 
   while b.discEngineRunning:
     discard await b.localStore.listBlocks(onBlock)
+    if x==42: echo x
 
     trace "About to sleep advertise loop", sleep = b.advertiseLoopSleep
     await sleepAsync(b.advertiseLoopSleep)
