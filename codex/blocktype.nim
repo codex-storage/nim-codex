@@ -22,7 +22,7 @@ import pkg/questionable/results
 import ./errors
 
 const
-  BlockSize* = 31 * 64 * 4 # block size
+  BlockSize* = 65536 # block size
 
 type
   Block* = ref object of RootObj
