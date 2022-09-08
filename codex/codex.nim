@@ -141,7 +141,7 @@ proc new*(T: type CodexServer, config: CodexConf): T =
       msg: "Unable to create data directory for block store: " & repoDir)
 
   let
-    localStore = SQLiteStore.new(repoDir, cache = cache)
+    localStore = FSStore.new(repoDir, cache = cache)
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
     discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
