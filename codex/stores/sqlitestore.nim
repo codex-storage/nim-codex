@@ -49,7 +49,7 @@ proc new*(
   cache: BlockStore = CacheStore.new()): T =
 
   let
-    datastoreRes = SQLiteDatastore.new(repoDir)
+    datastoreRes = SQLiteDatastore.new(repoDir, pageSize = 65536)
 
   if datastoreRes.isErr:
     raise (ref Defect)(msg: datastoreRes.error.msg)
