@@ -67,7 +67,7 @@ suite "Manifest":
       manifest = Manifest.new(blocks).tryGet()
 
     let
-      protected = manifest.addProtection(2, 2).tryGet()
+      protected = manifest.protect(2, 2).tryGet()
     check:
       protected.protected == true
       protected.originalLen == manifest.len
@@ -75,7 +75,7 @@ suite "Manifest":
       protected.blocks[0..<N] == manifest.blocks
 
     let
-      unprotected = protected.removeProtection().tryGet()
+      unprotected = protected.unprotect().tryGet()
     check:
       unprotected.protected == false
       unprotected.cid.tryGet() == manifest.cid.tryGet()

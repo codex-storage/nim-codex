@@ -82,7 +82,7 @@ proc encode*(
     parity       = parity
 
   trace "Erasure coding manifest", blocks, parity
-  without var encoded =? manifest.addProtection(blocks, parity), error:
+  without var encoded =? manifest.protect(blocks, parity), error:
     trace "Unable to create manifest", msg = error.msg
     return error.failure
 
@@ -262,7 +262,7 @@ proc decode*(
   finally:
     decoder.release()
 
-  without decoded =? encoded.removeProtection(), error:
+  without decoded =? encoded.unprotect(), error:
     return failure error
 
   return success decoded

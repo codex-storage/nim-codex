@@ -206,7 +206,7 @@ proc new*(
     originalBytes: blocks.len * blockSize,
     protected: protected).success
 
-proc addProtection*(
+proc protect*(
   manifest: Manifest,
   K, M: int): ?!Manifest =
   ## Create an erasure protected dataset manifest from an unprotected one
@@ -239,7 +239,7 @@ proc addProtection*(
   ? self.verify()
   self.success
 
-proc removeProtection*(
+proc unprotect*(
   manifest: Manifest
   ): ?!Manifest =
   ## Create an unprotected dataset manifest from an erasure protected one
