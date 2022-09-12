@@ -8,7 +8,7 @@ binDir = "build"
 srcDir = "."
 
 requires "nim >= 1.2.0",
-         "asynctest >= 0.3.0 & < 0.4.0",
+         "asynctest >= 0.3.2 & < 0.4.0",
          "bearssl >= 0.1.4",
          "chronicles >= 0.7.2",
          "chronos >= 2.5.2",
