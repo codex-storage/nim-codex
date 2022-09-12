@@ -137,7 +137,9 @@ method provide*(d: Discovery, host: ca.Address) {.async, base.} =
     trace "Provided to nodes", nodes = nodes.len
 
 proc start*(d: Discovery) {.async.} =
-  d.protocol.updateRecord(d.localInfo.signedPeerRecord).expect("updating SPR")
+  d.protocol.updateRecord(
+    d.localInfo.signedPeerRecord.some).expect("updating SPR")
+
   d.protocol.open()
   d.protocol.start()
 
