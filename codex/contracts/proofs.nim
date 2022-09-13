@@ -24,15 +24,24 @@ method periodicity*(proofs: OnChainProofs): Future[Periodicity] {.async.} =
 
 method isProofRequired*(proofs: OnChainProofs,
                         id: SlotId): Future[bool] {.async.} =
-  return await proofs.storage.isProofRequired(id)
+  try:
+    return await proofs.storage.isProofRequired(id)
+  except ValueError:
+    return false
 
 method willProofBeRequired*(proofs: OnChainProofs,
                             id: SlotId): Future[bool] {.async.} =
-  return await proofs.storage.willProofBeRequired(id)
+  try:
+    return await proofs.storage.willProofBeRequired(id)
+  except ValueError:
+    return false
 
 method getProofEnd*(proofs: OnChainProofs,
                     id: SlotId): Future[UInt256] {.async.} =
-  return await proofs.storage.proofEnd(id)
+  try:
+    return await proofs.storage.proofEnd(id)
+  except ValueError:
+    return 0.u256
 
 method submitProof*(proofs: OnChainProofs,
                     id: SlotId,
