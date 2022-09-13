@@ -13,11 +13,6 @@
 	url = https://github.com/cheatfate/nimcrypto.git
 	ignore = untracked
 	branch = master
-[submodule "vendor/bearssl"]
-	path = vendor/bearssl
-	url = https://github.com/status-im/bearssl.git
-	ignore = untracked
-	branch = master
 [submodule "vendor/nim-chronicles"]
 	path = vendor/nim-chronicles
 	url = https://github.com/status-im/nim-chronicles.git
@@ -189,9 +184,6 @@
 [submodule "vendor/nim-sqlite3-abi"]
 	path = vendor/nim-sqlite3-abi
 	url = https://github.com/arnetheduck/nim-sqlite3-abi.git
-[submodule "vendor/vendor/nim-eth"]
-	path = vendor/vendor/nim-eth
-	url = https://github.com/status-im/nim-eth
 [submodule "vendor/nim-eth"]
 	path = vendor/nim-eth
 	url = https://github.com/status-im/nim-eth
