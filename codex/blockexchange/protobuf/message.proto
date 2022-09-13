@@ -47,9 +47,9 @@ message Message {
   }
 
   Wantlist wantlist = 1;
-  repeated Block payload = 2;
-  repeated BlockPresence blockPresences = 3;
-  int32 pendingBytes = 4;
-  AccountMessage account = 5;
-  StateChannelUpdate payment = 6;
+  repeated Block payload = 3;
+  repeated BlockPresence blockPresences = 4;
+  int32 pendingBytes = 5;
+  AccountMessage account = 6;
+  StateChannelUpdate payment = 7;
 }
