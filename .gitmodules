@@ -13,11 +13,6 @@
 	url = https://github.com/cheatfate/nimcrypto.git
 	ignore = untracked
 	branch = master
-[submodule "vendor/bearssl"]
-	path = vendor/bearssl
-	url = https://github.com/status-im/bearssl.git
-	ignore = untracked
-	branch = master
 [submodule "vendor/nim-chronicles"]
 	path = vendor/nim-chronicles
 	url = https://github.com/status-im/nim-chronicles.git
