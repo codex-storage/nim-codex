@@ -9,7 +9,7 @@
 
 import std/sequtils
 
-import pkg/protobuf_serialization
+import pkg/[protobuf_serialization, protobuf_serialization/proto_parser]
 import pkg/stew/results
 import pkg/stew/objects
 import pkg/blscurve

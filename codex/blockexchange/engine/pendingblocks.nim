@@ -39,12 +39,12 @@ proc getWantHandle*(
 
   if cid notin p.blocks:
      p.blocks[cid] = newFuture[Block]().wait(timeout)
-     trace "Adding pending future for block", cid
+     trace "Adding pending future for block", cid = $cid
 
   try:
     return await p.blocks[cid]
   except CancelledError as exc:
-    trace "Blocks cancelled", exc = exc.msg, cid
+    trace "Blocks cancelled", exc = exc.msg, cid = $cid
     raise exc
   except CatchableError as exc:
     trace "Pending WANT failed or expired", exc = exc.msg
