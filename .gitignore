@@ -33,3 +33,4 @@ nimble.paths
 
 .update.timestamp
 codex.nims
+nimbus-build-system.paths

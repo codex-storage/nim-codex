@@ -73,7 +73,7 @@ proc fetchManifest*(
           containerType =? ManifestContainers.?[$contentType]:
     return failure "CID has invalid content type for manifest"
 
-  trace "Received retrieval request", cid
+  trace "Received retrieval request", cid = $cid
 
   without blk =? await node.blockStore.getBlock(cid), error:
     return failure error
@@ -126,9 +126,9 @@ proc retrieve*(
         try:
           # Spawn an erasure decoding job
           without res =? (await node.erasure.decode(manifest)), error:
-            trace "Unable to erasure decode manifest", cid, exc = error.msg
+            trace "Unable to erasure decode manifest", cid = $cid, exc = error.msg
         except CatchableError as exc:
-          trace "Exception decoding manifest", cid
+          trace "Exception decoding manifest", cid = $cid
       #
       asyncSpawn erasureJob()
     else:
@@ -219,8 +219,8 @@ proc store*(
     trace "Unable to generate manifest Cid!", exc = error.msg
     return failure(error.msg)
 
-  trace "Stored data", manifestCid = manifest.cid,
-                       contentCid = cid,
+  trace "Stored data", manifestCid = $manifest.cid,
+                       contentCid = $cid,
                        blocks = blockManifest.len
 
   # Announce manifest
@@ -244,19 +244,19 @@ proc requestStorage*(self: CodexNodeRef,
   ## - Run the PoR setup on the erasure dataset
   ## - Call into the marketplace and purchasing contracts
   ##
-  trace "Received a request for storage!", cid, duration, nodes, tolerance, reward
+  trace "Received a request for storage!", cid = $cid, duration, nodes, tolerance, reward
 
   without contracts =? self.contracts:
     trace "Purchasing not available"
     return failure "Purchasing not available"
 
   without manifest =? await self.fetchManifest(cid), error:
-    trace "Unable to fetch manifest for cid", cid
+    trace "Unable to fetch manifest for cid", cid = $cid
     raise error
 
   # Erasure code the dataset according to provided parameters
   without encoded =? (await self.erasure.encode(manifest, nodes.int, tolerance.int)), error:
-    trace "Unable to erasure code dataset", cid
+    trace "Unable to erasure code dataset", cid = $cid
     return failure(error)
 
   without encodedData =? encoded.encode(), error:
@@ -268,7 +268,7 @@ proc requestStorage*(self: CodexNodeRef,
     return failure(error)
 
   if isErr (await self.blockStore.putBlock(encodedBlk)):
-    trace "Unable to store encoded manifest block", cid = encodedBlk.cid
+    trace "Unable to store encoded manifest block", cid = $encodedBlk.cid
     return failure("Unable to store encoded manifest block")
 
   let request = StorageRequest(
@@ -334,14 +334,14 @@ proc start*(node: CodexNodeRef) {.async.} =
       ##
 
       without cid =? Cid.init(request.content.cid):
-        trace "Unable to parse Cid", cid
+        trace "Unable to parse Cid", cid = $cid
         raise newException(CodexError, "Unable to parse Cid")
 
       without manifest =? await node.fetchManifest(cid), error:
-        trace "Unable to fetch manifest for cid", cid
+        trace "Unable to fetch manifest for cid", cid = $cid
         raise error
 
-      trace "Fetching block for manifest", cid
+      trace "Fetching block for manifest", cid = $cid
       # TODO: This will probably require a call to `getBlock` either way,
       # since fetching of blocks will have to be selective according
       # to a combination of parameters, such as node slot position
