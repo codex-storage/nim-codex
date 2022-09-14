@@ -47,7 +47,7 @@ method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the stores
   ##
 
-  trace "Getting block from cache", cid
+  trace "Getting block from cache", cid = $cid
 
   if cid.isEmpty:
     trace "Empty block, ignoring"
@@ -59,14 +59,14 @@ method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
   try:
     return success self.cache[cid]
   except CatchableError as exc:
-    trace "Error requesting block from cache", cid, error = exc.msg
+    trace "Error requesting block from cache", cid = $cid, error = exc.msg
     return failure exc
 
 method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
   ##
 
-  trace "Checking CacheStore for block presence", cid
+  trace "Checking CacheStore for block presence", cid = $cid
   if cid.isEmpty:
     trace "Empty block, ignoring"
     return true.success
@@ -108,7 +108,7 @@ method putBlock*(self: CacheStore, blk: Block): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 
-  trace "Storing block in cache", cid = blk.cid
+  trace "Storing block in cache", cid = $blk.cid
   if blk.isEmpty:
     trace "Empty block, ignoring"
     return success()
@@ -120,7 +120,7 @@ method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
   ## Delete a block from the blockstore
   ##
 
-  trace "Deleting block from cache", cid
+  trace "Deleting block from cache", cid = $cid
   if cid.isEmpty:
     trace "Empty block, ignoring"
     return success()
