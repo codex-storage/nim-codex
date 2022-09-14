@@ -182,3 +182,6 @@
 [submodule "vendor/nim-eth"]
 	path = vendor/nim-eth
 	url = https://github.com/status-im/nim-eth
+[submodule "vendor/testground-nim-sdk"]
+	path = vendor/testground-nim-sdk
+	url = https://github.com/status-im/testground-nim-sdk.git
