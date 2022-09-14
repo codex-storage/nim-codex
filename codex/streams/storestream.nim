@@ -69,7 +69,7 @@ method readOnce*(
   ## Return how many bytes were actually read before EOF was encountered.
   ## Raise exception if we are already at EOF.
 
-  trace "Reading from manifest", cid = self.manifest.cid.get(), blocks = self.manifest.len
+  trace "Reading from manifest", cid = $self.manifest.cid.get(), blocks = self.manifest.len
   if self.atEof:
     raise newLPStreamEOFError()
 
@@ -88,7 +88,7 @@ method readOnce*(
     without blk =? await self.store.getBlock(self.manifest[blockNum]), error:
       raise newLPStreamReadError(error)
 
-    trace "Reading bytes from store stream", blockNum, cid = blk.cid, bytes = readBytes, blockOffset
+    trace "Reading bytes from store stream", blockNum, cid = $blk.cid, bytes = readBytes, blockOffset
 
     # Copy `readBytes` bytes starting at `blockOffset` from the block into the outbuf
     if blk.isEmpty:
