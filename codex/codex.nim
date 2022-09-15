@@ -142,6 +142,9 @@ proc new*(T: type CodexServer, config: CodexConf): T =
 
   let localStore =
     case config.storeBackend
+    of cachedStore:
+      notice "Using --cache backend data store"
+      cache
     of FS:
       notice "Using FS backend data store"
       FSStore.new(repoDir, cache = cache)

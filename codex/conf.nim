@@ -45,6 +45,7 @@ type
     None = "none"
 
   StoreKind* = enum
+    cachedStore = "cached"
     FS = "fs"
     SQLite = "sqlite"
 
