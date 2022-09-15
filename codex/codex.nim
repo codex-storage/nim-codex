@@ -140,8 +140,15 @@ proc new*(T: type CodexServer, config: CodexConf): T =
     raise (ref Defect)(
       msg: "Unable to create data directory for block store: " & repoDir)
 
+  let localStore =
+    case config.storeBackend
+    of FS:
+      notice "Using FS backend data store"
+      FSStore.new(repoDir, cache = cache)
+    of SQLite:
+      notice "Using SQLite backend data store"
+      SQLiteStore.new(repoDir, cache = cache)
   let
-    localStore = SQLiteStore.new(repoDir, cache = cache)
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
     discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)

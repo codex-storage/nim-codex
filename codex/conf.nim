@@ -44,6 +44,10 @@ type
     Json = "json"
     None = "none"
 
+  StoreKind* = enum
+    FS = "fs"
+    SQLite = "sqlite"
+
   CodexConf* = object
     logLevel* {.
       defaultValue: LogLevel.INFO
@@ -79,6 +83,13 @@ type
       defaultValueDesc: ""
       abbr: "d"
       name: "data-dir" }: OutDir
+
+    storeBackend* {.
+      desc: "The data store backend"
+      defaultValue: StoreKind.FS
+      abbr: "s"
+      name: "store-backend"
+    .}: StoreKind
 
     case cmd* {.
       command
