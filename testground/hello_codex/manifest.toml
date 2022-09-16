@@ -13,11 +13,6 @@ enabled = true
 name= "hello"
 instances = { min = 2, default = 2, max = 200 }
 
-# [testcases.params]
-# payload = { type = "string", default = "Hello!" }
-# count = { type = "int", default = 2 }
-# printResult = { type = "bool", default = true }
-
 [extra_sources]
   docker_generic = [
     "../../scratch"
