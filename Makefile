@@ -146,6 +146,7 @@ testground:
 	rm -f "scratch/$$(basename $${PWD})/scratch.patch"
 	git clean -ndfx | grep -v $(SCRATCH_IGNORE) | awk '{ print $$3 }' | xargs -I{} bash -c "test -d '{}' && echo '{}' || true" | xargs -I{} mkdir -p scratch/nim-codex/{}
 	git clean -ndfx | grep -v $(SCRATCH_IGNORE) | awk '{ print $$3 }' | xargs -I{} cp -R {} scratch/nim-codex/{}
+	echo >> scratch/nim-codex/config.nims && cat testground/$(TESTGROUND_PLAN)/config.nims >> scratch/nim-codex/config.nims
 	testground plan import --from=testground/$(TESTGROUND_PLAN)
 	testground run single --builder=$(TESTGROUND_BUILDER) --runner=$(TESTGROUND_RUNNER) --plan=$(TESTGROUND_PLAN) --testcase=$(TESTGROUND_TESTCASE) $(TESTGROUND_OPTIONS)
 
