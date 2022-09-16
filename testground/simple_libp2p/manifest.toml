@@ -1,4 +1,4 @@
-name = "hello_codex"
+name = "simple_libp2p"
 [defaults]
 builder = "docker:generic"
 runner = "local:docker"
@@ -10,7 +10,7 @@ enabled = true
 enabled = true
 
 [[testcases]]
-name= "hello"
+name= "default"
 instances = { min = 2, default = 2, max = 200 }
 
 [extra_sources]
