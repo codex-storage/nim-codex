@@ -135,9 +135,9 @@ coverage:
 SCRATCH_IGNORE ?= "\.update\.timestamp\|Would skip\|build/\|codex\.nims\|nimcache/\|scratch/\|vendor/\.nimble"
 TESTGROUND_BUILDER ?= docker:generic
 TESTGROUND_OPTIONS ?= --instances=2
-TESTGROUND_PLAN ?= hello_codex
+TESTGROUND_PLAN ?= simple_tcp_ping
 TESTGROUND_RUNNER ?= local:docker
-TESTGROUND_TESTCASE ?= hello
+TESTGROUND_TESTCASE ?= simple_tcp_ping
 
 testground:
 	mkdir -p scratch && rm -rf scratch/* && git clone --depth=1 "file://$${PWD}" "scratch/$$(basename $${PWD})"
