@@ -125,20 +125,21 @@ coverage:
 	genhtml coverage/coverage.f.info --output-directory coverage/report
 	if which open >/dev/null; then (echo -e "\e[92mOpening\e[39m HTML coverage report in browser..." && open coverage/report/index.html) || true; fi
 
-SCRATCH_IGNORE ?= "\.update\.timestamp\|Would skip\|build/\|codex\.nims\|nimcache/\|scratch/\|vendor/\.nimble"
 TESTGROUND_BUILDER ?= docker:generic
 TESTGROUND_OPTIONS ?= --instances=2
 TESTGROUND_PLAN ?= simple_tcp_ping
 TESTGROUND_RUNNER ?= local:docker
-TESTGROUND_TESTCASE ?= simple_tcp_ping
+TESTGROUND_TESTCASE ?= default
+
+TESTGROUND_SCRATCH_IGNORE ?= "\.update\.timestamp\|Would skip\|build/\|codex\.nims\|nimcache/\|scratch/\|vendor/\.nimble"
 
 testground:
 	mkdir -p scratch && rm -rf scratch/* && git clone --depth=1 "file://$${PWD}" "scratch/$$(basename $${PWD})"
 	[[ $$(git status --porcelain) == "" ]] || (git diff --merge-base HEAD > "scratch/$$(basename $${PWD})/scratch.patch")
 	[[ $$(git status --porcelain) == "" ]] || (cd "scratch/$$(basename $${PWD})" && git apply --allow-empty scratch.patch)
 	rm -f "scratch/$$(basename $${PWD})/scratch.patch"
-	git clean -ndfx | grep -v $(SCRATCH_IGNORE) | awk '{ print $$3 }' | xargs -I{} bash -c "test -d '{}' && echo '{}' || true" | xargs -I{} mkdir -p scratch/nim-codex/{}
-	git clean -ndfx | grep -v $(SCRATCH_IGNORE) | awk '{ print $$3 }' | xargs -I{} cp -R {} scratch/nim-codex/{}
+	git clean -ndfx | grep -v $(TESTGROUND_SCRATCH_IGNORE) | awk '{ print $$3 }' | xargs -I{} bash -c "test -d '{}' && echo '{}' || true" | xargs -I{} mkdir -p scratch/nim-codex/{}
+	git clean -ndfx | grep -v $(TESTGROUND_SCRATCH_IGNORE) | awk '{ print $$3 }' | xargs -I{} cp -R {} scratch/nim-codex/{}
 	echo >> scratch/nim-codex/config.nims && cat testground/$(TESTGROUND_PLAN)/config.nims >> scratch/nim-codex/config.nims
 	testground plan import --from=testground/$(TESTGROUND_PLAN)
 	testground run single --builder=$(TESTGROUND_BUILDER) --runner=$(TESTGROUND_RUNNER) --plan=$(TESTGROUND_PLAN) --testcase=$(TESTGROUND_TESTCASE) $(TESTGROUND_OPTIONS)

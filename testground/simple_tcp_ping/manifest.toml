@@ -10,7 +10,7 @@ enabled = true
 enabled = true
 
 [[testcases]]
-name= "simple_tcp_ping"
+name= "default"
 instances = { min = 2, default = 2, max = 2 }
 
 [testcases.params]
