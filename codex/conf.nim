@@ -86,8 +86,9 @@ type
       name: "data-dir" }: OutDir
 
     storeBackend* {.
-      desc: "The data store backend"
+      desc: "data store backend: fs, sqlite"
       defaultValue: StoreKind.FS
+      defaultValueDesc: "fs"
       abbr: "s"
       name: "store-backend"
     .}: StoreKind

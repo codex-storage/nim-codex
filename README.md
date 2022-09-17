@@ -45,7 +45,7 @@ The following options are available:
      --metrics-address      Listening address of the metrics server [=127.0.0.1].
      --metrics-port         Listening HTTP port of the metrics server [=8008].
  -d, --data-dir             The directory where codex will store configuration and data..
- -s, --store-backend        The data store backend [=StoreKind.FS].
+ -s, --store-backend        data store backend: fs, sqlite [=fs].
  -l, --listen-port          Specifies one or more listening ports for the node to listen on. [=0].
  -i, --listen-ip            The public IP [=0.0.0.0].
      --udp-port             Specify the discovery (UDP) port [=8090].
