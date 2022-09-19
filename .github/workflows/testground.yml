@@ -57,22 +57,21 @@ jobs:
           # Add executables built with Go to PATH
           echo "${HOME}/go/bin" >> ${GITHUB_PATH}
 
-      # - name: Restore Testground executable from cache
-      #   id: testground-exe-cache
-      #   uses: actions/cache@v3
-      #   with:
-      #     path: ~/go/bin/testground
-      #     key: ${{ matrix.target.os }}-${{ matrix.target.cpu }}-nim-${{ matrix.nim_branch }}-${{ ... }}-cache_nonce:${{ matrix.cache_nonce }}
+      - name: Calculate Testground commit hash used in cache key
+        id: calc-testground-hash
+        run: |
+          echo "::set-output name=hash::$(git rev-parse $(git branch --show-current))"
+        working-directory: testground
 
-      # - name: Build and start Testground daemon
-      #   run: |
-      #     mkdir -p ${HOME}/repos && cd ${HOME}/repos
-      #     git clone https://github.com/testground/testground.git && cd testground
-      #     make install
-      #     export PATH="${HOME}/go/bin:${PATH}"
-      #     testground daemon &
+      - name: Restore Testground executable from cache
+        id: testground-exe-cache
+        uses: actions/cache@v3
+        with:
+          path: ~/go/bin/testground
+          key: ${{ matrix.target.os }}-${{ matrix.target.cpu }}-nim-${{ matrix.nim_branch }}-testground_commit-${{ steps.calc-testground-hash.outputs.hash }}-cache_nonce:${{ matrix.cache_nonce }}
 
       - name: Build Testground executable
+        if: steps.testground-exe-cache.outputs.cache-hit != 'true'
         run: make install
         working-directory: testground
 
