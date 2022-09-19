@@ -28,13 +28,22 @@ jobs:
     defaults:
       run:
         shell: ${{ matrix.shell }} {0}
+        working-directory: nim-codex
 
     name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (Nim ${{ matrix.nim_branch }})'
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 80
     steps:
-      - name: Checkout sources
+      - name: Checkout nim-codex sources
         uses: actions/checkout@v3
+        with:
+          path: nim-codex
+
+      - name: Checkout Testground sources
+        uses: actions/checkout@v3
+        with:
+          path: testground
+          repository: testground/testground
 
       - name: APT (Linux amd64)
         if: runner.os == 'Linux' && matrix.target.cpu == 'amd64'
@@ -45,30 +54,34 @@ jobs:
 
       - name: Derive environment variables
         run: |
-          PLATFORM=x64
-          echo "PLATFORM=${PLATFORM}" >> ${GITHUB_ENV}
+          # Add executables built with Go to PATH
+          echo "${HOME}/go/bin" >> ${GITHUB_PATH}
 
-          # Stack usage on Linux amd64
-          NIMFLAGS="${NIMFLAGS} -d:limitStackUsage"
-          echo "NIMFLAGS=${NIMFLAGS}" >> ${GITHUB_ENV}
+      # - name: Restore Testground executable from cache
+      #   id: testground-exe-cache
+      #   uses: actions/cache@v3
+      #   with:
+      #     path: ~/go/bin/testground
+      #     key: ${{ matrix.target.os }}-${{ matrix.target.cpu }}-nim-${{ matrix.nim_branch }}-${{ ... }}-cache_nonce:${{ matrix.cache_nonce }}
 
-          # Use all available CPUs for build process
-          ncpu=$(nproc)
-          [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=1
-          echo "ncpu=${ncpu}" >> ${GITHUB_ENV}
+      # - name: Build and start Testground daemon
+      #   run: |
+      #     mkdir -p ${HOME}/repos && cd ${HOME}/repos
+      #     git clone https://github.com/testground/testground.git && cd testground
+      #     make install
+      #     export PATH="${HOME}/go/bin:${PATH}"
+      #     testground daemon &
 
-      - name: Build and start Testground daemon
-        run: |
-          mkdir -p ${HOME}/repos && cd ${HOME}/repos
-          git clone https://github.com/testground/testground.git && cd testground
-          make install
-          export PATH="${HOME}/go/bin:${PATH}"
-          testground daemon &
+      - name: Build Testground executable
+        run: make install
+        working-directory: testground
+
+      - name: Start Testground executable
+        run: testground daemon &
 
       - name: Build and run default Codex Testground plan
         run: |
-          export PATH="${HOME}/go/bin:${PATH}"
           make \
             TESTGROUND_PLAN=simple_libp2p \
-            TESTGROUND_OPTIONS="--instances=25 --wait" \
+            TESTGROUND_OPTIONS="--instances=10 --wait" \
             testground
