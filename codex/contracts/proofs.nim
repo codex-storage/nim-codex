@@ -26,15 +26,19 @@ method isProofRequired*(proofs: OnChainProofs,
                         id: SlotId): Future[bool] {.async.} =
   try:
     return await proofs.storage.isProofRequired(id)
-  except ValueError:
-    return false
+  except JsonRpcProviderError as e:
+    if e.revertReason == "Slot empty":
+      return false
+    raise e
 
 method willProofBeRequired*(proofs: OnChainProofs,
                             id: SlotId): Future[bool] {.async.} =
   try:
     return await proofs.storage.willProofBeRequired(id)
-  except ValueError:
-    return false
+  except JsonRpcProviderError:
+    if e.revertReason == "Slot empty":
+      return false
+    raise e
 
 method getProofEnd*(proofs: OnChainProofs,
                     id: SlotId): Future[UInt256] {.async.} =
