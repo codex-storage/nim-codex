@@ -59,8 +59,7 @@ jobs:
 
       - name: Calculate Testground commit hash used in cache key
         id: calc-testground-hash
-        run: |
-          echo "::set-output name=hash::$(git rev-parse $(git branch --show-current))"
+        run: echo "::set-output name=hash::$(git rev-parse $(git branch --show-current))"
         working-directory: testground
 
       - name: Restore Testground executable from cache
