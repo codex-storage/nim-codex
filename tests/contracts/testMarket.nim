@@ -1,4 +1,5 @@
 import pkg/chronos
+import pkg/ethers/testing
 import codex/contracts
 import codex/contracts/testtoken
 import stew/byteutils # delete me
@@ -180,8 +181,9 @@ ethersuite "On-Chain Market":
 
     let subscription = await market.subscribeRequestCancelled(request.id, onRequestCancelled)
     await provider.advanceTimeTo(request.expiry) # shares expiry with otherRequest
-    expect ValueError:
-      await market.withdrawFunds(otherRequest.id)
+    check:
+      revertsWith "Invalid client address":
+        await market.withdrawFunds(otherRequest.id)
     check receivedIds.len == 0
     await market.withdrawFunds(request.id)
     check receivedIds == @[request.id]
