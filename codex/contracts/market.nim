@@ -1,4 +1,6 @@
+import std/strutils
 import pkg/ethers
+import pkg/ethers/testing
 import pkg/upraises
 import pkg/questionable
 import ../market
@@ -38,9 +40,10 @@ method getRequest(market: OnChainMarket,
                   id: RequestId): Future[?StorageRequest] {.async.} =
   try:
     return some await market.contract.getRequest(id)
-  except ValueError:
-    # Unknown request
-    return none StorageRequest
+  except JsonRpcProviderError as e:
+    if e.revertReason.contains("Unknown request"):
+      # Unknown request
+      return none StorageRequest
 
 method getHost(market: OnChainMarket,
                requestId: RequestId,
