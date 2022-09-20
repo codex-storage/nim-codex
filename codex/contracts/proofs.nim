@@ -1,3 +1,4 @@
+import std/strutils
 import pkg/ethers
 import pkg/ethers/testing
 import ../storageproofs/timing/proofs
@@ -28,7 +29,7 @@ method isProofRequired*(proofs: OnChainProofs,
   try:
     return await proofs.storage.isProofRequired(id)
   except JsonRpcProviderError as e:
-    if e.revertReason == "Slot empty":
+    if e.revertReason.contains("Slot empty"):
       return false
     raise e
 
@@ -37,7 +38,7 @@ method willProofBeRequired*(proofs: OnChainProofs,
   try:
     return await proofs.storage.willProofBeRequired(id)
   except JsonRpcProviderError as e:
-    if e.revertReason == "Slot empty":
+    if e.revertReason.contains("Slot empty"):
       return false
     raise e
 
@@ -45,8 +46,10 @@ method getProofEnd*(proofs: OnChainProofs,
                     id: SlotId): Future[UInt256] {.async.} =
   try:
     return await proofs.storage.proofEnd(id)
-  except ValueError:
-    return 0.u256
+  except JsonRpcProviderError as e:
+    if e.revertReason.contains("Slot empty"):
+      return 0.u256
+    raise e
 
 method submitProof*(proofs: OnChainProofs,
                     id: SlotId,
