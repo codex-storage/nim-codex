@@ -9,6 +9,8 @@ on:
   pull_request:
   workflow_dispatch:
 
+# expect failure because docker images aren't cached across runs for the Testground GHA workflow
+
 jobs:
   build:
     strategy:
