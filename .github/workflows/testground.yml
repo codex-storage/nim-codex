@@ -57,17 +57,18 @@ jobs:
           # Add executables built with Go to PATH
           echo "${HOME}/go/bin" >> ${GITHUB_PATH}
 
-      - name: Calculate Testground commit hash used in cache key
-        id: calc-testground-hash
-        run: echo "::set-output name=hash::$(git rev-parse $(git branch --show-current))"
-        working-directory: testground
+      - name: Calculate cache-key components
+        id: calc-cache-key-components
+        run: |
+          cd ../testground
+          echo "::set-output name=hash::$(git rev-parse $(git branch --show-current))"
 
       # - name: Restore Testground executable from cache
       #   id: testground-exe-cache
       #   uses: actions/cache@v3
       #   with:
       #     path: ~/go/bin/testground
-      #     key: ${{ matrix.target.os }}-${{ matrix.target.cpu }}-nim-${{ matrix.nim_branch }}-testground_commit-${{ steps.calc-testground-hash.outputs.hash }}-cache_nonce:${{ matrix.cache_nonce }}
+      #     key: ${{ matrix.target.os }}-${{ matrix.target.cpu }}-nim-${{ matrix.nim_branch }}-testground_commit-${{ steps.calc-cache-key-components.outputs.hash }}-cache_nonce:${{ matrix.cache_nonce }}
 
       - name: Build Testground executable
         if: steps.testground-exe-cache.outputs.cache-hit != 'true'
@@ -77,7 +78,7 @@ jobs:
       - name: Start Testground executable
         run: testground daemon &
 
-      - name: Build and run default Codex Testground plan
+      - name: Build and run a Codex Testground plan with custom options
         run: |
           make \
             TESTGROUND_PLAN=simple_libp2p \
