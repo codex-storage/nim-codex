@@ -62,12 +62,12 @@ jobs:
         run: echo "::set-output name=hash::$(git rev-parse $(git branch --show-current))"
         working-directory: testground
 
-      - name: Restore Testground executable from cache
-        id: testground-exe-cache
-        uses: actions/cache@v3
-        with:
-          path: ~/go/bin/testground
-          key: ${{ matrix.target.os }}-${{ matrix.target.cpu }}-nim-${{ matrix.nim_branch }}-testground_commit-${{ steps.calc-testground-hash.outputs.hash }}-cache_nonce:${{ matrix.cache_nonce }}
+      # - name: Restore Testground executable from cache
+      #   id: testground-exe-cache
+      #   uses: actions/cache@v3
+      #   with:
+      #     path: ~/go/bin/testground
+      #     key: ${{ matrix.target.os }}-${{ matrix.target.cpu }}-nim-${{ matrix.nim_branch }}-testground_commit-${{ steps.calc-testground-hash.outputs.hash }}-cache_nonce:${{ matrix.cache_nonce }}
 
       - name: Build Testground executable
         if: steps.testground-exe-cache.outputs.cache-hit != 'true'
