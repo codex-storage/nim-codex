@@ -1,4 +1,5 @@
 import pkg/ethers
+import pkg/ethers/testing
 import ../storageproofs/timing/proofs
 import ./storage
 
@@ -35,7 +36,7 @@ method willProofBeRequired*(proofs: OnChainProofs,
                             id: SlotId): Future[bool] {.async.} =
   try:
     return await proofs.storage.willProofBeRequired(id)
-  except JsonRpcProviderError:
+  except JsonRpcProviderError as e:
     if e.revertReason == "Slot empty":
       return false
     raise e
