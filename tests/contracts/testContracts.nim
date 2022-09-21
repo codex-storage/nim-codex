@@ -6,7 +6,6 @@ import codex/contracts/testtoken
 import codex/storageproofs
 import ../ethertest
 import ./examples
-import ./matchers
 import ./time
 
 ethersuite "Storage contracts":
@@ -82,6 +81,6 @@ ethersuite "Storage contracts":
     switchAccount(client)
     let missingPeriod = periodicity.periodOf(await provider.currentTime())
     await provider.advanceTime(periodicity.seconds)
-    check:
-      revertsWith "Slot not accepting proofs":
-        await storage.markProofAsMissing(slotId, missingPeriod)
+    check await storage
+      .markProofAsMissing(slotId, missingPeriod)
+      .reverts("Slot not accepting proofs")
