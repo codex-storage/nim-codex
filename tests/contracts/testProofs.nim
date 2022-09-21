@@ -49,3 +49,12 @@ ethersuite "On-Chain Proofs":
     check receivedProofs == @[proof]
 
     await subscription.unsubscribe()
+
+  test "proof not required when slot is empty":
+    check not await proofs.isProofRequired(contractId)
+
+  test "proof will not be required when slot is empty":
+    check not await proofs.willProofBeRequired(contractId)
+
+  test "proof end is zero when slot is empty":
+    check (await proofs.getProofEnd(contractId)) == 0.u256

@@ -1,8 +1,8 @@
+import std/options
 import pkg/chronos
 import pkg/ethers/testing
 import codex/contracts
 import codex/contracts/testtoken
-import stew/byteutils # delete me
 import ../ethertest
 import ./examples
 import ./time
@@ -181,10 +181,13 @@ ethersuite "On-Chain Market":
 
     let subscription = await market.subscribeRequestCancelled(request.id, onRequestCancelled)
     await provider.advanceTimeTo(request.expiry) # shares expiry with otherRequest
-    check:
-      revertsWith "Invalid client address":
-        await market.withdrawFunds(otherRequest.id)
+    check await market
+      .withdrawFunds(otherRequest.id)
+      .reverts("Invalid client address")
     check receivedIds.len == 0
     await market.withdrawFunds(request.id)
     check receivedIds == @[request.id]
     await subscription.unsubscribe()
+
+  test "request is none when unknown":
+    check isNone await market.getRequest(request.id)

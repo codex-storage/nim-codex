@@ -40,10 +40,10 @@ method getRequest(market: OnChainMarket,
                   id: RequestId): Future[?StorageRequest] {.async.} =
   try:
     return some await market.contract.getRequest(id)
-  except JsonRpcProviderError as e:
+  except ProviderError as e:
     if e.revertReason.contains("Unknown request"):
-      # Unknown request
       return none StorageRequest
+    raise e
 
 method getHost(market: OnChainMarket,
                requestId: RequestId,
