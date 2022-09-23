@@ -22,6 +22,7 @@ import pkg/libp2pdht/discv5/protocol as discv5
 
 import ./rng
 import ./errors
+import ./formats
 
 export discv5
 
@@ -82,10 +83,10 @@ method find*(
   ## Find block providers
   ##
 
-  trace "Finding providers for block", cid = $cid
+  trace "Finding providers for block", cid
   without providers =?
     (await d.protocol.getProviders(cid.toNodeId())).mapFailure, error:
-    trace "Error finding providers for block", cid = $cid, error = error.msg
+    trace "Error finding providers for block", cid, error = error.msg
 
   return providers
 
@@ -93,7 +94,7 @@ method provide*(d: Discovery, cid: Cid) {.async, base.} =
   ## Provide a bock Cid
   ##
 
-  trace "Providing block", cid = $cid
+  trace "Providing block", cid
   let
     nodes = await d.protocol.addProvider(
       cid.toNodeId(),

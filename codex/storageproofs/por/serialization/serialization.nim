@@ -9,7 +9,6 @@
 
 import std/sequtils
 
-import pkg/protobuf_serialization
 import pkg/stew/results
 import pkg/stew/objects
 import pkg/blscurve

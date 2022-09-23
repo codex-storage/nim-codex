@@ -65,9 +65,9 @@ proc store*(
     let res = io2.writeFile(path, Protobuf.encode(por));
     res.isErr):
     let error = io2.ioErrorMsg(res.error)
-    trace "Unable to store storage proofs", path, cid = cid, error
+    trace "Unable to store storage proofs", path, cid, error
     return failure(
-      &"Unable to store storage proofs - path = ${path} cid = ${$cid} error = ${error}")
+      &"Unable to store storage proofs - path = ${path} cid = ${cid} error = ${error}")
 
   return success()
 
@@ -106,9 +106,9 @@ proc store*(
       let res = io2.writeFile(path, t.tag);
       res.isErr):
       let error = io2.ioErrorMsg(res.error)
-      trace "Unable to store tags", path, cid = cid, error
+      trace "Unable to store tags", path, cid, error
       return failure(
-        &"Unable to store tags - path = ${path} cid = ${$cid} error = ${error}")
+        &"Unable to store tags - path = ${path} cid = ${cid} error = ${error}")
 
   return success()
 

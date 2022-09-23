@@ -10,6 +10,7 @@
 import std/options
 import std/tables
 import std/sequtils
+import std/strformat
 
 import pkg/questionable
 import pkg/questionable/results
@@ -188,7 +189,7 @@ proc store*(
       blockManifest.add(blk.cid)
       if isErr (await node.blockStore.putBlock(blk)):
         # trace "Unable to store block", cid = blk.cid
-        return failure("Unable to store block " & $blk.cid)
+        return failure(&"Unable to store block {blk.cid}")
 
   except CancelledError as exc:
     raise exc
