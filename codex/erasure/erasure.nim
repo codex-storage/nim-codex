@@ -118,7 +118,7 @@ proc encode*(
             trace "Unable to retrieve block", error = error.msg
             return failure error
 
-          trace "Encoding block", cid = $blk.cid, pos = idx
+          trace "Encoding block", cid = blk.cid, pos = idx
           shallowCopy(data[j], blk.data)
         else:
           trace "Padding with empty block", pos = idx
@@ -137,10 +137,10 @@ proc encode*(
           trace "Unable to create parity block", err = error.msg
           return failure(error)
 
-        trace "Adding parity block", cid = $blk.cid, pos = idx
+        trace "Adding parity block", cid = blk.cid, pos = idx
         encoded[idx] = blk.cid
         if isErr (await self.store.putBlock(blk)):
-          trace "Unable to store block!", cid = $blk.cid
+          trace "Unable to store block!", cid = blk.cid
           return failure("Unable to store block!")
   except CancelledError as exc:
     trace "Erasure coding encoding cancelled"
@@ -212,10 +212,10 @@ proc decode*(
           continue
 
         if idx >= encoded.K:
-          trace "Retrieved parity block", cid = $blk.cid, idx
+          trace "Retrieved parity block", cid = blk.cid, idx
           shallowCopy(parityData[idx - encoded.K], if blk.isEmpty: emptyBlock else: blk.data)
         else:
-          trace "Retrieved data block", cid = $blk.cid, idx
+          trace "Retrieved data block", cid = blk.cid, idx
           shallowCopy(data[idx], if blk.isEmpty: emptyBlock else: blk.data)
 
         resolved.inc
@@ -241,9 +241,9 @@ proc decode*(
             trace "Unable to create block!", exc = error.msg
             return failure(error)
 
-          trace "Recovered block", cid = $blk.cid
+          trace "Recovered block", cid = blk.cid
           if isErr (await self.store.putBlock(blk)):
-            trace "Unable to store block!", cid = $blk.cid
+            trace "Unable to store block!", cid = blk.cid
             return failure("Unable to store block!")
   except CancelledError as exc:
     trace "Erasure coding decoding cancelled"
