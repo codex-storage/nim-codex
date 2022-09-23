@@ -1,8 +1,6 @@
-import ./stores/[
-  cachestore,
-  blockstore,
-  networkstore,
-  fsstore,
-  sqlitestore]
+import ./stores/cachestore
+import ./stores/blockstore
+import ./stores/networkstore
+import ./stores/fsstore
 
-export cachestore, blockstore, networkstore, fsstore, sqlitestore
+export cachestore, blockstore, networkstore, fsstore
