@@ -88,7 +88,7 @@ method readOnce*(
     without blk =? await self.store.getBlock(self.manifest[blockNum]), error:
       raise newLPStreamReadError(error)
 
-    trace "Reading bytes from store stream", blockNum, cid = $blk.cid, bytes = readBytes, blockOffset
+    trace "Reading bytes from store stream", blockNum, cid = blk.cid, bytes = readBytes, blockOffset
 
     # Copy `readBytes` bytes starting at `blockOffset` from the block into the outbuf
     if blk.isEmpty:

@@ -63,7 +63,7 @@ proc uploadTags*(
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    trace "Exception submitting tags", cid = $cid, exc = exc.msg
+    trace "Exception submitting tags", cid, exc = exc.msg
     return failure(exc.msg)
   finally:
     await conn.close()
