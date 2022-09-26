@@ -1,7 +1,7 @@
 # Adapted from:
 # https://github.com/status-im/nim-codex/blob/main/.github/workflows/ci.yml
 
-# remove me
+# remove me next
 
 name: Testground
 on:
@@ -66,7 +66,7 @@ jobs:
         run: |
           cd ../testground
           echo "::set-output name=hash::$(git rev-parse $(git branch --show-current))"
-          echo "::set-output name=digest::$(docker inspect nimlang/nim:latest | jq '.[0].RepoDigests[0]')"
+          echo "::set-output name=digest::$(docker manifest inspect nimlang/nim:latest | jq '.config.digest')"
 
       - name: Restore Testground executable from cache
         id: testground-exe-cache
