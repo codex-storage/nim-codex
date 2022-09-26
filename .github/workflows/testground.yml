@@ -1,8 +1,6 @@
 # Adapted from:
 # https://github.com/status-im/nim-codex/blob/main/.github/workflows/ci.yml
 
-# remove me next 2 (stripped double-quotes from string returned by `docker manifest inspect ...`
-
 name: Testground
 on:
   push:
@@ -20,7 +18,7 @@ jobs:
         target:
           - os: linux
             cpu: amd64
-        nim_branch: [version-1-2]
+        nim_branch: [version-1-6]
         include:
           - target:
               os: linux
