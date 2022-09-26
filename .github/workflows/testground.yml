@@ -1,7 +1,7 @@
 # Adapted from:
 # https://github.com/status-im/nim-codex/blob/main/.github/workflows/ci.yml
 
-# remove me next
+# remove me next 2 (stripped double-quotes from string returned by `docker manifest inspect ...`
 
 name: Testground
 on:
@@ -10,8 +10,6 @@ on:
       - main
   pull_request:
   workflow_dispatch:
-
-# expect failure because docker images aren't cached across runs for the Testground GHA workflow
 
 jobs:
   build:
@@ -64,9 +62,9 @@ jobs:
       - name: Calculate cache-key components
         id: calc-cache-key-components
         run: |
-          cd ../testground
           echo "::set-output name=hash::$(git rev-parse $(git branch --show-current))"
-          echo "::set-output name=digest::$(docker manifest inspect nimlang/nim:latest | jq '.config.digest')"
+          echo "::set-output name=digest::$(docker manifest inspect nimlang/nim:latest | jq '.config.digest' | awk -F'"' '{ print $2}')"
+        working-directory: testground
 
       - name: Restore Testground executable from cache
         id: testground-exe-cache
