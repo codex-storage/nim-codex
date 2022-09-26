@@ -1,6 +1,8 @@
 # Adapted from:
 # https://github.com/status-im/nim-codex/blob/main/.github/workflows/ci.yml
 
+# remove me
+
 name: Testground
 on:
   push:
@@ -16,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        cache_nonce: [ 0 ] # Allows for easily busting actions/cache caches
+        cache_nonce: [ 1 ] # Allows for easily busting actions/cache caches
         target:
           - os: linux
             cpu: amd64
@@ -64,21 +66,43 @@ jobs:
         run: |
           cd ../testground
           echo "::set-output name=hash::$(git rev-parse $(git branch --show-current))"
+          echo "::set-output name=digest::$(docker inspect nimlang/nim:latest | jq '.[0].RepoDigests[0]')"
 
-      # - name: Restore Testground executable from cache
-      #   id: testground-exe-cache
-      #   uses: actions/cache@v3
-      #   with:
-      #     path: ~/go/bin/testground
-      #     key: ${{ matrix.target.os }}-${{ matrix.target.cpu }}-nim-${{ matrix.nim_branch }}-testground_commit-${{ steps.calc-cache-key-components.outputs.hash }}-cache_nonce:${{ matrix.cache_nonce }}
+      - name: Restore Testground executable from cache
+        id: testground-exe-cache
+        uses: actions/cache@v3
+        with:
+          path: ~/go/bin/testground
+          key: ${{ matrix.target.os }}-${{ matrix.target.cpu }}-testground_commit-${{ steps.calc-cache-key-components.outputs.hash }}-cache_nonce:${{ matrix.cache_nonce }}
 
       - name: Build Testground executable
         if: steps.testground-exe-cache.outputs.cache-hit != 'true'
-        run: make install
+        run: make goinstall
         working-directory: testground
 
       - name: Start Testground executable
-        run: testground daemon &
+        run: |
+          make docker sync-install
+          testground daemon &
+        working-directory: testground
+
+      - name: Restore nimlang/nim:latest Docker image from cache
+        id: nimlang_nim-docker-image-cache
+        uses: actions/cache@v3
+        with:
+          path: ~/docker/saved-images/nimlang_nim_latest.tar.gz
+          key: nim_image_digest-${{ steps.calc-cache-key-components.outputs.digest }}-cache_nonce:${{ matrix.cache_nonce }}
+
+      - name: Pull nimlang/nim:latest Docker image from registry and save to cache path
+        if: steps.nimlang_nim-docker-image-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "${HOME}/docker/saved-images"
+          docker pull nimlang/nim:latest
+          docker save nimlang/nim:latest | gzip > "${HOME}/docker/saved-images/nimlang_nim_latest.tar.gz"
+
+      - name: Load nimlang/nim:latest Docker image from cache
+        if: steps.nimlang_nim-docker-image-cache.outputs.cache-hit == 'true'
+        run: docker load < "${HOME}/docker/saved-images/nimlang_nim_latest.tar.gz"
 
       - name: Build and run a Codex Testground plan with custom options
         run: |
