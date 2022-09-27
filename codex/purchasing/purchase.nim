@@ -1,46 +1,31 @@
-import ../market
-import ../clock
+import ./statemachine
+import ./states/pending
 import ./purchaseid
 
-export purchaseid
+# Purchase is implemented as a state machine:
+#
+#     pending ----> submitted ----------> started
+#        \             \    \
+#         \             \    -----------> cancelled
+#          \             \                   \
+#           --------------------------------------> error
+#
 
-type
-  Purchase* = ref object
-    future: Future[void]
-    market: Market
-    clock: Clock
-    request*: StorageRequest
+export Purchase
+export purchaseid
 
 func newPurchase*(request: StorageRequest,
                   market: Market,
                   clock: Clock): Purchase =
-  Purchase(request: request, market: market, clock: clock)
-
-proc run(purchase: Purchase) {.async.} =
-  let market = purchase.market
-  let clock = purchase.clock
-
-  proc requestStorage {.async.} =
-    purchase.request = await market.requestStorage(purchase.request)
-
-  proc waitUntilFulfilled {.async.} =
-    let done = newFuture[void]()
-    proc callback(_: RequestId) =
-      done.complete()
-    let request = purchase.request
-    let subscription = await market.subscribeFulfillment(request.id, callback)
-    await done
-    await subscription.unsubscribe()
-
-  proc withTimeout(future: Future[void]) {.async.} =
-    let expiry = purchase.request.expiry.truncate(int64)
-    await future.withTimeout(clock, expiry)
-
-  await requestStorage()
-  await waitUntilFulfilled().withTimeout()
+  Purchase(
+    future: Future[void].new(),
+    request: request,
+    market: market,
+    clock: clock
+  )
 
 proc start*(purchase: Purchase) =
-  purchase.future = purchase.run()
+  purchase.switch(PurchasePending())
 
 proc wait*(purchase: Purchase) {.async.} =
   await purchase.future
