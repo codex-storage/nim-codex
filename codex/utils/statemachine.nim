@@ -1,4 +1,5 @@
 import pkg/questionable
+import pkg/chronos
 import ./optionalcast
 
 ## Implementation of the the state pattern:
@@ -84,3 +85,18 @@ proc switch*(machine: StateMachine, newState: State) =
 proc switch*(oldState, newState: State) =
   if context =? oldState.context:
     context.switch(newState)
+
+type
+  AsyncState* = ref object of State
+
+method enterAsync(state: AsyncState) {.base, async.} =
+  discard
+
+method exitAsync(state: AsyncState) {.base, async.} =
+  discard
+
+method enter(state: AsyncState) =
+  asyncSpawn state.enterAsync()
+
+method exit(state: AsyncState) =
+  asyncSpawn state.exitAsync()
