@@ -10,6 +10,7 @@ import ./codex/testpurchasing
 import ./codex/testsales
 import ./codex/testerasure
 import ./codex/testproving
+import ./codex/testutils
 
 # to check that everything compiles
 import ../codex
