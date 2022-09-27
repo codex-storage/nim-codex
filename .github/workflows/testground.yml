@@ -1,8 +1,6 @@
 # Adapted from:
 # https://github.com/status-im/nim-codex/blob/main/.github/workflows/ci.yml
 
-# delete me... another cache-tester comment
-
 name: Testground
 on:
   push:
