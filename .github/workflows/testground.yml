@@ -1,6 +1,8 @@
 # Adapted from:
 # https://github.com/status-im/nim-codex/blob/main/.github/workflows/ci.yml
 
+# delete me... another cache-tester comment
+
 name: Testground
 on:
   push:
@@ -14,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        cache_nonce: [ 1 ] # Allows for easily busting actions/cache caches
+        cache_nonce: [ 2 ] # Allows for easily busting actions/cache caches
         target:
           - os: linux
             cpu: amd64
@@ -60,45 +62,44 @@ jobs:
       - name: Calculate cache-key components
         id: calc-cache-key-components
         run: |
-          echo "::set-output name=hash::$(git rev-parse $(git branch --show-current))"
-          echo "::set-output name=digest::$(docker manifest inspect nimlang/nim:latest | jq '.config.digest' | awk -F'"' '{ print $2}')"
+          echo "::set-output name=testground_commit::$(git rev-parse $(git branch --show-current))"
+          echo "::set-output name=nim_image_digest::$(docker manifest inspect nimlang/nim:latest | jq '.config.digest' | awk -F'"' '{ print $2}')"
         working-directory: testground
 
-      - name: Restore Testground executable from cache
-        id: testground-exe-cache
+      - name: Restore Testground resources from cache
+        id: testground-reources-cache
         uses: actions/cache@v3
         with:
-          path: ~/go/bin/testground
-          key: ${{ matrix.target.os }}-${{ matrix.target.cpu }}-testground_commit-${{ steps.calc-cache-key-components.outputs.hash }}-cache_nonce:${{ matrix.cache_nonce }}
+          path: |
+            ~/go/bin
+            ~/docker/saved-images
+          key: ${{ matrix.target.os }}-${{ matrix.target.cpu }}-testground_commit-${{ steps.calc-cache-key-components.outputs.testground_commit }}-nim_image_digest-${{ steps.calc-cache-key-components.outputs.nim_image_digest }}-cache_nonce:${{ matrix.cache_nonce }}
 
-      - name: Build Testground executable
-        if: steps.testground-exe-cache.outputs.cache-hit != 'true'
-        run: make goinstall
-        working-directory: testground
-
-      - name: Start Testground executable
+      - name: Build Testground resources and save to cache
+        if: steps.testground-reources-cache.outputs.cache-hit != 'true'
         run: |
-          make docker sync-install
-          testground daemon &
-        working-directory: testground
-
-      - name: Restore nimlang/nim:latest Docker image from cache
-        id: nimlang_nim-docker-image-cache
-        uses: actions/cache@v3
-        with:
-          path: ~/docker/saved-images/nimlang_nim_latest.tar.gz
-          key: nim_image_digest-${{ steps.calc-cache-key-components.outputs.digest }}-cache_nonce:${{ matrix.cache_nonce }}
-
-      - name: Pull nimlang/nim:latest Docker image from registry and save to cache path
-        if: steps.nimlang_nim-docker-image-cache.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p "${HOME}/docker/saved-images"
+          mkdir -p "${HOME}"/docker/saved-images
+          make install
+          docker save iptestground/sidecar:edge | gzip > "${HOME}/docker/saved-images/iptestground_sidecar_edge.tar.gz"
+          docker save iptestground/sync-service:edge | gzip > "${HOME}/docker/saved-images/iptestground_sync-service_edge.tar.gz"
+          docker save iptestground/testground:edge | gzip > "${HOME}/docker/saved-images/iptestground_testground_edge.tar.gz"
           docker pull nimlang/nim:latest
           docker save nimlang/nim:latest | gzip > "${HOME}/docker/saved-images/nimlang_nim_latest.tar.gz"
+        working-directory: testground
 
-      - name: Load nimlang/nim:latest Docker image from cache
-        if: steps.nimlang_nim-docker-image-cache.outputs.cache-hit == 'true'
-        run: docker load < "${HOME}/docker/saved-images/nimlang_nim_latest.tar.gz"
+      - name: Restore Testground resources from cache
+        if: steps.testground-reources-cache.outputs.cache-hit == 'true'
+        run: |
+          docker load < "${HOME}/docker/saved-images/iptestground_sidecar_edge.tar.gz"
+          docker load < "${HOME}/docker/saved-images/iptestground_sync-service_edge.tar.gz"
+          docker load < "${HOME}/docker/saved-images/iptestground_testground_edge.tar.gz"
+          docker load < "${HOME}/docker/saved-images/nimlang_nim_latest.tar.gz"
+          docker load < "${HOME}/docker/saved-images/bitnami_grafana_latest.tar.gz" || true
+          docker load < "${HOME}/docker/saved-images/redis_latest.tar.gz" || true
+          docker load < "${HOME}/docker/saved-images/influxdb_1.8.tar.gz" || true
+
+      - name: Start Testground executable
+        run: testground daemon &
 
       - name: Build and run a Codex Testground plan with custom options
         run: |
@@ -106,3 +107,11 @@ jobs:
             TESTGROUND_PLAN=simple_libp2p \
             TESTGROUND_OPTIONS="--instances=10 --wait" \
             testground
+
+      - name: Save additional Testground resources to cache
+        if: steps.testground-reources-cache.outputs.cache-hit != 'true'
+        run: |
+          docker ps -a -q | xargs docker kill &>/dev/null ; docker ps -a -q | xargs docker rm
+          docker save bitnami/grafana:latest | gzip > "${HOME}/docker/saved-images/bitnami_grafana_latest.tar.gz"
+          docker save redis:latest | gzip > "${HOME}/docker/saved-images/redis_latest.tar.gz"
+          docker save influxdb:1.8 | gzip > "${HOME}/docker/saved-images/influxdb_1.8.tar.gz"
