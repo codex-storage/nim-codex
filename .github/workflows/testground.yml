@@ -109,7 +109,7 @@ jobs:
       - name: Save additional Testground resources to cache
         if: steps.testground-reources-cache.outputs.cache-hit != 'true'
         run: |
-          docker ps -a -q | xargs docker kill &>/dev/null ; docker ps -a -q | xargs docker rm
+          (docker ps -a -q | xargs docker kill &>/dev/null) || true ; (docker ps -a -q | xargs docker rm &>/dev/null) || true
           docker save nimbase:latest | gzip > "${HOME}/docker/saved-images/nimbase_latest.tar.gz"
           docker save bitnami/grafana:latest | gzip > "${HOME}/docker/saved-images/bitnami_grafana_latest.tar.gz"
           docker save redis:latest | gzip > "${HOME}/docker/saved-images/redis_latest.tar.gz"
