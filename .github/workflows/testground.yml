@@ -83,8 +83,6 @@ jobs:
           docker save iptestground/sidecar:edge | gzip > "${HOME}/docker/saved-images/iptestground_sidecar_edge.tar.gz"
           docker save iptestground/sync-service:edge | gzip > "${HOME}/docker/saved-images/iptestground_sync-service_edge.tar.gz"
           docker save iptestground/testground:edge | gzip > "${HOME}/docker/saved-images/iptestground_testground_edge.tar.gz"
-          docker pull nimlang/nim:latest
-          docker save nimlang/nim:latest | gzip > "${HOME}/docker/saved-images/nimlang_nim_latest.tar.gz"
         working-directory: testground
 
       - name: Restore Testground resources from cache
@@ -93,10 +91,10 @@ jobs:
           docker load < "${HOME}/docker/saved-images/iptestground_sidecar_edge.tar.gz"
           docker load < "${HOME}/docker/saved-images/iptestground_sync-service_edge.tar.gz"
           docker load < "${HOME}/docker/saved-images/iptestground_testground_edge.tar.gz"
-          docker load < "${HOME}/docker/saved-images/nimlang_nim_latest.tar.gz"
-          docker load < "${HOME}/docker/saved-images/bitnami_grafana_latest.tar.gz" || true
-          docker load < "${HOME}/docker/saved-images/redis_latest.tar.gz" || true
-          docker load < "${HOME}/docker/saved-images/influxdb_1.8.tar.gz" || true
+          docker load < "${HOME}/docker/saved-images/nimbase_latest.tar.gz"
+          docker load < "${HOME}/docker/saved-images/bitnami_grafana_latest.tar.gz"
+          docker load < "${HOME}/docker/saved-images/redis_latest.tar.gz"
+          docker load < "${HOME}/docker/saved-images/influxdb_1.8.tar.gz"
 
       - name: Start Testground executable
         run: testground daemon &
@@ -112,6 +110,7 @@ jobs:
         if: steps.testground-reources-cache.outputs.cache-hit != 'true'
         run: |
           docker ps -a -q | xargs docker kill &>/dev/null ; docker ps -a -q | xargs docker rm
+          docker save nimbase:latest | gzip > "${HOME}/docker/saved-images/nimbase_latest.tar.gz"
           docker save bitnami/grafana:latest | gzip > "${HOME}/docker/saved-images/bitnami_grafana_latest.tar.gz"
           docker save redis:latest | gzip > "${HOME}/docker/saved-images/redis_latest.tar.gz"
           docker save influxdb:1.8 | gzip > "${HOME}/docker/saved-images/influxdb_1.8.tar.gz"

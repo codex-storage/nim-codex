@@ -1,9 +1,4 @@
-FROM nimlang/nim as builder
-
-RUN apt update -qq && \
-    DEBIAN_FRONTEND="noninteractive" apt install -yq cmake curl make
-
-FROM builder
+FROM nimbase
 
 COPY . .
 

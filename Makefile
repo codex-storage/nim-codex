@@ -28,6 +28,7 @@ LINK_PCRE := 0
 	test \
 	testground \
 	testground_exec \
+	testground_nimbase \
 	update
 
 ifeq ($(NIM_PARAMS),)
@@ -133,7 +134,7 @@ TESTGROUND_TESTCASE ?= default
 
 TESTGROUND_SCRATCH_IGNORE ?= "\.update\.timestamp\|Would skip\|build/\|codex\.nims\|nimcache/\|scratch/\|vendor/\.nimble"
 
-testground:
+testground: testground_nimbase
 	mkdir -p scratch && rm -rf scratch/* && git clone --depth=1 "file://$${PWD}" "scratch/$$(basename $${PWD})"
 	[[ $$(git status --porcelain) == "" ]] || (git diff --merge-base HEAD > "scratch/$$(basename $${PWD})/scratch.patch")
 	[[ $$(git status --porcelain) == "" ]] || (cd "scratch/$$(basename $${PWD})" && git apply --allow-empty scratch.patch)
@@ -146,6 +147,10 @@ testground:
 
 testground_exec: | build deps
 	TESTGROUND_PLAN=$(TESTGROUND_PLAN) $(ENV_SCRIPT) nim testground_exec codex.nims
+
+testground_nimbase:
+	echo -e $(BUILD_MSG) "nimbase Docker image" && \
+		[[ $$(docker image inspect nimbase:latest) != "[]" ]] || (cd testground/base && docker build -t nimbase .)
 
 # usual cleaning
 clean: | clean-common
