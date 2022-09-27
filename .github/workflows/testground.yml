@@ -83,7 +83,7 @@ jobs:
           docker save iptestground/testground:edge | gzip > "${HOME}/docker/saved-images/iptestground_testground_edge.tar.gz"
         working-directory: testground
 
-      - name: Restore Testground resources from cache
+      - name: Load Testground resources from cache
         if: steps.testground-reources-cache.outputs.cache-hit == 'true'
         run: |
           docker load < "${HOME}/docker/saved-images/iptestground_sidecar_edge.tar.gz"
