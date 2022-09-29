@@ -130,15 +130,6 @@ proc retrieve*(
           trace "Exception decoding manifest", cid
       #
       asyncSpawn erasureJob()
-    else:
-      # Prefetch the entire dataset into the local store
-      proc prefetchBlocks() {.async, raises: [Defect].} =
-        try:
-          discard await node.fetchBatched(manifest)
-        except CatchableError as exc:
-          trace "Exception prefetching blocks", exc = exc.msg
-      #
-      asyncSpawn prefetchBlocks()
     #
     # Retrieve all blocks of the dataset sequentially from the local store or network
     return LPStream(StoreStream.new(node.blockStore, manifest, pad = false)).success
