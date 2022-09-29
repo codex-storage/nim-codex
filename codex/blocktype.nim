@@ -22,8 +22,9 @@ import pkg/questionable/results
 import ./errors
 
 const
-  # Size of blocks for storage / network exchange, should be divisible by 31 for PoR
-  BlockSize* = 31 * 512 * 4
+  # Size of blocks for storage / network exchange,
+  # should be divisible by 31 for PoR and by 64 for Leopard ECC
+  BlockSize* = 31 * 64 * 32
 
 type
   Block* = ref object of RootObj
