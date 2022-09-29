@@ -10,7 +10,7 @@ type
   OnChainClock* = ref object of Clock
     provider: Provider
     subscription: Subscription
-    offset: float
+    offset: times.Duration
     started: bool
 
 proc new*(_: type OnChainClock, provider: Provider): OnChainClock =
@@ -22,8 +22,8 @@ proc start*(clock: OnChainClock) {.async.} =
   clock.started = true
 
   proc onBlock(blck: Block) {.async, upraises:[].} =
-    let blockTime = blck.timestamp.truncate(int64).float
-    let computerTime = epochTime()
+    let blockTime = initTime(blck.timestamp.truncate(int64), 0)
+    let computerTime = getTime()
     clock.offset = blockTime - computerTime
 
   if latestBlock =? (await clock.provider.getBlock(BlockTag.latest)):
@@ -40,4 +40,4 @@ proc stop*(clock: OnChainClock) {.async.} =
 
 method now*(clock: OnChainClock): SecondsSince1970 =
   doAssert clock.started, "clock should be started before calling now()"
-  int64(epochTime() + clock.offset)
+  toUnix(getTime() + clock.offset)
