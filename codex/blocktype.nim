@@ -22,7 +22,8 @@ import pkg/questionable/results
 import ./errors
 
 const
-  BlockSize* = 31 * 64 * 4 # block size
+  # Size of blocks for storage / network exchange, should be divisible by 31 for PoR
+  BlockSize* = 31 * 512 * 4
 
 type
   Block* = ref object of RootObj
