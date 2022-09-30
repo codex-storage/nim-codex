@@ -39,7 +39,8 @@ proc new*(
   localInfo: PeerInfo,
   discoveryPort = 0.Port,
   bootstrapNodes: seq[SignedPeerRecord] = @[],
-  ): T =
+  store: Datastore = SQLiteDatastore.new(Memory)
+  .expect("Should not fail!")): T =
 
   T(
     protocol: newProtocol(
@@ -47,8 +48,8 @@ proc new*(
       bindPort = discoveryPort,
       record = localInfo.signedPeerRecord,
       bootstrapRecords = bootstrapNodes,
-      rng = Rng.instance()
-    ),
+      rng = Rng.instance(),
+      providers = ProvidersManager.new(store)),
     localInfo: localInfo)
 
 proc toNodeId*(cid: Cid): NodeId =
