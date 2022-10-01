@@ -143,7 +143,7 @@ proc start*(d: Discovery) {.async.} =
     .expect("updating SPR")
 
   d.protocol.open()
-  d.protocol.start()
+  await d.protocol.start()
 
 proc stop*(d: Discovery) {.async.} =
   await d.protocol.closeWait()
