@@ -8,6 +8,7 @@ type
     requested*: seq[StorageRequest]
     fulfilled*: seq[Fulfillment]
     filled*: seq[Slot]
+    withdrawn*: seq[RequestId]
     signer: Address
     subscriptions: Subscriptions
   Fulfillment* = object
@@ -115,6 +116,7 @@ method fillSlot*(market: MockMarket,
 
 method withdrawFunds*(market: MockMarket,
                       requestId: RequestId) {.async.} =
+  market.withdrawn.add(requestId)
   market.emitRequestCancelled(requestId)
 
 method subscribeRequests*(market: MockMarket,
