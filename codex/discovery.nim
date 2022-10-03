@@ -137,6 +137,13 @@ method provide*(d: Discovery, host: ca.Address) {.async, base.} =
   if nodes.len > 0:
     trace "Provided to nodes", nodes = nodes.len
 
+method removeProvider*(d: Discovery, peerId: PeerId): Future[void] =
+  ## Remove provider from providers table
+  ##
+
+  trace "Removing provider", peerId
+  d.protocol.removeProvidersLocal(peerId)
+
 proc start*(d: Discovery) {.async.} =
   d.protocol.updateRecord(
     d.localInfo.signedPeerRecord.some)
