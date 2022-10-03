@@ -152,8 +152,14 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
             peers = await request
 
           trace "Discovered peers", peers = peers.len
-          checkFutures(
-            await allFinished(peers.mapIt( b.network.dialPeer(it.data))))
+          let
+            dialed = await allFinished(
+              peers.mapIt( b.network.dialPeer(it.data) ))
+
+          for i, f in dialed:
+            if f.failed:
+              await b.discovery.removeProvider(peers[i].data.peerId)
+
         finally:
           b.inFlightDiscReqs.del(cid)
           codex_inflight_discovery.set(b.inFlightAdvReqs.len.int64)
