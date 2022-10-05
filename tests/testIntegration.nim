@@ -80,7 +80,7 @@ ethersuite "Integration tests":
 
   test "nodes negotiate contracts on the marketplace":
     proc sell =
-      let json = %*{"size": "0x1F00", "duration": "0x200", "minPrice": "0x300"}
+      let json = %*{"size": "0xFFFFF", "duration": "0x200", "minPrice": "0x300"}
       discard client.post(baseurl2 & "/sales/availability", $json)
 
     proc available: JsonNode =
