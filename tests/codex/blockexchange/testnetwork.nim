@@ -5,7 +5,6 @@ import pkg/asynctest
 import pkg/chronos
 import pkg/libp2p
 import pkg/libp2p/errors
-import pkg/protobuf_serialization
 
 import pkg/codex/rng
 import pkg/codex/chunker
@@ -72,7 +71,7 @@ suite "Network - Handlers":
       true, true)
 
     let msg = Message(wantlist: wantList)
-    await buffer.pushData(lenPrefix(Protobuf.encode(msg)))
+    await buffer.pushData(lenPrefix(ProtobufEncode(msg)))
 
     await done.wait(500.millis)
 
@@ -84,7 +83,7 @@ suite "Network - Handlers":
     network.handlers.onBlocks = blocksHandler
 
     let msg = Message(payload: makeBlocks(blocks))
-    await buffer.pushData(lenPrefix(Protobuf.encode(msg)))
+    await buffer.pushData(lenPrefix(ProtobufEncode(msg)))
 
     await done.wait(500.millis)
 
@@ -106,7 +105,7 @@ suite "Network - Handlers":
           cid: it.cid.data.buffer,
           type: BlockPresenceType.presenceHave
       )))
-    await buffer.pushData(lenPrefix(Protobuf.encode(msg)))
+    await buffer.pushData(lenPrefix(ProtobufEncode(msg)))
 
     await done.wait(500.millis)
 
@@ -120,7 +119,7 @@ suite "Network - Handlers":
     network.handlers.onAccount = handleAccount
 
     let message = Message(account: AccountMessage.init(account))
-    await buffer.pushData(lenPrefix(Protobuf.encode(message)))
+    await buffer.pushData(lenPrefix(ProtobufEncode(message)))
 
     await done.wait(100.millis)
 
@@ -134,7 +133,7 @@ suite "Network - Handlers":
     network.handlers.onPayment = handlePayment
 
     let message = Message(payment: StateChannelUpdate.init(payment))
-    await buffer.pushData(lenPrefix(Protobuf.encode(message)))
+    await buffer.pushData(lenPrefix(ProtobufEncode(message)))
 
     await done.wait(100.millis)
 
