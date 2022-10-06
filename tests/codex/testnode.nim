@@ -128,7 +128,7 @@ suite "Test Node":
     let
       stream = BufferStream.new()
       storeFut = node.store(stream)
-      oddChunkSize = math.trunc(BlockSize/1.618).int  # Let's check that node.store can correctly rechunk these odd chunks
+      oddChunkSize = math.trunc(BlockSize/3.14).int  # Let's check that node.store can correctly rechunk these odd chunks
       oddChunker = FileChunker.new(file = file, chunkSize = oddChunkSize, pad = false)  # TODO: doesn't work with pad=tue
     var
       original: seq[byte]
