@@ -138,7 +138,7 @@ proc retrieve*(
         except CatchableError as exc:
           trace "Exception prefetching blocks", exc = exc.msg
       #
-      asyncSpawn prefetchBlocks()
+      # asyncSpawn prefetchBlocks()  - temporarily commented out
     #
     # Retrieve all blocks of the dataset sequentially from the local store or network
     return LPStream(StoreStream.new(node.blockStore, manifest, pad = false)).success
