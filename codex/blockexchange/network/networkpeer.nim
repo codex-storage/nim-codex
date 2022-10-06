@@ -12,6 +12,7 @@ import pkg/chronicles
 import pkg/libp2p
 
 import ../protobuf/blockexc
+import ../../errors
 
 logScope:
   topics = "codex blockexc networkpeer"
@@ -40,7 +41,7 @@ proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
     while not conn.atEof or not conn.closed:
       let
         data = await conn.readLp(MaxMessageSize)
-        msg: Message = Message.ProtobufDecode(data).get
+        msg = Message.ProtobufDecode(data).mapFailure().tryGet()
       trace "Got message for peer", peer = b.id
       await b.handler(b, msg)
   except CatchableError as exc:
