@@ -48,6 +48,8 @@ proc getWantHandle*(
     raise exc
   except CatchableError as exc:
     trace "Pending WANT failed or expired", exc = exc.msg
+    # no need to cancel, it is already cancelled by wait()
+    raise exc
   finally:
     p.blocks.del(cid)
 
