@@ -1,3 +1,6 @@
+// Protocol of data exchange between Codex nodes.
+// Extended version of https://github.com/ipfs/specs/blob/main/BITSWAP.md
+
 syntax = "proto3";
 
 package blockexc.message.pb;

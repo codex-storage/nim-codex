@@ -9,12 +9,11 @@
 
 import std/hashes
 import std/sequtils
-import pkg/protobuf_serialization
 import pkg/libp2p
 
-import_proto3 "message.proto"
+import message
 
-export Message
+export Message, ProtobufEncode, ProtobufDecode
 export Wantlist, WantType, Entry
 export Block, BlockPresenceType, BlockPresence
 export AccountMessage, StateChannelUpdate

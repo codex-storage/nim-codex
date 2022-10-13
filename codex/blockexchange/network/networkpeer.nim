@@ -9,10 +9,10 @@
 
 import pkg/chronos
 import pkg/chronicles
-import pkg/protobuf_serialization
 import pkg/libp2p
 
 import ../protobuf/blockexc
+import ../../errors
 
 logScope:
   topics = "codex blockexc networkpeer"
@@ -41,7 +41,7 @@ proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
     while not conn.atEof or not conn.closed:
       let
         data = await conn.readLp(MaxMessageSize)
-        msg: Message = Protobuf.decode(data, Message)
+        msg = Message.ProtobufDecode(data).mapFailure().tryGet()
       trace "Got message for peer", peer = b.id
       await b.handler(b, msg)
   except CatchableError as exc:
@@ -65,7 +65,7 @@ proc send*(b: NetworkPeer, msg: Message) {.async.} =
     return
 
   trace "Sending message to remote", peer = b.id
-  await conn.writeLp(Protobuf.encode(msg))
+  await conn.writeLp(ProtobufEncode(msg))
 
 proc broadcast*(b: NetworkPeer, msg: Message) =
   proc sendAwaiter() {.async.} =
