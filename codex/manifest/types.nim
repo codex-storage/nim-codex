@@ -27,6 +27,7 @@ const
 
 type
   Manifest* = ref object of RootObj
+    # when adding/changing fields - make sure to modify ALL constructors in manifest.nim
     rootHash*: ?Cid         # Root (tree) hash of the contained data set
     originalBytes*: int     # Exact size of the original (uploaded) file
     blockSize*: int         # Size of each contained block (might not be needed if blocks are len-prefixed)

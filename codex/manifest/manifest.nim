@@ -153,37 +153,6 @@ proc cid*(self: Manifest): ?!Cid =
 # Constructors
 ############################################################
 
-func copyAllScalarFields(
-  original: Manifest,
-  protected: bool
-  ): Manifest =
-  ## Sometimes we need to copy all but a few fields
-  ## from a manifest to another one.
-  ## It can be mplemented by copying all fields and then
-  ## making a few edits, but it is inefficient to copy
-  ## an entire `blocks` array only to drop it.
-  ## So we made a helper that copies all scalar fields,
-  ## i.e. all fields except for `blocks`.
-  ##
-
-  var copy = Manifest(
-    rootHash: original.rootHash,
-    originalBytes: original.originalBytes,
-    blockSize: original.blockSize,
-    blocks: @[],
-    version: original.version,
-    hcodec: original.hcodec,
-    codec: original.codec,
-    protected: protected)
-
-  if copy.protected and original.protected:
-    copy.K = original.K
-    copy.M = original.M
-    copy.originalCid = original.originalCid
-    copy.originalLen = original.originalLen
-
-  return copy
-
 proc new*(
   T: type Manifest,
   blocks: openArray[Cid] = [],
@@ -207,32 +176,42 @@ proc new*(
     protected: protected).success
 
 proc protect*(
-  manifest: Manifest,
+  original: Manifest,
   K, M: int): ?!Manifest =
   ## Create an erasure protected dataset manifest from an unprotected one
   ##
 
-  ? manifest.verify()
-  if manifest.protected:
+  ? original.verify()
+  if original.protected:
     return failure newException(CodexError, "Trying to protect already protected manifest")
 
-  var self = copyAllScalarFields(manifest, protected = true)
-  self.K = K
-  self.M = M
-  self.originalCid = ? manifest.cid
-  self.originalLen = manifest.len
+  var self = Manifest(
+    # copy of original fields
+    rootHash: original.rootHash,
+    originalBytes: original.originalBytes,
+    blockSize: original.blockSize,
+    version: original.version,
+    hcodec: original.hcodec,
+    codec: original.codec,
+    # modified fields
+    protected: true,
+    blocks: @[],
+    K: K,
+    M: M,
+    originalCid: ? original.cid,
+    originalLen: original.len)
 
   let encodedLen = self.rounded + (self.steps * M)
   self.blocks = newSeq[Cid](encodedLen)
 
   # copy original manifest blocks
   for i in 0..<self.rounded:
-    if i < manifest.len:
-      self.blocks[i] = manifest[i]
+    if i < original.len:
+      self.blocks[i] = original[i]
     else:
-      self.blocks[i] = EmptyCid[manifest.version]
+      self.blocks[i] = EmptyCid[original.version]
       .catch
-      .get()[manifest.hcodec]
+      .get()[original.hcodec]
       .catch
       .get()
 
@@ -240,17 +219,26 @@ proc protect*(
   self.success
 
 proc unprotect*(
-  manifest: Manifest
+  original: Manifest
   ): ?!Manifest =
   ## Create an unprotected dataset manifest from an erasure protected one
   ##
 
-  ? manifest.verify()
-  if not manifest.protected:
+  ? original.verify()
+  if not original.protected:
     return failure newException(CodexError, "Trying to unprotect already non-protected manifest")
 
-  var self = copyAllScalarFields(manifest, protected = false)
-  self.blocks = manifest.blocks[0..<manifest.originalLen]
+  var self = Manifest(
+    # copy of original fields
+    rootHash: original.rootHash,
+    originalBytes: original.originalBytes,
+    blockSize: original.blockSize,
+    version: original.version,
+    hcodec: original.hcodec,
+    codec: original.codec,
+    # modified fields
+    protected: false,
+    blocks: original.blocks[0..<original.originalLen])
 
   ? self.verify()
   self.success
