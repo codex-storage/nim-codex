@@ -8,6 +8,7 @@ import ./clock
 import ./purchasing/purchase
 
 export questionable
+export chronos
 export market
 export purchase
 
@@ -30,6 +31,15 @@ proc new*(_: type Purchasing, market: Market, clock: Clock): Purchasing =
     proofProbability: DefaultProofProbability,
     requestExpiryInterval: DefaultRequestExpiryInterval,
   )
+
+proc load*(purchasing: Purchasing) {.async.} =
+  let market = purchasing.market
+  let requestIds = await market.myRequests()
+  for requestId in requestIds:
+    if request =? await market.getRequest(requestId):
+      let purchase = newPurchase(request, purchasing.market, purchasing.clock)
+      purchase.load()
+      purchasing.purchases[purchase.id] = purchase
 
 proc populate*(purchasing: Purchasing, request: StorageRequest): StorageRequest =
   result = request

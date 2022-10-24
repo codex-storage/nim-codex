@@ -23,6 +23,9 @@ method requestStorage*(market: Market,
                       Future[StorageRequest] {.base, async.} =
   raiseAssert("not implemented")
 
+method myRequests*(market: Market): Future[seq[RequestId]] {.base, async.} =
+  raiseAssert("not implemented")
+
 method getRequest*(market: Market,
                    id: RequestId):
                   Future[?StorageRequest] {.base, async.} =

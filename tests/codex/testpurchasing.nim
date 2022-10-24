@@ -96,3 +96,13 @@ suite "Purchasing":
     expect PurchaseTimeout:
       await purchase.wait()
     check market.withdrawn == @[request.id]
+
+  test "loads active purchases from market":
+    let me = await market.getSigner()
+    let request1, request2, request3 = StorageRequest.example
+    market.requested = @[request1, request2, request3]
+    market.activeRequests[me] = @[request1.id, request2.id]
+    await purchasing.load()
+    check isSome purchasing.getPurchase(PurchaseId(request1.id))
+    check isSome purchasing.getPurchase(PurchaseId(request2.id))
+    check isNone purchasing.getPurchase(PurchaseId(request3.id))
