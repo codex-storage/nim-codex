@@ -10,6 +10,7 @@ type
   MockMarket* = ref object of Market
     activeRequests*: Table[Address, seq[RequestId]]
     requested*: seq[StorageRequest]
+    state*: Table[RequestId, RequestState]
     fulfilled*: seq[Fulfillment]
     filled*: seq[Slot]
     withdrawn*: seq[RequestId]
@@ -49,6 +50,9 @@ type
 proc hash*(address: Address): Hash =
   hash(address.toArray)
 
+proc hash*(requestId: RequestId): Hash =
+  hash(requestId.toArray)
+
 proc new*(_: type MockMarket): MockMarket =
   MockMarket(signer: Address.example)
 
@@ -73,6 +77,10 @@ method getRequest(market: MockMarket,
     if request.id == id:
       return some request
   return none StorageRequest
+
+method getState*(market: MockMarket,
+                 requestId: RequestId): Future[?RequestState] {.async.} =
+  return market.state.?[requestId]
 
 method getHost(market: MockMarket,
                requestId: RequestId,

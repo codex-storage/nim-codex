@@ -106,3 +106,16 @@ suite "Purchasing":
     check isSome purchasing.getPurchase(PurchaseId(request1.id))
     check isSome purchasing.getPurchase(PurchaseId(request2.id))
     check isNone purchasing.getPurchase(PurchaseId(request3.id))
+
+  test "loads correct state for purchases from market":
+    let me = await market.getSigner()
+    let request1, request2, request3 = StorageRequest.example
+    market.requested = @[request1, request2, request3]
+    market.activeRequests[me] = @[request1.id, request2.id, request3.id]
+    market.state[request1.id] = RequestState.New
+    market.state[request2.id] = RequestState.Started
+    market.state[request3.id] = RequestState.Cancelled
+    await purchasing.load()
+    check purchasing.getPurchase(PurchaseId(request1.id)).?finished == false.some
+    check purchasing.getPurchase(PurchaseId(request2.id)).?finished == true.some
+    check purchasing.getPurchase(PurchaseId(request3.id)).?finished == true.some

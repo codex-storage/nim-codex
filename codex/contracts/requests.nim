@@ -33,6 +33,12 @@ type
   SlotId* = distinct array[32, byte]
   RequestId* = distinct array[32, byte]
   Nonce* = distinct array[32, byte]
+  RequestState* {.pure.} = enum
+    New
+    Started
+    Cancelled
+    Finished
+    Failed
 
 proc `==`*(x, y: Nonce): bool {.borrow.}
 proc `==`*(x, y: RequestId): bool {.borrow.}
