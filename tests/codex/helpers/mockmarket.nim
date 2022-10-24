@@ -1,10 +1,14 @@
 import std/sequtils
+import std/tables
+import std/hashes
 import pkg/codex/market
 
 export market
+export tables
 
 type
   MockMarket* = ref object of Market
+    activeRequests*: Table[Address, seq[RequestId]]
     requested*: seq[StorageRequest]
     fulfilled*: seq[Fulfillment]
     filled*: seq[Slot]
@@ -42,6 +46,9 @@ type
     requestId: RequestId
     callback: OnRequestCancelled
 
+proc hash*(address: Address): Hash =
+  hash(address.toArray)
+
 proc new*(_: type MockMarket): MockMarket =
   MockMarket(signer: Address.example)
 
@@ -56,6 +63,9 @@ method requestStorage*(market: MockMarket,
   for subscription in subscriptions:
     subscription.callback(request.id, request.ask)
   return request
+
+method myRequests*(market: MockMarket): Future[seq[RequestId]] {.async.} =
+  return market.activeRequests[market.signer]
 
 method getRequest(market: MockMarket,
                   id: RequestId): Future[?StorageRequest] {.async.} =
