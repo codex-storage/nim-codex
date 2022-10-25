@@ -58,6 +58,10 @@ ethersuite "Storage contracts":
     ):
       await provider.advanceTime(periodicity.seconds)
 
+  proc startContract() {.async.} =
+    for slotIndex in 1..<request.ask.slots:
+      await storage.fillSlot(request.id, slotIndex.u256, proof)
+
   test "accept storage proofs":
     switchAccount(host)
     await waitUntilProofRequired(slotId)
@@ -73,6 +77,7 @@ ethersuite "Storage contracts":
 
   test "can be payed out at the end":
     switchAccount(host)
+    await startContract()
     await provider.advanceTimeTo(await storage.proofEnd(slotId))
     await storage.payoutSlot(request.id, 0.u256)
 
