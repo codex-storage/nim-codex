@@ -112,13 +112,17 @@ suite "Purchasing":
 
   test "loads correct state for purchases from market":
     let me = await market.getSigner()
-    let request1, request2, request3 = StorageRequest.example
-    market.requested = @[request1, request2, request3]
-    market.activeRequests[me] = @[request1.id, request2.id, request3.id]
+    let request1, request2, request3, request4, request5 = StorageRequest.example
+    market.requested = @[request1, request2, request3, request4, request5]
+    market.activeRequests[me] = @[request1.id, request2.id, request3.id, request4.id, request5.id]
     market.state[request1.id] = RequestState.New
     market.state[request2.id] = RequestState.Started
     market.state[request3.id] = RequestState.Cancelled
+    market.state[request4.id] = RequestState.Finished
+    market.state[request5.id] = RequestState.Failed
     await purchasing.load()
     check purchasing.getPurchase(PurchaseId(request1.id)).?finished == false.some
     check purchasing.getPurchase(PurchaseId(request2.id)).?finished == true.some
     check purchasing.getPurchase(PurchaseId(request3.id)).?finished == true.some
+    check purchasing.getPurchase(PurchaseId(request4.id)).?finished == true.some
+    check purchasing.getPurchase(PurchaseId(request5.id)).?error.isSome
