@@ -191,3 +191,19 @@ ethersuite "On-Chain Market":
 
   test "request is none when unknown":
     check isNone await market.getRequest(request.id)
+
+  test "can retrieve active requests":
+    await token.approve(storage.address, request.price)
+    discard await market.requestStorage(request)
+    var request2 = StorageRequest.example
+    request2.client = accounts[0]
+    await token.approve(storage.address, request2.price)
+    discard await market.requestStorage(request2)
+    check (await market.myRequests()) == @[request.id, request2.id]
+
+  test "can retrieve request state":
+    await token.approve(storage.address, request.price)
+    discard await market.requestStorage(request)
+    for slotIndex in 0..<request.ask.slots:
+      await market.fillSlot(request.id, slotIndex.u256, proof)
+    check (await market.getState(request.id)) == RequestState.Started
