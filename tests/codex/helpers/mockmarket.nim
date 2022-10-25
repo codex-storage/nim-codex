@@ -10,6 +10,7 @@ type
   MockMarket* = ref object of Market
     activeRequests*: Table[Address, seq[RequestId]]
     requested*: seq[StorageRequest]
+    requestEnds*: Table[RequestId, SecondsSince1970]
     state*: Table[RequestId, RequestState]
     fulfilled*: seq[Fulfillment]
     filled*: seq[Slot]
@@ -81,6 +82,10 @@ method getRequest(market: MockMarket,
 method getState*(market: MockMarket,
                  requestId: RequestId): Future[?RequestState] {.async.} =
   return market.state.?[requestId]
+
+method getRequestEnd*(market: MockMarket,
+                      id: RequestId): Future[SecondsSince1970] {.async.} =
+  return market.requestEnds[id]
 
 method getHost(market: MockMarket,
                requestId: RequestId,
