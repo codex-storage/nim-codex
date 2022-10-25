@@ -75,10 +75,13 @@ suite "Purchasing":
     discard purchasing.purchase(request)
     check market.requested[0].nonce != market.requested[1].nonce
 
-  test "succeeds when request is fulfilled":
+  test "succeeds when request is finished":
     let purchase = purchasing.purchase(request)
     let request = market.requested[0]
+    let requestEnd = getTime().toUnix() + 42
+    market.requestEnds[request.id] = requestEnd
     market.emitRequestFulfilled(request.id)
+    clock.set(requestEnd)
     await purchase.wait()
     check purchase.error.isNone
 
