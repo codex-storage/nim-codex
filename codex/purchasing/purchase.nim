@@ -9,16 +9,16 @@ import ./purchaseid
 # on-chain, or it is a purchase that was previously submitted on-chain, and
 # we're just restoring its (unknown) state after a node restart.
 #
-#                                                     |
-#                                                     v
-#                                         ---------unknown
-#        |                               /         /   /
-#        v                              v         /   /
-#     pending ----> submitted ----> started      /   /
-#        \             \   \                    /   /
-#         \             \   ----> cancelled <---   /
-#          \             \                        /
-#           -------------------> error <----------
+#                                                                      |
+#                                                                      v
+#                                         ------------------------- unknown
+#        |                               /                             /
+#        v                              v                             /
+#     pending ----> submitted ----> started ---------> finished <----/
+#                        \              \                           /
+#                         \              ------------> failed <----/
+#                          \                                      /
+#                           --> cancelled <-----------------------
 
 export Purchase
 export purchaseid
