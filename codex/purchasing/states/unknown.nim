@@ -2,6 +2,8 @@ import ../statemachine
 import ./submitted
 import ./started
 import ./cancelled
+import ./finished
+import ./failed
 import ./error
 
 type PurchaseUnknown* = ref object of PurchaseState
@@ -20,8 +22,8 @@ method enterAsync(state: PurchaseUnknown) {.async.} =
       of RequestState.Cancelled:
         state.switch(PurchaseCancelled())
       of RequestState.Finished:
-        discard # TODO
+        state.switch(PurchaseFinished())
       of RequestState.Failed:
-        discard # TODO
+        state.switch(PurchaseFailed())
   except CatchableError as error:
     state.switch(PurchaseError(error: error))
