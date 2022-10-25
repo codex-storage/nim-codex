@@ -78,7 +78,8 @@ ethersuite "Storage contracts":
   test "can be payed out at the end":
     switchAccount(host)
     await startContract()
-    await provider.advanceTimeTo(await storage.proofEnd(slotId))
+    let requestEnd = await storage.requestEnd(request.id)
+    await provider.advanceTimeTo(requestEnd.u256)
     await storage.payoutSlot(request.id, 0.u256)
 
   test "cannot mark proofs missing for cancelled request":

@@ -31,10 +31,6 @@ method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
 method myRequests*(market: OnChainMarket): Future[seq[RequestId]] {.async.} =
   return await market.contract.myRequests
 
-method getState*(market: OnChainMarket,
-                 requestId: RequestId): Future[RequestState] {.async.} =
-  return await market.contract.state(requestId)
-
 method requestStorage(market: OnChainMarket,
                       request: StorageRequest):
                      Future[StorageRequest] {.async.} =
@@ -51,6 +47,14 @@ method getRequest(market: OnChainMarket,
     if e.revertReason.contains("Unknown request"):
       return none StorageRequest
     raise e
+
+method getState*(market: OnChainMarket,
+                 requestId: RequestId): Future[RequestState] {.async.} =
+  return await market.contract.state(requestId)
+
+method getRequestEnd*(market: OnChainMarket,
+                      id: RequestId): Future[SecondsSince1970] {.async.} =
+  return await market.contract.requestEnd(id)
 
 method getHost(market: OnChainMarket,
                requestId: RequestId,

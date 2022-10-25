@@ -2,6 +2,7 @@ import pkg/ethers
 import pkg/json_rpc/rpcclient
 import pkg/stint
 import pkg/chronos
+import ../clock
 import ./requests
 
 export stint
@@ -43,6 +44,7 @@ proc getHost*(storage: Storage, id: SlotId): Address {.contract, view.}
 
 proc myRequests*(storage: Storage): seq[RequestId] {.contract, view.}
 proc state*(storage: Storage, requestId: RequestId): RequestState {.contract, view.}
+proc requestEnd*(storage: Storage, requestId: RequestId): SecondsSince1970 {.contract, view.}
 
 proc proofPeriod*(storage: Storage): UInt256 {.contract, view.}
 proc proofTimeout*(storage: Storage): UInt256 {.contract, view.}

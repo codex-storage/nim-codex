@@ -2,10 +2,12 @@ import pkg/chronos
 import pkg/upraises
 import pkg/questionable
 import ./contracts/requests
+import ./clock
 
 export chronos
 export questionable
 export requests
+export SecondsSince1970
 
 type
   Market* = ref object of RootObj
@@ -33,6 +35,10 @@ method getRequest*(market: Market,
 
 method getState*(market: Market,
                  requestId: RequestId): Future[?RequestState] {.base, async.} =
+  raiseAssert("not implemented")
+
+method getRequestEnd*(market: Market,
+                      id: RequestId): Future[SecondsSince1970] {.base, async.} =
   raiseAssert("not implemented")
 
 method getHost*(market: Market,
