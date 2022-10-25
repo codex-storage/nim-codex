@@ -41,6 +41,9 @@ proc payoutSlot*(storage: Storage, requestId: RequestId, slotIndex: UInt256) {.c
 proc getRequest*(storage: Storage, id: RequestId): StorageRequest {.contract, view.}
 proc getHost*(storage: Storage, id: SlotId): Address {.contract, view.}
 
+proc myRequests*(storage: Storage): seq[RequestId] {.contract, view.}
+proc state*(storage: Storage, requestId: RequestId): RequestState {.contract, view.}
+
 proc proofPeriod*(storage: Storage): UInt256 {.contract, view.}
 proc proofTimeout*(storage: Storage): UInt256 {.contract, view.}
 
