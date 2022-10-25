@@ -8,7 +8,7 @@ import ./examples
 import ./time
 
 ethersuite "On-Chain Market":
-  let proof = seq[byte].example
+  let proof = exampleProof()
 
   var market: OnChainMarket
   var storage: Storage

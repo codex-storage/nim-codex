@@ -26,7 +26,7 @@ suite "Sales":
       cid: "some cid"
     )
   )
-  let proof = seq[byte].example
+  let proof = exampleProof()
 
   var sales: Sales
   var market: MockMarket

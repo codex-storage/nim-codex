@@ -95,12 +95,12 @@ suite "Proving":
 
   test "submits proofs":
     let id = SlotId.example
-    let proof = seq[byte].example
+    let proof = exampleProof()
     await proving.submitProof(id, proof)
 
   test "supports proof submission subscriptions":
     let id = SlotId.example
-    let proof = seq[byte].example
+    let proof = exampleProof()
 
     var receivedIds: seq[SlotId]
     var receivedProofs: seq[seq[byte]]

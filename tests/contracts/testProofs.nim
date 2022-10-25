@@ -6,7 +6,7 @@ import ./time
 ethersuite "On-Chain Proofs":
 
   let contractId = SlotId.example
-  let proof = seq[byte].example
+  let proof = exampleProof()
 
   var proofs: OnChainProofs
   var storage: Storage

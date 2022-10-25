@@ -9,7 +9,7 @@ import ./examples
 import ./time
 
 ethersuite "Storage contracts":
-  let proof = seq[byte].example
+  let proof = exampleProof()
 
   var client, host: Signer
   var storage: Storage

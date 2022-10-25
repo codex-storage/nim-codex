@@ -46,3 +46,9 @@ proc example*(_: type StorageRequest): StorageRequest =
     expiry: (getTime() + initDuration(hours=1)).toUnix.u256,
     nonce: Nonce.example
   )
+
+proc exampleProof*(): seq[byte] =
+  var proof: seq[byte]
+  while proof.len == 0:
+    proof = seq[byte].example
+  return proof
