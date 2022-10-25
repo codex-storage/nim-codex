@@ -19,6 +19,7 @@ import pkg/protobuf_serialization
 
 import ./stpproto
 import ../discovery
+import ../formats
 
 const
   Codec* = "/dagger/storageproofs/1.0.0"
@@ -59,8 +60,7 @@ proc uploadTags*(
     conn = await connFut
 
   try:
-    await conn.writeLp(
-      Protobuf.encode(StorageProofsMessage(tagsMsg: msg)))
+    await conn.writeLp(msg.encode)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -79,10 +79,11 @@ method init*(self: StpNetwork) =
     try:
       let
         msg = await conn.readLp(MaxMessageSize)
-        message = Protobuf.decode(msg, StorageProofsMessage)
+        res = TagsMessage.decode(msg)
 
-      if message.tagsMsg.tags.len > 0 and not self.tagsHandle.isNil:
-        await self.tagsHandle(message.tagsMsg)
+      if not self.tagsHandle.isNil:
+        if res.isOk and res.get.tags.len > 0:
+          await self.tagsHandle(res.get)
     except CatchableError as exc:
       trace "Exception handling Storage Proofs message", exc = exc.msg
     finally:

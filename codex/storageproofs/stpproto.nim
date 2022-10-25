@@ -1,7 +1,3 @@
-import pkg/protobuf_serialization
+import ./stpproto/messages
 
-import_proto3 "stp.proto"
-
-export StorageProofsMessage
-export TagsMessage
-export Tag
+export messages

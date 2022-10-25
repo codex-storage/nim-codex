@@ -1,4 +1,4 @@
-## Nim-POS
+## Nim-Codex
 ## Copyright (c) 2022 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -14,13 +14,9 @@ import pkg/stew/objects
 import pkg/blscurve
 import pkg/blscurve/blst/blst_abi
 
-import_proto3 "por.proto"
+import ./messages
 
-export TauZeroMessage
-export TauMessage
-export ProofMessage
-export PorMessage
-export PoREnvelope
+export messages
 
 import ../por
 
@@ -32,6 +28,7 @@ func toMessage*(self: Proof): ProofMessage =
   for mu in self.mu:
     var
       serialized: array[32, byte]
+
     blst_bendian_from_scalar(serialized, mu)
     message.mu.add(toSeq(serialized))
 
