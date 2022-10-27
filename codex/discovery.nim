@@ -119,7 +119,7 @@ method provide*(d: Discovery, host: ca.Address) {.async, base.} =
   if nodes.len > 0:
     trace "Provided to nodes", nodes = nodes.len
 
-method removeProvider*(d: Discovery, peerId: PeerId): Future[void] =
+method removeProvider*(d: Discovery, peerId: PeerId): Future[void] {.base.} =
   ## Remove provider from providers table
   ##
 
