@@ -12,7 +12,7 @@ import ./integration/tokens
 
 ethersuite "Integration tests":
 
-  var node1, node2: Process
+  var node1, node2: NodeProcess
   var baseurl1, baseurl2: string
   var client: HttpClient
 
@@ -34,8 +34,8 @@ ethersuite "Integration tests":
       "--nat=127.0.0.1",
       "--disc-ip=127.0.0.1",
       "--disc-port=8090",
-      "--persistence",
-      "--eth-account=" & $accounts[0]
+        "--persistence",
+        "--eth-account=" & $accounts[0]
     ], debug = false)
 
     node2 = startNode([
