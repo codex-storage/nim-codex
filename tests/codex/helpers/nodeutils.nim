@@ -29,26 +29,26 @@ proc generateNodes*(
   for i in 0..<num:
     let
       switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
-      blockDiscovery = Discovery.new(switch.peerInfo, Port(0))
+      discovery = Discovery.new(switch.peerInfo.privateKey)
       wallet = WalletRef.example
       network = BlockExcNetwork.new(switch)
       localStore = CacheStore.new(blocks.mapIt( it ))
       peerStore = PeerCtxStore.new()
       pendingBlocks = PendingBlocksManager.new()
-      discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
-      engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
+      blockDiscovery = DiscoveryEngine.new(localStore, peerStore, network, discovery, pendingBlocks)
+      engine = BlockExcEngine.new(localStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
       networkStore = NetworkStore.new(engine, localStore)
 
     switch.mount(network)
     result.add((
       switch,
-      blockDiscovery,
+      discovery,
       wallet,
       network,
       localStore,
       peerStore,
       pendingBlocks,
-      discovery,
+      blockDiscovery,
       engine,
       networkStore))
 

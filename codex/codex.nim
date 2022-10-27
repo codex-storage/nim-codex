@@ -100,14 +100,10 @@ proc new*(T: type CodexServer, config: CodexConf): T =
 
           PrivateKey.init(bytes).expect("valid key bytes")
 
-  let
-    addresses =
-      config.listenPorts.mapIt(MultiAddress.init("/ip4/" & $config.listenIp & "/tcp/" & $(it.int)).tryGet()) &
-        @[MultiAddress.init("/ip4/" & $config.listenIp & "/udp/" & $(config.discoveryPort.int)).tryGet()]
     switch = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)
-    .withAddresses(addresses)
+    .withAddresses(config.listenAddrs)
     .withRng(Rng.instance())
     .withNoise()
     .withMplex(5.minutes, 5.minutes)
@@ -124,15 +120,22 @@ proc new*(T: type CodexServer, config: CodexConf): T =
     cache = CacheStore.new(cacheSize = config.cacheSize * MiB)
 
   let
-    discoveryBootstrapNodes = config.bootstrapNodes
     discoveryStore = Datastore(SQLiteDatastore.new(
       config.dataDir / "dht")
       .expect("Should not fail!"))
+
+    announceAddrs =
+      if config.announceAddrs.len <= 0:
+          config.announceAddrs
+        else:
+          config.listenAddrs
+
     blockDiscovery = Discovery.new(
-        switch.peerInfo,
-        discoveryPort = config.discoveryPort,
-        bootstrapNodes = discoveryBootstrapNodes,
-        store = discoveryStore)
+      switch.peerInfo.privateKey,
+      announceAddrs = config.announceAddrs,
+      discoveryPort = config.discoveryPort,
+      bootstrapNodes = config.bootstrapNodes,
+      store = discoveryStore)
 
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)

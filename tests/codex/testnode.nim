@@ -80,7 +80,7 @@ suite "Test Node":
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
     localStore = CacheStore.new()
-    blockDiscovery = Discovery.new(switch.peerInfo, Port(0))
+    blockDiscovery = Discovery.new(switch.peerInfo.privateKey)
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
     discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)

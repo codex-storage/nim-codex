@@ -33,25 +33,9 @@ export discv5
 type
   Discovery* = ref object of RootObj
     protocol: discv5.Protocol
-    localInfo: PeerInfo
-
-proc new*(
-  T: type Discovery,
-  localInfo: PeerInfo,
-  discoveryPort = 0.Port,
-  bootstrapNodes: seq[SignedPeerRecord] = @[],
-  store: Datastore = SQLiteDatastore.new(Memory)
-  .expect("Should not fail!")): T =
-
-  T(
-    protocol: newProtocol(
-      localInfo.privateKey,
-      bindPort = discoveryPort,
-      record = localInfo.signedPeerRecord,
-      bootstrapRecords = bootstrapNodes,
-      rng = Rng.instance(),
-      providers = ProvidersManager.new(store)),
-    localInfo: localInfo)
+    key: PrivateKey
+    announceAddrs: seq[MultiAddress]
+    record: SignedPeerRecord
 
 proc toNodeId*(cid: Cid): NodeId =
   ## Cid to discovery id
@@ -97,8 +81,7 @@ method provide*(d: Discovery, cid: Cid) {.async, base.} =
   trace "Providing block", cid
   let
     nodes = await d.protocol.addProvider(
-      cid.toNodeId(),
-      d.localInfo.signedPeerRecord)
+      cid.toNodeId(), d.record)
 
   if nodes.len <= 0:
     trace "Couldn't provide to any nodes!"
@@ -133,25 +116,72 @@ method provide*(d: Discovery, host: ca.Address) {.async, base.} =
   trace "Providing host", host = $host
   let
     nodes = await d.protocol.addProvider(
-    host.toNodeId(),
-    d.localInfo.signedPeerRecord)
+    host.toNodeId(), d.record)
   if nodes.len > 0:
     trace "Provided to nodes", nodes = nodes.len
 
-method removeProvider*(d: Discovery, peerId: PeerId): Future[void] =
+method removeProvider*(d: Discovery, peerId: PeerId): Future[void] {.base.} =
   ## Remove provider from providers table
   ##
 
   trace "Removing provider", peerId
   d.protocol.removeProvidersLocal(peerId)
 
-proc start*(d: Discovery) {.async.} =
-  d.protocol.updateRecord(
-    d.localInfo.signedPeerRecord.some)
-    .expect("updating SPR")
+proc updateRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
+  ## Update providers record
+  ##
 
+  d.announceAddrs = @addrs
+  d.record = SignedPeerRecord.init(
+    d.key,
+    PeerRecord.init(
+      PeerId.init(d.key).expect("Should construct PeerId"),
+      d.announceAddrs)).expect("Should construct signed record")
+
+  if not d.protocol.isNil:
+    d.protocol.updateRecord(d.record.some)
+      .expect("should update SPR")
+
+proc start*(d: Discovery) {.async.} =
   d.protocol.open()
   await d.protocol.start()
 
 proc stop*(d: Discovery) {.async.} =
   await d.protocol.closeWait()
+
+proc new*(
+  T: type Discovery,
+  key: PrivateKey,
+  discoveryIp = IPv4_any(),
+  discoveryPort = 0.Port,
+  announceAddrs: openArray[MultiAddress] = [],
+  bootstrapNodes: openArray[SignedPeerRecord] = [],
+  store: Datastore = SQLiteDatastore.new(Memory)
+  .expect("Should not fail!")): T =
+
+  let
+    announceAddrs =
+      if announceAddrs.len <= 0:
+        @[
+          MultiAddress.init(
+            ValidIpAddress.init(discoveryIp),
+            IpTransportProtocol.tcpProtocol,
+            discoveryPort)]
+      else:
+        @announceAddrs
+
+  var
+    self = T(key: key)
+
+  self.updateRecord(announceAddrs)
+
+  self.protocol = newProtocol(
+    key,
+    bindIp = discoveryIp,
+    bindPort = discoveryPort,
+    record = self.record,
+    bootstrapRecords = bootstrapNodes,
+    rng = Rng.instance(),
+    providers = ProvidersManager.new(store))
+
+  self
