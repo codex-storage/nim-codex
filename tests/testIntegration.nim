@@ -97,6 +97,22 @@ ethersuite "Integration tests":
     check json["request"]["ask"]["duration"].getStr == "0x1"
     check json["request"]["ask"]["reward"].getStr == "0x2"
 
+  test "node remembers purchase status after restart":
+    let cid = client.post(baseurl1 & "/upload", "some file contents").body
+    let request = %*{"duration": "0x1", "reward": "0x2"}
+    let id = client.post(baseurl1 & "/storage/request/" & cid, $request).body
+
+    node1.restart()
+
+    client.close()
+    client = newHttpClient()
+
+    let response = client.get(baseurl1 & "/storage/purchases/" & id)
+    check response.status == "200 OK"
+    let json = parseJson(response.body)
+    check json["request"]["ask"]["duration"].getStr == "0x1"
+    check json["request"]["ask"]["reward"].getStr == "0x2"
+
   test "nodes negotiate contracts on the marketplace":
     proc sell =
       let json = %*{"size": "0xFFFFF", "duration": "0x200", "minPrice": "0x300"}

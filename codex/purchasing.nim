@@ -41,6 +41,9 @@ proc load*(purchasing: Purchasing) {.async.} =
       purchase.load()
       purchasing.purchases[purchase.id] = purchase
 
+proc start*(purchasing: Purchasing) {.async.} =
+  await purchasing.load() # TODO: O(N)
+
 proc populate*(purchasing: Purchasing,
                request: StorageRequest): Future[StorageRequest] {.async.} =
   result = request
