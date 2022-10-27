@@ -16,6 +16,7 @@ type
   OnFulfillment* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
   OnSlotFilled* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises:[].}
   OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
+  OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
 
 method getSigner*(market: Market): Future[Address] {.base, async.} =
   raiseAssert("not implemented")
@@ -75,9 +76,15 @@ method subscribeSlotFilled*(market: Market,
   raiseAssert("not implemented")
 
 method subscribeRequestCancelled*(market: Market,
-                            requestId: RequestId,
-                            callback: OnRequestCancelled):
-                           Future[Subscription] {.base, async.} =
+                                  requestId: RequestId,
+                                  callback: OnRequestCancelled):
+                                Future[Subscription] {.base, async.} =
+  raiseAssert("not implemented")
+
+method subscribeRequestFailed*(market: Market,
+                               requestId: RequestId,
+                               callback: OnRequestFailed):
+                             Future[Subscription] {.base, async.} =
   raiseAssert("not implemented")
 
 method unsubscribe*(subscription: Subscription) {.base, async, upraises:[].} =

@@ -22,6 +22,7 @@ import ./purchaseid
 
 export Purchase
 export purchaseid
+export statemachine
 
 func newPurchase*(request: StorageRequest,
                   market: Market,
