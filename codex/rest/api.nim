@@ -247,7 +247,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
           trace "Error uploading file", exc = error.msg
           return RestApiResponse.error(Http500, error.msg)
 
-        trace "Uploaded file", cid = $cid
+        trace "Uploaded file", cid
         return RestApiResponse.response($cid)
       except CancelledError as exc:
         return RestApiResponse.error(Http500)

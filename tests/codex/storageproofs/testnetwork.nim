@@ -5,7 +5,6 @@ import pkg/asynctest
 import pkg/chronos
 import pkg/libp2p
 import pkg/libp2p/errors
-import pkg/protobuf_serialization
 import pkg/contractabi as ca
 
 import pkg/codex/rng

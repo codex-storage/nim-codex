@@ -103,19 +103,19 @@ proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
         cid = await b.advertiseQueue.get()
 
       if cid in b.inFlightAdvReqs:
-        trace "Advertise request already in progress", cid = $cid
+        trace "Advertise request already in progress", cid
         continue
 
       try:
         let request = b.discovery.provide(cid)
         b.inFlightAdvReqs[cid] = request
         codex_inflight_discovery.set(b.inFlightAdvReqs.len.int64)
-        trace "Advertising block", cid = $cid, inflight = b.inFlightAdvReqs.len
+        trace "Advertising block", cid, inflight = b.inFlightAdvReqs.len
         await request
       finally:
         b.inFlightAdvReqs.del(cid)
         codex_inflight_discovery.set(b.inFlightAdvReqs.len.int64)
-        trace "Advertised block", cid = $cid, inflight = b.inFlightAdvReqs.len
+        trace "Advertised block", cid, inflight = b.inFlightAdvReqs.len
     except CatchableError as exc:
       trace "Exception in advertise task runner", exc = exc.msg
 
@@ -131,15 +131,15 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
         cid = await b.discoveryQueue.get()
 
       if cid in b.inFlightDiscReqs:
-        trace "Discovery request already in progress", cid = $cid
+        trace "Discovery request already in progress", cid
         continue
 
       let
         haves = b.peers.peersHave(cid)
 
-      trace "Current number of peers for block", cid = $cid, count = haves.len
+      trace "Current number of peers for block", cid, count = haves.len
       if haves.len < b.minPeersPerBlock:
-        trace "Discovering block", cid = $cid
+        trace "Discovering block", cid
         try:
           let
             request = b.discovery
@@ -173,7 +173,7 @@ proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
     try:
       for cid in cids:
         if cid notin b.discoveryQueue:
-          trace "Queueing find block request", cid = $cid
+          trace "Queueing find block request", cid
           await b.discoveryQueue.put(cid)
     except CatchableError as exc:
       trace "Exception queueing discovery request", exc = exc.msg
@@ -185,7 +185,7 @@ proc queueProvideBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
     try:
       for cid in cids:
         if cid notin b.advertiseQueue:
-          trace "Queueing provide block request", cid = $cid
+          trace "Queueing provide block request", cid
           await b.advertiseQueue.put(cid)
     except CatchableError as exc:
       trace "Exception queueing discovery request", exc = exc.msg

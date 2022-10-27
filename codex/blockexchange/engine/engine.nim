@@ -122,7 +122,7 @@ proc requestBlock*(
   ## Request a block from remotes
   ##
 
-  trace "Requesting block", cid = $cid
+  trace "Requesting block", cid
 
   if cid in b.pendingBlocks:
     return await b.pendingBlocks.getWantHandle(cid, timeout)
@@ -136,7 +136,7 @@ proc requestBlock*(
   if peers.len <= 0:
     peers = toSeq(b.peers) # Get any peer
     if peers.len <= 0:
-      trace "No peers to request blocks from", cid = $cid
+      trace "No peers to request blocks from", cid
       b.discovery.queueFindBlocksReq(@[cid])
       return await blk
 
@@ -150,7 +150,7 @@ proc requestBlock*(
     wantType = WantType.wantBlock) # we want this remote to send us a block
 
   if (peers.len - 1) == 0:
-    trace "Not enough peers to send want list to", cid = $cid
+    trace "Not enough peers to send want list to", cid
     b.discovery.queueFindBlocksReq(@[cid])
     return await blk # no peers to send wants to
 
