@@ -288,7 +288,7 @@ proc requestStorage*(self: CodexNodeRef,
     expiry: expiry |? 0.u256
   )
 
-  let purchase = contracts.purchasing.purchase(request)
+  let purchase = await contracts.purchasing.purchase(request)
   return success purchase.id
 
 proc new*(

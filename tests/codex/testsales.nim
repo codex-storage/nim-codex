@@ -75,21 +75,21 @@ suite "Sales":
 
   test "makes storage unavailable when matching request comes in":
     sales.add(availability)
-    discard await market.requestStorage(request)
+    await market.requestStorage(request)
     check sales.available.len == 0
 
   test "ignores request when no matching storage is available":
     sales.add(availability)
     var tooBig = request
     tooBig.ask.slotSize = request.ask.slotSize + 1
-    discard await market.requestStorage(tooBig)
+    await market.requestStorage(tooBig)
     check sales.available == @[availability]
 
   test "ignores request when reward is too low":
     sales.add(availability)
     var tooCheap = request
     tooCheap.ask.reward = request.ask.reward - 1
-    discard await market.requestStorage(tooCheap)
+    await market.requestStorage(tooCheap)
     check sales.available == @[availability]
 
   test "retrieves and stores data locally":
@@ -103,8 +103,8 @@ suite "Sales":
       storingSlot = slot
       storingAvailability = availability
     sales.add(availability)
-    let requested = await market.requestStorage(request)
-    check storingRequest == requested
+    await market.requestStorage(request)
+    check storingRequest == request
     check storingSlot < request.ask.slots.u256
     check storingAvailability == availability
 
@@ -115,7 +115,7 @@ suite "Sales":
                          availability: Availability) {.async.} =
       raise error
     sales.add(availability)
-    discard await market.requestStorage(request)
+    await market.requestStorage(request)
     check sales.available == @[availability]
 
   test "generates proof of storage":
@@ -126,13 +126,13 @@ suite "Sales":
       provingRequest = request
       provingSlot = slot
     sales.add(availability)
-    let requested = await market.requestStorage(request)
-    check provingRequest == requested
+    await market.requestStorage(request)
+    check provingRequest == request
     check provingSlot < request.ask.slots.u256
 
   test "fills a slot":
     sales.add(availability)
-    discard await market.requestStorage(request)
+    await market.requestStorage(request)
     check market.filled.len == 1
     check market.filled[0].requestId == request.id
     check market.filled[0].slotIndex < request.ask.slots.u256
@@ -150,7 +150,7 @@ suite "Sales":
       soldRequest = request
       soldSlotIndex = slotIndex
     sales.add(availability)
-    discard await market.requestStorage(request)
+    await market.requestStorage(request)
     check soldAvailability == availability
     check soldRequest == request
     check soldSlotIndex < request.ask.slots.u256
@@ -171,7 +171,7 @@ suite "Sales":
       clearedRequest = request
       clearedSlotIndex = slotIndex
     sales.add(availability)
-    discard await market.requestStorage(request)
+    await market.requestStorage(request)
     check clearedAvailability == availability
     check clearedRequest == request
     check clearedSlotIndex < request.ask.slots.u256
@@ -183,7 +183,7 @@ suite "Sales":
                          availability: Availability) {.async.} =
       await sleepAsync(1.hours)
     sales.add(availability)
-    discard await market.requestStorage(request)
+    await market.requestStorage(request)
     for slotIndex in 0..<request.ask.slots:
       market.fillSlot(request.id, slotIndex.u256, proof, otherHost)
     check sales.available == @[availability]
@@ -194,7 +194,7 @@ suite "Sales":
                          availability: Availability) {.async.} =
       await sleepAsync(1.hours)
     sales.add(availability)
-    discard await market.requestStorage(request)
+    await market.requestStorage(request)
     clock.set(request.expiry.truncate(int64))
     await sleepAsync(2.seconds)
     check sales.available == @[availability]
@@ -207,6 +207,6 @@ suite "Sales":
       soldSlotIndex = slotIndex
     check proving.slots.len == 0
     sales.add(availability)
-    discard await market.requestStorage(request)
+    await market.requestStorage(request)
     check proving.slots.len == 1
     check proving.slots.contains(request.slotId(soldSlotIndex))

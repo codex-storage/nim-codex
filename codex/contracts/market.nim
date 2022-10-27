@@ -31,13 +31,8 @@ method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
 method myRequests*(market: OnChainMarket): Future[seq[RequestId]] {.async.} =
   return await market.contract.myRequests
 
-method requestStorage(market: OnChainMarket,
-                      request: StorageRequest):
-                     Future[StorageRequest] {.async.} =
-  var request = request
-  request.client = await market.signer.getAddress()
+method requestStorage(market: OnChainMarket, request: StorageRequest){.async.} =
   await market.contract.requestStorage(request)
-  return request
 
 method getRequest(market: OnChainMarket,
                   id: RequestId): Future[?StorageRequest] {.async.} =

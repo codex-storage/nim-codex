@@ -22,8 +22,7 @@ method getSigner*(market: Market): Future[Address] {.base, async.} =
   raiseAssert("not implemented")
 
 method requestStorage*(market: Market,
-                       request: StorageRequest):
-                      Future[StorageRequest] {.base, async.} =
+                       request: StorageRequest) {.base, async.} =
   raiseAssert("not implemented")
 
 method myRequests*(market: Market): Future[seq[RequestId]] {.base, async.} =

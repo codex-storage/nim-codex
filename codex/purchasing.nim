@@ -41,7 +41,8 @@ proc load*(purchasing: Purchasing) {.async.} =
       purchase.load()
       purchasing.purchases[purchase.id] = purchase
 
-proc populate*(purchasing: Purchasing, request: StorageRequest): StorageRequest =
+proc populate*(purchasing: Purchasing,
+               request: StorageRequest): Future[StorageRequest] {.async.} =
   result = request
   if result.ask.proofProbability == 0.u256:
     result.ask.proofProbability = purchasing.proofProbability
@@ -51,13 +52,15 @@ proc populate*(purchasing: Purchasing, request: StorageRequest): StorageRequest 
     var id = result.nonce.toArray
     doAssert randomBytes(id) == 32
     result.nonce = Nonce(id)
+  result.client = await purchasing.market.getSigner()
 
-proc purchase*(purchasing: Purchasing, request: StorageRequest): Purchase =
-  let request = purchasing.populate(request)
+proc purchase*(purchasing: Purchasing,
+               request: StorageRequest): Future[Purchase] {.async.} =
+  let request = await purchasing.populate(request)
   let purchase = newPurchase(request, purchasing.market, purchasing.clock)
   purchase.start()
   purchasing.purchases[purchase.id] = purchase
-  purchase
+  return purchase
 
 func getPurchase*(purchasing: Purchasing, id: PurchaseId): ?Purchase =
   if purchasing.purchases.hasKey(id):

@@ -65,14 +65,11 @@ proc new*(_: type MockMarket): MockMarket =
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
 
-method requestStorage*(market: MockMarket,
-                       request: StorageRequest):
-                      Future[StorageRequest] {.async.} =
+method requestStorage*(market: MockMarket, request: StorageRequest) {.async.} =
   market.requested.add(request)
   var subscriptions = market.subscriptions.onRequest
   for subscription in subscriptions:
     subscription.callback(request.id, request.ask)
-  return request
 
 method myRequests*(market: MockMarket): Future[seq[RequestId]] {.async.} =
   return market.activeRequests[market.signer]
