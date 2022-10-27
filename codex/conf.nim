@@ -21,16 +21,25 @@ import pkg/chronicles
 import pkg/chronicles/topics_registry
 import pkg/confutils/defs
 import pkg/confutils/std/net
+import confutils/toml/std/uri
 import pkg/metrics
 import pkg/metrics/chronos_httpserver
 import pkg/stew/shims/net as stewnet
 import pkg/libp2p
+import pkg/libp2p/crypto/secp
+import pkg/libp2p/crypto/crypto
 import pkg/ethers
+import pkg/stew/byteutils
 
 import ./discovery
 import ./stores/cachestore
+import ../codex/utils/fileutils
 
-export DefaultCacheSizeMiB, net
+export DefaultCacheSizeMiB, net, uri
+
+const
+  RepoDir* = "repo"
+  ConfFile* = "config"
 
 type
   StartUpCommand* {.pure.} = enum
@@ -48,6 +57,7 @@ type
     logLevel* {.
       defaultValue: LogLevel.INFO
       desc: "Sets the log level",
+      serializedFieldName: "log-level"
       name: "log-level" }: LogLevel
 
     logFormat* {.
@@ -55,116 +65,140 @@ type
       desc: "Specifies what kind of logs should be written to stdout (auto, colors, nocolors, json)"
       defaultValueDesc: "auto"
       defaultValue: LogKind.Auto
+      serializedFieldName: "log-format"
       name: "log-format" }: LogKind
 
     metricsEnabled* {.
       desc: "Enable the metrics server"
       defaultValue: false
+      serializedFieldName: "metrics"
       name: "metrics" }: bool
 
     metricsAddress* {.
       desc: "Listening address of the metrics server"
       defaultValue: ValidIpAddress.init("127.0.0.1")
       defaultValueDesc: "127.0.0.1"
+      serializedFieldName: "metrics-address"
       name: "metrics-address" }: ValidIpAddress
 
     metricsPort* {.
       desc: "Listening HTTP port of the metrics server"
       defaultValue: 8008
+      serializedFieldName: "metrics-port"
       name: "metrics-port" }: Port
 
     dataDir* {.
+      dontSerialize
       desc: "The directory where codex will store configuration and data."
       defaultValue: defaultDataDir()
       defaultValueDesc: ""
       abbr: "d"
+      serializedFieldName: "data-dir"
+      dontSerialize
       name: "data-dir" }: OutDir
 
+    listenAddrs* {.
+      desc: "MultiAddresses to listen on"
+      defaultValue: @[
+        MultiAddress.init("/ip4/0.0.0.0/tcp/0")
+        .expect("Should init multiaddress")]
+      defaultValueDesc: "/ip4/0.0.0.0/tcp/0"
+      abbr: "i"
+      serializedFieldName: "listen-addrs"
+      name: "listen-addrs" }: seq[MultiAddress]
+
+    announceAddrs* {.
+      desc: "MultiAddresses to announce behind a NAT"
+      defaultValue: @[]
+      defaultValueDesc: ""
+      abbr: "a"
+      serializedFieldName: "announce-addrs"
+      name: "announce-addrs" }: seq[MultiAddress]
+
+    discoveryPort* {.
+      desc: "Specify the discovery (UDP) port"
+      defaultValue: 8090.Port
+      defaultValueDesc: "8090"
+      serializedFieldName: "udp-port"
+      name: "udp-port" }: Port
+
+    netPrivKeyFile* {.
+      desc: "Source of network (secp256k1) private key file (random|<path>)"
+      defaultValue: "random"
+      serializedFieldName: "net-privkey"
+      dontSerialize
+      name: "net-privkey" }: string
+
+    bootstrapNodes* {.
+      desc: "Specifies one or more bootstrap nodes to use when connecting to the network."
+      abbr: "b"
+      serializedFieldName: "bootstrap-node"
+      name: "bootstrap-node" }: seq[SignedPeerRecord]
+
+    maxPeers* {.
+      desc: "The maximum number of peers to connect to"
+      defaultValue: 160
+      serializedFieldName: "max-peers"
+      name: "max-peers" }: int
+
+    agentString* {.
+      defaultValue: "Codex"
+      desc: "Node agent string which is used as identifier in network"
+      serializedFieldName: "agent-string"
+      name: "agent-string" }: string
+
+    apiPort* {.
+      desc: "The REST Api port",
+      defaultValue: 8080
+      defaultValueDesc: "8080"
+      serializedFieldName: "api-port"
+      name: "api-port"
+      abbr: "p" }: int
+
+    cacheSize* {.
+      desc: "The size in MiB of the block cache, 0 disables the cache"
+      defaultValue: DefaultCacheSizeMiB
+      defaultValueDesc: $DefaultCacheSizeMiB
+      serializedFieldName: "cache-size"
+      name: "cache-size"}: Natural
+
+    persistence* {.
+      desc: "Enables persistence mechanism, requires an Ethereum node"
+      defaultValue: false
+      name: "persistence".}: bool
+
+    ethProvider* {.
+      desc: "The URL of the JSON-RPC API of the Ethereum node"
+      defaultValue: "ws://localhost:8545"
+      serializedFieldName: "eth-provider"
+      name: "eth-provider".}: string
+
+    ethAccount* {.
+      desc: "The Ethereum account that is used for storage contracts"
+      defaultValue: EthAddress.none
+      serializedFieldName: "eth-account"
+      name: "eth-account"
+      dontSerialize.}: Option[EthAddress]
+
+    ethDeployment* {.
+      desc: "The json file describing the contract deployment"
+      defaultValue: string.none
+      serializedFieldName: "eth-deployment"
+      name: "eth-deployment".}: Option[string]
+
+    confFile* {.
+      desc: "The config file to be used, defaults to ``data-dir`/conf.toml`",
+      defaultValueDesc: ""
+      abbr: "c"
+      name: "conf"}: Option[string]
+
     case cmd* {.
+      dontSerialize
       command
       defaultValue: noCommand }: StartUpCommand
 
     of noCommand:
-      listenAddrs* {.
-        desc: "Multi Addresses to listen on"
-        defaultValue: @[
-          MultiAddress.init("/ip4/0.0.0.0/tcp/0")
-          .expect("Should init multiaddress")]
-        defaultValueDesc: "/ip4/0.0.0.0/tcp/0"
-        abbr: "i"
-        name: "listen-addrs" }: seq[MultiAddress]
-
-      announceAddrs* {.
-        desc: "Multi Addresses to announce behind a NAT"
-        defaultValue: @[]
-        defaultValueDesc: ""
-        abbr: "a"
-        name: "announce-addrs" }: seq[MultiAddress]
-
-      discoveryPort* {.
-        desc: "Specify the discovery (UDP) port"
-        defaultValue: Port(8090)
-        defaultValueDesc: "8090"
-        name: "udp-port" }: Port
-
-      netPrivKeyFile* {.
-        desc: "Source of network (secp256k1) private key file (random|<path>)"
-        defaultValue: "random"
-        name: "net-privkey" }: string
-
-      bootstrapNodes* {.
-        desc: "Specifies one or more bootstrap nodes to use when connecting to the network."
-        abbr: "b"
-        name: "bootstrap-node" }: seq[SignedPeerRecord]
-
-      maxPeers* {.
-        desc: "The maximum number of peers to connect to"
-        defaultValue: 160
-        name: "max-peers" }: int
-
-      agentString* {.
-        defaultValue: "Codex"
-        desc: "Node agent string which is used as identifier in network"
-        name: "agent-string" }: string
-
-      apiPort* {.
-        desc: "The REST Api port",
-        defaultValue: 8080
-        defaultValueDesc: "8080"
-        name: "api-port"
-        abbr: "p" }: int
-
-      cacheSize* {.
-        desc: "The size in MiB of the block cache, 0 disables the cache"
-        defaultValue: DefaultCacheSizeMiB
-        defaultValueDesc: $DefaultCacheSizeMiB
-        name: "cache-size"
-        abbr: "c" }: Natural
-
-      persistence* {.
-        desc: "Enables persistence mechanism, requires an Ethereum node"
-        defaultValue: false
-        name: "persistence"
-      .}: bool
-
-      ethProvider* {.
-        desc: "The URL of the JSON-RPC API of the Ethereum node"
-        defaultValue: "ws://localhost:8545"
-        name: "eth-provider"
-      .}: string
-
-      ethAccount* {.
-        desc: "The Ethereum account that is used for storage contracts"
-        defaultValue: EthAddress.none
-        name: "eth-account"
-      .}: Option[EthAddress]
-
-      ethDeployment* {.
-        desc: "The json file describing the contract deployment"
-        defaultValue: string.none
-        name: "eth-deployment"
-      .}: Option[string]
-
+      discard
     of initNode:
       discard
 
@@ -182,7 +216,6 @@ const
     "Codex build " & codexVersion & "\p" &
     nimBanner
 
-
 proc defaultDataDir*(): string =
   let dataDir = when defined(windows):
     "AppData" / "Roaming" / "Codex"
@@ -195,7 +228,7 @@ proc defaultDataDir*(): string =
 
 func parseCmdArg*(T: type MultiAddress, input: TaintedString): T
                  {.raises: [ValueError, LPError, Defect].} =
-  MultiAddress.init($input).tryGet()
+  MultiAddress.init($input).get()
 
 proc parseCmdArg*(T: type SignedPeerRecord, uri: TaintedString): T =
   var res: SignedPeerRecord
@@ -299,3 +332,19 @@ proc setupMetrics*(config: CodexConf) =
       raiseAssert exc.msg
     except Exception as exc:
       raiseAssert exc.msg # TODO fix metrics
+
+proc setupDataDir*(config: CodexConf) =
+  if not(checkAndCreateDataDir((config.dataDir).string)):
+    # We are unable to access/create data folder or data folder's
+    # permissions are insecure.
+    quit QuitFailure
+
+  trace "Data dir initialized", dir = $config.dataDir
+
+  let repoDir = config.dataDir / RepoDir
+  if not(checkAndCreateDataDir((repoDir).string)):
+    # We are unable to access/create data folder or data folder's
+    # permissions are insecure.
+    quit QuitFailure
+
+  trace "Repo dir initialized", dir = repoDir

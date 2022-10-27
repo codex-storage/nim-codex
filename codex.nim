@@ -11,9 +11,12 @@ import pkg/chronicles
 import pkg/chronos
 import pkg/confutils
 import pkg/libp2p
+import pkg/toml_serialization
+import pkg/json_serialization
 
 import ./codex/conf
 import ./codex/codex
+import ./codex/utils/serialization
 
 export codex, conf, libp2p, chronos, chronicles
 
@@ -22,33 +25,29 @@ when isMainModule:
 
   import pkg/confutils/defs
 
-  import ./codex/utils/fileutils
-
   when defined(posix):
     import system/ansi_c
 
-  let config = CodexConf.load(
-    version = codexFullVersion
-  )
+  let
+    config = CodexConf.load(
+      version = codexFullVersion,
+      secondarySources = proc (config: CodexConf, sources: auto) =
+        let
+          confFile = if config.confFile.isNone:
+              (config.dataDir / ConfFile).changeFileExt("toml")
+            else:
+              config.confFile.get.changeFileExt("toml")
+
+        if confFile.fileExists():
+          sources.addConfigFile(Toml, confFile.InputFile)
+    )
+
+  config.setupDataDir()
   config.setupLogging()
   config.setupMetrics()
 
   case config.cmd:
   of StartUpCommand.noCommand:
-
-    if not(checkAndCreateDataDir((config.dataDir).string)):
-      # We are unable to access/create data folder or data folder's
-      # permissions are insecure.
-      quit QuitFailure
-
-    trace "Data dir initialized", dir = $config.dataDir
-
-    if not(checkAndCreateDataDir((config.dataDir / "repo").string)):
-      # We are unable to access/create data folder or data folder's
-      # permissions are insecure.
-      quit QuitFailure
-
-    trace "Repo dir initialized", dir = config.dataDir / "repo"
 
     let server = CodexServer.new(config)
 
@@ -77,4 +76,10 @@ when isMainModule:
 
     waitFor server.start()
   of StartUpCommand.initNode:
-    discard
+    let
+      confFile = if config.confFile.isSome:
+          config.confFile.get.string
+        else:
+          config.dataDir / ConfFile
+
+    Toml.saveFile(confFile.changeFileExt("toml"), config)

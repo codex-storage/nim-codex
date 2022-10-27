@@ -152,7 +152,7 @@ proc retrieve*(
       try:
         await stream.pushData(blk.data)
       except CatchableError as exc:
-        trace "Unable to send block", cid
+        trace "Unable to send block", cid, err = exc.msg
         discard
       finally:
         await stream.pushEof()
