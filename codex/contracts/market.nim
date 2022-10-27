@@ -44,8 +44,13 @@ method getRequest(market: OnChainMarket,
     raise e
 
 method getState*(market: OnChainMarket,
-                 requestId: RequestId): Future[RequestState] {.async.} =
-  return await market.contract.state(requestId)
+                 requestId: RequestId): Future[?RequestState] {.async.} =
+  try:
+    return some await market.contract.state(requestId)
+  except ProviderError as e:
+    if e.revertReason.contains("Unknown request"):
+      return none RequestState
+    raise e
 
 method getRequestEnd*(market: OnChainMarket,
                       id: RequestId): Future[SecondsSince1970] {.async.} =

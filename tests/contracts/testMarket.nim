@@ -235,4 +235,4 @@ ethersuite "On-Chain Market":
     await market.requestStorage(request)
     for slotIndex in 0..<request.ask.slots:
       await market.fillSlot(request.id, slotIndex.u256, proof)
-    check (await market.getState(request.id)) == RequestState.Started
+    check (await market.getState(request.id)) == some RequestState.Started
