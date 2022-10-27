@@ -15,7 +15,6 @@ import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/contractabi/address as ca
-import pkg/protobuf_serialization
 
 import ./stpproto
 import ../discovery
