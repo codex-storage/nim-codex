@@ -76,7 +76,7 @@ proc encode*(
   ##
 
   logScope:
-    original_cid = $manifest.cid.get()
+    original_cid = manifest.cid.get()
     original_len = manifest.len
     blocks       = blocks
     parity       = parity
