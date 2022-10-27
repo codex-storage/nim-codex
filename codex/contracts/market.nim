@@ -115,5 +115,15 @@ method subscribeRequestCancelled*(market: OnChainMarket,
   let subscription = await market.contract.subscribe(RequestCancelled, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
+method subscribeRequestFailed*(market: OnChainMarket,
+                              requestId: RequestId,
+                              callback: OnRequestFailed):
+                            Future[MarketSubscription] {.async.} =
+  proc onEvent(event: RequestFailed) {.upraises:[].} =
+    if event.requestId == requestId:
+      callback(event.requestId)
+  let subscription = await market.contract.subscribe(RequestFailed, onEvent)
+  return OnChainMarketSubscription(eventSubscription: subscription)
+
 method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =
   await subscription.eventSubscription.unsubscribe()

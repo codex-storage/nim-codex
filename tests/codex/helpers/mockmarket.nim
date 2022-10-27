@@ -31,6 +31,7 @@ type
     onFulfillment: seq[FulfillmentSubscription]
     onSlotFilled: seq[SlotFilledSubscription]
     onRequestCancelled: seq[RequestCancelledSubscription]
+    onRequestFailed: seq[RequestFailedSubscription]
   RequestSubscription* = ref object of Subscription
     market: MockMarket
     callback: OnRequest
@@ -44,6 +45,10 @@ type
     slotIndex: UInt256
     callback: OnSlotFilled
   RequestCancelledSubscription* = ref object of Subscription
+    market: MockMarket
+    requestId: RequestId
+    callback: OnRequestCancelled
+  RequestFailedSubscription* = ref object of Subscription
     market: MockMarket
     requestId: RequestId
     callback: OnRequestCancelled
@@ -113,6 +118,12 @@ proc emitRequestCancelled*(market: MockMarket,
 
 proc emitRequestFulfilled*(market: MockMarket, requestId: RequestId) =
   var subscriptions = market.subscriptions.onFulfillment
+  for subscription in subscriptions:
+    if subscription.requestId == requestId:
+      subscription.callback(requestId)
+
+proc emitRequestFailed*(market: MockMarket, requestId: RequestId) =
+  var subscriptions = market.subscriptions.onRequestFailed
   for subscription in subscriptions:
     if subscription.requestId == requestId:
       subscription.callback(requestId)
@@ -190,6 +201,18 @@ method subscribeRequestCancelled*(market: MockMarket,
   market.subscriptions.onRequestCancelled.add(subscription)
   return subscription
 
+method subscribeRequestFailed*(market: MockMarket,
+                               requestId: RequestId,
+                               callback: OnRequestFailed):
+                             Future[Subscription] {.async.} =
+  let subscription = RequestFailedSubscription(
+    market: market,
+    requestId: requestId,
+    callback: callback
+  )
+  market.subscriptions.onRequestFailed.add(subscription)
+  return subscription
+
 method unsubscribe*(subscription: RequestSubscription) {.async.} =
   subscription.market.subscriptions.onRequest.keepItIf(it != subscription)
 
@@ -201,3 +224,6 @@ method unsubscribe*(subscription: SlotFilledSubscription) {.async.} =
 
 method unsubscribe*(subscription: RequestCancelledSubscription) {.async.} =
   subscription.market.subscriptions.onRequestCancelled.keepItIf(it != subscription)
+
+method unsubscribe*(subscription: RequestFailedSubscription) {.async.} =
+  subscription.market.subscriptions.onRequestFailed.keepItIf(it != subscription)

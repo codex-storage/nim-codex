@@ -3,6 +3,7 @@ import pkg/chronos
 import pkg/ethers/testing
 import codex/contracts
 import codex/contracts/testtoken
+import codex/storageproofs
 import ../ethertest
 import ./examples
 import ./time
@@ -15,6 +16,7 @@ ethersuite "On-Chain Market":
   var token: TestToken
   var request: StorageRequest
   var slotIndex: UInt256
+  var periodicity: Periodicity
 
   setup:
     let deployment = deployment()
@@ -27,11 +29,21 @@ ethersuite "On-Chain Market":
     await storage.deposit(collateral)
 
     market = OnChainMarket.new(storage)
+    periodicity = Periodicity(seconds: await storage.proofPeriod())
 
     request = StorageRequest.example
     request.client = accounts[0]
 
     slotIndex = (request.ask.slots div 2).u256
+
+  proc waitUntilProofRequired(slotId: SlotId) {.async.} =
+    let currentPeriod = periodicity.periodOf(await provider.currentTime())
+    await provider.advanceTimeTo(periodicity.periodEnd(currentPeriod))
+    while not (
+      (await storage.isProofRequired(slotId)) and
+      (await storage.getPointer(slotId)) < 250
+    ):
+      await provider.advanceTime(periodicity.seconds)
 
   test "fails to instantiate when contract does not have a signer":
     let storageWithoutSigner = storage.connect(provider)
@@ -165,6 +177,31 @@ ethersuite "On-Chain Market":
 
     await provider.advanceTimeTo(request.expiry)
     await market.withdrawFunds(request.id)
+    check receivedIds == @[request.id]
+    await subscription.unsubscribe()
+
+  test "support request failed subscriptions":
+    await token.approve(storage.address, request.price)
+    discard await market.requestStorage(request)
+
+    var receivedIds: seq[RequestId]
+    proc onRequestFailed(id: RequestId) =
+      receivedIds.add(id)
+    let subscription = await market.subscribeRequestFailed(request.id, onRequestFailed)
+
+    for slotIndex in 0..<request.ask.slots:
+      await market.fillSlot(request.id, slotIndex.u256, proof)
+    for slotIndex in 0..request.ask.maxSlotLoss:
+      let slotId = request.slotId(slotIndex.u256)
+      while true:
+        try:
+          await waitUntilProofRequired(slotId)
+          let missingPeriod = periodicity.periodOf(await provider.currentTime())
+          await provider.advanceTime(periodicity.seconds)
+          await storage.markProofAsMissing(slotId, missingPeriod)
+        except JsonRpcProviderError as e:
+          if e.revertReason == "Slot empty":
+            break
     check receivedIds == @[request.id]
     await subscription.unsubscribe()
 

@@ -4,6 +4,7 @@ import pkg/chronos
 import pkg/upraises
 import pkg/stint
 import pkg/codex/purchasing
+import pkg/codex/purchasing/states/[finished, failed, error, started, submitted, unknown]
 import ./helpers/mockmarket
 import ./helpers/mockclock
 import ./examples
@@ -100,6 +101,26 @@ suite "Purchasing":
       await purchase.wait()
     check market.withdrawn == @[request.id]
 
+suite "Purchasing state machine":
+
+  var purchasing: Purchasing
+  var market: MockMarket
+  var clock: MockClock
+  var request: StorageRequest
+
+  setup:
+    market = MockMarket.new()
+    clock = MockClock.new()
+    purchasing = Purchasing.new(market, clock)
+    request = StorageRequest(
+      ask: StorageAsk(
+        slots: uint8.example.uint64,
+        slotSize: uint32.example.u256,
+        duration: uint16.example.u256,
+        reward: uint8.example.u256
+      )
+    )
+
   test "loads active purchases from market":
     let me = await market.getSigner()
     let request1, request2, request3 = StorageRequest.example
@@ -110,7 +131,7 @@ suite "Purchasing":
     check isSome purchasing.getPurchase(PurchaseId(request2.id))
     check isNone purchasing.getPurchase(PurchaseId(request3.id))
 
-  test "loads correct state for purchases from market":
+  test "loads correct purchase.future state for purchases from market":
     let me = await market.getSigner()
     let request1, request2, request3, request4, request5 = StorageRequest.example
     market.requested = @[request1, request2, request3, request4, request5]
@@ -120,9 +141,91 @@ suite "Purchasing":
     market.state[request3.id] = RequestState.Cancelled
     market.state[request4.id] = RequestState.Finished
     market.state[request5.id] = RequestState.Failed
+
+    # ensure the started state doesn't error, giving a false positive test result
+    market.requestEnds[request2.id] = clock.now() - 1
+
     await purchasing.load()
     check purchasing.getPurchase(PurchaseId(request1.id)).?finished == false.some
     check purchasing.getPurchase(PurchaseId(request2.id)).?finished == true.some
     check purchasing.getPurchase(PurchaseId(request3.id)).?finished == true.some
     check purchasing.getPurchase(PurchaseId(request4.id)).?finished == true.some
+    check purchasing.getPurchase(PurchaseId(request5.id)).?finished == true.some
     check purchasing.getPurchase(PurchaseId(request5.id)).?error.isSome
+
+  test "moves to PurchaseSubmitted when request state is New":
+    let request = StorageRequest.example
+    let purchase = request.newPurchase(market, clock)
+    market.state[request.id] = RequestState.New
+    purchase.switch(PurchaseUnknown())
+    check (purchase.state as PurchaseSubmitted).isSome
+
+  test "moves to PurchaseStarted when request state is Started":
+    let request = StorageRequest.example
+    let purchase = request.newPurchase(market, clock)
+    market.requestEnds[request.id] = clock.now() + request.ask.duration.truncate(int64)
+    market.state[request.id] = RequestState.Started
+    purchase.switch(PurchaseUnknown())
+    check (purchase.state as PurchaseStarted).isSome
+
+  test "moves to PurchaseError when request state is Cancelled":
+    let request = StorageRequest.example
+    let purchase = request.newPurchase(market, clock)
+    market.state[request.id] = RequestState.Cancelled
+    purchase.switch(PurchaseUnknown())
+    check (purchase.state as PurchaseError).isSome
+    check purchase.error.?msg == "Purchase cancelled due to timeout".some
+
+  test "moves to PurchaseFinished when request state is Finished":
+    let request = StorageRequest.example
+    let purchase = request.newPurchase(market, clock)
+    market.state[request.id] = RequestState.Finished
+    purchase.switch(PurchaseUnknown())
+    check (purchase.state as PurchaseFinished).isSome
+
+  test "moves to PurchaseError when request state is Failed":
+    let request = StorageRequest.example
+    let purchase = request.newPurchase(market, clock)
+    market.state[request.id] = RequestState.Failed
+    purchase.switch(PurchaseUnknown())
+    check (purchase.state as PurchaseError).isSome
+    check purchase.error.?msg == "Purchase failed".some
+
+  test "moves to PurchaseError state once RequestFailed emitted":
+    let me = await market.getSigner()
+    let request = StorageRequest.example
+    market.requested = @[request]
+    market.activeRequests[me] = @[request.id]
+    market.state[request.id] = RequestState.Started
+    market.requestEnds[request.id] = clock.now() + request.ask.duration.truncate(int64)
+    await purchasing.load()
+
+    # emit mock contract failure event
+    market.emitRequestFailed(request.id)
+    # must allow time for the callback to trigger the completion of the future
+    await sleepAsync(chronos.milliseconds(10))
+
+    # now check the result
+    let purchase = purchasing.getPurchase(PurchaseId(request.id))
+    let state = purchase.?state
+    check (state as PurchaseError).isSome
+    check (!purchase).error.?msg == "Purchase failed".some
+
+  test "moves to PurchaseFinished state once request finishes":
+    let me = await market.getSigner()
+    let request = StorageRequest.example
+    market.requested = @[request]
+    market.activeRequests[me] = @[request.id]
+    market.state[request.id] = RequestState.Started
+    market.requestEnds[request.id] = clock.now() + request.ask.duration.truncate(int64)
+    await purchasing.load()
+
+    # advance the clock to the end of the request
+    clock.advance(request.ask.duration.truncate(int64))
+    # must let the clock tick over, which happens every second in the same event
+    # loop, so wait just over 1 second to ensure it has ticked
+    await sleepAsync(chronos.seconds(1) + chronos.milliseconds(10))
+
+    # now check the result
+    let state = purchasing.getPurchase(PurchaseId(request.id)).?state
+    check (state as PurchaseFinished).isSome

@@ -21,6 +21,8 @@ type
     requestId* {.indexed.}: RequestId
   RequestCancelled* = object of Event
     requestId* {.indexed.}: RequestId
+  RequestFailed* = object of Event
+    requestId* {.indexed.}: RequestId
   ProofSubmitted* = object of Event
     id*: SlotId
     proof*: seq[byte]
