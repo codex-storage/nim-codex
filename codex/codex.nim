@@ -131,7 +131,7 @@ proc new*(T: type CodexServer, config: CodexConf): T =
           config.listenAddrs
 
     blockDiscovery = Discovery.new(
-      switch.peerInfo,
+      switch.peerInfo.privateKey,
       announceAddrs = config.announceAddrs,
       discoveryPort = config.discoveryPort,
       bootstrapNodes = config.bootstrapNodes,

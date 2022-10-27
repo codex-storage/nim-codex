@@ -87,7 +87,9 @@ type
     of noCommand:
       listenAddrs* {.
         desc: "Multi Addresses to listen on"
-        defaultValue: @[MultiAddress.init("/ip4/0.0.0.0/tcp/0")]
+        defaultValue: @[
+          MultiAddress.init("/ip4/0.0.0.0/tcp/0")
+          .expect("Should init multiaddress")]
         defaultValueDesc: "/ip4/0.0.0.0/tcp/0"
         abbr: "i"
         name: "listen-addrs" }: seq[MultiAddress]
