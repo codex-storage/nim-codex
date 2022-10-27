@@ -85,22 +85,19 @@ type
       defaultValue: noCommand }: StartUpCommand
 
     of noCommand:
-      listenPorts* {.
-        desc: "Specifies one or more listening ports for the node to listen on."
-        defaultValue: @[Port(0)]
-        defaultValueDesc: "0"
-        abbr: "l"
-        name: "listen-port" }: seq[Port]
-
-      # TODO We should have two options: the listen IP and the public IP
-      # Currently, they are tied together, so we can't be discoverable
-      # behind a NAT
-      listenIp* {.
-        desc: "The public IP"
-        defaultValue: ValidIpAddress.init("0.0.0.0")
-        defaultValueDesc: "0.0.0.0"
+      listenAddrs* {.
+        desc: "Multi Addresses to listen on"
+        defaultValue: @[MultiAddress.init("/ip4/0.0.0.0/tcp/0")]
+        defaultValueDesc: "/ip4/0.0.0.0/tcp/0"
         abbr: "i"
-        name: "listen-ip" }: ValidIpAddress
+        name: "listen-addrs" }: seq[MultiAddress]
+
+      announceAddrs* {.
+        desc: "Multi Addresses to announce behind a NAT"
+        defaultValue: @[]
+        defaultValueDesc: ""
+        abbr: "a"
+        name: "announce-addrs" }: seq[MultiAddress]
 
       discoveryPort* {.
         desc: "Specify the discovery (UDP) port"
