@@ -14,14 +14,13 @@ import pkg/libp2p
 
 import ./codex/conf
 import ./codex/codex
+import ./codex/utils/keyutils
 
 export codex, conf, libp2p, chronos, chronicles
 
 when isMainModule:
   import std/os
-
   import pkg/confutils/defs
-
   import ./codex/utils/fileutils
 
   logScope:
@@ -53,7 +52,15 @@ when isMainModule:
 
     trace "Repo dir initialized", dir = config.dataDir / "repo"
 
-    let server = CodexServer.new(config)
+    let
+      keyPath =
+        if isAbsolute(string config.netPrivKeyFile):
+          string config.netPrivKeyFile
+        else:
+          string config.dataDir / string config.netPrivKeyFile
+
+      privateKey = setupKey(keyPath).expect("Should setup private key!")
+      server = CodexServer.new(config, privateKey)
 
     ## Ctrl+C handling
     proc controlCHandler() {.noconv.} =

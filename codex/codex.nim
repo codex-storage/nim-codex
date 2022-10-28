@@ -31,6 +31,7 @@ import ./utils/fileutils
 import ./erasure
 import ./discovery
 import ./contracts
+import ./utils/keyutils
 
 type
   CodexServer* = ref object
@@ -38,6 +39,8 @@ type
     config: CodexConf
     restServer: RestServerRef
     codexNode: CodexNodeRef
+
+  CodexPrivateKey* = libp2p.PrivateKey # alias
 
 proc start*(s: CodexServer) {.async.} =
   s.restServer.start()
@@ -67,39 +70,9 @@ proc new(_: type ContractInteractions, config: CodexConf): ?ContractInteractions
   else:
     ContractInteractions.new(config.ethProvider, account)
 
-proc new*(T: type CodexServer, config: CodexConf): T =
+proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): T =
 
-  const SafePermissions = {UserRead, UserWrite}
   let
-    privateKey =
-      if config.netPrivKeyFile == "random":
-        PrivateKey.random(Rng.instance()[]).get()
-      else:
-        let path =
-          if config.netPrivKeyFile.isAbsolute:
-            config.netPrivKeyFile
-          else:
-            config.dataDir / config.netPrivKeyFile
-
-        if path.fileAccessible({AccessFlags.Find}):
-          info "Found a network private key"
-
-          if path.getPermissionsSet().get() != SafePermissions:
-            warn "The network private key file is not safe, aborting"
-            quit QuitFailure
-
-          PrivateKey.init(path.readAllBytes().expect("accessible private key file")).
-            expect("valid private key file")
-        else:
-          info "Creating a private key and saving it"
-          let
-            res = PrivateKey.random(Rng.instance()[]).get()
-            bytes = res.getBytes().get()
-
-          path.writeFile(bytes, SafePermissions.toInt()).expect("writing private key file")
-
-          PrivateKey.init(bytes).expect("valid key bytes")
-
     switch = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)

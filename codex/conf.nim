@@ -109,8 +109,8 @@ type
         name: "udp-port" }: Port
 
       netPrivKeyFile* {.
-        desc: "Source of network (secp256k1) private key file (random|<path>)"
-        defaultValue: "random"
+        desc: "Source of network (secp256k1) private key file path or name"
+        defaultValue: "key"
         name: "net-privkey" }: string
 
       bootstrapNodes* {.
