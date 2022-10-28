@@ -223,8 +223,8 @@ suite "Purchasing state machine":
     # advance the clock to the end of the request
     clock.advance(request.ask.duration.truncate(int64))
     # must let the clock tick over, which happens every second in the same event
-    # loop, so wait just over 1 second to ensure it has ticked
-    await sleepAsync(chronos.seconds(1) + chronos.milliseconds(10))
+    # loop, so wait 2 seconds to ensure it has ticked
+    await sleepAsync(chronos.seconds(2))
 
     # now check the result
     let state = purchasing.getPurchase(PurchaseId(request.id)).?state
