@@ -6,6 +6,7 @@ import pkg/codex/proving
 import pkg/codex/sales
 import ./helpers/mockmarket
 import ./helpers/mockclock
+import ./helpers/eventually
 import ./examples
 
 suite "Sales":
@@ -196,8 +197,7 @@ suite "Sales":
     sales.add(availability)
     await market.requestStorage(request)
     clock.set(request.expiry.truncate(int64))
-    await sleepAsync(2.seconds)
-    check sales.available == @[availability]
+    check eventually (sales.available == @[availability])
 
   test "adds proving for slot when slot is filled":
     var soldSlotIndex: UInt256

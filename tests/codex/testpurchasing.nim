@@ -7,6 +7,7 @@ import pkg/codex/purchasing
 import pkg/codex/purchasing/states/[finished, failed, error, started, submitted, unknown]
 import ./helpers/mockmarket
 import ./helpers/mockclock
+import ./helpers/eventually
 import ./examples
 
 suite "Purchasing":
@@ -231,10 +232,9 @@ suite "Purchasing state machine":
 
     # advance the clock to the end of the request
     clock.advance(request.ask.duration.truncate(int64))
-    # must let the clock tick over, which happens every second in the same event
-    # loop, so wait 2 seconds to ensure it has ticked
-    await sleepAsync(chronos.seconds(2))
 
     # now check the result
-    let state = purchasing.getPurchase(PurchaseId(request.id)).?state
-    check (state as PurchaseFinished).isSome
+    proc getState: ?PurchaseState =
+      purchasing.getPurchase(PurchaseId(request.id)).?state as PurchaseState
+
+    check eventually (getState() as PurchaseFinished).isSome
