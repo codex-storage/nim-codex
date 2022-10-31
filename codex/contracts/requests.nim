@@ -48,6 +48,9 @@ proc hash*(x: SlotId): Hash {.borrow.}
 func toArray*(id: RequestId | SlotId | Nonce): array[32, byte] =
   array[32, byte](id)
 
+proc `$`*(id: RequestId | SlotId | Nonce): string =
+  id.toArray.toHex
+
 func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
   StorageRequest(
     client: tupl[0],
