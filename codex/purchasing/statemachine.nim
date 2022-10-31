@@ -12,6 +12,7 @@ type
     future*: Future[void]
     market*: Market
     clock*: Clock
-    request*: StorageRequest
+    requestId*: RequestId
+    request*: ?StorageRequest
   PurchaseState* = ref object of AsyncState
   PurchaseError* = object of CodexError

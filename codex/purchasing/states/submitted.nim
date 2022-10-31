@@ -6,7 +6,8 @@ import ./cancelled
 type PurchaseSubmitted* = ref object of PurchaseState
 
 method enterAsync(state: PurchaseSubmitted) {.async.} =
-  without purchase =? (state.context as Purchase):
+  without purchase =? (state.context as Purchase) and
+          request =? purchase.request:
     raiseAssert "invalid state"
 
   let market = purchase.market
@@ -16,13 +17,12 @@ method enterAsync(state: PurchaseSubmitted) {.async.} =
     let done = newFuture[void]()
     proc callback(_: RequestId) =
       done.complete()
-    let request = purchase.request
     let subscription = await market.subscribeFulfillment(request.id, callback)
     await done
     await subscription.unsubscribe()
 
   proc withTimeout(future: Future[void]) {.async.} =
-    let expiry = purchase.request.expiry.truncate(int64)
+    let expiry = request.expiry.truncate(int64)
     await future.withTimeout(clock, expiry)
 
   try:

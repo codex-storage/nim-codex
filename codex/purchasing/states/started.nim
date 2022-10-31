@@ -11,14 +11,13 @@ method enterAsync*(state: PurchaseStarted) {.async.} =
 
   let clock = purchase.clock
   let market = purchase.market
-  let request = purchase.request
 
   let failed = newFuture[void]()
   proc callback(_: RequestId) =
     failed.complete()
-  let subscription = await market.subscribeRequestFailed(request.id, callback)
+  let subscription = await market.subscribeRequestFailed(purchase.requestId, callback)
 
-  let ended = clock.waitUntil(await market.getRequestEnd(request.id))
+  let ended = clock.waitUntil(await market.getRequestEnd(purchase.requestId))
   try:
     let fut = await one(ended, failed)
     if fut.id == failed.id:

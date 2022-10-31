@@ -24,15 +24,24 @@ export Purchase
 export purchaseid
 export statemachine
 
-func newPurchase*(request: StorageRequest,
-                  market: Market,
-                  clock: Clock): Purchase =
+func new*(_: type Purchase,
+          requestId: RequestId,
+          market: Market,
+          clock: Clock): Purchase =
   Purchase(
     future: Future[void].new(),
-    request: request,
+    requestId: requestId,
     market: market,
     clock: clock
   )
+
+func new*(_: type Purchase,
+          request: StorageRequest,
+          market: Market,
+          clock: Clock): Purchase =
+  let purchase = Purchase.new(request.id, market, clock)
+  purchase.request = some request
+  return purchase
 
 proc start*(purchase: Purchase) =
   purchase.switch(PurchasePending())
@@ -44,7 +53,7 @@ proc wait*(purchase: Purchase) {.async.} =
   await purchase.future
 
 func id*(purchase: Purchase): PurchaseId =
-  PurchaseId(purchase.request.id)
+  PurchaseId(purchase.requestId)
 
 func finished*(purchase: Purchase): bool =
   purchase.future.finished

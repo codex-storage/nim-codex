@@ -13,7 +13,11 @@ method enterAsync(state: PurchaseUnknown) {.async.} =
     raiseAssert "invalid state"
 
   try:
-    if requestState =? await purchase.market.getState(purchase.request.id):
+    if (request =? await purchase.market.getRequest(purchase.requestId)) and
+       (requestState =? await purchase.market.getState(purchase.requestId)):
+
+      purchase.request = some request
+
       case requestState
       of RequestState.New:
         state.switch(PurchaseSubmitted())
@@ -25,5 +29,6 @@ method enterAsync(state: PurchaseUnknown) {.async.} =
         state.switch(PurchaseFinished())
       of RequestState.Failed:
         state.switch(PurchaseFailed())
+
   except CatchableError as error:
     state.switch(PurchaseErrored(error: error))

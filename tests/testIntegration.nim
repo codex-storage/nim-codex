@@ -9,6 +9,7 @@ import ./ethertest
 import ./contracts/time
 import ./integration/nodes
 import ./integration/tokens
+import ./codex/helpers/eventually
 
 ethersuite "Integration tests":
 
@@ -107,11 +108,13 @@ ethersuite "Integration tests":
     client.close()
     client = newHttpClient()
 
-    let response = client.get(baseurl1 & "/storage/purchases/" & id)
-    check response.status == "200 OK"
-    let json = parseJson(response.body)
-    check json["request"]["ask"]["duration"].getStr == "0x1"
-    check json["request"]["ask"]["reward"].getStr == "0x2"
+    proc getPurchase(id: string): JsonNode =
+      let response = client.get(baseurl1 & "/storage/purchases/" & id)
+      return parseJson(response.body)
+
+    check eventually (not isNil getPurchase(id){"request"}{"ask"})
+    check getPurchase(id){"request"}{"ask"}{"duration"}.getStr == "0x1"
+    check getPurchase(id){"request"}{"ask"}{"reward"}.getStr == "0x2"
 
   test "nodes negotiate contracts on the marketplace":
     proc sell =

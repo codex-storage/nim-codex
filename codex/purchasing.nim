@@ -36,13 +36,12 @@ proc load*(purchasing: Purchasing) {.async.} =
   let market = purchasing.market
   let requestIds = await market.myRequests()
   for requestId in requestIds:
-    if request =? await market.getRequest(requestId):
-      let purchase = newPurchase(request, purchasing.market, purchasing.clock)
-      purchase.load()
-      purchasing.purchases[purchase.id] = purchase
+    let purchase = Purchase.new(requestId, purchasing.market, purchasing.clock)
+    purchase.load()
+    purchasing.purchases[purchase.id] = purchase
 
 proc start*(purchasing: Purchasing) {.async.} =
-  await purchasing.load() # TODO: O(N)
+  await purchasing.load()
 
 proc populate*(purchasing: Purchasing,
                request: StorageRequest): Future[StorageRequest] {.async.} =
@@ -60,7 +59,7 @@ proc populate*(purchasing: Purchasing,
 proc purchase*(purchasing: Purchasing,
                request: StorageRequest): Future[Purchase] {.async.} =
   let request = await purchasing.populate(request)
-  let purchase = newPurchase(request, purchasing.market, purchasing.clock)
+  let purchase = Purchase.new(request, purchasing.market, purchasing.clock)
   purchase.start()
   purchasing.purchases[purchase.id] = purchase
   return purchase

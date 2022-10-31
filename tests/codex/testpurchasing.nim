@@ -159,22 +159,25 @@ suite "Purchasing state machine":
 
   test "moves to PurchaseSubmitted when request state is New":
     let request = StorageRequest.example
-    let purchase = request.newPurchase(market, clock)
+    let purchase = Purchase.new(request, market, clock)
+    market.requested = @[request]
     market.state[request.id] = RequestState.New
     purchase.switch(PurchaseUnknown())
     check (purchase.state as PurchaseSubmitted).isSome
 
   test "moves to PurchaseStarted when request state is Started":
     let request = StorageRequest.example
-    let purchase = request.newPurchase(market, clock)
+    let purchase = Purchase.new(request, market, clock)
     market.requestEnds[request.id] = clock.now() + request.ask.duration.truncate(int64)
+    market.requested = @[request]
     market.state[request.id] = RequestState.Started
     purchase.switch(PurchaseUnknown())
     check (purchase.state as PurchaseStarted).isSome
 
   test "moves to PurchaseErrored when request state is Cancelled":
     let request = StorageRequest.example
-    let purchase = request.newPurchase(market, clock)
+    let purchase = Purchase.new(request, market, clock)
+    market.requested = @[request]
     market.state[request.id] = RequestState.Cancelled
     purchase.switch(PurchaseUnknown())
     check (purchase.state as PurchaseErrored).isSome
@@ -182,14 +185,16 @@ suite "Purchasing state machine":
 
   test "moves to PurchaseFinished when request state is Finished":
     let request = StorageRequest.example
-    let purchase = request.newPurchase(market, clock)
+    let purchase = Purchase.new(request, market, clock)
+    market.requested = @[request]
     market.state[request.id] = RequestState.Finished
     purchase.switch(PurchaseUnknown())
     check (purchase.state as PurchaseFinished).isSome
 
   test "moves to PurchaseErrored when request state is Failed":
     let request = StorageRequest.example
-    let purchase = request.newPurchase(market, clock)
+    let purchase = Purchase.new(request, market, clock)
+    market.requested = @[request]
     market.state[request.id] = RequestState.Failed
     purchase.switch(PurchaseUnknown())
     check (purchase.state as PurchaseErrored).isSome

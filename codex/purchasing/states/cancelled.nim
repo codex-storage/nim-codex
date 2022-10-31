@@ -8,7 +8,7 @@ method enterAsync*(state: PurchaseCancelled) {.async.} =
     raiseAssert "invalid state"
 
   try:
-    await purchase.market.withdrawFunds(purchase.request.id)
+    await purchase.market.withdrawFunds(purchase.requestId)
   except CatchableError as error:
     state.switch(PurchaseErrored(error: error))
     return
