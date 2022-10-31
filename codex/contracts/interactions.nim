@@ -72,6 +72,7 @@ proc start*(interactions: ContractInteractions) {.async.} =
   await interactions.purchasing.start()
 
 proc stop*(interactions: ContractInteractions) {.async.} =
+  await interactions.purchasing.stop()
   await interactions.sales.stop()
   await interactions.proving.stop()
   await interactions.clock.stop()
