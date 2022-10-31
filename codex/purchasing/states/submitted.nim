@@ -31,7 +31,7 @@ method enterAsync(state: PurchaseSubmitted) {.async.} =
     state.switch(PurchaseCancelled())
     return
   except CatchableError as error:
-    state.switch(PurchaseError(error: error))
+    state.switch(PurchaseErrored(error: error))
     return
 
   state.switch(PurchaseStarted())

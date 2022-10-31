@@ -11,7 +11,7 @@ method enterAsync(state: PurchasePending) {.async.} =
   try:
     await purchase.market.requestStorage(purchase.request)
   except CatchableError as error:
-    state.switch(PurchaseError(error: error))
+    state.switch(PurchaseErrored(error: error))
     return
 
   state.switch(PurchaseSubmitted())

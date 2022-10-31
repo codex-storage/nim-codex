@@ -26,4 +26,4 @@ method enterAsync(state: PurchaseUnknown) {.async.} =
       of RequestState.Failed:
         state.switch(PurchaseFailed())
   except CatchableError as error:
-    state.switch(PurchaseError(error: error))
+    state.switch(PurchaseErrored(error: error))

@@ -10,8 +10,8 @@ method enterAsync*(state: PurchaseCancelled) {.async.} =
   try:
     await purchase.market.withdrawFunds(purchase.request.id)
   except CatchableError as error:
-    state.switch(PurchaseError(error: error))
+    state.switch(PurchaseErrored(error: error))
     return
 
   let error = newException(Timeout, "Purchase cancelled due to timeout")
-  state.switch(PurchaseError(error: error))
+  state.switch(PurchaseErrored(error: error))

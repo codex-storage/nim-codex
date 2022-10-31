@@ -27,5 +27,5 @@ method enterAsync*(state: PurchaseStarted) {.async.} =
       state.switch(PurchaseFinished())
     await subscription.unsubscribe()
   except CatchableError as error:
-    state.switch(PurchaseError(error: error))
+    state.switch(PurchaseErrored(error: error))
 

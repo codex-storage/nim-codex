@@ -172,12 +172,12 @@ suite "Purchasing state machine":
     purchase.switch(PurchaseUnknown())
     check (purchase.state as PurchaseStarted).isSome
 
-  test "moves to PurchaseError when request state is Cancelled":
+  test "moves to PurchaseErrored when request state is Cancelled":
     let request = StorageRequest.example
     let purchase = request.newPurchase(market, clock)
     market.state[request.id] = RequestState.Cancelled
     purchase.switch(PurchaseUnknown())
-    check (purchase.state as PurchaseError).isSome
+    check (purchase.state as PurchaseErrored).isSome
     check purchase.error.?msg == "Purchase cancelled due to timeout".some
 
   test "moves to PurchaseFinished when request state is Finished":
@@ -187,15 +187,15 @@ suite "Purchasing state machine":
     purchase.switch(PurchaseUnknown())
     check (purchase.state as PurchaseFinished).isSome
 
-  test "moves to PurchaseError when request state is Failed":
+  test "moves to PurchaseErrored when request state is Failed":
     let request = StorageRequest.example
     let purchase = request.newPurchase(market, clock)
     market.state[request.id] = RequestState.Failed
     purchase.switch(PurchaseUnknown())
-    check (purchase.state as PurchaseError).isSome
+    check (purchase.state as PurchaseErrored).isSome
     check purchase.error.?msg == "Purchase failed".some
 
-  test "moves to PurchaseError state once RequestFailed emitted":
+  test "moves to PurchaseErrored state once RequestFailed emitted":
     let me = await market.getSigner()
     let request = StorageRequest.example
     market.requested = @[request]
@@ -212,7 +212,7 @@ suite "Purchasing state machine":
     # now check the result
     let purchase = purchasing.getPurchase(PurchaseId(request.id))
     let state = purchase.?state
-    check (state as PurchaseError).isSome
+    check (state as PurchaseErrored).isSome
     check (!purchase).error.?msg == "Purchase failed".some
 
   test "moves to PurchaseFinished state once request finishes":
