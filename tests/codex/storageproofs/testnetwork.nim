@@ -81,8 +81,8 @@ suite "Storage Proofs Network":
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
 
-    discovery1 = MockDiscovery.new(switch1.peerInfo.privateKey)
-    discovery2 = MockDiscovery.new(switch2.peerInfo.privateKey)
+    discovery1 = MockDiscovery.new()
+    discovery2 = MockDiscovery.new()
 
     stpNetwork1 = StpNetwork.new(switch1, discovery1)
     stpNetwork2 = StpNetwork.new(switch2, discovery2)
