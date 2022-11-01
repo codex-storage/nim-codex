@@ -51,25 +51,29 @@ proc start*(s: CodexServer) {.async.} =
   await s.codexNode.start()
 
   let
+    # TODO: Can't define this as constants, pity
+    natIpPart = MultiAddress.init("/ip4/" & $s.config.nat & "/")
+      .expect("Should create multiaddress")
+    anyAddrIp = MultiAddress.init("/ip4/0.0.0.0/").
+      expect("Should create multiaddress")
+    loopBackAddrIp = MultiAddress.init("/ip4/127.0.0.1/").
+      expect("Should create multiaddress")
+
     # announce addresses should be set to bound addresses,
     # but the IP should be mapped to the provided nat ip
-    announceAddrs = if s.config.nat.isSome:
-        s.codexNode.switch.peerInfo.addrs.mapIt:
-          it.remapAddr(s.config.nat)
-      else:
-        s.codexNode.switch.peerInfo.addrs
+    announceAddrs = s.codexNode.switch.peerInfo.addrs.mapIt:
+      block:
+        let
+          listenIPPart = it[multiCodec("ip4")].expect("Should get IP")
+
+        if listenIPPart == anyAddrIp or
+          (listenIPPart == loopBackAddrIp and natIpPart != loopBackAddrIp):
+          it.remapAddr(s.config.nat.some)
+        else:
+          it
 
   s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
-
-  let
-    # NAT should alway override bind/listen IP for
-    # bootstrap/discovery purposes
-    ip = if s.config.nat.isSome:
-      s.config.nat.get
-    else:
-      s.config.discoveryIp.get
-
-  s.codexNode.discovery.updateDhtRecord(ip, s.config.discoveryPort)
+  s.codexNode.discovery.updateDhtRecord(s.config.nat, s.config.discoveryPort)
 
   s.runHandle = newFuture[void]()
   await s.runHandle
