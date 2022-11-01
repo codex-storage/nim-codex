@@ -32,6 +32,7 @@ import ./erasure
 import ./discovery
 import ./contracts
 import ./utils/keyutils
+import ./utils/addrutils
 
 type
   CodexServer* = ref object
@@ -45,6 +46,27 @@ type
 proc start*(s: CodexServer) {.async.} =
   s.restServer.start()
   await s.codexNode.start()
+
+  let
+    # announce addresses should be set to bound addresses,
+    # but the IP should be mapped to the provided nat ip
+    announceAddrs = if s.config.nat.isSome:
+        s.codexNode.switch.peerInfo.addrs.mapIt:
+          it.remapAddr(s.config.nat)
+      else:
+        s.codexNode.switch.peerInfo.addrs
+
+  s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
+
+  let
+    # NAT should alway override bind/listen IP for
+    # bootstrap/discovery purposes
+    ip = if s.config.nat.isSome:
+      s.config.nat.get
+    else:
+      s.config.discoveryIp.get
+
+  s.codexNode.discovery.updateDhtRecord(ip, s.config.discoveryPort)
 
   s.runHandle = newFuture[void]()
   await s.runHandle
@@ -98,15 +120,24 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
       .expect("Should not fail!"))
 
     announceAddrs =
-      if config.announceAddrs.len <= 0:
-          config.announceAddrs
-        else:
-          config.listenAddrs
+      if config.nat.isSome:
+        # Remap addresses with the correct announce/nat ip
+        config.listenAddrs.mapIt:
+          it.remapAddr(config.nat)
+      else:
+        config.listenAddrs
 
-    blockDiscovery = Discovery.new(
+    discoveryIp =
+      if config.discoveryIp.isNone:
+        config.nat.get
+      else:
+        config.discoveryIp.get
+
+    discovery = Discovery.new(
       switch.peerInfo.privateKey,
-      announceAddrs = config.announceAddrs,
-      discoveryPort = config.discoveryPort,
+      announceAddrs = announceAddrs,
+      bindIp = discoveryIp,
+      bindPort = config.discoveryPort,
       bootstrapNodes = config.bootstrapNodes,
       store = discoveryStore)
 
@@ -123,18 +154,18 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
     localStore = FSStore.new(repoDir, cache = cache)
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
-    discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
-    engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
+    blockDiscovery = DiscoveryEngine.new(localStore, peerStore, network, discovery, pendingBlocks)
+    engine = BlockExcEngine.new(localStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     contracts = ContractInteractions.new(config)
-    codexNode = CodexNodeRef.new(switch, store, engine, erasure, blockDiscovery, contracts)
+    codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery, contracts, config)
     restServer = RestServerRef.new(
       codexNode.initRestApi(config),
       initTAddress("127.0.0.1" , config.apiPort),
       bufferSize = (1024 * 64),
       maxRequestBodySize = int.high)
-      .tryGet()
+      .expect("Should start rest server!")
 
   switch.mount(network)
   T(
