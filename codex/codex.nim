@@ -54,10 +54,10 @@ proc start*(s: CodexServer) {.async.} =
     # TODO: Can't define this as constants, pity
     natIpPart = MultiAddress.init("/ip4/" & $s.config.nat & "/")
       .expect("Should create multiaddress")
-    anyAddrIp = MultiAddress.init("/ip4/0.0.0.0/").
-      expect("Should create multiaddress")
-    loopBackAddrIp = MultiAddress.init("/ip4/127.0.0.1/").
-      expect("Should create multiaddress")
+    anyAddrIp = MultiAddress.init("/ip4/0.0.0.0/")
+      .expect("Should create multiaddress")
+    loopBackAddrIp = MultiAddress.init("/ip4/127.0.0.1/")
+      .expect("Should create multiaddress")
 
     # announce addresses should be set to bound addresses,
     # but the IP should be mapped to the provided nat ip
