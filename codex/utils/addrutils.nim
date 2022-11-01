@@ -10,7 +10,6 @@
 import pkg/upraises
 push: {.upraises: [].}
 
-import std/sequtils
 import std/strutils
 import std/options
 

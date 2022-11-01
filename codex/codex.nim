@@ -159,7 +159,7 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
     store = NetworkStore.new(engine, localStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     contracts = ContractInteractions.new(config)
-    codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery, contracts, config)
+    codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery, contracts)
     restServer = RestServerRef.new(
       codexNode.initRestApi(config),
       initTAddress("127.0.0.1" , config.apiPort),

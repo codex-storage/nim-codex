@@ -22,7 +22,6 @@ import pkg/libp2pdht/discv5/protocol as discv5
 
 import ./rng
 import ./errors
-import ./formats
 
 export discv5
 

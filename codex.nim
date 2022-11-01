@@ -35,6 +35,10 @@ when isMainModule:
   config.setupLogging()
   config.setupMetrics()
 
+  if config.nat.isNone and config.discoveryIp.isNone:
+    error "Either `disc-ip` or `nat` or both arguments are needed!"
+    quit QuitFailure
+
   case config.cmd:
   of StartUpCommand.noCommand:
 
