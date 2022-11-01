@@ -98,14 +98,16 @@ type
       nat* {.
         # TODO: change this once we integrate nat support
         desc: "IP Addresses to announce behind a NAT"
+        defaultValue: ValidIpAddress.init("127.0.0.1")
         defaultValueDesc: "127.0.0.1"
         abbr: "a"
-        name: "nat" }: Option[ValidIpAddress]
+        name: "nat" }: ValidIpAddress
 
       discoveryIp* {.
         desc: "Discovery listen address"
+        defaultValue: ValidIpAddress.init(IPv4_any())
         defaultValueDesc: "0.0.0.0"
-        name: "disc-ip" }: Option[ValidIpAddress]
+        name: "disc-ip" }: ValidIpAddress
 
       discoveryPort* {.
         desc: "Discovery (UDP) port"
