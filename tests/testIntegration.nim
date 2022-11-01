@@ -110,7 +110,7 @@ ethersuite "Integration tests":
 
     proc getPurchase(id: string): JsonNode =
       let response = client.get(baseurl1 & "/storage/purchases/" & id)
-      return parseJson(response.body)
+      return parseJson(response.body).catch |? nil
 
     check eventually (not isNil getPurchase(id){"request"}{"ask"})
     check getPurchase(id){"request"}{"ask"}{"duration"}.getStr == "0x1"
