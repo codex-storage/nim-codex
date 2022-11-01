@@ -34,6 +34,9 @@ import ./contracts
 import ./utils/keyutils
 import ./utils/addrutils
 
+logScope:
+  topics = "codex node"
+
 type
   CodexServer* = ref object
     runHandle: Future[void]
