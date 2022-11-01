@@ -265,12 +265,17 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       ## Print rudimentary node information
       ##
 
-      let json = %*{
-        "id": $node.switch.peerInfo.peerId,
-        "addrs": node.switch.peerInfo.addrs.mapIt( $it ),
-        "repo": $conf.dataDir,
-        "spr": node.switch.peerInfo.signedPeerRecord.toURI
-      }
+      let
+        json = %*{
+          "id": $node.switch.peerInfo.peerId,
+          "addrs": node.switch.peerInfo.addrs.mapIt( $it ),
+          "repo": $conf.dataDir,
+          "spr":
+            if node.discovery.dhtRecord.isSome:
+              node.discovery.dhtRecord.get.toURI
+            else:
+              ""
+        }
 
       return RestApiResponse.response($json)
 
