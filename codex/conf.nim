@@ -95,18 +95,23 @@ type
         abbr: "i"
         name: "listen-addrs" }: seq[MultiAddress]
 
-      announceAddrs* {.
-        desc: "Multi Addresses to announce behind a NAT"
-        defaultValue: @[]
-        defaultValueDesc: ""
+      nat* {.
+        # TODO: change this once we integrate nat support
+        desc: "IP Addresses to announce behind a NAT"
+        defaultValueDesc: "127.0.0.1"
         abbr: "a"
-        name: "announce-addrs" }: seq[MultiAddress]
+        name: "nat" }: Option[ValidIpAddress]
+
+      discoveryIp* {.
+        desc: "Discovery listen address"
+        defaultValueDesc: "0.0.0.0"
+        name: "disc-ip" }: Option[ValidIpAddress]
 
       discoveryPort* {.
-        desc: "Specify the discovery (UDP) port"
+        desc: "Discovery (UDP) port"
         defaultValue: Port(8090)
         defaultValueDesc: "8090"
-        name: "udp-port" }: Port
+        name: "disc-port" }: Port
 
       netPrivKeyFile* {.
         desc: "Source of network (secp256k1) private key file path or name"
@@ -182,7 +187,6 @@ const
   codexFullVersion* =
     "Codex build " & codexVersion & "\p" &
     nimBanner
-
 
 proc defaultDataDir*(): string =
   let dataDir = when defined(windows):
