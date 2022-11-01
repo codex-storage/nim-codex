@@ -24,6 +24,9 @@ when isMainModule:
 
   import ./codex/utils/fileutils
 
+  logScope:
+    topics = "codex"
+
   when defined(posix):
     import system/ansi_c
 
