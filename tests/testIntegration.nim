@@ -2,6 +2,8 @@ import std/osproc
 import std/os
 import std/httpclient
 import std/json
+import std/strutils
+
 import pkg/chronos
 import ./ethertest
 import ./contracts/time
@@ -22,25 +24,30 @@ ethersuite "Integration tests":
     await provider.getSigner(accounts[1]).mint()
     await provider.getSigner(accounts[1]).deposit()
 
-    node1 = startNode [
+    baseurl1 = "http://localhost:8080/api/codex/v1"
+    baseurl2 = "http://localhost:8081/api/codex/v1"
+    client = newHttpClient()
+
+    node1 = startNode([
       "--api-port=8080",
       "--data-dir=" & dataDir1,
+      "--nat=127.0.0.1",
       "--disc-ip=127.0.0.1",
       "--disc-port=8090",
       "--persistence",
       "--eth-account=" & $accounts[0]
-    ]
-    node2 = startNode [
+    ], debug = false)
+
+    node2 = startNode([
       "--api-port=8081",
       "--data-dir=" & dataDir2,
+      "--nat=127.0.0.1",
       "--disc-ip=127.0.0.1",
       "--disc-port=8091",
+      "--bootstrap-node=" & strip($(parseJson(client.get(baseurl1 & "/info").body)["spr"]), chars = {'"'}),
       "--persistence",
       "--eth-account=" & $accounts[1]
-    ]
-    baseurl1 = "http://localhost:8080/api/codex/v1"
-    baseurl2 = "http://localhost:8081/api/codex/v1"
-    client = newHttpClient()
+    ], debug = false)
 
   teardown:
     client.close()
