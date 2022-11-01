@@ -103,14 +103,16 @@ ethersuite "Integration tests":
     let request = %*{"duration": "0x1", "reward": "0x2"}
     let id = client.post(baseurl1 & "/storage/request/" & cid, $request).body
 
+    proc getPurchase(id: string): JsonNode =
+      let response = client.get(baseurl1 & "/storage/purchases/" & id)
+      return parseJson(response.body).catch |? nil
+
+    check eventually getPurchase(id){"state"}.getStr == "submitted"
+
     node1.restart()
 
     client.close()
     client = newHttpClient()
-
-    proc getPurchase(id: string): JsonNode =
-      let response = client.get(baseurl1 & "/storage/purchases/" & id)
-      return parseJson(response.body).catch |? nil
 
     check eventually (not isNil getPurchase(id){"request"}{"ask"})
     check getPurchase(id){"request"}{"ask"}{"duration"}.getStr == "0x1"
