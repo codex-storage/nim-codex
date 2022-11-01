@@ -126,24 +126,10 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
       config.dataDir / "dht")
       .expect("Should not fail!"))
 
-    announceAddrs =
-      if config.nat.isSome:
-        # Remap addresses with the correct announce/nat ip
-        config.listenAddrs.mapIt:
-          it.remapAddr(config.nat)
-      else:
-        config.listenAddrs
-
-    discoveryIp =
-      if config.discoveryIp.isNone:
-        config.nat.get
-      else:
-        config.discoveryIp.get
-
     discovery = Discovery.new(
       switch.peerInfo.privateKey,
-      announceAddrs = announceAddrs,
-      bindIp = discoveryIp,
+      announceAddrs = config.listenAddrs,
+      bindIp = config.discoveryIp,
       bindPort = config.discoveryPort,
       bootstrapNodes = config.bootstrapNodes,
       store = discoveryStore)
