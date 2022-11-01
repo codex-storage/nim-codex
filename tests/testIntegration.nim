@@ -136,7 +136,7 @@ ethersuite "Integration tests":
       while true:
         let response = client.get(baseurl1 & "/storage/purchases/" & purchase)
         let json = parseJson(response.body)
-        if json["finished"].getBool: return json
+        if json["state"].getStr == "finished": return json
         await sleepAsync(1.seconds)
 
     sell()

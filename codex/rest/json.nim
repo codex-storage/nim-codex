@@ -50,7 +50,7 @@ func `%`*(id: RequestId | SlotId | Nonce): JsonNode =
 
 func `%`*(purchase: Purchase): JsonNode =
   %*{
-    "finished": purchase.finished,
+    "state": (purchase.state as PurchaseState).?description |? "none",
     "error": purchase.error.?msg,
     "request": purchase.request,
   }
