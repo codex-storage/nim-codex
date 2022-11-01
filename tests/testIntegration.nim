@@ -1,4 +1,5 @@
 import std/osproc
+import std/os
 import std/httpclient
 import std/json
 import pkg/chronos
@@ -13,19 +14,27 @@ ethersuite "Integration tests":
   var baseurl1, baseurl2: string
   var client: HttpClient
 
+  let dataDir1 = getTempDir() / "Codex1"
+  let dataDir2 = getTempDir() / "Codex2"
+
   setup:
     await provider.getSigner(accounts[0]).mint()
     await provider.getSigner(accounts[1]).mint()
     await provider.getSigner(accounts[1]).deposit()
+
     node1 = startNode [
       "--api-port=8080",
-      "--udp-port=8090",
+      "--data-dir=" & dataDir1,
+      "--disc-ip=127.0.0.1",
+      "--disc-port=8090",
       "--persistence",
       "--eth-account=" & $accounts[0]
     ]
     node2 = startNode [
       "--api-port=8081",
-      "--udp-port=8091",
+      "--data-dir=" & dataDir2,
+      "--disc-ip=127.0.0.1",
+      "--disc-port=8091",
       "--persistence",
       "--eth-account=" & $accounts[1]
     ]
@@ -37,6 +46,9 @@ ethersuite "Integration tests":
     client.close()
     node1.stop()
     node2.stop()
+
+    dataDir1.removeDir()
+    dataDir2.removeDir()
 
   test "nodes can print their peer information":
     let info1 = client.get(baseurl1 & "/info").body
