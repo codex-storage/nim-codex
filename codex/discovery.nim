@@ -29,6 +29,9 @@ export discv5
 # deprecated, this could have been implemented
 # much more elegantly.
 
+logScope:
+  topics = "codex discovery"
+
 type
   Discovery* = ref object of RootObj
     protocol: discv5.Protocol           # dht protocol
@@ -179,7 +182,6 @@ proc new*(
       peerId: PeerId.init(key).expect("Should construct PeerId"))
 
   self.updateAnnounceRecord(announceAddrs)
-  self.updateDhtRecord(bindIp, bindPort)
 
   self.protocol = newProtocol(
     key,
