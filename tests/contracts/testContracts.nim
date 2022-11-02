@@ -75,7 +75,7 @@ ethersuite "Storage contracts":
     switchAccount(client)
     await storage.markProofAsMissing(slotId, missingPeriod)
 
-  test "can be payed out at the end":
+  test "can be paid out at the end":
     switchAccount(host)
     await startContract()
     let requestEnd = await storage.requestEnd(request.id)
