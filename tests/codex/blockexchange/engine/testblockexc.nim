@@ -15,6 +15,7 @@ import pkg/codex/chunker
 import pkg/codex/discovery
 import pkg/codex/blocktype as bt
 
+import ../../examples
 import ../../helpers
 
 suite "NetworkStore engine - 2 nodes":
@@ -58,6 +59,9 @@ suite "NetworkStore engine - 2 nodes":
     # initialize our want lists
     pendingBlocks1 = blocks2.mapIt( nodeCmps1.pendingBlocks.getWantHandle( it.cid ) )
     pendingBlocks2 = blocks1.mapIt( nodeCmps2.pendingBlocks.getWantHandle( it.cid ) )
+
+    pricing1 = Pricing.example()
+    pricing2 = Pricing.example()
 
     pricing1.address = nodeCmps1.wallet.address
     pricing2.address = nodeCmps2.wallet.address
