@@ -192,7 +192,7 @@ ethersuite "On-Chain Market":
           let missingPeriod = periodicity.periodOf(await provider.currentTime())
           await provider.advanceTime(periodicity.seconds)
           await storage.markProofAsMissing(slotId, missingPeriod)
-        except JsonRpcProviderError as e:
+        except ProviderError as e:
           if e.revertReason == "Slot empty":
             break
     check receivedIds == @[request.id]
