@@ -7,3 +7,6 @@ type
 method enter*(state: PurchaseFailed) =
   let error = newException(PurchaseError, "Purchase failed")
   state.switch(PurchaseErrored(error: error))
+
+method description*(state: PurchaseFailed): string =
+  "failed"

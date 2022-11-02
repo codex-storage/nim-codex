@@ -35,3 +35,6 @@ method enterAsync(state: PurchaseSubmitted) {.async.} =
     return
 
   state.switch(PurchaseStarted())
+
+method description*(state: PurchaseSubmitted): string =
+  "submitted"

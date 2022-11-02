@@ -1,7 +1,6 @@
 import ./statemachine
 import ./states/pending
 import ./states/unknown
-import ./states/descriptions
 import ./purchaseid
 
 # Purchase is implemented as a state machine.
@@ -24,7 +23,6 @@ import ./purchaseid
 export Purchase
 export purchaseid
 export statemachine
-export description
 
 func new*(_: type Purchase,
           requestId: RequestId,

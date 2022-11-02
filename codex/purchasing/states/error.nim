@@ -8,3 +8,6 @@ method enter*(state: PurchaseErrored) =
     raiseAssert "invalid state"
 
   purchase.future.fail(state.error)
+
+method description*(state: PurchaseErrored): string =
+  "errored"

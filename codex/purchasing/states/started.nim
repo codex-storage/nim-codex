@@ -28,3 +28,5 @@ method enterAsync*(state: PurchaseStarted) {.async.} =
   except CatchableError as error:
     state.switch(PurchaseErrored(error: error))
 
+method description*(state: PurchaseStarted): string =
+  "started"

@@ -16,3 +16,6 @@ method enterAsync(state: PurchasePending) {.async.} =
     return
 
   state.switch(PurchaseSubmitted())
+
+method description*(state: PurchasePending): string =
+  "pending"

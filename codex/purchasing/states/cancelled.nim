@@ -15,3 +15,6 @@ method enterAsync*(state: PurchaseCancelled) {.async.} =
 
   let error = newException(Timeout, "Purchase cancelled due to timeout")
   state.switch(PurchaseErrored(error: error))
+
+method description*(state: PurchaseCancelled): string =
+  "cancelled"

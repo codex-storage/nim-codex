@@ -32,3 +32,6 @@ method enterAsync(state: PurchaseUnknown) {.async.} =
 
   except CatchableError as error:
     state.switch(PurchaseErrored(error: error))
+
+method description*(state: PurchaseUnknown): string =
+  "unknown"

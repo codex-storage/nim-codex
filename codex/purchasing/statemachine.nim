@@ -16,3 +16,6 @@ type
     request*: ?StorageRequest
   PurchaseState* = ref object of AsyncState
   PurchaseError* = object of CodexError
+
+method description*(state: PurchaseState): string {.base.} =
+  raiseAssert "description not implemented for state"

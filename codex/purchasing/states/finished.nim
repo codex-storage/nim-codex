@@ -7,3 +7,6 @@ method enter*(state: PurchaseFinished) =
     raiseAssert "invalid state"
 
   purchase.future.complete()
+
+method description*(state: PurchaseFinished): string =
+  "finished"
