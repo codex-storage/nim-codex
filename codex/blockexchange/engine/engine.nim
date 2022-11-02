@@ -181,6 +181,12 @@ proc blockPresenceHandler*(
 
   for blk in blocks:
     if presence =? Presence.init(blk):
+      logScope:
+        cid   = presence.cid
+        have  = presence.have
+        price = presence.price
+
+      trace "Updating precense"
       peerCtx.updatePresence(presence)
 
   var

@@ -7,7 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-{.push raises: [Defect].}
+import pkg/upraises
+push: {.upraises: [].}
 
 import pkg/chronos
 import pkg/chronicles
