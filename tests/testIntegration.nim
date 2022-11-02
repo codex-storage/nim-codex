@@ -1,6 +1,9 @@
 import std/osproc
+import std/os
 import std/httpclient
 import std/json
+import std/strutils
+
 import pkg/chronos
 import ./ethertest
 import ./contracts/time
@@ -13,30 +16,46 @@ ethersuite "Integration tests":
   var baseurl1, baseurl2: string
   var client: HttpClient
 
+  let dataDir1 = getTempDir() / "Codex1"
+  let dataDir2 = getTempDir() / "Codex2"
+
   setup:
     await provider.getSigner(accounts[0]).mint()
     await provider.getSigner(accounts[1]).mint()
     await provider.getSigner(accounts[1]).deposit()
-    node1 = startNode [
-      "--api-port=8080",
-      "--udp-port=8090",
-      "--persistence",
-      "--eth-account=" & $accounts[0]
-    ]
-    node2 = startNode [
-      "--api-port=8081",
-      "--udp-port=8091",
-      "--persistence",
-      "--eth-account=" & $accounts[1]
-    ]
+
     baseurl1 = "http://localhost:8080/api/codex/v1"
     baseurl2 = "http://localhost:8081/api/codex/v1"
     client = newHttpClient()
+
+    node1 = startNode([
+      "--api-port=8080",
+      "--data-dir=" & dataDir1,
+      "--nat=127.0.0.1",
+      "--disc-ip=127.0.0.1",
+      "--disc-port=8090",
+      "--persistence",
+      "--eth-account=" & $accounts[0]
+    ], debug = false)
+
+    node2 = startNode([
+      "--api-port=8081",
+      "--data-dir=" & dataDir2,
+      "--nat=127.0.0.1",
+      "--disc-ip=127.0.0.1",
+      "--disc-port=8091",
+      "--bootstrap-node=" & strip($(parseJson(client.get(baseurl1 & "/info").body)["spr"]), chars = {'"'}),
+      "--persistence",
+      "--eth-account=" & $accounts[1]
+    ], debug = false)
 
   teardown:
     client.close()
     node1.stop()
     node2.stop()
+
+    dataDir1.removeDir()
+    dataDir2.removeDir()
 
   test "nodes can print their peer information":
     let info1 = client.get(baseurl1 & "/info").body

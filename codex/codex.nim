@@ -31,6 +31,11 @@ import ./utils/fileutils
 import ./erasure
 import ./discovery
 import ./contracts
+import ./utils/keyutils
+import ./utils/addrutils
+
+logScope:
+  topics = "codex node"
 
 type
   CodexServer* = ref object
@@ -39,9 +44,36 @@ type
     restServer: RestServerRef
     codexNode: CodexNodeRef
 
+  CodexPrivateKey* = libp2p.PrivateKey # alias
+
 proc start*(s: CodexServer) {.async.} =
   s.restServer.start()
   await s.codexNode.start()
+
+  let
+    # TODO: Can't define this as constants, pity
+    natIpPart = MultiAddress.init("/ip4/" & $s.config.nat & "/")
+      .expect("Should create multiaddress")
+    anyAddrIp = MultiAddress.init("/ip4/0.0.0.0/")
+      .expect("Should create multiaddress")
+    loopBackAddrIp = MultiAddress.init("/ip4/127.0.0.1/")
+      .expect("Should create multiaddress")
+
+    # announce addresses should be set to bound addresses,
+    # but the IP should be mapped to the provided nat ip
+    announceAddrs = s.codexNode.switch.peerInfo.addrs.mapIt:
+      block:
+        let
+          listenIPPart = it[multiCodec("ip4")].expect("Should get IP")
+
+        if listenIPPart == anyAddrIp or
+          (listenIPPart == loopBackAddrIp and natIpPart != loopBackAddrIp):
+          it.remapAddr(s.config.nat.some)
+        else:
+          it
+
+  s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
+  s.codexNode.discovery.updateDhtRecord(s.config.nat, s.config.discoveryPort)
 
   s.runHandle = newFuture[void]()
   await s.runHandle
@@ -67,39 +99,9 @@ proc new(_: type ContractInteractions, config: CodexConf): ?ContractInteractions
   else:
     ContractInteractions.new(config.ethProvider, account)
 
-proc new*(T: type CodexServer, config: CodexConf): T =
+proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): T =
 
-  const SafePermissions = {UserRead, UserWrite}
   let
-    privateKey =
-      if config.netPrivKeyFile == "random":
-        PrivateKey.random(Rng.instance()[]).get()
-      else:
-        let path =
-          if config.netPrivKeyFile.isAbsolute:
-            config.netPrivKeyFile
-          else:
-            config.dataDir / config.netPrivKeyFile
-
-        if path.fileAccessible({AccessFlags.Find}):
-          info "Found a network private key"
-
-          if path.getPermissionsSet().get() != SafePermissions:
-            warn "The network private key file is not safe, aborting"
-            quit QuitFailure
-
-          PrivateKey.init(path.readAllBytes().expect("accessible private key file")).
-            expect("valid private key file")
-        else:
-          info "Creating a private key and saving it"
-          let
-            res = PrivateKey.random(Rng.instance()[]).get()
-            bytes = res.getBytes().get()
-
-          path.writeFile(bytes, SafePermissions.toInt()).expect("writing private key file")
-
-          PrivateKey.init(bytes).expect("valid key bytes")
-
     switch = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)
@@ -124,16 +126,11 @@ proc new*(T: type CodexServer, config: CodexConf): T =
       config.dataDir / "dht")
       .expect("Should not fail!"))
 
-    announceAddrs =
-      if config.announceAddrs.len <= 0:
-          config.announceAddrs
-        else:
-          config.listenAddrs
-
-    blockDiscovery = Discovery.new(
+    discovery = Discovery.new(
       switch.peerInfo.privateKey,
-      announceAddrs = config.announceAddrs,
-      discoveryPort = config.discoveryPort,
+      announceAddrs = config.listenAddrs,
+      bindIp = config.discoveryIp,
+      bindPort = config.discoveryPort,
       bootstrapNodes = config.bootstrapNodes,
       store = discoveryStore)
 
@@ -150,18 +147,18 @@ proc new*(T: type CodexServer, config: CodexConf): T =
     localStore = FSStore.new(repoDir, cache = cache)
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
-    discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
-    engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
+    blockDiscovery = DiscoveryEngine.new(localStore, peerStore, network, discovery, pendingBlocks)
+    engine = BlockExcEngine.new(localStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     contracts = ContractInteractions.new(config)
-    codexNode = CodexNodeRef.new(switch, store, engine, erasure, blockDiscovery, contracts)
+    codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery, contracts)
     restServer = RestServerRef.new(
       codexNode.initRestApi(config),
       initTAddress("127.0.0.1" , config.apiPort),
       bufferSize = (1024 * 64),
       maxRequestBodySize = int.high)
-      .tryGet()
+      .expect("Should start rest server!")
 
   switch.mount(network)
   T(

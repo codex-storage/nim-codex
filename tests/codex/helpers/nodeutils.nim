@@ -29,7 +29,10 @@ proc generateNodes*(
   for i in 0..<num:
     let
       switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
-      discovery = Discovery.new(switch.peerInfo.privateKey)
+      discovery = Discovery.new(
+        switch.peerInfo.privateKey,
+        announceAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0")
+          .expect("Should return multiaddress")])
       wallet = WalletRef.example
       network = BlockExcNetwork.new(switch)
       localStore = CacheStore.new(blocks.mapIt( it ))

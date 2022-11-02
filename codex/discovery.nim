@@ -22,7 +22,6 @@ import pkg/libp2pdht/discv5/protocol as discv5
 
 import ./rng
 import ./errors
-import ./formats
 
 export discv5
 
@@ -30,12 +29,18 @@ export discv5
 # deprecated, this could have been implemented
 # much more elegantly.
 
+logScope:
+  topics = "codex discovery"
+
 type
   Discovery* = ref object of RootObj
-    protocol: discv5.Protocol
-    key: PrivateKey
-    announceAddrs: seq[MultiAddress]
-    record: SignedPeerRecord
+    protocol: discv5.Protocol           # dht protocol
+    key: PrivateKey                     # private key
+    peerId: PeerId                      # the peer id of the local node
+    announceAddrs: seq[MultiAddress]    # addresses announced as part of the provider records
+    providerRecord*: ?SignedPeerRecord  # record to advertice node connection information, this carry any
+                                        # address that the node can be connected on
+    dhtRecord*: ?SignedPeerRecord       # record to advertice DHT connection information
 
 proc toNodeId*(cid: Cid): NodeId =
   ## Cid to discovery id
@@ -57,9 +62,9 @@ proc findPeer*(
 
   return
     if node.isSome():
-      some(node.get().record.data)
+      node.get().record.data.some
     else:
-      none(PeerRecord)
+      PeerRecord.none
 
 method find*(
   d: Discovery,
@@ -81,7 +86,7 @@ method provide*(d: Discovery, cid: Cid) {.async, base.} =
   trace "Providing block", cid
   let
     nodes = await d.protocol.addProvider(
-      cid.toNodeId(), d.record)
+      cid.toNodeId(), d.providerRecord.get)
 
   if nodes.len <= 0:
     trace "Couldn't provide to any nodes!"
@@ -116,7 +121,7 @@ method provide*(d: Discovery, host: ca.Address) {.async, base.} =
   trace "Providing host", host = $host
   let
     nodes = await d.protocol.addProvider(
-    host.toNodeId(), d.record)
+      host.toNodeId(), d.providerRecord.get)
   if nodes.len > 0:
     trace "Provided to nodes", nodes = nodes.len
 
@@ -127,20 +132,32 @@ method removeProvider*(d: Discovery, peerId: PeerId): Future[void] {.base.} =
   trace "Removing provider", peerId
   d.protocol.removeProvidersLocal(peerId)
 
-proc updateRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
+proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
   ## Update providers record
   ##
 
   d.announceAddrs = @addrs
-  d.record = SignedPeerRecord.init(
-    d.key,
-    PeerRecord.init(
-      PeerId.init(d.key).expect("Should construct PeerId"),
-      d.announceAddrs)).expect("Should construct signed record")
+
+  trace "Updating announce record", addrs = d.announceAddrs
+  d.providerRecord = SignedPeerRecord.init(
+    d.key, PeerRecord.init(d.peerId, d.announceAddrs))
+      .expect("Should construct signed record").some
 
   if not d.protocol.isNil:
-    d.protocol.updateRecord(d.record.some)
-      .expect("should update SPR")
+    d.protocol.updateRecord(d.providerRecord)
+      .expect("Should update SPR")
+
+proc updateDhtRecord*(d: Discovery, ip: ValidIpAddress, port: Port) =
+  ## Update providers record
+  ##
+
+  trace "Updating Dht record", ip, port = $port
+  d.dhtRecord = SignedPeerRecord.init(
+    d.key, PeerRecord.init(d.peerId, @[
+      MultiAddress.init(
+        ip,
+        IpTransportProtocol.udpProtocol,
+        port)])).expect("Should construct signed record").some
 
 proc start*(d: Discovery) {.async.} =
   d.protocol.open()
@@ -152,34 +169,25 @@ proc stop*(d: Discovery) {.async.} =
 proc new*(
   T: type Discovery,
   key: PrivateKey,
-  discoveryIp = IPv4_any(),
-  discoveryPort = 0.Port,
-  announceAddrs: openArray[MultiAddress] = [],
+  bindIp = ValidIpAddress.init(IPv4_any()),
+  bindPort = 0.Port,
+  announceAddrs: openArray[MultiAddress],
   bootstrapNodes: openArray[SignedPeerRecord] = [],
   store: Datastore = SQLiteDatastore.new(Memory)
-  .expect("Should not fail!")): T =
-
-  let
-    announceAddrs =
-      if announceAddrs.len <= 0:
-        @[
-          MultiAddress.init(
-            ValidIpAddress.init(discoveryIp),
-            IpTransportProtocol.tcpProtocol,
-            discoveryPort)]
-      else:
-        @announceAddrs
+    .expect("Should not fail!")): T =
 
   var
-    self = T(key: key)
+    self = T(
+      key: key,
+      peerId: PeerId.init(key).expect("Should construct PeerId"))
 
-  self.updateRecord(announceAddrs)
+  self.updateAnnounceRecord(announceAddrs)
 
   self.protocol = newProtocol(
     key,
-    bindIp = discoveryIp,
-    bindPort = discoveryPort,
-    record = self.record,
+    bindIp = bindIp.toNormalIp,
+    bindPort = bindPort,
+    record = self.providerRecord.get,
     bootstrapRecords = bootstrapNodes,
     rng = Rng.instance(),
     providers = ProvidersManager.new(store))

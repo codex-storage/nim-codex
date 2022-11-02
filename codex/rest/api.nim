@@ -195,9 +195,9 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
     "/api/codex/v1/storage/request/{cid}") do (cid: Cid) -> RestApiResponse:
       ## Create a request for storage
       ##
-      ## cid            - the cid of a previously uploaded dataset
-      ## duration       - the duration of the contract
-      ## reward       - the maximum price the client is willing to pay
+      ## cid      - the cid of a previously uploaded dataset
+      ## duration - the duration of the contract
+      ## reward   - the maximum price the client is willing to pay
 
       without cid =? cid.tryGet.catch, error:
         return RestApiResponse.error(Http400, error.msg)
@@ -265,12 +265,17 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       ## Print rudimentary node information
       ##
 
-      let json = %*{
-        "id": $node.switch.peerInfo.peerId,
-        "addrs": node.switch.peerInfo.addrs.mapIt( $it ),
-        "repo": $conf.dataDir,
-        "spr": node.switch.peerInfo.signedPeerRecord.toURI
-      }
+      let
+        json = %*{
+          "id": $node.switch.peerInfo.peerId,
+          "addrs": node.switch.peerInfo.addrs.mapIt( $it ),
+          "repo": $conf.dataDir,
+          "spr":
+            if node.discovery.dhtRecord.isSome:
+              node.discovery.dhtRecord.get.toURI
+            else:
+              ""
+        }
 
       return RestApiResponse.response($json)
 
