@@ -27,6 +27,7 @@ suite "NetworkStore engine - 2 nodes":
     peerCtx1, peerCtx2: BlockExcPeerCtx
     pricing1, pricing2: Pricing
     blocks1, blocks2: seq[bt.Block]
+    pendingBlocks1, pendingBlocks2: seq[Future[bt.Block]]
 
   setup:
     while true:
@@ -53,6 +54,10 @@ suite "NetworkStore engine - 2 nodes":
       nodeCmps2.switch.start(),
       nodeCmps2.blockDiscovery.start(),
       nodeCmps2.engine.start())
+
+    # initialize our want lists
+    pendingBlocks1 = blocks2.mapIt( nodeCmps1.pendingBlocks.getWantHandle( it.cid ) )
+    pendingBlocks2 = blocks1.mapIt( nodeCmps2.pendingBlocks.getWantHandle( it.cid ) )
 
     pricing1.address = nodeCmps1.wallet.address
     pricing2.address = nodeCmps2.wallet.address
@@ -82,11 +87,6 @@ suite "NetworkStore engine - 2 nodes":
       nodeCmps2.switch.stop())
 
   test "Should exchange want lists on connect":
-    # initialize our want lists
-    var
-      pendingBlocks1 = blocks2.mapIt( nodeCmps1.pendingBlocks.getWantHandle( it.cid ) )
-      pendingBlocks2 = blocks1.mapIt( nodeCmps2.pendingBlocks.getWantHandle( it.cid ) )
-
     await allFuturesThrowing(
       allFinished(pendingBlocks1))
       .wait(10.seconds)
@@ -146,6 +146,10 @@ suite "NetworkStore engine - 2 nodes":
       .withTimeout(100.millis) # should succeed
 
   test "Should receive payments for blocks that were sent":
+    # delete on node1 cached blocks from node2
+    discard await allFinished(
+      blocks2.mapIt( nodeCmps1.networkStore.delBlock(it.cid) ))
+
     let blocks = await allFinished(
       blocks2.mapIt( nodeCmps1.networkStore.getBlock(it.cid) ))
 
