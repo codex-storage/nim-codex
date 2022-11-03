@@ -4,19 +4,29 @@ import pkg/libp2p
 import pkg/questionable/results
 import codex/utils/keyutils
 
+when defined(windows):
+  import stew/windows/acl
+
 suite "keyutils":
 
   let path = getTempDir() / "CodexTest"
 
   setup:
-    createDir(path)
+    os.createDir(path)
 
   teardown:
-    removeDir(path)
+    os.removeDir(path)
 
   test "creates a key file when it does not exist yet":
     check setupKey(path / "keyfile").isSuccess
     check fileExists(path / "keyfile")
+
+  test "stores key in a file that's only readable by the user":
+    discard !setupKey(path / "keyfile")
+    when defined(posix):
+      check getFilePermissions(path / "keyfile") == {fpUserRead, fpUserWrite}
+    when defined(windows):
+      check checkCurrentUserOnlyACL(path / "keyfile").get()
 
   test "reads key file when it does exist":
     let key = !setupKey(path / "keyfile")
