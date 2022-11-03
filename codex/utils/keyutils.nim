@@ -40,10 +40,11 @@ proc setupKey*(path: string): ?!PrivateKey =
     return PrivateKey.init(bytes).mapFailure(CodexKeyError)
 
   info "Found a network private key"
-  if path.getPermissionsSet().get() != SafePermissions:
-    warn "The network private key file is not safe, aborting"
-    return failure newException(
-      CodexKeyUnsafeError, "The network private key file is not safe")
+  when defined(posix):
+    if path.getPermissionsSet().get() != SafePermissions:
+      warn "The network private key file is not safe, aborting"
+      return failure newException(
+        CodexKeyUnsafeError, "The network private key file is not safe")
 
   return PrivateKey.init(
     ? path.readAllBytes().mapFailure(CodexKeyError))
