@@ -65,13 +65,22 @@ suite "NetworkStore engine - 2 nodes":
     nodeCmps1.engine.pricing = pricing1.some
     nodeCmps2.engine.pricing = pricing2.some
 
+    echo "1.pricing1 ", nodeCmps1.engine.pricing.?price
+    echo "1.pricing2 ", nodeCmps2.engine.pricing.?price
+
     await nodeCmps1.switch.connect(
       nodeCmps2.switch.peerInfo.peerId,
       nodeCmps2.switch.peerInfo.addrs)
 
+    echo "2.pricing1 ", nodeCmps1.engine.pricing.?price
+    echo "2.pricing2 ", nodeCmps2.engine.pricing.?price
+
     await sleepAsync(1.seconds) # give some time to exchange lists
     peerCtx2 = nodeCmps1.peerStore.get(nodeCmps2.switch.peerInfo.peerId)
     peerCtx1 = nodeCmps2.peerStore.get(nodeCmps1.switch.peerInfo.peerId)
+
+    echo "3.pricing1 ", nodeCmps1.engine.pricing.?price
+    echo "3.pricing2 ", nodeCmps2.engine.pricing.?price
 
     check isNil(peerCtx1).not
     check isNil(peerCtx2).not
@@ -148,6 +157,7 @@ suite "NetworkStore engine - 2 nodes":
     let channel = !peerCtx1.paymentChannel
     let wallet = nodeCmps2.wallet
 
+    echo ""
     echo "pricing1 ", nodeCmps1.engine.pricing.?price
     echo "pricing2 ", nodeCmps2.engine.pricing.?price
     echo "balance0 ", wallet.balance(channel, Asset)
@@ -156,7 +166,11 @@ suite "NetworkStore engine - 2 nodes":
       blocks2.mapIt( nodeCmps1.networkStore.getBlock(it.cid) ))
 
     check eventually wallet.balance(channel, Asset) > 0
+
+    echo ""
     echo "balance after ", wallet.balance(channel, Asset)
+    echo "pricing1 ", nodeCmps1.engine.pricing.?price
+    echo "pricing2 ", nodeCmps2.engine.pricing.?price
 
 suite "NetworkStore - multiple nodes":
   let
