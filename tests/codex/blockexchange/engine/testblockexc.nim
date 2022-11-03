@@ -60,11 +60,10 @@ suite "NetworkStore engine - 2 nodes":
     pendingBlocks1 = blocks2.mapIt( nodeCmps1.pendingBlocks.getWantHandle( it.cid ) )
     pendingBlocks2 = blocks1.mapIt( nodeCmps2.pendingBlocks.getWantHandle( it.cid ) )
 
-    echo pricing1.price
-    echo pricing2.price
-
     pricing1.address = nodeCmps1.wallet.address
     pricing2.address = nodeCmps2.wallet.address
+    echo "pricing1 ", pricing1.price
+    echo "pricing2 ", pricing2.price
     nodeCmps1.engine.pricing = pricing1.some
     nodeCmps2.engine.pricing = pricing2.some
 
@@ -148,10 +147,6 @@ suite "NetworkStore engine - 2 nodes":
       .withTimeout(100.millis) # should succeed
 
   test "Should receive payments for blocks that were sent":
-    # delete on node1 cached blocks from node2
-    discard await allFinished(
-      blocks2.mapIt( nodeCmps1.networkStore.delBlock(it.cid) ))
-
     let blocks = await allFinished(
       blocks2.mapIt( nodeCmps1.networkStore.getBlock(it.cid) ))
 
