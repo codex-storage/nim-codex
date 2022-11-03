@@ -62,8 +62,6 @@ suite "NetworkStore engine - 2 nodes":
 
     pricing1.address = nodeCmps1.wallet.address
     pricing2.address = nodeCmps2.wallet.address
-    echo "pricing1 ", pricing1.price
-    echo "pricing2 ", pricing2.price
     nodeCmps1.engine.pricing = pricing1.some
     nodeCmps2.engine.pricing = pricing2.some
 
@@ -147,13 +145,18 @@ suite "NetworkStore engine - 2 nodes":
       .withTimeout(100.millis) # should succeed
 
   test "Should receive payments for blocks that were sent":
-    let blocks = await allFinished(
-      blocks2.mapIt( nodeCmps1.networkStore.getBlock(it.cid) ))
-
     let channel = !peerCtx1.paymentChannel
     let wallet = nodeCmps2.wallet
 
+    echo "pricing1 ", nodeCmps1.engine.pricing.?price
+    echo "pricing2 ", nodeCmps2.engine.pricing.?price
+    echo "balance0 ", wallet.balance(channel, Asset)
+
+    let blocks = await allFinished(
+      blocks2.mapIt( nodeCmps1.networkStore.getBlock(it.cid) ))
+
     check eventually wallet.balance(channel, Asset) > 0
+    echo "balance after ", wallet.balance(channel, Asset)
 
 suite "NetworkStore - multiple nodes":
   let
