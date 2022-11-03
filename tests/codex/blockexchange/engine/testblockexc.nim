@@ -60,8 +60,8 @@ suite "NetworkStore engine - 2 nodes":
     pendingBlocks1 = blocks2.mapIt( nodeCmps1.pendingBlocks.getWantHandle( it.cid ) )
     pendingBlocks2 = blocks1.mapIt( nodeCmps2.pendingBlocks.getWantHandle( it.cid ) )
 
-    pricing1 = Pricing.example()
-    pricing2 = Pricing.example()
+    echo pricing1.price
+    echo pricing2.price
 
     pricing1.address = nodeCmps1.wallet.address
     pricing2.address = nodeCmps2.wallet.address
