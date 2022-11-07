@@ -49,6 +49,12 @@ proc secureWriteFile*[T: byte|char](path: string,
   else:
     writeFile(path, data, 0o600)
 
+proc checkSecureFile*(path: string): IOResult[bool] =
+  when defined(windows):
+    checkCurrentUserOnlyACL(path)
+  else:
+    ok (? getPermissionsSet(path) == {UserRead, UserWrite})
+
 proc checkAndCreateDataDir*(dataDir: string): bool =
   when defined(posix):
     let requiredPerms = 0o700

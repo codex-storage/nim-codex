@@ -36,11 +36,11 @@ proc setupKey*(path: string): ?!PrivateKey =
       res = ? PrivateKey.random(Rng.instance()[]).mapFailure(CodexKeyError)
       bytes = ? res.getBytes().mapFailure(CodexKeyError)
 
-    ? path.writeFile(bytes, SafePermissions.toInt()).mapFailure(CodexKeyError)
+    ? path.secureWriteFile(bytes).mapFailure(CodexKeyError)
     return PrivateKey.init(bytes).mapFailure(CodexKeyError)
 
   info "Found a network private key"
-  if path.getPermissionsSet().get() != SafePermissions:
+  if not ? checkSecureFile(path).mapFailure(CodexKeyError):
     warn "The network private key file is not safe, aborting"
     return failure newException(
       CodexKeyUnsafeError, "The network private key file is not safe")
