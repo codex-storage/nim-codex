@@ -9,10 +9,11 @@ import ./ethertest
 import ./contracts/time
 import ./integration/nodes
 import ./integration/tokens
+import ./codex/helpers/eventually
 
 ethersuite "Integration tests":
 
-  var node1, node2: Process
+  var node1, node2: NodeProcess
   var baseurl1, baseurl2: string
   var client: HttpClient
 
@@ -34,8 +35,8 @@ ethersuite "Integration tests":
       "--nat=127.0.0.1",
       "--disc-ip=127.0.0.1",
       "--disc-port=8090",
-      "--persistence",
-      "--eth-account=" & $accounts[0]
+        "--persistence",
+        "--eth-account=" & $accounts[0]
     ], debug = false)
 
     node2 = startNode([
@@ -97,6 +98,26 @@ ethersuite "Integration tests":
     check json["request"]["ask"]["duration"].getStr == "0x1"
     check json["request"]["ask"]["reward"].getStr == "0x2"
 
+  test "node remembers purchase status after restart":
+    let cid = client.post(baseurl1 & "/upload", "some file contents").body
+    let request = %*{"duration": "0x1", "reward": "0x2"}
+    let id = client.post(baseurl1 & "/storage/request/" & cid, $request).body
+
+    proc getPurchase(id: string): JsonNode =
+      let response = client.get(baseurl1 & "/storage/purchases/" & id)
+      return parseJson(response.body).catch |? nil
+
+    check eventually getPurchase(id){"state"}.getStr == "submitted"
+
+    node1.restart()
+
+    client.close()
+    client = newHttpClient()
+
+    check eventually (not isNil getPurchase(id){"request"}{"ask"})
+    check getPurchase(id){"request"}{"ask"}{"duration"}.getStr == "0x1"
+    check getPurchase(id){"request"}{"ask"}{"reward"}.getStr == "0x2"
+
   test "nodes negotiate contracts on the marketplace":
     proc sell =
       let json = %*{"size": "0xFFFFF", "duration": "0x200", "minPrice": "0x300"}
@@ -110,14 +131,14 @@ ethersuite "Integration tests":
 
     proc buy(cid: string): string =
       let expiry = ((waitFor provider.currentTime()) + 30).toHex
-      let json = %*{"duration": "0x100", "reward": "0x400", "expiry": expiry}
+      let json = %*{"duration": "0x1", "reward": "0x400", "expiry": expiry}
       client.post(baseurl1 & "/storage/request/" & cid, $json).body
 
     proc finish(purchase: string): Future[JsonNode] {.async.} =
       while true:
         let response = client.get(baseurl1 & "/storage/purchases/" & purchase)
         let json = parseJson(response.body)
-        if json["finished"].getBool: return json
+        if json["state"].getStr == "finished": return json
         await sleepAsync(1.seconds)
 
     sell()

@@ -33,6 +33,12 @@ type
   SlotId* = distinct array[32, byte]
   RequestId* = distinct array[32, byte]
   Nonce* = distinct array[32, byte]
+  RequestState* {.pure.} = enum
+    New
+    Started
+    Cancelled
+    Finished
+    Failed
 
 proc `==`*(x, y: Nonce): bool {.borrow.}
 proc `==`*(x, y: RequestId): bool {.borrow.}
@@ -41,6 +47,9 @@ proc hash*(x: SlotId): Hash {.borrow.}
 
 func toArray*(id: RequestId | SlotId | Nonce): array[32, byte] =
   array[32, byte](id)
+
+proc `$`*(id: RequestId | SlotId | Nonce): string =
+  id.toArray.toHex
 
 func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
   StorageRequest(

@@ -1,13 +1,20 @@
 import std/sequtils
+import std/tables
+import std/hashes
 import pkg/codex/market
 
 export market
+export tables
 
 type
   MockMarket* = ref object of Market
+    activeRequests*: Table[Address, seq[RequestId]]
     requested*: seq[StorageRequest]
+    requestEnds*: Table[RequestId, SecondsSince1970]
+    state*: Table[RequestId, RequestState]
     fulfilled*: seq[Fulfillment]
     filled*: seq[Slot]
+    withdrawn*: seq[RequestId]
     signer: Address
     subscriptions: Subscriptions
   Fulfillment* = object
@@ -24,6 +31,7 @@ type
     onFulfillment: seq[FulfillmentSubscription]
     onSlotFilled: seq[SlotFilledSubscription]
     onRequestCancelled: seq[RequestCancelledSubscription]
+    onRequestFailed: seq[RequestFailedSubscription]
   RequestSubscription* = ref object of Subscription
     market: MockMarket
     callback: OnRequest
@@ -40,6 +48,16 @@ type
     market: MockMarket
     requestId: RequestId
     callback: OnRequestCancelled
+  RequestFailedSubscription* = ref object of Subscription
+    market: MockMarket
+    requestId: RequestId
+    callback: OnRequestCancelled
+
+proc hash*(address: Address): Hash =
+  hash(address.toArray)
+
+proc hash*(requestId: RequestId): Hash =
+  hash(requestId.toArray)
 
 proc new*(_: type MockMarket): MockMarket =
   MockMarket(signer: Address.example)
@@ -47,14 +65,14 @@ proc new*(_: type MockMarket): MockMarket =
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
 
-method requestStorage*(market: MockMarket,
-                       request: StorageRequest):
-                      Future[StorageRequest] {.async.} =
+method requestStorage*(market: MockMarket, request: StorageRequest) {.async.} =
   market.requested.add(request)
   var subscriptions = market.subscriptions.onRequest
   for subscription in subscriptions:
     subscription.callback(request.id, request.ask)
-  return request
+
+method myRequests*(market: MockMarket): Future[seq[RequestId]] {.async.} =
+  return market.activeRequests[market.signer]
 
 method getRequest(market: MockMarket,
                   id: RequestId): Future[?StorageRequest] {.async.} =
@@ -62,6 +80,14 @@ method getRequest(market: MockMarket,
     if request.id == id:
       return some request
   return none StorageRequest
+
+method getState*(market: MockMarket,
+                 requestId: RequestId): Future[?RequestState] {.async.} =
+  return market.state.?[requestId]
+
+method getRequestEnd*(market: MockMarket,
+                      id: RequestId): Future[SecondsSince1970] {.async.} =
+  return market.requestEnds[id]
 
 method getHost(market: MockMarket,
                requestId: RequestId,
@@ -93,6 +119,12 @@ proc emitRequestFulfilled*(market: MockMarket, requestId: RequestId) =
     if subscription.requestId == requestId:
       subscription.callback(requestId)
 
+proc emitRequestFailed*(market: MockMarket, requestId: RequestId) =
+  var subscriptions = market.subscriptions.onRequestFailed
+  for subscription in subscriptions:
+    if subscription.requestId == requestId:
+      subscription.callback(requestId)
+
 proc fillSlot*(market: MockMarket,
                requestId: RequestId,
                slotIndex: UInt256,
@@ -115,6 +147,7 @@ method fillSlot*(market: MockMarket,
 
 method withdrawFunds*(market: MockMarket,
                       requestId: RequestId) {.async.} =
+  market.withdrawn.add(requestId)
   market.emitRequestCancelled(requestId)
 
 method subscribeRequests*(market: MockMarket,
@@ -165,6 +198,18 @@ method subscribeRequestCancelled*(market: MockMarket,
   market.subscriptions.onRequestCancelled.add(subscription)
   return subscription
 
+method subscribeRequestFailed*(market: MockMarket,
+                               requestId: RequestId,
+                               callback: OnRequestFailed):
+                             Future[Subscription] {.async.} =
+  let subscription = RequestFailedSubscription(
+    market: market,
+    requestId: requestId,
+    callback: callback
+  )
+  market.subscriptions.onRequestFailed.add(subscription)
+  return subscription
+
 method unsubscribe*(subscription: RequestSubscription) {.async.} =
   subscription.market.subscriptions.onRequest.keepItIf(it != subscription)
 
@@ -176,3 +221,6 @@ method unsubscribe*(subscription: SlotFilledSubscription) {.async.} =
 
 method unsubscribe*(subscription: RequestCancelledSubscription) {.async.} =
   subscription.market.subscriptions.onRequestCancelled.keepItIf(it != subscription)
+
+method unsubscribe*(subscription: RequestFailedSubscription) {.async.} =
+  subscription.market.subscriptions.onRequestFailed.keepItIf(it != subscription)

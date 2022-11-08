@@ -5,13 +5,17 @@ import ./error
 type PurchasePending* = ref object of PurchaseState
 
 method enterAsync(state: PurchasePending) {.async.} =
-  without purchase =? (state.context as Purchase):
+  without purchase =? (state.context as Purchase) and
+          request =? purchase.request:
     raiseAssert "invalid state"
 
   try:
-    purchase.request = await purchase.market.requestStorage(purchase.request)
+    await purchase.market.requestStorage(request)
   except CatchableError as error:
-    state.switch(PurchaseError(error: error))
+    state.switch(PurchaseErrored(error: error))
     return
 
   state.switch(PurchaseSubmitted())
+
+method description*(state: PurchasePending): string =
+  "pending"

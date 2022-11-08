@@ -8,6 +8,7 @@ import ./clock
 import ./purchasing/purchase
 
 export questionable
+export chronos
 export market
 export purchase
 
@@ -31,7 +32,22 @@ proc new*(_: type Purchasing, market: Market, clock: Clock): Purchasing =
     requestExpiryInterval: DefaultRequestExpiryInterval,
   )
 
-proc populate*(purchasing: Purchasing, request: StorageRequest): StorageRequest =
+proc load*(purchasing: Purchasing) {.async.} =
+  let market = purchasing.market
+  let requestIds = await market.myRequests()
+  for requestId in requestIds:
+    let purchase = Purchase.new(requestId, purchasing.market, purchasing.clock)
+    purchase.load()
+    purchasing.purchases[purchase.id] = purchase
+
+proc start*(purchasing: Purchasing) {.async.} =
+  await purchasing.load()
+
+proc stop*(purchasing: Purchasing) {.async.} =
+  discard
+
+proc populate*(purchasing: Purchasing,
+               request: StorageRequest): Future[StorageRequest] {.async.} =
   result = request
   if result.ask.proofProbability == 0.u256:
     result.ask.proofProbability = purchasing.proofProbability
@@ -41,13 +57,15 @@ proc populate*(purchasing: Purchasing, request: StorageRequest): StorageRequest 
     var id = result.nonce.toArray
     doAssert randomBytes(id) == 32
     result.nonce = Nonce(id)
+  result.client = await purchasing.market.getSigner()
 
-proc purchase*(purchasing: Purchasing, request: StorageRequest): Purchase =
-  let request = purchasing.populate(request)
-  let purchase = newPurchase(request, purchasing.market, purchasing.clock)
+proc purchase*(purchasing: Purchasing,
+               request: StorageRequest): Future[Purchase] {.async.} =
+  let request = await purchasing.populate(request)
+  let purchase = Purchase.new(request, purchasing.market, purchasing.clock)
   purchase.start()
   purchasing.purchases[purchase.id] = purchase
-  purchase
+  return purchase
 
 func getPurchase*(purchasing: Purchasing, id: PurchaseId): ?Purchase =
   if purchasing.purchases.hasKey(id):

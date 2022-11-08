@@ -3,6 +3,7 @@ import pkg/chronos
 import pkg/codex/proving
 import ./helpers/mockproofs
 import ./helpers/mockclock
+import ./helpers/eventually
 import ./examples
 
 suite "Proving":
@@ -23,7 +24,6 @@ suite "Proving":
   proc advanceToNextPeriod(proofs: MockProofs) {.async.} =
     let periodicity = await proofs.periodicity()
     clock.advance(periodicity.seconds.truncate(int64))
-    await sleepAsync(2.seconds)
 
   test "maintains a list of contract ids to watch":
     let id1, id2 = SlotId.example
@@ -49,7 +49,7 @@ suite "Proving":
     proving.onProofRequired = onProofRequired
     proofs.setProofRequired(id, true)
     await proofs.advanceToNextPeriod()
-    check called
+    check eventually called
 
   test "callback receives id of contract for which proof is required":
     let id1, id2 = SlotId.example
@@ -61,11 +61,11 @@ suite "Proving":
     proving.onProofRequired = onProofRequired
     proofs.setProofRequired(id1, true)
     await proofs.advanceToNextPeriod()
-    check callbackIds == @[id1]
+    check eventually callbackIds == @[id1]
     proofs.setProofRequired(id1, false)
     proofs.setProofRequired(id2, true)
     await proofs.advanceToNextPeriod()
-    check callbackIds == @[id1, id2]
+    check eventually callbackIds == @[id1, id2]
 
   test "invokes callback when proof is about to be required":
     let id = SlotId.example
@@ -77,7 +77,7 @@ suite "Proving":
     proofs.setProofRequired(id, false)
     proofs.setProofToBeRequired(id, true)
     await proofs.advanceToNextPeriod()
-    check called
+    check eventually called
 
   test "stops watching when contract has ended":
     let id = SlotId.example
@@ -90,17 +90,17 @@ suite "Proving":
     proving.onProofRequired = onProofRequired
     proofs.setProofRequired(id, true)
     await proofs.advanceToNextPeriod()
-    check not proving.slots.contains(id)
+    check eventually (not proving.slots.contains(id))
     check not called
 
   test "submits proofs":
     let id = SlotId.example
-    let proof = seq[byte].example
+    let proof = exampleProof()
     await proving.submitProof(id, proof)
 
   test "supports proof submission subscriptions":
     let id = SlotId.example
-    let proof = seq[byte].example
+    let proof = exampleProof()
 
     var receivedIds: seq[SlotId]
     var receivedProofs: seq[seq[byte]]

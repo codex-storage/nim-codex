@@ -28,13 +28,11 @@ func new*(_: type OnChainMarket, contract: Storage): OnChainMarket =
 method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
   return await market.signer.getAddress()
 
-method requestStorage(market: OnChainMarket,
-                      request: StorageRequest):
-                     Future[StorageRequest] {.async.} =
-  var request = request
-  request.client = await market.signer.getAddress()
+method myRequests*(market: OnChainMarket): Future[seq[RequestId]] {.async.} =
+  return await market.contract.myRequests
+
+method requestStorage(market: OnChainMarket, request: StorageRequest){.async.} =
   await market.contract.requestStorage(request)
-  return request
 
 method getRequest(market: OnChainMarket,
                   id: RequestId): Future[?StorageRequest] {.async.} =
@@ -44,6 +42,19 @@ method getRequest(market: OnChainMarket,
     if e.revertReason.contains("Unknown request"):
       return none StorageRequest
     raise e
+
+method getState*(market: OnChainMarket,
+                 requestId: RequestId): Future[?RequestState] {.async.} =
+  try:
+    return some await market.contract.state(requestId)
+  except ProviderError as e:
+    if e.revertReason.contains("Unknown request"):
+      return none RequestState
+    raise e
+
+method getRequestEnd*(market: OnChainMarket,
+                      id: RequestId): Future[SecondsSince1970] {.async.} =
+  return await market.contract.requestEnd(id)
 
 method getHost(market: OnChainMarket,
                requestId: RequestId,
@@ -102,6 +113,16 @@ method subscribeRequestCancelled*(market: OnChainMarket,
     if event.requestId == requestId:
       callback(event.requestId)
   let subscription = await market.contract.subscribe(RequestCancelled, onEvent)
+  return OnChainMarketSubscription(eventSubscription: subscription)
+
+method subscribeRequestFailed*(market: OnChainMarket,
+                              requestId: RequestId,
+                              callback: OnRequestFailed):
+                            Future[MarketSubscription] {.async.} =
+  proc onEvent(event: RequestFailed) {.upraises:[].} =
+    if event.requestId == requestId:
+      callback(event.requestId)
+  let subscription = await market.contract.subscribe(RequestFailed, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
 method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =

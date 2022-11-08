@@ -6,17 +6,43 @@ import std/strutils
 const workingDir = currentSourcePath() / ".." / ".." / ".."
 const executable = "build" / "codex"
 
-proc startNode*(args: openArray[string], debug = false): Process =
-  if debug:
-    result = startProcess(executable, workingDir, args, options={poParentStreams})
+type NodeProcess* = ref object
+  process: Process
+  arguments: seq[string]
+  debug: bool
+
+proc start(node: NodeProcess) =
+  if node.debug:
+    node.process = startProcess(
+      executable,
+      workingDir,
+      node.arguments,
+      options={poParentStreams}
+    )
     sleep(1000)
   else:
-    result = startProcess(executable, workingDir, args)
-    for line in result.outputStream.lines:
+    node.process = startProcess(
+      executable,
+      workingDir,
+      node.arguments
+    )
+    for line in node.process.outputStream.lines:
       if line.contains("Started codex node"):
         break
 
-proc stop*(node: Process) =
-  node.terminate()
-  discard node.waitForExit(timeout=5_000)
-  node.close()
+proc startNode*(args: openArray[string], debug = false): NodeProcess =
+  ## Starts a Codex Node with the specified arguments.
+  ## Set debug to 'true' to see output of the node.
+  let node = NodeProcess(arguments: @args, debug: debug)
+  node.start()
+  node
+
+proc stop*(node: NodeProcess) =
+  let process = node.process
+  process.terminate()
+  discard process.waitForExit(timeout=5_000)
+  process.close()
+
+proc restart*(node: NodeProcess) =
+  node.stop()
+  node.start()
