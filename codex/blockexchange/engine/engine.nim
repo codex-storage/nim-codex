@@ -368,7 +368,7 @@ proc wantListHandler*(
 
 proc accountHandler*(
   engine: BlockExcEngine,
-  peer: PeerID,
+  peer: PeerId,
   account: Account) {.async.} =
   let context = engine.peers.get(peer)
   if context.isNil:
@@ -390,16 +390,17 @@ proc paymentHandler*(
   else:
     context.paymentChannel = engine.wallet.acceptChannel(payment).option
 
-proc setupPeer*(b: BlockExcEngine, peer: PeerID) {.async.} =
+proc setupPeer*(b: BlockExcEngine, peer: PeerId) {.async.} =
   ## Perform initial setup, such as want
   ## list exchange
   ##
 
-  trace "Setting up new peer", peer
   if peer notin b.peers:
+    trace "Setting up new peer", peer
     b.peers.add(BlockExcPeerCtx(
       id: peer
     ))
+    trace "Added peer", peers = b.peers.len
 
   # broadcast our want list, the other peer will do the same
   if b.pendingBlocks.len > 0:
@@ -409,7 +410,7 @@ proc setupPeer*(b: BlockExcEngine, peer: PeerID) {.async.} =
   if address =? b.pricing.?address:
     await b.network.request.sendAccount(peer, Account(address: address))
 
-proc dropPeer*(b: BlockExcEngine, peer: PeerID) =
+proc dropPeer*(b: BlockExcEngine, peer: PeerId) =
   ## Cleanup disconnected peer
   ##
 
@@ -427,19 +428,26 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
   # TODO: There should be all sorts of accounting of
   # bytes sent/received here
 
-  var wantsBlocks = task.peerWants.filterIt(it.wantType == WantType.wantBlock)
+  var
+    wantsBlocks = task.peerWants.filterIt(
+      it.wantType == WantType.wantBlock
+    )
 
   if wantsBlocks.len > 0:
-    wantsBlocks.sort(SortOrder.Descending)
+    trace "Got peer want blocks list", items = wantsBlocks.len
 
-    let blockFuts = await allFinished(wantsBlocks.mapIt(
+    # wantsBlocks.sort(SortOrder.Descending) # TODO: why?
+
+    let
+      blockFuts = await allFinished(wantsBlocks.mapIt(
         b.localStore.getBlock(it.cid)
-    ))
+      ))
 
-    # Extract succesfully received blocks
-    let blocks = blockFuts
-      .filterIt(it.completed and it.read.isOk)
-      .mapIt(it.read.get)
+    # Extract successfully received blocks
+    let
+      blocks = blockFuts
+        .filterIt(it.completed and it.read.isOk)
+        .mapIt(it.read.get)
 
     if blocks.len > 0:
       trace "Sending blocks to peer", peer = task.id, blocks = blocks.len
@@ -447,29 +455,13 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
         task.id,
         blocks)
 
+      trace "About to remove entries from peerWants", blocks = blocks.len, items = task.peerWants.len
       # Remove successfully sent blocks
       task.peerWants.keepIf(
         proc(e: Entry): bool =
           not blocks.anyIt( it.cid == e.cid )
       )
-
-
-  # PART 2: Send to the peer prices of the blocks he wants to discover,
-  # if they present in our local store
-
-  var wants: seq[BlockPresence]
-  # do not remove wants from the queue unless
-  # we send the block or get a cancel
-  for e in task.peerWants:
-    if e.wantType == WantType.wantHave:
-      var presence = Presence(cid: e.cid)
-      presence.have = await (presence.cid in b.localStore)
-      if presence.have and price =? b.pricing.?price:
-        presence.price = price
-      wants.add(BlockPresence.init(presence))
-
-  if wants.len > 0:
-    await b.network.request.sendPresence(task.id, wants)
+      trace "Removed entries from peerWants", items = task.peerWants.len
 
 proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
   ## process tasks
