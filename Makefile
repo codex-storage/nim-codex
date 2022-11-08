@@ -81,9 +81,19 @@ test: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim test $(NIM_PARAMS) codex.nims
 
+# Builds and runs the smart contract tests
+testContracts: | build deps
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim testContracts $(NIM_PARAMS) codex.nims
+
+# Builds and runs the integration tests
+testIntegration: | build deps
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim testIntegration $(NIM_PARAMS) codex.nims
+
 # Builds and runs all tests
 testAll: | build deps
-	echo -e $(BUILD_MSG) "build/testCodex" "build/testContracts" && \
+	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) codex.nims
 
 # Builds the codex binary

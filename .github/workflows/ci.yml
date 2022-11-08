@@ -54,20 +54,14 @@ jobs:
           npm install
           npm start &
 
-      - name: Build and run Codex tests
-        run: |
-          make -j${ncpu} NIM_COMMIT="${{ matrix.nim_branch }}" testAll
-          echo
-          if [[ '${{ runner.os }}' == macOS ]]; then
-            echo otool -L build/codex
-            otool -L build/codex
-          elif [[ '${{ runner.os }}' == 'Windows' ]]; then
-            echo ntldd build/codex
-            ntldd build/codex
-          else
-            echo ldd build/codex
-            ldd build/codex
-          fi
+      - name: Unit tests
+        run: make -j${ncpu} test
+
+      - name: Contract tests
+        run: make -j${ncpu} testContracts
+
+      - name: Integration tests
+        run: make -j${ncpu} testIntegration
 
       - name: Generate coverage data (Linux, Nim ${{ matrix.cov_branch }})
         if: runner.os == 'Linux' && matrix.nim_branch == matrix.cov_branch
