@@ -298,48 +298,70 @@ proc blocksHandler*(
     await b.payForBlocks(peerCtx, blocks)
     peerCtx.cleanPresence(blocks.mapIt( it.cid ))
 
+
 proc wantListHandler*(
   b: BlockExcEngine,
-  peer: PeerID,
+  peer: PeerId,
   wantList: WantList) {.async.} =
   ## Handle incoming want lists
   ##
 
-  trace "Got want list for peer", peer
+  trace "Got want list for peer", peer, items = wantList.entries.len
   let peerCtx = b.peers.get(peer)
   if isNil(peerCtx):
     return
 
-  var dontHaves: seq[Cid]
-  let entries = wantList.entries
-  for e in entries:
-    let idx = peerCtx.peerWants.find(e)
-    if idx > -1:
+  var
+    precense: seq[BlockPresence]
+
+  for e in wantList.entries:
+    let
+      idx = peerCtx.peerWants.find(e)
+
+    logScope:
+      peer      = peerCtx.id
+      cid       = e.cid
+      wantType  = $e.wantType
+
+    if idx > -1: # updating entry
       # peer doesn't want this block anymore
       if e.cancel:
+        trace "Removing entry from peer want list"
         peerCtx.peerWants.del(idx)
-        continue
+      else:
+        trace "Updating entry in peer want list"
+        # peer might want to ask for the same cid with
+        # different want params
+        peerCtx.peerWants[idx] = e # update entry
+    else: # adding new entry
+      let
+        have = await e.cid in b.localStore
+        price = if b.pricing.isSome:
+            @(b.pricing.get.price.toBytesBE)
+          else:
+            @[byte 0]
 
-      peerCtx.peerWants[idx] = e # update entry
-    else:
-      peerCtx.peerWants.add(e)
+      if not have and e.sendDontHave:
+        trace "Adding dont have entry to precense response"
+        precense.add(
+          BlockPresence(
+          cid: e.cid.data.buffer,
+          `type`: BlockPresenceType.presenceDontHave,
+          price: price))
+      elif have and e.wantType == WantType.wantHave:
+        trace "Adding have entry to precense response"
+        precense.add(
+          BlockPresence(
+          cid: e.cid.data.buffer,
+          `type`: BlockPresenceType.presenceHave,
+          price: price))
+      elif e.wantType == WantType.wantBlock:
+        trace "Added entry to peer's want blocks list"
+        peerCtx.peerWants.add(e)
 
-    trace "Added entry to peer's want list", peer = peerCtx.id, cid = $e.cid
-
-    # peer might want to ask for the same cid with
-    # different want params
-    if e.sendDontHave:
-      if not(await e.cid in b.localStore):
-        dontHaves.add(e.cid)
-
-  # send don't have's to remote
-  if dontHaves.len > 0:
-    await b.network.request.sendPresence(
-      peer,
-      dontHaves.mapIt(
-        BlockPresence(
-          cid: it.data.buffer,
-          `type`: BlockPresenceType.presenceDontHave)))
+  if precense.len > 0:
+    trace "Sending precense to remote", items = precense.len
+    await b.network.request.sendPresence(peer, precense)
 
   if not b.scheduleTask(peerCtx):
     trace "Unable to schedule task for peer", peer
