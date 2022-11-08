@@ -158,11 +158,14 @@ runs:
         path: NimBinaries
         key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_branch }}-cache_nonce:${{ inputs.cache_nonce }}
 
+    - name: Set NIM_COMMIT
+      shell: ${{ inputs.shell }} {0}
+      run: echo "NIM_COMMIT=${{ inputs.nim_branch }}" >> ${GITHUB_ENV}
+
     - name: Build Nim and Codex dependencies
       shell: ${{ inputs.shell }} {0}
       run: |
-        make -j${ncpu} CI_CACHE=NimBinaries NIM_COMMIT=${{ inputs.nim_branch }} ARCH_OVERRIDE=${PLATFORM} QUICK_AND_DIRTY_COMPILER=1 update
+        make -j${ncpu} CI_CACHE=NimBinaries ARCH_OVERRIDE=${PLATFORM} QUICK_AND_DIRTY_COMPILER=1 update
         echo
         ./env.sh nim --version
-
 
