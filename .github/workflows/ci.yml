@@ -14,7 +14,6 @@ jobs:
         cache_nonce: [ 0 ] # Allows for easily busting actions/cache caches
         os: [linux, macos, windows]
         nim_branch: [version-1-2, version-1-6]
-        cov_branch: [version-1-6]
         include:
           - os: linux
             builder: ubuntu-latest
@@ -63,14 +62,23 @@ jobs:
       - name: Integration tests
         run: make -j${ncpu} testIntegration
 
-      - name: Generate coverage data (Linux, Nim ${{ matrix.cov_branch }})
-        if: runner.os == 'Linux' && matrix.nim_branch == matrix.cov_branch
-        run: |
-          rm -rf build nimcache
-          make -j${ncpu} NIM_COMMIT="${{ matrix.nim_branch }}" coverage
+  coverage:
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
 
-      - name: Upload coverage data to Codecov (Linux, Nim ${{ matrix.cov_branch }})
-        if: runner.os == 'Linux' && matrix.nim_branch == matrix.cov_branch
+      - name: Setup Nimbus Build System
+        uses: ./.github/actions/nimbus-build-system
+        with:
+          os: linux
+
+      - name: Generate coverage data
+        run: make -j${ncpu} coverage
+        shell: bash
+
+      - name: Upload coverage data to Codecov
         uses: codecov/codecov-action@v3
         with:
           directory: ./coverage/
