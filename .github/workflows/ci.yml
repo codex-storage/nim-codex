@@ -59,19 +59,12 @@ jobs:
           shell: ${{ matrix.shell }}
           cache_nonce: ${{ matrix.cache_nonce }}
 
-      # Rely on NodeJS LTS installed in GitHub Actions virtual environments
       - name: Start Ethereum node with Codex contracts
         working-directory: vendor/dagger-contracts
         run: |
-          if [[ '${{ runner.os }}' == 'Windows' ]]; then
-            export PATH="/c/Program Files/nodejs:${PATH}"
-            export PATH="$(cygpath -u "$(npm --location=global prefix 2>/dev/null)"):${PATH}"
+          if [[ '${{ matrix.os }}' == 'windows' ]]; then
+            export PATH="${PATH}:/c/program files/nodejs"
           fi
-          echo node --version
-          node --version
-          echo npm --version
-          npm --version 2>/dev/null
-          echo
           npm install
           npm start &
 
