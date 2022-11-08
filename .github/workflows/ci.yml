@@ -13,7 +13,6 @@ jobs:
       matrix:
         cache_nonce: [ 0 ] # Allows for easily busting actions/cache caches
         os: [linux, macos, windows]
-        nim_branch: [version-1-2, version-1-6]
         include:
           - os: linux
             builder: ubuntu-latest
@@ -29,7 +28,7 @@ jobs:
       run:
         shell: ${{ matrix.shell }} {0}
 
-    name: '${{ matrix.os }}-(Nim ${{ matrix.nim_branch }})'
+    name: '${{ matrix.os }}'
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 80
     steps:
@@ -40,7 +39,6 @@ jobs:
         uses: ./.github/actions/nimbus-build-system
         with:
           os: ${{ matrix.os }}
-          nim_branch: ${{ matrix.nim_branch }}
           shell: ${{ matrix.shell }}
           cache_nonce: ${{ matrix.cache_nonce }}
 
@@ -87,3 +85,18 @@ jobs:
           flags: unittests
           name: codecov-umbrella
           verbose: true
+
+  nim_1_2:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Setup Nimbus Build System
+        uses: ./.github/actions/nimbus-build-system
+        with:
+          os: linux
+          nim_branch: version-1-2
+
+      - name: Unit tests
+        run: make -j${ncpu} test
