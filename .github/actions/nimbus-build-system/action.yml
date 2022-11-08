@@ -1,0 +1,168 @@
+# Adapted from:
+# https://github.com/status-im/nimbus-eth2/blob/stable/.github/workflows/ci.yml
+
+name: Setup Nimbus Build System
+inputs:
+  os:
+    description: "Operating system to build for"
+    required: true
+  cpu:
+    description: "CPU to build for"
+    required: true
+  nim_branch:
+    description: "Nim version"
+    default: "version-1-6"
+  shell:
+    description: "Shell to run commands in"
+    default: "bash --noprofile --norc -e -o pipefail"
+  cache_nonce:
+    description: "Change to a new value to ignore previously cached versions"
+    default: 0
+runs:
+  using: "composite"
+  steps:
+    - name: APT (Linux amd64)
+      if: inputs.os == 'linux' && inputs.cpu == 'amd64'
+      shell: ${{ inputs.shell }} {0}
+      run: |
+        sudo apt-fast update -qq
+        sudo DEBIAN_FRONTEND='noninteractive' apt-fast install \
+          --no-install-recommends -yq lcov
+
+    - name: APT (Linux i386)
+      if: inputs.os == 'linux' && inputs.cpu == 'i386'
+      shell: ${{ inputs.shell }} {0}
+      run: |
+        sudo dpkg --add-architecture i386
+        sudo apt-fast update -qq
+        sudo DEBIAN_FRONTEND='noninteractive' apt-fast install \
+          --no-install-recommends -yq gcc-multilib g++-multilib
+
+    - name: Homebrew (macOS)
+      if: inputs.os == 'macos'
+      shell: ${{ inputs.shell }} {0}
+      run: |
+        brew install libomp
+
+    - name: MSYS2 (Windows amd64)
+      if: inputs.os == 'windows' && inputs.cpu == 'amd64'
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: UCRT64
+        install: >
+          base-devel
+          git
+          mingw-w64-ucrt-x86_64-toolchain
+          mingw-w64-ucrt-x86_64-cmake
+          mingw-w64-ucrt-x86_64-ntldd-git
+
+    - name: MSYS2 (Windows i386)
+      if: inputs.os == 'windows' && inputs.cpu == 'i386'
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW32
+        install: >
+          base-devel
+          git
+          mingw-w64-i686-toolchain
+          mingw-w64-i686-cmake
+          mingw-w64-i686-ntldd-git
+
+    - name: Derive environment variables
+      shell: ${{ inputs.shell }} {0}
+      run: |
+        quote () {
+          local quoted=${1//\'/\'\\\'\'};
+          printf "'%s'" "$quoted"
+        }
+
+        if [[ '${{ inputs.cpu }}' == 'amd64' ]]; then
+          PLATFORM=x64
+        else
+          PLATFORM=x86
+        fi
+        echo "PLATFORM=${PLATFORM}" >> ${GITHUB_ENV}
+
+        # Stack usage on Linux amd64
+        if [[ '${{ inputs.os }}' == 'linux' && '${{ inputs.cpu }}' == 'amd64' ]]; then
+          NIMFLAGS="${NIMFLAGS} -d:limitStackUsage"
+          echo "NIMFLAGS=${NIMFLAGS}" >> $GITHUB_ENV
+        fi
+
+        # Disable ADX on Linux i386
+        if [[ '${{ inputs.os }}' == 'linux' && '${{ inputs.cpu }}' == 'i386' ]]; then
+          CFLAGS="${CFLAGS} -m32 -mno-adx"
+          echo "CFLAGS=${CFLAGS}" >> ${GITHUB_ENV}
+          CXXFLAGS="${CXXFLAGS} -m32 -mno-adx"
+          echo "CXXFLAGS=${CXXFLAGS}" >> ${GITHUB_ENV}
+          mkdir -p external/bin
+          cat << EOF > external/bin/gcc
+        #!/bin/bash
+        exec $(which gcc) -m32 -mno-adx "\$@"
+        EOF
+          cat << EOF > external/bin/g++
+        #!/bin/bash
+        exec $(which g++) -m32 -mno-adx "\$@"
+        EOF
+          chmod 755 external/bin/gcc external/bin/g++
+          echo "$(pwd)/external/bin" >> ${GITHUB_PATH}
+          # --passC:'-m32 -mno-adx' is redundant but harmless, and can be
+          # helpful when reviewing build output with increased verbosity
+          NIMFLAGS="${NIMFLAGS} $(quote "--passC:'-m32 -mno-adx' -d:LeopardCmakeFlags='-DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=$(pwd)/external/bin/gcc -DCMAKE_CXX_COMPILER=$(pwd)/external/bin/g++'")"
+          echo "NIMFLAGS=${NIMFLAGS}" >> $GITHUB_ENV
+        fi
+
+        # Disable ADX on Windows i386
+        if [[ '${{ inputs.os }}' == 'windows' && '${{ inputs.cpu }}' == 'i386' ]]; then
+          CFLAGS="${CFLAGS} -mno-adx"
+          echo "CFLAGS=${CFLAGS}" >> ${GITHUB_ENV}
+          CXXFLAGS="${CXXFLAGS} -mno-adx"
+          echo "CXXFLAGS=${CXXFLAGS}" >> ${GITHUB_ENV}
+          NIMFLAGS="${NIMFLAGS} --passC:-mno-adx"
+          echo "NIMFLAGS=${NIMFLAGS}" >> $GITHUB_ENV
+        fi
+
+        # Enable OpenMP on macOS
+        if [[ '${{ inputs.os }}' == 'macos' ]]; then
+          libomp_lib_dir="$(brew --prefix)/opt/libomp/lib"
+          # See https://github.com/actions/virtual-environments/pull/5819
+          llvm_dir="$(ls -d $(brew --prefix)/opt/llvm* | tail -1)"
+          llvm_bin_dir="${llvm_dir}/bin"
+          llvm_lib_dir="${llvm_dir}/lib"
+          echo "${llvm_bin_dir}" >> ${GITHUB_PATH}
+          echo "LDFLAGS=${LDFLAGS} -L${libomp_lib_dir} -L${llvm_lib_dir} -Wl,-rpath,${llvm_lib_dir}" >> ${GITHUB_ENV}
+          NIMFLAGS="${NIMFLAGS} $(quote "-d:LeopardCmakeFlags='-DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=${llvm_bin_dir}/clang -DCMAKE_CXX_COMPILER=${llvm_bin_dir}/clang++' -d:LeopardExtraCompilerlags='-fopenmp' -d:LeopardExtraLinkerFlags='-fopenmp -L${libomp_lib_dir}'")"
+          echo "NIMFLAGS=${NIMFLAGS}" >> $GITHUB_ENV
+        fi
+
+        # Use all available CPUs for build process
+        ncpu=""
+        case '${{ inputs.os }}' in
+        'linux')
+          ncpu=$(nproc)
+          ;;
+        'macos')
+          ncpu=$(sysctl -n hw.ncpu)
+          ;;
+        'windows')
+          ncpu=${NUMBER_OF_PROCESSORS}
+          ;;
+        esac
+        [[ -z "$ncpu" || $ncpu -le 0 ]] && ncpu=1
+        echo "ncpu=${ncpu}" >> ${GITHUB_ENV}
+
+    - name: Restore Nim toolchain binaries from cache
+      id: nim-cache
+      uses: actions/cache@v3
+      with:
+        path: NimBinaries
+        key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_branch }}-cache_nonce:${{ inputs.cache_nonce }}
+
+    - name: Build Nim and Codex dependencies
+      shell: ${{ inputs.shell }} {0}
+      run: |
+        make -j${ncpu} CI_CACHE=NimBinaries NIM_COMMIT=${{ inputs.nim_branch }} ARCH_OVERRIDE=${PLATFORM} QUICK_AND_DIRTY_COMPILER=1 update
+        echo
+        ./env.sh nim --version
+
+
