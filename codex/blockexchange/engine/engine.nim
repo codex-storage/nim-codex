@@ -122,9 +122,10 @@ proc requestBlock*(
   ## Request a block from remotes
   ##
 
-  trace "Requesting block", cid
+  trace "Requesting block", cid, peers = b.peers.len
 
-  if cid in b.pendingBlocks:
+  if b.pendingBlocks.isInFlight(cid):
+    trace "Request handle already pending", cid
     return await b.pendingBlocks.getWantHandle(cid, timeout)
 
   let
@@ -143,6 +144,20 @@ proc requestBlock*(
   let
     blockPeer = peers[0] # get cheapest
 
+  proc onBlockHandleMonitor() {.async.} =
+    try:
+      b.pendingBlocks.setInFlight(cid)
+      discard await blk
+      trace "Block handle success", cid
+    except CatchableError as exc:
+      trace "Error block handle, disconnecting peer", exc = exc.msg
+
+      # drop unresponsive peer
+      await b.network.switch.disconnect(blockPeer.id)
+
+  # monitor block handle for failures
+  asyncSpawn onBlockHandleMonitor()
+
   # request block
   await b.network.request.sendWantList(
     blockPeer.id,
@@ -150,14 +165,14 @@ proc requestBlock*(
     wantType = WantType.wantBlock) # we want this remote to send us a block
 
   if (peers.len - 1) == 0:
-    trace "Not enough peers to send want list to", cid
+    trace "Not peers to send want list to", cid
     b.discovery.queueFindBlocksReq(@[cid])
     return await blk # no peers to send wants to
 
   # filter out the peer we've already requested from
-  let stop = min(peers.high, b.peersPerRequest)
-  trace "Sending want list requests to remaining peers", count = stop + 1
-  for p in peers[1..stop]:
+  let remaining = peers[1..min(peers.high, b.peersPerRequest)]
+  trace "Sending want list to remaining peers", count = remaining.len
+  for p in remaining:
     if cid notin p.peerHave:
       # just send wants
       await b.network.request.sendWantList(
