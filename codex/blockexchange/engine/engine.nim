@@ -500,7 +500,7 @@ proc new*(
       taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize),
       discovery: discovery)
 
-  proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
+  proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =
     if event.kind == PeerEventKind.Joined:
       await engine.setupPeer(peerId)
     else:
@@ -511,17 +511,17 @@ proc new*(
     network.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)
 
   proc blockWantListHandler(
-    peer: PeerID,
+    peer: PeerId,
     wantList: WantList): Future[void] {.gcsafe.} =
     engine.wantListHandler(peer, wantList)
 
   proc blockPresenceHandler(
-    peer: PeerID,
+    peer: PeerId,
     presence: seq[BlockPresence]): Future[void] {.gcsafe.} =
     engine.blockPresenceHandler(peer, presence)
 
   proc blocksHandler(
-    peer: PeerID,
+    peer: PeerId,
     blocks: seq[bt.Block]): Future[void] {.gcsafe.} =
     engine.blocksHandler(peer, blocks)
 
