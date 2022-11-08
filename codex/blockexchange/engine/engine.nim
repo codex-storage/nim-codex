@@ -236,7 +236,7 @@ proc blockPresenceHandler*(
       not b.peers.anyIt( cid in it.peerHave ))
 
 proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) {.async.} =
-  trace "Schedule a task for new blocks"
+  trace "Schedule a task for new blocks", items = blocks.len
 
   let
     cids = blocks.mapIt( it.cid )
