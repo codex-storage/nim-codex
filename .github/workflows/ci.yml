@@ -12,30 +12,17 @@ jobs:
       fail-fast: false
       matrix:
         cache_nonce: [ 0 ] # Allows for easily busting actions/cache caches
-        target:
-          - os: linux
-            cpu: amd64
-          # - os: linux
-          #   cpu: i386
-          - os: macos
-            cpu: amd64
-          - os: windows
-            cpu: amd64
-          # - os: windows
-          #   cpu: i386
+        os: [linux, macos, windows]
         nim_branch: [version-1-2, version-1-6]
         cov_branch: [version-1-6]
         include:
-          - target:
-              os: linux
+          - os: linux
             builder: ubuntu-latest
             shell: bash --noprofile --norc -e -o pipefail
-          - target:
-              os: macos
+          - os: macos
             builder: macos-latest
             shell: bash --noprofile --norc -e -o pipefail
-          - target:
-              os: windows
+          - os: windows
             builder: windows-latest
             shell: msys2
 
@@ -43,7 +30,7 @@ jobs:
       run:
         shell: ${{ matrix.shell }} {0}
 
-    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (Nim ${{ matrix.nim_branch }})'
+    name: '${{ matrix.os }}-(Nim ${{ matrix.nim_branch }})'
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 80
     steps:
@@ -53,8 +40,7 @@ jobs:
       - name: Setup Nimbus Build System
         uses: ./.github/actions/nimbus-build-system
         with:
-          os: ${{ matrix.target.os }}
-          cpu: ${{ matrix.target.cpu }}
+          os: ${{ matrix.os }}
           nim_branch: ${{ matrix.nim_branch }}
           shell: ${{ matrix.shell }}
           cache_nonce: ${{ matrix.cache_nonce }}
@@ -83,14 +69,14 @@ jobs:
             ldd build/codex
           fi
 
-      - name: Generate coverage data (Linux amd64, Nim ${{ matrix.cov_branch }})
-        if: runner.os == 'Linux' && matrix.target.cpu == 'amd64' && matrix.nim_branch == matrix.cov_branch
+      - name: Generate coverage data (Linux, Nim ${{ matrix.cov_branch }})
+        if: runner.os == 'Linux' && matrix.nim_branch == matrix.cov_branch
         run: |
           rm -rf build nimcache
           make -j${ncpu} NIM_COMMIT="${{ matrix.nim_branch }}" coverage
 
-      - name: Upload coverage data to Codecov (Linux amd64, Nim ${{ matrix.cov_branch }})
-        if: runner.os == 'Linux' && matrix.target.cpu == 'amd64' && matrix.nim_branch == matrix.cov_branch
+      - name: Upload coverage data to Codecov (Linux, Nim ${{ matrix.cov_branch }})
+        if: runner.os == 'Linux' && matrix.nim_branch == matrix.cov_branch
         uses: codecov/codecov-action@v3
         with:
           directory: ./coverage/

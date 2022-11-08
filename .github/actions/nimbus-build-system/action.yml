@@ -8,7 +8,7 @@ inputs:
     required: true
   cpu:
     description: "CPU to build for"
-    required: true
+    default: "amd64"
   nim_branch:
     description: "Nim version"
     default: "version-1-6"
