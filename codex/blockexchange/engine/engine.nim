@@ -279,7 +279,7 @@ proc payForBlocks(engine: BlockExcEngine,
 
 proc blocksHandler*(
   b: BlockExcEngine,
-  peer: PeerID,
+  peer: PeerId,
   blocks: seq[bt.Block]) {.async.} =
   ## handle incoming blocks
   ##
@@ -290,9 +290,13 @@ proc blocksHandler*(
       trace "Unable to store block", cid = blk.cid
 
   await b.resolveBlocks(blocks)
-  let peerCtx = b.peers.get(peer)
+  let
+    peerCtx = b.peers.get(peer)
+
   if peerCtx != nil:
+    # we don't care about this blocks anymore, lets cleanup the list
     await b.payForBlocks(peerCtx, blocks)
+    peerCtx.cleanPresence(blocks.mapIt( it.cid ))
 
 proc wantListHandler*(
   b: BlockExcEngine,
