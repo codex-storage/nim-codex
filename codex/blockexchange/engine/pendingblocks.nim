@@ -27,13 +27,18 @@ const
   DefaultBlockTimeout* = 10.minutes
 
 type
+  BlockReq* = object
+    handle*: Future[Block]
+    inFlight*: bool
+
   PendingBlocksManager* = ref object of RootObj
-    blocks*: Table[Cid, Future[Block]] # pending Block requests
+    blocks*: Table[Cid, BlockReq] # pending Block requests
 
 proc getWantHandle*(
   p: PendingBlocksManager,
   cid: Cid,
-  timeout = DefaultBlockTimeout): Future[Block] {.async.} =
+  timeout = DefaultBlockTimeout,
+  inFlight = false): Future[Block] {.async.} =
   ## Add an event for a block
   ##
 
@@ -64,12 +69,22 @@ proc resolve*(
 
   for blk in blocks:
     # resolve any pending blocks
-    if blk.cid in p.blocks:
-      p.blocks.withValue(blk.cid, pending):
-        if not pending[].finished:
-          trace "Resolving block", cid = $blk.cid
-          pending[].complete(blk)
-          p.blocks.del(blk.cid)
+    p.blocks.withValue(blk.cid, pending):
+      if not pending[].handle.completed:
+        trace "Resolving block", cid = blk.cid
+        pending[].handle.complete(blk)
+
+proc setInFlight*(
+  p: PendingBlocksManager,
+  cid: Cid) =
+  p.blocks.withValue(cid, pending):
+    pending[].inFlight = true
+
+proc isInFlight*(
+  p: PendingBlocksManager,
+  cid: Cid): bool =
+  p.blocks.withValue(cid, pending):
+    result = pending[].inFlight
 
 proc pending*(
   p: PendingBlocksManager,
@@ -85,11 +100,10 @@ iterator wantList*(p: PendingBlocksManager): Cid =
 
 iterator wantHandles*(p: PendingBlocksManager): Future[Block] =
   for v in p.blocks.values:
-    yield v
+    yield v.handle
 
 func len*(p: PendingBlocksManager): int =
   p.blocks.len
 
 func new*(T: type PendingBlocksManager): T =
-  T(
-    blocks: initTable[Cid, Future[Block]]())
+  T()
