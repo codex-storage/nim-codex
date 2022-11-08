@@ -184,14 +184,17 @@ proc requestBlock*(
 
 proc blockPresenceHandler*(
   b: BlockExcEngine,
-  peer: PeerID,
+  peer: PeerId,
   blocks: seq[BlockPresence]) {.async.} =
   ## Handle block presence
   ##
 
-  trace "Received presence update for peer", peer
-  let peerCtx = b.peers.get(peer)
-  if isNil(peerCtx):
+  trace "Received presence update for peer", peer, blocks = blocks.len
+  let
+    peerCtx = b.peers.get(peer)
+    wantList = toSeq(b.pendingBlocks.wantList)
+
+  if peerCtx.isNil:
     return
 
   for blk in blocks:
@@ -202,19 +205,28 @@ proc blockPresenceHandler*(
         price = presence.price
 
       trace "Updating precense"
-      peerCtx.updatePresence(presence)
+      peerCtx.setPresence(presence)
 
-  var
-    cids = toSeq(b.pendingBlocks.wantList).filterIt(
-      it in peerCtx.peerHave
+  let
+    peerHave = peerCtx.peerHave
+    dontWantCids = peerHave.filterIt(
+      it notin wantList
     )
 
-  trace "Received presence update for cids", peer, count = cids.len
-  if cids.len > 0:
-    await b.network.request.sendWantList(
-      peer,
-      cids,
-      wantType = WantType.wantBlock) # we want this remote to send us a block
+  if dontWantCids.len > 0:
+    trace "Cleaning peer haves", peer, count = dontWantCids.len
+    peerCtx.cleanPresence(dontWantCids)
+
+  trace "Peer want/have", items = peerHave.len, wantList = wantList.len
+  let
+    wantCids = wantList.filterIt(
+      it in peerHave
+    )
+
+  if wantCids.len > 0:
+    trace "Getting blocks based on updated precense", peer, count = wantCids.len
+    discard await allFinished(
+      wantCids.mapIt(b.requestBlock(it)))
 
   # if none of the connected peers report our wants in their have list,
   # fire up discovery
