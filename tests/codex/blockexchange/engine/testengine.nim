@@ -183,21 +183,50 @@ suite "NetworkStore engine handlers":
       id: peerId
     )
     engine.peers.add(peerCtx)
-    done = newFuture[void]()
 
-  test "Should handle want list":
-    let  wantList = makeWantList(blocks.mapIt( it.cid ))
+  test "Should schedule block requests":
+    let
+      wantList = makeWantList(
+        blocks.mapIt( it.cid ),
+        wantType = WantType.wantBlock) # only `wantBlock` are stored in `peerWants`
+
     proc handler() {.async.} =
       let ctx = await engine.taskQueue.pop()
       check ctx.id == peerId
+      # only `wantBlock` scheduled
       check ctx.peerWants.mapIt( it.cid ) == blocks.mapIt( it.cid )
 
     let done = handler()
     await engine.wantListHandler(peerId, wantList)
     await done
 
+  test "Should handle want list":
+    let
+      done = newFuture[void]()
+      wantList = makeWantList(blocks.mapIt( it.cid ))
+
+    proc sendPresence(peerId: PeerID, presence: seq[BlockPresence]) {.gcsafe, async.} =
+      check presence.mapIt( it.cid ) == wantList.entries.mapIt( it.`block` )
+      done.complete()
+
+    engine.network = BlockExcNetwork(
+      request: BlockExcRequest(
+        sendPresence: sendPresence
+    ))
+
+    await allFuturesThrowing(
+      allFinished(blocks.mapIt( localStore.putBlock(it) )))
+
+    await engine.wantListHandler(peerId, wantList)
+    await done
+
   test "Should handle want list - `dont-have`":
-    let  wantList = makeWantList(blocks.mapIt( it.cid ), sendDontHave = true)
+    let
+      done = newFuture[void]()
+      wantList = makeWantList(
+        blocks.mapIt( it.cid ),
+        sendDontHave = true)
+
     proc sendPresence(peerId: PeerID, presence: seq[BlockPresence]) {.gcsafe, async.} =
       check presence.mapIt( it.cid ) == wantList.entries.mapIt( it.`block` )
       for p in presence:
@@ -211,21 +240,31 @@ suite "NetworkStore engine handlers":
     ))
 
     await engine.wantListHandler(peerId, wantList)
-
     await done
 
   test "Should handle want list - `dont-have` some blocks":
-    let  wantList = makeWantList(blocks.mapIt( it.cid ), sendDontHave = true)
+    let
+      done = newFuture[void]()
+      wantList = makeWantList(
+        blocks.mapIt( it.cid ),
+        sendDontHave = true)
+
     proc sendPresence(peerId: PeerID, presence: seq[BlockPresence]) {.gcsafe, async.} =
-      check presence.mapIt( it.cid ) == blocks[2..blocks.high].mapIt( it.cid.data.buffer )
+      let
+        cid1Buf = blocks[0].cid.data.buffer
+        cid2Buf = blocks[1].cid.data.buffer
+
       for p in presence:
-        check:
-          p.`type` == BlockPresenceType.presenceDontHave
+        if p.cid != cid1Buf and p.cid != cid2Buf:
+          check p.`type` == BlockPresenceType.presenceDontHave
+        else:
+          check p.`type` == BlockPresenceType.presenceHave
 
       done.complete()
 
-    engine.network = BlockExcNetwork(request: BlockExcRequest(
-      sendPresence: sendPresence
+    engine.network = BlockExcNetwork(
+      request: BlockExcRequest(
+        sendPresence: sendPresence
     ))
 
     (await engine.localStore.putBlock(blocks[0])).tryGet()
@@ -246,25 +285,57 @@ suite "NetworkStore engine handlers":
       let present = await engine.localStore.hasBlock(b.cid)
       check present.tryGet()
 
-  test "Should send payments for received blocks":
-    let account = Account(address: EthAddress.example)
-    let peerContext = peerStore.get(peerId)
-    peerContext.account = account.some
-    peerContext.peerPrices = blocks.mapIt((it.cid, rand(uint16).u256)).toTable
+  # test "Should send payments for received blocks":
+  #   let
+  #     account = Account(address: EthAddress.example)
+  #     peerContext = peerStore.get(peerId)
 
-    engine.network = BlockExcNetwork(request: BlockExcRequest(
-      sendPayment: proc(receiver: PeerID, payment: SignedState) {.gcsafe, async.} =
-        let amount = blocks.mapIt(peerContext.peerPrices[it.cid]).foldl(a+b)
-        let balances = !payment.state.outcome.balances(Asset)
-        check receiver == peerId
-        check balances[account.address.toDestination] == amount
-        done.complete()
-    ))
+  #   peerContext.account = account.some
+  #   peerContext.blocks = blocks.mapIt(
+  #     (it.cid, Presence(cid: it.cid, price: rand(uint16).u256))
+  #   ).toTable
 
-    await engine.blocksHandler(peerId, blocks)
-    await done.wait(100.millis)
+  #   engine.network = BlockExcNetwork(request: BlockExcRequest(
+  #     sendPayment: proc(receiver: PeerID, payment: SignedState) {.gcsafe, async.} =
+  #       let
+  #         amount =
+  #           blocks.mapIt(
+  #             peerContext.blocks[it.cid].price
+  #           ).foldl(a + b)
+
+  #         balances = !payment.state.outcome.balances(Asset)
+
+  #       check receiver == peerId
+  #       check balances[account.address.toDestination] == amount
+  #       done.complete()
+  #   ))
+
+  #   await engine.blocksHandler(peerId, blocks)
+  #   await done.wait(100.millis)
 
   test "Should handle block presence":
+    var
+      handles: Table[Cid, Future[bt.Block]]
+
+    proc sendWantList(
+      id: PeerID,
+      cids: seq[Cid],
+      priority: int32 = 0,
+      cancel: bool = false,
+      wantType: WantType = WantType.wantHave,
+      full: bool = false,
+      sendDontHave: bool = false) {.gcsafe, async.} =
+        engine.pendingBlocks.resolve(blocks.filterIt( it.cid in cids ))
+
+    engine.network = BlockExcNetwork(
+      request: BlockExcRequest(
+        sendWantList: sendWantList
+    ))
+
+    # only Cids in peer want lists are requested
+    handles = blocks.mapIt(
+      (it.cid, engine.pendingBlocks.getWantHandle( it.cid ))).toTable
+
     let price = UInt256.example
     await engine.blockPresenceHandler(
       peerId,
@@ -277,8 +348,8 @@ suite "NetworkStore engine handlers":
       ))))
 
     for cid in blocks.mapIt(it.cid):
-      check peerCtx.peerHave.contains(cid)
-      check peerCtx.peerPrices[cid] == price
+      check cid in peerCtx.peerHave
+      check peerCtx.blocks[cid].price == price
 
 suite "Task Handler":
   var
