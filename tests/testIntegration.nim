@@ -35,9 +35,14 @@ ethersuite "Integration tests":
       "--nat=127.0.0.1",
       "--disc-ip=127.0.0.1",
       "--disc-port=8090",
-        "--persistence",
-        "--eth-account=" & $accounts[0]
+      "--persistence",
+      "--eth-account=" & $accounts[0]
     ], debug = false)
+
+    let
+      bootstrap = strip(
+        $(parseJson(client.get(baseurl1 & "/debug/info").body)["spr"]),
+        chars = {'"'})
 
     node2 = startNode([
       "--api-port=8081",
@@ -45,7 +50,7 @@ ethersuite "Integration tests":
       "--nat=127.0.0.1",
       "--disc-ip=127.0.0.1",
       "--disc-port=8091",
-      "--bootstrap-node=" & strip($(parseJson(client.get(baseurl1 & "/info").body)["spr"]), chars = {'"'}),
+      "--bootstrap-node=" & bootstrap,
       "--persistence",
       "--eth-account=" & $accounts[1]
     ], debug = false)
@@ -59,8 +64,8 @@ ethersuite "Integration tests":
     dataDir2.removeDir()
 
   test "nodes can print their peer information":
-    let info1 = client.get(baseurl1 & "/info").body
-    let info2 = client.get(baseurl2 & "/info").body
+    let info1 = client.get(baseurl1 & "/debug/info").body
+    let info2 = client.get(baseurl2 & "/debug/info").body
     check info1 != info2
 
   test "node accepts file uploads":
