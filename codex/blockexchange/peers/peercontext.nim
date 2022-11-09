@@ -52,10 +52,10 @@ func cleanPresence*(self: BlockExcPeerCtx, cid: Cid) =
   self.cleanPresence(@[cid])
 
 func price*(self: BlockExcPeerCtx, cids: seq[Cid]): UInt256 =
-  var price: UInt256
+  var price = 0.UInt256
   for cid in cids:
     self.blocks.withValue(cid, precense):
       price += precense[].price
 
   trace "Blocks price", price
-
+  price
