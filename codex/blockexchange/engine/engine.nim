@@ -135,6 +135,7 @@ proc requestBlock*(
     peers = b.peers.selectCheapest(cid)
 
   if peers.len <= 0:
+    trace "No cheapest peers, selecting first peer in list"
     peers = toSeq(b.peers) # Get any peer
     if peers.len <= 0:
       trace "No peers to request blocks from", cid
@@ -158,6 +159,7 @@ proc requestBlock*(
   # monitor block handle for failures
   asyncSpawn onBlockHandleMonitor()
 
+  trace "Sending block request to peer", peer = blockPeer.id
   # request block
   await b.network.request.sendWantList(
     blockPeer.id,
@@ -165,7 +167,7 @@ proc requestBlock*(
     wantType = WantType.wantBlock) # we want this remote to send us a block
 
   if (peers.len - 1) == 0:
-    trace "Not peers to send want list to", cid
+    trace "No peers to send want list to", cid
     b.discovery.queueFindBlocksReq(@[cid])
     return await blk # no peers to send wants to
 
@@ -227,6 +229,7 @@ proc blockPresenceHandler*(
     trace "Getting blocks based on updated precense", peer, count = wantCids.len
     discard await allFinished(
       wantCids.mapIt(b.requestBlock(it)))
+    trace "Requested blocks based on updated precense", peer, count = wantCids.len
 
   # if none of the connected peers report our wants in their have list,
   # fire up discovery
@@ -334,6 +337,7 @@ proc wantListHandler*(
         # different want params
         peerCtx.peerWants[idx] = e # update entry
     else: # adding new entry
+      trace "Processing new want list entry", cid = e.cid
       let
         have = await e.cid in b.localStore
         price = if b.pricing.isSome:

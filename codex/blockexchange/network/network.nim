@@ -332,10 +332,11 @@ proc new*(
   ## Create a new BlockExcNetwork instance
   ##
 
-  let self = BlockExcNetwork(
-    switch: switch,
-    getConn: connProvider,
-    inflightSema: newAsyncSemaphore(maxInflight))
+  let
+    self = BlockExcNetwork(
+      switch: switch,
+      getConn: connProvider,
+      inflightSema: newAsyncSemaphore(maxInflight))
 
   proc sendWantList(
     id: PeerID,
