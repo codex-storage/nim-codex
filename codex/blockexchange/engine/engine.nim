@@ -440,7 +440,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
   if wantsBlocks.len > 0:
     trace "Got peer want blocks list", items = wantsBlocks.len
 
-    # wantsBlocks.sort(SortOrder.Descending) # TODO: why?
+    wantsBlocks.sort(SortOrder.Descending)
 
     let
       blockFuts = await allFinished(wantsBlocks.mapIt(
