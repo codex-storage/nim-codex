@@ -285,33 +285,35 @@ suite "NetworkStore engine handlers":
       let present = await engine.localStore.hasBlock(b.cid)
       check present.tryGet()
 
-  # test "Should send payments for received blocks":
-  #   let
-  #     account = Account(address: EthAddress.example)
-  #     peerContext = peerStore.get(peerId)
+  test "Should send payments for received blocks":
+    let
+      done = newFuture[void]()
+      account = Account(address: EthAddress.example)
+      peerContext = peerStore.get(peerId)
 
-  #   peerContext.account = account.some
-  #   peerContext.blocks = blocks.mapIt(
-  #     (it.cid, Presence(cid: it.cid, price: rand(uint16).u256))
-  #   ).toTable
+    peerContext.account = account.some
+    peerContext.blocks = blocks.mapIt(
+      (it.cid, Presence(cid: it.cid, price: rand(uint16).u256))
+    ).toTable
 
-  #   engine.network = BlockExcNetwork(request: BlockExcRequest(
-  #     sendPayment: proc(receiver: PeerID, payment: SignedState) {.gcsafe, async.} =
-  #       let
-  #         amount =
-  #           blocks.mapIt(
-  #             peerContext.blocks[it.cid].price
-  #           ).foldl(a + b)
+    engine.network = BlockExcNetwork(
+      request: BlockExcRequest(
+        sendPayment: proc(receiver: PeerID, payment: SignedState) {.gcsafe, async.} =
+          let
+            amount =
+              blocks.mapIt(
+                peerContext.blocks[it.cid].price
+              ).foldl(a + b)
 
-  #         balances = !payment.state.outcome.balances(Asset)
+            balances = !payment.state.outcome.balances(Asset)
 
-  #       check receiver == peerId
-  #       check balances[account.address.toDestination] == amount
-  #       done.complete()
-  #   ))
+          check receiver == peerId
+          check balances[account.address.toDestination] == amount
+          done.complete()
+    ))
 
-  #   await engine.blocksHandler(peerId, blocks)
-  #   await done.wait(100.millis)
+    await engine.blocksHandler(peerId, blocks)
+    await done.wait(100.millis)
 
   test "Should handle block presence":
     var

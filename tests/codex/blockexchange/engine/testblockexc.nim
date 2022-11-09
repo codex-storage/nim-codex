@@ -163,25 +163,25 @@ suite "NetworkStore engine - 2 nodes":
     check await nodeCmps1.networkStore.getBlock(blk.cid)
       .withTimeout(100.millis) # should succeed
 
-  # test "Should receive payments for blocks that were sent":
-  #   discard await allFinished(
-  #     blocks2[4..7].mapIt(
-  #       nodeCmps2.networkStore.putBlock(it)
-  #   ))
+  test "Should receive payments for blocks that were sent":
+    discard await allFinished(
+      blocks2[4..7].mapIt(
+        nodeCmps2.networkStore.putBlock(it)
+    ))
 
-  #   let
-  #     blocks = await allFinished(
-  #       blocks2[4..7].mapIt(
-  #         nodeCmps1.networkStore.getBlock(it.cid)
-  #     ))
+    let
+      blocks = await allFinished(
+        blocks2[4..7].mapIt(
+          nodeCmps1.networkStore.getBlock(it.cid)
+      ))
 
-  #   await sleepAsync(10.seconds)
+    # await sleepAsync(10.seconds)
 
-  #   let
-  #     channel = !peerCtx1.paymentChannel
-  #     wallet = nodeCmps2.wallet
+    let
+      channel = !peerCtx1.paymentChannel
+      wallet = nodeCmps2.wallet
 
-  #   check eventually wallet.balance(channel, Asset) > 0
+    check eventually wallet.balance(channel, Asset) > 0
 
 suite "NetworkStore - multiple nodes":
   let
