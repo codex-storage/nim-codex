@@ -43,6 +43,9 @@ jobs:
           os: ${{ matrix.os }}
           shell: ${{ matrix.shell }}
 
+      - name: Unit tests
+        run: make -j${ncpu} test
+
       - name: Start Ethereum node with Codex contracts
         working-directory: vendor/dagger-contracts
         run: |
@@ -51,9 +54,6 @@ jobs:
           fi
           npm install
           npm start &
-
-      - name: Unit tests
-        run: make -j${ncpu} test
 
       - name: Contract tests
         run: make -j${ncpu} testContracts
