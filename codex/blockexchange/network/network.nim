@@ -27,7 +27,7 @@ import ./networkpeer
 export network, payments
 
 logScope:
-  topics = "codex blockexc network"
+  topics = "codex blockexcnetwork"
 
 const
   Codec* = "/codex/blockexc/1.0.0"

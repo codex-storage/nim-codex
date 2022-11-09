@@ -27,7 +27,7 @@ import ../../stores/blockstore
 import ./pendingblocks
 
 logScope:
-  topics = "codex discovery engine"
+  topics = "codex discoveryengine"
 
 declareGauge(codex_inflight_discovery, "inflight discovery requests")
 

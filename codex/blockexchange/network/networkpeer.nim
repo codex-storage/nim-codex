@@ -18,7 +18,7 @@ import ../protobuf/blockexc
 import ../../errors
 
 logScope:
-  topics = "codex blockexc networkpeer"
+  topics = "codex blockexcnetworkpeer"
 
 const
   MaxMessageSize = 100 * 1 shl 20 # manifest files can be big

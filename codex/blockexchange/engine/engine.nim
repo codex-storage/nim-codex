@@ -33,7 +33,7 @@ import ./pendingblocks
 export peers, pendingblocks, payments, discovery
 
 logScope:
-  topics = "codex blockexc engine"
+  topics = "codex blockexcengine"
 
 const
   DefaultMaxPeersPerRequest* = 10

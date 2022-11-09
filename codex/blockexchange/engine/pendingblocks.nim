@@ -21,7 +21,7 @@ import pkg/libp2p
 import ../../blocktype
 
 logScope:
-  topics = "codex blockexc pendingblocks"
+  topics = "codex pendingblocks"
 
 const
   DefaultBlockTimeout* = 10.minutes

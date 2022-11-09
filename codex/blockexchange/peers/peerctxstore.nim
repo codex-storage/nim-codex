@@ -25,7 +25,7 @@ import ./peercontext
 export peercontext
 
 logScope:
-  topics = "codex blockexc peerctxstore"
+  topics = "codex peerctxstore"
 
 type
   PeerCtxStore* = ref object of RootObj
