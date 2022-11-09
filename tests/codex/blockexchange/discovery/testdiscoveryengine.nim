@@ -155,7 +155,7 @@ suite "Test Discovery Engine":
         var
           peerCtx = BlockExcPeerCtx(id: PeerID.example)
 
-        peerCtx.peerPrices[cid] = 0.u256
+        peerCtx.blocks[cid].price = 0.u256
         peerStore.add(peerCtx)
         want.fire()
 
