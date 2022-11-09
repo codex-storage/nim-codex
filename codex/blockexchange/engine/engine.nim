@@ -15,6 +15,7 @@ import std/algorithm
 import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
+import pkg/stint
 
 import ../../stores/blockstore
 import ../../blocktype as bt
@@ -272,12 +273,14 @@ proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) {.async.} =
 proc payForBlocks(engine: BlockExcEngine,
                   peer: BlockExcPeerCtx,
                   blocks: seq[bt.Block]) {.async.} =
-  let sendPayment = engine.network.request.sendPayment
-  if sendPayment.isNil:
-    return
+  trace "Paying for blocks", blocks = blocks.len
 
-  let cids = blocks.mapIt(it.cid)
-  if payment =? engine.wallet.pay(peer, peer.price(cids)):
+  let
+    sendPayment = engine.network.request.sendPayment
+    price = peer.price(blocks.mapIt(it.cid))
+
+  if payment =? engine.wallet.pay(peer, price):
+    trace "Sending payment for blocks", price
     await sendPayment(peer.id, payment)
 
 proc blocksHandler*(
@@ -338,6 +341,7 @@ proc wantListHandler*(
         peerCtx.peerWants[idx] = e # update entry
     else: # adding new entry
       trace "Processing new want list entry", cid = e.cid
+
       let
         have = await e.cid in b.localStore
         price = if b.pricing.isSome:
@@ -384,8 +388,11 @@ proc paymentHandler*(
   engine: BlockExcEngine,
   peer: PeerId,
   payment: SignedState) {.async.} =
+  trace "Handling payments", peer
+
   without context =? engine.peers.get(peer).option and
           account =? context.account:
+    trace "No context or account for peer", peer
     return
 
   if channel =? context.paymentChannel:
