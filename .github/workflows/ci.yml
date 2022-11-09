@@ -5,13 +5,13 @@ on:
       - main
   pull_request:
   workflow_dispatch:
-
+env:
+  cache_nonce: 0 # Allows for easily busting actions/cache caches
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        cache_nonce: [ 0 ] # Allows for easily busting actions/cache caches
         os: [linux, macos, windows]
         include:
           - os: linux
@@ -42,7 +42,6 @@ jobs:
         with:
           os: ${{ matrix.os }}
           shell: ${{ matrix.shell }}
-          cache_nonce: ${{ matrix.cache_nonce }}
 
       - name: Start Ethereum node with Codex contracts
         working-directory: vendor/dagger-contracts
