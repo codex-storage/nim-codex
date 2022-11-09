@@ -18,13 +18,6 @@ type
     have*: bool
     price*: UInt256
 
-func init*(_: type PresenceMessage, presence: Presence): PresenceMessage =
-  PresenceMessage(
-    cid: presence.cid.data.buffer,
-    `type`: if presence.have: presenceHave else: presenceDontHave,
-    price: @(presence.price.toBytesBE)
-  )
-
 func parse(_: type UInt256, bytes: seq[byte]): ?UInt256 =
   if bytes.len > 32:
     return UInt256.none
@@ -39,4 +32,11 @@ func init*(_: type Presence, message: PresenceMessage): ?Presence =
     cid: cid,
     have: message.`type` == presenceHave,
     price: price
+  )
+
+func init*(_: type PresenceMessage, presence: Presence): PresenceMessage =
+  PresenceMessage(
+    cid: presence.cid.data.buffer,
+    `type`: if presence.have: presenceHave else: presenceDontHave,
+    price: @(presence.price.toBytesBE)
   )
