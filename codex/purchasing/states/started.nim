@@ -13,7 +13,7 @@ method enterAsync*(state: PurchaseStarted) {.async.} =
   let market = purchase.market
 
   let failed = newFuture[void]()
-  proc callback(_: RequestId) =
+  proc callback(_: RequestId) {.async.} =
     failed.complete()
   let subscription = await market.subscribeRequestFailed(purchase.requestId, callback)
 
@@ -21,8 +21,10 @@ method enterAsync*(state: PurchaseStarted) {.async.} =
   try:
     let fut = await one(ended, failed)
     if fut.id == failed.id:
+      ended.cancel()
       state.switch(PurchaseFailed())
     else:
+      failed.cancel()
       state.switch(PurchaseFinished())
     await subscription.unsubscribe()
   except CatchableError as error:
