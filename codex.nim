@@ -89,9 +89,12 @@ when isMainModule:
       proc SIGTERMHandler(signal: cint) {.noconv.} =
         notice "Shutting down after having received SIGTERM"
         waitFor server.stop()
+        notice "Stopped Codex"
 
       c_signal(ansi_c.SIGTERM, SIGTERMHandler)
 
     waitFor server.start()
+    notice "Exited codex"
+
   of StartUpCommand.initNode:
     discard
