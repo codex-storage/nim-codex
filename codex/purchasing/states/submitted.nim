@@ -14,7 +14,7 @@ method enterAsync(state: PurchaseSubmitted) {.async.} =
 
   proc wait {.async.} =
     let done = newFuture[void]()
-    proc callback(_: RequestId) =
+    proc callback(_: RequestId) {.async.} =
       done.complete()
     let request = purchase.request
     let subscription = await market.subscribeFulfillment(request.id, callback)
