@@ -80,7 +80,7 @@ ethersuite "On-Chain Market":
   test "supports request subscriptions":
     var receivedIds: seq[RequestId]
     var receivedAsks: seq[StorageAsk]
-    proc onRequest(id: RequestId, ask: StorageAsk) =
+    proc onRequest(id: RequestId, ask: StorageAsk) {.async.} =
       receivedIds.add(id)
       receivedAsks.add(ask)
     let subscription = await market.subscribeRequests(onRequest)
@@ -107,7 +107,7 @@ ethersuite "On-Chain Market":
     discard await market.requestStorage(request)
     var receivedIds: seq[RequestId]
     var receivedSlotIndices: seq[UInt256]
-    proc onSlotFilled(id: RequestId, slotIndex: UInt256) =
+    proc onSlotFilled(id: RequestId, slotIndex: UInt256) {.async.} =
       receivedIds.add(id)
       receivedSlotIndices.add(slotIndex)
     let subscription = await market.subscribeSlotFilled(request.id, slotIndex, onSlotFilled)
@@ -121,7 +121,7 @@ ethersuite "On-Chain Market":
     await token.approve(storage.address, request.price)
     discard await market.requestStorage(request)
     var receivedSlotIndices: seq[UInt256]
-    proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
+    proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) {.async.} =
       receivedSlotIndices.add(slotIndex)
     let subscription = await market.subscribeSlotFilled(request.id, slotIndex, onSlotFilled)
     await market.fillSlot(request.id, slotIndex - 1, proof)
@@ -134,7 +134,7 @@ ethersuite "On-Chain Market":
     await token.approve(storage.address, request.price)
     discard await market.requestStorage(request)
     var receivedIds: seq[RequestId]
-    proc onFulfillment(id: RequestId) =
+    proc onFulfillment(id: RequestId) {.async.} =
       receivedIds.add(id)
     let subscription = await market.subscribeFulfillment(request.id, onFulfillment)
     for slotIndex in 0..<request.ask.slots:
@@ -152,7 +152,7 @@ ethersuite "On-Chain Market":
     discard await market.requestStorage(otherRequest)
 
     var receivedIds: seq[RequestId]
-    proc onFulfillment(id: RequestId) =
+    proc onFulfillment(id: RequestId) {.async.} =
       receivedIds.add(id)
 
     let subscription = await market.subscribeFulfillment(request.id, onFulfillment)
@@ -171,7 +171,7 @@ ethersuite "On-Chain Market":
     discard await market.requestStorage(request)
 
     var receivedIds: seq[RequestId]
-    proc onRequestCancelled(id: RequestId) =
+    proc onRequestCancelled(id: RequestId) {.async.} =
       receivedIds.add(id)
     let subscription = await market.subscribeRequestCancelled(request.id, onRequestCancelled)
 
@@ -185,7 +185,7 @@ ethersuite "On-Chain Market":
     discard await market.requestStorage(request)
 
     var receivedIds: seq[RequestId]
-    proc onRequestFailed(id: RequestId) =
+    proc onRequestFailed(id: RequestId) {.async.} =
       receivedIds.add(id)
     let subscription = await market.subscribeRequestFailed(request.id, onRequestFailed)
 
@@ -213,7 +213,7 @@ ethersuite "On-Chain Market":
     discard await market.requestStorage(otherRequest)
 
     var receivedIds: seq[RequestId]
-    proc onRequestCancelled(requestId: RequestId) =
+    proc onRequestCancelled(requestId: RequestId) {.async.} =
       receivedIds.add(requestId)
 
     let subscription = await market.subscribeRequestCancelled(request.id, onRequestCancelled)
@@ -244,3 +244,27 @@ ethersuite "On-Chain Market":
     for slotIndex in 0..<request.ask.slots:
       await market.fillSlot(request.id, slotIndex.u256, proof)
     check (await market.getState(request.id)) == RequestState.Started
+
+  test "can retrieve active slots":
+    await token.approve(storage.address, request.price)
+    discard await market.requestStorage(request)
+    await market.fillSlot(request.id, slotIndex - 1, proof)
+    await market.fillSlot(request.id, slotIndex, proof)
+    let slotId1 = request.slotId(slotIndex - 1)
+    let slotId2 = request.slotId(slotIndex)
+    check (await market.mySlots()) == @[slotId1, slotId2]
+
+  test "returns none when slot is empty":
+    await token.approve(storage.address, request.price)
+    discard await market.requestStorage(request)
+    let slotId = request.slotId(slotIndex)
+    check (await market.getSlot(slotId)) == none Slot
+
+  test "can retrieve slot details":
+    await token.approve(storage.address, request.price)
+    discard await market.requestStorage(request)
+    await market.fillSlot(request.id, slotIndex, proof)
+    let slotId = request.slotId(slotIndex)
+    let expected = Slot(host: request.client,
+                        requestId: request.id)
+    check (await market.getSlot(slotId)) == some expected

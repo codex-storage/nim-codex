@@ -39,12 +39,10 @@ type
     Cancelled
     Finished
     Failed
-  Slot* = object
+  Slot* = object of RootObj
     host*: Address
     hostPaid*: bool
     requestId*: RequestId
-    slotIndex*: UInt256
-    proof*: seq[byte]
 
 proc `==`*(x, y: Nonce): bool {.borrow.}
 proc `==`*(x, y: RequestId): bool {.borrow.}
@@ -116,6 +114,9 @@ func solidityType*(_: type StorageAsk): string =
 
 func solidityType*(_: type StorageRequest): string =
   solidityType(StorageRequest.fieldTypes)
+
+func solidityType*(_: type Slot): string =
+  solidityType(Slot.fieldTypes)
 
 func solidityType*[T: RequestId | SlotId | Nonce](_: type T): string =
   solidityType(array[32, byte])
