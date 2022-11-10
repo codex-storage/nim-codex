@@ -1,8 +1,8 @@
 import std/sets
+import std/times
 import pkg/asynctest
 import pkg/chronos
 import pkg/codex/contracts/requests
-import pkg/codex/proving
 import pkg/codex/sales
 import ./helpers/mockmarket
 import ./helpers/mockclock
@@ -25,7 +25,8 @@ suite "Sales":
     ),
     content: StorageContent(
       cid: "some cid"
-    )
+    ),
+    expiry: (getTime() + initDuration(hours=1)).toUnix.u256
   )
   let proof = exampleProof()
 
@@ -41,7 +42,7 @@ suite "Sales":
     sales = Sales.new(market, clock, proving)
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         availability: Availability) {.async.} =
+                         availability: ?Availability) {.async.} =
       discard
     sales.onProve = proc(request: StorageRequest,
                          slot: UInt256): Future[seq[byte]] {.async.} =
@@ -99,10 +100,11 @@ suite "Sales":
     var storingAvailability: Availability
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         availability: Availability) {.async.} =
+                         availability: ?Availability) {.async.} =
       storingRequest = request
       storingSlot = slot
-      storingAvailability = availability
+      check availability.isSome
+      storingAvailability = !availability
     sales.add(availability)
     await market.requestStorage(request)
     check storingRequest == request
@@ -113,7 +115,7 @@ suite "Sales":
     let error = newException(IOError, "data retrieval failed")
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         availability: Availability) {.async.} =
+                         availability: ?Availability) {.async.} =
       raise error
     sales.add(availability)
     await market.requestStorage(request)
@@ -144,10 +146,11 @@ suite "Sales":
     var soldAvailability: Availability
     var soldRequest: StorageRequest
     var soldSlotIndex: UInt256
-    sales.onSale = proc(availability: Availability,
+    sales.onSale = proc(availability: ?Availability,
                         request: StorageRequest,
                         slotIndex: UInt256) =
-      soldAvailability = availability
+      if a =? availability:
+        soldAvailability = a
       soldRequest = request
       soldSlotIndex = slotIndex
     sales.add(availability)
@@ -165,10 +168,11 @@ suite "Sales":
     var clearedAvailability: Availability
     var clearedRequest: StorageRequest
     var clearedSlotIndex: UInt256
-    sales.onClear = proc(availability: Availability,
+    sales.onClear = proc(availability: ?Availability,
                          request: StorageRequest,
                          slotIndex: UInt256) =
-      clearedAvailability = availability
+      if a =? availability:
+        clearedAvailability = a
       clearedRequest = request
       clearedSlotIndex = slotIndex
     sales.add(availability)
@@ -181,8 +185,8 @@ suite "Sales":
     let otherHost = Address.example
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         availability: Availability) {.async.} =
-      await sleepAsync(1.hours)
+                         availability: ?Availability) {.async.} =
+      await sleepAsync(chronos.hours(1))
     sales.add(availability)
     await market.requestStorage(request)
     for slotIndex in 0..<request.ask.slots:
@@ -192,8 +196,8 @@ suite "Sales":
   test "makes storage available again when request expires":
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         availability: Availability) {.async.} =
-      await sleepAsync(1.hours)
+                         availability: ?Availability) {.async.} =
+      await sleepAsync(chronos.hours(1))
     sales.add(availability)
     await market.requestStorage(request)
     clock.set(request.expiry.truncate(int64))
@@ -201,7 +205,7 @@ suite "Sales":
 
   test "adds proving for slot when slot is filled":
     var soldSlotIndex: UInt256
-    sales.onSale = proc(availability: Availability,
+    sales.onSale = proc(availability: ?Availability,
                         request: StorageRequest,
                         slotIndex: UInt256) =
       soldSlotIndex = slotIndex
