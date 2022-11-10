@@ -136,7 +136,7 @@ proc requestBlock*(
     peers = b.peers.selectCheapest(cid)
 
   if peers.len <= 0:
-    trace "No cheapest peers, selecting first peer in list"
+    trace "No cheapest peers, selecting first in list"
     peers = toSeq(b.peers) # Get any peer
     if peers.len <= 0:
       trace "No peers to request blocks from", cid
@@ -146,7 +146,7 @@ proc requestBlock*(
   let
     blockPeer = peers[0] # get cheapest
 
-  proc onBlockHandleMonitor() {.async.} =
+  proc blockHandleMonitor() {.async.} =
     try:
       b.pendingBlocks.setInFlight(cid)
       discard await blk
@@ -158,7 +158,7 @@ proc requestBlock*(
       await b.network.switch.disconnect(blockPeer.id)
 
   # monitor block handle for failures
-  asyncSpawn onBlockHandleMonitor()
+  asyncSpawn blockHandleMonitor()
 
   trace "Sending block request to peer", peer = blockPeer.id
   # request block
@@ -304,7 +304,6 @@ proc blocksHandler*(
     await b.payForBlocks(peerCtx, blocks)
     peerCtx.cleanPresence(blocks.mapIt( it.cid ))
 
-
 proc wantListHandler*(
   b: BlockExcEngine,
   peer: PeerId,
@@ -344,10 +343,8 @@ proc wantListHandler*(
 
       let
         have = await e.cid in b.localStore
-        price = if b.pricing.isSome:
-            @(b.pricing.get.price.toBytesBE)
-          else:
-            @[byte 0]
+        price = @(b.pricing.get(
+          Pricing(price: 0.u256)).price.toBytesBE)
 
       if not have and e.sendDontHave:
         trace "Adding dont have entry to precense response"
@@ -433,7 +430,7 @@ proc dropPeer*(b: BlockExcEngine, peer: PeerId) =
 proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
   trace "Handling task for peer", peer = task.id
 
-  # PART 1: Send to the peer blocks he wants to get,
+  # Send to the peer blocks he wants to get,
   # if they present in our local store
 
   # TODO: There should be all sorts of accounting of
