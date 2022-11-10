@@ -104,9 +104,6 @@ func solidityType*(_: type StorageAsk): string =
 func solidityType*(_: type StorageRequest): string =
   solidityType(StorageRequest.fieldTypes)
 
-func solidityType*[T: RequestId | SlotId | Nonce](_: type T): string =
-  solidityType(array[32, byte])
-
 func encode*(encoder: var AbiEncoder, por: StoragePoR) =
   encoder.write(por.fieldValues)
 
@@ -124,11 +121,6 @@ func encode*(encoder: var AbiEncoder, id: RequestId | SlotId | Nonce) =
 
 func encode*(encoder: var AbiEncoder, request: StorageRequest) =
   encoder.write(request.fieldValues)
-
-func decode*[T: RequestId | SlotId | Nonce](decoder: var AbiDecoder,
-                                            _: type T): ?!T =
-  let nonce = ?decoder.read(type array[32, byte])
-  success T(nonce)
 
 func decode*(decoder: var AbiDecoder, T: type StoragePoR): ?!T =
   let tupl = ?decoder.read(StoragePoR.fieldTypes)
