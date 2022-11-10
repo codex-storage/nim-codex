@@ -147,18 +147,20 @@ proc retrieve*(
   let
     stream = BufferStream.new()
 
-  if blkOrNone =? (await node.blockStore.getBlock(cid)) and blk =? blkOrNone:
-    proc streamOneBlock(): Future[void] {.async.} =
-      try:
-        await stream.pushData(blk.data)
-      except CatchableError as exc:
-        trace "Unable to send block", cid
-        discard
-      finally:
-        await stream.pushEof()
+  without blk =? (await node.blockStore.getBlock(cid)), err:
+    return failure(err)
 
-    asyncSpawn streamOneBlock()
-    return LPStream(stream).success()
+  proc streamOneBlock(): Future[void] {.async.} =
+    try:
+      await stream.pushData(blk.data)
+    except CatchableError as exc:
+      trace "Unable to send block", cid
+      discard
+    finally:
+      await stream.pushEof()
+
+  asyncSpawn streamOneBlock()
+  return LPStream(stream).success()
 
   return failure("Unable to retrieve Cid!")
 
@@ -210,14 +212,14 @@ proc store*(
     return failure("Unable to init block from manifest data!")
 
   if isErr (await node.blockStore.putBlock(manifest)):
-    trace "Unable to store manifest", cid = $manifest.cid
+    trace "Unable to store manifest", cid = manifest.cid
     return failure("Unable to store manifest " & $manifest.cid)
 
   without cid =? blockManifest.cid, error:
     trace "Unable to generate manifest Cid!", exc = error.msg
     return failure(error.msg)
 
-  trace "Stored data", manifestCid = $manifest.cid,
+  trace "Stored data", manifestCid = manifest.cid,
                        contentCid = cid,
                        blocks = blockManifest.len
 
@@ -263,7 +265,7 @@ proc requestStorage*(self: CodexNodeRef,
     return failure(error)
 
   if isErr (await self.blockStore.putBlock(encodedBlk)):
-    trace "Unable to store encoded manifest block", cid = $encodedBlk.cid
+    trace "Unable to store encoded manifest block", cid = encodedBlk.cid
     return failure("Unable to store encoded manifest block")
 
   let request = StorageRequest(
