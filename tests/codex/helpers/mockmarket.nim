@@ -65,7 +65,7 @@ method requestStorage*(market: MockMarket, request: StorageRequest) {.async.} =
   market.requested.add(request)
   var subscriptions = market.subscriptions.onRequest
   for subscription in subscriptions:
-    subscription.callback(request.id, request.ask)
+    await subscription.callback(request.id, request.ask)
 
 method myRequests*(market: MockMarket): Future[seq[RequestId]] {.async.} =
   return market.activeRequests[market.signer]
@@ -103,26 +103,26 @@ proc emitSlotFilled*(market: MockMarket,
   for subscription in subscriptions:
     if subscription.requestId == requestId and
        subscription.slotIndex == slotIndex:
-      subscription.callback(requestId, slotIndex)
+      asyncSpawn subscription.callback(requestId, slotIndex)
 
 proc emitRequestCancelled*(market: MockMarket,
                      requestId: RequestId) =
   var subscriptions = market.subscriptions.onRequestCancelled
   for subscription in subscriptions:
     if subscription.requestId == requestId:
-      subscription.callback(requestId)
+      asyncSpawn subscription.callback(requestId)
 
 proc emitRequestFulfilled*(market: MockMarket, requestId: RequestId) =
   var subscriptions = market.subscriptions.onFulfillment
   for subscription in subscriptions:
     if subscription.requestId == requestId:
-      subscription.callback(requestId)
+      asyncSpawn subscription.callback(requestId)
 
 proc emitRequestFailed*(market: MockMarket, requestId: RequestId) =
   var subscriptions = market.subscriptions.onRequestFailed
   for subscription in subscriptions:
     if subscription.requestId == requestId:
-      subscription.callback(requestId)
+      asyncSpawn subscription.callback(requestId)
 
 proc fillSlot*(market: MockMarket,
                requestId: RequestId,
