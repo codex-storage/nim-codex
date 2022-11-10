@@ -40,7 +40,7 @@ type
 
 const
   MiB* = 1024 * 1024 # bytes, 1 mebibyte = 1,048,576 bytes
-  DefaultCacheSizeMiB* = 100
+  DefaultCacheSizeMiB* = 5
   DefaultCacheSize* = DefaultCacheSizeMiB * MiB # bytes
 
 method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
