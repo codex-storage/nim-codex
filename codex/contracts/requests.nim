@@ -39,6 +39,12 @@ type
     Cancelled
     Finished
     Failed
+  Slot* = object
+    host*: Address
+    hostPaid*: bool
+    requestId*: RequestId
+    slotIndex*: UInt256
+    proof*: seq[byte]
 
 proc `==`*(x, y: Nonce): bool {.borrow.}
 proc `==`*(x, y: RequestId): bool {.borrow.}
@@ -48,6 +54,9 @@ proc hash*(x: SlotId): Hash {.borrow.}
 func toArray*(id: RequestId | SlotId | Nonce): array[32, byte] =
   array[32, byte](id)
 
+proc `$`*(id: RequestId | SlotId | Nonce): string =
+  id.toArray.toHex
+
 func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
   StorageRequest(
     client: tupl[0],
@@ -55,6 +64,13 @@ func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
     content: tupl[2],
     expiry: tupl[3],
     nonce: tupl[4]
+  )
+
+func fromTuple(_: type Slot, tupl: tuple): Slot =
+  Slot(
+    host: tupl[0],
+    hostPaid: tupl[1],
+    requestId: tupl[2]
   )
 
 func fromTuple(_: type StorageAsk, tupl: tuple): StorageAsk =
@@ -122,6 +138,9 @@ func encode*(encoder: var AbiEncoder, id: RequestId | SlotId | Nonce) =
 func encode*(encoder: var AbiEncoder, request: StorageRequest) =
   encoder.write(request.fieldValues)
 
+func encode*(encoder: var AbiEncoder, slot: Slot) =
+  encoder.write(slot.fieldValues)
+
 func decode*[T: RequestId | SlotId | Nonce](decoder: var AbiDecoder,
                                             _: type T): ?!T =
   let nonce = ?decoder.read(type array[32, byte])
@@ -146,6 +165,10 @@ func decode*(decoder: var AbiDecoder, T: type StorageAsk): ?!T =
 func decode*(decoder: var AbiDecoder, T: type StorageRequest): ?!T =
   let tupl = ?decoder.read(StorageRequest.fieldTypes)
   success StorageRequest.fromTuple(tupl)
+
+func decode*(decoder: var AbiDecoder, T: type Slot): ?!T =
+  let tupl = ?decoder.read(Slot.fieldTypes)
+  success Slot.fromTuple(tupl)
 
 func id*(request: StorageRequest): RequestId =
   let encoding = AbiEncoder.encode((request, ))
