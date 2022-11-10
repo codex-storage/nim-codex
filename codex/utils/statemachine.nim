@@ -1,3 +1,5 @@
+import std/typetraits
+import pkg/chronicles
 import pkg/questionable
 import pkg/chronos
 import ./optionalcast
@@ -62,6 +64,9 @@ type
   State* = ref object of RootObj
     context: ?StateMachine
 
+method `$`*(state: State): string {.base.} =
+  (typeof state).name
+
 method enter(state: State) {.base.} =
   discard
 
@@ -88,6 +93,8 @@ proc switch*(oldState, newState: State) =
 
 type
   AsyncState* = ref object of State
+    activeTransition: ?Future[void]
+  StateMachineAsync* =  ref object of StateMachine
 
 method enterAsync(state: AsyncState) {.base, async.} =
   discard
@@ -100,3 +107,26 @@ method enter(state: AsyncState) =
 
 method exit(state: AsyncState) =
   asyncSpawn state.exitAsync()
+
+proc switchAsync*(machine: StateMachineAsync, newState: AsyncState) {.async.} =
+  if state =? (machine.state as AsyncState):
+    trace "Switching sales state", `from`=state, to=newState
+    debugEcho "switching from ", state, " to ", newState
+    if activeTransition =? state.activeTransition and
+        not activeTransition.completed:
+      await activeTransition.cancelAndWait()
+    # should wait for exit before switch. could add a transition option during
+    # switch if we don't need to wait
+    await state.exitAsync()
+    state.context = none StateMachine
+  else:
+    trace "Switching sales state", `from`="no state", to=newState
+    debugEcho "switching from no state to ", newState
+
+  machine.state = some State(newState)
+  newState.context = some StateMachine(machine)
+  newState.activeTransition = some newState.enterAsync()
+
+proc switchAsync*(oldState, newState: AsyncState) {.async.} =
+  if context =? oldState.context:
+    await StateMachineAsync(context).switchAsync(newState)
