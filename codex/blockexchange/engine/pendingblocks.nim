@@ -37,12 +37,15 @@ proc getWantHandle*(
   ## Add an event for a block
   ##
 
-  if cid notin p.blocks:
-     p.blocks[cid] = newFuture[Block]().wait(timeout)
-     trace "Adding pending future for block", cid
-
   try:
-    return await p.blocks[cid]
+    if cid notin p.blocks:
+      p.blocks[cid] = BlockReq(
+        handle: newFuture[Block]("pendingBlocks.getWantHandle"),
+        inFlight: inFlight)
+
+      trace "Adding pending future for block", cid
+
+    return await p.blocks[cid].handle.wait(timeout)
   except CancelledError as exc:
     trace "Blocks cancelled", exc = exc.msg, cid
     raise exc
