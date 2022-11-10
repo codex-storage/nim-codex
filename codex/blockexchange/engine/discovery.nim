@@ -81,7 +81,7 @@ proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
     try:
       trace "Listed block", cid
       await b.advertiseQueue.put(cid)
-      await sleepAsync(5.millis) # TODO: temp workaround because we're announcing all CIDs
+      await sleepAsync(50.millis) # TODO: temp workaround because we're announcing all CIDs
     except CancelledError as exc:
       trace "Cancelling block listing"
       raise exc
@@ -110,11 +110,14 @@ proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
         continue
 
       try:
-        let request = b.discovery.provide(cid)
+        let
+          request = b.discovery.provide(cid)
+
         b.inFlightAdvReqs[cid] = request
         codex_inflight_discovery.set(b.inFlightAdvReqs.len.int64)
         trace "Advertising block", cid, inflight = b.inFlightAdvReqs.len
         await request
+
       finally:
         b.inFlightAdvReqs.del(cid)
         codex_inflight_discovery.set(b.inFlightAdvReqs.len.int64)
@@ -175,7 +178,7 @@ proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
   for cid in cids:
     if cid notin b.discoveryQueue:
       try:
-        trace "Queueing find block", cid
+        trace "Queueing find block", cid, queue = b.discoveryQueue.len
         b.discoveryQueue.putNoWait(cid)
       except CatchableError as exc:
         trace "Exception queueing discovery request", exc = exc.msg
@@ -184,7 +187,7 @@ proc queueProvideBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
   for cid in cids:
     if cid notin b.advertiseQueue:
       try:
-        trace "Queueing provide block", cid
+        trace "Queueing provide block", cid, queue = b.discoveryQueue.len
         b.advertiseQueue.putNoWait(cid)
       except CatchableError as exc:
         trace "Exception queueing discovery request", exc = exc.msg
