@@ -75,7 +75,7 @@ proc start*(s: CodexServer) {.async.} =
   s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
   s.codexNode.discovery.updateDhtRecord(s.config.nat, s.config.discoveryPort)
 
-  s.runHandle = newFuture[void]()
+  s.runHandle = newFuture[void]("codex.runHandle")
   await s.runHandle
 
 proc stop*(s: CodexServer) {.async.} =
@@ -116,7 +116,7 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
     .build()
 
   var
-    cache: CacheStore
+    cache: CacheStore = nil
 
   if config.cacheSize > 0:
     cache = CacheStore.new(cacheSize = config.cacheSize * MiB)
