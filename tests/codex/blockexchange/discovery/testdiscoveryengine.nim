@@ -86,7 +86,7 @@ suite "Test Discovery Engine":
 
     await discoveryEngine.start()
     await allFuturesThrowing(
-      allFinished(toSeq(haves.values))).wait(1.seconds)
+      allFinished(toSeq(haves.values))).wait(5.seconds)
     await discoveryEngine.stop()
 
   test "Should queue discovery request":
