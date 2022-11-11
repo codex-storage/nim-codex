@@ -136,7 +136,7 @@ proc requestBlock*(
     peers = b.peers.selectCheapest(cid)
 
   if peers.len <= 0:
-    trace "No cheapest peers, selecting first in list"
+    trace "No cheapest peers, selecting first in list", cid
     peers = toSeq(b.peers) # Get any peer
     if peers.len <= 0:
       trace "No peers to request blocks from", cid
@@ -148,19 +148,28 @@ proc requestBlock*(
 
   proc blockHandleMonitor() {.async.} =
     try:
-      b.pendingBlocks.setInFlight(cid)
+      trace "Monigoring block handle", cid
+      b.pendingBlocks.setInFlight(cid, true)
       discard await blk
       trace "Block handle success", cid
     except CatchableError as exc:
-      trace "Error block handle, disconnecting peer", exc = exc.msg
+      trace "Error block handle, disconnecting peer", cid, exc = exc.msg
+
+      # TODO: really, this is just a quick and dirty way of
+      # preventing hitting the same "bad" peer every time, however,
+      # we might as well discover this on or next iteration, so
+      # it doesn't mean that we're never talking to this peer again.
+      # TODO: we need a lot more work around peer selection and
+      # prioritization
 
       # drop unresponsive peer
       await b.network.switch.disconnect(blockPeer.id)
 
-  # monitor block handle for failures
+  trace "Sending block request to peer", peer = blockPeer.id, cid
+
+  # monitor block handle
   asyncSpawn blockHandleMonitor()
 
-  trace "Sending block request to peer", peer = blockPeer.id
   # request block
   await b.network.request.sendWantList(
     blockPeer.id,
@@ -347,21 +356,21 @@ proc wantListHandler*(
           Pricing(price: 0.u256)).price.toBytesBE)
 
       if not have and e.sendDontHave:
-        trace "Adding dont have entry to precense response"
+        trace "Adding dont have entry to precense response", cid = e.cid
         precense.add(
           BlockPresence(
           cid: e.cid.data.buffer,
           `type`: BlockPresenceType.presenceDontHave,
           price: price))
       elif have and e.wantType == WantType.wantHave:
-        trace "Adding have entry to precense response"
+        trace "Adding have entry to precense response", cid = e.cid
         precense.add(
           BlockPresence(
           cid: e.cid.data.buffer,
           `type`: BlockPresenceType.presenceHave,
           price: price))
       elif e.wantType == WantType.wantBlock:
-        trace "Added entry to peer's want blocks list"
+        trace "Added entry to peer's want blocks list", cid = e.cid
         peerCtx.peerWants.add(e)
 
   if precense.len > 0:
