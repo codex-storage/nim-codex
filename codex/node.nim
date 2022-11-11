@@ -165,7 +165,7 @@ proc retrieve*(
   return failure("Unable to retrieve Cid!")
 
 proc store*(
-  node: CodexNodeRef,
+  self: CodexNodeRef,
   stream: LPStream,
   blockSize = BlockSize): Future[?!Cid] {.async.} =
   ## Save stream contents as dataset with given blockSize
@@ -189,7 +189,7 @@ proc store*(
         return failure("Unable to init block from chunk!")
 
       blockManifest.add(blk.cid)
-      if isErr (await node.blockStore.putBlock(blk)):
+      if isErr (await self.blockStore.putBlock(blk)):
         # trace "Unable to store block", cid = blk.cid
         return failure(&"Unable to store block {blk.cid}")
 
@@ -211,7 +211,7 @@ proc store*(
     trace "Unable to init block from manifest data!"
     return failure("Unable to init block from manifest data!")
 
-  if isErr (await node.blockStore.putBlock(manifest)):
+  if isErr (await self.blockStore.putBlock(manifest)):
     trace "Unable to store manifest", cid = manifest.cid
     return failure("Unable to store manifest " & $manifest.cid)
 
@@ -222,6 +222,9 @@ proc store*(
   trace "Stored data", manifestCid = manifest.cid,
                        contentCid = cid,
                        blocks = blockManifest.len
+
+  # Announce manifest
+  await self.discovery.provide(manifest.cid)
 
   return manifest.cid.success
 
