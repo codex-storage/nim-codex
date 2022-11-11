@@ -260,6 +260,28 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       return RestApiResponse.error(Http500)
 
   router.api(
+    MethodPost,
+    "/api/codex/v1/debug/chronicles/loglevel") do (
+      level: Option[string]) -> RestApiResponse:
+      ## Set log level at run time
+      ##
+      ## e.g. `chronicles/loglevel?level=DEBUG`
+      ##
+      ## `level` - chronicles log level
+      ##
+
+      without res =? level and level =? res:
+        return RestApiResponse.error(Http400, "Missing log level")
+
+      try:
+        {.gcsafe.}:
+          updateLogLevel(level)
+      except CatchableError as exc:
+        return RestApiResponse.error(Http500, exc.msg)
+
+      return RestApiResponse.response("")
+
+  router.api(
     MethodGet,
     "/api/codex/v1/info") do () -> RestApiResponse:
       ## Print rudimentary node information
