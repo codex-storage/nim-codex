@@ -69,8 +69,9 @@ ethersuite "Integration tests":
     check info1 != info2
 
   test "nodes should set chronicles log level":
-    let filter = "?level=DEBUG;TRACE:codex"
-    check client.post(baseurl1 & "/debug/loglevel" & filter).status == "200 OK"
+    client.headers = newHttpHeaders({ "Content-Type": "text/plain" })
+    let filter = "/debug/chronicles/loglevel?level=DEBUG;TRACE:codex"
+    check client.request(baseurl1 & filter, httpMethod = HttpPost, body = "").status == "200 OK"
 
   test "node accepts file uploads":
     let url = baseurl1 & "/upload"
