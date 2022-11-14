@@ -27,9 +27,6 @@ method enterAsync(state: SaleFilled) {.async.} =
     without slotIndex =? agent.slotIndex:
       raiseAssert "no slot selected"
 
-    if availability =? agent.availability:
-      agent.sales.remove(availability)
-
     let host = await market.getHost(agent.requestId, slotIndex)
     let me = await market.getSigner()
     if host == me.some:

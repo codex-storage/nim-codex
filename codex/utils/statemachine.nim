@@ -119,7 +119,7 @@ proc switchAsync*(machine: StateMachineAsync, newState: AsyncState) {.async.} =
     await state.exitAsync()
     state.context = none StateMachine
   else:
-    trace "Switching sales state", `from` = "no state", to = $newState
+    trace "Switching state", `from` = "no state", to = $newState
 
   machine.state = some State(newState)
   newState.context = some StateMachine(machine)
