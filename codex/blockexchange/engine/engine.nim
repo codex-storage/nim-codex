@@ -174,7 +174,7 @@ proc requestBlock*(
   await b.network.request.sendWantList(
     blockPeer.id,
     @[cid],
-    wantType = WantType.wantBlock) # we want this remote to send us a block
+    wantType = WantType.WantBlock) # we want this remote to send us a block
 
   if (peers.len - 1) == 0:
     trace "No peers to send want list to", cid
@@ -190,7 +190,7 @@ proc requestBlock*(
       await b.network.request.sendWantList(
         p.id,
         @[cid],
-        wantType = WantType.wantHave) # we only want to know if the peer has the block
+        wantType = WantType.WantHave) # we only want to know if the peer has the block
 
   return await blk
 
@@ -337,7 +337,33 @@ proc wantListHandler*(
       cid       = e.cid
       wantType  = $e.wantType
 
-    if idx > -1: # updating entry
+    if idx < 0: # updating entry
+      trace "Processing new want list entry", cid = e.cid
+
+      let
+        have = await e.cid in b.localStore
+        price = @(
+          b.pricing.get(Pricing(price: 0.u256))
+          .price.toBytesBE)
+
+      if not have and e.sendDontHave:
+        trace "Adding dont have entry to precense response", cid = e.cid
+        precense.add(
+          BlockPresence(
+          cid: e.cid.data.buffer,
+          `type`: BlockPresenceType.DontHave,
+          price: price))
+      elif have and e.wantType == WantType.WantHave:
+        trace "Adding have entry to precense response", cid = e.cid
+        precense.add(
+          BlockPresence(
+          cid: e.cid.data.buffer,
+          `type`: BlockPresenceType.Have,
+          price: price))
+      elif e.wantType == WantType.WantBlock:
+        trace "Added entry to peer's want blocks list", cid = e.cid
+        peerCtx.peerWants.add(e)
+    else:
       # peer doesn't want this block anymore
       if e.cancel:
         trace "Removing entry from peer want list"
@@ -347,31 +373,6 @@ proc wantListHandler*(
         # peer might want to ask for the same cid with
         # different want params
         peerCtx.peerWants[idx] = e # update entry
-    else: # adding new entry
-      trace "Processing new want list entry", cid = e.cid
-
-      let
-        have = await e.cid in b.localStore
-        price = @(b.pricing.get(
-          Pricing(price: 0.u256)).price.toBytesBE)
-
-      if not have and e.sendDontHave:
-        trace "Adding dont have entry to precense response", cid = e.cid
-        precense.add(
-          BlockPresence(
-          cid: e.cid.data.buffer,
-          `type`: BlockPresenceType.presenceDontHave,
-          price: price))
-      elif have and e.wantType == WantType.wantHave:
-        trace "Adding have entry to precense response", cid = e.cid
-        precense.add(
-          BlockPresence(
-          cid: e.cid.data.buffer,
-          `type`: BlockPresenceType.presenceHave,
-          price: price))
-      elif e.wantType == WantType.wantBlock:
-        trace "Added entry to peer's want blocks list", cid = e.cid
-        peerCtx.peerWants.add(e)
 
   if precense.len > 0:
     trace "Sending precense to remote", items = precense.len
@@ -447,7 +448,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
 
   var
     wantsBlocks = task.peerWants.filterIt(
-      it.wantType == WantType.wantBlock
+      it.wantType == WantType.WantBlock
     )
 
   if wantsBlocks.len > 0:
