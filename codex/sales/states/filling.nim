@@ -19,26 +19,19 @@ method onCancelled*(state: SaleFilling, request: StorageRequest) {.async.} =
 method onFailed*(state: SaleFilling, request: StorageRequest) {.async.} =
   await state.switchAsync(SaleFailed())
 
+method onSlotFilled*(state: SaleFilling, requestId: RequestId,
+                     slotIndex: UInt256) {.async.} =
+  await state.switchAsync(SaleFilled())
+
 method enterAsync(state: SaleFilling) {.async.} =
   without agent =? (state.context as SalesAgent):
     raiseAssert "invalid state"
-
-  var subscription: market.Subscription
-
-  proc onSlotFilled(requestId: RequestId,
-                    slotIndex: UInt256) {.async.} =
-    await subscription.unsubscribe()
-    await state.switchAsync(SaleFilled())
 
   try:
     let market = agent.sales.market
 
     without slotIndex =? agent.slotIndex:
       raiseAssert "no slot selected"
-
-    subscription = await market.subscribeSlotFilled(agent.requestId,
-                                                        slotIndex,
-                                                        onSlotFilled)
 
     await market.fillSlot(agent.requestId, slotIndex, state.proof)
 
