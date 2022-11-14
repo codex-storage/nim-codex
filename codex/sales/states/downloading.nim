@@ -35,6 +35,9 @@ method enterAsync(state: SaleDownloading) {.async.} =
     without request =? agent.request:
       raiseAssert "no sale request"
 
+    if availability =? agent.availability:
+      agent.sales.remove(availability)
+
     await onStore(request, slotIndex, agent.availability)
     await state.switchAsync(SaleProving())
 

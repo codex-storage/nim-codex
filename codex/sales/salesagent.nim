@@ -9,32 +9,30 @@ import ../rng
 proc newSalesAgent*(sales: Sales,
                     requestId: RequestId,
                     availability: ?Availability,
+                    slotIndex: ?UInt256,
                     request: ?StorageRequest): SalesAgent =
   SalesAgent(
     sales: sales,
     requestId: requestId,
     availability: availability,
+    slotIndex: slotIndex,
     request: request)
 
 # fwd declarations
 proc subscribeCancellation*(agent: SalesAgent): Future[void] {.gcsafe.}
 proc subscribeFailure*(agent: SalesAgent): Future[void] {.gcsafe.}
 
-proc populateRequest(agent: SalesAgent) {.async.} =
+proc retrieveRequest(agent: SalesAgent) {.async.} =
   if agent.request.isNone:
     agent.request = await agent.sales.market.getRequest(agent.requestId)
 
-proc init*(agent: SalesAgent, numSlots: uint64) {.async.} =
-  let rng = Rng.instance
-  let slotIndex = rng.rand(numSlots - 1)
-  agent.slotIndex = some slotIndex.u256
-
+proc start*(agent: SalesAgent, numSlots: uint64) {.async.} =
   # TODO: try not to block the thread waiting for the network
-  await agent.populateRequest()
+  await agent.retrieveRequest()
   await agent.subscribeCancellation()
   await agent.subscribeFailure()
 
-proc deinit*(agent: SalesAgent) {.async.} =
+proc stop*(agent: SalesAgent) {.async.} =
   try:
     await agent.fulfilled.unsubscribe()
   except CatchableError:
@@ -73,10 +71,8 @@ proc subscribeFailure*(agent: SalesAgent) {.async.} =
   let market = agent.sales.market
 
   proc onFailed(_: RequestId) {.async.} =
-    without request =? agent.request:
-      return
-
-    without state =? (agent.state as SaleState):
+    without request =? agent.request and
+            state =? (agent.state as SaleState):
       return
 
     await state.onFailed(request)

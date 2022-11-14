@@ -52,18 +52,25 @@ proc init*(_: type Availability,
   doAssert randomBytes(id) == 32
   Availability(id: id, size: size, duration: duration, minPrice: minPrice)
 
+proc randomSlotIndex(numSlots: uint64): UInt256 =
+  let rng = Rng.instance
+  let slotIndex = rng.rand(numSlots - 1)
+  return slotIndex.u256
+
 proc handleRequest(sales: Sales,
                    requestId: RequestId,
                    ask: StorageAsk) {.async.} =
   let availability = sales.findAvailability(ask)
+  let slotIndex = randomSlotIndex(ask.slots)
   let agent = newSalesAgent(
     sales,
     requestId,
     availability,
+    some slotIndex,
     none StorageRequest
   )
 
-  await agent.init(ask.slots)
+  await agent.start(ask.slots)
   await agent.switchAsync(SaleDownloading())
   sales.agents.add agent
 
@@ -78,13 +85,15 @@ proc load*(sales: Sales) {.async.} =
     if slot =? await market.getSlot(slotId):
       if request =? await market.getRequest(slot.requestId):
         let availability = sales.findAvailability(request.ask)
+        let slotIndex = randomSlotIndex(request.ask.slots)
         let agent = newSalesAgent(
           sales,
           slot.requestId,
           availability,
+          some slotIndex,
           some request)
 
-        await agent.init(request.ask.slots)
+        await agent.start(request.ask.slots)
         await agent.switchAsync(SaleUnknown())
         sales.agents.add agent
 
@@ -108,5 +117,5 @@ proc stop*(sales: Sales) {.async.} =
       warn "Unsubscribe failed", msg = e.msg
 
   for agent in sales.agents:
-    await agent.deinit()
+    await agent.stop()
 
