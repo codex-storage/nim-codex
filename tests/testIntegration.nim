@@ -68,6 +68,10 @@ ethersuite "Integration tests":
     let info2 = client.get(baseurl2 & "/debug/info").body
     check info1 != info2
 
+  test "nodes should set chronicles log level":
+    let filter = "?DEBUG;TRACE:codex"
+    check client.post(baseurl1 & "/debug/loglevel" & filter).status == "200 OK"
+
   test "node accepts file uploads":
     let url = baseurl1 & "/upload"
     let response = client.post(url, "some file contents")
