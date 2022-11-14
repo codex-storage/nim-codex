@@ -35,6 +35,7 @@ type
     slotIndex*: ?UInt256
     failed*: market.Subscription
     fulfilled*: market.Subscription
+    slotFilled*: market.Subscription
     cancelled*: Future[void]
   SaleState* = ref object of AsyncState
   SaleError* = ref object of CodexError
@@ -101,4 +102,8 @@ method onCancelled*(state: SaleState, request: StorageRequest) {.base, async.} =
   discard
 
 method onFailed*(state: SaleState, request: StorageRequest) {.base, async.} =
+  discard
+
+method onSlotFilled*(state: SaleState, requestId: RequestId,
+                     slotIndex: UInt256) {.base, async.} =
   discard
