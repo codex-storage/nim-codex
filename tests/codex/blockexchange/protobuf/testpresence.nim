@@ -18,9 +18,9 @@ suite "block presence protobuf messages":
   test "encodes have/donthave":
     var presence = presence
     presence.have = true
-    check PresenceMessage.init(presence).`type` == presenceHave
+    check PresenceMessage.init(presence).`type` == Have
     presence.have = false
-    check PresenceMessage.init(presence).`type` == presenceDontHave
+    check PresenceMessage.init(presence).`type` == DontHave
 
   test "encodes price":
     check message.price == @(price.toBytesBE)
@@ -35,9 +35,9 @@ suite "block presence protobuf messages":
 
   test "decodes have/donthave":
     var message = message
-    message.`type` = presenceHave
+    message.`type` = BlockPresenceType.Have
     check Presence.init(message).?have == true.some
-    message.`type` = presenceDontHave
+    message.`type` = BlockPresenceType.DontHave
     check Presence.init(message).?have == false.some
 
   test "decodes price":

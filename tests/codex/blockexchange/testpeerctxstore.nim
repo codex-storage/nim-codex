@@ -96,7 +96,7 @@ suite "Peer Context Store Peer Selection":
           `block`: it.data.buffer,
           priority: 1,
           cancel: false,
-          wantType: WantType.wantBlock,
+          wantType: WantType.WantBlock,
           sendDontHave: false))
 
     peerCtxs[0].peerWants = entries

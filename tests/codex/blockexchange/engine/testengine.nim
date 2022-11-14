@@ -58,7 +58,7 @@ suite "NetworkStore engine basic":
       cids: seq[Cid],
       priority: int32 = 0,
       cancel: bool = false,
-      wantType: WantType = WantType.wantHave,
+      wantType: WantType = WantType.WantHave,
       full: bool = false,
       sendDontHave: bool = false) {.gcsafe, async.} =
         check cids.mapIt($it).sorted == blocks.mapIt( $it.cid ).sorted
@@ -188,7 +188,7 @@ suite "NetworkStore engine handlers":
     let
       wantList = makeWantList(
         blocks.mapIt( it.cid ),
-        wantType = WantType.wantBlock) # only `wantBlock` are stored in `peerWants`
+        wantType = WantType.WantBlock) # only `wantBlock` are stored in `peerWants`
 
     proc handler() {.async.} =
       let ctx = await engine.taskQueue.pop()
@@ -231,7 +231,7 @@ suite "NetworkStore engine handlers":
       check presence.mapIt( it.cid ) == wantList.entries.mapIt( it.`block` )
       for p in presence:
         check:
-          p.`type` == BlockPresenceType.presenceDontHave
+          p.`type` == BlockPresenceType.DontHave
 
       done.complete()
 
@@ -256,9 +256,9 @@ suite "NetworkStore engine handlers":
 
       for p in presence:
         if p.cid != cid1Buf and p.cid != cid2Buf:
-          check p.`type` == BlockPresenceType.presenceDontHave
+          check p.`type` == BlockPresenceType.DontHave
         else:
-          check p.`type` == BlockPresenceType.presenceHave
+          check p.`type` == BlockPresenceType.Have
 
       done.complete()
 
@@ -324,7 +324,7 @@ suite "NetworkStore engine handlers":
       cids: seq[Cid],
       priority: int32 = 0,
       cancel: bool = false,
-      wantType: WantType = WantType.wantHave,
+      wantType: WantType = WantType.WantHave,
       full: bool = false,
       sendDontHave: bool = false) {.gcsafe, async.} =
         engine.pendingBlocks.resolve(blocks.filterIt( it.cid in cids ))
@@ -439,7 +439,7 @@ suite "Task Handler":
         `block`: blocks[0].cid.data.buffer,
         priority: 49,
         cancel: false,
-        wantType: WantType.wantBlock,
+        wantType: WantType.WantBlock,
         sendDontHave: false)
     )
 
@@ -449,7 +449,7 @@ suite "Task Handler":
         `block`: blocks[1].cid.data.buffer,
         priority: 50,
         cancel: false,
-        wantType: WantType.wantBlock,
+        wantType: WantType.WantBlock,
         sendDontHave: false)
     )
 
@@ -477,7 +477,7 @@ suite "Task Handler":
         `block`: present[0].cid.data.buffer,
         priority: 1,
         cancel: false,
-        wantType: WantType.wantHave,
+        wantType: WantType.WantHave,
         sendDontHave: false)
     )
 
@@ -487,7 +487,7 @@ suite "Task Handler":
         `block`: present[1].cid.data.buffer,
         priority: 1,
         cancel: false,
-        wantType: WantType.wantHave,
+        wantType: WantType.WantHave,
         sendDontHave: false)
     )
 
@@ -497,7 +497,7 @@ suite "Task Handler":
         `block`: missing[0].cid.data.buffer,
         priority: 1,
         cancel: false,
-        wantType: WantType.wantHave,
+        wantType: WantType.WantHave,
         sendDontHave: false)
     )
 

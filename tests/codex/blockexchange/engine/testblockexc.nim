@@ -129,7 +129,7 @@ suite "NetworkStore engine - 2 nodes":
       `block`: blk.cid.data.buffer,
       priority: 1,
       cancel: false,
-      wantType: WantType.wantBlock,
+      wantType: WantType.WantBlock,
       sendDontHave: false)
 
     peerCtx1.peerWants.add(entry)
