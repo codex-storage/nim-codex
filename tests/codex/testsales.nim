@@ -4,7 +4,6 @@ import std/sugar
 import std/times
 import pkg/asynctest
 import pkg/chronos
-# import pkg/codex/contracts/requests
 import pkg/codex/sales
 import pkg/codex/sales/states/[downloading, cancelled, errored, filled, filling,
                                failed, proving, finished, unknown]
@@ -265,8 +264,8 @@ suite "Sales state machine":
   proc newSalesAgent(slotIdx: UInt256 = 0.u256): SalesAgent =
     let agent = sales.newSalesAgent(request.id,
                                     some availability,
+                                    some slotIdx,
                                     some request)
-    agent.slotIndex = some slotIdx
     return agent
 
   proc fillSlot(slotIdx: UInt256 = 0.u256) {.async.} =
@@ -328,7 +327,7 @@ suite "Sales state machine":
       await sleepAsync(chronos.minutes(1)) # "far" in the future
     request.expiry = (getTime() + initDuration(seconds=2)).toUnix.u256
     let agent = newSalesAgent()
-    await agent.init(request.ask.slots)
+    await agent.start(request.ask.slots)
     market.requested.add request
     market.state[request.id] = RequestState.New
     await agent.switchAsync(SaleDownloading())
@@ -345,7 +344,7 @@ suite "Sales state machine":
                          availability: ?Availability) {.async.} =
       await sleepAsync(chronos.minutes(1)) # "far" in the future
     let agent = newSalesAgent()
-    await agent.init(request.ask.slots)
+    await agent.start(request.ask.slots)
     market.requested.add request
     market.state[request.id] = RequestState.New
     await agent.switchAsync(SaleDownloading())
@@ -359,7 +358,7 @@ suite "Sales state machine":
   test "moves to SaleErrored when Filling and request expires":
     request.expiry = (getTime() + initDuration(seconds=2)).toUnix.u256
     let agent = newSalesAgent()
-    await agent.init(request.ask.slots)
+    await agent.start(request.ask.slots)
     market.requested.add request
     market.state[request.id] = RequestState.New
     await agent.switchAsync(SaleFilling())
@@ -372,7 +371,7 @@ suite "Sales state machine":
 
   test "moves to SaleErrored when Filling and request fails":
     let agent = newSalesAgent()
-    await agent.init(request.ask.slots)
+    await agent.start(request.ask.slots)
     market.requested.add request
     market.state[request.id] = RequestState.New
     await agent.switchAsync(SaleFilling())
@@ -386,7 +385,7 @@ suite "Sales state machine":
   test "moves to SaleErrored when Finished and request expires":
     request.expiry = (getTime() + initDuration(seconds=2)).toUnix.u256
     let agent = newSalesAgent()
-    await agent.init(request.ask.slots)
+    await agent.start(request.ask.slots)
     market.requested.add request
     market.state[request.id] = RequestState.Finished
     await agent.switchAsync(SaleFinished())
@@ -399,7 +398,7 @@ suite "Sales state machine":
 
   test "moves to SaleErrored when Finished and request fails":
     let agent = newSalesAgent()
-    await agent.init(request.ask.slots)
+    await agent.start(request.ask.slots)
     market.requested.add request
     market.state[request.id] = RequestState.Finished
     await agent.switchAsync(SaleFinished())
@@ -417,7 +416,7 @@ suite "Sales state machine":
       return @[]
     request.expiry = (getTime() + initDuration(seconds=2)).toUnix.u256
     let agent = newSalesAgent()
-    await agent.init(request.ask.slots)
+    await agent.start(request.ask.slots)
     market.requested.add request
     market.state[request.id] = RequestState.New
     await agent.switchAsync(SaleProving())
@@ -434,7 +433,7 @@ suite "Sales state machine":
       await sleepAsync(chronos.minutes(1)) # "far" in the future
       return @[]
     let agent = newSalesAgent()
-    await agent.init(request.ask.slots)
+    await agent.start(request.ask.slots)
     market.requested.add request
     market.state[request.id] = RequestState.New
     await agent.switchAsync(SaleProving())
@@ -465,7 +464,7 @@ suite "Sales state machine":
       onSaleCalled = true
 
     let agent = newSalesAgent()
-    await agent.init(request.ask.slots)
+    await agent.start(request.ask.slots)
     market.requested.add request
     market.state[request.id] = RequestState.New
     await fillSlot(!agent.slotIndex)
@@ -505,7 +504,7 @@ suite "Sales state machine":
                                requestId: request.id,
                                availability: none Availability,
                                request: some request)
-    # because sales.load() calls agent.init, we won't know the slotIndex
+    # because sales.load() calls agent.start, we won't know the slotIndex
     # randomly selected for the agent, and we also won't know the value of
     # `failed`/`fulfilled`/`cancelled` futures, so we need to compare
     # the properties we know
