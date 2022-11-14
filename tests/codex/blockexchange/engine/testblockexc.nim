@@ -253,9 +253,6 @@ suite "NetworkStore - multiple nodes":
           .mapIt( $it.read.get.cid ).sorted(cmp[string]) ==
         downloadCids.mapIt( $it ).sorted(cmp[string])
 
-  test "TODO - Should exchange want lists when more then 2 nodes connected":
-    discard
-
   test "Should exchange blocks with multiple nodes":
     let
       downloader = networkStore[4]
