@@ -1,6 +1,7 @@
 import std/sequtils
 import ./cancelled
 import ./failed
+import ./filled
 import ./proving
 import ./errored
 import ../salesagent
@@ -20,6 +21,10 @@ method onCancelled*(state: SaleDownloading, request: StorageRequest) {.async.} =
 
 method onFailed*(state: SaleDownloading, request: StorageRequest) {.async.} =
   await state.switchAsync(SaleFailed())
+
+method onSlotFilled*(state: SaleDownloading, requestId: RequestId,
+                     slotIndex: UInt256) {.async.} =
+  await state.switchAsync(SaleFilled())
 
 method enterAsync(state: SaleDownloading) {.async.} =
   without agent =? (state.context as SalesAgent):

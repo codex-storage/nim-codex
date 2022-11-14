@@ -32,7 +32,7 @@ method enterAsync(state: SaleFilled) {.async.} =
     if host == me.some:
       await state.switchAsync(SaleFinished())
     else:
-      let error = newException(SaleFilledError, "Sale host mismatch")
+      let error = newException(SaleFilledError, "Slot filled by other host")
       await state.switchAsync(SaleErrored(error: error))
 
   except CancelledError:

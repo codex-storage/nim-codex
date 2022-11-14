@@ -194,6 +194,7 @@ suite "Sales":
     await market.requestStorage(request)
     for slotIndex in 0..<request.ask.slots:
       market.fillSlot(request.id, slotIndex.u256, proof, otherHost)
+    await sleepAsync(chronos.seconds(2))
     check sales.available == @[availability]
 
   test "makes storage available again when request expires":
@@ -282,7 +283,7 @@ suite "Sales state machine":
     await agent.switchAsync(SaleUnknown())
     let state = (agent.state as SaleErrored)
     check state.isSome
-    check (!state).error.msg == "Sale host mismatch"
+    check (!state).error.msg == "Slot filled by other host"
 
   test "moves to SaleFinished when request state is New":
     let agent = newSalesAgent()
@@ -443,6 +444,57 @@ suite "Sales state machine":
     let state = (agent.state as SaleErrored)
     check state.isSome
     check (!state).error.msg == "Sale failed"
+
+  test "moves to SaleErrored when Downloading and slot is filled by another host":
+    sales.onStore = proc(request: StorageRequest,
+                        slot: UInt256,
+                        availability: ?Availability) {.async.} =
+      await sleepAsync(chronos.minutes(1)) # "far" in the future
+    let agent = newSalesAgent()
+    await agent.start(request.ask.slots)
+    market.requested.add request
+    market.state[request.id] = RequestState.New
+    await agent.switchAsync(SaleDownloading())
+    market.fillSlot(request.id, !agent.slotIndex, proof, Address.example)
+    await sleepAsync chronos.seconds(2)
+
+    let state = (agent.state as SaleErrored)
+    check state.isSome
+    check (!state).error.msg == "Slot filled by other host"
+
+  test "moves to SaleErrored when Proving and slot is filled by another host":
+    sales.onProve = proc(request: StorageRequest,
+                         slot: UInt256): Future[seq[byte]] {.async.} =
+      await sleepAsync(chronos.minutes(1)) # "far" in the future
+      return @[]
+    let agent = newSalesAgent()
+    await agent.start(request.ask.slots)
+    market.requested.add request
+    market.state[request.id] = RequestState.New
+    await agent.switchAsync(SaleProving())
+    market.fillSlot(request.id, !agent.slotIndex, proof, Address.example)
+    await sleepAsync chronos.seconds(2)
+
+    let state = (agent.state as SaleErrored)
+    check state.isSome
+    check (!state).error.msg == "Slot filled by other host"
+
+  test "moves to SaleErrored when Filling and slot is filled by another host":
+    sales.onProve = proc(request: StorageRequest,
+                         slot: UInt256): Future[seq[byte]] {.async.} =
+      await sleepAsync(chronos.minutes(1)) # "far" in the future
+      return @[]
+    let agent = newSalesAgent()
+    await agent.start(request.ask.slots)
+    market.requested.add request
+    market.state[request.id] = RequestState.New
+    market.fillSlot(request.id, !agent.slotIndex, proof, Address.example)
+    await agent.switchAsync(SaleFilling())
+    await sleepAsync chronos.seconds(2)
+
+    let state = (agent.state as SaleErrored)
+    check state.isSome
+    check (!state).error.msg == "Slot filled by other host"
 
   test "moves from SaleDownloading to SaleFinished, calling necessary callbacks":
     var onProveCalled, onStoreCalled, onClearCalled, onSaleCalled: bool

@@ -2,9 +2,7 @@ import pkg/chronos
 import pkg/upraises
 import pkg/stint
 import ./statemachine
-import ./states/[downloading, unknown]
 import ../contracts/requests
-import ../rng
 
 proc newSalesAgent*(sales: Sales,
                     requestId: RequestId,
@@ -21,6 +19,7 @@ proc newSalesAgent*(sales: Sales,
 # fwd declarations
 proc subscribeCancellation*(agent: SalesAgent): Future[void] {.gcsafe.}
 proc subscribeFailure*(agent: SalesAgent): Future[void] {.gcsafe.}
+proc subscribeSlotFilled*(agent: SalesAgent): Future[void] {.gcsafe.}
 
 proc retrieveRequest(agent: SalesAgent) {.async.} =
   if agent.request.isNone:
@@ -31,6 +30,7 @@ proc start*(agent: SalesAgent, numSlots: uint64) {.async.} =
   await agent.retrieveRequest()
   await agent.subscribeCancellation()
   await agent.subscribeFailure()
+  await agent.subscribeSlotFilled()
 
 proc stop*(agent: SalesAgent) {.async.} =
   try:
@@ -39,6 +39,10 @@ proc stop*(agent: SalesAgent) {.async.} =
     discard
   try:
     await agent.failed.unsubscribe()
+  except CatchableError:
+    discard
+  try:
+    await agent.slotFilled.unsubscribe()
   except CatchableError:
     discard
   if not agent.cancelled.completed:
@@ -75,7 +79,25 @@ proc subscribeFailure*(agent: SalesAgent) {.async.} =
             state =? (agent.state as SaleState):
       return
 
+    await agent.failed.unsubscribe()
     await state.onFailed(request)
 
   agent.failed =
     await market.subscribeRequestFailed(agent.requestId, onFailed)
+
+proc subscribeSlotFilled*(agent: SalesAgent) {.async.} =
+  let market = agent.sales.market
+
+  without slotIndex =? agent.slotIndex:
+    raiseAssert "no slot selected"
+
+  proc onSlotFilled(requestId: RequestId,
+                    slotIndex: UInt256) {.async.} =
+    without state =? (agent.state as SaleState):
+      return
+
+    await agent.slotFilled.unsubscribe()
+    await state.onSlotFilled(requestId, slotIndex)
+
+  agent.slotFilled =
+    await market.subscribeSlotFilled(agent.requestId, slotIndex, onSlotFilled)

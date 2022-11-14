@@ -2,6 +2,7 @@ import ../statemachine
 import ./filling
 import ./cancelled
 import ./failed
+import ./filled
 import ./errored
 
 type
@@ -15,6 +16,10 @@ method onCancelled*(state: SaleProving, request: StorageRequest) {.async.} =
 
 method onFailed*(state: SaleProving, request: StorageRequest) {.async.} =
   await state.switchAsync(SaleFailed())
+
+method onSlotFilled*(state: SaleProving, requestId: RequestId,
+                     slotIndex: UInt256) {.async.} =
+  await state.switchAsync(SaleFilled())
 
 method enterAsync(state: SaleProving) {.async.} =
   without agent =? (state.context as SalesAgent):
