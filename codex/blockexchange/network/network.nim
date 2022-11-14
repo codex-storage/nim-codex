@@ -44,7 +44,7 @@ type
     cids: seq[Cid],
     priority: int32 = 0,
     cancel: bool = false,
-    wantType: WantType = WantType.wantHave,
+    wantType: WantType = WantType.WantHave,
     full: bool = false,
     sendDontHave: bool = false): Future[void] {.gcsafe.}
 
@@ -105,7 +105,7 @@ proc makeWantList*(
   cids: seq[Cid],
   priority: int = 0,
   cancel: bool = false,
-  wantType: WantType = WantType.wantHave,
+  wantType: WantType = WantType.WantHave,
   full: bool = false,
   sendDontHave: bool = false): WantList =
   WantList(
@@ -124,7 +124,7 @@ proc sendWantList*(
   cids: seq[Cid],
   priority: int32 = 0,
   cancel: bool = false,
-  wantType: WantType = WantType.wantHave,
+  wantType: WantType = WantType.WantHave,
   full: bool = false,
   sendDontHave: bool = false): Future[void] =
   ## Send a want message to peer
@@ -343,7 +343,7 @@ proc new*(
     cids: seq[Cid],
     priority: int32 = 0,
     cancel: bool = false,
-    wantType: WantType = WantType.wantHave,
+    wantType: WantType = WantType.WantHave,
     full: bool = false,
     sendDontHave: bool = false): Future[void] {.gcsafe.} =
     self.sendWantList(

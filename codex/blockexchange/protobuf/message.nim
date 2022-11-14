@@ -8,8 +8,8 @@ import pkg/libp2p/protobuf/minprotobuf
 
 type
   WantType* = enum
-    wantBlock = 0,
-    wantHave = 1
+    WantBlock = 0,
+    WantHave = 1
 
   Entry* = object
     `block`*: seq[byte]     # The block cid
@@ -27,8 +27,8 @@ type
     data*: seq[byte]
 
   BlockPresenceType* = enum
-    presenceHave = 0,
-    presenceDontHave = 1
+    Have = 0,
+    DontHave = 1
 
   BlockPresence* = object
     cid*: seq[byte]         # The block cid
