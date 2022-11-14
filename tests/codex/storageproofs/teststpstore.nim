@@ -12,6 +12,7 @@ import pkg/codex/blocktype as bt
 import ../helpers
 
 const
+  BlockSize = 31 * 64
   SectorSize = 31
   SectorsPerBlock = BlockSize div SectorSize
   DataSetSize = BlockSize * 100
