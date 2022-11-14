@@ -43,7 +43,7 @@ when isMainModule:
       quit QuitFailure
 
     if config.nat == ValidIpAddress.init("127.0.0.1"):
-      warn "`--nat` is set to loopback, your node wont be properly announce over the DHT"
+      warn "`--nat` is set to loopback, your node wont properly announce over the DHT"
 
     if not(checkAndCreateDataDir((config.dataDir).string)):
       # We are unable to access/create data folder or data folder's
