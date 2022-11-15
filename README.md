@@ -40,20 +40,22 @@ codex [OPTIONS]... command
 
 The following options are available:
 
-     --log-level            Sets the log level [=LogLevel.INFO].
+     --log-level            Sets the log level [=INFO].
      --metrics              Enable the metrics server [=false].
      --metrics-address      Listening address of the metrics server [=127.0.0.1].
      --metrics-port         Listening HTTP port of the metrics server [=8008].
  -d, --data-dir             The directory where codex will store configuration and data..
- -l, --listen-port          Specifies one or more listening ports for the node to listen on. [=0].
- -i, --listen-ip            The public IP [=0.0.0.0].
-     --udp-port             Specify the discovery (UDP) port [=8090].
-     --net-privkey          Source of network (secp256k1) private key file (random|<path>) [=random].
+ -i, --listen-addrs         Multi Addresses to listen on [=/ip4/0.0.0.0/tcp/0].
+ -a, --nat                  IP Addresses to announce behind a NAT [=127.0.0.1].
+     --disc-ip              Discovery listen address [=0.0.0.0].
+     --disc-port            Discovery (UDP) port [=8090].
+     --net-privkey          Source of network (secp256k1) private key file path or name [=key].
  -b, --bootstrap-node       Specifies one or more bootstrap nodes to use when connecting to the network..
      --max-peers            The maximum number of peers to connect to [=160].
      --agent-string         Node agent string which is used as identifier in network [=Codex].
  -p, --api-port             The REST Api port [=8080].
- -c, --cache-size           The size in MiB of the block cache, 0 disables the cache [=100].
+ -c, --cache-size           The size in MiB of the block cache, 0 disables the cache - might help on slow
+                            hardrives [=0].
      --persistence          Enables persistence mechanism, requires an Ethereum node [=false].
      --eth-provider         The URL of the JSON-RPC API of the Ethereum node [=ws://localhost:8545].
      --eth-account          The Ethereum account that is used for storage contracts [=EthAddress.none].
@@ -72,9 +74,9 @@ build/codex --data-dir="$(pwd)/Codex1" -i=127.0.0.1
 
 This will start codex with a data directory pointing to `Codex1` under the current execution directory and announce itself on the DHT under `127.0.0.1`.
 
-To run a second client that automatically discovers nodes on the network, we need to get the Signed Peer Record (SPR) of first client, Client1. We can do this by querying the `/info` endpoint of the node's REST API.
+To run a second client that automatically discovers nodes on the network, we need to get the Signed Peer Record (SPR) of first client, Client1. We can do this by querying the `/debug/info` endpoint of the node's REST API.
 
-`curl http://127.0.0.1:8080/api/codex/v1/info`
+`curl http://127.0.0.1:8080/api/codex/v1/debug/info`
 
 This should output information about Client1, including its PeerID, TCP/UDP addresses, data directory, and SPR:
 
@@ -132,7 +134,7 @@ Example:
 curl -vvv -H "content-type: application/octet-stream" -H Expect: -T "<path to file>" "127.0.0.1:8080/api/codex/v1/upload" -X POST
 ```
 
-### `/api/codex/v1/info`
+### `/api/codex/v1/debug/info`
 
 Get useful node info such as its peer id, address and SPR.
 
@@ -140,4 +142,14 @@ Example:
 
 ```bash
 curl -vvv "127.0.0.1:8080/api/codex/v1/info"
+```
+
+### `/api/codex/v1/debug/chronicles/loglevel`
+
+Set [chronicles](https://github.com/status-im/nim-chronicles) log level and topic filtering at runtime. The request format is `?level=<MAIN LEVEL>;<FILTER LEVEL>:<TOPIC>` - e.g. `?level=DEBUG;TRACE:codex`
+
+Example:
+
+```bash
+curl -X POST -H 'Content-Type: text/plain' -vvv "127.0.0.1:8080/api/codex/v1/debug/chronicles/loglevel?level=DEBUG;TRACE:codex" -d ""
 ```
