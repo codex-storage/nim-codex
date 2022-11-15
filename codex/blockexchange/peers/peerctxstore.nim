@@ -25,7 +25,7 @@ import ./peercontext
 export peercontext
 
 logScope:
-  topics = "codex blockexc peerctxstore"
+  topics = "codex peerctxstore"
 
 type
   PeerCtxStore* = ref object of RootObj
@@ -34,6 +34,12 @@ type
 iterator items*(self: PeerCtxStore): BlockExcPeerCtx =
   for p in self.peers.values:
     yield p
+
+proc contains*(a: openArray[BlockExcPeerCtx], b: PeerID): bool =
+  ## Convenience method to check for peer precense
+  ##
+
+  a.anyIt( it.id == b )
 
 func contains*(self: PeerCtxStore, peerId: PeerID): bool =
   peerId in self.peers
@@ -63,13 +69,21 @@ func selectCheapest*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
   var
     peers = self.peersHave(cid)
 
+  trace "Selecting cheapest peers", peers = peers.len
   func cmp(a, b: BlockExcPeerCtx): int =
-    # Can't do (a - b) without cast[int](a - b)
-    if a.peerPrices.getOrDefault(cid, 0.u256) ==
-      b.peerPrices.getOrDefault(cid, 0.u256):
+    var
+      priceA = 0.u256
+      priceB = 0.u256
+
+    a.blocks.withValue(cid, precense):
+      priceA = precense[].price
+
+    b.blocks.withValue(cid, precense):
+      priceB = precense[].price
+
+    if priceA == priceB:
       0
-    elif a.peerPrices.getOrDefault(cid, 0.u256) >
-      b.peerPrices.getOrDefault(cid, 0.u256):
+    elif priceA > priceB:
       1
     else:
       -1
@@ -79,4 +93,5 @@ func selectCheapest*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
   return peers
 
 proc new*(T: type PeerCtxStore): PeerCtxStore =
-  T(peers: initOrderedTable[PeerID, BlockExcPeerCtx]())
+  T(
+    peers: initOrderedTable[PeerID, BlockExcPeerCtx]())

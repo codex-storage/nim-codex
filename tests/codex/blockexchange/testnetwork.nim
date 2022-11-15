@@ -56,7 +56,7 @@ suite "Network - Handlers":
       for b in blocks:
         check b.cid in wantList.entries
         let entry = wantList.entries[wantList.entries.find(b.cid)]
-        check entry.wantType == WantType.wantHave
+        check entry.wantType == WantType.WantHave
         check entry.priority == 1
         check entry.cancel == true
         check entry.sendDontHave == true
@@ -67,7 +67,7 @@ suite "Network - Handlers":
 
     let wantList = makeWantList(
       blocks.mapIt( it.cid ),
-      1, true, WantType.wantHave,
+      1, true, WantType.WantHave,
       true, true)
 
     let msg = Message(wantlist: wantList)
@@ -103,7 +103,7 @@ suite "Network - Handlers":
       blockPresences: blocks.mapIt(
         BlockPresence(
           cid: it.cid.data.buffer,
-          type: BlockPresenceType.presenceHave
+          type: BlockPresenceType.Have
       )))
     await buffer.pushData(lenPrefix(ProtobufEncode(msg)))
 
@@ -186,7 +186,7 @@ suite "Network - Senders":
       for b in blocks:
         check b.cid in wantList.entries
         let entry = wantList.entries[wantList.entries.find(b.cid)]
-        check entry.wantType == WantType.wantHave
+        check entry.wantType == WantType.WantHave
         check entry.priority == 1
         check entry.cancel == true
         check entry.sendDontHave == true
@@ -197,7 +197,7 @@ suite "Network - Senders":
     await network1.sendWantList(
       switch2.peerInfo.peerId,
       blocks.mapIt( it.cid ),
-      1, true, WantType.wantHave,
+      1, true, WantType.WantHave,
       true, true)
 
     await done.wait(500.millis)
@@ -231,7 +231,7 @@ suite "Network - Senders":
       blocks.mapIt(
         BlockPresence(
           cid: it.cid.data.buffer,
-          type: BlockPresenceType.presenceHave
+          type: BlockPresenceType.Have
       )))
 
     await done.wait(500.millis)

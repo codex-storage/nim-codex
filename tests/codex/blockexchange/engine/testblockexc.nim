@@ -20,8 +20,8 @@ import ../../helpers
 
 suite "NetworkStore engine - 2 nodes":
   let
-    chunker1 = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
-    chunker2 = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
+    chunker1 = RandomChunker.new(Rng.instance(), size = 2048, chunkSize = 256)
+    chunker2 = RandomChunker.new(Rng.instance(), size = 2048, chunkSize = 256)
 
   var
     nodeCmps1, nodeCmps2: NodesComponents
@@ -57,8 +57,13 @@ suite "NetworkStore engine - 2 nodes":
       nodeCmps2.engine.start())
 
     # initialize our want lists
-    pendingBlocks1 = blocks2.mapIt( nodeCmps1.pendingBlocks.getWantHandle( it.cid ) )
-    pendingBlocks2 = blocks1.mapIt( nodeCmps2.pendingBlocks.getWantHandle( it.cid ) )
+    pendingBlocks1 = blocks2[0..3].mapIt(
+      nodeCmps1.pendingBlocks.getWantHandle( it.cid )
+    )
+
+    pendingBlocks2 = blocks1[0..3].mapIt(
+      nodeCmps2.pendingBlocks.getWantHandle( it.cid )
+    )
 
     pricing1 = Pricing.example()
     pricing2 = Pricing.example()
@@ -88,7 +93,7 @@ suite "NetworkStore engine - 2 nodes":
       nodeCmps2.engine.stop(),
       nodeCmps2.switch.stop())
 
-  test "Should exchange want lists on connect":
+  test "Should exchange blocks on connect":
     await allFuturesThrowing(
       allFinished(pendingBlocks1))
       .wait(10.seconds)
@@ -98,11 +103,19 @@ suite "NetworkStore engine - 2 nodes":
       .wait(10.seconds)
 
     check:
-      peerCtx1.peerHave.mapIt( $it ).sorted(cmp[string]) ==
-        pendingBlocks2.mapIt( $it.read.cid ).sorted(cmp[string])
+      (await allFinished(
+        blocks1[0..3].mapIt(
+          nodeCmps2.localStore.getBlock( it.cid ) )))
+          .filterIt( it.completed and it.read.isOk )
+          .mapIt( $it.read.get.cid ).sorted(cmp[string]) ==
+        blocks1[0..3].mapIt( $it.cid ).sorted(cmp[string])
 
-      peerCtx2.peerHave.mapIt( $it ).sorted(cmp[string]) ==
-        pendingBlocks1.mapIt( $it.read.cid ).sorted(cmp[string])
+      (await allFinished(
+        blocks2[0..3].mapIt(
+          nodeCmps1.localStore.getBlock( it.cid ) )))
+          .filterIt( it.completed and it.read.isOk )
+          .mapIt( $it.read.get.cid ).sorted(cmp[string]) ==
+        blocks2[0..3].mapIt( $it.cid ).sorted(cmp[string])
 
   test "Should exchanges accounts on connect":
     check peerCtx1.account.?address == pricing1.address.some
@@ -116,7 +129,7 @@ suite "NetworkStore engine - 2 nodes":
       `block`: blk.cid.data.buffer,
       priority: 1,
       cancel: false,
-      wantType: WantType.wantBlock,
+      wantType: WantType.WantBlock,
       sendDontHave: false)
 
     peerCtx1.peerWants.add(entry)
@@ -128,16 +141,19 @@ suite "NetworkStore engine - 2 nodes":
     check eventually (await nodeCmps1.localStore.hasBlock(blk.cid)).tryGet()
 
   test "Should get blocks from remote":
-    let blocks = await allFinished(
-      blocks2.mapIt( nodeCmps1.networkStore.getBlock(it.cid) ))
-    check blocks.mapIt( it.read().tryGet() ) == blocks2
+    let
+      blocks = await allFinished(
+        blocks2[4..7].mapIt(
+          nodeCmps1.networkStore.getBlock(it.cid)
+      ))
+
+    check blocks.mapIt( it.read().tryGet() ) == blocks2[4..7]
 
   test "Remote should send blocks when available":
     let blk = bt.Block.new("Block 1".toBytes).tryGet()
 
     # should fail retrieving block from remote
-    check not await nodeCmps1.networkStore.getBlock(blk.cid)
-      .withTimeout(100.millis) # should expire
+    check not await blk.cid in nodeCmps1.networkStore
 
     # second trigger blockexc to resolve any pending requests
     # for the block
@@ -148,15 +164,22 @@ suite "NetworkStore engine - 2 nodes":
       .withTimeout(100.millis) # should succeed
 
   test "Should receive payments for blocks that were sent":
-    # delete on node1 cached blocks from node2
     discard await allFinished(
-      blocks2.mapIt( nodeCmps1.networkStore.delBlock(it.cid) ))
+      blocks2[4..7].mapIt(
+        nodeCmps2.networkStore.putBlock(it)
+    ))
 
-    let blocks = await allFinished(
-      blocks2.mapIt( nodeCmps1.networkStore.getBlock(it.cid) ))
+    let
+      blocks = await allFinished(
+        blocks2[4..7].mapIt(
+          nodeCmps1.networkStore.getBlock(it.cid)
+      ))
 
-    let channel = !peerCtx1.paymentChannel
-    let wallet = nodeCmps2.wallet
+    # await sleepAsync(10.seconds)
+
+    let
+      channel = !peerCtx1.paymentChannel
+      wallet = nodeCmps2.wallet
 
     check eventually wallet.balance(channel, Asset) > 0
 
@@ -194,15 +217,24 @@ suite "NetworkStore - multiple nodes":
     switch = @[]
     networkStore = @[]
 
-  test "Should receive haves for own want list":
+  test "Should receive blocks for own want list":
     let
       downloader = networkStore[4]
       engine = downloader.engine
 
     # Add blocks from 1st peer to want list
     let
-      pendingBlocks1 = blocks[0..3].mapIt( engine.pendingBlocks.getWantHandle( it.cid ) )
-      pendingBlocks2 = blocks[12..15].mapIt( engine.pendingBlocks.getWantHandle( it.cid ))
+      downloadCids =
+        blocks[0..3].mapIt(
+          it.cid
+        ) &
+        blocks[12..15].mapIt(
+          it.cid
+        )
+
+      pendingBlocks = downloadCids.mapIt(
+        engine.pendingBlocks.getWantHandle( it )
+      )
 
     for i in 0..15:
       (await networkStore[i div 4].engine.localStore.putBlock(blocks[i])).tryGet()
@@ -211,18 +243,15 @@ suite "NetworkStore - multiple nodes":
     await sleepAsync(1.seconds)
 
     await allFuturesThrowing(
-      allFinished(pendingBlocks1),
-      allFinished(pendingBlocks2))
-
-    let
-      peers = toSeq(engine.peers)
+      allFinished(pendingBlocks))
 
     check:
-      peers[0].peerHave.mapIt($it).sorted(cmp[string]) ==
-        blocks[0..3].mapIt( $(it.cid) ).sorted(cmp[string])
-
-      peers[3].peerHave.mapIt($it).sorted(cmp[string]) ==
-        blocks[12..15].mapIt( $(it.cid) ).sorted(cmp[string])
+      (await allFinished(
+        downloadCids.mapIt(
+          downloader.localStore.getBlock( it ) )))
+          .filterIt( it.completed and it.read.isOk )
+          .mapIt( $it.read.get.cid ).sorted(cmp[string]) ==
+        downloadCids.mapIt( $it ).sorted(cmp[string])
 
   test "Should exchange blocks with multiple nodes":
     let
@@ -231,8 +260,12 @@ suite "NetworkStore - multiple nodes":
 
     # Add blocks from 1st peer to want list
     let
-      pendingBlocks1 = blocks[0..3].mapIt( engine.pendingBlocks.getWantHandle( it.cid ) )
-      pendingBlocks2 = blocks[12..15].mapIt( engine.pendingBlocks.getWantHandle( it.cid ))
+      pendingBlocks1 = blocks[0..3].mapIt(
+        engine.pendingBlocks.getWantHandle( it.cid )
+      )
+      pendingBlocks2 = blocks[12..15].mapIt(
+        engine.pendingBlocks.getWantHandle( it.cid )
+      )
 
     for i in 0..15:
       (await networkStore[i div 4].engine.localStore.putBlock(blocks[i])).tryGet()

@@ -111,12 +111,13 @@ suite "Block Advertising and Discovery":
       )
       peerId = PeerID.example
       haves = collect(initTable()):
-        for blk in blocks: {blk.cid: 0.u256}
+        for blk in blocks:
+          { blk.cid: Presence(cid: blk.cid, price: 0.u256) }
 
     engine.peers.add(
       BlockExcPeerCtx(
         id: peerId,
-        peerPrices: haves
+        blocks: haves
     ))
 
     blockDiscovery.findBlockProvidersHandler =

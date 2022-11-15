@@ -185,7 +185,8 @@ method listBlocks*(self: FSStore, onBlock: OnBlock): Future[?!void] {.async.} =
     for (fkind, filename) in folderPath.walkDir(relative = true):
       if fkind != pcFile: continue
       let cid = Cid.init(filename)
-      if cid.isOk: await onBlock(cid.get())
+      if cid.isOk:
+        await onBlock(cid.get())
 
   return success()
 
@@ -199,7 +200,7 @@ proc new*(
   T: type FSStore,
   repoDir: string,
   postfixLen = 2,
-  cache: BlockStore = CacheStore.new()): T =
+  cache: BlockStore = nil): T =
   T(
     postfixLen: postfixLen,
     repoDir: repoDir,

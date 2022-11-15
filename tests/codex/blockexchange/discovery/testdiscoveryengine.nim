@@ -150,12 +150,13 @@ suite "Test Discovery Engine":
 
     blockDiscovery.findBlockProvidersHandler =
       proc(d: MockDiscovery, cid: Cid): Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
+
         check cid == blocks[0].cid
         check peerStore.len < minPeers
         var
           peerCtx = BlockExcPeerCtx(id: PeerID.example)
 
-        peerCtx.peerPrices[cid] = 0.u256
+        peerCtx.blocks[cid] = Presence(cid: cid, price: 0.u256)
         peerStore.add(peerCtx)
         want.fire()
 

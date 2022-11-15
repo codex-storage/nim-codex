@@ -43,7 +43,7 @@ when isMainModule:
       quit QuitFailure
 
     if config.nat == ValidIpAddress.init("127.0.0.1"):
-      warn "`--nat` is set to local loopback, your node wont be properly announce over the DHT"
+      warn "`--nat` is set to loopback, your node wont properly announce over the DHT"
 
     if not(checkAndCreateDataDir((config.dataDir).string)):
       # We are unable to access/create data folder or data folder's
@@ -89,9 +89,12 @@ when isMainModule:
       proc SIGTERMHandler(signal: cint) {.noconv.} =
         notice "Shutting down after having received SIGTERM"
         waitFor server.stop()
+        notice "Stopped Codex"
 
       c_signal(ansi_c.SIGTERM, SIGTERMHandler)
 
     waitFor server.start()
+    notice "Exited codex"
+
   of StartUpCommand.initNode:
     discard

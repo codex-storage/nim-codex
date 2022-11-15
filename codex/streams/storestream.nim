@@ -27,7 +27,7 @@ import ./seekablestream
 export stores, blocktype, manifest, chronos
 
 logScope:
-  topics = "dagger storestream"
+  topics = "codex storestream"
 
 type
   # Make SeekableStream from a sequence of blocks stored in Manifest
@@ -69,7 +69,7 @@ method readOnce*(
   ## Return how many bytes were actually read before EOF was encountered.
   ## Raise exception if we are already at EOF.
 
-  trace "Reading from manifest", cid = $self.manifest.cid.get(), blocks = self.manifest.len
+  trace "Reading from manifest", cid = self.manifest.cid.get(), blocks = self.manifest.len
   if self.atEof:
     raise newLPStreamEOFError()
 

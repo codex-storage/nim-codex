@@ -21,7 +21,7 @@ import pkg/libp2p
 import ../../blocktype
 
 logScope:
-  topics = "codex blockexc pendingblocks"
+  topics = "codex pendingblocks"
 
 const
   DefaultBlockTimeout* = 10.minutes
@@ -48,7 +48,7 @@ proc getWantHandle*(
         handle: newFuture[Block]("pendingBlocks.getWantHandle"),
         inFlight: inFlight)
 
-      trace "Adding pending future for block", cid
+      trace "Adding pending future for block", cid, inFlight = p.blocks[cid].inFlight
 
     return await p.blocks[cid].handle.wait(timeout)
   except CancelledError as exc:
@@ -76,15 +76,18 @@ proc resolve*(
 
 proc setInFlight*(
   p: PendingBlocksManager,
-  cid: Cid) =
+  cid: Cid,
+  inFlight = true) =
   p.blocks.withValue(cid, pending):
-    pending[].inFlight = true
+    pending[].inFlight = inFlight
+    trace "Setting inflight", cid, inFlight = pending[].inFlight
 
 proc isInFlight*(
   p: PendingBlocksManager,
   cid: Cid): bool =
   p.blocks.withValue(cid, pending):
     result = pending[].inFlight
+    trace "Getting inflight", cid, inFlight = result
 
 proc pending*(
   p: PendingBlocksManager,
