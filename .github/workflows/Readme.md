@@ -48,6 +48,10 @@ but also local development. If you encounter slow tests you can consider
 reworking them to stub out the slow parts that are not under test, or use
 smaller data structures for the test.
 
+You can use [unittest2][unittest2] together with the environment variable
+`NIMTEST_TIMING=true` to show how much time is spent in every test
+([reference][testtime]).
+
 ### Caching ###
 
 Ensure that caches are updated over time. For instance if you cache the latest
@@ -68,3 +72,5 @@ Consequent runs will therefore take longer to start. Fail fast is most likely be
 [composite]: https://docs.github.com/en/actions/creating-actions/creating-a-composite-action
 [reusable]: https://docs.github.com/en/actions/using-workflows/reusing-workflows
 [cache]: https://github.com/actions/cache/blob/main/workarounds.md#update-a-cache
+[unittest2]: https://github.com/status-im/nim-unittest2
+[testtime]: https://github.com/status-im/nim-unittest2/pull/12
