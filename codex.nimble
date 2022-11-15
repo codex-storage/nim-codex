@@ -26,7 +26,7 @@ requires "nim >= 1.2.0",
          "stew",
          "upraises >= 0.1.0 & < 0.2.0",
          "lrucache",
-         "leopard",
+         "leopard >= 0.1.0 & < 0.2.0",
          "blscurve",
          "libp2pdht",
          "eth"
