@@ -47,8 +47,8 @@ The following options are available:
  -d, --data-dir             The directory where codex will store configuration and data..
  -i, --listen-addrs         Multi Addresses to listen on [=/ip4/0.0.0.0/tcp/0].
  -a, --nat                  IP Addresses to announce behind a NAT [=127.0.0.1].
-     --disc-ip              Discovery listen address [=0.0.0.0].
-     --disc-port            Discovery (UDP) port [=8090].
+ -e, --disc-ip              Discovery listen address [=0.0.0.0].
+ -u, --disc-port            Discovery (UDP) port [=8090].
      --net-privkey          Source of network (secp256k1) private key file path or name [=key].
  -b, --bootstrap-node       Specifies one or more bootstrap nodes to use when connecting to the network..
      --max-peers            The maximum number of peers to connect to [=160].

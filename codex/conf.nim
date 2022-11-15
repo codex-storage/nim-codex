@@ -107,12 +107,14 @@ type
         desc: "Discovery listen address"
         defaultValue: ValidIpAddress.init(IPv4_any())
         defaultValueDesc: "0.0.0.0"
+        abbr: "e"
         name: "disc-ip" }: ValidIpAddress
 
       discoveryPort* {.
         desc: "Discovery (UDP) port"
-        defaultValue: Port(8090)
+        defaultValue: 8090.Port
         defaultValueDesc: "8090"
+        abbr: "u"
         name: "disc-port" }: Port
 
       netPrivKeyFile* {.
