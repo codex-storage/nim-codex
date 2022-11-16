@@ -6,9 +6,9 @@ Tips for shorter build times
 Currently, the biggest bottleneck when optimizing workflows is the availability
 of Windows and macOS runners. Therefore, anything that reduces the time spent in
 Windows or macOS jobs will have a positive impact on the time waiting for
-runners to become available. You can see a breakdown of runner usage in the
-Github Actions tab
-([example][usage]).
+runners to become available. The usage limits for Github Actions are [described
+here][limits]. You can see a breakdown of runner usage for your jobs in the
+Github Actions tab ([example][usage]).
 
 ### Windows is slow ###
 
@@ -74,3 +74,4 @@ Consequent runs will therefore take longer to start. Fail fast is most likely be
 [cache]: https://github.com/actions/cache/blob/main/workarounds.md#update-a-cache
 [unittest2]: https://github.com/status-im/nim-unittest2
 [testtime]: https://github.com/status-im/nim-unittest2/pull/12
+[limits]: https://docs.github.com/en/actions/learn-github-actions/usage-limits-billing-and-administration#usage-limits
