@@ -187,7 +187,13 @@ func decode*(
   decoder.decode(data)
 
 func decode*(_: type Manifest, blk: Block): ?!Manifest =
-  without contentType =? blk.cid.contentType() and
-          containerType =? ManifestContainers.?[$contentType]:
-    return failure "CID has invalid content type for manifest"
-  Manifest.decode(blk.data, containerType)
+  ## Decode a manifest using `decoder`
+  ##
+
+  debugEcho "HHHHHHHHHHHHHHHHHHHHHHHH ", $(?blk.cid.contentType().mapFailure), " CID ", $blk.cid
+  if not ? blk.cid.isManifest:
+    return failure "Cid not a manifest codec"
+
+  Manifest.decode(
+    blk.data,
+    ? ManifestContainers[$(?blk.cid.contentType().mapFailure)].catch)

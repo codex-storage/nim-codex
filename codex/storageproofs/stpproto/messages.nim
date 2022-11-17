@@ -10,8 +10,6 @@
 import pkg/questionable/results
 import pkg/libp2p/protobuf/minprotobuf
 
-import ../../errors
-
 type
   Tag* = object
     idx*: int64

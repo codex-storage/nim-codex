@@ -18,7 +18,6 @@ import pkg/chronicles
 
 import ../manifest
 import ../stores
-import ../errors
 import ../blocktype as bt
 
 import ./backend

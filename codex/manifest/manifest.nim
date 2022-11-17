@@ -23,7 +23,6 @@ import ../errors
 import ../utils
 import ../blocktype
 import ./types
-import ./coders
 
 ############################################################
 # Operations on block list
@@ -45,6 +44,9 @@ func `[]`*(self: Manifest, i: BackwardsIndex): Cid =
 func `[]=`*(self: Manifest, i: BackwardsIndex, item: Cid) =
   self.rootHash = Cid.none
   self.blocks[self.len - i.int] = item
+
+func isManifest*(cid: Cid): ?!bool =
+  ($(?cid.contentType() .mapFailure) in ManifestContainers).success
 
 proc add*(self: Manifest, cid: Cid) =
   assert not self.protected  # we expect that protected manifests are created with properly-sized self.blocks

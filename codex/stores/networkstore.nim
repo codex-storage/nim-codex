@@ -79,7 +79,8 @@ method close*(self: NetworkStore): Future[void] {.async.} =
   ## Close the underlying local blockstore
   ##
 
-  if not self.localStore.isNil: await self.localStore.close
+  if not self.localStore.isNil:
+    await self.localStore.close
 
 proc new*(
   T: type NetworkStore,

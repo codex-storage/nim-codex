@@ -10,10 +10,15 @@
 import std/os
 
 const
-  CodexRepoNamespace* =  "/repo"                              # repository namespace, blocks and manifests are subkeys
+  # Namespaces
+  CodexMetaNamespace* = "meta"                                # meta info stored here
+  CodexRepoNamespace* =  "repo"                               # repository namespace, blocks and manifests are subkeys
   CodexBlocksNamespace* = CodexRepoNamespace / "blocks"       # blocks namespace
   CodexManifestNamespace* = CodexRepoNamespace / "manifests"  # manifest namespace
   CodexBlocksPersistNamespace* =                              # Cid's of persisted blocks goes here
     CodexMetaNamespace / "blocks" / "persist"
   CodexBlocksTtlNamespace* =                                  # Cid TTL
     CodexMetaNamespace / "blocks" / "ttl"
+  CodexDhtNamespace* = "dht"                                  # Dht namespace
+  CodexDhtProvidersNamespace* =                               # Dht providers namespace
+    CodexDhtNamespace / "providers"
