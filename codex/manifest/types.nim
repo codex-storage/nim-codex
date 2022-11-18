@@ -14,6 +14,7 @@ import pkg/libp2p
 import pkg/questionable
 
 const
+  BlockCodec* = multiCodec("raw")
   DagPBCodec* = multiCodec("dag-pb")
 
 type
