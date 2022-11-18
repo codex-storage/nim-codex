@@ -9,6 +9,8 @@ import pkg/questionable/results
 import pkg/codex/stores/cachestore
 import pkg/codex/chunker
 
+import ./commonstoretests
+
 import ../helpers
 
 suite "Cache Store":
@@ -30,6 +32,7 @@ suite "Cache Store":
 
     store = CacheStore.new(cacheSize = 100, chunkSize = 1)
     check store.currentSize == 0
+
     store = CacheStore.new(@[newBlock1, newBlock2, newBlock3])
     check store.currentSize == 300
 
@@ -48,7 +51,6 @@ suite "Cache Store":
                 chunkSize = 100)
 
   test "putBlock":
-
     (await store.putBlock(newBlock1)).tryGet()
     check (await store.hasBlock(newBlock1.cid)).tryGet()
 
@@ -68,60 +70,6 @@ suite "Cache Store":
       (await store.hasBlock(newBlock2.cid)).tryGet()
       store.currentSize == newBlock2.data.len + newBlock3.data.len # 200
 
-  test "getBlock":
-    store = CacheStore.new(@[newBlock])
-
-    let blk = await store.getBlock(newBlock.cid)
-    check blk.tryGet() == newBlock
-
-  test "fail getBlock":
-    let blk = await store.getBlock(newBlock.cid)
-    check:
-      blk.isErr
-      blk.error of BlockNotFoundError
-
-  test "hasBlock":
-    let store = CacheStore.new(@[newBlock])
-    check:
-      (await store.hasBlock(newBlock.cid)).tryGet()
-      await newBlock.cid in store
-
-  test "fail hasBlock":
-    check:
-      not (await store.hasBlock(newBlock.cid)).tryGet()
-      not (await newBlock.cid in store)
-
-  test "delBlock":
-    # empty cache
-    (await store.delBlock(newBlock1.cid)).tryGet()
-    check not (await store.hasBlock(newBlock1.cid)).tryGet()
-
-    (await store.putBlock(newBlock1)).tryGet()
-    check (await store.hasBlock(newBlock1.cid)).tryGet()
-
-    # successfully deleted
-    (await store.delBlock(newBlock1.cid)).tryGet()
-    check not (await store.hasBlock(newBlock1.cid)).tryGet()
-
-    # deletes item should decrement size
-    store = CacheStore.new(@[newBlock1, newBlock2, newBlock3])
-    check:
-      store.currentSize == 300
-
-    (await store.delBlock(newBlock2.cid)).tryGet()
-
-    check:
-      store.currentSize == 200
-      not (await store.hasBlock(newBlock2.cid)).tryGet()
-
-  test "listBlocks":
-    (await store.putBlock(newBlock1)).tryGet()
-
-    var listed = false
-    (await store.listBlocks(
-      proc(cid: Cid) {.gcsafe, async.} =
-        check (await store.hasBlock(cid)).tryGet()
-        listed = true
-    )).tryGet()
-
-    check listed
+commonBlockStoreTests(
+  "Cache", proc: BlockStore =
+    BlockStore(CacheStore.new(cacheSize = 500, chunkSize = 1)))
