@@ -190,7 +190,6 @@ func decode*(_: type Manifest, blk: Block): ?!Manifest =
   ## Decode a manifest using `decoder`
   ##
 
-  debugEcho "HHHHHHHHHHHHHHHHHHHHHHHH ", $(?blk.cid.contentType().mapFailure), " CID ", $blk.cid
   if not ? blk.cid.isManifest:
     return failure "Cid not a manifest codec"
 
