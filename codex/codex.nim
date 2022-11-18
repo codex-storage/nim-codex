@@ -151,21 +151,10 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
       config.dataDir / CodexDhtProvidersNamespace)
       .expect("Should create meta data store!")
 
-  var
-    dataStores = initTable[Key, Datastore]()
+    localStore = RepoStore.new(
+      ds = Datastore(FSDatastore.new($config.dataDir, depth = 5)
+        .expect("Should create repo data store!")))
 
-  dataStores[CodexRepoKey] = Datastore(FSDatastore.new($config.dataDir, depth = 5)
-    .expect("Should create repo data store!"))
-
-  dataStores[CodexMetaKey] = Datastore(Datastore(
-      SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
-      .expect("Should create meta datastore!")))
-
-  let
-    mountedDs = MountedDatastore.new(dataStores)
-      .expect("Should create mounted store!")
-
-    localStore = RepoStore.new(ds = mountedDs)
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
     blockDiscovery = DiscoveryEngine.new(localStore, peerStore, network, discovery, pendingBlocks)
