@@ -13,6 +13,7 @@ import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
 import pkg/metrics
+import pkg/questionable
 import pkg/questionable/results
 
 import ../protobuf/presence
@@ -77,19 +78,12 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
     await sleepAsync(b.discoveryLoopSleep)
 
 proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
-  proc onBlock(cid: Cid) {.async.} =
-    try:
-      trace "Listed block", cid
-      await b.advertiseQueue.put(cid)
-      await sleepAsync(50.millis) # TODO: temp workaround because we're announcing all CIDs
-    except CancelledError as exc:
-      trace "Cancelling block listing"
-      raise exc
-    except CatchableError as exc:
-      trace "Exception listing blocks", exc = exc.msg
-
   while b.discEngineRunning:
-    discard await b.localStore.listBlocks(onBlock)
+    if cids =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
+      for c in cids:
+        if cid =? await c:
+          await b.advertiseQueue.put(cid)
+          # await sleepAsync(50.millis)
 
     trace "About to sleep advertise loop", sleep = b.advertiseLoopSleep
     await sleepAsync(b.advertiseLoopSleep)
