@@ -48,6 +48,9 @@ func `[]=`*(self: Manifest, i: BackwardsIndex, item: Cid) =
 func isManifest*(cid: Cid): ?!bool =
   ($(?cid.contentType() .mapFailure) in ManifestContainers).success
 
+func isManifest*(mc: MultiCodec): ?!bool =
+  ($mc in ManifestContainers).success
+
 proc add*(self: Manifest, cid: Cid) =
   assert not self.protected  # we expect that protected manifests are created with properly-sized self.blocks
   self.rootHash = Cid.none
