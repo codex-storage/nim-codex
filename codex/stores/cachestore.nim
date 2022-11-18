@@ -73,8 +73,8 @@ method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
 
   return (cid in self.cache).success
 
-func cids(self: CacheStore): (iterator: lent Cid {.gcsafe.}) =
-  return iterator(): lent Cid =
+func cids(self: CacheStore): (iterator: Cid {.gcsafe.}) =
+  return iterator(): Cid =
     for cid in self.cache.keys:
       yield cid
 
@@ -91,6 +91,9 @@ method listBlocks*(
     cids = self.cids()
 
   proc next(): Future[?Cid] {.async.} =
+    if iter.finished:
+      return Cid.none
+
     let cid = cids()
     if finished(cids):
       iter.finished = true
