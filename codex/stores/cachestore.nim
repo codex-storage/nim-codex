@@ -24,6 +24,7 @@ import pkg/questionable/results
 import ./blockstore
 import ../chunker
 import ../errors
+import ../manifest
 
 export blockstore
 
@@ -91,13 +92,36 @@ method listBlocks*(
     cids = self.cids()
 
   proc next(): Future[?Cid] {.async.} =
-    if iter.finished:
-      return Cid.none
+    var cid: Cid
+    while true:
+      if iter.finished:
+        return Cid.none
 
-    let cid = cids()
-    if finished(cids):
-      iter.finished = true
-      return Cid.none
+      cid = cids()
+
+      if finished(cids):
+        iter.finished = true
+        return Cid.none
+
+      without isManifest =? cid.isManifest, err:
+        trace "Error checking if cid is a manifest", err = err.msg
+        return Cid.none
+
+      case blockType:
+      of BlockType.Manifest:
+        if not isManifest:
+          trace "Cid is not manifest, skipping", cid
+          continue
+
+        break
+      of BlockType.Block:
+        if isManifest:
+          trace "Cid is a manifest, skipping", cid
+          continue
+
+        break
+      of BlockType.Both:
+        break
 
     return cid.some
 
