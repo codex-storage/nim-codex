@@ -9,6 +9,7 @@ import pkg/stew/byteutils
 import pkg/questionable/results
 import pkg/codex/stores/cachestore
 import pkg/codex/chunker
+import pkg/codex/manifest
 
 import ../helpers
 
@@ -78,6 +79,57 @@ proc commonBlockStoreTests*(name: string, provider: StoreProvider) =
       let
         cids = (await store.listBlocks(blockType = BlockType.Block)).tryGet()
 
+      var count = 0
       for c in cids:
         if cid =? (await c):
           check (await store.hasBlock(cid)).tryGet()
+          count.inc
+
+      check count == 3
+
+    test "listBlocks Manifest":
+      let
+        blocks = @[newBlock1, newBlock2, newBlock3]
+        manifest = Manifest.new(blocks = blocks.mapIt( it.cid )).tryGet()
+        manifestBlock = Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
+        putHandles = await allFinished(
+         (manifestBlock & blocks).mapIt( store.putBlock( it ) ))
+
+      for handle in putHandles:
+        check not handle.failed
+        check handle.read.isOK
+
+      let
+        cids = (await store.listBlocks(blockType = BlockType.Manifest)).tryGet()
+
+      var count = 0
+      for c in cids:
+        if cid =? (await c):
+          check manifestBlock.cid == cid
+          check (await store.hasBlock(cid)).tryGet()
+          count.inc
+
+      check count == 1
+
+    test "listBlocks Both":
+      let
+        blocks = @[newBlock1, newBlock2, newBlock3]
+        manifest = Manifest.new(blocks = blocks.mapIt( it.cid )).tryGet()
+        manifestBlock = Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
+        putHandles = await allFinished(
+         (manifestBlock & blocks).mapIt( store.putBlock( it ) ))
+
+      for handle in putHandles:
+        check not handle.failed
+        check handle.read.isOK
+
+      let
+        cids = (await store.listBlocks(blockType = BlockType.Both)).tryGet()
+
+      var count = 0
+      for c in cids:
+        if cid =? (await c):
+          check (await store.hasBlock(cid)).tryGet()
+          count.inc
+
+      check count == 4
