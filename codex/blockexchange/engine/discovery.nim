@@ -61,6 +61,7 @@ type
     advertiseLoopSleep: Duration                                 # Advertise loop sleep
     inFlightDiscReqs*: Table[Cid, Future[seq[SignedPeerRecord]]] # Inflight discovery requests
     inFlightAdvReqs*: Table[Cid, Future[void]]                   # Inflight advertise requests
+    advertiseType*: BlockType                                    # Advertice blocks, manifests or both
 
 proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
   while b.discEngineRunning:
@@ -79,11 +80,11 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
 
 proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
   while b.discEngineRunning:
-    if cids =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
+    if cids =? await b.localStore.listBlocks(blockType = b.advertiseType):
       for c in cids:
         if cid =? await c:
           await b.advertiseQueue.put(cid)
-          # await sleepAsync(50.millis)
+          await sleepAsync(50.millis)
 
     trace "About to sleep advertise loop", sleep = b.advertiseLoopSleep
     await sleepAsync(b.advertiseLoopSleep)
@@ -251,7 +252,8 @@ proc new*(
   concurrentDiscReqs = DefaultConcurrentDiscRequests,
   discoveryLoopSleep = DefaultDiscoveryLoopSleep,
   advertiseLoopSleep = DefaultAdvertiseLoopSleep,
-  minPeersPerBlock = DefaultMinPeersPerBlock,): DiscoveryEngine =
+  minPeersPerBlock = DefaultMinPeersPerBlock,
+  advertiseType = BlockType.Both): DiscoveryEngine =
   T(
     localStore: localStore,
     peers: peers,
@@ -266,4 +268,5 @@ proc new*(
     inFlightAdvReqs: initTable[Cid, Future[void]](),
     discoveryLoopSleep: discoveryLoopSleep,
     advertiseLoopSleep: advertiseLoopSleep,
-    minPeersPerBlock: minPeersPerBlock)
+    minPeersPerBlock: minPeersPerBlock,
+    advertiseType: advertiseType)
