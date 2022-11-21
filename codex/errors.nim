@@ -8,7 +8,6 @@
 ## those terms.
 
 import pkg/stew/results
-import pkg/chronos
 
 type
   CodexError* = object of CatchableError # base codex error
@@ -21,10 +20,3 @@ template mapFailure*(
   ##
 
   ((exp.mapErr do (e: auto) -> ref CatchableError: (ref exc)(msg: $e)))
-
-template wrapFut*[T, E](self: Result[T, E]): Future[Result[T, E]] =
-  let
-    fut = newFuture[Result[T, E]]()
-
-  fut.complete(self)
-  fut

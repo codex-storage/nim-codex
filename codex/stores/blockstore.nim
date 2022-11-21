@@ -21,6 +21,8 @@ import ../blocktype
 export blocktype, libp2p
 
 type
+  BlockNotFoundError* = object of CodexError
+
   BlockType* {.pure.} = enum
     Manifest, Block, Both
 
