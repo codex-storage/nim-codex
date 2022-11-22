@@ -1,4 +1,3 @@
-
 ## Nim-Codex
 ## Copyright (c) 2022 Status Research & Development GmbH
 ## Licensed under either of
