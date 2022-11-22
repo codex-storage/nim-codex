@@ -45,10 +45,14 @@ type
     config: CodexConf
     restServer: RestServerRef
     codexNode: CodexNodeRef
+    repoStore: RepoStore
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
 
 proc start*(s: CodexServer) {.async.} =
+  notice "Starting codex node"
+
+  await s.repoStore.start()
   s.restServer.start()
   await s.codexNode.start()
 
@@ -81,10 +85,14 @@ proc start*(s: CodexServer) {.async.} =
   await s.runHandle
 
 proc stop*(s: CodexServer) {.async.} =
-  s.runHandle.complete()
+  notice "Stopping codex node"
 
   await allFuturesThrowing(
-    s.restServer.stop(), s.codexNode.stop())
+    s.restServer.stop(),
+    s.codexNode.stop(),
+    s.repoStore.start())
+
+  s.runHandle.complete()
 
 proc new(_: type ContractInteractions, config: CodexConf): ?ContractInteractions =
   if not config.persistence:
@@ -147,19 +155,17 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
 
-    metaDs = SQLiteDatastore.new(
-      config.dataDir / CodexDhtProvidersNamespace)
-      .expect("Should create meta data store!")
-
-    localStore = RepoStore.new(
-      ds = Datastore(FSDatastore.new($config.dataDir, depth = 5)
-        .expect("Should create repo data store!")))
+    repoStore = RepoStore.new(
+      repoDs = Datastore(FSDatastore.new($config.dataDir, depth = 5)
+        .expect("Should create repo data store!")),
+      metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
+        .expect("Should create meta data store!"))
 
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
-    blockDiscovery = DiscoveryEngine.new(localStore, peerStore, network, discovery, pendingBlocks)
-    engine = BlockExcEngine.new(localStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
-    store = NetworkStore.new(engine, localStore)
+    blockDiscovery = DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
+    engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
+    store = NetworkStore.new(engine, repoStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     contracts = ContractInteractions.new(config)
     codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery, contracts)
@@ -174,4 +180,5 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
   T(
     config: config,
     codexNode: codexNode,
-    restServer: restServer)
+    restServer: restServer,
+    repoStore: repoStore)
