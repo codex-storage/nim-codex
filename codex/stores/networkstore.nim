@@ -87,8 +87,9 @@ proc new*(
   engine: BlockExcEngine,
   localStore: BlockStore): T =
 
-  let b = NetworkStore(
-    localStore: localStore,
-    engine: engine)
+  let
+    self = NetworkStore(
+      localStore: localStore,
+      engine: engine)
 
-  return b
+  return self
