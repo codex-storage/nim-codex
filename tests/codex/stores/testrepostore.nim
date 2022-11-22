@@ -18,9 +18,10 @@ import pkg/codex/blocktype as bt
 import ../helpers
 import ./commonstoretests
 
-# TODO: Add repostore specific tests
-
 # TODO: Test with fs backend
 commonBlockStoreTests(
   "RepoStore", proc: BlockStore =
-    BlockStore(RepoStore.new(SQLiteDatastore.new(Memory).tryGet())))
+    BlockStore(
+      RepoStore.new(
+        SQLiteDatastore.new(Memory).tryGet(),
+        SQLiteDatastore.new(Memory).tryGet())))
