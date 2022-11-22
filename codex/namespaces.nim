@@ -22,3 +22,4 @@ const
   CodexDhtNamespace* = "dht"                                  # Dht namespace
   CodexDhtProvidersNamespace* =                               # Dht providers namespace
     CodexDhtNamespace / "providers"
+  CacheQuotaNamespace* = CodexMetaNamespace / "quota"         # quota's namespace
