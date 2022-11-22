@@ -38,7 +38,7 @@ const
   DefaultDiscoveryTimeout = 1.minutes
   DefaultMinPeersPerBlock = 3
   DefaultDiscoveryLoopSleep = 3.seconds
-  DefaultAdvertiseLoopSleep = 3.seconds
+  DefaultAdvertiseLoopSleep = 30.minutes
 
 type
   DiscoveryEngine* = ref object of RootObj
