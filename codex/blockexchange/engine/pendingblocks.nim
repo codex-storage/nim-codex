@@ -52,7 +52,7 @@ proc getWantHandle*(
 
     return await p.blocks[cid].handle.wait(timeout)
   except CancelledError as exc:
-    trace "Blocks cancelled", exc = exc.msg, cid = $cid
+    trace "Blocks cancelled", exc = exc.msg, cid
     raise exc
   except CatchableError as exc:
     trace "Pending WANT failed or expired", exc = exc.msg

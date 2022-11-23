@@ -123,7 +123,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         trace "Excepting streaming blocks", exc = exc.msg
         return RestApiResponse.error(Http500)
       finally:
-        trace "Sent bytes", cid = $id.get(), bytes
+        trace "Sent bytes", cid = id.get(), bytes
         if not stream.isNil:
           await stream.close()
 

@@ -7,9 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/upraises
-push: {.upraises: [].}
-
 import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
@@ -24,8 +21,6 @@ const
   MaxMessageSize = 100 * 1 shl 20 # manifest files can be big
 
 type
-  ConnProvider* = proc(): Future[Connection] {.gcsafe, closure.}
-
   RPCHandler* = proc(peer: NetworkPeer, msg: Message): Future[void] {.gcsafe.}
 
   NetworkPeer* = ref object of RootObj
