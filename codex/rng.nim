@@ -12,11 +12,11 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/libp2p/crypto/crypto
-import pkg/bearssl/rand
+import pkg/bearssl
 
 type
   RngSampleError = object of CatchableError
-  Rng* = ref HmacDrbgContext
+  Rng* = ref BrHmacDrbgContext
 
 var rng {.threadvar.}: Rng
 
@@ -25,15 +25,16 @@ proc instance*(t: type Rng): Rng =
     rng = newRng()
   rng
 
-# Random helpers: similar as in stdlib, but with HmacDrbgContext rng
+# Random helpers: similar as in stdlib, but with BrHmacDrbgContext rng
 # TODO: Move these somewhere else?
 const randMax = 18_446_744_073_709_551_615'u64
 
 proc rand*(rng: Rng, max: Natural): int =
   if max == 0: return 0
 
+  var x: uint64
   while true:
-    let x = rng[].generate(uint64)
+    brHmacDrbgGenerate(addr rng[], addr x, csize_t(sizeof(x)))
     if x < randMax - (randMax mod (uint64(max) + 1'u64)): # against modulo bias
       return int(x mod (uint64(max) + 1'u64))
 

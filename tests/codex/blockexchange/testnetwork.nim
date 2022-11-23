@@ -158,6 +158,9 @@ suite "Network - Senders":
     done = newFuture[void]()
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
+    await switch1.start()
+    await switch2.start()
+
     network1 = BlockExcNetwork.new(
       switch = switch1)
     switch1.mount(network1)
@@ -165,9 +168,6 @@ suite "Network - Senders":
     network2 = BlockExcNetwork.new(
       switch = switch2)
     switch2.mount(network2)
-
-    await switch1.start()
-    await switch2.start()
 
     await switch1.connect(
       switch2.peerInfo.peerId,
@@ -271,6 +271,8 @@ suite "Network - Test Limits":
     done = newFuture[void]()
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
+    await switch1.start()
+    await switch2.start()
 
     network1 = BlockExcNetwork.new(
       switch = switch1,
@@ -280,9 +282,6 @@ suite "Network - Test Limits":
     network2 = BlockExcNetwork.new(
       switch = switch2)
     switch2.mount(network2)
-
-    await switch1.start()
-    await switch2.start()
 
     await switch1.connect(
       switch2.peerInfo.peerId,

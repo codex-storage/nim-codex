@@ -43,9 +43,9 @@ method getBlock*(self: FSStore, cid: Cid): Future[?!Block] {.async.} =
   ##
 
   if not self.cache.isNil:
-    trace "Getting block from cache or filestore", cid = $cid
+    trace "Getting block from cache or filestore", cid
   else:
-    trace "Getting block from filestore", cid = $cid
+    trace "Getting block from filestore", cid
 
   if cid.isEmpty:
     trace "Empty block, ignoring"
@@ -58,7 +58,7 @@ method getBlock*(self: FSStore, cid: Cid): Future[?!Block] {.async.} =
     if not cachedBlockRes.isErr:
       return success cachedBlockRes.get
     else:
-      trace "Unable to read block from cache", cid = $cid, error = cachedBlockRes.error.msg
+      trace "Unable to read block from cache", cid, error = cachedBlockRes.error.msg
 
   # Read file contents
   var
@@ -79,7 +79,7 @@ method getBlock*(self: FSStore, cid: Cid): Future[?!Block] {.async.} =
       return failure "Error requesting block from filestore: " & error
 
   without blk =? Block.new(cid, data), error:
-    trace "Unable to construct block from data", cid = $cid, error = error.msg
+    trace "Unable to construct block from data", cid, error = error.msg
     return failure error
 
   if not self.cache.isNil:
@@ -87,7 +87,7 @@ method getBlock*(self: FSStore, cid: Cid): Future[?!Block] {.async.} =
       putCachedRes = await self.cache.putBlock(blk)
 
     if putCachedRes.isErr:
-      trace "Unable to store block in cache", cid = $cid, error = putCachedRes.error.msg
+      trace "Unable to store block in cache", cid, error = putCachedRes.error.msg
 
   return success blk
 
@@ -97,9 +97,9 @@ method putBlock*(self: FSStore, blk: Block): Future[?!void] {.async.} =
   ##
 
   if not self.cache.isNil:
-    trace "Putting block into filestore and cache", cid = $blk.cid
+    trace "Putting block into filestore and cache", cid = blk.cid
   else:
-    trace "Putting block into filestore", cid = $blk.cid
+    trace "Putting block into filestore", cid = blk.cid
 
   if blk.isEmpty:
     trace "Empty block, ignoring"
@@ -118,7 +118,7 @@ method putBlock*(self: FSStore, blk: Block): Future[?!void] {.async.} =
   let res = io2.writeFile(path, blk.data)
   if res.isErr:
     let error = io2.ioErrorMsg(res.error)
-    trace "Unable to store block", path, cid = $blk.cid, error
+    trace "Unable to store block", path, cid = blk.cid, error
     return failure("Unable to store block")
 
   if not self.cache.isNil:
@@ -126,7 +126,7 @@ method putBlock*(self: FSStore, blk: Block): Future[?!void] {.async.} =
       putCachedRes = await self.cache.putBlock(blk)
 
     if putCachedRes.isErr:
-      trace "Unable to store block in cache", cid = $blk.cid, error = putCachedRes.error.msg
+      trace "Unable to store block in cache", cid = blk.cid, error = putCachedRes.error.msg
 
   return success()
 
@@ -135,9 +135,9 @@ method delBlock*(self: FSStore, cid: Cid): Future[?!void] {.async.} =
   ##
 
   if not self.cache.isNil:
-    trace "Deleting block from cache and filestore", cid = $cid
+    trace "Deleting block from cache and filestore", cid
   else:
-    trace "Deleting block from filestore", cid = $cid
+    trace "Deleting block from filestore", cid
 
   if cid.isEmpty:
     trace "Empty block, ignoring"
@@ -148,7 +148,7 @@ method delBlock*(self: FSStore, cid: Cid): Future[?!void] {.async.} =
       delCachedRes = await self.cache.delBlock(cid)
 
     if delCachedRes.isErr:
-      trace "Unable to delete block from cache", cid = $cid, error = delCachedRes.error.msg
+      trace "Unable to delete block from cache", cid, error = delCachedRes.error.msg
 
   let
     path = self.blockPath(cid)
@@ -156,7 +156,7 @@ method delBlock*(self: FSStore, cid: Cid): Future[?!void] {.async.} =
 
   if res.isErr:
     let error = io2.ioErrorMsg(res.error)
-    trace "Unable to delete block", path, cid = $cid, error
+    trace "Unable to delete block", path, cid, error
     return error.failure
 
   return success()
@@ -165,7 +165,7 @@ method hasBlock*(self: FSStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if a block exists in the filestore
   ##
 
-  trace "Checking filestore for block existence", cid = $cid
+  trace "Checking filestore for block existence", cid
   if cid.isEmpty:
     trace "Empty block, ignoring"
     return true.success
