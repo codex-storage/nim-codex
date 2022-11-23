@@ -49,7 +49,7 @@ func `[]=`*(self: Manifest, i: BackwardsIndex, item: Cid) =
 proc add*(self: Manifest, cid: Cid) =
   assert not self.protected  # we expect that protected manifests are created with properly-sized self.blocks
   self.rootHash = Cid.none
-  trace "Adding cid to manifest", cid = $cid
+  trace "Adding cid to manifest", cid
   self.blocks.add(cid)
   self.originalBytes = self.blocks.len * self.blockSize
 

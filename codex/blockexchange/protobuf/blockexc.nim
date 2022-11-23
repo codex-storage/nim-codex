@@ -9,7 +9,7 @@
 
 import std/hashes
 import std/sequtils
-import pkg/[protobuf_serialization, protobuf_serialization/proto_parser]
+import pkg/protobuf_serialization
 import pkg/libp2p
 
 import_proto3 "message.proto"

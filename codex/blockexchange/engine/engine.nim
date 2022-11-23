@@ -254,7 +254,7 @@ proc blocksHandler*(
   trace "Got blocks from peer", peer, len = blocks.len
   for blk in blocks:
     if isErr (await b.localStore.putBlock(blk)):
-      trace "Unable to store block", cid = $blk.cid
+      trace "Unable to store block", cid = blk.cid
 
   await b.resolveBlocks(blocks)
   let peerCtx = b.peers.get(peer)

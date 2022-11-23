@@ -37,11 +37,12 @@ proc corruptBlocks*(
   manifest: Manifest,
   blks, bytes: int): Future[seq[int]] {.async.} =
   var pos: seq[int]
+  while true:
+    if pos.len >= blks:
+      break
 
-  doAssert blks < manifest.len
-  while pos.len < blks:
-    let i = Rng.instance.rand(manifest.len - 1)
-    if pos.find(i) >= 0:
+    var i = -1
+    if (i = Rng.instance.rand(manifest.len - 1); pos.find(i) >= 0):
       continue
 
     pos.add(i)
@@ -49,12 +50,15 @@ proc corruptBlocks*(
       blk = (await store.getBlock(manifest[i])).tryGet()
       bytePos: seq[int]
 
-    doAssert bytes < blk.data.len
-    while bytePos.len <= bytes:
-      let ii = Rng.instance.rand(blk.data.len - 1)
-      if bytePos.find(ii) >= 0:
+    while true:
+      if bytePos.len > bytes:
+        break
+
+      var ii = -1
+      if (ii = Rng.instance.rand(blk.data.len - 1); bytePos.find(ii) >= 0):
         continue
 
       bytePos.add(ii)
       blk.data[ii] = byte 0
+
   return pos

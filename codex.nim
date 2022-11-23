@@ -73,7 +73,7 @@ when isMainModule:
         notice "Shutting down after having received SIGTERM"
         waitFor server.stop()
 
-      c_signal(ansi_c.SIGTERM, SIGTERMHandler)
+      c_signal(SIGTERM, SIGTERMHandler)
 
     waitFor server.start()
   of StartUpCommand.initNode:

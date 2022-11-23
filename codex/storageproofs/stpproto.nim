@@ -1,4 +1,4 @@
-import pkg/[protobuf_serialization, protobuf_serialization/proto_parser]
+import pkg/protobuf_serialization
 
 import_proto3 "stp.proto"
 
