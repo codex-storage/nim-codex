@@ -7,8 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/os
-
 import pkg/upraises
 
 push: {.upraises: [].}
@@ -32,14 +30,14 @@ logScope:
   topics = "codex repostore"
 
 const
-  QuotaKey* = Key.init(CodexMetaNamespace / "cache").tryGet
-  CacheBytesKey* = Key.init(CacheQuotaNamespace / "cache").tryGet
-  PersistBytesKey* = Key.init(CacheQuotaNamespace / "persist").tryGet
-
   CodexMetaKey* = Key.init(CodexMetaNamespace).tryGet
   CodexRepoKey* = Key.init(CodexRepoNamespace).tryGet
   CodexBlocksKey* = Key.init(CodexBlocksNamespace).tryGet
   CodexManifestKey* = Key.init(CodexManifestNamespace).tryGet
+
+  QuotaKey* = Key.init(CodexMetaNamespace & "/cache").tryGet
+  CacheBytesKey* = Key.init(CacheQuotaNamespace & "/cache").tryGet
+  PersistBytesKey* = Key.init(CacheQuotaNamespace & "/persist").tryGet
 
   DefaultCacheTtl* = 24.hours
   DefaultCacheBytes* = 1'u shl 33'u # ~8GB
@@ -53,15 +51,15 @@ type
     postFixLen*: int
     repoDs*: Datastore
     metaDs*: Datastore
-    cacheBytes*: uint
+    maxCacheBytes*: uint
     currentCacheBytes*: uint
-    persistBytes*: uint
+    maxPersistBytes*: uint
     currentPersistBytes*: uint
     started*: bool
 
 func makePrefixKey*(self: RepoStore, cid: Cid): ?!Key =
   let
-    cidKey = ? Key.init(($cid)[^self.postFixLen..^1] / $cid)
+    cidKey = ? Key.init(($cid)[^self.postFixLen..^1] & "/" & $cid)
 
   if ? cid.isManifest:
     success CodexManifestKey / cidKey
@@ -97,15 +95,15 @@ method putBlock*(
     trace "Block already in repo, skipping", cid = blk.cid
     return success()
 
-  if persist and (self.currentPersistBytes + blk.data.len.uint) > self.persistBytes:
+  if persist and (self.currentPersistBytes + blk.data.len.uint) > self.maxPersistBytes:
     error "Cannot persist block, quota used!",
-      persistBytes = self.persistBytes, used = self.persistBytes + blk.data.len.uint
+      maxPersistBytes = self.maxPersistBytes, used = self.maxPersistBytes + blk.data.len.uint
 
     return failure(
       newException(PersistQuotaUsedError, "Cannot persist block, quota used!"))
-  elif (self.currentCacheBytes + blk.data.len.uint) > self.cacheBytes:
+  elif (self.currentCacheBytes + blk.data.len.uint) > self.maxCacheBytes:
     error "Cannot cache block, quota used!",
-      cacheBytes = self.cacheBytes, used = (self.cacheBytes + blk.data.len.uint)
+      maxCacheBytes = self.maxCacheBytes, used = (self.maxCacheBytes + blk.data.len.uint)
 
     return failure(
       newException(CacheQuotaUsedError, "Cannot cache block, quota used!"))
@@ -239,23 +237,23 @@ proc start*(self: RepoStore): Future[void] {.async.} =
   trace "Starting repo"
 
   ## load current persist and cache bytes from meta ds
-  without cacheBytes =? await self.metaDs.get(CacheBytesKey), err:
+  without maxCacheBytes =? await self.metaDs.get(CacheBytesKey), err:
     if not (err of DatastoreKeyNotFound):
       error "Error getting cache bytes from datastore", err = err.msg, key = $CacheBytesKey
       raise newException(Defect, err.msg)
 
-  if cacheBytes.len > 0:
-    self.currentCacheBytes = uint64.fromBytesBE(cacheBytes).uint
+  if maxCacheBytes.len > 0:
+    self.currentCacheBytes = uint64.fromBytesBE(maxCacheBytes).uint
 
   notice "Current bytes used for cache quota", bytes = self.currentCacheBytes
 
-  without persistBytes =? await self.metaDs.get(PersistBytesKey), err:
+  without maxPersistBytes =? await self.metaDs.get(PersistBytesKey), err:
     if not (err of DatastoreKeyNotFound):
       error "Error getting persist bytes from datastore", err = err.msg, key = $PersistBytesKey
       raise newException(Defect, err.msg)
 
-  if persistBytes.len > 0:
-    self.currentPersistBytes = uint64.fromBytesBE(persistBytes).uint
+  if maxPersistBytes.len > 0:
+    self.currentPersistBytes = uint64.fromBytesBE(maxPersistBytes).uint
 
   notice "Current bytes used for persist quota", bytes = self.currentPersistBytes
 
@@ -276,12 +274,12 @@ func new*(
   repoDs: Datastore,
   metaDs: Datastore,
   postFixLen = 2,
-  cacheBytes = DefaultCacheBytes,
-  persistBytes = DefaultPersistBytes): T =
+  maxCacheBytes = DefaultCacheBytes,
+  maxPersistBytes = DefaultPersistBytes): T =
 
   T(
     repoDs: repoDs,
     metaDs: metaDs,
     postFixLen: postFixLen,
-    cacheBytes: cacheBytes,
-    persistBytes: persistBytes)
+    maxCacheBytes: maxCacheBytes,
+    maxPersistBytes: maxPersistBytes)
