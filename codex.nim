@@ -14,15 +14,17 @@ import pkg/libp2p
 
 import ./codex/conf
 import ./codex/codex
+import ./codex/utils/keyutils
 
 export codex, conf, libp2p, chronos, chronicles
 
 when isMainModule:
   import std/os
-
   import pkg/confutils/defs
-
   import ./codex/utils/fileutils
+
+  logScope:
+    topics = "codex"
 
   when defined(posix):
     import system/ansi_c
@@ -35,6 +37,13 @@ when isMainModule:
 
   case config.cmd:
   of StartUpCommand.noCommand:
+
+    if config.nat == ValidIpAddress.init(IPv4_any()):
+      error "`--nat` cannot be set to the any (`0.0.0.0`) address"
+      quit QuitFailure
+
+    if config.nat == ValidIpAddress.init("127.0.0.1"):
+      warn "`--nat` is set to loopback, your node wont properly announce over the DHT"
 
     if not(checkAndCreateDataDir((config.dataDir).string)):
       # We are unable to access/create data folder or data folder's
@@ -50,7 +59,15 @@ when isMainModule:
 
     trace "Repo dir initialized", dir = config.dataDir / "repo"
 
-    let server = CodexServer.new(config)
+    let
+      keyPath =
+        if isAbsolute(string config.netPrivKeyFile):
+          string config.netPrivKeyFile
+        else:
+          string config.dataDir / string config.netPrivKeyFile
+
+      privateKey = setupKey(keyPath).expect("Should setup private key!")
+      server = CodexServer.new(config, privateKey)
 
     ## Ctrl+C handling
     proc controlCHandler() {.noconv.} =
@@ -72,9 +89,12 @@ when isMainModule:
       proc SIGTERMHandler(signal: cint) {.noconv.} =
         notice "Shutting down after having received SIGTERM"
         waitFor server.stop()
+        notice "Stopped Codex"
 
-      c_signal(SIGTERM, SIGTERMHandler)
+      c_signal(ansi_c.SIGTERM, SIGTERMHandler)
 
     waitFor server.start()
+    notice "Exited codex"
+
   of StartUpCommand.initNode:
     discard

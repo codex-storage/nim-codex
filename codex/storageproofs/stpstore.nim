@@ -16,7 +16,9 @@ import pkg/chronicles
 import pkg/stew/io2
 import pkg/questionable
 import pkg/questionable/results
-import pkg/protobuf_serialization
+
+import ../errors
+import ../formats
 
 import ./stpproto
 import ./por
@@ -44,7 +46,7 @@ proc retrieve*(
     trace "Cannot retrieve storage proof data from fs", path , error
     return failure("Cannot retrieve storage proof data from fs")
 
-  return Protobuf.decode(data, PorMessage).success
+  return PorMessage.decode(data).mapFailure
 
 proc store*(
   self: StpStore,
@@ -62,12 +64,12 @@ proc store*(
 
   let path = dir / "por"
   if (
-    let res = io2.writeFile(path, Protobuf.encode(por));
+    let res = io2.writeFile(path, por.encode());
     res.isErr):
     let error = io2.ioErrorMsg(res.error)
-    trace "Unable to store storage proofs", path, cid = cid, error
+    trace "Unable to store storage proofs", path, cid, error
     return failure(
-      &"Unable to store storage proofs - path = ${path} cid = ${$cid} error = ${error}")
+      &"Unable to store storage proofs - path = ${path} cid = ${cid} error = ${error}")
 
   return success()
 
@@ -106,9 +108,9 @@ proc store*(
       let res = io2.writeFile(path, t.tag);
       res.isErr):
       let error = io2.ioErrorMsg(res.error)
-      trace "Unable to store tags", path, cid = cid, error
+      trace "Unable to store tags", path, cid, error
       return failure(
-        &"Unable to store tags - path = ${path} cid = ${$cid} error = ${error}")
+        &"Unable to store tags - path = ${path} cid = ${cid} error = ${error}")
 
   return success()
 

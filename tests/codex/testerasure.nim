@@ -16,6 +16,7 @@ import ./helpers
 
 suite "Erasure encode/decode":
 
+  const BlockSize = 1024
   const dataSetSize = BlockSize * 123 # weird geometry
 
   var rng: Rng
@@ -53,7 +54,7 @@ suite "Erasure encode/decode":
 
     return encoded
 
-  test "Should tolerate loosing M data blocks in a single random column":
+  test "Should tolerate losing M data blocks in a single random column":
     const
       buffers = 20
       parity = 10
@@ -81,7 +82,7 @@ suite "Erasure encode/decode":
       let present = await store.hasBlock(d)
       check present.tryGet()
 
-  test "Should not tolerate loosing more than M data blocks in a single random column":
+  test "Should not tolerate losing more than M data blocks in a single random column":
     const
       buffers = 20
       parity = 10
@@ -107,7 +108,7 @@ suite "Erasure encode/decode":
       let present = await store.hasBlock(d)
       check not present.tryGet()
 
-  test "Should tolerate loosing M data blocks in M random columns":
+  test "Should tolerate losing M data blocks in M random columns":
     const
       buffers = 20
       parity = 10
@@ -135,7 +136,7 @@ suite "Erasure encode/decode":
       let present = await store.hasBlock(d)
       check present.tryGet()
 
-  test "Should not tolerate loosing more than M data blocks in M random columns":
+  test "Should not tolerate losing more than M data blocks in M random columns":
     const
       buffers = 20
       parity = 10
@@ -169,7 +170,7 @@ suite "Erasure encode/decode":
     expect ResultFailure:
       decoded = (await erasure.decode(encoded)).tryGet()
 
-  test "Should tolerate loosing M (a.k.a row) contiguous data blocks":
+  test "Should tolerate losing M (a.k.a row) contiguous data blocks":
     const
       buffers = 20
       parity = 10
@@ -185,7 +186,7 @@ suite "Erasure encode/decode":
       let present = await store.hasBlock(d)
       check present.tryGet()
 
-  test "Should tolerate loosing M (a.k.a row) contiguous parity blocks":
+  test "Should tolerate losing M (a.k.a row) contiguous parity blocks":
     const
       buffers = 20
       parity = 10

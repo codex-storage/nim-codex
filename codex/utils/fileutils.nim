@@ -9,11 +9,10 @@
 
 ## Partially taken from nim beacon chain
 
+import std/strutils
 import pkg/upraises
 
 push: {.upraises: [].}
-
-import std/strutils
 
 import pkg/chronicles
 import stew/io2
@@ -49,6 +48,12 @@ proc secureWriteFile*[T: byte|char](path: string,
       writeFile(path, data, 0o600, secDescriptor = sd.getDescriptor())
   else:
     writeFile(path, data, 0o600)
+
+proc checkSecureFile*(path: string): IOResult[bool] =
+  when defined(windows):
+    checkCurrentUserOnlyACL(path)
+  else:
+    ok (? getPermissionsSet(path) == {UserRead, UserWrite})
 
 proc checkAndCreateDataDir*(dataDir: string): bool =
   when defined(posix):

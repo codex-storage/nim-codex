@@ -57,7 +57,7 @@ proc getBytes*(c: Chunker): Future[seq[byte]] {.async.} =
   if not c.pad and buff.len > read:
     buff.setLen(read)
 
-  return buff
+  return move buff
 
 func new*(
   T: type Chunker,

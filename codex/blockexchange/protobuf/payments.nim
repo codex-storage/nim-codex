@@ -1,4 +1,3 @@
-import pkg/protobuf_serialization
 import pkg/stew/byteutils
 import pkg/stint
 import pkg/nitro

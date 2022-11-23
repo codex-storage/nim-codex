@@ -33,10 +33,11 @@ proc new*(_: type ContractInteractions,
   let market = OnChainMarket.new(contract)
   let proofs = OnChainProofs.new(contract)
   let clock = OnChainClock.new(signer.provider)
+  let proving = Proving.new(proofs, clock)
   some ContractInteractions(
     purchasing: Purchasing.new(market, clock),
-    sales: Sales.new(market, clock),
-    proving: Proving.new(proofs, clock),
+    sales: Sales.new(market, clock, proving),
+    proving: proving,
     clock: clock
   )
 
@@ -68,8 +69,10 @@ proc start*(interactions: ContractInteractions) {.async.} =
   await interactions.clock.start()
   await interactions.sales.start()
   await interactions.proving.start()
+  await interactions.purchasing.start()
 
 proc stop*(interactions: ContractInteractions) {.async.} =
+  await interactions.purchasing.stop()
   await interactions.sales.stop()
   await interactions.proving.stop()
   await interactions.clock.stop()

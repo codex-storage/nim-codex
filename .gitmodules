@@ -33,11 +33,6 @@
 	url = https://github.com/status-im/nim-stew.git
 	ignore = untracked
 	branch = master
-[submodule "vendor/nim-protobuf-serialization"]
-	path = vendor/nim-protobuf-serialization
-	url = https://github.com/status-im/nim-protobuf-serialization.git
-	ignore = untracked
-	branch = master
 [submodule "vendor/nim-nitro"]
 	path = vendor/nim-nitro
 	url = https://github.com/status-im/nim-nitro.git

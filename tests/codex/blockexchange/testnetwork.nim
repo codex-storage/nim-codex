@@ -5,7 +5,6 @@ import pkg/asynctest
 import pkg/chronos
 import pkg/libp2p
 import pkg/libp2p/errors
-import pkg/protobuf_serialization
 
 import pkg/codex/rng
 import pkg/codex/chunker
@@ -57,7 +56,7 @@ suite "Network - Handlers":
       for b in blocks:
         check b.cid in wantList.entries
         let entry = wantList.entries[wantList.entries.find(b.cid)]
-        check entry.wantType == WantType.wantHave
+        check entry.wantType == WantType.WantHave
         check entry.priority == 1
         check entry.cancel == true
         check entry.sendDontHave == true
@@ -68,11 +67,11 @@ suite "Network - Handlers":
 
     let wantList = makeWantList(
       blocks.mapIt( it.cid ),
-      1, true, WantType.wantHave,
+      1, true, WantType.WantHave,
       true, true)
 
     let msg = Message(wantlist: wantList)
-    await buffer.pushData(lenPrefix(Protobuf.encode(msg)))
+    await buffer.pushData(lenPrefix(ProtobufEncode(msg)))
 
     await done.wait(500.millis)
 
@@ -84,7 +83,7 @@ suite "Network - Handlers":
     network.handlers.onBlocks = blocksHandler
 
     let msg = Message(payload: makeBlocks(blocks))
-    await buffer.pushData(lenPrefix(Protobuf.encode(msg)))
+    await buffer.pushData(lenPrefix(ProtobufEncode(msg)))
 
     await done.wait(500.millis)
 
@@ -104,9 +103,9 @@ suite "Network - Handlers":
       blockPresences: blocks.mapIt(
         BlockPresence(
           cid: it.cid.data.buffer,
-          type: BlockPresenceType.presenceHave
+          type: BlockPresenceType.Have
       )))
-    await buffer.pushData(lenPrefix(Protobuf.encode(msg)))
+    await buffer.pushData(lenPrefix(ProtobufEncode(msg)))
 
     await done.wait(500.millis)
 
@@ -120,7 +119,7 @@ suite "Network - Handlers":
     network.handlers.onAccount = handleAccount
 
     let message = Message(account: AccountMessage.init(account))
-    await buffer.pushData(lenPrefix(Protobuf.encode(message)))
+    await buffer.pushData(lenPrefix(ProtobufEncode(message)))
 
     await done.wait(100.millis)
 
@@ -134,7 +133,7 @@ suite "Network - Handlers":
     network.handlers.onPayment = handlePayment
 
     let message = Message(payment: StateChannelUpdate.init(payment))
-    await buffer.pushData(lenPrefix(Protobuf.encode(message)))
+    await buffer.pushData(lenPrefix(ProtobufEncode(message)))
 
     await done.wait(100.millis)
 
@@ -159,9 +158,6 @@ suite "Network - Senders":
     done = newFuture[void]()
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
-    await switch1.start()
-    await switch2.start()
-
     network1 = BlockExcNetwork.new(
       switch = switch1)
     switch1.mount(network1)
@@ -169,6 +165,9 @@ suite "Network - Senders":
     network2 = BlockExcNetwork.new(
       switch = switch2)
     switch2.mount(network2)
+
+    await switch1.start()
+    await switch2.start()
 
     await switch1.connect(
       switch2.peerInfo.peerId,
@@ -187,7 +186,7 @@ suite "Network - Senders":
       for b in blocks:
         check b.cid in wantList.entries
         let entry = wantList.entries[wantList.entries.find(b.cid)]
-        check entry.wantType == WantType.wantHave
+        check entry.wantType == WantType.WantHave
         check entry.priority == 1
         check entry.cancel == true
         check entry.sendDontHave == true
@@ -198,7 +197,7 @@ suite "Network - Senders":
     await network1.sendWantList(
       switch2.peerInfo.peerId,
       blocks.mapIt( it.cid ),
-      1, true, WantType.wantHave,
+      1, true, WantType.WantHave,
       true, true)
 
     await done.wait(500.millis)
@@ -232,7 +231,7 @@ suite "Network - Senders":
       blocks.mapIt(
         BlockPresence(
           cid: it.cid.data.buffer,
-          type: BlockPresenceType.presenceHave
+          type: BlockPresenceType.Have
       )))
 
     await done.wait(500.millis)
@@ -272,8 +271,6 @@ suite "Network - Test Limits":
     done = newFuture[void]()
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
-    await switch1.start()
-    await switch2.start()
 
     network1 = BlockExcNetwork.new(
       switch = switch1,
@@ -283,6 +280,9 @@ suite "Network - Test Limits":
     network2 = BlockExcNetwork.new(
       switch = switch2)
     switch2.mount(network2)
+
+    await switch1.start()
+    await switch2.start()
 
     await switch1.connect(
       switch2.peerInfo.peerId,

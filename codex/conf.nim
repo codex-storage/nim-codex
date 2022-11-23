@@ -18,6 +18,7 @@ import std/strutils
 import std/typetraits
 
 import pkg/chronicles
+import pkg/chronicles/helpers
 import pkg/chronicles/topics_registry
 import pkg/confutils/defs
 import pkg/confutils/std/net
@@ -46,9 +47,9 @@ type
 
   CodexConf* = object
     logLevel* {.
-      defaultValue: LogLevel.INFO
+      defaultValue: "INFO"
       desc: "Sets the log level",
-      name: "log-level" }: LogLevel
+      name: "log-level" }: string
 
     logFormat* {.
       hidden
@@ -85,32 +86,40 @@ type
       defaultValue: noCommand }: StartUpCommand
 
     of noCommand:
-      listenPorts* {.
-        desc: "Specifies one or more listening ports for the node to listen on."
-        defaultValue: @[Port(0)]
-        defaultValueDesc: "0"
-        abbr: "l"
-        name: "listen-port" }: seq[Port]
-
-      # TODO We should have two options: the listen IP and the public IP
-      # Currently, they are tied together, so we can't be discoverable
-      # behind a NAT
-      listenIp* {.
-        desc: "The public IP"
-        defaultValue: ValidIpAddress.init("0.0.0.0")
-        defaultValueDesc: "0.0.0.0"
+      listenAddrs* {.
+        desc: "Multi Addresses to listen on"
+        defaultValue: @[
+          MultiAddress.init("/ip4/0.0.0.0/tcp/0")
+          .expect("Should init multiaddress")]
+        defaultValueDesc: "/ip4/0.0.0.0/tcp/0"
         abbr: "i"
-        name: "listen-ip" }: ValidIpAddress
+        name: "listen-addrs" }: seq[MultiAddress]
+
+      nat* {.
+        # TODO: change this once we integrate nat support
+        desc: "IP Addresses to announce behind a NAT"
+        defaultValue: ValidIpAddress.init("127.0.0.1")
+        defaultValueDesc: "127.0.0.1"
+        abbr: "a"
+        name: "nat" }: ValidIpAddress
+
+      discoveryIp* {.
+        desc: "Discovery listen address"
+        defaultValue: ValidIpAddress.init(IPv4_any())
+        defaultValueDesc: "0.0.0.0"
+        abbr: "e"
+        name: "disc-ip" }: ValidIpAddress
 
       discoveryPort* {.
-        desc: "Specify the discovery (UDP) port"
-        defaultValue: Port(8090)
+        desc: "Discovery (UDP) port"
+        defaultValue: 8090.Port
         defaultValueDesc: "8090"
-        name: "udp-port" }: Port
+        abbr: "u"
+        name: "disc-port" }: Port
 
       netPrivKeyFile* {.
-        desc: "Source of network (secp256k1) private key file (random|<path>)"
-        defaultValue: "random"
+        desc: "Source of network (secp256k1) private key file path or name"
+        defaultValue: "key"
         name: "net-privkey" }: string
 
       bootstrapNodes* {.
@@ -136,9 +145,9 @@ type
         abbr: "p" }: int
 
       cacheSize* {.
-        desc: "The size in MiB of the block cache, 0 disables the cache"
-        defaultValue: DefaultCacheSizeMiB
-        defaultValueDesc: $DefaultCacheSizeMiB
+        desc: "The size in MiB of the block cache, 0 disables the cache - might help on slow hardrives"
+        defaultValue: 0
+        defaultValueDesc: "0"
         name: "cache-size"
         abbr: "c" }: Natural
 
@@ -182,7 +191,6 @@ const
   codexFullVersion* =
     "Codex build " & codexVersion & "\p" &
     nimBanner
-
 
 proc defaultDataDir*(): string =
   let dataDir = when defined(windows):
@@ -252,6 +260,19 @@ proc stripAnsi(v: string): string =
 
   res
 
+proc updateLogLevel*(logLevel: string) {.raises: [Defect, ValueError].} =
+  # Updates log levels (without clearing old ones)
+  let directives = logLevel.split(";")
+  try:
+    setLogLevel(parseEnum[LogLevel](directives[0]))
+  except ValueError:
+    raise (ref ValueError)(msg: "Please specify one of TRACE, DEBUG, INFO, NOTICE, WARN, ERROR or FATAL")
+
+  if directives.len > 1:
+    for topicName, settings in parseTopicDirectives(directives[1..^1]):
+      if not setTopicState(topicName, settings.state, settings.logLevel):
+        warn "Unrecognized logging topic", topic = topicName
+
 proc setupLogging*(conf: CodexConf) =
   when defaultChroniclesStream.outputs.type.arity != 2:
     warn "Logging configuration options not enabled in the current build"
@@ -287,7 +308,14 @@ proc setupLogging*(conf: CodexConf) =
       of LogKind.None:
         noOutput
 
-    setLogLevel(conf.logLevel)
+  try:
+    updateLogLevel(conf.logLevel)
+  except ValueError as err:
+    try:
+      stderr.write "Invalid value for --log-level. " & err.msg & "\n"
+    except IOError:
+      echo "Invalid value for --log-level. " & err.msg
+    quit QuitFailure
 
 proc setupMetrics*(config: CodexConf) =
   if config.metricsEnabled:

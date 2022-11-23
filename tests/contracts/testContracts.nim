@@ -1,5 +1,6 @@
 import std/json
 import pkg/chronos
+import pkg/ethers/testing
 import codex/contracts
 import codex/contracts/testtoken
 import codex/storageproofs
@@ -8,7 +9,7 @@ import ./examples
 import ./time
 
 ethersuite "Storage contracts":
-  let proof = seq[byte].example
+  let proof = exampleProof()
 
   var client, host: Signer
   var storage: Storage
@@ -57,6 +58,10 @@ ethersuite "Storage contracts":
     ):
       await provider.advanceTime(periodicity.seconds)
 
+  proc startContract() {.async.} =
+    for slotIndex in 1..<request.ask.slots:
+      await storage.fillSlot(request.id, slotIndex.u256, proof)
+
   test "accept storage proofs":
     switchAccount(host)
     await waitUntilProofRequired(slotId)
@@ -70,7 +75,18 @@ ethersuite "Storage contracts":
     switchAccount(client)
     await storage.markProofAsMissing(slotId, missingPeriod)
 
-  test "can be payed out at the end":
+  test "can be paid out at the end":
     switchAccount(host)
-    await provider.advanceTimeTo(await storage.proofEnd(slotId))
+    await startContract()
+    let requestEnd = await storage.requestEnd(request.id)
+    await provider.advanceTimeTo(requestEnd.u256)
     await storage.payoutSlot(request.id, 0.u256)
+
+  test "cannot mark proofs missing for cancelled request":
+    await provider.advanceTimeTo(request.expiry + 1)
+    switchAccount(client)
+    let missingPeriod = periodicity.periodOf(await provider.currentTime())
+    await provider.advanceTime(periodicity.seconds)
+    check await storage
+      .markProofAsMissing(slotId, missingPeriod)
+      .reverts("Slot not accepting proofs")

@@ -6,6 +6,7 @@ import pkg/libp2p
 
 import pkg/codex/blockexchange/peers
 import pkg/codex/blockexchange/protobuf/blockexc
+import pkg/codex/blockexchange/protobuf/presence
 
 import ../examples
 
@@ -52,13 +53,13 @@ suite "Peer Context Store Peer Selection":
     peerCtxs = @[]
 
   test "Should select peers that have Cid":
-    peerCtxs[0].peerPrices = collect(initTable):
+    peerCtxs[0].blocks = collect(initTable):
       for i, c in cids:
-        { c: i.u256 }
+        { c: Presence(cid: c, price: i.u256) }
 
-    peerCtxs[5].peerPrices = collect(initTable):
+    peerCtxs[5].blocks = collect(initTable):
       for i, c in cids:
-        { c: i.u256 }
+        { c: Presence(cid: c, price: i.u256) }
 
     let
       peers = store.peersHave(cids[0])
@@ -68,17 +69,17 @@ suite "Peer Context Store Peer Selection":
     check peerCtxs[5] in peers
 
   test "Should select cheapest peers for Cid":
-    peerCtxs[0].peerPrices = collect(initTable):
+    peerCtxs[0].blocks = collect(initTable):
       for i, c in cids:
-        { c: (5 + i).u256 }
+        { c: Presence(cid: c, price: (5 + i).u256) }
 
-    peerCtxs[5].peerPrices = collect(initTable):
+    peerCtxs[5].blocks = collect(initTable):
       for i, c in cids:
-        { c: (2 + i).u256 }
+        { c: Presence(cid: c, price: (2 + i).u256) }
 
-    peerCtxs[9].peerPrices = collect(initTable):
+    peerCtxs[9].blocks = collect(initTable):
       for i, c in cids:
-        { c: i.u256 }
+        { c: Presence(cid: c, price: i.u256) }
 
     let
       peers = store.selectCheapest(cids[0])
@@ -95,7 +96,7 @@ suite "Peer Context Store Peer Selection":
           `block`: it.data.buffer,
           priority: 1,
           cancel: false,
-          wantType: WantType.wantBlock,
+          wantType: WantType.WantBlock,
           sendDontHave: false))
 
     peerCtxs[0].peerWants = entries

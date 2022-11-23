@@ -83,9 +83,19 @@ test: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim test $(NIM_PARAMS) codex.nims
 
+# Builds and runs the smart contract tests
+testContracts: | build deps
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim testContracts $(NIM_PARAMS) codex.nims
+
+# Builds and runs the integration tests
+testIntegration: | build deps
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim testIntegration $(NIM_PARAMS) codex.nims
+
 # Builds and runs all tests
 testAll: | build deps
-	echo -e $(BUILD_MSG) "build/testCodex" "build/testContracts" && \
+	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) codex.nims
 
 # Builds the codex binary
@@ -112,13 +122,10 @@ else
 endif
 
 coverage:
-	$(MAKE) NIMFLAGS="$(NIMFLAGS) --lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage" testAll
-	cd nimcache/release/codex && rm -f *.c
+	$(MAKE) NIMFLAGS="$(NIMFLAGS) --lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage" test
 	cd nimcache/release/testCodex && rm -f *.c
-	cd nimcache/release/testContracts && rm -f *.c
-	cd nimcache/release/testIntegration && rm -f *.c
 	mkdir -p coverage
-	lcov --capture --directory nimcache/release/codex --directory nimcache/release/testCodex --directory nimcache/release/testContracts --directory nimcache/release/testIntegration --output-file coverage/coverage.info
+	lcov --capture --directory nimcache/release/testCodex --output-file coverage/coverage.info
 	shopt -s globstar && ls $$(pwd)/codex/{*,**/*}.nim
 	shopt -s globstar && lcov --extract coverage/coverage.info $$(pwd)/codex/{*,**/*}.nim --output-file coverage/coverage.f.info
 	echo -e $(BUILD_MSG) "coverage/report/index.html"

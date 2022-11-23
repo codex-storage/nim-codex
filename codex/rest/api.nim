@@ -34,80 +34,17 @@ import ../conf
 import ../contracts
 import ../streams
 
+import ./coders
 import ./json
+
+logScope:
+  topics = "codex restapi"
 
 proc validate(
   pattern: string,
   value: string): int
   {.gcsafe, raises: [Defect].} =
   0
-
-proc encodeString(cid: type Cid): Result[string, cstring] =
-  ok($cid)
-
-proc decodeString(T: type Cid, value: string): Result[Cid, cstring] =
-  Cid
-  .init(value)
-  .mapErr do(e: CidError) -> cstring:
-    case e
-    of CidError.Incorrect: "Incorrect Cid".cstring
-    of CidError.Unsupported: "Unsupported Cid".cstring
-    of CidError.Overrun: "Overrun Cid".cstring
-    else: "Error parsing Cid".cstring
-
-proc encodeString(peerId: PeerID): Result[string, cstring] =
-  ok($peerId)
-
-proc decodeString(T: type PeerID, value: string): Result[PeerID, cstring] =
-  PeerID.init(value)
-
-proc encodeString(address: MultiAddress): Result[string, cstring] =
-  ok($address)
-
-proc decodeString(T: type MultiAddress, value: string): Result[MultiAddress, cstring] =
-  MultiAddress
-    .init(value)
-    .mapErr do(e: string) -> cstring: cstring(e)
-
-proc decodeString(T: type SomeUnsignedInt, value: string): Result[T, cstring] =
-  Base10.decode(T, value)
-
-proc encodeString(value: SomeUnsignedInt): Result[string, cstring] =
-  ok(Base10.toString(value))
-
-proc decodeString(T: type Duration, value: string): Result[T, cstring] =
-  let v = ? Base10.decode(uint32, value)
-  ok(v.minutes)
-
-proc encodeString(value: Duration): Result[string, cstring] =
-  ok($value)
-
-proc decodeString(T: type bool, value: string): Result[T, cstring] =
-  try:
-    ok(value.parseBool())
-  except CatchableError as exc:
-    let s: cstring = exc.msg
-    err(s) # err(exc.msg) won't compile
-
-proc encodeString(value: bool): Result[string, cstring] =
-  ok($value)
-
-proc decodeString(_: type UInt256, value: string): Result[UInt256, cstring] =
-  try:
-    ok UInt256.fromHex(value)
-  except ValueError as e:
-    err e.msg.cstring
-
-proc decodeString(_: type array[32, byte],
-                  value: string): Result[array[32, byte], cstring] =
-  try:
-    ok array[32, byte].fromHex(value)
-  except ValueError as e:
-    err e.msg.cstring
-
-proc decodeString[T: PurchaseId | RequestId | Nonce](_: type T,
-                  value: string): Result[T, cstring] =
-  array[32, byte].decodeString(value).map(id => T(id))
 
 proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   var router = RestRouter.init(validate)
@@ -195,9 +132,9 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
     "/api/codex/v1/storage/request/{cid}") do (cid: Cid) -> RestApiResponse:
       ## Create a request for storage
       ##
-      ## cid            - the cid of a previously uploaded dataset
-      ## duration       - the duration of the contract
-      ## reward       - the maximum price the client is willing to pay
+      ## cid      - the cid of a previously uploaded dataset
+      ## duration - the duration of the contract
+      ## reward   - the maximum price the client is willing to pay
 
       without cid =? cid.tryGet.catch, error:
         return RestApiResponse.error(Http400, error.msg)
@@ -210,12 +147,14 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       let nodes = params.nodes |? 1
       let tolerance = params.nodes |? 0
 
-      without purchaseId =? await node.requestStorage(cid,
-                                                      params.duration,
-                                                      nodes,
-                                                      tolerance,
-                                                      params.reward,
-                                                      params.expiry), error:
+      without purchaseId =? await node.requestStorage(
+        cid,
+        params.duration,
+        nodes,
+        tolerance,
+        params.reward,
+        params.expiry), error:
+
         return RestApiResponse.error(Http500, error.msg)
 
       return RestApiResponse.response(purchaseId.toHex)
@@ -247,7 +186,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
           trace "Error uploading file", exc = error.msg
           return RestApiResponse.error(Http500, error.msg)
 
-        trace "Uploaded file", cid = $cid
+        trace "Uploaded file", cid
         return RestApiResponse.response($cid)
       except CancelledError as exc:
         return RestApiResponse.error(Http500)
@@ -260,17 +199,44 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       return RestApiResponse.error(Http500)
 
   router.api(
+    MethodPost,
+    "/api/codex/v1/debug/chronicles/loglevel") do (
+      level: Option[string]) -> RestApiResponse:
+      ## Set log level at run time
+      ##
+      ## e.g. `chronicles/loglevel?level=DEBUG`
+      ##
+      ## `level` - chronicles log level
+      ##
+
+      without res =? level and level =? res:
+        return RestApiResponse.error(Http400, "Missing log level")
+
+      try:
+        {.gcsafe.}:
+          updateLogLevel(level)
+      except CatchableError as exc:
+        return RestApiResponse.error(Http500, exc.msg)
+
+      return RestApiResponse.response("")
+
+  router.api(
     MethodGet,
-    "/api/codex/v1/info") do () -> RestApiResponse:
+    "/api/codex/v1/debug/info") do () -> RestApiResponse:
       ## Print rudimentary node information
       ##
 
-      let json = %*{
-        "id": $node.switch.peerInfo.peerId,
-        "addrs": node.switch.peerInfo.addrs.mapIt( $it ),
-        "repo": $conf.dataDir,
-        "spr": node.switch.peerInfo.signedPeerRecord.toURI
-      }
+      let
+        json = %*{
+          "id": $node.switch.peerInfo.peerId,
+          "addrs": node.switch.peerInfo.addrs.mapIt( $it ),
+          "repo": $conf.dataDir,
+          "spr":
+            if node.discovery.dhtRecord.isSome:
+              node.discovery.dhtRecord.get.toURI
+            else:
+              ""
+        }
 
       return RestApiResponse.response($json)
 

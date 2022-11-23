@@ -1,4 +1,6 @@
+import std/strutils
 import pkg/ethers
+import pkg/ethers/testing
 import ../storageproofs/timing/proofs
 import ./storage
 
@@ -24,15 +26,30 @@ method periodicity*(proofs: OnChainProofs): Future[Periodicity] {.async.} =
 
 method isProofRequired*(proofs: OnChainProofs,
                         id: SlotId): Future[bool] {.async.} =
-  return await proofs.storage.isProofRequired(id)
+  try:
+    return await proofs.storage.isProofRequired(id)
+  except ProviderError as e:
+    if e.revertReason.contains("Slot empty"):
+      return false
+    raise e
 
 method willProofBeRequired*(proofs: OnChainProofs,
                             id: SlotId): Future[bool] {.async.} =
-  return await proofs.storage.willProofBeRequired(id)
+  try:
+    return await proofs.storage.willProofBeRequired(id)
+  except ProviderError as e:
+    if e.revertReason.contains("Slot empty"):
+      return false
+    raise e
 
 method getProofEnd*(proofs: OnChainProofs,
                     id: SlotId): Future[UInt256] {.async.} =
-  return await proofs.storage.proofEnd(id)
+  try:
+    return await proofs.storage.proofEnd(id)
+  except ProviderError as e:
+    if e.revertReason.contains("Slot empty"):
+      return 0.u256
+    raise e
 
 method submitProof*(proofs: OnChainProofs,
                     id: SlotId,

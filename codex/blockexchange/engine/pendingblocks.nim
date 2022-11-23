@@ -21,33 +21,43 @@ import pkg/libp2p
 import ../../blocktype
 
 logScope:
-  topics = "codex blockexc pendingblocks"
+  topics = "codex pendingblocks"
 
 const
   DefaultBlockTimeout* = 10.minutes
 
 type
+  BlockReq* = object
+    handle*: Future[Block]
+    inFlight*: bool
+
   PendingBlocksManager* = ref object of RootObj
-    blocks*: Table[Cid, Future[Block]] # pending Block requests
+    blocks*: Table[Cid, BlockReq] # pending Block requests
 
 proc getWantHandle*(
   p: PendingBlocksManager,
   cid: Cid,
-  timeout = DefaultBlockTimeout): Future[Block] {.async.} =
+  timeout = DefaultBlockTimeout,
+  inFlight = false): Future[Block] {.async.} =
   ## Add an event for a block
   ##
 
-  if cid notin p.blocks:
-     p.blocks[cid] = newFuture[Block]().wait(timeout)
-     trace "Adding pending future for block", cid
-
   try:
-    return await p.blocks[cid]
+    if cid notin p.blocks:
+      p.blocks[cid] = BlockReq(
+        handle: newFuture[Block]("pendingBlocks.getWantHandle"),
+        inFlight: inFlight)
+
+      trace "Adding pending future for block", cid, inFlight = p.blocks[cid].inFlight
+
+    return await p.blocks[cid].handle.wait(timeout)
   except CancelledError as exc:
     trace "Blocks cancelled", exc = exc.msg, cid
     raise exc
   except CatchableError as exc:
     trace "Pending WANT failed or expired", exc = exc.msg
+    # no need to cancel, it is already cancelled by wait()
+    raise exc
   finally:
     p.blocks.del(cid)
 
@@ -59,12 +69,25 @@ proc resolve*(
 
   for blk in blocks:
     # resolve any pending blocks
-    if blk.cid in p.blocks:
-      p.blocks.withValue(blk.cid, pending):
-        if not pending[].finished:
-          trace "Resolving block", cid = $blk.cid
-          pending[].complete(blk)
-          p.blocks.del(blk.cid)
+    p.blocks.withValue(blk.cid, pending):
+      if not pending[].handle.completed:
+        trace "Resolving block", cid = blk.cid
+        pending[].handle.complete(blk)
+
+proc setInFlight*(
+  p: PendingBlocksManager,
+  cid: Cid,
+  inFlight = true) =
+  p.blocks.withValue(cid, pending):
+    pending[].inFlight = inFlight
+    trace "Setting inflight", cid, inFlight = pending[].inFlight
+
+proc isInFlight*(
+  p: PendingBlocksManager,
+  cid: Cid): bool =
+  p.blocks.withValue(cid, pending):
+    result = pending[].inFlight
+    trace "Getting inflight", cid, inFlight = result
 
 proc pending*(
   p: PendingBlocksManager,
@@ -80,11 +103,10 @@ iterator wantList*(p: PendingBlocksManager): Cid =
 
 iterator wantHandles*(p: PendingBlocksManager): Future[Block] =
   for v in p.blocks.values:
-    yield v
+    yield v.handle
 
 func len*(p: PendingBlocksManager): int =
   p.blocks.len
 
 func new*(T: type PendingBlocksManager): T =
-  T(
-    blocks: initTable[Cid, Future[Block]]())
+  T()

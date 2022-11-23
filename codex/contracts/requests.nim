@@ -19,6 +19,7 @@ type
     duration*: UInt256
     proofProbability*: UInt256
     reward*: UInt256
+    maxSlotLoss*: uint64
   StorageContent* = object
     cid*: string
     erasure*: StorageErasure
@@ -32,6 +33,12 @@ type
   SlotId* = distinct array[32, byte]
   RequestId* = distinct array[32, byte]
   Nonce* = distinct array[32, byte]
+  RequestState* {.pure.} = enum
+    New
+    Started
+    Cancelled
+    Finished
+    Failed
 
 proc `==`*(x, y: Nonce): bool {.borrow.}
 proc `==`*(x, y: RequestId): bool {.borrow.}
@@ -40,6 +47,9 @@ proc hash*(x: SlotId): Hash {.borrow.}
 
 func toArray*(id: RequestId | SlotId | Nonce): array[32, byte] =
   array[32, byte](id)
+
+proc `$`*(id: RequestId | SlotId | Nonce): string =
+  id.toArray.toHex
 
 func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
   StorageRequest(
@@ -56,7 +66,8 @@ func fromTuple(_: type StorageAsk, tupl: tuple): StorageAsk =
     slotSize: tupl[1],
     duration: tupl[2],
     proofProbability: tupl[3],
-    reward: tupl[4]
+    reward: tupl[4],
+    maxSlotLoss: tupl[5]
   )
 
 func fromTuple(_: type StorageContent, tupl: tuple): StorageContent =
@@ -93,9 +104,6 @@ func solidityType*(_: type StorageAsk): string =
 func solidityType*(_: type StorageRequest): string =
   solidityType(StorageRequest.fieldTypes)
 
-func solidityType*[T: RequestId | SlotId | Nonce](_: type T): string =
-  solidityType(array[32, byte])
-
 func encode*(encoder: var AbiEncoder, por: StoragePoR) =
   encoder.write(por.fieldValues)
 
@@ -113,11 +121,6 @@ func encode*(encoder: var AbiEncoder, id: RequestId | SlotId | Nonce) =
 
 func encode*(encoder: var AbiEncoder, request: StorageRequest) =
   encoder.write(request.fieldValues)
-
-func decode*[T: RequestId | SlotId | Nonce](decoder: var AbiDecoder,
-                                            _: type T): ?!T =
-  let nonce = ?decoder.read(type array[32, byte])
-  success T(nonce)
 
 func decode*(decoder: var AbiDecoder, T: type StoragePoR): ?!T =
   let tupl = ?decoder.read(StoragePoR.fieldTypes)

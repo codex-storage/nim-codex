@@ -5,7 +5,6 @@ import pkg/asynctest
 import pkg/chronos
 import pkg/libp2p
 import pkg/libp2p/errors
-import pkg/protobuf_serialization
 import pkg/contractabi as ca
 
 import pkg/codex/rng
@@ -22,6 +21,7 @@ import ../examples
 import ../helpers
 
 const
+  BlockSize = 31 * 64
   SectorSize = 31
   SectorsPerBlock = BlockSize div SectorSize
   DataSetSize = BlockSize * 100
@@ -82,8 +82,8 @@ suite "Storage Proofs Network":
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
 
-    discovery1 = MockDiscovery.new(switch1.peerInfo)
-    discovery2 = MockDiscovery.new(switch2.peerInfo)
+    discovery1 = MockDiscovery.new()
+    discovery2 = MockDiscovery.new()
 
     stpNetwork1 = StpNetwork.new(switch1, discovery1)
     stpNetwork2 = StpNetwork.new(switch2, discovery2)

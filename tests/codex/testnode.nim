@@ -80,7 +80,10 @@ suite "Test Node":
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
     localStore = CacheStore.new()
-    blockDiscovery = Discovery.new(switch.peerInfo, Port(0))
+    blockDiscovery = Discovery.new(
+      switch.peerInfo.privateKey,
+      announceAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0")
+        .expect("Should return multiaddress")])
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
     discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
@@ -128,7 +131,7 @@ suite "Test Node":
     let
       stream = BufferStream.new()
       storeFut = node.store(stream)
-      oddChunkSize = math.trunc(BlockSize/1.618).int  # Let's check that node.store can correctly rechunk these odd chunks
+      oddChunkSize = math.trunc(BlockSize/3.14).int  # Let's check that node.store can correctly rechunk these odd chunks
       oddChunker = FileChunker.new(file = file, chunkSize = oddChunkSize, pad = false)  # TODO: doesn't work with pad=tue
     var
       original: seq[byte]

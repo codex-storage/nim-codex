@@ -27,7 +27,7 @@ import ./seekablestream
 export stores, blocktype, manifest, chronos
 
 logScope:
-  topics = "dagger storestream"
+  topics = "codex storestream"
 
 type
   # Make SeekableStream from a sequence of blocks stored in Manifest

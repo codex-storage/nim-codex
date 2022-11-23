@@ -27,7 +27,7 @@ import ./networkpeer
 export network, payments
 
 logScope:
-  topics = "codex blockexc network"
+  topics = "codex blockexcnetwork"
 
 const
   Codec* = "/codex/blockexc/1.0.0"
@@ -44,7 +44,7 @@ type
     cids: seq[Cid],
     priority: int32 = 0,
     cancel: bool = false,
-    wantType: WantType = WantType.wantHave,
+    wantType: WantType = WantType.WantHave,
     full: bool = false,
     sendDontHave: bool = false): Future[void] {.gcsafe.}
 
@@ -105,7 +105,7 @@ proc makeWantList*(
   cids: seq[Cid],
   priority: int = 0,
   cancel: bool = false,
-  wantType: WantType = WantType.wantHave,
+  wantType: WantType = WantType.WantHave,
   full: bool = false,
   sendDontHave: bool = false): WantList =
   WantList(
@@ -124,7 +124,7 @@ proc sendWantList*(
   cids: seq[Cid],
   priority: int32 = 0,
   cancel: bool = false,
-  wantType: WantType = WantType.wantHave,
+  wantType: WantType = WantType.WantHave,
   full: bool = false,
   sendDontHave: bool = false): Future[void] =
   ## Send a want message to peer
@@ -332,17 +332,18 @@ proc new*(
   ## Create a new BlockExcNetwork instance
   ##
 
-  let self = BlockExcNetwork(
-    switch: switch,
-    getConn: connProvider,
-    inflightSema: newAsyncSemaphore(maxInflight))
+  let
+    self = BlockExcNetwork(
+      switch: switch,
+      getConn: connProvider,
+      inflightSema: newAsyncSemaphore(maxInflight))
 
   proc sendWantList(
     id: PeerID,
     cids: seq[Cid],
     priority: int32 = 0,
     cancel: bool = false,
-    wantType: WantType = WantType.wantHave,
+    wantType: WantType = WantType.WantHave,
     full: bool = false,
     sendDontHave: bool = false): Future[void] {.gcsafe.} =
     self.sendWantList(

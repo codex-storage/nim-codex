@@ -1,8 +1,12 @@
+import std/sets
 import pkg/asynctest
 import pkg/chronos
+import pkg/codex/contracts/requests
+import pkg/codex/proving
 import pkg/codex/sales
 import ./helpers/mockmarket
 import ./helpers/mockclock
+import ./helpers/eventually
 import ./examples
 
 suite "Sales":
@@ -23,16 +27,18 @@ suite "Sales":
       cid: "some cid"
     )
   )
-  let proof = seq[byte].example
+  let proof = exampleProof()
 
   var sales: Sales
   var market: MockMarket
   var clock: MockClock
+  var proving: Proving
 
   setup:
     market = MockMarket.new()
     clock = MockClock.new()
-    sales = Sales.new(market, clock)
+    proving = Proving.new()
+    sales = Sales.new(market, clock, proving)
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
                          availability: Availability) {.async.} =
@@ -70,21 +76,21 @@ suite "Sales":
 
   test "makes storage unavailable when matching request comes in":
     sales.add(availability)
-    discard await market.requestStorage(request)
+    await market.requestStorage(request)
     check sales.available.len == 0
 
   test "ignores request when no matching storage is available":
     sales.add(availability)
     var tooBig = request
     tooBig.ask.slotSize = request.ask.slotSize + 1
-    discard await market.requestStorage(tooBig)
+    await market.requestStorage(tooBig)
     check sales.available == @[availability]
 
   test "ignores request when reward is too low":
     sales.add(availability)
     var tooCheap = request
     tooCheap.ask.reward = request.ask.reward - 1
-    discard await market.requestStorage(tooCheap)
+    await market.requestStorage(tooCheap)
     check sales.available == @[availability]
 
   test "retrieves and stores data locally":
@@ -98,8 +104,8 @@ suite "Sales":
       storingSlot = slot
       storingAvailability = availability
     sales.add(availability)
-    let requested = await market.requestStorage(request)
-    check storingRequest == requested
+    await market.requestStorage(request)
+    check storingRequest == request
     check storingSlot < request.ask.slots.u256
     check storingAvailability == availability
 
@@ -110,7 +116,7 @@ suite "Sales":
                          availability: Availability) {.async.} =
       raise error
     sales.add(availability)
-    discard await market.requestStorage(request)
+    await market.requestStorage(request)
     check sales.available == @[availability]
 
   test "generates proof of storage":
@@ -121,13 +127,13 @@ suite "Sales":
       provingRequest = request
       provingSlot = slot
     sales.add(availability)
-    let requested = await market.requestStorage(request)
-    check provingRequest == requested
+    await market.requestStorage(request)
+    check provingRequest == request
     check provingSlot < request.ask.slots.u256
 
   test "fills a slot":
     sales.add(availability)
-    discard await market.requestStorage(request)
+    await market.requestStorage(request)
     check market.filled.len == 1
     check market.filled[0].requestId == request.id
     check market.filled[0].slotIndex < request.ask.slots.u256
@@ -145,24 +151,31 @@ suite "Sales":
       soldRequest = request
       soldSlotIndex = slotIndex
     sales.add(availability)
-    discard await market.requestStorage(request)
+    await market.requestStorage(request)
     check soldAvailability == availability
     check soldRequest == request
     check soldSlotIndex < request.ask.slots.u256
 
   test "calls onClear when storage becomes available again":
+    # fail the proof intentionally to trigger `agent.finish(success=false)`,
+    # which then calls the onClear callback
     sales.onProve = proc(request: StorageRequest,
                          slot: UInt256): Future[seq[byte]] {.async.} =
       raise newException(IOError, "proof failed")
     var clearedAvailability: Availability
     var clearedRequest: StorageRequest
-    sales.onClear = proc(availability: Availability, request: StorageRequest) =
+    var clearedSlotIndex: UInt256
+    sales.onClear = proc(availability: Availability,
+                         request: StorageRequest,
+                         slotIndex: UInt256) =
       clearedAvailability = availability
       clearedRequest = request
+      clearedSlotIndex = slotIndex
     sales.add(availability)
-    discard await market.requestStorage(request)
+    await market.requestStorage(request)
     check clearedAvailability == availability
     check clearedRequest == request
+    check clearedSlotIndex < request.ask.slots.u256
 
   test "makes storage available again when other host fills the slot":
     let otherHost = Address.example
@@ -171,7 +184,7 @@ suite "Sales":
                          availability: Availability) {.async.} =
       await sleepAsync(1.hours)
     sales.add(availability)
-    discard await market.requestStorage(request)
+    await market.requestStorage(request)
     for slotIndex in 0..<request.ask.slots:
       market.fillSlot(request.id, slotIndex.u256, proof, otherHost)
     check sales.available == @[availability]
@@ -182,7 +195,18 @@ suite "Sales":
                          availability: Availability) {.async.} =
       await sleepAsync(1.hours)
     sales.add(availability)
-    discard await market.requestStorage(request)
+    await market.requestStorage(request)
     clock.set(request.expiry.truncate(int64))
-    await sleepAsync(2.seconds)
-    check sales.available == @[availability]
+    check eventually (sales.available == @[availability])
+
+  test "adds proving for slot when slot is filled":
+    var soldSlotIndex: UInt256
+    sales.onSale = proc(availability: Availability,
+                        request: StorageRequest,
+                        slotIndex: UInt256) =
+      soldSlotIndex = slotIndex
+    check proving.slots.len == 0
+    sales.add(availability)
+    await market.requestStorage(request)
+    check proving.slots.len == 1
+    check proving.slots.contains(request.slotId(soldSlotIndex))

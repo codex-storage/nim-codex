@@ -18,11 +18,17 @@ import pkg/libp2p
 import pkg/stew/byteutils
 import pkg/questionable
 import pkg/questionable/results
+import pkg/chronicles
 
+import ./formats
 import ./errors
 
+export errors, formats
+
 const
-  BlockSize* = 31 * 64 * 4 # block size
+  # Size of blocks for storage / network exchange,
+  # should be divisible by 31 for PoR and by 64 for Leopard ECC
+  BlockSize* = 31 * 64 * 33
 
 type
   Block* = ref object of RootObj

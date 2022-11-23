@@ -10,6 +10,7 @@
 import std/options
 import std/tables
 import std/sequtils
+import std/strformat
 
 import pkg/questionable
 import pkg/questionable/results
@@ -138,7 +139,7 @@ proc retrieve*(
         except CatchableError as exc:
           trace "Exception prefetching blocks", exc = exc.msg
       #
-      asyncSpawn prefetchBlocks()
+      # asyncSpawn prefetchBlocks()  - temporarily commented out
     #
     # Retrieve all blocks of the dataset sequentially from the local store or network
     return LPStream(StoreStream.new(node.blockStore, manifest, pad = false)).success
@@ -146,23 +147,25 @@ proc retrieve*(
   let
     stream = BufferStream.new()
 
-  if blkOrNone =? (await node.blockStore.getBlock(cid)) and blk =? blkOrNone:
-    proc streamOneBlock(): Future[void] {.async.} =
-      try:
-        await stream.pushData(blk.data)
-      except CatchableError as exc:
-        trace "Unable to send block", cid
-        discard
-      finally:
-        await stream.pushEof()
+  without blk =? (await node.blockStore.getBlock(cid)), err:
+    return failure(err)
 
-    asyncSpawn streamOneBlock()
-    return LPStream(stream).success()
+  proc streamOneBlock(): Future[void] {.async.} =
+    try:
+      await stream.pushData(blk.data)
+    except CatchableError as exc:
+      trace "Unable to send block", cid
+      discard
+    finally:
+      await stream.pushEof()
+
+  asyncSpawn streamOneBlock()
+  return LPStream(stream).success()
 
   return failure("Unable to retrieve Cid!")
 
 proc store*(
-  node: CodexNodeRef,
+  self: CodexNodeRef,
   stream: LPStream,
   blockSize = BlockSize): Future[?!Cid] {.async.} =
   ## Save stream contents as dataset with given blockSize
@@ -186,9 +189,9 @@ proc store*(
         return failure("Unable to init block from chunk!")
 
       blockManifest.add(blk.cid)
-      if isErr (await node.blockStore.putBlock(blk)):
+      if isErr (await self.blockStore.putBlock(blk)):
         # trace "Unable to store block", cid = blk.cid
-        return failure("Unable to store block " & $blk.cid)
+        return failure(&"Unable to store block {blk.cid}")
 
   except CancelledError as exc:
     raise exc
@@ -208,7 +211,7 @@ proc store*(
     trace "Unable to init block from manifest data!"
     return failure("Unable to init block from manifest data!")
 
-  if isErr (await node.blockStore.putBlock(manifest)):
+  if isErr (await self.blockStore.putBlock(manifest)):
     trace "Unable to store manifest", cid = manifest.cid
     return failure("Unable to store manifest " & $manifest.cid)
 
@@ -219,6 +222,9 @@ proc store*(
   trace "Stored data", manifestCid = manifest.cid,
                        contentCid = cid,
                        blocks = blockManifest.len
+
+  # Announce manifest
+  await self.discovery.provide(manifest.cid)
 
   return manifest.cid.success
 
@@ -270,7 +276,8 @@ proc requestStorage*(self: CodexNodeRef,
       slots: nodes + tolerance,
       slotSize: (encoded.blockSize * encoded.steps).u256,
       duration: duration,
-      reward: reward
+      reward: reward,
+      maxSlotLoss: tolerance
     ),
     content: StorageContent(
       cid: $encodedBlk.cid,
@@ -286,7 +293,7 @@ proc requestStorage*(self: CodexNodeRef,
     expiry: expiry |? 0.u256
   )
 
-  let purchase = contracts.purchasing.purchase(request)
+  let purchase = await contracts.purchasing.purchase(request)
   return success purchase.id
 
 proc new*(
@@ -343,9 +350,12 @@ proc start*(node: CodexNodeRef) {.async.} =
       if fetchRes.isErr:
         raise newException(CodexError, "Unable to retrieve blocks")
 
-    contracts.sales.onClear = proc(availability: Availability, request: StorageRequest) =
+    contracts.sales.onClear = proc(availability: Availability,
+                                   request: StorageRequest,
+                                   slotIndex: UInt256) =
       # TODO: remove data from local storage
       discard
+
     contracts.sales.onProve = proc(request: StorageRequest,
                                    slot: UInt256): Future[seq[byte]] {.async.} =
       # TODO: generate proof
