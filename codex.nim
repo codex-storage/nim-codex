@@ -91,7 +91,7 @@ when isMainModule:
         waitFor server.stop()
         notice "Stopped Codex"
 
-      c_signal(SIGTERM, SIGTERMHandler)
+      c_signal(ansi_c.SIGTERM, SIGTERMHandler)
 
     waitFor server.start()
     notice "Exited codex"

@@ -67,11 +67,7 @@ proc store*(
     let res = io2.writeFile(path, por.encode());
     res.isErr):
     let error = io2.ioErrorMsg(res.error)
-<<<<<<< HEAD
     trace "Unable to store storage proofs", path, cid, error
-=======
-    trace "Unable to store storage proofs", path, cid = cid, error
->>>>>>> 74b0fdf (Revert "[build] track nim-libp2p's unstable branch")
     return failure(
       &"Unable to store storage proofs - path = ${path} cid = ${cid} error = ${error}")
 
