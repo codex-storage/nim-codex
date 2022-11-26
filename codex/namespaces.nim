@@ -13,11 +13,9 @@ const
   CodexRepoNamespace* =  "repo"                               # repository namespace, blocks and manifests are subkeys
   CodexBlocksNamespace* = CodexRepoNamespace & "/blocks"      # blocks namespace
   CodexManifestNamespace* = CodexRepoNamespace & "/manifests" # manifest namespace
-  CodexBlocksPersistNamespace* =                              # Cid's of persisted blocks goes here
-    CodexMetaNamespace & "/blocks" & "/persist"
   CodexBlocksTtlNamespace* =                                  # Cid TTL
-    CodexMetaNamespace & "/blocks" & "/ttl"
+    CodexMetaNamespace & "/ttl"
   CodexDhtNamespace* = "dht"                                  # Dht namespace
   CodexDhtProvidersNamespace* =                               # Dht providers namespace
     CodexDhtNamespace & "/providers"
-  CacheQuotaNamespace* = CodexMetaNamespace & "/quota"        # quota's namespace
+  CodexQuotaNamespace* = CodexMetaNamespace & "/quota"        # quota's namespace

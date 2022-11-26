@@ -151,7 +151,10 @@ func putBlockSync(self: CacheStore, blk: Block): bool =
   self.currentSize += blkSize
   return true
 
-method putBlock*(self: CacheStore, blk: Block): Future[?!void] {.async.} =
+method putBlock*(
+  self: CacheStore,
+  blk: Block,
+  ttl = Duration.none): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 

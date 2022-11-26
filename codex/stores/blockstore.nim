@@ -20,6 +20,9 @@ import ../blocktype
 
 export blocktype, libp2p
 
+const
+  DefaultBlockTtl = 24.hours
+
 type
   BlockNotFoundError* = object of CodexError
 
@@ -44,7 +47,10 @@ method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
 
   raiseAssert("Not implemented!")
 
-method putBlock*(self: BlockStore, blk: Block): Future[?!void] {.base.} =
+method putBlock*(
+  self: BlockStore,
+  blk: Block,
+  ttl = Duration.none): Future[?!void] {.base.} =
   ## Put a block to the blockstore
   ##
 
@@ -62,7 +68,9 @@ method hasBlock*(self: BlockStore, cid: Cid): Future[?!bool] {.base.} =
 
   raiseAssert("Not implemented!")
 
-method listBlocks*(self: BlockStore, blockType = BlockType.Manifest): Future[?!BlocksIter] {.base.} =
+method listBlocks*(
+  self: BlockStore,
+  blockType = BlockType.Manifest): Future[?!BlocksIter] {.base.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 

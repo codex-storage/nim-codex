@@ -35,26 +35,29 @@ const
   CodexBlocksKey* = Key.init(CodexBlocksNamespace).tryGet
   CodexManifestKey* = Key.init(CodexManifestNamespace).tryGet
 
-  QuotaKey* = Key.init(CodexMetaNamespace & "/cache").tryGet
-  CacheBytesKey* = Key.init(CacheQuotaNamespace & "/cache").tryGet
-  PersistBytesKey* = Key.init(CacheQuotaNamespace & "/persist").tryGet
+  QuotaKey* = Key.init(CodexQuotaNamespace).tryGet
+  QuotaUsedKey* = (QuotaKey / "used").tryGet
+  QuotaReservedKey* = (QuotaKey / "reserved").tryGet
 
-  DefaultCacheTtl* = 24.hours
-  DefaultCacheBytes* = 1'u shl 33'u # ~8GB
-  DefaultPersistBytes* = 1'u shl 33'u # ~8GB
+  BlocksTtlKey* = Key.init(CodexBlocksTtlNamespace).tryGet
+
+  DefaultBlockTtl* = 24.hours
+  DefaultQuotaBytes* = 1'u shl 33'u # ~8GB
+
+  ZeroMoment = Moment.init(0, Nanosecond) # for conversion between Duration and Moment
 
 type
-  CacheQuotaUsedError* = object of CodexError
-  PersistQuotaUsedError* = object of CodexError
+  QuotaUsedError* = object of CodexError
+  QuotaNotEnoughError* = object of CodexError
 
   RepoStore* = ref object of BlockStore
     postFixLen*: int
     repoDs*: Datastore
     metaDs*: Datastore
-    maxCacheBytes*: uint
-    currentCacheBytes*: uint
-    maxPersistBytes*: uint
-    currentPersistBytes*: uint
+    quotaMaxBytes*: uint
+    quotaUsedBytes*: uint
+    quotaReservedBytes*: uint
+    blockTtl*: Duration
     started*: bool
 
 func makePrefixKey*(self: RepoStore, cid: Cid): ?!Key =
@@ -65,6 +68,12 @@ func makePrefixKey*(self: RepoStore, cid: Cid): ?!Key =
     success CodexManifestKey / cidKey
   else:
     success CodexBlocksKey / cidKey
+
+func makeExpiresKey(expires: Duration, cid: Cid): ?!Key =
+  BlocksTtlKey / $expires.seconds / $cid
+
+func totalUsed*(self: RepoStore): uint =
+  (self.quotaUsedBytes + self.quotaReservedBytes)
 
 method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the blockstore
@@ -87,26 +96,14 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
 method putBlock*(
   self: RepoStore,
   blk: Block,
-  persist = false): Future[?!void] {.async, base.} =
+  ttl = Duration.none): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 
-  if await blk.cid in self:
-    trace "Block already in repo, skipping", cid = blk.cid
-    return success()
-
-  if persist and (self.currentPersistBytes + blk.data.len.uint) > self.maxPersistBytes:
-    error "Cannot persist block, quota used!",
-      maxPersistBytes = self.maxPersistBytes, used = self.maxPersistBytes + blk.data.len.uint
-
+  if (self.totalUsed + blk.data.len.uint) > self.quotaMaxBytes:
+    error "Cannot store block, quota used!", used = self.totalUsed
     return failure(
-      newException(PersistQuotaUsedError, "Cannot persist block, quota used!"))
-  elif (self.currentCacheBytes + blk.data.len.uint) > self.maxCacheBytes:
-    error "Cannot cache block, quota used!",
-      maxCacheBytes = self.maxCacheBytes, used = (self.maxCacheBytes + blk.data.len.uint)
-
-    return failure(
-      newException(CacheQuotaUsedError, "Cannot cache block, quota used!"))
+      newException(QuotaUsedError, "Cannot store block, quota used!"))
 
   without key =? self.makePrefixKey(blk.cid), err:
     trace "Error getting key from provider", err = err.msg
@@ -114,44 +111,64 @@ method putBlock*(
 
   trace "Storing block with key", key
 
-  if err =? (await self.repoDs.put(key, blk.data)).errorOption:
-    trace "Error storing block", err = err.msg
+  without var expires =? ttl:
+    expires = Moment.fromNow(self.blockTtl) - ZeroMoment
+
+  var
+    batch: seq[BatchEntry]
+
+  let
+    used = self.quotaUsedBytes + blk.data.len.uint
+
+  batch.add((QuotaUsedKey, @(used.uint64.toBytesBE)))
+
+  without expiresKey =? makeExpiresKey(expires, blk.cid), err:
+    trace "Unable make block ttl key",
+      err = err.msg, cid = blk.cid, expires, expiresKey
+
     return failure(err)
 
-  let (quotaKey, bytes) =
-    if persist:
-      self.currentPersistBytes += blk.data.len.uint
-      (PersistBytesKey, @(self.currentPersistBytes.uint64.toBytesBE))
-    else:
-      self.currentCacheBytes += blk.data.len.uint
-      (CacheBytesKey, @(self.currentCacheBytes.uint64.toBytesBE))
+  # batch.add((expiresKey, @[])) # TODO: Add proper support for block expiration
 
-  if err =? (await self.metaDs.put(quotaKey, bytes)).errorOption:
-    trace "Error updating quota bytes", err = err.msg, persist
+  if err =? (await self.metaDs.put(batch)).errorOption:
+    trace "Error updating quota bytes", err = err.msg
 
     if err =? (await self.repoDs.delete(key)).errorOption:
-      trace "Error direleting block after failed quota update", err = err.msg
+      trace "Error deleting block after failed quota update", err = err.msg
       return failure(err)
 
     return failure(err)
 
+  if err =? (await self.repoDs.put(key, blk.data)).errorOption:
+    trace "Error storing block", err = err.msg
+    return failure(err)
+
+  self.quotaUsedBytes = used
   return success()
-
-method putBlock*(self: RepoStore, blk: Block): Future[?!void] =
-  ## Put a block to the blockstore
-  ##
-
-  return self.putBlock(blk, persist = false)
 
 method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
   ## Delete a block from the blockstore
   ##
 
-  without key =? self.makePrefixKey(cid), err:
-    trace "Error getting key from provider", err = err.msg
-    return failure(err)
+  trace "Deleting block", cid
 
-  return await self.repoDs.delete(key)
+  if blk =? (await self.getBlock(cid)):
+    if key =? self.makePrefixKey(cid) and err =? (await self.repoDs.delete(key)).errorOption:
+      trace "Error deleting block!", err = err.msg
+      return failure(err)
+
+    let
+      used = self.quotaUsedBytes - blk.data.len.uint
+
+    if err =? (await self.metaDs.put(QuotaUsedKey, @(used.uint64.toBytesBE))).errorOption:
+      trace "Error updating quota key!", err = err.msg
+      return failure(err)
+
+    self.quotaUsedBytes = used
+
+    trace "Deleted block", cid, totalUsed = self.totalUsed
+
+  return success()
 
 method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
@@ -214,17 +231,54 @@ proc hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
 
   return await self.repoDs.contains(key)
 
-method persistBlock*(self: BlockStore, cid: Cid, persist = true): Future[?!Block] {.base.} =
-  ## Mark/un-mark block as persisted
+proc reserve*(self: RepoStore, bytes: uint): Future[?!void] {.async.} =
+  ## Reserve bytes
   ##
 
-  raiseAssert("Not implemented!")
+  trace "Reserving bytes", reserved = self.quotaReservedBytes, bytes
 
-method isPersisted*(self: BlockStore, cid: Cid): Future[bool] =
-  ## Check if blocks is persisted
+  if (self.totalUsed + bytes) > self.quotaMaxBytes:
+    trace "Not enough storage quota to reserver", reserve = self.totalUsed + bytes
+    return failure(
+      newException(QuotaNotEnoughError, "Not enough storage quota to reserver"))
+
+  self.quotaReservedBytes += bytes
+  if err =? (await self.metaDs.put(
+    QuotaReservedKey,
+    @(toBytesBE(self.quotaReservedBytes.uint64)))).errorOption:
+
+    trace "Error reserving bytes", err = err.msg
+
+    self.quotaReservedBytes += bytes
+    return failure(err)
+
+  return success()
+
+proc release*(self: RepoStore, bytes: uint): Future[?!void] {.async.} =
+  ## Release bytes
   ##
 
-  raiseAssert("Not implemented!")
+  trace "Releasing bytes", reserved = self.quotaReservedBytes, bytes
+
+  if (self.quotaReservedBytes.int - bytes.int) < 0:
+    trace "Cannot release this many bytes",
+      quotaReservedBytes = self.quotaReservedBytes, bytes
+
+    return failure("Cannot release this many bytes")
+
+  self.quotaReservedBytes -= bytes
+  if err =? (await self.metaDs.put(
+    QuotaReservedKey,
+    @(toBytesBE(self.quotaReservedBytes.uint64)))).errorOption:
+
+    trace "Error releasing bytes", err = err.msg
+
+    self.quotaReservedBytes -= bytes
+
+    return failure(err)
+
+  trace "Released bytes", bytes
+  return success()
 
 proc start*(self: RepoStore): Future[void] {.async.} =
   ## Start repo
@@ -237,25 +291,32 @@ proc start*(self: RepoStore): Future[void] {.async.} =
   trace "Starting repo"
 
   ## load current persist and cache bytes from meta ds
-  without maxCacheBytes =? await self.metaDs.get(CacheBytesKey), err:
+  without quotaUsedBytes =? await self.metaDs.get(QuotaUsedKey), err:
     if not (err of DatastoreKeyNotFound):
-      error "Error getting cache bytes from datastore", err = err.msg, key = $CacheBytesKey
+      error "Error getting cache bytes from datastore",
+        err = err.msg, key = $QuotaUsedKey
+
       raise newException(Defect, err.msg)
 
-  if maxCacheBytes.len > 0:
-    self.currentCacheBytes = uint64.fromBytesBE(maxCacheBytes).uint
+  if quotaUsedBytes.len > 0:
+    self.quotaUsedBytes = uint64.fromBytesBE(quotaUsedBytes).uint
 
-  notice "Current bytes used for cache quota", bytes = self.currentCacheBytes
+  notice "Current bytes used for cache quota", bytes = self.quotaUsedBytes
 
-  without maxPersistBytes =? await self.metaDs.get(PersistBytesKey), err:
+  without quotaReservedBytes =? await self.metaDs.get(QuotaReservedKey), err:
     if not (err of DatastoreKeyNotFound):
-      error "Error getting persist bytes from datastore", err = err.msg, key = $PersistBytesKey
+      error "Error getting persist bytes from datastore",
+        err = err.msg, key = $QuotaReservedKey
+
       raise newException(Defect, err.msg)
 
-  if maxPersistBytes.len > 0:
-    self.currentPersistBytes = uint64.fromBytesBE(maxPersistBytes).uint
+  if quotaReservedBytes.len > 0:
+    self.quotaReservedBytes = uint64.fromBytesBE(quotaReservedBytes).uint
 
-  notice "Current bytes used for persist quota", bytes = self.currentPersistBytes
+  if self.quotaUsedBytes > self.quotaMaxBytes:
+    raiseAssert "All storage quota used, increase storage quota!"
+
+  notice "Current bytes used for persist quota", bytes = self.quotaReservedBytes
 
   self.started = true
 
@@ -268,18 +329,20 @@ proc stop*(self: RepoStore): Future[void] {.async.} =
     return
 
   trace "Stopping repo"
+  (await self.repoDs.close()).expect("Should close repo store!")
+  (await self.metaDs.close()).expect("Should close meta store!")
 
 func new*(
   T: type RepoStore,
   repoDs: Datastore,
   metaDs: Datastore,
   postFixLen = 2,
-  maxCacheBytes = DefaultCacheBytes,
-  maxPersistBytes = DefaultPersistBytes): T =
+  quotaMaxBytes = DefaultQuotaBytes,
+  blockTtl = DefaultBlockTtl): T =
 
   T(
     repoDs: repoDs,
     metaDs: metaDs,
     postFixLen: postFixLen,
-    maxCacheBytes: maxCacheBytes,
-    maxPersistBytes: maxPersistBytes)
+    quotaMaxBytes: quotaMaxBytes,
+    blockTtl: blockTtl)

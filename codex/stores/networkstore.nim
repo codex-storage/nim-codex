@@ -46,13 +46,16 @@ method getBlock*(self: NetworkStore, cid: Cid): Future[?!bt.Block] {.async.} =
 
   return success blk
 
-method putBlock*(self: NetworkStore, blk: bt.Block): Future[?!void] {.async.} =
+method putBlock*(
+  self: NetworkStore,
+  blk: bt.Block,
+  ttl = Duration.none): Future[?!void] {.async.} =
   ## Store block locally and notify the network
   ##
 
   trace "Puting block into network store", cid = blk.cid
 
-  let res = await self.localStore.putBlock(blk)
+  let res = await self.localStore.putBlock(blk, ttl)
   if res.isErr:
     return res
 
