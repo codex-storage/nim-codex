@@ -15,8 +15,15 @@ import ../helpers
 
 type
   StoreProvider* = proc(): BlockStore {.gcsafe.}
+  Before* = proc(): Future[void] {.gcsafe.}
+  After* = proc(): Future[void] {.gcsafe.}
 
-proc commonBlockStoreTests*(name: string, provider: StoreProvider) =
+proc commonBlockStoreTests*(
+  name: string,
+  provider: StoreProvider,
+  before: Before = nil,
+  after: After = nil) =
+
   suite name & " Store Common":
     var
       newBlock, newBlock1, newBlock2, newBlock3: Block
@@ -27,10 +34,17 @@ proc commonBlockStoreTests*(name: string, provider: StoreProvider) =
       newBlock1 = Block.new("1".repeat(100).toBytes()).tryGet()
       newBlock2 = Block.new("2".repeat(100).toBytes()).tryGet()
       newBlock3 = Block.new("3".repeat(100).toBytes()).tryGet()
+
+      if not isNil(before):
+        await before()
+
       store = provider()
 
     teardown:
       await store.close()
+
+      if not isNil(after):
+        await after()
 
     test "putBlock":
       (await store.putBlock(newBlock1)).tryGet()
