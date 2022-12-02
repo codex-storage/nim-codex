@@ -70,7 +70,7 @@ func makePrefixKey*(self: RepoStore, cid: Cid): ?!Key =
     success CodexBlocksKey / cidKey
 
 func makeExpiresKey(expires: Duration, cid: Cid): ?!Key =
-  BlocksTtlKey / $expires.seconds / $cid
+  BlocksTtlKey / $cid / $expires.seconds
 
 func totalUsed*(self: RepoStore): uint =
   (self.quotaUsedBytes + self.quotaReservedBytes)
@@ -120,6 +120,11 @@ method putBlock*(
   let
     used = self.quotaUsedBytes + blk.data.len.uint
 
+  if err =? (await self.repoDs.put(key, blk.data)).errorOption:
+    trace "Error storing block", err = err.msg
+    return failure(err)
+
+  trace "Updating quota", used
   batch.add((QuotaUsedKey, @(used.uint64.toBytesBE)))
 
   without expiresKey =? makeExpiresKey(expires, blk.cid), err:
@@ -128,6 +133,7 @@ method putBlock*(
 
     return failure(err)
 
+  trace "Adding expires key", expiresKey, expires
   batch.add((expiresKey, @[]))
 
   if err =? (await self.metaDs.put(batch)).errorOption:
@@ -137,10 +143,6 @@ method putBlock*(
       trace "Error deleting block after failed quota update", err = err.msg
       return failure(err)
 
-    return failure(err)
-
-  if err =? (await self.repoDs.put(key, blk.data)).errorOption:
-    trace "Error storing block", err = err.msg
     return failure(err)
 
   self.quotaUsedBytes = used
