@@ -29,9 +29,9 @@ import pkg/libp2p
 import pkg/ethers
 
 import ./discovery
-import ./stores/cachestore
+import ./stores
 
-export DefaultCacheSizeMiB, net
+export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtl
 
 type
   StartUpCommand* {.pure.} = enum
@@ -95,8 +95,8 @@ type
         abbr: "i"
         name: "listen-addrs" }: seq[MultiAddress]
 
+      # TODO: change this once we integrate nat support
       nat* {.
-        # TODO: change this once we integrate nat support
         desc: "IP Addresses to announce behind a NAT"
         defaultValue: ValidIpAddress.init("127.0.0.1")
         defaultValueDesc: "127.0.0.1"
@@ -143,6 +143,20 @@ type
         defaultValueDesc: "8080"
         name: "api-port"
         abbr: "p" }: int
+
+      storageQuota* {.
+        desc: "The size of the total storage quota dedicated to the node"
+        defaultValue: DefaultQuotaBytes
+        defaultValueDesc: $DefaultQuotaBytes
+        name: "storage-quota"
+        abbr: "q" }: Natural
+
+      blockTtl* {.
+        desc: "Default block timeout in seconds - 0 disables the ttl"
+        defaultValue: DefaultBlockTtl.secs
+        defaultValueDesc: $DefaultBlockTtl
+        name: "block-ttl"
+        abbr: "t" }: Natural
 
       cacheSize* {.
         desc: "The size in MiB of the block cache, 0 disables the cache - might help on slow hardrives"
