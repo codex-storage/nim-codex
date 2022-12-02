@@ -98,7 +98,7 @@ suite "Block Advertising and Discovery":
 
     await engine.stop()
 
-  test "Should advertise local blocks":
+  test "Should advertise both manifests and blocks":
     let
       advertised = initTable.collect:
         for b in (blocks & manifestBlock): {b.cid: newFuture[void]()}
@@ -108,6 +108,7 @@ suite "Block Advertising and Discovery":
         if cid in advertised and not advertised[cid].finished():
           advertised[cid].complete()
 
+    discovery.advertiseType = BlockType.Both
     await engine.start() # fire up advertise loop
     await allFuturesThrowing(
       allFinished(toSeq(advertised.values)))
