@@ -128,7 +128,7 @@ method putBlock*(
 
     return failure(err)
 
-  # batch.add((expiresKey, @[])) # TODO: Add proper support for block expiration
+  batch.add((expiresKey, @[]))
 
   if err =? (await self.metaDs.put(batch)).errorOption:
     trace "Error updating quota bytes", err = err.msg
@@ -153,14 +153,17 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
   trace "Deleting block", cid
 
   if blk =? (await self.getBlock(cid)):
-    if key =? self.makePrefixKey(cid) and err =? (await self.repoDs.delete(key)).errorOption:
+    if key =? self.makePrefixKey(cid) and
+      err =? (await self.repoDs.delete(key)).errorOption:
       trace "Error deleting block!", err = err.msg
       return failure(err)
 
     let
       used = self.quotaUsedBytes - blk.data.len.uint
 
-    if err =? (await self.metaDs.put(QuotaUsedKey, @(used.uint64.toBytesBE))).errorOption:
+    if err =? (await self.metaDs.put(
+        QuotaUsedKey,
+        @(used.uint64.toBytesBE))).errorOption:
       trace "Error updating quota key!", err = err.msg
       return failure(err)
 
