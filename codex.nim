@@ -79,7 +79,10 @@ when isMainModule:
       notice "Shutting down after having received SIGINT"
       waitFor server.stop()
 
-    setControlCHook(controlCHandler)
+    try:
+      setControlCHook(controlCHandler)
+    except Exception as exc: # TODO Exception
+      warn "Cannot set ctrl-c handler", msg = exc.msg
 
     # equivalent SIGTERM handler
     when defined(posix):
