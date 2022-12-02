@@ -100,14 +100,18 @@ method putBlock*(
   ## Put a block to the blockstore
   ##
 
+  without key =? self.makePrefixKey(blk.cid), err:
+    trace "Error getting key from provider", err = err.msg
+    return failure(err)
+
+  if await key in self.repoDs:
+    trace "Block already in store", cid = blk.cid
+    return success()
+
   if (self.totalUsed + blk.data.len.uint) > self.quotaMaxBytes:
     error "Cannot store block, quota used!", used = self.totalUsed
     return failure(
       newException(QuotaUsedError, "Cannot store block, quota used!"))
-
-  without key =? self.makePrefixKey(blk.cid), err:
-    trace "Error getting key from provider", err = err.msg
-    return failure(err)
 
   trace "Storing block with key", key
 
@@ -183,7 +187,7 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
     trace "Error getting key from provider", err = err.msg
     return failure(err)
 
-  return await self.repoDs.contains(key)
+  return await self.repoDs.has(key)
 
 method listBlocks*(
   self: RepoStore,
@@ -234,7 +238,7 @@ proc hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
     trace "Error getting key from provider", err = err.msg
     return failure(err.msg)
 
-  return await self.repoDs.contains(key)
+  return await self.repoDs.has(key)
 
 proc reserve*(self: RepoStore, bytes: uint): Future[?!void] {.async.} =
   ## Reserve bytes
