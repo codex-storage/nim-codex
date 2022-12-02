@@ -46,7 +46,7 @@ func `[]=`*(self: Manifest, i: BackwardsIndex, item: Cid) =
   self.blocks[self.len - i.int] = item
 
 func isManifest*(cid: Cid): ?!bool =
-  ($(?cid.contentType() .mapFailure) in ManifestContainers).success
+  ($(?cid.contentType().mapFailure) in ManifestContainers).success
 
 func isManifest*(mc: MultiCodec): ?!bool =
   ($mc in ManifestContainers).success
