@@ -92,6 +92,8 @@ method listBlocks*(
     cids = self.cids()
 
   proc next(): Future[?Cid] {.async.} =
+    await idleAsync()
+
     var cid: Cid
     while true:
       if iter.finished:
