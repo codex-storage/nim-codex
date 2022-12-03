@@ -19,6 +19,7 @@ import ./codex/utils/keyutils
 export codex, conf, libp2p, chronos, chronicles
 
 when isMainModule:
+  import std/sequtils
   import std/os
   import pkg/confutils/defs
   import ./codex/utils/fileutils
@@ -29,6 +30,12 @@ when isMainModule:
   when defined(posix):
     import system/ansi_c
 
+  type
+    CodexStatus {.pure.} = enum
+      Stopped,
+      Stopping,
+      Running
+
   let config = CodexConf.load(
     version = codexFullVersion
   )
@@ -37,6 +44,10 @@ when isMainModule:
 
   case config.cmd:
   of StartUpCommand.noCommand:
+
+    var
+      state: CodexStatus
+      pendingFuts: seq[Future[void]]
 
     if config.nat == ValidIpAddress.init(IPv4_any()):
       error "`--nat` cannot be set to the any (`0.0.0.0`) address"
@@ -77,7 +88,8 @@ when isMainModule:
           setupForeignThreadGc()
         except Exception as exc: raiseAssert exc.msg # shouldn't happen
       notice "Shutting down after having received SIGINT"
-      waitFor server.stop()
+      pendingFuts.add(server.stop())
+      state = CodexStatus.Stopping
 
     try:
       setControlCHook(controlCHandler)
@@ -88,12 +100,29 @@ when isMainModule:
     when defined(posix):
       proc SIGTERMHandler(signal: cint) {.noconv.} =
         notice "Shutting down after having received SIGTERM"
-        waitFor server.stop()
-        notice "Stopped Codex"
+
+        pendingFuts.add(server.stop())
+        state = CodexStatus.Stopping
+
+        notice "Stopping Codex"
 
       c_signal(ansi_c.SIGTERM, SIGTERMHandler)
 
-    waitFor server.start()
+    pendingFuts.add(server.start())
+
+    state = CodexStatus.Running
+    while state == CodexStatus.Running:
+      # poll chronos
+      chronos.poll()
+
+    # wait fot futures to finish
+    let res = waitFor allFinished(pendingFuts)
+    state = CodexStatus.Stopped
+
+    if res.anyIt( it.failed ):
+      error "Codex didn't shutdown correctly"
+      quit QuitFailure
+
     notice "Exited codex"
 
   of StartUpCommand.initNode:
