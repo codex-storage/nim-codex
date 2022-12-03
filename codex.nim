@@ -45,10 +45,6 @@ when isMainModule:
   case config.cmd:
   of StartUpCommand.noCommand:
 
-    var
-      state: CodexStatus
-      pendingFuts: seq[Future[void]]
-
     if config.nat == ValidIpAddress.init(IPv4_any()):
       error "`--nat` cannot be set to the any (`0.0.0.0`) address"
       quit QuitFailure
@@ -70,6 +66,10 @@ when isMainModule:
 
     trace "Repo dir initialized", dir = config.dataDir / "repo"
 
+    var
+      state: CodexStatus
+      pendingFuts: seq[Future[void]]
+
     let
       keyPath =
         if isAbsolute(string config.netPrivKeyFile):
@@ -88,8 +88,11 @@ when isMainModule:
           setupForeignThreadGc()
         except Exception as exc: raiseAssert exc.msg # shouldn't happen
       notice "Shutting down after having received SIGINT"
+
       pendingFuts.add(server.stop())
       state = CodexStatus.Stopping
+
+      notice "Stopping Codex"
 
     try:
       setControlCHook(controlCHandler)
