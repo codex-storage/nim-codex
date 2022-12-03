@@ -69,18 +69,20 @@ proc fetchManifest*(
   ## Fetch and decode a manifest block
   ##
 
-  without contentType =? cid.contentType() and
-          containerType =? ManifestContainers.?[$contentType]:
-    return failure "CID has invalid content type for manifest"
+  if err =? cid.isManifest.errorOption:
+    return failure "CID has invalid content type for manifest {$cid}"
 
-  trace "Received retrieval request", cid
+  trace "Received manifest retrieval request", cid
 
-  without blk =? await node.blockStore.getBlock(cid), error:
-    return failure error
+  without blk =? await node.blockStore.getBlock(cid), err:
+    trace "Error retriving manifest block", cid, err = err.msg
+    return failure err
 
-  without manifest =? Manifest.decode(blk):
-    return failure(
-      newException(CodexError, "Unable to decode as manifest"))
+  without manifest =? Manifest.decode(blk), err:
+    trace "Unable to decode as manifest", err = err.msg
+    return failure("Unable to decode as manifest")
+
+  trace "Decoded manifest", cid
 
   return manifest.success
 
@@ -120,6 +122,7 @@ proc retrieve*(
   ##
 
   if manifest =? (await node.fetchManifest(cid)):
+    trace "Retrieving blocks from manifest", cid
     if manifest.protected:
       # Retrieve, decode and save to the local store all EС groups
       proc erasureJob(): Future[void] {.async.} =
@@ -142,6 +145,7 @@ proc retrieve*(
       # asyncSpawn prefetchBlocks()  - temporarily commented out
     #
     # Retrieve all blocks of the dataset sequentially from the local store or network
+    trace "Creating store stream for manifest", cid
     return LPStream(StoreStream.new(node.blockStore, manifest, pad = false)).success
 
   let
@@ -189,8 +193,8 @@ proc store*(
         return failure("Unable to init block from chunk!")
 
       blockManifest.add(blk.cid)
-      if isErr (await self.blockStore.putBlock(blk)):
-        # trace "Unable to store block", cid = blk.cid
+      if err =? (await self.blockStore.putBlock(blk)).errorOption:
+        trace "Unable to store block", cid = blk.cid, err = err.msg
         return failure(&"Unable to store block {blk.cid}")
 
   except CancelledError as exc:

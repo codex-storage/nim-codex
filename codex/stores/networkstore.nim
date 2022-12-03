@@ -46,13 +46,16 @@ method getBlock*(self: NetworkStore, cid: Cid): Future[?!bt.Block] {.async.} =
 
   return success blk
 
-method putBlock*(self: NetworkStore, blk: bt.Block): Future[?!void] {.async.} =
+method putBlock*(
+  self: NetworkStore,
+  blk: bt.Block,
+  ttl = Duration.none): Future[?!void] {.async.} =
   ## Store block locally and notify the network
   ##
 
   trace "Puting block into network store", cid = blk.cid
 
-  let res = await self.localStore.putBlock(blk)
+  let res = await self.localStore.putBlock(blk, ttl)
   if res.isErr:
     return res
 
@@ -79,15 +82,17 @@ method close*(self: NetworkStore): Future[void] {.async.} =
   ## Close the underlying local blockstore
   ##
 
-  if not self.localStore.isNil: await self.localStore.close
+  if not self.localStore.isNil:
+    await self.localStore.close
 
 proc new*(
   T: type NetworkStore,
   engine: BlockExcEngine,
   localStore: BlockStore): T =
 
-  let b = NetworkStore(
-    localStore: localStore,
-    engine: engine)
+  let
+    self = NetworkStore(
+      localStore: localStore,
+      engine: engine)
 
-  return b
+  return self

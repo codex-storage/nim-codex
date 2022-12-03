@@ -24,6 +24,7 @@ import pkg/questionable/results
 import ./blockstore
 import ../chunker
 import ../errors
+import ../manifest
 
 export blockstore
 
@@ -73,14 +74,62 @@ method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
 
   return (cid in self.cache).success
 
-method listBlocks*(s: CacheStore, onBlock: OnBlock): Future[?!void] {.async.} =
+func cids(self: CacheStore): (iterator: Cid {.gcsafe.}) =
+  return iterator(): Cid =
+    for cid in self.cache.keys:
+      yield cid
+
+method listBlocks*(
+  self: CacheStore,
+  blockType = BlockType.Manifest): Future[?!BlocksIter] {.async.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 
-  for cid in toSeq(s.cache.keys):
-    await onBlock(cid)
+  var
+    iter = BlocksIter()
 
-  return success()
+  let
+    cids = self.cids()
+
+  proc next(): Future[?Cid] {.async.} =
+    await idleAsync()
+
+    var cid: Cid
+    while true:
+      if iter.finished:
+        return Cid.none
+
+      cid = cids()
+
+      if finished(cids):
+        iter.finished = true
+        return Cid.none
+
+      without isManifest =? cid.isManifest, err:
+        trace "Error checking if cid is a manifest", err = err.msg
+        return Cid.none
+
+      case blockType:
+      of BlockType.Manifest:
+        if not isManifest:
+          trace "Cid is not manifest, skipping", cid
+          continue
+
+        break
+      of BlockType.Block:
+        if isManifest:
+          trace "Cid is a manifest, skipping", cid
+          continue
+
+        break
+      of BlockType.Both:
+        break
+
+    return cid.some
+
+  iter.next = next
+
+  return success iter
 
 func putBlockSync(self: CacheStore, blk: Block): bool =
 
@@ -104,7 +153,10 @@ func putBlockSync(self: CacheStore, blk: Block): bool =
   self.currentSize += blkSize
   return true
 
-method putBlock*(self: CacheStore, blk: Block): Future[?!void] {.async.} =
+method putBlock*(
+  self: CacheStore,
+  blk: Block,
+  ttl = Duration.none): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 

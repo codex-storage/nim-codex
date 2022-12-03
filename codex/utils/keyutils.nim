@@ -1,4 +1,3 @@
-
 ## Nim-Codex
 ## Copyright (c) 2022 Status Research & Development GmbH
 ## Licensed under either of
@@ -11,14 +10,11 @@
 import pkg/upraises
 push: {.upraises: [].}
 
-import std/os
-
 import pkg/chronicles
 import pkg/questionable/results
 import pkg/libp2p
 
 import ./fileutils
-import ../conf
 import ../errors
 import ../rng
 

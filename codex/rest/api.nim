@@ -13,7 +13,6 @@ push: {.upraises: [].}
 
 
 import std/sequtils
-import std/sugar
 
 import pkg/questionable
 import pkg/questionable/results

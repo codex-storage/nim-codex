@@ -1,0 +1,170 @@
+import std/os
+import std/options
+import std/strutils
+
+import pkg/questionable
+import pkg/questionable/results
+
+import pkg/chronos
+import pkg/asynctest
+import pkg/libp2p
+import pkg/stew/byteutils
+import pkg/stew/endians2
+import pkg/datastore
+
+import pkg/codex/stores/cachestore
+import pkg/codex/chunker
+import pkg/codex/stores
+import pkg/codex/blocktype as bt
+
+import ../helpers
+import ./commonstoretests
+
+suite "Test RepoStore Quota":
+
+  var
+    repoDs: Datastore
+    metaDs: Datastore
+
+  setup:
+    repoDs = SQLiteDatastore.new(Memory).tryGet()
+    metaDs = SQLiteDatastore.new(Memory).tryGet()
+
+  teardown:
+    (await repoDs.close()).tryGet
+    (await metaDs.close()).tryGet
+
+  test "Should update current used bytes on block put":
+    let
+      blk = bt.Block.new('a'.repeat(100).toBytes).tryGet()
+      repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 100)
+
+    check repo.quotaUsedBytes == 0
+    (await repo.putBlock(blk)).tryGet
+
+    check:
+      repo.quotaUsedBytes == 100
+      uint64.fromBytesBE((await metaDs.get(QuotaUsedKey)).tryGet) == 100'u
+
+  test "Should update current used bytes on block delete":
+    let
+      blk = bt.Block.new('a'.repeat(100).toBytes).tryGet()
+      repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 100)
+
+    check repo.quotaUsedBytes == 0
+    (await repo.putBlock(blk)).tryGet
+    check repo.quotaUsedBytes == 100
+
+    (await repo.delBlock(blk.cid)).tryGet
+
+    check:
+      repo.quotaUsedBytes == 0
+      uint64.fromBytesBE((await metaDs.get(QuotaUsedKey)).tryGet) == 0'u
+
+  test "Should fail storing passed the quota":
+    let
+      blk = bt.Block.new('a'.repeat(200).toBytes).tryGet()
+      repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 100)
+
+    check repo.totalUsed == 0
+    expect QuotaUsedError:
+      (await repo.putBlock(blk)).tryGet
+
+  test "Should reserve bytes":
+    let
+      blk = bt.Block.new('a'.repeat(100).toBytes).tryGet()
+      repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+
+    check repo.totalUsed == 0
+    (await repo.putBlock(blk)).tryGet
+    check repo.totalUsed == 100
+
+    (await repo.reserve(100)).tryGet
+
+    check:
+      repo.totalUsed == 200
+      repo.quotaUsedBytes == 100
+      repo.quotaReservedBytes == 100
+      uint64.fromBytesBE((await metaDs.get(QuotaReservedKey)).tryGet) == 100'u
+
+  test "Should not reserve bytes over max quota":
+    let
+      blk = bt.Block.new('a'.repeat(100).toBytes).tryGet()
+      repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+
+    check repo.totalUsed == 0
+    (await repo.putBlock(blk)).tryGet
+    check repo.totalUsed == 100
+
+    expect QuotaNotEnoughError:
+      (await repo.reserve(101)).tryGet
+
+    check:
+      repo.totalUsed == 100
+      repo.quotaUsedBytes == 100
+      repo.quotaReservedBytes == 0
+
+    expect DatastoreKeyNotFound:
+      discard (await metaDs.get(QuotaReservedKey)).tryGet
+
+  test "Should release bytes":
+    let
+      blk = bt.Block.new('a'.repeat(100).toBytes).tryGet()
+      repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+
+    check repo.totalUsed == 0
+    (await repo.reserve(100)).tryGet
+    check repo.totalUsed == 100
+
+    (await repo.release(100)).tryGet
+
+    check:
+      repo.totalUsed == 0
+      repo.quotaUsedBytes == 0
+      repo.quotaReservedBytes == 0
+      uint64.fromBytesBE((await metaDs.get(QuotaReservedKey)).tryGet) == 0'u
+
+  test "Should not release bytes less than quota":
+    let
+      repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+
+    check repo.totalUsed == 0
+    (await repo.reserve(100)).tryGet
+    check repo.totalUsed == 100
+
+    expect CatchableError:
+      (await repo.release(101)).tryGet
+
+    check:
+      repo.totalUsed == 100
+      repo.quotaUsedBytes == 0
+      repo.quotaReservedBytes == 100
+      uint64.fromBytesBE((await metaDs.get(QuotaReservedKey)).tryGet) == 100'u
+
+commonBlockStoreTests(
+  "RepoStore Sql backend", proc: BlockStore =
+    BlockStore(
+      RepoStore.new(
+        SQLiteDatastore.new(Memory).tryGet(),
+        SQLiteDatastore.new(Memory).tryGet())))
+
+const
+  path = currentSourcePath().parentDir / "test"
+
+proc before() {.async.} =
+  createDir(path)
+
+proc after() {.async.} =
+  removeDir(path)
+
+let
+  depth = path.split(DirSep).len
+
+commonBlockStoreTests(
+  "RepoStore FS backend", proc: BlockStore =
+    BlockStore(
+      RepoStore.new(
+        FSDatastore.new(path, depth).tryGet(),
+        SQLiteDatastore.new(Memory).tryGet())),
+  before = before,
+  after = after)

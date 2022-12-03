@@ -11,7 +11,6 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
-import ../manifest
 import ../stores
 
 type

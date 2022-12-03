@@ -13,7 +13,6 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
-import pkg/questionable
 import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p

@@ -12,6 +12,7 @@ import pkg/codex/rng
 import pkg/codex/stores
 import pkg/codex/blockexchange
 import pkg/codex/chunker
+import pkg/codex/manifest
 import pkg/codex/blocktype as bt
 
 import ../../helpers/mockdiscovery
@@ -24,6 +25,8 @@ suite "Block Advertising and Discovery":
 
   var
     blocks: seq[bt.Block]
+    manifest: Manifest
+    manifestBlock: bt.Block
     switch: Switch
     peerStore: PeerCtxStore
     blockDiscovery: MockDiscovery
@@ -49,6 +52,12 @@ suite "Block Advertising and Discovery":
     localStore = CacheStore.new(blocks.mapIt( it ))
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
+
+    manifest = Manifest.new( blocks.mapIt( it.cid ) ).tryGet()
+    manifestBlock = bt.Block.new(
+      manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
+
+    (await localStore.putBlock(manifestBlock)).tryGet()
 
     discovery = DiscoveryEngine.new(
       localStore,
@@ -89,19 +98,50 @@ suite "Block Advertising and Discovery":
 
     await engine.stop()
 
-  test "Should advertise have blocks":
+  test "Should advertise both manifests and blocks":
+    let
+      advertised = initTable.collect:
+        for b in (blocks & manifestBlock): {b.cid: newFuture[void]()}
+
+    blockDiscovery
+      .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid) {.async.} =
+        if cid in advertised and not advertised[cid].finished():
+          advertised[cid].complete()
+
+    discovery.advertiseType = BlockType.Both
+    await engine.start() # fire up advertise loop
+    await allFuturesThrowing(
+      allFinished(toSeq(advertised.values)))
+    await engine.stop()
+
+  test "Should advertise local manifests":
+    let
+      advertised = newFuture[Cid]()
+
+    blockDiscovery
+      .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid) {.async.} =
+        check manifestBlock.cid == cid
+        advertised.complete(cid)
+
+    discovery.advertiseType = BlockType.Manifest
+    await engine.start() # fire up advertise loop
+    check (await advertised.wait(10.millis)) == manifestBlock.cid
+    await engine.stop()
+
+  test "Should advertise local blocks":
     let
       advertised = initTable.collect:
         for b in blocks: {b.cid: newFuture[void]()}
 
-    blockDiscovery.publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid) {.async.} =
-      if cid in advertised and not advertised[cid].finished():
-        advertised[cid].complete()
+    blockDiscovery
+      .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid) {.async.} =
+        if cid in advertised and not advertised[cid].finished():
+          advertised[cid].complete()
 
+    discovery.advertiseType = BlockType.Block
     await engine.start() # fire up advertise loop
     await allFuturesThrowing(
       allFinished(toSeq(advertised.values)))
-
     await engine.stop()
 
   test "Should not launch discovery if remote peer has block":

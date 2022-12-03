@@ -13,15 +13,33 @@ push: {.upraises: [].}
 
 import pkg/chronos
 import pkg/libp2p
+import pkg/questionable
 import pkg/questionable/results
 
 import ../blocktype
 
 export blocktype, libp2p
 
+const
+  DefaultBlockTtl = 24.hours
+
 type
-  OnBlock* = proc(cid: Cid): Future[void] {.upraises: [], gcsafe.}
+  BlockNotFoundError* = object of CodexError
+
+  BlockType* {.pure.} = enum
+    Manifest, Block, Both
+
+  GetNext* = proc(): Future[?Cid] {.upraises: [], gcsafe, closure.}
+
+  BlocksIter* = ref object
+    finished*: bool
+    next*: GetNext
+
   BlockStore* = ref object of RootObj
+
+iterator items*(self: BlocksIter): Future[?Cid] =
+  while not self.finished:
+    yield self.next()
 
 method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
   ## Get a block from the blockstore
@@ -29,7 +47,10 @@ method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
 
   raiseAssert("Not implemented!")
 
-method putBlock*(self: BlockStore, blk: Block): Future[?!void] {.base.} =
+method putBlock*(
+  self: BlockStore,
+  blk: Block,
+  ttl = Duration.none): Future[?!void] {.base.} =
   ## Put a block to the blockstore
   ##
 
@@ -47,7 +68,9 @@ method hasBlock*(self: BlockStore, cid: Cid): Future[?!bool] {.base.} =
 
   raiseAssert("Not implemented!")
 
-method listBlocks*(self: BlockStore, onBlock: OnBlock): Future[?!void] {.base.} =
+method listBlocks*(
+  self: BlockStore,
+  blockType = BlockType.Manifest): Future[?!BlocksIter] {.base.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 
