@@ -44,7 +44,11 @@ GIT_SUBMODULE_UPDATE := git submodule update --init --recursive
 else # "variables.mk" was included. Business as usual until the end of this file.
 
 # default target, because it's the first one that doesn't start with '.'
-all: | test
+
+# Builds the codex binary
+all: | build deps
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim codex $(NIM_PARAMS) codex.nims
 
 # must be included after the default target
 -include $(BUILD_SYSTEM_DIR)/makefiles/targets.mk
@@ -95,11 +99,6 @@ testIntegration: | build deps
 testAll: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) codex.nims
-
-# Builds the codex binary
-exec: | build deps
-	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim codex $(NIM_PARAMS) codex.nims
 
 # symlink
 codex.nims:
