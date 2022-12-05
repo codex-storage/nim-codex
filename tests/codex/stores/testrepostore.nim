@@ -61,6 +61,22 @@ suite "Test RepoStore Quota":
       repo.quotaUsedBytes == 0
       uint64.fromBytesBE((await metaDs.get(QuotaUsedKey)).tryGet) == 0'u
 
+  test "Should not update current used bytes if block exist":
+    let
+      blk = bt.Block.new('a'.repeat(100).toBytes).tryGet()
+      repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+
+    check repo.quotaUsedBytes == 0
+    (await repo.putBlock(blk)).tryGet
+    check repo.quotaUsedBytes == 100
+
+    # put again
+    (await repo.putBlock(blk)).tryGet
+    check repo.quotaUsedBytes == 100
+
+    check:
+      uint64.fromBytesBE((await metaDs.get(QuotaUsedKey)).tryGet) == 100'u
+
   test "Should fail storing passed the quota":
     let
       blk = bt.Block.new('a'.repeat(200).toBytes).tryGet()
