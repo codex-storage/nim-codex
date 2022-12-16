@@ -2,6 +2,7 @@ import std/sequtils
 import std/tables
 import std/hashes
 import pkg/codex/market
+import pkg/codex/contracts/requests
 
 export market
 export tables
@@ -14,7 +15,7 @@ type
     requestEnds*: Table[RequestId, SecondsSince1970]
     state*: Table[RequestId, RequestState]
     fulfilled*: seq[Fulfillment]
-    filled*: seq[Slot]
+    filled*: seq[MockSlot]
     withdrawn*: seq[RequestId]
     signer: Address
     subscriptions: Subscriptions
@@ -22,6 +23,9 @@ type
     requestId*: RequestId
     proof*: seq[byte]
     host*: Address
+  MockSlot* = object of Slot
+    slotIndex*: UInt256
+    proof*: seq[byte]
   Subscriptions = object
     onRequest: seq[RequestSubscription]
     onFulfillment: seq[FulfillmentSubscription]
@@ -80,6 +84,14 @@ method getRequest(market: MockMarket,
       return some request
   return none StorageRequest
 
+method getSlot*(market: MockMarket,
+                slotId: SlotId): Future[?Slot] {.async.} =
+  for slot in market.filled:
+    if slotId(slot.requestId, slot.slotIndex) == slotId:
+      return some Slot(host: slot.host,
+                       requestId: slot.requestId)
+  return none Slot
+
 method getState*(market: MockMarket,
                  requestId: RequestId): Future[?RequestState] {.async.} =
   return market.state.?[requestId]
@@ -129,7 +141,7 @@ proc fillSlot*(market: MockMarket,
                slotIndex: UInt256,
                proof: seq[byte],
                host: Address) =
-  let slot = Slot(
+  let slot = MockSlot(
     requestId: requestId,
     slotIndex: slotIndex,
     proof: proof,
