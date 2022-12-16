@@ -57,6 +57,15 @@ proc randomSlotIndex(numSlots: uint64): UInt256 =
   let slotIndex = rng.rand(numSlots - 1)
   return slotIndex.u256
 
+proc findSlotIndex(numSlots: uint64,
+                   requestId: RequestId,
+                   slotId: SlotId): ?UInt256 =
+  for i in 0..<numSlots:
+    if slotId(requestId, i.u256) == slotId:
+      return some i.u256
+
+  return none UInt256
+
 proc handleRequest(sales: Sales,
                    requestId: RequestId,
                    ask: StorageAsk) {.async.} =
@@ -90,8 +99,11 @@ proc load*(sales: Sales) {.async.} =
     if slot =? await market.getSlot(slotId):
       if request =? await market.getRequest(slot.requestId):
         let availability = sales.findAvailability(request.ask)
-        # TODO: restore slot index from chain, do not assign a new index
-        let slotIndex = randomSlotIndex(request.ask.slots)
+        without slotIndex =? findSlotIndex(request.ask.slots,
+                                           slot.requestId,
+                                           slotId):
+          raiseAssert "could not find slot index"
+
         let agent = newSalesAgent(
           sales,
           slot.requestId,
