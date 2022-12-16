@@ -111,7 +111,6 @@ method exit(state: AsyncState) =
 proc switchAsync*(machine: StateMachineAsync, newState: AsyncState) {.async.} =
   if state =? (machine.state as AsyncState):
     trace "Switching sales state", `from`=state, to=newState
-    debugEcho "switching from ", state, " to ", newState
     if activeTransition =? state.activeTransition and
         not activeTransition.completed:
       await activeTransition.cancelAndWait()
@@ -121,7 +120,6 @@ proc switchAsync*(machine: StateMachineAsync, newState: AsyncState) {.async.} =
     state.context = none StateMachine
   else:
     trace "Switching sales state", `from`="no state", to=newState
-    debugEcho "switching from no state to ", newState
 
   machine.state = some State(newState)
   newState.context = some StateMachine(machine)
