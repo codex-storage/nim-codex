@@ -69,7 +69,7 @@ method getHost(market: OnChainMarket,
   else:
     return none Address
 
-method getSlot(market: OnChainMarket, slotId: SlotId): Future[?Slot] {.async.} =
+method getSlot*(market: OnChainMarket, slotId: SlotId): Future[?Slot] {.async.} =
   try:
     return some await market.contract.getSlot(slotId)
   except ProviderError as e:
