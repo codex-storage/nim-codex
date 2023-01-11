@@ -20,7 +20,7 @@ ethersuite "Marketplace Contract Interactions":
   test "can be instantiated with a provider url":
     let url = "http://localhost:8545"
     let account = Address.example
-    let deployment = "vendor" / "dagger-contracts" / "deployment-localhost.json"
+    let deployment = "vendor" / "codex-contracts-eth" / "deployment-localhost.json"
     check ContractInteractions.new(url, account).isSome
     check ContractInteractions.new(url, account, deployment).isSome
 

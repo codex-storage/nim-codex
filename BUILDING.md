@@ -132,7 +132,7 @@ $ nvm install --lts
 
 In that same terminal run
 ```text
-$ cd repos/nim-codex/vendor/dagger-contracts && npm install && npm start
+$ cd repos/nim-codex/vendor/codex-contracts-eth && npm install && npm start
 ```
 
 Those commands install and launch a [Hardhat](https://hardhat.org/) environment with nim-codex's Ethereum contracts.

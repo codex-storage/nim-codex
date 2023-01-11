@@ -176,6 +176,6 @@ await storage
   .markProofAsMissing(id, period)
 ```
 
-[1]: https://github.com/status-im/dagger-contracts/
+[1]: https://github.com/status-im/codex-contracts-eth/
 [2]: https://ethereum.org/en/developers/docs/standards/tokens/erc-20/
 [3]: https://github.com/status-im/codex-research/blob/main/design/storage-proof-timing.md

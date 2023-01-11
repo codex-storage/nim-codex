@@ -46,7 +46,7 @@ jobs:
         run: make -j${ncpu} test
 
       - name: Start Ethereum node with Codex contracts
-        working-directory: vendor/dagger-contracts
+        working-directory: vendor/codex-contracts-eth
         run: |
           if [[ '${{ matrix.os }}' == 'windows' ]]; then
             export PATH="${PATH}:/c/program files/nodejs"
