@@ -4,22 +4,22 @@ import pkg/ethers/testing
 import pkg/upraises
 import pkg/questionable
 import ../market
-import ./storage
+import ./marketplace
 
 export market
 
 type
   OnChainMarket* = ref object of Market
-    contract: Storage
+    contract: Marketplace
     signer: Signer
   MarketSubscription = market.Subscription
   EventSubscription = ethers.Subscription
   OnChainMarketSubscription = ref object of MarketSubscription
     eventSubscription: EventSubscription
 
-func new*(_: type OnChainMarket, contract: Storage): OnChainMarket =
+func new*(_: type OnChainMarket, contract: Marketplace): OnChainMarket =
   without signer =? contract.signer:
-    raiseAssert("Storage contract should have a signer")
+    raiseAssert("Marketplace contract should have a signer")
   OnChainMarket(
     contract: contract,
     signer: signer,

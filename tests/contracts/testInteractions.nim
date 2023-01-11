@@ -3,7 +3,7 @@ import codex/contracts
 import ../ethertest
 import ./examples
 
-ethersuite "Storage Contract Interactions":
+ethersuite "Marketplace Contract Interactions":
 
   let account = Address.example
 

@@ -4,7 +4,7 @@ import ../purchasing
 import ../sales
 import ../proving
 import ./deployment
-import ./storage
+import ./marketplace
 import ./market
 import ./proofs
 import ./clock
@@ -25,11 +25,11 @@ proc new*(_: type ContractInteractions,
           signer: Signer,
           deployment: Deployment): ?ContractInteractions =
 
-  without address =? deployment.address(Storage):
-    error "Unable to determine address of the Storage smart contract"
+  without address =? deployment.address(Marketplace):
+    error "Unable to determine address of the Marketplace smart contract"
     return none ContractInteractions
 
-  let contract = Storage.new(address, signer)
+  let contract = Marketplace.new(address, signer)
   let market = OnChainMarket.new(contract)
   let proofs = OnChainProofs.new(contract)
   let clock = OnChainClock.new(signer.provider)

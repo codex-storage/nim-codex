@@ -6,27 +6,27 @@ import ../ethertest
 
 ethersuite "Collateral":
 
-  let collateralAmount = 100.u256
+  let collateral = 100.u256
 
-  var storage: Storage
+  var marketplace: Marketplace
   var token: TestToken
 
   setup:
     let deployment = deployment()
-    storage = Storage.new(!deployment.address(Storage), provider.getSigner())
+    marketplace = Marketplace.new(!deployment.address(Marketplace), provider.getSigner())
     token = TestToken.new(!deployment.address(TestToken), provider.getSigner())
     await token.mint(accounts[0], 1000.u256)
 
   test "increases collateral":
-    await token.approve(storage.address, collateralAmount)
-    await storage.deposit(collateralAmount)
-    let collateral = await storage.balanceOf(accounts[0])
-    check collateral == collateralAmount
+    await token.approve(marketplace.address, collateral)
+    await marketplace.deposit(collateral)
+    let balance = await marketplace.balanceOf(accounts[0])
+    check balance == collateral
 
   test "withdraws collateral":
-    await token.approve(storage.address, collateralAmount)
-    await storage.deposit(collateralAmount)
+    await token.approve(marketplace.address, collateral)
+    await marketplace.deposit(collateral)
     let balanceBefore = await token.balanceOf(accounts[0])
-    await storage.withdraw()
+    await marketplace.withdraw()
     let balanceAfter = await token.balanceOf(accounts[0])
-    check (balanceAfter - balanceBefore) == collateralAmount
+    check (balanceAfter - balanceBefore) == collateral
