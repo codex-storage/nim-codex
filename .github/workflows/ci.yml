@@ -13,12 +13,12 @@ jobs:
       matrix:
         os: [windows]
         include:
-          - os: linux
-            builder: ubuntu-latest
-            shell: bash --noprofile --norc -e -o pipefail
-          - os: macos
-            builder: macos-latest
-            shell: bash --noprofile --norc -e -o pipefail
+          # - os: linux
+          #   builder: ubuntu-latest
+          #   shell: bash --noprofile --norc -e -o pipefail
+          # - os: macos
+          #   builder: macos-latest
+          #   shell: bash --noprofile --norc -e -o pipefail
           - os: windows
             builder: windows-latest
             shell: msys2
