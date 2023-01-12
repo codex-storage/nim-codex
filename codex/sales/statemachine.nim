@@ -7,6 +7,7 @@ import ../utils/statemachine
 import ../market
 import ../clock
 import ../proving
+import ../reservations
 import ../contracts/requests
 
 export market
@@ -39,12 +40,7 @@ type
     cancelled*: Future[void]
   SaleState* = ref object of AsyncState
   SaleError* = ref object of CodexError
-  Availability* = object
-    id*: array[32, byte]
-    size*: UInt256
-    duration*: UInt256
-    minPrice*: UInt256
-  AvailabilityChange* = proc(availability: Availability) {.gcsafe, upraises: [].}
+
   # TODO: when availability changes introduced, make availability non-optional (if we need to keep it at all)
   RequestEvent* = proc(state: SaleState, request: StorageRequest): Future[void] {.gcsafe, upraises: [].}
   OnStore* = proc(request: StorageRequest,
