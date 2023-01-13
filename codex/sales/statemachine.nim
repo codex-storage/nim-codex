@@ -2,12 +2,12 @@ import std/sequtils
 import pkg/chronos
 import pkg/questionable
 import pkg/upraises
+import ./reservations
 import ../errors
 import ../utils/statemachine
 import ../market
 import ../clock
 import ../proving
-import ../reservations
 import ../contracts/requests
 
 export market
@@ -20,7 +20,7 @@ type
     market*: Market
     clock*: Clock
     subscription*: ?market.Subscription
-    available: seq[Availability]
+    reservations*: Reservations
     onStore: ?OnStore
     onProve: ?OnProve
     onClear: ?OnClear
@@ -77,17 +77,8 @@ proc onSale*(sales: Sales): ?OnSale = sales.onSale
 
 proc available*(sales: Sales): seq[Availability] = sales.available
 
-func add*(sales: Sales, availability: Availability) =
-  if not sales.available.contains(availability):
-    sales.available.add(availability)
-  # TODO: add to disk (persist), serialise to json.
-
-func remove*(sales: Sales, availability: Availability) =
-  sales.available.keepItIf(it != availability)
-  # TODO: remove from disk availability, mark as in use by assigning
-  # a slotId, so that it can be used for restoration (node restart)
-
 func findAvailability*(sales: Sales, ask: StorageAsk): ?Availability =
+  # TODO: query reservations and get matches
   for availability in sales.available:
     if ask.slotSize <= availability.size and
        ask.duration <= availability.duration and

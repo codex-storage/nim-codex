@@ -3,14 +3,17 @@ import pkg/upraises
 import pkg/stint
 import pkg/nimcrypto
 import pkg/chronicles
+import pkg/datastore
 import ./rng
 import ./market
 import ./clock
 import ./proving
 import ./contracts/requests
+import ./sales/reservations
 import ./sales/salesagent
 import ./sales/statemachine
 import ./sales/states/[downloading, unknown]
+import ./stores
 
 ## Sales holds a list of available storage that it may sell.
 ##
@@ -31,26 +34,23 @@ import ./sales/states/[downloading, unknown]
 ##     |                          | ---- storage proof ---> |
 
 export stint
+export reservations
 export salesagent
 export statemachine
 
 func new*(_: type Sales,
           market: Market,
           clock: Clock,
-          proving: Proving): Sales =
+          proving: Proving,
+          repo: RepoStore,
+          data: Datastore): Sales =
   Sales(
     market: market,
     clock: clock,
-    proving: proving
+    proving: proving,
+    reservations: Reservations.new(repo: repo, data: data)
   )
 
-proc init*(_: type Availability,
-          size: UInt256,
-          duration: UInt256,
-          minPrice: UInt256): Availability =
-  var id: array[32, byte]
-  doAssert randomBytes(id) == 32
-  Availability(id: id, size: size, duration: duration, minPrice: minPrice)
 
 proc randomSlotIndex(numSlots: uint64): UInt256 =
   let rng = Rng.instance

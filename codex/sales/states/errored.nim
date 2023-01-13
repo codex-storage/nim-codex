@@ -20,6 +20,9 @@ method enterAsync*(state: SaleErrored) {.async.} =
   # never free up availability once finished. Persisting availability
   # on disk is required for this.
   if availability =? agent.availability:
-    agent.sales.add(availability)
+    # TODO: if future updates `availability.reusable == true` then
+    # agent.sales.reservations.markUnused, else
+    # agent.sales.reservations.release
+    agent.sales.reservations.markUnused(availability)
 
   error "Sale error", error=state.error.msg
