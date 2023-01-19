@@ -82,9 +82,10 @@ ethersuite "Marketplace contracts":
     let requestEnd = await marketplace.requestEnd(request.id)
     await provider.advanceTimeTo(requestEnd.u256)
     let startBalance = await token.balanceOf(address)
-    await marketplace.freeSlot(slotId)
+    await storage.payoutSlot(request.id, 0.u256)
     let endBalance = await token.balanceOf(address)
     check endBalance == (startBalance + request.ask.duration * request.ask.reward)
+
 
   test "cannot mark proofs missing for cancelled request":
     await provider.advanceTimeTo(request.expiry + 1)
