@@ -31,8 +31,8 @@ method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
 method myRequests*(market: OnChainMarket): Future[seq[RequestId]] {.async.} =
   return await market.contract.myRequests
 
-method mySlots*(market: OnChainMarket): Future[seq[SlotId]] {.async.} =
-  return await market.contract.mySlots
+method mySlots*(market: OnChainMarket, requestId: RequestId): Future[seq[SlotId]] {.async.} =
+  return await market.contract.mySlots(requestId)
 
 method requestStorage(market: OnChainMarket, request: StorageRequest){.async.} =
   await market.contract.requestStorage(request)
