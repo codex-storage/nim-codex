@@ -61,6 +61,7 @@ proc handleRequest(sales: Sales,
                    requestId: RequestId,
                    ask: StorageAsk) {.async.} =
   let availability = sales.findAvailability(ask)
+  # TODO: check if random slot is actually available (not already filled)
   let slotIndex = randomSlotIndex(ask.slots)
   let agent = newSalesAgent(
     sales,
@@ -78,13 +79,18 @@ proc load*(sales: Sales) {.async.} =
   let market = sales.market
 
   # TODO: restore availability from disk
-
-  let slotIds = await market.mySlots()
+  let requestIds = await market.myRequests()
+  var slotIds: seq[SlotId]
+  # TODO: this needs to be optimised
+  for requestId in requestIds:
+    let reqSlotIds = await market.mySlots(requestId)
+    slotIds.add reqSlotIds
   for slotId in slotIds:
     # TODO: this needs to be optimised
     if slot =? await market.getSlot(slotId):
       if request =? await market.getRequest(slot.requestId):
         let availability = sales.findAvailability(request.ask)
+        # TODO: restore slot index from chain, do not assign a new index
         let slotIndex = randomSlotIndex(request.ask.slots)
         let agent = newSalesAgent(
           sales,

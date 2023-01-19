@@ -550,6 +550,8 @@ suite "Sales state machine":
                      host: me)
     await fillSlot(slot1.slotIndex)
     market.activeSlots[me] = @[request.slotId(0.u256), request.slotId(1.u256)]
+    market.requested = @[request]
+    market.activeRequests[me] = @[request.id]
 
     await sales.load()
     let expected = SalesAgent(sales: sales,
@@ -560,6 +562,8 @@ suite "Sales state machine":
     # randomly selected for the agent, and we also won't know the value of
     # `failed`/`fulfilled`/`cancelled` futures, so we need to compare
     # the properties we know
+    # TODO: when calling sales.load(), slot index should be restored and not
+    # randomly re-assigned, so this may no longer be needed
     proc `==` (agent0, agent1: SalesAgent): bool =
       return agent0.sales == agent1.sales and
              agent0.requestId == agent1.requestId and
