@@ -31,6 +31,9 @@ method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
 method myRequests*(market: OnChainMarket): Future[seq[RequestId]] {.async.} =
   return await market.contract.myRequests
 
+method mySlots*(market: OnChainMarket): Future[seq[SlotId]] {.async.} =
+  return await market.contract.mySlots
+
 method requestStorage(market: OnChainMarket, request: StorageRequest){.async.} =
   await market.contract.requestStorage(request)
 
@@ -65,6 +68,14 @@ method getHost(market: OnChainMarket,
     return some address
   else:
     return none Address
+
+method getSlot(market: OnChainMarket, slotId: SlotId): Future[?Slot] {.async.} =
+  try:
+    return some await market.contract.getSlot(slotId)
+  except ProviderError as e:
+    if e.revertReason.contains("Slot empty"):
+      return none Slot
+    raise e
 
 method fillSlot(market: OnChainMarket,
                 requestId: RequestId,
