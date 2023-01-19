@@ -3,13 +3,13 @@ import codex/contracts/testtoken
 
 proc mint*(signer: Signer, amount = 1_000_000.u256) {.async.} =
   ## Mints a considerable amount of tokens and approves them for transfer to
-  ## the Storage contract.
+  ## the Marketplace contract.
   let token = TestToken.new(!deployment().address(TestToken), signer)
-  let storage = Storage.new(!deployment().address(Storage), signer)
+  let marketplace = Marketplace.new(!deployment().address(Marketplace), signer)
   await token.mint(await signer.getAddress(), amount)
-  await token.approve(storage.address, amount)
+  await token.approve(marketplace.address, amount)
 
 proc deposit*(signer: Signer) {.async.} =
-  ## Deposits sufficient collateral into the Storage contract.
-  let storage = Storage.new(!deployment().address(Storage), signer)
-  await storage.deposit(await storage.collateralAmount())
+  ## Deposits sufficient collateral into the Marketplace contract.
+  let marketplace = Marketplace.new(!deployment().address(Marketplace), signer)
+  await marketplace.deposit(await marketplace.collateral())

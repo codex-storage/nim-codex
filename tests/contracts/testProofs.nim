@@ -9,16 +9,16 @@ ethersuite "On-Chain Proofs":
   let proof = exampleProof()
 
   var proofs: OnChainProofs
-  var storage: Storage
+  var marketplace: Marketplace
 
   setup:
     let deployment = deployment()
-    storage = Storage.new(!deployment.address(Storage), provider.getSigner())
-    proofs = OnChainProofs.new(storage)
+    marketplace = Marketplace.new(!deployment.address(Marketplace), provider.getSigner())
+    proofs = OnChainProofs.new(marketplace)
 
   test "can retrieve proof periodicity":
     let periodicity = await proofs.periodicity()
-    let periodLength = await storage.proofPeriod()
+    let periodLength = await marketplace.proofPeriod()
     check periodicity.seconds == periodLength
 
   test "supports checking whether proof is required now":

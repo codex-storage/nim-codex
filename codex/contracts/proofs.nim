@@ -2,13 +2,13 @@ import std/strutils
 import pkg/ethers
 import pkg/ethers/testing
 import ../storageproofs/timing/proofs
-import ./storage
+import ./marketplace
 
 export proofs
 
 type
   OnChainProofs* = ref object of Proofs
-    storage: Storage
+    marketplace: Marketplace
     pollInterval*: Duration
   ProofsSubscription = proofs.Subscription
   EventSubscription = ethers.Subscription
@@ -17,17 +17,17 @@ type
 
 const DefaultPollInterval = 3.seconds
 
-proc new*(_: type OnChainProofs, storage: Storage): OnChainProofs =
-  OnChainProofs(storage: storage, pollInterval: DefaultPollInterval)
+proc new*(_: type OnChainProofs, marketplace: Marketplace): OnChainProofs =
+  OnChainProofs(marketplace: marketplace, pollInterval: DefaultPollInterval)
 
 method periodicity*(proofs: OnChainProofs): Future[Periodicity] {.async.} =
-  let period = await proofs.storage.proofPeriod()
+  let period = await proofs.marketplace.proofPeriod()
   return Periodicity(seconds: period)
 
 method isProofRequired*(proofs: OnChainProofs,
                         id: SlotId): Future[bool] {.async.} =
   try:
-    return await proofs.storage.isProofRequired(id)
+    return await proofs.marketplace.isProofRequired(id)
   except ProviderError as e:
     if e.revertReason.contains("Slot empty"):
       return false
@@ -36,7 +36,7 @@ method isProofRequired*(proofs: OnChainProofs,
 method willProofBeRequired*(proofs: OnChainProofs,
                             id: SlotId): Future[bool] {.async.} =
   try:
-    return await proofs.storage.willProofBeRequired(id)
+    return await proofs.marketplace.willProofBeRequired(id)
   except ProviderError as e:
     if e.revertReason.contains("Slot empty"):
       return false
@@ -45,7 +45,7 @@ method willProofBeRequired*(proofs: OnChainProofs,
 method getProofEnd*(proofs: OnChainProofs,
                     id: SlotId): Future[UInt256] {.async.} =
   try:
-    return await proofs.storage.proofEnd(id)
+    return await proofs.marketplace.proofEnd(id)
   except ProviderError as e:
     if e.revertReason.contains("Slot empty"):
       return 0.u256
@@ -54,14 +54,14 @@ method getProofEnd*(proofs: OnChainProofs,
 method submitProof*(proofs: OnChainProofs,
                     id: SlotId,
                     proof: seq[byte]) {.async.} =
-  await proofs.storage.submitProof(id, proof)
+  await proofs.marketplace.submitProof(id, proof)
 
 method subscribeProofSubmission*(proofs: OnChainProofs,
                                  callback: OnProofSubmitted):
                                 Future[ProofsSubscription] {.async.} =
   proc onEvent(event: ProofSubmitted) {.upraises: [].} =
     callback(event.id, event.proof)
-  let subscription = await proofs.storage.subscribe(ProofSubmitted, onEvent)
+  let subscription = await proofs.marketplace.subscribe(ProofSubmitted, onEvent)
   return OnChainProofsSubscription(eventSubscription: subscription)
 
 method unsubscribe*(subscription: OnChainProofsSubscription) {.async, upraises:[].} =

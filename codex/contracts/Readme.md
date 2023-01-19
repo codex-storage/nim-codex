@@ -20,7 +20,7 @@ import ethers
 
 let address = # fill in address where the contract was deployed
 let provider = JsonRpcProvider.new("ws://localhost:8545")
-let storage = Storage.new(address, provider)
+let marketplace = Marketplace.new(address, provider)
 ```
 
 Setup client and host so that they can sign transactions; here we use the first
@@ -39,7 +39,7 @@ Hosts need to put up collateral before participating in storage contracts.
 
 A host can learn about the amount of collateral that is required:
 ```nim
-let collateralAmount = await storage.collateralAmount()
+let collateral = await marketplace.collateral()
 ```
 
 The host then needs to prepare a payment to the smart contract by calling the
@@ -50,7 +50,7 @@ After preparing the payment, the host can deposit collateral:
 ```nim
 await storage
   .connect(host)
-  .deposit(collateralAmount)
+  .deposit(collateral)
 ```
 
 When a host is not participating in storage offers or contracts, it can withdraw
@@ -176,6 +176,6 @@ await storage
   .markProofAsMissing(id, period)
 ```
 
-[1]: https://github.com/status-im/dagger-contracts/
+[1]: https://github.com/status-im/codex-contracts-eth/
 [2]: https://ethereum.org/en/developers/docs/standards/tokens/erc-20/
 [3]: https://github.com/status-im/codex-research/blob/main/design/storage-proof-timing.md

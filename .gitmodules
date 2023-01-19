@@ -133,10 +133,6 @@
 	url = https://github.com/status-im/nim-websock.git
 	ignore = untracked
 	branch = master
-[submodule "vendor/dagger-contracts"]
-	path = vendor/dagger-contracts
-	url = https://github.com/status-im/dagger-contracts
-	ignore = dirty
 [submodule "vendor/nim-contract-abi"]
 	path = vendor/nim-contract-abi
 	url = https://github.com/status-im/nim-contract-abi
@@ -182,3 +178,6 @@
 [submodule "vendor/nim-eth"]
 	path = vendor/nim-eth
 	url = https://github.com/status-im/nim-eth
+[submodule "vendor/codex-contracts-eth"]
+	path = vendor/codex-contracts-eth
+	url = https://github.com/status-im/codex-contracts-eth
