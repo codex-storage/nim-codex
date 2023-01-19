@@ -74,7 +74,7 @@ method requestStorage*(market: MockMarket, request: StorageRequest) {.async.} =
 method myRequests*(market: MockMarket): Future[seq[RequestId]] {.async.} =
   return market.activeRequests[market.signer]
 
-method mySlots*(market: MockMarket): Future[seq[SlotId]] {.async.} =
+method mySlots*(market: MockMarket, requestId: RequestId): Future[seq[SlotId]] {.async.} =
   return market.activeSlots[market.signer]
 
 method getRequest(market: MockMarket,
