@@ -12,11 +12,11 @@ export SecondsSince1970
 type
   Market* = ref object of RootObj
   Subscription* = ref object of RootObj
-  OnRequest* = proc(id: RequestId, ask: StorageAsk) {.gcsafe, upraises:[].}
-  OnFulfillment* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
-  OnSlotFilled* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises:[].}
-  OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
-  OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
+  OnRequest* = proc(id: RequestId, ask: StorageAsk): Future[void] {.gcsafe, upraises:[].}
+  OnFulfillment* = proc(requestId: RequestId): Future[void] {.gcsafe, upraises: [].}
+  OnSlotFilled* = proc(requestId: RequestId, slotIndex: UInt256): Future[void] {.gcsafe, upraises:[].}
+  OnRequestCancelled* = proc(requestId: RequestId): Future[void] {.gcsafe, upraises:[].}
+  OnRequestFailed* = proc(requestId: RequestId): Future[void] {.gcsafe, upraises:[].}
 
 method getSigner*(market: Market): Future[Address] {.base, async.} =
   raiseAssert("not implemented")
@@ -26,6 +26,9 @@ method requestStorage*(market: Market,
   raiseAssert("not implemented")
 
 method myRequests*(market: Market): Future[seq[RequestId]] {.base, async.} =
+  raiseAssert("not implemented")
+
+method mySlots*(market: Market): Future[seq[SlotId]] {.base, async.} =
   raiseAssert("not implemented")
 
 method getRequest*(market: Market,
@@ -44,6 +47,10 @@ method getRequestEnd*(market: Market,
 method getHost*(market: Market,
                 requestId: RequestId,
                 slotIndex: UInt256): Future[?Address] {.base, async.} =
+  raiseAssert("not implemented")
+
+method getSlot*(market: Market,
+                slotId: SlotId): Future[?Slot] {.base, async.} =
   raiseAssert("not implemented")
 
 method fillSlot*(market: Market,
