@@ -89,11 +89,8 @@ proc load*(sales: Sales) {.async.} =
 
   # TODO: restore availability from disk
   let requestIds = await market.myRequests()
-  var slotIds: seq[SlotId]
-  # TODO: this needs to be optimised
-  for requestId in requestIds:
-    let reqSlotIds = await market.mySlots(requestId)
-    slotIds.add reqSlotIds
+  let slotIds = await market.mySlots()
+
   for slotId in slotIds:
     # TODO: this needs to be optimised
     if slot =? await market.getSlot(slotId):
