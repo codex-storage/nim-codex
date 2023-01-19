@@ -9,6 +9,7 @@ export tables
 type
   MockMarket* = ref object of Market
     activeRequests*: Table[Address, seq[RequestId]]
+    activeSlots*: Table[Address, seq[SlotId]]
     requested*: seq[StorageRequest]
     requestEnds*: Table[RequestId, SecondsSince1970]
     state*: Table[RequestId, RequestState]
@@ -19,11 +20,6 @@ type
     subscriptions: Subscriptions
   Fulfillment* = object
     requestId*: RequestId
-    proof*: seq[byte]
-    host*: Address
-  Slot* = object
-    requestId*: RequestId
-    slotIndex*: UInt256
     proof*: seq[byte]
     host*: Address
   Subscriptions = object
@@ -74,6 +70,9 @@ method requestStorage*(market: MockMarket, request: StorageRequest) {.async.} =
 method myRequests*(market: MockMarket): Future[seq[RequestId]] {.async.} =
   return market.activeRequests[market.signer]
 
+method mySlots*(market: MockMarket): Future[seq[SlotId]] {.async.} =
+  return market.activeSlots[market.signer]
+
 method getRequest(market: MockMarket,
                   id: RequestId): Future[?StorageRequest] {.async.} =
   for request in market.requested:
@@ -89,7 +88,7 @@ method getRequestEnd*(market: MockMarket,
                       id: RequestId): Future[SecondsSince1970] {.async.} =
   return market.requestEnds[id]
 
-method getHost(market: MockMarket,
+method getHost*(market: MockMarket,
                requestId: RequestId,
                slotIndex: UInt256): Future[?Address] {.async.} =
   for slot in market.filled:
