@@ -1,4 +1,5 @@
 import codex/contracts
+import codex/contracts/testtoken
 import ../ethertest
 import ./examples
 import ./time
@@ -18,7 +19,8 @@ ethersuite "On-Chain Proofs":
 
   test "can retrieve proof periodicity":
     let periodicity = await proofs.periodicity()
-    let periodLength = await marketplace.proofPeriod()
+    let config = await marketplace.config()
+    let periodLength = config.proofs.period
     check periodicity.seconds == periodLength
 
   test "supports checking whether proof is required now":
@@ -27,8 +29,8 @@ ethersuite "On-Chain Proofs":
   test "supports checking whether proof is required soon":
     check (await proofs.willProofBeRequired(contractId)) == false
 
-  test "retrieves proof end time":
-    check (await proofs.getProofEnd(contractId)) == 0.u256
+  test "retrieves correct slot state when request is unknown":
+    check (await proofs.slotState(SlotId.example)) == SlotState.Free
 
   test "submits proofs":
     await proofs.submitProof(contractId, proof)
@@ -55,6 +57,3 @@ ethersuite "On-Chain Proofs":
 
   test "proof will not be required when slot is empty":
     check not await proofs.willProofBeRequired(contractId)
-
-  test "proof end is zero when slot is empty":
-    check (await proofs.getProofEnd(contractId)) == 0.u256
