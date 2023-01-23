@@ -47,6 +47,7 @@ suite "Proving":
     proc onProofRequired(id: SlotId) =
       called = true
     proving.onProofRequired = onProofRequired
+    proofs.setSlotState(id, SlotState.Filled)
     proofs.setProofRequired(id, true)
     await proofs.advanceToNextPeriod()
     check eventually called
@@ -59,6 +60,8 @@ suite "Proving":
     proc onProofRequired(id: SlotId) =
       callbackIds.add(id)
     proving.onProofRequired = onProofRequired
+    proofs.setSlotState(id1, SlotState.Filled)
+    proofs.setSlotState(id2, SlotState.Filled)
     proofs.setProofRequired(id1, true)
     await proofs.advanceToNextPeriod()
     check eventually callbackIds == @[id1]
@@ -76,6 +79,7 @@ suite "Proving":
     proving.onProofRequired = onProofRequired
     proofs.setProofRequired(id, false)
     proofs.setProofToBeRequired(id, true)
+    proofs.setSlotState(id, SlotState.Filled)
     await proofs.advanceToNextPeriod()
     check eventually called
 
@@ -90,6 +94,7 @@ suite "Proving":
     proving.onProofRequired = onProofRequired
     proofs.setProofRequired(id, true)
     await proofs.advanceToNextPeriod()
+    proofs.setSlotState(id, SlotState.Finished)
     check eventually (not proving.slots.contains(id))
     check not called
 

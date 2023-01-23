@@ -24,7 +24,7 @@ method enterAsync(state: SaleUnknown) {.async.} =
   let market = agent.sales.market
 
   try:
-    without requestState =? await market.getState(agent.requestId):
+    without requestState =? await market.requestState(agent.requestId):
       raiseAssert "state unknown"
 
     case requestState

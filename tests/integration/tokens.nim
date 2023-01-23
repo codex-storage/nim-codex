@@ -12,4 +12,5 @@ proc mint*(signer: Signer, amount = 1_000_000.u256) {.async.} =
 proc deposit*(signer: Signer) {.async.} =
   ## Deposits sufficient collateral into the Marketplace contract.
   let marketplace = Marketplace.new(!deployment().address(Marketplace), signer)
-  await marketplace.deposit(await marketplace.collateral())
+  let config = await marketplace.config()
+  await marketplace.deposit(config.collateral.initialAmount)

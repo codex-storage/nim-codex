@@ -36,8 +36,12 @@ method getRequest*(market: Market,
                   Future[?StorageRequest] {.base, async.} =
   raiseAssert("not implemented")
 
-method getState*(market: Market,
+method requestState*(market: Market,
                  requestId: RequestId): Future[?RequestState] {.base, async.} =
+  raiseAssert("not implemented")
+
+method slotState*(market: Market,
+                  slotId: SlotId): Future[SlotState] {.base, async.} =
   raiseAssert("not implemented")
 
 method getRequestEnd*(market: Market,
@@ -49,8 +53,8 @@ method getHost*(market: Market,
                 slotIndex: UInt256): Future[?Address] {.base, async.} =
   raiseAssert("not implemented")
 
-method getSlot*(market: Market,
-                slotId: SlotId): Future[?Slot] {.base, async.} =
+method getRequestFromSlotId*(market: Market,
+                             slotId: SlotId): Future[?StorageRequest] {.base, async.} =
   raiseAssert("not implemented")
 
 method fillSlot*(market: Market,
