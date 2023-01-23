@@ -39,7 +39,8 @@ Hosts need to put up collateral before participating in storage contracts.
 
 A host can learn about the amount of collateral that is required:
 ```nim
-let collateral = await marketplace.collateral()
+let config = await marketplace.config()
+let collateral = config.collateral.initialAmount
 ```
 
 The host then needs to prepare a payment to the smart contract by calling the

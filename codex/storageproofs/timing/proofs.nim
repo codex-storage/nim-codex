@@ -1,5 +1,6 @@
 import pkg/chronos
 import pkg/stint
+import pkg/questionable
 import pkg/upraises
 import ./periods
 import ../../contracts/requests
@@ -26,8 +27,8 @@ method willProofBeRequired*(proofs: Proofs,
                             id: SlotId): Future[bool] {.base, async.} =
   raiseAssert("not implemented")
 
-method getProofEnd*(proofs: Proofs,
-                    id: SlotId): Future[UInt256] {.base, async.} =
+method slotState*(proofs: Proofs,
+                  id: SlotId): Future[SlotState] {.base, async.} =
   raiseAssert("not implemented")
 
 method submitProof*(proofs: Proofs,

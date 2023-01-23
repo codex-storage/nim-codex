@@ -38,7 +38,8 @@ proc removeEndedContracts(proving: Proving) {.async.} =
   let now = proving.clock.now().u256
   var ended: HashSet[SlotId]
   for id in proving.slots:
-    if now >= (await proving.proofs.getProofEnd(id)):
+    let state = await proving.proofs.slotState(id)
+    if state != SlotState.Filled:
       ended.incl(id)
   proving.slots.excl(ended)
 

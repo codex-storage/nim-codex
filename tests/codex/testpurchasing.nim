@@ -234,7 +234,7 @@ suite "Purchasing state machine":
     clock.advance(request.ask.duration.truncate(int64))
 
     # now check the result
-    proc getState: ?PurchaseState =
+    proc requestState: ?PurchaseState =
       purchasing.getPurchase(PurchaseId(request.id)).?state as PurchaseState
 
-    check eventually (getState() as PurchaseFinished).isSome
+    check eventually (requestState() as PurchaseFinished).isSome

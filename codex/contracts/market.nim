@@ -46,14 +46,18 @@ method getRequest(market: OnChainMarket,
       return none StorageRequest
     raise e
 
-method getState*(market: OnChainMarket,
+method requestState*(market: OnChainMarket,
                  requestId: RequestId): Future[?RequestState] {.async.} =
   try:
-    return some await market.contract.state(requestId)
+    return some await market.contract.requestState(requestId)
   except ProviderError as e:
     if e.revertReason.contains("Unknown request"):
       return none RequestState
     raise e
+
+method slotState*(market: OnChainMarket,
+                  slotId: SlotId): Future[SlotState] {.async.} =
+  return await market.contract.slotState(slotId)
 
 method getRequestEnd*(market: OnChainMarket,
                       id: RequestId): Future[SecondsSince1970] {.async.} =
@@ -69,12 +73,13 @@ method getHost(market: OnChainMarket,
   else:
     return none Address
 
-method getSlot*(market: OnChainMarket, slotId: SlotId): Future[?Slot] {.async.} =
+method getRequestFromSlotId*(market: OnChainMarket,
+                             slotId: SlotId): Future[?StorageRequest] {.async.} =
   try:
-    return some await market.contract.getSlot(slotId)
+    return some await market.contract.getRequestFromSlotId(slotId)
   except ProviderError as e:
-    if e.revertReason.contains("Slot empty"):
-      return none Slot
+    if e.revertReason.contains("Slot is free"):
+      return none StorageRequest
     raise e
 
 method fillSlot(market: OnChainMarket,

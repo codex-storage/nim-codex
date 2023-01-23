@@ -34,8 +34,9 @@ ethersuite "Marketplace contracts":
     await token.mint(await client.getAddress(), 1_000_000_000.u256)
     await token.mint(await host.getAddress(), 1000_000_000.u256)
 
-    collateral = await marketplace.collateral()
-    periodicity = Periodicity(seconds: await marketplace.proofPeriod())
+    let config = await marketplace.config()
+    collateral = config.collateral.initialAmount
+    periodicity = Periodicity(seconds: config.proofs.period)
 
     request = StorageRequest.example
     request.client = await client.getAddress()
@@ -82,10 +83,9 @@ ethersuite "Marketplace contracts":
     let requestEnd = await marketplace.requestEnd(request.id)
     await provider.advanceTimeTo(requestEnd.u256)
     let startBalance = await token.balanceOf(address)
-    await storage.payoutSlot(request.id, 0.u256)
+    await marketplace.freeSlot(slotId)
     let endBalance = await token.balanceOf(address)
     check endBalance == (startBalance + request.ask.duration * request.ask.reward)
-
 
   test "cannot mark proofs missing for cancelled request":
     await provider.advanceTimeTo(request.expiry + 1)

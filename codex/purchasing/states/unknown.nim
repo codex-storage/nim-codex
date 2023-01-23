@@ -14,7 +14,7 @@ method enterAsync(state: PurchaseUnknown) {.async.} =
 
   try:
     if (request =? await purchase.market.getRequest(purchase.requestId)) and
-       (requestState =? await purchase.market.getState(purchase.requestId)):
+       (requestState =? await purchase.market.requestState(purchase.requestId)):
 
       purchase.request = some request
 
