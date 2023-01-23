@@ -21,7 +21,8 @@ proc new*(_: type OnChainProofs, marketplace: Marketplace): OnChainProofs =
   OnChainProofs(marketplace: marketplace, pollInterval: DefaultPollInterval)
 
 method periodicity*(proofs: OnChainProofs): Future[Periodicity] {.async.} =
-  let period = await proofs.marketplace.proofPeriod()
+  let config = await proofs.marketplace.config()
+  let period = config.proofs.period
   return Periodicity(seconds: period)
 
 method isProofRequired*(proofs: OnChainProofs,
@@ -29,7 +30,7 @@ method isProofRequired*(proofs: OnChainProofs,
   try:
     return await proofs.marketplace.isProofRequired(id)
   except ProviderError as e:
-    if e.revertReason.contains("Slot empty"):
+    if e.revertReason.contains("Slot is free"):
       return false
     raise e
 
@@ -38,18 +39,13 @@ method willProofBeRequired*(proofs: OnChainProofs,
   try:
     return await proofs.marketplace.willProofBeRequired(id)
   except ProviderError as e:
-    if e.revertReason.contains("Slot empty"):
+    if e.revertReason.contains("Slot is free"):
       return false
     raise e
 
-method getProofEnd*(proofs: OnChainProofs,
-                    id: SlotId): Future[UInt256] {.async.} =
-  try:
-    return await proofs.marketplace.proofEnd(id)
-  except ProviderError as e:
-    if e.revertReason.contains("Slot empty"):
-      return 0.u256
-    raise e
+method slotState*(proofs: OnChainProofs,
+                  id: SlotId): Future[SlotState] {.async.} =
+  return await proofs.marketplace.slotState(id)
 
 method submitProof*(proofs: OnChainProofs,
                     id: SlotId,

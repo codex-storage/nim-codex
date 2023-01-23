@@ -3,6 +3,7 @@ import std/tables
 import std/hashes
 import pkg/codex/market
 import pkg/codex/contracts/requests
+import pkg/codex/contracts/config
 
 export market
 export tables
@@ -19,11 +20,14 @@ type
     withdrawn*: seq[RequestId]
     signer: Address
     subscriptions: Subscriptions
+    config: MarketplaceConfig
   Fulfillment* = object
     requestId*: RequestId
     proof*: seq[byte]
     host*: Address
-  MockSlot* = object of Slot
+  MockSlot* = object
+    requestId*: RequestId
+    host*: Address
     slotIndex*: UInt256
     proof*: seq[byte]
   Subscriptions = object
@@ -60,7 +64,20 @@ proc hash*(requestId: RequestId): Hash =
   hash(requestId.toArray)
 
 proc new*(_: type MockMarket): MockMarket =
-  MockMarket(signer: Address.example)
+  let config = MarketplaceConfig(
+    collateral: CollateralConfig(
+      initialAmount: 100.u256,
+      minimumAmount: 40.u256,
+      slashCriterion: 3.u256,
+      slashPercentage: 10.u256
+    ),
+    proofs: ProofConfig(
+      period: 10.u256,
+      timeout: 5.u256,
+      downtime: 64.uint8
+    )
+  )
+  MockMarket(signer: Address.example, config: config)
 
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
@@ -84,15 +101,14 @@ method getRequest(market: MockMarket,
       return some request
   return none StorageRequest
 
-method getSlot*(market: MockMarket,
-                slotId: SlotId): Future[?Slot] {.async.} =
+method getRequestFromSlotId*(market: MockMarket,
+                             slotId: SlotId): Future[?StorageRequest] {.async.} =
   for slot in market.filled:
     if slotId(slot.requestId, slot.slotIndex) == slotId:
-      return some Slot(host: slot.host,
-                       requestId: slot.requestId)
-  return none Slot
+      return await market.getRequest(slot.requestId)
+  return none StorageRequest
 
-method getState*(market: MockMarket,
+method requestState*(market: MockMarket,
                  requestId: RequestId): Future[?RequestState] {.async.} =
   return market.state.?[requestId]
 

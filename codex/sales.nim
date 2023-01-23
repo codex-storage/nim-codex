@@ -93,24 +93,23 @@ proc load*(sales: Sales) {.async.} =
 
   for slotId in slotIds:
     # TODO: this needs to be optimised
-    if slot =? await market.getSlot(slotId):
-      if request =? await market.getRequest(slot.requestId):
-        let availability = sales.findAvailability(request.ask)
-        without slotIndex =? findSlotIndex(request.ask.slots,
-                                           slot.requestId,
-                                           slotId):
-          raiseAssert "could not find slot index"
+    if request =? await market.getRequestFromSlotId(slotId):
+      let availability = sales.findAvailability(request.ask)
+      without slotIndex =? findSlotIndex(request.ask.slots,
+                                          request.id,
+                                          slotId):
+        raiseAssert "could not find slot index"
 
-        let agent = newSalesAgent(
-          sales,
-          slot.requestId,
-          availability,
-          some slotIndex,
-          some request)
+      let agent = newSalesAgent(
+        sales,
+        request.id,
+        availability,
+        some slotIndex,
+        some request)
 
-        await agent.start(request.ask.slots)
-        await agent.switchAsync(SaleUnknown())
-        sales.agents.add agent
+      await agent.start(request.ask.slots)
+      await agent.switchAsync(SaleUnknown())
+      sales.agents.add agent
 
 proc start*(sales: Sales) {.async.} =
   doAssert sales.subscription.isNone, "Sales already started"
