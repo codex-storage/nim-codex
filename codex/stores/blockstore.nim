@@ -20,9 +20,6 @@ import ../blocktype
 
 export blocktype, libp2p
 
-const
-  DefaultBlockTtl = 24.hours
-
 type
   BlockNotFoundError* = object of CodexError
 
