@@ -332,14 +332,15 @@ proc start*(self: RepoStore): Future[void] {.async.} =
 proc stop*(self: RepoStore): Future[void] {.async.} =
   ## Stop repo
   ##
-
-  if self.started:
+  if not self.started:
     trace "Repo is not started"
     return
 
   trace "Stopping repo"
   (await self.repoDs.close()).expect("Should close repo store!")
   (await self.metaDs.close()).expect("Should close meta store!")
+
+  self.started = false
 
 func new*(
   T: type RepoStore,

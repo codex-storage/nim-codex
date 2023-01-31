@@ -20,6 +20,39 @@ import pkg/codex/blocktype as bt
 import ../helpers
 import ./commonstoretests
 
+suite "Test RepoStore start/stop":
+
+  var
+    repoDs: Datastore
+    metaDs: Datastore
+
+  setup:
+    repoDs = SQLiteDatastore.new(Memory).tryGet()
+    metaDs = SQLiteDatastore.new(Memory).tryGet()
+
+  test "Should set started flag once started":
+    let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+    await repo.start()
+    check repo.started
+
+  test "Should set started flag to false once stopped":
+    let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+    await repo.start()
+    await repo.stop()
+    check not repo.started
+
+  test "Should allow start to be called multiple times":
+    let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+    await repo.start()
+    await repo.start()
+    check repo.started
+
+  test "Should allow stop to be called multiple times":
+    let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+    await repo.stop()
+    await repo.stop()
+    check not repo.started
+
 suite "Test RepoStore Quota":
 
   var
