@@ -35,7 +35,6 @@ type
   Reservations* = ref object
     started*: bool
     repo: RepoStore
-    persist: Datastore
   GetNext* = proc(): Future[?Availability] {.upraises: [], gcsafe, closure.}
   AvailabilityIter* = ref object
     finished*: bool
@@ -56,26 +55,9 @@ const
 
 proc new*(
   T: type Reservations,
-  repo: RepoStore,
-  data: Datastore): Reservations =
+  repo: RepoStore): Reservations =
 
-  T(repo: repo, persist: data)
-
-proc start*(self: Reservations) {.async.} =
-  if self.started:
-    return
-
-  await self.repo.start()
-  self.started = true
-
-proc stop*(self: Reservations) {.async.} =
-  if not self.started:
-    return
-
-  await self.repo.stop()
-  (await self.persist.close()).expect("Should close meta store!")
-
-  self.started = false
+  T(repo: repo)
 
 proc init*(
   _: type Availability,
@@ -137,7 +119,7 @@ proc exists*(
   without key =? id.key, err:
     return failure(err)
 
-  let exists = await self.persist.contains(key)
+  let exists = await self.repo.metaDs.contains(key)
   return success(exists)
 
 proc get*(
@@ -152,7 +134,7 @@ proc get*(
   without key =? id.key, err:
     return failure(err)
 
-  without serialized =? await self.persist.get(key), err:
+  without serialized =? await self.repo.metaDs.get(key), err:
     return failure(err)
 
   without availability =? Json.decode(serialized, Availability).catch, err:
@@ -173,7 +155,7 @@ proc update(
   without key =? availability.key, err:
     return failure(err)
 
-  if err =? (await self.persist.put(
+  if err =? (await self.repo.metaDs.put(
     key,
     @(updated.toJson.toBytes))).errorOption:
     return failure(err)
@@ -192,7 +174,7 @@ proc reserve*(
   without key =? availability.key, err:
     return failure(err.toErr(AvailabilityError))
 
-  if err =? (await self.persist.put(
+  if err =? (await self.repo.metaDs.put(
     key,
     @(availability.toJson.toBytes))).errorOption:
     return failure(err.toErr(AvailabilityError))
@@ -205,7 +187,7 @@ proc reserve*(
     var reserveErr = reserveInnerErr.toErr(AvailabilityReserveFailedError)
 
     # rollback persisted availability
-    if rollbackInnerErr =? (await self.persist.delete(key)).errorOption:
+    if rollbackInnerErr =? (await self.repo.metaDs.delete(key)).errorOption:
       let rollbackErr = rollbackInnerErr.toErr(AvailabilityDeleteFailedError,
         "Failed to delete persisted availability during rollback")
       reserveErr.innerException = rollbackErr
@@ -227,7 +209,7 @@ proc release*(
   without key =? id.key, err:
     return failure(err.toErr(AvailabilityError))
 
-  if err =? (await self.persist.delete(key)).errorOption:
+  if err =? (await self.repo.metaDs.delete(key)).errorOption:
     return failure(err.toErr(AvailabilityDeleteFailedError))
 
   # TODO: reconcile data sizes -- availability uses UInt256 and RepoStore
@@ -238,7 +220,7 @@ proc release*(
     var releaseErr = releaseInnerErr.toErr(AvailabilityReleaseFailedError)
 
     # rollback delete
-    if rollbackInnerErr =? (await self.persist.put(
+    if rollbackInnerErr =? (await self.repo.metaDs.put(
       key,
       @(availability.toJson.toBytes))).errorOption:
 
@@ -274,7 +256,7 @@ proc availabilities*(
   var iter = AvailabilityIter()
   let query = Query.init(ReservationsKey)
 
-  without results =? await self.persist.query(query), err:
+  without results =? await self.repo.metaDs.query(query), err:
     return failure(err)
 
   proc next(): Future[?Availability] {.async.} =

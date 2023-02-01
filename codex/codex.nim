@@ -90,7 +90,7 @@ proc stop*(s: CodexServer) {.async.} =
   await allFuturesThrowing(
     s.restServer.stop(),
     s.codexNode.stop(),
-    s.repoStore.start())
+    s.repoStore.stop())
 
   s.runHandle.complete()
 
@@ -169,7 +169,7 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
     engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-    contracts = ContractInteractions.new(config)
+    contracts = ContractInteractions.new(config, repoStore)
     codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery, contracts)
     restServer = RestServerRef.new(
       codexNode.initRestApi(config),

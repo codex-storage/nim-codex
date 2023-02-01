@@ -41,13 +41,12 @@ func new*(_: type Sales,
           market: Market,
           clock: Clock,
           proving: Proving,
-          repo: RepoStore,
-          data: Datastore): Sales =
+          repo: RepoStore): Sales =
   Sales(
     market: market,
     clock: clock,
     proving: proving,
-    reservations: Reservations.new(repo, data)
+    reservations: Reservations.new(repo)
   )
 
 
@@ -147,6 +146,4 @@ proc stop*(sales: Sales) {.async.} =
 
   for agent in sales.agents:
     await agent.stop()
-
-  await sales.reservations.stop
 

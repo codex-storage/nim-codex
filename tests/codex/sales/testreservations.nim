@@ -30,11 +30,8 @@ suite "Reservations module":
     repoDs = SQLiteDatastore.new(Memory).tryGet()
     metaDs = SQLiteDatastore.new(Memory).tryGet()
     repo = RepoStore.new(repoDs, metaDs)
-    reservations = Reservations.new(repo, metaDs)
+    reservations = Reservations.new(repo)
     availability = Availability.example
-
-  teardown:
-    await reservations.stop()
 
   test "has no availability initially":
     check (await reservations.allAvailabilities()).len == 0
@@ -152,13 +149,13 @@ suite "Reservations module":
   test "reports quota not available to be reserved":
     repo = RepoStore.new(repoDs, metaDs,
                          quotaMaxBytes = availability.size.truncate(uint) - 1)
-    reservations = Reservations.new(repo, metaDs)
+    reservations = Reservations.new(repo)
     check not reservations.available(availability.size.truncate(uint))
 
   test "fails to reserve availability size that is larger than available quota":
     repo = RepoStore.new(repoDs, metaDs,
                          quotaMaxBytes = availability.size.truncate(uint) - 1)
-    reservations = Reservations.new(repo, metaDs)
+    reservations = Reservations.new(repo)
     let r = await reservations.reserve(availability)
     check r.error of AvailabilityReserveFailedError
     check r.error.innerException of QuotaNotEnoughError
@@ -166,14 +163,14 @@ suite "Reservations module":
   test "rolls back persisted availability if repo reservation fails":
     repo = RepoStore.new(repoDs, metaDs,
                          quotaMaxBytes = availability.size.truncate(uint) - 1)
-    reservations = Reservations.new(repo, metaDs)
+    reservations = Reservations.new(repo)
     discard await reservations.reserve(availability)
     check exists =? (await reservations.exists(availability.id)) and not exists
 
   test "fails to release availability size that is larger than available quota":
     repo = RepoStore.new(repoDs, metaDs,
                          quotaMaxBytes = availability.size.truncate(uint))
-    reservations = Reservations.new(repo, metaDs)
+    reservations = Reservations.new(repo)
     discard await reservations.reserve(availability)
     # increase size of availability past repo quota, so that the next release
     # will fail
@@ -187,7 +184,20 @@ suite "Reservations module":
   test "rolls back persisted availability if repo release fails":
     repo = RepoStore.new(repoDs, metaDs,
                          quotaMaxBytes = availability.size.truncate(uint))
-    reservations = Reservations.new(repo, metaDs)
+    reservations = Reservations.new(repo)
+    discard await reservations.reserve(availability)
+    # increase size of availability past repo quota, so that the next release
+    # will fail
+    availability.size += 1.u256
+    let key = !(availability.key)
+    check isOk await metaDs.put(key, @(availability.toJson.toBytes))
+    discard await reservations.release(availability.id)
+    check exists =? (await reservations.exists(availability.id)) and exists
+
+  test "started should be true once started":
+    repo = RepoStore.new(repoDs, metaDs,
+                         quotaMaxBytes = availability.size.truncate(uint))
+    reservations = Reservations.new(repo)
     discard await reservations.reserve(availability)
     # increase size of availability past repo quota, so that the next release
     # will fail

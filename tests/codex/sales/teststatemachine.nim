@@ -53,7 +53,7 @@ suite "Sales state machine":
     let repoDs = SQLiteDatastore.new(Memory).tryGet()
     let metaDs = SQLiteDatastore.new(Memory).tryGet()
     let repo = RepoStore.new(repoDs, metaDs)
-    sales = Sales.new(market, clock, proving, repo, metaDs)
+    sales = Sales.new(market, clock, proving, repo)
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
                          availability: ?Availability) {.async.} =
