@@ -25,7 +25,8 @@ method enterAsync(state: SaleUnknown) {.async.} =
 
   try:
     without requestState =? await market.requestState(agent.requestId):
-      raiseAssert "state unknown"
+      let error = newException(SaleUnknownError, "cannot retrieve request state")
+      await state.switchAsync(SaleErrored(error: error))
 
     case requestState
     of RequestState.New, RequestState.Started:
