@@ -32,7 +32,7 @@ type
     ask*: StorageAsk
     availability*: ?Availability # TODO: when availability persistence is added, change this to not optional
     request*: ?StorageRequest
-    slotIndex*: ?UInt256 # TODO: disallow optional; SalesAgents should always have a slotIndex
+    slotIndex*: UInt256
     failed*: market.Subscription
     fulfilled*: market.Subscription
     slotFilled*: market.Subscription

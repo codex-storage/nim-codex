@@ -264,8 +264,8 @@ suite "Sales state machine":
 
   proc newSalesAgent(slotIdx: UInt256 = 0.u256): SalesAgent =
     let agent = sales.newSalesAgent(request.id,
+                                    slotIdx,
                                     some availability,
-                                    some slotIdx,
                                     some request)
     return agent
 
@@ -455,7 +455,7 @@ suite "Sales state machine":
     market.requested.add request
     market.state[request.id] = RequestState.New
     await agent.switchAsync(SaleDownloading())
-    market.fillSlot(request.id, !agent.slotIndex, proof, Address.example)
+    market.fillSlot(request.id, agent.slotIndex, proof, Address.example)
     await sleepAsync chronos.seconds(2)
 
     let state = (agent.state as SaleErrored)
@@ -472,7 +472,7 @@ suite "Sales state machine":
     market.requested.add request
     market.state[request.id] = RequestState.New
     await agent.switchAsync(SaleProving())
-    market.fillSlot(request.id, !agent.slotIndex, proof, Address.example)
+    market.fillSlot(request.id, agent.slotIndex, proof, Address.example)
     await sleepAsync chronos.seconds(2)
 
     let state = (agent.state as SaleErrored)
@@ -488,7 +488,7 @@ suite "Sales state machine":
     await agent.start(request.ask.slots)
     market.requested.add request
     market.state[request.id] = RequestState.New
-    market.fillSlot(request.id, !agent.slotIndex, proof, Address.example)
+    market.fillSlot(request.id, agent.slotIndex, proof, Address.example)
     await agent.switchAsync(SaleFilling())
     await sleepAsync chronos.seconds(2)
 
@@ -519,7 +519,7 @@ suite "Sales state machine":
     await agent.start(request.ask.slots)
     market.requested.add request
     market.state[request.id] = RequestState.New
-    await fillSlot(!agent.slotIndex)
+    await fillSlot(agent.slotIndex)
     await agent.switchAsync(SaleDownloading())
     market.emitRequestFulfilled(request.id)
     await sleepAsync chronos.seconds(2)
