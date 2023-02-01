@@ -16,7 +16,6 @@ proc newSalesAgent*(sales: Sales,
     slotIndex: slotIndex,
     request: request)
 
-# fwd declarations
 proc subscribeCancellation*(agent: SalesAgent): Future[void] {.gcsafe.}
 proc subscribeFailure*(agent: SalesAgent): Future[void] {.gcsafe.}
 proc subscribeSlotFilled*(agent: SalesAgent): Future[void] {.gcsafe.}
