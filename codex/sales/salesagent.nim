@@ -6,8 +6,8 @@ import ../contracts/requests
 
 proc newSalesAgent*(sales: Sales,
                     requestId: RequestId,
+                    slotIndex: UInt256,
                     availability: ?Availability,
-                    slotIndex: ?UInt256,
                     request: ?StorageRequest): SalesAgent =
   SalesAgent(
     sales: sales,

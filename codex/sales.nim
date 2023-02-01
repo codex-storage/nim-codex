@@ -75,8 +75,8 @@ proc handleRequest(sales: Sales,
   let agent = newSalesAgent(
     sales,
     requestId,
+    slotIndex,
     availability,
-    some slotIndex,
     none StorageRequest
   )
 
@@ -103,8 +103,8 @@ proc load*(sales: Sales) {.async.} =
       let agent = newSalesAgent(
         sales,
         request.id,
+        slotIndex,
         availability,
-        some slotIndex,
         some request)
 
       await agent.start(request.ask.slots)
