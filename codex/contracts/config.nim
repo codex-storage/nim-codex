@@ -1,6 +1,4 @@
-import std/hashes
 import pkg/contractabi
-import pkg/nimcrypto
 import pkg/ethers/fields
 import pkg/questionable/results
 
