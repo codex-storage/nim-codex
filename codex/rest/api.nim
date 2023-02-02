@@ -244,7 +244,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
     "/api/codex/v1/sales/availability") do () -> RestApiResponse:
       ## Returns storage that is for sale
 
-      without contracts =? node.contracts:
+      without contracts =? node.contracts.host:
         return RestApiResponse.error(Http503, "Sales unavailable")
 
       let json = %contracts.sales.available
@@ -259,7 +259,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       ## duration   - maximum time the storage should be sold for (in seconds)
       ## minPrice   - minimum price to be paid (in amount of tokens)
 
-      without contracts =? node.contracts:
+      without contracts =? node.contracts.host:
         return RestApiResponse.error(Http503, "Sales unavailable")
 
       let body = await request.getBody()
@@ -281,7 +281,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
     "/api/codex/v1/storage/purchases/{id}") do (
       id: PurchaseId) -> RestApiResponse:
 
-      without contracts =? node.contracts:
+      without contracts =? node.contracts.client:
         return RestApiResponse.error(Http503, "Purchasing unavailable")
 
       without id =? id.tryGet.catch, error:

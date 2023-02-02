@@ -94,7 +94,10 @@ proc stop*(s: CodexServer) {.async.} =
 
   s.runHandle.complete()
 
-proc new(_: type ContractInteractions, config: CodexConf): ?ContractInteractions =
+proc new(_: type ContractInteractions,
+  config: CodexConf,
+  repo: RepoStore): Contracts =
+
   if not config.persistence:
     if config.ethAccount.isSome:
       warn "Ethereum account was set, but persistence is not enabled"
@@ -104,10 +107,16 @@ proc new(_: type ContractInteractions, config: CodexConf): ?ContractInteractions
     error "Persistence enabled, but no Ethereum account was set"
     quit QuitFailure
 
+  var client: ?ClientInteractions
+  var host: ?HostInteractions
   if deployment =? config.ethDeployment:
-    ContractInteractions.new(config.ethProvider, account, deployment)
+    client = ClientInteractions.new(config.ethProvider, account, deployment)
+    host = HostInteractions.new(config.ethProvider, account, repo, deployment)
   else:
-    ContractInteractions.new(config.ethProvider, account)
+    client = ClientInteractions.new(config.ethProvider, account)
+    host = HostInteractions.new(config.ethProvider, account, repo)
+
+  (client, host)
 
 proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): T =
 
