@@ -41,7 +41,6 @@ type
     finished*: bool
     next*: GetNext
   AvailabilityError* = object of CodexError
-    innerException*: ref CatchableError
   AvailabilityNotExistsError* = object of AvailabilityError
   AvailabilityAlreadyExistsError* = object of AvailabilityError
   AvailabilityReserveFailedError* = object of AvailabilityError
@@ -80,9 +79,7 @@ proc toErr[E1: ref CatchableError, E2: AvailabilityError](
   _: type E2,
   msg: string = "see inner exception"): ref E2 =
 
-  let e2 = newException(E2, msg)
-  e2.innerException = e1
-  return e2
+  return newException(E2, msg, e1)
 
 proc writeValue*(
   writer: var JsonWriter,
@@ -165,7 +162,7 @@ proc update(
 
 proc reserve*(
   self: Reservations,
-  availability: Availability): Future[Result[void, ref AvailabilityError]] {.async.} =
+  availability: Availability): Future[?!void] {.async.} =
 
   if exists =? (await self.exists(availability.id)) and exists:
     let err = newException(AvailabilityAlreadyExistsError,
@@ -173,42 +170,44 @@ proc reserve*(
     return failure(err)
 
   without key =? availability.key, err:
-    return failure(err.toErr(AvailabilityError))
+    return failure(err)
 
   if err =? (await self.repo.metaDs.put(
     key,
     @(availability.toJson.toBytes))).errorOption:
-    return failure(err.toErr(AvailabilityError))
+    return failure(err)
 
   # TODO: reconcile data sizes -- availability uses UInt256 and RepoStore
   # uses uint, thus the need to truncate
   if reserveInnerErr =? (await self.repo.reserve(
     availability.size.truncate(uint))).errorOption:
 
-    var reserveErr = reserveInnerErr.toErr(AvailabilityReserveFailedError)
+    let reserveErr = reserveInnerErr.toErr(AvailabilityReserveFailedError,
+      "Availability reservation failed")
 
     # rollback persisted availability
     if rollbackInnerErr =? (await self.repo.metaDs.delete(key)).errorOption:
       let rollbackErr = rollbackInnerErr.toErr(AvailabilityDeleteFailedError,
         "Failed to delete persisted availability during rollback")
-      reserveErr.innerException = rollbackErr
+      rollbackInnerErr.parent = reserveErr
+      return failure(rollbackErr)
 
     return failure(reserveErr)
 
-  return ok()
+  return success()
 
 # TODO: call site not yet determined. Perhaps reuse of Availabilty should be set
 # on creation (from the REST endpoint). Reusable availability wouldn't get
 # released after contract completion. Non-reusable availability would.
 proc release*(
   self: Reservations,
-  id: AvailabilityId): Future[Result[void, ref AvailabilityError]] {.async.} =
+  id: AvailabilityId): Future[?!void] {.async.} =
 
   without availability =? (await self.get(id)), err:
     return failure(err.toErr(AvailabilityGetFailedError))
 
   without key =? id.key, err:
-    return failure(err.toErr(AvailabilityError))
+    return failure(err)
 
   if err =? (await self.repo.metaDs.delete(key)).errorOption:
     return failure(err.toErr(AvailabilityDeleteFailedError))
@@ -218,20 +217,22 @@ proc release*(
   if releaseInnerErr =? (await self.repo.release(
     availability.size.truncate(uint))).errorOption:
 
-    var releaseErr = releaseInnerErr.toErr(AvailabilityReleaseFailedError)
+    let releaseErr = releaseInnerErr.toErr(AvailabilityReleaseFailedError)
 
     # rollback delete
     if rollbackInnerErr =? (await self.repo.metaDs.put(
       key,
       @(availability.toJson.toBytes))).errorOption:
 
-      var rollbackErr = rollbackInnerErr.toErr(AvailabilityPutFailedError,
+      let rollbackErr = rollbackInnerErr.toErr(
+        AvailabilityPutFailedError,
         "Failed to restore persisted availability during rollback")
-      releaseErr.innerException = rollbackErr
+      rollbackInnerErr.parent = releaseErr
+      return failure(rollbackErr)
 
     return failure(releaseErr)
 
-  return ok()
+  return success()
 
 
 proc markUsed*(

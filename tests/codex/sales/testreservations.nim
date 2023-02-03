@@ -73,7 +73,7 @@ suite "Reservations module":
   test "non-existant availability cannot be released":
     let r = await reservations.release(availability.id)
     check r.error of AvailabilityGetFailedError
-    check r.error.innerException of AvailabilityNotExistsError
+    check r.error.parent of AvailabilityNotExistsError
 
   test "added availability is not used initially":
     check isOk await reservations.reserve(availability)
@@ -158,7 +158,7 @@ suite "Reservations module":
     reservations = Reservations.new(repo)
     let r = await reservations.reserve(availability)
     check r.error of AvailabilityReserveFailedError
-    check r.error.innerException of QuotaNotEnoughError
+    check r.error.parent of QuotaNotEnoughError
 
   test "rolls back persisted availability if repo reservation fails":
     repo = RepoStore.new(repoDs, metaDs,
@@ -179,7 +179,7 @@ suite "Reservations module":
     check isOk await metaDs.put(key, @(availability.toJson.toBytes))
     let r = await reservations.release(availability.id)
     check r.error of AvailabilityReleaseFailedError
-    check r.error.innerException.msg == "Cannot release this many bytes"
+    check r.error.parent.msg == "Cannot release this many bytes"
 
   test "rolls back persisted availability if repo release fails":
     repo = RepoStore.new(repoDs, metaDs,
