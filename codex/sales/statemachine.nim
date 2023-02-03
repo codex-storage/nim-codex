@@ -14,6 +14,7 @@ export market
 export clock
 export statemachine
 export proving
+export reservations
 
 type
   Sales* = ref object
@@ -76,14 +77,6 @@ proc onClear*(sales: Sales): ?OnClear = sales.onClear
 proc onSale*(sales: Sales): ?OnSale = sales.onSale
 
 proc available*(sales: Sales): seq[Availability] = sales.available
-
-func findAvailability*(sales: Sales, ask: StorageAsk): ?Availability =
-  # TODO: query reservations and get matches
-  for availability in sales.available:
-    if ask.slotSize <= availability.size and
-       ask.duration <= availability.duration and
-       ask.pricePerSlot >= availability.minPrice:
-      return some availability
 
 method onCancelled*(state: SaleState, request: StorageRequest) {.base, async.} =
   discard

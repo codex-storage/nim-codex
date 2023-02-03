@@ -1,3 +1,5 @@
+import pkg/questionable
+import pkg/questionable/results
 import chronicles
 import ../statemachine
 
@@ -23,6 +25,7 @@ method enterAsync*(state: SaleErrored) {.async.} =
     # TODO: if future updates `availability.reusable == true` then
     # agent.sales.reservations.markUnused, else
     # agent.sales.reservations.release
-    agent.sales.reservations.markUnused(availability)
+    if err =? (await agent.sales.reservations.markUnused(availability)).errorOption:
+      raiseAssert "Failed to mark availability unused"
 
   error "Sale error", error=state.error.msg

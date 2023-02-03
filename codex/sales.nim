@@ -69,14 +69,26 @@ proc findSlotIndex(numSlots: uint64,
 proc handleRequest(sales: Sales,
                    requestId: RequestId,
                    ask: StorageAsk) {.async.} =
-  let availability = sales.findAvailability(ask)
+  without availability =? await sales.reservations.find(ask.slotSize,
+                                                        ask.duration,
+                                                        ask.pricePerSlot,
+                                                        used = false):
+    info "no availability for storage ask",
+      slotSize = ask.slotSize,
+      duration = ask.duration,
+      pricePerSlot = ask.pricePerSlot,
+      used=false
+    return
+
   # TODO: check if random slot is actually available (not already filled)
   let slotIndex = randomSlotIndex(ask.slots)
   let agent = newSalesAgent(
     sales,
     requestId,
-    slotIndex,
-    availability,
+    # TODO: change availability to be non-optional? It doesn't make sense to move
+    # forward with the sales process at this point if there is no availability
+    some availability,
+    some slotIndex,
     none StorageRequest
   )
 
@@ -86,25 +98,32 @@ proc handleRequest(sales: Sales,
 
 proc load*(sales: Sales) {.async.} =
   let market = sales.market
-
-  # TODO: restore availability from disk
   let requestIds = await market.myRequests()
   let slotIds = await market.mySlots()
 
   for slotId in slotIds:
     # TODO: this needs to be optimised
     if request =? await market.getRequestFromSlotId(slotId):
-      let availability = sales.findAvailability(request.ask)
+      without availability =? await sales.reservations.find(request.ask.slotSize,
+                                                       request.ask.duration,
+                                                       request.ask.pricePerSlot,
+                                                       used = true):
+        # TODO: when slot is filled on chain, but no local availability, how
+        # should this be handled?
+        raiseAssert "failed to find availability"
+
       without slotIndex =? findSlotIndex(request.ask.slots,
-                                          request.id,
-                                          slotId):
+                                         request.id,
+                                         slotId):
         raiseAssert "could not find slot index"
 
       let agent = newSalesAgent(
         sales,
         request.id,
-        slotIndex,
-        availability,
+        # TODO: change availability to be non-optional? It doesn't make sense to move
+        # forward with the sales process at this point if there is no availability
+        some availability,
+        some slotIndex,
         some request)
 
       await agent.start(request.ask.slots)

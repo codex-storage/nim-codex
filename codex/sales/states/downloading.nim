@@ -1,4 +1,6 @@
 import std/sequtils
+import pkg/questionable
+import pkg/questionable/results
 import ./cancelled
 import ./failed
 import ./filled
@@ -38,7 +40,9 @@ method enterAsync(state: SaleDownloading) {.async.} =
       raiseAssert "no sale request"
 
     if availability =? agent.availability:
-      agent.sales.reservations.markUsed(availability, request.slotId(slotIndex))
+      if err =? (await agent.sales.reservations.markUsed(availability,
+        request.slotId(slotIndex))).errorOption:
+        raiseAssert "failed to mark availability as used"
 
     await onStore(request, agent.slotIndex, agent.availability)
     await state.switchAsync(SaleProving())

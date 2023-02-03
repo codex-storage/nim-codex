@@ -2,6 +2,7 @@ import pkg/chronos
 import pkg/upraises
 import pkg/stint
 import ./statemachine
+import ./reservations
 import ../contracts/requests
 
 proc newSalesAgent*(sales: Sales,

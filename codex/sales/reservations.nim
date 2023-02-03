@@ -9,6 +9,7 @@
 
 import std/typetraits
 import pkg/chronos
+import pkg/chronicles
 import pkg/upraises
 import pkg/json_serialization
 import pkg/json_serialization/std/options
@@ -118,10 +119,6 @@ proc update(self: Reservations,
   without key =? availability.key, err:
     return failure(err)
 
-  # if not (await self.persist.contains(key)):
-  #   return failure(newException(AvailabilityNotExistsError,
-  #                               "Availability does not exist"))
-
   without serialized =? await self.persist.get(key), err:
     return failure(err)
 
@@ -148,33 +145,37 @@ proc markUnused*(self: Reservations,
 
   return await self.update(availability, none SlotId)
 
-
-proc unused*(self: Reservations): Future[?!seq[Availability]] {.async.} =
-  var unused: seq[Availability] = @[]
+proc availabilities*(self: Reservations): Future[?!seq[Availability]] {.async.} =
+  var availabilities: seq[Availability] = @[]
   let query = Query.init(ReservationsKey)
 
   without results =? await self.persist.query(query), err:
     return failure(err)
 
-  for qResp in results.items:
-  # while not results.finished:
-  #   if bytes =? (await results.next()):
-    without response =? (await qResp), err:
+  for fItem in results.items:
+    without item =? (await fItem), err:
       return failure(err)
 
-    let serialized = $ response.data
+    let serialized = $ item.data
     without availability =? Json.decode(serialized, Availability).catch, err:
       return failure(err)
-    if availability.slotId.isNone:
-      unused.add availability
+    availabilities.add availability
 
-  return success(unused)
+  return success(availabilities)
 
-proc contains*(self: Reservations,
-               availability: Availability): Future[?!bool] {.async.} =
+proc find*(self: Reservations,
+           size, duration, minPrice: UInt256,
+           used: bool): Future[?Availability] {.async.} =
 
-  without key =? availability.key, err:
-    return failure(err)
+  without availabilities =? (await self.availabilities), err:
+    error "failed to get all availabilities", error = err.msg
+    return none Availability
 
-  let contained = await self.persist.contains(key)
-  return success(contained)
+  for availability in availabilities:
+    let satisfiesUsed = (used and availability.slotId.isSome) or
+                        (not used and availability.slotId.isNone)
+    if satisfiesUsed and
+       size <= availability.size and
+       duration <= availability.duration and
+       minPrice >= availability.minPrice:
+      return some availability
