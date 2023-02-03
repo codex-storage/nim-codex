@@ -372,8 +372,15 @@ proc start*(node: CodexNodeRef) {.async.} =
     try:
       await contracts.start()
     except CatchableError as error:
-      error "Unable to start contract interactions: ", error=error.msg
+      error "Unable to start host contract interactions: ", error=error.msg
       node.contracts.host = HostInteractions.none
+
+  if contracts =? node.contracts.client:
+    try:
+      await contracts.start()
+    except CatchableError as error:
+      error "Unable to start client contract interactions: ", error=error.msg
+      node.contracts.client = ClientInteractions.none
 
   node.networkId = node.switch.peerInfo.peerId
   notice "Started codex node", id = $node.networkId, addrs = node.switch.peerInfo.addrs

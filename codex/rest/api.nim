@@ -247,7 +247,10 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       without contracts =? node.contracts.host:
         return RestApiResponse.error(Http503, "Sales unavailable")
 
-      let json = %contracts.sales.available
+      without unused =? (await contracts.sales.reservations.unused), err:
+        return RestApiResponse.error(Http500, err.msg)
+
+      let json = %unused
       return RestApiResponse.response($json)
 
   router.rawApi(

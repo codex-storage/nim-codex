@@ -8,6 +8,7 @@
 ## those terms.
 
 import std/typetraits
+
 import pkg/chronos
 import pkg/chronicles
 import pkg/upraises
@@ -273,6 +274,18 @@ proc availabilities*(
 
   iter.next = next
   return success iter
+
+proc unused*(r: Reservations): Future[?!seq[Availability]] {.async.} =
+  var ret: seq[Availability] = @[]
+
+  without availabilities =? (await r.availabilities), err:
+    return failure(err)
+
+  for a in availabilities:
+    if availability =? (await a) and not availability.used:
+      ret.add availability
+
+  return success(ret)
 
 proc find*(
   self: Reservations,

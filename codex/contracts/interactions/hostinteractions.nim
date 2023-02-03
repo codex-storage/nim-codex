@@ -57,9 +57,9 @@ proc new*(_: type HostInteractions,
   HostInteractions.new("ws://localhost:8545", account, repo)
 
 method start*(self: HostInteractions) {.async.} =
+  await procCall ContractInteractions(self).start()
   await self.sales.start()
   await self.proving.start()
-  await procCall ContractInteractions(self).start()
 
 method stop*(self: HostInteractions) {.async.} =
   await self.sales.stop()

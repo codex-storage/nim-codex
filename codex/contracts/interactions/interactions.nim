@@ -38,8 +38,8 @@ proc prepare*(
 
   return success((signer, deploy))
 
-method start*(interactions: ContractInteractions) {.async, base.} =
-  await interactions.clock.start()
+method start*(self: ContractInteractions) {.async, base.} =
+  await self.clock.start()
 
-method stop*(interactions: ContractInteractions) {.async, base.} =
-  await interactions.clock.stop()
+method stop*(self: ContractInteractions) {.async, base.} =
+  await self.clock.stop()

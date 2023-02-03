@@ -47,8 +47,8 @@ proc new*(_: type ClientInteractions,
   ClientInteractions.new("ws://localhost:8545", account)
 
 proc start*(self: ClientInteractions) {.async.} =
-  await self.purchasing.start()
   await procCall ContractInteractions(self).start()
+  await self.purchasing.start()
 
 proc stop*(self: ClientInteractions) {.async.} =
   await self.purchasing.stop()
