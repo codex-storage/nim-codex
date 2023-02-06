@@ -76,6 +76,32 @@ $ pacman -S base-devel git unzip mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-
 <!-- add instructions re: getting setup with MSYS2 in a Windows container -->
 <!-- https://github.com/StefanScherer/windows-docker-machine -->
 
+#### Optional: VSCode Terminal integration
+
+You can link the MSYS2-UCRT64 terminal into VSCode by modifying the configuration file as shown below.
+File: `C:/Users/<username>/AppData/Roaming/Code/User/settings.json`
+```json
+{
+    ...
+    "terminal.integrated.profiles.windows": {
+      ...
+      "MSYS2-UCRT64": {
+        "path": "C:\\msys64\\usr\\bin\\bash.exe",
+        "args": [
+          "--login",
+          "-i"
+        ],
+        "env": {
+          "MSYSTEM": "UCRT64",
+          "CHERE_INVOKING": "1",
+          "MSYS2_PATH_TYPE": "inherit"
+        }
+      }
+    }
+}
+```
+
+
 ### Other
 
 It is possible that nim-codex can be built and run on other platforms supported by the [Nim](https://nim-lang.org/) language: BSD family, older versions of Windows, etc. There has not been sufficient experimentation with nim-codex on such platforms, so instructions are not provided. Community contributions to these docs and our build system are welcome!
