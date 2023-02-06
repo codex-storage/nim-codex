@@ -147,6 +147,25 @@ $ make test
 
 ### testAll
 
+#### Prerequisites
+
+To run the integration tests, an Ethereum test node is required. Follow these instructions to set it up.
+
+##### Windows
+1. Download and install Visual Studio 2017 or newer. (Not VSCode!) In the Workloads overview, enable `Desktop development with C++`. ( https://visualstudio.microsoft.com )
+1. Download and install NodeJS (tested with node-v18.14.0-x64) with default options. ( https://nodejs.org/en/ )
+1. Open a CMD terminal (Not MingW/UCRT)
+1. Go to the vendor/codex-contracts-eth folder: `cd /<git-root>/vendor/codex-contracts-eth/`
+1. `npm install` -> Should complete with the number of packages added and an overview of known vulnerabilities.
+1. `npm test` -> Should output test results. May take a minute.
+
+Before the integration tests are started, you must start the Ethereum test node manually.
+1. Open a CMD terminal
+1. Go to the vendor/codex-contracts-eth folder: `cd /<git-root>/vendor/codex-contracts-eth/`
+1. `npm start` -> Should output a number of keys and a warning message.
+
+#### Run
+
 The `testAll` target runs the same tests as `make test` and also runs tests for nim-codex's Ethereum contracts, as well a basic suite of integration tests.
 
 To run `make testAll`, Node.js needs to be installed. [Node Version Manager (`nvm`)](https://github.com/nvm-sh/nvm#readme) is a flexible means to do that and it works on Linux, macOS, and Windows + MSYS2.
