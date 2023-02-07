@@ -8,6 +8,7 @@ import ../statemachine
 type
   SaleFilled* = ref object of SaleState
   SaleFilledError* = object of CatchableError
+  HostMismatchError* = object of SaleFilledError
 
 method onCancelled*(state: SaleFilled, request: StorageRequest) {.async.} =
   await state.switchAsync(SaleCancelled())
@@ -29,7 +30,7 @@ method enterAsync(state: SaleFilled) {.async.} =
     if host == me.some:
       await state.switchAsync(SaleFinished())
     else:
-      let error = newException(SaleFilledError, "Slot filled by other host")
+      let error = newException(HostMismatchError, "Slot filled by other host")
       await state.switchAsync(SaleErrored(error: error))
 
   except CancelledError:
