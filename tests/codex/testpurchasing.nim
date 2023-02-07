@@ -141,11 +141,11 @@ suite "Purchasing state machine":
     let request1, request2, request3, request4, request5 = StorageRequest.example
     market.requested = @[request1, request2, request3, request4, request5]
     market.activeRequests[me] = @[request1.id, request2.id, request3.id, request4.id, request5.id]
-    market.state[request1.id] = RequestState.New
-    market.state[request2.id] = RequestState.Started
-    market.state[request3.id] = RequestState.Cancelled
-    market.state[request4.id] = RequestState.Finished
-    market.state[request5.id] = RequestState.Failed
+    market.requestState[request1.id] = RequestState.New
+    market.requestState[request2.id] = RequestState.Started
+    market.requestState[request3.id] = RequestState.Cancelled
+    market.requestState[request4.id] = RequestState.Finished
+    market.requestState[request5.id] = RequestState.Failed
 
     # ensure the started state doesn't error, giving a false positive test result
     market.requestEnds[request2.id] = clock.now() - 1
@@ -162,7 +162,7 @@ suite "Purchasing state machine":
     let request = StorageRequest.example
     let purchase = Purchase.new(request, market, clock)
     market.requested = @[request]
-    market.state[request.id] = RequestState.New
+    market.requestState[request.id] = RequestState.New
     purchase.switch(PurchaseUnknown())
     check (purchase.state as PurchaseSubmitted).isSome
 
@@ -171,7 +171,7 @@ suite "Purchasing state machine":
     let purchase = Purchase.new(request, market, clock)
     market.requestEnds[request.id] = clock.now() + request.ask.duration.truncate(int64)
     market.requested = @[request]
-    market.state[request.id] = RequestState.Started
+    market.requestState[request.id] = RequestState.Started
     purchase.switch(PurchaseUnknown())
     check (purchase.state as PurchaseStarted).isSome
 
@@ -179,7 +179,7 @@ suite "Purchasing state machine":
     let request = StorageRequest.example
     let purchase = Purchase.new(request, market, clock)
     market.requested = @[request]
-    market.state[request.id] = RequestState.Cancelled
+    market.requestState[request.id] = RequestState.Cancelled
     purchase.switch(PurchaseUnknown())
     check (purchase.state as PurchaseErrored).isSome
     check purchase.error.?msg == "Purchase cancelled due to timeout".some
@@ -188,7 +188,7 @@ suite "Purchasing state machine":
     let request = StorageRequest.example
     let purchase = Purchase.new(request, market, clock)
     market.requested = @[request]
-    market.state[request.id] = RequestState.Finished
+    market.requestState[request.id] = RequestState.Finished
     purchase.switch(PurchaseUnknown())
     check (purchase.state as PurchaseFinished).isSome
 
@@ -196,7 +196,7 @@ suite "Purchasing state machine":
     let request = StorageRequest.example
     let purchase = Purchase.new(request, market, clock)
     market.requested = @[request]
-    market.state[request.id] = RequestState.Failed
+    market.requestState[request.id] = RequestState.Failed
     purchase.switch(PurchaseUnknown())
     check (purchase.state as PurchaseErrored).isSome
     check purchase.error.?msg == "Purchase failed".some
@@ -206,7 +206,7 @@ suite "Purchasing state machine":
     let request = StorageRequest.example
     market.requested = @[request]
     market.activeRequests[me] = @[request.id]
-    market.state[request.id] = RequestState.Started
+    market.requestState[request.id] = RequestState.Started
     market.requestEnds[request.id] = clock.now() + request.ask.duration.truncate(int64)
     await purchasing.load()
 
@@ -226,7 +226,7 @@ suite "Purchasing state machine":
     let request = StorageRequest.example
     market.requested = @[request]
     market.activeRequests[me] = @[request.id]
-    market.state[request.id] = RequestState.Started
+    market.requestState[request.id] = RequestState.Started
     market.requestEnds[request.id] = clock.now() + request.ask.duration.truncate(int64)
     await purchasing.load()
 

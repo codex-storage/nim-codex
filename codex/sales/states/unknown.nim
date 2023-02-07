@@ -8,6 +8,7 @@ import ./cancelled
 type
   SaleUnknown* = ref object of SaleState
   SaleUnknownError* = object of CatchableError
+  UnexpectedSlotError* = object of SaleUnknownError
 
 method `$`*(state: SaleUnknown): string = "SaleUnknown"
 
@@ -24,18 +25,22 @@ method enterAsync(state: SaleUnknown) {.async.} =
   let market = agent.sales.market
 
   try:
-    without requestState =? await market.requestState(agent.requestId):
-      let error = newException(SaleUnknownError, "cannot retrieve request state")
+    let slotId = slotId(agent.requestId, agent.slotIndex)
+
+    without slotState =? await market.slotState(slotId):
+      let error = newException(SaleUnknownError, "cannot retrieve slot state")
       await state.switchAsync(SaleErrored(error: error))
 
-    case requestState
-    of RequestState.New, RequestState.Started:
+    case slotState
+    of SlotState.Free:
+      let error = newException(UnexpectedSlotError,
+        "slot state on chain should not be 'free'")
+      await state.switchAsync(SaleErrored(error: error))
+    of SlotState.Filled:
       await state.switchAsync(SaleFilled())
-    of RequestState.Finished:
+    of SlotState.Finished, SlotState.Paid:
       await state.switchAsync(SaleFinished())
-    of RequestState.Cancelled:
-      await state.switchAsync(SaleCancelled())
-    of RequestState.Failed:
+    of SlotState.Failed:
       await state.switchAsync(SaleFailed())
 
   except CancelledError:
