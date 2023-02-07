@@ -24,10 +24,7 @@ method enterAsync(state: SaleFilled) {.async.} =
   try:
     let market = agent.sales.market
 
-    without slotIndex =? agent.slotIndex:
-      raiseAssert "no slot selected"
-
-    let host = await market.getHost(agent.requestId, slotIndex)
+    let host = await market.getHost(agent.requestId, agent.slotIndex)
     let me = await market.getSigner()
     if host == me.some:
       await state.switchAsync(SaleFinished())
