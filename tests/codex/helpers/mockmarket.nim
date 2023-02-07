@@ -14,7 +14,8 @@ type
     activeSlots*: Table[Address, seq[SlotId]]
     requested*: seq[StorageRequest]
     requestEnds*: Table[RequestId, SecondsSince1970]
-    state*: Table[RequestId, RequestState]
+    requestState*: Table[RequestId, RequestState]
+    slotState*: Table[SlotId, SlotState]
     fulfilled*: seq[Fulfillment]
     filled*: seq[MockSlot]
     withdrawn*: seq[RequestId]
@@ -110,7 +111,11 @@ method getRequestFromSlotId*(market: MockMarket,
 
 method requestState*(market: MockMarket,
                  requestId: RequestId): Future[?RequestState] {.async.} =
-  return market.state.?[requestId]
+  return market.requestState.?[requestId]
+
+method slotState*(market: MockMarket,
+                  slotId: SlotId): Future[SlotState] {.async.} =
+  return market.slotState[slotId]
 
 method getRequestEnd*(market: MockMarket,
                       id: RequestId): Future[SecondsSince1970] {.async.} =

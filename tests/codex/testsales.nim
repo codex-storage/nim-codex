@@ -243,6 +243,8 @@ suite "Sales state machine":
   var market: MockMarket
   var clock: MockClock
   var proving: Proving
+  var slotIdx: UInt256
+  var slotId: SlotId
 
   setup:
     market = MockMarket.new()
@@ -258,6 +260,8 @@ suite "Sales state machine":
       return proof
     await sales.start()
     request.expiry = (clock.now() + 42).u256
+    slotIdx = 0.u256
+    slotId = slotId(request.id, slotIdx)
 
   teardown:
     await sales.stop()
@@ -276,50 +280,44 @@ suite "Sales state machine":
                         proof: proof,
                         host: address)
     market.filled.add slot
+    market.slotState[slotId(request.id, slotIdx)] = SlotState.Filled
 
   test "moves to SaleErrored when SaleFilled errors":
     let agent = newSalesAgent()
-    market.state[request.id] = RequestState.New
+    market.slotState[slotId] = SlotState.Free
     await agent.switchAsync(SaleUnknown())
-    let state = (agent.state as SaleErrored)
-    check state.isSome
-    check (!state).error.msg == "Slot filled by other host"
+    without state =? (agent.state as SaleErrored):
+      fail()
+    check state.error of UnexpectedSlotError
+    check state.error.msg == "slot state on chain should not be 'free'"
 
-  test "moves to SaleFinished when request state is New":
+  test "moves to SaleFilled>SaleFinished when slot state is Filled":
     let agent = newSalesAgent()
     await fillSlot()
-    market.state[request.id] = RequestState.New
     await agent.switchAsync(SaleUnknown())
     check (agent.state as SaleFinished).isSome
 
-  test "moves to SaleFinished when request state is Started":
+  test "moves to SaleFinished when slot state is Finished":
     let agent = newSalesAgent()
     await fillSlot()
-    market.state[request.id] = RequestState.Started
+    market.slotState[slotId] = SlotState.Finished
     agent.switch(SaleUnknown())
     check (agent.state as SaleFinished).isSome
 
-  test "moves to SaleFinished when request state is Finished":
+  test "moves to SaleFinished when slot state is Paid":
     let agent = newSalesAgent()
-    market.state[request.id] = RequestState.Finished
+    market.slotState[slotId] = SlotState.Paid
     agent.switch(SaleUnknown())
     check (agent.state as SaleFinished).isSome
 
-  test "moves to SaleErrored when request state is Cancelled":
+  test "moves to SaleErrored when slot state is Failed":
     let agent = newSalesAgent()
-    market.state[request.id] = RequestState.Cancelled
+    market.slotState[slotId] = SlotState.Failed
     agent.switch(SaleUnknown())
-    let state = (agent.state as SaleErrored)
-    check state.isSome
-    check (!state).error.msg == "Sale cancelled due to timeout"
-
-  test "moves to SaleErrored when request state is Failed":
-    let agent = newSalesAgent()
-    market.state[request.id] = RequestState.Failed
-    agent.switch(SaleUnknown())
-    let state = (agent.state as SaleErrored)
-    check state.isSome
-    check (!state).error.msg == "Sale failed"
+    without state =? (agent.state as SaleErrored):
+      fail()
+    check state.error of SaleFailedError
+    check state.error.msg == "Sale failed"
 
   test "moves to SaleErrored when Downloading and request expires":
     sales.onStore = proc(request: StorageRequest,
@@ -330,14 +328,15 @@ suite "Sales state machine":
     let agent = newSalesAgent()
     await agent.start(request.ask.slots)
     market.requested.add request
-    market.state[request.id] = RequestState.New
+    market.requestState[request.id] = RequestState.New
     await agent.switchAsync(SaleDownloading())
     clock.set(request.expiry.truncate(int64))
     await sleepAsync chronos.seconds(2)
 
-    let state = (agent.state as SaleErrored)
-    check state.isSome
-    check (!state).error.msg == "Sale cancelled due to timeout"
+    without state =? (agent.state as SaleErrored):
+      fail()
+    check state.error of SaleTimeoutError
+    check state.error.msg == "Sale cancelled due to timeout"
 
   test "moves to SaleErrored when Downloading and request fails":
     sales.onStore = proc(request: StorageRequest,
@@ -347,68 +346,73 @@ suite "Sales state machine":
     let agent = newSalesAgent()
     await agent.start(request.ask.slots)
     market.requested.add request
-    market.state[request.id] = RequestState.New
+    market.requestState[request.id] = RequestState.New
     await agent.switchAsync(SaleDownloading())
     market.emitRequestFailed(request.id)
     await sleepAsync chronos.seconds(2)
 
-    let state = (agent.state as SaleErrored)
-    check state.isSome
-    check (!state).error.msg == "Sale failed"
+    without state =? (agent.state as SaleErrored):
+      fail()
+    check state.error of SaleFailedError
+    check state.error.msg == "Sale failed"
 
   test "moves to SaleErrored when Filling and request expires":
     request.expiry = (getTime() + initDuration(seconds=2)).toUnix.u256
     let agent = newSalesAgent()
     await agent.start(request.ask.slots)
     market.requested.add request
-    market.state[request.id] = RequestState.New
+    market.requestState[request.id] = RequestState.New
     await agent.switchAsync(SaleFilling())
     clock.set(request.expiry.truncate(int64))
     await sleepAsync chronos.seconds(2)
 
-    let state = (agent.state as SaleErrored)
-    check state.isSome
-    check (!state).error.msg == "Sale cancelled due to timeout"
+    without state =? (agent.state as SaleErrored):
+      fail()
+    check state.error of SaleTimeoutError
+    check state.error.msg == "Sale cancelled due to timeout"
 
   test "moves to SaleErrored when Filling and request fails":
     let agent = newSalesAgent()
     await agent.start(request.ask.slots)
     market.requested.add request
-    market.state[request.id] = RequestState.New
+    market.requestState[request.id] = RequestState.New
     await agent.switchAsync(SaleFilling())
     market.emitRequestFailed(request.id)
     await sleepAsync chronos.seconds(2)
 
-    let state = (agent.state as SaleErrored)
-    check state.isSome
-    check (!state).error.msg == "Sale failed"
+    without state =? (agent.state as SaleErrored):
+      fail()
+    check state.error of SaleFailedError
+    check state.error.msg == "Sale failed"
 
   test "moves to SaleErrored when Finished and request expires":
     request.expiry = (getTime() + initDuration(seconds=2)).toUnix.u256
     let agent = newSalesAgent()
     await agent.start(request.ask.slots)
     market.requested.add request
-    market.state[request.id] = RequestState.Finished
+    market.requestState[request.id] = RequestState.Finished
     await agent.switchAsync(SaleFinished())
     clock.set(request.expiry.truncate(int64))
     await sleepAsync chronos.seconds(2)
 
-    let state = (agent.state as SaleErrored)
-    check state.isSome
-    check (!state).error.msg == "Sale cancelled due to timeout"
+    without state =? (agent.state as SaleErrored):
+      fail()
+    check state.error of SaleTimeoutError
+    check state.error.msg == "Sale cancelled due to timeout"
 
   test "moves to SaleErrored when Finished and request fails":
     let agent = newSalesAgent()
     await agent.start(request.ask.slots)
     market.requested.add request
-    market.state[request.id] = RequestState.Finished
+    market.requestState[request.id] = RequestState.Finished
     await agent.switchAsync(SaleFinished())
     market.emitRequestFailed(request.id)
     await sleepAsync chronos.seconds(2)
 
-    let state = (agent.state as SaleErrored)
-    check state.isSome
-    check (!state).error.msg == "Sale failed"
+    without state =? (agent.state as SaleErrored):
+      fail()
+    check state.error of SaleFailedError
+    check state.error.msg == "Sale failed"
 
   test "moves to SaleErrored when Proving and request expires":
     sales.onProve = proc(request: StorageRequest,
@@ -419,14 +423,15 @@ suite "Sales state machine":
     let agent = newSalesAgent()
     await agent.start(request.ask.slots)
     market.requested.add request
-    market.state[request.id] = RequestState.New
+    market.requestState[request.id] = RequestState.New
     await agent.switchAsync(SaleProving())
     clock.set(request.expiry.truncate(int64))
     await sleepAsync chronos.seconds(2)
 
-    let state = (agent.state as SaleErrored)
-    check state.isSome
-    check (!state).error.msg == "Sale cancelled due to timeout"
+    without state =? (agent.state as SaleErrored):
+      fail()
+    check state.error of SaleTimeoutError
+    check state.error.msg == "Sale cancelled due to timeout"
 
   test "moves to SaleErrored when Proving and request fails":
     sales.onProve = proc(request: StorageRequest,
@@ -436,14 +441,15 @@ suite "Sales state machine":
     let agent = newSalesAgent()
     await agent.start(request.ask.slots)
     market.requested.add request
-    market.state[request.id] = RequestState.New
+    market.requestState[request.id] = RequestState.New
     await agent.switchAsync(SaleProving())
     market.emitRequestFailed(request.id)
     await sleepAsync chronos.seconds(2)
 
-    let state = (agent.state as SaleErrored)
-    check state.isSome
-    check (!state).error.msg == "Sale failed"
+    without state =? (agent.state as SaleErrored):
+      fail()
+    check state.error of SaleFailedError
+    check state.error.msg == "Sale failed"
 
   test "moves to SaleErrored when Downloading and slot is filled by another host":
     sales.onStore = proc(request: StorageRequest,
@@ -453,7 +459,7 @@ suite "Sales state machine":
     let agent = newSalesAgent()
     await agent.start(request.ask.slots)
     market.requested.add request
-    market.state[request.id] = RequestState.New
+    market.requestState[request.id] = RequestState.New
     await agent.switchAsync(SaleDownloading())
     market.fillSlot(request.id, agent.slotIndex, proof, Address.example)
     await sleepAsync chronos.seconds(2)
@@ -470,14 +476,15 @@ suite "Sales state machine":
     let agent = newSalesAgent()
     await agent.start(request.ask.slots)
     market.requested.add request
-    market.state[request.id] = RequestState.New
+    market.requestState[request.id] = RequestState.New
     await agent.switchAsync(SaleProving())
     market.fillSlot(request.id, agent.slotIndex, proof, Address.example)
     await sleepAsync chronos.seconds(2)
 
-    let state = (agent.state as SaleErrored)
-    check state.isSome
-    check (!state).error.msg == "Slot filled by other host"
+    without state =? (agent.state as SaleErrored):
+      fail()
+    check state.error of HostMismatchError
+    check state.error.msg == "Slot filled by other host"
 
   test "moves to SaleErrored when Filling and slot is filled by another host":
     sales.onProve = proc(request: StorageRequest,
@@ -487,14 +494,15 @@ suite "Sales state machine":
     let agent = newSalesAgent()
     await agent.start(request.ask.slots)
     market.requested.add request
-    market.state[request.id] = RequestState.New
+    market.requestState[request.id] = RequestState.New
     market.fillSlot(request.id, agent.slotIndex, proof, Address.example)
     await agent.switchAsync(SaleFilling())
     await sleepAsync chronos.seconds(2)
 
-    let state = (agent.state as SaleErrored)
-    check state.isSome
-    check (!state).error.msg == "Slot filled by other host"
+    without state =? (agent.state as SaleErrored):
+      fail()
+    check state.error of HostMismatchError
+    check state.error.msg == "Slot filled by other host"
 
   test "moves from SaleDownloading to SaleFinished, calling necessary callbacks":
     var onProveCalled, onStoreCalled, onClearCalled, onSaleCalled: bool
@@ -518,14 +526,14 @@ suite "Sales state machine":
     let agent = newSalesAgent()
     await agent.start(request.ask.slots)
     market.requested.add request
-    market.state[request.id] = RequestState.New
+    market.requestState[request.id] = RequestState.New
     await fillSlot(agent.slotIndex)
     await agent.switchAsync(SaleDownloading())
     market.emitRequestFulfilled(request.id)
     await sleepAsync chronos.seconds(2)
 
-    let state = (agent.state as SaleFinished)
-    check state.isSome
+    without state =? (agent.state as SaleFinished):
+      fail()
     check onProveCalled
     check onStoreCalled
     check not onClearCalled
@@ -536,7 +544,7 @@ suite "Sales state machine":
 
     request.ask.slots = 2
     market.requested = @[request]
-    market.state[request.id] = RequestState.New
+    market.requestState[request.id] = RequestState.New
 
     let slot0 = MockSlot(requestId: request.id,
                      slotIndex: 0.u256,
