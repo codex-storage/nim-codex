@@ -34,16 +34,13 @@ method enterAsync(state: SaleDownloading) {.async.} =
     without onStore =? agent.sales.onStore:
       raiseAssert "onStore callback not set"
 
-    without slotIndex =? agent.slotIndex:
-      raiseAssert "no slot selected"
-
     without request =? agent.request:
       raiseAssert "no sale request"
 
     if availability =? agent.availability:
       agent.sales.remove(availability)
 
-    await onStore(request, slotIndex, agent.availability)
+    await onStore(request, agent.slotIndex, agent.availability)
     await state.switchAsync(SaleProving())
 
   except CancelledError:
