@@ -1,5 +1,6 @@
 import std/times
 
+import pkg/chronos
 import pkg/asynctest
 import pkg/datastore
 import pkg/questionable

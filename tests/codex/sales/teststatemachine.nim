@@ -2,6 +2,7 @@ import std/times
 import std/sequtils
 import std/sugar
 
+import pkg/chronos
 import pkg/asynctest
 import pkg/datastore
 import pkg/questionable
