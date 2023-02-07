@@ -95,8 +95,8 @@ method withdrawFunds(market: OnChainMarket,
 method subscribeRequests(market: OnChainMarket,
                          callback: OnRequest):
                         Future[MarketSubscription] {.async.} =
-  proc onEvent(event: StorageRequested) {.upraises:[].} =
-    asyncSpawn callback(event.requestId, event.ask)
+  proc onEvent(event: StorageRequested) {.upraises:[], async.} =
+    await callback(event.requestId, event.ask)
   let subscription = await market.contract.subscribe(StorageRequested, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
@@ -105,9 +105,9 @@ method subscribeSlotFilled*(market: OnChainMarket,
                             slotIndex: UInt256,
                             callback: OnSlotFilled):
                            Future[MarketSubscription] {.async.} =
-  proc onEvent(event: SlotFilled) {.upraises:[].} =
+  proc onEvent(event: SlotFilled) {.upraises:[], async.} =
     if event.requestId == requestId and event.slotIndex == slotIndex:
-      asyncSpawn callback(event.requestId, event.slotIndex)
+      await callback(event.requestId, event.slotIndex)
   let subscription = await market.contract.subscribe(SlotFilled, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
@@ -115,9 +115,9 @@ method subscribeFulfillment(market: OnChainMarket,
                             requestId: RequestId,
                             callback: OnFulfillment):
                            Future[MarketSubscription] {.async.} =
-  proc onEvent(event: RequestFulfilled) {.upraises:[].} =
+  proc onEvent(event: RequestFulfilled) {.upraises:[], async.} =
     if event.requestId == requestId:
-      asyncSpawn callback(event.requestId)
+      await callback(event.requestId)
   let subscription = await market.contract.subscribe(RequestFulfilled, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
@@ -125,9 +125,9 @@ method subscribeRequestCancelled*(market: OnChainMarket,
                                   requestId: RequestId,
                                   callback: OnRequestCancelled):
                                 Future[MarketSubscription] {.async.} =
-  proc onEvent(event: RequestCancelled) {.upraises:[].} =
+  proc onEvent(event: RequestCancelled) {.upraises:[], async.} =
     if event.requestId == requestId:
-      asyncSpawn callback(event.requestId)
+      await callback(event.requestId)
   let subscription = await market.contract.subscribe(RequestCancelled, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
@@ -135,9 +135,9 @@ method subscribeRequestFailed*(market: OnChainMarket,
                               requestId: RequestId,
                               callback: OnRequestFailed):
                             Future[MarketSubscription] {.async.} =
-  proc onEvent(event: RequestFailed) {.upraises:[].} =
+  proc onEvent(event: RequestFailed) {.upraises:[], async.} =
     if event.requestId == requestId:
-      asyncSpawn callback(event.requestId)
+      await callback(event.requestId)
   let subscription = await market.contract.subscribe(RequestFailed, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
