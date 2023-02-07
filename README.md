@@ -68,36 +68,7 @@ codex initNode
 
 ### Example: running two Codex clients
 
-```bash
-build/codex --data-dir="$(pwd)/Codex1" -i=/ip4/127.0.0.1
-```
-
-This will start codex with a data directory pointing to `Codex1` under the current execution directory and announce itself on the DHT under `127.0.0.1`. The API will default to port 8080 and the discovery module will default to port 8090.
-
-To run a second client that automatically discovers nodes on the network, we need to get the Signed Peer Record (SPR) of first client, Client1. We can do this by querying the `/debug/info` endpoint of the node's REST API.
-
-`curl http://127.0.0.1:8080/api/codex/v1/debug/info`
-
-This should output information about Client1, including its PeerID, TCP address, data directory, and SPR:
-
-```json
-{
-  "id": "16Uiu2HAm92LGXYTuhtLaZzkFnsCx6FFJsNmswK6o9oPXFbSKHQEa",
-  "addrs": [
-		"/ip4/127.0.0.1"
-	],
-  "repo": "/repos/status-im/nim-codex/Codex1",
-  "spr": "spr:CiUIAhIhAmqg5fVU2yxPStLdUOWgwrkWZMHW2MHf6i6l8IjA4tssEgIDARpICicAJQgCEiECaqDl9VTbLE9K0t1Q5aDCuRZkwdbYwd_qLqXwiMDi2ywQ5v2VlAYaCwoJBH8AAAGRAh-aGgoKCAR_AAABBts3KkcwRQIhAPOKl38CviplVbMVnA_9q3N1K_nk5oGuNp7DWeOqiJzzAiATQ2acPyQvPxLU9YS-TiVo4RUXndRcwMFMX2Yjhw8k3A"
-}
-```
-
-Now, let's start a second client, Client2. Because we're already using the default ports TCP (:8080) and UDP (:8090) for the first client, we have to specify new ports to avoid a collision. Additionally, we can specify the SPR from Client1 as the bootstrap node for discovery purposes, allowing Client2 to determine where content is located in the network.
-
-```bash
-build/codex --data-dir="$(pwd)/Codex2" -i=/ip4/127.0.0.1/tcp/8081 --disc-port=8091 --bootstrap-node=spr:CiUIAhIhAmqg5fVU2yxPStLdUOWgwrkWZMHW2MHf6i6l8IjA4tssEgIDARpICicAJQgCEiECaqDl9VTbLE9K0t1Q5aDCuRZkwdbYwd_qLqXwiMDi2ywQ5v2VlAYaCwoJBH8AAAGRAh-aGgoKCAR_AAABBts3KkcwRQIhAPOKl38CviplVbMVnA_9q3N1K_nk5oGuNp7DWeOqiJzzAiATQ2acPyQvPxLU9YS-TiVo4RUXndRcwMFMX2Yjhw8k3A
-```
-
-There are now two clients running. We could upload a file to Client1 and download that file (given its CID) using Client2, by using the clients' REST API.
+To get acquainted with Codex, consider running the manual two-client test described [HERE](TWOCLIENTTEST.md).
 
 ## Interacting with the client
 
