@@ -29,13 +29,10 @@ method enterAsync(state: SaleProving) {.async.} =
     without request =? agent.request:
       raiseAssert "no sale request"
 
-    without slotIndex =? agent.slotIndex:
-      raiseAssert "no slot selected"
-
     without onProve =? agent.sales.onProve:
       raiseAssert "onProve callback not set"
 
-    let proof = await onProve(request, slotIndex)
+    let proof = await onProve(request, agent.slotIndex)
     await state.switchAsync(SaleFilling(proof: proof))
 
   except CancelledError:

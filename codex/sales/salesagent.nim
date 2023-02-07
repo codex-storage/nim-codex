@@ -87,16 +87,15 @@ proc subscribeFailure*(agent: SalesAgent) {.async.} =
 proc subscribeSlotFilled*(agent: SalesAgent) {.async.} =
   let market = agent.sales.market
 
-  without slotIndex =? agent.slotIndex:
-    raiseAssert "no slot selected"
-
   proc onSlotFilled(requestId: RequestId,
                     slotIndex: UInt256) {.async.} =
     without state =? (agent.state as SaleState):
       return
 
     await agent.slotFilled.unsubscribe()
-    await state.onSlotFilled(requestId, slotIndex)
+    await state.onSlotFilled(requestId, agent.slotIndex)
 
   agent.slotFilled =
-    await market.subscribeSlotFilled(agent.requestId, slotIndex, onSlotFilled)
+    await market.subscribeSlotFilled(agent.requestId,
+                                     agent.slotIndex,
+                                     onSlotFilled)

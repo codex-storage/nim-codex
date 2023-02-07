@@ -30,10 +30,7 @@ method enterAsync(state: SaleFilling) {.async.} =
   try:
     let market = agent.sales.market
 
-    without slotIndex =? agent.slotIndex:
-      raiseAssert "no slot selected"
-
-    await market.fillSlot(agent.requestId, slotIndex, state.proof)
+    await market.fillSlot(agent.requestId, agent.slotIndex, state.proof)
 
   except CancelledError:
     discard
