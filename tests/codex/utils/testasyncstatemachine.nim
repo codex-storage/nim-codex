@@ -12,6 +12,7 @@ type
 
 var state1Invoked = 0
 var state2Invoked = 0
+var state2Cancelled = 0
 var state3Invoked = 0
 
 method onMoveToNextStateEvent*(state: TestState): ?AsyncState {.base.} = 
@@ -23,6 +24,11 @@ method run(state: State1): Future[?AsyncState] {.async.} =
 
 method run(state: State2): Future[?AsyncState] {.async.} = 
   inc state2Invoked
+  try:
+    await sleepAsync(1.hours)
+  except CancelledError:
+    inc state2Cancelled
+
 
 method onMoveToNextStateEvent(state: State2): ?AsyncState =
   return some AsyncState(State3.new())
@@ -37,6 +43,7 @@ suite "async state machines":
   setup:
     state1Invoked = 0
     state2Invoked = 0
+    state2Cancelled = 0
     state3Invoked = 0
     machine = AsyncStateMachine.new()
     state1 = State1.new()
@@ -60,3 +67,12 @@ suite "async state machines":
 
     check eventually state3Invoked == 1
 
+  test "state transition will cancel the running state":
+    machine.start(state2)
+
+    proc moveToNextStateEvent(state: AsyncState): ?AsyncState =
+      TestState(state).onMoveToNextStateEvent()
+
+    machine.schedule(Event(moveToNextStateEvent))
+
+    check eventually state2Cancelled == 1
