@@ -25,7 +25,10 @@ method enterAsync*(state: SaleErrored) {.async.} =
     # TODO: if future updates `availability.reusable == true` then
     # agent.sales.reservations.markUnused, else
     # agent.sales.reservations.release
-    if err =? (await agent.sales.reservations.markUnused(availability)).errorOption:
-      raiseAssert "Failed to mark availability unused"
+    if (exists =? await agent.sales.reservations.exists(availability.id)) and
+      exists == true:
+
+      if err =? (await agent.sales.reservations.markUnused(availability)).errorOption:
+        raiseAssert "Failed to mark availability unused, error: " & err.msg
 
   error "Sale error", error=state.error.msg

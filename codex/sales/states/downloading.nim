@@ -40,9 +40,10 @@ method enterAsync(state: SaleDownloading) {.async.} =
       raiseAssert "no sale request"
 
     if availability =? agent.availability:
-      if err =? (await agent.sales.reservations.markUsed(availability,
-        request.slotId(slotIndex))).errorOption:
-        raiseAssert "failed to mark availability as used"
+      if err =? (await agent.sales.reservations.markUsed(
+        availability,
+        request.slotId(agent.slotIndex))).errorOption:
+        raiseAssert "failed to mark availability as used, error: " & err.msg
 
     await onStore(request, agent.slotIndex, agent.availability)
     await state.switchAsync(SaleProving())

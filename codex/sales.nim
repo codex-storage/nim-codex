@@ -1,7 +1,6 @@
 import pkg/questionable
 import pkg/upraises
 import pkg/stint
-import pkg/nimcrypto
 import pkg/chronicles
 import pkg/datastore
 import ./rng
@@ -48,7 +47,7 @@ func new*(_: type Sales,
     market: market,
     clock: clock,
     proving: proving,
-    reservations: Reservations.new(repo: repo, data: data)
+    reservations: Reservations.new(repo, data)
   )
 
 
@@ -104,13 +103,10 @@ proc load*(sales: Sales) {.async.} =
   for slotId in slotIds:
     # TODO: this needs to be optimised
     if request =? await market.getRequestFromSlotId(slotId):
-      without availability =? await sales.reservations.find(request.ask.slotSize,
+      let availability = await sales.reservations.find(request.ask.slotSize,
                                                        request.ask.duration,
                                                        request.ask.pricePerSlot,
-                                                       used = true):
-        # TODO: when slot is filled on chain, but no local availability, how
-        # should this be handled?
-        raiseAssert "failed to find availability"
+                                                       used = true)
 
       without slotIndex =? findSlotIndex(request.ask.slots,
                                          request.id,
@@ -122,7 +118,7 @@ proc load*(sales: Sales) {.async.} =
         request.id,
         # TODO: change availability to be non-optional? It doesn't make sense to move
         # forward with the sales process at this point if there is no availability
-        some availability,
+        availability,
         some slotIndex,
         some request)
 
@@ -151,4 +147,6 @@ proc stop*(sales: Sales) {.async.} =
 
   for agent in sales.agents:
     await agent.stop()
+
+  await sales.reservations.stop
 
