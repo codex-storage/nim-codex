@@ -5,45 +5,57 @@ import codex/utils/asyncstatemachine
 import ../helpers/eventually
 
 type 
-  TestState = ref object of AsyncState
-  State1 = ref object of AsyncState
-  State2 = ref object of AsyncState
+  AsyncTestState = ref object of AsyncState
+  State1 = ref object of AsyncTestState
+  State2 = ref object of AsyncTestState
+  State3 = ref object of AsyncTestState
 
-var runInvoked = 0
+var state1runInvoked = 0
 var state2runInvoked = 0
+var state3runInvoked = 0
 
-method run(state: TestState): Future[?AsyncState] {.async.} = 
-  inc runInvoked
+method onMoveToNextStateEvent*(state: AsyncTestState): ?AsyncState {.base.} = 
+  discard
 
 method run(state: State1): Future[?AsyncState] {.async.} = 
+  inc state1runInvoked
   return some AsyncState(State2.new())
 
 method run(state: State2): Future[?AsyncState] {.async.} = 
   inc state2runInvoked
 
-suite "async state machines":
-  setup:
-    runInvoked = 0
-    state2runInvoked = 0
+method onMoveToNextStateEvent(state: State2): ?AsyncState =
+  return some AsyncState(State3.new())
 
-  test "creates async state machine":
-    let sm = AsyncStateMachine.new()
-    check sm != nil
+method run(state: State3): Future[?AsyncState] {.async.} = 
+  inc state3runInvoked
+
+suite "async state machines":
+  var machine: AsyncStateMachine
+  var state1, state2: AsyncState
+
+  setup:
+    state1runInvoked = 0
+    state2runInvoked = 0
+    state3runInvoked = 0
+    machine = AsyncStateMachine.new()
+    state1 = State1.new()
+    state2 = State2.new()
 
   test "should call run on start state":
-    let sm = AsyncStateMachine.new()
-    let testState = TestState.new()
-    
-    sm.start(testState)
-
-    check eventually runInvoked == 1
+    machine.start(state1)
+    check eventually state1runInvoked == 1
 
   test "moves to next state when run completes":
-    let sm = AsyncStateMachine.new()
-    let state1 = State1.new()
-    let state2 = State2.new()
-
-    sm.start(state1)
-
+    machine.start(state1)
     check eventually state2runInvoked == 1
 
+  test "state2 moves to state3 on event":
+    machine.start(state2)
+
+    proc moveToNextStateEvent(state: AsyncState): ?AsyncState =
+      AsyncTestState(state).onMoveToNextStateEvent()
+
+    machine.schedule(Event(moveToNextStateEvent))
+
+    check eventually state3runInvoked == 1
