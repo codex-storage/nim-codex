@@ -72,8 +72,8 @@ suite "Sales state machine":
 
   proc newSalesAgent(slotIdx: UInt256 = 0.u256): SalesAgent =
     let agent = sales.newSalesAgent(request.id,
+                                    slotIdx,
                                     some availability,
-                                    some slotIdx,
                                     some request)
     return agent
 

@@ -83,10 +83,10 @@ proc handleRequest(sales: Sales,
   let agent = newSalesAgent(
     sales,
     requestId,
+    slotIndex,
     # TODO: change availability to be non-optional? It doesn't make sense to move
     # forward with the sales process at this point if there is no availability
     some availability,
-    some slotIndex,
     none StorageRequest
   )
 
@@ -115,10 +115,10 @@ proc load*(sales: Sales) {.async.} =
       let agent = newSalesAgent(
         sales,
         request.id,
+        slotIndex,
         # TODO: change availability to be non-optional? It doesn't make sense to move
         # forward with the sales process at this point if there is no availability
         availability,
-        some slotIndex,
         some request)
 
       await agent.start(request.ask.slots)
