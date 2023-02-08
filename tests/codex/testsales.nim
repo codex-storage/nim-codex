@@ -284,16 +284,12 @@ suite "Sales state machine":
 
   test "moves to SaleErrored when SaleFilled errors":
     let agent = newSalesAgent()
-    # market.requestState[request.id] = RequestState.New
     market.slotState[slotId] = SlotState.Free
     await agent.switchAsync(SaleUnknown())
     without state =? (agent.state as SaleErrored):
       fail()
     check state.error of UnexpectedSlotError
     check state.error.msg == "slot state on chain should not be 'free'"
-    # let state = (agent.state as SaleErrored)
-    # check state.isSome
-    # check (!state).error.msg == "slot state on chain should not be 'free'"
 
   test "moves to SaleFilled>SaleFinished when slot state is Filled":
     let agent = newSalesAgent()
