@@ -29,10 +29,13 @@ method run(state: State2): Future[?State] {.async.} =
     inc cancellations[1]
 
 method onMoveToNextStateEvent(state: State2): ?State =
-  return some State(State3.new())
+  some State(State3.new())
 
 method run(state: State3): Future[?State] {.async.} =
   inc runs[2]
+
+method onMoveToNextStateEvent(state: State3): ?State =
+  some State(State1.new())
 
 suite "async state machines":
   var machine: Machine
@@ -55,10 +58,16 @@ suite "async state machines":
 
   test "state2 moves to state3 on event":
     machine.start(state2)
-    machine.schedule(state => state.onMoveToNextStateEvent())
+    machine.schedule(state {.gcsafe.} => state.onMoveToNextStateEvent())
     check eventually runs == [0, 1, 1]
 
   test "state transition will cancel the running state":
     machine.start(state2)
-    machine.schedule(state => state.onMoveToNextStateEvent())
+    machine.schedule(state {.gcsafe.} => state.onMoveToNextStateEvent())
     check eventually cancellations == [0, 1, 0]
+
+  test "scheduled events are handled one after the other":
+    machine.start(state2)
+    machine.schedule(state {.gcsafe.} => state.onMoveToNextStateEvent())
+    machine.schedule(state {.gcsafe.} => state.onMoveToNextStateEvent())
+    check eventually runs == [1, 2, 1]
