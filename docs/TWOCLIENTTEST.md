@@ -109,3 +109,4 @@ Notice we are connecting to the second node in order to download the file. The C
 ### 7. Verify The Results
 
 If your file is downloaded and identical to the file you uploaded, then this manual test has passed. Rejoice! If on the other hand that didn't happen or you were unable to complete any of these steps, please leave us a message detailing your troubles.
+
