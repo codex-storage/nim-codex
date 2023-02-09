@@ -8,7 +8,7 @@ template makeStateMachine*(MachineType, StateType) =
       state: StateType
       running: Future[?StateType]
     StateType* = ref object of RootObj
-    Event* = proc(state: StateType): ?StateType
+    Event = proc(state: StateType): ?StateType
 
   method run*(state: StateType): Future[?StateType] {.base.} =
     discard
