@@ -1,3 +1,4 @@
+import std/sugar
 import pkg/asynctest
 import pkg/questionable
 import pkg/chronos
@@ -54,20 +55,10 @@ suite "async state machines":
 
   test "state2 moves to state3 on event":
     machine.start(state2)
-
-    proc moveToNextStateEvent(state: State): ?State =
-      state.onMoveToNextStateEvent()
-
-    machine.schedule(moveToNextStateEvent)
-
+    machine.schedule(state => state.onMoveToNextStateEvent())
     check eventually runs == [0, 1, 1]
 
   test "state transition will cancel the running state":
     machine.start(state2)
-
-    proc moveToNextStateEvent(state: State): ?State =
-      state.onMoveToNextStateEvent()
-
-    machine.schedule(moveToNextStateEvent)
-
+    machine.schedule(state => state.onMoveToNextStateEvent())
     check eventually cancellations == [0, 1, 0]
