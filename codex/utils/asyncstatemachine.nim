@@ -1,27 +1,29 @@
 import pkg/questionable
 import pkg/chronos
 
-type
-  AsyncStateMachine* = ref object of RootObj
-    state: AsyncState
-    running: Future[?AsyncState]
-  AsyncState* = ref object of RootObj
-  Event* = proc(state: AsyncState): ?AsyncState
+template makeStateMachine*(MachineType, StateType) =
 
-method run*(state: AsyncState): Future[?AsyncState] {.base.} = 
-  discard
+  type
+    MachineType* = ref object of RootObj
+      state: StateType
+      running: Future[?StateType]
+    StateType* = ref object of RootObj
+    Event* = proc(state: StateType): ?StateType
 
-proc runState(machine: AsyncStateMachine, state: AsyncState): Future[void] {.async.} =
-  if not machine.running.isNil:
-    await machine.running.cancelAndWait()
-  machine.state = state
-  machine.running = state.run()
-  if next =? await machine.running:
-    await machine.runState(next)
+  method run*(state: StateType): Future[?StateType] {.base.} =
+    discard
 
-proc start*(stateMachine: AsyncStateMachine, initialState: AsyncState) =
-  asyncSpawn stateMachine.runState(initialState)
+  proc runState*(machine: MachineType, state: StateType) {.async.} =
+    if not machine.running.isNil:
+      await machine.running.cancelAndWait()
+    machine.state = state
+    machine.running = state.run()
+    if next =? await machine.running:
+      await machine.runState(next)
 
-proc schedule*(stateMachine: AsyncStateMachine, event: Event) =
-  if next =? stateMachine.state.event():
-    asyncSpawn stateMachine.runState(next)
+  proc start*(stateMachine: MachineType, initialState: StateType) =
+    asyncSpawn runState(stateMachine, initialState)
+
+  proc schedule*(stateMachine: MachineType, event: Event) =
+    if next =? event(stateMachine.state):
+      asyncSpawn runState(stateMachine, next)

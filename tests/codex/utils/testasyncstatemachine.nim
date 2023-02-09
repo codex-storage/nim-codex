@@ -4,42 +4,43 @@ import pkg/chronos
 import codex/utils/asyncstatemachine
 import ../helpers/eventually
 
+makeStateMachine(Machine, State)
+
 type
-  TestState = ref object of AsyncState
-  State1 = ref object of TestState
-  State2 = ref object of TestState
-  State3 = ref object of TestState
+  State1 = ref object of State
+  State2 = ref object of State
+  State3 = ref object of State
 
 var runs, cancellations = [0, 0, 0]
 
-method onMoveToNextStateEvent*(state: TestState): ?AsyncState {.base.} =
+method onMoveToNextStateEvent*(state: State): ?State {.base.} =
   discard
 
-method run(state: State1): Future[?AsyncState] {.async.} =
+method run(state: State1): Future[?State] {.async.} =
   inc runs[0]
-  return some AsyncState(State2.new())
+  return some State(State2.new())
 
-method run(state: State2): Future[?AsyncState] {.async.} =
+method run(state: State2): Future[?State] {.async.} =
   inc runs[1]
   try:
     await sleepAsync(1.hours)
   except CancelledError:
     inc cancellations[1]
 
-method onMoveToNextStateEvent(state: State2): ?AsyncState =
-  return some AsyncState(State3.new())
+method onMoveToNextStateEvent(state: State2): ?State =
+  return some State(State3.new())
 
-method run(state: State3): Future[?AsyncState] {.async.} =
+method run(state: State3): Future[?State] {.async.} =
   inc runs[2]
 
 suite "async state machines":
-  var machine: AsyncStateMachine
-  var state1, state2: AsyncState
+  var machine: Machine
+  var state1, state2: State
 
   setup:
     runs = [0, 0, 0]
     cancellations = [0, 0, 0]
-    machine = AsyncStateMachine.new()
+    machine = Machine.new()
     state1 = State1.new()
     state2 = State2.new()
 
@@ -54,19 +55,19 @@ suite "async state machines":
   test "state2 moves to state3 on event":
     machine.start(state2)
 
-    proc moveToNextStateEvent(state: AsyncState): ?AsyncState =
-      TestState(state).onMoveToNextStateEvent()
+    proc moveToNextStateEvent(state: State): ?State =
+      state.onMoveToNextStateEvent()
 
-    machine.schedule(Event(moveToNextStateEvent))
+    machine.schedule(moveToNextStateEvent)
 
     check eventually runs == [0, 1, 1]
 
   test "state transition will cancel the running state":
     machine.start(state2)
 
-    proc moveToNextStateEvent(state: AsyncState): ?AsyncState =
-      TestState(state).onMoveToNextStateEvent()
+    proc moveToNextStateEvent(state: State): ?State =
+      state.onMoveToNextStateEvent()
 
-    machine.schedule(Event(moveToNextStateEvent))
+    machine.schedule(moveToNextStateEvent)
 
     check eventually cancellations == [0, 1, 0]
