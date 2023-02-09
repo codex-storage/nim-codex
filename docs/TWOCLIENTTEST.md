@@ -4,7 +4,7 @@ The two-client test is a manual test you can perform to check your setup and fam
 
 ## Prerequisite
 
-Make sure you have built the client, and can run it as explained in the [README](README.md).
+Make sure you have built the client, and can run it as explained in the [README](../README.md).
 
 ## Steps
 

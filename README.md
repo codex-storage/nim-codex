@@ -68,7 +68,7 @@ codex initNode
 
 ### Example: running two Codex clients
 
-To get acquainted with Codex, consider running the manual two-client test described [HERE](TWOCLIENTTEST.md).
+To get acquainted with Codex, consider running the manual two-client test described [HERE](docs/TWOCLIENTTEST.md).
 
 ## Interacting with the client
 
