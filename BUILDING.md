@@ -76,6 +76,32 @@ $ pacman -S base-devel git unzip mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-
 <!-- add instructions re: getting setup with MSYS2 in a Windows container -->
 <!-- https://github.com/StefanScherer/windows-docker-machine -->
 
+#### Optional: VSCode Terminal integration
+
+You can link the MSYS2-UCRT64 terminal into VSCode by modifying the configuration file as shown below.
+File: `C:/Users/<username>/AppData/Roaming/Code/User/settings.json`
+```json
+{
+    ...
+    "terminal.integrated.profiles.windows": {
+      ...
+      "MSYS2-UCRT64": {
+        "path": "C:\\msys64\\usr\\bin\\bash.exe",
+        "args": [
+          "--login",
+          "-i"
+        ],
+        "env": {
+          "MSYSTEM": "UCRT64",
+          "CHERE_INVOKING": "1",
+          "MSYS2_PATH_TYPE": "inherit"
+        }
+      }
+    }
+}
+```
+
+
 ### Other
 
 It is possible that nim-codex can be built and run on other platforms supported by the [Nim](https://nim-lang.org/) language: BSD family, older versions of Windows, etc. There has not been sufficient experimentation with nim-codex on such platforms, so instructions are not provided. Community contributions to these docs and our build system are welcome!
@@ -121,23 +147,32 @@ $ make test
 
 ### testAll
 
+#### Prerequisites
+
+To run the integration tests, an Ethereum test node is required. Follow these instructions to set it up.
+
+##### Windows (do this before 'All platforms')
+1. Download and install Visual Studio 2017 or newer. (Not VSCode!) In the Workloads overview, enable `Desktop development with C++`. ( https://visualstudio.microsoft.com )
+
+##### All platforms
+1. Install NodeJS (tested with v18.14.0), consider using NVM as a version manager. [Node Version Manager (`nvm`)](https://github.com/nvm-sh/nvm#readme)
+1. Open a terminal
+1. Go to the vendor/codex-contracts-eth folder: `cd /<git-root>/vendor/codex-contracts-eth/`
+1. `npm install` -> Should complete with the number of packages added and an overview of known vulnerabilities.
+1. `npm test` -> Should output test results. May take a minute.
+
+Before the integration tests are started, you must start the Ethereum test node manually.
+1. Open a terminal
+1. Go to the vendor/codex-contracts-eth folder: `cd /<git-root>/vendor/codex-contracts-eth/`
+1. `npm start` -> This should launch Hardhat, and output a number of keys and a warning message.
+
+#### Run
+
 The `testAll` target runs the same tests as `make test` and also runs tests for nim-codex's Ethereum contracts, as well a basic suite of integration tests.
 
-To run `make testAll`, Node.js needs to be installed. [Node Version Manager (`nvm`)](https://github.com/nvm-sh/nvm#readme) is a flexible means to do that and it works on Linux, macOS, and Windows + MSYS2.
+To run `make testAll`.
 
-With `nvm` installed, launch a separate terminal and download the latest LTS version of Node.js
-```text
-$ nvm install --lts
-```
-
-In that same terminal run
-```text
-$ cd repos/nim-codex/vendor/codex-contracts-eth && npm install && npm start
-```
-
-Those commands install and launch a [Hardhat](https://hardhat.org/) environment with nim-codex's Ethereum contracts.
-
-In the other terminal run
+Use a new terminal to run:
 ```text
 $ make testAll
 ```
