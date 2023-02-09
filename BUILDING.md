@@ -154,7 +154,7 @@ To run the integration tests, an Ethereum test node is required. Follow these in
 ##### Windows (do this before 'All platforms')
 1. Download and install Visual Studio 2017 or newer. (Not VSCode!) In the Workloads overview, enable `Desktop development with C++`. ( https://visualstudio.microsoft.com )
 
-#### All platforms
+##### All platforms
 1. Install NodeJS (tested with v18.14.0), consider using NVM as a version manager. [Node Version Manager (`nvm`)](https://github.com/nvm-sh/nvm#readme)
 1. Open a terminal
 1. Go to the vendor/codex-contracts-eth folder: `cd /<git-root>/vendor/codex-contracts-eth/`
