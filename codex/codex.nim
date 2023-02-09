@@ -130,6 +130,7 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
 
   if config.cacheSize > 0:
     cache = CacheStore.new(cacheSize = config.cacheSize * MiB)
+    ## Is unused?
 
   let
     discoveryDir = config.dataDir / CodexDhtNamespace
