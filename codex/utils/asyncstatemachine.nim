@@ -43,5 +43,9 @@ template makeStateMachine*(MachineType, StateType) =
     machine.scheduling = machine.scheduler()
     machine.schedule(Event.transition(machine.state, initialState))
 
+  proc stop*(machine: MachineType) =
+    machine.scheduling.cancel()
+    machine.running.cancel()
+
   proc new*(_: type MachineType): MachineType =
     MachineType(scheduled: newAsyncQueue[Event]())

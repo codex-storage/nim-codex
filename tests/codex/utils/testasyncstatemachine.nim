@@ -71,3 +71,12 @@ suite "async state machines":
     machine.schedule(state {.gcsafe.} => state.onMoveToNextStateEvent())
     machine.schedule(state {.gcsafe.} => state.onMoveToNextStateEvent())
     check eventually runs == [1, 2, 1]
+
+  test "stops scheduling and current state":
+    machine.start(state2)
+    await sleepAsync(1.millis)
+    machine.stop()
+    machine.schedule(state {.gcsafe.} => state.onMoveToNextStateEvent())
+    await sleepAsync(1.millis)
+    check runs == [0, 1, 0]
+    check cancellations == [0, 1, 0]
