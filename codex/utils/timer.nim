@@ -13,42 +13,42 @@
 
 import pkg/chronos
 import pkg/chronicles
+import pkg/questionable
+import pkg/upraises
 
 type
-  TimerCallback* = proc(): void {.gcsafe.}
+  TimerCallback* = proc(): Future[void] {.gcsafe, upraises:[].}
   Timer* = ref object
     callback: TimerCallback
     interval: Duration
     name: string
-    isRunning: bool
+    loopFuture: ?Future[void]
 
 proc new*(T: type Timer, callback: TimerCallback, interval: Duration, timerName = "Unnamed Timer"): T =
   T(
     callback: callback,
     interval: interval,
     name: timerName,
-    isRunning: false
+    loopFuture: Future[void].none
   )
 
 proc timerLoop(timer: Timer) {.async.} =
   try:
-    while timer.isRunning:
+    while true:
       await sleepAsync(timer.interval)
-      timer.callback()
+      await timer.callback()
   except Exception as exc:
-    timer.isRunning = false
     error "Timer: ", timer.name, " caught unhandled exception: ", exc
 
 method start*(timer: Timer) =
-  if timer.isRunning:
+  if timer.loopFuture.isSome():
     return
   trace "Timer starting: ", timer.name
-  timer.isRunning = true
-  asyncSpawn timerLoop(timer)
+  timer.loopFuture = timerLoop(timer).some
+  asyncSpawn !timer.loopFuture
 
-method stop*(timer: Timer) =
-  if not timer.isRunning:
-    return
-
-  trace "Timer stopping: ", timer.name
-  timer.isRunning = false
+method stop*(timer: Timer) {.async.} =
+  if f =? timer.loopFuture:
+    trace "Timer stopping: ", timer.name
+    await f.cancelAndWait()
+    timer.loopFuture = Future[void].none

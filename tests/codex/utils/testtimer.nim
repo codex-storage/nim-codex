@@ -14,15 +14,15 @@ suite "Timer":
   var numbersState = 0
   var lettersState = 'a'
 
-  proc numbersCallback() =
+  proc numbersCallback(): Future[void] {.async.} =
     output &= $numbersState
     inc numbersState
 
-  proc lettersCallback() =
+  proc lettersCallback(): Future[void] {.async.} =
     output &= $lettersState
     inc lettersState
 
-  proc exceptionCallback() =
+  proc exceptionCallback(): Future[void] {.async.} =
     raise newException(Defect, "Test Exception")
 
   setup:
@@ -34,8 +34,8 @@ suite "Timer":
     lettersState = 'a'
 
   teardown:
-    timer1.stop()
-    timer2.stop()
+    await timer1.stop()
+    await timer2.stop()
 
   test "Start timer1 should execute callback":
     timer1.start()
@@ -45,10 +45,16 @@ suite "Timer":
     timer1.start()
     check eventually output == "012"
 
+  test "Starting timer1 multiple times has no impact":
+    timer1.start()
+    timer1.start()
+    timer1.start()
+    check eventually output == "01234"
+
   test "Stop timer1 should stop execution of the callback":
     timer1.start()
     check eventually output == "012"
-    timer1.stop()
+    await timer1.stop()
     await sleepAsync(30.milliseconds)
     let stoppedOutput = output
     await sleepAsync(30.milliseconds)
@@ -58,7 +64,7 @@ suite "Timer":
     let timer = Timer.new(exceptionCallback, 10.milliseconds)
     timer.start()
     await sleepAsync(30.milliseconds)
-    timer.stop()
+    await timer.stop()
 
   test "Starting both timers should execute callbacks sequentially":
     timer1.start()
