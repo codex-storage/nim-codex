@@ -4,7 +4,7 @@ import pkg/chronos
 import codex/utils/asyncstatemachine
 import ../helpers/eventually
 
-type 
+type
   TestState = ref object of AsyncState
   State1 = ref object of TestState
   State2 = ref object of TestState
@@ -15,14 +15,14 @@ var state2Invoked = 0
 var state2Cancelled = 0
 var state3Invoked = 0
 
-method onMoveToNextStateEvent*(state: TestState): ?AsyncState {.base.} = 
+method onMoveToNextStateEvent*(state: TestState): ?AsyncState {.base.} =
   discard
 
-method run(state: State1): Future[?AsyncState] {.async.} = 
+method run(state: State1): Future[?AsyncState] {.async.} =
   inc state1Invoked
   return some AsyncState(State2.new())
 
-method run(state: State2): Future[?AsyncState] {.async.} = 
+method run(state: State2): Future[?AsyncState] {.async.} =
   inc state2Invoked
   try:
     await sleepAsync(1.hours)
@@ -33,7 +33,7 @@ method run(state: State2): Future[?AsyncState] {.async.} =
 method onMoveToNextStateEvent(state: State2): ?AsyncState =
   return some AsyncState(State3.new())
 
-method run(state: State3): Future[?AsyncState] {.async.} = 
+method run(state: State3): Future[?AsyncState] {.async.} =
   inc state3Invoked
 
 suite "async state machines":
