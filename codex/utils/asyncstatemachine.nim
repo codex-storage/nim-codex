@@ -21,9 +21,9 @@ template makeStateMachine*(MachineType, StateType) =
     if next =? await machine.running:
       await machine.runState(next)
 
-  proc start*(stateMachine: MachineType, initialState: StateType) =
-    asyncSpawn runState(stateMachine, initialState)
+  proc start*(machine: MachineType, initialState: StateType) =
+    asyncSpawn runState(machine, initialState)
 
-  proc schedule*(stateMachine: MachineType, event: Event) =
-    if next =? event(stateMachine.state):
-      asyncSpawn runState(stateMachine, next)
+  proc schedule*(machine: MachineType, event: Event) =
+    if next =? event(machine.state):
+      asyncSpawn runState(machine, next)
