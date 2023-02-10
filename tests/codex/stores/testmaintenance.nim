@@ -8,11 +8,16 @@
 ## those terms.
 
 import pkg/chronos
-import pkg/chronicles
+import pkg/libp2p
 import pkg/asynctest
+import pkg/questionable
+import pkg/questionable/results
+import pkg/codex/blocktype as bt
 
 import ../helpers/mocktimer
 import ../helpers/mockblockstore
+import ../helpers/mockblockchecker
+import ../examples
 
 import codex/stores/maintenance
 
@@ -20,24 +25,38 @@ suite "BlockMaintainer":
   var mockBlockStore: MockBlockStore
   var interval: Duration
   var mockTimer: MockTimer
-  # var mockBlockChecker: MockBlockChecker
+  var mockBlockChecker: MockBlockChecker
 
   var blockMaintainer: BlockMaintainer
 
+  let testBlock1 = bt.Block.example
+
   setup:
+    mockBlockStore = MockBlockStore.new()
     interval = 1.days
     mockTimer = MockTimer.new()
+    mockBlockChecker = MockBlockChecker.new()
 
     blockMaintainer = BlockMaintainer.new(
       mockBlockStore,
       interval,
-      mockTimer
-      # mockBlockChecker
+      mockTimer,
+      mockBlockChecker
     )
 
   test "Start should start timer at provided interval":
     blockMaintainer.start()
-
     check mockTimer.startCalled == 1
 
+  test "Stop should stop timer":
+    await blockMaintainer.stop()
+    check mockTimer.stopCalled == 1
 
+  test "Timer callback should get and check first block in blockstore":
+    mockBlockStore.cids.add(testBlock1.cid)
+
+    blockMaintainer.start()
+    await mockTimer.invokeCallback()
+
+    check mockBlockStore.getBlockCids == [testBlock1.cid]
+    check mockBlockChecker.checkCalls == [testBlock1.cid]

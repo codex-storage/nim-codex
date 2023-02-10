@@ -17,7 +17,7 @@ import codex/stores/blockstore
 import codex/utils/timer
 
 type
-  BlockChecker = ref object of RootObj
+  BlockChecker* = ref object of RootObj
   BlockMaintainer* = ref object of RootObj
     blockStore: BlockStore
     interval: Duration
@@ -40,8 +40,14 @@ proc new*(T: type BlockMaintainer,
     checker: blockChecker
   )
 
-proc start*(self: BlockMaintainer) =
+proc onTimer(self: BlockMaintainer): Future[void] {.async.} =
   discard
+
+proc start*(self: BlockMaintainer) =
+  self.timer.start(onTimer, self.interval)
+
+proc stop*(self: BlockMaintainer): Future[void] {.async.} =
+  await self.timer.stop()
 
 method checkBlock(blockChecker: BlockChecker, blockStore: BlockStore, cid: Cid) {.base.} =
   discard
