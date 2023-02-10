@@ -18,16 +18,15 @@ import pkg/upraises
 
 type
   TimerCallback* = proc(): Future[void] {.gcsafe, upraises:[].}
-  Timer* = ref object
-    callback: TimerCallback
-    interval: Duration
+  Timer* = ref object of RootObj
+    ## these are now public for testing and I don't like it.
+    callback*: TimerCallback
+    interval*: Duration
     name: string
     loopFuture: ?Future[void]
 
-proc new*(T: type Timer, callback: TimerCallback, interval: Duration, timerName = "Unnamed Timer"): T =
+proc new*(T: type Timer, timerName = "Unnamed Timer"): T =
   T(
-    callback: callback,
-    interval: interval,
     name: timerName,
     loopFuture: Future[void].none
   )
@@ -40,14 +39,17 @@ proc timerLoop(timer: Timer) {.async.} =
   except Exception as exc:
     error "Timer: ", timer.name, " caught unhandled exception: ", exc
 
-method start*(timer: Timer) =
+method start*(timer: Timer, callback: TimerCallback, interval: Duration) {.base.} =
   if timer.loopFuture.isSome():
     return
   trace "Timer starting: ", timer.name
-  timer.loopFuture = timerLoop(timer).some
-  asyncSpawn !timer.loopFuture
+  timer.callback = callback
+  timer.interval = interval
+  let future = timerLoop(timer)
+  timer.loopFuture = future.some
+  asyncSpawn future
 
-method stop*(timer: Timer) {.async.} =
+method stop*(timer: Timer) {.async, base.} =
   if f =? timer.loopFuture:
     trace "Timer stopping: ", timer.name
     await f.cancelAndWait()

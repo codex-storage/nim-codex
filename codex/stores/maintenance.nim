@@ -11,26 +11,37 @@
 ## Store maintenance module
 ## Looks for and removes expired blocks from blockstores.
 
-type 
-    BlockMaintainer* = ref object of RootObj
-    BlockStoreChecker = ref object of RootObj
+import pkg/chronos
 
-func start(stores[]):
-    while true:
-        sleep(interval)
-        let repo = stores[index]
-        process (repo)
-        if processDone:
-            inc loop index
+import codex/stores/blockstore
+import codex/utils/timer
 
-func process(repo):
-    for 0 -> 100:
-        blockiter.GetNext
-        processBlock(block)
-        if iter finished:
-            return allDone!
-        return notDone
+type
+  BlockChecker = ref object of RootObj
+  BlockMaintainer* = ref object of RootObj
+    blockStore: BlockStore
+    interval: Duration
+    timer: Timer
+    checker: BlockChecker
 
-func processBlock(block):
-    checkExpirey(block)
+proc onTimer(): Future[void] {.async} =
+  discard
 
+proc new*(T: type BlockMaintainer,
+    blockStore: BlockStore,
+    interval: Duration,
+    timer = Timer.new(),
+    blockChecker = BlockChecker.new()
+    ): T =
+  T(
+    blockStore: blockStore,
+    interval: interval,
+    timer: timer,
+    checker: blockChecker
+  )
+
+proc start*(self: BlockMaintainer) =
+  discard
+
+method checkBlock(blockChecker: BlockChecker, blockStore: BlockStore, cid: Cid) {.base.} =
+  discard
