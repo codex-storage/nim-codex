@@ -25,19 +25,20 @@ suite "Timer":
   var numbersState = 0
   var lettersState = 'a'
   var user: TestUserType
+  var receivedUser: TestUserType
 
   proc numbersCallback(userType: TestUserType): Future[void] {.async.} =
-    check userType == user
+    receivedUser = userType
     output &= $numbersState
     inc numbersState
 
   proc lettersCallback(userType: TestUserType): Future[void] {.async.} =
-    check userType == user
+    receivedUser = userType
     output &= $lettersState
     inc lettersState
 
   proc exceptionCallback(userType: TestUserType): Future[void] {.async.} =
-    check userType == user
+    receivedUser = userType
     raise newException(Defect, "Test Exception")
 
   proc startNumbersTimer() =
@@ -67,6 +68,11 @@ suite "Timer":
     startNumbersTimer()
     check eventually output == "012"
 
+  test "Timer passes user object to callback":
+    startNumbersTimer()
+    check eventually output == "0"
+    check receivedUser == user
+
   test "Starting timer1 multiple times has no impact":
     startNumbersTimer()
     startNumbersTimer()
@@ -83,7 +89,7 @@ suite "Timer":
     check output == stoppedOutput
 
   test "Exceptions raised in timer callback are handled":
-    timer1.start(exceptionCallback, 10.milliseconds)
+    timer1.start(user, exceptionCallback, 10.milliseconds)
     await sleepAsync(30.milliseconds)
     await timer1.stop()
 

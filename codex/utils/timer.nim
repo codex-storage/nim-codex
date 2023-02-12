@@ -11,7 +11,7 @@
 ## Used to execute a callback in a loop
 
 import pkg/chronos
-import pkg/chronicles
+# import pkg/chronicles
 import pkg/questionable
 import pkg/upraises
 
@@ -37,12 +37,14 @@ proc timerLoop[T](timer: Timer[T]) {.async.} =
       await sleepAsync(timer.interval)
       await timer.callback(timer.user)
   except Exception as exc:
-    error "Timer: ", timer.name, " caught unhandled exception: ", exc
+    # error "Timer: ", timer.name, " caught unhandled exception: ", exc
+    # Chronicles breaks when used in a proc with type-argument? Plz help
+    discard
 
 method start*[T](timer: Timer[T], user: T, callback: TimerCallback, interval: Duration) {.base.} =
   if timer.loopFuture.isSome():
     return
-  trace "Timer starting: ", timer.name
+  # trace "Timer starting: ", timer.name
   timer.user = user
   timer.callback = callback
   timer.interval = interval
@@ -52,6 +54,6 @@ method start*[T](timer: Timer[T], user: T, callback: TimerCallback, interval: Du
 
 method stop*[T](timer: Timer[T]) {.async, base.} =
   if f =? timer.loopFuture:
-    trace "Timer stopping: ", timer.name
+    # trace "Timer stopping: ", timer.name
     await f.cancelAndWait()
     timer.loopFuture = Future[void].none
