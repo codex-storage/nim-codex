@@ -53,10 +53,10 @@ suite "BlockMaintainer":
     check mockTimer.stopCalled == 1
 
   test "Timer callback should get and check first block in blockstore":
-    mockBlockStore.cids.add(testBlock1.cid)
+    mockBlockStore.testBlocks.add(testBlock1)
 
     blockMaintainer.start()
+    echo "invoke..."
     await mockTimer.invokeCallback()
 
-    check mockBlockStore.getBlockCids == [testBlock1.cid]
     check mockBlockChecker.checkCalls == [testBlock1.cid]

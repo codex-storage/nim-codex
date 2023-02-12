@@ -8,6 +8,7 @@
 ## those terms.
 
 import pkg/chronos
+import pkg/chronicles
 import pkg/asynctest
 
 import codex/stores/blockstore
@@ -25,5 +26,6 @@ proc new*(T: type MockBlockChecker, expectedBlockStore: BlockStore): T =
   )
 
 method checkBlock(blockChecker: MockBlockChecker, blockStore: BlockStore, cid: Cid) =
+  echo "mock logging checkBlock"
   check blockStore == blockChecker.expectedBlockStore
   blockChecker.checkCalls.add(cid)

@@ -16,11 +16,12 @@ import pkg/questionable
 import pkg/upraises
 
 type
-  TimerCallback* = proc(): Future[void] {.gcsafe, upraises:[].}
-  Timer* = ref object of RootObj
+  TimerCallback*[T] = proc(user: T): Future[void] {.gcsafe, upraises:[].}
+  Timer*[T] = ref object of RootObj
     ## these are now public for testing and I don't like it.
-    callback*: TimerCallback
+    callback*: TimerCallback[T]
     interval*: Duration
+    user: T
     name: string
     loopFuture: ?Future[void]
 
@@ -30,25 +31,26 @@ proc new*(T: type Timer, timerName = "Unnamed Timer"): T =
     loopFuture: Future[void].none
   )
 
-proc timerLoop(timer: Timer) {.async.} =
+proc timerLoop[T](timer: Timer[T]) {.async.} =
   try:
     while true:
       await sleepAsync(timer.interval)
-      await timer.callback()
+      await timer.callback(timer.user)
   except Exception as exc:
     error "Timer: ", timer.name, " caught unhandled exception: ", exc
 
-method start*(timer: Timer, callback: TimerCallback, interval: Duration) {.base.} =
+method start*[T](timer: Timer[T], user: T, callback: TimerCallback, interval: Duration) {.base.} =
   if timer.loopFuture.isSome():
     return
   trace "Timer starting: ", timer.name
+  timer.user = user
   timer.callback = callback
   timer.interval = interval
   let future = timerLoop(timer)
   timer.loopFuture = future.some
   asyncSpawn future
 
-method stop*(timer: Timer) {.async, base.} =
+method stop*[T](timer: Timer[T]) {.async, base.} =
   if f =? timer.loopFuture:
     trace "Timer stopping: ", timer.name
     await f.cancelAndWait()

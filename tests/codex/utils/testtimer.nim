@@ -15,37 +15,45 @@ import pkg/asynctest
 import codex/utils/timer
 import ../helpers/eventually
 
+type
+  TestUserType = ref object
+
 suite "Timer":
-  var timer1: Timer
-  var timer2: Timer
+  var timer1: Timer[TestUserType]
+  var timer2: Timer[TestUserType]
   var output: string
   var numbersState = 0
   var lettersState = 'a'
+  var user: TestUserType
 
-  proc numbersCallback(): Future[void] {.async.} =
+  proc numbersCallback(userType: TestUserType): Future[void] {.async.} =
+    check userType == user
     output &= $numbersState
     inc numbersState
 
-  proc lettersCallback(): Future[void] {.async.} =
+  proc lettersCallback(userType: TestUserType): Future[void] {.async.} =
+    check userType == user
     output &= $lettersState
     inc lettersState
 
-  proc exceptionCallback(): Future[void] {.async.} =
+  proc exceptionCallback(userType: TestUserType): Future[void] {.async.} =
+    check userType == user
     raise newException(Defect, "Test Exception")
 
   proc startNumbersTimer() =
-    timer1.start(numbersCallback, 10.milliseconds)
+    timer1.start(user, numbersCallback, 10.milliseconds)
 
   proc startLettersTimer() =
-    timer2.start(lettersCallback, 10.milliseconds)
+    timer2.start(user, lettersCallback, 10.milliseconds)
 
   setup:
-    timer1 = Timer.new()
-    timer2 = Timer.new()
+    timer1 = Timer[TestUserType].new()
+    timer2 = Timer[TestUserType].new()
 
     output = ""
     numbersState = 0
     lettersState = 'a'
+    user = TestUserType.new()
 
   teardown:
     await timer1.stop()

@@ -31,4 +31,5 @@ method stop*(mockTimer: MockTimer) {.async.} =
   inc mockTimer.stopCalled
 
 method invokeCallback*(mockTimer: MockTimer) {.async, base.} =
+  echo "doing that"
   await mockTimer.callback()

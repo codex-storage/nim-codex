@@ -12,6 +12,9 @@
 ## Looks for and removes expired blocks from blockstores.
 
 import pkg/chronos
+import pkg/chronicles
+import pkg/questionable
+import pkg/questionable/results
 
 import codex/stores/blockstore
 import codex/utils/timer
@@ -24,7 +27,7 @@ type
     timer: Timer
     checker: BlockChecker
 
-proc onTimer(): Future[void] {.async} =
+method checkBlock(blockChecker: BlockChecker, blockStore: BlockStore, cid: Cid): Future[void] {.async, base.} =
   discard
 
 proc new*(T: type BlockMaintainer,
@@ -41,13 +44,16 @@ proc new*(T: type BlockMaintainer,
   )
 
 proc onTimer(self: BlockMaintainer): Future[void] {.async.} =
-  discard
+  echo "timer tick"
+  if iter =? await self.blockStore.listBlocks():
+    echo "listing blocks"
+    while not iter.finished:
+      if currentBlockCid =? await iter.next():
+        echo "got current cit"
+        await self.checker.checkBlock(self.blockStore, currentBlockCid)
 
 proc start*(self: BlockMaintainer) =
   self.timer.start(onTimer, self.interval)
 
 proc stop*(self: BlockMaintainer): Future[void] {.async.} =
   await self.timer.stop()
-
-method checkBlock(blockChecker: BlockChecker, blockStore: BlockStore, cid: Cid) {.base.} =
-  discard
