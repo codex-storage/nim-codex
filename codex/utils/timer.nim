@@ -21,7 +21,7 @@ type
     ## these are now public for testing and I don't like it.
     callback*: TimerCallback[T]
     interval*: Duration
-    user: T
+    user*: T
     name: string
     loopFuture: ?Future[void]
 
@@ -41,7 +41,7 @@ proc timerLoop[T](timer: Timer[T]) {.async.} =
     # Chronicles breaks when used in a proc with type-argument? Plz help
     discard
 
-method start*[T](timer: Timer[T], user: T, callback: TimerCallback, interval: Duration) {.base.} =
+method start*[T](timer: Timer[T], user: T, callback: TimerCallback[T], interval: Duration) {.base.} =
   if timer.loopFuture.isSome():
     return
   # trace "Timer starting: ", timer.name
@@ -52,7 +52,7 @@ method start*[T](timer: Timer[T], user: T, callback: TimerCallback, interval: Du
   timer.loopFuture = future.some
   asyncSpawn future
 
-method stop*[T](timer: Timer[T]) {.async, base.} =
+method stop*(timer: Timer) {.async, base.} =
   if f =? timer.loopFuture:
     # trace "Timer stopping: ", timer.name
     await f.cancelAndWait()

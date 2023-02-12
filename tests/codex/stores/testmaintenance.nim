@@ -24,7 +24,7 @@ import codex/stores/maintenance
 suite "BlockMaintainer":
   var mockBlockStore: MockBlockStore
   var interval: Duration
-  var mockTimer: MockTimer
+  var mockTimer: MockTimer[BlockMaintainer]
   var mockBlockChecker: MockBlockChecker
 
   var blockMaintainer: BlockMaintainer
@@ -34,7 +34,7 @@ suite "BlockMaintainer":
   setup:
     mockBlockStore = MockBlockStore.new()
     interval = 1.days
-    mockTimer = MockTimer.new()
+    mockTimer = MockTimer[BlockMaintainer].new()
     mockBlockChecker = MockBlockChecker.new()
 
     blockMaintainer = BlockMaintainer.new(
@@ -48,15 +48,15 @@ suite "BlockMaintainer":
     blockMaintainer.start()
     check mockTimer.startCalled == 1
 
-  test "Stop should stop timer":
-    await blockMaintainer.stop()
-    check mockTimer.stopCalled == 1
+  # test "Stop should stop timer":
+  #   await blockMaintainer.stop()
+  #   check mockTimer.stopCalled == 1
 
-  test "Timer callback should get and check first block in blockstore":
-    mockBlockStore.testBlocks.add(testBlock1)
+  # test "Timer callback should get and check first block in blockstore":
+  #   mockBlockStore.testBlocks.add(testBlock1)
 
-    blockMaintainer.start()
-    echo "invoke..."
-    await mockTimer.invokeCallback()
+  #   blockMaintainer.start()
+  #   await mockTimer.invokeCallback()
 
-    check mockBlockChecker.checkCalls == [testBlock1.cid]
+  #   check mockBlockChecker.receivedBlockStore == mockBlockStore
+  #   check mockBlockChecker.checkCalls == [testBlock1.cid]

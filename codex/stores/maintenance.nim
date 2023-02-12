@@ -24,7 +24,7 @@ type
   BlockMaintainer* = ref object of RootObj
     blockStore: BlockStore
     interval: Duration
-    timer: Timer
+    timer: Timer[BlockMaintainer]
     checker: BlockChecker
 
 method checkBlock(blockChecker: BlockChecker, blockStore: BlockStore, cid: Cid): Future[void] {.async, base.} =
@@ -33,7 +33,10 @@ method checkBlock(blockChecker: BlockChecker, blockStore: BlockStore, cid: Cid):
 proc new*(T: type BlockMaintainer,
     blockStore: BlockStore,
     interval: Duration,
-    timer = Timer.new(),
+    # I want to default the timer here, like so:
+    # timer = Timer[BlockMaintainer].new(),
+    # but the generic messes this up somehow. Plz help.
+    timer: Timer[BlockMaintainer],
     blockChecker = BlockChecker.new()
     ): T =
   T(
@@ -44,16 +47,14 @@ proc new*(T: type BlockMaintainer,
   )
 
 proc onTimer(self: BlockMaintainer): Future[void] {.async.} =
-  echo "timer tick"
   if iter =? await self.blockStore.listBlocks():
-    echo "listing blocks"
     while not iter.finished:
       if currentBlockCid =? await iter.next():
-        echo "got current cit"
         await self.checker.checkBlock(self.blockStore, currentBlockCid)
 
 proc start*(self: BlockMaintainer) =
-  self.timer.start(onTimer, self.interval)
+  echo "starting timer..."
+  self.timer.start(self, onTimer, self.interval)
 
 proc stop*(self: BlockMaintainer): Future[void] {.async.} =
   await self.timer.stop()

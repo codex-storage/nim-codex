@@ -36,14 +36,13 @@ method delBlock*(self: MockBlockStore, cid: Cid): Future[?!void] =
 method listBlocks*(
   self: MockBlockStore,
   blockType = BlockType.Manifest): Future[?!BlocksIter] {.async.} =
-
-  await newFuture[void]()
+  echo "listing blocks..."
 
   var iter = BlocksIter()
   iter.finished = false
 
   proc next(): Future[?Cid] {.async.} =
-    await newFuture[void]()
+    echo "iter: next"
     if self.index >= 0 and self.index < len(self.testBlocks):
       let selectedBlock = self.testBlocks[self.index]
       inc self.index
@@ -52,4 +51,5 @@ method listBlocks*(
     return Cid.none
 
   iter.next = next
+  echo "created iter"
   return success iter

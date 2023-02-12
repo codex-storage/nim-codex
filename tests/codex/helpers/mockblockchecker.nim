@@ -16,7 +16,7 @@ import codex/stores/maintenance
 
 type
   MockBlockChecker* = ref object of BlockChecker
-    expectedBlockStore: BlockStore
+    receivedBlockStore*: BlockStore
     checkCalls*: seq[Cid]
 
 proc new*(T: type MockBlockChecker, expectedBlockStore: BlockStore): T =
@@ -25,7 +25,6 @@ proc new*(T: type MockBlockChecker, expectedBlockStore: BlockStore): T =
     checkCalls: []
   )
 
-method checkBlock(blockChecker: MockBlockChecker, blockStore: BlockStore, cid: Cid) =
-  echo "mock logging checkBlock"
-  check blockStore == blockChecker.expectedBlockStore
+method checkBlock(blockChecker: MockBlockChecker, blockStore: BlockStore, cid: Cid): Future[void] {.async.} =
+  blockChecker.receivedBlockStore = blockStore
   blockChecker.checkCalls.add(cid)

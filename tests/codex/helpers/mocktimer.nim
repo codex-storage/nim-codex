@@ -12,7 +12,7 @@ import pkg/chronos
 import codex/utils/timer
 
 type
-  MockTimer* = ref object of Timer
+  MockTimer*[T] = ref object of Timer[T]
     startCalled*: int
     stopCalled*: int
 
@@ -22,14 +22,15 @@ proc new*(T: type MockTimer): T =
     stopCalled: 0
   )
 
-method start*(mockTimer: MockTimer, callback: timer.TimerCallback, interval: Duration) =
+method start*[T](mockTimer: MockTimer[T], user: T, callback: timer.TimerCallback[T], interval: Duration) =
+  echo "mock timer start"
   mockTimer.callback = callback
   mockTimer.interval = interval
+  mockTimer.user = user
   inc mockTimer.startCalled
 
 method stop*(mockTimer: MockTimer) {.async.} =
   inc mockTimer.stopCalled
 
-method invokeCallback*(mockTimer: MockTimer) {.async, base.} =
-  echo "doing that"
-  await mockTimer.callback()
+method invokeCallback*[T](mockTimer: MockTimer[T]) {.async, base.} =
+  await mockTimer.callback(mockTimer.user)
