@@ -27,6 +27,7 @@ method run(state: State2): Future[?State] {.async.} =
     await sleepAsync(1.hours)
   except CancelledError:
     inc cancellations[1]
+    raise
 
 method onMoveToNextStateEvent(state: State2): ?State =
   some State(State3.new())

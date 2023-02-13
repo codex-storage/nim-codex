@@ -25,8 +25,11 @@ template makeStateMachine*(MachineType, StateType) =
     discard
 
   proc run(machine: MachineType, state: StateType) {.async.} =
-    if next =? await state.run():
-      machine.schedule(Event.transition(state, next))
+    try:
+      if next =? await state.run():
+        machine.schedule(Event.transition(state, next))
+    except CancelledError:
+      discard
 
   proc scheduler(machine: MachineType) {.async.} =
     try:
@@ -37,6 +40,7 @@ template makeStateMachine*(MachineType, StateType) =
             await machine.running.cancelAndWait()
           machine.state = next
           machine.running = machine.run(machine.state)
+          asyncSpawn machine.running
     except CancelledError:
       discard
 
