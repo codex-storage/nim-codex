@@ -254,14 +254,18 @@ ethersuite "On-Chain Market":
     await token.approve(marketplace.address, request.price)
     await market.requestStorage(request)
     let slotId = request.slotId(slotIndex)
-    check (await market.getRequestFromSlotId(slotId)) == none StorageRequest
+    check:
+      (await market.getActiveSlot(slotId)) ==
+      none (StorageRequest, UInt256)
 
   test "can retrieve request details from slot id":
     await token.approve(marketplace.address, request.price)
     await market.requestStorage(request)
     await market.fillSlot(request.id, slotIndex, proof)
     let slotId = request.slotId(slotIndex)
-    check (await market.getRequestFromSlotId(slotId)) == some request
+    check:
+      (await market.getActiveSlot(slotId)) ==
+      some (request, slotIndex)
 
   test "retrieves correct slot state when request is unknown":
     let slotId = request.slotId(slotIndex)

@@ -55,15 +55,6 @@ proc randomSlotIndex(numSlots: uint64): UInt256 =
   let slotIndex = rng.rand(numSlots - 1)
   return slotIndex.u256
 
-proc findSlotIndex(numSlots: uint64,
-                   requestId: RequestId,
-                   slotId: SlotId): ?UInt256 =
-  for i in 0..<numSlots:
-    if slotId(requestId, i.u256) == slotId:
-      return some i.u256
-
-  return none UInt256
-
 proc handleRequest(sales: Sales,
                    requestId: RequestId,
                    ask: StorageAsk) {.async.} =
@@ -101,16 +92,12 @@ proc load*(sales: Sales) {.async.} =
 
   for slotId in slotIds:
     # TODO: this needs to be optimised
-    if request =? await market.getRequestFromSlotId(slotId):
-      let availability = await sales.reservations.find(request.ask.slotSize,
-                                                       request.ask.duration,
-                                                       request.ask.pricePerSlot,
-                                                       used = true)
-
-      without slotIndex =? findSlotIndex(request.ask.slots,
-                                         request.id,
-                                         slotId):
-        raiseAssert "could not find slot index"
+    if (request, slotIndex) =? (await market.getActiveSlot(slotId)):
+      let availability = await sales.reservations.find(
+        request.ask.slotSize,
+        request.ask.duration,
+        request.ask.pricePerSlot,
+        used = true)
 
       let agent = newSalesAgent(
         sales,
