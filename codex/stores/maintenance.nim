@@ -26,6 +26,7 @@ type
     timer: Timer
     checker: BlockChecker
     numberOfBlocksPerInterval: int
+    currentIterator: ?BlocksIter
 
 method checkBlock(blockChecker: BlockChecker, blockStore: BlockStore, cid: Cid): Future[void] {.async, base.} =
   discard
@@ -42,21 +43,45 @@ proc new*(T: type BlockMaintainer,
     interval: interval,
     timer: timer,
     checker: blockChecker,
-    numberOfBlocksPerInterval: numberOfBlocksPerInterval
+    numberOfBlocksPerInterval: numberOfBlocksPerInterval,
+    currentIterator: BlocksIter.none
   )
 
-proc checkBlocks(self: BlockMaintainer): Future[void] {.async.} =
+proc isCurrentIteratorValid(self: BlockMaintainer): bool =
+  if iter =? self.currentIterator:
+    return not iter.finished
+  false
+
+proc getCurrentIterator(self: BlockMaintainer): Future[BlocksIter] {.async.} =
+  if not self.isCurrentIteratorValid():
+    without iter =? await self.blockStore.listBlocks(), err:
+      warn "Unable to list blocks", err = err.msg
+      raise err
+    self.currentIterator = iter.some
+
+  if result =? self.currentIterator:
+    return result
+  raise newException(CodexError, "Unable to obtain block iterator")
+
+proc runBlockCheck(self: BlockMaintainer): Future[void] {.async.} =
   var blocksLeft = self.numberOfBlocksPerInterval
+
+  proc processOneBlock(iter: BlocksIter): Future[void] {.async.} =
+    if currentBlockCid =? await iter.next():
+      dec blocksLeft
+      await self.checker.checkBlock(self.blockStore, currentBlockCid)
+
   while blocksLeft > 0:
-    if iter =? await self.blockStore.listBlocks():
-      while not iter.finished and blocksLeft > 0:
-        dec blocksLeft
-        if currentBlockCid =? await iter.next():
-          await self.checker.checkBlock(self.blockStore, currentBlockCid)
+    let iter = await self.getCurrentIterator()
+    while not iter.finished and blocksLeft > 0:
+      await processOneBlock(iter)
 
 proc start*(self: BlockMaintainer) =
   proc onTimer(): Future[void] {.async.} =
-    await self.checkBlocks()
+    try:
+      await self.runBlockCheck()
+    except Exception as exc:
+      error "Unexpected exception in BlockMaintainer.onTimer(): ", exc
 
   self.timer.start(onTimer, self.interval)
 
