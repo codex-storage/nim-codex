@@ -23,13 +23,12 @@ proc new*(T: type MockTimer): T =
   )
 
 method start*[T](mockTimer: MockTimer[T], user: T, callback: timer.TimerCallback[T], interval: Duration) =
-  echo "mock timer start"
   mockTimer.callback = callback
   mockTimer.interval = interval
   mockTimer.user = user
   inc mockTimer.startCalled
 
-method stop*(mockTimer: MockTimer) {.async.} =
+method stop*[T](mockTimer: MockTimer[T]) {.async.} =
   inc mockTimer.stopCalled
 
 method invokeCallback*[T](mockTimer: MockTimer[T]) {.async, base.} =

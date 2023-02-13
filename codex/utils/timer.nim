@@ -52,7 +52,7 @@ method start*[T](timer: Timer[T], user: T, callback: TimerCallback[T], interval:
   timer.loopFuture = future.some
   asyncSpawn future
 
-method stop*(timer: Timer) {.async, base.} =
+method stop*[T](timer: Timer[T]) {.async, base.} =
   if f =? timer.loopFuture:
     # trace "Timer stopping: ", timer.name
     await f.cancelAndWait()

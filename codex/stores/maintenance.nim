@@ -25,7 +25,8 @@ type
     blockStore: BlockStore
     interval: Duration
     timer: Timer[BlockMaintainer]
-    checker: BlockChecker
+    checker: BlockChecker,
+    numberOfBlocksPerInterval: int
 
 method checkBlock(blockChecker: BlockChecker, blockStore: BlockStore, cid: Cid): Future[void] {.async, base.} =
   discard
@@ -37,13 +38,15 @@ proc new*(T: type BlockMaintainer,
     # timer = Timer[BlockMaintainer].new(),
     # but the generic messes this up somehow. Plz help.
     timer: Timer[BlockMaintainer],
-    blockChecker = BlockChecker.new()
+    blockChecker = BlockChecker.new(),
+    numberOfBlocksPerInterval = 100
     ): T =
   T(
     blockStore: blockStore,
     interval: interval,
     timer: timer,
-    checker: blockChecker
+    checker: blockChecker,
+    numberOfBlocksPerInterval: numberOfBlocksPerInterval
   )
 
 proc onTimer(self: BlockMaintainer): Future[void] {.async.} =
@@ -53,7 +56,6 @@ proc onTimer(self: BlockMaintainer): Future[void] {.async.} =
         await self.checker.checkBlock(self.blockStore, currentBlockCid)
 
 proc start*(self: BlockMaintainer) =
-  echo "starting timer..."
   self.timer.start(self, onTimer, self.interval)
 
 proc stop*(self: BlockMaintainer): Future[void] {.async.} =

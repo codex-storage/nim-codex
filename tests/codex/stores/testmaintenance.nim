@@ -30,9 +30,15 @@ suite "BlockMaintainer":
   var blockMaintainer: BlockMaintainer
 
   let testBlock1 = bt.Block.example
+  let testBlock2 = bt.Block.example
+  let testBlock3 = bt.Block.example
 
   setup:
     mockBlockStore = MockBlockStore.new()
+    mockBlockStore.testBlocks.add(testBlock1)
+    mockBlockStore.testBlocks.add(testBlock2)
+    mockBlockStore.testBlocks.add(testBlock3)
+
     interval = 1.days
     mockTimer = MockTimer[BlockMaintainer].new()
     mockBlockChecker = MockBlockChecker.new()
@@ -41,22 +47,37 @@ suite "BlockMaintainer":
       mockBlockStore,
       interval,
       mockTimer,
-      mockBlockChecker
+      mockBlockChecker,
+      numberOfBlocksPerInterval: 2
     )
 
   test "Start should start timer at provided interval":
     blockMaintainer.start()
     check mockTimer.startCalled == 1
 
-  # test "Stop should stop timer":
-  #   await blockMaintainer.stop()
-  #   check mockTimer.stopCalled == 1
+  test "Stop should stop timer":
+    await blockMaintainer.stop()
+    check mockTimer.stopCalled == 1
 
-  # test "Timer callback should get and check first block in blockstore":
-  #   mockBlockStore.testBlocks.add(testBlock1)
+  test "Timer callback should check first two blocks in blockstore":
+    blockMaintainer.start()
+    await mockTimer.invokeCallback()
 
-  #   blockMaintainer.start()
-  #   await mockTimer.invokeCallback()
+    check mockBlockChecker.receivedBlockStore == mockBlockStore
+    check mockBlockChecker.checkCalls == [
+      testBlock1.cid,
+      testBlock2.cid
+    ]
 
-  #   check mockBlockChecker.receivedBlockStore == mockBlockStore
-  #   check mockBlockChecker.checkCalls == [testBlock1.cid]
+  test "Subsequent timer callback should check next two blocks in the blockstore":
+    blockMaintainer.start()
+    await mockTimer.invokeCallback()
+    await mockTimer.invokeCallback()
+
+    check mockBlockChecker.receivedBlockStore == mockBlockStore
+    check mockBlockChecker.checkCalls == [
+      testBlock1.cid,
+      testBlock2.cid,
+      testBlock3.cid,
+      testBlock1.cid
+    ]
