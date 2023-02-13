@@ -1,5 +1,6 @@
 import pkg/questionable
 import pkg/chronos
+import pkg/upraises
 
 template makeStateMachine*(MachineType, StateType) =
 
@@ -10,7 +11,7 @@ template makeStateMachine*(MachineType, StateType) =
       scheduled: AsyncQueue[Event]
       scheduling: Future[void]
     StateType* = ref object of RootObj
-    Event = proc(state: StateType): ?StateType {.gcsafe.}
+    Event = proc(state: StateType): ?StateType {.gcsafe, upraises:[].}
 
   proc transition(_: type Event, previous, next: StateType): Event =
     return proc (state: StateType): ?StateType =
@@ -20,7 +21,7 @@ template makeStateMachine*(MachineType, StateType) =
   proc schedule*(machine: MachineType, event: Event) =
     machine.scheduled.putNoWait(event)
 
-  method run*(state: StateType): Future[?StateType] {.base.} =
+  method run*(state: StateType): Future[?StateType] {.base, upraises:[].} =
     discard
 
   proc run(machine: MachineType, state: StateType) {.async.} =
