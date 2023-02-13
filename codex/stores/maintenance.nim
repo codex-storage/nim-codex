@@ -52,16 +52,13 @@ proc isCurrentIteratorValid(self: BlockMaintainer): bool =
     return not iter.finished
   false
 
-proc getCurrentIterator(self: BlockMaintainer): Future[BlocksIter] {.async.} =
+proc getCurrentIterator(self: BlockMaintainer): Future[?!BlocksIter] {.async.} =
   if not self.isCurrentIteratorValid():
-    without iter =? await self.blockStore.listBlocks(), err:
-      warn "Unable to list blocks", err = err.msg
-      raise err
-    self.currentIterator = iter.some
-
-  if result =? self.currentIterator:
-    return result
-  raise newException(CodexError, "Unable to obtain block iterator")
+    self.currentIterator = (await self.blockStore.listBlocks()).option
+  if iter =? self.currentIterator:
+    return success iter
+  let error = newException(CodexError, "Unable to obtain block iterator")
+  return failure error
 
 proc runBlockCheck(self: BlockMaintainer): Future[void] {.async.} =
   var blocksLeft = self.numberOfBlocksPerInterval
@@ -71,15 +68,14 @@ proc runBlockCheck(self: BlockMaintainer): Future[void] {.async.} =
       dec blocksLeft
       await self.checker.checkBlock(self.blockStore, currentBlockCid)
 
-  while blocksLeft > 0:
-    let iter = await self.getCurrentIterator()
+  while blocksLeft > 0 and iter =? await self.getCurrentIterator():
     await processOneBlock(iter)
 
 proc start*(self: BlockMaintainer) =
   proc onTimer(): Future[void] {.async.} =
     try:
       await self.runBlockCheck()
-    except Exception as exc:
+    except CatchableException as exc:
       error "Unexpected exception in BlockMaintainer.onTimer(): ", exc
 
   self.timer.start(onTimer, self.interval)
