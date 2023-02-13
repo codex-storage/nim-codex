@@ -37,6 +37,7 @@ method listBlocks*(
   self: MockBlockStore,
   blockType = BlockType.Manifest): Future[?!BlocksIter] {.async.} =
 
+  self.index = 0
   var iter = BlocksIter()
   iter.finished = false
 

@@ -24,7 +24,7 @@ import codex/stores/maintenance
 suite "BlockMaintainer":
   var mockBlockStore: MockBlockStore
   var interval: Duration
-  var mockTimer: MockTimer[BlockMaintainer]
+  var mockTimer: MockTimer
   var mockBlockChecker: MockBlockChecker
 
   var blockMaintainer: BlockMaintainer
@@ -40,7 +40,7 @@ suite "BlockMaintainer":
     mockBlockStore.testBlocks.add(testBlock3)
 
     interval = 1.days
-    mockTimer = MockTimer[BlockMaintainer].new()
+    mockTimer = MockTimer.new()
     mockBlockChecker = MockBlockChecker.new()
 
     blockMaintainer = BlockMaintainer.new(
@@ -48,12 +48,13 @@ suite "BlockMaintainer":
       interval,
       mockTimer,
       mockBlockChecker,
-      numberOfBlocksPerInterval: 2
+      numberOfBlocksPerInterval = 2
     )
 
   test "Start should start timer at provided interval":
     blockMaintainer.start()
     check mockTimer.startCalled == 1
+    check mockTimer.mockInterval == interval
 
   test "Stop should stop timer":
     await blockMaintainer.stop()

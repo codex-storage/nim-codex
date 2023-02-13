@@ -7,7 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-
 ## Store maintenance module
 ## Looks for and removes expired blocks from blockstores.
 
@@ -24,8 +23,8 @@ type
   BlockMaintainer* = ref object of RootObj
     blockStore: BlockStore
     interval: Duration
-    timer: Timer[BlockMaintainer]
-    checker: BlockChecker,
+    timer: Timer
+    checker: BlockChecker
     numberOfBlocksPerInterval: int
 
 method checkBlock(blockChecker: BlockChecker, blockStore: BlockStore, cid: Cid): Future[void] {.async, base.} =
@@ -34,10 +33,7 @@ method checkBlock(blockChecker: BlockChecker, blockStore: BlockStore, cid: Cid):
 proc new*(T: type BlockMaintainer,
     blockStore: BlockStore,
     interval: Duration,
-    # I want to default the timer here, like so:
-    # timer = Timer[BlockMaintainer].new(),
-    # but the generic messes this up somehow. Plz help.
-    timer: Timer[BlockMaintainer],
+    timer = Timer.new(),
     blockChecker = BlockChecker.new(),
     numberOfBlocksPerInterval = 100
     ): T =
@@ -49,14 +45,20 @@ proc new*(T: type BlockMaintainer,
     numberOfBlocksPerInterval: numberOfBlocksPerInterval
   )
 
-proc onTimer(self: BlockMaintainer): Future[void] {.async.} =
-  if iter =? await self.blockStore.listBlocks():
-    while not iter.finished:
-      if currentBlockCid =? await iter.next():
-        await self.checker.checkBlock(self.blockStore, currentBlockCid)
+proc checkBlocks(self: BlockMaintainer): Future[void] {.async.} =
+  var blocksLeft = self.numberOfBlocksPerInterval
+  while blocksLeft > 0:
+    if iter =? await self.blockStore.listBlocks():
+      while not iter.finished and blocksLeft > 0:
+        dec blocksLeft
+        if currentBlockCid =? await iter.next():
+          await self.checker.checkBlock(self.blockStore, currentBlockCid)
 
 proc start*(self: BlockMaintainer) =
-  self.timer.start(self, onTimer, self.interval)
+  proc onTimer(): Future[void] {.async.} =
+    await self.checkBlocks()
+
+  self.timer.start(onTimer, self.interval)
 
 proc stop*(self: BlockMaintainer): Future[void] {.async.} =
   await self.timer.stop()
