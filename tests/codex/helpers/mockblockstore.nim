@@ -19,19 +19,21 @@ type
   MockBlockStore* = ref object of BlockStore
     testBlocks*: seq[bt.Block]
     getBlockCids*: seq[Cid]
+    getBlockValue*: ?!bt.Block
+    delBlockCids*: seq[Cid]
     index: int
 
 proc new*(T: type MockBlockStore): T =
   T(
-    testBlocks: newSeq[bt.Block](0),
     index: 0
   )
 
-method getBlock*(self: MockBlockStore, cid: Cid): Future[?!Block] =
+method getBlock*(self: MockBlockStore, cid: Cid): Future[?!Block] {.async.} =
   self.getBlockCids.add(cid)
+  return self.getBlockValue
 
 method delBlock*(self: MockBlockStore, cid: Cid): Future[?!void] =
-  raiseAssert("Not implemented!")
+  self.delBlockCids.add(cid)
 
 method listBlocks*(
   self: MockBlockStore,

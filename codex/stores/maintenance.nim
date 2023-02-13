@@ -28,7 +28,7 @@ type
     numberOfBlocksPerInterval: int
     currentIterator: ?BlocksIter
 
-method checkBlock(blockChecker: BlockChecker, blockStore: BlockStore, cid: Cid): Future[void] {.async, base.} =
+method checkBlock*(blockChecker: BlockChecker, blockStore: BlockStore, cid: Cid): Future[void] {.async, base.} =
   discard
 
 proc new*(T: type BlockMaintainer,
@@ -73,8 +73,7 @@ proc runBlockCheck(self: BlockMaintainer): Future[void] {.async.} =
 
   while blocksLeft > 0:
     let iter = await self.getCurrentIterator()
-    while not iter.finished and blocksLeft > 0:
-      await processOneBlock(iter)
+    await processOneBlock(iter)
 
 proc start*(self: BlockMaintainer) =
   proc onTimer(): Future[void] {.async.} =

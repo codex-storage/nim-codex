@@ -82,3 +82,29 @@ suite "BlockMaintainer":
       testBlock3.cid,
       testBlock1.cid
     ]
+
+suite "BlockChecker":
+  var mockBlockStore: MockBlockStore
+  var blockChecker: BlockChecker
+
+  let testBlock = bt.Block.example
+
+  setup:
+    mockBlockStore = MockBlockStore.new()
+    mockBlockStore.getBlockValue = success testBlock
+
+    blockChecker = BlockChecker.new()
+
+  test "Check block should do nothing if block is not expired":
+    await blockChecker.checkBlock(mockBlockStore, testBlock.cid)
+
+    check mockBlockStore.getBlockCids == [testBlock.cid]
+    check mockBlockStore.delBlockCids == []
+
+  test "Check block should delete block if it is expired":
+    # mark block as expired.
+
+    await blockChecker.checkBlock(mockBlockStore, testBlock.cid)
+
+    check mockBlockStore.getBlockCids == [testBlock.cid]
+    check mockBlockStore.delBlockCids == [testBlock.cid]
