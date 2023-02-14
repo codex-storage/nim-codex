@@ -5,8 +5,6 @@ import pkg/upraises
 import codex/utils/asyncstatemachine
 import ../helpers/eventually
 
-makeStateMachine(Machine, State)
-
 type
   State1 = ref object of State
   State2 = ref object of State
