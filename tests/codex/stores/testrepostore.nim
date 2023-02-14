@@ -16,6 +16,7 @@ import pkg/codex/stores/cachestore
 import pkg/codex/chunker
 import pkg/codex/stores
 import pkg/codex/blocktype as bt
+import pkg/codex/clock
 
 import ../helpers
 import ./commonstoretests
@@ -26,30 +27,33 @@ suite "Test RepoStore Quota":
     repoDs: Datastore
     metaDs: Datastore
 
+    repo: RepoStore
+
   setup:
     repoDs = SQLiteDatastore.new(Memory).tryGet()
     metaDs = SQLiteDatastore.new(Memory).tryGet()
+
+    repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
 
   teardown:
     (await repoDs.close()).tryGet
     (await metaDs.close()).tryGet
 
+  proc createTestBlock(size: int): bt.Block =
+    bt.Block.new('a'.repeat(size).toBytes).tryGet()
+
   test "Should update current used bytes on block put":
-    let
-      blk = bt.Block.new('a'.repeat(100).toBytes).tryGet()
-      repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 100)
+    let blk = createTestBlock(200)
 
     check repo.quotaUsedBytes == 0
     (await repo.putBlock(blk)).tryGet
 
     check:
-      repo.quotaUsedBytes == 100
-      uint64.fromBytesBE((await metaDs.get(QuotaUsedKey)).tryGet) == 100'u
+      repo.quotaUsedBytes == 200
+      uint64.fromBytesBE((await metaDs.get(QuotaUsedKey)).tryGet) == 200'u
 
   test "Should update current used bytes on block delete":
-    let
-      blk = bt.Block.new('a'.repeat(100).toBytes).tryGet()
-      repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 100)
+    let blk = createTestBlock(100)
 
     check repo.quotaUsedBytes == 0
     (await repo.putBlock(blk)).tryGet
@@ -62,9 +66,7 @@ suite "Test RepoStore Quota":
       uint64.fromBytesBE((await metaDs.get(QuotaUsedKey)).tryGet) == 0'u
 
   test "Should not update current used bytes if block exist":
-    let
-      blk = bt.Block.new('a'.repeat(100).toBytes).tryGet()
-      repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+    let blk = createTestBlock(100)
 
     check repo.quotaUsedBytes == 0
     (await repo.putBlock(blk)).tryGet
@@ -78,18 +80,14 @@ suite "Test RepoStore Quota":
       uint64.fromBytesBE((await metaDs.get(QuotaUsedKey)).tryGet) == 100'u
 
   test "Should fail storing passed the quota":
-    let
-      blk = bt.Block.new('a'.repeat(200).toBytes).tryGet()
-      repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 100)
+    let blk = createTestBlock(300)
 
     check repo.totalUsed == 0
     expect QuotaUsedError:
       (await repo.putBlock(blk)).tryGet
 
   test "Should reserve bytes":
-    let
-      blk = bt.Block.new('a'.repeat(100).toBytes).tryGet()
-      repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+    let blk = createTestBlock(100)
 
     check repo.totalUsed == 0
     (await repo.putBlock(blk)).tryGet
@@ -104,9 +102,7 @@ suite "Test RepoStore Quota":
       uint64.fromBytesBE((await metaDs.get(QuotaReservedKey)).tryGet) == 100'u
 
   test "Should not reserve bytes over max quota":
-    let
-      blk = bt.Block.new('a'.repeat(100).toBytes).tryGet()
-      repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+    let blk = createTestBlock(100)
 
     check repo.totalUsed == 0
     (await repo.putBlock(blk)).tryGet
@@ -124,9 +120,7 @@ suite "Test RepoStore Quota":
       discard (await metaDs.get(QuotaReservedKey)).tryGet
 
   test "Should release bytes":
-    let
-      blk = bt.Block.new('a'.repeat(100).toBytes).tryGet()
-      repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+    let blk = createTestBlock(100)
 
     check repo.totalUsed == 0
     (await repo.reserve(100)).tryGet
@@ -141,9 +135,6 @@ suite "Test RepoStore Quota":
       uint64.fromBytesBE((await metaDs.get(QuotaReservedKey)).tryGet) == 0'u
 
   test "Should not release bytes less than quota":
-    let
-      repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
-
     check repo.totalUsed == 0
     (await repo.reserve(100)).tryGet
     check repo.totalUsed == 100
