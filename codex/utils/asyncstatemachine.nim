@@ -2,8 +2,6 @@ import pkg/questionable
 import pkg/chronos
 import pkg/upraises
 
-# template makeStateMachine*(Machine, State) =
-
 type
   Machine* = ref object of RootObj
     state: State
