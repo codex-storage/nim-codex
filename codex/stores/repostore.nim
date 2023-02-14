@@ -24,6 +24,7 @@ import ./blockstore
 import ../blocktype
 import ../namespaces
 import ../manifest
+import ../clock
 
 export blocktype, libp2p
 
@@ -55,6 +56,7 @@ type
     postFixLen*: int
     repoDs*: Datastore
     metaDs*: Datastore
+    clock: Clock
     quotaMaxBytes*: uint
     quotaUsedBytes*: uint
     quotaReservedBytes*: uint
@@ -69,9 +71,6 @@ func makePrefixKey*(self: RepoStore, cid: Cid): ?!Key =
     success CodexManifestKey / cidKey
   else:
     success CodexBlocksKey / cidKey
-
-func makeExpiresKey(expires: times.Duration, cid: Cid): ?!Key =
-  BlocksTtlKey / $cid # / $expires.seconds
 
 func totalUsed*(self: RepoStore): uint =
   (self.quotaUsedBytes + self.quotaReservedBytes)
@@ -94,10 +93,24 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   trace "Got block for cid", cid
   return Block.new(cid, data)
 
+proc getBlockExpirationTimestamp(self: RepoStore, ttl: ?times.Duration): SecondsSince1970 =
+  let duration: times.Duration = ttl |? self.blockTtl
+  self.clock.now() + duration.inSeconds
+
+proc createBlockExpirationMetadataKey(self: RepoStore, cid: Cid): ?!Key =
+  BlocksTtlKey / $cid
+
+proc getBlockExpirationEntry(self: RepoStore, batch: var seq[BatchEntry], cid: Cid, ttl: ?times.Duration): ?!BatchEntry =
+  without key =? self.createBlockExpirationMetadataKey(cid), err:
+    return failure(err)
+
+  let value = self.getBlockExpirationTimestamp(ttl).toBytes
+  return success((key, value))
+
 method putBlock*(
   self: RepoStore,
   blk: Block,
-  ttl = times.initDuration(hours = 1)): Future[?!void] {.async.} =
+  ttl = times.Duration.none): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 
@@ -116,9 +129,6 @@ method putBlock*(
 
   trace "Storing block with key", key
 
-  # without var expires =? ttl:
-  #   expires = Moment.fromNow(self.blockTtl) - ZeroMoment
-
   var
     batch: seq[BatchEntry]
 
@@ -132,14 +142,10 @@ method putBlock*(
   trace "Updating quota", used
   batch.add((QuotaUsedKey, @(used.uint64.toBytesBE)))
 
-  # without expiresKey =? makeExpiresKey(expires, blk.cid), err:
-  #   trace "Unable make block ttl key",
-  #     err = err.msg, cid = blk.cid, expires, expiresKey
-
-  #   return failure(err)
-
-  # trace "Adding expires key", expiresKey, expires
-  # batch.add((expiresKey, @[]))
+  without blockExpEntry =? self.getBlockExpirationEntry(batch, blk.cid, ttl), err:
+    trace "Unable to create block expiration metadata key", err = err.msg
+    return failure(err)
+  batch.add(blockExpEntry)
 
   if err =? (await self.metaDs.put(batch)).errorOption:
     trace "Error updating quota bytes", err = err.msg
@@ -346,6 +352,7 @@ func new*(
   T: type RepoStore,
   repoDs: Datastore,
   metaDs: Datastore,
+  clock: Clock, # todo = default to 'normal system clock' implementation of Clock
   postFixLen = 2,
   quotaMaxBytes = DefaultQuotaBytes,
   blockTtl = DefaultBlockTtl): T =
@@ -353,6 +360,7 @@ func new*(
   T(
     repoDs: repoDs,
     metaDs: metaDs,
+    clock: clock,
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,
     blockTtl: blockTtl)

@@ -157,7 +157,7 @@ func putBlockSync(self: CacheStore, blk: Block): bool =
 method putBlock*(
   self: CacheStore,
   blk: Block,
-  ttl = times.initDuration(hours = 1)): Future[?!void] {.async.} =
+  ttl = times.Duration.none): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 

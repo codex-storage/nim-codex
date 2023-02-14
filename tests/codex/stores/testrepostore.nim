@@ -37,7 +37,7 @@ suite "Test RepoStore Quota":
     metaDs = SQLiteDatastore.new(Memory).tryGet()
     mockClock = MockClock.new()
 
-    repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
+    repo = RepoStore.new(repoDs, metaDs, mockClock, quotaMaxBytes = 200)
 
   teardown:
     (await repoDs.close()).tryGet
@@ -155,7 +155,7 @@ suite "Test RepoStore Quota":
   test "Should store block expiration timestamp":
     let
       now: SecondsSince1970 = 123
-      duration: times.Duration = times.initDuration(seconds = 10)
+      duration = times.initDuration(seconds = 10)
       blk = createTestBlock(100)
 
     let
@@ -164,7 +164,7 @@ suite "Test RepoStore Quota":
 
     mockClock.set(now)
 
-    (await repo.putBlock(blk, duration)).tryGet
+    (await repo.putBlock(blk, duration.some)).tryGet
 
     let
       query = Query.init(expectedKey)
@@ -184,7 +184,8 @@ commonBlockStoreTests(
     BlockStore(
       RepoStore.new(
         SQLiteDatastore.new(Memory).tryGet(),
-        SQLiteDatastore.new(Memory).tryGet())))
+        SQLiteDatastore.new(Memory).tryGet(),
+        MockClock.new())))
 
 const
   path = currentSourcePath().parentDir / "test"
@@ -203,6 +204,7 @@ commonBlockStoreTests(
     BlockStore(
       RepoStore.new(
         FSDatastore.new(path, depth).tryGet(),
-        SQLiteDatastore.new(Memory).tryGet())),
+        SQLiteDatastore.new(Memory).tryGet(),
+        MockClock.new())),
   before = before,
   after = after)

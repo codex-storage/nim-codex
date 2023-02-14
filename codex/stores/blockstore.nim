@@ -48,7 +48,7 @@ method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
 method putBlock*(
   self: BlockStore,
   blk: Block,
-  ttl = times.initDuration(hours = 1)): Future[?!void] {.base.} =
+  ttl = times.Duration.none): Future[?!void] {.base.} =
   ## Put a block to the blockstore
   ##
 
