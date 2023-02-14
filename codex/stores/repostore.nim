@@ -25,6 +25,7 @@ import ../blocktype
 import ../namespaces
 import ../manifest
 import ../clock
+import ../systemclock
 
 export blocktype, libp2p
 
@@ -352,7 +353,7 @@ func new*(
   T: type RepoStore,
   repoDs: Datastore,
   metaDs: Datastore,
-  clock: Clock, # todo = default to 'normal system clock' implementation of Clock
+  clock: Clock = SystemClock.new(),
   postFixLen = 2,
   quotaMaxBytes = DefaultQuotaBytes,
   blockTtl = DefaultBlockTtl): T =
