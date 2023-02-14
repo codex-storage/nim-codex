@@ -1,6 +1,8 @@
 import std/os
 import std/options
 import std/strutils
+import std/sequtils
+import std/times
 
 import pkg/questionable
 import pkg/questionable/results
@@ -19,19 +21,21 @@ import pkg/codex/blocktype as bt
 import pkg/codex/clock
 
 import ../helpers
+import ../helpers/mockclock
 import ./commonstoretests
 
 suite "Test RepoStore Quota":
-
   var
     repoDs: Datastore
     metaDs: Datastore
+    mockClock: MockClock
 
     repo: RepoStore
 
   setup:
     repoDs = SQLiteDatastore.new(Memory).tryGet()
     metaDs = SQLiteDatastore.new(Memory).tryGet()
+    mockClock = MockClock.new()
 
     repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
 
@@ -147,6 +151,33 @@ suite "Test RepoStore Quota":
       repo.quotaUsedBytes == 0
       repo.quotaReservedBytes == 100
       uint64.fromBytesBE((await metaDs.get(QuotaReservedKey)).tryGet) == 100'u
+
+  test "Should store block expiration timestamp":
+    let
+      now: SecondsSince1970 = 123
+      duration: times.Duration = times.initDuration(seconds = 10)
+      blk = createTestBlock(100)
+
+    let
+      expectedExpiration: SecondsSince1970 = 123 + 10
+      expectedKey = Key.init("meta/ttl/" & $blk.cid).tryGet
+
+    mockClock.set(now)
+
+    (await repo.putBlock(blk, duration)).tryGet
+
+    let
+      query = Query.init(expectedKey)
+      responseIter = (await metaDs.query(query)).tryGet
+      response = (await allFinished(toSeq(responseIter)))
+        .mapIt(it.read.tryGet)
+        .filterIt(it.key.isSome)
+
+    check:
+      response.len == 1
+      response[0].key.get == expectedKey
+      response[0].data == expectedExpiration.toBytes
+
 
 commonBlockStoreTests(
   "RepoStore Sql backend", proc: BlockStore =

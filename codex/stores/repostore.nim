@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import std/times
 import pkg/upraises
 
 push: {.upraises: [].}
@@ -41,10 +42,10 @@ const
 
   BlocksTtlKey* = Key.init(CodexBlocksTtlNamespace).tryGet
 
-  DefaultBlockTtl* = 24.hours
+  DefaultBlockTtl* = times.initDuration(hours = 24)
   DefaultQuotaBytes* = 1'u shl 33'u # ~8GB
 
-  ZeroMoment = Moment.init(0, Nanosecond) # used for converting between Duration and Moment
+  # ZeroMoment = Moment.init(0, Nanosecond) # used for converting between Duration and Moment
 
 type
   QuotaUsedError* = object of CodexError
@@ -57,7 +58,7 @@ type
     quotaMaxBytes*: uint
     quotaUsedBytes*: uint
     quotaReservedBytes*: uint
-    blockTtl*: Duration
+    blockTtl*: times.Duration
     started*: bool
 
 func makePrefixKey*(self: RepoStore, cid: Cid): ?!Key =
@@ -69,8 +70,8 @@ func makePrefixKey*(self: RepoStore, cid: Cid): ?!Key =
   else:
     success CodexBlocksKey / cidKey
 
-func makeExpiresKey(expires: Duration, cid: Cid): ?!Key =
-  BlocksTtlKey / $cid / $expires.seconds
+func makeExpiresKey(expires: times.Duration, cid: Cid): ?!Key =
+  BlocksTtlKey / $cid # / $expires.seconds
 
 func totalUsed*(self: RepoStore): uint =
   (self.quotaUsedBytes + self.quotaReservedBytes)
@@ -96,7 +97,7 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
 method putBlock*(
   self: RepoStore,
   blk: Block,
-  ttl = Duration.none): Future[?!void] {.async.} =
+  ttl = times.initDuration(hours = 1)): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 
@@ -115,8 +116,8 @@ method putBlock*(
 
   trace "Storing block with key", key
 
-  without var expires =? ttl:
-    expires = Moment.fromNow(self.blockTtl) - ZeroMoment
+  # without var expires =? ttl:
+  #   expires = Moment.fromNow(self.blockTtl) - ZeroMoment
 
   var
     batch: seq[BatchEntry]
@@ -131,14 +132,14 @@ method putBlock*(
   trace "Updating quota", used
   batch.add((QuotaUsedKey, @(used.uint64.toBytesBE)))
 
-  without expiresKey =? makeExpiresKey(expires, blk.cid), err:
-    trace "Unable make block ttl key",
-      err = err.msg, cid = blk.cid, expires, expiresKey
+  # without expiresKey =? makeExpiresKey(expires, blk.cid), err:
+  #   trace "Unable make block ttl key",
+  #     err = err.msg, cid = blk.cid, expires, expiresKey
 
-    return failure(err)
+  #   return failure(err)
 
-  trace "Adding expires key", expiresKey, expires
-  batch.add((expiresKey, @[]))
+  # trace "Adding expires key", expiresKey, expires
+  # batch.add((expiresKey, @[]))
 
   if err =? (await self.metaDs.put(batch)).errorOption:
     trace "Error updating quota bytes", err = err.msg

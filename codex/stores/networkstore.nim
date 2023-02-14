@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import std/times
 import pkg/upraises
 
 push: {.upraises: [].}
@@ -49,7 +50,7 @@ method getBlock*(self: NetworkStore, cid: Cid): Future[?!bt.Block] {.async.} =
 method putBlock*(
   self: NetworkStore,
   blk: bt.Block,
-  ttl = Duration.none): Future[?!void] {.async.} =
+  ttl = times.initDuration(hours = 1)): Future[?!void] {.async.} =
   ## Store block locally and notify the network
   ##
 

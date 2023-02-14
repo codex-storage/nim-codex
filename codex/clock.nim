@@ -1,4 +1,5 @@
 import pkg/chronos
+import pkg/stew/endians2
 
 type
   Clock* = ref object of RootObj
@@ -23,3 +24,7 @@ proc withTimeout*(future: Future[void],
   if not future.completed:
     await future.cancelAndWait()
     raise newException(Timeout, "Timed out")
+
+proc toBytes*(i: SecondsSince1970): seq[byte] =
+  @(i.toBytes)
+
