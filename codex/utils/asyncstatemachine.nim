@@ -25,9 +25,9 @@ proc new*(T: type Transition,
           trigger: TransitionCondition): T =
   Transition(prevState: prev, nextState: next, trigger: trigger)
 
-proc newTransitionProperty*[T](self: Machine,
+proc newTransitionProperty*[T](machine: Machine,
                                initialValue: T): TransitionProperty[T] =
-  TransitionProperty[T](machine: self, value: initialValue)
+  TransitionProperty[T](machine: machine, value: initialValue)
 
 proc transition*(_: type Event, previous, next: State): Event =
   return proc (state: State): ?State =
