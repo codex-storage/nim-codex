@@ -15,15 +15,15 @@ type
   Transition* = object of RootObj
     prevState: State
     nextState: State
-    condition: TransitionCondition
+    trigger: TransitionCondition
   TransitionProperty*[T] = ref object of RootObj
     machine: Machine
     value*: T
 
 proc new*(T: type Transition,
           prev, next: State,
-          condition: TransitionCondition): T =
-  Transition(prevState: prev, nextState: next, condition: condition)
+          trigger: TransitionCondition): T =
+  Transition(prevState: prev, nextState: next, trigger: trigger)
 
 proc newTransitionProperty*[T](self: Machine,
                                initialValue: T): TransitionProperty[T] =
@@ -38,8 +38,8 @@ proc setValue*[T](prop: TransitionProperty[T], value: T) =
   prop.value = value
   let machine = prop.machine
   for transition in machine.transitions:
-    if transition.condition(machine, machine.state) and
-      machine.state == transition.prevState:
+    if transition.trigger(machine, machine.state) and
+      (machine.state == nil or machine.state == transition.prevState):
       machine.schedule(Event.transition(machine.state, transition.nextState))
 
 proc schedule*(machine: Machine, event: Event) =
