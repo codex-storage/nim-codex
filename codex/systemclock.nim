@@ -1,6 +1,6 @@
 import std/times
-import codex/clock
 import pkg/upraises
+import ./clock
 
 type
   SystemClock* = ref object of Clock

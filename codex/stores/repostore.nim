@@ -44,7 +44,7 @@ const
 
   BlocksTtlKey* = Key.init(CodexBlocksTtlNamespace).tryGet
 
-  DefaultBlockTtl* = times.initDuration(hours = 24)
+  DefaultBlockTtlSeconds* = 24 * 60 * 60
   DefaultQuotaBytes* = 1'u shl 33'u # ~8GB
 
   # ZeroMoment = Moment.init(0, Nanosecond) # used for converting between Duration and Moment
@@ -356,12 +356,11 @@ func new*(
   clock: Clock = SystemClock.new(),
   postFixLen = 2,
   quotaMaxBytes = DefaultQuotaBytes,
-  blockTtl = DefaultBlockTtl): T =
-
+  blockTtlSeconds = DefaultBlockTtlSeconds): T =
   T(
     repoDs: repoDs,
     metaDs: metaDs,
     clock: clock,
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,
-    blockTtl: blockTtl)
+    blockTtl: initDuration(seconds = blockTtlSeconds))

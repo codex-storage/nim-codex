@@ -24,7 +24,7 @@ import ../helpers
 import ../helpers/mockclock
 import ./commonstoretests
 
-suite "Test RepoStore Quota":
+suite "RepoStore":
   var
     repoDs: Datastore
     metaDs: Datastore

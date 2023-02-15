@@ -32,7 +32,7 @@ import pkg/ethers
 import ./discovery
 import ./stores
 
-export DefaultCacheSizeMiB, DefaultQuotaBytes, DefaultBlockTtl, net
+export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtlSeconds
 
 type
   StartUpCommand* {.pure.} = enum
@@ -158,10 +158,10 @@ type
         name: "storage-quota"
         abbr: "q" }: Natural
 
-      blockTtl* {.
+      blockTtlSeconds* {.
         desc: "Default block timeout in seconds - 0 disables the ttl"
-        defaultValue: DefaultBlockTtl.secs
-        defaultValueDesc: "86400" # 24h in secs
+        defaultValue: DefaultBlockTtlSeconds
+        defaultValueDesc: $DefaultBlockTtlSeconds
         name: "block-ttl"
         abbr: "t" }: Natural
 

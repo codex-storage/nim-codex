@@ -162,7 +162,7 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
       metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
         .expect("Should create meta data store!"),
       quotaMaxBytes = config.storageQuota.uint,
-      blockTtl = config.blockTtl.seconds)
+      blockTtlSeconds = config.blockTtlSeconds)
 
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
