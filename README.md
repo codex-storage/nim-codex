@@ -54,6 +54,8 @@ The following options are available:
      --max-peers            The maximum number of peers to connect to [=160].
      --agent-string         Node agent string which is used as identifier in network [=Codex].
  -p, --api-port             The REST Api port [=8080].
+ -q, --storage-quota        The size of the total storage quota dedicated to the node [=8589934592].
+ -t, --block-ttl            Default block timeout in seconds - 0 disables the ttl [=86400].
  -c, --cache-size           The size in MiB of the block cache, 0 disables the cache - might help on slow
                             hardrives [=0].
      --persistence          Enables persistence mechanism, requires an Ethereum node [=false].

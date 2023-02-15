@@ -17,6 +17,7 @@ import std/options
 import std/strutils
 import std/typetraits
 
+import pkg/chronos
 import pkg/chronicles
 import pkg/chronicles/helpers
 import pkg/chronicles/topics_registry
@@ -31,7 +32,7 @@ import pkg/ethers
 import ./discovery
 import ./stores
 
-export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtl
+export DefaultCacheSizeMiB, DefaultQuotaBytes, DefaultBlockTtl, net
 
 type
   StartUpCommand* {.pure.} = enum
@@ -154,7 +155,7 @@ type
       blockTtl* {.
         desc: "Default block timeout in seconds - 0 disables the ttl"
         defaultValue: DefaultBlockTtl.secs
-        defaultValueDesc: $DefaultBlockTtl
+        defaultValueDesc: "86400" # 24h in secs
         name: "block-ttl"
         abbr: "t" }: Natural
 
