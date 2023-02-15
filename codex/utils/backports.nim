@@ -6,7 +6,8 @@
 
 import std/parseutils
 
-when not declared(parseSize):
+when declared(parseSize): export parseSize
+else:
  func toLowerAscii(c: char): char =
   if c in {'A'..'Z'}: char(uint8(c) xor 0b0010_0000'u8) else: c
 
