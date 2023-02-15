@@ -8,6 +8,7 @@ import std/parseutils
 
 when declared(parseSize): export parseSize
 else:
+ const Whitespace = {' ', '\t', '\v', '\r', '\l', '\f'}
  func toLowerAscii(c: char): char =
   if c in {'A'..'Z'}: char(uint8(c) xor 0b0010_0000'u8) else: c
 
