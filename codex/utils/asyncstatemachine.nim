@@ -10,7 +10,7 @@ type
     scheduling: Future[void]
     transitions: seq[Transition]
   State* = ref object of RootObj
-  Event = proc(state: State): ?State {.gcsafe, upraises:[].}
+  Event* = proc(state: State): ?State {.gcsafe, upraises:[].}
   TransitionCondition* = proc(machine: Machine, state: State): bool {.gcsafe, upraises:[].}
   Transition* = object of RootObj
     prevState: State
@@ -29,21 +29,25 @@ proc newTransitionProperty*[T](self: Machine,
                                initialValue: T): TransitionProperty[T] =
   TransitionProperty[T](machine: self, value: initialValue)
 
-proc transition(_: type Event, previous, next: State): Event =
+proc transition*(_: type Event, previous, next: State): Event =
   return proc (state: State): ?State =
     if state == previous:
       return some next
 
-proc setValue*[T](prop: TransitionProperty[T], value: T) =
-  prop.value = value
-  let machine = prop.machine
+proc state*(machine: Machine): State = machine.state
+
+proc schedule*(machine: Machine, event: Event) =
+  machine.scheduled.putNoWait(event)
+
+proc checkTransitions(machine: Machine) =
   for transition in machine.transitions:
     if transition.trigger(machine, machine.state) and
       (machine.state == nil or machine.state == transition.prevState):
       machine.schedule(Event.transition(machine.state, transition.nextState))
 
-proc schedule*(machine: Machine, event: Event) =
-  machine.scheduled.putNoWait(event)
+proc setValue*[T](prop: TransitionProperty[T], value: T) =
+  prop.value = value
+  prop.machine.checkTransitions()
 
 method run*(state: State): Future[?State] {.base, upraises:[].} =
   discard
@@ -65,6 +69,7 @@ proc scheduler(machine: Machine) {.async.} =
         machine.state = next
         machine.running = machine.run(machine.state)
         asyncSpawn machine.running
+      machine.checkTransitions()
   except CancelledError:
     discard
 
