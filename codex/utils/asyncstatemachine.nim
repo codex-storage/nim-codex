@@ -8,13 +8,39 @@ type
     running: Future[void]
     scheduled: AsyncQueue[Event]
     scheduling: Future[void]
+    transitions: seq[Transition]
   State* = ref object of RootObj
   Event = proc(state: State): ?State {.gcsafe, upraises:[].}
+  TransitionCondition* = proc(machine: Machine, state: State): bool {.gcsafe, upraises:[].}
+  Transition* = object of RootObj
+    prevState: State
+    nextState: State
+    condition: TransitionCondition
+  TransitionProperty*[T] = ref object of RootObj
+    machine: Machine
+    value*: T
+
+proc new*(T: type Transition,
+          prev, next: State,
+          condition: TransitionCondition): T =
+  Transition(prevState: prev, nextState: next, condition: condition)
+
+proc newTransitionProperty*[T](self: Machine,
+                               initialValue: T): TransitionProperty[T] =
+  TransitionProperty[T](machine: self, value: initialValue)
 
 proc transition(_: type Event, previous, next: State): Event =
   return proc (state: State): ?State =
     if state == previous:
       return some next
+
+proc setValue*[T](prop: TransitionProperty[T], value: T) =
+  prop.value = value
+  let machine = prop.machine
+  for transition in machine.transitions:
+    if transition.condition(machine, machine.state) and
+      machine.state == transition.prevState:
+      machine.schedule(Event.transition(machine.state, transition.nextState))
 
 proc schedule*(machine: Machine, event: Event) =
   machine.scheduled.putNoWait(event)
@@ -50,5 +76,5 @@ proc stop*(machine: Machine) =
   machine.scheduling.cancel()
   machine.running.cancel()
 
-proc new*(_: type Machine): Machine =
-  Machine(scheduled: newAsyncQueue[Event]())
+proc new*(T: type Machine, transitions: seq[Transition]): T =
+  T(scheduled: newAsyncQueue[Event](), transitions: transitions)

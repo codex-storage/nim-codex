@@ -6,6 +6,8 @@ import codex/utils/asyncstatemachine
 import ../helpers/eventually
 
 type
+  MyMachine = ref object of Machine
+    slotFilled: TransitionProperty[bool]
   State1 = ref object of State
   State2 = ref object of State
   State3 = ref object of State
@@ -37,8 +39,8 @@ method onMoveToNextStateEvent(state: State3): ?State =
   some State(State1.new())
 
 suite "async state machines":
-  var machine: Machine
-  var state1, state2: State
+  var machine: MyMachine
+  var state1, state2, state3: State
 
   proc moveToNextStateEvent(state: State): ?State =
     state.onMoveToNextStateEvent()
@@ -46,9 +48,24 @@ suite "async state machines":
   setup:
     runs = [0, 0, 0]
     cancellations = [0, 0, 0]
-    machine = Machine.new()
     state1 = State1.new()
     state2 = State2.new()
+    state3 = State3.new()
+    machine = MyMachine.new(@[
+      Transition.new(
+        state3,
+        state1,
+        proc(m: Machine, s: State): bool =
+          MyMachine(m).slotFilled.value
+      )
+    ])
+    machine.slotFilled = machine.newTransitionProperty(false)
+
+    # EXAMPLE USAGE ONLY -- can be removed from tests
+    # should represent a typical external event callback, ie event called via
+    # subscription
+    proc externalEventCallback() =# would take params (rid: RequestId, slotIdx: UInt256) =
+      machine.slotFilled.setValue(true)
 
   test "should call run on start state":
     machine.start(state1)
@@ -82,3 +99,12 @@ suite "async state machines":
     await sleepAsync(1.millis)
     check runs == [0, 1, 0]
     check cancellations == [0, 1, 0]
+
+  test "can transition to state without next state":
+    machine.start(state3)
+    check eventually runs == [0, 0, 1]
+
+  test "moves states based on declared transitions and conditions":
+    machine.start(state3)
+    machine.slotFilled.setValue(true)
+    check eventually runs == [1, 0, 1]
