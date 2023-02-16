@@ -10,15 +10,14 @@ type
 
 method `$`*(state: SaleFinished): string = "SaleFinished"
 
-method onCancelled*(state: SaleFinished, request: StorageRequest) {.async.} =
-  await state.switchAsync(SaleCancelled())
+method onCancelled*(state: SaleFinished, request: StorageRequest): Future[?State] {.async.} =
+  return some State(SaleCancelled())
 
-method onFailed*(state: SaleFinished, request: StorageRequest) {.async.} =
-  await state.switchAsync(SaleFailed())
+method onFailed*(state: SaleFinished, request: StorageRequest): Future[?State] {.async.} =
+  return some State(SaleFailed())
 
-method enterAsync*(state: SaleFinished) {.async.} =
-  without agent =? (state.context as SalesAgent):
-    raiseAssert "invalid state"
+method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
+  let agent = SalesAgent(machine)
 
   try:
     if request =? agent.request and
@@ -35,8 +34,8 @@ method enterAsync*(state: SaleFinished) {.async.} =
     # as a TODO for now.
 
   except CancelledError:
-    discard
+    raise
 
   except CatchableError as e:
     let error = newException(SaleFinishedError, "sale finished error", e)
-    await state.switchAsync(SaleErrored(error: error))
+    return some State(SaleErrored(error: error))

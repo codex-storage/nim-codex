@@ -8,9 +8,6 @@ type
 
 method `$`*(state: SaleCancelled): string = "SaleCancelled"
 
-method enterAsync*(state: SaleCancelled) {.async.} =
-  without agent =? (state.context as SalesAgent):
-    raiseAssert "invalid state"
-
+method run*(state: SaleCancelled, machine: Machine): Future[?State] {.async.} =
   let error = newException(SaleTimeoutError, "Sale cancelled due to timeout")
-  await state.switchAsync(SaleErrored(error: error))
+  return some State(SaleErrored(error: error))

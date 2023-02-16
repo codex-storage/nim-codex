@@ -10,7 +10,7 @@ import ./proving
 import ./contracts/requests
 import ./sales/salesagent
 import ./sales/statemachine
-import ./sales/states/[downloading, unknown]
+import ./sales/states/[start, downloading, unknown]
 
 ## Sales holds a list of available storage that it may sell.
 ##
@@ -68,7 +68,7 @@ proc findSlotIndex(numSlots: uint64,
 
 proc handleRequest(sales: Sales,
                    requestId: RequestId,
-                   ask: StorageAsk) {.async.} =
+                   ask: StorageAsk) =
   let availability = sales.findAvailability(ask)
   # TODO: check if random slot is actually available (not already filled)
   let slotIndex = randomSlotIndex(ask.slots)
@@ -79,9 +79,7 @@ proc handleRequest(sales: Sales,
     availability,
     none StorageRequest
   )
-
-  await agent.start(ask.slots)
-  await agent.switchAsync(SaleDownloading())
+  agent.start(SaleStart(next: SaleDownloading()))
   sales.agents.add agent
 
 proc load*(sales: Sales) {.async.} =
@@ -106,16 +104,14 @@ proc load*(sales: Sales) {.async.} =
         slotIndex,
         availability,
         some request)
-
-      await agent.start(request.ask.slots)
-      await agent.switchAsync(SaleUnknown())
+      agent.start(SaleStart(next: SaleUnknown()))
       sales.agents.add agent
 
 proc start*(sales: Sales) {.async.} =
   doAssert sales.subscription.isNone, "Sales already started"
 
-  proc onRequest(requestId: RequestId, ask: StorageAsk) {.gcsafe, upraises:[], async.} =
-    await sales.handleRequest(requestId, ask)
+  proc onRequest(requestId: RequestId, ask: StorageAsk) {.gcsafe, upraises:[].} =
+    sales.handleRequest(requestId, ask)
 
   try:
     sales.subscription = some await sales.market.subscribeRequests(onRequest)

@@ -7,6 +7,6 @@ type
 
 method `$`*(state: SaleFailed): string = "SaleFailed"
 
-method enterAsync*(state: SaleFailed) {.async.} =
+method run*(state: SaleFailed, machine: Machine): Future[?State] {.async.} =
   let error = newException(SaleFailedError, "Sale failed")
-  await state.switchAsync(SaleErrored(error: error))
+  return some State(SaleErrored(error: error))

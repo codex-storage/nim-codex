@@ -16,20 +16,9 @@ proc newSalesAgent*(sales: Sales,
     slotIndex: slotIndex,
     request: request)
 
-proc subscribeCancellation*(agent: SalesAgent): Future[void] {.gcsafe.}
-proc subscribeFailure*(agent: SalesAgent): Future[void] {.gcsafe.}
-proc subscribeSlotFilled*(agent: SalesAgent): Future[void] {.gcsafe.}
-
-proc retrieveRequest(agent: SalesAgent) {.async.} =
-  if agent.request.isNone:
-    agent.request = await agent.sales.market.getRequest(agent.requestId)
-
-proc start*(agent: SalesAgent, numSlots: uint64) {.async.} =
-  # TODO: try not to block the thread waiting for the network
-  await agent.retrieveRequest()
-  await agent.subscribeCancellation()
-  await agent.subscribeFailure()
-  await agent.subscribeSlotFilled()
+# proc subscribeCancellation*(agent: SalesAgent): Future[void] {.gcsafe.}
+# proc subscribeFailure*(agent: SalesAgent): Future[void] {.gcsafe.}
+# proc subscribeSlotFilled*(agent: SalesAgent): Future[void] {.gcsafe.}
 
 proc stop*(agent: SalesAgent) {.async.} =
   try:
@@ -58,28 +47,33 @@ proc subscribeCancellation*(agent: SalesAgent) {.async.} =
 
     await clock.waitUntil(request.expiry.truncate(int64))
     await agent.fulfilled.unsubscribe()
-    without state =? (agent.state as SaleState):
-      return
-    await state.onCancelled(request)
+    agent.schedule(cancelledEvent(request))
 
   agent.cancelled = onCancelled()
 
-  proc onFulfilled(_: RequestId) {.async.} =
+  proc onFulfilled(_: RequestId) =
     agent.cancelled.cancel()
 
   agent.fulfilled =
     await market.subscribeFulfillment(agent.requestId, onFulfilled)
 
+# TODO: move elsewhere
+proc asyncSpawn(future: Future[void], ignore: type CatchableError) =
+  proc ignoringError {.async.} =
+    try:
+      await future
+    except ignore:
+      discard
+  asyncSpawn ignoringError()
+
 proc subscribeFailure*(agent: SalesAgent) {.async.} =
   let market = agent.sales.market
 
-  proc onFailed(_: RequestId) {.async.} =
-    without request =? agent.request and
-            state =? (agent.state as SaleState):
+  proc onFailed(_: RequestId) =
+    without request =? agent.request:
       return
-
-    await agent.failed.unsubscribe()
-    await state.onFailed(request)
+    asyncSpawn agent.failed.unsubscribe(), ignore = CatchableError
+    agent.schedule(failedEvent(request))
 
   agent.failed =
     await market.subscribeRequestFailed(agent.requestId, onFailed)
@@ -87,13 +81,9 @@ proc subscribeFailure*(agent: SalesAgent) {.async.} =
 proc subscribeSlotFilled*(agent: SalesAgent) {.async.} =
   let market = agent.sales.market
 
-  proc onSlotFilled(requestId: RequestId,
-                    slotIndex: UInt256) {.async.} =
-    without state =? (agent.state as SaleState):
-      return
-
-    await agent.slotFilled.unsubscribe()
-    await state.onSlotFilled(requestId, agent.slotIndex)
+  proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
+    asyncSpawn agent.slotFilled.unsubscribe(), ignore = CatchableError
+    agent.schedule(slotFilledEvent(requestId, agent.slotIndex))
 
   agent.slotFilled =
     await market.subscribeSlotFilled(agent.requestId,

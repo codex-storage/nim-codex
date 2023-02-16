@@ -3,7 +3,7 @@ import pkg/chronos
 import pkg/questionable
 import pkg/upraises
 import ../errors
-import ../utils/statemachine
+import ../utils/asyncstatemachine
 import ../market
 import ../clock
 import ../proving
@@ -11,7 +11,7 @@ import ../contracts/requests
 
 export market
 export clock
-export statemachine
+export asyncstatemachine
 export proving
 
 type
@@ -26,7 +26,7 @@ type
     onSale: ?OnSale
     proving*: Proving
     agents*: seq[SalesAgent]
-  SalesAgent* = ref object of StateMachineAsync
+  SalesAgent* = ref object of Machine
     sales*: Sales
     requestId*: RequestId
     ask*: StorageAsk
@@ -37,7 +37,7 @@ type
     fulfilled*: market.Subscription
     slotFilled*: market.Subscription
     cancelled*: Future[void]
-  SaleState* = ref object of AsyncState
+  SaleState* = ref object of State
   SaleError* = ref object of CodexError
   Availability* = object
     id*: array[32, byte]
@@ -98,12 +98,27 @@ func findAvailability*(sales: Sales, ask: StorageAsk): ?Availability =
        ask.pricePerSlot >= availability.minPrice:
       return some availability
 
-method onCancelled*(state: SaleState, request: StorageRequest) {.base, async.} =
+method onCancelled*(state: SaleState, request: StorageRequest): ?State {.base, upraises:[].} =
   discard
 
-method onFailed*(state: SaleState, request: StorageRequest) {.base, async.} =
+method onFailed*(state: SaleState, request: StorageRequest): ?State {.base, upraises:[].} =
   discard
 
 method onSlotFilled*(state: SaleState, requestId: RequestId,
-                     slotIndex: UInt256) {.base, async.} =
+                     slotIndex: UInt256): ?State {.base, upraises:[].} =
   discard
+
+# TODO: remove request parameter?
+proc cancelledEvent*(request: StorageRequest): Event =
+  return proc (state: State): ?State =
+    SaleState(state).onCancelled(request)
+
+# TODO: remove request parameter?
+proc failedEvent*(request: StorageRequest): Event =
+  return proc (state: State): ?State =
+    SaleState(state).onFailed(request)
+
+# TODO: remove parameters?
+proc slotFilledEvent*(requestId: RequestId, slotIndex: UInt256): Event =
+  return proc (state: State): ?State =
+    SaleState(state).onSlotFilled(requestId, slotIndex)

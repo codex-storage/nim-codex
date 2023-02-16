@@ -10,17 +10,16 @@ type
   SaleFilledError* = object of CatchableError
   HostMismatchError* = object of SaleFilledError
 
-method onCancelled*(state: SaleFilled, request: StorageRequest) {.async.} =
-  await state.switchAsync(SaleCancelled())
+method onCancelled*(state: SaleFilled, request: StorageRequest): ?State =
+  return some State(SaleCancelled())
 
-method onFailed*(state: SaleFilled, request: StorageRequest) {.async.} =
-  await state.switchAsync(SaleFailed())
+method onFailed*(state: SaleFilled, request: StorageRequest): ?State =
+  return some State(SaleFailed())
 
 method `$`*(state: SaleFilled): string = "SaleFilled"
 
-method enterAsync(state: SaleFilled) {.async.} =
-  without agent =? (state.context as SalesAgent):
-    raiseAssert "invalid state"
+method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
+  let agent = SalesAgent(machine)
 
   try:
     let market = agent.sales.market
@@ -28,14 +27,14 @@ method enterAsync(state: SaleFilled) {.async.} =
     let host = await market.getHost(agent.requestId, agent.slotIndex)
     let me = await market.getSigner()
     if host == me.some:
-      await state.switchAsync(SaleFinished())
+      return some State(SaleFinished())
     else:
       let error = newException(HostMismatchError, "Slot filled by other host")
-      await state.switchAsync(SaleErrored(error: error))
+      return some State(SaleErrored(error: error))
 
   except CancelledError:
-    discard
+    raise
 
   except CatchableError as e:
     let error = newException(SaleFilledError, "sale filled error", e)
-    await state.switchAsync(SaleErrored(error: error))
+    return some State(SaleErrored(error: error))
