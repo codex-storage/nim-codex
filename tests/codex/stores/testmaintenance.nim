@@ -13,41 +13,55 @@ import pkg/asynctest
 import pkg/questionable
 import pkg/questionable/results
 import pkg/codex/blocktype as bt
+import pkg/codex/clock
 
 import ../helpers/mocktimer
-import ../helpers/mockblockstore
+import ../helpers/mockrepostore
 import ../helpers/mockblockchecker
+import ../helpers/mockclock
 import ../examples
 
 import codex/stores/maintenance
 
 suite "BlockMaintainer":
-  var mockBlockStore: MockBlockStore
+  var mockRepoStore: MockRepoStore
   var interval: Duration
   var mockTimer: MockTimer
-  var mockBlockChecker: MockBlockChecker
+  var mockClock: MockClock
 
   var blockMaintainer: BlockMaintainer
 
-  let testBlock1 = bt.Block.example
-  let testBlock2 = bt.Block.example
-  let testBlock3 = bt.Block.example
+  let testBe1 = BlockExpiration
+  let testBe2 = BlockExpiration
+  let testBe3 = BlockExpiration
+
+  proc createTestExpiration(expiration: SecondsSince1970): BlockExpiration =
+    BlockExpiration(
+      cid: bt.Block.example.cid
+      expiration: expiration
+    )
 
   setup:
-    mockBlockStore = MockBlockStore.new()
-    mockBlockStore.testBlocks.add(testBlock1)
-    mockBlockStore.testBlocks.add(testBlock2)
-    mockBlockStore.testBlocks.add(testBlock3)
+    mockClock = MockClock.new()
+    mockClock.set(100)
+
+    testBe1 = createTestExpiration(200)
+    testBe2 = createTestExpiration(300)
+    testBe3 = createTestExpiration(400)
+
+    mockRepoStore = MockRepoStore.new()
+    mockRepoStore.testBlockExpirations.add(testBe1)
+    mockRepoStore.testBlockExpirations.add(testBe2)
+    mockRepoStore.testBlockExpirations.add(testBe3)
 
     interval = 1.days
     mockTimer = MockTimer.new()
-    mockBlockChecker = MockBlockChecker.new()
 
     blockMaintainer = BlockMaintainer.new(
-      mockBlockStore,
+      mockRepoStore,
       interval,
       mockTimer,
-      mockBlockChecker,
+      mockClock,
       numberOfBlocksPerInterval = 2
     )
 
@@ -60,51 +74,57 @@ suite "BlockMaintainer":
     await blockMaintainer.stop()
     check mockTimer.stopCalled == 1
 
-  test "Timer callback should check first two blocks in blockstore":
+  test "Timer callback should call getBlockExpirations on RepoStore":
     blockMaintainer.start()
     await mockTimer.invokeCallback()
 
-    check mockBlockChecker.receivedBlockStore == mockBlockStore
-    check mockBlockChecker.checkCalls == [
-      testBlock1.cid,
-      testBlock2.cid
-    ]
+    check:
+      mockRepoStore.getBeMaxNumer == 2
+      mockRepoStore.getBeOffset == 0
 
-  test "Subsequent timer callback should check next two blocks in the blockstore":
+  test "Subsequent timer callback should call getBlockExpirations on RepoStore with offset":
     blockMaintainer.start()
     await mockTimer.invokeCallback()
     await mockTimer.invokeCallback()
 
-    check mockBlockChecker.receivedBlockStore == mockBlockStore
-    check mockBlockChecker.checkCalls == [
-      testBlock1.cid,
-      testBlock2.cid,
-      testBlock3.cid,
-      testBlock1.cid
-    ]
+    check:
+      mockRepoStore.getBeMaxNumer == 2
+      mockRepoStore.getBeOffset == 2
 
-suite "BlockChecker":
-  var mockBlockStore: MockBlockStore
-  var blockChecker: BlockChecker
+  test "Timer callback should delete no blocks if none are expired":
+    blockMaintainer.start()
+    await mockTimer.invokeCallback()
 
-  let testBlock = bt.Block.example
+    check:
+      mockRepoStore.delBlockCids.len == 0
 
-  setup:
-    mockBlockStore = MockBlockStore.new()
-    mockBlockStore.getBlockValue = success testBlock
+  test "Timer callback should delete one block if it is expired":
+    mockClock.set(150)
+    blockMaintainer.start()
+    await mockTimer.invokeCallback()
 
-    blockChecker = BlockChecker.new()
+    check:
+      mockRepoStore.delBlockCids == [testBe1.cid]
 
-  test "Check block should do nothing if block is not expired":
-    await blockChecker.checkBlock(mockBlockStore, testBlock.cid)
+  test "Timer callback should delete multiple blocks if they are expired":
+    mockClock.set(500)
+    blockMaintainer.start()
+    await mockTimer.invokeCallback()
 
-    check mockBlockStore.getBlockCids == [testBlock.cid]
-    check mockBlockStore.delBlockCids == []
+    check:
+      mockRepoStore.delBlockCids == [testBe1.cid, testBe2.cid, testBe3.cid]
 
-  test "Check block should delete block if it is expired":
-    # mark block as expired.
+  test "After deleting a block, subsequent timer callback should decrease offset by the number of deleted blocks":
+    mockClock.set(250)
+    blockMaintainer.start()
+    await mockTimer.invokeCallback()
 
-    await blockChecker.checkBlock(mockBlockStore, testBlock.cid)
+    check mockRepoStore.delBlockCids == [testBe1.cid]
 
-    check mockBlockStore.getBlockCids == [testBlock.cid]
-    check mockBlockStore.delBlockCids == [testBlock.cid]
+    # Because one block was deleted, the offset used in the next call should be 2 minus 1.
+    await mockTimer.invokeCallback()
+
+    check:
+      mockRepoStore.getBeMaxNumer == 2
+      mockRepoStore.getBeOffset == 1
+

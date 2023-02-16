@@ -15,34 +15,31 @@ import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 
-import codex/stores/blockstore
+import codex/stores/repostore
 import codex/utils/timer
+import codex/systemclock
 
 type
-  BlockChecker* = ref object of RootObj
   BlockMaintainer* = ref object of RootObj
-    blockStore: BlockStore
+    repoStore: RepoStore
     interval: Duration
     timer: Timer
-    checker: BlockChecker
+    clock: Clock
     numberOfBlocksPerInterval: int
     currentIterator: ?BlocksIter
 
-method checkBlock*(blockChecker: BlockChecker, blockStore: BlockStore, cid: Cid): Future[void] {.async, base.} =
-  discard
-
 proc new*(T: type BlockMaintainer,
-    blockStore: BlockStore,
+    repoStore: RepoStore,
     interval: Duration,
     timer = Timer.new(),
-    blockChecker = BlockChecker.new(),
+    clock: Clock = SystemClock.new(),
     numberOfBlocksPerInterval = 100
     ): T =
   T(
-    blockStore: blockStore,
+    repoStore: repoStore,
     interval: interval,
     timer: timer,
-    checker: blockChecker,
+    clock: clock
     numberOfBlocksPerInterval: numberOfBlocksPerInterval,
     currentIterator: BlocksIter.none
   )
@@ -54,7 +51,7 @@ proc isCurrentIteratorValid(self: BlockMaintainer): bool =
 
 proc getCurrentIterator(self: BlockMaintainer): Future[?!BlocksIter] {.async.} =
   if not self.isCurrentIteratorValid():
-    self.currentIterator = (await self.blockStore.listBlocks()).option
+    self.currentIterator = (await self.repoStore.listBlocks()).option
   if iter =? self.currentIterator:
     return success iter
   let error = newException(CodexError, "Unable to obtain block iterator")
@@ -66,7 +63,7 @@ proc runBlockCheck(self: BlockMaintainer): Future[void] {.async.} =
   proc processOneBlock(iter: BlocksIter): Future[void] {.async.} =
     if currentBlockCid =? await iter.next():
       dec blocksLeft
-      await self.checker.checkBlock(self.blockStore, currentBlockCid)
+      await self.checker.checkBlock(self.repoStore, currentBlockCid)
 
   while blocksLeft > 0 and iter =? await self.getCurrentIterator():
     await processOneBlock(iter)

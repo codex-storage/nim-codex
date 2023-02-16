@@ -248,7 +248,7 @@ proc createBlockExpirationQuery(maxNumber: int, offset: int): ?!Query =
   let queryKey = ? Key.init(queryString)
   success Query.init(queryKey, offset = offset, limit = maxNumber)
 
-method getBlockExpirations*(self: RepoStore, maxNumber: int, offset: int): Future[?!BlockExpirationIter] {.async.} =
+method getBlockExpirations*(self: RepoStore, maxNumber: int, offset: int): Future[?!BlockExpirationIter] {.async, base.} =
   without query =? createBlockExpirationQuery(maxNumber, offset), err:
     trace "Unable to format block expirations query"
     return failure(err)
