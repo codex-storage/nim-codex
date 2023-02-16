@@ -13,11 +13,11 @@ import pkg/asynctest
 import pkg/questionable
 import pkg/questionable/results
 import pkg/codex/blocktype as bt
+import pkg/codex/stores/repostore
 import pkg/codex/clock
 
 import ../helpers/mocktimer
 import ../helpers/mockrepostore
-import ../helpers/mockblockchecker
 import ../helpers/mockclock
 import ../examples
 
@@ -31,13 +31,13 @@ suite "BlockMaintainer":
 
   var blockMaintainer: BlockMaintainer
 
-  let testBe1 = BlockExpiration
-  let testBe2 = BlockExpiration
-  let testBe3 = BlockExpiration
+  var testBe1: BlockExpiration
+  var testBe2: BlockExpiration
+  var testBe3: BlockExpiration
 
   proc createTestExpiration(expiration: SecondsSince1970): BlockExpiration =
     BlockExpiration(
-      cid: bt.Block.example.cid
+      cid: bt.Block.example.cid,
       expiration: expiration
     )
 
@@ -79,7 +79,7 @@ suite "BlockMaintainer":
     await mockTimer.invokeCallback()
 
     check:
-      mockRepoStore.getBeMaxNumer == 2
+      mockRepoStore.getBeMaxNumber == 2
       mockRepoStore.getBeOffset == 0
 
   test "Subsequent timer callback should call getBlockExpirations on RepoStore with offset":
@@ -88,7 +88,7 @@ suite "BlockMaintainer":
     await mockTimer.invokeCallback()
 
     check:
-      mockRepoStore.getBeMaxNumer == 2
+      mockRepoStore.getBeMaxNumber == 2
       mockRepoStore.getBeOffset == 2
 
   test "Timer callback should delete no blocks if none are expired":
@@ -99,7 +99,7 @@ suite "BlockMaintainer":
       mockRepoStore.delBlockCids.len == 0
 
   test "Timer callback should delete one block if it is expired":
-    mockClock.set(150)
+    mockClock.set(250)
     blockMaintainer.start()
     await mockTimer.invokeCallback()
 
@@ -112,7 +112,7 @@ suite "BlockMaintainer":
     await mockTimer.invokeCallback()
 
     check:
-      mockRepoStore.delBlockCids == [testBe1.cid, testBe2.cid, testBe3.cid]
+      mockRepoStore.delBlockCids == [testBe1.cid, testBe2.cid]
 
   test "After deleting a block, subsequent timer callback should decrease offset by the number of deleted blocks":
     mockClock.set(250)
@@ -125,6 +125,62 @@ suite "BlockMaintainer":
     await mockTimer.invokeCallback()
 
     check:
-      mockRepoStore.getBeMaxNumer == 2
+      mockRepoStore.getBeMaxNumber == 2
       mockRepoStore.getBeOffset == 1
+
+  test "Should delete all blocks if expired, in two timer callbacks":
+    mockClock.set(500)
+    blockMaintainer.start()
+    await mockTimer.invokeCallback()
+    await mockTimer.invokeCallback()
+
+    check mockRepoStore.delBlockCids == [testBe1.cid, testBe2.cid, testBe3.cid]
+
+  test "Iteration offset should loop":
+    blockMaintainer.start()
+    await mockTimer.invokeCallback()
+    check mockRepoStore.getBeOffset == 0
+
+    await mockTimer.invokeCallback()
+    check mockRepoStore.getBeOffset == 2
+
+    await mockTimer.invokeCallback()
+    check mockRepoStore.getBeOffset == 0
+
+  test "Should handle new blocks":
+    proc invokeTimerManyTimes(): Future[void] {.async.} =
+      for i in countUp(0, 10):
+        await mockTimer.invokeCallback()
+
+    blockMaintainer.start()
+    await invokeTimerManyTimes()
+
+    # no blocks have expired
+    check mockRepoStore.delBlockCids == []
+
+    mockClock.set(250)
+    await invokeTimerManyTimes()
+    # one block has expired
+    check mockRepoStore.delBlockCids == [testBe1.cid]
+
+    # new blocks are added
+    let testBe4 = createTestExpiration(600)
+    let testBe5 = createTestExpiration(700)
+    mockRepoStore.testBlockExpirations.add(testBe4)
+    mockRepoStore.testBlockExpirations.add(testBe5)
+
+    mockClock.set(500)
+    await invokeTimerManyTimes()
+    # All blocks have expired
+    check mockRepoStore.delBlockCids == [testBe1.cid, testBe2.cid, testBe3.cid]
+
+    mockClock.set(650)
+    await invokeTimerManyTimes()
+    # First new block has expired
+    check mockRepoStore.delBlockCids == [testBe1.cid, testBe2.cid, testBe3.cid, testBe4.cid]
+
+    mockClock.set(750)
+    await invokeTimerManyTimes()
+    # Second new block has expired
+    check mockRepoStore.delBlockCids == [testBe1.cid, testBe2.cid, testBe3.cid, testBe4.cid, testBe5.cid]
 

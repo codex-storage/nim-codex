@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import std/sequtils
 import pkg/chronos
 import pkg/libp2p
 import pkg/questionable
@@ -22,30 +23,28 @@ type
     getBeOffset*: int
 
     testBlockExpirations*: seq[BlockExpiration]
-    index: int
 
-proc new*(T: type MockRepoStore): T =
-  T(
-    index: 0
-  )
-
-method delBlock*(self: MockRepoStore, cid: Cid): Future[?!void] =
+method delBlock*(self: MockRepoStore, cid: Cid): Future[?!void] {.async.} =
   self.delBlockCids.add(cid)
+  self.testBlockExpirations = self.testBlockExpirations.filterIt(it.cid != cid)
+  return success()
 
 method getBlockExpirations*(self: MockRepoStore, maxNumber: int, offset: int): Future[?!BlockExpirationIter] {.async.} =
   self.getBeMaxNumber = maxNumber
   self.getBeOffset = offset
 
-  self.index = 0
   var iter = BlockExpirationIter()
   iter.finished = false
 
+  var index = offset
+  var numberLeft = maxNumber
   proc next(): Future[?BlockExpiration] {.async.} =
-    if self.index >= 0 and self.index < len(self.testBlockExpirations):
-      let selectedBlock = self.testBlockExpirations[self.index]
-      inc self.index
-      iter.finished = self.index >= len(self.testBlockExpirations)
+    if numberLeft > 0 and index >= 0 and index < len(self.testBlockExpirations):
+      dec numberLeft
+      let selectedBlock = self.testBlockExpirations[index]
+      inc index
       return selectedBlock.some
+    iter.finished = true
     return BlockExpiration.none
 
   iter.next = next
