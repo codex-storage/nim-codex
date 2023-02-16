@@ -178,6 +178,47 @@ suite "RepoStore":
       response[0].key.get == expectedKey
       response[0].data == expectedExpiration.toBytes
 
+  test "Should retrieve block expiration information":
+    proc unpack(beIter: Future[?!BlockExpirationIter]): Future[seq[BlockExpiration]] {.async.} =
+      var expirations = newSeq[BlockExpiration](0)
+      without iter =? (await beIter), err:
+        return expirations
+      for be in toSeq(iter):
+        if value =? (await be):
+          expirations.add(value)
+      return expirations
+
+    let
+      now: SecondsSince1970 = 123
+      duration = times.initDuration(seconds = 10)
+      blk1 = createTestBlock(10)
+      blk2 = createTestBlock(11)
+      blk3 = createTestBlock(12)
+
+    let
+      expectedExpiration: SecondsSince1970 = 123 + 10
+
+    proc assertExpiration(be: BlockExpiration, expectedBlock: bt.Block) =
+      check:
+        be.cid == expectedBlock.cid
+        be.expiration == expectedExpiration
+
+    mockClock.set(now)
+
+    (await repo.putBlock(blk1, duration.some)).tryGet
+    (await repo.putBlock(blk2, duration.some)).tryGet
+    (await repo.putBlock(blk3, duration.some)).tryGet
+
+    let
+      blockExpirations1 = await unpack(repo.getBlockExpirations(maxNumber=2, offset=0))
+      blockExpirations2 = await unpack(repo.getBlockExpirations(maxNumber=2, offset=2))
+
+    check blockExpirations1.len == 2
+    assertExpiration(blockExpirations1[0], blk2)
+    assertExpiration(blockExpirations1[1], blk1)
+
+    check blockExpirations2.len == 1
+    assertExpiration(blockExpirations2[0], blk3)
 
 commonBlockStoreTests(
   "RepoStore Sql backend", proc: BlockStore =

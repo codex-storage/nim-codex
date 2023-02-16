@@ -8,6 +8,7 @@
 ## those terms.
 
 import std/times
+import std/sequtils
 import pkg/upraises
 
 push: {.upraises: [].}
@@ -63,6 +64,18 @@ type
     quotaReservedBytes*: uint
     blockTtl*: times.Duration
     started*: bool
+
+  BlockExpiration* = object
+    cid*: Cid
+    expiration*: SecondsSince1970
+  GetNext = proc(): Future[?BlockExpiration] {.upraises: [], gcsafe, closure.}
+  BlockExpirationIter* = ref object
+    finished*: bool
+    next*: GetNext
+
+iterator items*(q: BlockExpirationIter): Future[?BlockExpiration] =
+  while not q.finished:
+    yield q.next()
 
 func makePrefixKey*(self: RepoStore, cid: Cid): ?!Key =
   let
@@ -226,6 +239,41 @@ method listBlocks*(
         return Cid.init(cid.value).option
 
     return Cid.none
+
+  iter.next = next
+  return success iter
+
+proc createBlockExpirationQuery(maxNumber: int, offset: int): ?!Query =
+  let queryString = ? (BlocksTtlKey / "*")
+  let queryKey = ? Key.init(queryString)
+  success Query.init(queryKey, offset = offset, limit = maxNumber)
+
+method getBlockExpirations*(self: RepoStore, maxNumber: int, offset: int): Future[?!BlockExpirationIter] {.async.} =
+  without query =? createBlockExpirationQuery(maxNumber, offset), err:
+    trace "Unable to format block expirations query"
+    return failure(err)
+
+  without queryIter =? (await self.metaDs.query(query)), err:
+    trace "Unable to execute block expirations query"
+    return failure(err)
+
+  var iter = BlockExpirationIter()
+
+  proc next(): Future[?BlockExpiration] {.async.} =
+    if not queryIter.finished:
+      if pair =? (await queryIter.next()) and blockKey =? pair.key:
+        let expirationTimestamp = pair.data
+        let cidResult = Cid.init(blockKey.value)
+        if not cidResult.isOk:
+          raiseAssert("Unable to parse CID from blockKey.value: " & blockKey.value & $cidResult.error)
+        return BlockExpiration(
+          cid: cidResult.get,
+          expiration: expirationTimestamp.toSecondsSince1970
+        ).some
+    else:
+      discard await queryIter.dispose()
+    iter.finished = true
+    return BlockExpiration.none
 
   iter.next = next
   return success iter
