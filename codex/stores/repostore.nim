@@ -171,6 +171,21 @@ method putBlock*(
   self.quotaUsedBytes = used
   return success()
 
+proc updateQuotaBytesUsed(self: RepoStore, blk: Block): Future[?!void] {.async.} =
+  let used = self.quotaUsedBytes - blk.data.len.uint
+  if err =? (await self.metaDs.put(
+      QuotaUsedKey,
+      @(used.uint64.toBytesBE))).errorOption:
+    trace "Error updating quota key!", err = err.msg
+    return failure(err)
+  self.quotaUsedBytes = used
+  return success()
+
+proc removeBlockExpirationEntry(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
+  without key =? self.createBlockExpirationMetadataKey(cid), err:
+    return failure(err)
+  return await self.metaDs.delete(key)
+
 method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
   ## Delete a block from the blockstore
   ##
@@ -183,16 +198,13 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
       trace "Error deleting block!", err = err.msg
       return failure(err)
 
-    let
-      used = self.quotaUsedBytes - blk.data.len.uint
+    if isErr (await self.updateQuotaBytesUsed(blk)):
+      trace "Unable to update quote-bytes-used in metadata store"
+      return failure("Unable to update quote-bytes-used in metadata store")
 
-    if err =? (await self.metaDs.put(
-        QuotaUsedKey,
-        @(used.uint64.toBytesBE))).errorOption:
-      trace "Error updating quota key!", err = err.msg
-      return failure(err)
-
-    self.quotaUsedBytes = used
+    if isErr (await self.removeBlockExpirationEntry(blk.cid)):
+      trace "Unable to remove block expiration entry from metadata store"
+      return failure("Unable to remove block expiration entry from metadata store")
 
     trace "Deleted block", cid, totalUsed = self.totalUsed
 
