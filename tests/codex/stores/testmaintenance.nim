@@ -60,10 +60,9 @@ suite "BlockMaintainer":
     blockMaintainer = BlockMaintainer.new(
       mockRepoStore,
       interval,
+      numberOfBlocksPerInterval = 2,
       mockTimer,
-      mockClock,
-      numberOfBlocksPerInterval = 2
-    )
+      mockClock)
 
   test "Start should start timer at provided interval":
     blockMaintainer.start()

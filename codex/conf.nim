@@ -32,7 +32,7 @@ import pkg/ethers
 import ./discovery
 import ./stores
 
-export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtlSeconds
+export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtlSeconds, DefaultBlockMaintenanceIntervalSeconds, DefaultNumberOfBlocksToMaintainPerInterval
 
 type
   StartUpCommand* {.pure.} = enum
@@ -163,7 +163,19 @@ type
         defaultValue: DefaultBlockTtlSeconds
         defaultValueDesc: $DefaultBlockTtlSeconds
         name: "block-ttl"
-        abbr: "t" }: Natural
+        abbr: "t" }: int
+
+      blockMaintenanceIntervalSeconds* {.
+        desc: "Time interval in seconds - determines frequency of block maintenance cycle: how often blocks are checked for expiration and cleanup."
+        defaultValue: DefaultBlockMaintenanceIntervalSeconds
+        defaultValueDesc: $DefaultBlockMaintenanceIntervalSeconds
+        name: "block-mi" }: int
+
+      blockMaintenanceNumberOfBlocks* {.
+        desc: "Number of blocks to check every maintenance cycle."
+        defaultValue: DefaultNumberOfBlocksToMaintainPerInterval
+        defaultValueDesc: $DefaultNumberOfBlocksToMaintainPerInterval
+        name: "block-mn" }: int
 
       cacheSize* {.
         desc: "The size in MiB of the block cache, 0 disables the cache - might help on slow hardrives"

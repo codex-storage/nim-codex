@@ -48,8 +48,6 @@ const
   DefaultBlockTtlSeconds* = 24 * 60 * 60
   DefaultQuotaBytes* = 1'u shl 33'u # ~8GB
 
-  # ZeroMoment = Moment.init(0, Nanosecond) # used for converting between Duration and Moment
-
 type
   QuotaUsedError* = object of CodexError
   QuotaNotEnoughError* = object of CodexError

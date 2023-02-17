@@ -35,12 +35,12 @@ proc timerLoop(timer: Timer) {.async.} =
       await sleepAsync(timer.interval)
       await timer.callback()
   except Exception as exc:
-    error "Timer: ", timer.name, " caught unhandled exception: ", exc
+    error "Timer caught unhandled exception: ", name=timer.name, msg=exc.msg
 
 method start*(timer: Timer, callback: TimerCallback, interval: Duration) {.base.} =
   if timer.loopFuture.isSome():
     return
-  trace "Timer starting: ", timer.name
+  trace "Timer starting: ", name=timer.name
   timer.callback = callback
   timer.interval = interval
   let future = timerLoop(timer)
@@ -49,6 +49,6 @@ method start*(timer: Timer, callback: TimerCallback, interval: Duration) {.base.
 
 method stop*(timer: Timer) {.async, base.} =
   if f =? timer.loopFuture:
-    trace "Timer stopping: ", timer.name
+    trace "Timer stopping: ", name=timer.name
     await f.cancelAndWait()
     timer.loopFuture = Future[void].none

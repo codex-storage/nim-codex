@@ -46,6 +46,7 @@ type
     restServer: RestServerRef
     codexNode: CodexNodeRef
     repoStore: RepoStore
+    maintenance: BlockMaintainer
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
 
@@ -55,6 +56,7 @@ proc start*(s: CodexServer) {.async.} =
   await s.repoStore.start()
   s.restServer.start()
   await s.codexNode.start()
+  s.maintenance.start()
 
   let
     # TODO: Can't define these as constants, pity
@@ -90,7 +92,8 @@ proc stop*(s: CodexServer) {.async.} =
   await allFuturesThrowing(
     s.restServer.stop(),
     s.codexNode.stop(),
-    s.repoStore.start())
+    s.repoStore.stop(),
+    s.maintenance.stop())
 
   s.runHandle.complete()
 
@@ -164,6 +167,11 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
       quotaMaxBytes = config.storageQuota.uint,
       blockTtlSeconds = config.blockTtlSeconds)
 
+    maintenance = BlockMaintainer.new(
+      repoStore,
+      interval = config.blockMaintenanceIntervalSeconds.seconds,
+      numberOfBlocksPerInterval = config.blockMaintenanceNumberOfBlocks)
+
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
     blockDiscovery = DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
@@ -184,4 +192,5 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
     config: config,
     codexNode: codexNode,
     restServer: restServer,
-    repoStore: repoStore)
+    repoStore: repoStore,
+    maintenance: maintenance)

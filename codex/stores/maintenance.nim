@@ -15,10 +15,14 @@ import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 
-import codex/stores/repostore
-import codex/utils/timer
-import codex/clock
-import codex/systemclock
+import ./repostore
+import ../utils/timer
+import ../clock
+import ../systemclock
+
+const
+  DefaultBlockMaintenanceIntervalSeconds* = 10 * 60
+  DefaultNumberOfBlocksToMaintainPerInterval* = 1000
 
 type
   BlockMaintainer* = ref object of RootObj
@@ -32,18 +36,17 @@ type
 proc new*(T: type BlockMaintainer,
     repoStore: RepoStore,
     interval: Duration,
+    numberOfBlocksPerInterval = 100,
     timer = Timer.new(),
-    clock: Clock = SystemClock.new(),
-    numberOfBlocksPerInterval = 100
+    clock: Clock = SystemClock.new()
     ): T =
   T(
     repoStore: repoStore,
     interval: interval,
+    numberOfBlocksPerInterval: numberOfBlocksPerInterval,
     timer: timer,
     clock: clock,
-    numberOfBlocksPerInterval: numberOfBlocksPerInterval,
-    offset: 0
-  )
+    offset: 0)
 
 proc runBlockCheck(self: BlockMaintainer): Future[void] {.async.} =
   var blockCidsToDelete = newSeq[Cid](0)
@@ -85,7 +88,7 @@ proc start*(self: BlockMaintainer) =
     try:
       await self.runBlockCheck()
     except CatchableError as exc:
-      error "Unexpected exception in BlockMaintainer.onTimer(): ", exc
+      error "Unexpected exception in BlockMaintainer.onTimer(): ", msg=exc.msg
 
   self.timer.start(onTimer, self.interval)
 
