@@ -32,10 +32,14 @@ suite "RepoStore":
 
     repo: RepoStore
 
+  let
+    now: SecondsSince1970 = 123
+
   setup:
     repoDs = SQLiteDatastore.new(Memory).tryGet()
     metaDs = SQLiteDatastore.new(Memory).tryGet()
     mockClock = MockClock.new()
+    mockClock.set(now)
 
     repo = RepoStore.new(repoDs, metaDs, mockClock, quotaMaxBytes = 200)
 
@@ -152,9 +156,17 @@ suite "RepoStore":
       repo.quotaReservedBytes == 100
       uint64.fromBytesBE((await metaDs.get(QuotaReservedKey)).tryGet) == 100'u
 
+  proc queryMetaDs(key: Key): Future[seq[QueryResponse]] {.async.} =
+    let
+      query = Query.init(key)
+      responseIter = (await metaDs.query(query)).tryGet
+      response = (await allFinished(toSeq(responseIter)))
+        .mapIt(it.read.tryGet)
+        .filterIt(it.key.isSome)
+    return response
+
   test "Should store block expiration timestamp":
     let
-      now: SecondsSince1970 = 123
       duration = times.initDuration(seconds = 10)
       blk = createTestBlock(100)
 
@@ -162,21 +174,44 @@ suite "RepoStore":
       expectedExpiration: SecondsSince1970 = 123 + 10
       expectedKey = Key.init("meta/ttl/" & $blk.cid).tryGet
 
-    mockClock.set(now)
-
     (await repo.putBlock(blk, duration.some)).tryGet
 
-    let
-      query = Query.init(expectedKey)
-      responseIter = (await metaDs.query(query)).tryGet
-      response = (await allFinished(toSeq(responseIter)))
-        .mapIt(it.read.tryGet)
-        .filterIt(it.key.isSome)
+    let response = await queryMetaDs(expectedKey)
 
     check:
       response.len == 1
       response[0].key.get == expectedKey
       response[0].data == expectedExpiration.toBytes
+
+  test "Should store block with default expiration timestamp when not provided":
+    let
+      blk = createTestBlock(100)
+
+    let
+      expectedExpiration: SecondsSince1970 = 123 + DefaultBlockTtlSeconds
+      expectedKey = Key.init("meta/ttl/" & $blk.cid).tryGet
+
+    (await repo.putBlock(blk)).tryGet
+
+    let response = await queryMetaDs(expectedKey)
+
+    check:
+      response.len == 1
+      response[0].key.get == expectedKey
+      response[0].data == expectedExpiration.toBytes
+
+  test "delBlock should remove expiration metadata":
+    let
+      blk = createTestBlock(100)
+      expectedKey = Key.init("meta/ttl/" & $blk.cid).tryGet
+
+    (await repo.putBlock(blk, times.initDuration(seconds = 10).some)).tryGet
+    (await repo.delBlock(blk.cid)).tryGet
+
+    let response = await queryMetaDs(expectedKey)
+
+    check:
+      response.len == 0
 
   test "Should retrieve block expiration information":
     proc unpack(beIter: Future[?!BlockExpirationIter]): Future[seq[BlockExpiration]] {.async.} =
@@ -189,7 +224,6 @@ suite "RepoStore":
       return expirations
 
     let
-      now: SecondsSince1970 = 123
       duration = times.initDuration(seconds = 10)
       blk1 = createTestBlock(10)
       blk2 = createTestBlock(11)
@@ -203,7 +237,6 @@ suite "RepoStore":
         be.cid == expectedBlock.cid
         be.expiration == expectedExpiration
 
-    mockClock.set(now)
 
     (await repo.putBlock(blk1, duration.some)).tryGet
     (await repo.putBlock(blk2, duration.some)).tryGet
