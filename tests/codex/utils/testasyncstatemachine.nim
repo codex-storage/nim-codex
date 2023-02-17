@@ -69,7 +69,7 @@ suite "async state machines":
           MyMachine(m).requestFinished.value
       ),
       Transition.new(
-        state6,
+        AnyState.new(),
         state5,
         proc(m: Machine, s: State): bool =
           MyMachine(m).errored.value
