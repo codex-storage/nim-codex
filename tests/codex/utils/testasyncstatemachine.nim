@@ -67,6 +67,12 @@ suite "async state machines":
         state5,
         proc(m: Machine, s: State): bool =
           MyMachine(m).requestFinished.value
+      ),
+      Transition.new(
+        state6,
+        state5,
+        proc(m: Machine, s: State): bool =
+          MyMachine(m).errored.value
       )
     ])
     machine.slotsFilled = machine.newTransitionProperty(0)
@@ -91,12 +97,6 @@ suite "async state machines":
     machine.start(state1)
     check eventually runs == [1, 1, 0, 0, 0]
 
-  # TODO: fails due to reassignment of state in questionable:
-  # check machine.state == state2
-  #
-  # Reassignment happens here:
-  # if next =? event(machine.state):
-  #   machine.state = next
   test "returns current state":
     machine.start(state1)
     check eventually machine.state of State2
@@ -176,8 +176,9 @@ suite "async state machines":
     # state 3 back to 4
     check eventually machine.state of State4
 
-  # TODO: capture exceptions in run methods somehow
-  # test "captures exceptions inside of run methods":
-  #   expect ValueError:
-  #     machine.start(state6)
-
+  test "captures exceptions inside of run methods":
+    machine.start(state6)
+    # exception throw in state6, triggered transition to state5
+    check eventually machine.state of State5
+    check not machine.errored.value # errored state has been cleared
+    check machine.lastError.msg == "some error"

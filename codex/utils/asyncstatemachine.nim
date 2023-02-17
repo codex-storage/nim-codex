@@ -1,14 +1,23 @@
 import pkg/questionable
 import pkg/chronos
+import pkg/chronicles
 import pkg/upraises
 
+logScope:
+  topics = "codex async state machine"
+
 type
+  TransitionProperty*[T] = ref object of RootObj
+    machine: Machine
+    value: T
   Machine* = ref object of RootObj
     state: State
     running: Future[void]
     scheduled: AsyncQueue[Event]
     scheduling: Future[void]
     transitions: seq[Transition]
+    errored*: TransitionProperty[bool]
+    lastError*: ref CatchableError
   State* = ref object of RootObj
   Event* = proc(state: State): ?State {.gcsafe, upraises:[].}
   TransitionCondition* = proc(machine: Machine, state: State): bool {.gcsafe, upraises:[].}
@@ -16,9 +25,6 @@ type
     prevState: State
     nextState: State
     trigger: TransitionCondition
-  TransitionProperty*[T] = ref object of RootObj
-    machine: Machine
-    value*: T
 
 proc new*(T: type Transition,
           prev, next: State,
@@ -28,6 +34,8 @@ proc new*(T: type Transition,
 proc newTransitionProperty*[T](machine: Machine,
                                initialValue: T): TransitionProperty[T] =
   TransitionProperty[T](machine: machine, value: initialValue)
+
+proc value*[T](prop: TransitionProperty[T]): T = prop.value
 
 proc transition*(_: type Event, previous, next: State): Event =
   return proc (state: State): ?State =
@@ -60,6 +68,16 @@ proc run(machine: Machine, state: State) {.async.} =
     discard
 
 proc scheduler(machine: Machine) {.async.} =
+  proc onRunComplete(udata: pointer) {.gcsafe, raises: [Defect].} =
+    var fut = cast[FutureBase](udata)
+    if fut.failed():
+      try:
+        machine.errored.setValue(true) # triggers transitions
+        machine.errored.setValue(false) # clears error without triggering transitions
+        machine.lastError = fut.error # stores error in state
+      except AsyncQueueFullError as e:
+        error "Cannot set transition value because queue is full", error = e
+
   try:
     while true:
       let event = await machine.scheduled.get()
@@ -68,7 +86,7 @@ proc scheduler(machine: Machine) {.async.} =
           await machine.running.cancelAndWait()
         machine.state = next
         machine.running = machine.run(machine.state)
-        asyncSpawn machine.running
+        machine.running.addCallback(onRunComplete)
       machine.checkTransitions()
   except CancelledError:
     discard
@@ -82,4 +100,9 @@ proc stop*(machine: Machine) =
   machine.running.cancel()
 
 proc new*(T: type Machine, transitions: seq[Transition]): T =
-  T(scheduled: newAsyncQueue[Event](), transitions: transitions)
+  let m = T(
+    scheduled: newAsyncQueue[Event](),
+    transitions: transitions
+  )
+  m.errored = m.newTransitionProperty(false)
+  return m
