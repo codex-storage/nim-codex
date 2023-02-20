@@ -16,16 +16,6 @@ type
 
 method `$`*(state: SaleDownloading): string = "SaleDownloading"
 
-method onCancelled*(state: SaleDownloading, request: StorageRequest): ?State =
-  return some State(SaleCancelled())
-
-method onFailed*(state: SaleDownloading, request: StorageRequest): ?State =
-  return some State(SaleFailed())
-
-method onSlotFilled*(state: SaleDownloading, requestId: RequestId,
-                     slotIndex: UInt256): ?State =
-  return some State(SaleFilled())
-
 method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
 
@@ -42,8 +32,3 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
   except CancelledError:
     raise
 
-  except CatchableError as e:
-    let error = newException(SaleDownloadingError,
-                             "unknown sale downloading error",
-                             e)
-    machine.setError(error)

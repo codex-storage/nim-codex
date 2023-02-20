@@ -1,3 +1,4 @@
+import std/sequtils
 import pkg/questionable
 import pkg/chronos
 import pkg/chronicles
@@ -23,14 +24,20 @@ type
   Event* = proc(state: State): ?State {.gcsafe, upraises:[].}
   TransitionCondition* = proc(machine: Machine, state: State): bool {.gcsafe, upraises:[].}
   Transition* = object of RootObj
-    prevState: State
+    prevStates: seq[State]
     nextState: State
     trigger: TransitionCondition
 
 proc new*(T: type Transition,
+          prev: openArray[State],
+          next: State,
+          trigger: TransitionCondition): T =
+  Transition(prevStates: prev.toSeq, nextState: next, trigger: trigger)
+
+proc new*(T: type Transition,
           prev, next: State,
           trigger: TransitionCondition): T =
-  Transition(prevState: prev, nextState: next, trigger: trigger)
+  Transition.new(@[prev], next, trigger)
 
 proc newTransitionProperty*[T](machine: Machine,
                                initialValue: T): TransitionProperty[T] =
@@ -51,9 +58,10 @@ proc schedule*(machine: Machine, event: Event) =
 proc checkTransitions(machine: Machine) =
   for transition in machine.transitions:
     if transition.trigger(machine, machine.state) and
+      machine.state != transition.nextState and # avoid transitioning to self
       (machine.state == nil or
-       machine.state == transition.prevState or
-       transition.prevState of AnyState):
+       machine.state in transition.prevStates or
+       transition.prevStates.any(proc (s: State): bool = s of AnyState)):
       machine.schedule(Event.transition(machine.state, transition.nextState))
 
 proc setValue*[T](prop: TransitionProperty[T], value: T) =
@@ -78,6 +86,7 @@ proc run(machine: Machine, state: State) {.async.} =
 proc scheduler(machine: Machine) {.async.} =
   proc onRunComplete(udata: pointer) {.gcsafe, raises: [Defect].} =
     var fut = cast[FutureBase](udata)
+    # TODO: would CancelledError be swallowed here (by not checking fut.cancelled())?
     if fut.failed():
       try:
         machine.setError(fut.error)

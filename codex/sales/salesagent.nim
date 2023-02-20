@@ -16,7 +16,7 @@ proc newSalesAgent*(sales: Sales,
                     restoredFromChain: bool): SalesAgent =
   let agent = SalesAgent.new(@[
     Transition.new(
-      SaleUnknown.new(),
+      SaleUnknown(),
       SaleDownloading.new(),
       proc(m: Machine, s: State): bool =
         let agent = SalesAgent(m)
@@ -24,13 +24,25 @@ proc newSalesAgent*(sales: Sales,
         agent.slotState.value == SlotState.Free
     ),
     Transition.new(
-      AnyState.new(),
+      @[
+        SaleUnknown(),
+        SaleDownloading(),
+        SaleProving(),
+        SaleFilling(),
+        SaleFilled()
+      ],
       SaleCancelled.new(),
       proc(m: Machine, s: State): bool =
         SalesAgent(m).requestState.value == RequestState.Cancelled
     ),
     Transition.new(
-      AnyState.new(),
+      @[
+        SaleUnknown.new(),
+        SaleDownloading.new(),
+        SaleProving.new(),
+        SaleFilling.new(),
+        SaleFilled.new()
+      ],
       SaleFailed.new(),
       proc(m: Machine, s: State): bool =
         let agent = SalesAgent(m)
@@ -38,13 +50,24 @@ proc newSalesAgent*(sales: Sales,
         agent.slotState.value == SlotState.Failed
     ),
     Transition.new(
-      AnyState.new(),
+      @[
+        SaleUnknown.new(),
+        SaleDownloading.new(),
+        SaleFilling.new(),
+        SaleProving.new()
+      ],
       SaleFilled.new(),
       proc(m: Machine, s: State): bool =
         SalesAgent(m).slotState.value == SlotState.Filled
     ),
     Transition.new(
-      AnyState.new(),
+      @[
+        SaleUnknown.new(),
+        SaleDownloading.new(),
+        SaleFilling.new(),
+        SaleFilled.new(),
+        SaleProving.new()
+      ],
       SaleFinished.new(),
       proc(m: Machine, s: State): bool =
         let agent = SalesAgent(m)
@@ -52,25 +75,25 @@ proc newSalesAgent*(sales: Sales,
         agent.requestState.value == RequestState.Finished
     ),
     Transition.new(
-      AnyState.new(),
+      @[AnyState.new()],
       SaleErrored.new(),
       proc(m: Machine, s: State): bool =
         SalesAgent(m).errored.value
     ),
     Transition.new(
-      SaleDownloading.new(),
+      @[SaleDownloading.new()],
       SaleProving.new(),
       proc(m: Machine, s: State): bool =
         SalesAgent(m).downloaded.value
     ),
     Transition.new(
-      SaleProving.new(),
+      @[SaleProving.new()],
       SaleFilling.new(),
       proc(m: Machine, s: State): bool =
         SalesAgent(m).proof.value.len > 0 # TODO: proof validity check?
     ),
     Transition.new(
-      SaleFilled.new(),
+      @[SaleFilled.new()],
       SaleFinished.new(),
       proc(m: Machine, s: State): bool =
         let agent = SalesAgent(m)
@@ -79,7 +102,7 @@ proc newSalesAgent*(sales: Sales,
         host == agent.me
     ),
     Transition.new(
-      SaleFilled.new(),
+      @[SaleFilled.new()],
       SaleErrored.new(),
       proc(m: Machine, s: State): bool =
         let agent = SalesAgent(m)
@@ -92,7 +115,7 @@ proc newSalesAgent*(sales: Sales,
         else: return false
     ),
     Transition.new(
-      SaleUnknown.new(),
+      @[SaleUnknown.new()],
       SaleErrored.new(),
       proc(m: Machine, s: State): bool =
         let agent = SalesAgent(m)

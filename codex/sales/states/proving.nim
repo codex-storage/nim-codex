@@ -11,16 +11,6 @@ type
 
 method `$`*(state: SaleProving): string = "SaleProving"
 
-method onCancelled*(state: SaleProving, request: StorageRequest): ?State =
-  return some State(SaleCancelled())
-
-method onFailed*(state: SaleProving, request: StorageRequest): ?State =
-  return some State(SaleFailed())
-
-method onSlotFilled*(state: SaleProving, requestId: RequestId,
-                     slotIndex: UInt256): ?State =
-  return some State(SaleFilled())
-
 method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
 
@@ -33,7 +23,3 @@ method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
 
   except CancelledError:
     raise
-
-  except CatchableError as e:
-    let error = newException(SaleProvingError, "unknown sale proving error", e)
-    machine.setError error

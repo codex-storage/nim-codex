@@ -10,12 +10,6 @@ type
 
 method `$`*(state: SaleFinished): string = "SaleFinished"
 
-method onCancelled*(state: SaleFinished, request: StorageRequest): Future[?State] {.async.} =
-  return some State(SaleCancelled())
-
-method onFailed*(state: SaleFinished, request: StorageRequest): Future[?State] {.async.} =
-  return some State(SaleFailed())
-
 method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
 
@@ -35,7 +29,3 @@ method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
 
   except CancelledError:
     raise
-
-  except CatchableError as e:
-    let error = newException(SaleFinishedError, "sale finished error", e)
-    return some State(SaleErrored(error: error))
