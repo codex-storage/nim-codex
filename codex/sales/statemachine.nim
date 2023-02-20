@@ -28,15 +28,21 @@ type
     agents*: seq[SalesAgent]
   SalesAgent* = ref object of Machine
     sales*: Sales
-    requestId*: RequestId
     ask*: StorageAsk
     availability*: ?Availability # TODO: when availability persistence is added, change this to not optional
-    request*: ?StorageRequest
+    request*: StorageRequest
     slotIndex*: UInt256
-    failed*: market.Subscription
-    fulfilled*: market.Subscription
-    slotFilled*: market.Subscription
-    cancelled*: Future[void]
+    subscribeFailed*: market.Subscription
+    subscribeFulfilled*: market.Subscription
+    subscribeSlotFilled*: market.Subscription
+    waitForCancelled*: Future[void]
+    me*: Address
+    restoredFromChain*: bool
+    slotState*: TransitionProperty[SlotState]
+    requestState*: TransitionProperty[RequestState]
+    proof*: TransitionProperty[seq[byte]]
+    slotHost*: TransitionProperty[?Address]
+    downloaded*: TransitionProperty[bool]
   SaleState* = ref object of State
   SaleError* = ref object of CodexError
   Availability* = object

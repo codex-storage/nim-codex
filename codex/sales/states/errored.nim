@@ -2,7 +2,6 @@ import chronicles
 import ../statemachine
 
 type SaleErrored* = ref object of SaleState
-  error*: ref CatchableError
 
 method `$`*(state: SaleErrored): string = "SaleErrored"
 
@@ -21,4 +20,4 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
   if availability =? agent.availability:
     agent.sales.add(availability)
 
-  error "Sale error", error=state.error.msg
+  error "Sale error", error=agent.lastError.msg

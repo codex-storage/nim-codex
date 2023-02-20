@@ -24,17 +24,12 @@ method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
   try:
     let market = agent.sales.market
 
-    let host = await market.getHost(agent.requestId, agent.slotIndex)
-    let me = await market.getSigner()
-    if host == me.some:
-      return some State(SaleFinished())
-    else:
-      let error = newException(HostMismatchError, "Slot filled by other host")
-      return some State(SaleErrored(error: error))
+    let slotHost = await market.getHost(agent.request.id, agent.slotIndex)
+    agent.slotHost.setValue(slotHost)
 
   except CancelledError:
     raise
 
   except CatchableError as e:
     let error = newException(SaleFilledError, "sale filled error", e)
-    return some State(SaleErrored(error: error))
+    agent.setError error

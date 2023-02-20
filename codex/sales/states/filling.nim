@@ -29,7 +29,7 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   try:
     let market = agent.sales.market
 
-    await market.fillSlot(agent.requestId, agent.slotIndex, state.proof)
+    await market.fillSlot(agent.request.id, agent.slotIndex, state.proof)
 
   except CancelledError:
     raise

@@ -25,18 +25,15 @@ method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
 
   try:
-    without request =? agent.request:
-      raiseAssert "no sale request"
-
     without onProve =? agent.sales.onProve:
       raiseAssert "onProve callback not set"
 
-    let proof = await onProve(request, agent.slotIndex)
-    return some State(SaleFilling(proof: proof))
+    let proof = await onProve(agent.request, agent.slotIndex)
+    agent.proof.setValue(proof)
 
   except CancelledError:
     raise
 
   except CatchableError as e:
     let error = newException(SaleProvingError, "unknown sale proving error", e)
-    return some State(SaleErrored(error: error))
+    machine.setError error

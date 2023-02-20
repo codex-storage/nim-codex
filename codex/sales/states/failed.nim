@@ -9,4 +9,4 @@ method `$`*(state: SaleFailed): string = "SaleFailed"
 
 method run*(state: SaleFailed, machine: Machine): Future[?State] {.async.} =
   let error = newException(SaleFailedError, "Sale failed")
-  return some State(SaleErrored(error: error))
+  machine.setError error

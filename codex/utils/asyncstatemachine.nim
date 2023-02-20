@@ -60,6 +60,11 @@ proc setValue*[T](prop: TransitionProperty[T], value: T) =
   prop.value = value
   prop.machine.checkTransitions()
 
+proc setError*(machine: Machine, error: ref CatchableError) =
+  machine.errored.setValue(true) # triggers transitions
+  machine.errored.value = false # clears error without triggering transitions
+  machine.lastError = error # stores error in state
+
 method run*(state: State): Future[?State] {.base, upraises:[].} =
   discard
 
@@ -75,11 +80,9 @@ proc scheduler(machine: Machine) {.async.} =
     var fut = cast[FutureBase](udata)
     if fut.failed():
       try:
-        machine.errored.setValue(true) # triggers transitions
-        machine.errored.value = false # clears error without triggering transitions
-        machine.lastError = fut.error # stores error in state
+        machine.setError(fut.error)
       except AsyncQueueFullError as e:
-        error "Cannot set transition value because queue is full", error = e
+        error "Cannot set transition value because queue is full", error = e.msg
 
   try:
     while true:

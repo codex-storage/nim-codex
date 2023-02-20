@@ -33,14 +33,11 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
     without onStore =? agent.sales.onStore:
       raiseAssert "onStore callback not set"
 
-    without request =? agent.request:
-      raiseAssert "no sale request"
-
     if availability =? agent.availability:
       agent.sales.remove(availability)
 
-    await onStore(request, agent.slotIndex, agent.availability)
-    return some State(SaleProving())
+    await onStore(agent.request, agent.slotIndex, agent.availability)
+    agent.downloaded.setValue(true)
 
   except CancelledError:
     raise
@@ -49,4 +46,4 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
     let error = newException(SaleDownloadingError,
                              "unknown sale downloading error",
                              e)
-    return some State(SaleErrored(error: error))
+    machine.setError(error)

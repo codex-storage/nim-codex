@@ -22,30 +22,25 @@ method run*(state: SaleUnknown, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
   let market = agent.sales.market
 
-  try:
-    let slotId = slotId(agent.requestId, agent.slotIndex)
+#   try:
+#     let slotId = slotId(agent.request.id, agent.slotIndex)
 
-    without slotState =? await market.slotState(slotId):
-      let error = newException(SaleUnknownError, "cannot retrieve slot state")
-      return some State(SaleErrored(error: error))
+#     without slotState =? await market.slotState(slotId):
+#       let error = newException(SaleUnknownError, "cannot retrieve slot state")
+#       agent.setError error
 
-    case slotState
-    of SlotState.Free:
-      let error = newException(UnexpectedSlotError,
-        "slot state on chain should not be 'free'")
-      return some State(SaleErrored(error: error))
-    of SlotState.Filled:
-      return some State(SaleFilled())
-    of SlotState.Finished, SlotState.Paid:
-      return some State(SaleFinished())
-    of SlotState.Failed:
-      return some State(SaleFailed())
+#     if slotState == SlotState.Free:
+#       let error = newException(UnexpectedSlotError,
+#         "slot state on chain should not be 'free'")
+#       agent.setError error
 
-  except CancelledError:
-    raise
+#     agent.slotState.setValue(slotState)
 
-  except CatchableError as e:
-    let error = newException(SaleUnknownError,
-                             "error in unknown state",
-                             e)
-    return some State(SaleErrored(error: error))
+#   except CancelledError:
+#     raise
+
+#   except CatchableError as e:
+#     let error = newException(SaleUnknownError,
+#                              "error in unknown state",
+#                              e)
+#     agent.setError error

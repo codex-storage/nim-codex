@@ -7,6 +7,7 @@ import ./rng
 import ./market
 import ./clock
 import ./proving
+import ./errors
 import ./contracts/requests
 import ./sales/salesagent
 import ./sales/statemachine
@@ -33,6 +34,9 @@ import ./sales/states/[start, downloading, unknown]
 export stint
 export salesagent
 export statemachine
+
+type
+  SalesError = object of CodexError
 
 func new*(_: type Sales,
           market: Market,
@@ -72,14 +76,22 @@ proc handleRequest(sales: Sales,
   let availability = sales.findAvailability(ask)
   # TODO: check if random slot is actually available (not already filled)
   let slotIndex = randomSlotIndex(ask.slots)
+
+  without request =? await sales.market.getRequest(requestId):
+    raise newException(SalesError, "Failed to get request on chain")
+
+  let me = await sales.market.getSigner()
+
   let agent = newSalesAgent(
     sales,
-    requestId,
     slotIndex,
     availability,
-    none StorageRequest
+    request,
+    me,
+    RequestState.New,
+    SlotState.Free
   )
-  agent.start(SaleStart(next: SaleDownloading()))
+  await agent.start(SaleUnknown.new())
   sales.agents.add agent
 
 proc load*(sales: Sales) {.async.} =
@@ -88,6 +100,7 @@ proc load*(sales: Sales) {.async.} =
   # TODO: restore availability from disk
   let requestIds = await market.myRequests()
   let slotIds = await market.mySlots()
+  let me = await market.getSigner()
 
   for slotId in slotIds:
     # TODO: this needs to be optimised
@@ -98,13 +111,19 @@ proc load*(sales: Sales) {.async.} =
                                           slotId):
         raiseAssert "could not find slot index"
 
+      # TODO: should be optimised (maybe get everything in one call: request, request state, slot state)
+      let requestState = await market.requestState(request.id)
+      let slotState = await market.slotState(slotId)
+
       let agent = newSalesAgent(
         sales,
-        request.id,
         slotIndex,
         availability,
-        some request)
-      agent.start(SaleStart(next: SaleUnknown()))
+        request,
+        me,
+        requestState,
+        slotState)
+      await agent.start(SaleUnknown.new())
       sales.agents.add agent
 
 proc start*(sales: Sales) {.async.} =
