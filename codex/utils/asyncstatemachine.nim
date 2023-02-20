@@ -51,7 +51,9 @@ proc schedule*(machine: Machine, event: Event) =
 proc checkTransitions(machine: Machine) =
   for transition in machine.transitions:
     if transition.trigger(machine, machine.state) and
-      (machine.state == nil or machine.state == transition.prevState or transition.prevState of AnyState):
+      (machine.state == nil or
+       machine.state == transition.prevState or
+       transition.prevState of AnyState):
       machine.schedule(Event.transition(machine.state, transition.nextState))
 
 proc setValue*[T](prop: TransitionProperty[T], value: T) =
@@ -74,7 +76,7 @@ proc scheduler(machine: Machine) {.async.} =
     if fut.failed():
       try:
         machine.errored.setValue(true) # triggers transitions
-        machine.errored.setValue(false) # clears error without triggering transitions
+        machine.errored.value = false # clears error without triggering transitions
         machine.lastError = fut.error # stores error in state
       except AsyncQueueFullError as e:
         error "Cannot set transition value because queue is full", error = e
