@@ -31,7 +31,7 @@ suite "Timer":
     inc lettersState
 
   proc exceptionCallback(): Future[void] {.async.} =
-    raise newException(Defect, "Test Exception")
+    raise newException(CatchableError, "Test Exception")
 
   proc startNumbersTimer() =
     timer1.start(numbersCallback, 10.milliseconds)

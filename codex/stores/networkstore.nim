@@ -13,7 +13,7 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronicles
-import pkg/chronos
+import pkg/chronos except Duration
 import pkg/libp2p
 
 import ../blocktype as bt
@@ -50,7 +50,7 @@ method getBlock*(self: NetworkStore, cid: Cid): Future[?!bt.Block] {.async.} =
 method putBlock*(
   self: NetworkStore,
   blk: bt.Block,
-  ttl = times.Duration.none): Future[?!void] {.async.} =
+  ttl = Duration.none): Future[?!void] {.async.} =
   ## Store block locally and notify the network
   ##
 

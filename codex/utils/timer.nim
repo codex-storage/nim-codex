@@ -12,7 +12,6 @@
 
 import pkg/chronos
 import pkg/chronicles
-import pkg/questionable
 import pkg/upraises
 
 type
@@ -21,12 +20,11 @@ type
     callback: TimerCallback
     interval: Duration
     name: string
-    loopFuture: ?Future[void]
+    loopFuture: Future[void]
 
 proc new*(T: type Timer, timerName = "Unnamed Timer"): T =
   T(
-    name: timerName,
-    loopFuture: Future[void].none
+    name: timerName
   )
 
 proc timerLoop(timer: Timer) {.async.} =
@@ -34,21 +32,19 @@ proc timerLoop(timer: Timer) {.async.} =
     while true:
       await sleepAsync(timer.interval)
       await timer.callback()
-  except Exception as exc:
+  except CatchableError as exc:
     error "Timer caught unhandled exception: ", name=timer.name, msg=exc.msg
 
 method start*(timer: Timer, callback: TimerCallback, interval: Duration) {.base.} =
-  if timer.loopFuture.isSome():
+  if timer.loopFuture != nil:
     return
   trace "Timer starting: ", name=timer.name
   timer.callback = callback
   timer.interval = interval
-  let future = timerLoop(timer)
-  timer.loopFuture = future.some
-  asyncSpawn future
+  timer.loopFuture = timerLoop(timer)
 
 method stop*(timer: Timer) {.async, base.} =
-  if f =? timer.loopFuture:
+  if timer.loopFuture != nil:
     trace "Timer stopping: ", name=timer.name
-    await f.cancelAndWait()
-    timer.loopFuture = Future[void].none
+    await timer.loopFuture.cancelAndWait()
+    timer.loopFuture = nil

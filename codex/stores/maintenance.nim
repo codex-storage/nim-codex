@@ -21,7 +21,7 @@ import ../clock
 import ../systemclock
 
 const
-  DefaultBlockMaintenanceIntervalSeconds* = 10 * 60
+  DefaultBlockMaintenanceInterval* = 10.minutes
   DefaultNumberOfBlocksToMaintainPerInterval* = 1000
 
 type

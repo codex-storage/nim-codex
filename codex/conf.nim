@@ -32,7 +32,7 @@ import pkg/ethers
 import ./discovery
 import ./stores
 
-export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtlSeconds, DefaultBlockMaintenanceIntervalSeconds, DefaultNumberOfBlocksToMaintainPerInterval
+export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtlSeconds, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval
 
 type
   StartUpCommand* {.pure.} = enum
@@ -167,8 +167,8 @@ type
 
       blockMaintenanceIntervalSeconds* {.
         desc: "Time interval in seconds - determines frequency of block maintenance cycle: how often blocks are checked for expiration and cleanup."
-        defaultValue: DefaultBlockMaintenanceIntervalSeconds
-        defaultValueDesc: $DefaultBlockMaintenanceIntervalSeconds
+        defaultValue: DefaultBlockMaintenanceInterval.seconds
+        defaultValueDesc: $DefaultBlockMaintenanceInterval
         name: "block-mi" }: int
 
       blockMaintenanceNumberOfBlocks* {.
