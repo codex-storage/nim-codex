@@ -167,8 +167,7 @@ suite "async state machines":
 
   test "checks declarative transitions after current state finishes running":
     machine.start(state4)
-    machine.slotsFilled.setValue(2) # on wrong starting state, so stays on state4
-    await sleepAsync(1.millis)
+    machine.slotsFilled.setValue(2) # no trigger conditions met yet
     # manually move to State3, where the trigger and the previous state will
     # be checked
     machine.schedule(Event.transition(state4, state3))
@@ -182,3 +181,28 @@ suite "async state machines":
     check eventually machine.state of State5
     check not machine.errored.value # errored state has been cleared
     check machine.lastError.msg == "some error"
+
+  test "schedules transitions in order of declaration":
+    var checked = false
+    machine = MyMachine.new(@[
+      Transition.new(
+        state3,
+        state4,
+        proc(m: Machine, s: State): bool =
+          MyMachine(m).slotsFilled.value == 2
+      ),
+      Transition.new(
+        state3,
+        state5,
+        proc(m: Machine, s: State): bool =
+          checked = true
+          MyMachine(m).slotsFilled.value == 2
+      )]
+    )
+    machine.slotsFilled = machine.newTransitionProperty(0)
+    machine.start(state3)
+    machine.slotsFilled.setValue(2)
+    check eventually runs == [0, 0, 1, 1, 0]
+    check machine.state of State4
+    check checked
+    #3->5 transition was checked but not run because state had already moved to 4
