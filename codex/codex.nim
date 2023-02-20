@@ -173,7 +173,7 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
     codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery, contracts)
     restServer = RestServerRef.new(
       codexNode.initRestApi(config),
-      initTAddress("127.0.0.1" , config.apiPort),
+      initTAddress("127.0.0.1" , config.apiPort), # IP should not be hardcoded. docker needs 0.0.0.0. todo: make config.
       bufferSize = (1024 * 64),
       maxRequestBodySize = int.high)
       .expect("Should start rest server!")

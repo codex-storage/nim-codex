@@ -12,4 +12,4 @@ FROM alpine:3.17.2
 WORKDIR /root/
 RUN apk add --no-cache openssl libstdc++ libgcc libgomp
 COPY --from=builder /src/build/codex ./
-CMD ["/root/codex", "--help"]
+CMD ["sh", "-c", "/root/codex --api-port=${CDX_API_PORT} --data-dir=/datadir"]
