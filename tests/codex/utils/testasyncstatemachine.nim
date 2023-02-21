@@ -15,11 +15,11 @@ var runs, cancellations = [0, 0, 0]
 method onMoveToNextStateEvent*(state: State): ?State {.base, upraises:[].} =
   discard
 
-method run(state: State1): Future[?State] {.async.} =
+method run(state: State1, machine: Machine): Future[?State] {.async.} =
   inc runs[0]
   return some State(State2.new())
 
-method run(state: State2): Future[?State] {.async.} =
+method run(state: State2, machine: Machine): Future[?State] {.async.} =
   inc runs[1]
   try:
     await sleepAsync(1.hours)
@@ -30,7 +30,7 @@ method run(state: State2): Future[?State] {.async.} =
 method onMoveToNextStateEvent(state: State2): ?State =
   some State(State3.new())
 
-method run(state: State3): Future[?State] {.async.} =
+method run(state: State3, machine: Machine): Future[?State] {.async.} =
   inc runs[2]
 
 method onMoveToNextStateEvent(state: State3): ?State =

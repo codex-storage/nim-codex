@@ -24,12 +24,12 @@ proc schedule*(machine: Machine, event: Event) =
   except AsyncQueueFullError:
     raiseAssert "unlimited queue is full?!"
 
-method run*(state: State): Future[?State] {.base, upraises:[].} =
+method run*(state: State, machine: Machine): Future[?State] {.base, async.} =
   discard
 
 proc run(machine: Machine, state: State) {.async.} =
   try:
-    if next =? await state.run():
+    if next =? await state.run(machine):
       machine.schedule(Event.transition(state, next))
   except CancelledError:
     discard
