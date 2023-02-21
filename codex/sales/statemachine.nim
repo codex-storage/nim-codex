@@ -52,7 +52,6 @@ type
     minPrice*: UInt256
   AvailabilityChange* = proc(availability: Availability) {.gcsafe, upraises: [].}
   # TODO: when availability changes introduced, make availability non-optional (if we need to keep it at all)
-  RequestEvent* = proc(state: SaleState, request: StorageRequest): Future[void] {.gcsafe, upraises: [].}
   OnStore* = proc(request: StorageRequest,
                   slot: UInt256,
                   availability: ?Availability): Future[void] {.gcsafe, upraises: [].}
@@ -103,28 +102,3 @@ func findAvailability*(sales: Sales, ask: StorageAsk): ?Availability =
        ask.duration <= availability.duration and
        ask.pricePerSlot >= availability.minPrice:
       return some availability
-
-method onCancelled*(state: SaleState, request: StorageRequest): ?State {.base, upraises:[].} =
-  discard
-
-method onFailed*(state: SaleState, request: StorageRequest): ?State {.base, upraises:[].} =
-  discard
-
-method onSlotFilled*(state: SaleState, requestId: RequestId,
-                     slotIndex: UInt256): ?State {.base, upraises:[].} =
-  discard
-
-# TODO: remove request parameter?
-proc cancelledEvent*(request: StorageRequest): Event =
-  return proc (state: State): ?State =
-    SaleState(state).onCancelled(request)
-
-# TODO: remove request parameter?
-proc failedEvent*(request: StorageRequest): Event =
-  return proc (state: State): ?State =
-    SaleState(state).onFailed(request)
-
-# TODO: remove parameters?
-proc slotFilledEvent*(requestId: RequestId, slotIndex: UInt256): Event =
-  return proc (state: State): ?State =
-    SaleState(state).onSlotFilled(requestId, slotIndex)

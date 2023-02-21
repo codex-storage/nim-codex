@@ -6,7 +6,7 @@ import ./filled
 import ./errored
 
 type
-  SaleProving* = ref object of SaleState
+  SaleProving* = ref object of State
   SaleProvingError* = object of CatchableError
 
 method `$`*(state: SaleProving): string = "SaleProving"

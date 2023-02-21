@@ -9,7 +9,7 @@ import ../statemachine
 import ../../market
 
 type
-  SaleDownloading* = ref object of SaleState
+  SaleDownloading* = ref object of State
     failedSubscription: ?market.Subscription
     hasCancelled: ?Future[void]
   SaleDownloadingError* = object of SaleError

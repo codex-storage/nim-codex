@@ -5,7 +5,7 @@ import ./failed
 import ../statemachine
 
 type
-  SaleFinished* = ref object of SaleState
+  SaleFinished* = ref object of State
   SaleFinishedError* = object of CatchableError
 
 method `$`*(state: SaleFinished): string = "SaleFinished"

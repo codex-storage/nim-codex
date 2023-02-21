@@ -7,7 +7,7 @@ import ./cancelled
 import ./failed
 
 type
-  SaleFilling* = ref object of SaleState
+  SaleFilling* = ref object of State
     proof*: seq[byte]
   SaleFillingError* = object of CatchableError
 

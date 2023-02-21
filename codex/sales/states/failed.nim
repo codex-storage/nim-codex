@@ -2,7 +2,7 @@ import ./errored
 import ../statemachine
 
 type
-  SaleFailed* = ref object of SaleState
+  SaleFailed* = ref object of State
   SaleFailedError* = object of SaleError
 
 method `$`*(state: SaleFailed): string = "SaleFailed"

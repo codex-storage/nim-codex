@@ -1,7 +1,7 @@
 import chronicles
 import ../statemachine
 
-type SaleErrored* = ref object of SaleState
+type SaleErrored* = ref object of State
 
 method `$`*(state: SaleErrored): string = "SaleErrored"
 

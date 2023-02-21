@@ -75,25 +75,25 @@ proc newSalesAgent*(sales: Sales,
         agent.requestState.value == RequestState.Finished
     ),
     Transition.new(
-      @[AnyState.new()],
+      AnyState.new(),
       SaleErrored.new(),
       proc(m: Machine, s: State): bool =
         SalesAgent(m).errored.value
     ),
     Transition.new(
-      @[SaleDownloading.new()],
+      SaleDownloading.new(),
       SaleProving.new(),
       proc(m: Machine, s: State): bool =
         SalesAgent(m).downloaded.value
     ),
     Transition.new(
-      @[SaleProving.new()],
+      SaleProving.new(),
       SaleFilling.new(),
       proc(m: Machine, s: State): bool =
         SalesAgent(m).proof.value.len > 0 # TODO: proof validity check?
     ),
     Transition.new(
-      @[SaleFilled.new()],
+      SaleFilled.new(),
       SaleFinished.new(),
       proc(m: Machine, s: State): bool =
         let agent = SalesAgent(m)
@@ -102,7 +102,7 @@ proc newSalesAgent*(sales: Sales,
         host == agent.me
     ),
     Transition.new(
-      @[SaleFilled.new()],
+      SaleFilled.new(),
       SaleErrored.new(),
       proc(m: Machine, s: State): bool =
         let agent = SalesAgent(m)
@@ -115,7 +115,7 @@ proc newSalesAgent*(sales: Sales,
         else: return false
     ),
     Transition.new(
-      @[SaleUnknown.new()],
+      SaleUnknown.new(),
       SaleErrored.new(),
       proc(m: Machine, s: State): bool =
         let agent = SalesAgent(m)

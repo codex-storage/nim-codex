@@ -37,7 +37,7 @@ proc new*(T: type Transition,
 proc new*(T: type Transition,
           prev, next: State,
           trigger: TransitionCondition): T =
-  Transition.new(@[prev], next, trigger)
+  Transition.new([prev], next, trigger)
 
 proc newTransitionProperty*[T](machine: Machine,
                                initialValue: T): TransitionProperty[T] =

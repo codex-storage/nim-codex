@@ -6,7 +6,7 @@ import ./errored
 import ./cancelled
 
 type
-  SaleUnknown* = ref object of SaleState
+  SaleUnknown* = ref object of State
   SaleUnknownError* = object of CatchableError
   UnexpectedSlotError* = object of SaleUnknownError
 

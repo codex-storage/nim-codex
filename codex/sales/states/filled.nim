@@ -6,7 +6,7 @@ import ./failed
 import ../statemachine
 
 type
-  SaleFilled* = ref object of SaleState
+  SaleFilled* = ref object of State
   SaleFilledError* = object of CatchableError
   HostMismatchError* = object of SaleFilledError
 
