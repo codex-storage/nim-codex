@@ -27,6 +27,7 @@ import ../namespaces
 import ../manifest
 import ../clock
 import ../systemclock
+import ../utils/keyutils
 
 export blocktype, libp2p
 
@@ -42,8 +43,6 @@ const
   QuotaKey* = Key.init(CodexQuotaNamespace).tryGet
   QuotaUsedKey* = (QuotaKey / "used").tryGet
   QuotaReservedKey* = (QuotaKey / "reserved").tryGet
-
-  BlocksTtlKey* = Key.init(CodexBlocksTtlNamespace).tryGet
 
   DefaultBlockTtlSeconds* = 24 * 60 * 60
   DefaultQuotaBytes* = 1'u shl 33'u # ~8GB
@@ -109,11 +108,8 @@ proc getBlockExpirationTimestamp(self: RepoStore, ttl: ?times.Duration): Seconds
   let duration: times.Duration = ttl |? self.blockTtl
   self.clock.now() + duration.inSeconds
 
-proc createBlockExpirationMetadataKey(self: RepoStore, cid: Cid): ?!Key =
-  BlocksTtlKey / $cid
-
 proc getBlockExpirationEntry(self: RepoStore, batch: var seq[BatchEntry], cid: Cid, ttl: ?times.Duration): ?!BatchEntry =
-  without key =? self.createBlockExpirationMetadataKey(cid), err:
+  without key =? createBlockExpirationMetadataKey(cid), err:
     return failure(err)
 
   let value = self.getBlockExpirationTimestamp(ttl).toBytes
@@ -182,7 +178,7 @@ proc updateQuotaBytesUsed(self: RepoStore, blk: Block): Future[?!void] {.async.}
   return success()
 
 proc removeBlockExpirationEntry(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
-  without key =? self.createBlockExpirationMetadataKey(cid), err:
+  without key =? createBlockExpirationMetadataKey(cid), err:
     return failure(err)
   return await self.metaDs.delete(key)
 
@@ -254,8 +250,7 @@ method listBlocks*(
   return success iter
 
 proc createBlockExpirationQuery(maxNumber: int, offset: int): ?!Query =
-  let queryString = ? (BlocksTtlKey / "*")
-  let queryKey = ? Key.init(queryString)
+  let queryKey = ? createBlockExpirationMetadataQueryKey()
   success Query.init(queryKey, offset = offset, limit = maxNumber)
 
 method getBlockExpirations*(self: RepoStore, maxNumber: int, offset: int): Future[?!BlockExpirationIter] {.async, base.} =

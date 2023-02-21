@@ -13,13 +13,16 @@ push: {.upraises: [].}
 import pkg/chronicles
 import pkg/questionable/results
 import pkg/libp2p
+import pkg/datastore
 
 import ./fileutils
 import ../errors
 import ../rng
+import ../namespaces
 
 const
   SafePermissions = {UserRead, UserWrite}
+  BlocksTtlKey* = Key.init(CodexBlocksTtlNamespace).tryGet
 
 type
   CodexKeyError = object of CodexError
@@ -44,3 +47,10 @@ proc setupKey*(path: string): ?!PrivateKey =
   return PrivateKey.init(
     ? path.readAllBytes().mapFailure(CodexKeyError))
     .mapFailure(CodexKeyError)
+
+proc createBlockExpirationMetadataKey*(cid: Cid): ?!Key =
+  BlocksTtlKey / $cid
+
+proc createBlockExpirationMetadataQueryKey*(): ?!Key =
+  let queryString = ? (BlocksTtlKey / "*")
+  Key.init(queryString)
