@@ -10,10 +10,10 @@ type
 
 method `$`*(state: SaleFinished): string = "SaleFinished"
 
-method onCancelled*(state: SaleFinished, request: StorageRequest): Future[?State] {.async.} =
+method onCancelled*(state: SaleFinished, request: StorageRequest): ?State =
   return some State(SaleCancelled())
 
-method onFailed*(state: SaleFinished, request: StorageRequest): Future[?State] {.async.} =
+method onFailed*(state: SaleFinished, request: StorageRequest): ?State =
   return some State(SaleFailed())
 
 method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
