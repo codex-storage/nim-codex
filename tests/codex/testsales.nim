@@ -81,21 +81,23 @@ suite "Sales":
   test "makes storage unavailable when matching request comes in":
     sales.add(availability)
     await market.requestStorage(request)
-    check sales.available.len == 0
+    check eventually sales.available.len == 0
 
   test "ignores request when no matching storage is available":
     sales.add(availability)
     var tooBig = request
     tooBig.ask.slotSize = request.ask.slotSize + 1
     await market.requestStorage(tooBig)
-    check sales.available == @[availability]
+    await sleepAsync(1.millis)
+    check eventually sales.available == @[availability]
 
   test "ignores request when reward is too low":
     sales.add(availability)
     var tooCheap = request
     tooCheap.ask.reward = request.ask.reward - 1
     await market.requestStorage(tooCheap)
-    check sales.available == @[availability]
+    await sleepAsync(1.millis)
+    check eventually sales.available == @[availability]
 
   test "retrieves and stores data locally":
     var storingRequest: StorageRequest
@@ -110,7 +112,7 @@ suite "Sales":
       storingAvailability = !availability
     sales.add(availability)
     await market.requestStorage(request)
-    check storingRequest == request
+    check eventually storingRequest == request
     check storingSlot < request.ask.slots.u256
     check storingAvailability == availability
 
@@ -122,7 +124,8 @@ suite "Sales":
       raise error
     sales.add(availability)
     await market.requestStorage(request)
-    check sales.available == @[availability]
+    await sleepAsync(1.millis)
+    check eventually sales.available == @[availability]
 
   test "generates proof of storage":
     var provingRequest: StorageRequest
@@ -133,13 +136,13 @@ suite "Sales":
       provingSlot = slot
     sales.add(availability)
     await market.requestStorage(request)
-    check provingRequest == request
+    check eventually provingRequest == request
     check provingSlot < request.ask.slots.u256
 
   test "fills a slot":
     sales.add(availability)
     await market.requestStorage(request)
-    check market.filled.len == 1
+    check eventually market.filled.len == 1
     check market.filled[0].requestId == request.id
     check market.filled[0].slotIndex < request.ask.slots.u256
     check market.filled[0].proof == proof
@@ -158,7 +161,7 @@ suite "Sales":
       soldSlotIndex = slotIndex
     sales.add(availability)
     await market.requestStorage(request)
-    check soldAvailability == availability
+    check eventually soldAvailability == availability
     check soldRequest == request
     check soldSlotIndex < request.ask.slots.u256
 
@@ -180,7 +183,7 @@ suite "Sales":
       clearedSlotIndex = slotIndex
     sales.add(availability)
     await market.requestStorage(request)
-    check clearedAvailability == availability
+    check eventually clearedAvailability == availability
     check clearedRequest == request
     check clearedSlotIndex < request.ask.slots.u256
 
@@ -192,6 +195,7 @@ suite "Sales":
       await sleepAsync(chronos.hours(1))
     sales.add(availability)
     await market.requestStorage(request)
+    await sleepAsync(1.millis)
     for slotIndex in 0..<request.ask.slots:
       market.fillSlot(request.id, slotIndex.u256, proof, otherHost)
     await sleepAsync(chronos.seconds(2))
@@ -204,6 +208,7 @@ suite "Sales":
       await sleepAsync(chronos.hours(1))
     sales.add(availability)
     await market.requestStorage(request)
+    await sleepAsync(1.millis)
     clock.set(request.expiry.truncate(int64))
     check eventually (sales.available == @[availability])
 
@@ -216,7 +221,7 @@ suite "Sales":
     check proving.slots.len == 0
     sales.add(availability)
     await market.requestStorage(request)
-    check proving.slots.len == 1
+    check eventually proving.slots.len == 1
     check proving.slots.contains(request.slotId(soldSlotIndex))
 
 suite "Sales state machine":

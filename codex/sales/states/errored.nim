@@ -6,9 +6,8 @@ type SaleErrored* = ref object of SaleState
 
 method `$`*(state: SaleErrored): string = "SaleErrored"
 
-method enterAsync*(state: SaleErrored) {.async.} =
-  without agent =? (state.context as SalesAgent):
-    raiseAssert "invalid state"
+method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
+  let agent = SalesAgent(machine)
 
   if onClear =? agent.sales.onClear and
       request =? agent.request and

@@ -10,7 +10,7 @@ import ./proving
 import ./contracts/requests
 import ./sales/salesagent
 import ./sales/statemachine
-import ./sales/states/[downloading, unknown]
+import ./sales/states/[start, downloading, unknown]
 
 ## Sales holds a list of available storage that it may sell.
 ##
@@ -79,9 +79,7 @@ proc handleRequest(sales: Sales,
     availability,
     none StorageRequest
   )
-
-  await agent.start(ask.slots)
-  await agent.switchAsync(SaleDownloading())
+  agent.start(SaleStart(next: SaleDownloading()))
   sales.agents.add agent
 
 proc load*(sales: Sales) {.async.} =
@@ -106,9 +104,7 @@ proc load*(sales: Sales) {.async.} =
         slotIndex,
         availability,
         some request)
-
-      await agent.start(request.ask.slots)
-      await agent.switchAsync(SaleUnknown())
+      agent.start(SaleStart(next: SaleUnknown()))
       sales.agents.add agent
 
 proc start*(sales: Sales) {.async.} =

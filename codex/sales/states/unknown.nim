@@ -12,16 +12,14 @@ type
 
 method `$`*(state: SaleUnknown): string = "SaleUnknown"
 
-method onCancelled*(state: SaleUnknown, request: StorageRequest) {.async.} =
-  await state.switchAsync(SaleCancelled())
+method onCancelled*(state: SaleUnknown, request: StorageRequest): ?State =
+  return some State(SaleCancelled())
 
-method onFailed*(state: SaleUnknown, request: StorageRequest) {.async.} =
-  await state.switchAsync(SaleFailed())
+method onFailed*(state: SaleUnknown, request: StorageRequest): ?State =
+  return some State(SaleFailed())
 
-method enterAsync(state: SaleUnknown) {.async.} =
-  without agent =? (state.context as SalesAgent):
-    raiseAssert "invalid state"
-
+method run*(state: SaleUnknown, machine: Machine): Future[?State] {.async.} =
+  let agent = SalesAgent(machine)
   let market = agent.sales.market
 
   try:
@@ -29,25 +27,25 @@ method enterAsync(state: SaleUnknown) {.async.} =
 
     without slotState =? await market.slotState(slotId):
       let error = newException(SaleUnknownError, "cannot retrieve slot state")
-      await state.switchAsync(SaleErrored(error: error))
+      return some State(SaleErrored(error: error))
 
     case slotState
     of SlotState.Free:
       let error = newException(UnexpectedSlotError,
         "slot state on chain should not be 'free'")
-      await state.switchAsync(SaleErrored(error: error))
+      return some State(SaleErrored(error: error))
     of SlotState.Filled:
-      await state.switchAsync(SaleFilled())
+      return some State(SaleFilled())
     of SlotState.Finished, SlotState.Paid:
-      await state.switchAsync(SaleFinished())
+      return some State(SaleFinished())
     of SlotState.Failed:
-      await state.switchAsync(SaleFailed())
+      return some State(SaleFailed())
 
   except CancelledError:
-    discard
+    raise
 
   except CatchableError as e:
     let error = newException(SaleUnknownError,
                              "error in unknown state",
                              e)
-    await state.switchAsync(SaleErrored(error: error))
+    return some State(SaleErrored(error: error))

@@ -13,19 +13,18 @@ type
 
 method `$`*(state: SaleFilling): string = "SaleFilling"
 
-method onCancelled*(state: SaleFilling, request: StorageRequest) {.async.} =
-  await state.switchAsync(SaleCancelled())
+method onCancelled*(state: SaleFilling, request: StorageRequest): ?State =
+  return some State(SaleCancelled())
 
-method onFailed*(state: SaleFilling, request: StorageRequest) {.async.} =
-  await state.switchAsync(SaleFailed())
+method onFailed*(state: SaleFilling, request: StorageRequest): ?State =
+  return some State(SaleFailed())
 
 method onSlotFilled*(state: SaleFilling, requestId: RequestId,
-                     slotIndex: UInt256) {.async.} =
-  await state.switchAsync(SaleFilled())
+                     slotIndex: UInt256): ?State =
+  return some State(SaleFilled())
 
-method enterAsync(state: SaleFilling) {.async.} =
-  without agent =? (state.context as SalesAgent):
-    raiseAssert "invalid state"
+method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
+  let agent = SalesAgent(machine)
 
   try:
     let market = agent.sales.market
@@ -33,8 +32,8 @@ method enterAsync(state: SaleFilling) {.async.} =
     await market.fillSlot(agent.requestId, agent.slotIndex, state.proof)
 
   except CancelledError:
-    discard
+    raise
 
   except CatchableError as e:
     let error = newException(SaleFillingError, "unknown sale filling error", e)
-    await state.switchAsync(SaleErrored(error: error))
+    return some State(SaleErrored(error: error))

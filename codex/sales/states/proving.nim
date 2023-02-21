@@ -11,19 +11,18 @@ type
 
 method `$`*(state: SaleProving): string = "SaleProving"
 
-method onCancelled*(state: SaleProving, request: StorageRequest) {.async.} =
-  await state.switchAsync(SaleCancelled())
+method onCancelled*(state: SaleProving, request: StorageRequest): ?State =
+  return some State(SaleCancelled())
 
-method onFailed*(state: SaleProving, request: StorageRequest) {.async.} =
-  await state.switchAsync(SaleFailed())
+method onFailed*(state: SaleProving, request: StorageRequest): ?State =
+  return some State(SaleFailed())
 
 method onSlotFilled*(state: SaleProving, requestId: RequestId,
-                     slotIndex: UInt256) {.async.} =
-  await state.switchAsync(SaleFilled())
+                     slotIndex: UInt256): ?State =
+  return some State(SaleFilled())
 
-method enterAsync(state: SaleProving) {.async.} =
-  without agent =? (state.context as SalesAgent):
-    raiseAssert "invalid state"
+method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
+  let agent = SalesAgent(machine)
 
   try:
     without request =? agent.request:
@@ -33,11 +32,11 @@ method enterAsync(state: SaleProving) {.async.} =
       raiseAssert "onProve callback not set"
 
     let proof = await onProve(request, agent.slotIndex)
-    await state.switchAsync(SaleFilling(proof: proof))
+    return some State(SaleFilling(proof: proof))
 
   except CancelledError:
-    discard
+    raise
 
   except CatchableError as e:
     let error = newException(SaleProvingError, "unknown sale proving error", e)
-    await state.switchAsync(SaleErrored(error: error))
+    return some State(SaleErrored(error: error))

@@ -16,19 +16,18 @@ type
 
 method `$`*(state: SaleDownloading): string = "SaleDownloading"
 
-method onCancelled*(state: SaleDownloading, request: StorageRequest) {.async.} =
-  await state.switchAsync(SaleCancelled())
+method onCancelled*(state: SaleDownloading, request: StorageRequest): ?State =
+  return some State(SaleCancelled())
 
-method onFailed*(state: SaleDownloading, request: StorageRequest) {.async.} =
-  await state.switchAsync(SaleFailed())
+method onFailed*(state: SaleDownloading, request: StorageRequest): ?State =
+  return some State(SaleFailed())
 
 method onSlotFilled*(state: SaleDownloading, requestId: RequestId,
-                     slotIndex: UInt256) {.async.} =
-  await state.switchAsync(SaleFilled())
+                     slotIndex: UInt256): ?State =
+  return some State(SaleFilled())
 
-method enterAsync(state: SaleDownloading) {.async.} =
-  without agent =? (state.context as SalesAgent):
-    raiseAssert "invalid state"
+method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} =
+  let agent = SalesAgent(machine)
 
   try:
     without onStore =? agent.sales.onStore:
@@ -41,13 +40,13 @@ method enterAsync(state: SaleDownloading) {.async.} =
       agent.sales.remove(availability)
 
     await onStore(request, agent.slotIndex, agent.availability)
-    await state.switchAsync(SaleProving())
+    return some State(SaleProving())
 
   except CancelledError:
-    discard
+    raise
 
   except CatchableError as e:
     let error = newException(SaleDownloadingError,
                              "unknown sale downloading error",
                              e)
-    await state.switchAsync(SaleErrored(error: error))
+    return some State(SaleErrored(error: error))
