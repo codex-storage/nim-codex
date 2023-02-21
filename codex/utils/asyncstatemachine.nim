@@ -2,6 +2,8 @@ import pkg/questionable
 import pkg/chronos
 import pkg/upraises
 
+push: {.upraises:[].}
+
 type
   Machine* = ref object of RootObj
     state: State
@@ -17,7 +19,10 @@ proc transition(_: type Event, previous, next: State): Event =
       return some next
 
 proc schedule*(machine: Machine, event: Event) =
-  machine.scheduled.putNoWait(event)
+  try:
+    machine.scheduled.putNoWait(event)
+  except AsyncQueueFullError:
+    raiseAssert "unlimited queue is full?!"
 
 method run*(state: State): Future[?State] {.base, upraises:[].} =
   discard
