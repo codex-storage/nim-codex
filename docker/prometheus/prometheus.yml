@@ -11,4 +11,6 @@ scrape_configs:
     static_configs:
       - targets:
           - 'prometheus:9090'
-          - 'idonotexists:564'
+          - 'codex-node1:9090'
+          - 'codex-node2:9090'
+          - 'codex-node3:9090'
