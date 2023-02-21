@@ -48,12 +48,11 @@ proc scheduler(machine: Machine) {.async.} =
     discard
 
 proc start*(machine: Machine, initialState: State) =
+  if machine.scheduled.isNil:
+    machine.scheduled = newAsyncQueue[Event]()
   machine.scheduling = machine.scheduler()
   machine.schedule(Event.transition(machine.state, initialState))
 
 proc stop*(machine: Machine) =
   machine.scheduling.cancel()
   machine.running.cancel()
-
-proc new*(_: type Machine): Machine =
-  Machine(scheduled: newAsyncQueue[Event]())
