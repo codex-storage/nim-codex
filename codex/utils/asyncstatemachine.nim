@@ -54,5 +54,7 @@ proc start*(machine: Machine, initialState: State) =
   machine.schedule(Event.transition(machine.state, initialState))
 
 proc stop*(machine: Machine) =
-  machine.scheduling.cancel()
-  machine.running.cancel()
+  if not machine.scheduling.isNil:
+    machine.scheduling.cancel()
+  if not machine.running.isNil:
+    machine.running.cancel()
