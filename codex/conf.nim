@@ -138,6 +138,12 @@ type
         desc: "Node agent string which is used as identifier in network"
         name: "agent-string" }: string
 
+      apiBindAddress* {.
+        desc: "The REST API bind address"
+        defaultValue: "127.0.0.1"
+        name: "api-bindaddr"
+      }: string
+
       apiPort* {.
         desc: "The REST Api port",
         defaultValue: 8080
