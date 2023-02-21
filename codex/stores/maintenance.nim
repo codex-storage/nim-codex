@@ -49,17 +49,23 @@ proc new*(T: type BlockMaintainer,
     offset: 0)
 
 proc runBlockCheck(self: BlockMaintainer): Future[void] {.async.} =
-  var blockCidsToDelete = newSeq[Cid](0)
-  proc processBlockExpiration(self: BlockMaintainer, be: BlockExpiration) =
+  proc deleteExpiredBlock(cid: Cid): Future[void] {.async.} =
+    if isErr (await self.repoStore.delBlock(cid)):
+      trace "Unable to delete block from repoStore"
+
+  proc processBlockExpiration(be: BlockExpiration): Future[void] {.async} =
     if be.expiration < self.clock.now:
-      blockCidsToDelete.add(be.cid)
+      await deleteExpiredBlock(be.cid)
     else:
       inc self.offset
 
-  proc deleteAllExpiredBlocks(self: BlockMaintainer): Future[void] {.async.} =
-    for cid in blockCidsToDelete:
-      if isErr (await self.repoStore.delBlock(cid)):
-        trace "Unable to delete block from repoStore"
+  proc processIterator(iter: BlockExpirationIter): Future[int] {.async.} =
+    var numberReceived = 0
+    while not iter.finished:
+      if be =? await iter.next():
+        inc numberReceived
+        await processBlockExpiration(be)
+    return numberReceived
 
   let expirations = await self.repoStore.getBlockExpirations(
     maxNumber = self.numberOfBlocksPerInterval,
@@ -70,13 +76,7 @@ proc runBlockCheck(self: BlockMaintainer): Future[void] {.async.} =
     trace "Unable to obtain blockExpirations iterator from repoStore"
     return
 
-  var numberReceived = 0
-  while not iter.finished:
-    if be =? await iter.next():
-      inc numberReceived
-      self.processBlockExpiration(be)
-
-  await self.deleteAllExpiredBlocks()
+  let numberReceived = await processIterator(iter)
 
   # If we received fewer blockExpirations from the iterator than we asked for,
   # We're at the end of the dataset and should start from 0 next time.

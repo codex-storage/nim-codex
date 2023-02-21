@@ -23,10 +23,12 @@ type
     getBeOffset*: int
 
     testBlockExpirations*: seq[BlockExpiration]
+    iteratorIndex: int
 
 method delBlock*(self: MockRepoStore, cid: Cid): Future[?!void] {.async.} =
   self.delBlockCids.add(cid)
   self.testBlockExpirations = self.testBlockExpirations.filterIt(it.cid != cid)
+  dec self.iteratorIndex
   return success()
 
 method getBlockExpirations*(self: MockRepoStore, maxNumber: int, offset: int): Future[?!BlockExpirationIter] {.async.} =
@@ -36,13 +38,13 @@ method getBlockExpirations*(self: MockRepoStore, maxNumber: int, offset: int): F
   var iter = BlockExpirationIter()
   iter.finished = false
 
-  var index = offset
+  self.iteratorIndex = offset
   var numberLeft = maxNumber
   proc next(): Future[?BlockExpiration] {.async.} =
-    if numberLeft > 0 and index >= 0 and index < len(self.testBlockExpirations):
+    if numberLeft > 0 and self.iteratorIndex >= 0 and self.iteratorIndex < len(self.testBlockExpirations):
       dec numberLeft
-      let selectedBlock = self.testBlockExpirations[index]
-      inc index
+      let selectedBlock = self.testBlockExpirations[self.iteratorIndex]
+      inc self.iteratorIndex
       return selectedBlock.some
     iter.finished = true
     return BlockExpiration.none
