@@ -7,13 +7,12 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/times
 import pkg/upraises
 
 push: {.upraises: [].}
 
 import pkg/chronicles
-import pkg/chronos except Duration
+import pkg/chronos
 import pkg/libp2p
 
 import ../blocktype as bt

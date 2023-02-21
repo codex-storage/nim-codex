@@ -2,7 +2,6 @@ import std/os
 import std/options
 import std/strutils
 import std/sequtils
-import std/times
 
 import pkg/questionable
 import pkg/questionable/results
@@ -167,7 +166,7 @@ suite "RepoStore":
 
   test "Should store block expiration timestamp":
     let
-      duration = times.initDuration(seconds = 10)
+      duration = 10.seconds
       blk = createTestBlock(100)
 
     let
@@ -188,7 +187,7 @@ suite "RepoStore":
       blk = createTestBlock(100)
 
     let
-      expectedExpiration: SecondsSince1970 = 123 + DefaultBlockTtlSeconds
+      expectedExpiration: SecondsSince1970 = 123 + DefaultBlockTtlSeconds.seconds
       expectedKey = Key.init("meta/ttl/" & $blk.cid).tryGet
 
     (await repo.putBlock(blk)).tryGet
@@ -205,7 +204,7 @@ suite "RepoStore":
       blk = createTestBlock(100)
       expectedKey = Key.init("meta/ttl/" & $blk.cid).tryGet
 
-    (await repo.putBlock(blk, times.initDuration(seconds = 10).some)).tryGet
+    (await repo.putBlock(blk, 10.seconds.some)).tryGet
     (await repo.delBlock(blk.cid)).tryGet
 
     let response = await queryMetaDs(expectedKey)
@@ -224,7 +223,7 @@ suite "RepoStore":
       return expirations
 
     let
-      duration = times.initDuration(seconds = 10)
+      duration = 10.seconds
       blk1 = createTestBlock(10)
       blk2 = createTestBlock(11)
       blk3 = createTestBlock(12)

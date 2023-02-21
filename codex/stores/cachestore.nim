@@ -12,7 +12,6 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
-import std/times
 import std/options
 
 import pkg/chronicles
@@ -157,7 +156,7 @@ func putBlockSync(self: CacheStore, blk: Block): bool =
 method putBlock*(
   self: CacheStore,
   blk: Block,
-  ttl = times.Duration.none): Future[?!void] {.async.} =
+  ttl = Duration.none): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 

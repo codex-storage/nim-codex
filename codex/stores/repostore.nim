@@ -7,7 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/times
 import std/sequtils
 import pkg/upraises
 
@@ -44,7 +43,7 @@ const
   QuotaUsedKey* = (QuotaKey / "used").tryGet
   QuotaReservedKey* = (QuotaKey / "reserved").tryGet
 
-  DefaultBlockTtlSeconds* = 24 * 60 * 60
+  DefaultBlockTtlSeconds* = 24.hours
   DefaultQuotaBytes* = 1'u shl 33'u # ~8GB
 
 type
@@ -59,7 +58,7 @@ type
     quotaMaxBytes*: uint
     quotaUsedBytes*: uint
     quotaReservedBytes*: uint
-    blockTtl*: times.Duration
+    blockTtl*: Duration
     started*: bool
 
   BlockExpiration* = object
@@ -104,11 +103,11 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   trace "Got block for cid", cid
   return Block.new(cid, data)
 
-proc getBlockExpirationTimestamp(self: RepoStore, ttl: ?times.Duration): SecondsSince1970 =
-  let duration: times.Duration = ttl |? self.blockTtl
-  self.clock.now() + duration.inSeconds
+proc getBlockExpirationTimestamp(self: RepoStore, ttl: ?Duration): SecondsSince1970 =
+  let duration = ttl |? self.blockTtl
+  self.clock.now() + duration.seconds
 
-proc getBlockExpirationEntry(self: RepoStore, batch: var seq[BatchEntry], cid: Cid, ttl: ?times.Duration): ?!BatchEntry =
+proc getBlockExpirationEntry(self: RepoStore, batch: var seq[BatchEntry], cid: Cid, ttl: ?Duration): ?!BatchEntry =
   without key =? createBlockExpirationMetadataKey(cid), err:
     return failure(err)
 
@@ -118,7 +117,7 @@ proc getBlockExpirationEntry(self: RepoStore, batch: var seq[BatchEntry], cid: C
 method putBlock*(
   self: RepoStore,
   blk: Block,
-  ttl = times.Duration.none): Future[?!void] {.async.} =
+  ttl = Duration.none): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 
@@ -416,4 +415,4 @@ func new*(
     clock: clock,
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,
-    blockTtl: initDuration(seconds = blockTtlSeconds))
+    blockTtl: blockTtlSeconds)

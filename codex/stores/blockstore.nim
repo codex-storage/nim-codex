@@ -7,7 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/times
 import pkg/upraises
 
 push: {.upraises: [].}
@@ -48,7 +47,7 @@ method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
 method putBlock*(
   self: BlockStore,
   blk: Block,
-  ttl = times.Duration.none): Future[?!void] {.base.} =
+  ttl = Duration.none): Future[?!void] {.base.} =
   ## Put a block to the blockstore
   ##
 
