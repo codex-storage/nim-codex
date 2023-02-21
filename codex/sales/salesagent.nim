@@ -19,16 +19,19 @@ proc newSalesAgent*(sales: Sales,
 proc stop*(agent: SalesAgent) {.async.} =
   procCall Machine(agent).stop()
   try:
-    await agent.fulfilled.unsubscribe()
+    if not agent.fulfilled.isNil:
+      await agent.fulfilled.unsubscribe()
   except CatchableError:
     discard
   try:
-    await agent.failed.unsubscribe()
+    if not agent.failed.isNil:
+      await agent.failed.unsubscribe()
   except CatchableError:
     discard
   try:
-    await agent.slotFilled.unsubscribe()
+    if not agent.slotFilled.isNil:
+      await agent.slotFilled.unsubscribe()
   except CatchableError:
     discard
-  if not agent.cancelled.completed:
+  if not agent.cancelled.isNil:
     await agent.cancelled.cancelAndWait()
