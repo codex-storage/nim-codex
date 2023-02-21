@@ -9,7 +9,7 @@ type
     scheduled: AsyncQueue[Event]
     scheduling: Future[void]
   State* = ref object of RootObj
-  Event = proc(state: State): ?State {.gcsafe, upraises:[].}
+  Event* = proc(state: State): ?State {.gcsafe, upraises:[].}
 
 proc transition(_: type Event, previous, next: State): Event =
   return proc (state: State): ?State =
