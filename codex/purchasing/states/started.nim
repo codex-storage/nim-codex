@@ -13,7 +13,7 @@ method enterAsync*(state: PurchaseStarted) {.async.} =
   let market = purchase.market
 
   let failed = newFuture[void]()
-  proc callback(_: RequestId) {.async.} =
+  proc callback(_: RequestId) =
     failed.complete()
   let subscription = await market.subscribeRequestFailed(purchase.requestId, callback)
 

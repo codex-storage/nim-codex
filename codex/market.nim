@@ -12,11 +12,11 @@ export SecondsSince1970
 type
   Market* = ref object of RootObj
   Subscription* = ref object of RootObj
-  OnRequest* = proc(id: RequestId, ask: StorageAsk): Future[void] {.gcsafe, upraises:[].}
-  OnFulfillment* = proc(requestId: RequestId): Future[void] {.gcsafe, upraises: [].}
-  OnSlotFilled* = proc(requestId: RequestId, slotIndex: UInt256): Future[void] {.gcsafe, upraises:[].}
-  OnRequestCancelled* = proc(requestId: RequestId): Future[void] {.gcsafe, upraises:[].}
-  OnRequestFailed* = proc(requestId: RequestId): Future[void] {.gcsafe, upraises:[].}
+  OnRequest* = proc(id: RequestId, ask: StorageAsk) {.gcsafe, upraises:[].}
+  OnFulfillment* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
+  OnSlotFilled* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises:[].}
+  OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
+  OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
 
 method getSigner*(market: Market): Future[Address] {.base, async.} =
   raiseAssert("not implemented")
