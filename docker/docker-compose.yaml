@@ -6,8 +6,11 @@ services:
       dockerfile: docker/codex.Dockerfile
     ports:
       - 8080:8080
+      - 9090:9090
     environment:
       - CDX_API_PORT=8080
+      - METRICS_ADDR=0.0.0.0
+      - METRICS_PORT=9090
     volumes:
       - ./hostdatadir/node1:/datadir
     networks:
@@ -19,6 +22,8 @@ services:
       - 8081:8081
     environment:
       - CDX_API_PORT=8081
+      - METRICS_ADDR=0.0.0.0
+      - METRICS_PORT=9090
     volumes:
       - ./hostdatadir/node2:/datadir
     depends_on:
@@ -33,12 +38,27 @@ services:
       - 8082:8082
     environment:
       - CDX_API_PORT=8082
+      - METRICS_ADDR=0.0.0.0
+      - METRICS_PORT=9090
     volumes:
       - ./hostdatadir/node3:/datadir
     depends_on:
       - codex-node1
     networks:
       - secondary
+
+  prometheus:
+    image: prom/prometheus:v2.30.3
+    ports:
+      - 9000:9090
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - ./prometheus-data:/prometheus
+    command: --web.enable-lifecycle --config.file=/etc/prometheus/prometheus.yml
+    networks:
+      - primary
+      - secondary
+
 
 networks:
   primary:

@@ -8,4 +8,5 @@ Stop and retain image and volume data:
 
 Stop and delete image and volume data:
 `docker-compose down --rmi all -v`
+`rm -R hostdatadir`
 
