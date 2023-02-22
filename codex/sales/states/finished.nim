@@ -18,8 +18,9 @@ method onFailed*(state: SaleFinished, request: StorageRequest): ?State =
   return some State(SaleFailed())
 
 method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
-  let data = SalesAgent(machine).data
-  let context = SalesAgent(machine).context
+  let agent = SalesAgent(machine)
+  let data = agent.data
+  let context = agent.context
 
   try:
     if request =? data.request and
@@ -34,6 +35,8 @@ method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
     # This will change when the state machine is updated to include the entire
     # sales process, as well as when availability is persisted, so leaving it
     # as a TODO for now.
+
+    await agent.unsubscribe()
 
   except CancelledError:
     raise

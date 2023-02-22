@@ -8,8 +8,9 @@ type SaleErrored* = ref object of SaleState
 method `$`*(state: SaleErrored): string = "SaleErrored"
 
 method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
-  let data = SalesAgent(machine).data
-  let context = SalesAgent(machine).context
+  let agent = SalesAgent(machine)
+  let data = agent.data
+  let context = agent.context
 
   if onClear =? context.onClear and
       request =? data.request and
@@ -23,5 +24,7 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
   if onSaleFailed =? context.onSaleFailed and
      availability =? data.availability:
     onSaleFailed(availability)
+
+    await agent.unsubscribe()
 
   error "Sale error", error=state.error.msg
