@@ -23,13 +23,13 @@ method onSlotFilled*(state: SaleProving, requestId: RequestId,
 
 method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
-  let sales = SalesAgent(machine).sales
+  let context = SalesAgent(machine).context
 
   try:
     without request =? data.request:
       raiseAssert "no sale request"
 
-    without onProve =? sales.onProve:
+    without onProve =? context.onProve:
       raiseAssert "onProve callback not set"
 
     let proof = await onProve(request, data.slotIndex)

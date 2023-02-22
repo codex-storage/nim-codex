@@ -4,12 +4,12 @@ import pkg/stint
 import ./statemachine
 import ../contracts/requests
 
-proc newSalesAgent*(sales: Sales,
+proc newSalesAgent*(context: SalesContext,
                     requestId: RequestId,
                     slotIndex: UInt256,
                     availability: ?Availability,
                     request: ?StorageRequest): SalesAgent =
-  SalesAgent(sales: sales, data: SalesData(
+  SalesAgent(context: context, data: SalesData(
     requestId: requestId,
     availability: availability,
     slotIndex: slotIndex,

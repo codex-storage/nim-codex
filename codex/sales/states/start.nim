@@ -71,8 +71,8 @@ proc subscribeSlotFilled*(machine: Machine, market: Market, data: SalesData) {.a
 
 method run*(state: SaleStart, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
-  let market = SalesAgent(machine).sales.market
-  let clock = SalesAgent(machine).sales.clock
+  let market = SalesAgent(machine).context.market
+  let clock = SalesAgent(machine).context.clock
   await market.retrieveRequest(data)
   await machine.subscribeCancellation(market, clock, data)
   await machine.subscribeFailure(market, data)

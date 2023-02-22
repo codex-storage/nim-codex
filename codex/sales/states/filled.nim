@@ -20,7 +20,7 @@ method `$`*(state: SaleFilled): string = "SaleFilled"
 
 method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
-  let market = SalesAgent(machine).sales.market
+  let market = SalesAgent(machine).context.market
 
   try:
     let host = await market.getHost(data.requestId, data.slotIndex)

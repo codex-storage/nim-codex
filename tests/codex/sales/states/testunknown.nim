@@ -16,17 +16,17 @@ suite "sales state 'unknown'":
   let slotId = slotId(request.id, slotIndex)
 
   var market: MockMarket
-  var sales: Sales
   var agent: SalesAgent
   var state: SaleUnknown
 
   setup:
     market = MockMarket.new()
-    sales = Sales.new(market, nil, nil)
-    agent = sales.newSalesAgent(request.id,
-                                slotIndex,
-                                Availability.none,
-                                StorageRequest.none)
+    let context = SalesContext(market: market)
+    agent = newSalesAgent(context,
+                          request.id,
+                          slotIndex,
+                          Availability.none,
+                          StorageRequest.none)
     state = SaleUnknown.new()
 
   test "switches to error state when on chain state cannot be fetched":

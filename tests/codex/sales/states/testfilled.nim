@@ -15,7 +15,6 @@ suite "sales state 'filled'":
 
   var market: MockMarket
   var slot: MockSlot
-  var sales: Sales
   var agent: SalesAgent
   var state: SaleFilled
 
@@ -25,11 +24,12 @@ suite "sales state 'filled'":
                     host: Address.example,
                     slotIndex: slotIndex,
                     proof: @[])
-    sales = Sales.new(market, nil, nil)
-    agent = sales.newSalesAgent(request.id,
-                                slotIndex,
-                                Availability.none,
-                                StorageRequest.none)
+    let context = SalesContext(market: market)
+    agent = newSalesAgent(context,
+                          request.id,
+                          slotIndex,
+                          Availability.none,
+                          StorageRequest.none)
     state = SaleFilled.new()
 
   test "switches to finished state when slot is filled by me":

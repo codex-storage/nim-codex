@@ -25,7 +25,7 @@ method onSlotFilled*(state: SaleFilling, requestId: RequestId,
 
 method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
-  let market = SalesAgent(machine).sales.market
+  let market = SalesAgent(machine).context.market
 
   try:
     await market.fillSlot(data.requestId, data.slotIndex, state.proof)

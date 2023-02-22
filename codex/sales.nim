@@ -38,11 +38,18 @@ func new*(_: type Sales,
           market: Market,
           clock: Clock,
           proving: Proving): Sales =
-  Sales(
+
+  let sales = Sales(context: SalesContext(
     market: market,
     clock: clock,
     proving: proving
-  )
+  ))
+
+  proc onSaleFailed(availability: Availability) =
+    sales.add(availability)
+
+  sales.context.onSaleFailed = some onSaleFailed
+  sales
 
 proc init*(_: type Availability,
           size: UInt256,
@@ -69,21 +76,23 @@ proc findSlotIndex(numSlots: uint64,
 proc handleRequest(sales: Sales,
                    requestId: RequestId,
                    ask: StorageAsk) =
-  let availability = sales.findAvailability(ask)
+  without availability =? sales.findAvailability(ask):
+    return
+  sales.remove(availability)
   # TODO: check if random slot is actually available (not already filled)
   let slotIndex = randomSlotIndex(ask.slots)
   let agent = newSalesAgent(
-    sales,
+    sales.context,
     requestId,
     slotIndex,
-    availability,
+    some availability,
     none StorageRequest
   )
   agent.start(SaleStart(next: SaleDownloading()))
   sales.agents.add agent
 
 proc load*(sales: Sales) {.async.} =
-  let market = sales.market
+  let market = sales.context.market
 
   # TODO: restore availability from disk
   let requestIds = await market.myRequests()
@@ -99,7 +108,7 @@ proc load*(sales: Sales) {.async.} =
         raiseAssert "could not find slot index"
 
       let agent = newSalesAgent(
-        sales,
+        sales.context,
         request.id,
         slotIndex,
         availability,
@@ -114,7 +123,7 @@ proc start*(sales: Sales) {.async.} =
     sales.handleRequest(requestId, ask)
 
   try:
-    sales.subscription = some await sales.market.subscribeRequests(onRequest)
+    sales.subscription = some await sales.context.market.subscribeRequests(onRequest)
   except CatchableError as e:
     error "Unable to start sales", msg = e.msg
 

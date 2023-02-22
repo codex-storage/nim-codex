@@ -8,9 +8,9 @@ method `$`*(state: SaleErrored): string = "SaleErrored"
 
 method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
-  let sales = SalesAgent(machine).sales
+  let context = SalesAgent(machine).context
 
-  if onClear =? sales.onClear and
+  if onClear =? context.onClear and
       request =? data.request and
       slotIndex =? data.slotIndex:
     onClear(data.availability, request, slotIndex)
@@ -19,7 +19,8 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
   # NOTE: with this in place, restoring state for a restarted node will
   # never free up availability once finished. Persisting availability
   # on disk is required for this.
-  if availability =? data.availability:
-    sales.add(availability)
+  if onSaleFailed =? context.onSaleFailed and
+     availability =? data.availability:
+    onSaleFailed(availability)
 
   error "Sale error", error=state.error.msg

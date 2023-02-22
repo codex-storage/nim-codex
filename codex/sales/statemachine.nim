@@ -16,16 +16,19 @@ export proving
 
 type
   Sales* = ref object
-    market*: Market
-    clock*: Clock
+    context*: SalesContext
     subscription*: ?market.Subscription
     available: seq[Availability]
-    onStore: ?OnStore
-    onProve: ?OnProve
-    onClear: ?OnClear
-    onSale: ?OnSale
-    proving*: Proving
     agents*: seq[SalesAgent]
+  SalesContext* = ref object
+    market*: Market
+    clock*: Clock
+    onStore*: ?OnStore
+    onProve*: ?OnProve
+    onClear*: ?OnClear
+    onSale*: ?OnSale
+    onSaleFailed*: ?OnSaleFailed
+    proving*: Proving
   SalesData* = ref object
     requestId*: RequestId
     ask*: StorageAsk
@@ -37,7 +40,7 @@ type
     slotFilled*: market.Subscription
     cancelled*: Future[void]
   SalesAgent* = ref object of Machine
-    sales*: Sales
+    context*: SalesContext
     data*: SalesData
   SaleState* = ref object of State
   SaleError* = ref object of CodexError
@@ -60,26 +63,27 @@ type
   OnSale* = proc(availability: ?Availability, # TODO: when availability changes introduced, make availability non-optional (if we need to keep it at all)
                  request: StorageRequest,
                  slotIndex: UInt256) {.gcsafe, upraises: [].}
+  OnSaleFailed* = proc(availability: Availability) {.gcsafe, upraises: [].}
 
 proc `onStore=`*(sales: Sales, onStore: OnStore) =
-  sales.onStore = some onStore
+  sales.context.onStore = some onStore
 
 proc `onProve=`*(sales: Sales, onProve: OnProve) =
-  sales.onProve = some onProve
+  sales.context.onProve = some onProve
 
 proc `onClear=`*(sales: Sales, onClear: OnClear) =
-  sales.onClear = some onClear
+  sales.context.onClear = some onClear
 
 proc `onSale=`*(sales: Sales, callback: OnSale) =
-  sales.onSale = some callback
+  sales.context.onSale = some callback
 
-proc onStore*(sales: Sales): ?OnStore = sales.onStore
+proc onStore*(sales: Sales): ?OnStore = sales.context.onStore
 
-proc onProve*(sales: Sales): ?OnProve = sales.onProve
+proc onProve*(sales: Sales): ?OnProve = sales.context.onProve
 
-proc onClear*(sales: Sales): ?OnClear = sales.onClear
+proc onClear*(sales: Sales): ?OnClear = sales.context.onClear
 
-proc onSale*(sales: Sales): ?OnSale = sales.onSale
+proc onSale*(sales: Sales): ?OnSale = sales.context.onSale
 
 proc available*(sales: Sales): seq[Availability] = sales.available
 
