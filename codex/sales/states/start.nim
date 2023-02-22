@@ -22,10 +22,6 @@ method onSlotFilled*(state: SaleStart, requestId: RequestId,
                      slotIndex: UInt256): ?State =
   return some State(SaleFilled())
 
-proc retrieveRequest(market: Market, data: SalesData) {.async.} =
-  if data.request.isNone:
-    data.request = await market.getRequest(data.requestId)
-
 proc subscribeCancellation*(machine: Machine, market: Market, clock: Clock, data: SalesData) {.async.} =
   proc onCancelled() {.async.} =
     without request =? data.request:
@@ -75,7 +71,7 @@ method run*(state: SaleStart, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
   let market = SalesAgent(machine).context.market
   let clock = SalesAgent(machine).context.clock
-  await market.retrieveRequest(data)
+  await data.retrieveRequest(market)
   await machine.subscribeCancellation(market, clock, data)
   await machine.subscribeFailure(market, data)
   await machine.subscribeSlotFilled(market, data)

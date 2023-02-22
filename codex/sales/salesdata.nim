@@ -15,6 +15,10 @@ type
     slotFilled*: market.Subscription
     cancelled*: Future[void]
 
+proc retrieveRequest*(data: SalesData, market: Market) {.async.} =
+  if data.request.isNone:
+    data.request = await market.getRequest(data.requestId)
+
 proc unsubscribe*(data: SalesData) {.async.} =
   try:
     if not data.fulfilled.isNil:
