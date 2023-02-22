@@ -14,27 +14,3 @@ type
     fulfilled*: market.Subscription
     slotFilled*: market.Subscription
     cancelled*: Future[void]
-
-proc retrieveRequest*(data: SalesData, market: Market) {.async.} =
-  if data.request.isNone:
-    data.request = await market.getRequest(data.requestId)
-
-proc unsubscribe*(data: SalesData) {.async.} =
-  try:
-    if not data.fulfilled.isNil:
-      await data.fulfilled.unsubscribe()
-  except CatchableError:
-    discard
-  try:
-    if not data.failed.isNil:
-      await data.failed.unsubscribe()
-  except CatchableError:
-    discard
-  try:
-    if not data.slotFilled.isNil:
-      await data.slotFilled.unsubscribe()
-  except CatchableError:
-    discard
-  if not data.cancelled.isNil:
-    await data.cancelled.cancelAndWait()
-
