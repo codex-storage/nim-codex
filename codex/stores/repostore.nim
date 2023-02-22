@@ -21,12 +21,11 @@ import pkg/datastore
 import pkg/stew/endians2
 
 import ./blockstore
+import ./keyutils
 import ../blocktype
 import ../namespaces
-import ../manifest
 import ../clock
 import ../systemclock
-import ../utils/keyutils
 
 export blocktype, libp2p
 
@@ -34,15 +33,6 @@ logScope:
   topics = "codex repostore"
 
 const
-  CodexMetaKey* = Key.init(CodexMetaNamespace).tryGet
-  CodexRepoKey* = Key.init(CodexRepoNamespace).tryGet
-  CodexBlocksKey* = Key.init(CodexBlocksNamespace).tryGet
-  CodexManifestKey* = Key.init(CodexManifestNamespace).tryGet
-
-  QuotaKey* = Key.init(CodexQuotaNamespace).tryGet
-  QuotaUsedKey* = (QuotaKey / "used").tryGet
-  QuotaReservedKey* = (QuotaKey / "reserved").tryGet
-
   DefaultBlockTtl* = 24.hours
   DefaultQuotaBytes* = 1'u shl 33'u # ~8GB
 
@@ -73,15 +63,6 @@ iterator items*(q: BlockExpirationIter): Future[?BlockExpiration] =
   while not q.finished:
     yield q.next()
 
-func makePrefixKey*(self: RepoStore, cid: Cid): ?!Key =
-  let
-    cidKey = ? Key.init(($cid)[^self.postFixLen..^1] & "/" & $cid)
-
-  if ? cid.isManifest:
-    success CodexManifestKey / cidKey
-  else:
-    success CodexBlocksKey / cidKey
-
 func totalUsed*(self: RepoStore): uint =
   (self.quotaUsedBytes + self.quotaReservedBytes)
 
@@ -89,7 +70,7 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the blockstore
   ##
 
-  without key =? self.makePrefixKey(cid), err:
+  without key =? makePrefixKey(self.postFixLen, cid), err:
     trace "Error getting key from provider", err = err.msg
     return failure(err)
 
@@ -121,7 +102,7 @@ method putBlock*(
   ## Put a block to the blockstore
   ##
 
-  without key =? self.makePrefixKey(blk.cid), err:
+  without key =? makePrefixKey(self.postFixLen, blk.cid), err:
     trace "Error getting key from provider", err = err.msg
     return failure(err)
 
@@ -188,7 +169,7 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
   trace "Deleting block", cid
 
   if blk =? (await self.getBlock(cid)):
-    if key =? self.makePrefixKey(cid) and
+    if key =? makePrefixKey(self.postFixLen, cid) and
       err =? (await self.repoDs.delete(key)).errorOption:
       trace "Error deleting block!", err = err.msg
       return failure(err)
@@ -209,7 +190,7 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
   ##
 
-  without key =? self.makePrefixKey(cid), err:
+  without key =? makePrefixKey(self.postFixLen, cid), err:
     trace "Error getting key from provider", err = err.msg
     return failure(err)
 
@@ -294,7 +275,7 @@ proc hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   ## Return false if error encountered
   ##
 
-  without key =? self.makePrefixKey(cid), err:
+  without key =? makePrefixKey(self.postFixLen, cid), err:
     trace "Error getting key from provider", err = err.msg
     return failure(err.msg)
 
