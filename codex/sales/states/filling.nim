@@ -1,6 +1,7 @@
 import pkg/upraises
 import ../../market
 import ../statemachine
+import ../salesagent
 import ./filled
 import ./errored
 import ./cancelled

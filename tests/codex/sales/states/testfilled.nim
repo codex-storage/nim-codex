@@ -1,6 +1,8 @@
 import pkg/asynctest
 import pkg/codex/contracts/requests
 import pkg/codex/sales
+import pkg/codex/sales/salesagent
+import pkg/codex/sales/salescontext
 import pkg/codex/sales/states/filled
 import pkg/codex/sales/states/errored
 import pkg/codex/sales/states/finished

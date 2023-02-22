@@ -4,6 +4,7 @@ import ./finished
 import ./cancelled
 import ./failed
 import ../statemachine
+import ../salesagent
 
 type
   SaleFilled* = ref object of SaleState

@@ -1,5 +1,6 @@
 import chronicles
 import ../statemachine
+import ../salesagent
 
 type SaleErrored* = ref object of SaleState
   error*: ref CatchableError

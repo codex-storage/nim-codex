@@ -1,8 +1,9 @@
 import pkg/chronos
+import ../statemachine
+import ../salesagent
 import ./cancelled
 import ./errored
 import ./failed
-import ../statemachine
 
 type
   SaleFinished* = ref object of SaleState

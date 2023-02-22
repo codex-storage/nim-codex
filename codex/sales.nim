@@ -1,3 +1,4 @@
+import std/sequtils
 import pkg/questionable
 import pkg/upraises
 import pkg/stint
@@ -8,6 +9,9 @@ import ./market
 import ./clock
 import ./proving
 import ./contracts/requests
+import ./sales/salescontext
+import ./sales/salesagent
+import ./sales/availability
 import ./sales/salesagent
 import ./sales/statemachine
 import ./sales/states/[start, downloading, unknown]
@@ -31,8 +35,54 @@ import ./sales/states/[start, downloading, unknown]
 ##     |                          | ---- storage proof ---> |
 
 export stint
-export salesagent
-export statemachine
+export availability
+
+type
+  Sales* = ref object
+    context*: SalesContext
+    subscription*: ?market.Subscription
+    available: seq[Availability]
+    agents*: seq[SalesAgent]
+
+proc `onStore=`*(sales: Sales, onStore: OnStore) =
+  sales.context.onStore = some onStore
+
+proc `onProve=`*(sales: Sales, onProve: OnProve) =
+  sales.context.onProve = some onProve
+
+proc `onClear=`*(sales: Sales, onClear: OnClear) =
+  sales.context.onClear = some onClear
+
+proc `onSale=`*(sales: Sales, callback: OnSale) =
+  sales.context.onSale = some callback
+
+proc onStore*(sales: Sales): ?OnStore = sales.context.onStore
+
+proc onProve*(sales: Sales): ?OnProve = sales.context.onProve
+
+proc onClear*(sales: Sales): ?OnClear = sales.context.onClear
+
+proc onSale*(sales: Sales): ?OnSale = sales.context.onSale
+
+proc available*(sales: Sales): seq[Availability] = sales.available
+
+proc init*(_: type Availability,
+          size: UInt256,
+          duration: UInt256,
+          minPrice: UInt256): Availability =
+  var id: array[32, byte]
+  doAssert randomBytes(id) == 32
+  Availability(id: id, size: size, duration: duration, minPrice: minPrice)
+
+func add*(sales: Sales, availability: Availability) =
+  if not sales.available.contains(availability):
+    sales.available.add(availability)
+  # TODO: add to disk (persist), serialise to json.
+
+func remove*(sales: Sales, availability: Availability) =
+  sales.available.keepItIf(it != availability)
+  # TODO: remove from disk availability, mark as in use by assigning
+  # a slotId, so that it can be used for restoration (node restart)
 
 func new*(_: type Sales,
           market: Market,
@@ -51,13 +101,12 @@ func new*(_: type Sales,
   sales.context.onSaleFailed = some onSaleFailed
   sales
 
-proc init*(_: type Availability,
-          size: UInt256,
-          duration: UInt256,
-          minPrice: UInt256): Availability =
-  var id: array[32, byte]
-  doAssert randomBytes(id) == 32
-  Availability(id: id, size: size, duration: duration, minPrice: minPrice)
+func findAvailability*(sales: Sales, ask: StorageAsk): ?Availability =
+  for availability in sales.available:
+    if ask.slotSize <= availability.size and
+       ask.duration <= availability.duration and
+       ask.pricePerSlot >= availability.minPrice:
+      return some availability
 
 proc randomSlotIndex(numSlots: uint64): UInt256 =
   let rng = Rng.instance
@@ -137,4 +186,3 @@ proc stop*(sales: Sales) {.async.} =
 
   for agent in sales.agents:
     await agent.stop()
-

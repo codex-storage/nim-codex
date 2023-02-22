@@ -1,12 +1,13 @@
 import std/sequtils
+import ../../market
+import ../salesagent
+import ../statemachine
+import ../salesagent
 import ./cancelled
 import ./failed
 import ./filled
 import ./proving
 import ./errored
-import ../salesagent
-import ../statemachine
-import ../../market
 
 type
   SaleDownloading* = ref object of SaleState

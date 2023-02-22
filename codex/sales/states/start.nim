@@ -1,8 +1,10 @@
+import ../statemachine
+import ../salesdata
+import ../salesagent
 import ./downloading
 import ./cancelled
 import ./failed
 import ./filled
-import ../statemachine
 
 type
   SaleStart* = ref object of SaleState

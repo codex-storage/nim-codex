@@ -1,4 +1,5 @@
 import ../statemachine
+import ../salesagent
 import ./filling
 import ./cancelled
 import ./failed
