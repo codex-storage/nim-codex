@@ -105,7 +105,7 @@ method subscribeSlotFilled*(market: OnChainMarket,
                             slotIndex: UInt256,
                             callback: OnSlotFilled):
                            Future[MarketSubscription] {.async.} =
-  proc onEvent(event: SlotFilled) {.upraises:[], async.} =
+  proc onEvent(event: SlotFilled) {.upraises:[].} =
     if event.requestId == requestId and event.slotIndex == slotIndex:
       callback(event.requestId, event.slotIndex)
   let subscription = await market.contract.subscribe(SlotFilled, onEvent)
