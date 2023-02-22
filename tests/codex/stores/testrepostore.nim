@@ -187,7 +187,7 @@ suite "RepoStore":
       blk = createTestBlock(100)
 
     let
-      expectedExpiration: SecondsSince1970 = 123 + DefaultBlockTtlSeconds.seconds
+      expectedExpiration: SecondsSince1970 = 123 + DefaultBlockTtl.seconds
       expectedKey = Key.init("meta/ttl/" & $blk.cid).tryGet
 
     (await repo.putBlock(blk)).tryGet

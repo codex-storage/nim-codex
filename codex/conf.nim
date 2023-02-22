@@ -32,7 +32,7 @@ import pkg/ethers
 import ./discovery
 import ./stores
 
-export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtlSeconds, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval
+export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval
 
 type
   StartUpCommand* {.pure.} = enum
@@ -160,8 +160,8 @@ type
 
       blockTtlSeconds* {.
         desc: "Default block timeout in seconds - 0 disables the ttl"
-        defaultValue: DefaultBlockTtlSeconds
-        defaultValueDesc: $DefaultBlockTtlSeconds
+        defaultValue: DefaultBlockTtl.seconds
+        defaultValueDesc: $DefaultBlockTtl
         name: "block-ttl"
         abbr: "t" }: int
 

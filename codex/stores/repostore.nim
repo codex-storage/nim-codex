@@ -43,7 +43,7 @@ const
   QuotaUsedKey* = (QuotaKey / "used").tryGet
   QuotaReservedKey* = (QuotaKey / "reserved").tryGet
 
-  DefaultBlockTtlSeconds* = 24.hours
+  DefaultBlockTtl* = 24.hours
   DefaultQuotaBytes* = 1'u shl 33'u # ~8GB
 
 type
@@ -408,11 +408,11 @@ func new*(
   clock: Clock = SystemClock.new(),
   postFixLen = 2,
   quotaMaxBytes = DefaultQuotaBytes,
-  blockTtlSeconds = DefaultBlockTtlSeconds): T =
+  blockTtl = DefaultBlockTtl): T =
   T(
     repoDs: repoDs,
     metaDs: metaDs,
     clock: clock,
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,
-    blockTtl: blockTtlSeconds)
+    blockTtl: blockTtl)
