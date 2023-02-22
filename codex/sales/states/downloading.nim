@@ -28,10 +28,14 @@ method onSlotFilled*(state: SaleDownloading, requestId: RequestId,
   return some State(SaleFilled())
 
 method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} =
-  let data = SalesAgent(machine).data
-  let context = SalesAgent(machine).context
+  let agent = SalesAgent(machine)
+  let data = agent.data
+  let context = agent.context
 
   try:
+    await agent.retrieveRequest()
+    await agent.subscribe()
+
     without onStore =? context.onStore:
       raiseAssert "onStore callback not set"
 
