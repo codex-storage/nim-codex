@@ -206,3 +206,32 @@ suite "async state machines":
     check machine.state of State4
     check checked
     #3->5 transition was checked but not run because state had already moved to 4
+
+  test "allows source transition to include multiple states":
+    machine = MyMachine.new(@[
+      Transition.new(
+        @[
+          state3,
+          state4
+        ],
+        state5,
+        proc(m: Machine, s: State): bool = true
+      )]
+    )
+    machine.start(state3)
+    check eventually runs == [0, 0, 1, 0, 1]
+    machine.schedule(Event.transition(state5, state4))
+    check eventually runs == [0, 0, 1, 1, 2]
+    check machine.state of State5
+
+  test "does not allow transitioning to the state it's already on":
+    machine = MyMachine.new(@[
+      Transition.new(
+        AnyState.new(),
+        state4,
+        proc(m: Machine, s: State): bool = true
+      )]
+    )
+    machine.start(state4)
+    check eventually runs == [0, 0, 0, 0, 0]
+    check machine.state.isNil

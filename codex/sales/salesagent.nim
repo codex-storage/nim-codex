@@ -14,10 +14,20 @@ proc newSalesAgent*(sales: Sales,
                     requestState: RequestState,
                     slotState: SlotState,
                     restoredFromChain: bool): SalesAgent =
+
+  let saleUnknown = SaleUnknown.new()
+  let saleDownloading = SaleDownloading.new()
+  let saleProving = SaleProving.new()
+  let saleFilling = SaleFilling.new()
+  let saleFilled = SaleFilled.new()
+  let saleCancelled = SaleCancelled.new()
+  let saleFailed = SaleFailed.new()
+  let saleErrored = SaleErrored.new()
+
   let agent = SalesAgent.new(@[
     Transition.new(
-      SaleUnknown(),
-      SaleDownloading.new(),
+      saleUnknown,
+      saleDownloading,
       proc(m: Machine, s: State): bool =
         let agent = SalesAgent(m)
         agent.requestState.value == RequestState.New and
@@ -25,25 +35,25 @@ proc newSalesAgent*(sales: Sales,
     ),
     Transition.new(
       @[
-        SaleUnknown(),
-        SaleDownloading(),
-        SaleProving(),
-        SaleFilling(),
-        SaleFilled()
+        saleUnknown,
+        saleDownloading,
+        saleProving,
+        saleFilling,
+        saleFilled
       ],
-      SaleCancelled.new(),
+      saleCancelled,
       proc(m: Machine, s: State): bool =
         SalesAgent(m).requestState.value == RequestState.Cancelled
     ),
     Transition.new(
       @[
-        SaleUnknown.new(),
-        SaleDownloading.new(),
-        SaleProving.new(),
-        SaleFilling.new(),
-        SaleFilled.new()
+        saleUnknown,
+        saleDownloading,
+        saleProving,
+        saleFilling,
+        saleFilled
       ],
-      SaleFailed.new(),
+      saleFailed,
       proc(m: Machine, s: State): bool =
         let agent = SalesAgent(m)
         agent.requestState.value == RequestState.Failed or
@@ -51,22 +61,22 @@ proc newSalesAgent*(sales: Sales,
     ),
     Transition.new(
       @[
-        SaleUnknown.new(),
-        SaleDownloading.new(),
-        SaleFilling.new(),
-        SaleProving.new()
+        saleUnknown,
+        saleDownloading,
+        saleFilling,
+        saleProving
       ],
-      SaleFilled.new(),
+      saleFilled,
       proc(m: Machine, s: State): bool =
         SalesAgent(m).slotState.value == SlotState.Filled
     ),
     Transition.new(
       @[
-        SaleUnknown.new(),
-        SaleDownloading.new(),
-        SaleFilling.new(),
-        SaleFilled.new(),
-        SaleProving.new()
+        saleUnknown,
+        saleDownloading,
+        saleFilling,
+        saleFilled,
+        saleProving
       ],
       SaleFinished.new(),
       proc(m: Machine, s: State): bool =
@@ -76,24 +86,24 @@ proc newSalesAgent*(sales: Sales,
     ),
     Transition.new(
       AnyState.new(),
-      SaleErrored.new(),
+      saleErrored,
       proc(m: Machine, s: State): bool =
         SalesAgent(m).errored.value
     ),
     Transition.new(
-      SaleDownloading.new(),
-      SaleProving.new(),
+      saleDownloading,
+      saleProving,
       proc(m: Machine, s: State): bool =
         SalesAgent(m).downloaded.value
     ),
     Transition.new(
-      SaleProving.new(),
-      SaleFilling.new(),
+      saleProving,
+      saleFilling,
       proc(m: Machine, s: State): bool =
         SalesAgent(m).proof.value.len > 0 # TODO: proof validity check?
     ),
     Transition.new(
-      SaleFilled.new(),
+      saleFilled,
       SaleFinished.new(),
       proc(m: Machine, s: State): bool =
         let agent = SalesAgent(m)
@@ -102,8 +112,8 @@ proc newSalesAgent*(sales: Sales,
         host == agent.me
     ),
     Transition.new(
-      SaleFilled.new(),
-      SaleErrored.new(),
+      saleFilled,
+      saleErrored,
       proc(m: Machine, s: State): bool =
         let agent = SalesAgent(m)
         without host =? agent.slotHost.value:
@@ -115,8 +125,8 @@ proc newSalesAgent*(sales: Sales,
         else: return false
     ),
     Transition.new(
-      SaleUnknown.new(),
-      SaleErrored.new(),
+      saleUnknown,
+      saleErrored,
       proc(m: Machine, s: State): bool =
         let agent = SalesAgent(m)
         if agent.restoredFromChain and agent.slotState.value == SlotState.Free:

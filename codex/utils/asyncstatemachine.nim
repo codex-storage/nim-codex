@@ -60,7 +60,7 @@ proc checkTransitions(machine: Machine) =
     if transition.trigger(machine, machine.state) and
       machine.state != transition.nextState and # avoid transitioning to self
       (machine.state == nil or
-       machine.state in transition.prevStates or
+       machine.state in transition.prevStates or # state instance, multiple
        transition.prevStates.any(proc (s: State): bool = s of AnyState)):
       machine.schedule(Event.transition(machine.state, transition.nextState))
 
