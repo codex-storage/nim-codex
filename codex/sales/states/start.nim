@@ -20,16 +20,12 @@ method onSlotFilled*(state: SaleStart, requestId: RequestId,
                      slotIndex: UInt256): ?State =
   return some State(SaleFilled())
 
-proc retrieveRequest(data: SalesData) {.async.} =
+proc retrieveRequest(market: Market, data: SalesData) {.async.} =
   if data.request.isNone:
-    data.request = await data.sales.market.getRequest(data.requestId)
+    data.request = await market.getRequest(data.requestId)
 
-proc subscribeCancellation*(machine: Machine, data: SalesData) {.async.} =
-  let market = data.sales.market
-
+proc subscribeCancellation*(machine: Machine, market: Market, clock: Clock, data: SalesData) {.async.} =
   proc onCancelled() {.async.} =
-    let clock = data.sales.clock
-
     without request =? data.request:
       return
 
@@ -53,9 +49,7 @@ proc asyncSpawn(future: Future[void], ignore: type CatchableError) =
       discard
   asyncSpawn ignoringError()
 
-proc subscribeFailure*(machine: Machine, data: SalesData) {.async.} =
-  let market = data.sales.market
-
+proc subscribeFailure*(machine: Machine, market: Market, data: SalesData) {.async.} =
   proc onFailed(_: RequestId) =
     without request =? data.request:
       return
@@ -65,9 +59,7 @@ proc subscribeFailure*(machine: Machine, data: SalesData) {.async.} =
   data.failed =
     await market.subscribeRequestFailed(data.requestId, onFailed)
 
-proc subscribeSlotFilled*(machine: Machine, data: SalesData) {.async.} =
-  let market = data.sales.market
-
+proc subscribeSlotFilled*(machine: Machine, market: Market, data: SalesData) {.async.} =
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
     asyncSpawn data.slotFilled.unsubscribe(), ignore = CatchableError
     machine.schedule(slotFilledEvent(requestId, data.slotIndex))
@@ -79,8 +71,10 @@ proc subscribeSlotFilled*(machine: Machine, data: SalesData) {.async.} =
 
 method run*(state: SaleStart, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
-  await data.retrieveRequest()
-  await machine.subscribeCancellation(data)
-  await machine.subscribeFailure(data)
-  await machine.subscribeSlotFilled(data)
+  let market = SalesAgent(machine).sales.market
+  let clock = SalesAgent(machine).sales.clock
+  await market.retrieveRequest(data)
+  await machine.subscribeCancellation(market, clock, data)
+  await machine.subscribeFailure(market, data)
+  await machine.subscribeSlotFilled(market, data)
   return some State(state.next)

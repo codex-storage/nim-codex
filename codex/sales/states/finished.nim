@@ -18,13 +18,14 @@ method onFailed*(state: SaleFinished, request: StorageRequest): ?State =
 
 method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
+  let sales = SalesAgent(machine).sales
 
   try:
     if request =? data.request and
         slotIndex =? data.slotIndex:
-      data.sales.proving.add(request.slotId(slotIndex))
+      sales.proving.add(request.slotId(slotIndex))
 
-      if onSale =? data.sales.onSale:
+      if onSale =? sales.onSale:
         onSale(data.availability, request, slotIndex)
 
     # TODO: Keep track of contract completion using local clock. When contract

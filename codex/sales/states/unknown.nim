@@ -20,7 +20,7 @@ method onFailed*(state: SaleUnknown, request: StorageRequest): ?State =
 
 method run*(state: SaleUnknown, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
-  let market = data.sales.market
+  let market = SalesAgent(machine).sales.market
 
   try:
     let slotId = slotId(data.requestId, data.slotIndex)

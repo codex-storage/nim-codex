@@ -8,8 +8,9 @@ method `$`*(state: SaleErrored): string = "SaleErrored"
 
 method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
+  let sales = SalesAgent(machine).sales
 
-  if onClear =? data.sales.onClear and
+  if onClear =? sales.onClear and
       request =? data.request and
       slotIndex =? data.slotIndex:
     onClear(data.availability, request, slotIndex)
@@ -19,6 +20,6 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
   # never free up availability once finished. Persisting availability
   # on disk is required for this.
   if availability =? data.availability:
-    data.sales.add(availability)
+    sales.add(availability)
 
   error "Sale error", error=state.error.msg

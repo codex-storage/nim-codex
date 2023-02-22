@@ -28,16 +28,17 @@ method onSlotFilled*(state: SaleDownloading, requestId: RequestId,
 
 method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
+  let sales = SalesAgent(machine).sales
 
   try:
-    without onStore =? data.sales.onStore:
+    without onStore =? sales.onStore:
       raiseAssert "onStore callback not set"
 
     without request =? data.request:
       raiseAssert "no sale request"
 
     if availability =? data.availability:
-      data.sales.remove(availability)
+      sales.remove(availability)
 
     await onStore(request, data.slotIndex, data.availability)
     return some State(SaleProving())

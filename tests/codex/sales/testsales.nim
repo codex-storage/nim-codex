@@ -254,8 +254,7 @@ suite "Sales":
     market.activeRequests[me] = @[request.id]
 
     await sales.load()
-    let expected = SalesData(sales: sales,
-                             requestId: request.id,
+    let expected = SalesData(requestId: request.id,
                              availability: none Availability,
                              request: some request)
     # because sales.load() calls agent.start, we won't know the slotIndex
@@ -265,8 +264,7 @@ suite "Sales":
     # TODO: when calling sales.load(), slot index should be restored and not
     # randomly re-assigned, so this may no longer be needed
     proc `==` (data0, data1: SalesData): bool =
-      return data0.sales == data1.sales and
-             data0.requestId == data1.requestId and
+      return data0.requestId == data1.requestId and
              data0.availability == data1.availability and
              data0.request == data1.request
 

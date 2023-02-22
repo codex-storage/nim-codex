@@ -9,8 +9,7 @@ proc newSalesAgent*(sales: Sales,
                     slotIndex: UInt256,
                     availability: ?Availability,
                     request: ?StorageRequest): SalesAgent =
-  SalesAgent(data: SalesData(
-    sales: sales,
+  SalesAgent(sales: sales, data: SalesData(
     requestId: requestId,
     availability: availability,
     slotIndex: slotIndex,

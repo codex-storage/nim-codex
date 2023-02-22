@@ -27,7 +27,6 @@ type
     proving*: Proving
     agents*: seq[SalesAgent]
   SalesData* = ref object
-    sales*: Sales
     requestId*: RequestId
     ask*: StorageAsk
     availability*: ?Availability # TODO: when availability persistence is added, change this to not optional
@@ -38,6 +37,7 @@ type
     slotFilled*: market.Subscription
     cancelled*: Future[void]
   SalesAgent* = ref object of Machine
+    sales*: Sales
     data*: SalesData
   SaleState* = ref object of State
   SaleError* = ref object of CodexError
