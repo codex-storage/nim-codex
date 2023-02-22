@@ -27,19 +27,19 @@ method onSlotFilled*(state: SaleDownloading, requestId: RequestId,
   return some State(SaleFilled())
 
 method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} =
-  let agent = SalesAgent(machine)
+  let data = SalesAgent(machine).data
 
   try:
-    without onStore =? agent.sales.onStore:
+    without onStore =? data.sales.onStore:
       raiseAssert "onStore callback not set"
 
-    without request =? agent.request:
+    without request =? data.request:
       raiseAssert "no sale request"
 
-    if availability =? agent.availability:
-      agent.sales.remove(availability)
+    if availability =? data.availability:
+      data.sales.remove(availability)
 
-    await onStore(request, agent.slotIndex, agent.availability)
+    await onStore(request, data.slotIndex, data.availability)
     return some State(SaleProving())
 
   except CancelledError:

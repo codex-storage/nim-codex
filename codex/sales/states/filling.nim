@@ -24,12 +24,12 @@ method onSlotFilled*(state: SaleFilling, requestId: RequestId,
   return some State(SaleFilled())
 
 method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
-  let agent = SalesAgent(machine)
+  let data = SalesAgent(machine).data
 
   try:
-    let market = agent.sales.market
+    let market = data.sales.market
 
-    await market.fillSlot(agent.requestId, agent.slotIndex, state.proof)
+    await market.fillSlot(data.requestId, data.slotIndex, state.proof)
 
   except CancelledError:
     raise

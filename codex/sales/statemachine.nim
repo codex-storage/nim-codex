@@ -26,7 +26,7 @@ type
     onSale: ?OnSale
     proving*: Proving
     agents*: seq[SalesAgent]
-  SalesAgent* = ref object of Machine
+  SalesData* = ref object
     sales*: Sales
     requestId*: RequestId
     ask*: StorageAsk
@@ -37,6 +37,8 @@ type
     fulfilled*: market.Subscription
     slotFilled*: market.Subscription
     cancelled*: Future[void]
+  SalesAgent* = ref object of Machine
+    data*: SalesData
   SaleState* = ref object of State
   SaleError* = ref object of CodexError
   Availability* = object

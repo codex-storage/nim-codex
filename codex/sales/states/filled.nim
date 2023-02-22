@@ -19,12 +19,12 @@ method onFailed*(state: SaleFilled, request: StorageRequest): ?State =
 method `$`*(state: SaleFilled): string = "SaleFilled"
 
 method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
-  let agent = SalesAgent(machine)
+  let data = SalesAgent(machine).data
 
   try:
-    let market = agent.sales.market
+    let market = data.sales.market
 
-    let host = await market.getHost(agent.requestId, agent.slotIndex)
+    let host = await market.getHost(data.requestId, data.slotIndex)
     let me = await market.getSigner()
     if host == me.some:
       return some State(SaleFinished())

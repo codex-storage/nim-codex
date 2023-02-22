@@ -17,15 +17,15 @@ method onFailed*(state: SaleFinished, request: StorageRequest): ?State =
   return some State(SaleFailed())
 
 method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
-  let agent = SalesAgent(machine)
+  let data = SalesAgent(machine).data
 
   try:
-    if request =? agent.request and
-        slotIndex =? agent.slotIndex:
-      agent.sales.proving.add(request.slotId(slotIndex))
+    if request =? data.request and
+        slotIndex =? data.slotIndex:
+      data.sales.proving.add(request.slotId(slotIndex))
 
-      if onSale =? agent.sales.onSale:
-        onSale(agent.availability, request, slotIndex)
+      if onSale =? data.sales.onSale:
+        onSale(data.availability, request, slotIndex)
 
     # TODO: Keep track of contract completion using local clock. When contract
     # has finished, we need to add back availability to the sales module.

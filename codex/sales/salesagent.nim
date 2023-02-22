@@ -9,29 +9,32 @@ proc newSalesAgent*(sales: Sales,
                     slotIndex: UInt256,
                     availability: ?Availability,
                     request: ?StorageRequest): SalesAgent =
-  SalesAgent(
+  SalesAgent(data: SalesData(
     sales: sales,
     requestId: requestId,
     availability: availability,
     slotIndex: slotIndex,
-    request: request)
+    request: request))
+
+proc unsubscribe(data: SalesData) {.async.} =
+  try:
+    if not data.fulfilled.isNil:
+      await data.fulfilled.unsubscribe()
+  except CatchableError:
+    discard
+  try:
+    if not data.failed.isNil:
+      await data.failed.unsubscribe()
+  except CatchableError:
+    discard
+  try:
+    if not data.slotFilled.isNil:
+      await data.slotFilled.unsubscribe()
+  except CatchableError:
+    discard
+  if not data.cancelled.isNil:
+    await data.cancelled.cancelAndWait()
 
 proc stop*(agent: SalesAgent) {.async.} =
   procCall Machine(agent).stop()
-  try:
-    if not agent.fulfilled.isNil:
-      await agent.fulfilled.unsubscribe()
-  except CatchableError:
-    discard
-  try:
-    if not agent.failed.isNil:
-      await agent.failed.unsubscribe()
-  except CatchableError:
-    discard
-  try:
-    if not agent.slotFilled.isNil:
-      await agent.slotFilled.unsubscribe()
-  except CatchableError:
-    discard
-  if not agent.cancelled.isNil:
-    await agent.cancelled.cancelAndWait()
+  await agent.data.unsubscribe()

@@ -254,21 +254,21 @@ suite "Sales":
     market.activeRequests[me] = @[request.id]
 
     await sales.load()
-    let expected = SalesAgent(sales: sales,
-                               requestId: request.id,
-                               availability: none Availability,
-                               request: some request)
+    let expected = SalesData(sales: sales,
+                             requestId: request.id,
+                             availability: none Availability,
+                             request: some request)
     # because sales.load() calls agent.start, we won't know the slotIndex
     # randomly selected for the agent, and we also won't know the value of
     # `failed`/`fulfilled`/`cancelled` futures, so we need to compare
     # the properties we know
     # TODO: when calling sales.load(), slot index should be restored and not
     # randomly re-assigned, so this may no longer be needed
-    proc `==` (agent0, agent1: SalesAgent): bool =
-      return agent0.sales == agent1.sales and
-             agent0.requestId == agent1.requestId and
-             agent0.availability == agent1.availability and
-             agent0.request == agent1.request
+    proc `==` (data0, data1: SalesData): bool =
+      return data0.sales == data1.sales and
+             data0.requestId == data1.requestId and
+             data0.availability == data1.availability and
+             data0.request == data1.request
 
     check eventually sales.agents.len == 2
-    check sales.agents.all(agent => agent == expected)
+    check sales.agents.all(agent => agent.data == expected)

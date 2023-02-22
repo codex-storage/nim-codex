@@ -19,11 +19,11 @@ method onFailed*(state: SaleUnknown, request: StorageRequest): ?State =
   return some State(SaleFailed())
 
 method run*(state: SaleUnknown, machine: Machine): Future[?State] {.async.} =
-  let agent = SalesAgent(machine)
-  let market = agent.sales.market
+  let data = SalesAgent(machine).data
+  let market = data.sales.market
 
   try:
-    let slotId = slotId(agent.requestId, agent.slotIndex)
+    let slotId = slotId(data.requestId, data.slotIndex)
 
     without slotState =? await market.slotState(slotId):
       let error = newException(SaleUnknownError, "cannot retrieve slot state")

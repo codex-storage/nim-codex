@@ -22,16 +22,16 @@ method onSlotFilled*(state: SaleProving, requestId: RequestId,
   return some State(SaleFilled())
 
 method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
-  let agent = SalesAgent(machine)
+  let data = SalesAgent(machine).data
 
   try:
-    without request =? agent.request:
+    without request =? data.request:
       raiseAssert "no sale request"
 
-    without onProve =? agent.sales.onProve:
+    without onProve =? data.sales.onProve:
       raiseAssert "onProve callback not set"
 
-    let proof = await onProve(request, agent.slotIndex)
+    let proof = await onProve(request, data.slotIndex)
     return some State(SaleFilling(proof: proof))
 
   except CancelledError:
