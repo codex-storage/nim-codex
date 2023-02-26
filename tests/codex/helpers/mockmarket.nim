@@ -169,6 +169,7 @@ proc fillSlot*(market: MockMarket,
     host: host
   )
   market.filled.add(slot)
+  market.slotState[slotId(requestId, slotIndex)] = SlotState.Filled
   market.emitSlotFilled(requestId, slotIndex)
 
 method fillSlot*(market: MockMarket,

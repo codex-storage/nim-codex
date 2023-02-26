@@ -1,19 +1,29 @@
 import pkg/chronos
-import pkg/upraises
 import pkg/stint
 import ./statemachine
 import ./states/[cancelled, downloading, errored, failed, finished, filled,
                  filling, proving, unknown]
+import ./subscriptions
 import ../contracts/requests
+
+type SaleState* {.pure.} = enum
+  SaleUnknown,
+  SaleDownloading,
+  SaleProving,
+  SaleFilling,
+  SaleFilled,
+  SaleCancelled,
+  SaleFailed,
+  SaleErrored
 
 proc newSalesAgent*(sales: Sales,
                     slotIndex: UInt256,
                     availability: ?Availability,
-                    request: StorageRequest,
-                    me: Address,
+                    requestId: RequestId,
+                    request: ?StorageRequest,
                     requestState: RequestState,
                     slotState: SlotState,
-                    restoredFromChain: bool): SalesAgent =
+                    restoredFromChain: bool = false): SalesAgent =
 
   let saleUnknown = SaleUnknown.new()
   let saleDownloading = SaleDownloading.new()
@@ -26,10 +36,17 @@ proc newSalesAgent*(sales: Sales,
 
   let agent = SalesAgent.new(@[
     Transition.new(
+      AnyState.new(),
+      saleErrored,
+      proc(m: Machine, s: State): bool =
+        SalesAgent(m).errored.value
+    ),
+    Transition.new(
       saleUnknown,
       saleDownloading,
       proc(m: Machine, s: State): bool =
         let agent = SalesAgent(m)
+        not agent.restoredFromChain and
         agent.requestState.value == RequestState.New and
         agent.slotState.value == SlotState.Free
     ),
@@ -84,12 +101,7 @@ proc newSalesAgent*(sales: Sales,
         agent.slotState.value in @[SlotState.Finished, SlotState.Paid] or
         agent.requestState.value == RequestState.Finished
     ),
-    Transition.new(
-      AnyState.new(),
-      saleErrored,
-      proc(m: Machine, s: State): bool =
-        SalesAgent(m).errored.value
-    ),
+
     Transition.new(
       saleDownloading,
       saleProving,
@@ -106,133 +118,34 @@ proc newSalesAgent*(sales: Sales,
       saleFilled,
       SaleFinished.new(),
       proc(m: Machine, s: State): bool =
-        let agent = SalesAgent(m)
-        without host =? agent.slotHost.value:
-          return false
-        host == agent.me
-    ),
-    Transition.new(
-      saleFilled,
-      saleErrored,
-      proc(m: Machine, s: State): bool =
-        let agent = SalesAgent(m)
-        without host =? agent.slotHost.value:
-          return false
-        if host != agent.me:
-          agent.lastError = newException(HostMismatchError,
-            "Slot filled by other host")
-          return true
-        else: return false
-    ),
-    Transition.new(
-      saleUnknown,
-      saleErrored,
-      proc(m: Machine, s: State): bool =
-        let agent = SalesAgent(m)
-        if agent.restoredFromChain and agent.slotState.value == SlotState.Free:
-          agent.lastError = newException(SaleUnknownError,
-            "cannot retrieve slot state")
-          return true
-        else: return false
+        SalesAgent(m).slotHostIsMe.value
     ),
   ])
+  agent.addState (SaleState.SaleUnknown.int, saleUnknown),
+                 (SaleState.SaleDownloading.int, saleDownloading),
+                 (SaleState.SaleProving.int, saleProving),
+                 (SaleState.SaleFilling.int, saleFilling),
+                 (SaleState.SaleFilled.int, saleFilled),
+                 (SaleState.SaleCancelled.int, saleCancelled),
+                 (SaleState.SaleFailed.int, saleFailed),
+                 (SaleState.SaleErrored.int, saleErrored)
   agent.slotState = agent.newTransitionProperty(slotState)
   agent.requestState = agent.newTransitionProperty(requestState)
   agent.proof = agent.newTransitionProperty(newSeq[byte]())
-  agent.slotHost = agent.newTransitionProperty(none Address)
+  agent.slotHostIsMe = agent.newTransitionProperty(false)
   agent.downloaded = agent.newTransitionProperty(false)
   agent.sales = sales
   agent.availability = availability
   agent.slotIndex = slotIndex
+  agent.requestId = requestId
   agent.request = request
-  agent.me = me
+  agent.restoredFromChain = restoredFromChain
   return agent
 
-proc subscribeCancellation*(agent: SalesAgent): Future[void] {.gcsafe.}
-proc subscribeFailure*(agent: SalesAgent): Future[void] {.gcsafe.}
-proc subscribeSlotFill*(agent: SalesAgent): Future[void] {.gcsafe.}
-
-proc start*(agent: SalesAgent, initialState: State) {.async.} =
-  await agent.subscribeCancellation()
-  await agent.subscribeFailure()
-  await agent.subscribeSlotFill()
+proc start*(agent: SalesAgent,
+            initialState: State = agent.getState(SaleState.SaleUnknown)) {.async.} =
+  await agent.subscribe()
   procCall Machine(agent).start(initialState)
 
 proc stop*(agent: SalesAgent) {.async.} =
-  try:
-    await agent.subscribeFulfilled.unsubscribe()
-  except CatchableError:
-    discard
-  try:
-    await agent.subscribeFailed.unsubscribe()
-  except CatchableError:
-    discard
-  try:
-    await agent.subscribeSlotFilled.unsubscribe()
-  except CatchableError:
-    discard
-  if not agent.waitForCancelled.completed:
-    await agent.waitForCancelled.cancelAndWait()
-
-  procCall Machine(agent).stop()
-
-proc subscribeCancellation*(agent: SalesAgent) {.async.} =
-  let market = agent.sales.market
-
-  proc onCancelled() {.async.} =
-    let clock = agent.sales.clock
-
-    await clock.waitUntil(agent.request.expiry.truncate(int64))
-    await agent.subscribeFulfilled.unsubscribe()
-    agent.requestState.setValue(RequestState.Cancelled)
-
-  agent.waitForCancelled = onCancelled()
-
-  proc onFulfilled(_: RequestId) =
-    agent.waitForCancelled.cancel()
-
-  agent.subscribeFulfilled =
-    await market.subscribeFulfillment(agent.request.id, onFulfilled)
-
-# TODO: move elsewhere
-proc asyncSpawn(future: Future[void], ignore: type CatchableError) =
-  proc ignoringError {.async.} =
-    try:
-      await future
-    except ignore:
-      discard
-  asyncSpawn ignoringError()
-
-proc subscribeFailure*(agent: SalesAgent) {.async.} =
-  let market = agent.sales.market
-
-  proc onFailed(_: RequestId) {.upraises:[], gcsafe.} =
-    asyncSpawn agent.subscribeFailed.unsubscribe(), ignore = CatchableError
-    try:
-      agent.requestState.setValue(RequestState.Failed)
-    except AsyncQueueFullError as e:
-      raiseAssert "State machine critical failure: " & e.msg
-
-  agent.subscribeFailed =
-    await market.subscribeRequestFailed(agent.request.id, onFailed)
-
-proc subscribeSlotFill*(agent: SalesAgent) {.async.} =
-  let market = agent.sales.market
-
-  proc onSlotFilled(
-    requestId: RequestId,
-    slotIndex: UInt256) {.upraises:[], gcsafe.} =
-
-    let market = agent.sales.market
-
-    asyncSpawn agent.subscribeSlotFilled.unsubscribe(), ignore = CatchableError
-    try:
-      agent.slotState.setValue(SlotState.Filled)
-    except AsyncQueueFullError as e:
-      raiseAssert "State machine critical failure: " & e.msg
-
-  agent.subscribeSlotFilled =
-    await market.subscribeSlotFilled(agent.request.id,
-                                    agent.slotIndex,
-                                    onSlotFilled)
-
+  await agent.unsubscribe()

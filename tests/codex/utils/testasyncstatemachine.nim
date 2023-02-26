@@ -1,3 +1,4 @@
+import std/typetraits
 import pkg/asynctest
 import pkg/questionable
 import pkg/chronos
@@ -75,6 +76,7 @@ suite "async state machines":
           MyMachine(m).errored.value
       )
     ])
+    machine.addState state1, state2, state3, state4, state5, state6
     machine.slotsFilled = machine.newTransitionProperty(0)
     machine.requestFinished = machine.newTransitionProperty(false)
 

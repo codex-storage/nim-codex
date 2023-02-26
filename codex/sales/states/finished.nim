@@ -6,26 +6,27 @@ import ../statemachine
 
 type
   SaleFinished* = ref object of State
-  SaleFinishedError* = object of CatchableError
+  SaleFinishedError* = object of SaleError
 
 method `$`*(state: SaleFinished): string = "SaleFinished"
 
 method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
+  # echo "running ", state
   let agent = SalesAgent(machine)
+  let slotIndex = agent.slotIndex
 
-  try:
-    if request =? agent.request and
-        slotIndex =? agent.slotIndex:
-      agent.sales.proving.add(request.slotId(slotIndex))
+  without request =? agent.request:
+    let error = newException(SaleFinishedError, "missing request")
+    agent.setError error
+    return
 
-      if onSale =? agent.sales.onSale:
-        onSale(agent.availability, request, slotIndex)
+  agent.sales.proving.add(request.slotId(slotIndex))
 
-    # TODO: Keep track of contract completion using local clock. When contract
-    # has finished, we need to add back availability to the sales module.
-    # This will change when the state machine is updated to include the entire
-    # sales process, as well as when availability is persisted, so leaving it
-    # as a TODO for now.
+  if onSale =? agent.sales.onSale:
+    onSale(agent.availability, request, slotIndex)
 
-  except CancelledError:
-    raise
+  # TODO: Keep track of contract completion using local clock. When contract
+  # has finished, we need to add back availability to the sales module.
+  # This will change when the state machine is updated to include the entire
+  # sales process, as well as when availability is persisted, so leaving it
+  # as a TODO for now.

@@ -1,4 +1,5 @@
 import pkg/questionable
+import pkg/questionable/results
 import pkg/upraises
 import pkg/stint
 import pkg/nimcrypto
@@ -11,7 +12,7 @@ import ./errors
 import ./contracts/requests
 import ./sales/salesagent
 import ./sales/statemachine
-import ./sales/states/[start, downloading, unknown]
+import ./sales/states/unknown
 
 ## Sales holds a list of available storage that it may sell.
 ##
@@ -72,26 +73,21 @@ proc findSlotIndex(numSlots: uint64,
 
 proc handleRequest(sales: Sales,
                    requestId: RequestId,
-                   ask: StorageAsk) =
+                   ask: StorageAsk) {.raises:[CatchableError].} =
   let availability = sales.findAvailability(ask)
   # TODO: check if random slot is actually available (not already filled)
   let slotIndex = randomSlotIndex(ask.slots)
-
-  without request =? await sales.market.getRequest(requestId):
-    raise newException(SalesError, "Failed to get request on chain")
-
-  let me = await sales.market.getSigner()
 
   let agent = newSalesAgent(
     sales,
     slotIndex,
     availability,
-    request,
-    me,
+    requestId,
+    none StorageRequest,
     RequestState.New,
     SlotState.Free
   )
-  await agent.start(SaleUnknown.new())
+  waitFor agent.start()
   sales.agents.add agent
 
 proc load*(sales: Sales) {.async.} =
@@ -100,7 +96,6 @@ proc load*(sales: Sales) {.async.} =
   # TODO: restore availability from disk
   let requestIds = await market.myRequests()
   let slotIds = await market.mySlots()
-  let me = await market.getSigner()
 
   for slotId in slotIds:
     # TODO: this needs to be optimised
@@ -109,28 +104,34 @@ proc load*(sales: Sales) {.async.} =
       without slotIndex =? findSlotIndex(request.ask.slots,
                                           request.id,
                                           slotId):
-        raiseAssert "could not find slot index"
+        raise newException(SalesError, "could not find slot index")
 
       # TODO: should be optimised (maybe get everything in one call: request, request state, slot state)
-      let requestState = await market.requestState(request.id)
+      without requestState =? await market.requestState(request.id):
+        raise newException(SalesError, "request state could not be determined")
+
       let slotState = await market.slotState(slotId)
 
       let agent = newSalesAgent(
         sales,
         slotIndex,
         availability,
-        request,
-        me,
+        request.id,
+        some request,
         requestState,
-        slotState)
-      await agent.start(SaleUnknown.new())
+        slotState,
+        restoredFromChain = true)
+      await agent.start()
       sales.agents.add agent
 
 proc start*(sales: Sales) {.async.} =
   doAssert sales.subscription.isNone, "Sales already started"
 
   proc onRequest(requestId: RequestId, ask: StorageAsk) {.gcsafe, upraises:[].} =
-    sales.handleRequest(requestId, ask)
+    try:
+      sales.handleRequest(requestId, ask)
+    except CatchableError as e:
+      error "Failed to handle storage request", error = e.msg
 
   try:
     sales.subscription = some await sales.market.subscribeRequests(onRequest)

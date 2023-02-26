@@ -4,6 +4,7 @@ import pkg/questionable
 import pkg/upraises
 import ../errors
 import ../utils/asyncstatemachine
+import ../utils/optionalcast
 import ../market
 import ../clock
 import ../proving
@@ -13,6 +14,7 @@ export market
 export clock
 export asyncstatemachine
 export proving
+export optionalcast
 
 type
   Sales* = ref object
@@ -30,21 +32,20 @@ type
     sales*: Sales
     ask*: StorageAsk
     availability*: ?Availability # TODO: when availability persistence is added, change this to not optional
-    request*: StorageRequest
+    requestId*: RequestId
+    request*: ?StorageRequest
     slotIndex*: UInt256
     subscribeFailed*: market.Subscription
     subscribeFulfilled*: market.Subscription
     subscribeSlotFilled*: market.Subscription
     waitForCancelled*: Future[void]
-    me*: Address
     restoredFromChain*: bool
     slotState*: TransitionProperty[SlotState]
     requestState*: TransitionProperty[RequestState]
     proof*: TransitionProperty[seq[byte]]
-    slotHost*: TransitionProperty[?Address]
+    slotHostIsMe*: TransitionProperty[bool]
     downloaded*: TransitionProperty[bool]
-  SaleState* = ref object of State
-  SaleError* = ref object of CodexError
+  SaleError* = object of CodexError
   Availability* = object
     id*: array[32, byte]
     size*: UInt256

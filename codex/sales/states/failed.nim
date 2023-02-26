@@ -1,4 +1,3 @@
-import ./errored
 import ../statemachine
 
 type
@@ -8,5 +7,6 @@ type
 method `$`*(state: SaleFailed): string = "SaleFailed"
 
 method run*(state: SaleFailed, machine: Machine): Future[?State] {.async.} =
+  # echo "running ", state
   let error = newException(SaleFailedError, "Sale failed")
   machine.setError error
