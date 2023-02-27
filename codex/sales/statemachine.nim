@@ -20,6 +20,9 @@ type
   SaleState* = ref object of State
   SaleError* = ref object of CodexError
 
+method `$`*(state: SaleState): string {.base.} =
+  raiseAssert "not implemented"
+
 method onCancelled*(state: SaleState, request: StorageRequest): ?State {.base, upraises:[].} =
   discard
 
