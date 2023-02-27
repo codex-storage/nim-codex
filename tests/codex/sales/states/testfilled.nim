@@ -13,7 +13,6 @@ suite "sales state 'filled'":
 
   let request = StorageRequest.example
   let slotIndex = (request.ask.slots div 2).u256
-  let slotId = slotId(request.id, slotIndex)
 
   var market: MockMarket
   var slot: MockSlot

@@ -144,7 +144,6 @@ proc load*(sales: Sales) {.async.} =
   let market = sales.context.market
 
   # TODO: restore availability from disk
-  let requestIds = await market.myRequests()
   let slotIds = await market.mySlots()
 
   for slotId in slotIds:
