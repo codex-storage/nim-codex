@@ -1,3 +1,4 @@
+import ./logging
 import ./codex/teststores
 import ./codex/testblockexchange
 import ./codex/teststorageproofs

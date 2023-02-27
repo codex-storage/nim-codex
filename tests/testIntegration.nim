@@ -5,6 +5,7 @@ import std/json
 import std/strutils
 
 import pkg/chronos
+import ./logging
 import ./ethertest
 import ./contracts/time
 import ./integration/nodes
