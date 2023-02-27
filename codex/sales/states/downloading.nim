@@ -1,8 +1,6 @@
-import std/sequtils
 import ../../market
 import ../salesagent
 import ../statemachine
-import ../salesagent
 import ./cancelled
 import ./failed
 import ./filled

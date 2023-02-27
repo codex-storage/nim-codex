@@ -1,4 +1,3 @@
-import pkg/chronos
 import pkg/questionable
 import pkg/upraises
 import ../errors
@@ -7,9 +6,6 @@ import ../market
 import ../clock
 import ../proving
 import ../contracts/requests
-import ./salescontext
-import ./salesdata
-import ./availability
 
 export market
 export clock

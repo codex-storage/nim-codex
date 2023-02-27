@@ -12,7 +12,6 @@ import ./contracts/requests
 import ./sales/salescontext
 import ./sales/salesagent
 import ./sales/availability
-import ./sales/salesagent
 import ./sales/statemachine
 import ./sales/states/downloading
 import ./sales/states/unknown
