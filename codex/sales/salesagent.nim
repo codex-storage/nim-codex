@@ -1,8 +1,9 @@
 import pkg/chronos
 import pkg/upraises
 import pkg/stint
-import ./statemachine
 import ../contracts/requests
+import ../utils/asyncspawn
+import ./statemachine
 import ./salescontext
 import ./salesdata
 import ./availability
@@ -48,14 +49,6 @@ proc subscribeCancellation*(agent: SalesAgent) {.async.} =
 
   data.fulfilled =
     await market.subscribeFulfillment(data.requestId, onFulfilled)
-
-proc asyncSpawn(future: Future[void], ignore: type CatchableError) =
-  proc ignoringError {.async.} =
-    try:
-      await future
-    except ignore:
-      discard
-  asyncSpawn ignoringError()
 
 proc subscribeFailure*(agent: SalesAgent) {.async.} =
   let data = agent.data
