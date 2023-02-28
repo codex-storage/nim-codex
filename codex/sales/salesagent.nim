@@ -1,5 +1,4 @@
 import pkg/chronos
-import pkg/upraises
 import pkg/stint
 import ../contracts/requests
 import ../utils/asyncspawn

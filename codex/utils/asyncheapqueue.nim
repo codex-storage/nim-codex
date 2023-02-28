@@ -58,7 +58,7 @@ proc wakeupNext(waiters: var seq[Future[void]]) {.inline.} =
       break
 
   if i > 0:
-    waiters.delete(0, i - 1)
+    waiters.delete(0..(i-1))
 
 proc heapCmp[T](x, y: T, max: bool = false): bool {.inline.} =
   if max:

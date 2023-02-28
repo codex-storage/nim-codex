@@ -1,6 +1,5 @@
 import std/options
 import pkg/chronos
-import pkg/ethers/testing
 import pkg/stew/byteutils
 import codex/contracts
 import codex/contracts/testtoken
@@ -49,7 +48,7 @@ ethersuite "On-Chain Market":
 
   test "fails to instantiate when contract does not have a signer":
     let storageWithoutSigner = marketplace.connect(provider)
-    expect AssertionError:
+    expect AssertionDefect:
       discard OnChainMarket.new(storageWithoutSigner)
 
   test "knows signer address":
@@ -119,7 +118,7 @@ ethersuite "On-Chain Market":
     proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
       receivedSlotIndices.add(slotIndex)
     let subscription = await market.subscribeSlotFilled(request.id, slotIndex, onSlotFilled)
-    await market.fillSlot(request.id, slotIndex - 1, proof)
+    await market.fillSlot(request.id, otherSlot, proof)
     check receivedSlotIndices.len == 0
     await market.fillSlot(request.id, slotIndex, proof)
     check receivedSlotIndices == @[slotIndex]

@@ -1,5 +1,4 @@
 import std/os
-import std/options
 import std/strutils
 import std/sequtils
 
@@ -127,7 +126,7 @@ suite "RepoStore":
       discard (await metaDs.get(QuotaReservedKey)).tryGet
 
   test "Should release bytes":
-    let blk = createTestBlock(100)
+    discard createTestBlock(100)
 
     check repo.totalUsed == 0
     (await repo.reserve(100)).tryGet
@@ -179,7 +178,7 @@ suite "RepoStore":
 
     check:
       response.len == 1
-      response[0].key.get == expectedKey
+      !response[0].key == expectedKey
       response[0].data == expectedExpiration.toBytes
 
   test "Should store block with default expiration timestamp when not provided":
@@ -196,7 +195,7 @@ suite "RepoStore":
 
     check:
       response.len == 1
-      response[0].key.get == expectedKey
+      !response[0].key == expectedKey
       response[0].data == expectedExpiration.toBytes
 
   test "delBlock should remove expiration metadata":

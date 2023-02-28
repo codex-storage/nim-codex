@@ -7,7 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/sequtils
 import pkg/upraises
 
 push: {.upraises: [].}
@@ -23,7 +22,6 @@ import pkg/stew/endians2
 import ./blockstore
 import ./keyutils
 import ../blocktype
-import ../namespaces
 import ../clock
 import ../systemclock
 

@@ -76,9 +76,9 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       try:
         await node.connect(peerId.get(), addresses)
         return RestApiResponse.response("Successfully connected to peer")
-      except DialFailedError as e:
+      except DialFailedError:
         return RestApiResponse.error(Http400, "Unable to dial peer")
-      except CatchableError as e:
+      except CatchableError:
         return RestApiResponse.error(Http400, "Unknown error dialling peer")
 
   router.api(
@@ -187,7 +187,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
         trace "Uploaded file", cid
         return RestApiResponse.response($cid)
-      except CancelledError as exc:
+      except CancelledError:
         return RestApiResponse.error(Http500)
       except AsyncStreamError:
         return RestApiResponse.error(Http500)

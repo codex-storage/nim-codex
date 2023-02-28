@@ -264,7 +264,6 @@ suite "Network - Test Limits":
   var
     switch1, switch2: Switch
     network1, network2: BlockExcNetwork
-    blocks: seq[bt.Block]
     done: Future[void]
 
   setup:

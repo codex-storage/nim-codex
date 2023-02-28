@@ -169,13 +169,10 @@ suite "NetworkStore engine - 2 nodes":
         nodeCmps2.networkStore.putBlock(it)
     ))
 
-    let
-      blocks = await allFinished(
-        blocks2[4..7].mapIt(
-          nodeCmps1.networkStore.getBlock(it.cid)
-      ))
-
-    # await sleepAsync(10.seconds)
+    discard await allFinished(
+      blocks2[4..7].mapIt(
+        nodeCmps1.networkStore.getBlock(it.cid)
+    ))
 
     let
       channel = !peerCtx1.paymentChannel

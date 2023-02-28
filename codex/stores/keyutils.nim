@@ -10,7 +10,6 @@
 import pkg/upraises
 push: {.upraises: [].}
 
-import pkg/chronicles
 import pkg/questionable/results
 import pkg/datastore
 import pkg/libp2p

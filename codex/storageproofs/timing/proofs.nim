@@ -1,6 +1,5 @@
 import pkg/chronos
 import pkg/stint
-import pkg/questionable
 import pkg/upraises
 import ./periods
 import ../../contracts/requests

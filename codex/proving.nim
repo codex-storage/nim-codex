@@ -35,7 +35,6 @@ proc waitUntilPeriod(proving: Proving, period: Period) {.async.} =
   await proving.clock.waitUntil(periodicity.periodStart(period).truncate(int64))
 
 proc removeEndedContracts(proving: Proving) {.async.} =
-  let now = proving.clock.now().u256
   var ended: HashSet[SlotId]
   for id in proving.slots:
     let state = await proving.proofs.slotState(id)

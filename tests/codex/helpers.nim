@@ -1,5 +1,3 @@
-import std/options
-
 import pkg/chronos
 import pkg/libp2p
 import pkg/libp2p/varint

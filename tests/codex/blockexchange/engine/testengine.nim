@@ -140,7 +140,6 @@ suite "NetworkStore engine handlers":
     discovery: DiscoveryEngine
     peerCtx: BlockExcPeerCtx
     localStore: BlockStore
-    done: Future[void]
     blocks: seq[bt.Block]
 
   setup:
@@ -366,7 +365,6 @@ suite "Task Handler":
     network: BlockExcNetwork
     engine: BlockExcEngine
     discovery: DiscoveryEngine
-    peerCtx: BlockExcPeerCtx
     localStore: BlockStore
 
     peersCtx: seq[BlockExcPeerCtx]

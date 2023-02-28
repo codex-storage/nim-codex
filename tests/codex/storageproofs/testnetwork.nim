@@ -1,4 +1,3 @@
-import std/os
 import std/sequtils
 
 import pkg/asynctest
@@ -22,17 +21,11 @@ import ../helpers
 
 const
   BlockSize = 31 * 64
-  SectorSize = 31
-  SectorsPerBlock = BlockSize div SectorSize
   DataSetSize = BlockSize * 100
 
 suite "Storage Proofs Network":
   let
-    rng = Rng.instance()
-    seckey1 = PrivateKey.random(rng[]).tryGet()
-    seckey2 = PrivateKey.random(rng[]).tryGet()
-    hostAddr1 = ca.Address.example
-    hostAddr2 = ca.Address.example
+    hostAddr = ca.Address.example
     blocks = toSeq([1, 5, 10, 14, 20, 12, 22]) # TODO: maybe make them random
 
   var
@@ -48,7 +41,6 @@ suite "Storage Proofs Network":
     store: BlockStore
     ssk: st.SecretKey
     spk: st.PublicKey
-    stpstore: st.StpStore
     porMsg: PorMessage
     cid: Cid
     por: PoR
@@ -104,7 +96,7 @@ suite "Storage Proofs Network":
 
     discovery1.findHostProvidersHandler = proc(d: MockDiscovery, host: ca.Address):
       Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
-        check hostAddr2 == host
+        check hostAddr == host
         return @[switch2.peerInfo.signedPeerRecord]
 
     proc tagsHandler(msg: TagsMessage) {.async, gcsafe.} =
@@ -119,6 +111,6 @@ suite "Storage Proofs Network":
       cid,
       blocks,
       porMsg.authenticators,
-      hostAddr2)).tryGet()
+      hostAddr)).tryGet()
 
     await done.wait(1.seconds)

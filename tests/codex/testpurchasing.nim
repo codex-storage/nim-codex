@@ -1,10 +1,9 @@
 import std/times
 import pkg/asynctest
 import pkg/chronos
-import pkg/upraises
 import pkg/stint
 import pkg/codex/purchasing
-import pkg/codex/purchasing/states/[finished, failed, error, started, submitted, unknown]
+import pkg/codex/purchasing/states/[finished, error, started, submitted, unknown]
 import ./helpers/mockmarket
 import ./helpers/mockclock
 import ./helpers/eventually
