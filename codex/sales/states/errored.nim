@@ -24,9 +24,9 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
   # NOTE: with this in place, restoring state for a restarted node will
   # never free up availability once finished. Persisting availability
   # on disk is required for this.
-  if onSaleFailed =? context.onSaleFailed and
+  if onSaleErrored =? context.onSaleErrored and
      availability =? data.availability:
-    onSaleFailed(availability)
+    onSaleErrored(availability)
 
     await agent.unsubscribe()
 

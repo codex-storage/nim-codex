@@ -12,7 +12,7 @@ type
     onProve*: ?OnProve
     onClear*: ?OnClear
     onSale*: ?OnSale
-    onSaleFailed*: ?OnSaleFailed
+    onSaleErrored*: ?OnSaleErrored
     proving*: Proving
   OnStore* = proc(request: StorageRequest,
                   slot: UInt256,
@@ -25,4 +25,4 @@ type
   OnSale* = proc(availability: ?Availability, # TODO: when availability changes introduced, make availability non-optional (if we need to keep it at all)
                  request: StorageRequest,
                  slotIndex: UInt256) {.gcsafe, upraises: [].}
-  OnSaleFailed* = proc(availability: Availability) {.gcsafe, upraises: [].}
+  OnSaleErrored* = proc(availability: Availability) {.gcsafe, upraises: [].}

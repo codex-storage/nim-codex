@@ -96,10 +96,10 @@ func new*(_: type Sales,
     proving: proving
   ))
 
-  proc onSaleFailed(availability: Availability) =
+  proc onSaleErrored(availability: Availability) =
     sales.add(availability)
 
-  sales.context.onSaleFailed = some onSaleFailed
+  sales.context.onSaleErrored = some onSaleErrored
   sales
 
 func findAvailability*(sales: Sales, ask: StorageAsk): ?Availability =
