@@ -1,11 +1,14 @@
+import pkg/upraises
 import chronicles
 import ../statemachine
 import ../salesagent
 
-type SaleErrored* = ref object of SaleState
-  error*: ref CatchableError
+type SaleErrored* = ref object of SaleErrorState
 
 method `$`*(state: SaleErrored): string = "SaleErrored"
+
+method onError*(state: SaleState, errorState: SaleErrorState): ?State {.upraises:[].} =
+  error "error during SaleErrored run", error = error.msg
 
 method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)

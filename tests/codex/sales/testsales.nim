@@ -116,6 +116,22 @@ suite "Sales":
     check storingSlot < request.ask.slots.u256
     check storingAvailability == availability
 
+  test "handles errors during state run":
+    var saleFailed = false
+    sales.onStore = proc(request: StorageRequest,
+                         slot: UInt256,
+                         availability: ?Availability) {.async.} =
+      # raise an exception so machine.onError is called
+      raise newException(ValueError, "some error")
+
+    # onSaleErrored is called in SaleErrored.run
+    proc onSaleErrored(availability: Availability) =
+      saleFailed = true
+    sales.context.onSaleErrored = some onSaleErrored
+    sales.add(availability)
+    await market.requestStorage(request)
+    check eventually saleFailed
+
   test "makes storage available again when data retrieval fails":
     let error = newException(IOError, "data retrieval failed")
     sales.onStore = proc(request: StorageRequest,

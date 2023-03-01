@@ -82,3 +82,65 @@ suite "async state machines":
     await sleepAsync(1.millis)
     check runs == [0, 1, 0]
     check cancellations == [0, 1, 0]
+
+type
+  MyMachine = ref object of Machine
+  State4 = ref object of State
+  State5 = ref object of State
+  ErrorState = ref object of State
+    error: ref CatchableError
+  MyMachineError = object of CatchableError
+
+var errorRuns = 0
+var onErrorCalled, onErrorOverridden = false
+
+proc raiseMyMachineError() =
+  raise newException(MyMachineError, "some error")
+
+method run*(state: State4, machine: Machine): Future[?State] {.async.} =
+  raiseMyMachineError()
+
+method run*(state: State5, machine: Machine): Future[?State] {.async.} =
+  raiseMyMachineError()
+
+method run(state: ErrorState, machine: Machine): Future[?State] {.async.} =
+  check not state.error.isNil
+  check state.error of MyMachineError
+  check state.error.msg == "some error"
+  inc errorRuns
+
+method onError*(state: State, error: ref CatchableError): ?State {.base, upraises:[].} =
+  return some State(ErrorState(error: error))
+
+method onError*(state: State5, error: ref CatchableError): ?State {.upraises:[].} =
+  onErrorOverridden = true
+
+method onError*(machine: MyMachine, error: ref CatchableError): Event =
+  onErrorCalled = true
+  return proc (state: State): ?State =
+    state.onError(error)
+
+suite "async state machines - errors":
+  var machine: MyMachine
+  var state4, state5: State
+
+  setup:
+    errorRuns = 0
+    machine = MyMachine.new()
+    state4 = State4.new()
+    state5 = State5.new()
+    onErrorCalled = false
+    onErrorOverridden = false
+
+  test "catches errors in run":
+    machine.start(state4)
+    check eventually onErrorCalled
+
+  test "errors in run can be handled at the base state level":
+    machine.start(state4)
+    check eventually errorRuns == 1
+
+  test "errors in run can be handled by overridden onError at the state level":
+    machine.start(state5)
+    check eventually onErrorOverridden
+

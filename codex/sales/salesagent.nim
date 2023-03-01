@@ -1,4 +1,5 @@
 import pkg/chronos
+import pkg/upraises
 import pkg/stint
 import ../contracts/requests
 import ../utils/asyncspawn
@@ -10,17 +11,28 @@ import ./availability
 type SalesAgent* = ref object of Machine
   context*: SalesContext
   data*: SalesData
+  errorState: SaleErrorState
 
 proc newSalesAgent*(context: SalesContext,
                     requestId: RequestId,
                     slotIndex: UInt256,
                     availability: ?Availability,
-                    request: ?StorageRequest): SalesAgent =
-  SalesAgent(context: context, data: SalesData(
-    requestId: requestId,
-    availability: availability,
-    slotIndex: slotIndex,
-    request: request))
+                    request: ?StorageRequest,
+                    errorState: SaleErrorState): SalesAgent =
+  SalesAgent(
+    context: context,
+    data: SalesData(
+      requestId: requestId,
+      availability: availability,
+      slotIndex: slotIndex,
+      request: request),
+    errorState: errorState)
+
+method onError*(agent: SalesAgent, error: ref CatchableError): Event =
+  return proc (state: State): ?State =
+    let errorState = agent.errorState
+    errorState.error = error
+    SaleState(state).onError(errorState)
 
 proc retrieveRequest*(agent: SalesAgent) {.async.} =
   let data = agent.data

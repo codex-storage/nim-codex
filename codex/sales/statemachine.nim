@@ -14,6 +14,8 @@ export proving
 
 type
   SaleState* = ref object of State
+  SaleErrorState* = ref object of SaleState
+    error*: ref CatchableError
   SaleError* = ref object of CodexError
 
 method `$`*(state: SaleState): string {.base.} =
@@ -28,6 +30,9 @@ method onFailed*(state: SaleState, request: StorageRequest): ?State {.base, upra
 method onSlotFilled*(state: SaleState, requestId: RequestId,
                      slotIndex: UInt256): ?State {.base, upraises:[].} =
   discard
+
+method onError*(state: SaleState, errorState: SaleErrorState): ?State {.base, upraises:[].} =
+  return some State(errorState)
 
 proc cancelledEvent*(request: StorageRequest): Event =
   return proc (state: State): ?State =

@@ -1,5 +1,6 @@
 import pkg/questionable
 import pkg/chronos
+import pkg/chronicles
 import pkg/upraises
 
 push: {.upraises:[].}
@@ -27,6 +28,9 @@ proc schedule*(machine: Machine, event: Event) =
 method run*(state: State, machine: Machine): Future[?State] {.base, async.} =
   discard
 
+method onError*(machine: Machine, error: ref CatchableError): Event {.base.} =
+  raiseAssert "not implemented"
+
 proc run(machine: Machine, state: State) {.async.} =
   try:
     if next =? await state.run(machine):
@@ -35,6 +39,14 @@ proc run(machine: Machine, state: State) {.async.} =
     discard
 
 proc scheduler(machine: Machine) {.async.} =
+  proc onRunComplete(udata: pointer) {.gcsafe.} =
+    var fut = cast[FutureBase](udata)
+    if fut.failed():
+      try:
+        machine.schedule(machine.onError(fut.error))
+      except AsyncQueueFullError as e:
+        error "Cannot set transition value because queue is full", error = e.msg
+
   try:
     while true:
       let event = await machine.scheduled.get()
@@ -43,7 +55,7 @@ proc scheduler(machine: Machine) {.async.} =
           await machine.running.cancelAndWait()
         machine.state = next
         machine.running = machine.run(machine.state)
-        asyncSpawn machine.running
+        machine.running.addCallback(onRunComplete)
   except CancelledError:
     discard
 
