@@ -30,8 +30,8 @@ proc new*(T: type Timer, timerName = "Unnamed Timer"): T =
 proc timerLoop(timer: Timer) {.async.} =
   try:
     while true:
-      await sleepAsync(timer.interval)
       await timer.callback()
+      await sleepAsync(timer.interval)
   except CatchableError as exc:
     error "Timer caught unhandled exception: ", name=timer.name, msg=exc.msg
 
