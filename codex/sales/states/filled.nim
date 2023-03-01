@@ -9,8 +9,7 @@ import ./failed
 
 type
   SaleFilled* = ref object of ErrorHandlingState
-  SaleFilledError* = object of CatchableError
-  HostMismatchError* = object of SaleFilledError
+  HostMismatchError* = object of CatchableError
 
 method onCancelled*(state: SaleFilled, request: StorageRequest): ?State =
   return some State(SaleCancelled())
@@ -24,18 +23,10 @@ method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
   let market = SalesAgent(machine).context.market
 
-  try:
-    let host = await market.getHost(data.requestId, data.slotIndex)
-    let me = await market.getSigner()
-    if host == me.some:
-      return some State(SaleFinished())
-    else:
-      let error = newException(HostMismatchError, "Slot filled by other host")
-      return some State(SaleErrored(error: error))
-
-  except CancelledError:
-    raise
-
-  except CatchableError as e:
-    let error = newException(SaleFilledError, "sale filled error", e)
+  let host = await market.getHost(data.requestId, data.slotIndex)
+  let me = await market.getSigner()
+  if host == me.some:
+    return some State(SaleFinished())
+  else:
+    let error = newException(HostMismatchError, "Slot filled by other host")
     return some State(SaleErrored(error: error))

@@ -10,7 +10,6 @@ import ./failed
 type
   SaleFilling* = ref object of ErrorHandlingState
     proof*: seq[byte]
-  SaleFillingError* = object of CatchableError
 
 method `$`*(state: SaleFilling): string = "SaleFilling"
 
@@ -28,12 +27,4 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
   let market = SalesAgent(machine).context.market
 
-  try:
-    await market.fillSlot(data.requestId, data.slotIndex, state.proof)
-
-  except CancelledError:
-    raise
-
-  except CatchableError as e:
-    let error = newException(SaleFillingError, "unknown sale filling error", e)
-    return some State(SaleErrored(error: error))
+  await market.fillSlot(data.requestId, data.slotIndex, state.proof)

@@ -115,7 +115,11 @@ method requestState*(market: MockMarket,
 
 method slotState*(market: MockMarket,
                   slotId: SlotId): Future[SlotState] {.async.} =
-  return market.slotState[slotId]
+  if market.slotState.hasKey(slotId):
+    return market.slotState[slotId]
+  else:
+    return SlotState.Free
+
 
 method getRequestEnd*(market: MockMarket,
                       id: RequestId): Future[SecondsSince1970] {.async.} =
