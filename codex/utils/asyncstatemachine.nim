@@ -46,10 +46,7 @@ proc scheduler(machine: Machine) {.async.} =
   proc onRunComplete(udata: pointer) {.gcsafe.} =
     var fut = cast[FutureBase](udata)
     if fut.failed():
-      try:
-        machine.schedule(machine.onError(fut.error))
-      except AsyncQueueFullError as e:
-        error "Cannot set transition value because queue is full", error = e.msg
+      machine.schedule(machine.onError(fut.error))
 
   try:
     while true:
