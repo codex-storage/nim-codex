@@ -13,9 +13,6 @@ type
 
 var runs, cancellations, errors = [0, 0, 0, 0]
 
-method onMoveToNextStateEvent*(state: State): ?State {.base, upraises:[].} =
-  discard
-
 method run(state: State1, machine: Machine): Future[?State] {.async.} =
   inc runs[0]
   return some State(State2.new())
@@ -28,18 +25,30 @@ method run(state: State2, machine: Machine): Future[?State] {.async.} =
     inc cancellations[1]
     raise
 
-method onMoveToNextStateEvent(state: State2): ?State =
-  some State(State3.new())
-
 method run(state: State3, machine: Machine): Future[?State] {.async.} =
   inc runs[2]
-
-method onMoveToNextStateEvent(state: State3): ?State =
-  some State(State1.new())
 
 method run(state: State4, machine: Machine): Future[?State] {.async.} =
   inc runs[3]
   raise newException(ValueError, "failed")
+
+method onMoveToNextStateEvent*(state: State): ?State {.base, upraises:[].} =
+  discard
+
+method onMoveToNextStateEvent(state: State2): ?State =
+  some State(State3.new())
+
+method onMoveToNextStateEvent(state: State3): ?State =
+  some State(State1.new())
+
+method onError(state: State1, error: ref CatchableError): ?State =
+  inc errors[0]
+
+method onError(state: State2, error: ref CatchableError): ?State =
+  inc errors[1]
+
+method onError(state: State3, error: ref CatchableError): ?State =
+  inc errors[2]
 
 method onError(state: State4, error: ref CatchableError): ?State =
   inc errors[3]
@@ -93,3 +102,9 @@ suite "async state machines":
   test "forwards errors to error handler":
     machine.start(State4.new())
     check eventually errors == [0, 0, 0, 1] and runs == [0, 1, 0, 1]
+
+  test "error handler ignores CancelledError":
+    machine.start(State2.new())
+    machine.schedule(moveToNextStateEvent)
+    check eventually cancellations == [0, 1, 0, 0]
+    check errors == [0, 0, 0, 0]
