@@ -1,6 +1,7 @@
 import ../../market
 import ../salesagent
 import ../statemachine
+import ./errorhandling
 import ./cancelled
 import ./failed
 import ./filled
@@ -8,7 +9,7 @@ import ./proving
 import ./errored
 
 type
-  SaleDownloading* = ref object of SaleState
+  SaleDownloading* = ref object of ErrorHandlingState
     failedSubscription: ?market.Subscription
     hasCancelled: ?Future[void]
   SaleDownloadingError* = object of SaleError

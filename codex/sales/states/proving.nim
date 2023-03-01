@@ -1,5 +1,6 @@
 import ../statemachine
 import ../salesagent
+import ./errorhandling
 import ./filling
 import ./cancelled
 import ./failed
@@ -7,7 +8,7 @@ import ./filled
 import ./errored
 
 type
-  SaleProving* = ref object of SaleState
+  SaleProving* = ref object of ErrorHandlingState
   SaleProvingError* = object of CatchableError
 
 method `$`*(state: SaleProving): string = "SaleProving"

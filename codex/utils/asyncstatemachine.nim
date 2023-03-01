@@ -28,8 +28,12 @@ proc schedule*(machine: Machine, event: Event) =
 method run*(state: State, machine: Machine): Future[?State] {.base, async.} =
   discard
 
-method onError*(machine: Machine, error: ref CatchableError): Event {.base.} =
-  raiseAssert "not implemented"
+method onError*(state: State, error: ref CatchableError): ?State {.base.} =
+  raise (ref Defect)(msg: "error in state machine: " & error.msg, parent: error)
+
+proc onError(machine: Machine, error: ref CatchableError): Event =
+  return proc (state: State): ?State =
+    state.onError(error)
 
 proc run(machine: Machine, state: State) {.async.} =
   try:

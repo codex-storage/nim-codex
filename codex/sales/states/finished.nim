@@ -1,12 +1,13 @@
 import pkg/chronos
 import ../statemachine
 import ../salesagent
+import ./errorhandling
 import ./cancelled
 import ./errored
 import ./failed
 
 type
-  SaleFinished* = ref object of SaleState
+  SaleFinished* = ref object of ErrorHandlingState
   SaleFinishedError* = object of CatchableError
 
 method `$`*(state: SaleFinished): string = "SaleFinished"

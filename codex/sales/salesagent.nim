@@ -11,28 +11,19 @@ import ./availability
 type SalesAgent* = ref object of Machine
   context*: SalesContext
   data*: SalesData
-  errorState: SaleErrorState
 
 proc newSalesAgent*(context: SalesContext,
                     requestId: RequestId,
                     slotIndex: UInt256,
                     availability: ?Availability,
-                    request: ?StorageRequest,
-                    errorState: SaleErrorState): SalesAgent =
+                    request: ?StorageRequest): SalesAgent =
   SalesAgent(
     context: context,
     data: SalesData(
       requestId: requestId,
       availability: availability,
       slotIndex: slotIndex,
-      request: request),
-    errorState: errorState)
-
-method onError*(agent: SalesAgent, error: ref CatchableError): Event =
-  return proc (state: State): ?State =
-    let errorState = agent.errorState
-    errorState.error = error
-    SaleState(state).onError(errorState)
+      request: request))
 
 proc retrieveRequest*(agent: SalesAgent) {.async.} =
   let data = agent.data

@@ -14,7 +14,6 @@ import ./sales/salesagent
 import ./sales/availability
 import ./sales/statemachine
 import ./sales/states/downloading
-import ./sales/states/errored
 import ./sales/states/unknown
 
 ## Sales holds a list of available storage that it may sell.
@@ -136,8 +135,7 @@ proc handleRequest(sales: Sales,
     requestId,
     slotIndex,
     some availability,
-    none StorageRequest,
-    SaleErrored()
+    none StorageRequest
   )
   agent.start(SaleDownloading())
   sales.agents.add agent
@@ -162,8 +160,7 @@ proc load*(sales: Sales) {.async.} =
         request.id,
         slotIndex,
         availability,
-        some request,
-        SaleErrored())
+        some request)
       agent.start(SaleUnknown())
       sales.agents.add agent
 

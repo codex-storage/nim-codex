@@ -1,13 +1,14 @@
 import pkg/questionable
+import ../statemachine
+import ../salesagent
+import ./errorhandling
 import ./errored
 import ./finished
 import ./cancelled
 import ./failed
-import ../statemachine
-import ../salesagent
 
 type
-  SaleFilled* = ref object of SaleState
+  SaleFilled* = ref object of ErrorHandlingState
   SaleFilledError* = object of CatchableError
   HostMismatchError* = object of SaleFilledError
 

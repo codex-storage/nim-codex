@@ -1,8 +1,9 @@
 import ../statemachine
+import ./errorhandling
 import ./errored
 
 type
-  SaleCancelled* = ref object of SaleState
+  SaleCancelled* = ref object of ErrorHandlingState
   SaleCancelledError* = object of CatchableError
   SaleTimeoutError* = object of SaleCancelledError
 
