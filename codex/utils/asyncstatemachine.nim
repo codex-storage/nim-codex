@@ -11,6 +11,7 @@ type
     running: Future[void]
     scheduled: AsyncQueue[Event]
     scheduling: Future[void]
+    started: bool
   State* = ref object of RootObj
   Event* = proc(state: State): ?State {.gcsafe, upraises:[].}
 
@@ -20,6 +21,9 @@ proc transition(_: type Event, previous, next: State): Event =
       return some next
 
 proc schedule*(machine: Machine, event: Event) =
+  if not machine.started:
+    return
+
   try:
     machine.scheduled.putNoWait(event)
   except AsyncQueueFullError:
@@ -61,13 +65,22 @@ proc scheduler(machine: Machine) {.async.} =
     discard
 
 proc start*(machine: Machine, initialState: State) =
+  if machine.started:
+    return
+
   if machine.scheduled.isNil:
     machine.scheduled = newAsyncQueue[Event]()
   machine.scheduling = machine.scheduler()
+  machine.started = true
   machine.schedule(Event.transition(machine.state, initialState))
 
 proc stop*(machine: Machine) =
+  if not machine.started:
+    return
+
   if not machine.scheduling.isNil:
     machine.scheduling.cancel()
   if not machine.running.isNil:
     machine.running.cancel()
+
+  machine.started = false
