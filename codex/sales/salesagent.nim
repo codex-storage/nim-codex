@@ -1,4 +1,5 @@
 import pkg/chronos
+import pkg/upraises
 import pkg/stint
 import ../contracts/requests
 import ../utils/asyncspawn
@@ -16,11 +17,13 @@ proc newSalesAgent*(context: SalesContext,
                     slotIndex: UInt256,
                     availability: ?Availability,
                     request: ?StorageRequest): SalesAgent =
-  SalesAgent(context: context, data: SalesData(
-    requestId: requestId,
-    availability: availability,
-    slotIndex: slotIndex,
-    request: request))
+  SalesAgent(
+    context: context,
+    data: SalesData(
+      requestId: requestId,
+      availability: availability,
+      slotIndex: slotIndex,
+      request: request))
 
 proc retrieveRequest*(agent: SalesAgent) {.async.} =
   let data = agent.data

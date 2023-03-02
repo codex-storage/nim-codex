@@ -24,33 +24,23 @@ method run*(state: SaleUnknown, machine: Machine): Future[?State] {.async.} =
   let data = agent.data
   let market = agent.context.market
 
-  try:
-    await agent.retrieveRequest()
-    await agent.subscribe()
+  await agent.retrieveRequest()
+  await agent.subscribe()
 
-    let slotId = slotId(data.requestId, data.slotIndex)
+  let slotId = slotId(data.requestId, data.slotIndex)
 
-    without slotState =? await market.slotState(slotId):
-      let error = newException(SaleUnknownError, "cannot retrieve slot state")
-      return some State(SaleErrored(error: error))
-
-    case slotState
-    of SlotState.Free:
-      let error = newException(UnexpectedSlotError,
-        "slot state on chain should not be 'free'")
-      return some State(SaleErrored(error: error))
-    of SlotState.Filled:
-      return some State(SaleFilled())
-    of SlotState.Finished, SlotState.Paid:
-      return some State(SaleFinished())
-    of SlotState.Failed:
-      return some State(SaleFailed())
-
-  except CancelledError:
-    raise
-
-  except CatchableError as e:
-    let error = newException(SaleUnknownError,
-                             "error in unknown state",
-                             e)
+  without slotState =? await market.slotState(slotId):
+    let error = newException(SaleUnknownError, "cannot retrieve slot state")
     return some State(SaleErrored(error: error))
+
+  case slotState
+  of SlotState.Free:
+    let error = newException(UnexpectedSlotError,
+      "slot state on chain should not be 'free'")
+    return some State(SaleErrored(error: error))
+  of SlotState.Filled:
+    return some State(SaleFilled())
+  of SlotState.Finished, SlotState.Paid:
+    return some State(SaleFinished())
+  of SlotState.Failed:
+    return some State(SaleFailed())
