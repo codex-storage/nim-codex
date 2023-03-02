@@ -81,6 +81,11 @@ suite "BlockMaintainer":
       mockRepoStore.getBeMaxNumber == 2
       mockRepoStore.getBeOffset == 0
 
+  test "Timer callback should handle Catachable errors":
+    mockRepoStore.getBlockExpirationsThrows = true
+    blockMaintainer.start()
+    await mockTimer.invokeCallback()
+
   test "Subsequent timer callback should call getBlockExpirations on RepoStore with offset":
     blockMaintainer.start()
     await mockTimer.invokeCallback()

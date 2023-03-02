@@ -23,6 +23,7 @@ type
     getBeOffset*: int
 
     testBlockExpirations*: seq[BlockExpiration]
+    getBlockExpirationsThrows*: bool
     iteratorIndex: int
 
 method delBlock*(self: MockRepoStore, cid: Cid): Future[?!void] {.async.} =
@@ -32,6 +33,9 @@ method delBlock*(self: MockRepoStore, cid: Cid): Future[?!void] {.async.} =
   return success()
 
 method getBlockExpirations*(self: MockRepoStore, maxNumber: int, offset: int): Future[?!BlockExpirationIter] {.async.} =
+  if self.getBlockExpirationsThrows:
+    raise new CatchableError
+
   self.getBeMaxNumber = maxNumber
   self.getBeOffset = offset
 
