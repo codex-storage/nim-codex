@@ -1,8 +1,9 @@
-import ./errored
 import ../statemachine
+import ./errorhandling
+import ./errored
 
 type
-  SaleFailed* = ref object of SaleState
+  SaleFailed* = ref object of ErrorHandlingState
   SaleFailedError* = object of SaleError
 
 method `$`*(state: SaleFailed): string = "SaleFailed"
