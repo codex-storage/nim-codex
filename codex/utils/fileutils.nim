@@ -49,7 +49,7 @@ proc secureWriteFile*[T: byte|char](path: string,
   else:
     writeFile(path, data, 0o600)
 
-proc checkSecureFile*(path: string): IOResult[bool] =
+proc checkSecureFile*(path: string): IoResult[bool] =
   when defined(windows):
     checkCurrentUserOnlyACL(path)
   else:

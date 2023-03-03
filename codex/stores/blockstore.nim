@@ -73,7 +73,7 @@ method listBlocks*(
 
   raiseAssert("Not implemented!")
 
-method close*(self: Blockstore): Future[void] {.base.} =
+method close*(self: BlockStore): Future[void] {.base.} =
   ## Close the blockstore, cleaning up resources managed by it.
   ## For some implementations this may be a no-op
   ##

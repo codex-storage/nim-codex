@@ -37,8 +37,8 @@ type
     codec*: MultiCodec      # Data set codec
     case protected*: bool   # Protected datasets have erasure coded info
     of true:
-      K*: int               # Number of blocks to encode
-      M*: int               # Number of resulting parity blocks
+      ecK*: int               # Number of blocks to encode
+      ecM*: int               # Number of resulting parity blocks
       originalCid*: Cid     # The original Cid of the dataset being erasure coded
       originalLen*: int     # The length of the original manifest
     else:

@@ -35,7 +35,7 @@ type
     cid*: Cid
     data*: seq[byte]
 
-template EmptyCid*: untyped =
+template emptyCid*: untyped =
   var
     emptyCid {.global, threadvar.}:
       array[CIDv0..CIDv1, Table[MultiCodec, Cid]]
@@ -56,7 +56,7 @@ template EmptyCid*: untyped =
 
   emptyCid
 
-template EmptyDigests*: untyped =
+template emptyDigests*: untyped =
   var
     emptyDigests {.global, threadvar.}:
       array[CIDv0..CIDv1, Table[MultiCodec, MultiHash]]
@@ -64,7 +64,7 @@ template EmptyDigests*: untyped =
   once:
     emptyDigests = [
       CIDv0: {
-        multiCodec("sha2-256"): EmptyCid[CIDv0]
+        multiCodec("sha2-256"): emptyCid[CIDv0]
         .catch
         .get()[multiCodec("sha2-256")]
         .catch
@@ -73,7 +73,7 @@ template EmptyDigests*: untyped =
         .get()
       }.toTable,
       CIDv1: {
-        multiCodec("sha2-256"): EmptyCid[CIDv1]
+        multiCodec("sha2-256"): emptyCid[CIDv1]
         .catch
         .get()[multiCodec("sha2-256")]
         .catch
@@ -85,7 +85,7 @@ template EmptyDigests*: untyped =
 
   emptyDigests
 
-template EmptyBlock*: untyped =
+template emptyBlock*: untyped =
   var
     emptyBlock {.global, threadvar.}:
       array[CIDv0..CIDv1, Table[MultiCodec, Block]]
@@ -94,18 +94,18 @@ template EmptyBlock*: untyped =
     emptyBlock = [
       CIDv0: {
         multiCodec("sha2-256"): Block(
-          cid: EmptyCid[CIDv0][multiCodec("sha2-256")])
+          cid: emptyCid[CIDv0][multiCodec("sha2-256")])
       }.toTable,
       CIDv1: {
         multiCodec("sha2-256"): Block(
-          cid: EmptyCid[CIDv1][multiCodec("sha2-256")])
+          cid: emptyCid[CIDv1][multiCodec("sha2-256")])
       }.toTable,
     ]
 
   emptyBlock
 
 proc isEmpty*(cid: Cid): bool =
-  cid == EmptyCid[cid.cidver]
+  cid == emptyCid[cid.cidver]
   .catch
   .get()[cid.mhash.get().mcodec]
   .catch
@@ -115,7 +115,7 @@ proc isEmpty*(blk: Block): bool =
   blk.cid.isEmpty
 
 proc emptyBlock*(cid: Cid): Block =
-  EmptyBlock[cid.cidver]
+  emptyBlock[cid.cidver]
   .catch
   .get()[cid.mhash.get().mcodec]
   .catch
