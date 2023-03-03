@@ -50,7 +50,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   router.api(
     MethodGet,
     "/api/codex/v1/connect/{peerId}") do (
-      peerId: PeerID,
+      peerId: PeerId,
       addrs: seq[MultiAddress]) -> RestApiResponse:
       ## Connect to a peer
       ##

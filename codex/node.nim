@@ -45,7 +45,7 @@ type
 
   CodexNodeRef* = ref object
     switch*: Switch
-    networkId*: PeerID
+    networkId*: PeerId
     blockStore*: BlockStore
     engine*: BlockExcEngine
     erasure*: Erasure
@@ -54,12 +54,12 @@ type
 
 proc findPeer*(
   node: CodexNodeRef,
-  peerId: PeerID): Future[?PeerRecord] {.async.} =
+  peerId: PeerId): Future[?PeerRecord] {.async.} =
   return await node.discovery.findPeer(peerId)
 
 proc connect*(
   node: CodexNodeRef,
-  peerId: PeerID,
+  peerId: PeerId,
   addrs: seq[MultiAddress]): Future[void] =
   node.switch.connect(peerId, addrs)
 

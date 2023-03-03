@@ -13,7 +13,7 @@ import pkg/libp2p
 
 import message
 
-export Message, ProtobufEncode, ProtobufDecode
+export Message, protobufEncode, protobufDecode
 export Wantlist, WantType, Entry
 export Block, BlockPresenceType, BlockPresence
 export AccountMessage, StateChannelUpdate

@@ -153,7 +153,7 @@ suite "Test Discovery Engine":
         check cid == blocks[0].cid
         check peerStore.len < minPeers
         var
-          peerCtx = BlockExcPeerCtx(id: PeerID.example)
+          peerCtx = BlockExcPeerCtx(id: PeerId.example)
 
         peerCtx.blocks[cid] = Presence(cid: cid, price: 0.u256)
         peerStore.add(peerCtx)

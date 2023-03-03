@@ -18,7 +18,7 @@ suite "Network - Handlers":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
-    peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
+    peerId = PeerId.init(seckey.getPublicKey().tryGet()).tryGet()
     chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
 
   var
@@ -49,7 +49,7 @@ suite "Network - Handlers":
     discard await networkPeer.connect()
 
   test "Want List handler":
-    proc wantListHandler(peer: PeerID, wantList: WantList) {.gcsafe, async.} =
+    proc wantListHandler(peer: PeerId, wantList: Wantlist) {.gcsafe, async.} =
       # check that we got the correct amount of entries
       check wantList.entries.len == 4
 
@@ -71,25 +71,25 @@ suite "Network - Handlers":
       true, true)
 
     let msg = Message(wantlist: wantList)
-    await buffer.pushData(lenPrefix(ProtobufEncode(msg)))
+    await buffer.pushData(lenPrefix(protobufEncode(msg)))
 
     await done.wait(500.millis)
 
   test "Blocks Handler":
-    proc blocksHandler(peer: PeerID, blks: seq[bt.Block]) {.gcsafe, async.} =
+    proc blocksHandler(peer: PeerId, blks: seq[bt.Block]) {.gcsafe, async.} =
       check blks == blocks
       done.complete()
 
     network.handlers.onBlocks = blocksHandler
 
     let msg = Message(payload: makeBlocks(blocks))
-    await buffer.pushData(lenPrefix(ProtobufEncode(msg)))
+    await buffer.pushData(lenPrefix(protobufEncode(msg)))
 
     await done.wait(500.millis)
 
   test "Presence Handler":
     proc presenceHandler(
-      peer: PeerID,
+      peer: PeerId,
       precense: seq[BlockPresence]) {.gcsafe, async.} =
       for b in blocks:
         check:
@@ -105,35 +105,35 @@ suite "Network - Handlers":
           cid: it.cid.data.buffer,
           type: BlockPresenceType.Have
       )))
-    await buffer.pushData(lenPrefix(ProtobufEncode(msg)))
+    await buffer.pushData(lenPrefix(protobufEncode(msg)))
 
     await done.wait(500.millis)
 
   test "Handles account messages":
     let account = Account(address: EthAddress.example)
 
-    proc handleAccount(peer: PeerID, received: Account) {.gcsafe, async.} =
+    proc handleAccount(peer: PeerId, received: Account) {.gcsafe, async.} =
       check received == account
       done.complete()
 
     network.handlers.onAccount = handleAccount
 
     let message = Message(account: AccountMessage.init(account))
-    await buffer.pushData(lenPrefix(ProtobufEncode(message)))
+    await buffer.pushData(lenPrefix(protobufEncode(message)))
 
     await done.wait(100.millis)
 
   test "Handles payment messages":
     let payment = SignedState.example
 
-    proc handlePayment(peer: PeerID, received: SignedState) {.gcsafe, async.} =
+    proc handlePayment(peer: PeerId, received: SignedState) {.gcsafe, async.} =
       check received == payment
       done.complete()
 
     network.handlers.onPayment = handlePayment
 
     let message = Message(payment: StateChannelUpdate.init(payment))
-    await buffer.pushData(lenPrefix(ProtobufEncode(message)))
+    await buffer.pushData(lenPrefix(protobufEncode(message)))
 
     await done.wait(100.millis)
 
@@ -179,7 +179,7 @@ suite "Network - Senders":
       switch2.stop())
 
   test "Send want list":
-    proc wantListHandler(peer: PeerID, wantList: WantList) {.gcsafe, async.} =
+    proc wantListHandler(peer: PeerId, wantList: Wantlist) {.gcsafe, async.} =
       # check that we got the correct amount of entries
       check wantList.entries.len == 4
 
@@ -203,7 +203,7 @@ suite "Network - Senders":
     await done.wait(500.millis)
 
   test "send blocks":
-    proc blocksHandler(peer: PeerID, blks: seq[bt.Block]) {.gcsafe, async.} =
+    proc blocksHandler(peer: PeerId, blks: seq[bt.Block]) {.gcsafe, async.} =
       check blks == blocks
       done.complete()
 
@@ -216,7 +216,7 @@ suite "Network - Senders":
 
   test "send presence":
     proc presenceHandler(
-      peer: PeerID,
+      peer: PeerId,
       precense: seq[BlockPresence]) {.gcsafe, async.} =
       for b in blocks:
         check:
@@ -239,7 +239,7 @@ suite "Network - Senders":
   test "send account":
     let account = Account(address: EthAddress.example)
 
-    proc handleAccount(peer: PeerID, received: Account) {.gcsafe, async.} =
+    proc handleAccount(peer: PeerId, received: Account) {.gcsafe, async.} =
       check received == account
       done.complete()
 
@@ -251,7 +251,7 @@ suite "Network - Senders":
   test "send payment":
     let payment = SignedState.example
 
-    proc handlePayment(peer: PeerID, received: SignedState) {.gcsafe, async.} =
+    proc handlePayment(peer: PeerId, received: SignedState) {.gcsafe, async.} =
       check received == payment
       done.complete()
 
@@ -295,7 +295,7 @@ suite "Network - Test Limits":
   test "Concurrent Sends":
     let account = Account(address: EthAddress.example)
     network2.handlers.onAccount =
-      proc(peer: PeerID, received: Account) {.gcsafe, async.} =
+      proc(peer: PeerId, received: Account) {.gcsafe, async.} =
         check false
 
     let fut = network1.send(

@@ -57,7 +57,7 @@ proc toNodeId*(host: ca.Address): NodeId =
 
 proc findPeer*(
   d: Discovery,
-  peerId: PeerID): Future[?PeerRecord] {.async.} =
+  peerId: PeerId): Future[?PeerRecord] {.async.} =
   let
     node = await d.protocol.resolve(toNodeId(peerId))
 

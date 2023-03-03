@@ -316,7 +316,7 @@ proc blocksHandler*(
 proc wantListHandler*(
   b: BlockExcEngine,
   peer: PeerId,
-  wantList: WantList) {.async.} =
+  wantList: Wantlist) {.async.} =
   ## Handle incoming want lists
   ##
 
@@ -530,7 +530,7 @@ proc new*(
 
   proc blockWantListHandler(
     peer: PeerId,
-    wantList: WantList): Future[void] {.gcsafe.} =
+    wantList: Wantlist): Future[void] {.gcsafe.} =
     engine.wantListHandler(peer, wantList)
 
   proc blockPresenceHandler(

@@ -37,7 +37,7 @@ proc encodeString*(peerId: PeerId): Result[string, cstring] =
   ok($peerId)
 
 proc decodeString*(T: type PeerId, value: string): Result[PeerId, cstring] =
-  PeerID.init(value)
+  PeerId.init(value)
 
 proc encodeString*(address: MultiAddress): Result[string, cstring] =
   ok($address)
