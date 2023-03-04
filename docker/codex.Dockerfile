@@ -10,4 +10,5 @@ FROM alpine:3.17.2
 WORKDIR /root/
 RUN apk add --no-cache openssl libstdc++ libgcc libgomp
 COPY --from=builder /src/build/codex ./
-CMD ["sh", "-c", "/root/codex --listen-addrs=/ip4/0.0.0.0/tcp/8071 --api-bindaddr=0.0.0.0 --api-port=${CDX_API_PORT} --data-dir=/datadir --metrics=true --metrics-address=${METRICS_ADDR} --metrics-port=${METRICS_PORT}"]
+COPY --from=builder /src/docker/startCodex.sh ./
+CMD ["sh", "startCodex.sh"]

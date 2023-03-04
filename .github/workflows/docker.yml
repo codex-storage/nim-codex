@@ -20,7 +20,6 @@ jobs:
         with:
           images: statusteam/nim-codex
           tags: |
-            type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
