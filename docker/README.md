@@ -11,7 +11,7 @@ Stop and delete image and volume data:
 `rm -R hostdatadir`
 
 # Environment variables
-Codex docker image supports environment variables for each CLI argument:
+Codex docker image supports the following environment variables:
 - LOG_LEVEL
 - METRICS_ADDR
 - METRICS_PORT
@@ -30,7 +30,10 @@ Codex docker image supports environment variables for each CLI argument:
 - ETH_ACCOUNT
 - ETH_DEPLOYMENT
 
-Environment variable `API_PORT` is required. Other variables are optional and will default to Codex's CLI default values.
+All environment variables are optional and will default to Codex's CLI default values.
+
+# Constants
+Codex CLI arguments 'data-dir', 'listen-addrs', and 'api-bindaddr' cannot be configured. They are set to values required for docker in case of bind addresses. In the case of 'data-dir', the value is set to `/datadir`. It is important that you map this folder to a host volume in your container configuration. See docker-compose.yaml for examples.
 
 # Useful
 Connect nodes with the `/connect` endpoint.

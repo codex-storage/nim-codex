@@ -13,4 +13,3 @@ scrape_configs:
           - 'prometheus:9090'
           - 'codex-node1:9090'
           - 'codex-node2:9090'
-          - 'codex-node3:9090'

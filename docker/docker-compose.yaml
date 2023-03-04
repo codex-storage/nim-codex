@@ -30,6 +30,7 @@ services:
     networks:
       - primary
 
+  # Example with metrics enabled.
   codex-node2:
     image: clustertest-nim-codex
     ports:
@@ -46,20 +47,18 @@ services:
       - primary
       - secondary
 
+  # Example with no arguments.
   codex-node3:
     image: clustertest-nim-codex
     ports:
-      - 8082:8082
-    environment:
-      - API_PORT=8082
-      - METRICS_ADDR=0.0.0.0
-      - METRICS_PORT=9090
+      - 8082:8080
     volumes:
       - ./hostdatadir/node3:/datadir
     depends_on:
       - codex-node1
     networks:
       - secondary
+
   prometheus:
     image: prom/prometheus:v2.30.3
     ports:

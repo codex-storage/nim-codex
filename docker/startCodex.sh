@@ -1,15 +1,6 @@
 set -e
 
-fail=0
-
 echo "Starting Codex..."
-
-[ -z "$API_PORT" ] && echo "Missing required environment variable: API_PORT" && fail=1
-
-if [ $fail = 1 ]; then
-    echo "Failed"
-    exit 1
-fi
 
 args=""
 
@@ -17,7 +8,6 @@ args=""
 args="$args --data-dir=/datadir"
 args="$args --listen-addrs=/ip4/0.0.0.0/tcp/8071"
 args="$args --api-bindaddr=0.0.0.0"
-args="$args --api-port=$API_PORT"
 
 # Optional arguments
 # Log level
@@ -74,6 +64,12 @@ fi
 if [ -n "$AGENT_STRING" ]; then
   echo "Agent string: $AGENT_STRING"
   args="$args --agent-string=$AGENT_STRING"
+fi
+
+# API port
+if [ -n "$API_PORT" ]; then
+  echo "API port: $API_PORT"
+  args="$args --api-port=$API_PORT"
 fi
 
 # Storage quota
