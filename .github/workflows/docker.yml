@@ -18,7 +18,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: statusteam/nim-codex
+          images: thatbenbierens/nim-codex
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
