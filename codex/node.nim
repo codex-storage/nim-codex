@@ -288,7 +288,7 @@ proc requestStorage*(self: CodexNodeRef,
       erasure: StorageErasure(
         totalChunks: encoded.len.uint64,
       ),
-      por: StoragePor(
+      por: StoragePoR(
         u: @[],         # TODO: PoR setup
         publicKey: @[], # TODO: PoR setup
         name: @[]       # TODO: PoR setup

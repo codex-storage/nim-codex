@@ -39,7 +39,7 @@ proc fromJson*(_: type StorageRequestParams,
 func `%`*(address: Address): JsonNode =
   % $address
 
-func `%`*(stint: StInt|StUInt): JsonNode =
+func `%`*(stint: StInt|StUint): JsonNode =
   %("0x" & stint.toHex)
 
 func `%`*(arr: openArray[byte]): JsonNode =

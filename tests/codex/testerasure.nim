@@ -64,7 +64,7 @@ suite "Erasure encode/decode":
       column = rng.rand(encoded.len div encoded.steps) # random column
       dropped: seq[Cid]
 
-    for _ in 0..<encoded.M:
+    for _ in 0..<encoded.ecM:
       dropped.add(encoded[column])
       (await store.delBlock(encoded[column])).tryGet()
       column.inc(encoded.steps)
@@ -92,7 +92,7 @@ suite "Erasure encode/decode":
       column = rng.rand(encoded.len div encoded.steps) # random column
       dropped: seq[Cid]
 
-    for _ in 0..<encoded.M + 1:
+    for _ in 0..<encoded.ecM + 1:
       dropped.add(encoded[column])
       (await store.delBlock(encoded[column])).tryGet()
       column.inc(encoded.steps)
@@ -122,7 +122,7 @@ suite "Erasure encode/decode":
       let
         blockIdx = toSeq(countup(offset, encoded.len - 1, encoded.steps))
 
-      for _ in 0..<encoded.M:
+      for _ in 0..<encoded.ecM:
         blocks.add(rng.sample(blockIdx, blocks))
       offset.inc
 
@@ -150,7 +150,7 @@ suite "Erasure encode/decode":
       let
         blockIdx = toSeq(countup(offset, encoded.len - 1, encoded.steps))
 
-      for _ in 0..<encoded.M + 1: # NOTE: the +1
+      for _ in 0..<encoded.ecM + 1: # NOTE: the +1
         var idx: int
         while true:
           idx = rng.sample(blockIdx, blocks)
@@ -176,7 +176,7 @@ suite "Erasure encode/decode":
 
     let encoded = await encode(buffers, parity)
 
-    for b in encoded.blocks[0..<encoded.steps * encoded.M]:
+    for b in encoded.blocks[0..<encoded.steps * encoded.ecM]:
       (await store.delBlock(b)).tryGet()
 
     discard (await erasure.decode(encoded)).tryGet()
@@ -192,7 +192,7 @@ suite "Erasure encode/decode":
 
     let encoded = await encode(buffers, parity)
 
-    for b in encoded.blocks[^(encoded.steps * encoded.M)..^1]:
+    for b in encoded.blocks[^(encoded.steps * encoded.ecM)..^1]:
       (await store.delBlock(b)).tryGet()
 
     discard (await erasure.decode(encoded)).tryGet()

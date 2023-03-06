@@ -72,7 +72,7 @@ suite "Manifest":
 
     # fill up with empty Cid's
     for i in protected.rounded..<protected.len:
-      protected.blocks[i] = EmptyCid[manifest.version]
+      protected.blocks[i] = emptyCid[manifest.version]
         .catch
         .get()[manifest.hcodec]
         .catch
@@ -86,8 +86,8 @@ suite "Manifest":
       decoded.protected == true
       decoded.originalLen == manifest.len
 
-      decoded.K == protected.K
-      decoded.M == protected.M
+      decoded.ecK == protected.ecK
+      decoded.ecM == protected.ecM
 
       decoded.originalCid == protected.originalCid
       decoded.originalCid == manifest.cid.tryGet()

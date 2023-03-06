@@ -108,10 +108,10 @@ proc stop*(b: BlockExcEngine) {.async.} =
     return
 
   b.blockexcRunning = false
-  for t in b.blockexcTasks:
-    if not t.finished:
+  for task in b.blockexcTasks:
+    if not task.finished:
       trace "Awaiting task to stop"
-      await t.cancelAndWait()
+      await task.cancelAndWait()
       trace "Task stopped"
 
   trace "NetworkStore stopped"

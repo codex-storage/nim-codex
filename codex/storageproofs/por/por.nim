@@ -125,8 +125,8 @@ type
 
   # PoR query element
   QElement* = object
-    I*: int64
-    V*: blst_scalar
+    i*: int64
+    v*: blst_scalar
 
   PoR* = object
     ssk*: SecretKey
@@ -157,7 +157,7 @@ proc getSector(
   ##
 
   var res: ZChar
-  stream.setPos(((blockid * spb + sectorid) * ZChar.len).int)
+  stream.setPos(((blockId * spb + sectorId) * ZChar.len).int)
   discard await stream.readOnce(addr res[0], ZChar.len)
   return res
 
@@ -165,8 +165,8 @@ proc rndScalar(): blst_scalar =
   ## Generate random scalar within the subroup order r
   ##
 
-  var scal {.noInit.}: array[32, byte]
-  var scalar {.noInit.}: blst_scalar
+  var scal : array[32, byte]
+  var scalar : blst_scalar
 
   while true:
     for val in scal.mitems:
@@ -183,7 +183,7 @@ proc rndP2(): (blst_p2, blst_scalar) =
   ##
 
   var
-    x {.noInit.}: blst_p2
+    x : blst_p2
   x.blst_p2_from_affine(BLS12_381_G2) # init from generator
 
   let
@@ -195,7 +195,7 @@ proc rndP2(): (blst_p2, blst_scalar) =
 proc rndP1(): (blst_p1, blst_scalar) =
   ## Generate random point on G1
   var
-    x {.noInit.}: blst_p1
+    x : blst_p1
   x.blst_p1_from_affine(BLS12_381_G1) # init from generator
 
   let
@@ -316,8 +316,8 @@ proc generateQuery*(tau: Tau, l: int): seq[QElement] =
 
   for i in 0..<l:
     var q: QElement
-    q.I = Rng.instance.rand(n-1) #TODO: dedup
-    q.V = rndScalar() #TODO: fix range
+    q.i = Rng.instance.rand(n-1) #TODO: dedup
+    q.v = rndScalar() #TODO: fix range
     result.add(q)
 
 proc generateProof*(
@@ -337,13 +337,13 @@ proc generateProof*(
 
     for qelem in q:
       let
-        sect = fromBytesBE((await stream.getSector(qelem.I, j, s)))
+        sect = fromBytesBE((await stream.getSector(qelem.i, j, s)))
 
       var
         x, v, sector: blst_fr
 
       sector.blst_fr_from_scalar(sect)
-      v.blst_fr_from_scalar(qelem.V)
+      v.blst_fr_from_scalar(qelem.v)
       x.blst_fr_mul(v, sector)
       muj.blst_fr_add(muj, x)
 
@@ -360,7 +360,7 @@ proc generateProof*(
     var
       prod: blst_p1
 
-    prod.blst_p1_mult(authenticators[qelem.I], qelem.V, 255)
+    prod.blst_p1_mult(authenticators[qelem.i], qelem.v, 255)
     sigma.blst_p1_add_or_double(sigma, prod)
 
   return Proof(mu: mu, sigma: sigma)
@@ -411,7 +411,7 @@ proc verifyProof*(
   var first: blst_p1
   for qelem in q:
     var prod: blst_p1
-    prod.blst_p1_mult(hashNameI(self.tau.t.name, qelem.I), qelem.V, 255)
+    prod.blst_p1_mult(hashNameI(self.tau.t.name, qelem.i), qelem.v, 255)
     first.blst_p1_add_or_double(first, prod)
     doAssert(blst_p1_on_curve(first).bool)
 
@@ -426,7 +426,7 @@ proc verifyProof*(
   var sum: blst_p1
   sum.blst_p1_add_or_double(first, second)
 
-  var g {.noInit.}: blst_p2
+  var g : blst_p2
   g.blst_p2_from_affine(BLS12_381_G2)
 
   return verifyPairings(sum, self.spk.key, sigma, g)
