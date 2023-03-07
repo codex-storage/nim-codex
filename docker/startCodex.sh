@@ -1,5 +1,3 @@
-set -e
-
 echo "Starting Codex..."
 
 args=""
