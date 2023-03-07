@@ -4,6 +4,7 @@ echo "Starting Codex..."
 
 args=""
 
+
 # Required arguments
 args="$args --data-dir=/datadir"
 args="$args --listen-addrs=/ip4/0.0.0.0/tcp/8071"

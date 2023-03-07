@@ -201,16 +201,26 @@ type
 
   EthAddress* = ethers.Address
 
+proc getCodexVersion(): string =
+  let tag = strip(staticExec("git tag"))
+  if tag.isEmptyOrWhitespace:
+    return "Untagged build"
+  return tag
+
+proc getCodexRevision(): string =
+  strip(staticExec("git rev-parse --short HEAD"))[0..5]
+
+proc getNimBanner(): string =
+  staticExec("nim --version | grep Version")
+
 const
-  gitRevision* = strip(staticExec("git rev-parse --short HEAD"))[0..5]
-
-  nimBanner* = staticExec("nim --version | grep Version")
-
-  #TODO add versionMajor, Minor & Fix when we switch to semver
-  codexVersion* = gitRevision
+  codexVersion* = getCodexVersion()
+  codexRevision* = getCodexRevision()
+  nimBanner* = getNimBanner()
 
   codexFullVersion* =
-    "Codex build " & codexVersion & "\p" &
+    "Codex version:  " & codexVersion & "\p" &
+    "Codex revision: " & codexRevision & "\p" &
     nimBanner
 
 proc defaultDataDir*(): string =
