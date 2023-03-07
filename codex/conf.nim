@@ -204,7 +204,7 @@ type
 proc getCodexVersion(): string =
   let tag = strip(staticExec("git tag"))
   if tag.isEmptyOrWhitespace:
-    return "Untagged build"
+    return "untagged build"
   return tag
 
 proc getCodexRevision(): string =
