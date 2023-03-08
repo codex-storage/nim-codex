@@ -47,7 +47,7 @@ if defined(windows):
 # engineering a more portable binary release, this should be tweaked but still
 # use at least -msse2 or -msse3.
 
-if true:
+if defined(disableMarchNative):
   if defined(i386) or defined(amd64):
     switch("passC", "-mssse3")
 elif defined(macosx) and defined(arm64):
