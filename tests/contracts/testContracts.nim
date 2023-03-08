@@ -34,8 +34,9 @@ ethersuite "Marketplace contracts":
     await token.mint(await client.getAddress(), 1_000_000_000.u256)
     await token.mint(await host.getAddress(), 1000_000_000.u256)
 
-    collateral = await marketplace.collateral()
-    periodicity = Periodicity(seconds: await marketplace.proofPeriod())
+    let config = await marketplace.config()
+    collateral = config.collateral.initialAmount
+    periodicity = Periodicity(seconds: config.proofs.period)
 
     request = StorageRequest.example
     request.client = await client.getAddress()

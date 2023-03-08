@@ -2,6 +2,8 @@ import std/sequtils
 import std/tables
 import std/hashes
 import pkg/codex/market
+import pkg/codex/contracts/requests
+import pkg/codex/contracts/config
 
 export market
 export tables
@@ -9,23 +11,26 @@ export tables
 type
   MockMarket* = ref object of Market
     activeRequests*: Table[Address, seq[RequestId]]
+    activeSlots*: Table[Address, seq[SlotId]]
     requested*: seq[StorageRequest]
     requestEnds*: Table[RequestId, SecondsSince1970]
-    state*: Table[RequestId, RequestState]
+    requestState*: Table[RequestId, RequestState]
+    slotState*: Table[SlotId, SlotState]
     fulfilled*: seq[Fulfillment]
-    filled*: seq[Slot]
+    filled*: seq[MockSlot]
     withdrawn*: seq[RequestId]
     signer: Address
     subscriptions: Subscriptions
+    config: MarketplaceConfig
   Fulfillment* = object
     requestId*: RequestId
     proof*: seq[byte]
     host*: Address
-  Slot* = object
+  MockSlot* = object
     requestId*: RequestId
+    host*: Address
     slotIndex*: UInt256
     proof*: seq[byte]
-    host*: Address
   Subscriptions = object
     onRequest: seq[RequestSubscription]
     onFulfillment: seq[FulfillmentSubscription]
@@ -60,7 +65,20 @@ proc hash*(requestId: RequestId): Hash =
   hash(requestId.toArray)
 
 proc new*(_: type MockMarket): MockMarket =
-  MockMarket(signer: Address.example)
+  let config = MarketplaceConfig(
+    collateral: CollateralConfig(
+      initialAmount: 100.u256,
+      minimumAmount: 40.u256,
+      slashCriterion: 3.u256,
+      slashPercentage: 10.u256
+    ),
+    proofs: ProofConfig(
+      period: 10.u256,
+      timeout: 5.u256,
+      downtime: 64.uint8
+    )
+  )
+  MockMarket(signer: Address.example, config: config)
 
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
@@ -74,6 +92,9 @@ method requestStorage*(market: MockMarket, request: StorageRequest) {.async.} =
 method myRequests*(market: MockMarket): Future[seq[RequestId]] {.async.} =
   return market.activeRequests[market.signer]
 
+method mySlots*(market: MockMarket): Future[seq[SlotId]] {.async.} =
+  return market.activeSlots[market.signer]
+
 method getRequest(market: MockMarket,
                   id: RequestId): Future[?StorageRequest] {.async.} =
   for request in market.requested:
@@ -81,15 +102,30 @@ method getRequest(market: MockMarket,
       return some request
   return none StorageRequest
 
-method getState*(market: MockMarket,
+method getRequestFromSlotId*(market: MockMarket,
+                             slotId: SlotId): Future[?StorageRequest] {.async.} =
+  for slot in market.filled:
+    if slotId(slot.requestId, slot.slotIndex) == slotId:
+      return await market.getRequest(slot.requestId)
+  return none StorageRequest
+
+method requestState*(market: MockMarket,
                  requestId: RequestId): Future[?RequestState] {.async.} =
-  return market.state.?[requestId]
+  return market.requestState.?[requestId]
+
+method slotState*(market: MockMarket,
+                  slotId: SlotId): Future[SlotState] {.async.} =
+  if market.slotState.hasKey(slotId):
+    return market.slotState[slotId]
+  else:
+    return SlotState.Free
+
 
 method getRequestEnd*(market: MockMarket,
                       id: RequestId): Future[SecondsSince1970] {.async.} =
   return market.requestEnds[id]
 
-method getHost(market: MockMarket,
+method getHost*(market: MockMarket,
                requestId: RequestId,
                slotIndex: UInt256): Future[?Address] {.async.} =
   for slot in market.filled:
@@ -130,7 +166,7 @@ proc fillSlot*(market: MockMarket,
                slotIndex: UInt256,
                proof: seq[byte],
                host: Address) =
-  let slot = Slot(
+  let slot = MockSlot(
     requestId: requestId,
     slotIndex: slotIndex,
     proof: proof,

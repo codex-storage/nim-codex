@@ -1,6 +1,7 @@
 import std/options
 import pkg/chronos
 import pkg/ethers/testing
+import pkg/stew/byteutils
 import codex/contracts
 import codex/contracts/testtoken
 import codex/storageproofs
@@ -24,12 +25,13 @@ ethersuite "On-Chain Market":
     token = TestToken.new(!deployment.address(TestToken), provider.getSigner())
     await token.mint(accounts[0], 1_000_000_000.u256)
 
-    let collateral = await marketplace.collateral()
+    let config = await marketplace.config()
+    let collateral = config.collateral.initialAmount
     await token.approve(marketplace.address, collateral)
     await marketplace.deposit(collateral)
 
     market = OnChainMarket.new(marketplace)
-    periodicity = Periodicity(seconds: await marketplace.proofPeriod())
+    periodicity = Periodicity(seconds: config.proofs.period)
 
     request = StorageRequest.example
     request.client = accounts[0]
@@ -187,14 +189,13 @@ ethersuite "On-Chain Market":
     for slotIndex in 0..request.ask.maxSlotLoss:
       let slotId = request.slotId(slotIndex.u256)
       while true:
-        try:
-          await waitUntilProofRequired(slotId)
-          let missingPeriod = periodicity.periodOf(await provider.currentTime())
-          await provider.advanceTime(periodicity.seconds)
-          await marketplace.markProofAsMissing(slotId, missingPeriod)
-        except ProviderError as e:
-          if e.revertReason == "Slot empty":
-            break
+        let slotState = await marketplace.slotState(slotId)
+        if slotState == SlotState.Free:
+          break
+        await waitUntilProofRequired(slotId)
+        let missingPeriod = periodicity.periodOf(await provider.currentTime())
+        await provider.advanceTime(periodicity.seconds)
+        await marketplace.markProofAsMissing(slotId, missingPeriod)
     check receivedIds == @[request.id]
     await subscription.unsubscribe()
 
@@ -230,9 +231,45 @@ ethersuite "On-Chain Market":
     await market.requestStorage(request2)
     check (await market.myRequests()) == @[request.id, request2.id]
 
+  test "retrieves correct request state when request is unknown":
+    check (await market.requestState(request.id)) == none RequestState
+
   test "can retrieve request state":
     await token.approve(marketplace.address, request.price)
     await market.requestStorage(request)
     for slotIndex in 0..<request.ask.slots:
       await market.fillSlot(request.id, slotIndex.u256, proof)
-    check (await market.getState(request.id)) == some RequestState.Started
+    check (await market.requestState(request.id)) == some RequestState.Started
+
+  test "can retrieve active slots":
+    await token.approve(marketplace.address, request.price)
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, slotIndex - 1, proof)
+    await market.fillSlot(request.id, slotIndex, proof)
+    let slotId1 = request.slotId(slotIndex - 1)
+    let slotId2 = request.slotId(slotIndex)
+    check (await market.mySlots()) == @[slotId1, slotId2]
+
+  test "returns none when slot is empty":
+    await token.approve(marketplace.address, request.price)
+    await market.requestStorage(request)
+    let slotId = request.slotId(slotIndex)
+    check (await market.getRequestFromSlotId(slotId)) == none StorageRequest
+
+  test "can retrieve request details from slot id":
+    await token.approve(marketplace.address, request.price)
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, slotIndex, proof)
+    let slotId = request.slotId(slotIndex)
+    check (await market.getRequestFromSlotId(slotId)) == some request
+
+  test "retrieves correct slot state when request is unknown":
+    let slotId = request.slotId(slotIndex)
+    check (await market.slotState(slotId)) == SlotState.Free
+
+  test "retrieves correct slot state once filled":
+    await token.approve(marketplace.address, request.price)
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, slotIndex, proof)
+    let slotId = request.slotId(slotIndex)
+    check (await market.slotState(slotId)) == SlotState.Filled

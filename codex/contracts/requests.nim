@@ -39,6 +39,12 @@ type
     Cancelled
     Finished
     Failed
+  SlotState* {.pure.} = enum
+    Free
+    Filled
+    Finished
+    Failed
+    Paid
 
 proc `==`*(x, y: Nonce): bool {.borrow.}
 proc `==`*(x, y: RequestId): bool {.borrow.}

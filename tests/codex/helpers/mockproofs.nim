@@ -11,6 +11,7 @@ type
     proofsToBeRequired: HashSet[SlotId]
     proofEnds: Table[SlotId, UInt256]
     subscriptions: seq[MockSubscription]
+    slotStates: Table[SlotId, SlotState]
   MockSubscription* = ref object of Subscription
     proofs: MockProofs
     callback: OnProofSubmitted
@@ -49,13 +50,6 @@ method willProofBeRequired*(mock: MockProofs,
 proc setProofEnd*(mock: MockProofs, id: SlotId, proofEnd: UInt256) =
   mock.proofEnds[id] = proofEnd
 
-method getProofEnd*(mock: MockProofs,
-                    id: SlotId): Future[UInt256] {.async.} =
-  if mock.proofEnds.hasKey(id):
-    return mock.proofEnds[id]
-  else:
-    return UInt256.high
-
 method submitProof*(mock: MockProofs,
                     id: SlotId,
                     proof: seq[byte]) {.async.} =
@@ -71,3 +65,10 @@ method subscribeProofSubmission*(mock: MockProofs,
 
 method unsubscribe*(subscription: MockSubscription) {.async, upraises:[].} =
   subscription.proofs.subscriptions.keepItIf(it != subscription)
+
+method slotState*(mock: MockProofs,
+                  slotId: SlotId): Future[SlotState] {.async.} =
+  return mock.slotStates[slotId]
+
+proc setSlotState*(mock: MockProofs, slotId: SlotId, state: SlotState) =
+  mock.slotStates[slotId] = state

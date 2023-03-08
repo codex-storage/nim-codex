@@ -21,8 +21,10 @@ method enterAsync*(state: PurchaseStarted) {.async.} =
   try:
     let fut = await one(ended, failed)
     if fut.id == failed.id:
+      ended.cancel()
       state.switch(PurchaseFailed())
     else:
+      failed.cancel()
       state.switch(PurchaseFinished())
     await subscription.unsubscribe()
   except CatchableError as error:

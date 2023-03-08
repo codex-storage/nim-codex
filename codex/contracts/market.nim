@@ -31,6 +31,9 @@ method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
 method myRequests*(market: OnChainMarket): Future[seq[RequestId]] {.async.} =
   return await market.contract.myRequests
 
+method mySlots*(market: OnChainMarket): Future[seq[SlotId]] {.async.} =
+  return await market.contract.mySlots()
+
 method requestStorage(market: OnChainMarket, request: StorageRequest){.async.} =
   await market.contract.requestStorage(request)
 
@@ -43,14 +46,18 @@ method getRequest(market: OnChainMarket,
       return none StorageRequest
     raise e
 
-method getState*(market: OnChainMarket,
+method requestState*(market: OnChainMarket,
                  requestId: RequestId): Future[?RequestState] {.async.} =
   try:
-    return some await market.contract.state(requestId)
+    return some await market.contract.requestState(requestId)
   except ProviderError as e:
     if e.revertReason.contains("Unknown request"):
       return none RequestState
     raise e
+
+method slotState*(market: OnChainMarket,
+                  slotId: SlotId): Future[SlotState] {.async.} =
+  return await market.contract.slotState(slotId)
 
 method getRequestEnd*(market: OnChainMarket,
                       id: RequestId): Future[SecondsSince1970] {.async.} =
@@ -65,6 +72,15 @@ method getHost(market: OnChainMarket,
     return some address
   else:
     return none Address
+
+method getRequestFromSlotId*(market: OnChainMarket,
+                             slotId: SlotId): Future[?StorageRequest] {.async.} =
+  try:
+    return some await market.contract.getRequestFromSlotId(slotId)
+  except ProviderError as e:
+    if e.revertReason.contains("Slot is free"):
+      return none StorageRequest
+    raise e
 
 method fillSlot(market: OnChainMarket,
                 requestId: RequestId,
@@ -119,7 +135,7 @@ method subscribeRequestFailed*(market: OnChainMarket,
                               requestId: RequestId,
                               callback: OnRequestFailed):
                             Future[MarketSubscription] {.async.} =
-  proc onEvent(event: RequestFailed) {.upraises:[].} =
+  proc onEvent(event: RequestFailed) {.upraises:[]} =
     if event.requestId == requestId:
       callback(event.requestId)
   let subscription = await market.contract.subscribe(RequestFailed, onEvent)

@@ -4,9 +4,11 @@ import pkg/stint
 import pkg/chronos
 import ../clock
 import ./requests
+import ./config
 
 export stint
 export ethers
+export config
 
 type
   Marketplace* = ref object of Contract
@@ -28,7 +30,7 @@ type
     proof*: seq[byte]
 
 
-proc collateral*(marketplace: Marketplace): UInt256 {.contract, view.}
+proc config*(marketplace: Marketplace): MarketplaceConfig {.contract, view.}
 proc slashMisses*(marketplace: Marketplace): UInt256 {.contract, view.}
 proc slashPercentage*(marketplace: Marketplace): UInt256 {.contract, view.}
 proc minCollateralThreshold*(marketplace: Marketplace): UInt256 {.contract, view.}
@@ -43,12 +45,14 @@ proc withdrawFunds*(marketplace: Marketplace, requestId: RequestId) {.contract.}
 proc freeSlot*(marketplace: Marketplace, id: SlotId) {.contract.}
 proc getRequest*(marketplace: Marketplace, id: RequestId): StorageRequest {.contract, view.}
 proc getHost*(marketplace: Marketplace, id: SlotId): Address {.contract, view.}
+proc getRequestFromSlotId*(marketplace: Marketplace, id: SlotId): StorageRequest {.contract, view.}
 
 proc myRequests*(marketplace: Marketplace): seq[RequestId] {.contract, view.}
-proc state*(marketplace: Marketplace, requestId: RequestId): RequestState {.contract, view.}
+proc mySlots*(marketplace: Marketplace): seq[SlotId] {.contract, view.}
+proc requestState*(marketplace: Marketplace, requestId: RequestId): RequestState {.contract, view.}
+proc slotState*(marketplace: Marketplace, slotId: SlotId): SlotState {.contract, view.}
 proc requestEnd*(marketplace: Marketplace, requestId: RequestId): SecondsSince1970 {.contract, view.}
 
-proc proofPeriod*(marketplace: Marketplace): UInt256 {.contract, view.}
 proc proofTimeout*(marketplace: Marketplace): UInt256 {.contract, view.}
 
 proc proofEnd*(marketplace: Marketplace, id: SlotId): UInt256 {.contract, view.}
