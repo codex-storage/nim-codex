@@ -138,6 +138,12 @@ type
         desc: "Node agent string which is used as identifier in network"
         name: "agent-string" }: string
 
+      apiBindAddress* {.
+        desc: "The REST API bind address"
+        defaultValue: "127.0.0.1"
+        name: "api-bindaddr"
+      }: string
+
       apiPort* {.
         desc: "The REST Api port",
         defaultValue: 8080
@@ -195,16 +201,26 @@ type
 
   EthAddress* = ethers.Address
 
+proc getCodexVersion(): string =
+  let tag = strip(staticExec("git tag"))
+  if tag.isEmptyOrWhitespace:
+    return "untagged build"
+  return tag
+
+proc getCodexRevision(): string =
+  strip(staticExec("git rev-parse --short HEAD"))[0..5]
+
+proc getNimBanner(): string =
+  staticExec("nim --version | grep Version")
+
 const
-  gitRevision* = strip(staticExec("git rev-parse --short HEAD"))[0..5]
-
-  nimBanner* = staticExec("nim --version | grep Version")
-
-  #TODO add versionMajor, Minor & Fix when we switch to semver
-  codexVersion* = gitRevision
+  codexVersion* = getCodexVersion()
+  codexRevision* = getCodexRevision()
+  nimBanner* = getNimBanner()
 
   codexFullVersion* =
-    "Codex build " & codexVersion & "\p" &
+    "Codex version:  " & codexVersion & "\p" &
+    "Codex revision: " & codexRevision & "\p" &
     nimBanner
 
 proc defaultDataDir*(): string =

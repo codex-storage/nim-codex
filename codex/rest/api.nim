@@ -234,7 +234,11 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
             if node.discovery.dhtRecord.isSome:
               node.discovery.dhtRecord.get.toURI
             else:
-              ""
+              "",
+          "codex": {
+            "version": $codexVersion,
+            "revision": $codexRevision
+          }
         }
 
       return RestApiResponse.response($json)
