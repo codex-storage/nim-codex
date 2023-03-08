@@ -35,13 +35,13 @@ type
     cid*: Cid
     data*: seq[byte]
 
-template emptyCid*: untyped =
+template EmptyCid*: untyped =
   var
-    emptyCid {.global, threadvar.}:
+    EmptyCid {.global, threadvar.}:
       array[CIDv0..CIDv1, Table[MultiCodec, Cid]]
 
   once:
-    emptyCid = [
+    EmptyCid = [
       CIDv0: {
         multiCodec("sha2-256"): Cid
         .init("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
@@ -54,17 +54,17 @@ template emptyCid*: untyped =
       }.toTable,
     ]
 
-  emptyCid
+  EmptyCid
 
-template emptyDigests*: untyped =
+template EmptyDigests*: untyped =
   var
-    emptyDigests {.global, threadvar.}:
+    EmptyDigests {.global, threadvar.}:
       array[CIDv0..CIDv1, Table[MultiCodec, MultiHash]]
 
   once:
-    emptyDigests = [
+    EmptyDigests = [
       CIDv0: {
-        multiCodec("sha2-256"): emptyCid[CIDv0]
+        multiCodec("sha2-256"): EmptyCid[CIDv0]
         .catch
         .get()[multiCodec("sha2-256")]
         .catch
@@ -73,7 +73,7 @@ template emptyDigests*: untyped =
         .get()
       }.toTable,
       CIDv1: {
-        multiCodec("sha2-256"): emptyCid[CIDv1]
+        multiCodec("sha2-256"): EmptyCid[CIDv1]
         .catch
         .get()[multiCodec("sha2-256")]
         .catch
@@ -83,29 +83,29 @@ template emptyDigests*: untyped =
       }.toTable,
     ]
 
-  emptyDigests
+  EmptyDigests
 
-template emptyBlock*: untyped =
+template EmptyBlock*: untyped =
   var
-    emptyBlock {.global, threadvar.}:
+    EmptyBlock {.global, threadvar.}:
       array[CIDv0..CIDv1, Table[MultiCodec, Block]]
 
   once:
-    emptyBlock = [
+    EmptyBlock = [
       CIDv0: {
         multiCodec("sha2-256"): Block(
-          cid: emptyCid[CIDv0][multiCodec("sha2-256")])
+          cid: EmptyCid[CIDv0][multiCodec("sha2-256")])
       }.toTable,
       CIDv1: {
         multiCodec("sha2-256"): Block(
-          cid: emptyCid[CIDv1][multiCodec("sha2-256")])
+          cid: EmptyCid[CIDv1][multiCodec("sha2-256")])
       }.toTable,
     ]
 
-  emptyBlock
+  EmptyBlock
 
 proc isEmpty*(cid: Cid): bool =
-  cid == emptyCid[cid.cidver]
+  cid == EmptyCid[cid.cidver]
   .catch
   .get()[cid.mhash.get().mcodec]
   .catch
@@ -115,7 +115,7 @@ proc isEmpty*(blk: Block): bool =
   blk.cid.isEmpty
 
 proc emptyBlock*(cid: Cid): Block =
-  emptyBlock[cid.cidver]
+  EmptyBlock[cid.cidver]
   .catch
   .get()[cid.mhash.get().mcodec]
   .catch

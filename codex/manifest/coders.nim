@@ -158,7 +158,7 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
 
   if self.protected:
     self.ecK = ecK.int
-    self.ecM= ecM.int
+    self.ecM = ecM.int
     self.originalCid = ? Cid.init(originalCid).mapFailure
     self.originalLen = originalLen.int
 

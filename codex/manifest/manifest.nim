@@ -137,7 +137,7 @@ proc makeRoot*(self: Manifest): ?!void =
     let cid = ? Cid.init(
       self.version,
       self.codec,
-      (? emptyDigests[self.version][self.hcodec].catch))
+      (? EmptyDigests[self.version][self.hcodec].catch))
       .mapFailure
 
     self.rootHash = cid.some
@@ -169,7 +169,7 @@ proc new*(
   ## Create a manifest using array of `Cid`s
   ##
 
-  if hcodec notin emptyDigests[version]:
+  if hcodec notin EmptyDigests[version]:
     return failure("Unsupported manifest hash codec!")
 
   T(
@@ -211,7 +211,7 @@ proc new*(
     if i < manifest.len:
       self.blocks[i] = manifest[i]
     else:
-      self.blocks[i] = emptyCid[manifest.version]
+      self.blocks[i] = EmptyCid[manifest.version]
       .catch
       .get()[manifest.hcodec]
       .catch
