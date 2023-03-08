@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import std/sequtils
 import pkg/upraises
 
 push: {.upraises: [].}
@@ -20,9 +21,11 @@ import pkg/datastore
 import pkg/stew/endians2
 
 import ./blockstore
+import ./keyutils
 import ../blocktype
 import ../namespaces
-import ../manifest
+import ../clock
+import ../systemclock
 
 export blocktype, libp2p
 
@@ -30,21 +33,8 @@ logScope:
   topics = "codex repostore"
 
 const
-  CodexMetaKey* = Key.init(CodexMetaNamespace).tryGet
-  CodexRepoKey* = Key.init(CodexRepoNamespace).tryGet
-  CodexBlocksKey* = Key.init(CodexBlocksNamespace).tryGet
-  CodexManifestKey* = Key.init(CodexManifestNamespace).tryGet
-
-  QuotaKey* = Key.init(CodexQuotaNamespace).tryGet
-  QuotaUsedKey* = (QuotaKey / "used").tryGet
-  QuotaReservedKey* = (QuotaKey / "reserved").tryGet
-
-  BlocksTtlKey* = Key.init(CodexBlocksTtlNamespace).tryGet
-
   DefaultBlockTtl* = 24.hours
   DefaultQuotaBytes* = 1'u shl 33'u # ~8GB
-
-  ZeroMoment = Moment.init(0, Nanosecond) # used for converting between Duration and Moment
 
 type
   QuotaUsedError* = object of CodexError
@@ -54,23 +44,24 @@ type
     postFixLen*: int
     repoDs*: Datastore
     metaDs*: Datastore
+    clock: Clock
     quotaMaxBytes*: uint
     quotaUsedBytes*: uint
     quotaReservedBytes*: uint
     blockTtl*: Duration
     started*: bool
 
-func makePrefixKey*(self: RepoStore, cid: Cid): ?!Key =
-  let
-    cidKey = ? Key.init(($cid)[^self.postFixLen..^1] & "/" & $cid)
+  BlockExpiration* = object
+    cid*: Cid
+    expiration*: SecondsSince1970
+  GetNext = proc(): Future[?BlockExpiration] {.upraises: [], gcsafe, closure.}
+  BlockExpirationIter* = ref object
+    finished*: bool
+    next*: GetNext
 
-  if ? cid.isManifest:
-    success CodexManifestKey / cidKey
-  else:
-    success CodexBlocksKey / cidKey
-
-func makeExpiresKey(expires: Duration, cid: Cid): ?!Key =
-  BlocksTtlKey / $cid / $expires.seconds
+iterator items*(q: BlockExpirationIter): Future[?BlockExpiration] =
+  while not q.finished:
+    yield q.next()
 
 func totalUsed*(self: RepoStore): uint =
   (self.quotaUsedBytes + self.quotaReservedBytes)
@@ -79,7 +70,7 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the blockstore
   ##
 
-  without key =? self.makePrefixKey(cid), err:
+  without key =? makePrefixKey(self.postFixLen, cid), err:
     trace "Error getting key from provider", err = err.msg
     return failure(err)
 
@@ -93,6 +84,17 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   trace "Got block for cid", cid
   return Block.new(cid, data)
 
+proc getBlockExpirationTimestamp(self: RepoStore, ttl: ?Duration): SecondsSince1970 =
+  let duration = ttl |? self.blockTtl
+  self.clock.now() + duration.seconds
+
+proc getBlockExpirationEntry(self: RepoStore, batch: var seq[BatchEntry], cid: Cid, ttl: ?Duration): ?!BatchEntry =
+  without key =? createBlockExpirationMetadataKey(cid), err:
+    return failure(err)
+
+  let value = self.getBlockExpirationTimestamp(ttl).toBytes
+  return success((key, value))
+
 method putBlock*(
   self: RepoStore,
   blk: Block,
@@ -100,7 +102,7 @@ method putBlock*(
   ## Put a block to the blockstore
   ##
 
-  without key =? self.makePrefixKey(blk.cid), err:
+  without key =? makePrefixKey(self.postFixLen, blk.cid), err:
     trace "Error getting key from provider", err = err.msg
     return failure(err)
 
@@ -115,9 +117,6 @@ method putBlock*(
 
   trace "Storing block with key", key
 
-  without var expires =? ttl:
-    expires = Moment.fromNow(self.blockTtl) - ZeroMoment
-
   var
     batch: seq[BatchEntry]
 
@@ -131,14 +130,10 @@ method putBlock*(
   trace "Updating quota", used
   batch.add((QuotaUsedKey, @(used.uint64.toBytesBE)))
 
-  without expiresKey =? makeExpiresKey(expires, blk.cid), err:
-    trace "Unable make block ttl key",
-      err = err.msg, cid = blk.cid, expires, expiresKey
-
+  without blockExpEntry =? self.getBlockExpirationEntry(batch, blk.cid, ttl), err:
+    trace "Unable to create block expiration metadata key", err = err.msg
     return failure(err)
-
-  trace "Adding expires key", expiresKey, expires
-  batch.add((expiresKey, @[]))
+  batch.add(blockExpEntry)
 
   if err =? (await self.metaDs.put(batch)).errorOption:
     trace "Error updating quota bytes", err = err.msg
@@ -152,6 +147,21 @@ method putBlock*(
   self.quotaUsedBytes = used
   return success()
 
+proc updateQuotaBytesUsed(self: RepoStore, blk: Block): Future[?!void] {.async.} =
+  let used = self.quotaUsedBytes - blk.data.len.uint
+  if err =? (await self.metaDs.put(
+      QuotaUsedKey,
+      @(used.uint64.toBytesBE))).errorOption:
+    trace "Error updating quota key!", err = err.msg
+    return failure(err)
+  self.quotaUsedBytes = used
+  return success()
+
+proc removeBlockExpirationEntry(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
+  without key =? createBlockExpirationMetadataKey(cid), err:
+    return failure(err)
+  return await self.metaDs.delete(key)
+
 method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
   ## Delete a block from the blockstore
   ##
@@ -159,21 +169,18 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
   trace "Deleting block", cid
 
   if blk =? (await self.getBlock(cid)):
-    if key =? self.makePrefixKey(cid) and
+    if key =? makePrefixKey(self.postFixLen, cid) and
       err =? (await self.repoDs.delete(key)).errorOption:
       trace "Error deleting block!", err = err.msg
       return failure(err)
 
-    let
-      used = self.quotaUsedBytes - blk.data.len.uint
+    if isErr (await self.updateQuotaBytesUsed(blk)):
+      trace "Unable to update quote-bytes-used in metadata store"
+      return failure("Unable to update quote-bytes-used in metadata store")
 
-    if err =? (await self.metaDs.put(
-        QuotaUsedKey,
-        @(used.uint64.toBytesBE))).errorOption:
-      trace "Error updating quota key!", err = err.msg
-      return failure(err)
-
-    self.quotaUsedBytes = used
+    if isErr (await self.removeBlockExpirationEntry(blk.cid)):
+      trace "Unable to remove block expiration entry from metadata store"
+      return failure("Unable to remove block expiration entry from metadata store")
 
     trace "Deleted block", cid, totalUsed = self.totalUsed
 
@@ -183,7 +190,7 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
   ##
 
-  without key =? self.makePrefixKey(cid), err:
+  without key =? makePrefixKey(self.postFixLen, cid), err:
     trace "Error getting key from provider", err = err.msg
     return failure(err)
 
@@ -222,6 +229,40 @@ method listBlocks*(
   iter.next = next
   return success iter
 
+proc createBlockExpirationQuery(maxNumber: int, offset: int): ?!Query =
+  let queryKey = ? createBlockExpirationMetadataQueryKey()
+  success Query.init(queryKey, offset = offset, limit = maxNumber)
+
+method getBlockExpirations*(self: RepoStore, maxNumber: int, offset: int): Future[?!BlockExpirationIter] {.async, base.} =
+  without query =? createBlockExpirationQuery(maxNumber, offset), err:
+    trace "Unable to format block expirations query"
+    return failure(err)
+
+  without queryIter =? (await self.metaDs.query(query)), err:
+    trace "Unable to execute block expirations query"
+    return failure(err)
+
+  var iter = BlockExpirationIter()
+
+  proc next(): Future[?BlockExpiration] {.async.} =
+    if not queryIter.finished:
+      if pair =? (await queryIter.next()) and blockKey =? pair.key:
+        let expirationTimestamp = pair.data
+        let cidResult = Cid.init(blockKey.value)
+        if not cidResult.isOk:
+          raiseAssert("Unable to parse CID from blockKey.value: " & blockKey.value & $cidResult.error)
+        return BlockExpiration(
+          cid: cidResult.get,
+          expiration: expirationTimestamp.toSecondsSince1970
+        ).some
+    else:
+      discard await queryIter.dispose()
+    iter.finished = true
+    return BlockExpiration.none
+
+  iter.next = next
+  return success iter
+
 method close*(self: RepoStore): Future[void] {.async.} =
   ## Close the blockstore, cleaning up resources managed by it.
   ## For some implementations this may be a no-op
@@ -234,7 +275,7 @@ proc hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   ## Return false if error encountered
   ##
 
-  without key =? self.makePrefixKey(cid), err:
+  without key =? makePrefixKey(self.postFixLen, cid), err:
     trace "Error getting key from provider", err = err.msg
     return failure(err.msg)
 
@@ -345,13 +386,14 @@ func new*(
   T: type RepoStore,
   repoDs: Datastore,
   metaDs: Datastore,
+  clock: Clock = SystemClock.new(),
   postFixLen = 2,
   quotaMaxBytes = DefaultQuotaBytes,
   blockTtl = DefaultBlockTtl): T =
-
   T(
     repoDs: repoDs,
     metaDs: metaDs,
+    clock: clock,
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,
     blockTtl: blockTtl)

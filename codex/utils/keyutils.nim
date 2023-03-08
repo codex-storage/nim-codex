@@ -13,10 +13,12 @@ push: {.upraises: [].}
 import pkg/chronicles
 import pkg/questionable/results
 import pkg/libp2p
+import pkg/datastore
 
 import ./fileutils
 import ../errors
 import ../rng
+import ../namespaces
 
 const
   SafePermissions = {UserRead, UserWrite}

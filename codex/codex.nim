@@ -46,6 +46,7 @@ type
     restServer: RestServerRef
     codexNode: CodexNodeRef
     repoStore: RepoStore
+    maintenance: BlockMaintainer
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
 
@@ -55,6 +56,7 @@ proc start*(s: CodexServer) {.async.} =
   await s.repoStore.start()
   s.restServer.start()
   await s.codexNode.start()
+  s.maintenance.start()
 
   let
     # TODO: Can't define these as constants, pity
@@ -90,7 +92,8 @@ proc stop*(s: CodexServer) {.async.} =
   await allFuturesThrowing(
     s.restServer.stop(),
     s.codexNode.stop(),
-    s.repoStore.start())
+    s.repoStore.stop(),
+    s.maintenance.stop())
 
   s.runHandle.complete()
 
@@ -130,6 +133,7 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
 
   if config.cacheSize > 0:
     cache = CacheStore.new(cacheSize = config.cacheSize * MiB)
+    ## Is unused?
 
   let
     discoveryDir = config.dataDir / CodexDhtNamespace
@@ -161,7 +165,12 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
       metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
         .expect("Should create meta data store!"),
       quotaMaxBytes = config.storageQuota.uint,
-      blockTtl = config.blockTtl.seconds)
+      blockTtl = config.blockTtlSeconds.seconds)
+
+    maintenance = BlockMaintainer.new(
+      repoStore,
+      interval = config.blockMaintenanceIntervalSeconds.seconds,
+      numberOfBlocksPerInterval = config.blockMaintenanceNumberOfBlocks)
 
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
@@ -183,4 +192,5 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
     config: config,
     codexNode: codexNode,
     restServer: restServer,
-    repoStore: repoStore)
+    repoStore: repoStore,
+    maintenance: maintenance)

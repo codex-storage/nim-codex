@@ -11,6 +11,8 @@ import ./codex/testsales
 import ./codex/testerasure
 import ./codex/testproving
 import ./codex/testutils
+import ./codex/testclock
+import ./codex/testsystemclock
 
 # to check that everything compiles
 import ../codex

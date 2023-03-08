@@ -9,6 +9,7 @@ import ./ethertest
 import ./contracts/time
 import ./integration/nodes
 import ./integration/tokens
+import ./integration/testblockexpiration
 import ./codex/helpers/eventually
 
 ethersuite "Integration tests":
