@@ -72,7 +72,7 @@ suite "Manifest":
 
     # fill up with empty Cid's
     for i in protected.rounded..<protected.len:
-      protected.blocks[i] = emptyCid[manifest.version]
+      protected.blocks[i] = EmptyCid[manifest.version]
         .catch
         .get()[manifest.hcodec]
         .catch
