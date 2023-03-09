@@ -59,6 +59,9 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       ## to invoke peer discovery, if it succeeds
       ## the returned addresses will be used to dial
       ##
+      ## `addrs` needs to address the listening address of the node.
+      ##  Eq. the one specified with `--listen-addrs`
+      ##
 
       if peerId.isErr:
         return RestApiResponse.error(
@@ -162,7 +165,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
     MethodPost,
     "/api/codex/v1/upload") do (
     ) -> RestApiResponse:
-      ## Upload a file in a streamming manner
+      ## Upload a file in a streaming manner
       ##
 
       trace "Handling file upload"

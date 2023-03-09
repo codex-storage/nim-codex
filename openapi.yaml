@@ -1,0 +1,227 @@
+openapi: 3.0.3
+
+info:
+  version: 0.0.1
+  title: Codex API
+  description: "List of endpoints and interfaces available to Codex API users"
+
+security:
+  - { }
+
+components:
+  schemas:
+    MultiAddress:
+      type: string
+      description: Address of node as specified by the multi-address specification https://multiformats.io/multiaddr/
+      example: /ip4/127.0.0.1/tcp/8080
+    PeerId:
+      type: string
+      description: Peer Identity reference as specified at https://docs.libp2p.io/concepts/fundamentals/peers/
+      example: QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N
+    Cid:
+      type: string
+      description: Content Identifier as specified at https://github.com/multiformats/cid
+      example: QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N
+    LogLevel:
+      type: string
+      description: "One of the log levels: TRACE, DEBUG, INFO, NOTICE, WARN, ERROR or FATAL"
+      example: DEBUG
+    HexBigInt:
+      type: string
+      description: Hexadecimal integer with the `0x` prefix
+    DebugInfo:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/PeerId"
+        addrs:
+          type: array
+          items:
+            $ref: "#/components/schemas/MultiAddress"
+        repo:
+          type: string
+          description: Path of the data repository where all nodes data are stored
+        spr:
+          type: string
+          description: Signed Peer Record to advertise DHT connection information
+    SalesAvailability:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Hexadecimal identifier of the availability
+        size:
+          type: string
+          description: Size of available storage in bytes as hexadecimal string
+        duration:
+          type: string
+          description: Maximum time the storage should be sold for (in seconds) as hexadecimal string
+        minPrice:
+          type: string
+          description: Minimum price to be paid (in amount of tokens) as hexadecimal string
+
+servers:
+  - url: "http://{hostname}:{port}/api/codex/v1"
+    variables:
+      hostname:
+        default: "localhost"
+        description: Hostname on which the Codex API is running
+      port:
+        default: "8080"
+        description: Port under which Codex API is running
+
+tags:
+  - name: marketplace
+    description: Marketplace information and operations
+  - name: data
+    description: Data operations
+  - name: node
+    description: Node management
+  - name: debug
+    description: Debugging configuration
+
+paths:
+  "/connect/{peerId}":
+    get:
+      summary: "Connect to a peer"
+      description: |
+        If `addrs` param is supplied, it will be used to dial the peer, otherwise the `peerId` is used
+        to invoke peer discovery, if it succeeds the returned addresses will be used to dial.
+      tags: [ node ]
+      parameters:
+        - in: path
+          name: peerId
+          required: true
+          schema:
+              $ref: "#/components/schemas/PeerId"
+          description: Peer that should be dialed.
+        - in: query
+          name: addrs
+          schema:
+            type: array
+            nullable: true
+            items:
+              $ref: "#/components/schemas/MultiAddress"
+          description: |
+            If supplied, it will be used to dial the peer.
+            The address has to target the listening address of the peer,
+            which is specified with the `--listen-addrs` CLI flag.
+
+      responses:
+        "200":
+          description: Successfully connected to peer
+        "400":
+          description: Peer either not found or was not possible to dial
+
+  "/download/{cid}":
+    get:
+      summary: "Download a file from the node in a streaming manner"
+      tags: [ data ]
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+              $ref: "#/components/schemas/Cid"
+          description: File to be downloaded.
+
+      responses:
+        "200":
+          description: Retrieved content specified by CID
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid CID is specified
+        "404":
+          description: Content specified by the CID is not found
+        "500":
+          description: Well it was bad-bad
+
+  "/upload":
+    post:
+      summary: "Upload a file in a streaming manner"
+      tags: [ data ]
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: CID of uploaded file
+          content:
+            text/plain:
+              schema:
+                type: string
+        "500":
+          description: Well it was bad-bad and the upload did not work out
+
+  "/sales/availability":
+    get:
+      summary: "Returns storage that is for sale"
+      tags: [ marketplace ]
+      responses:
+        "200":
+          description: Retrieved content specified by CID
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SalesAvailability"
+        "503":
+          description: Sales are unavailable
+
+    post:
+      summary: "Offers storage for sale"
+      tags: [ marketplace ]
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              $ref: "#/components/schemas/SalesAvailability"
+      responses:
+        "200":
+          description: Created storage availability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalesAvailability"
+        "503":
+          description: Sales are unavailable
+
+  "/debug/chronicles/loglevel":
+    post:
+      summary: "Set log level at run time"
+      tags: [ debug ]
+
+      parameters:
+        - in: path
+          name: level
+          required: true
+          schema:
+            $ref: "#/components/schemas/LogLevel"
+
+      responses:
+        "200":
+          description: Successfully log level set
+        "400":
+          description: Invalid or missing log level
+        "500":
+          description: Well it was bad-bad
+
+  "/debug/info":
+    get:
+      summary: "Gets node information"
+      tags: [ debug ]
+      responses:
+        "200":
+          description: Node's information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DebugInfo"

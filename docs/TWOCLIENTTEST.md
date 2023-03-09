@@ -1,6 +1,6 @@
 # Codex Two-Client Test
 
-The two-client test is a manual test you can perform to check your setup and familiarize yourself with the Codex API. These steps will guide you through running and connecting two nodes, in order to upload a file to one and then download that file from the other. For the purpose of this test we will be running Codex disconnected from any Ethereum nodes, so no currency is required. Additionally, the contracts/sales/marketplace APIs will be unavailable for this reason.
+The two-client test is a manual test you can perform to check your setup and familiarize yourself with the Codex API. These steps will guide you through running and connecting two nodes, in order to upload a file to one and then download that file from the other. This test also includes running local blockchain node in order to have functionality of the Marketplace available. Although this is not necessary and you can skip these steps, which are marked as optional.
 
 ## Prerequisite
 
@@ -8,20 +8,41 @@ Make sure you have built the client, and can run it as explained in the [README]
 
 ## Steps
 
+### 0. Setup blockchain node (optional)
+
+You need to have installed NodeJS and npm in order to spinup local blockchain node.
+
+Go to directory `vendor/codex-contracts-eth` and run these commands
+```
+$ npm ci
+$ npm start
+```
+
+This will launch local Ganache blockchain.
+
 ### 1. Launch Node #1
 
 Open a terminal and run:
-- Mac/Unx: `"build/codex" --data-dir="$(pwd)\Data1" --listen-addrs=/ip4/127.0.0.1/tcp/8070 --api-port=8080  --disc-port=8090`
-- Windows: `"build/codex.exe" --data-dir="Data1" --listen-addrs=/ip4/127.0.0.1/tcp/8070 --api-port=8080 --disc-port=8090`
+- Mac/Unx: `"build/codex" --data-dir="$(pwd)/Data1" --listen-addrs="/ip4/127.0.0.1/tcp/8070" --api-port=8080  --disc-port=8090`
+- Windows: `"build/codex.exe" --data-dir="Data1" --listen-addrs="/ip4/127.0.0.1/tcp/8070" --api-port=8080 --disc-port=8090`
 
-(Hint: If your terminal interprets the '/' in the listen-address as a reference to your root path, try running the command from a shell-script!)
+Optionally if you want to use blockchain functionality you need to also include these flags: `--persistence --eth-account=<account>`, where `account` can be one following:
+
+  - `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`
+  - `0x70997970C51812dc3A010C7d01b50e0d17dc79C8`
+  - `0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC`
+  - `0x90F79bf6EB2c4f870365E785982E1f101E93b906`
+
+**For each node use different account!**
 
 | Argument       | Description                                                           |
-| -------------- | --------------------------------------------------------------------- |
+|----------------|-----------------------------------------------------------------------|
 | `data-dir`     | We specify a relative path where the node will store its data.        |
 | `listen-addrs` | Multiaddress where the node will accept connections from other nodes. |
 | `api-port`     | Port on localhost where the node will expose its API.                 |
 | `disc-port`    | Port the node will use for its discovery service.                     |
+| `persistence`  | Enables Marketplace functionality. Requires blockchain connection.    |
+| `eth-account`  | Defines which blockchain account should node use.                     |
 
 Codex uses sane defaults for most of its arguments. Here we specify some explicitly for the purpose of this walk-through.
 
@@ -109,4 +130,18 @@ Notice we are connecting to the second node in order to download the file. The C
 ### 7. Verify The Results
 
 If your file is downloaded and identical to the file you uploaded, then this manual test has passed. Rejoice! If on the other hand that didn't happen or you were unable to complete any of these steps, please leave us a message detailing your troubles.
+
+### 8. Offer your storage for sale (optional)
+
+```bash
+curl --location 'http://localhost:8081/api/codex/v1/sales/availability' \
+--header 'Content-Type: application/json' \
+--data '{
+    "size": "0xF4240",
+    "duration": "0xE10",
+    "minPrice": "0x3E8"
+}'
+```
+
+This creates offer of 1 MB for duration of one hour (3600 seconds) and minimal price of 1 000 tokens.
 
