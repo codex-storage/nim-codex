@@ -1,3 +1,4 @@
+import ./logging
 import ./codex/teststores
 import ./codex/testblockexchange
 import ./codex/teststorageproofs
@@ -13,8 +14,5 @@ import ./codex/testproving
 import ./codex/testutils
 import ./codex/testclock
 import ./codex/testsystemclock
-
-# to check that everything compiles
-import ../codex
 
 {.warning[UnusedImport]: off.}

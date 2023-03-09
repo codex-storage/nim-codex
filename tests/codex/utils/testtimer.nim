@@ -7,8 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/questionable
-
 import pkg/chronos
 import pkg/asynctest
 

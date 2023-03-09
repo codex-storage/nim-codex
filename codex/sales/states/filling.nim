@@ -3,7 +3,6 @@ import ../statemachine
 import ../salesagent
 import ./errorhandling
 import ./filled
-import ./errored
 import ./cancelled
 import ./failed
 

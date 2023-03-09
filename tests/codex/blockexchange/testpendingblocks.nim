@@ -9,14 +9,13 @@ import pkg/stew/byteutils
 import pkg/codex/blocktype as bt
 import pkg/codex/blockexchange
 
-import ../examples
-
 suite "Pending Blocks":
   test "Should add want handle":
     let
       pendingBlocks = PendingBlocksManager.new()
       blk = bt.Block.new("Hello".toBytes).tryGet
-      handle = pendingBlocks.getWantHandle(blk.cid)
+
+    discard pendingBlocks.getWantHandle(blk.cid)
 
     check pendingBlocks.pending(blk.cid)
 
@@ -59,7 +58,8 @@ suite "Pending Blocks":
     let
       pendingBlocks = PendingBlocksManager.new()
       blks = (0..9).mapIt( bt.Block.new(("Hello " & $it).toBytes).tryGet )
-      handles = blks.mapIt( pendingBlocks.getWantHandle( it.cid ) )
+
+    discard blks.mapIt( pendingBlocks.getWantHandle( it.cid ) )
 
     check:
       blks.mapIt( $it.cid ).sorted(cmp[string]) ==

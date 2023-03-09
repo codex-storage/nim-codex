@@ -10,7 +10,6 @@
 import pkg/chronos
 import pkg/libp2p
 import pkg/asynctest
-import pkg/questionable
 import pkg/questionable/results
 import pkg/codex/blocktype as bt
 import pkg/codex/stores/repostore

@@ -1,7 +1,6 @@
 import std/sequtils
 
 import pkg/chronos
-import pkg/questionable
 import pkg/questionable/results
 import pkg/asynctest
 import pkg/libp2p

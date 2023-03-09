@@ -59,7 +59,7 @@ when isMainModule:
 
     trace "Data dir initialized", dir = $config.dataDir
 
-    if not(checkAndCreateDataDir((config.dataDir / "repo").string)):
+    if not(checkAndCreateDataDir((config.dataDir / "repo"))):
       # We are unable to access/create data folder or data folder's
       # permissions are insecure.
       quit QuitFailure
@@ -72,10 +72,10 @@ when isMainModule:
 
     let
       keyPath =
-        if isAbsolute(string config.netPrivKeyFile):
-          string config.netPrivKeyFile
+        if isAbsolute(config.netPrivKeyFile):
+          config.netPrivKeyFile
         else:
-          string config.dataDir / string config.netPrivKeyFile
+          config.dataDir / config.netPrivKeyFile
 
       privateKey = setupKey(keyPath).expect("Should setup private key!")
       server = CodexServer.new(config, privateKey)

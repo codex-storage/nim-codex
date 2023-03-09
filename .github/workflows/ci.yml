@@ -90,20 +90,3 @@ jobs:
           flags: unittests
           name: codecov-umbrella
           verbose: true
-
-  nim_1_2:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
-      - name: Setup Nimbus Build System
-        uses: ./.github/actions/nimbus-build-system
-        with:
-          os: linux
-          nim_version: version-1-2
-
-      - name: Unit tests
-        run: make -j${ncpu} test

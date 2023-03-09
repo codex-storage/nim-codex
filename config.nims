@@ -70,6 +70,15 @@ else:
 # for heap-usage-by-instance-type metrics and object base-type strings
 --define:nimTypeNames
 
+when (NimMajor, NimMinor) >= (1, 4):
+  --warning:"ObservableStores:off"
+  --warning:"LockLevel:off"
+  --hint:"XCannotRaiseY:off"
+when (NimMajor, NimMinor) >= (1, 6):
+  --warning:"DotLikeOps:off"
+when (NimMajor, NimMinor, NimPatch) >= (1, 6, 11):
+  --warning:"BareExcept:off"
+
 switch("define", "withoutPCRE")
 
 # the default open files limit is too low on macOS (512), breaking the

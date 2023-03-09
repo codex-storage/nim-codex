@@ -28,7 +28,6 @@ suite "Test Discovery Engine":
     peerStore: PeerCtxStore
     blockDiscovery: MockDiscovery
     pendingBlocks: PendingBlocksManager
-    localStore: CacheStore
     network: BlockExcNetwork
 
   setup:

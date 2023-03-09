@@ -1,15 +1,9 @@
-import std/osproc
 import std/os
 import std/httpclient
-import std/strutils
-import std/times
 
 import pkg/chronos
 import ../ethertest
-import ../contracts/time
-import ../codex/helpers/eventually
 import ./nodes
-import ./tokens
 
 ethersuite "Node block expiration tests":
 
@@ -59,7 +53,7 @@ ethersuite "Node block expiration tests":
 
     let contentId = uploadTestFile()
 
-    await sleepAsync(10 * 1000)
+    await sleepAsync(10.seconds)
 
     let response = downloadTestFile(contentId)
     check:
@@ -71,7 +65,7 @@ ethersuite "Node block expiration tests":
 
     let contentId = uploadTestFile()
 
-    await sleepAsync(10 * 1000)
+    await sleepAsync(10.seconds)
 
     expect TimeoutError:
       discard downloadTestFile(contentId)

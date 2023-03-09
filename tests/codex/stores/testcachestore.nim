@@ -1,5 +1,4 @@
 import std/strutils
-import std/options
 
 import pkg/chronos
 import pkg/asynctest

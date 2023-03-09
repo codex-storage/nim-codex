@@ -31,12 +31,12 @@ ethersuite "On-Chain Clock":
     check clock.now() > past
 
   test "raises when not started":
-    expect AssertionError:
+    expect AssertionDefect:
       discard OnChainClock.new(provider).now()
 
   test "raises when stopped":
     await clock.stop()
-    expect AssertionError:
+    expect AssertionDefect:
       discard clock.now()
 
   test "handles starting multiple times":

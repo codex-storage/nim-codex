@@ -245,11 +245,11 @@ proc defaultDataDir*(): string =
 
   getHomeDir() / dataDir
 
-func parseCmdArg*(T: type MultiAddress, input: TaintedString): T
+func parseCmdArg*(T: type MultiAddress, input: string): T
                  {.raises: [ValueError, LPError, Defect].} =
   MultiAddress.init($input).tryGet()
 
-proc parseCmdArg*(T: type SignedPeerRecord, uri: TaintedString): T =
+proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
   var res: SignedPeerRecord
   try:
     if not res.fromURI(uri):
@@ -260,11 +260,11 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: TaintedString): T =
     quit QuitFailure
   res
 
-func parseCmdArg*(T: type EthAddress, address: TaintedString): T =
+func parseCmdArg*(T: type EthAddress, address: string): T =
   EthAddress.init($address).get()
 
 # no idea why confutils needs this:
-proc completeCmdArg*(T: type EthAddress; val: TaintedString): seq[string] =
+proc completeCmdArg*(T: type EthAddress; val: string): seq[string] =
   discard
 
 # silly chronicles, colors is a compile-time property

@@ -7,7 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/sequtils
 import pkg/upraises
 
 push: {.upraises: [].}

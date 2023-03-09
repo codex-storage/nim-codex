@@ -10,8 +10,6 @@
 import pkg/chronos
 import pkg/libp2p
 import pkg/questionable
-import pkg/questionable/results
-import pkg/stew/shims/net
 import pkg/codex/discovery
 import pkg/contractabi/address as ca
 

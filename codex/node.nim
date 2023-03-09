@@ -131,18 +131,18 @@ proc retrieve*(
           without res =? (await node.erasure.decode(manifest)), error:
             trace "Unable to erasure decode manifest", cid, exc = error.msg
         except CatchableError as exc:
-          trace "Exception decoding manifest", cid
+          trace "Exception decoding manifest", cid, exc = exc.msg
       #
       asyncSpawn erasureJob()
-    else:
-      # Prefetch the entire dataset into the local store
-      proc prefetchBlocks() {.async, raises: [Defect].} =
-        try:
-          discard await node.fetchBatched(manifest)
-        except CatchableError as exc:
-          trace "Exception prefetching blocks", exc = exc.msg
-      #
-      # asyncSpawn prefetchBlocks()  - temporarily commented out
+    # else:
+    #   # Prefetch the entire dataset into the local store
+    #   proc prefetchBlocks() {.async, raises: [Defect].} =
+    #     try:
+    #       discard await node.fetchBatched(manifest)
+    #     except CatchableError as exc:
+    #       trace "Exception prefetching blocks", exc = exc.msg
+    #   #
+    #   # asyncSpawn prefetchBlocks()  - temporarily commented out
     #
     # Retrieve all blocks of the dataset sequentially from the local store or network
     trace "Creating store stream for manifest", cid
@@ -158,7 +158,7 @@ proc retrieve*(
     try:
       await stream.pushData(blk.data)
     except CatchableError as exc:
-      trace "Unable to send block", cid
+      trace "Unable to send block", cid, exc = exc.msg
       discard
     finally:
       await stream.pushEof()

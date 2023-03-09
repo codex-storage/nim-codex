@@ -1,8 +1,6 @@
 import codex/contracts
-import codex/contracts/testtoken
 import ../ethertest
 import ./examples
-import ./time
 
 ethersuite "On-Chain Proofs":
 

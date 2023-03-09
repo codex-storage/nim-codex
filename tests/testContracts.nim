@@ -1,3 +1,4 @@
+import ./logging
 import ./contracts/testCollateral
 import ./contracts/testContracts
 import ./contracts/testMarket

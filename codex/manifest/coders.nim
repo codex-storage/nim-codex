@@ -136,7 +136,6 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
   if pbNode.getRepeatedField(2, linksBuf).isOk:
     for pbLinkBuf in linksBuf:
       var
-        blocksBuf: seq[seq[byte]]
         blockBuf: seq[byte]
         pbLink = initProtoBuffer(pbLinkBuf)
 

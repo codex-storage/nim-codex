@@ -231,15 +231,15 @@ suite "E2E - Multiple Nodes Discovery":
 
     MockDiscovery(blockexc[1].engine.discovery.discovery)
       .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
-        advertised.add(cid, switch[1].peerInfo.signedPeerRecord)
+        advertised[cid] = switch[1].peerInfo.signedPeerRecord
 
     MockDiscovery(blockexc[2].engine.discovery.discovery)
       .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
-        advertised.add(cid, switch[2].peerInfo.signedPeerRecord)
+        advertised[cid] = switch[2].peerInfo.signedPeerRecord
 
     MockDiscovery(blockexc[3].engine.discovery.discovery)
       .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
-        advertised.add(cid, switch[3].peerInfo.signedPeerRecord)
+        advertised[cid] = switch[3].peerInfo.signedPeerRecord
 
     await blockexc[1].engine.blocksHandler(switch[0].peerInfo.peerId, blocks[0..5])
     await blockexc[2].engine.blocksHandler(switch[0].peerInfo.peerId, blocks[4..10])
