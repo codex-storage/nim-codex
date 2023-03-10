@@ -69,6 +69,8 @@ else:
 --define:metrics
 # for heap-usage-by-instance-type metrics and object base-type strings
 --define:nimTypeNames
+--styleCheck:usages
+--styleCheck:error
 
 when (NimMajor, NimMinor) >= (1, 4):
   --warning:"ObservableStores:off"

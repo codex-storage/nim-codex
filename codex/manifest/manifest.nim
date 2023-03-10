@@ -83,11 +83,11 @@ func bytes*(self: Manifest, pad = true): int =
 
 func rounded*(self: Manifest): int =
   ## Number of data blocks in *protected* manifest including padding at the end
-  roundUp(self.originalLen, self.K)
+  roundUp(self.originalLen, self.ecK)
 
 func steps*(self: Manifest): int =
   ## Number of EC groups in *protected* manifest
-  divUp(self.originalLen, self.K)
+  divUp(self.originalLen, self.ecK)
 
 func verify*(self: Manifest): ?!void =
   ## Check manifest correctness
@@ -97,7 +97,7 @@ func verify*(self: Manifest): ?!void =
   if divUp(self.originalBytes, self.blockSize) != originalLen:
     return failure newException(CodexError, "Broken manifest: wrong originalBytes")
 
-  if self.protected and (self.len != self.steps * (self.K + self.M)):
+  if self.protected and (self.len != self.steps * (self.ecK + self.ecM)):
     return failure newException(CodexError, "Broken manifest: wrong originalLen")
 
   return success()
@@ -184,7 +184,7 @@ proc new*(
 proc new*(
   T: type Manifest,
   manifest: Manifest,
-  K, M: int): ?!Manifest =
+  ecK, ecM: int): ?!Manifest =
   ## Create an erasure protected dataset from an
   ## un-protected one
   ##
@@ -197,12 +197,12 @@ proc new*(
       originalBytes: manifest.originalBytes,
       blockSize: manifest.blockSize,
       protected: true,
-      K: K, M: M,
+      ecK: ecK, ecM: ecM,
       originalCid: ? manifest.cid,
       originalLen: manifest.len)
 
   let
-    encodedLen = self.rounded + (self.steps * M)
+    encodedLen = self.rounded + (self.steps * ecM)
 
   self.blocks = newSeq[Cid](encodedLen)
 

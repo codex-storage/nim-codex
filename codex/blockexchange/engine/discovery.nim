@@ -30,7 +30,7 @@ import ./pendingblocks
 logScope:
   topics = "codex discoveryengine"
 
-declareGauge(codex_inflight_discovery, "inflight discovery requests")
+declareGauge(codexInflightDiscovery, "inflight discovery requests")
 
 const
   DefaultConcurrentDiscRequests = 10
@@ -109,13 +109,13 @@ proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
           request = b.discovery.provide(cid)
 
         b.inFlightAdvReqs[cid] = request
-        codex_inflight_discovery.set(b.inFlightAdvReqs.len.int64)
+        codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
         trace "Advertising block", cid, inflight = b.inFlightAdvReqs.len
         await request
 
       finally:
         b.inFlightAdvReqs.del(cid)
-        codex_inflight_discovery.set(b.inFlightAdvReqs.len.int64)
+        codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
         trace "Advertised block", cid, inflight = b.inFlightAdvReqs.len
     except CatchableError as exc:
       trace "Exception in advertise task runner", exc = exc.msg
@@ -148,7 +148,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
               .wait(DefaultDiscoveryTimeout)
 
           b.inFlightDiscReqs[cid] = request
-          codex_inflight_discovery.set(b.inFlightAdvReqs.len.int64)
+          codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
           let
             peers = await request
 
@@ -163,7 +163,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
 
         finally:
           b.inFlightDiscReqs.del(cid)
-          codex_inflight_discovery.set(b.inFlightAdvReqs.len.int64)
+          codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
     except CatchableError as exc:
       trace "Exception in discovery task runner", exc = exc.msg
 
@@ -217,16 +217,16 @@ proc stop*(b: DiscoveryEngine) {.async.} =
     return
 
   b.discEngineRunning = false
-  for t in b.advertiseTasks:
-    if not t.finished:
+  for task in b.advertiseTasks:
+    if not task.finished:
       trace "Awaiting advertise task to stop"
-      await t.cancelAndWait()
+      await task.cancelAndWait()
       trace "Advertise task stopped"
 
-  for t in b.discoveryTasks:
-    if not t.finished:
+  for task in b.discoveryTasks:
+    if not task.finished:
       trace "Awaiting discovery task to stop"
-      await t.cancelAndWait()
+      await task.cancelAndWait()
       trace "Discovery task stopped"
 
   if not b.advertiseLoop.isNil and not b.advertiseLoop.finished:

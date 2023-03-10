@@ -27,7 +27,7 @@ logScope:
 
 type
   BlockExcPeerCtx* = ref object of RootObj
-    id*: PeerID
+    id*: PeerId
     blocks*: Table[Cid, Presence]     # remote peer have list including price
     peerWants*: seq[Entry]            # remote peers want lists
     exchanged*: int                   # times peer has exchanged with us

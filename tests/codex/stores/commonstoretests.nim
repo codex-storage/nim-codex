@@ -88,7 +88,7 @@ proc commonBlockStoreTests*(
 
       for handle in putHandles:
         check not handle.failed
-        check handle.read.isOK
+        check handle.read.isOk
 
       let
         cids = (await store.listBlocks(blockType = BlockType.Block)).tryGet()
@@ -111,7 +111,7 @@ proc commonBlockStoreTests*(
 
       for handle in putHandles:
         check not handle.failed
-        check handle.read.isOK
+        check handle.read.isOk
 
       let
         cids = (await store.listBlocks(blockType = BlockType.Manifest)).tryGet()
@@ -135,7 +135,7 @@ proc commonBlockStoreTests*(
 
       for handle in putHandles:
         check not handle.failed
-        check handle.read.isOK
+        check handle.read.isOk
 
       let
         cids = (await store.listBlocks(blockType = BlockType.Both)).tryGet()

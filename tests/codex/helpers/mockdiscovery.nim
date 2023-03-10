@@ -29,7 +29,7 @@ proc new*(T: type MockDiscovery): T =
 
 proc findPeer*(
   d: Discovery,
-  peerId: PeerID): Future[?PeerRecord] {.async.} =
+  peerId: PeerId): Future[?PeerRecord] {.async.} =
   return none(PeerRecord)
 
 method find*(

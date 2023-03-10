@@ -37,11 +37,11 @@ type
 
 template EmptyCid*: untyped =
   var
-    emptyCid {.global, threadvar.}:
+    EmptyCid {.global, threadvar.}:
       array[CIDv0..CIDv1, Table[MultiCodec, Cid]]
 
   once:
-    emptyCid = [
+    EmptyCid = [
       CIDv0: {
         multiCodec("sha2-256"): Cid
         .init("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
@@ -54,15 +54,15 @@ template EmptyCid*: untyped =
       }.toTable,
     ]
 
-  emptyCid
+  EmptyCid
 
 template EmptyDigests*: untyped =
   var
-    emptyDigests {.global, threadvar.}:
+    EmptyDigests {.global, threadvar.}:
       array[CIDv0..CIDv1, Table[MultiCodec, MultiHash]]
 
   once:
-    emptyDigests = [
+    EmptyDigests = [
       CIDv0: {
         multiCodec("sha2-256"): EmptyCid[CIDv0]
         .catch
@@ -83,15 +83,15 @@ template EmptyDigests*: untyped =
       }.toTable,
     ]
 
-  emptyDigests
+  EmptyDigests
 
 template EmptyBlock*: untyped =
   var
-    emptyBlock {.global, threadvar.}:
+    EmptyBlock {.global, threadvar.}:
       array[CIDv0..CIDv1, Table[MultiCodec, Block]]
 
   once:
-    emptyBlock = [
+    EmptyBlock = [
       CIDv0: {
         multiCodec("sha2-256"): Block(
           cid: EmptyCid[CIDv0][multiCodec("sha2-256")])
@@ -102,7 +102,7 @@ template EmptyBlock*: untyped =
       }.toTable,
     ]
 
-  emptyBlock
+  EmptyBlock
 
 proc isEmpty*(cid: Cid): bool =
   cid == EmptyCid[cid.cidver]

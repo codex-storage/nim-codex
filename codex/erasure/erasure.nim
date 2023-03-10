@@ -168,7 +168,7 @@ proc decode*(
     new_manifest    = encoded.len
 
   var
-    decoder = self.decoderProvider(encoded.blockSize, encoded.K, encoded.M)
+    decoder = self.decoderProvider(encoded.blockSize, encoded.ecK, encoded.ecM)
 
   try:
     for i in 0..<encoded.steps:
@@ -187,9 +187,9 @@ proc decode*(
       await sleepAsync(10.millis)
 
       var
-        data = newSeq[seq[byte]](encoded.K) # number of blocks to encode
-        parityData = newSeq[seq[byte]](encoded.M)
-        recovered = newSeqWith[seq[byte]](encoded.K, newSeq[byte](encoded.blockSize))
+        data = newSeq[seq[byte]](encoded.ecK) # number of blocks to encode
+        parityData = newSeq[seq[byte]](encoded.ecM)
+        recovered = newSeqWith[seq[byte]](encoded.ecK, newSeq[byte](encoded.blockSize))
         idxPendingBlocks = pendingBlocks # copy futures to make using with `one` easier
         emptyBlock = newSeq[byte](encoded.blockSize)
         resolved = 0
@@ -197,7 +197,7 @@ proc decode*(
       while true:
         # Continue to receive blocks until we have just enough for decoding
         # or no more blocks can arrive
-        if (resolved >= encoded.K) or (idxPendingBlocks.len == 0):
+        if (resolved >= encoded.ecK) or (idxPendingBlocks.len == 0):
           break
 
         let
@@ -210,9 +210,9 @@ proc decode*(
           trace "Failed retrieving block", error = error.msg
           continue
 
-        if idx >= encoded.K:
+        if idx >= encoded.ecK:
           trace "Retrieved parity block", cid = blk.cid, idx
-          shallowCopy(parityData[idx - encoded.K], if blk.isEmpty: emptyBlock else: blk.data)
+          shallowCopy(parityData[idx - encoded.ecK], if blk.isEmpty: emptyBlock else: blk.data)
         else:
           trace "Retrieved data block", cid = blk.cid, idx
           shallowCopy(data[idx], if blk.isEmpty: emptyBlock else: blk.data)
@@ -223,7 +223,7 @@ proc decode*(
         dataPieces = data.filterIt( it.len > 0 ).len
         parityPieces = parityData.filterIt( it.len > 0 ).len
 
-      if dataPieces >= encoded.K:
+      if dataPieces >= encoded.ecK:
         trace "Retrieved all the required data blocks", data = dataPieces, parity = parityPieces
         continue
 
@@ -234,7 +234,7 @@ proc decode*(
         trace "Unable to decode manifest!", err = $err.error
         return failure($err.error)
 
-      for i in 0..<encoded.K:
+      for i in 0..<encoded.ecK:
         if data[i].len <= 0:
           without blk =? bt.Block.new(recovered[i]), error:
             trace "Unable to create block!", exc = error.msg

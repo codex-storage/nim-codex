@@ -68,8 +68,8 @@ func encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   header.write(5, manifest.originalBytes.uint64)
   if manifest.protected:
     var erasureInfo = initProtoBuffer()
-    erasureInfo.write(1, manifest.K.uint32)
-    erasureInfo.write(2, manifest.M.uint32)
+    erasureInfo.write(1, manifest.ecK.uint32)
+    erasureInfo.write(2, manifest.ecM.uint32)
     erasureInfo.write(3, manifest.originalCid.data.buffer)
     erasureInfo.write(4, manifest.originalLen.uint32)
     erasureInfo.finish()
@@ -95,7 +95,7 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     blockSize: uint32
     blocksLen: uint32
     originalLen: uint32
-    K, M: uint32
+    ecK, ecM: uint32
     blocks: seq[Cid]
 
   # Decode `Header` message
@@ -119,10 +119,10 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     return failure("Unable to decode `erasureInfo` from manifest!")
 
   if pbErasureInfo.buffer.len > 0:
-    if pbErasureInfo.getField(1, K).isErr:
+    if pbErasureInfo.getField(1, ecK).isErr:
       return failure("Unable to decode `K` from manifest!")
 
-    if pbErasureInfo.getField(2, M).isErr:
+    if pbErasureInfo.getField(2, ecM).isErr:
       return failure("Unable to decode `M` from manifest!")
 
     if pbErasureInfo.getField(3, originalCid).isErr:
@@ -157,8 +157,8 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
       protected: pbErasureInfo.buffer.len > 0)
 
   if self.protected:
-    self.K = K.int
-    self.M = M.int
+    self.ecK = ecK.int
+    self.ecM = ecM.int
     self.originalCid = ? Cid.init(originalCid).mapFailure
     self.originalLen = originalLen.int
 

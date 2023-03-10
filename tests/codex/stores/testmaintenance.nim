@@ -152,7 +152,7 @@ suite "BlockMaintainer":
 
   test "Should handle new blocks":
     proc invokeTimerManyTimes(): Future[void] {.async.} =
-      for i in countUp(0, 10):
+      for i in countup(0, 10):
         await mockTimer.invokeCallback()
 
     blockMaintainer.start()

@@ -24,7 +24,7 @@ suite "NetworkStore engine basic":
   var
     rng: Rng
     seckey: PrivateKey
-    peerId: PeerID
+    peerId: PeerId
     chunker: Chunker
     wallet: WalletRef
     blockDiscovery: Discovery
@@ -36,7 +36,7 @@ suite "NetworkStore engine basic":
   setup:
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
-    peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
+    peerId = PeerId.init(seckey.getPublicKey().tryGet()).tryGet()
     chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
     wallet = WalletRef.example
     blockDiscovery = Discovery.new()
@@ -54,7 +54,7 @@ suite "NetworkStore engine basic":
 
   test "Should send want list to new peers":
     proc sendWantList(
-      id: PeerID,
+      id: PeerId,
       cids: seq[Cid],
       priority: int32 = 0,
       cancel: bool = false,
@@ -94,7 +94,7 @@ suite "NetworkStore engine basic":
   test "Should send account to new peers":
     let pricing = Pricing.example
 
-    proc sendAccount(peer: PeerID, account: Account) {.gcsafe, async.} =
+    proc sendAccount(peer: PeerId, account: Account) {.gcsafe, async.} =
       check account.address == pricing.address
       done.complete()
 
@@ -129,7 +129,7 @@ suite "NetworkStore engine handlers":
   var
     rng: Rng
     seckey: PrivateKey
-    peerId: PeerID
+    peerId: PeerId
     chunker: Chunker
     wallet: WalletRef
     blockDiscovery: Discovery
@@ -154,7 +154,7 @@ suite "NetworkStore engine handlers":
       blocks.add(bt.Block.new(chunk).tryGet())
 
     seckey = PrivateKey.random(rng[]).tryGet()
-    peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
+    peerId = PeerId.init(seckey.getPublicKey().tryGet()).tryGet()
     wallet = WalletRef.example
     blockDiscovery = Discovery.new()
     peerStore = PeerCtxStore.new()
@@ -204,7 +204,7 @@ suite "NetworkStore engine handlers":
       done = newFuture[void]()
       wantList = makeWantList(blocks.mapIt( it.cid ))
 
-    proc sendPresence(peerId: PeerID, presence: seq[BlockPresence]) {.gcsafe, async.} =
+    proc sendPresence(peerId: PeerId, presence: seq[BlockPresence]) {.gcsafe, async.} =
       check presence.mapIt( it.cid ) == wantList.entries.mapIt( it.`block` )
       done.complete()
 
@@ -226,7 +226,7 @@ suite "NetworkStore engine handlers":
         blocks.mapIt( it.cid ),
         sendDontHave = true)
 
-    proc sendPresence(peerId: PeerID, presence: seq[BlockPresence]) {.gcsafe, async.} =
+    proc sendPresence(peerId: PeerId, presence: seq[BlockPresence]) {.gcsafe, async.} =
       check presence.mapIt( it.cid ) == wantList.entries.mapIt( it.`block` )
       for p in presence:
         check:
@@ -248,7 +248,7 @@ suite "NetworkStore engine handlers":
         blocks.mapIt( it.cid ),
         sendDontHave = true)
 
-    proc sendPresence(peerId: PeerID, presence: seq[BlockPresence]) {.gcsafe, async.} =
+    proc sendPresence(peerId: PeerId, presence: seq[BlockPresence]) {.gcsafe, async.} =
       let
         cid1Buf = blocks[0].cid.data.buffer
         cid2Buf = blocks[1].cid.data.buffer
@@ -297,7 +297,7 @@ suite "NetworkStore engine handlers":
 
     engine.network = BlockExcNetwork(
       request: BlockExcRequest(
-        sendPayment: proc(receiver: PeerID, payment: SignedState) {.gcsafe, async.} =
+        sendPayment: proc(receiver: PeerId, payment: SignedState) {.gcsafe, async.} =
           let
             amount =
               blocks.mapIt(
@@ -319,7 +319,7 @@ suite "NetworkStore engine handlers":
       handles: Table[Cid, Future[bt.Block]]
 
     proc sendWantList(
-      id: PeerID,
+      id: PeerId,
       cids: seq[Cid],
       priority: int32 = 0,
       cancel: bool = false,
@@ -356,7 +356,7 @@ suite "Task Handler":
   var
     rng: Rng
     seckey: PrivateKey
-    peerId: PeerID
+    peerId: PeerId
     chunker: Chunker
     wallet: WalletRef
     blockDiscovery: Discovery
@@ -368,7 +368,7 @@ suite "Task Handler":
     localStore: BlockStore
 
     peersCtx: seq[BlockExcPeerCtx]
-    peers: seq[PeerID]
+    peers: seq[PeerId]
     blocks: seq[bt.Block]
 
   setup:
@@ -382,7 +382,7 @@ suite "Task Handler":
       blocks.add(bt.Block.new(chunk).tryGet())
 
     seckey = PrivateKey.random(rng[]).tryGet()
-    peerId = PeerID.init(seckey.getPublicKey().tryGet()).tryGet()
+    peerId = PeerId.init(seckey.getPublicKey().tryGet()).tryGet()
     wallet = WalletRef.example
     blockDiscovery = Discovery.new()
     peerStore = PeerCtxStore.new()
@@ -409,7 +409,7 @@ suite "Task Handler":
 
     for i in 0..3:
       let seckey = PrivateKey.random(rng[]).tryGet()
-      peers.add(PeerID.init(seckey.getPublicKey().tryGet()).tryGet())
+      peers.add(PeerId.init(seckey.getPublicKey().tryGet()).tryGet())
 
       peersCtx.add(BlockExcPeerCtx(
         id: peers[i]
@@ -420,7 +420,7 @@ suite "Task Handler":
 
   test "Should send want-blocks in priority order":
     proc sendBlocks(
-      id: PeerID,
+      id: PeerId,
       blks: seq[bt.Block]) {.gcsafe, async.} =
       check blks.len == 2
       check:
@@ -458,7 +458,7 @@ suite "Task Handler":
     let missing = @[bt.Block.new("missing".toBytes).tryGet()]
     let price = (!engine.pricing).price
 
-    proc sendPresence(id: PeerID, presence: seq[BlockPresence]) {.gcsafe, async.} =
+    proc sendPresence(id: PeerId, presence: seq[BlockPresence]) {.gcsafe, async.} =
       check presence.mapIt(!Presence.init(it)) == @[
         Presence(cid: present[0].cid, have: true, price: price),
         Presence(cid: present[1].cid, have: true, price: price),

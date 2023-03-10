@@ -149,7 +149,7 @@ suite "Block Advertising and Discovery":
       pendingBlocks = blocks.mapIt(
         engine.pendingBlocks.getWantHandle(it.cid)
       )
-      peerId = PeerID.example
+      peerId = PeerId.example
       haves = collect(initTable()):
         for blk in blocks:
           { blk.cid: Presence(cid: blk.cid, price: 0.u256) }

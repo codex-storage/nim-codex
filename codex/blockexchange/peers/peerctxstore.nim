@@ -29,30 +29,30 @@ logScope:
 
 type
   PeerCtxStore* = ref object of RootObj
-    peers*: OrderedTable[PeerID, BlockExcPeerCtx]
+    peers*: OrderedTable[PeerId, BlockExcPeerCtx]
 
 iterator items*(self: PeerCtxStore): BlockExcPeerCtx =
   for p in self.peers.values:
     yield p
 
-proc contains*(a: openArray[BlockExcPeerCtx], b: PeerID): bool =
+proc contains*(a: openArray[BlockExcPeerCtx], b: PeerId): bool =
   ## Convenience method to check for peer precense
   ##
 
   a.anyIt( it.id == b )
 
-func contains*(self: PeerCtxStore, peerId: PeerID): bool =
+func contains*(self: PeerCtxStore, peerId: PeerId): bool =
   peerId in self.peers
 
 func add*(self: PeerCtxStore, peer: BlockExcPeerCtx) =
   trace "Adding peer to peer context store", peer = peer.id
   self.peers[peer.id] = peer
 
-func remove*(self: PeerCtxStore, peerId: PeerID) =
+func remove*(self: PeerCtxStore, peerId: PeerId) =
   trace "Removing peer from peer context store", peer = peerId
   self.peers.del(peerId)
 
-func get*(self: PeerCtxStore, peerId: PeerID): BlockExcPeerCtx =
+func get*(self: PeerCtxStore, peerId: PeerId): BlockExcPeerCtx =
   trace "Retrieving peer from peer context store", peer = peerId
   self.peers.getOrDefault(peerId, nil)
 
@@ -94,4 +94,4 @@ func selectCheapest*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
 
 proc new*(T: type PeerCtxStore): PeerCtxStore =
   T(
-    peers: initOrderedTable[PeerID, BlockExcPeerCtx]())
+    peers: initOrderedTable[PeerId, BlockExcPeerCtx]())

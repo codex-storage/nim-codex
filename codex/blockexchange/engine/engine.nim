@@ -108,10 +108,10 @@ proc stop*(b: BlockExcEngine) {.async.} =
     return
 
   b.blockexcRunning = false
-  for t in b.blockexcTasks:
-    if not t.finished:
+  for task in b.blockexcTasks:
+    if not task.finished:
       trace "Awaiting task to stop"
-      await t.cancelAndWait()
+      await task.cancelAndWait()
       trace "Task stopped"
 
   trace "NetworkStore stopped"
@@ -316,7 +316,7 @@ proc blocksHandler*(
 proc wantListHandler*(
   b: BlockExcEngine,
   peer: PeerId,
-  wantList: WantList) {.async.} =
+  wantList: Wantlist) {.async.} =
   ## Handle incoming want lists
   ##
 
@@ -530,7 +530,7 @@ proc new*(
 
   proc blockWantListHandler(
     peer: PeerId,
-    wantList: WantList): Future[void] {.gcsafe.} =
+    wantList: Wantlist): Future[void] {.gcsafe.} =
     engine.wantListHandler(peer, wantList)
 
   proc blockPresenceHandler(

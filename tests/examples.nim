@@ -37,7 +37,7 @@ proc example*(_: type StorageRequest): StorageRequest =
       erasure: StorageErasure(
         totalChunks: 12,
       ),
-      por: StoragePor(
+      por: StoragePoR(
         u: @(array[480, byte].example),
         publicKey: @(array[96, byte].example),
         name: @(array[512, byte].example)

@@ -98,7 +98,7 @@ proc write*(pb: var ProtoBuffer, field: int, value: StateChannelUpdate) =
   ipb.finish()
   pb.write(field, ipb)
 
-proc ProtobufEncode*(value: Message): seq[byte] =
+proc protobufEncode*(value: Message): seq[byte] =
   var ipb = initProtoBuffer()
   ipb.write(1, value.wantlist)
   for v in value.payload:
@@ -172,7 +172,7 @@ proc decode*(_: type StateChannelUpdate, pb: ProtoBuffer): ProtoResult[StateChan
   discard ? pb.getField(1, value.update)
   ok(value)
 
-proc ProtobufDecode*(_: type Message, msg: seq[byte]): ProtoResult[Message] =
+proc protobufDecode*(_: type Message, msg: seq[byte]): ProtoResult[Message] =
   var
     value = Message()
     pb = initProtoBuffer(msg)

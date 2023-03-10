@@ -46,7 +46,7 @@ proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
     while not conn.atEof or not conn.closed:
       let
         data = await conn.readLp(MaxMessageSize)
-        msg = Message.ProtobufDecode(data).mapFailure().tryGet()
+        msg = Message.protobufDecode(data).mapFailure().tryGet()
       trace "Got message for peer", peer = b.id
       await b.handler(b, msg)
   except CatchableError as exc:
@@ -70,7 +70,7 @@ proc send*(b: NetworkPeer, msg: Message) {.async.} =
     return
 
   trace "Sending message to remote", peer = b.id
-  await conn.writeLp(ProtobufEncode(msg))
+  await conn.writeLp(protobufEncode(msg))
 
 proc broadcast*(b: NetworkPeer, msg: Message) =
   proc sendAwaiter() {.async.} =

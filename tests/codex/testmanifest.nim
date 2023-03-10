@@ -86,8 +86,8 @@ suite "Manifest":
       decoded.protected == true
       decoded.originalLen == manifest.len
 
-      decoded.K == protected.K
-      decoded.M == protected.M
+      decoded.ecK == protected.ecK
+      decoded.ecM == protected.ecM
 
       decoded.originalCid == protected.originalCid
       decoded.originalCid == manifest.cid.tryGet()

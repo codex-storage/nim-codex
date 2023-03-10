@@ -34,13 +34,13 @@ const
   MaxInflight* = 100
 
 type
-  WantListHandler* = proc(peer: PeerID, wantList: WantList): Future[void] {.gcsafe.}
-  BlocksHandler* = proc(peer: PeerID, blocks: seq[bt.Block]): Future[void] {.gcsafe.}
-  BlockPresenceHandler* = proc(peer: PeerID, precense: seq[BlockPresence]): Future[void] {.gcsafe.}
-  AccountHandler* = proc(peer: PeerID, account: Account): Future[void] {.gcsafe.}
-  PaymentHandler* = proc(peer: PeerID, payment: SignedState): Future[void] {.gcsafe.}
+  WantListHandler* = proc(peer: PeerId, wantList: Wantlist): Future[void] {.gcsafe.}
+  BlocksHandler* = proc(peer: PeerId, blocks: seq[bt.Block]): Future[void] {.gcsafe.}
+  BlockPresenceHandler* = proc(peer: PeerId, precense: seq[BlockPresence]): Future[void] {.gcsafe.}
+  AccountHandler* = proc(peer: PeerId, account: Account): Future[void] {.gcsafe.}
+  PaymentHandler* = proc(peer: PeerId, payment: SignedState): Future[void] {.gcsafe.}
   WantListSender* = proc(
-    id: PeerID,
+    id: PeerId,
     cids: seq[Cid],
     priority: int32 = 0,
     cancel: bool = false,
@@ -55,10 +55,10 @@ type
     onAccount*: AccountHandler
     onPayment*: PaymentHandler
 
-  BlocksSender* = proc(peer: PeerID, presence: seq[bt.Block]): Future[void] {.gcsafe.}
-  PresenceSender* = proc(peer: PeerID, presence: seq[BlockPresence]): Future[void] {.gcsafe.}
-  AccountSender* = proc(peer: PeerID, account: Account): Future[void] {.gcsafe.}
-  PaymentSender* = proc(peer: PeerID, payment: SignedState): Future[void] {.gcsafe.}
+  BlocksSender* = proc(peer: PeerId, presence: seq[bt.Block]): Future[void] {.gcsafe.}
+  PresenceSender* = proc(peer: PeerId, presence: seq[BlockPresence]): Future[void] {.gcsafe.}
+  AccountSender* = proc(peer: PeerId, account: Account): Future[void] {.gcsafe.}
+  PaymentSender* = proc(peer: PeerId, payment: SignedState): Future[void] {.gcsafe.}
 
   BlockExcRequest* = object
     sendWantList*: WantListSender
@@ -68,7 +68,7 @@ type
     sendPayment*: PaymentSender
 
   BlockExcNetwork* = ref object of LPProtocol
-    peers*: Table[PeerID, NetworkPeer]
+    peers*: Table[PeerId, NetworkPeer]
     switch*: Switch
     handlers*: BlockExcHandlers
     request*: BlockExcRequest
@@ -92,7 +92,7 @@ proc send*(b: BlockExcNetwork, id: PeerId, msg: pb.Message) {.async.} =
 proc handleWantList(
   b: BlockExcNetwork,
   peer: NetworkPeer,
-  list: WantList) {.async.} =
+  list: Wantlist) {.async.} =
   ## Handle incoming want list
   ##
 
@@ -107,8 +107,8 @@ proc makeWantList*(
   cancel: bool = false,
   wantType: WantType = WantType.WantHave,
   full: bool = false,
-  sendDontHave: bool = false): WantList =
-  WantList(
+  sendDontHave: bool = false): Wantlist =
+  Wantlist(
     entries: cids.mapIt(
       Entry(
         `block`: it.data.buffer,
@@ -120,7 +120,7 @@ proc makeWantList*(
 
 proc sendWantList*(
   b: BlockExcNetwork,
-  id: PeerID,
+  id: PeerId,
   cids: seq[Cid],
   priority: int32 = 0,
   cancel: bool = false,
@@ -175,7 +175,7 @@ template makeBlocks*(blocks: seq[bt.Block]): seq[pb.Block] =
 
 proc sendBlocks*(
   b: BlockExcNetwork,
-  id: PeerID,
+  id: PeerId,
   blocks: seq[bt.Block]): Future[void] =
   ## Send blocks to remote
   ##
@@ -195,7 +195,7 @@ proc handleBlockPresence(
 
 proc sendBlockPresence*(
   b: BlockExcNetwork,
-  id: PeerID,
+  id: PeerId,
   presence: seq[BlockPresence]): Future[void] =
   ## Send presence to remote
   ##
@@ -260,7 +260,7 @@ proc rpcHandler(b: BlockExcNetwork, peer: NetworkPeer, msg: Message) {.async.} =
   except CatchableError as exc:
     trace "Exception in blockexc rpc handler", exc = exc.msg
 
-proc getOrCreatePeer(b: BlockExcNetwork, peer: PeerID): NetworkPeer =
+proc getOrCreatePeer(b: BlockExcNetwork, peer: PeerId): NetworkPeer =
   ## Creates or retrieves a BlockExcNetwork Peer
   ##
 
@@ -287,7 +287,7 @@ proc getOrCreatePeer(b: BlockExcNetwork, peer: PeerID): NetworkPeer =
 
   return blockExcPeer
 
-proc setupPeer*(b: BlockExcNetwork, peer: PeerID) =
+proc setupPeer*(b: BlockExcNetwork, peer: PeerId) =
   ## Perform initial setup, such as want
   ## list exchange
   ##
@@ -297,7 +297,7 @@ proc setupPeer*(b: BlockExcNetwork, peer: PeerID) =
 proc dialPeer*(b: BlockExcNetwork, peer: PeerRecord) {.async.} =
   await b.switch.connect(peer.peerId, peer.addresses.mapIt(it.address))
 
-proc dropPeer*(b: BlockExcNetwork, peer: PeerID) =
+proc dropPeer*(b: BlockExcNetwork, peer: PeerId) =
   ## Cleanup disconnected peer
   ##
 
@@ -307,7 +307,7 @@ method init*(b: BlockExcNetwork) =
   ## Perform protocol initialization
   ##
 
-  proc peerEventHandler(peerId: PeerID, event: PeerEvent) {.async.} =
+  proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =
     if event.kind == PeerEventKind.Joined:
       b.setupPeer(peerId)
     else:
@@ -339,7 +339,7 @@ proc new*(
       inflightSema: newAsyncSemaphore(maxInflight))
 
   proc sendWantList(
-    id: PeerID,
+    id: PeerId,
     cids: seq[Cid],
     priority: int32 = 0,
     cancel: bool = false,
@@ -350,16 +350,16 @@ proc new*(
       id, cids, priority, cancel,
       wantType, full, sendDontHave)
 
-  proc sendBlocks(id: PeerID, blocks: seq[bt.Block]): Future[void] {.gcsafe.} =
+  proc sendBlocks(id: PeerId, blocks: seq[bt.Block]): Future[void] {.gcsafe.} =
     self.sendBlocks(id, blocks)
 
-  proc sendPresence(id: PeerID, presence: seq[BlockPresence]): Future[void] {.gcsafe.} =
+  proc sendPresence(id: PeerId, presence: seq[BlockPresence]): Future[void] {.gcsafe.} =
     self.sendBlockPresence(id, presence)
 
-  proc sendAccount(id: PeerID, account: Account): Future[void] {.gcsafe.} =
+  proc sendAccount(id: PeerId, account: Account): Future[void] {.gcsafe.} =
     self.sendAccount(id, account)
 
-  proc sendPayment(id: PeerID, payment: SignedState): Future[void] {.gcsafe.} =
+  proc sendPayment(id: PeerId, payment: SignedState): Future[void] {.gcsafe.} =
     self.sendPayment(id, payment)
 
   self.request = BlockExcRequest(
