@@ -158,9 +158,14 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
 
+    repoData = case config.repoKind
+                of repoFS: Datastore(FSDatastore.new($config.dataDir, depth = 5)
+                  .expect("Should create repo file data store!"))
+                of repoSQLite: Datastore(SQLiteDatastore.new($config.dataDir)
+                  .expect("Should create repo SQLite data store!"))
+
     repoStore = RepoStore.new(
-      repoDs = Datastore(FSDatastore.new($config.dataDir, depth = 5)
-        .expect("Should create repo data store!")),
+      repoDs = repoData,
       metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
         .expect("Should create meta data store!"),
       quotaMaxBytes = config.storageQuota.uint,
