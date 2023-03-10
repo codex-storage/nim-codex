@@ -14,21 +14,41 @@ components:
       type: string
       description: Address of node as specified by the multi-address specification https://multiformats.io/multiaddr/
       example: /ip4/127.0.0.1/tcp/8080
+
     PeerId:
       type: string
       description: Peer Identity reference as specified at https://docs.libp2p.io/concepts/fundamentals/peers/
       example: QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N
+
     Cid:
       type: string
       description: Content Identifier as specified at https://github.com/multiformats/cid
       example: QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N
+
     LogLevel:
       type: string
       description: "One of the log levels: TRACE, DEBUG, INFO, NOTICE, WARN, ERROR or FATAL"
       example: DEBUG
-    HexBigInt:
+
+    EthereumAddress:
       type: string
-      description: Hexadecimal integer with the `0x` prefix
+      description: Address of Ethereum address
+
+    Reward:
+      type: string
+      required: true
+      description: The maximum amount of tokens paid per second per slot to hosts the client is willing to pay
+
+    Duration:
+      required: true
+      type: string
+      description: The duration of the request in seconds as hexadecimal string
+
+    Expiry:
+      type: string
+      description: A timestamp as seconds since unix epoch at which this request expires if the Request does not find requested amount of nodes to host the data.
+      default: 10 minutes
+
     DebugInfo:
       type: object
       properties:
@@ -44,6 +64,7 @@ components:
         spr:
           type: string
           description: Signed Peer Record to advertise DHT connection information
+
     SalesAvailability:
       type: object
       properties:
@@ -52,13 +73,75 @@ components:
           description: Hexadecimal identifier of the availability
         size:
           type: string
+          required: true
           description: Size of available storage in bytes as hexadecimal string
         duration:
-          type: string
-          description: Maximum time the storage should be sold for (in seconds) as hexadecimal string
+          $ref: "#/components/schemas/Duration"
         minPrice:
           type: string
+          required: true
           description: Minimum price to be paid (in amount of tokens) as hexadecimal string
+
+    StorageRequestCreation:
+      type: object
+      properties:
+        duration:
+          $ref: "#/components/schemas/Duration"
+        reward:
+          $ref: "#/components/schemas/Reward"
+        nodes:
+          type: number
+          description: Minimal number of nodes the content should be stored on
+          default: 1 node
+        tolerance:
+          type: number
+          description: Additional number of nodes on top of the `nodes` property that can be lost before pronouncing the content lost
+          default: 0 nodes
+
+    StorageAsk:
+      type: object
+      properties:
+        slots:
+          type: number
+          description: Number of slots (eq. hosts) that the Request want to have the content spread over
+        slotSize:
+          type: string
+          description: Amount of storage per slot (in bytes) as hexadecimal string
+        duration:
+          $ref: "#/components/schemas/Duration"
+        proofProbability:
+          type: string
+          description: How often storage proofs are required as hexadecimal string
+        reward:
+          $ref: "#/components/schemas/Reward"
+        maxSlotLoss:
+          type: number
+          description: Max slots that can be lost without data considered to be lost
+
+    StorageRequest:
+      type: object
+      properties:
+        client:
+          $ref: "#/components/schemas/EthereumAddress"
+        ask:
+          $ref: "#/components/schemas/StorageAsk"
+        expiry:
+          $ref: "#/components/schemas/Expiry"
+        nonce:
+          type: string
+          description: Random data
+
+    StorageRequestState:
+      type: object
+      properties:
+        state:
+          type: string
+          description: Description of the Request's state
+        error:
+          type: string
+          description: If Request failed, then here is presented the error message
+        request:
+          $ref: "#/components/schemas/StorageRequest"
 
 servers:
   - url: "http://{hostname}:{port}/api/codex/v1"
@@ -181,7 +264,7 @@ paths:
       tags: [ marketplace ]
       requestBody:
         content:
-          application/octet-stream:
+          application/json:
             schema:
               $ref: "#/components/schemas/SalesAvailability"
       responses:
@@ -193,6 +276,59 @@ paths:
                 $ref: "#/components/schemas/SalesAvailability"
         "503":
           description: Sales are unavailable
+
+  "/storage/purchases/{id}":
+    get:
+      summary: "Returns information about node's Requests"
+      tags: [ marketplace ]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Hexadecimal ID of a Request
+      responses:
+        "200":
+          description: Information about the Request state and specification
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StorageRequestState"
+        "400":
+          description: Invalid or missing Request ID
+        "404":
+          description: Request ID not found
+        "503":
+          description: Purchasing is unavailable
+
+  "/storage/request/{cid}":
+    post:
+      summary: "Creates a new Request for storage"
+      tags: [ marketplace ]
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+            $ref: "#/components/schemas/Cid"
+          description: CID of the uploaded data that should be stored
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StorageRequestCreation"
+      responses:
+        "200":
+          description: Returns the Request ID as hexadecimal string
+        "400":
+          description: Invalid or missing Request ID
+        "404":
+          description: Request ID not found
+        "503":
+          description: Purchasing is unavailable
 
   "/debug/chronicles/loglevel":
     post:
