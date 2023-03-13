@@ -144,7 +144,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         return RestApiResponse.error(Http400, error.msg)
 
       let nodes = params.nodes |? 1
-      let tolerance = params.nodes |? 0
+      let tolerance = params.tolerance |? 0
 
       without purchaseId =? await node.requestStorage(
         cid,
