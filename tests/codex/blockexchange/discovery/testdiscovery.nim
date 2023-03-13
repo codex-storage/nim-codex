@@ -33,7 +33,7 @@ suite "Block Advertising and Discovery":
     discovery: DiscoveryEngine
     wallet: WalletRef
     network: BlockExcNetwork
-    localStore: CacheStore
+    localStore: MemoryStore
     engine: BlockExcEngine
     pendingBlocks: PendingBlocksManager
 
@@ -49,7 +49,7 @@ suite "Block Advertising and Discovery":
     blockDiscovery = MockDiscovery.new()
     wallet = WalletRef.example
     network = BlockExcNetwork.new(switch)
-    localStore = CacheStore.new(blocks.mapIt( it ))
+    localStore = MemoryStore.new(blocks.mapIt( it ))
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
 

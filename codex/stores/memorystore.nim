@@ -39,9 +39,9 @@ type
   InvalidBlockSize* = object of CodexError
 
 const
-  MiB* = 1024 * 1024 # bytes, 1 mebibyte = 1,048,576 bytes
+  MiB* = 1024 * 1024
   DefaultCacheSizeMiB* = 5
-  DefaultCacheSize* = DefaultCacheSizeMiB * MiB # bytes
+  DefaultCacheSize* = DefaultCacheSizeMiB * MiB
 
 method getBlock*(self: MemoryStore, cid: Cid): Future[?!Block] {.async.} =
   trace "Getting block from cache", cid
@@ -163,8 +163,8 @@ method close*(self: MemoryStore): Future[void] {.async.} =
 func new*(
     _: type MemoryStore,
     blocks: openArray[Block] = [],
-    capacity: Positive = DefaultCacheSize, # in bytes
-    chunkSize: Positive = DefaultChunkSize  # in bytes
+    capacity: Positive = DefaultCacheSize,
+    chunkSize: Positive = DefaultChunkSize
   ): MemoryStore {.raises: [Defect, ValueError].} =
   if capacity < chunkSize:
     raise newException(ValueError, "capacity cannot be less than chunkSize")
@@ -174,7 +174,7 @@ func new*(
       bytesUsed: 0,
       capacity: capacity)
 
-  # for blk in blocks:
-  #   discard store.putBlockSync(blk)
+  for blk in blocks:
+    discard store.putBlockSync(blk)
 
   return store

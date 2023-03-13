@@ -69,7 +69,7 @@ suite "NetworkStore engine basic":
         sendWantList: sendWantList,
       ))
 
-      localStore = CacheStore.new(blocks.mapIt( it ))
+      localStore = MemoryStore.new(blocks.mapIt( it ))
       discovery = DiscoveryEngine.new(
         localStore,
         peerStore,

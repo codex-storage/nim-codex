@@ -34,7 +34,7 @@ suite "Test PoR store":
 
   setupAll:
     chunker = RandomChunker.new(Rng.instance(), size = DataSetSize, chunkSize = BlockSize)
-    store = CacheStore.new(cacheSize = DataSetSize, chunkSize = BlockSize)
+    store = MemoryStore.new(capacity = DataSetSize, chunkSize = BlockSize)
     manifest = Manifest.new(blockSize = BlockSize).tryGet()
     (spk, ssk) = st.keyGen()
 
