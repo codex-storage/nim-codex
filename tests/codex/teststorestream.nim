@@ -38,7 +38,7 @@ suite "StoreStream":
     ]
 
   setup:
-    store = CacheStore.new()
+    store = MemoryStore.new()
     manifest = Manifest.new(blockSize = 10).tryGet()
     stream = StoreStream.new(store, manifest)
 

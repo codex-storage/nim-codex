@@ -28,7 +28,7 @@ suite "Erasure encode/decode":
     rng = Rng.instance()
     chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = BlockSize)
     manifest = !Manifest.new(blockSize = BlockSize)
-    store = MemoryStore.new(capacity = (dataSetSize * 2), chunkSize = BlockSize)
+    store = MemoryStore.new(capacity = (dataSetSize * 3))
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
 
     while (

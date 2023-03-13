@@ -1,5 +1,3 @@
-import std/strutils
-
 import pkg/chronos
 import pkg/asynctest
 import pkg/libp2p

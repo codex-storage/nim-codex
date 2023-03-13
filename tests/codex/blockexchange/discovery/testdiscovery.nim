@@ -194,7 +194,7 @@ suite "E2E - Multiple Nodes Discovery":
         blockDiscovery = MockDiscovery.new()
         wallet = WalletRef.example
         network = BlockExcNetwork.new(s)
-        localStore = CacheStore.new()
+        localStore = MemoryStore.new()
         peerStore = PeerCtxStore.new()
         pendingBlocks = PendingBlocksManager.new()
 

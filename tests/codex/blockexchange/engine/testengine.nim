@@ -104,7 +104,7 @@ suite "NetworkStore engine basic":
           sendAccount: sendAccount
       ))
 
-      localStore = CacheStore.new()
+      localStore = MemoryStore.new()
       discovery = DiscoveryEngine.new(
         localStore,
         peerStore,
@@ -160,7 +160,7 @@ suite "NetworkStore engine handlers":
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
 
-    localStore = CacheStore.new()
+    localStore = MemoryStore.new()
     network = BlockExcNetwork()
 
     discovery = DiscoveryEngine.new(
@@ -388,7 +388,7 @@ suite "Task Handler":
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
 
-    localStore = CacheStore.new()
+    localStore = MemoryStore.new()
     network = BlockExcNetwork()
 
     discovery = DiscoveryEngine.new(

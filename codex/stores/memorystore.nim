@@ -13,6 +13,7 @@ push: {.upraises: [].}
 
 import std/options
 import std/tables
+import std/lists
 
 import pkg/chronicles
 import pkg/chronos
@@ -31,10 +32,15 @@ logScope:
   topics = "codex memorystore"
 
 type
+  MemoryStoreNode = ref object
+    key: Cid
+    val: Block
+
   MemoryStore* = ref object of BlockStore
     bytesUsed*: int
     capacity*: int
-    table: Table[Cid, Block]
+    table: Table[Cid, DoublyLinkedNode[MemoryStoreNode]]
+    list: DoublyLinkedList[MemoryStoreNode]
 
 const
   MiB* = 1024 * 1024
@@ -51,7 +57,7 @@ method getBlock*(self: MemoryStore, cid: Cid): Future[?!Block] {.async.} =
     return failure (ref BlockNotFoundError)(msg: "Block not in memory store")
 
   try:
-    return success self.table[cid]
+    return success self.table[cid].value.val
   except CatchableError as exc:
     trace "Error getting block from memory store", cid, error = exc.msg
     return failure exc
@@ -65,9 +71,11 @@ method hasBlock*(self: MemoryStore, cid: Cid): Future[?!bool] {.async.} =
   return (cid in self.table).success
 
 func cids(self: MemoryStore): (iterator: Cid {.gcsafe.}) =
+  var it = self.list.head
   return iterator(): Cid =
-    for cid in self.table.keys:
-      yield cid
+    while not isNil(it):
+      yield it.value.key
+      it = it.next
 
 method listBlocks*(self: MemoryStore, blockType = BlockType.Manifest): Future[?!BlocksIter] {.async.} =
   var
@@ -128,7 +136,9 @@ func putBlockSync(self: MemoryStore, blk: Block): ?!void =
     trace "Block size is larger than free capacity", blk = blkSize, freeCapacity
     return failure("Unable to store block: Insufficient free capacity.")
 
-  self.table[blk.cid] = blk
+  let node = newDoublyLinkedNode[MemoryStoreNode](MemoryStoreNode(key: blk.cid, val: blk))
+  self.list.prepend(node)
+  self.table[blk.cid] = node
   self.bytesUsed += blkSize
   return success()
 
@@ -146,12 +156,14 @@ method delBlock*(self: MemoryStore, cid: Cid): Future[?!void] {.async.} =
     trace "Empty block, ignoring"
     return success()
 
-  without toRemove =? await self.getBlock(cid), err:
-    trace "Unable to find block to remove"
-    return failure(err)
+  if cid notin self.table:
+    return failure (ref BlockNotFoundError)(msg: "Block not in memory store")
+
+  let nodeToRemove = self.table[cid]
 
   self.table.del(cid)
-  self.bytesUsed -= toRemove.data.len
+  self.list.remove(nodeToRemove)
+  self.bytesUsed -= nodeToRemove.value.val.data.len
 
   return success()
 
@@ -165,7 +177,8 @@ func new*(
   ): MemoryStore {.raises: [Defect, ValueError].} =
 
   let store = MemoryStore(
-      table: initTable[Cid, Block](),
+      table: initTable[Cid, DoublyLinkedNode[MemoryStoreNode]](),
+      list: initDoublyLinkedList[MemoryStoreNode](),
       bytesUsed: 0,
       capacity: capacity)
 
