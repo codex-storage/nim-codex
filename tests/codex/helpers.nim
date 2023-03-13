@@ -1,3 +1,5 @@
+import std/strutils
+
 import pkg/chronos
 import pkg/libp2p
 import pkg/libp2p/varint
@@ -5,6 +7,7 @@ import pkg/codex/blocktype as bt
 import pkg/codex/stores
 import pkg/codex/manifest
 import pkg/codex/rng
+import pkg/stew/byteutils
 
 import ./helpers/nodeutils
 import ./helpers/randomchunker
@@ -56,3 +59,6 @@ proc corruptBlocks*(
       bytePos.add(ii)
       blk.data[ii] = byte 0
   return pos
+
+proc createTestBlock*(size: int): bt.Block =
+  bt.Block.new('a'.repeat(size).toBytes).tryGet()

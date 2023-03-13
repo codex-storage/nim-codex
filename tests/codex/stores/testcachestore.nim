@@ -6,69 +6,42 @@ import pkg/libp2p
 import pkg/stew/byteutils
 import pkg/questionable/results
 import pkg/codex/stores/cachestore
+import pkg/codex/stores/memorystore
 import pkg/codex/chunker
 
 import ./commonstoretests
-
 import ../helpers
+import ../helpers/mockblockstore
 
 suite "Cache Store":
   var
-    newBlock, newBlock1, newBlock2, newBlock3: Block
+    newBlock: Block
+    backingStore: MockBlockStore
     store: CacheStore
 
   setup:
     newBlock = Block.new("New Kids on the Block".toBytes()).tryGet()
-    newBlock1 = Block.new("1".repeat(100).toBytes()).tryGet()
-    newBlock2 = Block.new("2".repeat(100).toBytes()).tryGet()
-    newBlock3 = Block.new("3".repeat(100).toBytes()).tryGet()
-    store = CacheStore.new()
+    backingStore = MockBlockStore.new()
+    backingStore.getBlock = newBlock
+    store = CacheStore.new(backingStore)
 
   test "constructor":
-    # cache size cannot be smaller than chunk size
     expect ValueError:
-      discard CacheStore.new(cacheSize = 1, chunkSize = 2)
+      discard CacheStore.new(backingStore, cacheSize = 1, chunkSize = 2)
 
-    store = CacheStore.new(cacheSize = 100, chunkSize = 1)
-    check store.currentSize == 0
-
-    store = CacheStore.new(@[newBlock1, newBlock2, newBlock3])
-    check store.currentSize == 300
-
-    # initial cache blocks total more than cache size, currentSize should
-    # never exceed max cache size
-    store = CacheStore.new(
-              blocks = @[newBlock1, newBlock2, newBlock3],
-              cacheSize = 200,
-              chunkSize = 1)
-    check store.currentSize == 200
-
-    # cache size cannot be less than chunks size
     expect ValueError:
-      discard CacheStore.new(
-                cacheSize = 99,
-                chunkSize = 100)
+      discard CacheStore.new(backingStore, cacheSize = 99, chunkSize = 100)
 
-  test "putBlock":
-    (await store.putBlock(newBlock1)).tryGet()
-    check (await store.hasBlock(newBlock1.cid)).tryGet()
+  test "getBlock can return cached block":
+    let
+      received1 = (await store.getBlock(newBlock.cid)).tryGet()
+      received2 = (await store.getBlock(newBlock.cid)).tryGet()
 
-    # block size bigger than entire cache
-    store = CacheStore.new(cacheSize = 99, chunkSize = 98)
-    (await store.putBlock(newBlock1)).tryGet()
-    check not (await store.hasBlock(newBlock1.cid)).tryGet()
-
-    # block being added causes removal of LRU block
-    store = CacheStore.new(
-              @[newBlock1, newBlock2, newBlock3],
-              cacheSize = 200,
-              chunkSize = 1)
     check:
-      not (await store.hasBlock(newBlock1.cid)).tryGet()
-      (await store.hasBlock(newBlock2.cid)).tryGet()
-      (await store.hasBlock(newBlock2.cid)).tryGet()
-      store.currentSize == newBlock2.data.len + newBlock3.data.len # 200
+      newBlock == received1
+      newBlock == received2
+      backingStore.numberOfGetCalls == 1
 
 commonBlockStoreTests(
   "Cache", proc: BlockStore =
-    BlockStore(CacheStore.new(cacheSize = 500, chunkSize = 1)))
+    BlockStore(CacheStore.new(MemoryStore.new())))

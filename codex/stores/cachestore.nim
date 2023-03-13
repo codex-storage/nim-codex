@@ -78,8 +78,8 @@ method close*(self: CacheStore): Future[void] =
 func new*(
     _: type CacheStore,
     backingStore: BlockStore,
-    cacheSize: Positive = DefaultCacheSize, # in bytes
-    chunkSize: Positive = DefaultChunkSize  # in bytes
+    cacheSize: Positive = DefaultCacheSize,
+    chunkSize: Positive = DefaultChunkSize
   ): CacheStore {.raises: [Defect, ValueError].} =
 
   if cacheSize < chunkSize:

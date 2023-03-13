@@ -36,12 +36,10 @@ type
     capacity*: int
     table: Table[Cid, Block]
 
-  InvalidBlockSize* = object of CodexError
-
 const
   MiB* = 1024 * 1024
-  DefaultCacheSizeMiB* = 5
-  DefaultCacheSize* = DefaultCacheSizeMiB * MiB
+  DefaultMemoryStoreCapacityMiB* = 5
+  DefaultMemoryStoreCapacity* = DefaultMemoryStoreCapacityMiB * MiB
 
 method getBlock*(self: MemoryStore, cid: Cid): Future[?!Block] {.async.} =
   trace "Getting block from cache", cid
@@ -128,7 +126,7 @@ func putBlockSync(self: MemoryStore, blk: Block): ?!void =
 
   if blkSize > freeCapacity:
     trace "Block size is larger than free capacity", blk = blkSize, freeCapacity
-    return failure("Unable to store block: Memory store capacity exceeded.")
+    return failure("Unable to store block: Insufficient free capacity.")
 
   self.table[blk.cid] = blk
   self.bytesUsed += blkSize
@@ -163,11 +161,8 @@ method close*(self: MemoryStore): Future[void] {.async.} =
 func new*(
     _: type MemoryStore,
     blocks: openArray[Block] = [],
-    capacity: Positive = DefaultCacheSize,
-    chunkSize: Positive = DefaultChunkSize
+    capacity: Positive = DefaultMemoryStoreCapacity,
   ): MemoryStore {.raises: [Defect, ValueError].} =
-  if capacity < chunkSize:
-    raise newException(ValueError, "capacity cannot be less than chunkSize")
 
   let store = MemoryStore(
       table: initTable[Cid, Block](),

@@ -78,9 +78,6 @@ suite "RepoStore":
     (await repoDs.close()).tryGet
     (await metaDs.close()).tryGet
 
-  proc createTestBlock(size: int): bt.Block =
-    bt.Block.new('a'.repeat(size).toBytes).tryGet()
-
   test "Should update current used bytes on block put":
     let blk = createTestBlock(200)
 
