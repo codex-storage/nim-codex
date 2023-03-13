@@ -59,8 +59,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       ## to invoke peer discovery, if it succeeds
       ## the returned addresses will be used to dial
       ##
-      ## `addrs` needs to address the listening address of the node.
-      ##  Eq. the one specified with `--listen-addrs`
+      ## `addrs` the listening addresses of the peers to dial, eg the one specified with `--listen-addrs`
       ##
 
       if peerId.isErr:
@@ -137,7 +136,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       ## cid       - the cid of a previously uploaded dataset
       ## duration  - the duration of the request in seconds
       ## reward    - the maximum amount of tokens paid per second per slot to hosts the client is willing to pay
-      ## expiry    - timestamp as seconds since unix epoch at which this request expires if the Request does not find requested amount of nodes to host the data
+      ## expiry    - timestamp, in seconds, when the request expires if the Request does not find requested amount of nodes to host the data
       ## nodes     - minimal number of nodes the content should be stored on
       ## tolerance - allowed number of nodes that can be lost before pronouncing the content lost
 
