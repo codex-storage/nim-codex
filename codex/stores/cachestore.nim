@@ -21,8 +21,8 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ./blockstore
+import ../consts
 import ../chunker
-import ../errors
 import ../manifest
 
 export blockstore
@@ -36,7 +36,6 @@ type
     cache: LruCache[Cid, Block]
 
 const
-  MiB* = 1024 * 1024
   DefaultCacheSizeMiB* = 5
   DefaultCacheSize* = DefaultCacheSizeMiB * MiB
 

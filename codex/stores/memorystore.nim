@@ -22,8 +22,8 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ./blockstore
+import ../consts
 import ../chunker
-import ../errors
 import ../manifest
 
 export blockstore
@@ -43,7 +43,6 @@ type
     list: DoublyLinkedList[MemoryStoreNode]
 
 const
-  MiB* = 1024 * 1024
   DefaultMemoryStoreCapacityMiB* = 5
   DefaultMemoryStoreCapacity* = DefaultMemoryStoreCapacityMiB * MiB
 
