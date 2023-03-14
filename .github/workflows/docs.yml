@@ -40,7 +40,7 @@ jobs:
 
       - name: Build OpenAPI
         shell: bash
-        run: npx @redocly/cli build openapi.yaml --output "openapi/index.html" --title "Codex API"
+        run: npx @redocly/cli build-docs openapi.yaml --output "openapi/index.html" --title "Codex API"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v1
