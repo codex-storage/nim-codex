@@ -10,26 +10,21 @@
 import pkg/upraises
 
 push: {.upraises: [].}
+import std/os
 
 import pkg/chronos
 import pkg/chronicles
 import pkg/datastore
+import pkg/confutils
+import pkg/confutils/defs
 
-import ../node
-import ../conf
-import ../rng
-import ../rest/api
-import ../blockexchange
-import ../utils/fileutils
-import ../erasure
-import ../discovery
-import ../contracts
-import ../utils/addrutils
+
 import ../namespaces
-
 import ../conf
+import ../consts
 import ./blockstore
 import ./repostore
+import ./cachestore
 import ./maintenance
 
 type
