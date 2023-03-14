@@ -34,9 +34,12 @@ jobs:
         with:
           node-version: 18
 
+      - name: Lint OpenAPI
+        shell: bash
+        run: npx @redocly/cli lint openapi.yaml
+
       - name: Build OpenAPI
         shell: bash
-        continue-on-error: true
         run: npx @redocly/cli build openapi.yaml --output "openapi/index.html" --title "Codex API"
 
       - name: Upload artifact
@@ -45,5 +48,4 @@ jobs:
           path: './openapi'
 
       - name: Deploy to GitHub Pages
-        id: deployment
         uses: actions/deploy-pages@v1
