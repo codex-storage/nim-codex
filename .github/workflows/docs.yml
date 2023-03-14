@@ -1,0 +1,44 @@
+name: OpenAPI
+
+on:
+  push:
+    branches:
+      - 'main'
+    paths:
+      - 'openapi.yaml'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches:
+      - '**'
+    paths:
+      - 'openapi.yaml'
+      - '.github/workflows/docs.yml'
+
+jobs:
+  build:
+    name: Preview
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: '0'
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Build OpenAPI
+        shell: bash
+        continue-on-error: true
+        run: npx redoc-cli build openapi.yaml --output "openapi/index.html" --title "Codex API"
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: './openapi'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v1
