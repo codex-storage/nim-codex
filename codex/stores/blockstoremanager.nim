@@ -14,7 +14,6 @@ import pkg/datastore
 import pkg/confutils
 import pkg/confutils/defs
 
-
 import ../namespaces
 import ../consts
 import ./blockstore

@@ -9,7 +9,6 @@ import pkg/codex/chunker
 
 import ./commonstoretests
 import ../helpers
-import ../helpers/mockblockstore
 
 suite "Cache Store":
   var
