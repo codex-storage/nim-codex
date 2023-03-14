@@ -14,6 +14,12 @@ on:
       - 'openapi.yaml'
       - '.github/workflows/docs.yml'
 
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   build:
     name: Preview
@@ -31,7 +37,7 @@ jobs:
       - name: Build OpenAPI
         shell: bash
         continue-on-error: true
-        run: npx redoc-cli build openapi.yaml --output "openapi/index.html" --title "Codex API"
+        run: npx @redocly/cli build openapi.yaml --output "openapi/index.html" --title "Codex API"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v1
