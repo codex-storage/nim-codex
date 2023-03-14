@@ -23,6 +23,9 @@ nimble.paths
 # vscode
 .vscode
 
+# JetBrain's IDEs
+.idea
+
 # Each developer can create a personal .env file with
 # local settings overrides (e.g. WEB3_URL)
 .env
