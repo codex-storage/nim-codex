@@ -46,6 +46,10 @@ type
     Json = "json"
     None = "none"
 
+  RepoKind* = enum
+    repoFS = "fs"
+    repoSQLite = "sqlite"
+
   CodexConf* = object
     logLevel* {.
       defaultValue: "INFO"
@@ -150,6 +154,12 @@ type
         defaultValueDesc: "8080"
         name: "api-port"
         abbr: "p" }: int
+
+      repoKind* {.
+        desc: "backend for main repo store (fs, sqlite)"
+        defaultValueDesc: "fs"
+        defaultValue: repoFS
+        name: "repo-kind" }: RepoKind
 
       storageQuota* {.
         desc: "The size of the total storage quota dedicated to the node"
