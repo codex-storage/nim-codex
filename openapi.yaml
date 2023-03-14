@@ -49,6 +49,34 @@ components:
       description: A timestamp as seconds since unix epoch at which this request expires if the Request does not find requested amount of nodes to host the data.
       default: 10 minutes
 
+    ErasureParameters:
+      type: object
+      properties:
+        totalChunks:
+          type: number
+
+    PoRParameters:
+      description: Parameters for Proof of Retrievability
+      type: object
+      properties:
+        u:
+          type: string
+        publicKey:
+          type: string
+        name:
+          type: string
+
+    Content:
+      type: object
+      description: Parameters specifying the content
+      properties:
+        cid:
+          $ref: "#/components/schemas/Cid"
+        erasure:
+          $ref: "#/components/schemas/ErasureParameters"
+        por:
+          $ref: "#/components/schemas/PoRParameters"
+
     DebugInfo:
       type: object
       properties:
