@@ -4,7 +4,7 @@ RUN apk update && apk add git cmake curl make git bash linux-headers
 COPY . .
 RUN make clean
 RUN make update
-RUN make exec NIM_PARAMS="-d:disableMarchNative"
+RUN make NIM_PARAMS="-d:disableMarchNative"
 
 FROM alpine:3.17.2
 WORKDIR /root/
