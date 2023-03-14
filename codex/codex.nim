@@ -26,7 +26,6 @@ import ./conf
 import ./rng
 import ./rest/api
 import ./stores
-import ./stores/blockstoremanager
 import ./blockexchange
 import ./utils/fileutils
 import ./erasure
@@ -178,7 +177,13 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
 
-    blockStoreManager = BlockStoreManager.new(config)
+    blockStoreManager = BlockStoreManager.new(BlockStoreManagerConfig(
+      dataDir: config.dataDir,
+      storageQuota: config.storageQuota,
+      blockTtlSeconds: config.blockTtlSeconds,
+      blockMaintenanceIntervalSeconds: config.blockMaintenanceIntervalSeconds,
+      blockMaintenanceNumberOfBlocks: config.blockMaintenanceNumberOfBlocks,
+      cacheSize: config.cacheSize))
     blockStore = blockStoreManager.getBlockStore()
 
     peerStore = PeerCtxStore.new()

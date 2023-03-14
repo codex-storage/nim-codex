@@ -16,7 +16,6 @@ import pkg/confutils/defs
 
 
 import ../namespaces
-import ../conf
 import ../consts
 import ./blockstore
 import ./repostore
@@ -28,6 +27,13 @@ type
     repoStore: RepoStore
     maintenance: BlockMaintainer
     blockStore: BlockStore
+  BlockStoreManagerConfig* = ref object
+    dataDir*: OutDir
+    storageQuota*: Natural
+    blockTtlSeconds*: int
+    blockMaintenanceIntervalSeconds*: int
+    blockMaintenanceNumberOfBlocks*: int
+    cacheSize*: Natural
 
 proc start*(self: BlockStoreManager): Future[void] {.async.} =
   await self.repoStore.start()
@@ -40,25 +46,25 @@ proc stop*(self: BlockStoreManager): Future[void] {.async.} =
 proc getBlockStore*(self: BlockStoreManager): BlockStore =
   self.blockStore
 
-proc createRepoStore(config: CodexConf): RepoStore =
+proc createRepoStore(config: BlockStoreManagerConfig): RepoStore =
   RepoStore.new(
     repoDs = Datastore(FSDatastore.new($config.dataDir, depth = 5).expect("Should create repo data store!")),
     metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace).expect("Should create meta data store!"),
     quotaMaxBytes = config.storageQuota.uint,
     blockTtl = config.blockTtlSeconds.seconds)
 
-proc createMaintenance(repoStore: RepoStore, config: CodexConf): BlockMaintainer =
+proc createMaintenance(repoStore: RepoStore, config: BlockStoreManagerConfig): BlockMaintainer =
   BlockMaintainer.new(
     repoStore,
     interval = config.blockMaintenanceIntervalSeconds.seconds,
     numberOfBlocksPerInterval = config.blockMaintenanceNumberOfBlocks)
 
-proc getBlockStore(repoStore: RepoStore, config: CodexConf): BlockStore =
+proc getBlockStore(repoStore: RepoStore, config: BlockStoreManagerConfig): BlockStore =
   if config.cacheSize > 0:
     return CacheStore.new(backingStore = repoStore, cacheSize = config.cacheSize * MiB)
   return repoStore
 
-proc new*(T: type BlockStoreManager, config: CodexConf): T =
+proc new*(T: type BlockStoreManager, config: BlockStoreManagerConfig): T =
   let
     repoStore = createRepoStore(config)
     maintenance = createMaintenance(repoStore, config)
