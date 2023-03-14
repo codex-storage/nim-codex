@@ -178,23 +178,16 @@ components:
           $ref: "#/components/schemas/StorageRequest"
 
 servers:
-  - url: "http://{hostname}:{port}/api/codex/v1"
-    variables:
-      hostname:
-        default: "localhost"
-        description: Hostname on which the Codex API is running
-      port:
-        default: "8080"
-        description: Port under which Codex API is running
+  - url: "http://localhost:8080/api/codex/v1"
 
 tags:
-  - name: marketplace
+  - name: Marketplace
     description: Marketplace information and operations
-  - name: data
+  - name: Data
     description: Data operations
-  - name: node
+  - name: Node
     description: Node management
-  - name: debug
+  - name: Debug
     description: Debugging configuration
 
 paths:
@@ -204,7 +197,7 @@ paths:
       description: |
         If `addrs` param is supplied, it will be used to dial the peer, otherwise the `peerId` is used
         to invoke peer discovery, if it succeeds the returned addresses will be used to dial.
-      tags: [ node ]
+      tags: [ Node ]
       operationId: connectPeer
       parameters:
         - in: path
@@ -234,7 +227,7 @@ paths:
   "/download/{cid}":
     get:
       summary: "Download a file from the node in a streaming manner"
-      tags: [ data ]
+      tags: [ Data ]
       operationId: download
       parameters:
         - in: path
@@ -262,7 +255,7 @@ paths:
   "/upload":
     post:
       summary: "Upload a file in a streaming manner"
-      tags: [ data ]
+      tags: [ Data ]
       operationId: upload
       requestBody:
         content:
@@ -283,7 +276,7 @@ paths:
   "/sales/availability":
     get:
       summary: "Returns storage that is for sale"
-      tags: [ marketplace ]
+      tags: [ Marketplace ]
       operationId: getsOfferedStorage
       responses:
         "200":
@@ -300,7 +293,7 @@ paths:
     post:
       summary: "Offers storage for sale"
       operationId: offerStorage
-      tags: [ marketplace ]
+      tags: [ Marketplace ]
       requestBody:
         content:
           application/json:
@@ -319,7 +312,7 @@ paths:
   "/storage/purchases/{id}":
     get:
       summary: "Returns information about node's Requests"
-      tags: [ marketplace ]
+      tags: [ Marketplace ]
       operationId: getStorageRequestState
       parameters:
         - in: path
@@ -347,7 +340,7 @@ paths:
   "/storage/request/{cid}":
     post:
       summary: "Creates a new Request for storage"
-      tags: [ marketplace ]
+      tags: [ Marketplace ]
       operationId: createStorageRequest
       parameters:
         - in: path
@@ -374,7 +367,7 @@ paths:
   "/debug/chronicles/loglevel":
     post:
       summary: "Set log level at run time"
-      tags: [ debug ]
+      tags: [ Debug ]
       operationId: setDebugLogLevel
 
       parameters:
@@ -396,7 +389,7 @@ paths:
     get:
       summary: "Gets node information"
       operationId: getDebugInfo
-      tags: [ debug ]
+      tags: [ Debug ]
       responses:
         "200":
           description: Node's information
