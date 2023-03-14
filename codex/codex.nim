@@ -9,7 +9,6 @@
 
 import std/sequtils
 import std/os
-import std/tables
 
 import pkg/chronicles
 import pkg/chronos
@@ -26,6 +25,7 @@ import ./node
 import ./conf
 import ./rng
 import ./rest/api
+import ./stores
 import ./stores/blockstoremanager
 import ./blockexchange
 import ./utils/fileutils

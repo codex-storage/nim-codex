@@ -7,13 +7,9 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/upraises
-
-push: {.upraises: [].}
 import std/os
 
 import pkg/chronos
-import pkg/chronicles
 import pkg/datastore
 import pkg/confutils
 import pkg/confutils/defs
@@ -62,7 +58,7 @@ proc getBlockStore(repoStore: RepoStore, config: CodexConf): BlockStore =
     return CacheStore.new(backingStore = repoStore, cacheSize = config.cacheSize * MiB)
   return repoStore
 
-func new*(T: type BlockStoreManager, config: CodexConf): T =
+proc new*(T: type BlockStoreManager, config: CodexConf): T =
   let
     repoStore = createRepoStore(config)
     maintenance = createMaintenance(repoStore, config)
