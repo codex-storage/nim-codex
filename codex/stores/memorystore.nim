@@ -55,11 +55,7 @@ method getBlock*(self: MemoryStore, cid: Cid): Future[?!Block] {.async.} =
   if cid notin self.table:
     return failure (ref BlockNotFoundError)(msg: "Block not in memory store")
 
-  try:
-    return success self.table[cid].value.val
-  except CatchableError as exc:
-    trace "Error getting block from memory store", cid, error = exc.msg
-    return failure exc
+  return success self.table[cid].value.val
 
 method hasBlock*(self: MemoryStore, cid: Cid): Future[?!bool] {.async.} =
   trace "Checking MemoryStore for block presence", cid
@@ -75,6 +71,21 @@ func cids(self: MemoryStore): (iterator: Cid {.gcsafe.}) =
     while not isNil(it):
       yield it.value.key
       it = it.next
+
+proc isOfBlockType(cid: Cid, blockType: BlockType): ?!bool =
+  without isManifest =? cid.isManifest, err:
+    trace "Error checking if cid is a manifest", err = err.msg
+    return failure("Unable to determine if CID is a manifest")
+
+  case blockType:
+    of BlockType.Manifest:
+      return success(isManifest)
+    of BlockType.Block:
+      return success(not isManifest)
+    of BlockType.Both:
+      return success(true)
+
+  return failure("Unknown block type: " & $blockType)
 
 method listBlocks*(self: MemoryStore, blockType = BlockType.Manifest): Future[?!BlocksIter] {.async.} =
   var
@@ -97,27 +108,15 @@ method listBlocks*(self: MemoryStore, blockType = BlockType.Manifest): Future[?!
         iter.finished = true
         return Cid.none
 
-      without isManifest =? cid.isManifest, err:
-        trace "Error checking if cid is a manifest", err = err.msg
+      without isCorrectBlockType =? isOfBlockType(cid, blockType), err:
+        warn "Error checking if cid of blocktype", err = err.msg
         return Cid.none
 
-      case blockType:
-      of BlockType.Manifest:
-        if not isManifest:
-          trace "Cid is not manifest, skipping", cid
-          continue
+      if not isCorrectBlockType:
+        trace "Cid does not match blocktype, skipping", cid, blockType
+        continue
 
-        break
-      of BlockType.Block:
-        if isManifest:
-          trace "Cid is a manifest, skipping", cid
-          continue
-
-        break
-      of BlockType.Both:
-        break
-
-    return cid.some
+      return cid.some
 
   iter.next = next
 
@@ -156,7 +155,7 @@ method delBlock*(self: MemoryStore, cid: Cid): Future[?!void] {.async.} =
     return success()
 
   if cid notin self.table:
-    return failure (ref BlockNotFoundError)(msg: "Block not in memory store")
+    return success()
 
   let nodeToRemove = self.table[cid]
 

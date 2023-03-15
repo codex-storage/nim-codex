@@ -39,6 +39,15 @@ suite "Cache Store":
       newBlock == received2
       backingStore.numberOfGetCalls == 1
 
+  test "getBlock should return empty block immediately":
+    let expectedEmptyBlock = newBlock.cid.emptyBlock
+
+    let received = (await store.getBlock(expectedEmptyBlock.cid)).tryGet()
+
+    check:
+      expectedEmptyBlock == received
+      backingStore.numberOfGetCalls == 0
+
 commonBlockStoreTests(
   "Cache", proc: BlockStore =
     BlockStore(CacheStore.new(MemoryStore.new())))
