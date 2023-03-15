@@ -20,10 +20,6 @@ import ../utils/timer
 import ../clock
 import ../systemclock
 
-const
-  DefaultBlockMaintenanceInterval* = 10.minutes
-  DefaultNumberOfBlocksToMaintainPerInterval* = 1000
-
 type
   BlockMaintainer* = ref object of RootObj
     repoStore: RepoStore

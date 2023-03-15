@@ -21,6 +21,7 @@ import pkg/stew/endians2
 
 import ./blockstore
 import ./keyutils
+import ./consts
 import ../blocktype
 import ../clock
 import ../systemclock
@@ -29,10 +30,6 @@ export blocktype, libp2p
 
 logScope:
   topics = "codex repostore"
-
-const
-  DefaultBlockTtl* = 24.hours
-  DefaultQuotaBytes* = 1'u shl 33'u # ~8GB
 
 type
   QuotaUsedError* = object of CodexError

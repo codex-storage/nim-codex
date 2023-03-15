@@ -11,9 +11,9 @@ import pkg/libp2p
 import pkg/stew/endians2
 import pkg/datastore
 
-import pkg/codex/stores/cachestore
 import pkg/codex/chunker
 import pkg/codex/stores
+import pkg/codex/stores/consts
 import pkg/codex/blocktype as bt
 import pkg/codex/clock
 

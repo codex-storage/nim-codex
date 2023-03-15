@@ -15,7 +15,7 @@ import pkg/confutils
 import pkg/confutils/defs
 
 import ../namespaces
-import ../consts
+import ./consts
 import ./blockstore
 import ./repostore
 import ./cachestore

@@ -21,7 +21,7 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ./blockstore
-import ../consts
+import ./consts
 import ../chunker
 import ../manifest
 
@@ -34,10 +34,6 @@ type
   CacheStore* = ref object of BlockStore
     backingStore: BlockStore
     cache: LruCache[Cid, Block]
-
-const
-  DefaultCacheSizeMiB* = 5
-  DefaultCacheSize* = DefaultCacheSizeMiB * MiB
 
 method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
   if cid.isEmpty:

@@ -22,7 +22,7 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ./blockstore
-import ../consts
+import ./consts
 import ../chunker
 import ../manifest
 
@@ -41,10 +41,6 @@ type
     capacity*: int
     table: Table[Cid, DoublyLinkedNode[MemoryStoreNode]]
     list: DoublyLinkedList[MemoryStoreNode]
-
-const
-  DefaultMemoryStoreCapacityMiB* = 5
-  DefaultMemoryStoreCapacity* = DefaultMemoryStoreCapacityMiB * MiB
 
 method getBlock*(self: MemoryStore, cid: Cid): Future[?!Block] {.async.} =
   trace "Getting block from cache", cid

@@ -32,7 +32,7 @@ import pkg/ethers
 
 import ./discovery
 import ./stores
-import ./consts
+import ./stores/consts
 
 export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval, RepoKind
 
