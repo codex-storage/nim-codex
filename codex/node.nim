@@ -43,6 +43,10 @@ type
 
   CodexError = object of CatchableError
 
+  Contracts* = tuple
+    client: ?ClientInteractions
+    host: ?HostInteractions
+
   CodexNodeRef* = ref object
     switch*: Switch
     networkId*: PeerId
@@ -50,7 +54,7 @@ type
     engine*: BlockExcEngine
     erasure*: Erasure
     discovery*: Discovery
-    contracts*: ?ContractInteractions
+    contracts*: Contracts
 
 proc findPeer*(
   node: CodexNodeRef,
@@ -250,7 +254,7 @@ proc requestStorage*(self: CodexNodeRef,
   ##
   trace "Received a request for storage!", cid, duration, nodes, tolerance, reward
 
-  without contracts =? self.contracts:
+  without contracts =? self.contracts.client:
     trace "Purchasing not available"
     return failure "Purchasing not available"
 
@@ -307,7 +311,7 @@ proc new*(
   engine: BlockExcEngine,
   erasure: Erasure,
   discovery: Discovery,
-  contracts = ContractInteractions.none): T =
+  contracts: Contracts = (ClientInteractions.none, HostInteractions.none)): T =
   T(
     switch: switch,
     blockStore: store,
@@ -329,9 +333,9 @@ proc start*(node: CodexNodeRef) {.async.} =
   if not node.discovery.isNil:
     await node.discovery.start()
 
-  if contracts =? node.contracts:
+  if hostContracts =? node.contracts.host:
     # TODO: remove Sales callbacks, pass BlockStore and StorageProofs instead
-    contracts.sales.onStore = proc(request: StorageRequest,
+    hostContracts.sales.onStore = proc(request: StorageRequest,
                                    slot: UInt256,
                                    availability: ?Availability) {.async.} =
       ## store data in local storage
@@ -354,22 +358,29 @@ proc start*(node: CodexNodeRef) {.async.} =
       if fetchRes.isErr:
         raise newException(CodexError, "Unable to retrieve blocks")
 
-    contracts.sales.onClear = proc(availability: ?Availability,
+    hostContracts.sales.onClear = proc(availability: ?Availability,
                                    request: StorageRequest,
                                    slotIndex: UInt256) =
       # TODO: remove data from local storage
       discard
 
-    contracts.sales.onProve = proc(request: StorageRequest,
+    hostContracts.sales.onProve = proc(request: StorageRequest,
                                    slot: UInt256): Future[seq[byte]] {.async.} =
       # TODO: generate proof
       return @[42'u8]
 
     try:
-      await contracts.start()
+      await hostContracts.start()
     except CatchableError as error:
-      error "Unable to start contract interactions: ", error=error.msg
-      node.contracts = ContractInteractions.none
+      error "Unable to start host contract interactions: ", error=error.msg
+      node.contracts.host = HostInteractions.none
+
+  if clientContracts =? node.contracts.client:
+    try:
+      await clientContracts.start()
+    except CatchableError as error:
+      error "Unable to start client contract interactions: ", error=error.msg
+      node.contracts.client = ClientInteractions.none
 
   node.networkId = node.switch.peerInfo.peerId
   notice "Started codex node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
@@ -389,8 +400,11 @@ proc stop*(node: CodexNodeRef) {.async.} =
   if not node.discovery.isNil:
     await node.discovery.stop()
 
-  if contracts =? node.contracts:
-    await contracts.stop()
+  if clientContracts =? node.contracts.client:
+    await clientContracts.stop()
+
+  if hostContracts =? node.contracts.host:
+    await hostContracts.stop()
 
   if not node.blockStore.isNil:
     await node.blockStore.close
