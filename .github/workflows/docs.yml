@@ -7,12 +7,12 @@ on:
     paths:
       - 'openapi.yaml'
       - '.github/workflows/docs.yml'
-  pull_request:
-    branches:
-      - '**'
-    paths:
-      - 'openapi.yaml'
-      - '.github/workflows/docs.yml'
+#  pull_request:
+#    branches:
+#      - '**'
+#    paths:
+#      - 'openapi.yaml'
+#      - '.github/workflows/docs.yml'
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
