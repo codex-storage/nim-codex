@@ -34,7 +34,7 @@ import ./discovery
 import ./stores
 import ./consts
 
-export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval
+export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval, RepoKind
 
 type
   StartUpCommand* {.pure.} = enum
@@ -162,7 +162,7 @@ type
       repoKind* {.
         desc: "backend for main repo store (fs, sqlite)"
         defaultValueDesc: "fs"
-        defaultValue: repoFS
+        defaultValue: RepoKind.repoFS
         name: "repo-kind" }: RepoKind
 
       storageQuota* {.
