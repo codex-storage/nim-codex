@@ -1,13 +1,13 @@
 import pkg/chronos
 import ../contracts/requests
 import ../market
-import ./availability
+import ./reservations
 
 type
   SalesData* = ref object
     requestId*: RequestId
     ask*: StorageAsk
-    availability*: ?Availability # TODO: when availability persistence is added, change this to not optional
+    availability*: ?Availability
     request*: ?StorageRequest
     slotIndex*: UInt256
     failed*: market.Subscription

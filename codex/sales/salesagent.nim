@@ -5,7 +5,9 @@ import ../utils/asyncspawn
 import ./statemachine
 import ./salescontext
 import ./salesdata
-import ./availability
+import ./reservations
+
+export reservations
 
 type SalesAgent* = ref object of Machine
   context*: SalesContext

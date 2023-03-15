@@ -42,13 +42,13 @@ proc fromJson*(_: type StorageRequestParams,
 func `%`*(address: Address): JsonNode =
   % $address
 
-func `%`*(stint: StInt|StUint): JsonNode =
+func `%`*(stint: StInt|StUInt): JsonNode =
   %("0x" & stint.toHex)
 
 func `%`*(arr: openArray[byte]): JsonNode =
   %("0x" & arr.toHex)
 
-func `%`*(id: RequestId | SlotId | Nonce): JsonNode =
+func `%`*(id: RequestId | SlotId | Nonce | AvailabilityId): JsonNode =
   % id.toArray
 
 func `%`*(purchase: Purchase): JsonNode =

@@ -1,3 +1,6 @@
+import pkg/chronicles
+import pkg/questionable
+import pkg/questionable/results
 import ../../market
 import ../salesagent
 import ../statemachine
@@ -37,6 +40,25 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
 
   without request =? data.request:
     raiseAssert "no sale request"
+
+  without availability =? await context.reservations.find(
+      request.ask.slotSize,
+      request.ask.duration,
+      request.ask.pricePerSlot,
+      used = false):
+    info "no availability found for request, ignoring",
+      slotSize = request.ask.slotSize,
+      duration = request.ask.duration,
+      pricePerSlot = request.ask.pricePerSlot,
+      used = false
+    return
+  
+  data.availability = some availability
+
+  if err =? (await agent.context.reservations.markUsed(
+    availability,
+    request.slotId(data.slotIndex))).errorOption:
+    raiseAssert "failed to mark availability as used, error: " & err.msg
 
   await onStore(request, data.slotIndex, data.availability)
   return some State(SaleProving())

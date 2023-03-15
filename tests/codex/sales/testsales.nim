@@ -4,13 +4,19 @@ import std/sugar
 import std/times
 import pkg/asynctest
 import pkg/chronos
+import pkg/datastore
+import pkg/questionable
+import pkg/questionable/results
 import pkg/codex/sales
 import pkg/codex/sales/salesdata
+import pkg/codex/sales/reservations
+import pkg/codex/stores/repostore
 import pkg/codex/proving
 import ../helpers/mockmarket
 import ../helpers/mockclock
 import ../helpers/eventually
 import ../examples
+import ./helpers
 
 suite "Sales":
 
@@ -37,12 +43,17 @@ suite "Sales":
   var market: MockMarket
   var clock: MockClock
   var proving: Proving
+  var reservations: Reservations
 
   setup:
     market = MockMarket.new()
     clock = MockClock.new()
     proving = Proving.new()
-    sales = Sales.new(market, clock, proving)
+    let repoDs = SQLiteDatastore.new(Memory).tryGet()
+    let metaDs = SQLiteDatastore.new(Memory).tryGet()
+    let repo = RepoStore.new(repoDs, metaDs)
+    sales = Sales.new(market, clock, proving, repo)
+    reservations = sales.context.reservations
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
                          availability: ?Availability) {.async.} =
@@ -55,48 +66,33 @@ suite "Sales":
   teardown:
     await sales.stop()
 
-  test "has no availability initially":
-    check sales.available.len == 0
-
-  test "can add available storage":
-    let availability1 = Availability.example
-    let availability2 = Availability.example
-    sales.add(availability1)
-    check sales.available.contains(availability1)
-    sales.add(availability2)
-    check sales.available.contains(availability1)
-    check sales.available.contains(availability2)
-
-  test "can remove available storage":
-    sales.add(availability)
-    sales.remove(availability)
-    check sales.available.len == 0
-
-  test "generates unique ids for storage availability":
-    let availability1 = Availability.init(1.u256, 2.u256, 3.u256)
-    let availability2 = Availability.init(1.u256, 2.u256, 3.u256)
-    check availability1.id != availability2.id
-
   test "makes storage unavailable when matching request comes in":
-    sales.add(availability)
+    check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check eventually sales.available.len == 0
+    await sleepAsync(1.millis)
+    without availability =? await reservations.get(availability.id):
+      fail()
+    check availability.used
 
   test "ignores request when no matching storage is available":
-    sales.add(availability)
+    check isOk await reservations.reserve(availability)
     var tooBig = request
     tooBig.ask.slotSize = request.ask.slotSize + 1
     await market.requestStorage(tooBig)
     await sleepAsync(1.millis)
-    check eventually sales.available == @[availability]
+    without availability =? await reservations.get(availability.id):
+      fail()
+    check not availability.used
 
   test "ignores request when reward is too low":
-    sales.add(availability)
+    check isOk await reservations.reserve(availability)
     var tooCheap = request
     tooCheap.ask.reward = request.ask.reward - 1
     await market.requestStorage(tooCheap)
     await sleepAsync(1.millis)
-    check eventually sales.available == @[availability]
+    without availability =? await reservations.get(availability.id):
+      fail()
+    check not availability.used
 
   test "retrieves and stores data locally":
     var storingRequest: StorageRequest
@@ -109,7 +105,7 @@ suite "Sales":
       storingSlot = slot
       check availability.isSome
       storingAvailability = !availability
-    sales.add(availability)
+    check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     check eventually storingRequest == request
     check storingSlot < request.ask.slots.u256
@@ -123,11 +119,12 @@ suite "Sales":
       # raise an exception so machine.onError is called
       raise newException(ValueError, "some error")
 
-    # onSaleErrored is called in SaleErrored.run
-    proc onSaleErrored(availability: Availability) =
+    # onClear is called in SaleErrored.run
+    sales.onClear = proc(availability: ?Availability,
+                         request: StorageRequest,
+                         idx: UInt256) =
       saleFailed = true
-    sales.context.onSaleErrored = some onSaleErrored
-    sales.add(availability)
+    check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     check eventually saleFailed
 
@@ -137,10 +134,12 @@ suite "Sales":
                          slot: UInt256,
                          availability: ?Availability) {.async.} =
       raise error
-    sales.add(availability)
+    check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     await sleepAsync(1.millis)
-    check eventually sales.available == @[availability]
+    without availability =? await reservations.get(availability.id):
+      fail()
+    check not availability.used
 
   test "generates proof of storage":
     var provingRequest: StorageRequest
@@ -148,13 +147,13 @@ suite "Sales":
     proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       provingRequest = slot.request
       provingSlot = slot.slotIndex
-    sales.add(availability)
+    check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     check eventually provingRequest == request
     check provingSlot < request.ask.slots.u256
 
   test "fills a slot":
-    sales.add(availability)
+    check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     check eventually market.filled.len == 1
     check market.filled[0].requestId == request.id
@@ -173,7 +172,7 @@ suite "Sales":
         soldAvailability = a
       soldRequest = request
       soldSlotIndex = slotIndex
-    sales.add(availability)
+    check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     check eventually soldAvailability == availability
     check soldRequest == request
@@ -194,7 +193,7 @@ suite "Sales":
         clearedAvailability = a
       clearedRequest = request
       clearedSlotIndex = slotIndex
-    sales.add(availability)
+    check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     check eventually clearedAvailability == availability
     check clearedRequest == request
@@ -206,24 +205,26 @@ suite "Sales":
                          slot: UInt256,
                          availability: ?Availability) {.async.} =
       await sleepAsync(chronos.hours(1))
-    sales.add(availability)
+    check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     await sleepAsync(1.millis)
     for slotIndex in 0..<request.ask.slots:
       market.fillSlot(request.id, slotIndex.u256, proof, otherHost)
     await sleepAsync(chronos.seconds(2))
-    check sales.available == @[availability]
+    without availabilities =? (await reservations.allAvailabilities):
+      fail()
+    check availabilities == @[availability]
 
   test "makes storage available again when request expires":
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
                          availability: ?Availability) {.async.} =
       await sleepAsync(chronos.hours(1))
-    sales.add(availability)
+    check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     await sleepAsync(1.millis)
     clock.set(request.expiry.truncate(int64))
-    check eventually (sales.available == @[availability])
+    check eventually (await reservations.allAvailabilities) == @[availability]
 
   test "adds proving for slot when slot is filled":
     var soldSlotIndex: UInt256
@@ -232,7 +233,7 @@ suite "Sales":
                         slotIndex: UInt256) =
       soldSlotIndex = slotIndex
     check proving.slots.len == 0
-    sales.add(availability)
+    check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     check eventually proving.slots.len == 1
     check proving.slots.contains(Slot(request: request, slotIndex: soldSlotIndex))
