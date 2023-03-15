@@ -59,6 +59,8 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       ## to invoke peer discovery, if it succeeds
       ## the returned addresses will be used to dial
       ##
+      ## `addrs` the listening addresses of the peers to dial, eg the one specified with `--listen-addrs`
+      ##
 
       if peerId.isErr:
         return RestApiResponse.error(
@@ -131,9 +133,12 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
     "/api/codex/v1/storage/request/{cid}") do (cid: Cid) -> RestApiResponse:
       ## Create a request for storage
       ##
-      ## cid      - the cid of a previously uploaded dataset
-      ## duration - the duration of the contract
-      ## reward   - the maximum price the client is willing to pay
+      ## cid       - the cid of a previously uploaded dataset
+      ## duration  - the duration of the request in seconds
+      ## reward    - the maximum amount of tokens paid per second per slot to hosts the client is willing to pay
+      ## expiry    - timestamp, in seconds, when the request expires if the Request does not find requested amount of nodes to host the data
+      ## nodes     - minimal number of nodes the content should be stored on
+      ## tolerance - allowed number of nodes that can be lost before pronouncing the content lost
 
       without cid =? cid.tryGet.catch, error:
         return RestApiResponse.error(Http400, error.msg)
@@ -162,7 +167,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
     MethodPost,
     "/api/codex/v1/upload") do (
     ) -> RestApiResponse:
-      ## Upload a file in a streamming manner
+      ## Upload a file in a streaming manner
       ##
 
       trace "Handling file upload"

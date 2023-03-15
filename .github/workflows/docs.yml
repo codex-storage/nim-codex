@@ -1,0 +1,51 @@
+name: OpenAPI
+
+on:
+  push:
+    branches:
+      - 'main'
+    paths:
+      - 'openapi.yaml'
+      - '.github/workflows/docs.yml'
+#  pull_request:
+#    branches:
+#      - '**'
+#    paths:
+#      - 'openapi.yaml'
+#      - '.github/workflows/docs.yml'
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Preview
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: '0'
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Lint OpenAPI
+        shell: bash
+        run: npx @redocly/cli lint openapi.yaml
+
+      - name: Build OpenAPI
+        shell: bash
+        run: npx @redocly/cli build-docs openapi.yaml --output "openapi/index.html" --title "Codex API"
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: './openapi'
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v1

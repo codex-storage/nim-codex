@@ -1,0 +1,399 @@
+openapi: 3.0.3
+
+info:
+  version: 0.0.1
+  title: Codex API
+  description: "List of endpoints and interfaces available to Codex API users"
+
+security:
+  - { }
+
+components:
+  schemas:
+    MultiAddress:
+      type: string
+      description: Address of node as specified by the multi-address specification https://multiformats.io/multiaddr/
+      example: /ip4/127.0.0.1/tcp/8080
+
+    PeerId:
+      type: string
+      description: Peer Identity reference as specified at https://docs.libp2p.io/concepts/fundamentals/peers/
+      example: QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N
+
+    Cid:
+      type: string
+      description: Content Identifier as specified at https://github.com/multiformats/cid
+      example: QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N
+
+    LogLevel:
+      type: string
+      description: "One of the log levels: TRACE, DEBUG, INFO, NOTICE, WARN, ERROR or FATAL"
+      example: DEBUG
+
+    EthereumAddress:
+      type: string
+      description: Address of Ethereum address
+
+    Reward:
+      type: string
+      description: The maximum amount of tokens paid per second per slot to hosts the client is willing to pay
+
+    Duration:
+      type: string
+      description: The duration of the request in seconds as hexadecimal string
+
+    Expiry:
+      type: string
+      description: A timestamp as seconds since unix epoch at which this request expires if the Request does not find requested amount of nodes to host the data.
+      default: 10 minutes
+
+    ErasureParameters:
+      type: object
+      properties:
+        totalChunks:
+          type: number
+
+    PoRParameters:
+      description: Parameters for Proof of Retrievability
+      type: object
+      properties:
+        u:
+          type: string
+        publicKey:
+          type: string
+        name:
+          type: string
+
+    Content:
+      type: object
+      description: Parameters specifying the content
+      properties:
+        cid:
+          $ref: "#/components/schemas/Cid"
+        erasure:
+          $ref: "#/components/schemas/ErasureParameters"
+        por:
+          $ref: "#/components/schemas/PoRParameters"
+
+    DebugInfo:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/PeerId"
+        addrs:
+          type: array
+          items:
+            $ref: "#/components/schemas/MultiAddress"
+        repo:
+          type: string
+          description: Path of the data repository where all nodes data are stored
+        spr:
+          type: string
+          description: Signed Peer Record to advertise DHT connection information
+
+    SalesAvailability:
+      type: object
+      required:
+        - size
+        - minPrice
+      properties:
+        id:
+          type: string
+          description: Hexadecimal identifier of the availability
+        size:
+          type: string
+          description: Size of available storage in bytes as hexadecimal string
+        duration:
+          $ref: "#/components/schemas/Duration"
+        minPrice:
+          type: string
+          description: Minimum price to be paid (in amount of tokens) as hexadecimal string
+
+    StorageRequestCreation:
+      type: object
+      required:
+        - reward
+        - duration
+      properties:
+        duration:
+          $ref: "#/components/schemas/Duration"
+        reward:
+          $ref: "#/components/schemas/Reward"
+        nodes:
+          type: number
+          description: Minimal number of nodes the content should be stored on
+          default: 1 node
+        tolerance:
+          type: number
+          description: Additional number of nodes on top of the `nodes` property that can be lost before pronouncing the content lost
+          default: 0 nodes
+
+    StorageAsk:
+      type: object
+      required:
+        - reward
+      properties:
+        slots:
+          type: number
+          description: Number of slots (eq. hosts) that the Request want to have the content spread over
+        slotSize:
+          type: string
+          description: Amount of storage per slot (in bytes) as hexadecimal string
+        duration:
+          $ref: "#/components/schemas/Duration"
+        proofProbability:
+          type: string
+          description: How often storage proofs are required as hexadecimal string
+        reward:
+          $ref: "#/components/schemas/Reward"
+        maxSlotLoss:
+          type: number
+          description: Max slots that can be lost without data considered to be lost
+
+    StorageRequest:
+      type: object
+      properties:
+        client:
+          $ref: "#/components/schemas/EthereumAddress"
+        ask:
+          $ref: "#/components/schemas/StorageAsk"
+        content:
+          $ref: "#/components/schemas/Content"
+        expiry:
+          $ref: "#/components/schemas/Expiry"
+        nonce:
+          type: string
+          description: Random data
+
+    StorageRequestState:
+      type: object
+      properties:
+        state:
+          type: string
+          description: Description of the Request's state
+        error:
+          type: string
+          description: If Request failed, then here is presented the error message
+        request:
+          $ref: "#/components/schemas/StorageRequest"
+
+servers:
+  - url: "http://localhost:8080/api/codex/v1"
+
+tags:
+  - name: Marketplace
+    description: Marketplace information and operations
+  - name: Data
+    description: Data operations
+  - name: Node
+    description: Node management
+  - name: Debug
+    description: Debugging configuration
+
+paths:
+  "/connect/{peerId}":
+    get:
+      summary: "Connect to a peer"
+      description: |
+        If `addrs` param is supplied, it will be used to dial the peer, otherwise the `peerId` is used
+        to invoke peer discovery, if it succeeds the returned addresses will be used to dial.
+      tags: [ Node ]
+      operationId: connectPeer
+      parameters:
+        - in: path
+          name: peerId
+          required: true
+          schema:
+              $ref: "#/components/schemas/PeerId"
+          description: Peer that should be dialed.
+        - in: query
+          name: addrs
+          schema:
+            type: array
+            nullable: true
+            items:
+              $ref: "#/components/schemas/MultiAddress"
+          description: |
+            If supplied, it will be used to dial the peer.
+            The address has to target the listening address of the peer,
+            which is specified with the `--listen-addrs` CLI flag.
+
+      responses:
+        "200":
+          description: Successfully connected to peer
+        "400":
+          description: Peer either not found or was not possible to dial
+
+  "/download/{cid}":
+    get:
+      summary: "Download a file from the node in a streaming manner"
+      tags: [ Data ]
+      operationId: download
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+              $ref: "#/components/schemas/Cid"
+          description: File to be downloaded.
+
+      responses:
+        "200":
+          description: Retrieved content specified by CID
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid CID is specified
+        "404":
+          description: Content specified by the CID is not found
+        "500":
+          description: Well it was bad-bad
+
+  "/upload":
+    post:
+      summary: "Upload a file in a streaming manner"
+      tags: [ Data ]
+      operationId: upload
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: CID of uploaded file
+          content:
+            text/plain:
+              schema:
+                type: string
+        "500":
+          description: Well it was bad-bad and the upload did not work out
+
+  "/sales/availability":
+    get:
+      summary: "Returns storage that is for sale"
+      tags: [ Marketplace ]
+      operationId: getsOfferedStorage
+      responses:
+        "200":
+          description: Retrieved content specified by CID
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SalesAvailability"
+        "503":
+          description: Sales are unavailable
+
+    post:
+      summary: "Offers storage for sale"
+      operationId: offerStorage
+      tags: [ Marketplace ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SalesAvailability"
+      responses:
+        "200":
+          description: Created storage availability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalesAvailability"
+        "503":
+          description: Sales are unavailable
+
+  "/storage/purchases/{id}":
+    get:
+      summary: "Returns information about node's Requests"
+      tags: [ Marketplace ]
+      operationId: getStorageRequestState
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Hexadecimal ID of a Request
+      responses:
+        "200":
+          description: Information about the Request state and specification
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StorageRequestState"
+        "400":
+          description: Invalid or missing Request ID
+        "404":
+          description: Request ID not found
+        "503":
+          description: Purchasing is unavailable
+
+  "/storage/request/{cid}":
+    post:
+      summary: "Creates a new Request for storage"
+      tags: [ Marketplace ]
+      operationId: createStorageRequest
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+            $ref: "#/components/schemas/Cid"
+          description: CID of the uploaded data that should be stored
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StorageRequestCreation"
+      responses:
+        "200":
+          description: Returns the Request ID as hexadecimal string
+        "400":
+          description: Invalid or missing Request ID
+        "404":
+          description: Request ID not found
+        "503":
+          description: Purchasing is unavailable
+
+  "/debug/chronicles/loglevel":
+    post:
+      summary: "Set log level at run time"
+      tags: [ Debug ]
+      operationId: setDebugLogLevel
+
+      parameters:
+        - in: query
+          name: level
+          required: true
+          schema:
+            $ref: "#/components/schemas/LogLevel"
+
+      responses:
+        "200":
+          description: Successfully log level set
+        "400":
+          description: Invalid or missing log level
+        "500":
+          description: Well it was bad-bad
+
+  "/debug/info":
+    get:
+      summary: "Gets node information"
+      operationId: getDebugInfo
+      tags: [ Debug ]
+      responses:
+        "200":
+          description: Node's information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DebugInfo"
