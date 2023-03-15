@@ -33,6 +33,7 @@ type
     blockMaintenanceIntervalSeconds*: int
     blockMaintenanceNumberOfBlocks*: int
     cacheSize*: Natural
+    repoKind*: RepoKind
 
 proc start*(self: BlockStoreManager): Future[void] {.async.} =
   await self.repoStore.start()
@@ -45,9 +46,17 @@ proc stop*(self: BlockStoreManager): Future[void] {.async.} =
 proc getBlockStore*(self: BlockStoreManager): BlockStore =
   self.blockStore
 
+proc getRepoDatastore(config: BlockStoreManagerConfig): Datastore =
+  case config.repoKind
+    of repoFS:
+      return Datastore(FSDatastore.new($config.dataDir, depth = 5).expect("Should create repo file data store!"))
+    of repoSQLite:
+      return Datastore(SQLiteDatastore.new($config.dataDir).expect("Should create repo SQLite data store!"))
+  raise newException(Defect, "Unknown repoKind: " & $config.repoKind)
+
 proc createRepoStore(config: BlockStoreManagerConfig): RepoStore =
   RepoStore.new(
-    repoDs = Datastore(FSDatastore.new($config.dataDir, depth = 5).expect("Should create repo data store!")),
+    repoDs = getRepoDatastore(config),
     metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace).expect("Should create meta data store!"),
     quotaMaxBytes = config.storageQuota.uint,
     blockTtl = config.blockTtlSeconds.seconds)

@@ -32,6 +32,7 @@ import pkg/ethers
 
 import ./discovery
 import ./stores
+import ./consts
 
 export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval
 
@@ -46,10 +47,6 @@ type
     NoColors = "nocolors"
     Json = "json"
     None = "none"
-
-  RepoKind* = enum
-    repoFS = "fs"
-    repoSQLite = "sqlite"
 
   CodexConf* = object
     configFile* {.

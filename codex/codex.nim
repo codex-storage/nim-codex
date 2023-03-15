@@ -183,7 +183,8 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
       blockTtlSeconds: config.blockTtlSeconds,
       blockMaintenanceIntervalSeconds: config.blockMaintenanceIntervalSeconds,
       blockMaintenanceNumberOfBlocks: config.blockMaintenanceNumberOfBlocks,
-      cacheSize: config.cacheSize))
+      cacheSize: config.cacheSize,
+      repoKind: config.repoKind))
     blockStore = blockStoreManager.getBlockStore()
 
     peerStore = PeerCtxStore.new()
