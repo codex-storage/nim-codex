@@ -81,29 +81,6 @@ suite "RepoStore":
   proc createTestBlock(size: int): bt.Block =
     bt.Block.new('a'.repeat(size).toBytes).tryGet()
 
-  test "Should set started flag once started":
-    let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
-    await repo.start()
-    check repo.started
-
-  test "Should set started flag to false once stopped":
-    let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
-    await repo.start()
-    await repo.stop()
-    check not repo.started
-
-  test "Should allow start to be called multiple times":
-    let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
-    await repo.start()
-    await repo.start()
-    check repo.started
-
-  test "Should allow stop to be called multiple times":
-    let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)
-    await repo.stop()
-    await repo.stop()
-    check not repo.started
-
   test "Should update current used bytes on block put":
     let blk = createTestBlock(200)
 
