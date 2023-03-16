@@ -22,7 +22,6 @@ push: {.upraises: [].}
 import pkg/datastore
 import pkg/stew/byteutils
 import ../stores
-import ../namespaces
 import ../contracts/requests
 
 export requests

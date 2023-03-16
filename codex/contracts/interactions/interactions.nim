@@ -1,7 +1,4 @@
 import pkg/ethers
-import pkg/chronicles
-import pkg/questionable
-import pkg/questionable/results
 import ../../errors
 import ../deployment
 import ../clock
@@ -12,7 +9,8 @@ type
   ContractInteractionsError* = object of CodexError
   ReadDeploymentFileFailureError* = object of ContractInteractionsError
 
-method new*[T: ContractInteractions](_: type T, clock: OnChainClock): T {.base.} =
+proc new*(T: type ContractInteractions,
+          clock: OnChainClock): T =
   T(clock: clock)
 
 proc prepare*(
