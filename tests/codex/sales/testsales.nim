@@ -44,6 +44,7 @@ suite "Sales":
   var clock: MockClock
   var proving: Proving
   var reservations: Reservations
+  var repo: RepoStore
 
   setup:
     market = MockMarket.new()
@@ -51,7 +52,8 @@ suite "Sales":
     proving = Proving.new()
     let repoDs = SQLiteDatastore.new(Memory).tryGet()
     let metaDs = SQLiteDatastore.new(Memory).tryGet()
-    let repo = RepoStore.new(repoDs, metaDs)
+    repo = RepoStore.new(repoDs, metaDs)
+    await repo.start()
     sales = Sales.new(market, clock, proving, repo)
     reservations = sales.context.reservations
     sales.onStore = proc(request: StorageRequest,
@@ -64,6 +66,7 @@ suite "Sales":
     request.expiry = (clock.now() + 42).u256
 
   teardown:
+    await repo.stop()
     await sales.stop()
 
   test "makes storage unavailable when matching request comes in":
