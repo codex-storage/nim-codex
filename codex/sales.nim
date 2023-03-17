@@ -78,8 +78,6 @@ proc randomSlotIndex(numSlots: uint64): UInt256 =
 proc handleRequest(sales: Sales,
                    requestId: RequestId,
                    ask: StorageAsk) =
-  let reservations = sales.context.reservations
-
   # TODO: check if random slot is actually available (not already filled)
   let slotIndex = randomSlotIndex(ask.slots)
   let agent = newSalesAgent(
