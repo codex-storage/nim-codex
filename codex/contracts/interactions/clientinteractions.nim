@@ -1,5 +1,7 @@
 import pkg/ethers
 import pkg/chronicles
+import pkg/questionable
+import pkg/questionable/results
 
 import ../../purchasing
 import ../deployment
@@ -21,9 +23,9 @@ proc new*(_: type ClientInteractions,
           deployment: Deployment): ?!ClientInteractions =
 
   without address =? deployment.address(Marketplace):
-    let error = newException(ContractAddressError,
+    let err = newException(ContractAddressError,
       "Unable to determine address of the Marketplace smart contract")
-    return failure(error)
+    return failure(err)
 
   let contract = Marketplace.new(address, signer)
   let market = OnChainMarket.new(contract)
@@ -36,12 +38,12 @@ proc new*(_: type ClientInteractions,
 proc new*(_: type ClientInteractions,
           providerUrl: string,
           account: Address,
-          deploymentFile: ?string): ?!ClientInteractions =
+          deploymentFile: ?string = string.none): ?!ClientInteractions =
 
   without prepared =? prepare(providerUrl, account, deploymentFile), error:
     return failure(error)
 
-  return success(ClientInteractions.new(prepared.signer, prepared.deploy))
+  return ClientInteractions.new(prepared.signer, prepared.deploy)
 
 proc new*(_: type ClientInteractions,
           account: Address): ?!ClientInteractions =
