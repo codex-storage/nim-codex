@@ -8,6 +8,7 @@ type
     clock: OnChainClock
   ContractInteractionsError* = object of CodexError
   ReadDeploymentFileFailureError* = object of ContractInteractionsError
+  ContractAddressError* = object of ContractInteractionsError
 
 proc new*(T: type ContractInteractions,
           clock: OnChainClock): T =
@@ -16,7 +17,7 @@ proc new*(T: type ContractInteractions,
 proc prepare*(
   providerUrl: string = "ws://localhost:8545",
   account: Address,
-  deploymentFile: string = string.default):
+  deploymentFile: ?string):
   ?!tuple[signer: JsonRpcSigner, deploy: Deployment] =
 
   let provider = JsonRpcProvider.new(providerUrl)
@@ -24,10 +25,10 @@ proc prepare*(
 
   var deploy: Deployment
   try:
-    if deploymentFile == string.default:
+    if deploymentFile.isNone:
       deploy = deployment()
     else:
-      deploy = deployment(deploymentFile)
+      deploy = deployment(!deploymentFile)
   except IOError as e:
     let err = newException(ReadDeploymentFileFailureError,
       "Unable to read deployment json")

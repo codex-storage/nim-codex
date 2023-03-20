@@ -18,11 +18,12 @@ type
 
 proc new*(_: type ClientInteractions,
           signer: Signer,
-          deployment: Deployment): ?ClientInteractions =
+          deployment: Deployment): ?!ClientInteractions =
 
   without address =? deployment.address(Marketplace):
-    error "Unable to determine address of the Marketplace smart contract"
-    return none ClientInteractions
+    let error = newException(ContractAddressError,
+      "Unable to determine address of the Marketplace smart contract")
+    return failure(error)
 
   let contract = Marketplace.new(address, signer)
   let market = OnChainMarket.new(contract)
@@ -30,20 +31,20 @@ proc new*(_: type ClientInteractions,
 
   let c = ClientInteractions.new(clock)
   c.purchasing = Purchasing.new(market, clock)
-  some c
+  return success(c)
 
 proc new*(_: type ClientInteractions,
           providerUrl: string,
           account: Address,
-          deploymentFile: string = string.default): ?ClientInteractions =
+          deploymentFile: ?string): ?!ClientInteractions =
 
-  without prepared =? prepare(providerUrl, account, deploymentFile):
-    return none ClientInteractions
+  without prepared =? prepare(providerUrl, account, deploymentFile), error:
+    return failure(error)
 
-  ClientInteractions.new(prepared.signer, prepared.deploy)
+  return success(ClientInteractions.new(prepared.signer, prepared.deploy))
 
 proc new*(_: type ClientInteractions,
-          account: Address): ?ClientInteractions =
+          account: Address): ?!ClientInteractions =
   ClientInteractions.new("ws://localhost:8545", account)
 
 proc start*(self: ClientInteractions) {.async.} =

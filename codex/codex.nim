@@ -109,16 +109,12 @@ proc new(_: type Contracts,
     error "Persistence enabled, but no Ethereum account was set"
     quit QuitFailure
 
-  var client: ?ClientInteractions
-  var host: ?HostInteractions
-  if deployment =? config.ethDeployment:
-    client = ClientInteractions.new(config.ethProvider, account, deployment)
-    host = HostInteractions.new(config.ethProvider, account, repo, deployment)
-  else:
-    client = ClientInteractions.new(config.ethProvider, account)
-    host = HostInteractions.new(config.ethProvider, account, repo)
+  # TODO: at some point there may be cli options that enable client-only or host-only
+  # operation, and both client AND host will not necessarily need to be instantiated
+  let client = ClientInteractions.new(config.ethProvider, account, config.ethDeployment)
+  let host: HostInteractions.new(config.ethProvider, account, repo, config.ethDeployment)
 
-  (client, host)
+  (client.option, host.option)
 
 proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): T =
 
