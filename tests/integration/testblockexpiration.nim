@@ -29,7 +29,7 @@ ethersuite "Node block expiration tests":
       "--disc-ip=127.0.0.1",
       "--disc-port=8090",
       "--block-ttl=" & $blockTtlSeconds,
-      "--block-mi=3",
+      "--block-mi=1",
       "--block-mn=10"
     ], debug = false)
 
@@ -49,11 +49,11 @@ ethersuite "Node block expiration tests":
     content
 
   test "node retains not-expired file":
-    startTestNode(blockTtlSeconds = 60 * 60 * 1)
+    startTestNode(blockTtlSeconds = 10)
 
     let contentId = uploadTestFile()
 
-    await sleepAsync(10.seconds)
+    await sleepAsync(2.seconds)
 
     let response = downloadTestFile(contentId)
     check:
@@ -61,11 +61,11 @@ ethersuite "Node block expiration tests":
       response.body == content
 
   test "node deletes expired file":
-    startTestNode(blockTtlSeconds = 5)
+    startTestNode(blockTtlSeconds = 1)
 
     let contentId = uploadTestFile()
 
-    await sleepAsync(10.seconds)
+    await sleepAsync(2.seconds)
 
     expect TimeoutError:
       discard downloadTestFile(contentId)
