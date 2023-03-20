@@ -2,11 +2,27 @@ echo "Starting Codex..."
 
 args=""
 
-
 # Required arguments
-args="$args --data-dir=/datadir"
-args="$args --listen-addrs=/ip4/0.0.0.0/tcp/8071"
-args="$args --api-bindaddr=0.0.0.0"
+if [ -n "$LISTEN_ADDRS" ]; then
+  echo "Listen address: $LISTEN_ADDRS"
+  args="$args --listen-addrs=$LISTEN_ADDRS"
+else
+  args="$args --listen-addrs=/ip4/0.0.0.0/tcp/8071"
+fi
+
+if [ -n "$API_BINDADDR" ]; then
+  echo "API bind address: $API_BINDADDR"
+  args="$args --api-bindaddr=$API_BINDADDR"
+else
+  args="$args --api-bindaddr=0.0.0.0"
+fi
+
+if [ -n "$DATA_DIR" ]; then
+  echo "Data dir: $DATA_DIR"
+  args="$args --data-dir=$DATA_DIR"
+else
+  args="$args --data-dir=/datadir"
+fi
 
 # Optional arguments
 # Log level
