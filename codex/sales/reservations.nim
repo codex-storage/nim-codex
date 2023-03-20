@@ -311,3 +311,16 @@ proc find*(
         duration <= availability.duration and
         minPrice >= availability.minPrice:
         return some availability
+
+proc find*(
+  self: Reservations,
+  slotId: SlotId): Future[?Availability] {.async.} =
+
+  without availabilities =? (await self.availabilities), err:
+    error "failed to get all availabilities", error = err.msg
+    return none Availability
+
+  for a in availabilities:
+    if availability =? (await a) and
+       availability.slotId == some slotId:
+        return some availability
