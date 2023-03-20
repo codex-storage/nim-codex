@@ -258,7 +258,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       without contracts =? node.contracts.host:
         return RestApiResponse.error(Http503, "Sales unavailable")
 
-      without unused =? (await contracts.sales.reservations.unused), err:
+      without unused =? (await contracts.sales.context.reservations.unused), err:
         return RestApiResponse.error(Http500, err.msg)
 
       let json = %unused
@@ -281,10 +281,12 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       without availability =? Availability.fromJson(body), error:
         return RestApiResponse.error(Http400, error.msg)
 
-      if not contracts.sales.reservations.available(availability.size.truncate(uint)):
+      let reservations = contracts.sales.context.reservations
+
+      if not reservations.available(availability.size.truncate(uint)):
         return RestApiResponse.error(Http422, "Not enough storage quota")
 
-      if err =? (await contracts.sales.reservations.reserve(availability)).errorOption:
+      if err =? (await reservations.reserve(availability)).errorOption:
         return RestApiResponse.error(Http500, err.msg)
 
       let json = %availability

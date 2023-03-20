@@ -112,7 +112,7 @@ proc new(_: type Contracts,
   # TODO: at some point there may be cli options that enable client-only or host-only
   # operation, and both client AND host will not necessarily need to be instantiated
   let client = ClientInteractions.new(config.ethProvider, account, config.ethDeployment)
-  let host: HostInteractions.new(config.ethProvider, account, repo, config.ethDeployment)
+  let host = HostInteractions.new(config.ethProvider, account, repo, config.ethDeployment)
 
   (client.option, host.option)
 
