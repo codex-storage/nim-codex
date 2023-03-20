@@ -12,6 +12,9 @@ Stop and delete image and volume data:
 
 # Environment variables
 Codex docker image supports the following environment variables:
+- LISTEN_ADDRS(*)
+- API_BINDADDR(*)
+- DATA_DIR(*)
 - LOG_LEVEL
 - METRICS_ADDR
 - METRICS_PORT
@@ -29,6 +32,8 @@ Codex docker image supports the following environment variables:
 - ETH_PROVIDER
 - ETH_ACCOUNT
 - ETH_DEPLOYMENT
+
+(*) These variables have default values in the docker image that are different from Codex's standard default values.
 
 All environment variables are optional and will default to Codex's CLI default values.
 
