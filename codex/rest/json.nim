@@ -8,6 +8,7 @@ import ../purchasing
 type
   StorageRequestParams* = object
     duration*: UInt256
+    proofProbability*: UInt256
     reward*: UInt256
     expiry*: ?UInt256
     nodes*: ?uint
@@ -24,12 +25,14 @@ proc fromJson*(_: type StorageRequestParams,
                bytes: seq[byte]): ?! StorageRequestParams =
   let json = ?catch parseJson(string.fromBytes(bytes))
   let duration = ?catch UInt256.fromHex(json["duration"].getStr)
+  let proofProbability = ?catch UInt256.fromHex(json["proofProbability"].getStr)
   let reward = ?catch UInt256.fromHex(json["reward"].getStr)
   let expiry = UInt256.fromHex(json["expiry"].getStr).catch.option
   let nodes = strutils.fromHex[uint](json["nodes"].getStr).catch.option
   let tolerance = strutils.fromHex[uint](json["tolerance"].getStr).catch.option
   success StorageRequestParams(
     duration: duration,
+    proofProbability: proofProbability,
     reward: reward,
     expiry: expiry,
     nodes: nodes,

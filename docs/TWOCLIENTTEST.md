@@ -152,11 +152,14 @@ curl --location 'http://localhost:8080/api/codex/v1/storage/request/<CID>' \
 --header 'Content-Type: application/json' \
 --data '{
     "reward": "0x400",
-    "duration": "0x78"
+    "duration": "0x78",
+    "proofProbability": "0x10"
 }'
 ```
 
-This creates a storage Request for `<CID>` (that you have to fill in) for duration of 2 minutes and with reward of 1024 tokens.
+This creates a storage Request for `<CID>` (that you have to fill in) for
+duration of 2 minutes and with reward of 1024 tokens. It expects hosts to
+provide a storage proof once every 16 periods on average.
 
 It returns Request ID which you can then use to query for the Request's state as follows:
 
