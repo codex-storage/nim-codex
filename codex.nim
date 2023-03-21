@@ -9,7 +9,13 @@
 
 import pkg/chronicles
 import pkg/chronos
-import pkg/confutils
+import pkg/confutils, pkg/confutils/defs, pkg/confutils/std/net
+import
+  pkg/confutils/envvar/envvar_serialization,
+  pkg/confutils/toml/defs as confTomlDefs,
+  pkg/confutils/toml/std/net as confTomlNet,
+  pkg/confutils/toml/std/uri as confTomlUri
+import pkg/toml_serialization
 import pkg/libp2p
 
 import ./codex/conf
@@ -37,7 +43,12 @@ when isMainModule:
       Running
 
   let config = CodexConf.load(
-    version = codexFullVersion
+    version = codexFullVersion,
+    secondarySources = proc (config: CodexConf, sources: auto) =
+            sources.addConfigFile(Envvar, InputFile "codex")
+
+            if config.configFile.isSome:
+              sources.addConfigFile(Toml, config.configFile.get)
   )
   config.setupLogging()
   config.setupMetrics()
