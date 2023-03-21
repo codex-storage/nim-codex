@@ -140,18 +140,18 @@ ethersuite "Integration tests":
 
     proc buy(cid: string): string =
       let expiry = ((waitFor provider.currentTime()) + 30).toHex
-      let json = %*{"duration": "0x1", "reward": "0x400", "proofProbability": "0x3", "expiry": expiry}
+      let json = %*{"duration": "0x100", "reward": "0x400", "proofProbability": "0x3", "expiry": expiry}
       client.post(baseurl1 & "/storage/request/" & cid, $json).body
 
-    proc finish(purchase: string): Future[JsonNode] {.async.} =
+    proc waitForStart(purchase: string): Future[JsonNode] {.async.} =
       while true:
         let response = client.get(baseurl1 & "/storage/purchases/" & purchase)
         let json = parseJson(response.body)
-        if json["state"].getStr == "finished": return json
+        if json["state"].getStr == "started": return json
         await sleepAsync(1.seconds)
 
     sell()
-    let purchase = waitFor upload().buy().finish()
+    let purchase = await upload().buy().waitForStart()
 
     check purchase["error"].getStr == ""
     check available().len == 0
