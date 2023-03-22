@@ -1,0 +1,6 @@
+.github
+build
+docs
+metrics
+nimcache
+tests
