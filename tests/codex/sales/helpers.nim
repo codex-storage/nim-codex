@@ -1,5 +1,3 @@
-import std/algorithm
-
 import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
@@ -13,4 +11,4 @@ proc allAvailabilities*(r: Reservations): Future[seq[Availability]] {.async.} =
   for a in availabilities:
     if availability =? (await a):
       ret.add availability
-  return ret.reversed()
+  return ret
