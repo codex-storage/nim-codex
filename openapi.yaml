@@ -91,18 +91,6 @@ components:
           type: string
           description: Signed Peer Record to advertise DHT connection information
 
-    Purchase:
-      type: object
-        properties:
-          state:
-            type: string
-            description: Description of the Request's state
-          error:
-            type: string
-            description: If Request failed, then here is presented the error message
-          request:
-            $ref: "#/components/schemas/StorageRequest"
-
     SalesAvailability:
       type: object
       required:
