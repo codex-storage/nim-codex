@@ -91,6 +91,18 @@ components:
           type: string
           description: Signed Peer Record to advertise DHT connection information
 
+    Purchase:
+      type: object
+        properties:
+          state:
+            type: string
+            description: Description of the Request's state
+          error:
+            type: string
+            description: If Request failed, then here is presented the error message
+          request:
+            $ref: "#/components/schemas/StorageRequest"
+
     SalesAvailability:
       type: object
       required:
@@ -165,7 +177,7 @@ components:
           type: string
           description: Random data
 
-    StorageRequestState:
+    Purchase:
       type: object
       properties:
         state:
@@ -311,29 +323,29 @@ paths:
 
   "/storage/purchases/{id}":
     get:
-      summary: "Returns information about node's Requests"
+      summary: "Returns purchase details"
       tags: [ Marketplace ]
-      operationId: getStorageRequestState
+      operationId: getPurchase
       parameters:
         - in: path
           name: id
           required: true
           schema:
             type: string
-          description: Hexadecimal ID of a Request
+          description: Hexadecimal ID of a Purchase
       responses:
         "200":
-          description: Information about the Request state and specification
+          description: Purchase details
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/StorageRequestState"
+                  $ref: "#/components/schemas/Purchase"
         "400":
-          description: Invalid or missing Request ID
+          description: Invalid or missing Purchase ID
         "404":
-          description: Request ID not found
+          description: Purchase not found
         "503":
           description: Purchasing is unavailable
 
