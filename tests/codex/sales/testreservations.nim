@@ -129,6 +129,14 @@ suite "Reservations module":
     check isNone (await reservations.find(availability.size,
       availability.duration, availability.minPrice, used = false))
 
+  test "used availability can be found by slotid":
+    let slotId = SlotId.example
+    check isOk await reservations.reserve(availability)
+    check isOk await reservations.markUsed(availability, slotId)
+
+    without available =? await reservations.find(slotId):
+      fail()
+
   test "non-existant availability cannot be retrieved":
     let r = await reservations.get(availability.id)
     check r.error of AvailabilityNotExistsError
