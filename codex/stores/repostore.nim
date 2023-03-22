@@ -64,6 +64,12 @@ iterator items*(q: BlockExpirationIter): Future[?BlockExpiration] =
 func totalUsed*(self: RepoStore): uint =
   (self.quotaUsedBytes + self.quotaReservedBytes)
 
+func available*(self: RepoStore): uint =
+  return self.quotaMaxBytes - self.totalUsed
+
+func available*(self: RepoStore, bytes: uint): bool =
+  return bytes < self.available()
+
 method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the blockstore
   ##

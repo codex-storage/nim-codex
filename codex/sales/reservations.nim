@@ -110,11 +110,10 @@ func key(id: AvailabilityId): ?!Key =
 func key*(availability: Availability): ?!Key =
   return availability.id.key
 
-func available*(self: Reservations): uint =
-  return self.repo.quotaMaxBytes - self.repo.totalUsed
+func available*(self: Reservations): uint = self.repo.available
 
 func available*(self: Reservations, bytes: uint): bool =
-  return bytes < self.available()
+  self.repo.available(bytes)
 
 proc exists*(
   self: Reservations,
