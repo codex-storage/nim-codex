@@ -48,6 +48,7 @@ type
   AvailabilityDeleteFailedError* = object of AvailabilityError
   AvailabilityPutFailedError* = object of AvailabilityError
   AvailabilityGetFailedError* = object of AvailabilityError
+  AvailabilityUpdateError* = object of AvailabilityError
 
 const
   SalesKey = (CodexMetaKey / "sales").tryGet # TODO: move to sales module

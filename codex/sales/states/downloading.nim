@@ -9,6 +9,7 @@ import ./cancelled
 import ./failed
 import ./filled
 import ./proving
+import ./errored
 
 type
   SaleDownloading* = ref object of ErrorHandlingState
@@ -52,13 +53,16 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
       pricePerSlot = request.ask.pricePerSlot,
       used = false
     return
-  
+
   data.availability = some availability
 
   if err =? (await agent.context.reservations.markUsed(
     availability,
     request.slotId(data.slotIndex))).errorOption:
-    raiseAssert "failed to mark availability as used, error: " & err.msg
+    let error = newException(AvailabilityUpdateError,
+      "failed to mark availability as used")
+    error.parent = err
+    return some State(SaleErrored(error: error))
 
   await onStore(request, data.slotIndex, data.availability)
   return some State(SaleProving())
