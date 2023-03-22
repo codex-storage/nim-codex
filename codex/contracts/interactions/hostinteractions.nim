@@ -7,10 +7,7 @@ import ../../sales
 import ../../proving
 import ../../stores
 import ../deployment
-import ../marketplace
-import ../market
 import ../proofs
-import ../clock
 import ./interactions
 
 export sales
@@ -27,19 +24,14 @@ proc new*(_: type HostInteractions,
           deployment: Deployment,
           repoStore: RepoStore): ?!HostInteractions =
 
-  without address =? deployment.address(Marketplace):
-    let err = newException(ContractAddressError,
-      "Unable to determine address of the Marketplace smart contract")
-    return failure(err)
+  without prepared =? prepare(signer, deployment), error:
+    return failure(error)
 
-  let contract = Marketplace.new(address, signer)
-  let market = OnChainMarket.new(contract)
-  let proofs = OnChainProofs.new(contract)
-  let clock = OnChainClock.new(signer.provider)
-  let proving = Proving.new(proofs, clock)
+  let proofs = OnChainProofs.new(prepared.contract)
+  let proving = Proving.new(proofs, prepared.clock)
 
-  let h = HostInteractions.new(clock)
-  h.sales = Sales.new(market, clock, proving, repoStore)
+  let h = HostInteractions.new(prepared.clock)
+  h.sales = Sales.new(prepared.market, prepared.clock, proving, repoStore)
   h.proving = proving
   return success(h)
 
@@ -47,7 +39,7 @@ proc new*(_: type HostInteractions,
   providerUrl: string,
   account: Address,
   repo: RepoStore,
-  deploymentFile: ?string = string.none): ?!HostInteractions =
+  deploymentFile: ?string = none string): ?!HostInteractions =
 
   without prepared =? prepare(providerUrl, account, deploymentFile), error:
     return failure(error)

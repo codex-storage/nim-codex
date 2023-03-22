@@ -22,23 +22,17 @@ proc new*(_: type ClientInteractions,
           signer: Signer,
           deployment: Deployment): ?!ClientInteractions =
 
-  without address =? deployment.address(Marketplace):
-    let err = newException(ContractAddressError,
-      "Unable to determine address of the Marketplace smart contract")
-    return failure(err)
+  without prepared =? prepare(signer, deployment), error:
+    return failure(error)
 
-  let contract = Marketplace.new(address, signer)
-  let market = OnChainMarket.new(contract)
-  let clock = OnChainClock.new(signer.provider)
-
-  let c = ClientInteractions.new(clock)
-  c.purchasing = Purchasing.new(market, clock)
+  let c = ClientInteractions.new(prepared.clock)
+  c.purchasing = Purchasing.new(prepared.market, prepared.clock)
   return success(c)
 
 proc new*(_: type ClientInteractions,
           providerUrl: string,
           account: Address,
-          deploymentFile: ?string = string.none): ?!ClientInteractions =
+          deploymentFile: ?string = none string): ?!ClientInteractions =
 
   without prepared =? prepare(providerUrl, account, deploymentFile), error:
     return failure(error)

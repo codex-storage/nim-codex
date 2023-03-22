@@ -2,6 +2,8 @@ import pkg/ethers
 import ../../errors
 import ../deployment
 import ../clock
+import ../marketplace
+import ../market
 
 type
   ContractInteractions* = ref object of RootObj
@@ -15,6 +17,22 @@ proc new*(T: type ContractInteractions,
   T(clock: clock)
 
 proc prepare*(
+  signer: Signer,
+  deployment: Deployment):
+  ?!tuple[contract: Marketplace, market: OnChainMarket, clock: OnChainClock] =
+
+  without address =? deployment.address(Marketplace):
+    let err = newException(ContractAddressError,
+      "Unable to determine address of the Marketplace smart contract")
+    return failure(err)
+
+  let contract = Marketplace.new(address, signer)
+  let market = OnChainMarket.new(contract)
+  let clock = OnChainClock.new(signer.provider)
+
+  return success((contract, market, clock))
+
+proc prepare*(
   providerUrl: string = "ws://localhost:8545",
   account: Address,
   deploymentFile: ?string):
@@ -25,10 +43,7 @@ proc prepare*(
 
   var deploy: Deployment
   try:
-    if deploymentFile.isNone:
-      deploy = deployment()
-    else:
-      deploy = deployment(!deploymentFile)
+    deploy = deployment(deploymentFile)
   except IOError as e:
     let err = newException(ReadDeploymentFileFailureError,
       "Unable to read deployment json")

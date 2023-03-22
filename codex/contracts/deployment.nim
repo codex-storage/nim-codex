@@ -12,8 +12,8 @@ const defaultFile = "vendor" / "codex-contracts-eth" / "deployment-localhost.jso
 ## been exported with Hardhat deploy.
 ## See also:
 ## https://github.com/wighawag/hardhat-deploy/tree/master#6-hardhat-export
-proc deployment*(file = defaultFile): Deployment =
-  Deployment(json: parseFile(file))
+proc deployment*(file: ?string = some defaultFile): Deployment =
+  Deployment(json: parseFile(file |? defaultFile))
 
 proc address*(deployment: Deployment, Contract: typedesc): ?Address =
   if deployment.json == nil:
