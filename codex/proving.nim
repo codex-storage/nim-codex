@@ -13,18 +13,21 @@ type
     proofs: Proofs
     clock: Clock
     loop: ?Future[void]
-    slots*: HashSet[SlotId]
-    onProofRequired: ?OnProofRequired
-  OnProofRequired* = proc (id: SlotId) {.gcsafe, upraises:[].}
+    slots*: HashSet[Slot]
+    onProve: ?OnProve
+  OnProve* = proc(slot: Slot): Future[seq[byte]] {.gcsafe, upraises: [].}
 
 func new*(_: type Proving, proofs: Proofs, clock: Clock): Proving =
   Proving(proofs: proofs, clock: clock)
 
-proc `onProofRequired=`*(proving: Proving, callback: OnProofRequired) =
-  proving.onProofRequired = some callback
+proc onProve*(proving: Proving): ?OnProve =
+  proving.onProve
 
-func add*(proving: Proving, id: SlotId) =
-  proving.slots.incl(id)
+proc `onProve=`*(proving: Proving, callback: OnProve) =
+  proving.onProve = some callback
+
+func add*(proving: Proving, slot: Slot) =
+  proving.slots.incl(slot)
 
 proc getCurrentPeriod(proving: Proving): Future[Period] {.async.} =
   let periodicity = await proving.proofs.periodicity()
@@ -35,23 +38,32 @@ proc waitUntilPeriod(proving: Proving, period: Period) {.async.} =
   await proving.clock.waitUntil(periodicity.periodStart(period).truncate(int64))
 
 proc removeEndedContracts(proving: Proving) {.async.} =
-  var ended: HashSet[SlotId]
-  for id in proving.slots:
-    let state = await proving.proofs.slotState(id)
+  var ended: HashSet[Slot]
+  for slot in proving.slots:
+    let state = await proving.proofs.slotState(slot.id)
     if state != SlotState.Filled:
-      ended.incl(id)
+      ended.incl(slot)
   proving.slots.excl(ended)
+
+proc prove(proving: Proving, slot: Slot) {.async.} =
+  without onProve =? proving.onProve:
+    raiseAssert "onProve callback not set"
+  try:
+    let proof = await onProve(slot)
+    await proving.proofs.submitProof(slot.id, proof)
+  except CatchableError as e:
+    error "Submitting proof failed", msg = e.msg
 
 proc run(proving: Proving) {.async.} =
   try:
     while true:
       let currentPeriod = await proving.getCurrentPeriod()
       await proving.removeEndedContracts()
-      for id in proving.slots:
+      for slot in proving.slots:
+        let id = slot.id
         if (await proving.proofs.isProofRequired(id)) or
-          (await proving.proofs.willProofBeRequired(id)):
-          if callback =? proving.onProofRequired:
-            callback(id)
+           (await proving.proofs.willProofBeRequired(id)):
+          asyncSpawn proving.prove(slot)
       await proving.waitUntilPeriod(currentPeriod + 1)
   except CancelledError:
     discard
@@ -69,9 +81,6 @@ proc stop*(proving: Proving) {.async.} =
     proving.loop = Future[void].none
     if not loop.finished:
       await loop.cancelAndWait()
-
-proc submitProof*(proving: Proving, id: SlotId, proof: seq[byte]) {.async.} =
-  await proving.proofs.submitProof(id, proof)
 
 proc subscribeProofSubmission*(proving: Proving,
                                callback: OnProofSubmitted):

@@ -47,8 +47,7 @@ suite "Sales":
                          slot: UInt256,
                          availability: ?Availability) {.async.} =
       discard
-    sales.onProve = proc(request: StorageRequest,
-                         slot: UInt256): Future[seq[byte]] {.async.} =
+    proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       return proof
     await sales.start()
     request.expiry = (clock.now() + 42).u256
@@ -146,10 +145,9 @@ suite "Sales":
   test "generates proof of storage":
     var provingRequest: StorageRequest
     var provingSlot: UInt256
-    sales.onProve = proc(request: StorageRequest,
-                         slot: UInt256): Future[seq[byte]] {.async.} =
-      provingRequest = request
-      provingSlot = slot
+    proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
+      provingRequest = slot.request
+      provingSlot = slot.slotIndex
     sales.add(availability)
     await market.requestStorage(request)
     check eventually provingRequest == request
@@ -184,8 +182,7 @@ suite "Sales":
   test "calls onClear when storage becomes available again":
     # fail the proof intentionally to trigger `agent.finish(success=false)`,
     # which then calls the onClear callback
-    sales.onProve = proc(request: StorageRequest,
-                         slot: UInt256): Future[seq[byte]] {.async.} =
+    proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       raise newException(IOError, "proof failed")
     var clearedAvailability: Availability
     var clearedRequest: StorageRequest
@@ -238,7 +235,7 @@ suite "Sales":
     sales.add(availability)
     await market.requestStorage(request)
     check eventually proving.slots.len == 1
-    check proving.slots.contains(request.slotId(soldSlotIndex))
+    check proving.slots.contains(Slot(request: request, slotIndex: soldSlotIndex))
 
   test "loads active slots from market":
     let me = await market.getSigner()

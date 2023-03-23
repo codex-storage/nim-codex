@@ -25,87 +25,85 @@ suite "Proving":
     let periodicity = await proofs.periodicity()
     clock.advance(periodicity.seconds.truncate(int64))
 
-  test "maintains a list of contract ids to watch":
-    let id1, id2 = SlotId.example
+  test "maintains a list of slots to watch":
+    let slot1, slot2 = Slot.example
     check proving.slots.len == 0
-    proving.add(id1)
-    check proving.slots.contains(id1)
-    proving.add(id2)
-    check proving.slots.contains(id1)
-    check proving.slots.contains(id2)
+    proving.add(slot1)
+    check proving.slots.contains(slot1)
+    proving.add(slot2)
+    check proving.slots.contains(slot1)
+    check proving.slots.contains(slot2)
 
-  test "removes duplicate contract ids":
-    let id = SlotId.example
-    proving.add(id)
-    proving.add(id)
+  test "removes duplicate slots":
+    let slot = Slot.example
+    proving.add(slot)
+    proving.add(slot)
     check proving.slots.len == 1
 
   test "invokes callback when proof is required":
-    let id = SlotId.example
-    proving.add(id)
+    let slot = Slot.example
+    proving.add(slot)
     var called: bool
-    proc onProofRequired(id: SlotId) =
+    proc onProve(slot: Slot): Future[seq[byte]] {.async.} =
       called = true
-    proving.onProofRequired = onProofRequired
-    proofs.setSlotState(id, SlotState.Filled)
-    proofs.setProofRequired(id, true)
+    proving.onProve = onProve
+    proofs.setSlotState(slot.id, SlotState.Filled)
+    proofs.setProofRequired(slot.id, true)
     await proofs.advanceToNextPeriod()
     check eventually called
 
-  test "callback receives id of contract for which proof is required":
-    let id1, id2 = SlotId.example
-    proving.add(id1)
-    proving.add(id2)
-    var callbackIds: seq[SlotId]
-    proc onProofRequired(id: SlotId) =
-      callbackIds.add(id)
-    proving.onProofRequired = onProofRequired
-    proofs.setSlotState(id1, SlotState.Filled)
-    proofs.setSlotState(id2, SlotState.Filled)
-    proofs.setProofRequired(id1, true)
+  test "callback receives slot for which proof is required":
+    let slot1, slot2 = Slot.example
+    proving.add(slot1)
+    proving.add(slot2)
+    var callbackSlots: seq[Slot]
+    proc onProve(slot: Slot): Future[seq[byte]] {.async.} =
+      callbackSlots.add(slot)
+    proving.onProve = onProve
+    proofs.setSlotState(slot1.id, SlotState.Filled)
+    proofs.setSlotState(slot2.id, SlotState.Filled)
+    proofs.setProofRequired(slot1.id, true)
     await proofs.advanceToNextPeriod()
-    check eventually callbackIds == @[id1]
-    proofs.setProofRequired(id1, false)
-    proofs.setProofRequired(id2, true)
+    check eventually callbackSlots == @[slot1]
+    proofs.setProofRequired(slot1.id, false)
+    proofs.setProofRequired(slot2.id, true)
     await proofs.advanceToNextPeriod()
-    check eventually callbackIds == @[id1, id2]
+    check eventually callbackSlots == @[slot1, slot2]
 
   test "invokes callback when proof is about to be required":
-    let id = SlotId.example
-    proving.add(id)
+    let slot = Slot.example
+    proving.add(slot)
     var called: bool
-    proc onProofRequired(id: SlotId) =
+    proc onProve(slot: Slot): Future[seq[byte]] {.async.} =
       called = true
-    proving.onProofRequired = onProofRequired
-    proofs.setProofRequired(id, false)
-    proofs.setProofToBeRequired(id, true)
-    proofs.setSlotState(id, SlotState.Filled)
+    proving.onProve = onProve
+    proofs.setProofRequired(slot.id, false)
+    proofs.setProofToBeRequired(slot.id, true)
+    proofs.setSlotState(slot.id, SlotState.Filled)
     await proofs.advanceToNextPeriod()
     check eventually called
 
-  test "stops watching when contract has ended":
-    let id = SlotId.example
-    proving.add(id)
-    proofs.setProofEnd(id, clock.now().u256)
+  test "stops watching when slot is finished":
+    let slot = Slot.example
+    proving.add(slot)
+    proofs.setProofEnd(slot.id, clock.now().u256)
     await proofs.advanceToNextPeriod()
     var called: bool
-    proc onProofRequired(id: SlotId) =
+    proc onProve(slot: Slot): Future[seq[byte]] {.async.} =
       called = true
-    proving.onProofRequired = onProofRequired
-    proofs.setProofRequired(id, true)
+    proving.onProve = onProve
+    proofs.setProofRequired(slot.id, true)
     await proofs.advanceToNextPeriod()
-    proofs.setSlotState(id, SlotState.Finished)
-    check eventually (not proving.slots.contains(id))
+    proofs.setSlotState(slot.id, SlotState.Finished)
+    check eventually (not proving.slots.contains(slot))
     check not called
 
   test "submits proofs":
-    let id = SlotId.example
+    let slot = Slot.example
     let proof = exampleProof()
-    await proving.submitProof(id, proof)
 
-  test "supports proof submission subscriptions":
-    let id = SlotId.example
-    let proof = exampleProof()
+    proving.onProve = proc (slot: Slot): Future[seq[byte]] {.async.} =
+      return proof
 
     var receivedIds: seq[SlotId]
     var receivedProofs: seq[seq[byte]]
@@ -116,9 +114,11 @@ suite "Proving":
 
     let subscription = await proving.subscribeProofSubmission(onProofSubmission)
 
-    await proving.submitProof(id, proof)
+    proving.add(slot)
+    proofs.setSlotState(slot.id, SlotState.Filled)
+    proofs.setProofRequired(slot.id, true)
+    await proofs.advanceToNextPeriod()
 
-    check receivedIds == @[id]
-    check receivedProofs == @[proof]
+    check eventually receivedIds == @[slot.id] and receivedProofs == @[proof]
 
     await subscription.unsubscribe()

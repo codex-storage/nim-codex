@@ -9,7 +9,6 @@ type
     market*: Market
     clock*: Clock
     onStore*: ?OnStore
-    onProve*: ?OnProve
     onClear*: ?OnClear
     onSale*: ?OnSale
     onSaleErrored*: ?OnSaleErrored
@@ -17,8 +16,6 @@ type
   OnStore* = proc(request: StorageRequest,
                   slot: UInt256,
                   availability: ?Availability): Future[void] {.gcsafe, upraises: [].}
-  OnProve* = proc(request: StorageRequest,
-                  slot: UInt256): Future[seq[byte]] {.gcsafe, upraises: [].}
   OnClear* = proc(availability: ?Availability,# TODO: when availability changes introduced, make availability non-optional (if we need to keep it at all)
                   request: StorageRequest,
                   slotIndex: UInt256) {.gcsafe, upraises: [].}

@@ -362,21 +362,9 @@ proc start*(node: CodexNodeRef) {.async.} =
       # TODO: remove data from local storage
       discard
 
-    contracts.sales.onProve = proc(request: StorageRequest,
-                                   slot: UInt256): Future[seq[byte]] {.async.} =
+    contracts.proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       # TODO: generate proof
       return @[42'u8]
-
-    contracts.sales.onSale = proc(availability: ?Availability,
-                                  request: StorageRequest,
-                                  slotIndex: UInt256) =
-      contracts.proving.add(slotId(request, slotIndex))
-
-    contracts.proving.onProofRequired = proc(id: SlotId) =
-      # TODO: generate proof
-      let proof = @[42'u8]
-       # TODO: remove asyncspawn
-      asyncSpawn contracts.proving.submitProof(id, proof)
 
     try:
       await contracts.start()
