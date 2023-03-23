@@ -20,7 +20,7 @@ import ./helpers
 
 suite "Sales":
 
-  let availability = Availability.init(
+  let availability = Availability.new(
     size=100.u256,
     duration=60.u256,
     minPrice=600.u256

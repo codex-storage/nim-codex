@@ -28,7 +28,7 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
     if (exists =? await reservations.exists(availability.id)) and
       exists == true:
 
-      if err =? (await reservations.markUnused(availability)).errorOption:
+      if err =? (await reservations.markUnused(availability.id)).errorOption:
         error "Failed to mark availability unused", error = err.msg
 
   await agent.unsubscribe()

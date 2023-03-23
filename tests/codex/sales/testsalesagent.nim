@@ -44,7 +44,7 @@ method run*(state: MockErrorState, machine: Machine): Future[?State] {.async.} =
 
 suite "Sales agent":
 
-  let availability = Availability.init(
+  let availability = Availability.new(
     size=100.u256,
     duration=60.u256,
     minPrice=600.u256

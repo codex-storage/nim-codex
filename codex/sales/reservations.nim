@@ -16,6 +16,8 @@ import pkg/json_serialization
 import pkg/json_serialization/std/options
 import pkg/stint
 import pkg/nimcrypto
+import pkg/questionable
+import pkg/questionable/results
 
 push: {.upraises: [].}
 
@@ -28,12 +30,12 @@ export requests
 
 type
   AvailabilityId* = distinct array[32, byte]
-  Availability* = object
+  Availability* = ref object
     id*: AvailabilityId
     size*: UInt256
     duration*: UInt256
     minPrice*: UInt256
-    slotId*: ?SlotId
+    used*: bool
   Reservations* = ref object
     repo: RepoStore
   GetNext* = proc(): Future[?Availability] {.upraises: [], gcsafe, closure.}
@@ -60,7 +62,7 @@ proc new*(
 
   T(repo: repo)
 
-proc init*(
+proc new*(
   _: type Availability,
   size: UInt256,
   duration: UInt256,
@@ -100,9 +102,6 @@ proc readValue*[T: SlotId | AvailabilityId](
 
   mixin readValue
   value = T reader.readValue(T.distinctBase)
-
-func used*(availability: Availability): bool =
-  availability.slotId.isSome
 
 func key(id: AvailabilityId): ?!Key =
   (ReservationsKey / id.toArray.toHex)
@@ -147,20 +146,14 @@ proc get*(
 
 proc update(
   self: Reservations,
-  availability: Availability,
-  slotId: ?SlotId): Future[?!void] {.async.} =
-
-  without var updated =? await self.get(availability.id), err:
-    return failure(err)
-
-  updated.slotId = slotId
+  availability: Availability): Future[?!void] {.async.} =
 
   without key =? availability.key, err:
     return failure(err)
 
   if err =? (await self.repo.metaDs.put(
     key,
-    @(updated.toJson.toBytes))).errorOption:
+    @(availability.toJson.toBytes))).errorOption:
     return failure(err)
 
   return success()
@@ -177,36 +170,27 @@ proc reserve*(
   without key =? availability.key, err:
     return failure(err)
 
-  if err =? (await self.repo.metaDs.put(
-    key,
-    @(availability.toJson.toBytes))).errorOption:
-    return failure(err)
+  let bytes = availability.size.truncate(uint)
 
-  # TODO: reconcile data sizes -- availability uses UInt256 and RepoStore
-  # uses uint, thus the need to truncate
-  if reserveInnerErr =? (await self.repo.reserve(
-    availability.size.truncate(uint))).errorOption:
+  if reserveErr =? (await self.repo.reserve(bytes)).errorOption:
+    return failure(reserveErr.toErr(AvailabilityReserveFailedError))
 
-    let reserveErr = reserveInnerErr.toErr(AvailabilityReserveFailedError,
-      "Availability reservation failed")
+  if err =? (await self.update(availability)).errorOption:
+    let updateErr = err.toErr(AvailabilityUpdateError, "failure creating availability")
 
-    # rollback persisted availability
-    if rollbackInnerErr =? (await self.repo.metaDs.delete(key)).errorOption:
-      let rollbackErr = rollbackInnerErr.toErr(AvailabilityDeleteFailedError,
-        "Failed to delete persisted availability during rollback")
-      rollbackInnerErr.parent = reserveErr
+    # rollback the reserve
+    if rollbackErr =? (await self.repo.release(bytes)).errorOption:
+      rollbackErr.parent = updateErr
       return failure(rollbackErr)
 
-    return failure(reserveErr)
+    return failure(updateErr)
 
   return success()
 
-# TODO: call site not yet determined. Perhaps reuse of Availabilty should be set
-# on creation (from the REST endpoint). Reusable availability wouldn't get
-# released after contract completion. Non-reusable availability would.
-proc release*(
+proc partialRelease*(
   self: Reservations,
-  id: AvailabilityId): Future[?!void] {.async.} =
+  id: AvailabilityId,
+  bytes: uint): Future[?!void] {.async.} =
 
   without availability =? (await self.get(id)), err:
     return failure(err.toErr(AvailabilityGetFailedError))
@@ -214,44 +198,43 @@ proc release*(
   without key =? id.key, err:
     return failure(err)
 
-  if err =? (await self.repo.metaDs.delete(key)).errorOption:
-    return failure(err.toErr(AvailabilityDeleteFailedError))
+  if releaseErr =? (await self.repo.release(bytes)).errorOption:
+    return failure(releaseErr.toErr(AvailabilityReleaseFailedError))
 
-  # TODO: reconcile data sizes -- availability uses UInt256 and RepoStore
-  # uses uint, thus the need to truncate
-  if releaseInnerErr =? (await self.repo.release(
-    availability.size.truncate(uint))).errorOption:
+  availability.size = (availability.size.truncate(uint) - bytes).u256
 
-    let releaseErr = releaseInnerErr.toErr(AvailabilityReleaseFailedError)
+  if err =? (await self.update(availability)).errorOption:
+    let updateErr = err.toErr(AvailabilityUpdateError, "failure updating availability size")
 
-    # rollback delete
-    if rollbackInnerErr =? (await self.repo.metaDs.put(
-      key,
-      @(availability.toJson.toBytes))).errorOption:
-
-      let rollbackErr = rollbackInnerErr.toErr(
-        AvailabilityPutFailedError,
-        "Failed to restore persisted availability during rollback")
-      rollbackInnerErr.parent = releaseErr
+    # rollback the release
+    if rollbackErr =? (await self.repo.reserve(bytes)).errorOption:
+      rollbackErr.parent = updateErr
       return failure(rollbackErr)
 
-    return failure(releaseErr)
+    return failure(updateErr)
 
   return success()
 
 
 proc markUsed*(
   self: Reservations,
-  availability: Availability,
-  slotId: SlotId): Future[?!void] {.async.} =
+  id: AvailabilityId): Future[?!void] {.async.} =
 
-  return await self.update(availability, some slotId)
+  without availability =? (await self.get(id)), err:
+    return failure(err.toErr(AvailabilityGetFailedError))
+
+  availability.used = true
+  return await self.update(availability)
 
 proc markUnused*(
   self: Reservations,
-  availability: Availability): Future[?!void] {.async.} =
+  id: AvailabilityId): Future[?!void] {.async.} =
 
-  return await self.update(availability, none SlotId)
+  without availability =? (await self.get(id)), err:
+    return failure(err.toErr(AvailabilityGetFailedError))
+
+  availability.used = false
+  return await self.update(availability)
 
 iterator items*(self: AvailabilityIter): Future[?Availability] =
   while not self.finished:
@@ -303,24 +286,10 @@ proc find*(
     return none Availability
 
   for a in availabilities:
-    if availability =? (await a):
-      let satisfiesUsed = (used and availability.used) or
-                          (not used and not availability.used)
-      if satisfiesUsed and
-        size <= availability.size and
-        duration <= availability.duration and
-        minPrice >= availability.minPrice:
-        return some availability
-
-proc find*(
-  self: Reservations,
-  slotId: SlotId): Future[?Availability] {.async.} =
-
-  without availabilities =? (await self.availabilities), err:
-    error "failed to get all availabilities", error = err.msg
-    return none Availability
-
-  for a in availabilities:
     if availability =? (await a) and
-       availability.slotId == some slotId:
-        return some availability
+      used == availability.used and
+      size <= availability.size and
+      duration <= availability.duration and
+      minPrice >= availability.minPrice:
+
+      return some availability

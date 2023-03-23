@@ -97,13 +97,11 @@ proc load*(sales: Sales) {.async.} =
 
   for slotId in slotIds:
     if (request, slotIndex) =? (await market.getActiveSlot(slotId)):
-      let availability = await sales.context.reservations.find(slotId)
-
       let agent = newSalesAgent(
         sales.context,
         request.id,
         slotIndex,
-        availability,
+        none Availability,
         some request)
       agent.start(SaleUnknown())
       sales.agents.add agent

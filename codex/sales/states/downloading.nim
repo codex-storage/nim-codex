@@ -1,6 +1,7 @@
 import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
+import ../../blocktype as bt
 import ../../market
 import ../salesagent
 import ../statemachine
@@ -32,6 +33,7 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
   let agent = SalesAgent(machine)
   let data = agent.data
   let context = agent.context
+  let reservations = context.reservations
 
   await agent.retrieveRequest()
   await agent.subscribe()
@@ -42,7 +44,7 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
   without request =? data.request:
     raiseAssert "no sale request"
 
-  without availability =? await context.reservations.find(
+  without availability =? await reservations.find(
       request.ask.slotSize,
       request.ask.duration,
       request.ask.pricePerSlot,
@@ -54,15 +56,32 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
       used = false
     return
 
-  data.availability = some availability
+  # mark availability as used so that it is not matched to other requests
+  if err =? (await reservations.markUsed(availability.id)).errorOption:
+    return some State(SaleErrored(error: err))
 
-  if err =? (await agent.context.reservations.markUsed(
-    availability,
-    request.slotId(data.slotIndex))).errorOption:
-    let error = newException(AvailabilityUpdateError,
-      "failed to mark availability as used")
-    error.parent = err
-    return some State(SaleErrored(error: error))
+  proc onBatch(blocks: seq[bt.Block]) {.async.} =
+    # release batches of blocks as they are written to disk and
+    # update availability size
+    var bytes: uint = 0
+    for blk in blocks:
+      bytes += blk.data.len.uint
+    if err =? (await reservations.partialRelease(availability.id, bytes)).errorOption:
+      # TODO: need to return SaleErrored in the closure somehow
+      error "Error releasing bytes and resizing availability", error = err.msg
 
-  await onStore(request, data.slotIndex, data.availability)
+  if err =? (await onStore(request,
+                           data.slotIndex,
+                           some availability,
+                           onBatch)).errorOption:
+    return some State(SaleErrored(error: err))
+
+  if err =? (await reservations.markUnused(availability.id)).errorOption:
+    return some State(SaleErrored(error: err))
+
+  # TODO: data.availability is not used in any of the callbacks, remove it from
+  # the callbacks? If so, this block is not needed:
+  if a =? await reservations.get(availability.id):
+    data.availability = some a
+
   return some State(SaleProving())

@@ -17,6 +17,7 @@ import pkg/questionable/results
 import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
+import pkg/upraises
 
 # TODO: remove once exported by libp2p
 import pkg/libp2p/routing_record
@@ -39,7 +40,7 @@ const
   FetchBatch = 200
 
 type
-  BatchProc* = proc(blocks: seq[bt.Block]): Future[void] {.gcsafe, raises: [Defect].}
+  BatchProc* = proc(blocks: seq[bt.Block]): Future[void] {.gcsafe, upraises:[].}
 
   CodexError = object of CatchableError
 
@@ -338,27 +339,30 @@ proc start*(node: CodexNodeRef) {.async.} =
   if hostContracts =? node.contracts.host:
     # TODO: remove Sales callbacks, pass BlockStore and StorageProofs instead
     hostContracts.sales.onStore = proc(request: StorageRequest,
-                                   slot: UInt256,
-                                   availability: ?Availability) {.async.} =
+                                       slot: UInt256,
+                                       availability: ?Availability,
+                                       onBatch: BatchProc): Future[?!void] {.async.} =
       ## store data in local storage
       ##
 
       without cid =? Cid.init(request.content.cid):
         trace "Unable to parse Cid", cid
-        raise newException(CodexError, "Unable to parse Cid")
+        let error = newException(CodexError, "Unable to parse Cid")
+        return failure(error)
 
       without manifest =? await node.fetchManifest(cid), error:
         trace "Unable to fetch manifest for cid", cid
-        raise error
+        return failure(error)
 
       trace "Fetching block for manifest", cid
       # TODO: This will probably require a call to `getBlock` either way,
       # since fetching of blocks will have to be selective according
       # to a combination of parameters, such as node slot position
       # and dataset geometry
-      let fetchRes = await node.fetchBatched(manifest)
+      let fetchRes = await node.fetchBatched(manifest, onBatch = onBatch)
       if fetchRes.isErr:
-        raise newException(CodexError, "Unable to retrieve blocks")
+        let error = newException(CodexError, "Unable to retrieve blocks")
+        return failure(error)
 
     hostContracts.sales.onClear = proc(availability: ?Availability,
                                    request: StorageRequest,
