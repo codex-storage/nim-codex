@@ -30,6 +30,9 @@ type
     u*: seq[byte]
     publicKey*: seq[byte]
     name*: seq[byte]
+  Slot* = object
+    request*: StorageRequest
+    slotIndex*: UInt256
   SlotId* = distinct array[32, byte]
   RequestId* = distinct array[32, byte]
   Nonce* = distinct array[32, byte]
@@ -50,6 +53,8 @@ proc `==`*(x, y: Nonce): bool {.borrow.}
 proc `==`*(x, y: RequestId): bool {.borrow.}
 proc `==`*(x, y: SlotId): bool {.borrow.}
 proc hash*(x: SlotId): Hash {.borrow.}
+proc hash*(x: Nonce): Hash {.borrow.}
+proc hash*(x: Address): Hash {.borrow.}
 
 func toArray*(id: RequestId | SlotId | Nonce): array[32, byte] =
   array[32, byte](id)
@@ -158,6 +163,9 @@ func slotId*(requestId: RequestId, slot: UInt256): SlotId =
 
 func slotId*(request: StorageRequest, slot: UInt256): SlotId =
   slotId(request.id, slot)
+
+func id*(slot: Slot): SlotId =
+  slotId(slot.request, slot.slotIndex)
 
 func pricePerSlot*(ask: StorageAsk): UInt256 =
   ask.duration * ask.reward

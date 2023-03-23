@@ -47,6 +47,11 @@ proc example*(_: type StorageRequest): StorageRequest =
     nonce: Nonce.example
   )
 
+proc example*(_: type Slot): Slot =
+  let request = StorageRequest.example
+  let slotIndex = rand(request.ask.slots.int).u256
+  Slot(request: request, slotIndex: slotIndex)
+
 proc exampleProof*(): seq[byte] =
   var proof: seq[byte]
   while proof.len == 0:
