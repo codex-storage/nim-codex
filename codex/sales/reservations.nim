@@ -15,6 +15,7 @@ import pkg/upraises
 import pkg/json_serialization
 import pkg/json_serialization/std/options
 import pkg/stint
+import pkg/stew/byteutils
 import pkg/nimcrypto
 import pkg/questionable
 import pkg/questionable/results
@@ -27,6 +28,9 @@ import ../stores
 import ../contracts/requests
 
 export requests
+
+logScope:
+    topics = "reservations"
 
 type
   AvailabilityId* = distinct array[32, byte]
@@ -43,14 +47,12 @@ type
     finished*: bool
     next*: GetNext
   AvailabilityError* = object of CodexError
-  AvailabilityNotExistsError* = object of AvailabilityError
   AvailabilityAlreadyExistsError* = object of AvailabilityError
   AvailabilityReserveFailedError* = object of AvailabilityError
   AvailabilityReleaseFailedError* = object of AvailabilityError
   AvailabilityDeleteFailedError* = object of AvailabilityError
-  AvailabilityPutFailedError* = object of AvailabilityError
   AvailabilityGetFailedError* = object of AvailabilityError
-  AvailabilityUpdateError* = object of AvailabilityError
+  AvailabilityUpdateFailedError* = object of AvailabilityError
 
 const
   SalesKey = (CodexMetaKey / "sales").tryGet # TODO: move to sales module
@@ -77,6 +79,9 @@ func toArray*(id: AvailabilityId): array[32, byte] =
 
 proc `==`*(x, y: AvailabilityId): bool {.borrow.}
 proc `==`*(x, y: Availability): bool =
+  if x.isNil and y.isNil: return true
+  elif x.isNil or y.isNil: return false
+
   x.id == y.id and
   x.size == y.size and
   x.duration == y.duration and
@@ -129,18 +134,18 @@ proc get*(
   id: AvailabilityId): Future[?!Availability] {.async.} =
 
   if exists =? (await self.exists(id)) and not exists:
-    let err = newException(AvailabilityNotExistsError,
+    let err = newException(AvailabilityGetFailedError,
       "Availability does not exist")
     return failure(err)
 
   without key =? id.key, err:
-    return failure(err)
+    return failure(err.toErr(AvailabilityGetFailedError))
 
   without serialized =? await self.repo.metaDs.get(key), err:
-    return failure(err)
+    return failure(err.toErr(AvailabilityGetFailedError))
 
   without availability =? Json.decode(serialized, Availability).catch, err:
-    return failure(err)
+    return failure(err.toErr(AvailabilityGetFailedError))
 
   return success availability
 
@@ -154,7 +159,22 @@ proc update(
   if err =? (await self.repo.metaDs.put(
     key,
     @(availability.toJson.toBytes))).errorOption:
+    return failure(err.toErr(AvailabilityUpdateFailedError))
+
+  return success()
+
+proc delete(
+  self: Reservations,
+  id: AvailabilityId): Future[?!void] {.async.} =
+
+  without availability =? (await self.get(id)), err:
     return failure(err)
+
+  without key =? availability.key, err:
+    return failure(err)
+
+  if err =? (await self.repo.metaDs.delete(key)).errorOption:
+    return failure(err.toErr(AvailabilityDeleteFailedError))
 
   return success()
 
@@ -175,8 +195,7 @@ proc reserve*(
   if reserveErr =? (await self.repo.reserve(bytes)).errorOption:
     return failure(reserveErr.toErr(AvailabilityReserveFailedError))
 
-  if err =? (await self.update(availability)).errorOption:
-    let updateErr = err.toErr(AvailabilityUpdateError, "failure creating availability")
+  if updateErr =? (await self.update(availability)).errorOption:
 
     # rollback the reserve
     if rollbackErr =? (await self.repo.release(bytes)).errorOption:
@@ -187,13 +206,13 @@ proc reserve*(
 
   return success()
 
-proc partialRelease*(
+proc release*(
   self: Reservations,
   id: AvailabilityId,
   bytes: uint): Future[?!void] {.async.} =
 
   without availability =? (await self.get(id)), err:
-    return failure(err.toErr(AvailabilityGetFailedError))
+    return failure(err)
 
   without key =? id.key, err:
     return failure(err)
@@ -203,15 +222,23 @@ proc partialRelease*(
 
   availability.size = (availability.size.truncate(uint) - bytes).u256
 
-  if err =? (await self.update(availability)).errorOption:
-    let updateErr = err.toErr(AvailabilityUpdateError, "failure updating availability size")
-
-    # rollback the release
+  template rollbackRelease(e: ref CatchableError) =
     if rollbackErr =? (await self.repo.reserve(bytes)).errorOption:
-      rollbackErr.parent = updateErr
+      rollbackErr.parent = e
       return failure(rollbackErr)
 
-    return failure(updateErr)
+  # remove completely used availabilities
+  if availability.size == 0.u256:
+    if err =? (await self.delete(availability.id)).errorOption:
+      rollbackRelease(err)
+      return failure(err)
+
+    return success()
+
+  # persist partially used availability with updated size
+  if err =? (await self.update(availability)).errorOption:
+    rollbackRelease(err)
+    return failure(err)
 
   return success()
 
@@ -224,7 +251,10 @@ proc markUsed*(
     return failure(err.toErr(AvailabilityGetFailedError))
 
   availability.used = true
-  return await self.update(availability)
+  let r = await self.update(availability)
+  if r.isOk:
+    trace "availability marked used", id = id.toArray.toHex
+  return r
 
 proc markUnused*(
   self: Reservations,
@@ -234,7 +264,10 @@ proc markUnused*(
     return failure(err.toErr(AvailabilityGetFailedError))
 
   availability.used = false
-  return await self.update(availability)
+  let r = await self.update(availability)
+  if r.isOk:
+    trace "availability marked unused", id = id.toArray.toHex
+  return r
 
 iterator items*(self: AvailabilityIter): Future[?Availability] =
   while not self.finished:
