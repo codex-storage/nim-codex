@@ -359,9 +359,9 @@ proc start*(node: CodexNodeRef) {.async.} =
       # since fetching of blocks will have to be selective according
       # to a combination of parameters, such as node slot position
       # and dataset geometry
-      let fetchRes = await node.fetchBatched(manifest, onBatch = onBatch)
-      if fetchRes.isErr:
+      if fetchErr =? (await node.fetchBatched(manifest, onBatch = onBatch)).errorOption:
         let error = newException(CodexError, "Unable to retrieve blocks")
+        error.parent = fetchErr
         return failure(error)
 
     hostContracts.sales.onClear = proc(availability: ?Availability,

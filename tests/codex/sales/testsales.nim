@@ -9,6 +9,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/codex/sales
 import pkg/codex/sales/salesdata
+import pkg/codex/sales/salescontext
 import pkg/codex/sales/reservations
 import pkg/codex/stores/repostore
 import pkg/codex/proving
@@ -58,9 +59,11 @@ suite "Sales":
     reservations = sales.context.reservations
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         availability: ?Availability) {.async.} =
-      discard
-    proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
+                         availability: ?Availability,
+                         onBatch: BatchProc): Future[?!void] {.async.} =
+      return success()
+    sales.onProve = proc(request: StorageRequest,
+                         slot: UInt256): Future[seq[byte]] {.async.} =
       return proof
     await sales.start()
     request.expiry = (clock.now() + 42).u256
@@ -69,13 +72,20 @@ suite "Sales":
     await repo.stop()
     await sales.stop()
 
-  test "makes storage unavailable when matching request comes in":
+  test "makes storage unavailable when downloading a matched request":
+    var used = false
+    sales.onStore = proc(request: StorageRequest,
+                         slot: UInt256,
+                         a: ?Availability,
+                         onBatch: BatchProc): Future[?!void] {.async.} =
+      without avail =? await reservations.get(availability.id):
+        fail()
+      used = avail.used
+      return success()
+
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    await sleepAsync(1.millis)
-    without availability =? await reservations.get(availability.id):
-      fail()
-    check availability.used
+    check eventually used
 
   test "ignores request when no matching storage is available":
     check isOk await reservations.reserve(availability)
@@ -103,11 +113,13 @@ suite "Sales":
     var storingAvailability: Availability
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         availability: ?Availability) {.async.} =
+                         availability: ?Availability,
+                         onBatch: BatchProc): Future[?!void] {.async.} =
       storingRequest = request
       storingSlot = slot
       check availability.isSome
       storingAvailability = !availability
+      return success()
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     check eventually storingRequest == request
@@ -116,10 +128,9 @@ suite "Sales":
 
   test "handles errors during state run":
     var saleFailed = false
-    sales.onStore = proc(request: StorageRequest,
-                         slot: UInt256,
-                         availability: ?Availability) {.async.} =
-      # raise an exception so machine.onError is called
+    sales.onProve = proc(request: StorageRequest,
+                         slot: UInt256): Future[seq[byte]] {.async.} =
+      # raise exception so machine.onError is called
       raise newException(ValueError, "some error")
 
     # onClear is called in SaleErrored.run
@@ -135,11 +146,12 @@ suite "Sales":
     let error = newException(IOError, "data retrieval failed")
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         availability: ?Availability) {.async.} =
-      raise error
+                         availability: ?Availability,
+                         onBatch: BatchProc): Future[?!void] {.async.} =
+      return failure(error)
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    await sleepAsync(1.millis)
+    await sleepAsync(2.millis)
     without availability =? await reservations.get(availability.id):
       fail()
     check not availability.used
@@ -206,8 +218,10 @@ suite "Sales":
     let otherHost = Address.example
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         availability: ?Availability) {.async.} =
+                         availability: ?Availability,
+                         onBatch: BatchProc): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
+      return success()
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     await sleepAsync(1.millis)
@@ -221,8 +235,10 @@ suite "Sales":
   test "makes storage available again when request expires":
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         availability: ?Availability) {.async.} =
+                         availability: ?Availability,
+                         onBatch: BatchProc): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
+      return success()
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     await sleepAsync(1.millis)

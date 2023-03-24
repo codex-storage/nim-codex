@@ -19,7 +19,7 @@ suite "Reservations module":
   var
     repo: RepoStore
     repoDs: Datastore
-    metaDs: Datastore
+    metaDs: SQLiteDatastore
     availability: Availability
     reservations: Reservations
 
@@ -64,9 +64,20 @@ suite "Reservations module":
 
     check exists
 
-  test "reserved availability can be released":
+  test "reserved availability can be partially released":
+    let size = availability.size.truncate(uint)
     check isOk await reservations.reserve(availability)
-    check isOk await reservations.release(availability.id)
+    check isOk await reservations.release(availability.id, size - 1)
+
+    without a =? await reservations.get(availability.id):
+      fail()
+
+    check a.size == 1
+
+  test "availability is deleted after being fully released":
+    let size = availability.size.truncate(uint)
+    check isOk await reservations.reserve(availability)
+    check isOk await reservations.release(availability.id, size)
 
     without exists =? await reservations.exists(availability.id):
       fail()
@@ -74,9 +85,10 @@ suite "Reservations module":
     check not exists
 
   test "non-existant availability cannot be released":
-    let r = await reservations.release(availability.id)
+    let size = availability.size.truncate(uint)
+    let r = await reservations.release(availability.id, size - 1)
     check r.error of AvailabilityGetFailedError
-    check r.error.parent of AvailabilityNotExistsError
+    check r.error.msg == "Availability does not exist"
 
   test "added availability is not used initially":
     check isOk await reservations.reserve(availability)
@@ -89,7 +101,7 @@ suite "Reservations module":
   test "availability can be marked used":
     check isOk await reservations.reserve(availability)
 
-    check isOk await reservations.markUsed(availability, SlotId.example)
+    check isOk await reservations.markUsed(availability.id)
 
     without available =? await reservations.get(availability.id):
       fail()
@@ -99,8 +111,8 @@ suite "Reservations module":
   test "availability can be marked unused":
     check isOk await reservations.reserve(availability)
 
-    check isOk await reservations.markUsed(availability, SlotId.example)
-    check isOk await reservations.markUnused(availability)
+    check isOk await reservations.markUsed(availability.id)
+    check isOk await reservations.markUnused(availability.id)
 
     without available =? await reservations.get(availability.id):
       fail()
@@ -110,7 +122,7 @@ suite "Reservations module":
   test "used availability can be found":
     check isOk await reservations.reserve(availability)
 
-    check isOk await reservations.markUsed(availability, SlotId.example)
+    check isOk await reservations.markUsed(availability.id)
 
     without available =? await reservations.find(availability.size,
       availability.duration, availability.minPrice, used = true):
@@ -129,17 +141,10 @@ suite "Reservations module":
     check isNone (await reservations.find(availability.size,
       availability.duration, availability.minPrice, used = false))
 
-  test "used availability can be found by slotid":
-    let slotId = SlotId.example
-    check isOk await reservations.reserve(availability)
-    check isOk await reservations.markUsed(availability, slotId)
-
-    without available =? await reservations.find(slotId):
-      fail()
-
   test "non-existant availability cannot be retrieved":
     let r = await reservations.get(availability.id)
-    check r.error of AvailabilityNotExistsError
+    check r.error of AvailabilityGetFailedError
+    check r.error.msg == "Availability does not exist"
 
   test "same availability cannot be reserved twice":
     check isOk await reservations.reserve(availability)
@@ -163,44 +168,21 @@ suite "Reservations module":
     reservations = Reservations.new(repo)
     check not reservations.available(availability.size.truncate(uint))
 
-  test "fails to reserve availability size that is larger than available quota":
+  test "fails to reserve availability with size that is larger than available quota":
     repo = RepoStore.new(repoDs, metaDs,
                          quotaMaxBytes = availability.size.truncate(uint) - 1)
     reservations = Reservations.new(repo)
     let r = await reservations.reserve(availability)
     check r.error of AvailabilityReserveFailedError
     check r.error.parent of QuotaNotEnoughError
-
-  test "rolls back persisted availability if repo reservation fails":
-    repo = RepoStore.new(repoDs, metaDs,
-                         quotaMaxBytes = availability.size.truncate(uint) - 1)
-    reservations = Reservations.new(repo)
-    discard await reservations.reserve(availability)
     check exists =? (await reservations.exists(availability.id)) and not exists
 
   test "fails to release availability size that is larger than available quota":
+    let size = availability.size.truncate(uint)
     repo = RepoStore.new(repoDs, metaDs,
-                         quotaMaxBytes = availability.size.truncate(uint))
+                         quotaMaxBytes = size)
     reservations = Reservations.new(repo)
     discard await reservations.reserve(availability)
-    # increase size of availability past repo quota, so that the next release
-    # will fail
-    availability.size += 1.u256
-    let key = !(availability.key)
-    check isOk await metaDs.put(key, @(availability.toJson.toBytes))
-    let r = await reservations.release(availability.id)
+    let r = await reservations.release(availability.id, size + 1)
     check r.error of AvailabilityReleaseFailedError
     check r.error.parent.msg == "Cannot release this many bytes"
-
-  test "rolls back persisted availability if repo release fails":
-    repo = RepoStore.new(repoDs, metaDs,
-                         quotaMaxBytes = availability.size.truncate(uint))
-    reservations = Reservations.new(repo)
-    discard await reservations.reserve(availability)
-    # increase size of availability past repo quota, so that the next release
-    # will fail
-    availability.size += 1.u256
-    let key = !(availability.key)
-    check isOk await metaDs.put(key, @(availability.toJson.toBytes))
-    discard await reservations.release(availability.id)
-    check exists =? (await reservations.exists(availability.id)) and exists

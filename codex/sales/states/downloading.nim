@@ -14,8 +14,9 @@ import ./errored
 
 type
   SaleDownloading* = ref object of ErrorHandlingState
-    failedSubscription: ?market.Subscription
-    hasCancelled: ?Future[void]
+
+logScope:
+    topics = "sales downloading"
 
 method `$`*(state: SaleDownloading): string = "SaleDownloading"
 
@@ -66,15 +67,23 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
     var bytes: uint = 0
     for blk in blocks:
       bytes += blk.data.len.uint
-    if err =? (await reservations.partialRelease(availability.id, bytes)).errorOption:
-      # TODO: need to return SaleErrored in the closure somehow
-      error "Error releasing bytes and resizing availability", error = err.msg
 
+    trace "Releasing batch of bytes written to disk", bytes
+    let r = await reservations.release(availability.id, bytes)
+    # `tryGet` will raise the exception that occurred during release, if there
+    # was one. The exception will be caught in the closure and sent to the
+    # SaleErrored state.
+    r.tryGet()
+
+  trace "Starting download"
   if err =? (await onStore(request,
                            data.slotIndex,
                            some availability,
                            onBatch)).errorOption:
+    data.availability = some availability
     return some State(SaleErrored(error: err))
+
+  trace "Download complete"
 
   if err =? (await reservations.markUnused(availability.id)).errorOption:
     return some State(SaleErrored(error: err))
