@@ -23,7 +23,7 @@ method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
 
   if request =? data.request and
       slotIndex =? data.slotIndex:
-    context.proving.add(request.slotId(slotIndex))
+    context.proving.add(Slot(request: request, slotIndex: slotIndex))
 
     if onSale =? context.onSale:
       onSale(data.availability, request, slotIndex)

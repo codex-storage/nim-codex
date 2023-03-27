@@ -47,9 +47,6 @@ type
 proc `onStore=`*(sales: Sales, onStore: OnStore) =
   sales.context.onStore = some onStore
 
-proc `onProve=`*(sales: Sales, onProve: OnProve) =
-  sales.context.onProve = some onProve
-
 proc `onClear=`*(sales: Sales, onClear: OnClear) =
   sales.context.onClear = some onClear
 
@@ -57,8 +54,6 @@ proc `onSale=`*(sales: Sales, callback: OnSale) =
   sales.context.onSale = some callback
 
 proc onStore*(sales: Sales): ?OnStore = sales.context.onStore
-
-proc onProve*(sales: Sales): ?OnProve = sales.context.onProve
 
 proc onClear*(sales: Sales): ?OnClear = sales.context.onClear
 

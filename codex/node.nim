@@ -235,6 +235,7 @@ proc store*(
 proc requestStorage*(self: CodexNodeRef,
                      cid: Cid,
                      duration: UInt256,
+                     proofProbability: UInt256,
                      nodes: uint,
                      tolerance: uint,
                      reward: UInt256,
@@ -280,6 +281,7 @@ proc requestStorage*(self: CodexNodeRef,
       slots: nodes + tolerance,
       slotSize: (encoded.blockSize * encoded.steps).u256,
       duration: duration,
+      proofProbability: proofProbability,
       reward: reward,
       maxSlotLoss: tolerance
     ),
@@ -360,8 +362,7 @@ proc start*(node: CodexNodeRef) {.async.} =
       # TODO: remove data from local storage
       discard
 
-    contracts.sales.onProve = proc(request: StorageRequest,
-                                   slot: UInt256): Future[seq[byte]] {.async.} =
+    contracts.proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       # TODO: generate proof
       return @[42'u8]
 
