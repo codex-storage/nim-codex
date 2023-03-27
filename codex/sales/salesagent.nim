@@ -17,13 +17,11 @@ type SalesAgent* = ref object of Machine
 proc newSalesAgent*(context: SalesContext,
                     requestId: RequestId,
                     slotIndex: UInt256,
-                    availability: ?Availability,
                     request: ?StorageRequest): SalesAgent =
   SalesAgent(
     context: context,
     data: SalesData(
       requestId: requestId,
-      availability: availability,
       slotIndex: slotIndex,
       request: request))
 

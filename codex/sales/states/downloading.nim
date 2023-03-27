@@ -9,6 +9,7 @@ import ./errorhandling
 import ./cancelled
 import ./failed
 import ./filled
+import ./finished
 import ./proving
 import ./errored
 
@@ -55,11 +56,11 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
       duration = request.ask.duration,
       pricePerSlot = request.ask.pricePerSlot,
       used = false
-    return
+    return some State(SaleFinished())
 
   # mark availability as used so that it is not matched to other requests
-  if err =? (await reservations.markUsed(availability.id)).errorOption:
-    return some State(SaleErrored(error: err))
+  if markUsedErr =? (await reservations.markUsed(availability.id)).errorOption:
+    return some State(SaleErrored(error: markUsedErr))
 
   proc onBatch(blocks: seq[bt.Block]) {.async.} =
     # release batches of blocks as they are written to disk and
@@ -75,22 +76,19 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
     # SaleErrored state.
     r.tryGet()
 
+  template markUnused(id: AvailabilityId) =
+    if markUnusedErr =? (await reservations.markUnused(id)).errorOption:
+      return some State(SaleErrored(error: markUnusedErr))
+
   trace "Starting download"
   if err =? (await onStore(request,
                            data.slotIndex,
-                           some availability,
                            onBatch)).errorOption:
-    data.availability = some availability
+
+    markUnused(availability.id)
     return some State(SaleErrored(error: err))
 
   trace "Download complete"
 
-  if err =? (await reservations.markUnused(availability.id)).errorOption:
-    return some State(SaleErrored(error: err))
-
-  # TODO: data.availability is not used in any of the callbacks, remove it from
-  # the callbacks? If so, this block is not needed:
-  if a =? await reservations.get(availability.id):
-    data.availability = some a
-
+  markUnused(availability.id)
   return some State(SaleProving())

@@ -84,7 +84,6 @@ proc handleRequest(sales: Sales,
     sales.context,
     requestId,
     slotIndex,
-    none Availability,
     none StorageRequest
   )
   agent.start(SaleDownloading())
@@ -101,7 +100,6 @@ proc load*(sales: Sales) {.async.} =
         sales.context,
         request.id,
         slotIndex,
-        none Availability,
         some request)
       agent.start(SaleUnknown())
       sales.agents.add agent

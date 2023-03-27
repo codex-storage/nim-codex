@@ -7,7 +7,6 @@ type
   SalesData* = ref object
     requestId*: RequestId
     ask*: StorageAsk
-    availability*: ?Availability
     request*: ?StorageRequest
     slotIndex*: UInt256
     failed*: market.Subscription

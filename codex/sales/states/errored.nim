@@ -21,15 +21,7 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
   if onClear =? context.onClear and
       request =? data.request and
       slotIndex =? data.slotIndex:
-    onClear(data.availability, request, slotIndex)
-
-  if availability =? data.availability:
-    let reservations = context.reservations
-    if (exists =? await reservations.exists(availability.id)) and
-      exists == true:
-
-      if err =? (await reservations.markUnused(availability.id)).errorOption:
-        error "Failed to mark availability unused", error = err.msg
+    onClear(request, slotIndex)
 
   await agent.unsubscribe()
 
