@@ -340,7 +340,6 @@ proc start*(node: CodexNodeRef) {.async.} =
     # TODO: remove Sales callbacks, pass BlockStore and StorageProofs instead
     hostContracts.sales.onStore = proc(request: StorageRequest,
                                        slot: UInt256,
-                                       availability: ?Availability,
                                        onBatch: BatchProc): Future[?!void] {.async.} =
       ## store data in local storage
       ##
@@ -364,9 +363,10 @@ proc start*(node: CodexNodeRef) {.async.} =
         error.parent = fetchErr
         return failure(error)
 
-    hostContracts.sales.onClear = proc(availability: ?Availability,
-                                   request: StorageRequest,
-                                   slotIndex: UInt256) =
+      return success()
+
+    hostContracts.sales.onClear = proc(request: StorageRequest,
+                                       slotIndex: UInt256) =
       # TODO: remove data from local storage
       discard
 

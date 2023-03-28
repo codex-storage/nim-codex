@@ -34,7 +34,7 @@ suite "Sales":
   var repo: RepoStore
 
   setup:
-    availability = Availability.new(
+    availability = Availability.init(
       size=100.u256,
       duration=60.u256,
       minPrice=600.u256
@@ -75,7 +75,7 @@ suite "Sales":
     await repo.stop()
     await sales.stop()
 
-  proc getAvailability(): ?!Availability =
+  proc getAvailability: ?!Availability =
     waitFor reservations.get(availability.id)
 
   test "makes storage unavailable when downloading a matched request":

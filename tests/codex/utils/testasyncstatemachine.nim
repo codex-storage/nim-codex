@@ -13,6 +13,11 @@ type
 
 var runs, cancellations, errors = [0, 0, 0, 0]
 
+method `$`(state: State1): string = "State1"
+method `$`(state: State2): string = "State2"
+method `$`(state: State3): string = "State3"
+method `$`(state: State4): string = "State4"
+
 method run(state: State1, machine: Machine): Future[?State] {.async.} =
   inc runs[0]
   return some State(State2.new())

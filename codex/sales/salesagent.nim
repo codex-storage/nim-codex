@@ -1,4 +1,5 @@
 import pkg/chronos
+import pkg/chronicles
 import pkg/stint
 import ../contracts/requests
 import ../utils/asyncspawn
@@ -8,6 +9,9 @@ import ./salesdata
 import ./reservations
 
 export reservations
+
+logScope:
+  topics = "sales statemachine"
 
 type SalesAgent* = ref object of Machine
   context*: SalesContext

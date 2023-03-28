@@ -1,5 +1,6 @@
 import std/json
 import pkg/chronos
+import pkg/stint
 import ../contracts/time
 import ../codex/helpers/eventually
 import ./twonodes
@@ -62,8 +63,9 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check client1.getPurchase(id){"request"}{"ask"}{"reward"} == %"0x2"
 
   test "nodes negotiate contracts on the marketplace":
+    let size = 0xFFFFF
     # client 2 makes storage available
-    discard client2.postAvailability(size=0xFFFFF, duration=200, minPrice=300)
+    discard client2.postAvailability(size=size, duration=200, minPrice=300)
 
     # client 1 requests storage
     let expiry = (await provider.currentTime()) + 30
@@ -72,4 +74,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
 
     check eventually client1.getPurchase(purchase){"state"} == %"started"
     check client1.getPurchase(purchase){"error"} == newJNull()
-    check client2.getAvailabilities().len == 0
+    let availabilities = client2.getAvailabilities()
+    let newSize = UInt256.fromHex(availabilities[0]{"size"}.getStr)
+    check newSize > 0
+    check newSize < UInt256.fromHex(size)

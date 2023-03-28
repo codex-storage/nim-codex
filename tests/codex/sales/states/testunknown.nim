@@ -27,7 +27,6 @@ suite "sales state 'unknown'":
     agent = newSalesAgent(context,
                           request.id,
                           slotIndex,
-                          Availability.none,
                           StorageRequest.none)
     state = SaleUnknown.new()
 

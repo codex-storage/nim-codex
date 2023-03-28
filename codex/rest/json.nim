@@ -19,7 +19,7 @@ proc fromJson*(_: type Availability, bytes: seq[byte]): ?!Availability =
   let size = ?catch UInt256.fromHex(json["size"].getStr)
   let duration = ?catch UInt256.fromHex(json["duration"].getStr)
   let minPrice = ?catch UInt256.fromHex(json["minPrice"].getStr)
-  success Availability.new(size, duration, minPrice)
+  success Availability.init(size, duration, minPrice)
 
 proc fromJson*(_: type StorageRequestParams,
                bytes: seq[byte]): ?! StorageRequestParams =

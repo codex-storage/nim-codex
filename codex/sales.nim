@@ -36,6 +36,9 @@ import ./sales/states/unknown
 export stint
 export reservations
 
+logScope:
+  topics = "sales"
+
 type
   Sales* = ref object
     context*: SalesContext
@@ -78,6 +81,11 @@ proc randomSlotIndex(numSlots: uint64): UInt256 =
 proc handleRequest(sales: Sales,
                    requestId: RequestId,
                    ask: StorageAsk) =
+
+  debug "handling storage requested",
+    slots = ask.slots, slotSize = ask.slotSize, duration = ask.duration,
+    reward = ask.reward, maxSlotLoss = ask.maxSlotLoss
+
   # TODO: check if random slot is actually available (not already filled)
   let slotIndex = randomSlotIndex(ask.slots)
   let agent = newSalesAgent(

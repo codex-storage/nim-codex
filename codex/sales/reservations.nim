@@ -23,18 +23,17 @@ import pkg/questionable/results
 push: {.upraises: [].}
 
 import pkg/datastore
-import pkg/stew/byteutils
 import ../stores
 import ../contracts/requests
 
 export requests
 
 logScope:
-    topics = "reservations"
+  topics = "reservations"
 
 type
   AvailabilityId* = distinct array[32, byte]
-  Availability* = ref object
+  Availability* = object
     id*: AvailabilityId
     size*: UInt256
     duration*: UInt256
@@ -64,7 +63,7 @@ proc new*(
 
   T(repo: repo)
 
-proc new*(
+proc init*(
   _: type Availability,
   size: UInt256,
   duration: UInt256,
@@ -79,13 +78,12 @@ func toArray*(id: AvailabilityId): array[32, byte] =
 
 proc `==`*(x, y: AvailabilityId): bool {.borrow.}
 proc `==`*(x, y: Availability): bool =
-  if x.isNil and y.isNil: return true
-  elif x.isNil or y.isNil: return false
-
   x.id == y.id and
   x.size == y.size and
   x.duration == y.duration and
   x.minPrice == y.minPrice
+
+proc `$`*(id: AvailabilityId): string = id.toArray.toHex
 
 proc toErr[E1: ref CatchableError, E2: AvailabilityError](
   e1: E1,
@@ -153,6 +151,9 @@ proc update(
   self: Reservations,
   availability: Availability): Future[?!void] {.async.} =
 
+  trace "updating availability", id = availability.id, size = availability.size,
+    used = availability.used
+
   without key =? availability.key, err:
     return failure(err)
 
@@ -166,6 +167,8 @@ proc update(
 proc delete(
   self: Reservations,
   id: AvailabilityId): Future[?!void] {.async.} =
+
+  trace "deleting availability", id
 
   without availability =? (await self.get(id)), err:
     return failure(err)
@@ -198,6 +201,7 @@ proc reserve*(
   if updateErr =? (await self.update(availability)).errorOption:
 
     # rollback the reserve
+    trace "rolling back reserve"
     if rollbackErr =? (await self.repo.release(bytes)).errorOption:
       rollbackErr.parent = updateErr
       return failure(rollbackErr)
@@ -211,7 +215,9 @@ proc release*(
   id: AvailabilityId,
   bytes: uint): Future[?!void] {.async.} =
 
-  without availability =? (await self.get(id)), err:
+  trace "releasing bytes and updating availability", bytes, id
+
+  without var availability =? (await self.get(id)), err:
     return failure(err)
 
   without key =? id.key, err:
@@ -223,6 +229,7 @@ proc release*(
   availability.size = (availability.size.truncate(uint) - bytes).u256
 
   template rollbackRelease(e: ref CatchableError) =
+    trace "rolling back release"
     if rollbackErr =? (await self.repo.reserve(bytes)).errorOption:
       rollbackErr.parent = e
       return failure(rollbackErr)
@@ -247,7 +254,7 @@ proc markUsed*(
   self: Reservations,
   id: AvailabilityId): Future[?!void] {.async.} =
 
-  without availability =? (await self.get(id)), err:
+  without var availability =? (await self.get(id)), err:
     return failure(err.toErr(AvailabilityGetFailedError))
 
   availability.used = true
@@ -260,7 +267,7 @@ proc markUnused*(
   self: Reservations,
   id: AvailabilityId): Future[?!void] {.async.} =
 
-  without availability =? (await self.get(id)), err:
+  without var availability =? (await self.get(id)), err:
     return failure(err.toErr(AvailabilityGetFailedError))
 
   availability.used = false
@@ -314,15 +321,29 @@ proc find*(
   size, duration, minPrice: UInt256,
   used: bool): Future[?Availability] {.async.} =
 
+
   without availabilities =? (await self.availabilities), err:
     error "failed to get all availabilities", error = err.msg
     return none Availability
 
   for a in availabilities:
-    if availability =? (await a) and
-      used == availability.used and
-      size <= availability.size and
-      duration <= availability.duration and
-      minPrice >= availability.minPrice:
+    if availability =? (await a):
 
-      return some availability
+      if used == availability.used and
+        size <= availability.size and
+        duration <= availability.duration and
+        minPrice >= availability.minPrice:
+
+        trace "availability matched",
+          used, availUsed = availability.used,
+          size, availsize = availability.size,
+          duration, availDuration = availability.duration,
+          minPrice, availMinPrice = availability.minPrice
+
+        return some availability
+
+      trace "availiability did not match",
+        used, availUsed = availability.used,
+        size, availsize = availability.size,
+        duration, availDuration = availability.duration,
+        minPrice, availMinPrice = availability.minPrice
