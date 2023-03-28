@@ -19,7 +19,7 @@ For detailed instructions on preparing to build nim-codex see [*Building Codex*]
 To build the project, clone it and run:
 
 ```bash
-make update && make exec
+make update && make
 ```
 
 The executable will be placed under the `build` directory under the project root.

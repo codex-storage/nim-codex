@@ -129,10 +129,10 @@ $ make V=1 update
 
 In Bash run
 ```text
-$ make exec
+$ make
 ```
 
-The `exec` target creates the `build/codex` executable.
+The default `make` target creates the `build/codex` executable.
 
 ## Example usage
 
