@@ -73,56 +73,6 @@ codex initNode
 
 To get acquainted with Codex, consider running the manual two-client test described [HERE](docs/TWOCLIENTTEST.md).
 
-## Interacting with the client
+## API
 
-The client exposes a REST API that can be used to interact with the clients. These commands could be invoked with any HTTP client, however the following endpoints assume the use of the `curl` command.
-
-### `/api/codex/v1/connect/{peerId}`
-
-Connect to a peer identified by its peer id. Takes an optional `addrs` parameter with a list of valid [multiaddresses](https://multiformats.io/multiaddr/). If `addrs` is absent, the peer will be discovered over the DHT.
-
-Example:
-
-```bash
-curl "127.0.0.1:8080/api/codex/v1/connect/<peer id>?addrs=<multiaddress>"
-```
-
-### `/api/codex/v1/download/{id}`
-
-Download data identified by a `Cid`.
-
-Example:
-
-```bash
- curl -vvv "127.0.0.1:8080/api/codex/v1/download/<Cid of the content>" --output <name of output file>
- ```
-
-### `/api/codex/v1/upload`
-
-Upload a file, upon success returns the `Cid` of the uploaded file.
-
-Example:
-
-```bash
-curl -vvv -H "content-type: application/octet-stream" -H Expect: -T "<path to file>" "127.0.0.1:8080/api/codex/v1/upload" -X POST
-```
-
-### `/api/codex/v1/debug/info`
-
-Get useful node info such as its peer id, address and SPR.
-
-Example:
-
-```bash
-curl -vvv "127.0.0.1:8080/api/codex/v1/info"
-```
-
-### `/api/codex/v1/debug/chronicles/loglevel`
-
-Set [chronicles](https://github.com/status-im/nim-chronicles) log level and topic filtering at runtime. The request format is `?level=<MAIN LEVEL>;<FILTER LEVEL>:<TOPIC>` - e.g. `?level=DEBUG;TRACE:codex`
-
-Example:
-
-```bash
-curl -X POST -H 'Content-Type: text/plain' -vvv "127.0.0.1:8080/api/codex/v1/debug/chronicles/loglevel?level=DEBUG;TRACE:codex" -d ""
-```
+The client exposes a REST API that can be used to interact with the clients. Overview of the API can be found on [api.codex.storage](https://api.codex.storage).
