@@ -65,8 +65,7 @@ suite "Sales":
                          slot: UInt256,
                          onBatch: BatchProc): Future[?!void] {.async.} =
       return success()
-    sales.onProve = proc(request: StorageRequest,
-                         slot: UInt256): Future[seq[byte]] {.async.} =
+    proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       return proof
     await sales.start()
     request.expiry = (clock.now() + 42).u256
@@ -155,8 +154,7 @@ suite "Sales":
 
   test "handles errors during state run":
     var saleFailed = false
-    sales.onProve = proc(request: StorageRequest,
-                         slot: UInt256): Future[seq[byte]] {.async.} =
+    proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       # raise exception so machine.onError is called
       raise newException(ValueError, "some error")
 

@@ -71,6 +71,12 @@ func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
     nonce: tupl[4]
   )
 
+func fromTuple(_: type Slot, tupl: tuple): Slot =
+  Slot(
+    request: tupl[0],
+    slotIndex: tupl[1]
+  )
+
 func fromTuple(_: type StorageAsk, tupl: tuple): StorageAsk =
   StorageAsk(
     slots: tupl[0],
@@ -133,6 +139,9 @@ func encode*(encoder: var AbiEncoder, id: RequestId | SlotId | Nonce) =
 func encode*(encoder: var AbiEncoder, request: StorageRequest) =
   encoder.write(request.fieldValues)
 
+func encode*(encoder: var AbiEncoder, request: Slot) =
+  encoder.write(request.fieldValues)
+
 func decode*(decoder: var AbiDecoder, T: type StoragePoR): ?!T =
   let tupl = ?decoder.read(StoragePoR.fieldTypes)
   success StoragePoR.fromTuple(tupl)
@@ -152,6 +161,10 @@ func decode*(decoder: var AbiDecoder, T: type StorageAsk): ?!T =
 func decode*(decoder: var AbiDecoder, T: type StorageRequest): ?!T =
   let tupl = ?decoder.read(StorageRequest.fieldTypes)
   success StorageRequest.fromTuple(tupl)
+
+func decode*(decoder: var AbiDecoder, T: type Slot): ?!T =
+  let tupl = ?decoder.read(Slot.fieldTypes)
+  success Slot.fromTuple(tupl)
 
 func id*(request: StorageRequest): RequestId =
   let encoding = AbiEncoder.encode((request, ))

@@ -104,13 +104,13 @@ method getRequest(market: MockMarket,
 
 method getActiveSlot*(
   market: MockMarket,
-  slotId: SlotId): Future[?(StorageRequest, UInt256)] {.async.} =
+  slotId: SlotId): Future[?Slot] {.async.} =
 
   for slot in market.filled:
     if slotId(slot.requestId, slot.slotIndex) == slotId and
       request =? await market.getRequest(slot.requestId):
-      return some (request, slot.slotIndex)
-  return none (StorageRequest, UInt256)
+      return some Slot(request: request, slotIndex: slot.slotIndex)
+  return none Slot
 
 method requestState*(market: MockMarket,
                  requestId: RequestId): Future[?RequestState] {.async.} =

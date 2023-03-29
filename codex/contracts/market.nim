@@ -75,13 +75,13 @@ method getHost(market: OnChainMarket,
 
 method getActiveSlot*(
   market: OnChainMarket,
-  slotId: SlotId): Future[?(StorageRequest, UInt256)] {.async.} =
+  slotId: SlotId): Future[?Slot] {.async.} =
 
   try:
     return some await market.contract.getActiveSlot(slotId)
   except ProviderError as e:
     if e.revertReason.contains("Slot is free"):
-      return none (StorageRequest, UInt256)
+      return none Slot
     raise e
 
 method fillSlot(market: OnChainMarket,

@@ -55,7 +55,7 @@ method getHost*(market: Market,
 
 method getActiveSlot*(
   market: Market,
-  slotId: SlotId): Future[?(StorageRequest, UInt256)] {.base, async.} =
+  slotId: SlotId): Future[?Slot] {.base, async.} =
 
   raiseAssert("not implemented")
 

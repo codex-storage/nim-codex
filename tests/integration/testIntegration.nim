@@ -63,7 +63,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check client1.getPurchase(id){"request"}{"ask"}{"reward"} == %"0x2"
 
   test "nodes negotiate contracts on the marketplace":
-    let size = 0xFFFFF
+    let size: uint64 = 0xFFFFF
     # client 2 makes storage available
     discard client2.postAvailability(size=size, duration=200, minPrice=300)
 
@@ -75,6 +75,6 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check eventually client1.getPurchase(purchase){"state"} == %"started"
     check client1.getPurchase(purchase){"error"} == newJNull()
     let availabilities = client2.getAvailabilities()
+    check availabilities.len == 1
     let newSize = UInt256.fromHex(availabilities[0]{"size"}.getStr)
-    check newSize > 0
-    check newSize < UInt256.fromHex(size)
+    check newSize > 0 and newSize < size.u256
