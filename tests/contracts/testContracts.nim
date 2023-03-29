@@ -2,11 +2,11 @@ import std/json
 import pkg/chronos
 import pkg/ethers/testing
 import codex/contracts
-import codex/contracts/testtoken
 import codex/storageproofs
 import ../ethertest
 import ./examples
 import ./time
+import ./token
 
 ethersuite "Marketplace contracts":
   let proof = exampleProof()

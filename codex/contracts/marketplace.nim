@@ -1,4 +1,5 @@
 import pkg/ethers
+import pkg/ethers/erc20
 import pkg/json_rpc/rpcclient
 import pkg/stint
 import pkg/chronos
@@ -8,6 +9,7 @@ import ./config
 
 export stint
 export ethers
+export erc20
 export config
 
 type
@@ -31,6 +33,7 @@ type
 
 
 proc config*(marketplace: Marketplace): MarketplaceConfig {.contract, view.}
+proc token*(marketplace: Marketplace): Address {.contract, view.}
 proc slashMisses*(marketplace: Marketplace): UInt256 {.contract, view.}
 proc slashPercentage*(marketplace: Marketplace): UInt256 {.contract, view.}
 proc minCollateralThreshold*(marketplace: Marketplace): UInt256 {.contract, view.}

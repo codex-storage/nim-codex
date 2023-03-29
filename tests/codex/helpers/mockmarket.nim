@@ -80,6 +80,9 @@ proc new*(_: type MockMarket): MockMarket =
   )
   MockMarket(signer: Address.example, config: config)
 
+method approveFunds*(market: MockMarket, amount: UInt256) {.async.} =
+  discard
+
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
 
