@@ -25,6 +25,12 @@ func new*(_: type OnChainMarket, contract: Marketplace): OnChainMarket =
     signer: signer,
   )
 
+method approveFunds*(market: OnChainMarket, amount: UInt256) {.async.} =
+  let tokenAddress = await market.contract.token()
+  let token = Erc20Token.new(tokenAddress, market.signer)
+
+  await token.approve(market.contract.address(), amount)
+
 method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
   return await market.signer.getAddress()
 

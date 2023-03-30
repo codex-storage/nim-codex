@@ -10,6 +10,7 @@ method enterAsync(state: PurchasePending) {.async.} =
     raiseAssert "invalid state"
 
   try:
+    await purchase.market.approveFunds(request.price())
     await purchase.market.requestStorage(request)
   except CatchableError as error:
     state.switch(PurchaseErrored(error: error))
