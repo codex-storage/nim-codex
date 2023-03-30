@@ -43,10 +43,6 @@ let config = await marketplace.config()
 let collateral = config.collateral.initialAmount
 ```
 
-The host then needs to prepare a payment to the smart contract by calling the
-`approve` method on the [ERC20 token][2]. Note that interaction with ERC20
-contracts is not part of this library.
-
 After preparing the payment, the host can deposit collateral:
 ```nim
 await storage
@@ -83,9 +79,7 @@ let request : StorageRequest = (
 
 When a client wants to submit this request to the network, it needs to pay the
 maximum price to the smart contract in advance. The difference between the
-maximum price and the offered price will be reimbursed later. To prepare, the
-client needs to call the `approve` method on the [ERC20 token][2]. Note that
-interaction with ERC20 contracts is not part of this library.
+maximum price and the offered price will be reimbursed later.
 
 Once the payment has been prepared, the client can submit the request to the
 network:
@@ -152,7 +146,7 @@ Storage proofs
 Time is divided into periods, and each period a storage proof may be required
 from the host. The odds of requiring a storage proof are negotiated through the
 storage request. For more details about the timing of storage proofs, please
-refer to the [design document][3].
+refer to the [design document][2].
 
 At the start of each period of time, the host can check whether a storage proof
 is required:
@@ -178,5 +172,4 @@ await storage
 ```
 
 [1]: https://github.com/status-im/codex-contracts-eth/
-[2]: https://ethereum.org/en/developers/docs/standards/tokens/erc-20/
-[3]: https://github.com/status-im/codex-research/blob/main/design/storage-proof-timing.md
+[2]: https://github.com/status-im/codex-research/blob/main/design/storage-proof-timing.md
