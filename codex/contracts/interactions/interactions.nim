@@ -1,6 +1,5 @@
 import pkg/ethers
 import ../../errors
-import ../deployment
 import ../clock
 import ../marketplace
 import ../market
@@ -17,40 +16,18 @@ proc new*(T: type ContractInteractions,
   T(clock: clock)
 
 proc prepare*(
-  signer: Signer,
-  deployment: Deployment):
-  ?!tuple[contract: Marketplace, market: OnChainMarket, clock: OnChainClock] =
-
-  without address =? deployment.address(Marketplace):
-    let err = newException(ContractAddressError,
-      "Unable to determine address of the Marketplace smart contract")
-    return failure(err)
-
-  let contract = Marketplace.new(address, signer)
-  let market = OnChainMarket.new(contract)
-  let clock = OnChainClock.new(signer.provider)
-
-  return success((contract, market, clock))
-
-proc prepare*(
   providerUrl: string = "ws://localhost:8545",
-  account: Address,
-  deploymentFile: ?string):
-  ?!tuple[signer: JsonRpcSigner, deploy: Deployment] =
+  account, contractAddress: Address):
+  ?!tuple[contract: Marketplace, market: OnChainMarket, clock: OnChainClock] =
 
   let provider = JsonRpcProvider.new(providerUrl)
   let signer = provider.getSigner(account)
 
-  var deploy: Deployment
-  try:
-    deploy = deployment(deploymentFile)
-  except IOError as e:
-    let err = newException(ReadDeploymentFileFailureError,
-      "Unable to read deployment json")
-    err.parent = e
-    return failure(err)
+  let contract = Marketplace.new(contractAddress, signer)
+  let market = OnChainMarket.new(contract)
+  let clock = OnChainClock.new(signer.provider)
 
-  return success((signer, deploy))
+  return success((contract, market, clock))
 
 method start*(self: ContractInteractions) {.async, base.} =
   await self.clock.start()

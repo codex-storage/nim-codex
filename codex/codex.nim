@@ -109,10 +109,29 @@ proc new(_: type Contracts,
     error "Persistence enabled, but no Ethereum account was set"
     quit QuitFailure
 
+  var deploy: Deployment
+  try:
+    if deployFile =? config.ethDeployment:
+      deploy = Deployment.init(deployFile)
+    else:
+      deploy = Deployment.init()
+  except IOError as e:
+    error "Unable to read deployment json"
+    quit QuitFailure
+
+  without marketplaceAddress =? deploy.address(Marketplace):
+    error "Marketplace contract address not found in deployment file"
+    quit QuitFailure
+
   # TODO: at some point there may be cli options that enable client-only or host-only
   # operation, and both client AND host will not necessarily need to be instantiated
-  let client = ClientInteractions.new(config.ethProvider, account, config.ethDeployment)
-  let host = HostInteractions.new(config.ethProvider, account, repo, config.ethDeployment)
+  let client = ClientInteractions.new(config.ethProvider,
+                                      account,
+                                      marketplaceAddress)
+  let host = HostInteractions.new(config.ethProvider,
+                                  account,
+                                  repo,
+                                  marketplaceAddress)
 
   (client.option, host.option)
 

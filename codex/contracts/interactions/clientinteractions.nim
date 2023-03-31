@@ -4,7 +4,6 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ../../purchasing
-import ../deployment
 import ../marketplace
 import ../market
 import ../proofs
@@ -19,29 +18,16 @@ type
     purchasing*: Purchasing
 
 proc new*(_: type ClientInteractions,
-          signer: Signer,
-          deployment: Deployment): ?!ClientInteractions =
+          providerUrl: string,
+          account: Address,
+          contractAddress: Address): ?!ClientInteractions =
 
-  without prepared =? prepare(signer, deployment), error:
+  without prepared =? prepare(providerUrl, account, contractAddress), error:
     return failure(error)
 
   let c = ClientInteractions.new(prepared.clock)
   c.purchasing = Purchasing.new(prepared.market, prepared.clock)
   return success(c)
-
-proc new*(_: type ClientInteractions,
-          providerUrl: string,
-          account: Address,
-          deploymentFile: ?string = none string): ?!ClientInteractions =
-
-  without prepared =? prepare(providerUrl, account, deploymentFile), error:
-    return failure(error)
-
-  return ClientInteractions.new(prepared.signer, prepared.deploy)
-
-proc new*(_: type ClientInteractions,
-          account: Address): ?!ClientInteractions =
-  ClientInteractions.new("ws://localhost:8545", account)
 
 proc start*(self: ClientInteractions) {.async.} =
   await procCall ContractInteractions(self).start()

@@ -19,7 +19,7 @@ ethersuite "On-Chain Market":
   var periodicity: Periodicity
 
   setup:
-    let deployment = deployment()
+    let deployment = Deployment.init()
     marketplace = Marketplace.new(!deployment.address(Marketplace), provider.getSigner())
     token = TestToken.new(!deployment.address(TestToken), provider.getSigner())
     await token.mint(accounts[0], 1_000_000_000.u256)

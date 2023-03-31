@@ -5,38 +5,26 @@ import pkg/codex/stores
 import ../ethertest
 import ./examples
 
-# suite "Marketplace Contract Interactions":
-
 ethersuite "Marketplace Contract Interactions - Client":
 
+  let url = "http://localhost:8545"
   let account = Address.example
+  let contractAddress = Address.example
 
-  var contracts: ClientInteractions
-
-  setup:
-    contracts = !ClientInteractions.new(account)
-
-  test "can be instantiated with a signer and deployment info":
-    let signer = provider.getSigner()
-    let deployment = deployment()
-    check ClientInteractions.new(signer, deployment).isSuccess
-
-  test "can be instantiated with a provider url":
-    let url = "http://localhost:8545"
-    let account = Address.example
-    let deployment = some "vendor" / "codex-contracts-eth" / "deployment-localhost.json"
-    check ClientInteractions.new(url, account).isSuccess
-    check ClientInteractions.new(url, account, deployment).isSuccess
+  test "can be instantiated with a provider url, account, and contract address":
+    check ClientInteractions.new(url, account, contractAddress).isSuccess
 
   test "provides purchasing":
-    check contracts.purchasing != nil
+    let client = !ClientInteractions.new(url, account, contractAddress)
+    check client.purchasing != nil
 
 ethersuite "Marketplace Contract Interactions - Host":
 
+  let url = "http://localhost:8545"
   let account = Address.example
+  let contractAddress = Address.example
 
   var
-    contracts: HostInteractions
     repo: RepoStore
     repoDs: Datastore
     metaDs: Datastore
@@ -45,22 +33,14 @@ ethersuite "Marketplace Contract Interactions - Host":
     repoDs = SQLiteDatastore.new(Memory).tryGet()
     metaDs = SQLiteDatastore.new(Memory).tryGet()
     repo = RepoStore.new(repoDs, metaDs)
-    contracts = !HostInteractions.new(account, repo)
 
-  test "can be instantiated with a signer and deployment info":
-    let signer = provider.getSigner()
-    let deployment = deployment()
-    check HostInteractions.new(signer, deployment, repo).isSuccess
-
-  test "can be instantiated with a provider url":
-    let url = "http://localhost:8545"
-    let account = Address.example
-    let deployment = some "vendor" / "codex-contracts-eth" / "deployment-localhost.json"
-    check HostInteractions.new(url, account, repo).isSuccess
-    check HostInteractions.new(url, account, repo, deployment).isSuccess
+  test "can be instantiated with a provider url, account, repo, and contract address":
+    check HostInteractions.new(url, account, repo, contractAddress).isSuccess
 
   test "provides sales":
-    check contracts.sales != nil
+    let host = !HostInteractions.new(url, account, repo, contractAddress)
+    check host.sales != nil
 
   test "provides proving":
-    check contracts.proving != nil
+    let host = !HostInteractions.new(url, account, repo, contractAddress)
+    check host.proving != nil
