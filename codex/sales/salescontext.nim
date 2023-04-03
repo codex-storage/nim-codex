@@ -1,7 +1,7 @@
 import pkg/questionable
 import pkg/questionable/results
 import pkg/upraises
-import ../blocktype as bt
+import ../node/batch
 import ../market
 import ../clock
 import ../proving
@@ -16,9 +16,6 @@ type
     onSale*: ?OnSale
     proving*: Proving
     reservations*: Reservations
-  # TODO: do not declare BatchProc as it's declared in node, but causes a
-  # circular dep if node is imported
-  BatchProc* = proc(blocks: seq[bt.Block]): Future[void] {.gcsafe, upraises:[].}
 
   OnStore* = proc(request: StorageRequest,
                   slot: UInt256,

@@ -17,7 +17,6 @@ import pkg/questionable/results
 import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
-import pkg/upraises
 
 # TODO: remove once exported by libp2p
 import pkg/libp2p/routing_record
@@ -32,6 +31,9 @@ import ./streams
 import ./erasure
 import ./discovery
 import ./contracts
+import ./node/batch
+
+export batch
 
 logScope:
   topics = "codex node"
@@ -40,8 +42,6 @@ const
   FetchBatch = 200
 
 type
-  BatchProc* = proc(blocks: seq[bt.Block]): Future[void] {.gcsafe, upraises:[].}
-
   CodexError = object of CatchableError
 
   Contracts* = tuple

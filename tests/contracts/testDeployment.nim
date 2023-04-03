@@ -1,9 +1,6 @@
-import std/os
-import pkg/datastore
 import pkg/codex/contracts
 import pkg/codex/stores
 import ../ethertest
-import ./examples
 
 suite "Deployment":
   let deploymentFile = "vendor" / "codex-contracts-eth" / "deployment-localhost.json"

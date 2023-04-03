@@ -14,6 +14,7 @@ import pkg/codex/sales/reservations
 import pkg/codex/stores/repostore
 import pkg/codex/proving
 import pkg/codex/blocktype as bt
+import pkg/codex/node
 import ../helpers/mockmarket
 import ../helpers/mockclock
 import ../helpers/eventually
