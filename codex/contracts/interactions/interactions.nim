@@ -1,5 +1,4 @@
 import pkg/ethers
-import ../../errors
 import ../clock
 import ../marketplace
 import ../market
@@ -7,9 +6,6 @@ import ../market
 type
   ContractInteractions* = ref object of RootObj
     clock: OnChainClock
-  ContractInteractionsError* = object of CodexError
-  ReadDeploymentFileFailureError* = object of ContractInteractionsError
-  ContractAddressError* = object of ContractInteractionsError
 
 proc new*(T: type ContractInteractions,
           clock: OnChainClock): T =
