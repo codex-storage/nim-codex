@@ -88,7 +88,7 @@ proc `$`*(id: AvailabilityId): string = id.toArray.toHex
 proc toErr[E1: ref CatchableError, E2: AvailabilityError](
   e1: E1,
   _: type E2,
-  msg: string = "see inner exception"): ref E2 =
+  msg: string = e1.msg): ref E2 =
 
   return newException(E2, msg, e1)
 
@@ -255,7 +255,7 @@ proc markUsed*(
   id: AvailabilityId): Future[?!void] {.async.} =
 
   without var availability =? (await self.get(id)), err:
-    return failure(err.toErr(AvailabilityGetFailedError))
+    return failure(err)
 
   availability.used = true
   let r = await self.update(availability)
@@ -268,7 +268,7 @@ proc markUnused*(
   id: AvailabilityId): Future[?!void] {.async.} =
 
   without var availability =? (await self.get(id)), err:
-    return failure(err.toErr(AvailabilityGetFailedError))
+    return failure(err)
 
   availability.used = false
   let r = await self.update(availability)
