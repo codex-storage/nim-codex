@@ -218,6 +218,12 @@ type
         name: "eth-deployment"
       .}: Option[string]
 
+      validator* {.
+        desc: "Enables validator, requires an Ethereum node"
+        defaultValue: false
+        name: "validator"
+      .}: bool
+
     of initNode:
       discard
 
