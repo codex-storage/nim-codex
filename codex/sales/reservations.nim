@@ -114,7 +114,7 @@ func key*(availability: Availability): ?!Key =
 
 func available*(self: Reservations): uint = self.repo.available
 
-func available*(self: Reservations, bytes: uint): bool =
+func hasAvailable*(self: Reservations, bytes: uint): bool =
   self.repo.available(bytes)
 
 proc exists*(

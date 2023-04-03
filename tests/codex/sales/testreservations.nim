@@ -160,13 +160,13 @@ suite "Reservations module":
       DefaultQuotaBytes - availability.size.truncate(uint)
 
   test "reports quota available to be reserved":
-    check reservations.available(availability.size.truncate(uint))
+    check reservations.hasAvailable(availability.size.truncate(uint))
 
   test "reports quota not available to be reserved":
     repo = RepoStore.new(repoDs, metaDs,
                          quotaMaxBytes = availability.size.truncate(uint) - 1)
     reservations = Reservations.new(repo)
-    check not reservations.available(availability.size.truncate(uint))
+    check not reservations.hasAvailable(availability.size.truncate(uint))
 
   test "fails to reserve availability with size that is larger than available quota":
     repo = RepoStore.new(repoDs, metaDs,
