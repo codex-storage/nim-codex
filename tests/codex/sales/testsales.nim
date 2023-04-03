@@ -78,6 +78,11 @@ suite "Sales":
   proc getAvailability: ?!Availability =
     waitFor reservations.get(availability.id)
 
+  proc wasIgnored: Future[bool] {.async.} =
+    return
+        eventually sales.agents.len == 1 and # agent created at first
+        eventually sales.agents.len == 0 # then removed once ignored
+
   test "makes storage unavailable when downloading a matched request":
     var used = false
     sales.onStore = proc(request: StorageRequest,
@@ -106,36 +111,27 @@ suite "Sales":
     check eventually getAvailability().?size == success 1.u256
 
   test "ignores download when duration not long enough":
-    var saleFinished = false
     availability.duration = request.ask.duration - 1
-    sales.onSale = proc(request: StorageRequest,
-                        slotIndex: UInt256) =
-      saleFinished = true
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check eventually saleFinished
-    check getAvailability().?used == success false
+    check await wasIgnored()
 
   test "ignores request when slot size is too small":
-    var saleFinished = false
     availability.size = request.ask.slotSize - 1
-    sales.onSale = proc(request: StorageRequest,
-                        slotIndex: UInt256) =
-      saleFinished = true
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check eventually saleFinished
-    check getAvailability().?used == success false
+    check await wasIgnored()
 
   test "ignores request when reward is too low":
-    var saleFinished = false
-    availability.minPrice = request.ask.reward - 1
-    sales.onSale = proc(request: StorageRequest,
-                        slotIndex: UInt256) =
-      saleFinished = true
+    availability.minPrice = request.ask.pricePerSlot + 1
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check eventually saleFinished
+    check await wasIgnored()
+
+  test "availability remains unused when request is ignored":
+    availability.minPrice = request.ask.pricePerSlot + 1
+    check isOk await reservations.reserve(availability)
+    await market.requestStorage(request)
     check getAvailability().?used == success false
 
   test "retrieves and stores data locally":

@@ -18,6 +18,10 @@ type SalesAgent* = ref object of Machine
   data*: SalesData
   subscribed: bool
 
+func `==`*(a, b: SalesAgent): bool =
+  a.data.requestId == b.data.requestId and
+  a.data.slotIndex == b.data.slotIndex
+
 proc newSalesAgent*(context: SalesContext,
                     requestId: RequestId,
                     slotIndex: UInt256,

@@ -1,3 +1,4 @@
+import std/os
 import pkg/codex/contracts
 import pkg/codex/stores
 import ../ethertest

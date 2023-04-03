@@ -14,6 +14,7 @@ type
     onStore*: ?OnStore
     onClear*: ?OnClear
     onSale*: ?OnSale
+    onIgnored*: OnIgnored
     proving*: Proving
     reservations*: Reservations
 
@@ -26,3 +27,4 @@ type
                   slotIndex: UInt256) {.gcsafe, upraises: [].}
   OnSale* = proc(request: StorageRequest,
                  slotIndex: UInt256) {.gcsafe, upraises: [].}
+  OnIgnored* = proc() {.gcsafe, upraises: [].}

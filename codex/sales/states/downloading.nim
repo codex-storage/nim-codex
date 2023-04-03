@@ -9,7 +9,7 @@ import ./errorhandling
 import ./cancelled
 import ./failed
 import ./filled
-import ./finished
+import ./ignored
 import ./proving
 import ./errored
 
@@ -56,7 +56,7 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
       duration = request.ask.duration,
       pricePerSlot = request.ask.pricePerSlot,
       used = false
-    return some State(SaleFinished())
+    return some State(SaleIgnored())
 
   # mark availability as used so that it is not matched to other requests
   if markUsedErr =? (await reservations.markUsed(availability.id)).errorOption:

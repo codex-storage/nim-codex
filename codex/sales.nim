@@ -1,8 +1,10 @@
+import std/sequtils
 import pkg/questionable
 import pkg/upraises
 import pkg/stint
 import pkg/chronicles
 import pkg/datastore
+import pkg/upraises
 import ./rng
 import ./market
 import ./clock
@@ -94,6 +96,8 @@ proc handleRequest(sales: Sales,
     slotIndex,
     none StorageRequest
   )
+  agent.context.onIgnored = proc {.gcsafe, upraises:[].} =
+                              sales.agents.keepItIf(it != agent)
   agent.start(SaleDownloading())
   sales.agents.add agent
 
