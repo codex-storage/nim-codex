@@ -104,6 +104,9 @@ method fillSlot(market: OnChainMarket,
   await market.approveFunds(collateral)
   await market.contract.fillSlot(requestId, slotIndex, proof)
 
+method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
+  await market.contract.freeSlot(slotId)
+
 method withdrawFunds(market: OnChainMarket,
                      requestId: RequestId) {.async.} =
   await market.contract.withdrawFunds(requestId)

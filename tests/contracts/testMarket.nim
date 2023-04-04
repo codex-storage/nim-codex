@@ -82,6 +82,13 @@ ethersuite "On-Chain Market":
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
     check (await market.getHost(request.id, slotIndex)) == some accounts[0]
 
+  test "supports freeing a slot":
+    await token.approve(marketplace.address, request.price)
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, slotIndex, proof)
+    await market.freeSlot(slotId(request.id, slotIndex))
+    check (await market.getHost(request.id, slotIndex)) == none Address
+
   test "support slot filled subscriptions":
     await market.requestStorage(request)
     var receivedIds: seq[RequestId]

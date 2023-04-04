@@ -19,6 +19,7 @@ type
     slotState*: Table[SlotId, SlotState]
     fulfilled*: seq[Fulfillment]
     filled*: seq[MockSlot]
+    freed*: seq[SlotId]
     withdrawn*: seq[RequestId]
     signer: Address
     subscriptions: Subscriptions
@@ -189,6 +190,8 @@ method fillSlot*(market: MockMarket,
                  collateral: UInt256) {.async.} =
   market.fillSlot(requestId, slotIndex, proof, market.signer)
 
+method freeSlot*(market: MockMarket, slotId: SlotId) {.async.} =
+  market.freed.add(slotId)
 method withdrawFunds*(market: MockMarket,
                       requestId: RequestId) {.async.} =
   market.withdrawn.add(requestId)

@@ -67,6 +67,9 @@ method fillSlot*(market: Market,
                  collateral: UInt256) {.base, async.} =
   raiseAssert("not implemented")
 
+method freeSlot*(market: Market, slotId: SlotId) {.base, async.} =
+  raiseAssert("not implemented")
+
 method withdrawFunds*(market: Market,
                       requestId: RequestId) {.base, async.} =
   raiseAssert("not implemented")
