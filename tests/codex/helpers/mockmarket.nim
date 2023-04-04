@@ -4,6 +4,7 @@ import std/hashes
 import pkg/codex/market
 import pkg/codex/contracts/requests
 import pkg/codex/contracts/config
+import ../examples
 
 export market
 export tables
