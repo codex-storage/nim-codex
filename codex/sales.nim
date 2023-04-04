@@ -4,7 +4,6 @@ import pkg/upraises
 import pkg/stint
 import pkg/chronicles
 import pkg/datastore
-import pkg/upraises
 import ./rng
 import ./market
 import ./clock
