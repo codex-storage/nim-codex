@@ -28,7 +28,7 @@ suite "sales state 'filled'":
     let context = SalesContext(market: market)
     agent = newSalesAgent(context,
                           request.id,
-                          slotIndex,
+                          some slotIndex,
                           StorageRequest.none)
     state = SaleFilled.new()
 

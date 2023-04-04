@@ -28,4 +28,7 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   without (collateral =? data.request.?ask.?collateral):
     raiseAssert "Request not set"
 
-  await market.fillSlot(data.requestId, data.slotIndex, state.proof, collateral)
+  without slotIndex =? data.slotIndex:
+    raiseAssert("no slot index assigned")
+
+  await market.fillSlot(data.requestId, slotIndex, state.proof, collateral)

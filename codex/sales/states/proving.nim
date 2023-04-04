@@ -31,5 +31,8 @@ method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
   without onProve =? context.proving.onProve:
     raiseAssert "onProve callback not set"
 
-  let proof = await onProve(Slot(request: request, slotIndex: data.slotIndex))
+  without slotIndex =? data.slotIndex:
+    raiseAssert("no slot index assigned")
+
+  let proof = await onProve(Slot(request: request, slotIndex: slotIndex))
   return some State(SaleFilling(proof: proof))

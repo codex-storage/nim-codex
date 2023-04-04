@@ -1,6 +1,3 @@
-import std/sets
-import std/sequtils
-import std/sugar
 import std/times
 import pkg/asynctest
 import pkg/chronos
@@ -25,6 +22,7 @@ type
   MockErrorState = ref object of ErrorHandlingState
 
 method `$`*(state: MockState): string = "MockState"
+method `$`*(state: MockErrorState): string = "MockErrorState"
 
 method onCancelled*(state: MockState, request: StorageRequest): ?State =
   onCancelCalled = true
@@ -73,7 +71,7 @@ suite "Sales agent":
     onSlotFilledCalled = false
     agent = newSalesAgent(context,
                           request.id,
-                          slotIndex,
+                          some slotIndex,
                           some request)
     request.expiry = (getTime() + initDuration(hours=1)).toUnix.u256
 
@@ -83,7 +81,7 @@ suite "Sales agent":
   test "can retrieve request":
     agent = newSalesAgent(context,
                           request.id,
-                          slotIndex,
+                          some slotIndex,
                           none StorageRequest)
     market.requested = @[request]
     await agent.retrieveRequest()
@@ -156,3 +154,25 @@ suite "Sales agent":
   test "ErrorHandlingState.onError can be overridden at the state level":
     agent.start(MockErrorState.new())
     check eventually onErrorCalled
+
+  test "assigns random slot index for slot that is free":
+    let slotId0 = slotId(request.id, 0.u256)
+    market.slotState[slotId0] = SlotState.Filled
+    check isOk await agent.assignRandomSlotIndex(2)
+    check agent.data.slotIndex == some 1.u256
+
+  test "fails to assign random slot index when all slots filled":
+    let slotId0 = slotId(request.id, 0.u256)
+    let slotId1 = slotId(request.id, 1.u256)
+    market.slotState[slotId0] = SlotState.Filled
+    market.slotState[slotId1] = SlotState.Filled
+    let r = await agent.assignRandomSlotIndex(2)
+    check r.isErr
+    check r.error of AllSlotsFilledError
+    check agent.data.slotIndex == none UInt256
+
+  test "fails to assign random slot index when invalid number of slots provided":
+    let r = await agent.assignRandomSlotIndex(0)
+    check r.isErr
+    check r.error of ValueError
+    check agent.data.slotIndex == none UInt256

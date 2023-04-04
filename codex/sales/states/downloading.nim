@@ -9,12 +9,12 @@ import ./errorhandling
 import ./cancelled
 import ./failed
 import ./filled
-import ./ignored
 import ./proving
 import ./errored
 
 type
   SaleDownloading* = ref object of ErrorHandlingState
+    availability*: Availability
 
 logScope:
     topics = "sales downloading"
@@ -36,9 +36,7 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
   let data = agent.data
   let context = agent.context
   let reservations = context.reservations
-
-  await agent.retrieveRequest()
-  await agent.subscribe()
+  let availability = state.availability
 
   without onStore =? context.onStore:
     raiseAssert "onStore callback not set"
@@ -46,18 +44,8 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
   without request =? data.request:
     raiseAssert "no sale request"
 
-  without availability =? await reservations.find(
-      request.ask.slotSize,
-      request.ask.duration,
-      request.ask.pricePerSlot,
-      request.ask.collateral,
-      used = false):
-    info "no availability found for request, ignoring",
-      slotSize = request.ask.slotSize,
-      duration = request.ask.duration,
-      pricePerSlot = request.ask.pricePerSlot,
-      used = false
-    return some State(SaleIgnored())
+  without slotIndex =? data.slotIndex:
+    raiseAssert("no slot index assigned")
 
   # mark availability as used so that it is not matched to other requests
   if markUsedErr =? (await reservations.markUsed(availability.id)).errorOption:
@@ -83,7 +71,7 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
 
   trace "Starting download"
   if err =? (await onStore(request,
-                           data.slotIndex,
+                           slotIndex,
                            onBatch)).errorOption:
 
     markUnused(availability.id)
