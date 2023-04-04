@@ -16,6 +16,7 @@ type
   OnRequest* = proc(id: RequestId, ask: StorageAsk) {.gcsafe, upraises:[].}
   OnFulfillment* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
   OnSlotFilled* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises:[].}
+  OnSlotFreed* = proc(slotId: SlotId) {.gcsafe, upraises: [].}
   OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
 
@@ -95,6 +96,11 @@ method subscribeSlotFilled*(market: Market,
                             slotIndex: UInt256,
                             callback: OnSlotFilled):
                            Future[Subscription] {.base, async.} =
+  raiseAssert("not implemented")
+
+method subscribeSlotFreed*(market: Market,
+                           callback: OnSlotFreed):
+                          Future[Subscription] {.base, async.} =
   raiseAssert("not implemented")
 
 method subscribeRequestCancelled*(market: Market,

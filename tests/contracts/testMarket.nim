@@ -89,7 +89,7 @@ ethersuite "On-Chain Market":
     await market.freeSlot(slotId(request.id, slotIndex))
     check (await market.getHost(request.id, slotIndex)) == none Address
 
-  test "support slot filled subscriptions":
+  test "supports slot filled subscriptions":
     await market.requestStorage(request)
     var receivedIds: seq[RequestId]
     var receivedSlotIndices: seq[UInt256]
@@ -113,6 +113,18 @@ ethersuite "On-Chain Market":
     check receivedSlotIndices.len == 0
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
     check receivedSlotIndices == @[slotIndex]
+    await subscription.unsubscribe()
+
+  test "supports slot freed subscriptions":
+    await token.approve(marketplace.address, request.price)
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, slotIndex, proof)
+    var receivedIds: seq[SlotId]
+    proc onSlotFreed(id: SlotId) =
+      receivedIds.add(id)
+    let subscription = await market.subscribeSlotFreed(onSlotFreed)
+    await market.freeSlot(slotId(request.id, slotIndex))
+    check receivedIds == @[slotId(request.id, slotIndex)]
     await subscription.unsubscribe()
 
   test "support fulfillment subscriptions":
