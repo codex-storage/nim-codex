@@ -31,6 +31,9 @@ import ./streams
 import ./erasure
 import ./discovery
 import ./contracts
+import ./node/batch
+
+export batch
 
 logScope:
   topics = "codex node"
@@ -39,9 +42,11 @@ const
   FetchBatch = 200
 
 type
-  BatchProc* = proc(blocks: seq[bt.Block]): Future[void] {.gcsafe, raises: [Defect].}
-
   CodexError = object of CatchableError
+
+  Contracts* = tuple
+    client: ?ClientInteractions
+    host: ?HostInteractions
 
   CodexNodeRef* = ref object
     switch*: Switch
@@ -50,7 +55,7 @@ type
     engine*: BlockExcEngine
     erasure*: Erasure
     discovery*: Discovery
-    contracts*: ?ContractInteractions
+    contracts*: Contracts
 
 proc findPeer*(
   node: CodexNodeRef,
@@ -251,7 +256,7 @@ proc requestStorage*(self: CodexNodeRef,
   ##
   trace "Received a request for storage!", cid, duration, nodes, tolerance, reward
 
-  without contracts =? self.contracts:
+  without contracts =? self.contracts.client:
     trace "Purchasing not available"
     return failure "Purchasing not available"
 
@@ -309,7 +314,7 @@ proc new*(
   engine: BlockExcEngine,
   erasure: Erasure,
   discovery: Discovery,
-  contracts = ContractInteractions.none): T =
+  contracts: Contracts = (ClientInteractions.none, HostInteractions.none)): T =
   T(
     switch: switch,
     blockStore: store,
@@ -331,46 +336,56 @@ proc start*(node: CodexNodeRef) {.async.} =
   if not node.discovery.isNil:
     await node.discovery.start()
 
-  if contracts =? node.contracts:
+  if hostContracts =? node.contracts.host:
     # TODO: remove Sales callbacks, pass BlockStore and StorageProofs instead
-    contracts.sales.onStore = proc(request: StorageRequest,
-                                   slot: UInt256,
-                                   availability: ?Availability) {.async.} =
+    hostContracts.sales.onStore = proc(request: StorageRequest,
+                                       slot: UInt256,
+                                       onBatch: BatchProc): Future[?!void] {.async.} =
       ## store data in local storage
       ##
 
       without cid =? Cid.init(request.content.cid):
         trace "Unable to parse Cid", cid
-        raise newException(CodexError, "Unable to parse Cid")
+        let error = newException(CodexError, "Unable to parse Cid")
+        return failure(error)
 
       without manifest =? await node.fetchManifest(cid), error:
         trace "Unable to fetch manifest for cid", cid
-        raise error
+        return failure(error)
 
       trace "Fetching block for manifest", cid
       # TODO: This will probably require a call to `getBlock` either way,
       # since fetching of blocks will have to be selective according
       # to a combination of parameters, such as node slot position
       # and dataset geometry
-      let fetchRes = await node.fetchBatched(manifest)
-      if fetchRes.isErr:
-        raise newException(CodexError, "Unable to retrieve blocks")
+      if fetchErr =? (await node.fetchBatched(manifest, onBatch = onBatch)).errorOption:
+        let error = newException(CodexError, "Unable to retrieve blocks")
+        error.parent = fetchErr
+        return failure(error)
 
-    contracts.sales.onClear = proc(availability: ?Availability,
-                                   request: StorageRequest,
-                                   slotIndex: UInt256) =
+      return success()
+
+    hostContracts.sales.onClear = proc(request: StorageRequest,
+                                       slotIndex: UInt256) =
       # TODO: remove data from local storage
       discard
 
-    contracts.proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
+    hostContracts.proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       # TODO: generate proof
       return @[42'u8]
 
     try:
-      await contracts.start()
+      await hostContracts.start()
     except CatchableError as error:
-      error "Unable to start contract interactions: ", error=error.msg
-      node.contracts = ContractInteractions.none
+      error "Unable to start host contract interactions: ", error=error.msg
+      node.contracts.host = HostInteractions.none
+
+  if clientContracts =? node.contracts.client:
+    try:
+      await clientContracts.start()
+    except CatchableError as error:
+      error "Unable to start client contract interactions: ", error=error.msg
+      node.contracts.client = ClientInteractions.none
 
   node.networkId = node.switch.peerInfo.peerId
   notice "Started codex node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
@@ -390,8 +405,11 @@ proc stop*(node: CodexNodeRef) {.async.} =
   if not node.discovery.isNil:
     await node.discovery.stop()
 
-  if contracts =? node.contracts:
-    await contracts.stop()
+  if clientContracts =? node.contracts.client:
+    await clientContracts.stop()
+
+  if hostContracts =? node.contracts.host:
+    await hostContracts.stop()
 
   if not node.blockStore.isNil:
     await node.blockStore.close

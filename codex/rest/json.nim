@@ -48,7 +48,7 @@ func `%`*(stint: StInt|StUint): JsonNode =
 func `%`*(arr: openArray[byte]): JsonNode =
   %("0x" & arr.toHex)
 
-func `%`*(id: RequestId | SlotId | Nonce): JsonNode =
+func `%`*(id: RequestId | SlotId | Nonce | AvailabilityId): JsonNode =
   % id.toArray
 
 func `%`*(purchase: Purchase): JsonNode =

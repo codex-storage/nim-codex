@@ -1,3 +1,5 @@
+import pkg/questionable
+import pkg/questionable/results
 import pkg/upraises
 import pkg/chronicles
 import ../statemachine
@@ -19,16 +21,8 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
   if onClear =? context.onClear and
       request =? data.request and
       slotIndex =? data.slotIndex:
-    onClear(data.availability, request, slotIndex)
+    onClear(request, slotIndex)
 
-  # TODO: when availability persistence is added, change this to not optional
-  # NOTE: with this in place, restoring state for a restarted node will
-  # never free up availability once finished. Persisting availability
-  # on disk is required for this.
-  if onSaleErrored =? context.onSaleErrored and
-     availability =? data.availability:
-    onSaleErrored(availability)
-
-    await agent.unsubscribe()
+  await agent.unsubscribe()
 
   error "Sale error", error=state.error.msg

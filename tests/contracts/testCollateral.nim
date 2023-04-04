@@ -12,7 +12,7 @@ ethersuite "Collateral":
   var token: TestToken
 
   setup:
-    let deployment = deployment()
+    let deployment = Deployment.init()
     marketplace = Marketplace.new(!deployment.address(Marketplace), provider.getSigner())
     token = TestToken.new(!deployment.address(TestToken), provider.getSigner())
     await token.mint(accounts[0], 1000.u256)

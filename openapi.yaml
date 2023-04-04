@@ -293,6 +293,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/SalesAvailability"
+        "500":
+          description: Error getting unused availabilities
         "503":
           description: Sales are unavailable
 
@@ -312,6 +314,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SalesAvailability"
+        "500":
+          description: Error reserving availablility
         "503":
           description: Sales are unavailable
 

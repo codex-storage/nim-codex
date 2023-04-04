@@ -15,6 +15,12 @@ type
   State* = ref object of RootObj
   Event* = proc(state: State): ?State {.gcsafe, upraises:[].}
 
+logScope:
+  topics = "statemachine"
+
+method `$`*(state: State): string {.base.} =
+  raiseAssert "not implemented"
+
 proc transition(_: type Event, previous, next: State): Event =
   return proc (state: State): ?State =
     if state == previous:
@@ -59,6 +65,7 @@ proc scheduler(machine: Machine) {.async.} =
         if not machine.running.isNil:
           await machine.running.cancelAndWait()
         machine.state = next
+        debug "enter state", state = machine.state
         machine.running = machine.run(machine.state)
         machine.running.addCallback(onRunComplete)
   except CancelledError:

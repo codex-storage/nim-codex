@@ -1,34 +1,46 @@
 import std/os
-import codex/contracts
+import pkg/datastore
+import pkg/codex/contracts
+import pkg/codex/stores
 import ../ethertest
 import ./examples
 
-ethersuite "Marketplace Contract Interactions":
+ethersuite "Marketplace Contract Interactions - Client":
 
+  let url = "http://localhost:8545"
   let account = Address.example
+  let contractAddress = Address.example
 
-  var contracts: ContractInteractions
-
-  setup:
-    contracts = !ContractInteractions.new(account)
-
-  test "can be instantiated with a signer and deployment info":
-    let signer = provider.getSigner()
-    let deployment = deployment()
-    check ContractInteractions.new(signer, deployment).isSome
-
-  test "can be instantiated with a provider url":
-    let url = "http://localhost:8545"
-    let account = Address.example
-    let deployment = "vendor" / "codex-contracts-eth" / "deployment-localhost.json"
-    check ContractInteractions.new(url, account).isSome
-    check ContractInteractions.new(url, account, deployment).isSome
+  test "can be instantiated with a provider url, account, and contract address":
+    check ClientInteractions.new(url, account, contractAddress).isSuccess
 
   test "provides purchasing":
-    check contracts.purchasing != nil
+    let client = !ClientInteractions.new(url, account, contractAddress)
+    check client.purchasing != nil
+
+ethersuite "Marketplace Contract Interactions - Host":
+
+  let url = "http://localhost:8545"
+  let account = Address.example
+  let contractAddress = Address.example
+
+  var
+    repo: RepoStore
+    repoDs: Datastore
+    metaDs: Datastore
+
+  setup:
+    repoDs = SQLiteDatastore.new(Memory).tryGet()
+    metaDs = SQLiteDatastore.new(Memory).tryGet()
+    repo = RepoStore.new(repoDs, metaDs)
+
+  test "can be instantiated with a provider url, account, repo, and contract address":
+    check HostInteractions.new(url, account, repo, contractAddress).isSuccess
 
   test "provides sales":
-    check contracts.sales != nil
+    let host = !HostInteractions.new(url, account, repo, contractAddress)
+    check host.sales != nil
 
   test "provides proving":
-    check contracts.proving != nil
+    let host = !HostInteractions.new(url, account, repo, contractAddress)
+    check host.proving != nil

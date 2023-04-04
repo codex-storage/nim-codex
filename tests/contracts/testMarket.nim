@@ -19,7 +19,7 @@ ethersuite "On-Chain Market":
   var periodicity: Periodicity
 
   setup:
-    let deployment = deployment()
+    let deployment = Deployment.init()
     marketplace = Marketplace.new(!deployment.address(Marketplace), provider.getSigner())
     token = TestToken.new(!deployment.address(TestToken), provider.getSigner())
     await token.mint(accounts[0], 1_000_000_000.u256)
@@ -253,14 +253,15 @@ ethersuite "On-Chain Market":
     await token.approve(marketplace.address, request.price)
     await market.requestStorage(request)
     let slotId = request.slotId(slotIndex)
-    check (await market.getRequestFromSlotId(slotId)) == none StorageRequest
+    check (await market.getActiveSlot(slotId)) == none Slot
 
   test "can retrieve request details from slot id":
     await token.approve(marketplace.address, request.price)
     await market.requestStorage(request)
     await market.fillSlot(request.id, slotIndex, proof)
     let slotId = request.slotId(slotIndex)
-    check (await market.getRequestFromSlotId(slotId)) == some request
+    let expected = Slot(request: request, slotIndex: slotIndex)
+    check (await market.getActiveSlot(slotId)) == some expected
 
   test "retrieves correct slot state when request is unknown":
     let slotId = request.slotId(slotIndex)

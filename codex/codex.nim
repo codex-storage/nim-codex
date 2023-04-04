@@ -96,7 +96,10 @@ proc stop*(s: CodexServer) {.async.} =
 
   s.runHandle.complete()
 
-proc new(_: type ContractInteractions, config: CodexConf): ?ContractInteractions =
+proc new(_: type Contracts,
+  config: CodexConf,
+  repo: RepoStore): Contracts =
+
   if not config.persistence:
     if config.ethAccount.isSome:
       warn "Ethereum account was set, but persistence is not enabled"
@@ -106,10 +109,31 @@ proc new(_: type ContractInteractions, config: CodexConf): ?ContractInteractions
     error "Persistence enabled, but no Ethereum account was set"
     quit QuitFailure
 
-  if deployment =? config.ethDeployment:
-    ContractInteractions.new(config.ethProvider, account, deployment)
-  else:
-    ContractInteractions.new(config.ethProvider, account)
+  var deploy: Deployment
+  try:
+    if deployFile =? config.ethDeployment:
+      deploy = Deployment.init(deployFile)
+    else:
+      deploy = Deployment.init()
+  except IOError as e:
+    error "Unable to read deployment json"
+    quit QuitFailure
+
+  without marketplaceAddress =? deploy.address(Marketplace):
+    error "Marketplace contract address not found in deployment file"
+    quit QuitFailure
+
+  # TODO: at some point there may be cli options that enable client-only or host-only
+  # operation, and both client AND host will not necessarily need to be instantiated
+  let client = ClientInteractions.new(config.ethProvider,
+                                      account,
+                                      marketplaceAddress)
+  let host = HostInteractions.new(config.ethProvider,
+                                  account,
+                                  repo,
+                                  marketplaceAddress)
+
+  (client.option, host.option)
 
 proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): T =
 
@@ -182,7 +206,7 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
     engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-    contracts = ContractInteractions.new(config)
+    contracts = Contracts.new(config, repoStore)
     codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery, contracts)
     restServer = RestServerRef.new(
       codexNode.initRestApi(config),

@@ -29,7 +29,6 @@ suite "sales state 'filled'":
     agent = newSalesAgent(context,
                           request.id,
                           slotIndex,
-                          Availability.none,
                           StorageRequest.none)
     state = SaleFilled.new()
 

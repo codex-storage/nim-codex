@@ -1,27 +1,35 @@
 import pkg/chronos
+import pkg/chronicles
 import pkg/stint
 import ../contracts/requests
 import ../utils/asyncspawn
 import ./statemachine
 import ./salescontext
 import ./salesdata
-import ./availability
+import ./reservations
+
+export reservations
+
+logScope:
+  topics = "sales statemachine"
 
 type SalesAgent* = ref object of Machine
   context*: SalesContext
   data*: SalesData
   subscribed: bool
 
+func `==`*(a, b: SalesAgent): bool =
+  a.data.requestId == b.data.requestId and
+  a.data.slotIndex == b.data.slotIndex
+
 proc newSalesAgent*(context: SalesContext,
                     requestId: RequestId,
                     slotIndex: UInt256,
-                    availability: ?Availability,
                     request: ?StorageRequest): SalesAgent =
   SalesAgent(
     context: context,
     data: SalesData(
       requestId: requestId,
-      availability: availability,
       slotIndex: slotIndex,
       request: request))
 

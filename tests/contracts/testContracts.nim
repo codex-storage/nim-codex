@@ -27,7 +27,7 @@ ethersuite "Marketplace contracts":
     client = provider.getSigner(accounts[0])
     host = provider.getSigner(accounts[1])
 
-    let deployment = deployment()
+    let deployment = Deployment.init()
     marketplace = Marketplace.new(!deployment.address(Marketplace), provider.getSigner())
     token = TestToken.new(!deployment.address(TestToken), provider.getSigner())
 

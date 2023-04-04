@@ -11,7 +11,7 @@ ethersuite "On-Chain Proofs":
   var marketplace: Marketplace
 
   setup:
-    let deployment = deployment()
+    let deployment = Deployment.init()
     marketplace = Marketplace.new(!deployment.address(Marketplace), provider.getSigner())
     proofs = OnChainProofs.new(marketplace)
 

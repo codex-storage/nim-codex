@@ -11,7 +11,8 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
   var config: MarketplaceConfig
 
   setup:
-    marketplace = Marketplace.new(!deployment().address(Marketplace), provider)
+    let deployment = Deployment.init()
+    marketplace = Marketplace.new(!deployment.address(Marketplace), provider)
     config = await marketplace.config()
     await provider.getSigner(accounts[0]).mint()
     await provider.getSigner(accounts[1]).mint()

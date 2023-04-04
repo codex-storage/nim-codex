@@ -255,10 +255,13 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
     "/api/codex/v1/sales/availability") do () -> RestApiResponse:
       ## Returns storage that is for sale
 
-      without contracts =? node.contracts:
+      without contracts =? node.contracts.host:
         return RestApiResponse.error(Http503, "Sales unavailable")
 
-      let json = %contracts.sales.available
+      without unused =? (await contracts.sales.context.reservations.unused), err:
+        return RestApiResponse.error(Http500, err.msg)
+
+      let json = %unused
       return RestApiResponse.response($json)
 
   router.rawApi(
@@ -270,7 +273,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       ## duration   - maximum time the storage should be sold for (in seconds)
       ## minPrice   - minimum price to be paid (in amount of tokens)
 
-      without contracts =? node.contracts:
+      without contracts =? node.contracts.host:
         return RestApiResponse.error(Http503, "Sales unavailable")
 
       let body = await request.getBody()
@@ -278,7 +281,13 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       without availability =? Availability.fromJson(body), error:
         return RestApiResponse.error(Http400, error.msg)
 
-      contracts.sales.add(availability)
+      let reservations = contracts.sales.context.reservations
+
+      if not reservations.hasAvailable(availability.size.truncate(uint)):
+        return RestApiResponse.error(Http422, "Not enough storage quota")
+
+      if err =? (await reservations.reserve(availability)).errorOption:
+        return RestApiResponse.error(Http500, err.msg)
 
       let json = %availability
       return RestApiResponse.response($json)
@@ -288,7 +297,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
     "/api/codex/v1/storage/purchases/{id}") do (
       id: PurchaseId) -> RestApiResponse:
 
-      without contracts =? node.contracts:
+      without contracts =? node.contracts.client:
         return RestApiResponse.error(Http503, "Purchasing unavailable")
 
       without id =? id.tryGet.catch, error:

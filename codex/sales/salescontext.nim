@@ -1,8 +1,11 @@
+import pkg/questionable
+import pkg/questionable/results
 import pkg/upraises
+import ../node/batch
 import ../market
 import ../clock
 import ../proving
-import ./availability
+import ./reservations
 
 type
   SalesContext* = ref object
@@ -11,15 +14,17 @@ type
     onStore*: ?OnStore
     onClear*: ?OnClear
     onSale*: ?OnSale
-    onSaleErrored*: ?OnSaleErrored
+    onIgnored*: OnIgnored
     proving*: Proving
+    reservations*: Reservations
+
   OnStore* = proc(request: StorageRequest,
                   slot: UInt256,
-                  availability: ?Availability): Future[void] {.gcsafe, upraises: [].}
-  OnClear* = proc(availability: ?Availability,# TODO: when availability changes introduced, make availability non-optional (if we need to keep it at all)
-                  request: StorageRequest,
+                  onBatch: BatchProc): Future[?!void] {.gcsafe, upraises: [].}
+  OnProve* = proc(request: StorageRequest,
+                  slot: UInt256): Future[seq[byte]] {.gcsafe, upraises: [].}
+  OnClear* = proc(request: StorageRequest,
                   slotIndex: UInt256) {.gcsafe, upraises: [].}
-  OnSale* = proc(availability: ?Availability, # TODO: when availability changes introduced, make availability non-optional (if we need to keep it at all)
-                 request: StorageRequest,
+  OnSale* = proc(request: StorageRequest,
                  slotIndex: UInt256) {.gcsafe, upraises: [].}
-  OnSaleErrored* = proc(availability: Availability) {.gcsafe, upraises: [].}
+  OnIgnored* = proc() {.gcsafe, upraises: [].}

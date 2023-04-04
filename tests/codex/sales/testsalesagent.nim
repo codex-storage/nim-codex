@@ -44,11 +44,6 @@ method run*(state: MockErrorState, machine: Machine): Future[?State] {.async.} =
 
 suite "Sales agent":
 
-  let availability = Availability.init(
-    size=100.u256,
-    duration=60.u256,
-    minPrice=600.u256
-  )
   var request = StorageRequest(
     ask: StorageAsk(
       slots: 4,
@@ -79,7 +74,6 @@ suite "Sales agent":
     agent = newSalesAgent(context,
                           request.id,
                           slotIndex,
-                          some availability,
                           some request)
     request.expiry = (getTime() + initDuration(hours=1)).toUnix.u256
 
@@ -90,7 +84,6 @@ suite "Sales agent":
     agent = newSalesAgent(context,
                           request.id,
                           slotIndex,
-                          some availability,
                           none StorageRequest)
     market.requested = @[request]
     await agent.retrieveRequest()

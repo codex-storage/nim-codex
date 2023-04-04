@@ -48,7 +48,7 @@ proc withdrawFunds*(marketplace: Marketplace, requestId: RequestId) {.contract.}
 proc freeSlot*(marketplace: Marketplace, id: SlotId) {.contract.}
 proc getRequest*(marketplace: Marketplace, id: RequestId): StorageRequest {.contract, view.}
 proc getHost*(marketplace: Marketplace, id: SlotId): Address {.contract, view.}
-proc getRequestFromSlotId*(marketplace: Marketplace, id: SlotId): StorageRequest {.contract, view.}
+proc getActiveSlot*(marketplace: Marketplace, id: SlotId): Slot {.contract, view.}
 
 proc myRequests*(marketplace: Marketplace): seq[RequestId] {.contract, view.}
 proc mySlots*(marketplace: Marketplace): seq[SlotId] {.contract, view.}

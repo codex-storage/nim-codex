@@ -26,12 +26,6 @@ method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
     context.proving.add(Slot(request: request, slotIndex: slotIndex))
 
     if onSale =? context.onSale:
-      onSale(data.availability, request, slotIndex)
-
-  # TODO: Keep track of contract completion using local clock. When contract
-  # has finished, we need to add back availability to the sales module.
-  # This will change when the state machine is updated to include the entire
-  # sales process, as well as when availability is persisted, so leaving it
-  # as a TODO for now.
+      onSale(request, slotIndex)
 
   await agent.unsubscribe()
