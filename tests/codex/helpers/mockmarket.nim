@@ -47,8 +47,8 @@ type
     callback: OnFulfillment
   SlotFilledSubscription* = ref object of Subscription
     market: MockMarket
-    requestId: RequestId
-    slotIndex: UInt256
+    requestId: ?RequestId
+    slotIndex: ?UInt256
     callback: OnSlotFilled
   RequestCancelledSubscription* = ref object of Subscription
     market: MockMarket
@@ -140,8 +140,13 @@ proc emitSlotFilled*(market: MockMarket,
                      slotIndex: UInt256) =
   var subscriptions = market.subscriptions.onSlotFilled
   for subscription in subscriptions:
-    if subscription.requestId == requestId and
-       subscription.slotIndex == slotIndex:
+    let requestMatches =
+      subscription.requestId.isNone or
+      subscription.requestId == some requestId
+    let slotMatches =
+      subscription.slotIndex.isNone or
+      subscription.slotIndex == some slotIndex
+    if requestMatches and slotMatches:
       subscription.callback(requestId, slotIndex)
 
 proc emitRequestCancelled*(market: MockMarket,
@@ -212,14 +217,21 @@ method subscribeFulfillment*(market: MockMarket,
   return subscription
 
 method subscribeSlotFilled*(market: MockMarket,
+                            callback: OnSlotFilled):
+                           Future[Subscription] {.async.} =
+  let subscription = SlotFilledSubscription(market: market, callback: callback)
+  market.subscriptions.onSlotFilled.add(subscription)
+  return subscription
+
+method subscribeSlotFilled*(market: MockMarket,
                             requestId: RequestId,
                             slotIndex: UInt256,
                             callback: OnSlotFilled):
                            Future[Subscription] {.async.} =
   let subscription = SlotFilledSubscription(
     market: market,
-    requestId: requestId,
-    slotIndex: slotIndex,
+    requestId: some requestId,
+    slotIndex: some slotIndex,
     callback: callback
   )
   market.subscriptions.onSlotFilled.add(subscription)

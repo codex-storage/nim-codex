@@ -89,7 +89,7 @@ ethersuite "On-Chain Market":
     proc onSlotFilled(id: RequestId, slotIndex: UInt256) =
       receivedIds.add(id)
       receivedSlotIndices.add(slotIndex)
-    let subscription = await market.subscribeSlotFilled(request.id, slotIndex, onSlotFilled)
+    let subscription = await market.subscribeSlotFilled(onSlotFilled)
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
     check receivedIds == @[request.id]
     check receivedSlotIndices == @[slotIndex]

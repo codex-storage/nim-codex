@@ -83,6 +83,11 @@ method subscribeFulfillment*(market: Market,
   raiseAssert("not implemented")
 
 method subscribeSlotFilled*(market: Market,
+                            callback: OnSlotFilled):
+                           Future[Subscription] {.base, async.} =
+  raiseAssert("not implemented")
+
+method subscribeSlotFilled*(market: Market,
                             requestId: RequestId,
                             slotIndex: UInt256,
                             callback: OnSlotFilled):

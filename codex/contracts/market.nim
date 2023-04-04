@@ -117,15 +117,22 @@ method subscribeRequests(market: OnChainMarket,
   return OnChainMarketSubscription(eventSubscription: subscription)
 
 method subscribeSlotFilled*(market: OnChainMarket,
+                            callback: OnSlotFilled):
+                           Future[MarketSubscription] {.async.} =
+  proc onEvent(event: SlotFilled) {.upraises:[].} =
+    callback(event.requestId, event.slotIndex)
+  let subscription = await market.contract.subscribe(SlotFilled, onEvent)
+  return OnChainMarketSubscription(eventSubscription: subscription)
+
+method subscribeSlotFilled*(market: OnChainMarket,
                             requestId: RequestId,
                             slotIndex: UInt256,
                             callback: OnSlotFilled):
                            Future[MarketSubscription] {.async.} =
-  proc onEvent(event: SlotFilled) {.upraises:[].} =
-    if event.requestId == requestId and event.slotIndex == slotIndex:
-      callback(event.requestId, event.slotIndex)
-  let subscription = await market.contract.subscribe(SlotFilled, onEvent)
-  return OnChainMarketSubscription(eventSubscription: subscription)
+  proc onSlotFilled(eventRequestId: RequestId, eventSlotIndex: UInt256) =
+    if eventRequestId == requestId and eventSlotIndex == slotIndex:
+      callback(requestId, slotIndex)
+  return await market.subscribeSlotFilled(onSlotFilled)
 
 method subscribeFulfillment(market: OnChainMarket,
                             requestId: RequestId,
