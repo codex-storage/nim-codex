@@ -4,6 +4,7 @@ import pkg/chronos
 import codex/validation
 import ./helpers/mockmarket
 import ./helpers/mockclock
+import ./helpers/eventually
 import ./examples
 
 suite "validation":
@@ -34,3 +35,9 @@ suite "validation":
     await market.fillSlot(slot.request.id, slot.slotIndex, @[])
     await market.freeSlot(slot.id)
     check validation.slots.len == 0
+
+  test "when slot state changes, it is removed from the list":
+    let slot = Slot.example
+    await market.fillSlot(slot.request.id, slot.slotIndex, @[])
+    market.slotState[slot.id] = SlotState.Finished
+    check eventually validation.slots.len == 0
