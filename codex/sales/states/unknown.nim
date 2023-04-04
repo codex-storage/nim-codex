@@ -27,7 +27,10 @@ method run*(state: SaleUnknown, machine: Machine): Future[?State] {.async.} =
   await agent.retrieveRequest()
   await agent.subscribe()
 
-  let slotId = slotId(data.requestId, data.slotIndex)
+  without slotIndex =? data.slotIndex:
+    raiseAssert("no slot index assigned")
+
+  let slotId = slotId(data.requestId, slotIndex)
 
   without slotState =? await market.slotState(slotId):
     let error = newException(SaleUnknownError, "cannot retrieve slot state")

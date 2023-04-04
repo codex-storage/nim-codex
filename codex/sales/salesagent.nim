@@ -1,8 +1,13 @@
+import std/sequtils
 import pkg/chronos
 import pkg/chronicles
+import pkg/questionable
+import pkg/questionable/results
 import pkg/stint
 import ../contracts/requests
 import ../utils/asyncspawn
+import ../rng
+import ../errors
 import ./statemachine
 import ./salescontext
 import ./salesdata
@@ -13,10 +18,13 @@ export reservations
 logScope:
   topics = "marketplace sales"
 
-type SalesAgent* = ref object of Machine
-  context*: SalesContext
-  data*: SalesData
-  subscribed: bool
+type
+  SalesAgent* = ref object of Machine
+    context*: SalesContext
+    data*: SalesData
+    subscribed: bool
+  SalesAgentError = object of CodexError
+  AllSlotsFilledError* = object of SalesAgentError
 
 func `==`*(a, b: SalesAgent): bool =
   a.data.requestId == b.data.requestId and
@@ -24,7 +32,7 @@ func `==`*(a, b: SalesAgent): bool =
 
 proc newSalesAgent*(context: SalesContext,
                     requestId: RequestId,
-                    slotIndex: UInt256,
+                    slotIndex: ?UInt256,
                     request: ?StorageRequest): SalesAgent =
   SalesAgent(
     context: context,
@@ -38,6 +46,43 @@ proc retrieveRequest*(agent: SalesAgent) {.async.} =
   let market = agent.context.market
   if data.request.isNone:
     data.request = await market.getRequest(data.requestId)
+
+proc nextRandom(sample: openArray[uint64]): uint64 =
+  let rng = Rng.instance
+  return rng.sample(sample)
+
+proc assignRandomSlotIndex*(agent: SalesAgent,
+                            numSlots: uint64): Future[?!void] {.async.} =
+  let market = agent.context.market
+  let data = agent.data
+
+  if numSlots == 0:
+    agent.data.slotIndex = none UInt256
+    let error = newException(ValueError, "numSlots must be greater than zero")
+    return failure(error)
+
+  var idx: UInt256
+  var sample = toSeq(0'u64..<numSlots)
+
+  while true:
+    if sample.len == 0:
+      agent.data.slotIndex = none UInt256
+      let error = newException(AllSlotsFilledError, "all slots have been filled")
+      return failure(error)
+
+    without rndIdx =? nextRandom(sample).catch, err:
+      agent.data.slotIndex = none UInt256
+      return failure(err)
+    sample.keepItIf(it != rndIdx)
+
+    idx = rndIdx.u256
+    let slotId = slotId(data.requestId, idx)
+    let state = await market.slotState(slotId)
+    if state == SlotState.Free:
+      break
+
+  agent.data.slotIndex = some idx
+  return success()
 
 proc subscribeCancellation(agent: SalesAgent) {.async.} =
   let data = agent.data
@@ -78,13 +123,16 @@ proc subscribeSlotFilled(agent: SalesAgent) {.async.} =
   let data = agent.data
   let market = agent.context.market
 
+  without slotIndex =? data.slotIndex:
+    raiseAssert("no slot index assigned")
+
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
     asyncSpawn data.slotFilled.unsubscribe(), ignore = CatchableError
-    agent.schedule(slotFilledEvent(requestId, data.slotIndex))
+    agent.schedule(slotFilledEvent(requestId, slotIndex))
 
   data.slotFilled =
     await market.subscribeSlotFilled(data.requestId,
-                                     data.slotIndex,
+                                     slotIndex,
                                      onSlotFilled)
 
 proc subscribe*(agent: SalesAgent) {.async.} =

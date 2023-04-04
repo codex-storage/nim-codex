@@ -4,7 +4,6 @@ import pkg/upraises
 import pkg/stint
 import pkg/chronicles
 import pkg/datastore
-import ./rng
 import ./market
 import ./clock
 import ./proving
@@ -14,7 +13,7 @@ import ./sales/salescontext
 import ./sales/salesagent
 import ./sales/statemachine
 import ./sales/requestqueue
-import ./sales/states/downloading
+import ./sales/states/preparing
 import ./sales/states/unknown
 
 ## Sales holds a list of available storage that it may sell.
@@ -85,28 +84,21 @@ func new*(_: type Sales,
 
   return sales
 
-proc randomSlotIndex(numSlots: uint64): UInt256 =
-  let rng = Rng.instance
-  let slotIndex = rng.rand(numSlots - 1)
-  return slotIndex.u256
-
 proc handleRequest(sales: Sales, rqi: RequestQueueItem) =
 
   debug "handling storage requested", requestId = rqi.requestId,
     collateral = rqi.collateral, expiry = rqi.expiry, totalChunks = rqi.expiry,
     slots = rqi.slot
 
-  # TODO: check if random slot is actually available (not already filled)
-  let slotIndex = randomSlotIndex(ask.slots)
   let agent = newSalesAgent(
     sales.context,
     requestId,
-    slotIndex,
+    none UInt256,
     none StorageRequest
   )
   agent.context.onIgnored = proc {.gcsafe, upraises:[].} =
                               sales.agents.keepItIf(it != agent)
-  agent.start(SaleDownloading())
+  agent.start(SalePreparing())
   sales.agents.add agent
 
 proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
@@ -127,7 +119,7 @@ proc load*(sales: Sales) {.async.} =
     let agent = newSalesAgent(
       sales.context,
       slot.request.id,
-      slot.slotIndex,
+      some slot.slotIndex,
       some slot.request)
     agent.start(SaleUnknown())
     sales.agents.add agent

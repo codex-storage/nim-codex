@@ -27,7 +27,7 @@ checksuite "sales state 'unknown'":
     let context = SalesContext(market: market)
     agent = newSalesAgent(context,
                           request.id,
-                          slotIndex,
+                          some slotIndex,
                           StorageRequest.none)
     state = SaleUnknown.new()
 
