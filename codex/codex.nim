@@ -134,10 +134,15 @@ proc new(_: type Contracts,
   let proving = Proving.new(proofs, clock)
   let sales = Sales.new(market, clock, proving, repo)
 
-  let client = ClientInteractions.new(clock, purchasing)
-  let host = HostInteractions.new(clock, sales, proving)
+  let client = some ClientInteractions.new(clock, purchasing)
+  let host = some HostInteractions.new(clock, sales, proving)
 
-  (some client, some host)
+  var validator: ?ValidatorInteractions
+  if config.validator:
+    let validation = Validation.new(clock, market)
+    validator = some ValidatorInteractions.new(clock, validation)
+
+  (client, host, validator)
 
 proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): T =
 

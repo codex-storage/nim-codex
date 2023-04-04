@@ -47,6 +47,7 @@ type
   Contracts* = tuple
     client: ?ClientInteractions
     host: ?HostInteractions
+    validator: ?ValidatorInteractions
 
   CodexNodeRef* = ref object
     switch*: Switch
@@ -316,7 +317,7 @@ proc new*(
   engine: BlockExcEngine,
   erasure: Erasure,
   discovery: Discovery,
-  contracts: Contracts = (ClientInteractions.none, HostInteractions.none)): T =
+  contracts = Contracts.default): T =
   T(
     switch: switch,
     blockStore: store,
@@ -388,6 +389,13 @@ proc start*(node: CodexNodeRef) {.async.} =
     except CatchableError as error:
       error "Unable to start client contract interactions: ", error=error.msg
       node.contracts.client = ClientInteractions.none
+
+  if validatorContracts =? node.contracts.validator:
+    try:
+      await validatorContracts.start()
+    except CatchableError as error:
+      error "Unable to start validator contract interactions: ", error=error.msg
+      node.contracts.validator = ValidatorInteractions.none
 
   node.networkId = node.switch.peerInfo.peerId
   notice "Started codex node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
