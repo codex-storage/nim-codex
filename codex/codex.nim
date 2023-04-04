@@ -32,6 +32,7 @@ import ./utils/fileutils
 import ./erasure
 import ./discovery
 import ./contracts
+import ./contracts/clock
 import ./utils/addrutils
 import ./namespaces
 
@@ -123,17 +124,20 @@ proc new(_: type Contracts,
     error "Marketplace contract address not found in deployment file"
     quit QuitFailure
 
-  # TODO: at some point there may be cli options that enable client-only or host-only
-  # operation, and both client AND host will not necessarily need to be instantiated
-  let client = ClientInteractions.new(config.ethProvider,
-                                      account,
-                                      marketplaceAddress)
-  let host = HostInteractions.new(config.ethProvider,
-                                  account,
-                                  repo,
-                                  marketplaceAddress)
+  let provider = JsonRpcProvider.new(config.ethProvider)
+  let signer = provider.getSigner(account)
+  let marketplace = Marketplace.new(marketplaceAddress, signer)
+  let market = OnChainMarket.new(marketplace)
+  let clock = OnChainClock.new(provider)
+  let purchasing = Purchasing.new(market, clock)
+  let proofs = OnChainProofs.new(marketplace)
+  let proving = Proving.new(proofs, clock)
+  let sales = Sales.new(market, clock, proving, repo)
 
-  (client.option, host.option)
+  let client = ClientInteractions.new(clock, purchasing)
+  let host = HostInteractions.new(clock, sales, proving)
+
+  (some client, some host)
 
 proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): T =
 

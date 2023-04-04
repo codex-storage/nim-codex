@@ -1,7 +1,5 @@
 import pkg/ethers
 import pkg/chronicles
-import pkg/questionable
-import pkg/questionable/results
 
 import ../../purchasing
 import ../marketplace
@@ -18,16 +16,9 @@ type
     purchasing*: Purchasing
 
 proc new*(_: type ClientInteractions,
-          providerUrl: string,
-          account: Address,
-          contractAddress: Address): ?!ClientInteractions =
-
-  without prepared =? prepare(providerUrl, account, contractAddress), error:
-    return failure(error)
-
-  let c = ClientInteractions.new(prepared.clock)
-  c.purchasing = Purchasing.new(prepared.market, prepared.clock)
-  return success(c)
+          clock: OnChainClock,
+          purchasing: Purchasing): ClientInteractions =
+  ClientInteractions(clock: clock, purchasing: purchasing)
 
 proc start*(self: ClientInteractions) {.async.} =
   await procCall ContractInteractions(self).start()
