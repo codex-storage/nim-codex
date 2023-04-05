@@ -2,7 +2,6 @@ import std/options
 import pkg/chronos
 import pkg/stew/byteutils
 import codex/contracts
-import codex/storageproofs
 import ../ethertest
 import ./examples
 import ./time
@@ -46,6 +45,12 @@ ethersuite "On-Chain Market":
   test "knows signer address":
     check (await market.getSigner()) == (await provider.getSigner().getAddress())
 
+  test "can retrieve proof periodicity":
+    let periodicity = await market.periodicity()
+    let config = await marketplace.config()
+    let periodLength = config.proofs.period
+    check periodicity.seconds == periodLength
+
   test "supports marketplace requests":
     await market.requestStorage(request)
 
@@ -88,6 +93,15 @@ ethersuite "On-Chain Market":
     await market.fillSlot(request.id, slotIndex, proof)
     await market.freeSlot(slotId(request.id, slotIndex))
     check (await market.getHost(request.id, slotIndex)) == none Address
+
+  test "supports checking whether proof is required now":
+    check (await market.isProofRequired(slotId(request.id, slotIndex))) == false
+
+  test "supports checking whether proof is required soon":
+    check (await market.willProofBeRequired(slotId(request.id, slotIndex))) == false
+
+  test "submits proofs":
+    await market.submitProof(slotId(request.id, slotIndex), proof)
 
   test "supports slot filled subscriptions":
     await market.requestStorage(request)
@@ -212,6 +226,23 @@ ethersuite "On-Chain Market":
     check receivedIds.len == 0
     await market.withdrawFunds(request.id)
     check receivedIds == @[request.id]
+    await subscription.unsubscribe()
+
+  test "supports proof submission subscriptions":
+    var receivedIds: seq[SlotId]
+    var receivedProofs: seq[seq[byte]]
+
+    proc onProofSubmission(id: SlotId, proof: seq[byte]) =
+      receivedIds.add(id)
+      receivedProofs.add(proof)
+
+    let subscription = await market.subscribeProofSubmission(onProofSubmission)
+
+    await market.submitProof(slotId(request.id, slotIndex), proof)
+
+    check receivedIds == @[slotId(request.id, slotIndex)]
+    check receivedProofs == @[proof]
+
     await subscription.unsubscribe()
 
   test "request is none when unknown":

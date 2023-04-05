@@ -1,6 +1,7 @@
 import std/sequtils
 import std/tables
 import std/hashes
+import std/sets
 import pkg/codex/market
 import pkg/codex/contracts/requests
 import pkg/codex/contracts/config
@@ -11,6 +12,7 @@ export tables
 
 type
   MockMarket* = ref object of Market
+    periodicity: Periodicity
     activeRequests*: Table[Address, seq[RequestId]]
     activeSlots*: Table[Address, seq[SlotId]]
     requested*: seq[StorageRequest]
@@ -21,6 +23,9 @@ type
     filled*: seq[MockSlot]
     freed*: seq[SlotId]
     withdrawn*: seq[RequestId]
+    proofsRequired: HashSet[SlotId]
+    proofsToBeRequired: HashSet[SlotId]
+    proofEnds: Table[SlotId, UInt256]
     signer: Address
     subscriptions: Subscriptions
     config: MarketplaceConfig
@@ -40,6 +45,7 @@ type
     onSlotFreed: seq[SlotFreedSubscription]
     onRequestCancelled: seq[RequestCancelledSubscription]
     onRequestFailed: seq[RequestFailedSubscription]
+    onProofSubmitted: seq[ProofSubmittedSubscription]
   RequestSubscription* = ref object of Subscription
     market: MockMarket
     callback: OnRequest
@@ -63,6 +69,9 @@ type
     market: MockMarket
     requestId: RequestId
     callback: OnRequestCancelled
+  ProofSubmittedSubscription = ref object of Subscription
+    market: MockMarket
+    callback: OnProofSubmitted
 
 proc hash*(address: Address): Hash =
   hash(address.toArray)
@@ -88,6 +97,9 @@ proc new*(_: type MockMarket): MockMarket =
 
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
+
+method periodicity*(mock: MockMarket): Future[Periodicity] {.async.} =
+  return Periodicity(seconds: mock.config.proofs.period)
 
 method requestStorage*(market: MockMarket, request: StorageRequest) {.async.} =
   market.requested.add(request)
@@ -208,6 +220,33 @@ method withdrawFunds*(market: MockMarket,
   market.withdrawn.add(requestId)
   market.emitRequestCancelled(requestId)
 
+proc setProofRequired*(mock: MockMarket, id: SlotId, required: bool) =
+  if required:
+    mock.proofsRequired.incl(id)
+  else:
+    mock.proofsRequired.excl(id)
+
+method isProofRequired*(mock: MockMarket,
+                        id: SlotId): Future[bool] {.async.} =
+  return mock.proofsRequired.contains(id)
+
+proc setProofToBeRequired*(mock: MockMarket, id: SlotId, required: bool) =
+  if required:
+    mock.proofsToBeRequired.incl(id)
+  else:
+    mock.proofsToBeRequired.excl(id)
+
+method willProofBeRequired*(mock: MockMarket,
+                            id: SlotId): Future[bool] {.async.} =
+  return mock.proofsToBeRequired.contains(id)
+
+proc setProofEnd*(mock: MockMarket, id: SlotId, proofEnd: UInt256) =
+  mock.proofEnds[id] = proofEnd
+
+method submitProof*(mock: MockMarket, id: SlotId, proof: seq[byte]) {.async.} =
+  for subscription in mock.subscriptions.onProofSubmitted:
+    subscription.callback(id, proof)
+
 method subscribeRequests*(market: MockMarket,
                           callback: OnRequest):
                          Future[Subscription] {.async.} =
@@ -282,6 +321,16 @@ method subscribeRequestFailed*(market: MockMarket,
   market.subscriptions.onRequestFailed.add(subscription)
   return subscription
 
+method subscribeProofSubmission*(mock: MockMarket,
+                                 callback: OnProofSubmitted):
+                                Future[Subscription] {.async.} =
+  let subscription = ProofSubmittedSubscription(
+    market: mock,
+    callback: callback
+  )
+  mock.subscriptions.onProofSubmitted.add(subscription)
+  return subscription
+
 method unsubscribe*(subscription: RequestSubscription) {.async.} =
   subscription.market.subscriptions.onRequest.keepItIf(it != subscription)
 
@@ -299,3 +348,6 @@ method unsubscribe*(subscription: RequestCancelledSubscription) {.async.} =
 
 method unsubscribe*(subscription: RequestFailedSubscription) {.async.} =
   subscription.market.subscriptions.onRequestFailed.keepItIf(it != subscription)
+
+method unsubscribe*(subscription: ProofSubmittedSubscription) {.async.} =
+  subscription.market.subscriptions.onProofSubmitted.keepItIf(it != subscription)

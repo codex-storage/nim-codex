@@ -4,11 +4,13 @@ import pkg/questionable
 import pkg/ethers/erc20
 import ./contracts/requests
 import ./clock
+import ./periods
 
 export chronos
 export questionable
 export requests
 export SecondsSince1970
+export periods
 
 type
   Market* = ref object of RootObj
@@ -19,8 +21,12 @@ type
   OnSlotFreed* = proc(slotId: SlotId) {.gcsafe, upraises: [].}
   OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
+  OnProofSubmitted* = proc(id: SlotId, proof: seq[byte]) {.gcsafe, upraises:[].}
 
 method getSigner*(market: Market): Future[Address] {.base, async.} =
+  raiseAssert("not implemented")
+
+method periodicity*(market: Market): Future[Periodicity] {.base, async.} =
   raiseAssert("not implemented")
 
 method requestStorage*(market: Market,
@@ -80,6 +86,20 @@ method subscribeRequests*(market: Market,
                          Future[Subscription] {.base, async.} =
   raiseAssert("not implemented")
 
+method isProofRequired*(market: Market,
+                        id: SlotId): Future[bool] {.base, async.} =
+  raiseAssert("not implemented")
+
+method willProofBeRequired*(market: Market,
+                            id: SlotId): Future[bool] {.base, async.} =
+  raiseAssert("not implemented")
+
+method submitProof*(market: Market,
+                    id: SlotId,
+                    proof: seq[byte]) {.base, async.} =
+  raiseAssert("not implemented")
+
+
 method subscribeFulfillment*(market: Market,
                              requestId: RequestId,
                              callback: OnFulfillment):
@@ -113,6 +133,11 @@ method subscribeRequestFailed*(market: Market,
                                requestId: RequestId,
                                callback: OnRequestFailed):
                              Future[Subscription] {.base, async.} =
+  raiseAssert("not implemented")
+
+method subscribeProofSubmission*(market: Market,
+                                 callback: OnProofSubmitted):
+                                Future[Subscription] {.base, async.} =
   raiseAssert("not implemented")
 
 method unsubscribe*(subscription: Subscription) {.base, async, upraises:[].} =

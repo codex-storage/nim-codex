@@ -22,9 +22,8 @@ import ./por
 import ./stpnetwork
 import ./stpproto
 import ./stpstore
-import ./timing
 
-export stpnetwork, stpstore, por, timing, stpproto
+export stpnetwork, stpstore, por, stpproto
 
 type
   StorageProofs* = object

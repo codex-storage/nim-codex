@@ -3,7 +3,6 @@ import pkg/chronicles
 
 import ../../sales
 import ../../proving
-import ../proofs
 import ./interactions
 
 export sales

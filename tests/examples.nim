@@ -1,7 +1,7 @@
 import std/random
 import std/sequtils
 import std/times
-import pkg/codex/proving
+import pkg/codex/contracts/requests
 import pkg/stint
 
 proc example*[T: SomeInteger](_: type T): T =

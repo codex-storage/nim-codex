@@ -2,9 +2,7 @@ import pkg/ethers
 import pkg/chronicles
 
 import ../../purchasing
-import ../marketplace
 import ../market
-import ../proofs
 import ../clock
 import ./interactions
 

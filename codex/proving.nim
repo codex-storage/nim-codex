@@ -2,23 +2,22 @@ import std/sets
 import pkg/upraises
 import pkg/questionable
 import pkg/chronicles
-import ./storageproofs
+import ./market
 import ./clock
 
 export sets
-export storageproofs
 
 type
   Proving* = ref object
-    proofs: Proofs
+    market: Market
     clock: Clock
     loop: ?Future[void]
     slots*: HashSet[Slot]
     onProve: ?OnProve
   OnProve* = proc(slot: Slot): Future[seq[byte]] {.gcsafe, upraises: [].}
 
-func new*(_: type Proving, proofs: Proofs, clock: Clock): Proving =
-  Proving(proofs: proofs, clock: clock)
+func new*(_: type Proving, market: Market, clock: Clock): Proving =
+  Proving(market: market, clock: clock)
 
 proc onProve*(proving: Proving): ?OnProve =
   proving.onProve
@@ -30,17 +29,17 @@ func add*(proving: Proving, slot: Slot) =
   proving.slots.incl(slot)
 
 proc getCurrentPeriod(proving: Proving): Future[Period] {.async.} =
-  let periodicity = await proving.proofs.periodicity()
+  let periodicity = await proving.market.periodicity()
   return periodicity.periodOf(proving.clock.now().u256)
 
 proc waitUntilPeriod(proving: Proving, period: Period) {.async.} =
-  let periodicity = await proving.proofs.periodicity()
+  let periodicity = await proving.market.periodicity()
   await proving.clock.waitUntil(periodicity.periodStart(period).truncate(int64))
 
 proc removeEndedContracts(proving: Proving) {.async.} =
   var ended: HashSet[Slot]
   for slot in proving.slots:
-    let state = await proving.proofs.slotState(slot.id)
+    let state = await proving.market.slotState(slot.id)
     if state != SlotState.Filled:
       ended.incl(slot)
   proving.slots.excl(ended)
@@ -50,7 +49,7 @@ proc prove(proving: Proving, slot: Slot) {.async.} =
     raiseAssert "onProve callback not set"
   try:
     let proof = await onProve(slot)
-    await proving.proofs.submitProof(slot.id, proof)
+    await proving.market.submitProof(slot.id, proof)
   except CatchableError as e:
     error "Submitting proof failed", msg = e.msg
 
@@ -61,8 +60,8 @@ proc run(proving: Proving) {.async.} =
       await proving.removeEndedContracts()
       for slot in proving.slots:
         let id = slot.id
-        if (await proving.proofs.isProofRequired(id)) or
-           (await proving.proofs.willProofBeRequired(id)):
+        if (await proving.market.isProofRequired(id)) or
+           (await proving.market.willProofBeRequired(id)):
           asyncSpawn proving.prove(slot)
       await proving.waitUntilPeriod(currentPeriod + 1)
   except CancelledError:
@@ -85,4 +84,4 @@ proc stop*(proving: Proving) {.async.} =
 proc subscribeProofSubmission*(proving: Proving,
                                callback: OnProofSubmitted):
                               Future[Subscription] =
-  proving.proofs.subscribeProofSubmission(callback)
+  proving.market.subscribeProofSubmission(callback)

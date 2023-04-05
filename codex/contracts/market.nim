@@ -39,6 +39,11 @@ proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
 method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
   return await market.signer.getAddress()
 
+method periodicity*(market: OnChainMarket): Future[Periodicity] {.async.} =
+  let config = await market.contract.config()
+  let period = config.proofs.period
+  return Periodicity(seconds: period)
+
 method myRequests*(market: OnChainMarket): Future[seq[RequestId]] {.async.} =
   return await market.contract.myRequests
 
@@ -111,6 +116,29 @@ method withdrawFunds(market: OnChainMarket,
                      requestId: RequestId) {.async.} =
   await market.contract.withdrawFunds(requestId)
 
+method isProofRequired*(market: OnChainMarket,
+                        id: SlotId): Future[bool] {.async.} =
+  try:
+    return await market.contract.isProofRequired(id)
+  except ProviderError as e:
+    if e.revertReason.contains("Slot is free"):
+      return false
+    raise e
+
+method willProofBeRequired*(market: OnChainMarket,
+                            id: SlotId): Future[bool] {.async.} =
+  try:
+    return await market.contract.willProofBeRequired(id)
+  except ProviderError as e:
+    if e.revertReason.contains("Slot is free"):
+      return false
+    raise e
+
+method submitProof*(market: OnChainMarket,
+                    id: SlotId,
+                    proof: seq[byte]) {.async.} =
+  await market.contract.submitProof(id, proof)
+
 method subscribeRequests(market: OnChainMarket,
                          callback: OnRequest):
                         Future[MarketSubscription] {.async.} =
@@ -173,6 +201,14 @@ method subscribeRequestFailed*(market: OnChainMarket,
     if event.requestId == requestId:
       callback(event.requestId)
   let subscription = await market.contract.subscribe(RequestFailed, onEvent)
+  return OnChainMarketSubscription(eventSubscription: subscription)
+
+method subscribeProofSubmission*(market: OnChainMarket,
+                                 callback: OnProofSubmitted):
+                                Future[MarketSubscription] {.async.} =
+  proc onEvent(event: ProofSubmitted) {.upraises: [].} =
+    callback(event.id, event.proof)
+  let subscription = await market.contract.subscribe(ProofSubmitted, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
 method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =

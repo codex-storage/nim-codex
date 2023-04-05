@@ -130,8 +130,7 @@ proc new(_: type Contracts,
   let market = OnChainMarket.new(marketplace)
   let clock = OnChainClock.new(provider)
   let purchasing = Purchasing.new(market, clock)
-  let proofs = OnChainProofs.new(marketplace)
-  let proving = Proving.new(proofs, clock)
+  let proving = Proving.new(market, clock)
   let sales = Sales.new(market, clock, proving, repo)
 
   let client = some ClientInteractions.new(clock, purchasing)
