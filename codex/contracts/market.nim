@@ -139,6 +139,11 @@ method submitProof*(market: OnChainMarket,
                     proof: seq[byte]) {.async.} =
   await market.contract.submitProof(id, proof)
 
+method markProofAsMissing*(market: OnChainMarket,
+                           id: SlotId,
+                           period: Period) {.async.} =
+  await market.contract.markProofAsMissing(id, period)
+
 method subscribeRequests(market: OnChainMarket,
                          callback: OnRequest):
                         Future[MarketSubscription] {.async.} =

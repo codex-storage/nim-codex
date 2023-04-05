@@ -22,6 +22,7 @@ type
     fulfilled*: seq[Fulfillment]
     filled*: seq[MockSlot]
     freed*: seq[SlotId]
+    markedAsMissingProofs*: seq[SlotId]
     withdrawn*: seq[RequestId]
     proofsRequired: HashSet[SlotId]
     proofsToBeRequired: HashSet[SlotId]
@@ -246,6 +247,11 @@ proc setProofEnd*(mock: MockMarket, id: SlotId, proofEnd: UInt256) =
 method submitProof*(mock: MockMarket, id: SlotId, proof: seq[byte]) {.async.} =
   for subscription in mock.subscriptions.onProofSubmitted:
     subscription.callback(id, proof)
+
+method markProofAsMissing*(market: MockMarket,
+                           id: SlotId,
+                           period: Period) {.async.} =
+  market.markedAsMissingProofs.add(id)
 
 method subscribeRequests*(market: MockMarket,
                           callback: OnRequest):

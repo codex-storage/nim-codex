@@ -99,6 +99,10 @@ method submitProof*(market: Market,
                     proof: seq[byte]) {.base, async.} =
   raiseAssert("not implemented")
 
+method markProofAsMissing*(market: Market,
+                           id: SlotId,
+                           period: Period) {.base, async.} =
+  raiseAssert("not implemented")
 
 method subscribeFulfillment*(market: Market,
                              requestId: RequestId,

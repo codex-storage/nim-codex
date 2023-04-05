@@ -103,6 +103,17 @@ ethersuite "On-Chain Market":
   test "submits proofs":
     await market.submitProof(slotId(request.id, slotIndex), proof)
 
+  test "can mark a proof as missing":
+    let slotId = slotId(request, slotIndex)
+    await token.approve(marketplace.address, request.price)
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, slotIndex, proof)
+    await waitUntilProofRequired(slotId)
+    let missingPeriod = periodicity.periodOf(await provider.currentTime())
+    await provider.advanceTime(periodicity.seconds)
+    await market.markProofAsMissing(slotId, missingPeriod)
+    check (await marketplace.missingProofs(slotId)) == 1
+
   test "supports slot filled subscriptions":
     await market.requestStorage(request)
     var receivedIds: seq[RequestId]
