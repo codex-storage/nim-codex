@@ -8,11 +8,6 @@ import ./tokens
 
 twonodessuite "Integration tests", debug1 = false, debug2 = false:
 
-  setup:
-    await provider.getSigner(accounts[0]).mint()
-    await provider.getSigner(accounts[1]).mint()
-    await provider.getSigner(accounts[1]).deposit()
-
   test "nodes can print their peer information":
     check client1.info() != client2.info()
 

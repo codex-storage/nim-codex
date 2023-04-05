@@ -112,6 +112,9 @@ components:
         minPrice:
           type: string
           description: Minimum price to be paid (in amount of tokens) as hexadecimal string
+        maxCollateral:
+          type: string
+          description: Maximum collateral user is willing to pay per filled Slot (in amount of tokens)
 
     StorageRequestCreation:
       type: object

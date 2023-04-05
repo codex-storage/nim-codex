@@ -38,7 +38,8 @@ suite "Sales":
     availability = Availability.init(
       size=100.u256,
       duration=60.u256,
-      minPrice=600.u256
+      minPrice=600.u256,
+      maxCollateral=400.u256
     )
     request = StorageRequest(
       ask: StorageAsk(
@@ -46,6 +47,7 @@ suite "Sales":
         slotSize: 100.u256,
         duration: 60.u256,
         reward: 10.u256,
+        collateral: 200.u256,
       ),
       content: StorageContent(
         cid: "some cid"
@@ -133,6 +135,13 @@ suite "Sales":
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     check getAvailability().?used == success false
+
+  test "ignores request when asked collateral is too high":
+    var tooBigCollateral = request
+    tooBigCollateral.ask.collateral = availability.maxCollateral + 1
+    check isOk await reservations.reserve(availability)
+    await market.requestStorage(tooBigCollateral)
+    check await wasIgnored()
 
   test "retrieves and stores data locally":
     var storingRequest: StorageRequest

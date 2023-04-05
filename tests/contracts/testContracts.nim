@@ -1,20 +1,19 @@
 import std/json
 import pkg/chronos
 import pkg/ethers/testing
+import pkg/ethers/erc20
 import codex/contracts
 import codex/storageproofs
 import ../ethertest
 import ./examples
 import ./time
-import ./token
 
 ethersuite "Marketplace contracts":
   let proof = exampleProof()
 
   var client, host: Signer
   var marketplace: Marketplace
-  var token: TestToken
-  var collateral: UInt256
+  var token: Erc20Token
   var periodicity: Periodicity
   var request: StorageRequest
   var slotId: SlotId
@@ -29,13 +28,11 @@ ethersuite "Marketplace contracts":
 
     let deployment = Deployment.init()
     marketplace = Marketplace.new(!deployment.address(Marketplace), provider.getSigner())
-    token = TestToken.new(!deployment.address(TestToken), provider.getSigner())
 
-    await token.mint(await client.getAddress(), 1_000_000_000.u256)
-    await token.mint(await host.getAddress(), 1000_000_000.u256)
+    let tokenAddress = await marketplace.token()
+    token = Erc20Token.new(tokenAddress, provider.getSigner())
 
     let config = await marketplace.config()
-    collateral = config.collateral.initialAmount
     periodicity = Periodicity(seconds: config.proofs.period)
 
     request = StorageRequest.example
@@ -45,8 +42,7 @@ ethersuite "Marketplace contracts":
     await token.approve(marketplace.address, request.price)
     await marketplace.requestStorage(request)
     switchAccount(host)
-    await token.approve(marketplace.address, collateral)
-    await marketplace.deposit(collateral)
+    await token.approve(marketplace.address, request.ask.collateral)
     await marketplace.fillSlot(request.id, 0.u256, proof)
     slotId = request.slotId(0.u256)
 
@@ -61,6 +57,7 @@ ethersuite "Marketplace contracts":
 
   proc startContract() {.async.} =
     for slotIndex in 1..<request.ask.slots:
+      await token.approve(marketplace.address, request.ask.collateral)
       await marketplace.fillSlot(request.id, slotIndex.u256, proof)
 
   test "accept marketplace proofs":
@@ -85,7 +82,7 @@ ethersuite "Marketplace contracts":
     let startBalance = await token.balanceOf(address)
     await marketplace.freeSlot(slotId)
     let endBalance = await token.balanceOf(address)
-    check endBalance == (startBalance + request.ask.duration * request.ask.reward)
+    check endBalance == (startBalance + request.ask.duration * request.ask.reward + request.ask.collateral)
 
   test "cannot mark proofs missing for cancelled request":
     await provider.advanceTimeTo(request.expiry + 1)

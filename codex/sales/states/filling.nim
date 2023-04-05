@@ -26,4 +26,4 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
   let market = SalesAgent(machine).context.market
 
-  await market.fillSlot(data.requestId, data.slotIndex, state.proof)
+  await market.fillSlot(data.requestId, data.slotIndex, state.proof, data.ask.collateral)

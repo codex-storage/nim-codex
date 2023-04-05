@@ -41,6 +41,7 @@ method mySlots*(market: OnChainMarket): Future[seq[SlotId]] {.async.} =
   return await market.contract.mySlots()
 
 method requestStorage(market: OnChainMarket, request: StorageRequest){.async.} =
+  await market.approveFunds(request.price())
   await market.contract.requestStorage(request)
 
 method getRequest(market: OnChainMarket,
@@ -93,7 +94,9 @@ method getActiveSlot*(
 method fillSlot(market: OnChainMarket,
                 requestId: RequestId,
                 slotIndex: UInt256,
-                proof: seq[byte]) {.async.} =
+                proof: seq[byte],
+                collateral: UInt256) {.async.} =
+  await market.approveFunds(collateral)
   await market.contract.fillSlot(requestId, slotIndex, proof)
 
 method withdrawFunds(market: OnChainMarket,

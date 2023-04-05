@@ -14,9 +14,6 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
     let deployment = Deployment.init()
     marketplace = Marketplace.new(!deployment.address(Marketplace), provider)
     config = await marketplace.config()
-    await provider.getSigner(accounts[0]).mint()
-    await provider.getSigner(accounts[1]).mint()
-    await provider.getSigner(accounts[1]).deposit()
 
   proc waitUntilPurchaseIsStarted {.async.} =
     discard client2.postAvailability(size=0xFFFFF, duration=200, minPrice=300)

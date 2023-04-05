@@ -67,7 +67,8 @@ method getActiveSlot*(
 method fillSlot*(market: Market,
                  requestId: RequestId,
                  slotIndex: UInt256,
-                 proof: seq[byte]) {.base, async.} =
+                 proof: seq[byte],
+                 collateral: UInt256) {.base, async.} =
   raiseAssert("not implemented")
 
 method withdrawFunds*(market: Market,

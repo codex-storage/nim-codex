@@ -39,8 +39,8 @@ suite "Reservations module":
     check (await reservations.allAvailabilities()).len == 0
 
   test "generates unique ids for storage availability":
-    let availability1 = Availability.init(1.u256, 2.u256, 3.u256)
-    let availability2 = Availability.init(1.u256, 2.u256, 3.u256)
+    let availability1 = Availability.init(1.u256, 2.u256, 3.u256, 4.u256)
+    let availability2 = Availability.init(1.u256, 2.u256, 3.u256, 4.u256)
     check availability1.id != availability2.id
 
   test "can reserve available storage":
@@ -125,7 +125,7 @@ suite "Reservations module":
     check isOk await reservations.markUsed(availability.id)
 
     without available =? await reservations.find(availability.size,
-      availability.duration, availability.minPrice, used = true):
+      availability.duration, availability.minPrice, availability.maxCollateral, used = true):
 
       fail()
 
@@ -133,13 +133,13 @@ suite "Reservations module":
     check isOk await reservations.reserve(availability)
 
     without available =? await reservations.find(availability.size,
-      availability.duration, availability.minPrice, used = false):
+      availability.duration, availability.minPrice, availability.maxCollateral, used = false):
 
       fail()
 
   test "non-existant availability cannot be found":
     check isNone (await reservations.find(availability.size,
-      availability.duration, availability.minPrice, used = false))
+      availability.duration, availability.minPrice, availability.maxCollateral, used = false))
 
   test "non-existant availability cannot be retrieved":
     let r = await reservations.get(availability.id)
