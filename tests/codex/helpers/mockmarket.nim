@@ -29,7 +29,7 @@ type
     proofEnds: Table[SlotId, UInt256]
     signer: Address
     subscriptions: Subscriptions
-    config: MarketplaceConfig
+    config*: MarketplaceConfig
   Fulfillment* = object
     requestId*: RequestId
     proof*: seq[byte]
@@ -203,6 +203,7 @@ proc fillSlot*(market: MockMarket,
     host: host
   )
   market.filled.add(slot)
+  market.slotState[slotId(slot.requestId, slot.slotIndex)] = SlotState.Filled
   market.emitSlotFilled(requestId, slotIndex)
 
 method fillSlot*(market: MockMarket,
