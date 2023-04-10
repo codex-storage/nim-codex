@@ -43,9 +43,9 @@ type
     repoDs*: Datastore
     metaDs*: Datastore
     clock: Clock
-    quotaMaxBytes*: uint
-    quotaUsedBytes*: uint
-    quotaReservedBytes*: uint
+    quotaMaxBytes*: uint          # maximum available bytes
+    quotaUsedBytes*: uint         # bytes used by the repo
+    quotaReservedBytes*: uint     # bytes reserved by the repo
     blockTtl*: Duration
     started*: bool
 
