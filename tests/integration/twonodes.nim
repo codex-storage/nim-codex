@@ -49,6 +49,8 @@ template twonodessuite*(name: string, debug1, debug2: bool, body) =
         "--eth-account=" & $accounts[1]
       ], debug = debug2)
 
+
+
     teardown:
       client1.close()
       client2.close()

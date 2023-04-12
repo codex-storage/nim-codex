@@ -25,5 +25,7 @@ method onSlotFilled*(state: SaleFilling, requestId: RequestId,
 method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
   let market = SalesAgent(machine).context.market
+  without (collateral =? data.request.?ask.?collateral):
+    raiseAssert "Request not set"
 
-  await market.fillSlot(data.requestId, data.slotIndex, state.proof, data.ask.collateral)
+  await market.fillSlot(data.requestId, data.slotIndex, state.proof, collateral)

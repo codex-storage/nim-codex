@@ -122,6 +122,7 @@ components:
         - reward
         - duration
         - proofProbability
+        - collateral
       properties:
         duration:
           $ref: "#/components/schemas/Duration"
@@ -137,6 +138,9 @@ components:
           type: number
           description: Additional number of nodes on top of the `nodes` property that can be lost before pronouncing the content lost
           default: 0
+        collateral:
+          type: string
+          description: Hexadecimal encoded number that represents how much
 
     StorageAsk:
       type: object

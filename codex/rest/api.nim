@@ -140,6 +140,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       ## expiry           - timestamp, in seconds, when the request expires if the Request does not find requested amount of nodes to host the data
       ## nodes            - minimal number of nodes the content should be stored on
       ## tolerance        - allowed number of nodes that can be lost before pronouncing the content lost
+      ## colateral        - requested collateral from hosts when they fill slot
 
       without cid =? cid.tryGet.catch, error:
         return RestApiResponse.error(Http400, error.msg)

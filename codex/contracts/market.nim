@@ -1,4 +1,5 @@
 import std/strutils
+import pkg/chronicles
 import pkg/ethers
 import pkg/ethers/testing
 import pkg/upraises
@@ -7,6 +8,9 @@ import ../market
 import ./marketplace
 
 export market
+
+logScope:
+    topics = "onchain market"
 
 type
   OnChainMarket* = ref object of Market
@@ -25,7 +29,8 @@ func new*(_: type OnChainMarket, contract: Marketplace): OnChainMarket =
     signer: signer,
   )
 
-method approveFunds*(market: OnChainMarket, amount: UInt256) {.async.} =
+proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
+  notice "approving tokens", amount
   let tokenAddress = await market.contract.token()
   let token = Erc20Token.new(tokenAddress, market.signer)
 
