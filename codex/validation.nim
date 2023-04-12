@@ -44,12 +44,6 @@ proc subscribeSlotFilled(validation: Validation) {.async.} =
   let subscription = await validation.market.subscribeSlotFilled(onSlotFilled)
   validation.subscriptions.add(subscription)
 
-proc subscribeSlotFreed(validation: Validation) {.async.} =
-  proc onSlotFreed(slotId: SlotId) =
-    validation.slots.del(slotId)
-  let subscription = await validation.market.subscribeSlotFreed(onSlotFreed)
-  validation.subscriptions.add(subscription)
-
 proc subscribeProofSubmission(validation: Validation) {.async.} =
   proc onProofSubmission(slotId: SlotId, proof: seq[byte]) =
     let now = validation.getCurrentPeriod()
@@ -117,7 +111,6 @@ proc start*(validation: Validation) {.async.} =
   validation.periodicity = await validation.market.periodicity()
   validation.proofTimeout = await validation.market.proofTimeout()
   await validation.subscribeSlotFilled()
-  await validation.subscribeSlotFreed()
   await validation.subscribeProofSubmission()
   validation.running = validation.run()
 

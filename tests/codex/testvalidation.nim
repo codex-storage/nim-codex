@@ -33,11 +33,6 @@ suite "validation":
     await market.fillSlot(slot.request.id, slot.slotIndex, @[])
     check validation.slots == @[slot.id]
 
-  test "when a slot is freed, it is removed from the list":
-    await market.fillSlot(slot.request.id, slot.slotIndex, @[])
-    await market.freeSlot(slot.id)
-    check validation.slots.len == 0
-
   test "when slot state changes, it is removed from the list":
     await market.fillSlot(slot.request.id, slot.slotIndex, @[])
     market.slotState[slot.id] = SlotState.Finished
