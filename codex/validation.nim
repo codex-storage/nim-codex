@@ -98,10 +98,10 @@ proc markProofsAsMissing(validation: Validation) {.async.} =
 proc run(validation: Validation) {.async.} =
   try:
     while true:
+      await validation.waitUntilNextPeriod()
       await validation.removeSlotsThatHaveEnded()
       await validation.recordProofRequirements()
       await validation.markProofsAsMissing()
-      await validation.waitUntilNextPeriod()
   except CancelledError:
     discard
   except CatchableError as e:
