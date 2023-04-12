@@ -29,6 +29,9 @@ method getSigner*(market: Market): Future[Address] {.base, async.} =
 method periodicity*(market: Market): Future[Periodicity] {.base, async.} =
   raiseAssert("not implemented")
 
+method proofTimeout*(market: Market): Future[UInt256] {.base, async.} =
+  raiseAssert("not implemented")
+
 method requestStorage*(market: Market,
                        request: StorageRequest) {.base, async.} =
   raiseAssert("not implemented")

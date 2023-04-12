@@ -17,6 +17,7 @@ type
     subscriptions: seq[Subscription]
     running: Future[void]
     periodicity: Periodicity
+    proofTimeout: UInt256
   ProofRequirements = ref object
     required: HashSet[Period]
     submitted: HashSet[Period]
@@ -114,6 +115,7 @@ proc run(validation: Validation) {.async.} =
 
 proc start*(validation: Validation) {.async.} =
   validation.periodicity = await validation.market.periodicity()
+  validation.proofTimeout = await validation.market.proofTimeout()
   await validation.subscribeSlotFilled()
   await validation.subscribeSlotFreed()
   await validation.subscribeProofSubmission()

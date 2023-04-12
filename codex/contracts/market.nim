@@ -44,6 +44,10 @@ method periodicity*(market: OnChainMarket): Future[Periodicity] {.async.} =
   let period = config.proofs.period
   return Periodicity(seconds: period)
 
+method proofTimeout*(market: OnChainMarket): Future[UInt256] {.async.} =
+  let config = await market.contract.config()
+  return config.proofs.timeout
+
 method myRequests*(market: OnChainMarket): Future[seq[RequestId]] {.async.} =
   return await market.contract.myRequests
 

@@ -51,6 +51,11 @@ ethersuite "On-Chain Market":
     let periodLength = config.proofs.period
     check periodicity.seconds == periodLength
 
+  test "can retrieve proof timeout":
+    let proofTimeout = await market.proofTimeout()
+    let config = await marketplace.config()
+    check proofTimeout == config.proofs.timeout
+
   test "supports marketplace requests":
     await market.requestStorage(request)
 

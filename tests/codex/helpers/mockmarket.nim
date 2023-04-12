@@ -102,6 +102,9 @@ method getSigner*(market: MockMarket): Future[Address] {.async.} =
 method periodicity*(mock: MockMarket): Future[Periodicity] {.async.} =
   return Periodicity(seconds: mock.config.proofs.period)
 
+method proofTimeout*(market: MockMarket): Future[UInt256] {.async.} =
+  return market.config.proofs.timeout
+
 method requestStorage*(market: MockMarket, request: StorageRequest) {.async.} =
   market.requested.add(request)
   var subscriptions = market.subscriptions.onRequest
