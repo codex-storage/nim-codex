@@ -9,18 +9,27 @@ import ./examples
 
 suite "validation":
 
-  let period = 1
+  let period = 10
+  let timeout = 5
   let slot = Slot.example
 
   var validation: Validation
   var market: MockMarket
   var clock: MockClock
 
+  proc setClockToStartOfPeriod() =
+    let periodicity = Periodicity(seconds: period.u256)
+    let currentPeriod = periodicity.periodOf(clock.now().u256)
+    let startOfNextPeriod = periodicity.periodStart(currentPeriod + 1)
+    clock.set(startOfNextPeriod.truncate(int64))
+
   setup:
     market = MockMarket.new()
     clock = MockClock.new()
     validation = Validation.new(clock, market)
     market.config.proofs.period = period.u256
+    market.config.proofs.timeout = timeout.u256
+    setClockToStartOfPeriod()
     await validation.start()
 
   teardown:
@@ -52,8 +61,17 @@ suite "validation":
     await market.fillSlot(slot.request.id, slot.slotIndex, @[])
     market.setProofRequired(slot.id, true)
     clock.advance(period)
-    await sleepAsync(1.millis)
     await market.submitProof(slot.id, @[])
+    await sleepAsync(1.millis)
     clock.advance(period)
+    await sleepAsync(1.millis)
+    check market.markedAsMissingProofs.len == 0
+
+  test "when validation has timed out, a proof is not marked as missing":
+    await market.fillSlot(slot.request.id, slot.slotIndex, @[])
+    market.setProofRequired(slot.id, true)
+    clock.advance(period)
+    await sleepAsync(1.millis)
+    clock.advance(period + timeout)
     await sleepAsync(1.millis)
     check market.markedAsMissingProofs.len == 0

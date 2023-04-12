@@ -82,18 +82,21 @@ proc markProofAsMissing(validation: Validation,
     debug "Marking proof as missing failed", msg = e.msg
 
 proc markProofsAsMissing(validation: Validation) {.async.} =
+  let timeout = validation.proofTimeout.truncate(int64)
   for slotId in validation.slots.keys:
-    let now = validation.getCurrentPeriod()
     let requirements = validation.slots[slotId]
     let ok = intersection(requirements.required, requirements.submitted)
     requirements.required.excl(ok)
     requirements.submitted.excl(ok)
-    var marked: HashSet[Period]
+    var handled: HashSet[Period]
     for period in validation.slots[slotId].required:
-      if period < now:
-        await validation.markProofAsMissing(slotId, period)
-        marked.incl(period)
-    validation.slots[slotId].required.excl(marked)
+      let periodEnd = validation.periodicity.periodEnd(period).truncate(int64)
+      let now = validation.clock.now()
+      if periodEnd <= now:
+        if now < periodEnd + timeout:
+          await validation.markProofAsMissing(slotId, period)
+        handled.incl(period)
+    validation.slots[slotId].required.excl(handled)
 
 proc run(validation: Validation) {.async.} =
   try:
