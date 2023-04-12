@@ -101,13 +101,16 @@ proc new(_: type Contracts,
   config: CodexConf,
   repo: RepoStore): Contracts =
 
-  if not config.persistence:
+  if not config.persistence and not config.validator:
     if config.ethAccount.isSome:
-      warn "Ethereum account was set, but persistence is not enabled"
+      warn "Ethereum account was set, but neither persistence nor validator is enabled"
     return
 
   without account =? config.ethAccount:
-    error "Persistence enabled, but no Ethereum account was set"
+    if config.persistence:
+      error "Persistence enabled, but no Ethereum account was set"
+    if config.validator:
+      error "Validator enabled, but no Ethereum account was set"
     quit QuitFailure
 
   var deploy: Deployment
@@ -129,14 +132,16 @@ proc new(_: type Contracts,
   let marketplace = Marketplace.new(marketplaceAddress, signer)
   let market = OnChainMarket.new(marketplace)
   let clock = OnChainClock.new(provider)
-  let purchasing = Purchasing.new(market, clock)
-  let proving = Proving.new(market, clock)
-  let sales = Sales.new(market, clock, proving, repo)
 
-  let client = some ClientInteractions.new(clock, purchasing)
-  let host = some HostInteractions.new(clock, sales, proving)
-
+  var client: ?ClientInteractions
+  var host: ?HostInteractions
   var validator: ?ValidatorInteractions
+  if config.persistence:
+    let purchasing = Purchasing.new(market, clock)
+    let proving = Proving.new(market, clock)
+    let sales = Sales.new(market, clock, proving, repo)
+    client = some ClientInteractions.new(clock, purchasing)
+    host = some HostInteractions.new(clock, sales, proving)
   if config.validator:
     let validation = Validation.new(clock, market)
     validator = some ValidatorInteractions.new(clock, validation)
