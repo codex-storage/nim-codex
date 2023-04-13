@@ -95,3 +95,16 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
 
     await subscription.unsubscribe()
     stopValidator(validator)
+
+  test "simulates invalid proof every N proofs":
+    # TODO: waiting on validation work to be completed before these tests are possible
+    # 1. instantiate node manually (startNode) with --simulate-failed-proofs=3
+    # 2. check that the number of expected proofs are missed
+
+  test "does not simulate invalid proof when --simulate-failed-proofs is 0":
+    # 1. instantiate node manually (startNode) with --simulate-failed-proofs=0
+    # 2. check that the number of expected missed proofs is 0
+
+  test "does not simulate invalid proof when chainId is 1":
+    # 1. instantiate node manually (startNode) with --simulate-failed-proofs=3
+    # 2. check that the number of expected missed proofs is 0

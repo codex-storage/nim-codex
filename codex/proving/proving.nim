@@ -1,22 +1,26 @@
-import ./proving/proving
-import ./proving/simulated
+import std/sets
+import pkg/upraises
+import pkg/questionable
+import pkg/chronicles
+import ../market
+import ../clock
 
 export sets
 
-logScope:
-    topics = "marketplace proving"
-
 type
-  Proving* = ref object
-    market: Market
+  Proving* = ref object of RootObj
+    market*: Market
     clock: Clock
     loop: ?Future[void]
     slots*: HashSet[Slot]
     onProve: ?OnProve
   OnProve* = proc(slot: Slot): Future[seq[byte]] {.gcsafe, upraises: [].}
 
-func new*(_: type Proving, market: Market, clock: Clock): Proving =
-  Proving(market: market, clock: clock)
+func new*(T: type Proving, market: Market, clock: Clock): T =
+  T(market: market, clock: clock)
+
+method init*(proving: Proving) {.base, async.} =
+  discard
 
 proc onProve*(proving: Proving): ?OnProve =
   proving.onProve
@@ -39,16 +43,11 @@ proc removeEndedContracts(proving: Proving) {.async.} =
   var ended: HashSet[Slot]
   for slot in proving.slots:
     let state = await proving.market.slotState(slot.id)
-    if state == SlotState.Finished:
-      debug "Collecting finished slot's reward", slot = $slot.id
-      await proving.market.freeSlot(slot.id)
-
     if state != SlotState.Filled:
-      debug "Request ended, cleaning up slot", slot = $slot.id
       ended.incl(slot)
   proving.slots.excl(ended)
 
-proc prove(proving: Proving, slot: Slot) {.async.} =
+method prove*(proving: Proving, slot: Slot) {.base, async.} =
   without onProve =? proving.onProve:
     raiseAssert "onProve callback not set"
   try:
@@ -61,7 +60,6 @@ proc run(proving: Proving) {.async.} =
   try:
     while true:
       let currentPeriod = await proving.getCurrentPeriod()
-      debug "Proving for new period", period = currentPeriod
       await proving.removeEndedContracts()
       for slot in proving.slots:
         let id = slot.id
@@ -77,6 +75,8 @@ proc run(proving: Proving) {.async.} =
 proc start*(proving: Proving) {.async.} =
   if proving.loop.isSome:
     return
+
+  await proving.init()
 
   proving.loop = some proving.run()
 

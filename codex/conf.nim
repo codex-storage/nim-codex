@@ -239,6 +239,12 @@ type
         defaultValue: 1000
         name: "validator-max-slots"
       .}: int
+      
+      simulateProofFailures* {.
+        desc: "Simulates proof failures once every N proofs. 0 = disabled."
+        defaultValue: 0
+        name: "simulate-proof-failures"
+      .}: uint
 
     of initNode:
       discard
