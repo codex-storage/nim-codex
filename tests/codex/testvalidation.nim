@@ -17,19 +17,12 @@ suite "validation":
   var market: MockMarket
   var clock: MockClock
 
-  proc setClockToStartOfPeriod() =
-    let periodicity = Periodicity(seconds: period.u256)
-    let currentPeriod = periodicity.periodOf(clock.now().u256)
-    let startOfNextPeriod = periodicity.periodStart(currentPeriod + 1)
-    clock.set(startOfNextPeriod.truncate(int64))
-
   setup:
     market = MockMarket.new()
     clock = MockClock.new()
     validation = Validation.new(clock, market)
     market.config.proofs.period = period.u256
     market.config.proofs.timeout = timeout.u256
-    setClockToStartOfPeriod()
     await validation.start()
 
   teardown:
@@ -50,28 +43,15 @@ suite "validation":
 
   test "when a proof is missed, it is marked as missing":
     await market.fillSlot(slot.request.id, slot.slotIndex, @[])
-    market.setProofRequired(slot.id, true)
+    market.setCanProofBeMarkedAsMissing(slot.id, true)
     clock.advance(period)
     await sleepAsync(1.millis)
-    clock.advance(period)
-    await sleepAsync(1.millis)
-    check eventually market.markedAsMissingProofs.contains(slot.id)
+    check market.markedAsMissingProofs.contains(slot.id)
 
-  test "when a proof was submitted, it is not marked as missing":
+  test "when a proof can not be marked as missing, it will not be marked":
     await market.fillSlot(slot.request.id, slot.slotIndex, @[])
-    market.setProofRequired(slot.id, true)
-    clock.advance(period)
-    await market.submitProof(slot.id, @[])
-    await sleepAsync(1.millis)
+    market.setCanProofBeMarkedAsMissing(slot.id, false)
     clock.advance(period)
     await sleepAsync(1.millis)
     check market.markedAsMissingProofs.len == 0
 
-  test "when validation has timed out, a proof is not marked as missing":
-    await market.fillSlot(slot.request.id, slot.slotIndex, @[])
-    market.setProofRequired(slot.id, true)
-    clock.advance(period)
-    await sleepAsync(1.millis)
-    clock.advance(period + timeout)
-    await sleepAsync(1.millis)
-    check market.markedAsMissingProofs.len == 0
