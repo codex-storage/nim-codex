@@ -23,6 +23,7 @@ type
     filled*: seq[MockSlot]
     freed*: seq[SlotId]
     markedAsMissingProofs*: seq[SlotId]
+    canBeMarkedAsMissing: HashSet[SlotId]
     withdrawn*: seq[RequestId]
     proofsRequired: HashSet[SlotId]
     proofsToBeRequired: HashSet[SlotId]
@@ -256,6 +257,17 @@ method markProofAsMissing*(market: MockMarket,
                            id: SlotId,
                            period: Period) {.async.} =
   market.markedAsMissingProofs.add(id)
+
+proc setCanProofBeMarkedAsMissing*(mock: MockMarket, id: SlotId, required: bool) =
+  if required:
+    mock.canBeMarkedAsMissing.incl(id)
+  else:
+    mock.canBeMarkedAsMissing.excl(id)
+
+method canProofBeMarkedAsMissing*(market: MockMarket,
+                                  id: SlotId,
+                                  period: Period): Future[bool] {.async.} =
+  return market.canBeMarkedAsMissing.contains(id)
 
 method subscribeRequests*(market: MockMarket,
                           callback: OnRequest):

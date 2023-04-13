@@ -148,6 +148,17 @@ method markProofAsMissing*(market: OnChainMarket,
                            period: Period) {.async.} =
   await market.contract.markProofAsMissing(id, period)
 
+method canProofBeMarkedAsMissing*(market: OnChainMarket,
+                                  id: SlotId,
+                                  period: Period): Future[bool] {.async.} =
+  let provider = market.contract.provider
+  let contractWithoutSigner = market.contract.connect(provider)
+  try:
+    await contractWithoutSigner.markProofAsMissing(id, period)
+    return true
+  except EthersError:
+    return false
+
 method subscribeRequests(market: OnChainMarket,
                          callback: OnRequest):
                         Future[MarketSubscription] {.async.} =

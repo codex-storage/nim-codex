@@ -107,6 +107,11 @@ method markProofAsMissing*(market: Market,
                            period: Period) {.base, async.} =
   raiseAssert("not implemented")
 
+method canProofBeMarkedAsMissing*(market: Market,
+                                  id: SlotId,
+                                  period: Period): Future[bool] {.base, async.} =
+  raiseAssert("not implemented")
+
 method subscribeFulfillment*(market: Market,
                              requestId: RequestId,
                              callback: OnFulfillment):
