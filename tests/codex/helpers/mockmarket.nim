@@ -12,6 +12,7 @@ export tables
 
 type
   MockMarket* = ref object of Market
+    isMainnet: bool
     periodicity: Periodicity
     activeRequests*: Table[Address, seq[RequestId]]
     activeSlots*: Table[Address, seq[SlotId]]
@@ -99,6 +100,12 @@ proc new*(_: type MockMarket): MockMarket =
 
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
+
+method isMainnet*(market: MockMarket): Future[bool] {.async.} =
+  return market.isMainnet
+
+method setMainnet*(market: MockMarket, isMainnet: bool) =
+  market.isMainnet = isMainnet
 
 method periodicity*(mock: MockMarket): Future[Periodicity] {.async.} =
   return Periodicity(seconds: mock.config.proofs.period)
