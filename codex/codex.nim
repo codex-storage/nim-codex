@@ -139,7 +139,7 @@ proc new(_: type Contracts,
   if config.persistence:
     let purchasing = Purchasing.new(market, clock)
     let proving = if config.simulateProofFailures > 0:
-                  SimulatedProving.new(market, clock, provider,
+                  SimulatedProving.new(market, clock,
                                        config.simulateProofFailures)
                   else: Proving.new(market, clock)
     let sales = Sales.new(market, clock, proving, repo)

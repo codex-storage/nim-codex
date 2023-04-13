@@ -26,7 +26,7 @@ type
 method getSigner*(market: Market): Future[Address] {.base, async.} =
   raiseAssert("not implemented")
 
-method isMainnet*(market: Market): Future[bool] {.async.} =
+method isMainnet*(market: Market): Future[bool] {.base, async.} =
   raiseAssert("not implemented")
 
 method periodicity*(market: Market): Future[Periodicity] {.base, async.} =
