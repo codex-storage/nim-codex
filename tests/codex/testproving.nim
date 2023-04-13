@@ -1,7 +1,6 @@
 import std/sequtils
 import pkg/asynctest
 import pkg/chronos
-import pkg/chronicles # DELETE ME
 import pkg/codex/proving
 import ./helpers/mockmarket
 import ./helpers/mockclock
