@@ -224,6 +224,12 @@ type
         name: "validator"
       .}: bool
 
+      validatorMaxSlots* {.
+        desc: "Maximum number of slots that the validator monitors"
+        defaultValue: 1000
+        name: "validator-max-slots"
+      .}: int
+
     of initNode:
       discard
 

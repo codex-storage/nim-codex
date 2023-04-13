@@ -11,6 +11,7 @@ suite "validation":
 
   let period = 10
   let timeout = 5
+  let maxSlots = 100
   let slot = Slot.example
 
   var validation: Validation
@@ -20,7 +21,7 @@ suite "validation":
   setup:
     market = MockMarket.new()
     clock = MockClock.new()
-    validation = Validation.new(clock, market)
+    validation = Validation.new(clock, market, maxSlots)
     market.config.proofs.period = period.u256
     market.config.proofs.timeout = timeout.u256
     await validation.start()
@@ -55,3 +56,8 @@ suite "validation":
     await sleepAsync(1.millis)
     check market.markedAsMissingProofs.len == 0
 
+  test "it does not monitor more than the maximum number of slots":
+    for _ in 0..<maxSlots + 1:
+      let slot = Slot.example
+      await market.fillSlot(slot.request.id, slot.slotIndex, @[])
+    check validation.slots.len == maxSlots

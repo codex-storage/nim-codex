@@ -12,6 +12,7 @@ export sets
 type
   Validation* = ref object
     slots: Table[SlotId, ProofRequirements]
+    maxSlots: int
     clock: Clock
     market: Market
     subscriptions: seq[Subscription]
@@ -22,8 +23,11 @@ type
     required: HashSet[Period]
     submitted: HashSet[Period]
 
-proc new*(_: type Validation, clock: Clock, market: Market): Validation =
-  Validation(clock: clock, market: market)
+proc new*(_: type Validation,
+          clock: Clock,
+          market: Market,
+          maxSlots: int): Validation =
+  Validation(clock: clock, market: market, maxSlots: maxSlots)
 
 proc slots*(validation: Validation): seq[SlotId] =
   validation.slots.keys.toSeq
@@ -40,7 +44,8 @@ proc subscribeSlotFilled(validation: Validation) {.async.} =
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
     let slotId = slotId(requestId, slotIndex)
     if not validation.slots.hasKey(slotId):
-      validation.slots[slotId] = ProofRequirements()
+      if validation.slots.len < validation.maxSlots:
+        validation.slots[slotId] = ProofRequirements()
   let subscription = await validation.market.subscribeSlotFilled(onSlotFilled)
   validation.subscriptions.add(subscription)
 

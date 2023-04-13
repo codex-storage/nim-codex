@@ -143,7 +143,7 @@ proc new(_: type Contracts,
     client = some ClientInteractions.new(clock, purchasing)
     host = some HostInteractions.new(clock, sales, proving)
   if config.validator:
-    let validation = Validation.new(clock, market)
+    let validation = Validation.new(clock, market, config.validatorMaxSlots)
     validator = some ValidatorInteractions.new(clock, validation)
 
   (client, host, validator)
