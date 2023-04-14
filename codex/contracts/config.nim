@@ -9,10 +9,10 @@ type
     collateral*: CollateralConfig
     proofs*: ProofConfig
   CollateralConfig* = object
-    initialAmount*: UInt256 # amount of collateral necessary to fill a slot
-    minimumAmount*: UInt256 # frees slot when collateral drops below this minimum
-    slashCriterion*: UInt256 # amount of proofs missed that lead to slashing
-    slashPercentage*: UInt256 # percentage of the collateral that is slashed
+    repairRewardPercentage*: uint8 # percentage of remaining collateral slot has after it has been freed
+    maxNumberOfSlashes*: uint8 # frees slot when the number of slashes reaches this value
+    slashCriterion*: uint16 # amount of proofs missed that lead to slashing
+    slashPercentage*: uint8 # percentage of the collateral that is slashed
   ProofConfig* = object
     period*: UInt256 # proofs requirements are calculated per period (in seconds)
     timeout*: UInt256 # mark proofs as missing before the timeout (in seconds)
@@ -28,8 +28,8 @@ func fromTuple(_: type ProofConfig, tupl: tuple): ProofConfig =
 
 func fromTuple(_: type CollateralConfig, tupl: tuple): CollateralConfig =
   CollateralConfig(
-    initialAmount: tupl[0],
-    minimumAmount: tupl[1],
+    repairRewardPercentage: tupl[0],
+    maxNumberOfSlashes: tupl[1],
     slashCriterion: tupl[2],
     slashPercentage: tupl[3]
   )

@@ -140,6 +140,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       ## expiry           - timestamp, in seconds, when the request expires if the Request does not find requested amount of nodes to host the data
       ## nodes            - minimal number of nodes the content should be stored on
       ## tolerance        - allowed number of nodes that can be lost before pronouncing the content lost
+      ## colateral        - requested collateral from hosts when they fill slot
 
       without cid =? cid.tryGet.catch, error:
         return RestApiResponse.error(Http400, error.msg)
@@ -159,6 +160,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         nodes,
         tolerance,
         params.reward,
+        params.collateral,
         params.expiry), error:
 
         return RestApiResponse.error(Http500, error.msg)
@@ -269,9 +271,10 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
     "/api/codex/v1/sales/availability") do () -> RestApiResponse:
       ## Add available storage to sell
       ##
-      ## size       - size of available storage in bytes
-      ## duration   - maximum time the storage should be sold for (in seconds)
-      ## minPrice   - minimum price to be paid (in amount of tokens)
+      ## size           - size of available storage in bytes
+      ## duration       - maximum time the storage should be sold for (in seconds)
+      ## minPrice       - minimum price to be paid (in amount of tokens)
+      ## maxCollateral  - maximum collateral user is willing to pay per filled Slot (in amount of tokens)
 
       without contracts =? node.contracts.host:
         return RestApiResponse.error(Http503, "Sales unavailable")

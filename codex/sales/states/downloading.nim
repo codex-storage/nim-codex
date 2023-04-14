@@ -50,6 +50,7 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
       request.ask.slotSize,
       request.ask.duration,
       request.ask.pricePerSlot,
+      request.ask.collateral,
       used = false):
     info "no availability found for request, ignoring",
       slotSize = request.ask.slotSize,

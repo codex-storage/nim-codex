@@ -244,6 +244,7 @@ proc requestStorage*(self: CodexNodeRef,
                      nodes: uint,
                      tolerance: uint,
                      reward: UInt256,
+                     collateral: UInt256,
                      expiry = UInt256.none): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
@@ -288,6 +289,7 @@ proc requestStorage*(self: CodexNodeRef,
       duration: duration,
       proofProbability: proofProbability,
       reward: reward,
+      collateral: collateral,
       maxSlotLoss: tolerance
     ),
     content: StorageContent(

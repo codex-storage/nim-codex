@@ -19,10 +19,6 @@ type
   OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
 
-method approveFunds*(market: Market, amount: UInt256) {.base, async.} =
-  ## This is generally needed for On-Chain ERC20 functionality to approve funds transfer to marketplace contract
-  raiseAssert("not implemented")
-
 method getSigner*(market: Market): Future[Address] {.base, async.} =
   raiseAssert("not implemented")
 
@@ -67,7 +63,8 @@ method getActiveSlot*(
 method fillSlot*(market: Market,
                  requestId: RequestId,
                  slotIndex: UInt256,
-                 proof: seq[byte]) {.base, async.} =
+                 proof: seq[byte],
+                 collateral: UInt256) {.base, async.} =
   raiseAssert("not implemented")
 
 method withdrawFunds*(market: Market,

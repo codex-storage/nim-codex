@@ -10,6 +10,7 @@ type
     duration*: UInt256
     proofProbability*: UInt256
     reward*: UInt256
+    collateral*: UInt256
     expiry*: ?UInt256
     nodes*: ?uint
     tolerance*: ?uint
@@ -19,7 +20,8 @@ proc fromJson*(_: type Availability, bytes: seq[byte]): ?!Availability =
   let size = ?catch UInt256.fromHex(json["size"].getStr)
   let duration = ?catch UInt256.fromHex(json["duration"].getStr)
   let minPrice = ?catch UInt256.fromHex(json["minPrice"].getStr)
-  success Availability.init(size, duration, minPrice)
+  let maxCollateral = ?catch UInt256.fromHex(json["maxCollateral"].getStr)
+  success Availability.init(size, duration, minPrice, maxCollateral)
 
 proc fromJson*(_: type StorageRequestParams,
                bytes: seq[byte]): ?! StorageRequestParams =
@@ -27,6 +29,7 @@ proc fromJson*(_: type StorageRequestParams,
   let duration = ?catch UInt256.fromHex(json["duration"].getStr)
   let proofProbability = ?catch UInt256.fromHex(json["proofProbability"].getStr)
   let reward = ?catch UInt256.fromHex(json["reward"].getStr)
+  let collateral = ?catch UInt256.fromHex(json["collateral"].getStr)
   let expiry = UInt256.fromHex(json["expiry"].getStr).catch.option
   let nodes = strutils.fromHex[uint](json["nodes"].getStr).catch.option
   let tolerance = strutils.fromHex[uint](json["tolerance"].getStr).catch.option
@@ -34,6 +37,7 @@ proc fromJson*(_: type StorageRequestParams,
     duration: duration,
     proofProbability: proofProbability,
     reward: reward,
+    collateral: collateral,
     expiry: expiry,
     nodes: nodes,
     tolerance: tolerance

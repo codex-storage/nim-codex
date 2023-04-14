@@ -57,5 +57,6 @@ proc example*(_: type Availability): Availability =
   Availability.init(
     size = uint16.example.u256,
     duration = uint16.example.u256,
-    minPrice = uint64.example.u256
+    minPrice = uint64.example.u256,
+    maxCollateral = uint16.example.u256
   )

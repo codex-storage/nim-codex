@@ -32,33 +32,6 @@ let client = provider.getSigner(accounts[0])
 let host = provider.getSigner(accounts[1])
 ```
 
-Collateral
-----------
-
-Hosts need to put up collateral before participating in storage contracts.
-
-A host can learn about the amount of collateral that is required:
-```nim
-let config = await marketplace.config()
-let collateral = config.collateral.initialAmount
-```
-
-After preparing the payment, the host can deposit collateral:
-```nim
-await storage
-  .connect(host)
-  .deposit(collateral)
-```
-
-When a host is not participating in storage offers or contracts, it can withdraw
-its collateral:
-
-```
-await storage
-  .connect(host)
-  .withdraw()
-```
-
 Storage requests
 ----------------
 

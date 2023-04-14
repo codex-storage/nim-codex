@@ -67,10 +67,10 @@ proc hash*(requestId: RequestId): Hash =
 proc new*(_: type MockMarket): MockMarket =
   let config = MarketplaceConfig(
     collateral: CollateralConfig(
-      initialAmount: 100.u256,
-      minimumAmount: 40.u256,
-      slashCriterion: 3.u256,
-      slashPercentage: 10.u256
+      repairRewardPercentage: 10,
+      maxNumberOfSlashes: 5,
+      slashCriterion: 3,
+      slashPercentage: 10
     ),
     proofs: ProofConfig(
       period: 10.u256,
@@ -79,9 +79,6 @@ proc new*(_: type MockMarket): MockMarket =
     )
   )
   MockMarket(signer: Address.example, config: config)
-
-method approveFunds*(market: MockMarket, amount: UInt256) {.async.} =
-  discard
 
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
@@ -182,7 +179,8 @@ proc fillSlot*(market: MockMarket,
 method fillSlot*(market: MockMarket,
                  requestId: RequestId,
                  slotIndex: UInt256,
-                 proof: seq[byte]) {.async.} =
+                 proof: seq[byte],
+                 collateral: UInt256) {.async.} =
   market.fillSlot(requestId, slotIndex, proof, market.signer)
 
 method withdrawFunds*(market: MockMarket,

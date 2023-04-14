@@ -38,6 +38,7 @@ type
     size*: UInt256
     duration*: UInt256
     minPrice*: UInt256
+    maxCollateral*: UInt256
     used*: bool
   Reservations* = ref object
     repo: RepoStore
@@ -67,11 +68,12 @@ proc init*(
   _: type Availability,
   size: UInt256,
   duration: UInt256,
-  minPrice: UInt256): Availability =
+  minPrice: UInt256,
+  maxCollateral: UInt256): Availability =
 
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
-  Availability(id: AvailabilityId(id), size: size, duration: duration, minPrice: minPrice)
+  Availability(id: AvailabilityId(id), size: size, duration: duration, minPrice: minPrice, maxCollateral: maxCollateral)
 
 func toArray*(id: AvailabilityId): array[32, byte] =
   array[32, byte](id)
@@ -81,6 +83,7 @@ proc `==`*(x, y: Availability): bool =
   x.id == y.id and
   x.size == y.size and
   x.duration == y.duration and
+  x.maxCollateral == y.maxCollateral and
   x.minPrice == y.minPrice
 
 proc `$`*(id: AvailabilityId): string = id.toArray.toHex
@@ -318,7 +321,7 @@ proc unused*(r: Reservations): Future[?!seq[Availability]] {.async.} =
 
 proc find*(
   self: Reservations,
-  size, duration, minPrice: UInt256,
+  size, duration, minPrice: UInt256, collateral: UInt256,
   used: bool): Future[?Availability] {.async.} =
 
 
@@ -332,13 +335,15 @@ proc find*(
       if used == availability.used and
         size <= availability.size and
         duration <= availability.duration and
+        collateral <= availability.maxCollateral and
         minPrice >= availability.minPrice:
 
         trace "availability matched",
           used, availUsed = availability.used,
           size, availsize = availability.size,
           duration, availDuration = availability.duration,
-          minPrice, availMinPrice = availability.minPrice
+          minPrice, availMinPrice = availability.minPrice,
+          collateral, availMaxCollateral = availability.maxCollateral
 
         return some availability
 
@@ -346,4 +351,5 @@ proc find*(
         used, availUsed = availability.used,
         size, availsize = availability.size,
         duration, availDuration = availability.duration,
-        minPrice, availMinPrice = availability.minPrice
+        minPrice, availMinPrice = availability.minPrice,
+        collateral, availMaxCollateral = availability.maxCollateral

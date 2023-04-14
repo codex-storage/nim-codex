@@ -112,6 +112,9 @@ components:
         minPrice:
           type: string
           description: Minimum price to be paid (in amount of tokens) as hexadecimal string
+        maxCollateral:
+          type: string
+          description: Maximum collateral user is willing to pay per filled Slot (in amount of tokens)
 
     StorageRequestCreation:
       type: object
@@ -119,6 +122,7 @@ components:
         - reward
         - duration
         - proofProbability
+        - collateral
       properties:
         duration:
           $ref: "#/components/schemas/Duration"
@@ -134,6 +138,9 @@ components:
           type: number
           description: Additional number of nodes on top of the `nodes` property that can be lost before pronouncing the content lost
           default: 0
+        collateral:
+          type: string
+          description: Hexadecimal encoded number that represents how much collateral is asked from hosts that wants to fill a slots
 
     StorageAsk:
       type: object

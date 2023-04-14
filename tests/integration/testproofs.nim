@@ -3,7 +3,6 @@ import codex/contracts/deployment
 import ../contracts/time
 import ../codex/helpers/eventually
 import ./twonodes
-import ./tokens
 
 twonodessuite "Proving integration test", debug1=false, debug2=false:
 
@@ -14,15 +13,17 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
     let deployment = Deployment.init()
     marketplace = Marketplace.new(!deployment.address(Marketplace), provider)
     config = await marketplace.config()
-    await provider.getSigner(accounts[0]).mint()
-    await provider.getSigner(accounts[1]).mint()
-    await provider.getSigner(accounts[1]).deposit()
+
+    # Our Hardhat configuration does use automine, which means that time tracked by `provider.currentTime()` is not
+    # advanced until blocks are mined and that happens only when transaction is submitted.
+    # As we use in tests provider.currentTime() which uses block timestamp this can lead to synchronization issues.
+    await provider.advanceTime(1.u256)
 
   proc waitUntilPurchaseIsStarted {.async.} =
-    discard client2.postAvailability(size=0xFFFFF, duration=200, minPrice=300)
+    discard client2.postAvailability(size=0xFFFFF, duration=200, minPrice=300, maxCollateral=200)
     let expiry = (await provider.currentTime()) + 30
     let cid = client1.upload("some file contents")
-    let purchase = client1.requestStorage(cid, duration=100, reward=400, proofProbability=3, expiry=expiry)
+    let purchase = client1.requestStorage(cid, duration=100, reward=400, proofProbability=3, expiry=expiry, collateral=100)
     check eventually client1.getPurchase(purchase){"state"} == %"started"
 
   test "hosts submit periodic proofs for slots they fill":
