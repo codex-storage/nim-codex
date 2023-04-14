@@ -109,18 +109,17 @@ invalidproofsuite "Simulate invalid proofs", debugClient=false, debugProvider=fa
 
 
   proc startValidator: NodeProcess =
-    let datadir = getTempDir() / "CodexValidator"
     startNode([
-      "--data-dir=" & datadir,
+      "--data-dir=" & validatorDir,
       "--api-port=8180",
       "--disc-port=8190",
       "--validator",
       "--eth-account=" & $accounts[2]
-    ], debug = true)
+    ], debug = false)
 
   proc stopValidator(node: NodeProcess) =
     node.stop()
-    removeDir(getTempDir() / "CodexValidator")
+    removeDir(validatorDir)
 
   setup:
     let deployment = Deployment.init()
