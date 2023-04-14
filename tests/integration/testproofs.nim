@@ -13,6 +13,10 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
     let deployment = Deployment.init()
     marketplace = Marketplace.new(!deployment.address(Marketplace), provider)
     config = await marketplace.config()
+
+    # Our Hardhat configuration does use automine, which means that time tracked by `provider.currentTime()` is not
+    # advanced until blocks are mined and that happens only when transaction is submitted.
+    # As we use in tests provider.currentTime() which uses block timestamp this can lead to synchronization issues.
     await provider.advanceTime(1.u256)
 
   proc waitUntilPurchaseIsStarted {.async.} =

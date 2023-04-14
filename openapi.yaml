@@ -140,7 +140,7 @@ components:
           default: 0
         collateral:
           type: string
-          description: Hexadecimal encoded number that represents how much
+          description: Hexadecimal encoded number that represents how much collateral is asked from hosts that wants to fill a slots
 
     StorageAsk:
       type: object

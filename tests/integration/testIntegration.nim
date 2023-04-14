@@ -8,6 +8,9 @@ import ./twonodes
 twonodessuite "Integration tests", debug1 = false, debug2 = false:
 
   setup:
+    # Our Hardhat configuration does use automine, which means that time tracked by `provider.currentTime()` is not
+    # advanced until blocks are mined and that happens only when transaction is submitted.
+    # As we use in tests provider.currentTime() which uses block timestamp this can lead to synchronization issues.
     await provider.advanceTime(1.u256)
 
   test "nodes can print their peer information":
