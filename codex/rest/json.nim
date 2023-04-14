@@ -60,4 +60,5 @@ func `%`*(purchase: Purchase): JsonNode =
     "state": (purchase.state as PurchaseState).?description |? "none",
     "error": purchase.error.?msg,
     "request": purchase.request,
+    "requestId": purchase.requestId
   }
