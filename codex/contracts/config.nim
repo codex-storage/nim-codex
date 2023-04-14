@@ -9,8 +9,8 @@ type
     collateral*: CollateralConfig
     proofs*: ProofConfig
   CollateralConfig* = object
-    repairRewardPercentage*: uint8 # percentage of remaining collateral slot after it has been freed
-    maxNumberOfSlashes*: uint8 # frees slot when the number of slashing reaches this value
+    repairRewardPercentage*: uint8 # percentage of remaining collateral slot has after it has been freed
+    maxNumberOfSlashes*: uint8 # frees slot when the number of slashes reaches this value
     slashCriterion*: uint16 # amount of proofs missed that lead to slashing
     slashPercentage*: uint8 # percentage of the collateral that is slashed
   ProofConfig* = object
