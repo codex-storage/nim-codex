@@ -93,9 +93,8 @@ ethersuite "On-Chain Market":
     check (await market.getHost(request.id, slotIndex)) == some accounts[0]
 
   test "supports freeing a slot":
-    await token.approve(marketplace.address, request.price)
     await market.requestStorage(request)
-    await market.fillSlot(request.id, slotIndex, proof)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
     await market.freeSlot(slotId(request.id, slotIndex))
     check (await market.getHost(request.id, slotIndex)) == none Address
 
@@ -110,9 +109,8 @@ ethersuite "On-Chain Market":
 
   test "marks a proof as missing":
     let slotId = slotId(request, slotIndex)
-    await token.approve(marketplace.address, request.price)
     await market.requestStorage(request)
-    await market.fillSlot(request.id, slotIndex, proof)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
     await waitUntilProofRequired(slotId)
     let missingPeriod = periodicity.periodOf(await provider.currentTime())
     await provider.advanceTime(periodicity.seconds)
@@ -121,9 +119,8 @@ ethersuite "On-Chain Market":
 
   test "can check whether a proof can be marked as missing":
     let slotId = slotId(request, slotIndex)
-    await token.approve(marketplace.address, request.price)
     await market.requestStorage(request)
-    await market.fillSlot(request.id, slotIndex, proof)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
     await waitUntilProofRequired(slotId)
     let missingPeriod = periodicity.periodOf(await provider.currentTime())
     await provider.advanceTime(periodicity.seconds)
@@ -156,9 +153,8 @@ ethersuite "On-Chain Market":
     await subscription.unsubscribe()
 
   test "supports slot freed subscriptions":
-    await token.approve(marketplace.address, request.price)
     await market.requestStorage(request)
-    await market.fillSlot(request.id, slotIndex, proof)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
     var receivedIds: seq[SlotId]
     proc onSlotFreed(id: SlotId) =
       receivedIds.add(id)
