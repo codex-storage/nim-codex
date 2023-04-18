@@ -106,12 +106,16 @@ if [ -n "$CACHE_SIZE" ]; then
 fi
 
 # Ethereum persistence
-if [ -n "$ETH_PROVIDER" ] && [ -n "$ETH_ACCOUNT" ] && [ -n "$ETH_DEPLOYMENT" ]; then
+if [ -n "$ETH_PROVIDER" ] && [ -n "$ETH_ACCOUNT" ] && [ -n "$ETH_MARKETPLACE_ADDRESS" ]; then
     echo "Persistence enabled"
     args="$args --persistence=true"
     args="$args --eth-provider=$ETH_PROVIDER"
     args="$args --eth-account=$ETH_ACCOUNT"
-    args="$args --eth-deployment=$ETH_DEPLOYMENT"
+    # args="$args --validator"
+
+    # Remove this as soon as CLI option is available:
+    echo "{\"contracts\": { \"Marketplace\": { \"address\": \""$ACCOUNTSTR"\" } } }" > /root/marketplace_address.json
+    args="$args --eth-deployment=/root/marketplace_address.json"
 fi
 
 echo "./root/codex $args"
