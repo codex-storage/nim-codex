@@ -19,6 +19,9 @@ type
     periodicity: Periodicity
     proofTimeout: UInt256
 
+logScope:
+  topics = "codex validator"
+
 proc new*(_: type Validation,
           clock: Clock,
           market: Market,
@@ -34,6 +37,7 @@ proc getCurrentPeriod(validation: Validation): UInt256 =
 proc waitUntilNextPeriod(validation: Validation) {.async.} =
   let period = validation.getCurrentPeriod()
   let periodEnd = validation.periodicity.periodEnd(period)
+  trace "Waiting until next period", currentPeriod = period
   await validation.clock.waitUntil(periodEnd.truncate(int64))
 
 proc subscribeSlotFilled(validation: Validation) {.async.} =
@@ -41,6 +45,7 @@ proc subscribeSlotFilled(validation: Validation) {.async.} =
     let slotId = slotId(requestId, slotIndex)
     if slotId notin validation.slots:
       if validation.slots.len < validation.maxSlots:
+        trace "Adding slot", slotId = $slotId
         validation.slots.incl(slotId)
   let subscription = await validation.market.subscribeSlotFilled(onSlotFilled)
   validation.subscriptions.add(subscription)
@@ -50,6 +55,7 @@ proc removeSlotsThatHaveEnded(validation: Validation) {.async.} =
   for slotId in validation.slots:
     let state = await validation.market.slotState(slotId)
     if state != SlotState.Filled:
+      trace "Removing slot", slot = $slotId
       ended.incl(slotId)
   validation.slots.excl(ended)
 
@@ -58,6 +64,7 @@ proc markProofAsMissing(validation: Validation,
                         period: Period) {.async.} =
   try:
     if await validation.market.canProofBeMarkedAsMissing(slotId, period):
+      trace "Marking proof as missing", slotId = $slotId, period = period
       await validation.market.markProofAsMissing(slotId, period)
   except CancelledError:
     raise
@@ -70,12 +77,14 @@ proc markProofsAsMissing(validation: Validation) {.async.} =
     await validation.markProofAsMissing(slotId, previousPeriod)
 
 proc run(validation: Validation) {.async.} =
+  trace "Validation started"
   try:
     while true:
       await validation.waitUntilNextPeriod()
       await validation.removeSlotsThatHaveEnded()
       await validation.markProofsAsMissing()
   except CancelledError:
+    trace "Validation stopped"
     discard
   except CatchableError as e:
     error "Validation failed", msg = e.msg

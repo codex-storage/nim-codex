@@ -156,7 +156,8 @@ method canProofBeMarkedAsMissing*(market: OnChainMarket,
   try:
     await contractWithoutSigner.markProofAsMissing(id, period)
     return true
-  except EthersError:
+  except EthersError as e:
+    trace "Proof can not be marked as missing", msg = e.msg
     return false
 
 method subscribeRequests(market: OnChainMarket,
