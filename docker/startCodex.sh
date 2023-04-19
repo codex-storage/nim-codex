@@ -114,7 +114,7 @@ if [ -n "$ETH_PROVIDER" ] && [ -n "$ETH_ACCOUNT" ] && [ -n "$ETH_MARKETPLACE_ADD
     # args="$args --validator"
 
     # Remove this as soon as CLI option is available:
-    echo "{\"contracts\": { \"Marketplace\": { \"address\": \""$ACCOUNTSTR"\" } } }" > /root/marketplace_address.json
+    echo "{\"contracts\": { \"Marketplace\": { \"address\": \""$ETH_MARKETPLACE_ADDRESS"\" } } }" > /root/marketplace_address.json
     args="$args --eth-deployment=/root/marketplace_address.json"
 fi
 
