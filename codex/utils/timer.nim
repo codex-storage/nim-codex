@@ -32,6 +32,8 @@ proc timerLoop(timer: Timer) {.async.} =
     while true:
       await timer.callback()
       await sleepAsync(timer.interval)
+  except CancelledError:
+    raise
   except CatchableError as exc:
     error "Timer caught unhandled exception: ", name=timer.name, msg=exc.msg
 

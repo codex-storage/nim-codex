@@ -39,6 +39,15 @@ proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
 method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
   return await market.signer.getAddress()
 
+method periodicity*(market: OnChainMarket): Future[Periodicity] {.async.} =
+  let config = await market.contract.config()
+  let period = config.proofs.period
+  return Periodicity(seconds: period)
+
+method proofTimeout*(market: OnChainMarket): Future[UInt256] {.async.} =
+  let config = await market.contract.config()
+  return config.proofs.timeout
+
 method myRequests*(market: OnChainMarket): Future[seq[RequestId]] {.async.} =
   return await market.contract.myRequests
 
@@ -104,9 +113,53 @@ method fillSlot(market: OnChainMarket,
   await market.approveFunds(collateral)
   await market.contract.fillSlot(requestId, slotIndex, proof)
 
+method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
+  await market.contract.freeSlot(slotId)
+
 method withdrawFunds(market: OnChainMarket,
                      requestId: RequestId) {.async.} =
   await market.contract.withdrawFunds(requestId)
+
+method isProofRequired*(market: OnChainMarket,
+                        id: SlotId): Future[bool] {.async.} =
+  try:
+    return await market.contract.isProofRequired(id)
+  except ProviderError as e:
+    if e.revertReason.contains("Slot is free"):
+      return false
+    raise e
+
+method willProofBeRequired*(market: OnChainMarket,
+                            id: SlotId): Future[bool] {.async.} =
+  try:
+    return await market.contract.willProofBeRequired(id)
+  except ProviderError as e:
+    if e.revertReason.contains("Slot is free"):
+      return false
+    raise e
+
+method submitProof*(market: OnChainMarket,
+                    id: SlotId,
+                    proof: seq[byte]) {.async.} =
+  await market.contract.submitProof(id, proof)
+
+method markProofAsMissing*(market: OnChainMarket,
+                           id: SlotId,
+                           period: Period) {.async.} =
+  await market.contract.markProofAsMissing(id, period)
+
+method canProofBeMarkedAsMissing*(market: OnChainMarket,
+                                  id: SlotId,
+                                  period: Period): Future[bool] {.async.} =
+  let provider = market.contract.provider
+  let contractWithoutSigner = market.contract.connect(provider)
+  let overrides = CallOverrides(blockTag: some BlockTag.pending)
+  try:
+    await contractWithoutSigner.markProofAsMissing(id, period, overrides)
+    return true
+  except EthersError as e:
+    trace "Proof can not be marked as missing", msg = e.msg
+    return false
 
 method subscribeRequests(market: OnChainMarket,
                          callback: OnRequest):
@@ -117,14 +170,29 @@ method subscribeRequests(market: OnChainMarket,
   return OnChainMarketSubscription(eventSubscription: subscription)
 
 method subscribeSlotFilled*(market: OnChainMarket,
+                            callback: OnSlotFilled):
+                           Future[MarketSubscription] {.async.} =
+  proc onEvent(event: SlotFilled) {.upraises:[].} =
+    callback(event.requestId, event.slotIndex)
+  let subscription = await market.contract.subscribe(SlotFilled, onEvent)
+  return OnChainMarketSubscription(eventSubscription: subscription)
+
+method subscribeSlotFilled*(market: OnChainMarket,
                             requestId: RequestId,
                             slotIndex: UInt256,
                             callback: OnSlotFilled):
                            Future[MarketSubscription] {.async.} =
-  proc onEvent(event: SlotFilled) {.upraises:[].} =
-    if event.requestId == requestId and event.slotIndex == slotIndex:
-      callback(event.requestId, event.slotIndex)
-  let subscription = await market.contract.subscribe(SlotFilled, onEvent)
+  proc onSlotFilled(eventRequestId: RequestId, eventSlotIndex: UInt256) =
+    if eventRequestId == requestId and eventSlotIndex == slotIndex:
+      callback(requestId, slotIndex)
+  return await market.subscribeSlotFilled(onSlotFilled)
+
+method subscribeSlotFreed*(market: OnChainMarket,
+                           callback: OnSlotFreed):
+                          Future[MarketSubscription] {.async.} =
+  proc onEvent(event: SlotFreed) {.upraises:[].} =
+    callback(event.slotId)
+  let subscription = await market.contract.subscribe(SlotFreed, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
 method subscribeFulfillment(market: OnChainMarket,
@@ -155,6 +223,14 @@ method subscribeRequestFailed*(market: OnChainMarket,
     if event.requestId == requestId:
       callback(event.requestId)
   let subscription = await market.contract.subscribe(RequestFailed, onEvent)
+  return OnChainMarketSubscription(eventSubscription: subscription)
+
+method subscribeProofSubmission*(market: OnChainMarket,
+                                 callback: OnProofSubmitted):
+                                Future[MarketSubscription] {.async.} =
+  proc onEvent(event: ProofSubmitted) {.upraises: [].} =
+    callback(event.id, event.proof)
+  let subscription = await market.contract.subscribe(ProofSubmitted, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
 method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =

@@ -1,7 +1,7 @@
 import pkg/asynctest
 import pkg/chronos
 import pkg/codex/proving
-import ./helpers/mockproofs
+import ./helpers/mockmarket
 import ./helpers/mockclock
 import ./helpers/eventually
 import ./examples
@@ -9,20 +9,20 @@ import ./examples
 suite "Proving":
 
   var proving: Proving
-  var proofs: MockProofs
+  var market: MockMarket
   var clock: MockClock
 
   setup:
-    proofs = MockProofs.new()
+    market = MockMarket.new()
     clock = MockClock.new()
-    proving = Proving.new(proofs, clock)
+    proving = Proving.new(market, clock)
     await proving.start()
 
   teardown:
     await proving.stop()
 
-  proc advanceToNextPeriod(proofs: MockProofs) {.async.} =
-    let periodicity = await proofs.periodicity()
+  proc advanceToNextPeriod(market: MockMarket) {.async.} =
+    let periodicity = await market.periodicity()
     clock.advance(periodicity.seconds.truncate(int64))
 
   test "maintains a list of slots to watch":
@@ -47,9 +47,9 @@ suite "Proving":
     proc onProve(slot: Slot): Future[seq[byte]] {.async.} =
       called = true
     proving.onProve = onProve
-    proofs.setSlotState(slot.id, SlotState.Filled)
-    proofs.setProofRequired(slot.id, true)
-    await proofs.advanceToNextPeriod()
+    market.slotState[slot.id] = SlotState.Filled
+    market.setProofRequired(slot.id, true)
+    await market.advanceToNextPeriod()
     check eventually called
 
   test "callback receives slot for which proof is required":
@@ -60,14 +60,14 @@ suite "Proving":
     proc onProve(slot: Slot): Future[seq[byte]] {.async.} =
       callbackSlots.add(slot)
     proving.onProve = onProve
-    proofs.setSlotState(slot1.id, SlotState.Filled)
-    proofs.setSlotState(slot2.id, SlotState.Filled)
-    proofs.setProofRequired(slot1.id, true)
-    await proofs.advanceToNextPeriod()
+    market.slotState[slot1.id] = SlotState.Filled
+    market.slotState[slot2.id] = SlotState.Filled
+    market.setProofRequired(slot1.id, true)
+    await market.advanceToNextPeriod()
     check eventually callbackSlots == @[slot1]
-    proofs.setProofRequired(slot1.id, false)
-    proofs.setProofRequired(slot2.id, true)
-    await proofs.advanceToNextPeriod()
+    market.setProofRequired(slot1.id, false)
+    market.setProofRequired(slot2.id, true)
+    await market.advanceToNextPeriod()
     check eventually callbackSlots == @[slot1, slot2]
 
   test "invokes callback when proof is about to be required":
@@ -77,24 +77,24 @@ suite "Proving":
     proc onProve(slot: Slot): Future[seq[byte]] {.async.} =
       called = true
     proving.onProve = onProve
-    proofs.setProofRequired(slot.id, false)
-    proofs.setProofToBeRequired(slot.id, true)
-    proofs.setSlotState(slot.id, SlotState.Filled)
-    await proofs.advanceToNextPeriod()
+    market.setProofRequired(slot.id, false)
+    market.setProofToBeRequired(slot.id, true)
+    market.slotState[slot.id] = SlotState.Filled
+    await market.advanceToNextPeriod()
     check eventually called
 
   test "stops watching when slot is finished":
     let slot = Slot.example
     proving.add(slot)
-    proofs.setProofEnd(slot.id, clock.now().u256)
-    await proofs.advanceToNextPeriod()
+    market.setProofEnd(slot.id, clock.now().u256)
+    await market.advanceToNextPeriod()
     var called: bool
     proc onProve(slot: Slot): Future[seq[byte]] {.async.} =
       called = true
     proving.onProve = onProve
-    proofs.setProofRequired(slot.id, true)
-    await proofs.advanceToNextPeriod()
-    proofs.setSlotState(slot.id, SlotState.Finished)
+    market.setProofRequired(slot.id, true)
+    await market.advanceToNextPeriod()
+    market.slotState[slot.id] = SlotState.Finished
     check eventually (not proving.slots.contains(slot))
     check not called
 
@@ -115,9 +115,9 @@ suite "Proving":
     let subscription = await proving.subscribeProofSubmission(onProofSubmission)
 
     proving.add(slot)
-    proofs.setSlotState(slot.id, SlotState.Filled)
-    proofs.setProofRequired(slot.id, true)
-    await proofs.advanceToNextPeriod()
+    market.slotState[slot.id] = SlotState.Filled
+    market.setProofRequired(slot.id, true)
+    await market.advanceToNextPeriod()
 
     check eventually receivedIds == @[slot.id] and receivedProofs == @[proof]
 

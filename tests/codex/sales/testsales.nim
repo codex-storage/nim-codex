@@ -146,7 +146,6 @@ suite "Sales":
   test "retrieves and stores data locally":
     var storingRequest: StorageRequest
     var storingSlot: UInt256
-    var storingAvailability: Availability
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
                          onBatch: BatchProc): Future[?!void] {.async.} =

@@ -2,7 +2,6 @@ import std/options
 import pkg/chronos
 import pkg/stew/byteutils
 import codex/contracts
-import codex/storageproofs
 import ../ethertest
 import ./examples
 import ./time
@@ -29,14 +28,17 @@ ethersuite "On-Chain Market":
 
     slotIndex = (request.ask.slots div 2).u256
 
-  proc waitUntilProofRequired(slotId: SlotId) {.async.} =
+  proc advanceToNextPeriod() {.async.} =
     let currentPeriod = periodicity.periodOf(await provider.currentTime())
-    await provider.advanceTimeTo(periodicity.periodEnd(currentPeriod))
+    await provider.advanceTimeTo(periodicity.periodEnd(currentPeriod) + 1)
+
+  proc waitUntilProofRequired(slotId: SlotId) {.async.} =
+    await advanceToNextPeriod()
     while not (
       (await marketplace.isProofRequired(slotId)) and
       (await marketplace.getPointer(slotId)) < 250
     ):
-      await provider.advanceTime(periodicity.seconds)
+      await advanceToNextPeriod()
 
   test "fails to instantiate when contract does not have a signer":
     let storageWithoutSigner = marketplace.connect(provider)
@@ -45,6 +47,17 @@ ethersuite "On-Chain Market":
 
   test "knows signer address":
     check (await market.getSigner()) == (await provider.getSigner().getAddress())
+
+  test "can retrieve proof periodicity":
+    let periodicity = await market.periodicity()
+    let config = await marketplace.config()
+    let periodLength = config.proofs.period
+    check periodicity.seconds == periodLength
+
+  test "can retrieve proof timeout":
+    let proofTimeout = await market.proofTimeout()
+    let config = await marketplace.config()
+    check proofTimeout == config.proofs.timeout
 
   test "supports marketplace requests":
     await market.requestStorage(request)
@@ -82,14 +95,48 @@ ethersuite "On-Chain Market":
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
     check (await market.getHost(request.id, slotIndex)) == some accounts[0]
 
-  test "support slot filled subscriptions":
+  test "supports freeing a slot":
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await market.freeSlot(slotId(request.id, slotIndex))
+    check (await market.getHost(request.id, slotIndex)) == none Address
+
+  test "supports checking whether proof is required now":
+    check (await market.isProofRequired(slotId(request.id, slotIndex))) == false
+
+  test "supports checking whether proof is required soon":
+    check (await market.willProofBeRequired(slotId(request.id, slotIndex))) == false
+
+  test "submits proofs":
+    await market.submitProof(slotId(request.id, slotIndex), proof)
+
+  test "marks a proof as missing":
+    let slotId = slotId(request, slotIndex)
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await waitUntilProofRequired(slotId)
+    let missingPeriod = periodicity.periodOf(await provider.currentTime())
+    await advanceToNextPeriod()
+    await market.markProofAsMissing(slotId, missingPeriod)
+    check (await marketplace.missingProofs(slotId)) == 1
+
+  test "can check whether a proof can be marked as missing":
+    let slotId = slotId(request, slotIndex)
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await waitUntilProofRequired(slotId)
+    let missingPeriod = periodicity.periodOf(await provider.currentTime())
+    await advanceToNextPeriod()
+    check (await market.canProofBeMarkedAsMissing(slotId, missingPeriod)) == true
+
+  test "supports slot filled subscriptions":
     await market.requestStorage(request)
     var receivedIds: seq[RequestId]
     var receivedSlotIndices: seq[UInt256]
     proc onSlotFilled(id: RequestId, slotIndex: UInt256) =
       receivedIds.add(id)
       receivedSlotIndices.add(slotIndex)
-    let subscription = await market.subscribeSlotFilled(request.id, slotIndex, onSlotFilled)
+    let subscription = await market.subscribeSlotFilled(onSlotFilled)
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
     check receivedIds == @[request.id]
     check receivedSlotIndices == @[slotIndex]
@@ -106,6 +153,17 @@ ethersuite "On-Chain Market":
     check receivedSlotIndices.len == 0
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
     check receivedSlotIndices == @[slotIndex]
+    await subscription.unsubscribe()
+
+  test "supports slot freed subscriptions":
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    var receivedIds: seq[SlotId]
+    proc onSlotFreed(id: SlotId) =
+      receivedIds.add(id)
+    let subscription = await market.subscribeSlotFreed(onSlotFreed)
+    await market.freeSlot(slotId(request.id, slotIndex))
+    check receivedIds == @[slotId(request.id, slotIndex)]
     await subscription.unsubscribe()
 
   test "support fulfillment subscriptions":
@@ -172,7 +230,7 @@ ethersuite "On-Chain Market":
           break
         await waitUntilProofRequired(slotId)
         let missingPeriod = periodicity.periodOf(await provider.currentTime())
-        await provider.advanceTime(periodicity.seconds)
+        await advanceToNextPeriod()
         await marketplace.markProofAsMissing(slotId, missingPeriod)
     check receivedIds == @[request.id]
     await subscription.unsubscribe()
@@ -193,6 +251,23 @@ ethersuite "On-Chain Market":
     check receivedIds.len == 0
     await market.withdrawFunds(request.id)
     check receivedIds == @[request.id]
+    await subscription.unsubscribe()
+
+  test "supports proof submission subscriptions":
+    var receivedIds: seq[SlotId]
+    var receivedProofs: seq[seq[byte]]
+
+    proc onProofSubmission(id: SlotId, proof: seq[byte]) =
+      receivedIds.add(id)
+      receivedProofs.add(proof)
+
+    let subscription = await market.subscribeProofSubmission(onProofSubmission)
+
+    await market.submitProof(slotId(request.id, slotIndex), proof)
+
+    check receivedIds == @[slotId(request.id, slotIndex)]
+    check receivedProofs == @[proof]
+
     await subscription.unsubscribe()
 
   test "request is none when unknown":

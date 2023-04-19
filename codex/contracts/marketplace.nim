@@ -11,6 +11,7 @@ export stint
 export ethers
 export erc20
 export config
+export requests
 
 type
   Marketplace* = ref object of Contract
@@ -20,6 +21,9 @@ type
   SlotFilled* = object of Event
     requestId* {.indexed.}: RequestId
     slotIndex* {.indexed.}: UInt256
+    slotId*: SlotId
+  SlotFreed* = object of Event
+    requestId* {.indexed.}: RequestId
     slotId*: SlotId
   RequestFulfilled* = object of Event
     requestId* {.indexed.}: RequestId

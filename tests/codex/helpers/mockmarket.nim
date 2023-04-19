@@ -1,15 +1,18 @@
 import std/sequtils
 import std/tables
 import std/hashes
+import std/sets
 import pkg/codex/market
 import pkg/codex/contracts/requests
 import pkg/codex/contracts/config
+import ../examples
 
 export market
 export tables
 
 type
   MockMarket* = ref object of Market
+    periodicity: Periodicity
     activeRequests*: Table[Address, seq[RequestId]]
     activeSlots*: Table[Address, seq[SlotId]]
     requested*: seq[StorageRequest]
@@ -18,10 +21,16 @@ type
     slotState*: Table[SlotId, SlotState]
     fulfilled*: seq[Fulfillment]
     filled*: seq[MockSlot]
+    freed*: seq[SlotId]
+    markedAsMissingProofs*: seq[SlotId]
+    canBeMarkedAsMissing: HashSet[SlotId]
     withdrawn*: seq[RequestId]
+    proofsRequired: HashSet[SlotId]
+    proofsToBeRequired: HashSet[SlotId]
+    proofEnds: Table[SlotId, UInt256]
     signer: Address
     subscriptions: Subscriptions
-    config: MarketplaceConfig
+    config*: MarketplaceConfig
   Fulfillment* = object
     requestId*: RequestId
     proof*: seq[byte]
@@ -35,8 +44,10 @@ type
     onRequest: seq[RequestSubscription]
     onFulfillment: seq[FulfillmentSubscription]
     onSlotFilled: seq[SlotFilledSubscription]
+    onSlotFreed: seq[SlotFreedSubscription]
     onRequestCancelled: seq[RequestCancelledSubscription]
     onRequestFailed: seq[RequestFailedSubscription]
+    onProofSubmitted: seq[ProofSubmittedSubscription]
   RequestSubscription* = ref object of Subscription
     market: MockMarket
     callback: OnRequest
@@ -46,9 +57,12 @@ type
     callback: OnFulfillment
   SlotFilledSubscription* = ref object of Subscription
     market: MockMarket
-    requestId: RequestId
-    slotIndex: UInt256
+    requestId: ?RequestId
+    slotIndex: ?UInt256
     callback: OnSlotFilled
+  SlotFreedSubscription* = ref object of Subscription
+    market: MockMarket
+    callback: OnSlotFreed
   RequestCancelledSubscription* = ref object of Subscription
     market: MockMarket
     requestId: RequestId
@@ -57,6 +71,9 @@ type
     market: MockMarket
     requestId: RequestId
     callback: OnRequestCancelled
+  ProofSubmittedSubscription = ref object of Subscription
+    market: MockMarket
+    callback: OnProofSubmitted
 
 proc hash*(address: Address): Hash =
   hash(address.toArray)
@@ -82,6 +99,12 @@ proc new*(_: type MockMarket): MockMarket =
 
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
+
+method periodicity*(mock: MockMarket): Future[Periodicity] {.async.} =
+  return Periodicity(seconds: mock.config.proofs.period)
+
+method proofTimeout*(market: MockMarket): Future[UInt256] {.async.} =
+  return market.config.proofs.timeout
 
 method requestStorage*(market: MockMarket, request: StorageRequest) {.async.} =
   market.requested.add(request)
@@ -139,9 +162,19 @@ proc emitSlotFilled*(market: MockMarket,
                      slotIndex: UInt256) =
   var subscriptions = market.subscriptions.onSlotFilled
   for subscription in subscriptions:
-    if subscription.requestId == requestId and
-       subscription.slotIndex == slotIndex:
+    let requestMatches =
+      subscription.requestId.isNone or
+      subscription.requestId == some requestId
+    let slotMatches =
+      subscription.slotIndex.isNone or
+      subscription.slotIndex == some slotIndex
+    if requestMatches and slotMatches:
       subscription.callback(requestId, slotIndex)
+
+proc emitSlotFreed*(market: MockMarket, slotId: SlotId) =
+  var subscriptions = market.subscriptions.onSlotFreed
+  for subscription in subscriptions:
+    subscription.callback(slotId)
 
 proc emitRequestCancelled*(market: MockMarket,
                      requestId: RequestId) =
@@ -174,6 +207,7 @@ proc fillSlot*(market: MockMarket,
     host: host
   )
   market.filled.add(slot)
+  market.slotState[slotId(slot.requestId, slot.slotIndex)] = SlotState.Filled
   market.emitSlotFilled(requestId, slotIndex)
 
 method fillSlot*(market: MockMarket,
@@ -183,10 +217,57 @@ method fillSlot*(market: MockMarket,
                  collateral: UInt256) {.async.} =
   market.fillSlot(requestId, slotIndex, proof, market.signer)
 
+method freeSlot*(market: MockMarket, slotId: SlotId) {.async.} =
+  market.freed.add(slotId)
+  market.emitSlotFreed(slotId)
+
 method withdrawFunds*(market: MockMarket,
                       requestId: RequestId) {.async.} =
   market.withdrawn.add(requestId)
   market.emitRequestCancelled(requestId)
+
+proc setProofRequired*(mock: MockMarket, id: SlotId, required: bool) =
+  if required:
+    mock.proofsRequired.incl(id)
+  else:
+    mock.proofsRequired.excl(id)
+
+method isProofRequired*(mock: MockMarket,
+                        id: SlotId): Future[bool] {.async.} =
+  return mock.proofsRequired.contains(id)
+
+proc setProofToBeRequired*(mock: MockMarket, id: SlotId, required: bool) =
+  if required:
+    mock.proofsToBeRequired.incl(id)
+  else:
+    mock.proofsToBeRequired.excl(id)
+
+method willProofBeRequired*(mock: MockMarket,
+                            id: SlotId): Future[bool] {.async.} =
+  return mock.proofsToBeRequired.contains(id)
+
+proc setProofEnd*(mock: MockMarket, id: SlotId, proofEnd: UInt256) =
+  mock.proofEnds[id] = proofEnd
+
+method submitProof*(mock: MockMarket, id: SlotId, proof: seq[byte]) {.async.} =
+  for subscription in mock.subscriptions.onProofSubmitted:
+    subscription.callback(id, proof)
+
+method markProofAsMissing*(market: MockMarket,
+                           id: SlotId,
+                           period: Period) {.async.} =
+  market.markedAsMissingProofs.add(id)
+
+proc setCanProofBeMarkedAsMissing*(mock: MockMarket, id: SlotId, required: bool) =
+  if required:
+    mock.canBeMarkedAsMissing.incl(id)
+  else:
+    mock.canBeMarkedAsMissing.excl(id)
+
+method canProofBeMarkedAsMissing*(market: MockMarket,
+                                  id: SlotId,
+                                  period: Period): Future[bool] {.async.} =
+  return market.canBeMarkedAsMissing.contains(id)
 
 method subscribeRequests*(market: MockMarket,
                           callback: OnRequest):
@@ -211,17 +292,31 @@ method subscribeFulfillment*(market: MockMarket,
   return subscription
 
 method subscribeSlotFilled*(market: MockMarket,
+                            callback: OnSlotFilled):
+                           Future[Subscription] {.async.} =
+  let subscription = SlotFilledSubscription(market: market, callback: callback)
+  market.subscriptions.onSlotFilled.add(subscription)
+  return subscription
+
+method subscribeSlotFilled*(market: MockMarket,
                             requestId: RequestId,
                             slotIndex: UInt256,
                             callback: OnSlotFilled):
                            Future[Subscription] {.async.} =
   let subscription = SlotFilledSubscription(
     market: market,
-    requestId: requestId,
-    slotIndex: slotIndex,
+    requestId: some requestId,
+    slotIndex: some slotIndex,
     callback: callback
   )
   market.subscriptions.onSlotFilled.add(subscription)
+  return subscription
+
+method subscribeSlotFreed*(market: MockMarket,
+                           callback: OnSlotFreed):
+                          Future[Subscription] {.async.} =
+  let subscription = SlotFreedSubscription(market: market, callback: callback)
+  market.subscriptions.onSlotFreed.add(subscription)
   return subscription
 
 method subscribeRequestCancelled*(market: MockMarket,
@@ -248,6 +343,16 @@ method subscribeRequestFailed*(market: MockMarket,
   market.subscriptions.onRequestFailed.add(subscription)
   return subscription
 
+method subscribeProofSubmission*(mock: MockMarket,
+                                 callback: OnProofSubmitted):
+                                Future[Subscription] {.async.} =
+  let subscription = ProofSubmittedSubscription(
+    market: mock,
+    callback: callback
+  )
+  mock.subscriptions.onProofSubmitted.add(subscription)
+  return subscription
+
 method unsubscribe*(subscription: RequestSubscription) {.async.} =
   subscription.market.subscriptions.onRequest.keepItIf(it != subscription)
 
@@ -257,8 +362,14 @@ method unsubscribe*(subscription: FulfillmentSubscription) {.async.} =
 method unsubscribe*(subscription: SlotFilledSubscription) {.async.} =
   subscription.market.subscriptions.onSlotFilled.keepItIf(it != subscription)
 
+method unsubscribe*(subscription: SlotFreedSubscription) {.async.} =
+  subscription.market.subscriptions.onSlotFreed.keepItIf(it != subscription)
+
 method unsubscribe*(subscription: RequestCancelledSubscription) {.async.} =
   subscription.market.subscriptions.onRequestCancelled.keepItIf(it != subscription)
 
 method unsubscribe*(subscription: RequestFailedSubscription) {.async.} =
   subscription.market.subscriptions.onRequestFailed.keepItIf(it != subscription)
+
+method unsubscribe*(subscription: ProofSubmittedSubscription) {.async.} =
+  subscription.market.subscriptions.onProofSubmitted.keepItIf(it != subscription)

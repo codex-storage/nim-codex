@@ -32,6 +32,7 @@ import ./utils/fileutils
 import ./erasure
 import ./discovery
 import ./contracts
+import ./contracts/clock
 import ./utils/addrutils
 import ./namespaces
 
@@ -100,13 +101,16 @@ proc new(_: type Contracts,
   config: CodexConf,
   repo: RepoStore): Contracts =
 
-  if not config.persistence:
+  if not config.persistence and not config.validator:
     if config.ethAccount.isSome:
-      warn "Ethereum account was set, but persistence is not enabled"
+      warn "Ethereum account was set, but neither persistence nor validator is enabled"
     return
 
   without account =? config.ethAccount:
-    error "Persistence enabled, but no Ethereum account was set"
+    if config.persistence:
+      error "Persistence enabled, but no Ethereum account was set"
+    if config.validator:
+      error "Validator enabled, but no Ethereum account was set"
     quit QuitFailure
 
   var deploy: Deployment
@@ -123,17 +127,26 @@ proc new(_: type Contracts,
     error "Marketplace contract address not found in deployment file"
     quit QuitFailure
 
-  # TODO: at some point there may be cli options that enable client-only or host-only
-  # operation, and both client AND host will not necessarily need to be instantiated
-  let client = ClientInteractions.new(config.ethProvider,
-                                      account,
-                                      marketplaceAddress)
-  let host = HostInteractions.new(config.ethProvider,
-                                  account,
-                                  repo,
-                                  marketplaceAddress)
+  let provider = JsonRpcProvider.new(config.ethProvider)
+  let signer = provider.getSigner(account)
+  let marketplace = Marketplace.new(marketplaceAddress, signer)
+  let market = OnChainMarket.new(marketplace)
+  let clock = OnChainClock.new(provider)
 
-  (client.option, host.option)
+  var client: ?ClientInteractions
+  var host: ?HostInteractions
+  var validator: ?ValidatorInteractions
+  if config.persistence:
+    let purchasing = Purchasing.new(market, clock)
+    let proving = Proving.new(market, clock)
+    let sales = Sales.new(market, clock, proving, repo)
+    client = some ClientInteractions.new(clock, purchasing)
+    host = some HostInteractions.new(clock, sales, proving)
+  if config.validator:
+    let validation = Validation.new(clock, market, config.validatorMaxSlots)
+    validator = some ValidatorInteractions.new(clock, validation)
+
+  (client, host, validator)
 
 proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): T =
 

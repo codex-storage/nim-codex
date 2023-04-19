@@ -3,7 +3,6 @@ import pkg/chronos
 import pkg/ethers/testing
 import pkg/ethers/erc20
 import codex/contracts
-import codex/storageproofs
 import ../ethertest
 import ./examples
 import ./time

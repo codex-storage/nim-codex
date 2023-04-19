@@ -6,7 +6,6 @@ import pkg/asynctest
 import pkg/datastore
 import pkg/json_serialization
 import pkg/json_serialization/std/options
-import pkg/stew/byteutils
 
 import pkg/codex/stores
 import pkg/codex/sales

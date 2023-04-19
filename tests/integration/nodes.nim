@@ -38,10 +38,11 @@ proc startNode*(args: openArray[string], debug = false): NodeProcess =
   node
 
 proc stop*(node: NodeProcess) =
-  let process = node.process
-  process.terminate()
-  discard process.waitForExit(timeout=5_000)
-  process.close()
+  if node.process != nil:
+    node.process.terminate()
+    discard node.process.waitForExit(timeout=5_000)
+    node.process.close()
+    node.process = nil
 
 proc restart*(node: NodeProcess) =
   node.stop()
