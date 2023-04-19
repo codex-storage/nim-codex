@@ -1,5 +1,4 @@
 import std/sets
-import std/tables
 import std/sequtils
 import pkg/chronos
 import pkg/chronicles
@@ -11,7 +10,7 @@ export sets
 
 type
   Validation* = ref object
-    slots: Table[SlotId, ProofRequirements]
+    slots: HashSet[SlotId]
     maxSlots: int
     clock: Clock
     market: Market
@@ -19,9 +18,6 @@ type
     running: Future[void]
     periodicity: Periodicity
     proofTimeout: UInt256
-  ProofRequirements = ref object
-    required: HashSet[Period]
-    submitted: HashSet[Period]
 
 proc new*(_: type Validation,
           clock: Clock,
@@ -30,7 +26,7 @@ proc new*(_: type Validation,
   Validation(clock: clock, market: market, maxSlots: maxSlots)
 
 proc slots*(validation: Validation): seq[SlotId] =
-  validation.slots.keys.toSeq
+  validation.slots.toSeq
 
 proc getCurrentPeriod(validation: Validation): UInt256 =
   return validation.periodicity.periodOf(validation.clock.now().u256)
@@ -43,20 +39,19 @@ proc waitUntilNextPeriod(validation: Validation) {.async.} =
 proc subscribeSlotFilled(validation: Validation) {.async.} =
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
     let slotId = slotId(requestId, slotIndex)
-    if not validation.slots.hasKey(slotId):
+    if slotId notin validation.slots:
       if validation.slots.len < validation.maxSlots:
-        validation.slots[slotId] = ProofRequirements()
+        validation.slots.incl(slotId)
   let subscription = await validation.market.subscribeSlotFilled(onSlotFilled)
   validation.subscriptions.add(subscription)
 
 proc removeSlotsThatHaveEnded(validation: Validation) {.async.} =
   var ended: HashSet[SlotId]
-  for slotId in validation.slots.keys:
+  for slotId in validation.slots:
     let state = await validation.market.slotState(slotId)
     if state != SlotState.Filled:
       ended.incl(slotId)
-  for slotId in ended:
-    validation.slots.del(slotId)
+  validation.slots.excl(ended)
 
 proc markProofAsMissing(validation: Validation,
                         slotId: SlotId,
@@ -70,7 +65,7 @@ proc markProofAsMissing(validation: Validation,
     debug "Marking proof as missing failed", msg = e.msg
 
 proc markProofsAsMissing(validation: Validation) {.async.} =
-  for slotId in validation.slots.keys:
+  for slotId in validation.slots:
     let previousPeriod = validation.getCurrentPeriod() - 1
     await validation.markProofAsMissing(slotId, previousPeriod)
 
