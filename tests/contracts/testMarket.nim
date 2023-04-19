@@ -28,14 +28,17 @@ ethersuite "On-Chain Market":
 
     slotIndex = (request.ask.slots div 2).u256
 
-  proc waitUntilProofRequired(slotId: SlotId) {.async.} =
+  proc advanceToNextPeriod() {.async.} =
     let currentPeriod = periodicity.periodOf(await provider.currentTime())
-    await provider.advanceTimeTo(periodicity.periodEnd(currentPeriod))
+    await provider.advanceTimeTo(periodicity.periodEnd(currentPeriod) + 1)
+
+  proc waitUntilProofRequired(slotId: SlotId) {.async.} =
+    await advanceToNextPeriod()
     while not (
       (await marketplace.isProofRequired(slotId)) and
       (await marketplace.getPointer(slotId)) < 250
     ):
-      await provider.advanceTime(periodicity.seconds)
+      await advanceToNextPeriod()
 
   test "fails to instantiate when contract does not have a signer":
     let storageWithoutSigner = marketplace.connect(provider)
@@ -113,7 +116,7 @@ ethersuite "On-Chain Market":
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
     await waitUntilProofRequired(slotId)
     let missingPeriod = periodicity.periodOf(await provider.currentTime())
-    await provider.advanceTime(periodicity.seconds)
+    await advanceToNextPeriod()
     await market.markProofAsMissing(slotId, missingPeriod)
     check (await marketplace.missingProofs(slotId)) == 1
 
@@ -123,7 +126,7 @@ ethersuite "On-Chain Market":
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
     await waitUntilProofRequired(slotId)
     let missingPeriod = periodicity.periodOf(await provider.currentTime())
-    await provider.advanceTime(periodicity.seconds)
+    await advanceToNextPeriod()
     check (await market.canProofBeMarkedAsMissing(slotId, missingPeriod)) == true
 
   test "supports slot filled subscriptions":
@@ -227,7 +230,7 @@ ethersuite "On-Chain Market":
           break
         await waitUntilProofRequired(slotId)
         let missingPeriod = periodicity.periodOf(await provider.currentTime())
-        await provider.advanceTime(periodicity.seconds)
+        await advanceToNextPeriod()
         await marketplace.markProofAsMissing(slotId, missingPeriod)
     check receivedIds == @[request.id]
     await subscription.unsubscribe()
