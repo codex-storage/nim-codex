@@ -38,7 +38,7 @@ proc waitUntilNextPeriod(validation: Validation) {.async.} =
   let period = validation.getCurrentPeriod()
   let periodEnd = validation.periodicity.periodEnd(period)
   trace "Waiting until next period", currentPeriod = period
-  await validation.clock.waitUntil(periodEnd.truncate(int64))
+  await validation.clock.waitUntil(periodEnd.truncate(int64) + 1)
 
 proc subscribeSlotFilled(validation: Validation) {.async.} =
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =

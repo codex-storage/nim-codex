@@ -48,7 +48,7 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
     let periodicity = Periodicity(seconds: period.u256)
     let currentPeriod = periodicity.periodOf(await provider.currentTime())
     let endOfPeriod = periodicity.periodEnd(currentPeriod)
-    await provider.advanceTimeTo(endOfPeriod)
+    await provider.advanceTimeTo(endOfPeriod + 1)
 
   proc startValidator: NodeProcess =
     startNode([
