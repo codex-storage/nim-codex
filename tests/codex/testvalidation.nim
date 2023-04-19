@@ -37,11 +37,12 @@ suite "validation":
     await market.fillSlot(slot.request.id, slot.slotIndex, @[], collateral)
     check validation.slots == @[slot.id]
 
-  test "when slot state changes, it is removed from the list":
-    await market.fillSlot(slot.request.id, slot.slotIndex, @[], collateral)
-    market.slotState[slot.id] = SlotState.Finished
-    clock.advance(period)
-    check eventually validation.slots.len == 0
+  for state in [SlotState.Finished, SlotState.Failed]:
+    test "when slot state changes, it is removed from the list":
+      await market.fillSlot(slot.request.id, slot.slotIndex, @[], collateral)
+      market.slotState[slot.id] = state
+      clock.advance(period)
+      check eventually validation.slots.len == 0
 
   test "when a proof is missed, it is marked as missing":
     await market.fillSlot(slot.request.id, slot.slotIndex, @[], collateral)
