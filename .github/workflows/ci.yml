@@ -54,8 +54,7 @@ jobs:
             export PATH="${PATH}:/c/program files/nodejs"
           fi
           npm install
-          npm start &
-          sleep 120 # allow for some time before the contracts are deployed
+          nohup npm start&
 
       - name: Contract tests
         run: make -j${ncpu} testContracts
