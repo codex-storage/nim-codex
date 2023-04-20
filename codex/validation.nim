@@ -62,14 +62,18 @@ proc removeSlotsThatHaveEnded(validation: Validation) {.async.} =
 proc markProofAsMissing(validation: Validation,
                         slotId: SlotId,
                         period: Period) {.async.} =
+  logScope:
+    currentPeriod = validation.getCurrentPeriod()
+
   try:
     if await validation.market.canProofBeMarkedAsMissing(slotId, period):
-      trace "Marking proof as missing", slotId = $slotId, period = period
+      trace "Marking proof as missing", slotId = $slotId, periodProofMissed = period
       await validation.market.markProofAsMissing(slotId, period)
+    else: trace "Proof not missing", checkedPeriod = period
   except CancelledError:
     raise
   except CatchableError as e:
-    debug "Marking proof as missing failed", msg = e.msg
+    error "Marking proof as missing failed", msg = e.msg
 
 proc markProofsAsMissing(validation: Validation) {.async.} =
   for slotId in validation.slots:
