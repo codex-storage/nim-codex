@@ -6,6 +6,7 @@ import codex/contracts
 import ../ethertest
 import ./examples
 import ./time
+import ./deployment
 
 ethersuite "Marketplace contracts":
   let proof = exampleProof()
@@ -25,8 +26,7 @@ ethersuite "Marketplace contracts":
     client = provider.getSigner(accounts[0])
     host = provider.getSigner(accounts[1])
 
-    let deployment = Deployment.init()
-    marketplace = Marketplace.new(!deployment.address(Marketplace), provider.getSigner())
+    marketplace = Marketplace.new(marketAddress(), provider.getSigner())
 
     let tokenAddress = await marketplace.token()
     token = Erc20Token.new(tokenAddress, provider.getSigner())

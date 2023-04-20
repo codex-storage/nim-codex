@@ -3,6 +3,7 @@ import codex/contracts/marketplace
 import codex/contracts/deployment
 import codex/periods
 import ../contracts/time
+import ../contracts/deployment
 import ../codex/helpers/eventually
 import ./twonodes
 
@@ -14,8 +15,7 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
   var period: uint64
 
   setup:
-    let deployment = Deployment.init()
-    marketplace = Marketplace.new(!deployment.address(Marketplace), provider)
+    marketplace = Marketplace.new(marketAddress(), provider)
     period = (await marketplace.config()).proofs.period.truncate(uint64)
 
     # Our Hardhat configuration does use automine, which means that time tracked by `provider.currentTime()` is not

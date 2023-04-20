@@ -33,6 +33,7 @@ import ./erasure
 import ./discovery
 import ./contracts
 import ./contracts/clock
+import ./contracts/deployment
 import ./utils/addrutils
 import ./namespaces
 
@@ -50,11 +51,54 @@ type
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
 
+proc bootstrapInteractions(config: CodexConf, repo: RepoStore): Future[Contracts] {.async.} =
+
+  if not config.persistence and not config.validator:
+    if config.ethAccount.isSome:
+      warn "Ethereum account was set, but neither persistence nor validator is enabled"
+    return
+
+  without account =? config.ethAccount:
+    if config.persistence:
+      error "Persistence enabled, but no Ethereum account was set"
+    if config.validator:
+      error "Validator enabled, but no Ethereum account was set"
+    quit QuitFailure
+
+  let provider = JsonRpcProvider.new(config.ethProvider)
+  let signer = provider.getSigner(account)
+
+  let deploy = Deployment.new(provider, config)
+  without marketplaceAddress =? await deploy.address(Marketplace):
+    error "No Marketplace address was specified nor there is no known address for the current network"
+    quit QuitFailure
+
+  let marketplace = Marketplace.new(marketplaceAddress, signer)
+  let market = OnChainMarket.new(marketplace)
+  let clock = OnChainClock.new(provider)
+
+  var client: ?ClientInteractions
+  var host: ?HostInteractions
+  var validator: ?ValidatorInteractions
+  if config.persistence:
+    let purchasing = Purchasing.new(market, clock)
+    let proving = Proving.new(market, clock)
+    let sales = Sales.new(market, clock, proving, repo)
+    client = some ClientInteractions.new(clock, purchasing)
+    host = some HostInteractions.new(clock, sales, proving)
+  if config.validator:
+    let validation = Validation.new(clock, market, config.validatorMaxSlots)
+    validator = some ValidatorInteractions.new(clock, validation)
+
+  return (client, host, validator)
+
 proc start*(s: CodexServer) {.async.} =
   notice "Starting codex node"
 
   await s.repoStore.start()
   s.restServer.start()
+
+  s.codexNode.contracts = await bootstrapInteractions(s.config, s.repoStore)
   await s.codexNode.start()
   s.maintenance.start()
 
@@ -96,57 +140,6 @@ proc stop*(s: CodexServer) {.async.} =
     s.maintenance.stop())
 
   s.runHandle.complete()
-
-proc new(_: type Contracts,
-  config: CodexConf,
-  repo: RepoStore): Contracts =
-
-  if not config.persistence and not config.validator:
-    if config.ethAccount.isSome:
-      warn "Ethereum account was set, but neither persistence nor validator is enabled"
-    return
-
-  without account =? config.ethAccount:
-    if config.persistence:
-      error "Persistence enabled, but no Ethereum account was set"
-    if config.validator:
-      error "Validator enabled, but no Ethereum account was set"
-    quit QuitFailure
-
-  var deploy: Deployment
-  try:
-    if deployFile =? config.ethDeployment:
-      deploy = Deployment.init(deployFile)
-    else:
-      deploy = Deployment.init()
-  except IOError as e:
-    error "Unable to read deployment json"
-    quit QuitFailure
-
-  without marketplaceAddress =? deploy.address(Marketplace):
-    error "Marketplace contract address not found in deployment file"
-    quit QuitFailure
-
-  let provider = JsonRpcProvider.new(config.ethProvider)
-  let signer = provider.getSigner(account)
-  let marketplace = Marketplace.new(marketplaceAddress, signer)
-  let market = OnChainMarket.new(marketplace)
-  let clock = OnChainClock.new(provider)
-
-  var client: ?ClientInteractions
-  var host: ?HostInteractions
-  var validator: ?ValidatorInteractions
-  if config.persistence:
-    let purchasing = Purchasing.new(market, clock)
-    let proving = Proving.new(market, clock)
-    let sales = Sales.new(market, clock, proving, repo)
-    client = some ClientInteractions.new(clock, purchasing)
-    host = some HostInteractions.new(clock, sales, proving)
-  if config.validator:
-    let validation = Validation.new(clock, market, config.validatorMaxSlots)
-    validator = some ValidatorInteractions.new(clock, validation)
-
-  (client, host, validator)
 
 proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): T =
 
@@ -219,8 +212,7 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
     engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-    contracts = Contracts.new(config, repoStore)
-    codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery, contracts)
+    codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery)
     restServer = RestServerRef.new(
       codexNode.initRestApi(config),
       initTAddress(config.apiBindAddress , config.apiPort),
