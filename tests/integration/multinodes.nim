@@ -15,11 +15,11 @@ template multinodesuite*(name: string,
   startNodes: StartNodes, debugNodes: DebugNodes, body: untyped) =
 
   if (debugNodes.client or debugNodes.provider) and
-      (enabledLogLevel > LogLevel.DEBUG or
+      (enabledLogLevel > LogLevel.TRACE or
       enabledLogLevel == LogLevel.NONE):
     echo ""
     echo "More test debug logging is available by running the tests with " &
-      "'-d:chronicles_log_level=DEBUG " &
+      "'-d:chronicles_log_level=TRACE " &
       "-d:chronicles_default_output_device=stdout " &
       "-d:chronicles_sinks=textlines'"
     echo ""
@@ -46,7 +46,7 @@ template multinodesuite*(name: string,
         "--disc-port=" & $(8090 + index),
         "--eth-account=" & $accounts[index]]
         .concat(addlOptions)
-      if debug: options.add "--log-level=INFO;DEBUG: " & debugNodes.topics
+      if debug: options.add "--log-level=INFO;TRACE: " & debugNodes.topics
       let node = startNode(options, debug = debug)
       (node, datadir, accounts[index])
 
