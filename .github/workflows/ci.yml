@@ -55,7 +55,7 @@ jobs:
           fi
           npm install
           npm start &
-          sleep 10 # allow for some time before the contracts are deployed
+          sleep 120 # allow for some time before the contracts are deployed
 
       - name: Contract tests
         run: make -j${ncpu} testContracts
