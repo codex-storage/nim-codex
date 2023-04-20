@@ -2,6 +2,7 @@ import pkg/asynctest
 import pkg/chronos
 
 import codex/validation
+import codex/periods
 import ./helpers/mockmarket
 import ./helpers/mockclock
 import ./helpers/eventually
@@ -30,6 +31,12 @@ suite "validation":
   teardown:
     await validation.stop()
 
+  proc advanceToNextPeriod =
+    let periodicity = Periodicity(seconds: period.u256)
+    let period = periodicity.periodOf(clock.now().u256)
+    let periodEnd = periodicity.periodEnd(period)
+    clock.set((periodEnd + 1).truncate(int))
+
   test "the list of slots that it's monitoring is empty initially":
     check validation.slots.len == 0
 
@@ -41,20 +48,20 @@ suite "validation":
     test "when slot state changes, it is removed from the list":
       await market.fillSlot(slot.request.id, slot.slotIndex, @[], collateral)
       market.slotState[slot.id] = state
-      clock.advance(period)
+      advanceToNextPeriod()
       check eventually validation.slots.len == 0
 
   test "when a proof is missed, it is marked as missing":
     await market.fillSlot(slot.request.id, slot.slotIndex, @[], collateral)
     market.setCanProofBeMarkedAsMissing(slot.id, true)
-    clock.advance(period)
+    advanceToNextPeriod()
     await sleepAsync(1.millis)
     check market.markedAsMissingProofs.contains(slot.id)
 
   test "when a proof can not be marked as missing, it will not be marked":
     await market.fillSlot(slot.request.id, slot.slotIndex, @[], collateral)
     market.setCanProofBeMarkedAsMissing(slot.id, false)
-    clock.advance(period)
+    advanceToNextPeriod()
     await sleepAsync(1.millis)
     check market.markedAsMissingProofs.len == 0
 
