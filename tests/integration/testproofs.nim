@@ -126,9 +126,6 @@ multinodesuite "Simulate invalid proofs",
     let config = await marketplace.config()
     period = config.proofs.period.truncate(uint64)
     periodDowntime = config.proofs.downtime
-    await provider.getSigner(accounts[0]).mint()
-    await provider.getSigner(accounts[2]).mint()
-    await provider.getSigner(accounts[2]).deposit()
     proofSubmitted = newFuture[void]("proofSubmitted")
     proc onProofSubmitted(event: ProofSubmitted) =
       submitted.add(event.proof)
@@ -139,6 +136,11 @@ multinodesuite "Simulate invalid proofs",
     slotId = SlotId(array[32, byte].default) # ensure we aren't reusing from prev test
     downtime = @[]
     periodicity = Periodicity(seconds: period.u256)
+
+    # Our Hardhat configuration does use automine, which means that time tracked by `provider.currentTime()` is not
+    # advanced until blocks are mined and that happens only when transaction is submitted.
+    # As we use in tests provider.currentTime() which uses block timestamp this can lead to synchronization issues.
+    await provider.advanceTime(1.u256)
 
   teardown:
     await subscription.unsubscribe()
