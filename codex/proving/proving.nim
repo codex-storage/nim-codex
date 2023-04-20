@@ -7,6 +7,9 @@ import ../clock
 
 export sets
 
+logScope:
+  topics = "proving"
+
 type
   Proving* = ref object of RootObj
     market*: Market
@@ -31,7 +34,7 @@ proc `onProve=`*(proving: Proving, callback: OnProve) =
 func add*(proving: Proving, slot: Slot) =
   proving.slots.incl(slot)
 
-proc getCurrentPeriod(proving: Proving): Future[Period] {.async.} =
+proc getCurrentPeriod*(proving: Proving): Future[Period] {.async.} =
   let periodicity = await proving.market.periodicity()
   return periodicity.periodOf(proving.clock.now().u256)
 
@@ -48,10 +51,14 @@ proc removeEndedContracts(proving: Proving) {.async.} =
   proving.slots.excl(ended)
 
 method prove*(proving: Proving, slot: Slot) {.base, async.} =
+  logScope:
+    currentPeriod = await proving.getCurrentPeriod()
+
   without onProve =? proving.onProve:
     raiseAssert "onProve callback not set"
   try:
     let proof = await onProve(slot)
+    debug "submitting proof"
     await proving.market.submitProof(slot.id, proof)
   except CatchableError as e:
     error "Submitting proof failed", msg = e.msg
