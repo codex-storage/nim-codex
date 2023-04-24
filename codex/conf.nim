@@ -34,6 +34,9 @@ import ./stores
 
 export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval
 
+const
+  codex_enable_proof_failures* {.booldefine.} = false
+
 type
   StartUpCommand* {.pure.} = enum
     noCommand,
@@ -229,12 +232,13 @@ type
         defaultValue: 1000
         name: "validator-max-slots"
       .}: int
-      
+
       simulateProofFailures* {.
-        desc: "Simulates proof failures once every N proofs. 0 = disabled."
-        defaultValue: 0
-        name: "simulate-proof-failures"
-      .}: uint
+          desc: "Simulates proof failures once every N proofs. 0 = disabled."
+          defaultValue: 0
+          name: "simulate-proof-failures"
+          hidden
+        .}: uint
 
     of initNode:
       discard

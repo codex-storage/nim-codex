@@ -138,10 +138,15 @@ proc new(_: type Contracts,
   var validator: ?ValidatorInteractions
   if config.persistence:
     let purchasing = Purchasing.new(market, clock)
-    let proving = if config.simulateProofFailures > 0:
-                  SimulatedProving.new(market, clock,
-                                       config.simulateProofFailures)
-                  else: Proving.new(market, clock)
+    
+    when codex_enable_proof_failures:
+      let proving = if config.simulateProofFailures > 0:
+                      SimulatedProving.new(market, clock,
+                                           config.simulateProofFailures)
+                    else: Proving.new(market, clock)
+    else:
+      let proving = Proving.new(market, clock)
+
     let sales = Sales.new(market, clock, proving, repo)
     client = some ClientInteractions.new(clock, purchasing)
     host = some HostInteractions.new(clock, sales, proving)
