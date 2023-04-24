@@ -51,7 +51,7 @@ proc init*(_: type StartNodes,
 
 proc init*(_: type DebugNodes,
           client, provider, validator: bool,
-          topics: string = "validator,proving"): DebugNodes =
+          topics: string = "validator,proving,market"): DebugNodes =
   DebugNodes(client: client, provider: provider, validator: validator,
              topics: topics)
 

@@ -20,6 +20,7 @@ template multinodesuite*(name: string,
     echo ""
     echo "More test debug logging is available by running the tests with " &
       "'-d:chronicles_log_level=TRACE " &
+      "-d:chronicles_disabled_topics=websock " &
       "-d:chronicles_default_output_device=stdout " &
       "-d:chronicles_sinks=textlines'"
     echo ""
