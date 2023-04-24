@@ -1,17 +1,47 @@
-# import std/os
-# import pkg/codex/contracts
-# import pkg/codex/stores
-# import ../ethertest
-#
-# suite "Deployment":
-#   let deploymentFile = "vendor" / "codex-contracts-eth" / "deployment-localhost.json"
-#
-#   test "can be instantiated with a deployment file":
-#     discard Deployment.init(deploymentFile)
-#
-#   test "contract address can be retreived from deployment json":
-#     let deployment = Deployment.init(deploymentFile)
-#     check deployment.address(Marketplace).isSome
-#
-#   test "can be instantiated without a deployment file":
-#     discard Deployment.init()
+import std/os
+import pkg/asynctest
+import pkg/ethers
+import codex/contracts/deployment
+import codex/conf
+import codex/contracts
+
+
+type MockProvider = ref object of Provider
+  chainId*: UInt256
+
+method getChainId*(provider: MockProvider): Future[UInt256] {.async.} =
+  return provider.chainId
+
+proc configFactory(): CodexConf =
+  CodexConf(cmd: noCommand, nat: ValidIpAddress.init("127.0.0.1"), discoveryIp: ValidIpAddress.init(IPv4_any()), metricsAddress: ValidIpAddress.init("127.0.0.1"))
+
+proc configFactory(marketplace: Option[EthAddress]): CodexConf =
+  CodexConf(cmd: noCommand, nat: ValidIpAddress.init("127.0.0.1"), discoveryIp: ValidIpAddress.init(IPv4_any()), metricsAddress: ValidIpAddress.init("127.0.0.1"), marketplaceAddress: marketplace)
+
+suite "Deployment":
+
+  let provider = MockProvider()
+
+  test "uses conf value as priority":
+    let deployment = Deployment.new(provider, configFactory(EthAddress.init("0x59b670e9fA9D0A427751Af201D676719a970aaaa")))
+    provider.chainId = 1.u256
+
+    let address = await deployment.address(Marketplace)
+    check address.isSome
+    check $(!address) == "0x59b670e9fa9d0a427751af201d676719a970aaaa"
+
+  test "uses chainId hardcoded values as fallback":
+    let deployment = Deployment.new(provider, configFactory())
+    provider.chainId = 31337.u256
+
+    let address = await deployment.address(Marketplace)
+    check address.isSome
+    check $(!address) == "0x59b670e9fa9d0a427751af201d676719a970857b"
+
+  test "return none for unknown networks":
+    let deployment = Deployment.new(provider, configFactory())
+    provider.chainId = 1.u256
+
+    let address = await deployment.address(Marketplace)
+    check address.isNone
+

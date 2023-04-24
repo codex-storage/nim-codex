@@ -34,6 +34,6 @@ proc address*(deployment: Deployment, contract: typedesc): Future[?Address] {.as
   case contractName:
     of "Marketplace":
       if deployment.config.marketplaceAddress.isSome:
-        return deployment.config.marketplaceAddress.get.some
+        return deployment.config.marketplaceAddress
 
   return getKnownAddress(chainId, contractName)
