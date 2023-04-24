@@ -23,7 +23,6 @@ import pkg/chronicles/helpers
 import pkg/chronicles/topics_registry
 import pkg/confutils/defs
 import pkg/confutils/std/net
-import pkg/confutils/envvar/envvar_serialization
 import pkg/toml_serialization
 import pkg/metrics
 import pkg/metrics/chronos_httpserver
@@ -274,24 +273,6 @@ proc defaultDataDir*(): string =
     ".cache" / "codex"
 
   getHomeDir() / dataDir
-
-proc readValue*(r: var EnvvarReader, val: var InputFile) =
-  val = InputFile r.readValue(string)
-
-proc readValue*(r: var EnvvarReader, val: var EthAddress)
-               {.raises: [SerializationError, IOError, Defect].} =
-  val = EthAddress.init(r.readValue(string)).get()
-
-proc readValue*(r: var EnvvarReader, val: var SignedPeerRecord)
-               {.raises: [SerializationError, IOError, Defect].} =
-  let uri = r.readValue(string)
-  try:
-    if not val.fromURI(uri):
-      warn "Invalid SignedPeerRecord uri", uri=uri
-      quit QuitFailure
-  except CatchableError as exc:
-    warn "Invalid SignedPeerRecord uri", uri=uri, error=exc.msg
-    quit QuitFailure
 
 proc readValue*(r: var TomlReader, val: var EthAddress)
                {.raises: [SerializationError, IOError, Defect].} =
