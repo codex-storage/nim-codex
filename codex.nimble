@@ -66,7 +66,7 @@ task testContracts, "Build & run Codex Contract tests":
   test "testContracts"
 
 task testIntegration, "Run integration tests":
-  codexTask()
+  buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_enable_proof_failures=true"
   test "testIntegration"
 
 task test, "Run tests":
