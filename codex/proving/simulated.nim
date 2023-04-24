@@ -40,7 +40,7 @@ method prove(proving: SimulatedProving, slot: Slot) {.async.} =
      proving.proofCount mod proving.failEveryNProofs == 0'u:
     proving.proofCount = 0
     try:
-      debug "submitting INVALID proof"
+      trace "submitting INVALID proof", currentPeriod = await proving.getCurrentPeriod()
       await proving.market.submitProof(slot.id, newSeq[byte](0))
     except ProviderError as e:
       if not e.revertReason.contains("Invalid proof"):

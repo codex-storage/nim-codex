@@ -59,7 +59,7 @@ method prove*(proving: Proving, slot: Slot) {.base, async.} =
   try:
     debug "Proving slot"
     let proof = await onProve(slot)
-    debug "submitting proof"
+    trace "submitting proof", currentPeriod = await proving.getCurrentPeriod()
     await proving.market.submitProof(slot.id, proof)
   except CatchableError as e:
     error "Submitting proof failed", msg = e.msg
