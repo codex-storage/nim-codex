@@ -55,7 +55,7 @@ jobs:
           fi
           npm install
           npm start &
-          until curl http://localhost:8545/ -X POST -H "Content-Type: application/json" --data '{"method":"eth_chainId","params":[],"id":1,"jsonrpc":"2.0"}'; do sleep 1 ; done
+          until curl -s http://localhost:8545/ -X POST -H "Content-Type: application/json" --data '{"method":"eth_chainId","params":[],"id":1,"jsonrpc":"2.0"}'; do echo "Waiting for blockchain to startup" && sleep 1 ; done
 
       - name: Contract tests
         run: make -j${ncpu} testContracts
