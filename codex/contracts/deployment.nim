@@ -17,23 +17,18 @@ const knownAddresses = {
  }.toTable
 }.toTable
 
-proc getKnownAddress(chainId: UInt256, contractName: string): ?Address =
+proc getKnownAddress(T: type, chainId: UInt256): ?Address =
   if not ($chainId in knownAddresses):
     return none Address
 
-  return knownAddresses[$chainId].getOrDefault(contractName, Address.none)
+  return knownAddresses[$chainId].getOrDefault($T, Address.none)
 
 proc new*(_: type Deployment, provider: Provider, config: CodexConf): Deployment =
   Deployment(provider: provider, config: config)
 
-proc address*(deployment: Deployment, contract: typedesc): Future[?Address] {.async.} =
-  let
-    contractName = $contract
-    chainId = await deployment.provider.getChainId()
-
-  case contractName:
-    of "Marketplace":
-      if deployment.config.marketplaceAddress.isSome:
-        return deployment.config.marketplaceAddress
-
-  return getKnownAddress(chainId, contractName)
+proc address*(deployment: Deployment, contract: type): Future[?Address] {.async.} =
+  let chainId = await deployment.provider.getChainId()
+  when contract is Marketplace:
+    if address =? deployment.config.marketplaceAddress:
+      return address
+  return contract.getKnownAddress(chainId)

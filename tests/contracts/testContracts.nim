@@ -26,7 +26,7 @@ ethersuite "Marketplace contracts":
     client = provider.getSigner(accounts[0])
     host = provider.getSigner(accounts[1])
 
-    marketplace = Marketplace.new(marketAddress(), provider.getSigner())
+    marketplace = Marketplace.new(Marketplace.address, provider.getSigner())
 
     let tokenAddress = await marketplace.token()
     token = Erc20Token.new(tokenAddress, provider.getSigner())

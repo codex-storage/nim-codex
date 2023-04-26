@@ -15,7 +15,7 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
   var period: uint64
 
   setup:
-    marketplace = Marketplace.new(marketAddress(), provider)
+    marketplace = Marketplace.new(Marketplace.address, provider)
     period = (await marketplace.config()).proofs.period.truncate(uint64)
 
     # Our Hardhat configuration does use automine, which means that time tracked by `provider.currentTime()` is not
