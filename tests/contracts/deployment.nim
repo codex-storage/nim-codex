@@ -6,11 +6,9 @@ const marketAddressEnvName = "CODEX_MARKET_ADDRESS"
 
 proc marketAddress*(): Address =
   if existsEnv(marketAddressEnvName):
-    let address = Address.init(getEnv(marketAddressEnvName))
-
-    if address.isNone:
+    without address =? Address.init(getEnv(marketAddressEnvName)):
       raiseAssert "Invalid env. variable marketplace contract address"
 
-    return address.get()
+    return address
 
   hardhatMarketAddress

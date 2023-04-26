@@ -53,8 +53,9 @@ type
 
 proc bootstrapInteractions(config: CodexConf, repo: RepoStore): Future[Contracts] {.async.} =
 
-  if not config.persistence and not config.validator:
-    if config.ethAccount.isSome:
+  if not config.persistence and
+     not config.validator and
+     config.ethAccount.isSome:
       warn "Ethereum account was set, but neither persistence nor validator is enabled"
     return
 
