@@ -120,5 +120,5 @@ if [ -n "$ETH_PROVIDER" ] && [ -n "$ETH_ACCOUNT" ] && [ -n "$ETH_MARKETPLACE_ADD
     args="$args --eth-deployment=/root/marketplace_address.json"
 fi
 
-echo "./root/codex $args"
-sh -c "/root/codex $args"
+echo "./codex $args"
+/bin/bash -l -c "./codex $args"
