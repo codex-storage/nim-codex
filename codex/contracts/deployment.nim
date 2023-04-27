@@ -5,6 +5,7 @@ import pkg/ethers
 import pkg/questionable
 
 import ../conf
+import ./marketplace
 
 type Deployment* = ref object
   provider: Provider
@@ -29,6 +30,7 @@ proc new*(_: type Deployment, provider: Provider, config: CodexConf): Deployment
 proc address*(deployment: Deployment, contract: type): Future[?Address] {.async.} =
   let chainId = await deployment.provider.getChainId()
   when contract is Marketplace:
-    if address =? deployment.config.marketplaceAddress:
-      return address
+    if deployment.config.marketplaceAddress.isSome:
+      return deployment.config.marketplaceAddress
+
   return contract.getKnownAddress(chainId)
