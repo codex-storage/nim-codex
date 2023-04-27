@@ -31,7 +31,7 @@ build/codex
 ```
 ## Configuration
 
-It is possible to configure Codex node in several ways:
+It is possible to configure a Codex node in several ways:
  1. CLI options
  2. Env. variable
  3. Config
@@ -41,25 +41,24 @@ option is configured on several places.
 
 ### Environment variables
 
-In order to set configuration option with environment variables, first you find your desired option as CLI option
-and then transform it in way that you:
+In order to set a configuration option using environment variables, first find the desired CLI option
+and then transform it in the following way:
 
  1. prepend it with `CODEX_`
  2. make it uppercase
  3. replace `-` with `_`
 
-For example to configure `--log-level` you would use `CODEX_LOG_LEVEL` env. variable name.
+For example, to configure `--log-level`, use `CODEX_LOG_LEVEL` as the environment variable name.
 
 ### Configuration file
 
-You can also use [TOML](https://toml.io/en/) configuration file, where you can place the name of configuration options
-as you see them in the command help. So for example to configure log level you would have file:
+A [TOML](https://toml.io/en/) configuration file can also be used to set configuration values. Configuration option names and corresponding values are placed in the file, separated by `=`. Configuration option names can be obtained from the `codex --help` command, and should not include the `--` prefix. For example, a node's log level (`--log-level`) can be configured using TOML as follows:
 
 ```toml
 log-level = "TRACE"
 ```
 
-And then you would point the Codex to this file with `--config-file` parameter, like `codex --config-file=/path/to/your/config.toml`.
+The Codex node can then read the configuration from this file using the `--config-file` CLI parameter, like `codex --config-file=/path/to/your/config.toml`.
 
 ### CLI Options
 

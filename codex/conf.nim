@@ -274,8 +274,10 @@ proc defaultDataDir*(): string =
 
   getHomeDir() / dataDir
 
+import pkg/upraises
+
 proc readValue*(r: var TomlReader, val: var EthAddress)
-               {.raises: [SerializationError, IOError, Defect].} =
+               {.upraises: [SerializationError, IOError].} =
   val = EthAddress.init(r.readValue(string)).get()
 
 proc readValue*(r: var TomlReader, val: var SignedPeerRecord)

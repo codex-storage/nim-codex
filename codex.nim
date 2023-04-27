@@ -45,8 +45,8 @@ when isMainModule:
     version = codexFullVersion,
     envVarsPrefix = "codex",
     secondarySources = proc (config: CodexConf, sources: auto) =
-            if config.configFile.isSome:
-              sources.addConfigFile(Toml, config.configFile.get)
+            if configFile =? config.configFile:
+              sources.addConfigFile(Toml, configFile)
   )
   config.setupLogging()
   config.setupMetrics()
