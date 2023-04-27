@@ -53,7 +53,7 @@ jobs:
           if [[ '${{ matrix.os }}' == 'windows' ]]; then
             export PATH="${PATH}:/c/program files/nodejs"
           fi
-          npm install
+          npm ci
           npm start -- --verbose &
           until curl -s http://localhost:8545/ -X POST -H "Content-Type: application/json" --data '{"method":"eth_chainId","params":[],"id":1,"jsonrpc":"2.0"}'; do echo "Waiting for blockchain to startup" && sleep 1 ; done
 
