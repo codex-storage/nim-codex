@@ -37,6 +37,10 @@ jobs:
         with:
           submodules: recursive
 
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
       - name: Setup Nimbus Build System
         uses: ./.github/actions/nimbus-build-system
         with:
@@ -55,7 +59,7 @@ jobs:
           fi
           npm ci
           npm start -- --verbose &
-          for i in {1..50}; do curl -s http://localhost:8545/ -X POST -H "Content-Type: application/json" --data '{"method":"eth_chainId","params":[],"id":1,"jsonrpc":"2.0"}' && break || (echo "Waiting for blockchain to startup" && sleep 1) ; done
+          for i in {1..60}; do curl -s http://localhost:8545/ -X POST -H "Content-Type: application/json" --data '{"method":"eth_chainId","params":[],"id":1,"jsonrpc":"2.0"}' && break || (echo "Waiting for blockchain to startup" && sleep 1) ; done
 
       - name: Contract tests
         run: make -j${ncpu} testContracts
