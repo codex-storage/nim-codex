@@ -1,14 +1,18 @@
-FROM nimlang/nim:1.6.10-alpine AS builder
+FROM ubuntu:lunar-20230415 AS builder
+RUN apt-get update && apt-get install -y git cmake curl make bash lcov build-essential nim
+RUN echo 'export NIMBLE_DIR="${HOME}/.nimble"' >> "${HOME}/.bash_env"
+RUN echo 'export PATH="${NIMBLE_DIR}/bin:${PATH}"' >> "${HOME}/.bash_env"
+
 WORKDIR /src
-RUN apk update && apk add git cmake curl make git bash linux-headers
 COPY . .
 RUN make clean
-RUN make update
-RUN make NIM_PARAMS="-d:disableMarchNative"
+RUN make -j4 update
+RUN make -j4 NIM_PARAMS="-d:disableMarchNative"
 
-FROM alpine:3.17.2
-WORKDIR /root/
-RUN apk add --no-cache openssl libstdc++ libgcc libgomp
+FROM ubuntu:lunar-20230415
+WORKDIR /root
+RUN apt-get update && apt-get install -y libgomp1 bash
 COPY --from=builder /src/build/codex ./
 COPY --from=builder /src/docker/startCodex.sh ./
-CMD ["sh", "startCodex.sh"]
+RUN chmod +x ./startCodex.sh
+CMD ["/bin/bash", "-l", "-c", "./startCodex.sh"]
