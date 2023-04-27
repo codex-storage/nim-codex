@@ -271,8 +271,8 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
               node.discovery.dhtRecord.get.toURI
             else:
               "",
-          "engine-peers": formatEnginePeers(node.engine.peers.peers),
-          "switch-peers": formatSwitchPeers(node.switch.peerStore[KeyBook].book),
+          "enginePeers": formatEnginePeers(node.engine.peers.peers),
+          "switchPeers": formatSwitchPeers(node.switch.peerStore[KeyBook].book),
           "codex": {
             "version": $codexVersion,
             "revision": $codexRevision
