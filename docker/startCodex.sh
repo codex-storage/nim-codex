@@ -3,7 +3,7 @@ echo "Starting Codex..."
 args=""
 
 ## local ip as NAT?
-do_nat=$(ifconfig eth0 | awk '/inet addr/ {gsub("addr:", "", $2); print $2}')
+do_nat=$(hostname -i)
 echo "got nat:$do_nat"
 
 # Required arguments
@@ -122,5 +122,5 @@ if [ -n "$ETH_PROVIDER" ] && [ -n "$ETH_ACCOUNT" ] && [ -n "$ETH_MARKETPLACE_ADD
     args="$args --eth-deployment=/root/marketplace_address.json"
 fi
 
-echo "./root/codex $args"
-sh -c "/root/codex $args"
+echo "./codex $args"
+/bin/bash -l -c "./codex $args"

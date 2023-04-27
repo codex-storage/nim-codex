@@ -1,9 +1,6 @@
 services:
   codex-node1:
-    image: clustertest-nim-codex
-    build:
-      context: ../.
-      dockerfile: docker/codex.Dockerfile
+    image: status-im/codexsetup_multiarch:latest
     ports:
       - 8080:8080
     # Available environment variables:
@@ -25,53 +22,5 @@ services:
       # - ETH_PROVIDER=eth
       # - ETH_ACCOUNT=account
       # - ETH_DEPLOYMENT=deploy
-    volumes:
-      - ./hostdatadir/node1:/datadir
-    networks:
-      - primary
 
-  # Example with metrics enabled.
-  codex-node2:
-    image: clustertest-nim-codex
-    ports:
-      - 8081:8080
-      - 9090:9090
-    environment:
-      - METRICS_ADDR=0.0.0.0
-      - METRICS_PORT=9090
-    volumes:
-      - ./hostdatadir/node2:/datadir
-    depends_on:
-      - codex-node1
-    networks:
-      - primary
-      - secondary
 
-  codex-node3:
-    image: clustertest-nim-codex
-    ports:
-      - 8082:8080
-    volumes:
-      - ./hostdatadir/node3:/datadir
-    depends_on:
-      - codex-node1
-    networks:
-      - secondary
-
-  prometheus:
-    image: prom/prometheus:v2.30.3
-    ports:
-      - 9000:9090
-    volumes:
-      - ./prometheus:/etc/prometheus
-      - ./prometheus-data:/prometheus
-    command: --web.enable-lifecycle --config.file=/etc/prometheus/prometheus.yml
-    networks:
-      - primary
-      - secondary
-
-networks:
-  primary:
-    name: primary
-  secondary:
-    name: secondary
