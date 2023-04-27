@@ -36,8 +36,7 @@ It is possible to configure a Codex node in several ways:
  2. Env. variable
  3. Config
 
-The order of priority is in the order listed above, where CLI options have highest priority when a configuration
-option is configured on several places.
+The order of priority is the same as above: Cli arguments > Env variables > Config file values.
 
 ### Environment variables
 
