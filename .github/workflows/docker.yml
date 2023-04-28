@@ -38,6 +38,18 @@ jobs:
           context: .
           file: docker/codex.Dockerfile
           platforms: linux/amd64,linux/arm64,linux/arm/v7
-          push: ${{ github.event_name != 'pull_request' }}
+          push: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+      # Slim it!
+      - name: Minify docker image
+        uses: kitabisa/docker-slim-action@v1
+        env:
+          DSLIM_HTTP_PROBE: false
+        with:
+          target: ${{ steps.meta.outputs.labels }}
+          tag: ${{ steps.meta.outputs.tags }}
+      # Push to the docker registry
+      - name: Push image to docker registry
+        run: docker image push "${{ steps.meta.outputs.labels }}:${{ steps.meta.outputs.tags }}"
+        if: github.event_name != 'pull_request'
