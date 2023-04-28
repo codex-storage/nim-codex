@@ -1,6 +1,6 @@
 services:
   codex-node1:
-    image: status-im/codexsetup_multiarch:latest
+    image: status-im/codexsetup.slim:latest
     ports:
       - 8080:8080
     # Available environment variables:
@@ -22,5 +22,6 @@ services:
       # - ETH_PROVIDER=eth
       # - ETH_ACCOUNT=account
       # - ETH_DEPLOYMENT=deploy
+      # - SIMULATE_PROOF_FAILURES=0
 
 
