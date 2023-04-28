@@ -70,7 +70,7 @@ proc formatSwitchPeers(peers: Table[PeerId, crypto.PublicKey]): JsonNode =
         "key": $value
       })
 
-  return %*{"switch-peers": jarray }
+  return jarray
 
 proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   var router = RestRouter.init(validate)
