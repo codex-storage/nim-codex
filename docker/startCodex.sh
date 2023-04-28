@@ -120,6 +120,7 @@ if [ -n "$ETH_PROVIDER" ] && [ -n "$ETH_ACCOUNT" ] && [ -n "$ETH_MARKETPLACE_ADD
     args="$args --eth-deployment=/root/marketplace_address.json"
 
     if [ -n "$SIMULATE_PROOF_FAILURES" ]; then
+      echo "Simulate proof failures: $SIMULATE_PROOF_FAILURES"
       args="$args --simulate-proof-failures=$SIMULATE_PROOF_FAILURES"
     fi
 fi

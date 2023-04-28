@@ -32,6 +32,7 @@ Codex docker image supports the following environment variables:
 - ETH_PROVIDER
 - ETH_ACCOUNT
 - ETH_DEPLOYMENT
+- SIMULATE_PROOF_FAILURES
 
 (*) These variables have default values in the docker image that are different from Codex's standard default values.
 
@@ -46,3 +47,13 @@ To get the IP address of a container within a network:
 Find container Id: `docker ps`
 Open terminal in container: `docker exec -it <CONTAINER ID> sh`
 Get IP addresses: `ifconfig`
+
+# Slim
+1. Build the image using `docker build -t status-im/codexsetup:latest -f codex.Dockerfile ..`
+2. The docker image can then be minifed using [slim](https://github.com/slimtoolkit/slim). Install slim on your path and then run:
+```shell
+slim # brings up interactive prompt
+>>> build --target status-im/codexsetup --http-probe-off true
+```
+3. This should output an image with name `status-im/codexsetup.slim`
+4. We can then bring up the image using `docker-compose up -d`.
