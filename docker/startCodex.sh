@@ -118,6 +118,10 @@ if [ -n "$ETH_PROVIDER" ] && [ -n "$ETH_ACCOUNT" ] && [ -n "$ETH_MARKETPLACE_ADD
     # Remove this as soon as CLI option is available:
     echo "{\"contracts\": { \"Marketplace\": { \"address\": \""$ETH_MARKETPLACE_ADDRESS"\" } } }" > /root/marketplace_address.json
     args="$args --eth-deployment=/root/marketplace_address.json"
+
+    if [ -n "$SIMULATE_PROOF_FAILURES" ]; then
+      args="$args --simulate-proof-failures=$SIMULATE_PROOF_FAILURES"
+    fi
 fi
 
 echo "./codex $args"
