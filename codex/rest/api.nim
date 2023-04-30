@@ -24,6 +24,7 @@ import pkg/stew/base10
 import pkg/stew/byteutils
 import pkg/confutils
 
+import pkg/libp2p
 import pkg/libp2p/routing_record
 import pkg/libp2pdht/discv5/spr as spr
 
@@ -50,7 +51,7 @@ proc formatEnginePeers(peers: OrderedTable[PeerId, BlockExcPeerCtx]): JsonNode =
   for key, value in peers:
     jarray.add(%*
       {
-        "peerId": $(key.data),
+        "peerId": $key,
         "context": {
           "blocks": value.blocks.len,
           "peerWants": value.peerWants.len,
@@ -61,13 +62,13 @@ proc formatEnginePeers(peers: OrderedTable[PeerId, BlockExcPeerCtx]): JsonNode =
 
   return jarray
 
-proc formatSwitchPeers(peers: Table[PeerId, crypto.PublicKey]): JsonNode =
+proc formatSwitchPeers(peers: Table[PeerId, seq[MultiAddress]]): JsonNode =
   let jarray = newJArray()
   for key, value in peers:
     jarray.add(%*
       {
-        "peerId": $(key.data),
-        "key": $value
+        "peerId": $key,
+        "numberOfAddresses": $value.len
       })
 
   return jarray
@@ -272,7 +273,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
             else:
               "",
           "enginePeers": formatEnginePeers(node.engine.peers.peers),
-          "switchPeers": formatSwitchPeers(node.switch.peerStore[KeyBook].book),
+          "switchPeers": formatSwitchPeers(node.switch.peerStore[AddressBook].book),
           "codex": {
             "version": $codexVersion,
             "revision": $codexRevision
