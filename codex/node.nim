@@ -421,5 +421,8 @@ proc stop*(node: CodexNodeRef) {.async.} =
   if hostContracts =? node.contracts.host:
     await hostContracts.stop()
 
+  if validatorContracts =? node.contracts.validator:
+    await validatorContracts.stop()
+
   if not node.blockStore.isNil:
     await node.blockStore.close
