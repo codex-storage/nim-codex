@@ -55,10 +55,9 @@ jobs:
 
       - name: Start Ethereum node with Codex contracts
         working-directory: vendor/codex-contracts-eth
+        env:
+          MSYS2_PATH_TYPE: inherit
         run: |
-          if [[ '${{ matrix.os }}' == 'windows' ]]; then
-            export PATH="${PATH}:/c/program files/nodejs"
-          fi
           npm install
           npm start &
 
