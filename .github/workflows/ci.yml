@@ -47,12 +47,17 @@ jobs:
       - name: Unit tests
         run: make -j${ncpu} test
 
+      # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+         node-version: 18.15
+
       - name: Start Ethereum node with Codex contracts
         working-directory: vendor/codex-contracts-eth
+        env:
+          MSYS2_PATH_TYPE: inherit
         run: |
-          if [[ '${{ matrix.os }}' == 'windows' ]]; then
-            export PATH="${PATH}:/c/program files/nodejs"
-          fi
           npm install
           npm start &
 
