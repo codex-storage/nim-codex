@@ -71,7 +71,7 @@ proc bootstrapInteractions(config: CodexConf, repo: RepoStore): Future[Contracts
 
   let deploy = Deployment.new(provider, config)
   without marketplaceAddress =? await deploy.address(Marketplace):
-    error "No Marketplace address was specified nor there is no known address for the current network"
+    error "No Marketplace address was specified or there is no known address for the current network"
     quit QuitFailure
 
   let marketplace = Marketplace.new(marketplaceAddress, signer)

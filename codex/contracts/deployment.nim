@@ -30,7 +30,7 @@ proc new*(_: type Deployment, provider: Provider, config: CodexConf): Deployment
 proc address*(deployment: Deployment, contract: type): Future[?Address] {.async.} =
   let chainId = await deployment.provider.getChainId()
   when contract is Marketplace:
-    if deployment.config.marketplaceAddress.isSome:
-      return deployment.config.marketplaceAddress
+    if address =? deployment.config.marketplaceAddress:
+      return some address
 
   return contract.getKnownAddress(chainId)
