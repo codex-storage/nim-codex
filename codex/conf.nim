@@ -23,6 +23,7 @@ import pkg/chronicles/helpers
 import pkg/chronicles/topics_registry
 import pkg/confutils/defs
 import pkg/confutils/std/net
+import pkg/toml_serialization
 import pkg/metrics
 import pkg/metrics/chronos_httpserver
 import pkg/stew/shims/net as stewnet
@@ -51,6 +52,12 @@ type
     repoSQLite = "sqlite"
 
   CodexConf* = object
+    configFile* {.
+      desc: "Loads the configuration from a TOML file"
+      defaultValueDesc: "none"
+      defaultValue: InputFile.none
+      name: "config-file" }: Option[InputFile]
+
     logLevel* {.
       defaultValue: "INFO"
       desc: "Sets the log level",
@@ -268,7 +275,7 @@ proc defaultDataDir*(): string =
   getHomeDir() / dataDir
 
 func parseCmdArg*(T: type MultiAddress, input: string): T
-                 {.raises: [ValueError, LPError, Defect].} =
+                 {.upraises: [ValueError, LPError].} =
   MultiAddress.init($input).tryGet()
 
 proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
@@ -284,6 +291,17 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
 
 func parseCmdArg*(T: type EthAddress, address: string): T =
   EthAddress.init($address).get()
+
+proc readValue*(r: var TomlReader, val: var EthAddress)
+               {.upraises: [SerializationError, IOError].} =
+  val = EthAddress.init(r.readValue(string)).get()
+
+proc readValue*(r: var TomlReader, val: var SignedPeerRecord) =
+  without uri =? r.readValue(string).catch, err:
+    error "invalid SignedPeerRecord configuration value", error = err.msg
+    quit QuitFailure
+
+  val = SignedPeerRecord.parseCmdArg(uri)
 
 # no idea why confutils needs this:
 proc completeCmdArg*(T: type EthAddress; val: string): seq[string] =
@@ -325,7 +343,7 @@ proc stripAnsi(v: string): string =
 
   res
 
-proc updateLogLevel*(logLevel: string) {.raises: [Defect, ValueError].} =
+proc updateLogLevel*(logLevel: string) {.upraises: [ValueError].} =
   # Updates log levels (without clearing old ones)
   let directives = logLevel.split(";")
   try:
