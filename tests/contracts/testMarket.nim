@@ -5,6 +5,7 @@ import codex/contracts
 import ../ethertest
 import ./examples
 import ./time
+import ./deployment
 
 ethersuite "On-Chain Market":
   let proof = exampleProof()
@@ -16,8 +17,7 @@ ethersuite "On-Chain Market":
   var periodicity: Periodicity
 
   setup:
-    let deployment = Deployment.init()
-    marketplace = Marketplace.new(!deployment.address(Marketplace), provider.getSigner())
+    marketplace = Marketplace.new(Marketplace.address, provider.getSigner())
     let config = await marketplace.config()
 
     market = OnChainMarket.new(marketplace)

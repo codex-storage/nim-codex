@@ -219,11 +219,11 @@ type
         name: "eth-account"
       .}: Option[EthAddress]
 
-      ethDeployment* {.
-        desc: "The json file describing the contract deployment"
-        defaultValue: string.none
-        name: "eth-deployment"
-      .}: Option[string]
+      marketplaceAddress* {.
+        desc: "Address of deployed Marketplace contract"
+        defaultValue: EthAddress.none
+        name: "marketplace-address"
+      .}: Option[EthAddress]
 
       validator* {.
         desc: "Enables validator, requires an Ethereum node"
