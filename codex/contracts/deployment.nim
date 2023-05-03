@@ -21,7 +21,7 @@ const knownAddresses = {
 
 proc getKnownAddress(T: type, chainId: UInt256): ?Address =
   let id = chainId.toString(10)
-  notice "Looking for well-known contract addres with ChainID ", chainId=id
+  notice "Looking for well-known contract address with ChainID ", chainId=id
 
   if not (id in knownAddresses):
     return none Address
