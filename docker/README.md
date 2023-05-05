@@ -33,8 +33,13 @@ Codex docker image supports the following environment variables:
 - ETH_ACCOUNT
 - ETH_DEPLOYMENT
 - SIMULATE_PROOF_FAILURES
+- VALIDATOR
+- PERSISTENCE
+- CODEX_NODENAME(†)
 
 (*) These variables have default values in the docker image that are different from Codex's standard default values.
+
+(†) CODEX_NODENAME is used for logging purposes only in the docker image
 
 All environment variables are optional and will default to Codex's CLI default values.
 
