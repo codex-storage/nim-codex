@@ -1,4 +1,8 @@
-echo "Starting Codex..."
+NAME=""
+if [ -n "$CODEX_NODENAME" ]; then
+  NAME=" '$CODEX_NODENAME'"
+fi
+echo "Starting Codex node$NAME"
 
 args=""
 
@@ -32,7 +36,7 @@ fi
 # Log level
 if [ -n "$LOG_LEVEL" ]; then
   echo "Log level: $LOG_LEVEL"
-  args="$args --log-level=$LOG_LEVEL"
+  args="$args --log-level=\"$LOG_LEVEL\""
 fi
 
 # Metrics
@@ -109,22 +113,39 @@ if [ -n "$CACHE_SIZE" ]; then
   args="$args --cache-size=$CACHE_SIZE"
 fi
 
-# Ethereum persistence
-if [ -n "$ETH_PROVIDER" ] && [ -n "$ETH_ACCOUNT" ] && [ -n "$ETH_MARKETPLACE_ADDRESS" ]; then
-    echo "Persistence enabled"
-    args="$args --persistence"
-    args="$args --eth-provider=$ETH_PROVIDER"
-    args="$args --eth-account=$ETH_ACCOUNT"
-    # args="$args --validator"
+if [ -n "$ETH_PROVIDER" ]; then
+  echo "Ethereum provider: $ETH_PROVIDER"
+  args="$args --eth-provider=$ETH_PROVIDER"
+fi
 
-    # Remove this as soon as CLI option is available:
-    echo "{\"contracts\": { \"Marketplace\": { \"address\": \""$ETH_MARKETPLACE_ADDRESS"\" } } }" > /root/marketplace_address.json
-    args="$args --eth-deployment=/root/marketplace_address.json"
+if [ -n "$ETH_ACCOUNT" ]; then
+  echo "Ethereum account: $ETH_ACCOUNT"
+  args="$args --eth-account=$ETH_ACCOUNT"
+fi
 
-    if [ -n "$SIMULATE_PROOF_FAILURES" ]; then
-      echo "Simulate proof failures: $SIMULATE_PROOF_FAILURES"
-      args="$args --simulate-proof-failures=$SIMULATE_PROOF_FAILURES"
-    fi
+if [ -n "$ETH_MARKETPLACE_ADDRESS" ]; then
+  # Remove this as soon as CLI option is available:
+  echo "{\"contracts\": { \"Marketplace\": { \"address\": \""$ETH_MARKETPLACE_ADDRESS"\" } } }" > /root/marketplace_address.json
+  args="$args --eth-deployment=/root/marketplace_address.json"
+fi
+
+if [ -n "$SIMULATE_PROOF_FAILURES" ]; then
+  echo "Simulate proof failures: $SIMULATE_PROOF_FAILURES"
+  args="$args --simulate-proof-failures=$SIMULATE_PROOF_FAILURES"
+fi
+
+if [ "$PERSISTENCE" = "true" ] || [ "$PERSISTENCE" = "1" ]; then
+  echo "Persistence enabled"
+  args="$args --persistence"
+else
+  echo "Persistence disabled"
+fi
+
+if [ "$VALIDATOR" = "true" ] || [ "$VALIDATOR" = "1" ]; then
+  echo "Validator enabled"
+  args="$args --validator"
+else
+  echo "Validator disabled"
 fi
 
 echo "./codex $args"
