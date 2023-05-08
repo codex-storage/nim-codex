@@ -112,8 +112,9 @@ multinodesuite "Simulate invalid proofs",
   var slotId: SlotId
 
   setup:
-    let deployment = Deployment.init()
-    marketplace = Marketplace.new(!deployment.address(Marketplace), provider)
+    let deployment = Deployment.new(provider, configFactory())
+    let address = await deployment.address(Marketplace)
+    marketplace = Marketplace.new(!address, provider)
     let config = await marketplace.config()
     period = config.proofs.period.truncate(uint64)
     slotId = SlotId(array[32, byte].default) # ensure we aren't reusing from prev test

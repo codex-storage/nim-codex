@@ -1,22 +1,14 @@
-import std/os
 import pkg/asynctest
-import pkg/ethers
-import codex/contracts/deployment
-import codex/conf
-import codex/contracts
-
+import pkg/codex/conf
+import pkg/codex/contracts/deployment
+import pkg/codex/contracts
+import ./deployment
 
 type MockProvider = ref object of Provider
   chainId*: UInt256
 
 method getChainId*(provider: MockProvider): Future[UInt256] {.async.} =
   return provider.chainId
-
-proc configFactory(): CodexConf =
-  CodexConf(cmd: noCommand, nat: ValidIpAddress.init("127.0.0.1"), discoveryIp: ValidIpAddress.init(IPv4_any()), metricsAddress: ValidIpAddress.init("127.0.0.1"))
-
-proc configFactory(marketplace: Option[EthAddress]): CodexConf =
-  CodexConf(cmd: noCommand, nat: ValidIpAddress.init("127.0.0.1"), discoveryIp: ValidIpAddress.init(IPv4_any()), metricsAddress: ValidIpAddress.init("127.0.0.1"), marketplaceAddress: marketplace)
 
 suite "Deployment":
 
