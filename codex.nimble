@@ -49,18 +49,17 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
     for i in 2..<paramCount():
       extra_params &= " " & paramStr(i)
 
-
   exec "nim " & lang & " --out:build/" & name & " " & extra_params & " " & srcDir & name & ".nim"
 
-proc test(name: string, srcDir = "tests/", lang = "c") =
-  buildBinary name, srcDir
+proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
+  buildBinary name, srcDir, params
   exec "build/" & name
 
 task codex, "build codex binary":
   buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
 task testCodex, "Build & run Codex tests":
-  test "testCodex"
+  test "testCodex", params = "-d:codex_enable_proof_failures=true"
 
 task testContracts, "Build & run Codex Contract tests":
   test "testContracts"
