@@ -14,7 +14,7 @@ type
     onStore*: ?OnStore
     onClear*: ?OnClear
     onSale*: ?OnSale
-    onIgnored*: OnIgnored
+    onCleanUp*: OnCleanUp
     onStartOver*: OnStartOver
     proving*: Proving
     reservations*: Reservations
@@ -28,5 +28,5 @@ type
                   slotIndex: UInt256) {.gcsafe, upraises: [].}
   OnSale* = proc(request: StorageRequest,
                  slotIndex: UInt256) {.gcsafe, upraises: [].}
-  OnIgnored* = proc() {.gcsafe, upraises: [].}
+  OnCleanUp* = proc: Future[void] {.gcsafe, upraises: [].}
   OnStartOver* = proc(slotIndex: UInt256): Future[void] {.gcsafe, upraises: [].}

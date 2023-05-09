@@ -73,6 +73,11 @@ func new*(_: type Sales,
     reservations: Reservations.new(repo)
   ))
 
+proc remove(sales: Sales, agent: SalesAgent): OnCleanUp =
+  proc: Future[void] {.gcsafe, upraises:[], async.} =
+    await agent.stop()
+    sales.agents.keepItIf(it != agent)
+
 proc handleRequest(sales: Sales,
                    requestId: RequestId,
                    ask: StorageAsk) =
@@ -87,13 +92,14 @@ proc handleRequest(sales: Sales,
     none UInt256,
     none StorageRequest
   )
+
   agent.context.onStartOver =
     proc(slotIndex: UInt256) {.gcsafe, upraises:[], async.} =
       await agent.stop()
       agent.start(SalePreparing(ignoreSlotIndex: some slotIndex))
 
-  agent.context.onIgnored = proc {.gcsafe, upraises:[].} =
-                              sales.agents.keepItIf(it != agent)
+  agent.context.onCleanUp = sales.remove(agent)
+
   agent.start(SalePreparing())
   sales.agents.add agent
 
@@ -109,6 +115,9 @@ proc load*(sales: Sales) {.async.} =
         slot.request.id,
         some slot.slotIndex,
         some slot.request)
+
+      agent.context.onCleanUp = sales.remove(agent)
+
       agent.start(SaleUnknown())
       sales.agents.add agent
 

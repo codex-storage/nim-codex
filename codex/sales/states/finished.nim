@@ -28,4 +28,5 @@ method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
     if onSale =? context.onSale:
       onSale(request, slotIndex)
 
-  await agent.unsubscribe()
+  if onCleanUp =? context.onCleanUp:
+    await onCleanUp()

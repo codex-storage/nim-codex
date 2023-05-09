@@ -18,11 +18,13 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
   let data = agent.data
   let context = agent.context
 
+  error "Sale error", error=state.error.msg
+
   if onClear =? context.onClear and
       request =? data.request and
       slotIndex =? data.slotIndex:
     onClear(request, slotIndex)
 
-  await agent.unsubscribe()
+  if onCleanUp =? context.onCleanUp:
+    await onCleanUp()
 
-  error "Sale error", error=state.error.msg
