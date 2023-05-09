@@ -4,7 +4,7 @@ import pkg/codex/contracts/requests
 import pkg/codex/sales/states/proving
 import pkg/codex/sales/states/cancelled
 import pkg/codex/sales/states/failed
-import pkg/codex/sales/states/filled
+import pkg/codex/sales/states/restart
 import ../../examples
 
 suite "sales state 'proving'":
@@ -24,7 +24,7 @@ suite "sales state 'proving'":
     let next = state.onFailed(request)
     check !next of SaleFailed
 
-  test "switches to filled state when slot is filled":
+  test "switches to restart state when slot is filled":
     let next = state.onSlotFilled(request.id, slotIndex)
-    check !next of SaleFilled
+    check !next of SaleRestart
 

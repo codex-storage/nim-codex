@@ -73,8 +73,6 @@ func new*(_: type Sales,
     reservations: Reservations.new(repo)
   ))
 
-
-
 proc handleRequest(sales: Sales,
                    requestId: RequestId,
                    ask: StorageAsk) =
@@ -89,6 +87,11 @@ proc handleRequest(sales: Sales,
     none UInt256,
     none StorageRequest
   )
+  agent.context.onStartOver =
+    proc(slotIndex: UInt256) {.gcsafe, upraises:[], async.} =
+      await agent.stop()
+      agent.start(SalePreparing(ignoreSlotIndex: some slotIndex))
+
   agent.context.onIgnored = proc {.gcsafe, upraises:[].} =
                               sales.agents.keepItIf(it != agent)
   agent.start(SalePreparing())

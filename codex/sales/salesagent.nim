@@ -51,8 +51,11 @@ proc nextRandom(sample: openArray[uint64]): uint64 =
   let rng = Rng.instance
   return rng.sample(sample)
 
-proc assignRandomSlotIndex*(agent: SalesAgent,
-                            numSlots: uint64): Future[?!void] {.async.} =
+proc assignRandomSlotIndex*(
+    agent: SalesAgent,
+    numSlots: uint64,
+    ignoreSlotIndex: ?UInt256 = none UInt256): Future[?!void] {.async.} =
+
   let market = agent.context.market
   let data = agent.data
 
@@ -63,6 +66,8 @@ proc assignRandomSlotIndex*(agent: SalesAgent,
 
   var idx: UInt256
   var sample = toSeq(0'u64..<numSlots)
+  if ignored =? ignoreSlotIndex:
+    sample.keepItIf(it != ignored.truncate(uint64))
 
   while true:
     if sample.len == 0:
@@ -121,7 +126,8 @@ proc subscribeFailure(agent: SalesAgent) {.async.} =
 
 proc subscribeSlotFilled(agent: SalesAgent) {.async.} =
   let data = agent.data
-  let market = agent.context.market
+  let context = agent.context
+  let market = context.market
 
   without slotIndex =? data.slotIndex:
     raiseAssert("no slot index assigned")

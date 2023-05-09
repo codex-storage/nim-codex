@@ -8,9 +8,9 @@ import ../statemachine
 import ./errorhandling
 import ./cancelled
 import ./failed
-import ./filled
 import ./proving
 import ./errored
+import ./restart
 
 type
   SaleDownloading* = ref object of ErrorHandlingState
@@ -29,7 +29,8 @@ method onFailed*(state: SaleDownloading, request: StorageRequest): ?State =
 
 method onSlotFilled*(state: SaleDownloading, requestId: RequestId,
                      slotIndex: UInt256): ?State =
-  return some State(SaleFilled())
+  notice "Slot filled by other host, starting over", requestId, slotIndex
+  return some State(SaleRestart())
 
 method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)

@@ -7,16 +7,17 @@ import ../statemachine
 import ./errorhandling
 import ./cancelled
 import ./failed
-import ./filled
 import ./ignored
 import ./downloading
 import ./errored
+import ./restart
 
 type
   SalePreparing* = ref object of ErrorHandlingState
+    ignoreSlotIndex*: ?UInt256
 
 logScope:
-    topics = "sales preparing"
+  topics = "sales preparing"
 
 method `$`*(state: SalePreparing): string = "SaleDownloading"
 
@@ -28,7 +29,8 @@ method onFailed*(state: SalePreparing, request: StorageRequest): ?State =
 
 method onSlotFilled*(state: SalePreparing, requestId: RequestId,
                      slotIndex: UInt256): ?State =
-  return some State(SaleFilled())
+  notice "Slot filled by other host, starting over", requestId, slotIndex
+  return some State(SaleRestart())
 
 method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
@@ -41,7 +43,8 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
   without slots =? agent.data.request.?ask.?slots:
     raiseAssert "missing request slots"
 
-  if err =? (await agent.assignRandomSlotIndex(slots)).errorOption:
+  let fut = agent.assignRandomSlotIndex(slots, state.ignoreSlotIndex)
+  if err =? (await fut).errorOption:
     if err of AllSlotsFilledError:
       return some State(SaleIgnored())
     return some State(SaleErrored(error: err))

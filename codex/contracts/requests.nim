@@ -3,6 +3,8 @@ import pkg/contractabi
 import pkg/nimcrypto
 import pkg/ethers/fields
 import pkg/questionable/results
+import pkg/json_serialization
+import pkg/upraises
 
 export contractabi
 
@@ -193,3 +195,17 @@ func price*(request: StorageRequest): UInt256 =
 
 func size*(ask: StorageAsk): UInt256 =
   ask.slots.u256 * ask.slotSize
+
+proc writeValue*(
+  writer: var JsonWriter,
+  value: SlotId | RequestId) {.upraises:[IOError].} =
+
+  mixin writeValue
+  writer.writeValue value.toArray
+
+proc readValue*[T: SlotId | RequestId](
+  reader: var JsonReader,
+  value: var T) {.upraises: [SerializationError, IOError].} =
+
+  mixin readValue
+  value = T reader.readValue(T.distinctBase)

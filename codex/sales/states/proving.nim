@@ -1,13 +1,17 @@
+import pkg/chronicles
 import ../statemachine
 import ../salesagent
 import ./errorhandling
 import ./filling
 import ./cancelled
 import ./failed
-import ./filled
+import ./restart
 
 type
   SaleProving* = ref object of ErrorHandlingState
+
+logScope:
+  topics = "sales proving"
 
 method `$`*(state: SaleProving): string = "SaleProving"
 
@@ -19,7 +23,8 @@ method onFailed*(state: SaleProving, request: StorageRequest): ?State =
 
 method onSlotFilled*(state: SaleProving, requestId: RequestId,
                      slotIndex: UInt256): ?State =
-  return some State(SaleFilled())
+  notice "Slot filled by other host, starting over", requestId, slotIndex
+  return some State(SaleRestart())
 
 method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data

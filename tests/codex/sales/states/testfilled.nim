@@ -4,7 +4,7 @@ import pkg/codex/sales
 import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
 import pkg/codex/sales/states/filled
-import pkg/codex/sales/states/errored
+import pkg/codex/sales/states/restart
 import pkg/codex/sales/states/finished
 import ../../helpers/mockmarket
 import ../../examples
@@ -38,8 +38,8 @@ suite "sales state 'filled'":
     let next = await state.run(agent)
     check !next of SaleFinished
 
-  test "switches to error state when slot is filled by another host":
+  test "switches to restart state when slot is filled by another host":
     slot.host = Address.example
     market.filled = @[slot]
     let next = await state.run(agent)
-    check !next of SaleErrored
+    check !next of SaleRestart

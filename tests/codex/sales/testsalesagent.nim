@@ -176,3 +176,21 @@ suite "Sales agent":
     check r.isErr
     check r.error of ValueError
     check agent.data.slotIndex == none UInt256
+
+  test "assigns non-ignored random slot index":
+    let slotId0 = slotId(request.id, 0.u256)
+    let slotId1 = slotId(request.id, 1.u256)
+    market.slotState[slotId0] = SlotState.Free
+    market.slotState[slotId1] = SlotState.Free
+    check isOk await agent.assignRandomSlotIndex(2, ignoreSlotIndex = some 0.u256)
+    check agent.data.slotIndex == some 1.u256
+
+  test "fails to assign random slot index when all non-ignored slots are filled":
+    let slotId0 = slotId(request.id, 0.u256)
+    let slotId1 = slotId(request.id, 1.u256)
+    market.slotState[slotId0] = SlotState.Free
+    market.slotState[slotId1] = SlotState.Filled
+    let r = await agent.assignRandomSlotIndex(2, ignoreSlotIndex = some 0.u256)
+    check r.isErr
+    check r.error of AllSlotsFilledError
+    check agent.data.slotIndex == none UInt256
