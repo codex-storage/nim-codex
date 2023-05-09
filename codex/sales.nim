@@ -79,6 +79,11 @@ func new*(_: type Sales,
     subscriptions: SalesSubscriptions.new()
   )
 
+proc remove(sales: Sales, agent: SalesAgent): OnCleanUp =
+  proc: Future[void] {.gcsafe, upraises:[], async.} =
+    await agent.stop()
+    sales.agents.keepItIf(it != agent)
+
 proc handleRequest(sales: Sales, rqi: RequestQueueItem) =
   debug "handling storage requested", requestId = $rqi.requestId,
     slots = rqi.ask.slots, slotSize = rqi.ask.slotSize,
@@ -91,8 +96,9 @@ proc handleRequest(sales: Sales, rqi: RequestQueueItem) =
     none UInt256,
     none StorageRequest
   )
-  agent.context.onIgnored = proc {.gcsafe, upraises:[].} =
-                              sales.agents.keepItIf(it != agent)
+
+  agent.context.onCleanUp = sales.remove(agent)
+
   agent.start(SalePreparing(availableSlotIndices: rqi.availableSlotIndices))
   sales.agents.add agent
 
@@ -116,6 +122,9 @@ proc load*(sales: Sales) {.async.} =
       slot.request.id,
       some slot.slotIndex,
       some slot.request)
+
+      agent.context.onCleanUp = sales.remove(agent)
+
     agent.start(SaleUnknown())
     sales.agents.add agent
 
