@@ -11,7 +11,7 @@ import ./reservations
 export reservations
 
 logScope:
-  topics = "sales statemachine"
+  topics = "marketplace sales"
 
 type SalesAgent* = ref object of Machine
   context*: SalesContext

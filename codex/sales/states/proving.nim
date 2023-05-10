@@ -1,3 +1,4 @@
+import pkg/chronicles
 import ../statemachine
 import ../salesagent
 import ./errorhandling
@@ -5,6 +6,9 @@ import ./filling
 import ./cancelled
 import ./failed
 import ./filled
+
+logScope:
+    topics = "marketplace sales proving"
 
 type
   SaleProving* = ref object of ErrorHandlingState
@@ -31,5 +35,8 @@ method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
   without onProve =? context.proving.onProve:
     raiseAssert "onProve callback not set"
 
+  debug "Start proving", requestId = $data.requestId
   let proof = await onProve(Slot(request: request, slotIndex: data.slotIndex))
+  debug "Finished proving", requestId = $data.requestId
+
   return some State(SaleFilling(proof: proof))
