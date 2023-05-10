@@ -74,7 +74,7 @@ func new*(_: type Sales,
   ))
 
 proc remove(sales: Sales, agent: SalesAgent): OnCleanUp =
-  proc: Future[void] {.gcsafe, upraises:[], async.} =
+  proc(): Future[void] {.gcsafe, upraises:[], async.} =
     await agent.stop()
     sales.agents.keepItIf(it != agent)
 
