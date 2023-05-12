@@ -10,14 +10,8 @@ export ethertest
 export codexclient
 export nodes
 
-template twonodessuite*(name: string, debug1, debug2: bool, body) =
+template twonodessuite*(name: string, debug1, debug2: bool | string, body) =
   twonodessuite(name, $debug1, $debug2, body)
-
-template twonodessuite*(name: string, debug1: string, debug2: bool, body) =
-  twonodessuite(name, debug1, $debug2, body)
-
-template twonodessuite*(name: string, debug1: bool, debug2: string, body) =
-  twonodessuite(name, $debug1, debug2, body)
 
 template twonodessuite*(name: string, debug1, debug2: string, body) =
 
