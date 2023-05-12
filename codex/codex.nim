@@ -123,15 +123,6 @@ proc start*(s: CodexServer) {.async.} =
           it.remapAddr(s.config.nat.some)
         else:
           it
-    # announceAddrs = @[
-    #   SignedPeerRecord.init(
-    #     d.key, PeerRecord.init(d.peerId, @[
-    #   MultiAddress.init(
-    #     ip,
-    #     IpTransportProtocol.udpProtocol,
-    #     port)])).expect("Should construct signed record").some
-
-    # ]
 
   s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
   s.codexNode.discovery.updateDhtRecord(s.config.nat, s.config.discoveryPort)

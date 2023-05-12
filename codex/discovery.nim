@@ -8,7 +8,6 @@
 ## those terms.
 
 import std/algorithm
-import std/random
 
 import pkg/chronos
 import pkg/chronicles
@@ -27,7 +26,6 @@ import ./blocktype as bt
 import ./rng
 import ./errors
 import ./formats
-import ./utils/timer
 
 export discv5
 
@@ -47,7 +45,7 @@ type
     providerRecord*: ?SignedPeerRecord  # record to advertice node connection information, this carry any
                                         # address that the node can be connected on
     dhtRecord*: ?SignedPeerRecord       # record to advertice DHT connection information
-    timer: Timer
+    # timer: Timer
 
 proc toNodeId*(cid: Cid): NodeId =
   ## Cid to discovery id
@@ -151,14 +149,9 @@ proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
       .expect("Should construct signed record")
   d.providerRecord = ccc.some
 
-  let aaa = nodev5.newNode(ccc)
-  let bbb = aaa.tryGet()
-  let ddd: string = nodev5.shortLog(bbb)
-  trace "to node:", ddd
-
-  # if not d.protocol.isNil:
-  #   d.protocol.updateRecord(d.providerRecord)
-  #     .expect("Should update SPR")
+  if not d.protocol.isNil:
+    d.protocol.updateRecord(d.providerRecord)
+      .expect("Should update SPR")
 
 proc updateDhtRecord*(d: Discovery, ip: ValidIpAddress, port: Port) =
   ## Update providers record
@@ -180,25 +173,7 @@ proc start*(d: Discovery) {.async.} =
   d.protocol.open()
   await d.protocol.start()
 
-  proc onTimer(): Future[void] {.async.} =
-    try:
-      trace "random ping!"
-      #randomblock
-      let length = rand(4096)
-      let bytes = newSeqWith(length, rand(uint8))
-      var blocky = bt.Block.new(bytes).tryGet()
-      #randomcid
-      let cid = blocky.cid
-
-      let response = await d.find(cid)
-      trace "random ping response:", response
-    except CatchableError as exc:
-      error "Unexpected exception in randomping: ", msg=exc.msg
-
-  d.timer.start(onTimer, 3.seconds())
-
 proc stop*(d: Discovery) {.async.} =
-  await d.timer.stop()
   await d.protocol.closeWait()
 
 proc new*(
@@ -233,5 +208,4 @@ proc new*(
     rng = Rng.instance(),
     providers = ProvidersManager.new(store))
 
-  self.timer = Timer.new()
   self
