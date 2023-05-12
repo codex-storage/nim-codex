@@ -27,6 +27,8 @@ import pkg/confutils
 import pkg/libp2p
 import pkg/libp2p/routing_record
 import pkg/libp2pdht/discv5/spr as spr
+import pkg/libp2pdht/discv5/routing_table as rt
+import pkg/libp2pdht/discv5/node as dn
 
 import ../node
 import ../blocktype
@@ -72,6 +74,40 @@ proc formatSwitchPeers(peers: Table[PeerId, seq[MultiAddress]]): JsonNode =
       })
 
   return jarray
+
+proc formatNode(node: dn.Node): JsonNode =
+  let jobj = %*{
+    "nodeId": $node.id,
+    "record": $node.record,
+    "seen": $node.seen
+  }
+  return jobj
+
+proc formatTable(routingTable: rt.RoutingTable): JsonNode =
+  let jarray = newJArray()
+  for bucket in routingTable.buckets:
+    for node in bucket.nodes:
+      jarray.add(formatNode(node))
+
+  let jobj = %*{
+    "localNode": formatNode(routingTable.localNode),
+    "nodes": jarray
+  }
+  return jobj
+
+proc formatPeerRecord(peerRecord: PeerRecord): JsonNode =
+  let jarray = newJArray()
+  for maddr in peerRecord.addresses:
+    jarray.add(%*{
+      "address": $maddr.address
+    })
+
+  let jobj = %*{
+    "peerId": $peerRecord.peerId,
+    "seqNo": $peerRecord.seqNo,
+    "addresses": jarray
+  }
+  return jobj
 
 proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   var router = RestRouter.init(validate)
@@ -274,12 +310,25 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
               "",
           "enginePeers": formatEnginePeers(node.engine.peers.peers),
           "switchPeers": formatSwitchPeers(node.switch.peerStore[AddressBook].book),
+          "table": formatTable(node.discovery.protocol.routingTable),
           "codex": {
             "version": $codexVersion,
             "revision": $codexRevision
           }
         }
 
+      return RestApiResponse.response($json)
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/debug/peer/{peerId}") do (peerId: PeerId) -> RestApiResponse:
+
+      without peerRecord =? (await node.findPeer(peerId.get())):
+        return RestApiResponse.error(
+          Http400,
+          "Unable to find Peer!")
+
+      let json = formatPeerRecord(peerRecord)
       return RestApiResponse.response($json)
 
   router.api(
@@ -342,6 +391,5 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       let json = %purchase
 
       return RestApiResponse.response($json)
-
 
   return router

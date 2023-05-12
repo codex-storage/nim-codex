@@ -79,6 +79,15 @@ proc start*(s: CodexServer) {.async.} =
           it.remapAddr(s.config.nat.some)
         else:
           it
+    # announceAddrs = @[
+    #   SignedPeerRecord.init(
+    #     d.key, PeerRecord.init(d.peerId, @[
+    #   MultiAddress.init(
+    #     ip,
+    #     IpTransportProtocol.udpProtocol,
+    #     port)])).expect("Should construct signed record").some
+
+    # ]
 
   s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
   s.codexNode.discovery.updateDhtRecord(s.config.nat, s.config.discoveryPort)
@@ -138,7 +147,7 @@ proc new(_: type Contracts,
   var validator: ?ValidatorInteractions
   if config.persistence:
     let purchasing = Purchasing.new(market, clock)
-    
+
     when codex_enable_proof_failures:
       let proving = if config.simulateProofFailures > 0:
                       SimulatedProving.new(market, clock,
