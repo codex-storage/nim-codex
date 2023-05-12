@@ -46,7 +46,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
       if debug1 != "true" and debug1 != "false":
         node1Args.add("--log-level=" & debug1)
 
-      node1 = startNode(node1Args, debug = (debug1 != "false"))
+      node1 = startNode(node1Args, debug = debug1)
 
       let bootstrap = client1.info()["spr"].getStr()
 
@@ -64,7 +64,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
       if debug2 != "true" and debug2 != "false":
         node2Args.add("--log-level=" & debug2)
 
-      node2 = startNode(node2Args, debug = (debug2 != "false"))
+      node2 = startNode(node2Args, debug = debug2)
 
     teardown:
       client1.close()
