@@ -8,6 +8,7 @@
 ## those terms.
 
 import std/algorithm
+import std/random
 
 import pkg/chronos
 import pkg/chronicles
@@ -19,10 +20,14 @@ import pkg/questionable/results
 import pkg/stew/shims/net
 import pkg/contractabi/address as ca
 import pkg/libp2pdht/discv5/protocol as discv5
+import pkg/libp2pdht/discv5/node as nodev5
+import std/sequtils
+import ./blocktype as bt
 
 import ./rng
 import ./errors
 import ./formats
+import ./utils/timer
 
 export discv5
 
@@ -35,13 +40,14 @@ logScope:
 
 type
   Discovery* = ref object of RootObj
-    protocol: discv5.Protocol           # dht protocol
+    protocol*: discv5.Protocol           # dht protocol
     key: PrivateKey                     # private key
     peerId: PeerId                      # the peer id of the local node
     announceAddrs: seq[MultiAddress]    # addresses announced as part of the provider records
     providerRecord*: ?SignedPeerRecord  # record to advertice node connection information, this carry any
                                         # address that the node can be connected on
     dhtRecord*: ?SignedPeerRecord       # record to advertice DHT connection information
+    timer: Timer
 
 proc toNodeId*(cid: Cid): NodeId =
   ## Cid to discovery id
@@ -140,13 +146,19 @@ proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
   d.announceAddrs = @addrs
 
   trace "Updating announce record", addrs = d.announceAddrs
-  d.providerRecord = SignedPeerRecord.init(
+  let ccc = SignedPeerRecord.init(
     d.key, PeerRecord.init(d.peerId, d.announceAddrs))
-      .expect("Should construct signed record").some
+      .expect("Should construct signed record")
+  d.providerRecord = ccc.some
 
-  if not d.protocol.isNil:
-    d.protocol.updateRecord(d.providerRecord)
-      .expect("Should update SPR")
+  let aaa = nodev5.newNode(ccc)
+  let bbb = aaa.tryGet()
+  let ddd: string = nodev5.shortLog(bbb)
+  trace "to node:", ddd
+
+  # if not d.protocol.isNil:
+  #   d.protocol.updateRecord(d.providerRecord)
+  #     .expect("Should update SPR")
 
 proc updateDhtRecord*(d: Discovery, ip: ValidIpAddress, port: Port) =
   ## Update providers record
@@ -160,11 +172,33 @@ proc updateDhtRecord*(d: Discovery, ip: ValidIpAddress, port: Port) =
         IpTransportProtocol.udpProtocol,
         port)])).expect("Should construct signed record").some
 
+  if not d.protocol.isNil:
+    d.protocol.updateRecord(d.dhtRecord)
+      .expect("Should update SPR")
+
 proc start*(d: Discovery) {.async.} =
   d.protocol.open()
   await d.protocol.start()
 
+  proc onTimer(): Future[void] {.async.} =
+    try:
+      trace "random ping!"
+      #randomblock
+      let length = rand(4096)
+      let bytes = newSeqWith(length, rand(uint8))
+      var blocky = bt.Block.new(bytes).tryGet()
+      #randomcid
+      let cid = blocky.cid
+
+      let response = await d.find(cid)
+      trace "random ping response:", response
+    except CatchableError as exc:
+      error "Unexpected exception in randomping: ", msg=exc.msg
+
+  d.timer.start(onTimer, 3.seconds())
+
 proc stop*(d: Discovery) {.async.} =
+  await d.timer.stop()
   await d.protocol.closeWait()
 
 proc new*(
@@ -184,6 +218,12 @@ proc new*(
 
   self.updateAnnounceRecord(announceAddrs)
 
+  let aaa: string = $bindIp
+  let bbb: string = $bindPort
+
+  trace "bindIP:", aaa
+  trace "bindPort:", bbb
+
   self.protocol = newProtocol(
     key,
     bindIp = bindIp.toNormalIp,
@@ -193,4 +233,5 @@ proc new*(
     rng = Rng.instance(),
     providers = ProvidersManager.new(store))
 
+  self.timer = Timer.new()
   self
