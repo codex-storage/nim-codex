@@ -10,7 +10,7 @@ import ./marketplace
 export market
 
 logScope:
-    topics = "onchain market"
+    topics = "marketplace onchain market"
 
 type
   OnChainMarket* = ref object of Market
@@ -30,7 +30,7 @@ func new*(_: type OnChainMarket, contract: Marketplace): OnChainMarket =
   )
 
 proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
-  notice "approving tokens", amount
+  debug "Approving tokens", amount
   let tokenAddress = await market.contract.token()
   let token = Erc20Token.new(tokenAddress, market.signer)
 
@@ -55,6 +55,7 @@ method mySlots*(market: OnChainMarket): Future[seq[SlotId]] {.async.} =
   return await market.contract.mySlots()
 
 method requestStorage(market: OnChainMarket, request: StorageRequest){.async.} =
+  debug "Requesting storage"
   await market.approveFunds(request.price())
   await market.contract.requestStorage(request)
 

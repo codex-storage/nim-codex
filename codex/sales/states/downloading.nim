@@ -17,7 +17,7 @@ type
   SaleDownloading* = ref object of ErrorHandlingState
 
 logScope:
-    topics = "sales downloading"
+    topics = "marketplace sales downloading"
 
 method `$`*(state: SaleDownloading): string = "SaleDownloading"
 
@@ -46,13 +46,16 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
   without request =? data.request:
     raiseAssert "no sale request"
 
+  debug "New request detected, downloading info", requestId = $data.requestId
+
   without availability =? await reservations.find(
       request.ask.slotSize,
       request.ask.duration,
       request.ask.pricePerSlot,
       request.ask.collateral,
       used = false):
-    info "no availability found for request, ignoring",
+    info "No availability found for request, ignoring",
+      requestId = $data.requestId,
       slotSize = request.ask.slotSize,
       duration = request.ask.duration,
       pricePerSlot = request.ask.pricePerSlot,

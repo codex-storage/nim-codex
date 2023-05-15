@@ -30,10 +30,10 @@ proc start(node: NodeProcess) =
       if line.contains("Started codex node"):
         break
 
-proc startNode*(args: openArray[string], debug = false): NodeProcess =
+proc startNode*(args: openArray[string], debug: string | bool = false): NodeProcess =
   ## Starts a Codex Node with the specified arguments.
   ## Set debug to 'true' to see output of the node.
-  let node = NodeProcess(arguments: @args, debug: debug)
+  let node = NodeProcess(arguments: @args, debug: ($debug != "false"))
   node.start()
   node
 

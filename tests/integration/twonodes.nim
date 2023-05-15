@@ -10,7 +10,10 @@ export ethertest
 export codexclient
 export nodes
 
-template twonodessuite*(name: string, debug1, debug2: bool, body) =
+template twonodessuite*(name: string, debug1, debug2: bool | string, body) =
+  twonodessuite(name, $debug1, $debug2, body)
+
+template twonodessuite*(name: string, debug1, debug2: string, body) =
 
   ethersuite name:
 
@@ -18,6 +21,8 @@ template twonodessuite*(name: string, debug1, debug2: bool, body) =
     var node2 {.inject, used.}: NodeProcess
     var client1 {.inject, used.}: CodexClient
     var client2 {.inject, used.}: CodexClient
+    var account1 {.inject, used.}: Address
+    var account2 {.inject, used.}: Address
 
     let dataDir1 = getTempDir() / "Codex1"
     let dataDir2 = getTempDir() / "Codex2"
@@ -25,20 +30,27 @@ template twonodessuite*(name: string, debug1, debug2: bool, body) =
     setup:
       client1 = CodexClient.new("http://localhost:8080/api/codex/v1")
       client2 = CodexClient.new("http://localhost:8081/api/codex/v1")
+      account1 = accounts[0]
+      account2 = accounts[1]
 
-      node1 = startNode([
+      var node1Args = @[
         "--api-port=8080",
         "--data-dir=" & dataDir1,
         "--nat=127.0.0.1",
         "--disc-ip=127.0.0.1",
         "--disc-port=8090",
         "--persistence",
-        "--eth-account=" & $accounts[0]
-      ], debug = debug1)
+        "--eth-account=" & $account1
+      ]
+
+      if debug1 != "true" and debug1 != "false":
+        node1Args.add("--log-level=" & debug1)
+
+      node1 = startNode(node1Args, debug = debug1)
 
       let bootstrap = client1.info()["spr"].getStr()
 
-      node2 = startNode([
+      var node2Args = @[
         "--api-port=8081",
         "--data-dir=" & dataDir2,
         "--nat=127.0.0.1",
@@ -46,8 +58,13 @@ template twonodessuite*(name: string, debug1, debug2: bool, body) =
         "--disc-port=8091",
         "--bootstrap-node=" & bootstrap,
         "--persistence",
-        "--eth-account=" & $accounts[1]
-      ], debug = debug2)
+        "--eth-account=" & $account2
+      ]
+
+      if debug2 != "true" and debug2 != "false":
+        node2Args.add("--log-level=" & debug2)
+
+      node2 = startNode(node2Args, debug = debug2)
 
     teardown:
       client1.close()

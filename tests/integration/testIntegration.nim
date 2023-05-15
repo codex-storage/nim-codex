@@ -1,9 +1,16 @@
 import std/json
 import pkg/chronos
 import pkg/stint
+import pkg/ethers/erc20
+import codex/contracts
 import ../contracts/time
+import ../contracts/deployment
 import ../codex/helpers/eventually
 import ./twonodes
+
+# For debugging you can enable logging output with debugX = true
+# You can also pass a string in same format like for the `--log-level` parameter
+# to enable custom logging levels for specific topics like: debug2 = "INFO; TRACE: marketplace"
 
 twonodessuite "Integration tests", debug1 = false, debug2 = false:
 
@@ -78,3 +85,30 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check availabilities.len == 1
     let newSize = UInt256.fromHex(availabilities[0]{"size"}.getStr)
     check newSize > 0 and newSize < size.u256
+
+  test "node slots gets paid out":
+    let marketplace = Marketplace.new(Marketplace.address, provider.getSigner())
+    let tokenAddress = await marketplace.token()
+    let token = Erc20Token.new(tokenAddress, provider.getSigner())
+    let reward: uint64 = 400
+    let duration: uint64 = 100
+
+    # client 2 makes storage available
+    let startBalance = await token.balanceOf(account2)
+    discard client2.postAvailability(size=0xFFFFF, duration=200, minPrice=300, maxCollateral=300)
+
+    # client 1 requests storage
+    let expiry = (await provider.currentTime()) + 30
+    let cid = client1.upload("some file contents")
+    let purchase = client1.requestStorage(cid, duration=duration, reward=reward, proofProbability=3, expiry=expiry, collateral=200)
+
+    check eventually client1.getPurchase(purchase){"state"} == %"started"
+    check client1.getPurchase(purchase){"error"} == newJNull()
+
+    # Proving mechanism uses blockchain clock to do proving/collect/cleanup round
+    # hence we must use `advanceTime` over `sleepAsync` as Hardhat does mine new blocks
+    # only with new transaction
+    await provider.advanceTime(duration.u256)
+    await sleepAsync(1.seconds)
+
+    check eventually (await token.balanceOf(account2)) - startBalance == duration.u256*reward.u256

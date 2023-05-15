@@ -1,3 +1,4 @@
+import pkg/chronicles
 import ../../market
 import ../statemachine
 import ../salesagent
@@ -5,6 +6,9 @@ import ./errorhandling
 import ./filled
 import ./cancelled
 import ./failed
+
+logScope:
+    topics = "marketplace sales filling"
 
 type
   SaleFilling* = ref object of ErrorHandlingState
@@ -28,4 +32,5 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   without (collateral =? data.request.?ask.?collateral):
     raiseAssert "Request not set"
 
+  debug "Filling slot", requestId = $data.requestId, slot = $data.slotIndex
   await market.fillSlot(data.requestId, data.slotIndex, state.proof, collateral)

@@ -7,6 +7,9 @@ import ./clock
 
 export sets
 
+logScope:
+    topics = "marketplace proving"
+
 type
   Proving* = ref object
     market: Market
@@ -40,7 +43,12 @@ proc removeEndedContracts(proving: Proving) {.async.} =
   var ended: HashSet[Slot]
   for slot in proving.slots:
     let state = await proving.market.slotState(slot.id)
+    if state == SlotState.Finished:
+      debug "Collecting finished slot's reward", slot = $slot.id
+      await proving.market.freeSlot(slot.id)
+
     if state != SlotState.Filled:
+      debug "Request ended, cleaning up slot", slot = $slot.id
       ended.incl(slot)
   proving.slots.excl(ended)
 
@@ -57,6 +65,7 @@ proc run(proving: Proving) {.async.} =
   try:
     while true:
       let currentPeriod = await proving.getCurrentPeriod()
+      debug "Proving for new period", period = currentPeriod
       await proving.removeEndedContracts()
       for slot in proving.slots:
         let id = slot.id

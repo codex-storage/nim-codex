@@ -5,6 +5,9 @@ import pkg/chronicles
 import ../statemachine
 import ../salesagent
 
+logScope:
+    topics = "marketplace sales errored"
+
 type SaleErrored* = ref object of SaleState
   error*: ref CatchableError
 
@@ -25,4 +28,4 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
 
   await agent.unsubscribe()
 
-  error "Sale error", error=state.error.msg
+  error "Sale error", error=state.error.msg, requestId = $data.requestId

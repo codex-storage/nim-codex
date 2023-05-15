@@ -106,6 +106,15 @@ Available sub-commands:
 codex initNode
 ```
 
+#### Logging
+
+Codex uses [Chronicles](https://github.com/status-im/nim-chronicles) logging library, which allows great flexibility in working with logs.
+Chronicles has the concept of topics, which categorize log entries into semantic groups.
+
+Using the `log-level` parameter, you can set the top-level log level like `--log-level="TRACE"`, but more importantly,
+you can set log levels for specific topics like `--log-level="INFO; TRACE: marketplace,node; ERROR: blockexchange"`,
+which sets the top-level log level to `INFO` and then for topics `marketplace` and `node` sets the level to `TRACE` and so on.
+
 ### Example: running two Codex clients
 
 To get acquainted with Codex, consider running the manual two-client test described [HERE](docs/TWOCLIENTTEST.md).
