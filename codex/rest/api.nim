@@ -78,6 +78,7 @@ proc formatSwitchPeers(peers: Table[PeerId, seq[MultiAddress]]): JsonNode =
 proc formatNode(node: dn.Node): JsonNode =
   let jobj = %*{
     "nodeId": $node.id,
+    "peerId": $node.record.data.peerId,
     "record": $node.record,
     "seen": $node.seen
   }
