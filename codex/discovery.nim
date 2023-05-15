@@ -193,12 +193,6 @@ proc new*(
 
   self.updateAnnounceRecord(announceAddrs)
 
-  let aaa: string = $bindIp
-  let bbb: string = $bindPort
-
-  trace "bindIP:", aaa
-  trace "bindPort:", bbb
-
   self.protocol = newProtocol(
     key,
     bindIp = bindIp.toNormalIp,
