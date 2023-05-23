@@ -18,7 +18,7 @@
 
 To build nim-codex, developer tools need to be installed and accessible in the OS.
 
-Instructions below correspond roughly to environmental setups in nim-codex's [CI workflow](https://github.com/status-im/nim-codex/blob/main/.github/workflows/ci.yml) and are known to work.
+Instructions below correspond roughly to environmental setups in nim-codex's [CI workflow](https://github.com/codex-storage/nim-codex/blob/main/.github/workflows/ci.yml) and are known to work.
 
 Other approaches may be viable. On macOS, some users may prefer [MacPorts](https://www.macports.org/) to [Homebrew](https://brew.sh/). On Windows, rather than use MSYS2, some users may prefer to install developer tools with [winget](https://docs.microsoft.com/en-us/windows/package-manager/winget/), [Scoop](https://scoop.sh/), or [Chocolatey](https://chocolatey.org/), or download installers for e.g. Make and CMake while otherwise relying on official Windows developer tools. Community contributions to these docs and our build system are welcome!
 
@@ -110,7 +110,7 @@ It is possible that nim-codex can be built and run on other platforms supported 
 
 In Bash run
 ```text
-$ git clone https://github.com/status-im/nim-codex.git repos/nim-codex && cd repos/nim-codex
+$ git clone https://github.com/codex-storage/nim-codex.git repos/nim-codex && cd repos/nim-codex
 ```
 
 nim-codex uses the [nimbus-build-system](https://github.com/status-im/nimbus-build-system#readme), so next run
