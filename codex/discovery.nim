@@ -62,13 +62,16 @@ proc toNodeId*(host: ca.Address): NodeId =
 proc findPeer*(
   d: Discovery,
   peerId: PeerId): Future[?PeerRecord] {.async.} =
+  trace "protocol.resolve..."
   let
     node = await d.protocol.resolve(toNodeId(peerId))
 
   return
     if node.isSome():
+      trace "protocol.resolve some data"
       node.get().record.data.some
     else:
+      trace "protocol.resolve none"
       PeerRecord.none
 
 method find*(
@@ -138,9 +141,6 @@ method removeProvider*(d: Discovery, peerId: PeerId): Future[void] {.base.} =
   d.protocol.removeProvidersLocal(peerId)
 
 proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
-  ## Update providers record
-  ##
-
   d.announceAddrs = @addrs
 
   trace "Updating announce record", addrs = d.announceAddrs
@@ -154,9 +154,6 @@ proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
       .expect("Should update SPR")
 
 proc updateDhtRecord*(d: Discovery, ip: ValidIpAddress, port: Port) =
-  ## Update providers record
-  ##
-
   trace "Updating Dht record", ip, port = $port
   d.dhtRecord = SignedPeerRecord.init(
     d.key, PeerRecord.init(d.peerId, @[
