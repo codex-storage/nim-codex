@@ -330,12 +330,15 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
     MethodGet,
     "/api/codex/v1/debug/peer/{peerId}") do (peerId: PeerId) -> RestApiResponse:
 
+      trace "debug/peer start"
       without peerRecord =? (await node.findPeer(peerId.get())):
+        trace "debug/peer peer not found!"
         return RestApiResponse.error(
           Http400,
           "Unable to find Peer!")
 
       let json = formatPeerRecord(peerRecord)
+      trace "debug/peer returning peer record"
       return RestApiResponse.response($json)
 
   router.api(
