@@ -75,11 +75,17 @@ proc formatSwitchPeers(peers: Table[PeerId, seq[MultiAddress]]): JsonNode =
 
   return jarray
 
+proc formatAddress(address: Option[dn.Address]): string =
+  if address.isSome():
+    return $address.get()
+  return "<none>"
+
 proc formatNode(node: dn.Node): JsonNode =
   let jobj = %*{
     "nodeId": $node.id,
     "peerId": $node.record.data.peerId,
     "record": $node.record,
+    "address": formatAddress(node.address),
     "seen": $node.seen
   }
   return jobj
