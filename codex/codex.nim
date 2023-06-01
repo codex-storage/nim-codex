@@ -141,65 +141,6 @@ proc stop*(s: CodexServer) {.async.} =
 
   s.runHandle.complete()
 
-proc new(_: type Contracts,
-  config: CodexConf,
-  repo: RepoStore): Contracts =
-
-  if not config.persistence and not config.validator:
-    if config.ethAccount.isSome:
-      warn "Ethereum account was set, but neither persistence nor validator is enabled"
-    return
-
-  without account =? config.ethAccount:
-    if config.persistence:
-      error "Persistence enabled, but no Ethereum account was set"
-    if config.validator:
-      error "Validator enabled, but no Ethereum account was set"
-    quit QuitFailure
-
-  var deploy: Deployment
-  try:
-    if deployFile =? config.ethDeployment:
-      deploy = Deployment.init(deployFile)
-    else:
-      deploy = Deployment.init()
-  except IOError as e:
-    error "Unable to read deployment json"
-    quit QuitFailure
-
-  without marketplaceAddress =? deploy.address(Marketplace):
-    error "Marketplace contract address not found in deployment file"
-    quit QuitFailure
-
-  let provider = JsonRpcProvider.new(config.ethProvider)
-  let signer = provider.getSigner(account)
-  let marketplace = Marketplace.new(marketplaceAddress, signer)
-  let market = OnChainMarket.new(marketplace)
-  let clock = OnChainClock.new(provider)
-
-  var client: ?ClientInteractions
-  var host: ?HostInteractions
-  var validator: ?ValidatorInteractions
-  if config.persistence:
-    let purchasing = Purchasing.new(market, clock)
-
-    when codex_enable_proof_failures:
-      let proving = if config.simulateProofFailures > 0:
-                      SimulatedProving.new(market, clock,
-                                           config.simulateProofFailures)
-                    else: Proving.new(market, clock)
-    else:
-      let proving = Proving.new(market, clock)
-
-    let sales = Sales.new(market, clock, proving, repo)
-    client = some ClientInteractions.new(clock, purchasing)
-    host = some HostInteractions.new(clock, sales, proving)
-  if config.validator:
-    let validation = Validation.new(clock, market, config.validatorMaxSlots)
-    validator = some ValidatorInteractions.new(clock, validation)
-
-  (client, host, validator)
-
 proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): T =
 
   let

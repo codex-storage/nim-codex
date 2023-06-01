@@ -48,33 +48,6 @@ proc validate(
   {.gcsafe, raises: [Defect].} =
   0
 
-proc formatEnginePeers(peers: OrderedTable[PeerId, BlockExcPeerCtx]): JsonNode =
-  let jarray = newJArray()
-  for key, value in peers:
-    jarray.add(%*
-      {
-        "peerId": $key,
-        "context": {
-          "blocks": value.blocks.len,
-          "peerWants": value.peerWants.len,
-          "exchanged": value.exchanged,
-          "lastExchange": $(value.lastExchange),
-        }
-      })
-
-  return jarray
-
-proc formatSwitchPeers(peers: Table[PeerId, seq[MultiAddress]]): JsonNode =
-  let jarray = newJArray()
-  for key, value in peers:
-    jarray.add(%*
-      {
-        "peerId": $key,
-        "numberOfAddresses": $value.len
-      })
-
-  return jarray
-
 proc formatAddress(address: Option[dn.Address]): string =
   if address.isSome():
     return $address.get()
@@ -315,8 +288,6 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
               node.discovery.dhtRecord.get.toURI
             else:
               "",
-          "enginePeers": formatEnginePeers(node.engine.peers.peers),
-          "switchPeers": formatSwitchPeers(node.switch.peerStore[AddressBook].book),
           "table": formatTable(node.discovery.protocol.routingTable),
           "codex": {
             "version": $codexVersion,
