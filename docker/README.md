@@ -10,13 +10,6 @@ Stop and delete image and volume data:
 `docker-compose down --rmi all -v`
 `rm -R hostdatadir`
 
-# Building local modifications for testing
-Sometimes, you just need to make a small change and build a new docker image for the purpose of testing. To speed up this process, the docker build has been cut into two steps.
-Step 1: (buildsetup.bat) builds the setup.Dockerfile and takes care of the slow process of building the nim buildsystem. This does not need to be re-done for most small changes to the nim-codex codebase.
-Step 2: (buildlocal.bat) builds the local.Dockerfile and pushes the new image as `thatbenbierens/codexlocal:latest`.
-
-- The CI build cannot use this two-step speed-up because it builds images for multiple architectures, which the local scripts don't do.
-
 # Environment variables
 Codex docker image supports the following environment variables:
 - LISTEN_ADDRS(*)

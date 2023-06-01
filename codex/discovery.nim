@@ -19,9 +19,6 @@ import pkg/questionable/results
 import pkg/stew/shims/net
 import pkg/contractabi/address as ca
 import pkg/libp2pdht/discv5/protocol as discv5
-import pkg/libp2pdht/discv5/node as nodev5
-import std/sequtils
-import ./blocktype as bt
 
 import ./rng
 import ./errors
@@ -45,7 +42,6 @@ type
     providerRecord*: ?SignedPeerRecord  # record to advertice node connection information, this carry any
                                         # address that the node can be connected on
     dhtRecord*: ?SignedPeerRecord       # record to advertice DHT connection information
-    # timer: Timer
 
 proc toNodeId*(cid: Cid): NodeId =
   ## Cid to discovery id
@@ -134,9 +130,6 @@ method provide*(d: Discovery, host: ca.Address) {.async, base.} =
     trace "Provided to nodes", nodes = nodes.len
 
 method removeProvider*(d: Discovery, peerId: PeerId): Future[void] {.base.} =
-  ## Remove provider from providers table
-  ##
-
   trace "Removing provider", peerId
   d.protocol.removeProvidersLocal(peerId)
 
@@ -144,10 +137,9 @@ proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
   d.announceAddrs = @addrs
 
   trace "Updating announce record", addrs = d.announceAddrs
-  let ccc = SignedPeerRecord.init(
+  d.providerRecord = SignedPeerRecord.init(
     d.key, PeerRecord.init(d.peerId, d.announceAddrs))
-      .expect("Should construct signed record")
-  d.providerRecord = ccc.some
+      .expect("Should construct signed record").some
 
   if not d.protocol.isNil:
     d.protocol.updateRecord(d.providerRecord)
