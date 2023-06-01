@@ -1,9 +1,10 @@
 import ../statemachine
+import ./errorhandling
 import ./error
 import ./finished
 import ./failed
 
-type PurchaseStarted* = ref object of PurchaseState
+type PurchaseStarted* = ref object of ErrorHandlingState
 
 method `$`*(state: PurchaseStarted): string =
   "started"
@@ -28,6 +29,3 @@ method run*(state: PurchaseStarted, machine: Machine): Future[?State] {.async.} 
   else:
     failed.cancel()
     return some State(PurchaseFinished())
-
-method onError*(state: PurchaseStarted, error: ref CatchableError): ?State =
-  return some State(PurchaseErrored(error: error))

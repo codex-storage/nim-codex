@@ -1,4 +1,5 @@
 import ../statemachine
+import ./errorhandling
 import ./submitted
 import ./started
 import ./cancelled
@@ -6,7 +7,7 @@ import ./finished
 import ./failed
 import ./error
 
-type PurchaseUnknown* = ref object of PurchaseState
+type PurchaseUnknown* = ref object of ErrorHandlingState
 
 method `$`*(state: PurchaseUnknown): string =
   "unknown"
@@ -29,6 +30,3 @@ method run*(state: PurchaseUnknown, machine: Machine): Future[?State] {.async.} 
       return some State(PurchaseFinished())
     of RequestState.Failed:
       return some State(PurchaseFailed())
-
-method onError(state: PurchaseUnknown, error: ref CatchableError): ?State =
-  return some State(PurchaseErrored(error: error))
