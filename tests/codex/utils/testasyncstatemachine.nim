@@ -113,3 +113,21 @@ suite "async state machines":
     machine.schedule(moveToNextStateEvent)
     check eventually cancellations == [0, 1, 0, 0]
     check errors == [0, 0, 0, 0]
+
+  test "queries properties of the current state":
+    proc description(state: State): string =
+      $state
+
+    machine.start(State2.new())
+    check eventually machine.query(description) == some "State2"
+    machine.schedule(moveToNextStateEvent)
+    check eventually machine.query(description) == some "State3"
+
+  test "stops handling queries when stopped":
+    proc description(state: State): string =
+      $state
+
+    machine.start(State2.new())
+    check eventually machine.query(description).isSome
+    machine.stop()
+    check machine.query(description).isNone
