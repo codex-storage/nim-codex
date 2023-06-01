@@ -44,10 +44,10 @@ func new*(_: type Purchase,
   return purchase
 
 proc start*(purchase: Purchase) =
-  purchase.switch(PurchasePending())
+  purchase.start(PurchasePending())
 
 proc load*(purchase: Purchase) =
-  purchase.switch(PurchaseUnknown())
+  purchase.start(PurchaseUnknown())
 
 proc wait*(purchase: Purchase) {.async.} =
   await purchase.future
@@ -63,3 +63,8 @@ func error*(purchase: Purchase): ?(ref CatchableError) =
     some purchase.future.error
   else:
     none (ref CatchableError)
+
+func state*(purchase: Purchase): ?string =
+  proc description(state: State): string =
+    $state
+  purchase.query(description)

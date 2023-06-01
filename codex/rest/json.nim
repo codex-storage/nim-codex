@@ -57,7 +57,7 @@ func `%`*(id: RequestId | SlotId | Nonce | AvailabilityId): JsonNode =
 
 func `%`*(purchase: Purchase): JsonNode =
   %*{
-    "state": (purchase.state as PurchaseState).?description |? "none",
+    "state": purchase.state |? "none",
     "error": purchase.error.?msg,
     "request": purchase.request,
   }

@@ -5,11 +5,12 @@ import ./cancelled
 
 type PurchaseSubmitted* = ref object of PurchaseState
 
-method enterAsync(state: PurchaseSubmitted) {.async.} =
-  without purchase =? (state.context as Purchase) and
-          request =? purchase.request:
-    raiseAssert "invalid state"
+method `$`*(state: PurchaseSubmitted): string =
+  "submitted"
 
+method run*(state: PurchaseSubmitted, machine: Machine): Future[?State] {.async.} =
+  let purchase = Purchase(machine)
+  let request = !purchase.request
   let market = purchase.market
   let clock = purchase.clock
 
@@ -28,13 +29,9 @@ method enterAsync(state: PurchaseSubmitted) {.async.} =
   try:
     await wait().withTimeout()
   except Timeout:
-    state.switch(PurchaseCancelled())
-    return
-  except CatchableError as error:
-    state.switch(PurchaseErrored(error: error))
-    return
+    return some State(PurchaseCancelled())
 
-  state.switch(PurchaseStarted())
+  return some State(PurchaseStarted())
 
-method description*(state: PurchaseSubmitted): string =
-  "submitted"
+method onError*(state: PurchaseSubmitted, error: ref CatchableError): ?State =
+  return some State(PurchaseErrored(error: error))
