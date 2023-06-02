@@ -7,7 +7,7 @@ WORKDIR /src
 COPY . .
 RUN make clean
 RUN make -j4 update
-RUN make -j4 NIM_PARAMS="-d:disableMarchNative"
+RUN make -j4 NIM_PARAMS="-d:disableMarchNative -d:codex_enable_api_debug_peers=true"
 
 FROM ubuntu:lunar-20230415
 WORKDIR /root
