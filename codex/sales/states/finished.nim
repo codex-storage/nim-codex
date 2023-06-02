@@ -29,8 +29,9 @@ method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
 
   if request =? data.request and
       slotIndex =? data.slotIndex:
-    debug "Adding request to proving list", requestId = $data.requestId
-    context.proving.add(Slot(request: request, slotIndex: slotIndex))
+    let slot = Slot(request: request, slotIndex: slotIndex)
+    debug "Adding slot to proving list", slotId = $slot.id
+    context.proving.add(slot)
 
     if onSale =? context.onSale:
       onSale(request, slotIndex)
