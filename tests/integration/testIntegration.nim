@@ -103,10 +103,8 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     let cid = client1.upload("some file contents")
     let purchase = client1.requestStorage(cid, duration=duration, reward=reward, proofProbability=3, expiry=expiry, collateral=200)
 
-    await sleepAsync(1.seconds)
-    let purchaseJson = client1.getPurchase(purchase)
-    check eventually purchaseJson{"state"} == %"started"
-    check purchaseJson{"error"} == newJNull()
+    check eventually client1.getPurchase(purchase){"state"} == %"started"
+    check client1.getPurchase(purchase){"error"} == newJNull()
 
     # Proving mechanism uses blockchain clock to do proving/collect/cleanup round
     # hence we must use `advanceTime` over `sleepAsync` as Hardhat does mine new blocks
@@ -115,7 +113,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
 
     # freeSlot triggers slot pay out, must be called from host that filled slot
     marketplace = marketplace.connect(provider.getSigner(account2))
-    let requestId = RequestId.fromHex purchaseJson{"requestId"}.getStr
+    let requestId = RequestId.fromHex client1.getPurchase(purchase){"requestId"}.getStr
     let slotId = slotId(requestId, 0.u256)
     await marketplace.freeSlot(slotId)
 
