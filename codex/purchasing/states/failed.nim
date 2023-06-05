@@ -4,9 +4,9 @@ import ./error
 type
   PurchaseFailed* = ref object of PurchaseState
 
-method enter*(state: PurchaseFailed) =
-  let error = newException(PurchaseError, "Purchase failed")
-  state.switch(PurchaseErrored(error: error))
-
-method description*(state: PurchaseFailed): string =
+method `$`*(state: PurchaseFailed): string =
   "failed"
+
+method run*(state: PurchaseFailed, machine: Machine): Future[?State] {.async.} =
+  let error = newException(PurchaseError, "Purchase failed")
+  return some State(PurchaseErrored(error: error))

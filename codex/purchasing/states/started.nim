@@ -1,13 +1,16 @@
 import ../statemachine
+import ./errorhandling
 import ./error
 import ./finished
 import ./failed
 
-type PurchaseStarted* = ref object of PurchaseState
+type PurchaseStarted* = ref object of ErrorHandlingState
 
-method enterAsync*(state: PurchaseStarted) {.async.} =
-  without purchase =? (state.context as Purchase):
-    raiseAssert "invalid state"
+method `$`*(state: PurchaseStarted): string =
+  "started"
+
+method run*(state: PurchaseStarted, machine: Machine): Future[?State] {.async.} =
+  let purchase = Purchase(machine)
 
   let clock = purchase.clock
   let market = purchase.market
@@ -18,17 +21,11 @@ method enterAsync*(state: PurchaseStarted) {.async.} =
   let subscription = await market.subscribeRequestFailed(purchase.requestId, callback)
 
   let ended = clock.waitUntil(await market.getRequestEnd(purchase.requestId))
-  try:
-    let fut = await one(ended, failed)
-    if fut.id == failed.id:
-      ended.cancel()
-      state.switch(PurchaseFailed())
-    else:
-      failed.cancel()
-      state.switch(PurchaseFinished())
-    await subscription.unsubscribe()
-  except CatchableError as error:
-    state.switch(PurchaseErrored(error: error))
-
-method description*(state: PurchaseStarted): string =
-  "started"
+  let fut = await one(ended, failed)
+  await subscription.unsubscribe()
+  if fut.id == failed.id:
+    ended.cancel()
+    return some State(PurchaseFailed())
+  else:
+    failed.cancel()
+    return some State(PurchaseFinished())

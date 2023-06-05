@@ -13,6 +13,7 @@ type
     scheduling: Future[void]
     started: bool
   State* = ref object of RootObj
+  Query*[T] = proc(state: State): T
   Event* = proc(state: State): ?State {.gcsafe, upraises:[].}
 
 logScope:
@@ -25,6 +26,12 @@ proc transition(_: type Event, previous, next: State): Event =
   return proc (state: State): ?State =
     if state == previous:
       return some next
+
+proc query*[T](machine: Machine, query: Query[T]): ?T =
+  if machine.state == nil:
+    none T
+  else:
+    some query(machine.state)
 
 proc schedule*(machine: Machine, event: Event) =
   if not machine.started:
@@ -90,4 +97,5 @@ proc stop*(machine: Machine) =
   if not machine.running.isNil:
     machine.running.cancel()
 
+  machine.state = nil
   machine.started = false
