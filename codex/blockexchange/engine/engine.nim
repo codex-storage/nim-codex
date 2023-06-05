@@ -116,6 +116,34 @@ proc stop*(b: BlockExcEngine) {.async.} =
 
   trace "NetworkStore stopped"
 
+proc sendWantHave(b: BlockExcEngine, cid: Cid, selectedPeer: BlockExcPeerCtx, peers: seq[BlockExcPeerCtx]): Future[void] {.async.} =
+  trace "Sending want list to remaining peers"
+  for p in peers:
+    if p != selectedPeer:
+      if cid notin p.peerHave:
+        # just send wants
+        await b.network.request.sendWantList(
+          p.id,
+          @[cid],
+          wantType = WantType.WantHave) # we only want to know if the peer has the block
+
+proc sendWantBlock(b: BlockExcEngine, cid: Cid, blockPeer: BlockExcPeerCtx): Future[void] {.async.} =
+  # request block
+  trace "sending want-block..."
+  await b.network.request.sendWantList(
+    blockPeer.id,
+    @[cid],
+    wantType = WantType.WantBlock) # we want this remote to send us a block
+
+proc findCheapestPeerForBlock(b: BlockExcEngine, cid: Cid, cheapestPeers: seq[BlockExcPeerCtx]): ?BlockExcPeerCtx =
+  if cheapestPeers.len <= 0:
+    trace "No cheapest peers, selecting first in list", cid
+    let peers = toSeq(b.peers) # Get any peer
+    if peers.len <= 0:
+      return none(BlockExcPeerCtx)
+    return some(peers[0])
+  return some(cheapestPeers[0]) # get cheapest
+
 proc requestBlock*(
   b: BlockExcEngine,
   cid: Cid,
@@ -129,26 +157,17 @@ proc requestBlock*(
     trace "Request handle already pending", cid
     return await b.pendingBlocks.getWantHandle(cid, timeout)
 
-  let
-    blk = b.pendingBlocks.getWantHandle(cid, timeout)
+  let blk = b.pendingBlocks.getWantHandle(cid, timeout)
 
-  var
-    peers = b.peers.selectCheapest(cid)
-
-  if peers.len <= 0:
-    trace "No cheapest peers, selecting first in list", cid
-    peers = toSeq(b.peers) # Get any peer
-    if peers.len <= 0:
+  var peers = b.peers.selectCheapest(cid)
+  without blockPeer =? b.findCheapestPeerForBlock(cid, peers):
       trace "No peers to request blocks from", cid
       b.discovery.queueFindBlocksReq(@[cid])
       return await blk
 
-  let
-    blockPeer = peers[0] # get cheapest
-
   proc blockHandleMonitor() {.async.} =
     try:
-      trace "Monigoring block handle", cid
+      trace "Monitoring block handle", cid
       b.pendingBlocks.setInFlight(cid, true)
       discard await blk
       trace "Block handle success", cid
@@ -170,27 +189,8 @@ proc requestBlock*(
   # monitor block handle
   asyncSpawn blockHandleMonitor()
 
-  # request block
-  await b.network.request.sendWantList(
-    blockPeer.id,
-    @[cid],
-    wantType = WantType.WantBlock) # we want this remote to send us a block
-
-  if (peers.len - 1) == 0:
-    trace "No peers to send want list to", cid
-    b.discovery.queueFindBlocksReq(@[cid])
-    return await blk # no peers to send wants to
-
-  # filter out the peer we've already requested from
-  let remaining = peers[1..min(peers.high, b.peersPerRequest)]
-  trace "Sending want list to remaining peers", count = remaining.len
-  for p in remaining:
-    if cid notin p.peerHave:
-      # just send wants
-      await b.network.request.sendWantList(
-        p.id,
-        @[cid],
-        wantType = WantType.WantHave) # we only want to know if the peer has the block
+  await b.sendWantHave(cid, blockPeer, peers)
+  await b.sendWantBlock(cid, blockPeer)
 
   return await blk
 
@@ -238,7 +238,7 @@ proc blockPresenceHandler*(
   if wantCids.len > 0:
     trace "Getting blocks based on updated precense", peer, count = wantCids.len
     discard await allFinished(
-      wantCids.mapIt(b.requestBlock(it)))
+      wantCids.mapIt(b.sendWantBlock(it, peerCtx)))
     trace "Requested blocks based on updated precense", peer, count = wantCids.len
 
   # if none of the connected peers report our wants in their have list,
