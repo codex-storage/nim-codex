@@ -66,10 +66,13 @@ func peersWant*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
   toSeq(self.peers.values).filterIt( it.peerWants.anyIt( it.cid == cid ) )
 
 func selectCheapest*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
-  var
-    peers = self.peersHave(cid)
+  var peers = self.peersHave(cid)
 
-  trace "Selecting cheapest peers", peers = peers.len
+  trace "number of them", n = peers.len
+  for p in peers:
+    trace " > ", peerId = p.id
+
+  trace "Selecting cheapest..."
   func cmp(a, b: BlockExcPeerCtx): int =
     var
       priceA = 0.u256

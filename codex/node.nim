@@ -83,11 +83,13 @@ proc fetchManifest*(
   if err =? cid.isManifest.errorOption:
     return failure "CID has invalid content type for manifest {$cid}"
 
-  trace "Received manifest retrieval request", cid
+  trace "Retrieving manifest for cid", cid
 
   without blk =? await node.blockStore.getBlock(cid), err:
-    trace "Error retriving manifest block", cid, err = err.msg
+    trace "Error retrieve manifest block", cid, err = err.msg
     return failure err
+
+  trace "Decoding manifest for cid", cid
 
   without manifest =? Manifest.decode(blk), err:
     trace "Unable to decode as manifest", err = err.msg
@@ -240,6 +242,12 @@ proc store*(
   trace "Stored data", manifestCid = manifest.cid,
                        contentCid = cid,
                        blocks = blockManifest.len
+
+  trace "Announce manifest", cid = manifest.cid, len = blockManifest.len
+  trace "OriginalBytes", bytes = blockManifest.originalBytes
+  trace "blockSize", blockSize = blockManifest.blockSize
+  for b in blockManifest.blocks:
+    trace "contains CID", cid = b
 
   # Announce manifest
   await self.discovery.provide(manifest.cid)

@@ -135,6 +135,9 @@ proc sendWantList*(
   ## Send a want message to peer
   ##
 
+  ## Node2 sends its want-list to Node0 (bootstrap) and not to Node1 who actually has the block we're looking for.
+  ## At first... then it discovers Node1 and does send the wantlist there...
+  ## but Node1 does not respond with the block...
   trace "Sending want list to peer", peer = id, `type` = $wantType, items = cids.len
   let msg = makeWantList(
         cids,
@@ -155,6 +158,7 @@ proc handleBlocks(
   ##
 
   if not b.handlers.onBlocks.isNil:
+    ## never occures!
     trace "Handling blocks for peer", peer = peer.id, items = blocks.len
 
     var blks: seq[bt.Block]
@@ -311,6 +315,7 @@ proc setupPeer*(b: BlockExcNetwork, peer: PeerId) =
   discard b.getOrCreatePeer(peer)
 
 proc dialPeer*(b: BlockExcNetwork, peer: PeerRecord) {.async.} =
+  trace "dialing peer...", peerId = peer.peerId
   await b.switch.connect(peer.peerId, peer.addresses.mapIt(it.address))
 
 proc dropPeer*(b: BlockExcNetwork, peer: PeerId) =
