@@ -164,6 +164,10 @@ proc requestBlock*(
 
   trace "Selecting peers who have", cid
   var peers = b.peers.selectCheapest(cid)
+  if peers.len <= 0:
+    trace "We don't know of anyone who has this. Start discovery immediately."
+    b.discovery.queueFindBlocksReq(@[cid])
+
   without blockPeer =? b.findCheapestPeerForBlock(peers):
       trace "No peers to request blocks from. Queue discovery...", cid
       b.discovery.queueFindBlocksReq(@[cid])
