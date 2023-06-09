@@ -1,4 +1,3 @@
-import ./stores/blockstoremanager
 import ./stores/cachestore
 import ./stores/blockstore
 import ./stores/networkstore
@@ -6,5 +5,6 @@ import ./stores/repostore
 import ./stores/memorystore
 import ./stores/maintenance
 import ./stores/keyutils
+import ./stores/consts
 
-export blockstoremanager, cachestore, blockstore, networkstore, repostore, memorystore, maintenance, keyutils
+export cachestore, blockstore, networkstore, repostore, memorystore, maintenance, keyutils, consts
