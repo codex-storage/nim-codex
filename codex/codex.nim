@@ -140,21 +140,6 @@ proc stop*(s: CodexServer) {.async.} =
 
   s.runHandle.complete()
 
-proc new(_: type ContractInteractions, config: CodexConf): ?ContractInteractions =
-  if not config.persistence:
-    if config.ethAccount.isSome:
-      warn "Ethereum account was set, but persistence is not enabled"
-    return
-
-  without account =? config.ethAccount:
-    error "Persistence enabled, but no Ethereum account was set"
-    quit QuitFailure
-
-  if deployment =? config.ethDeployment:
-    ContractInteractions.new(config.ethProvider, account, deployment)
-  else:
-    ContractInteractions.new(config.ethProvider, account)
-
 proc createDataStore(config: CodexConf): Datastore =
   case config.repoKind
     of repoFS:
