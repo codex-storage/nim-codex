@@ -250,7 +250,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
           }
         }
 
-      return RestApiResponse.response($json)
+      return RestApiResponse.response($json, contentType="application/json")
 
   router.api(
     MethodGet,
@@ -264,7 +264,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         return RestApiResponse.error(Http500, err.msg)
 
       let json = %unused
-      return RestApiResponse.response($json)
+      return RestApiResponse.response($json, contentType="application/json")
 
   router.rawApi(
     MethodPost,
@@ -293,7 +293,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         return RestApiResponse.error(Http500, err.msg)
 
       let json = %availability
-      return RestApiResponse.response($json)
+      return RestApiResponse.response($json, contentType="application/json")
 
   router.api(
     MethodGet,
@@ -311,7 +311,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
       let json = %purchase
 
-      return RestApiResponse.response($json)
+      return RestApiResponse.response($json, contentType="application/json")
 
 
   return router
