@@ -42,6 +42,42 @@ checksuite "Synchronous tests":
     check heap[0] == 9
     check heap.toSortedSeq(QueueType.Max) == @[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
 
+  test "Test peekNoWait":
+    var heap = newAsyncHeapQueue[int]()
+    let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
+    for item in data:
+      check heap.pushNoWait(item).isOk
+
+    var res: seq[int]
+    var len = heap.len
+    while heap.len > 0:
+      let r = heap.peekNoWait()
+      check heap.len == len
+      if r.isOk:
+        res.add(r.get)
+      discard heap.pop()
+      dec len
+
+    check res == @[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+  test "Test peekNoWait - Max":
+    var heap = newAsyncHeapQueue[int](queueType = QueueType.Max)
+    let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
+    for item in data:
+      check heap.pushNoWait(item).isOk
+
+    var res: seq[int]
+    var len = heap.len
+    while heap.len > 0:
+      let r = heap.peekNoWait()
+      check heap.len == len
+      if r.isOk:
+        res.add(r.get)
+      discard heap.pop()
+      dec len
+
+    check res == @[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
+
   test "Test popNoWait":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
@@ -220,3 +256,20 @@ asyncchecksuite "Asynchronous Tests":
     let del = heap[3]
     heap.delete(del)
     check heap.find(del) < 0
+
+
+  test "Test peek":
+    var heap = newAsyncHeapQueue[int]()
+    let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
+    for item in data:
+      check heap.pushNoWait(item).isOk
+
+    var res: seq[int]
+    var len = heap.len
+    while heap.len > 0:
+      res.add((await heap.peek()))
+      check heap.len == len
+      discard await heap.pop()
+      dec len
+
+    check res == @[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]

@@ -15,7 +15,9 @@ export periods
 type
   Market* = ref object of RootObj
   Subscription* = ref object of RootObj
-  OnRequest* = proc(id: RequestId, ask: StorageAsk) {.gcsafe, upraises:[].}
+  OnRequest* = proc(id: RequestId,
+                    collateral, expiry: UInt256,
+                    totalChunks, slots: uint64) {.gcsafe, upraises:[].}
   OnFulfillment* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
   OnSlotFilled* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises:[].}
   OnSlotFreed* = proc(slotId: SlotId) {.gcsafe, upraises: [].}

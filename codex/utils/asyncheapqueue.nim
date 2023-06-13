@@ -186,6 +186,29 @@ proc pop*[T](heap: AsyncHeapQueue[T]): Future[T] {.async.} =
 
   return heap.popNoWait().tryGet()
 
+proc peekNoWait*[T](aq: AsyncHeapQueue[T]): Result[T, AsyncHQErrors] =
+  ## Get the "smallest" item at the beginning of the queue ``aq`` immediately.
+  ##
+  ## If queue ``aq`` is empty, then ``AsyncHeapQueueEmptyError`` exception raised.
+  if aq.empty():
+    return err(AsyncHQErrors.Empty)
+
+  return ok(aq.queue[0])
+
+proc peek*[T](aq: AsyncHeapQueue[T]): Future[T] {.async.} =
+  ## Return a reference to the "smallest ``item`` at the beginning of the queue ``aq``.
+  ## If the queue is empty, wait until an item is available.
+  while aq.empty():
+    var getter = newFuture[void]("AsyncHeapQueue.peek")
+    aq.getters.add(getter)
+    try:
+      await getter
+    except CatchableError as exc:
+      if not(aq.empty()) and not(getter.cancelled()):
+        aq.getters.wakeupNext()
+      raise exc
+  return aq.peekNoWait().tryGet()
+
 proc del*[T](heap: AsyncHeapQueue[T], index: Natural) =
   ## Removes the element at `index` from `heap`,
   ## maintaining the heap invariant.

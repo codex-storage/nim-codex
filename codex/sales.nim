@@ -13,6 +13,7 @@ import ./contracts/requests
 import ./sales/salescontext
 import ./sales/salesagent
 import ./sales/statemachine
+import ./sales/requestqueue
 import ./sales/states/downloading
 import ./sales/states/unknown
 
@@ -45,6 +46,9 @@ type
     context*: SalesContext
     subscription*: ?market.Subscription
     agents*: seq[SalesAgent]
+    requestQueue: RequestQueue
+
+proc handleRequest(sales: Sales, rqi: RequestQueueItem)
 
 proc `onStore=`*(sales: Sales, onStore: OnStore) =
   sales.context.onStore = some onStore
@@ -67,25 +71,30 @@ func new*(_: type Sales,
           proving: Proving,
           repo: RepoStore): Sales =
 
-  Sales(context: SalesContext(
+  let sales = Sales(context: SalesContext(
     market: market,
     clock: clock,
     proving: proving,
     reservations: Reservations.new(repo)
   ))
 
+  proc handleRequest(rqi: RequestQueueItem) =
+    sales.handleRequest(rqi)
+
+  sales.requestQueue = RequestQueue.new(handleRequest)
+
+  return sales
+
 proc randomSlotIndex(numSlots: uint64): UInt256 =
   let rng = Rng.instance
   let slotIndex = rng.rand(numSlots - 1)
   return slotIndex.u256
 
-proc handleRequest(sales: Sales,
-                   requestId: RequestId,
-                   ask: StorageAsk) =
+proc handleRequest(sales: Sales, rqi: RequestQueueItem) =
 
-  debug "handling storage requested",
-    slots = ask.slots, slotSize = ask.slotSize, duration = ask.duration,
-    reward = ask.reward, maxSlotLoss = ask.maxSlotLoss
+  debug "handling storage requested", requestId = rqi.requestId,
+    collateral = rqi.collateral, expiry = rqi.expiry, totalChunks = rqi.expiry,
+    slots = rqi.slot
 
   # TODO: check if random slot is actually available (not already filled)
   let slotIndex = randomSlotIndex(ask.slots)
@@ -126,13 +135,18 @@ proc load*(sales: Sales) {.async.} =
 proc start*(sales: Sales) {.async.} =
   doAssert sales.subscription.isNone, "Sales already started"
 
-  proc onRequest(requestId: RequestId, ask: StorageAsk) {.gcsafe, upraises:[].} =
-    sales.handleRequest(requestId, ask)
+  proc onRequest(requestId: RequestId,
+                 collateral, expiry: UInt256,
+                 totalChunks, slots: uint64) {.gcsafe, upraises:[].} =
+    let rqi = RequestQueueItem.init(requestId, collateral, expiry, totalChunks, slots)
+    sales.requestQueue.pushOrUpdate(rqi)
 
   try:
     sales.subscription = some await sales.context.market.subscribeRequests(onRequest)
   except CatchableError as e:
     error "Unable to start sales", msg = e.msg
+
+  asyncSpawn sales.requestQueue.start()
 
 proc stop*(sales: Sales) {.async.} =
   if subscription =? sales.subscription:
@@ -141,6 +155,8 @@ proc stop*(sales: Sales) {.async.} =
       await subscription.unsubscribe()
     except CatchableError as e:
       warn "Unsubscribe failed", msg = e.msg
+
+  sales.requestQueue.stop()
 
   for agent in sales.agents:
     await agent.stop()
