@@ -64,6 +64,9 @@ proc new*(T: type Contracts, client: ?ClientInteractions, host: ?HostInteraction
   result.host = host
   result.validator = validator
 
+proc default(T: type Contracts): T =
+  Contracts.new()
+
 proc findPeer*(
   node: CodexNodeRef,
   peerId: PeerId): Future[?PeerRecord] {.async.} =
