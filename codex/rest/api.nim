@@ -260,17 +260,8 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       without contracts =? node.contracts.host:
         return RestApiResponse.error(Http503, "Sales unavailable")
 
-      let market = contracts.sales.context.market
-
-      var slots: seq[Slot] = @[]
-
-      let slotIds = await market.mySlots()
-      for slotId in slotIds:
-        if slot =? (await market.getActiveSlot(slotId)):
-          slots.add slot
-
-      let json = %slots
-      return RestApiResponse.response($json)
+      let json = %(await contracts.sales.mySlots())
+      return RestApiResponse.response($json, contentType="application/json")
 
   router.api(
     MethodGet,
