@@ -55,7 +55,6 @@ method myRequests*(market: OnChainMarket): Future[seq[RequestId]] {.async.} =
 method mySlots*(market: OnChainMarket): Future[seq[SlotId]] {.async.} =
   let slots = await market.contract.mySlots()
   debug "Fetched my slots", numSlots=len(slots)
-  # debug "Fetched my slots", numSlots=len(slots), slots
 
   return slots
 
