@@ -55,6 +55,11 @@ func `%`*(arr: openArray[byte]): JsonNode =
 func `%`*(id: RequestId | SlotId | Nonce | AvailabilityId): JsonNode =
   % id.toArray
 
+func `%`*(obj: StorageRequest | Slot): JsonNode =
+  result = newJObject()
+  for k, v in obj.fieldPairs: result[k] = %v
+  result["id"] = %(obj.id)
+
 func `%`*(purchase: Purchase): JsonNode =
   %*{
     "state": purchase.state |? "none",

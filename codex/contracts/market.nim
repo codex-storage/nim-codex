@@ -1,4 +1,5 @@
 import std/strutils
+import std/strformat
 import pkg/chronicles
 import pkg/ethers
 import pkg/ethers/testing
@@ -52,7 +53,11 @@ method myRequests*(market: OnChainMarket): Future[seq[RequestId]] {.async.} =
   return await market.contract.myRequests
 
 method mySlots*(market: OnChainMarket): Future[seq[SlotId]] {.async.} =
-  return await market.contract.mySlots()
+  let slots = await market.contract.mySlots()
+  debug "Fetched my slots", numSlots=len(slots)
+  # debug "Fetched my slots", numSlots=len(slots), slots
+
+  return slots
 
 method requestStorage(market: OnChainMarket, request: StorageRequest){.async.} =
   debug "Requesting storage"

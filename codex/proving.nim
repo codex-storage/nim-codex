@@ -56,6 +56,8 @@ proc prove(proving: Proving, slot: Slot) {.async.} =
   without onProve =? proving.onProve:
     raiseAssert "onProve callback not set"
   try:
+    debug "Proving slot"
+    # debug "Proving slot", slotId=slot.id
     let proof = await onProve(slot)
     await proving.market.submitProof(slot.id, proof)
   except CatchableError as e:

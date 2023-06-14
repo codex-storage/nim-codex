@@ -50,6 +50,11 @@ proc getPurchase*(client: CodexClient, purchase: string): JsonNode =
   let body = client.http.getContent(url)
   parseJson(body).catch |? nil
 
+proc getSlots*(client: CodexClient): JsonNode =
+  let url = client.baseurl & "/sales/slots"
+  let body = client.http.getContent(url)
+  parseJson(body).catch |? nil
+
 proc postAvailability*(client: CodexClient,
                        size, duration, minPrice: uint64, maxCollateral: uint64): JsonNode =
   let url = client.baseurl & "/sales/availability"
