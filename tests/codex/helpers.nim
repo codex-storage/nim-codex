@@ -5,6 +5,8 @@ import pkg/codex/blocktype as bt
 import pkg/codex/stores
 import pkg/codex/manifest
 import pkg/codex/rng
+import pkg/codex/streams
+import pkg/asynctest
 
 import ./helpers/nodeutils
 import ./helpers/randomchunker
@@ -56,3 +58,31 @@ proc corruptBlocks*(
       bytePos.add(ii)
       blk.data[ii] = byte 0
   return pos
+
+# From lip2p/tests/helpers
+const trackerNames = [
+    StoreStreamTrackerName
+  ]
+
+iterator testTrackers*(extras: openArray[string] = []): TrackerBase =
+  for name in trackerNames:
+    let t = getTracker(name)
+    if not isNil(t): yield t
+  for name in extras:
+    let t = getTracker(name)
+    if not isNil(t): yield t
+
+template checkTracker*(name: string) =
+  var tracker = getTracker(name)
+  if tracker.isLeaked():
+    checkpoint tracker.dump()
+    fail()
+
+template checkTrackers*() =
+  for tracker in testTrackers():
+    if tracker.isLeaked():
+      checkpoint tracker.dump()
+      fail()
+  try:
+    GC_fullCollect()
+  except: discard

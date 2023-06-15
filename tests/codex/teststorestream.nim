@@ -39,8 +39,6 @@ suite "StoreStream":
 
   teardown:
     await stream.close()
-
-    # echo getTracker(StoreStreamTrackerName).dump()
     check getTracker(StoreStreamTrackerName).isLeaked() == false
 
   setup:

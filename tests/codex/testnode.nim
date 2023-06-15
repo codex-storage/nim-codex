@@ -62,6 +62,8 @@ suite "Test Node":
     var
       data: seq[byte]
 
+    defer: await stream.close()
+
     while not stream.atEof:
       var
         buf = newSeq[byte](oddChunkSize)
@@ -156,8 +158,8 @@ suite "Test Node":
       manifestBlock = (await localStore.getBlock(manifestCid)).tryGet()
       localManifest = Manifest.decode(manifestBlock).tryGet()
 
-    let
-      data = await retrieve(manifestCid)
+    let data = await retrieve(manifestCid)
+
     check:
       data.len == localManifest.originalBytes
       data.len == original.len
@@ -170,6 +172,7 @@ suite "Test Node":
 
     (await localStore.putBlock(blk)).tryGet()
     let stream = (await node.retrieve(blk.cid)).tryGet()
+    defer: await stream.close()
 
     var data = newSeq[byte](testString.len)
     await stream.readExactly(addr data[0], data.len)
