@@ -320,7 +320,7 @@ proc unused*(r: Reservations): Future[?!seq[Availability]] {.async.} =
 
 proc find*(
   self: Reservations,
-  size, duration, minPrice: UInt256, collateral: UInt256,
+  size, duration, minPrice, collateral: UInt256,
   used: bool): Future[?Availability] {.async.} =
 
 

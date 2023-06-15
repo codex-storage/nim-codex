@@ -18,7 +18,7 @@ type
 logScope:
     topics = "sales preparing"
 
-method `$`*(state: SalePreparing): string = "SaleDownloading"
+method `$`*(state: SalePreparing): string = "SalePreparing"
 
 method onCancelled*(state: SalePreparing, request: StorageRequest): ?State =
   return some State(SaleCancelled())

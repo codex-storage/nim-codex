@@ -17,10 +17,8 @@ type
   Marketplace* = ref object of Contract
   StorageRequested* = object of Event
     requestId*: RequestId
-    collateral*: UInt256
+    ask*: StorageAsk
     expiry*: UInt256
-    totalChunks*: uint64
-    slots*: uint64
   SlotFilled* = object of Event
     requestId* {.indexed.}: RequestId
     slotIndex* {.indexed.}: UInt256

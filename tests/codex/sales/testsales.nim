@@ -79,11 +79,6 @@ asyncchecksuite "Sales":
   proc getAvailability: ?!Availability =
     waitFor reservations.get(availability.id)
 
-  proc wasIgnored: Future[bool] {.async.} =
-    return
-        eventually sales.agents.len == 1 and # agent created at first
-        eventually sales.agents.len == 0 # then removed once ignored
-
   test "makes storage unavailable when downloading a matched request":
     var used = false
     sales.onStore = proc(request: StorageRequest,
@@ -115,19 +110,19 @@ asyncchecksuite "Sales":
     availability.duration = request.ask.duration - 1
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check await wasIgnored()
+    check getAvailability().?size == success availability.size
 
   test "ignores request when slot size is too small":
     availability.size = request.ask.slotSize - 1
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check await wasIgnored()
+    check getAvailability().?size == success availability.size
 
   test "ignores request when reward is too low":
     availability.minPrice = request.ask.pricePerSlot + 1
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check await wasIgnored()
+    check getAvailability().?size == success availability.size
 
   test "availability remains unused when request is ignored":
     availability.minPrice = request.ask.pricePerSlot + 1
@@ -140,7 +135,7 @@ asyncchecksuite "Sales":
     tooBigCollateral.ask.collateral = availability.maxCollateral + 1
     check isOk await reservations.reserve(availability)
     await market.requestStorage(tooBigCollateral)
-    check await wasIgnored()
+    check getAvailability().?size == success availability.size
 
   test "retrieves and stores data locally":
     var storingRequest: StorageRequest

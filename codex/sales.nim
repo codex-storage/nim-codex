@@ -45,9 +45,6 @@ type
     context*: SalesContext
     subscription*: ?market.Subscription
     agents*: seq[SalesAgent]
-    requestQueue: RequestQueue
-
-proc handleRequest(sales: Sales, rqi: RequestQueueItem)
 
 proc `onStore=`*(sales: Sales, onStore: OnStore) =
   sales.context.onStore = some onStore
@@ -70,25 +67,21 @@ func new*(_: type Sales,
           proving: Proving,
           repo: RepoStore): Sales =
 
-  let sales = Sales(context: SalesContext(
-    market: market,
-    clock: clock,
-    proving: proving,
-    reservations: Reservations.new(repo)
-  ))
-
-  proc handleRequest(rqi: RequestQueueItem) =
-    sales.handleRequest(rqi)
-
-  sales.requestQueue = RequestQueue.new(handleRequest)
-
-  return sales
+  Sales(
+    context: SalesContext(
+      market: market,
+      clock: clock,
+      proving: proving,
+      reservations: Reservations.new(repo),
+      requestQueue: RequestQueue.new()
+    ),
+  )
 
 proc handleRequest(sales: Sales, rqi: RequestQueueItem) =
-
-  debug "handling storage requested", requestId = rqi.requestId,
-    collateral = rqi.collateral, expiry = rqi.expiry, totalChunks = rqi.expiry,
-    slots = rqi.slots
+  debug "handling storage requested", requestId = $rqi.requestId,
+    slots = rqi.ask.slots, slotSize = rqi.ask.slotSize,
+    duration = rqi.ask.duration, reward = rqi.ask.reward,
+    maxSlotLoss = rqi.ask.maxSlotLoss, expiry = rqi.expiry
 
   let agent = newSalesAgent(
     sales.context,
@@ -124,29 +117,49 @@ proc load*(sales: Sales) {.async.} =
     agent.start(SaleUnknown())
     sales.agents.add agent
 
-proc start*(sales: Sales) {.async.} =
+proc subscribeRequestEvents(sales: Sales) {.async.} =
   doAssert sales.subscription.isNone, "Sales already started"
 
-  proc onRequest(requestId: RequestId,
-                 collateral, expiry: UInt256,
-                 totalChunks, slots: uint64) {.gcsafe, upraises:[].} =
-    let rqi = RequestQueueItem.init(requestId, collateral, expiry, totalChunks, slots)
+  let context = sales.context
+  let market = context.market
+
+  proc onRequestEvent(requestId: RequestId,
+                 ask: StorageAsk,
+                 expiry: UInt256) {.gcsafe, upraises:[].} =
     try:
-      # TODO: match availability before pushing. If availabilities aren't
-      # matched, every request in the network will get added to the request
-      # queue. However, matching availabilities requires the subscription
-      # callback to be async, which has been avoided on many occasions.
-      sales.requestQueue.pushOrUpdate(rqi)
+      let reservations = context.reservations
+      let requestQueue = context.requestQueue
+      # Match availability before pushing. If availabilities weren't matched,
+      # every request in the network would get added to the request queue.
+      # However, matching availabilities requires the subscription callback to
+      # be async, which has been avoided on many occasions, so we are using
+      # `waitFor`.
+      if availability =? waitFor reservations.find(ask.slotSize,
+                                                   ask.duration,
+                                                   ask.pricePerSlot,
+                                                   ask.collateral,
+                                                   used = false):
+        let rqi = RequestQueueItem.init(requestId, ask, expiry)
+        requestQueue.pushOrUpdate(rqi)
     except CatchableError as e:
       error "Error pushing request to RequestQueue", error = e.msg
       discard
 
   try:
-    sales.subscription = some await sales.context.market.subscribeRequests(onRequest)
+    sales.subscription =
+      some await market.subscribeRequests(onRequestEvent)
   except CatchableError as e:
-    error "Unable to start sales", msg = e.msg
+    error "Unable to subscribe to storage request events", msg = e.msg
 
-  asyncSpawn sales.requestQueue.start()
+proc startRequestQueue(sales: Sales) {.async.} =
+  let requestQueue = sales.context.requestQueue
+  requestQueue.onProcessRequest = proc(rqi: RequestQueueItem) =
+                                    sales.handleRequest(rqi)
+  asyncSpawn requestQueue.start()
+
+proc start*(sales: Sales) {.async.} =
+  await sales.startRequestQueue()
+  await sales.subscribeRequestEvents()
 
 proc stop*(sales: Sales) {.async.} =
   if subscription =? sales.subscription:
@@ -156,7 +169,7 @@ proc stop*(sales: Sales) {.async.} =
     except CatchableError as e:
       warn "Unsubscribe failed", msg = e.msg
 
-  sales.requestQueue.stop()
+  sales.context.requestQueue.stop()
 
   for agent in sales.agents:
     await agent.stop()

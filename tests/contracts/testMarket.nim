@@ -75,23 +75,17 @@ ethersuite "On-Chain Market":
 
   test "supports request subscriptions":
     var receivedIds: seq[RequestId]
-    var receivedCollaterals: seq[UInt256]
+    var receivedAsks: seq[StorageAsk]
     var receivedExpirys: seq[UInt256]
-    var receivedTotalChunks: seq[uint64]
-    var receivedSlots: seq[uint64]
-    proc onRequest(id: RequestId, collateral, expiry: UInt256, totalChunks, slots: uint64) =
+    proc onRequest(id: RequestId, ask: StorageAsk, expiry: UInt256) =
       receivedIds.add(id)
-      receivedCollaterals.add(collateral)
+      receivedAsks.add(ask)
       receivedExpirys.add(expiry)
-      receivedTotalChunks.add(totalChunks)
-      receivedSlots.add(slots)
     let subscription = await market.subscribeRequests(onRequest)
     await market.requestStorage(request)
     check receivedIds == @[request.id]
-    check receivedCollaterals == @[request.ask.collateral]
+    check receivedAsks == @[request.ask]
     check receivedExpirys == @[request.expiry]
-    check receivedTotalChunks == @[request.content.erasure.totalChunks]
-    check receivedSlots == @[request.ask.slots]
     await subscription.unsubscribe()
 
   test "supports filling of slots":

@@ -13,15 +13,11 @@ suite "Request queue start/stop":
 
   var rq: RequestQueue
   var market: MockMarket
-  var onRequestAvailableCalled = false
-
-  proc onRequestAvailable(rqi: RequestQueueItem) =
-    echo "[test] callback called"
-    onRequestAvailableCalled = true
+  var onProcessRequestCalled = false
 
   setup:
     market = MockMarket.new()
-    rq = RequestQueue.new(onRequestAvailable)
+    rq = RequestQueue.new()
 
   teardown:
     rq.stop()
@@ -53,19 +49,19 @@ suite "Request queue":
 
   var rq: RequestQueue
   var market: MockMarket
-  var onRequestAvailableCalled = false
-  var onRequestAvailableCalledWith: seq[RequestId]
+  var onProcessRequestCalled = false
+  var onProcessRequestCalledWith: seq[RequestId]
 
-  proc onRequestAvailable(rqi: RequestQueueItem) =
-    echo "[test] callback called, rqi.requestId: ", rqi.requestId
-    onRequestAvailableCalled = true
-    onRequestAvailableCalledWith.add rqi.requestId
+  proc onProcessRequest(rqi: RequestQueueItem) =
+    onProcessRequestCalled = true
+    onProcessRequestCalledWith.add rqi.requestId
 
   setup:
-    onRequestAvailableCalled = false
-    onRequestAvailableCalledWith = @[]
+    onProcessRequestCalled = false
+    onProcessRequestCalledWith = @[]
     market = MockMarket.new()
-    rq = RequestQueue.new(onRequestAvailable, 2)
+    rq = RequestQueue.new(maxSize = 2)
+    rq.onProcessRequest = onProcessRequest
     asyncSpawn rq.start()
 
   teardown:
@@ -104,11 +100,11 @@ suite "Request queue":
     let rqi = RequestQueueItem.init(StorageRequest.example)
     rq.pushOrUpdate(rqi)
     var copy = rqi
-    copy.collateral = 1.u256
+    copy.ask.reward = 1.u256
     rq.pushOrUpdate(copy)
     without top =? await rq.peek():
       fail()
-    check top.collateral == copy.collateral
+    check top.ask.reward == copy.ask.reward
 
   test "can delete items":
     let rqi = RequestQueueItem.init(StorageRequest.example)
@@ -116,15 +112,25 @@ suite "Request queue":
     rq.delete(rqi)
     check rq.len == 0
 
-  test "sorts items by collateral ascending (less required collateral = higher priority)":
+  test "sorts items by profitability ascending (higher pricePerSlot = higher priority)":
     let rqi1 = RequestQueueItem.init(StorageRequest.example)
     var rqi2 = RequestQueueItem.init(StorageRequest.example)
-    rqi2.collateral = rqi1.collateral - 1
+    rqi2.ask.reward = rqi1.ask.reward + 1
     rq.pushOrUpdate(rqi1)
     rq.pushOrUpdate(rqi2)
     without top =? await rq.peek():
       fail()
-    check top.collateral == rqi2.collateral
+    check top.ask.reward == rqi2.ask.reward
+
+  test "sorts items by collateral ascending (less required collateral = higher priority)":
+    let rqi1 = RequestQueueItem.init(StorageRequest.example)
+    var rqi2 = RequestQueueItem.init(StorageRequest.example)
+    rqi2.ask.collateral = rqi1.ask.collateral - 1
+    rq.pushOrUpdate(rqi1)
+    rq.pushOrUpdate(rqi2)
+    without top =? await rq.peek():
+      fail()
+    check top.ask.collateral == rqi2.ask.collateral
 
   test "sorts items by expiry descending (longer expiry = higher priority)":
     let rqi1 = RequestQueueItem.init(StorageRequest.example)
@@ -136,21 +142,21 @@ suite "Request queue":
       fail()
     check top.expiry == rqi2.expiry
 
-  test "sorts items by total chunks ascending (smaller dataset = higher priority)":
+  test "sorts items by slot size ascending (smaller dataset = higher priority)":
     let rqi1 = RequestQueueItem.init(StorageRequest.example)
     var rqi2 = RequestQueueItem.init(StorageRequest.example)
-    rqi2.totalChunks = rqi1.totalChunks - 1
+    rqi2.ask.slotSize = rqi1.ask.slotSize - 1
     rq.pushOrUpdate(rqi1)
     rq.pushOrUpdate(rqi2)
     without top =? await rq.peek():
       fail()
-    check top.totalChunks == rqi2.totalChunks
+    check top.ask.slotSize == rqi2.ask.slotSize
 
   test "should call callback once an item is added":
     let rqi = RequestQueueItem.init(StorageRequest.example)
-    check not onRequestAvailableCalled
+    check not onProcessRequestCalled
     rq.pushOrUpdate(rqi)
-    check eventually onRequestAvailableCalled
+    check eventually onProcessRequestCalled
 
   test "should only process item once":
     let rqi = RequestQueueItem.init(StorageRequest.example)
@@ -163,20 +169,20 @@ suite "Request queue":
     # queue is empty is adhered to
     await sleepAsync(1.millis)
 
-    check onRequestAvailableCalledWith == @[rqi.requestId]
+    check onProcessRequestCalledWith == @[rqi.requestId]
 
   test "should process items in correct order":
     # sleeping after pushOrUpdate allows the requestqueue loop to iterate,
     # calling the callback for each pushed/updated item
     let rqi1 = RequestQueueItem.init(StorageRequest.example)
     var rqi2 = RequestQueueItem.init(StorageRequest.example)
-    rqi2.collateral = rqi1.collateral - 1
+    rqi2.ask.reward = rqi1.ask.reward + 1
     var rqi3 = RequestQueueItem.init(StorageRequest.example)
-    rqi3.collateral = rqi2.collateral - 1
+    rqi3.ask.reward = rqi2.ask.reward + 1
     var rqi4 = RequestQueueItem.init(StorageRequest.example)
-    rqi4.collateral = rqi3.collateral - 1
+    rqi4.ask.reward = rqi3.ask.reward + 1
     var rqi5 = RequestQueueItem.init(StorageRequest.example)
-    rqi5.collateral = rqi4.collateral - 1
+    rqi5.ask.reward = rqi4.ask.reward + 1
 
     rq.pushOrUpdate(rqi1)
     await sleepAsync(1.millis)
@@ -189,7 +195,7 @@ suite "Request queue":
     rq.pushOrUpdate(rqi5)
     await sleepAsync(1.millis)
 
-    check onRequestAvailableCalledWith == @[rqi1.requestId, rqi2.requestId, rqi3.requestId, rqi4.requestId, rqi5.requestId]
+    check onProcessRequestCalledWith == @[rqi1.requestId, rqi2.requestId, rqi3.requestId, rqi4.requestId, rqi5.requestId]
 
   test "should call only highest priority item continually":
     # not sleeping after pushOrUpdate means the requestqueue loop will only
@@ -198,13 +204,13 @@ suite "Request queue":
     # test sleeps at the end)
     let rqi1 = RequestQueueItem.init(StorageRequest.example)
     var rqi2 = RequestQueueItem.init(StorageRequest.example)
-    rqi2.collateral = rqi1.collateral - 1
+    rqi2.ask.reward = rqi1.ask.reward + 1
     var rqi3 = RequestQueueItem.init(StorageRequest.example)
-    rqi3.collateral = rqi2.collateral - 1
+    rqi3.ask.reward = rqi2.ask.reward + 1
     var rqi4 = RequestQueueItem.init(StorageRequest.example)
-    rqi4.collateral = rqi3.collateral - 1
+    rqi4.ask.reward = rqi3.ask.reward + 1
     var rqi5 = RequestQueueItem.init(StorageRequest.example)
-    rqi5.collateral = rqi4.collateral - 1
+    rqi5.ask.reward = rqi4.ask.reward + 1
 
     rq.pushOrUpdate(rqi1)
     rq.pushOrUpdate(rqi2)
@@ -213,4 +219,4 @@ suite "Request queue":
     rq.pushOrUpdate(rqi5)
     await sleepAsync(3.millis)
 
-    check onRequestAvailableCalledWith.allIt(it == rqi5.requestId)
+    check onProcessRequestCalledWith.allIt(it == rqi5.requestId)

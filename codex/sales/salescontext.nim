@@ -5,6 +5,7 @@ import ../node/batch
 import ../market
 import ../clock
 import ../proving
+import ./requestqueue
 import ./reservations
 
 type
@@ -17,6 +18,7 @@ type
     onIgnored*: OnIgnored
     proving*: Proving
     reservations*: Reservations
+    requestQueue*: RequestQueue
 
   OnStore* = proc(request: StorageRequest,
                   slot: UInt256,

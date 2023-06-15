@@ -2,6 +2,7 @@ import pkg/chronicles
 import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
+import pkg/upraises
 import ../errors
 import ../contracts/requests
 import ../utils/asyncheapqueue
@@ -10,11 +11,11 @@ logScope:
   topics = "marketplace requestqueue"
 
 type
-  OnRequestAvailable* = proc(rqi: RequestQueueItem) {.gcsafe.}
+  OnProcessRequest* = proc(rqi: RequestQueueItem) {.gcsafe, upraises:[].}
   RequestQueue* = ref object # of AsyncHeapQueue[RequestQueueItem]
     queue: AsyncHeapQueue[RequestQueueItem]
     running: bool
-    onRequestAvailable: OnRequestAvailable
+    onProcessRequest: ?OnProcessRequest
     next: Future[RequestQueueItem]
 
   # Non-ref obj copies value when assigned, preventing accidental modification
@@ -24,10 +25,8 @@ type
   # compiler can ensure that statement will fail).
   RequestQueueItem* = object
     requestId*: RequestId
-    collateral*: UInt256
+    ask*: StorageAsk
     expiry*: UInt256
-    totalChunks*: uint64
-    slots*: uint64
     slotIndexSample*: seq[UInt256]
 
   RequestQueueError = object of CodexError
@@ -42,47 +41,40 @@ type
 const DefaultMaxSize = 64
 
 proc `<`(a, b: RequestQueueItem): bool =
-  a.collateral < b.collateral or
-  a.expiry > b.expiry or
-  a.totalChunks < b.totalChunks
+  a.ask.pricePerSlot > b.ask.pricePerSlot or # profitability
+  a.ask.collateral < b.ask.collateral or     # collateral required
+  a.expiry > b.expiry or                     # expiry
+  a.ask.slotSize < b.ask.slotSize            # dataset size
 
 proc `==`(a, b: RequestQueueItem): bool = a.requestId == b.requestId
 
 proc new*(_: type RequestQueue,
-          onRequestAvailable: OnRequestAvailable,
           maxSize = DefaultMaxSize): RequestQueue =
 
   RequestQueue(
     # Add 1 to always allow for an extra item to be pushed onto the queue
     # temporarily. After push (and sort), the bottom-most item will be deleted
     queue: newAsyncHeapQueue[RequestQueueItem](maxSize + 1),
-    onRequestAvailable: onRequestAvailable,
     running: false
   )
 
 proc init*(_: type RequestQueueItem,
           requestId: RequestId,
-          collateral: UInt256,
+          ask: StorageAsk,
           expiry: UInt256,
-          totalChunks: uint64,
-          slots: uint64,
           slotIndexSample: seq[UInt256] = @[]): RequestQueueItem =
   RequestQueueItem(
     requestId: requestId,
-    collateral: collateral,
+    ask: ask,
     expiry: expiry,
-    totalChunks: totalChunks,
-    slots: slots,
     slotIndexSample: slotIndexSample)
 
 proc init*(_: type RequestQueueItem,
           request: StorageRequest): RequestQueueItem =
   RequestQueueItem(
     requestId: request.id,
-    collateral: request.ask.collateral,
+    ask: request.ask,
     expiry: request.expiry,
-    totalChunks: request.content.erasure.totalChunks,
-    slots: request.ask.slots,
     slotIndexSample: @[])
 
 proc running*(self: RequestQueue): bool = self.running
@@ -90,6 +82,10 @@ proc running*(self: RequestQueue): bool = self.running
 proc len*(self: RequestQueue): int = self.queue.len
 
 proc `$`*(self: RequestQueue): string = $self.queue
+
+proc `onProcessRequest=`*(self: RequestQueue,
+                            onProcessRequest: OnProcessRequest) =
+  self.onProcessRequest = some onProcessRequest
 
 proc peek*(self: RequestQueue): Future[?!RequestQueueItem] {.async.} =
   try:
@@ -161,7 +157,8 @@ proc start*(self: RequestQueue) {.async.} =
       self.next = self.queue.peek()
       self.next.addCallback(handleErrors)
       let rqi = await self.next # if queue empty, should wait here for new items
-      self.onRequestAvailable(rqi)
+      if onProcessRequest =? self.onProcessRequest:
+        onProcessRequest(rqi)
       self.next = nil
       await sleepAsync(1.millis) # give away async control
     except CancelledError:
