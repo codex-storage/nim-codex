@@ -112,7 +112,11 @@ method requestStorage*(market: MockMarket, request: StorageRequest) {.async.} =
   market.requested.add(request)
   var subscriptions = market.subscriptions.onRequest
   for subscription in subscriptions:
-    subscription.callback(request.id, request.ask)
+    subscription.callback(request.id,
+                          request.ask.collateral,
+                          request.expiry,
+                          request.content.erasure.totalChunks,
+                          request.ask.slots)
 
 method myRequests*(market: MockMarket): Future[seq[RequestId]] {.async.} =
   return market.activeRequests[market.signer]

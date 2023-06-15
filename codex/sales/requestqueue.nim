@@ -31,36 +31,31 @@ type
     slotIndexSample*: seq[UInt256]
 
   RequestQueueError = object of CodexError
-  RequestQueueItemNotFoundError = object of RequestQueueError
+  RequestQueueEmptyError = object of RequestQueueError
 
-# cap request queue size to prevent unbounded growth and make sifting more
+# Cap request queue size to prevent unbounded growth and make sifting more
 # efficient. Max size is not equivalent to the number of requests a host can
-# service, as new requests will be continually created and older requests should
-# be unfillable
-const MaxSize = 64
+# service, which is limited by host availabilities and new requests circulating
+# the network. Additionally, each new request in the network will be included in
+# the queue if it is higher priority than any of the exisiting items. Older
+# requests should be unfillable over time as other hosts fill the slots.
+const DefaultMaxSize = 64
 
 proc `<`(a, b: RequestQueueItem): bool =
   a.collateral < b.collateral or
   a.expiry > b.expiry or
   a.totalChunks < b.totalChunks
-  # if a.collateral < b.collateral:
-  #   return true
-  # elif a.expiry > b.expiry:
-  #   return true
-  # elif a.totalChunks < b.totalChunks:
-  #   return true
-
-  # return false
 
 proc `==`(a, b: RequestQueueItem): bool = a.requestId == b.requestId
 
 proc new*(_: type RequestQueue,
-          onRequestAvailable: OnRequestAvailable): RequestQueue =
+          onRequestAvailable: OnRequestAvailable,
+          maxSize = DefaultMaxSize): RequestQueue =
 
   RequestQueue(
     # Add 1 to always allow for an extra item to be pushed onto the queue
     # temporarily. After push (and sort), the bottom-most item will be deleted
-    queue: newAsyncHeapQueue[RequestQueueItem](MaxSize + 1),
+    queue: newAsyncHeapQueue[RequestQueueItem](maxSize + 1),
     onRequestAvailable: onRequestAvailable,
     running: false
   )
@@ -90,15 +85,32 @@ proc init*(_: type RequestQueueItem,
     slots: request.ask.slots,
     slotIndexSample: @[])
 
+proc running*(self: RequestQueue): bool = self.running
+
+proc len*(self: RequestQueue): int = self.queue.len
+
+proc `$`*(self: RequestQueue): string = $self.queue
+
+proc peek*(self: RequestQueue): Future[?!RequestQueueItem] {.async.} =
+  try:
+    let rqi = await self.queue.peek()
+    return success(rqi)
+  except CatchableError as cerr:
+    return failure(cerr)
+
 proc pushOrUpdate*(self: RequestQueue, rqi: RequestQueueItem) =
   if err =? self.queue.pushOrUpdateNoWait(rqi).errorOption:
     raiseAssert "request queue should not be full"
 
   if self.queue.full():
-    # delete the last item (bottom is MaxSize + 1)
-    self.queue.del(MaxSize)
+    # delete the last item
+    self.queue.del(self.queue.size - 1)
 
-  doAssert self.queue.len <= MaxSize
+  doAssert self.queue.len <= self.queue.size
+
+
+proc delete*(self: RequestQueue, rqi: RequestQueueItem) =
+  self.queue.delete(rqi)
 
 # proc add*(self: RequestQueue, rqi: RequestQueueItem) {.async.} =
 #   await self.push(rqi)
@@ -142,14 +154,16 @@ proc start*(self: RequestQueue) {.async.} =
     var fut = cast[FutureBase](udata)
     if fut.failed():
       error "request queue error encountered during processing",
-        error = fut.error
+        error = fut.error.msg
 
   while self.running:
     try:
       self.next = self.queue.peek()
       self.next.addCallback(handleErrors)
-      let rqi = await self.next # if queue empty, should park here waiting for new items
+      let rqi = await self.next # if queue empty, should wait here for new items
       self.onRequestAvailable(rqi)
+      self.next = nil
+      await sleepAsync(1.millis) # give away async control
     except CancelledError:
       discard
 

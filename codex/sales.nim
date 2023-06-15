@@ -88,11 +88,11 @@ proc handleRequest(sales: Sales, rqi: RequestQueueItem) =
 
   debug "handling storage requested", requestId = rqi.requestId,
     collateral = rqi.collateral, expiry = rqi.expiry, totalChunks = rqi.expiry,
-    slots = rqi.slot
+    slots = rqi.slots
 
   let agent = newSalesAgent(
     sales.context,
-    requestId,
+    rqi.requestId,
     none UInt256,
     none StorageRequest
   )
@@ -131,7 +131,15 @@ proc start*(sales: Sales) {.async.} =
                  collateral, expiry: UInt256,
                  totalChunks, slots: uint64) {.gcsafe, upraises:[].} =
     let rqi = RequestQueueItem.init(requestId, collateral, expiry, totalChunks, slots)
-    sales.requestQueue.pushOrUpdate(rqi)
+    try:
+      # TODO: match availability before pushing. If availabilities aren't
+      # matched, every request in the network will get added to the request
+      # queue. However, matching availabilities requires the subscription
+      # callback to be async, which has been avoided on many occasions.
+      sales.requestQueue.pushOrUpdate(rqi)
+    except CatchableError as e:
+      error "Error pushing request to RequestQueue", error = e.msg
+      discard
 
   try:
     sales.subscription = some await sales.context.market.subscribeRequests(onRequest)

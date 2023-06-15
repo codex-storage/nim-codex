@@ -306,7 +306,7 @@ proc len*[T](heap: AsyncHeapQueue[T]): int {.inline.} =
 
 proc size*[T](heap: AsyncHeapQueue[T]): int {.inline.} =
   ## Return the maximum number of elements in ``heap``.
-  len(heap.maxsize)
+  heap.maxsize
 
 proc `[]`*[T](heap: AsyncHeapQueue[T], i: Natural) : T {.inline.} =
   ## Access the i-th element of ``heap`` by order from first to last.
