@@ -90,7 +90,7 @@ proc bootstrapInteractions(config: CodexConf, repo: RepoStore): Future[Contracts
     let validation = Validation.new(clock, market, config.validatorMaxSlots)
     validator = some ValidatorInteractions.new(clock, validation)
 
-  return Contracts.new(client, host, validator)
+  return (client, host, validator)
 
 proc start*(s: CodexServer) {.async.} =
   notice "Starting codex node"

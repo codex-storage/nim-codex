@@ -44,10 +44,10 @@ const
 type
   CodexError = object of CatchableError
 
-  Contracts* = ref object
-    client*: ?ClientInteractions
-    host*: ?HostInteractions
-    validator*: ?ValidatorInteractions
+  Contracts* = tuple
+    client: ?ClientInteractions
+    host: ?HostInteractions
+    validator: ?ValidatorInteractions
 
   CodexNodeRef* = ref object
     switch*: Switch
@@ -57,15 +57,6 @@ type
     erasure*: Erasure
     discovery*: Discovery
     contracts*: Contracts
-
-proc new*(T: type Contracts, client: ?ClientInteractions, host: ?HostInteractions, validator: ?ValidatorInteractions): T =
-  new result
-  result.client = client
-  result.host = host
-  result.validator = validator
-
-proc default(T: type Contracts): T =
-  Contracts.new()
 
 proc findPeer*(
   node: CodexNodeRef,
