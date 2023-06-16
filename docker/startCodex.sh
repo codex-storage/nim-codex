@@ -2,9 +2,9 @@ echo "Starting Codex..."
 
 args=""
 
-## local ip as NAT?
-do_nat=$(ifconfig eth0 | awk '/inet addr/ {gsub("addr:", "", $2); print $2}')
-echo "got nat:$do_nat"
+## Using local ip as NAT
+nat_addr=$(ifconfig eth0 | awk '/inet addr/ {gsub("addr:", "", $2); print $2}')
+echo "Local IP: $nat_addr"
 
 # Required arguments
 if [ -n "$LISTEN_ADDRS" ]; then
@@ -44,10 +44,8 @@ if [ -n "$METRICS_ADDR" ] && [ -n "$METRICS_PORT" ]; then
 fi
 
 # NAT
-# if [ -n "$NAT_IP" ]; then
-echo "NAT: $do_nat"
-args="$args --nat=$do_nat"
-# fi
+echo "NAT: $nat_addr"
+args="$args --nat=$nat_addr"
 
 # Discovery IP
 if [ -n "$DISC_IP" ]; then
