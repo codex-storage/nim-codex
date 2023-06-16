@@ -43,6 +43,7 @@ asyncchecksuite "Storage Proofs Network":
     spk: st.PublicKey
     porMsg: PorMessage
     cid: Cid
+    porStream: StoreStream
     por: PoR
     tags: seq[Tag]
 
@@ -61,8 +62,9 @@ asyncchecksuite "Storage Proofs Network":
       (await store.putBlock(blk)).tryGet()
 
     cid = manifest.cid.tryGet()
+    porStream = StoreStream.new(store, manifest)
     por = await PoR.init(
-      StoreStream.new(store, manifest),
+      porStream,
       ssk, spk,
       BlockSize)
 
@@ -88,6 +90,7 @@ asyncchecksuite "Storage Proofs Network":
   teardown:
     await switch1.stop()
     await switch2.stop()
+    await close(porStream)
 
   test "Should upload to host":
     var
