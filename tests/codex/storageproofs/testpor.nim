@@ -26,12 +26,17 @@ asyncchecksuite "BLS PoR":
     store: BlockStore
     ssk: st.SecretKey
     spk: st.PublicKey
+    porStream: StoreStream
+    proofStream: StoreStream
 
   setup:
     chunker = RandomChunker.new(Rng.instance(), size = DataSetSize, chunkSize = BlockSize)
     store = CacheStore.new(cacheSize = DataSetSize, chunkSize = BlockSize)
     manifest = Manifest.new(blockSize = BlockSize).tryGet()
     (spk, ssk) = st.keyGen()
+
+    porStream = StoreStream.new(store, manifest)
+    proofStream = StoreStream.new(store, manifest)
 
     while (
       let chunk = await chunker.getBytes();
@@ -41,36 +46,38 @@ asyncchecksuite "BLS PoR":
       manifest.add(blk.cid)
       (await store.putBlock(blk)).tryGet()
 
-  test "Test PoR without corruption":
-    let
-      por = await PoR.init(
-        StoreStream.new(store, manifest),
+  teardown:
+    await close(porStream)
+    await close(proofStream)
+
+  proc createPor(): Future[PoR] =
+    return PoR.init(
+        porStream,
         ssk,
         spk,
         BlockSize)
-      q = generateQuery(por.tau, 22)
-      proof = await generateProof(
-        StoreStream.new(store, manifest),
+
+  proc createProof(por: PoR, q: seq[QElement]): Future[Proof] =
+    return generateProof(
+        proofStream,
         q,
         por.authenticators,
         SectorsPerBlock)
+
+  test "Test PoR without corruption":
+    let
+      por = await createPor()
+      q = generateQuery(por.tau, 22)
+      proof = await createProof(por, q)
 
     check por.verifyProof(q, proof.mu, proof.sigma)
 
   test "Test PoR with corruption - query: 22, corrupted blocks: 300, bytes: 10":
     let
-      por = await PoR.init(
-        StoreStream.new(store, manifest),
-        ssk,
-        spk,
-        BlockSize)
+      por = await createPor()
       pos = await store.corruptBlocks(manifest, 30, 10)
       q = generateQuery(por.tau, 22)
-      proof = await generateProof(
-        StoreStream.new(store, manifest),
-        q,
-        por.authenticators,
-        SectorsPerBlock)
+      proof = await createProof(por, q)
 
     check pos.len == 30
     check not por.verifyProof(q, proof.mu, proof.sigma)
@@ -85,6 +92,8 @@ asyncchecksuite "Test Serialization":
     por: PoR
     q: seq[QElement]
     proof: Proof
+    porStream: StoreStream
+    proofStream: StoreStream
 
   setup:
     chunker = RandomChunker.new(Rng.instance(), size = DataSetSize, chunkSize = BlockSize)
@@ -100,17 +109,23 @@ asyncchecksuite "Test Serialization":
       (await store.putBlock(blk)).tryGet()
 
     (spk, ssk) = st.keyGen()
+    porStream = StoreStream.new(store, manifest)
     por = await PoR.init(
-      StoreStream.new(store, manifest),
+      porStream,
       ssk,
       spk,
       BlockSize)
     q = generateQuery(por.tau, 22)
+    proofStream = StoreStream.new(store, manifest)
     proof = await generateProof(
-      StoreStream.new(store, manifest),
+      proofStream,
       q,
       por.authenticators,
       SectorsPerBlock)
+
+  teardown:
+    await close(porStream)
+    await close(proofStream)
 
   test "Serialize Public Key":
     var
