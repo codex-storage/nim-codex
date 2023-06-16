@@ -19,7 +19,7 @@ import ../../helpers/mockdiscovery
 import ../../helpers
 import ../../examples
 
-suite "Test Discovery Engine":
+checksuite "Test Discovery Engine":
   let chunker = RandomChunker.new(Rng.instance(), size = 4096, chunkSize = 256)
 
   var

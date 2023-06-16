@@ -20,7 +20,7 @@ import pkg/codex/blocktype as bt
 
 import ./helpers
 
-suite "Test Node":
+checksuite "Test Node":
   let
     (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
 
@@ -97,8 +97,6 @@ suite "Test Node":
   teardown:
     close(file)
     await node.stop()
-
-    checkTrackers()
 
   test "Fetch Manifest":
     let

@@ -38,7 +38,7 @@ proc createManifestCid(): ?!Cid =
   let cid = ? Cid.init(version, codec, hash).mapFailure
   return success cid
 
-suite "KeyUtils":
+checksuite "KeyUtils":
   test "makePrefixKey should create block key":
     let length = 6
     let cid = Cid.example

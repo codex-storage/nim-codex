@@ -21,7 +21,7 @@ import ../helpers/eventually
 import ../examples
 import ./helpers
 
-suite "Sales":
+checksuite "Sales":
 
   let proof = exampleProof()
 

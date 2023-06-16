@@ -42,7 +42,7 @@ method onError*(state: MockErrorState, err: ref CatchableError): ?State =
 method run*(state: MockErrorState, machine: Machine): Future[?State] {.async.} =
   raise newException(ValueError, "failure")
 
-suite "Sales agent":
+checksuite "Sales agent":
 
   var request = StorageRequest(
     ask: StorageAsk(

@@ -24,7 +24,7 @@ proc commonBlockStoreTests*(
   before: Before = nil,
   after: After = nil) =
 
-  suite name & " Store Common":
+  asyncchecksuite name & " Store Common":
     var
       newBlock, newBlock1, newBlock2, newBlock3: Block
       store: BlockStore

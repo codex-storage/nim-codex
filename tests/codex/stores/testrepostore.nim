@@ -22,7 +22,7 @@ import ../helpers
 import ../helpers/mockclock
 import ./commonstoretests
 
-suite "Test RepoStore start/stop":
+checksuite "Test RepoStore start/stop":
 
   var
     repoDs: Datastore
@@ -55,7 +55,7 @@ suite "Test RepoStore start/stop":
     await repo.stop()
     check not repo.started
 
-suite "RepoStore":
+asyncchecksuite "RepoStore":
   var
     repoDs: Datastore
     metaDs: Datastore

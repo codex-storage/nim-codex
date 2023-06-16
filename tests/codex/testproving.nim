@@ -5,8 +5,9 @@ import ./helpers/mockmarket
 import ./helpers/mockclock
 import ./helpers/eventually
 import ./examples
+import ./helpers
 
-suite "Proving":
+checksuite "Proving":
 
   var proving: Proving
   var market: MockMarket

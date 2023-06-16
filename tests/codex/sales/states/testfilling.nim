@@ -6,8 +6,9 @@ import pkg/codex/sales/states/cancelled
 import pkg/codex/sales/states/failed
 import pkg/codex/sales/states/filled
 import ../../examples
+import ../../helpers
 
-suite "sales state 'filling'":
+checksuite "sales state 'filling'":
 
   let request = StorageRequest.example
   let slotIndex = (request.ask.slots div 2).u256

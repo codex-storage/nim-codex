@@ -7,8 +7,9 @@ import ./helpers/mockmarket
 import ./helpers/mockclock
 import ./helpers/eventually
 import ./examples
+import ./helpers
 
-suite "validation":
+checksuite "validation":
 
   let period = 10
   let timeout = 5

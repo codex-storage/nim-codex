@@ -15,6 +15,7 @@ import pkg/codex/blocktype as bt
 import pkg/codex/stores/repostore
 import pkg/codex/clock
 
+import ../helpers
 import ../helpers/mocktimer
 import ../helpers/mockrepostore
 import ../helpers/mockclock
@@ -22,7 +23,7 @@ import ../examples
 
 import codex/stores/maintenance
 
-suite "BlockMaintainer":
+checksuite "BlockMaintainer":
   var mockRepoStore: MockRepoStore
   var interval: Duration
   var mockTimer: MockTimer

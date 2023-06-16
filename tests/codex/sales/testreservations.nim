@@ -13,7 +13,7 @@ import pkg/codex/sales
 import ../examples
 import ./helpers
 
-suite "Reservations module":
+checksuite "Reservations module":
 
   var
     repo: RepoStore

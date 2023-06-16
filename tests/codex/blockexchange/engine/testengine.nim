@@ -20,7 +20,7 @@ import pkg/codex/utils/asyncheapqueue
 import ../../helpers
 import ../../examples
 
-suite "NetworkStore engine basic":
+asyncchecksuite "NetworkStore engine basic":
   var
     rng: Rng
     seckey: PrivateKey
@@ -125,7 +125,7 @@ suite "NetworkStore engine basic":
 
     await done.wait(100.millis)
 
-suite "NetworkStore engine handlers":
+asyncchecksuite "NetworkStore engine handlers":
   var
     rng: Rng
     seckey: PrivateKey
@@ -352,7 +352,7 @@ suite "NetworkStore engine handlers":
       check cid in peerCtx.peerHave
       check peerCtx.blocks[cid].price == price
 
-suite "Task Handler":
+asyncchecksuite "Task Handler":
   var
     rng: Rng
     seckey: PrivateKey

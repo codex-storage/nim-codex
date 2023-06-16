@@ -18,7 +18,7 @@ proc configFactory(): CodexConf =
 proc configFactory(marketplace: Option[EthAddress]): CodexConf =
   CodexConf(cmd: noCommand, nat: ValidIpAddress.init("127.0.0.1"), discoveryIp: ValidIpAddress.init(IPv4_any()), metricsAddress: ValidIpAddress.init("127.0.0.1"), marketplaceAddress: marketplace)
 
-suite "Deployment":
+checksuite "Deployment":
 
   let provider = MockProvider()
 

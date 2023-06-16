@@ -2,8 +2,9 @@ import std/unittest
 
 import pkg/codex/stores
 import ../../examples
+import ../../helpers
 
-suite "engine payments":
+checksuite "engine payments":
 
   let address = EthAddress.example
   let amount = 42.u256

@@ -3,6 +3,9 @@ import pkg/questionable
 import pkg/questionable/results
 
 import pkg/codex/sales/reservations
+import ../helpers
+
+export checksuite
 
 proc allAvailabilities*(r: Reservations): Future[seq[Availability]] {.async.} =
   var ret: seq[Availability] = @[]

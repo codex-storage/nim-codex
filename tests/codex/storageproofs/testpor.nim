@@ -19,7 +19,7 @@ const
   SectorsPerBlock = BlockSize div SectorSize
   DataSetSize = BlockSize * 100
 
-suite "BLS PoR":
+checksuite "BLS PoR":
   var
     chunker: RandomChunker
     manifest: Manifest
@@ -86,7 +86,7 @@ suite "Test Serialization":
     q: seq[QElement]
     proof: Proof
 
-  setupAll:
+  setup:
     chunker = RandomChunker.new(Rng.instance(), size = DataSetSize, chunkSize = BlockSize)
     store = CacheStore.new(cacheSize = DataSetSize, chunkSize = BlockSize)
     manifest = Manifest.new(blockSize = BlockSize).tryGet()

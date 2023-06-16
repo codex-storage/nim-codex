@@ -1,0 +1,38 @@
+import pkg/chronos
+
+# Allow multiple setups and teardowns in a test suite
+template asyncmultisetup* =
+  var setups: seq[proc: Future[void] {.gcsafe.}]
+  var teardowns: seq[proc: Future[void] {.gcsafe.}]
+
+  setup:
+    for setup in setups:
+      await setup()
+
+  teardown:
+    for teardown in teardowns:
+      await teardown()
+
+  template setup(setupBody) {.inject.} =
+    setups.add(proc {.async.} = setupBody)
+
+  template teardown(teardownBody) {.inject.} =
+    teardowns.insert(proc {.async.} = teardownBody)
+
+template multisetup* =
+  var setups: seq[proc() {.closure, noSideEffect, gcsafe, locks: 0.}]
+  var teardowns: seq[proc() {.gcsafe, locks: 0.}]
+
+  setup:
+    for setup in setups:
+      setup()
+
+  teardown:
+    for teardown in teardowns:
+      teardown()
+
+  template setup(setupBody) {.inject.} =
+    setups.add(proc = setupBody)
+
+  template teardown(teardownBody) {.inject.} =
+    teardowns.insert(proc = teardownBody)

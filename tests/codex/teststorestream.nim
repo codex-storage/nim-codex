@@ -10,7 +10,7 @@ import pkg/codex/stores
 import pkg/codex/manifest
 import pkg/codex/blocktype as bt
 
-suite "StoreStream":
+checksuite "StoreStream":
   var
     manifest: Manifest
     store: BlockStore
@@ -39,7 +39,6 @@ suite "StoreStream":
 
   teardown:
     await stream.close()
-    check getTracker(StoreStreamTrackerName).isLeaked() == false
 
   setup:
     store = CacheStore.new()

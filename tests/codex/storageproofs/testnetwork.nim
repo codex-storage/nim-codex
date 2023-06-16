@@ -23,7 +23,7 @@ const
   BlockSize = 31 * 64
   DataSetSize = BlockSize * 100
 
-suite "Storage Proofs Network":
+checksuite "Storage Proofs Network":
   let
     hostAddr = ca.Address.example
     blocks = toSeq([1, 5, 10, 14, 20, 12, 22]) # TODO: maybe make them random
@@ -46,7 +46,7 @@ suite "Storage Proofs Network":
     por: PoR
     tags: seq[Tag]
 
-  setupAll:
+  setup:
     chunker = RandomChunker.new(Rng.instance(), size = DataSetSize, chunkSize = BlockSize)
     store = CacheStore.new(cacheSize = DataSetSize, chunkSize = BlockSize)
     manifest = Manifest.new(blockSize = BlockSize).tryGet()
@@ -68,9 +68,8 @@ suite "Storage Proofs Network":
 
     porMsg = por.toMessage()
     tags = blocks.mapIt(
-      Tag(idx: it, tag: porMsg.authenticators[it]) )
+      Tag(idx: it, tag: porMsg.authenticators[it]))
 
-  setup:
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
 

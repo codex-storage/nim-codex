@@ -12,8 +12,9 @@ import pkg/asynctest
 
 import codex/utils/timer
 import ../helpers/eventually
+import ../helpers
 
-suite "Timer":
+checksuite "Timer":
   var timer1: Timer
   var timer2: Timer
   var output: string

@@ -4,8 +4,9 @@ import pkg/libp2p
 
 import pkg/codex/blockexchange/protobuf/presence
 import ../../examples
+import ../../helpers
 
-suite "block presence protobuf messages":
+checksuite "block presence protobuf messages":
 
   let cid = Cid.example
   let price = UInt256.example
