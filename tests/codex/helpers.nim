@@ -5,8 +5,6 @@ import pkg/codex/blocktype as bt
 import pkg/codex/stores
 import pkg/codex/manifest
 import pkg/codex/rng
-import pkg/codex/streams
-import pkg/asynctest
 
 import ./helpers/nodeutils
 import ./helpers/randomchunker
