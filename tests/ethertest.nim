@@ -3,19 +3,18 @@ import pkg/asynctest
 import pkg/ethers
 
 import ./helpers
+import ./checktest
 
 ## Unit testing suite that sets up an Ethereum testing environment.
 ## Injects a `provider` instance, and a list of `accounts`.
 ## Calls the `evm_snapshot` and `evm_revert` methods to ensure that any
 ## changes to the blockchain do not persist.
 template ethersuite*(name, body) =
-  suite name:
+  asyncchecksuite name:
 
     var provider {.inject, used.}: JsonRpcProvider
     var accounts {.inject, used.}: seq[Address]
     var snapshot: JsonNode
-
-    multisetup()
 
     setup:
       provider = JsonRpcProvider.new("ws://localhost:8545")

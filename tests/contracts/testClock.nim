@@ -4,7 +4,6 @@ import codex/contracts/clock
 import ../ethertest
 
 ethersuite "On-Chain Clock":
-
   var clock: OnChainClock
 
   setup:
