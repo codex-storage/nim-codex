@@ -56,9 +56,11 @@ func `%`*(id: RequestId | SlotId | Nonce | AvailabilityId): JsonNode =
   % id.toArray
 
 func `%`*(obj: StorageRequest | Slot): JsonNode =
-  result = newJObject()
-  for k, v in obj.fieldPairs: result[k] = %v
-  result["id"] = %(obj.id)
+  let jsonObj = newJObject()
+  for k, v in obj.fieldPairs: jsonObj[k] = %v
+  jsonObj["id"] = %(obj.id)
+
+  return jsonObj
 
 func `%`*(purchase: Purchase): JsonNode =
   %*{

@@ -103,10 +103,13 @@ proc handleRequest(sales: Sales,
 proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
   let market = sales.context.market
   let slotIds = await market.mySlots()
-  result = @[]
+  var slots: seq[Slot] = @[]
+
   for slotId in slotIds:
     if slot =? (await market.getActiveSlot(slotId)):
-      result.add slot
+      slots.add slot
+
+  return slots
 
 proc load*(sales: Sales) {.async.} =
   let slots = await sales.mySlots()
