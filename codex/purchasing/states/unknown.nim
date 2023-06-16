@@ -5,7 +5,6 @@ import ./started
 import ./cancelled
 import ./finished
 import ./failed
-import ./error
 
 type PurchaseUnknown* = ref object of ErrorHandlingState
 
