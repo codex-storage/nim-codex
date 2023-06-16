@@ -1,5 +1,4 @@
-import pkg/asynctest #import std/unittest
-import pkg/chronos
+import std/unittest
 import pkg/questionable
 import pkg/codex/contracts/requests
 import pkg/codex/sales/states/downloading
@@ -10,7 +9,6 @@ import ../../examples
 import ../../helpers
 
 checksuite "sales state 'downloading'":
-
   let request = StorageRequest.example
   let slotIndex = (request.ask.slots div 2).u256
   var state: SaleDownloading
