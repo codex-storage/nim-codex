@@ -59,7 +59,7 @@ type
       name: "config-file" }: Option[InputFile]
 
     logLevel* {.
-      defaultValue: "INFO"
+      defaultValue: "info"
       desc: "Sets the log level",
       name: "log-level" }: string
 
@@ -347,9 +347,9 @@ proc updateLogLevel*(logLevel: string) {.upraises: [ValueError].} =
   # Updates log levels (without clearing old ones)
   let directives = logLevel.split(";")
   try:
-    setLogLevel(parseEnum[LogLevel](directives[0]))
+    setLogLevel(parseEnum[LogLevel](directives[0].toUpperAscii))
   except ValueError:
-    raise (ref ValueError)(msg: "Please specify one of TRACE, DEBUG, INFO, NOTICE, WARN, ERROR or FATAL")
+    raise (ref ValueError)(msg: "Please specify one of: trace, debug, info, notice, warn, error or fatal")
 
   if directives.len > 1:
     for topicName, settings in parseTopicDirectives(directives[1..^1]):
