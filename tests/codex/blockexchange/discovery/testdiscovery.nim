@@ -20,7 +20,7 @@ import ../../helpers/mockdiscovery
 import ../../helpers
 import ../../examples
 
-checksuite "Block Advertising and Discovery":
+asyncchecksuite "Block Advertising and Discovery":
   let chunker = RandomChunker.new(Rng.instance(), size = 4096, chunkSize = 256)
 
   var
@@ -172,7 +172,7 @@ checksuite "Block Advertising and Discovery":
 
     await engine.stop()
 
-checksuite "E2E - Multiple Nodes Discovery":
+asyncchecksuite "E2E - Multiple Nodes Discovery":
   let chunker = RandomChunker.new(Rng.instance(), size = 4096, chunkSize = 256)
 
   var

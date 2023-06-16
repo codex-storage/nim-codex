@@ -23,7 +23,7 @@ const
   BlockSize = 31 * 64
   DataSetSize = BlockSize * 100
 
-checksuite "Storage Proofs Network":
+asyncchecksuite "Storage Proofs Network":
   let
     hostAddr = ca.Address.example
     blocks = toSeq([1, 5, 10, 14, 20, 12, 22]) # TODO: maybe make them random

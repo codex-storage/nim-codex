@@ -10,7 +10,7 @@ import pkg/codex/stores
 import pkg/codex/manifest
 import pkg/codex/blocktype as bt
 
-checksuite "StoreStream":
+asyncchecksuite "StoreStream":
   var
     manifest: Manifest
     store: BlockStore

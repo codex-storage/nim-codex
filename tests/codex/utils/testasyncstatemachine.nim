@@ -60,7 +60,7 @@ method onError(state: State4, error: ref CatchableError): ?State =
   inc errors[3]
   some State(State2.new())
 
-checksuite "async state machines":
+asyncchecksuite "async state machines":
   var machine: Machine
 
   proc moveToNextStateEvent(state: State): ?State =

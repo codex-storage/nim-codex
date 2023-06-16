@@ -13,7 +13,6 @@ import ./twonodes
 # to enable custom logging levels for specific topics like: debug2 = "INFO; TRACE: marketplace"
 
 twonodessuite "Integration tests", debug1 = false, debug2 = false:
-
   setup:
     # Our Hardhat configuration does use automine, which means that time tracked by `provider.currentTime()` is not
     # advanced until blocks are mined and that happens only when transaction is submitted.

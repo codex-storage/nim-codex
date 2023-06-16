@@ -21,8 +21,7 @@ import ../helpers/eventually
 import ../examples
 import ./helpers
 
-checksuite "Sales":
-
+asyncchecksuite "Sales":
   let proof = exampleProof()
 
   var availability: Availability

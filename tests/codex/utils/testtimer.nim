@@ -14,7 +14,7 @@ import codex/utils/timer
 import ../helpers/eventually
 import ../helpers
 
-checksuite "Timer":
+asyncchecksuite "Timer":
   var timer1: Timer
   var timer2: Timer
   var output: string

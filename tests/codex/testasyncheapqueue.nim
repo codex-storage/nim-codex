@@ -129,8 +129,7 @@ checksuite "Synchronous tests":
     heap.clear()
     check heap.len == 0
 
-checksuite "Asynchronous Tests":
-
+asyncchecksuite "Asynchronous Tests":
   test "Test push":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]

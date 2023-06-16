@@ -9,8 +9,7 @@ import ./helpers/eventually
 import ./examples
 import ./helpers
 
-checksuite "validation":
-
+asyncchecksuite "validation":
   let period = 10
   let timeout = 5
   let maxSlots = 100

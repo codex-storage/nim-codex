@@ -15,8 +15,7 @@ import ./helpers/eventually
 import ./examples
 import ./helpers
 
-checksuite "Purchasing":
-
+asyncchecksuite "Purchasing":
   var purchasing: Purchasing
   var market: MockMarket
   var clock: MockClock

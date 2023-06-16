@@ -7,7 +7,7 @@ import ./helpers/eventually
 import ./examples
 import ./helpers
 
-checksuite "Proving":
+asyncchecksuite "Proving":
 
   var proving: Proving
   var market: MockMarket

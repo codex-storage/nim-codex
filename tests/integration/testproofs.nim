@@ -8,7 +8,6 @@ import ../codex/helpers/eventually
 import ./twonodes
 
 twonodessuite "Proving integration test", debug1=false, debug2=false:
-
   let validatorDir = getTempDir() / "CodexValidator"
 
   var marketplace: Marketplace

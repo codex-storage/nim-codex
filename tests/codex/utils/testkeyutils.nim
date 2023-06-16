@@ -9,7 +9,6 @@ when defined(windows):
   import stew/windows/acl
 
 checksuite "keyutils":
-
   let path = getTempDir() / "CodexTest"
 
   setup:

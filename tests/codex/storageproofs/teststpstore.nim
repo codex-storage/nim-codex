@@ -15,7 +15,7 @@ const
   BlockSize = 31 * 64
   DataSetSize = BlockSize * 100
 
-checksuite "Test PoR store":
+asyncchecksuite "Test PoR store":
   let
     blocks = toSeq([1, 5, 10, 14, 20, 12, 22]) # TODO: maybe make them random
 

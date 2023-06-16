@@ -20,7 +20,7 @@ import pkg/codex/blocktype as bt
 
 import ./helpers
 
-checksuite "Test Node":
+asyncchecksuite "Test Node":
   let
     (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
 

@@ -6,7 +6,6 @@ import ../ethertest
 import ./nodes
 
 ethersuite "Node block expiration tests":
-
   var node: NodeProcess
   var baseurl: string
 

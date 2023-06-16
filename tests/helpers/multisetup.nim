@@ -20,8 +20,8 @@ template asyncmultisetup* =
     teardowns.insert(proc {.async.} = teardownBody)
 
 template multisetup* =
-  var setups: seq[proc() {.closure, noSideEffect, gcsafe, locks: 0.}]
-  var teardowns: seq[proc() {.gcsafe, locks: 0.}]
+  var setups: seq[proc() {.gcsafe.}]
+  var teardowns: seq[proc() {.gcsafe.}]
 
   setup:
     for setup in setups:

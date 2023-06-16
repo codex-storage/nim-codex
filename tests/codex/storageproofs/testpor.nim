@@ -19,7 +19,7 @@ const
   SectorsPerBlock = BlockSize div SectorSize
   DataSetSize = BlockSize * 100
 
-checksuite "BLS PoR":
+asyncchecksuite "BLS PoR":
   var
     chunker: RandomChunker
     manifest: Manifest
@@ -75,7 +75,7 @@ checksuite "BLS PoR":
     check pos.len == 30
     check not por.verifyProof(q, proof.mu, proof.sigma)
 
-suite "Test Serialization":
+asyncchecksuite "Test Serialization":
   var
     chunker: RandomChunker
     manifest: Manifest

@@ -8,7 +8,12 @@ template checksuite*(name, body) =
     teardown:
       checkTrackers()
 
-    body
+    # Avoids GcUnsafe2 warnings with chronos
+    # Copied from asynctest/templates.nim
+    let suiteproc = proc =
+      body
+
+    suiteproc()
 
 template asyncchecksuite*(name, body) =
   suite name:
