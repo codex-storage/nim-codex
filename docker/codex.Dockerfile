@@ -11,7 +11,7 @@ RUN make -j4 NIM_PARAMS="-d:disableMarchNative -d:codex_enable_api_debug_peers=t
 
 FROM ubuntu:lunar-20230415
 WORKDIR /root
-RUN apt-get update && apt-get install -y libgomp1 bash
+RUN apt-get update && apt-get install -y libgomp1 bash net-tools
 COPY --from=builder /src/build/codex ./
 COPY --from=builder /src/docker/startCodex.sh ./
 RUN chmod +x ./startCodex.sh
