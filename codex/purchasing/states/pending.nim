@@ -1,7 +1,6 @@
 import ../statemachine
 import ./errorhandling
 import ./submitted
-import ./error
 
 type PurchasePending* = ref object of ErrorHandlingState
 

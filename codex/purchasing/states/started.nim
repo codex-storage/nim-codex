@@ -1,6 +1,5 @@
 import ../statemachine
 import ./errorhandling
-import ./error
 import ./finished
 import ./failed
 
