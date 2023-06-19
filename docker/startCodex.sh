@@ -123,9 +123,8 @@ if [ -n "$ETH_ACCOUNT" ]; then
 fi
 
 if [ -n "$ETH_MARKETPLACE_ADDRESS" ]; then
-  # Remove this as soon as CLI option is available:
-  echo "{\"contracts\": { \"Marketplace\": { \"address\": \""$ETH_MARKETPLACE_ADDRESS"\" } } }" > /root/marketplace_address.json
-  args="$args --eth-deployment=/root/marketplace_address.json"
+  echo "Marketplace address: $ETH_MARKETPLACE_ADDRESS"
+  args="$args --marketplace-address=$ETH_MARKETPLACE_ADDRESS"
 fi
 
 if [ -n "$SIMULATE_PROOF_FAILURES" ]; then
