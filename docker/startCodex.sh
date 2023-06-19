@@ -7,7 +7,7 @@ echo "Starting Codex node$NAME"
 args=""
 
 ## Using local ip as NAT
-nat_addr=$(ifconfig eth0 | awk '/inet addr/ {gsub("addr:", "", $2); print $2}')
+nat_addr=$(ifconfig eth0 | awk '/inet/ {gsub("addr:", "", $2); print $2}')
 echo "Local IP: $nat_addr"
 
 # Required arguments
@@ -112,12 +112,10 @@ if [ -n "$CACHE_SIZE" ]; then
 fi
 
 # Ethereum persistence
-if [ -n "$ETH_PROVIDER" ] && [ -n "$ETH_ACCOUNT" ] && [ -n "$ETH_MARKETPLACE_ADDRESS" ]; then
-    echo "Persistence enabled"
-    args="$args --persistence"
+if [ -n "$ETH_PROVIDER" ]; then
+    echo "Provider: $ETH_PROVIDER"
     args="$args --eth-provider=$ETH_PROVIDER"
-    args="$args --eth-account=$ETH_ACCOUNT"
-    # args="$args --validator"
+fi
 
 if [ -n "$ETH_ACCOUNT" ]; then
   echo "Ethereum account: $ETH_ACCOUNT"
