@@ -1,4 +1,8 @@
-echo "Starting Codex..."
+NAME=""
+if [ -n "$CODEX_NODENAME" ]; then
+  NAME=" '$CODEX_NODENAME'"
+fi
+echo "Starting Codex node$NAME"
 
 args=""
 
@@ -32,7 +36,7 @@ fi
 # Log level
 if [ -n "$LOG_LEVEL" ]; then
   echo "Log level: $LOG_LEVEL"
-  args="$args --log-level=$LOG_LEVEL"
+  args="$args --log-level=\"$LOG_LEVEL\""
 fi
 
 # Metrics
@@ -115,10 +119,35 @@ if [ -n "$ETH_PROVIDER" ] && [ -n "$ETH_ACCOUNT" ] && [ -n "$ETH_MARKETPLACE_ADD
     args="$args --eth-account=$ETH_ACCOUNT"
     # args="$args --validator"
 
-    # Remove this as soon as CLI option is available:
-    echo "{\"contracts\": { \"Marketplace\": { \"address\": \""$ACCOUNTSTR"\" } } }" > /root/marketplace_address.json
-    args="$args --eth-deployment=/root/marketplace_address.json"
+if [ -n "$ETH_ACCOUNT" ]; then
+  echo "Ethereum account: $ETH_ACCOUNT"
+  args="$args --eth-account=$ETH_ACCOUNT"
 fi
 
-echo "./root/codex $args"
-sh -c "/root/codex $args"
+if [ -n "$ETH_MARKETPLACE_ADDRESS" ]; then
+  # Remove this as soon as CLI option is available:
+  echo "{\"contracts\": { \"Marketplace\": { \"address\": \""$ETH_MARKETPLACE_ADDRESS"\" } } }" > /root/marketplace_address.json
+  args="$args --eth-deployment=/root/marketplace_address.json"
+fi
+
+if [ -n "$SIMULATE_PROOF_FAILURES" ]; then
+  echo "Simulate proof failures: $SIMULATE_PROOF_FAILURES"
+  args="$args --simulate-proof-failures=$SIMULATE_PROOF_FAILURES"
+fi
+
+if [ "$PERSISTENCE" = "true" ] || [ "$PERSISTENCE" = "1" ]; then
+  echo "Persistence enabled"
+  args="$args --persistence"
+else
+  echo "Persistence disabled"
+fi
+
+if [ "$VALIDATOR" = "true" ] || [ "$VALIDATOR" = "1" ]; then
+  echo "Validator enabled"
+  args="$args --validator"
+else
+  echo "Validator disabled"
+fi
+
+echo "./codex $args"
+/bin/bash -l -c "./codex $args"
