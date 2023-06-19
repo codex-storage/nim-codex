@@ -40,11 +40,11 @@ components:
 
     Duration:
       type: string
-      description: The duration of the request in seconds as hexadecimal string
+      description: The duration of the request in seconds as decimal string
 
     ProofProbability:
       type: string
-      description: How often storage proofs are required as hexadecimal string
+      description: How often storage proofs are required as decimal string
 
     Expiry:
       type: string
@@ -106,15 +106,15 @@ components:
           description: Hexadecimal identifier of the availability
         size:
           type: string
-          description: Size of available storage in bytes as hexadecimal string
+          description: Size of available storage in bytes as decimal string
         duration:
           $ref: "#/components/schemas/Duration"
         minPrice:
           type: string
-          description: Minimum price to be paid (in amount of tokens) as hexadecimal string
+          description: Minimum price to be paid (in amount of tokens) as decimal string
         maxCollateral:
           type: string
-          description: Maximum collateral user is willing to pay per filled Slot (in amount of tokens)
+          description: Maximum collateral user is willing to pay per filled Slot (in amount of tokens) as decimal string
 
     Slot:
       type: object
@@ -164,7 +164,7 @@ components:
           description: Number of slots (eq. hosts) that the Request want to have the content spread over
         slotSize:
           type: string
-          description: Amount of storage per slot (in bytes) as hexadecimal string
+          description: Amount of storage per slot (in bytes) as decimal string
         duration:
           $ref: "#/components/schemas/Duration"
         proofProbability:
@@ -406,7 +406,7 @@ paths:
               $ref: "#/components/schemas/StorageRequestCreation"
       responses:
         "200":
-          description: Returns the Request ID as hexadecimal string
+          description: Returns the Request ID as decimal string
         "400":
           description: Invalid or missing Request ID
         "404":

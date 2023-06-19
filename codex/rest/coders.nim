@@ -19,6 +19,7 @@ import pkg/stint
 
 import ../sales
 import ../purchasing
+import ../utils/stintutils
 
 proc encodeString*(cid: type Cid): Result[string, cstring] =
   ok($cid)
@@ -72,7 +73,7 @@ proc encodeString*(value: bool): Result[string, cstring] =
 
 proc decodeString*(_: type UInt256, value: string): Result[UInt256, cstring] =
   try:
-    ok UInt256.fromHex(value)
+    ok UInt256.fromString(value)
   except ValueError as e:
     err e.msg.cstring
 
