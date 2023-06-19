@@ -2,6 +2,10 @@ echo "Starting Codex..."
 
 args=""
 
+## Using local ip as NAT
+nat_addr=$(ifconfig eth0 | awk '/inet addr/ {gsub("addr:", "", $2); print $2}')
+echo "Local IP: $nat_addr"
+
 # Required arguments
 if [ -n "$LISTEN_ADDRS" ]; then
   echo "Listen address: $LISTEN_ADDRS"
@@ -40,10 +44,8 @@ if [ -n "$METRICS_ADDR" ] && [ -n "$METRICS_PORT" ]; then
 fi
 
 # NAT
-if [ -n "$NAT_IP" ]; then
-  echo "NAT: $NAT_IP"
-  args="$args --nat=$NAT_IP"
-fi
+echo "NAT: $nat_addr"
+args="$args --nat=$nat_addr"
 
 # Discovery IP
 if [ -n "$DISC_IP" ]; then
@@ -108,7 +110,7 @@ fi
 # Ethereum persistence
 if [ -n "$ETH_PROVIDER" ] && [ -n "$ETH_ACCOUNT" ] && [ -n "$ETH_MARKETPLACE_ADDRESS" ]; then
     echo "Persistence enabled"
-    args="$args --persistence=true"
+    args="$args --persistence"
     args="$args --eth-provider=$ETH_PROVIDER"
     args="$args --eth-account=$ETH_ACCOUNT"
     # args="$args --validator"

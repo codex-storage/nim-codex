@@ -35,6 +35,9 @@ import ./stores
 
 export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval
 
+const
+  codex_enable_api_debug_peers* {.booldefine.} = false
+
 type
   StartUpCommand* {.pure.} = enum
     noCommand,
