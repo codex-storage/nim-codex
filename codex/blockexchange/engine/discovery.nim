@@ -163,6 +163,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
           for i, f in dialed:
             if f.failed:
               await b.discovery.removeProvider(peers[i].data.peerId)
+            else:
               without cb =? b.blockLocatedCallback:
                 trace "blockLocated callback not set"
 
