@@ -116,6 +116,18 @@ components:
           type: string
           description: Maximum collateral user is willing to pay per filled Slot (in amount of tokens)
 
+    Slot:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Slot ID
+        request:
+          $ref: "#/components/schemas/StorageRequest"
+        slotIndex:
+          type: string
+          description: Slot Index as hexadecimal string
+
     StorageRequestCreation:
       type: object
       required:
@@ -166,6 +178,9 @@ components:
     StorageRequest:
       type: object
       properties:
+        id:
+          type: string
+          description: Request ID
         client:
           $ref: "#/components/schemas/EthereumAddress"
         ask:
@@ -286,14 +301,32 @@ paths:
         "500":
           description: Well it was bad-bad and the upload did not work out
 
+  "/sales/slots":
+    get:
+      summary: "Returns active slots"
+      tags: [ Marketplace ]
+      operationId: getActiveSlots
+      responses:
+        "200":
+          description: Retrieved active slots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Slot"
+
+        "503":
+          description: Sales are unavailable
+
   "/sales/availability":
     get:
       summary: "Returns storage that is for sale"
       tags: [ Marketplace ]
-      operationId: getsOfferedStorage
+      operationId: getOfferedStorage
       responses:
         "200":
-          description: Retrieved content specified by CID
+          description: Retrieved storage availabilities of the node
           content:
             application/json:
               schema:

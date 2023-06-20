@@ -315,6 +315,17 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
   router.api(
     MethodGet,
+    "/api/codex/v1/sales/slots") do () -> RestApiResponse:
+      ## Returns active slots for the host
+
+      without contracts =? node.contracts.host:
+        return RestApiResponse.error(Http503, "Sales unavailable")
+
+      let json = %(await contracts.sales.mySlots())
+      return RestApiResponse.response($json, contentType="application/json")
+
+  router.api(
+    MethodGet,
     "/api/codex/v1/sales/availability") do () -> RestApiResponse:
       ## Returns storage that is for sale
 
