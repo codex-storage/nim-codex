@@ -249,7 +249,10 @@ proc getCodexVersion(): string =
   return tag
 
 proc getCodexRevision(): string =
-  strip(staticExec("git rev-parse --short HEAD"))[0..5]
+  # using a slice in a static context breaks nimsuggest for some reason
+  var res = strip(staticExec("git rev-parse --short HEAD"))
+  res.setLen(6)
+  return res
 
 proc getNimBanner(): string =
   staticExec("nim --version | grep Version")

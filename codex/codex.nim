@@ -141,14 +141,17 @@ proc stop*(s: CodexServer) {.async.} =
 
   s.runHandle.complete()
 
-proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): T =
-
+proc new*(
+    T: type CodexServer,
+    config: CodexConf,
+    privateKey: CodexPrivateKey): CodexServer =
+  ## create CodexServer including setting up datastore, repostore, etc
   let
     switch = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)
     .withAddresses(config.listenAddrs)
-    .withRng(Rng.instance())
+    .withRng(rng.Rng.instance())
     .withNoise()
     .withMplex(5.minutes, 5.minutes)
     .withMaxConnections(config.maxPeers)
@@ -221,6 +224,7 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
       .expect("Should start rest server!")
 
   switch.mount(network)
+
   T(
     config: config,
     codexNode: codexNode,
