@@ -79,12 +79,18 @@ func new*(_: type Sales,
     subscriptions: SalesSubscriptions.new()
   )
 
-proc remove(sales: Sales, agent: SalesAgent): OnCleanUp =
-  proc: Future[void] {.gcsafe, upraises:[], async.} =
-    await agent.stop()
-    sales.agents.keepItIf(it != agent)
+proc remove(sales: Sales, agent: SalesAgent) {.async.} =
+  await agent.stop()
+  sales.agents.keepItIf(it != agent)
 
-proc handleRequest(sales: Sales, rqi: RequestQueueItem) =
+proc cleanUp(sales: Sales,
+             agent: SalesAgent,
+             processing: Future[void]) {.async.} =
+  await sales.remove(agent)
+  # signal back to the request queue to cycle a worker
+  processing.complete()
+
+proc handleRequest(sales: Sales, rqi: RequestQueueItem, processing: Future[void]) =
   debug "handling storage requested", requestId = $rqi.requestId,
     slots = rqi.ask.slots, slotSize = rqi.ask.slotSize,
     duration = rqi.ask.duration, reward = rqi.ask.reward,
@@ -97,7 +103,8 @@ proc handleRequest(sales: Sales, rqi: RequestQueueItem) =
     none StorageRequest
   )
 
-  agent.context.onCleanUp = sales.remove(agent)
+  agent.context.onCleanUp = proc {.async.} =
+    await sales.cleanUp(agent, processing)
 
   agent.start(SalePreparing(availableSlotIndices: rqi.availableSlotIndices))
   sales.agents.add agent
@@ -123,7 +130,7 @@ proc load*(sales: Sales) {.async.} =
       some slot.slotIndex,
       some slot.request)
 
-      agent.context.onCleanUp = sales.remove(agent)
+      agent.context.onCleanUp = proc {.async.} = await sales.remove(agent)
 
     agent.start(SaleUnknown())
     sales.agents.add agent
@@ -286,8 +293,9 @@ proc subscribeSlotFreed(sales: Sales) {.async.} =
 
 proc startRequestQueue(sales: Sales) {.async.} =
   let requestQueue = sales.context.requestQueue
-  requestQueue.onProcessRequest = proc(rqi: RequestQueueItem) =
-                                    sales.handleRequest(rqi)
+  requestQueue.onProcessRequest =
+    proc(rqi: RequestQueueItem, processing: Future[void]) {.async.} =
+      sales.handleRequest(rqi, processing)
   asyncSpawn requestQueue.start()
 
 proc subscribe(sales: Sales) {.async.} =

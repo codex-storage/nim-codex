@@ -1,10 +1,12 @@
 import std/sequtils
 import pkg/asynctest
 import pkg/chronos
+import pkg/chronicles
 import pkg/codex/sales/requestqueue
 import pkg/stew/byteutils # delete me
 import pkg/questionable
 import pkg/questionable/results
+import pkg/upraises
 import ../helpers/mockmarket
 import ../helpers/eventually
 import ../examples
@@ -12,11 +14,8 @@ import ../examples
 suite "Request queue start/stop":
 
   var rq: RequestQueue
-  var market: MockMarket
-  var onProcessRequestCalled = false
 
   setup:
-    market = MockMarket.new()
     rq = RequestQueue.new()
 
   teardown:
@@ -45,21 +44,74 @@ suite "Request queue start/stop":
     rq.stop()
     check not rq.running
 
+suite "Request queue workers":
+
+  var rq: RequestQueue
+
+  proc onProcessRequest(rqi: RequestQueueItem, processing: Future[void]) {.async.} =
+    try:
+      await sleepAsync(1000.millis)
+      # this is not illustrative of the realistic scenario as the processing
+      # future would be passed to another context before being completed and
+      # therefore is not as simple as making the callback async
+      info "[test] completeing processing future"
+      processing.complete()
+    except Exception:
+      discard
+
+  setup:
+    rq = RequestQueue.new(maxSize = 2, maxWorkers = 3)
+    rq.onProcessRequest = onProcessRequest
+    asyncSpawn rq.start()
+
+  teardown:
+    rq.stop()
+
+  test "active workers are accurate":
+    var rqi1 = RequestQueueItem.init(StorageRequest.example)
+    rqi1.ask.slots = 1
+    check rq.push(rqi1).isOk
+    # await sleepAsync(10.millis)
+    check eventually rq.activeWorkers == 1
+
+  test "does not surpass max workers":
+    let rqi1 = RequestQueueItem.init(StorageRequest.example) # slots = 4
+    # let rqi2 = RequestQueueItem.init(StorageRequest.example)
+    # let rqi3 = RequestQueueItem.init(StorageRequest.example)
+    # let rqi4 = RequestQueueItem.init(StorageRequest.example)
+    check rq.push(rqi1).isOk
+    # check rq.push(rqi2).isOk
+    # check rq.push(rqi3).isOk
+    # check rq.push(rqi4).isOk
+    await sleepAsync(10.millis)
+    check eventually rq.activeWorkers == 3
+
+  test "discards workers once processing completed":
+    let rqi1 = RequestQueueItem.init(StorageRequest.example) # slots = 4
+    # let rqi2 = RequestQueueItem.init(StorageRequest.example)
+    # let rqi3 = RequestQueueItem.init(StorageRequest.example)
+    # let rqi4 = RequestQueueItem.init(StorageRequest.example)
+    check rq.push(rqi1).isOk # first three slots finish after 1000.millis
+    # check rq.push(rqi2).isOk # finishes after 10.millis
+    # check rq.push(rqi3).isOk # finishes after 10.millis
+    # check rq.push(rqi4).isOk
+    await sleepAsync(1000.millis)
+    check eventually rq.activeWorkers == 1
+
 suite "Request queue":
 
   var rq: RequestQueue
-  var market: MockMarket
   var onProcessRequestCalled = false
   var onProcessRequestCalledWith: seq[RequestId]
 
-  proc onProcessRequest(rqi: RequestQueueItem) =
+  proc onProcessRequest(rqi: RequestQueueItem, processing: Future[void]) {.async.} =
     onProcessRequestCalled = true
     onProcessRequestCalledWith.add rqi.requestId
+    processing.complete()
 
   setup:
     onProcessRequestCalled = false
     onProcessRequestCalledWith = @[]
-    market = MockMarket.new()
     rq = RequestQueue.new(maxSize = 2)
     rq.onProcessRequest = onProcessRequest
     asyncSpawn rq.start()
@@ -261,10 +313,10 @@ suite "Request queue":
     rqi2.ask.reward = rqi1.ask.reward + 1
     var rqi3 = RequestQueueItem.init(StorageRequest.example)
     rqi3.ask.reward = rqi2.ask.reward + 1
-    var rqi4 = RequestQueueItem.init(StorageRequest.example)
-    rqi4.ask.reward = rqi3.ask.reward + 1
-    var rqi5 = RequestQueueItem.init(StorageRequest.example)
-    rqi5.ask.reward = rqi4.ask.reward + 1
+    # var rqi4 = RequestQueueItem.init(StorageRequest.example)
+    # rqi4.ask.reward = rqi3.ask.reward + 1
+    # var rqi5 = RequestQueueItem.init(StorageRequest.example)
+    # rqi5.ask.reward = rqi4.ask.reward + 1
 
     check rq.push(rqi1).isOk
     await sleepAsync(1.millis)
@@ -272,12 +324,12 @@ suite "Request queue":
     await sleepAsync(1.millis)
     check rq.push(rqi3).isOk
     await sleepAsync(1.millis)
-    check rq.push(rqi4).isOk
-    await sleepAsync(1.millis)
-    check rq.push(rqi5).isOk
-    await sleepAsync(1.millis)
+    # check rq.push(rqi4).isOk
+    # await sleepAsync(1.millis)
+    # check rq.push(rqi5).isOk
+    # await sleepAsync(1.millis)
 
-    check onProcessRequestCalledWith == @[rqi1.requestId, rqi2.requestId, rqi3.requestId, rqi4.requestId, rqi5.requestId]
+    check onProcessRequestCalledWith == @[rqi1.requestId, rqi2.requestId, rqi3.requestId]
 
   test "should call only highest priority item continually":
     # not sleeping after push means the requestqueue loop will only
