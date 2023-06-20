@@ -35,11 +35,11 @@ proc requestStorage*(client: CodexClient,
                      collateral: uint64): string =
   let url = client.baseurl & "/storage/request/" & cid
   let json = %*{
-    "duration": "0x" & duration.toHex,
-    "reward": "0x" & reward.toHex,
-    "proofProbability": "0x" & proofProbability.toHex,
-    "expiry": "0x" & expiry.toHex,
-    "collateral": "0x" & collateral.toHex,
+    "duration": $duration,
+    "reward": $reward,
+    "proofProbability": $proofProbability,
+    "expiry": $expiry,
+    "collateral": $collateral,
   }
   let response = client.http.post(url, $json)
   assert response.status == "200 OK"
@@ -59,10 +59,10 @@ proc postAvailability*(client: CodexClient,
                        size, duration, minPrice: uint64, maxCollateral: uint64): JsonNode =
   let url = client.baseurl & "/sales/availability"
   let json = %*{
-    "size": "0x" & size.toHex,
-    "duration": "0x" & duration.toHex,
-    "minPrice": "0x" & minPrice.toHex,
-    "maxCollateral": "0x" & maxCollateral.toHex
+    "size": $size,
+    "duration": $duration,
+    "minPrice": $minPrice,
+    "maxCollateral": $maxCollateral,
   }
   let response = client.http.post(url, $json)
   assert response.status == "200 OK"

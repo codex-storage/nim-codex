@@ -20,20 +20,20 @@ type
 
 proc fromJson*(_: type Availability, bytes: seq[byte]): ?!Availability =
   let json = ?catch parseJson(string.fromBytes(bytes))
-  let size = ?catch UInt256.fromString(json["size"].getStr)
-  let duration = ?catch UInt256.fromString(json["duration"].getStr)
-  let minPrice = ?catch UInt256.fromString(json["minPrice"].getStr)
-  let maxCollateral = ?catch UInt256.fromString(json["maxCollateral"].getStr)
+  let size = ?catch UInt256.fromDecimal(json["size"].getStr)
+  let duration = ?catch UInt256.fromDecimal(json["duration"].getStr)
+  let minPrice = ?catch UInt256.fromDecimal(json["minPrice"].getStr)
+  let maxCollateral = ?catch UInt256.fromDecimal(json["maxCollateral"].getStr)
   success Availability.init(size, duration, minPrice, maxCollateral)
 
 proc fromJson*(_: type StorageRequestParams,
                bytes: seq[byte]): ?! StorageRequestParams =
   let json = ?catch parseJson(string.fromBytes(bytes))
-  let duration = ?catch UInt256.fromString(json["duration"].getStr)
-  let proofProbability = ?catch UInt256.fromString(json["proofProbability"].getStr)
-  let reward = ?catch UInt256.fromString(json["reward"].getStr)
-  let collateral = ?catch UInt256.fromString(json["collateral"].getStr)
-  let expiry = UInt256.fromString(json["expiry"].getStr).catch.option
+  let duration = ?catch UInt256.fromDecimal(json["duration"].getStr)
+  let proofProbability = ?catch UInt256.fromDecimal(json["proofProbability"].getStr)
+  let reward = ?catch UInt256.fromDecimal(json["reward"].getStr)
+  let collateral = ?catch UInt256.fromDecimal(json["collateral"].getStr)
+  let expiry = UInt256.fromDecimal(json["expiry"].getStr).catch.option
   let nodes = parseUInt(json["nodes"].getStr).catch.option
   let tolerance = parseUInt(json["tolerance"].getStr).catch.option
   success StorageRequestParams(

@@ -1,4 +1,5 @@
 import std/os
+import std/options
 import pkg/ethers
 import pkg/codex/contracts/marketplace
 

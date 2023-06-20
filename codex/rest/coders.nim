@@ -73,7 +73,7 @@ proc encodeString*(value: bool): Result[string, cstring] =
 
 proc decodeString*(_: type UInt256, value: string): Result[UInt256, cstring] =
   try:
-    ok UInt256.fromString(value)
+    ok UInt256.fromDecimal(value)
   except ValueError as e:
     err e.msg.cstring
 
