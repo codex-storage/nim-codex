@@ -198,7 +198,6 @@ proc requestBlock*(
   await b.sendWantHave(cid, blockPeer, peers)
   await b.sendWantBlock(cid, blockPeer)
 
-  trace "returning await block (1)"
   return await blk
 
 proc blockLocated*(
@@ -217,10 +216,6 @@ proc blockPresenceHandler*(
   let
     peerCtx = b.peers.get(peer)
     wantList = toSeq(b.pendingBlocks.wantList)
-
-  trace "our wantlist:"
-  for cid in wantList:
-    trace " > ", cid
 
   if peerCtx.isNil:
     return
@@ -242,17 +237,7 @@ proc blockPresenceHandler*(
     )
 
   if dontWantCids.len > 0:
-    trace "peer has cids we don't want (cleaning up)", peer, count = dontWantCids.len
-    for cid in dontWantCids:
-      trace " > ", cid
     peerCtx.cleanPresence(dontWantCids)
-
-  trace "Peer has", items = peerHave.len
-  for cid in peerHave:
-    trace " > ", cid
-  trace "Peer wants", wantList = wantList.len
-  for cid in wantList:
-    trace " > ", cid
 
   let
     wantCids = wantList.filterIt(
@@ -284,7 +269,6 @@ proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) {.async.} =
       # and we have it in our local store
       if c in p.peerWants:
         if await (c in b.localStore):
-          trace "a block showed up in the local store that a peer wants. We schedule a task to maybe give it to them."
           if b.scheduleTask(p):
             trace "Task scheduled for peer", peer = p.id
           else:
@@ -326,7 +310,6 @@ proc blocksHandler*(
     peerCtx = b.peers.get(peer)
 
   if peerCtx != nil:
-    # we don't want this block anymore, let's cleanup the list
     await b.payForBlocks(peerCtx, blocks)
     ## shouldn't we remove them from the want-list instead of this:
     peerCtx.cleanPresence(blocks.mapIt( it.cid ))
@@ -459,9 +442,6 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
   # Send to the peer blocks he wants to get,
   # if they present in our local store
 
-# START FROM HERE:
-#   the node1 is not sending to node2 even though it knows we want something from it.
-
   # TODO: There should be all sorts of accounting of
   # bytes sent/received here
 
@@ -470,7 +450,6 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       it.wantType == WantType.WantBlock
     )
 
-  # wantsBlocks.len = 0, but we do want one. and you have it you greedy bastard!
   trace "wantsBlocks", peer = task.id, n = wantsBlocks.len
   if wantsBlocks.len > 0:
     trace "Got peer want blocks list", items = wantsBlocks.len
@@ -488,14 +467,12 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
         .filterIt(it.completed and it.read.isOk)
         .mapIt(it.read.get)
 
-    trace "prepared to send n blocks", n = blocks.len
     if blocks.len > 0:
       trace "Sending blocks to peer", peer = task.id, blocks = blocks.len
       await b.network.request.sendBlocks(
         task.id,
         blocks)
 
-      trace "About to remove entries from peerWants", peer = task.id, blocks = blocks.len, items = task.peerWants.len
       # Remove successfully sent blocks
       task.peerWants.keepIf(
         proc(e: Entry): bool =

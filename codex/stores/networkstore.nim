@@ -38,20 +38,9 @@ method getBlock*(self: NetworkStore, cid: Cid): Future[?!bt.Block] {.async.} =
     if not (error of BlockNotFoundError): return failure error
     trace "Block not in local store", cid
 
-    # requestBlock doesn't return :C
     without newBlock =? (await self.engine.requestBlock(cid)).catch, error:
-      ## Does not occure
       trace "Unable to get block from exchange engine", cid
       return failure error
-
-    ## Does not occure
-    trace "Got block from exchange engine. Adding to local store..."
-    let ttl =  Duration.none
-    # TODO: What should the TTL be?!
-    # depends: are we serving a marketplace contract? duration of contract probably.
-    let res = await self.localStore.putBlock(newBlock, ttl)
-    if res.isErr:
-      trace "Failed to store block in local store :|"
 
     return success newBlock
 

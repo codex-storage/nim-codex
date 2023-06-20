@@ -60,12 +60,6 @@ proc new*(
     pad: pad,
     offset: 0)
 
-  trace "Initializing StoreStream for manifest", len = manifest.len
-  trace "OriginalBytes", bytes = manifest.originalBytes
-  trace "blockSize", blockSize = manifest.blockSize
-  for b in manifest.blocks:
-    trace "contains CID", cid = b
-
   result.initStream()
 
 method `size`*(self: StoreStream): int =

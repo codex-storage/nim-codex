@@ -162,13 +162,9 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
 
           for i, f in dialed:
             if f.failed:
-              trace "dial failed"
               await b.discovery.removeProvider(peers[i].data.peerId)
-            else:
-              trace "dial successful", peerId = peers[i].data.peerId
-
               without cb =? b.blockLocatedCallback:
-                trace "blockLocated callback not set :o"
+                trace "blockLocated callback not set"
 
               await cb(cid, peers[i].data.peerId)
 

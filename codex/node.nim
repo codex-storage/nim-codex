@@ -243,12 +243,6 @@ proc store*(
                        contentCid = cid,
                        blocks = blockManifest.len
 
-  trace "Announce manifest", cid = manifest.cid, len = blockManifest.len
-  trace "OriginalBytes", bytes = blockManifest.originalBytes
-  trace "blockSize", blockSize = blockManifest.blockSize
-  for b in blockManifest.blocks:
-    trace "contains CID", cid = b
-
   # Announce manifest
   await self.discovery.provide(manifest.cid)
 

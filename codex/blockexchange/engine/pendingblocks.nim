@@ -50,7 +50,6 @@ proc getWantHandle*(
 
       trace "Adding pending future for block", cid, inFlight = p.blocks[cid].inFlight
 
-    trace "getWantHandle is returning handle.wait"
     return await p.blocks[cid].handle.wait(timeout)
   except CancelledError as exc:
     trace "Blocks cancelled", exc = exc.msg, cid
@@ -67,12 +66,10 @@ proc resolve*(p: PendingBlocksManager,
   ## Resolve pending blocks
   ##
 
-  trace "resolving a number of blocks...", l = len(blocks)
   for blk in blocks:
     # resolve any pending blocks
     p.blocks.withValue(blk.cid, pending):
       if not pending[].handle.completed:
-        ## never occures
         trace "Resolving block", cid = blk.cid
         pending[].handle.complete(blk)
 
