@@ -4,9 +4,7 @@ import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
-import pkg/upraises
 import ../contracts/requests
-import ../utils/asyncspawn
 import ../rng
 import ../errors
 import ./statemachine
@@ -53,17 +51,16 @@ proc nextRandom(sample: openArray[uint64]): uint64 =
   return rng.sample(sample)
 
 proc assignRandomSlotIndex*(agent: SalesAgent,
-                            numSlots: uint64): Future[?!void] {.async.} =
+    availableSlotIndices: seq[uint64]): Future[?!void] {.async.} =
+
   let market = agent.context.market
   let data = agent.data
 
-  if numSlots == 0:
-    agent.data.slotIndex = none UInt256
-    let error = newException(ValueError, "numSlots must be greater than zero")
-    return failure(error)
+  if availableSlotIndices.len == 0:
+    raiseAssert "no available slots to sample"
 
   var idx: UInt256
-  var sample = toSeq(0'u64..<numSlots)
+  var sample = availableSlotIndices # copy
 
   while true:
     if sample.len == 0:

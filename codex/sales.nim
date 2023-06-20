@@ -93,7 +93,7 @@ proc handleRequest(sales: Sales, rqi: RequestQueueItem) =
   )
   agent.context.onIgnored = proc {.gcsafe, upraises:[].} =
                               sales.agents.keepItIf(it != agent)
-  agent.start(SalePreparing())
+  agent.start(SalePreparing(availableSlotIndices: rqi.availableSlotIndices))
   sales.agents.add agent
 
 proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
