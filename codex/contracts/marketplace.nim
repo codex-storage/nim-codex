@@ -25,6 +25,7 @@ type
     slotId*: SlotId
   SlotFreed* = object of Event
     requestId* {.indexed.}: RequestId
+    slotIndex*: UInt256
     slotId*: SlotId
   RequestFulfilled* = object of Event
     requestId* {.indexed.}: RequestId

@@ -2,6 +2,7 @@ import std/sequtils
 import std/tables
 import std/hashes
 import std/sets
+import pkg/questionable
 import pkg/codex/market
 import pkg/codex/contracts/requests
 import pkg/codex/contracts/config
@@ -53,7 +54,7 @@ type
     callback: OnRequest
   FulfillmentSubscription* = ref object of Subscription
     market: MockMarket
-    requestId: RequestId
+    requestId: ?RequestId
     callback: OnFulfillment
   SlotFilledSubscription* = ref object of Subscription
     market: MockMarket
@@ -65,11 +66,11 @@ type
     callback: OnSlotFreed
   RequestCancelledSubscription* = ref object of Subscription
     market: MockMarket
-    requestId: RequestId
+    requestId: ?RequestId
     callback: OnRequestCancelled
   RequestFailedSubscription* = ref object of Subscription
     market: MockMarket
-    requestId: RequestId
+    requestId: ?RequestId
     callback: OnRequestCancelled
   ProofSubmittedSubscription = ref object of Subscription
     market: MockMarket
@@ -175,28 +176,33 @@ proc emitSlotFilled*(market: MockMarket,
     if requestMatches and slotMatches:
       subscription.callback(requestId, slotIndex)
 
-proc emitSlotFreed*(market: MockMarket, slotId: SlotId) =
+proc emitSlotFreed*(market: MockMarket,
+                    requestId: RequestId,
+                    slotIndex: UInt256,
+                    slotId: SlotId) =
   var subscriptions = market.subscriptions.onSlotFreed
   for subscription in subscriptions:
-    subscription.callback(slotId)
+    subscription.callback(requestId, slotIndex, slotId)
 
-proc emitRequestCancelled*(market: MockMarket,
-                     requestId: RequestId) =
+proc emitRequestCancelled*(market: MockMarket, requestId: RequestId) =
   var subscriptions = market.subscriptions.onRequestCancelled
   for subscription in subscriptions:
-    if subscription.requestId == requestId:
+    if subscription.requestId == requestId.some or
+       subscription.requestId.isNone:
       subscription.callback(requestId)
 
 proc emitRequestFulfilled*(market: MockMarket, requestId: RequestId) =
   var subscriptions = market.subscriptions.onFulfillment
   for subscription in subscriptions:
-    if subscription.requestId == requestId:
+    if subscription.requestId == requestId.some or
+       subscription.requestId.isNone:
       subscription.callback(requestId)
 
 proc emitRequestFailed*(market: MockMarket, requestId: RequestId) =
   var subscriptions = market.subscriptions.onRequestFailed
   for subscription in subscriptions:
-    if subscription.requestId == requestId:
+    if subscription.requestId == requestId.some or
+       subscription.requestId.isNone:
       subscription.callback(requestId)
 
 proc fillSlot*(market: MockMarket,
@@ -223,7 +229,12 @@ method fillSlot*(market: MockMarket,
 
 method freeSlot*(market: MockMarket, slotId: SlotId) {.async.} =
   market.freed.add(slotId)
-  market.emitSlotFreed(slotId)
+  for s in market.filled:
+    if slotId(s.requestId, s.slotIndex) == slotId:
+      market.emitSlotFreed(s.requestId, s.slotIndex, slotId)
+      break
+  market.slotState[slotId] = SlotState.Free
+
 
 method withdrawFunds*(market: MockMarket,
                       requestId: RequestId) {.async.} =
@@ -284,12 +295,23 @@ method subscribeRequests*(market: MockMarket,
   return subscription
 
 method subscribeFulfillment*(market: MockMarket,
+                             callback: OnFulfillment):
+                            Future[Subscription] {.async.} =
+  let subscription = FulfillmentSubscription(
+    market: market,
+    requestId: none RequestId,
+    callback: callback
+  )
+  market.subscriptions.onFulfillment.add(subscription)
+  return subscription
+
+method subscribeFulfillment*(market: MockMarket,
                              requestId: RequestId,
                              callback: OnFulfillment):
                             Future[Subscription] {.async.} =
   let subscription = FulfillmentSubscription(
     market: market,
-    requestId: requestId,
+    requestId: some requestId,
     callback: callback
   )
   market.subscriptions.onFulfillment.add(subscription)
@@ -324,15 +346,37 @@ method subscribeSlotFreed*(market: MockMarket,
   return subscription
 
 method subscribeRequestCancelled*(market: MockMarket,
+				  callback: OnRequestCancelled):
+                                 Future[Subscription] {.async.} =
+  let subscription = RequestCancelledSubscription(
+    market: market,
+    requestId: none RequestId,
+    callback: callback
+  )
+  market.subscriptions.onRequestCancelled.add(subscription)
+  return subscription
+
+method subscribeRequestCancelled*(market: MockMarket,
                                   requestId: RequestId,
                                   callback: OnRequestCancelled):
                                  Future[Subscription] {.async.} =
   let subscription = RequestCancelledSubscription(
     market: market,
-    requestId: requestId,
+    requestId: some requestId,
     callback: callback
   )
   market.subscriptions.onRequestCancelled.add(subscription)
+  return subscription
+
+method subscribeRequestFailed*(market: MockMarket,
+                               callback: OnRequestFailed):
+                             Future[Subscription] {.async.} =
+  let subscription = RequestFailedSubscription(
+    market: market,
+    requestId: none RequestId,
+    callback: callback
+  )
+  market.subscriptions.onRequestFailed.add(subscription)
   return subscription
 
 method subscribeRequestFailed*(market: MockMarket,
@@ -341,7 +385,7 @@ method subscribeRequestFailed*(market: MockMarket,
                              Future[Subscription] {.async.} =
   let subscription = RequestFailedSubscription(
     market: market,
-    requestId: requestId,
+    requestId: some requestId,
     callback: callback
   )
   market.subscriptions.onRequestFailed.add(subscription)

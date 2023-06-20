@@ -20,7 +20,7 @@ type
                     expiry: UInt256) {.gcsafe, upraises:[].}
   OnFulfillment* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
   OnSlotFilled* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises:[].}
-  OnSlotFreed* = proc(slotId: SlotId) {.gcsafe, upraises: [].}
+  OnSlotFreed* = proc(requestId: RequestId, slotIndex: UInt256, slotId: SlotId) {.gcsafe, upraises: [].}
   OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnProofSubmitted* = proc(id: SlotId, proof: seq[byte]) {.gcsafe, upraises:[].}
@@ -115,6 +115,11 @@ method canProofBeMarkedAsMissing*(market: Market,
   raiseAssert("not implemented")
 
 method subscribeFulfillment*(market: Market,
+                             callback: OnFulfillment):
+                            Future[Subscription] {.base, async.} =
+  raiseAssert("not implemented")
+
+method subscribeFulfillment*(market: Market,
                              requestId: RequestId,
                              callback: OnFulfillment):
                             Future[Subscription] {.base, async.} =
@@ -138,9 +143,19 @@ method subscribeSlotFreed*(market: Market,
   raiseAssert("not implemented")
 
 method subscribeRequestCancelled*(market: Market,
+                                  callback: OnRequestCancelled):
+                                Future[Subscription] {.base, async.} =
+  raiseAssert("not implemented")
+
+method subscribeRequestCancelled*(market: Market,
                                   requestId: RequestId,
                                   callback: OnRequestCancelled):
                                 Future[Subscription] {.base, async.} =
+  raiseAssert("not implemented")
+
+method subscribeRequestFailed*(market: Market,
+                               callback: OnRequestFailed):
+                             Future[Subscription] {.base, async.} =
   raiseAssert("not implemented")
 
 method subscribeRequestFailed*(market: Market,

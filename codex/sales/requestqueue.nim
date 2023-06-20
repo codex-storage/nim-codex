@@ -1,3 +1,4 @@
+import std/sequtils
 import pkg/chronicles
 import pkg/chronos
 import pkg/questionable
@@ -27,10 +28,11 @@ type
     requestId*: RequestId
     ask*: StorageAsk
     expiry*: UInt256
-    slotIndexSample*: seq[UInt256]
+    availableSlotIndices*: seq[uint64]
 
   RequestQueueError = object of CodexError
-  RequestQueueEmptyError = object of RequestQueueError
+  RequestQueueItemExistsError* = object of RequestQueueError
+  RequestQueueItemNotExistsError* = object of RequestQueueError
 
 # Cap request queue size to prevent unbounded growth and make sifting more
 # efficient. Max size is not equivalent to the number of requests a host can
@@ -62,12 +64,12 @@ proc init*(_: type RequestQueueItem,
           requestId: RequestId,
           ask: StorageAsk,
           expiry: UInt256,
-          slotIndexSample: seq[UInt256] = @[]): RequestQueueItem =
+          availableSlotIndices = none seq[uint64]): RequestQueueItem =
   RequestQueueItem(
     requestId: requestId,
     ask: ask,
     expiry: expiry,
-    slotIndexSample: slotIndexSample)
+    availableSlotIndices: availableSlotIndices |? toSeq(0'u64..<ask.slots))
 
 proc init*(_: type RequestQueueItem,
           request: StorageRequest): RequestQueueItem =
@@ -75,7 +77,7 @@ proc init*(_: type RequestQueueItem,
     requestId: request.id,
     ask: request.ask,
     expiry: request.expiry,
-    slotIndexSample: @[])
+    availableSlotIndices: toSeq(0'u64..<request.ask.slots))
 
 proc running*(self: RequestQueue): bool = self.running
 
@@ -84,61 +86,111 @@ proc len*(self: RequestQueue): int = self.queue.len
 proc `$`*(self: RequestQueue): string = $self.queue
 
 proc `onProcessRequest=`*(self: RequestQueue,
-                            onProcessRequest: OnProcessRequest) =
+                          onProcessRequest: OnProcessRequest) =
   self.onProcessRequest = some onProcessRequest
+
+proc contains*(self: RequestQueue, rqi: RequestQueueItem): bool =
+  self.queue.contains(rqi)
 
 proc peek*(self: RequestQueue): Future[?!RequestQueueItem] {.async.} =
   try:
     let rqi = await self.queue.peek()
     return success(rqi)
-  except CatchableError as cerr:
-    return failure(cerr)
+  except CatchableError as err:
+    return failure(err)
 
-proc pushOrUpdate*(self: RequestQueue, rqi: RequestQueueItem) =
-  if err =? self.queue.pushOrUpdateNoWait(rqi).errorOption:
-    raiseAssert "request queue should not be full"
+proc push*(self: RequestQueue, rqi: RequestQueueItem): ?!void =
+  if self.contains(rqi):
+    let err = newException(RequestQueueItemExistsError,
+      "item already exists")
+    return failure(err)
+
+  if err =? self.queue.pushNoWait(rqi).mapFailure.errorOption:
+    return failure(err)
 
   if self.queue.full():
     # delete the last item
     self.queue.del(self.queue.size - 1)
 
   doAssert self.queue.len <= self.queue.size
+  return success()
 
+proc pushOrUpdate*(self: RequestQueue, rqi: RequestQueueItem): ?!void =
+  if err =? self.queue.pushOrUpdateNoWait(rqi).errorOption:
+    return failure("request queue should not be full")
+
+  if self.queue.full():
+    # delete the last item
+    self.queue.del(self.queue.size - 1)
+
+  doAssert self.queue.len <= self.queue.size
+  return success()
 
 proc delete*(self: RequestQueue, rqi: RequestQueueItem) =
   self.queue.delete(rqi)
 
-# proc add*(self: RequestQueue, rqi: RequestQueueItem) {.async.} =
-#   await self.push(rqi)
+proc delete*(self: RequestQueue, requestId: RequestId) =
+  let rqi = RequestQueueItem(requestId: requestId)
+  self.delete(rqi)
 
-# proc remove*(self: RequestQueue, requestId: RequestId): ?!void =
-#   ## Removes a request from the queue in O(n) time
-#   let idx = self.find(RequestQueueItem(requestId: requestId))
-#   if idx == -1:
-#     let err = newException(RequestQueueItemNotFoundError,
-#       "Request does not exist in queue")
-#     return failure(err)
+proc get*(self: RequestQueue, requestId: RequestId): ?!RequestQueueItem =
+  let rqi = RequestQueueItem(requestId: requestId)
+  let idx = self.queue.find(rqi)
+  if idx == -1:
+    let err = newException(RequestQueueItemNotExistsError,
+      "item does not exist")
+    return failure(err)
 
-#   self.del(idx)
+  return success(self.queue[idx])
 
-# proc update*(self: RequestQueue,
-#              requestId: RequestId
-#              slotIndexSample: seq[UInt256] = @[]): ?!void =
-#   ## Updates a request from the queue in O(n) time
-#   ## An option to update the queue in O(1) time would be to make the
-#   ## ``RequestQueueItems`` refs, however this opens up issues where a queue
-#   ## item ref could be stored/passed around and inadvertantly updated which
-#   ## would not maintain the HeapQueue invariant.
-#   let idx = self.find(RequestQueueItem(requestId: requestId))
-#   if idx == -1:
-#     let err = newException(RequestQueueItemNotFoundError,
-#       "Request does not exist in queue")
-#     return failure(err)
+proc addAvailableSlotIndex*(self: RequestQueue,
+                            rqi: RequestQueueItem,
+                            slotIndex: uint64): ?!void =
 
-#   let copy = self[idx]
-#   self.del(idx)
-#   copy.slotIndexSample = slotIndexSample
-#   self.push(copy)
+  let idx = self.queue.find(rqi)
+  var item = rqi # copy
+  let found = idx > -1
+  let inbounds = slotIndex < item.ask.slots - 1
+
+  if found:
+    item = self.queue[idx]
+    if inbounds and # slot index oob for request
+       slotIndex notin item.availableSlotIndices:
+      item.availableSlotIndices.add slotIndex
+      discard self.queue.update(item)
+
+  elif inbounds:
+    item.availableSlotIndices = @[slotIndex]
+    return self.push(item)
+
+  return success()
+
+proc removeAvailableSlotIndex*(self: RequestQueue,
+                               requestId: RequestId,
+                               slotIndex: uint64): ?!void =
+
+  var rqi = RequestQueueItem(requestId: requestId)
+  let idx = self.queue.find(rqi)
+  if idx > -1:
+    rqi = self.queue[idx]
+
+    if not rqi.availableSlotIndices.contains(slotIndex):
+      return success()
+
+    rqi.availableSlotIndices.keepItIf(it != slotIndex)
+
+    # del (at index) then push, avoids a re-find
+    self.queue.del(idx)
+
+    if rqi.availableSlotIndices.len > 0:
+      # only re-push if there are available slots to fill
+      return self.push(rqi)
+
+    return success()
+
+
+proc `[]`*(self: RequestQueue, i: Natural): RequestQueueItem =
+  self.queue[i]
 
 proc start*(self: RequestQueue) {.async.} =
   if self.running:

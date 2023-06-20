@@ -11,6 +11,7 @@ import pkg/codex/sales
 import pkg/codex/sales/salesdata
 import pkg/codex/sales/salescontext
 import pkg/codex/sales/reservations
+import pkg/codex/sales/requestqueue
 import pkg/codex/stores/repostore
 import pkg/codex/proving
 import pkg/codex/blocktype as bt
@@ -78,6 +79,79 @@ asyncchecksuite "Sales":
 
   proc getAvailability: ?!Availability =
     waitFor reservations.get(availability.id)
+
+  test "adds request to request queue once StorageRequested emitted":
+    check isOk await reservations.reserve(availability)
+    await market.requestStorage(request)
+    let rqi = RequestQueueItem.init(request)
+    check eventually sales.context.requestQueue.contains(rqi)
+
+  test "removes request from request queue once RequestCancelled emitted":
+    check isOk await reservations.reserve(availability)
+    await market.requestStorage(request)
+    let rqi = RequestQueueItem.init(request)
+    # although previous test checked this condition, it serves as a way to await
+    # when the item was added to the queue
+    check eventually sales.context.requestQueue.contains(rqi)
+    market.emitRequestCancelled(request.id)
+    check eventually sales.context.requestQueue.contains(rqi) == false
+
+  test "removes request from request queue once RequestFailed emitted":
+    check isOk await reservations.reserve(availability)
+    await market.requestStorage(request)
+    let rqi = RequestQueueItem.init(request)
+    # although previous test checked this condition, it serves as a way to await
+    # when the item was added to the queue
+    check eventually sales.context.requestQueue.contains(rqi)
+    market.emitRequestFailed(request.id)
+    check eventually sales.context.requestQueue.contains(rqi) == false
+
+  test "request queue slot indices are expanded once added to the request queue":
+    let queue = sales.context.requestQueue
+    check isOk await reservations.reserve(availability)
+    await market.requestStorage(request)
+    var rqi = RequestQueueItem.init(request)
+    # although previous test checked this condition, it serves as a way to await
+    # when the item was added to the queue
+    check eventually queue.contains(rqi)
+    check queue[0] .availableSlotIndices == @[0'u64, 1'u64, 2'u64, 3'u64]
+
+  test "removes slot index from request queue once SlotFilled emitted":
+    let queue = sales.context.requestQueue
+    queue.onProcessRequest = proc(rqi: RequestQueueItem) = discard
+    let rqi = RequestQueueItem.init(request)
+    check queue.push(rqi).isOk
+    market.emitSlotFilled(request.id, 1.u256)
+    await sleepAsync(1.millis)
+    check queue[0].availableSlotIndices == @[0'u64, 2'u64, 3'u64]
+
+  test "adds slot index to request queue once SlotFreed emitted":
+    let queue = sales.context.requestQueue
+    queue.onProcessRequest = proc(rqi: RequestQueueItem) = discard
+    check isOk await reservations.reserve(availability)
+    await market.requestStorage(request)
+    let rqi = RequestQueueItem.init(request)
+    let slotIndex1 = 1.u256
+    let slotIndex2 = 2.u256
+    let slotId1 = slotId(request.id, slotIndex1)
+    let slotId2 = slotId(request.id, slotIndex2)
+    market.emitSlotFilled(request.id, slotIndex1)
+    market.emitSlotFilled(request.id, slotIndex2)
+    market.emitSlotFreed(request.id, slotIndex2, slotId2)
+    await sleepAsync(1.millis)
+    check queue[0].availableSlotIndices == @[0'u64, 3'u64, 2'u64]
+
+  test "removes request in queue if unknown request once SlotFreed emitted":
+    let queue = sales.context.requestQueue
+    queue.onProcessRequest = proc(rqi: RequestQueueItem) = discard
+    var rqi = RequestQueueItem.init(request)
+    rqi.availableSlotIndices = @[0'u64, 1'u64, 3'u64]
+    check queue.push(rqi).isOk
+    let slotIndex2 = 2.u256
+    let slotId2 = slotId(request.id, slotIndex2)
+    market.emitSlotFreed(request.id, slotIndex2, slotId2)
+    await sleepAsync(1.millis)
+    check not queue.contains(rqi)
 
   test "makes storage unavailable when downloading a matched request":
     var used = false

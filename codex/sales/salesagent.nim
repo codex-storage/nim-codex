@@ -4,6 +4,7 @@ import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
+import pkg/upraises
 import ../contracts/requests
 import ../utils/asyncspawn
 import ../rng
@@ -86,7 +87,6 @@ proc assignRandomSlotIndex*(agent: SalesAgent,
 
 proc subscribeCancellation(agent: SalesAgent) {.async.} =
   let data = agent.data
-  let market = agent.context.market
   let clock = agent.context.clock
 
   proc onCancelled() {.async.} =
@@ -94,54 +94,30 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
       return
 
     await clock.waitUntil(request.expiry.truncate(int64))
-    if not data.fulfilled.isNil:
-      asyncSpawn data.fulfilled.unsubscribe(), ignore = CatchableError
     agent.schedule(cancelledEvent(request))
 
   data.cancelled = onCancelled()
 
-  proc onFulfilled(_: RequestId) =
-    data.cancelled.cancel()
+method onFulfilled*(agent: SalesAgent, requestId: RequestId) {.base.} =
+  if agent.data.requestId == requestId:
+    agent.data.cancelled.cancel()
 
-  data.fulfilled =
-    await market.subscribeFulfillment(data.requestId, onFulfilled)
-
-proc subscribeFailure(agent: SalesAgent) {.async.} =
-  let data = agent.data
-  let market = agent.context.market
-
-  proc onFailed(_: RequestId) =
-    without request =? data.request:
-      return
-    asyncSpawn data.failed.unsubscribe(), ignore = CatchableError
+method onFailed*(agent: SalesAgent, requestId: RequestId) {.base.} =
+  without request =? agent.data.request:
+    return
+  if agent.data.requestId == requestId:
     agent.schedule(failedEvent(request))
 
-  data.failed =
-    await market.subscribeRequestFailed(data.requestId, onFailed)
-
-proc subscribeSlotFilled(agent: SalesAgent) {.async.} =
-  let data = agent.data
-  let market = agent.context.market
-
-  without slotIndex =? data.slotIndex:
-    raiseAssert("no slot index assigned")
-
-  proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
-    asyncSpawn data.slotFilled.unsubscribe(), ignore = CatchableError
+method onSlotFilled*(agent: SalesAgent, requestId: RequestId, slotIndex: UInt256) {.base.} =
+  if agent.data.requestId == requestId and
+     agent.data.slotIndex == some slotIndex:
     agent.schedule(slotFilledEvent(requestId, slotIndex))
-
-  data.slotFilled =
-    await market.subscribeSlotFilled(data.requestId,
-                                     slotIndex,
-                                     onSlotFilled)
 
 proc subscribe*(agent: SalesAgent) {.async.} =
   if agent.subscribed:
     return
 
   await agent.subscribeCancellation()
-  await agent.subscribeFailure()
-  await agent.subscribeSlotFilled()
   agent.subscribed = true
 
 proc unsubscribe*(agent: SalesAgent) {.async.} =
@@ -149,25 +125,7 @@ proc unsubscribe*(agent: SalesAgent) {.async.} =
     return
 
   let data = agent.data
-  try:
-    if not data.fulfilled.isNil:
-      await data.fulfilled.unsubscribe()
-      data.fulfilled = nil
-  except CatchableError:
-    discard
-  try:
-    if not data.failed.isNil:
-      await data.failed.unsubscribe()
-      data.failed = nil
-  except CatchableError:
-    discard
-  try:
-    if not data.slotFilled.isNil:
-      await data.slotFilled.unsubscribe()
-      data.slotFilled = nil
-  except CatchableError:
-    discard
-  if not data.cancelled.isNil:
+  if not data.cancelled.isNil and not data.cancelled.finished:
     await data.cancelled.cancelAndWait()
     data.cancelled = nil
 

@@ -12,6 +12,7 @@ import ./contracts/requests
 import ./sales/salescontext
 import ./sales/salesagent
 import ./sales/statemachine
+import ./sales/salessubscriptions
 import ./sales/requestqueue
 import ./sales/states/preparing
 import ./sales/states/unknown
@@ -43,8 +44,8 @@ logScope:
 type
   Sales* = ref object
     context*: SalesContext
-    subscription*: ?market.Subscription
     agents*: seq[SalesAgent]
+    subscriptions: SalesSubscriptions
 
 proc `onStore=`*(sales: Sales, onStore: OnStore) =
   sales.context.onStore = some onStore
@@ -75,6 +76,7 @@ func new*(_: type Sales,
       reservations: Reservations.new(repo),
       requestQueue: RequestQueue.new()
     ),
+    subscriptions: SalesSubscriptions.new()
   )
 
 proc handleRequest(sales: Sales, rqi: RequestQueueItem) =
@@ -117,11 +119,13 @@ proc load*(sales: Sales) {.async.} =
     agent.start(SaleUnknown())
     sales.agents.add agent
 
-proc subscribeRequestEvents(sales: Sales) {.async.} =
-  doAssert sales.subscription.isNone, "Sales already started"
-
+proc subscribeRequested(sales: Sales) {.async.} =
   let context = sales.context
   let market = context.market
+  let subs = sales.subscriptions
+
+  if subs.requested.isSome:
+    return
 
   proc onRequestEvent(requestId: RequestId,
                  ask: StorageAsk,
@@ -140,16 +144,136 @@ proc subscribeRequestEvents(sales: Sales) {.async.} =
                                                    ask.collateral,
                                                    used = false):
         let rqi = RequestQueueItem.init(requestId, ask, expiry)
-        requestQueue.pushOrUpdate(rqi)
+        if err =? requestQueue.pushOrUpdate(rqi).errorOption:
+          raise err
     except CatchableError as e:
       error "Error pushing request to RequestQueue", error = e.msg
       discard
 
   try:
-    sales.subscription =
+    subs.requested =
       some await market.subscribeRequests(onRequestEvent)
   except CatchableError as e:
     error "Unable to subscribe to storage request events", msg = e.msg
+
+proc subscribeCancellation(sales: Sales) {.async.} =
+  let context = sales.context
+  let market = context.market
+  let subs = sales.subscriptions
+  let queue = context.requestQueue
+
+  if subs.cancelled.isSome:
+    return
+
+  proc onCancelled(requestId: RequestId) =
+    queue.delete(requestId)
+
+  try:
+    subs.cancelled = some await market.subscribeRequestCancelled(onCancelled)
+  except CatchableError as e:
+    error "Unable to subscribe to cancellation events", msg = e.msg
+
+proc subscribeFulfilled*(sales: Sales) {.async.} =
+  let context = sales.context
+  let market = context.market
+  let subs = sales.subscriptions
+  let queue = context.requestQueue
+
+  if subs.fulfilled.isSome:
+    return
+
+  proc onFulfilled(requestId: RequestId) {.gcsafe, upraises: [].} =
+    queue.delete(requestId)
+
+    for agent in sales.agents:
+      try:
+        agent.onFulfilled(requestId)
+      except Exception as e:
+        # raised from dynamic dispatch
+        error "Error during sales agent onFulfilled callback", error = e.msg
+
+  try:
+    subs.fulfilled = some await market.subscribeFulfillment(onFulfilled)
+  except CatchableError as e:
+    error "Unable to subscribe to storage fulfilled events", msg = e.msg
+
+proc subscribeFailure(sales: Sales) {.async.} =
+  let context = sales.context
+  let market = context.market
+  let subs = sales.subscriptions
+  let queue = context.requestQueue
+
+  if subs.failed.isSome:
+    return
+
+  proc onFailed(requestId: RequestId) {.gcsafe, upraises: [].} =
+    queue.delete(requestId)
+
+    for agent in sales.agents:
+      try:
+        agent.onFailed(requestId)
+      except Exception as e:
+        # raised from dynamic dispatch
+        error "Error during sales agent onFailed callback", error = e.msg
+
+  try:
+    subs.failed = some await market.subscribeRequestFailed(onFailed)
+  except CatchableError as e:
+    error "Unable to subscribe to storage failure events", msg = e.msg
+
+proc subscribeSlotFilled(sales: Sales) {.async.} =
+  let context = sales.context
+  let market = context.market
+  let subs = sales.subscriptions
+  let queue = context.requestQueue
+
+  proc onSlotFilled(requestId: RequestId,
+      slotIndex: UInt256) {.gcsafe, upraises: [].} =
+
+    if err =? queue.removeAvailableSlotIndex(requestId, slotIndex.truncate(uint64)).errorOption:
+      error "Error removing slot index from request queue", error = err.msg
+
+    for agent in sales.agents:
+      try:
+        agent.onSlotFilled(requestId, slotIndex)
+      except Exception as e:
+        # raised from dynamic dispatch
+        error "Error during sales agent onSlotFilled callback", error = e.msg
+
+  try:
+    subs.slotFilled = some await market.subscribeSlotFilled(onSlotFilled)
+  except CatchableError as e:
+    error "Unable to subscribe to slot filled events", msg = e.msg
+
+proc subscribeSlotFreed(sales: Sales) {.async.} =
+  let context = sales.context
+  let market = context.market
+  let subs = sales.subscriptions
+  let queue = context.requestQueue
+
+  proc onSlotFreed(requestId: RequestId,
+      slotIndex: UInt256, _: SlotId) {.gcsafe, upraises: [].} =
+
+    try:
+      # retrieving the request requires the subscription callback to be async,
+      # which has been avoided on many occasions, so we are using `waitFor`.
+      if request =? waitFor market.getRequest(requestId):
+        let rqi = RequestQueueItem.init(request)
+        if err =? queue.addAvailableSlotIndex(rqi, slotIndex.truncate(uint64)).errorOption:
+          error "Error adding slot index to request queue", error = err.msg
+
+      else:
+        # contract doesn't seem to know about this request, so remove it from
+        # the queue
+        queue.delete(requestId)
+    except CatchableError, Exception:
+      let e = getCurrentException()
+      error "Exception during sales slot freed event handler", error = e.msg
+
+  try:
+    subs.slotFreed = some await market.subscribeSlotFreed(onSlotFreed)
+  except CatchableError as e:
+    error "Unable to subscribe to slot freed events", msg = e.msg
 
 proc startRequestQueue(sales: Sales) {.async.} =
   let requestQueue = sales.context.requestQueue
@@ -157,19 +281,66 @@ proc startRequestQueue(sales: Sales) {.async.} =
                                     sales.handleRequest(rqi)
   asyncSpawn requestQueue.start()
 
+proc subscribe(sales: Sales) {.async.} =
+  await sales.subscribeRequested()
+  await sales.subscribeFulfilled()
+  await sales.subscribeFailure()
+  await sales.subscribeSlotFilled()
+  await sales.subscribeSlotFreed()
+  await sales.subscribeCancellation()
+
+proc unsubscribe(sales: Sales) {.async.} =
+  let subs = sales.subscriptions
+
+  if requested =? subs.requested:
+    try:
+      await requested.unsubscribe()
+      subs.requested = none Subscription
+    except CatchableError as e:
+      error "Unable to unsubscribe from storage requested events", error = e.msg
+
+  if onFulfilled =? subs.fulfilled:
+    try:
+      await onFulfilled.unsubscribe()
+      subs.fulfilled = none Subscription
+    except CatchableError as e:
+      error "Unable to unsubscribe from storage fulfilled events", error = e.msg
+
+  if onFailure =? subs.failed:
+    try:
+      await onFailure.unsubscribe()
+      subs.failed = none Subscription
+    except CatchableError as e:
+      error "Unable to unsubscribe from storage failed events", error = e.msg
+
+  if onSlotFilled =? subs.slotFilled:
+    try:
+      await onSlotFilled.unsubscribe()
+      subs.slotFilled = none Subscription
+    except CatchableError as e:
+      error "Unable to unsubscribe from slot filled events", error = e.msg
+
+  if onSlotFreed =? subs.slotFreed:
+    try:
+      await onSlotFreed.unsubscribe()
+      subs.slotFreed = none Subscription
+    except CatchableError as e:
+      error "Unable to unsubscribe from slot freed events", error = e.msg
+
+  if onCancelled =? subs.cancelled:
+    try:
+      await onCancelled.unsubscribe()
+      subs.cancelled = none Subscription
+    except CatchableError as e:
+      error "Unable to unsubscribe from cancelled events", error = e.msg
+
 proc start*(sales: Sales) {.async.} =
   await sales.startRequestQueue()
-  await sales.subscribeRequestEvents()
+  await sales.subscribe()
 
 proc stop*(sales: Sales) {.async.} =
-  if subscription =? sales.subscription:
-    sales.subscription = market.Subscription.none
-    try:
-      await subscription.unsubscribe()
-    except CatchableError as e:
-      warn "Unsubscribe failed", msg = e.msg
-
   sales.context.requestQueue.stop()
+  await sales.unsubscribe()
 
   for agent in sales.agents:
     await agent.stop()
