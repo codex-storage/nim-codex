@@ -130,7 +130,7 @@ proc load*(sales: Sales) {.async.} =
       slot.slotIndex,
       some slot.request)
 
-      agent.context.onCleanUp = proc {.async.} = await sales.remove(agent)
+    agent.context.onCleanUp = proc {.async.} = await sales.remove(agent)
 
     agent.start(SaleUnknown())
     sales.agents.add agent
