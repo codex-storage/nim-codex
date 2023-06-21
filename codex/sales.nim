@@ -100,20 +100,28 @@ proc handleRequest(sales: Sales,
   agent.start(SaleDownloading())
   sales.agents.add agent
 
-proc load*(sales: Sales) {.async.} =
+proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
   let market = sales.context.market
-
   let slotIds = await market.mySlots()
+  var slots: seq[Slot] = @[]
 
   for slotId in slotIds:
     if slot =? (await market.getActiveSlot(slotId)):
-      let agent = newSalesAgent(
-        sales.context,
-        slot.request.id,
-        slot.slotIndex,
-        some slot.request)
-      agent.start(SaleUnknown())
-      sales.agents.add agent
+      slots.add slot
+
+  return slots
+
+proc load*(sales: Sales) {.async.} =
+  let slots = await sales.mySlots()
+
+  for slot in slots:
+    let agent = newSalesAgent(
+      sales.context,
+      slot.request.id,
+      slot.slotIndex,
+      some slot.request)
+    agent.start(SaleUnknown())
+    sales.agents.add agent
 
 proc start*(sales: Sales) {.async.} =
   doAssert sales.subscription.isNone, "Sales already started"

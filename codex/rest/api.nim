@@ -24,8 +24,11 @@ import pkg/stew/base10
 import pkg/stew/byteutils
 import pkg/confutils
 
+import pkg/libp2p
 import pkg/libp2p/routing_record
 import pkg/libp2pdht/discv5/spr as spr
+import pkg/libp2pdht/discv5/routing_table as rt
+import pkg/libp2pdht/discv5/node as dn
 
 import ../node
 import ../blocktype
@@ -44,6 +47,47 @@ proc validate(
   value: string): int
   {.gcsafe, raises: [Defect].} =
   0
+
+proc formatAddress(address: Option[dn.Address]): string =
+  if address.isSome():
+    return $address.get()
+  return "<none>"
+
+proc formatNode(node: dn.Node): JsonNode =
+  let jobj = %*{
+    "nodeId": $node.id,
+    "peerId": $node.record.data.peerId,
+    "record": $node.record,
+    "address": formatAddress(node.address),
+    "seen": $node.seen
+  }
+  return jobj
+
+proc formatTable(routingTable: rt.RoutingTable): JsonNode =
+  let jarray = newJArray()
+  for bucket in routingTable.buckets:
+    for node in bucket.nodes:
+      jarray.add(formatNode(node))
+
+  let jobj = %*{
+    "localNode": formatNode(routingTable.localNode),
+    "nodes": jarray
+  }
+  return jobj
+
+proc formatPeerRecord(peerRecord: PeerRecord): JsonNode =
+  let jarray = newJArray()
+  for maddr in peerRecord.addresses:
+    jarray.add(%*{
+      "address": $maddr.address
+    })
+
+  let jobj = %*{
+    "peerId": $peerRecord.peerId,
+    "seqNo": $peerRecord.seqNo,
+    "addresses": jarray
+  }
+  return jobj
 
 proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   var router = RestRouter.init(validate)
@@ -244,13 +288,41 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
               node.discovery.dhtRecord.get.toURI
             else:
               "",
+          "table": formatTable(node.discovery.protocol.routingTable),
           "codex": {
             "version": $codexVersion,
             "revision": $codexRevision
           }
         }
 
-      return RestApiResponse.response($json)
+      return RestApiResponse.response($json, contentType="application/json")
+
+  when codex_enable_api_debug_peers:
+    router.api(
+      MethodGet,
+      "/api/codex/v1/debug/peer/{peerId}") do (peerId: PeerId) -> RestApiResponse:
+
+        trace "debug/peer start"
+        without peerRecord =? (await node.findPeer(peerId.get())):
+          trace "debug/peer peer not found!"
+          return RestApiResponse.error(
+            Http400,
+            "Unable to find Peer!")
+
+        let json = formatPeerRecord(peerRecord)
+        trace "debug/peer returning peer record"
+        return RestApiResponse.response($json)
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/sales/slots") do () -> RestApiResponse:
+      ## Returns active slots for the host
+
+      without contracts =? node.contracts.host:
+        return RestApiResponse.error(Http503, "Sales unavailable")
+
+      let json = %(await contracts.sales.mySlots())
+      return RestApiResponse.response($json, contentType="application/json")
 
   router.api(
     MethodGet,
@@ -264,7 +336,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         return RestApiResponse.error(Http500, err.msg)
 
       let json = %unused
-      return RestApiResponse.response($json)
+      return RestApiResponse.response($json, contentType="application/json")
 
   router.rawApi(
     MethodPost,
@@ -293,7 +365,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         return RestApiResponse.error(Http500, err.msg)
 
       let json = %availability
-      return RestApiResponse.response($json)
+      return RestApiResponse.response($json, contentType="application/json")
 
   router.api(
     MethodGet,
@@ -311,7 +383,6 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
       let json = %purchase
 
-      return RestApiResponse.response($json)
-
+      return RestApiResponse.response($json, contentType="application/json")
 
   return router

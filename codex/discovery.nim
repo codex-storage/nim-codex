@@ -35,7 +35,7 @@ logScope:
 
 type
   Discovery* = ref object of RootObj
-    protocol: discv5.Protocol           # dht protocol
+    protocol*: discv5.Protocol           # dht protocol
     key: PrivateKey                     # private key
     peerId: PeerId                      # the peer id of the local node
     announceAddrs: seq[MultiAddress]    # addresses announced as part of the provider records
@@ -58,13 +58,16 @@ proc toNodeId*(host: ca.Address): NodeId =
 proc findPeer*(
   d: Discovery,
   peerId: PeerId): Future[?PeerRecord] {.async.} =
+  trace "protocol.resolve..."
   let
     node = await d.protocol.resolve(toNodeId(peerId))
 
   return
     if node.isSome():
+      trace "protocol.resolve some data"
       node.get().record.data.some
     else:
+      trace "protocol.resolve none"
       PeerRecord.none
 
 method find*(
@@ -127,16 +130,10 @@ method provide*(d: Discovery, host: ca.Address) {.async, base.} =
     trace "Provided to nodes", nodes = nodes.len
 
 method removeProvider*(d: Discovery, peerId: PeerId): Future[void] {.base.} =
-  ## Remove provider from providers table
-  ##
-
   trace "Removing provider", peerId
   d.protocol.removeProvidersLocal(peerId)
 
 proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
-  ## Update providers record
-  ##
-
   d.announceAddrs = @addrs
 
   trace "Updating announce record", addrs = d.announceAddrs
@@ -149,9 +146,6 @@ proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
       .expect("Should update SPR")
 
 proc updateDhtRecord*(d: Discovery, ip: ValidIpAddress, port: Port) =
-  ## Update providers record
-  ##
-
   trace "Updating Dht record", ip, port = $port
   d.dhtRecord = SignedPeerRecord.init(
     d.key, PeerRecord.init(d.peerId, @[
@@ -159,6 +153,10 @@ proc updateDhtRecord*(d: Discovery, ip: ValidIpAddress, port: Port) =
         ip,
         IpTransportProtocol.udpProtocol,
         port)])).expect("Should construct signed record").some
+
+  if not d.protocol.isNil:
+    d.protocol.updateRecord(d.dhtRecord)
+      .expect("Should update SPR")
 
 proc start*(d: Discovery) {.async.} =
   d.protocol.open()

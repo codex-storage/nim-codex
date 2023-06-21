@@ -1,77 +1,27 @@
 services:
   codex-node1:
-    image: clustertest-nim-codex
-    build:
-      context: ../.
-      dockerfile: docker/codex.Dockerfile
+    image: status-im/codexsetup.slim:latest
     ports:
       - 8080:8080
     # Available environment variables:
-    # environment:
-      # - LOG_LEVEL=TRACE
-      # - METRICS_ADDR=0.0.0.0
-      # - METRICS_PORT=9090
-      # - NAT_IP=2.3.4.5
-      # - API_PORT=8080
-      # - DISC_IP=3.4.5.6
-      # - DISC_PORT=8765
-      # - NET_PRIVKEY=privkey
-      # - BOOTSTRAP_SPR=bootstrap_record
-      # - MAX_PEERS=123
-      # - AGENT_STRING=agent_string
-      # - STORAGE_QUOTA=123456789
-      # - BLOCK_TTL=23456
-      # - CACHE_SIZE=6543
-      # - ETH_PROVIDER=eth
-      # - ETH_ACCOUNT=account
-      # - ETH_DEPLOYMENT=deploy
-    volumes:
-      - ./hostdatadir/node1:/datadir
-    networks:
-      - primary
-
-  # Example with metrics enabled.
-  codex-node2:
-    image: clustertest-nim-codex
-    ports:
-      - 8081:8080
-      - 9090:9090
     environment:
+      - LOG_LEVEL=TRACE
       - METRICS_ADDR=0.0.0.0
       - METRICS_PORT=9090
-    volumes:
-      - ./hostdatadir/node2:/datadir
-    depends_on:
-      - codex-node1
-    networks:
-      - primary
-      - secondary
+      - NAT_IP=2.3.4.5
+      - API_PORT=8080
+      - DISC_IP=3.4.5.6
+      - DISC_PORT=8765
+      - NET_PRIVKEY=privkey
+      - BOOTSTRAP_SPR=bootstrap_record
+      - MAX_PEERS=123
+      - AGENT_STRING=agent_string
+      - STORAGE_QUOTA=123456789
+      - BLOCK_TTL=23456
+      - CACHE_SIZE=6543
+      - ETH_PROVIDER=eth
+      - ETH_ACCOUNT=account
+      - ETH_MARKETPLACE_ADDRESS=0x59b670e9fA9D0A427751Af201D676719a970857b
+      - SIMULATE_PROOF_FAILURES=2
 
-  codex-node3:
-    image: clustertest-nim-codex
-    ports:
-      - 8082:8080
-    volumes:
-      - ./hostdatadir/node3:/datadir
-    depends_on:
-      - codex-node1
-    networks:
-      - secondary
 
-  prometheus:
-    image: prom/prometheus:v2.30.3
-    ports:
-      - 9000:9090
-    volumes:
-      - ./prometheus:/etc/prometheus
-      - ./prometheus-data:/prometheus
-    command: --web.enable-lifecycle --config.file=/etc/prometheus/prometheus.yml
-    networks:
-      - primary
-      - secondary
-
-networks:
-  primary:
-    name: primary
-  secondary:
-    name: secondary

@@ -40,11 +40,11 @@ components:
 
     Duration:
       type: string
-      description: The duration of the request in seconds as hexadecimal string
+      description: The duration of the request in seconds as decimal string
 
     ProofProbability:
       type: string
-      description: How often storage proofs are required as hexadecimal string
+      description: How often storage proofs are required as decimal string
 
     Expiry:
       type: string
@@ -106,15 +106,27 @@ components:
           description: Hexadecimal identifier of the availability
         size:
           type: string
-          description: Size of available storage in bytes as hexadecimal string
+          description: Size of available storage in bytes as decimal string
         duration:
           $ref: "#/components/schemas/Duration"
         minPrice:
           type: string
-          description: Minimum price to be paid (in amount of tokens) as hexadecimal string
+          description: Minimum price to be paid (in amount of tokens) as decimal string
         maxCollateral:
           type: string
-          description: Maximum collateral user is willing to pay per filled Slot (in amount of tokens)
+          description: Maximum collateral user is willing to pay per filled Slot (in amount of tokens) as decimal string
+
+    Slot:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Slot ID
+        request:
+          $ref: "#/components/schemas/StorageRequest"
+        slotIndex:
+          type: string
+          description: Slot Index as hexadecimal string
 
     StorageRequestCreation:
       type: object
@@ -152,7 +164,7 @@ components:
           description: Number of slots (eq. hosts) that the Request want to have the content spread over
         slotSize:
           type: string
-          description: Amount of storage per slot (in bytes) as hexadecimal string
+          description: Amount of storage per slot (in bytes) as decimal string
         duration:
           $ref: "#/components/schemas/Duration"
         proofProbability:
@@ -166,6 +178,9 @@ components:
     StorageRequest:
       type: object
       properties:
+        id:
+          type: string
+          description: Request ID
         client:
           $ref: "#/components/schemas/EthereumAddress"
         ask:
@@ -286,14 +301,32 @@ paths:
         "500":
           description: Well it was bad-bad and the upload did not work out
 
+  "/sales/slots":
+    get:
+      summary: "Returns active slots"
+      tags: [ Marketplace ]
+      operationId: getActiveSlots
+      responses:
+        "200":
+          description: Retrieved active slots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Slot"
+
+        "503":
+          description: Sales are unavailable
+
   "/sales/availability":
     get:
       summary: "Returns storage that is for sale"
       tags: [ Marketplace ]
-      operationId: getsOfferedStorage
+      operationId: getOfferedStorage
       responses:
         "200":
-          description: Retrieved content specified by CID
+          description: Retrieved storage availabilities of the node
           content:
             application/json:
               schema:
@@ -373,7 +406,7 @@ paths:
               $ref: "#/components/schemas/StorageRequestCreation"
       responses:
         "200":
-          description: Returns the Request ID as hexadecimal string
+          description: Returns the Request ID as decimal string
         "400":
           description: Invalid or missing Request ID
         "404":

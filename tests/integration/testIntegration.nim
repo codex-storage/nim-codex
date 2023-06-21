@@ -2,7 +2,8 @@ import std/json
 import pkg/chronos
 import pkg/stint
 import pkg/ethers/erc20
-import codex/contracts
+import pkg/codex/contracts
+import pkg/codex/utils/stintutils
 import ../contracts/time
 import ../contracts/deployment
 import ../codex/helpers/eventually
@@ -52,9 +53,9 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     let cid = client1.upload("some file contents")
     let id = client1.requestStorage(cid, duration=1, reward=2, proofProbability=3, expiry=expiry, collateral=200)
     let purchase = client1.getPurchase(id)
-    check purchase{"request"}{"ask"}{"duration"} == %"0x1"
-    check purchase{"request"}{"ask"}{"reward"} == %"0x2"
-    check purchase{"request"}{"ask"}{"proofProbability"} == %"0x3"
+    check purchase{"request"}{"ask"}{"duration"} == %"1"
+    check purchase{"request"}{"ask"}{"reward"} == %"2"
+    check purchase{"request"}{"ask"}{"proofProbability"} == %"3"
 
   test "node remembers purchase status after restart":
     let expiry = (await provider.currentTime()) + 30
@@ -66,8 +67,8 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     client1.restart()
 
     check eventually (not isNil client1.getPurchase(id){"request"}{"ask"})
-    check client1.getPurchase(id){"request"}{"ask"}{"duration"} == %"0x1"
-    check client1.getPurchase(id){"request"}{"ask"}{"reward"} == %"0x2"
+    check client1.getPurchase(id){"request"}{"ask"}{"duration"} == %"1"
+    check client1.getPurchase(id){"request"}{"ask"}{"reward"} == %"2"
 
   test "nodes negotiate contracts on the marketplace":
     let size: uint64 = 0xFFFFF
@@ -83,7 +84,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check client1.getPurchase(purchase){"error"} == newJNull()
     let availabilities = client2.getAvailabilities()
     check availabilities.len == 1
-    let newSize = UInt256.fromHex(availabilities[0]{"size"}.getStr)
+    let newSize = UInt256.fromDecimal(availabilities[0]{"size"}.getStr)
     check newSize > 0 and newSize < size.u256
 
   test "node slots gets paid out":

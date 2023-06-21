@@ -54,7 +54,7 @@ For example, to configure `--log-level`, use `CODEX_LOG_LEVEL` as the environmen
 A [TOML](https://toml.io/en/) configuration file can also be used to set configuration values. Configuration option names and corresponding values are placed in the file, separated by `=`. Configuration option names can be obtained from the `codex --help` command, and should not include the `--` prefix. For example, a node's log level (`--log-level`) can be configured using TOML as follows:
 
 ```toml
-log-level = "TRACE"
+log-level = "trace"
 ```
 
 The Codex node can then read the configuration from this file using the `--config-file` CLI parameter, like `codex --config-file=/path/to/your/config.toml`.
@@ -70,7 +70,7 @@ codex [OPTIONS]... command
 The following options are available:
 
      --config-file          Loads the configuration from a TOML file [=none].
-     --log-level            Sets the log level [=INFO].
+     --log-level            Sets the log level [=info].
      --metrics              Enable the metrics server [=false].
      --metrics-address      Listening address of the metrics server [=127.0.0.1].
      --metrics-port         Listening HTTP port of the metrics server [=8008].
@@ -111,9 +111,9 @@ codex initNode
 Codex uses [Chronicles](https://github.com/status-im/nim-chronicles) logging library, which allows great flexibility in working with logs.
 Chronicles has the concept of topics, which categorize log entries into semantic groups.
 
-Using the `log-level` parameter, you can set the top-level log level like `--log-level="TRACE"`, but more importantly,
-you can set log levels for specific topics like `--log-level="INFO; TRACE: marketplace,node; ERROR: blockexchange"`,
-which sets the top-level log level to `INFO` and then for topics `marketplace` and `node` sets the level to `TRACE` and so on.
+Using the `log-level` parameter, you can set the top-level log level like `--log-level="trace"`, but more importantly,
+you can set log levels for specific topics like `--log-level="info; trace: marketplace,node; error: blockexchange"`,
+which sets the top-level log level to `info` and then for topics `marketplace` and `node` sets the level to `trace` and so on.
 
 ### Example: running two Codex clients
 
