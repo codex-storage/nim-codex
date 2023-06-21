@@ -3,7 +3,6 @@ import std/os
 from std/times import getTime, toUnix
 import pkg/chronicles
 import codex/contracts/marketplace
-import codex/contracts/deployment
 import codex/periods
 import ../contracts/time
 import ../contracts/deployment
@@ -112,9 +111,7 @@ multinodesuite "Simulate invalid proofs",
   var slotId: SlotId
 
   setup:
-    let deployment = Deployment.new(provider, configFactory())
-    let address = await deployment.address(Marketplace)
-    marketplace = Marketplace.new(!address, provider)
+    marketplace = Marketplace.new(Marketplace.address, provider)
     let config = await marketplace.config()
     period = config.proofs.period.truncate(uint64)
     slotId = SlotId(array[32, byte].default) # ensure we aren't reusing from prev test
