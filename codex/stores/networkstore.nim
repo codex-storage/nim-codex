@@ -47,9 +47,10 @@ method getBlock*(self: NetworkStore, cid: Cid): Future[?!bt.Block] {.async.} =
   return success blk
 
 method putBlock*(
-  self: NetworkStore,
-  blk: bt.Block,
-  ttl = Duration.none): Future[?!void] {.async.} =
+    self: NetworkStore,
+    blk: bt.Block,
+    ttl = Duration.none
+): Future[?!void] {.async.} =
   ## Store block locally and notify the network
   ##
 

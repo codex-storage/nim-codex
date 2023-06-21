@@ -60,9 +60,10 @@ template withExceptions(body: untyped) =
     raise newException(LPStreamError, exc.msg)
 
 method readOnce*(
-  self: AsyncStreamWrapper,
-  pbytes: pointer,
-  nbytes: int): Future[int] {.async.} =
+    self: AsyncStreamWrapper,
+    pbytes: pointer,
+    nbytes: int
+): Future[int] {.async.} =
 
   trace "Reading bytes from reader", bytes = nbytes
   if isNil(self.reader):
@@ -78,7 +79,8 @@ method readOnce*(
 proc completeWrite(
     self: AsyncStreamWrapper,
     fut: Future[void],
-    msgLen: int): Future[void] {.async.} =
+    msgLen: int
+): Future[void] {.async.} =
 
   withExceptions:
     await fut

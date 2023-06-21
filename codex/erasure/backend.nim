@@ -23,17 +23,25 @@ type
   DecoderBackend* = ref object of Backend
 
 method release*(self: Backend) {.base.} =
+  ## release the backend
+  ## 
   raiseAssert("not implemented!")
 
 method encode*(
-  self: EncoderBackend,
-  buffers,
-  parity: var openArray[seq[byte]]): Result[void, cstring] {.base.} =
+    self: EncoderBackend,
+    buffers,
+    parity: var openArray[seq[byte]]
+): Result[void, cstring] {.base.} =
+  ## encode buffers using a backend
+  ## 
   raiseAssert("not implemented!")
 
 method decode*(
-  self: DecoderBackend,
-  buffers,
-  parity,
-  recovered: var openArray[seq[byte]]): Result[void, cstring] {.base.} =
+    self: DecoderBackend,
+    buffers,
+    parity,
+    recovered: var openArray[seq[byte]]
+): Result[void, cstring] {.base.} =
+  ## decode buffers using a backend
+  ## 
   raiseAssert("not implemented!")

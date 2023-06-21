@@ -22,9 +22,11 @@ type
     decoder*: Option[LeoDecoder]
 
 method encode*(
-  self: LeoEncoderBackend,
-  data,
-  parity: var openArray[seq[byte]]): Result[void, cstring] =
+    self: LeoEncoderBackend,
+    data,
+    parity: var openArray[seq[byte]]
+): Result[void, cstring] =
+  ## Encode data using Leopard backend
 
   if parity.len == 0:
     return ok()
@@ -46,7 +48,7 @@ method decode*(
     parity,
     recovered: var openArray[seq[byte]]
 ): Result[void, cstring] =
-  ## Decode data using given Leopard Decoder backend
+  ## Decode data using given Leopard backend
 
   var decoder =
     if self.decoder.isNone:

@@ -34,8 +34,9 @@ type
     Empty, Full
 
 proc newAsyncHeapQueue*[T](
-  maxsize: int = 0,
-  queueType: QueueType = QueueType.Min): AsyncHeapQueue[T] =
+    maxsize: int = 0,
+    queueType: QueueType = QueueType.Min
+): AsyncHeapQueue[T] =
   ## Creates a new asynchronous queue ``AsyncHeapQueue``.
   ##
 

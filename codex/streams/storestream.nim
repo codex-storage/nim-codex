@@ -42,7 +42,7 @@ proc new*(
     store: BlockStore,
     manifest: Manifest,
     pad = true
-): T =
+): StoreStream =
   ## Create a new StoreStream instance for a given store and manifest
   ## 
   result = StoreStream(

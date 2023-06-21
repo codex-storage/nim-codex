@@ -14,8 +14,9 @@ type
   CodexResult*[T] = Result[T, ref CodexError]
 
 template mapFailure*(
-  exp: untyped,
-  exc: typed = type CodexError): untyped =
+    exp: untyped,
+    exc: typed = type CodexError
+): untyped =
   ## Convert `Result[T, E]` to `Result[E, ref CatchableError]`
   ##
 

@@ -18,11 +18,10 @@ type
   Before* = proc(): Future[void] {.gcsafe.}
   After* = proc(): Future[void] {.gcsafe.}
 
-proc commonBlockStoreTests*(
-  name: string,
-  provider: StoreProvider,
-  before: Before = nil,
-  after: After = nil) =
+proc commonBlockStoreTests*(name: string,
+                            provider: StoreProvider,
+                            before: Before = nil,
+                            after: After = nil) =
 
   suite name & " Store Common":
     var

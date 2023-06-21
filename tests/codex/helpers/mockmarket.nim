@@ -138,7 +138,7 @@ method getActiveSlot*(
   return none Slot
 
 method requestState*(market: MockMarket,
-                 requestId: RequestId): Future[?RequestState] {.async.} =
+                     requestId: RequestId): Future[?RequestState] {.async.} =
   return market.requestState.?[requestId]
 
 method slotState*(market: MockMarket,

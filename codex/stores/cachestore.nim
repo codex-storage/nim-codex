@@ -79,8 +79,9 @@ func cids(self: CacheStore): (iterator: Cid {.gcsafe.}) =
       yield cid
 
 method listBlocks*(
-  self: CacheStore,
-  blockType = BlockType.Manifest): Future[?!BlocksIter] {.async.} =
+    self: CacheStore,
+    blockType = BlockType.Manifest
+): Future[?!BlocksIter] {.async.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 

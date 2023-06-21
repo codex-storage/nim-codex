@@ -51,7 +51,13 @@ type
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
 
-proc bootstrapInteractions(config: CodexConf, repo: RepoStore): Future[Contracts] {.async.} =
+proc bootstrapInteractions(
+    config: CodexConf,
+    repo: RepoStore
+): Future[Contracts] {.async.} =
+  ## bootstrap interactions and return contracts 
+  ## using clients, hosts, validators pairings
+  ## 
 
   if not config.persistence and not config.validator:
     if config.ethAccount.isSome:

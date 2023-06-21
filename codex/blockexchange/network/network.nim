@@ -102,12 +102,16 @@ proc handleWantList(
 
 # TODO: make into a template
 proc makeWantList*(
-  cids: seq[Cid],
-  priority: int = 0,
-  cancel: bool = false,
-  wantType: WantType = WantType.WantHave,
-  full: bool = false,
-  sendDontHave: bool = false): Wantlist =
+    cids: seq[Cid],
+    priority: int = 0,
+    cancel: bool = false,
+    wantType: WantType = WantType.WantHave,
+    full: bool = false,
+    sendDontHave: bool = false
+): Wantlist =
+  ## make list of wanted entries
+  ## 
+  
   Wantlist(
     entries: cids.mapIt(
       Entry(
@@ -119,14 +123,15 @@ proc makeWantList*(
     full: full)
 
 proc sendWantList*(
-  b: BlockExcNetwork,
-  id: PeerId,
-  cids: seq[Cid],
-  priority: int32 = 0,
-  cancel: bool = false,
-  wantType: WantType = WantType.WantHave,
-  full: bool = false,
-  sendDontHave: bool = false): Future[void] =
+    b: BlockExcNetwork,
+    id: PeerId,
+    cids: seq[Cid],
+    priority: int32 = 0,
+    cancel: bool = false,
+    wantType: WantType = WantType.WantHave,
+    full: bool = false,
+    sendDontHave: bool = false
+): Future[void] =
   ## Send a want message to peer
   ##
 
@@ -142,9 +147,10 @@ proc sendWantList*(
   b.send(id, Message(wantlist: msg))
 
 proc handleBlocks(
-  b: BlockExcNetwork,
-  peer: NetworkPeer,
-  blocks: seq[pb.Block]) {.async.} =
+    b: BlockExcNetwork,
+    peer: NetworkPeer,
+    blocks: seq[pb.Block]
+) {.async.} =
   ## Handle incoming blocks
   ##
 
@@ -203,9 +209,10 @@ proc sendBlockPresence*(
   b.send(id, Message(blockPresences: @presence))
 
 proc handleAccount(
-  network: BlockExcNetwork,
-  peer: NetworkPeer,
-  account: Account) {.async.} =
+    network: BlockExcNetwork,
+    peer: NetworkPeer,
+    account: Account
+) {.async.} =
   ## Handle account info
   ##
 
@@ -213,34 +220,43 @@ proc handleAccount(
     await network.handlers.onAccount(peer.id, account)
 
 proc sendAccount*(
-  b: BlockExcNetwork,
-  id: PeerId,
-  account: Account): Future[void] =
+    b: BlockExcNetwork,
+    id: PeerId,
+    account: Account
+): Future[void] =
   ## Send account info to remote
   ##
 
   b.send(id, Message(account: AccountMessage.init(account)))
 
 proc sendPayment*(
-  b: BlockExcNetwork,
-  id: PeerId,
-  payment: SignedState): Future[void] =
+    b: BlockExcNetwork,
+    id: PeerId,
+    payment: SignedState
+): Future[void] =
   ## Send payment to remote
   ##
 
   b.send(id, Message(payment: StateChannelUpdate.init(payment)))
 
 proc handlePayment(
-  network: BlockExcNetwork,
-  peer: NetworkPeer,
-  payment: SignedState) {.async.} =
+    network: BlockExcNetwork,
+    peer: NetworkPeer,
+    payment: SignedState
+) {.async.} =
   ## Handle payment
   ##
 
   if not network.handlers.onPayment.isNil:
     await network.handlers.onPayment(peer.id, payment)
 
-proc rpcHandler(b: BlockExcNetwork, peer: NetworkPeer, msg: Message) {.async.} =
+proc rpcHandler(
+    b: BlockExcNetwork,
+    peer: NetworkPeer,
+    msg: Message
+) {.async.} =
+  ## handle rpc messages
+  ## 
   try:
     if msg.wantlist.entries.len > 0:
       asyncSpawn b.handleWantList(peer, msg.wantlist)

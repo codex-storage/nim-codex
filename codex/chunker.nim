@@ -65,7 +65,10 @@ func new*(
     chunkSize = DefaultChunkSize,
     pad = true
 ): Chunker =
-  Chunker(reader: reader,
+  ## create a new Chunker instance
+  ##
+  Chunker(
+    reader: reader,
     offset: 0,
     chunkSize: chunkSize,
     pad: pad)
@@ -93,7 +96,7 @@ proc new*(
 
     return res
 
-  T.new(
+  LPStreamChunker.new(
     reader = reader,
     chunkSize = chunkSize,
     pad = pad)

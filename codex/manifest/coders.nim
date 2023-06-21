@@ -166,8 +166,9 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
   self.success
 
 proc encode*(
-  self: Manifest,
-  encoder = ManifestContainers[$DagPBCodec]): ?!seq[byte] =
+    self: Manifest,
+    encoder = ManifestContainers[$DagPBCodec]
+): ?!seq[byte] =
   ## Encode a manifest using `encoder`
   ##
 
@@ -177,9 +178,10 @@ proc encode*(
   encoder.encode(self)
 
 func decode*(
-  _: type Manifest,
-  data: openArray[byte],
-  decoder = ManifestContainers[$DagPBCodec]): ?!Manifest =
+    _: type Manifest,
+    data: openArray[byte],
+    decoder = ManifestContainers[$DagPBCodec]
+): ?!Manifest =
   ## Decode a manifest using `decoder`
   ##
 
