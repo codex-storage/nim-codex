@@ -22,9 +22,6 @@ type
 func new*(T: type Proving, market: Market, clock: Clock): T =
   T(market: market, clock: clock)
 
-method init*(proving: Proving) {.base, async.} =
-  discard
-
 proc onProve*(proving: Proving): ?OnProve =
   proving.onProve
 
@@ -89,8 +86,6 @@ proc run(proving: Proving) {.async.} =
 proc start*(proving: Proving) {.async.} =
   if proving.loop.isSome:
     return
-
-  await proving.init()
 
   proving.loop = some proving.run()
 

@@ -88,7 +88,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check newSize > 0 and newSize < size.u256
 
   test "node slots gets paid out":
-    var marketplace = Marketplace.new(Marketplace.address, provider.getSigner())
+    let marketplace = Marketplace.new(Marketplace.address, provider.getSigner())
     let tokenAddress = await marketplace.token()
     let token = Erc20Token.new(tokenAddress, provider.getSigner())
     let reward: uint64 = 400

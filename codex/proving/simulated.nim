@@ -26,13 +26,6 @@ when codex_enable_proof_failures:
     p.failEveryNProofs = failEveryNProofs
     return p
 
-  method init(proving: SimulatedProving) {.async.} =
-    if proving.failEveryNProofs > 0'u and await proving.market.isMainnet():
-      warn "Connected to mainnet, simulated proof failures will not be run. " &
-          "Consider changing the value of --simulate-proof-failures and/or " &
-          "--eth-provider."
-      proving.failEveryNProofs = 0'u
-
   proc onSubmitProofError(error: ref CatchableError, period: UInt256) =
     error "Submitting invalid proof failed", period, msg = error.msg
 

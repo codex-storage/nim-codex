@@ -185,11 +185,3 @@ suite "Simulated proving":
     await newSimulatedProving(failEveryNProofs)
     await market.waitForProvingRounds(totalProofs)
     check submitted == proof.repeat(totalProofs)
-
-  test "does not submit invalid proofs when current chain is mainnet":
-    let failEveryNProofs = 3'u
-    let totalProofs = 6'u
-    market.setMainnet(true)
-    await newSimulatedProving(failEveryNProofs)
-    await market.waitForProvingRounds(totalProofs)
-    check submitted == proof.repeat(totalProofs)
