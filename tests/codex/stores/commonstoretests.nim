@@ -79,6 +79,11 @@ proc commonBlockStoreTests*(
 
       check not (await store.hasBlock(newBlock1.cid)).tryGet()
 
+    test "delBlock silently ignores missing block":
+      check:
+        not (await store.hasBlock(newBlock1.cid)).tryGet()
+        not (await store.delBlock(newBlock1.cid)).isErr
+
     test "listBlocks Blocks":
       let
         blocks = @[newBlock1, newBlock2, newBlock3]

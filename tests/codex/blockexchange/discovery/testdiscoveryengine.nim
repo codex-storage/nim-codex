@@ -46,7 +46,7 @@ suite "Test Discovery Engine":
 
   test "Should Query Wants":
     var
-      localStore = CacheStore.new()
+      localStore = MemoryStore.new()
       discoveryEngine = DiscoveryEngine.new(
         localStore,
         peerStore,
@@ -66,7 +66,7 @@ suite "Test Discovery Engine":
 
   test "Should Advertise Haves":
     var
-      localStore = CacheStore.new(blocks.mapIt( it ))
+      localStore = MemoryStore.new(blocks.mapIt( it ))
       discoveryEngine = DiscoveryEngine.new(
         localStore,
         peerStore,
@@ -90,7 +90,7 @@ suite "Test Discovery Engine":
 
   test "Should queue discovery request":
     var
-      localStore = CacheStore.new()
+      localStore = MemoryStore.new()
       discoveryEngine = DiscoveryEngine.new(
         localStore,
         peerStore,
@@ -113,7 +113,7 @@ suite "Test Discovery Engine":
 
   test "Should queue advertise request":
     var
-      localStore = CacheStore.new(@[blocks[0]])
+      localStore = MemoryStore.new(@[blocks[0]])
       discoveryEngine = DiscoveryEngine.new(
         localStore,
         peerStore,
@@ -135,7 +135,7 @@ suite "Test Discovery Engine":
 
   test "Should not request more than minPeersPerBlock":
     var
-      localStore = CacheStore.new()
+      localStore = MemoryStore.new()
       minPeers = 2
       discoveryEngine = DiscoveryEngine.new(
         localStore,
@@ -170,7 +170,7 @@ suite "Test Discovery Engine":
 
   test "Should not request if there is already an inflight discovery request":
     var
-      localStore = CacheStore.new()
+      localStore = MemoryStore.new()
       discoveryEngine = DiscoveryEngine.new(
         localStore,
         peerStore,
@@ -204,7 +204,7 @@ suite "Test Discovery Engine":
 
   test "Should not request if there is already an inflight advertise request":
     var
-      localStore = CacheStore.new()
+      localStore = MemoryStore.new()
       discoveryEngine = DiscoveryEngine.new(
         localStore,
         peerStore,

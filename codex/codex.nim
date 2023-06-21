@@ -9,7 +9,6 @@
 
 import std/sequtils
 import std/os
-import std/tables
 
 import pkg/chronicles
 import pkg/chronos
@@ -47,7 +46,7 @@ type
     restServer: RestServerRef
     codexNode: CodexNodeRef
     repoStore: RepoStore
-    maintenance: BlockMaintainer
+    blockMaintainer: BlockMaintainer
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
 
@@ -96,11 +95,11 @@ proc start*(s: CodexServer) {.async.} =
   notice "Starting codex node"
 
   await s.repoStore.start()
+  s.blockMaintainer.start()
   s.restServer.start()
 
   s.codexNode.contracts = await bootstrapInteractions(s.config, s.repoStore)
   await s.codexNode.start()
-  s.maintenance.start()
 
   let
     # TODO: Can't define these as constants, pity
@@ -137,9 +136,22 @@ proc stop*(s: CodexServer) {.async.} =
     s.restServer.stop(),
     s.codexNode.stop(),
     s.repoStore.stop(),
-    s.maintenance.stop())
+    s.blockMaintainer.stop())
 
   s.runHandle.complete()
+
+proc createDataStore(config: CodexConf): Datastore =
+  case config.repoKind
+    of repoFS:
+      return Datastore(FSDatastore.new($config.dataDir, depth = 5).expect("Should create repo file data store!"))
+    of repoSQLite:
+      return Datastore(SQLiteDatastore.new($config.dataDir).expect("Should create repo SQLite data store!"))
+  raise newException(Defect, "Unknown repoKind: " & $config.repoKind)
+
+proc getLocalBlockStore(repoStore: RepoStore, configCacheSize: Natural): BlockStore =
+  if configCacheSize > 0:
+    return CacheStore.new(backingStore = repoStore, cacheSize = configCacheSize * MiB)
+  return repoStore
 
 proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): T =
 
@@ -156,13 +168,6 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
     .withSignedPeerRecord(true)
     .withTcpTransport({ServerFlags.ReuseAddr})
     .build()
-
-  var
-    cache: CacheStore = nil
-
-  if config.cacheSize > 0:
-    cache = CacheStore.new(cacheSize = config.cacheSize * MiB)
-    ## Is unused?
 
   let
     discoveryDir = config.dataDir / CodexDhtNamespace
@@ -188,29 +193,27 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
 
-    repoData = case config.repoKind
-                of repoFS: Datastore(FSDatastore.new($config.dataDir, depth = 5)
-                  .expect("Should create repo file data store!"))
-                of repoSQLite: Datastore(SQLiteDatastore.new($config.dataDir)
-                  .expect("Should create repo SQLite data store!"))
+    dataStore = createDataStore(config)
 
-    repoStore = RepoStore.new(
-      repoDs = repoData,
-      metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
-        .expect("Should create meta data store!"),
-      quotaMaxBytes = config.storageQuota.uint,
-      blockTtl = config.blockTtlSeconds.seconds)
+    repoStore =
+      RepoStore.new(
+        repoDs = dataStore,
+        metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace).expect("Should create meta data store!"),
+        quotaMaxBytes = config.storageQuota.uint,
+        blockTtl = config.blockTtlSeconds.seconds)
 
-    maintenance = BlockMaintainer.new(
-      repoStore,
-      interval = config.blockMaintenanceIntervalSeconds.seconds,
-      numberOfBlocksPerInterval = config.blockMaintenanceNumberOfBlocks)
+    blockMaintainer = BlockMaintainer.new(
+        repoStore,
+        interval = config.blockMaintenanceIntervalSeconds.seconds,
+        numberOfBlocksPerInterval = config.blockMaintenanceNumberOfBlocks)
+
+    localBlockStore = getLocalBlockStore(repoStore, config.cacheSize)
 
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
-    blockDiscovery = DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
-    engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
-    store = NetworkStore.new(engine, repoStore)
+    blockDiscovery = DiscoveryEngine.new(localBlockStore, peerStore, network, discovery, pendingBlocks)
+    engine = BlockExcEngine.new(localBlockStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
+    store = NetworkStore.new(engine, localBlockStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery)
     restServer = RestServerRef.new(
@@ -226,4 +229,4 @@ proc new*(T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey): 
     codexNode: codexNode,
     restServer: restServer,
     repoStore: repoStore,
-    maintenance: maintenance)
+    blockMaintainer: blockMaintainer)

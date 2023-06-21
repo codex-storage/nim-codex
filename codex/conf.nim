@@ -32,8 +32,9 @@ import pkg/ethers
 
 import ./discovery
 import ./stores
+import ./stores/consts
 
-export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval
+export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval, RepoKind
 
 const
   codex_enable_api_debug_peers* {.booldefine.} = false
@@ -49,10 +50,6 @@ type
     NoColors = "nocolors"
     Json = "json"
     None = "none"
-
-  RepoKind* = enum
-    repoFS = "fs"
-    repoSQLite = "sqlite"
 
   CodexConf* = object
     configFile* {.
@@ -168,7 +165,7 @@ type
       repoKind* {.
         desc: "backend for main repo store (fs, sqlite)"
         defaultValueDesc: "fs"
-        defaultValue: repoFS
+        defaultValue: RepoKind.repoFS
         name: "repo-kind" }: RepoKind
 
       storageQuota* {.
@@ -198,7 +195,7 @@ type
         name: "block-mn" }: int
 
       cacheSize* {.
-        desc: "The size in MiB of the block cache, 0 disables the cache - might help on slow hardrives"
+        desc: "Size in MiB of the in-RAM block cache, 0 disables the cache - might help on slow hardrives"
         defaultValue: 0
         defaultValueDesc: "0"
         name: "cache-size"

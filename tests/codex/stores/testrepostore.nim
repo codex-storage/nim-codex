@@ -8,13 +8,12 @@ import pkg/questionable/results
 import pkg/chronos
 import pkg/asynctest
 import pkg/libp2p
-import pkg/stew/byteutils
 import pkg/stew/endians2
 import pkg/datastore
 
-import pkg/codex/stores/cachestore
 import pkg/codex/chunker
 import pkg/codex/stores
+import pkg/codex/stores/consts
 import pkg/codex/blocktype as bt
 import pkg/codex/clock
 
@@ -77,9 +76,6 @@ suite "RepoStore":
   teardown:
     (await repoDs.close()).tryGet
     (await metaDs.close()).tryGet
-
-  proc createTestBlock(size: int): bt.Block =
-    bt.Block.new('a'.repeat(size).toBytes).tryGet()
 
   test "Should update current used bytes on block put":
     let blk = createTestBlock(200)

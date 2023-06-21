@@ -30,7 +30,7 @@ suite "Test Node":
     switch: Switch
     wallet: WalletRef
     network: BlockExcNetwork
-    localStore: CacheStore
+    localStore: MemoryStore
     engine: BlockExcEngine
     store: NetworkStore
     node: CodexNodeRef
@@ -78,7 +78,7 @@ suite "Test Node":
     switch = newStandardSwitch()
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
-    localStore = CacheStore.new()
+    localStore = MemoryStore.new()
     blockDiscovery = Discovery.new(
       switch.peerInfo.privateKey,
       announceAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0")

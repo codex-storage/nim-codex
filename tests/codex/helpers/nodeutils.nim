@@ -35,7 +35,7 @@ proc generateNodes*(
           .expect("Should return multiaddress")])
       wallet = WalletRef.example
       network = BlockExcNetwork.new(switch)
-      localStore = CacheStore.new(blocks.mapIt( it ))
+      localStore = MemoryStore.new(blocks.mapIt( it ))
       peerStore = PeerCtxStore.new()
       pendingBlocks = PendingBlocksManager.new()
       blockDiscovery = DiscoveryEngine.new(localStore, peerStore, network, discovery, pendingBlocks)
