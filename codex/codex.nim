@@ -151,7 +151,7 @@ proc new*(
     .new()
     .withPrivateKey(privateKey)
     .withAddresses(config.listenAddrs)
-    .withRng(rng.Rng.instance())
+    .withRng(Rng.instance())
     .withNoise()
     .withMplex(5.minutes, 5.minutes)
     .withMaxConnections(config.maxPeers)
