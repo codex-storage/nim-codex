@@ -33,6 +33,7 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
   let data = agent.data
   let context = agent.context
+  let market = context.market
   let reservations = context.reservations
 
   await agent.retrieveRequest()
@@ -40,6 +41,11 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
 
   without request =? data.request:
     raiseAssert "no sale request"
+
+  let slotId = slotId(data.requestId, data.slotIndex)
+  let state = await market.slotState(slotId)
+  if state != SlotState.Free:
+    return some State(SaleIgnored())
 
   without availability =? await reservations.find(
       request.ask.slotSize,

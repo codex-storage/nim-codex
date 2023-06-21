@@ -227,6 +227,15 @@ asyncchecksuite "Sales":
     await market.requestStorage(tooBigCollateral)
     check getAvailability().?size == success availability.size
 
+  test "ignores request when slot state is not free":
+    check isOk await reservations.reserve(availability)
+    await market.requestStorage(request)
+    market.slotState[request.slotId(0.u256)] = SlotState.Filled
+    market.slotState[request.slotId(1.u256)] = SlotState.Filled
+    market.slotState[request.slotId(2.u256)] = SlotState.Filled
+    market.slotState[request.slotId(3.u256)] = SlotState.Filled
+    check getAvailability().?size == success availability.size
+
   test "retrieves and stores data locally":
     var storingRequest: StorageRequest
     var storingSlot: UInt256
