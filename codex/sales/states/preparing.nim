@@ -47,6 +47,9 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
   if state != SlotState.Free:
     return some State(SaleIgnored())
 
+  # TODO: Once implemented, check to ensure the host is allowed to fill the slot,
+  # due to the [sliding window mechanism](https://github.com/codex-storage/codex-research/blob/master/design/marketplace.md#dispersal)
+
   without availability =? await reservations.find(
       request.ask.slotSize,
       request.ask.duration,
