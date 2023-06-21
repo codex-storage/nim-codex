@@ -126,11 +126,14 @@ proc `$`*(b: Block): string =
   result &= "\ndata: " & string.fromBytes(b.data)
 
 func new*(
-  T: type Block,
-  data: openArray[byte] = [],
-  version = CIDv1,
-  mcodec = multiCodec("sha2-256"),
-  codec = multiCodec("raw")): ?!T =
+    T: type Block,
+    data: openArray[byte] = [],
+    version = CIDv1,
+    mcodec = multiCodec("sha2-256"),
+    codec = multiCodec("raw")
+): ?!Block =
+  ## creates a new block for both storage and network IO
+  ## 
 
   let
     hash = ? MultiHash.digest($mcodec, data).mapFailure
@@ -143,10 +146,13 @@ func new*(
     data: @data).success
 
 func new*(
-  T: type Block,
-  cid: Cid,
-  data: openArray[byte],
-  verify: bool = true): ?!T =
+    T: type Block,
+    cid: Cid,
+    data: openArray[byte],
+    verify: bool = true
+): ?!Block =
+  ## creates a new block for both storage and network IO
+  ## 
 
   let
     mhash = ? cid.mhash.mapFailure

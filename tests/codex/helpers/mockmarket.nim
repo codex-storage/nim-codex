@@ -82,6 +82,8 @@ proc hash*(requestId: RequestId): Hash =
   hash(requestId.toArray)
 
 proc new*(_: type MockMarket): MockMarket =
+  ## Create a new mocked Market instance
+  ## 
   let config = MarketplaceConfig(
     collateral: CollateralConfig(
       repairRewardPercentage: 10,
@@ -320,9 +322,9 @@ method subscribeSlotFreed*(market: MockMarket,
   return subscription
 
 method subscribeRequestCancelled*(market: MockMarket,
-                            requestId: RequestId,
-                            callback: OnRequestCancelled):
-                           Future[Subscription] {.async.} =
+                                  requestId: RequestId,
+                                  callback: OnRequestCancelled):
+                                 Future[Subscription] {.async.} =
   let subscription = RequestCancelledSubscription(
     market: market,
     requestId: requestId,

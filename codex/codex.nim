@@ -144,7 +144,8 @@ proc stop*(s: CodexServer) {.async.} =
 proc new*(
     T: type CodexServer,
     config: CodexConf,
-    privateKey: CodexPrivateKey): CodexServer =
+    privateKey: CodexPrivateKey
+): CodexServer =
   ## create CodexServer including setting up datastore, repostore, etc
   let
     switch = SwitchBuilder
@@ -225,9 +226,10 @@ proc new*(
 
   switch.mount(network)
 
-  T(
+  CodexServer(
     config: config,
     codexNode: codexNode,
     restServer: restServer,
     repoStore: repoStore,
-    maintenance: maintenance)
+    maintenance: maintenance
+  )

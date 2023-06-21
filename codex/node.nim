@@ -311,14 +311,17 @@ proc requestStorage*(self: CodexNodeRef,
   return success purchase.id
 
 proc new*(
-  T: type CodexNodeRef,
-  switch: Switch,
-  store: BlockStore,
-  engine: BlockExcEngine,
-  erasure: Erasure,
-  discovery: Discovery,
-  contracts = Contracts.default): T =
-  T(
+    T: type CodexNodeRef,
+    switch: Switch,
+    store: BlockStore,
+    engine: BlockExcEngine,
+    erasure: Erasure,
+    discovery: Discovery,
+    contracts = Contracts.default
+): CodexNodeRef =
+  ## Create new instance of a Codex node, call `start` to run it
+  ## 
+  CodexNodeRef(
     switch: switch,
     blockStore: store,
     engine: engine,

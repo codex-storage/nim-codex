@@ -38,12 +38,14 @@ type
     pad*: bool                  # Pad last block to manifest.blockSize?
 
 proc new*(
-  T: type StoreStream,
-  store: BlockStore,
-  manifest: Manifest,
-  pad = true): T =
-
-  result = T(
+    T: type StoreStream,
+    store: BlockStore,
+    manifest: Manifest,
+    pad = true
+): T =
+  ## Create a new StoreStream instance for a given store and manifest
+  ## 
+  result = StoreStream(
     store: store,
     manifest: manifest,
     pad: pad,
@@ -62,12 +64,14 @@ method atEof*(self: StoreStream): bool =
   self.offset >= self.size
 
 method readOnce*(
-  self: StoreStream,
-  pbytes: pointer,
-  nbytes: int): Future[int] {.async.} =
+    self: StoreStream,
+    pbytes: pointer,
+    nbytes: int
+): Future[int] {.async.} =
   ## Read `nbytes` from current position in the StoreStream into output buffer pointed by `pbytes`.
   ## Return how many bytes were actually read before EOF was encountered.
   ## Raise exception if we are already at EOF.
+  ## 
 
   trace "Reading from manifest", cid = self.manifest.cid.get(), blocks = self.manifest.len
   if self.atEof:

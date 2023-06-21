@@ -33,14 +33,19 @@ type
     numberOfBlocksPerInterval: int
     offset: int
 
-proc new*(T: type BlockMaintainer,
+proc new*(
+    T: type BlockMaintainer,
     repoStore: RepoStore,
     interval: Duration,
     numberOfBlocksPerInterval = 100,
     timer = Timer.new(),
     clock: Clock = SystemClock.new()
-    ): T =
-  T(
+): BlockMaintainer =
+  ## Create new BlockMaintainer instance
+  ## 
+  ## Call `start` to begin looking for for expired blocks
+  ## 
+  BlockMaintainer(
     repoStore: repoStore,
     interval: interval,
     numberOfBlocksPerInterval: numberOfBlocksPerInterval,

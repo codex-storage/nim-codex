@@ -58,9 +58,8 @@ const
   SalesKey = (CodexMetaKey / "sales").tryGet # TODO: move to sales module
   ReservationsKey = (SalesKey / "reservations").tryGet
 
-proc new*(
-  T: type Reservations,
-  repo: RepoStore): Reservations =
+proc new*(T: type Reservations,
+          repo: RepoStore): Reservations =
 
   T(repo: repo)
 

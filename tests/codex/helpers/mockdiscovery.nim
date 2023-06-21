@@ -24,12 +24,15 @@ type
     publishHostProvideHandler*: proc(d: MockDiscovery, host: ca.Address):
       Future[void] {.gcsafe.}
 
-proc new*(T: type MockDiscovery): T =
-  T()
+proc new*(T: type MockDiscovery): MockDiscovery =
+  MockDiscovery()
 
 proc findPeer*(
-  d: Discovery,
-  peerId: PeerId): Future[?PeerRecord] {.async.} =
+    d: Discovery,
+    peerId: PeerId
+): Future[?PeerRecord] {.async.} =
+  ## mock find a peer - always return none
+  ## 
   return none(PeerRecord)
 
 method find*(

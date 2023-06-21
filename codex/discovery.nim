@@ -166,17 +166,19 @@ proc stop*(d: Discovery) {.async.} =
   await d.protocol.closeWait()
 
 proc new*(
-  T: type Discovery,
-  key: PrivateKey,
-  bindIp = ValidIpAddress.init(IPv4_any()),
-  bindPort = 0.Port,
-  announceAddrs: openArray[MultiAddress],
-  bootstrapNodes: openArray[SignedPeerRecord] = [],
-  store: Datastore = SQLiteDatastore.new(Memory)
-    .expect("Should not fail!")): T =
+    T: type Discovery,
+    key: PrivateKey,
+    bindIp = ValidIpAddress.init(IPv4_any()),
+    bindPort = 0.Port,
+    announceAddrs: openArray[MultiAddress],
+    bootstrapNodes: openArray[SignedPeerRecord] = [],
+    store: Datastore = SQLiteDatastore.new(Memory).expect("Should not fail!")
+): Discovery =
+  ## Create a new Discovery node instance for the given key and datastore 
+  ## 
 
   var
-    self = T(
+    self = Discovery(
       key: key,
       peerId: PeerId.init(key).expect("Should construct PeerId"))
 

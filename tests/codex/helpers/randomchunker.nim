@@ -11,13 +11,13 @@ type
   RandomChunker* = Chunker
 
 proc new*(
-  T: type RandomChunker,
-  rng: Rng,
-  chunkSize = DefaultChunkSize,
-  size: int,
-  pad = false): T =
-  ## create a chunker that produces
-  ## random data
+    T: type RandomChunker,
+    rng: Rng,
+    chunkSize = DefaultChunkSize,
+    size: int,
+    pad = false
+): RandomChunker =
+  ## Create a chunker that produces random data
   ##
 
   var consumed = 0

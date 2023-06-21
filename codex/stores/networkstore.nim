@@ -88,11 +88,10 @@ method close*(self: NetworkStore): Future[void] {.async.} =
 proc new*(
   T: type NetworkStore,
   engine: BlockExcEngine,
-  localStore: BlockStore): T =
-
-  let
-    self = NetworkStore(
+  localStore: BlockStore
+): NetworkStore =
+  ## Create new instance of a NetworkStore 
+  ## 
+  NetworkStore(
       localStore: localStore,
       engine: engine)
-
-  return self

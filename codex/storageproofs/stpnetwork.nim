@@ -36,11 +36,12 @@ type
     tagsHandle*: TagsHandler
 
 proc uploadTags*(
-  self: StpNetwork,
-  cid: Cid,
-  indexes: seq[int],
-  tags: seq[seq[byte]],
-  host: ca.Address): Future[?!void] {.async.} =
+    self: StpNetwork,
+    cid: Cid,
+    indexes: seq[int],
+    tags: seq[seq[byte]],
+    host: ca.Address
+): Future[?!void] {.async.} =
   # Upload tags to `host`
   #
 
@@ -93,7 +94,9 @@ method init*(self: StpNetwork) =
 proc new*(
   T: type StpNetwork,
   switch: Switch,
-  discovery: Discovery): StpNetwork =
+  discovery: Discovery
+): StpNetwork =
+  ## create a new StpNetwork instance
   let
     self = StpNetwork(
       switch: switch,

@@ -63,10 +63,11 @@ type
     store*: BlockStore
 
 proc encode*(
-  self: Erasure,
-  manifest: Manifest,
-  blocks: int,
-  parity: int): Future[?!Manifest] {.async.} =
+    self: Erasure,
+    manifest: Manifest,
+    blocks: int,
+    parity: int
+): Future[?!Manifest] {.async.} =
   ## Encode a manifest into one that is erasure protected.
   ##
   ## `manifest`   - the original manifest to be encoded
@@ -153,8 +154,9 @@ proc encode*(
   return encoded.success
 
 proc decode*(
-  self: Erasure,
-  encoded: Manifest): Future[?!Manifest] {.async.} =
+    self: Erasure,
+    encoded: Manifest
+): Future[?!Manifest] {.async.} =
   ## Decode a protected manifest into it's original
   ## manifest
   ##
@@ -265,10 +267,12 @@ proc stop*(self: Erasure) {.async.} =
   return
 
 proc new*(
-  T: type Erasure,
-  store: BlockStore,
-  encoderProvider: EncoderProvider,
-  decoderProvider: DecoderProvider): Erasure =
+    T: type Erasure,
+    store: BlockStore,
+    encoderProvider: EncoderProvider,
+    decoderProvider: DecoderProvider
+): Erasure =
+  ## Create a new Erasure instance for encoding and decoding manifests
 
   Erasure(
     store: store,

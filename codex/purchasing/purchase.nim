@@ -24,10 +24,14 @@ export Purchase
 export purchaseid
 export statemachine
 
-func new*(_: type Purchase,
-          requestId: RequestId,
-          market: Market,
-          clock: Clock): Purchase =
+func new*(
+    _: type Purchase,
+    requestId: RequestId,
+    market: Market,
+    clock: Clock
+): Purchase =
+  ## create a new instance of a Purchase
+  ## 
   Purchase(
     future: Future[void].new(),
     requestId: requestId,
@@ -35,10 +39,13 @@ func new*(_: type Purchase,
     clock: clock
   )
 
-func new*(_: type Purchase,
-          request: StorageRequest,
-          market: Market,
-          clock: Clock): Purchase =
+func new*(
+    _: type Purchase,
+    request: StorageRequest,
+    market: Market,
+    clock: Clock
+): Purchase =
+  ## Create a new purchase using the given market and clock
   let purchase = Purchase.new(request.id, market, clock)
   purchase.request = some request
   return purchase

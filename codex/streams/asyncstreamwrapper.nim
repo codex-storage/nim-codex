@@ -32,9 +32,12 @@ method initStream*(self: AsyncStreamWrapper) =
   procCall LPStream(self).initStream()
 
 proc new*(
-  C: type AsyncStreamWrapper,
-  reader: AsyncStreamReader = nil,
-  writer: AsyncStreamWriter = nil): AsyncStreamWrapper =
+    C: type AsyncStreamWrapper,
+    reader: AsyncStreamReader = nil,
+    writer: AsyncStreamWriter = nil
+): AsyncStreamWrapper =
+  ## Create new instance of an asynchronous stream wrapper
+  ## 
   let
     stream = C(reader: reader, writer: writer)
 

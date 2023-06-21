@@ -325,10 +325,11 @@ method init*(b: BlockExcNetwork) =
   b.codec = Codec
 
 proc new*(
-  T: type BlockExcNetwork,
-  switch: Switch,
-  connProvider: ConnProvider = nil,
-  maxInflight = MaxInflight): T =
+    T: type BlockExcNetwork,
+    switch: Switch,
+    connProvider: ConnProvider = nil,
+    maxInflight = MaxInflight
+): BlockExcNetwork =
   ## Create a new BlockExcNetwork instance
   ##
 
