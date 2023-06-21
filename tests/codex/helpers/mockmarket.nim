@@ -178,11 +178,10 @@ proc emitSlotFilled*(market: MockMarket,
 
 proc emitSlotFreed*(market: MockMarket,
                     requestId: RequestId,
-                    slotIndex: UInt256,
-                    slotId: SlotId) =
+                    slotIndex: UInt256) =
   var subscriptions = market.subscriptions.onSlotFreed
   for subscription in subscriptions:
-    subscription.callback(requestId, slotIndex, slotId)
+    subscription.callback(requestId, slotIndex)
 
 proc emitRequestCancelled*(market: MockMarket, requestId: RequestId) =
   var subscriptions = market.subscriptions.onRequestCancelled
@@ -231,7 +230,7 @@ method freeSlot*(market: MockMarket, slotId: SlotId) {.async.} =
   market.freed.add(slotId)
   for s in market.filled:
     if slotId(s.requestId, s.slotIndex) == slotId:
-      market.emitSlotFreed(s.requestId, s.slotIndex, slotId)
+      market.emitSlotFreed(s.requestId, s.slotIndex)
       break
   market.slotState[slotId] = SlotState.Free
 

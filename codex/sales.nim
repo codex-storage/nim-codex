@@ -13,7 +13,7 @@ import ./sales/salescontext
 import ./sales/salesagent
 import ./sales/statemachine
 import ./sales/salessubscriptions
-import ./sales/requestqueue
+import ./sales/slotqueue
 import ./sales/states/preparing
 import ./sales/states/unknown
 
@@ -46,6 +46,7 @@ type
     context*: SalesContext
     agents*: seq[SalesAgent]
     subscriptions: SalesSubscriptions
+    stopping: bool
 
 proc `onStore=`*(sales: Sales, onStore: OnStore) =
   sales.context.onStore = some onStore
@@ -74,39 +75,38 @@ func new*(_: type Sales,
       clock: clock,
       proving: proving,
       reservations: Reservations.new(repo),
-      requestQueue: RequestQueue.new()
+      slotQueue: SlotQueue.new()
     ),
     subscriptions: SalesSubscriptions.new()
   )
 
 proc remove(sales: Sales, agent: SalesAgent) {.async.} =
   await agent.stop()
-  sales.agents.keepItIf(it != agent)
+  if not sales.stopping:
+    sales.agents.keepItIf(it != agent)
 
 proc cleanUp(sales: Sales,
              agent: SalesAgent,
              processing: Future[void]) {.async.} =
   await sales.remove(agent)
-  # signal back to the request queue to cycle a worker
+  # signal back to the slot queue to cycle a worker
   processing.complete()
 
-proc handleRequest(sales: Sales, rqi: RequestQueueItem, processing: Future[void]) =
-  debug "handling storage requested", requestId = $rqi.requestId,
-    slots = rqi.ask.slots, slotSize = rqi.ask.slotSize,
-    duration = rqi.ask.duration, reward = rqi.ask.reward,
-    maxSlotLoss = rqi.ask.maxSlotLoss, expiry = rqi.expiry
+proc handleRequest(sales: Sales, sqi: SlotQueueItem, processing: Future[void]) =
+  debug "handling storage requested", requestId = $sqi.requestId,
+    slot = sqi.slotIndex
 
   let agent = newSalesAgent(
     sales.context,
-    rqi.requestId,
-    none UInt256,
+    sqi.requestId,
+    sqi.slotIndex.u256,
     none StorageRequest
   )
 
   agent.context.onCleanUp = proc {.async.} =
     await sales.cleanUp(agent, processing)
 
-  agent.start(SalePreparing(availableSlotIndices: rqi.availableSlotIndices))
+  agent.start(SalePreparing())
   sales.agents.add agent
 
 proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
@@ -127,7 +127,7 @@ proc load*(sales: Sales) {.async.} =
     let agent = newSalesAgent(
       sales.context,
       slot.request.id,
-      some slot.slotIndex,
+      slot.slotIndex,
       some slot.request)
 
       agent.context.onCleanUp = proc {.async.} = await sales.remove(agent)
@@ -144,13 +144,13 @@ proc subscribeRequested(sales: Sales) {.async.} =
     return
 
   proc onRequestEvent(requestId: RequestId,
-                 ask: StorageAsk,
-                 expiry: UInt256) {.gcsafe, upraises:[].} =
+                      ask: StorageAsk,
+                      expiry: UInt256) {.gcsafe, upraises:[].} =
     try:
       let reservations = context.reservations
-      let requestQueue = context.requestQueue
+      let slotQueue = context.slotQueue
       # Match availability before pushing. If availabilities weren't matched,
-      # every request in the network would get added to the request queue.
+      # every request in the network would get added to the slot queue.
       # However, matching availabilities requires the subscription callback to
       # be async, which has been avoided on many occasions, so we are using
       # `waitFor`.
@@ -159,11 +159,11 @@ proc subscribeRequested(sales: Sales) {.async.} =
                                                    ask.pricePerSlot,
                                                    ask.collateral,
                                                    used = false):
-        let rqi = RequestQueueItem.init(requestId, ask, expiry)
-        if err =? requestQueue.pushOrUpdate(rqi).errorOption:
+        let sqis = SlotQueueItem.init(requestId, ask, expiry)
+        if err =? slotQueue.push(sqis).errorOption:
           raise err
     except CatchableError as e:
-      error "Error pushing request to RequestQueue", error = e.msg
+      error "Error pushing request to SlotQueue", error = e.msg
       discard
 
   try:
@@ -176,7 +176,7 @@ proc subscribeCancellation(sales: Sales) {.async.} =
   let context = sales.context
   let market = context.market
   let subs = sales.subscriptions
-  let queue = context.requestQueue
+  let queue = context.slotQueue
 
   if subs.cancelled.isSome:
     return
@@ -193,7 +193,7 @@ proc subscribeFulfilled*(sales: Sales) {.async.} =
   let context = sales.context
   let market = context.market
   let subs = sales.subscriptions
-  let queue = context.requestQueue
+  let queue = context.slotQueue
 
   if subs.fulfilled.isSome:
     return
@@ -217,7 +217,7 @@ proc subscribeFailure(sales: Sales) {.async.} =
   let context = sales.context
   let market = context.market
   let subs = sales.subscriptions
-  let queue = context.requestQueue
+  let queue = context.slotQueue
 
   if subs.failed.isSome:
     return
@@ -241,13 +241,12 @@ proc subscribeSlotFilled(sales: Sales) {.async.} =
   let context = sales.context
   let market = context.market
   let subs = sales.subscriptions
-  let queue = context.requestQueue
+  let queue = context.slotQueue
 
   proc onSlotFilled(requestId: RequestId,
       slotIndex: UInt256) {.gcsafe, upraises: [].} =
 
-    if err =? queue.removeAvailableSlotIndex(requestId, slotIndex.truncate(uint64)).errorOption:
-      error "Error removing slot index from request queue", error = err.msg
+    queue.delete(requestId, slotIndex.truncate(uint64))
 
     for agent in sales.agents:
       try:
@@ -265,18 +264,18 @@ proc subscribeSlotFreed(sales: Sales) {.async.} =
   let context = sales.context
   let market = context.market
   let subs = sales.subscriptions
-  let queue = context.requestQueue
+  let queue = context.slotQueue
 
   proc onSlotFreed(requestId: RequestId,
-      slotIndex: UInt256, _: SlotId) {.gcsafe, upraises: [].} =
+                   slotIndex: UInt256) {.gcsafe, upraises: [].} =
 
     try:
       # retrieving the request requires the subscription callback to be async,
       # which has been avoided on many occasions, so we are using `waitFor`.
       if request =? waitFor market.getRequest(requestId):
-        let rqi = RequestQueueItem.init(request)
-        if err =? queue.addAvailableSlotIndex(rqi, slotIndex.truncate(uint64)).errorOption:
-          error "Error adding slot index to request queue", error = err.msg
+        let sqi = SlotQueueItem.init(request, slotIndex.truncate(uint64))
+        if err =? queue.push(sqi).errorOption:
+          error "Error adding slot index to slot queue", error = err.msg
 
       else:
         # contract doesn't seem to know about this request, so remove it from
@@ -291,12 +290,12 @@ proc subscribeSlotFreed(sales: Sales) {.async.} =
   except CatchableError as e:
     error "Unable to subscribe to slot freed events", msg = e.msg
 
-proc startRequestQueue(sales: Sales) {.async.} =
-  let requestQueue = sales.context.requestQueue
-  requestQueue.onProcessRequest =
-    proc(rqi: RequestQueueItem, processing: Future[void]) {.async.} =
-      sales.handleRequest(rqi, processing)
-  asyncSpawn requestQueue.start()
+proc startSlotQueue(sales: Sales) {.async.} =
+  let slotQueue = sales.context.slotQueue
+  slotQueue.onProcessSlot =
+    proc(sqi: SlotQueueItem, processing: Future[void]) {.async.} =
+      sales.handleRequest(sqi, processing)
+  asyncSpawn slotQueue.start()
 
 proc subscribe(sales: Sales) {.async.} =
   await sales.subscribeRequested()
@@ -352,12 +351,16 @@ proc unsubscribe(sales: Sales) {.async.} =
       error "Unable to unsubscribe from cancelled events", error = e.msg
 
 proc start*(sales: Sales) {.async.} =
-  await sales.startRequestQueue()
+  await sales.startSlotQueue()
   await sales.subscribe()
 
 proc stop*(sales: Sales) {.async.} =
-  sales.context.requestQueue.stop()
+  sales.stopping = true
+  sales.context.slotQueue.stop()
   await sales.unsubscribe()
 
   for agent in sales.agents:
     await agent.stop()
+
+  sales.agents = @[]
+  sales.stopping = false

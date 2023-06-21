@@ -21,12 +21,10 @@ type
     expiry*: UInt256
   SlotFilled* = object of Event
     requestId* {.indexed.}: RequestId
-    slotIndex* {.indexed.}: UInt256
-    slotId*: SlotId
+    slotIndex*: UInt256
   SlotFreed* = object of Event
     requestId* {.indexed.}: RequestId
     slotIndex*: UInt256
-    slotId*: SlotId
   RequestFulfilled* = object of Event
     requestId* {.indexed.}: RequestId
   RequestCancelled* = object of Event

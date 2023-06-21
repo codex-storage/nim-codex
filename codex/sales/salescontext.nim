@@ -5,7 +5,7 @@ import ../node/batch
 import ../market
 import ../clock
 import ../proving
-import ./requestqueue
+import ./slotqueue
 import ./reservations
 
 type
@@ -18,7 +18,7 @@ type
     onCleanUp*: OnCleanUp
     proving*: Proving
     reservations*: Reservations
-    requestQueue*: RequestQueue
+    slotQueue*: SlotQueue
 
   OnStore* = proc(request: StorageRequest,
                   slot: UInt256,

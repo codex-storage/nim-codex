@@ -29,7 +29,7 @@ checksuite "sales state 'filled'":
     let context = SalesContext(market: market)
     agent = newSalesAgent(context,
                           request.id,
-                          some slotIndex,
+                          slotIndex,
                           StorageRequest.none)
     state = SaleFilled.new()
 

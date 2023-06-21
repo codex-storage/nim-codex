@@ -20,7 +20,7 @@ type
                     expiry: UInt256) {.gcsafe, upraises:[].}
   OnFulfillment* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
   OnSlotFilled* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises:[].}
-  OnSlotFreed* = proc(requestId: RequestId, slotIndex: UInt256, slotId: SlotId) {.gcsafe, upraises: [].}
+  OnSlotFreed* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises: [].}
   OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnProofSubmitted* = proc(id: SlotId, proof: seq[byte]) {.gcsafe, upraises:[].}

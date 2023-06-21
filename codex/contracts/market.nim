@@ -200,7 +200,7 @@ method subscribeSlotFreed*(market: OnChainMarket,
                            callback: OnSlotFreed):
                           Future[MarketSubscription] {.async.} =
   proc onEvent(event: SlotFreed) {.upraises:[].} =
-    callback(event.requestId, event.slotIndex, event.slotId)
+    callback(event.requestId, event.slotIndex)
   let subscription = await market.contract.subscribe(SlotFreed, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 

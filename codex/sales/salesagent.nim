@@ -1,11 +1,9 @@
-import std/sequtils
 import pkg/chronos
 import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
 import ../contracts/requests
-import ../rng
 import ../errors
 import ./statemachine
 import ./salescontext
@@ -31,7 +29,7 @@ func `==`*(a, b: SalesAgent): bool =
 
 proc newSalesAgent*(context: SalesContext,
                     requestId: RequestId,
-                    slotIndex: ?UInt256,
+                    slotIndex: UInt256,
                     request: ?StorageRequest): SalesAgent =
   SalesAgent(
     context: context,
@@ -45,42 +43,6 @@ proc retrieveRequest*(agent: SalesAgent) {.async.} =
   let market = agent.context.market
   if data.request.isNone:
     data.request = await market.getRequest(data.requestId)
-
-proc nextRandom(sample: openArray[uint64]): uint64 =
-  let rng = Rng.instance
-  return rng.sample(sample)
-
-proc assignRandomSlotIndex*(agent: SalesAgent,
-    availableSlotIndices: seq[uint64]): Future[?!void] {.async.} =
-
-  let market = agent.context.market
-  let data = agent.data
-
-  if availableSlotIndices.len == 0:
-    raiseAssert "no available slots to sample"
-
-  var idx: UInt256
-  var sample = availableSlotIndices # copy
-
-  while true:
-    if sample.len == 0:
-      agent.data.slotIndex = none UInt256
-      let error = newException(AllSlotsFilledError, "all slots have been filled")
-      return failure(error)
-
-    without rndIdx =? nextRandom(sample).catch, err:
-      agent.data.slotIndex = none UInt256
-      return failure(err)
-    sample.keepItIf(it != rndIdx)
-
-    idx = rndIdx.u256
-    let slotId = slotId(data.requestId, idx)
-    let state = await market.slotState(slotId)
-    if state == SlotState.Free:
-      break
-
-  agent.data.slotIndex = some idx
-  return success()
 
 proc subscribeCancellation(agent: SalesAgent) {.async.} =
   let data = agent.data
@@ -96,7 +58,8 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
   data.cancelled = onCancelled()
 
 method onFulfilled*(agent: SalesAgent, requestId: RequestId) {.base.} =
-  if agent.data.requestId == requestId:
+  if agent.data.requestId == requestId and
+     not agent.data.cancelled.isNil:
     agent.data.cancelled.cancel()
 
 method onFailed*(agent: SalesAgent, requestId: RequestId) {.base.} =
@@ -107,7 +70,7 @@ method onFailed*(agent: SalesAgent, requestId: RequestId) {.base.} =
 
 method onSlotFilled*(agent: SalesAgent, requestId: RequestId, slotIndex: UInt256) {.base.} =
   if agent.data.requestId == requestId and
-     agent.data.slotIndex == some slotIndex:
+     agent.data.slotIndex == slotIndex:
     agent.schedule(slotFilledEvent(requestId, slotIndex))
 
 proc subscribe*(agent: SalesAgent) {.async.} =

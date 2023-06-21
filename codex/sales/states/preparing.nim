@@ -10,11 +10,9 @@ import ./failed
 import ./filled
 import ./ignored
 import ./downloading
-import ./errored
 
 type
   SalePreparing* = ref object of ErrorHandlingState
-    availableSlotIndices*: seq[uint64]
 
 logScope:
     topics = "sales preparing"
@@ -38,12 +36,6 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
   let reservations = context.reservations
 
   await agent.retrieveRequest()
-
-  if err =? (await agent.assignRandomSlotIndex(state.availableSlotIndices)).errorOption:
-    if err of AllSlotsFilledError:
-      return some State(SaleIgnored())
-    return some State(SaleErrored(error: err))
-
   await agent.subscribe()
 
   without request =? data.request:

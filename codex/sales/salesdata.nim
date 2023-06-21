@@ -8,8 +8,5 @@ type
     requestId*: RequestId
     ask*: StorageAsk
     request*: ?StorageRequest
-    slotIndex*: ?UInt256
-    failed*: market.Subscription
-    fulfilled*: market.Subscription
-    slotFilled*: market.Subscription
+    slotIndex*: UInt256
     cancelled*: Future[void]
