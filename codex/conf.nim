@@ -309,6 +309,16 @@ proc readValue*(r: var TomlReader, val: var SignedPeerRecord) =
 
   val = SignedPeerRecord.parseCmdArg(uri)
 
+proc readValue*(r: var TomlReader, val: var MultiAddress) =
+  without maddr =? r.readValue(string).catch, err:
+    error "invalid MultiAddress value", error = err.msg
+    quit QuitFailure
+
+  without val =? MultiAddress.init(maddr).catch, err:
+    error "invalid MultiAddress value", error = err.msg
+    quit QuitFailure
+
+
 # no idea why confutils needs this:
 proc completeCmdArg*(T: type EthAddress; val: string): seq[string] =
   discard
