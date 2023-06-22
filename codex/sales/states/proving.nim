@@ -35,8 +35,8 @@ method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
   without onProve =? context.proving.onProve:
     raiseAssert "onProve callback not set"
 
-  debug "Start proving", requestId = $data.requestId
+  debug "Start proof generation", requestId = $data.requestId
   let proof = await onProve(Slot(request: request, slotIndex: data.slotIndex))
-  debug "Finished proving", requestId = $data.requestId
+  debug "Finished proof generation", requestId = $data.requestId
 
   return some State(SaleFilling(proof: proof))

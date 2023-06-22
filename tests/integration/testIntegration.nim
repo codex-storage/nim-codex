@@ -110,6 +110,5 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     # hence we must use `advanceTime` over `sleepAsync` as Hardhat does mine new blocks
     # only with new transaction
     await provider.advanceTime(duration.u256)
-    await sleepAsync(1.seconds)
 
     check eventually (await token.balanceOf(account2)) - startBalance == duration.u256*reward.u256

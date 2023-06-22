@@ -1,4 +1,3 @@
-import std/os
 import pkg/asynctest
 import pkg/ethers
 import codex/contracts/deployment

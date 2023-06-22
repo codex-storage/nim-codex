@@ -3,6 +3,7 @@ import pkg/contractabi
 import pkg/nimcrypto
 import pkg/ethers/fields
 import pkg/questionable/results
+import pkg/stew/byteutils
 
 export contractabi
 
@@ -62,6 +63,15 @@ func toArray*(id: RequestId | SlotId | Nonce): array[32, byte] =
 
 proc `$`*(id: RequestId | SlotId | Nonce): string =
   id.toArray.toHex
+
+proc fromHex*(T: type RequestId, hex: string): T =
+  T array[32, byte].fromHex(hex)
+
+proc fromHex*(T: type SlotId, hex: string): T =
+  T array[32, byte].fromHex(hex)
+
+proc fromHex*(T: type Nonce, hex: string): T =
+  T array[32, byte].fromHex(hex)
 
 func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
   StorageRequest(

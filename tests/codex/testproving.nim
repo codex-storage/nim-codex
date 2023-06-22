@@ -1,3 +1,4 @@
+import std/sequtils
 import pkg/asynctest
 import pkg/chronos
 import pkg/codex/proving
@@ -122,3 +123,65 @@ suite "Proving":
     check eventually receivedIds == @[slot.id] and receivedProofs == @[proof]
 
     await subscription.unsubscribe()
+
+suite "Simulated proving":
+
+  var proving: SimulatedProving
+  var subscription: Subscription
+  var market: MockMarket
+  var clock: MockClock
+  var submitted: seq[seq[byte]]
+  var proof: seq[byte]
+  let slot = Slot.example
+  var proofSubmitted: Future[void]
+
+  setup:
+    proof = exampleProof()
+    submitted = @[]
+    market = MockMarket.new()
+    clock = MockClock.new()
+    proofSubmitted = newFuture[void]("proofSubmitted")
+
+  teardown:
+    await subscription.unsubscribe()
+    await proving.stop()
+
+  proc newSimulatedProving(failEveryNProofs: uint) {.async.} =
+    proc onProofSubmission(id: SlotId, proof: seq[byte]) =
+      submitted.add(proof)
+      proofSubmitted.complete()
+      proofSubmitted = newFuture[void]("proofSubmitted")
+
+    proving = SimulatedProving.new(market, clock, failEveryNProofs)
+    proving.onProve = proc (slot: Slot): Future[seq[byte]] {.async.} =
+      return proof
+    subscription = await proving.subscribeProofSubmission(onProofSubmission)
+    proving.add(slot)
+    market.slotState[slot.id] = SlotState.Filled
+    market.setProofRequired(slot.id, true)
+    await proving.start()
+
+  proc advanceToNextPeriod(market: Market) {.async.} =
+    let periodicity = await market.periodicity()
+    clock.advance(periodicity.seconds.truncate(int64))
+
+  proc waitForProvingRounds(market: Market, rounds: uint) {.async.} =
+    var rnds = rounds - 1 # proof round runs prior to advancing
+    while rnds > 0:
+      await market.advanceToNextPeriod()
+      await proofSubmitted
+      rnds -= 1
+
+  test "submits invalid proof every 3 proofs":
+    let failEveryNProofs = 3'u
+    let totalProofs = 6'u
+    await newSimulatedProving(failEveryNProofs)
+    await market.waitForProvingRounds(totalProofs)
+    check submitted == @[proof, proof, @[], proof, proof, @[]]
+
+  test "does not submit invalid proofs when failEveryNProofs is 0":
+    let failEveryNProofs = 0'u
+    let totalProofs = 6'u
+    await newSimulatedProving(failEveryNProofs)
+    await market.waitForProvingRounds(totalProofs)
+    check submitted == proof.repeat(totalProofs)
