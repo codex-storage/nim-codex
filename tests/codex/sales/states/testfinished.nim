@@ -5,8 +5,9 @@ import pkg/codex/sales/states/finished
 import pkg/codex/sales/states/cancelled
 import pkg/codex/sales/states/failed
 import ../../examples
+import ../../helpers
 
-suite "sales state 'finished'":
+checksuite "sales state 'finished'":
 
   let request = StorageRequest.example
   var state: SaleFinished

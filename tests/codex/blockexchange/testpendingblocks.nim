@@ -9,7 +9,9 @@ import pkg/stew/byteutils
 import pkg/codex/blocktype as bt
 import pkg/codex/blockexchange
 
-suite "Pending Blocks":
+import ../helpers
+
+checksuite "Pending Blocks":
   test "Should add want handle":
     let
       pendingBlocks = PendingBlocksManager.new()

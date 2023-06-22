@@ -14,7 +14,7 @@ import pkg/codex/blockexchange
 import ../helpers
 import ../examples
 
-suite "Network - Handlers":
+asyncchecksuite "Network - Handlers":
   let
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
@@ -137,7 +137,7 @@ suite "Network - Handlers":
 
     await done.wait(100.millis)
 
-suite "Network - Senders":
+asyncchecksuite "Network - Senders":
   let
     chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
 
@@ -260,7 +260,7 @@ suite "Network - Senders":
     await network1.sendPayment(switch2.peerInfo.peerId, payment)
     await done.wait(500.millis)
 
-suite "Network - Test Limits":
+asyncchecksuite "Network - Test Limits":
   var
     switch1, switch2: Switch
     network1, network2: BlockExcNetwork

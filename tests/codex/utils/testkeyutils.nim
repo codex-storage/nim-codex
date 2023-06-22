@@ -3,12 +3,12 @@ import std/os
 import pkg/libp2p
 import pkg/questionable/results
 import codex/utils/keyutils
+import ../helpers
 
 when defined(windows):
   import stew/windows/acl
 
-suite "keyutils":
-
+checksuite "keyutils":
   let path = getTempDir() / "CodexTest"
 
   setup:

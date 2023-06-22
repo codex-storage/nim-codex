@@ -8,9 +8,10 @@ import pkg/codex/blockexchange/peers
 import pkg/codex/blockexchange/protobuf/blockexc
 import pkg/codex/blockexchange/protobuf/presence
 
+import ../helpers
 import ../examples
 
-suite "Peer Context Store":
+checksuite "Peer Context Store":
   var
     store: PeerCtxStore
     peerCtx: BlockExcPeerCtx
@@ -30,7 +31,7 @@ suite "Peer Context Store":
   test "Should get peer":
     check store.get(peerCtx.id) == peerCtx
 
-suite "Peer Context Store Peer Selection":
+checksuite "Peer Context Store Peer Selection":
   var
     store: PeerCtxStore
     peerCtxs: seq[BlockExcPeerCtx]

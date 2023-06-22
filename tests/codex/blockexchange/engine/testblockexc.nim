@@ -18,7 +18,7 @@ import pkg/codex/blocktype as bt
 import ../../examples
 import ../../helpers
 
-suite "NetworkStore engine - 2 nodes":
+asyncchecksuite "NetworkStore engine - 2 nodes":
   let
     chunker1 = RandomChunker.new(Rng.instance(), size = 2048, chunkSize = 256)
     chunker2 = RandomChunker.new(Rng.instance(), size = 2048, chunkSize = 256)
@@ -180,7 +180,7 @@ suite "NetworkStore engine - 2 nodes":
 
     check eventually wallet.balance(channel, Asset) > 0
 
-suite "NetworkStore - multiple nodes":
+asyncchecksuite "NetworkStore - multiple nodes":
   let
     chunker = RandomChunker.new(Rng.instance(), size = 4096, chunkSize = 256)
 

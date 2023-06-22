@@ -29,6 +29,9 @@ export stores, blocktype, manifest, chronos
 logScope:
   topics = "codex storestream"
 
+const
+  StoreStreamTrackerName* = "StoreStream"
+
 type
   # Make SeekableStream from a sequence of blocks stored in Manifest
   # (only original file data - see StoreStream.size)
@@ -36,6 +39,12 @@ type
     store*: BlockStore          # Store where to lookup block contents
     manifest*: Manifest         # List of block CIDs
     pad*: bool                  # Pad last block to manifest.blockSize?
+
+method initStream*(s: StoreStream) =
+  if s.objName.len == 0:
+    s.objName = StoreStreamTrackerName
+
+  procCall SeekableStream(s).initStream()
 
 proc new*(
     T: type StoreStream,

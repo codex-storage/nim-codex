@@ -1,8 +1,9 @@
 import std/unittest
 
 import codex/clock
+import ./helpers
 
-suite "Clock":
+checksuite "Clock":
   proc testConversion(seconds: SecondsSince1970) =
     let asBytes = seconds.toBytes
 

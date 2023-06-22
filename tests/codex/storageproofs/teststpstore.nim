@@ -15,7 +15,7 @@ const
   BlockSize = 31 * 64
   DataSetSize = BlockSize * 100
 
-suite "Test PoR store":
+asyncchecksuite "Test PoR store":
   let
     blocks = toSeq([1, 5, 10, 14, 20, 12, 22]) # TODO: maybe make them random
 
@@ -27,12 +27,13 @@ suite "Test PoR store":
     spk: st.PublicKey
     repoDir: string
     stpstore: st.StpStore
+    porStream: StoreStream
     por: PoR
     porMsg: PorMessage
     cid: Cid
     tags: seq[Tag]
 
-  setupAll:
+  setup:
     chunker = RandomChunker.new(Rng.instance(), size = DataSetSize, chunkSize = BlockSize)
     store = CacheStore.new(cacheSize = DataSetSize, chunkSize = BlockSize)
     manifest = Manifest.new(blockSize = BlockSize).tryGet()
@@ -47,8 +48,9 @@ suite "Test PoR store":
       (await store.putBlock(blk)).tryGet()
 
     cid = manifest.cid.tryGet()
+    porStream = StoreStream.new(store, manifest)
     por = await PoR.init(
-      StoreStream.new(store, manifest),
+      porStream,
       ssk, spk,
       BlockSize)
 
@@ -60,7 +62,8 @@ suite "Test PoR store":
     createDir(repoDir)
     stpstore = st.StpStore.init(repoDir)
 
-  teardownAll:
+  teardown:
+    await close(porStream)
     removeDir(repoDir)
 
   test "Should store Storage Proofs":
@@ -68,6 +71,7 @@ suite "Test PoR store":
     check fileExists(stpstore.stpPath(cid) / "por")
 
   test "Should retrieve Storage Proofs":
+    discard await stpstore.store(por.toMessage(), cid)
     check (await stpstore.retrieve(cid)).tryGet() == porMsg
 
   test "Should store tags":
@@ -76,4 +80,5 @@ suite "Test PoR store":
       check fileExists(stpstore.stpPath(cid) / $t.idx )
 
   test "Should retrieve tags":
+    discard await stpstore.store(tags, cid)
     check (await stpstore.retrieve(cid, blocks)).tryGet() == tags

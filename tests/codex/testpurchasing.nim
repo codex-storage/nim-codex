@@ -13,9 +13,9 @@ import ./helpers/mockmarket
 import ./helpers/mockclock
 import ./helpers/eventually
 import ./examples
+import ./helpers
 
-suite "Purchasing":
-
+asyncchecksuite "Purchasing":
   var purchasing: Purchasing
   var market: MockMarket
   var clock: MockClock
@@ -119,7 +119,7 @@ suite "Purchasing":
       await purchase.wait()
     check market.withdrawn == @[request.id]
 
-suite "Purchasing state machine":
+checksuite "Purchasing state machine":
 
   var purchasing: Purchasing
   var market: MockMarket

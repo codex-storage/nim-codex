@@ -4,6 +4,7 @@ import codex/contracts/deployment
 import codex/conf
 import codex/contracts
 
+import ../checktest
 
 type MockProvider = ref object of Provider
   chainId*: UInt256
@@ -17,8 +18,7 @@ proc configFactory(): CodexConf =
 proc configFactory(marketplace: Option[EthAddress]): CodexConf =
   CodexConf(cmd: noCommand, nat: ValidIpAddress.init("127.0.0.1"), discoveryIp: ValidIpAddress.init(IPv4_any()), metricsAddress: ValidIpAddress.init("127.0.0.1"), marketplaceAddress: marketplace)
 
-suite "Deployment":
-
+asyncchecksuite "Deployment":
   let provider = MockProvider()
 
   test "uses conf value as priority":

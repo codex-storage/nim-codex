@@ -20,7 +20,7 @@ import pkg/codex/blocktype as bt
 
 import ./helpers
 
-suite "Test Node":
+asyncchecksuite "Test Node":
   let
     (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
 
@@ -61,6 +61,8 @@ suite "Test Node":
       stream = (await node.retrieve(cid)).tryGet()
     var
       data: seq[byte]
+
+    defer: await stream.close()
 
     while not stream.atEof:
       var
@@ -154,8 +156,8 @@ suite "Test Node":
       manifestBlock = (await localStore.getBlock(manifestCid)).tryGet()
       localManifest = Manifest.decode(manifestBlock).tryGet()
 
-    let
-      data = await retrieve(manifestCid)
+    let data = await retrieve(manifestCid)
+
     check:
       data.len == localManifest.originalBytes
       data.len == original.len
@@ -168,6 +170,7 @@ suite "Test Node":
 
     (await localStore.putBlock(blk)).tryGet()
     let stream = (await node.retrieve(blk.cid)).tryGet()
+    defer: await stream.close()
 
     var data = newSeq[byte](testString.len)
     await stream.readExactly(addr data[0], data.len)

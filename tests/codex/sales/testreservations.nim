@@ -13,8 +13,7 @@ import pkg/codex/sales
 import ../examples
 import ./helpers
 
-suite "Reservations module":
-
+asyncchecksuite "Reservations module":
   var
     repo: RepoStore
     repoDs: Datastore

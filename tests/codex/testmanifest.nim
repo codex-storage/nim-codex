@@ -12,7 +12,7 @@ import pkg/codex/manifest
 
 import ./helpers
 
-suite "Manifest":
+checksuite "Manifest":
   test "Should produce valid tree hash checksum":
     var manifest = Manifest.new(
         blocks = @[

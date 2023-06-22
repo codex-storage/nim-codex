@@ -12,7 +12,7 @@ import ./commonstoretests
 
 import ../helpers
 
-suite "Cache Store":
+checksuite "Cache Store":
   var
     newBlock, newBlock1, newBlock2, newBlock3: Block
     store: CacheStore

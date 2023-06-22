@@ -23,7 +23,7 @@ const
   BlockSize = 31 * 64
   DataSetSize = BlockSize * 100
 
-suite "Storage Proofs Network":
+asyncchecksuite "Storage Proofs Network":
   let
     hostAddr = ca.Address.example
     blocks = toSeq([1, 5, 10, 14, 20, 12, 22]) # TODO: maybe make them random
@@ -43,10 +43,11 @@ suite "Storage Proofs Network":
     spk: st.PublicKey
     porMsg: PorMessage
     cid: Cid
+    porStream: StoreStream
     por: PoR
     tags: seq[Tag]
 
-  setupAll:
+  setup:
     chunker = RandomChunker.new(Rng.instance(), size = DataSetSize, chunkSize = BlockSize)
     store = CacheStore.new(cacheSize = DataSetSize, chunkSize = BlockSize)
     manifest = Manifest.new(blockSize = BlockSize).tryGet()
@@ -61,16 +62,16 @@ suite "Storage Proofs Network":
       (await store.putBlock(blk)).tryGet()
 
     cid = manifest.cid.tryGet()
+    porStream = StoreStream.new(store, manifest)
     por = await PoR.init(
-      StoreStream.new(store, manifest),
+      porStream,
       ssk, spk,
       BlockSize)
 
     porMsg = por.toMessage()
     tags = blocks.mapIt(
-      Tag(idx: it, tag: porMsg.authenticators[it]) )
+      Tag(idx: it, tag: porMsg.authenticators[it]))
 
-  setup:
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
 
@@ -89,6 +90,7 @@ suite "Storage Proofs Network":
   teardown:
     await switch1.stop()
     await switch2.stop()
+    await close(porStream)
 
   test "Should upload to host":
     var

@@ -10,7 +10,7 @@ import pkg/codex/stores
 import pkg/codex/manifest
 import pkg/codex/blocktype as bt
 
-suite "StoreStream":
+asyncchecksuite "StoreStream":
   var
     manifest: Manifest
     store: BlockStore
@@ -36,6 +36,9 @@ suite "StoreStream":
       [byte 80, 81, 82, 83, 84, 85, 86, 87, 88, 89],
       [byte 90, 91, 92, 93, 94, 95, 96, 97, 98, 99],
     ]
+
+  teardown:
+    await stream.close()
 
   setup:
     store = CacheStore.new()

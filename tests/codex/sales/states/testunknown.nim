@@ -10,8 +10,9 @@ import pkg/codex/sales/states/finished
 import pkg/codex/sales/states/failed
 import ../../helpers/mockmarket
 import ../../examples
+import ../../helpers
 
-suite "sales state 'unknown'":
+checksuite "sales state 'unknown'":
 
   let request = StorageRequest.example
   let slotIndex = (request.ask.slots div 2).u256

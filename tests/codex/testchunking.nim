@@ -5,7 +5,9 @@ import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
 
-suite "Chunking":
+import ./helpers
+
+asyncchecksuite "Chunking":
   test "should return proper size chunks":
     var offset = 0
     let contents = [1.byte, 2, 3, 4, 5, 6, 7, 8, 9, 0]

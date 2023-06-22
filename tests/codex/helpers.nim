@@ -10,8 +10,9 @@ import ./helpers/nodeutils
 import ./helpers/randomchunker
 import ./helpers/mockdiscovery
 import ./helpers/eventually
+import ../checktest
 
-export randomchunker, nodeutils, mockdiscovery, eventually
+export randomchunker, nodeutils, mockdiscovery, eventually, checktest
 
 # NOTE: The meaning of equality for blocks
 # is changed here, because blocks are now `ref`
