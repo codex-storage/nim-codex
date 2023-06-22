@@ -321,10 +321,11 @@ proc generateQuery*(tau: Tau, l: int): seq[QElement] =
     result.add(q)
 
 proc generateProof*(
-  stream: SeekableStream,
-  q: seq[QElement],
-  authenticators: seq[blst_p1],
-  s: int64): Future[Proof] {.async.} =
+    stream: SeekableStream,
+    q: seq[QElement],
+    authenticators: seq[blst_p1],
+    s: int64
+): Future[Proof] {.async.} =
   ## Generata BLS proofs for a given query
   ##
 
@@ -432,11 +433,12 @@ proc verifyProof*(
   return verifyPairings(sum, self.spk.key, sigma, g)
 
 proc init*(
-  T: type PoR,
-  stream: SeekableStream,
-  ssk: SecretKey,
-  spk: PublicKey,
-  blockSize: int64): Future[PoR] {.async.} =
+    T: type PoR,
+    stream: SeekableStream,
+    ssk: SecretKey,
+    spk: PublicKey,
+    blockSize: int64
+): Future[PoR] {.async.} =
   ## Set up the POR scheme by generating tags and metadata
   ##
 

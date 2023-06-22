@@ -14,10 +14,14 @@ type
     sales*: Sales
     proving*: Proving
 
-proc new*(_: type HostInteractions,
-          clock: OnChainClock,
-          sales: Sales,
-          proving: Proving): HostInteractions =
+proc new*(
+    _: type HostInteractions,
+    clock: OnChainClock,
+    sales: Sales,
+    proving: Proving
+): HostInteractions =
+  ## Create a new HostInteractions instance
+  ## 
   HostInteractions(clock: clock, sales: sales, proving: proving)
 
 method start*(self: HostInteractions) {.async.} =

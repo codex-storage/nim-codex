@@ -18,7 +18,10 @@ type
     nodes*: ?uint
     tolerance*: ?uint
 
-proc fromJson*(_: type Availability, bytes: seq[byte]): ?!Availability =
+proc fromJson*(
+    _: type Availability,
+    bytes: seq[byte]
+): ?!Availability =
   let json = ?catch parseJson(string.fromBytes(bytes))
   let size = ?catch UInt256.fromDecimal(json["size"].getStr)
   let duration = ?catch UInt256.fromDecimal(json["duration"].getStr)
@@ -26,8 +29,10 @@ proc fromJson*(_: type Availability, bytes: seq[byte]): ?!Availability =
   let maxCollateral = ?catch UInt256.fromDecimal(json["maxCollateral"].getStr)
   success Availability.init(size, duration, minPrice, maxCollateral)
 
-proc fromJson*(_: type StorageRequestParams,
-               bytes: seq[byte]): ?! StorageRequestParams =
+proc fromJson*(
+    _: type StorageRequestParams,
+    bytes: seq[byte]
+): ?! StorageRequestParams =
   let json = ?catch parseJson(string.fromBytes(bytes))
   let duration = ?catch UInt256.fromDecimal(json["duration"].getStr)
   let proofProbability = ?catch UInt256.fromDecimal(json["proofProbability"].getStr)

@@ -33,7 +33,8 @@ template stpPath*(self: StpStore, cid: Cid): string =
 
 proc retrieve*(
   self: StpStore,
-  cid: Cid): Future[?!PorMessage] {.async.} =
+  cid: Cid
+): Future[?!PorMessage] {.async.} =
   ## Retrieve authenticators from data store
   ##
 
@@ -51,7 +52,8 @@ proc retrieve*(
 proc store*(
   self: StpStore,
   por: PorMessage,
-  cid: Cid): Future[?!void] {.async.} =
+  cid: Cid
+): Future[?!void] {.async.} =
   ## Persist storage proofs
   ##
 
@@ -74,9 +76,10 @@ proc store*(
   return success()
 
 proc retrieve*(
-  self: StpStore,
-  cid: Cid,
-  blocks: seq[int]): Future[?!seq[Tag]] {.async.} =
+    self: StpStore,
+    cid: Cid,
+    blocks: seq[int]
+): Future[?!seq[Tag]] {.async.} =
   var tags: seq[Tag]
   for b in blocks:
     var tag = Tag(idx: b)
@@ -92,9 +95,10 @@ proc retrieve*(
   return tags.success
 
 proc store*(
-  self: StpStore,
-  tags: seq[Tag],
-  cid: Cid): Future[?!void] {.async.} =
+    self: StpStore,
+    tags: seq[Tag],
+    cid: Cid
+): Future[?!void] {.async.} =
   let
     dir = self.stpPath(cid)
 
@@ -117,7 +121,10 @@ proc store*(
 proc init*(
   T: type StpStore,
   authDir: string,
-  postfixLen: int = 2): StpStore =
-  T(
+  postfixLen: int = 2
+): StpStore =
+  ## Init StpStore
+  ## 
+  StpStore(
     authDir: authDir,
     postfixLen: postfixLen)

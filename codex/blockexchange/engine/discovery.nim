@@ -242,19 +242,22 @@ proc stop*(b: DiscoveryEngine) {.async.} =
   trace "Discovery engine stopped"
 
 proc new*(
-  T: type DiscoveryEngine,
-  localStore: BlockStore,
-  peers: PeerCtxStore,
-  network: BlockExcNetwork,
-  discovery: Discovery,
-  pendingBlocks: PendingBlocksManager,
-  concurrentAdvReqs = DefaultConcurrentAdvertRequests,
-  concurrentDiscReqs = DefaultConcurrentDiscRequests,
-  discoveryLoopSleep = DefaultDiscoveryLoopSleep,
-  advertiseLoopSleep = DefaultAdvertiseLoopSleep,
-  minPeersPerBlock = DefaultMinPeersPerBlock,
-  advertiseType = BlockType.Both): DiscoveryEngine =
-  T(
+    T: type DiscoveryEngine,
+    localStore: BlockStore,
+    peers: PeerCtxStore,
+    network: BlockExcNetwork,
+    discovery: Discovery,
+    pendingBlocks: PendingBlocksManager,
+    concurrentAdvReqs = DefaultConcurrentAdvertRequests,
+    concurrentDiscReqs = DefaultConcurrentDiscRequests,
+    discoveryLoopSleep = DefaultDiscoveryLoopSleep,
+    advertiseLoopSleep = DefaultAdvertiseLoopSleep,
+    minPeersPerBlock = DefaultMinPeersPerBlock,
+    advertiseType = BlockType.Both
+): DiscoveryEngine =
+  ## Create a discovery engine instance for advertising services
+  ## 
+  DiscoveryEngine(
     localStore: localStore,
     peers: peers,
     network: network,

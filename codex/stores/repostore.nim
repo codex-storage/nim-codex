@@ -92,7 +92,13 @@ proc getBlockExpirationTimestamp(self: RepoStore, ttl: ?Duration): SecondsSince1
   let duration = ttl |? self.blockTtl
   self.clock.now() + duration.seconds
 
-proc getBlockExpirationEntry(self: RepoStore, batch: var seq[BatchEntry], cid: Cid, ttl: ?Duration): ?!BatchEntry =
+proc getBlockExpirationEntry(
+    self: RepoStore,
+    batch: var seq[BatchEntry],
+    cid: Cid,
+    ttl: ?Duration
+): ?!BatchEntry =
+  ## Get an expiration entry for a batch
   without key =? createBlockExpirationMetadataKey(cid), err:
     return failure(err)
 
@@ -100,9 +106,10 @@ proc getBlockExpirationEntry(self: RepoStore, batch: var seq[BatchEntry], cid: C
   return success((key, value))
 
 method putBlock*(
-  self: RepoStore,
-  blk: Block,
-  ttl = Duration.none): Future[?!void] {.async.} =
+    self: RepoStore,
+    blk: Block,
+    ttl = Duration.none
+): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 
@@ -201,8 +208,9 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   return await self.repoDs.has(key)
 
 method listBlocks*(
-  self: RepoStore,
-  blockType = BlockType.Manifest): Future[?!BlocksIter] {.async.} =
+    self: RepoStore,
+    blockType = BlockType.Manifest
+): Future[?!BlocksIter] {.async.} =
   ## Get the list of blocks in the RepoStore.
   ## This is an intensive operation
   ##
@@ -237,7 +245,13 @@ proc createBlockExpirationQuery(maxNumber: int, offset: int): ?!Query =
   let queryKey = ? createBlockExpirationMetadataQueryKey()
   success Query.init(queryKey, offset = offset, limit = maxNumber)
 
-method getBlockExpirations*(self: RepoStore, maxNumber: int, offset: int): Future[?!BlockExpirationIter] {.async, base.} =
+method getBlockExpirations*(
+    self: RepoStore,
+    maxNumber: int,
+    offset: int
+): Future[?!BlockExpirationIter] {.async, base.} =
+  ## Get block experiartions from the given RepoStore
+  ## 
   without query =? createBlockExpirationQuery(maxNumber, offset), err:
     trace "Unable to format block expirations query"
     return failure(err)
@@ -388,14 +402,17 @@ proc stop*(self: RepoStore): Future[void] {.async.} =
   self.started = false
 
 func new*(
-  T: type RepoStore,
-  repoDs: Datastore,
-  metaDs: Datastore,
-  clock: Clock = SystemClock.new(),
-  postFixLen = 2,
-  quotaMaxBytes = DefaultQuotaBytes,
-  blockTtl = DefaultBlockTtl): T =
-  T(
+    T: type RepoStore,
+    repoDs: Datastore,
+    metaDs: Datastore,
+    clock: Clock = SystemClock.new(),
+    postFixLen = 2,
+    quotaMaxBytes = DefaultQuotaBytes,
+    blockTtl = DefaultBlockTtl
+): RepoStore =
+  ## Create new instance of a RepoStore 
+  ## 
+  RepoStore(
     repoDs: repoDs,
     metaDs: metaDs,
     clock: clock,

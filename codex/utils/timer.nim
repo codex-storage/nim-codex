@@ -22,10 +22,9 @@ type
     name: string
     loopFuture: Future[void]
 
-proc new*(T: type Timer, timerName = "Unnamed Timer"): T =
-  T(
-    name: timerName
-  )
+proc new*(T: type Timer, timerName = "Unnamed Timer"): Timer =
+  ## Create a new Timer intance with the given name
+  Timer(name: timerName)
 
 proc timerLoop(timer: Timer) {.async.} =
   try:

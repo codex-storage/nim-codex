@@ -79,8 +79,9 @@ func cids(self: CacheStore): (iterator: Cid {.gcsafe.}) =
       yield cid
 
 method listBlocks*(
-  self: CacheStore,
-  blockType = BlockType.Manifest): Future[?!BlocksIter] {.async.} =
+    self: CacheStore,
+    blockType = BlockType.Manifest
+): Future[?!BlocksIter] {.async.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 
@@ -193,7 +194,11 @@ func new*(
     blocks: openArray[Block] = [],
     cacheSize: Positive = DefaultCacheSize, # in bytes
     chunkSize: Positive = DefaultChunkSize  # in bytes
-  ): CacheStore {.raises: [Defect, ValueError].} =
+): CacheStore {.raises: [Defect, ValueError].} =
+  ## Create a new CacheStore instance
+  ## 
+  ## `cacheSize` and `chunkSize` are both in bytes
+  ## 
 
   if cacheSize < chunkSize:
     raise newException(ValueError, "cacheSize cannot be less than chunkSize")

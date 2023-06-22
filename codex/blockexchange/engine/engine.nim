@@ -496,15 +496,18 @@ proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
   trace "Exiting blockexc task runner"
 
 proc new*(
-  T: type BlockExcEngine,
-  localStore: BlockStore,
-  wallet: WalletRef,
-  network: BlockExcNetwork,
-  discovery: DiscoveryEngine,
-  peerStore: PeerCtxStore,
-  pendingBlocks: PendingBlocksManager,
-  concurrentTasks = DefaultConcurrentTasks,
-  peersPerRequest = DefaultMaxPeersPerRequest): T =
+    T: type BlockExcEngine,
+    localStore: BlockStore,
+    wallet: WalletRef,
+    network: BlockExcNetwork,
+    discovery: DiscoveryEngine,
+    peerStore: PeerCtxStore,
+    pendingBlocks: PendingBlocksManager,
+    concurrentTasks = DefaultConcurrentTasks,
+    peersPerRequest = DefaultMaxPeersPerRequest
+): BlockExcEngine =
+  ## Create new block exchange engine instance
+  ## 
 
   let
     engine = BlockExcEngine(

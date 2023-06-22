@@ -26,13 +26,17 @@ proc upload*(client: CodexClient, contents: string): string =
   assert response.status == "200 OK"
   response.body
 
-proc requestStorage*(client: CodexClient,
-                     cid: string,
-                     duration: uint64,
-                     reward: uint64,
-                     proofProbability: uint64,
-                     expiry: UInt256,
-                     collateral: uint64): string =
+proc requestStorage*(
+    client: CodexClient,
+    cid: string,
+    duration: uint64,
+    reward: uint64,
+    proofProbability: uint64,
+    expiry: UInt256,
+    collateral: uint64
+): string =
+  ## Call request storage REST endpoint
+  ## 
   let url = client.baseurl & "/storage/request/" & cid
   let json = %*{
     "duration": $duration,
@@ -55,8 +59,13 @@ proc getSlots*(client: CodexClient): JsonNode =
   let body = client.http.getContent(url)
   parseJson(body).catch |? nil
 
-proc postAvailability*(client: CodexClient,
-                       size, duration, minPrice: uint64, maxCollateral: uint64): JsonNode =
+proc postAvailability*(
+    client: CodexClient,
+    size, duration, minPrice: uint64,
+    maxCollateral: uint64
+): JsonNode =
+  ## Post sales availability endpoint
+  ## 
   let url = client.baseurl & "/sales/availability"
   let json = %*{
     "size": $size,
@@ -69,6 +78,7 @@ proc postAvailability*(client: CodexClient,
   parseJson(response.body)
 
 proc getAvailabilities*(client: CodexClient): JsonNode =
+  ## Call sales availability REST endpoint
   let url = client.baseurl & "/sales/availability"
   let body = client.http.getContent(url)
   parseJson(body)

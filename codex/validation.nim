@@ -22,10 +22,13 @@ type
 logScope:
   topics = "codex validator"
 
-proc new*(_: type Validation,
-          clock: Clock,
-          market: Market,
-          maxSlots: int): Validation =
+proc new*(
+    _: type Validation,
+    clock: Clock,
+    market: Market,
+    maxSlots: int
+): Validation =
+  ## Create a new Validation instance
   Validation(clock: clock, market: market, maxSlots: maxSlots)
 
 proc slots*(validation: Validation): seq[SlotId] =

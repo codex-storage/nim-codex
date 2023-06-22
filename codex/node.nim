@@ -60,18 +60,23 @@ type
 
 proc findPeer*(
   node: CodexNodeRef,
-  peerId: PeerId): Future[?PeerRecord] {.async.} =
+  peerId: PeerId
+): Future[?PeerRecord] {.async.} =
+  ## Find peer using the discovery service from the given CodexNode
+  ## 
   return await node.discovery.findPeer(peerId)
 
 proc connect*(
-  node: CodexNodeRef,
-  peerId: PeerId,
-  addrs: seq[MultiAddress]): Future[void] =
+    node: CodexNodeRef,
+    peerId: PeerId,
+    addrs: seq[MultiAddress]
+): Future[void] =
   node.switch.connect(peerId, addrs)
 
 proc fetchManifest*(
-  node: CodexNodeRef,
-  cid: Cid): Future[?!Manifest] {.async.} =
+    node: CodexNodeRef,
+    cid: Cid
+): Future[?!Manifest] {.async.} =
   ## Fetch and decode a manifest block
   ##
 
@@ -93,10 +98,11 @@ proc fetchManifest*(
   return manifest.success
 
 proc fetchBatched*(
-  node: CodexNodeRef,
-  manifest: Manifest,
-  batchSize = FetchBatch,
-  onBatch: BatchProc = nil): Future[?!void] {.async, gcsafe.} =
+    node: CodexNodeRef,
+    manifest: Manifest,
+    batchSize = FetchBatch,
+    onBatch: BatchProc = nil
+): Future[?!void] {.async, gcsafe.} =
   ## Fetch manifest in batches of `batchSize`
   ##
 
@@ -122,8 +128,9 @@ proc fetchBatched*(
   return success()
 
 proc retrieve*(
-  node: CodexNodeRef,
-  cid: Cid): Future[?!LPStream] {.async.} =
+    node: CodexNodeRef,
+    cid: Cid
+): Future[?!LPStream] {.async.} =
   ## Retrieve by Cid a single block or an entire dataset described by manifest
   ##
 
@@ -175,9 +182,10 @@ proc retrieve*(
   return failure("Unable to retrieve Cid!")
 
 proc store*(
-  self: CodexNodeRef,
-  stream: LPStream,
-  blockSize = BlockSize): Future[?!Cid] {.async.} =
+    self: CodexNodeRef,
+    stream: LPStream,
+    blockSize = BlockSize
+): Future[?!Cid] {.async.} =
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
   ##
@@ -238,15 +246,17 @@ proc store*(
 
   return manifest.cid.success
 
-proc requestStorage*(self: CodexNodeRef,
-                     cid: Cid,
-                     duration: UInt256,
-                     proofProbability: UInt256,
-                     nodes: uint,
-                     tolerance: uint,
-                     reward: UInt256,
-                     collateral: UInt256,
-                     expiry = UInt256.none): Future[?!PurchaseId] {.async.} =
+proc requestStorage*(
+    self: CodexNodeRef,
+    cid: Cid,
+    duration: UInt256,
+    proofProbability: UInt256,
+    nodes: uint,
+    tolerance: uint,
+    reward: UInt256,
+    collateral: UInt256,
+    expiry = UInt256.none
+): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
   ##
@@ -311,14 +321,17 @@ proc requestStorage*(self: CodexNodeRef,
   return success purchase.id
 
 proc new*(
-  T: type CodexNodeRef,
-  switch: Switch,
-  store: BlockStore,
-  engine: BlockExcEngine,
-  erasure: Erasure,
-  discovery: Discovery,
-  contracts = Contracts.default): T =
-  T(
+    T: type CodexNodeRef,
+    switch: Switch,
+    store: BlockStore,
+    engine: BlockExcEngine,
+    erasure: Erasure,
+    discovery: Discovery,
+    contracts = Contracts.default
+): CodexNodeRef =
+  ## Create new instance of a Codex node, call `start` to run it
+  ## 
+  CodexNodeRef(
     switch: switch,
     blockStore: store,
     engine: engine,

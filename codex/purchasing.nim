@@ -47,7 +47,8 @@ proc stop*(purchasing: Purchasing) {.async.} =
   discard
 
 proc populate*(purchasing: Purchasing,
-               request: StorageRequest): Future[StorageRequest] {.async.} =
+               request: StorageRequest
+              ): Future[StorageRequest] {.async.} =
   result = request
   if result.ask.proofProbability == 0.u256:
     result.ask.proofProbability = purchasing.proofProbability
@@ -60,7 +61,8 @@ proc populate*(purchasing: Purchasing,
   result.client = await purchasing.market.getSigner()
 
 proc purchase*(purchasing: Purchasing,
-               request: StorageRequest): Future[Purchase] {.async.} =
+               request: StorageRequest
+              ): Future[Purchase] {.async.} =
   let request = await purchasing.populate(request)
   let purchase = Purchase.new(request, purchasing.market, purchasing.clock)
   purchase.start()

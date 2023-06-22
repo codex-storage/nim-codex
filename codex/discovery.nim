@@ -56,25 +56,27 @@ proc toNodeId*(host: ca.Address): NodeId =
   readUintBE[256](keccak256.digest(host.toArray).data)
 
 proc findPeer*(
-  d: Discovery,
-  peerId: PeerId): Future[?PeerRecord] {.async.} =
+    d: Discovery,
+    peerId: PeerId
+): Future[?PeerRecord] {.async.} =
   trace "protocol.resolve..."
+  ## Find peer using the given Discovery object
+  ##
   let
     node = await d.protocol.resolve(toNodeId(peerId))
 
   return
     if node.isSome():
-      trace "protocol.resolve some data"
       node.get().record.data.some
     else:
-      trace "protocol.resolve none"
       PeerRecord.none
 
 method find*(
-  d: Discovery,
-  cid: Cid): Future[seq[SignedPeerRecord]] {.async, base.} =
+    d: Discovery,
+    cid: Cid
+): Future[seq[SignedPeerRecord]] {.async, base.} =
   ## Find block providers
-  ##
+  ## 
 
   trace "Finding providers for block", cid
   without providers =?
@@ -98,8 +100,9 @@ method provide*(d: Discovery, cid: Cid) {.async, base.} =
   trace "Provided to nodes", nodes = nodes.len
 
 method find*(
-  d: Discovery,
-  host: ca.Address): Future[seq[SignedPeerRecord]] {.async, base.} =
+    d: Discovery,
+    host: ca.Address
+): Future[seq[SignedPeerRecord]] {.async, base.} =
   ## Find host providers
   ##
 
@@ -129,11 +132,20 @@ method provide*(d: Discovery, host: ca.Address) {.async, base.} =
   if nodes.len > 0:
     trace "Provided to nodes", nodes = nodes.len
 
-method removeProvider*(d: Discovery, peerId: PeerId): Future[void] {.base.} =
+method removeProvider*(
+    d: Discovery,
+    peerId: PeerId
+): Future[void] {.base.} =
+  ## Remove provider from providers table
+  ##
+
   trace "Removing provider", peerId
   d.protocol.removeProvidersLocal(peerId)
 
 proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
+  ## Update providers record
+  ##
+
   d.announceAddrs = @addrs
 
   trace "Updating announce record", addrs = d.announceAddrs
@@ -146,6 +158,9 @@ proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
       .expect("Should update SPR")
 
 proc updateDhtRecord*(d: Discovery, ip: ValidIpAddress, port: Port) =
+  ## Update providers record
+  ##
+
   trace "Updating Dht record", ip, port = $port
   d.dhtRecord = SignedPeerRecord.init(
     d.key, PeerRecord.init(d.peerId, @[
@@ -153,10 +168,6 @@ proc updateDhtRecord*(d: Discovery, ip: ValidIpAddress, port: Port) =
         ip,
         IpTransportProtocol.udpProtocol,
         port)])).expect("Should construct signed record").some
-
-  if not d.protocol.isNil:
-    d.protocol.updateRecord(d.dhtRecord)
-      .expect("Should update SPR")
 
 proc start*(d: Discovery) {.async.} =
   d.protocol.open()
@@ -166,17 +177,19 @@ proc stop*(d: Discovery) {.async.} =
   await d.protocol.closeWait()
 
 proc new*(
-  T: type Discovery,
-  key: PrivateKey,
-  bindIp = ValidIpAddress.init(IPv4_any()),
-  bindPort = 0.Port,
-  announceAddrs: openArray[MultiAddress],
-  bootstrapNodes: openArray[SignedPeerRecord] = [],
-  store: Datastore = SQLiteDatastore.new(Memory)
-    .expect("Should not fail!")): T =
+    T: type Discovery,
+    key: PrivateKey,
+    bindIp = ValidIpAddress.init(IPv4_any()),
+    bindPort = 0.Port,
+    announceAddrs: openArray[MultiAddress],
+    bootstrapNodes: openArray[SignedPeerRecord] = [],
+    store: Datastore = SQLiteDatastore.new(Memory).expect("Should not fail!")
+): Discovery =
+  ## Create a new Discovery node instance for the given key and datastore 
+  ## 
 
   var
-    self = T(
+    self = Discovery(
       key: key,
       peerId: PeerId.init(key).expect("Should construct PeerId"))
 

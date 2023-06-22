@@ -45,9 +45,10 @@ method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
   raiseAssert("Not implemented!")
 
 method putBlock*(
-  self: BlockStore,
-  blk: Block,
-  ttl = Duration.none): Future[?!void] {.base.} =
+    self: BlockStore,
+    blk: Block,
+    ttl = Duration.none
+): Future[?!void] {.base.} =
   ## Put a block to the blockstore
   ##
 

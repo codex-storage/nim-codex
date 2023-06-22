@@ -32,10 +32,11 @@ type
     stpStore*: StpStore
 
 proc upload*(
-  self: StorageProofs,
-  cid: Cid,
-  indexes: seq[int],
-  host: ca.Address): Future[?!void] {.async.} =
+    self: StorageProofs,
+    cid: Cid,
+    indexes: seq[int],
+    host: ca.Address
+): Future[?!void] {.async.} =
   ## Upload authenticators
   ##
 
@@ -56,8 +57,9 @@ proc upload*(
 #   discard
 
 proc setupProofs*(
-  self: StorageProofs,
-  manifest: Manifest): Future[?!void] {.async.} =
+    self: StorageProofs,
+    manifest: Manifest
+): Future[?!void] {.async.} =
   ## Setup storage authentication
   ##
 
@@ -75,10 +77,11 @@ proc setupProofs*(
   return await self.stpStore.store(por.toMessage(), cid)
 
 proc init*(
-  T: type StorageProofs,
-  network: StpNetwork,
-  store: BlockStore,
-  stpStore: StpStore): StorageProofs =
+    T: type StorageProofs,
+    network: StpNetwork,
+    store: BlockStore,
+    stpStore: StpStore
+): StorageProofs =
 
   var
     self = T(

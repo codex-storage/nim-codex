@@ -51,7 +51,13 @@ type
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
 
-proc bootstrapInteractions(config: CodexConf, repo: RepoStore): Future[Contracts] {.async.} =
+proc bootstrapInteractions(
+    config: CodexConf,
+    repo: RepoStore
+): Future[Contracts] {.async.} =
+  ## bootstrap interactions and return contracts 
+  ## using clients, hosts, validators pairings
+  ## 
 
   if not config.persistence and not config.validator:
     if config.ethAccount.isSome:
@@ -150,7 +156,8 @@ proc stop*(s: CodexServer) {.async.} =
 proc new*(
     T: type CodexServer,
     config: CodexConf,
-    privateKey: CodexPrivateKey): CodexServer =
+    privateKey: CodexPrivateKey
+): CodexServer =
   ## create CodexServer including setting up datastore, repostore, etc
   let
     switch = SwitchBuilder
@@ -231,9 +238,10 @@ proc new*(
 
   switch.mount(network)
 
-  T(
+  CodexServer(
     config: config,
     codexNode: codexNode,
     restServer: restServer,
     repoStore: repoStore,
-    maintenance: maintenance)
+    maintenance: maintenance
+  )

@@ -159,14 +159,15 @@ proc cid*(self: Manifest): ?!Cid =
 ############################################################
 
 proc new*(
-  T: type Manifest,
-  blocks: openArray[Cid] = [],
-  protected = false,
-  version = CIDv1,
-  hcodec = multiCodec("sha2-256"),
-  codec = multiCodec("raw"),
-  blockSize = BlockSize): ?!T =
-  ## Create a manifest using array of `Cid`s
+    T: type Manifest,
+    blocks: openArray[Cid] = [],
+    protected = false,
+    version = CIDv1,
+    hcodec = multiCodec("sha2-256"),
+    codec = multiCodec("raw"),
+    blockSize = BlockSize
+): ?!Manifest =
+  ## Create a manifest using an array of `Cid`s
   ##
 
   if hcodec notin EmptyDigests[version]:
@@ -182,9 +183,10 @@ proc new*(
     protected: protected).success
 
 proc new*(
-  T: type Manifest,
-  manifest: Manifest,
-  ecK, ecM: int): ?!Manifest =
+    T: type Manifest,
+    manifest: Manifest,
+    ecK, ecM: int
+): ?!Manifest =
   ## Create an erasure protected dataset from an
   ## un-protected one
   ##
@@ -223,5 +225,8 @@ proc new*(
 proc new*(
   T: type Manifest,
   data: openArray[byte],
-  decoder = ManifestContainers[$DagPBCodec]): ?!T =
+  decoder = ManifestContainers[$DagPBCodec]
+): ?!Manifest =
+  ## Create a manifest instance from given data
+  ## 
   Manifest.decode(data, decoder)

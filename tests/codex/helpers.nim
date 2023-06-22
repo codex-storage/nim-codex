@@ -31,9 +31,10 @@ proc lenPrefix*(msg: openArray[byte]): seq[byte] =
   return buf
 
 proc corruptBlocks*(
-  store: BlockStore,
-  manifest: Manifest,
-  blks, bytes: int): Future[seq[int]] {.async.} =
+    store: BlockStore,
+    manifest: Manifest,
+    blks, bytes: int
+): Future[seq[int]] {.async.} =
   var pos: seq[int]
 
   doAssert blks < manifest.len

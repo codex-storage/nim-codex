@@ -74,7 +74,7 @@ method getRequest(market: OnChainMarket,
     raise e
 
 method requestState*(market: OnChainMarket,
-                 requestId: RequestId): Future[?RequestState] {.async.} =
+                     requestId: RequestId): Future[?RequestState] {.async.} =
   try:
     return some await market.contract.requestState(requestId)
   except ProviderError as e:
@@ -100,9 +100,8 @@ method getHost(market: OnChainMarket,
   else:
     return none Address
 
-method getActiveSlot*(
-  market: OnChainMarket,
-  slotId: SlotId): Future[?Slot] {.async.} =
+method getActiveSlot*(market: OnChainMarket,
+                      slotId: SlotId): Future[?Slot] {.async.} =
 
   try:
     return some await market.contract.getActiveSlot(slotId)
@@ -154,9 +153,11 @@ method markProofAsMissing*(market: OnChainMarket,
                            period: Period) {.async.} =
   await market.contract.markProofAsMissing(id, period)
 
-method canProofBeMarkedAsMissing*(market: OnChainMarket,
-                                  id: SlotId,
-                                  period: Period): Future[bool] {.async.} =
+method canProofBeMarkedAsMissing*(
+    market: OnChainMarket,
+    id: SlotId,
+    period: Period
+): Future[bool] {.async.} =
   let provider = market.contract.provider
   let contractWithoutSigner = market.contract.connect(provider)
   let overrides = CallOverrides(blockTag: some BlockTag.pending)

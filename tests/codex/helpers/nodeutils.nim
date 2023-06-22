@@ -24,8 +24,9 @@ type
     networkStore: NetworkStore]
 
 proc generateNodes*(
-  num: Natural,
-  blocks: openArray[bt.Block] = []): seq[NodesComponents] =
+    num: Natural,
+    blocks: openArray[bt.Block] = []
+): seq[NodesComponents] =
   for i in 0..<num:
     let
       switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})

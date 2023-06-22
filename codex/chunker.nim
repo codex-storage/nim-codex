@@ -60,21 +60,25 @@ proc getBytes*(c: Chunker): Future[seq[byte]] {.async.} =
   return move buff
 
 func new*(
-  T: type Chunker,
-  reader: Reader,
-  chunkSize = DefaultChunkSize,
-  pad = true): T =
-
-  T(reader: reader,
+    T: type Chunker,
+    reader: Reader,
+    chunkSize = DefaultChunkSize,
+    pad = true
+): Chunker =
+  ## create a new Chunker instance
+  ##
+  Chunker(
+    reader: reader,
     offset: 0,
     chunkSize: chunkSize,
     pad: pad)
 
 proc new*(
-  T: type LPStreamChunker,
-  stream: LPStream,
-  chunkSize = DefaultChunkSize,
-  pad = true): T =
+    T: type LPStreamChunker,
+    stream: LPStream,
+    chunkSize = DefaultChunkSize,
+    pad = true
+): LPStreamChunker =
   ## create the default File chunker
   ##
 
@@ -92,16 +96,17 @@ proc new*(
 
     return res
 
-  T.new(
+  LPStreamChunker.new(
     reader = reader,
     chunkSize = chunkSize,
     pad = pad)
 
 proc new*(
-  T: type FileChunker,
-  file: File,
-  chunkSize = DefaultChunkSize,
-  pad = true): T =
+    T: type FileChunker,
+    file: File,
+    chunkSize = DefaultChunkSize,
+    pad = true
+): FileChunker =
   ## create the default File chunker
   ##
 
@@ -123,7 +128,7 @@ proc new*(
 
     return total
 
-  T.new(
+  FileChunker.new(
     reader = reader,
     chunkSize = chunkSize,
     pad = pad)

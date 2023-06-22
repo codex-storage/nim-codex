@@ -93,5 +93,5 @@ func selectCheapest*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
   return peers
 
 proc new*(T: type PeerCtxStore): PeerCtxStore =
-  T(
-    peers: initOrderedTable[PeerId, BlockExcPeerCtx]())
+  ## create new instance of a peer context store
+  PeerCtxStore(peers: initOrderedTable[PeerId, BlockExcPeerCtx]())

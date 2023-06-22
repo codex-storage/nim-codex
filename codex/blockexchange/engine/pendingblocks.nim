@@ -34,10 +34,11 @@ type
     blocks*: Table[Cid, BlockReq] # pending Block requests
 
 proc getWantHandle*(
-  p: PendingBlocksManager,
-  cid: Cid,
-  timeout = DefaultBlockTimeout,
-  inFlight = false): Future[Block] {.async.} =
+    p: PendingBlocksManager,
+    cid: Cid,
+    timeout = DefaultBlockTimeout,
+    inFlight = false
+): Future[Block] {.async.} =
   ## Add an event for a block
   ##
 
@@ -60,9 +61,8 @@ proc getWantHandle*(
   finally:
     p.blocks.del(cid)
 
-proc resolve*(
-  p: PendingBlocksManager,
-  blocks: seq[Block]) =
+proc resolve*(p: PendingBlocksManager,
+              blocks: seq[Block]) =
   ## Resolve pending blocks
   ##
 
@@ -73,28 +73,25 @@ proc resolve*(
         trace "Resolving block", cid = blk.cid
         pending[].handle.complete(blk)
 
-proc setInFlight*(
-  p: PendingBlocksManager,
-  cid: Cid,
-  inFlight = true) =
+proc setInFlight*(p: PendingBlocksManager,
+                  cid: Cid,
+                  inFlight = true) =
   p.blocks.withValue(cid, pending):
     pending[].inFlight = inFlight
     trace "Setting inflight", cid, inFlight = pending[].inFlight
 
-proc isInFlight*(
-  p: PendingBlocksManager,
-  cid: Cid): bool =
+proc isInFlight*(p: PendingBlocksManager,
+                 cid: Cid
+                ): bool =
   p.blocks.withValue(cid, pending):
     result = pending[].inFlight
     trace "Getting inflight", cid, inFlight = result
 
-proc pending*(
-  p: PendingBlocksManager,
-  cid: Cid): bool = cid in p.blocks
+proc pending*(p: PendingBlocksManager, cid: Cid): bool =
+  cid in p.blocks
 
-proc contains*(
-  p: PendingBlocksManager,
-  cid: Cid): bool = p.pending(cid)
+proc contains*(p: PendingBlocksManager, cid: Cid): bool =
+  p.pending(cid)
 
 iterator wantList*(p: PendingBlocksManager): Cid =
   for k in p.blocks.keys:
@@ -107,5 +104,5 @@ iterator wantHandles*(p: PendingBlocksManager): Future[Block] =
 func len*(p: PendingBlocksManager): int =
   p.blocks.len
 
-func new*(T: type PendingBlocksManager): T =
-  T()
+func new*(T: type PendingBlocksManager): PendingBlocksManager =
+  PendingBlocksManager()
