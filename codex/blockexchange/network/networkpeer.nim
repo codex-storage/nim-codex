@@ -24,7 +24,7 @@ const
   MaxMessageSize = 100 * 1 shl 20 # manifest files can be big
 
 type
-  ConnProvider* = proc(): Future[Connection] {.gcsafe, closure.}
+  ConnProvider* = proc(): Future[Connection] {.gcsafe, closure, raises: [].}
 
   RPCHandler* = proc(peer: NetworkPeer, msg: Message): Future[void] {.gcsafe.}
 
