@@ -209,8 +209,6 @@ proc dispatch(self: SlotQueue,
               worker: SlotQueueWorker,
               item: SlotQueueItem) {.async.} =
 
-
-
   if onProcessSlot =? self.onProcessSlot:
     await onProcessSlot(item, worker.processing)
     await worker.processing

@@ -15,7 +15,7 @@ import pkg/libp2p/crypto/crypto
 import pkg/bearssl/rand
 
 type
-  RngSampleError* = object of CatchableError
+  RngSampleError = object of CatchableError
   Rng* = ref HmacDrbgContext
 
 var rng {.threadvar.}: Rng
