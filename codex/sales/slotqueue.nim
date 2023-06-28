@@ -15,7 +15,7 @@ logScope:
 
 type
   OnProcessSlot* =
-    proc(sqi: SlotQueueItem, processing: Future[void]): Future[void] {.gcsafe, upraises:[].}
+    proc(item: SlotQueueItem, processing: Future[void]): Future[void] {.gcsafe, upraises:[].}
 
   SlotQueueWorker = ref object
     processing: Future[void]
@@ -114,13 +114,13 @@ proc init*(_: type SlotQueueItem,
 
   var i = 0'u64
   proc initSlotQueueItem: SlotQueueItem =
-    let sqi = SlotQueueItem.init(requestId, i, ask, expiry)
+    let item = SlotQueueItem.init(requestId, i, ask, expiry)
     inc i
-    return sqi
+    return item
 
-  var sqis = newSeqWith[uint64](ask.slots, initSlotQueueItem())
-  Rng.instance.shuffle(sqis)
-  return sqis
+  var items = newSeqWith[uint64](ask.slots, initSlotQueueItem())
+  Rng.instance.shuffle(items)
+  return items
 
 proc init*(_: type SlotQueueItem,
           request: StorageRequest): seq[SlotQueueItem] =
@@ -142,22 +142,22 @@ proc `onProcessSlot=`*(self: SlotQueue, onProcessSlot: OnProcessSlot) =
 
 proc activeWorkers*(self: SlotQueue): int = self.workers.len
 
-proc contains*(self: SlotQueue, sqi: SlotQueueItem): bool =
-  self.queue.contains(sqi)
+proc contains*(self: SlotQueue, item: SlotQueueItem): bool =
+  self.queue.contains(item)
 
 proc pop*(self: SlotQueue): Future[?!SlotQueueItem] {.async.} =
   try:
-    let sqi = await self.queue.pop()
-    return success(sqi)
+    let item = await self.queue.pop()
+    return success(item)
   except CatchableError as err:
     return failure(err)
 
-proc push*(self: SlotQueue, sqi: SlotQueueItem): ?!void =
-  if self.contains(sqi):
+proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
+  if self.contains(item):
     let err = newException(SlotQueueItemExistsError, "item already exists")
     return failure(err)
 
-  if err =? self.queue.pushNoWait(sqi).mapFailure.errorOption:
+  if err =? self.queue.pushNoWait(item).mapFailure.errorOption:
     return failure(err)
 
   if self.queue.full():
@@ -167,35 +167,35 @@ proc push*(self: SlotQueue, sqi: SlotQueueItem): ?!void =
   doAssert self.queue.len <= self.queue.size
   return success()
 
-proc push*(self: SlotQueue, sqis: seq[SlotQueueItem]): ?!void =
-  for sqi in sqis:
-    if err =? self.push(sqi).errorOption:
+proc push*(self: SlotQueue, items: seq[SlotQueueItem]): ?!void =
+  for item in items:
+    if err =? self.push(item).errorOption:
       return failure(err)
 
   return success()
 
 proc findByRequest(self: SlotQueue, requestId: RequestId): seq[SlotQueueItem] =
-  var sqis: seq[SlotQueueItem] = @[]
-  for sqi in self.queue.items:
-    if sqi.requestId == requestId:
-      sqis.add sqi
-  return sqis
+  var items: seq[SlotQueueItem] = @[]
+  for item in self.queue.items:
+    if item.requestId == requestId:
+      items.add item
+  return items
 
-proc delete*(self: SlotQueue, sqi: SlotQueueItem) =
-  self.queue.delete(sqi)
+proc delete*(self: SlotQueue, item: SlotQueueItem) =
+  self.queue.delete(item)
 
 proc delete*(self: SlotQueue, requestId: RequestId, slotIndex: uint64) =
-  let sqi = SlotQueueItem(requestId: requestId, slotIndex: slotIndex)
-  self.delete(sqi)
+  let item = SlotQueueItem(requestId: requestId, slotIndex: slotIndex)
+  self.delete(item)
 
 proc delete*(self: SlotQueue, requestId: RequestId) =
-  let sqis = self.findByRequest(requestId)
-  for sqi in sqis:
-    self.delete(sqi)
+  let items = self.findByRequest(requestId)
+  for item in items:
+    self.delete(item)
 
 proc get*(self: SlotQueue, requestId: RequestId, slotIndex: uint64): ?!SlotQueueItem =
-  let sqi = SlotQueueItem(requestId: requestId, slotIndex: slotIndex)
-  let idx = self.queue.find(sqi)
+  let item = SlotQueueItem(requestId: requestId, slotIndex: slotIndex)
+  let idx = self.queue.find(item)
   if idx == -1:
     let err = newException(SlotQueueItemNotExistsError, "item does not exist")
     return failure(err)
@@ -207,12 +207,12 @@ proc `[]`*(self: SlotQueue, i: Natural): SlotQueueItem =
 
 proc dispatch(self: SlotQueue,
               worker: SlotQueueWorker,
-              sqi: SlotQueueItem) {.async.} =
+              item: SlotQueueItem) {.async.} =
 
 
 
   if onProcessSlot =? self.onProcessSlot:
-    await onProcessSlot(sqi, worker.processing)
+    await onProcessSlot(item, worker.processing)
     await worker.processing
 
   self.workers.keepItIf(it != worker)
@@ -237,10 +237,10 @@ proc start*(self: SlotQueue) {.async.} =
     try:
       self.next = self.queue.pop()
       self.next.addCallback(handleErrors)
-      let sqi = await self.next # if queue empty, should wait here for new items
+      let item = await self.next # if queue empty, should wait here for new items
       let worker = SlotQueueWorker.new()
       self.workers.add worker
-      asyncSpawn self.dispatch(worker, sqi)
+      asyncSpawn self.dispatch(worker, item)
       self.next = nil
       await sleepAsync(1.millis) # poll
     except CancelledError:

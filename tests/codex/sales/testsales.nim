@@ -82,33 +82,33 @@ asyncchecksuite "Sales":
   proc getAvailability: ?!Availability =
     waitFor reservations.get(availability.id)
 
-  proc waitUntilInQueue(sqis: seq[SlotQueueItem]) {.async.} =
-    for i in 0..<sqis.len:
-      check eventually queue.contains(sqis[i])
+  proc waitUntilInQueue(items: seq[SlotQueueItem]) {.async.} =
+    for i in 0..<items.len:
+      check eventually queue.contains(items[i])
 
   test "processes all request's slots once StorageRequested emitted":
     var slotsProcessed: seq[SlotQueueItem] = @[]
-    queue.onProcessSlot = proc(sqi: SlotQueueItem, processing: Future[void]) {.async.} =
-                            slotsProcessed.add sqi
+    queue.onProcessSlot = proc(item: SlotQueueItem, processing: Future[void]) {.async.} =
+                            slotsProcessed.add item
                             processing.complete()
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    let sqis = SlotQueueItem.init(request)
-    check eventually sqis.allIt(slotsProcessed.contains(it))
+    let items = SlotQueueItem.init(request)
+    check eventually items.allIt(slotsProcessed.contains(it))
 
   test "adds request's slots to slot queue once StorageRequested emitted":
     queue.stop() # prevents popping during processing
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    let sqis = SlotQueueItem.init(request)
-    await waitUntilInQueue(sqis)
+    let items = SlotQueueItem.init(request)
+    await waitUntilInQueue(items)
 
   test "removes slots from slot queue once RequestCancelled emitted":
     queue.stop() # prevents popping during processing
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    let sqis = SlotQueueItem.init(request)
-    await waitUntilInQueue(sqis)
+    let items = SlotQueueItem.init(request)
+    await waitUntilInQueue(items)
     market.emitRequestCancelled(request.id)
     check queue.len == 0
 
@@ -116,8 +116,8 @@ asyncchecksuite "Sales":
     queue.stop() # prevents popping during processing
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    let sqis = SlotQueueItem.init(request)
-    await waitUntilInQueue(sqis)
+    let items = SlotQueueItem.init(request)
+    await waitUntilInQueue(items)
     market.emitRequestFailed(request.id)
     check queue.len == 0
 
@@ -126,21 +126,21 @@ asyncchecksuite "Sales":
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     for slotIndex in 0'u64..<request.ask.slots:
-      let sqi = SlotQueueItem.init(request, slotIndex)
-      check eventually queue.contains(sqi)
+      let item = SlotQueueItem.init(request, slotIndex)
+      check eventually queue.contains(item)
 
   test "removes slot index from slot queue once SlotFilled emitted":
     queue.stop() # preventing popping during processing loop
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    let sqis = SlotQueueItem.init(request)
-    await waitUntilInQueue(sqis)
+    let items = SlotQueueItem.init(request)
+    await waitUntilInQueue(items)
     market.emitSlotFilled(request.id, 1.u256)
     check queue.len == 3
     check not queue.contains(SlotQueueItem.init(request, 1.uint64))
     for slotIndex in [0'u64, 2'u64, 3'u64]:
-      let sqi = SlotQueueItem.init(request, slotIndex)
-      check queue.contains(sqi)
+      let item = SlotQueueItem.init(request, slotIndex)
+      check queue.contains(item)
 
   test "all request's slots removed from queue once SlotFulfilled emitted":
     queue.stop()
@@ -164,8 +164,8 @@ asyncchecksuite "Sales":
 
   test "removes request in queue if unknown request once SlotFreed emitted":
     queue.stop()
-    let sqis = SlotQueueItem.init(request)
-    check queue.push(sqis).isOk
+    let items = SlotQueueItem.init(request)
+    check queue.push(items).isOk
     market.emitSlotFreed(request.id, 2.u256)
     check queue.len == 0
 

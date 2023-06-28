@@ -92,14 +92,14 @@ proc cleanUp(sales: Sales,
   # signal back to the slot queue to cycle a worker
   processing.complete()
 
-proc handleRequest(sales: Sales, sqi: SlotQueueItem, processing: Future[void]) =
-  debug "handling storage requested", requestId = $sqi.requestId,
-    slot = sqi.slotIndex
+proc handleRequest(sales: Sales, item: SlotQueueItem, processing: Future[void]) =
+  debug "handling storage requested", requestId = $item.requestId,
+    slot = item.slotIndex
 
   let agent = newSalesAgent(
     sales.context,
-    sqi.requestId,
-    sqi.slotIndex.u256,
+    item.requestId,
+    item.slotIndex.u256,
     none StorageRequest
   )
 
@@ -159,8 +159,8 @@ proc subscribeRequested(sales: Sales) {.async.} =
                                                    ask.pricePerSlot,
                                                    ask.collateral,
                                                    used = false):
-        let sqis = SlotQueueItem.init(requestId, ask, expiry)
-        if err =? slotQueue.push(sqis).errorOption:
+        let items = SlotQueueItem.init(requestId, ask, expiry)
+        if err =? slotQueue.push(items).errorOption:
           raise err
     except CatchableError as e:
       error "Error pushing request to SlotQueue", error = e.msg
@@ -273,8 +273,8 @@ proc subscribeSlotFreed(sales: Sales) {.async.} =
       # retrieving the request requires the subscription callback to be async,
       # which has been avoided on many occasions, so we are using `waitFor`.
       if request =? waitFor market.getRequest(requestId):
-        let sqi = SlotQueueItem.init(request, slotIndex.truncate(uint64))
-        if err =? queue.push(sqi).errorOption:
+        let item = SlotQueueItem.init(request, slotIndex.truncate(uint64))
+        if err =? queue.push(item).errorOption:
           error "Error adding slot index to slot queue", error = err.msg
 
       else:
@@ -293,8 +293,8 @@ proc subscribeSlotFreed(sales: Sales) {.async.} =
 proc startSlotQueue(sales: Sales) {.async.} =
   let slotQueue = sales.context.slotQueue
   slotQueue.onProcessSlot =
-    proc(sqi: SlotQueueItem, processing: Future[void]) {.async.} =
-      sales.handleRequest(sqi, processing)
+    proc(item: SlotQueueItem, processing: Future[void]) {.async.} =
+      sales.handleRequest(item, processing)
   asyncSpawn slotQueue.start()
 
 proc subscribe(sales: Sales) {.async.} =
