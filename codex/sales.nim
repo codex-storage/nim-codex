@@ -163,7 +163,7 @@ proc subscribeRequested(sales: Sales) {.async.} =
         if err =? slotQueue.push(items).errorOption:
           raise err
     except CatchableError as e:
-      error "Error pushing request to SlotQueue", error = e.msg
+      warn "Error pushing request to SlotQueue", error = e.msg
       discard
 
   try:
