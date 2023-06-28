@@ -17,14 +17,13 @@ type
   OnProcessSlot* =
     proc(item: SlotQueueItem, processing: Future[void]): Future[void] {.gcsafe, upraises:[].}
 
-  SlotQueueWorker = ref object
-    processing: Future[void]
 
   # Non-ref obj copies value when assigned, preventing accidental modification
   # of values which could cause an incorrect order (eg
   # ``slotQueue[1].collateral = 1`` would cause ``collateral`` to be updated,
   # but the heap invariant would no longer be honoured. When non-ref, the
   # compiler can ensure that statement will fail).
+  SlotQueueWorker = object
   SlotQueueItem* = object
     requestId: RequestId
     slotIndex: uint64
@@ -37,7 +36,7 @@ type
     onProcessSlot: ?OnProcessSlot
     next: Future[SlotQueueItem]
     maxWorkers: uint
-    workers: seq[SlotQueueWorker]
+    workers: AsyncQueue[SlotQueueWorker]
 
   SlotQueueError = object of CodexError
   SlotQueueItemExistsError* = object of SlotQueueError
@@ -79,13 +78,13 @@ proc new*(_: type SlotQueue,
     # temporarily. After push (and sort), the bottom-most item will be deleted
     queue: newAsyncHeapQueue[SlotQueueItem](maxSize.int + 1),
     maxWorkers: maxWorkers,
-    workers: newSeqOfCap[SlotQueueWorker](maxWorkers),
+    workers: newAsyncQueue[SlotQueueWorker](maxWorkers.int),
     running: false
   )
 
-proc new*(_: type SlotQueueWorker): SlotQueueWorker =
+proc init*(_: type SlotQueueWorker): SlotQueueWorker =
   SlotQueueWorker(
-    processing: newFuture[void]("slotqueue.worker.processing")
+    processing: false
   )
 
 proc init*(_: type SlotQueueItem,
@@ -137,10 +136,14 @@ proc len*(self: SlotQueue): int = self.queue.len
 
 proc `$`*(self: SlotQueue): string = $self.queue
 
+proc len(i: int): int = i
+
 proc `onProcessSlot=`*(self: SlotQueue, onProcessSlot: OnProcessSlot) =
   self.onProcessSlot = some onProcessSlot
 
-proc activeWorkers*(self: SlotQueue): int = self.workers.len
+proc activeWorkers*(self: SlotQueue): int =
+  # active = capacity - available
+  self.workers.size - self.workers.len
 
 proc contains*(self: SlotQueue, item: SlotQueueItem): bool =
   self.queue.contains(item)
@@ -205,13 +208,22 @@ proc get*(self: SlotQueue, requestId: RequestId, slotIndex: uint64): ?!SlotQueue
 proc `[]`*(self: SlotQueue, i: Natural): SlotQueueItem =
   self.queue[i]
 
+proc addWorker(self: SlotQueue) =
+  let worker = SlotQueueWorker()
+  try:
+    self.workers.addLastNoWait(worker)
+  except AsyncQueueFullError as err:
+    error "failed to add worker, queue full", error = err.msg
+
 proc dispatch(self: SlotQueue,
               worker: SlotQueueWorker,
               item: SlotQueueItem) {.async.} =
 
+  let done = newFuture[void]("slotqueue.worker.processing")
+
   if onProcessSlot =? self.onProcessSlot:
     try:
-      await onProcessSlot(item, worker.processing)
+      await onProcessSlot(item, done)
     except CatchableError as e:
       # we don't have any insight into types of errors that `onProcessSlot` can
       # throw because it is caller-defined
@@ -219,13 +231,13 @@ proc dispatch(self: SlotQueue,
         requestId = item.requestId, error = e.msg
 
     try:
-      await worker.processing
+      await done
     except CancelledError as e:
       # do not bubble exception up as it is called with `asyncSpawn` which would
       # convert the exception into a `FutureDefect`
       discard
 
-  self.workers.keepItIf(it != worker)
+  self.addWorker()
 
 proc start*(self: SlotQueue) {.async.} =
   if self.running:
@@ -233,22 +245,22 @@ proc start*(self: SlotQueue) {.async.} =
 
   self.running = true
 
-  while self.running: # and self.workers.len.uint < self.maxWorkers:
-    if self.workers.len.uint >= self.maxWorkers:
-      await sleepAsync(1.millis)
-      continue
+  # Add initial workers to the `AsyncHeapQueue`. Once a worker has completed its
+  # task, a new worker will be pushed to the queue
+  for i in 0..<self.workers.size:
+    self.addWorker()
 
+  while self.running:
     try:
+      let worker = await self.workers.popFirst() # wait for worker to free up
       self.next = self.queue.pop()
-      let item = await self.next # if queue empty, should wait here for new items
-      let worker = SlotQueueWorker.new()
-      self.workers.add worker
+      let item = await self.next # if queue empty, wait here for new items
       asyncSpawn self.dispatch(worker, item)
       self.next = nil
       await sleepAsync(1.millis) # poll
     except CancelledError:
       discard
-    except CatchableError as e: # raised from self.queue.pop()
+    except CatchableError as e: # raised from self.queue.pop() or self.workers.pop()
       warn "slot queue error encountered during processing", error = e.msg
 
 proc stop*(self: SlotQueue) =

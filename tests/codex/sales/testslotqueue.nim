@@ -50,7 +50,7 @@ suite "Slot queue workers":
   proc onProcessSlot(item: SlotQueueItem, processing: Future[void]) {.async.} =
     try:
       await sleepAsync(1000.millis)
-      # this is not illustrative of the realistic scenario as the processing
+      # this is not illustrative of the realistic scenario as the `processing`
       # future would be passed to another context before being completed and
       # therefore is not as simple as making the callback async
       processing.complete()
