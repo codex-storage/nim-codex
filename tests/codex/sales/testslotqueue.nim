@@ -65,19 +65,13 @@ suite "Slot queue workers":
   teardown:
     sq.stop()
 
+  test "maxWorkers cannot be 0":
+    expect ValueError:
+      let sq2 = SlotQueue.new(maxSize = 1, maxWorkers = 0)
+
   test "maxWorkers cannot surpass maxSize":
-    let sq2 = SlotQueue.new(maxSize = 1, maxWorkers = 2)
-    sq2.onProcessSlot = onProcessSlot
-    asyncSpawn sq2.start()
-    let sqi1 = SlotQueueItem.example
-    let sqi2 = SlotQueueItem.example
-    let sqi3 = SlotQueueItem.example
-    let sqi4 = SlotQueueItem.example
-    check sq2.push(sqi1).isOk
-    check sq2.push(sqi2).isOk
-    check sq2.push(sqi3).isOk
-    check sq2.push(sqi4).isOk
-    check eventually sq2.activeWorkers == 1
+    expect ValueError:
+      let sq2 = SlotQueue.new(maxSize = 1, maxWorkers = 2)
 
   test "does not surpass max workers":
     let sqi1 = SlotQueueItem.example
@@ -122,7 +116,7 @@ suite "Slot queue":
   setup:
     onProcessSlotCalled = false
     onProcessSlotCalledWith = @[]
-    sq = SlotQueue.new(maxSize = 2)
+    sq = SlotQueue.new(maxSize = 2, maxWorkers = 2)
     sq.onProcessSlot = onProcessSlot
     asyncSpawn sq.start()
 

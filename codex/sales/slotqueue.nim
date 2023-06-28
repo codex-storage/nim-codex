@@ -69,16 +69,17 @@ proc new*(_: type SlotQueue,
           maxWorkers = DefaultMaxWorkers,
           maxSize = DefaultMaxSize): SlotQueue =
 
-  let mworkers = if maxWorkers == 0'u: DefaultMaxWorkers
-                 elif maxWorkers > maxSize: maxSize
-                 else: maxWorkers
+  if maxWorkers == 0'u:
+    raise newException(ValueError, "maxWorkers must be positive")
+  if maxWorkers > maxSize:
+    raise newException(ValueError, "maxWorkers must be less than maxSize")
 
   SlotQueue(
     # Add 1 to always allow for an extra item to be pushed onto the queue
     # temporarily. After push (and sort), the bottom-most item will be deleted
     queue: newAsyncHeapQueue[SlotQueueItem](maxSize.int + 1),
-    maxWorkers: mworkers,
-    workers: newSeqOfCap[SlotQueueWorker](mworkers),
+    maxWorkers: maxWorkers,
+    workers: newSeqOfCap[SlotQueueWorker](maxWorkers),
     running: false
   )
 
