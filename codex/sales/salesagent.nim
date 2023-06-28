@@ -3,6 +3,7 @@ import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
+import pkg/upraises
 import ../contracts/requests
 import ../errors
 import ./statemachine
@@ -57,18 +58,21 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
 
   data.cancelled = onCancelled()
 
-method onFulfilled*(agent: SalesAgent, requestId: RequestId) {.base.} =
+method onFulfilled*(agent: SalesAgent, requestId: RequestId) {.base, gcsafe, upraises: [].} =
   if agent.data.requestId == requestId and
      not agent.data.cancelled.isNil:
     agent.data.cancelled.cancel()
 
-method onFailed*(agent: SalesAgent, requestId: RequestId) {.base.} =
+method onFailed*(agent: SalesAgent, requestId: RequestId) {.base, gcsafe, upraises: [].} =
   without request =? agent.data.request:
     return
   if agent.data.requestId == requestId:
     agent.schedule(failedEvent(request))
 
-method onSlotFilled*(agent: SalesAgent, requestId: RequestId, slotIndex: UInt256) {.base.} =
+method onSlotFilled*(agent: SalesAgent,
+                     requestId: RequestId,
+                     slotIndex: UInt256) {.base, gcsafe, upraises: [].} =
+
   if agent.data.requestId == requestId and
      agent.data.slotIndex == slotIndex:
     agent.schedule(slotFilledEvent(requestId, slotIndex))

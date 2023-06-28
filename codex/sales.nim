@@ -198,7 +198,7 @@ proc subscribeFulfilled*(sales: Sales) {.async.} =
   if subs.fulfilled.isSome:
     return
 
-  proc onFulfilled(requestId: RequestId) {.gcsafe, upraises: [].} =
+  proc onFulfilled(requestId: RequestId) =
     queue.delete(requestId)
 
     for agent in sales.agents:
@@ -222,15 +222,11 @@ proc subscribeFailure(sales: Sales) {.async.} =
   if subs.failed.isSome:
     return
 
-  proc onFailed(requestId: RequestId) {.gcsafe, upraises: [].} =
+  proc onFailed(requestId: RequestId) =
     queue.delete(requestId)
 
     for agent in sales.agents:
-      try:
-        agent.onFailed(requestId)
-      except Exception as e:
-        # raised from dynamic dispatch
-        error "Error during sales agent onFailed callback", error = e.msg
+      agent.onFailed(requestId)
 
   try:
     subs.failed = some await market.subscribeRequestFailed(onFailed)
@@ -243,9 +239,7 @@ proc subscribeSlotFilled(sales: Sales) {.async.} =
   let subs = sales.subscriptions
   let queue = context.slotQueue
 
-  proc onSlotFilled(requestId: RequestId,
-      slotIndex: UInt256) {.gcsafe, upraises: [].} =
-
+  proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
     queue.delete(requestId, slotIndex.truncate(uint64))
 
     for agent in sales.agents:
