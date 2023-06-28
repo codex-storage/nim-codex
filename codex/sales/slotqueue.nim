@@ -164,7 +164,7 @@ proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
     # delete the last item
     self.queue.del(self.queue.size - 1)
 
-  doAssert self.queue.len <= self.queue.size
+  doAssert self.queue.len <= self.queue.size - 1
   return success()
 
 proc push*(self: SlotQueue, items: seq[SlotQueueItem]): ?!void =
