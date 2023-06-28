@@ -210,8 +210,20 @@ proc dispatch(self: SlotQueue,
               item: SlotQueueItem) {.async.} =
 
   if onProcessSlot =? self.onProcessSlot:
-    await onProcessSlot(item, worker.processing)
-    await worker.processing
+    try:
+      await onProcessSlot(item, worker.processing)
+    except CatchableError as e:
+      # we don't have any insight into types of errors that `onProcessSlot` can
+      # throw because it is caller-defined
+      warn "Unknown error processing slot in worker",
+        requestId = item.requestId, error = e.msg
+
+    try:
+      await worker.processing
+    except CancelledError as e:
+      # do not bubble exception up as it is called with `asyncSpawn` which would
+      # convert the exception into a `FutureDefect`
+      discard
 
   self.workers.keepItIf(it != worker)
 
@@ -221,12 +233,6 @@ proc start*(self: SlotQueue) {.async.} =
 
   self.running = true
 
-  proc handleErrors(udata: pointer) {.gcsafe.} =
-    var fut = cast[FutureBase](udata)
-    if fut.failed() and not fut.error.isNil:
-      error "slot queue error encountered during processing",
-        error = fut.error.msg
-
   while self.running: # and self.workers.len.uint < self.maxWorkers:
     if self.workers.len.uint >= self.maxWorkers:
       await sleepAsync(1.millis)
@@ -234,7 +240,6 @@ proc start*(self: SlotQueue) {.async.} =
 
     try:
       self.next = self.queue.pop()
-      self.next.addCallback(handleErrors)
       let item = await self.next # if queue empty, should wait here for new items
       let worker = SlotQueueWorker.new()
       self.workers.add worker
@@ -243,6 +248,8 @@ proc start*(self: SlotQueue) {.async.} =
       await sleepAsync(1.millis) # poll
     except CancelledError:
       discard
+    except CatchableError as e: # raised from self.queue.pop()
+      warn "slot queue error encountered during processing", error = e.msg
 
 proc stop*(self: SlotQueue) =
   if not self.running:
