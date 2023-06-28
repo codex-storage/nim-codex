@@ -40,7 +40,7 @@ asyncchecksuite "AsyncStreamWrapper":
     var rstream = newAsyncStreamReader(transp)
     var wrapper = AsyncStreamWrapper.new(reader = rstream)
     var buf = newSeq[byte](data.len)
-    
+
     let readLen = (await wrapper.readOnce(addr buf[0], buf.len))
 
     await wrapper.closeImpl()
@@ -62,7 +62,7 @@ asyncchecksuite "AsyncStreamWrapper":
 
     let readLen = (await wrapper.readOnce(addr buf[0], buf.len))
 
-    await wrapper.closeImpl()
+    await wrapper.close()
     await transp.closeWait()
     await server.join()
 
@@ -82,7 +82,7 @@ asyncchecksuite "AsyncStreamWrapper":
 
     await wrapper.write(data.toBytes())
 
-    await wrapper.closeImpl()
+    await wrapper.close()
     await transp.closeWait()
     await server.join()
 
