@@ -3,7 +3,6 @@ import pkg/asynctest
 import pkg/chronos
 import pkg/chronicles
 import pkg/codex/sales/slotqueue
-import pkg/stew/byteutils # delete me
 import pkg/questionable
 import pkg/questionable/results
 import pkg/upraises
@@ -133,6 +132,25 @@ suite "Slot queue":
   test "starts out empty":
     check sq.len == 0
     check $sq == "[]"
+
+  test "correctly compares SlotQueueItems":
+    var requestA = StorageRequest.example
+    requestA.ask.duration = 1.u256
+    requestA.ask.reward = 1.u256
+    check requestA.ask.pricePerSlot == 1.u256
+    requestA.ask.collateral = 100000.u256
+    requestA.expiry = 1001.u256
+
+    var requestB = StorageRequest.example
+    requestB.ask.duration = 100.u256
+    requestB.ask.reward = 1000.u256
+    check requestB.ask.pricePerSlot == 100000.u256
+    requestB.ask.collateral = 1.u256
+    requestB.expiry = 1000.u256
+
+    let itemA = SlotQueueItem.init(requestA, 0'u64)
+    let itemB = SlotQueueItem.init(requestB, 0'u64)
+    check itemB < itemA
 
   test "expands available all possible slot indices on init":
     let request = StorageRequest.example

@@ -55,7 +55,7 @@ const DefaultMaxWorkers = 3'u
 # slots.
 const DefaultMaxSize = 64'u
 
-proc `<`(a, b: SlotQueueItem): bool =
+proc `<`*(a, b: SlotQueueItem): bool =
   a.ask.pricePerSlot > b.ask.pricePerSlot or # profitability
   a.ask.collateral < b.ask.collateral or     # collateral required
   a.expiry > b.expiry or                     # expiry
