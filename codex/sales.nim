@@ -190,11 +190,7 @@ proc subscribeFulfilled*(sales: Sales) {.async.} =
     queue.delete(requestId)
 
     for agent in sales.agents:
-      try:
-        agent.onFulfilled(requestId)
-      except Exception as e:
-        # raised from dynamic dispatch
-        error "Error during sales agent onFulfilled callback", error = e.msg
+      agent.onFulfilled(requestId)
 
   try:
     let sub = await market.subscribeFulfillment(onFulfilled)
@@ -228,11 +224,7 @@ proc subscribeSlotFilled(sales: Sales) {.async.} =
     queue.delete(requestId, slotIndex.truncate(uint64))
 
     for agent in sales.agents:
-      try:
-        agent.onSlotFilled(requestId, slotIndex)
-      except Exception as e:
-        # raised from dynamic dispatch
-        error "Error during sales agent onSlotFilled callback", error = e.msg
+      agent.onSlotFilled(requestId, slotIndex)
 
   try:
     let sub = await market.subscribeSlotFilled(onSlotFilled)
