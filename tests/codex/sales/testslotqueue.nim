@@ -65,6 +65,10 @@ suite "Slot queue workers":
   teardown:
     sq.stop()
 
+  test "activeWorkers should be 0 when not running":
+    sq.stop()
+    check sq.activeWorkers == 0
+
   test "maxWorkers cannot be 0":
     expect ValueError:
       let sq2 = SlotQueue.new(maxSize = 1, maxWorkers = 0)
@@ -82,7 +86,7 @@ suite "Slot queue workers":
     check sq.push(item2).isOk
     check sq.push(item3).isOk
     check sq.push(item4).isOk
-    check eventually sq.activeWorkers == 3
+    check eventually sq.activeWorkers == 3'u
 
   test "discards workers once processing completed":
     proc processSlot(item: SlotQueueItem, processing: Future[void]) {.async.} =
@@ -100,7 +104,7 @@ suite "Slot queue workers":
     check sq.push(item2).isOk # finishes after 1.millis
     check sq.push(item3).isOk # finishes after 1.millis
     check sq.push(item4).isOk
-    check eventually sq.activeWorkers == 1
+    check eventually sq.activeWorkers == 1'u
 
 suite "Slot queue":
 

@@ -78,9 +78,10 @@ proc new*(_: type SlotQueue,
     # temporarily. After push (and sort), the bottom-most item will be deleted
     queue: newAsyncHeapQueue[SlotQueueItem](maxSize.int + 1),
     maxWorkers: maxWorkers,
-    workers: newAsyncQueue[SlotQueueWorker](maxWorkers.int),
     running: false
   )
+  # avoid instantiating `workers` in constructor to avoid side effects in
+  # `newAsyncQueue` procedure
 
 proc init*(_: type SlotQueueWorker): SlotQueueWorker =
   SlotQueueWorker(
@@ -136,14 +137,14 @@ proc len*(self: SlotQueue): int = self.queue.len
 
 proc `$`*(self: SlotQueue): string = $self.queue
 
-proc len(i: int): int = i
-
 proc `onProcessSlot=`*(self: SlotQueue, onProcessSlot: OnProcessSlot) =
   self.onProcessSlot = some onProcessSlot
 
-proc activeWorkers*(self: SlotQueue): int =
+proc activeWorkers*(self: SlotQueue): uint =
+  if not self.running: return 0'u
+
   # active = capacity - available
-  self.workers.size - self.workers.len
+  self.maxWorkers - self.workers.len.uint
 
 proc contains*(self: SlotQueue, item: SlotQueueItem): bool =
   self.queue.contains(item)
@@ -208,12 +209,17 @@ proc get*(self: SlotQueue, requestId: RequestId, slotIndex: uint64): ?!SlotQueue
 proc `[]`*(self: SlotQueue, i: Natural): SlotQueueItem =
   self.queue[i]
 
-proc addWorker(self: SlotQueue) =
+proc addWorker(self: SlotQueue): ?!void =
+  if not self.running:
+    return failure("queue must be running")
+
   let worker = SlotQueueWorker()
   try:
     self.workers.addLastNoWait(worker)
-  except AsyncQueueFullError as err:
-    error "failed to add worker, queue full", error = err.msg
+  except AsyncQueueFullError:
+    return failure("failed to add worker, queue full")
+
+  return success()
 
 proc dispatch(self: SlotQueue,
               worker: SlotQueueWorker,
@@ -237,7 +243,8 @@ proc dispatch(self: SlotQueue,
       # convert the exception into a `FutureDefect`
       discard
 
-  self.addWorker()
+  if err =? self.addWorker().errorOption:
+    error "error adding new worker", error = err.msg
 
 proc start*(self: SlotQueue) {.async.} =
   if self.running:
@@ -245,10 +252,14 @@ proc start*(self: SlotQueue) {.async.} =
 
   self.running = true
 
+  # must be called in `start` to avoid sideeffects in `new`
+  self.workers = newAsyncQueue[SlotQueueWorker](self.maxWorkers.int)
+
   # Add initial workers to the `AsyncHeapQueue`. Once a worker has completed its
   # task, a new worker will be pushed to the queue
-  for i in 0..<self.workers.size:
-    self.addWorker()
+  for i in 0..<self.maxWorkers:
+    if err =? self.addWorker().errorOption:
+      error "error adding new worker", error = err.msg
 
   while self.running:
     try:
