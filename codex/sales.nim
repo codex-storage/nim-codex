@@ -89,7 +89,8 @@ proc cleanUp(sales: Sales,
              processing: Future[void]) {.async.} =
   await sales.remove(agent)
   # signal back to the slot queue to cycle a worker
-  processing.complete()
+  if not processing.isNil and not processing.finished():
+    processing.complete()
 
 proc handleRequest(sales: Sales, item: SlotQueueItem, processing: Future[void]) =
   debug "handling storage requested", requestId = $item.requestId,
@@ -278,7 +279,6 @@ proc subscribe(sales: Sales) {.async.} =
   await sales.subscribeCancellation()
 
 proc unsubscribe(sales: Sales) {.async.} =
-  let subs = sales.subscriptions
   for sub in sales.subscriptions:
     try:
       await sub.unsubscribe()

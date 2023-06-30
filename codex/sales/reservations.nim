@@ -96,12 +96,12 @@ proc toErr[E1: ref CatchableError, E2: AvailabilityError](
 
 proc writeValue*(
   writer: var JsonWriter,
-  value: SlotId | AvailabilityId) {.upraises:[IOError].} =
+  value: AvailabilityId) {.upraises:[IOError].} =
 
   mixin writeValue
   writer.writeValue value.toArray
 
-proc readValue*[T: SlotId | AvailabilityId](
+proc readValue*[T: AvailabilityId](
   reader: var JsonReader,
   value: var T) {.upraises: [SerializationError, IOError].} =
 
