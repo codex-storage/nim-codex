@@ -345,7 +345,7 @@ method subscribeSlotFreed*(market: MockMarket,
   return subscription
 
 method subscribeRequestCancelled*(market: MockMarket,
-				  callback: OnRequestCancelled):
+                                  callback: OnRequestCancelled):
                                  Future[Subscription] {.async.} =
   let subscription = RequestCancelledSubscription(
     market: market,

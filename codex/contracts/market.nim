@@ -168,7 +168,7 @@ method canProofBeMarkedAsMissing*(
     trace "Proof can not be marked as missing", msg = e.msg
     return false
 
-method subscribeRequests(market: OnChainMarket,
+method subscribeRequests*(market: OnChainMarket,
                          callback: OnRequest):
                         Future[MarketSubscription] {.async.} =
   proc onEvent(event: StorageRequested) {.upraises:[].} =
