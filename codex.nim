@@ -101,7 +101,7 @@ when isMainModule:
         except Exception as exc: raiseAssert exc.msg # shouldn't happen
       notice "Shutting down after having received SIGINT"
 
-      pendingFuts.add(server.stop())
+      # pendingFuts.add(server.stop())
       state = CodexStatus.Stopping
 
       notice "Stopping Codex"
@@ -116,7 +116,7 @@ when isMainModule:
       proc SIGTERMHandler(signal: cint) {.noconv.} =
         notice "Shutting down after having received SIGTERM"
 
-        pendingFuts.add(server.stop())
+        # pendingFuts.add(server.stop())
         state = CodexStatus.Stopping
 
         notice "Stopping Codex"
@@ -131,12 +131,12 @@ when isMainModule:
       chronos.poll()
 
     # wait fot futures to finish
-    let res = waitFor allFinished(pendingFuts)
+    # let res = waitFor allFinished(pendingFuts)
     state = CodexStatus.Stopped
 
-    if res.anyIt( it.failed ):
-      error "Codex didn't shutdown correctly"
-      quit QuitFailure
+    # if res.anyIt( it.failed ):
+    #   error "Codex didn't shutdown correctly"
+    #   quit QuitFailure
 
     notice "Exited codex"
 

@@ -22,6 +22,8 @@ import pkg/stew/io2
 import pkg/stew/shims/net as stewnet
 import pkg/datastore
 
+import std/nimprof
+
 import ./node
 import ./conf
 import ./rng
