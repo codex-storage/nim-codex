@@ -297,6 +297,15 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
       return RestApiResponse.response($json, contentType="application/json")
 
+  router.api(
+    MethodGet,
+    "/api/codex/v1/debug/futures") do () -> RestApiResponse:
+      let count = pendingFuturesCount()
+      let json = %*{
+        "futures": $count
+      }
+      return RestApiResponse.response($json, contentType="application/json")
+
   when codex_enable_api_debug_peers:
     router.api(
       MethodGet,

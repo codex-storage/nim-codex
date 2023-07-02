@@ -3,7 +3,7 @@ ARG BUILDER=ubuntu:lunar-20230415
 ARG IMAGE=${BUILDER}
 ARG BUILD_HOME=/src
 ARG MAKE_PARALLEL=${MAKE_PARALLEL:-4}
-ARG NIMFLAGS="${NIMFLAGS:-"-d:disableMarchNative"}"
+ARG NIMFLAGS="${NIMFLAGS:-"-d:disableMarchNative -d:chronosFutureTracking -d:codex_enable_api_debug_peers=true"}"
 ARG APP_HOME=/codex
 ARG NAT_IP_AUTO=${NAT_IP_AUTO:-false}
 
