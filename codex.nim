@@ -23,6 +23,7 @@ import ./codex/conf
 import ./codex/codex
 import ./codex/units
 import ./codex/utils/keyutils
+import ./codex/loopmeasure
 
 export codex, conf, libp2p, chronos, chronicles
 
@@ -90,7 +91,8 @@ when isMainModule:
           config.dataDir / config.netPrivKeyFile
 
       privateKey = setupKey(keyPath).expect("Should setup private key!")
-      server = CodexServer.new(config, privateKey)
+      loopMeasure = LoopMeasure.new()
+      server = CodexServer.new(config, privateKey, loopMeasure)
 
     ## Ctrl+C handling
     proc controlCHandler() {.noconv.} =
@@ -101,7 +103,7 @@ when isMainModule:
         except Exception as exc: raiseAssert exc.msg # shouldn't happen
       notice "Shutting down after having received SIGINT"
 
-      # pendingFuts.add(server.stop())
+      pendingFuts.add(server.stop())
       state = CodexStatus.Stopping
 
       notice "Stopping Codex"
@@ -116,7 +118,7 @@ when isMainModule:
       proc SIGTERMHandler(signal: cint) {.noconv.} =
         notice "Shutting down after having received SIGTERM"
 
-        # pendingFuts.add(server.stop())
+        pendingFuts.add(server.stop())
         state = CodexStatus.Stopping
 
         notice "Stopping Codex"
@@ -128,15 +130,17 @@ when isMainModule:
     state = CodexStatus.Running
     while state == CodexStatus.Running:
       # poll chronos
+      loopMeasure.startMeasure()
       chronos.poll()
+      loopMeasure.stopMeasure()
 
     # wait fot futures to finish
-    # let res = waitFor allFinished(pendingFuts)
+    let res = waitFor allFinished(pendingFuts)
     state = CodexStatus.Stopped
 
-    # if res.anyIt( it.failed ):
-    #   error "Codex didn't shutdown correctly"
-    #   quit QuitFailure
+    if res.anyIt( it.failed ):
+      error "Codex didn't shutdown correctly"
+      quit QuitFailure
 
     notice "Exited codex"
 

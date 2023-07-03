@@ -22,8 +22,6 @@ import pkg/stew/io2
 import pkg/stew/shims/net as stewnet
 import pkg/datastore
 
-import std/nimprof
-
 import ./node
 import ./conf
 import ./rng
@@ -38,6 +36,7 @@ import ./contracts/clock
 import ./contracts/deployment
 import ./utils/addrutils
 import ./namespaces
+import ./loopmeasure
 
 logScope:
   topics = "codex node"
@@ -57,9 +56,9 @@ proc bootstrapInteractions(
     config: CodexConf,
     repo: RepoStore
 ): Future[Contracts] {.async.} =
-  ## bootstrap interactions and return contracts 
+  ## bootstrap interactions and return contracts
   ## using clients, hosts, validators pairings
-  ## 
+  ##
 
   if not config.persistence and not config.validator:
     if config.ethAccount.isSome:
@@ -158,7 +157,8 @@ proc stop*(s: CodexServer) {.async.} =
 proc new*(
     T: type CodexServer,
     config: CodexConf,
-    privateKey: CodexPrivateKey
+    privateKey: CodexPrivateKey,
+    loopMeasure: LoopMeasure
 ): CodexServer =
   ## create CodexServer including setting up datastore, repostore, etc
   let
@@ -232,7 +232,7 @@ proc new*(
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery)
     restServer = RestServerRef.new(
-      codexNode.initRestApi(config),
+      codexNode.initRestApi(config, loopMeasure),
       initTAddress(config.apiBindAddress , config.apiPort),
       bufferSize = (1024 * 64),
       maxRequestBodySize = int.high)
