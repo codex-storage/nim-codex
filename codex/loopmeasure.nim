@@ -38,7 +38,7 @@ proc loopDisarm*(loop: LoopMeasure, name: string) =
 
   if loop.maxUs > 250_000:
     error "LoopMeasure upper threshold breached"
-    raiseAssert "AAA"
+    raise newException(ValueError, "threshold breached")
 
 proc startMeasure*(loop: LoopMeasure) =
   loop.current = getMonoTime().ticks
