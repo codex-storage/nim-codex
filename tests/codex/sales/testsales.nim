@@ -125,7 +125,7 @@ asyncchecksuite "Sales":
     queue.stop() # prevents popping during processing
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    for slotIndex in 0'u64..<request.ask.slots:
+    for slotIndex in 0'u16..<request.ask.slots.uint16:
       let item = SlotQueueItem.init(request, slotIndex)
       check eventually queue.contains(item)
 
@@ -137,8 +137,8 @@ asyncchecksuite "Sales":
     await waitUntilInQueue(items)
     market.emitSlotFilled(request.id, 1.u256)
     check queue.len == 3
-    check not queue.contains(SlotQueueItem.init(request, 1.uint64))
-    for slotIndex in [0'u64, 2'u64, 3'u64]:
+    check not queue.contains(SlotQueueItem.init(request, 1))
+    for slotIndex in [0'u16, 2'u16, 3'u16]:
       let item = SlotQueueItem.init(request, slotIndex)
       check queue.contains(item)
 
@@ -160,7 +160,7 @@ asyncchecksuite "Sales":
     check queue.len == 0
     market.emitSlotFreed(request.id, 2.u256)
     check queue.len == 1
-    check queue[0].slotIndex == 2'u64
+    check queue[0].slotIndex == 2'u16
 
   test "removes request in queue if unknown request once SlotFreed emitted":
     queue.stop()

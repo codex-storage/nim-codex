@@ -26,24 +26,32 @@ type
   SlotQueueWorker = object
   SlotQueueItem* = object
     requestId: RequestId
-    slotIndex: uint64
-    ask: StorageAsk
+    slotIndex: uint16
+    slotSize*: UInt256
+    duration*: UInt256
+    reward*: UInt256
+    collateral*: UInt256
     expiry: UInt256
+
+  # don't need to -1 to prevent overflow when adding 1 (to always allow push)
+  # because AsyncHeapQueue size is of type `int`, which is larger than `uint16`
+  SlotQueueSize = range[1'u16..uint16.high]
 
   SlotQueue* = ref object
     queue: AsyncHeapQueue[SlotQueueItem]
     running: bool
     onProcessSlot: ?OnProcessSlot
     next: Future[SlotQueueItem]
-    maxWorkers: uint
+    maxWorkers: int
     workers: AsyncQueue[SlotQueueWorker]
 
   SlotQueueError = object of CodexError
   SlotQueueItemExistsError* = object of SlotQueueError
   SlotQueueItemNotExistsError* = object of SlotQueueError
+  SlotQueueSlotsOutOfRangeError* = object of SlotQueueError
 
 # Number of concurrent workers used for processing SlotQueueItems
-const DefaultMaxWorkers = 3'u
+const DefaultMaxWorkers = 3
 
 # Cap slot queue size to prevent unbounded growth and make sifting more
 # efficient. Max size is not equivalent to the number of slots a host can
@@ -52,13 +60,16 @@ const DefaultMaxWorkers = 3'u
 # included in the queue if it is higher priority than any of the exisiting
 # items. Older slots should be unfillable over time as other hosts fill the
 # slots.
-const DefaultMaxSize = 64'u
+const DefaultMaxSize = 64'u16
+
+proc profitability(item: SlotQueueItem): UInt256 =
+  item.duration * item.reward
 
 proc `<`*(a, b: SlotQueueItem): bool =
-  a.ask.pricePerSlot > b.ask.pricePerSlot or # profitability
-  a.ask.collateral < b.ask.collateral or     # collateral required
-  a.expiry > b.expiry or                     # expiry
-  a.ask.slotSize < b.ask.slotSize            # dataset size
+  a.profitability > b.profitability or  # profitability
+  a.collateral < b.collateral or        # collateral required
+  a.expiry > b.expiry or                # expiry
+  a.slotSize < b.slotSize               # dataset size
 
 proc `==`(a, b: SlotQueueItem): bool =
   a.requestId == b.requestId and
@@ -66,11 +77,11 @@ proc `==`(a, b: SlotQueueItem): bool =
 
 proc new*(_: type SlotQueue,
           maxWorkers = DefaultMaxWorkers,
-          maxSize = DefaultMaxSize): SlotQueue =
+          maxSize: SlotQueueSize = DefaultMaxSize): SlotQueue =
 
-  if maxWorkers == 0'u:
+  if maxWorkers <= 0:
     raise newException(ValueError, "maxWorkers must be positive")
-  if maxWorkers > maxSize:
+  if maxWorkers.uint16 > maxSize:
     raise newException(ValueError, "maxWorkers must be less than maxSize")
 
   SlotQueue(
@@ -90,35 +101,44 @@ proc init*(_: type SlotQueueWorker): SlotQueueWorker =
 
 proc init*(_: type SlotQueueItem,
           requestId: RequestId,
-          slotIndex: uint64,
+          slotIndex: uint16,
           ask: StorageAsk,
           expiry: UInt256): SlotQueueItem =
 
   SlotQueueItem(
     requestId: requestId,
     slotIndex: slotIndex,
-    ask: ask,
+    slotSize: ask.slotSize,
+    duration: ask.duration,
+    reward: ask.reward,
+    collateral: ask.collateral,
     expiry: expiry
   )
 
 proc init*(_: type SlotQueueItem,
            request: StorageRequest,
-           slotIndex: uint64): SlotQueueItem =
+           slotIndex: uint16): SlotQueueItem =
 
-  SlotQueueItem.init(request.id, slotIndex, request.ask, request.expiry)
+  SlotQueueItem.init(request.id,
+                     slotIndex,
+                     request.ask,
+                     request.expiry)
 
 proc init*(_: type SlotQueueItem,
           requestId: RequestId,
           ask: StorageAsk,
           expiry: UInt256): seq[SlotQueueItem] =
 
-  var i = 0'u64
+  if not ask.slots.inRange:
+    raise newException(SlotQueueSlotsOutOfRangeError, "Too many slots")
+
+  var i = 0'u16
   proc initSlotQueueItem: SlotQueueItem =
     let item = SlotQueueItem.init(requestId, i, ask, expiry)
     inc i
     return item
 
-  var items = newSeqWith[uint64](ask.slots, initSlotQueueItem())
+  var items = newSeqWith(ask.slots.int, initSlotQueueItem())
   Rng.instance.shuffle(items)
   return items
 
@@ -127,24 +147,29 @@ proc init*(_: type SlotQueueItem,
 
   return SlotQueueItem.init(request.id, request.ask, request.expiry)
 
+proc inRange*(val: SomeUnsignedInt): bool =
+  val.uint16 in SlotQueueSize.low..SlotQueueSize.high
+
 proc requestId*(self: SlotQueueItem): RequestId = self.requestId
 
-proc slotIndex*(self: SlotQueueItem): uint64 = self.slotIndex
+proc slotIndex*(self: SlotQueueItem): uint16 = self.slotIndex
 
 proc running*(self: SlotQueue): bool = self.running
 
 proc len*(self: SlotQueue): int = self.queue.len
+
+proc size*(self: SlotQueue): int = self.queue.size - 1
 
 proc `$`*(self: SlotQueue): string = $self.queue
 
 proc `onProcessSlot=`*(self: SlotQueue, onProcessSlot: OnProcessSlot) =
   self.onProcessSlot = some onProcessSlot
 
-proc activeWorkers*(self: SlotQueue): uint =
-  if not self.running: return 0'u
+proc activeWorkers*(self: SlotQueue): int =
+  if not self.running: return 0
 
   # active = capacity - available
-  self.maxWorkers - self.workers.len.uint
+  self.maxWorkers - self.workers.len
 
 proc contains*(self: SlotQueue, item: SlotQueueItem): bool =
   self.queue.contains(item)
@@ -188,7 +213,7 @@ proc findByRequest(self: SlotQueue, requestId: RequestId): seq[SlotQueueItem] =
 proc delete*(self: SlotQueue, item: SlotQueueItem) =
   self.queue.delete(item)
 
-proc delete*(self: SlotQueue, requestId: RequestId, slotIndex: uint64) =
+proc delete*(self: SlotQueue, requestId: RequestId, slotIndex: uint16) =
   let item = SlotQueueItem(requestId: requestId, slotIndex: slotIndex)
   self.delete(item)
 
@@ -197,7 +222,7 @@ proc delete*(self: SlotQueue, requestId: RequestId) =
   for item in items:
     self.delete(item)
 
-proc get*(self: SlotQueue, requestId: RequestId, slotIndex: uint64): ?!SlotQueueItem =
+proc get*(self: SlotQueue, requestId: RequestId, slotIndex: uint16): ?!SlotQueueItem =
   let item = SlotQueueItem(requestId: requestId, slotIndex: slotIndex)
   let idx = self.queue.find(item)
   if idx == -1:
@@ -238,7 +263,7 @@ proc dispatch(self: SlotQueue,
 
     try:
       await done
-    except CancelledError as e:
+    except CancelledError:
       # do not bubble exception up as it is called with `asyncSpawn` which would
       # convert the exception into a `FutureDefect`
       discard
@@ -253,7 +278,7 @@ proc start*(self: SlotQueue) {.async.} =
   self.running = true
 
   # must be called in `start` to avoid sideeffects in `new`
-  self.workers = newAsyncQueue[SlotQueueWorker](self.maxWorkers.int)
+  self.workers = newAsyncQueue[SlotQueueWorker](self.maxWorkers)
 
   # Add initial workers to the `AsyncHeapQueue`. Once a worker has completed its
   # task, a new worker will be pushed to the queue

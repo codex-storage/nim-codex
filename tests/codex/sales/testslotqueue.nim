@@ -12,40 +12,40 @@ import ../examples
 
 suite "Slot queue start/stop":
 
-  var sq: SlotQueue
+  var queue: SlotQueue
 
   setup:
-    sq = SlotQueue.new()
+    queue = SlotQueue.new()
 
   teardown:
-    sq.stop()
+    queue.stop()
 
   test "starts out not running":
-    check not sq.running
+    check not queue.running
 
   test "can call start multiple times, and when already running":
-    asyncSpawn sq.start()
-    asyncSpawn sq.start()
-    check sq.running
+    asyncSpawn queue.start()
+    asyncSpawn queue.start()
+    check queue.running
 
   test "can call stop when alrady stopped":
-    sq.stop()
-    check not sq.running
+    queue.stop()
+    check not queue.running
 
   test "can call stop when running":
-    asyncSpawn sq.start()
-    sq.stop()
-    check not sq.running
+    asyncSpawn queue.start()
+    queue.stop()
+    check not queue.running
 
   test "can call stop multiple times":
-    asyncSpawn sq.start()
-    sq.stop()
-    sq.stop()
-    check not sq.running
+    asyncSpawn queue.start()
+    queue.stop()
+    queue.stop()
+    check not queue.running
 
 suite "Slot queue workers":
 
-  var sq: SlotQueue
+  var queue: SlotQueue
 
   proc onProcessSlot(item: SlotQueueItem, processing: Future[void]) {.async.} =
     try:
@@ -58,20 +58,20 @@ suite "Slot queue workers":
       discard
 
   setup:
-    sq = SlotQueue.new(maxSize = 5, maxWorkers = 3)
-    sq.onProcessSlot = onProcessSlot
-    asyncSpawn sq.start()
+    queue = SlotQueue.new(maxSize = 5, maxWorkers = 3)
+    queue.onProcessSlot = onProcessSlot
+    asyncSpawn queue.start()
 
   teardown:
-    sq.stop()
+    queue.stop()
 
   test "activeWorkers should be 0 when not running":
-    sq.stop()
-    check sq.activeWorkers == 0
+    queue.stop()
+    check queue.activeWorkers == 0
 
   test "maxWorkers cannot be 0":
     expect ValueError:
-      let sq2 = SlotQueue.new(maxSize = 1, maxWorkers = 0)
+      discard SlotQueue.new(maxSize = 1, maxWorkers = 0)
 
   test "maxWorkers cannot surpass maxSize":
     expect ValueError:
@@ -82,11 +82,11 @@ suite "Slot queue workers":
     let item2 = SlotQueueItem.example
     let item3 = SlotQueueItem.example
     let item4 = SlotQueueItem.example
-    check sq.push(item1).isOk
-    check sq.push(item2).isOk
-    check sq.push(item3).isOk
-    check sq.push(item4).isOk
-    check eventually sq.activeWorkers == 3'u
+    check queue.push(item1).isOk
+    check queue.push(item2).isOk
+    check queue.push(item3).isOk
+    check queue.push(item4).isOk
+    check eventually queue.activeWorkers == 3
 
   test "discards workers once processing completed":
     proc processSlot(item: SlotQueueItem, processing: Future[void]) {.async.} =
@@ -95,22 +95,22 @@ suite "Slot queue workers":
         processing.complete()
       except Exception:
         discard
-    sq.onProcessSlot = processSlot
+    queue.onProcessSlot = processSlot
     let item1 = SlotQueueItem.example
     let item2 = SlotQueueItem.example
     let item3 = SlotQueueItem.example
     let item4 = SlotQueueItem.example
-    check sq.push(item1).isOk # finishes after 1.millis
-    check sq.push(item2).isOk # finishes after 1.millis
-    check sq.push(item3).isOk # finishes after 1.millis
-    check sq.push(item4).isOk
-    check eventually sq.activeWorkers == 1'u
+    check queue.push(item1).isOk # finishes after 1.millis
+    check queue.push(item2).isOk # finishes after 1.millis
+    check queue.push(item3).isOk # finishes after 1.millis
+    check queue.push(item4).isOk
+    check eventually queue.activeWorkers == 1
 
 suite "Slot queue":
 
-  var sq: SlotQueue
+  var queue: SlotQueue
   var onProcessSlotCalled = false
-  var onProcessSlotCalledWith: seq[(RequestId, uint64)]
+  var onProcessSlotCalledWith: seq[(RequestId, uint16)]
 
   proc onProcessSlot(item: SlotQueueItem, processing: Future[void]) {.async.} =
     onProcessSlotCalled = true
@@ -120,16 +120,19 @@ suite "Slot queue":
   setup:
     onProcessSlotCalled = false
     onProcessSlotCalledWith = @[]
-    sq = SlotQueue.new(maxSize = 2, maxWorkers = 2)
-    sq.onProcessSlot = onProcessSlot
-    asyncSpawn sq.start()
+    queue = SlotQueue.new(maxSize = 2, maxWorkers = 2)
+    queue.onProcessSlot = onProcessSlot
+    asyncSpawn queue.start()
 
   teardown:
-    sq.stop()
+    queue.stop()
 
   test "starts out empty":
-    check sq.len == 0
-    check $sq == "[]"
+    check queue.len == 0
+    check $queue == "[]"
+
+  test "reports correct size":
+    check queue.size == 2
 
   test "correctly compares SlotQueueItems":
     var requestA = StorageRequest.example
@@ -146,146 +149,163 @@ suite "Slot queue":
     requestB.ask.collateral = 1.u256
     requestB.expiry = 1000.u256
 
-    let itemA = SlotQueueItem.init(requestA, 0'u64)
-    let itemB = SlotQueueItem.init(requestB, 0'u64)
+    let itemA = SlotQueueItem.init(requestA, 0)
+    let itemB = SlotQueueItem.init(requestB, 0)
     check itemB < itemA
 
   test "expands available all possible slot indices on init":
     let request = StorageRequest.example
     let items = SlotQueueItem.init(request)
     check items.len.uint64 == request.ask.slots
-    var slotIndices = toSeq(0'u64..<request.ask.slots);
-    for slotIndex in 0'u64..<request.ask.slots:
+    var checked = 0
+    for slotIndex in 0'u16..<request.ask.slots.uint16:
       check items.anyIt(it == SlotQueueItem.init(request, slotIndex))
-      slotIndices.delete(slotIndex)
-    check slotIndices.len == 0
+      inc checked
+    check checked == items.len
 
   test "can add items":
     let item1 = SlotQueueItem.example
     let item2 = SlotQueueItem.example
-    check sq.push(item1).isOk
-    check sq.push(item2).isOk
-    check sq.len == 2
+    check queue.push(item1).isOk
+    check queue.push(item2).isOk
+    check queue.len == 2
+
+  test "can support uint16.high slots":
+    var request = StorageRequest.example
+    let maxUInt16 = uint16.high
+    let uint64Slots = uint64(maxUInt16)
+    request.ask.slots = uint64Slots
+    let items = SlotQueueItem.init(request.id, request.ask, request.expiry)
+    check items.len.uint16 == maxUInt16
+    check queue.push(items).isOk
+
+  test "cannot support greater than uint16.high slots":
+    var request = StorageRequest.example
+    let int32Slots = uint16.high.int32 + 1
+    let uint64Slots = uint64(int32Slots)
+    request.ask.slots = uint64Slots
+    expect SlotQueueSlotsOutOfRangeError:
+      discard SlotQueueItem.init(request.id, request.ask, request.expiry)
 
   test "cannot push duplicate items":
     let item = SlotQueueItem.example
-    check sq.push(item).isOk
-    check sq.push(item).error of SlotQueueItemExistsError
-    check sq.len == 1
+    check queue.push(item).isOk
+    check queue.push(item).error of SlotQueueItemExistsError
+    check queue.len == 1
 
-  test "can add items past max size":
+  test "can add items past max maxSize":
     let item1 = SlotQueueItem.example
     let item2 = SlotQueueItem.example
     let item3 = SlotQueueItem.example
     let item4 = SlotQueueItem.example
-    check sq.push(item1).isOk
-    check sq.push(item2).isOk
-    check sq.push(item3).isOk
-    check sq.push(item4).isOk
-    check sq.len == 2
+    check queue.push(item1).isOk
+    check queue.push(item2).isOk
+    check queue.push(item3).isOk
+    check queue.push(item4).isOk
+    check queue.len == 2
 
   test "can pop the topmost item in the queue":
     let item = SlotQueueItem.example
-    check sq.push(item).isOk
-    without top =? await sq.pop():
+    check queue.push(item).isOk
+    without top =? await queue.pop():
       fail()
     check top == item
 
   test "pop waits for push when empty":
-    sq.stop() # otherwise .pop in `start` seems to take precedent
+    queue.stop() # otherwise .pop in `start` seems to take precedent
     let item = SlotQueueItem.example
     proc delayPush(item: SlotQueueItem) {.async.} =
       await sleepAsync(2.millis)
-      check sq.push(item).isOk
+      check queue.push(item).isOk
       return
 
     asyncSpawn item.delayPush
-    without top =? await sq.pop():
+    without top =? await queue.pop():
       fail()
     check top == item
 
   test "can delete items":
     let item = SlotQueueItem.example
-    check sq.push(item).isOk
-    sq.delete(item)
-    check sq.len == 0
+    check queue.push(item).isOk
+    queue.delete(item)
+    check queue.len == 0
 
   test "can delete item by request id and slot id":
     let items = SlotQueueItem.init(StorageRequest.example)
-    check sq.push(items).isOk
-    check sq.len == 2 # maxsize == 2
-    sq.delete(items[0].requestId, items[0].slotIndex)
-    check sq.len == 1
+    check queue.push(items).isOk
+    check queue.len == 2 # maxSize == 2
+    queue.delete(items[0].requestId, items[0].slotIndex)
+    check queue.len == 1
 
   test "can delete all items by request id":
     let items = SlotQueueItem.init(StorageRequest.example)
-    check sq.push(items).isOk
-    check sq.len == 2 # maxsize == 2
-    sq.delete(items[0].requestId)
-    check sq.len == 0
+    check queue.push(items).isOk
+    check queue.len == 2 # maxSize == 2
+    queue.delete(items[0].requestId)
+    check queue.len == 0
 
   test "can check if contains item":
     let item = SlotQueueItem.example
-    check sq.contains(item) == false
-    check sq.push(item).isOk
-    check sq.contains(item)
+    check queue.contains(item) == false
+    check queue.push(item).isOk
+    check queue.contains(item)
 
   test "can get item":
     let item = SlotQueueItem.example
-    check sq.get(item.requestId, item.slotIndex).error of SlotQueueItemNotExistsError
-    check sq.push(item).isOk
-    without itm =? sq.get(item.requestId, item.slotIndex):
+    check queue.get(item.requestId, item.slotIndex).error of SlotQueueItemNotExistsError
+    check queue.push(item).isOk
+    without itm =? queue.get(item.requestId, item.slotIndex):
       fail()
     check item == itm
 
   test "sorts items by profitability ascending (higher pricePerSlot = higher priority)":
     var request = StorageRequest.example
-    let item0 = SlotQueueItem.init(request, 0'u64)
+    let item0 = SlotQueueItem.init(request, 0)
     request.ask.reward += 1.u256
-    let item1 = SlotQueueItem.init(request, 1'u64)
-    check sq.push(item0).isOk
-    check sq.push(item1).isOk
-    check sq[0] == item1
+    let item1 = SlotQueueItem.init(request, 1)
+    check queue.push(item0).isOk
+    check queue.push(item1).isOk
+    check queue[0] == item1
 
   test "sorts items by collateral ascending (less required collateral = higher priority)":
     var request = StorageRequest.example
-    let item0 = SlotQueueItem.init(request, 0'u64)
+    let item0 = SlotQueueItem.init(request, 0)
     request.ask.collateral -= 1.u256
-    let item1 = SlotQueueItem.init(request, 1'u64)
-    check sq.push(item0).isOk
-    check sq.push(item1).isOk
-    check sq[0] == item1
+    let item1 = SlotQueueItem.init(request, 1)
+    check queue.push(item0).isOk
+    check queue.push(item1).isOk
+    check queue[0] == item1
 
   test "sorts items by expiry descending (longer expiry = higher priority)":
     var request = StorageRequest.example
-    let item0 = SlotQueueItem.init(request, 0'u64)
+    let item0 = SlotQueueItem.init(request, 0)
     request.expiry += 1.u256
-    let item1 = SlotQueueItem.init(request, 1'u64)
-    check sq.push(item0).isOk
-    check sq.push(item1).isOk
-    check sq[0] == item1
+    let item1 = SlotQueueItem.init(request, 1)
+    check queue.push(item0).isOk
+    check queue.push(item1).isOk
+    check queue[0] == item1
 
   test "sorts items by slot size ascending (smaller dataset = higher priority)":
     var request = StorageRequest.example
-    let item0 = SlotQueueItem.init(request, 0'u64)
+    let item0 = SlotQueueItem.init(request, 0)
     request.ask.slotSize -= 1.u256
-    let item1 = SlotQueueItem.init(request, 1'u64)
-    check sq.push(item0).isOk
-    check sq.push(item1).isOk
-    check sq[0] == item1
+    let item1 = SlotQueueItem.init(request, 1)
+    check queue.push(item0).isOk
+    check queue.push(item1).isOk
+    check queue[0] == item1
 
   test "should call callback once an item is added":
     let item = SlotQueueItem.example
     check not onProcessSlotCalled
-    check sq.push(item).isOk
+    check queue.push(item).isOk
     check eventually onProcessSlotCalled
 
   test "should only process item once":
     let item = SlotQueueItem.example
 
-    check sq.push(item).isOk
+    check queue.push(item).isOk
     await sleepAsync(1.millis)
-    # sq.delete(item)
+    # queue.delete(item)
     # additional sleep ensures that enough time is given for the slotqueue
     # loop to iterate again and that the correct behavior of waiting when the
     # queue is empty is adhered to
@@ -297,25 +317,25 @@ suite "Slot queue":
     # sleeping after push allows the slotqueue loop to iterate,
     # calling the callback for each pushed/updated item
     var request = StorageRequest.example
-    let item0 = SlotQueueItem.init(request, 0'u64)
+    let item0 = SlotQueueItem.init(request, 0)
     request.ask.reward += 1.u256
-    let item1 = SlotQueueItem.init(request, 1'u64)
+    let item1 = SlotQueueItem.init(request, 1)
     request.ask.reward += 1.u256
-    let item2 = SlotQueueItem.init(request, 2'u64)
+    let item2 = SlotQueueItem.init(request, 2)
     request.ask.reward += 1.u256
-    let item3 = SlotQueueItem.init(request, 3'u64)
+    let item3 = SlotQueueItem.init(request, 3)
     request.ask.reward += 1.u256
-    let item4 = SlotQueueItem.init(request, 4'u64)
+    let item4 = SlotQueueItem.init(request, 4)
 
-    check sq.push(item0).isOk
+    check queue.push(item0).isOk
     await sleepAsync(1.millis)
-    check sq.push(item1).isOk
+    check queue.push(item1).isOk
     await sleepAsync(1.millis)
-    check sq.push(item2).isOk
+    check queue.push(item2).isOk
     await sleepAsync(1.millis)
-    check sq.push(item3).isOk
+    check queue.push(item3).isOk
     await sleepAsync(1.millis)
-    check sq.push(item4).isOk
+    check queue.push(item4).isOk
     await sleepAsync(1.millis)
 
     check onProcessSlotCalledWith == @[(item0.requestId, item0.slotIndex),

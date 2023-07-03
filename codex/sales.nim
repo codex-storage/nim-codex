@@ -158,6 +158,8 @@ proc subscribeRequested(sales: Sales) {.async.} =
         let items = SlotQueueItem.init(requestId, ask, expiry)
         if err =? slotQueue.push(items).errorOption:
           raise err
+    except SlotQueueSlotsOutOfRangeError:
+      warn "Too many slots, cannot add to queue", slots = ask.slots
     except CatchableError as e:
       warn "Error pushing request to SlotQueue", error = e.msg
       discard
@@ -222,7 +224,7 @@ proc subscribeSlotFilled(sales: Sales) {.async.} =
   let queue = context.slotQueue
 
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
-    queue.delete(requestId, slotIndex.truncate(uint64))
+    queue.delete(requestId, slotIndex.truncate(uint16))
 
     for agent in sales.agents:
       agent.onSlotFilled(requestId, slotIndex)
@@ -245,7 +247,7 @@ proc subscribeSlotFreed(sales: Sales) {.async.} =
       # retrieving the request requires the subscription callback to be async,
       # which has been avoided on many occasions, so we are using `waitFor`.
       if request =? waitFor market.getRequest(requestId):
-        let item = SlotQueueItem.init(request, slotIndex.truncate(uint64))
+        let item = SlotQueueItem.init(request, slotIndex.truncate(uint16))
         if err =? queue.push(item).errorOption:
           error "Error adding slot index to slot queue", error = err.msg
 

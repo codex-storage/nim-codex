@@ -57,7 +57,7 @@ proc example*(_: type Slot): Slot =
 proc example*(_: type SlotQueueItem): SlotQueueItem =
   let request = StorageRequest.example
   let slot = Slot.example
-  SlotQueueItem.init(request, slot.slotIndex.truncate(uint64))
+  SlotQueueItem.init(request, slot.slotIndex.truncate(uint16))
 
 proc exampleProof*(): seq[byte] =
   var proof: seq[byte]
