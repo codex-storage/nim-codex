@@ -14,8 +14,8 @@ import pkg/codex/blocktype as bt
 import ../helpers
 
 const
-  BlockSize = 31 * 4
-  SectorSize = 31
+  BlockSize = 31'nb * 4
+  SectorSize = 31'nb
   SectorsPerBlock = BlockSize div SectorSize
   DataSetSize = BlockSize * 100
 
@@ -30,7 +30,7 @@ asyncchecksuite "BLS PoR":
     proofStream: StoreStream
 
   setup:
-    chunker = RandomChunker.new(Rng.instance(), size = DataSetSize, chunkSize = BlockSize)
+    chunker = RandomChunker.new(Rng.instance(), size = DataSetSize.int, chunkSize = BlockSize)
     store = CacheStore.new(cacheSize = DataSetSize, chunkSize = BlockSize)
     manifest = Manifest.new(blockSize = BlockSize).tryGet()
     (spk, ssk) = st.keyGen()
@@ -55,7 +55,7 @@ asyncchecksuite "BLS PoR":
         porStream,
         ssk,
         spk,
-        BlockSize)
+        BlockSize.int)
 
   proc createProof(por: PoR, q: seq[QElement]): Future[Proof] =
     return generateProof(
@@ -96,7 +96,7 @@ asyncchecksuite "Test Serialization":
     proofStream: StoreStream
 
   setup:
-    chunker = RandomChunker.new(Rng.instance(), size = DataSetSize, chunkSize = BlockSize)
+    chunker = RandomChunker.new(Rng.instance(), size = DataSetSize.int, chunkSize = BlockSize)
     store = CacheStore.new(cacheSize = DataSetSize, chunkSize = BlockSize)
     manifest = Manifest.new(blockSize = BlockSize).tryGet()
 
@@ -114,7 +114,7 @@ asyncchecksuite "Test Serialization":
       porStream,
       ssk,
       spk,
-      BlockSize)
+      BlockSize.int)
     q = generateQuery(por.tau, 22)
     proofStream = StoreStream.new(store, manifest)
     proof = await generateProof(

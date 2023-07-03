@@ -12,7 +12,7 @@ import ./helpers/mockdiscovery
 import ./helpers/eventually
 import ../checktest
 
-export randomchunker, nodeutils, mockdiscovery, eventually, checktest
+export randomchunker, nodeutils, mockdiscovery, eventually, checktest, manifest
 
 # NOTE: The meaning of equality for blocks
 # is changed here, because blocks are now `ref`

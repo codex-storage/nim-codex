@@ -30,10 +30,10 @@ checksuite "Cache Store":
       discard CacheStore.new(cacheSize = 1, chunkSize = 2)
 
     store = CacheStore.new(cacheSize = 100, chunkSize = 1)
-    check store.currentSize == 0
+    check store.currentSize == 0'nb
 
     store = CacheStore.new(@[newBlock1, newBlock2, newBlock3])
-    check store.currentSize == 300
+    check store.currentSize == 300'nb
 
     # initial cache blocks total more than cache size, currentSize should
     # never exceed max cache size
@@ -41,7 +41,7 @@ checksuite "Cache Store":
               blocks = @[newBlock1, newBlock2, newBlock3],
               cacheSize = 200,
               chunkSize = 1)
-    check store.currentSize == 200
+    check store.currentSize == 200'nb
 
     # cache size cannot be less than chunks size
     expect ValueError:
@@ -67,7 +67,7 @@ checksuite "Cache Store":
       not (await store.hasBlock(newBlock1.cid)).tryGet()
       (await store.hasBlock(newBlock2.cid)).tryGet()
       (await store.hasBlock(newBlock2.cid)).tryGet()
-      store.currentSize == newBlock2.data.len + newBlock3.data.len # 200
+      store.currentSize.int == newBlock2.data.len + newBlock3.data.len # 200
 
 commonBlockStoreTests(
   "Cache", proc: BlockStore =

@@ -14,7 +14,7 @@ import pkg/codex/rng
 import ./helpers
 
 asyncchecksuite "Erasure encode/decode":
-  const BlockSize = 1024
+  const BlockSize = 1024'nb
   const dataSetSize = BlockSize * 123 # weird geometry
 
   var rng: Rng

@@ -32,8 +32,9 @@ import pkg/ethers
 
 import ./discovery
 import ./stores
+import ./units
 
-export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval
+export net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval
 
 const
   codex_enable_api_debug_peers* {.booldefine.} = false
@@ -161,10 +162,10 @@ type
 
       apiPort* {.
         desc: "The REST Api port",
-        defaultValue: 8080
+        defaultValue: 8080.Port
         defaultValueDesc: "8080"
         name: "api-port"
-        abbr: "p" }: int
+        abbr: "p" }: Port
 
       repoKind* {.
         desc: "backend for main repo store (fs, sqlite)"
@@ -177,7 +178,7 @@ type
         defaultValue: DefaultQuotaBytes
         defaultValueDesc: $DefaultQuotaBytes
         name: "storage-quota"
-        abbr: "q" }: Natural
+        abbr: "q" }: NBytes
 
       blockTtlSeconds* {.
         desc: "Default block timeout in seconds - 0 disables the ttl"
@@ -203,7 +204,7 @@ type
         defaultValue: 0
         defaultValueDesc: "0"
         name: "cache-size"
-        abbr: "c" }: Natural
+        abbr: "c" }: NBytes
 
       persistence* {.
         desc: "Enables persistence mechanism, requires an Ethereum node"

@@ -20,8 +20,8 @@ import ../../helpers
 
 asyncchecksuite "NetworkStore engine - 2 nodes":
   let
-    chunker1 = RandomChunker.new(Rng.instance(), size = 2048, chunkSize = 256)
-    chunker2 = RandomChunker.new(Rng.instance(), size = 2048, chunkSize = 256)
+    chunker1 = RandomChunker.new(Rng.instance(), size = 2048, chunkSize = 256'nb)
+    chunker2 = RandomChunker.new(Rng.instance(), size = 2048, chunkSize = 256'nb)
 
   var
     nodeCmps1, nodeCmps2: NodesComponents
@@ -182,7 +182,7 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
 
 asyncchecksuite "NetworkStore - multiple nodes":
   let
-    chunker = RandomChunker.new(Rng.instance(), size = 4096, chunkSize = 256)
+    chunker = RandomChunker.new(Rng.instance(), size = 4096, chunkSize = 256'nb)
 
   var
     switch: seq[Switch]

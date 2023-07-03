@@ -21,6 +21,7 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ./blockstore
+import ../units
 import ../chunker
 import ../errors
 import ../manifest
@@ -32,16 +33,14 @@ logScope:
 
 type
   CacheStore* = ref object of BlockStore
-    currentSize*: Natural          # in bytes
-    size*: Positive                # in bytes
+    currentSize*: NBytes
+    size*: NBytes
     cache: LruCache[Cid, Block]
 
   InvalidBlockSize* = object of CodexError
 
 const
-  MiB* = 1024 * 1024 # bytes, 1 mebibyte = 1,048,576 bytes
-  DefaultCacheSizeMiB* = 5
-  DefaultCacheSize* = DefaultCacheSizeMiB * MiB # bytes
+  DefaultCacheSize*: NBytes = 5.MiBs
 
 method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the stores
@@ -133,7 +132,7 @@ method listBlocks*(
 
 func putBlockSync(self: CacheStore, blk: Block): bool =
 
-  let blkSize = blk.data.len # in bytes
+  let blkSize = blk.data.len.NBytes # in bytes
 
   if blkSize > self.size:
     trace "Block size is larger than cache size", blk = blkSize, cache = self.size
@@ -142,7 +141,7 @@ func putBlockSync(self: CacheStore, blk: Block): bool =
   while self.currentSize + blkSize > self.size:
     try:
       let removed = self.cache.removeLru()
-      self.currentSize -= removed.data.len
+      self.currentSize -= removed.data.len.NBytes
     except EmptyLruCacheError as exc:
       # if the cache is empty, can't remove anything, so break and add item
       # to the cache
@@ -179,7 +178,7 @@ method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
 
   let removed = self.cache.del(cid)
   if removed.isSome:
-    self.currentSize -= removed.get.data.len
+    self.currentSize -= removed.get.data.len.NBytes
 
   return success()
 
@@ -189,11 +188,11 @@ method close*(self: CacheStore): Future[void] {.async.} =
 
   discard
 
-func new*(
+proc new*(
     _: type CacheStore,
     blocks: openArray[Block] = [],
-    cacheSize: Positive = DefaultCacheSize, # in bytes
-    chunkSize: Positive = DefaultChunkSize  # in bytes
+    cacheSize: NBytes = DefaultCacheSize,
+    chunkSize: NBytes = DefaultChunkSize
 ): CacheStore {.raises: [Defect, ValueError].} =
   ## Create a new CacheStore instance
   ## 
@@ -203,9 +202,9 @@ func new*(
   if cacheSize < chunkSize:
     raise newException(ValueError, "cacheSize cannot be less than chunkSize")
 
-  var currentSize = 0
   let
-    size = cacheSize div chunkSize
+    currentSize = 0'nb
+    size = int(cacheSize div chunkSize)
     cache = newLruCache[Cid, Block](size)
     store = CacheStore(
       cache: cache,
@@ -216,3 +215,11 @@ func new*(
     discard store.putBlockSync(blk)
 
   return store
+
+proc new*(
+    _: type CacheStore,
+    blocks: openArray[Block] = [],
+    cacheSize: int,
+    chunkSize: int
+): CacheStore {.raises: [Defect, ValueError].} =
+  CacheStore.new(blocks, NBytes cacheSize, NBytes chunkSize)

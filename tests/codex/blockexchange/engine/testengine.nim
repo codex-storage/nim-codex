@@ -37,7 +37,7 @@ asyncchecksuite "NetworkStore engine basic":
     rng = Rng.instance()
     seckey = PrivateKey.random(rng[]).tryGet()
     peerId = PeerId.init(seckey.getPublicKey().tryGet()).tryGet()
-    chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
+    chunker = RandomChunker.new(Rng.instance(), size = 1024'nb, chunkSize = 256'nb)
     wallet = WalletRef.example
     blockDiscovery = Discovery.new()
     peerStore = PeerCtxStore.new()
@@ -144,7 +144,7 @@ asyncchecksuite "NetworkStore engine handlers":
 
   setup:
     rng = Rng.instance()
-    chunker = RandomChunker.new(rng, size = 1024, chunkSize = 256)
+    chunker = RandomChunker.new(rng, size = 1024'nb, chunkSize = 256'nb)
 
     while true:
       let chunk = await chunker.getBytes()
@@ -373,7 +373,7 @@ asyncchecksuite "Task Handler":
 
   setup:
     rng = Rng.instance()
-    chunker = RandomChunker.new(rng, size = 1024, chunkSize = 256)
+    chunker = RandomChunker.new(rng, size = 1024, chunkSize = 256'nb)
     while true:
       let chunk = await chunker.getBytes()
       if chunk.len <= 0:
