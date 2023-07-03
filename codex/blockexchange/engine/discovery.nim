@@ -54,6 +54,7 @@ type
     advertiseQueue*: AsyncQueue[Cid]                             # Advertise queue
     advertiseTasks*: seq[Future[void]]                           # Advertise tasks
     discoveryLoop*: Future[void]                                 # Discovery loop task handle
+    heartbeatLoop*: Future[void]
     discoveryQueue*: AsyncQueue[Cid]                             # Discovery queue
     discoveryTasks*: seq[Future[void]]                           # Discovery tasks
     minPeersPerBlock*: int                                       # Max number of peers with block
@@ -77,6 +78,10 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
 
     trace "About to sleep discovery loop"
     await sleepAsync(b.discoveryLoopSleep)
+
+proc heartbeatLoop(b: DiscoveryEngine) {.async.} =
+  while b.discEngineRunning:
+    await sleepAsync(1.seconds)
 
 proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
   while b.discEngineRunning:
@@ -206,6 +211,7 @@ proc start*(b: DiscoveryEngine) {.async.} =
 
   b.advertiseLoop = advertiseQueueLoop(b)
   b.discoveryLoop = discoveryQueueLoop(b)
+  b.heartbeatLoop = heartbeatLoop(b)
 
 proc stop*(b: DiscoveryEngine) {.async.} =
   ## Stop the discovery engine
@@ -239,6 +245,9 @@ proc stop*(b: DiscoveryEngine) {.async.} =
     await b.discoveryLoop.cancelAndWait()
     trace "Discovery loop stopped"
 
+  if not b.heartbeatLoop.isNil and not b.heartbeatLoop.finished:
+    await b.heartbeatLoop.cancelAndWait()
+
   trace "Discovery engine stopped"
 
 proc new*(
@@ -256,7 +265,7 @@ proc new*(
     advertiseType = BlockType.Both
 ): DiscoveryEngine =
   ## Create a discovery engine instance for advertising services
-  ## 
+  ##
   DiscoveryEngine(
     localStore: localStore,
     peers: peers,

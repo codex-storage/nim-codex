@@ -20,6 +20,7 @@ import pkg/stint
 import ../../stores/blockstore
 import ../../blocktype as bt
 import ../../utils
+import ../../loopmeasure
 
 import ../protobuf/blockexc
 import ../protobuf/presence
@@ -64,6 +65,7 @@ type
     wallet*: WalletRef                            # Nitro wallet for micropayments
     pricing*: ?Pricing                            # Optional bandwidth pricing
     discovery*: DiscoveryEngine
+    loopMeasure*: LoopMeasure
 
   Pricing* = object
     address*: EthAddress
@@ -491,7 +493,9 @@ proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
       peerCtx = await b.taskQueue.pop()
 
     trace "Got new task from queue", peerId = peerCtx.id
+    b.loopMeasure.loopArm()
     await b.taskHandler(peerCtx)
+    b.loopMeasure.loopDisarm("blockexcTaskRunner")
 
   trace "Exiting blockexc task runner"
 
@@ -503,6 +507,7 @@ proc new*(
     discovery: DiscoveryEngine,
     peerStore: PeerCtxStore,
     pendingBlocks: PendingBlocksManager,
+    loopMeasure: LoopMeasure,
     concurrentTasks = DefaultConcurrentTasks,
     peersPerRequest = DefaultMaxPeersPerRequest
 ): BlockExcEngine =
@@ -514,6 +519,7 @@ proc new*(
       localStore: localStore,
       peers: peerStore,
       pendingBlocks: pendingBlocks,
+      loopMeasure: loopMeasure,
       peersPerRequest: peersPerRequest,
       network: network,
       wallet: wallet,

@@ -227,7 +227,7 @@ proc new*(
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
     blockDiscovery = DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
-    engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
+    engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks, loopMeasure)
     store = NetworkStore.new(engine, repoStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery)
