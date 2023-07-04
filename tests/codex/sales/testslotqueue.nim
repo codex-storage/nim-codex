@@ -2,20 +2,33 @@ import std/sequtils
 import pkg/asynctest
 import pkg/chronos
 import pkg/chronicles
-import pkg/codex/sales/slotqueue
+import pkg/datastore
 import pkg/questionable
 import pkg/questionable/results
 import pkg/upraises
+
+import pkg/codex/sales/reservations
+import pkg/codex/sales/slotqueue
+import pkg/codex/stores
+
 import ../helpers/mockmarket
 import ../helpers/eventually
 import ../examples
 
 suite "Slot queue start/stop":
 
+  var repo: RepoStore
+  var repoDs: Datastore
+  var metaDs: SQLiteDatastore
+  var reservations: Reservations
   var queue: SlotQueue
 
   setup:
-    queue = SlotQueue.new()
+    repoDs = SQLiteDatastore.new(Memory).tryGet()
+    metaDs = SQLiteDatastore.new(Memory).tryGet()
+    repo = RepoStore.new(repoDs, metaDs)
+    reservations = Reservations.new(repo)
+    queue = SlotQueue.new(reservations)
 
   teardown:
     await queue.stop()
@@ -45,6 +58,11 @@ suite "Slot queue start/stop":
 
 suite "Slot queue workers":
 
+  var repo: RepoStore
+  var repoDs: Datastore
+  var metaDs: SQLiteDatastore
+  var availability: Availability
+  var reservations: Reservations
   var queue: SlotQueue
 
   proc onProcessSlot(item: SlotQueueItem) {.async.} =
@@ -55,8 +73,22 @@ suite "Slot queue workers":
     item.doneProcessing.complete()
 
   setup:
-    queue = SlotQueue.new(maxSize = 5, maxWorkers = 3)
+    let request = StorageRequest.example
+    repoDs = SQLiteDatastore.new(Memory).tryGet()
+    metaDs = SQLiteDatastore.new(Memory).tryGet()
+    let quota = request.ask.slotSize.truncate(uint) * 100 + 1
+    repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = quota)
+    reservations = Reservations.new(repo)
+    # create an availability that should always match
+    availability = Availability.init(
+      size = request.ask.slotSize * 100,
+      duration = request.ask.duration * 100,
+      minPrice = request.ask.pricePerSlot div 100,
+      maxCollateral = request.ask.collateral * 100
+    )
+    queue = SlotQueue.new(reservations, maxSize = 5, maxWorkers = 3)
     queue.onProcessSlot = onProcessSlot
+    discard await reservations.reserve(availability)
 
   proc startQueue = asyncSpawn queue.start()
 
@@ -68,11 +100,11 @@ suite "Slot queue workers":
 
   test "maxWorkers cannot be 0":
     expect ValueError:
-      discard SlotQueue.new(maxSize = 1, maxWorkers = 0)
+      discard SlotQueue.new(reservations, maxSize = 1, maxWorkers = 0)
 
   test "maxWorkers cannot surpass maxSize":
     expect ValueError:
-      let sq2 = SlotQueue.new(maxSize = 1, maxWorkers = 2)
+      discard SlotQueue.new(reservations, maxSize = 1, maxWorkers = 2)
 
   test "does not surpass max workers":
     startQueue()
@@ -106,9 +138,14 @@ suite "Slot queue workers":
 
 suite "Slot queue":
 
-  var queue: SlotQueue
   var onProcessSlotCalled = false
   var onProcessSlotCalledWith: seq[(RequestId, uint16)]
+  var repo: RepoStore
+  var repoDs: Datastore
+  var metaDs: SQLiteDatastore
+  var availability: Availability
+  var reservations: Reservations
+  var queue: SlotQueue
 
   proc onProcessSlot(item: SlotQueueItem) {.async.} =
     onProcessSlotCalled = true
@@ -118,8 +155,23 @@ suite "Slot queue":
   setup:
     onProcessSlotCalled = false
     onProcessSlotCalledWith = @[]
-    queue = SlotQueue.new(maxSize = 2, maxWorkers = 2)
+    let request = StorageRequest.example
+    repoDs = SQLiteDatastore.new(Memory).tryGet()
+    metaDs = SQLiteDatastore.new(Memory).tryGet()
+    let quota = request.ask.slotSize.truncate(uint) * 100 + 1
+    repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = quota)
+    reservations = Reservations.new(repo)
+    # create an availability that should always match
+    availability = Availability.init(
+      size = request.ask.slotSize * 100,
+      duration = request.ask.duration * 100,
+      minPrice = request.ask.pricePerSlot div 100,
+      maxCollateral = request.ask.collateral * 100
+    )
+    queue = SlotQueue.new(reservations, maxSize = 2, maxWorkers = 2)
     queue.onProcessSlot = onProcessSlot
+    discard await reservations.reserve(availability)
+
   proc startQueue = asyncSpawn queue.start()
 
   teardown:
@@ -168,14 +220,6 @@ suite "Slot queue":
     check queue.push(item2).isOk
     check queue.len == 2
 
-  test "can support uint16.high slots":
-    var request = StorageRequest.example
-    let maxUInt16 = uint16.high
-    let uint64Slots = uint64(maxUInt16)
-    request.ask.slots = uint64Slots
-    let items = SlotQueueItem.init(request.id, request.ask, request.expiry)
-    check items.len.uint16 == maxUInt16
-    check queue.push(items).isOk
   test "finds exisiting item metadata":
     let item = SlotQueueItem.example
     check queue.push(item).isOk
@@ -187,13 +231,20 @@ suite "Slot queue":
     check populated.reward == item.reward
     check populated.collateral == item.collateral
 
+  test "can support uint16.high slots":
+    var request = StorageRequest.example
+    let maxUInt16 = uint16.high
+    let uint64Slots = uint64(maxUInt16)
+    request.ask.slots = uint64Slots
+    let items = SlotQueueItem.init(request.id, request.ask, request.expiry)
+    check items.len.uint16 == maxUInt16
 
   test "cannot support greater than uint16.high slots":
     var request = StorageRequest.example
     let int32Slots = uint16.high.int32 + 1
     let uint64Slots = uint64(int32Slots)
     request.ask.slots = uint64Slots
-    expect SlotQueueSlotsOutOfRangeError:
+    expect SlotsOutOfRangeError:
       discard SlotQueueItem.init(request.id, request.ask, request.expiry)
 
   test "cannot push duplicate items":
@@ -221,7 +272,6 @@ suite "Slot queue":
     check top == item
 
   test "pop waits for push when empty":
-    queue.stop() # otherwise .pop in `start` seems to take precedent
     let item = SlotQueueItem.example
     proc delayPush(item: SlotQueueItem) {.async.} =
       await sleepAsync(2.millis)
@@ -356,3 +406,10 @@ suite "Slot queue":
                                        (item2.requestId, item2.slotIndex),
                                        (item3.requestId, item3.slotIndex),
                                        (item4.requestId, item4.slotIndex)]
+
+  test "fails to push when there's no matching availability":
+    discard await reservations.release(availability.id,
+                    availability.size.truncate(uint))
+
+    let item = SlotQueueItem.example
+    check queue.push(item).error of NoMatchingAvailabilityError

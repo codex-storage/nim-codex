@@ -50,6 +50,9 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
   # TODO: Once implemented, check to ensure the host is allowed to fill the slot,
   # due to the [sliding window mechanism](https://github.com/codex-storage/codex-research/blob/master/design/marketplace.md#dispersal)
 
+  # availability was checked for this slot when it entered the queue, however
+  # check to the ensure that there is still availability as they may have
+  # changed since being added (other slots may have been processed in that time)
   without availability =? await reservations.find(
       request.ask.slotSize,
       request.ask.duration,

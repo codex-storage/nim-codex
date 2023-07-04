@@ -4,6 +4,7 @@ import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
 import pkg/upraises
+import ./reservations
 import ../errors
 import ../rng
 import ../utils
@@ -27,10 +28,10 @@ type
   SlotQueueItem* = object
     requestId: RequestId
     slotIndex: uint16
-    slotSize*: UInt256
-    duration*: UInt256
-    reward*: UInt256
-    collateral*: UInt256
+    slotSize: UInt256
+    duration: UInt256
+    reward: UInt256
+    collateral: UInt256
     expiry: UInt256
     doneProcessing*: Future[void]
 
@@ -39,17 +40,20 @@ type
   SlotQueueSize = range[1'u16..uint16.high]
 
   SlotQueue* = ref object
-    queue: AsyncHeapQueue[SlotQueueItem]
-    running: bool
-    onProcessSlot: ?OnProcessSlot
-    next: Future[SlotQueueItem]
     maxWorkers: int
+    next: Future[SlotQueueItem]
+    onProcessSlot: ?OnProcessSlot
+    queue: AsyncHeapQueue[SlotQueueItem]
+    reservations: Reservations
+    running: bool
     workers: AsyncQueue[SlotQueueWorker]
 
   SlotQueueError = object of CodexError
   SlotQueueItemExistsError* = object of SlotQueueError
   SlotQueueItemNotExistsError* = object of SlotQueueError
-  SlotQueueSlotsOutOfRangeError* = object of SlotQueueError
+  SlotsOutOfRangeError* = object of SlotQueueError
+  NoMatchingAvailabilityError* = object of SlotQueueError
+  QueueNotRunningError* = object of SlotQueueError
 
 # Number of concurrent workers used for processing SlotQueueItems
 const DefaultMaxWorkers = 3
@@ -63,6 +67,8 @@ const DefaultMaxWorkers = 3
 # slots.
 const DefaultMaxSize = 64'u16
 
+proc findFirstByRequest(self: SlotQueue, requestId: RequestId): ?SlotQueueItem
+
 proc profitability(item: SlotQueueItem): UInt256 =
   item.duration * item.reward
 
@@ -72,11 +78,12 @@ proc `<`*(a, b: SlotQueueItem): bool =
   a.expiry > b.expiry or                # expiry
   a.slotSize < b.slotSize               # dataset size
 
-proc `==`(a, b: SlotQueueItem): bool =
+proc `==`*(a, b: SlotQueueItem): bool =
   a.requestId == b.requestId and
   a.slotIndex == b.slotIndex
 
 proc new*(_: type SlotQueue,
+          reservations: Reservations,
           maxWorkers = DefaultMaxWorkers,
           maxSize: SlotQueueSize = DefaultMaxSize): SlotQueue =
 
@@ -86,10 +93,11 @@ proc new*(_: type SlotQueue,
     raise newException(ValueError, "maxWorkers must be less than maxSize")
 
   SlotQueue(
+    maxWorkers: maxWorkers,
     # Add 1 to always allow for an extra item to be pushed onto the queue
     # temporarily. After push (and sort), the bottom-most item will be deleted
     queue: newAsyncHeapQueue[SlotQueueItem](maxSize.int + 1),
-    maxWorkers: maxWorkers,
+    reservations: reservations,
     running: false
   )
   # avoid instantiating `workers` in constructor to avoid side effects in
@@ -132,7 +140,7 @@ proc init*(_: type SlotQueueItem,
           expiry: UInt256): seq[SlotQueueItem] =
 
   if not ask.slots.inRange:
-    raise newException(SlotQueueSlotsOutOfRangeError, "Too many slots")
+    raise newException(SlotsOutOfRangeError, "Too many slots")
 
   var i = 0'u16
   proc initSlotQueueItem: SlotQueueItem =
@@ -205,6 +213,14 @@ proc pop*(self: SlotQueue): Future[?!SlotQueueItem] {.async.} =
     return failure(err)
 
 proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
+  without availability =? waitFor self.reservations.find(item.slotSize,
+                                                         item.duration,
+                                                         item.profitability,
+                                                         item.collateral,
+                                                         used = false):
+    let err = newException(NoMatchingAvailabilityError, "no availability")
+    return failure(err)
+
   if self.contains(item):
     let err = newException(SlotQueueItemExistsError, "item already exists")
     return failure(err)
@@ -265,7 +281,8 @@ proc `[]`*(self: SlotQueue, i: Natural): SlotQueueItem =
 
 proc addWorker(self: SlotQueue): ?!void =
   if not self.running:
-    return failure("queue must be running")
+    let err = newException(QueueNotRunningError, "queue must be running")
+    return failure(err)
 
   let worker = SlotQueueWorker()
   try:
@@ -315,7 +332,7 @@ proc start*(self: SlotQueue) {.async.} =
   # task, a new worker will be pushed to the queue
   for i in 0..<self.maxWorkers:
     if err =? self.addWorker().errorOption:
-      error "error adding new worker", error = err.msg
+      error "start: error adding new worker", error = err.msg
 
   while self.running:
     try:

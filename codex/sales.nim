@@ -68,13 +68,14 @@ func new*(_: type Sales,
           proving: Proving,
           repo: RepoStore): Sales =
 
+  let reservations = Reservations.new(repo)
   Sales(
     context: SalesContext(
       market: market,
       clock: clock,
       proving: proving,
-      reservations: Reservations.new(repo),
-      slotQueue: SlotQueue.new()
+      reservations: reservations,
+      slotQueue: SlotQueue.new(reservations)
     ),
     subscriptions: @[]
   )
@@ -143,25 +144,16 @@ proc subscribeRequested(sales: Sales) {.async.} =
                       ask: StorageAsk,
                       expiry: UInt256) {.gcsafe, upraises:[].} =
     try:
-      let reservations = context.reservations
       let slotQueue = context.slotQueue
-      # Match availability before pushing. If availabilities weren't matched,
-      # every request in the network would get added to the slot queue.
-      # However, matching availabilities requires the subscription callback to
-      # be async, which has been avoided on many occasions, so we are using
-      # `waitFor`.
-      if availability =? waitFor reservations.find(ask.slotSize,
-                                                   ask.duration,
-                                                   ask.pricePerSlot,
-                                                   ask.collateral,
-                                                   used = false):
-        let items = SlotQueueItem.init(requestId, ask, expiry)
-        if err =? slotQueue.push(items).errorOption:
-          raise err
-    except SlotQueueSlotsOutOfRangeError:
+      let items = SlotQueueItem.init(requestId, ask, expiry)
+      if err =? slotQueue.push(items).errorOption:
+        raise err
+    except NoMatchingAvailabilityError:
+      info "slot in queue had no matching availabilities, ignoring"
+    except SlotsOutOfRangeError:
       warn "Too many slots, cannot add to queue", slots = ask.slots
     except CatchableError as e:
-      warn "Error pushing request to SlotQueue", error = e.msg
+      warn "Error adding request to SlotQueue", error = e.msg
       discard
 
   try:
