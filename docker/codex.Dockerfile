@@ -1,18 +1,35 @@
-FROM ubuntu:lunar-20230415 AS builder
+# Variables
+ARG BUILDER=ubuntu:lunar-20230415
+ARG IMAGE=${BUILDER}
+ARG BUILD_HOME=/src
+ARG MAKE_PARALLEL=${MAKE_PARALLEL:-4}
+ARG MAKE_PARAMS=${MAKE_PARAMS:-NIM_PARAMS="-d:disableMarchNative"}
+ARG APP_HOME=/codex
+
+# Build
+FROM ${BUILDER} AS builder
+ARG BUILD_HOME
+ARG MAKE_PARALLEL
+ARG MAKE_PARAMS
+
 RUN apt-get update && apt-get install -y git cmake curl make bash lcov build-essential nim
 RUN echo 'export NIMBLE_DIR="${HOME}/.nimble"' >> "${HOME}/.bash_env"
 RUN echo 'export PATH="${NIMBLE_DIR}/bin:${PATH}"' >> "${HOME}/.bash_env"
 
-WORKDIR /src
+WORKDIR ${BUILD_HOME}
 COPY . .
 RUN make clean
-RUN make -j4 update
-RUN make -j4 NIM_PARAMS="-d:disableMarchNative -d:codex_enable_api_debug_peers=true"
+RUN make -j ${MAKE_PARALLEL} update
+RUN make -j ${MAKE_PARALLEL} ${MAKE_PARAMS}
 
-FROM ubuntu:lunar-20230415
-WORKDIR /root
-RUN apt-get update && apt-get install -y libgomp1 bash net-tools
-COPY --from=builder /src/build/codex ./
-COPY --from=builder /src/docker/startCodex.sh ./
-RUN chmod +x ./startCodex.sh
-CMD ["/bin/bash", "-l", "-c", "./startCodex.sh"]
+# Create
+FROM ${IMAGE}
+ARG BUILD_HOME
+ARG APP_HOME
+
+WORKDIR ${APP_HOME}
+COPY --from=builder ${BUILD_HOME}/build/codex /usr/local/bin
+COPY --chmod=0755 docker/docker-entrypoint.sh /
+RUN apt-get update && apt-get install -y libgomp1 bash && rm -rf /var/lib/apt/lists/*
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["codex"]

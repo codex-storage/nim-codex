@@ -1,27 +1,43 @@
 services:
   codex-node1:
-    image: status-im/codexsetup.slim:latest
-    ports:
-      - 8080:8080
-    # Available environment variables:
+    image: codexstorage/nim-codex:sha-82b0399
     environment:
-      - LOG_LEVEL=TRACE
-      - METRICS_ADDR=0.0.0.0
-      - METRICS_PORT=9090
-      - NAT_IP=2.3.4.5
-      - API_PORT=8080
-      - DISC_IP=3.4.5.6
-      - DISC_PORT=8765
-      - NET_PRIVKEY=privkey
-      - BOOTSTRAP_SPR=bootstrap_record
-      - MAX_PEERS=123
-      - AGENT_STRING=agent_string
-      - STORAGE_QUOTA=123456789
-      - BLOCK_TTL=23456
-      - CACHE_SIZE=6543
-      - ETH_PROVIDER=eth
-      - ETH_ACCOUNT=account
-      - ETH_MARKETPLACE_ADDRESS=0x59b670e9fA9D0A427751Af201D676719a970857b
-      - SIMULATE_PROOF_FAILURES=2
-
-
+      - CODEX_LOG_LEVEL=${CODEX_LOG_LEVEL:-TRACE}
+      - CODEX_METRICS=${CODEX_METRICS:-false}
+      - CODEX_METRICS_ADDRESS=${CODEX_METRICS_ADDRESS:-0.0.0.0}
+      - CODEX_METRICS_PORT=${CODEX_METRICS_PORT:-8008}
+      - CODEX_DATA_DIR=${CODEX_DATA_DIR:-/datadir}
+      - CODEX_LISTEN_ADDRS=${CODEX_LISTEN_ADDRS:-/ip4/0.0.0.0/tcp/2345}
+      - CODEX_NAT=${CODEX_NAT:-10.0.0.10}
+      - CODEX_DISC_IP=${CODEX_DISC_IP:-0.0.0.0}
+      - CODEX_DISC_PORT=${CODEX_DISC_PORT:-8090}
+      - CODEX_NET_PRIVKEY=${CODEX_NET_PRIVKEY:-key}
+      # - CODEX_BOOTSTRAP_NODE=${CODEX_BOOTSTRAP_NODE}
+      - CODEX_MAX_PEERS=${CODEX_MAX_PEERS:-160}
+      - CODEX_AGENT_STRING=${CODEX_AGENT_STRING:-Codex}
+      - CODEX_API_BINDADDR=${CODEX_API_BINDADDR:-127.0.0.1}
+      - CODEX_API_PORT=${CODEX_API_PORT:-8080}
+      - CODEX_REPO_KIND=${CODEX_REPO_KIND:-fs}
+      - CODEX_STORAGE_QUOTA=${CODEX_STORAGE_QUOTA:-8589934592}
+      - CODEX_BLOCK_TTL=${CODEX_BLOCK_TTL:-0}
+      # - CODEX_BLOCK_MI=${CODEX_BLOCK_MI}
+      - CODEX_BLOCK_MN=${CODEX_BLOCK_MN:-1000}
+      - CODEX_CACHE_SIZE=${CODEX_CACHE_SIZE:-0}
+      - CODEX_PERSISTENCE=${CODEX_PERSISTENCE:-false}
+      - CODEX_ETH_PROVIDER=${CODEX_ETH_PROVIDER:-ws://localhost:8545}
+      # - CODEX_ETH_ACCOUNT=${CODEX_ETH_ACCOUNT}
+      # - CODEX_MARKETPLACE_ADDRESS=${CODEX_MARKETPLACE_ADDRESS:-0x59b670e9fA9D0A427751Af201D676719a970857b}
+      - CODEX_VALIDATOR=${CODEX_VALIDATOR:-false}
+      - CODEX_VALIDATOR_MAX_SLOTS=${CODEX_VALIDATOR_MAX_SLOTS:-1000}
+    ports:
+      - 8080:8080/tcp # REST API
+      - 8008:8008/tcp # Metrics
+      - 2345:2345/tcp # libp2p
+      - 8090:8090/udp # DHT discovery
+    volumes:
+      - /datadir:/datadir
+    networks:
+      - codex
+networks:
+  codex:
+    driver: bridge
