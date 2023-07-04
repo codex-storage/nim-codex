@@ -147,12 +147,33 @@ proc init*(_: type SlotQueueItem,
 
   return SlotQueueItem.init(request.id, request.ask, request.expiry)
 
+proc init*(_: type SlotQueueItem,
+          self: SlotQueue,
+          requestId: RequestId,
+          slotIndex: uint16): ?SlotQueueItem =
+
+  if var found =? self.findFirstByRequest(requestId):
+    return some SlotQueueItem(
+      requestId: requestId,
+      slotIndex: slotIndex,
+      slotSize: found.slotSize,
+      duration: found.duration,
+      reward: found.reward,
+      collateral: found.collateral,
+      expiry: found.expiry,
+      doneProcessing: newFuture[void]("slotqueue.worker.processing")
+    )
+  return none SlotQueueItem
+
 proc inRange*(val: SomeUnsignedInt): bool =
   val.uint16 in SlotQueueSize.low..SlotQueueSize.high
 
 proc requestId*(self: SlotQueueItem): RequestId = self.requestId
-
 proc slotIndex*(self: SlotQueueItem): uint16 = self.slotIndex
+proc slotSize*(self: SlotQueueItem): UInt256 = self.slotSize
+proc duration*(self: SlotQueueItem): UInt256 = self.duration
+proc reward*(self: SlotQueueItem): UInt256 = self.reward
+proc collateral*(self: SlotQueueItem): UInt256 = self.collateral
 
 proc running*(self: SlotQueue): bool = self.running
 
@@ -202,6 +223,12 @@ proc push*(self: SlotQueue, items: seq[SlotQueueItem]): ?!void =
       return failure(err)
 
   return success()
+
+proc findFirstByRequest(self: SlotQueue, requestId: RequestId): ?SlotQueueItem =
+  for item in self.queue.items:
+    if item.requestId == requestId:
+      return some item
+  return none SlotQueueItem
 
 proc findByRequest(self: SlotQueue, requestId: RequestId): seq[SlotQueueItem] =
   var items: seq[SlotQueueItem] = @[]

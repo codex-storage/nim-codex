@@ -244,17 +244,23 @@ proc subscribeSlotFreed(sales: Sales) {.async.} =
                    slotIndex: UInt256) {.gcsafe, upraises: [].} =
 
     try:
-      # retrieving the request requires the subscription callback to be async,
-      # which has been avoided on many occasions, so we are using `waitFor`.
-      if request =? waitFor market.getRequest(requestId):
-        let item = SlotQueueItem.init(request, slotIndex.truncate(uint16))
-        if err =? queue.push(item).errorOption:
-          error "Error adding slot index to slot queue", error = err.msg
+      # first attempt to populate request using existing slot metadata in queue
+      without var found =? SlotQueueItem.init(queue,
+                                          requestId,
+                                          slotIndex.truncate(uint16)):
+        # if there's no existing slot for that request, retrieve the request
+        # from the contract. This requires the subscription callback to be
+        # async, which has been avoided on many occasions, so we are using
+        # `waitFor`.
+        without request =? waitFor market.getRequest(requestId):
+          error "unknown request in contract"
+          return
 
-      else:
-        # contract doesn't seem to know about this request, so remove it from
-        # the queue
-        queue.delete(requestId)
+        found = SlotQueueItem.init(request, slotIndex.truncate(uint16))
+
+      if err =? queue.push(found).errorOption:
+        error "Error adding slot index to slot queue", error = err.msg
+
     except CatchableError, Exception:
       let e = getCurrentException()
       error "Exception during sales slot freed event handler", error = e.msg

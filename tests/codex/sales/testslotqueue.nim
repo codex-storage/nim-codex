@@ -178,6 +178,17 @@ suite "Slot queue":
     let items = SlotQueueItem.init(request.id, request.ask, request.expiry)
     check items.len.uint16 == maxUInt16
     check queue.push(items).isOk
+  test "finds exisiting item metadata":
+    let item = SlotQueueItem.example
+    check queue.push(item).isOk
+    let populated = !SlotQueueItem.init(queue, item.requestId, 12'u16)
+    check populated.requestId == item.requestId
+    check populated.slotIndex == 12'u16
+    check populated.slotSize == item.slotSize
+    check populated.duration == item.duration
+    check populated.reward == item.reward
+    check populated.collateral == item.collateral
+
 
   test "cannot support greater than uint16.high slots":
     var request = StorageRequest.example

@@ -162,12 +162,19 @@ asyncchecksuite "Sales":
     check queue.len == 1
     check queue[0].slotIndex == 2'u16
 
-  test "removes request in queue if unknown request once SlotFreed emitted":
-    queue.stop()
+  test "finds request metadata from existing slots in queue once SlotFreed emitted":
+    check isOk await reservations.reserve(availability)
     let items = SlotQueueItem.init(request)
-    check queue.push(items).isOk
+    await market.requestStorage(request)
+    market.requested.keepItIf(it != request) # force request to be unknown by contract, `market.getRequest` would fail
     market.emitSlotFreed(request.id, 2.u256)
-    check queue.len == 0
+    check eventually queue.get(request.id, 2.uint16).isOk
+
+  test "processes all slots for request":
+    check isOk await reservations.reserve(availability)
+    let items = SlotQueueItem.init(request)
+    await market.requestStorage(request)
+    check eventually queue.len == 0
 
   test "makes storage unavailable when downloading a matched request":
     var used = false
