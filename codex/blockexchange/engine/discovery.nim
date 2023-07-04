@@ -41,7 +41,6 @@ const
   DefaultAdvertiseLoopSleep = 30.minutes
 
 type
-  BlockLocatedCallback* = proc(cid: Cid, peer: PeerId): Future[void] {.gcsafe, upraises:[].}
   DiscoveryEngine* = ref object of RootObj
     localStore*: BlockStore                                      # Local block store for this instance
     peers*: PeerCtxStore                                         # Peer context store
@@ -63,8 +62,6 @@ type
     inFlightDiscReqs*: Table[Cid, Future[seq[SignedPeerRecord]]] # Inflight discovery requests
     inFlightAdvReqs*: Table[Cid, Future[void]]                   # Inflight advertise requests
     advertiseType*: BlockType                                    # Advertice blocks, manifests or both
-
-    blockLocatedCallback*: ?BlockLocatedCallback
 
 proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
   while b.discEngineRunning:
@@ -163,11 +160,6 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
           for i, f in dialed:
             if f.failed:
               await b.discovery.removeProvider(peers[i].data.peerId)
-            else:
-              without cb =? b.blockLocatedCallback:
-                trace "blockLocated callback not set"
-
-              await cb(cid, peers[i].data.peerId)
 
         finally:
           b.inFlightDiscReqs.del(cid)

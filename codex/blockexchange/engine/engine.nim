@@ -127,13 +127,6 @@ proc sendWantHave(b: BlockExcEngine, cid: Cid, selectedPeer: BlockExcPeerCtx, pe
           @[cid],
           wantType = WantType.WantHave) # we only want to know if the peer has the block
 
-proc sendWantHaveSingle(b: BlockExcEngine, cid: Cid, peer: PeerId): Future[void] {.async.} =
-  trace "Sending wantHave request to single peer", cid, peer
-  await b.network.request.sendWantList(
-    peer,
-    @[cid],
-    wantType = WantType.WantHave) # we only want to know if the peer has the block
-
 proc sendWantBlock(b: BlockExcEngine, cid: Cid, blockPeer: BlockExcPeerCtx): Future[void] {.async.} =
   trace "Sending wantBlock request to", peer = blockPeer.id, cid
   await b.network.request.sendWantList(
@@ -144,7 +137,8 @@ proc sendWantBlock(b: BlockExcEngine, cid: Cid, blockPeer: BlockExcPeerCtx): Fut
 proc findCheapestPeerForBlock(b: BlockExcEngine, cheapestPeers: seq[BlockExcPeerCtx]): ?BlockExcPeerCtx =
   if cheapestPeers.len <= 0:
     trace "No cheapest peers, selecting first in list"
-    let peers = toSeq(b.peers) # Get any peer
+    let
+      peers = toSeq(b.peers) # Get any peer
     if peers.len <= 0:
       return none(BlockExcPeerCtx)
     return some(peers[0])
@@ -160,13 +154,12 @@ proc requestBlock*(
     trace "Request handle already pending", cid
     return await b.pendingBlocks.getWantHandle(cid, timeout)
 
-  let blk = b.pendingBlocks.getWantHandle(cid, timeout)
+  let
+    blk = b.pendingBlocks.getWantHandle(cid, timeout)
 
   trace "Selecting peers who have", cid
-  var peers = b.peers.selectCheapest(cid)
-  if peers.len <= 0:
-    trace "We don't know of anyone who has this. Start discovery immediately."
-    b.discovery.queueFindBlocksReq(@[cid])
+  var
+    peers = b.peers.selectCheapest(cid)
 
   without blockPeer =? b.findCheapestPeerForBlock(peers):
       trace "No peers to request blocks from. Queue discovery...", cid
@@ -195,18 +188,16 @@ proc requestBlock*(
   # monitor block handle
   asyncSpawn blockHandleMonitor()
 
-  await b.sendWantHave(cid, blockPeer, peers)
   await b.sendWantBlock(cid, blockPeer)
 
-  return await blk
+  if (peers.len - 1) == 0:
+    trace "No peers to send want list to", cid
+    b.discovery.queueFindBlocksReq(@[cid])
+    return await blk
 
-proc blockLocated*(
-  b: BlockExcEngine,
-  cid: Cid,
-  peer: PeerId
-) {.async} =
-  trace "Block located, rejoice!"
-  await b.sendWantHaveSingle(cid, peer)
+  await b.sendWantHave(cid, blockPeer, toSeq(b.peers))
+
+  return await blk
 
 proc blockPresenceHandler*(
   b: BlockExcEngine,
@@ -319,7 +310,8 @@ proc wantListHandler*(
   peer: PeerId,
   wantList: Wantlist) {.async.} =
   trace "Got wantList for peer", peer, items = wantList.entries.len
-  let peerCtx = b.peers.get(peer)
+  let
+    peerCtx = b.peers.get(peer)
   if isNil(peerCtx):
     return
 
@@ -384,7 +376,8 @@ proc accountHandler*(
   engine: BlockExcEngine,
   peer: PeerId,
   account: Account) {.async.} =
-  let context = engine.peers.get(peer)
+  let
+    context = engine.peers.get(peer)
   if context.isNil:
     return
 
@@ -402,7 +395,8 @@ proc paymentHandler*(
     return
 
   if channel =? context.paymentChannel:
-    let sender = account.address
+    let
+      sender = account.address
     discard engine.wallet.acceptPayment(channel, Asset, sender, payment)
   else:
     context.paymentChannel = engine.wallet.acceptChannel(payment).option
@@ -540,9 +534,6 @@ proc new*(
     presence: seq[BlockPresence]): Future[void] {.gcsafe.} =
     engine.blockPresenceHandler(peer, presence)
 
-  proc handleBlockLocated(cid: Cid, peer: PeerId): Future[void] {.gcsafe.} =
-    engine.blockLocated(cid, peer)
-
   proc blocksHandler(
     peer: PeerId,
     blocks: seq[bt.Block]): Future[void] {.gcsafe.} =
@@ -560,7 +551,5 @@ proc new*(
     onPresence: blockPresenceHandler,
     onAccount: accountHandler,
     onPayment: paymentHandler)
-
-  engine.discovery.blockLocatedCallback = some(handleBlockLocated)
 
   return engine
