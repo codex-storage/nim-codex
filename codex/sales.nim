@@ -92,7 +92,7 @@ proc cleanUp(sales: Sales,
   if not processing.isNil and not processing.finished():
     processing.complete()
 
-proc handleRequest(sales: Sales, item: SlotQueueItem, processing: Future[void]) =
+proc handleRequest(sales: Sales, item: SlotQueueItem) =
   debug "handling storage requested", requestId = $item.requestId,
     slot = item.slotIndex
 
@@ -104,7 +104,7 @@ proc handleRequest(sales: Sales, item: SlotQueueItem, processing: Future[void]) 
   )
 
   agent.context.onCleanUp = proc {.async.} =
-    await sales.cleanUp(agent, processing)
+    await sales.cleanUp(agent, item.doneProcessing)
 
   agent.start(SalePreparing())
   sales.agents.add agent
@@ -274,8 +274,8 @@ proc subscribeSlotFreed(sales: Sales) {.async.} =
 proc startSlotQueue(sales: Sales) {.async.} =
   let slotQueue = sales.context.slotQueue
   slotQueue.onProcessSlot =
-    proc(item: SlotQueueItem, processing: Future[void]) {.async.} =
-      sales.handleRequest(item, processing)
+    proc(item: SlotQueueItem) {.async.} =
+      sales.handleRequest(item)
   asyncSpawn slotQueue.start()
 
 proc subscribe(sales: Sales) {.async.} =
@@ -299,7 +299,7 @@ proc start*(sales: Sales) {.async.} =
 
 proc stop*(sales: Sales) {.async.} =
   sales.stopping = true
-  sales.context.slotQueue.stop()
+  await sales.context.slotQueue.stop()
   await sales.unsubscribe()
 
   for agent in sales.agents:

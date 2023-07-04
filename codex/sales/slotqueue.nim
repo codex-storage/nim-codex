@@ -15,7 +15,7 @@ logScope:
 
 type
   OnProcessSlot* =
-    proc(item: SlotQueueItem, processing: Future[void]): Future[void] {.gcsafe, upraises:[].}
+    proc(item: SlotQueueItem): Future[void] {.gcsafe, upraises:[].}
 
 
   # Non-ref obj copies value when assigned, preventing accidental modification
@@ -32,6 +32,7 @@ type
     reward*: UInt256
     collateral*: UInt256
     expiry: UInt256
+    doneProcessing*: Future[void]
 
   # don't need to -1 to prevent overflow when adding 1 (to always allow push)
   # because AsyncHeapQueue size is of type `int`, which is larger than `uint16`
@@ -112,7 +113,8 @@ proc init*(_: type SlotQueueItem,
     duration: ask.duration,
     reward: ask.reward,
     collateral: ask.collateral,
-    expiry: expiry
+    expiry: expiry,
+    doneProcessing: newFuture[void]("slotqueue.worker.processing")
   )
 
 proc init*(_: type SlotQueueItem,
@@ -277,11 +279,9 @@ proc dispatch(self: SlotQueue,
               worker: SlotQueueWorker,
               item: SlotQueueItem) {.async.} =
 
-  let done = newFuture[void]("slotqueue.worker.processing")
-
   if onProcessSlot =? self.onProcessSlot:
     try:
-      await onProcessSlot(item, done)
+      await onProcessSlot(item)
     except CatchableError as e:
       # we don't have any insight into types of errors that `onProcessSlot` can
       # throw because it is caller-defined
@@ -289,14 +289,18 @@ proc dispatch(self: SlotQueue,
         requestId = item.requestId, error = e.msg
 
     try:
-      await done
+      await item.doneProcessing
     except CancelledError:
       # do not bubble exception up as it is called with `asyncSpawn` which would
       # convert the exception into a `FutureDefect`
       discard
 
   if err =? self.addWorker().errorOption:
-    error "error adding new worker", error = err.msg
+    if err of QueueNotRunningError:
+      info "could not re-add worker to worker queue, queue not running",
+        error = err.msg
+    else:
+      error "dispatch: error adding new worker", error = err.msg
 
 proc start*(self: SlotQueue) {.async.} =
   if self.running:
@@ -326,13 +330,19 @@ proc start*(self: SlotQueue) {.async.} =
     except CatchableError as e: # raised from self.queue.pop() or self.workers.pop()
       warn "slot queue error encountered during processing", error = e.msg
 
-proc stop*(self: SlotQueue) =
+proc stop*(self: SlotQueue) {.async.} =
   if not self.running:
     return
 
+  self.running = false
+
   if not self.next.isNil:
-    self.next.cancel()
+    await self.next.cancelAndWait()
+
+  for item in self.queue.mitems:
+    if not item.doneProcessing.isNil and not item.doneProcessing.finished():
+      await item.doneProcessing.cancelAndWait()
+      item.doneProcessing = nil
 
   self.next = nil
-  self.running = false
 

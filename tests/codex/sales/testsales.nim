@@ -88,23 +88,23 @@ asyncchecksuite "Sales":
 
   test "processes all request's slots once StorageRequested emitted":
     var slotsProcessed: seq[SlotQueueItem] = @[]
-    queue.onProcessSlot = proc(item: SlotQueueItem, processing: Future[void]) {.async.} =
+    queue.onProcessSlot = proc(item: SlotQueueItem) {.async.} =
                             slotsProcessed.add item
-                            processing.complete()
+                            item.doneProcessing.complete()
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     let items = SlotQueueItem.init(request)
     check eventually items.allIt(slotsProcessed.contains(it))
 
   test "adds request's slots to slot queue once StorageRequested emitted":
-    queue.stop() # prevents popping during processing
+    await queue.stop() # prevents popping during processing
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     let items = SlotQueueItem.init(request)
     await waitUntilInQueue(items)
 
   test "removes slots from slot queue once RequestCancelled emitted":
-    queue.stop() # prevents popping during processing
+    await queue.stop() # prevents popping during processing
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     let items = SlotQueueItem.init(request)
@@ -113,7 +113,7 @@ asyncchecksuite "Sales":
     check queue.len == 0
 
   test "removes request from slot queue once RequestFailed emitted":
-    queue.stop() # prevents popping during processing
+    await queue.stop() # prevents popping during processing
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     let items = SlotQueueItem.init(request)
@@ -122,7 +122,7 @@ asyncchecksuite "Sales":
     check queue.len == 0
 
   test "all slots for request are added to queue once requested":
-    queue.stop() # prevents popping during processing
+    await queue.stop() # prevents popping during processing
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     for slotIndex in 0'u16..<request.ask.slots.uint16:
@@ -130,7 +130,7 @@ asyncchecksuite "Sales":
       check eventually queue.contains(item)
 
   test "removes slot index from slot queue once SlotFilled emitted":
-    queue.stop() # preventing popping during processing loop
+    await queue.stop() # preventing popping during processing loop
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     let items = SlotQueueItem.init(request)
@@ -143,14 +143,14 @@ asyncchecksuite "Sales":
       check queue.contains(item)
 
   test "all request's slots removed from queue once SlotFulfilled emitted":
-    queue.stop()
+    await queue.stop()
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     market.emitRequestFulfilled(request.id)
     check queue.len == 0
 
   test "adds slot index to slot queue once SlotFreed emitted":
-    queue.stop() # prevents popping during processing
+    await queue.stop() # prevents popping during processing
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     market.emitSlotFilled(request.id, 0.u256)

@@ -18,7 +18,7 @@ suite "Slot queue start/stop":
     queue = SlotQueue.new()
 
   teardown:
-    queue.stop()
+    await queue.stop()
 
   test "starts out not running":
     check not queue.running
@@ -29,44 +29,41 @@ suite "Slot queue start/stop":
     check queue.running
 
   test "can call stop when alrady stopped":
-    queue.stop()
+    await queue.stop()
     check not queue.running
 
   test "can call stop when running":
     asyncSpawn queue.start()
-    queue.stop()
+    await queue.stop()
     check not queue.running
 
   test "can call stop multiple times":
     asyncSpawn queue.start()
-    queue.stop()
-    queue.stop()
+    await queue.stop()
+    await queue.stop()
     check not queue.running
 
 suite "Slot queue workers":
 
   var queue: SlotQueue
 
-  proc onProcessSlot(item: SlotQueueItem, processing: Future[void]) {.async.} =
-    try:
-      await sleepAsync(1000.millis)
-      # this is not illustrative of the realistic scenario as the `processing`
-      # future would be passed to another context before being completed and
-      # therefore is not as simple as making the callback async
-      processing.complete()
-    except Exception:
-      discard
+  proc onProcessSlot(item: SlotQueueItem) {.async.} =
+    await sleepAsync(1000.millis)
+    # this is not illustrative of the realistic scenario as the
+    # `doneProcessing` future would be passed to another context before being
+    # completed and therefore is not as simple as making the callback async
+    item.doneProcessing.complete()
 
   setup:
     queue = SlotQueue.new(maxSize = 5, maxWorkers = 3)
     queue.onProcessSlot = onProcessSlot
-    asyncSpawn queue.start()
+
+  proc startQueue = asyncSpawn queue.start()
 
   teardown:
-    queue.stop()
+    await queue.stop()
 
   test "activeWorkers should be 0 when not running":
-    queue.stop()
     check queue.activeWorkers == 0
 
   test "maxWorkers cannot be 0":
@@ -78,6 +75,7 @@ suite "Slot queue workers":
       let sq2 = SlotQueue.new(maxSize = 1, maxWorkers = 2)
 
   test "does not surpass max workers":
+    startQueue()
     let item1 = SlotQueueItem.example
     let item2 = SlotQueueItem.example
     let item3 = SlotQueueItem.example
@@ -89,13 +87,13 @@ suite "Slot queue workers":
     check eventually queue.activeWorkers == 3
 
   test "discards workers once processing completed":
-    proc processSlot(item: SlotQueueItem, processing: Future[void]) {.async.} =
-      try:
-        await sleepAsync(1.millis)
-        processing.complete()
-      except Exception:
-        discard
+    proc processSlot(item: SlotQueueItem) {.async.} =
+      await sleepAsync(1.millis)
+      item.doneProcessing.complete()
+
     queue.onProcessSlot = processSlot
+
+    startQueue()
     let item1 = SlotQueueItem.example
     let item2 = SlotQueueItem.example
     let item3 = SlotQueueItem.example
@@ -112,20 +110,20 @@ suite "Slot queue":
   var onProcessSlotCalled = false
   var onProcessSlotCalledWith: seq[(RequestId, uint16)]
 
-  proc onProcessSlot(item: SlotQueueItem, processing: Future[void]) {.async.} =
+  proc onProcessSlot(item: SlotQueueItem) {.async.} =
     onProcessSlotCalled = true
     onProcessSlotCalledWith.add (item.requestId, item.slotIndex)
-    processing.complete()
+    item.doneProcessing.complete()
 
   setup:
     onProcessSlotCalled = false
     onProcessSlotCalledWith = @[]
     queue = SlotQueue.new(maxSize = 2, maxWorkers = 2)
     queue.onProcessSlot = onProcessSlot
-    asyncSpawn queue.start()
+  proc startQueue = asyncSpawn queue.start()
 
   teardown:
-    queue.stop()
+    await queue.stop()
 
   test "starts out empty":
     check queue.len == 0
@@ -307,6 +305,7 @@ suite "Slot queue":
 
   test "should call callback once an item is added":
     let item = SlotQueueItem.example
+    startQueue()
     check not onProcessSlotCalled
     check queue.push(item).isOk
     check eventually onProcessSlotCalled
@@ -314,9 +313,10 @@ suite "Slot queue":
   test "should only process item once":
     let item = SlotQueueItem.example
 
+    startQueue()
+
     check queue.push(item).isOk
     await sleepAsync(1.millis)
-    # queue.delete(item)
     # additional sleep ensures that enough time is given for the slotqueue
     # loop to iterate again and that the correct behavior of waiting when the
     # queue is empty is adhered to
@@ -325,6 +325,8 @@ suite "Slot queue":
     check onProcessSlotCalledWith == @[(item.requestId, item.slotIndex)]
 
   test "should process items in correct order":
+    startQueue()
+
     # sleeping after push allows the slotqueue loop to iterate,
     # calling the callback for each pushed/updated item
     var request = StorageRequest.example
