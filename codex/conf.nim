@@ -200,7 +200,7 @@ type
         name: "block-mn" }: int
 
       cacheSize* {.
-        desc: "The size in bytes of the block cache, 0 disables the cache - might help on slow hardrives"
+        desc: "The size of the block cache, 0 disables the cache - might help on slow hardrives"
         defaultValue: 0
         defaultValueDesc: "0"
         name: "cache-size"
