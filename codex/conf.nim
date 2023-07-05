@@ -27,6 +27,7 @@ import pkg/toml_serialization
 import pkg/metrics
 import pkg/metrics/chronos_httpserver
 import pkg/stew/shims/net as stewnet
+import pkg/stew/shims/parseutils
 import pkg/libp2p
 import pkg/ethers
 
@@ -306,6 +307,13 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
 
 func parseCmdArg*(T: type EthAddress, address: string): T =
   EthAddress.init($address).get()
+
+proc readValue*(r: var TomlReader, val: var NBytes)
+               {.upraises: [SerializationError, IOError].} =
+  var value = 0'i64
+  let count = parseSize(r.readValue(string), value, alwaysBin = true)
+  assert count > 0
+  val = NBytes(value)
 
 proc readValue*(r: var TomlReader, val: var EthAddress)
                {.upraises: [SerializationError, IOError].} =
