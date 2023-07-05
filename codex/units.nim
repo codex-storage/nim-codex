@@ -11,6 +11,10 @@
 import std/hashes
 import std/strutils
 
+import pkg/upraises
+import pkg/json_serialization
+import pkg/json_serialization/std/options
+
 type
   NBytes* = distinct Natural
 
@@ -49,6 +53,18 @@ func divUp*[T: NBytes](a, b : T): int =
   ## Division with result rounded up (rather than truncated as in 'div')
   assert(b != T(0))
   if a==T(0):  int(0) else: int( ((a - T(1)) div b) + 1 )
+
+proc writeValue*(
+    writer: var JsonWriter,
+    value: NBytes
+) {.upraises:[IOError].} =
+  writer.writeValue value.int
+
+proc readValue*(
+    reader: var JsonReader,
+    value: var NBytes
+) {.upraises: [SerializationError, IOError].} =
+  value = NBytes reader.readValue(int)
 
 when isMainModule:
 
