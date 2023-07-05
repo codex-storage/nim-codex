@@ -177,7 +177,7 @@ proc new*(
     cache: CacheStore = nil
 
   if config.cacheSize > 0:
-    cache = CacheStore.new(cacheSize = config.cacheSize * MiB)
+    cache = CacheStore.new(cacheSize = config.cacheSize)
     ## Is unused?
 
   let
