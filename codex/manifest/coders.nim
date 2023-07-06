@@ -148,8 +148,8 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
   var
     self = Manifest(
       rootHash: rootHashCid.some,
-      originalBytes: originalBytes.int,
-      blockSize: blockSize.int,
+      originalBytes: originalBytes.NBytes,
+      blockSize: blockSize.NBytes,
       blocks: blocks,
       hcodec: (? rootHashCid.mhash.mapFailure).mcodec,
       codec: rootHashCid.mcodec,

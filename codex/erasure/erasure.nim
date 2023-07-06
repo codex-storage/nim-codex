@@ -92,14 +92,14 @@ proc encode*(
     new_manifest    = encoded.len
 
   var
-    encoder = self.encoderProvider(manifest.blockSize, blocks, parity)
+    encoder = self.encoderProvider(manifest.blockSize.int, blocks, parity)
 
   try:
     for i in 0..<encoded.steps:
       # TODO: Don't allocate a new seq every time, allocate once and zero out
       var
         data = newSeq[seq[byte]](blocks) # number of blocks to encode
-        parityData = newSeqWith[seq[byte]](parity, newSeq[byte](manifest.blockSize))
+        parityData = newSeqWith[seq[byte]](parity, newSeq[byte](manifest.blockSize.int))
         # calculate block indexes to retrieve
         blockIdx = toSeq(countup(i, encoded.rounded - 1, encoded.steps))
         # request all blocks from the store
@@ -122,7 +122,7 @@ proc encode*(
           shallowCopy(data[j], blk.data)
         else:
           trace "Padding with empty block", pos = idx
-          data[j] = newSeq[byte](manifest.blockSize)
+          data[j] = newSeq[byte](manifest.blockSize.int)
 
       trace "Erasure coding data", data = data.len, parity = parityData.len
 
@@ -170,7 +170,7 @@ proc decode*(
     new_manifest    = encoded.len
 
   var
-    decoder = self.decoderProvider(encoded.blockSize, encoded.ecK, encoded.ecM)
+    decoder = self.decoderProvider(encoded.blockSize.int, encoded.ecK, encoded.ecM)
 
   try:
     for i in 0..<encoded.steps:
@@ -191,9 +191,9 @@ proc decode*(
       var
         data = newSeq[seq[byte]](encoded.ecK) # number of blocks to encode
         parityData = newSeq[seq[byte]](encoded.ecM)
-        recovered = newSeqWith[seq[byte]](encoded.ecK, newSeq[byte](encoded.blockSize))
+        recovered = newSeqWith[seq[byte]](encoded.ecK, newSeq[byte](encoded.blockSize.int))
         idxPendingBlocks = pendingBlocks # copy futures to make using with `one` easier
-        emptyBlock = newSeq[byte](encoded.blockSize)
+        emptyBlock = newSeq[byte](encoded.blockSize.int)
         resolved = 0
 
       while true:

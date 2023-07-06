@@ -57,7 +57,7 @@ asyncchecksuite "Test Node":
   proc retrieve(cid: Cid): Future[seq[byte]] {.async.} =
     # Retrieve an entire file contents by file Cid
     let
-      oddChunkSize = math.trunc(BlockSize/1.359).int  # Let's check that node.retrieve can correctly rechunk data
+      oddChunkSize = math.trunc(DefaultBlockSize.float/1.359).int  # Let's check that node.retrieve can correctly rechunk data
       stream = (await node.retrieve(cid)).tryGet()
     var
       data: seq[byte]
@@ -76,7 +76,7 @@ asyncchecksuite "Test Node":
 
   setup:
     file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
-    chunker = FileChunker.new(file = file, chunkSize = BlockSize)
+    chunker = FileChunker.new(file = file, chunkSize = DefaultBlockSize)
     switch = newStandardSwitch()
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
@@ -132,7 +132,7 @@ asyncchecksuite "Test Node":
     let
       stream = BufferStream.new()
       storeFut = node.store(stream)
-      oddChunkSize = math.trunc(BlockSize/3.14).int  # Let's check that node.store can correctly rechunk these odd chunks
+      oddChunkSize = math.trunc(DefaultBlockSize.float/3.14).NBytes  # Let's check that node.store can correctly rechunk these odd chunks
       oddChunker = FileChunker.new(file = file, chunkSize = oddChunkSize, pad = false)  # TODO: doesn't work with pad=tue
     var
       original: seq[byte]
@@ -159,7 +159,7 @@ asyncchecksuite "Test Node":
     let data = await retrieve(manifestCid)
 
     check:
-      data.len == localManifest.originalBytes
+      data.len == localManifest.originalBytes.int
       data.len == original.len
       sha256.digest(data) == sha256.digest(original)
 

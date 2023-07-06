@@ -13,6 +13,9 @@ import std/tables
 import pkg/libp2p
 import pkg/questionable
 
+import ../units
+export units
+
 const
   BlockCodec* = multiCodec("raw")
   DagPBCodec* = multiCodec("dag-pb")
@@ -29,8 +32,8 @@ const
 type
   Manifest* = ref object of RootObj
     rootHash*: ?Cid         # Root (tree) hash of the contained data set
-    originalBytes*: int     # Exact size of the original (uploaded) file
-    blockSize*: int         # Size of each contained block (might not be needed if blocks are len-prefixed)
+    originalBytes*: NBytes  # Exact size of the original (uploaded) file
+    blockSize*: NBytes      # Size of each contained block (might not be needed if blocks are len-prefixed)
     blocks*: seq[Cid]       # Block Cid
     version*: CidVersion    # Cid version
     hcodec*: MultiCodec     # Multihash codec

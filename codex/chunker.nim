@@ -24,7 +24,7 @@ import ./blocktype
 export blocktype
 
 const
-  DefaultChunkSize* = BlockSize
+  DefaultChunkSize* = DefaultBlockSize
 
 type
   # default reader type
@@ -35,7 +35,7 @@ type
   Chunker* = ref object
     reader*: Reader             # Procedure called to actually read the data
     offset*: int                # Bytes read so far (position in the stream)
-    chunkSize*: Natural         # Size of each chunk
+    chunkSize*: NBytes          # Size of each chunk
     pad*: bool                  # Pad last chunk to chunkSize?
 
   FileChunker* = Chunker
@@ -46,7 +46,7 @@ proc getBytes*(c: Chunker): Future[seq[byte]] {.async.} =
   ## the instantiated chunker
   ##
 
-  var buff = newSeq[byte](c.chunkSize)
+  var buff = newSeq[byte](c.chunkSize.int)
   let read = await c.reader(cast[ChunkBuffer](addr buff[0]), buff.len)
 
   if read <= 0:
@@ -59,7 +59,7 @@ proc getBytes*(c: Chunker): Future[seq[byte]] {.async.} =
 
   return move buff
 
-func new*(
+proc new*(
     T: type Chunker,
     reader: Reader,
     chunkSize = DefaultChunkSize,

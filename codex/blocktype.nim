@@ -20,15 +20,17 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/chronicles
 
+import ./units
+import ./utils
 import ./formats
 import ./errors
 
-export errors, formats
+export errors, formats, units
 
 const
   # Size of blocks for storage / network exchange,
   # should be divisible by 31 for PoR and by 64 for Leopard ECC
-  BlockSize* = 31 * 64 * 33
+  DefaultBlockSize* = NBytes 31 * 64 * 33
 
 type
   Block* = ref object of RootObj

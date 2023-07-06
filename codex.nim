@@ -21,6 +21,7 @@ import pkg/libp2p
 
 import ./codex/conf
 import ./codex/codex
+import ./codex/units
 import ./codex/utils/keyutils
 
 export codex, conf, libp2p, chronos, chronicles

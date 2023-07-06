@@ -63,7 +63,7 @@ proc new*(
   result.initStream()
 
 method `size`*(self: StoreStream): int =
-  bytes(self.manifest, self.pad)
+  bytes(self.manifest, self.pad).int
 
 proc `size=`*(self: StoreStream, size: int)
   {.error: "Setting the size is forbidden".} =
@@ -93,9 +93,11 @@ method readOnce*(
     # Compute from the current stream position `self.offset` the block num/offset to read
     # Compute how many bytes to read from this block
     let
-      blockNum    = self.offset div self.manifest.blockSize
-      blockOffset = self.offset mod self.manifest.blockSize
-      readBytes   = min([self.size - self.offset, nbytes - read, self.manifest.blockSize - blockOffset])
+      blockNum    = self.offset div self.manifest.blockSize.int
+      blockOffset = self.offset mod self.manifest.blockSize.int
+      readBytes   = min([self.size - self.offset,
+                         nbytes - read,
+                         self.manifest.blockSize.int - blockOffset])
 
     # Read contents of block `blockNum`
     without blk =? await self.store.getBlock(self.manifest[blockNum]), error:

@@ -21,8 +21,11 @@ import pkg/chronicles
 
 import ../errors
 import ../utils
+import ../units
 import ../blocktype
 import ./types
+
+export types
 
 ############################################################
 # Operations on block list
@@ -56,7 +59,7 @@ proc add*(self: Manifest, cid: Cid) =
   self.rootHash = Cid.none
   trace "Adding cid to manifest", cid
   self.blocks.add(cid)
-  self.originalBytes = self.blocks.len * self.blockSize
+  self.originalBytes = self.blocks.len.NBytes * self.blockSize
 
 iterator items*(self: Manifest): Cid =
   for b in self.blocks:
@@ -74,10 +77,10 @@ func contains*(self: Manifest, cid: Cid): bool =
 # Various sizes and verification
 ############################################################
 
-func bytes*(self: Manifest, pad = true): int =
+func bytes*(self: Manifest, pad = true): NBytes =
   ## Compute how many bytes corresponding StoreStream(Manifest, pad) will return
   if pad or self.protected:
-    self.len * self.blockSize
+    self.len.NBytes * self.blockSize
   else:
     self.originalBytes
 
@@ -165,7 +168,7 @@ proc new*(
     version = CIDv1,
     hcodec = multiCodec("sha2-256"),
     codec = multiCodec("raw"),
-    blockSize = BlockSize
+    blockSize = DefaultBlockSize
 ): ?!Manifest =
   ## Create a manifest using an array of `Cid`s
   ##
@@ -179,7 +182,7 @@ proc new*(
     codec: codec,
     hcodec: hcodec,
     blockSize: blockSize,
-    originalBytes: blocks.len * blockSize,
+    originalBytes: blocks.len.NBytes * blockSize,
     protected: protected).success
 
 proc new*(

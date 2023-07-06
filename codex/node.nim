@@ -184,7 +184,7 @@ proc retrieve*(
 proc store*(
     self: CodexNodeRef,
     stream: LPStream,
-    blockSize = BlockSize
+    blockSize = DefaultBlockSize
 ): Future[?!Cid] {.async.} =
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
@@ -219,7 +219,7 @@ proc store*(
     await stream.close()
 
   # Generate manifest
-  blockManifest.originalBytes = chunker.offset  # store the exact file size
+  blockManifest.originalBytes = NBytes chunker.offset  # store the exact file size
   without data =? blockManifest.encode():
     return failure(
       newException(CodexError, "Could not generate dataset manifest!"))
@@ -296,7 +296,7 @@ proc requestStorage*(
   let request = StorageRequest(
     ask: StorageAsk(
       slots: nodes + tolerance,
-      slotSize: (encoded.blockSize * encoded.steps).u256,
+      slotSize: (encoded.blockSize.int * encoded.steps).u256,
       duration: duration,
       proofProbability: proofProbability,
       reward: reward,

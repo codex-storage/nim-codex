@@ -42,7 +42,7 @@ asyncchecksuite "StoreStream":
 
   setup:
     store = CacheStore.new()
-    manifest = Manifest.new(blockSize = 10).tryGet()
+    manifest = Manifest.new(blockSize = 10'nb).tryGet()
     stream = StoreStream.new(store, manifest)
 
     for d in data:

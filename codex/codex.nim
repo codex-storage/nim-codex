@@ -176,8 +176,8 @@ proc new*(
   var
     cache: CacheStore = nil
 
-  if config.cacheSize > 0:
-    cache = CacheStore.new(cacheSize = config.cacheSize * MiB)
+  if config.cacheSize > 0'nb:
+    cache = CacheStore.new(cacheSize = config.cacheSize)
     ## Is unused?
 
   let
@@ -215,11 +215,11 @@ proc new*(
       metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
         .expect("Should create meta data store!"),
       quotaMaxBytes = config.storageQuota.uint,
-      blockTtl = config.blockTtlSeconds.seconds)
+      blockTtl = config.blockTtl)
 
     maintenance = BlockMaintainer.new(
       repoStore,
-      interval = config.blockMaintenanceIntervalSeconds.seconds,
+      interval = config.blockMaintenanceInterval,
       numberOfBlocksPerInterval = config.blockMaintenanceNumberOfBlocks)
 
     peerStore = PeerCtxStore.new()

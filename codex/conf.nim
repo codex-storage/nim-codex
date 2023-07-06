@@ -27,13 +27,17 @@ import pkg/toml_serialization
 import pkg/metrics
 import pkg/metrics/chronos_httpserver
 import pkg/stew/shims/net as stewnet
+import pkg/stew/shims/parseutils
 import pkg/libp2p
 import pkg/ethers
 
 import ./discovery
 import ./stores
+import ./units
+import ./utils
 
-export DefaultCacheSizeMiB, net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval
+export units
+export net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval
 
 const
   codex_enable_api_debug_peers* {.booldefine.} = false
@@ -161,10 +165,10 @@ type
 
       apiPort* {.
         desc: "The REST Api port",
-        defaultValue: 8080
+        defaultValue: 8080.Port
         defaultValueDesc: "8080"
         name: "api-port"
-        abbr: "p" }: int
+        abbr: "p" }: Port
 
       repoKind* {.
         desc: "backend for main repo store (fs, sqlite)"
@@ -177,20 +181,20 @@ type
         defaultValue: DefaultQuotaBytes
         defaultValueDesc: $DefaultQuotaBytes
         name: "storage-quota"
-        abbr: "q" }: Natural
+        abbr: "q" }: NBytes
 
-      blockTtlSeconds* {.
+      blockTtl* {.
         desc: "Default block timeout in seconds - 0 disables the ttl"
-        defaultValue: DefaultBlockTtl.seconds
+        defaultValue: DefaultBlockTtl
         defaultValueDesc: $DefaultBlockTtl
         name: "block-ttl"
-        abbr: "t" }: int
+        abbr: "t" }: Duration
 
-      blockMaintenanceIntervalSeconds* {.
+      blockMaintenanceInterval* {.
         desc: "Time interval in seconds - determines frequency of block maintenance cycle: how often blocks are checked for expiration and cleanup."
-        defaultValue: DefaultBlockMaintenanceInterval.seconds
+        defaultValue: DefaultBlockMaintenanceInterval
         defaultValueDesc: $DefaultBlockMaintenanceInterval
-        name: "block-mi" }: int
+        name: "block-mi" }: Duration
 
       blockMaintenanceNumberOfBlocks* {.
         desc: "Number of blocks to check every maintenance cycle."
@@ -199,11 +203,11 @@ type
         name: "block-mn" }: int
 
       cacheSize* {.
-        desc: "The size in MiB of the block cache, 0 disables the cache - might help on slow hardrives"
+        desc: "The size of the block cache, 0 disables the cache - might help on slow hardrives"
         defaultValue: 0
         defaultValueDesc: "0"
         name: "cache-size"
-        abbr: "c" }: Natural
+        abbr: "c" }: NBytes
 
       persistence* {.
         desc: "Enables persistence mechanism, requires an Ethereum node"
@@ -288,7 +292,7 @@ proc defaultDataDir*(): string =
 
   getHomeDir() / dataDir
 
-func parseCmdArg*(T: type MultiAddress, input: string): T
+proc parseCmdArg*(T: type MultiAddress, input: string): T
                  {.upraises: [ValueError, LPError].} =
   MultiAddress.init($input).tryGet()
 
@@ -303,8 +307,24 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
     quit QuitFailure
   res
 
-func parseCmdArg*(T: type EthAddress, address: string): T =
+proc parseCmdArg*(T: type EthAddress, address: string): T =
   EthAddress.init($address).get()
+
+proc parseCmdArg*(T: type NBytes, val: string): T =
+  var num = 0'i64
+  let count = parseSize(val, num, alwaysBin = true)
+  if count == 0:
+      warn "Invalid number of bytes", nbytes=val
+      quit QuitFailure
+  NBytes(num)
+
+proc parseCmdArg*(T: type Duration, val: string): T =
+  var dur: Duration
+  let count = parseDuration(val, dur)
+  if count == 0:
+      warn "Invalid duration parse", dur=dur
+      quit QuitFailure
+  dur
 
 proc readValue*(r: var TomlReader, val: var EthAddress)
                {.upraises: [SerializationError, IOError].} =
@@ -317,8 +337,34 @@ proc readValue*(r: var TomlReader, val: var SignedPeerRecord) =
 
   val = SignedPeerRecord.parseCmdArg(uri)
 
+proc readValue*(r: var TomlReader, val: var NBytes)
+               {.upraises: [SerializationError, IOError].} =
+  var value = 0'i64
+  var str = r.readValue(string)
+  let count = parseSize(str, value, alwaysBin = true)
+  if count == 0:
+    error "invalid number of bytes for configuration value", value = str
+    quit QuitFailure
+  val = NBytes(value)
+
+proc readValue*(r: var TomlReader, val: var Duration)
+               {.upraises: [SerializationError, IOError].} =
+  var str = r.readValue(string)
+  var dur: Duration
+  let count = parseDuration(str, dur)
+  if count == 0:
+    error "Invalid duration parse", value = str
+    quit QuitFailure
+  val = dur
+
 # no idea why confutils needs this:
 proc completeCmdArg*(T: type EthAddress; val: string): seq[string] =
+  discard
+
+proc completeCmdArg*(T: type NBytes; val: string): seq[string] =
+  discard
+
+proc completeCmdArg*(T: type Duration; val: string): seq[string] =
   discard
 
 # silly chronicles, colors is a compile-time property
