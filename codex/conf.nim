@@ -290,7 +290,7 @@ proc defaultDataDir*(): string =
 
   getHomeDir() / dataDir
 
-func parseCmdArg*(T: type MultiAddress, input: string): T
+proc parseCmdArg*(T: type MultiAddress, input: string): T
                  {.upraises: [ValueError, LPError].} =
   MultiAddress.init($input).tryGet()
 
@@ -305,15 +305,16 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
     quit QuitFailure
   res
 
-func parseCmdArg*(T: type EthAddress, address: string): T =
+proc parseCmdArg*(T: type EthAddress, address: string): T =
   EthAddress.init($address).get()
 
-proc readValue*(r: var TomlReader, val: var NBytes)
-               {.upraises: [SerializationError, IOError].} =
-  var value = 0'i64
-  let count = parseSize(r.readValue(string), value, alwaysBin = true)
-  assert count > 0
-  val = NBytes(value)
+proc parseCmdArg*(T: type NBytes, val: string): NBytes =
+  var num = 0'i64
+  let count = parseSize(val, num, alwaysBin = true)
+  if count == 0:
+      warn "Invalid SignedPeerRecord uri", uri=uri
+      quit QuitFailure
+  NBytes(num)
 
 proc readValue*(r: var TomlReader, val: var EthAddress)
                {.upraises: [SerializationError, IOError].} =
@@ -326,8 +327,21 @@ proc readValue*(r: var TomlReader, val: var SignedPeerRecord) =
 
   val = SignedPeerRecord.parseCmdArg(uri)
 
+proc readValue*(r: var TomlReader, val: var NBytes)
+               {.upraises: [SerializationError, IOError].} =
+  var value = 0'i64
+  var str = r.readValue(string)
+  let count = parseSize(str, value, alwaysBin = true)
+  if count == 0:
+    error "invalid number of bytes for configuration value: " & str
+    quit QuitFailure
+  val = NBytes(value)
+
 # no idea why confutils needs this:
 proc completeCmdArg*(T: type EthAddress; val: string): seq[string] =
+  discard
+
+proc completeCmdArg*(T: type NBytes; val: string): seq[string] =
   discard
 
 # silly chronicles, colors is a compile-time property

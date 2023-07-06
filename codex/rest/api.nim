@@ -153,7 +153,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
         while not stream.atEof:
           var
-            buff = newSeqUninitialized[byte](BlockSize)
+            buff = newSeqUninitialized[byte](DefaultBlockSize.int)
             len = await stream.readOnce(addr buff[0], buff.len)
 
           buff.setLen(len)
