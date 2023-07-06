@@ -35,6 +35,7 @@ import ./discovery
 import ./stores
 import ./units
 
+export units
 export net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval
 
 const
@@ -308,11 +309,11 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
 proc parseCmdArg*(T: type EthAddress, address: string): T =
   EthAddress.init($address).get()
 
-proc parseCmdArg*(T: type NBytes, val: string): NBytes =
+proc parseCmdArg*(T: type NBytes, val: string): T =
   var num = 0'i64
   let count = parseSize(val, num, alwaysBin = true)
   if count == 0:
-      warn "Invalid SignedPeerRecord uri", uri=uri
+      warn "Invalid number of bytes", nbytes=val
       quit QuitFailure
   NBytes(num)
 
@@ -333,7 +334,7 @@ proc readValue*(r: var TomlReader, val: var NBytes)
   var str = r.readValue(string)
   let count = parseSize(str, value, alwaysBin = true)
   if count == 0:
-    error "invalid number of bytes for configuration value: ", error = str
+    error "invalid number of bytes for configuration value", value = str
     quit QuitFailure
   val = NBytes(value)
 

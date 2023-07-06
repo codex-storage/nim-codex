@@ -176,7 +176,7 @@ proc new*(
   var
     cache: CacheStore = nil
 
-  if config.cacheSize > 0:
+  if config.cacheSize > 0'nb:
     cache = CacheStore.new(cacheSize = config.cacheSize)
     ## Is unused?
 
