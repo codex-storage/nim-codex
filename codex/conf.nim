@@ -350,10 +350,12 @@ proc readValue*(r: var TomlReader, val: var NBytes)
 proc readValue*(r: var TomlReader, val: var Duration)
                {.upraises: [SerializationError, IOError].} =
   var str = r.readValue(string)
-  let count = parseDuration(str, val)
+  var dur: Duration
+  let count = parseDuration(str, dur)
   if count == 0:
     error "Invalid duration parse", value = str
     quit QuitFailure
+  val = dur
 
 # no idea why confutils needs this:
 proc completeCmdArg*(T: type EthAddress; val: string): seq[string] =
