@@ -16,6 +16,7 @@ import std/terminal
 import std/options
 import std/strutils
 import std/typetraits
+import std/times
 
 import pkg/chronos
 import pkg/chronicles
@@ -34,6 +35,7 @@ import pkg/ethers
 import ./discovery
 import ./stores
 import ./units
+import ./utils
 
 export units
 export net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval
@@ -187,13 +189,13 @@ type
         defaultValue: DefaultBlockTtl.seconds
         defaultValueDesc: $DefaultBlockTtl
         name: "block-ttl"
-        abbr: "t" }: int
+        abbr: "t" }: times.Duration
 
       blockMaintenanceIntervalSeconds* {.
         desc: "Time interval in seconds - determines frequency of block maintenance cycle: how often blocks are checked for expiration and cleanup."
         defaultValue: DefaultBlockMaintenanceInterval.seconds
         defaultValueDesc: $DefaultBlockMaintenanceInterval
-        name: "block-mi" }: int
+        name: "block-mi" }: times.Duration
 
       blockMaintenanceNumberOfBlocks* {.
         desc: "Number of blocks to check every maintenance cycle."
@@ -317,6 +319,14 @@ proc parseCmdArg*(T: type NBytes, val: string): T =
       quit QuitFailure
   NBytes(num)
 
+proc parseCmdArg*(T: type times.Duration, val: string): T =
+  var dur = times.initDuration()
+  let count = parseDuration(val, dur)
+  if count == 0:
+      warn "Invalid duration parse", dur=dur
+      quit QuitFailure
+  dur
+
 proc readValue*(r: var TomlReader, val: var EthAddress)
                {.upraises: [SerializationError, IOError].} =
   val = EthAddress.init(r.readValue(string)).get()
@@ -337,6 +347,14 @@ proc readValue*(r: var TomlReader, val: var NBytes)
     error "invalid number of bytes for configuration value", value = str
     quit QuitFailure
   val = NBytes(value)
+
+proc readValue*(r: var TomlReader, val: var times.Duration)
+               {.upraises: [SerializationError, IOError].} =
+  var str = r.readValue(string)
+  let count = parseDuration(str, val)
+  if count == 0:
+    error "Invalid duration parse", value = str
+    quit QuitFailure
 
 # no idea why confutils needs this:
 proc completeCmdArg*(T: type EthAddress; val: string): seq[string] =
