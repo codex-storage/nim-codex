@@ -183,7 +183,7 @@ type
         name: "storage-quota"
         abbr: "q" }: NBytes
 
-      blockTtlSeconds* {.
+      blockTtl* {.
         desc: "Default block timeout in seconds - 0 disables the ttl"
         defaultValue: DefaultBlockTtl
         defaultValueDesc: $DefaultBlockTtl
