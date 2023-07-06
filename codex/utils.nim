@@ -72,9 +72,9 @@ when isMainModule:
   suite "time parse":
     test "parseDuration":
       var res: Duration  # caller must still know if 'b' refers to bytes|bits
-      check parseDuration("10H", res) == 3
+      check parseDuration("10Hr", res) == 3
       check res == initDuration(hours=10)
-      check parseDuration("64m", res) == 3
+      check parseDuration("64min", res) == 3
       check res == initDuration(minutes=64)
       check parseDuration("7m/block", res) == 2 # '/' stops parse
       check res == initDuration(minutes=7)  # 1 shl 30, forced binary metric
