@@ -139,7 +139,8 @@ curl --location 'http://localhost:8081/api/codex/v1/sales/availability' \
 --data '{
     "size": "1000000",
     "duration": "3600",
-    "minPrice": "1000"
+    "minPrice": "1000",
+    "maxCollateral": "1"
 }'
 ```
 
@@ -154,6 +155,7 @@ curl --location 'http://localhost:8080/api/codex/v1/storage/request/<CID>' \
     "reward": "1024",
     "duration": "120",
     "proofProbability": "8"
+    "collateral": "1"
 }'
 ```
 
