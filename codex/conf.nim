@@ -16,7 +16,6 @@ import std/terminal
 import std/options
 import std/strutils
 import std/typetraits
-import std/times
 
 import pkg/chronos
 import pkg/chronicles
@@ -186,16 +185,16 @@ type
 
       blockTtlSeconds* {.
         desc: "Default block timeout in seconds - 0 disables the ttl"
-        defaultValue: DefaultBlockTtl.seconds
+        defaultValue: DefaultBlockTtl
         defaultValueDesc: $DefaultBlockTtl
         name: "block-ttl"
-        abbr: "t" }: times.Duration
+        abbr: "t" }: Duration
 
-      blockMaintenanceIntervalSeconds* {.
+      blockMaintenanceInterval* {.
         desc: "Time interval in seconds - determines frequency of block maintenance cycle: how often blocks are checked for expiration and cleanup."
-        defaultValue: DefaultBlockMaintenanceInterval.seconds
+        defaultValue: DefaultBlockMaintenanceInterval
         defaultValueDesc: $DefaultBlockMaintenanceInterval
-        name: "block-mi" }: times.Duration
+        name: "block-mi" }: Duration
 
       blockMaintenanceNumberOfBlocks* {.
         desc: "Number of blocks to check every maintenance cycle."
@@ -319,8 +318,8 @@ proc parseCmdArg*(T: type NBytes, val: string): T =
       quit QuitFailure
   NBytes(num)
 
-proc parseCmdArg*(T: type times.Duration, val: string): T =
-  var dur = times.initDuration()
+proc parseCmdArg*(T: type Duration, val: string): T =
+  var dur: Duration
   let count = parseDuration(val, dur)
   if count == 0:
       warn "Invalid duration parse", dur=dur
@@ -348,7 +347,7 @@ proc readValue*(r: var TomlReader, val: var NBytes)
     quit QuitFailure
   val = NBytes(value)
 
-proc readValue*(r: var TomlReader, val: var times.Duration)
+proc readValue*(r: var TomlReader, val: var Duration)
                {.upraises: [SerializationError, IOError].} =
   var str = r.readValue(string)
   let count = parseDuration(str, val)
@@ -361,6 +360,9 @@ proc completeCmdArg*(T: type EthAddress; val: string): seq[string] =
   discard
 
 proc completeCmdArg*(T: type NBytes; val: string): seq[string] =
+  discard
+
+proc completeCmdArg*(T: type Duration; val: string): seq[string] =
   discard
 
 # silly chronicles, colors is a compile-time property

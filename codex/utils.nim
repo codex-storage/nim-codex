@@ -8,7 +8,9 @@
 ## those terms.
 ## 
 
-import std/[parseutils, times]
+import std/parseutils
+
+import pkg/chronos
 
 import ./utils/asyncheapqueue
 import ./utils/fileutils
@@ -64,7 +66,7 @@ when not declared(parseDuration): # Odd code formatting to minimize diff v. main
     else:                               # Unwind result advancement when there..
       result = start                    #..is no unit to the end of `s`.
     var sizeF = number * scale + 0.5    # Saturate to int64.high when too big
-    size = initDuration(seconds=int(sizeF))
+    size = seconds(int(sizeF))
 
 when isMainModule:
   import unittest2
@@ -73,10 +75,10 @@ when isMainModule:
     test "parseDuration":
       var res: Duration  # caller must still know if 'b' refers to bytes|bits
       check parseDuration("10Hr", res) == 3
-      check res == initDuration(hours=10)
+      check res == hours(10)
       check parseDuration("64min", res) == 3
-      check res == initDuration(minutes=64)
+      check res == minutes(64)
       check parseDuration("7m/block", res) == 2 # '/' stops parse
-      check res == initDuration(minutes=7)  # 1 shl 30, forced binary metric
+      check res == minutes(7)  # 1 shl 30, forced binary metric
       check parseDuration("3d", res) == 2 # '/' stops parse
-      check res == initDuration(days=3)  # 1 shl 30, forced binary metric
+      check res == days(3)  # 1 shl 30, forced binary metric

@@ -215,11 +215,11 @@ proc new*(
       metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
         .expect("Should create meta data store!"),
       quotaMaxBytes = config.storageQuota.uint,
-      blockTtl = config.blockTtlSeconds.seconds)
+      blockTtl = config.blockTtlSeconds)
 
     maintenance = BlockMaintainer.new(
       repoStore,
-      interval = config.blockMaintenanceIntervalSeconds.seconds,
+      interval = config.blockMaintenanceInterval,
       numberOfBlocksPerInterval = config.blockMaintenanceNumberOfBlocks)
 
     peerStore = PeerCtxStore.new()
