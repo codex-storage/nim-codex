@@ -2,7 +2,6 @@ import std/json
 import pkg/asynctest
 import pkg/ethers
 
-import ./helpers
 import ./checktest
 
 ## Unit testing suite that sets up an Ethereum testing environment.

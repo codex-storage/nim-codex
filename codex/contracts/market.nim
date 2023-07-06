@@ -6,7 +6,6 @@ import pkg/ethers
 import pkg/ethers/testing
 import pkg/upraises
 import pkg/questionable
-import pkg/chronicles
 import ../market
 import ./marketplace
 
