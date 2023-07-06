@@ -39,9 +39,9 @@ template divMaths(T: untyped) =
 basicMaths(NBytes)
 divMaths(NBytes)
 
-proc `$`*(ts: NBytes): string = return $(ts.int) & "'NByte"
-proc repr*(ts: NBytes): string = return $(ts.int) & "'NByte"
-proc `'nb`*(n: string): NBytes = result = parseInt(n).NBytes
+template `$`*(ts: NBytes): string = $(ts.int) & "'NByte"
+proc repr*(ts: NBytes): string = $(ts.int) & "'NByte"
+proc `'nb`*(n: string): NBytes = parseInt(n).NBytes
 
 
 const
