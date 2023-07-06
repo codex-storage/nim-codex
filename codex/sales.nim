@@ -238,8 +238,8 @@ proc subscribeSlotFreed(sales: Sales) {.async.} =
     try:
       # first attempt to populate request using existing slot metadata in queue
       without var found =? SlotQueueItem.init(queue,
-                                          requestId,
-                                          slotIndex.truncate(uint16)):
+                                              requestId,
+                                              slotIndex.truncate(uint16)):
         # if there's no existing slot for that request, retrieve the request
         # from the contract. This requires the subscription callback to be
         # async, which has been avoided on many occasions, so we are using
@@ -265,10 +265,21 @@ proc subscribeSlotFreed(sales: Sales) {.async.} =
 
 proc startSlotQueue(sales: Sales) {.async.} =
   let slotQueue = sales.context.slotQueue
+  let reservations = sales.context.reservations
+
   slotQueue.onProcessSlot =
     proc(item: SlotQueueItem) {.async.} =
       sales.handleRequest(item)
   asyncSpawn slotQueue.start()
+
+  proc onReservationAdded(availability: Availability) {.async.} =
+    # backtrack each block until we have x requests recent
+    # let provider = sales.context.market.provider
+    # provider.queryFilter(StorageRequested)
+    # slotQueue.push()
+    return
+
+  reservations.onReservationAdded = onReservationAdded
 
 proc subscribe(sales: Sales) {.async.} =
   await sales.subscribeRequested()

@@ -42,7 +42,9 @@ type
     used*: bool
   Reservations* = ref object
     repo: RepoStore
+    onReservationAdded: ?OnReservationAdded
   GetNext* = proc(): Future[?Availability] {.upraises: [], gcsafe, closure.}
+  OnReservationAdded* = proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
   AvailabilityIter* = ref object
     finished*: bool
     next*: GetNext
@@ -107,6 +109,10 @@ proc readValue*[T: AvailabilityId](
 
   mixin readValue
   value = T reader.readValue(T.distinctBase)
+
+proc `onReservationAdded=`*(self: Reservations,
+                            onReservationAdded: OnReservationAdded) =
+  self.onReservationAdded = some onReservationAdded
 
 func key(id: AvailabilityId): ?!Key =
   (ReservationsKey / id.toArray.toHex)
@@ -209,6 +215,15 @@ proc reserve*(
       return failure(rollbackErr)
 
     return failure(updateErr)
+
+  if onReservationAdded =? self.onReservationAdded:
+    try:
+      await onReservationAdded(availability)
+    except CatchableError as e:
+      # we don't have any insight into types of errors that `onProcessSlot` can
+      # throw because it is caller-defined
+      warn "Unknown error during 'onReservationAdded' callback",
+        availabilityId = availability.id, error = e.msg
 
   return success()
 

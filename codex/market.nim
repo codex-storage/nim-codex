@@ -171,3 +171,10 @@ method subscribeProofSubmission*(market: Market,
 
 method unsubscribe*(subscription: Subscription) {.base, async, upraises:[].} =
   raiseAssert("not implemented")
+
+method queryPastEvents*[E: Event](market: Market,
+                                  event: type E,
+                                  fromBlock: BlockTag,
+                                  toBlock: BlockTag):
+                                 Future[seq[E]] {.base, async.} =
+  raiseAssert("not implemented")

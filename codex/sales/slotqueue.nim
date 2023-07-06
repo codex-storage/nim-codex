@@ -162,7 +162,7 @@ proc init*(_: type SlotQueueItem,
           requestId: RequestId,
           slotIndex: uint16): ?SlotQueueItem =
 
-  if var found =? self.findFirstByRequest(requestId):
+  if found =? self.findFirstByRequest(requestId):
     return some SlotQueueItem(
       requestId: requestId,
       slotIndex: slotIndex,

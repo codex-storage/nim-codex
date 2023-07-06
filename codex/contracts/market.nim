@@ -36,7 +36,7 @@ proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
   let tokenAddress = await market.contract.token()
   let token = Erc20Token.new(tokenAddress, market.signer)
 
-  await token.approve(market.contract.address(), amount)
+  discard await token.approve(market.contract.address(), amount)
 
 method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
   return await market.signer.getAddress()
@@ -268,3 +268,15 @@ method subscribeProofSubmission*(market: OnChainMarket,
 
 method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =
   await subscription.eventSubscription.unsubscribe()
+
+method queryPastEvents*[E: Event](market: OnChainMarket,
+                                  event: type E,
+                                  blocksAgo: int): Future[seq[E]] {.async.} =
+
+  let contract = market.contract
+  let provider = contract.provider
+
+  let head = await provider.getBlockNumber()
+  let fromBlock = BlockTag.init(head - blocksAgo.abs.u256)
+  
+  return await contract.queryFilter(event, fromBlock, BlockTag.latest)

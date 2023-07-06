@@ -163,6 +163,7 @@ asyncchecksuite "Sales":
     check queue[0].slotIndex == 2'u16
 
   test "finds request metadata from existing slots in queue once SlotFreed emitted":
+    await queue.stop()
     check isOk await reservations.reserve(availability)
     let items = SlotQueueItem.init(request)
     await market.requestStorage(request)

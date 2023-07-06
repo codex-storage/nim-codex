@@ -2,6 +2,7 @@ import std/options
 import pkg/chronos
 import pkg/stew/byteutils
 import codex/contracts
+import ../codex/helpers/eventually
 import ../ethertest
 import ./examples
 import ./time
@@ -324,3 +325,33 @@ ethersuite "On-Chain Market":
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
     let slotId = request.slotId(slotIndex)
     check (await market.slotState(slotId)) == SlotState.Filled
+
+  test "can query past events":
+    var request1 = StorageRequest.example
+    var request2 = StorageRequest.example
+    request1.client = accounts[0]
+    request2.client = accounts[0]
+    await market.requestStorage(request)
+    await market.requestStorage(request1)
+    await market.requestStorage(request2)
+
+    # `market.requestStorage` executes an `approve` tx before the
+    # `requestStorage` tx, so that's two PoA blocks per `requestStorage` call (6
+    # blocks for 3 calls). `fromBlock` and `toBlock` are inclusive, so to check
+    # 6 blocks, we only need to check 5 "blocks ago". We don't need to check the
+    # `approve` for the first `requestStorage` call, so that's 1 less again = 4
+    # "blocks ago".
+    let events = await market.queryPastEvents(StorageRequested, blocksAgo = 4)
+    check eventually events == @[
+      StorageRequested(requestId: request.id, ask: request.ask, expiry: request.expiry),
+      StorageRequested(requestId: request1.id, ask: request1.ask, expiry: request1.expiry),
+      StorageRequested(requestId: request2.id, ask: request2.ask, expiry: request2.expiry)
+    ]
+
+  test "past event query can specify negative `blocksAgo` parameter":
+    await market.requestStorage(request)
+
+    check eventually (
+      (await market.queryPastEvents(StorageRequested, blocksAgo = -2)) ==
+      (await market.queryPastEvents(StorageRequested, blocksAgo = 2))
+    )
