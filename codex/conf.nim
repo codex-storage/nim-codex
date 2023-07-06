@@ -333,7 +333,7 @@ proc readValue*(r: var TomlReader, val: var NBytes)
   var str = r.readValue(string)
   let count = parseSize(str, value, alwaysBin = true)
   if count == 0:
-    error "invalid number of bytes for configuration value: " & str
+    error "invalid number of bytes for configuration value: ", error = str
     quit QuitFailure
   val = NBytes(value)
 
