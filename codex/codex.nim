@@ -21,6 +21,7 @@ import pkg/nitro
 import pkg/stew/io2
 import pkg/stew/shims/net as stewnet
 import pkg/datastore
+import pkg/ethers except Rng
 
 import ./node
 import ./conf
@@ -50,6 +51,7 @@ type
     maintenance: BlockMaintainer
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
+  EthWallet = ethers.Wallet
 
 proc bootstrapInteractions(
     config: CodexConf,
@@ -60,11 +62,11 @@ proc bootstrapInteractions(
   ##
 
   if not config.persistence and not config.validator:
-    if config.ethAccount.isSome:
+    if config.ethAccount.isSome or config.ethPrivateKey.isSome:
       warn "Ethereum account was set, but neither persistence nor validator is enabled"
     return
 
-  without account =? config.ethAccount:
+  if not config.ethAccount.isSome and not config.ethPrivateKey.isSome:
     if config.persistence:
       error "Persistence enabled, but no Ethereum account was set"
     if config.validator:
@@ -72,7 +74,11 @@ proc bootstrapInteractions(
     quit QuitFailure
 
   let provider = JsonRpcProvider.new(config.ethProvider)
-  let signer = provider.getSigner(account)
+  var signer: Signer
+  if account =? config.ethAccount:
+    signer = provider.getSigner(account)
+  elif key =? config.ethPrivateKey:
+    signer = EthWallet.new(key, provider)
 
   let deploy = Deployment.new(provider, config)
   without marketplaceAddress =? await deploy.address(Marketplace):

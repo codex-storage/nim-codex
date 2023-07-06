@@ -228,6 +228,12 @@ type
         name: "eth-account"
       .}: Option[EthAddress]
 
+      ethPrivateKey* {.
+        desc: "The private key for an Ethereum account that is used for storage contracts"
+        defaultValue: EthPrivateKey.none
+        name: "eth-private-key"
+      .}: Option[EthPrivateKey]
+
       marketplaceAddress* {.
         desc: "Address of deployed Marketplace contract"
         defaultValue: EthAddress.none
@@ -257,6 +263,7 @@ type
       discard
 
   EthAddress* = ethers.Address
+  EthPrivateKey* = ethers.PrivateKey
 
 proc getCodexVersion(): string =
   let tag = strip(staticExec("git tag"))
@@ -335,9 +342,16 @@ proc parseCmdArg*(T: type Duration, val: string): T =
       quit QuitFailure
   dur
 
+func parseCmdArg*(T: type EthPrivateKey, key: string): T =
+  EthPrivateKey.fromHex(key).get()
+
 proc readValue*(r: var TomlReader, val: var EthAddress)
                {.upraises: [SerializationError, IOError].} =
   val = EthAddress.init(r.readValue(string)).get()
+
+proc readValue*(r: var TomlReader, val: var EthPrivateKey)
+               {.upraises: [SerializationError, IOError].} =
+  val = EthPrivateKey.fromHex(r.readValue(string)).get()
 
 proc readValue*(r: var TomlReader, val: var SignedPeerRecord) =
   without uri =? r.readValue(string).catch, err:
@@ -386,6 +400,9 @@ proc completeCmdArg*(T: type NBytes; val: string): seq[string] =
   discard
 
 proc completeCmdArg*(T: type Duration; val: string): seq[string] =
+  discard
+
+proc completeCmdArg*(T: type EthPrivateKey; val: string): seq[string] =
   discard
 
 # silly chronicles, colors is a compile-time property
