@@ -13,10 +13,10 @@ template asyncmultisetup* =
     for teardown in teardowns:
       await teardown()
 
-  template setup(setupBody) {.inject.} =
+  template setup(setupBody) {.inject, used.} =
     setups.add(proc {.async.} = setupBody)
 
-  template teardown(teardownBody) {.inject.} =
+  template teardown(teardownBody) {.inject, used.} =
     teardowns.insert(proc {.async.} = teardownBody)
 
 template multisetup* =
@@ -31,8 +31,8 @@ template multisetup* =
     for teardown in teardowns:
       teardown()
 
-  template setup(setupBody) {.inject.} =
+  template setup(setupBody) {.inject, used.} =
     setups.add(proc = setupBody)
 
-  template teardown(teardownBody) {.inject.} =
+  template teardown(teardownBody) {.inject, used.} =
     teardowns.insert(proc = teardownBody)

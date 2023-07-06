@@ -93,13 +93,13 @@ template multinodesuite*(name: string,
         debug "started new validator node and codex client",
           restApiPort = 8080 + index, discPort = 8090 + index, account
 
-    proc clients(): seq[RunningNode] =
+    proc clients(): seq[RunningNode] {.used.} =
       running.filter(proc(r: RunningNode): bool = r.role == Role.Client)
 
-    proc providers(): seq[RunningNode] =
+    proc providers(): seq[RunningNode] {.used.} =
       running.filter(proc(r: RunningNode): bool = r.role == Role.Provider)
 
-    proc validators(): seq[RunningNode] =
+    proc validators(): seq[RunningNode] {.used.} =
       running.filter(proc(r: RunningNode): bool = r.role == Role.Validator)
 
     setup:
