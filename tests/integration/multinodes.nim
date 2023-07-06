@@ -49,6 +49,7 @@ template multinodesuite*(name: string,
         .concat(addlOptions)
       if debug: options.add "--log-level=INFO;TRACE: " & debugNodes.topics
       let node = startNode(options, debug = debug)
+      node.waitUntilStarted()
       (node, datadir, accounts[index])
 
     proc newCodexClient(index: int): CodexClient =

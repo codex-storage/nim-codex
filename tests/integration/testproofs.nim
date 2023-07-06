@@ -58,13 +58,17 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
     await provider.advanceTimeTo(endOfPeriod + 1)
 
   proc startValidator: NodeProcess =
-    startNode([
-      "--data-dir=" & validatorDir,
-      "--api-port=8089",
-      "--disc-port=8099",
-      "--validator",
-      "--eth-account=" & $accounts[2]
-    ], debug = false)
+    let validator = startNode(
+      [
+        "--data-dir=" & validatorDir,
+        "--api-port=8089",
+        "--disc-port=8099",
+        "--validator",
+        "--eth-account=" & $accounts[2]
+      ], debug = false
+    )
+    validator.waitUntilStarted()
+    validator
 
   proc stopValidator(node: NodeProcess) =
     node.stop()

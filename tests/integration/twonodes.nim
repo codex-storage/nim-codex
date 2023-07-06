@@ -46,6 +46,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         node1Args.add("--log-level=" & debug1)
 
       node1 = startNode(node1Args, debug = debug1)
+      node1.waitUntilStarted()
 
       let bootstrap = client1.info()["spr"].getStr()
 
@@ -64,6 +65,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         node2Args.add("--log-level=" & debug2)
 
       node2 = startNode(node2Args, debug = debug2)
+      node2.waitUntilStarted()
 
     teardown:
       client1.close()

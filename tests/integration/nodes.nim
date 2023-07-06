@@ -63,16 +63,26 @@ proc start(node: NodeProcess) =
       node.arguments,
       options={poParentStreams}
     )
-    sleep(1000)
   else:
     node.process = osproc.startProcess(
       executable,
       workingDir,
       node.arguments
     )
-    for line in node.process.outputStream.lines:
-      if line.contains("Started codex node"):
-        break
+
+proc waitUntilOutput*(node: NodeProcess, output: string) =
+  if node.debug:
+    raiseAssert "cannot read node output when in debug mode"
+  for line in node.process.outputStream.lines:
+    if line.contains(output):
+      return
+  raiseAssert "node did not output '" & output & "'"
+
+proc waitUntilStarted*(node: NodeProcess) =
+  if node.debug:
+    sleep(1000)
+  else:
+    node.waitUntilOutput("Started codex node")
 
 proc startNode*(args: openArray[string], debug: string | bool = false): NodeProcess =
   ## Starts a Codex Node with the specified arguments.
@@ -91,3 +101,4 @@ proc stop*(node: NodeProcess) =
 proc restart*(node: NodeProcess) =
   node.stop()
   node.start()
+  node.waitUntilStarted()
