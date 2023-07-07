@@ -337,6 +337,30 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf, loopMeasure: LoopMeasure)
         trace "debug/peer returning peer record"
         return RestApiResponse.response($json)
 
+  when defined(chronosDurationThreshold):
+    var breaches = newSeq[string]()
+    proc onBreach(stackTrace: string, durationUs: int64) =
+      error "Duration threshold breached", durationUs, stackTrace
+      breaches.add($durationUs & " usecs at " & stackTrace)
+
+    setChronosDurationThresholdBreachedHandler(onBreach)
+
+    router.api(
+      MethodGet,
+      "/api/codex/v1/debug/loop") do () -> RestApiResponse:
+
+        let jarray = newJArray()
+        for entry in breaches:
+          jarray.add(%*entry)
+          #   "entry": entry
+          # })
+
+        let jobj = %*{
+          "breaches": jarray
+        }
+
+        return RestApiResponse.response($jobj)
+
   router.api(
     MethodGet,
     "/api/codex/v1/sales/slots") do () -> RestApiResponse:

@@ -3,7 +3,7 @@ ARG BUILDER=ubuntu:lunar-20230415
 ARG IMAGE=${BUILDER}
 ARG BUILD_HOME=/src
 ARG MAKE_PARALLEL=${MAKE_PARALLEL:-4}
-ARG NIMFLAGS="${NIMFLAGS:-"-d:disableMarchNative -d:chronosFutureTracking -d:codex_enable_api_debug_peers=true"}"
+ARG NIMFLAGS="${NIMFLAGS:-"-d:disableMarchNative -d:chronosDurationThreshold=1000000 -d:chronosFutureTracking -d:codex_enable_api_debug_peers=true"}"
 ARG APP_HOME=/codex
 ARG NAT_IP_AUTO=${NAT_IP_AUTO:-false}
 
@@ -21,6 +21,8 @@ WORKDIR ${BUILD_HOME}
 COPY . .
 RUN make clean
 RUN make -j ${MAKE_PARALLEL} update
+COPY docker/asyncfutures2.nim ./vendor/nim-chronos/chronos
+COPY docker/asyncloop.nim ./vendor/nim-chronos/chronos
 RUN make -j ${MAKE_PARALLEL}
 
 # Create
