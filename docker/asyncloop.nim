@@ -221,6 +221,12 @@ type
 
 const chronosDurationThreshold {.intdefine.} = 0
 
+proc newAsyncCallback*(cbFunc: CallbackFunc, udataPtr: pointer = nil): AsyncCallback =
+  when defined(chronosDurationThreshold):
+    AsyncCallback(function: cbFunc, udata: udataPtr, stackTrace: getStackTrace())
+  else:
+    AsyncCallback(function: cbFunc, udata: udataPtr)
+
 when defined(chronosDurationThreshold):
   type
     ChronosDurationThreadholdBreachedCallback* = proc(stackTrace: string, durationUs: int64) {.gcsafe, raises: [].}
@@ -244,8 +250,7 @@ proc sentinelCallbackImpl(arg: pointer) {.gcsafe, raises: [Defect].} =
   raiseAssert "Sentinel callback MUST not be scheduled"
 
 const
-  SentinelCallback = AsyncCallback(function: sentinelCallbackImpl,
-                                   udata: nil)
+  SentinelCallback = AsyncCallback(function: sentinelCallbackImpl)
 
 proc isSentinel(acb: AsyncCallback): bool {.raises: [Defect].} =
   acb == SentinelCallback
@@ -562,8 +567,8 @@ when defined(windows):
           else:
             OSErrorCode(rtlNtStatusToDosError(res))
       customOverlapped.data.bytesCount = events[i].dwNumberOfBytesTransferred
-      let acb = AsyncCallback(function: customOverlapped.data.cb,
-                              udata: cast[pointer](customOverlapped))
+      let acb = newAsyncCallback(customOverlapped.data.cb,
+                              cast[pointer](customOverlapped))
       loop.callbacks.addLast(acb)
 
     # Moving expired timers to `loop.callbacks`.
@@ -588,7 +593,7 @@ when defined(windows):
     loop.handles.excl(fd)
     close(SocketHandle(fd))
     if not isNil(aftercb):
-      var acb = AsyncCallback(function: aftercb)
+      var acb = newAsyncCallback(aftercb)
       loop.callbacks.addLast(acb)
 
   proc closeHandle*(fd: AsyncFD, aftercb: CallbackFunc = nil) =
@@ -597,7 +602,7 @@ when defined(windows):
     loop.handles.excl(fd)
     discard closeHandle(Handle(fd))
     if not isNil(aftercb):
-      var acb = AsyncCallback(function: aftercb)
+      var acb = newAsyncCallback(aftercb)
       loop.callbacks.addLast(acb)
 
   proc contains*(disp: PDispatcher, fd: AsyncFD): bool =
@@ -676,7 +681,7 @@ elif unixPlatform:
     let loop = getThreadDispatcher()
     var newEvents = {Event.Read}
     withData(loop.selector, int(fd), adata) do:
-      let acb = AsyncCallback(function: cb, udata: udata)
+      let acb = newAsyncCallback(cb, udata)
       adata.reader = acb
       newEvents.incl(Event.Read)
       if not(isNil(adata.writer.function)):
@@ -706,7 +711,7 @@ elif unixPlatform:
     let loop = getThreadDispatcher()
     var newEvents = {Event.Write}
     withData(loop.selector, int(fd), adata) do:
-      let acb = AsyncCallback(function: cb, udata: udata)
+      let acb = newAsyncCallback(cb, udata)
       adata.writer = acb
       newEvents.incl(Event.Write)
       if not(isNil(adata.reader.function)):
@@ -766,7 +771,7 @@ elif unixPlatform:
     # We can't unregister file descriptor from system queue here, because
     # in such case processing queue will stuck on poll() call, because there
     # can be no file descriptors registered in system queue.
-    var acb = AsyncCallback(function: continuation)
+    var acb = newAsyncCallback(continuation)
     loop.callbacks.addLast(acb)
 
   proc closeHandle*(fd: AsyncFD, aftercb: CallbackFunc = nil) =
@@ -790,7 +795,7 @@ elif unixPlatform:
       var data: SelectorData
       result = loop.selector.registerSignal(signal, data)
       withData(loop.selector, result, adata) do:
-        adata.reader = AsyncCallback(function: cb, udata: udata)
+        adata.reader = newAsyncCallback(cb, udata)
       do:
         raise newException(ValueError, "File descriptor not registered.")
 
@@ -891,7 +896,7 @@ proc setTimer*(at: Moment, cb: CallbackFunc,
   ## timestamp ``at``. You can also pass ``udata`` to callback.
   let loop = getThreadDispatcher()
   result = TimerCallback(finishAt: at,
-                         function: AsyncCallback(function: cb, udata: udata))
+                         function: newAsyncCallback(cb, udata))
   loop.timers.push(result)
 
 proc clearTimer*(timer: TimerCallback) {.inline.} =
@@ -943,10 +948,7 @@ proc callSoon*(cbproc: CallbackFunc, data: pointer) {.
   ## Schedule `cbproc` to be called as soon as possible.
   ## The callback is called when control returns to the event loop.
   doAssert(not isNil(cbproc))
-  var acb = AsyncCallback(function: cbproc, udata: data)
-  when defined(chronosDurationThreshold):
-    acb.stackTrace = getStackTrace()
-  callSoon(acb)
+  callSoon(newAsyncCallback(cbproc, data))
 
 proc callSoon*(cbproc: CallbackFunc) {.gcsafe, raises: [Defect].} =
   callSoon(cbproc, nil)
@@ -969,7 +971,7 @@ proc callIdle*(cbproc: CallbackFunc, data: pointer) {.
   ## iteration if there no network events available, not when the loop is
   ## actually "idle".
   doAssert(not isNil(cbproc))
-  callIdle(AsyncCallback(function: cbproc, udata: data))
+  callIdle(newAsyncCallback(cbproc, data))
 
 proc callIdle*(cbproc: CallbackFunc) {.gcsafe, raises: [Defect].} =
   callIdle(cbproc, nil)

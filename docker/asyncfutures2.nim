@@ -314,9 +314,7 @@ proc addCallback*(future: FutureBase, cb: CallbackFunc, udata: pointer = nil) =
   if future.finished():
     callSoon(cb, udata)
   else:
-    var acb = AsyncCallback(function: cb, udata: udata)
-    when defined(chronosDurationThreshold):
-      acb.stackTrace = getStackTrace()
+    var acb = newAsyncCallback(cb, udata)
 
     future.callbacks.add acb
 
