@@ -31,13 +31,19 @@
 
  It means that at the image run it will just run `codex` application without any arguments and we can pass them as a regular arguments, by overriding command
  ```shell
- docker run codexstorage/nim-codex codex --api-bindaddr=0.0.0.0
+ docker run codexstorage/nim-codex codex --api-bindaddr=0.0.0.0 --api-port=8080
  ```
 
 
 ## Environment variables
 
  We can configure Codex using [Environment variables](../README#environment-variables) and [docker-compose.yaml](docker-compose.yaml) file can be useful as an example.
+
+ We also added a temporary environment variable `NAT_IP_AUTO` to the entrypoint which is set as `false` for releases and ` true` for regular builds. That approach is useful for Dist-Tests.
+ ```shell
+ # Disable NAT_IP_AUTO for regular builds
+ docker run -e NAT_IP_AUTO=false codexstorage/nim-codex
+ ```
 
 
 ## Slim
