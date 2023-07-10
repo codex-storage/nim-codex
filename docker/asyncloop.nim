@@ -19,6 +19,7 @@ import ./timer
 
 when defined(chronosDurationThreshold):
   import std/monotimes
+  import srcloc
 
 export Port, SocketFlag
 export timer
@@ -197,7 +198,7 @@ type
     function*: CallbackFunc
     udata*: pointer
     when defined(chronosDurationThreshold):
-      stackTrace*: string
+      location*: string # ptr SrcLoc
 
   AsyncError* = object of CatchableError
     ## Generic async exception
@@ -221,9 +222,9 @@ type
 
 const chronosDurationThreshold {.intdefine.} = 0
 
-proc newAsyncCallback*(cbFunc: CallbackFunc, udataPtr: pointer = nil): AsyncCallback =
+template newAsyncCallback*(cbFunc: CallbackFunc, udataPtr: pointer = nil): AsyncCallback =
   when defined(chronosDurationThreshold):
-    AsyncCallback(function: cbFunc, udata: udataPtr, stackTrace: getStackTrace())
+    AsyncCallback(function: cbFunc, udata: udataPtr, location: getStackTrace())
   else:
     AsyncCallback(function: cbFunc, udata: udataPtr)
 
@@ -239,12 +240,12 @@ when defined(chronosDurationThreshold):
   proc setChronosDurationThresholdBreachedHandler*(handler: ChronosDurationThreadholdBreachedCallback) =
     chronosDurationThresholdBreachedHandler = handler
 
-  proc invokeChronosDurationThresholdBreachedHandler(asyncCallback: AsyncCallback, durationUs: int64) =
+  proc invokeChronosDurationThresholdBreachedHandler(stackTrace: string, durationUs: int64) =
     if chronosDurationThresholdBreachedHandler == nil:
-      defaultThresholdBreachedHandler(asyncCallback.stackTrace, durationUs)
+      defaultThresholdBreachedHandler(stackTrace, durationUs)
       return
 
-    chronosDurationThresholdBreachedHandler(asyncCallback.stackTrace, durationUs)
+    chronosDurationThresholdBreachedHandler(stackTrace, durationUs)
 
 proc sentinelCallbackImpl(arg: pointer) {.gcsafe, raises: [Defect].} =
   raiseAssert "Sentinel callback MUST not be scheduled"
@@ -334,7 +335,15 @@ template processCallbacks(loop: untyped) =
           durationUs = durationNs div 1000
 
         if durationUs > chronosDurationThreshold:
-          invokeChronosDurationThresholdBreachedHandler(callable, durationUs)
+
+          # callable.location*: array[2, ptr SrcLoc]
+              # procedure*: cstring
+              # file*: cstring
+              # line*: int
+
+          let loc = callable.location
+          var trace = "trace: " & loc
+          invokeChronosDurationThresholdBreachedHandler(trace, durationUs)
 
 proc raiseAsDefect*(exc: ref Exception, msg: string) {.
     raises: [Defect], noreturn, noinline.} =
