@@ -10,9 +10,8 @@ type
 method now*(clock: Clock): SecondsSince1970 {.base, upraises: [].} =
   raiseAssert "not implemented"
 
-method waitUntil*(clock: Clock, time: SecondsSince1970) {.base,async.} =
-  while clock.now() < time:
-    await sleepAsync(1.seconds)
+method waitUntil*(clock: Clock, time: SecondsSince1970) {.base, async.} =
+  raiseAssert "not implemented"
 
 proc withTimeout*(future: Future[void],
                   clock: Clock,

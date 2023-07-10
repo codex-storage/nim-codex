@@ -29,6 +29,18 @@ ethersuite "On-Chain Clock":
     await sleepAsync(chronos.seconds(1))
     check clock.now() > past
 
+  test "can wait until a certain time is reached by the chain":
+    let future = clock.now() + 42 # seconds
+    let waiting = clock.waitUntil(future)
+    discard await provider.send("evm_setNextBlockTimestamp", @[%future])
+    discard await provider.send("evm_mine")
+    check await waiting.withTimeout(chronos.milliseconds(100))
+
+  test "can wait until a certain time is reached by the wall-clock":
+    let future = clock.now() + 1 # seconds
+    let waiting = clock.waitUntil(future)
+    check await waiting.withTimeout(chronos.seconds(2))
+
   test "raises when not started":
     expect AssertionDefect:
       discard OnChainClock.new(provider).now()
