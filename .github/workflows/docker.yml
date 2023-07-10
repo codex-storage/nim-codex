@@ -22,6 +22,10 @@ env:
   DOCKER_FILE: docker/codex.Dockerfile
   DOCKER_REPO: codexstorage/nim-codex
   MAKE_PARALLEL: 4
+  NIMFLAGS: '-d:disableMarchNative -d:codex_enable_api_debug_peers=true'
+  NIMFLAGS_RELEASE: '-d:disableMarchNative'
+  NAT_IP_AUTO: true
+  NAT_IP_AUTO_RELEASE: false
 
 
 jobs:
@@ -57,6 +61,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Docker - Variables
+        run: |
+          # Release
+          if [[ ${{ startsWith(github.ref, 'refs/tags/') }} == "true" ]]; then
+            echo "NIMFLAGS=${{ env.NIMFLAGS_RELEASE }}" >>$GITHUB_ENV
+            echo "NAT_IP_AUTO=${{ env.NAT_IP_AUTO_RELEASE }}" >>$GITHUB_ENV
+          fi
+
       - name: Docker - Meta
         id: meta
         uses: docker/metadata-action@v4
@@ -83,39 +95,17 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Docker - Build and export to Docker
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: ${{ env.DOCKER_FILE }}
-          platforms: ${{ env.PLATFORM }}
-          build-args: |
-            MAKE_PARALLEL=${{ env.MAKE_PARALLEL }}
-          load: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-      - name: Docker - Minify image
-        uses: kitabisa/docker-slim-action@v1
-        id: slim
-        env:
-          DSLIM_HTTP_PROBE: false
-        with:
-          target: ${{ steps.meta.outputs.tags }}
-          overwrite: true
-
-      - name: Docker - Show slim report
-        run: echo "${REPORT}" | jq -r
-        env:
-          REPORT: ${{ steps.slim.outputs.report }}
-
-      - name: Docker - Push to Docker registry
+      - name: Docker - Build and Push
         uses: docker/build-push-action@v4
         with:
           context: .
           file: ${{ env.DOCKER_FILE }}
           platforms: ${{ env.PLATFORM }}
           push: true
+          build-args: |
+            MAKE_PARALLEL=${{ env.MAKE_PARALLEL }}
+            NIMFLAGS=${{ env.NIMFLAGS }}
+            NAT_IP_AUTO=${{ env.NAT_IP_AUTO }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
