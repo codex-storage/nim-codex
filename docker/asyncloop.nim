@@ -23,6 +23,8 @@ when defined(chronosDurationThreshold):
   import pkg/metrics
 
   declareGauge(chronosCallbackDuration, "chronos callback duration")
+  declareGauge(chronosConstant, "chronos constant")
+  declareCounter(chronosCallbackCounter, "chronos callback counter")
 
 export Port, SocketFlag
 export timer
@@ -226,9 +228,6 @@ type
 const chronosDurationThreshold {.intdefine.} = 0
 
 template newAsyncCallback*(cbFunc: CallbackFunc, udataPtr: pointer = nil): AsyncCallback =
-  # when defined(chronosDurationThreshold):
-  #   AsyncCallback(function: cbFunc, udata: udataPtr, location: getStackTrace())
-  # else:
   AsyncCallback(function: cbFunc, udata: udataPtr)
 
 when defined(chronosDurationThreshold):
@@ -337,7 +336,10 @@ template processCallbacks(loop: untyped) =
           durationNs = getMonoTime().ticks - startTime
           durationUs = durationNs div 1000
 
-        chronosCallbackDuration.set(durationUs.int64)
+        chronosCallbackDuration.set(durationNs)
+        chronosConstant.set(123)
+        chronosCallbackCounter.inc()
+
         if durationUs > chronosDurationThreshold:
 
           # callable.location*: array[2, ptr SrcLoc]

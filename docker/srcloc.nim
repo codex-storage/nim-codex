@@ -17,7 +17,6 @@ type
     procedure*: cstring
     file*: cstring
     line*: int
-    trace*: cstring
 
 proc `$`*(loc: ptr SrcLoc): string =
   var res = $loc.file
@@ -29,15 +28,12 @@ proc `$`*(loc: ptr SrcLoc): string =
     res.add("[unspecified]")
   else:
     res.add($loc.procedure)
-  res.add("[")
-  res.add($loc.trace)
-  res.add("]")
   res
 
 proc srcLocImpl(procedure: static string,
                 file: static string, line: static int): ptr SrcLoc =
   var loc {.global.} = SrcLoc(
-    file: cstring(file), line: line, procedure: procedure, trace: "a"
+    file: cstring(file), line: line, procedure: procedure
   )
   return addr(loc)
 
