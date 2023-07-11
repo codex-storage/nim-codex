@@ -1,11 +1,12 @@
 import pkg/questionable
+import pkg/chronicles
 import ../statemachine
 import ../salesagent
 import ./errorhandling
 import ./errored
-import ./finished
 import ./cancelled
 import ./failed
+import ./proving
 
 type
   SaleFilled* = ref object of ErrorHandlingState
@@ -29,7 +30,8 @@ method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
   let host = await market.getHost(data.requestId, slotIndex)
   let me = await market.getSigner()
   if host == me.some:
-    return some State(SaleFinished())
+    info "Slot succesfully filled", requestId = $data.requestId, slotIndex
+    return some State(SaleProving())
   else:
     let error = newException(HostMismatchError, "Slot filled by other host")
     return some State(SaleErrored(error: error))

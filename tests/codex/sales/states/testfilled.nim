@@ -37,7 +37,7 @@ checksuite "sales state 'filled'":
     slot.host = await market.getSigner()
     market.filled = @[slot]
     let next = await state.run(agent)
-    check !next of SaleFinished
+    check !next of SaleProving
 
   test "switches to error state when slot is filled by another host":
     slot.host = Address.example

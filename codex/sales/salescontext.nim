@@ -4,7 +4,6 @@ import pkg/upraises
 import ../node/batch
 import ../market
 import ../clock
-import ../proving
 import ./slotqueue
 import ./reservations
 
@@ -16,15 +15,14 @@ type
     onClear*: ?OnClear
     onSale*: ?OnSale
     onCleanUp*: OnCleanUp
-    proving*: Proving
+    onProve*: ?OnProve
     reservations*: Reservations
     slotQueue*: SlotQueue
 
   OnStore* = proc(request: StorageRequest,
                   slot: UInt256,
                   onBatch: BatchProc): Future[?!void] {.gcsafe, upraises: [].}
-  OnProve* = proc(request: StorageRequest,
-                  slot: UInt256): Future[seq[byte]] {.gcsafe, upraises: [].}
+  OnProve* = proc(slot: Slot): Future[seq[byte]] {.gcsafe, upraises: [].}
   OnClear* = proc(request: StorageRequest,
                   slotIndex: UInt256) {.gcsafe, upraises: [].}
   OnSale* = proc(request: StorageRequest,

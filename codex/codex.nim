@@ -55,9 +55,9 @@ proc bootstrapInteractions(
     config: CodexConf,
     repo: RepoStore
 ): Future[Contracts] {.async.} =
-  ## bootstrap interactions and return contracts 
+  ## bootstrap interactions and return contracts
   ## using clients, hosts, validators pairings
-  ## 
+  ##
 
   if not config.persistence and not config.validator:
     if config.ethAccount.isSome:
@@ -88,16 +88,9 @@ proc bootstrapInteractions(
   var validator: ?ValidatorInteractions
   if config.persistence:
     let purchasing = Purchasing.new(market, clock)
-    when codex_enable_proof_failures:
-      let proving = if config.simulateProofFailures > 0:
-                      SimulatedProving.new(market, clock,
-                                           config.simulateProofFailures)
-                    else: Proving.new(market, clock)
-    else:
-      let proving = Proving.new(market, clock)
-    let sales = Sales.new(market, clock, proving, repo)
+    let sales = Sales.new(market, clock, repo)
     client = some ClientInteractions.new(clock, purchasing)
-    host = some HostInteractions.new(clock, sales, proving)
+    host = some HostInteractions.new(clock, sales)
   if config.validator:
     let validation = Validation.new(clock, market, config.validatorMaxSlots)
     validator = some ValidatorInteractions.new(clock, validation)
