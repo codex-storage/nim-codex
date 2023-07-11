@@ -315,6 +315,7 @@ proc addCallback*(future: FutureBase, cb: CallbackFunc, udata: pointer = nil) =
     callSoon(cb, udata)
   else:
     var acb = newAsyncCallback(cb, udata)
+    acb.location = future.location
 
     future.callbacks.add acb
 

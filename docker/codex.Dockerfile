@@ -23,6 +23,7 @@ RUN make clean
 RUN make -j ${MAKE_PARALLEL} update
 COPY docker/asyncfutures2.nim ./vendor/nim-chronos/chronos
 COPY docker/asyncloop.nim ./vendor/nim-chronos/chronos
+COPY docker/srcloc.nim ./vendor/nim-chronos/chronos
 RUN make -j ${MAKE_PARALLEL}
 
 # Create

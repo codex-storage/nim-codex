@@ -20,6 +20,9 @@ import ./timer
 when defined(chronosDurationThreshold):
   import std/monotimes
   import srcloc
+  import pkg/metrics
+
+  declareGauge(chronosCallbackDuration, "chronos callback duration")
 
 export Port, SocketFlag
 export timer
@@ -198,7 +201,7 @@ type
     function*: CallbackFunc
     udata*: pointer
     when defined(chronosDurationThreshold):
-      location*: string # ptr SrcLoc
+      location*: array[2, ptr SrcLoc]
 
   AsyncError* = object of CatchableError
     ## Generic async exception
@@ -223,10 +226,10 @@ type
 const chronosDurationThreshold {.intdefine.} = 0
 
 template newAsyncCallback*(cbFunc: CallbackFunc, udataPtr: pointer = nil): AsyncCallback =
-  when defined(chronosDurationThreshold):
-    AsyncCallback(function: cbFunc, udata: udataPtr, location: getStackTrace())
-  else:
-    AsyncCallback(function: cbFunc, udata: udataPtr)
+  # when defined(chronosDurationThreshold):
+  #   AsyncCallback(function: cbFunc, udata: udataPtr, location: getStackTrace())
+  # else:
+  AsyncCallback(function: cbFunc, udata: udataPtr)
 
 when defined(chronosDurationThreshold):
   type
@@ -334,6 +337,7 @@ template processCallbacks(loop: untyped) =
           durationNs = getMonoTime().ticks - startTime
           durationUs = durationNs div 1000
 
+        chronosCallbackDuration.set(durationUs.int64)
         if durationUs > chronosDurationThreshold:
 
           # callable.location*: array[2, ptr SrcLoc]
@@ -341,8 +345,9 @@ template processCallbacks(loop: untyped) =
               # file*: cstring
               # line*: int
 
-          let loc = callable.location
-          var trace = "trace: " & loc
+          var trace = "trace: "
+          if not(isNil(callable.location[0])): trace = trace & "[0]=" & $callable.location[0]
+          if not(isNil(callable.location[1])): trace = trace & "[1]=" & $callable.location[1]
           invokeChronosDurationThresholdBreachedHandler(trace, durationUs)
 
 proc raiseAsDefect*(exc: ref Exception, msg: string) {.
