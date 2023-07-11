@@ -341,17 +341,18 @@ ethersuite "On-Chain Market":
     # 6 blocks, we only need to check 5 "blocks ago". We don't need to check the
     # `approve` for the first `requestStorage` call, so that's 1 less again = 4
     # "blocks ago".
-    let events = await market.queryPastEvents(StorageRequested, blocksAgo = 4)
-    check eventually events == @[
-      StorageRequested(requestId: request.id, ask: request.ask, expiry: request.expiry),
-      StorageRequested(requestId: request1.id, ask: request1.ask, expiry: request1.expiry),
-      StorageRequested(requestId: request2.id, ask: request2.ask, expiry: request2.expiry)
-    ]
+    check eventually (
+      (await market.queryPastStorageRequests(5)) ==
+      @[
+        PastStorageRequest(requestId: request.id, ask: request.ask, expiry: request.expiry),
+        PastStorageRequest(requestId: request1.id, ask: request1.ask, expiry: request1.expiry),
+        PastStorageRequest(requestId: request2.id, ask: request2.ask, expiry: request2.expiry)
+      ])
 
   test "past event query can specify negative `blocksAgo` parameter":
     await market.requestStorage(request)
 
     check eventually (
-      (await market.queryPastEvents(StorageRequested, blocksAgo = -2)) ==
-      (await market.queryPastEvents(StorageRequested, blocksAgo = 2))
+      (await market.queryPastStorageRequests(blocksAgo = -2)) ==
+      (await market.queryPastStorageRequests(blocksAgo = 2))
     )

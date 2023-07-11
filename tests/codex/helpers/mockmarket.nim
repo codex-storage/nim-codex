@@ -2,6 +2,7 @@ import std/sequtils
 import std/tables
 import std/hashes
 import std/sets
+import std/sugar
 import pkg/questionable
 import pkg/codex/market
 import pkg/codex/contracts/requests
@@ -84,7 +85,7 @@ proc hash*(requestId: RequestId): Hash =
 
 proc new*(_: type MockMarket): MockMarket =
   ## Create a new mocked Market instance
-  ## 
+  ##
   let config = MarketplaceConfig(
     collateral: CollateralConfig(
       repairRewardPercentage: 10,
@@ -399,6 +400,17 @@ method subscribeProofSubmission*(mock: MockMarket,
   )
   mock.subscriptions.onProofSubmitted.add(subscription)
   return subscription
+
+method queryPastStorageRequests*(market: MockMarket,
+                                 blocksAgo: int):
+                                Future[seq[PastStorageRequest]] {.async.} =
+  # MockMarket does not have the concept of blocks, so simply return all
+  # previous events
+  return market.requested.map(request =>
+    PastStorageRequest(requestId: request.id,
+                       ask: request.ask,
+                       expiry: request.expiry)
+  )
 
 method unsubscribe*(subscription: RequestSubscription) {.async.} =
   subscription.market.subscriptions.onRequest.keepItIf(it != subscription)

@@ -24,6 +24,10 @@ type
   OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnProofSubmitted* = proc(id: SlotId, proof: seq[byte]) {.gcsafe, upraises:[].}
+  PastStorageRequest* = object
+    requestId*: RequestId
+    ask*: StorageAsk
+    expiry*: UInt256
 
 method getSigner*(market: Market): Future[Address] {.base, async.} =
   raiseAssert("not implemented")
@@ -172,9 +176,7 @@ method subscribeProofSubmission*(market: Market,
 method unsubscribe*(subscription: Subscription) {.base, async, upraises:[].} =
   raiseAssert("not implemented")
 
-method queryPastEvents*[E: Event](market: Market,
-                                  event: type E,
-                                  fromBlock: BlockTag,
-                                  toBlock: BlockTag):
-                                 Future[seq[E]] {.base, async.} =
+method queryPastStorageRequests*(market: Market,
+                                 blocksAgo: int):
+                                Future[seq[PastStorageRequest]] {.base, async.} =
   raiseAssert("not implemented")

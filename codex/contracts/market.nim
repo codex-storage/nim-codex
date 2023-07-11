@@ -1,5 +1,6 @@
+import std/sequtils
 import std/strutils
-import std/strformat
+import std/sugar
 import pkg/chronicles
 import pkg/ethers
 import pkg/ethers/testing
@@ -269,14 +270,23 @@ method subscribeProofSubmission*(market: OnChainMarket,
 method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =
   await subscription.eventSubscription.unsubscribe()
 
-method queryPastEvents*[E: Event](market: OnChainMarket,
-                                  event: type E,
-                                  blocksAgo: int): Future[seq[E]] {.async.} =
+method queryPastStorageRequests*(market: OnChainMarket,
+                                 blocksAgo: int):
+                                Future[seq[PastStorageRequest]] {.async.} =
 
   let contract = market.contract
   let provider = contract.provider
 
   let head = await provider.getBlockNumber()
   let fromBlock = BlockTag.init(head - blocksAgo.abs.u256)
-  
-  return await contract.queryFilter(event, fromBlock, BlockTag.latest)
+
+  let events = await contract.queryFilter(StorageRequested,
+                                          fromBlock,
+                                          BlockTag.latest)
+  return events.map(event =>
+    PastStorageRequest(
+      requestId: event.requestId,
+      ask: event.ask,
+      expiry: event.expiry
+    )
+  )

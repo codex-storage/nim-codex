@@ -1,6 +1,6 @@
 import std/sequtils
+import std/sugar
 import pkg/questionable
-import pkg/upraises
 import pkg/stint
 import pkg/chronicles
 import pkg/datastore
@@ -9,12 +9,14 @@ import ./clock
 import ./proving
 import ./stores
 import ./contracts/requests
+import ./contracts/marketplace
 import ./sales/salescontext
 import ./sales/salesagent
 import ./sales/statemachine
 import ./sales/slotqueue
 import ./sales/states/preparing
 import ./sales/states/unknown
+import ./utils/syncify
 
 ## Sales holds a list of available storage that it may sell.
 ##
@@ -44,7 +46,7 @@ type
   Sales* = ref object
     context*: SalesContext
     agents*: seq[SalesAgent]
-    subscriptions: seq[Subscription]
+    subscriptions: seq[market.Subscription]
     stopping: bool
 
 proc `onStore=`*(sales: Sales, onStore: OnStore) =
@@ -93,8 +95,8 @@ proc cleanUp(sales: Sales,
   if not processing.isNil and not processing.finished():
     processing.complete()
 
-proc handleRequest(sales: Sales, item: SlotQueueItem) =
-  debug "handling storage requested", requestId = $item.requestId,
+proc processSlot(sales: Sales, item: SlotQueueItem) =
+  debug "processing slot from queue", requestId = $item.requestId,
     slot = item.slotIndex
 
   let agent = newSalesAgent(
@@ -136,28 +138,137 @@ proc load*(sales: Sales) {.async.} =
     agent.start(SaleUnknown())
     sales.agents.add agent
 
+proc onReservationAdded(sales: Sales, availability: Availability) {.async.} =
+  ## Query last 256 blocks for new requests, adding them to the queue. `push`
+  ## checks for availability before adding to the queue. If processed, the
+  ## sales agent will check if the slot is free.
+  let context = sales.context
+  let market = context.market
+  let queue = context.slotQueue
+
+  logScope:
+    topics = "sales onReservationAdded callback"
+
+  trace "reservation added, querying past storage requests to add to queue"
+
+  try:
+    let events = await market.queryPastStorageRequests(256)
+    let requests = events.map(event =>
+      SlotQueueItem.init(event.requestId, event.ask, event.expiry)
+    )
+
+    trace "found past storage requested events to add to queue",
+      events = events.len
+
+    for slots in requests:
+      if err =? (await queue.push(slots)).errorOption:
+        raise err
+  except QueueNotRunningError:
+    warn "cannot push items to queue, queue is not running"
+  except NoMatchingAvailabilityError:
+    info "slot in queue had no matching availabilities, ignoring"
+  except SlotsOutOfRangeError:
+    warn "Too many slots, cannot add to queue"
+  except SlotQueueItemExistsError:
+    trace "item already exists, ignoring"
+    discard
+  except CatchableError as e:
+    warn "Error adding request to SlotQueue", error = e.msg
+    discard
+
+proc onStorageRequested(sales: Sales,
+                        requestId: RequestId,
+                        ask: StorageAsk,
+                        expiry: UInt256) =
+
+  logScope:
+    topics = "sales onStorageRequested"
+    requestId
+    slots = ask.slots
+    expiry
+
+  let slotQueue = sales.context.slotQueue
+
+  trace "storage requested, adding slots to queue"
+
+  without items =? SlotQueueItem.init(requestId, ask, expiry).catch, err:
+    if err of SlotsOutOfRangeError:
+      warn "Too many slots, cannot add to queue"
+    else:
+      warn "Failed to create slot queue items from request", error = err.msg
+
+  syncify slotQueue.push(items),
+
+    onCancelled = proc(err: ref CancelledError) =
+      error("Slot queue push future was cancelled", error = err.msg),
+
+    onError = proc(err: ref CatchableError) =
+      if err of NoMatchingAvailabilityError:
+        info "slot in queue had no matching availabilities, ignoring"
+      elif err of SlotQueueItemExistsError:
+        error "Failed to push item to queue becaue it already exists"
+      elif err of QueueStoppingError:
+        warn "Failed to push item to queue becaue queue is stopping"
+      else:
+        warn "Error adding request to SlotQueue", error = err.msg
+
+proc onSlotFreed(sales: Sales,
+                 requestId: RequestId,
+                 slotIndex: UInt256) =
+
+  logScope:
+    topics = "sales onSlotFreed"
+    requestId
+    slotIndex
+
+  trace "slot freed, adding to queue"
+
+  proc addSlotToQueue() {.async.} =
+    let context = sales.context
+    let market = context.market
+    let queue = context.slotQueue
+
+    # first attempt to populate request using existing slot metadata in queue
+    without var found =? queue.populateItem(requestId,
+                                            slotIndex.truncate(uint16)):
+      trace "no existing request metadata, getting request info from contract"
+      # if there's no existing slot for that request, retrieve the request
+      # from the contract.
+      without request =? await market.getRequest(requestId):
+        error "unknown request in contract"
+        return
+
+      found = SlotQueueItem.init(request, slotIndex.truncate(uint16))
+
+    if err =? (await queue.push(found)).errorOption:
+      if err of NoMatchingAvailabilityError:
+        info "slot in queue had no matching availabilities, ignoring"
+      elif err of SlotQueueItemExistsError:
+        error "Failed to push item to queue becaue it already exists"
+      elif err of QueueStoppingError:
+        warn "Failed to push item to queue becaue queue is stopping"
+      else:
+        warn "Error adding request to SlotQueue", error = err.msg
+
+  syncify addSlotToQueue(),
+
+    onCancelled = proc(err: ref CancelledError) =
+      error("Adding slot to queue was cancelled", error = err.msg),
+
+    onError = proc(err: ref CatchableError) =
+      error "Error during slot freed event handler", error = err.msg
+
 proc subscribeRequested(sales: Sales) {.async.} =
   let context = sales.context
   let market = context.market
 
-  proc onRequestEvent(requestId: RequestId,
-                      ask: StorageAsk,
-                      expiry: UInt256) {.gcsafe, upraises:[].} =
-    try:
-      let slotQueue = context.slotQueue
-      let items = SlotQueueItem.init(requestId, ask, expiry)
-      if err =? slotQueue.push(items).errorOption:
-        raise err
-    except NoMatchingAvailabilityError:
-      info "slot in queue had no matching availabilities, ignoring"
-    except SlotsOutOfRangeError:
-      warn "Too many slots, cannot add to queue", slots = ask.slots
-    except CatchableError as e:
-      warn "Error adding request to SlotQueue", error = e.msg
-      discard
+  proc onStorageRequested(requestId: RequestId,
+                          ask: StorageAsk,
+                          expiry: UInt256) =
+    sales.onStorageRequested(requestId, ask, expiry)
 
   try:
-    let sub = await market.subscribeRequests(onRequestEvent)
+    let sub = await market.subscribeRequests(onStorageRequested)
     sales.subscriptions.add(sub)
   except CatchableError as e:
     error "Unable to subscribe to storage request events", msg = e.msg
@@ -168,6 +279,7 @@ proc subscribeCancellation(sales: Sales) {.async.} =
   let queue = context.slotQueue
 
   proc onCancelled(requestId: RequestId) =
+    trace "request cancelled, removing all request slots from queue"
     queue.delete(requestId)
 
   try:
@@ -182,6 +294,7 @@ proc subscribeFulfilled*(sales: Sales) {.async.} =
   let queue = context.slotQueue
 
   proc onFulfilled(requestId: RequestId) =
+    trace "request fulfilled, removing all request slots from queue"
     queue.delete(requestId)
 
     for agent in sales.agents:
@@ -199,6 +312,7 @@ proc subscribeFailure(sales: Sales) {.async.} =
   let queue = context.slotQueue
 
   proc onFailed(requestId: RequestId) =
+    trace "request failed, removing all request slots from queue"
     queue.delete(requestId)
 
     for agent in sales.agents:
@@ -216,6 +330,7 @@ proc subscribeSlotFilled(sales: Sales) {.async.} =
   let queue = context.slotQueue
 
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
+    trace "slot filled, removing from slot queue", requestId, slotIndex
     queue.delete(requestId, slotIndex.truncate(uint16))
 
     for agent in sales.agents:
@@ -230,32 +345,9 @@ proc subscribeSlotFilled(sales: Sales) {.async.} =
 proc subscribeSlotFreed(sales: Sales) {.async.} =
   let context = sales.context
   let market = context.market
-  let queue = context.slotQueue
 
-  proc onSlotFreed(requestId: RequestId,
-                   slotIndex: UInt256) {.gcsafe, upraises: [].} =
-
-    try:
-      # first attempt to populate request using existing slot metadata in queue
-      without var found =? SlotQueueItem.init(queue,
-                                              requestId,
-                                              slotIndex.truncate(uint16)):
-        # if there's no existing slot for that request, retrieve the request
-        # from the contract. This requires the subscription callback to be
-        # async, which has been avoided on many occasions, so we are using
-        # `waitFor`.
-        without request =? waitFor market.getRequest(requestId):
-          error "unknown request in contract"
-          return
-
-        found = SlotQueueItem.init(request, slotIndex.truncate(uint16))
-
-      if err =? queue.push(found).errorOption:
-        error "Error adding slot index to slot queue", error = err.msg
-
-    except CatchableError, Exception:
-      let e = getCurrentException()
-      error "Exception during sales slot freed event handler", error = e.msg
+  proc onSlotFreed(requestId: RequestId, slotIndex: UInt256) =
+    sales.onSlotFreed(requestId, slotIndex)
 
   try:
     let sub = await market.subscribeSlotFreed(onSlotFreed)
@@ -269,17 +361,14 @@ proc startSlotQueue(sales: Sales) {.async.} =
 
   slotQueue.onProcessSlot =
     proc(item: SlotQueueItem) {.async.} =
-      sales.handleRequest(item)
+      sales.processSlot(item)
+
   asyncSpawn slotQueue.start()
 
-  proc onReservationAdded(availability: Availability) {.async.} =
-    # backtrack each block until we have x requests recent
-    # let provider = sales.context.market.provider
-    # provider.queryFilter(StorageRequested)
-    # slotQueue.push()
-    return
+  reservations.onReservationAdded =
+    proc(availability: Availability) {.async.} =
+      await sales.onReservationAdded(availability)
 
-  reservations.onReservationAdded = onReservationAdded
 
 proc subscribe(sales: Sales) {.async.} =
   await sales.subscribeRequested()

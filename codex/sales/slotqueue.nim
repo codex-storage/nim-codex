@@ -45,7 +45,12 @@ type
     onProcessSlot: ?OnProcessSlot
     queue: AsyncHeapQueue[SlotQueueItem]
     reservations: Reservations
-    running: bool
+    # Note: `running` and `stopping` are both needed as this allows for items to
+    # be added to / deleted from the queue when not running (eg tests), but not
+    # when the queue is in the process of stopping (which causes issues with
+    # iterating items in the queue when amending the size of the queue)
+    running: bool # indicates that the queue loop is running
+    stopping: bool # indicates in process of stopping
     workers: AsyncQueue[SlotQueueWorker]
 
   SlotQueueError = object of CodexError
@@ -54,6 +59,7 @@ type
   SlotsOutOfRangeError* = object of SlotQueueError
   NoMatchingAvailabilityError* = object of SlotQueueError
   QueueNotRunningError* = object of SlotQueueError
+  QueueStoppingError* = object of SlotQueueError
 
 # Number of concurrent workers used for processing SlotQueueItems
 const DefaultMaxWorkers = 3
@@ -67,10 +73,11 @@ const DefaultMaxWorkers = 3
 # slots.
 const DefaultMaxSize = 64'u16
 
-proc findFirstByRequest(self: SlotQueue, requestId: RequestId): ?SlotQueueItem
-
 proc profitability(item: SlotQueueItem): UInt256 =
-  item.duration * item.reward
+  StorageAsk(collateral: item.collateral,
+             duration: item.duration,
+             reward: item.reward,
+             slotSize: item.slotSize).pricePerSlot
 
 proc `<`*(a, b: SlotQueueItem): bool =
   a.profitability > b.profitability or  # profitability
@@ -157,24 +164,6 @@ proc init*(_: type SlotQueueItem,
 
   return SlotQueueItem.init(request.id, request.ask, request.expiry)
 
-proc init*(_: type SlotQueueItem,
-          self: SlotQueue,
-          requestId: RequestId,
-          slotIndex: uint16): ?SlotQueueItem =
-
-  if found =? self.findFirstByRequest(requestId):
-    return some SlotQueueItem(
-      requestId: requestId,
-      slotIndex: slotIndex,
-      slotSize: found.slotSize,
-      duration: found.duration,
-      reward: found.reward,
-      collateral: found.collateral,
-      expiry: found.expiry,
-      doneProcessing: newFuture[void]("slotqueue.worker.processing")
-    )
-  return none SlotQueueItem
-
 proc inRange*(val: SomeUnsignedInt): bool =
   val.uint16 in SlotQueueSize.low..SlotQueueSize.high
 
@@ -205,6 +194,24 @@ proc activeWorkers*(self: SlotQueue): int =
 proc contains*(self: SlotQueue, item: SlotQueueItem): bool =
   self.queue.contains(item)
 
+proc populateItem*(self: SlotQueue,
+                   requestId: RequestId,
+                   slotIndex: uint16): ?SlotQueueItem =
+
+  for item in self.queue.items:
+    if item.requestId == requestId:
+      return some SlotQueueItem(
+        requestId: requestId,
+        slotIndex: slotIndex,
+        slotSize: item.slotSize,
+        duration: item.duration,
+        reward: item.reward,
+        collateral: item.collateral,
+        expiry: item.expiry,
+        doneProcessing: newFuture[void]("slotqueue.worker.processing")
+      )
+  return none SlotQueueItem
+
 proc pop*(self: SlotQueue): Future[?!SlotQueueItem] {.async.} =
   try:
     let item = await self.queue.pop()
@@ -212,8 +219,12 @@ proc pop*(self: SlotQueue): Future[?!SlotQueueItem] {.async.} =
   except CatchableError as err:
     return failure(err)
 
-proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
-  without availability =? waitFor self.reservations.find(item.slotSize,
+proc push*(self: SlotQueue, item: SlotQueueItem): Future[?!void] {.async.} =
+
+  trace "pushing item to queue",
+    requestId = item.requestId, slotIndex = item.slotIndex
+
+  without availability =? await self.reservations.find(item.slotSize,
                                                          item.duration,
                                                          item.profitability,
                                                          item.collateral,
@@ -225,6 +236,10 @@ proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
     let err = newException(SlotQueueItemExistsError, "item already exists")
     return failure(err)
 
+  if self.stopping:
+    let err = newException(QueueStoppingError, "queue is stopping")
+    return failure(err)
+
   if err =? self.queue.pushNoWait(item).mapFailure.errorOption:
     return failure(err)
 
@@ -233,20 +248,16 @@ proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
     self.queue.del(self.queue.size - 1)
 
   doAssert self.queue.len <= self.queue.size - 1
+  trace "item pushed to queue",
+    requestId = item.requestId, slotIndex = item.slotIndex
   return success()
 
-proc push*(self: SlotQueue, items: seq[SlotQueueItem]): ?!void =
+proc push*(self: SlotQueue, items: seq[SlotQueueItem]): Future[?!void] {.async.} =
   for item in items:
-    if err =? self.push(item).errorOption:
+    if err =? (await self.push(item)).errorOption:
       return failure(err)
 
   return success()
-
-proc findFirstByRequest(self: SlotQueue, requestId: RequestId): ?SlotQueueItem =
-  for item in self.queue.items:
-    if item.requestId == requestId:
-      return some item
-  return none SlotQueueItem
 
 proc findByRequest(self: SlotQueue, requestId: RequestId): seq[SlotQueueItem] =
   var items: seq[SlotQueueItem] = @[]
@@ -256,6 +267,16 @@ proc findByRequest(self: SlotQueue, requestId: RequestId): seq[SlotQueueItem] =
   return items
 
 proc delete*(self: SlotQueue, item: SlotQueueItem) =
+  logScope:
+    requestId = item.requestId
+    slotIndex = item.slotIndex
+
+  trace "removing item from queue"
+
+  if self.stopping:
+    trace "cannot delete item from queue, queue not running"
+    return
+
   self.queue.delete(item)
 
 proc delete*(self: SlotQueue, requestId: RequestId, slotIndex: uint16) =
@@ -352,14 +373,16 @@ proc stop*(self: SlotQueue) {.async.} =
     return
 
   self.running = false
+  self.stopping = true
 
   if not self.next.isNil:
     await self.next.cancelAndWait()
+    self.next = nil
 
-  for item in self.queue.mitems:
+  for item in self.queue.items:
     if not item.doneProcessing.isNil and not item.doneProcessing.finished():
       await item.doneProcessing.cancelAndWait()
-      item.doneProcessing = nil
 
-  self.next = nil
+  self.stopping = false
+
 

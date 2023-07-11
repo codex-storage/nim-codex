@@ -82,7 +82,8 @@ asyncchecksuite "Sales":
   proc getAvailability: ?!Availability =
     waitFor reservations.get(availability.id)
 
-  proc waitUntilInQueue(items: seq[SlotQueueItem]) {.async.} =
+  proc waitUntilInQueue(request: StorageRequest) {.async.} =
+    let items = SlotQueueItem.init(request)
     for i in 0..<items.len:
       check eventually queue.contains(items[i])
 
@@ -100,15 +101,13 @@ asyncchecksuite "Sales":
     await queue.stop() # prevents popping during processing
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    let items = SlotQueueItem.init(request)
-    await waitUntilInQueue(items)
+    await waitUntilInQueue(request)
 
   test "removes slots from slot queue once RequestCancelled emitted":
     await queue.stop() # prevents popping during processing
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    let items = SlotQueueItem.init(request)
-    await waitUntilInQueue(items)
+    await waitUntilInQueue(request)
     market.emitRequestCancelled(request.id)
     check queue.len == 0
 
@@ -116,8 +115,7 @@ asyncchecksuite "Sales":
     await queue.stop() # prevents popping during processing
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    let items = SlotQueueItem.init(request)
-    await waitUntilInQueue(items)
+    await waitUntilInQueue(request)
     market.emitRequestFailed(request.id)
     check queue.len == 0
 
@@ -133,8 +131,7 @@ asyncchecksuite "Sales":
     await queue.stop() # preventing popping during processing loop
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    let items = SlotQueueItem.init(request)
-    await waitUntilInQueue(items)
+    await waitUntilInQueue(request)
     market.emitSlotFilled(request.id, 1.u256)
     check queue.len == 3
     check not queue.contains(SlotQueueItem.init(request, 1))
@@ -146,20 +143,16 @@ asyncchecksuite "Sales":
     await queue.stop()
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
+    await waitUntilInQueue(request)
     market.emitRequestFulfilled(request.id)
-    check queue.len == 0
+    check eventually queue.len == 0
 
   test "adds slot index to slot queue once SlotFreed emitted":
     await queue.stop() # prevents popping during processing
     check isOk await reservations.reserve(availability)
-    await market.requestStorage(request)
-    market.emitSlotFilled(request.id, 0.u256)
-    market.emitSlotFilled(request.id, 1.u256)
-    market.emitSlotFilled(request.id, 2.u256)
-    market.emitSlotFilled(request.id, 3.u256)
-    check queue.len == 0
+    market.requested.add request # "contract" must be able to return request
     market.emitSlotFreed(request.id, 2.u256)
-    check queue.len == 1
+    check eventually queue.len == 1
     check queue[0].slotIndex == 2'u16
 
   test "finds request metadata from existing slots in queue once SlotFreed emitted":
@@ -167,15 +160,43 @@ asyncchecksuite "Sales":
     check isOk await reservations.reserve(availability)
     let items = SlotQueueItem.init(request)
     await market.requestStorage(request)
+    await waitUntilInQueue(request)
     market.requested.keepItIf(it != request) # force request to be unknown by contract, `market.getRequest` would fail
     market.emitSlotFreed(request.id, 2.u256)
     check eventually queue.get(request.id, 2.uint16).isOk
 
   test "processes all slots for request":
     check isOk await reservations.reserve(availability)
-    let items = SlotQueueItem.init(request)
     await market.requestStorage(request)
     check eventually queue.len == 0
+
+  test "request slots are not added to the slot queue when no availabilities exist":
+    await queue.stop()
+    await market.requestStorage(request)
+    # check that request was ignored due to no matching availability
+    check always queue.len == 0
+
+  test "non-matching availabilities/requests are not added to the slot queue":
+    await queue.stop()
+    let nonMatchingAvailability = Availability.init(
+      size=100.u256,
+      duration=60.u256,
+      minPrice=601.u256, # too high
+      maxCollateral=400.u256
+    )
+    check isOk await reservations.reserve(nonMatchingAvailability)
+    await market.requestStorage(request)
+    # check that request was ignored due to no matching availability
+    check always queue.len == 0
+
+  test "adds past requests to queue once availability added":
+    await queue.stop()
+    await market.requestStorage(request)
+    await sleepAsync(4.millis) # wait for all attempted slot pushes
+
+    # now add matching availability
+    check isOk await reservations.reserve(availability)
+    check eventually queue.len == request.ask.slots.int
 
   test "makes storage unavailable when downloading a matched request":
     var used = false
