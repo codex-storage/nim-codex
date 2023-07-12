@@ -18,6 +18,7 @@ push: {.upraises: [].}
 import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
+import pkg/metrics
 
 import ../protobuf/blockexc
 
@@ -27,6 +28,8 @@ export peercontext
 logScope:
   topics = "codex peerctxstore"
 
+declareGauge(codexBlockExchangePeerContexts, "codex blockexchange number of peer contexts")
+
 type
   PeerCtxStore* = ref object of RootObj
     peers*: OrderedTable[PeerId, BlockExcPeerCtx]
@@ -34,6 +37,9 @@ type
 iterator items*(self: PeerCtxStore): BlockExcPeerCtx =
   for p in self.peers.values:
     yield p
+
+proc updateCodexBlockExchangePeerContexts(self: PeerCtxStore) =
+  codexBlockExchangePeerContexts.set(self.peers.len.int64)
 
 proc contains*(a: openArray[BlockExcPeerCtx], b: PeerId): bool =
   ## Convenience method to check for peer precense
@@ -47,10 +53,12 @@ func contains*(self: PeerCtxStore, peerId: PeerId): bool =
 func add*(self: PeerCtxStore, peer: BlockExcPeerCtx) =
   trace "Adding peer to peer context store", peer = peer.id
   self.peers[peer.id] = peer
+  self.updateCodexBlockExchangePeerContexts()
 
 func remove*(self: PeerCtxStore, peerId: PeerId) =
   trace "Removing peer from peer context store", peer = peerId
   self.peers.del(peerId)
+  self.updateCodexBlockExchangePeerContexts()
 
 func get*(self: PeerCtxStore, peerId: PeerId): BlockExcPeerCtx =
   trace "Retrieving peer from peer context store", peer = peerId

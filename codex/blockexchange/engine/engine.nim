@@ -15,6 +15,7 @@ import std/algorithm
 import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
+import pkg/metrics
 import pkg/stint
 
 import ../../stores/blockstore
@@ -35,6 +36,13 @@ export peers, pendingblocks, payments, discovery
 
 logScope:
   topics = "codex blockexcengine"
+
+declareCounter(codexBlockExchangeWantHaveListsSent, "codex blockexchange wantHave lists sent")
+declareCounter(codexBlockExchangeWantHaveListsReceived, "codex blockexchange wantHave lists received")
+declareCounter(codexBlockExchangeWantBlockListsSent, "codex blockexchange wantBlock lists sent")
+declareCounter(codexBlockExchangeWantBlockListsReceived, "codex blockexchange wantBlock lists received")
+declareCounter(codexBlockExchangeBlocksSent, "codex blockexchange blocks sent")
+declareCounter(codexBlockExchangeBlocksReceived, "codex blockexchange blocks received")
 
 const
   DefaultMaxPeersPerRequest* = 10
@@ -190,12 +198,16 @@ proc requestBlock*(
 
   await b.sendWantBlock(cid, blockPeer)
 
+  codexBlockExchangeWantBlockListsSent.inc()
+
   if (peers.len - 1) == 0:
     trace "No peers to send want list to", cid
     b.discovery.queueFindBlocksReq(@[cid])
     return await blk
 
   await b.sendWantHave(cid, blockPeer, toSeq(b.peers))
+
+      codexBlockExchangeWantHaveListsSent.inc()
 
   return await blk
 
@@ -297,6 +309,8 @@ proc blocksHandler*(
       trace "Unable to store block", cid = blk.cid
 
   await b.resolveBlocks(blocks)
+  codexBlockExchangeBlocksReceived.inc(blocks.len.int64)
+
   let
     peerCtx = b.peers.get(peer)
 
@@ -336,6 +350,9 @@ proc wantListHandler*(
           b.pricing.get(Pricing(price: 0.u256))
           .price.toBytesBE)
 
+      if e.wantType == WantType.WantHave:
+        codexBlockExchangeWantHaveListsReceived.inc()
+
       if not have and e.sendDontHave:
         trace "Adding dont have entry to presence response", cid = e.cid
         presence.add(
@@ -353,6 +370,7 @@ proc wantListHandler*(
       elif e.wantType == WantType.WantBlock:
         trace "Added entry to peer's want blocks list", cid = e.cid
         peerCtx.peerWants.add(e)
+        codexBlockExchangeWantBlockListsReceived.inc()
     else:
       # peer doesn't want this block anymore
       if e.cancel:
@@ -467,6 +485,9 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
         task.id,
         blocks)
 
+      codexBlockExchangeBlocksSent.inc(blocks.len.int64)
+
+      trace "About to remove entries from peerWants", blocks = blocks.len, items = task.peerWants.len
       # Remove successfully sent blocks
       task.peerWants.keepIf(
         proc(e: Entry): bool =
@@ -500,7 +521,7 @@ proc new*(
     peersPerRequest = DefaultMaxPeersPerRequest
 ): BlockExcEngine =
   ## Create new block exchange engine instance
-  ## 
+  ##
 
   let
     engine = BlockExcEngine(
