@@ -5,6 +5,7 @@ import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
 import pkg/codex/sales/states/filled
 import pkg/codex/sales/states/errored
+import pkg/codex/sales/states/proving
 import pkg/codex/sales/states/finished
 import ../../helpers/mockmarket
 import ../../examples

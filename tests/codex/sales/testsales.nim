@@ -13,7 +13,6 @@ import pkg/codex/sales/salescontext
 import pkg/codex/sales/reservations
 import pkg/codex/sales/slotqueue
 import pkg/codex/stores/repostore
-import pkg/codex/proving
 import pkg/codex/blocktype as bt
 import pkg/codex/node
 import ../helpers/mockmarket
@@ -119,7 +118,6 @@ asyncchecksuite "Sales":
   var sales: Sales
   var market: MockMarket
   var clock: MockClock
-  var proving: Proving
   var reservations: Reservations
   var repo: RepoStore
   var queue: SlotQueue
@@ -152,19 +150,18 @@ asyncchecksuite "Sales":
     market.activeSlots[me] = @[]
 
     clock = MockClock.new()
-    proving = Proving.new()
     let repoDs = SQLiteDatastore.new(Memory).tryGet()
     let metaDs = SQLiteDatastore.new(Memory).tryGet()
     repo = RepoStore.new(repoDs, metaDs)
     await repo.start()
-    sales = Sales.new(market, clock, proving, repo)
+    sales = Sales.new(market, clock, repo)
     reservations = sales.context.reservations
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
                          onBatch: BatchProc): Future[?!void] {.async.} =
       return success()
     queue = sales.context.slotQueue
-    proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
+    sales.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       return proof
     await sales.start()
     request.expiry = (clock.now() + 42).u256
@@ -363,7 +360,7 @@ asyncchecksuite "Sales":
 
   test "handles errors during state run":
     var saleFailed = false
-    proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
+    sales.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       # raise exception so machine.onError is called
       raise newException(ValueError, "some error")
 
@@ -389,7 +386,7 @@ asyncchecksuite "Sales":
   test "generates proof of storage":
     var provingRequest: StorageRequest
     var provingSlot: UInt256
-    proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
+    sales.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       provingRequest = slot.request
       provingSlot = slot.slotIndex
     check isOk await reservations.reserve(availability)
@@ -425,7 +422,7 @@ asyncchecksuite "Sales":
   test "calls onClear when storage becomes available again":
     # fail the proof intentionally to trigger `agent.finish(success=false)`,
     # which then calls the onClear callback
-    proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
+    sales.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       raise newException(IOError, "proof failed")
     var clearedRequest: StorageRequest
     var clearedSlotIndex: UInt256
@@ -461,17 +458,6 @@ asyncchecksuite "Sales":
     await market.requestStorage(request)
     clock.set(request.expiry.truncate(int64))
     check eventually (await reservations.allAvailabilities) == @[availability]
-
-  test "adds proving for slot when slot is filled":
-    var soldSlotIndex: UInt256
-    sales.onSale = proc(request: StorageRequest,
-                        slotIndex: UInt256) =
-      soldSlotIndex = slotIndex
-    check proving.slots.len == 0
-    check isOk await reservations.reserve(availability)
-    await market.requestStorage(request)
-    check eventuallyCheck proving.slots.len == 1
-    check proving.slots.contains(Slot(request: request, slotIndex: soldSlotIndex))
 
   test "loads active slots from market":
     let me = await market.getSigner()
