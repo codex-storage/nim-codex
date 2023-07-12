@@ -5,6 +5,11 @@
 
 import pkg/libp2p/protobuf/minprotobuf
 
+import ../../units
+
+const
+  MaxBlockSize* = 100.MiBs.uint
+  MaxMessageSize* = 100.MiBs.uint
 
 type
   WantType* = enum
@@ -72,7 +77,7 @@ proc write*(pb: var ProtoBuffer, field: int, value: Wantlist) =
   pb.write(field, ipb)
 
 proc write*(pb: var ProtoBuffer, field: int, value: Block) =
-  var ipb = initProtoBuffer()
+  var ipb = initProtoBuffer(maxSize = MaxBlockSize)
   ipb.write(1, value.prefix)
   ipb.write(2, value.data)
   ipb.finish()
@@ -99,7 +104,7 @@ proc write*(pb: var ProtoBuffer, field: int, value: StateChannelUpdate) =
   pb.write(field, ipb)
 
 proc protobufEncode*(value: Message): seq[byte] =
-  var ipb = initProtoBuffer()
+  var ipb = initProtoBuffer(maxSize = MaxMessageSize)
   ipb.write(1, value.wantlist)
   for v in value.payload:
     ipb.write(3, v)
@@ -175,14 +180,14 @@ proc decode*(_: type StateChannelUpdate, pb: ProtoBuffer): ProtoResult[StateChan
 proc protobufDecode*(_: type Message, msg: seq[byte]): ProtoResult[Message] =
   var
     value = Message()
-    pb = initProtoBuffer(msg)
+    pb = initProtoBuffer(msg, maxSize = MaxMessageSize)
     ipb: ProtoBuffer
     sublist: seq[seq[byte]]
   if ? pb.getField(1, ipb):
     value.wantlist = ? Wantlist.decode(ipb)
   if ? pb.getRepeatedField(3, sublist):
     for item in sublist:
-      value.payload.add(? Block.decode(initProtoBuffer(item)))
+      value.payload.add(? Block.decode(initProtoBuffer(item, maxSize = MaxBlockSize)))
   if ? pb.getRepeatedField(4, sublist):
     for item in sublist:
       value.blockPresences.add(? BlockPresence.decode(initProtoBuffer(item)))

@@ -15,13 +15,11 @@ import pkg/chronicles
 import pkg/libp2p
 
 import ../protobuf/blockexc
+import ../protobuf/message
 import ../../errors
 
 logScope:
   topics = "codex blockexcnetworkpeer"
-
-const
-  MaxMessageSize = 100 * 1 shl 20 # manifest files can be big
 
 type
   ConnProvider* = proc(): Future[Connection] {.gcsafe, closure.}
@@ -45,12 +43,12 @@ proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
   try:
     while not conn.atEof or not conn.closed:
       let
-        data = await conn.readLp(MaxMessageSize)
+        data = await conn.readLp(MaxMessageSize.int)
         msg = Message.protobufDecode(data).mapFailure().tryGet()
       trace "Got message for peer", peer = b.id
       await b.handler(b, msg)
-  except CatchableError as exc:
-    trace "Exception in blockexc read loop", exc = exc.msg
+  except CatchableError as err:
+    warn "Exception in blockexc read loop", msg = err.msg
   finally:
     await conn.close()
 
