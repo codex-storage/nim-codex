@@ -11,6 +11,7 @@ const
   # Namespaces
   CodexMetaNamespace* = "meta"                                # meta info stored here
   CodexRepoNamespace* =  "repo"                               # repository namespace, blocks and manifests are subkeys
+  CodexBlockTotalNamespace* = CodexMetaNamespace & "/total"   # number of blocks in the repo
   CodexBlocksNamespace* = CodexRepoNamespace & "/blocks"      # blocks namespace
   CodexManifestNamespace* = CodexRepoNamespace & "/manifests" # manifest namespace
   CodexBlocksTtlNamespace* =                                  # Cid TTL
