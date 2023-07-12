@@ -392,9 +392,11 @@ proc start*(self: RepoStore): Future[void] {.async.} =
   trace "Starting repo"
 
   without total =? await self.metaDs.get(CodexTotalBlocksKey), err:
-    error "Unable to read total number of blocks from metadata store", err = err.msg, key = $CodexTotalBlocksKey
+    if not (err of DatastoreKeyNotFound):
+      error "Unable to read total number of blocks from metadata store", err = err.msg, key = $CodexTotalBlocksKey
 
-  self.totalBlocks = uint64.fromBytesBE(total).uint
+  if total.len > 0:
+    self.totalBlocks = uint64.fromBytesBE(total).uint
   trace "Number of blocks in store at start", total = self.totalBlocks
 
   ## load current persist and cache bytes from meta ds
