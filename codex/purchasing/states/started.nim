@@ -1,7 +1,10 @@
+import pkg/metrics
 import ../statemachine
 import ./errorhandling
 import ./finished
 import ./failed
+
+declareCounter(codexPurchasesStarted, "codex purchases started")
 
 type PurchaseStarted* = ref object of ErrorHandlingState
 
@@ -9,6 +12,7 @@ method `$`*(state: PurchaseStarted): string =
   "started"
 
 method run*(state: PurchaseStarted, machine: Machine): Future[?State] {.async.} =
+  codexPurchasesStarted.inc()
   let purchase = Purchase(machine)
 
   let clock = purchase.clock
