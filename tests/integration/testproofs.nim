@@ -94,7 +94,7 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
         break
       else:
         await advanceToNextPeriod()
-        await sleepAsync(1.seconds)
+        await sleepAsync(100.milliseconds)
 
     check slotWasFreed
 
@@ -186,7 +186,7 @@ multinodesuite "Simulate invalid proofs",
         break
       else:
         await advanceToNextPeriod()
-        await sleepAsync(1.seconds)
+        await sleepAsync(100.milliseconds)
 
     check slotWasFreed
 
@@ -210,7 +210,7 @@ multinodesuite "Simulate invalid proofs",
         break
       else:
         await advanceToNextPeriod()
-        await sleepAsync(1.seconds)
+        await sleepAsync(100.milliseconds)
 
     check not slotWasFreed
 
