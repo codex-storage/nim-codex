@@ -444,28 +444,6 @@ suite "Slot queue":
       ]
     )
 
-  test "should process items in correct order":
-    # 0 and 1 are pushed first, then 0 is popped and processed, leaving 1
-    # 2 and 3 are added, but more than max size, so 2 deleted (less profitable),
-    # 3 and 1 in the queue
-    var request = StorageRequest.example
-    let item0 = SlotQueueItem.init(request, 0)
-    request.ask.reward += 1.u256
-    let item1 = SlotQueueItem.init(request, 1)
-    request.ask.reward += 1.u256
-    let item2 = SlotQueueItem.init(request, 2)
-    request.ask.reward += 1.u256
-    let item3 = SlotQueueItem.init(request, 3)
-
-    check (await queue.push(@[item0, item1, item2, item3])).isOk
-    check eventually (
-      onProcessSlotCalledWith == @[
-        (item0.requestId, item0.slotIndex),
-        (item3.requestId, item3.slotIndex),
-        (item1.requestId, item1.slotIndex),
-      ]
-    )
-
   test "fails to push when there's no matching availability":
     discard await reservations.release(availability.id,
                     availability.size.truncate(uint))

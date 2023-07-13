@@ -221,6 +221,10 @@ proc push*(self: SlotQueue, item: SlotQueueItem): Future[?!void] {.async.} =
   trace "pushing item to queue",
     requestId = item.requestId, slotIndex = item.slotIndex
 
+  if not self.running:
+    let err = newException(QueueNotRunningError, "queue not running")
+    return failure(err)
+
   without availability =? await self.reservations.find(item.slotSize,
                                                        item.duration,
                                                        item.profitability,
@@ -231,10 +235,6 @@ proc push*(self: SlotQueue, item: SlotQueueItem): Future[?!void] {.async.} =
 
   if self.contains(item):
     let err = newException(SlotQueueItemExistsError, "item already exists")
-    return failure(err)
-
-  if not self.running:
-    let err = newException(QueueNotRunningError, "queue not running")
     return failure(err)
 
   if err =? self.queue.pushNoWait(item).mapFailure.errorOption:

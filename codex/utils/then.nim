@@ -59,16 +59,16 @@ type
 
 proc ignoreError(err: ref CatchableError) = discard
 
-template returnOrError(fut: FutureBase, onError: OnError) =
-  if not fut.finished:
+template returnOrError(future: FutureBase, onError: OnError) =
+  if not future.finished:
     return
 
-  if fut.cancelled:
+  if future.cancelled:
     # do not bubble as closure is synchronous
     return
 
-  if fut.failed:
-    onError(fut.error)
+  if future.failed:
+    onError(future.error)
     return
 
 
@@ -77,8 +77,7 @@ proc then*(future: Future[void],
           Future[void] =
 
   proc cb(udata:pointer) =
-    let fut = cast[Future[void]](udata)
-    fut.returnOrError(onError)
+    future.returnOrError(onError)
 
   future.addCallback(cb)
   return future
@@ -89,9 +88,7 @@ proc then*(future: Future[void],
           Future[void] =
 
   proc cb(udata:pointer) =
-    let fut = cast[Future[void]](udata)
-    fut.returnOrError(onError)
-
+    future.returnOrError(onError)
     onSuccess()
 
   future.addCallback(cb)
@@ -103,10 +100,9 @@ proc then*[T](future: Future[T],
              Future[T] =
 
   proc cb(udata:pointer) =
-    let fut = cast[Future[T]](udata)
-    fut.returnOrError(onError)
+    future.returnOrError(onError)
 
-    without val =? fut.read.catch, err:
+    without val =? future.read.catch, err:
       onError(err)
       return
     onSuccess(val)
@@ -120,11 +116,10 @@ proc then*[T](future: Future[?!T],
              Future[?!T] =
 
   proc cb(udata:pointer) =
-    let fut = cast[Future[?!T]](udata)
-    fut.returnOrError(onError)
+    future.returnOrError(onError)
 
     try:
-      without val =? fut.read, err:
+      without val =? future.read, err:
         onError(err)
         return
       onSuccess(val)
@@ -139,11 +134,10 @@ proc then*(future: Future[?!void],
           Future[?!void] =
 
   proc cb(udata:pointer) =
-    let fut = cast[Future[?!void]](udata)
-    fut.returnOrError(onError)
+    future.returnOrError(onError)
 
     try:
-      if err =? fut.read.errorOption:
+      if err =? future.read.errorOption:
         onError(err)
     except CatchableError as e:
       onError(e)
@@ -157,11 +151,10 @@ proc then*(future: Future[?!void],
           Future[?!void] =
 
   proc cb(udata:pointer) =
-    let fut = cast[Future[?!void]](udata)
-    fut.returnOrError(onError)
+    future.returnOrError(onError)
 
     try:
-      if err =? fut.read.errorOption:
+      if err =? future.read.errorOption:
         onError(err)
         return
     except CatchableError as e:
@@ -176,8 +169,7 @@ proc catch*[T](future: Future[T],
                onError: OnError) =
 
   proc cb(udata:pointer) =
-    let fut = cast[Future[T]](udata)
-    fut.returnOrError(onError)
+    future.returnOrError(onError)
 
   future.addCallback(cb)
 
@@ -185,11 +177,10 @@ proc catch*[T](future: Future[?!T],
                onError: OnError) =
 
   proc cb(udata:pointer) =
-    let fut = cast[Future[?!T]](udata)
-    fut.returnOrError(onError)
+    future.returnOrError(onError)
 
     try:
-      if err =? fut.read.errorOption:
+      if err =? future.read.errorOption:
         onError(err)
     except CatchableError as e:
       onError(e)
