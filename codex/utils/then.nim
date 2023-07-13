@@ -1,0 +1,197 @@
+import pkg/chronos
+import pkg/questionable
+import pkg/questionable/results
+import pkg/upraises
+
+# Similar to JavaScript's Promise API, `.then` and `.catch` can be used to
+# handle results and errors of async `Futures` within a synchronous closure.
+# They can be used as an alternative to `asyncSpawn` which does not return a
+# value and will raise a `FutureDefect` if there are unhandled errors
+# encountered. Both `.then` and `.catch` act as callbacks that do not block the
+# synchronous closure's flow.
+
+# `.then` is called when the `Future` is successfully completed and can be
+# chained as many times as desired, calling each `.then` callback in order. When
+# the `Future` returns `Result[T, ref CatchableError]` (or `?!T`), the value
+# called in the `.then` callback will be unpacked from the `Result` as a
+# convenience. In other words, for `Future[?!T]`, the `.then` callback will take
+# a single parameter `T`. See `tests/utils/testthen.nim` for more examples. To
+# allow for chaining, `.then` returns its future. If the future is already
+# complete, the `.then` callback will be executed immediately.
+
+# `.catch` is called when the `Future` fails. In the case when the `Future`
+# returns a `Result[T, ref CatchableError` (or `?!T`), `.catch` will be called
+# if the `Result` contains an error. If the `Future` is already failed (or
+# `Future[?!T]` contains an error), the `.catch` callback will be excuted
+# immediately.
+
+# NOTE: Cancelled `Futures` are discarded as bubbling the `CancelledError` to
+# the synchronous closure will likely cause an unintended and unhandled
+# exception.
+
+# More info on JavaScript's Promise API can be found at:
+# https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise
+
+runnableExamples:
+  proc asyncProc(): Future[int] {.async.} =
+    await sleepAsync(1.millis)
+    return 1
+
+  asyncProc()
+    .then(proc(i: int) = echo "returned ", i)
+    .catch(proc(e: ref CatchableError) = doAssert false, "will not be triggered")
+
+  # outputs "returned 1"
+
+  proc asyncProcWithError(): Future[int] {.async.} =
+    await sleepAsync(1.millis)
+    raise newException(ValueError, "some error")
+
+  asyncProcWithError()
+    .then(proc(i: int) = doAssert false, "will not be triggered")
+    .catch(proc(e: ref CatchableError) = echo "errored: ", e.msg)
+
+  # outputs "errored: some error"
+
+type
+  OnSuccess*[T] = proc(val: T) {.gcsafe, upraises: [].}
+  OnError* = proc(err: ref CatchableError) {.gcsafe, upraises: [].}
+
+proc ignoreError(err: ref CatchableError) = discard
+
+template returnOrError(fut: FutureBase, onError: OnError) =
+  if not fut.finished:
+    return
+
+  if fut.cancelled:
+    # do not bubble as closure is synchronous
+    return
+
+  if fut.failed:
+    onError(fut.error)
+    return
+
+
+proc then*(future: Future[void],
+           onError: OnError):
+          Future[void] =
+
+  proc cb(udata:pointer) =
+    let fut = cast[Future[void]](udata)
+    fut.returnOrError(onError)
+
+  future.addCallback(cb)
+  return future
+
+proc then*(future: Future[void],
+           onSuccess: OnSuccess[void],
+           onError: OnError = ignoreError):
+          Future[void] =
+
+  proc cb(udata:pointer) =
+    let fut = cast[Future[void]](udata)
+    fut.returnOrError(onError)
+
+    onSuccess()
+
+  future.addCallback(cb)
+  return future
+
+proc then*[T](future: Future[T],
+              onSuccess: OnSuccess[T],
+              onError: OnError = ignoreError):
+             Future[T] =
+
+  proc cb(udata:pointer) =
+    let fut = cast[Future[T]](udata)
+    fut.returnOrError(onError)
+
+    without val =? fut.read.catch, err:
+      onError(err)
+      return
+    onSuccess(val)
+
+  future.addCallback(cb)
+  return future
+
+proc then*[T](future: Future[?!T],
+              onSuccess: OnSuccess[T],
+              onError: OnError = ignoreError):
+             Future[?!T] =
+
+  proc cb(udata:pointer) =
+    let fut = cast[Future[?!T]](udata)
+    fut.returnOrError(onError)
+
+    try:
+      without val =? fut.read, err:
+        onError(err)
+        return
+      onSuccess(val)
+    except CatchableError as e:
+      onError(e)
+
+  future.addCallback(cb)
+  return future
+
+proc then*(future: Future[?!void],
+           onError: OnError = ignoreError):
+          Future[?!void] =
+
+  proc cb(udata:pointer) =
+    let fut = cast[Future[?!void]](udata)
+    fut.returnOrError(onError)
+
+    try:
+      if err =? fut.read.errorOption:
+        onError(err)
+    except CatchableError as e:
+      onError(e)
+
+  future.addCallback(cb)
+  return future
+
+proc then*(future: Future[?!void],
+           onSuccess: OnSuccess[void],
+           onError: OnError = ignoreError):
+          Future[?!void] =
+
+  proc cb(udata:pointer) =
+    let fut = cast[Future[?!void]](udata)
+    fut.returnOrError(onError)
+
+    try:
+      if err =? fut.read.errorOption:
+        onError(err)
+        return
+    except CatchableError as e:
+      onError(e)
+      return
+    onSuccess()
+
+  future.addCallback(cb)
+  return future
+
+proc catch*[T](future: Future[T],
+               onError: OnError) =
+
+  proc cb(udata:pointer) =
+    let fut = cast[Future[T]](udata)
+    fut.returnOrError(onError)
+
+  future.addCallback(cb)
+
+proc catch*[T](future: Future[?!T],
+               onError: OnError) =
+
+  proc cb(udata:pointer) =
+    let fut = cast[Future[?!T]](udata)
+    fut.returnOrError(onError)
+
+    try:
+      if err =? fut.read.errorOption:
+        onError(err)
+    except CatchableError as e:
+      onError(e)
+
+  future.addCallback(cb)

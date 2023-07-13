@@ -357,7 +357,7 @@ proc start*(self: SlotQueue) {.async.} =
       error "start: error adding new worker", error = err.msg
 
   proc onDispatchComplete(udata: pointer) {.gcsafe.} =
-    var fut = cast[FutureBase](udata)
+    let fut = cast[FutureBase](udata)
     if fut.finished and self.running:
       self.dispatched.del(fut.id)
 

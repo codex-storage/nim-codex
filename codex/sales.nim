@@ -16,7 +16,7 @@ import ./sales/statemachine
 import ./sales/slotqueue
 import ./sales/states/preparing
 import ./sales/states/unknown
-import ./utils/syncify
+import ./utils/then
 
 ## Sales holds a list of available storage that it may sell.
 ##
@@ -197,22 +197,19 @@ proc onStorageRequested(sales: Sales,
     else:
       warn "Failed to create slot queue items from request", error = err.msg
 
-  # TODO: iterate items, and push individually. continue on error
-  # TODO: return Future and cancel on `.stop`
-  syncify slotQueue.push(items),
-
-    onCancelled = proc(err: ref CancelledError) =
-      error("Slot queue push future was cancelled", error = err.msg),
-
-    onError = proc(err: ref CatchableError) =
-      if err of NoMatchingAvailabilityError:
-        info "slot in queue had no matching availabilities, ignoring"
-      elif err of SlotQueueItemExistsError:
-        error "Failed to push item to queue becaue it already exists"
-      elif err of QueueNotRunningError:
-        warn "Failed to push item to queue becaue queue is not running"
-      else:
-        warn "Error adding request to SlotQueue", error = err.msg
+  # TODO: return Future and cancel on `.stop`?
+  for item in items:
+    slotQueue.push(item).catch(
+      proc(err: ref CatchableError) =
+        if err of NoMatchingAvailabilityError:
+          info "slot in queue had no matching availabilities, ignoring"
+        elif err of SlotQueueItemExistsError:
+          error "Failed to push item to queue becaue it already exists"
+        elif err of QueueNotRunningError:
+          warn "Failed to push item to queue becaue queue is not running"
+        else:
+          warn "Error adding request to SlotQueue", error = err.msg
+    )
 
 proc onSlotFreed(sales: Sales,
                  requestId: RequestId,
@@ -252,13 +249,10 @@ proc onSlotFreed(sales: Sales,
       else:
         warn "Error adding request to SlotQueue", error = err.msg
 
-  syncify addSlotToQueue(),
-
-    onCancelled = proc(err: ref CancelledError) =
-      error("Adding slot to queue was cancelled", error = err.msg),
-
-    onError = proc(err: ref CatchableError) =
+  addSlotToQueue().catch(
+    proc(err: ref CatchableError) =
       error "Error during slot freed event handler", error = err.msg
+  )
 
 proc subscribeRequested(sales: Sales) {.async.} =
   let context = sales.context
