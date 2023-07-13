@@ -19,9 +19,10 @@ import ./repostore
 import ../utils/timer
 import ../clock
 import ../systemclock
+import ../asyncyeah
 
 const
-  DefaultBlockMaintenanceInterval* = 10.minutes
+  DefaultBlockMaintenanceInterval* = 10.seconds
   DefaultNumberOfBlocksToMaintainPerInterval* = 1000
 
 type
@@ -42,9 +43,9 @@ proc new*(
     clock: Clock = SystemClock.new()
 ): BlockMaintainer =
   ## Create new BlockMaintainer instance
-  ## 
+  ##
   ## Call `start` to begin looking for for expired blocks
-  ## 
+  ##
   BlockMaintainer(
     repoStore: repoStore,
     interval: interval,
@@ -63,7 +64,7 @@ proc processBlockExpiration(self: BlockMaintainer, be: BlockExpiration): Future[
   else:
     inc self.offset
 
-proc runBlockCheck(self: BlockMaintainer): Future[void] {.async.} =
+proc runBlockCheck(self: BlockMaintainer): Future[void] {.asyncyeah.} =
   let expirations = await self.repoStore.getBlockExpirations(
     maxNumber = self.numberOfBlocksPerInterval,
     offset = self.offset

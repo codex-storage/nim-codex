@@ -36,6 +36,7 @@ import ../conf
 import ../contracts
 import ../streams
 import ../loopmeasure
+import ../asyncyeah
 
 import ./coders
 import ./json
@@ -339,9 +340,13 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf, loopMeasure: LoopMeasure)
 
   when defined(chronosDurationThreshold):
     var breaches = newSeq[string]()
-    proc onBreach(stackTrace: string, durationUs: int64) =
-      error "Duration threshold breached", durationUs, stackTrace
-      breaches.add($durationUs & " usecs at " & stackTrace)
+    proc onBreach(durationUs: int64) =
+      var trace = ""
+      for entry in globalYeahStack:
+        trace = trace & " -> " & entry
+
+      error "Duration threshold breached", durationUs, trace
+      breaches.add($durationUs & " usecs: " & trace)
 
     setChronosDurationThresholdBreachedHandler(onBreach)
 
