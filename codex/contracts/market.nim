@@ -36,7 +36,7 @@ proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
   let tokenAddress = await market.contract.token()
   let token = Erc20Token.new(tokenAddress, market.signer)
 
-  discard await token.approve(market.contract.address(), amount)
+  discard await token.approve(market.contract.address(), amount).confirm(1)
 
 method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
   return await market.signer.getAddress()
