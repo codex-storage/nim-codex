@@ -342,9 +342,10 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf, loopMeasure: LoopMeasure)
   when defined(chronosDurationThreshold):
     var breaches = newSeq[string]()
     proc onBreach(durationUs: int64) =
-      var trace = ""
+      var trace = "trace: "
       for entry in globalYeahStack:
-        trace = trace & " -> " & entry
+        if globalBaselineYeahStack.find(entry) == -1:
+          trace = trace & " -> " & entry
 
       error "Duration threshold breached", durationUs, trace
       breaches.add($durationUs & " usecs: " & trace)

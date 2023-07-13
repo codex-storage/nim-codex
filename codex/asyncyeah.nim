@@ -1,6 +1,7 @@
 import std/[macros]
 
 var globalYeahStack* {.global, threadvar.}: seq[string]
+var globalBaselineYeahStack* {.global, threadvar.}: seq[string]
 var globalYeahInt {.global, threadvar.}: int
 
 macro asyncyeah*(functionlike: untyped{nkProcDef | nkMethodDef | nkFuncDef}): untyped =

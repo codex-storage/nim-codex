@@ -83,6 +83,13 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.asyncyeah.} =
 proc heartbeatLoop(b: DiscoveryEngine) {.asyncyeah.} =
   while b.discEngineRunning:
     await sleepAsync(1.seconds)
+    await sleepAsync(1.seconds)
+    await sleepAsync(1.seconds)
+    await sleepAsync(1.seconds)
+    await sleepAsync(1.seconds)
+    if globalBaselineYeahStack.len == 0:
+      for entry in globalYeahStack:
+        globalBaselineYeahStack.add(entry)
 
 proc advertiseQueueLoop*(b: DiscoveryEngine) {.asyncyeah.} =
   while b.discEngineRunning:
