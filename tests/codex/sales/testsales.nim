@@ -3,7 +3,6 @@ import std/sequtils
 import std/sugar
 import std/times
 import pkg/asynctest
-import pkg/chronicles
 import pkg/chronos
 import pkg/datastore
 import pkg/questionable
