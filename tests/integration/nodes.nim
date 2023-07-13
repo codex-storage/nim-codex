@@ -1,7 +1,11 @@
+import pkg/questionable
 import std/osproc
 import std/os
 import std/streams
 import std/strutils
+import ./codexclient
+
+export codexclient
 
 const workingDir = currentSourcePath() / ".." / ".." / ".."
 const executable = "build" / "codex"
@@ -11,6 +15,7 @@ type
     process: Process
     arguments: seq[string]
     debug: bool
+    client: ?CodexClient
 
 proc start(node: NodeProcess) =
   if node.debug:
@@ -48,14 +53,48 @@ proc startNode*(args: openArray[string], debug: string | bool = false): NodeProc
   node.start()
   node
 
+proc dataDir(node: NodeProcess): ?string =
+  for argument in node.arguments:
+    if argument.startsWith("--data-dir="):
+      return some argument[len("--data-dir=")..<argument.len]
+    if argument.startsWith("-d "):
+      return some argument[len("-d ")..<argument.len]
+  none string
+
+proc apiUrl(node: NodeProcess): string =
+  var address = "127.0.0.1"
+  var port = "8080"
+  for argument in node.arguments:
+    if argument.startsWith("--api-bindaddr="):
+      address = argument[len("--api-bindaddr=")..<argument.len]
+    elif argument.startsWith("--api-port="):
+      port = argument[len("--api-port=")..<argument.len]
+    elif argument.startsWith("-p "):
+      port = argument[len("-p ")..<argument.len]
+  "http://" & address & ":" & port & "/api/codex/v1"
+
+proc client*(node: NodeProcess): CodexClient =
+  if client =? node.client:
+    return client
+  let client = CodexClient.new(node.apiUrl)
+  node.client = some client
+  client
+
 proc stop*(node: NodeProcess) =
   if node.process != nil:
     node.process.terminate()
     discard node.process.waitForExit(timeout=5_000)
     node.process.close()
     node.process = nil
+  if client =? node.client:
+    node.client = none CodexClient
+    client.close()
 
 proc restart*(node: NodeProcess) =
   node.stop()
   node.start()
   node.waitUntilStarted()
+
+proc removeDataDir*(node: NodeProcess) =
+  if dataDir =? node.dataDir:
+    removeDir(dataDir)
