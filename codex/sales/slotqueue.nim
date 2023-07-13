@@ -1,4 +1,5 @@
 import std/sequtils
+import std/tables
 import pkg/chronicles
 import pkg/chronos
 import pkg/questionable
@@ -45,13 +46,9 @@ type
     onProcessSlot: ?OnProcessSlot
     queue: AsyncHeapQueue[SlotQueueItem]
     reservations: Reservations
-    # Note: `running` and `stopping` are both needed as this allows for items to
-    # be added to / deleted from the queue when not running (eg tests), but not
-    # when the queue is in the process of stopping (which causes issues with
-    # iterating items in the queue when amending the size of the queue)
-    running: bool # indicates that the queue loop is running
-    stopping: bool # indicates in process of stopping
+    running: bool
     workers: AsyncQueue[SlotQueueWorker]
+    dispatched: Table[uint, Future[void]]
 
   SlotQueueError = object of CodexError
   SlotQueueItemExistsError* = object of SlotQueueError
@@ -59,7 +56,6 @@ type
   SlotsOutOfRangeError* = object of SlotQueueError
   NoMatchingAvailabilityError* = object of SlotQueueError
   QueueNotRunningError* = object of SlotQueueError
-  QueueStoppingError* = object of SlotQueueError
 
 # Number of concurrent workers used for processing SlotQueueItems
 const DefaultMaxWorkers = 3
@@ -199,6 +195,7 @@ proc populateItem*(self: SlotQueue,
                    slotIndex: uint16): ?SlotQueueItem =
 
   for item in self.queue.items:
+    trace "populate item search", itemRequestId = item.requestId, requestId
     if item.requestId == requestId:
       return some SlotQueueItem(
         requestId: requestId,
@@ -225,10 +222,10 @@ proc push*(self: SlotQueue, item: SlotQueueItem): Future[?!void] {.async.} =
     requestId = item.requestId, slotIndex = item.slotIndex
 
   without availability =? await self.reservations.find(item.slotSize,
-                                                         item.duration,
-                                                         item.profitability,
-                                                         item.collateral,
-                                                         used = false):
+                                                       item.duration,
+                                                       item.profitability,
+                                                       item.collateral,
+                                                       used = false):
     let err = newException(NoMatchingAvailabilityError, "no availability")
     return failure(err)
 
@@ -236,8 +233,8 @@ proc push*(self: SlotQueue, item: SlotQueueItem): Future[?!void] {.async.} =
     let err = newException(SlotQueueItemExistsError, "item already exists")
     return failure(err)
 
-  if self.stopping:
-    let err = newException(QueueStoppingError, "queue is stopping")
+  if not self.running:
+    let err = newException(QueueNotRunningError, "queue not running")
     return failure(err)
 
   if err =? self.queue.pushNoWait(item).mapFailure.errorOption:
@@ -248,8 +245,6 @@ proc push*(self: SlotQueue, item: SlotQueueItem): Future[?!void] {.async.} =
     self.queue.del(self.queue.size - 1)
 
   doAssert self.queue.len <= self.queue.size - 1
-  trace "item pushed to queue",
-    requestId = item.requestId, slotIndex = item.slotIndex
   return success()
 
 proc push*(self: SlotQueue, items: seq[SlotQueueItem]): Future[?!void] {.async.} =
@@ -273,7 +268,7 @@ proc delete*(self: SlotQueue, item: SlotQueueItem) =
 
   trace "removing item from queue"
 
-  if self.stopping:
+  if not self.running:
     trace "cannot delete item from queue, queue not running"
     return
 
@@ -316,33 +311,39 @@ proc addWorker(self: SlotQueue): ?!void =
 proc dispatch(self: SlotQueue,
               worker: SlotQueueWorker,
               item: SlotQueueItem) {.async.} =
+  logScope:
+    requestId = item.requestId
+    slotIndex = item.slotIndex
+
+  if not self.running:
+    warn "Could not dispatch worker because queue is not running"
+    return
 
   if onProcessSlot =? self.onProcessSlot:
     try:
       await onProcessSlot(item)
-    except CatchableError as e:
-      # we don't have any insight into types of errors that `onProcessSlot` can
-      # throw because it is caller-defined
-      warn "Unknown error processing slot in worker",
-        requestId = item.requestId, error = e.msg
-
-    try:
       await item.doneProcessing
+
+      if err =? self.addWorker().errorOption:
+        raise err # catch below
+
+    except QueueNotRunningError as e:
+      info "could not re-add worker to worker queue, queue not running",
+        error = e.msg
     except CancelledError:
       # do not bubble exception up as it is called with `asyncSpawn` which would
       # convert the exception into a `FutureDefect`
       discard
-
-  if err =? self.addWorker().errorOption:
-    if err of QueueNotRunningError:
-      info "could not re-add worker to worker queue, queue not running",
-        error = err.msg
-    else:
-      error "dispatch: error adding new worker", error = err.msg
+    except CatchableError as e:
+      # we don't have any insight into types of errors that `onProcessSlot` can
+      # throw because it is caller-defined
+      warn "Unknown error processing slot in worker", error = e.msg
 
 proc start*(self: SlotQueue) {.async.} =
   if self.running:
     return
+
+  trace "starting slot queue"
 
   self.running = true
 
@@ -355,12 +356,19 @@ proc start*(self: SlotQueue) {.async.} =
     if err =? self.addWorker().errorOption:
       error "start: error adding new worker", error = err.msg
 
+  proc onDispatchComplete(udata: pointer) {.gcsafe.} =
+    var fut = cast[FutureBase](udata)
+    if fut.finished and self.running:
+      self.dispatched.del(fut.id)
+
   while self.running:
     try:
       let worker = await self.workers.popFirst() # wait for worker to free up
       self.next = self.queue.pop()
       let item = await self.next # if queue empty, wait here for new items
-      asyncSpawn self.dispatch(worker, item)
+      let dispatched = self.dispatch(worker, item)
+      dispatched.addCallback(onDispatchComplete)
+      self.dispatched[dispatched.id] = dispatched
       self.next = nil
       await sleepAsync(1.millis) # poll
     except CancelledError:
@@ -372,8 +380,9 @@ proc stop*(self: SlotQueue) {.async.} =
   if not self.running:
     return
 
+  trace "stopping slot queue"
+
   self.running = false
-  self.stopping = true
 
   if not self.next.isNil:
     await self.next.cancelAndWait()
@@ -383,6 +392,7 @@ proc stop*(self: SlotQueue) {.async.} =
     if not item.doneProcessing.isNil and not item.doneProcessing.finished():
       await item.doneProcessing.cancelAndWait()
 
-  self.stopping = false
+  for dispatched in self.dispatched.values:
+    await dispatched.cancelAndWait()
 
 

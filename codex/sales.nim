@@ -197,6 +197,8 @@ proc onStorageRequested(sales: Sales,
     else:
       warn "Failed to create slot queue items from request", error = err.msg
 
+  # TODO: iterate items, and push individually. continue on error
+  # TODO: return Future and cancel on `.stop`
   syncify slotQueue.push(items),
 
     onCancelled = proc(err: ref CancelledError) =
@@ -207,8 +209,8 @@ proc onStorageRequested(sales: Sales,
         info "slot in queue had no matching availabilities, ignoring"
       elif err of SlotQueueItemExistsError:
         error "Failed to push item to queue becaue it already exists"
-      elif err of QueueStoppingError:
-        warn "Failed to push item to queue becaue queue is stopping"
+      elif err of QueueNotRunningError:
+        warn "Failed to push item to queue becaue queue is not running"
       else:
         warn "Error adding request to SlotQueue", error = err.msg
 
@@ -245,8 +247,8 @@ proc onSlotFreed(sales: Sales,
         info "slot in queue had no matching availabilities, ignoring"
       elif err of SlotQueueItemExistsError:
         error "Failed to push item to queue becaue it already exists"
-      elif err of QueueStoppingError:
-        warn "Failed to push item to queue becaue queue is stopping"
+      elif err of QueueNotRunningError:
+        warn "Failed to push item to queue becaue queue is not running"
       else:
         warn "Error adding request to SlotQueue", error = err.msg
 
