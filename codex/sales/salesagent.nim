@@ -1,4 +1,5 @@
 import pkg/chronos
+import ../asyncyeah
 import pkg/chronicles
 import pkg/stint
 import ../contracts/requests
@@ -33,18 +34,18 @@ proc newSalesAgent*(context: SalesContext,
       slotIndex: slotIndex,
       request: request))
 
-proc retrieveRequest*(agent: SalesAgent) {.async.} =
+proc retrieveRequest*(agent: SalesAgent) {.asyncyeah.} =
   let data = agent.data
   let market = agent.context.market
   if data.request.isNone:
     data.request = await market.getRequest(data.requestId)
 
-proc subscribeCancellation(agent: SalesAgent) {.async.} =
+proc subscribeCancellation(agent: SalesAgent) {.asyncyeah.} =
   let data = agent.data
   let market = agent.context.market
   let clock = agent.context.clock
 
-  proc onCancelled() {.async.} =
+  proc onCancelled() {.asyncyeah.} =
     without request =? data.request:
       return
 
@@ -61,7 +62,7 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
   data.fulfilled =
     await market.subscribeFulfillment(data.requestId, onFulfilled)
 
-proc subscribeFailure(agent: SalesAgent) {.async.} =
+proc subscribeFailure(agent: SalesAgent) {.asyncyeah.} =
   let data = agent.data
   let market = agent.context.market
 
@@ -74,7 +75,7 @@ proc subscribeFailure(agent: SalesAgent) {.async.} =
   data.failed =
     await market.subscribeRequestFailed(data.requestId, onFailed)
 
-proc subscribeSlotFilled(agent: SalesAgent) {.async.} =
+proc subscribeSlotFilled(agent: SalesAgent) {.asyncyeah.} =
   let data = agent.data
   let market = agent.context.market
 
@@ -87,7 +88,7 @@ proc subscribeSlotFilled(agent: SalesAgent) {.async.} =
                                      data.slotIndex,
                                      onSlotFilled)
 
-proc subscribe*(agent: SalesAgent) {.async.} =
+proc subscribe*(agent: SalesAgent) {.asyncyeah.} =
   if agent.subscribed:
     return
 
@@ -96,7 +97,7 @@ proc subscribe*(agent: SalesAgent) {.async.} =
   await agent.subscribeSlotFilled()
   agent.subscribed = true
 
-proc unsubscribe*(agent: SalesAgent) {.async.} =
+proc unsubscribe*(agent: SalesAgent) {.asyncyeah.} =
   if not agent.subscribed:
     return
 
@@ -125,6 +126,6 @@ proc unsubscribe*(agent: SalesAgent) {.async.} =
 
   agent.subscribed = false
 
-proc stop*(agent: SalesAgent) {.async.} =
+proc stop*(agent: SalesAgent) {.asyncyeah.} =
   procCall Machine(agent).stop()
   await agent.unsubscribe()

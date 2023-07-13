@@ -11,6 +11,7 @@
 ## Used to execute a callback in a loop
 
 import pkg/chronos
+import ../asyncyeah
 import pkg/chronicles
 import pkg/upraises
 
@@ -26,7 +27,7 @@ proc new*(T: type Timer, timerName = "Unnamed Timer"): Timer =
   ## Create a new Timer intance with the given name
   Timer(name: timerName)
 
-proc timerLoop(timer: Timer) {.async.} =
+proc timerLoop(timer: Timer) {.asyncyeah.} =
   try:
     while true:
       await timer.callback()
@@ -44,7 +45,7 @@ method start*(timer: Timer, callback: TimerCallback, interval: Duration) {.base.
   timer.interval = interval
   timer.loopFuture = timerLoop(timer)
 
-method stop*(timer: Timer) {.async, base.} =
+method stop*(timer: Timer) {.asyncyeah, base.} =
   if timer.loopFuture != nil:
     trace "Timer stopping: ", name=timer.name
     await timer.loopFuture.cancelAndWait()

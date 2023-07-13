@@ -12,6 +12,7 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronos
+import ../asyncyeah
 import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
@@ -81,7 +82,7 @@ method close*(self: BlockStore): Future[void] {.base.} =
 
   raiseAssert("Not implemented!")
 
-proc contains*(self: BlockStore, blk: Cid): Future[bool] {.async.} =
+proc contains*(self: BlockStore, blk: Cid): Future[bool] {.asyncyeah.} =
   ## Check if the block exists in the blockstore.
   ## Return false if error encountered
   ##

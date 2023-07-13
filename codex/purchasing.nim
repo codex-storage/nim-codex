@@ -1,6 +1,7 @@
 import std/tables
 import pkg/stint
 import pkg/chronos
+import ./asyncyeah
 import pkg/questionable
 import pkg/nimcrypto
 import ./market
@@ -32,7 +33,7 @@ proc new*(_: type Purchasing, market: Market, clock: Clock): Purchasing =
     requestExpiryInterval: DefaultRequestExpiryInterval,
   )
 
-proc load*(purchasing: Purchasing) {.async.} =
+proc load*(purchasing: Purchasing) {.asyncyeah.} =
   let market = purchasing.market
   let requestIds = await market.myRequests()
   for requestId in requestIds:
@@ -40,15 +41,15 @@ proc load*(purchasing: Purchasing) {.async.} =
     purchase.load()
     purchasing.purchases[purchase.id] = purchase
 
-proc start*(purchasing: Purchasing) {.async.} =
+proc start*(purchasing: Purchasing) {.asyncyeah.} =
   await purchasing.load()
 
-proc stop*(purchasing: Purchasing) {.async.} =
+proc stop*(purchasing: Purchasing) {.asyncyeah.} =
   discard
 
 proc populate*(purchasing: Purchasing,
                request: StorageRequest
-              ): Future[StorageRequest] {.async.} =
+              ): Future[StorageRequest] {.asyncyeah.} =
   result = request
   if result.ask.proofProbability == 0.u256:
     result.ask.proofProbability = purchasing.proofProbability
@@ -62,7 +63,7 @@ proc populate*(purchasing: Purchasing,
 
 proc purchase*(purchasing: Purchasing,
                request: StorageRequest
-              ): Future[Purchase] {.async.} =
+              ): Future[Purchase] {.asyncyeah.} =
   let request = await purchasing.populate(request)
   let purchase = Purchase.new(request, purchasing.market, purchasing.clock)
   purchase.start()

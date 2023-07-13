@@ -6,11 +6,12 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
-## 
+##
 
 import std/parseutils
 
 import pkg/chronos
+import ./asyncyeah
 
 import ./utils/asyncheapqueue
 import ./utils/fileutils

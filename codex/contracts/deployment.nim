@@ -7,6 +7,7 @@ import pkg/chronicles
 
 import ../conf
 import ./marketplace
+import ../asyncyeah
 
 type Deployment* = ref object
   provider: Provider
@@ -31,7 +32,7 @@ proc getKnownAddress(T: type, chainId: UInt256): ?Address =
 proc new*(_: type Deployment, provider: Provider, config: CodexConf): Deployment =
   Deployment(provider: provider, config: config)
 
-proc address*(deployment: Deployment, contract: type): Future[?Address] {.async.} =
+proc address*(deployment: Deployment, contract: type): Future[?Address] {.asyncyeah.} =
   when contract is Marketplace:
     if address =? deployment.config.marketplaceAddress:
       return some address

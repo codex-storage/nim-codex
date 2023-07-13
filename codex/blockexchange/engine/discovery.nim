@@ -10,6 +10,7 @@
 import std/sequtils
 
 import pkg/chronos
+import ../../asyncyeah
 import pkg/chronicles
 import pkg/libp2p
 import pkg/metrics
@@ -64,7 +65,7 @@ type
     inFlightAdvReqs*: Table[Cid, Future[void]]                   # Inflight advertise requests
     advertiseType*: BlockType                                    # Advertice blocks, manifests or both
 
-proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
+proc discoveryQueueLoop(b: DiscoveryEngine) {.asyncyeah.} =
   while b.discEngineRunning:
     for cid in toSeq(b.pendingBlocks.wantList):
       try:
@@ -79,11 +80,11 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
     trace "About to sleep discovery loop"
     await sleepAsync(b.discoveryLoopSleep)
 
-proc heartbeatLoop(b: DiscoveryEngine) {.async.} =
+proc heartbeatLoop(b: DiscoveryEngine) {.asyncyeah.} =
   while b.discEngineRunning:
     await sleepAsync(1.seconds)
 
-proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
+proc advertiseQueueLoop*(b: DiscoveryEngine) {.asyncyeah.} =
   while b.discEngineRunning:
     if cids =? await b.localStore.listBlocks(blockType = b.advertiseType):
       for c in cids:
@@ -96,7 +97,7 @@ proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
 
   trace "Exiting advertise task loop"
 
-proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
+proc advertiseTaskLoop(b: DiscoveryEngine) {.asyncyeah.} =
   ## Run advertise tasks
   ##
 
@@ -127,7 +128,7 @@ proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
 
   trace "Exiting advertise task runner"
 
-proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
+proc discoveryTaskLoop(b: DiscoveryEngine) {.asyncyeah.} =
   ## Run discovery tasks
   ##
 
@@ -192,7 +193,7 @@ proc queueProvideBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
       except CatchableError as exc:
         trace "Exception queueing discovery request", exc = exc.msg
 
-proc start*(b: DiscoveryEngine) {.async.} =
+proc start*(b: DiscoveryEngine) {.asyncyeah.} =
   ## Start the discengine task
   ##
 
@@ -213,7 +214,7 @@ proc start*(b: DiscoveryEngine) {.async.} =
   b.discoveryLoop = discoveryQueueLoop(b)
   b.heartbeatLoop = heartbeatLoop(b)
 
-proc stop*(b: DiscoveryEngine) {.async.} =
+proc stop*(b: DiscoveryEngine) {.asyncyeah.} =
   ## Stop the discovery engine
   ##
 

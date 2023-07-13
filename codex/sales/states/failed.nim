@@ -1,6 +1,7 @@
 import ../statemachine
 import ./errorhandling
 import ./errored
+import ../../asyncyeah
 
 type
   SaleFailed* = ref object of ErrorHandlingState
@@ -8,6 +9,6 @@ type
 
 method `$`*(state: SaleFailed): string = "SaleFailed"
 
-method run*(state: SaleFailed, machine: Machine): Future[?State] {.async.} =
+method run*(state: SaleFailed, machine: Machine): Future[?State] {.asyncyeah.} =
   let error = newException(SaleFailedError, "Sale failed")
   return some State(SaleErrored(error: error))

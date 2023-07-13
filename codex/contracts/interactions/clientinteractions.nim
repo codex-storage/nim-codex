@@ -5,6 +5,7 @@ import ../../purchasing
 import ../market
 import ../clock
 import ./interactions
+import ../../asyncyeah
 
 export purchasing
 export chronicles
@@ -18,10 +19,10 @@ proc new*(_: type ClientInteractions,
           purchasing: Purchasing): ClientInteractions =
   ClientInteractions(clock: clock, purchasing: purchasing)
 
-proc start*(self: ClientInteractions) {.async.} =
+proc start*(self: ClientInteractions) {.asyncyeah.} =
   await procCall ContractInteractions(self).start()
   await self.purchasing.start()
 
-proc stop*(self: ClientInteractions) {.async.} =
+proc stop*(self: ClientInteractions) {.asyncyeah.} =
   await self.purchasing.stop()
   await procCall ContractInteractions(self).stop()

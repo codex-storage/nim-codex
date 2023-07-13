@@ -13,6 +13,7 @@ import std/tables
 import pkg/chronicles
 import pkg/libp2p
 import pkg/chronos
+import ../../asyncyeah
 import pkg/nitro
 import pkg/questionable
 

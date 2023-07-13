@@ -10,6 +10,7 @@
 import std/typetraits
 
 import pkg/chronos
+import ../asyncyeah
 import pkg/chronicles
 import pkg/upraises
 import pkg/json_serialization
@@ -121,7 +122,7 @@ func hasAvailable*(self: Reservations, bytes: uint): bool =
 
 proc exists*(
   self: Reservations,
-  id: AvailabilityId): Future[?!bool] {.async.} =
+  id: AvailabilityId): Future[?!bool] {.asyncyeah.} =
 
   without key =? id.key, err:
     return failure(err)
@@ -131,7 +132,7 @@ proc exists*(
 
 proc get*(
   self: Reservations,
-  id: AvailabilityId): Future[?!Availability] {.async.} =
+  id: AvailabilityId): Future[?!Availability] {.asyncyeah.} =
 
   if exists =? (await self.exists(id)) and not exists:
     let err = newException(AvailabilityGetFailedError,
@@ -151,7 +152,7 @@ proc get*(
 
 proc update(
   self: Reservations,
-  availability: Availability): Future[?!void] {.async.} =
+  availability: Availability): Future[?!void] {.asyncyeah.} =
 
   trace "updating availability", id = availability.id, size = availability.size,
     used = availability.used
@@ -168,7 +169,7 @@ proc update(
 
 proc delete(
   self: Reservations,
-  id: AvailabilityId): Future[?!void] {.async.} =
+  id: AvailabilityId): Future[?!void] {.asyncyeah.} =
 
   trace "deleting availability", id
 
@@ -185,7 +186,7 @@ proc delete(
 
 proc reserve*(
   self: Reservations,
-  availability: Availability): Future[?!void] {.async.} =
+  availability: Availability): Future[?!void] {.asyncyeah.} =
 
   if exists =? (await self.exists(availability.id)) and exists:
     let err = newException(AvailabilityAlreadyExistsError,
@@ -215,7 +216,7 @@ proc reserve*(
 proc release*(
   self: Reservations,
   id: AvailabilityId,
-  bytes: uint): Future[?!void] {.async.} =
+  bytes: uint): Future[?!void] {.asyncyeah.} =
 
   trace "releasing bytes and updating availability", bytes, id
 
@@ -254,7 +255,7 @@ proc release*(
 
 proc markUsed*(
   self: Reservations,
-  id: AvailabilityId): Future[?!void] {.async.} =
+  id: AvailabilityId): Future[?!void] {.asyncyeah.} =
 
   without var availability =? (await self.get(id)), err:
     return failure(err)
@@ -267,7 +268,7 @@ proc markUsed*(
 
 proc markUnused*(
   self: Reservations,
-  id: AvailabilityId): Future[?!void] {.async.} =
+  id: AvailabilityId): Future[?!void] {.asyncyeah.} =
 
   without var availability =? (await self.get(id)), err:
     return failure(err)
@@ -283,7 +284,7 @@ iterator items*(self: AvailabilityIter): Future[?Availability] =
     yield self.next()
 
 proc availabilities*(
-  self: Reservations): Future[?!AvailabilityIter] {.async.} =
+  self: Reservations): Future[?!AvailabilityIter] {.asyncyeah.} =
 
   var iter = AvailabilityIter()
   let query = Query.init(ReservationsKey)
@@ -291,7 +292,7 @@ proc availabilities*(
   without results =? await self.repo.metaDs.query(query), err:
     return failure(err)
 
-  proc next(): Future[?Availability] {.async.} =
+  proc next(): Future[?Availability] {.asyncyeah.} =
     await idleAsync()
     iter.finished = results.finished
     if not results.finished and
@@ -306,7 +307,7 @@ proc availabilities*(
   iter.next = next
   return success iter
 
-proc unused*(r: Reservations): Future[?!seq[Availability]] {.async.} =
+proc unused*(r: Reservations): Future[?!seq[Availability]] {.asyncyeah.} =
   var ret: seq[Availability] = @[]
 
   without availabilities =? (await r.availabilities), err:
@@ -321,7 +322,7 @@ proc unused*(r: Reservations): Future[?!seq[Availability]] {.async.} =
 proc find*(
   self: Reservations,
   size, duration, minPrice: UInt256, collateral: UInt256,
-  used: bool): Future[?Availability] {.async.} =
+  used: bool): Future[?Availability] {.asyncyeah.} =
 
 
   without availabilities =? (await self.availabilities), err:

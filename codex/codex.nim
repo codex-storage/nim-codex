@@ -13,6 +13,7 @@ import std/tables
 
 import pkg/chronicles
 import pkg/chronos
+import ./asyncyeah
 import pkg/presto
 import pkg/libp2p
 import pkg/confutils
@@ -55,7 +56,7 @@ type
 proc bootstrapInteractions(
     config: CodexConf,
     repo: RepoStore
-): Future[Contracts] {.async.} =
+): Future[Contracts] {.asyncyeah.} =
   ## bootstrap interactions and return contracts
   ## using clients, hosts, validators pairings
   ##
@@ -105,7 +106,7 @@ proc bootstrapInteractions(
 
   return (client, host, validator)
 
-proc start*(s: CodexServer) {.async.} =
+proc start*(s: CodexServer) {.asyncyeah.} =
   notice "Starting codex node"
 
   await s.repoStore.start()
@@ -143,7 +144,7 @@ proc start*(s: CodexServer) {.async.} =
   s.runHandle = newFuture[void]("codex.runHandle")
   await s.runHandle
 
-proc stop*(s: CodexServer) {.async.} =
+proc stop*(s: CodexServer) {.asyncyeah.} =
   notice "Stopping codex node"
 
   await allFuturesThrowing(

@@ -4,6 +4,7 @@ import pkg/chronicles
 import ../../sales
 import ../../proving
 import ./interactions
+import ../../asyncyeah
 
 export sales
 export proving
@@ -21,15 +22,15 @@ proc new*(
     proving: Proving
 ): HostInteractions =
   ## Create a new HostInteractions instance
-  ## 
+  ##
   HostInteractions(clock: clock, sales: sales, proving: proving)
 
-method start*(self: HostInteractions) {.async.} =
+method start*(self: HostInteractions) {.asyncyeah.} =
   await procCall ContractInteractions(self).start()
   await self.sales.start()
   await self.proving.start()
 
-method stop*(self: HostInteractions) {.async.} =
+method stop*(self: HostInteractions) {.asyncyeah.} =
   await self.sales.stop()
   await self.proving.stop()
   await procCall ContractInteractions(self).start()

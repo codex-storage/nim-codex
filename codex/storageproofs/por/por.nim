@@ -80,6 +80,7 @@
 import std/endians
 
 import pkg/chronos
+import ../asyncyeah
 import pkg/blscurve
 import pkg/blscurve/blst/blst_abi
 
@@ -152,7 +153,7 @@ proc getSector(
   stream: SeekableStream,
   blockId: int64,
   sectorId: int64,
-  spb: int64): Future[ZChar] {.async.} =
+  spb: int64): Future[ZChar] {.asyncyeah.} =
   ## Read file sector at given <blockid, sectorid> postion
   ##
 
@@ -268,7 +269,7 @@ proc generateAuthenticatorOpt(
   i: int64,
   s: int64,
   t: TauZero,
-  ubase: seq[blst_scalar]): Future[blst_p1] {.async.} =
+  ubase: seq[blst_scalar]): Future[blst_p1] {.asyncyeah.} =
   ## Optimized implementation of authenticator generation
   ## This implementation is reduces the number of scalar multiplications
   ## from s+1 to 1+1 , using knowledge about the scalars (r_j)
@@ -325,7 +326,7 @@ proc generateProof*(
     q: seq[QElement],
     authenticators: seq[blst_p1],
     s: int64
-): Future[Proof] {.async.} =
+): Future[Proof] {.asyncyeah.} =
   ## Generata BLS proofs for a given query
   ##
 
@@ -438,7 +439,7 @@ proc init*(
     ssk: SecretKey,
     spk: PublicKey,
     blockSize: int64
-): Future[PoR] {.async.} =
+): Future[PoR] {.asyncyeah.} =
   ## Set up the POR scheme by generating tags and metadata
   ##
 

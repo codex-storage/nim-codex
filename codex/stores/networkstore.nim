@@ -13,6 +13,7 @@ push: {.upraises: [].}
 
 import pkg/chronicles
 import pkg/chronos
+import ../asyncyeah
 import pkg/libp2p
 
 import ../blocktype as bt
@@ -31,7 +32,7 @@ type
     engine*: BlockExcEngine # blockexc decision engine
     localStore*: BlockStore # local block store
 
-method getBlock*(self: NetworkStore, cid: Cid): Future[?!bt.Block] {.async.} =
+method getBlock*(self: NetworkStore, cid: Cid): Future[?!bt.Block] {.asyncyeah.} =
   ## Get a block from a remote peer
   ##
 
@@ -50,7 +51,7 @@ method putBlock*(
     self: NetworkStore,
     blk: bt.Block,
     ttl = Duration.none
-): Future[?!void] {.async.} =
+): Future[?!void] {.asyncyeah.} =
   ## Store block locally and notify the network
   ##
 
@@ -72,14 +73,14 @@ method delBlock*(self: NetworkStore, cid: Cid): Future[?!void] =
 
 {.pop.}
 
-method hasBlock*(self: NetworkStore, cid: Cid): Future[?!bool] {.async.} =
+method hasBlock*(self: NetworkStore, cid: Cid): Future[?!bool] {.asyncyeah.} =
   ## Check if the block exists in the blockstore
   ##
 
   trace "Checking network store for block existence", cid
   return await self.localStore.hasBlock(cid)
 
-method close*(self: NetworkStore): Future[void] {.async.} =
+method close*(self: NetworkStore): Future[void] {.asyncyeah.} =
   ## Close the underlying local blockstore
   ##
 
@@ -91,8 +92,8 @@ proc new*(
   engine: BlockExcEngine,
   localStore: BlockStore
 ): NetworkStore =
-  ## Create new instance of a NetworkStore 
-  ## 
+  ## Create new instance of a NetworkStore
+  ##
   NetworkStore(
       localStore: localStore,
       engine: engine)

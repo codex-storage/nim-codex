@@ -10,6 +10,7 @@
 import std/sequtils
 
 import pkg/chronos
+import ../asyncyeah
 import pkg/libp2p
 import pkg/chronicles
 import pkg/questionable/results
@@ -41,7 +42,7 @@ proc uploadTags*(
     indexes: seq[int],
     tags: seq[seq[byte]],
     host: ca.Address
-): Future[?!void] {.async.} =
+): Future[?!void] {.asyncyeah.} =
   # Upload tags to `host`
   #
 
@@ -74,7 +75,7 @@ method init*(self: StpNetwork) =
   ## Perform protocol initialization
   ##
 
-  proc handle(conn: Connection, proto: string) {.async, gcsafe.} =
+  proc handle(conn: Connection, proto: string) {.asyncyeah, gcsafe.} =
     try:
       let
         msg = await conn.readLp(MaxMessageSize)

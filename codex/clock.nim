@@ -1,4 +1,5 @@
 import pkg/chronos
+import ./asyncyeah
 import pkg/stew/endians2
 import pkg/upraises
 
@@ -10,12 +11,12 @@ type
 method now*(clock: Clock): SecondsSince1970 {.base, upraises: [].} =
   raiseAssert "not implemented"
 
-method waitUntil*(clock: Clock, time: SecondsSince1970) {.base, async.} =
+method waitUntil*(clock: Clock, time: SecondsSince1970) {.base, asyncyeah.} =
   raiseAssert "not implemented"
 
 proc withTimeout*(future: Future[void],
                   clock: Clock,
-                  expiry: SecondsSince1970) {.async.} =
+                  expiry: SecondsSince1970) {.asyncyeah.} =
   let timeout = clock.waitUntil(expiry)
   try:
     await future or timeout

@@ -16,6 +16,7 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronos
+import ../../asyncyeah
 import pkg/chronicles
 import pkg/libp2p
 

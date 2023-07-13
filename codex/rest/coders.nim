@@ -11,6 +11,7 @@ import std/sugar
 
 import pkg/presto
 import pkg/chronos
+import ../asyncyeah
 import pkg/libp2p
 import pkg/stew/base10
 import pkg/stew/byteutils

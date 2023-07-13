@@ -6,6 +6,7 @@ import ./errored
 import ./finished
 import ./cancelled
 import ./failed
+import ../../asyncyeah
 
 type
   SaleFilled* = ref object of ErrorHandlingState
@@ -19,7 +20,7 @@ method onFailed*(state: SaleFilled, request: StorageRequest): ?State =
 
 method `$`*(state: SaleFilled): string = "SaleFilled"
 
-method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
+method run*(state: SaleFilled, machine: Machine): Future[?State] {.asyncyeah.} =
   let data = SalesAgent(machine).data
   let market = SalesAgent(machine).context.market
 

@@ -15,6 +15,7 @@ push: {.upraises: [].}
 
 import pkg/chronicles
 import pkg/chronos
+import ../../asyncyeah
 import pkg/libp2p
 
 import ../../blocktype
@@ -38,7 +39,7 @@ proc getWantHandle*(
     cid: Cid,
     timeout = DefaultBlockTimeout,
     inFlight = false
-): Future[Block] {.async.} =
+): Future[Block] {.asyncyeah.} =
   ## Add an event for a block
   ##
 

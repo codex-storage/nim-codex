@@ -9,6 +9,7 @@
 
 import pkg/libp2p
 import pkg/chronos
+import ../asyncyeah
 import pkg/chronicles
 
 export libp2p, chronos, chronicles

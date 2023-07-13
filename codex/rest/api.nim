@@ -18,6 +18,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/chronicles
 import pkg/chronos
+import ../asyncyeah
 import pkg/presto
 import pkg/libp2p
 import pkg/stew/base10

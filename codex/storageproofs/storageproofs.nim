@@ -8,6 +8,7 @@
 ## those terms.
 
 import pkg/chronos
+import ../asyncyeah
 import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
@@ -36,7 +37,7 @@ proc upload*(
     cid: Cid,
     indexes: seq[int],
     host: ca.Address
-): Future[?!void] {.async.} =
+): Future[?!void] {.asyncyeah.} =
   ## Upload authenticators
   ##
 
@@ -59,7 +60,7 @@ proc upload*(
 proc setupProofs*(
     self: StorageProofs,
     manifest: Manifest
-): Future[?!void] {.async.} =
+): Future[?!void] {.asyncyeah.} =
   ## Setup storage authentication
   ##
 
@@ -89,7 +90,7 @@ proc init*(
       stpStore: stpStore,
       network: network)
 
-  proc tagsHandler(msg: TagsMessage) {.async, gcsafe.} =
+  proc tagsHandler(msg: TagsMessage) {.asyncyeah, gcsafe.} =
     try:
       await self.stpStore.store(msg.cid, msg.tags).tryGet()
       trace "Stored tags", cid = $msg.cid, tags = msg.tags.len

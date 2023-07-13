@@ -15,6 +15,8 @@ import ./sales/salesagent
 import ./sales/statemachine
 import ./sales/states/downloading
 import ./sales/states/unknown
+import ./asyncyeah
+
 
 ## Sales holds a list of available storage that it may sell.
 ##
@@ -100,7 +102,7 @@ proc handleRequest(sales: Sales,
   agent.start(SaleDownloading())
   sales.agents.add agent
 
-proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
+proc mySlots*(sales: Sales): Future[seq[Slot]] {.asyncyeah.} =
   let market = sales.context.market
   let slotIds = await market.mySlots()
   var slots: seq[Slot] = @[]
@@ -111,7 +113,7 @@ proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
 
   return slots
 
-proc load*(sales: Sales) {.async.} =
+proc load*(sales: Sales) {.asyncyeah.} =
   let slots = await sales.mySlots()
 
   for slot in slots:
@@ -123,7 +125,7 @@ proc load*(sales: Sales) {.async.} =
     agent.start(SaleUnknown())
     sales.agents.add agent
 
-proc start*(sales: Sales) {.async.} =
+proc start*(sales: Sales) {.asyncyeah.} =
   doAssert sales.subscription.isNone, "Sales already started"
 
   proc onRequest(requestId: RequestId, ask: StorageAsk) {.gcsafe, upraises:[].} =
@@ -134,7 +136,7 @@ proc start*(sales: Sales) {.async.} =
   except CatchableError as e:
     error "Unable to start sales", msg = e.msg
 
-proc stop*(sales: Sales) {.async.} =
+proc stop*(sales: Sales) {.asyncyeah.} =
   if subscription =? sales.subscription:
     sales.subscription = market.Subscription.none
     try:

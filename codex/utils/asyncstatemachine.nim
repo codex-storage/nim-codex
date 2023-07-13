@@ -1,5 +1,6 @@
 import pkg/questionable
 import pkg/chronos
+import ../asyncyeah
 import pkg/chronicles
 import pkg/upraises
 
@@ -42,7 +43,7 @@ proc schedule*(machine: Machine, event: Event) =
   except AsyncQueueFullError:
     raiseAssert "unlimited queue is full?!"
 
-method run*(state: State, machine: Machine): Future[?State] {.base, async.} =
+method run*(state: State, machine: Machine): Future[?State] {.base, asyncyeah.} =
   discard
 
 method onError*(state: State, error: ref CatchableError): ?State {.base.} =
@@ -52,14 +53,14 @@ proc onError(machine: Machine, error: ref CatchableError): Event =
   return proc (state: State): ?State =
     state.onError(error)
 
-proc run(machine: Machine, state: State) {.async.} =
+proc run(machine: Machine, state: State) {.asyncyeah.} =
   try:
     if next =? await state.run(machine):
       machine.schedule(Event.transition(state, next))
   except CancelledError:
     discard
 
-proc scheduler(machine: Machine) {.async.} =
+proc scheduler(machine: Machine) {.asyncyeah.} =
   proc onRunComplete(udata: pointer) {.gcsafe.} =
     var fut = cast[FutureBase](udata)
     if fut.failed():

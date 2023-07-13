@@ -12,6 +12,7 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronos
+import ../asyncyeah
 import pkg/chronicles
 import pkg/libp2p
 import pkg/questionable
@@ -70,7 +71,7 @@ func available*(self: RepoStore): uint =
 func available*(self: RepoStore, bytes: uint): bool =
   return bytes < self.available()
 
-method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
+method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.asyncyeah.} =
   ## Get a block from the blockstore
   ##
 
@@ -109,7 +110,7 @@ method putBlock*(
     self: RepoStore,
     blk: Block,
     ttl = Duration.none
-): Future[?!void] {.async.} =
+): Future[?!void] {.asyncyeah.} =
   ## Put a block to the blockstore
   ##
 
@@ -158,7 +159,7 @@ method putBlock*(
   self.quotaUsedBytes = used
   return success()
 
-proc updateQuotaBytesUsed(self: RepoStore, blk: Block): Future[?!void] {.async.} =
+proc updateQuotaBytesUsed(self: RepoStore, blk: Block): Future[?!void] {.asyncyeah.} =
   let used = self.quotaUsedBytes - blk.data.len.uint
   if err =? (await self.metaDs.put(
       QuotaUsedKey,
@@ -168,12 +169,12 @@ proc updateQuotaBytesUsed(self: RepoStore, blk: Block): Future[?!void] {.async.}
   self.quotaUsedBytes = used
   return success()
 
-proc removeBlockExpirationEntry(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
+proc removeBlockExpirationEntry(self: RepoStore, cid: Cid): Future[?!void] {.asyncyeah.} =
   without key =? createBlockExpirationMetadataKey(cid), err:
     return failure(err)
   return await self.metaDs.delete(key)
 
-method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
+method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.asyncyeah.} =
   ## Delete a block from the blockstore
   ##
 
@@ -197,7 +198,7 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
 
   return success()
 
-method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
+method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.asyncyeah.} =
   ## Check if the block exists in the blockstore
   ##
 
@@ -210,7 +211,7 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
 method listBlocks*(
     self: RepoStore,
     blockType = BlockType.Manifest
-): Future[?!BlocksIter] {.async.} =
+): Future[?!BlocksIter] {.asyncyeah.} =
   ## Get the list of blocks in the RepoStore.
   ## This is an intensive operation
   ##
@@ -228,7 +229,7 @@ method listBlocks*(
     trace "Error querying cids in repo", blockType, err = err.msg
     return failure(err)
 
-  proc next(): Future[?Cid] {.async.} =
+  proc next(): Future[?Cid] {.asyncyeah.} =
     await idleAsync()
     iter.finished = queryIter.finished
     if not queryIter.finished:
@@ -249,9 +250,9 @@ method getBlockExpirations*(
     self: RepoStore,
     maxNumber: int,
     offset: int
-): Future[?!BlockExpirationIter] {.async, base.} =
+): Future[?!BlockExpirationIter] {.asyncyeah, base.} =
   ## Get block experiartions from the given RepoStore
-  ## 
+  ##
   without query =? createBlockExpirationQuery(maxNumber, offset), err:
     trace "Unable to format block expirations query"
     return failure(err)
@@ -262,7 +263,7 @@ method getBlockExpirations*(
 
   var iter = BlockExpirationIter()
 
-  proc next(): Future[?BlockExpiration] {.async.} =
+  proc next(): Future[?BlockExpiration] {.asyncyeah.} =
     if not queryIter.finished:
       if pair =? (await queryIter.next()) and blockKey =? pair.key:
         let expirationTimestamp = pair.data
@@ -281,14 +282,14 @@ method getBlockExpirations*(
   iter.next = next
   return success iter
 
-method close*(self: RepoStore): Future[void] {.async.} =
+method close*(self: RepoStore): Future[void] {.asyncyeah.} =
   ## Close the blockstore, cleaning up resources managed by it.
   ## For some implementations this may be a no-op
   ##
 
   (await self.repoDs.close()).expect("Should close datastore")
 
-proc hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
+proc hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.asyncyeah.} =
   ## Check if the block exists in the blockstore.
   ## Return false if error encountered
   ##
@@ -299,7 +300,7 @@ proc hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
 
   return await self.repoDs.has(key)
 
-proc reserve*(self: RepoStore, bytes: uint): Future[?!void] {.async.} =
+proc reserve*(self: RepoStore, bytes: uint): Future[?!void] {.asyncyeah.} =
   ## Reserve bytes
   ##
 
@@ -322,7 +323,7 @@ proc reserve*(self: RepoStore, bytes: uint): Future[?!void] {.async.} =
 
   return success()
 
-proc release*(self: RepoStore, bytes: uint): Future[?!void] {.async.} =
+proc release*(self: RepoStore, bytes: uint): Future[?!void] {.asyncyeah.} =
   ## Release bytes
   ##
 
@@ -348,7 +349,7 @@ proc release*(self: RepoStore, bytes: uint): Future[?!void] {.async.} =
   trace "Released bytes", bytes
   return success()
 
-proc start*(self: RepoStore): Future[void] {.async.} =
+proc start*(self: RepoStore): Future[void] {.asyncyeah.} =
   ## Start repo
   ##
 
@@ -388,7 +389,7 @@ proc start*(self: RepoStore): Future[void] {.async.} =
 
   self.started = true
 
-proc stop*(self: RepoStore): Future[void] {.async.} =
+proc stop*(self: RepoStore): Future[void] {.asyncyeah.} =
   ## Stop repo
   ##
   if not self.started:
@@ -410,8 +411,8 @@ func new*(
     quotaMaxBytes = DefaultQuotaBytes,
     blockTtl = DefaultBlockTtl
 ): RepoStore =
-  ## Create new instance of a RepoStore 
-  ## 
+  ## Create new instance of a RepoStore
+  ##
   RepoStore(
     repoDs: repoDs,
     metaDs: metaDs,

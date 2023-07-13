@@ -1,6 +1,7 @@
 import std/times
 import pkg/ethers
 import pkg/chronos
+import ../asyncyeah
 import pkg/stint
 import ../clock
 
@@ -17,12 +18,12 @@ type
 proc new*(_: type OnChainClock, provider: Provider): OnChainClock =
   OnChainClock(provider: provider, newBlock: newAsyncEvent())
 
-proc start*(clock: OnChainClock) {.async.} =
+proc start*(clock: OnChainClock) {.asyncyeah.} =
   if clock.started:
     return
   clock.started = true
 
-  proc onBlock(blck: Block) {.async, upraises:[].} =
+  proc onBlock(blck: Block) {.asyncyeah, upraises:[].} =
     let blockTime = initTime(blck.timestamp.truncate(int64), 0)
     let computerTime = getTime()
     clock.offset = blockTime - computerTime
@@ -33,7 +34,7 @@ proc start*(clock: OnChainClock) {.async.} =
 
   clock.subscription = await clock.provider.subscribe(onBlock)
 
-proc stop*(clock: OnChainClock) {.async.} =
+proc stop*(clock: OnChainClock) {.asyncyeah.} =
   if not clock.started:
     return
   clock.started = false
@@ -44,7 +45,7 @@ method now*(clock: OnChainClock): SecondsSince1970 =
   doAssert clock.started, "clock should be started before calling now()"
   toUnix(getTime() + clock.offset)
 
-method waitUntil*(clock: OnChainClock, time: SecondsSince1970) {.async.} =
+method waitUntil*(clock: OnChainClock, time: SecondsSince1970) {.asyncyeah.} =
   while (let difference = time - clock.now(); difference > 0):
     clock.newBlock.clear()
     discard await clock.newBlock.wait().withTimeout(chronos.seconds(difference))

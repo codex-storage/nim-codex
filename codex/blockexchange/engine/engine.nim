@@ -13,6 +13,7 @@ import std/options
 import std/algorithm
 
 import pkg/chronos
+import ../../asyncyeah
 import pkg/chronicles
 import pkg/libp2p
 import pkg/stint
@@ -83,7 +84,7 @@ proc scheduleTask(b: BlockExcEngine, task: BlockExcPeerCtx): bool {.gcsafe} =
 
 proc blockexcTaskRunner(b: BlockExcEngine): Future[void] {.gcsafe.}
 
-proc start*(b: BlockExcEngine) {.async.} =
+proc start*(b: BlockExcEngine) {.asyncyeah.} =
   ## Start the blockexc task
   ##
 
@@ -98,7 +99,7 @@ proc start*(b: BlockExcEngine) {.async.} =
   for i in 0..<b.concurrentTasks:
     b.blockexcTasks.add(blockexcTaskRunner(b))
 
-proc stop*(b: BlockExcEngine) {.async.} =
+proc stop*(b: BlockExcEngine) {.asyncyeah.} =
   ## Stop the blockexc blockexc
   ##
 
@@ -121,7 +122,7 @@ proc stop*(b: BlockExcEngine) {.async.} =
 proc requestBlock*(
   b: BlockExcEngine,
   cid: Cid,
-  timeout = DefaultBlockTimeout): Future[bt.Block] {.async.} =
+  timeout = DefaultBlockTimeout): Future[bt.Block] {.asyncyeah.} =
   ## Request a block from remotes
   ##
 
@@ -148,7 +149,7 @@ proc requestBlock*(
   let
     blockPeer = peers[0] # get cheapest
 
-  proc blockHandleMonitor() {.async.} =
+  proc blockHandleMonitor() {.asyncyeah.} =
     try:
       trace "Monigoring block handle", cid
       b.pendingBlocks.setInFlight(cid, true)
@@ -199,7 +200,7 @@ proc requestBlock*(
 proc blockPresenceHandler*(
   b: BlockExcEngine,
   peer: PeerId,
-  blocks: seq[BlockPresence]) {.async.} =
+  blocks: seq[BlockPresence]) {.asyncyeah.} =
   ## Handle block presence
   ##
 
@@ -250,7 +251,7 @@ proc blockPresenceHandler*(
     .filter do(cid: Cid) -> bool:
       not b.peers.anyIt( cid in it.peerHave ))
 
-proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) {.async.} =
+proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) {.asyncyeah.} =
   trace "Schedule a task for new blocks", items = blocks.len
 
   let
@@ -270,7 +271,7 @@ proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) {.async.} =
 
           break # do next peer
 
-proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) {.async.} =
+proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) {.asyncyeah.} =
   ## Resolve pending blocks from the pending blocks manager
   ## and schedule any new task to be ran
   ##
@@ -283,7 +284,7 @@ proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) {.async.} =
 
 proc payForBlocks(engine: BlockExcEngine,
                   peer: BlockExcPeerCtx,
-                  blocks: seq[bt.Block]) {.async.} =
+                  blocks: seq[bt.Block]) {.asyncyeah.} =
   trace "Paying for blocks", blocks = blocks.len
 
   let
@@ -297,7 +298,7 @@ proc payForBlocks(engine: BlockExcEngine,
 proc blocksHandler*(
   b: BlockExcEngine,
   peer: PeerId,
-  blocks: seq[bt.Block]) {.async.} =
+  blocks: seq[bt.Block]) {.asyncyeah.} =
   ## handle incoming blocks
   ##
 
@@ -318,7 +319,7 @@ proc blocksHandler*(
 proc wantListHandler*(
   b: BlockExcEngine,
   peer: PeerId,
-  wantList: Wantlist) {.async.} =
+  wantList: Wantlist) {.asyncyeah.} =
   ## Handle incoming want lists
   ##
 
@@ -386,7 +387,7 @@ proc wantListHandler*(
 proc accountHandler*(
   engine: BlockExcEngine,
   peer: PeerId,
-  account: Account) {.async.} =
+  account: Account) {.asyncyeah.} =
   let context = engine.peers.get(peer)
   if context.isNil:
     return
@@ -396,7 +397,7 @@ proc accountHandler*(
 proc paymentHandler*(
   engine: BlockExcEngine,
   peer: PeerId,
-  payment: SignedState) {.async.} =
+  payment: SignedState) {.asyncyeah.} =
   trace "Handling payments", peer
 
   without context =? engine.peers.get(peer).option and
@@ -410,7 +411,7 @@ proc paymentHandler*(
   else:
     context.paymentChannel = engine.wallet.acceptChannel(payment).option
 
-proc setupPeer*(b: BlockExcEngine, peer: PeerId) {.async.} =
+proc setupPeer*(b: BlockExcEngine, peer: PeerId) {.asyncyeah.} =
   ## Perform initial setup, such as want
   ## list exchange
   ##
@@ -439,7 +440,7 @@ proc dropPeer*(b: BlockExcEngine, peer: PeerId) =
   # drop the peer from the peers table
   b.peers.remove(peer)
 
-proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
+proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, asyncyeah.} =
   trace "Handling task for peer", peer = task.id
 
   # Send to the peer blocks he wants to get,
@@ -483,7 +484,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       )
       trace "Removed entries from peerWants", items = task.peerWants.len
 
-proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
+proc blockexcTaskRunner(b: BlockExcEngine) {.asyncyeah.} =
   ## process tasks
   ##
 
@@ -512,7 +513,7 @@ proc new*(
     peersPerRequest = DefaultMaxPeersPerRequest
 ): BlockExcEngine =
   ## Create new block exchange engine instance
-  ## 
+  ##
 
   let
     engine = BlockExcEngine(
