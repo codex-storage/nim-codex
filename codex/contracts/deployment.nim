@@ -16,6 +16,10 @@ const knownAddresses = {
  # Hardhat localhost network
  "31337": {
   "Marketplace": Address.init("0x59b670e9fA9D0A427751Af201D676719a970857b")
+ }.toTable,
+ # Taiko Alpha-3 Testnet
+ "167005": {
+  "Marketplace": Address.init("0xDB2a8A1c8Df776F1C544a56a7734a865ad1C05e8")
  }.toTable
 }.toTable
 
