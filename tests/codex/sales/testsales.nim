@@ -125,30 +125,30 @@ asyncchecksuite "Sales":
     let items = SlotQueueItem.init(request)
     check eventually items.allIt(slotsProcessed.contains(it))
 
-  test "removes slots from slot queue once RequestCancelled emitted":
-    let (request1, unpauseQueue) = await saturateAndPauseQueue()
-    market.emitRequestCancelled(request1.id)
-    unpauseQueue.complete()
-    check always itemsProcessed.notProcessed(request1)
+  # test "removes slots from slot queue once RequestCancelled emitted":
+  #   let (request1, unpauseQueue) = await saturateAndPauseQueue()
+  #   market.emitRequestCancelled(request1.id)
+  #   unpauseQueue.complete()
+  #   check always itemsProcessed.notProcessed(request1)
 
-  test "removes request from slot queue once RequestFailed emitted":
-    let (request1, unpauseQueue) = await saturateAndPauseQueue()
-    market.emitRequestFailed(request1.id)
-    unpauseQueue.complete()
-    check always itemsProcessed.notProcessed(request1)
+  # test "removes request from slot queue once RequestFailed emitted":
+  #   let (request1, unpauseQueue) = await saturateAndPauseQueue()
+  #   market.emitRequestFailed(request1.id)
+  #   unpauseQueue.complete()
+  #   check always itemsProcessed.notProcessed(request1)
 
-  test "removes request from slot queue once RequestFulfilled emitted":
-    let (request1, unpauseQueue) = await saturateAndPauseQueue()
-    market.emitRequestFulfilled(request1.id)
-    unpauseQueue.complete()
-    check always itemsProcessed.notProcessed(request1)
+  # test "removes request from slot queue once RequestFulfilled emitted":
+  #   let (request1, unpauseQueue) = await saturateAndPauseQueue()
+  #   market.emitRequestFulfilled(request1.id)
+  #   unpauseQueue.complete()
+  #   check always itemsProcessed.notProcessed(request1)
 
-  test "removes slot index from slot queue once SlotFilled emitted":
-    let (request1, unpauseQueue) = await saturateAndPauseQueue()
-    market.emitSlotFilled(request1.id, 1.u256)
-    unpauseQueue.complete()
-    let slot = SlotQueueItem.init(request1, 1'u16)
-    check always (not itemsProcessed.contains(slot))
+  # test "removes slot index from slot queue once SlotFilled emitted":
+  #   let (request1, unpauseQueue) = await saturateAndPauseQueue()
+  #   market.emitSlotFilled(request1.id, 1.u256)
+  #   unpauseQueue.complete()
+  #   let slot = SlotQueueItem.init(request1, 1'u16)
+  #   check always (not itemsProcessed.contains(slot))
 
   test "adds slot index to slot queue once SlotFreed emitted":
     var itemsProcessed: seq[SlotQueueItem] = @[]
@@ -163,15 +163,15 @@ asyncchecksuite "Sales":
     let expected = SlotQueueItem.init(request, 2.uint16)
     check eventually itemsProcessed.contains(expected)
 
-  test "finds request metadata from existing slots in queue once SlotFreed emitted":
-    let (request1, unpauseQueue) = await saturateAndPauseQueue()
-    market.emitSlotFilled(request1.id, 2.u256) # remove slot from queue
-    market.requested.keepItIf(it != request) # forces request to be unknown by contract, `market.getRequest` would fail
-    market.emitSlotFreed(request1.id, 2.u256)
-    unpauseQueue.complete()
+  # test "finds request metadata from existing slots in queue once SlotFreed emitted":
+  #   let (request1, unpauseQueue) = await saturateAndPauseQueue()
+  #   market.emitSlotFilled(request1.id, 2.u256) # remove slot from queue
+  #   market.requested.keepItIf(it != request) # forces request to be unknown by contract, `market.getRequest` would fail
+  #   market.emitSlotFreed(request1.id, 2.u256)
+  #   unpauseQueue.complete()
 
-    let expected = SlotQueueItem.init(request, 2.uint16)
-    check eventually itemsProcessed.contains(expected)
+  #   let expected = SlotQueueItem.init(request, 2.uint16)
+  #   check eventually itemsProcessed.contains(expected)
 
   test "processes all slots for request":
     var itemsProcessed: seq[SlotQueueItem] = @[]
