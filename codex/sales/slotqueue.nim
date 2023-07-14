@@ -210,6 +210,10 @@ proc populateItem*(self: SlotQueue,
   return none SlotQueueItem
 
 proc pop*(self: SlotQueue): Future[?!SlotQueueItem] {.async.} =
+  if not self.running:
+    let err = newException(QueueNotRunningError, "queue not running")
+    return failure(err)
+
   try:
     let item = await self.queue.pop()
     return success(item)
@@ -358,13 +362,17 @@ proc start*(self: SlotQueue) {.async.} =
 
   proc onDispatchComplete(udata: pointer) {.gcsafe.} =
     let fut = cast[FutureBase](udata)
-    if fut.finished and self.running:
+    if not fut.isNil and
+       fut.finished and
+       self.running:
       self.dispatched.del(fut.id)
 
   while self.running:
     try:
       let worker = await self.workers.popFirst() # wait for worker to free up
       self.next = self.queue.pop()
+      if not self.running: # may have changed after waiting for pop
+        break
       let item = await self.next # if queue empty, wait here for new items
       let dispatched = self.dispatch(worker, item)
       dispatched.addCallback(onDispatchComplete)

@@ -386,6 +386,7 @@ proc start*(sales: Sales) {.async.} =
   await sales.subscribe()
 
 proc stop*(sales: Sales) {.async.} =
+  trace "stopping sales"
   sales.stopping = true
   await sales.context.slotQueue.stop()
   await sales.unsubscribe()
