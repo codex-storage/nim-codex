@@ -93,23 +93,23 @@ proc getBlockExpirationTimestamp(self: RepoStore, ttl: ?Duration): SecondsSince1
   self.clock.now() + duration.seconds
 
 proc getBlockExpirationEntry(
-    self: RepoStore,
-    batch: var seq[BatchEntry],
-    cid: Cid,
-    ttl: ?Duration
-): ?!BatchEntry =
+  self: RepoStore,
+  batch: var seq[BatchEntry],
+  cid: Cid,
+  ttl: ?Duration): ?!void =
   ## Get an expiration entry for a batch
   without key =? createBlockExpirationMetadataKey(cid), err:
     return failure(err)
 
   let value = self.getBlockExpirationTimestamp(ttl).toBytes
-  return success((key, value))
+
+  batch.add((key, value))
+  return success()
 
 method putBlock*(
-    self: RepoStore,
-    blk: Block,
-    ttl = Duration.none
-): Future[?!void] {.async.} =
+  self: RepoStore,
+  blk: Block,
+  ttl = Duration.none): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 
@@ -141,10 +141,9 @@ method putBlock*(
   trace "Updating quota", used
   batch.add((QuotaUsedKey, @(used.uint64.toBytesBE)))
 
-  without blockExpEntry =? self.getBlockExpirationEntry(batch, blk.cid, ttl), err:
+  if err =? self.getBlockExpirationEntry(batch, blk.cid, ttl).errorOption:
     trace "Unable to create block expiration metadata key", err = err.msg
     return failure(err)
-  batch.add(blockExpEntry)
 
   if err =? (await self.metaDs.put(batch)).errorOption:
     trace "Error updating quota bytes", err = err.msg
@@ -208,9 +207,8 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   return await self.repoDs.has(key)
 
 method listBlocks*(
-    self: RepoStore,
-    blockType = BlockType.Manifest
-): Future[?!BlocksIter] {.async.} =
+  self: RepoStore,
+  blockType = BlockType.Manifest): Future[?!BlocksIter] {.async.} =
   ## Get the list of blocks in the RepoStore.
   ## This is an intensive operation
   ##
@@ -246,12 +244,11 @@ proc createBlockExpirationQuery(maxNumber: int, offset: int): ?!Query =
   success Query.init(queryKey, offset = offset, limit = maxNumber)
 
 method getBlockExpirations*(
-    self: RepoStore,
-    maxNumber: int,
-    offset: int
-): Future[?!BlockExpirationIter] {.async, base.} =
-  ## Get block experiartions from the given RepoStore
-  ## 
+  self: RepoStore,
+  maxNumber: int,
+  offset: int): Future[?!BlockExpirationIter] {.async, base.} =
+  ## Get block expirations from the given RepoStore
+  ##
   without query =? createBlockExpirationQuery(maxNumber, offset), err:
     trace "Unable to format block expirations query"
     return failure(err)
@@ -271,8 +268,7 @@ method getBlockExpirations*(
           raiseAssert("Unable to parse CID from blockKey.value: " & blockKey.value & $cidResult.error)
         return BlockExpiration(
           cid: cidResult.get,
-          expiration: expirationTimestamp.toSecondsSince1970
-        ).some
+          expiration: expirationTimestamp.toSecondsSince1970).some
     else:
       discard await queryIter.dispose()
     iter.finished = true
@@ -402,16 +398,15 @@ proc stop*(self: RepoStore): Future[void] {.async.} =
   self.started = false
 
 func new*(
-    T: type RepoStore,
-    repoDs: Datastore,
-    metaDs: Datastore,
-    clock: Clock = SystemClock.new(),
-    postFixLen = 2,
-    quotaMaxBytes = DefaultQuotaBytes,
-    blockTtl = DefaultBlockTtl
-): RepoStore =
-  ## Create new instance of a RepoStore 
-  ## 
+  T: type RepoStore,
+  repoDs: Datastore,
+  metaDs: Datastore,
+  clock: Clock = SystemClock.new(),
+  postFixLen = 2,
+  quotaMaxBytes = DefaultQuotaBytes,
+  blockTtl = DefaultBlockTtl): RepoStore =
+  ## Create new instance of a RepoStore
+  ##
   RepoStore(
     repoDs: repoDs,
     metaDs: metaDs,
