@@ -398,12 +398,12 @@ proc stop*(self: SlotQueue) {.async.} =
     await self.next.cancelAndWait()
     self.next = nil
 
-  for item in self.queue.items:
-    if not item.doneProcessing.isNil and not item.doneProcessing.finished():
-      await item.doneProcessing.cancelAndWait()
+  # for item in self.queue.items:
+  #   if not item.doneProcessing.isNil and not item.doneProcessing.finished():
+  #     await item.doneProcessing.cancelAndWait()
 
-  for dispatched in self.dispatched.values:
-    if not dispatched.isNil:
-      await dispatched.cancelAndWait()
+  # for dispatched in self.dispatched.values:
+  #   if not dispatched.isNil:
+  #     await dispatched.cancelAndWait()
 
 
