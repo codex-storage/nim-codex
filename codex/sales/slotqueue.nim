@@ -403,6 +403,7 @@ proc stop*(self: SlotQueue) {.async.} =
       await item.doneProcessing.cancelAndWait()
 
   for dispatched in self.dispatched.values:
-    await dispatched.cancelAndWait()
+    if not dispatched.isNil:
+      await dispatched.cancelAndWait()
 
 

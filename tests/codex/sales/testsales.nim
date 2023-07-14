@@ -218,7 +218,7 @@ asyncchecksuite "Sales":
       item.doneProcessing.complete()
 
     await market.requestStorage(request)
-    await sleepAsync(4.millis) # wait for all attempted slot pushes
+    # await sleepAsync(4.millis) # wait for all attempted slot pushes
 
     # now add matching availability
     check isOk await reservations.reserve(availability)
