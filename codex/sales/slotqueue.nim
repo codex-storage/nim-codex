@@ -1,4 +1,5 @@
 import std/sequtils
+import std/sugar
 import std/tables
 import pkg/chronicles
 import pkg/chronos
@@ -11,6 +12,7 @@ import ../rng
 import ../utils
 import ../contracts/requests
 import ../utils/asyncheapqueue
+import ../utils/then
 
 logScope:
   topics = "marketplace slotqueue"
@@ -360,22 +362,22 @@ proc start*(self: SlotQueue) {.async.} =
     if err =? self.addWorker().errorOption:
       error "start: error adding new worker", error = err.msg
 
-  proc onDispatchComplete(udata: pointer) {.gcsafe.} =
-    let fut = cast[FutureBase](udata)
-    if not fut.isNil and
-       fut.finished and
-       self.running:
-      self.dispatched.del(fut.id)
-
   while self.running:
     try:
       let worker = await self.workers.popFirst() # wait for worker to free up
       self.next = self.queue.pop()
+      let item = await self.next # if queue empty, wait here for new items
       if not self.running: # may have changed after waiting for pop
         break
-      let item = await self.next # if queue empty, wait here for new items
       let dispatched = self.dispatch(worker, item)
-      dispatched.addCallback(onDispatchComplete)
+      dispatched
+        .then(() => (
+          if self.running and not dispatched.isNil:
+            self.dispatched.del(dispatched.id)
+        ))
+        .catch((e: ref CatchableError) => (
+          error("Unknown error dispatching worker", error = e.msg)
+        ))
       self.dispatched[dispatched.id] = dispatched
       self.next = nil
       await sleepAsync(1.millis) # poll
