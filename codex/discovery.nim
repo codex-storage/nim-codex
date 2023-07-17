@@ -169,6 +169,10 @@ proc updateDhtRecord*(d: Discovery, ip: ValidIpAddress, port: Port) =
         IpTransportProtocol.udpProtocol,
         port)])).expect("Should construct signed record").some
 
+  if not d.protocol.isNil:
+    d.protocol.updateRecord(d.dhtRecord)
+      .expect("Should update SPR")
+
 proc start*(d: Discovery) {.async.} =
   d.protocol.open()
   await d.protocol.start()
