@@ -1,6 +1,7 @@
 import std/sets
 import std/sequtils
 import pkg/chronos
+import ./asyncyeah
 import pkg/chronicles
 import ./market
 import ./clock
@@ -37,13 +38,13 @@ proc slots*(validation: Validation): seq[SlotId] =
 proc getCurrentPeriod(validation: Validation): UInt256 =
   return validation.periodicity.periodOf(validation.clock.now().u256)
 
-proc waitUntilNextPeriod(validation: Validation) {.async.} =
+proc waitUntilNextPeriod(validation: Validation) {.asyncyeah.} =
   let period = validation.getCurrentPeriod()
   let periodEnd = validation.periodicity.periodEnd(period)
   trace "Waiting until next period", currentPeriod = period
   await validation.clock.waitUntil(periodEnd.truncate(int64) + 1)
 
-proc subscribeSlotFilled(validation: Validation) {.async.} =
+proc subscribeSlotFilled(validation: Validation) {.asyncyeah.} =
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
     let slotId = slotId(requestId, slotIndex)
     if slotId notin validation.slots:
@@ -53,7 +54,7 @@ proc subscribeSlotFilled(validation: Validation) {.async.} =
   let subscription = await validation.market.subscribeSlotFilled(onSlotFilled)
   validation.subscriptions.add(subscription)
 
-proc removeSlotsThatHaveEnded(validation: Validation) {.async.} =
+proc removeSlotsThatHaveEnded(validation: Validation) {.asyncyeah.} =
   var ended: HashSet[SlotId]
   for slotId in validation.slots:
     let state = await validation.market.slotState(slotId)
@@ -64,7 +65,7 @@ proc removeSlotsThatHaveEnded(validation: Validation) {.async.} =
 
 proc markProofAsMissing(validation: Validation,
                         slotId: SlotId,
-                        period: Period) {.async.} =
+                        period: Period) {.asyncyeah.} =
   logScope:
     currentPeriod = validation.getCurrentPeriod()
 
@@ -78,12 +79,12 @@ proc markProofAsMissing(validation: Validation,
   except CatchableError as e:
     error "Marking proof as missing failed", msg = e.msg
 
-proc markProofsAsMissing(validation: Validation) {.async.} =
+proc markProofsAsMissing(validation: Validation) {.asyncyeah.} =
   for slotId in validation.slots:
     let previousPeriod = validation.getCurrentPeriod() - 1
     await validation.markProofAsMissing(slotId, previousPeriod)
 
-proc run(validation: Validation) {.async.} =
+proc run(validation: Validation) {.asyncyeah.} =
   trace "Validation started"
   try:
     while true:
@@ -96,13 +97,13 @@ proc run(validation: Validation) {.async.} =
   except CatchableError as e:
     error "Validation failed", msg = e.msg
 
-proc start*(validation: Validation) {.async.} =
+proc start*(validation: Validation) {.asyncyeah.} =
   validation.periodicity = await validation.market.periodicity()
   validation.proofTimeout = await validation.market.proofTimeout()
   await validation.subscribeSlotFilled()
   validation.running = validation.run()
 
-proc stop*(validation: Validation) {.async.} =
+proc stop*(validation: Validation) {.asyncyeah.} =
   await validation.running.cancelAndWait()
   while validation.subscriptions.len > 0:
     let subscription = validation.subscriptions.pop()

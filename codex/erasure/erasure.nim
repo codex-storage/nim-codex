@@ -14,6 +14,7 @@ push: {.upraises: [].}
 import std/sequtils
 
 import pkg/chronos
+import ../asyncyeah
 import pkg/chronicles
 
 import ../manifest
@@ -67,7 +68,7 @@ proc encode*(
     manifest: Manifest,
     blocks: int,
     parity: int
-): Future[?!Manifest] {.async.} =
+): Future[?!Manifest] {.asyncyeah.} =
   ## Encode a manifest into one that is erasure protected.
   ##
   ## `manifest`   - the original manifest to be encoded
@@ -156,7 +157,7 @@ proc encode*(
 proc decode*(
     self: Erasure,
     encoded: Manifest
-): Future[?!Manifest] {.async.} =
+): Future[?!Manifest] {.asyncyeah.} =
   ## Decode a protected manifest into it's original
   ## manifest
   ##
@@ -260,10 +261,10 @@ proc decode*(
 
   return decoded.success
 
-proc start*(self: Erasure) {.async.} =
+proc start*(self: Erasure) {.asyncyeah.} =
   return
 
-proc stop*(self: Erasure) {.async.} =
+proc stop*(self: Erasure) {.asyncyeah.} =
   return
 
 proc new*(

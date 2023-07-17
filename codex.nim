@@ -23,6 +23,7 @@ import ./codex/conf
 import ./codex/codex
 import ./codex/units
 import ./codex/utils/keyutils
+import ./codex/loopmeasure
 
 export codex, conf, libp2p, chronos, chronicles
 
@@ -90,7 +91,8 @@ when isMainModule:
           config.dataDir / config.netPrivKeyFile
 
       privateKey = setupKey(keyPath).expect("Should setup private key!")
-      server = CodexServer.new(config, privateKey)
+      loopMeasure = LoopMeasure.new()
+      server = CodexServer.new(config, privateKey, loopMeasure)
 
     ## Ctrl+C handling
     proc controlCHandler() {.noconv.} =
@@ -128,7 +130,9 @@ when isMainModule:
     state = CodexStatus.Running
     while state == CodexStatus.Running:
       # poll chronos
+      loopMeasure.startMeasure()
       chronos.poll()
+      loopMeasure.stopMeasure()
 
     # wait fot futures to finish
     let res = waitFor allFinished(pendingFuts)

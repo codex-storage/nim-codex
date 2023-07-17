@@ -18,6 +18,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/chronicles
 import pkg/chronos
+import ../asyncyeah
 import pkg/presto
 import pkg/libp2p
 import pkg/stew/base10
@@ -35,6 +36,8 @@ import ../blocktype
 import ../conf
 import ../contracts
 import ../streams
+import ../loopmeasure
+import ../asyncyeah
 
 import ./coders
 import ./json
@@ -89,7 +92,7 @@ proc formatPeerRecord(peerRecord: PeerRecord): JsonNode =
   }
   return jobj
 
-proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
+proc initRestApi*(node: CodexNodeRef, conf: CodexConf, loopMeasure: LoopMeasure): RestRouter =
   var router = RestRouter.init(validate)
   router.api(
     MethodGet,
@@ -131,11 +134,13 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
     MethodGet,
     "/api/codex/v1/download/{id}") do (
       id: Cid, resp: HttpResponseRef) -> RestApiResponse:
+      loopMeasure.loopArm()
       ## Download a file from the node in a streaming
       ## manner
       ##
 
       if id.isErr:
+        loopMeasure.loopDisarm("download error")
         return RestApiResponse.error(
           Http400,
           $id.error())
@@ -146,6 +151,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       var bytes = 0
       try:
         without stream =? (await node.retrieve(id.get())), error:
+          loopMeasure.loopDisarm("download error")
           return RestApiResponse.error(Http404, error.msg)
 
         resp.addHeader("Content-Type", "application/octet-stream")
@@ -166,11 +172,13 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         await resp.finish()
       except CatchableError as exc:
         trace "Excepting streaming blocks", exc = exc.msg
+        loopMeasure.loopDisarm("download error")
         return RestApiResponse.error(Http500)
       finally:
         trace "Sent bytes", cid = id.get(), bytes
         if not stream.isNil:
           await stream.close()
+        loopMeasure.loopDisarm("download finished")
 
   router.rawApi(
     MethodPost,
@@ -215,12 +223,14 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
     MethodPost,
     "/api/codex/v1/upload") do (
     ) -> RestApiResponse:
+      loopMeasure.loopArm()
       ## Upload a file in a streaming manner
       ##
 
       trace "Handling file upload"
       var bodyReader = request.getBodyReader()
       if bodyReader.isErr():
+        loopMeasure.loopDisarm("upload error")
         return RestApiResponse.error(Http500)
 
       # Attempt to handle `Expect` header
@@ -236,18 +246,23 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         without cid =? (
           await node.store(AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)))), error:
           trace "Error uploading file", exc = error.msg
+          loopMeasure.loopDisarm("upload error")
           return RestApiResponse.error(Http500, error.msg)
 
         trace "Uploaded file", cid
+        loopMeasure.loopDisarm("upload finished")
         return RestApiResponse.response($cid)
       except CancelledError:
+        loopMeasure.loopDisarm("upload error")
         return RestApiResponse.error(Http500)
       except AsyncStreamError:
+        loopMeasure.loopDisarm("upload error")
         return RestApiResponse.error(Http500)
       finally:
         await reader.closeWait()
 
       # if we got here something went wrong?
+      loopMeasure.loopDisarm("upload error")
       return RestApiResponse.error(Http500)
 
   router.api(
@@ -275,6 +290,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   router.api(
     MethodGet,
     "/api/codex/v1/debug/info") do () -> RestApiResponse:
+      loopMeasure.loopArm()
       ## Print rudimentary node information
       ##
 
@@ -295,6 +311,16 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
           }
         }
 
+      loopMeasure.loopDisarm("debug/info")
+      return RestApiResponse.response($json, contentType="application/json")
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/debug/futures") do () -> RestApiResponse:
+      let count = pendingFuturesCount()
+      let json = %*{
+        "futures": $count
+      }
       return RestApiResponse.response($json, contentType="application/json")
 
   when codex_enable_api_debug_peers:
@@ -312,6 +338,35 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         let json = formatPeerRecord(peerRecord)
         trace "debug/peer returning peer record"
         return RestApiResponse.response($json)
+
+  when defined(chronosDurationThreshold):
+    var breaches = newSeq[string]()
+    proc onBreach(durationUs: int64) =
+      var trace = "trace: "
+      for entry in globalYeahStack:
+        if globalBaselineYeahStack.find(entry) == -1:
+          trace = trace & " -> " & entry
+
+      error "Duration threshold breached", durationUs, trace
+      breaches.add($durationUs & " usecs: " & trace)
+
+    setChronosDurationThresholdBreachedHandler(onBreach)
+
+    router.api(
+      MethodGet,
+      "/api/codex/v1/debug/loop") do () -> RestApiResponse:
+
+        let jarray = newJArray()
+        for entry in breaches:
+          jarray.add(%*entry)
+          #   "entry": entry
+          # })
+
+        let jobj = %*{
+          "breaches": jarray
+        }
+
+        return RestApiResponse.response($jobj)
 
   router.api(
     MethodGet,

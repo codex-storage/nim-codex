@@ -3,6 +3,7 @@ import pkg/ethers/erc20
 import pkg/json_rpc/rpcclient
 import pkg/stint
 import pkg/chronos
+import ../asyncyeah
 import ../clock
 import ./requests
 import ./config

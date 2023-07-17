@@ -5,6 +5,7 @@ import ./finished
 import ./failed
 import ./errored
 import ./cancelled
+import ../../asyncyeah
 
 type
   SaleUnknown* = ref object of SaleState
@@ -19,7 +20,7 @@ method onCancelled*(state: SaleUnknown, request: StorageRequest): ?State =
 method onFailed*(state: SaleUnknown, request: StorageRequest): ?State =
   return some State(SaleFailed())
 
-method run*(state: SaleUnknown, machine: Machine): Future[?State] {.async.} =
+method run*(state: SaleUnknown, machine: Machine): Future[?State] {.asyncyeah.} =
   let agent = SalesAgent(machine)
   let data = agent.data
   let market = agent.context.market

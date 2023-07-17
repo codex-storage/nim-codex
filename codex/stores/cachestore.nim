@@ -15,6 +15,7 @@ import std/options
 
 import pkg/chronicles
 import pkg/chronos
+import ../asyncyeah
 import pkg/libp2p
 import pkg/lrucache
 import pkg/questionable
@@ -42,7 +43,7 @@ type
 const
   DefaultCacheSize*: NBytes = 5.MiBs
 
-method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
+method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.asyncyeah.} =
   ## Get a block from the stores
   ##
 
@@ -61,7 +62,7 @@ method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
     trace "Error requesting block from cache", cid, error = exc.msg
     return failure exc
 
-method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
+method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.asyncyeah.} =
   ## Check if the block exists in the blockstore
   ##
 
@@ -80,7 +81,7 @@ func cids(self: CacheStore): (iterator: Cid {.gcsafe.}) =
 method listBlocks*(
     self: CacheStore,
     blockType = BlockType.Manifest
-): Future[?!BlocksIter] {.async.} =
+): Future[?!BlocksIter] {.asyncyeah.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 
@@ -90,7 +91,7 @@ method listBlocks*(
   let
     cids = self.cids()
 
-  proc next(): Future[?Cid] {.async.} =
+  proc next(): Future[?Cid] {.asyncyeah.} =
     await idleAsync()
 
     var cid: Cid
@@ -155,7 +156,7 @@ func putBlockSync(self: CacheStore, blk: Block): bool =
 method putBlock*(
   self: CacheStore,
   blk: Block,
-  ttl = Duration.none): Future[?!void] {.async.} =
+  ttl = Duration.none): Future[?!void] {.asyncyeah.} =
   ## Put a block to the blockstore
   ##
 
@@ -167,7 +168,7 @@ method putBlock*(
   discard self.putBlockSync(blk)
   return success()
 
-method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
+method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.asyncyeah.} =
   ## Delete a block from the blockstore
   ##
 
@@ -182,7 +183,7 @@ method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
 
   return success()
 
-method close*(self: CacheStore): Future[void] {.async.} =
+method close*(self: CacheStore): Future[void] {.asyncyeah.} =
   ## Close the blockstore, a no-op for this implementation
   ##
 
@@ -195,9 +196,9 @@ proc new*(
     chunkSize: NBytes = DefaultChunkSize
 ): CacheStore {.raises: [Defect, ValueError].} =
   ## Create a new CacheStore instance
-  ## 
+  ##
   ## `cacheSize` and `chunkSize` are both in bytes
-  ## 
+  ##
 
   if cacheSize < chunkSize:
     raise newException(ValueError, "cacheSize cannot be less than chunkSize")

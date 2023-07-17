@@ -9,6 +9,7 @@
 
 import std/sequtils
 import pkg/chronos
+import ../asyncyeah
 import pkg/stew/results
 
 # Based on chronos AsyncHeapQueue and std/heapqueue
@@ -136,7 +137,7 @@ proc pushNoWait*[T](heap: AsyncHeapQueue[T], item: T): Result[void, AsyncHQError
 
   return ok()
 
-proc push*[T](heap: AsyncHeapQueue[T], item: T) {.async, gcsafe.} =
+proc push*[T](heap: AsyncHeapQueue[T], item: T) {.asyncyeah, gcsafe.} =
   ## Push item into the queue, awaiting for an available slot
   ## when it's full
   ##
@@ -171,7 +172,7 @@ proc popNoWait*[T](heap: AsyncHeapQueue[T]): Result[T, AsyncHQErrors] =
 
   heap.putters.wakeupNext()
 
-proc pop*[T](heap: AsyncHeapQueue[T]): Future[T] {.async.} =
+proc pop*[T](heap: AsyncHeapQueue[T]): Future[T] {.asyncyeah.} =
   ## Remove and return an ``item`` from the beginning of the queue ``heap``.
   ## If the queue is empty, wait until an item is available.
   while heap.empty():
@@ -234,7 +235,7 @@ proc pushOrUpdateNoWait*[T](heap: AsyncHeapQueue[T], item: T): Result[void, Asyn
 
   return heap.pushNoWait(item)
 
-proc pushOrUpdate*[T](heap: AsyncHeapQueue[T], item: T) {.async.} =
+proc pushOrUpdate*[T](heap: AsyncHeapQueue[T], item: T) {.asyncyeah.} =
   ## Update an item if it exists or push a new one
   ## awaiting until a slot becomes available
   ##

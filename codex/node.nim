@@ -16,6 +16,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/chronicles
 import pkg/chronos
+import ./asyncyeah
 import pkg/libp2p
 
 # TODO: remove once exported by libp2p
@@ -61,9 +62,9 @@ type
 proc findPeer*(
   node: CodexNodeRef,
   peerId: PeerId
-): Future[?PeerRecord] {.async.} =
+): Future[?PeerRecord] {.asyncyeah.} =
   ## Find peer using the discovery service from the given CodexNode
-  ## 
+  ##
   return await node.discovery.findPeer(peerId)
 
 proc connect*(
@@ -76,7 +77,7 @@ proc connect*(
 proc fetchManifest*(
     node: CodexNodeRef,
     cid: Cid
-): Future[?!Manifest] {.async.} =
+): Future[?!Manifest] {.asyncyeah.} =
   ## Fetch and decode a manifest block
   ##
 
@@ -102,7 +103,7 @@ proc fetchBatched*(
     manifest: Manifest,
     batchSize = FetchBatch,
     onBatch: BatchProc = nil
-): Future[?!void] {.async, gcsafe.} =
+): Future[?!void] {.asyncyeah, gcsafe.} =
   ## Fetch manifest in batches of `batchSize`
   ##
 
@@ -130,7 +131,7 @@ proc fetchBatched*(
 proc retrieve*(
     node: CodexNodeRef,
     cid: Cid
-): Future[?!LPStream] {.async.} =
+): Future[?!LPStream] {.asyncyeah.} =
   ## Retrieve by Cid a single block or an entire dataset described by manifest
   ##
 
@@ -138,7 +139,7 @@ proc retrieve*(
     trace "Retrieving blocks from manifest", cid
     if manifest.protected:
       # Retrieve, decode and save to the local store all EС groups
-      proc erasureJob(): Future[void] {.async.} =
+      proc erasureJob(): Future[void] {.asyncyeah.} =
         try:
           # Spawn an erasure decoding job
           without res =? (await node.erasure.decode(manifest)), error:
@@ -149,7 +150,7 @@ proc retrieve*(
       asyncSpawn erasureJob()
     # else:
     #   # Prefetch the entire dataset into the local store
-    #   proc prefetchBlocks() {.async, raises: [Defect].} =
+    #   proc prefetchBlocks() {.asyncyeah, raises: [Defect].} =
     #     try:
     #       discard await node.fetchBatched(manifest)
     #     except CatchableError as exc:
@@ -167,7 +168,7 @@ proc retrieve*(
   without blk =? (await node.blockStore.getBlock(cid)), err:
     return failure(err)
 
-  proc streamOneBlock(): Future[void] {.async.} =
+  proc streamOneBlock(): Future[void] {.asyncyeah.} =
     try:
       await stream.pushData(blk.data)
     except CatchableError as exc:
@@ -185,7 +186,7 @@ proc store*(
     self: CodexNodeRef,
     stream: LPStream,
     blockSize = DefaultBlockSize
-): Future[?!Cid] {.async.} =
+): Future[?!Cid] {.asyncyeah.} =
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
   ##
@@ -256,7 +257,7 @@ proc requestStorage*(
     reward: UInt256,
     collateral: UInt256,
     expiry = UInt256.none
-): Future[?!PurchaseId] {.async.} =
+): Future[?!PurchaseId] {.asyncyeah.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
   ##
@@ -330,7 +331,7 @@ proc new*(
     contracts = Contracts.default
 ): CodexNodeRef =
   ## Create new instance of a Codex node, call `start` to run it
-  ## 
+  ##
   CodexNodeRef(
     switch: switch,
     blockStore: store,
@@ -339,7 +340,7 @@ proc new*(
     discovery: discovery,
     contracts: contracts)
 
-proc start*(node: CodexNodeRef) {.async.} =
+proc start*(node: CodexNodeRef) {.asyncyeah.} =
   if not node.switch.isNil:
     await node.switch.start()
 
@@ -413,7 +414,7 @@ proc start*(node: CodexNodeRef) {.async.} =
   node.networkId = node.switch.peerInfo.peerId
   notice "Started codex node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
 
-proc stop*(node: CodexNodeRef) {.async.} =
+proc stop*(node: CodexNodeRef) {.asyncyeah.} =
   trace "Stopping node"
 
   if not node.engine.isNil:

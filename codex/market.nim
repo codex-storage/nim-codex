@@ -1,4 +1,5 @@
 import pkg/chronos
+import ./asyncyeah
 import pkg/upraises
 import pkg/questionable
 import pkg/ethers/erc20
@@ -23,50 +24,50 @@ type
   OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnProofSubmitted* = proc(id: SlotId, proof: seq[byte]) {.gcsafe, upraises:[].}
 
-method getSigner*(market: Market): Future[Address] {.base, async.} =
+method getSigner*(market: Market): Future[Address] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
-method periodicity*(market: Market): Future[Periodicity] {.base, async.} =
+method periodicity*(market: Market): Future[Periodicity] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
-method proofTimeout*(market: Market): Future[UInt256] {.base, async.} =
+method proofTimeout*(market: Market): Future[UInt256] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method requestStorage*(market: Market,
-                       request: StorageRequest) {.base, async.} =
+                       request: StorageRequest) {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
-method myRequests*(market: Market): Future[seq[RequestId]] {.base, async.} =
+method myRequests*(market: Market): Future[seq[RequestId]] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
-method mySlots*(market: Market): Future[seq[SlotId]] {.base, async.} =
+method mySlots*(market: Market): Future[seq[SlotId]] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method getRequest*(market: Market,
                    id: RequestId):
-                  Future[?StorageRequest] {.base, async.} =
+                  Future[?StorageRequest] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method requestState*(market: Market,
-                 requestId: RequestId): Future[?RequestState] {.base, async.} =
+                 requestId: RequestId): Future[?RequestState] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method slotState*(market: Market,
-                  slotId: SlotId): Future[SlotState] {.base, async.} =
+                  slotId: SlotId): Future[SlotState] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method getRequestEnd*(market: Market,
-                      id: RequestId): Future[SecondsSince1970] {.base, async.} =
+                      id: RequestId): Future[SecondsSince1970] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method getHost*(market: Market,
                 requestId: RequestId,
-                slotIndex: UInt256): Future[?Address] {.base, async.} =
+                slotIndex: UInt256): Future[?Address] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method getActiveSlot*(
   market: Market,
-  slotId: SlotId): Future[?Slot] {.base, async.} =
+  slotId: SlotId): Future[?Slot] {.base, asyncyeah.} =
 
   raiseAssert("not implemented")
 
@@ -74,83 +75,83 @@ method fillSlot*(market: Market,
                  requestId: RequestId,
                  slotIndex: UInt256,
                  proof: seq[byte],
-                 collateral: UInt256) {.base, async.} =
+                 collateral: UInt256) {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
-method freeSlot*(market: Market, slotId: SlotId) {.base, async.} =
+method freeSlot*(market: Market, slotId: SlotId) {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method withdrawFunds*(market: Market,
-                      requestId: RequestId) {.base, async.} =
+                      requestId: RequestId) {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method subscribeRequests*(market: Market,
                           callback: OnRequest):
-                         Future[Subscription] {.base, async.} =
+                         Future[Subscription] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method isProofRequired*(market: Market,
-                        id: SlotId): Future[bool] {.base, async.} =
+                        id: SlotId): Future[bool] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method willProofBeRequired*(market: Market,
-                            id: SlotId): Future[bool] {.base, async.} =
+                            id: SlotId): Future[bool] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method submitProof*(market: Market,
                     id: SlotId,
-                    proof: seq[byte]) {.base, async.} =
+                    proof: seq[byte]) {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method markProofAsMissing*(market: Market,
                            id: SlotId,
-                           period: Period) {.base, async.} =
+                           period: Period) {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method canProofBeMarkedAsMissing*(market: Market,
                                   id: SlotId,
-                                  period: Period): Future[bool] {.base, async.} =
+                                  period: Period): Future[bool] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method subscribeFulfillment*(market: Market,
                              requestId: RequestId,
                              callback: OnFulfillment):
-                            Future[Subscription] {.base, async.} =
+                            Future[Subscription] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method subscribeSlotFilled*(market: Market,
                             callback: OnSlotFilled):
-                           Future[Subscription] {.base, async.} =
+                           Future[Subscription] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method subscribeSlotFilled*(market: Market,
                             requestId: RequestId,
                             slotIndex: UInt256,
                             callback: OnSlotFilled):
-                           Future[Subscription] {.base, async.} =
+                           Future[Subscription] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method subscribeSlotFreed*(market: Market,
                            callback: OnSlotFreed):
-                          Future[Subscription] {.base, async.} =
+                          Future[Subscription] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method subscribeRequestCancelled*(market: Market,
                                   requestId: RequestId,
                                   callback: OnRequestCancelled):
-                                Future[Subscription] {.base, async.} =
+                                Future[Subscription] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method subscribeRequestFailed*(market: Market,
                                requestId: RequestId,
                                callback: OnRequestFailed):
-                             Future[Subscription] {.base, async.} =
+                             Future[Subscription] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
 method subscribeProofSubmission*(market: Market,
                                  callback: OnProofSubmitted):
-                                Future[Subscription] {.base, async.} =
+                                Future[Subscription] {.base, asyncyeah.} =
   raiseAssert("not implemented")
 
-method unsubscribe*(subscription: Subscription) {.base, async, upraises:[].} =
+method unsubscribe*(subscription: Subscription) {.base, asyncyeah, upraises:[].} =
   raiseAssert("not implemented")

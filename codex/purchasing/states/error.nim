@@ -1,4 +1,5 @@
 import ../statemachine
+import ../../asyncyeah
 
 type PurchaseErrored* = ref object of PurchaseState
   error*: ref CatchableError
@@ -6,6 +7,6 @@ type PurchaseErrored* = ref object of PurchaseState
 method `$`*(state: PurchaseErrored): string =
   "errored"
 
-method run*(state: PurchaseErrored, machine: Machine): Future[?State] {.async.} =
+method run*(state: PurchaseErrored, machine: Machine): Future[?State] {.asyncyeah.} =
   let purchase = Purchase(machine)
   purchase.future.fail(state.error)

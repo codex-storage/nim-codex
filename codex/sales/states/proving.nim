@@ -6,6 +6,7 @@ import ./filling
 import ./cancelled
 import ./failed
 import ./filled
+import ../../asyncyeah
 
 logScope:
     topics = "marketplace sales proving"
@@ -25,7 +26,7 @@ method onSlotFilled*(state: SaleProving, requestId: RequestId,
                      slotIndex: UInt256): ?State =
   return some State(SaleFilled())
 
-method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
+method run*(state: SaleProving, machine: Machine): Future[?State] {.asyncyeah.} =
   let data = SalesAgent(machine).data
   let context = SalesAgent(machine).context
 

@@ -12,6 +12,7 @@ import std/strformat
 
 import pkg/libp2p
 import pkg/chronos
+import ../asyncyeah
 import pkg/chronicles
 import pkg/stew/io2
 import pkg/questionable
@@ -34,7 +35,7 @@ template stpPath*(self: StpStore, cid: Cid): string =
 proc retrieve*(
   self: StpStore,
   cid: Cid
-): Future[?!PorMessage] {.async.} =
+): Future[?!PorMessage] {.asyncyeah.} =
   ## Retrieve authenticators from data store
   ##
 
@@ -53,7 +54,7 @@ proc store*(
   self: StpStore,
   por: PorMessage,
   cid: Cid
-): Future[?!void] {.async.} =
+): Future[?!void] {.asyncyeah.} =
   ## Persist storage proofs
   ##
 
@@ -79,7 +80,7 @@ proc retrieve*(
     self: StpStore,
     cid: Cid,
     blocks: seq[int]
-): Future[?!seq[Tag]] {.async.} =
+): Future[?!seq[Tag]] {.asyncyeah.} =
   var tags: seq[Tag]
   for b in blocks:
     var tag = Tag(idx: b)
@@ -98,7 +99,7 @@ proc store*(
     self: StpStore,
     tags: seq[Tag],
     cid: Cid
-): Future[?!void] {.async.} =
+): Future[?!void] {.asyncyeah.} =
   let
     dir = self.stpPath(cid)
 
@@ -124,7 +125,7 @@ proc init*(
   postfixLen: int = 2
 ): StpStore =
   ## Init StpStore
-  ## 
+  ##
   StpStore(
     authDir: authDir,
     postfixLen: postfixLen)

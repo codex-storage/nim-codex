@@ -6,6 +6,7 @@ import ./errorhandling
 import ./filled
 import ./cancelled
 import ./failed
+import ../../asyncyeah
 
 logScope:
     topics = "marketplace sales filling"
@@ -26,7 +27,7 @@ method onSlotFilled*(state: SaleFilling, requestId: RequestId,
                      slotIndex: UInt256): ?State =
   return some State(SaleFilled())
 
-method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
+method run(state: SaleFilling, machine: Machine): Future[?State] {.asyncyeah.} =
   let data = SalesAgent(machine).data
   let market = SalesAgent(machine).context.market
   without (collateral =? data.request.?ask.?collateral):

@@ -17,6 +17,7 @@ import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronos
+import ./asyncyeah
 import pkg/libp2p except shuffle
 
 import ./blocktype
@@ -41,7 +42,7 @@ type
   FileChunker* = Chunker
   LPStreamChunker* = Chunker
 
-proc getBytes*(c: Chunker): Future[seq[byte]] {.async.} =
+proc getBytes*(c: Chunker): Future[seq[byte]] {.asyncyeah.} =
   ## returns a chunk of bytes from
   ## the instantiated chunker
   ##
@@ -83,7 +84,7 @@ proc new*(
   ##
 
   proc reader(data: ChunkBuffer, len: int): Future[int]
-    {.gcsafe, async, raises: [Defect].} =
+    {.gcsafe, asyncyeah, raises: [Defect].} =
     var res = 0
     try:
       while res < len:
@@ -111,7 +112,7 @@ proc new*(
   ##
 
   proc reader(data: ChunkBuffer, len: int): Future[int]
-    {.gcsafe, async, raises: [Defect].} =
+    {.gcsafe, asyncyeah, raises: [Defect].} =
     var total = 0
     try:
       while total < len:

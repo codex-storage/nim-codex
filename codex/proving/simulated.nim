@@ -29,7 +29,7 @@ when codex_enable_proof_failures:
   proc onSubmitProofError(error: ref CatchableError, period: UInt256) =
     error "Submitting invalid proof failed", period, msg = error.msg
 
-  method prove(proving: SimulatedProving, slot: Slot) {.async.} =
+  method prove(proving: SimulatedProving, slot: Slot) {.asyncyeah.} =
     let period = await proving.getCurrentPeriod()
     proving.proofCount += 1
     if proving.failEveryNProofs > 0'u and

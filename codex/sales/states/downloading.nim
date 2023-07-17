@@ -12,6 +12,7 @@ import ./filled
 import ./ignored
 import ./proving
 import ./errored
+import ../../asyncyeah
 
 type
   SaleDownloading* = ref object of ErrorHandlingState
@@ -31,7 +32,7 @@ method onSlotFilled*(state: SaleDownloading, requestId: RequestId,
                      slotIndex: UInt256): ?State =
   return some State(SaleFilled())
 
-method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} =
+method run*(state: SaleDownloading, machine: Machine): Future[?State] {.asyncyeah.} =
   let agent = SalesAgent(machine)
   let data = agent.data
   let context = agent.context
@@ -66,7 +67,7 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
   if markUsedErr =? (await reservations.markUsed(availability.id)).errorOption:
     return some State(SaleErrored(error: markUsedErr))
 
-  proc onBatch(blocks: seq[bt.Block]) {.async.} =
+  proc onBatch(blocks: seq[bt.Block]) {.asyncyeah.} =
     # release batches of blocks as they are written to disk and
     # update availability size
     var bytes: uint = 0

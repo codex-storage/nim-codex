@@ -5,6 +5,7 @@ import ../salesagent
 import ./errorhandling
 import ./cancelled
 import ./failed
+import ../../asyncyeah
 
 logScope:
     topics = "marketplace sales finished"
@@ -20,7 +21,7 @@ method onCancelled*(state: SaleFinished, request: StorageRequest): ?State =
 method onFailed*(state: SaleFinished, request: StorageRequest): ?State =
   return some State(SaleFailed())
 
-method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
+method run*(state: SaleFinished, machine: Machine): Future[?State] {.asyncyeah.} =
   let agent = SalesAgent(machine)
   let data = agent.data
   let context = agent.context

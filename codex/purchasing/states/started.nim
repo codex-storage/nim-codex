@@ -2,13 +2,14 @@ import ../statemachine
 import ./errorhandling
 import ./finished
 import ./failed
+import ../../asyncyeah
 
 type PurchaseStarted* = ref object of ErrorHandlingState
 
 method `$`*(state: PurchaseStarted): string =
   "started"
 
-method run*(state: PurchaseStarted, machine: Machine): Future[?State] {.async.} =
+method run*(state: PurchaseStarted, machine: Machine): Future[?State] {.asyncyeah.} =
   let purchase = Purchase(machine)
 
   let clock = purchase.clock

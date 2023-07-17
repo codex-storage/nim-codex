@@ -11,6 +11,7 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronos
+import ../asyncyeah
 import pkg/chronicles
 import pkg/libp2p
 
@@ -37,7 +38,7 @@ proc new*(
     writer: AsyncStreamWriter = nil
 ): AsyncStreamWrapper =
   ## Create new instance of an asynchronous stream wrapper
-  ## 
+  ##
   let
     stream = C(reader: reader, writer: writer)
 
@@ -63,7 +64,7 @@ method readOnce*(
     self: AsyncStreamWrapper,
     pbytes: pointer,
     nbytes: int
-): Future[int] {.async.} =
+): Future[int] {.asyncyeah.} =
 
   trace "Reading bytes from reader", bytes = nbytes
   if isNil(self.reader):
@@ -80,13 +81,13 @@ proc completeWrite(
     self: AsyncStreamWrapper,
     fut: Future[void],
     msgLen: int
-): Future[void] {.async.} =
+): Future[void] {.asyncyeah.} =
 
   withExceptions:
     await fut
 
 method write*(self: AsyncStreamWrapper, msg: seq[byte]): Future[void] =
-  # Avoid a copy of msg being kept in the closure created by `{.async.}` as this
+  # Avoid a copy of msg being kept in the closure created by `{.asyncyeah.}` as this
   # drives up memory usage
 
   trace "Writing bytes to writer", bytes = msg.len
@@ -117,7 +118,7 @@ method closed*(self: AsyncStreamWrapper): bool =
 method atEof*(self: AsyncStreamWrapper): bool =
   self.reader.atEof()
 
-method closeImpl*(self: AsyncStreamWrapper) {.async.} =
+method closeImpl*(self: AsyncStreamWrapper) {.asyncyeah.} =
   try:
     trace "Shutting down async chronos stream"
     if not self.closed():

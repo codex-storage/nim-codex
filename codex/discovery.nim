@@ -10,6 +10,7 @@
 import std/algorithm
 
 import pkg/chronos
+import ./asyncyeah
 import pkg/chronicles
 import pkg/libp2p
 import pkg/libp2p/routing_record
@@ -58,7 +59,7 @@ proc toNodeId*(host: ca.Address): NodeId =
 proc findPeer*(
     d: Discovery,
     peerId: PeerId
-): Future[?PeerRecord] {.async.} =
+): Future[?PeerRecord] {.asyncyeah.} =
   trace "protocol.resolve..."
   ## Find peer using the given Discovery object
   ##
@@ -74,9 +75,9 @@ proc findPeer*(
 method find*(
     d: Discovery,
     cid: Cid
-): Future[seq[SignedPeerRecord]] {.async, base.} =
+): Future[seq[SignedPeerRecord]] {.asyncyeah, base.} =
   ## Find block providers
-  ## 
+  ##
 
   trace "Finding providers for block", cid
   without providers =?
@@ -85,7 +86,7 @@ method find*(
 
   return providers
 
-method provide*(d: Discovery, cid: Cid) {.async, base.} =
+method provide*(d: Discovery, cid: Cid) {.asyncyeah, base.} =
   ## Provide a bock Cid
   ##
 
@@ -102,7 +103,7 @@ method provide*(d: Discovery, cid: Cid) {.async, base.} =
 method find*(
     d: Discovery,
     host: ca.Address
-): Future[seq[SignedPeerRecord]] {.async, base.} =
+): Future[seq[SignedPeerRecord]] {.asyncyeah, base.} =
   ## Find host providers
   ##
 
@@ -121,7 +122,7 @@ method find*(
 
   return providers
 
-method provide*(d: Discovery, host: ca.Address) {.async, base.} =
+method provide*(d: Discovery, host: ca.Address) {.asyncyeah, base.} =
   ## Provide hosts
   ##
 
@@ -169,11 +170,11 @@ proc updateDhtRecord*(d: Discovery, ip: ValidIpAddress, port: Port) =
         IpTransportProtocol.udpProtocol,
         port)])).expect("Should construct signed record").some
 
-proc start*(d: Discovery) {.async.} =
+proc start*(d: Discovery) {.asyncyeah.} =
   d.protocol.open()
   await d.protocol.start()
 
-proc stop*(d: Discovery) {.async.} =
+proc stop*(d: Discovery) {.asyncyeah.} =
   await d.protocol.closeWait()
 
 proc new*(
@@ -185,8 +186,8 @@ proc new*(
     bootstrapNodes: openArray[SignedPeerRecord] = [],
     store: Datastore = SQLiteDatastore.new(Memory).expect("Should not fail!")
 ): Discovery =
-  ## Create a new Discovery node instance for the given key and datastore 
-  ## 
+  ## Create a new Discovery node instance for the given key and datastore
+  ##
 
   var
     self = Discovery(

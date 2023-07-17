@@ -4,6 +4,7 @@ import pkg/upraises
 import pkg/chronicles
 import ../statemachine
 import ../salesagent
+import ../../asyncyeah
 
 logScope:
     topics = "marketplace sales errored"
@@ -16,7 +17,7 @@ method `$`*(state: SaleErrored): string = "SaleErrored"
 method onError*(state: SaleState, err: ref CatchableError): ?State {.upraises:[].} =
   error "error during SaleErrored run", error = err.msg
 
-method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
+method run*(state: SaleErrored, machine: Machine): Future[?State] {.asyncyeah.} =
   let agent = SalesAgent(machine)
   let data = agent.data
   let context = agent.context

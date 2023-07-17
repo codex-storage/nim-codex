@@ -2,13 +2,14 @@ import pkg/chronos
 import ../statemachine
 import ../salesagent
 import ./errorhandling
+import ../../asyncyeah
 
 type
   SaleIgnored* = ref object of ErrorHandlingState
 
 method `$`*(state: SaleIgnored): string = "SaleIgnored"
 
-method run*(state: SaleIgnored, machine: Machine): Future[?State] {.async.} =
+method run*(state: SaleIgnored, machine: Machine): Future[?State] {.asyncyeah.} =
   let agent = SalesAgent(machine)
   let context = agent.context
 

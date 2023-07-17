@@ -5,13 +5,14 @@ import ./started
 import ./cancelled
 import ./finished
 import ./failed
+import ../../asyncyeah
 
 type PurchaseUnknown* = ref object of ErrorHandlingState
 
 method `$`*(state: PurchaseUnknown): string =
   "unknown"
 
-method run*(state: PurchaseUnknown, machine: Machine): Future[?State] {.async.} =
+method run*(state: PurchaseUnknown, machine: Machine): Future[?State] {.asyncyeah.} =
   let purchase = Purchase(machine)
   if (request =? await purchase.market.getRequest(purchase.requestId)) and
       (requestState =? await purchase.market.requestState(purchase.requestId)):

@@ -2,6 +2,7 @@ import ./statemachine
 import ./states/pending
 import ./states/unknown
 import ./purchaseid
+import ../asyncyeah
 
 # Purchase is implemented as a state machine.
 #
@@ -31,7 +32,7 @@ func new*(
     clock: Clock
 ): Purchase =
   ## create a new instance of a Purchase
-  ## 
+  ##
   Purchase(
     future: Future[void].new(),
     requestId: requestId,
@@ -56,7 +57,7 @@ proc start*(purchase: Purchase) =
 proc load*(purchase: Purchase) =
   purchase.start(PurchaseUnknown())
 
-proc wait*(purchase: Purchase) {.async.} =
+proc wait*(purchase: Purchase) {.asyncyeah.} =
   await purchase.future
 
 func id*(purchase: Purchase): PurchaseId =

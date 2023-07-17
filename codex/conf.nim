@@ -18,6 +18,7 @@ import std/strutils
 import std/typetraits
 
 import pkg/chronos
+import ./asyncyeah
 import pkg/chronicles
 import pkg/chronicles/helpers
 import pkg/chronicles/topics_registry

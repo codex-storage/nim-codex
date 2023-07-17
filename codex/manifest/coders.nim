@@ -20,6 +20,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/chronicles
 import pkg/chronos
+import ../asyncyeah
 
 import ./manifest
 import ../errors

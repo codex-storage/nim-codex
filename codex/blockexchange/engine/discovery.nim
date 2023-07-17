@@ -10,6 +10,7 @@
 import std/sequtils
 
 import pkg/chronos
+import ../../asyncyeah
 import pkg/chronicles
 import pkg/libp2p
 import pkg/metrics
@@ -54,6 +55,7 @@ type
     advertiseQueue*: AsyncQueue[Cid]                             # Advertise queue
     advertiseTasks*: seq[Future[void]]                           # Advertise tasks
     discoveryLoop*: Future[void]                                 # Discovery loop task handle
+    heartbeatLoop*: Future[void]
     discoveryQueue*: AsyncQueue[Cid]                             # Discovery queue
     discoveryTasks*: seq[Future[void]]                           # Discovery tasks
     minPeersPerBlock*: int                                       # Max number of peers with block
@@ -63,7 +65,7 @@ type
     inFlightAdvReqs*: Table[Cid, Future[void]]                   # Inflight advertise requests
     advertiseType*: BlockType                                    # Advertice blocks, manifests or both
 
-proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
+proc discoveryQueueLoop(b: DiscoveryEngine) {.asyncyeah.} =
   while b.discEngineRunning:
     for cid in toSeq(b.pendingBlocks.wantList):
       try:
@@ -78,7 +80,18 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
     trace "About to sleep discovery loop"
     await sleepAsync(b.discoveryLoopSleep)
 
-proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
+proc heartbeatLoop(b: DiscoveryEngine) {.asyncyeah.} =
+  while b.discEngineRunning:
+    await sleepAsync(1.seconds)
+    await sleepAsync(1.seconds)
+    await sleepAsync(1.seconds)
+    await sleepAsync(1.seconds)
+    await sleepAsync(1.seconds)
+    if globalBaselineYeahStack.len == 0:
+      for entry in globalYeahStack:
+        globalBaselineYeahStack.add(entry)
+
+proc advertiseQueueLoop*(b: DiscoveryEngine) {.asyncyeah.} =
   while b.discEngineRunning:
     if cids =? await b.localStore.listBlocks(blockType = b.advertiseType):
       for c in cids:
@@ -91,7 +104,7 @@ proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
 
   trace "Exiting advertise task loop"
 
-proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
+proc advertiseTaskLoop(b: DiscoveryEngine) {.asyncyeah.} =
   ## Run advertise tasks
   ##
 
@@ -122,7 +135,7 @@ proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
 
   trace "Exiting advertise task runner"
 
-proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
+proc discoveryTaskLoop(b: DiscoveryEngine) {.asyncyeah.} =
   ## Run discovery tasks
   ##
 
@@ -187,7 +200,7 @@ proc queueProvideBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
       except CatchableError as exc:
         trace "Exception queueing discovery request", exc = exc.msg
 
-proc start*(b: DiscoveryEngine) {.async.} =
+proc start*(b: DiscoveryEngine) {.asyncyeah.} =
   ## Start the discengine task
   ##
 
@@ -206,8 +219,9 @@ proc start*(b: DiscoveryEngine) {.async.} =
 
   b.advertiseLoop = advertiseQueueLoop(b)
   b.discoveryLoop = discoveryQueueLoop(b)
+  b.heartbeatLoop = heartbeatLoop(b)
 
-proc stop*(b: DiscoveryEngine) {.async.} =
+proc stop*(b: DiscoveryEngine) {.asyncyeah.} =
   ## Stop the discovery engine
   ##
 
@@ -239,6 +253,9 @@ proc stop*(b: DiscoveryEngine) {.async.} =
     await b.discoveryLoop.cancelAndWait()
     trace "Discovery loop stopped"
 
+  if not b.heartbeatLoop.isNil and not b.heartbeatLoop.finished:
+    await b.heartbeatLoop.cancelAndWait()
+
   trace "Discovery engine stopped"
 
 proc new*(
@@ -256,7 +273,7 @@ proc new*(
     advertiseType = BlockType.Both
 ): DiscoveryEngine =
   ## Create a discovery engine instance for advertising services
-  ## 
+  ##
   DiscoveryEngine(
     localStore: localStore,
     peers: peers,

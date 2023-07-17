@@ -11,6 +11,7 @@
 ## Looks for and removes expired blocks from blockstores.
 
 import pkg/chronos
+import ../asyncyeah
 import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
@@ -19,9 +20,10 @@ import ./repostore
 import ../utils/timer
 import ../clock
 import ../systemclock
+import ../asyncyeah
 
 const
-  DefaultBlockMaintenanceInterval* = 10.minutes
+  DefaultBlockMaintenanceInterval* = 10.seconds
   DefaultNumberOfBlocksToMaintainPerInterval* = 1000
 
 type
@@ -42,9 +44,9 @@ proc new*(
     clock: Clock = SystemClock.new()
 ): BlockMaintainer =
   ## Create new BlockMaintainer instance
-  ## 
+  ##
   ## Call `start` to begin looking for for expired blocks
-  ## 
+  ##
   BlockMaintainer(
     repoStore: repoStore,
     interval: interval,
@@ -53,7 +55,7 @@ proc new*(
     clock: clock,
     offset: 0)
 
-proc deleteExpiredBlock(self: BlockMaintainer, cid: Cid): Future[void] {.async.} =
+proc deleteExpiredBlock(self: BlockMaintainer, cid: Cid): Future[void] {.asyncyeah.} =
   if isErr (await self.repoStore.delBlock(cid)):
     trace "Unable to delete block from repoStore"
 
@@ -63,7 +65,7 @@ proc processBlockExpiration(self: BlockMaintainer, be: BlockExpiration): Future[
   else:
     inc self.offset
 
-proc runBlockCheck(self: BlockMaintainer): Future[void] {.async.} =
+proc runBlockCheck(self: BlockMaintainer): Future[void] {.asyncyeah.} =
   let expirations = await self.repoStore.getBlockExpirations(
     maxNumber = self.numberOfBlocksPerInterval,
     offset = self.offset
@@ -85,7 +87,7 @@ proc runBlockCheck(self: BlockMaintainer): Future[void] {.async.} =
     self.offset = 0
 
 proc start*(self: BlockMaintainer) =
-  proc onTimer(): Future[void] {.async.} =
+  proc onTimer(): Future[void] {.asyncyeah.} =
     try:
       await self.runBlockCheck()
     except CatchableError as exc:
@@ -93,5 +95,5 @@ proc start*(self: BlockMaintainer) =
 
   self.timer.start(onTimer, self.interval)
 
-proc stop*(self: BlockMaintainer): Future[void] {.async.} =
+proc stop*(self: BlockMaintainer): Future[void] {.asyncyeah.} =
   await self.timer.stop()

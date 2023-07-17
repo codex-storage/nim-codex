@@ -11,6 +11,7 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronos
+import ../../asyncyeah
 import pkg/chronicles
 import pkg/libp2p
 
@@ -38,7 +39,7 @@ proc connected*(b: NetworkPeer): bool =
   not(isNil(b.sendConn)) and
   not(b.sendConn.closed or b.sendConn.atEof)
 
-proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
+proc readLoop*(b: NetworkPeer, conn: Connection) {.asyncyeah.} =
   if isNil(conn):
     return
 
@@ -54,7 +55,7 @@ proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
   finally:
     await conn.close()
 
-proc connect*(b: NetworkPeer): Future[Connection] {.async.} =
+proc connect*(b: NetworkPeer): Future[Connection] {.asyncyeah.} =
   if b.connected:
     return b.sendConn
 
@@ -62,7 +63,7 @@ proc connect*(b: NetworkPeer): Future[Connection] {.async.} =
   asyncSpawn b.readLoop(b.sendConn)
   return b.sendConn
 
-proc send*(b: NetworkPeer, msg: Message) {.async.} =
+proc send*(b: NetworkPeer, msg: Message) {.asyncyeah.} =
   let conn = await b.connect()
 
   if isNil(conn):
@@ -73,7 +74,7 @@ proc send*(b: NetworkPeer, msg: Message) {.async.} =
   await conn.writeLp(protobufEncode(msg))
 
 proc broadcast*(b: NetworkPeer, msg: Message) =
-  proc sendAwaiter() {.async.} =
+  proc sendAwaiter() {.asyncyeah.} =
     try:
       await b.send(msg)
     except CatchableError as exc:

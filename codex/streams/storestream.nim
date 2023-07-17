@@ -15,6 +15,7 @@ push: {.upraises: [].}
 
 import pkg/libp2p
 import pkg/chronos
+import ../asyncyeah
 import pkg/chronicles
 import pkg/stew/ptrops
 
@@ -53,7 +54,7 @@ proc new*(
     pad = true
 ): StoreStream =
   ## Create a new StoreStream instance for a given store and manifest
-  ## 
+  ##
   result = StoreStream(
     store: store,
     manifest: manifest,
@@ -76,11 +77,11 @@ method readOnce*(
     self: StoreStream,
     pbytes: pointer,
     nbytes: int
-): Future[int] {.async.} =
+): Future[int] {.asyncyeah.} =
   ## Read `nbytes` from current position in the StoreStream into output buffer pointed by `pbytes`.
   ## Return how many bytes were actually read before EOF was encountered.
   ## Raise exception if we are already at EOF.
-  ## 
+  ##
 
   trace "Reading from manifest", cid = self.manifest.cid.get(), blocks = self.manifest.len
   if self.atEof:
@@ -117,7 +118,7 @@ method readOnce*(
 
   return read
 
-method closeImpl*(self: StoreStream) {.async.} =
+method closeImpl*(self: StoreStream) {.asyncyeah.} =
   trace "Closing StoreStream"
   self.offset = self.size  # set Eof
   await procCall LPStream(self).closeImpl()

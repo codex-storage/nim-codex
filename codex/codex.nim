@@ -13,6 +13,7 @@ import std/tables
 
 import pkg/chronicles
 import pkg/chronos
+import ./asyncyeah
 import pkg/presto
 import pkg/libp2p
 import pkg/confutils
@@ -36,6 +37,7 @@ import ./contracts/clock
 import ./contracts/deployment
 import ./utils/addrutils
 import ./namespaces
+import ./loopmeasure
 
 logScope:
   topics = "codex node"
@@ -54,10 +56,10 @@ type
 proc bootstrapInteractions(
     config: CodexConf,
     repo: RepoStore
-): Future[Contracts] {.async.} =
-  ## bootstrap interactions and return contracts 
+): Future[Contracts] {.asyncyeah.} =
+  ## bootstrap interactions and return contracts
   ## using clients, hosts, validators pairings
-  ## 
+  ##
 
   if not config.persistence and not config.validator:
     if config.ethAccount.isSome:
@@ -104,7 +106,7 @@ proc bootstrapInteractions(
 
   return (client, host, validator)
 
-proc start*(s: CodexServer) {.async.} =
+proc start*(s: CodexServer) {.asyncyeah.} =
   notice "Starting codex node"
 
   await s.repoStore.start()
@@ -142,7 +144,7 @@ proc start*(s: CodexServer) {.async.} =
   s.runHandle = newFuture[void]("codex.runHandle")
   await s.runHandle
 
-proc stop*(s: CodexServer) {.async.} =
+proc stop*(s: CodexServer) {.asyncyeah.} =
   notice "Stopping codex node"
 
   await allFuturesThrowing(
@@ -156,7 +158,8 @@ proc stop*(s: CodexServer) {.async.} =
 proc new*(
     T: type CodexServer,
     config: CodexConf,
-    privateKey: CodexPrivateKey
+    privateKey: CodexPrivateKey,
+    loopMeasure: LoopMeasure
 ): CodexServer =
   ## create CodexServer including setting up datastore, repostore, etc
   let
@@ -225,12 +228,12 @@ proc new*(
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
     blockDiscovery = DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
-    engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
+    engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks, loopMeasure)
     store = NetworkStore.new(engine, repoStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery)
     restServer = RestServerRef.new(
-      codexNode.initRestApi(config),
+      codexNode.initRestApi(config, loopMeasure),
       initTAddress(config.apiBindAddress , config.apiPort),
       bufferSize = (1024 * 64),
       maxRequestBodySize = int.high)

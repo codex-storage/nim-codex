@@ -1,5 +1,6 @@
 import ./interactions
 import ../../validation
+import ../../asyncyeah
 
 export validation
 
@@ -12,10 +13,10 @@ proc new*(_: type ValidatorInteractions,
           validation: Validation): ValidatorInteractions =
   ValidatorInteractions(clock: clock, validation: validation)
 
-proc start*(self: ValidatorInteractions) {.async.} =
+proc start*(self: ValidatorInteractions) {.asyncyeah.} =
   await procCall ContractInteractions(self).start()
   await self.validation.start()
 
-proc stop*(self: ValidatorInteractions) {.async.} =
+proc stop*(self: ValidatorInteractions) {.asyncyeah.} =
   await self.validation.stop()
   await procCall ContractInteractions(self).stop()

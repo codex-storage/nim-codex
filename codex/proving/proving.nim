@@ -4,6 +4,7 @@ import pkg/questionable
 import pkg/chronicles
 import ../market
 import ../clock
+import ../asyncyeah
 
 export sets
 
@@ -31,15 +32,15 @@ proc `onProve=`*(proving: Proving, callback: OnProve) =
 func add*(proving: Proving, slot: Slot) =
   proving.slots.incl(slot)
 
-proc getCurrentPeriod*(proving: Proving): Future[Period] {.async.} =
+proc getCurrentPeriod*(proving: Proving): Future[Period] {.asyncyeah.} =
   let periodicity = await proving.market.periodicity()
   return periodicity.periodOf(proving.clock.now().u256)
 
-proc waitUntilPeriod(proving: Proving, period: Period) {.async.} =
+proc waitUntilPeriod(proving: Proving, period: Period) {.asyncyeah.} =
   let periodicity = await proving.market.periodicity()
   await proving.clock.waitUntil(periodicity.periodStart(period).truncate(int64))
 
-proc removeEndedContracts(proving: Proving) {.async.} =
+proc removeEndedContracts(proving: Proving) {.asyncyeah.} =
   var ended: HashSet[Slot]
   for slot in proving.slots:
     let state = await proving.market.slotState(slot.id)
@@ -52,7 +53,7 @@ proc removeEndedContracts(proving: Proving) {.async.} =
       ended.incl(slot)
   proving.slots.excl(ended)
 
-method prove*(proving: Proving, slot: Slot) {.base, async.} =
+method prove*(proving: Proving, slot: Slot) {.base, asyncyeah.} =
   logScope:
     currentPeriod = await proving.getCurrentPeriod()
 
@@ -66,7 +67,7 @@ method prove*(proving: Proving, slot: Slot) {.base, async.} =
   except CatchableError as e:
     error "Submitting proof failed", msg = e.msg
 
-proc run(proving: Proving) {.async.} =
+proc run(proving: Proving) {.asyncyeah.} =
   try:
     while true:
       let currentPeriod = await proving.getCurrentPeriod()
@@ -83,13 +84,13 @@ proc run(proving: Proving) {.async.} =
   except CatchableError as e:
     error "Proving failed", msg = e.msg
 
-proc start*(proving: Proving) {.async.} =
+proc start*(proving: Proving) {.asyncyeah.} =
   if proving.loop.isSome:
     return
 
   proving.loop = some proving.run()
 
-proc stop*(proving: Proving) {.async.} =
+proc stop*(proving: Proving) {.asyncyeah.} =
   if loop =? proving.loop:
     proving.loop = Future[void].none
     if not loop.finished:

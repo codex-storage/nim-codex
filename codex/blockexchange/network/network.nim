@@ -12,6 +12,7 @@ import std/sequtils
 
 import pkg/chronicles
 import pkg/chronos
+import ../../asyncyeah
 
 import pkg/libp2p
 import pkg/libp2p/utils/semaphore
@@ -75,7 +76,7 @@ type
     getConn: ConnProvider
     inflightSema: AsyncSemaphore
 
-proc send*(b: BlockExcNetwork, id: PeerId, msg: pb.Message) {.async.} =
+proc send*(b: BlockExcNetwork, id: PeerId, msg: pb.Message) {.asyncyeah.} =
   ## Send message to peer
   ##
 
@@ -92,7 +93,7 @@ proc send*(b: BlockExcNetwork, id: PeerId, msg: pb.Message) {.async.} =
 proc handleWantList(
   b: BlockExcNetwork,
   peer: NetworkPeer,
-  list: Wantlist) {.async.} =
+  list: Wantlist) {.asyncyeah.} =
   ## Handle incoming want list
   ##
 
@@ -110,8 +111,8 @@ proc makeWantList*(
     sendDontHave: bool = false
 ): Wantlist =
   ## make list of wanted entries
-  ## 
-  
+  ##
+
   Wantlist(
     entries: cids.mapIt(
       Entry(
@@ -150,7 +151,7 @@ proc handleBlocks(
     b: BlockExcNetwork,
     peer: NetworkPeer,
     blocks: seq[pb.Block]
-) {.async.} =
+) {.asyncyeah.} =
   ## Handle incoming blocks
   ##
 
@@ -191,7 +192,7 @@ proc sendBlocks*(
 proc handleBlockPresence(
   b: BlockExcNetwork,
   peer: NetworkPeer,
-  presence: seq[BlockPresence]) {.async.} =
+  presence: seq[BlockPresence]) {.asyncyeah.} =
   ## Handle block presence
   ##
 
@@ -212,7 +213,7 @@ proc handleAccount(
     network: BlockExcNetwork,
     peer: NetworkPeer,
     account: Account
-) {.async.} =
+) {.asyncyeah.} =
   ## Handle account info
   ##
 
@@ -243,7 +244,7 @@ proc handlePayment(
     network: BlockExcNetwork,
     peer: NetworkPeer,
     payment: SignedState
-) {.async.} =
+) {.asyncyeah.} =
   ## Handle payment
   ##
 
@@ -254,9 +255,9 @@ proc rpcHandler(
     b: BlockExcNetwork,
     peer: NetworkPeer,
     msg: Message
-) {.async.} =
+) {.asyncyeah.} =
   ## handle rpc messages
-  ## 
+  ##
   try:
     if msg.wantlist.entries.len > 0:
       asyncSpawn b.handleWantList(peer, msg.wantlist)
@@ -310,7 +311,7 @@ proc setupPeer*(b: BlockExcNetwork, peer: PeerId) =
 
   discard b.getOrCreatePeer(peer)
 
-proc dialPeer*(b: BlockExcNetwork, peer: PeerRecord) {.async.} =
+proc dialPeer*(b: BlockExcNetwork, peer: PeerRecord) {.asyncyeah.} =
   await b.switch.connect(peer.peerId, peer.addresses.mapIt(it.address))
 
 proc dropPeer*(b: BlockExcNetwork, peer: PeerId) =
@@ -323,7 +324,7 @@ method init*(b: BlockExcNetwork) =
   ## Perform protocol initialization
   ##
 
-  proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =
+  proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.asyncyeah.} =
     if event.kind == PeerEventKind.Joined:
       b.setupPeer(peerId)
     else:
@@ -332,7 +333,7 @@ method init*(b: BlockExcNetwork) =
   b.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Joined)
   b.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)
 
-  proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
+  proc handle(conn: Connection, proto: string) {.asyncyeah, gcsafe, closure.} =
     let peerId = conn.peerId
     let blockexcPeer = b.getOrCreatePeer(peerId)
     await blockexcPeer.readLoop(conn)  # attach read loop
