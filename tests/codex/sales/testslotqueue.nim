@@ -64,12 +64,12 @@ suite "Slot queue workers":
   var reservations: Reservations
   var queue: SlotQueue
 
-  proc onProcessSlot(item: SlotQueueItem) {.async.} =
+  proc onProcessSlot(item: SlotQueueItem, doneProcessing: Future[void]) {.async.} =
     await sleepAsync(1000.millis)
     # this is not illustrative of the realistic scenario as the
     # `doneProcessing` future would be passed to another context before being
     # completed and therefore is not as simple as making the callback async
-    item.doneProcessing.complete()
+    doneProcessing.complete()
 
   setup:
     let request = StorageRequest.example
@@ -118,9 +118,9 @@ suite "Slot queue workers":
     check eventually queue.activeWorkers == 3
 
   test "discards workers once processing completed":
-    proc processSlot(item: SlotQueueItem) {.async.} =
+    proc processSlot(item: SlotQueueItem, done: Future[void]) {.async.} =
       await sleepAsync(1.millis)
-      item.doneProcessing.complete()
+      done.complete()
 
     queue.onProcessSlot = processSlot
 
@@ -149,16 +149,15 @@ suite "Slot queue":
   var unpauseQueue: Future[void]
   var paused: bool
 
-  proc onProcessSlot(item: SlotQueueItem) {.async.} =
-    if paused:
-      try:
-        await unpauseQueue
-      except CancelledError:
-        return
-    trace "processing item", requestId = item.requestId, slotIndex = item.slotIndex
-    onProcessSlotCalled = true
-    onProcessSlotCalledWith.add (item.requestId, item.slotIndex)
-    item.doneProcessing.complete()
+  proc newSlotQueue(maxSize, maxWorkers: int, processSlotDelay = 1.millis) =
+    queue = SlotQueue.new(reservations, maxWorkers, maxSize.uint16)
+    queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+      await sleepAsync(processSlotDelay)
+      trace "processing item", requestId = item.requestId, slotIndex = item.slotIndex
+      onProcessSlotCalled = true
+      onProcessSlotCalledWith.add (item.requestId, item.slotIndex)
+      done.complete()
+    asyncSpawn queue.start()
 
   setup:
     onProcessSlotCalled = false
@@ -176,39 +175,20 @@ suite "Slot queue":
       minPrice = request.ask.pricePerSlot div 100,
       maxCollateral = request.ask.collateral * 100
     )
-    queue = SlotQueue.new(reservations, maxSize = 2, maxWorkers = maxWorkers)
-    queue.onProcessSlot = onProcessSlot
-    paused = false
-    unpauseQueue = newFuture[void]("queue.pause")
     discard await reservations.reserve(availability)
 
-    asyncSpawn queue.start()
-
   teardown:
-    if not unpauseQueue.finished:
-      await unpauseQueue.cancelAndWait()
-      unpauseQueue = nil
+    paused = false
 
     await queue.stop()
 
-  proc pauseAndSaturateWorkers() {.async.} =
-    paused = true
-
-    for i in 0..<maxWorkers:
-      let item = SlotQueueItem.example
-      check isOk await queue.push(item)
-
-    await sleepAsync(1.millis) # poll to allow loop
-
-  proc unpause() =
-    paused = false
-    unpauseQueue.complete()
-
   test "starts out empty":
+    newSlotQueue(maxSize = 2, maxWorkers = 2)
     check queue.len == 0
     check $queue == "[]"
 
   test "reports correct size":
+    newSlotQueue(maxSize = 2, maxWorkers = 2)
     check queue.size == 2
 
   test "correctly compares SlotQueueItems":
@@ -240,7 +220,8 @@ suite "Slot queue":
       inc checked
     check checked == items.len
 
-  test "can add items":
+  test "can process items":
+    newSlotQueue(maxSize = 2, maxWorkers = 2)
     let item1 = SlotQueueItem.example
     let item2 = SlotQueueItem.example
     check (await queue.push(item1)).isOk
@@ -250,19 +231,38 @@ suite "Slot queue":
       (item2.requestId, item2.slotIndex)
     ]
 
+  test "can push items past number of maxWorkers":
+    newSlotQueue(maxSize = 2, maxWorkers = 2)
+    let item0 = SlotQueueItem.example
+    let item1 = SlotQueueItem.example
+    let item2 = SlotQueueItem.example
+    let item3 = SlotQueueItem.example
+    let item4 = SlotQueueItem.example
+    check isOk (await queue.push(item0))
+    check isOk (await queue.push(item1))
+    check isOk (await queue.push(item2))
+    check isOk (await queue.push(item3))
+    check isOk (await queue.push(item4))
+
   test "populates item with exisiting request metadata":
-    await pauseAndSaturateWorkers()
-    let item = SlotQueueItem.example
-    check (await queue.push(item)).isOk
-    let populated = !queue.populateItem(item.requestId, 12'u16)
-    check populated.requestId == item.requestId
+    newSlotQueue(maxSize = 2, maxWorkers = 2, processSlotDelay = 10.millis)
+    let request0 = StorageRequest.example
+    var request1 = StorageRequest.example
+    request1.ask.collateral += 1.u256
+    let items0 = SlotQueueItem.init(request0)
+    let items1 = SlotQueueItem.init(request1)
+    check (await queue.push(items0)).isOk
+    check (await queue.push(items1)).isOk
+    let populated = !queue.populateItem(request1.id, 12'u16)
+    check populated.requestId == request1.id
     check populated.slotIndex == 12'u16
-    check populated.slotSize == item.slotSize
-    check populated.duration == item.duration
-    check populated.reward == item.reward
-    check populated.collateral == item.collateral
+    check populated.slotSize == request1.ask.slotSize
+    check populated.duration == request1.ask.duration
+    check populated.reward == request1.ask.reward
+    check populated.collateral == request1.ask.collateral
 
   test "does not find exisiting request metadata":
+    newSlotQueue(maxSize = 2, maxWorkers = 2)
     let item = SlotQueueItem.example
     check queue.populateItem(item.requestId, 12'u16).isNone
 
@@ -283,17 +283,16 @@ suite "Slot queue":
       discard SlotQueueItem.init(request.id, request.ask, request.expiry)
 
   test "cannot push duplicate items":
-    await pauseAndSaturateWorkers()
-    let item = SlotQueueItem.example
-    check (await queue.push(item)).isOk
-    check (await queue.push(item)).error of SlotQueueItemExistsError
-    unpause()
-    check eventually (
-      onProcessSlotCalledWith.count((item.requestId, item.slotIndex)) == 1
-    )
+    newSlotQueue(maxSize = 6, maxWorkers = 1, processSlotDelay = 15.millis)
+    let item0 = SlotQueueItem.example
+    let item1 = SlotQueueItem.example
+    let item2 = SlotQueueItem.example
+    check isOk (await queue.push(item0))
+    check isOk (await queue.push(item1))
+    check (await queue.push(@[item2, item2, item2, item2])).error of SlotQueueItemExistsError
 
   test "can add items past max maxSize":
-    await pauseAndSaturateWorkers()
+    newSlotQueue(maxSize = 4, maxWorkers = 2, processSlotDelay = 10.millis)
     let item1 = SlotQueueItem.example
     let item2 = SlotQueueItem.example
     let item3 = SlotQueueItem.example
@@ -302,120 +301,117 @@ suite "Slot queue":
     check (await queue.push(item2)).isOk
     check (await queue.push(item3)).isOk
     check (await queue.push(item4)).isOk
-    check queue.len == 2
-
-  test "can pop the topmost item in the queue":
-    await pauseAndSaturateWorkers()
-    let item = SlotQueueItem.example
-    check (await queue.push(item)).isOk
-    without top =? await queue.pop():
-      fail()
-    check top == item
-
-  test "pop waits for push when empty":
-    await pauseAndSaturateWorkers()
-    let item = SlotQueueItem.example
-    proc delayPush(item: SlotQueueItem) {.async.} =
-      await sleepAsync(2.millis)
-      check (await queue.push(item)).isOk
-      return
-
-    asyncSpawn item.delayPush
-    without top =? await queue.pop():
-      fail()
-    check top == item
+    check eventually onProcessSlotCalledWith.len == 4
 
   test "can delete items":
-    await pauseAndSaturateWorkers()
-    let item = SlotQueueItem.example
-    check (await queue.push(item)).isOk
-    queue.delete(item)
-    check queue.len == 0
+    newSlotQueue(maxSize = 6, maxWorkers = 2, processSlotDelay = 10.millis)
+    let item0 = SlotQueueItem.example
+    let item1 = SlotQueueItem.example
+    let item2 = SlotQueueItem.example
+    let item3 = SlotQueueItem.example
+    check (await queue.push(item0)).isOk
+    check (await queue.push(item1)).isOk
+    check (await queue.push(item2)).isOk
+    check (await queue.push(item3)).isOk
+    queue.delete(item3)
+    check not queue.contains(item3)
 
   test "can delete item by request id and slot id":
-    await pauseAndSaturateWorkers()
-    let items = SlotQueueItem.init(StorageRequest.example)
-    check (await queue.push(items)).isOk
-    check queue.len == 2
-    queue.delete(items[0].requestId, items[0].slotIndex)
-    check queue.len == 1
+    newSlotQueue(maxSize = 8, maxWorkers = 1, processSlotDelay = 10.millis)
+    let request0 = StorageRequest.example
+    var request1 = StorageRequest.example
+    request1.ask.collateral += 1.u256
+    let items0 = SlotQueueItem.init(request0)
+    let items1 = SlotQueueItem.init(request1)
+    check (await queue.push(items0)).isOk
+    check (await queue.push(items1)).isOk
+    let last = items1[items1.high]
+    check eventually queue.contains(last)
+    queue.delete(last.requestId, last.slotIndex)
+    check not onProcessSlotCalledWith.anyIt(
+      it == (last.requestId, last.slotIndex)
+    )
 
   test "can delete all items by request id":
-    await pauseAndSaturateWorkers()
-    let items = SlotQueueItem.init(StorageRequest.example)
-    check (await queue.push(items)).isOk
-    check queue.len == 2 # maxSize == 2
-    queue.delete(items[0].requestId)
-    check queue.len == 0
+    newSlotQueue(maxSize = 8, maxWorkers = 1, processSlotDelay = 10.millis)
+    let request0 = StorageRequest.example
+    var request1 = StorageRequest.example
+    request1.ask.collateral += 1.u256
+    let items0 = SlotQueueItem.init(request0)
+    let items1 = SlotQueueItem.init(request1)
+    check (await queue.push(items0)).isOk
+    check (await queue.push(items1)).isOk
+    queue.delete(request1.id)
+    check not onProcessSlotCalledWith.anyIt(it[0] == request1.id)
 
   test "can check if contains item":
-    await pauseAndSaturateWorkers()
-    let item = SlotQueueItem.example
-    check queue.contains(item) == false
-    check (await queue.push(item)).isOk
-    check queue.contains(item)
-
-  test "can get item":
-    await pauseAndSaturateWorkers()
-    let item = SlotQueueItem.example
-    check queue.get(item.requestId, item.slotIndex).error of SlotQueueItemNotExistsError
-    check (await queue.push(item)).isOk
-    without itm =? queue.get(item.requestId, item.slotIndex):
-      fail()
-    check item == itm
+    newSlotQueue(maxSize = 6, maxWorkers = 1, processSlotDelay = 10.millis)
+    let request0 = StorageRequest.example
+    var request1 = StorageRequest.example
+    var request2 = StorageRequest.example
+    var request3 = StorageRequest.example
+    var request4 = StorageRequest.example
+    var request5 = StorageRequest.example
+    request1.ask.collateral = request0.ask.collateral + 1
+    request2.ask.collateral = request1.ask.collateral + 1
+    request3.ask.collateral = request2.ask.collateral + 1
+    request4.ask.collateral = request3.ask.collateral + 1
+    request5.ask.collateral = request4.ask.collateral + 1
+    let item0 = SlotQueueItem.init(request0, 0)
+    let item1 = SlotQueueItem.init(request1, 0)
+    let item2 = SlotQueueItem.init(request2, 0)
+    let item3 = SlotQueueItem.init(request3, 0)
+    let item4 = SlotQueueItem.init(request4, 0)
+    let item5 = SlotQueueItem.init(request5, 0)
+    check queue.contains(item5) == false
+    check (await queue.push(@[item0, item1, item2, item3, item4, item5])).isOk
+    check queue.contains(item5)
 
   test "sorts items by profitability ascending (higher pricePerSlot = higher priority)":
     var request = StorageRequest.example
     let item0 = SlotQueueItem.init(request, 0)
     request.ask.reward += 1.u256
     let item1 = SlotQueueItem.init(request, 1)
-    check (await queue.push(item0)).isOk
-    check (await queue.push(item1)).isOk
-    check queue[0] == item1
+    check item1 < item0
 
   test "sorts items by collateral ascending (less required collateral = higher priority)":
     var request = StorageRequest.example
     let item0 = SlotQueueItem.init(request, 0)
     request.ask.collateral -= 1.u256
     let item1 = SlotQueueItem.init(request, 1)
-    check (await queue.push(item0)).isOk
-    check (await queue.push(item1)).isOk
-    check queue[0] == item1
+    check item1 < item0
 
   test "sorts items by expiry descending (longer expiry = higher priority)":
     var request = StorageRequest.example
     let item0 = SlotQueueItem.init(request, 0)
     request.expiry += 1.u256
     let item1 = SlotQueueItem.init(request, 1)
-    check (await queue.push(item0)).isOk
-    check (await queue.push(item1)).isOk
-    check queue[0] == item1
+    check item1 < item0
 
   test "sorts items by slot size ascending (smaller dataset = higher priority)":
     var request = StorageRequest.example
     let item0 = SlotQueueItem.init(request, 0)
     request.ask.slotSize -= 1.u256
     let item1 = SlotQueueItem.init(request, 1)
-    check (await queue.push(item0)).isOk
-    check (await queue.push(item1)).isOk
-    check queue[0] == item1
+    check item1 < item0
 
   test "should call callback once an item is added":
+    newSlotQueue(maxSize = 2, maxWorkers = 2)
     let item = SlotQueueItem.example
     check not onProcessSlotCalled
     check (await queue.push(item)).isOk
     check eventually onProcessSlotCalled
 
   test "should only process item once":
+    newSlotQueue(maxSize = 2, maxWorkers = 2)
     let item = SlotQueueItem.example
-
     check (await queue.push(item)).isOk
-
     check eventually onProcessSlotCalledWith == @[
       (item.requestId, item.slotIndex)
     ]
 
   test "should process items in correct order":
+    newSlotQueue(maxSize = 2, maxWorkers = 2)
     # sleeping after push allows the slotqueue loop to iterate,
     # calling the callback for each pushed/updated item
     var request = StorageRequest.example
@@ -445,6 +441,7 @@ suite "Slot queue":
     )
 
   test "fails to push when there's no matching availability":
+    newSlotQueue(maxSize = 2, maxWorkers = 2)
     discard await reservations.release(availability.id,
                     availability.size.truncate(uint))
 

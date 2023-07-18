@@ -19,8 +19,7 @@ logScope:
 
 type
   OnProcessSlot* =
-    proc(item: SlotQueueItem): Future[void] {.gcsafe, upraises:[].}
-
+    proc(item: SlotQueueItem, done: Future[void]): Future[void] {.gcsafe, upraises:[].}
 
   # Non-ref obj copies value when assigned, preventing accidental modification
   # of values which could cause an incorrect order (eg
@@ -28,6 +27,8 @@ type
   # but the heap invariant would no longer be honoured. When non-ref, the
   # compiler can ensure that statement will fail).
   SlotQueueWorker = object
+    doneProcessing*: Future[void]
+
   SlotQueueItem* = object
     requestId: RequestId
     slotIndex: uint16
@@ -36,7 +37,6 @@ type
     reward: UInt256
     collateral: UInt256
     expiry: UInt256
-    doneProcessing*: Future[void]
 
   # don't need to -1 to prevent overflow when adding 1 (to always allow push)
   # because AsyncHeapQueue size is of type `int`, which is larger than `uint16`
@@ -45,12 +45,13 @@ type
   SlotQueue* = ref object
     maxWorkers: int
     next: Future[SlotQueueItem]
+    nextWorker: Future[SlotQueueWorker]
     onProcessSlot: ?OnProcessSlot
     queue: AsyncHeapQueue[SlotQueueItem]
     reservations: Reservations
     running: bool
     workers: AsyncQueue[SlotQueueWorker]
-    dispatched: Table[uint, Future[void]]
+    dispatched: Table[uint, (Future[void], SlotQueueWorker)]
 
   SlotQueueError = object of CodexError
   SlotQueueItemExistsError* = object of SlotQueueError
@@ -110,7 +111,7 @@ proc new*(_: type SlotQueue,
 
 proc init*(_: type SlotQueueWorker): SlotQueueWorker =
   SlotQueueWorker(
-    processing: false
+    doneProcessing: newFuture[void]("slotqueue.worker.processing")
   )
 
 proc init*(_: type SlotQueueItem,
@@ -126,8 +127,7 @@ proc init*(_: type SlotQueueItem,
     duration: ask.duration,
     reward: ask.reward,
     collateral: ask.collateral,
-    expiry: expiry,
-    doneProcessing: newFuture[void]("slotqueue.worker.processing")
+    expiry: expiry
   )
 
 proc init*(_: type SlotQueueItem,
@@ -161,6 +161,8 @@ proc init*(_: type SlotQueueItem,
           request: StorageRequest): seq[SlotQueueItem] =
 
   return SlotQueueItem.init(request.id, request.ask, request.expiry)
+
+proc id(worker: SlotQueueWorker): uint = worker.doneProcessing.id
 
 proc inRange*(val: SomeUnsignedInt): bool =
   val.uint16 in SlotQueueSize.low..SlotQueueSize.high
@@ -196,6 +198,7 @@ proc populateItem*(self: SlotQueue,
                    requestId: RequestId,
                    slotIndex: uint16): ?SlotQueueItem =
 
+  trace "populate item, items in queue", len = self.queue.len
   for item in self.queue.items:
     trace "populate item search", itemRequestId = item.requestId, requestId
     if item.requestId == requestId:
@@ -206,21 +209,9 @@ proc populateItem*(self: SlotQueue,
         duration: item.duration,
         reward: item.reward,
         collateral: item.collateral,
-        expiry: item.expiry,
-        doneProcessing: newFuture[void]("slotqueue.worker.processing")
+        expiry: item.expiry
       )
   return none SlotQueueItem
-
-proc pop*(self: SlotQueue): Future[?!SlotQueueItem] {.async.} =
-  if not self.running:
-    let err = newException(QueueNotRunningError, "queue not running")
-    return failure(err)
-
-  try:
-    let item = await self.queue.pop()
-    return success(item)
-  except CatchableError as err:
-    return failure(err)
 
 proc push*(self: SlotQueue, item: SlotQueueItem): Future[?!void] {.async.} =
 
@@ -289,15 +280,6 @@ proc delete*(self: SlotQueue, requestId: RequestId) =
   for item in items:
     self.delete(item)
 
-proc get*(self: SlotQueue, requestId: RequestId, slotIndex: uint16): ?!SlotQueueItem =
-  let item = SlotQueueItem(requestId: requestId, slotIndex: slotIndex)
-  let idx = self.queue.find(item)
-  if idx == -1:
-    let err = newException(SlotQueueItemNotExistsError, "item does not exist")
-    return failure(err)
-
-  return success(self.queue[idx])
-
 proc `[]`*(self: SlotQueue, i: Natural): SlotQueueItem =
   self.queue[i]
 
@@ -306,11 +288,13 @@ proc addWorker(self: SlotQueue): ?!void =
     let err = newException(QueueNotRunningError, "queue must be running")
     return failure(err)
 
-  let worker = SlotQueueWorker()
+  trace "adding new worker to worker queue"
+
+  let worker = SlotQueueWorker.init()
   try:
     self.workers.addLastNoWait(worker)
   except AsyncQueueFullError:
-    return failure("failed to add worker, queue full")
+    return failure("failed to add worker, worker queue full")
 
   return success()
 
@@ -327,8 +311,8 @@ proc dispatch(self: SlotQueue,
 
   if onProcessSlot =? self.onProcessSlot:
     try:
-      await onProcessSlot(item)
-      await item.doneProcessing
+      await onProcessSlot(item, worker.doneProcessing)
+      await worker.doneProcessing
 
       if err =? self.addWorker().errorOption:
         raise err # catch below
@@ -364,22 +348,26 @@ proc start*(self: SlotQueue) {.async.} =
 
   while self.running:
     try:
-      let worker = await self.workers.popFirst() # wait for worker to free up
+      self.nextWorker = self.workers.popFirst() # wait for worker to free up
       self.next = self.queue.pop()
+      let worker = await self.nextWorker # if workers saturated, wait here for new workers
       let item = await self.next # if queue empty, wait here for new items
       if not self.running: # may have changed after waiting for pop
+        trace "not running, exiting"
         break
       let dispatched = self.dispatch(worker, item)
+      trace "dispatched worker", dispatchedId = dispatched.id, workerId = worker.id
       dispatched
         .then(() => (
           if self.running and not dispatched.isNil:
+            trace "deleting dispatched future", id = dispatched.id
             self.dispatched.del(dispatched.id)
         ))
-        .catch((e: ref CatchableError) => (
-          error("Unknown error dispatching worker", error = e.msg)
-        ))
-      self.dispatched[dispatched.id] = dispatched
-      self.next = nil
+        .catch(proc (e: ref CatchableError) =
+          error "Unknown error dispatching worker", error = e.msg
+          self.dispatched.del(dispatched.id)
+        )
+      self.dispatched[dispatched.id] = (dispatched, worker)
       await sleepAsync(1.millis) # poll
     except CancelledError:
       discard
@@ -394,16 +382,28 @@ proc stop*(self: SlotQueue) {.async.} =
 
   self.running = false
 
-  if not self.next.isNil:
+  if not self.nextWorker.isNil and not self.nextWorker.finished():
+    trace "cancelling next worker pop"
+    await self.nextWorker.cancelAndWait()
+    self.nextWorker = nil
+
+  if not self.next.isNil and not self.next.finished():
+    trace "cancelling next item pop"
     await self.next.cancelAndWait()
     self.next = nil
 
-  # for item in self.queue.items:
-  #   if not item.doneProcessing.isNil and not item.doneProcessing.finished():
-  #     await item.doneProcessing.cancelAndWait()
+  for (dispatched, worker) in self.dispatched.values:
 
-  # for dispatched in self.dispatched.values:
-  #   if not dispatched.isNil:
-  #     await dispatched.cancelAndWait()
+    if not worker.doneProcessing.isNil and not worker.doneProcessing.finished():
+      trace "cancelling worker doneProcessing future", id = worker.id
+      await worker.doneProcessing.cancelAndWait()
+
+    if not dispatched.isNil and not dispatched.finished():
+      trace "cancelling dispatched future", id = dispatched.id
+      await dispatched.cancelAndWait()
+
+  self.dispatched.clear()
+
+  trace "slot queue stopped"
 
 

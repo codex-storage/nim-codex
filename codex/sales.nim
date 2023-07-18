@@ -95,7 +95,7 @@ proc cleanUp(sales: Sales,
   if not processing.isNil and not processing.finished():
     processing.complete()
 
-proc processSlot(sales: Sales, item: SlotQueueItem) =
+proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
   debug "processing slot from queue", requestId = $item.requestId,
     slot = item.slotIndex
 
@@ -107,7 +107,7 @@ proc processSlot(sales: Sales, item: SlotQueueItem) =
   )
 
   agent.context.onCleanUp = proc {.async.} =
-    await sales.cleanUp(agent, item.doneProcessing)
+    await sales.cleanUp(agent, done)
 
   agent.start(SalePreparing())
   sales.agents.add agent
@@ -356,8 +356,8 @@ proc startSlotQueue(sales: Sales) {.async.} =
   let reservations = sales.context.reservations
 
   slotQueue.onProcessSlot =
-    proc(item: SlotQueueItem) {.async.} =
-      sales.processSlot(item)
+    proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+      sales.processSlot(item, done)
 
   asyncSpawn slotQueue.start()
 
