@@ -384,23 +384,21 @@ proc stop*(self: SlotQueue) {.async.} =
 
   if not self.nextWorker.isNil and not self.nextWorker.finished():
     trace "cancelling next worker pop"
-    await self.nextWorker.cancelAndWait()
+    self.nextWorker.cancel()
 
   if not self.next.isNil and not self.next.finished():
     trace "cancelling next item pop"
-    await self.next.cancelAndWait()
+    self.next.cancel()
 
   for (dispatched, worker) in self.dispatched.values:
 
     if not worker.doneProcessing.isNil and not worker.doneProcessing.finished():
       trace "cancelling worker doneProcessing future", id = worker.id
-      await worker.doneProcessing.cancelAndWait()
+      worker.doneProcessing.cancel()
 
     if not dispatched.isNil and not dispatched.finished():
       trace "cancelling dispatched future", id = dispatched.id
-      await dispatched.cancelAndWait()
-
-  self.dispatched.clear()
+      dispatched.cancel()
 
   trace "slot queue stopped"
 
