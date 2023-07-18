@@ -43,7 +43,7 @@ jobs:
       run:
         shell: ${{ matrix.shell }} {0}
 
-    name: '${{ matrix.os }}'
+    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (Nim ${{ matrix.branch }})'
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 80
     steps:
