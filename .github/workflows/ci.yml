@@ -62,6 +62,18 @@ jobs:
       - name: Env
         run: env
 
+      - name: Run all tests
+        if: runner.os != 'Windows'
+        run: echo "all"
+
+      - name: Run windows tests part1
+        if: runner.os == 'Windows' && matrix.target.tests == 'part1'
+        run: echo "part1"
+
+      - name: Run windows tests part2
+        if: runner.os == 'Windows' && matrix.target.tests == 'part2'
+        run: echo "part2"
+
       # - name: Unit tests
       #   run: make -j${ncpu} test
 
