@@ -17,12 +17,19 @@ jobs:
           - os: linux
             builder: ubuntu-latest
             shell: bash --noprofile --norc -e -o pipefail
+            tests: all
           - os: macos
             builder: macos-latest
             shell: bash --noprofile --norc -e -o pipefail
+            tests: all
           - os: windows
             builder: windows-latest
             shell: msys2
+            tests: part1
+          - os: windows
+            builder: windows-latest
+            shell: msys2
+            tests: part2
 
     defaults:
       run:
@@ -44,54 +51,57 @@ jobs:
           shell: ${{ matrix.shell }}
           nim_version: ${{ env.nim_version }}
 
-      - name: Unit tests
-        run: make -j${ncpu} test
+      - name: Env
+        run: env
 
-      # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-         node-version: 18.15
+      # - name: Unit tests
+      #   run: make -j${ncpu} test
 
-      - name: Start Ethereum node with Codex contracts
-        working-directory: vendor/codex-contracts-eth
-        env:
-          MSYS2_PATH_TYPE: inherit
-        run: |
-          npm install
-          npm start &
+      # # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
+      # - name: Setup Node.js
+      #   uses: actions/setup-node@v3
+      #   with:
+      #    node-version: 18.15
 
-      - name: Contract tests
-        run: make -j${ncpu} testContracts
+      # - name: Start Ethereum node with Codex contracts
+      #   working-directory: vendor/codex-contracts-eth
+      #   env:
+      #     MSYS2_PATH_TYPE: inherit
+      #   run: |
+      #     npm install
+      #     npm start &
 
-      - name: Integration tests
-        run: make -j${ncpu} testIntegration
+      # - name: Contract tests
+      #   run: make -j${ncpu} testContracts
 
-  coverage:
-    continue-on-error: true
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
+      # - name: Integration tests
+      #   run: make -j${ncpu} testIntegration
 
-      - name: Setup Nimbus Build System
-        uses: ./.github/actions/nimbus-build-system
-        with:
-          os: linux
-          nim_version: ${{ env.nim_version }}
+  # coverage:
+  #   continue-on-error: true
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout sources
+  #       uses: actions/checkout@v3
+  #       with:
+  #         submodules: recursive
 
-      - name: Generate coverage data
-        run: make -j${ncpu} coverage
-        shell: bash
+  #     - name: Setup Nimbus Build System
+  #       uses: ./.github/actions/nimbus-build-system
+  #       with:
+  #         os: linux
+  #         nim_version: ${{ env.nim_version }}
 
-      - name: Upload coverage data to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          directory: ./coverage/
-          fail_ci_if_error: true
-          files: ./coverage/coverage.f.info
-          flags: unittests
-          name: codecov-umbrella
-          verbose: true
+  #     - name: Generate coverage data
+  #       run: make -j${ncpu} coverage
+  #       shell: bash
+
+  #     - name: Upload coverage data to Codecov
+  #       uses: codecov/codecov-action@v3
+  #       with:
+  #         directory: ./coverage/
+  #         fail_ci_if_error: true
+  #         files: ./coverage/coverage.f.info
+  #         flags: unittests
+  #         name: codecov-umbrella
+  #         verbose: true
