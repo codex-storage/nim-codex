@@ -12,24 +12,29 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [linux, macos, windows]
+        target:
+          - os: linux
+            cpu: amd64
+            tests: all
+          - os: macos
+            cpu: amd64
+            tests: all
+          - os: windows
+            cpu: amd64
+            tests: part1
+          - os: windows
+            cpu: amd64
+            tests: part2
         include:
           - os: linux
             builder: ubuntu-latest
             shell: bash --noprofile --norc -e -o pipefail
-            tests: all
           - os: macos
             builder: macos-latest
             shell: bash --noprofile --norc -e -o pipefail
-            tests: all
           - os: windows
             builder: windows-latest
             shell: msys2
-            tests: part1
-          - os: windows
-            builder: windows-latest
-            shell: msys2
-            tests: part2
 
     defaults:
       run:
