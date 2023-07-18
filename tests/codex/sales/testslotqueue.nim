@@ -245,7 +245,7 @@ suite "Slot queue":
     check isOk (await queue.push(item4))
 
   test "populates item with exisiting request metadata":
-    newSlotQueue(maxSize = 2, maxWorkers = 2, processSlotDelay = 10.millis)
+    newSlotQueue(maxSize = 2, maxWorkers = 1, processSlotDelay = 10.millis)
     let request0 = StorageRequest.example
     var request1 = StorageRequest.example
     request1.ask.collateral += 1.u256
