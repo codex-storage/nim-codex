@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
-  nim_version: v1.6.10
+  nim_version: v1.6.14
 jobs:
   build:
     strategy:
@@ -35,7 +35,7 @@ jobs:
       run:
         shell: ${{ matrix.shell }} {0}
 
-    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }} (Nim ${{ matrix.branch }})'
+    name: '${{ matrix.os }}-${{ matrix.cpu }} (Nim ${{ matrix.branch }})'
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 80
     steps:
@@ -52,11 +52,11 @@ jobs:
           nim_version: ${{ env.nim_version }}
 
       - name: Run test part 1
-        if: matrix.target.tests == 'part1' || matrix.target.tests == 'all'
+        if: matrix.tests == 'part1' || matrix.tests == 'all'
         run: echo "part1"
 
       - name: Run test part 2
-        if: matrix.target.tests == 'part2' || matrix.target.tests == 'all'
+        if: matrix.tests == 'part2' || matrix.tests == 'all'
         run: echo "part2"
 
       # - name: Unit tests
