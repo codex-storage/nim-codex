@@ -253,7 +253,7 @@ suite "Slot queue":
     let items1 = SlotQueueItem.init(request1)
     check (await queue.push(items0)).isOk
     check (await queue.push(items1)).isOk
-    await sleepAsync(5.millis) # wait for request items to be added
+    await sleepAsync(10.millis) # wait for request items to be added
     let populated = !queue.populateItem(request1.id, 12'u16)
     check populated.requestId == request1.id
     check populated.slotIndex == 12'u16
