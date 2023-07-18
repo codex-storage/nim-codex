@@ -116,14 +116,39 @@ proc stop*(b: BlockExcEngine) {.async.} =
 
   trace "NetworkStore stopped"
 
+proc sendWantHave(b: BlockExcEngine, cid: Cid, selectedPeer: BlockExcPeerCtx, peers: seq[BlockExcPeerCtx]): Future[void] {.async.} =
+  trace "Sending wantHave request to peers", cid
+  for p in peers:
+    if p != selectedPeer:
+      if cid notin p.peerHave:
+        trace " wantHave > ", peer = p.id
+        await b.network.request.sendWantList(
+          p.id,
+          @[cid],
+          wantType = WantType.WantHave) # we only want to know if the peer has the block
+
+proc sendWantBlock(b: BlockExcEngine, cid: Cid, blockPeer: BlockExcPeerCtx): Future[void] {.async.} =
+  trace "Sending wantBlock request to", peer = blockPeer.id, cid
+  await b.network.request.sendWantList(
+    blockPeer.id,
+    @[cid],
+    wantType = WantType.WantBlock) # we want this remote to send us a block
+
+proc findCheapestPeerForBlock(b: BlockExcEngine, cheapestPeers: seq[BlockExcPeerCtx]): ?BlockExcPeerCtx =
+  if cheapestPeers.len <= 0:
+    trace "No cheapest peers, selecting first in list"
+    let
+      peers = toSeq(b.peers) # Get any peer
+    if peers.len <= 0:
+      return none(BlockExcPeerCtx)
+    return some(peers[0])
+  return some(cheapestPeers[0]) # get cheapest
+
 proc requestBlock*(
   b: BlockExcEngine,
   cid: Cid,
   timeout = DefaultBlockTimeout): Future[bt.Block] {.async.} =
-  ## Request a block from remotes
-  ##
-
-  trace "Requesting block", cid, peers = b.peers.len
+  trace "Begin block request", cid, peers = b.peers.len
 
   if b.pendingBlocks.isInFlight(cid):
     trace "Request handle already pending", cid
@@ -132,23 +157,18 @@ proc requestBlock*(
   let
     blk = b.pendingBlocks.getWantHandle(cid, timeout)
 
+  trace "Selecting peers who have", cid
   var
     peers = b.peers.selectCheapest(cid)
 
-  if peers.len <= 0:
-    trace "No cheapest peers, selecting first in list", cid
-    peers = toSeq(b.peers) # Get any peer
-    if peers.len <= 0:
-      trace "No peers to request blocks from", cid
+  without blockPeer =? b.findCheapestPeerForBlock(peers):
+      trace "No peers to request blocks from. Queue discovery...", cid
       b.discovery.queueFindBlocksReq(@[cid])
       return await blk
 
-  let
-    blockPeer = peers[0] # get cheapest
-
   proc blockHandleMonitor() {.async.} =
     try:
-      trace "Monigoring block handle", cid
+      trace "Monitoring block handle", cid
       b.pendingBlocks.setInFlight(cid, true)
       discard await blk
       trace "Block handle success", cid
@@ -165,32 +185,17 @@ proc requestBlock*(
       # drop unresponsive peer
       await b.network.switch.disconnect(blockPeer.id)
 
-  trace "Sending block request to peer", peer = blockPeer.id, cid
-
   # monitor block handle
   asyncSpawn blockHandleMonitor()
 
-  # request block
-  await b.network.request.sendWantList(
-    blockPeer.id,
-    @[cid],
-    wantType = WantType.WantBlock) # we want this remote to send us a block
+  await b.sendWantBlock(cid, blockPeer)
 
   if (peers.len - 1) == 0:
     trace "No peers to send want list to", cid
     b.discovery.queueFindBlocksReq(@[cid])
-    return await blk # no peers to send wants to
+    return await blk
 
-  # filter out the peer we've already requested from
-  let remaining = peers[1..min(peers.high, b.peersPerRequest)]
-  trace "Sending want list to remaining peers", count = remaining.len
-  for p in remaining:
-    if cid notin p.peerHave:
-      # just send wants
-      await b.network.request.sendWantList(
-        p.id,
-        @[cid],
-        wantType = WantType.WantHave) # we only want to know if the peer has the block
+  await b.sendWantHave(cid, blockPeer, toSeq(b.peers))
 
   return await blk
 
@@ -198,9 +203,6 @@ proc blockPresenceHandler*(
   b: BlockExcEngine,
   peer: PeerId,
   blocks: seq[BlockPresence]) {.async.} =
-  ## Handle block presence
-  ##
-
   trace "Received presence update for peer", peer, blocks = blocks.len
   let
     peerCtx = b.peers.get(peer)
@@ -226,20 +228,17 @@ proc blockPresenceHandler*(
     )
 
   if dontWantCids.len > 0:
-    trace "Cleaning peer haves", peer, count = dontWantCids.len
     peerCtx.cleanPresence(dontWantCids)
 
-  trace "Peer want/have", items = peerHave.len, wantList = wantList.len
   let
     wantCids = wantList.filterIt(
       it in peerHave
     )
 
   if wantCids.len > 0:
-    trace "Getting blocks based on updated precense", peer, count = wantCids.len
+    trace "Peer has blocks in our wantList", peer, count = wantCids.len
     discard await allFinished(
-      wantCids.mapIt(b.requestBlock(it)))
-    trace "Requested blocks based on updated precense", peer, count = wantCids.len
+      wantCids.mapIt(b.sendWantBlock(it, peerCtx)))
 
   # if none of the connected peers report our wants in their have list,
   # fire up discovery
@@ -269,10 +268,6 @@ proc scheduleTasks(b: BlockExcEngine, blocks: seq[bt.Block]) {.async.} =
           break # do next peer
 
 proc resolveBlocks*(b: BlockExcEngine, blocks: seq[bt.Block]) {.async.} =
-  ## Resolve pending blocks from the pending blocks manager
-  ## and schedule any new task to be ran
-  ##
-
   trace "Resolving blocks", blocks = blocks.len
 
   b.pendingBlocks.resolve(blocks)
@@ -296,9 +291,6 @@ proc blocksHandler*(
   b: BlockExcEngine,
   peer: PeerId,
   blocks: seq[bt.Block]) {.async.} =
-  ## handle incoming blocks
-  ##
-
   trace "Got blocks from peer", peer, len = blocks.len
   for blk in blocks:
     if isErr (await b.localStore.putBlock(blk)):
@@ -309,24 +301,22 @@ proc blocksHandler*(
     peerCtx = b.peers.get(peer)
 
   if peerCtx != nil:
-    # we don't care about this blocks anymore, lets cleanup the list
     await b.payForBlocks(peerCtx, blocks)
+    ## shouldn't we remove them from the want-list instead of this:
     peerCtx.cleanPresence(blocks.mapIt( it.cid ))
 
 proc wantListHandler*(
   b: BlockExcEngine,
   peer: PeerId,
   wantList: Wantlist) {.async.} =
-  ## Handle incoming want lists
-  ##
-
-  trace "Got want list for peer", peer, items = wantList.entries.len
-  let peerCtx = b.peers.get(peer)
+  trace "Got wantList for peer", peer, items = wantList.entries.len
+  let
+    peerCtx = b.peers.get(peer)
   if isNil(peerCtx):
     return
 
   var
-    precense: seq[BlockPresence]
+    presence: seq[BlockPresence]
 
   for e in wantList.entries:
     let
@@ -347,15 +337,15 @@ proc wantListHandler*(
           .price.toBytesBE)
 
       if not have and e.sendDontHave:
-        trace "Adding dont have entry to precense response", cid = e.cid
-        precense.add(
+        trace "Adding dont have entry to presence response", cid = e.cid
+        presence.add(
           BlockPresence(
           cid: e.cid.data.buffer,
           `type`: BlockPresenceType.DontHave,
           price: price))
       elif have and e.wantType == WantType.WantHave:
-        trace "Adding have entry to precense response", cid = e.cid
-        precense.add(
+        trace "Adding have entry to presence response", cid = e.cid
+        presence.add(
           BlockPresence(
           cid: e.cid.data.buffer,
           `type`: BlockPresenceType.Have,
@@ -374,10 +364,11 @@ proc wantListHandler*(
         # different want params
         peerCtx.peerWants[idx] = e # update entry
 
-  if precense.len > 0:
-    trace "Sending precense to remote", items = precense.len
-    await b.network.request.sendPresence(peer, precense)
+  if presence.len > 0:
+    trace "Sending presence to remote", items = presence.len
+    await b.network.request.sendPresence(peer, presence)
 
+  trace "Scheduling a task for this peer, to look over their want-list", peer
   if not b.scheduleTask(peerCtx):
     trace "Unable to schedule task for peer", peer
 
@@ -385,7 +376,8 @@ proc accountHandler*(
   engine: BlockExcEngine,
   peer: PeerId,
   account: Account) {.async.} =
-  let context = engine.peers.get(peer)
+  let
+    context = engine.peers.get(peer)
   if context.isNil:
     return
 
@@ -403,7 +395,8 @@ proc paymentHandler*(
     return
 
   if channel =? context.paymentChannel:
-    let sender = account.address
+    let
+      sender = account.address
     discard engine.wallet.acceptPayment(channel, Asset, sender, payment)
   else:
     context.paymentChannel = engine.wallet.acceptChannel(payment).option
@@ -451,6 +444,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       it.wantType == WantType.WantBlock
     )
 
+  trace "wantsBlocks", peer = task.id, n = wantsBlocks.len
   if wantsBlocks.len > 0:
     trace "Got peer want blocks list", items = wantsBlocks.len
 
@@ -473,7 +467,6 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
         task.id,
         blocks)
 
-      trace "About to remove entries from peerWants", blocks = blocks.len, items = task.peerWants.len
       # Remove successfully sent blocks
       task.peerWants.keepIf(
         proc(e: Entry): bool =

@@ -83,11 +83,13 @@ proc fetchManifest*(
   if err =? cid.isManifest.errorOption:
     return failure "CID has invalid content type for manifest {$cid}"
 
-  trace "Received manifest retrieval request", cid
+  trace "Retrieving manifest for cid", cid
 
   without blk =? await node.blockStore.getBlock(cid), err:
-    trace "Error retriving manifest block", cid, err = err.msg
+    trace "Error retrieve manifest block", cid, err = err.msg
     return failure err
+
+  trace "Decoding manifest for cid", cid
 
   without manifest =? Manifest.decode(blk), err:
     trace "Unable to decode as manifest", err = err.msg

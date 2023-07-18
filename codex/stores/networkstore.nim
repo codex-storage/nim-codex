@@ -32,17 +32,17 @@ type
     localStore*: BlockStore # local block store
 
 method getBlock*(self: NetworkStore, cid: Cid): Future[?!bt.Block] {.async.} =
-  ## Get a block from a remote peer
-  ##
-
   trace "Getting block from local store or network", cid
 
   without blk =? await self.localStore.getBlock(cid), error:
     if not (error of BlockNotFoundError): return failure error
     trace "Block not in local store", cid
-    # TODO: What if block isn't available in the engine too?
-    # TODO: add retrieved block to the local store
-    return (await self.engine.requestBlock(cid)).catch
+
+    without newBlock =? (await self.engine.requestBlock(cid)).catch, error:
+      trace "Unable to get block from exchange engine", cid
+      return failure error
+
+    return success newBlock
 
   return success blk
 
