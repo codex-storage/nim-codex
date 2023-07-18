@@ -2,7 +2,6 @@ import pkg/asynctest
 import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
-import pkg/upraises
 import codex/utils/then
 import ../helpers
 
