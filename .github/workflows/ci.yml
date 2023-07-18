@@ -47,28 +47,24 @@ jobs:
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 80
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
+      # - name: Checkout sources
+      #   uses: actions/checkout@v3
+      #   with:
+      #     submodules: recursive
 
-      - name: Setup Nimbus Build System
-        uses: ./.github/actions/nimbus-build-system
-        with:
-          os: ${{ matrix.os }}
-          shell: ${{ matrix.shell }}
-          nim_version: ${{ env.nim_version }}
+      # - name: Setup Nimbus Build System
+      #   uses: ./.github/actions/nimbus-build-system
+      #   with:
+      #     os: ${{ matrix.os }}
+      #     shell: ${{ matrix.shell }}
+      #     nim_version: ${{ env.nim_version }}
 
-      - name: Run all tests
-        if: runner.os != 'Windows'
-        run: echo "all"
-
-      - name: Run windows tests part1
-        if: runner.os == 'Windows' && matrix.target.tests == 'part1'
+      - name: Run test part 1
+        if: matrix.target.tests == 'part1' || matrix.target.tests == 'all'
         run: echo "part1"
 
-      - name: Run windows tests part2
-        if: runner.os == 'Windows' && matrix.target.tests == 'part2'
+      - name: Run test part 2
+        if: matrix.target.tests == 'part2' || matrix.target.tests == 'all'
         run: echo "part2"
 
       # - name: Unit tests
