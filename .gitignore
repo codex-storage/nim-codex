@@ -35,3 +35,4 @@ codex.nims
 nimbus-build-system.paths
 docker/hostdatadir
 docker/prometheus-data
+.DS_Store

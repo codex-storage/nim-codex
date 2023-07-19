@@ -84,6 +84,8 @@ proc send*(b: BlockExcNetwork, id: PeerId, msg: pb.Message) {.async.} =
       await b.inflightSema.acquire()
       trace "Sending message to peer", peer = id
       await peer[].send(msg)
+    except CatchableError as err:
+      error "Error sending message", peer = id, msg = err.msg
     finally:
       b.inflightSema.release()
   do:
