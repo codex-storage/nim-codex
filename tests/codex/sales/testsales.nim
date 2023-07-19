@@ -106,88 +106,88 @@ asyncchecksuite "Sales":
     await sleepAsync(5.millis) # wait for request slots to be added to queue
     return request1
 
-  #test "processes all request's slots once StorageRequested emitted":
-  #  queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-  #                          itemsProcessed.add item
-  #                          done.complete()
-  #  check isOk await reservations.reserve(availability)
-  #  await market.requestStorage(request)
-  #  let items = SlotQueueItem.init(request)
-  #  check eventually items.allIt(itemsProcessed.contains(it))
+  test "processes all request's slots once StorageRequested emitted":
+   queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+                           itemsProcessed.add item
+                           done.complete()
+   check isOk await reservations.reserve(availability)
+   await market.requestStorage(request)
+   let items = SlotQueueItem.init(request)
+   check eventually items.allIt(itemsProcessed.contains(it))
 
-  #test "removes slots from slot queue once RequestCancelled emitted":
-  #  let request1 = await addRequestToSaturatedQueue()
-  #  market.emitRequestCancelled(request1.id)
-  #  check always itemsProcessed.notProcessed(request1)
+  test "removes slots from slot queue once RequestCancelled emitted":
+   let request1 = await addRequestToSaturatedQueue()
+   market.emitRequestCancelled(request1.id)
+   check always itemsProcessed.notProcessed(request1)
 
-  #test "removes request from slot queue once RequestFailed emitted":
-  #  let request1 = await addRequestToSaturatedQueue()
-  #  market.emitRequestFailed(request1.id)
-  #  check always itemsProcessed.notProcessed(request1)
+  test "removes request from slot queue once RequestFailed emitted":
+   let request1 = await addRequestToSaturatedQueue()
+   market.emitRequestFailed(request1.id)
+   check always itemsProcessed.notProcessed(request1)
 
-  #test "removes request from slot queue once RequestFulfilled emitted":
-  #  let request1 = await addRequestToSaturatedQueue()
-  #  market.emitRequestFulfilled(request1.id)
-  #  check always itemsProcessed.notProcessed(request1)
+  test "removes request from slot queue once RequestFulfilled emitted":
+   let request1 = await addRequestToSaturatedQueue()
+   market.emitRequestFulfilled(request1.id)
+   check always itemsProcessed.notProcessed(request1)
 
-  #test "removes slot index from slot queue once SlotFilled emitted":
-  #  let request1 = await addRequestToSaturatedQueue()
-  #  market.emitSlotFilled(request1.id, 1.u256)
-  #  let expected = SlotQueueItem.init(request1, 1'u16)
-  #  check always (not itemsProcessed.contains(expected))
+  test "removes slot index from slot queue once SlotFilled emitted":
+   let request1 = await addRequestToSaturatedQueue()
+   market.emitSlotFilled(request1.id, 1.u256)
+   let expected = SlotQueueItem.init(request1, 1'u16)
+   check always (not itemsProcessed.contains(expected))
 
-  #test "adds slot index to slot queue once SlotFreed emitted":
-  #  queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-  #    itemsProcessed.add item
-  #    done.complete()
+  test "adds slot index to slot queue once SlotFreed emitted":
+   queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+     itemsProcessed.add item
+     done.complete()
 
-  #  check isOk await reservations.reserve(availability)
-  #  market.requested.add request # "contract" must be able to return request
-  #  market.emitSlotFreed(request.id, 2.u256)
+   check isOk await reservations.reserve(availability)
+   market.requested.add request # "contract" must be able to return request
+   market.emitSlotFreed(request.id, 2.u256)
 
-  #  let expected = SlotQueueItem.init(request, 2.uint16)
-  #  check eventually itemsProcessed.contains(expected)
+   let expected = SlotQueueItem.init(request, 2.uint16)
+   check eventually itemsProcessed.contains(expected)
 
-  #test "request slots are not added to the slot queue when no availabilities exist":
-  #  var itemsProcessed: seq[SlotQueueItem] = @[]
-  #  queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-  #    itemsProcessed.add item
-  #    done.complete()
+  test "request slots are not added to the slot queue when no availabilities exist":
+   var itemsProcessed: seq[SlotQueueItem] = @[]
+   queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+     itemsProcessed.add item
+     done.complete()
 
-  #  await market.requestStorage(request)
-  #  # check that request was ignored due to no matching availability
-  #  check always itemsProcessed.len == 0
+   await market.requestStorage(request)
+   # check that request was ignored due to no matching availability
+   check always itemsProcessed.len == 0
 
-  #test "non-matching availabilities/requests are not added to the slot queue":
-  #  var itemsProcessed: seq[SlotQueueItem] = @[]
-  #  queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-  #    itemsProcessed.add item
-  #    done.complete()
+  test "non-matching availabilities/requests are not added to the slot queue":
+   var itemsProcessed: seq[SlotQueueItem] = @[]
+   queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+     itemsProcessed.add item
+     done.complete()
 
-  #  let nonMatchingAvailability = Availability.init(
-  #    size=100.u256,
-  #    duration=60.u256,
-  #    minPrice=601.u256, # too high
-  #    maxCollateral=400.u256
-  #  )
-  #  check isOk await reservations.reserve(nonMatchingAvailability)
-  #  await market.requestStorage(request)
-  #  # check that request was ignored due to no matching availability
-  #  # check always queue.len == 0
-  #  check always itemsProcessed.len == 0
+   let nonMatchingAvailability = Availability.init(
+     size=100.u256,
+     duration=60.u256,
+     minPrice=601.u256, # too high
+     maxCollateral=400.u256
+   )
+   check isOk await reservations.reserve(nonMatchingAvailability)
+   await market.requestStorage(request)
+   # check that request was ignored due to no matching availability
+   # check always queue.len == 0
+   check always itemsProcessed.len == 0
 
-  #test "adds past requests to queue once availability added":
-  #  var itemsProcessed: seq[SlotQueueItem] = @[]
-  #  queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-  #    itemsProcessed.add item
-  #    done.complete()
+  test "adds past requests to queue once availability added":
+   var itemsProcessed: seq[SlotQueueItem] = @[]
+   queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+     itemsProcessed.add item
+     done.complete()
 
-  #  await market.requestStorage(request)
-  #  # await sleepAsync(4.millis) # wait for all attempted slot pushes
+   await market.requestStorage(request)
+   # await sleepAsync(4.millis) # wait for all attempted slot pushes
 
-  #  # now add matching availability
-  #  check isOk await reservations.reserve(availability)
-  #  check eventually itemsProcessed.len == request.ask.slots.int
+   # now add matching availability
+   check isOk await reservations.reserve(availability)
+   check eventually itemsProcessed.len == request.ask.slots.int
 
   test "makes storage unavailable when downloading a matched request":
     var used = false
