@@ -67,7 +67,7 @@ jobs:
          node-version: 18.15
 
       - name: Start Ethereum node with Codex contracts
-        if: matrix.tests == 'part1' || matrix.tests == 'all'
+        if: matrix.tests == 'part1' || matrix.tests == 'part2' || matrix.tests == 'all'
         working-directory: vendor/codex-contracts-eth
         env:
           MSYS2_PATH_TYPE: inherit
