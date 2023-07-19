@@ -56,10 +56,8 @@ runnableExamples:
 type
   OnSuccess*[T] = proc(val: T) {.gcsafe, upraises: [].}
   OnError* = proc(err: ref CatchableError) {.gcsafe, upraises: [].}
-  OnFinally* = proc(): void {.gcsafe, upraises: [].}
 
 proc ignoreError(err: ref CatchableError) = discard
-proc ignoreFinally() = discard
 
 template returnOrError(future: FutureBase, onError: OnError) =
   if not future.finished:
@@ -91,14 +89,12 @@ proc then*(future: Future[void],
 
 proc then*(future: Future[void],
            onSuccess: OnSuccess[void],
-           onError: OnError = ignoreError,
-           onFinally: OnFinally = ignoreFinally):
+           onError: OnError = ignoreError):
           Future[void] =
 
   proc cb(udata: pointer) =
     future.returnOrError(onError)
     onSuccess()
-    onFinally()
 
   proc cancellation(udata: pointer) =
     if not future.finished():
@@ -110,8 +106,7 @@ proc then*(future: Future[void],
 
 proc then*[T](future: Future[T],
               onSuccess: OnSuccess[T],
-              onError: OnError = ignoreError,
-              onFinally: OnFinally = ignoreFinally):
+              onError: OnError = ignoreError):
              Future[T] =
 
   proc cb(udata: pointer) =
@@ -121,7 +116,6 @@ proc then*[T](future: Future[T],
       onError(err)
       return
     onSuccess(val)
-    onFinally()
 
   proc cancellation(udata: pointer) =
     if not future.finished():
@@ -133,8 +127,7 @@ proc then*[T](future: Future[T],
 
 proc then*[T](future: Future[?!T],
               onSuccess: OnSuccess[T],
-              onError: OnError = ignoreError,
-              onFinally: OnFinally = ignoreFinally):
+              onError: OnError = ignoreError):
              Future[?!T] =
 
   proc cb(udata: pointer) =
@@ -145,7 +138,6 @@ proc then*[T](future: Future[?!T],
         onError(err)
         return
       onSuccess(val)
-      onFinally()
     except CatchableError as e:
       onError(e)
 
@@ -180,8 +172,7 @@ proc then*(future: Future[?!void],
 
 proc then*(future: Future[?!void],
            onSuccess: OnSuccess[void],
-           onError: OnError = ignoreError,
-           onFinally: OnFinally = ignoreFinally):
+           onError: OnError = ignoreError):
           Future[?!void] =
 
   proc cb(udata: pointer) =
@@ -195,7 +186,6 @@ proc then*(future: Future[?!void],
       onError(e)
       return
     onSuccess()
-    onFinally()
 
   proc cancellation(udata: pointer) =
     if not future.finished():
@@ -205,7 +195,8 @@ proc then*(future: Future[?!void],
   future.cancelCallback = cancellation
   return future
 
-proc catch*[T](future: Future[T], onError: OnError): Future[T] =
+proc catch*[T](future: Future[T],
+               onError: OnError) =
 
   proc cb(udata: pointer) =
     future.returnOrError(onError)
@@ -216,9 +207,9 @@ proc catch*[T](future: Future[T], onError: OnError): Future[T] =
 
   future.addCallback(cb)
   future.cancelCallback = cancellation
-  return future
 
-proc catch*[T](future: Future[?!T], onError: OnError): Future[?!T] =
+proc catch*[T](future: Future[?!T],
+               onError: OnError) =
 
   proc cb(udata: pointer) =
     future.returnOrError(onError)
@@ -228,20 +219,6 @@ proc catch*[T](future: Future[?!T], onError: OnError): Future[?!T] =
         onError(err)
     except CatchableError as e:
       onError(e)
-
-  proc cancellation(udata: pointer) =
-    if not future.finished():
-      future.removeCallback(cb)
-
-  future.addCallback(cb)
-  future.cancelCallback = cancellation
-  return future
-
-proc `finally`*[T](future: Future[T], onFinally: OnFinally) =
-
-  proc cb(udata: pointer) =
-    if future.finished:
-      onFinally()
 
   proc cancellation(udata: pointer) =
     if not future.finished():

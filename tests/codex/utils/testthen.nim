@@ -31,22 +31,14 @@ asyncchecksuite "then - Future[void]":
     )
     check eventually returnsVoidWasRun
 
-  test "calls onSuccess when Future[void] completes":
+  test "calls onSuccess when Future[void] complete":
     var onSuccessCalled = false
     discard returnsVoid().then(
       proc() = onSuccessCalled = true,
       proc(err: ref CatchableError) = discard
     )
+    check eventually returnsVoidWasRun
     check eventually onSuccessCalled
-
-  test "calls onFinally when Future[void] completes":
-    var onFinallyCalled = false
-    discard returnsVoid().then(
-      proc() = discard,
-      proc(err: ref CatchableError) = discard,
-      proc() = onFinallyCalled = true
-    )
-    check eventually onFinallyCalled
 
   test "can pass only onSuccess for Future[void]":
     var onSuccessCalled = false
@@ -56,7 +48,7 @@ asyncchecksuite "then - Future[void]":
     check eventually returnsVoidWasRun
     check eventually onSuccessCalled
 
-  test "can chain onSuccess when Future[void] completes":
+  test "can chain onSuccess when Future[void] complete":
     var onSuccessCalledTimes = 0
     discard returnsVoid()
       .then(proc() = inc onSuccessCalledTimes)
@@ -81,63 +73,20 @@ asyncchecksuite "then - Future[void]":
 
   test "catch callback fired when Future[void] fails":
     var errorActual: ref CatchableError
-    discard returnsVoidError().catch(
+    returnsVoidError().catch(
       proc(e: ref CatchableError) = errorActual = e
     )
     check eventually error == errorActual
 
-  test "catch callback fired when Future[void] succeeds":
-    var onFinallyCalled = false
-    returnsVoid().finally(
-      proc() = onFinallyCalled = true
-    )
-    check eventually onFinallyCalled
-
-  test "catch callback fired when Future[void] fails":
-    var onFinallyCalled = false
-    returnsVoidError().finally(
-      proc() = onFinallyCalled = true
-    )
-    check eventually onFinallyCalled
-
   test "does not fire onSuccess callback when Future[void] fails":
     var onSuccessCalled = false
 
-    discard returnsVoidError()
+    returnsVoidError()
       .then(proc() = onSuccessCalled = true)
       .then(proc() = onSuccessCalled = true)
       .catch(proc(e: ref CatchableError) = discard)
 
     check always (not onSuccessCalled)
-
-  test "chaining when Future[void] succeeds fires .then and .finally":
-    var onSuccessCalled = false
-    var onErrorCalled = false
-    var onFinallyCalled = false
-
-    returnsVoid()
-      .then(proc() = onSuccessCalled = true)
-      .then(proc() = onSuccessCalled = true)
-      .catch(proc(e: ref CatchableError) = onErrorCalled = true)
-      .finally(proc() = onFinallyCalled = true)
-
-    check always (not onErrorCalled)
-    check eventually onSuccessCalled
-    check eventually onFinallyCalled
-
-  test "chaining when Future[void] fails fires .catch":
-    var onSuccessCalled = false
-    var onErrorCalled = false
-    var onFinallyCalled = false
-
-    returnsVoidError()
-      .then(proc() = onSuccessCalled = true)
-      .then(proc() = onSuccessCalled = true)
-      .catch(proc(e: ref CatchableError) = onErrorCalled = true)
-      .finally(proc() = onFinallyCalled = true)
-
-    check always (not onSuccessCalled)
-    check eventually onFinallyCalled
 
 asyncchecksuite "then - Future[T]":
   var returnsValWasRun: bool
@@ -160,7 +109,7 @@ asyncchecksuite "then - Future[T]":
   proc wasCancelled(error: ref CancelledError): bool =
     not error.isNil and error.msg == "Future operation cancelled!"
 
-  test "calls onSuccess when Future[T] completes":
+  test "calls onSuccess when Future[T] complete":
     var returnedVal = 0
     discard returnsVal().then(
       proc(val: int) = returnedVal = val,
@@ -169,20 +118,12 @@ asyncchecksuite "then - Future[T]":
     check eventually returnsValWasRun
     check eventually returnedVal == 1
 
-  test "calls onFinally when Future[T] completes":
-    var onFinallyCalled = false
-    discard returnsVal().then(
-      proc(val: int) = discard,
-      proc(err: ref CatchableError) = discard,
-      proc() = onFinallyCalled = true
-    )
-    check eventually onFinallyCalled
-
   test "can pass only onSuccess for Future[T]":
     var returnedVal = 0
     discard returnsVal().then(
       proc(val: int) = returnedVal = val
     )
+    check eventually returnsValWasRun
     check eventually returnedVal == 1
 
   test "can chain onSuccess when Future[T] complete":
@@ -203,63 +144,20 @@ asyncchecksuite "then - Future[T]":
 
   test "catch callback fired when Future[T] fails":
     var errorActual: ref CatchableError
-    discard returnsValError().catch(
+    returnsValError().catch(
       proc(e: ref CatchableError) = errorActual = e
     )
     check eventually error == errorActual
 
-  test "catch callback fired when Future[T] succeeds":
-    var onFinallyCalled = false
-    returnsVal().finally(
-      proc() = onFinallyCalled = true
-    )
-    check eventually onFinallyCalled
-
-  test "catch callback fired when Future[T] fails":
-    var onFinallyCalled = false
-    returnsValError().finally(
-      proc() = onFinallyCalled = true
-    )
-    check eventually onFinallyCalled
-
   test "does not fire onSuccess callback when Future[T] fails":
     var onSuccessCalled = false
 
-    discard returnsValError()
+    returnsValError()
       .then(proc(val: int) = onSuccessCalled = true)
       .then(proc(val: int) = onSuccessCalled = true)
       .catch(proc(e: ref CatchableError) = discard)
 
     check always (not onSuccessCalled)
-
-  test "chaining when Future[T] succeeds fires .then and .finally":
-    var onSuccessCalled = false
-    var onErrorCalled = false
-    var onFinallyCalled = false
-
-    returnsVal()
-      .then(proc(val: int) = onSuccessCalled = true)
-      .then(proc(val: int) = onSuccessCalled = true)
-      .catch(proc(e: ref CatchableError) = onErrorCalled = true)
-      .finally(proc() = onFinallyCalled = true)
-
-    check always (not onErrorCalled)
-    check eventually onSuccessCalled
-    check eventually onFinallyCalled
-
-  test "chaining when Future[T] fails fires .catch":
-    var onSuccessCalled = false
-    var onErrorCalled = false
-    var onFinallyCalled = false
-
-    returnsValError()
-      .then(proc(val: int) = onSuccessCalled = true)
-      .then(proc(val: int) = onSuccessCalled = true)
-      .catch(proc(e: ref CatchableError) = onErrorCalled = true)
-      .finally(proc() = onFinallyCalled = true)
-
-    check always (not onSuccessCalled)
-    check eventually onFinallyCalled
 
 asyncchecksuite "then - Future[?!void]":
   var returnsResultVoidWasRun: bool
@@ -296,20 +194,12 @@ asyncchecksuite "then - Future[?!void]":
     check eventually returnsResultVoidWasRun
     check eventually onSuccessCalled
 
-  test "calls onFinally when Future[?!void] completes":
-    var onFinallyCalled = false
-    discard returnsResultVoid().then(
-      proc() = discard,
-      proc(err: ref CatchableError) = discard,
-      proc() = onFinallyCalled = true
-    )
-    check eventually onFinallyCalled
-
   test "can pass only onSuccess for Future[?!void]":
     var onSuccessCalled = false
     discard returnsResultVoid().then(
       proc() = onSuccessCalled = true
     )
+    check eventually returnsResultVoidWasRun
     check eventually onSuccessCalled
 
   test "can chain onSuccess when Future[?!void] complete":
@@ -338,67 +228,24 @@ asyncchecksuite "then - Future[?!void]":
 
   test "catch callback fired when Future[?!void] fails":
     var errorActual: ref CatchableError
-    discard returnsResultVoidError().catch(
+    returnsResultVoidError().catch(
       proc(e: ref CatchableError) = errorActual = e
     )
     check eventually error == errorActual
 
-  test "catch callback fired when Future[?!void] succeeds":
-    var onFinallyCalled = false
-    returnsResultVoid().finally(
-      proc() = onFinallyCalled = true
-    )
-    check eventually onFinallyCalled
-
-  test "catch callback fired when Future[?!void] fails":
-    var onFinallyCalled = false
-    returnsResultVoidError().finally(
-      proc() = onFinallyCalled = true
-    )
-    check eventually onFinallyCalled
-
   test "does not fire onSuccess callback when Future[?!void] fails":
     var onSuccessCalled = false
 
-    discard returnsResultVoidError()
+    returnsResultVoidError()
       .then(proc() = onSuccessCalled = true)
       .then(proc() = onSuccessCalled = true)
       .catch(proc(e: ref CatchableError) = discard)
 
     check always (not onSuccessCalled)
 
-  test "chaining when Future[?!void] succeeds fires .then and .finally":
-    var onSuccessCalled = false
-    var onErrorCalled = false
-    var onFinallyCalled = false
-
-    returnsResultVoid()
-      .then(proc() = onSuccessCalled = true)
-      .then(proc() = onSuccessCalled = true)
-      .catch(proc(e: ref CatchableError) = onErrorCalled = true)
-      .finally(proc() = onFinallyCalled = true)
-
-    check always (not onErrorCalled)
-    check eventually onSuccessCalled
-    check eventually onFinallyCalled
-
-  test "chaining when Future[?!void] fails fires .catch":
-    var onSuccessCalled = false
-    var onErrorCalled = false
-    var onFinallyCalled = false
-
-    returnsResultVoidError()
-      .then(proc() = onSuccessCalled = true)
-      .then(proc() = onSuccessCalled = true)
-      .catch(proc(e: ref CatchableError) = onErrorCalled = true)
-      .finally(proc() = onFinallyCalled = true)
-
-    check always (not onSuccessCalled)
-    check eventually onFinallyCalled
-
   test "catch callback fired when Future[?!void] fails with uncaught error":
     var errorActual: ref CatchableError
-    discard returnsResultVoidErrorUncaught().catch(
+    returnsResultVoidErrorUncaught().catch(
       proc(e: ref CatchableError) = errorActual = e
     )
     check eventually error == errorActual
@@ -437,15 +284,6 @@ asyncchecksuite "then - Future[?!T]":
     check eventually returnsResultValWasRun
     check eventually actualVal == 2
 
-  test "calls onFinally when Future[?!T] completes":
-    var onFinallyCalled = false
-    discard returnsResultVal().then(
-      proc(val: int) = discard,
-      proc(err: ref CatchableError) = discard,
-      proc() = onFinallyCalled = true
-    )
-    check eventually onFinallyCalled
-
   test "can pass only onSuccess for Future[?!T]":
     var actualVal = 0
     discard returnsResultVal().then(
@@ -480,68 +318,25 @@ asyncchecksuite "then - Future[?!T]":
 
   test "catch callback fired when Future[?!T] fails":
     var errorActual: ref CatchableError
-    discard returnsResultValError().catch(
+    returnsResultValError().catch(
       proc(e: ref CatchableError) = errorActual = e
     )
     check eventually error == errorActual
 
-  test "catch callback fired when Future[?!T] succeeds":
-    var onFinallyCalled = false
-    returnsResultVal().finally(
-      proc() = onFinallyCalled = true
-    )
-    check eventually onFinallyCalled
-
-  test "catch callback fired when Future[?!T] fails":
-    var onFinallyCalled = false
-    returnsResultValError().finally(
-      proc() = onFinallyCalled = true
-    )
-    check eventually onFinallyCalled
-
   test "does not fire onSuccess callback when Future[?!T] fails":
     var onSuccessCalled = false
 
-    discard returnsResultValError()
+    returnsResultValError()
       .then(proc(val: int) = onSuccessCalled = true)
       .then(proc(val: int) = onSuccessCalled = true)
       .catch(proc(e: ref CatchableError) = discard)
 
     check always (not onSuccessCalled)
 
-  test "chaining when Future[?!T] succeeds fires .then and .finally":
-    var onSuccessCalled = false
-    var onErrorCalled = false
-    var onFinallyCalled = false
-
-    returnsResultVal()
-      .then(proc(val: int) = onSuccessCalled = true)
-      .then(proc(val: int) = onSuccessCalled = true)
-      .catch(proc(e: ref CatchableError) = onErrorCalled = true)
-      .finally(proc() = onFinallyCalled = true)
-
-    check always (not onErrorCalled)
-    check eventually onSuccessCalled
-    check eventually onFinallyCalled
-
-  test "chaining when Future[?!T] fails fires .catch":
-    var onSuccessCalled = false
-    var onErrorCalled = false
-    var onFinallyCalled = false
-
-    returnsResultValError()
-      .then(proc(val: int) = onSuccessCalled = true)
-      .then(proc(val: int) = onSuccessCalled = true)
-      .catch(proc(e: ref CatchableError) = onErrorCalled = true)
-      .finally(proc() = onFinallyCalled = true)
-
-    check always (not onSuccessCalled)
-    check eventually onFinallyCalled
-
   test "catch callback fired when Future[?!T] fails with uncaught error":
     var errorActual: ref CatchableError
 
-    discard returnsResultValErrorUncaught()
+    returnsResultValErrorUncaught()
       .then(proc(val: int) = discard)
       .then(proc(val: int) = discard)
       .catch(proc(e: ref CatchableError) = errorActual = e)
