@@ -30,7 +30,7 @@ export types
 type
   Manifest* = ref object of RootObj
     rootHash: ?Cid          # Root (tree) hash of the contained data set
-    originalBytes: NBytes  # Exact size of the original (uploaded) file
+    originalBytes*: NBytes  # Exact size of the original (uploaded) file
     blockSize: NBytes      # Size of each contained block (might not be needed if blocks are len-prefixed)
     blocks: seq[Cid]       # Block Cid
     version: CidVersion    # Cid version
@@ -48,9 +48,6 @@ type
 ############################################################
 # Accessors
 ############################################################
-
-proc originalBytes*(self: Manifest): NBytes =
-  self.originalBytes
 
 proc blockSize*(self: Manifest): NBytes =
   self.blockSize
@@ -81,9 +78,6 @@ proc originalCid*(self: Manifest): Cid =
 
 proc originalLen*(self: Manifest): int =
   self.originalLen
-
-proc setOriginalBytes*(self: Manifest, originalBytes: NBytes): void =
-  self.originalBytes = originalBytes
 
 ############################################################
 # Operations on block list

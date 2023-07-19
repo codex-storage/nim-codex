@@ -221,7 +221,7 @@ proc store*(
     await stream.close()
 
   # Generate manifest
-  blockManifest.setOriginalBytes(NBytes chunker.offset)  # store the exact file size
+  blockManifest.originalBytes = NBytes(chunker.offset)  # store the exact file size
   without data =? blockManifest.encode():
     return failure(
       newException(CodexError, "Could not generate dataset manifest!"))
