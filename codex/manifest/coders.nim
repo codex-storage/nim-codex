@@ -145,22 +145,31 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
   if blocksLen.int != blocks.len:
     return failure("Total blocks and length of blocks in header don't match!")
 
-  var
-    self = Manifest.new(rootHashCid)
-
-  self.originalBytes = originalBytes.NBytes
-  self.blockSize = blockSize.NBytes
-  self.blocks = blocks
-  self.hcodec = (? rootHashCid.mhash.mapFailure).mcodec
-  self.codec = rootHashCid.mcodec
-  self.version = rootHashCid.cidver
-  self.protected = pbErasureInfo.buffer.len > 0
-
-  if self.protected:
-    self.ecK = ecK.int
-    self.ecM = ecM.int
-    self.originalCid = ? Cid.init(originalCid).mapFailure
-    self.originalLen = originalLen.int
+  let
+    self = if pbErasureInfo.buffer.len > 0:
+      Manifest.new(
+        rootHash = rootHashCid,
+        originalBytes = originalBytes.NBytes,
+        blockSize = blockSize.NBytes,
+        blocks = blocks,
+        version = rootHashCid.cidver,
+        hcodec = (? rootHashCid.mhash.mapFailure).mcodec,
+        codec = rootHashCid.mcodec,
+        ecK = ecK.int,
+        ecM = ecM.int,
+        originalCid = ? Cid.init(originalCid).mapFailure,
+        originalLen = originalLen.int
+      )
+      else:
+        Manifest.new(
+          rootHash = rootHashCid,
+          originalBytes = originalBytes.NBytes,
+          blockSize = blockSize.NBytes,
+          blocks = blocks,
+          version = rootHashCid.cidver,
+          hcodec = (? rootHashCid.mhash.mapFailure).mcodec,
+          codec = rootHashCid.mcodec
+        )
 
   ? self.verify()
   self.success

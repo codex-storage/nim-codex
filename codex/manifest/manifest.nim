@@ -30,21 +30,60 @@ export types
 type
   Manifest* = ref object of RootObj
     rootHash: ?Cid          # Root (tree) hash of the contained data set
-    originalBytes*: NBytes  # Exact size of the original (uploaded) file
-    blockSize*: NBytes      # Size of each contained block (might not be needed if blocks are len-prefixed)
-    blocks*: seq[Cid]       # Block Cid
-    version*: CidVersion    # Cid version
-    hcodec*: MultiCodec     # Multihash codec
-    codec*: MultiCodec      # Data set codec
-    case protected*: bool   # Protected datasets have erasure coded info
+    originalBytes: NBytes  # Exact size of the original (uploaded) file
+    blockSize: NBytes      # Size of each contained block (might not be needed if blocks are len-prefixed)
+    blocks: seq[Cid]       # Block Cid
+    version: CidVersion    # Cid version
+    hcodec: MultiCodec     # Multihash codec
+    codec: MultiCodec      # Data set codec
+    case protected: bool   # Protected datasets have erasure coded info
     of true:
-      ecK*: int               # Number of blocks to encode
-      ecM*: int               # Number of resulting parity blocks
-      originalCid*: Cid     # The original Cid of the dataset being erasure coded
-      originalLen*: int     # The length of the original manifest
+      ecK: int               # Number of blocks to encode
+      ecM: int               # Number of resulting parity blocks
+      originalCid: Cid     # The original Cid of the dataset being erasure coded
+      originalLen: int     # The length of the original manifest
     else:
       discard
 
+############################################################
+# Accessors
+############################################################
+
+proc originalBytes*(self: Manifest): NBytes =
+  self.originalBytes
+
+proc blockSize*(self: Manifest): NBytes =
+  self.blockSize
+
+proc blocks*(self: Manifest): seq[Cid] =
+  self.blocks
+
+proc version*(self: Manifest): CidVersion =
+  self.version
+
+proc hcodec*(self: Manifest): MultiCodec =
+  self.hcodec
+
+proc codec*(self: Manifest): MultiCodec =
+  self.codec
+
+proc protected*(self: Manifest): bool =
+  self.protected
+
+proc ecK*(self: Manifest): int =
+  self.ecK
+
+proc ecM*(self: Manifest): int =
+  self.ecM
+
+proc originalCid*(self: Manifest): Cid =
+  self.originalCid
+
+proc originalLen*(self: Manifest): int =
+  self.originalLen
+
+proc setOriginalBytes*(self: Manifest, originalBytes: NBytes): void =
+  self.originalBytes = originalBytes
 
 ############################################################
 # Operations on block list
@@ -250,13 +289,55 @@ proc new*(
   decoder = ManifestContainers[$DagPBCodec]
 ): ?!Manifest =
   ## Create a manifest instance from given data
-  ## 
+  ##
   Manifest.decode(data, decoder)
 
 proc new*(
   T: type Manifest,
-  rootHash: Cid
+  rootHash: Cid,
+  originalBytes: NBytes,
+  blockSize: NBytes,
+  blocks: seq[Cid],
+  version: CidVersion,
+  hcodec: MultiCodec,
+  codec: MultiCodec,
+  ecK: int,
+  ecM: int,
+  originalCid: Cid,
+  originalLen: int
 ): Manifest =
   Manifest(
-    rootHash: rootHash.some
+    rootHash: rootHash.some,
+    originalBytes: originalBytes,
+    blockSize: blockSize,
+    blocks: blocks,
+    version: version,
+    hcodec: hcodec,
+    codec: codec,
+    protected: true,
+    ecK: ecK,
+    ecM: ecM,
+    originalCid: originalCid,
+    originalLen: originalLen
+  )
+
+proc new*(
+  T: type Manifest,
+  rootHash: Cid,
+  originalBytes: NBytes,
+  blockSize: NBytes,
+  blocks: seq[Cid],
+  version: CidVersion,
+  hcodec: MultiCodec,
+  codec: MultiCodec
+): Manifest =
+  Manifest(
+    rootHash: rootHash.some,
+    originalBytes: originalBytes,
+    blockSize: blockSize,
+    blocks: blocks,
+    version: version,
+    hcodec: hcodec,
+    codec: codec,
+    protected: false,
   )

@@ -63,7 +63,7 @@ proc findPeer*(
   peerId: PeerId
 ): Future[?PeerRecord] {.async.} =
   ## Find peer using the discovery service from the given CodexNode
-  ## 
+  ##
   return await node.discovery.findPeer(peerId)
 
 proc connect*(
@@ -221,7 +221,7 @@ proc store*(
     await stream.close()
 
   # Generate manifest
-  blockManifest.originalBytes = NBytes chunker.offset  # store the exact file size
+  blockManifest.setOriginalBytes(NBytes chunker.offset)  # store the exact file size
   without data =? blockManifest.encode():
     return failure(
       newException(CodexError, "Could not generate dataset manifest!"))
@@ -332,7 +332,7 @@ proc new*(
     contracts = Contracts.default
 ): CodexNodeRef =
   ## Create new instance of a Codex node, call `start` to run it
-  ## 
+  ##
   CodexNodeRef(
     switch: switch,
     blockStore: store,
