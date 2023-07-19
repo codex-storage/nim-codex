@@ -15,6 +15,7 @@ import ./sales/salescontext
 import ./sales/salesagent
 import ./sales/statemachine
 import ./sales/slotqueue
+import ./sales/trackablefutures
 import ./sales/states/preparing
 import ./sales/states/unknown
 import ./utils/then
@@ -44,12 +45,10 @@ logScope:
   topics = "sales"
 
 type
-  Sales* = ref object
+  Sales* = ref object of TrackableFutures
     context*: SalesContext
     agents*: seq[SalesAgent]
     subscriptions: seq[market.Subscription]
-    stopping: bool
-    handlers: Table[uint, FutureBase]
 
 proc `onStore=`*(sales: Sales, onStore: OnStore) =
   sales.context.onStore = some onStore
@@ -86,7 +85,7 @@ func new*(_: type Sales,
 
 proc remove(sales: Sales, agent: SalesAgent) {.async.} =
   await agent.stop()
-  if not sales.stopping:
+  if sales.running:
     sales.agents.keepItIf(it != agent)
 
 proc cleanUp(sales: Sales,
@@ -163,17 +162,20 @@ proc onReservationAdded(sales: Sales, availability: Availability) {.async.} =
       events = events.len
 
     for slots in requests:
-      if err =? (await queue.push(slots)).errorOption:
-        raise err
-  except QueueNotRunningError:
-    warn "cannot push items to queue, queue is not running"
-  except NoMatchingAvailabilityError:
-    info "slot in queue had no matching availabilities, ignoring"
-  except SlotsOutOfRangeError:
-    warn "Too many slots, cannot add to queue"
-  except SlotQueueItemExistsError:
-    trace "item already exists, ignoring"
-    discard
+      for slot in slots:
+        if err =? (await queue.push(slot)).errorOption:
+          # continue on error
+          if err of QueueNotRunningError:
+            warn "cannot push items to queue, queue is not running"
+          elif err of NoMatchingAvailabilityError:
+            info "slot in queue had no matching availabilities, ignoring"
+          elif err of SlotsOutOfRangeError:
+            warn "Too many slots, cannot add to queue"
+          elif err of SlotQueueItemExistsError:
+            trace "item already exists, ignoring"
+            discard
+          else: raise err
+
   except CatchableError as e:
     warn "Error adding request to SlotQueue", error = e.msg
     discard
@@ -201,16 +203,8 @@ proc onStorageRequested(sales: Sales,
 
   for item in items:
     # continue on failure
-    let pushed = slotQueue.push(item)
-    pushed
-      .then(proc() =
-        if not sales.stopping and not pushed.isNil:
-          sales.handlers.del(pushed.id)
-      )
+    discard slotQueue.push(item)
       .catch(proc(err: ref CatchableError) =
-        if not sales.stopping and not pushed.isNil:
-          sales.handlers.del(pushed.id)
-
         if err of NoMatchingAvailabilityError:
           info "slot in queue had no matching availabilities, ignoring"
         elif err of SlotQueueItemExistsError:
@@ -220,7 +214,7 @@ proc onStorageRequested(sales: Sales,
         else:
           warn "Error adding request to SlotQueue", error = err.msg
       )
-    sales.handlers[pushed.id] = pushed
+      .track(sales)
 
 proc onSlotFreed(sales: Sales,
                  requestId: RequestId,
@@ -253,27 +247,18 @@ proc onSlotFreed(sales: Sales,
     if err =? (await queue.push(found)).errorOption:
       raise err
 
-  let added = addSlotToQueue()
-  added
-    .then(proc() =
-      if not sales.stopping and not added.isNil:
-        sales.handlers.del(added.id)
+  discard addSlotToQueue()
+    .catch(proc(err: ref CatchableError) =
+      if err of NoMatchingAvailabilityError:
+        info "slot in queue had no matching availabilities, ignoring"
+      elif err of SlotQueueItemExistsError:
+        error "Failed to push item to queue becaue it already exists"
+      elif err of QueueNotRunningError:
+        warn "Failed to push item to queue becaue queue is not running"
+      else:
+        warn "Error adding request to SlotQueue", error = err.msg
     )
-    .catch(
-      proc(err: ref CatchableError) =
-        if not sales.stopping and not added.isNil:
-          sales.handlers.del(added.id)
-
-        if err of NoMatchingAvailabilityError:
-          info "slot in queue had no matching availabilities, ignoring"
-        elif err of SlotQueueItemExistsError:
-          error "Failed to push item to queue becaue it already exists"
-        elif err of QueueNotRunningError:
-          warn "Failed to push item to queue becaue queue is not running"
-        else:
-          warn "Error adding request to SlotQueue", error = err.msg
-    )
-  sales.handlers[added.id] = added
+    .track(sales)
 
 proc subscribeRequested(sales: Sales) {.async.} =
   let context = sales.context
@@ -408,15 +393,12 @@ proc start*(sales: Sales) {.async.} =
 
 proc stop*(sales: Sales) {.async.} =
   trace "stopping sales"
-  sales.stopping = true
+  sales.running = false
   await sales.context.slotQueue.stop()
   await sales.unsubscribe()
-
-  for handler in sales.handlers.values:
-    await handler.cancelAndWait()
+  await sales.cancelTracked()
 
   for agent in sales.agents:
     await agent.stop()
 
   sales.agents = @[]
-  sales.stopping = false

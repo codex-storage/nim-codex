@@ -7,6 +7,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/upraises
 import ./reservations
+import ./trackablefutures
 import ../errors
 import ../rng
 import ../utils
@@ -42,16 +43,12 @@ type
   # because AsyncHeapQueue size is of type `int`, which is larger than `uint16`
   SlotQueueSize = range[1'u16..uint16.high]
 
-  SlotQueue* = ref object
+  SlotQueue* = ref object of TrackableFutures
     maxWorkers: int
-    next: Future[SlotQueueItem]
-    nextWorker: Future[SlotQueueWorker]
     onProcessSlot: ?OnProcessSlot
     queue: AsyncHeapQueue[SlotQueueItem]
     reservations: Reservations
-    running: bool
     workers: AsyncQueue[SlotQueueWorker]
-    dispatched: Table[uint, (Future[void], SlotQueueWorker)]
 
   SlotQueueError = object of CodexError
   SlotQueueItemExistsError* = object of SlotQueueError
@@ -161,8 +158,6 @@ proc init*(_: type SlotQueueItem,
           request: StorageRequest): seq[SlotQueueItem] =
 
   return SlotQueueItem.init(request.id, request.ask, request.expiry)
-
-proc id(worker: SlotQueueWorker): uint = worker.doneProcessing.id
 
 proc inRange*(val: SomeUnsignedInt): bool =
   val.uint16 in SlotQueueSize.low..SlotQueueSize.high
@@ -348,27 +343,16 @@ proc start*(self: SlotQueue) {.async.} =
 
   while self.running:
     try:
-      self.nextWorker = self.workers.popFirst() # wait for worker to free up
-      self.next = self.queue.pop()
-      let worker = await self.nextWorker # if workers saturated, wait here for new workers
-      let item = await self.next # if queue empty, wait here for new items
+      let worker = await self.workers.popFirst().track(self) # if workers saturated, wait here for new workers
+      let item = await self.queue.pop().track(self) # if queue empty, wait here for new items
       if not self.running: # may have changed after waiting for pop
         trace "not running, exiting"
         break
-      let dispatched = self.dispatch(worker, item)
-      trace "dispatched worker", dispatchedId = dispatched.id, workerId = worker.id
-      dispatched
-        .then(() => (
-          if self.running and not dispatched.isNil:
-            trace "deleting dispatched future", id = dispatched.id
-            self.dispatched.del(dispatched.id)
-        ))
+      self.dispatch(worker, item)
         .catch(proc (e: ref CatchableError) =
           error "Unknown error dispatching worker", error = e.msg
-          if self.running and not dispatched.isNil:
-            self.dispatched.del(dispatched.id)
         )
-      self.dispatched[dispatched.id] = (dispatched, worker)
+        .track(self, worker.doneProcessing)
       await sleepAsync(1.millis) # poll
     except CancelledError:
       discard
@@ -383,24 +367,4 @@ proc stop*(self: SlotQueue) {.async.} =
 
   self.running = false
 
-  if not self.nextWorker.isNil and not self.nextWorker.finished():
-    trace "cancelling next worker pop"
-    await self.nextWorker.cancelAndWait()
-
-  if not self.next.isNil and not self.next.finished():
-    trace "cancelling next item pop"
-    await self.next.cancelAndWait()
-
-  for (dispatched, worker) in self.dispatched.values:
-
-    if not worker.doneProcessing.isNil and not worker.doneProcessing.finished():
-      trace "cancelling worker doneProcessing future", id = worker.id
-      await worker.doneProcessing.cancelAndWait()
-
-    if not dispatched.isNil and not dispatched.finished():
-      trace "cancelling dispatched future", id = dispatched.id
-      await dispatched.cancelAndWait()
-
-  trace "slot queue stopped"
-
-
+  await self.cancelTracked()
