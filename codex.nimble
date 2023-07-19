@@ -37,6 +37,9 @@ when declared(namedBin):
     "codex/codex": "codex"
   }.toTable()
 
+when not declared(getPathsClause):
+  proc getPathsClause(): string = ""
+
 ### Helper functions
 proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
   if not dirExists "build":
@@ -50,7 +53,7 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
     for i in 2..<paramCount():
       extra_params &= " " & paramStr(i)
 
-  exec "nim " & lang & " --out:build/" & name & " " & extra_params & " " & srcDir & name & ".nim"
+  exec "nim " & getPathsClause() & " " & lang & " --out:build/" & name & " " & extra_params & " " & srcDir & name & ".nim"
 
 proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
   buildBinary name, srcDir, params

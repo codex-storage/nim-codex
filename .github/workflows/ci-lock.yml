@@ -1,0 +1,104 @@
+name: CI Lock
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+env:
+  cache_nonce: 0 # Allows for easily busting actions/cache caches
+  nim_version: v1.6.10
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [linux, macos, windows]
+        include:
+          - os: linux
+            builder: ubuntu-latest
+            shell: bash --noprofile --norc -e -o pipefail
+          - os: macos
+            builder: macos-latest
+            shell: bash --noprofile --norc -e -o pipefail
+          - os: windows
+            builder: windows-latest
+            shell: bash
+
+    defaults:
+      run:
+        shell: ${{ matrix.shell }} {0}
+
+    name: '${{ matrix.os }}'
+    runs-on: ${{ matrix.builder }}
+    timeout-minutes: 80
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Setup Nimble
+        uses: nim-lang/nimble/.github/actions/install_nimble@master
+        with:
+          os: ${{ matrix.os }}
+          cpu: amd64
+
+      - name: Restore nimble dependencies from cache
+        id: nimble_deps
+        uses: actions/cache@v3
+        with:
+          path: ~/.nimble/
+          key: ${{ matrix.os }}-${{ env.cache_nonce }}
+
+      - name: Install deps
+        run: nimble -d -y install
+
+      - name: Unit tests
+        run: nimble test
+
+      # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+         node-version: 18.15
+
+      - name: Checkout sources
+        uses: actions/checkout@v3
+        with:
+          repository: status-im/codex-contracts-eth
+          ref: 30affa0da85985f6dc90b62f6293de46a9e26130
+          path: codex-contracts-eth
+
+      - name: Start Ethereum node with Codex contracts
+        working-directory: codex-contracts-eth
+        env:
+          MSYS2_PATH_TYPE: inherit
+        run: |
+          npm install
+          npm start &
+
+      - name: Contract tests
+        run: nimble testContracts
+
+      - name: Integration tests
+        run: nimble testIntegration
+
+  # coverage:
+  #   continue-on-error: true
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout sources
+  #       uses: actions/checkout@v3
+
+
+  #     - name: Generate coverage data
+  #       run: make -j${ncpu} coverage
+  #       shell: bash
+
+  #     - name: Upload coverage data to Codecov
+  #       uses: codecov/codecov-action@v3
+  #       with:
+  #         directory: ./coverage/
+  #         fail_ci_if_error: true
+  #         files: ./coverage/coverage.f.info
+  #         flags: unittests
+  #         name: codecov-umbrella
+  #         verbose: true

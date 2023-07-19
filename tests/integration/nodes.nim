@@ -13,7 +13,7 @@ type
     process: Process
     arguments: seq[string]
     debug: bool
-  Role* = enum
+  Role* {.pure.} = enum
     Client,
     Provider,
     Validator
