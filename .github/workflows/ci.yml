@@ -38,7 +38,7 @@ jobs:
       run:
         shell: ${{ matrix.shell }} {0}
 
-    name: '${{ matrix.os }}-${{ matrix.cpu }} (Nim ${{ env.nim_version }})'
+    name: '${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.tests }} (Nim ${{ env.nim_version }})'
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 80
     steps:
