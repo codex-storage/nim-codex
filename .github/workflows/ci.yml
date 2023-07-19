@@ -27,23 +27,23 @@ jobs:
             cpu: amd64
             builder: windows-latest
             shell: msys2
-            tests: part1
+            tests: unittest
           - os: windows
             cpu: amd64
             builder: windows-latest
             shell: msys2
-            tests: part2
+            tests: contract
           - os: windows
             cpu: amd64
             builder: windows-latest
             shell: msys2
-            tests: part3
+            tests: integration
 
     defaults:
       run:
         shell: ${{ matrix.shell }} {0}
 
-    name: '${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.tests }}'
+    name: '${{ matrix.os }}-${{ matrix.cpu }}-tests-${{ matrix.tests }}'
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 80
     steps:
@@ -61,7 +61,7 @@ jobs:
 
       ## Part 1 Tests ##
       - name: Unit tests
-        if: matrix.tests == 'part1' || matrix.tests == 'all'
+        if: matrix.tests == 'unittest' || matrix.tests == 'all'
         run: make -j${ncpu} test
 
       # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
@@ -71,7 +71,7 @@ jobs:
          node-version: 18.15
 
       - name: Start Ethereum node with Codex contracts
-        if: matrix.tests == 'part2' || matrix.tests == 'part3' || matrix.tests == 'all'
+        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'all'
         working-directory: vendor/codex-contracts-eth
         env:
           MSYS2_PATH_TYPE: inherit
@@ -81,12 +81,12 @@ jobs:
 
       ## Part 2 Tests ##
       - name: Contract tests
-        if: matrix.tests == 'part2' || matrix.tests == 'all'
+        if: matrix.tests == 'contract' || matrix.tests == 'all'
         run: make -j${ncpu} testContracts
 
       ## Part 3 Tests ##
       - name: Integration tests
-        if: matrix.tests == 'part3' || matrix.tests == 'all'
+        if: matrix.tests == 'integration' || matrix.tests == 'all'
         run: make -j${ncpu} testIntegration
 
   coverage:
