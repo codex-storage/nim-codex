@@ -203,7 +203,8 @@ proc onStorageRequested(sales: Sales,
 
   for item in items:
     # continue on failure
-    discard slotQueue.push(item)
+    slotQueue.push(item)
+      .track(sales)
       .catch(proc(err: ref CatchableError) =
         if err of NoMatchingAvailabilityError:
           info "slot in queue had no matching availabilities, ignoring"
@@ -214,7 +215,6 @@ proc onStorageRequested(sales: Sales,
         else:
           warn "Error adding request to SlotQueue", error = err.msg
       )
-      .track(sales)
 
 proc onSlotFreed(sales: Sales,
                  requestId: RequestId,
@@ -247,7 +247,8 @@ proc onSlotFreed(sales: Sales,
     if err =? (await queue.push(found)).errorOption:
       raise err
 
-  discard addSlotToQueue()
+  addSlotToQueue()
+    .track(sales)
     .catch(proc(err: ref CatchableError) =
       if err of NoMatchingAvailabilityError:
         info "slot in queue had no matching availabilities, ignoring"
@@ -258,7 +259,6 @@ proc onSlotFreed(sales: Sales,
       else:
         warn "Error adding request to SlotQueue", error = err.msg
     )
-    .track(sales)
 
 proc subscribeRequested(sales: Sales) {.async.} =
   let context = sales.context

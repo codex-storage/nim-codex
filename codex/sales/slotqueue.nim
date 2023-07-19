@@ -350,11 +350,11 @@ proc start*(self: SlotQueue) {.async.} =
         trace "not running, exiting"
         break
 
-      discard self.dispatch(worker, item)
+      self.dispatch(worker, item)
+        .track(self)
         .catch(proc (e: ref CatchableError) =
           error "Unknown error dispatching worker", error = e.msg
         )
-        .track(self)
 
       discard worker.doneProcessing.track(self)
 

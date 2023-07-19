@@ -195,8 +195,7 @@ proc then*(future: Future[?!void],
   future.cancelCallback = cancellation
   return future
 
-proc catch*[T](future: Future[T],
-               onError: OnError) =
+proc catch*[T](future: Future[T], onError: OnError) =
 
   proc cb(udata: pointer) =
     future.returnOrError(onError)
@@ -208,8 +207,7 @@ proc catch*[T](future: Future[T],
   future.addCallback(cb)
   future.cancelCallback = cancellation
 
-proc catch*[T](future: Future[?!T],
-               onError: OnError) =
+proc catch*[T](future: Future[?!T], onError: OnError) =
 
   proc cb(udata: pointer) =
     future.returnOrError(onError)
