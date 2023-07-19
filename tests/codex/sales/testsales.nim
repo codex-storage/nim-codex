@@ -73,8 +73,8 @@ asyncchecksuite "Sales":
     request.expiry = (clock.now() + 42).u256
 
   teardown:
-    await repo.stop()
     await sales.stop()
+    await repo.stop()
 
   proc getAvailability: ?!Availability =
     waitFor reservations.get(availability.id)
