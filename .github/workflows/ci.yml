@@ -33,6 +33,11 @@ jobs:
             builder: windows-latest
             shell: msys2
             tests: part2
+          - os: windows
+            cpu: amd64
+            builder: windows-latest
+            shell: msys2
+            tests: part3
 
     defaults:
       run:
@@ -75,12 +80,12 @@ jobs:
 
       ## Part 1 Tests ##
       - name: Contract tests
-        if: matrix.tests == 'part1' || matrix.tests == 'all'
+        if: matrix.tests == 'part2' || matrix.tests == 'all'
         run: make -j${ncpu} testContracts
 
-      ## Part 2 Tests ##
+      ## Part 3 Tests ##
       - name: Integration tests
-        if: matrix.tests == 'part2' || matrix.tests == 'all'
+        if: matrix.tests == 'part3' || matrix.tests == 'all'
         run: make -j${ncpu} testIntegration
 
   coverage:
