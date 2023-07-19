@@ -79,7 +79,12 @@ proc then*(future: Future[void],
   proc cb(udata:pointer) =
     future.returnOrError(onError)
 
+  proc cancellation(udata: pointer) =
+    if not future.finished():
+      future.removeCallback(cb)
+
   future.addCallback(cb)
+  future.cancelCallback = cancellation
   return future
 
 proc then*(future: Future[void],
@@ -91,7 +96,12 @@ proc then*(future: Future[void],
     future.returnOrError(onError)
     onSuccess()
 
+  proc cancellation(udata: pointer) =
+    if not future.finished():
+      future.removeCallback(cb)
+
   future.addCallback(cb)
+  future.cancelCallback = cancellation
   return future
 
 proc then*[T](future: Future[T],
@@ -107,7 +117,12 @@ proc then*[T](future: Future[T],
       return
     onSuccess(val)
 
+  proc cancellation(udata: pointer) =
+    if not future.finished():
+      future.removeCallback(cb)
+
   future.addCallback(cb)
+  future.cancelCallback = cancellation
   return future
 
 proc then*[T](future: Future[?!T],
@@ -126,7 +141,12 @@ proc then*[T](future: Future[?!T],
     except CatchableError as e:
       onError(e)
 
+  proc cancellation(udata: pointer) =
+    if not future.finished():
+      future.removeCallback(cb)
+
   future.addCallback(cb)
+  future.cancelCallback = cancellation
   return future
 
 proc then*(future: Future[?!void],
@@ -142,7 +162,12 @@ proc then*(future: Future[?!void],
     except CatchableError as e:
       onError(e)
 
+  proc cancellation(udata: pointer) =
+    if not future.finished():
+      future.removeCallback(cb)
+
   future.addCallback(cb)
+  future.cancelCallback = cancellation
   return future
 
 proc then*(future: Future[?!void],
@@ -162,7 +187,12 @@ proc then*(future: Future[?!void],
       return
     onSuccess()
 
+  proc cancellation(udata: pointer) =
+    if not future.finished():
+      future.removeCallback(cb)
+
   future.addCallback(cb)
+  future.cancelCallback = cancellation
   return future
 
 proc catch*[T](future: Future[T],
@@ -171,7 +201,12 @@ proc catch*[T](future: Future[T],
   proc cb(udata:pointer) =
     future.returnOrError(onError)
 
+  proc cancellation(udata: pointer) =
+    if not future.finished():
+      future.removeCallback(cb)
+
   future.addCallback(cb)
+  future.cancelCallback = cancellation
 
 proc catch*[T](future: Future[?!T],
                onError: OnError) =
@@ -185,4 +220,9 @@ proc catch*[T](future: Future[?!T],
     except CatchableError as e:
       onError(e)
 
+  proc cancellation(udata: pointer) =
+    if not future.finished():
+      future.removeCallback(cb)
+
   future.addCallback(cb)
+  future.cancelCallback = cancellation
