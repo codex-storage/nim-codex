@@ -18,6 +18,7 @@ import pkg/chronicles
 import stew/io2
 
 export io2
+export chronicles
 
 when defined(windows):
   import stew/[windows/acl]
