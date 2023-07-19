@@ -54,36 +54,35 @@ jobs:
           shell: ${{ matrix.shell }}
           nim_version: ${{ env.nim_version }}
 
-      - name: Run test part 1
+      ## Part 1 Tests ##
+      - name: Unit tests
         if: matrix.tests == 'part1' || matrix.tests == 'all'
-        run: echo "part1"
+        run: make -j${ncpu} test
 
-      - name: Run test part 2
+      # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
+      - name: Setup Node.js
+        if: matrix.tests == 'part1' || matrix.tests == 'all'
+        uses: actions/setup-node@v3
+        with:
+         node-version: 18.15
+
+      - name: Start Ethereum node with Codex contracts
+        if: matrix.tests == 'part1' || matrix.tests == 'all'
+        working-directory: vendor/codex-contracts-eth
+        env:
+          MSYS2_PATH_TYPE: inherit
+        run: |
+          npm install
+          npm start &
+
+      ## Part 2 Tests ##
+      - name: Contract tests
         if: matrix.tests == 'part2' || matrix.tests == 'all'
-        run: echo "part2"
+        run: make -j${ncpu} testContracts
 
-      # - name: Unit tests
-      #   run: make -j${ncpu} test
-
-      # # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
-      # - name: Setup Node.js
-      #   uses: actions/setup-node@v3
-      #   with:
-      #    node-version: 18.15
-
-      # - name: Start Ethereum node with Codex contracts
-      #   working-directory: vendor/codex-contracts-eth
-      #   env:
-      #     MSYS2_PATH_TYPE: inherit
-      #   run: |
-      #     npm install
-      #     npm start &
-
-      # - name: Contract tests
-      #   run: make -j${ncpu} testContracts
-
-      # - name: Integration tests
-      #   run: make -j${ncpu} testIntegration
+      - name: Integration tests
+        if: matrix.tests == 'part2' || matrix.tests == 'all'
+        run: make -j${ncpu} testIntegration
 
   # coverage:
   #   continue-on-error: true
