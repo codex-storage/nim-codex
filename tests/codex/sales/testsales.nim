@@ -78,8 +78,8 @@ asyncchecksuite "Sales":
     itemsProcessed = @[]
 
   teardown:
-    await repo.stop()
     await sales.stop()
+    await repo.stop()
 
   proc getAvailability: ?!Availability =
     waitFor reservations.get(availability.id)
