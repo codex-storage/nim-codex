@@ -61,13 +61,11 @@ jobs:
 
       # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
       - name: Setup Node.js
-        if: matrix.tests == 'part1' || matrix.tests == 'all'
         uses: actions/setup-node@v3
         with:
          node-version: 18.15
 
       - name: Start Ethereum node with Codex contracts
-        if: matrix.tests == 'part1' || matrix.tests == 'part2' || matrix.tests == 'all'
         working-directory: vendor/codex-contracts-eth
         env:
           MSYS2_PATH_TYPE: inherit
@@ -75,11 +73,12 @@ jobs:
           npm install
           npm start &
 
-      ## Part 2 Tests ##
+      ## Part 1 Tests ##
       - name: Contract tests
-        if: matrix.tests == 'part2' || matrix.tests == 'all'
+        if: matrix.tests == 'part1' || matrix.tests == 'all'
         run: make -j${ncpu} testContracts
 
+      ## Part 2 Tests ##
       - name: Integration tests
         if: matrix.tests == 'part2' || matrix.tests == 'all'
         run: make -j${ncpu} testIntegration
