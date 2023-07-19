@@ -1,5 +1,6 @@
 import std/sequtils
 import std/sugar
+import std/tables
 import pkg/questionable
 import pkg/stint
 import pkg/chronicles
@@ -48,6 +49,7 @@ type
     agents*: seq[SalesAgent]
     subscriptions: seq[market.Subscription]
     stopping: bool
+    handlers: Table[uint, FutureBase]
 
 proc `onStore=`*(sales: Sales, onStore: OnStore) =
   sales.context.onStore = some onStore
@@ -197,10 +199,18 @@ proc onStorageRequested(sales: Sales,
     else:
       warn "Failed to create slot queue items from request", error = err.msg
 
-  # TODO: return Future and cancel on `.stop`?
   for item in items:
-    slotQueue.push(item).catch(
-      proc(err: ref CatchableError) =
+    # continue on failure
+    let pushed = slotQueue.push(item)
+    pushed
+      .then(proc() =
+        if not sales.stopping and not pushed.isNil:
+          sales.handlers.del(pushed.id)
+      )
+      .catch(proc(err: ref CatchableError) =
+        if not sales.stopping and not pushed.isNil:
+          sales.handlers.del(pushed.id)
+
         if err of NoMatchingAvailabilityError:
           info "slot in queue had no matching availabilities, ignoring"
         elif err of SlotQueueItemExistsError:
@@ -209,7 +219,8 @@ proc onStorageRequested(sales: Sales,
           warn "Failed to push item to queue becaue queue is not running"
         else:
           warn "Error adding request to SlotQueue", error = err.msg
-    )
+      )
+    sales.handlers[pushed.id] = pushed
 
 proc onSlotFreed(sales: Sales,
                  requestId: RequestId,
@@ -240,19 +251,29 @@ proc onSlotFreed(sales: Sales,
       found = SlotQueueItem.init(request, slotIndex.truncate(uint16))
 
     if err =? (await queue.push(found)).errorOption:
-      if err of NoMatchingAvailabilityError:
-        info "slot in queue had no matching availabilities, ignoring"
-      elif err of SlotQueueItemExistsError:
-        error "Failed to push item to queue becaue it already exists"
-      elif err of QueueNotRunningError:
-        warn "Failed to push item to queue becaue queue is not running"
-      else:
-        warn "Error adding request to SlotQueue", error = err.msg
+      raise err
 
-  addSlotToQueue().catch(
-    proc(err: ref CatchableError) =
-      error "Error during slot freed event handler", error = err.msg
-  )
+  let added = addSlotToQueue()
+  added
+    .then(proc() =
+      if not sales.stopping and not added.isNil:
+        sales.handlers.del(added.id)
+    )
+    .catch(
+      proc(err: ref CatchableError) =
+        if not sales.stopping and not added.isNil:
+          sales.handlers.del(added.id)
+
+        if err of NoMatchingAvailabilityError:
+          info "slot in queue had no matching availabilities, ignoring"
+        elif err of SlotQueueItemExistsError:
+          error "Failed to push item to queue becaue it already exists"
+        elif err of QueueNotRunningError:
+          warn "Failed to push item to queue becaue queue is not running"
+        else:
+          warn "Error adding request to SlotQueue", error = err.msg
+    )
+  sales.handlers[added.id] = added
 
 proc subscribeRequested(sales: Sales) {.async.} =
   let context = sales.context
@@ -390,6 +411,9 @@ proc stop*(sales: Sales) {.async.} =
   sales.stopping = true
   await sales.context.slotQueue.stop()
   await sales.unsubscribe()
+
+  for handler in sales.handlers.values:
+    await handler.cancelAndWait()
 
   for agent in sales.agents:
     await agent.stop()
