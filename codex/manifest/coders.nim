@@ -26,7 +26,7 @@ import ../errors
 import ../blocktype
 import ./types
 
-func encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
+proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   ## Encode the manifest into a ``ManifestCodec``
   ## multicodec container (Dag-pb) for now
   ##
@@ -60,7 +60,7 @@ func encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   # ```
   #
 
-  let cid = !manifest.rootHash
+  let cid = ? manifest.cid
   var header = initProtoBuffer()
   header.write(1, cid.data.buffer)
   header.write(2, manifest.blockSize.uint32)
@@ -145,22 +145,31 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
   if blocksLen.int != blocks.len:
     return failure("Total blocks and length of blocks in header don't match!")
 
-  var
-    self = Manifest(
-      rootHash: rootHashCid.some,
-      originalBytes: originalBytes.NBytes,
-      blockSize: blockSize.NBytes,
-      blocks: blocks,
-      hcodec: (? rootHashCid.mhash.mapFailure).mcodec,
-      codec: rootHashCid.mcodec,
-      version: rootHashCid.cidver,
-      protected: pbErasureInfo.buffer.len > 0)
-
-  if self.protected:
-    self.ecK = ecK.int
-    self.ecM = ecM.int
-    self.originalCid = ? Cid.init(originalCid).mapFailure
-    self.originalLen = originalLen.int
+  let
+    self = if pbErasureInfo.buffer.len > 0:
+      Manifest.new(
+        rootHash = rootHashCid,
+        originalBytes = originalBytes.NBytes,
+        blockSize = blockSize.NBytes,
+        blocks = blocks,
+        version = rootHashCid.cidver,
+        hcodec = (? rootHashCid.mhash.mapFailure).mcodec,
+        codec = rootHashCid.mcodec,
+        ecK = ecK.int,
+        ecM = ecM.int,
+        originalCid = ? Cid.init(originalCid).mapFailure,
+        originalLen = originalLen.int
+      )
+      else:
+        Manifest.new(
+          rootHash = rootHashCid,
+          originalBytes = originalBytes.NBytes,
+          blockSize = blockSize.NBytes,
+          blocks = blocks,
+          version = rootHashCid.cidver,
+          hcodec = (? rootHashCid.mhash.mapFailure).mcodec,
+          codec = rootHashCid.mcodec
+        )
 
   ? self.verify()
   self.success
@@ -171,9 +180,6 @@ proc encode*(
 ): ?!seq[byte] =
   ## Encode a manifest using `encoder`
   ##
-
-  if self.rootHash.isNone:
-    ? self.makeRoot()
 
   encoder.encode(self)
 
