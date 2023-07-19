@@ -1,5 +1,8 @@
 mode = ScriptMode.Verbose
 
+when not declared(getPathsClause):
+  proc getPathsClause(): string = ""
+
 
 ### Helper functions
 proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
@@ -7,15 +10,15 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
     mkDir "build"
   # allow something like "nim nimbus --verbosity:0 --hints:off nimbus.nims"
   var extra_params = params
-  when compiles(commandLineParams):
+  when compiles(commandLineParams()):
     for param in commandLineParams():
       extra_params &= " " & param
   else:
     for i in 2..<paramCount():
       extra_params &= " " & paramStr(i)
 
-  let cmd = "nim " & lang & " --out:build/" & name & " " & extra_params & " " & srcDir & name & ".nim"
-  exec(cmd)
+  exec "nim " & getPathsClause() & " " & lang & " --out:build/" &
+                name & " " & extra_params & " " & srcDir & name & ".nim"
 
 proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
   buildBinary name, srcDir, params
