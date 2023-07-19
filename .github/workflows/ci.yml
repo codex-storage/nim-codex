@@ -84,31 +84,31 @@ jobs:
         if: matrix.tests == 'part2' || matrix.tests == 'all'
         run: make -j${ncpu} testIntegration
 
-  # coverage:
-  #   continue-on-error: true
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout sources
-  #       uses: actions/checkout@v3
-  #       with:
-  #         submodules: recursive
+  coverage:
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
 
-  #     - name: Setup Nimbus Build System
-  #       uses: ./.github/actions/nimbus-build-system
-  #       with:
-  #         os: linux
-  #         nim_version: ${{ env.nim_version }}
+      - name: Setup Nimbus Build System
+        uses: ./.github/actions/nimbus-build-system
+        with:
+          os: linux
+          nim_version: ${{ env.nim_version }}
 
-  #     - name: Generate coverage data
-  #       run: make -j${ncpu} coverage
-  #       shell: bash
+      - name: Generate coverage data
+        run: make -j${ncpu} coverage
+        shell: bash
 
-  #     - name: Upload coverage data to Codecov
-  #       uses: codecov/codecov-action@v3
-  #       with:
-  #         directory: ./coverage/
-  #         fail_ci_if_error: true
-  #         files: ./coverage/coverage.f.info
-  #         flags: unittests
-  #         name: codecov-umbrella
-  #         verbose: true
+      - name: Upload coverage data to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./coverage/
+          fail_ci_if_error: true
+          files: ./coverage/coverage.f.info
+          flags: unittests
+          name: codecov-umbrella
+          verbose: true
