@@ -23,8 +23,7 @@ suite "Taiko L2 Integration Tests":
       "--disc-ip=127.0.0.1",
       "--disc-port=8090",
       "--persistence",
-      "--eth-provider=https://rpc.test.taiko.xyz",
-      "--eth-private-key=" & getEnv("CODEX_ETH_PRIVATE_KEY")
+      "--eth-provider=https://rpc.test.taiko.xyz"
     ])
     node1.waitUntilStarted()
 
@@ -38,8 +37,7 @@ suite "Taiko L2 Integration Tests":
       "--disc-port=8091",
       "--bootstrap-node=" & bootstrap,
       "--persistence",
-      "--eth-provider=https://rpc.test.taiko.xyz",
-      "--eth-private-key=" & getEnv("CODEX_ETH_PRIVATE_KEY")
+      "--eth-provider=https://rpc.test.taiko.xyz"
     ])
     node2.waitUntilStarted()
 

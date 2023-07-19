@@ -8,6 +8,7 @@
 ## those terms.
 
 import std/sequtils
+import std/strutils
 import std/os
 import std/tables
 
@@ -77,8 +78,14 @@ proc bootstrapInteractions(
   var signer: Signer
   if account =? config.ethAccount:
     signer = provider.getSigner(account)
-  elif key =? config.ethPrivateKey:
-    signer = EthWallet.new(key, provider)
+  elif keyFile =? config.ethPrivateKey:
+    without isSecure =? checkSecureFile(keyFile) and isSecure:
+      error "Ethereum private key file does not have safe file permissions"
+      quit QuitFailure
+    without key =? keyFile.readAllChars():
+      error "Unable to read Ethereum private key file"
+      quit QuitFailure
+    signer = EthWallet.new(key.strip(), provider)
 
   let deploy = Deployment.new(provider, config)
   without marketplaceAddress =? await deploy.address(Marketplace):
