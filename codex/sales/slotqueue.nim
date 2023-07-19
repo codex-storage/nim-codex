@@ -345,14 +345,19 @@ proc start*(self: SlotQueue) {.async.} =
     try:
       let worker = await self.workers.popFirst().track(self) # if workers saturated, wait here for new workers
       let item = await self.queue.pop().track(self) # if queue empty, wait here for new items
+
       if not self.running: # may have changed after waiting for pop
         trace "not running, exiting"
         break
-      self.dispatch(worker, item)
+
+      discard self.dispatch(worker, item)
         .catch(proc (e: ref CatchableError) =
           error "Unknown error dispatching worker", error = e.msg
         )
-        .track(self, worker.doneProcessing)
+        .track(self)
+
+      discard worker.doneProcessing.track(self)
+
       await sleepAsync(1.millis) # poll
     except CancelledError:
       discard
