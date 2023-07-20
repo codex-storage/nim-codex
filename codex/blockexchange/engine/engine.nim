@@ -207,7 +207,7 @@ proc requestBlock*(
 
   await b.sendWantHave(cid, blockPeer, toSeq(b.peers))
 
-      codexBlockExchangeWantHaveListsSent.inc()
+  codexBlockExchangeWantHaveListsSent.inc()
 
   return await blk
 
