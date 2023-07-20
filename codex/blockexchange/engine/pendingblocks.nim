@@ -16,11 +16,14 @@ push: {.upraises: [].}
 import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
+import pkg/metrics
 
 import ../../blocktype
 
 logScope:
   topics = "codex pendingblocks"
+
+declareGauge(codexBlockExchangePendingBlockRequests, "codex blockexchange pending block requests")
 
 const
   DefaultBlockTimeout* = 10.minutes
@@ -32,6 +35,9 @@ type
 
   PendingBlocksManager* = ref object of RootObj
     blocks*: Table[Cid, BlockReq] # pending Block requests
+
+proc updatePendingBlockGauge(p: PendingBlocksManager) =
+  codexBlockExchangePendingBlockRequests.set(p.blocks.len.int64)
 
 proc getWantHandle*(
     p: PendingBlocksManager,
@@ -50,6 +56,7 @@ proc getWantHandle*(
 
       trace "Adding pending future for block", cid, inFlight = p.blocks[cid].inFlight
 
+    p.updatePendingBlockGauge()
     return await p.blocks[cid].handle.wait(timeout)
   except CancelledError as exc:
     trace "Blocks cancelled", exc = exc.msg, cid
@@ -60,6 +67,7 @@ proc getWantHandle*(
     raise exc
   finally:
     p.blocks.del(cid)
+    p.updatePendingBlockGauge()
 
 proc resolve*(p: PendingBlocksManager,
               blocks: seq[Block]) =

@@ -20,6 +20,7 @@ import pkg/chronicles
 import pkg/chronos
 import pkg/presto
 import pkg/libp2p
+import pkg/metrics
 import pkg/stew/base10
 import pkg/stew/byteutils
 import pkg/confutils
@@ -41,6 +42,9 @@ import ./json
 
 logScope:
   topics = "codex restapi"
+
+declareCounter(codexApiUploads, "codex API uploads")
+declareCounter(codexApiDownloads, "codex API downloads")
 
 proc validate(
   pattern: string,
@@ -164,6 +168,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
           trace "Sending chunk", size = buff.len
           await resp.sendChunk(addr buff[0], buff.len)
         await resp.finish()
+        codexApiDownloads.inc()
       except CatchableError as exc:
         trace "Excepting streaming blocks", exc = exc.msg
         return RestApiResponse.error(Http500)
@@ -238,6 +243,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
           trace "Error uploading file", exc = error.msg
           return RestApiResponse.error(Http500, error.msg)
 
+        codexApiUploads.inc()
         trace "Uploaded file", cid
         return RestApiResponse.response($cid)
       except CancelledError:

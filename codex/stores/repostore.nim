@@ -14,6 +14,7 @@ push: {.upraises: [].}
 import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
+import pkg/metrics
 import pkg/questionable
 import pkg/questionable/results
 import pkg/datastore
@@ -30,6 +31,10 @@ export blocktype, libp2p
 logScope:
   topics = "codex repostore"
 
+declareGauge(codexRepostoreBlocks, "codex repostore blocks")
+declareGauge(codexRepostoreBytesUsed, "codex repostore bytes used")
+declareGauge(codexRepostoreBytesReserved, "codex repostore bytes reserved")
+
 const
   DefaultBlockTtl* = 24.hours
   DefaultQuotaBytes* = 1'u shl 33'u # ~8GB
@@ -43,6 +48,7 @@ type
     repoDs*: Datastore
     metaDs*: Datastore
     clock: Clock
+    totalBlocks*: uint            # number of blocks in the store
     quotaMaxBytes*: uint          # maximum available bytes
     quotaUsedBytes*: uint         # bytes used by the repo
     quotaReservedBytes*: uint     # bytes reserved by the repo
@@ -60,6 +66,11 @@ type
 iterator items*(q: BlockExpirationIter): Future[?BlockExpiration] =
   while not q.finished:
     yield q.next()
+
+proc updateMetrics(self: RepoStore) =
+  codexRepostoreBlocks.set(self.totalBlocks.int64)
+  codexRepostoreBytesUsed.set(self.quotaUsedBytes.int64)
+  codexRepostoreBytesReserved.set(self.quotaReservedBytes.int64)
 
 func totalUsed*(self: RepoStore): uint =
   (self.quotaUsedBytes + self.quotaReservedBytes)
@@ -104,6 +115,14 @@ proc getBlockExpirationEntry(
 
   let value = self.getBlockExpirationTimestamp(ttl).toBytes
   return success((key, value))
+
+proc persistTotalBlocksCount(self: RepoStore): Future[?!void] {.async.} =
+  if err =? (await self.metaDs.put(
+      CodexTotalBlocksKey,
+      @(self.totalBlocks.uint64.toBytesBE))).errorOption:
+    trace "Error total blocks key!", err = err.msg
+    return failure(err)
+  return success()
 
 method putBlock*(
     self: RepoStore,
@@ -156,6 +175,12 @@ method putBlock*(
     return failure(err)
 
   self.quotaUsedBytes = used
+  inc self.totalBlocks
+  if isErr (await self.persistTotalBlocksCount()):
+    trace "Unable to update block total metadata"
+    return failure("Unable to update block total metadata")
+
+  self.updateMetrics()
   return success()
 
 proc updateQuotaBytesUsed(self: RepoStore, blk: Block): Future[?!void] {.async.} =
@@ -166,6 +191,7 @@ proc updateQuotaBytesUsed(self: RepoStore, blk: Block): Future[?!void] {.async.}
     trace "Error updating quota key!", err = err.msg
     return failure(err)
   self.quotaUsedBytes = used
+  self.updateMetrics()
   return success()
 
 proc removeBlockExpirationEntry(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
@@ -195,6 +221,12 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
 
     trace "Deleted block", cid, totalUsed = self.totalUsed
 
+  dec self.totalBlocks
+  if isErr (await self.persistTotalBlocksCount()):
+    trace "Unable to update block total metadata"
+    return failure("Unable to update block total metadata")
+
+  self.updateMetrics()
   return success()
 
 method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
@@ -251,7 +283,7 @@ method getBlockExpirations*(
     offset: int
 ): Future[?!BlockExpirationIter] {.async, base.} =
   ## Get block experiartions from the given RepoStore
-  ## 
+  ##
   without query =? createBlockExpirationQuery(maxNumber, offset), err:
     trace "Unable to format block expirations query"
     return failure(err)
@@ -346,6 +378,7 @@ proc release*(self: RepoStore, bytes: uint): Future[?!void] {.async.} =
     return failure(err)
 
   trace "Released bytes", bytes
+  self.updateMetrics()
   return success()
 
 proc start*(self: RepoStore): Future[void] {.async.} =
@@ -357,6 +390,14 @@ proc start*(self: RepoStore): Future[void] {.async.} =
     return
 
   trace "Starting repo"
+
+  without total =? await self.metaDs.get(CodexTotalBlocksKey), err:
+    if not (err of DatastoreKeyNotFound):
+      error "Unable to read total number of blocks from metadata store", err = err.msg, key = $CodexTotalBlocksKey
+
+  if total.len > 0:
+    self.totalBlocks = uint64.fromBytesBE(total).uint
+  trace "Number of blocks in store at start", total = self.totalBlocks
 
   ## load current persist and cache bytes from meta ds
   without quotaUsedBytes =? await self.metaDs.get(QuotaUsedKey), err:
@@ -386,6 +427,7 @@ proc start*(self: RepoStore): Future[void] {.async.} =
 
   notice "Current bytes used for persist quota", bytes = self.quotaReservedBytes
 
+  self.updateMetrics()
   self.started = true
 
 proc stop*(self: RepoStore): Future[void] {.async.} =
@@ -410,8 +452,8 @@ func new*(
     quotaMaxBytes = DefaultQuotaBytes,
     blockTtl = DefaultBlockTtl
 ): RepoStore =
-  ## Create new instance of a RepoStore 
-  ## 
+  ## Create new instance of a RepoStore
+  ##
   RepoStore(
     repoDs: repoDs,
     metaDs: metaDs,
