@@ -76,10 +76,28 @@ proc profitability(item: SlotQueueItem): UInt256 =
              slotSize: item.slotSize).pricePerSlot
 
 proc `<`*(a, b: SlotQueueItem): bool =
-  a.profitability > b.profitability or  # profitability
-  a.collateral < b.collateral or        # collateral required
-  a.expiry > b.expiry or                # expiry
-  a.slotSize < b.slotSize               # dataset size
+  # for A to have a higher priority than B (in a min queue), A must be less than
+  # B.
+  var scoreA: uint8 = 0
+  var scoreB: uint8 = 0
+
+  proc addIf(score: var uint8, condition: bool, addition: int) =
+    if condition:
+      score += 1'u8 shl addition
+
+  scoreA.addIf(a.profitability > b.profitability, 3)
+  scoreB.addIf(a.profitability < b.profitability, 3)
+
+  scoreA.addIf(a.collateral < b.collateral, 2)
+  scoreB.addIf(a.collateral > b.collateral, 2)
+
+  scoreA.addIf(a.expiry > b.expiry, 1)
+  scoreB.addIf(a.expiry < b.expiry, 1)
+
+  scoreA.addIf(a.slotSize < b.slotSize, 0)
+  scoreB.addIf(a.slotSize > b.slotSize, 0)
+
+  return scoreA > scoreB
 
 proc `==`*(a, b: SlotQueueItem): bool =
   a.requestId == b.requestId and

@@ -208,7 +208,8 @@ suite "Slot queue":
 
     let itemA = SlotQueueItem.init(requestA, 0)
     let itemB = SlotQueueItem.init(requestB, 0)
-    check itemB < itemA
+    check itemB < itemA # B higher priority than A
+    check itemA > itemB
 
   test "expands available all possible slot indices on init":
     let request = StorageRequest.example
