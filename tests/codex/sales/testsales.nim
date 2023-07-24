@@ -173,7 +173,6 @@ asyncchecksuite "Sales":
    check isOk await reservations.reserve(nonMatchingAvailability)
    await market.requestStorage(request)
    # check that request was ignored due to no matching availability
-   # check always queue.len == 0
    check always itemsProcessed.len == 0
 
   test "adds past requests to queue once availability added":
@@ -183,7 +182,6 @@ asyncchecksuite "Sales":
      done.complete()
 
    await market.requestStorage(request)
-   # await sleepAsync(4.millis) # wait for all attempted slot pushes
 
    # now add matching availability
    check isOk await reservations.reserve(availability)
