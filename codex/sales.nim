@@ -15,7 +15,7 @@ import ./sales/salescontext
 import ./sales/salesagent
 import ./sales/statemachine
 import ./sales/slotqueue
-import ./sales/trackablefutures
+import ./sales/trackedfutures
 import ./sales/states/preparing
 import ./sales/states/unknown
 import ./utils/then
@@ -45,10 +45,12 @@ logScope:
   topics = "sales"
 
 type
-  Sales* = ref object of TrackableFutures
+  Sales* = ref object
     context*: SalesContext
     agents*: seq[SalesAgent]
+    running: bool
     subscriptions: seq[market.Subscription]
+    trackedFutures: TrackedFutures
 
 proc `onStore=`*(sales: Sales, onStore: OnStore) =
   sales.context.onStore = some onStore
@@ -80,6 +82,7 @@ func new*(_: type Sales,
       reservations: reservations,
       slotQueue: SlotQueue.new(reservations)
     ),
+    trackedFutures: TrackedFutures.new(),
     subscriptions: @[]
   )
 
@@ -396,7 +399,7 @@ proc stop*(sales: Sales) {.async.} =
   sales.running = false
   await sales.context.slotQueue.stop()
   await sales.unsubscribe()
-  await sales.cancelTracked()
+  await sales.trackedFutures.cancelTracked()
 
   for agent in sales.agents:
     await agent.stop()

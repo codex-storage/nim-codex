@@ -7,7 +7,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/upraises
 import ./reservations
-import ./trackablefutures
+import ./trackedfutures
 import ../errors
 import ../rng
 import ../utils
@@ -43,12 +43,14 @@ type
   # because AsyncHeapQueue size is of type `int`, which is larger than `uint16`
   SlotQueueSize = range[1'u16..uint16.high]
 
-  SlotQueue* = ref object of TrackableFutures
+  SlotQueue* = ref object
     maxWorkers: int
     onProcessSlot: ?OnProcessSlot
     queue: AsyncHeapQueue[SlotQueueItem]
     reservations: Reservations
+    running: bool
     workers: AsyncQueue[SlotQueueWorker]
+    trackedFutures: TrackedFutures
 
   SlotQueueError = object of CodexError
   SlotQueueItemExistsError* = object of SlotQueueError
@@ -119,7 +121,8 @@ proc new*(_: type SlotQueue,
     # temporarily. After push (and sort), the bottom-most item will be deleted
     queue: newAsyncHeapQueue[SlotQueueItem](maxSize.int + 1),
     reservations: reservations,
-    running: false
+    running: false,
+    trackedFutures: TrackedFutures.new()
   )
   # avoid instantiating `workers` in constructor to avoid side effects in
   # `newAsyncQueue` procedure
@@ -390,4 +393,4 @@ proc stop*(self: SlotQueue) {.async.} =
 
   self.running = false
 
-  await self.cancelTracked()
+  await self.trackedFutures.cancelTracked()
