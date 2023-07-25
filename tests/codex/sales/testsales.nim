@@ -11,6 +11,7 @@ import pkg/codex/sales
 import pkg/codex/sales/salesdata
 import pkg/codex/sales/salescontext
 import pkg/codex/sales/reservations
+import pkg/codex/sales/slotqueue
 import pkg/codex/stores/repostore
 import pkg/codex/proving
 import pkg/codex/blocktype as bt
@@ -32,6 +33,8 @@ asyncchecksuite "Sales":
   var proving: Proving
   var reservations: Reservations
   var repo: RepoStore
+  var queue: SlotQueue
+  var itemsProcessed: seq[SlotQueueItem]
 
   setup:
     availability = Availability.init(
@@ -67,22 +70,122 @@ asyncchecksuite "Sales":
                          slot: UInt256,
                          onBatch: BatchProc): Future[?!void] {.async.} =
       return success()
+    queue = sales.context.slotQueue
     proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       return proof
     await sales.start()
     request.expiry = (clock.now() + 42).u256
+    itemsProcessed = @[]
 
   teardown:
-    await repo.stop()
     await sales.stop()
+    await repo.stop()
 
   proc getAvailability: ?!Availability =
     waitFor reservations.get(availability.id)
 
-  proc wasIgnored: Future[bool] {.async.} =
-    return
-        eventually sales.agents.len == 1 and # agent created at first
-        eventually sales.agents.len == 0 # then removed once ignored
+  proc notProcessed(itemsProcessed: seq[SlotQueueItem],
+                    request: StorageRequest): bool =
+    let items = SlotQueueItem.init(request)
+    for i in 0..<items.len:
+      if itemsProcessed.contains(items[i]):
+        return false
+    return true
+
+  proc addRequestToSaturatedQueue(): Future[StorageRequest] {.async.} =
+    queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+      await sleepAsync(10.millis)
+      itemsProcessed.add item
+      done.complete()
+
+    var request1 = StorageRequest.example
+    request1.ask.collateral = request.ask.collateral + 1
+    discard await reservations.reserve(availability)
+    await market.requestStorage(request)
+    await market.requestStorage(request1)
+    await sleepAsync(5.millis) # wait for request slots to be added to queue
+    return request1
+
+  test "processes all request's slots once StorageRequested emitted":
+   queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+                           itemsProcessed.add item
+                           done.complete()
+   check isOk await reservations.reserve(availability)
+   await market.requestStorage(request)
+   let items = SlotQueueItem.init(request)
+   check eventually items.allIt(itemsProcessed.contains(it))
+
+  test "removes slots from slot queue once RequestCancelled emitted":
+   let request1 = await addRequestToSaturatedQueue()
+   market.emitRequestCancelled(request1.id)
+   check always itemsProcessed.notProcessed(request1)
+
+  test "removes request from slot queue once RequestFailed emitted":
+   let request1 = await addRequestToSaturatedQueue()
+   market.emitRequestFailed(request1.id)
+   check always itemsProcessed.notProcessed(request1)
+
+  test "removes request from slot queue once RequestFulfilled emitted":
+   let request1 = await addRequestToSaturatedQueue()
+   market.emitRequestFulfilled(request1.id)
+   check always itemsProcessed.notProcessed(request1)
+
+  test "removes slot index from slot queue once SlotFilled emitted":
+   let request1 = await addRequestToSaturatedQueue()
+   market.emitSlotFilled(request1.id, 1.u256)
+   let expected = SlotQueueItem.init(request1, 1'u16)
+   check always (not itemsProcessed.contains(expected))
+
+  test "adds slot index to slot queue once SlotFreed emitted":
+   queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+     itemsProcessed.add item
+     done.complete()
+
+   check isOk await reservations.reserve(availability)
+   market.requested.add request # "contract" must be able to return request
+   market.emitSlotFreed(request.id, 2.u256)
+
+   let expected = SlotQueueItem.init(request, 2.uint16)
+   check eventually itemsProcessed.contains(expected)
+
+  test "request slots are not added to the slot queue when no availabilities exist":
+   var itemsProcessed: seq[SlotQueueItem] = @[]
+   queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+     itemsProcessed.add item
+     done.complete()
+
+   await market.requestStorage(request)
+   # check that request was ignored due to no matching availability
+   check always itemsProcessed.len == 0
+
+  test "non-matching availabilities/requests are not added to the slot queue":
+   var itemsProcessed: seq[SlotQueueItem] = @[]
+   queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+     itemsProcessed.add item
+     done.complete()
+
+   let nonMatchingAvailability = Availability.init(
+     size=100.u256,
+     duration=60.u256,
+     minPrice=601.u256, # too high
+     maxCollateral=400.u256
+   )
+   check isOk await reservations.reserve(nonMatchingAvailability)
+   await market.requestStorage(request)
+   # check that request was ignored due to no matching availability
+   check always itemsProcessed.len == 0
+
+  test "adds past requests to queue once availability added":
+   var itemsProcessed: seq[SlotQueueItem] = @[]
+   queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+     itemsProcessed.add item
+     done.complete()
+
+   await market.requestStorage(request)
+
+   # now add matching availability
+   check isOk await reservations.reserve(availability)
+   check eventually itemsProcessed.len == request.ask.slots.int
 
   test "makes storage unavailable when downloading a matched request":
     var used = false
@@ -115,19 +218,19 @@ asyncchecksuite "Sales":
     availability.duration = request.ask.duration - 1
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check await wasIgnored()
+    check getAvailability().?size == success availability.size
 
   test "ignores request when slot size is too small":
     availability.size = request.ask.slotSize - 1
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check await wasIgnored()
+    check getAvailability().?size == success availability.size
 
   test "ignores request when reward is too low":
     availability.minPrice = request.ask.pricePerSlot + 1
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check await wasIgnored()
+    check getAvailability().?size == success availability.size
 
   test "availability remains unused when request is ignored":
     availability.minPrice = request.ask.pricePerSlot + 1
@@ -140,7 +243,16 @@ asyncchecksuite "Sales":
     tooBigCollateral.ask.collateral = availability.maxCollateral + 1
     check isOk await reservations.reserve(availability)
     await market.requestStorage(tooBigCollateral)
-    check await wasIgnored()
+    check getAvailability().?size == success availability.size
+
+  test "ignores request when slot state is not free":
+    check isOk await reservations.reserve(availability)
+    await market.requestStorage(request)
+    market.slotState[request.slotId(0.u256)] = SlotState.Filled
+    market.slotState[request.slotId(1.u256)] = SlotState.Filled
+    market.slotState[request.slotId(2.u256)] = SlotState.Filled
+    market.slotState[request.slotId(3.u256)] = SlotState.Filled
+    check getAvailability().?size == success availability.size
 
   test "retrieves and stores data locally":
     var storingRequest: StorageRequest

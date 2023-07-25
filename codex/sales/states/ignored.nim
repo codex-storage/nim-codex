@@ -12,7 +12,5 @@ method run*(state: SaleIgnored, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
   let context = agent.context
 
-  if onIgnored =? context.onIgnored:
-    onIgnored()
-
-  await agent.unsubscribe()
+  if onCleanUp =? context.onCleanUp:
+    await onCleanUp()

@@ -1,5 +1,6 @@
+import std/sequtils
 import std/strutils
-import std/strformat
+import std/sugar
 import pkg/chronicles
 import pkg/ethers
 import pkg/ethers/testing
@@ -36,7 +37,7 @@ proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
   let tokenAddress = await market.contract.token()
   let token = Erc20Token.new(tokenAddress, market.signer)
 
-  await token.approve(market.contract.address(), amount)
+  discard await token.approve(market.contract.address(), amount)
 
 method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
   return await market.signer.getAddress()
@@ -168,11 +169,13 @@ method canProofBeMarkedAsMissing*(
     trace "Proof can not be marked as missing", msg = e.msg
     return false
 
-method subscribeRequests(market: OnChainMarket,
+method subscribeRequests*(market: OnChainMarket,
                          callback: OnRequest):
                         Future[MarketSubscription] {.async.} =
   proc onEvent(event: StorageRequested) {.upraises:[].} =
-    callback(event.requestId, event.ask)
+    callback(event.requestId,
+             event.ask,
+             event.expiry)
   let subscription = await market.contract.subscribe(StorageRequested, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
@@ -198,8 +201,16 @@ method subscribeSlotFreed*(market: OnChainMarket,
                            callback: OnSlotFreed):
                           Future[MarketSubscription] {.async.} =
   proc onEvent(event: SlotFreed) {.upraises:[].} =
-    callback(event.slotId)
+    callback(event.requestId, event.slotIndex)
   let subscription = await market.contract.subscribe(SlotFreed, onEvent)
+  return OnChainMarketSubscription(eventSubscription: subscription)
+
+method subscribeFulfillment(market: OnChainMarket,
+                            callback: OnFulfillment):
+                           Future[MarketSubscription] {.async.} =
+  proc onEvent(event: RequestFulfilled) {.upraises:[].} =
+    callback(event.requestId)
+  let subscription = await market.contract.subscribe(RequestFulfilled, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
 method subscribeFulfillment(market: OnChainMarket,
@@ -213,6 +224,14 @@ method subscribeFulfillment(market: OnChainMarket,
   return OnChainMarketSubscription(eventSubscription: subscription)
 
 method subscribeRequestCancelled*(market: OnChainMarket,
+                                  callback: OnRequestCancelled):
+                                Future[MarketSubscription] {.async.} =
+  proc onEvent(event: RequestCancelled) {.upraises:[].} =
+    callback(event.requestId)
+  let subscription = await market.contract.subscribe(RequestCancelled, onEvent)
+  return OnChainMarketSubscription(eventSubscription: subscription)
+
+method subscribeRequestCancelled*(market: OnChainMarket,
                                   requestId: RequestId,
                                   callback: OnRequestCancelled):
                                 Future[MarketSubscription] {.async.} =
@@ -220,6 +239,14 @@ method subscribeRequestCancelled*(market: OnChainMarket,
     if event.requestId == requestId:
       callback(event.requestId)
   let subscription = await market.contract.subscribe(RequestCancelled, onEvent)
+  return OnChainMarketSubscription(eventSubscription: subscription)
+
+method subscribeRequestFailed*(market: OnChainMarket,
+                              callback: OnRequestFailed):
+                            Future[MarketSubscription] {.async.} =
+  proc onEvent(event: RequestFailed) {.upraises:[]} =
+    callback(event.requestId)
+  let subscription = await market.contract.subscribe(RequestFailed, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 
 method subscribeRequestFailed*(market: OnChainMarket,
@@ -242,3 +269,24 @@ method subscribeProofSubmission*(market: OnChainMarket,
 
 method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =
   await subscription.eventSubscription.unsubscribe()
+
+method queryPastStorageRequests*(market: OnChainMarket,
+                                 blocksAgo: int):
+                                Future[seq[PastStorageRequest]] {.async.} =
+
+  let contract = market.contract
+  let provider = contract.provider
+
+  let head = await provider.getBlockNumber()
+  let fromBlock = BlockTag.init(head - blocksAgo.abs.u256)
+
+  let events = await contract.queryFilter(StorageRequested,
+                                          fromBlock,
+                                          BlockTag.latest)
+  return events.map(event =>
+    PastStorageRequest(
+      requestId: event.requestId,
+      ask: event.ask,
+      expiry: event.expiry
+    )
+  )

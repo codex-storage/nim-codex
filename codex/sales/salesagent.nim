@@ -1,8 +1,11 @@
 import pkg/chronos
 import pkg/chronicles
+import pkg/questionable
+import pkg/questionable/results
 import pkg/stint
+import pkg/upraises
 import ../contracts/requests
-import ../utils/asyncspawn
+import ../errors
 import ./statemachine
 import ./salescontext
 import ./salesdata
@@ -13,10 +16,13 @@ export reservations
 logScope:
   topics = "marketplace sales"
 
-type SalesAgent* = ref object of Machine
-  context*: SalesContext
-  data*: SalesData
-  subscribed: bool
+type
+  SalesAgent* = ref object of Machine
+    context*: SalesContext
+    data*: SalesData
+    subscribed: bool
+  SalesAgentError = object of CodexError
+  AllSlotsFilledError* = object of SalesAgentError
 
 func `==`*(a, b: SalesAgent): bool =
   a.data.requestId == b.data.requestId and
@@ -41,7 +47,6 @@ proc retrieveRequest*(agent: SalesAgent) {.async.} =
 
 proc subscribeCancellation(agent: SalesAgent) {.async.} =
   let data = agent.data
-  let market = agent.context.market
   let clock = agent.context.clock
 
   proc onCancelled() {.async.} =
@@ -49,51 +54,34 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
       return
 
     await clock.waitUntil(request.expiry.truncate(int64))
-    if not data.fulfilled.isNil:
-      asyncSpawn data.fulfilled.unsubscribe(), ignore = CatchableError
     agent.schedule(cancelledEvent(request))
 
   data.cancelled = onCancelled()
 
-  proc onFulfilled(_: RequestId) =
-    data.cancelled.cancel()
+method onFulfilled*(agent: SalesAgent, requestId: RequestId) {.base, gcsafe, upraises: [].} =
+  if agent.data.requestId == requestId and
+     not agent.data.cancelled.isNil:
+    agent.data.cancelled.cancel()
 
-  data.fulfilled =
-    await market.subscribeFulfillment(data.requestId, onFulfilled)
-
-proc subscribeFailure(agent: SalesAgent) {.async.} =
-  let data = agent.data
-  let market = agent.context.market
-
-  proc onFailed(_: RequestId) =
-    without request =? data.request:
-      return
-    asyncSpawn data.failed.unsubscribe(), ignore = CatchableError
+method onFailed*(agent: SalesAgent, requestId: RequestId) {.base, gcsafe, upraises: [].} =
+  without request =? agent.data.request:
+    return
+  if agent.data.requestId == requestId:
     agent.schedule(failedEvent(request))
 
-  data.failed =
-    await market.subscribeRequestFailed(data.requestId, onFailed)
+method onSlotFilled*(agent: SalesAgent,
+                     requestId: RequestId,
+                     slotIndex: UInt256) {.base, gcsafe, upraises: [].} =
 
-proc subscribeSlotFilled(agent: SalesAgent) {.async.} =
-  let data = agent.data
-  let market = agent.context.market
-
-  proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
-    asyncSpawn data.slotFilled.unsubscribe(), ignore = CatchableError
-    agent.schedule(slotFilledEvent(requestId, data.slotIndex))
-
-  data.slotFilled =
-    await market.subscribeSlotFilled(data.requestId,
-                                     data.slotIndex,
-                                     onSlotFilled)
+  if agent.data.requestId == requestId and
+     agent.data.slotIndex == slotIndex:
+    agent.schedule(slotFilledEvent(requestId, slotIndex))
 
 proc subscribe*(agent: SalesAgent) {.async.} =
   if agent.subscribed:
     return
 
   await agent.subscribeCancellation()
-  await agent.subscribeFailure()
-  await agent.subscribeSlotFilled()
   agent.subscribed = true
 
 proc unsubscribe*(agent: SalesAgent) {.async.} =
@@ -101,25 +89,7 @@ proc unsubscribe*(agent: SalesAgent) {.async.} =
     return
 
   let data = agent.data
-  try:
-    if not data.fulfilled.isNil:
-      await data.fulfilled.unsubscribe()
-      data.fulfilled = nil
-  except CatchableError:
-    discard
-  try:
-    if not data.failed.isNil:
-      await data.failed.unsubscribe()
-      data.failed = nil
-  except CatchableError:
-    discard
-  try:
-    if not data.slotFilled.isNil:
-      await data.slotFilled.unsubscribe()
-      data.slotFilled = nil
-  except CatchableError:
-    discard
-  if not data.cancelled.isNil:
+  if not data.cancelled.isNil and not data.cancelled.finished:
     await data.cancelled.cancelAndWait()
     data.cancelled = nil
 

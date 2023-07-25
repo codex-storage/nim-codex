@@ -2,6 +2,7 @@ import std/options
 import pkg/chronos
 import pkg/stew/byteutils
 import codex/contracts
+import ../codex/helpers/eventually
 import ../ethertest
 import ./examples
 import ./time
@@ -76,13 +77,16 @@ ethersuite "On-Chain Market":
   test "supports request subscriptions":
     var receivedIds: seq[RequestId]
     var receivedAsks: seq[StorageAsk]
-    proc onRequest(id: RequestId, ask: StorageAsk) =
+    var receivedExpirys: seq[UInt256]
+    proc onRequest(id: RequestId, ask: StorageAsk, expiry: UInt256) =
       receivedIds.add(id)
       receivedAsks.add(ask)
+      receivedExpirys.add(expiry)
     let subscription = await market.subscribeRequests(onRequest)
     await market.requestStorage(request)
     check receivedIds == @[request.id]
     check receivedAsks == @[request.ask]
+    check receivedExpirys == @[request.expiry]
     await subscription.unsubscribe()
 
   test "supports filling of slots":
@@ -158,12 +162,15 @@ ethersuite "On-Chain Market":
   test "supports slot freed subscriptions":
     await market.requestStorage(request)
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
-    var receivedIds: seq[SlotId]
-    proc onSlotFreed(id: SlotId) =
-      receivedIds.add(id)
+    var receivedRequestIds: seq[RequestId] = @[]
+    var receivedIdxs: seq[UInt256] = @[]
+    proc onSlotFreed(requestId: RequestId, idx: UInt256) =
+      receivedRequestIds.add(requestId)
+      receivedIdxs.add(idx)
     let subscription = await market.subscribeSlotFreed(onSlotFreed)
     await market.freeSlot(slotId(request.id, slotIndex))
-    check receivedIds == @[slotId(request.id, slotIndex)]
+    check receivedRequestIds == @[request.id]
+    check receivedIdxs == @[slotIndex]
     await subscription.unsubscribe()
 
   test "support fulfillment subscriptions":
@@ -318,3 +325,34 @@ ethersuite "On-Chain Market":
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
     let slotId = request.slotId(slotIndex)
     check (await market.slotState(slotId)) == SlotState.Filled
+
+  test "can query past events":
+    var request1 = StorageRequest.example
+    var request2 = StorageRequest.example
+    request1.client = accounts[0]
+    request2.client = accounts[0]
+    await market.requestStorage(request)
+    await market.requestStorage(request1)
+    await market.requestStorage(request2)
+
+    # `market.requestStorage` executes an `approve` tx before the
+    # `requestStorage` tx, so that's two PoA blocks per `requestStorage` call (6
+    # blocks for 3 calls). `fromBlock` and `toBlock` are inclusive, so to check
+    # 6 blocks, we only need to check 5 "blocks ago". We don't need to check the
+    # `approve` for the first `requestStorage` call, so that's 1 less again = 4
+    # "blocks ago".
+    check eventually (
+      (await market.queryPastStorageRequests(5)) ==
+      @[
+        PastStorageRequest(requestId: request.id, ask: request.ask, expiry: request.expiry),
+        PastStorageRequest(requestId: request1.id, ask: request1.ask, expiry: request1.expiry),
+        PastStorageRequest(requestId: request2.id, ask: request2.ask, expiry: request2.expiry)
+      ])
+
+  test "past event query can specify negative `blocksAgo` parameter":
+    await market.requestStorage(request)
+
+    check eventually (
+      (await market.queryPastStorageRequests(blocksAgo = -2)) ==
+      (await market.queryPastStorageRequests(blocksAgo = 2))
+    )
