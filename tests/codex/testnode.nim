@@ -8,7 +8,7 @@ import pkg/stew/byteutils
 
 import pkg/nitro
 import pkg/libp2p
-import pkg/libp2pdht/discv5/protocol as discv5
+import pkg/codexdht/discv5/protocol as discv5
 
 import pkg/codex/stores
 import pkg/codex/blockexchange
