@@ -90,7 +90,7 @@
       "url": "https://github.com/status-im/nim-libp2p"
     },
     "nim-libp2p-dht": {
-      "commit": "bd517f0e8da38a1b5da15f7deb2d5c652ca389f1",
+      "commit": "fdd02450aa6979add7dabd29a3ba0f8738bf89f8",
       "dir": "vendor/nim-libp2p-dht",
       "url": "https://github.com/status-im/nim-libp2p-dht"
     },
