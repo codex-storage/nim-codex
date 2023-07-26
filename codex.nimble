@@ -1,16 +1,11 @@
-mode = ScriptMode.Verbose
-
 version = "0.1.0"
 author = "Codex Team"
 description = "p2p data durability engine"
 license = "MIT"
 binDir = "build"
 srcDir = "."
-
-when declared(namedBin):
-  namedBin = {
-    "codex/codex": "codex"
-  }.toTable()
+installFiles  = @["build.nims"]
+namedBin = {"codex/codex": "codex"}.toTable()
 
 requires "nim >= 1.2.0"
 requires "asynctest >= 0.3.2 & < 0.4.0"

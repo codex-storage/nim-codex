@@ -1,3 +1,4 @@
+mode = ScriptMode.Verbose
 
 ### Helper functions
 proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
@@ -30,6 +31,9 @@ task testContracts, "Build & run Codex Contract tests":
 task testIntegration, "Run integration tests":
   buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_enable_proof_failures=true"
   test "testIntegration"
+
+task build, "build codex binary":
+  codexTask()
 
 task test, "Run tests":
   testCodexTask()
