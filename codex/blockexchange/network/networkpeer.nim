@@ -22,7 +22,7 @@ logScope:
   topics = "codex blockexcnetworkpeer"
 
 type
-  ConnProvider* = proc(): Future[Connection] {.async, gcsafe, closure.}
+  ConnProvider* = proc(): Future[Connection] {.gcsafe, closure.}
 
   RPCHandler* = proc(peer: NetworkPeer, msg: Message): Future[void] {.gcsafe.}
 
@@ -79,7 +79,7 @@ proc broadcast*(b: NetworkPeer, msg: Message) =
 
   asyncSpawn sendAwaiter()
 
-func new*(
+proc new*(
   T: type NetworkPeer,
   peer: PeerId,
   connProvider: ConnProvider,
