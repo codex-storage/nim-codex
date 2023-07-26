@@ -22,7 +22,7 @@ logScope:
   topics = "codex blockexcnetworkpeer"
 
 type
-  ConnProvider* = proc(): Future[Connection] {.gcsafe, closure.}
+  ConnProvider* = proc(): Future[Connection] {.async, gcsafe, closure.}
 
   RPCHandler* = proc(peer: NetworkPeer, msg: Message): Future[void] {.gcsafe.}
 

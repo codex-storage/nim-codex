@@ -285,7 +285,7 @@ proc getOrCreatePeer(b: BlockExcNetwork, peer: PeerId): NetworkPeer =
   if peer in b.peers:
     return b.peers.getOrDefault(peer, nil)
 
-  var getConn = proc(): Future[Connection] {.async.} =
+  var getConn: ConnProvider = proc(): Future[Connection] {.async, gcsafe, closure.} =
     try:
       return await b.switch.dial(peer, Codec)
     except CatchableError as exc:

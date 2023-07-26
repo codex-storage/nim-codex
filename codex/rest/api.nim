@@ -27,9 +27,9 @@ import pkg/confutils
 
 import pkg/libp2p
 import pkg/libp2p/routing_record
-import pkg/libp2pdht/discv5/spr as spr
-import pkg/libp2pdht/discv5/routing_table as rt
-import pkg/libp2pdht/discv5/node as dn
+import pkg/codexdht/discv5/spr as spr
+import pkg/codexdht/discv5/routing_table as rt
+import pkg/codexdht/discv5/node as dn
 
 import ../node
 import ../blocktype
