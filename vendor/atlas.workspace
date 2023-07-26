@@ -1,0 +1,3 @@
+deps=""
+resolver="MaxVer"
+overrides="urls.rules"
