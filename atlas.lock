@@ -175,7 +175,7 @@
       "url": "https://github.com/status-im/nim-zlib"
     },
     "nim-stint": {
-      "dir": "vendor/nim-stint",
+      "dir": "vendor/stint",
       "url": "https://github.com/status-im/nim-stint",
       "commit": "86621eced1dcfb5e25903019ebcfc76ed9128ec5"
     },
