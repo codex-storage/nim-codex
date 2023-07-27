@@ -22,7 +22,7 @@ type
   CodexKeyError = object of CodexError
   CodexKeyUnsafeError = object of CodexKeyError
 
-proc setupKey*(path: string): ?!PrivateKey =
+proc setupKey*(path: string): PrivateKey ?! CodexKeyError =
   if not path.fileAccessible({AccessFlags.Find}):
     info "Creating a private key and saving it"
     let
