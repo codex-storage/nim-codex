@@ -113,7 +113,7 @@ asyncchecksuite "Sales":
    check isOk await reservations.reserve(availability)
    await market.requestStorage(request)
    let items = SlotQueueItem.init(request)
-   check eventually items.allIt(itemsProcessed.contains(it))
+   check eventuallyCheck items.allIt(itemsProcessed.contains(it))
 
   test "removes slots from slot queue once RequestCancelled emitted":
    let request1 = await addRequestToSaturatedQueue()
@@ -146,7 +146,7 @@ asyncchecksuite "Sales":
    market.emitSlotFreed(request.id, 2.u256)
 
    let expected = SlotQueueItem.init(request, 2.uint16)
-   check eventually itemsProcessed.contains(expected)
+   check eventuallyCheck itemsProcessed.contains(expected)
 
   test "request slots are not added to the slot queue when no availabilities exist":
    var itemsProcessed: seq[SlotQueueItem] = @[]
@@ -185,7 +185,7 @@ asyncchecksuite "Sales":
 
    # now add matching availability
    check isOk await reservations.reserve(availability)
-   check eventually itemsProcessed.len == request.ask.slots.int
+   check eventuallyCheck itemsProcessed.len == request.ask.slots.int
 
   test "makes storage unavailable when downloading a matched request":
     var used = false
@@ -199,7 +199,7 @@ asyncchecksuite "Sales":
 
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check eventually used
+    check eventuallyCheck used
 
   test "reduces remaining availability size after download":
     let blk = bt.Block.example
@@ -212,7 +212,7 @@ asyncchecksuite "Sales":
       return success()
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check eventually getAvailability().?size == success 1.u256
+    check eventuallyCheck getAvailability().?size == success 1.u256
 
   test "ignores download when duration not long enough":
     availability.duration = request.ask.duration - 1
@@ -265,7 +265,7 @@ asyncchecksuite "Sales":
       return success()
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check eventually storingRequest == request
+    check eventuallyCheck storingRequest == request
     check storingSlot < request.ask.slots.u256
 
   test "handles errors during state run":
@@ -280,7 +280,7 @@ asyncchecksuite "Sales":
       saleFailed = true
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check eventually saleFailed
+    check eventuallyCheck saleFailed
 
   test "makes storage available again when data retrieval fails":
     let error = newException(IOError, "data retrieval failed")
@@ -290,7 +290,7 @@ asyncchecksuite "Sales":
       return failure(error)
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check eventually getAvailability().?used == success false
+    check eventuallyCheck getAvailability().?used == success false
     check getAvailability().?size == success availability.size
 
   test "generates proof of storage":
@@ -301,13 +301,13 @@ asyncchecksuite "Sales":
       provingSlot = slot.slotIndex
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check eventually provingRequest == request
+    check eventuallyCheck provingRequest == request
     check provingSlot < request.ask.slots.u256
 
   test "fills a slot":
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check eventually market.filled.len == 1
+    check eventuallyCheck market.filled.len == 1
     check market.filled[0].requestId == request.id
     check market.filled[0].slotIndex < request.ask.slots.u256
     check market.filled[0].proof == proof
@@ -325,7 +325,7 @@ asyncchecksuite "Sales":
       soldSlotIndex = slotIndex
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check eventually soldAvailability == availability
+    check eventuallyCheck soldAvailability == availability
     check soldRequest == request
     check soldSlotIndex < request.ask.slots.u256
 
@@ -342,7 +342,7 @@ asyncchecksuite "Sales":
       clearedSlotIndex = slotIndex
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check eventually clearedRequest == request
+    check eventuallyCheck clearedRequest == request
     check clearedSlotIndex < request.ask.slots.u256
 
   test "makes storage available again when other host fills the slot":
@@ -356,7 +356,7 @@ asyncchecksuite "Sales":
     await market.requestStorage(request)
     for slotIndex in 0..<request.ask.slots:
       market.fillSlot(request.id, slotIndex.u256, proof, otherHost)
-    check eventually (await reservations.allAvailabilities) == @[availability]
+    check eventuallyCheck (await reservations.allAvailabilities) == @[availability]
 
   test "makes storage available again when request expires":
     sales.onStore = proc(request: StorageRequest,
@@ -367,7 +367,7 @@ asyncchecksuite "Sales":
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
     clock.set(request.expiry.truncate(int64))
-    check eventually (await reservations.allAvailabilities) == @[availability]
+    check eventuallyCheck (await reservations.allAvailabilities) == @[availability]
 
   test "adds proving for slot when slot is filled":
     var soldSlotIndex: UInt256
@@ -377,7 +377,7 @@ asyncchecksuite "Sales":
     check proving.slots.len == 0
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check eventually proving.slots.len == 1
+    check eventuallyCheck proving.slots.len == 1
     check proving.slots.contains(Slot(request: request, slotIndex: soldSlotIndex))
 
   test "loads active slots from market":
@@ -423,5 +423,5 @@ asyncchecksuite "Sales":
       return data0.requestId == data1.requestId and
              data0.request == data1.request
 
-    check eventually sales.agents.len == 2
+    check eventuallyCheck sales.agents.len == 2
     check sales.agents.all(agent => agent.data == expected)
