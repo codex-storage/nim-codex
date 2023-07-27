@@ -12,11 +12,13 @@ push: {.upraises: [].}
 
 import pkg/chronicles
 import pkg/questionable/results
-import pkg/libp2p
+import pkg/libp2p/crypto/crypto
 
 import ./fileutils
 import ../errors
 import ../rng
+
+export crypto
 
 type
   CodexKeyError = object of CodexError

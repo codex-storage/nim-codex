@@ -3,8 +3,7 @@ import std/tables
 
 import pkg/asynctest
 import pkg/chronos
-import pkg/libp2p
-import pkg/libp2p/errors
+import pkg/libp2p except setup
 
 import pkg/codex/rng
 import pkg/codex/chunker
