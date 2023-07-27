@@ -12,18 +12,21 @@ type
 logScope:
   topics = "trackable futures"
 
+proc len*(self: TrackedFutures): int = self.futures.len
+
+proc removeFuture(self: TrackedFutures, future: FutureBase) =
+  if not self.cancelling and not future.isNil:
+    trace "removing tracked future"
+    self.futures.del(future.id)
+
 proc track*[T](self: TrackedFutures, fut: Future[T]): Future[T] =
   logScope:
     id = fut.id
 
-  proc removeFuture() =
-    if not self.cancelling and not fut.isNil:
-      trace "removing tracked future"
-      self.futures.del(fut.id)
-
   fut
-    .then((val: T) => removeFuture())
-    .catch((e: ref CatchableError) => removeFuture())
+    .then((val: T) => self.removeFuture(fut))
+    .cancelled(() => self.removeFuture(fut))
+    .catch((e: ref CatchableError) => self.removeFuture(fut))
 
   trace "tracking future"
   self.futures[fut.id] = FutureBase(fut)
@@ -43,4 +46,5 @@ proc cancelTracked*(self: TrackedFutures) {.async.} =
       trace "cancelling tracked future", id = future.id
       await future.cancelAndWait()
 
+  self.futures.clear()
   self.cancelling = false
