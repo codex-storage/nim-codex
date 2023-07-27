@@ -15,7 +15,7 @@ coverage/
 
 # Nimble packages
 /vendor/.nimble
-/vendor/*/
+# /vendor/*/
 
 # Nimble user files
 nimble.develop
