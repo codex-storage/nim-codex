@@ -47,7 +47,7 @@ proc retrieve*(
     trace "Cannot retrieve storage proof data from fs", path , error
     return failure("Cannot retrieve storage proof data from fs")
 
-  return PorMessage.decode(data).mapFailure
+  return PorMessage.decode(data).mapFailure(CatchableError)
 
 proc store*(
   self: StpStore,

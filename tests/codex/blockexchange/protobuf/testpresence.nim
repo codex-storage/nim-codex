@@ -1,6 +1,6 @@
 import pkg/asynctest
 import pkg/chronos
-import pkg/libp2p
+import pkg/libp2p except setup
 
 import pkg/codex/blockexchange/protobuf/presence
 import ../../examples
