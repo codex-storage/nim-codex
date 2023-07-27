@@ -20,16 +20,17 @@ proc removeFuture(self: TrackedFutures, future: FutureBase) =
     self.futures.del(future.id)
 
 proc track*[T](self: TrackedFutures, fut: Future[T]): Future[T] =
-  logScope:
-    id = fut.id
+  if self.cancelling:
+    return fut
+
+  trace "tracking future", id = fut.id
+  self.futures[fut.id] = FutureBase(fut)
 
   fut
     .then((val: T) => self.removeFuture(fut))
     .cancelled(() => self.removeFuture(fut))
     .catch((e: ref CatchableError) => self.removeFuture(fut))
 
-  trace "tracking future"
-  self.futures[fut.id] = FutureBase(fut)
   return fut
 
 proc track*[T, U](future: Future[T], self: U): Future[T] =
