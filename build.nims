@@ -1,5 +1,6 @@
 mode = ScriptMode.Verbose
 
+
 ### Helper functions
 proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
   if not dirExists "build":
@@ -7,13 +8,14 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
   # allow something like "nim nimbus --verbosity:0 --hints:off nimbus.nims"
   var extra_params = params
   when compiles(commandLineParams):
-    for param in commandLineParams:
+    for param in commandLineParams():
       extra_params &= " " & param
   else:
     for i in 2..<paramCount():
       extra_params &= " " & paramStr(i)
 
-  exec "nim " & lang & " --out:build/" & name & " " & extra_params & " " & srcDir & name & ".nim"
+  let cmd = "nim " & lang & " --out:build/" & name & " " & extra_params & " " & srcDir & name & ".nim"
+  exec(cmd)
 
 proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
   buildBinary name, srcDir, params
@@ -42,3 +44,41 @@ task testAll, "Run all tests":
   testCodexTask()
   testContractsTask()
   testIntegrationTask()
+
+import strutils
+import os
+
+task coverage, "generates code coverage report":
+  var (output, exitCode) = gorgeEx("which lcov")
+  if exitCode != 0:
+    echo "  ************************** ⛔️ ERROR ⛔️ **************************"
+    echo "  **   ERROR: lcov not found, it must be installed to run code   **"
+    echo "  **   coverage locally                                          **"
+    echo "  *****************************************************************"
+    quit 1
+
+  (output, exitCode) = gorgeEx("gcov --version")
+  if output.contains("Apple LLVM"):
+    echo "  ************************* ⚠️ WARNING ⚠️  *************************"
+    echo "  **   WARNING: Using Apple's llvm-cov in place of gcov, which   **"
+    echo "  **   emulates an old version of gcov (4.2.0) and therefore     **"
+    echo "  **   coverage results will differ than those on CI (which      **"
+    echo "  **   uses a much newer version of gcov).                       **"
+    echo "  *****************************************************************"
+
+  var nimSrcs = "codex.nim".absolutePath() & " "
+  for f in walkDirRec("codex", {pcFile}):
+    if f.endswith(".nim"): nimSrcs.add " " & f.absolutePath.quoteShell()
+
+  echo "======== Running Tests ======== "
+  buildBinary "coverage", srcDir = "tests/", params = " -d:chronicles_log_level=NONE "
+  exec("rm nimcache/*.c")
+  rmDir("coverage"); mkDir("coverage")
+  echo " ======== Running LCOV ======== "
+  exec("lcov --capture --directory nimcache --output-file coverage/coverage.info")
+  exec("lcov --extract coverage/coverage.info --output-file coverage/coverage.f.info " & nimSrcs)
+  echo " ======== Generating HTML coverage report ======== "
+  exec("genhtml coverage/coverage.f.info --output-directory coverage/report ")
+  echo " ======== Opening HTML coverage report in browser... ======== "
+  if findExe("open") != "":
+    exec("open coverage/report/index.html")
