@@ -1,6 +1,6 @@
 import std/unittest
 import std/os
-import pkg/libp2p
+import pkg/libp2p except setup
 import pkg/questionable/results
 import codex/utils/keyutils
 import ../helpers

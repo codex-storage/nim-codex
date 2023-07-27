@@ -1,6 +1,6 @@
 import pkg/chronos
 import pkg/asynctest
-import pkg/libp2p
+import pkg/libp2p except setup
 import pkg/questionable/results
 
 import ./helpers

@@ -3,7 +3,7 @@ import std/sequtils
 import pkg/chronos
 import pkg/questionable/results
 import pkg/asynctest
-import pkg/libp2p
+import pkg/libp2p except setup
 import pkg/stew/byteutils
 
 import pkg/codex/chunker
