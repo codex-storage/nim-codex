@@ -14,7 +14,7 @@ import std/algorithm
 
 import pkg/chronos
 import pkg/chronicles
-import pkg/libp2p
+import pkg/libp2p/[cid, switch]
 import pkg/metrics
 import pkg/stint
 

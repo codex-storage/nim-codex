@@ -10,7 +10,7 @@
 import std/strutils
 
 import pkg/chronicles
-import pkg/libp2p
+import pkg/libp2p/cid
 
 func shortLog*(cid: Cid): string =
   ## Returns compact string representation of ``pid``.
