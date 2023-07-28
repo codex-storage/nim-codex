@@ -79,7 +79,10 @@ proc bootstrapInteractions(
   if account =? config.ethAccount:
     signer = provider.getSigner(account)
   elif keyFile =? config.ethPrivateKey:
-    without isSecure =? checkSecureFile(keyFile) and isSecure:
+    without isSecure =? checkSecureFile(keyFile):
+      error "Could not check file permissions: does Ethereum private key file exist?"
+      quit QuitFailure
+    if not isSecure:
       error "Ethereum private key file does not have safe file permissions"
       quit QuitFailure
     without key =? keyFile.readAllChars():
