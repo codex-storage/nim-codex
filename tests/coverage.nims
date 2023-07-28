@@ -5,7 +5,6 @@ switch("define", "debug")
 switch("verbosity", "0")
 switch("hints", "off")
 switch("warnings", "off")
-switch("nimcache", "nimcache")
 # switches for compiling with coverage
 switch("passC", "-fprofile-arcs")
 switch("passC", "-ftest-coverage")

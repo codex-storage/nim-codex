@@ -1,9 +1,10 @@
-import pkg/chronicles
+when not defined(nimscript):
+  import pkg/chronicles
 
-proc ignoreLogging(level: LogLevel, message: LogOutputStr) =
-  discard
+  proc ignoreLogging(level: LogLevel, message: LogOutputStr) =
+    discard
 
-defaultChroniclesStream.output.writer = ignoreLogging
+  defaultChroniclesStream.output.writer = ignoreLogging
 
-{.warning[UnusedImport]:off.}
-{.used.}
+  {.warning[UnusedImport]:off.}
+  {.used.}
