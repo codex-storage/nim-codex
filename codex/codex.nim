@@ -85,7 +85,10 @@ proc bootstrapInteractions(
     without key =? keyFile.readAllChars():
       error "Unable to read Ethereum private key file"
       quit QuitFailure
-    signer = EthWallet.new(key.strip(), provider)
+    without wallet =? EthWallet.new(key.strip(), provider):
+      error "Invalid Ethereum private key in file"
+      quit QuitFailure
+    signer = wallet
 
   let deploy = Deployment.new(provider, config)
   without marketplaceAddress =? await deploy.address(Marketplace):
