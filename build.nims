@@ -74,7 +74,6 @@ task coverage, "generates code coverage report":
   test "coverage", srcDir = "tests/", params = " --nimcache:nimcache/coverage -d:release "
   exec("rm nimcache/coverage/*.c")
   rmDir("coverage"); mkDir("coverage")
-  exec("find nimcache | grep gcda")
   echo " ======== Running LCOV ======== "
   exec("lcov --capture --directory nimcache/coverage --output-file coverage/coverage.info")
   exec("lcov --extract coverage/coverage.info --output-file coverage/coverage.f.info " & nimSrcs)
