@@ -1,8 +1,12 @@
 import pkg/questionable
+import pkg/confutils
+import pkg/chronicles
+import pkg/libp2p
 import std/osproc
 import std/os
 import std/streams
 import std/strutils
+import codex/conf
 import ./codexclient
 
 export codexclient
@@ -53,25 +57,13 @@ proc startNode*(args: openArray[string], debug: string | bool = false): NodeProc
   node.start()
   node
 
-proc dataDir(node: NodeProcess): ?string =
-  for argument in node.arguments:
-    if argument.startsWith("--data-dir="):
-      return some argument[len("--data-dir=")..<argument.len]
-    if argument.startsWith("-d "):
-      return some argument[len("-d ")..<argument.len]
-  none string
+proc dataDir(node: NodeProcess): string =
+  let config = CodexConf.load(cmdLine = node.arguments)
+  config.dataDir.string
 
 proc apiUrl(node: NodeProcess): string =
-  var address = "127.0.0.1"
-  var port = "8080"
-  for argument in node.arguments:
-    if argument.startsWith("--api-bindaddr="):
-      address = argument[len("--api-bindaddr=")..<argument.len]
-    elif argument.startsWith("--api-port="):
-      port = argument[len("--api-port=")..<argument.len]
-    elif argument.startsWith("-p "):
-      port = argument[len("-p ")..<argument.len]
-  "http://" & address & ":" & port & "/api/codex/v1"
+  let config = CodexConf.load(cmdLine = node.arguments)
+  "http://" & config.apiBindAddress & ":" & $config.apiPort & "/api/codex/v1"
 
 proc client*(node: NodeProcess): CodexClient =
   if client =? node.client:
