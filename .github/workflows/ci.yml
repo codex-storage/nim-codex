@@ -23,11 +23,11 @@ jobs:
             builder: macos-latest
             shell: bash --noprofile --norc -e -o pipefail
             tests: all
-          - os: windows
-            cpu: amd64
-            builder: windows-latest
-            shell: msys2
-            tests: unittest
+          # - os: windows
+          #   cpu: amd64
+          #   builder: windows-latest
+          #   shell: msys2
+          #   tests: unittest
           # - os: windows
           #   cpu: amd64
           #   builder: windows-latest
@@ -59,35 +59,35 @@ jobs:
           shell: ${{ matrix.shell }}
           nim_version: ${{ env.nim_version }}
 
-      # ## Part 1 Tests ##
-      # - name: Unit tests
-      #   if: matrix.tests == 'unittest' || matrix.tests == 'all'
-      #   run: make -j${ncpu} test
+      ## Part 1 Tests ##
+      - name: Unit tests
+        if: matrix.tests == 'unittest' || matrix.tests == 'all'
+        run: make -j${ncpu} test
 
-      # # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
-      # - name: Setup Node.js
-      #   uses: actions/setup-node@v3
-      #   with:
-      #    node-version: 18.15
+      # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+         node-version: 18.15
 
-      # - name: Start Ethereum node with Codex contracts
-      #   if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'all'
-      #   working-directory: vendor/codex-contracts-eth
-      #   env:
-      #     MSYS2_PATH_TYPE: inherit
-      #   run: |
-      #     npm install
-      #     npm start &
+      - name: Start Ethereum node with Codex contracts
+        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'all'
+        working-directory: vendor/codex-contracts-eth
+        env:
+          MSYS2_PATH_TYPE: inherit
+        run: |
+          npm install
+          npm start &
 
-      # ## Part 2 Tests ##
-      # - name: Contract tests
-      #   if: matrix.tests == 'contract' || matrix.tests == 'all'
-      #   run: make -j${ncpu} testContracts
+      ## Part 2 Tests ##
+      - name: Contract tests
+        if: matrix.tests == 'contract' || matrix.tests == 'all'
+        run: make -j${ncpu} testContracts
 
-      # ## Part 3 Tests ##
-      # - name: Integration tests
-      #   if: matrix.tests == 'integration' || matrix.tests == 'all'
-      #   run: make -j${ncpu} testIntegration
+      ## Part 3 Tests ##
+      - name: Integration tests
+        if: matrix.tests == 'integration' || matrix.tests == 'all'
+        run: make -j${ncpu} testIntegration
 
   coverage:
     continue-on-error: true
@@ -104,16 +104,16 @@ jobs:
           os: linux
           nim_version: ${{ env.nim_version }}
 
-      # - name: Generate coverage data
-      #   run: make -j${ncpu} coverage
-      #   shell: bash
+      - name: Generate coverage data
+        run: make -j${ncpu} coverage
+        shell: bash
 
-      # - name: Upload coverage data to Codecov
-      #   uses: codecov/codecov-action@v3
-      #   with:
-      #     directory: ./coverage/
-      #     fail_ci_if_error: true
-      #     files: ./coverage/coverage.f.info
-      #     flags: unittests
-      #     name: codecov-umbrella
-      #     verbose: true
+      - name: Upload coverage data to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./coverage/
+          fail_ci_if_error: true
+          files: ./coverage/coverage.f.info
+          flags: unittests
+          name: codecov-umbrella
+          verbose: true
