@@ -23,21 +23,21 @@ jobs:
             builder: macos-latest
             shell: bash --noprofile --norc -e -o pipefail
             tests: all
-          # - os: windows
-          #   cpu: amd64
-          #   builder: windows-latest
-          #   shell: msys2
-          #   tests: unittest
-          # - os: windows
-          #   cpu: amd64
-          #   builder: windows-latest
-          #   shell: msys2
-          #   tests: contract
-          # - os: windows
-          #   cpu: amd64
-          #   builder: windows-latest
-          #   shell: msys2
-          #   tests: integration
+          - os: windows
+            cpu: amd64
+            builder: windows-latest
+            shell: msys2
+            tests: unittest
+          - os: windows
+            cpu: amd64
+            builder: windows-latest
+            shell: msys2
+            tests: contract
+          - os: windows
+            cpu: amd64
+            builder: windows-latest
+            shell: msys2
+            tests: integration
 
     defaults:
       run:
