@@ -113,7 +113,7 @@ endif
 
 coverage: build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim coverage build.nims
+		$(ENV_SCRIPT) nim coverage $(NIM_PARAMS) build.nims
 
 # usual cleaning
 clean: | clean-common
