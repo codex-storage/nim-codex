@@ -1,5 +1,6 @@
 import std/os
 import std/httpclient
+from std/net import TimeoutError
 
 import pkg/chronos
 import ../ethertest
