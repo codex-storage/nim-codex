@@ -112,10 +112,13 @@ proc then*[T](future: Future[T],
   proc cb(udata: pointer) =
     future.returnOrError(onError)
 
-    without val =? future.read.catch, err:
+    let res = future.read().catch()
+    if not res.isOk:
+      let err = res.error()
       onError(err)
-      return
-    onSuccess(val)
+    else:
+      let val = res.unsafeGet()
+      onSuccess(val)
 
   proc cancellation(udata: pointer) =
     if not future.finished():

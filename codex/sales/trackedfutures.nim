@@ -25,6 +25,7 @@ proc track*[T](self: TrackedFutures, fut: Future[T]): Future[T] =
     removeFuture()
   proc catchErr(err: ref CatchableError) {.gcsafe, upraises: [].} =
     removeFuture()
+
   fut
     .then(removes)
     .catch(catchErr)
