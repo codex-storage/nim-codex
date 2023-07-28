@@ -1,5 +1,6 @@
 import std/sugar
 import std/tables
+import std/sequtils
 import pkg/chronicles
 import pkg/chronos
 import ../utils/then
@@ -38,7 +39,8 @@ proc track*[T, U](future: Future[T], self: U): Future[T] =
 proc cancelTracked*(self: TrackedFutures) {.async.} =
   self.cancelling = true
 
-  for future in self.futures.values:
+  let toBeCancelled = self.futures.values.toSeq
+  for future in toBeCancelled:
     if not future.isNil and not future.finished:
       trace "cancelling tracked future", id = future.id
       await future.cancelAndWait()
