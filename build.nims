@@ -66,17 +66,17 @@ task coverage, "generates code coverage report":
     echo "  **   uses a much newer version of gcov).                       **"
     echo "  *****************************************************************"
 
-  var nimSrcs = "codex.nim".absolutePath() & " "
+  var nimSrcs = " "
   for f in walkDirRec("codex", {pcFile}):
     if f.endswith(".nim"): nimSrcs.add " " & f.absolutePath.quoteShell()
 
   echo "======== Running Tests ======== "
-  mkDir("nimcache/coverage")
-  buildBinary "coverage", srcDir = "tests/", params = " --nimcache:nimcache/coverage -d:chronicles_log_level=NONE "
-  exec("rm nimcache/coverage/*.c")
+  buildBinary "coverage", srcDir = "tests/", params = " -d:chronicles_log_level=NONE "
+  exec("rm nimcache/release/testCodex/*.c")
   rmDir("coverage"); mkDir("coverage")
+  exec("find nimcache | grep gcda")
   echo " ======== Running LCOV ======== "
-  exec("lcov --capture --directory nimcache/coverage --output-file coverage/coverage.info")
+  exec("lcov --capture --directory nimcache/release/testCodex --output-file coverage/coverage.info")
   exec("lcov --extract coverage/coverage.info --output-file coverage/coverage.f.info " & nimSrcs)
   echo " ======== Generating HTML coverage report ======== "
   exec("genhtml coverage/coverage.f.info --output-directory coverage/report ")
