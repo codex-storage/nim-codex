@@ -28,17 +28,17 @@ proc setupKey*(path: string): ?!PrivateKey =
   if not path.fileAccessible({AccessFlags.Find}):
     info "Creating a private key and saving it"
     let
-      res = ? PrivateKey.random(Rng.instance()[]).mapFailure()
-      bytes = ? res.getBytes().mapFailure()
+      res = ? PrivateKey.random(Rng.instance()[]).mapFailure(CodexKeyError)
+      bytes = ? res.getBytes().mapFailure(CodexKeyError)
 
-    ? path.secureWriteFile(bytes).mapFailure()
-    return PrivateKey.init(bytes).mapFailure(CatchableError)
+    ? path.secureWriteFile(bytes).mapFailure(CodexKeyError)
+    return PrivateKey.init(bytes).mapFailure(CodexKeyError)
 
   info "Found a network private key"
-  if not ? checkSecureFile(path).mapFailure():
+  if not ? checkSecureFile(path).mapFailure(CodexKeyError):
     warn "The network private key file is not safe, aborting"
     return failure newException(
       CodexKeyUnsafeError, "The network private key file is not safe")
   
-  let kb = ? path.readAllBytes().mapFailure(CatchableError)
-  return PrivateKey.init(kb).mapFailure(CatchableError)
+  let kb = ? path.readAllBytes().mapFailure(CodexKeyError)
+  return PrivateKey.init(kb).mapFailure(CodexKeyError)
