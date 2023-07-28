@@ -15,16 +15,14 @@ type
   CodexError* = object of CatchableError # base codex error
   CodexResult*[T] = Result[T, ref CodexError]
 
-proc mapFailure*[T, V, E](
+template mapFailure*[T, V, E](
     exp: Result[T, V],
     exc: typedesc[E],
 ): Result[T, ref CatchableError] =
   ## Convert `Result[T, E]` to `Result[E, ref CatchableError]`
   ##
 
-  proc convertToErr(e: V): ref CatchableError =
-    (ref exc)(msg: $e)
-  exp.mapErr(convertToErr)
+  exp.mapErr(proc (e: V): ref CatchableError = (ref exc)(msg: $e))
 
-proc mapFailure*[T, V](exp: Result[T, V]): Result[T, ref CatchableError] =
+template mapFailure*[T, V](exp: Result[T, V]): Result[T, ref CatchableError] =
   mapFailure(exp, CodexError)
