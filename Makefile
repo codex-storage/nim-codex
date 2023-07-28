@@ -111,7 +111,7 @@ else
 	+ $(MAKE) $(LIBBACKTRACE_MAKE_FLAGS)
 endif
 
-coverage:
+coverage: build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim coverage build.nims
 
