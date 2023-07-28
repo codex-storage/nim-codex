@@ -24,22 +24,21 @@ type
   CodexKeyError = object of CodexError
   CodexKeyUnsafeError = object of CodexKeyError
 
-proc setupKey*(path: string): PrivateKey ?! CodexKeyError =
+proc setupKey*(path: string): ?!PrivateKey =
   if not path.fileAccessible({AccessFlags.Find}):
     info "Creating a private key and saving it"
     let
-      res = ? PrivateKey.random(Rng.instance()[]).mapFailure(CodexKeyError)
-      bytes = ? res.getBytes().mapFailure(CodexKeyError)
+      res = ? PrivateKey.random(Rng.instance()[]).mapFailure()
+      bytes = ? res.getBytes().mapFailure()
 
-    ? path.secureWriteFile(bytes).mapFailure(CodexKeyError)
-    return PrivateKey.init(bytes).mapFailure(CodexKeyError)
+    ? path.secureWriteFile(bytes).mapFailure()
+    return PrivateKey.init(bytes).mapFailure(CatchableError)
 
   info "Found a network private key"
-  if not ? checkSecureFile(path).mapFailure(CodexKeyError):
+  if not ? checkSecureFile(path).mapFailure():
     warn "The network private key file is not safe, aborting"
     return failure newException(
       CodexKeyUnsafeError, "The network private key file is not safe")
-
-  return PrivateKey.init(
-    ? path.readAllBytes().mapFailure(CodexKeyError))
-    .mapFailure(CodexKeyError)
+  
+  let kb = ? path.readAllBytes().mapFailure(CatchableError)
+  return PrivateKey.init(kb).mapFailure(CatchableError)

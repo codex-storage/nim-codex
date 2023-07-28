@@ -18,13 +18,13 @@ type
 proc mapFailure*[T, V, E](
     exp: Result[T, V],
     exc: typedesc[E],
-): Result[T, ref E] =
+): Result[T, ref CatchableError] =
   ## Convert `Result[T, E]` to `Result[E, ref CatchableError]`
   ##
 
-  proc convertToErr(e: V): ref E =
+  proc convertToErr(e: V): ref CatchableError =
     (ref exc)(msg: $e)
   exp.mapErr(convertToErr)
 
-proc mapFailure*[T, V](exp: Result[T, V]): Result[T, ref CodexError] =
+proc mapFailure*[T, V](exp: Result[T, V]): Result[T, ref CatchableError] =
   mapFailure(exp, CodexError)
