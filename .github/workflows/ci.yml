@@ -105,7 +105,9 @@ jobs:
           nim_version: ${{ env.nim_version }}
 
       - name: Generate coverage data
-        run: make -j${ncpu} coverage
+        run: |
+          # make -j${ncpu} coverage
+          make -j${ncpu} coverage-script
         shell: bash
 
       - name: Upload coverage data to Codecov

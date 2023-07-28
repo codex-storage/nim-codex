@@ -120,11 +120,14 @@ coverage:
 	shopt -s globstar && lcov --extract coverage/coverage.info $$(pwd)/codex/{*,**/*}.nim --output-file coverage/coverage.f.info
 	echo -e $(BUILD_MSG) "coverage/report/index.html"
 	genhtml coverage/coverage.f.info --output-directory coverage/report
+
+show-coverage:
 	if which open >/dev/null; then (echo -e "\e[92mOpening\e[39m HTML coverage report in browser..." && open coverage/report/index.html) || true; fi
 
-coverageScript: build deps
+coverage-script: build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim coverage $(NIM_PARAMS) build.nims
+	echo "Run `make show-coverage` to view coverage results"
 
 # usual cleaning
 clean: | clean-common

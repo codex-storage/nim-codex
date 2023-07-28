@@ -71,7 +71,7 @@ task coverage, "generates code coverage report":
     if f.endswith(".nim"): nimSrcs.add " " & f.absolutePath.quoteShell()
 
   echo "======== Running Tests ======== "
-  buildBinary "coverage", srcDir = "tests/", params = " -d:chronicles_log_level=NONE "
+  test "coverage", srcDir = "tests/", params = " -d:chronicles_runtime_filtering -d:chronicles_log_level=NONE "
   exec("rm nimcache/release/testCodex/*.c")
   rmDir("coverage"); mkDir("coverage")
   exec("find nimcache | grep gcda")
@@ -80,6 +80,9 @@ task coverage, "generates code coverage report":
   exec("lcov --extract coverage/coverage.info --output-file coverage/coverage.f.info " & nimSrcs)
   echo " ======== Generating HTML coverage report ======== "
   exec("genhtml coverage/coverage.f.info --output-directory coverage/report ")
+  echo " ======== Coverage report Done ======== "
+
+task showCoverage, "open coverage html":
   echo " ======== Opening HTML coverage report in browser... ======== "
   if findExe("open") != "":
     exec("open coverage/report/index.html")
