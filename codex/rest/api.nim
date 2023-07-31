@@ -196,6 +196,8 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
       let body = await request.getBody()
 
+      trace "storage request received", body = string.fromBytes(body)
+
       without params =? StorageRequestParams.fromJson(body), error:
         return RestApiResponse.error(Http400, error.msg)
 
