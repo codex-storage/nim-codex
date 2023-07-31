@@ -4,7 +4,6 @@ import pkg/stew/byteutils
 import pkg/codex/chunker
 import pkg/chronicles
 import pkg/chronos
-import pkg/libp2p except setup
 
 import ./helpers
 

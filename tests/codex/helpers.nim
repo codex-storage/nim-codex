@@ -1,5 +1,5 @@
 import pkg/chronos
-import pkg/libp2p
+import pkg/libp2p except setup
 import pkg/libp2p/varint
 import pkg/codex/blocktype as bt
 import pkg/codex/stores
@@ -13,6 +13,8 @@ import ./helpers/eventually
 import ../checktest
 
 export randomchunker, nodeutils, mockdiscovery, eventually, checktest, manifest
+
+export libp2p except setup
 
 # NOTE: The meaning of equality for blocks
 # is changed here, because blocks are now `ref`

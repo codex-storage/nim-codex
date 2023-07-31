@@ -5,8 +5,6 @@ import pkg/asynctest
 import pkg/chronos
 import pkg/stew/byteutils
 
-import pkg/libp2p except setup, eventually
-
 import pkg/codex/rng
 import pkg/codex/stores
 import pkg/codex/blockexchange
