@@ -79,7 +79,7 @@ proc broadcast*(b: NetworkPeer, msg: Message) =
 
   asyncSpawn sendAwaiter()
 
-proc new*(
+func new*(
   T: type NetworkPeer,
   peer: PeerId,
   connProvider: ConnProvider,
