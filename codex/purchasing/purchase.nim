@@ -31,13 +31,14 @@ func new*(
     clock: Clock
 ): Purchase =
   ## create a new instance of a Purchase
-  ## 
-  Purchase(
-    future: Future[void].new(),
-    requestId: requestId,
-    market: market,
-    clock: clock
-  )
+  ##
+  var purchase = Purchase.new()
+  purchase.future = Future[void].new()
+  purchase.requestId = requestId
+  purchase.market = market
+  purchase.clock = clock
+
+  return purchase
 
 func new*(
     _: type Purchase,

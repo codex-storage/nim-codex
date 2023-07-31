@@ -10,6 +10,7 @@ import pkg/codex/proving
 import ../helpers/mockmarket
 import ../helpers/mockclock
 import ../helpers/eventually
+import ../helpers
 import ../examples
 
 var onCancelCalled = false

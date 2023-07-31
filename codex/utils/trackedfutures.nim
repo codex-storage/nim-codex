@@ -12,14 +12,19 @@ type
 logScope:
   topics = "trackable futures"
 
-proc track*[T](self: TrackedFutures, fut: Future[T]): Future[T] =
-  logScope:
-    id = fut.id
+proc len*(self: TrackedFutures): int = self.futures.len
 
-  proc removeFuture() =
-    if not self.cancelling and not fut.isNil:
-      trace "removing tracked future"
-      self.futures.del(fut.id)
+proc removeFuture(self: TrackedFutures, future: FutureBase) =
+  if not self.cancelling and not future.isNil:
+    trace "removing tracked future"
+    self.futures.del(future.id)
+
+proc track*[T](self: TrackedFutures, fut: Future[T]): Future[T] =
+  if self.cancelling:
+    return fut
+
+  trace "tracking future", id = fut.id
+  self.futures[fut.id] = FutureBase(fut)
 
   proc removes(val: T) {.gcsafe, upraises: [].} =
     removeFuture()
@@ -27,11 +32,10 @@ proc track*[T](self: TrackedFutures, fut: Future[T]): Future[T] =
     removeFuture()
 
   fut
-    .then(removes)
-    .catch(catchErr)
+    .then((val: T) => self.removeFuture(fut))
+    .cancelled(() => self.removeFuture(fut))
+    .catch((e: ref CatchableError) => self.removeFuture(fut))
 
-  trace "tracking future"
-  self.futures[fut.id] = FutureBase(fut)
   return fut
 
 proc track*[T, U](future: Future[T], self: U): Future[T] =
@@ -48,4 +52,5 @@ proc cancelTracked*(self: TrackedFutures) {.async.} =
       trace "cancelling tracked future", id = future.id
       await future.cancelAndWait()
 
+  self.futures.clear()
   self.cancelling = false

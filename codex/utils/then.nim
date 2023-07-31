@@ -22,12 +22,11 @@ import pkg/upraises
 # `.catch` is called when the `Future` fails. In the case when the `Future`
 # returns a `Result[T, ref CatchableError` (or `?!T`), `.catch` will be called
 # if the `Result` contains an error. If the `Future` is already failed (or
-# `Future[?!T]` contains an error), the `.catch` callback will be excuted
+# `Future[?!T]` contains an error), the `.catch` callback will be executed
 # immediately.
 
-# NOTE: Cancelled `Futures` are discarded as bubbling the `CancelledError` to
-# the synchronous closure will likely cause an unintended and unhandled
-# exception.
+# `.cancelled` is called when the `Future` is cancelled. If the `Future` is
+# already cancelled, the `.cancelled` callback will be executed immediately.
 
 # More info on JavaScript's Promise API can be found at:
 # https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise
@@ -56,44 +55,30 @@ runnableExamples:
 type
   OnSuccess*[T] = proc(val: T) {.gcsafe, upraises: [].}
   OnError* = proc(err: ref CatchableError) {.gcsafe, upraises: [].}
+  OnCancelled* = proc() {.gcsafe, upraises: [].}
 
 proc ignoreError(err: ref CatchableError) = discard
+proc ignoreCancelled() = discard
 
-template returnOrError(future: FutureBase, onError: OnError) =
+template handleFinished(future: FutureBase,
+                        onError: OnError,
+                        onCancelled: OnCancelled) =
+
   if not future.finished:
     return
 
   if future.cancelled:
-    # do not bubble as closure is synchronous
+    onCancelled()
     return
 
   if future.failed:
     onError(future.error)
     return
 
-
-proc then*(future: Future[void],
-           onError: OnError):
-          Future[void] =
+proc then*(future: Future[void], onSuccess: OnSuccess[void]): Future[void] =
 
   proc cb(udata: pointer) =
-    future.returnOrError(onError)
-
-  proc cancellation(udata: pointer) =
-    if not future.finished():
-      future.removeCallback(cb)
-
-  future.addCallback(cb)
-  future.cancelCallback = cancellation
-  return future
-
-proc then*(future: Future[void],
-           onSuccess: OnSuccess[void],
-           onError: OnError = ignoreError):
-          Future[void] =
-
-  proc cb(udata: pointer) =
-    future.returnOrError(onError)
+    future.handleFinished(ignoreError, ignoreCancelled)
     onSuccess()
 
   proc cancellation(udata: pointer) =
@@ -104,41 +89,13 @@ proc then*(future: Future[void],
   future.cancelCallback = cancellation
   return future
 
-proc then*[T](future: Future[T],
-              onSuccess: OnSuccess[T],
-              onError: OnError = ignoreError):
-             Future[T] =
+proc then*[T](future: Future[T], onSuccess: OnSuccess[T]): Future[T] =
 
   proc cb(udata: pointer) =
-    future.returnOrError(onError)
-    without val =? future.read.catch, err:
-      onError(err)
-      return
-    onSuccess(val)
+    future.handleFinished(ignoreError, ignoreCancelled)
 
-  proc cancellation(udata: pointer) =
-    if not future.finished():
-      future.removeCallback(cb)
-
-  future.addCallback(cb)
-  future.cancelCallback = cancellation
-  return future
-
-proc then*[T](future: Future[?!T],
-              onSuccess: OnSuccess[T],
-              onError: OnError = ignoreError):
-             Future[?!T] =
-
-  proc cb(udata: pointer) =
-    future.returnOrError(onError)
-
-    try:
-      without val =? future.read, err:
-        onError(err)
-        return
+    if val =? future.read.catch:
       onSuccess(val)
-    except CatchableError as e:
-      onError(e)
 
   proc cancellation(udata: pointer) =
     if not future.finished():
@@ -148,18 +105,16 @@ proc then*[T](future: Future[?!T],
   future.cancelCallback = cancellation
   return future
 
-proc then*(future: Future[?!void],
-           onError: OnError = ignoreError):
-          Future[?!void] =
+proc then*[T](future: Future[?!T], onSuccess: OnSuccess[T]): Future[?!T] =
 
   proc cb(udata: pointer) =
-    future.returnOrError(onError)
+    future.handleFinished(ignoreError, ignoreCancelled)
 
     try:
-      if err =? future.read.errorOption:
-        onError(err)
+      if val =? future.read:
+        onSuccess(val)
     except CatchableError as e:
-      onError(e)
+      ignoreError(e)
 
   proc cancellation(udata: pointer) =
     if not future.finished():
@@ -169,22 +124,17 @@ proc then*(future: Future[?!void],
   future.cancelCallback = cancellation
   return future
 
-proc then*(future: Future[?!void],
-           onSuccess: OnSuccess[void],
-           onError: OnError = ignoreError):
-          Future[?!void] =
+proc then*(future: Future[?!void], onSuccess: OnSuccess[void]): Future[?!void] =
 
   proc cb(udata: pointer) =
-    future.returnOrError(onError)
+    future.handleFinished(ignoreError, ignoreCancelled)
 
     try:
-      if err =? future.read.errorOption:
-        onError(err)
-        return
+      if future.read.isOk:
+        onSuccess()
     except CatchableError as e:
-      onError(e)
+      ignoreError(e)
       return
-    onSuccess()
 
   proc cancellation(udata: pointer) =
     if not future.finished():
@@ -196,8 +146,10 @@ proc then*(future: Future[?!void],
 
 proc catch*[T](future: Future[T], onError: OnError) =
 
+  if future.isNil: return
+
   proc cb(udata: pointer) =
-    future.returnOrError(onError)
+    future.handleFinished(onError, ignoreCancelled)
 
   proc cancellation(udata: pointer) =
     if not future.finished():
@@ -208,8 +160,10 @@ proc catch*[T](future: Future[T], onError: OnError) =
 
 proc catch*[T](future: Future[?!T], onError: OnError) =
 
+  if future.isNil: return
+
   proc cb(udata: pointer) =
-    future.returnOrError(onError)
+    future.handleFinished(onError, ignoreCancelled)
 
     try:
       if err =? future.read.errorOption:
@@ -223,3 +177,31 @@ proc catch*[T](future: Future[?!T], onError: OnError) =
 
   future.addCallback(cb)
   future.cancelCallback = cancellation
+
+proc cancelled*[T](future: Future[T], onCancelled: OnCancelled): Future[T] =
+
+  proc cb(udata: pointer) =
+    future.handleFinished(ignoreError, onCancelled)
+
+  proc cancellation(udata: pointer) =
+    if not future.finished():
+      future.removeCallback(cb)
+    onCancelled()
+
+  future.addCallback(cb)
+  future.cancelCallback = cancellation
+  return future
+
+proc cancelled*[T](future: Future[?!T], onCancelled: OnCancelled): Future[?!T] =
+
+  proc cb(udata: pointer) =
+    future.handleFinished(ignoreError, onCancelled)
+
+  proc cancellation(udata: pointer) =
+    if not future.finished():
+      future.removeCallback(cb)
+    onCancelled()
+
+  future.addCallback(cb)
+  future.cancelCallback = cancellation
+  return future
