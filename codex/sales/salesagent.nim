@@ -32,12 +32,13 @@ proc newSalesAgent*(context: SalesContext,
                     requestId: RequestId,
                     slotIndex: UInt256,
                     request: ?StorageRequest): SalesAgent =
-  SalesAgent(
-    context: context,
-    data: SalesData(
-      requestId: requestId,
-      slotIndex: slotIndex,
-      request: request))
+  var agent = SalesAgent.new()
+  agent.context = context
+  agent.data = SalesData(
+                requestId: requestId,
+                slotIndex: slotIndex,
+                request: request)
+  return agent
 
 proc retrieveRequest*(agent: SalesAgent) {.async.} =
   let data = agent.data
@@ -96,5 +97,5 @@ proc unsubscribe*(agent: SalesAgent) {.async.} =
   agent.subscribed = false
 
 proc stop*(agent: SalesAgent) {.async.} =
-  procCall Machine(agent).stop()
+  await Machine(agent).stop()
   await agent.unsubscribe()

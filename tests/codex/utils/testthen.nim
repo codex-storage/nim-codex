@@ -5,340 +5,409 @@ import pkg/questionable/results
 import codex/utils/then
 import ../helpers
 
+proc newError(): ref CatchableError =
+  (ref CatchableError)(msg: "some error")
+
 asyncchecksuite "then - Future[void]":
-  var returnsVoidWasRun: bool
-  var error = (ref CatchableError)(msg: "some error")
+  var error = newError()
+  var future: Future[void]
 
   setup:
-    returnsVoidWasRun = false
+    future = newFuture[void]("test void")
 
-  proc returnsVoid() {.async.} =
-    await sleepAsync 1.millis
-    returnsVoidWasRun = true
+  teardown:
+    if not future.finished:
+      raiseAssert "test should finish future"
 
-  proc returnsVoidError() {.async.} =
-    raise error
+  test "then callback is fired when future is already finished":
+    var firedImmediately = false
+    future.complete()
+    discard future.then(proc() = firedImmediately = true)
+    check eventually firedImmediately
 
-  proc returnsVoidCancelled() {.async.} =
-    await sleepAsync(1.seconds)
+  test "then callback is fired after future is finished":
+    var fired = false
+    discard future.then(proc() = fired = true)
+    future.complete()
+    check eventually fired
 
-  proc wasCancelled(error: ref CancelledError): bool =
-    not error.isNil and error.msg == "Future operation cancelled!"
+  test "catch callback is fired when future is already failed":
+    var actual: ref CatchableError
+    future.fail(error)
+    future.catch(proc(err: ref CatchableError) = actual = err)
+    check eventually actual == error
 
-  test "calls async proc when returns Future[void]":
-    discard returnsVoid().then(
-      proc(err: ref CatchableError) = discard
-    )
-    check eventually returnsVoidWasRun
+  test "catch callback is fired after future is failed":
+    var actual: ref CatchableError
+    future.catch(proc(err: ref CatchableError) = actual = err)
+    future.fail(error)
+    check eventually actual == error
 
-  test "calls onSuccess when Future[void] complete":
+  test "cancelled callback is fired when future is already cancelled":
+    var fired = false
+    await future.cancelAndWait()
+    discard future.cancelled(proc() = fired = true)
+    check eventually fired
+
+  test "cancelled callback is fired after future is cancelled":
+    var fired = false
+    discard future.cancelled(proc() = fired = true)
+    await future.cancelAndWait()
+    check eventually fired
+
+  test "does not fire other callbacks when successful":
     var onSuccessCalled = false
-    discard returnsVoid().then(
-      proc() = onSuccessCalled = true,
-      proc(err: ref CatchableError) = discard
-    )
-    check eventually returnsVoidWasRun
-    check eventually onSuccessCalled
+    var onCancelledCalled = false
+    var onCatchCalled = false
 
-  test "can pass only onSuccess for Future[void]":
+    future
+      .then(proc() = onSuccessCalled = true)
+      .cancelled(proc() = onCancelledCalled = true)
+      .catch(proc(e: ref CatchableError) = onCatchCalled = true)
+
+    future.complete()
+
+    check eventually onSuccessCalled
+    check always (not onCancelledCalled and not onCatchCalled)
+
+  test "does not fire other callbacks when fails":
     var onSuccessCalled = false
-    discard returnsVoid().then(
-      proc() = onSuccessCalled = true
-    )
-    check eventually returnsVoidWasRun
-    check eventually onSuccessCalled
+    var onCancelledCalled = false
+    var onCatchCalled = false
 
-  test "can chain onSuccess when Future[void] complete":
+    future
+      .then(proc() = onSuccessCalled = true)
+      .cancelled(proc() = onCancelledCalled = true)
+      .catch(proc(e: ref CatchableError) = onCatchCalled = true)
+
+    future.fail(error)
+
+    check eventually onCatchCalled
+    check always (not onCancelledCalled and not onSuccessCalled)
+
+  test "does not fire other callbacks when cancelled":
+    var onSuccessCalled = false
+    var onCancelledCalled = false
+    var onCatchCalled = false
+
+    future
+      .then(proc() = onSuccessCalled = true)
+      .cancelled(proc() = onCancelledCalled = true)
+      .catch(proc(e: ref CatchableError) = onCatchCalled = true)
+
+    await future.cancelAndWait()
+
+    check eventually onCancelledCalled
+    check always (not onSuccessCalled and not onCatchCalled)
+
+  test "can chain onSuccess when future completes":
     var onSuccessCalledTimes = 0
-    discard returnsVoid()
+    discard future
       .then(proc() = inc onSuccessCalledTimes)
       .then(proc() = inc onSuccessCalledTimes)
       .then(proc() = inc onSuccessCalledTimes)
+    future.complete()
     check eventually onSuccessCalledTimes == 3
-
-  test "calls onError when Future[void] fails":
-    var errorActual: ref CatchableError
-    discard returnsVoidError().then(
-      proc() = discard,
-      proc(e: ref CatchableError) = errorActual = e
-    )
-    check eventually error == errorActual
-
-  test "calls onError when Future[void] fails":
-    var errorActual: ref CatchableError
-    discard returnsVoidError().then(
-      proc(e: ref CatchableError) = errorActual = e
-    )
-    check eventually error == errorActual
-
-  test "catch callback fired when Future[void] fails":
-    var errorActual: ref CatchableError
-    returnsVoidError().catch(
-      proc(e: ref CatchableError) = errorActual = e
-    )
-    check eventually error == errorActual
-
-  test "does not fire onSuccess callback when Future[void] fails":
-    var onSuccessCalled = false
-
-    returnsVoidError()
-      .then(proc() = onSuccessCalled = true)
-      .then(proc() = onSuccessCalled = true)
-      .catch(proc(e: ref CatchableError) = discard)
-
-    check always (not onSuccessCalled)
 
 asyncchecksuite "then - Future[T]":
-  var returnsValWasRun: bool
-  var error = (ref CatchableError)(msg: "some error")
+  var error = newError()
+  var future: Future[int]
 
   setup:
-    returnsValWasRun = false
+    future = newFuture[int]("test void")
 
-  proc returnsVal(): Future[int] {.async.} =
-    await sleepAsync 1.millis
-    returnsValWasRun = true
-    return 1
+  teardown:
+    if not future.finished:
+      raiseAssert "test should finish future"
 
-  proc returnsValError(): Future[int] {.async.} =
-    raise error
+  test "then callback is fired when future is already finished":
+    var cbVal = 0
+    future.complete(1)
+    discard future.then(proc(val: int) = cbVal = val)
+    check eventually cbVal == 1
 
-  proc returnsValCancelled(): Future[int] {.async.} =
-    await sleepAsync(1.seconds)
+  test "then callback is fired after future is finished":
+    var cbVal = 0
+    discard future.then(proc(val: int) = cbVal = val)
+    future.complete(1)
+    check eventually cbVal == 1
 
-  proc wasCancelled(error: ref CancelledError): bool =
-    not error.isNil and error.msg == "Future operation cancelled!"
+  test "catch callback is fired when future is already failed":
+    var actual: ref CatchableError
+    future.fail(error)
+    future.catch(proc(err: ref CatchableError) = actual = err)
+    check eventually actual == error
 
-  test "calls onSuccess when Future[T] complete":
-    var returnedVal = 0
-    discard returnsVal().then(
-      proc(val: int) = returnedVal = val,
-      proc(err: ref CatchableError) = discard
-    )
-    check eventually returnsValWasRun
-    check eventually returnedVal == 1
+  test "catch callback is fired after future is failed":
+    var actual: ref CatchableError
+    future.catch(proc(err: ref CatchableError) = actual = err)
+    future.fail(error)
+    check eventually actual == error
 
-  test "can pass only onSuccess for Future[T]":
-    var returnedVal = 0
-    discard returnsVal().then(
-      proc(val: int) = returnedVal = val
-    )
-    check eventually returnsValWasRun
-    check eventually returnedVal == 1
+  test "cancelled callback is fired when future is already cancelled":
+    var fired = false
+    await future.cancelAndWait()
+    discard future.cancelled(proc() = fired = true)
+    check eventually fired
 
-  test "can chain onSuccess when Future[T] complete":
-    var onSuccessCalledWith: seq[int] = @[]
-    discard returnsVal()
-      .then(proc(val: int) = onSuccessCalledWith.add(val))
-      .then(proc(val: int) = onSuccessCalledWith.add(val))
-      .then(proc(val: int) = onSuccessCalledWith.add(val))
-    check eventually onSuccessCalledWith == @[1, 1, 1]
+  test "cancelled callback is fired after future is cancelled":
+    var fired = false
+    discard future.cancelled(proc() = fired = true)
+    await future.cancelAndWait()
+    check eventually fired
 
-  test "calls onError when Future[T] fails":
-    var errorActual: ref CatchableError
-    discard returnsValError().then(
-      proc(val: int) = discard,
-      proc(e: ref CatchableError) = errorActual = e
-    )
-    check eventually error == errorActual
-
-  test "catch callback fired when Future[T] fails":
-    var errorActual: ref CatchableError
-    returnsValError().catch(
-      proc(e: ref CatchableError) = errorActual = e
-    )
-    check eventually error == errorActual
-
-  test "does not fire onSuccess callback when Future[T] fails":
+  test "does not fire other callbacks when successful":
     var onSuccessCalled = false
+    var onCancelledCalled = false
+    var onCatchCalled = false
 
-    returnsValError()
+    future
       .then(proc(val: int) = onSuccessCalled = true)
+      .cancelled(proc() = onCancelledCalled = true)
+      .catch(proc(e: ref CatchableError) = onCatchCalled = true)
+
+    future.complete(1)
+
+    check eventually onSuccessCalled
+    check always (not onCancelledCalled and not onCatchCalled)
+
+  test "does not fire other callbacks when fails":
+    var onSuccessCalled = false
+    var onCancelledCalled = false
+    var onCatchCalled = false
+
+    future
       .then(proc(val: int) = onSuccessCalled = true)
-      .catch(proc(e: ref CatchableError) = discard)
+      .cancelled(proc() = onCancelledCalled = true)
+      .catch(proc(e: ref CatchableError) = onCatchCalled = true)
 
-    check always (not onSuccessCalled)
+    future.fail(error)
 
-asyncchecksuite "then - Future[?!void]":
-  var returnsResultVoidWasRun: bool
-  var error = (ref CatchableError)(msg: "some error")
+    check eventually onCatchCalled
+    check always (not onCancelledCalled and not onSuccessCalled)
 
-  setup:
-    returnsResultVoidWasRun = false
-
-  proc returnsResultVoid(): Future[?!void] {.async.} =
-    await sleepAsync 1.millis
-    returnsResultVoidWasRun = true
-    return success()
-
-  proc returnsResultVoidError(): Future[?!void] {.async.} =
-    return failure(error)
-
-
-  proc returnsResultVoidErrorUncaught(): Future[?!void] {.async.} =
-    raise error
-
-  proc returnsResultVoidCancelled(): Future[?!void] {.async.} =
-    await sleepAsync(1.seconds)
-    return success()
-
-  proc wasCancelled(error: ref CancelledError): bool =
-    not error.isNil and error.msg == "Future operation cancelled!"
-
-  test "calls onSuccess when Future[?!void] complete":
+  test "does not fire other callbacks when cancelled":
     var onSuccessCalled = false
-    discard returnsResultVoid().then(
-      proc() = onSuccessCalled = true,
-      proc(err: ref CatchableError) = discard
-    )
-    check eventually returnsResultVoidWasRun
-    check eventually onSuccessCalled
+    var onCancelledCalled = false
+    var onCatchCalled = false
 
-  test "can pass only onSuccess for Future[?!void]":
-    var onSuccessCalled = false
-    discard returnsResultVoid().then(
-      proc() = onSuccessCalled = true
-    )
-    check eventually returnsResultVoidWasRun
-    check eventually onSuccessCalled
+    future
+      .then(proc(val: int) = onSuccessCalled = true)
+      .cancelled(proc() = onCancelledCalled = true)
+      .catch(proc(e: ref CatchableError) = onCatchCalled = true)
 
-  test "can chain onSuccess when Future[?!void] complete":
+    await future.cancelAndWait()
+
+    check eventually onCancelledCalled
+    check always (not onSuccessCalled and not onCatchCalled)
+
+  test "can chain onSuccess when future completes":
     var onSuccessCalledTimes = 0
-    discard returnsResultVoid()
-      .then(proc() = inc onSuccessCalledTimes)
-      .then(proc() = inc onSuccessCalledTimes)
-      .then(proc() = inc onSuccessCalledTimes)
+    discard future
+      .then(proc(val: int) = inc onSuccessCalledTimes)
+      .then(proc(val: int) = inc onSuccessCalledTimes)
+      .then(proc(val: int) = inc onSuccessCalledTimes)
+    future.complete(1)
     check eventually onSuccessCalledTimes == 3
 
-  test "calls onError when Future[?!void] fails":
-    var errorActual: ref CatchableError
-    discard returnsResultVoidError().then(
-      proc() = discard,
-      proc(e: ref CatchableError) = errorActual = e
-    )
-    await sleepAsync(10.millis)
-    check eventually error == errorActual
-
-  test "calls onError when Future[?!void] fails":
-    var errorActual: ref CatchableError
-    discard returnsResultVoidError().then(
-      proc(e: ref CatchableError) = errorActual = e
-    )
-    check eventually error == errorActual
-
-  test "catch callback fired when Future[?!void] fails":
-    var errorActual: ref CatchableError
-    returnsResultVoidError().catch(
-      proc(e: ref CatchableError) = errorActual = e
-    )
-    check eventually error == errorActual
-
-  test "does not fire onSuccess callback when Future[?!void] fails":
-    var onSuccessCalled = false
-
-    returnsResultVoidError()
-      .then(proc() = onSuccessCalled = true)
-      .then(proc() = onSuccessCalled = true)
-      .catch(proc(e: ref CatchableError) = discard)
-
-    check always (not onSuccessCalled)
-
-  test "catch callback fired when Future[?!void] fails with uncaught error":
-    var errorActual: ref CatchableError
-    returnsResultVoidErrorUncaught().catch(
-      proc(e: ref CatchableError) = errorActual = e
-    )
-    check eventually error == errorActual
-
-asyncchecksuite "then - Future[?!T]":
-  var returnsResultValWasRun: bool
-  var error = (ref CatchableError)(msg: "some error")
+asyncchecksuite "then - Future[?!void]":
+  var error = newError()
+  var future: Future[?!void]
 
   setup:
-    returnsResultValWasRun = false
+    future = newFuture[?!void]("test void")
 
-  proc returnsResultVal(): Future[?!int] {.async.} =
-    await sleepAsync 1.millis
-    returnsResultValWasRun = true
-    return success(2)
+  teardown:
+    if not future.finished:
+      raiseAssert "test should finish future"
 
-  proc returnsResultValError(): Future[?!int] {.async.} =
-    return failure(error)
+  test "then callback is fired when future is already finished":
+    var firedImmediately = false
+    future.complete(success())
+    discard future.then(proc() = firedImmediately = true)
+    check eventually firedImmediately
 
-  proc returnsResultValErrorUncaught(): Future[?!int] {.async.} =
-    raise error
+  test "then callback is fired after future is finished":
+    var fired = false
+    discard future.then(proc() = fired = true)
+    future.complete(success())
+    check eventually fired
 
-  proc returnsResultValCancelled(): Future[?!int] {.async.} =
-    await sleepAsync(1.seconds)
-    return success(3)
+  test "catch callback is fired when future is already failed":
+    var actual: ref CatchableError
+    future.fail(error)
+    future.catch(proc(err: ref CatchableError) = actual = err)
+    check eventually actual == error
 
-  proc wasCancelled(error: ref CancelledError): bool =
-    not error.isNil and error.msg == "Future operation cancelled!"
+  test "catch callback is fired after future is failed":
+    var actual: ref CatchableError
+    future.catch(proc(err: ref CatchableError) = actual = err)
+    future.fail(error)
+    check eventually actual == error
 
-  test "calls onSuccess when Future[?!T] completes":
-    var actualVal = 0
-    discard returnsResultVal().then(
-      proc(val: int) = actualVal = val,
-      proc(err: ref CatchableError) = discard
-    )
-    check eventually returnsResultValWasRun
-    check eventually actualVal == 2
+  test "cancelled callback is fired when future is already cancelled":
+    var fired = false
+    await future.cancelAndWait()
+    discard future.cancelled(proc() = fired = true)
+    check eventually fired
 
-  test "can pass only onSuccess for Future[?!T]":
-    var actualVal = 0
-    discard returnsResultVal().then(
-      proc(val: int) = actualVal = val
-    )
-    check eventually returnsResultValWasRun
-    check eventually actualVal == 2
+  test "cancelled callback is fired after future is cancelled":
+    var fired = false
+    discard future.cancelled(proc() = fired = true)
+    await future.cancelAndWait()
+    check eventually fired
 
-  test "can chain onSuccess when Future[?!T] complete":
-    var onSuccessCalledWith: seq[int] = @[]
-    discard returnsResultVal()
-      .then(proc(val: int) = onSuccessCalledWith.add val)
-      .then(proc(val: int) = onSuccessCalledWith.add val)
-      .then(proc(val: int) = onSuccessCalledWith.add val)
-    check eventually onSuccessCalledWith == @[2, 2, 2]
-
-  test "calls onError when Future[?!T] fails":
-    var errorActual: ref CatchableError
-    discard returnsResultValError().then(
-      proc(val: int) = discard,
-      proc(e: ref CatchableError) = errorActual = e
-    )
-    check eventually error == errorActual
-
-  test "calls onError when Future[?!T] fails":
-    var errorActual: ref CatchableError
-    discard returnsResultValError().then(
-      proc(val: int) = discard,
-      proc(e: ref CatchableError) = errorActual = e
-    )
-    check eventually error == errorActual
-
-  test "catch callback fired when Future[?!T] fails":
-    var errorActual: ref CatchableError
-    returnsResultValError().catch(
-      proc(e: ref CatchableError) = errorActual = e
-    )
-    check eventually error == errorActual
-
-  test "does not fire onSuccess callback when Future[?!T] fails":
+  test "does not fire other callbacks when successful":
     var onSuccessCalled = false
+    var onCancelledCalled = false
+    var onCatchCalled = false
 
-    returnsResultValError()
+    future
+      .then(proc() = onSuccessCalled = true)
+      .cancelled(proc() = onCancelledCalled = true)
+      .catch(proc(e: ref CatchableError) = onCatchCalled = true)
+
+    future.complete(success())
+
+    check eventually onSuccessCalled
+    check always (not onCancelledCalled and not onCatchCalled)
+
+  test "does not fire other callbacks when fails":
+    var onSuccessCalled = false
+    var onCancelledCalled = false
+    var onCatchCalled = false
+
+    future
+      .then(proc() = onSuccessCalled = true)
+      .cancelled(proc() = onCancelledCalled = true)
+      .catch(proc(e: ref CatchableError) = onCatchCalled = true)
+
+    future.fail(error)
+
+    check eventually onCatchCalled
+    check always (not onCancelledCalled and not onSuccessCalled)
+
+  test "does not fire other callbacks when cancelled":
+    var onSuccessCalled = false
+    var onCancelledCalled = false
+    var onCatchCalled = false
+
+    future
+      .then(proc() = onSuccessCalled = true)
+      .cancelled(proc() = onCancelledCalled = true)
+      .catch(proc(e: ref CatchableError) = onCatchCalled = true)
+
+    await future.cancelAndWait()
+
+    check eventually onCancelledCalled
+    check always (not onSuccessCalled and not onCatchCalled)
+
+  test "can chain onSuccess when future completes":
+    var onSuccessCalledTimes = 0
+    discard future
+      .then(proc() = inc onSuccessCalledTimes)
+      .then(proc() = inc onSuccessCalledTimes)
+      .then(proc() = inc onSuccessCalledTimes)
+    future.complete(success())
+    check eventually onSuccessCalledTimes == 3
+
+asyncchecksuite "then - Future[?!T]":
+  var error = newError()
+  var future: Future[?!int]
+
+  setup:
+    future = newFuture[?!int]("test void")
+
+  teardown:
+    if not future.finished:
+      raiseAssert "test should finish future"
+
+  test "then callback is fired when future is already finished":
+    var cbVal = 0
+    future.complete(success(1))
+    discard future.then(proc(val: int) = cbVal = val)
+    check eventually cbVal == 1
+
+  test "then callback is fired after future is finished":
+    var cbVal = 0
+    discard future.then(proc(val: int) = cbVal = val)
+    future.complete(success(1))
+    check eventually cbVal == 1
+
+  test "catch callback is fired when future is already failed":
+    var actual: ref CatchableError
+    future.fail(error)
+    future.catch(proc(err: ref CatchableError) = actual = err)
+    check eventually actual == error
+
+  test "catch callback is fired after future is failed":
+    var actual: ref CatchableError
+    future.catch(proc(err: ref CatchableError) = actual = err)
+    future.fail(error)
+    check eventually actual == error
+
+  test "cancelled callback is fired when future is already cancelled":
+    var fired = false
+    await future.cancelAndWait()
+    discard future.cancelled(proc() = fired = true)
+    check eventually fired
+
+  test "cancelled callback is fired after future is cancelled":
+    var fired = false
+    discard future.cancelled(proc() = fired = true)
+    await future.cancelAndWait()
+    check eventually fired
+
+  test "does not fire other callbacks when successful":
+    var onSuccessCalled = false
+    var onCancelledCalled = false
+    var onCatchCalled = false
+
+    future
       .then(proc(val: int) = onSuccessCalled = true)
+      .cancelled(proc() = onCancelledCalled = true)
+      .catch(proc(e: ref CatchableError) = onCatchCalled = true)
+
+    future.complete(success(1))
+
+    check eventually onSuccessCalled
+    check always (not onCancelledCalled and not onCatchCalled)
+
+  test "does not fire other callbacks when fails":
+    var onSuccessCalled = false
+    var onCancelledCalled = false
+    var onCatchCalled = false
+
+    future
       .then(proc(val: int) = onSuccessCalled = true)
-      .catch(proc(e: ref CatchableError) = discard)
+      .cancelled(proc() = onCancelledCalled = true)
+      .catch(proc(e: ref CatchableError) = onCatchCalled = true)
 
-    check always (not onSuccessCalled)
+    future.fail(error)
 
-  test "catch callback fired when Future[?!T] fails with uncaught error":
-    var errorActual: ref CatchableError
+    check eventually onCatchCalled
+    check always (not onCancelledCalled and not onSuccessCalled)
 
-    returnsResultValErrorUncaught()
-      .then(proc(val: int) = discard)
-      .then(proc(val: int) = discard)
-      .catch(proc(e: ref CatchableError) = errorActual = e)
+  test "does not fire other callbacks when cancelled":
+    var onSuccessCalled = false
+    var onCancelledCalled = false
+    var onCatchCalled = false
 
-    check eventually error == errorActual
+    future
+      .then(proc(val: int) = onSuccessCalled = true)
+      .cancelled(proc() = onCancelledCalled = true)
+      .catch(proc(e: ref CatchableError) = onCatchCalled = true)
+
+    await future.cancelAndWait()
+
+    check eventually onCancelledCalled
+    check always (not onSuccessCalled and not onCatchCalled)
+
+  test "can chain onSuccess when future completes":
+    var onSuccessCalledTimes = 0
+    discard future
+      .then(proc(val: int) = inc onSuccessCalledTimes)
+      .then(proc(val: int) = inc onSuccessCalledTimes)
+      .then(proc(val: int) = inc onSuccessCalledTimes)
+    future.complete(success(1))
+    check eventually onSuccessCalledTimes == 3

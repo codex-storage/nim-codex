@@ -1,5 +1,4 @@
 import std/sequtils
-import std/sugar
 import std/tables
 import pkg/chronicles
 import pkg/chronos
@@ -7,13 +6,13 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/upraises
 import ./reservations
-import ./trackedfutures
 import ../errors
 import ../rng
 import ../utils
 import ../contracts/requests
 import ../utils/asyncheapqueue
 import ../utils/then
+import ../utils/trackedfutures
 
 logScope:
   topics = "marketplace slotqueue"

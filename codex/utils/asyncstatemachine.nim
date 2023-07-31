@@ -1,7 +1,10 @@
+import std/sugar
 import pkg/questionable
 import pkg/chronos
 import pkg/chronicles
 import pkg/upraises
+import ./trackedfutures
+import ./then
 
 push: {.upraises:[].}
 
@@ -10,14 +13,17 @@ type
     state: State
     running: Future[void]
     scheduled: AsyncQueue[Event]
-    scheduling: Future[void]
     started: bool
+    trackedFutures: TrackedFutures
   State* = ref object of RootObj
   Query*[T] = proc(state: State): T
   Event* = proc(state: State): ?State {.gcsafe, upraises:[].}
 
 logScope:
   topics = "statemachine"
+
+proc new*[T: Machine](_: type T): T =
+  T(trackedFutures: TrackedFutures.new())
 
 method `$`*(state: State): string {.base.} =
   raiseAssert "not implemented"
@@ -60,21 +66,21 @@ proc run(machine: Machine, state: State) {.async.} =
     discard
 
 proc scheduler(machine: Machine) {.async.} =
-  proc onRunComplete(udata: pointer) {.gcsafe.} =
-    var fut = cast[FutureBase](udata)
-    if fut.failed():
-      machine.schedule(machine.onError(fut.error))
-
+  var running: Future[void]
   try:
-    while true:
-      let event = await machine.scheduled.get()
+    while machine.started:
+      let event = await machine.scheduled.get().track(machine)
       if next =? event(machine.state):
-        if not machine.running.isNil:
-          await machine.running.cancelAndWait()
+        if not running.isNil and not running.finished:
+          await running.cancelAndWait()
         machine.state = next
         debug "enter state", state = machine.state
-        machine.running = machine.run(machine.state)
-        machine.running.addCallback(onRunComplete)
+        running = machine.run(machine.state)
+        running
+          .track(machine)
+          .catch((err: ref CatchableError) =>
+            machine.schedule(machine.onError(err))
+          )
   except CancelledError:
     discard
 
@@ -84,18 +90,20 @@ proc start*(machine: Machine, initialState: State) =
 
   if machine.scheduled.isNil:
     machine.scheduled = newAsyncQueue[Event]()
-  machine.scheduling = machine.scheduler()
+
   machine.started = true
+  machine.scheduler()
+    .track(machine)
+    .catch((err: ref CatchableError) =>
+      error("Error in scheduler", error = err.msg)
+    )
   machine.schedule(Event.transition(machine.state, initialState))
 
-proc stop*(machine: Machine) =
+proc stop*(machine: Machine) {.async.} =
   if not machine.started:
     return
 
-  if not machine.scheduling.isNil:
-    machine.scheduling.cancel()
-  if not machine.running.isNil:
-    machine.running.cancel()
+  machine.started = false
+  await machine.trackedFutures.cancelTracked()
 
   machine.state = nil
-  machine.started = false

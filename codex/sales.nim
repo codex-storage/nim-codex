@@ -15,10 +15,10 @@ import ./sales/salescontext
 import ./sales/salesagent
 import ./sales/statemachine
 import ./sales/slotqueue
-import ./sales/trackedfutures
 import ./sales/states/preparing
 import ./sales/states/unknown
 import ./utils/then
+import ./utils/trackedfutures
 
 ## Sales holds a list of available storage that it may sell.
 ##

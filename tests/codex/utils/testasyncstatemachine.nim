@@ -99,7 +99,7 @@ asyncchecksuite "async state machines":
   test "stops scheduling and current state":
     machine.start(State2.new())
     await sleepAsync(1.millis)
-    machine.stop()
+    await machine.stop()
     machine.schedule(moveToNextStateEvent)
     await sleepAsync(1.millis)
     check runs == [0, 1, 0, 0]
@@ -130,5 +130,5 @@ asyncchecksuite "async state machines":
 
     machine.start(State2.new())
     check eventually machine.query(description).isSome
-    machine.stop()
+    await machine.stop()
     check machine.query(description).isNone
