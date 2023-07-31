@@ -22,7 +22,7 @@ env:
   DOCKER_FILE: docker/codex.Dockerfile
   DOCKER_REPO: codexstorage/nim-codex
   MAKE_PARALLEL: 4
-  NIMFLAGS: '-d:disableMarchNative -d:codex_enable_api_debug_peers=true'
+  NIMFLAGS: '-d:disableMarchNative -d:codex_enable_api_debug_peers=true -d:codex_enable_proof_failures=true'
   NIMFLAGS_RELEASE: '-d:disableMarchNative'
   NAT_IP_AUTO: true
   NAT_IP_AUTO_RELEASE: false
