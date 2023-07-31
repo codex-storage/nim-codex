@@ -297,7 +297,7 @@ proc parseCmdArg*(T: typedesc[MultiAddress],
                   input: string): MultiAddress
                  {.upraises: [ValueError, LPError].} =
   without maddr =? MultiAddress.init(input).mapFailure(), err:
-    warn "Invalid MultiAddress", input=input, error=res.msg
+    warn "Invalid MultiAddress", input=input, error=err.msg
     quit QuitFailure
   maddr
 
