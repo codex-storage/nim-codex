@@ -26,11 +26,6 @@ proc track*[T](self: TrackedFutures, fut: Future[T]): Future[T] =
   trace "tracking future", id = fut.id
   self.futures[fut.id] = FutureBase(fut)
 
-  proc removes(val: T) {.gcsafe, upraises: [].} =
-    removeFuture()
-  proc catchErr(err: ref CatchableError) {.gcsafe, upraises: [].} =
-    removeFuture()
-
   fut
     .then((val: T) => self.removeFuture(fut))
     .cancelled(() => self.removeFuture(fut))
