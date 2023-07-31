@@ -296,14 +296,10 @@ proc defaultDataDir*(): string =
 proc parseCmdArg*(T: typedesc[MultiAddress],
                   input: string): MultiAddress
                  {.upraises: [ValueError, LPError].} =
-  var ma: MultiAddress
-  let res = MultiAddress.init(input)
-  if res.isOk:
-    ma = res.get()
-  else:
-    warn "Invalid MultiAddress", input=input, error=res.error()
+  without maddr =? MultiAddress.init(input).mapFailure(), err:
+    warn "Invalid MultiAddress", input=input, error=res.msg
     quit QuitFailure
-  ma
+  maddr
 
 proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
   var res: SignedPeerRecord
@@ -351,12 +347,10 @@ proc readValue*(r: var TomlReader, val: var MultiAddress) =
     error "invalid MultiAddress configuration value", error = err.msg
     quit QuitFailure
 
-  let res = MultiAddress.init(input)
-  if res.isOk:
-    val = res.get()
-  else:
-    warn "Invalid MultiAddress", input=input, error=res.error()
+  without maddr =? MultiAddress.init(input).mapFailure(), err:
+    warn "Invalid MultiAddress", input=input, error=err.msg
     quit QuitFailure
+  val = maddr
 
 proc readValue*(r: var TomlReader, val: var NBytes)
                {.upraises: [SerializationError, IOError].} =
