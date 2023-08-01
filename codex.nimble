@@ -5,7 +5,6 @@ license = "MIT"
 binDir = "build"
 srcDir = "."
 installFiles  = @["build.nims"]
-namedBin = {"codex/codex": "codex"}.toTable()
 
 requires "nim >= 1.2.0"
 requires "asynctest >= 0.3.2 & < 0.4.0"
