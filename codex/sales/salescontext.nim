@@ -18,6 +18,7 @@ type
     onProve*: ?OnProve
     reservations*: Reservations
     slotQueue*: SlotQueue
+    simulateProofFailures*: int
 
   OnStore* = proc(request: StorageRequest,
                   slot: UInt256,

@@ -74,7 +74,8 @@ proc onProve*(sales: Sales): ?OnProve = sales.context.onProve
 func new*(_: type Sales,
           market: Market,
           clock: Clock,
-          repo: RepoStore): Sales =
+          repo: RepoStore,
+          simulateProofFailures: int): Sales =
 
   let reservations = Reservations.new(repo)
   Sales(
@@ -82,7 +83,8 @@ func new*(_: type Sales,
       market: market,
       clock: clock,
       reservations: reservations,
-      slotQueue: SlotQueue.new(reservations)
+      slotQueue: SlotQueue.new(reservations),
+      simulateProofFailures: simulateProofFailures
     ),
     trackedFutures: TrackedFutures.new(),
     subscriptions: @[]

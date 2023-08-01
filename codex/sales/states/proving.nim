@@ -17,7 +17,7 @@ type
   SaleProving* = ref object of ErrorHandlingState
     loop: ?Future[void]
 
-proc proveLoop(market: Market, clock: Clock, request: StorageRequest, slotIndex: UInt256, onProve: OnProve) {.async.} =
+proc proveLoop(market: Market, clock: Clock, request: StorageRequest, slotIndex: UInt256, onProve: OnProve, failEveryNProofs: int) {.async.} =
   proc getCurrentPeriod(): Future[Period] {.async.} =
     let periodicity = await market.periodicity()
     return periodicity.periodOf(clock.now().u256)
@@ -28,6 +28,10 @@ proc proveLoop(market: Market, clock: Clock, request: StorageRequest, slotIndex:
 
   let slot = Slot(request: request, slotIndex: slotIndex)
   let slotId = slot.id
+  var proofCount = 0
+
+  if failEveryNProofs > 0:
+    info "Proving with failure rate", rate = failEveryNProofs
 
   while true:
     let currentPeriod = await getCurrentPeriod()
@@ -40,8 +44,16 @@ proc proveLoop(market: Market, clock: Clock, request: StorageRequest, slotIndex:
 
     if (await market.isProofRequired(slotId)) or
        (await market.willProofBeRequired(slotId)):
-      let proof = await onProve(slot)
-      await market.submitProof(slotId, proof)
+
+      proofCount += 1
+      if failEveryNProofs > 0 and proofCount mod failEveryNProofs == 0:
+        proofCount = 0
+        warn "Submitting INVALID proof", currentPeriod = currentPeriod, requestId = $request.id, slotIndex
+        await market.submitProof(slotId, newSeq[byte](0))
+      else:
+        let proof = await onProve(slot)
+        trace "Submitting proof", currentPeriod = currentPeriod, requestId = $request.id, slotIndex
+        await market.submitProof(slotId, proof)
 
     await waitUntilPeriod(currentPeriod + 1)
 
@@ -84,7 +96,7 @@ method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
 
   debug "Start proving", requestId = $data.requestId, slotIndex
   try:
-    let loop = proveLoop(market, clock, request, slotIndex, onProve)
+    let loop = proveLoop(market, clock, request, slotIndex, onProve, context.simulateProofFailures)
     state.loop = some loop
     await loop
   except CancelledError:
