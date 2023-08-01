@@ -9,6 +9,7 @@ import std/bitops
 type
   MerkleHash* = MultiHash
   MerkleTree* = ref object of RootObj
+    root: MerkleHash
     nodes: seq[MerkleHash]
   MerkleTreeBuilder* = ref object of RootObj
     mcodec: ?MultiCodec
@@ -45,7 +46,7 @@ proc addLeaf*(self: MerkleTreeBuilder, hash: MerkleHash): ?!void =
 
 # l = 6 - (2 * 3 + 1)
 
-# l = 
+# l =
 # r = l + 1
 
 #
@@ -77,6 +78,16 @@ proc build*(self: MerkleTreeBuilder): MerkleTree =
 
   for i in 0..<self.leafs.len:
     nodes[i] = self.leafs[i]
-  
+
 
   MerkleTree(nodes: nodes)
+
+proc rootHash*(self: MerkleTree): MerkleHash =
+  # This is a proc not a field to make it readonly
+  self.root
+
+proc numberOfLeafs*(self: MerkleTree): int =
+  1
+
+proc len*(self: MerkleTree): int =
+  self.nodes.len
