@@ -18,7 +18,7 @@ import pkg/questionable/results
 
 import ../blocktype
 
-export blocktype, libp2p
+export blocktype
 
 type
   BlockNotFoundError* = object of CodexError

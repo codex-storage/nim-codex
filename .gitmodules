@@ -181,3 +181,15 @@
 [submodule "vendor/codex-contracts-eth"]
 	path = vendor/codex-contracts-eth
 	url = https://github.com/status-im/codex-contracts-eth
+[submodule "vendor/nim-protobuf-serialization"]
+	path = vendor/nim-protobuf-serialization
+	url = https://github.com/status-im/nim-protobuf-serialization
+[submodule "vendor/nim-results"]
+	path = vendor/nim-results
+	url = https://github.com/arnetheduck/nim-results
+[submodule "vendor/nim-testutils"]
+	path = vendor/nim-testutils
+	url = https://github.com/status-im/nim-testutils
+[submodule "vendor/npeg"]
+	path = vendor/npeg
+	url = https://github.com/zevv/npeg

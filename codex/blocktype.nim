@@ -14,7 +14,7 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
-import pkg/libp2p
+import pkg/libp2p/[cid, multicodec]
 import pkg/stew/byteutils
 import pkg/questionable
 import pkg/questionable/results

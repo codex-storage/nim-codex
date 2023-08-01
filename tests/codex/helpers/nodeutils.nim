@@ -2,6 +2,7 @@ import std/sequtils
 
 import pkg/chronos
 import pkg/libp2p
+import pkg/libp2p/errors
 
 import pkg/codex/discovery
 import pkg/codex/stores

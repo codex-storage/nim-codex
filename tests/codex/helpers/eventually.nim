@@ -1,6 +1,6 @@
 import pkg/chronos
 
-template eventually*(condition: untyped, timeout = 5.seconds): bool =
+template eventuallyCheck*(condition: untyped, timeout = 5.seconds): bool =
   proc loop: Future[bool] {.async.} =
     let start = Moment.now()
     while true:
