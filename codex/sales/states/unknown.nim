@@ -1,3 +1,4 @@
+import pkg/chronicles
 import ../statemachine
 import ../salesagent
 import ./filled
@@ -5,6 +6,9 @@ import ./finished
 import ./failed
 import ./errored
 import ./cancelled
+
+logScope:
+    topics = "marketplace sales unknown"
 
 type
   SaleUnknown* = ref object of SaleState

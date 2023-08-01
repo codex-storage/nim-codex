@@ -17,7 +17,15 @@ type
   SaleProving* = ref object of ErrorHandlingState
     loop: ?Future[void]
 
-proc proveLoop(market: Market, clock: Clock, request: StorageRequest, slotIndex: UInt256, onProve: OnProve, failEveryNProofs: int) {.async.} =
+method prove*(state: SaleProving, slot: Slot, onProve: OnProve, market: Market, currentPeriod: Period) {.base, async.} =
+  try:
+    let proof = await onProve(slot)
+    debug "Submitting proof", currentPeriod = currentPeriod, slotId = $slot.id
+    await market.submitProof(slot.id, proof)
+  except CatchableError as e:
+    error "Submitting proof failed", msg = e.msg
+
+proc proveLoop(state: SaleProving, market: Market, clock: Clock, request: StorageRequest, slotIndex: UInt256, onProve: OnProve) {.async.} =
   proc getCurrentPeriod(): Future[Period] {.async.} =
     let periodicity = await market.periodicity()
     return periodicity.periodOf(clock.now().u256)
@@ -28,10 +36,6 @@ proc proveLoop(market: Market, clock: Clock, request: StorageRequest, slotIndex:
 
   let slot = Slot(request: request, slotIndex: slotIndex)
   let slotId = slot.id
-  var proofCount = 0
-
-  if failEveryNProofs > 0:
-    info "Proving with failure rate", rate = failEveryNProofs
 
   while true:
     let currentPeriod = await getCurrentPeriod()
@@ -42,18 +46,9 @@ proc proveLoop(market: Market, clock: Clock, request: StorageRequest, slotIndex:
 
     debug "Proving for new period", period = currentPeriod, requestId = $request.id, slotIndex
 
-    if (await market.isProofRequired(slotId)) or
-       (await market.willProofBeRequired(slotId)):
-
-      proofCount += 1
-      if failEveryNProofs > 0 and proofCount mod failEveryNProofs == 0:
-        proofCount = 0
-        warn "Submitting INVALID proof", currentPeriod = currentPeriod, requestId = $request.id, slotIndex
-        await market.submitProof(slotId, newSeq[byte](0))
-      else:
-        let proof = await onProve(slot)
-        trace "Submitting proof", currentPeriod = currentPeriod, requestId = $request.id, slotIndex
-        await market.submitProof(slotId, proof)
+    if (await market.isProofRequired(slotId)) or (await market.willProofBeRequired(slotId)):
+      debug "Proof is required", period = currentPeriod, requestId = $request.id, slotIndex
+      await state.prove(slot, onProve, market, currentPeriod)
 
     await waitUntilPeriod(currentPeriod + 1)
 
@@ -96,7 +91,7 @@ method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
 
   debug "Start proving", requestId = $data.requestId, slotIndex
   try:
-    let loop = proveLoop(market, clock, request, slotIndex, onProve, context.simulateProofFailures)
+    let loop = state.proveLoop(market, clock, request, slotIndex, onProve)
     state.loop = some loop
     await loop
   except CancelledError:

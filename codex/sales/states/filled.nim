@@ -1,5 +1,6 @@
 import pkg/questionable
 import pkg/chronicles
+import ../../conf
 import ../statemachine
 import ../salesagent
 import ./errorhandling
@@ -7,6 +8,10 @@ import ./errored
 import ./cancelled
 import ./failed
 import ./proving
+import ./provingsimulated
+
+logScope:
+    topics = "marketplace sales filled"
 
 type
   SaleFilled* = ref object of ErrorHandlingState
@@ -22,7 +27,8 @@ method `$`*(state: SaleFilled): string = "SaleFilled"
 
 method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
-  let market = SalesAgent(machine).context.market
+  let context = SalesAgent(machine).context
+  let market = context.market
 
   without slotIndex =? data.slotIndex:
     raiseAssert("no slot index assigned")
@@ -31,7 +37,16 @@ method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
   let me = await market.getSigner()
   if host == me.some:
     info "Slot succesfully filled", requestId = $data.requestId, slotIndex
-    return some State(SaleProving())
+
+    when codex_enable_proof_failures:
+      if context.simulateProofFailures > 0:
+        info "Proving with failure rate", rate = context.simulateProofFailures
+        return some State(SaleProvingSimulated(failEveryNProofs: context.simulateProofFailures))
+      else:
+        return some State(SaleProving())
+    else:
+      return some State(SaleProving())
+
   else:
     let error = newException(HostMismatchError, "Slot filled by other host")
     return some State(SaleErrored(error: error))

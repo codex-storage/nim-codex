@@ -1,7 +1,11 @@
+import pkg/chronicles
 import pkg/chronos
 import ../statemachine
 import ../salesagent
 import ./errorhandling
+
+logScope:
+    topics = "marketplace sales ignored"
 
 type
   SaleIgnored* = ref object of ErrorHandlingState
