@@ -190,7 +190,7 @@ proc makeRoot*(self: Manifest): ?!void =
       stack.add(mh)
 
   if stack.len == 1:
-    let digest = ? EmptyDigests[self.version][self.hcodec].catch
+    let digest = ? emptyDigest(self.version, self.hcodec)
     let cid = ? Cid.init(self.version, self.codec, digest).mapFailure
 
     self.rootHash = cid.some
@@ -266,11 +266,7 @@ proc new*(
     if i < manifest.len:
       self.blocks[i] = manifest[i]
     else:
-      self.blocks[i] = EmptyCid[manifest.version]
-      .catch
-      .get()[manifest.hcodec]
-      .catch
-      .get()
+      self.blocks[i] = emptyCid(manifest.version, manifest.hcodec).get()
 
   ? self.verify()
   self.success

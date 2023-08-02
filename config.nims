@@ -63,6 +63,7 @@ else:
     # ("-fno-asynchronous-unwind-tables" breaks Nim's exception raising, sometimes)
     switch("passC", "-mno-avx512vl")
 
+--gc:orc
 --tlsEmulation:off
 --threads:on
 --opt:speed
@@ -70,7 +71,7 @@ else:
 # enable metric collection
 --define:metrics
 # for heap-usage-by-instance-type metrics and object base-type strings
---define:nimTypeNames
+# --define:nimTypeNames
 --styleCheck:usages
 --styleCheck:error
 

@@ -14,7 +14,7 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
-import pkg/libp2p/[cid, multicodec]
+import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/stew/byteutils
 import pkg/questionable
 import pkg/questionable/results
@@ -37,11 +37,10 @@ type
     cid*: Cid
     data*: seq[byte]
 
-template EmptyCid*: untyped =
-  var
-    EmptyCid {.global, threadvar.}:
-      array[CIDv0..CIDv1, Table[MultiCodec, Cid]]
+var
+  EmptyCid {.threadvar.}: array[CIDv0..CIDv1, Table[MultiCodec, Cid]]
 
+template emptyCid*(version: CidVersion, codex: MultiCodec): ?!Cid =
   once:
     EmptyCid = [
       CIDv0: {
@@ -56,55 +55,61 @@ template EmptyCid*: untyped =
       }.toTable,
     ]
 
-  EmptyCid
+  try:
+    success EmptyCid[version][codex]
+  except CatchableError as exc:
+    err(exc)
 
-template EmptyDigests*: untyped =
-  var
-    EmptyDigests {.global, threadvar.}:
-      array[CIDv0..CIDv1, Table[MultiCodec, MultiHash]]
+var
+  EmptyDigests {.threadvar.}: array[CIDv0..CIDv1, Table[MultiCodec, MultiHash]]
 
+proc emptyDigest*(version: CidVersion, codex: MultiCodec): ?!MultiHash =
   once:
     EmptyDigests = [
-      CIDv0: {
-        multiCodec("sha2-256"): EmptyCid[CIDv0]
-        .catch
-        .get()[multiCodec("sha2-256")]
-        .catch
-        .get()
-        .mhash
-        .get()
-      }.toTable,
-      CIDv1: {
-        multiCodec("sha2-256"): EmptyCid[CIDv1]
-        .catch
-        .get()[multiCodec("sha2-256")]
-        .catch
-        .get()
-        .mhash
-        .get()
-      }.toTable,
-    ]
+        CIDv0: {
+          multiCodec("sha2-256"): EmptyCid[CIDv0]
+          .catch
+          .get()[multiCodec("sha2-256")]
+          .catch
+          .get()
+          .mhash
+          .get()
+        }.toTable,
+        CIDv1: {
+          multiCodec("sha2-256"): EmptyCid[CIDv1]
+          .catch
+          .get()[multiCodec("sha2-256")]
+          .catch
+          .get()
+          .mhash
+          .get()
+        }.toTable,
+      ]
 
-  EmptyDigests
+  try:
+    success EmptyDigests[version][codex]
+  except CatchableError as exc:
+    err(exc)
 
-template EmptyBlock*: untyped =
-  var
-    EmptyBlock {.global, threadvar.}:
-      array[CIDv0..CIDv1, Table[MultiCodec, Block]]
+var
+  EmptyBlock {.threadvar.}: array[CIDv0..CIDv1, Table[MultiCodec, Block]]
 
+proc emptyBlock*(version: CidVersion, codex: MultiCodec): ?!Block =
   once:
+    let cid = ? EmptyCid[CIDv0].catch
+    let sha2 = ? cid[multiCodec("sha2-256")].catch
+    let blk = Block(cid: sha2)
+
     EmptyBlock = [
-      CIDv0: {
-        multiCodec("sha2-256"): Block(
-          cid: EmptyCid[CIDv0][multiCodec("sha2-256")])
-      }.toTable,
-      CIDv1: {
-        multiCodec("sha2-256"): Block(
-          cid: EmptyCid[CIDv1][multiCodec("sha2-256")])
-      }.toTable,
+      CIDv0: { multiCodec("sha2-256"): blk }.toTable,
+      CIDv1: { multiCodec("sha2-256"): blk }.toTable,
     ]
 
-  EmptyBlock
+  try:
+    success EmptyBlock[version][codex]
+  except CatchableError as exc:
+    err(exc)
+
 
 proc isEmpty*(cid: Cid): bool =
   cid == EmptyCid[cid.cidver]
