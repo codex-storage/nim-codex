@@ -18,11 +18,11 @@ jobs:
             builder: ubuntu-latest
             shell: bash --noprofile --norc -e -o pipefail
             tests: all
-          - os: linux
-            cpu: amd64
-            builder: ubuntu-latest
-            shell: bash --noprofile --norc -e -o pipefail
-            tests: orc
+          # - os: linux
+          #   cpu: amd64
+          #   builder: ubuntu-latest
+          #   shell: bash --noprofile --norc -e -o pipefail
+          #   tests: orc
           - os: macos
             cpu: amd64
             builder: macos-latest
@@ -70,6 +70,7 @@ jobs:
         run: |
           echo '' >> config.nims
           echo '--mm:orc' >> config.nims
+          echo '--deepcopy:on' >> config.nims
           echo '' >> config.nims
 
       ## Part 1 Tests ##
@@ -84,7 +85,7 @@ jobs:
          node-version: 18.15
 
       - name: Start Ethereum node with Codex contracts
-        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'all'
+        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'all' || matrix.tests == 'orc'
         working-directory: vendor/codex-contracts-eth
         env:
           MSYS2_PATH_TYPE: inherit
@@ -94,12 +95,12 @@ jobs:
 
       ## Part 2 Tests ##
       - name: Contract tests
-        if: matrix.tests == 'contract' || matrix.tests == 'all'
+        if: matrix.tests == 'contract' || matrix.tests == 'all' || matrix.tests == 'orc'
         run: make -j${ncpu} testContracts
 
       ## Part 3 Tests ##
       - name: Integration tests
-        if: matrix.tests == 'integration' || matrix.tests == 'all'
+        if: matrix.tests == 'integration' || matrix.tests == 'all' || matrix.tests == 'orc'
         run: make -j${ncpu} testIntegration
 
   coverage:
