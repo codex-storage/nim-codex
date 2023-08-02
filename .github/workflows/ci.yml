@@ -66,8 +66,9 @@ jobs:
 
       ## Part 1 Tests ##
       - name: Setup ORC Test on Some Linux
-        if: matrix.testOrc == true
+        if: matrix.tests == 'orc'
         run: |
+          echo '' >> config.nims
           echo '--mm:orc' >> config.nims
           echo '' >> config.nims
 
