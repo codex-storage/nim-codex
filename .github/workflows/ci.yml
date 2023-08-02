@@ -84,7 +84,7 @@ jobs:
          node-version: 18.15
 
       - name: Start Ethereum node with Codex contracts
-        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'all' || matrix.tests == 'orc'
+        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'all'
         working-directory: vendor/codex-contracts-eth
         env:
           MSYS2_PATH_TYPE: inherit
@@ -94,12 +94,12 @@ jobs:
 
       ## Part 2 Tests ##
       - name: Contract tests
-        if: matrix.tests == 'contract' || matrix.tests == 'all' || matrix.tests == 'orc'
+        if: matrix.tests == 'contract' || matrix.tests == 'all'
         run: make -j${ncpu} testContracts
 
       ## Part 3 Tests ##
       - name: Integration tests
-        if: matrix.tests == 'integration' || matrix.tests == 'all' || matrix.tests == 'orc'
+        if: matrix.tests == 'integration' || matrix.tests == 'all'
         run: make -j${ncpu} testIntegration
 
   coverage:
