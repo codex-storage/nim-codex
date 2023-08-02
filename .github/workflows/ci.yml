@@ -18,6 +18,12 @@ jobs:
             builder: ubuntu-latest
             shell: bash --noprofile --norc -e -o pipefail
             tests: all
+          - os: linux
+            cpu: amd64
+            builder: ubuntu-latest
+            shell: bash --noprofile --norc -e -o pipefail
+            tests: all
+            testOrc: true
           - os: macos
             cpu: amd64
             builder: macos-latest
@@ -43,7 +49,7 @@ jobs:
       run:
         shell: ${{ matrix.shell }} {0}
 
-    name: '${{ matrix.os }}-${{ matrix.cpu }}-tests-${{ matrix.tests }}'
+    name: '${{ matrix.os }}-${{ matrix.cpu }}-tests-${{ matrix.tests }}-${{ matrix.testOrc }}'
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 80
     steps:
@@ -58,6 +64,11 @@ jobs:
           os: ${{ matrix.os }}
           shell: ${{ matrix.shell }}
           nim_version: ${{ env.nim_version }}
+
+      ## Part 1 Tests ##
+      - name: Setup ORC Test on Some Linux
+        if: matrix.testOrc == true
+        run: echo '--mm:orc' >> config.nims
 
       ## Part 1 Tests ##
       - name: Unit tests
