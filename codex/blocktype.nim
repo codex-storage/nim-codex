@@ -118,11 +118,7 @@ proc isEmpty*(blk: Block): bool =
   blk.cid.isEmpty
 
 proc emptyBlock*(cid: Cid): Block =
-  EmptyBlock[cid.cidver]
-  .catch
-  .get()[cid.mhash.get().mcodec]
-  .catch
-  .get()
+  emptyBlock(cid.cidver, cid.mhash.get().mcodec).get()
 
 proc `$`*(b: Block): string =
   result &= "cid: " & $b.cid
