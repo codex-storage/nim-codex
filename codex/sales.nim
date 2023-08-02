@@ -74,6 +74,12 @@ proc onProve*(sales: Sales): ?OnProve = sales.context.onProve
 func new*(_: type Sales,
           market: Market,
           clock: Clock,
+          repo: RepoStore): Sales =
+  Sales.new(market, clock, repo, 0)
+
+func new*(_: type Sales,
+          market: Market,
+          clock: Clock,
           repo: RepoStore,
           simulateProofFailures: int): Sales =
 

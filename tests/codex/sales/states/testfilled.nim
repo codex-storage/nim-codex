@@ -34,7 +34,7 @@ checksuite "sales state 'filled'":
                           StorageRequest.none)
     state = SaleFilled.new()
 
-  test "switches to finished state when slot is filled by me":
+  test "switches to proving state when slot is filled by me":
     slot.host = await market.getSigner()
     market.filled = @[slot]
     let next = await state.run(agent)
