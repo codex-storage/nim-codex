@@ -14,7 +14,8 @@ type
   MerkleTreeBuilder* = ref object of RootObj
     mcodec: ?MultiCodec
     leafs: seq[MerkleHash]
-
+  MerkleProof* = ref object of RootObj
+    path: seq[MerkleHash]
 
 # proc `$`*(h: MerkleHash): string =
 #   h.toHex
@@ -83,7 +84,7 @@ proc build*(self: MerkleTreeBuilder): MerkleTree =
   MerkleTree(nodes: nodes)
 
 proc rootHash*(self: MerkleTree): MerkleHash =
-  # This is a proc not a field to make it readonly
+  # This is a proc not a field to make it readonly.
   self.root
 
 proc numberOfLeafs*(self: MerkleTree): int =
@@ -91,3 +92,26 @@ proc numberOfLeafs*(self: MerkleTree): int =
 
 proc len*(self: MerkleTree): int =
   self.nodes.len
+
+proc getLeaf*(self: MerkleTree, index: int): ?!MerkleHash =
+  failure("not implemented")
+
+proc getProof*(self: MerkleTree, index: int): ?!MerkleProof =
+  failure("not implemented")
+
+proc addProof*(self: MerkleTree, index: int, proof: MerkleProof): ?!void =
+  failure("not implemented")
+
+func new*(
+  T: type MerkleTree,
+  rootHash: MerkleHash
+): MerkleTree =
+  MerkleTree(
+    root: rootHash)
+
+proc len*(self: MerkleProof): int =
+  self.path.len
+
+proc `[]`*(self: MerkleProof, i: Natural) : MerkleHash {.inline.} =
+  # This allows reading by [0], but not assigning.
+  self.path[i]
