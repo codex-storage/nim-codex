@@ -5,6 +5,7 @@ import std/sequtils
 import pkg/libp2p
 import codex/merkletree/merkletree
 import ../helpers
+import pkg/questionable/results
 
 checksuite "merkletree":
   let mcodec = multiCodec("sha2-256")
@@ -26,15 +27,18 @@ checksuite "merkletree":
     return MultiHash.digest($mcodec, data).tryGet()
 
   proc combine(a: MerkleHash, b: MerkleHash): MerkleHash =
-    #todo: hash these together please
-    return createRandomHash()
+    var buf = newSeq[byte](64)
+    for i in 0..31:
+      buf[i] = a.data.buffer[i]
+      buf[i + 32] = b.data.buffer[i]
+    return MultiHash.digest($mcodec, buf).tryGet()
 
   proc createMerkleTree(leaves: seq[MerkleHash]): MerkleTree =
     let b = MerkleTreeBuilder()
     for leaf in leaves:
       check:
         not isErr(b.addLeaf(leaf))
-    return b.build()
+    return b.build().tryGet()
 
   proc createRandomMerkleTree(numberOfLeafs: int): MerkleTree =
     var leaves = newSeq[MerkleHash]()
@@ -73,13 +77,13 @@ checksuite "merkletree":
     check:
       not isErr(builder.addLeaf(leaf1))
 
-    let tree = builder.build()
+    let tree = builder.build().tryGet()
     echo "tree is" & $tree
 
     check:
-      tree.numberOfLeafs == 1
+      tree.leaves.len == 1
       tree.len == 1
-      tree.rootHash == leaf1
+      tree.root == leaf1
 
   test "fails when adding leaf with different hash codec":
     let
@@ -103,31 +107,39 @@ checksuite "merkletree":
       not isErr(builder.addLeaf(leaf1))
       not isErr(builder.addLeaf(leaf2))
 
-    let tree = builder.build()
-    echo "tree is" & $tree
+    let tree = builder.build().tryGet()
 
     check:
-      tree.numberOfLeafs == 2
+      tree.leaves.len == 2
       tree.len == 3
-      tree.rootHash == expectedRootHash
+      tree.root == expectedRootHash
+
+  test "tree with three leaves has expected root hash":
+    let
+      expectedRootHash = combine(combine(leaf1, leaf2), combine(leaf3, leaf3))
+
+    check:
+      not isErr(builder.addLeaf(leaf1))
+      not isErr(builder.addLeaf(leaf2))
+      not isErr(builder.addLeaf(leaf3))
+
+    let tree = builder.build().tryGet()
+
+    check:
+      tree.leaves.len == 3
+      tree.len == 6
+      tree.root == expectedRootHash
 
   test "tree can access leaves by index":
     let tree = createMerkleTree(@[leaf1, leaf2, leaf3, leaf4])
 
     check:
-      tree.numberOfLeafs == 4
+      tree.leaves.len == 4
       tree.len == 10
-      tree.getLeaf(0).tryGet() == leaf1
-      tree.getLeaf(1).tryGet() == leaf2
-      tree.getLeaf(2).tryGet() == leaf3
-      tree.getLeaf(3).tryGet() == leaf4
-
-  test "getLeaf fails for index out of bounds":
-    let tree = createMerkleTree(@[leaf1, leaf2, leaf3, leaf4])
-
-    check:
-      isErr(tree.getLeaf(-1))
-      isErr(tree.getLeaf(4))
+      tree.leaves[0] == leaf1
+      tree.leaves[1] == leaf2
+      tree.leaves[2] == leaf3
+      tree.leaves[3] == leaf4
 
   test "tree can provide merkle proof by index":
     let tree = createMerkleTree(@[leaf1, leaf2, leaf3, leaf4])
@@ -142,20 +154,20 @@ checksuite "merkletree":
       isErr(tree.getProof(4))
 
   test "can create MerkleTree directly from root hash":
-    let tree = MerkleTree.new(root)
+    let tree = MerkleTree.new(root, 1)
 
     check:
       # these dimenions may need adjusting:
-      tree.numberOfLeafs == 0
+      tree.leaves.len == 0
       tree.len == 1
       # do we need to pass any of the tree dimensions to the constructor for any reason?
 
-      tree.rootHash == root
+      tree.root == root
 
   test "can recreate a MerkleTree from MerkleProofs":
     let
       sourceTree = createMerkleTree(@[leaf1, leaf2, leaf3, leaf4])
-      targetTree = MerkleTree.new(root)
+      targetTree = MerkleTree.new(root, 4)
 
     for i in 0..3:
       let proof = sourceTree.getProof(i).tryGet()
@@ -163,9 +175,9 @@ checksuite "merkletree":
         not isErr(targetTree.addProof(i, proof))
 
     check:
-      targetTree.numberOfLeafs == 4
+      targetTree.leaves.len == 4
       targetTree.len == 10
-      targetTree.rootHash == root
+      targetTree.root == root
 
     assertExampleTreeExpectedPaths(targetTree)
 
@@ -173,7 +185,7 @@ checksuite "merkletree":
     let
       sourceTree = createMerkleTree(@[leaf1, leaf2, leaf3, leaf4])
       foreignTree = createRandomMerkleTree(4)
-      targetTree = MerkleTree.new(root)
+      targetTree = MerkleTree.new(root, 4)
 
     for i in 0..3:
       check:

@@ -1,27 +1,25 @@
-# import std/sequtils
+import std/sequtils
+import std/math
+import std/bitops
+
 import pkg/libp2p
 import pkg/stew/byteutils
 import pkg/questionable
 import pkg/questionable/results
 
-import std/bitops
 
 type
   MerkleHash* = MultiHash
   MerkleTree* = ref object of RootObj
-    root: MerkleHash
-    nodes: seq[MerkleHash]
+    nodes: seq[seq[MerkleHash]]
   MerkleTreeBuilder* = ref object of RootObj
     mcodec: ?MultiCodec
     leafs: seq[MerkleHash]
   MerkleProof* = ref object of RootObj
     path: seq[MerkleHash]
 
-# proc `$`*(h: MerkleHash): string =
-#   h.toHex
-
 proc `$`*(t: MerkleTree): string =
-  result &= "size: " & $t.nodes.len
+  result &= "height: " & $t.nodes.len
   result &= "\nnodes: " & $t.nodes
 
 proc addLeaf*(self: MerkleTreeBuilder, hash: MerkleHash): ?!void =
@@ -34,67 +32,48 @@ proc addLeaf*(self: MerkleTreeBuilder, hash: MerkleHash): ?!void =
   self.leafs.add(hash)
   return success()
 
+func calcTreeHeight(leafsCount: int): int =
+  if isPowerOfTwo(leafsCount): 
+    fastLog2(leafsCount) + 1
+  else:
+    fastLog2(leafsCount) + 2
 
-#    h1233
-#   /     \
-#  h12   h33
-#  / \   / \
-# h1 h2 h3
+proc build*(self: MerkleTreeBuilder): ?!MerkleTree =
+  let height = calcTreeHeight(self.leafs.len)
+  var nodes = newSeq[seq[MerkleHash]](height)
 
-# [ 0,   1,  2,   3,   4,     5]
-# [ h1, h2, h3, h12, h33, h1233]
-#
+  without mcodec =? self.mcodec:
+    return failure("No hash codec defined, possibly no leafs were added")
 
-# l = 6 - (2 * 3 + 1)
+  # copy leafs
+  nodes[0] = newSeq[MerkleHash](self.leafs.len)
+  for j in 0..<self.leafs.len:
+    nodes[0][j] = self.leafs[j]
 
-# l =
-# r = l + 1
+  # calculate internal nodes
+  for i in 1..<height:
+    let levelWidth = (nodes[i-1].len + 1) div 2
+    nodes[i] = newSeq[MerkleHash](levelWidth)
 
-#
-# [ h1233, h12, h33, h1, h2, h3 ]
-#
+    for j in 0..<levelWidth:
+      let l = nodes[i-1][2 * j]
+      let r = nodes[i-1][min(2 * j + 1, nodes[i-1].high)]
+      var buf = newSeq[byte](l.size + r.size)
+      copyMem(addr buf[0], unsafeAddr l.data.buffer[0], l.size)
+      copyMem(addr buf[l.size], unsafeAddr r.data.buffer[0], r.size)
 
-# l = 2n + 1
-# r = 2n + 2
+      nodes[i][j] = MultiHash.digest($mcodec, buf).tryGet()
 
-# 2 * 1 + 1
-# 2 * 1 + 2
+  success(MerkleTree(nodes: nodes))
 
+proc root*(self: MerkleTree): MerkleHash =
+  self.nodes[^1][0]
 
-# 3 -> 0, 1
-# 4 -> 2, (2)
-#
-
-func calcTreeSize(n: int): int =
-    let l = fastLog2(n)
-    let m = 1 shl l
-    if m == n:
-      return m - 1 + n
-    else:
-      return m shl 1 - 1 + n
-
-proc build*(self: MerkleTreeBuilder): MerkleTree =
-  let tsize = calcTreeSize(self.leafs.len)
-  var nodes = newSeq[MerkleHash](tsize)
-
-  for i in 0..<self.leafs.len:
-    nodes[i] = self.leafs[i]
-
-
-  MerkleTree(nodes: nodes)
-
-proc rootHash*(self: MerkleTree): MerkleHash =
-  # This is a proc not a field to make it readonly.
-  self.root
-
-proc numberOfLeafs*(self: MerkleTree): int =
-  1
+proc leaves*(self: MerkleTree): seq[MerkleHash] =
+  self.nodes[0]
 
 proc len*(self: MerkleTree): int =
-  self.nodes.len
-
-proc getLeaf*(self: MerkleTree, index: int): ?!MerkleHash =
-  failure("not implemented")
+  self.nodes.foldl(a + b.len, 0)
 
 proc getProof*(self: MerkleTree, index: int): ?!MerkleProof =
   failure("not implemented")
@@ -104,10 +83,13 @@ proc addProof*(self: MerkleTree, index: int, proof: MerkleProof): ?!void =
 
 func new*(
   T: type MerkleTree,
-  rootHash: MerkleHash
+  root: MerkleHash,
+  leafsLen: int
 ): MerkleTree =
-  MerkleTree(
-    root: rootHash)
+  let height = calcTreeHeight(leafsLen)
+  var nodes = newSeq[seq[MerkleHash]](height)
+  nodes[^1] = @[root]
+  MerkleTree(nodes: nodes)
 
 proc len*(self: MerkleProof): int =
   self.path.len
