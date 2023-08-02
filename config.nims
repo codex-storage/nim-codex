@@ -75,7 +75,7 @@ when getEnv("CODEX_USE_ORC", "") in ["true", "1"]:
 # enable metric collection
 --define:metrics
 # for heap-usage-by-instance-type metrics and object base-type strings
-# --define:nimTypeNames
+--define:nimTypeNames
 --styleCheck:usages
 --styleCheck:error
 

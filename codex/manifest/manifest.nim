@@ -190,7 +190,7 @@ proc makeRoot*(self: Manifest): ?!void =
       stack.add(mh)
 
   if stack.len == 1:
-    let digest = emptyDigest(self.version, self.hcodec).expect("empty manifest")
+    let digest = ? emptyDigest(self.version, self.hcodec)
     let cid = ? Cid.init(self.version, self.codec, digest).mapFailure
 
     self.rootHash = cid.some
