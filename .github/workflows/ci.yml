@@ -65,13 +65,10 @@ jobs:
           nim_version: ${{ env.nim_version }}
 
       ## Part 1 Tests ##
-      - name: Setup ORC Test on Some Linux
+      - name: Setup ORC Test
         if: matrix.tests == 'orc'
         run: |
-          echo '' >> config.nims
-          echo '--mm:orc' >> config.nims
-          echo '--deepcopy:on' >> config.nims
-          echo '' >> config.nims
+          echo "CODEX_USE_ORC=1" >> $GITHUB_ENV
 
       ## Part 1 Tests ##
       - name: Unit tests
