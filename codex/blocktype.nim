@@ -63,31 +63,21 @@ proc emptyCid*(version: CidVersion, codex: MultiCodec): ?!Cid =
 var
   EmptyDigests {.threadvar.}: array[CIDv0..CIDv1, Table[MultiCodec, MultiHash]]
 
-proc emptyDigest*(version: CidVersion, codex: MultiCodec): ?!MultiHash =
+proc emptyDigest*(version: CidVersion, codec: MultiCodec): ?!MultiHash =
+
   once:
+    let cid0 = emptyCid(CIDv0, multiCodec("sha2-256")).get()
+    let cid1 = emptyCid(CIDv1, multiCodec("sha2-256")).get()
+    let mhash0 = cid0.mhash.get
+    let mhash1 = cid1.mhash.get
+
     EmptyDigests = [
-        CIDv0: {
-          multiCodec("sha2-256"): EmptyCid[CIDv0]
-          .catch
-          .get()[multiCodec("sha2-256")]
-          .catch
-          .get()
-          .mhash
-          .get()
-        }.toTable,
-        CIDv1: {
-          multiCodec("sha2-256"): EmptyCid[CIDv1]
-          .catch
-          .get()[multiCodec("sha2-256")]
-          .catch
-          .get()
-          .mhash
-          .get()
-        }.toTable,
+        CIDv0: { multiCodec("sha2-256"): mhash0 }.toTable,
+        CIDv1: { multiCodec("sha2-256"): mhash1 }.toTable,
       ]
 
   try:
-    success EmptyDigests[version][codex]
+    success EmptyDigests[version][codec]
   except CatchableError as exc:
     err(exc)
 
@@ -96,13 +86,14 @@ var
 
 proc emptyBlock*(version: CidVersion, codex: MultiCodec): ?!Block =
   once:
-    let cid = ? EmptyCid[CIDv0].catch
-    let sha2 = ? cid[multiCodec("sha2-256")].catch
-    let blk = Block(cid: sha2)
+    let cid0 = ? emptyCid(CIDv0, multiCodec("sha2-256"))
+    let cid1 = ? emptyCid(CIDv1, multiCodec("sha2-256"))
+    let blk0 = Block(cid: cid0)
+    let blk1 = Block(cid: cid1)
 
     EmptyBlock = [
-      CIDv0: { multiCodec("sha2-256"): blk }.toTable,
-      CIDv1: { multiCodec("sha2-256"): blk }.toTable,
+      CIDv0: { multiCodec("sha2-256"): blk0 }.toTable,
+      CIDv1: { multiCodec("sha2-256"): blk1 }.toTable,
     ]
 
   try:
