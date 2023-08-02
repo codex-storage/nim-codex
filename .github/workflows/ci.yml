@@ -18,11 +18,11 @@ jobs:
             builder: ubuntu-latest
             shell: bash --noprofile --norc -e -o pipefail
             tests: all
-          # - os: linux
-          #   cpu: amd64
-          #   builder: ubuntu-latest
-          #   shell: bash --noprofile --norc -e -o pipefail
-          #   tests: orc
+          - os: linux
+            cpu: amd64
+            builder: ubuntu-latest
+            shell: bash --noprofile --norc -e -o pipefail
+            tests: orc
           - os: macos
             cpu: amd64
             builder: macos-latest
