@@ -85,11 +85,12 @@ proc encode*(
   without var encoded =? Manifest.new(manifest, blocks, parity), error:
     trace "Unable to create manifest", msg = error.msg
     return error.failure
-
   logScope:
     steps           = encoded.steps
     rounded_blocks  = encoded.rounded
     new_manifest    = encoded.len
+
+  trace "Manifest encoded"
 
   var
     encoder = self.encoderProvider(manifest.blockSize.int, blocks, parity)

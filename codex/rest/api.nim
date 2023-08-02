@@ -241,7 +241,10 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
       try:
         without cid =? (
-          await node.store(AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)))), error:
+          await node.store(
+            AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)),
+            blockSize = 1024'nb) # FIXME: workaround for slow erasure coding with blocktype.DefaultBlockSize = 65,472 NBytes
+        ), error:
           trace "Error uploading file", exc = error.msg
           return RestApiResponse.error(Http500, error.msg)
 

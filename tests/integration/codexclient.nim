@@ -33,7 +33,9 @@ proc requestStorage*(
     reward: uint64,
     proofProbability: uint64,
     expiry: UInt256,
-    collateral: uint64
+    collateral: uint64,
+    nodes: uint = 1,
+    tolerance: uint = 0
 ): string =
   ## Call request storage REST endpoint
   ## 
@@ -44,6 +46,8 @@ proc requestStorage*(
     "proofProbability": $proofProbability,
     "expiry": $expiry,
     "collateral": $collateral,
+    "nodes": nodes,
+    "tolerance": $tolerance
   }
   let response = client.http.post(url, $json)
   assert response.status == "200 OK"

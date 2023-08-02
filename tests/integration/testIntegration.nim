@@ -13,7 +13,7 @@ import ./twonodes
 # You can also pass a string in same format like for the `--log-level` parameter
 # to enable custom logging levels for specific topics like: debug2 = "INFO; TRACE: marketplace"
 
-twonodessuite "Integration tests", debug1 = false, debug2 = false:
+twonodessuite "Integration tests", debug1 = "INFO;TRACE:node,restapi,erasure", debug2 = false:
   setup:
     # Our Hardhat configuration does use automine, which means that time tracked by `provider.currentTime()` is not
     # advanced until blocks are mined and that happens only when transaction is submitted.
@@ -59,7 +59,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
   test "node remembers purchase status after restart":
     let expiry = (await provider.currentTime()) + 30
     let cid = client1.upload("some file contents")
-    let id = client1.requestStorage(cid, duration=1, reward=2, proofProbability=3, expiry=expiry, collateral=200)
+    let id = client1.requestStorage(cid, duration=1, reward=2, proofProbability=3, expiry=expiry, collateral=200, nodes=2, tolerance=1)
     check eventually client1.getPurchase(id){"state"}.getStr() == "submitted"
 
     node1.restart()

@@ -268,7 +268,7 @@ proc requestStorage*(
   ## - Run the PoR setup on the erasure dataset
   ## - Call into the marketplace and purchasing contracts
   ##
-  trace "Received a request for storage!", cid, duration, nodes, tolerance, reward
+  trace "Received a request for storage!", cid, duration, proofProbability, nodes, tolerance, reward, collateral, expiry
 
   without contracts =? self.contracts.client:
     trace "Purchasing not available"
@@ -278,6 +278,7 @@ proc requestStorage*(
     trace "Unable to fetch manifest for cid", cid
     raise error
 
+  trace "manifest created successfully", blockSize = manifest.blockSize
   # Erasure code the dataset according to provided parameters
   without encoded =? (await self.erasure.encode(manifest, nodes.int, tolerance.int)), error:
     trace "Unable to erasure code dataset", cid

@@ -39,8 +39,10 @@ proc fromJson*(
   let reward = ?catch UInt256.fromDecimal(json["reward"].getStr)
   let collateral = ?catch UInt256.fromDecimal(json["collateral"].getStr)
   let expiry = UInt256.fromDecimal(json["expiry"].getStr).catch.option
-  let nodes = parseUInt(json["nodes"].getStr).catch.option
+  let nodes = json{"nodes"}.getBiggestInt.uint.option
   let tolerance = parseUInt(json["tolerance"].getStr).catch.option
+  echo "[json.fromJson] nodes: ", nodes
+  echo "[json.fromJson] tolerance: ", tolerance
   success StorageRequestParams(
     duration: duration,
     proofProbability: proofProbability,
