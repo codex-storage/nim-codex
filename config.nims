@@ -64,6 +64,7 @@ else:
     switch("passC", "-mno-avx512vl")
 
 when getEnv("CODEX_USE_ORC", "") in ["true", "1"]:
+  echo "Using ORC"
   --mm:orc
   --deepcopy:on
 

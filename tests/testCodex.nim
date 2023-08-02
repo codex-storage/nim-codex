@@ -9,6 +9,7 @@ import ./codex/teststorestream
 import ./codex/testpurchasing
 import ./codex/testsales
 import ./codex/testerasure
+import ./codex/testblocktypes
 import ./codex/testproving
 import ./codex/testutils
 import ./codex/testclock
