@@ -40,7 +40,7 @@ type
 var
   EmptyCid {.threadvar.}: array[CIDv0..CIDv1, Table[MultiCodec, Cid]]
 
-template emptyCid*(version: CidVersion, codex: MultiCodec): ?!Cid =
+proc emptyCid*(version: CidVersion, codex: MultiCodec): ?!Cid =
   once:
     EmptyCid = [
       CIDv0: {
@@ -112,11 +112,7 @@ proc emptyBlock*(version: CidVersion, codex: MultiCodec): ?!Block =
 
 
 proc isEmpty*(cid: Cid): bool =
-  cid == EmptyCid[cid.cidver]
-  .catch
-  .get()[cid.mhash.get().mcodec]
-  .catch
-  .get()
+  cid == emptyCid(cid.cidver, cid.mhash.get().mcodec).get()
 
 proc isEmpty*(blk: Block): bool =
   blk.cid.isEmpty

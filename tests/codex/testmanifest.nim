@@ -73,11 +73,7 @@ checksuite "Manifest":
 
     # fill up with empty Cid's
     for i in protected.rounded..<protected.len:
-      protected[i] = EmptyCid[manifest.version]
-        .catch
-        .get()[manifest.hcodec]
-        .catch
-        .get()
+      protected[i] = emptyCid(manifest.version, manifest.hcodec).get()
 
     var
       encoded = protected.encode().tryGet()
