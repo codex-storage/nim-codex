@@ -18,6 +18,11 @@ jobs:
             builder: ubuntu-latest
             shell: bash --noprofile --norc -e -o pipefail
             tests: all
+          - os: linux
+            cpu: amd64
+            builder: ubuntu-latest
+            shell: bash --noprofile --norc -e -o pipefail
+            tests: orc
           - os: macos
             cpu: amd64
             builder: macos-latest
@@ -52,6 +57,12 @@ jobs:
         with:
           submodules: recursive
 
+      ## Configure ORC on certain runs
+      - name: Setup ORC Test
+        if: matrix.tests == 'orc'
+        run: |
+          echo "CODEX_USE_ORC=1" >> $GITHUB_ENV
+
       - name: Setup Nimbus Build System
         uses: ./.github/actions/nimbus-build-system
         with:
@@ -61,7 +72,7 @@ jobs:
 
       ## Part 1 Tests ##
       - name: Unit tests
-        if: matrix.tests == 'unittest' || matrix.tests == 'all'
+        if: matrix.tests == 'unittest' || matrix.tests == 'all' || matrix.tests == 'orc'
         run: make -j${ncpu} test
 
       # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
@@ -71,7 +82,7 @@ jobs:
          node-version: 18.15
 
       - name: Start Ethereum node with Codex contracts
-        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'all'
+        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'all' || matrix.tests == 'orc'
         working-directory: vendor/codex-contracts-eth
         env:
           MSYS2_PATH_TYPE: inherit
@@ -81,12 +92,12 @@ jobs:
 
       ## Part 2 Tests ##
       - name: Contract tests
-        if: matrix.tests == 'contract' || matrix.tests == 'all'
+        if: matrix.tests == 'contract' || matrix.tests == 'all' || matrix.tests == 'orc'
         run: make -j${ncpu} testContracts
 
       ## Part 3 Tests ##
       - name: Integration tests
-        if: matrix.tests == 'integration' || matrix.tests == 'all'
+        if: matrix.tests == 'integration' || matrix.tests == 'all' || matrix.tests == 'orc'
         run: make -j${ncpu} testIntegration
 
   coverage:
