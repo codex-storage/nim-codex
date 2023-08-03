@@ -40,9 +40,9 @@ checksuite "merkletree":
         not isErr(b.addLeaf(leaf))
     return b.build().tryGet()
 
-  proc createRandomMerkleTree(numberOfLeafs: int): MerkleTree =
+  proc createRandomMerkleTree(leavesCount: int): MerkleTree =
     var leaves = newSeq[MerkleHash]()
-    for i in 0..numberOfLeafs:
+    for i in 0..<leavesCount:
       leaves.add(createRandomHash())
     return createMerkleTree(leaves)
 

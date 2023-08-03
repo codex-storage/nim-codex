@@ -1,9 +1,11 @@
 import std/sequtils
 import std/math
 import std/bitops
+import std/sugar
 
 import pkg/libp2p
 import pkg/stew/byteutils
+
 import pkg/questionable
 import pkg/questionable/results
 
@@ -14,7 +16,7 @@ type
     nodes: seq[seq[MerkleHash]]
   MerkleTreeBuilder* = ref object of RootObj
     mcodec: ?MultiCodec
-    leafs: seq[MerkleHash]
+    leaves: seq[MerkleHash]
   MerkleProof* = ref object of RootObj
     path: seq[MerkleHash]
 
@@ -29,26 +31,36 @@ proc addLeaf*(self: MerkleTreeBuilder, hash: MerkleHash): ?!void =
   else:
     self.mcodec = hash.mcodec.some
 
-  self.leafs.add(hash)
+  self.leaves.add(hash)
   return success()
 
-func calcTreeHeight(leafsCount: int): int =
-  if isPowerOfTwo(leafsCount): 
-    fastLog2(leafsCount) + 1
+func calcTreeHeight(leavesCount: int): int =
+  if isPowerOfTwo(leavesCount): 
+    fastLog2(leavesCount) + 1
   else:
-    fastLog2(leafsCount) + 2
+    fastLog2(leavesCount) + 2
 
 proc build*(self: MerkleTreeBuilder): ?!MerkleTree =
-  let height = calcTreeHeight(self.leafs.len)
+  let height = calcTreeHeight(self.leaves.len)
   var nodes = newSeq[seq[MerkleHash]](height)
 
-  without mcodec =? self.mcodec:
-    return failure("No hash codec defined, possibly no leafs were added")
+  without mcodec =? self.mcodec and 
+          digestSize =? self.leaves.?[0].?size:
+    return failure("Unable to determine codec, no leaves were added")
 
-  # copy leafs
-  nodes[0] = newSeq[MerkleHash](self.leafs.len)
-  for j in 0..<self.leafs.len:
-    nodes[0][j] = self.leafs[j]
+  var buf = newSeq[byte](digestSize * 2)
+  proc combine(l, r: MerkleHash): ?!MerkleHash =
+    copyMem(addr buf[0], unsafeAddr l.data.buffer[0], digestSize)
+    copyMem(addr buf[digestSize], unsafeAddr r.data.buffer[0], digestSize)
+
+    MultiHash.digest($mcodec, buf).mapErr(
+      c => newException(CatchableError, "Error calculating hash using codec " & $mcodec & ": " & $c)
+    )
+
+  # copy leaves
+  nodes[0] = newSeq[MerkleHash](self.leaves.len)
+  for j in 0..<self.leaves.len:
+    nodes[0][j] = self.leaves[j]
 
   # calculate internal nodes
   for i in 1..<height:
@@ -58,11 +70,11 @@ proc build*(self: MerkleTreeBuilder): ?!MerkleTree =
     for j in 0..<levelWidth:
       let l = nodes[i-1][2 * j]
       let r = nodes[i-1][min(2 * j + 1, nodes[i-1].high)]
-      var buf = newSeq[byte](l.size + r.size)
-      copyMem(addr buf[0], unsafeAddr l.data.buffer[0], l.size)
-      copyMem(addr buf[l.size], unsafeAddr r.data.buffer[0], r.size)
-
-      nodes[i][j] = MultiHash.digest($mcodec, buf).tryGet()
+      
+      without mhash =? combine(l, r), error:
+        return failure(error)
+      
+      nodes[i][j] = mhash
 
   success(MerkleTree(nodes: nodes))
 
@@ -84,9 +96,9 @@ proc addProof*(self: MerkleTree, index: int, proof: MerkleProof): ?!void =
 func new*(
   T: type MerkleTree,
   root: MerkleHash,
-  leafsLen: int
+  leavesCount: int
 ): MerkleTree =
-  let height = calcTreeHeight(leafsLen)
+  let height = calcTreeHeight(leavesCount)
   var nodes = newSeq[seq[MerkleHash]](height)
   nodes[^1] = @[root]
   MerkleTree(nodes: nodes)
