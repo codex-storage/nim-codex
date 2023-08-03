@@ -52,7 +52,7 @@ proc new*(
     pad = true
 ): StoreStream =
   ## Create a new StoreStream instance for a given store and manifest
-  ## 
+  ##
   result = StoreStream(
     store: store,
     manifest: manifest,
@@ -79,7 +79,7 @@ method readOnce*(
   ## Read `nbytes` from current position in the StoreStream into output buffer pointed by `pbytes`.
   ## Return how many bytes were actually read before EOF was encountered.
   ## Raise exception if we are already at EOF.
-  ## 
+  ##
 
   trace "Reading from manifest", cid = self.manifest.cid.get(), blocks = self.manifest.len
   if self.atEof:
@@ -100,6 +100,7 @@ method readOnce*(
 
     # Read contents of block `blockNum`
     without blk =? await self.store.getBlock(self.manifest[blockNum]), error:
+      trace "failed to get block from store in storestream"
       raise newLPStreamReadError(error)
 
     trace "Reading bytes from store stream", blockNum, cid = blk.cid, bytes = readBytes, blockOffset
@@ -114,6 +115,7 @@ method readOnce*(
     self.offset += readBytes
     read += readBytes
 
+  trace "storestream finished", read
   return read
 
 method closeImpl*(self: StoreStream) {.async.} =

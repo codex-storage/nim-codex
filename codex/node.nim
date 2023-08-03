@@ -134,9 +134,12 @@ proc retrieve*(
   ## Retrieve by Cid a single block or an entire dataset described by manifest
   ##
 
+  trace "retrieving..."
+
   if manifest =? (await node.fetchManifest(cid)):
     trace "Retrieving blocks from manifest", cid
     if manifest.protected:
+      trace "decoding protected manifest"
       # Retrieve, decode and save to the local store all EС groups
       proc erasureJob(): Future[void] {.async.} =
         try:
@@ -156,10 +159,12 @@ proc retrieve*(
       stream = BufferStream.new()
 
     without blk =? (await node.blockStore.getBlock(cid)), err:
+      trace "failed to get block during download"
       return failure(err)
 
     proc streamOneBlock(): Future[void] {.async.} =
       try:
+        trace "pushing one block of data to stream"
         await stream.pushData(blk.data)
       except CatchableError as exc:
         trace "Unable to send block", cid, exc = exc.msg
@@ -184,6 +189,7 @@ proc store*(
 
   # Manifest and chunker should use the same blockSize
   let chunker = LPStreamChunker.new(stream, chunkSize = blockSize)
+  trace "begin chunking..."
 
   try:
     while (
@@ -198,17 +204,24 @@ proc store*(
       if err =? (await self.blockStore.putBlock(blk)).errorOption:
         trace "Unable to store block", cid = blk.cid, err = err.msg
         return failure(&"Unable to store block {blk.cid}")
+    trace "Stream finished"
 
   except CancelledError as exc:
+    trace "CancelledError encountered!"
     raise exc
   except CatchableError as exc:
+    trace "CatchableError encountered!"
     return failure(exc.msg)
   finally:
+    trace "Closing stream..."
     await stream.close()
 
   # Generate manifest
   blockManifest.originalBytes = NBytes(chunker.offset)  # store the exact file size
+  trace "File upload finished", size=blockManifest.originalBytes
+
   without data =? blockManifest.encode():
+    trace "No manifest"
     return failure(
       newException(CodexError, "Could not generate dataset manifest!"))
 
@@ -231,6 +244,8 @@ proc store*(
 
   # Announce manifest
   await self.discovery.provide(manifest.cid)
+
+  trace "File upload finished", manifestcid=manifest.cid
 
   return manifest.cid.success
 
