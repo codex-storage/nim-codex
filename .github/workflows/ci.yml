@@ -57,18 +57,18 @@ jobs:
         with:
           submodules: recursive
 
+      ## Configure ORC on certain runs
+      - name: Setup ORC Test
+        if: matrix.tests == 'orc'
+        run: |
+          echo "CODEX_USE_ORC=1" >> $GITHUB_ENV
+
       - name: Setup Nimbus Build System
         uses: ./.github/actions/nimbus-build-system
         with:
           os: ${{ matrix.os }}
           shell: ${{ matrix.shell }}
           nim_version: ${{ env.nim_version }}
-
-      ## Part 1 Tests ##
-      - name: Setup ORC Test
-        if: matrix.tests == 'orc'
-        run: |
-          echo "CODEX_USE_ORC=1" >> $GITHUB_ENV
 
       ## Part 1 Tests ##
       - name: Unit tests
