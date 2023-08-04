@@ -18,11 +18,8 @@ type
     mcodec: ?MultiCodec
     leaves: seq[MerkleHash]
   MerkleProof* = ref object of RootObj
-    path: seq[MerkleHash]
-
-proc `$`*(t: MerkleTree): string =
-  result &= "height: " & $t.nodes.len
-  result &= "\nnodes: " & $t.nodes
+    index*: int
+    path*: seq[MerkleHash]
 
 proc addLeaf*(self: MerkleTreeBuilder, hash: MerkleHash): ?!void =
   if codec =? self.mcodec:
@@ -81,17 +78,29 @@ proc build*(self: MerkleTreeBuilder): ?!MerkleTree =
 proc root*(self: MerkleTree): MerkleHash =
   self.nodes[^1][0]
 
-proc leaves*(self: MerkleTree): seq[MerkleHash] =
-  self.nodes[0]
-
 proc len*(self: MerkleTree): int =
   self.nodes.foldl(a + b.len, 0)
 
-proc getProof*(self: MerkleTree, index: int): ?!MerkleProof =
-  failure("not implemented")
+proc leaves*(self: MerkleTree): seq[MerkleHash] =
+  self.nodes[0]
 
-proc addProof*(self: MerkleTree, index: int, proof: MerkleProof): ?!void =
-  failure("not implemented")
+proc height*(self: MerkleTree): int =
+  self.nodes.len
+
+proc getProof*(self: MerkleTree, index: int): ?!MerkleProof =
+  if index > self.leaves.high or index < 0:
+    return failure("Index " & $index & " out of range [0.." & $self.leaves.high & "]" )
+
+  var path = newSeq[MerkleHash](self.height - 1)
+  for i in 0..<path.len:
+    let p = index div (1 shl i)
+    path[i] = 
+      if p mod 2 == 0:
+        self.nodes[i][min(p + 1, self.nodes[i].high)]
+      else:
+        self.nodes[i][p - 1]
+
+  success(MerkleProof(index: index, path: path))
 
 func new*(
   T: type MerkleTree,
@@ -103,9 +112,31 @@ func new*(
   nodes[^1] = @[root]
   MerkleTree(nodes: nodes)
 
+proc new*(
+  T: type MerkleTree,
+  leaves: seq[MerkleHash]
+): ?!MerkleTree =
+  let b = MerkleTreeBuilder()
+  for leaf in leaves:
+    if (let res = b.addLeaf(leaf); res.isErr):
+      return failure(res.error)
+
+  b.build()
+
 proc len*(self: MerkleProof): int =
   self.path.len
 
 proc `[]`*(self: MerkleProof, i: Natural) : MerkleHash {.inline.} =
   # This allows reading by [0], but not assigning.
   self.path[i]
+
+proc `$`*(t: MerkleTree): string =
+  result &= "height: " & $t.nodes.len
+  result &= "\nnodes: " & $t.nodes
+
+proc `$`*(self: MerkleProof): string =
+  result &= "index: " & $self.index
+  result &= "\nleaves: " & $self.index
+
+func `==`*(a, b: MerkleProof): bool =
+  (a.index == b.index) and (a.path == b.path)

@@ -8,188 +8,101 @@ import ../helpers
 import pkg/questionable/results
 
 checksuite "merkletree":
-  let mcodec = multiCodec("sha2-256")
+  const sha256 = multiCodec("sha2-256")
+  const sha512 = multiCodec("sha2-512")
+
+  proc randomHash(codec: MultiCodec = sha256): MerkleHash =
+    var data: array[0..31, byte]
+    for i in 0..31:
+      data[i] = rand(uint8)
+    return MultiHash.digest($codec, data).tryGet()
+
+  proc combine(a, b: MerkleHash, codec: MultiCodec = sha256): MerkleHash =
+    var buf = newSeq[byte](a.size + b.size)
+    for i in 0..<a.size:
+      buf[i] = a.data.buffer[i]
+    for i in 0..<b.size:
+      buf[i + a.size] = b.data.buffer[i]
+    return MultiHash.digest($codec, buf).tryGet()
 
   var
-    builder: MerkleTreeBuilder
-    leaf1: MerkleHash
-    leaf2: MerkleHash
-    leaf3: MerkleHash
-    leaf4: MerkleHash
-    node12: MerkleHash
-    node34: MerkleHash
-    root: MerkleHash
-
-  proc createRandomHash(): MerkleHash =
-    var data: array[0..31, byte]
-    for i in 0..31:
-      data[i] = rand(uint8)
-    return MultiHash.digest($mcodec, data).tryGet()
-
-  proc combine(a: MerkleHash, b: MerkleHash): MerkleHash =
-    var buf = newSeq[byte](64)
-    for i in 0..31:
-      buf[i] = a.data.buffer[i]
-      buf[i + 32] = b.data.buffer[i]
-    return MultiHash.digest($mcodec, buf).tryGet()
-
-  proc createMerkleTree(leaves: seq[MerkleHash]): MerkleTree =
-    let b = MerkleTreeBuilder()
-    for leaf in leaves:
-      check:
-        not isErr(b.addLeaf(leaf))
-    return b.build().tryGet()
-
-  proc createRandomMerkleTree(leavesCount: int): MerkleTree =
-    var leaves = newSeq[MerkleHash]()
-    for i in 0..<leavesCount:
-      leaves.add(createRandomHash())
-    return createMerkleTree(leaves)
-
-  proc assertExampleTreeExpectedPaths(tree: MerkleTree) =
-    let expectedPaths = @[
-        @[leaf1, node12, root],
-        @[leaf2, node12, root],
-        @[leaf3, node34, root],
-        @[leaf4, node34, root]
-      ]
-
-    for i in 0..3:
-      let expectedPath = expectedPaths[i]
-      let proof = tree.getProof(i).tryGet()
-      check:
-        proof.len == expectedPath.len
-      for x in 0..proof.len:
-        check:
-          proof[x] == expectedPath[x]
+    leaves: array[0..10, MerkleHash]
 
   setup:
-    builder = MerkleTreeBuilder()
-    leaf1 = createRandomHash()
-    leaf2 = createRandomHash()
-    leaf3 = createRandomHash()
-    leaf4 = createRandomHash()
-    node12 = combine(leaf1, leaf2)
-    node34 = combine(leaf3, leaf4)
-    root = combine(node12, node34)
+    for i in 0..leaves.high:
+      leaves[i] = randomHash()
 
-  test "can build tree with one leaf":
-    check:
-      not isErr(builder.addLeaf(leaf1))
-
-    let tree = builder.build().tryGet()
-    echo "tree is" & $tree
+  test "tree with one leaf has expected root":
+    let tree = MerkleTree.new(leaves[0..0]).tryGet()
 
     check:
-      tree.leaves.len == 1
+      tree.leaves == leaves[0..0]
+      tree.root == leaves[0]
       tree.len == 1
-      tree.root == leaf1
 
-  test "fails when adding leaf with different hash codec":
+  test "tree with two leaves has expected root":
     let
-      differentCodec = multiCodec("identity")
+      expectedRoot = combine(leaves[0], leaves[1])
 
-    var data: array[0..31, byte]
-    for i in 0..31:
-      data[i] = rand(uint8)
-
-    let differentLeaf = MultiHash.digest($differentCodec, data).tryGet()
+    let tree = MerkleTree.new(leaves[0..1]).tryGet()
 
     check:
-      not isErr(builder.addLeaf(leaf1))
-      isErr(builder.addLeaf(differentLeaf))
-
-  test "tree with two leaves has expected root hash":
-    let
-      expectedRootHash = combine(leaf1, leaf2)
-
-    check:
-      not isErr(builder.addLeaf(leaf1))
-      not isErr(builder.addLeaf(leaf2))
-
-    let tree = builder.build().tryGet()
-
-    check:
-      tree.leaves.len == 2
+      tree.leaves == leaves[0..1]
       tree.len == 3
-      tree.root == expectedRootHash
+      tree.root == expectedRoot
 
-  test "tree with three leaves has expected root hash":
+  test "tree with three leaves has expected root":
     let
-      expectedRootHash = combine(combine(leaf1, leaf2), combine(leaf3, leaf3))
+      expectedRoot = combine(combine(leaves[0], leaves[1]), combine(leaves[2], leaves[2]))
+
+    let tree = MerkleTree.new(leaves[0..2]).tryGet()
 
     check:
-      not isErr(builder.addLeaf(leaf1))
-      not isErr(builder.addLeaf(leaf2))
-      not isErr(builder.addLeaf(leaf3))
-
-    let tree = builder.build().tryGet()
-
-    check:
-      tree.leaves.len == 3
+      tree.leaves == leaves[0..2]
       tree.len == 6
-      tree.root == expectedRootHash
+      tree.root == expectedRoot
 
-  test "tree can access leaves by index":
-    let tree = createMerkleTree(@[leaf1, leaf2, leaf3, leaf4])
+  test "tree with two leaves provides expected proofs":
+    let tree = MerkleTree.new(leaves[0..1]).tryGet()
+
+    let expectedProofs = [
+      MerkleProof(index: 0, path: @[leaves[1]]),
+      MerkleProof(index: 1, path: @[leaves[0]]),
+    ]
 
     check:
-      tree.leaves.len == 4
-      tree.len == 10
-      tree.leaves[0] == leaf1
-      tree.leaves[1] == leaf2
-      tree.leaves[2] == leaf3
-      tree.leaves[3] == leaf4
+      tree.getProof(0).tryGet() == expectedProofs[0]
+      tree.getProof(1).tryGet() == expectedProofs[1]
+  
+  test "tree with three leaves provides expected proofs":
+    let tree = MerkleTree.new(leaves[0..2]).tryGet()
 
-  test "tree can provide merkle proof by index":
-    let tree = createMerkleTree(@[leaf1, leaf2, leaf3, leaf4])
+    let expectedProofs = [
+      MerkleProof(index: 0, path: @[leaves[1], combine(leaves[2], leaves[2])]),
+      MerkleProof(index: 1, path: @[leaves[0], combine(leaves[2], leaves[2])]),
+      MerkleProof(index: 2, path: @[leaves[2], combine(leaves[0], leaves[1])]),
+    ]
 
-    assertExampleTreeExpectedPaths(tree)
+    check:
+      tree.getProof(0).tryGet() == expectedProofs[0]
+      tree.getProof(1).tryGet() == expectedProofs[1]
+      tree.getProof(2).tryGet() == expectedProofs[2]
 
   test "getProof fails for index out of bounds":
-    let tree = createMerkleTree(@[leaf1, leaf2, leaf3, leaf4])
+    let tree = MerkleTree.new(leaves[0..3]).tryGet()
 
     check:
       isErr(tree.getProof(-1))
       isErr(tree.getProof(4))
 
   test "can create MerkleTree directly from root hash":
-    let tree = MerkleTree.new(root, 1)
+    let tree = MerkleTree.new(leaves[0], 1)
 
     check:
-      # these dimenions may need adjusting:
-      tree.leaves.len == 0
-      tree.len == 1
-      # do we need to pass any of the tree dimensions to the constructor for any reason?
+      tree.root == leaves[0]
 
-      tree.root == root
-
-  test "can recreate a MerkleTree from MerkleProofs":
-    let
-      sourceTree = createMerkleTree(@[leaf1, leaf2, leaf3, leaf4])
-      targetTree = MerkleTree.new(root, 4)
-
-    for i in 0..3:
-      let proof = sourceTree.getProof(i).tryGet()
-      check:
-        not isErr(targetTree.addProof(i, proof))
+  test "cannot create MerkleTree from leaves with different codec":
+    let res = MerkleTree.new(@[randomHash(sha256), randomHash(sha512)])
 
     check:
-      targetTree.leaves.len == 4
-      targetTree.len == 10
-      targetTree.root == root
-
-    assertExampleTreeExpectedPaths(targetTree)
-
-  test "addProof will reject proofs from foreign trees":
-    let
-      sourceTree = createMerkleTree(@[leaf1, leaf2, leaf3, leaf4])
-      foreignTree = createRandomMerkleTree(4)
-      targetTree = MerkleTree.new(root, 4)
-
-    for i in 0..3:
-      check:
-        isErr(targetTree.addProof(i, foreignTree.getProof(i).tryGet()))
-        not isErr(targetTree.addProof(i, sourceTree.getProof(i).tryGet()))
-
-    assertExampleTreeExpectedPaths(targetTree)
+      isErr(res)
