@@ -12,11 +12,13 @@ push: {.upraises: [].}
 
 import pkg/chronicles
 import pkg/questionable/results
-import pkg/libp2p
+import pkg/libp2p/crypto/crypto
 
 import ./fileutils
 import ../errors
 import ../rng
+
+export crypto
 
 type
   CodexKeyError = object of CodexError
@@ -37,7 +39,6 @@ proc setupKey*(path: string): ?!PrivateKey =
     warn "The network private key file is not safe, aborting"
     return failure newException(
       CodexKeyUnsafeError, "The network private key file is not safe")
-
-  return PrivateKey.init(
-    ? path.readAllBytes().mapFailure(CodexKeyError))
-    .mapFailure(CodexKeyError)
+  
+  let kb = ? path.readAllBytes().mapFailure(CodexKeyError)
+  return PrivateKey.init(kb).mapFailure(CodexKeyError)

@@ -8,7 +8,6 @@
 ## those terms.
 
 import pkg/chronos
-import pkg/libp2p
 import pkg/asynctest
 import pkg/questionable/results
 import pkg/codex/blocktype as bt

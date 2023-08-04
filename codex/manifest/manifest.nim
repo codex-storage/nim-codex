@@ -101,7 +101,8 @@ func `[]=`*(self: Manifest, i: BackwardsIndex, item: Cid) =
   self.blocks[self.len - i.int] = item
 
 func isManifest*(cid: Cid): ?!bool =
-  ($(?cid.contentType().mapFailure) in ManifestContainers).success
+  let res = ?cid.contentType().mapFailure(CodexError)
+  ($(res) in ManifestContainers).success
 
 func isManifest*(mc: MultiCodec): ?!bool =
   ($mc in ManifestContainers).success
@@ -189,11 +190,8 @@ proc makeRoot*(self: Manifest): ?!void =
       stack.add(mh)
 
   if stack.len == 1:
-    let cid = ? Cid.init(
-      self.version,
-      self.codec,
-      (? EmptyDigests[self.version][self.hcodec].catch))
-      .mapFailure
+    let digest = ? EmptyDigests[self.version][self.hcodec].catch
+    let cid = ? Cid.init(self.version, self.codec, digest).mapFailure
 
     self.rootHash = cid.some
 
@@ -225,8 +223,8 @@ proc new*(
   ## Create a manifest using an array of `Cid`s
   ##
 
-  if hcodec notin EmptyDigests[version]:
-    return failure("Unsupported manifest hash codec!")
+  # if hcodec notin EmptyDigests[version]:
+  #   return failure("Unsupported manifest hash codec!")
 
   T(
     blocks: @blocks,

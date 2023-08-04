@@ -13,7 +13,7 @@ push: {.upraises: [].}
 
 import pkg/chronos
 import pkg/chronicles
-import pkg/libp2p
+import pkg/libp2p/cid
 import pkg/metrics
 import pkg/questionable
 import pkg/questionable/results
@@ -26,7 +26,7 @@ import ../blocktype
 import ../clock
 import ../systemclock
 
-export blocktype, libp2p
+export blocktype, cid
 
 logScope:
   topics = "codex repostore"

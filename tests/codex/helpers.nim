@@ -14,6 +14,8 @@ import ../checktest
 
 export randomchunker, nodeutils, mockdiscovery, eventually, checktest, manifest
 
+export libp2p except setup, eventually
+
 # NOTE: The meaning of equality for blocks
 # is changed here, because blocks are now `ref`
 # types. This is only in tests!!!

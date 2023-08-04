@@ -5,9 +5,9 @@ import std/algorithm
 import pkg/stew/byteutils
 import pkg/asynctest
 import pkg/chronos
-import pkg/libp2p
+import pkg/libp2p/errors
 import pkg/libp2p/routing_record
-import pkg/libp2pdht/discv5/protocol as discv5
+import pkg/codexdht/discv5/protocol as discv5
 
 import pkg/codex/rng
 import pkg/codex/blockexchange

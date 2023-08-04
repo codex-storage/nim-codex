@@ -11,7 +11,7 @@ import std/sequtils
 
 import pkg/chronos
 import pkg/chronicles
-import pkg/libp2p
+import pkg/libp2p/cid
 import pkg/metrics
 import pkg/questionable
 import pkg/questionable/results

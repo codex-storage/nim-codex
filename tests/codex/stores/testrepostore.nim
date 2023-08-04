@@ -7,7 +7,6 @@ import pkg/questionable/results
 
 import pkg/chronos
 import pkg/asynctest
-import pkg/libp2p
 import pkg/stew/byteutils
 import pkg/stew/endians2
 import pkg/datastore
