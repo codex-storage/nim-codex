@@ -14,22 +14,9 @@ type
   MerkleHash* = MultiHash
   MerkleTree* = ref object of RootObj
     nodes: seq[seq[MerkleHash]]
-  MerkleTreeBuilder* = ref object of RootObj
-    mcodec: ?MultiCodec
-    leaves: seq[MerkleHash]
   MerkleProof* = ref object of RootObj
     index*: int
     path*: seq[MerkleHash]
-
-proc addLeaf*(self: MerkleTreeBuilder, hash: MerkleHash): ?!void =
-  if codec =? self.mcodec:
-    if codec != hash.mcodec:
-      return failure("Expected codec is " & $codec & " but " & $hash.mcodec & " received")
-  else:
-    self.mcodec = hash.mcodec.some
-
-  self.leaves.add(hash)
-  return success()
 
 func calcTreeHeight(leavesCount: int): int =
   if isPowerOfTwo(leavesCount): 
@@ -37,13 +24,17 @@ func calcTreeHeight(leavesCount: int): int =
   else:
     fastLog2(leavesCount) + 2
 
-proc build*(self: MerkleTreeBuilder): ?!MerkleTree =
-  let height = calcTreeHeight(self.leaves.len)
-  var nodes = newSeq[seq[MerkleHash]](height)
+proc newTree(leaves: seq[MerkleHash]): ?!MerkleTree =
 
-  without mcodec =? self.mcodec and 
-          digestSize =? self.leaves.?[0].?size:
-    return failure("Unable to determine codec, no leaves were added")
+  without mcodec =? leaves.?[0].?mcodec and
+          digestSize =? leaves.?[0].?size:
+    return failure("At least one leaf is required")
+
+  if not leaves.allIt(it.mcodec == mcodec):
+    return failure("All leaves must use the same codec")
+
+  let height = calcTreeHeight(leaves.len)
+  var nodes = newSeq[seq[MerkleHash]](height)
 
   var buf = newSeq[byte](digestSize * 2)
   proc combine(l, r: MerkleHash): ?!MerkleHash =
@@ -55,9 +46,9 @@ proc build*(self: MerkleTreeBuilder): ?!MerkleTree =
     )
 
   # copy leaves
-  nodes[0] = newSeq[MerkleHash](self.leaves.len)
-  for j in 0..<self.leaves.len:
-    nodes[0][j] = self.leaves[j]
+  nodes[0] = newSeq[MerkleHash](leaves.len)
+  for j in 0..<leaves.len:
+    nodes[0][j] = leaves[j]
 
   # calculate internal nodes
   for i in 1..<height:
@@ -116,12 +107,7 @@ proc new*(
   T: type MerkleTree,
   leaves: seq[MerkleHash]
 ): ?!MerkleTree =
-  let b = MerkleTreeBuilder()
-  for leaf in leaves:
-    if (let res = b.addLeaf(leaf); res.isErr):
-      return failure(res.error)
-
-  b.build()
+  newTree(leaves)
 
 proc len*(self: MerkleProof): int =
   self.path.len
