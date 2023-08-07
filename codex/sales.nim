@@ -404,7 +404,6 @@ proc unsubscribe(sales: Sales) {.async.} =
 proc start*(sales: Sales) {.async.} =
   await sales.startSlotQueue()
   await sales.subscribe()
-  await sales.load()
 
 proc stop*(sales: Sales) {.async.} =
   trace "stopping sales"

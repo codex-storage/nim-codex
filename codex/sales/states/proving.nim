@@ -41,13 +41,16 @@ proc proveLoop(state: SaleProving, market: Market, clock: Clock, request: Storag
     let currentPeriod = await getCurrentPeriod()
     let slotState = await market.slotState(slot.id)
     if slotState == SlotState.Finished:
-      debug "Slot reached finished state", period = currentPeriod, requestId = $request.id, slotIndex
+      debug "Slot reached finished state", period = currentPeriod, requestId = $request.id, slotIndex, slotId = $slot.id
       return
 
-    debug "Proving for new period", period = currentPeriod, requestId = $request.id, slotIndex
+    if slotState != SlotState.Filled:
+      raise newException(ValueError, "Slot is not in Filled state!")
+
+    debug "Proving for new period", period = currentPeriod, requestId = $request.id, slotIndex, slotId = $slot.id
 
     if (await market.isProofRequired(slotId)) or (await market.willProofBeRequired(slotId)):
-      debug "Proof is required", period = currentPeriod, requestId = $request.id, slotIndex
+      debug "Proof is required", period = currentPeriod, requestId = $request.id, slotIndex, slotId = $slot.id
       await state.prove(slot, onProve, market, currentPeriod)
 
     await waitUntilPeriod(currentPeriod + 1)

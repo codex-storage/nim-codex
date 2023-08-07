@@ -23,6 +23,7 @@ when codex_enable_proof_failures:
     error "Submitting invalid proof failed", period = period, slotId = $slotId, msg = error.msg
 
   method prove*(state: SaleProvingSimulated, slot: Slot, onProve: OnProve, market: Market, currentPeriod: Period) {.async.} =
+    trace "Processing proving in simulated mode"
     state.proofCount += 1
     if state.failEveryNProofs > 0 and
       state.proofCount mod state.failEveryNProofs == 0:

@@ -2,6 +2,7 @@ import pkg/asynctest
 import pkg/chronos
 import pkg/questionable
 import pkg/codex/contracts/requests
+import pkg/codex/sales/states/provingsimulated
 import pkg/codex/sales/states/proving
 import pkg/codex/sales/states/cancelled
 import pkg/codex/sales/states/failed
@@ -13,20 +14,36 @@ import ../../helpers
 import ../../helpers/mockmarket
 import ../../helpers/mockclock
 
-asyncchecksuite "sales state 'proving'":
+asyncchecksuite "sales state 'simulated-proving'":
 
   let slot = Slot.example
   let request = slot.request
   let proof = exampleProof()
+  let failEveryNProofs = 3
+  let totalProofs = 6
 
   var market: MockMarket
   var clock: MockClock
   var agent: SalesAgent
-  var state: SaleProving
+  var state: SaleProvingSimulated
+
+  var proofSubmitted: Future[void] = newFuture[void]("proofSubmitted")
+  var submitted: seq[seq[byte]]
+  var subscription: Subscription
 
   setup:
     clock = MockClock.new()
+
+    proc onProofSubmission(id: SlotId, proof: seq[byte]) =
+      submitted.add(proof)
+      proofSubmitted.complete()
+      proofSubmitted = newFuture[void]("proofSubmitted")
+
     market = MockMarket.new()
+    market.slotState[slot.id] = SlotState.Filled
+    market.setProofRequired(slot.id, true)
+    subscription = await market.subscribeProofSubmission(onProofSubmission)
+
     let onProve = proc (slot: Slot): Future[seq[byte]] {.async.} =
                         return proof
     let context = SalesContext(market: market, clock: clock, onProve: onProve.some)
@@ -34,11 +51,22 @@ asyncchecksuite "sales state 'proving'":
                           request.id,
                           slot.slotIndex,
                           request.some)
-    state = SaleProving.new()
+    state = SaleProvingSimulated.new()
+    state.failEveryNProofs = failEveryNProofs
+
+  teardown:
+    await subscription.unsubscribe()
 
   proc advanceToNextPeriod(market: Market) {.async.} =
     let periodicity = await market.periodicity()
     clock.advance(periodicity.seconds.truncate(int64))
+
+  proc waitForProvingRounds(market: Market, rounds: int) {.async.} =
+    var rnds = rounds - 1 # proof round runs prior to advancing
+    while rnds > 0:
+      await market.advanceToNextPeriod()
+      await proofSubmitted
+      rnds -= 1
 
   test "switches to cancelled state when request expires":
     let next = state.onCancelled(request)
@@ -48,26 +76,13 @@ asyncchecksuite "sales state 'proving'":
     let next = state.onFailed(request)
     check !next of SaleFailed
 
-  test "submits proofs":
-    var receivedIds: seq[SlotId]
-    var receivedProofs: seq[seq[byte]]
-
-    proc onProofSubmission(id: SlotId, proof: seq[byte]) =
-      receivedIds.add(id)
-      receivedProofs.add(proof)
-
-    let subscription = await market.subscribeProofSubmission(onProofSubmission)
-    market.slotState[slot.id] = SlotState.Filled
-
+  test "submits invalid proof every 3 proofs":
     let future = state.run(agent)
 
-    market.setProofRequired(slot.id, true)
-    await market.advanceToNextPeriod()
-
-    check eventuallyCheck receivedIds == @[slot.id] and receivedProofs == @[proof]
+    await market.waitForProvingRounds(totalProofs)
+    check submitted == @[proof, proof, @[], proof, proof, @[]]
 
     await future.cancelAndWait()
-    await subscription.unsubscribe()
 
   test "switches to payout state when request is finished":
     market.slotState[slot.id] = SlotState.Filled
@@ -79,4 +94,3 @@ asyncchecksuite "sales state 'proving'":
 
     check eventuallyCheck future.finished
     check !(future.read()) of SalePayout
-
