@@ -5,18 +5,17 @@ import std/sugar
 
 import pkg/libp2p
 import pkg/stew/byteutils
-
 import pkg/questionable
 import pkg/questionable/results
 
-
 type
   MerkleHash* = MultiHash
-  MerkleTree* = ref object of RootObj
-    nodes: seq[seq[MerkleHash]]
-  MerkleProof* = ref object of RootObj
-    index*: int
-    path*: seq[MerkleHash]
+  MerkleTree* = object
+    leavesCount: int
+    nodes: seq[MerkleHash]
+  MerkleProof* = object
+    index: int
+    path: seq[MerkleHash]
 
 func calcTreeHeight(leavesCount: int): int =
   if isPowerOfTwo(leavesCount): 
@@ -24,7 +23,75 @@ func calcTreeHeight(leavesCount: int): int =
   else:
     fastLog2(leavesCount) + 2
 
-proc newTree(leaves: seq[MerkleHash]): ?!MerkleTree =
+func getLowHigh(leavesCount, level: int): (int, int) =
+  var width = leavesCount
+  var low = 0
+  for _ in 0..<level:
+    low += width
+    width = (width + 1) div 2
+  
+  (low, low + width - 1)
+
+func getLowHigh(self: MerkleTree, level: int): (int, int) =
+  getLowHigh(self.leavesCount, level)
+
+func getTotalSize(leavesCount: int): int =
+  let height = calcTreeHeight(leavesCount)
+  getLowHigh(leavesCount, height - 1)[1] + 1
+
+proc getWidth(self: MerkleTree, i: int): int =
+  let (low, high) = self.getLowHigh(i)
+  high - low + 1
+
+func getChildren(self: MerkleTree, i, j: int): (MerkleHash, MerkleHash) =
+  let (low, high) = self.getLowHigh(i - 1)
+  let leftIdx = low + 2 * j
+  let rightIdx = min(leftIdx + 1, high)
+
+  (self.nodes[leftIdx], self.nodes[rightIdx])
+
+func getSibling(self: MerkleTree, i, j: int): MerkleHash =
+  let (low, high) = self.getLowHigh(i)
+  if j mod 2 == 0:
+    self.nodes[min(low + j + 1, high)]
+  else:
+    self.nodes[low + j - 1]
+
+proc setNode(self: var MerkleTree, i, j: int, value: MerkleHash): void =
+  let (low, _) = self.getLowHigh(i)
+  self.nodes[low + j] = value
+
+proc root*(self: MerkleTree): MerkleHash =
+  self.nodes[^1]
+
+proc len*(self: MerkleTree): int =
+  self.nodes.len
+
+proc leaves*(self: MerkleTree): seq[MerkleHash] =
+  self.nodes[0..<self.leavesCount]
+
+proc nodes*(self: MerkleTree): seq[MerkleHash] =
+  self.nodes
+
+proc height*(self: MerkleTree): int =
+  calcTreeHeight(self.leavesCount)
+
+proc `$`*(self: MerkleTree): string =
+  result &= "leavesCount: " & $self.leavesCount
+  result &= "\nnodes: " & $self.nodes
+
+proc getProof*(self: MerkleTree, index: int): ?!MerkleProof =
+  if index > self.leaves.high or index < 0:
+    return failure("Index " & $index & " out of range [0.." & $self.leaves.high & "]" )
+
+  var path = newSeq[MerkleHash](self.height - 1)
+  for i in 0..<path.len:
+    let j = index div (1 shl i)
+    path[i] = self.getSibling(i, j)
+
+  success(MerkleProof(index: index, path: path))
+
+proc initTreeFromLeaves(leaves: seq[MerkleHash]): ?!MerkleTree =
 
   without mcodec =? leaves.?[0].?mcodec and
           digestSize =? leaves.?[0].?size:
@@ -33,8 +100,8 @@ proc newTree(leaves: seq[MerkleHash]): ?!MerkleTree =
   if not leaves.allIt(it.mcodec == mcodec):
     return failure("All leaves must use the same codec")
 
-  let height = calcTreeHeight(leaves.len)
-  var nodes = newSeq[seq[MerkleHash]](height)
+  let totalSize = getTotalSize(leaves.len)
+  var tree = MerkleTree(leavesCount: leaves.len, nodes: newSeq[MerkleHash](totalSize))
 
   var buf = newSeq[byte](digestSize * 2)
   proc combine(l, r: MerkleHash): ?!MerkleHash =
@@ -46,83 +113,52 @@ proc newTree(leaves: seq[MerkleHash]): ?!MerkleTree =
     )
 
   # copy leaves
-  nodes[0] = newSeq[MerkleHash](leaves.len)
   for j in 0..<leaves.len:
-    nodes[0][j] = leaves[j]
+    tree.setNode(0, j, leaves[j])
 
-  # calculate internal nodes
-  for i in 1..<height:
-    let levelWidth = (nodes[i-1].len + 1) div 2
-    nodes[i] = newSeq[MerkleHash](levelWidth)
-
-    for j in 0..<levelWidth:
-      let l = nodes[i-1][2 * j]
-      let r = nodes[i-1][min(2 * j + 1, nodes[i-1].high)]
+  # calculate intermediate nodes
+  for i in 1..<tree.height:
+    for j in 0..<tree.getWidth(i):
+      let (left, right) = tree.getChildren(i, j)
       
-      without mhash =? combine(l, r), error:
+      without mhash =? combine(left, right), error:
         return failure(error)
-      
-      nodes[i][j] = mhash
+      tree.setNode(i, j, mhash)
 
-  success(MerkleTree(nodes: nodes))
+  success(tree)
 
-proc root*(self: MerkleTree): MerkleHash =
-  self.nodes[^1][0]
-
-proc len*(self: MerkleTree): int =
-  self.nodes.foldl(a + b.len, 0)
-
-proc leaves*(self: MerkleTree): seq[MerkleHash] =
-  self.nodes[0]
-
-proc height*(self: MerkleTree): int =
-  self.nodes.len
-
-proc getProof*(self: MerkleTree, index: int): ?!MerkleProof =
-  if index > self.leaves.high or index < 0:
-    return failure("Index " & $index & " out of range [0.." & $self.leaves.high & "]" )
-
-  var path = newSeq[MerkleHash](self.height - 1)
-  for i in 0..<path.len:
-    let p = index div (1 shl i)
-    path[i] = 
-      if p mod 2 == 0:
-        self.nodes[i][min(p + 1, self.nodes[i].high)]
-      else:
-        self.nodes[i][p - 1]
-
-  success(MerkleProof(index: index, path: path))
-
-func new*(
+func init*(
   T: type MerkleTree,
   root: MerkleHash,
   leavesCount: int
 ): MerkleTree =
-  let height = calcTreeHeight(leavesCount)
-  var nodes = newSeq[seq[MerkleHash]](height)
-  nodes[^1] = @[root]
-  MerkleTree(nodes: nodes)
+  let totalSize = getTotalSize(leavesCount)
+  var nodes = newSeq[MerkleHash](totalSize)
+  nodes[^1] = root
+  MerkleTree(nodes: nodes, leavesCount: leavesCount)
 
-proc new*(
+proc init*(
   T: type MerkleTree,
   leaves: seq[MerkleHash]
 ): ?!MerkleTree =
-  newTree(leaves)
+  initTreeFromLeaves(leaves)
 
-proc len*(self: MerkleProof): int =
-  self.path.len
+proc index*(self: MerkleProof): int =
+  self.index
 
-proc `[]`*(self: MerkleProof, i: Natural) : MerkleHash {.inline.} =
-  # This allows reading by [0], but not assigning.
-  self.path[i]
-
-proc `$`*(t: MerkleTree): string =
-  result &= "height: " & $t.nodes.len
-  result &= "\nnodes: " & $t.nodes
+proc path*(self: MerkleProof): seq[MerkleHash] =
+  self.path
 
 proc `$`*(self: MerkleProof): string =
   result &= "index: " & $self.index
-  result &= "\nleaves: " & $self.index
+  result &= "\npath: " & $self.path
 
 func `==`*(a, b: MerkleProof): bool =
   (a.index == b.index) and (a.path == b.path)
+
+proc init*(
+  T: type MerkleProof,
+  index: int,
+  path: seq[MerkleHash]
+): MerkleProof =
+  MerkleProof(index: index, path: path)

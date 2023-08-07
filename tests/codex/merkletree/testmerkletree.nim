@@ -33,7 +33,7 @@ checksuite "merkletree":
       leaves[i] = randomHash()
 
   test "tree with one leaf has expected root":
-    let tree = MerkleTree.new(leaves[0..0]).tryGet()
+    let tree = MerkleTree.init(leaves[0..0]).tryGet()
 
     check:
       tree.leaves == leaves[0..0]
@@ -44,7 +44,7 @@ checksuite "merkletree":
     let
       expectedRoot = combine(leaves[0], leaves[1])
 
-    let tree = MerkleTree.new(leaves[0..1]).tryGet()
+    let tree = MerkleTree.init(leaves[0..1]).tryGet()
 
     check:
       tree.leaves == leaves[0..1]
@@ -55,7 +55,7 @@ checksuite "merkletree":
     let
       expectedRoot = combine(combine(leaves[0], leaves[1]), combine(leaves[2], leaves[2]))
 
-    let tree = MerkleTree.new(leaves[0..2]).tryGet()
+    let tree = MerkleTree.init(leaves[0..2]).tryGet()
 
     check:
       tree.leaves == leaves[0..2]
@@ -63,11 +63,11 @@ checksuite "merkletree":
       tree.root == expectedRoot
 
   test "tree with two leaves provides expected proofs":
-    let tree = MerkleTree.new(leaves[0..1]).tryGet()
+    let tree = MerkleTree.init(leaves[0..1]).tryGet()
 
     let expectedProofs = [
-      MerkleProof(index: 0, path: @[leaves[1]]),
-      MerkleProof(index: 1, path: @[leaves[0]]),
+      MerkleProof.init(0, @[leaves[1]]),
+      MerkleProof.init(1, @[leaves[0]]),
     ]
 
     check:
@@ -75,12 +75,12 @@ checksuite "merkletree":
       tree.getProof(1).tryGet() == expectedProofs[1]
   
   test "tree with three leaves provides expected proofs":
-    let tree = MerkleTree.new(leaves[0..2]).tryGet()
+    let tree = MerkleTree.init(leaves[0..2]).tryGet()
 
     let expectedProofs = [
-      MerkleProof(index: 0, path: @[leaves[1], combine(leaves[2], leaves[2])]),
-      MerkleProof(index: 1, path: @[leaves[0], combine(leaves[2], leaves[2])]),
-      MerkleProof(index: 2, path: @[leaves[2], combine(leaves[0], leaves[1])]),
+      MerkleProof.init(0, @[leaves[1], combine(leaves[2], leaves[2])]),
+      MerkleProof.init(1, @[leaves[0], combine(leaves[2], leaves[2])]),
+      MerkleProof.init(2, @[leaves[2], combine(leaves[0], leaves[1])]),
     ]
 
     check:
@@ -89,20 +89,20 @@ checksuite "merkletree":
       tree.getProof(2).tryGet() == expectedProofs[2]
 
   test "getProof fails for index out of bounds":
-    let tree = MerkleTree.new(leaves[0..3]).tryGet()
+    let tree = MerkleTree.init(leaves[0..3]).tryGet()
 
     check:
       isErr(tree.getProof(-1))
       isErr(tree.getProof(4))
 
   test "can create MerkleTree directly from root hash":
-    let tree = MerkleTree.new(leaves[0], 1)
+    let tree = MerkleTree.init(leaves[0], 1)
 
     check:
       tree.root == leaves[0]
 
   test "cannot create MerkleTree from leaves with different codec":
-    let res = MerkleTree.new(@[randomHash(sha256), randomHash(sha512)])
+    let res = MerkleTree.init(@[randomHash(sha256), randomHash(sha512)])
 
     check:
       isErr(res)
