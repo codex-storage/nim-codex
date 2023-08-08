@@ -22,6 +22,104 @@ import ../helpers/eventually
 import ../examples
 import ./helpers
 
+asyncchecksuite "Sales - start":
+  let proof = exampleProof()
+
+  var request: StorageRequest
+  var sales: Sales
+  var market: MockMarket
+  var clock: MockClock
+  var proving: Proving
+  var reservations: Reservations
+  var repo: RepoStore
+  var queue: SlotQueue
+  var itemsProcessed: seq[SlotQueueItem]
+
+  setup:
+    request = StorageRequest(
+      ask: StorageAsk(
+        slots: 4,
+        slotSize: 100.u256,
+        duration: 60.u256,
+        reward: 10.u256,
+        collateral: 200.u256,
+      ),
+      content: StorageContent(
+        cid: "some cid"
+      ),
+      expiry: (getTime() + initDuration(hours=1)).toUnix.u256
+    )
+
+    market = MockMarket.new()
+    clock = MockClock.new()
+    proving = Proving.new()
+    let repoDs = SQLiteDatastore.new(Memory).tryGet()
+    let metaDs = SQLiteDatastore.new(Memory).tryGet()
+    repo = RepoStore.new(repoDs, metaDs)
+    await repo.start()
+    sales = Sales.new(market, clock, proving, repo)
+    reservations = sales.context.reservations
+    sales.onStore = proc(request: StorageRequest,
+                         slot: UInt256,
+                         onBatch: BatchProc): Future[?!void] {.async.} =
+      return success()
+    queue = sales.context.slotQueue
+    proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
+      return proof
+    itemsProcessed = @[]
+    request.expiry = (clock.now() + 42).u256
+
+  teardown:
+    await sales.stop()
+    await repo.stop()
+
+  test "load slots when Sales module starts":
+    let me = await market.getSigner()
+
+    request.ask.slots = 2
+    market.requested = @[request]
+    market.requestState[request.id] = RequestState.New
+
+    proc fillSlot(slotIdx: UInt256 = 0.u256) {.async.} =
+      let address = await market.getSigner()
+      let slot = MockSlot(requestId: request.id,
+                          slotIndex: slotIdx,
+                          proof: proof,
+                          host: address)
+      market.filled.add slot
+      market.slotState[slotId(request.id, slotIdx)] = SlotState.Filled
+
+    let slot0 = MockSlot(requestId: request.id,
+                     slotIndex: 0.u256,
+                     proof: proof,
+                     host: me)
+    await fillSlot(slot0.slotIndex)
+
+    let slot1 = MockSlot(requestId: request.id,
+                     slotIndex: 1.u256,
+                     proof: proof,
+                     host: me)
+    await fillSlot(slot1.slotIndex)
+    market.activeSlots[me] = @[request.slotId(0.u256), request.slotId(1.u256)]
+    market.requested = @[request]
+    market.activeRequests[me] = @[request.id]
+
+    await sales.start()
+
+    let expected = SalesData(requestId: request.id, request: some request)
+    # because sales.load() calls agent.start, we won't know the slotIndex
+    # randomly selected for the agent, and we also won't know the value of
+    # `failed`/`fulfilled`/`cancelled` futures, so we need to compare
+    # the properties we know
+    # TODO: when calling sales.load(), slot index should be restored and not
+    # randomly re-assigned, so this may no longer be needed
+    proc `==` (data0, data1: SalesData): bool =
+      return data0.requestId == data1.requestId and
+             data0.request == data1.request
+
+    check eventuallyCheck sales.agents.len == 2
+    check sales.agents.all(agent => agent.data == expected)
+
 asyncchecksuite "Sales":
   let proof = exampleProof()
 
@@ -58,6 +156,10 @@ asyncchecksuite "Sales":
     )
 
     market = MockMarket.new()
+
+    let me = await market.getSigner()
+    market.activeSlots[me] = @[]
+
     clock = MockClock.new()
     proving = Proving.new()
     let repoDs = SQLiteDatastore.new(Memory).tryGet()

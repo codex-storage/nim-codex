@@ -42,7 +42,7 @@ export stint
 export reservations
 
 logScope:
-  topics = "sales"
+  topics = "sales marketplace"
 
 type
   Sales* = ref object
@@ -121,6 +121,7 @@ proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
   let slotIds = await market.mySlots()
   var slots: seq[Slot] = @[]
 
+  info "Loading active slots", slotsCount = len(slots)
   for slotId in slotIds:
     if slot =? (await market.getActiveSlot(slotId)):
       slots.add slot
@@ -393,6 +394,7 @@ proc unsubscribe(sales: Sales) {.async.} =
 proc start*(sales: Sales) {.async.} =
   await sales.startSlotQueue()
   await sales.subscribe()
+  await sales.load()
 
 proc stop*(sales: Sales) {.async.} =
   trace "stopping sales"
