@@ -39,8 +39,8 @@ func getTotalSize(leavesCount: int): int =
   let height = calcTreeHeight(leavesCount)
   getLowHigh(leavesCount, height - 1)[1] + 1
 
-proc getWidth(self: MerkleTree, i: int): int =
-  let (low, high) = self.getLowHigh(i)
+proc getWidth(self: MerkleTree, level: int): int =
+  let (low, high) = self.getLowHigh(level)
   high - low + 1
 
 func getChildren(self: MerkleTree, i, j: int): (MerkleHash, MerkleHash) =
