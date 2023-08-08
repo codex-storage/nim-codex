@@ -247,13 +247,16 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         trace "Uploaded file", cid
         return RestApiResponse.response($cid)
       except CancelledError:
+        trace "upload cancelled error"
         return RestApiResponse.error(Http500)
       except AsyncStreamError:
+        trace "async stream error"
         return RestApiResponse.error(Http500)
       finally:
         await reader.closeWait()
 
       # if we got here something went wrong?
+      trace "something went wrong error"
       return RestApiResponse.error(Http500)
 
   router.api(
