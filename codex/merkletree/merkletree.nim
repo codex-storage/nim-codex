@@ -1,3 +1,12 @@
+## Nim-Codex
+## Copyright (c) 2022 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
+
 import std/sequtils
 import std/math
 import std/bitops
@@ -16,6 +25,18 @@ type
   MerkleProof* = object
     index: int
     path: seq[MerkleHash]
+
+# Tree constructed from leaves H0..H2 is
+#  
+#     H5=H(H3 & H4)
+#    /              \
+#   H3=H(H0 & H1)   H4=H(H2 & H2)
+#  /      \        /
+# H0=H(A) H1=H(B) H2=H(C)
+# |       |       |
+# A       B       C
+#
+# Proof for B is [H0, H4]
 
 func calcTreeHeight(leavesCount: int): int =
   if isPowerOfTwo(leavesCount): 
@@ -43,23 +64,23 @@ proc getWidth(self: MerkleTree, level: int): int =
   let (low, high) = self.getLowHigh(level)
   high - low + 1
 
-func getChildren(self: MerkleTree, i, j: int): (MerkleHash, MerkleHash) =
-  let (low, high) = self.getLowHigh(i - 1)
-  let leftIdx = low + 2 * j
+func getChildren(self: MerkleTree, level, i: int): (MerkleHash, MerkleHash) =
+  let (low, high) = self.getLowHigh(level - 1)
+  let leftIdx = low + 2 * i
   let rightIdx = min(leftIdx + 1, high)
 
   (self.nodes[leftIdx], self.nodes[rightIdx])
 
-func getSibling(self: MerkleTree, i, j: int): MerkleHash =
-  let (low, high) = self.getLowHigh(i)
-  if j mod 2 == 0:
-    self.nodes[min(low + j + 1, high)]
+func getSibling(self: MerkleTree, level, i: int): MerkleHash =
+  let (low, high) = self.getLowHigh(level)
+  if i mod 2 == 0:
+    self.nodes[min(low + i + 1, high)]
   else:
-    self.nodes[low + j - 1]
+    self.nodes[low + i - 1]
 
-proc setNode(self: var MerkleTree, i, j: int, value: MerkleHash): void =
-  let (low, _) = self.getLowHigh(i)
-  self.nodes[low + j] = value
+proc setNode(self: var MerkleTree, level, i: int, value: MerkleHash): void =
+  let (low, _) = self.getLowHigh(level)
+  self.nodes[low + i] = value
 
 proc root*(self: MerkleTree): MerkleHash =
   self.nodes[^1]
@@ -85,14 +106,13 @@ proc getProof*(self: MerkleTree, index: int): ?!MerkleProof =
     return failure("Index " & $index & " out of range [0.." & $self.leaves.high & "]" )
 
   var path = newSeq[MerkleHash](self.height - 1)
-  for i in 0..<path.len:
-    let j = index div (1 shl i)
-    path[i] = self.getSibling(i, j)
+  for level in 0..<path.len:
+    let i = index div (1 shl level)
+    path[level] = self.getSibling(level, i)
 
   success(MerkleProof(index: index, path: path))
 
-proc initTreeFromLeaves(leaves: seq[MerkleHash]): ?!MerkleTree =
-
+proc initTreeFromLeaves(leaves: openArray[MerkleHash]): ?!MerkleTree =
   without mcodec =? leaves.?[0].?mcodec and
           digestSize =? leaves.?[0].?size:
     return failure("At least one leaf is required")
@@ -113,17 +133,17 @@ proc initTreeFromLeaves(leaves: seq[MerkleHash]): ?!MerkleTree =
     )
 
   # copy leaves
-  for j in 0..<leaves.len:
-    tree.setNode(0, j, leaves[j])
+  for i in 0..<tree.getWidth(0):
+    tree.setNode(0, i, leaves[i])
 
   # calculate intermediate nodes
-  for i in 1..<tree.height:
-    for j in 0..<tree.getWidth(i):
-      let (left, right) = tree.getChildren(i, j)
+  for level in 1..<tree.height:
+    for i in 0..<tree.getWidth(level):
+      let (left, right) = tree.getChildren(level, i)
       
       without mhash =? combine(left, right), error:
         return failure(error)
-      tree.setNode(i, j, mhash)
+      tree.setNode(level, i, mhash)
 
   success(tree)
 
@@ -139,7 +159,7 @@ func init*(
 
 proc init*(
   T: type MerkleTree,
-  leaves: seq[MerkleHash]
+  leaves: openArray[MerkleHash]
 ): ?!MerkleTree =
   initTreeFromLeaves(leaves)
 
