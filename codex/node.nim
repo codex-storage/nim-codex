@@ -11,6 +11,7 @@ import std/options
 import std/tables
 import std/sequtils
 import std/strformat
+import std/monotimes
 
 import pkg/questionable
 import pkg/questionable/results
@@ -184,6 +185,10 @@ proc store*(
   ##
   trace "Storing data"
 
+  var addBlockDurationUs = 0.int64
+  var putBlockDurationUs = 0.int64
+  var manifestPutDurationUs = 0.int64
+
   without var blockManifest =? Manifest.new(blockSize = blockSize):
     return failure("Unable to create Block Set")
 
@@ -196,14 +201,24 @@ proc store*(
       let chunk = await chunker.getBytes();
       chunk.len > 0):
 
+      let time1 = getMonoTime().ticks
       trace "Got data from stream", len = chunk.len
       without blk =? bt.Block.new(chunk):
         return failure("Unable to init block from chunk!")
 
       blockManifest.add(blk.cid)
+
+      let time2 = getMonoTime().ticks
+
       if err =? (await self.blockStore.putBlock(blk)).errorOption:
         trace "Unable to store block", cid = blk.cid, err = err.msg
         return failure(&"Unable to store block {blk.cid}")
+
+      let time3 = getMonoTime().ticks
+
+      addBlockDurationUs += (time2 - time1) div 1000
+      putBlockDurationUs += (time3 - time2) div 1000
+
     trace "Stream finished"
 
   except CancelledError as exc:
@@ -215,6 +230,8 @@ proc store*(
   finally:
     trace "Closing stream..."
     await stream.close()
+
+  let manifestTime1 = getMonoTime().ticks
 
   # Generate manifest
   blockManifest.originalBytes = NBytes(chunker.offset)  # store the exact file size
@@ -245,7 +262,12 @@ proc store*(
   # Announce manifest
   await self.discovery.provide(manifest.cid)
 
+  let manifestTime2 = getMonoTime().ticks
+
+  manifestPutDurationUs = (manifestTime2 - manifestTime1) div 1000
+
   trace "File upload finished", manifestcid=manifest.cid
+  trace "Upload times", addBlockDurationUs, putBlockDurationUs, manifestPutDurationUs
 
   return manifest.cid.success
 
