@@ -27,7 +27,6 @@ type
     path: seq[MerkleHash]
 
 # Tree constructed from leaves H0..H2 is
-#  
 #     H5=H(H3 & H4)
 #    /              \
 #   H3=H(H0 & H1)   H4=H(H2 & H2)
@@ -36,9 +35,15 @@ type
 # |       |       |
 # A       B       C
 #
-# Proof for B is [H0, H4]
+# Memory layout is [H0, H1, H2, H3, H4, H5]
+#
+# Proofs of inclusion are
+# - [H1, H4] for A
+# - [H0, H4] for B
+# - [H2, H3] for C
 
-func calcTreeHeight(leavesCount: int): int =
+
+func computeTreeHeight(leavesCount: int): int =
   if isPowerOfTwo(leavesCount): 
     fastLog2(leavesCount) + 1
   else:
@@ -56,8 +61,8 @@ func getLowHigh(leavesCount, level: int): (int, int) =
 func getLowHigh(self: MerkleTree, level: int): (int, int) =
   getLowHigh(self.leavesCount, level)
 
-func getTotalSize(leavesCount: int): int =
-  let height = calcTreeHeight(leavesCount)
+func computeTotalSize(leavesCount: int): int =
+  let height = computeTreeHeight(leavesCount)
   getLowHigh(leavesCount, height - 1)[1] + 1
 
 proc getWidth(self: MerkleTree, level: int): int =
@@ -95,14 +100,14 @@ proc nodes*(self: MerkleTree): seq[MerkleHash] =
   self.nodes
 
 proc height*(self: MerkleTree): int =
-  calcTreeHeight(self.leavesCount)
+  computeTreeHeight(self.leavesCount)
 
 proc `$`*(self: MerkleTree): string =
   result &= "leavesCount: " & $self.leavesCount
   result &= "\nnodes: " & $self.nodes
 
 proc getProof*(self: MerkleTree, index: int): ?!MerkleProof =
-  if index > self.leaves.high or index < 0:
+  if index >= self.leavesCount or index < 0:
     return failure("Index " & $index & " out of range [0.." & $self.leaves.high & "]" )
 
   var path = newSeq[MerkleHash](self.height - 1)
@@ -120,7 +125,7 @@ proc initTreeFromLeaves(leaves: openArray[MerkleHash]): ?!MerkleTree =
   if not leaves.allIt(it.mcodec == mcodec):
     return failure("All leaves must use the same codec")
 
-  let totalSize = getTotalSize(leaves.len)
+  let totalSize = computeTotalSize(leaves.len)
   var tree = MerkleTree(leavesCount: leaves.len, nodes: newSeq[MerkleHash](totalSize))
 
   var buf = newSeq[byte](digestSize * 2)
@@ -152,7 +157,7 @@ func init*(
   root: MerkleHash,
   leavesCount: int
 ): MerkleTree =
-  let totalSize = getTotalSize(leavesCount)
+  let totalSize = computeTotalSize(leavesCount)
   var nodes = newSeq[MerkleHash](totalSize)
   nodes[^1] = root
   MerkleTree(nodes: nodes, leavesCount: leavesCount)
