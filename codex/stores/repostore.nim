@@ -85,6 +85,10 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the blockstore
   ##
 
+  if cid.isEmpty:
+    trace "Empty block, ignoring"
+    return success cid.emptyBlock
+
   without key =? makePrefixKey(self.postFixLen, cid), err:
     trace "Error getting key from provider", err = err.msg
     return failure(err)
