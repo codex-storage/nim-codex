@@ -2,6 +2,7 @@ import std/sequtils
 
 import pkg/asynctest
 import pkg/chronos
+import pkg/datastore
 import pkg/questionable/results
 
 import pkg/codex/erasure
@@ -21,12 +22,16 @@ asyncchecksuite "Erasure encode/decode":
   var manifest: Manifest
   var store: BlockStore
   var erasure: Erasure
+  var repoDs: Datastore
+  var metaDs: SQLiteDatastore
 
   setup:
     rng = Rng.instance()
     chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = BlockSize)
     manifest = !Manifest.new(blockSize = BlockSize)
-    store = CacheStore.new(cacheSize = (dataSetSize * 2), chunkSize = BlockSize)
+    repoDs = SQLiteDatastore.new(Memory).tryGet()
+    metaDs = SQLiteDatastore.new(Memory).tryGet()
+    store = RepoStore.new(repoDs, metaDs)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
 
     while (
