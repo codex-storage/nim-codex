@@ -34,7 +34,7 @@ import pkg/codexdht/discv5/node as dn
 import ../node
 import ../blocktype
 import ../conf
-import ../contracts
+import ../contracts except `%*`, `%` # imported from contracts/marketplace (exporting ethers)
 import ../streams
 
 import ./coders
@@ -361,10 +361,15 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
       let body = await request.getBody()
 
-      without availability =? Availability.fromJson(body), error:
+      without restAv =? RestAvailability.fromJson(body), error:
         return RestApiResponse.error(Http400, error.msg)
 
       let reservations = contracts.sales.context.reservations
+      # assign id to availability via init
+      let availability = Availability.init(restAv.size,
+                                           restAv.duration,
+                                           restAv.minPrice,
+                                           restAv.maxCollateral)
 
       if not reservations.hasAvailable(availability.size.truncate(uint)):
         return RestApiResponse.error(Http422, "Not enough storage quota")
@@ -389,7 +394,12 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       without purchase =? contracts.purchasing.getPurchase(id):
         return RestApiResponse.error(Http404)
 
-      let json = %purchase
+      let json = % RestPurchase(
+        state: purchase.state |? "none",
+        error: purchase.error.?msg,
+        request: purchase.request,
+        requestId: purchase.requestId
+      )
 
       return RestApiResponse.response($json, contentType="application/json")
 

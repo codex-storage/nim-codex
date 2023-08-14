@@ -1,4 +1,5 @@
 import std/hashes
+import std/typetraits
 import pkg/contractabi
 import pkg/nimcrypto
 import pkg/ethers/fields
@@ -6,26 +7,27 @@ import pkg/questionable/results
 import pkg/stew/byteutils
 import pkg/json_serialization
 import pkg/upraises
+import ../utils/json
 
 export contractabi
 
 type
   StorageRequest* = object
-    client*: Address
-    ask*: StorageAsk
-    content*: StorageContent
-    expiry*: UInt256
+    client* {.serialize.}: Address
+    ask* {.serialize.}: StorageAsk
+    content* {.serialize.}: StorageContent
+    expiry* {.serialize.}: UInt256
     nonce*: Nonce
   StorageAsk* = object
-    slots*: uint64
-    slotSize*: UInt256
-    duration*: UInt256
-    proofProbability*: UInt256
-    reward*: UInt256
-    collateral*: UInt256
-    maxSlotLoss*: uint64
+    slots* {.serialize.}: uint64
+    slotSize* {.serialize.}: UInt256
+    duration* {.serialize.}: UInt256
+    proofProbability* {.serialize.}: UInt256
+    reward* {.serialize.}: UInt256
+    collateral* {.serialize.}: UInt256
+    maxSlotLoss* {.serialize.}: uint64
   StorageContent* = object
-    cid*: string
+    cid* {.serialize.}: string
     erasure*: StorageErasure
     por*: StoragePoR
   StorageErasure* = object
@@ -35,8 +37,8 @@ type
     publicKey*: seq[byte]
     name*: seq[byte]
   Slot* = object
-    request*: StorageRequest
-    slotIndex*: UInt256
+    request* {.serialize.}: StorageRequest
+    slotIndex* {.serialize.}: UInt256
   SlotId* = distinct array[32, byte]
   RequestId* = distinct array[32, byte]
   Nonce* = distinct array[32, byte]
@@ -74,6 +76,10 @@ proc fromHex*(T: type SlotId, hex: string): T =
 
 proc fromHex*(T: type Nonce, hex: string): T =
   T array[32, byte].fromHex(hex)
+
+proc fromHex*[T: distinct](_: type T, hex: string): T =
+  type baseType = T.distinctBase
+  T baseType.fromHex(hex)
 
 func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
   StorageRequest(
