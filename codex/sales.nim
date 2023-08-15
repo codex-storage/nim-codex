@@ -402,6 +402,7 @@ proc unsubscribe(sales: Sales) {.async.} =
       error "Unable to unsubscribe from subscription", error = e.msg
 
 proc start*(sales: Sales) {.async.} =
+  await sales.load()
   await sales.startSlotQueue()
   await sales.subscribe()
 

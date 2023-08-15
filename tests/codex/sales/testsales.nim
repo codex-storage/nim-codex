@@ -28,7 +28,6 @@ asyncchecksuite "Sales - start":
   var sales: Sales
   var market: MockMarket
   var clock: MockClock
-  var proving: Proving
   var reservations: Reservations
   var repo: RepoStore
   var queue: SlotQueue
@@ -51,19 +50,18 @@ asyncchecksuite "Sales - start":
 
     market = MockMarket.new()
     clock = MockClock.new()
-    proving = Proving.new()
     let repoDs = SQLiteDatastore.new(Memory).tryGet()
     let metaDs = SQLiteDatastore.new(Memory).tryGet()
     repo = RepoStore.new(repoDs, metaDs)
     await repo.start()
-    sales = Sales.new(market, clock, proving, repo)
+    sales = Sales.new(market, clock, repo)
     reservations = sales.context.reservations
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
                          onBatch: BatchProc): Future[?!void] {.async.} =
       return success()
     queue = sales.context.slotQueue
-    proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
+    sales.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       return proof
     itemsProcessed = @[]
     request.expiry = (clock.now() + 42).u256
