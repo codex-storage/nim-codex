@@ -31,7 +31,7 @@ method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
   without slotIndex =? data.slotIndex:
     raiseAssert("no slot index assigned")
 
-  info "Slot finished and payed out", requestId = $data.requestId, slotIndex
+  info "Slot finished and paid out", requestId = $data.requestId, slotIndex
 
   if onCleanUp =? context.onCleanUp:
     await onCleanUp()
