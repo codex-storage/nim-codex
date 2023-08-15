@@ -33,8 +33,8 @@ method run*(state: SaleInitialProving, machine: Machine): Future[?State] {.async
   without slotIndex =? data.slotIndex:
     raiseAssert("no slot index assigned")
 
-  debug "Start proving", requestId = $data.requestId
+  debug "Generating initial proof", requestId = $data.requestId
   let proof = await onProve(Slot(request: request, slotIndex: slotIndex))
-  debug "Finished proving", requestId = $data.requestId
+  debug "Finished proof calculation", requestId = $data.requestId
 
   return some State(SaleFilling(proof: proof))

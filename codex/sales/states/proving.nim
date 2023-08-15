@@ -14,8 +14,9 @@ logScope:
     topics = "marketplace sales proving"
 
 type
+  SlotNotFilled* = object of Exception
   SaleProving* = ref object of ErrorHandlingState
-    loop: ?Future[void]
+    loop: Future[void]
 
 method prove*(
   state: SaleProving,
@@ -39,6 +40,16 @@ proc proveLoop(
   slotIndex: UInt256,
   onProve: OnProve
 ) {.async.} =
+
+  let slot = Slot(request: request, slotIndex: slotIndex)
+  let slotId = slot.id
+
+  logScope:
+    period = currentPeriod
+    requestId = $request.id
+    slotIndex
+    slotId = $slot.id
+
   proc getCurrentPeriod(): Future[Period] {.async.} =
     let periodicity = await market.periodicity()
     return periodicity.periodOf(clock.now().u256)
@@ -47,23 +58,20 @@ proc proveLoop(
     let periodicity = await market.periodicity()
     await clock.waitUntil(periodicity.periodStart(period).truncate(int64))
 
-  let slot = Slot(request: request, slotIndex: slotIndex)
-  let slotId = slot.id
-
   while true:
     let currentPeriod = await getCurrentPeriod()
     let slotState = await market.slotState(slot.id)
     if slotState == SlotState.Finished:
-      debug "Slot reached finished state", period = currentPeriod, requestId = $request.id, slotIndex, slotId = $slot.id
+      debug "Slot reached finished state", period = currentPeriod
       return
 
     if slotState != SlotState.Filled:
-      raise newException(ValueError, "Slot is not in Filled state!")
+      raise newException(SlotNotFilled, "Slot is not in Filled state!")
 
-    debug "Proving for new period", period = currentPeriod, requestId = $request.id, slotIndex, slotId = $slot.id
+    debug "Proving for new period", period = currentPeriod
 
     if (await market.isProofRequired(slotId)) or (await market.willProofBeRequired(slotId)):
-      debug "Proof is required", period = currentPeriod, requestId = $request.id, slotIndex, slotId = $slot.id
+      debug "Proof is required", period = currentPeriod
       await state.prove(slot, onProve, market, currentPeriod)
 
     await waitUntilPeriod(currentPeriod + 1)
@@ -71,18 +79,26 @@ proc proveLoop(
 method `$`*(state: SaleProving): string = "SaleProving"
 
 method onCancelled*(state: SaleProving, request: StorageRequest): ?State =
-  if loop =? state.loop:
-      state.loop = Future[void].none
-      if not loop.finished:
-        loop.cancel()
+  if not state.loop.isNil:
+    if not state.loop.finished:
+      try:
+        waitFor state.loop.cancelAndWait()
+      except CatchableError as e:
+        error "Error during cancelation of prooving loop", msg = e.msg
+
+    state.loop = nil
 
   return some State(SaleCancelled())
 
 method onFailed*(state: SaleProving, request: StorageRequest): ?State =
-  if loop =? state.loop:
-      state.loop = Future[void].none
-      if not loop.finished:
-        loop.cancel()
+  if not state.loop.isNil:
+    if not state.loop.finished:
+      try:
+        waitFor state.loop.cancelAndWait()
+      except CatchableError as e:
+        error "Error during cancelation of prooving loop", msg = e.msg
+
+    state.loop = nil
 
   return some State(SaleFailed())
 
@@ -108,14 +124,24 @@ method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
   debug "Start proving", requestId = $data.requestId, slotIndex
   try:
     let loop = state.proveLoop(market, clock, request, slotIndex, onProve)
-    state.loop = some loop
+    state.loop = loop
     await loop
   except CancelledError:
     discard
   except CatchableError as e:
     error "Proving failed", msg = e.msg
     return some State(SaleErrored(error: e))
+  finally:
+    # Cleanup of the proving loop
+    debug "Stopping proving.", requestId = $data.requestId, slotIndex
 
-  debug "Stopping proving.", requestId = $data.requestId, slotIndex
+    if not state.loop.isNil:
+        if not state.loop.finished:
+          try:
+            await state.loop.cancelAndWait()
+          except CatchableError as e:
+            error "Error during cancelation of prooving loop", msg = e.msg
+
+        state.loop = nil
 
   return some State(SalePayout())
