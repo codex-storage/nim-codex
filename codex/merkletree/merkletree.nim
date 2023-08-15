@@ -85,7 +85,7 @@ proc build*(self: MerkleTreeBuilder): ?!MerkleTree =
   ## |       |       |
   ## A       B       C
   ##
-  ## where HZ=H(0x0b)
+  ## where HZ=0x0b
   ##
   ## Memory layout is [H0, H1, H2, H3, H4, H5]
   ##
@@ -159,7 +159,7 @@ proc getProof*(self: MerkleTree, index: Natural): ?!MerkleProof =
   ## - 1,[H0, H4] for data block B
   ## - 2,[HZ, H3] for data block C
   ## 
-  ## where HZ=H(0x0b)
+  ## where HZ=0x0b
   ## 
   if index >= self.leavesCount:
     return failure("Index " & $index & " out of range [0.." & $self.leaves.high & "]" )
