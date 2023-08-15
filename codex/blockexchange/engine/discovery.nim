@@ -78,7 +78,7 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
     trace "About to sleep discovery loop"
     await sleepAsync(b.discoveryLoopSleep)
 
-proc advertiseQueueLoop*(b: DiscoveryEngine) {.async.} =
+proc advertiseQueueLoop(b: DiscoveryEngine) {.async.} =
   while b.discEngineRunning:
     if cids =? await b.localStore.listBlocks(blockType = b.advertiseType):
       for c in cids:
@@ -256,7 +256,7 @@ proc new*(
     advertiseType = BlockType.Both
 ): DiscoveryEngine =
   ## Create a discovery engine instance for advertising services
-  ## 
+  ##
   DiscoveryEngine(
     localStore: localStore,
     peers: peers,

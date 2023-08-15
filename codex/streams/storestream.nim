@@ -115,6 +115,9 @@ method readOnce*(
     self.offset += readBytes
     read += readBytes
 
+  trace "read < nbytes: ", predicate=(read < nbytes)
+  trace "atEof:", predicate=(self.atEof)
+
   trace "storestream finished", read
   return read
 
