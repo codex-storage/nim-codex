@@ -17,7 +17,13 @@ type
   SaleProving* = ref object of ErrorHandlingState
     loop: ?Future[void]
 
-method prove*(state: SaleProving, slot: Slot, onProve: OnProve, market: Market, currentPeriod: Period) {.base, async.} =
+method prove*(
+  state: SaleProving,
+  slot: Slot,
+  onProve: OnProve,
+  market: Market,
+  currentPeriod: Period
+) {.base, async.} =
   try:
     let proof = await onProve(slot)
     debug "Submitting proof", currentPeriod = currentPeriod, slotId = $slot.id
@@ -25,7 +31,14 @@ method prove*(state: SaleProving, slot: Slot, onProve: OnProve, market: Market, 
   except CatchableError as e:
     error "Submitting proof failed", msg = e.msg
 
-proc proveLoop(state: SaleProving, market: Market, clock: Clock, request: StorageRequest, slotIndex: UInt256, onProve: OnProve) {.async.} =
+proc proveLoop(
+  state: SaleProving,
+  market: Market,
+  clock: Clock,
+  request: StorageRequest,
+  slotIndex: UInt256,
+  onProve: OnProve
+) {.async.} =
   proc getCurrentPeriod(): Future[Period] {.async.} =
     let periodicity = await market.periodicity()
     return periodicity.periodOf(clock.now().u256)

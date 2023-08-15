@@ -38,7 +38,7 @@ asyncchecksuite "sales state 'initialproving'":
     let next = state.onFailed(request)
     check !next of SaleFailed
 
-  test "switches to filled state when slot is filled":
+  test "switches to filling state when initial proving is complete":
     let next = await state.run(agent)
     check !next of SaleFilling
     check SaleFilling(!next).proof == proof
