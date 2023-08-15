@@ -56,15 +56,15 @@ twonodessuite "Integration tests", debug1 = "INFO;TRACE:node,restapi,erasure", d
   test "node retrieves purchase status":
     let expiry = (await provider.currentTime()) + 30
     let cid = client1.upload("some file contents").get
-    let id = client1.requestStorage(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, expiry=expiry, collateral=200.u256).get
+    let id = client1.requestStorage(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, expiry=expiry, collateral=200.u256, nodes=2, tolerance=1).get
     let request = client1.getPurchase(id).get.request.get
     check request.ask.duration == 1.u256
     check request.ask.reward == 2.u256
     check request.ask.proofProbability == 3.u256
     check request.expiry == expiry
     check request.ask.collateral == 200.u256
-    check request.ask.slots == 1'u64 #3'u64
-    check request.ask.maxSlotLoss == 0'u64 #1'u64
+    check request.ask.slots == 3'u64
+    check request.ask.maxSlotLoss == 1'u64
 
   test "node remembers purchase status after restart":
     let expiry = (await provider.currentTime()) + 30
