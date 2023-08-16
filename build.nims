@@ -10,7 +10,7 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
     mkDir "build"
   # allow something like "nim nimbus --verbosity:0 --hints:off nimbus.nims"
   var extra_params = params
-  when compiles(commandLineParams()):
+  when compiles(typeof(commandLineParams()) is seq[string]):
     for param in commandLineParams():
       extra_params &= " " & param
   else:
