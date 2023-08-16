@@ -1,3 +1,4 @@
+import pkg/metrics
 import ../statemachine
 import ./errorhandling
 import ./submitted
@@ -6,12 +7,15 @@ import ./cancelled
 import ./finished
 import ./failed
 
+declareCounter(codexPurchasesUnknown, "codex purchases unknown")
+
 type PurchaseUnknown* = ref object of ErrorHandlingState
 
 method `$`*(state: PurchaseUnknown): string =
   "unknown"
 
 method run*(state: PurchaseUnknown, machine: Machine): Future[?State] {.async.} =
+  codexPurchasesUnknown.inc()
   let purchase = Purchase(machine)
   if (request =? await purchase.market.getRequest(purchase.requestId)) and
       (requestState =? await purchase.market.requestState(purchase.requestId)):

@@ -7,28 +7,43 @@ on:
   workflow_dispatch:
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
-  nim_version: v1.6.10
+  nim_version: v1.6.14
 jobs:
   build:
     strategy:
       matrix:
-        os: [linux, macos, windows]
         include:
           - os: linux
+            cpu: amd64
             builder: ubuntu-latest
             shell: bash --noprofile --norc -e -o pipefail
+            tests: all
           - os: macos
+            cpu: amd64
             builder: macos-latest
             shell: bash --noprofile --norc -e -o pipefail
+            tests: all
           - os: windows
+            cpu: amd64
             builder: windows-latest
             shell: msys2
+            tests: unittest
+          - os: windows
+            cpu: amd64
+            builder: windows-latest
+            shell: msys2
+            tests: contract
+          - os: windows
+            cpu: amd64
+            builder: windows-latest
+            shell: msys2
+            tests: integration
 
     defaults:
       run:
         shell: ${{ matrix.shell }} {0}
 
-    name: '${{ matrix.os }}'
+    name: '${{ matrix.os }}-${{ matrix.cpu }}-tests-${{ matrix.tests }}'
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 80
     steps:
@@ -44,7 +59,9 @@ jobs:
           shell: ${{ matrix.shell }}
           nim_version: ${{ env.nim_version }}
 
+      ## Part 1 Tests ##
       - name: Unit tests
+        if: matrix.tests == 'unittest' || matrix.tests == 'all'
         run: make -j${ncpu} test
 
       # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
@@ -54,6 +71,7 @@ jobs:
          node-version: 18.15
 
       - name: Start Ethereum node with Codex contracts
+        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'all'
         working-directory: vendor/codex-contracts-eth
         env:
           MSYS2_PATH_TYPE: inherit
@@ -61,10 +79,14 @@ jobs:
           npm install
           npm start &
 
+      ## Part 2 Tests ##
       - name: Contract tests
+        if: matrix.tests == 'contract' || matrix.tests == 'all'
         run: make -j${ncpu} testContracts
 
+      ## Part 3 Tests ##
       - name: Integration tests
+        if: matrix.tests == 'integration' || matrix.tests == 'all'
         run: make -j${ncpu} testIntegration
 
   coverage:
@@ -83,7 +105,9 @@ jobs:
           nim_version: ${{ env.nim_version }}
 
       - name: Generate coverage data
-        run: make -j${ncpu} coverage
+        run: |
+          # make -j${ncpu} coverage
+          make -j${ncpu} coverage-script
         shell: bash
 
       - name: Upload coverage data to Codecov

@@ -1,7 +1,10 @@
+import pkg/metrics
 import ../statemachine
 import ./errorhandling
 import ./started
 import ./cancelled
+
+declareCounter(codexPurchasesSubmitted, "codex purchases submitted")
 
 type PurchaseSubmitted* = ref object of ErrorHandlingState
 
@@ -9,6 +12,7 @@ method `$`*(state: PurchaseSubmitted): string =
   "submitted"
 
 method run*(state: PurchaseSubmitted, machine: Machine): Future[?State] {.async.} =
+  codexPurchasesSubmitted.inc()
   let purchase = Purchase(machine)
   let request = !purchase.request
   let market = purchase.market

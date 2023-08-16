@@ -11,14 +11,12 @@ import std/algorithm
 
 import pkg/chronos
 import pkg/chronicles
-import pkg/libp2p
-import pkg/libp2p/routing_record
-import pkg/libp2p/signed_envelope
+import pkg/libp2p/[cid, multicodec, routing_record, signed_envelope]
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/shims/net
 import pkg/contractabi/address as ca
-import pkg/libp2pdht/discv5/protocol as discv5
+import pkg/codexdht/discv5/protocol as discv5
 
 import ./rng
 import ./errors

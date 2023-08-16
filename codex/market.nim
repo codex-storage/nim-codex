@@ -15,13 +15,19 @@ export periods
 type
   Market* = ref object of RootObj
   Subscription* = ref object of RootObj
-  OnRequest* = proc(id: RequestId, ask: StorageAsk) {.gcsafe, upraises:[].}
+  OnRequest* = proc(id: RequestId,
+                    ask: StorageAsk,
+                    expiry: UInt256) {.gcsafe, upraises:[].}
   OnFulfillment* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
   OnSlotFilled* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises:[].}
-  OnSlotFreed* = proc(slotId: SlotId) {.gcsafe, upraises: [].}
+  OnSlotFreed* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises: [].}
   OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnProofSubmitted* = proc(id: SlotId, proof: seq[byte]) {.gcsafe, upraises:[].}
+  PastStorageRequest* = object
+    requestId*: RequestId
+    ask*: StorageAsk
+    expiry*: UInt256
 
 method getSigner*(market: Market): Future[Address] {.base, async.} =
   raiseAssert("not implemented")
@@ -113,6 +119,11 @@ method canProofBeMarkedAsMissing*(market: Market,
   raiseAssert("not implemented")
 
 method subscribeFulfillment*(market: Market,
+                             callback: OnFulfillment):
+                            Future[Subscription] {.base, async.} =
+  raiseAssert("not implemented")
+
+method subscribeFulfillment*(market: Market,
                              requestId: RequestId,
                              callback: OnFulfillment):
                             Future[Subscription] {.base, async.} =
@@ -136,9 +147,19 @@ method subscribeSlotFreed*(market: Market,
   raiseAssert("not implemented")
 
 method subscribeRequestCancelled*(market: Market,
+                                  callback: OnRequestCancelled):
+                                Future[Subscription] {.base, async.} =
+  raiseAssert("not implemented")
+
+method subscribeRequestCancelled*(market: Market,
                                   requestId: RequestId,
                                   callback: OnRequestCancelled):
                                 Future[Subscription] {.base, async.} =
+  raiseAssert("not implemented")
+
+method subscribeRequestFailed*(market: Market,
+                               callback: OnRequestFailed):
+                             Future[Subscription] {.base, async.} =
   raiseAssert("not implemented")
 
 method subscribeRequestFailed*(market: Market,
@@ -153,4 +174,9 @@ method subscribeProofSubmission*(market: Market,
   raiseAssert("not implemented")
 
 method unsubscribe*(subscription: Subscription) {.base, async, upraises:[].} =
+  raiseAssert("not implemented")
+
+method queryPastStorageRequests*(market: Market,
+                                 blocksAgo: int):
+                                Future[seq[PastStorageRequest]] {.base, async.} =
   raiseAssert("not implemented")

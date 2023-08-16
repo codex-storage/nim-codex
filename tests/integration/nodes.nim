@@ -57,7 +57,7 @@ proc init*(_: type DebugNodes,
 
 proc start(node: NodeProcess) =
   if node.debug:
-    node.process = startProcess(
+    node.process = osproc.startProcess(
       executable,
       workingDir,
       node.arguments,
@@ -65,7 +65,7 @@ proc start(node: NodeProcess) =
     )
     sleep(1000)
   else:
-    node.process = startProcess(
+    node.process = osproc.startProcess(
       executable,
       workingDir,
       node.arguments

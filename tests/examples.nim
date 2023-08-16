@@ -2,6 +2,7 @@ import std/random
 import std/sequtils
 import std/times
 import pkg/codex/contracts/requests
+import pkg/codex/sales/slotqueue
 import pkg/stint
 
 proc example*[T: SomeInteger](_: type T): T =
@@ -52,6 +53,11 @@ proc example*(_: type Slot): Slot =
   let request = StorageRequest.example
   let slotIndex = rand(request.ask.slots.int).u256
   Slot(request: request, slotIndex: slotIndex)
+
+proc example*(_: type SlotQueueItem): SlotQueueItem =
+  let request = StorageRequest.example
+  let slot = Slot.example
+  SlotQueueItem.init(request, slot.slotIndex.truncate(uint16))
 
 proc exampleProof*(): seq[byte] =
   var proof: seq[byte]

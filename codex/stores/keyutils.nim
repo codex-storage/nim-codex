@@ -20,6 +20,7 @@ const
   CodexMetaKey* = Key.init(CodexMetaNamespace).tryGet
   CodexRepoKey* = Key.init(CodexRepoNamespace).tryGet
   CodexBlocksKey* = Key.init(CodexBlocksNamespace).tryGet
+  CodexTotalBlocksKey* = Key.init(CodexBlockTotalNamespace).tryGet
   CodexManifestKey* = Key.init(CodexManifestNamespace).tryGet
   BlocksTtlKey* = Key.init(CodexBlocksTtlNamespace).tryGet
   QuotaKey* = Key.init(CodexQuotaNamespace).tryGet

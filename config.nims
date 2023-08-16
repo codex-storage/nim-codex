@@ -1,5 +1,7 @@
-import std/os
 
+include "build.nims"
+
+import std/os
 const currentDir = currentSourcePath()[0 .. ^(len("config.nims") + 1)]
 
 when getEnv("NIMBUS_BUILD_SYSTEM") == "yes" and
@@ -11,12 +13,12 @@ when getEnv("NIMBUS_BUILD_SYSTEM") == "yes" and
 
   include "nimbus-build-system.paths"
 
-if defined(release):
+when defined(release):
   switch("nimcache", joinPath(currentSourcePath.parentDir, "nimcache/release/$projectName"))
 else:
   switch("nimcache", joinPath(currentSourcePath.parentDir, "nimcache/debug/$projectName"))
 
-if defined(limitStackUsage):
+when defined(limitStackUsage):
   # This limits stack usage of each individual function to 1MB - the option is
   # available on some GCC versions but not all - run with `-d:limitStackUsage`
   # and look for .su files in "./build/", "./nimcache/" or $TMPDIR that list the
@@ -24,7 +26,7 @@ if defined(limitStackUsage):
   switch("passC", "-fstack-usage -Werror=stack-usage=1048576")
   switch("passL", "-fstack-usage -Werror=stack-usage=1048576")
 
-if defined(windows):
+when defined(windows):
   # https://github.com/nim-lang/Nim/pull/19891
   switch("define", "nimRawSetjmp")
 
@@ -48,8 +50,8 @@ if defined(windows):
 # engineering a more portable binary release, this should be tweaked but still
 # use at least -msse2 or -msse3.
 
-if defined(disableMarchNative):
-  if defined(i386) or defined(amd64):
+when defined(disableMarchNative):
+  when defined(i386) or defined(amd64):
     switch("passC", "-mssse3")
 elif defined(macosx) and defined(arm64):
   # Apple's Clang can't handle "-march=native" on M1: https://github.com/status-im/nimbus-eth2/issues/2758
@@ -94,7 +96,7 @@ if not defined(macosx):
     --define:nimStackTraceOverride
     switch("import", "libbacktrace")
 
---define:nimOldCaseObjects # https://github.com/status-im/nim-confutils/issues/9
+switch("define", "codex_enable_proof_failures=true")
 
 # `switch("warning[CaseTransition]", "off")` fails with "Error: invalid command line option: '--warning[CaseTransition]'"
 switch("warning", "CaseTransition:off")

@@ -4,8 +4,9 @@ import std/options
 
 import pkg/chronos
 import pkg/asynctest
-import pkg/libp2p
+import pkg/libp2p/multicodec
 import pkg/stew/byteutils
+import pkg/questionable
 import pkg/questionable/results
 import pkg/codex/stores/cachestore
 import pkg/codex/chunker
@@ -94,7 +95,7 @@ proc commonBlockStoreTests*(name: string,
 
       var count = 0
       for c in cids:
-        if cid =? (await c):
+        if cid =? await c:
           check (await store.hasBlock(cid)).tryGet()
           count.inc
 

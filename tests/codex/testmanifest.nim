@@ -3,7 +3,6 @@ import std/sequtils
 import pkg/chronos
 import pkg/questionable/results
 import pkg/asynctest
-import pkg/libp2p
 import pkg/stew/byteutils
 
 import pkg/codex/chunker
@@ -62,6 +61,8 @@ checksuite "Manifest":
         Block.new(("Block " & $it).toBytes).tryGet().cid
       )
       manifest = Manifest.new(blocks).tryGet()
+
+    var
       protected = Manifest.new(manifest, 2, 2).tryGet()
 
     check:
@@ -72,7 +73,7 @@ checksuite "Manifest":
 
     # fill up with empty Cid's
     for i in protected.rounded..<protected.len:
-      protected.blocks[i] = EmptyCid[manifest.version]
+      protected[i] = EmptyCid[manifest.version]
         .catch
         .get()[manifest.hcodec]
         .catch

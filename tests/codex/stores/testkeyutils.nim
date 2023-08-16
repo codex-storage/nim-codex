@@ -10,7 +10,6 @@
 import std/random
 import std/sequtils
 import pkg/chronos
-import pkg/libp2p
 import pkg/asynctest
 import pkg/questionable
 import pkg/questionable/results

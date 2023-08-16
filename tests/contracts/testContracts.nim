@@ -38,10 +38,10 @@ ethersuite "Marketplace contracts":
     request.client = await client.getAddress()
 
     switchAccount(client)
-    await token.approve(marketplace.address, request.price)
+    discard await token.approve(marketplace.address, request.price)
     await marketplace.requestStorage(request)
     switchAccount(host)
-    await token.approve(marketplace.address, request.ask.collateral)
+    discard await token.approve(marketplace.address, request.ask.collateral)
     await marketplace.fillSlot(request.id, 0.u256, proof)
     slotId = request.slotId(0.u256)
 
@@ -56,7 +56,7 @@ ethersuite "Marketplace contracts":
 
   proc startContract() {.async.} =
     for slotIndex in 1..<request.ask.slots:
-      await token.approve(marketplace.address, request.ask.collateral)
+      discard await token.approve(marketplace.address, request.ask.collateral)
       await marketplace.fillSlot(request.id, slotIndex.u256, proof)
 
   test "accept marketplace proofs":

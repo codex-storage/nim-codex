@@ -78,7 +78,7 @@ This GET request will return the node's debug information. The response JSON sho
 Replace `<SPR HERE>` in the next command with the string value for `spr`, returned by the first node's `debug/info` response.
 
 Open a new terminal and run:
-- Mac/Unx: `"build/codex" --data-dir="$(pwd)\Data2" --listen-addrs=/ip4/127.0.0.1/tcp/8071 --api-port=8081 --disc-port=8091 --bootstrap-node=<SPR HERE>`
+- Mac/Unx: `"build/codex" --data-dir="$(pwd)/Data2" --listen-addrs=/ip4/127.0.0.1/tcp/8071 --api-port=8081 --disc-port=8091 --bootstrap-node=<SPR HERE>`
 - Windows: `"build/codex.exe" --data-dir="Data2" --listen-addrs=/ip4/127.0.0.1/tcp/8071 --api-port=8081 --disc-port=8091 --bootstrap-node=<SPR HERE>`
 
 Notice we're using a new data-dir, and we've increased each port number by one. This is needed so that the new node won't try to open ports already in use by the first node.

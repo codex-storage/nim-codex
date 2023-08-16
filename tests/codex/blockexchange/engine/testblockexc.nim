@@ -5,9 +5,6 @@ import pkg/asynctest
 import pkg/chronos
 import pkg/stew/byteutils
 
-import pkg/libp2p
-import pkg/libp2p/errors
-
 import pkg/codex/rng
 import pkg/codex/stores
 import pkg/codex/blockexchange

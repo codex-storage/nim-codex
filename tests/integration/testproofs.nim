@@ -177,7 +177,7 @@ multinodesuite "Simulate invalid proofs",
 
     var slotWasFreed = false
     proc onSlotFreed(event: SlotFreed) =
-      if event.slotId == slotId:
+      if slotId(event.requestId, event.slotIndex) == slotId:
         slotWasFreed = true
     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
@@ -201,7 +201,7 @@ multinodesuite "Simulate invalid proofs",
 
     var slotWasFreed = false
     proc onSlotFreed(event: SlotFreed) =
-      if event.slotId == slotId:
+      if slotId(event.requestId, event.slotIndex) == slotId:
         slotWasFreed = true
     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 

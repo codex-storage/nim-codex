@@ -106,6 +106,7 @@ type
       defaultValue: noCommand }: StartUpCommand
 
     of noCommand:
+
       listenAddrs* {.
         desc: "Multi Addresses to listen on"
         defaultValue: @[
@@ -292,9 +293,17 @@ proc defaultDataDir*(): string =
 
   getHomeDir() / dataDir
 
-proc parseCmdArg*(T: type MultiAddress, input: string): T
+proc parseCmdArg*(T: typedesc[MultiAddress],
+                  input: string): MultiAddress
                  {.upraises: [ValueError, LPError].} =
-  MultiAddress.init($input).tryGet()
+  var ma: MultiAddress
+  let res = MultiAddress.init(input)
+  if res.isOk:
+    ma = res.get()
+  else:
+    warn "Invalid MultiAddress", input=input, error=res.error()
+    quit QuitFailure
+  ma
 
 proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
   var res: SignedPeerRecord
@@ -336,6 +345,18 @@ proc readValue*(r: var TomlReader, val: var SignedPeerRecord) =
     quit QuitFailure
 
   val = SignedPeerRecord.parseCmdArg(uri)
+
+proc readValue*(r: var TomlReader, val: var MultiAddress) =
+  without input =? r.readValue(string).catch, err:
+    error "invalid MultiAddress configuration value", error = err.msg
+    quit QuitFailure
+
+  let res = MultiAddress.init(input)
+  if res.isOk:
+    val = res.get()
+  else:
+    warn "Invalid MultiAddress", input=input, error=res.error()
+    quit QuitFailure
 
 proc readValue*(r: var TomlReader, val: var NBytes)
                {.upraises: [SerializationError, IOError].} =

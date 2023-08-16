@@ -1,9 +1,9 @@
+
 import pkg/asynctest
 import pkg/stew/byteutils
 import pkg/codex/chunker
 import pkg/chronicles
 import pkg/chronos
-import pkg/libp2p
 
 import ./helpers
 

@@ -5,6 +5,7 @@ import ../node/batch
 import ../market
 import ../clock
 import ../proving
+import ./slotqueue
 import ./reservations
 
 type
@@ -14,9 +15,10 @@ type
     onStore*: ?OnStore
     onClear*: ?OnClear
     onSale*: ?OnSale
-    onIgnored*: OnIgnored
+    onCleanUp*: OnCleanUp
     proving*: Proving
     reservations*: Reservations
+    slotQueue*: SlotQueue
 
   OnStore* = proc(request: StorageRequest,
                   slot: UInt256,
@@ -27,4 +29,4 @@ type
                   slotIndex: UInt256) {.gcsafe, upraises: [].}
   OnSale* = proc(request: StorageRequest,
                  slotIndex: UInt256) {.gcsafe, upraises: [].}
-  OnIgnored* = proc() {.gcsafe, upraises: [].}
+  OnCleanUp* = proc: Future[void] {.gcsafe, upraises: [].}

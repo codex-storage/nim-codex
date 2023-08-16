@@ -15,5 +15,6 @@ import ./codex/testclock
 import ./codex/testsystemclock
 import ./codex/testvalidation
 import ./codex/testasyncstreamwrapper
+import ./codex/testmerkletree
 
 {.warning[UnusedImport]: off.}

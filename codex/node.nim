@@ -16,7 +16,9 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/chronicles
 import pkg/chronos
-import pkg/libp2p
+
+import pkg/libp2p/switch
+import pkg/libp2p/stream/bufferstream
 
 # TODO: remove once exported by libp2p
 import pkg/libp2p/routing_record
@@ -60,23 +62,21 @@ type
 
 proc findPeer*(
   node: CodexNodeRef,
-  peerId: PeerId
-): Future[?PeerRecord] {.async.} =
+  peerId: PeerId): Future[?PeerRecord] {.async.} =
   ## Find peer using the discovery service from the given CodexNode
-  ## 
+  ##
   return await node.discovery.findPeer(peerId)
 
 proc connect*(
-    node: CodexNodeRef,
-    peerId: PeerId,
-    addrs: seq[MultiAddress]
+  node: CodexNodeRef,
+  peerId: PeerId,
+  addrs: seq[MultiAddress]
 ): Future[void] =
   node.switch.connect(peerId, addrs)
 
 proc fetchManifest*(
-    node: CodexNodeRef,
-    cid: Cid
-): Future[?!Manifest] {.async.} =
+  node: CodexNodeRef,
+  cid: Cid): Future[?!Manifest] {.async.} =
   ## Fetch and decode a manifest block
   ##
 
@@ -100,11 +100,10 @@ proc fetchManifest*(
   return manifest.success
 
 proc fetchBatched*(
-    node: CodexNodeRef,
-    manifest: Manifest,
-    batchSize = FetchBatch,
-    onBatch: BatchProc = nil
-): Future[?!void] {.async, gcsafe.} =
+  node: CodexNodeRef,
+  manifest: Manifest,
+  batchSize = FetchBatch,
+  onBatch: BatchProc = nil): Future[?!void] {.async, gcsafe.} =
   ## Fetch manifest in batches of `batchSize`
   ##
 
@@ -130,9 +129,8 @@ proc fetchBatched*(
   return success()
 
 proc retrieve*(
-    node: CodexNodeRef,
-    cid: Cid
-): Future[?!LPStream] {.async.} =
+  node: CodexNodeRef,
+  cid: Cid): Future[?!LPStream] {.async.} =
   ## Retrieve by Cid a single block or an entire dataset described by manifest
   ##
 
@@ -147,47 +145,35 @@ proc retrieve*(
             trace "Unable to erasure decode manifest", cid, exc = error.msg
         except CatchableError as exc:
           trace "Exception decoding manifest", cid, exc = exc.msg
-      #
+
       asyncSpawn erasureJob()
-    # else:
-    #   # Prefetch the entire dataset into the local store
-    #   proc prefetchBlocks() {.async, raises: [Defect].} =
-    #     try:
-    #       discard await node.fetchBatched(manifest)
-    #     except CatchableError as exc:
-    #       trace "Exception prefetching blocks", exc = exc.msg
-    #   #
-    #   # asyncSpawn prefetchBlocks()  - temporarily commented out
-    #
+
     # Retrieve all blocks of the dataset sequentially from the local store or network
     trace "Creating store stream for manifest", cid
-    return LPStream(StoreStream.new(node.blockStore, manifest, pad = false)).success
+    LPStream(StoreStream.new(node.blockStore, manifest, pad = false)).success
+  else:
+    let
+      stream = BufferStream.new()
 
-  let
-    stream = BufferStream.new()
+    without blk =? (await node.blockStore.getBlock(cid)), err:
+      return failure(err)
 
-  without blk =? (await node.blockStore.getBlock(cid)), err:
-    return failure(err)
+    proc streamOneBlock(): Future[void] {.async.} =
+      try:
+        await stream.pushData(blk.data)
+      except CatchableError as exc:
+        trace "Unable to send block", cid, exc = exc.msg
+        discard
+      finally:
+        await stream.pushEof()
 
-  proc streamOneBlock(): Future[void] {.async.} =
-    try:
-      await stream.pushData(blk.data)
-    except CatchableError as exc:
-      trace "Unable to send block", cid, exc = exc.msg
-      discard
-    finally:
-      await stream.pushEof()
-
-  asyncSpawn streamOneBlock()
-  return LPStream(stream).success()
-
-  return failure("Unable to retrieve Cid!")
+    asyncSpawn streamOneBlock()
+    LPStream(stream).success()
 
 proc store*(
-    self: CodexNodeRef,
-    stream: LPStream,
-    blockSize = DefaultBlockSize
-): Future[?!Cid] {.async.} =
+  self: CodexNodeRef,
+  stream: LPStream,
+  blockSize = DefaultBlockSize): Future[?!Cid] {.async.} =
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
   ##
@@ -221,7 +207,7 @@ proc store*(
     await stream.close()
 
   # Generate manifest
-  blockManifest.originalBytes = NBytes chunker.offset  # store the exact file size
+  blockManifest.originalBytes = NBytes(chunker.offset)  # store the exact file size
   without data =? blockManifest.encode():
     return failure(
       newException(CodexError, "Could not generate dataset manifest!"))
@@ -249,16 +235,15 @@ proc store*(
   return manifest.cid.success
 
 proc requestStorage*(
-    self: CodexNodeRef,
-    cid: Cid,
-    duration: UInt256,
-    proofProbability: UInt256,
-    nodes: uint,
-    tolerance: uint,
-    reward: UInt256,
-    collateral: UInt256,
-    expiry = UInt256.none
-): Future[?!PurchaseId] {.async.} =
+  self: CodexNodeRef,
+  cid: Cid,
+  duration: UInt256,
+  proofProbability: UInt256,
+  nodes: uint,
+  tolerance: uint,
+  reward: UInt256,
+  collateral: UInt256,
+  expiry = UInt256.none): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
   ##
@@ -323,16 +308,15 @@ proc requestStorage*(
   return success purchase.id
 
 proc new*(
-    T: type CodexNodeRef,
-    switch: Switch,
-    store: BlockStore,
-    engine: BlockExcEngine,
-    erasure: Erasure,
-    discovery: Discovery,
-    contracts = Contracts.default
-): CodexNodeRef =
+  T: type CodexNodeRef,
+  switch: Switch,
+  store: BlockStore,
+  engine: BlockExcEngine,
+  erasure: Erasure,
+  discovery: Discovery,
+  contracts = Contracts.default): CodexNodeRef =
   ## Create new instance of a Codex node, call `start` to run it
-  ## 
+  ##
   CodexNodeRef(
     switch: switch,
     blockStore: store,

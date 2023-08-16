@@ -22,14 +22,14 @@ proc start*(clock: OnChainClock) {.async.} =
     return
   clock.started = true
 
-  proc onBlock(blck: Block) {.async, upraises:[].} =
+  proc onBlock(blck: Block) {.upraises:[].} =
     let blockTime = initTime(blck.timestamp.truncate(int64), 0)
     let computerTime = getTime()
     clock.offset = blockTime - computerTime
     clock.newBlock.fire()
 
   if latestBlock =? (await clock.provider.getBlock(BlockTag.latest)):
-    await onBlock(latestBlock)
+    onBlock(latestBlock)
 
   clock.subscription = await clock.provider.subscribe(onBlock)
 

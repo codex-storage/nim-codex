@@ -1,6 +1,3 @@
-import std/sets
-import std/sequtils
-import std/sugar
 import std/times
 import pkg/asynctest
 import pkg/chronos
@@ -13,6 +10,7 @@ import pkg/codex/proving
 import ../helpers/mockmarket
 import ../helpers/mockclock
 import ../helpers/eventually
+import ../helpers
 import ../examples
 
 var onCancelCalled = false
@@ -25,6 +23,7 @@ type
   MockErrorState = ref object of ErrorHandlingState
 
 method `$`*(state: MockState): string = "MockState"
+method `$`*(state: MockErrorState): string = "MockErrorState"
 
 method onCancelled*(state: MockState, request: StorageRequest): ?State =
   onCancelCalled = true
@@ -88,44 +87,25 @@ asyncchecksuite "Sales agent":
     await agent.retrieveRequest()
     check agent.data.request == some request
 
-  test "subscribe assigns subscriptions/futures":
+  test "subscribe assigns cancelled future":
     await agent.subscribe()
     check not agent.data.cancelled.isNil
-    check not agent.data.failed.isNil
-    check not agent.data.fulfilled.isNil
-    check not agent.data.slotFilled.isNil
 
-  test "unsubscribe deassigns subscriptions/futures":
+  test "unsubscribe deassigns canceleld future":
     await agent.subscribe()
     await agent.unsubscribe()
     check agent.data.cancelled.isNil
-    check agent.data.failed.isNil
-    check agent.data.fulfilled.isNil
-    check agent.data.slotFilled.isNil
 
   test "subscribe can be called multiple times, without overwriting subscriptions/futures":
     await agent.subscribe()
     let cancelled = agent.data.cancelled
-    let failed = agent.data.failed
-    let fulfilled = agent.data.fulfilled
-    let slotFilled = agent.data.slotFilled
     await agent.subscribe()
     check cancelled == agent.data.cancelled
-    check failed == agent.data.failed
-    check fulfilled == agent.data.fulfilled
-    check slotFilled == agent.data.slotFilled
 
   test "unsubscribe can be called multiple times":
     await agent.subscribe()
     await agent.unsubscribe()
     await agent.unsubscribe()
-
-  test "subscribe can be called when request expiry has lapsed":
-    # succeeds when agent.data.fulfilled.isNil
-    request.expiry = (getTime() - initDuration(seconds=1)).toUnix.u256
-    agent.data.request = some request
-    check agent.data.fulfilled.isNil
-    await agent.subscribe()
 
   test "current state onCancelled called when cancel emitted":
     let state = MockState.new()
@@ -134,22 +114,20 @@ asyncchecksuite "Sales agent":
     clock.set(request.expiry.truncate(int64))
     check eventually onCancelCalled
 
-  test "cancelled future is finished (cancelled) when fulfillment emitted":
+  test "cancelled future is finished (cancelled) when onFulfilled called":
     agent.start(MockState.new())
     await agent.subscribe()
-    market.emitRequestFulfilled(request.id)
+    agent.onFulfilled(request.id)
     check eventually agent.data.cancelled.cancelled()
 
-  test "current state onFailed called when failed emitted":
+  test "current state onFailed called when onFailed called":
     agent.start(MockState.new())
-    await agent.subscribe()
-    market.emitRequestFailed(request.id)
+    agent.onFailed(request.id)
     check eventually onFailedCalled
 
   test "current state onSlotFilled called when slot filled emitted":
     agent.start(MockState.new())
-    await agent.subscribe()
-    market.emitSlotFilled(request.id, slotIndex)
+    agent.onSlotFilled(request.id, slotIndex)
     check eventually onSlotFilledCalled
 
   test "ErrorHandlingState.onError can be overridden at the state level":

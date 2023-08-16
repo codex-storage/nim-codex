@@ -7,11 +7,11 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/libp2p
+import pkg/libp2p/stream/lpstream
 import pkg/chronos
 import pkg/chronicles
 
-export libp2p, chronos, chronicles
+export lpstream, chronos, chronicles
 
 logScope:
   topics = "codex seekablestream"

@@ -23,7 +23,10 @@ method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
   let market = SalesAgent(machine).context.market
 
-  let host = await market.getHost(data.requestId, data.slotIndex)
+  without slotIndex =? data.slotIndex:
+    raiseAssert("no slot index assigned")
+
+  let host = await market.getHost(data.requestId, slotIndex)
   let me = await market.getSigner()
   if host == me.some:
     return some State(SaleFinished())

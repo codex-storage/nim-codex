@@ -15,6 +15,8 @@ coverage/
 
 # Nimble packages
 /vendor/.nimble
+/vendor/packages/
+# /vendor/*/
 
 # Nimble user files
 nimble.develop
@@ -36,3 +38,4 @@ nimbus-build-system.paths
 docker/hostdatadir
 docker/prometheus-data
 .DS_Store
+nim.cfg

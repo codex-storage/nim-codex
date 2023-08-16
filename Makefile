@@ -48,7 +48,7 @@ else # "variables.mk" was included. Business as usual until the end of this file
 # Builds the codex binary
 all: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim codex $(NIM_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim codex $(NIM_PARAMS) build.nims
 
 # must be included after the default target
 -include $(BUILD_SYSTEM_DIR)/makefiles/targets.mk
@@ -60,15 +60,12 @@ else
 NIM_PARAMS := $(NIM_PARAMS) -d:release
 endif
 
-deps: | deps-common nat-libs codex.nims
+deps: | deps-common nat-libs
 ifneq ($(USE_LIBBACKTRACE), 0)
 deps: | libbacktrace
 endif
 
-#- deletes and recreates "codex.nims" which on Windows is a copy instead of a proper symlink
 update: | update-common
-	rm -rf codex.nims && \
-		$(MAKE) codex.nims $(HANDLE_OUTPUT)
 
 # detecting the os
 ifeq ($(OS),Windows_NT) # is Windows_NT on XP, 2000, 7, Vista, 10...
@@ -83,26 +80,22 @@ endif
 # Builds and run a part of the test suite
 test: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim test $(NIM_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim test $(NIM_PARAMS) build.nims
 
 # Builds and runs the smart contract tests
 testContracts: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testContracts $(NIM_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim testContracts $(NIM_PARAMS) build.nims
 
 # Builds and runs the integration tests
 testIntegration: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testIntegration $(NIM_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim testIntegration $(NIM_PARAMS) build.nims
 
 # Builds and runs all tests
 testAll: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) codex.nims
-
-# symlink
-codex.nims:
-	ln -s codex.nimble $@
+		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) build.nims
 
 # nim-libbacktrace
 LIBBACKTRACE_MAKE_FLAGS := -C vendor/nim-libbacktrace --no-print-directory BUILD_CXX_LIB=0
@@ -127,7 +120,14 @@ coverage:
 	shopt -s globstar && lcov --extract coverage/coverage.info $$(pwd)/codex/{*,**/*}.nim --output-file coverage/coverage.f.info
 	echo -e $(BUILD_MSG) "coverage/report/index.html"
 	genhtml coverage/coverage.f.info --output-directory coverage/report
+
+show-coverage:
 	if which open >/dev/null; then (echo -e "\e[92mOpening\e[39m HTML coverage report in browser..." && open coverage/report/index.html) || true; fi
+
+coverage-script: build deps
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim coverage $(NIM_PARAMS) build.nims
+	echo "Run `make show-coverage` to view coverage results"
 
 # usual cleaning
 clean: | clean-common
