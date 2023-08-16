@@ -81,10 +81,12 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
 proc advertiseQueueLoop(b: DiscoveryEngine) {.async.} =
   while b.discEngineRunning:
     if cids =? await b.localStore.listBlocks(blockType = b.advertiseType):
+      trace "Begin iterating blocks..."
       for c in cids:
         if cid =? await c:
           await b.advertiseQueue.put(cid)
           await sleepAsync(50.millis)
+      trace "Iterating blocks finished."
 
     trace "About to sleep advertise loop", sleep = b.advertiseLoopSleep
     await sleepAsync(b.advertiseLoopSleep)

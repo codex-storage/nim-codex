@@ -128,7 +128,6 @@ when isMainModule:
     state = CodexStatus.Running
     while state == CodexStatus.Running:
       # poll chronos
-      trace "poll"
       chronos.poll()
 
     # wait fot futures to finish
