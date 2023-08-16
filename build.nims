@@ -1,5 +1,8 @@
 mode = ScriptMode.Verbose
 
+when not declared(getPathsClause):
+  proc getPathsClause(): string = ""
+
 
 ### Helper functions
 proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
@@ -14,8 +17,8 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
     for i in 2..<paramCount():
       extra_params &= " " & paramStr(i)
 
-  let cmd = "nim " & lang & " --out:build/" & name & " " & extra_params & " " & srcDir & name & ".nim"
-  exec(cmd)
+  exec "nim " & getPathsClause() & " " & lang & " --out:build/" &
+                name & " " & extra_params & " " & srcDir & name & ".nim"
 
 proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
   buildBinary name, srcDir, params
