@@ -235,7 +235,6 @@ proc store*(
 
   # Generate manifest
   blockManifest.originalBytes = NBytes(chunker.offset)  # store the exact file size
-  trace "File upload finished", size=blockManifest.originalBytes
 
   without data =? blockManifest.encode():
     trace "No manifest"
@@ -257,7 +256,8 @@ proc store*(
 
   trace "Stored data", manifestCid = manifest.cid,
                        contentCid = cid,
-                       blocks = blockManifest.len
+                       blocks = blockManifest.len,
+                       size=blockManifest.originalBytes
 
   # Announce manifest
   await self.discovery.provide(manifest.cid)

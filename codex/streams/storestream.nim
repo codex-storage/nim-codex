@@ -104,6 +104,7 @@ method readOnce*(
       raise newLPStreamReadError(error)
 
     trace "Reading bytes from store stream", blockNum, cid = blk.cid, bytes = readBytes, blockOffset
+    trace "blockNum/manifestLength", blockNum, manifestLength=self.manifest.len
 
     # Copy `readBytes` bytes starting at `blockOffset` from the block into the outbuf
     if blk.isEmpty:
