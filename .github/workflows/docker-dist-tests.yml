@@ -1,4 +1,4 @@
-name: Docker
+name: Docker - Dist-Tests
 
 
 on:
@@ -11,7 +11,7 @@ on:
       - '**/*.md'
       - '.gitignore'
       - '.github/**'
-      - '!.github/workflows/docker.yml'
+      - '!.github/workflows/docker-dist-tests.yml'
       - '!.github/workflows/docker-reusable.yml'
       - 'docker/**'
       - '!docker/codex.Dockerfile'
@@ -23,4 +23,8 @@ jobs:
   build-and-push:
     name: Build and Push
     uses: ./.github/workflows/docker-reusable.yml
+    with:
+      nimflags: '-d:disableMarchNative -d:codex_enable_api_debug_peers=true -d:codex_enable_simulated_proof_failures'
+      nat_ip_auto: true
+      tag_suffix: dist-tests
     secrets: inherit
