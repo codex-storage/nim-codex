@@ -136,6 +136,10 @@ method putBlock*(
   ## Put a block to the blockstore
   ##
 
+  if blk.isEmpty:
+    trace "Empty block, ignoring"
+    return success()
+
   without key =? makePrefixKey(self.postFixLen, blk.cid), err:
     trace "Error getting key from provider", err = err.msg
     return failure(err)
@@ -209,6 +213,10 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
 
   trace "Deleting block", cid
 
+  if cid.isEmpty:
+    trace "Empty block, ignoring"
+    return success()
+
   if blk =? (await self.getBlock(cid)):
     if key =? makePrefixKey(self.postFixLen, cid) and
       err =? (await self.repoDs.delete(key)).errorOption:
@@ -236,6 +244,10 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
 method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
   ##
+
+  if cid.isEmpty:
+    trace "Empty block, ignoring"
+    return true.success
 
   without key =? makePrefixKey(self.postFixLen, cid), err:
     trace "Error getting key from provider", err = err.msg
@@ -323,17 +335,6 @@ method close*(self: RepoStore): Future[void] {.async.} =
   ##
 
   (await self.repoDs.close()).expect("Should close datastore")
-
-proc hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
-  ## Check if the block exists in the blockstore.
-  ## Return false if error encountered
-  ##
-
-  without key =? makePrefixKey(self.postFixLen, cid), err:
-    trace "Error getting key from provider", err = err.msg
-    return failure(err.msg)
-
-  return await self.repoDs.has(key)
 
 proc reserve*(self: RepoStore, bytes: uint): Future[?!void] {.async.} =
   ## Reserve bytes
