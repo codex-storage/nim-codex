@@ -272,7 +272,8 @@ method listBlocks*(
     of BlockType.Block: CodexBlocksKey
     of BlockType.Both: CodexRepoKey
 
-  without queryIter =? (await self.repoDs.query(Query.init(key))), err:
+  let query = Query.init(key, value=false)
+  without queryIter =? (await self.repoDs.query(query)), err:
     trace "Error querying cids in repo", blockType, err = err.msg
     return failure(err)
 
