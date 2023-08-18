@@ -100,11 +100,9 @@ method readOnce*(
 
     # Read contents of block `blockNum`
     without blk =? await self.store.getBlock(self.manifest[blockNum]), error:
-      trace "failed to get block from store in storestream"
       raise newLPStreamReadError(error)
 
     trace "Reading bytes from store stream", blockNum, cid = blk.cid, bytes = readBytes, blockOffset
-    trace "blockNum/manifestLength", blockNum, manifestLength=self.manifest.len
 
     # Copy `readBytes` bytes starting at `blockOffset` from the block into the outbuf
     if blk.isEmpty:
@@ -116,10 +114,6 @@ method readOnce*(
     self.offset += readBytes
     read += readBytes
 
-  trace "read < nbytes: ", predicate=(read < nbytes)
-  trace "atEof:", predicate=(self.atEof)
-
-  trace "storestream finished", read
   return read
 
 method closeImpl*(self: StoreStream) {.async.} =
