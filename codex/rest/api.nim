@@ -255,8 +255,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       finally:
         await reader.closeWait()
 
-      # if we got here something went wrong?
-      trace "something went wrong error"
+      trace "Something went wrong error"
       return RestApiResponse.error(Http500)
 
   router.api(
