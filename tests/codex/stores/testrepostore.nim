@@ -19,6 +19,7 @@ import pkg/codex/clock
 
 import ../helpers
 import ../helpers/mockclock
+import ../examples
 import ./commonstoretests
 
 checksuite "Test RepoStore start/stop":
@@ -282,6 +283,28 @@ asyncchecksuite "RepoStore":
 
     check blockExpirations2.len == 1
     assertExpiration(blockExpirations2[0], blk3)
+
+  test "should put empty blocks":
+    let blk = Cid.example.emptyBlock
+    check (await repo.putBlock(blk)).isOk
+
+  test "should get empty blocks":
+    let blk = Cid.example.emptyBlock
+
+    let got = await repo.getBlock(blk.cid)
+    check got.isOk
+    check got.get.cid == blk.cid
+
+  test "should delete empty blocks":
+    let blk = Cid.example.emptyBlock
+    check (await repo.delBlock(blk.cid)).isOk
+
+  test "should have empty block":
+    let blk = Cid.example.emptyBlock
+
+    let has = await repo.hasBlock(blk.cid)
+    check has.isOk
+    check has.get
 
 commonBlockStoreTests(
   "RepoStore Sql backend", proc: BlockStore =
