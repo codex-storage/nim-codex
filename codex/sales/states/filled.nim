@@ -46,10 +46,8 @@ method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
       if context.simulateProofFailures > 0:
         info "Proving with failure rate", rate = context.simulateProofFailures
         return some State(SaleProvingSimulated(failEveryNProofs: context.simulateProofFailures))
-      else:
-        return some State(SaleProving())
-    else:
-      return some State(SaleProving())
+
+    return some State(SaleProving())
 
   else:
     let error = newException(HostMismatchError, "Slot filled by other host")
