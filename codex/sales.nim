@@ -153,7 +153,7 @@ proc load*(sales: Sales) {.async.} =
     agent.start(SaleUnknown())
     sales.agents.add agent
 
-proc onReservationAdded(sales: Sales, availability: Availability) {.async.} =
+proc onAvailabilityAdded(sales: Sales, availability: Availability) {.async.} =
   ## Query last 256 blocks for new requests, adding them to the queue. `push`
   ## checks for availability before adding to the queue. If processed, the
   ## sales agent will check if the slot is free.
@@ -384,9 +384,11 @@ proc startSlotQueue(sales: Sales) {.async.} =
 
   asyncSpawn slotQueue.start()
 
-  reservations.onReservationAdded =
-    proc(availability: Availability) {.async.} =
-      await sales.onReservationAdded(availability)
+  proc onAvailabilityAdded(availability: Availability) {.async.} =
+    await sales.onAvailabilityAdded(availability)
+
+  reservations.onAdded = onAvailabilityAdded
+  reservations.onMarkUnused = onAvailabilityAdded
 
 
 proc subscribe(sales: Sales) {.async.} =

@@ -117,6 +117,25 @@ asyncchecksuite "Reservations module":
 
     check not available.used
 
+  test "onMarkedUnused called when availability marked unused":
+    var markedUnused: Availability
+    reservations.onMarkUnused = proc(a: Availability) {.async.} =
+      markedUnused = a
+
+    check isOk await reservations.reserve(availability)
+    check isOk await reservations.markUnused(availability.id)
+
+    check markedUnused == availability
+
+  test "onAdded called when availability is reserved":
+    var added: Availability
+    reservations.onAdded = proc(a: Availability) {.async.} =
+      added = a
+
+    check isOk await reservations.reserve(availability)
+
+    check added == availability
+
   test "used availability can be found":
     check isOk await reservations.reserve(availability)
 

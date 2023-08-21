@@ -43,9 +43,10 @@ type
     used*: bool
   Reservations* = ref object
     repo: RepoStore
-    onReservationAdded: ?OnReservationAdded
+    onAdded: ?OnAvailabilityAdded
+    onMarkUnused: ?OnAvailabilityAdded
   GetNext* = proc(): Future[?Availability] {.upraises: [], gcsafe, closure.}
-  OnReservationAdded* = proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
+  OnAvailabilityAdded* = proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
   AvailabilityIter* = ref object
     finished*: bool
     next*: GetNext
@@ -111,9 +112,15 @@ proc readValue*[T: AvailabilityId](
   mixin readValue
   value = T reader.readValue(T.distinctBase)
 
-proc `onReservationAdded=`*(self: Reservations,
-                            onReservationAdded: OnReservationAdded) =
-  self.onReservationAdded = some onReservationAdded
+proc `onAdded=`*(self: Reservations,
+                            onAdded: OnAvailabilityAdded) =
+  self.onAdded = some onAdded
+
+proc `onMarkUnused=`*(
+  self: Reservations,
+  onMarkUnused: OnAvailabilityAdded
+) =
+  self.onMarkUnused = some onMarkUnused
 
 func key(id: AvailabilityId): ?!Key =
   (ReservationsKey / id.toArray.toHex)
@@ -217,13 +224,13 @@ proc reserve*(
 
     return failure(updateErr)
 
-  if onReservationAdded =? self.onReservationAdded:
+  if onAdded =? self.onAdded:
     try:
-      await onReservationAdded(availability)
+      await onAdded(availability)
     except CatchableError as e:
       # we don't have any insight into types of errors that `onProcessSlot` can
       # throw because it is caller-defined
-      warn "Unknown error during 'onReservationAdded' callback",
+      warn "Unknown error during 'onAdded' callback",
         availabilityId = availability.id, error = e.msg
 
   return success()
@@ -292,6 +299,13 @@ proc markUnused*(
   let r = await self.update(availability)
   if r.isOk:
     trace "availability marked unused", id = id.toArray.toHex
+
+    if onMarkedUnused =? self.onMarkUnused:
+      try:
+        await onMarkedUnused(availability)
+      except CatchableError as e:
+        warn "Unknown error during 'onMarkedUnused' callback",
+          availabilityId = availability.id, error = e.msg
   return r
 
 iterator items*(self: AvailabilityIter): Future[?Availability] =
