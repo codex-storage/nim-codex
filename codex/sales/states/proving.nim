@@ -14,7 +14,7 @@ logScope:
     topics = "marketplace sales proving"
 
 type
-  SlotNotFilled* = object of Exception
+  SlotNotFilledError* = object of CatchableError
   SaleProving* = ref object of ErrorHandlingState
     loop: Future[void]
 
@@ -66,7 +66,7 @@ proc proveLoop(
       return
 
     if slotState != SlotState.Filled:
-      raise newException(SlotNotFilled, "Slot is not in Filled state!")
+      raise newException(SlotNotFilledError, "Slot is not in Filled state!")
 
     debug "Proving for new period", period = currentPeriod
 
