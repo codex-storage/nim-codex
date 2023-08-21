@@ -4,13 +4,11 @@ import ../errors
 import ../utils/asyncstatemachine
 import ../market
 import ../clock
-import ../proving
 import ../contracts/requests
 
 export market
 export clock
 export asyncstatemachine
-export proving
 
 type
   SaleState* = ref object of State

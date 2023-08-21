@@ -372,7 +372,7 @@ proc start*(node: CodexNodeRef) {.async.} =
       # TODO: remove data from local storage
       discard
 
-    hostContracts.proving.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
+    hostContracts.sales.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       # TODO: generate proof
       return @[42'u8]
 

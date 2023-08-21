@@ -55,9 +55,9 @@ proc bootstrapInteractions(
     config: CodexConf,
     repo: RepoStore
 ): Future[Contracts] {.async.} =
-  ## bootstrap interactions and return contracts 
+  ## bootstrap interactions and return contracts
   ## using clients, hosts, validators pairings
-  ## 
+  ##
 
   if not config.persistence and not config.validator:
     if config.ethAccount.isSome:
@@ -86,18 +86,23 @@ proc bootstrapInteractions(
   var client: ?ClientInteractions
   var host: ?HostInteractions
   var validator: ?ValidatorInteractions
+
   if config.persistence:
-    let purchasing = Purchasing.new(market, clock)
+    # This is used for simulation purposes. Normal nodes won't be compiled with this flag
+    # and hence the proof failure will always be 0.
     when codex_enable_proof_failures:
-      let proving = if config.simulateProofFailures > 0:
-                      SimulatedProving.new(market, clock,
-                                           config.simulateProofFailures)
-                    else: Proving.new(market, clock)
+      let proofFailures = config.simulateProofFailures
+      if proofFailures > 0:
+        warn "Enabling proof failure simulation!"
     else:
-      let proving = Proving.new(market, clock)
-    let sales = Sales.new(market, clock, proving, repo)
+      let proofFailures = 0
+      if config.simulateProofFailures > 0:
+        warn "Proof failure simulation is not enabled for this build! Configuration ignored"
+
+    let purchasing = Purchasing.new(market, clock)
+    let sales = Sales.new(market, clock, repo, proofFailures)
     client = some ClientInteractions.new(clock, purchasing)
-    host = some HostInteractions.new(clock, sales, proving)
+    host = some HostInteractions.new(clock, sales)
   if config.validator:
     let validation = Validation.new(clock, market, config.validatorMaxSlots)
     validator = some ValidatorInteractions.new(clock, validation)

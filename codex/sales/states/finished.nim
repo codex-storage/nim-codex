@@ -25,16 +25,13 @@ method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
   let data = agent.data
   let context = agent.context
 
-  debug "Request succesfully filled", requestId = $data.requestId
+  without request =? data.request:
+    raiseAssert "no sale request"
 
-  if request =? data.request and
-      slotIndex =? data.slotIndex:
-    let slot = Slot(request: request, slotIndex: slotIndex)
-    debug "Adding slot to proving list", slotId = $slot.id
-    context.proving.add(slot)
+  without slotIndex =? data.slotIndex:
+    raiseAssert("no slot index assigned")
 
-    if onSale =? context.onSale:
-      onSale(request, slotIndex)
+  info "Slot finished and paid out", requestId = $data.requestId, slotIndex
 
   if onCleanUp =? context.onCleanUp:
     await onCleanUp()

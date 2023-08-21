@@ -5,6 +5,7 @@ import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
 import pkg/codex/sales/states/filled
 import pkg/codex/sales/states/errored
+import pkg/codex/sales/states/proving
 import pkg/codex/sales/states/finished
 import ../../helpers/mockmarket
 import ../../examples
@@ -33,11 +34,11 @@ checksuite "sales state 'filled'":
                           StorageRequest.none)
     state = SaleFilled.new()
 
-  test "switches to finished state when slot is filled by me":
+  test "switches to proving state when slot is filled by me":
     slot.host = await market.getSigner()
     market.filled = @[slot]
     let next = await state.run(agent)
-    check !next of SaleFinished
+    check !next of SaleProving
 
   test "switches to error state when slot is filled by another host":
     slot.host = Address.example

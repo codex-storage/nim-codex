@@ -7,7 +7,6 @@ import pkg/chronicles
 import pkg/datastore
 import ./market
 import ./clock
-import ./proving
 import ./stores
 import ./contracts/requests
 import ./contracts/marketplace
@@ -61,26 +60,37 @@ proc `onClear=`*(sales: Sales, onClear: OnClear) =
 proc `onSale=`*(sales: Sales, callback: OnSale) =
   sales.context.onSale = some callback
 
+proc `onProve=`*(sales: Sales, callback: OnProve) =
+  sales.context.onProve = some callback
+
 proc onStore*(sales: Sales): ?OnStore = sales.context.onStore
 
 proc onClear*(sales: Sales): ?OnClear = sales.context.onClear
 
 proc onSale*(sales: Sales): ?OnSale = sales.context.onSale
 
+proc onProve*(sales: Sales): ?OnProve = sales.context.onProve
+
 func new*(_: type Sales,
           market: Market,
           clock: Clock,
-          proving: Proving,
           repo: RepoStore): Sales =
+  Sales.new(market, clock, repo, 0)
+
+func new*(_: type Sales,
+          market: Market,
+          clock: Clock,
+          repo: RepoStore,
+          simulateProofFailures: int): Sales =
 
   let reservations = Reservations.new(repo)
   Sales(
     context: SalesContext(
       market: market,
       clock: clock,
-      proving: proving,
       reservations: reservations,
-      slotQueue: SlotQueue.new(reservations)
+      slotQueue: SlotQueue.new(reservations),
+      simulateProofFailures: simulateProofFailures
     ),
     trackedFutures: TrackedFutures.new(),
     subscriptions: @[]
@@ -392,9 +402,9 @@ proc unsubscribe(sales: Sales) {.async.} =
       error "Unable to unsubscribe from subscription", error = e.msg
 
 proc start*(sales: Sales) {.async.} =
+  await sales.load()
   await sales.startSlotQueue()
   await sales.subscribe()
-  await sales.load()
 
 proc stop*(sales: Sales) {.async.} =
   trace "stopping sales"

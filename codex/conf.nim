@@ -251,7 +251,7 @@ type
           defaultValue: 0
           name: "simulate-proof-failures"
           hidden
-        .}: uint
+        .}: int
 
     of initNode:
       discard

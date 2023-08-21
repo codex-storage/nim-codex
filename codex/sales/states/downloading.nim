@@ -9,7 +9,7 @@ import ./errorhandling
 import ./cancelled
 import ./failed
 import ./filled
-import ./proving
+import ./initialproving
 import ./errored
 
 type
@@ -80,4 +80,4 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
   trace "Download complete"
 
   markUnused(availability.id)
-  return some State(SaleProving())
+  return some State(SaleInitialProving())
