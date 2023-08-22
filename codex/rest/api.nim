@@ -374,7 +374,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       if not reservations.hasAvailable(availability.size.truncate(uint)):
         return RestApiResponse.error(Http422, "Not enough storage quota")
 
-      if err =? (await reservations.reserve(availability)).errorOption:
+      if err =? (await reservations.create(availability)).errorOption:
         return RestApiResponse.error(Http500, err.msg)
 
       let json = %availability

@@ -201,7 +201,7 @@ asyncchecksuite "Sales":
    queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
                            itemsProcessed.add item
                            done.complete()
-   check isOk await reservations.reserve(availability)
+   check isOk await reservations.create(availability)
    await market.requestStorage(request)
    let items = SlotQueueItem.init(request)
    check eventually items.allIt(itemsProcessed.contains(it))
@@ -232,7 +232,7 @@ asyncchecksuite "Sales":
      itemsProcessed.add item
      done.complete()
 
-   check isOk await reservations.reserve(availability)
+   check isOk await reservations.create(availability)
    market.requested.add request # "contract" must be able to return request
    market.emitSlotFreed(request.id, 2.u256)
 
@@ -261,7 +261,7 @@ asyncchecksuite "Sales":
       used = avail.used
       return success()
 
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(request)
     check eventually used
 
@@ -274,43 +274,43 @@ asyncchecksuite "Sales":
                          onBatch: BatchProc): Future[?!void] {.async.} =
       await onBatch(@[blk])
       return success()
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(request)
     check eventually getAvailability().?size == success 1.u256
 
   test "ignores download when duration not long enough":
     availability.duration = request.ask.duration - 1
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(request)
     check getAvailability().?size == success availability.size
 
   test "ignores request when slot size is too small":
     availability.size = request.ask.slotSize - 1
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(request)
     check getAvailability().?size == success availability.size
 
   test "ignores request when reward is too low":
     availability.minPrice = request.ask.pricePerSlot + 1
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(request)
     check getAvailability().?size == success availability.size
 
   test "availability remains unused when request is ignored":
     availability.minPrice = request.ask.pricePerSlot + 1
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(request)
     check getAvailability().?used == success false
 
   test "ignores request when asked collateral is too high":
     var tooBigCollateral = request
     tooBigCollateral.ask.collateral = availability.maxCollateral + 1
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(tooBigCollateral)
     check getAvailability().?size == success availability.size
 
   test "ignores request when slot state is not free":
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(request)
     market.slotState[request.slotId(0.u256)] = SlotState.Filled
     market.slotState[request.slotId(1.u256)] = SlotState.Filled
@@ -327,7 +327,7 @@ asyncchecksuite "Sales":
       storingRequest = request
       storingSlot = slot
       return success()
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(request)
     check eventually storingRequest == request
     check storingSlot < request.ask.slots.u256
@@ -342,7 +342,7 @@ asyncchecksuite "Sales":
     sales.onClear = proc(request: StorageRequest,
                          idx: UInt256) =
       saleFailed = true
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(request)
     check eventually saleFailed
 
@@ -352,7 +352,7 @@ asyncchecksuite "Sales":
                          slot: UInt256,
                          onBatch: BatchProc): Future[?!void] {.async.} =
       return failure(error)
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(request)
     check eventually getAvailability().?used == success false
     check getAvailability().?size == success availability.size
@@ -363,13 +363,13 @@ asyncchecksuite "Sales":
     sales.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       provingRequest = slot.request
       provingSlot = slot.slotIndex
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(request)
     check eventually provingRequest == request
     check provingSlot < request.ask.slots.u256
 
   test "fills a slot":
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(request)
     check eventually market.filled.len > 0
     check market.filled[0].requestId == request.id
@@ -387,7 +387,7 @@ asyncchecksuite "Sales":
         soldAvailability = a
       soldRequest = request
       soldSlotIndex = slotIndex
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(request)
     check eventually soldAvailability == availability
     check soldRequest == request
@@ -404,7 +404,7 @@ asyncchecksuite "Sales":
                          slotIndex: UInt256) =
       clearedRequest = request
       clearedSlotIndex = slotIndex
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(request)
     check eventually clearedRequest == request
     check clearedSlotIndex < request.ask.slots.u256
@@ -416,7 +416,7 @@ asyncchecksuite "Sales":
                          onBatch: BatchProc): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(request)
     for slotIndex in 0..<request.ask.slots:
       market.fillSlot(request.id, slotIndex.u256, proof, otherHost)
@@ -428,10 +428,21 @@ asyncchecksuite "Sales":
                          onBatch: BatchProc): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     await market.requestStorage(request)
     clock.set(request.expiry.truncate(int64))
-    check eventually (await reservations.allAvailabilities) == @[availability]
+    check eventuallyCheck (await reservations.allAvailabilities) == @[availability]
+
+  test "adds proving for slot when slot is filled":
+    var soldSlotIndex: UInt256
+    sales.onSale = proc(request: StorageRequest,
+                        slotIndex: UInt256) =
+      soldSlotIndex = slotIndex
+    check proving.slots.len == 0
+    check isOk await reservations.create(availability)
+    await market.requestStorage(request)
+    check eventuallyCheck proving.slots.len == 1
+    check proving.slots.contains(Slot(request: request, slotIndex: soldSlotIndex))
 
   test "loads active slots from market":
     let me = await market.getSigner()
