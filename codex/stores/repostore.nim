@@ -282,6 +282,7 @@ method listBlocks*(
     iter.finished = queryIter.finished
     if not queryIter.finished:
       if pair =? (await queryIter.next()) and cid =? pair.key:
+        doAssert pair.data.len == 0
         trace "Retrieved record from repo", cid
         return Cid.init(cid.value).option
 
