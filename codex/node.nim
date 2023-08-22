@@ -227,7 +227,8 @@ proc store*(
 
   trace "Stored data", manifestCid = manifest.cid,
                        contentCid = cid,
-                       blocks = blockManifest.len
+                       blocks = blockManifest.len,
+                       size=blockManifest.originalBytes
 
   # Announce manifest
   await self.discovery.provide(manifest.cid)

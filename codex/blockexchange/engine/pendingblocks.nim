@@ -8,6 +8,7 @@
 ## those terms.
 
 import std/tables
+import std/monotimes
 
 import pkg/upraises
 
@@ -24,6 +25,7 @@ logScope:
   topics = "codex pendingblocks"
 
 declareGauge(codexBlockExchangePendingBlockRequests, "codex blockexchange pending block requests")
+declareGauge(codexBlockExchangeRetrievalTimeUs, "codex blockexchange block retrieval time us")
 
 const
   DefaultBlockTimeout* = 10.minutes
@@ -32,6 +34,7 @@ type
   BlockReq* = object
     handle*: Future[Block]
     inFlight*: bool
+    startTime*: int64
 
   PendingBlocksManager* = ref object of RootObj
     blocks*: Table[Cid, BlockReq] # pending Block requests
@@ -52,7 +55,8 @@ proc getWantHandle*(
     if cid notin p.blocks:
       p.blocks[cid] = BlockReq(
         handle: newFuture[Block]("pendingBlocks.getWantHandle"),
-        inFlight: inFlight)
+        inFlight: inFlight,
+        startTime: getMonoTime().ticks)
 
       trace "Adding pending future for block", cid, inFlight = p.blocks[cid].inFlight
 
@@ -80,6 +84,12 @@ proc resolve*(p: PendingBlocksManager,
       if not pending[].handle.completed:
         trace "Resolving block", cid = blk.cid
         pending[].handle.complete(blk)
+        let
+          startTime = pending[].startTime
+          stopTime = getMonoTime().ticks
+          retrievalDurationUs = (stopTime - startTime) div 1000
+        codexBlockExchangeRetrievalTimeUs.set(retrievalDurationUs)
+        trace "Block retrieval time", retrievalDurationUs
 
 proc setInFlight*(p: PendingBlocksManager,
                   cid: Cid,
