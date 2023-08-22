@@ -6,26 +6,38 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
+##
+##                                                       +--------------------------------------+
+##                                                       |            RESERVATION               |
+## +--------------------------------------+              |--------------------------------------|
+## |            AVAILABILITY              |              | ReservationId  | id             | PK |
+## |--------------------------------------|              |--------------------------------------|
+## | AvailabilityId | id            | PK  |<-||-------o<-| AvailabilityId | availabilityId | FK |
+## |--------------------------------------|              |--------------------------------------|
+## | UInt256        | size          |     |              | UInt256        | size           |    |
+## |--------------------------------------|              |--------------------------------------|
+## | UInt256        | duration      |     |              | SlotId         | slotId         |    |
+## |--------------------------------------|              +--------------------------------------+
+## | UInt256        | minPrice      |     |
+## |--------------------------------------|
+## | UInt256        | maxCollateral |     |
+## +--------------------------------------+
+
+import pkg/upraises
+push: {.upraises: [].}
 
 import std/typetraits
-
 import pkg/chronos
 import pkg/chronicles
-import pkg/upraises
-import pkg/json_serialization
-import pkg/json_serialization/std/options
-import pkg/stint
-import pkg/stew/byteutils
+import pkg/datastore
 import pkg/nimcrypto
 import pkg/questionable
 import pkg/questionable/results
-import ../utils/json
-
-push: {.upraises: [].}
-
-import pkg/datastore
+import pkg/stint
+import pkg/stew/byteutils
 import ../stores
 import ../contracts/requests
+import ../utils/json
 
 export requests
 
@@ -34,13 +46,19 @@ logScope:
 
 type
   AvailabilityId* = distinct array[32, byte]
+  ReservationId* = distinct array[32, byte]
   Availability* = object
     id* {.serialize.}: AvailabilityId
     size* {.serialize.}: UInt256
     duration* {.serialize.}: UInt256
     minPrice* {.serialize.}: UInt256
     maxCollateral* {.serialize.}: UInt256
-    used*: bool
+    # used*: bool
+  Reservation* = object
+    id* {.serialize.}: ReservationId
+    availabilityId* {.serialize.}: AvailabilityId
+    size* {.serialize.}: UInt256
+    slotId* {.serialize.}: SlotId
   Reservations* = ref object
     repo: RepoStore
     onAdded: ?OnAvailabilityAdded
@@ -78,10 +96,16 @@ proc init*(
   doAssert randomBytes(id) == 32
   Availability(id: AvailabilityId(id), size: size, duration: duration, minPrice: minPrice, maxCollateral: maxCollateral)
 
-func toArray*(id: AvailabilityId): array[32, byte] =
+func toArray(id: AvailabilityId | ReservationId): array[32, byte] =
   array[32, byte](id)
 
 proc `==`*(x, y: AvailabilityId): bool {.borrow.}
+proc `==`*(x, y: ReservationId): bool {.borrow.}
+proc `==`*(x, y: Reservation): bool =
+  x.id == y.id and
+  x.availabilityId == y.availabilityId and
+  x.size == y.size and
+  x.slotId == y.slotId
 proc `==`*(x, y: Availability): bool =
   x.id == y.id and
   x.size == y.size and
@@ -89,7 +113,7 @@ proc `==`*(x, y: Availability): bool =
   x.maxCollateral == y.maxCollateral and
   x.minPrice == y.minPrice
 
-proc `$`*(id: AvailabilityId): string = id.toArray.toHex
+proc `$`*(id: AvailabilityId | ReservationId): string = id.toArray.toHex
 
 proc toErr[E1: ref CatchableError, E2: AvailabilityError](
   e1: E1,
@@ -100,32 +124,25 @@ proc toErr[E1: ref CatchableError, E2: AvailabilityError](
 
 proc writeValue*(
   writer: var JsonWriter,
-  value: AvailabilityId) {.upraises:[IOError].} =
+  value: AvailabilityId | ReservationId) {.upraises:[IOError].} =
+  ## used for chronicles' logs
 
   mixin writeValue
-  writer.writeValue value.toArray
-
-proc readValue*[T: AvailabilityId](
-  reader: var JsonReader,
-  value: var T) {.upraises: [SerializationError, IOError].} =
-
-  mixin readValue
-  value = T reader.readValue(T.distinctBase)
+  writer.writeValue %value
 
 proc `onAdded=`*(self: Reservations,
                             onAdded: OnAvailabilityAdded) =
   self.onAdded = some onAdded
 
-proc `onMarkUnused=`*(
-  self: Reservations,
-  onMarkUnused: OnAvailabilityAdded
-) =
-  self.onMarkUnused = some onMarkUnused
-
 func key(id: AvailabilityId): ?!Key =
-  (ReservationsKey / id.toArray.toHex)
+  ## sales / reservations / <availabilityId>
+  (ReservationsKey / $id)
 
-func key*(availability: Availability): ?!Key =
+func key(reservationId: ReservationId, availabilityId: AvailabilityId): ?!Key =
+  ## sales / reservations / <availabilityId> / <reservationId>
+  (availabilityId.key / $reservationId)
+
+func key*(availability: Availability | Reservation): ?!Key =
   return availability.id.key
 
 func available*(self: Reservations): uint = self.repo.available
@@ -158,7 +175,7 @@ proc get*(
   without serialized =? await self.repo.metaDs.get(key), err:
     return failure(err.toErr(AvailabilityGetFailedError))
 
-  without availability =? Json.decode(serialized, Availability).catch, err:
+  without availability =? Availability.fromJson(serialized), err:
     return failure(err.toErr(AvailabilityGetFailedError))
 
   return success availability
@@ -175,7 +192,7 @@ proc update(
 
   if err =? (await self.repo.metaDs.put(
     key,
-    @(availability.toJson.toBytes))).errorOption:
+    @(($ %availability).toBytes))).errorOption:
     return failure(err.toErr(AvailabilityUpdateFailedError))
 
   return success()
@@ -197,7 +214,7 @@ proc delete(
 
   return success()
 
-proc reserve*(
+proc create*(
   self: Reservations,
   availability: Availability): Future[?!void] {.async.} =
 
@@ -274,40 +291,6 @@ proc release*(
 
   return success()
 
-
-proc markUsed*(
-  self: Reservations,
-  id: AvailabilityId): Future[?!void] {.async.} =
-
-  without var availability =? (await self.get(id)), err:
-    return failure(err)
-
-  availability.used = true
-  let r = await self.update(availability)
-  if r.isOk:
-    trace "availability marked used", id = id.toArray.toHex
-  return r
-
-proc markUnused*(
-  self: Reservations,
-  id: AvailabilityId): Future[?!void] {.async.} =
-
-  without var availability =? (await self.get(id)), err:
-    return failure(err)
-
-  availability.used = false
-  let r = await self.update(availability)
-  if r.isOk:
-    trace "availability marked unused", id = id.toArray.toHex
-
-    if onMarkedUnused =? self.onMarkUnused:
-      try:
-        await onMarkedUnused(availability)
-      except CatchableError as e:
-        warn "Unknown error during 'onMarkedUnused' callback",
-          availabilityId = availability.id, error = e.msg
-  return r
-
 iterator items*(self: AvailabilityIter): Future[?Availability] =
   while not self.finished:
     yield self.next()
@@ -329,7 +312,7 @@ proc availabilities*(
       serialized =? r.data and
       serialized.len > 0:
 
-      return some Json.decode(string.fromBytes(serialized), Availability)
+      return Availability.fromJson(serialized).option
 
     return none Availability
 

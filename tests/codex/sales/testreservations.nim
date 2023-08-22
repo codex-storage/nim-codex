@@ -4,11 +4,10 @@ import pkg/questionable/results
 import pkg/chronos
 import pkg/asynctest
 import pkg/datastore
-import pkg/json_serialization
-import pkg/json_serialization/std/options
 
 import pkg/codex/stores
 import pkg/codex/sales
+import pkg/codex/utils/json
 
 import ../examples
 import ./helpers
@@ -30,8 +29,8 @@ asyncchecksuite "Reservations module":
 
   test "availability can be serialised and deserialised":
     let availability = Availability.example
-    let serialised = availability.toJson
-    check Json.decode(serialised, Availability) == availability
+    let serialised = %availability
+    check Availability.fromJson(serialised).get == availability
 
   test "has no availability initially":
     check (await reservations.allAvailabilities()).len == 0
@@ -44,8 +43,8 @@ asyncchecksuite "Reservations module":
   test "can reserve available storage":
     let availability1 = Availability.example
     let availability2 = Availability.example
-    check isOk await reservations.reserve(availability1)
-    check isOk await reservations.reserve(availability2)
+    check isOk await reservations.create(availability1)
+    check isOk await reservations.create(availability2)
 
     let availabilities = await reservations.allAvailabilities()
     check:
@@ -55,7 +54,7 @@ asyncchecksuite "Reservations module":
       availabilities.contains(availability2)
 
   test "reserved availability exists":
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
 
     without exists =? await reservations.exists(availability.id):
       fail()
@@ -64,7 +63,7 @@ asyncchecksuite "Reservations module":
 
   test "reserved availability can be partially released":
     let size = availability.size.truncate(uint)
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     check isOk await reservations.release(availability.id, size - 1)
 
     without a =? await reservations.get(availability.id):
@@ -74,7 +73,7 @@ asyncchecksuite "Reservations module":
 
   test "availability is deleted after being fully released":
     let size = availability.size.truncate(uint)
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     check isOk await reservations.release(availability.id, size)
 
     without exists =? await reservations.exists(availability.id):
@@ -89,7 +88,7 @@ asyncchecksuite "Reservations module":
     check r.error.msg == "Availability does not exist"
 
   test "added availability is not used initially":
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
 
     without available =? await reservations.get(availability.id):
       fail()
@@ -97,7 +96,7 @@ asyncchecksuite "Reservations module":
     check not available.used
 
   test "availability can be marked used":
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
 
     check isOk await reservations.markUsed(availability.id)
 
@@ -107,7 +106,7 @@ asyncchecksuite "Reservations module":
     check available.used
 
   test "availability can be marked unused":
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
 
     check isOk await reservations.markUsed(availability.id)
     check isOk await reservations.markUnused(availability.id)
@@ -122,7 +121,7 @@ asyncchecksuite "Reservations module":
     reservations.onMarkUnused = proc(a: Availability) {.async.} =
       markedUnused = a
 
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     check isOk await reservations.markUnused(availability.id)
 
     check markedUnused == availability
@@ -132,12 +131,12 @@ asyncchecksuite "Reservations module":
     reservations.onAdded = proc(a: Availability) {.async.} =
       added = a
 
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
 
     check added == availability
 
   test "used availability can be found":
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
 
     check isOk await reservations.markUsed(availability.id)
 
@@ -147,7 +146,7 @@ asyncchecksuite "Reservations module":
       fail()
 
   test "unused availability can be found":
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
 
     without available =? await reservations.find(availability.size,
       availability.duration, availability.minPrice, availability.maxCollateral, used = false):
@@ -164,15 +163,15 @@ asyncchecksuite "Reservations module":
     check r.error.msg == "Availability does not exist"
 
   test "same availability cannot be reserved twice":
-    check isOk await reservations.reserve(availability)
-    let r = await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
+    let r = await reservations.create(availability)
     check r.error of AvailabilityAlreadyExistsError
 
   test "can get available bytes in repo":
     check reservations.available == DefaultQuotaBytes
 
   test "reserving availability reduces available bytes":
-    check isOk await reservations.reserve(availability)
+    check isOk await reservations.create(availability)
     check reservations.available ==
       DefaultQuotaBytes - availability.size.truncate(uint)
 
@@ -189,7 +188,7 @@ asyncchecksuite "Reservations module":
     repo = RepoStore.new(repoDs, metaDs,
                          quotaMaxBytes = availability.size.truncate(uint) - 1)
     reservations = Reservations.new(repo)
-    let r = await reservations.reserve(availability)
+    let r = await reservations.create(availability)
     check r.error of AvailabilityReserveFailedError
     check r.error.parent of QuotaNotEnoughError
     check exists =? (await reservations.exists(availability.id)) and not exists
@@ -199,7 +198,7 @@ asyncchecksuite "Reservations module":
     repo = RepoStore.new(repoDs, metaDs,
                          quotaMaxBytes = size)
     reservations = Reservations.new(repo)
-    discard await reservations.reserve(availability)
+    discard await reservations.create(availability)
     let r = await reservations.release(availability.id, size + 1)
     check r.error of AvailabilityReleaseFailedError
     check r.error.parent.msg == "Cannot release this many bytes"
