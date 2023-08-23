@@ -2,6 +2,7 @@ import std/sequtils
 import std/sugar
 import std/tables
 import pkg/questionable
+import pkg/questionable/results
 import pkg/stint
 import pkg/chronicles
 import pkg/datastore
@@ -101,8 +102,23 @@ proc remove(sales: Sales, agent: SalesAgent) {.async.} =
   if sales.running:
     sales.agents.keepItIf(it != agent)
 
+proc cleanUp(sales: Sales,
+             agent: SalesAgent,
+             processing: Future[void]) {.async.} =
+  await sales.remove(agent)
+
+  if reservation =? agent.data.reservation and
+     deleteErr =? (await sales.context.reservations.deleteReservation(
+                    reservation.id,
+                    reservation.availabilityId
+                  )).errorOption:
+      error "failure deleting reservation",
+        reservationId = reservation.id,
+        availabilityId = reservation.availabilityId
+
 proc filled(sales: Sales,
-             processing: Future[void]) =
+            processing: Future[void]) =
+  # signal back to the slot queue to cycle a worker
   if not processing.isNil and not processing.finished():
     processing.complete()
 
@@ -387,9 +403,7 @@ proc startSlotQueue(sales: Sales) {.async.} =
   proc onAvailabilityAdded(availability: Availability) {.async.} =
     await sales.onAvailabilityAdded(availability)
 
-  reservations.onAdded = onAvailabilityAdded
-  reservations.onMarkUnused = onAvailabilityAdded
-
+  reservations.onAvailabilityAdded = onAvailabilityAdded
 
 proc subscribe(sales: Sales) {.async.} =
   await sales.subscribeRequested()
