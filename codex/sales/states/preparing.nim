@@ -10,6 +10,7 @@ import ./failed
 import ./filled
 import ./ignored
 import ./downloading
+import ./errored
 
 type
   SalePreparing* = ref object of ErrorHandlingState
@@ -57,13 +58,20 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
       request.ask.slotSize,
       request.ask.duration,
       request.ask.pricePerSlot,
-      request.ask.collateral,
-      used = false):
+      request.ask.collateral):
     info "no availability found for request, ignoring",
       slotSize = request.ask.slotSize,
       duration = request.ask.duration,
-      pricePerSlot = request.ask.pricePerSlot,
-      used = false
+      pricePerSlot = request.ask.pricePerSlot
+
     return some State(SaleIgnored())
 
-  return some State(SaleDownloading(availability: availability))
+  without reservation =? await reservations.createReservation(
+    availability.id,
+    request.ask.slotSize,
+    slotId
+  ), error:
+    return some State(SaleErrored(error: error))
+
+  data.reservation = some reservation
+  return some State(SaleDownloading())

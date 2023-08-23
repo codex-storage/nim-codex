@@ -1,6 +1,5 @@
 import pkg/questionable
 import pkg/questionable/results
-
 import pkg/chronos
 import pkg/asynctest
 import pkg/datastore
@@ -10,7 +9,7 @@ import pkg/codex/sales
 import pkg/codex/utils/json
 
 import ../examples
-import ./helpers
+import ../helpers
 
 asyncchecksuite "Reservations module":
   var
@@ -27,13 +26,23 @@ asyncchecksuite "Reservations module":
     reservations = Reservations.new(repo)
     availability = Availability.example
 
+  proc createAvailability(): Availability =
+    let example = Availability.example
+    let availability = waitFor reservations.createAvailability(
+      example.size,
+      example.duration,
+      example.minPrice,
+      example.maxCollateral
+    )
+    return availability.get
+
   test "availability can be serialised and deserialised":
     let availability = Availability.example
     let serialised = %availability
     check Availability.fromJson(serialised).get == availability
 
   test "has no availability initially":
-    check (await reservations.allAvailabilities()).len == 0
+    check (await reservations.allAvailabilities()).get.len == 0
 
   test "generates unique ids for storage availability":
     let availability1 = Availability.init(1.u256, 2.u256, 3.u256, 4.u256)
@@ -41,12 +50,12 @@ asyncchecksuite "Reservations module":
     check availability1.id != availability2.id
 
   test "can reserve available storage":
-    let availability1 = Availability.example
-    let availability2 = Availability.example
-    check isOk await reservations.create(availability1)
-    check isOk await reservations.create(availability2)
+    let availability1 = createAvailability()
+    let availability2 = createAvailability()
+    check availability1.id != AvailabilityId.default
+    check availability2.id != AvailabilityId.default
 
-    let availabilities = await reservations.allAvailabilities()
+    let availabilities = (await reservations.allAvailabilities()).get
     check:
       # perform unordered checks
       availabilities.len == 2
@@ -54,9 +63,9 @@ asyncchecksuite "Reservations module":
       availabilities.contains(availability2)
 
   test "reserved availability exists":
-    check isOk await reservations.create(availability)
+    let availability = createAvailability()
 
-    without exists =? await reservations.exists(availability.id):
+    without exists =? await reservations.exists(availability.key.get):
       fail()
 
     check exists

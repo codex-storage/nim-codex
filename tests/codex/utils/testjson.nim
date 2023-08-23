@@ -211,7 +211,7 @@ checksuite "json serialization":
                         },
                         "expiry": "1691545330"
                       }""".flatten
-    check $(%request) == expected
+    check request.toJson == expected
 
   test "deserializes UInt256 from non-hex string representation":
     let json = newJString("100000")
