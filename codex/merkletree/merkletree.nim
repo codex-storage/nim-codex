@@ -9,23 +9,30 @@
 
 import std/math
 import std/bitops
-import std/strutils
+import std/sequtils
+import std/sugar
 
 import pkg/questionable/results
 import pkg/nimcrypto/sha2
+import pkg/libp2p/[multicodec, multihash, vbuffer]
 
-const digestSize = sha256.sizeDigest
+import ../errors
 
 type
-  MerkleHash* = array[digestSize, byte]
   MerkleTree* = object
+    mcodec: MultiCodec
+    digestSize: Natural
     leavesCount: Natural
-    nodes: seq[MerkleHash]
+    nodesBuffer: seq[byte]
   MerkleProof* = object
+    mcodec: MultiCodec
+    digestSize: Natural
     index: Natural
-    path: seq[MerkleHash]
+    nodesBuffer: seq[byte]
   MerkleTreeBuilder* = object
-    buffer: seq[MerkleHash]
+    mcodec: MultiCodec
+    digestSize: Natural
+    buffer: seq[byte]
 
 ###########################################################
 # Helper functions
@@ -37,41 +44,41 @@ func computeTreeHeight(leavesCount: int): int =
   else:
     fastLog2(leavesCount) + 2
 
-func computeLevels(leavesCount: int): seq[tuple[offset: int, width: int]] =
+func computeLevels(leavesCount: int): seq[tuple[offset: int, width: int, index: int]] =
   let height = computeTreeHeight(leavesCount)
-  result = newSeq[tuple[offset: int, width: int]](height)
+  var levels = newSeq[tuple[offset: int, width: int, index: int]](height)
 
-  result[0].offset = 0
-  result[0].width = leavesCount
+  levels[0].offset = 0
+  levels[0].width = leavesCount
+  levels[0].index = 0
   for i in 1..<height:
-    result[i].offset = result[i - 1].offset + result[i - 1].width
-    result[i].width = (result[i - 1].width + 1) div 2
+    levels[i].offset = levels[i - 1].offset + levels[i - 1].width
+    levels[i].width = (levels[i - 1].width + 1) div 2
+    levels[i].index = i
+  levels
 
-proc digestFn(data: openArray[byte], output: var MerkleHash): void =
-  var digest = sha256.digest(data)
-  copyMem(addr output, addr digest.data[0], digestSize)
-
-###########################################################
-# MerkleHash
-###########################################################
-
-var zeroHash: MerkleHash
-
-proc `$`*(self: MerkleHash): string = 
-  result = newStringOfCap(self.len)
-  for i in 0..<self.len:
-    result.add(toHex(self[i]))
+proc digestFn(mcodec: MultiCodec, output: pointer, data: openArray[byte]): ?!void =
+  var mhash = ? MultiHash.digest($mcodec, data).mapFailure
+  copyMem(output, addr mhash.data.buffer[mhash.dpos], mhash.size)
+  success()
 
 ###########################################################
 # MerkleTreeBuilder
 ###########################################################
 
-proc addDataBlock*(self: var MerkleTreeBuilder, dataBlock: openArray[byte]): void =
+proc init*(
+  T: type MerkleTreeBuilder,
+  mcodec: MultiCodec
+): ?!MerkleTreeBuilder =
+  let mhash = ? MultiHash.digest($mcodec, "".toBytes).mapFailure
+  success(MerkleTreeBuilder(mcodec: mcodec, digestSize: mhash.size, buffer: newSeq[byte]()))
+
+proc addDataBlock*(self: var MerkleTreeBuilder, dataBlock: openArray[byte]): ?!void =
   ## Hashes the data block and adds the result of hashing to a buffer
   ## 
   let oldLen = self.buffer.len
-  self.buffer.setLen(oldLen + 1)
-  digestFn(dataBlock, self.buffer[oldLen])
+  self.buffer.setLen(oldLen + self.digestSize)
+  digestFn(self.mcodec, addr self.buffer[oldLen], dataBlock)
 
 proc build*(self: MerkleTreeBuilder): ?!MerkleTree =
   ## Builds a tree from previously added data blocks
@@ -79,31 +86,36 @@ proc build*(self: MerkleTreeBuilder): ?!MerkleTree =
   ## Tree built from data blocks A, B and C is
   ##        H5=H(H3 & H4)
   ##      /            \
-  ##    H3=H(H0 & H1)   H4=H(H2 & HZ)
+  ##    H3=H(H0 & H1)   H4=H(H2 & 0x00)
   ##   /    \          /
   ## H0=H(A) H1=H(B) H2=H(C)
   ## |       |       |
   ## A       B       C
   ##
-  ## where HZ=0x0b
-  ##
   ## Memory layout is [H0, H1, H2, H3, H4, H5]
   ##
-  let leavesCount = self.buffer.len
+  let
+    mcodec = self.mcodec 
+    digestSize = self.digestSize
+    leavesCount = self.buffer.len div self.digestSize
 
   if leavesCount == 0:
     return failure("At least one data block is required")
 
   let levels = computeLevels(leavesCount)
-  let totalSize = levels[^1].offset + 1
+  let totalNodes = levels[^1].offset + 1
   
-  var tree = MerkleTree(leavesCount: leavesCount, nodes: newSeq[MerkleHash](totalSize))
+  var tree = MerkleTree(mcodec: mcodec, digestSize: digestSize, leavesCount: leavesCount, nodesBuffer: newSeq[byte](totalNodes * digestSize))
 
   # copy leaves
-  copyMem(addr tree.nodes[0], unsafeAddr self.buffer[0], leavesCount * digestSize)
+  copyMem(addr tree.nodesBuffer[0], unsafeAddr self.buffer[0], leavesCount * digestSize)
 
   # calculate intermediate nodes
-  var concatBuf: array[2 * digestSize, byte]
+  var zero = newSeq[byte](self.digestSize)
+  var one = newSeq[byte](self.digestSize)
+  one[^1] = 0x01
+
+  var concatBuf = newSeq[byte](2 * digestSize)
   var prevLevel = levels[0]
   for level in levels[1..^1]:
     for i in 0..<level.width:
@@ -111,14 +123,16 @@ proc build*(self: MerkleTreeBuilder): ?!MerkleTree =
       let leftChildIndex = prevLevel.offset + 2 * i
       let rightChildIndex = leftChildIndex + 1
 
-      copyMem(addr concatBuf[0], addr tree.nodes[leftChildIndex], digestSize)
+      copyMem(addr concatBuf[0], addr tree.nodesBuffer[leftChildIndex * digestSize], digestSize)
+
+      var dummyValue = if prevLevel.index == 0: zero else: one
 
       if rightChildIndex < prevLevel.offset + prevLevel.width:
-        copyMem(addr concatBuf[digestSize], addr tree.nodes[rightChildIndex], digestSize)
+        copyMem(addr concatBuf[digestSize], addr tree.nodesBuffer[rightChildIndex * digestSize], digestSize)
       else:
-        copyMem(addr concatBuf[digestSize], addr zeroHash, digestSize)
+        copyMem(addr concatBuf[digestSize], addr dummyValue[0], digestSize)
 
-      digestFn(concatBuf, tree.nodes[parentIndex])
+      ? digestFn(mcodec, addr tree.nodesBuffer[parentIndex * digestSize], concatBuf)
     prevLevel = level
 
   return success(tree)
@@ -127,17 +141,25 @@ proc build*(self: MerkleTreeBuilder): ?!MerkleTree =
 # MerkleTree
 ###########################################################
 
-proc root*(self: MerkleTree): MerkleHash =
-  self.nodes[^1]
+proc nodeBufferToMultiHash(self: (MerkleTree | MerkleProof), index: int): MultiHash =
+  var buf = newSeq[byte](self.digestSize)
+  copyMem(addr buf[0], unsafeAddr self.nodesBuffer[index * self.digestSize], self.digestSize)
+  without mhash =? MultiHash.init($self.mcodec, buf).mapFailure, error:
+    raise error
+  mhash
 
-proc len*(self: MerkleTree): Natural =
-  self.nodes.len
+proc len*(self: (MerkleTree | MerkleProof)): Natural =
+  self.nodesBuffer.len div self.digestSize
 
-proc leaves*(self: MerkleTree): seq[MerkleHash] =
-  self.nodes[0..<self.leavesCount]
+proc nodes*(self: (MerkleTree | MerkleProof)): seq[MultiHash] =
+  toSeq(0..<self.len).map(i => self.nodeBufferToMultiHash(i))
 
-proc nodes*(self: MerkleTree): seq[MerkleHash] =
-  self.nodes
+proc root*(self: MerkleTree): MultiHash =
+  let rootIndex = self.len - 1
+  self.nodeBufferToMultiHash(rootIndex)
+
+proc leaves*(self: MerkleTree): seq[MultiHash] =
+  toSeq(0..<self.leavesCount).map(i => self.nodeBufferToMultiHash(i))
 
 proc height*(self: MerkleTree): Natural =
   computeTreeHeight(self.leavesCount)
@@ -157,32 +179,39 @@ proc getProof*(self: MerkleTree, index: Natural): ?!MerkleProof =
   ## Proofs of inclusion (index and path) are
   ## - 0,[H1, H4] for data block A
   ## - 1,[H0, H4] for data block B
-  ## - 2,[HZ, H3] for data block C
-  ## 
-  ## where HZ=0x0b
+  ## - 2,[0x00, H3] for data block C
   ## 
   if index >= self.leavesCount:
-    return failure("Index " & $index & " out of range [0.." & $self.leaves.high & "]" )
+    return failure("Index " & $index & " out of range [0.." & $(self.leavesCount - 1) & "]" )
+
+  var zero = newSeq[byte](self.digestSize)
+  var one = newSeq[byte](self.digestSize)
+  one[^1] = 0x01
 
   let levels = computeLevels(self.leavesCount)
-  var path = newSeq[MerkleHash](levels.len - 1)
-  for levelIndex, level in levels[0..^2]:
-    let i = index div (1 shl levelIndex)
+  var proofNodesBuffer = newSeq[byte]((levels.len - 1) * self.digestSize)
+  for level in levels[0..^2]:
+    let i = index div (1 shl level.index)
     let siblingIndex = if i mod 2 == 0:
       level.offset + i + 1
     else:
       level.offset + i - 1
-    
-    if siblingIndex < level.offset + level.width:
-      path[levelIndex] = self.nodes[siblingIndex]
-    else:
-      path[levelIndex] = zeroHash
 
-  success(MerkleProof(index: index, path: path))
+    var dummyValue = if level.index == 0: zero else: one
+
+    if siblingIndex < level.offset + level.width:
+      copyMem(addr proofNodesBuffer[level.index * self.digestSize], unsafeAddr self.nodesBuffer[siblingIndex * self.digestSize], self.digestSize)
+    else:
+      copyMem(addr proofNodesBuffer[level.index * self.digestSize], addr dummyValue[0], self.digestSize)
+
+      # path[levelIndex] = zeroHash
+
+  success(MerkleProof(mcodec: self.mcodec, digestSize: self.digestSize, index: index, nodesBuffer: proofNodesBuffer))
 
 proc `$`*(self: MerkleTree): string =
-  result &= "leavesCount: " & $self.leavesCount
-  result &= "\nnodes: " & $self.nodes
+  "mcodec:" & $self.mcodec &
+    "\nleavesCount: " & $self.leavesCount & 
+    "\nnodes: " & $self.nodes
 
 ###########################################################
 # MerkleProof
@@ -191,19 +220,28 @@ proc `$`*(self: MerkleTree): string =
 proc index*(self: MerkleProof): Natural =
   self.index
 
-proc path*(self: MerkleProof): seq[MerkleHash] =
-  self.path
-
 proc `$`*(self: MerkleProof): string =
-  result &= "index: " & $self.index
-  result &= "\npath: " & $self.path
+  "mcodec:" & $self.mcodec &
+    "\nindex: " & $self.index &
+    "\nnodes: " & $self.nodes
 
 func `==`*(a, b: MerkleProof): bool =
-  (a.index == b.index) and (a.path == b.path)
+  (a.index == b.index) and (a.mcodec == b.mcodec) and (a.digestSize == b.digestSize) == (a.nodesBuffer == b.nodesBuffer)
 
 proc init*(
   T: type MerkleProof,
   index: Natural,
-  path: seq[MerkleHash]
-): MerkleProof =
-  MerkleProof(index: index, path: path)
+  nodes: seq[MultiHash]
+): ?!MerkleProof =
+  if nodes.len == 0:
+    return failure("At least one node is required")
+
+  let
+    mcodec = nodes[0].mcodec
+    digestSize = nodes[0].size
+    
+  var nodesBuffer = newSeq[byte](nodes.len * digestSize)
+  for nodeIndex, node in nodes:
+    copyMem(addr nodesBuffer[nodeIndex * digestSize], unsafeAddr node.data.buffer[node.dpos], digestSize)
+  
+  success(MerkleProof(mcodec: mcodec, digestSize: digestSize, index: index, nodesBuffer: nodesBuffer))
