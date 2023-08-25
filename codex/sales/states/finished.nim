@@ -33,5 +33,5 @@ method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
 
   info "Slot finished and paid out", requestId = $data.requestId, slotIndex
 
-  if onCleanUp =? context.onCleanUp:
+  if onCleanUp =? agent.onCleanUp:
     await onCleanUp()

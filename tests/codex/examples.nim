@@ -60,3 +60,11 @@ proc example*(_: type Availability): Availability =
     minPrice = uint64.example.u256,
     maxCollateral = uint16.example.u256
   )
+
+proc example*(_: type Reservation): Reservation =
+  Reservation.init(
+    availabilityId = AvailabilityId(array[32, byte].example),
+    size = uint16.example.u256,
+    slotId = SlotId.example
+  )
+
