@@ -28,6 +28,6 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
       slotIndex =? data.slotIndex:
     onClear(request, slotIndex)
 
-  if onCleanUp =? context.onCleanUp:
+  if onCleanUp =? agent.onCleanUp:
     await onCleanUp()
 

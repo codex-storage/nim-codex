@@ -21,6 +21,10 @@ type
     context*: SalesContext
     data*: SalesData
     subscribed: bool
+    onCleanUp*: OnCleanUp
+
+  OnCleanUp* = proc: Future[void] {.gcsafe, upraises: [].}
+
   SalesAgentError = object of CodexError
   AllSlotsFilledError* = object of SalesAgentError
 

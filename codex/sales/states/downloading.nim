@@ -16,7 +16,7 @@ type
   SaleDownloading* = ref object of ErrorHandlingState
 
 logScope:
-    topics = "marketplace sales downloading"
+  topics = "marketplace sales downloading"
 
 method `$`*(state: SaleDownloading): string = "SaleDownloading"
 
@@ -48,6 +48,12 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
   without reservation =? data.reservation:
     raiseAssert("no reservation")
 
+  logScope:
+    requestId = request.id
+    slotIndex
+    reservationId = reservation.id
+    availabilityId = reservation.availabilityId
+
   proc onBatch(blocks: seq[bt.Block]) {.async.} =
     # release batches of blocks as they are written to disk and
     # update availability size
@@ -68,9 +74,7 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
   if err =? (await onStore(request,
                            slotIndex,
                            onBatch)).errorOption:
-
     return some State(SaleErrored(error: err))
 
   trace "Download complete"
-
   return some State(SaleInitialProving())

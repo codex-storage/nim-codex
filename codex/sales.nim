@@ -105,19 +105,31 @@ proc remove(sales: Sales, agent: SalesAgent) {.async.} =
 proc cleanUp(sales: Sales,
              agent: SalesAgent,
              processing: Future[void]) {.async.} =
-  await sales.remove(agent)
 
+  let data = agent.data
+
+  trace "cleaning up sales agent",
+    requestId = data.requestId,
+    slotIndex = data.slotIndex,
+    reservationId = data.reservation.?id |? ReservationId.default,
+    availabilityId = data.reservation.?availabilityId |? AvailabilityId.default
+
+  # delete reservation and return reservation bytes back to the availability
   if reservation =? agent.data.reservation and
      deleteErr =? (await sales.context.reservations.deleteReservation(
                     reservation.id,
                     reservation.availabilityId
                   )).errorOption:
       error "failure deleting reservation",
+        error = deleteErr.msg,
         reservationId = reservation.id,
         availabilityId = reservation.availabilityId
 
+  await sales.remove(agent)
+
 proc filled(sales: Sales,
             processing: Future[void]) =
+
   # signal back to the slot queue to cycle a worker
   if not processing.isNil and not processing.finished():
     processing.complete()
@@ -133,8 +145,8 @@ proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
     none StorageRequest
   )
 
-  agent.context.onCleanUp = proc {.async.} =
-    await sales.remove(agent)
+  agent.onCleanUp = proc {.async.} =
+    await sales.cleanUp(agent, done)
 
   agent.context.onFilled = some proc(request: StorageRequest, slotIndex: UInt256) =
       sales.filled(done)
@@ -157,6 +169,8 @@ proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
 proc load*(sales: Sales) {.async.} =
   let slots = await sales.mySlots()
 
+  # TODO: add slots to slotqueue, as workers need to be dispatched
+
   for slot in slots:
     let agent = newSalesAgent(
       sales.context,
@@ -164,7 +178,7 @@ proc load*(sales: Sales) {.async.} =
       slot.slotIndex,
       some slot.request)
 
-    agent.context.onCleanUp = proc {.async.} = await sales.remove(agent)
+    agent.onCleanUp = proc {.async.} = await sales.remove(agent)
 
     agent.start(SaleUnknown())
     sales.agents.add agent

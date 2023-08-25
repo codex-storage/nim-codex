@@ -1,6 +1,7 @@
 import std/random
 import std/sequtils
 import std/times
+import std/typetraits
 import pkg/codex/contracts/requests
 import pkg/codex/sales/slotqueue
 import pkg/stint
@@ -19,8 +20,9 @@ proc example*[T](_: type seq[T]): seq[T] =
 proc example*(_: type UInt256): UInt256 =
   UInt256.fromBytes(array[32, byte].example)
 
-proc example*[T: RequestId | SlotId | Nonce](_: type T): T =
-  T(array[32, byte].example)
+proc example*[T: distinct](_: type T): T =
+  type baseType = T.distinctBase
+  T(baseType.example)
 
 proc example*(_: type StorageRequest): StorageRequest =
   StorageRequest(

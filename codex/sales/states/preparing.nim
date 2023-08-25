@@ -51,25 +51,31 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
   # TODO: Once implemented, check to ensure the host is allowed to fill the slot,
   # due to the [sliding window mechanism](https://github.com/codex-storage/codex-research/blob/master/design/marketplace.md#dispersal)
 
+  logScope:
+    slotIndex = data.slotIndex
+    slotSize = request.ask.slotSize
+    duration = request.ask.duration
+    pricePerSlot = request.ask.pricePerSlot
+
   # availability was checked for this slot when it entered the queue, however
   # check to the ensure that there is still availability as they may have
   # changed since being added (other slots may have been processed in that time)
-  without availability =? await reservations.find(
+  without availability =? await reservations.findAvailability(
       request.ask.slotSize,
       request.ask.duration,
       request.ask.pricePerSlot,
       request.ask.collateral):
-    info "no availability found for request, ignoring",
-      slotSize = request.ask.slotSize,
-      duration = request.ask.duration,
-      pricePerSlot = request.ask.pricePerSlot
+    info "no availability found for request, ignoring"
 
     return some State(SaleIgnored())
+
+  info "availability found for request, creating reservation"
 
   without reservation =? await reservations.createReservation(
     availability.id,
     request.ask.slotSize,
-    slotId
+    request.id,
+    data.slotIndex
   ), error:
     return some State(SaleErrored(error: error))
 
