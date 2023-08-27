@@ -7,9 +7,11 @@
 [![License: Apache](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Stability: experimental](https://img.shields.io/badge/stability-experimental-orange.svg)](#stability)
-[![CI](https://github.com/codex-storage/nim-codex/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/codex-storage/nim-codex/actions?query=workflow%3ACI+branch%3Amain)
-[![Codecov](https://codecov.io/gh/codex-storage/nim-codex/branch/main/graph/badge.svg?token=XFmCyPSNzW)](https://codecov.io/gh/codex-storage/nim-codex)
+[![CI](https://github.com/codex-storage/nim-codex/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/codex-storage/nim-codex/actions/workflows/ci.yml?query=branch%3Amaster)
+[![Docker](https://github.com/codex-storage/nim-codex/actions/workflows/docker.yml/badge.svg?branch=master)](https://github.com/codex-storage/nim-codex/actions/workflows/docker.yml?query=branch%3Amaster)
+[![Codecov](https://codecov.io/gh/codex-storage/nim-codex/branch/master/graph/badge.svg?token=XFmCyPSNzW)](https://codecov.io/gh/codex-storage/nim-codex)
 [![Discord](https://img.shields.io/discord/895609329053474826)](https://discord.gg/CaJTh24ddQ)
+![Docker Pulls](https://img.shields.io/docker/pulls/codexstorage/nim-codex)
 
 
 ## Build and Run
