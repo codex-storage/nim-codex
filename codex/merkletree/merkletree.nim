@@ -15,6 +15,7 @@ import std/sugar
 import pkg/questionable/results
 import pkg/nimcrypto/sha2
 import pkg/libp2p/[multicodec, multihash, vbuffer]
+import pkg/stew/base58
 
 import ../errors
 
@@ -23,7 +24,7 @@ type
     mcodec: MultiCodec
     digestSize: Natural
     leavesCount: Natural
-    nodesBuffer: seq[byte]
+    nodesBuffer*: seq[byte]
   MerkleProof* = object
     mcodec: MultiCodec
     digestSize: Natural
@@ -111,8 +112,8 @@ proc build*(self: MerkleTreeBuilder): ?!MerkleTree =
   copyMem(addr tree.nodesBuffer[0], unsafeAddr self.buffer[0], leavesCount * digestSize)
 
   # calculate intermediate nodes
-  var zero = newSeq[byte](self.digestSize)
-  var one = newSeq[byte](self.digestSize)
+  var zero = newSeq[byte](digestSize)
+  var one = newSeq[byte](digestSize)
   one[^1] = 0x01
 
   var concatBuf = newSeq[byte](2 * digestSize)
@@ -154,12 +155,21 @@ proc len*(self: (MerkleTree | MerkleProof)): Natural =
 proc nodes*(self: (MerkleTree | MerkleProof)): seq[MultiHash] =
   toSeq(0..<self.len).map(i => self.nodeBufferToMultiHash(i))
 
+proc mcodec*(self: (MerkleTree | MerkleProof)): MultiCodec =
+  self.mcodec
+
+proc digestSize*(self: (MerkleTree | MerkleProof)): Natural = 
+  self.digestSize
+
 proc root*(self: MerkleTree): MultiHash =
   let rootIndex = self.len - 1
   self.nodeBufferToMultiHash(rootIndex)
 
 proc leaves*(self: MerkleTree): seq[MultiHash] =
   toSeq(0..<self.leavesCount).map(i => self.nodeBufferToMultiHash(i))
+
+proc leavesCount*(self: MerkleTree): Natural =
+  self.leavesCount
 
 proc height*(self: MerkleTree): Natural =
   computeTreeHeight(self.leavesCount)
@@ -213,6 +223,33 @@ proc `$`*(self: MerkleTree): string =
     "\nleavesCount: " & $self.leavesCount & 
     "\nnodes: " & $self.nodes
 
+proc `==`*(a, b: MerkleTree): bool =
+  (a.mcodec == b.mcodec) and
+  (a.digestSize == b.digestSize) and
+  (a.leavesCount == b.leavesCount) and
+    (a.nodesBuffer == b.nodesBuffer)
+
+func init*(
+  T: type MerkleTree,
+  mcodec: MultiCodec,
+  digestSize: Natural,
+  leavesCount: Natural,
+  nodesBuffer: seq[byte]
+): ?!MerkleTree =
+  let levels = computeLevels(leavesCount)
+  let totalNodes = levels[^1].offset + 1
+  if totalNodes * digestSize == nodesBuffer.len:
+    success(
+      MerkleTree(
+        mcodec: mcodec, 
+        digestSize: digestSize, 
+        leavesCount: leavesCount, 
+        nodesBuffer: nodesBuffer
+      )
+    )
+  else:
+    failure("Expected nodesBuffer len to be " & $(totalNodes * digestSize) & " but was " & $nodesBuffer.len)
+
 ###########################################################
 # MerkleProof
 ###########################################################
@@ -226,7 +263,10 @@ proc `$`*(self: MerkleProof): string =
     "\nnodes: " & $self.nodes
 
 func `==`*(a, b: MerkleProof): bool =
-  (a.index == b.index) and (a.mcodec == b.mcodec) and (a.digestSize == b.digestSize) == (a.nodesBuffer == b.nodesBuffer)
+  (a.index == b.index) and 
+    (a.mcodec == b.mcodec) and 
+    (a.digestSize == b.digestSize) and
+    (a.nodesBuffer == b.nodesBuffer)
 
 proc init*(
   T: type MerkleProof,

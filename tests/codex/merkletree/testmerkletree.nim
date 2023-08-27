@@ -6,7 +6,7 @@ import pkg/questionable/results
 import pkg/stew/byteutils
 import pkg/nimcrypto/sha2
 
-import codex/merkletree/merkletree
+import pkg/codex/merkletree
 import ../helpers
 
 checksuite "merkletree":
