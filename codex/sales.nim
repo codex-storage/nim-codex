@@ -114,6 +114,10 @@ proc cleanUp(sales: Sales,
     reservationId = data.reservation.?id |? ReservationId.default,
     availabilityId = data.reservation.?availabilityId |? AvailabilityId.default
 
+  # TODO: return bytes that were used in the request back to the availability
+  # as well, which will require removing the bytes from disk (perhaps via
+  # setting blockTTL to -1 and then running block maintainer?)
+
   # delete reservation and return reservation bytes back to the availability
   if reservation =? agent.data.reservation and
      deleteErr =? (await sales.context.reservations.deleteReservation(
@@ -154,6 +158,30 @@ proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
   agent.start(SalePreparing())
   sales.agents.add agent
 
+proc deleteInactiveReservations(sales: Sales, activeSlots: seq[Slot]) {.async.} =
+  let reservations = sales.context.reservations
+  without reservs =? await reservations.all(Reservation):
+    info "no unused reservations found for deletion"
+
+  let unused = reservs.filter(r => (
+    let slotId = slotId(r.requestId, r.slotIndex)
+    not activeSlots.any(slot => slot.id == slotId)
+  ))
+  info "found unused reservations for deletion", unused = unused.len
+
+  for reservation in unused:
+
+    logScope:
+      reservationId = reservation.id
+      availabilityId = reservation.availabilityId
+
+    if err =? (await reservations.deleteReservation(
+      reservation.id, reservation.availabilityId
+    )).errorOption:
+      error "failed to delete unused reservation", error = err.msg
+    else:
+      trace "deleted unused reservation"
+
 proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
   let market = sales.context.market
   let slotIds = await market.mySlots()
@@ -167,11 +195,13 @@ proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
   return slots
 
 proc load*(sales: Sales) {.async.} =
-  let slots = await sales.mySlots()
+  let activeSlots = await sales.mySlots()
 
   # TODO: add slots to slotqueue, as workers need to be dispatched
 
-  for slot in slots:
+  await sales.deleteInactiveReservations(activeSlots)
+
+  for slot in activeSlots:
     let agent = newSalesAgent(
       sales.context,
       slot.request.id,
