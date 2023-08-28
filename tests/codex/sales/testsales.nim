@@ -401,7 +401,7 @@ asyncchecksuite "Sales":
     check market.filled[0].proof == proof
     check market.filled[0].host == await market.getSigner()
 
-  test "calls onSale when slot is filled":
+  test "calls onFilled when slot is filled":
     var soldAvailability: Availability
     var soldRequest: StorageRequest
     var soldSlotIndex: UInt256

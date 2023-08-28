@@ -14,6 +14,7 @@ type
     onStore*: ?OnStore
     onClear*: ?OnClear
     onSale*: ?OnSale
+    onFilled*: ?OnFilled
     onCleanUp*: OnCleanUp
     onProve*: ?OnProve
     reservations*: Reservations
@@ -27,5 +28,7 @@ type
   OnClear* = proc(request: StorageRequest,
                   slotIndex: UInt256) {.gcsafe, upraises: [].}
   OnSale* = proc(request: StorageRequest,
+                 slotIndex: UInt256) {.gcsafe, upraises: [].}
+  OnFilled* = proc(request: StorageRequest,
                  slotIndex: UInt256) {.gcsafe, upraises: [].}
   OnCleanUp* = proc: Future[void] {.gcsafe, upraises: [].}

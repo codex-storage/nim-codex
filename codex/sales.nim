@@ -101,11 +101,8 @@ proc remove(sales: Sales, agent: SalesAgent) {.async.} =
   if sales.running:
     sales.agents.keepItIf(it != agent)
 
-proc cleanUp(sales: Sales,
-             agent: SalesAgent,
-             processing: Future[void]) {.async.} =
-  await sales.remove(agent)
-  # signal back to the slot queue to cycle a worker
+proc filled(sales: Sales,
+             processing: Future[void]) =
   if not processing.isNil and not processing.finished():
     processing.complete()
 
@@ -121,7 +118,10 @@ proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
   )
 
   agent.context.onCleanUp = proc {.async.} =
-    await sales.cleanUp(agent, done)
+    await sales.remove(agent)
+
+  agent.context.onFilled = some proc(request: StorageRequest, slotIndex: UInt256) =
+      sales.filled(done)
 
   agent.start(SalePreparing())
   sales.agents.add agent
