@@ -162,12 +162,17 @@ proc onReservationAdded(sales: Sales, availability: Availability) {.async.} =
   let queue = context.slotQueue
 
   logScope:
-    topics = "sales onReservationAdded callback"
+    topics = "marketplace sales onReservationAdded callback"
 
   trace "reservation added, querying past storage requests to add to queue"
 
   try:
     let events = await market.queryPastStorageRequests(256)
+
+    if events.len == 0:
+      trace "no storage request events found in recent past"
+      return
+
     let requests = events.map(event =>
       SlotQueueItem.init(event.requestId, event.ask, event.expiry)
     )
@@ -200,7 +205,7 @@ proc onStorageRequested(sales: Sales,
                         expiry: UInt256) =
 
   logScope:
-    topics = "sales onStorageRequested"
+    topics = " marketplace sales onStorageRequested"
     requestId
     slots = ask.slots
     expiry
@@ -235,7 +240,7 @@ proc onSlotFreed(sales: Sales,
                  slotIndex: UInt256) =
 
   logScope:
-    topics = "sales onSlotFreed"
+    topics = "marketplace sales onSlotFreed"
     requestId
     slotIndex
 
