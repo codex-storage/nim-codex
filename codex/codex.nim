@@ -115,10 +115,6 @@ proc start*(s: CodexServer) {.async.} =
   await s.repoStore.start()
   s.restServer.start()
 
-  s.codexNode.contracts = await bootstrapInteractions(s.config, s.repoStore)
-  await s.codexNode.start()
-  s.maintenance.start()
-
   let
     # TODO: Can't define these as constants, pity
     natIpPart = MultiAddress.init("/ip4/" & $s.config.nat & "/")
@@ -143,6 +139,10 @@ proc start*(s: CodexServer) {.async.} =
 
   s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
   s.codexNode.discovery.updateDhtRecord(s.config.nat, s.config.discoveryPort)
+  s.codexNode.contracts = await bootstrapInteractions(s.config, s.repoStore)
+
+  await s.codexNode.start()
+  s.maintenance.start()
 
   s.runHandle = newFuture[void]("codex.runHandle")
   await s.runHandle
