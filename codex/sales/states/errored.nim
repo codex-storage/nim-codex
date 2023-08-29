@@ -4,6 +4,7 @@ import pkg/upraises
 import pkg/chronicles
 import ../statemachine
 import ../salesagent
+import ../../utils/exceptions
 
 logScope:
     topics = "marketplace sales errored"
@@ -21,7 +22,7 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
   let data = agent.data
   let context = agent.context
 
-  error "Sale error", error=state.error.msg, requestId = $data.requestId
+  error "Sale error", error=state.error.msgDetail, requestId = $data.requestId
 
   if onClear =? context.onClear and
       request =? data.request and
