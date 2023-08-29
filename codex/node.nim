@@ -327,9 +327,6 @@ proc new*(
     contracts: contracts)
 
 proc start*(node: CodexNodeRef) {.async.} =
-  if not node.switch.isNil:
-    await node.switch.start()
-
   if not node.engine.isNil:
     await node.engine.start()
 
@@ -405,9 +402,6 @@ proc stop*(node: CodexNodeRef) {.async.} =
 
   if not node.engine.isNil:
     await node.engine.stop()
-
-  if not node.switch.isNil:
-    await node.switch.stop()
 
   if not node.erasure.isNil:
     await node.erasure.stop()

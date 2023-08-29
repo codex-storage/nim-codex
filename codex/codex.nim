@@ -113,7 +113,9 @@ proc start*(s: CodexServer) {.async.} =
   notice "Starting codex node"
 
   await s.repoStore.start()
-  s.restServer.start()
+  s.maintenance.start()
+
+  await s.codexNode.switch.start()
 
   let
     # TODO: Can't define these as constants, pity
@@ -139,10 +141,10 @@ proc start*(s: CodexServer) {.async.} =
 
   s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
   s.codexNode.discovery.updateDhtRecord(s.config.nat, s.config.discoveryPort)
-  s.codexNode.contracts = await bootstrapInteractions(s.config, s.repoStore)
 
+  s.codexNode.contracts = await bootstrapInteractions(s.config, s.repoStore)
   await s.codexNode.start()
-  s.maintenance.start()
+  s.restServer.start()
 
   s.runHandle = newFuture[void]("codex.runHandle")
   await s.runHandle
@@ -152,6 +154,7 @@ proc stop*(s: CodexServer) {.async.} =
 
   await allFuturesThrowing(
     s.restServer.stop(),
+    s.codexNode.switch.stop(),
     s.codexNode.stop(),
     s.repoStore.stop(),
     s.maintenance.stop())
