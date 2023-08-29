@@ -290,7 +290,7 @@ proc requestStorage*(
       # because the slotSize is used to determine the amount of bytes to reserve
       # in a Reservations
       # TODO: slotSize: (encoded.blockSize.int * encoded.steps).u256,
-      slotSize: (encoded.blockSize.int * encoded.blocks.len).u256,
+      slotSize: (encoded.blockSize.int * (encoded.blocks.len - 1)).u256,
       duration: duration,
       proofProbability: proofProbability,
       reward: reward,
