@@ -284,7 +284,13 @@ proc requestStorage*(
   let request = StorageRequest(
     ask: StorageAsk(
       slots: nodes + tolerance,
-      slotSize: (encoded.blockSize.int * encoded.steps).u256,
+      # TODO: Specify slot-specific size (as below) once dispersal is
+      # implemented. The current implementation downloads the entire dataset, so
+      # it is currently set to be the size of the entire dataset. This is
+      # because the slotSize is used to determine the amount of bytes to reserve
+      # in a Reservations
+      # TODO: slotSize: (encoded.blockSize.int * encoded.steps).u256,
+      slotSize: (encoded.blockSize.int * encoded.blocks.len).u256,
       duration: duration,
       proofProbability: proofProbability,
       reward: reward,
