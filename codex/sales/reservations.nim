@@ -65,7 +65,6 @@ type
   Reservations* = ref object
     repo: RepoStore
     onAvailabilityAdded: ?OnAvailabilityAdded
-    onMarkUnused: ?OnAvailabilityAdded
   GetNext* = proc(): Future[?seq[byte]] {.upraises: [], gcsafe, closure.}
   OnAvailabilityAdded* = proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
   StorableIter* = ref object
