@@ -17,6 +17,7 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ../blocktype
+import ../merkletree
 
 export blocktype
 
@@ -42,6 +43,18 @@ method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
   ## Get a block from the blockstore
   ##
 
+  raiseAssert("Not implemented!")
+
+method getBlock*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!Block] {.base.} =
+  ## Get a block by Cid of a merkle tree and an index of a leaf in a tree
+  ## 
+  
+  raiseAssert("Not implemented!")
+
+method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.base.} =
+  ## Get a block and associated inclusion proof by Cid of a merkle tree and an index of a leaf in a tree
+  ## 
+  
   raiseAssert("Not implemented!")
 
 method putBlock*(

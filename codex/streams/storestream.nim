@@ -99,7 +99,9 @@ method readOnce*(
                          self.manifest.blockSize.int - blockOffset])
 
     # Read contents of block `blockNum`
-    without blk =? await self.store.getBlock(self.manifest[blockNum]), error:
+    without blk =? await self.store.getBlock(self.manifest.treeCid, blockNum), error:
+      # TODO Log tree cid and perhaps also block index
+      trace "Error when getting a block ", msg = error.msg
       raise newLPStreamReadError(error)
 
     trace "Reading bytes from store stream", blockNum, cid = blk.cid, bytes = readBytes, blockOffset

@@ -17,7 +17,7 @@ import pkg/questionable/results
 import pkg/chronicles
 import pkg/chronos
 
-import pkg/libp2p/switch
+import pkg/libp2p/[switch, multicodec, multihash]
 import pkg/libp2p/stream/bufferstream
 
 # TODO: remove once exported by libp2p
@@ -27,6 +27,7 @@ import pkg/libp2p/signed_envelope
 import ./chunker
 import ./blocktype as bt
 import ./manifest
+import ./merkletree
 import ./stores/blockstore
 import ./blockexchange
 import ./streams
@@ -179,11 +180,14 @@ proc store*(
   ##
   trace "Storing data"
 
-  without var blockManifest =? Manifest.new(blockSize = blockSize):
-    return failure("Unable to create Block Set")
+  let
+    mcodec = multiCodec("sha2-256")
+    chunker = LPStreamChunker.new(stream, chunkSize = blockSize)
 
-  # Manifest and chunker should use the same blockSize
-  let chunker = LPStreamChunker.new(stream, chunkSize = blockSize)
+  without tb =? MerkleTreeBuilder.init(mcodec), err:
+    return failure(err)
+
+  var treeBuilder = tb # TODO fixit
 
   try:
     while (
@@ -191,10 +195,21 @@ proc store*(
       chunk.len > 0):
 
       trace "Got data from stream", len = chunk.len
-      without blk =? bt.Block.new(chunk):
-        return failure("Unable to init block from chunk!")
 
-      blockManifest.add(blk.cid)
+      without mhash =? MultiHash.digest($mcodec, chunk).mapFailure, err:
+        return failure(err)
+
+      without cid =? Cid.init(CIDv1, multiCodec("raw"), mhash).mapFailure, err:
+        return failure(err)
+
+      without blk =? bt.Block.new(cid, chunk, verify = false):
+        return failure("Unable to init block from chunk!")
+      
+      if err =? treeBuilder.addLeaf(mhash).errorOption:
+        return failure(err)
+      # without x =? treeBuilder.addLeaf(mhash), err:
+      #   return failure(err)
+
       if err =? (await self.blockStore.putBlock(blk)).errorOption:
         trace "Unable to store block", cid = blk.cid, err = err.msg
         return failure(&"Unable to store block {blk.cid}")
@@ -206,11 +221,29 @@ proc store*(
   finally:
     await stream.close()
 
+
+  without tree =? treeBuilder.build(), err:
+    return failure(err)
+  
+  without treeBlk =? bt.Block.new(tree.encode()), err:
+    return failure(err)
+
+  if err =? (await self.blockStore.putBlock(treeBlk)).errorOption:
+    return failure("Unable to store merkle tree block " & $treeBlk.cid & ", nested err: " & err.msg)
+
+  let blockManifest = Manifest.new(
+    treeCid = treeBlk.cid,
+    treeRoot = tree.root,
+    blockSize = blockSize,
+    originalBytes = NBytes(chunker.offset),
+    version = CIDv1,
+    hcodec = mcodec
+  )
   # Generate manifest
-  blockManifest.originalBytes = NBytes(chunker.offset)  # store the exact file size
-  without data =? blockManifest.encode():
+  # blockManifest.originalBytes = NBytes(chunker.offset)  # store the exact file size
+  without data =? blockManifest.encode(), err:
     return failure(
-      newException(CodexError, "Could not generate dataset manifest!"))
+      newException(CodexError, "Error encoding manifest: " & err.msg))
 
   # Store as a dag-pb block
   without manifest =? bt.Block.new(data = data, codec = DagPBCodec):
@@ -221,12 +254,8 @@ proc store*(
     trace "Unable to store manifest", cid = manifest.cid
     return failure("Unable to store manifest " & $manifest.cid)
 
-  without cid =? blockManifest.cid, error:
-    trace "Unable to generate manifest Cid!", exc = error.msg
-    return failure(error.msg)
-
   trace "Stored data", manifestCid = manifest.cid,
-                       contentCid = cid,
+                       treeCid = treeBlk.cid,
                        blocks = blockManifest.len
 
   # Announce manifest

@@ -12,8 +12,10 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronos
+import pkg/chronos/futures
 import pkg/chronicles
-import pkg/libp2p/cid
+import pkg/libp2p/[cid, multicodec]
+import pkg/lrucache
 import pkg/metrics
 import pkg/questionable
 import pkg/questionable/results
@@ -25,6 +27,7 @@ import ./keyutils
 import ../blocktype
 import ../clock
 import ../systemclock
+import ../merkletree
 
 export blocktype, cid
 
@@ -38,6 +41,7 @@ declareGauge(codexRepostoreBytesReserved, "codex repostore bytes reserved")
 const
   DefaultBlockTtl* = 24.hours
   DefaultQuotaBytes* = 1'u shl 33'u # ~8GB
+  DefaultTreeCacheCapacity* = 10    # Max number of trees stored in memory
 
 type
   QuotaUsedError* = object of CodexError
@@ -54,6 +58,7 @@ type
     quotaReservedBytes*: uint     # bytes reserved by the repo
     blockTtl*: Duration
     started*: bool
+    treeCache*: LruCache[Cid, MerkleTree]
 
   BlockExpiration* = object
     cid*: Cid
@@ -84,7 +89,7 @@ func available*(self: RepoStore, bytes: uint): bool =
 method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the blockstore
   ##
-
+  
   without key =? makePrefixKey(self.postFixLen, cid), err:
     trace "Error getting key from provider", err = err.msg
     return failure(err)
@@ -97,7 +102,53 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
     return failure(newException(BlockNotFoundError, err.msg))
 
   trace "Got block for cid", cid
-  return Block.new(cid, data)
+  return Block.new(cid, data, verify = true)
+
+proc getMerkleTree(self: RepoStore, cid: Cid): Future[?!MerkleTree] {.async.} =
+  try:
+    return success(self.treeCache[cid])
+  except KeyError:
+    without treeBlk =? await self.getBlock(cid), err:
+      return failure(err)
+
+    without tree =? MerkleTree.decode(treeBlk.data), err:
+      return failure("Error decoding a merkle tree with cid " & $cid & ". Nested error is: " & err.msg)
+    self.treeCache[cid] = tree
+    return success(tree)
+
+method getBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!Block] {.async.} =
+  without tree =? await self.getMerkleTree(treeCid), err:
+    return failure(err)
+
+  without leaf =? tree.getLeaf(index), err:
+    return failure(err)
+
+  without leafCid =? Cid.init(treeCid.cidver, treeCid.mcodec, leaf).mapFailure, err:
+    return failure(err)
+
+  without blk =? await self.getBlock(leafCid), err:
+    return failure(err)
+
+  return success(blk)
+
+method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.async.} =
+  without tree =? await self.getMerkleTree(treeCid), err:
+    return failure(err)
+
+  without proof =? tree.getProof(index), err:
+    return failure(err)
+
+  without leaf =? tree.getLeaf(index), err:
+    return failure(err)
+
+  without leafCid =? Cid.init(CIDv1, leaf.mcodec, leaf).mapFailure, err:
+    return failure(err)
+
+  without blk =? await self.getBlock(leafCid), err:
+    return failure(err)
+
+  return success((blk, proof))
+  
 
 proc getBlockExpirationTimestamp(self: RepoStore, ttl: ?Duration): SecondsSince1970 =
   let duration = ttl |? self.blockTtl
@@ -450,7 +501,8 @@ func new*(
     clock: Clock = SystemClock.new(),
     postFixLen = 2,
     quotaMaxBytes = DefaultQuotaBytes,
-    blockTtl = DefaultBlockTtl
+    blockTtl = DefaultBlockTtl,
+    treeCacheCapacity = DefaultTreeCacheCapacity
 ): RepoStore =
   ## Create new instance of a RepoStore
   ##
@@ -460,4 +512,5 @@ func new*(
     clock: clock,
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,
-    blockTtl: blockTtl)
+    blockTtl: blockTtl,
+    treeCache: newLruCache[Cid, MerkleTree](treeCacheCapacity))

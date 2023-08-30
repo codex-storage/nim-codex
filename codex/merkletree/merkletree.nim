@@ -15,7 +15,7 @@ import std/sugar
 import pkg/questionable/results
 import pkg/nimcrypto/sha2
 import pkg/libp2p/[multicodec, multihash, vbuffer]
-import pkg/stew/base58
+import pkg/stew/byteutils
 
 import ../errors
 
@@ -69,7 +69,7 @@ proc digestFn(mcodec: MultiCodec, output: pointer, data: openArray[byte]): ?!voi
 
 proc init*(
   T: type MerkleTreeBuilder,
-  mcodec: MultiCodec
+  mcodec: MultiCodec = multiCodec("sha2-256")
 ): ?!MerkleTreeBuilder =
   let mhash = ? MultiHash.digest($mcodec, "".toBytes).mapFailure
   success(MerkleTreeBuilder(mcodec: mcodec, digestSize: mhash.size, buffer: newSeq[byte]()))
@@ -80,6 +80,16 @@ proc addDataBlock*(self: var MerkleTreeBuilder, dataBlock: openArray[byte]): ?!v
   let oldLen = self.buffer.len
   self.buffer.setLen(oldLen + self.digestSize)
   digestFn(self.mcodec, addr self.buffer[oldLen], dataBlock)
+
+proc addLeaf*(self: var MerkleTreeBuilder, leaf: MultiHash): ?!void =
+  if leaf.mcodec != self.mcodec or leaf.size != self.digestSize:
+    return failure("Expected mcodec to be " & $self.mcodec & " and digest size to be " & 
+      $self.digestSize & " but was " & $leaf.mcodec & " and " & $leaf.size)
+  
+  let oldLen = self.buffer.len
+  self.buffer.setLen(oldLen + self.digestSize)
+  copyMem(addr self.buffer[oldLen], unsafeAddr leaf.data.buffer[leaf.dpos], self.digestSize)
+  success()
 
 proc build*(self: MerkleTreeBuilder): ?!MerkleTree =
   ## Builds a tree from previously added data blocks
@@ -171,6 +181,12 @@ proc leaves*(self: MerkleTree): seq[MultiHash] =
 proc leavesCount*(self: MerkleTree): Natural =
   self.leavesCount
 
+proc getLeaf*(self: MerkleTree, index: Natural): ?!MultiHash =
+  if index >= self.leavesCount:
+    return failure("Index " & $index & " out of range [0.." & $(self.leavesCount - 1) & "]" )
+  
+  success(self.nodeBufferToMultiHash(index))
+
 proc height*(self: MerkleTree): Natural =
   computeTreeHeight(self.leavesCount)
 
@@ -220,8 +236,10 @@ proc getProof*(self: MerkleTree, index: Natural): ?!MerkleProof =
 
 proc `$`*(self: MerkleTree): string =
   "mcodec:" & $self.mcodec &
-    "\nleavesCount: " & $self.leavesCount & 
-    "\nnodes: " & $self.nodes
+    "\nleavesCount: " & $self.leavesCount
+    # TODO fix this
+    #  & 
+    # "\nnodes: " & $self.nodes
 
 proc `==`*(a, b: MerkleTree): bool =
   (a.mcodec == b.mcodec) and
@@ -259,8 +277,10 @@ proc index*(self: MerkleProof): Natural =
 
 proc `$`*(self: MerkleProof): string =
   "mcodec:" & $self.mcodec &
-    "\nindex: " & $self.index &
-    "\nnodes: " & $self.nodes
+    "\nindex: " & $self.index 
+    # TODO fix this
+    # &
+    # "\nnodes: " & $self.nodes
 
 func `==`*(a, b: MerkleProof): bool =
   (a.index == b.index) and 

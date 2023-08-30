@@ -51,21 +51,23 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   #     optional uint32 original = 4;   # number of original blocks
   #   }
   #   Message Header {
-  #     optional bytes rootHash = 1;      # the root (tree) hash
-  #     optional uint32 blockSize = 2;    # size of a single block
-  #     optional uint32 blocksLen = 3;    # total amount of blocks
-  #     optional ErasureInfo erasure = 4; # erasure coding info
-  #     optional uint64 originalBytes = 5;# exact file size
+  #     optional bytes treeCid = 1;      # the root (tree) hash
+  #     optional bytes treeRoot = 2;      # the root (tree) hash
+  #     optional uint32 blockSize = 3;    # size of a single block
+  #     optional uint32 blocksLen = 4;    # total amount of blocks
+  #     optional ErasureInfo erasure = 5; # erasure coding info
+  #     optional uint64 originalBytes = 6;# exact file size
   #   }
   # ```
   #
-
-  let cid = ? manifest.cid
+  var treeRootVBuf = initVBuffer()
   var header = initProtoBuffer()
-  header.write(1, cid.data.buffer)
-  header.write(2, manifest.blockSize.uint32)
-  header.write(3, manifest.len.uint32)
-  header.write(5, manifest.originalBytes.uint64)
+  header.write(1, manifest.treeCid.data.buffer)
+  treeRootVBuf.write(manifest.treeRoot)
+  header.write(2, treeRootVBuf.buffer)
+  header.write(3, manifest.blockSize.uint32)
+  header.write(4, manifest.len.uint32)
+  header.write(6, manifest.originalBytes.uint64)
   if manifest.protected:
     var erasureInfo = initProtoBuffer()
     erasureInfo.write(1, manifest.ecK.uint32)
@@ -74,9 +76,9 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
     erasureInfo.write(4, manifest.originalLen.uint32)
     erasureInfo.finish()
 
-    header.write(4, erasureInfo)
+    header.write(5, erasureInfo)
 
-  pbNode.write(1, header) # set the rootHash Cid as the data field
+  pbNode.write(1, header) # set the treeCid as the data field
   pbNode.finish()
 
   return pbNode.buffer.success
@@ -89,7 +91,8 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     pbNode = initProtoBuffer(data)
     pbHeader: ProtoBuffer
     pbErasureInfo: ProtoBuffer
-    rootHash: seq[byte]
+    treeCidBuf: seq[byte]
+    treeRootBuf: seq[byte]
     originalCid: seq[byte]
     originalBytes: uint64
     blockSize: uint32
@@ -103,19 +106,22 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     return failure("Unable to decode `Header` from dag-pb manifest!")
 
   # Decode `Header` contents
-  if pbHeader.getField(1, rootHash).isErr:
-    return failure("Unable to decode `rootHash` from manifest!")
+  if pbHeader.getField(1, treeCidBuf).isErr:
+    return failure("Unable to decode `treeCid` from manifest!")
 
-  if pbHeader.getField(2, blockSize).isErr:
+  if pbHeader.getField(2, treeRootBuf).isErr:
+    return failure("Unable to decode `treeRoot` from manifest!")
+
+  if pbHeader.getField(3, blockSize).isErr:
     return failure("Unable to decode `blockSize` from manifest!")
 
-  if pbHeader.getField(3, blocksLen).isErr:
+  if pbHeader.getField(4, blocksLen).isErr:
     return failure("Unable to decode `blocksLen` from manifest!")
 
-  if pbHeader.getField(5, originalBytes).isErr:
+  if pbHeader.getField(6, originalBytes).isErr:
     return failure("Unable to decode `originalBytes` from manifest!")
 
-  if pbHeader.getField(4, pbErasureInfo).isErr:
+  if pbHeader.getField(5, pbErasureInfo).isErr:
     return failure("Unable to decode `erasureInfo` from manifest!")
 
   if pbErasureInfo.buffer.len > 0:
@@ -131,8 +137,16 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     if pbErasureInfo.getField(4, originalLen).isErr:
       return failure("Unable to decode `originalLen` from manifest!")
 
-  let rootHashCid = ? Cid.init(rootHash).mapFailure
-  var linksBuf: seq[seq[byte]]
+  var 
+    linksBuf: seq[seq[byte]]
+    treeRoot: MultiHash
+  let 
+    treeCid = ? Cid.init(treeCidBuf).mapFailure
+    res = ? MultiHash.decode(treeRootBuf, treeRoot).mapFailure
+
+  if res != treeRootBuf.len:
+    return failure("Error decoding `treeRoot` as MultiHash")
+
   if pbNode.getRepeatedField(2, linksBuf).isOk:
     for pbLinkBuf in linksBuf:
       var
@@ -148,13 +162,14 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
   let
     self = if pbErasureInfo.buffer.len > 0:
       Manifest.new(
-        rootHash = rootHashCid,
+        treeCid = treeCid,
+        treeRoot = treeRoot,
         originalBytes = originalBytes.NBytes,
         blockSize = blockSize.NBytes,
         blocks = blocks,
-        version = rootHashCid.cidver,
-        hcodec = (? rootHashCid.mhash.mapFailure).mcodec,
-        codec = rootHashCid.mcodec,
+        version = treeCid.cidver,
+        hcodec = (? treeCid.mhash.mapFailure).mcodec,
+        codec = treeCid.mcodec,
         ecK = ecK.int,
         ecM = ecM.int,
         originalCid = ? Cid.init(originalCid).mapFailure,
@@ -162,13 +177,14 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
       )
       else:
         Manifest.new(
-          rootHash = rootHashCid,
+          treeCid = treeCid,
+          treeRoot = treeRoot,
           originalBytes = originalBytes.NBytes,
           blockSize = blockSize.NBytes,
           blocks = blocks,
-          version = rootHashCid.cidver,
-          hcodec = (? rootHashCid.mhash.mapFailure).mcodec,
-          codec = rootHashCid.mcodec
+          version = treeCid.cidver,
+          hcodec = (? treeCid.mhash.mapFailure).mcodec,
+          codec = treeCid.mcodec
         )
 
   ? self.verify()

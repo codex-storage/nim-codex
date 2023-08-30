@@ -14,7 +14,7 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
-import pkg/libp2p/[cid, multicodec]
+import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/stew/byteutils
 import pkg/questionable
 import pkg/questionable/results
@@ -147,24 +147,25 @@ func new*(
     cid: cid,
     data: @data).success
 
-func new*(
+proc new*(
     T: type Block,
     cid: Cid,
     data: openArray[byte],
     verify: bool = true
 ): ?!Block =
   ## creates a new block for both storage and network IO
-  ## 
+  ##
 
-  let
-    mhash = ? cid.mhash.mapFailure
-    b = ? Block.new(
-      data = @data,
-      version = cid.cidver,
-      codec = cid.mcodec,
-      mcodec = mhash.mcodec)
+  if verify:
+    let
+      mhash = ? cid.mhash.mapFailure
+      computedMhash = ? MultiHash.digest($mhash.mcodec, data).mapFailure
+      computedCid = ? Cid.init(cid.cidver, cid.mcodec, computedMhash).mapFailure
+    if computedCid != cid:
+      return "Cid doesn't match the data".failure
 
-  if verify and cid != b.cid:
-    return "Cid and content don't match!".failure
+  return Block(
+    cid: cid,
+    data: @data
+  ).success
 
-  success b

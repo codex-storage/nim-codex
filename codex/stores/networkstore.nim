@@ -20,6 +20,7 @@ import ../utils/asyncheapqueue
 
 import ./blockstore
 import ../blockexchange
+import ../merkletree
 
 export blockstore, blockexchange, asyncheapqueue
 
@@ -45,6 +46,12 @@ method getBlock*(self: NetworkStore, cid: Cid): Future[?!bt.Block] {.async.} =
     return success newBlock
 
   return success blk
+
+method getBlock*(self: NetworkStore, treeCid: Cid, index: Natural): Future[?!bt.Block] {.async.} =
+  return await self.localStore.getBlock(treeCid, index)
+
+method getBlockAndProof*(self: NetworkStore, treeCid: Cid, index: Natural): Future[?!(bt.Block, MerkleProof)] {.async.} =
+  return await self.localStore.getBlockAndProof(treeCid, index)
 
 method putBlock*(
     self: NetworkStore,
