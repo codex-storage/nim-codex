@@ -224,7 +224,7 @@ proc onAvailabilityAdded(sales: Sales, availability: Availability) {.async.} =
   logScope:
     topics = "marketplace sales onReservationAdded callback"
 
-  trace "reservation added, querying past storage requests to add to queue"
+  trace "availability added, querying past storage requests to add to queue"
 
   try:
     let events = await market.queryPastStorageRequests(256)

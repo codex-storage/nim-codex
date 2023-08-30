@@ -22,7 +22,7 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
   let data = agent.data
   let context = agent.context
 
-  error "Sale error", error=state.error.msgDetail, requestId = $data.requestId
+  error "Sale error", error=state.error.msgDetail, requestId = data.requestId, slotIndex = data.slotIndex
 
   if onClear =? context.onClear and
       request =? data.request and
