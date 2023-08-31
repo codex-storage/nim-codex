@@ -9,10 +9,10 @@ import pkg/codex/rng
 import ./helpers/nodeutils
 import ./helpers/randomchunker
 import ./helpers/mockdiscovery
-import ./helpers/eventually
+import ./helpers/always
 import ../checktest
 
-export randomchunker, nodeutils, mockdiscovery, eventually, checktest, manifest
+export randomchunker, nodeutils, mockdiscovery, always, checktest, manifest
 
 export libp2p except setup, eventually
 

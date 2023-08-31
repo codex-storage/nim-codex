@@ -2,7 +2,6 @@ import std/options
 import pkg/chronos
 import pkg/stew/byteutils
 import codex/contracts
-import ../codex/helpers/eventually
 import ../ethertest
 import ./examples
 import ./time

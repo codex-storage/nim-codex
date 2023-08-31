@@ -10,7 +10,6 @@ import pkg/codex/sales/slotqueue
 
 import ../helpers
 import ../helpers/mockmarket
-import ../helpers/eventually
 import ../examples
 
 suite "Slot queue start/stop":

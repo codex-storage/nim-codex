@@ -17,7 +17,7 @@ import pkg/codex/blocktype as bt
 import pkg/codex/node
 import ../helpers/mockmarket
 import ../helpers/mockclock
-import ../helpers/eventually
+import ../helpers/always
 import ../examples
 import ./helpers
 

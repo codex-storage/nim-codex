@@ -5,7 +5,6 @@ import codex/validation
 import codex/periods
 import ./helpers/mockmarket
 import ./helpers/mockclock
-import ./helpers/eventually
 import ./examples
 import ./helpers
 

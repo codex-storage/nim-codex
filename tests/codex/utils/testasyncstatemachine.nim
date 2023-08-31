@@ -3,7 +3,6 @@ import pkg/questionable
 import pkg/chronos
 import pkg/upraises
 import codex/utils/asyncstatemachine
-import ../helpers/eventually
 import ../helpers
 
 type

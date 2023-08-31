@@ -9,7 +9,6 @@ import pkg/codex/sales/states/errorhandling
 import pkg/codex/proving
 import ../helpers/mockmarket
 import ../helpers/mockclock
-import ../helpers/eventually
 import ../helpers
 import ../examples
 
