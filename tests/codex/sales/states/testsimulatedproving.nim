@@ -92,5 +92,5 @@ asyncchecksuite "sales state 'simulated-proving'":
     market.slotState[slot.id] = SlotState.Finished
     await market.advanceToNextPeriod()
 
-    check eventuallyCheck future.finished
+    check eventually future.finished
     check !(future.read()) of SalePayout
