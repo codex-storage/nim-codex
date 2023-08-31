@@ -189,7 +189,10 @@ asyncchecksuite "Sales":
     var request1 = StorageRequest.example
     request1.ask.collateral = request.ask.collateral + 1
     discard await reservations.reserve(availability)
-    await market.requestStorage(request)
+    # saturate queue
+    while queue.len < queue.size - 1:
+      await market.requestStorage(StorageRequest.example)
+    # send request
     await market.requestStorage(request1)
     await sleepAsync(5.millis) # wait for request slots to be added to queue
     return request1
@@ -236,33 +239,6 @@ asyncchecksuite "Sales":
    let expected = SlotQueueItem.init(request, 2.uint16)
    check eventually itemsProcessed.contains(expected)
 
-  test "request slots are not added to the slot queue when no availabilities exist":
-   var itemsProcessed: seq[SlotQueueItem] = @[]
-   queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-     itemsProcessed.add item
-     done.complete()
-
-   await market.requestStorage(request)
-   # check that request was ignored due to no matching availability
-   check always itemsProcessed.len == 0
-
-  test "non-matching availabilities/requests are not added to the slot queue":
-   var itemsProcessed: seq[SlotQueueItem] = @[]
-   queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-     itemsProcessed.add item
-     done.complete()
-
-   let nonMatchingAvailability = Availability.init(
-     size=100.u256,
-     duration=60.u256,
-     minPrice=601.u256, # too high
-     maxCollateral=400.u256
-   )
-   check isOk await reservations.reserve(nonMatchingAvailability)
-   await market.requestStorage(request)
-   # check that request was ignored due to no matching availability
-   check always itemsProcessed.len == 0
-
   test "adds past requests to queue once availability added":
    var itemsProcessed: seq[SlotQueueItem] = @[]
    queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
@@ -273,7 +249,7 @@ asyncchecksuite "Sales":
 
    # now add matching availability
    check isOk await reservations.reserve(availability)
-   check eventuallyCheck itemsProcessed.len == request.ask.slots.int
+   check eventually itemsProcessed.len == request.ask.slots.int
 
   test "makes storage unavailable when downloading a matched request":
     var used = false
@@ -395,7 +371,7 @@ asyncchecksuite "Sales":
   test "fills a slot":
     check isOk await reservations.reserve(availability)
     await market.requestStorage(request)
-    check eventuallyCheck market.filled.len == 1
+    check eventually market.filled.len > 0
     check market.filled[0].requestId == request.id
     check market.filled[0].slotIndex < request.ask.slots.u256
     check market.filled[0].proof == proof

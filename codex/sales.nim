@@ -182,7 +182,7 @@ proc onReservationAdded(sales: Sales, availability: Availability) {.async.} =
 
     for slots in requests:
       for slot in slots:
-        if err =? (await queue.push(slot)).errorOption:
+        if err =? queue.push(slot).errorOption:
           # continue on error
           if err of QueueNotRunningError:
             warn "cannot push items to queue, queue is not running"
@@ -222,18 +222,15 @@ proc onStorageRequested(sales: Sales,
 
   for item in items:
     # continue on failure
-    slotQueue.push(item)
-      .track(sales)
-      .catch(proc(err: ref CatchableError) =
-        if err of NoMatchingAvailabilityError:
-          info "slot in queue had no matching availabilities, ignoring"
-        elif err of SlotQueueItemExistsError:
-          error "Failed to push item to queue becaue it already exists"
-        elif err of QueueNotRunningError:
-          warn "Failed to push item to queue becaue queue is not running"
-        else:
-          warn "Error adding request to SlotQueue", error = err.msg
-      )
+    if err =? slotQueue.push(item).errorOption:
+      if err of NoMatchingAvailabilityError:
+        info "slot in queue had no matching availabilities, ignoring"
+      elif err of SlotQueueItemExistsError:
+        error "Failed to push item to queue becaue it already exists"
+      elif err of QueueNotRunningError:
+        warn "Failed to push item to queue becaue queue is not running"
+      else:
+        warn "Error adding request to SlotQueue", error = err.msg
 
 proc onSlotFreed(sales: Sales,
                  requestId: RequestId,
@@ -263,7 +260,7 @@ proc onSlotFreed(sales: Sales,
 
       found = SlotQueueItem.init(request, slotIndex.truncate(uint16))
 
-    if err =? (await queue.push(found)).errorOption:
+    if err =? queue.push(found).errorOption:
       raise err
 
   addSlotToQueue()

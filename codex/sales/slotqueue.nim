@@ -228,21 +228,13 @@ proc populateItem*(self: SlotQueue,
       )
   return none SlotQueueItem
 
-proc push*(self: SlotQueue, item: SlotQueueItem): Future[?!void] {.async.} =
+proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
 
   trace "pushing item to queue",
     requestId = item.requestId, slotIndex = item.slotIndex
 
   if not self.running:
     let err = newException(QueueNotRunningError, "queue not running")
-    return failure(err)
-
-  without availability =? await self.reservations.find(item.slotSize,
-                                                       item.duration,
-                                                       item.profitability,
-                                                       item.collateral,
-                                                       used = false):
-    let err = newException(NoMatchingAvailabilityError, "no availability")
     return failure(err)
 
   if self.contains(item):
@@ -259,9 +251,9 @@ proc push*(self: SlotQueue, item: SlotQueueItem): Future[?!void] {.async.} =
   doAssert self.queue.len <= self.queue.size - 1
   return success()
 
-proc push*(self: SlotQueue, items: seq[SlotQueueItem]): Future[?!void] {.async.} =
+proc push*(self: SlotQueue, items: seq[SlotQueueItem]): ?!void =
   for item in items:
-    if err =? (await self.push(item)).errorOption:
+    if err =? self.push(item).errorOption:
       return failure(err)
 
   return success()
