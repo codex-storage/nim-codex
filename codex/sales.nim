@@ -89,7 +89,7 @@ func new*(_: type Sales,
       market: market,
       clock: clock,
       reservations: reservations,
-      slotQueue: SlotQueue.new(reservations),
+      slotQueue: SlotQueue.new(),
       simulateProofFailures: simulateProofFailures
     ),
     trackedFutures: TrackedFutures.new(),

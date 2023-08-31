@@ -5,7 +5,6 @@ import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
 import pkg/upraises
-import ./reservations
 import ../errors
 import ../rng
 import ../utils
@@ -46,7 +45,6 @@ type
     maxWorkers: int
     onProcessSlot: ?OnProcessSlot
     queue: AsyncHeapQueue[SlotQueueItem]
-    reservations: Reservations
     running: bool
     workers: AsyncQueue[SlotQueueWorker]
     trackedFutures: TrackedFutures
@@ -105,7 +103,6 @@ proc `==`*(a, b: SlotQueueItem): bool =
   a.slotIndex == b.slotIndex
 
 proc new*(_: type SlotQueue,
-          reservations: Reservations,
           maxWorkers = DefaultMaxWorkers,
           maxSize: SlotQueueSize = DefaultMaxSize): SlotQueue =
 
@@ -119,7 +116,6 @@ proc new*(_: type SlotQueue,
     # Add 1 to always allow for an extra item to be pushed onto the queue
     # temporarily. After push (and sort), the bottom-most item will be deleted
     queue: newAsyncHeapQueue[SlotQueueItem](maxSize.int + 1),
-    reservations: reservations,
     running: false,
     trackedFutures: TrackedFutures.new()
   )

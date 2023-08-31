@@ -6,9 +6,7 @@ import pkg/datastore
 import pkg/questionable
 import pkg/questionable/results
 
-import pkg/codex/sales/reservations
 import pkg/codex/sales/slotqueue
-import pkg/codex/stores
 
 import ../helpers
 import ../helpers/mockmarket
@@ -17,18 +15,10 @@ import ../examples
 
 suite "Slot queue start/stop":
 
-  var repo: RepoStore
-  var repoDs: Datastore
-  var metaDs: SQLiteDatastore
-  var reservations: Reservations
   var queue: SlotQueue
 
   setup:
-    repoDs = SQLiteDatastore.new(Memory).tryGet()
-    metaDs = SQLiteDatastore.new(Memory).tryGet()
-    repo = RepoStore.new(repoDs, metaDs)
-    reservations = Reservations.new(repo)
-    queue = SlotQueue.new(reservations)
+    queue = SlotQueue.new()
 
   teardown:
     await queue.stop()
@@ -58,11 +48,6 @@ suite "Slot queue start/stop":
 
 suite "Slot queue workers":
 
-  var repo: RepoStore
-  var repoDs: Datastore
-  var metaDs: SQLiteDatastore
-  var availability: Availability
-  var reservations: Reservations
   var queue: SlotQueue
 
   proc onProcessSlot(item: SlotQueueItem, doneProcessing: Future[void]) {.async.} =
@@ -74,21 +59,8 @@ suite "Slot queue workers":
 
   setup:
     let request = StorageRequest.example
-    repoDs = SQLiteDatastore.new(Memory).tryGet()
-    metaDs = SQLiteDatastore.new(Memory).tryGet()
-    let quota = request.ask.slotSize.truncate(uint) * 100 + 1
-    repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = quota)
-    reservations = Reservations.new(repo)
-    # create an availability that should always match
-    availability = Availability.init(
-      size = request.ask.slotSize * 100,
-      duration = request.ask.duration * 100,
-      minPrice = request.ask.pricePerSlot div 100,
-      maxCollateral = request.ask.collateral * 100
-    )
-    queue = SlotQueue.new(reservations, maxSize = 5, maxWorkers = 3)
+    queue = SlotQueue.new(maxSize = 5, maxWorkers = 3)
     queue.onProcessSlot = onProcessSlot
-    discard await reservations.reserve(availability)
 
   proc startQueue = asyncSpawn queue.start()
 
@@ -100,11 +72,11 @@ suite "Slot queue workers":
 
   test "maxWorkers cannot be 0":
     expect ValueError:
-      discard SlotQueue.new(reservations, maxSize = 1, maxWorkers = 0)
+      discard SlotQueue.new(maxSize = 1, maxWorkers = 0)
 
   test "maxWorkers cannot surpass maxSize":
     expect ValueError:
-      discard SlotQueue.new(reservations, maxSize = 1, maxWorkers = 2)
+      discard SlotQueue.new(maxSize = 1, maxWorkers = 2)
 
   test "does not surpass max workers":
     startQueue()
@@ -140,16 +112,11 @@ suite "Slot queue":
 
   var onProcessSlotCalled = false
   var onProcessSlotCalledWith: seq[(RequestId, uint16)]
-  var repo: RepoStore
-  var repoDs: Datastore
-  var metaDs: SQLiteDatastore
-  var availability: Availability
-  var reservations: Reservations
   var queue: SlotQueue
   var paused: bool
 
   proc newSlotQueue(maxSize, maxWorkers: int, processSlotDelay = 1.millis) =
-    queue = SlotQueue.new(reservations, maxWorkers, maxSize.uint16)
+    queue = SlotQueue.new(maxWorkers, maxSize.uint16)
     queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
       await sleepAsync(processSlotDelay)
       trace "processing item", requestId = item.requestId, slotIndex = item.slotIndex
@@ -161,20 +128,6 @@ suite "Slot queue":
   setup:
     onProcessSlotCalled = false
     onProcessSlotCalledWith = @[]
-    let request = StorageRequest.example
-    repoDs = SQLiteDatastore.new(Memory).tryGet()
-    metaDs = SQLiteDatastore.new(Memory).tryGet()
-    let quota = request.ask.slotSize.truncate(uint) * 100 + 1
-    repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = quota)
-    reservations = Reservations.new(repo)
-    # create an availability that should always match
-    availability = Availability.init(
-      size = request.ask.slotSize * 100,
-      duration = request.ask.duration * 100,
-      minPrice = request.ask.pricePerSlot div 100,
-      maxCollateral = request.ask.collateral * 100
-    )
-    discard await reservations.reserve(availability)
 
   teardown:
     paused = false
