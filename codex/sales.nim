@@ -219,6 +219,7 @@ proc onStorageRequested(sales: Sales,
       warn "Too many slots, cannot add to queue"
     else:
       warn "Failed to create slot queue items from request", error = err.msg
+    return
 
   for item in items:
     # continue on failure
