@@ -42,9 +42,9 @@ proc new*(
     clock: Clock = SystemClock.new()
 ): BlockMaintainer =
   ## Create new BlockMaintainer instance
-  ## 
+  ##
   ## Call `start` to begin looking for for expired blocks
-  ## 
+  ##
   BlockMaintainer(
     repoStore: repoStore,
     interval: interval,
@@ -78,6 +78,7 @@ proc runBlockCheck(self: BlockMaintainer): Future[void] {.async.} =
     if be =? await maybeBeFuture:
       inc numberReceived
       await self.processBlockExpiration(be)
+      await sleepAsync(50.millis)
 
   # If we received fewer blockExpirations from the iterator than we asked for,
   # We're at the end of the dataset and should start from 0 next time.
