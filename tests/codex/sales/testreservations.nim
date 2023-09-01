@@ -98,9 +98,11 @@ asyncchecksuite "Reservations module":
     let availability2 = createAvailability()
     let reservation1 = createReservation(availability1)
     let reservation2 = createReservation(availability2)
+    let availabilities = !(await reservations.all(Availability))
     let reservations = !(await reservations.all(Reservation))
     check:
       # perform unordered checks
+      availabilities.len == 2
       reservations.len == 2
       reservations.contains(reservation1)
       reservations.contains(reservation2)
