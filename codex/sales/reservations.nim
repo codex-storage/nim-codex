@@ -19,6 +19,7 @@ import pkg/stew/byteutils
 import pkg/nimcrypto
 import pkg/questionable
 import pkg/questionable/results
+import ../utils/json
 
 push: {.upraises: [].}
 
@@ -34,11 +35,11 @@ logScope:
 type
   AvailabilityId* = distinct array[32, byte]
   Availability* = object
-    id*: AvailabilityId
-    size*: UInt256
-    duration*: UInt256
-    minPrice*: UInt256
-    maxCollateral*: UInt256
+    id* {.serialize.}: AvailabilityId
+    size* {.serialize.}: UInt256
+    duration* {.serialize.}: UInt256
+    minPrice* {.serialize.}: UInt256
+    maxCollateral* {.serialize.}: UInt256
     used*: bool
   Reservations* = ref object
     repo: RepoStore

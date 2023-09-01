@@ -2,7 +2,7 @@ import std/sequtils
 import std/os
 from std/times import getTime, toUnix
 import pkg/chronicles
-import codex/contracts/marketplace
+import codex/contracts
 import codex/periods
 import ../contracts/time
 import ../contracts/deployment
@@ -19,6 +19,9 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
   var marketplace: Marketplace
   var period: uint64
 
+  proc purchaseStateIs(client: CodexClient, id: PurchaseId, state: string): bool =
+    client.getPurchase(id).option.?state == some state
+
   setup:
     marketplace = Marketplace.new(Marketplace.address, provider)
     period = (await marketplace.config()).proofs.period.truncate(uint64)
@@ -32,22 +35,22 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
                                   duration: uint64 = 100 * period,
                                   expiry: uint64 = 30) {.async.} =
     discard client2.postAvailability(
-      size=0xFFFFF,
-      duration=duration,
-      minPrice=300,
-      maxCollateral=200
+      size=0xFFFFF.u256,
+      duration=duration.u256,
+      minPrice=300.u256,
+      maxCollateral=200.u256
     )
-    let cid = client1.upload("some file contents")
+    let cid = client1.upload("some file contents").get
     let expiry = (await provider.currentTime()) + expiry.u256
-    let purchase = client1.requestStorage(
+    let id = client1.requestStorage(
       cid,
       expiry=expiry,
-      duration=duration,
-      proofProbability=proofProbability,
-      collateral=100,
-      reward=400
-    )
-    check eventually client1.getPurchase(purchase){"state"} == %"started"
+      duration=duration.u256,
+      proofProbability=proofProbability.u256,
+      collateral=100.u256,
+      reward=400.u256
+    ).get
+    check eventually client1.purchaseStateIs(id, "started")
 
   proc advanceToNextPeriod {.async.} =
     let periodicity = Periodicity(seconds: period.u256)
@@ -105,6 +108,9 @@ multinodesuite "Simulate invalid proofs",
   StartNodes.init(clients=1'u, providers=0'u, validators=1'u),
   DebugNodes.init(client=false, provider=false, validator=false):
 
+  proc purchaseStateIs(client: CodexClient, id: PurchaseId, state: string): bool =
+    client.getPurchase(id).option.?state == some state
+
   var marketplace: Marketplace
   var period: uint64
   var slotId: SlotId
@@ -142,26 +148,26 @@ multinodesuite "Simulate invalid proofs",
     let storageProvider = providers()[0].restClient
 
     discard storageProvider.postAvailability(
-      size=0xFFFFF,
-      duration=duration,
-      minPrice=300,
-      maxCollateral=200
+      size=0xFFFFF.u256,
+      duration=duration.u256,
+      minPrice=300.u256,
+      maxCollateral=200.u256
     )
-    let cid = client.upload("some file contents " & $ getTime().toUnix)
+    let cid = client.upload("some file contents " & $ getTime().toUnix).get
     let expiry = (await provider.currentTime()) + expiry.u256
     # avoid timing issues by filling the slot at the start of the next period
     await advanceToNextPeriod()
-    let purchase = client.requestStorage(
+    let id = client.requestStorage(
       cid,
       expiry=expiry,
-      duration=duration,
-      proofProbability=proofProbability,
-      collateral=100,
-      reward=400
-    )
-    check eventually client.getPurchase(purchase){"state"} == %"started"
-    let requestId = RequestId.fromHex client.getPurchase(purchase){"requestId"}.getStr
-    slotId = slotId(requestId, 0.u256)
+      duration=duration.u256,
+      proofProbability=proofProbability.u256,
+      collateral=100.u256,
+      reward=400.u256
+    ).get
+    check eventually client.purchaseStateIs(id, "started")
+    let purchase = client.getPurchase(id).get
+    slotId = slotId(purchase.requestId, 0.u256)
 
   # TODO: these are very loose tests in that they are not testing EXACTLY how
   # proofs were marked as missed by the validator. These tests should be
