@@ -65,7 +65,7 @@ ethersuite "Node block expiration tests":
 
     let contentId = uploadTestFile()
 
-    await sleepAsync(2.seconds)
+    await sleepAsync(3.seconds)
 
     expect TimeoutError:
       discard downloadTestFile(contentId)
