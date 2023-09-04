@@ -263,17 +263,18 @@ asyncchecksuite "Sales":
    # check that request was ignored due to no matching availability
    check always itemsProcessed.len == 0
 
-  test "adds past requests to queue once availability added":
-   var itemsProcessed: seq[SlotQueueItem] = @[]
-   queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-     itemsProcessed.add item
-     done.complete()
+  for _ in 0..<10000:
+    test "adds past requests to queue once availability added":
+      var itemsProcessed: seq[SlotQueueItem] = @[]
+      queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+        itemsProcessed.add item
+        done.complete()
 
-   await market.requestStorage(request)
+      await market.requestStorage(request)
 
-   # now add matching availability
-   check isOk await reservations.reserve(availability)
-   check eventuallyCheck itemsProcessed.len == request.ask.slots.int
+      # now add matching availability
+      check isOk await reservations.reserve(availability)
+      check eventuallyCheck itemsProcessed.len == request.ask.slots.int
 
   test "makes storage unavailable when downloading a matched request":
     var used = false
