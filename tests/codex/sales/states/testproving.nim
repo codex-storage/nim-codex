@@ -64,7 +64,7 @@ asyncchecksuite "sales state 'proving'":
     market.setProofRequired(slot.id, true)
     await market.advanceToNextPeriod()
 
-    check eventuallyCheck receivedIds == @[slot.id] and receivedProofs == @[proof]
+    check eventually receivedIds == @[slot.id] and receivedProofs == @[proof]
 
     await future.cancelAndWait()
     await subscription.unsubscribe()
@@ -77,6 +77,6 @@ asyncchecksuite "sales state 'proving'":
     market.slotState[slot.id] = SlotState.Finished
     await market.advanceToNextPeriod()
 
-    check eventuallyCheck future.finished
+    check eventually future.finished
     check !(future.read()) of SalePayout
 

@@ -11,7 +11,6 @@ import pkg/chronos
 import pkg/asynctest
 
 import codex/utils/timer
-import ../helpers/eventually
 import ../helpers
 
 asyncchecksuite "Timer":

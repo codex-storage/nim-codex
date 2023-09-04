@@ -5,7 +5,6 @@ import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
 import pkg/upraises
-import ./reservations
 import ../errors
 import ../rng
 import ../utils
@@ -46,7 +45,6 @@ type
     maxWorkers: int
     onProcessSlot: ?OnProcessSlot
     queue: AsyncHeapQueue[SlotQueueItem]
-    reservations: Reservations
     running: bool
     workers: AsyncQueue[SlotQueueWorker]
     trackedFutures: TrackedFutures
@@ -68,7 +66,7 @@ const DefaultMaxWorkers = 3
 # included in the queue if it is higher priority than any of the exisiting
 # items. Older slots should be unfillable over time as other hosts fill the
 # slots.
-const DefaultMaxSize = 64'u16
+const DefaultMaxSize = 128'u16
 
 proc profitability(item: SlotQueueItem): UInt256 =
   StorageAsk(collateral: item.collateral,
@@ -105,7 +103,6 @@ proc `==`*(a, b: SlotQueueItem): bool =
   a.slotIndex == b.slotIndex
 
 proc new*(_: type SlotQueue,
-          reservations: Reservations,
           maxWorkers = DefaultMaxWorkers,
           maxSize: SlotQueueSize = DefaultMaxSize): SlotQueue =
 
@@ -119,7 +116,6 @@ proc new*(_: type SlotQueue,
     # Add 1 to always allow for an extra item to be pushed onto the queue
     # temporarily. After push (and sort), the bottom-most item will be deleted
     queue: newAsyncHeapQueue[SlotQueueItem](maxSize.int + 1),
-    reservations: reservations,
     running: false,
     trackedFutures: TrackedFutures.new()
   )
@@ -228,21 +224,13 @@ proc populateItem*(self: SlotQueue,
       )
   return none SlotQueueItem
 
-proc push*(self: SlotQueue, item: SlotQueueItem): Future[?!void] {.async.} =
+proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
 
   trace "pushing item to queue",
     requestId = item.requestId, slotIndex = item.slotIndex
 
   if not self.running:
     let err = newException(QueueNotRunningError, "queue not running")
-    return failure(err)
-
-  without availability =? await self.reservations.find(item.slotSize,
-                                                       item.duration,
-                                                       item.profitability,
-                                                       item.collateral,
-                                                       used = false):
-    let err = newException(NoMatchingAvailabilityError, "no availability")
     return failure(err)
 
   if self.contains(item):
@@ -259,9 +247,9 @@ proc push*(self: SlotQueue, item: SlotQueueItem): Future[?!void] {.async.} =
   doAssert self.queue.len <= self.queue.size - 1
   return success()
 
-proc push*(self: SlotQueue, items: seq[SlotQueueItem]): Future[?!void] {.async.} =
+proc push*(self: SlotQueue, items: seq[SlotQueueItem]): ?!void =
   for item in items:
-    if err =? (await self.push(item)).errorOption:
+    if err =? self.push(item).errorOption:
       return failure(err)
 
   return success()

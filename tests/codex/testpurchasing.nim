@@ -11,7 +11,6 @@ import pkg/codex/purchasing/states/cancelled
 import pkg/codex/purchasing/states/failed
 import ./helpers/mockmarket
 import ./helpers/mockclock
-import ./helpers/eventually
 import ./examples
 import ./helpers
 

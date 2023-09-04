@@ -6,29 +6,18 @@ import pkg/datastore
 import pkg/questionable
 import pkg/questionable/results
 
-import pkg/codex/sales/reservations
 import pkg/codex/sales/slotqueue
-import pkg/codex/stores
 
 import ../helpers
 import ../helpers/mockmarket
-import ../helpers/eventually
 import ../examples
 
 suite "Slot queue start/stop":
 
-  var repo: RepoStore
-  var repoDs: Datastore
-  var metaDs: SQLiteDatastore
-  var reservations: Reservations
   var queue: SlotQueue
 
   setup:
-    repoDs = SQLiteDatastore.new(Memory).tryGet()
-    metaDs = SQLiteDatastore.new(Memory).tryGet()
-    repo = RepoStore.new(repoDs, metaDs)
-    reservations = Reservations.new(repo)
-    queue = SlotQueue.new(reservations)
+    queue = SlotQueue.new()
 
   teardown:
     await queue.stop()
@@ -58,11 +47,6 @@ suite "Slot queue start/stop":
 
 suite "Slot queue workers":
 
-  var repo: RepoStore
-  var repoDs: Datastore
-  var metaDs: SQLiteDatastore
-  var availability: Availability
-  var reservations: Reservations
   var queue: SlotQueue
 
   proc onProcessSlot(item: SlotQueueItem, doneProcessing: Future[void]) {.async.} =
@@ -74,21 +58,8 @@ suite "Slot queue workers":
 
   setup:
     let request = StorageRequest.example
-    repoDs = SQLiteDatastore.new(Memory).tryGet()
-    metaDs = SQLiteDatastore.new(Memory).tryGet()
-    let quota = request.ask.slotSize.truncate(uint) * 100 + 1
-    repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = quota)
-    reservations = Reservations.new(repo)
-    # create an availability that should always match
-    availability = Availability.init(
-      size = request.ask.slotSize * 100,
-      duration = request.ask.duration * 100,
-      minPrice = request.ask.pricePerSlot div 100,
-      maxCollateral = request.ask.collateral * 100
-    )
-    queue = SlotQueue.new(reservations, maxSize = 5, maxWorkers = 3)
+    queue = SlotQueue.new(maxSize = 5, maxWorkers = 3)
     queue.onProcessSlot = onProcessSlot
-    discard await reservations.reserve(availability)
 
   proc startQueue = asyncSpawn queue.start()
 
@@ -100,11 +71,11 @@ suite "Slot queue workers":
 
   test "maxWorkers cannot be 0":
     expect ValueError:
-      discard SlotQueue.new(reservations, maxSize = 1, maxWorkers = 0)
+      discard SlotQueue.new(maxSize = 1, maxWorkers = 0)
 
   test "maxWorkers cannot surpass maxSize":
     expect ValueError:
-      discard SlotQueue.new(reservations, maxSize = 1, maxWorkers = 2)
+      discard SlotQueue.new(maxSize = 1, maxWorkers = 2)
 
   test "does not surpass max workers":
     startQueue()
@@ -112,10 +83,10 @@ suite "Slot queue workers":
     let item2 = SlotQueueItem.example
     let item3 = SlotQueueItem.example
     let item4 = SlotQueueItem.example
-    check (await queue.push(item1)).isOk
-    check (await queue.push(item2)).isOk
-    check (await queue.push(item3)).isOk
-    check (await queue.push(item4)).isOk
+    check queue.push(item1).isOk
+    check queue.push(item2).isOk
+    check queue.push(item3).isOk
+    check queue.push(item4).isOk
     check eventually queue.activeWorkers == 3
 
   test "discards workers once processing completed":
@@ -130,28 +101,21 @@ suite "Slot queue workers":
     let item2 = SlotQueueItem.example
     let item3 = SlotQueueItem.example
     let item4 = SlotQueueItem.example
-    check (await queue.push(item1)).isOk # finishes after 1.millis
-    check (await queue.push(item2)).isOk # finishes after 1.millis
-    check (await queue.push(item3)).isOk # finishes after 1.millis
-    check (await queue.push(item4)).isOk
+    check queue.push(item1).isOk # finishes after 1.millis
+    check queue.push(item2).isOk # finishes after 1.millis
+    check queue.push(item3).isOk # finishes after 1.millis
+    check queue.push(item4).isOk
     check eventually queue.activeWorkers == 1
 
 suite "Slot queue":
 
   var onProcessSlotCalled = false
   var onProcessSlotCalledWith: seq[(RequestId, uint16)]
-  var repo: RepoStore
-  var repoDs: Datastore
-  var metaDs: SQLiteDatastore
-  var availability: Availability
-  var reservations: Reservations
   var queue: SlotQueue
-  let maxWorkers = 2
-  var unpauseQueue: Future[void]
   var paused: bool
 
   proc newSlotQueue(maxSize, maxWorkers: int, processSlotDelay = 1.millis) =
-    queue = SlotQueue.new(reservations, maxWorkers, maxSize.uint16)
+    queue = SlotQueue.new(maxWorkers, maxSize.uint16)
     queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
       await sleepAsync(processSlotDelay)
       trace "processing item", requestId = item.requestId, slotIndex = item.slotIndex
@@ -163,20 +127,6 @@ suite "Slot queue":
   setup:
     onProcessSlotCalled = false
     onProcessSlotCalledWith = @[]
-    let request = StorageRequest.example
-    repoDs = SQLiteDatastore.new(Memory).tryGet()
-    metaDs = SQLiteDatastore.new(Memory).tryGet()
-    let quota = request.ask.slotSize.truncate(uint) * 100 + 1
-    repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = quota)
-    reservations = Reservations.new(repo)
-    # create an availability that should always match
-    availability = Availability.init(
-      size = request.ask.slotSize * 100,
-      duration = request.ask.duration * 100,
-      minPrice = request.ask.pricePerSlot div 100,
-      maxCollateral = request.ask.collateral * 100
-    )
-    discard await reservations.reserve(availability)
 
   teardown:
     paused = false
@@ -226,8 +176,8 @@ suite "Slot queue":
     newSlotQueue(maxSize = 2, maxWorkers = 2)
     let item1 = SlotQueueItem.example
     let item2 = SlotQueueItem.example
-    check (await queue.push(item1)).isOk
-    check (await queue.push(item2)).isOk
+    check queue.push(item1).isOk
+    check queue.push(item2).isOk
     check eventually onProcessSlotCalledWith == @[
       (item1.requestId, item1.slotIndex),
       (item2.requestId, item2.slotIndex)
@@ -240,11 +190,11 @@ suite "Slot queue":
     let item2 = SlotQueueItem.example
     let item3 = SlotQueueItem.example
     let item4 = SlotQueueItem.example
-    check isOk (await queue.push(item0))
-    check isOk (await queue.push(item1))
-    check isOk (await queue.push(item2))
-    check isOk (await queue.push(item3))
-    check isOk (await queue.push(item4))
+    check isOk queue.push(item0)
+    check isOk queue.push(item1)
+    check isOk queue.push(item2)
+    check isOk queue.push(item3)
+    check isOk queue.push(item4)
 
   test "populates item with exisiting request metadata":
     newSlotQueue(maxSize = 8, maxWorkers = 1, processSlotDelay = 10.millis)
@@ -253,8 +203,8 @@ suite "Slot queue":
     request1.ask.collateral += 1.u256
     let items0 = SlotQueueItem.init(request0)
     let items1 = SlotQueueItem.init(request1)
-    check (await queue.push(items0)).isOk
-    check (await queue.push(items1)).isOk
+    check queue.push(items0).isOk
+    check queue.push(items1).isOk
     let populated = !queue.populateItem(request1.id, 12'u16)
     check populated.requestId == request1.id
     check populated.slotIndex == 12'u16
@@ -289,9 +239,9 @@ suite "Slot queue":
     let item0 = SlotQueueItem.example
     let item1 = SlotQueueItem.example
     let item2 = SlotQueueItem.example
-    check isOk (await queue.push(item0))
-    check isOk (await queue.push(item1))
-    check (await queue.push(@[item2, item2, item2, item2])).error of SlotQueueItemExistsError
+    check isOk queue.push(item0)
+    check isOk queue.push(item1)
+    check queue.push(@[item2, item2, item2, item2]).error of SlotQueueItemExistsError
 
   test "can add items past max maxSize":
     newSlotQueue(maxSize = 4, maxWorkers = 2, processSlotDelay = 10.millis)
@@ -299,10 +249,10 @@ suite "Slot queue":
     let item2 = SlotQueueItem.example
     let item3 = SlotQueueItem.example
     let item4 = SlotQueueItem.example
-    check (await queue.push(item1)).isOk
-    check (await queue.push(item2)).isOk
-    check (await queue.push(item3)).isOk
-    check (await queue.push(item4)).isOk
+    check queue.push(item1).isOk
+    check queue.push(item2).isOk
+    check queue.push(item3).isOk
+    check queue.push(item4).isOk
     check eventually onProcessSlotCalledWith.len == 4
 
   test "can delete items":
@@ -311,10 +261,10 @@ suite "Slot queue":
     let item1 = SlotQueueItem.example
     let item2 = SlotQueueItem.example
     let item3 = SlotQueueItem.example
-    check (await queue.push(item0)).isOk
-    check (await queue.push(item1)).isOk
-    check (await queue.push(item2)).isOk
-    check (await queue.push(item3)).isOk
+    check queue.push(item0).isOk
+    check queue.push(item1).isOk
+    check queue.push(item2).isOk
+    check queue.push(item3).isOk
     queue.delete(item3)
     check not queue.contains(item3)
 
@@ -325,8 +275,8 @@ suite "Slot queue":
     request1.ask.collateral += 1.u256
     let items0 = SlotQueueItem.init(request0)
     let items1 = SlotQueueItem.init(request1)
-    check (await queue.push(items0)).isOk
-    check (await queue.push(items1)).isOk
+    check queue.push(items0).isOk
+    check queue.push(items1).isOk
     let last = items1[items1.high]
     check eventually queue.contains(last)
     queue.delete(last.requestId, last.slotIndex)
@@ -341,8 +291,8 @@ suite "Slot queue":
     request1.ask.collateral += 1.u256
     let items0 = SlotQueueItem.init(request0)
     let items1 = SlotQueueItem.init(request1)
-    check (await queue.push(items0)).isOk
-    check (await queue.push(items1)).isOk
+    check queue.push(items0).isOk
+    check queue.push(items1).isOk
     queue.delete(request1.id)
     check not onProcessSlotCalledWith.anyIt(it[0] == request1.id)
 
@@ -366,7 +316,7 @@ suite "Slot queue":
     let item4 = SlotQueueItem.init(request4, 0)
     let item5 = SlotQueueItem.init(request5, 0)
     check queue.contains(item5) == false
-    check (await queue.push(@[item0, item1, item2, item3, item4, item5])).isOk
+    check queue.push(@[item0, item1, item2, item3, item4, item5]).isOk
     check queue.contains(item5)
 
   test "sorts items by profitability ascending (higher pricePerSlot = higher priority)":
@@ -401,13 +351,13 @@ suite "Slot queue":
     newSlotQueue(maxSize = 2, maxWorkers = 2)
     let item = SlotQueueItem.example
     check not onProcessSlotCalled
-    check (await queue.push(item)).isOk
+    check queue.push(item).isOk
     check eventually onProcessSlotCalled
 
   test "should only process item once":
     newSlotQueue(maxSize = 2, maxWorkers = 2)
     let item = SlotQueueItem.example
-    check (await queue.push(item)).isOk
+    check queue.push(item).isOk
     check eventually onProcessSlotCalledWith == @[
       (item.requestId, item.slotIndex)
     ]
@@ -425,13 +375,13 @@ suite "Slot queue":
     request.ask.reward += 1.u256
     let item3 = SlotQueueItem.init(request, 3)
 
-    check (await queue.push(item0)).isOk
+    check queue.push(item0).isOk
     await sleepAsync(1.millis)
-    check (await queue.push(item1)).isOk
+    check queue.push(item1).isOk
     await sleepAsync(1.millis)
-    check (await queue.push(item2)).isOk
+    check queue.push(item2).isOk
     await sleepAsync(1.millis)
-    check (await queue.push(item3)).isOk
+    check queue.push(item3).isOk
 
     check eventually (
       onProcessSlotCalledWith == @[
@@ -441,11 +391,3 @@ suite "Slot queue":
         (item3.requestId, item3.slotIndex),
       ]
     )
-
-  test "fails to push when there's no matching availability":
-    newSlotQueue(maxSize = 2, maxWorkers = 2)
-    discard await reservations.release(availability.id,
-                    availability.size.truncate(uint))
-
-    let item = SlotQueueItem.example
-    check (await queue.push(item)).error of NoMatchingAvailabilityError
