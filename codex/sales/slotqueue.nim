@@ -66,7 +66,7 @@ const DefaultMaxWorkers = 3
 # included in the queue if it is higher priority than any of the exisiting
 # items. Older slots should be unfillable over time as other hosts fill the
 # slots.
-const DefaultMaxSize = 64'u16
+const DefaultMaxSize = 128'u16
 
 proc profitability(item: SlotQueueItem): UInt256 =
   StorageAsk(collateral: item.collateral,
