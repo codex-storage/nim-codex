@@ -35,7 +35,7 @@ services:
       - 2345:2345/tcp # libp2p
       - 8090:8090/udp # DHT discovery
     volumes:
-      - /datadir:/datadir
+      - ./datadir:/datadir:z
     networks:
       - codex
 networks:
