@@ -14,6 +14,7 @@ type
     onStore*: ?OnStore
     onClear*: ?OnClear
     onSale*: ?OnSale
+    onFilled*: ?OnFilled
     onCleanUp*: OnCleanUp
     onProve*: ?OnProve
     reservations*: Reservations
@@ -27,5 +28,12 @@ type
   OnClear* = proc(request: StorageRequest,
                   slotIndex: UInt256) {.gcsafe, upraises: [].}
   OnSale* = proc(request: StorageRequest,
+                 slotIndex: UInt256) {.gcsafe, upraises: [].}
+
+  # OnFilled has same function as OnSale, but is kept for internal purposes and should not be set by any external
+  # purposes as it is used for freeing Queue Workers after slot is filled. And the callbacks allows only
+  # one callback to be set, so if some other component would use it, it would override the Slot Queue freeing
+  # mechanism which would lead to blocking of the queue.
+  OnFilled* = proc(request: StorageRequest,
                  slotIndex: UInt256) {.gcsafe, upraises: [].}
   OnCleanUp* = proc: Future[void] {.gcsafe, upraises: [].}

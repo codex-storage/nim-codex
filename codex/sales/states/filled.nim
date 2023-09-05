@@ -38,9 +38,11 @@ method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
   if host == me.some:
     info "Slot succesfully filled", requestId = $data.requestId, slotIndex
 
-    if request =? data.request and slotIndex =? data.slotIndex and
-        onSale =? context.onSale:
-      onSale(request, slotIndex)
+    if request =? data.request and slotIndex =? data.slotIndex:
+      if onSale =? context.onSale:
+        onSale(request, slotIndex)
+      if onFilled =? context.onFilled:
+        onFilled(request, slotIndex)
 
     when codex_enable_proof_failures:
       if context.simulateProofFailures > 0:
