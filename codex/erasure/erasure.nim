@@ -150,9 +150,8 @@ proc prepareEncodingData(
 
   var resolved = 0
   for blkFut in pendingBlocksIter:
-    if pair =? (await blkFut):
+    if (blk, idx) =? (await blkFut):
       let
-        (blk, idx) = pair
         pos = self.indexToPos(encoded, idx, step)
 
       if blk.isEmpty:
@@ -199,9 +198,8 @@ proc prepareDecodingData(
     if resolved >= encoded.ecK:
       break
 
-    if pair =? (await blkFut):
+    if (blk, idx) =? (await blkFut):
       let
-        (blk, idx) = pair
         pos = self.indexToPos(encoded, idx, step)
 
       logScope:
@@ -279,7 +277,7 @@ proc encodeData(
 
   var
     encoder = self.encoderProvider(encoded.blockSize.int, encoded.ecK, encoded.ecM)
-    emptyBlock = newSeqWith[byte](encoded.blockSize.int, 0.byte)
+    emptyBlock = newSeq[byte](encoded.blockSize.int)
 
   try:
     for step in 0..<encoded.steps:
@@ -379,7 +377,7 @@ proc decode*(
 
   var
     decoder = self.decoderProvider(encoded.blockSize.int, encoded.ecK, encoded.ecM)
-    emptyBlock = newSeqWith[byte](encoded.blockSize.int, 0.byte)
+    emptyBlock = newSeq[byte](encoded.blockSize.int)
     hasParity = false
 
   trace "Decoding erasure coded manifest"
