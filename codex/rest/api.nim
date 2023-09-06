@@ -13,6 +13,7 @@ push: {.upraises: [].}
 
 
 import std/sequtils
+import std/monotimes
 
 import pkg/questionable
 import pkg/questionable/results
@@ -45,6 +46,8 @@ logScope:
 
 declareCounter(codexApiUploads, "codex API uploads")
 declareCounter(codexApiDownloads, "codex API downloads")
+declareGauge(codexApiUploadBytesPerSecond, "codex API upload bytes per second")
+declareGauge(codexApiDownloadBytesPerSecond, "codex API download bytes per second")
 
 proc validate(
   pattern: string,
@@ -168,6 +171,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
       var bytes = 0
       try:
+        let start = getMonoTime().ticks
         without stream =? (await node.retrieve(id.get())), error:
           return RestApiResponse.error(Http404, error.msg)
 
@@ -187,7 +191,12 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
           trace "Sending chunk", size = buff.len
           await resp.sendChunk(addr buff[0], buff.len)
         await resp.finish()
+        let
+          stop = getMonoTime().ticks
+          totalSeconds = (stop - start) div 1000000.int64
+          downloadBytesPerSecond = bytes div totalSeconds
         codexApiDownloads.inc()
+        codexApiDownloadBytesPerSecond.set(downloadBytesPerSecond.int64)
       except CatchableError as exc:
         trace "Excepting streaming blocks", exc = exc.msg
         return RestApiResponse.error(Http500)
@@ -257,11 +266,20 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         reader = bodyReader.get()
 
       try:
+        let
+          start = getMonoTime().ticks
+          wrapper = AsyncStreamWrapper.new(reader = AsyncStreamReader(reader))
         without cid =? (
-          await node.store(AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)))), error:
+          await node.store(wrapper)), error:
           trace "Error uploading file", exc = error.msg
           return RestApiResponse.error(Http500, error.msg)
 
+        let
+          stop = getMonoTime().ticks
+          bytes = wrapper.reader.bytesCount.int64
+          totalSeconds = (stop - start) div 1000000.int64
+          uploadBytesPerSecond = bytes div totalSeconds
+        codexApiUploadBytesPerSecond.set(uploadBytesPerSecond.int64)
         codexApiUploads.inc()
         trace "Uploaded file", cid
         return RestApiResponse.response($cid)
