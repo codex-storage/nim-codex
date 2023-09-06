@@ -93,6 +93,25 @@ proc formatPeerRecord(peerRecord: PeerRecord): JsonNode =
   }
   return jobj
 
+proc formatManifest(manifest: Manifest): JsonNode =
+  let jarray = newJArray()
+  for blkcid in manifest:
+    jarray.add(%*{
+      "cid": $blkcid
+    })
+
+  let jobj = %*{
+    "originalBytes": $manifest.originalBytes,
+    "blockSize": $manifest.blockSize,
+    "numberOfBlocks": $manifest.len,
+    "blocks": jarray,
+    "version": $manifest.version,
+    "hcodec": $manifest.hcodec,
+    "codec": $manifest.codec,
+    "protected": $manifest.protected
+  }
+  return jobj
+
 proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   var router = RestRouter.init(validate)
   router.api(
@@ -309,7 +328,6 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
     router.api(
       MethodGet,
       "/api/codex/v1/debug/peer/{peerId}") do (peerId: PeerId) -> RestApiResponse:
-
         trace "debug/peer start"
         without peerRecord =? (await node.findPeer(peerId.get())):
           trace "debug/peer peer not found!"
@@ -320,6 +338,31 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         let json = formatPeerRecord(peerRecord)
         trace "debug/peer returning peer record"
         return RestApiResponse.response($json)
+
+  when codex_enable_api_debug_fetch:
+    router.api(
+      MethodGet,
+      "/api/codex/v1/debug/fetch/{id}") do (id: Cid) -> RestApiResponse:
+        if id.isErr:
+          return RestApiResponse.error(
+            Http400,
+            $id.error())
+
+        try:
+          trace "Fetching manifest"
+          without manifest =? (await node.fetchManifest(id.get())), error:
+            return RestApiResponse.error(Http404, error.msg)
+
+          trace "Manifest fetched. Fetching blocks.", n=manifest.len
+          if isErr(await node.fetchBatched(manifest)):
+            return RestApiResponse.error(Http404, "fetchBatched failed.")
+
+          let json = formatManifest(manifest)
+          trace "Blocks fetched. Debug/fetch returning manifest"
+          return RestApiResponse.response($json)
+        except CatchableError as exc:
+          trace "Excepting fetching", exc = exc.msg
+          return RestApiResponse.error(Http500)
 
   router.api(
     MethodGet,
