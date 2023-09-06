@@ -64,13 +64,13 @@ asyncchecksuite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     var
-      column = rng.rand(encoded.len div encoded.steps) # random column
+      column = rng.rand((encoded.len - 1) div encoded.steps) # random column
       dropped: seq[Cid]
 
     for _ in 0..<encoded.ecM:
       dropped.add(encoded[column])
       (await store.delBlock(encoded[column])).tryGet()
-      column.inc(encoded.steps)
+      column.inc(encoded.steps - 1)
 
     var
       decoded = (await erasure.decode(encoded)).tryGet()
@@ -92,7 +92,7 @@ asyncchecksuite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     var
-      column = rng.rand(encoded.len div encoded.steps) # random column
+      column = rng.rand((encoded.len - 1) div encoded.steps) # random column
       dropped: seq[Cid]
 
     for _ in 0..<encoded.ecM + 1:
