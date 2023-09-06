@@ -48,6 +48,7 @@ declareCounter(codexApiUploads, "codex API uploads")
 declareCounter(codexApiDownloads, "codex API downloads")
 declareGauge(codexApiUploadBytesPerSecond, "codex API upload bytes per second")
 declareGauge(codexApiDownloadBytesPerSecond, "codex API download bytes per second")
+declareGauge(codexApiFetchBytesPerSecond, "codex API fetch bytes per second")
 
 proc validate(
   pattern: string,
@@ -367,6 +368,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
             $id.error())
 
         try:
+          let start = getMonoTime().ticks
           trace "Fetching manifest"
           without manifest =? (await node.fetchManifest(id.get())), error:
             return RestApiResponse.error(Http404, error.msg)
@@ -375,6 +377,12 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
           if isErr(await node.fetchBatched(manifest)):
             return RestApiResponse.error(Http404, "fetchBatched failed.")
 
+          let
+            stop = getMonoTime().ticks
+            bytes = manifest.originalBytes.int64
+            totalSeconds = (stop - start) div 1000000.int64
+            fetchBytesPerSecond = bytes div totalSeconds
+          codexApiFetchBytesPerSecond.set(fetchBytesPerSecond.int64)
           let json = formatManifest(manifest)
           trace "Blocks fetched. Debug/fetch returning manifest"
           return RestApiResponse.response($json)
