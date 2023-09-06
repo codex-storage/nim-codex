@@ -195,9 +195,9 @@ proc new*(
     chunkSize: NBytes = DefaultChunkSize
 ): CacheStore {.raises: [Defect, ValueError].} =
   ## Create a new CacheStore instance
-  ## 
+  ##
   ## `cacheSize` and `chunkSize` are both in bytes
-  ## 
+  ##
 
   if cacheSize < chunkSize:
     raise newException(ValueError, "cacheSize cannot be less than chunkSize")
