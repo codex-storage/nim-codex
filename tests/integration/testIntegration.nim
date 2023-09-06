@@ -2,11 +2,14 @@ import std/options
 from pkg/libp2p import `==`
 import pkg/chronos
 import pkg/stint
+import pkg/codex/rng
+import pkg/stew/byteutils
 import pkg/ethers/erc20
 import pkg/codex/contracts
 import pkg/codex/utils/stintutils
 import ../contracts/time
 import ../contracts/deployment
+import ../codex/helpers
 import ./twonodes
 
 
@@ -53,9 +56,22 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check id1 != id2
 
   test "node retrieves purchase status":
+    # get one contiguous chunk
+    let rng = rng.Rng.instance()
+    let chunker = RandomChunker.new(rng, size = DefaultBlockSize * 2, chunkSize = DefaultBlockSize * 2)
+    let data = await chunker.getBytes()
+    let cid = client1.upload(byteutils.toHex(data)).get
     let expiry = (await provider.currentTime()) + 30
-    let cid = client1.upload("some file contents").get
-    let id = client1.requestStorage(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, expiry=expiry, collateral=200.u256, nodes=2, tolerance=1).get
+    let id = client1.requestStorage(
+      cid,
+      duration=1.u256,
+      reward=2.u256,
+      proofProbability=3.u256,
+      expiry=expiry,
+      collateral=200.u256,
+      nodes=2,
+      tolerance=1).get
+
     let request = client1.getPurchase(id).get.request.get
     check request.ask.duration == 1.u256
     check request.ask.reward == 2.u256
@@ -64,6 +80,20 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check request.ask.collateral == 200.u256
     check request.ask.slots == 3'u64
     check request.ask.maxSlotLoss == 1'u64
+
+  # TODO: We currently do not support encoding single chunks
+  # test "node retrieves purchase status with 1 chunk":
+  #   let expiry = (await provider.currentTime()) + 30
+  #   let cid = client1.upload("some file contents").get
+  #   let id = client1.requestStorage(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, expiry=expiry, collateral=200.u256, nodes=2, tolerance=1).get
+  #   let request = client1.getPurchase(id).get.request.get
+  #   check request.ask.duration == 1.u256
+  #   check request.ask.reward == 2.u256
+  #   check request.ask.proofProbability == 3.u256
+  #   check request.expiry == expiry
+  #   check request.ask.collateral == 200.u256
+  #   check request.ask.slots == 3'u64
+  #   check request.ask.maxSlotLoss == 1'u64
 
   test "node remembers purchase status after restart":
     let expiry = (await provider.currentTime()) + 30
