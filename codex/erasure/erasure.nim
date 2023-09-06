@@ -131,12 +131,12 @@ proc getPendingBlocks(
   iter.next = next
   success iter
 
-proc prepareData(
+proc prepareEncodingData(
   self: Erasure,
   encoded: Manifest,
   step: int,
   data: ref seq[seq[byte]],
-  emptyBlock: seq[byte]): Future[?!void] {.async.} =
+  emptyBlock: seq[byte]): Future[?!int] {.async.} =
   ## Prepare data for encoding
   ##
 
@@ -148,11 +148,8 @@ proc prepareData(
     trace "Unable to get pending blocks", error = err.msg
     return failure(err)
 
-  var dataIdx = 0
+  var resolved = 0
   for blkFut in pendingBlocksIter:
-    defer:
-      dataIdx.inc()
-
     if pair =? (await blkFut):
       let
         (blk, idx) = pair
@@ -165,7 +162,67 @@ proc prepareData(
         trace "Encoding block", cid = blk.cid, idx
         shallowCopy(data[pos], blk.data)
 
-  success()
+      resolved.inc()
+
+  success resolved
+
+proc prepareDecodingData(
+  self: Erasure,
+  encoded: Manifest,
+  step: int,
+  data: ref seq[seq[byte]],
+  parityData: ref seq[seq[byte]],
+  emptyBlock: seq[byte]): Future[?!(int, int)] {.async.} =
+  ## Prepare data for decoding
+  ## `encoded`    - the encoded manifest
+  ## `step`       - the current step
+  ## `data`       - the data to be prepared
+  ## `parityData` - the parityData to be prepared
+  ## `emptyBlock` - the empty block to be used for padding
+  ##
+
+  without pendingBlocksIter =?
+    self.getPendingBlocks(
+      encoded,
+      step,
+      encoded.len - 1, encoded.steps), err:
+      trace "Unable to get pending blocks", error = err.msg
+      return failure(err)
+
+  var
+    dataPieces = 0
+    parityPieces = 0
+    resolved = 0
+  for blkFut in pendingBlocksIter:
+    # Continue to receive blocks until we have just enough for decoding
+    # or no more blocks can arrive
+    if resolved >= encoded.ecK:
+      break
+
+    if pair =? (await blkFut):
+      let
+        (blk, idx) = pair
+        pos = self.indexToPos(encoded, idx, step)
+
+      logScope:
+        cid   = blk.cid
+        idx   = idx
+        pos   = pos
+        step  = step
+        empty = blk.isEmpty
+
+      if idx >= encoded.rounded:
+        trace "Retrieved parity block"
+        shallowCopy(parityData[pos - encoded.ecK], if blk.isEmpty: emptyBlock else: blk.data)
+        parityPieces.inc
+      else:
+        trace "Retrieved data block"
+        shallowCopy(data[pos], if blk.isEmpty: emptyBlock else: blk.data)
+        dataPieces.inc
+
+      resolved.inc
+
+  return success (dataPieces, parityPieces)
 
 proc prepareManifest(
   self: Erasure,
@@ -222,7 +279,7 @@ proc encodeData(
 
   var
     encoder = self.encoderProvider(encoded.blockSize.int, encoded.ecK, encoded.ecM)
-    emptyBlock = newSeqWith[byte](encoded.blockSize.int, 1.byte)
+    emptyBlock = newSeqWith[byte](encoded.blockSize.int, 0.byte)
 
   try:
     for step in 0..<encoded.steps:
@@ -237,10 +294,10 @@ proc encodeData(
       # by threading
       await sleepAsync(10.millis)
 
-      if err =?
-        (await self.prepareData(encoded, step, data, emptyBlock)).errorOption:
-        trace "Unable to prepare data", error = err.msg
-        return failure(err)
+      without resolved =?
+        (await self.prepareEncodingData(encoded, step, data, emptyBlock)), err:
+          trace "Unable to prepare data", error = err.msg
+          return failure(err)
 
       trace "Erasure coding data", data = data[].len, parity = parityData.len
 
@@ -322,7 +379,7 @@ proc decode*(
 
   var
     decoder = self.decoderProvider(encoded.blockSize.int, encoded.ecK, encoded.ecM)
-    emptyBlock = newSeqWith[byte](encoded.blockSize.int, 1.byte)
+    emptyBlock = newSeqWith[byte](encoded.blockSize.int, 0.byte)
     hasParity = false
 
   trace "Decoding erasure coded manifest"
@@ -334,53 +391,19 @@ proc decode*(
       await sleepAsync(10.millis)
 
       var
-        data = newSeq[seq[byte]](encoded.ecK) # number of blocks to encode
-        parityData = newSeq[seq[byte]](encoded.ecM)
+        data = seq[seq[byte]].new()
+        # newSeq[seq[byte]](encoded.ecK) # number of blocks to encode
+        parityData = seq[seq[byte]].new()
         recovered = newSeqWith[seq[byte]](encoded.ecK, newSeq[byte](encoded.blockSize.int))
         resolved = 0
-        dataPieces = 0
-        parityPieces = 0
 
-      without pendingBlocksIter =?
-        self.getPendingBlocks(
-          encoded,
-          step,
-          encoded.len - 1, encoded.steps), err:
-          trace "Unable to get pending blocks", error = err.msg
-          return failure(err)
+      data[].setLen(encoded.ecK)        # set len to K
+      parityData[].setLen(encoded.ecM)  # set len to M
 
-      for blkFut in pendingBlocksIter:
-        # Continue to receive blocks until we have just enough for decoding
-        # or no more blocks can arrive
-        if resolved >= encoded.ecK:
-          break
-
-        if pair =? (await blkFut):
-          let
-            (blk, idx) = pair
-            pos = self.indexToPos(encoded, idx, step)
-
-          logScope:
-            cid   = blk.cid
-            idx   = idx
-            pos   = pos
-            step  = step
-            empty = blk.isEmpty
-
-          if idx >= encoded.rounded:
-            trace "Retrieved parity block"
-            shallowCopy(parityData[pos - encoded.ecK], if blk.isEmpty: emptyBlock else: blk.data)
-            parityPieces.inc
-          else:
-            trace "Retrieved data block"
-            shallowCopy(data[pos], if blk.isEmpty: emptyBlock else: blk.data)
-            dataPieces.inc
-
-          resolved.inc
-
-      logScope:
-        dataPieces = dataPieces
-        parityPieces = parityPieces
+      without (dataPieces, parityPieces) =?
+        (await self.prepareDecodingData(encoded, step, data, parityData, emptyBlock)), err:
+        trace "Unable to prepare data", error = err.msg
+        return failure(err)
 
       if dataPieces >= encoded.ecK:
         trace "Retrieved all the required data blocks"
@@ -388,7 +411,7 @@ proc decode*(
 
       trace "Erasure decoding data"
       if (
-        let err = decoder.decode(data, parityData, recovered);
+        let err = decoder.decode(data[], parityData[], recovered);
         err.isErr):
         trace "Unable to decode data!", err = $err.error
         return failure($err.error)
