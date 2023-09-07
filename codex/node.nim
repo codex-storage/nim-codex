@@ -254,7 +254,7 @@ proc requestStorage*(
   ## - Run the PoR setup on the erasure dataset
   ## - Call into the marketplace and purchasing contracts
   ##
-  trace "Received a request for storage!", cid, duration, nodes, tolerance, reward, proofProbability, collateral, expiry
+  trace "Received a request for storage!", cid, duration = duration.toString, nodes, tolerance, reward = reward.toString, proofProbability = proofProbability.toString, collateral = collateral.toString, expiry = (expiry |? 0.u256).toString
 
   without contracts =? self.contracts.client:
     trace "Purchasing not available"
