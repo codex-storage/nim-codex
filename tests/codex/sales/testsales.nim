@@ -1,4 +1,3 @@
-import std/sets
 import std/sequtils
 import std/sugar
 import std/times
@@ -259,16 +258,22 @@ asyncchecksuite "Sales":
 
   test "adds past requests to queue once availability added":
     var itemsProcessed: seq[SlotQueueItem] = @[]
+
+    # ignore all
+    queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+      done.complete()
+
+    await market.requestStorage(request)
+    await sleepAsync(10.millis)
+
+    # check how many slots were processed by the queue
     queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
       itemsProcessed.add item
       done.complete()
 
-    await market.requestStorage(request)
-    await sleepAsync(1.millis)
-
-   # now add matching availability
-   createAvailability()
-   check eventually itemsProcessed.len == request.ask.slots.int
+    # now add matching availability
+    createAvailability()
+    check eventually itemsProcessed.len == request.ask.slots.int
 
   test "availability size is reduced by request slot size when fully downloaded":
     sales.onStore = proc(request: StorageRequest,
@@ -279,7 +284,6 @@ asyncchecksuite "Sales":
       return success()
 
     createAvailability()
-    let origSize = availability.size
     await market.requestStorage(request)
     check eventually getAvailability().size == availability.size - request.ask.slotSize
 
