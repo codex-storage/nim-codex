@@ -23,7 +23,6 @@ method onFailed*(state: SaleFinished, request: StorageRequest): ?State =
 method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
   let data = agent.data
-  let context = agent.context
 
   without request =? data.request:
     raiseAssert "no sale request"
