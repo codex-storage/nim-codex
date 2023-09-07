@@ -46,9 +46,9 @@ logScope:
 
 declareCounter(codexApiUploads, "codex API uploads")
 declareCounter(codexApiDownloads, "codex API downloads")
-declareGauge(codexApiUploadBytesPerSecond, "codex API upload bytes per second")
-declareGauge(codexApiDownloadBytesPerSecond, "codex API download bytes per second")
-declareGauge(codexApiFetchBytesPerSecond, "codex API fetch bytes per second")
+declareGauge(codexApiUploadBytesPerMilliSecond, "codex API upload bytes per millisecond")
+declareGauge(codexApiDownloadBytesPerMilliSecond, "codex API download bytes per millisecond")
+declareGauge(codexApiFetchBytesPerMilliSecond, "codex API fetch bytes per millisecond")
 
 proc validate(
   pattern: string,
@@ -194,10 +194,11 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         await resp.finish()
         let
           stop = getMonoTime().ticks
-          totalSeconds = (stop - start) div 1000000.int64
-          downloadBytesPerSecond = bytes div totalSeconds
+          bytesFloat = bytes.float64
+          totalMilliseconds = (stop - start) div 1000.int64
+          downloadBytesPerMilliSecond = bytesFloat / (totalMilliseconds.float64)
         codexApiDownloads.inc()
-        codexApiDownloadBytesPerSecond.set(downloadBytesPerSecond.int64)
+        codexApiDownloadBytesPerMilliSecond.set(downloadBytesPerMilliSecond.float64)
       except CatchableError as exc:
         trace "Excepting streaming blocks", exc = exc.msg
         return RestApiResponse.error(Http500)
@@ -270,17 +271,17 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         let
           start = getMonoTime().ticks
           wrapper = AsyncStreamWrapper.new(reader = AsyncStreamReader(reader))
-        without cid =? (
+        without (manifest, cid) =? (
           await node.store(wrapper)), error:
           trace "Error uploading file", exc = error.msg
           return RestApiResponse.error(Http500, error.msg)
 
         let
           stop = getMonoTime().ticks
-          bytes = wrapper.reader.bytesCount.int64
-          totalSeconds = (stop - start) div 1000000.int64
-          uploadBytesPerSecond = bytes div totalSeconds
-        codexApiUploadBytesPerSecond.set(uploadBytesPerSecond.int64)
+          bytes = manifest.originalBytes.float64
+          totalMilliseconds = (stop - start) div 1000.int64
+          uploadBytesPerMilliSecond = bytes / (totalMilliseconds.float64)
+        codexApiUploadBytesPerMilliSecond.set(uploadBytesPerMilliSecond.float64)
         codexApiUploads.inc()
         trace "Uploaded file", cid
         return RestApiResponse.response($cid)
@@ -379,10 +380,10 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
           let
             stop = getMonoTime().ticks
-            bytes = manifest.originalBytes.int64
-            totalSeconds = (stop - start) div 1000000.int64
-            fetchBytesPerSecond = bytes div totalSeconds
-          codexApiFetchBytesPerSecond.set(fetchBytesPerSecond.int64)
+            bytes = manifest.originalBytes.float64
+            totalMilliseconds = (stop - start) div 1000.int64
+            fetchBytesPerMilliSecond = bytes / (totalMilliseconds.float64)
+          codexApiFetchBytesPerMilliSecond.set(fetchBytesPerMilliSecond.float64)
           let json = formatManifest(manifest)
           trace "Blocks fetched. Debug/fetch returning manifest"
           return RestApiResponse.response($json)

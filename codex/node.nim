@@ -173,7 +173,7 @@ proc retrieve*(
 proc store*(
   self: CodexNodeRef,
   stream: LPStream,
-  blockSize = DefaultBlockSize): Future[?!Cid] {.async.} =
+  blockSize = DefaultBlockSize): Future[?!(Manifest, Cid)] {.async.} =
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
   ##
@@ -233,7 +233,7 @@ proc store*(
   # Announce manifest
   await self.discovery.provide(manifest.cid)
 
-  return manifest.cid.success
+  return success (blockManifest, manifest.cid)
 
 proc requestStorage*(
   self: CodexNodeRef,
