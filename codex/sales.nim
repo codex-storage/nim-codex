@@ -231,35 +231,26 @@ proc onAvailabilityAdded(sales: Sales, availability: Availability) {.async.} =
       return
 
     let requests = events.map(event =>
-      (
-        pricePerSlot: event.ask.pricePerSlot,
-        slots: SlotQueueItem.init(event.requestId, event.ask, event.expiry)
-      )
+      SlotQueueItem.init(event.requestId, event.ask, event.expiry)
     )
 
     trace "found past storage requested events to add to queue",
       events = events.len
 
-    for (pricePerSlot, slots) in requests:
+    for slots in requests:
       for slot in slots:
-        if availability =? await sales.context.reservations.findAvailability(
-            slot.slotSize,
-            slot.duration,
-            pricePerSlot,
-            slot.collateral):
-
-          if err =? queue.push(slot).errorOption:
-            # continue on error
-            if err of QueueNotRunningError:
-              warn "cannot push items to queue, queue is not running"
-            elif err of NoMatchingAvailabilityError:
-              info "slot in queue had no matching availabilities, ignoring"
-            elif err of SlotsOutOfRangeError:
-              warn "Too many slots, cannot add to queue"
-            elif err of SlotQueueItemExistsError:
-              trace "item already exists, ignoring"
-              discard
-            else: raise err
+        if err =? queue.push(slot).errorOption:
+          # continue on error
+          if err of QueueNotRunningError:
+            warn "cannot push items to queue, queue is not running"
+          elif err of NoMatchingAvailabilityError:
+            info "slot in queue had no matching availabilities, ignoring"
+          elif err of SlotsOutOfRangeError:
+            warn "Too many slots, cannot add to queue"
+          elif err of SlotQueueItemExistsError:
+            trace "item already exists, ignoring"
+            discard
+          else: raise err
 
   except CatchableError as e:
     warn "Error adding request to SlotQueue", error = e.msg
