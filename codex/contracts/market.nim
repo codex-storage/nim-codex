@@ -115,7 +115,9 @@ method fillSlot(market: OnChainMarket,
                 slotIndex: UInt256,
                 proof: seq[byte],
                 collateral: UInt256) {.async.} =
+  trace "approving funds", amount = collateral, slotIndex, requestId
   await market.approveFunds(collateral)
+  trace "filling slot", slotIndex, requestId
   await market.contract.fillSlot(requestId, slotIndex, proof)
 
 method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =

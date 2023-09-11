@@ -37,3 +37,4 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
 
   debug "Filling slot", requestId = $data.requestId, slotIndex
   await market.fillSlot(data.requestId, slotIndex, state.proof, collateral)
+  debug "Waiting for slot filled event...", requestId = $data.requestId, slotIndex
