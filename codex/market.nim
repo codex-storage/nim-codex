@@ -76,6 +76,17 @@ method getActiveSlot*(
 
   raiseAssert("not implemented")
 
+method cancelTransaction(market: Market, nonce: UInt256) {.base, async.} =
+  raiseAssert("not implemented")
+
+template cancelOnError*(market: Market, body) =
+  try:
+    body
+  except JsonRpcProviderError as e:
+    if e.nonce.isSome:
+      # send a 0-valued transaction with the errored nonce to prevent stuck txs
+      await market.cancelTransaction(!e.nonce)
+
 method fillSlot*(market: Market,
                  requestId: RequestId,
                  slotIndex: UInt256,

@@ -110,7 +110,14 @@ method getActiveSlot*(market: OnChainMarket,
       return none Slot
     raise e
 
-method fillSlot(market: OnChainMarket,
+proc cancelTransaction(market: OnChainMarket, nonce: UInt256) {.async.} =
+  let address = await market.getSigner()
+  let cancelTx = Transaction(to: address, value: 0.u256, nonce: some nonce)
+  let populated = await market.signer.populateTransaction(cancelTx)
+  trace "cancelling transaction to prevent stuck transactions", nonce
+  discard market.signer.sendTransaction(populated)
+
+method fillSlot*(market: OnChainMarket,
                 requestId: RequestId,
                 slotIndex: UInt256,
                 proof: seq[byte],
