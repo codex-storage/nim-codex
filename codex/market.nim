@@ -83,6 +83,7 @@ template cancelOnError*(market: Market, body) =
   try:
     body
   except JsonRpcProviderError as e:
+    echo "[market.cancelOnError] error encountered -- nonce: ", nonce
     if e.nonce.isSome:
       # send a 0-valued transaction with the errored nonce to prevent stuck txs
       await market.cancelTransaction(!e.nonce)
