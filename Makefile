@@ -92,10 +92,15 @@ testIntegration: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testIntegration $(NIM_PARAMS) build.nims
 
-# Builds and runs all tests
+# Builds and runs all tests (except for Taiko L2 tests)
 testAll: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) build.nims
+
+# Builds and runs Taiko L2 tests
+testTaiko: | build deps
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim testTaiko $(NIM_PARAMS) codex.nims
 
 # nim-libbacktrace
 LIBBACKTRACE_MAKE_FLAGS := -C vendor/nim-libbacktrace --no-print-directory BUILD_CXX_LIB=0

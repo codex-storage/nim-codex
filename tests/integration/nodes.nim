@@ -1,9 +1,15 @@
+import pkg/questionable
+import pkg/confutils
+import pkg/chronicles
+import pkg/libp2p
 import std/osproc
 import std/os
 import std/streams
 import std/strutils
-import pkg/ethers
+import codex/conf
 import ./codexclient
+
+export codexclient
 
 const workingDir = currentSourcePath() / ".." / ".." / ".."
 const executable = "build" / "codex"
@@ -13,47 +19,7 @@ type
     process: Process
     arguments: seq[string]
     debug: bool
-  Role* {.pure.} = enum
-    Client,
-    Provider,
-    Validator
-  RunningNode* = ref object
-    role*: Role
-    node*: NodeProcess
-    restClient*: CodexClient
-    datadir*: string
-    ethAccount*: Address
-  StartNodes* = object
-    clients*: uint
-    providers*: uint
-    validators*: uint
-  DebugNodes* = object
-    client*: bool
-    provider*: bool
-    validator*: bool
-    topics*: string
-
-proc new*(_: type RunningNode,
-          role: Role,
-          node: NodeProcess,
-          restClient: CodexClient,
-          datadir: string,
-          ethAccount: Address): RunningNode =
-  RunningNode(role: role,
-              node: node,
-              restClient: restClient,
-              datadir: datadir,
-              ethAccount: ethAccount)
-
-proc init*(_: type StartNodes,
-          clients, providers, validators: uint): StartNodes =
-  StartNodes(clients: clients, providers: providers, validators: validators)
-
-proc init*(_: type DebugNodes,
-          client, provider, validator: bool,
-          topics: string = "validator,proving,market"): DebugNodes =
-  DebugNodes(client: client, provider: provider, validator: validator,
-             topics: topics)
+    client: ?CodexClient
 
 proc start(node: NodeProcess) =
   if node.debug:
@@ -63,16 +29,26 @@ proc start(node: NodeProcess) =
       node.arguments,
       options={poParentStreams}
     )
-    sleep(1000)
   else:
     node.process = osproc.startProcess(
       executable,
       workingDir,
       node.arguments
     )
-    for line in node.process.outputStream.lines:
-      if line.contains("Started codex node"):
-        break
+
+proc waitUntilOutput*(node: NodeProcess, output: string) =
+  if node.debug:
+    raiseAssert "cannot read node output when in debug mode"
+  for line in node.process.outputStream.lines:
+    if line.contains(output):
+      return
+  raiseAssert "node did not output '" & output & "'"
+
+proc waitUntilStarted*(node: NodeProcess) =
+  if node.debug:
+    sleep(5_000)
+  else:
+    node.waitUntilOutput("Started codex node")
 
 proc startNode*(args: openArray[string], debug: string | bool = false): NodeProcess =
   ## Starts a Codex Node with the specified arguments.
@@ -81,13 +57,36 @@ proc startNode*(args: openArray[string], debug: string | bool = false): NodeProc
   node.start()
   node
 
+proc dataDir(node: NodeProcess): string =
+  let config = CodexConf.load(cmdLine = node.arguments)
+  config.dataDir.string
+
+proc apiUrl(node: NodeProcess): string =
+  let config = CodexConf.load(cmdLine = node.arguments)
+  "http://" & config.apiBindAddress & ":" & $config.apiPort & "/api/codex/v1"
+
+proc client*(node: NodeProcess): CodexClient =
+  if client =? node.client:
+    return client
+  let client = CodexClient.new(node.apiUrl)
+  node.client = some client
+  client
+
 proc stop*(node: NodeProcess) =
   if node.process != nil:
     node.process.terminate()
     discard node.process.waitForExit(timeout=5_000)
     node.process.close()
     node.process = nil
+  if client =? node.client:
+    node.client = none CodexClient
+    client.close()
 
 proc restart*(node: NodeProcess) =
   node.stop()
   node.start()
+  node.waitUntilStarted()
+
+proc removeDataDir*(node: NodeProcess) =
+  if dataDir =? node.dataDir:
+    removeDir(dataDir)

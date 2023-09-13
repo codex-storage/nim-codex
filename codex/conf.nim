@@ -228,6 +228,12 @@ type
         name: "eth-account"
       .}: Option[EthAddress]
 
+      ethPrivateKey* {.
+        desc: "File containing Ethereum private key for storage contracts"
+        defaultValue: string.none
+        name: "eth-private-key"
+      .}: Option[string]
+
       marketplaceAddress* {.
         desc: "Address of deployed Marketplace contract"
         defaultValue: EthAddress.none

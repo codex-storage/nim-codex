@@ -32,6 +32,7 @@ ethersuite "Node block expiration tests":
       "--block-mi=1",
       "--block-mn=10"
     ], debug = false)
+    node.waitUntilStarted()
 
   proc uploadTestFile(): string =
     let client = newHttpClient()

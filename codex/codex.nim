@@ -8,6 +8,7 @@
 ## those terms.
 
 import std/sequtils
+import std/strutils
 import std/os
 import std/tables
 
@@ -21,6 +22,7 @@ import pkg/nitro
 import pkg/stew/io2
 import pkg/stew/shims/net as stewnet
 import pkg/datastore
+import pkg/ethers except Rng
 
 import ./node
 import ./conf
@@ -50,6 +52,7 @@ type
     maintenance: BlockMaintainer
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
+  EthWallet = ethers.Wallet
 
 proc bootstrapInteractions(
     config: CodexConf,
@@ -60,11 +63,11 @@ proc bootstrapInteractions(
   ##
 
   if not config.persistence and not config.validator:
-    if config.ethAccount.isSome:
+    if config.ethAccount.isSome or config.ethPrivateKey.isSome:
       warn "Ethereum account was set, but neither persistence nor validator is enabled"
     return
 
-  without account =? config.ethAccount:
+  if not config.ethAccount.isSome and not config.ethPrivateKey.isSome:
     if config.persistence:
       error "Persistence enabled, but no Ethereum account was set"
     if config.validator:
@@ -72,7 +75,23 @@ proc bootstrapInteractions(
     quit QuitFailure
 
   let provider = JsonRpcProvider.new(config.ethProvider)
-  let signer = provider.getSigner(account)
+  var signer: Signer
+  if account =? config.ethAccount:
+    signer = provider.getSigner(account)
+  elif keyFile =? config.ethPrivateKey:
+    without isSecure =? checkSecureFile(keyFile):
+      error "Could not check file permissions: does Ethereum private key file exist?"
+      quit QuitFailure
+    if not isSecure:
+      error "Ethereum private key file does not have safe file permissions"
+      quit QuitFailure
+    without key =? keyFile.readAllChars():
+      error "Unable to read Ethereum private key file"
+      quit QuitFailure
+    without wallet =? EthWallet.new(key.strip(), provider):
+      error "Invalid Ethereum private key in file"
+      quit QuitFailure
+    signer = wallet
 
   let deploy = Deployment.new(provider, config)
   without marketplaceAddress =? await deploy.address(Marketplace):

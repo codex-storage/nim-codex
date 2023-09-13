@@ -11,6 +11,49 @@ export ethertest
 export codexclient
 export nodes
 
+type
+  RunningNode* = ref object
+    role*: Role
+    node*: NodeProcess
+    restClient*: CodexClient
+    datadir*: string
+    ethAccount*: Address
+  StartNodes* = object
+    clients*: uint
+    providers*: uint
+    validators*: uint
+  DebugNodes* = object
+    client*: bool
+    provider*: bool
+    validator*: bool
+    topics*: string
+  Role* {.pure.} = enum
+    Client,
+    Provider,
+    Validator
+
+proc new*(_: type RunningNode,
+          role: Role,
+          node: NodeProcess,
+          restClient: CodexClient,
+          datadir: string,
+          ethAccount: Address): RunningNode =
+  RunningNode(role: role,
+              node: node,
+              restClient: restClient,
+              datadir: datadir,
+              ethAccount: ethAccount)
+
+proc init*(_: type StartNodes,
+          clients, providers, validators: uint): StartNodes =
+  StartNodes(clients: clients, providers: providers, validators: validators)
+
+proc init*(_: type DebugNodes,
+          client, provider, validator: bool,
+          topics: string = "validator,proving,market"): DebugNodes =
+  DebugNodes(client: client, provider: provider, validator: validator,
+             topics: topics)
+
 template multinodesuite*(name: string,
   startNodes: StartNodes, debugNodes: DebugNodes, body: untyped) =
 
@@ -49,6 +92,7 @@ template multinodesuite*(name: string,
         .concat(addlOptions)
       if debug: options.add "--log-level=INFO;TRACE: " & debugNodes.topics
       let node = startNode(options, debug = debug)
+      node.waitUntilStarted()
       (node, datadir, accounts[index])
 
     proc newCodexClient(index: int): CodexClient =
@@ -92,13 +136,13 @@ template multinodesuite*(name: string,
         debug "started new validator node and codex client",
           restApiPort = 8080 + index, discPort = 8090 + index, account
 
-    proc clients(): seq[RunningNode] =
+    proc clients(): seq[RunningNode] {.used.} =
       running.filter(proc(r: RunningNode): bool = r.role == Role.Client)
 
-    proc providers(): seq[RunningNode] =
+    proc providers(): seq[RunningNode] {.used.} =
       running.filter(proc(r: RunningNode): bool = r.role == Role.Provider)
 
-    proc validators(): seq[RunningNode] =
+    proc validators(): seq[RunningNode] {.used.} =
       running.filter(proc(r: RunningNode): bool = r.role == Role.Validator)
 
     setup:
