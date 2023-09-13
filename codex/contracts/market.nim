@@ -2,12 +2,13 @@ import std/sequtils
 import std/strutils
 import std/sugar
 import pkg/chronicles
-import pkg/ethers
+import pkg/ethers except `%`
 import pkg/ethers/testing
 import pkg/upraises
 import pkg/questionable
+import ../utils/json
 import ../market
-import ./marketplace
+import ./marketplace except `%`
 
 export market
 
@@ -22,6 +23,7 @@ type
   EventSubscription = ethers.Subscription
   OnChainMarketSubscription = ref object of MarketSubscription
     eventSubscription: EventSubscription
+  OnChainMarketError = object of CatchableError
 
 func new*(_: type OnChainMarket, contract: Marketplace): OnChainMarket =
   without signer =? contract.signer:
@@ -31,12 +33,20 @@ func new*(_: type OnChainMarket, contract: Marketplace): OnChainMarket =
     signer: signer,
   )
 
-proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
+proc approveFunds(market: OnChainMarket, amount: UInt256, waitForConfirmations = 0) {.async.} =
   debug "Approving tokens", amount
   let tokenAddress = await market.contract.token()
   let token = Erc20Token.new(tokenAddress, market.signer)
 
-  discard await token.approve(market.contract.address(), amount).confirm(1)
+  var futResponse = token.approve(market.contract.address(), amount)
+  if waitForConfirmations > 0:
+    let receipt = await futResponse.confirm(waitForConfirmations)
+    if receipt.status != TransactionStatus.Success:
+      raise newException(OnChainMarketError,
+        "Transaction not successful, receipt: " & receipt.toJson)
+
+  else:
+    discard await futResponse
 
 method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
   return await market.signer.getAddress()
@@ -122,10 +132,10 @@ method fillSlot*(market: OnChainMarket,
                 slotIndex: UInt256,
                 proof: seq[byte],
                 collateral: UInt256) {.async.} =
-  trace "approving funds", amount = collateral, slotIndex, requestId
-  await market.approveFunds(collateral)
-  trace "filling slot", slotIndex, requestId
-  await market.contract.fillSlot(requestId, slotIndex, proof)
+
+  await market.approveFunds(collateral, 1)
+  trace "calling contract fillSlot", slotIndex, requestId
+  discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(1)
 
 method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
   await market.contract.freeSlot(slotId)

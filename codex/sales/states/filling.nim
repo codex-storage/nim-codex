@@ -37,5 +37,5 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
 
   debug "Filling slot", requestId = $data.requestId, slotIndex
   market.cancelOnError:
-    discard await market.fillSlot(data.requestId, slotIndex, state.proof, collateral).confirm(1)
+    await market.fillSlot(data.requestId, slotIndex, state.proof, collateral)
     debug "Waiting for slot filled event...", requestId = $data.requestId, slotIndex
