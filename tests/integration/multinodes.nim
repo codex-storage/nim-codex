@@ -11,6 +11,49 @@ export ethertest
 export codexclient
 export nodes
 
+type
+  RunningNode* = ref object
+    role*: Role
+    node*: NodeProcess
+    restClient*: CodexClient
+    datadir*: string
+    ethAccount*: Address
+  StartNodes* = object
+    clients*: uint
+    providers*: uint
+    validators*: uint
+  DebugNodes* = object
+    client*: bool
+    provider*: bool
+    validator*: bool
+    topics*: string
+  Role* {.pure.} = enum
+    Client,
+    Provider,
+    Validator
+
+proc new*(_: type RunningNode,
+          role: Role,
+          node: NodeProcess,
+          restClient: CodexClient,
+          datadir: string,
+          ethAccount: Address): RunningNode =
+  RunningNode(role: role,
+              node: node,
+              restClient: restClient,
+              datadir: datadir,
+              ethAccount: ethAccount)
+
+proc init*(_: type StartNodes,
+          clients, providers, validators: uint): StartNodes =
+  StartNodes(clients: clients, providers: providers, validators: validators)
+
+proc init*(_: type DebugNodes,
+          client, provider, validator: bool,
+          topics: string = "validator,proving,market"): DebugNodes =
+  DebugNodes(client: client, provider: provider, validator: validator,
+             topics: topics)
+
 template multinodesuite*(name: string,
   startNodes: StartNodes, debugNodes: DebugNodes, body: untyped) =
 

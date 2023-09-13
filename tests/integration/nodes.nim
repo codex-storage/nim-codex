@@ -2,8 +2,6 @@ import std/osproc
 import std/os
 import std/streams
 import std/strutils
-import pkg/ethers
-import ./codexclient
 
 const workingDir = currentSourcePath() / ".." / ".." / ".."
 const executable = "build" / "codex"
@@ -13,47 +11,6 @@ type
     process: Process
     arguments: seq[string]
     debug: bool
-  Role* {.pure.} = enum
-    Client,
-    Provider,
-    Validator
-  RunningNode* = ref object
-    role*: Role
-    node*: NodeProcess
-    restClient*: CodexClient
-    datadir*: string
-    ethAccount*: Address
-  StartNodes* = object
-    clients*: uint
-    providers*: uint
-    validators*: uint
-  DebugNodes* = object
-    client*: bool
-    provider*: bool
-    validator*: bool
-    topics*: string
-
-proc new*(_: type RunningNode,
-          role: Role,
-          node: NodeProcess,
-          restClient: CodexClient,
-          datadir: string,
-          ethAccount: Address): RunningNode =
-  RunningNode(role: role,
-              node: node,
-              restClient: restClient,
-              datadir: datadir,
-              ethAccount: ethAccount)
-
-proc init*(_: type StartNodes,
-          clients, providers, validators: uint): StartNodes =
-  StartNodes(clients: clients, providers: providers, validators: validators)
-
-proc init*(_: type DebugNodes,
-          client, provider, validator: bool,
-          topics: string = "validator,proving,market"): DebugNodes =
-  DebugNodes(client: client, provider: provider, validator: validator,
-             topics: topics)
 
 proc start(node: NodeProcess) =
   if node.debug:
