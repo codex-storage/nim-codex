@@ -19,7 +19,7 @@ const knownAddresses = {
  }.toTable,
  # Taiko Alpha-3 Testnet
  "167005": {
-  "Marketplace": Address.init("0xDB2a8A1c8Df776F1C544a56a7734a865ad1C05e8")
+  "Marketplace": Address.init("0x948CF9291b77Bd7ad84781b9047129Addf1b894F")
  }.toTable
 }.toTable
 
