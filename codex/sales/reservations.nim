@@ -40,6 +40,7 @@ import ../contracts/requests
 import ../utils/json
 
 export requests
+export chronicles
 
 logScope:
   topics = "sales reservations"
@@ -55,7 +56,6 @@ type
     duration* {.serialize.}: UInt256
     minPrice* {.serialize.}: UInt256
     maxCollateral* {.serialize.}: UInt256
-    # used*: bool
   Reservation* = ref object
     id* {.serialize.}: ReservationId
     availabilityId* {.serialize.}: AvailabilityId
@@ -417,10 +417,12 @@ proc storables(
     # should indicate key length of 4, but let the .key logic determine it
     without defaultKey =? AvailabilityId.default.key, error:
       return failure(error)
-  else:
+  elif T is Reservation:
     # should indicate key length of 5, but let the .key logic determine it
     without defaultKey =? key(ReservationId.default, AvailabilityId.default), error:
       return failure(error)
+  else:
+    raiseAssert "unknown type"
 
   without results =? await self.repo.metaDs.query(query), error:
     return failure(error)
@@ -429,10 +431,10 @@ proc storables(
     await idleAsync()
     iter.finished = results.finished
     if not results.finished and
-       res =? (await results.next()) and
-       res.data.len > 0 and
-       key =? res.key and
-       key.namespaces.len == defaultKey.namespaces.len:
+      res =? (await results.next()) and
+      res.data.len > 0 and
+      key =? res.key and
+      key.namespaces.len == defaultKey.namespaces.len:
 
       return some res.data
 
@@ -451,11 +453,17 @@ proc all*(
   without storables =? (await self.storables(T)), error:
     return failure(error)
 
-  # NOTICE: there is a swallowed deserialization error
   for storable in storables.items:
-    if bytes =? (await storable) and
-      obj =? T.fromJson(bytes):
-        ret.add obj
+    without bytes =? (await storable):
+      continue
+
+    without obj =? T.fromJson(bytes), error:
+      error "json deserialization error",
+        json = string.fromBytes(bytes),
+        error = error.msg
+      continue
+
+    ret.add obj
 
   return success(ret)
 
@@ -464,18 +472,18 @@ proc findAvailability*(
   size, duration, minPrice, collateral: UInt256
 ): Future[?Availability] {.async.} =
 
-  without storables =? (await self.storables(Availability)), error:
-    error "failed to get all storables", error = error.msg
+  without storables =? (await self.storables(Availability)), e:
+    error "failed to get all storables", error = e.msg
     return none Availability
 
   for item in storables.items:
     if bytes =? (await item) and
-       availability =? Availability.fromJson(bytes):
+      availability =? Availability.fromJson(bytes):
 
       if size <= availability.size and
-         duration <= availability.duration and
-         collateral <= availability.maxCollateral and
-         minPrice >= availability.minPrice:
+        duration <= availability.duration and
+        collateral <= availability.maxCollateral and
+        minPrice >= availability.minPrice:
 
         trace "availability matched",
           size, availsize = availability.size,
