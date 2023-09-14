@@ -65,7 +65,7 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
       request.ask.duration,
       request.ask.pricePerSlot,
       request.ask.collateral):
-    info "no availability found for request, ignoring"
+    debug "no availability found for request, ignoring"
 
     return some State(SaleIgnored())
 
