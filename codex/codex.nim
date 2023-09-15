@@ -216,8 +216,9 @@ proc new*(
       msg: "Unable to create discovery directory for block store: " & discoveryDir)
 
   let
+    ioTp = ThreadedPool.new(200) # Some reasonable number of threads here
     discoveryStore = Datastore(
-      SQLiteDatastore.new(config.dataDir / CodexDhtProvidersNamespace)
+      ThreadDatastore(ds = SQLiteDatastore.new(config.dataDir / CodexDhtProvidersNamespace), tp = ioTp)
       .expect("Should create discovery datastore!"))
 
     discovery = Discovery.new(
@@ -232,15 +233,21 @@ proc new*(
     network = BlockExcNetwork.new(switch)
 
     repoData = case config.repoKind
-                of repoFS: Datastore(FSDatastore.new($config.dataDir, depth = 5)
+                of repoFS: Datastore(ThreadDatastore(
+                    ds = FSDatastore.new($config.dataDir, depth = 5),
+                    tp = ioTp,
+                    withLocks = true)
                   .expect("Should create repo file data store!"))
-                of repoSQLite: Datastore(SQLiteDatastore.new($config.dataDir)
+                of repoSQLite: Datastore(ThreadDatastore(
+                    ds = SQLiteDatastore.new($config.dataDir),
+                    ioTp = ioTp)
                   .expect("Should create repo SQLite data store!"))
 
     repoStore = RepoStore.new(
       repoDs = repoData,
-      metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
-        .expect("Should create meta data store!"),
+      metaDs = ThreadDatastore(
+        ds = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace),
+        tp = ioTp).expect("Should create meta data store!"),
       quotaMaxBytes = config.storageQuota.uint,
       blockTtl = config.blockTtl)
 

@@ -193,3 +193,6 @@
 [submodule "vendor/npeg"]
 	path = vendor/npeg
 	url = https://github.com/zevv/npeg
+[submodule "vendor/threading"]
+	path = vendor/threading
+	url = https://github.com/nim-lang/threading.git
