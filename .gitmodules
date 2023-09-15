@@ -196,3 +196,5 @@
 [submodule "vendor/threading"]
 	path = vendor/threading
 	url = https://github.com/nim-lang/threading.git
+	ignore = untracked
+	branch = master
