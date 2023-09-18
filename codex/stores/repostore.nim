@@ -14,7 +14,7 @@ push: {.upraises: [].}
 import pkg/chronos
 import pkg/chronos/futures
 import pkg/chronicles
-import pkg/libp2p/[cid, multicodec]
+import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/lrucache
 import pkg/metrics
 import pkg/questionable
@@ -148,7 +148,36 @@ method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[
     return failure(err)
 
   return success((blk, proof))
+
+method getBlocks*(self: RepoStore, treeCid: Cid, leavesCount: Natural, merkleRoot: MultiHash): Future[?!BlockIter] {.async.} =
+  without tree =? await self.getMerkleTree(treeCid), err:
+    return failure(err)
+
+  var
+    iter = BlockIter()
+    index = 0
   
+  proc next(): Future[?!Block] {.async.} =
+    if index < leavesCount:
+      inc index
+      if index >= leavesCount:
+        iter.finished = true
+
+      without leaf =? tree.getLeaf(index - 1), err:
+        return failure(err)
+
+      without leafCid =? Cid.init(CIDv1, leaf.mcodec, leaf).mapFailure, err:
+        return failure(err)
+
+      without blk =? await self.getBlock(leafCid), err:
+        return failure(err)
+
+      return success(blk)
+    else:
+      return failure("No more elements for tree with cid " & $treeCid)
+
+  iter.next = next
+  return success(iter)
 
 proc getBlockExpirationTimestamp(self: RepoStore, ttl: ?Duration): SecondsSince1970 =
   let duration = ttl |? self.blockTtl
@@ -293,13 +322,13 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
 method listBlocks*(
     self: RepoStore,
     blockType = BlockType.Manifest
-): Future[?!BlocksIter] {.async.} =
+): Future[?!CidIter] {.async.} =
   ## Get the list of blocks in the RepoStore.
   ## This is an intensive operation
   ##
 
   var
-    iter = BlocksIter()
+    iter = CidIter()
 
   let key =
     case blockType:

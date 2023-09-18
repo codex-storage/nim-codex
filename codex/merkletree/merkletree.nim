@@ -29,7 +29,7 @@ type
     mcodec: MultiCodec
     digestSize: Natural
     index: Natural
-    nodesBuffer: seq[byte]
+    nodesBuffer*: seq[byte]
   MerkleTreeBuilder* = object
     mcodec: MultiCodec
     digestSize: Natural
@@ -305,3 +305,28 @@ proc init*(
     copyMem(addr nodesBuffer[nodeIndex * digestSize], unsafeAddr node.data.buffer[node.dpos], digestSize)
   
   success(MerkleProof(mcodec: mcodec, digestSize: digestSize, index: index, nodesBuffer: nodesBuffer))
+
+func init*(
+  T: type MerkleProof,
+  mcodec: MultiCodec,
+  digestSize: Natural,
+  index: Natural,
+  nodesBuffer: seq[byte]
+): ?!MerkleProof =
+
+  if nodesBuffer.len mod digestSize != 0:
+    return failure("nodesBuffer len is not a multiple of digestSize")
+
+  let treeHeight = (nodesBuffer.len div digestSize) + 1
+  let maxLeavesCount = 1 shl treeHeight
+  if index < maxLeavesCount:
+    return success(
+      MerkleProof(
+        mcodec: mcodec,
+        digestSize: digestSize,
+        index: index,
+        nodesBuffer: nodesBuffer
+      )
+    )
+  else:
+    return failure("index higher than max leaves count")

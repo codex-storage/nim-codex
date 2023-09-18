@@ -104,7 +104,7 @@ proc encode*(
         blockIdx = toSeq(countup(i, encoded.rounded - 1, encoded.steps))
         # request all blocks from the store
         dataBlocks = await allFinished(
-          blockIdx.mapIt( self.store.getBlock(encoded[it]) ))
+          blockIdx.mapIt( self.store.getBlock(manifest.treeCid, it) )) # TODO is it correct?
 
       # TODO: this is a tight blocking loop so we sleep here to allow
       # other events to be processed, this should be addressed
@@ -138,7 +138,8 @@ proc encode*(
           return failure(error)
 
         trace "Adding parity block", cid = blk.cid, pos = idx
-        encoded[idx] = blk.cid
+        # TODO uncomment below and fix it
+        # encoded[idx] = blk.cid
         if isErr (await self.store.putBlock(blk)):
           trace "Unable to store block!", cid = blk.cid
           return failure("Unable to store block!")
@@ -180,7 +181,7 @@ proc decode*(
         blockIdx = toSeq(countup(i, encoded.len - 1, encoded.steps))
         # request all blocks from the store
         pendingBlocks = blockIdx.mapIt(
-            self.store.getBlock(encoded[it]) # Get the data blocks (first K)
+            self.store.getBlock(encoded.treeCid, it) # Get the data blocks (first K)
         )
 
       # TODO: this is a tight blocking loop so we sleep here to allow
@@ -255,10 +256,12 @@ proc decode*(
   finally:
     decoder.release()
 
-  without decoded =? Manifest.new(blocks = encoded.blocks[0..<encoded.originalLen]), error:
-    return error.failure
+  # without decoded =? Manifest.new(blocks = encoded.blocks[0..<encoded.originalLen]), error:
+  #   return error.failure
 
-  return decoded.success
+  # TODO fix it
+  # return decoded.success
+  return encoded.success
 
 proc start*(self: Erasure) {.async.} =
   return

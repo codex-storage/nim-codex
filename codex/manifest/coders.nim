@@ -51,8 +51,8 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   #     optional uint32 original = 4;   # number of original blocks
   #   }
   #   Message Header {
-  #     optional bytes treeCid = 1;      # the root (tree) hash
-  #     optional bytes treeRoot = 2;      # the root (tree) hash
+  #     optional bytes treeCid = 1;       # the cid of the tree
+  #     optional bytes treeRoot = 2;      # the root hash of the tree
   #     optional uint32 blockSize = 3;    # size of a single block
   #     optional uint32 blocksLen = 4;    # total amount of blocks
   #     optional ErasureInfo erasure = 5; # erasure coding info
@@ -166,7 +166,6 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
         treeRoot = treeRoot,
         originalBytes = originalBytes.NBytes,
         blockSize = blockSize.NBytes,
-        blocks = blocks,
         version = treeCid.cidver,
         hcodec = (? treeCid.mhash.mapFailure).mcodec,
         codec = treeCid.mcodec,
@@ -181,7 +180,6 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
           treeRoot = treeRoot,
           originalBytes = originalBytes.NBytes,
           blockSize = blockSize.NBytes,
-          blocks = blocks,
           version = treeCid.cidver,
           hcodec = (? treeCid.mhash.mapFailure).mcodec,
           codec = treeCid.mcodec

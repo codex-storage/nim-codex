@@ -240,7 +240,6 @@ proc store*(
     hcodec = mcodec
   )
   # Generate manifest
-  # blockManifest.originalBytes = NBytes(chunker.offset)  # store the exact file size
   without data =? blockManifest.encode(), err:
     return failure(
       newException(CodexError, "Error encoding manifest: " & err.msg))

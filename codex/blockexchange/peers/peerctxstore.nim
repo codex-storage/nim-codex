@@ -20,6 +20,7 @@ import pkg/chronicles
 import pkg/libp2p
 
 import ../protobuf/blockexc
+import ../../blocktype
 
 import ./peercontext
 export peercontext
@@ -60,10 +61,11 @@ func len*(self: PeerCtxStore): int =
   self.peers.len
 
 func peersHave*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt( it.peerHave.anyIt( it == cid ) )
+  toSeq(self.peers.values).filterIt( it.peerHave.anyIt( not it.leaf and it.cid == cid ) )
 
+# TODO check usages
 func peersWant*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt( it.peerWants.anyIt( it.cid == cid ) )
+  toSeq(self.peers.values).filterIt( it.peerWants.anyIt( not it.address.leaf and it.address.cid == cid ) )
 
 func selectCheapest*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
   var peers = self.peersHave(cid)
@@ -73,10 +75,12 @@ func selectCheapest*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
       priceA = 0.u256
       priceB = 0.u256
 
-    a.blocks.withValue(cid, precense):
+    let blockAddress = BlockAddress(leaf: false, cid: cid)
+
+    a.blocks.withValue(blockAddress, precense):
       priceA = precense[].price
 
-    b.blocks.withValue(cid, precense):
+    b.blocks.withValue(blockAddress, precense):
       priceB = precense[].price
 
     if priceA == priceB:

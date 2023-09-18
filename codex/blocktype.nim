@@ -37,6 +37,14 @@ type
     cid*: Cid
     data*: seq[byte]
 
+  BlockAddress* = object
+    case leaf*: bool
+    of true:
+      treeCid*: Cid
+      index*: Natural
+    else:
+      cid*: Cid
+
 template EmptyCid*: untyped =
   var
     EmptyCid {.global, threadvar.}:
@@ -105,6 +113,29 @@ template EmptyBlock*: untyped =
     ]
 
   EmptyBlock
+
+proc `==`*(a, b: BlockAddress): bool =
+  a.leaf == b.leaf and
+    (
+      if a.leaf:
+        a.treeCid == b.treeCid and a.index == b.index
+      else:
+        a.cid == b.cid
+    )
+
+proc `$`*(a: BlockAddress): string =
+  if a.leaf:
+    "treeCid: " & $a.treeCid & ", index: " & $a.index
+  else:
+    "cid: " & $a.cid
+
+proc repr*(a: BlockAddress): string = $a
+
+proc cidOrTreeCid*(a: BlockAddress): Cid =
+  if a.leaf:
+    a.treeCid
+  else:
+    a.cid
 
 proc isEmpty*(cid: Cid): bool =
   cid == EmptyCid[cid.cidver]

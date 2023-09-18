@@ -10,46 +10,55 @@
 import std/hashes
 import std/sequtils
 import pkg/libp2p
+import pkg/stew/endians2
 
 import message
 
+import ../../blocktype
+
 export Message, protobufEncode, protobufDecode
 export Wantlist, WantType, Entry
-export Block, BlockPresenceType, BlockPresence
+export BlockDelivery, BlockPresenceType, BlockPresence
 export AccountMessage, StateChannelUpdate
 
 proc hash*(e: Entry): Hash =
-  hash(e.`block`)
+  # hash(e.`block`)
+  if e.address.leaf:
+    let data = e.address.treeCid.data.buffer & @(e.address.index.uint64.toBytesBE)
+    hash(data)
+  else:
+    hash(e.address.cid.data.buffer)
+  
 
-proc cid*(e: Entry): Cid  =
-  ## Helper to convert raw bytes to Cid
-  ##
+# proc cid*(e: Entry): Cid  =
+#   ## Helper to convert raw bytes to Cid
+#   ##
 
-  Cid.init(e.`block`).get()
+#   Cid.init(e.`block`).get()
 
-proc contains*(a: openArray[Entry], b: Cid): bool =
+proc contains*(a: openArray[Entry], b: BlockAddress): bool =
   ## Convenience method to check for peer precense
   ##
 
-  a.filterIt( it.cid == b ).len > 0
+  a.filterIt( it.address == b ).len > 0
 
-proc `==`*(a: Entry, cid: Cid): bool =
-  return a.cid == cid
+proc `==`*(a: Entry, b: BlockAddress): bool =
+  return a.address == b
 
 proc `<`*(a, b: Entry): bool =
   a.priority < b.priority
 
-proc cid*(e: BlockPresence): Cid =
-  ## Helper to convert raw bytes to Cid
-  ##
+# proc cid*(e: BlockPresence): Cid =
+#   ## Helper to convert raw bytes to Cid
+#   ##
 
-  Cid.init(e.cid).get()
+#   Cid.init(e.cid).get()
 
-proc `==`*(a: BlockPresence, cid: Cid): bool =
-  return cid(a) == cid
+proc `==`*(a: BlockPresence, b: BlockAddress): bool =
+  return a.address == b
 
-proc contains*(a: openArray[BlockPresence], b: Cid): bool =
+proc contains*(a: openArray[BlockPresence], b: BlockAddress): bool =
   ## Convenience method to check for peer precense
   ##
 
-  a.filterIt( cid(it) == b ).len > 0
+  a.filterIt( it.address == b ).len > 0

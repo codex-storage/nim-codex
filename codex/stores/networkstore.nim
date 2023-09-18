@@ -53,6 +53,30 @@ method getBlock*(self: NetworkStore, treeCid: Cid, index: Natural): Future[?!bt.
 method getBlockAndProof*(self: NetworkStore, treeCid: Cid, index: Natural): Future[?!(bt.Block, MerkleProof)] {.async.} =
   return await self.localStore.getBlockAndProof(treeCid, index)
 
+method getBlocks*(self: NetworkStore, treeCid: Cid, leavesCount: Natural, merkleRoot: MultiHash): Future[?!BlockIter] {.async.} =
+  without blocksIter =? await self.localStore.getBlocks(treeCid, leavesCount, merkleRoot), err:
+    if err of BlockNotFoundError:
+      trace "Tree not in local store", treeCid
+      without wrappedIter =? self.engine.requestBlocks(treeCid, leavesCount, merkleRoot), err:
+        failure(err)
+
+      var iter = BlockIter()
+
+      proc next(): Future[?!Block] {.async.} =
+        if not wrappedIter.finished:
+          # TODO try-catch
+          let blk = await wrappedIter.next()
+          iter.finished = wrappedIter.finished
+          return success(blk)
+        else:
+          return failure("No more elements for tree with cid " & $treeCid)
+      
+      return success(iter)
+
+    else: 
+      return failure(err)
+
+
 method putBlock*(
     self: NetworkStore,
     blk: bt.Block,

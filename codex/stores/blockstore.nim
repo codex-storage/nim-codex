@@ -18,6 +18,7 @@ import pkg/questionable/results
 
 import ../blocktype
 import ../merkletree
+import ../utils/iterutils
 
 export blocktype
 
@@ -27,15 +28,18 @@ type
   BlockType* {.pure.} = enum
     Manifest, Block, Both
 
-  GetNext* = proc(): Future[?Cid] {.upraises: [], gcsafe, closure.}
+  BlockIter* = Iter[?!Block]
+  CidIter* = Iter[?Cid]
 
-  BlocksIter* = ref object
-    finished*: bool
-    next*: GetNext
+  # GetNext* = proc(): Future[?Cid] {.upraises: [], gcsafe, closure.}
+
+  # BlockIter* = ref object
+  #   finished*: bool
+  #   next*: GetNext
 
   BlockStore* = ref object of RootObj
 
-iterator items*(self: BlocksIter): Future[?Cid] =
+iterator items*(self: CidIter): Future[?Cid] =
   while not self.finished:
     yield self.next()
 
@@ -55,6 +59,10 @@ method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future
   ## Get a block and associated inclusion proof by Cid of a merkle tree and an index of a leaf in a tree
   ## 
   
+  raiseAssert("Not implemented!")
+
+# TODO consider making merkle root and tree cid isomorphic
+method getBlocks*(self: BlockStore, treeCid: Cid, leavesCount: Natural, merkleRoot: MultiHash): Future[?!BlockIter] {.base.} =
   raiseAssert("Not implemented!")
 
 method putBlock*(
@@ -79,9 +87,15 @@ method hasBlock*(self: BlockStore, cid: Cid): Future[?!bool] {.base.} =
 
   raiseAssert("Not implemented!")
 
+method hasBlock*(self: BlockStore, tree: Cid, index: Natural): Future[?!bool] {.base.} =
+  ## Check if the block exists in the blockstore
+  ##
+
+  raiseAssert("Not implemented!")
+
 method listBlocks*(
   self: BlockStore,
-  blockType = BlockType.Manifest): Future[?!BlocksIter] {.base.} =
+  blockType = BlockType.Manifest): Future[?!CidIter] {.base.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 
@@ -100,3 +114,9 @@ proc contains*(self: BlockStore, blk: Cid): Future[bool] {.async.} =
   ##
 
   return (await self.hasBlock(blk)) |? false
+
+proc contains*(self: BlockStore, address: BlockAddress): Future[bool] {.async.} =
+  return if address.leaf:
+    (await self.hasBlock(address.treeCid, address.index)) |? false
+    else:
+    (await self.hasBlock(address.cid)) |? false

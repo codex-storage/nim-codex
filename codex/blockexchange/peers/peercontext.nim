@@ -9,6 +9,7 @@
 
 import std/sequtils
 import std/tables
+import std/sugar
 
 import pkg/chronicles
 import pkg/libp2p
@@ -20,6 +21,8 @@ import ../protobuf/blockexc
 import ../protobuf/payments
 import ../protobuf/presence
 
+import ../../blocktype
+
 export payments, nitro
 
 logScope:
@@ -28,33 +31,41 @@ logScope:
 type
   BlockExcPeerCtx* = ref object of RootObj
     id*: PeerId
-    blocks*: Table[Cid, Presence]     # remote peer have list including price
+    blocks*: Table[BlockAddress, Presence]     # remote peer have list including price
     peerWants*: seq[Entry]            # remote peers want lists
     exchanged*: int                   # times peer has exchanged with us
     lastExchange*: Moment             # last time peer has exchanged with us
     account*: ?Account                # ethereum account of this peer
     paymentChannel*: ?ChannelId       # payment channel id
 
-proc peerHave*(self: BlockExcPeerCtx): seq[Cid] =
+proc peerHave*(self: BlockExcPeerCtx): seq[BlockAddress] =
   toSeq(self.blocks.keys)
 
-proc contains*(self: BlockExcPeerCtx, cid: Cid): bool =
-  cid in self.blocks
+# TODO return set
+proc peerHaveCids*(self: BlockExcPeerCtx): seq[Cid] =
+  self.blocks.keys.toSeq.mapIt(it.cidOrTreeCid).deduplicate
+
+# TODO return set
+proc peerWantsCids*(self: BlockExcPeerCtx): seq[Cid] =
+  self.peerWants.mapIt(it.address.cidOrTreeCid).deduplicate
+
+proc contains*(self: BlockExcPeerCtx, address: BlockAddress): bool =
+  address in self.blocks
 
 func setPresence*(self: BlockExcPeerCtx, presence: Presence) =
-  self.blocks[presence.cid] = presence
+  self.blocks[presence.address] = presence
 
-func cleanPresence*(self: BlockExcPeerCtx, cids: seq[Cid]) =
-  for cid in cids:
-    self.blocks.del(cid)
+func cleanPresence*(self: BlockExcPeerCtx, addresses: seq[BlockAddress]) =
+  for a in addresses:
+    self.blocks.del(a)
 
-func cleanPresence*(self: BlockExcPeerCtx, cid: Cid) =
-  self.cleanPresence(@[cid])
+func cleanPresence*(self: BlockExcPeerCtx, address: BlockAddress) =
+  self.cleanPresence(@[address])
 
-func price*(self: BlockExcPeerCtx, cids: seq[Cid]): UInt256 =
+func price*(self: BlockExcPeerCtx, addresses: seq[BlockAddress]): UInt256 =
   var price = 0.u256
-  for cid in cids:
-    self.blocks.withValue(cid, precense):
+  for a in addresses:
+    self.blocks.withValue(a, precense):
       price += precense[].price
 
   trace "Blocks price", price

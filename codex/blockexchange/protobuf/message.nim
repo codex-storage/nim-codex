@@ -2,10 +2,15 @@
 # and Protobuf encoder/decoder for these messages.
 #
 # Eventually all this code should be auto-generated from message.proto.
+import std/sugar
 
 import pkg/libp2p/protobuf/minprotobuf
+import pkg/libp2p/cid
 
 import ../../units
+
+import ../../merkletree
+import ../../blocktype
 
 const
   MaxBlockSize* = 100.MiBs.uint
@@ -17,28 +22,51 @@ type
     WantHave = 1
 
   Entry* = object
-    `block`*: seq[byte]     # The block cid
+    address*: BlockAddress
     priority*: int32        # The priority (normalized). default to 1
     cancel*: bool           # Whether this revokes an entry
     wantType*: WantType     # Note: defaults to enum 0, ie Block
     sendDontHave*: bool     # Note: defaults to false
 
-  Wantlist* = object
-    entries*: seq[Entry]    # A list of wantlist entries
-    full*: bool             # Whether this is the full wantlist. default to false
+    # blockId:
+    # case leaf*: bool
+    # of true:
+    #   treeCid: Cid
+    #   index: int
+    # else:
+    #   blockCid*: Cid  # The block cid #TODO rename it to `cid` or `blockCid`
 
-  Block* = object
-    prefix*: seq[byte]      # CID prefix (cid version, multicodec and multihash prefix (type + length)
-    data*: seq[byte]
+  WantList* = object
+    entries*: seq[Entry]    # A list of wantList entries
+    full*: bool             # Whether this is the full wantList. default to false
+
+  BlockDelivery* = object
+    blk*: Block
+    address*: BlockAddress
+    proof*: MerkleProof # Present only if `address.leaf` is true
+
+    # case leaf*: bool
+    # of true:
+    #   treeCid: Cid
+    #   proof: MerkleProof
+    # else:
+    #   discard
 
   BlockPresenceType* = enum
     Have = 0,
     DontHave = 1
 
   BlockPresence* = object
-    cid*: seq[byte]         # The block cid
+    address*: BlockAddress
     `type`*: BlockPresenceType
     price*: seq[byte]       # Amount of assets to pay for the block (UInt256)
+    # case leaf*: bool
+    # of true:
+    #   treeCid: Cid
+    #   index: int
+    # else:
+    #   blockCid*: Cid
+      
 
   AccountMessage* = object
     address*: seq[byte]     # Ethereum address to which payments should be made
@@ -47,8 +75,8 @@ type
     update*: seq[byte]      # Signed Nitro state, serialized as JSON
 
   Message* = object
-    wantlist*: Wantlist
-    payload*: seq[Block]
+    wantList*: WantList
+    payload*: seq[BlockDelivery]
     blockPresences*: seq[BlockPresence]
     pendingBytes*: uint
     account*: AccountMessage
@@ -58,9 +86,20 @@ type
 # Encoding Message into seq[byte] in Protobuf format
 #
 
+proc write*(pb: var ProtoBuffer, field: int, value: BlockAddress) =
+  var ipb = initProtoBuffer()
+  ipb.write(1, value.leaf.uint)
+  if value.leaf:
+    ipb.write(2, value.treeCid.data.buffer)
+    ipb.write(3, value.index.uint64)
+  else:
+    ipb.write(4, value.cid.data.buffer)
+  ipb.finish()
+  pb.write(field, ipb)
+
 proc write*(pb: var ProtoBuffer, field: int, value: Entry) =
   var ipb = initProtoBuffer()
-  ipb.write(1, value.`block`)
+  ipb.write(1, value.address)
   ipb.write(2, value.priority.uint64)
   ipb.write(3, value.cancel.uint)
   ipb.write(4, value.wantType.uint)
@@ -68,7 +107,7 @@ proc write*(pb: var ProtoBuffer, field: int, value: Entry) =
   ipb.finish()
   pb.write(field, ipb)
 
-proc write*(pb: var ProtoBuffer, field: int, value: Wantlist) =
+proc write*(pb: var ProtoBuffer, field: int, value: WantList) =
   var ipb = initProtoBuffer()
   for v in value.entries:
     ipb.write(1, v)
@@ -76,16 +115,19 @@ proc write*(pb: var ProtoBuffer, field: int, value: Wantlist) =
   ipb.finish()
   pb.write(field, ipb)
 
-proc write*(pb: var ProtoBuffer, field: int, value: Block) =
+proc write*(pb: var ProtoBuffer, field: int, value: BlockDelivery) =
   var ipb = initProtoBuffer(maxSize = MaxBlockSize)
-  ipb.write(1, value.prefix)
-  ipb.write(2, value.data)
+  ipb.write(1, value.blk.cid.data.buffer)
+  ipb.write(2, value.blk.data)
+  ipb.write(3, value.address)
+  if value.address.leaf:
+    ipb.write(4, value.proof.encode())
   ipb.finish()
   pb.write(field, ipb)
 
 proc write*(pb: var ProtoBuffer, field: int, value: BlockPresence) =
   var ipb = initProtoBuffer()
-  ipb.write(1, value.cid)
+  ipb.write(1, value.address)
   ipb.write(2, value.`type`.uint)
   ipb.write(3, value.price)
   ipb.finish()
@@ -105,7 +147,7 @@ proc write*(pb: var ProtoBuffer, field: int, value: StateChannelUpdate) =
 
 proc protobufEncode*(value: Message): seq[byte] =
   var ipb = initProtoBuffer(maxSize = MaxMessageSize)
-  ipb.write(1, value.wantlist)
+  ipb.write(1, value.wantList)
   for v in value.payload:
     ipb.write(3, v)
   for v in value.blockPresences:
@@ -120,12 +162,41 @@ proc protobufEncode*(value: Message): seq[byte] =
 #
 # Decoding Message from seq[byte] in Protobuf format
 #
+proc decode*(_: type BlockAddress, pb: ProtoBuffer): ProtoResult[BlockAddress] =
+  var
+    value: BlockAddress
+    leaf: bool
+    field: uint64
+    cidBuf = newSeq[byte]()
+
+  if ? pb.getField(1, field):
+    leaf = bool(field)
+  
+  if leaf:
+    var
+      treeCid: Cid
+      index: Natural
+    if ? pb.getField(2, cidBuf):
+      treeCid = ? Cid.init(cidBuf).mapErr(x => ProtoError.IncorrectBlob)
+    if ? pb.getField(3, field):
+      index = field
+    value = BlockAddress(leaf: true, treeCid: treeCid, index: index)
+  else:
+    var cid: Cid
+    if ? pb.getField(4, cidBuf):
+      cid = ? Cid.init(cidBuf).mapErr(x => ProtoError.IncorrectBlob)
+    value = BlockAddress(leaf: false, cid: cid)
+
+  ok(value)
 
 proc decode*(_: type Entry, pb: ProtoBuffer): ProtoResult[Entry] =
   var
     value = Entry()
     field: uint64
-  discard ? pb.getField(1, value.`block`)
+    ipb: ProtoBuffer
+    buf = newSeq[byte]()
+  if ? pb.getField(1, ipb):
+    value.address = ? BlockAddress.decode(ipb)
   if ? pb.getField(2, field):
     value.priority = int32(field)
   if ? pb.getField(3, field):
@@ -136,9 +207,9 @@ proc decode*(_: type Entry, pb: ProtoBuffer): ProtoResult[Entry] =
     value.sendDontHave = bool(field)
   ok(value)
 
-proc decode*(_: type Wantlist, pb: ProtoBuffer): ProtoResult[Wantlist] =
+proc decode*(_: type WantList, pb: ProtoBuffer): ProtoResult[WantList] =
   var
-    value = Wantlist()
+    value = WantList()
     field: uint64
     sublist: seq[seq[byte]]
   if ? pb.getRepeatedField(1, sublist):
@@ -148,18 +219,36 @@ proc decode*(_: type Wantlist, pb: ProtoBuffer): ProtoResult[Wantlist] =
     value.full = bool(field)
   ok(value)
 
-proc decode*(_: type Block, pb: ProtoBuffer): ProtoResult[Block] =
+proc decode*(_: type BlockDelivery, pb: ProtoBuffer): ProtoResult[BlockDelivery] =
   var
-    value = Block()
-  discard ? pb.getField(1, value.prefix)
-  discard ? pb.getField(2, value.data)
+    value = BlockDelivery()
+    field: uint64
+    dataBuf = newSeq[byte]()
+    cidBuf = newSeq[byte]()
+    cid: Cid
+    ipb: ProtoBuffer
+
+  if ? pb.getField(1, cidBuf):
+    cid = ? Cid.init(cidBuf).mapErr(x => ProtoError.IncorrectBlob)
+  if ? pb.getField(2, dataBuf):
+    value.blk = ? Block.new(cid, dataBuf, verify = true).mapErr(x => ProtoError.IncorrectBlob)
+  if ? pb.getField(3, ipb):
+    value.address = ? BlockAddress.decode(ipb)
+  
+  if value.address.leaf:
+    var proofBuf = newSeq[byte]()
+    if ? pb.getField(4, proofBuf):
+      value.proof = ? MerkleProof.decode(proofBuf).mapErr(x => ProtoError.IncorrectBlob)
+
   ok(value)
 
 proc decode*(_: type BlockPresence, pb: ProtoBuffer): ProtoResult[BlockPresence] =
   var
     value = BlockPresence()
     field: uint64
-  discard ? pb.getField(1, value.cid)
+    ipb: ProtoBuffer
+  if ? pb.getField(1, ipb):
+    value.address = ? BlockAddress.decode(ipb)
   if ? pb.getField(2, field):
     value.`type` = BlockPresenceType(field)
   discard ? pb.getField(3, value.price)
@@ -184,10 +273,10 @@ proc protobufDecode*(_: type Message, msg: seq[byte]): ProtoResult[Message] =
     ipb: ProtoBuffer
     sublist: seq[seq[byte]]
   if ? pb.getField(1, ipb):
-    value.wantlist = ? Wantlist.decode(ipb)
+    value.wantList = ? WantList.decode(ipb)
   if ? pb.getRepeatedField(3, sublist):
     for item in sublist:
-      value.payload.add(? Block.decode(initProtoBuffer(item, maxSize = MaxBlockSize)))
+      value.payload.add(? BlockDelivery.decode(initProtoBuffer(item, maxSize = MaxBlockSize)))
   if ? pb.getRepeatedField(4, sublist):
     for item in sublist:
       value.blockPresences.add(? BlockPresence.decode(initProtoBuffer(item)))

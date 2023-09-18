@@ -65,7 +65,7 @@ type
 
 proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
   while b.discEngineRunning:
-    for cid in toSeq(b.pendingBlocks.wantList):
+    for cid in toSeq(b.pendingBlocks.wantListCids):
       try:
         await b.discoveryQueue.put(cid)
       except CatchableError as exc:

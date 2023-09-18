@@ -16,6 +16,7 @@ import ../units
 import ../errors
 
 const MaxMerkleTreeSize = 100.MiBs.uint
+const MaxMerkleProofSize = 1.MiBs.uint
 
 proc encode*(self: MerkleTree): seq[byte] =
   var pb = initProtoBuffer(maxSize = MaxMerkleTreeSize)
@@ -44,3 +45,31 @@ proc decode*(_: type MerkleTree, data: seq[byte]): ?!MerkleTree =
 
   let tree = ? MerkleTree.init(mcodec, digestSize, leavesCount, nodesBuffer)
   success(tree)
+
+proc encode*(self: MerkleProof): seq[byte] =
+  var pb = initProtoBuffer(maxSize = MaxMerkleProofSize)
+  pb.write(1, self.mcodec.uint64)
+  pb.write(2, self.digestSize.uint64)
+  pb.write(3, self.index.uint64)
+  pb.write(4, self.nodesBuffer)
+  pb.finish
+  pb.buffer
+
+proc decode*(_: type MerkleProof, data: seq[byte]): ?!MerkleProof =
+  var pb = initProtoBuffer(data, maxSize = MaxMerkleProofSize)
+  var mcodecCode: uint64
+  var digestSize: uint64
+  var index: uint64
+  discard ? pb.getField(1, mcodecCode).mapFailure
+  discard ? pb.getField(2, digestSize).mapFailure
+  discard ? pb.getField(3, index).mapFailure
+
+  let mcodec = MultiCodec.codec(cast[int](mcodecCode))
+  if mcodec == InvalidMultiCodec:
+    return failure("Invalid MultiCodec code " & $cast[int](mcodec))
+
+  var nodesBuffer = newSeq[byte]()
+  discard ? pb.getField(4, nodesBuffer).mapFailure
+
+  let proof = ? MerkleProof.init(mcodec, digestSize, index, nodesBuffer)
+  success(proof)
