@@ -16,6 +16,7 @@ import pkg/codex/chunker
 import pkg/codex/stores
 import pkg/codex/blocktype as bt
 import pkg/codex/clock
+import pkg/taskpools
 
 import ../helpers
 import ../helpers/mockclock
@@ -27,10 +28,12 @@ checksuite "Test RepoStore start/stop":
   var
     repoDs: Datastore
     metaDs: Datastore
+    tp: Taskpool
 
   setup:
-    repoDs = SQLiteDatastore.new(Memory).tryGet()
-    metaDs = SQLiteDatastore.new(Memory).tryGet()
+    tp = Taskpool.new(20)
+    repoDs = ThreadDatastore.new(ds = SQLiteDatastore.new(Memory).tryGet(), tp = tp).tryGet()
+    metaDs = ThreadDatastore.new(ds = SQLiteDatastore.new(Memory).tryGet(), tp = tp).tryGet()
 
   test "Should set started flag once started":
     let repo = RepoStore.new(repoDs, metaDs, quotaMaxBytes = 200)

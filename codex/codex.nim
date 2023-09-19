@@ -22,6 +22,7 @@ import pkg/nitro
 import pkg/stew/io2
 import pkg/stew/shims/net as stewnet
 import pkg/datastore
+import pkg/taskpools
 import pkg/ethers except Rng
 
 import ./node
@@ -216,9 +217,11 @@ proc new*(
       msg: "Unable to create discovery directory for block store: " & discoveryDir)
 
   let
-    ioTp = ThreadedPool.new(200) # Some reasonable number of threads here
+    ioTp = Taskpool.new(200) # Some reasonable number of threads here
     discoveryStore = Datastore(
-      ThreadDatastore(ds = SQLiteDatastore.new(config.dataDir / CodexDhtProvidersNamespace), tp = ioTp)
+      ThreadDatastore.new(ds = SQLiteDatastore.new(config.dataDir / CodexDhtProvidersNamespace)
+      .expect("Should create discovery datastore!"),
+      tp = ioTp)
       .expect("Should create discovery datastore!"))
 
     discovery = Discovery.new(
@@ -233,21 +236,22 @@ proc new*(
     network = BlockExcNetwork.new(switch)
 
     repoData = case config.repoKind
-                of repoFS: Datastore(ThreadDatastore(
-                    ds = FSDatastore.new($config.dataDir, depth = 5),
+                of repoFS: Datastore(ThreadDatastore.new(
+                    ds = FSDatastore.new($config.dataDir, depth = 5).expect("Should create repo file data store!"),
                     tp = ioTp,
                     withLocks = true)
-                  .expect("Should create repo file data store!"))
-                of repoSQLite: Datastore(ThreadDatastore(
-                    ds = SQLiteDatastore.new($config.dataDir),
-                    ioTp = ioTp)
-                  .expect("Should create repo SQLite data store!"))
+                    .expect("Should create threaded data store!"))
+                of repoSQLite: Datastore(ThreadDatastore.new(
+                    ds = SQLiteDatastore.new($config.dataDir).expect("Should create repo SQLite data store!"),
+                    tp = ioTp)
+                    .expect("Should create threaded data store!"))
 
     repoStore = RepoStore.new(
       repoDs = repoData,
-      metaDs = ThreadDatastore(
-        ds = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace),
-        tp = ioTp).expect("Should create meta data store!"),
+      metaDs = ThreadDatastore.new(
+        ds = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
+        .expect("Should create meta data store!"),
+        tp = ioTp).expect("Should create threaded data store!"),
       quotaMaxBytes = config.storageQuota.uint,
       blockTtl = config.blockTtl)
 
