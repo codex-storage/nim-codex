@@ -6,6 +6,15 @@ if [[ "${NAT_IP_AUTO}" == "true" ]]; then
   echo "Set CODEX_NAT: ${CODEX_NAT}"
 fi
 
+# If marketplace is enabled from the testing environment,
+# The file has to be written before Codex starts.
+if [ -n "${PRIV_KEY}" ]; then
+  echo ${PRIV_KEY} > "private.key"
+  chmod 600 "private.key"
+  export CODEX_ETH_PRIVATE_KEY="private.key"
+  echo "Private key set"
+fi
+
 # Run
 echo "Run Codex node"
 exec "$@"
