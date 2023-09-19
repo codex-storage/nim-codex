@@ -223,9 +223,6 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
 
   trace "Deleting block"
 
-  if cid.isEmpty:
-    trace "Empty block, ignoring"
-    return success()
 
   if cid.isEmpty:
     trace "Empty block, ignoring"
