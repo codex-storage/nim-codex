@@ -218,11 +218,11 @@ proc new*(
 
   let
     ioTp = Taskpool.new(200) # Some reasonable number of threads here
-    discoveryStore = Datastore(
-      ThreadDatastore.new(ds = SQLiteDatastore.new(config.dataDir / CodexDhtProvidersNamespace)
+    discoveryStore = ThreadDatastore
+      .new(ds = SQLiteDatastore.new(config.dataDir / CodexDhtProvidersNamespace)
       .expect("Should create discovery datastore!"),
       tp = ioTp)
-      .expect("Should create discovery datastore!"))
+      .expect("Should create discovery datastore!")
 
     discovery = Discovery.new(
       switch.peerInfo.privateKey,
@@ -236,15 +236,15 @@ proc new*(
     network = BlockExcNetwork.new(switch)
 
     repoData = case config.repoKind
-                of repoFS: Datastore(ThreadDatastore.new(
+                of repoFS: ThreadDatastore.new(
                     ds = FSDatastore.new($config.dataDir, depth = 5).expect("Should create repo file data store!"),
                     tp = ioTp,
                     withLocks = true)
-                    .expect("Should create threaded data store!"))
-                of repoSQLite: Datastore(ThreadDatastore.new(
+                    .expect("Should create threaded data store!")
+                of repoSQLite: ThreadDatastore.new(
                     ds = SQLiteDatastore.new($config.dataDir).expect("Should create repo SQLite data store!"),
                     tp = ioTp)
-                    .expect("Should create threaded data store!"))
+                    .expect("Should create threaded data store!")
 
     repoStore = RepoStore.new(
       repoDs = repoData,
