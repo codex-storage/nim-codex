@@ -237,12 +237,14 @@ proc new*(
 
     repoData = case config.repoKind
                 of repoFS: ThreadDatastore.new(
-                    ds = FSDatastore.new($config.dataDir, depth = 5).expect("Should create repo file data store!"),
+                    ds = FSDatastore.new($config.dataDir, depth = 5)
+                    .expect("Should create repo file data store!"),
                     tp = ioTp,
                     withLocks = true)
                     .expect("Should create threaded data store!")
                 of repoSQLite: ThreadDatastore.new(
-                    ds = SQLiteDatastore.new($config.dataDir).expect("Should create repo SQLite data store!"),
+                    ds = SQLiteDatastore.new($config.dataDir / CodexRepoNamespace)
+                    .expect("Should create repo SQLite data store!"),
                     tp = ioTp)
                     .expect("Should create threaded data store!")
 
