@@ -5,6 +5,7 @@ import pkg/ethers/erc20
 import ./contracts/requests
 import ./clock
 import ./periods
+import ./utils/exceptions
 
 export chronos
 export questionable
@@ -83,7 +84,7 @@ template cancelOnError*(market: Market, body) =
   try:
     body
   except JsonRpcProviderError as e:
-    trace "error encountered, cancelling tx if there's a nonce present", nonce = e.nonce, error = e.msg
+    trace "error encountered, cancelling tx if there's a nonce present", nonce = e.nonce, error = e.msgDetail
     writeStackTrace()
     if e.nonce.isSome:
       # send a 0-valued transaction with the errored nonce to prevent stuck txs
