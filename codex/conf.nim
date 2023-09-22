@@ -78,6 +78,10 @@ type
       defaultValue: LogKind.Auto
       name: "log-format" }: LogKind
 
+    logFile* {.
+      desc: "If specified, writes logs to the specified file in addition to writing to stdout"
+      name: "log-file" }: Option[OutFile]
+
     metricsEnabled* {.
       desc: "Enable the metrics server"
       defaultValue: false
@@ -444,22 +448,41 @@ proc updateLogLevel*(logLevel: string) {.upraises: [ValueError].} =
         warn "Unrecognized logging topic", topic = topicName
 
 proc setupLogging*(conf: CodexConf) =
+  proc errorFallback(msg: string) =
+    try:
+      stderr.write msg & "\n"
+    except IOError:
+      echo msg
+
   when defaultChroniclesStream.outputs.type.arity != 2:
     warn "Logging configuration options not enabled in the current build"
   else:
     proc noOutput(logLevel: LogLevel, msg: LogOutputStr) = discard
-    proc writeAndFlush(f: File, msg: LogOutputStr) =
-      try:
-        f.write(msg)
-        f.flushFile()
-      except IOError as err:
-        logLoggingFailure(cstring(msg), err)
 
-    proc stdoutFlush(logLevel: LogLevel, msg: LogOutputStr) =
-      writeAndFlush(stdout, msg)
+    # Managing the file ourselves may seem distasteful, but chronicles does not
+    # allow optional file sinks -- if you have a file sink, then you need to
+    # always write to a file, which would be at odds with implementing optional
+    # log-to-disk. Under *nix we could use /dev/null, but it's not portable.
+    # So we manage the file ourselves.
+    var outputs = @[stdout]
+    if conf.logFile.isSome:
+      let logFile = conf.logFile.get()
+      try:
+        outputs.add(open(logFile.string, FileMode.fmAppend))
+      except IOError:
+        errorFallback "Error opening log file: " & getCurrentExceptionMsg() &
+                      ". Logging to stdout only."
+
+    proc writeAndFlush(logLevel: LogLevel, msg: LogOutputStr) =
+      for file in outputs:
+        try:
+          file.write(msg)
+          file.flushFile()
+        except IOError as err:
+          logLoggingFailure(cstring(msg), err)
 
     proc noColorsFlush(logLevel: LogLevel, msg: LogOutputStr) =
-      writeAndFlush(stdout, stripAnsi(msg))
+      writeAndFlush(logLevel, stripAnsi(msg))
 
     defaultChroniclesStream.outputs[1].writer = noOutput
 
@@ -467,13 +490,13 @@ proc setupLogging*(conf: CodexConf) =
       case conf.logFormat:
       of LogKind.Auto:
         if isatty(stdout):
-          stdoutFlush
+          writeAndFlush
         else:
           noColorsFlush
-      of LogKind.Colors: stdoutFlush
+      of LogKind.Colors: writeAndFlush
       of LogKind.NoColors: noColorsFlush
       of LogKind.Json:
-        defaultChroniclesStream.outputs[1].writer = stdoutFlush
+        defaultChroniclesStream.outputs[1].writer = writeAndFlush
         noOutput
       of LogKind.None:
         noOutput
@@ -481,10 +504,7 @@ proc setupLogging*(conf: CodexConf) =
   try:
     updateLogLevel(conf.logLevel)
   except ValueError as err:
-    try:
-      stderr.write "Invalid value for --log-level. " & err.msg & "\n"
-    except IOError:
-      echo "Invalid value for --log-level. " & err.msg
+    errorFallback "Invalid value for --log-level. " & err.msg
     quit QuitFailure
 
 proc setupMetrics*(config: CodexConf) =
