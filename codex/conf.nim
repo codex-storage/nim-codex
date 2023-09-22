@@ -78,6 +78,11 @@ type
       defaultValue: LogKind.Auto
       name: "log-format" }: LogKind
 
+    logEntryCounter* {.
+      desc: "Adds a sequential number to each log entry"
+      defaultValue: false
+      name: "log-entry-counter" }: bool
+
     metricsEnabled* {.
       desc: "Enable the metrics server"
       defaultValue: false
@@ -463,7 +468,7 @@ proc setupLogging*(conf: CodexConf) =
 
     defaultChroniclesStream.outputs[1].writer = noOutput
 
-    defaultChroniclesStream.outputs[0].writer =
+    let writer =
       case conf.logFormat:
       of LogKind.Auto:
         if isatty(stdout):
@@ -477,6 +482,15 @@ proc setupLogging*(conf: CodexConf) =
         noOutput
       of LogKind.None:
         noOutput
+
+    defaultChroniclesStream.outputs[0].writer = if conf.logEntryCounter:
+      var counter = 0
+      proc numberedWriter(logLevel: LogLevel, msg: LogOutputStr) =
+        inc(counter)
+        writer(logLevel, msg[0..^2] & " count=" & $counter & "\n")
+      numberedWriter
+    else:
+      writer
 
   try:
     updateLogLevel(conf.logLevel)
