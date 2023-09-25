@@ -58,6 +58,7 @@ type
   BlockExpiration* = object
     cid*: Cid
     expiration*: SecondsSince1970
+
   GetNext = proc(): Future[?BlockExpiration] {.upraises: [], gcsafe, closure.}
   BlockExpirationIter* = ref object
     finished*: bool
@@ -85,6 +86,9 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the blockstore
   ##
 
+  logScope:
+    cid = cid
+
   if cid.isEmpty:
     trace "Empty block, ignoring"
     return success cid.emptyBlock
@@ -108,12 +112,13 @@ proc getBlockExpirationTimestamp(self: RepoStore, ttl: ?Duration): SecondsSince1
   self.clock.now() + duration.seconds
 
 proc getBlockExpirationEntry(
-    self: RepoStore,
-    batch: var seq[BatchEntry],
-    cid: Cid,
-    ttl: ?Duration
-): ?!BatchEntry =
+  self: RepoStore,
+  batch: var seq[BatchEntry],
+  cid: Cid,
+  ttl: ?Duration): ?!BatchEntry =
   ## Get an expiration entry for a batch
+  ##
+
   without key =? createBlockExpirationMetadataKey(cid), err:
     return failure(err)
 
@@ -129,12 +134,14 @@ proc persistTotalBlocksCount(self: RepoStore): Future[?!void] {.async.} =
   return success()
 
 method putBlock*(
-    self: RepoStore,
-    blk: Block,
-    ttl = Duration.none
-): Future[?!void] {.async.} =
+  self: RepoStore,
+  blk: Block,
+  ttl = Duration.none): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
+
+  logScope:
+    cid = blk.cid
 
   if blk.isEmpty:
     trace "Empty block, ignoring"
@@ -211,7 +218,11 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
   ## Delete a block from the blockstore
   ##
 
-  trace "Deleting block", cid
+  logScope:
+    cid = cid
+
+  trace "Deleting block"
+
 
   if cid.isEmpty:
     trace "Empty block, ignoring"
@@ -245,9 +256,12 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
   ##
 
+  logScope:
+    cid = cid
+
   if cid.isEmpty:
     trace "Empty block, ignoring"
-    return true.success
+    return success true
 
   without key =? makePrefixKey(self.postFixLen, cid), err:
     trace "Error getting key from provider", err = err.msg
@@ -256,9 +270,8 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   return await self.repoDs.has(key)
 
 method listBlocks*(
-    self: RepoStore,
-    blockType = BlockType.Manifest
-): Future[?!BlocksIter] {.async.} =
+  self: RepoStore,
+  blockType = BlockType.Manifest): Future[?!BlocksIter] {.async.} =
   ## Get the list of blocks in the RepoStore.
   ## This is an intensive operation
   ##
@@ -296,12 +309,12 @@ proc createBlockExpirationQuery(maxNumber: int, offset: int): ?!Query =
   success Query.init(queryKey, offset = offset, limit = maxNumber)
 
 method getBlockExpirations*(
-    self: RepoStore,
-    maxNumber: int,
-    offset: int
-): Future[?!BlockExpirationIter] {.async, base.} =
-  ## Get block experiartions from the given RepoStore
+  self: RepoStore,
+  maxNumber: int,
+  offset: int): Future[?!BlockExpirationIter] {.async, base.} =
+  ## Get block expirations from the given RepoStore
   ##
+
   without query =? createBlockExpirationQuery(maxNumber, offset), err:
     trace "Unable to format block expirations query"
     return failure(err)
