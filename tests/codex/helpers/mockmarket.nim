@@ -205,6 +205,9 @@ proc emitRequestFailed*(market: MockMarket, requestId: RequestId) =
        subscription.requestId.isNone:
       subscription.callback(requestId)
 
+proc cancelTransaction(market: Market, nonce: UInt256) {.async.} =
+  discard
+
 proc fillSlot*(market: MockMarket,
                requestId: RequestId,
                slotIndex: UInt256,

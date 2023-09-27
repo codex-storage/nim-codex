@@ -1,6 +1,7 @@
 import std/options
 import pkg/chronicles
 import ../../clock
+import ../../utils/exceptions
 import ../statemachine
 import ../salesagent
 import ../salescontext
@@ -29,8 +30,10 @@ method prove*(
     let proof = await onProve(slot)
     debug "Submitting proof", currentPeriod = currentPeriod, slotId = $slot.id
     await market.submitProof(slot.id, proof)
+  except CancelledError:
+    discard
   except CatchableError as e:
-    error "Submitting proof failed", msg = e.msg
+    error "Submitting proof failed", msg = e.msgDetail
 
 proc proveLoop(
   state: SaleProving,
@@ -119,12 +122,12 @@ method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
     debug "Stopping proving.", requestId = $data.requestId, slotIndex = $data.slotIndex
 
     if not state.loop.isNil:
-        if not state.loop.finished:
-          try:
-            await state.loop.cancelAndWait()
-          except CatchableError as e:
-            error "Error during cancelation of prooving loop", msg = e.msg
+      if not state.loop.finished:
+        try:
+          await state.loop.cancelAndWait()
+        except CatchableError as e:
+          error "Error during cancellation of proving loop", msg = e.msg
 
-        state.loop = nil
+      state.loop = nil
 
   return some State(SalePayout())

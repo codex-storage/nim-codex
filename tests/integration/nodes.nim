@@ -11,6 +11,12 @@ import ./codexclient
 
 export codexclient
 
+export codexclient
+export chronicles
+
+logScope:
+  topics = "integration testing nodes"
+
 const workingDir = currentSourcePath() / ".." / ".." / ".."
 const executable = "build" / "codex"
 
