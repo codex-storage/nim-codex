@@ -118,7 +118,7 @@ proc cleanUp(sales: Sales,
   # setting blockTTL to -1 and then running block maintainer?)
 
   # delete reservation and return reservation bytes back to the availability
-  if reservation =? agent.data.reservation and
+  if reservation =? data.reservation and
      deleteErr =? (await sales.context.reservations.deleteReservation(
                     reservation.id,
                     reservation.availabilityId
@@ -130,8 +130,18 @@ proc cleanUp(sales: Sales,
 
   await sales.remove(agent)
 
-proc filled(sales: Sales,
-            processing: Future[void]) =
+  # signal back to the slot queue to cycle a worker
+  if not processing.isNil and not processing.finished():
+    processing.complete()
+
+proc filled(
+  sales: Sales,
+  request: StorageRequest,
+  slotIndex: UInt256,
+  processing: Future[void]) =
+
+  if onSale =? sales.context.onSale:
+    onSale(request, slotIndex)
 
   # signal back to the slot queue to cycle a worker
   if not processing.isNil and not processing.finished():
@@ -151,8 +161,8 @@ proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
   agent.onCleanUp = proc {.async.} =
     await sales.cleanUp(agent, done)
 
-  agent.context.onFilled = some proc(request: StorageRequest, slotIndex: UInt256) =
-      sales.filled(done)
+  agent.onFilled = some proc(request: StorageRequest, slotIndex: UInt256) =
+    sales.filled(request, slotIndex, done)
 
   agent.start(SalePreparing())
   sales.agents.add agent
@@ -205,7 +215,10 @@ proc load*(sales: Sales) {.async.} =
       slot.slotIndex,
       some slot.request)
 
-    agent.onCleanUp = proc {.async.} = await sales.remove(agent)
+    agent.onCleanUp = proc {.async.} =
+      let done = newFuture[void]("onCleanUp_Dummy")
+      await sales.cleanUp(agent, done)
+      await done # completed in sales.cleanUp
 
     agent.start(SaleUnknown())
     sales.agents.add agent
