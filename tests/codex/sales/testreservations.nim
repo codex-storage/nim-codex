@@ -21,7 +21,7 @@ asyncchecksuite "Reservations module":
     reservations: Reservations
 
   setup:
-    randomize()
+    randomize(1.int64) # create reproducible results
     repoDs = SQLiteDatastore.new(Memory).tryGet()
     metaDs = SQLiteDatastore.new(Memory).tryGet()
     repo = RepoStore.new(repoDs, metaDs)
