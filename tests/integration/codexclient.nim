@@ -83,7 +83,7 @@ proc postAvailability*(
     "maxCollateral": maxCollateral,
   }
   let response = client.http.post(url, $json)
-  assert response.status == "200 OK"
+  doAssert response.status == "200 OK", "expected 200 OK, got " & response.status & ", body: " & response.body
   Availability.fromJson(response.body.parseJson)
 
 proc getAvailabilities*(client: CodexClient): ?!seq[Availability] =

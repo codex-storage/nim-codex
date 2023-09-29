@@ -236,22 +236,40 @@ multinodesuite "Simulate invalid proofs",
     await subscription.unsubscribe()
 
 multinodesuite "Simulate invalid proofs",
-  StartNodes.init(clients=1, providers=2, validators=1)
-    .simulateProofFailuresFor(providerIdx = 0, failEveryNProofs = 2),
-  DebugConfig.init(client=false, provider=true, validator=false, topics="marketplace,sales,proving,reservations,node,JSONRPC-HTTP-CLIENT,JSONRPC-WS-CLIENT,ethers"):
+  StartNodes(
+    clients: StartNodeConfig().nodes(1),
+
+    providers:
+      StartNodeConfig()
+        .nodes(2)
+        .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=2)
+        .debug()
+        .withLogTopics("marketplace",
+                       "sales",
+                       "proving",
+                       "reservations",
+                       "node",
+                       "JSONRPC-HTTP-CLIENT",
+                       "JSONRPC-WS-CLIENT",
+                       "ethers"
+        ),
+
+    validators: StartNodeConfig().nodes(1)
+  ):
+
+    # .simulateProofFailuresFor(providerIdx = 0, failEveryNProofs = 2),
+  # DebugConfig.init(client=false, provider=true, validator=false, topics="marketplace,sales,proving,reservations,node,JSONRPC-HTTP-CLIENT,JSONRPC-WS-CLIENT,ethers"):
 
   proc purchaseStateIs(client: CodexClient, id: PurchaseId, state: string): bool =
     client.getPurchase(id).option.?state == some state
 
   var marketplace: Marketplace
   var period: uint64
-  var slotId: SlotId
 
   setup:
     marketplace = Marketplace.new(Marketplace.address, provider)
     let config = await marketplace.config()
     period = config.proofs.period.truncate(uint64)
-    slotId = SlotId(array[32, byte].default) # ensure we aren't reusing from prev test
 
     # Our Hardhat configuration does use automine, which means that time tracked by `provider.currentTime()` is not
     # advanced until blocks are mined and that happens only when transaction is submitted.
@@ -259,9 +277,7 @@ multinodesuite "Simulate invalid proofs",
     await provider.advanceTime(1.u256)
 
   proc periods(p: int): uint64 =
-    # when p is uint:
-      p.uint64 * period
-    # else: p.uint * period
+    p.uint64 * period
 
   proc advanceToNextPeriod {.async.} =
     let periodicity = Periodicity(seconds: period.u256)
@@ -295,7 +311,8 @@ multinodesuite "Simulate invalid proofs",
       duration=duration.u256,
       proofProbability=proofProbability.u256,
       collateral=100.u256,
-      reward=400.u256
+      reward=400.u256,
+      nodes=2'u
     ).get
     check eventually client.purchaseStateIs(id, "started")
     return id
