@@ -26,8 +26,9 @@ method onFailed*(state: SaleFilled, request: StorageRequest): ?State =
 method `$`*(state: SaleFilled): string = "SaleFilled"
 
 method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
-  let data = SalesAgent(machine).data
-  let context = SalesAgent(machine).context
+  let agent = SalesAgent(machine)
+  let data = agent.data
+  let context = agent.context
   let market = context.market
 
   without slotIndex =? data.slotIndex:
@@ -39,9 +40,7 @@ method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
     info "Slot succesfully filled", requestId = $data.requestId, slotIndex
 
     if request =? data.request and slotIndex =? data.slotIndex:
-      if onSale =? context.onSale:
-        onSale(request, slotIndex)
-      if onFilled =? context.onFilled:
+      if onFilled =? agent.onFilled:
         onFilled(request, slotIndex)
 
     when codex_enable_proof_failures:

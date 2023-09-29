@@ -340,10 +340,10 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       without contracts =? node.contracts.host:
         return RestApiResponse.error(Http503, "Sales unavailable")
 
-      without unused =? (await contracts.sales.context.reservations.unused), err:
+      without avails =? (await contracts.sales.context.reservations.all(Availability)), err:
         return RestApiResponse.error(Http500, err.msg)
 
-      let json = %unused
+      let json = %avails
       return RestApiResponse.response($json, contentType="application/json")
 
   router.rawApi(
@@ -365,20 +365,21 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         return RestApiResponse.error(Http400, error.msg)
 
       let reservations = contracts.sales.context.reservations
-      # assign id to availability via init
-      let availability = Availability.init(restAv.size,
-                                           restAv.duration,
-                                           restAv.minPrice,
-                                           restAv.maxCollateral)
 
-      if not reservations.hasAvailable(availability.size.truncate(uint)):
+      if not reservations.hasAvailable(restAv.size.truncate(uint)):
         return RestApiResponse.error(Http422, "Not enough storage quota")
 
-      if err =? (await reservations.reserve(availability)).errorOption:
-        return RestApiResponse.error(Http500, err.msg)
+      without availability =? (
+        await reservations.createAvailability(
+          restAv.size,
+          restAv.duration,
+          restAv.minPrice,
+          restAv.maxCollateral)
+        ), error:
+        return RestApiResponse.error(Http500, error.msg)
 
-      let json = %availability
-      return RestApiResponse.response($json, contentType="application/json")
+      return RestApiResponse.response(availability.toJson,
+                                      contentType="application/json")
 
   router.api(
     MethodGet,

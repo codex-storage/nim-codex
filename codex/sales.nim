@@ -1,7 +1,7 @@
 import std/sequtils
 import std/sugar
-import std/tables
 import pkg/questionable
+import pkg/questionable/results
 import pkg/stint
 import pkg/chronicles
 import pkg/datastore
@@ -101,8 +101,49 @@ proc remove(sales: Sales, agent: SalesAgent) {.async.} =
   if sales.running:
     sales.agents.keepItIf(it != agent)
 
-proc filled(sales: Sales,
-             processing: Future[void]) =
+proc cleanUp(sales: Sales,
+             agent: SalesAgent,
+             processing: Future[void]) {.async.} =
+
+  let data = agent.data
+
+  trace "cleaning up sales agent",
+    requestId = data.requestId,
+    slotIndex = data.slotIndex,
+    reservationId = data.reservation.?id |? ReservationId.default,
+    availabilityId = data.reservation.?availabilityId |? AvailabilityId.default
+
+  # TODO: return bytes that were used in the request back to the availability
+  # as well, which will require removing the bytes from disk (perhaps via
+  # setting blockTTL to -1 and then running block maintainer?)
+
+  # delete reservation and return reservation bytes back to the availability
+  if reservation =? data.reservation and
+     deleteErr =? (await sales.context.reservations.deleteReservation(
+                    reservation.id,
+                    reservation.availabilityId
+                  )).errorOption:
+      error "failure deleting reservation",
+        error = deleteErr.msg,
+        reservationId = reservation.id,
+        availabilityId = reservation.availabilityId
+
+  await sales.remove(agent)
+
+  # signal back to the slot queue to cycle a worker
+  if not processing.isNil and not processing.finished():
+    processing.complete()
+
+proc filled(
+  sales: Sales,
+  request: StorageRequest,
+  slotIndex: UInt256,
+  processing: Future[void]) =
+
+  if onSale =? sales.context.onSale:
+    onSale(request, slotIndex)
+
+  # signal back to the slot queue to cycle a worker
   if not processing.isNil and not processing.finished():
     processing.complete()
 
@@ -117,14 +158,38 @@ proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
     none StorageRequest
   )
 
-  agent.context.onCleanUp = proc {.async.} =
-    await sales.remove(agent)
+  agent.onCleanUp = proc {.async.} =
+    await sales.cleanUp(agent, done)
 
-  agent.context.onFilled = some proc(request: StorageRequest, slotIndex: UInt256) =
-      sales.filled(done)
+  agent.onFilled = some proc(request: StorageRequest, slotIndex: UInt256) =
+    sales.filled(request, slotIndex, done)
 
   agent.start(SalePreparing())
   sales.agents.add agent
+
+proc deleteInactiveReservations(sales: Sales, activeSlots: seq[Slot]) {.async.} =
+  let reservations = sales.context.reservations
+  without reservs =? await reservations.all(Reservation):
+    info "no unused reservations found for deletion"
+
+  let unused = reservs.filter(r => (
+    let slotId = slotId(r.requestId, r.slotIndex)
+    not activeSlots.any(slot => slot.id == slotId)
+  ))
+  info "found unused reservations for deletion", unused = unused.len
+
+  for reservation in unused:
+
+    logScope:
+      reservationId = reservation.id
+      availabilityId = reservation.availabilityId
+
+    if err =? (await reservations.deleteReservation(
+      reservation.id, reservation.availabilityId
+    )).errorOption:
+      error "failed to delete unused reservation", error = err.msg
+    else:
+      trace "deleted unused reservation"
 
 proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
   let market = sales.context.market
@@ -139,21 +204,26 @@ proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
   return slots
 
 proc load*(sales: Sales) {.async.} =
-  let slots = await sales.mySlots()
+  let activeSlots = await sales.mySlots()
 
-  for slot in slots:
+  await sales.deleteInactiveReservations(activeSlots)
+
+  for slot in activeSlots:
     let agent = newSalesAgent(
       sales.context,
       slot.request.id,
       slot.slotIndex,
       some slot.request)
 
-    agent.context.onCleanUp = proc {.async.} = await sales.remove(agent)
+    agent.onCleanUp = proc {.async.} =
+      let done = newFuture[void]("onCleanUp_Dummy")
+      await sales.cleanUp(agent, done)
+      await done # completed in sales.cleanUp
 
     agent.start(SaleUnknown())
     sales.agents.add agent
 
-proc onReservationAdded(sales: Sales, availability: Availability) {.async.} =
+proc onAvailabilityAdded(sales: Sales, availability: Availability) {.async.} =
   ## Query last 256 blocks for new requests, adding them to the queue. `push`
   ## checks for availability before adding to the queue. If processed, the
   ## sales agent will check if the slot is free.
@@ -162,9 +232,9 @@ proc onReservationAdded(sales: Sales, availability: Availability) {.async.} =
   let queue = context.slotQueue
 
   logScope:
-    topics = "marketplace sales onReservationAdded callback"
+    topics = "marketplace sales onAvailabilityAdded callback"
 
-  trace "reservation added, querying past storage requests to add to queue"
+  trace "availability added, querying past storage requests to add to queue"
 
   try:
     let events = await market.queryPastStorageRequests(256)
@@ -384,10 +454,10 @@ proc startSlotQueue(sales: Sales) {.async.} =
 
   asyncSpawn slotQueue.start()
 
-  reservations.onReservationAdded =
-    proc(availability: Availability) {.async.} =
-      await sales.onReservationAdded(availability)
+  proc onAvailabilityAdded(availability: Availability) {.async.} =
+    await sales.onAvailabilityAdded(availability)
 
+  reservations.onAvailabilityAdded = onAvailabilityAdded
 
 proc subscribe(sales: Sales) {.async.} =
   await sales.subscribeRequested()

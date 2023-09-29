@@ -234,6 +234,13 @@ proc fromJson*[T: object](
   let json = ?catch parseJson(string.fromBytes(bytes))
   T.fromJson(json)
 
+proc fromJson*[T: ref object](
+  _: type T,
+  bytes: seq[byte]
+): ?!T =
+  let json = ?catch parseJson(string.fromBytes(bytes))
+  T.fromJson(json)
+
 func `%`*(s: string): JsonNode = newJString(s)
 
 func `%`*(n: uint): JsonNode =
@@ -306,6 +313,9 @@ func `%`*[T](elements: openArray[T]): JsonNode =
 func `%`*[T: distinct](id: T): JsonNode =
   type baseType = T.distinctBase
   % baseType(id)
+
+func toJson*(obj: object): string = $(%obj)
+func toJson*(obj: ref object): string = $(%obj)
 
 proc toJsnImpl(x: NimNode): NimNode =
   case x.kind

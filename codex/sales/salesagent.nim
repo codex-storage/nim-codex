@@ -21,6 +21,14 @@ type
     context*: SalesContext
     data*: SalesData
     subscribed: bool
+    # Slot-level callbacks.
+    onCleanUp*: OnCleanUp
+    onFilled*: ?OnFilled
+
+  OnCleanUp* = proc: Future[void] {.gcsafe, upraises: [].}
+  OnFilled* = proc(request: StorageRequest,
+                   slotIndex: UInt256) {.gcsafe, upraises: [].}
+
   SalesAgentError = object of CodexError
   AllSlotsFilledError* = object of SalesAgentError
 

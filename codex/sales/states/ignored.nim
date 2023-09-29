@@ -14,7 +14,6 @@ method `$`*(state: SaleIgnored): string = "SaleIgnored"
 
 method run*(state: SaleIgnored, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
-  let context = agent.context
 
-  if onCleanUp =? context.onCleanUp:
+  if onCleanUp =? agent.onCleanUp:
     await onCleanUp()

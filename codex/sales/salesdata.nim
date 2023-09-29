@@ -10,3 +10,4 @@ type
     request*: ?StorageRequest
     slotIndex*: UInt256
     cancelled*: Future[void]
+    reservation*: ?Reservation
