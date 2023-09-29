@@ -129,7 +129,13 @@ proc bootstrapInteractions(
   return (client, host, validator)
 
 proc start*(s: CodexServer) {.async.} =
-  notice "Starting codex node"
+  notice "Starting codex node",
+    persistence = s.config.persistence,
+    validator = s.config.validator,
+    ethAccount = s.config.ethAccount,
+    simProofFailures = s.config.simulateProofFailures,
+    dataDir = s.config.dataDir,
+    logFile = s.config.logFile
 
   await s.repoStore.start()
   s.maintenance.start()

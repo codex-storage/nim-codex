@@ -28,8 +28,11 @@ import pkg/metrics
 import pkg/metrics/chronos_httpserver
 import pkg/stew/shims/net as stewnet
 import pkg/stew/shims/parseutils
+import pkg/stew/byteutils
 import pkg/libp2p
 import pkg/ethers
+import pkg/questionable
+import pkg/questionable/results
 
 import ./discovery
 import ./stores
@@ -259,6 +262,13 @@ type
           hidden
         .}: int
 
+      logFile* {.
+          desc: "Logs to file"
+          defaultValue: string.none
+          name: "log-file"
+          hidden
+        .}: Option[string]
+
     of initNode:
       discard
 
@@ -444,9 +454,10 @@ proc updateLogLevel*(logLevel: string) {.upraises: [ValueError].} =
         warn "Unrecognized logging topic", topic = topicName
 
 proc setupLogging*(conf: CodexConf) =
-  when defaultChroniclesStream.outputs.type.arity != 2:
+  when defaultChroniclesStream.outputs.type.arity != 3:
     warn "Logging configuration options not enabled in the current build"
   else:
+    var logFile: ?IoHandle
     proc noOutput(logLevel: LogLevel, msg: LogOutputStr) = discard
     proc writeAndFlush(f: File, msg: LogOutputStr) =
       try:
@@ -460,6 +471,25 @@ proc setupLogging*(conf: CodexConf) =
 
     proc noColorsFlush(logLevel: LogLevel, msg: LogOutputStr) =
       writeAndFlush(stdout, stripAnsi(msg))
+
+    proc fileFlush(logLevel: LogLevel, msg: LogOutputStr) =
+      if file =? logFile:
+        if error =? file.writeFile(stripAnsi(msg).toBytes).errorOption:
+          error "failed to write to log file", errorCode = $error
+
+    defaultChroniclesStream.outputs[2].writer = noOutput
+    if logFilePath =? conf.logFile and logFilePath.len > 0:
+      let logFileHandle = openFile(
+        logFilePath,
+        {OpenFlags.Write, OpenFlags.Create, OpenFlags.Truncate}
+      )
+      if logFileHandle.isErr:
+        error "failed to open log file",
+          path = logFilePath,
+          errorCode = $logFileHandle.error
+      else:
+        logFile = logFileHandle.option
+        defaultChroniclesStream.outputs[2].writer = fileFlush
 
     defaultChroniclesStream.outputs[1].writer = noOutput
 
