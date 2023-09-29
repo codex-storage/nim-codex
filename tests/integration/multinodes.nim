@@ -2,6 +2,10 @@ import std/os
 import std/macros
 import std/json
 import std/httpclient
+import std/sequtils
+import std/strutils
+import std/sequtils
+import std/strutils
 import pkg/chronicles
 import ../ethertest
 import ./codexclient
@@ -55,9 +59,9 @@ proc init*(_: type DebugNodes,
              topics: topics)
 
 template multinodesuite*(name: string,
-  startNodes: StartNodes, debugNodes: DebugNodes, body: untyped) =
+  startNodes: StartNodes, debugConfig: DebugConfig, body: untyped) =
 
-  if (debugNodes.client or debugNodes.provider) and
+  if (debugConfig.client or debugConfig.provider) and
       (enabledLogLevel > LogLevel.TRACE or
       enabledLogLevel == LogLevel.NONE):
     echo ""
@@ -82,15 +86,17 @@ template multinodesuite*(name: string,
           ", not enough eth accounts.")
 
       let datadir = getTempDir() / "Codex" & $index
+      let logdir = currentSourcePath.parentDir()
       var options = @[
         "--api-port=" & $(8080 + index),
         "--data-dir=" & datadir,
         "--nat=127.0.0.1",
         "--disc-ip=127.0.0.1",
         "--disc-port=" & $(8090 + index),
-        "--eth-account=" & $accounts[index]]
+        "--eth-account=" & $accounts[index],
+        "--log-file=" & (logdir / "codex" & $index & ".log")]
         .concat(addlOptions)
-      if debug: options.add "--log-level=INFO;TRACE: " & debugNodes.topics
+      if debug: options.add "--log-level=INFO;TRACE: " & debugConfig.topics
       let node = startNode(options, debug = debug)
       node.waitUntilStarted()
       (node, datadir, accounts[index])
@@ -101,38 +107,47 @@ template multinodesuite*(name: string,
     proc startClientNode() =
       let index = running.len
       let (node, datadir, account) = newNodeProcess(
-        index, @["--persistence"], debugNodes.client)
+        index, @["--persistence"], debugConfig.client)
       let restClient = newCodexClient(index)
       running.add RunningNode.new(Role.Client, node, restClient, datadir,
                                   account)
-      if debugNodes.client:
+      if debugConfig.client:
         debug "started new client node and codex client",
           restApiPort = 8080 + index, discPort = 8090 + index, account
 
-    proc startProviderNode(failEveryNProofs: uint = 0) =
+    proc startProviderNode(cliOptions: seq[CliOption]) =
       let index = running.len
-      let (node, datadir, account) = newNodeProcess(index, @[
+      var options = @[
         "--bootstrap-node=" & bootstrap,
-        "--persistence",
-        "--simulate-proof-failures=" & $failEveryNProofs],
-        debugNodes.provider)
+        "--persistence"
+      ]
+
+      for cliOption in cliOptions:
+        var option = cliOption.key
+        if cliOption.value.len > 0:
+          option &= "=" & cliOption.value
+        options.add option
+
+      let (node, datadir, account) = newNodeProcess(index, options,
+                                                    debugConfig.provider)
       let restClient = newCodexClient(index)
       running.add RunningNode.new(Role.Provider, node, restClient, datadir,
                                   account)
-      if debugNodes.provider:
+      if debugConfig.provider:
         debug "started new provider node and codex client",
-          restApiPort = 8080 + index, discPort = 8090 + index, account
+          restApiPort = 8080 + index, discPort = 8090 + index, account,
+          cliOptions = options.join(",")
 
     proc startValidatorNode() =
       let index = running.len
       let (node, datadir, account) = newNodeProcess(index, @[
         "--bootstrap-node=" & bootstrap,
         "--validator"],
-        debugNodes.validator)
+        debugConfig.validator)
       let restClient = newCodexClient(index)
       running.add RunningNode.new(Role.Validator, node, restClient, datadir,
                                   account)
-      if debugNodes.validator:
+      if debugConfig.validator:
         debug "started new validator node and codex client",
           restApiPort = 8080 + index, discPort = 8090 + index, account
 
@@ -152,7 +167,10 @@ template multinodesuite*(name: string,
           bootstrap = running[0].restClient.info()["spr"].getStr()
 
       for i in 0..<startNodes.providers:
-        startProviderNode()
+        let cliOptions = startNodes.providerCliOptions.filter(
+          proc(o: CliOption): bool = o.nodeIdx == i
+        )
+        startProviderNode(cliOptions)
 
       for i in 0..<startNodes.validators:
         startValidatorNode()

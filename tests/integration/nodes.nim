@@ -6,10 +6,17 @@ import std/osproc
 import std/os
 import std/streams
 import std/strutils
+import pkg/chronicles
 import codex/conf
 import ./codexclient
 
 export codexclient
+
+export codexclient
+export chronicles
+
+logScope:
+  topics = "integration testing nodes"
 
 const workingDir = currentSourcePath() / ".." / ".." / ".."
 const executable = "build" / "codex"
