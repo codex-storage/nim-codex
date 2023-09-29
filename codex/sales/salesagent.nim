@@ -21,8 +21,7 @@ type
     context*: SalesContext
     data*: SalesData
     subscribed: bool
-    # Slot-level callbacks. Ensures that any slot/agent-level closure (such as
-    # `done` futures) are not overwritten each time a slot is processed.
+    # Slot-level callbacks.
     onCleanUp*: OnCleanUp
     onFilled*: ?OnFilled
 
