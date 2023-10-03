@@ -42,6 +42,7 @@ export net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval,
 const
   codex_enable_api_debug_peers* {.booldefine.} = false
   codex_enable_proof_failures* {.booldefine.} = false
+  codex_enable_log_counter* {.booldefine.} = false
 
 type
   StartUpCommand* {.pure.} = enum
@@ -77,11 +78,6 @@ type
       defaultValueDesc: "auto"
       defaultValue: LogKind.Auto
       name: "log-format" }: LogKind
-
-    logEntryCounter* {.
-      desc: "Adds a sequential number to each log entry"
-      defaultValue: false
-      name: "log-entry-counter" }: bool
 
     metricsEnabled* {.
       desc: "Enable the metrics server"
@@ -483,14 +479,14 @@ proc setupLogging*(conf: CodexConf) =
       of LogKind.None:
         noOutput
 
-    defaultChroniclesStream.outputs[0].writer = if conf.logEntryCounter:
+    when codex_enable_log_counter:
       var counter = 0
       proc numberedWriter(logLevel: LogLevel, msg: LogOutputStr) =
         inc(counter)
         writer(logLevel, msg[0..^2] & " count=" & $counter & "\n")
-      numberedWriter
+      defaultChroniclesStream.outputs[0].writer = numberedWriter
     else:
-      writer
+      defaultChroniclesStream.outputs[0].writer = writer
 
   try:
     updateLogLevel(conf.logLevel)
