@@ -33,7 +33,7 @@ method run*(state: PurchaseSubmitted, machine: Machine): Future[?State] {.async.
     await subscription.unsubscribe()
 
   proc withTimeout(future: Future[void]) {.async.} =
-    let expiry = request.expiry.truncate(int64)
+    let expiry = request.expiry.truncate(int64) + 1
     await future.withTimeout(clock, expiry)
 
   try:

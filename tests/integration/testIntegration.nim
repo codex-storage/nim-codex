@@ -164,3 +164,27 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     await provider.advanceTime(duration)
 
     check eventually (await token.balanceOf(account2)) - startBalance == duration*reward
+
+  test "expired request partially pays out for stored time":
+    let marketplace = Marketplace.new(Marketplace.address, provider.getSigner())
+    let tokenAddress = await marketplace.token()
+    let token = Erc20Token.new(tokenAddress, provider.getSigner())
+    let reward = 400.u256
+    let duration = 100.u256
+
+    # client 2 makes storage available
+    let startBalanceClient2 = await token.balanceOf(account2)
+    discard client2.postAvailability(size=0xFFFFF.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
+
+    # client 1 requests storage but requires two nodes to host the content
+    let startBalanceClient1 = await token.balanceOf(account1)
+    let expiry = (await provider.currentTime()) + 10
+    let cid = client1.upload("some file contents").get
+    let id = client1.requestStorage(cid, duration=duration, reward=reward, proofProbability=3.u256, expiry=expiry, collateral=200.u256, nodes=2).get
+
+    check eventually(client1.purchaseStateIs(id, "errored"), 20000)
+    let purchase = client1.getPurchase(id).get
+    check purchase.error.get == "Purchase cancelled due to timeout"
+
+    check eventually ((await token.balanceOf(account2)) - startBalanceClient2) > 0 and ((await token.balanceOf(account2)) - startBalanceClient2) < 10*reward
+    check eventually (startBalanceClient1 - (await token.balanceOf(account1))) == ((await token.balanceOf(account2)) - startBalanceClient2)
