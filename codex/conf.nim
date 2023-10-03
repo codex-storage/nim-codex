@@ -480,10 +480,11 @@ proc setupLogging*(conf: CodexConf) =
         noOutput
 
     when codex_enable_log_counter:
-      var counter = 0
+      var counter = 0.uint64
       proc numberedWriter(logLevel: LogLevel, msg: LogOutputStr) =
         inc(counter)
-        writer(logLevel, msg[0..^2] & " count=" & $counter & "\n")
+        let withoutNewLine = msg[0..^2]
+        writer(logLevel, withoutNewLine & " count=" & $counter & "\n")
       defaultChroniclesStream.outputs[0].writer = numberedWriter
     else:
       defaultChroniclesStream.outputs[0].writer = writer
