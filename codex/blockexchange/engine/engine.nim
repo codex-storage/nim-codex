@@ -248,7 +248,7 @@ proc blockPresenceHandler*(
     )
 
   if wantCids.len > 0:
-    trace "Peer has blocks in our wantList", peer, count = wantCids.len
+    trace "Peer has blocks in our wantList", peer, wantCount = wantCids.len
     discard await allFinished(
       wantCids.mapIt(b.sendWantBlock(it, peerCtx)))
 
