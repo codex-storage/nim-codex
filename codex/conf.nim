@@ -42,6 +42,7 @@ export net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval,
 const
   codex_enable_api_debug_peers* {.booldefine.} = false
   codex_enable_proof_failures* {.booldefine.} = false
+  codex_enable_log_counter* {.booldefine.} = false
 
 type
   StartUpCommand* {.pure.} = enum
@@ -463,7 +464,7 @@ proc setupLogging*(conf: CodexConf) =
 
     defaultChroniclesStream.outputs[1].writer = noOutput
 
-    defaultChroniclesStream.outputs[0].writer =
+    let writer =
       case conf.logFormat:
       of LogKind.Auto:
         if isatty(stdout):
@@ -477,6 +478,16 @@ proc setupLogging*(conf: CodexConf) =
         noOutput
       of LogKind.None:
         noOutput
+
+    when codex_enable_log_counter:
+      var counter = 0.uint64
+      proc numberedWriter(logLevel: LogLevel, msg: LogOutputStr) =
+        inc(counter)
+        let withoutNewLine = msg[0..^2]
+        writer(logLevel, withoutNewLine & " count=" & $counter & "\n")
+      defaultChroniclesStream.outputs[0].writer = numberedWriter
+    else:
+      defaultChroniclesStream.outputs[0].writer = writer
 
   try:
     updateLogLevel(conf.logLevel)

@@ -24,7 +24,7 @@ jobs:
     name: Build and Push
     uses: ./.github/workflows/docker-reusable.yml
     with:
-      nimflags: '-d:disableMarchNative -d:codex_enable_api_debug_peers=true -d:codex_enable_simulated_proof_failures'
+      nimflags: '-d:disableMarchNative -d:codex_enable_api_debug_peers=true -d:codex_enable_simulated_proof_failures -d:codex_enable_log_counter=true'
       nat_ip_auto: true
       tag_latest: ${{ github.ref_name == github.event.repository.default_branch || startsWith(github.ref, 'refs/tags/') }}
       tag_suffix: dist-tests
