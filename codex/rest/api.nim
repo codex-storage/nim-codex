@@ -22,9 +22,9 @@ import pkg/presto
 import pkg/libp2p
 import pkg/metrics
 import pkg/stew/base10
+import pkg/stew/base58
 import pkg/stew/byteutils
 import pkg/confutils
-
 import pkg/libp2p
 import pkg/libp2p/routing_record
 import pkg/codexdht/discv5/spr as spr
@@ -104,10 +104,20 @@ proc formatBlockExchangePeers(peers: OrderedTable[PeerId, BlockExcPeerCtx]): Jso
         "price": $presence.price
       })
 
+    let jwantsArray = newJArray()
+    for want in peerContext.peerWants:
+      jwantsArray.add(%*{
+        "block": base58.encode(Base58, want.`block`),
+        "priority": $want.priority,
+        "cancel": $want.cancel,
+        "wantType": $want.wantType,
+        "sendDontHave": $want.sendDontHave
+      })
+
     jarray.add(%*{
       "peerid": $peerId,
       "hasBlocks": jblocksArray,
-      "wants": $peerContext.peerWants.len,
+      "wants": jwantsArray,
       "exchanged": $peerContext.exchanged,
     })
 
