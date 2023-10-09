@@ -294,10 +294,13 @@ method listBlocks*(
     await idleAsync()
     iter.finished = queryIter.finished
     if not queryIter.finished:
-      if pair =? (await queryIter.next()) and cid =? pair.key:
+      if pair =? (await queryIter.next()) and key =? pair.key:
         doAssert pair.data.len == 0
-        trace "Retrieved record from repo", cid
-        return Cid.init(cid.value).option
+        trace "Retrieved record from repo", key
+        without cid =? Cid.init(key.value):
+          error "Could not init Cid for key", key
+          raise Defect.newException("Repostore: Could not init Cid from key during listBlocks iteration.")
+        return cid.option
 
     return Cid.none
 

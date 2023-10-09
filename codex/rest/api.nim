@@ -93,6 +93,26 @@ proc formatPeerRecord(peerRecord: PeerRecord): JsonNode =
   }
   return jobj
 
+proc formatBlockExchangePeers(peers: OrderedTable[PeerId, BlockExcPeerCtx]): JsonNode =
+  let jarray = newJArray()
+  for peerId, peerContext in peers.pairs:
+    let jblocksArray = newJArray()
+    for cid, presence in peerContext.blocks:
+      jblocksArray.add(%*{
+        "cid": $presence.cid,
+        "have": $presence.have,
+        "price": $presence.price
+      })
+
+    jarray.add(%*{
+      "peerid": $peerId,
+      "hasBlocks": jblocksArray,
+      "wants": $peerContext.peerWants.len,
+      "exchanged": $peerContext.exchanged,
+    })
+
+  return jarray
+
 proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   var router = RestRouter.init(validate)
   router.api(
@@ -319,6 +339,16 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
         let json = formatPeerRecord(peerRecord)
         trace "debug/peer returning peer record"
+        return RestApiResponse.response($json)
+
+    router.api(
+      MethodGet,
+      "/api/codex/v1/debug/blockexchange") do () -> RestApiResponse:
+        let json = %*{
+          "peers": formatBlockExchangePeers(node.engine.peers.peers),
+          "taskQueue": $node.engine.taskQueue.len,
+          "pendingBlocks": $node.engine.pendingBlocks.blocks.len
+        }
         return RestApiResponse.response($json)
 
   router.api(
