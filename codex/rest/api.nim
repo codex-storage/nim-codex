@@ -371,7 +371,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
               jarray.add(%*{
                 "cid": $cid
               })
-              await sleepAsync(50.millis)
+              await sleepAsync(1.millis)
 
         return RestApiResponse.response($jarray)
 
