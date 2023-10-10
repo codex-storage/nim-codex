@@ -361,6 +361,20 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         }
         return RestApiResponse.response($json)
 
+    router.api(
+      MethodGet,
+      "/api/codex/v1/debug/repostore") do () -> RestApiResponse:
+        let jarray = newJArray()
+        if cids =? await node.blockStore.listBlocks(BlockType.Both):
+          for c in cids:
+            if cid =? await c:
+              jarray.add(%*{
+                "cid": $cid
+              })
+              await sleepAsync(50.millis)
+
+        return RestApiResponse.response($jarray)
+
   router.api(
     MethodGet,
     "/api/codex/v1/sales/slots") do () -> RestApiResponse:

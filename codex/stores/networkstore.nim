@@ -86,13 +86,18 @@ method close*(self: NetworkStore): Future[void] {.async.} =
   if not self.localStore.isNil:
     await self.localStore.close
 
+method listBlocks*(
+  self: NetworkStore,
+  blockType = BlockType.Manifest): Future[?!BlocksIter] {.async.} =
+  await self.localStore.listBlocks(blockType)
+
 proc new*(
   T: type NetworkStore,
   engine: BlockExcEngine,
   localStore: BlockStore
 ): NetworkStore =
-  ## Create new instance of a NetworkStore 
-  ## 
+  ## Create new instance of a NetworkStore
+  ##
   NetworkStore(
       localStore: localStore,
       engine: engine)
