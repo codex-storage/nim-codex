@@ -14,10 +14,9 @@ import std/sugar
 import std/algorithm
 
 import pkg/chronicles
-import pkg/questionable
 import pkg/questionable/results
 import pkg/nimcrypto/sha2
-import pkg/libp2p/[cid, multicodec, multihash, vbuffer]
+import pkg/libp2p/[multicodec, multihash, vbuffer]
 import pkg/stew/byteutils
 
 import ../errors
@@ -187,16 +186,8 @@ proc root*(self: MerkleTree): MultiHash =
   let rootIndex = self.len - 1
   self.nodeBufferToMultiHash(rootIndex)
 
-proc rootCid*(self: MerkleTree, version = CIDv1, dataCodec = multiCodec("raw")): ?!Cid =
-  Cid.init(version, dataCodec, self.root).mapFailure
-
-iterator leaves*(self: MerkleTree): MultiHash =
-  for i in 0..<self.leavesCount:
-    yield self.nodeBufferToMultiHash(i)
-
-iterator leavesCids*(self: MerkleTree, version = CIDv1, dataCodec = multiCodec("raw")): ?!Cid =
-  for leaf in self.leaves:
-    yield Cid.init(version, dataCodec, leaf).mapFailure
+proc leaves*(self: MerkleTree): seq[MultiHash] =
+  toSeq(0..<self.leavesCount).map(i => self.nodeBufferToMultiHash(i))
 
 proc leavesCount*(self: MerkleTree): Natural =
   self.leavesCount
@@ -206,10 +197,6 @@ proc getLeaf*(self: MerkleTree, index: Natural): ?!MultiHash =
     return failure("Index " & $index & " out of range [0.." & $(self.leavesCount - 1) & "]" )
   
   success(self.nodeBufferToMultiHash(index))
-
-proc getLeafCid*(self: MerkleTree, index: Natural, version = CIDv1, dataCodec = multiCodec("raw")): ?!Cid =
-  let leaf = ? self.getLeaf(index)
-  Cid.init(version, dataCodec, leaf).mapFailure
 
 proc height*(self: MerkleTree): Natural =
   computeTreeHeight(self.leavesCount)
@@ -269,7 +256,7 @@ proc `==`*(a, b: MerkleTree): bool =
   (a.leavesCount == b.leavesCount) and
     (a.nodesBuffer == b.nodesBuffer)
 
-proc init*(
+func init*(
   T: type MerkleTree,
   mcodec: MultiCodec,
   digestSize: Natural,
@@ -289,37 +276,6 @@ proc init*(
     )
   else:
     failure("Expected nodesBuffer len to be " & $(totalNodes * digestSize) & " but was " & $nodesBuffer.len)
-
-proc init*(
-  T: type MerkleTree,
-  leaves: openArray[MultiHash]
-): ?!MerkleTree =
-  without leaf =? leaves.?[0]:
-    return failure("At least one leaf is required")
-  
-  var builder = ? MerkleTreeBuilder.init(mcodec = leaf.mcodec)
-
-  for l in leaves:
-    let res = builder.addLeaf(l)
-    if res.isErr:
-      return failure(res.error)
-  
-  builder.build()
-
-proc init*(
-  T: type MerkleTree,
-  cids: openArray[Cid]
-): ?!MerkleTree =
-  var leaves = newSeq[MultiHash]()
-  
-  for cid in cids:
-    let res = cid.mhash.mapFailure
-    if res.isErr:
-      return failure(res.error)
-    else:
-      leaves.add(res.value)
-
-  MerkleTree.init(leaves)
 
 ###########################################################
 # MerkleProof

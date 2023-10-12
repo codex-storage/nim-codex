@@ -44,16 +44,28 @@ proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, MerkleTree) =
     return failure("Blocks list was empty")
 
   let 
+    mcodec = (? blocks[0].cid.mhash.mapFailure).mcodec
     datasetSize = blocks.mapIt(it.data.len).foldl(a + b)
     blockSize = blocks.mapIt(it.data.len).foldl(max(a, b))
-    tree = ? MerkleTree.init(blocks.mapIt(it.cid))
-    treeCid = ? tree.rootCid
+
+  var builder = ? MerkleTreeBuilder.init(mcodec)
+
+  for b in blocks:
+    let mhash = ? b.cid.mhash.mapFailure
+    if mhash.mcodec != mcodec:
+      return failure("Blocks are not using the same codec")
+    ? builder.addLeaf(mhash)
+
+  let 
+    tree = ? builder.build()
+    treeBlk = ? Block.new(tree.encode())
     manifest = Manifest.new(
-      treeCid = treeCid,
+      treeCid = treeBlk.cid,
+      treeRoot = tree.root,
       blockSize = NBytes(blockSize),
       datasetSize = NBytes(datasetSize),
       version = CIDv1,
-      hcodec = tree.mcodec
+      hcodec = mcodec
     )
 
   return success((manifest, tree))
@@ -77,28 +89,30 @@ proc makeWantList*(
       full: full)
 
 proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest] {.async.} =
-  var cids = newSeq[Cid]()
+  var builder = MerkleTreeBuilder.init().tryGet()
 
   while (
     let chunk = await chunker.getBytes();
     chunk.len > 0):
 
     let blk = Block.new(chunk).tryGet()
-    cids.add(blk.cid)
+    # builder.addDataBlock(blk.data).tryGet()
+    let mhash = blk.cid.mhash.mapFailure.tryGet()
+    builder.addLeaf(mhash).tryGet()
     (await store.putBlock(blk)).tryGet()
 
-  let 
-    tree = MerkleTree.init(cids).tryGet()
-    treeCid = tree.rootCid.tryGet()
-    manifest = Manifest.new(
-      treeCid = treeCid,
-      blockSize = NBytes(chunker.chunkSize),
-      datasetSize = NBytes(chunker.offset),
-    )
+  let
+    tree = builder.build().tryGet()
+    treeBlk = Block.new(tree.encode()).tryGet()
 
-  for i in 0..<tree.leavesCount:
-    let proof = tree.getProof(i).tryGet()
-    (await store.putBlockCidAndProof(treeCid, i, cids[i], proof)).tryGet()
+  let manifest = Manifest.new(
+    treeCid = treeBlk.cid,
+    treeRoot = tree.root,
+    blockSize = NBytes(chunker.chunkSize),
+    datasetSize = NBytes(chunker.offset),
+  )
+
+  (await store.putBlock(treeBlk)).tryGet()
 
   return manifest
 
@@ -116,7 +130,7 @@ proc corruptBlocks*(
 
     pos.add(i)
     var
-      blk = (await store.getBlock(manifest.treeCid, i)).tryGet()
+      blk = (await store.getBlock(manifest.treeCid, i, manifest.treeRoot)).tryGet()
       bytePos: seq[int]
 
     doAssert bytes < blk.data.len

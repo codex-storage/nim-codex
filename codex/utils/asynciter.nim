@@ -1,16 +1,13 @@
-import std/sugar
-
 import pkg/questionable
 import pkg/chronos
 import pkg/upraises
 
 type
-  Function*[T, U] = proc(fut: T): U {.upraises: [CatchableError], gcsafe, closure.}
-  IsFinished* = proc(): bool {.upraises: [], gcsafe, closure.}
-  GenNext*[T] = proc(): T {.upraises: [CatchableError], gcsafe, closure.}
+  MapItem*[T, U] = proc(fut: T): U {.upraises: [CatchableError], gcsafe, closure.}
+  NextItem*[T] = proc(): T {.upraises: [CatchableError], gcsafe, closure.}
   Iter*[T] = ref object
-    finished: bool
-    next*: GenNext[T]
+    finished*: bool
+    next*: NextItem[T]
   AsyncIter*[T] = Iter[Future[T]]
 
 proc finish*[T](self: Iter[T]): void =
@@ -23,126 +20,66 @@ iterator items*[T](self: Iter[T]): T =
   while not self.finished:
     yield self.next()
 
-iterator pairs*[T](self: Iter[T]): tuple[key: int, val: T] {.inline.} =
-  var i = 0
-  while not self.finished:
-    yield (i, self.next())
-    inc(i)
+proc map*[T, U](wrappedIter: Iter[T], mapItem: MapItem[T, U]): Iter[U] =
+  var iter = Iter[U]()
 
-proc map*[T, U](fut: Future[T], fn: Function[T, U]): Future[U] {.async.} =
-  let t = await fut
-  fn(t)
+  proc checkFinish(): void =
+    if wrappedIter.finished:
+      iter.finish
 
-proc new*[T](_: type Iter, genNext: GenNext[T], isFinished: IsFinished, finishOnErr: bool = true): Iter[T] =
-  var iter = Iter[T]()
+  checkFinish()
 
-  proc next(): T {.upraises: [CatchableError].} =
+  proc next(): U {.upraises: [CatchableError].} =
     if not iter.finished:
-      var item: T
-      try:
-        item = genNext()
-      except CatchableError as err:
-        if finishOnErr or isFinished():
-          iter.finish
-        raise err
-
-      if isFinished():
-        iter.finish
-      return item
+      let fut = wrappedIter.next()
+      checkFinish()
+      return mapItem(fut)
     else:
-      raise newException(CatchableError, "Iterator is finished but next item was requested")
+      raise newException(CatchableError, "Iterator finished, but next element was requested")
 
-  if isFinished():
-    iter.finish
-  
   iter.next = next
   return iter
 
-proc fromItems*[T](_: type Iter, items: seq[T]): Iter[T] =
-  ## Create new iterator from items
-  ##
-  
-  Iter.fromSlice(0..<items.len)
-    .map((i: int) => items[i])
+proc prefetch*[T](wrappedIter: Iter[T], n: Positive): Iter[T] =
 
-proc fromSlice*[U, V: Ordinal](_: type Iter, slice: HSlice[U, V]): Iter[U] =
-  ## Creates new iterator from slice
-  ##
-
-  Iter.fromRange(slice.a.int, slice.b.int, 1)
-
-proc fromRange*[U, V, S: Ordinal](_: type Iter, a: U, b: V, step: S = 1): Iter[U] =
-  ## Creates new iterator in range a..b with specified step (default 1)
-  ##
-
-  var i = a
-
-  proc genNext(): U =
-    let u = i
-    inc(i, step)
-    u
-  
-  proc isFinished(): bool =
-    (step > 0 and i > b) or
-      (step < 0 and i < b)
-
-  Iter.new(genNext, isFinished)
-
-proc map*[T, U](iter: Iter[T], fn: Function[T, U]): Iter[U] =
-  Iter.new(
-    genNext    = () => fn(iter.next()),
-    isFinished = () => iter.finished
-  )
-
-proc filter*[T](iter: Iter[T], predicate: Function[T, bool]): Iter[T] =
-  var nextT: Option[T]
-
-  proc tryFetch(): void =
-    nextT = T.none
-    while not iter.finished:
-      let t = iter.next()
-      if predicate(t):
-        nextT = some(t)
-        break
-
-  proc genNext(): T =
-    let t = nextT.unsafeGet
-    tryFetch()
-    return t
-
-  proc isFinished(): bool =
-    nextT.isNone
-
-  tryFetch()
-  Iter.new(genNext, isFinished)
-
-proc prefetch*[T](iter: Iter[T], n: Positive): Iter[T] =
   var ringBuf = newSeq[T](n)
-  var iterLen = int.high
-  var i = 0
+  var wrappedLen = int.high
 
-  proc tryFetch(j: int): void =
-    if not iter.finished:
-      let item = iter.next()
-      ringBuf[j mod n] = item
-      if iter.finished:
-        iterLen = min(j + 1, iterLen)
+  var iter = Iter[T]()
+
+  proc tryFetch(i: int): void =
+    if not wrappedIter.finished:
+      let res = wrappedIter.next()
+      ringBuf[i mod n] = res
+      if wrappedIter.finished:
+        wrappedLen = min(i + 1, wrappedLen)
     else:
-      if j == 0:
-        iterLen = 0
+      if i == 0:
+        wrappedLen = 0
 
-  proc genNext(): T =
-    let item = ringBuf[i mod n]
-    tryFetch(i + n)
-    inc i
-    return item
+  proc checkLen(i: int): void =
+    if i >= wrappedLen:
+      iter.finish
 
-  proc isFinished(): bool =
-    i >= iterLen
+  # initialize buf with n prefetched values
+  for i in 0..<n:
+    tryFetch(i)
 
-  # initialize ringBuf with n prefetched values
-  for j in 0..<n:
-    tryFetch(j)
+  checkLen(0)
 
-  Iter.new(genNext, isFinished)
+  var i = 0
+  proc next(): T {.upraises: [CatchableError].} =
+    if not iter.finished:
+      let fut = ringBuf[i mod n]
+      # prefetch a value
+      tryFetch(i + n)
+      inc i
+      checkLen(i)
+      
+      return fut
+    else:
+      raise newException(CatchableError, "Iterator finished, but next element was requested")
+  
+  iter.next = next
+  return iter
 

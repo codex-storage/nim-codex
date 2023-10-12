@@ -56,7 +56,7 @@ checksuite "merkletree":
     let tree = builder.build().tryGet()
 
     check:
-      tree.leaves.toSeq == expectedLeaves[0..0]
+      tree.leaves == expectedLeaves[0..0]
       tree.root == expectedLeaves[0]
       tree.len == 1
 
@@ -69,7 +69,7 @@ checksuite "merkletree":
     let expectedRoot = combine(expectedLeaves[0], expectedLeaves[1])
 
     check:
-      tree.leaves.toSeq == expectedLeaves[0..1]
+      tree.leaves == expectedLeaves[0..1]
       tree.len == 3
       tree.root == expectedRoot
 
@@ -87,7 +87,7 @@ checksuite "merkletree":
       )
 
     check:
-      tree.leaves.toSeq == expectedLeaves[0..2]
+      tree.leaves == expectedLeaves[0..2]
       tree.len == 6
       tree.root == expectedRoot
 
@@ -126,7 +126,7 @@ checksuite "merkletree":
       )
 
     check:
-      tree.leaves.toSeq == expectedLeaves[0..8]
+      tree.leaves == expectedLeaves[0..8]
       tree.len == 20
       tree.root == expectedRoot
 

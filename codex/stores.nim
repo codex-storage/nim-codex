@@ -4,6 +4,6 @@ import ./stores/networkstore
 import ./stores/repostore
 import ./stores/maintenance
 import ./stores/keyutils
-import ./stores/treehelper
+import ./stores/treereader
 
-export cachestore, blockstore, networkstore, repostore, maintenance, keyutils, treehelper
+export cachestore, blockstore, networkstore, repostore, maintenance, keyutils, treereader
