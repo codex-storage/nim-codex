@@ -121,11 +121,7 @@ proc stop*(b: BlockExcEngine) {.async.} =
   trace "NetworkStore stopped"
 
 
-proc sendWantHave(
-  b: BlockExcEngine, 
-  address: BlockAddress, 
-  selectedPeer: BlockExcPeerCtx, 
-  peers: seq[BlockExcPeerCtx]): Future[void] {.async.} =
+proc sendWantHave(b: BlockExcEngine, address: BlockAddress, selectedPeer: BlockExcPeerCtx, peers: seq[BlockExcPeerCtx]): Future[void] {.async.} =
   trace "Sending wantHave request to peers", address
   for p in peers:
     if p != selectedPeer:
@@ -136,10 +132,11 @@ proc sendWantHave(
           @[address],
           wantType = WantType.WantHave) # we only want to know if the peer has the block
 
-proc sendWantBlock(
-  b: BlockExcEngine, 
-  address: BlockAddress, 
-  blockPeer: BlockExcPeerCtx): Future[void] {.async.} =
+proc sendWantBlock(b: BlockExcEngine, address: BlockAddress, blockPeer: BlockExcPeerCtx): Future[void] {.async.} =
+  let cid = if address.leaf:
+      address.treeCid
+    else:
+      address.cid
   trace "Sending wantBlock request to", peer = blockPeer.id, address
   await b.network.request.sendWantList(
     blockPeer.id,
@@ -177,42 +174,125 @@ proc monitorBlockHandle(b: BlockExcEngine, handle: Future[Block], address: Block
 
 proc requestBlock*(
   b: BlockExcEngine,
-  address: BlockAddress,
+  cid: Cid,
+  timeout = DefaultBlockTimeout): Future[Block] {.async.} =
+  trace "Begin block request", cid, peers = b.peers.len
+
+  if b.pendingBlocks.isInFlight(cid):
+    trace "Request handle already pending", cid
+    return await b.pendingBlocks.getWantHandle(cid, timeout)
+
+  let
+    blk = b.pendingBlocks.getWantHandle(cid, timeout)
+    address = BlockAddress(leaf: false, cid: cid)
+
+  trace "Selecting peers who have", address
+  var
+    peers = b.peers.selectCheapest(address)
+
+  without blockPeer =? b.findCheapestPeerForBlock(peers):
+      trace "No peers to request blocks from. Queue discovery...", cid
+      b.discovery.queueFindBlocksReq(@[cid])
+      return await blk
+
+  asyncSpawn b.monitorBlockHandle(blk, address, blockPeer.id)
+  b.pendingBlocks.setInFlight(cid, true)
+  await b.sendWantBlock(address, blockPeer)
+
+  codex_block_exchange_want_block_lists_sent.inc()
+
+  if (peers.len - 1) == 0:
+    trace "No peers to send want list to", cid
+    b.discovery.queueFindBlocksReq(@[cid])
+    return await blk
+
+  await b.sendWantHave(address, blockPeer, toSeq(b.peers))
+
+  codex_block_exchange_want_have_lists_sent.inc()
+
+  return await blk
+
+proc requestBlock(
+  b: BlockExcEngine,
+  treeReq: TreeReq,
+  index: Natural,
   timeout = DefaultBlockTimeout
 ): Future[Block] {.async.} =
-  let blockFuture = b.pendingBlocks.getWantHandle(address, timeout)
+  let address = BlockAddress(leaf: true, treeCid: treeReq.treeCid, index: index)
 
-  if b.pendingBlocks.isInFlight(address):
+  let handleOrCid = treeReq.getWantHandleOrCid(index, timeout)
+  if handleOrCid.resolved:
+    without blk =? await b.localStore.getBlock(handleOrCid.cid), err:
+      return await b.requestBlock(handleOrCid.cid, timeout)
+    return blk
+
+  let blockFuture = handleOrCid.handle
+
+  if treeReq.isInFlight(index):
     return await blockFuture
 
   let peers = b.peers.selectCheapest(address)
   if peers.len == 0:
-    b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
+    b.discovery.queueFindBlocksReq(@[treeReq.treeCid])
 
   let maybePeer = 
     if peers.len > 0:
-      peers[hash(address) mod peers.len].some
+      peers[index mod peers.len].some
     elif b.peers.len > 0:
-      toSeq(b.peers)[hash(address) mod b.peers.len].some
+      toSeq(b.peers)[index mod b.peers.len].some
     else:
       BlockExcPeerCtx.none
   
   if peer =? maybePeer:
     asyncSpawn b.monitorBlockHandle(blockFuture, address, peer.id)
-    b.pendingBlocks.setInFlight(address)
+    treeReq.trySetInFlight(index)
     await b.sendWantBlock(address, peer)
-    codex_block_exchange_want_block_lists_sent.inc()
+    codexBlockExchangeWantBlockListsSent.inc()
     await b.sendWantHave(address, peer, toSeq(b.peers))
-    codex_block_exchange_want_have_lists_sent.inc()
+    codexBlockExchangeWantHaveListsSent.inc()
     
   return await blockFuture
 
 proc requestBlock*(
   b: BlockExcEngine,
-  cid: Cid,
+  treeCid: Cid,
+  index: Natural,
+  merkleRoot: MultiHash,
   timeout = DefaultBlockTimeout
 ): Future[Block] =
-  b.requestBlock(BlockAddress.init(cid))
+  without treeReq =? b.pendingBlocks.getOrPutTreeReq(treeCid, Natural.none, merkleRoot), err:
+    raise err
+  
+  return b.requestBlock(treeReq, index, timeout)
+
+proc requestBlocks*(
+  b: BlockExcEngine,
+  treeCid: Cid,
+  leavesCount: Natural,
+  merkleRoot: MultiHash,
+  timeout = DefaultBlockTimeout
+): ?!AsyncIter[Block] =
+  without treeReq =? b.pendingBlocks.getOrPutTreeReq(treeCid, leavesCount.some, merkleRoot), err:
+    return failure(err)
+
+  var
+    iter = AsyncIter[Block]()
+    index = 0
+
+  proc next(): Future[Block] =
+    if index < leavesCount:
+      let fut = b.requestBlock(treeReq, index, timeout)
+      inc index
+      if index >= leavesCount:
+        iter.finished = true
+      return fut
+    else:
+      let fut = newFuture[Block]("engine.requestBlocks")
+      fut.fail(newException(CodexError, "No more elements for tree with cid " & $treeCid))
+      return fut
+
+  iter.next = next
+  return success(iter)
 
 proc requestBlock(
   b: BlockExcEngine,
@@ -327,12 +407,7 @@ proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.asy
 
   b.pendingBlocks.resolve(blocksDelivery)
   await b.scheduleTasks(blocksDelivery)
-  var cids = initHashSet[Cid]()
-  for bd in blocksDelivery:
-    cids.incl(bd.blk.cid)
-    if bd.address.leaf:
-      cids.incl(bd.address.treeCid)
-  b.discovery.queueProvideBlocksReq(cids.toSeq)
+  b.discovery.queueProvideBlocksReq(blocksDelivery.mapIt( it.blk.cid ))
 
 proc resolveBlocks*(b: BlockExcEngine, blocks: seq[Block]) {.async.} =
   await b.resolveBlocks(blocks.mapIt(BlockDelivery(blk: it, address: BlockAddress(leaf: false, cid: it.cid))))
@@ -350,69 +425,18 @@ proc payForBlocks(engine: BlockExcEngine,
     trace "Sending payment for blocks", price
     await sendPayment(peer.id, payment)
 
-proc validateBlockDelivery(
-  b: BlockExcEngine,
-  bd: BlockDelivery
-): ?!void =
-  if bd.address notin b.pendingBlocks:
-    return failure("Received block is not currently a pending block")
-
-  if bd.address.leaf:
-    without proof =? bd.proof:
-      return failure("Missing proof")
-    
-    if proof.index != bd.address.index:
-      return failure("Proof index " & $proof.index & " doesn't match leaf index " & $bd.address.index)
-
-    without leaf =? bd.blk.cid.mhash.mapFailure, err:
-      return failure("Unable to get mhash from cid for block, nested err: " & err.msg)
-
-    without treeRoot =? bd.address.treeCid.mhash.mapFailure, err:
-      return failure("Unable to get mhash from treeCid for block, nested err: " & err.msg)
-
-    without verifyOutcome =? proof.verifyLeaf(leaf, treeRoot), err:
-      return failure("Unable to verify proof for block, nested err: " & err.msg)
-
-    if not verifyOutcome:
-      return failure("Provided inclusion proof is invalid")
-  else: # not leaf
-    if bd.address.cid != bd.blk.cid:
-      return failure("Delivery cid " & $bd.address.cid & " doesn't match block cid " & $bd.blk.cid)
-
-  return success()
-
 proc blocksDeliveryHandler*(
   b: BlockExcEngine,
   peer: PeerId,
   blocksDelivery: seq[BlockDelivery]) {.async.} =
   trace "Got blocks from peer", peer, len = blocksDelivery.len
 
-  var validatedBlocksDelivery: seq[BlockDelivery]
   for bd in blocksDelivery:
-    logScope:
-      peer      = peer
-      address   = bd.address
+    if isErr (await b.localStore.putBlock(bd.blk)):
+      trace "Unable to store block", cid = bd.blk.cid
 
-    if err =? b.validateBlockDelivery(bd).errorOption:
-      warn "Block validation failed", msg = err.msg
-      continue
-
-    if err =? (await b.localStore.putBlock(bd.blk)).errorOption:
-      error "Unable to store block", err = err.msg
-      continue
-
-    if bd.address.leaf:
-      without proof =? bd.proof:
-        error "Proof expected for a leaf block delivery"
-        continue
-      if err =? (await b.localStore.putBlockCidAndProof(bd.address.treeCid, bd.address.index, bd.blk.cid, proof)).errorOption:
-        error "Unable to store proof and cid for a block"
-        continue
-
-    validatedBlocksDelivery.add(bd)
-
-  await b.resolveBlocks(validatedBlocksDelivery)
-  codex_block_exchange_blocks_received.inc(validatedBlocksDelivery.len.int64)
+  await b.resolveBlocks(blocksDelivery)
+  codexBlockExchangeBlocksReceived.inc(blocksDelivery.len.int64)
 
   let
     peerCtx = b.peers.get(peer)
@@ -441,11 +465,11 @@ proc wantListHandler*(
 
     logScope:
       peer      = peerCtx.id
-      address   = e.address
+      # cid       = e.cid
       wantType  = $e.wantType
 
     if idx < 0: # updating entry
-      trace "Processing new want list entry"
+      trace "Processing new want list entry", address = e.address
 
       let
         have = await e.address in b.localStore
@@ -457,21 +481,21 @@ proc wantListHandler*(
         codex_block_exchange_want_have_lists_received.inc()
 
       if not have and e.sendDontHave:
-        trace "Adding dont have entry to presence response"
+        trace "Adding dont have entry to presence response", address = e.address
         presence.add(
           BlockPresence(
           address: e.address,
           `type`: BlockPresenceType.DontHave,
           price: price))
       elif have and e.wantType == WantType.WantHave:
-        trace "Adding have entry to presence response"
+        trace "Adding have entry to presence response", address = e.address
         presence.add(
           BlockPresence(
           address: e.address,
           `type`: BlockPresenceType.Have,
           price: price))
       elif e.wantType == WantType.WantBlock:
-        trace "Added entry to peer's want blocks list"
+        trace "Added entry to peer's want blocks list", address = e.address
         peerCtx.peerWants.add(e)
         codex_block_exchange_want_block_lists_received.inc()
     else:
@@ -521,6 +545,18 @@ proc paymentHandler*(
     discard engine.wallet.acceptPayment(channel, Asset, sender, payment)
   else:
     context.paymentChannel = engine.wallet.acceptChannel(payment).option
+
+proc onTreeHandler(b: BlockExcEngine, tree: MerkleTree): Future[?!void] {.async.} =
+  trace "Handling tree"
+
+  without treeBlk =? Block.new(tree.encode()), err:
+    return failure(err)
+
+  if err =? (await b.localStore.putBlock(treeBlk)).errorOption:
+    return failure("Unable to store merkle tree block " & $treeBlk.cid & ", nested err: " & err.msg)
+
+  return success()
+
 
 proc setupPeer*(b: BlockExcEngine, peer: PeerId) {.async.} =
   ## Perform initial setup, such as want
@@ -583,7 +619,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
             BlockDelivery(address: e.address, blk: blkAndProof[0], proof: blkAndProof[1].some)
         )
       else:
-        (await b.localStore.getBlock(e.address)).map(
+        (await b.localStore.getBlock(e.address.cid)).map(
           (blk: Block) => BlockDelivery(address: e.address, blk: blk, proof: MerkleProof.none)
         )
 
@@ -603,7 +639,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
         blocksDelivery
       )
 
-      codex_block_exchange_blocks_sent.inc(blocksDelivery.len.int64)
+      codexBlockExchangeBlocksSent.inc(blocksDelivery.len.int64)
 
       trace "About to remove entries from peerWants", blocks = blocksDelivery.len, items = task.peerWants.len
       # Remove successfully sent blocks
@@ -684,11 +720,18 @@ proc new*(
   proc paymentHandler(peer: PeerId, payment: SignedState): Future[void] {.gcsafe.} =
     engine.paymentHandler(peer, payment)
 
+  proc onTree(tree: MerkleTree): Future[void] {.gcsafe, async.} =
+    if err =? (await engine.onTreeHandler(tree)).errorOption:
+      echo "Error handling a tree" & err.msg # TODO
+      # error "Error handling a tree", msg = err.msg
+
   network.handlers = BlockExcHandlers(
     onWantList: blockWantListHandler,
     onBlocksDelivery: blocksDeliveryHandler,
     onPresence: blockPresenceHandler,
     onAccount: accountHandler,
     onPayment: paymentHandler)
+
+  pendingBlocks.onTree = onTree
 
   return engine

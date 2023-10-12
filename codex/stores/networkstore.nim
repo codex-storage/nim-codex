@@ -20,12 +20,10 @@ import pkg/libp2p
 import ../blocktype
 import ../utils/asyncheapqueue
 import ../utils/asynciter
-import ../clock
 
 import ./blockstore
 import ../blockexchange
 import ../merkletree
-import ../blocktype
 
 export blockstore, blockexchange, asyncheapqueue
 
@@ -54,17 +52,34 @@ method getBlock*(self: NetworkStore, address: BlockAddress): Future[?!Block] {.a
 
   return success blk
 
-method getBlock*(self: NetworkStore, cid: Cid): Future[?!Block] =
-  ## Get a block from the blockstore
-  ##
+method getBlock*(self: NetworkStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] {.async.} =
+  without localBlock =? await self.localStore.getBlock(treeCid, index, merkleRoot), err:
+    if err of BlockNotFoundError:
+      trace "Requesting block from the network engine", treeCid, index
+      try:
+        let networkBlock = await self.engine.requestBlock(treeCid, index, merkleRoot)
+        return success(networkBlock)
+      except CatchableError as err:
+        return failure(err)
+    else:
+      failure(err)
+  return success(localBlock)
 
-  self.getBlock(BlockAddress.init(cid))
+method getBlocks*(self: NetworkStore, treeCid: Cid, leavesCount: Natural, merkleRoot: MultiHash): Future[?!AsyncIter[?!Block]] {.async.} =
+  without localIter =? await self.localStore.getBlocks(treeCid, leavesCount, merkleRoot), err:
+    if err of BlockNotFoundError:
+      trace "Requesting blocks from the network engine", treeCid, leavesCount
+      without var networkIter =? self.engine.requestBlocks(treeCid, leavesCount, merkleRoot), err:
+        failure(err)
 
-method getBlock*(self: NetworkStore, treeCid: Cid, index: Natural): Future[?!Block] =
-  ## Get a block from the blockstore
-  ##
+      let iter = networkIter
+        .prefetch(BlockPrefetchAmount)
+        .map(proc (fut: Future[Block]): Future[?!Block] {.async.} = catch: (await fut))
 
-  self.getBlock(BlockAddress.init(treeCid, index))
+      return success(iter)
+    else:
+      return failure(err)
+  return success(localIter)
 
 method putBlock*(
     self: NetworkStore,

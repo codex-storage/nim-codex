@@ -24,6 +24,7 @@ import pkg/stew/endians2
 
 import ./blockstore
 import ./keyutils
+import ./treereader
 import ../blocktype
 import ../clock
 import ../systemclock
@@ -58,11 +59,12 @@ type
     quotaReservedBytes*: uint     # bytes reserved by the repo
     blockTtl*: Duration
     started*: bool
+    treeReader*: TreeReader
 
   BlockExpiration* = object
     cid*: Cid
     expiration*: SecondsSince1970
-  
+
 proc updateMetrics(self: RepoStore) =
   codex_repostore_blocks.set(self.totalBlocks.int64)
   codex_repostore_bytes_used.set(self.quotaUsedBytes.int64)
@@ -159,32 +161,17 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   trace "Got block for cid", cid
   return Block.new(cid, data, verify = true)
 
+method getTree*(self: RepoStore, treeCid: Cid): Future[?!MerkleTree] =
+  self.treeReader.getTree(treeCid)
 
-method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.async.} =
-  without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
-    return failure(err)
+method getBlock*(self: RepoStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] =
+  self.treeReader.getBlock(treeCid, index)
 
-  let (cid, proof) = cidAndProof
+method getBlocks*(self: RepoStore, treeCid: Cid, leavesCount: Natural, merkleRoot: MultiHash): Future[?!AsyncIter[?!Block]] =
+  self.treeReader.getBlocks(treeCid, leavesCount)
 
-  without blk =? await self.getBlock(cid), err:
-    return failure(err)
-
-  success((blk, proof))
-
-method getBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!Block] {.async.} =
-  without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
-    return failure(err)
-
-  await self.getBlock(cidAndProof[0])
-
-method getBlock*(self: RepoStore, address: BlockAddress): Future[?!Block] =
-  ## Get a block from the blockstore
-  ##
-
-  if address.leaf:
-    self.getBlock(address.treeCid, address.index)
-  else:
-    self.getBlock(address.cid)
+method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] =
+  self.treeReader.getBlockAndProof(treeCid, index)
 
 proc getBlockExpirationEntry(
   self: RepoStore,
@@ -371,21 +358,10 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
   return success()
 
 method delBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!void] {.async.} =
-  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
+  without cid =? await self.treeReader.getBlockCid(treeCid, index), err:
     return failure(err)
 
-  without value =? await self.metaDs.get(key), err:
-    if err of DatastoreKeyNotFound:
-      return success()
-    else:
-      return failure(err)
-
-  without cidAndProof =? (Cid, MerkleProof).decode(value), err:
-    return failure(err)
-
-  self.delBlock(cidAndProof[0])
-
-  await self.metaDs.delete(key)
+  await self.delBlock(cid)
 
 method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
@@ -405,13 +381,10 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   return await self.repoDs.has(key)
 
 method hasBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!bool] {.async.} =
-  without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
-    if err of BlockNotFoundError:
-      return success(false)
-    else:
-      return failure(err)
-
-  await self.hasBlock(cidAndProof[0])
+  without cid =? await self.treeReader.getBlockCid(treeCid, index), err:
+    return failure(err)
+  
+  await self.hasBlock(cid)
 
 method listBlocks*(
   self: RepoStore,
@@ -458,7 +431,7 @@ method getBlockExpirations*(
   self: RepoStore,
   maxNumber: int,
   offset: int): Future[?!AsyncIter[?BlockExpiration]] {.async, base.} =
-  ## Get block expirations from the given RepoStore
+  ## Get block experiartions from the given RepoStore
   ##
 
   without query =? createBlockExpirationQuery(maxNumber, offset), err:
@@ -613,18 +586,25 @@ func new*(
     T: type RepoStore,
     repoDs: Datastore,
     metaDs: Datastore,
+    treeReader: TreeReader = TreeReader.new(),
     clock: Clock = SystemClock.new(),
     postFixLen = 2,
     quotaMaxBytes = DefaultQuotaBytes,
-    blockTtl = DefaultBlockTtl
+    blockTtl = DefaultBlockTtl,
+    treeCacheCapacity = DefaultTreeCacheCapacity
 ): RepoStore =
   ## Create new instance of a RepoStore
   ##
-  RepoStore(
+  let store = RepoStore(
     repoDs: repoDs,
     metaDs: metaDs,
+    treeReader: treeReader,
     clock: clock,
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,
-    blockTtl: blockTtl
-  )
+    blockTtl: blockTtl)
+
+  proc getBlockFromStore(cid: Cid): Future[?!Block] = store.getBlock(cid)
+  
+  treeReader.getBlockFromStore = getBlockFromStore
+  store

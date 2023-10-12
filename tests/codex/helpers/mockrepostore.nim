@@ -40,6 +40,7 @@ method getBlockExpirations*(self: MockRepoStore, maxNumber: int, offset: int): F
   self.getBeOffset = offset
 
   var iter = AsyncIter[?BlockExpiration]()
+  iter.finished = false
 
   self.iteratorIndex = offset
   var numberLeft = maxNumber

@@ -116,15 +116,20 @@ proc fetchBatched*(
 
   trace "Fetching blocks in batches of", size = batchSize
 
-  let iter = Iter.fromSlice(0..<manifest.blocksCount)
-    .map((i: int) => node.blockStore.getBlock(BlockAddress.init(manifest.treeCid, i)))
+  without iter =? await node.blockStore.getBlocks(manifest.treeCid, manifest.blocksCount, manifest.treeRoot), err:
+    return failure(err)
 
   for batchNum in 0..<batchCount:
+
     let blocks = collect:
       for i in 0..<batchSize:
         if not iter.finished:
           iter.next()
 
+
+    # let 
+    #   indexRange = (batchNum * batchSize)..<(min((batchNum + 1) * batchSize, manifest.blocksCount))
+    #   blocks = indexRange.mapIt(node.blockStore.getBlock(manifest.treeCid, it))
     try:
       await allFuturesThrowing(allFinished(blocks))
       if not onBatch.isNil:
@@ -192,7 +197,8 @@ proc store*(
     dataCodec = multiCodec("raw")
     chunker = LPStreamChunker.new(stream, chunkSize = blockSize)
 
-  var cids: seq[Cid]
+  without var treeBuilder =? MerkleTreeBuilder.init(hcodec), err:
+    return failure(err)
 
   try:
     while (
@@ -210,7 +216,8 @@ proc store*(
       without blk =? bt.Block.new(cid, chunk, verify = false):
         return failure("Unable to init block from chunk!")
       
-      cids.add(cid)
+      if err =? treeBuilder.addLeaf(mhash).errorOption:
+        return failure(err)
 
       if err =? (await self.blockStore.putBlock(blk)).errorOption:
         trace "Unable to store block", cid = blk.cid, err = err.msg
@@ -223,21 +230,18 @@ proc store*(
   finally:
     await stream.close()
 
-  without tree =? MerkleTree.init(cids), err:
-    return failure(err)
-
-  without treeCid =? tree.rootCid(CIDv1, dataCodec), err:
+  without tree =? treeBuilder.build(), err:
     return failure(err)
   
-  for index, cid in cids:
-    without proof =? tree.getProof(index), err:
-      return failure(err)
-    if err =? (await self.blockStore.putBlockCidAndProof(treeCid, index, cid, proof)).errorOption:
-      # TODO add log here
-      return failure(err)
+  without treeBlk =? bt.Block.new(tree.encode()), err:
+    return failure(err)
+
+  if err =? (await self.blockStore.putBlock(treeBlk)).errorOption:
+    return failure("Unable to store merkle tree block " & $treeBlk.cid & ", nested err: " & err.msg)
 
   let manifest = Manifest.new(
-    treeCid = treeCid,
+    treeCid = treeBlk.cid,
+    treeRoot = tree.root,
     blockSize = blockSize,
     datasetSize = NBytes(chunker.offset),
     version = CIDv1,
@@ -259,13 +263,12 @@ proc store*(
     return failure("Unable to store manifest " & $manifestBlk.cid)
 
   info "Stored data", manifestCid = manifestBlk.cid,
-                      treeCid = treeCid,
+                      treeCid = treeBlk.cid,
                       blocks = manifest.blocksCount,
                       datasetSize = manifest.datasetSize
 
   # Announce manifest
   await self.discovery.provide(manifestBlk.cid)
-  await self.discovery.provide(treeCid)
 
   return manifestBlk.cid.success
 

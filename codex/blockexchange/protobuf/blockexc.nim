@@ -21,15 +21,12 @@ export Wantlist, WantType, WantListEntry
 export BlockDelivery, BlockPresenceType, BlockPresence
 export AccountMessage, StateChannelUpdate
 
-proc hash*(a: BlockAddress): Hash =
-  if a.leaf:
-    let data = a.treeCid.data.buffer & @(a.index.uint64.toBytesBE)
+proc hash*(e: WantListEntry): Hash =
+  if e.address.leaf:
+    let data = e.address.treeCid.data.buffer & @(e.address.index.uint64.toBytesBE)
     hash(data)
   else:
-    hash(a.cid.data.buffer)
-
-proc hash*(e: WantListEntry): Hash =
-  hash(e.address)
+    hash(e.address.cid.data.buffer)
 
 proc contains*(a: openArray[WantListEntry], b: BlockAddress): bool =
   ## Convenience method to check for peer precense

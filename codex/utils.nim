@@ -35,6 +35,13 @@ proc orElse*[A](a, b: Option[A]): Option[A] =
   else: 
     b
 
+template `..<`*(a, b: untyped): untyped =
+  ## A shortcut for `a .. pred(b)`.
+  ##   ```
+  ##   for i in 5 ..< 9:
+  ##     echo i # => 5; 6; 7; 8
+  ##   ```
+  a .. (when b is BackwardsIndex: succ(b) else: pred(b))
 
 when not declared(parseDuration): # Odd code formatting to minimize diff v. mainLine
  const Whitespace = {' ', '\t', '\v', '\r', '\l', '\f'}
