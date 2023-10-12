@@ -14,7 +14,11 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
+import ../../blocktype
 import pkg/chronicles
+import pkg/questionable
+import pkg/questionable/options
+import pkg/questionable/results
 import pkg/chronos
 import pkg/libp2p
 import pkg/metrics
@@ -39,11 +43,118 @@ type
     inFlight*: bool
     startTime*: int64
 
+  LeafReq* = object
+    case delivered*: bool
+    of false:
+      handle*: Future[Block]
+      inFlight*: bool
+    of true:
+      leaf: MultiHash
+      blkCid*: Cid
+
+  TreeReq* = ref object
+    leaves*: Table[Natural, LeafReq]
+    deliveredCount*: Natural
+    leavesCount*: ?Natural
+    treeRoot*: MultiHash
+    treeCid*: Cid
+
+  TreeHandler* = proc(tree: MerkleTree): Future[void] {.gcsafe.}
+
   PendingBlocksManager* = ref object of RootObj
     blocks*: Table[BlockAddress, BlockReq] # pending Block requests
 
 proc updatePendingBlockGauge(p: PendingBlocksManager) =
   codex_block_exchange_pending_block_requests.set(p.blocks.len.int64)
+
+type 
+  BlockHandleOrCid = object
+    case resolved*: bool
+    of true:
+      cid*: Cid
+    else:
+      handle*: Future[Block]
+
+proc buildTree(treeReq: TreeReq): ?!MerkleTree =
+  trace "Building a merkle tree from leaves", treeCid = treeReq.treeCid, leavesCount = treeReq.leavesCount
+
+  without leavesCount =? treeReq.leavesCount:
+    return failure("Leaves count is none, cannot build a tree")
+
+  var builder = ? MerkleTreeBuilder.init(treeReq.treeRoot.mcodec)
+  for i in 0..<leavesCount:
+    treeReq.leaves.withValue(i, leafReq):
+      if leafReq.delivered:
+        ? builder.addLeaf(leafReq.leaf)
+      else:
+        return failure("Expected all leaves to be delivered but leaf with index " & $i & " was not")
+    do:
+      return failure("Missing a leaf with index " & $i)
+
+  let tree = ? builder.build()
+
+  if tree.root != treeReq.treeRoot:
+    return failure("Reconstructed tree root doesn't match the original tree root, tree cid is " & $treeReq.treeCid)
+ 
+  return success(tree)
+
+proc checkIfAllDelivered(p: PendingBlocksManager, treeReq: TreeReq): void =
+  if treeReq.deliveredCount.some == treeReq.leavesCount:
+    without tree =? buildTree(treeReq), err:
+      error "Error building a tree", msg = err.msg
+      p.trees.del(treeReq.treeCid)
+      return
+    p.trees.del(treeReq.treeCid)
+    try:
+      asyncSpawn p.onTree(tree)
+    except Exception as err:
+      error "Exception when handling tree", msg = err.msg
+
+proc getWantHandleOrCid*(
+    treeReq: TreeReq,
+    index: Natural,
+    timeout = DefaultBlockTimeout
+): BlockHandleOrCid =
+  treeReq.leaves.withValue(index, leafReq):
+    if not leafReq.delivered:
+      return BlockHandleOrCid(resolved: false, handle: leafReq.handle)
+    else:
+      return BlockHandleOrCid(resolved: true, cid: leafReq.blkCid)
+  do:
+    let leafReq = LeafReq(
+      delivered: false,
+      handle: newFuture[Block]("pendingBlocks.getWantHandleOrCid"),
+      inFlight: false
+    )
+    treeReq.leaves[index] = leafReq
+    return BlockHandleOrCid(resolved: false, handle: leafReq.handle)
+  
+proc getOrPutTreeReq*(
+  p: PendingBlocksManager,
+  treeCid: Cid,
+  leavesCount = Natural.none, # has value when all leaves are expected to be delivered
+  treeRoot: MultiHash
+): ?!TreeReq =
+  p.trees.withValue(treeCid, treeReq):
+    if treeReq.treeRoot != treeRoot:
+      return failure("Unexpected root for tree with cid " & $treeCid)
+
+    if leavesCount == treeReq.leavesCount:
+      return success(treeReq[])
+    else:
+      treeReq.leavesCount = treeReq.leavesCount.orElse(leavesCount)
+      let res = success(treeReq[])
+      p.checkIfAllDelivered(treeReq[])
+      return res
+  do:
+    let treeReq = TreeReq(
+        deliveredCount: 0,
+        leavesCount: leavesCount,
+        treeRoot: treeRoot,
+        treeCid: treeCid
+      )
+    p.trees[treeCid] = treeReq
+    return success(treeReq)
 
 proc getWantHandle*(
     p: PendingBlocksManager,

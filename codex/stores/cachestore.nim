@@ -21,6 +21,7 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ./blockstore
+import ./treereader
 import ../units
 import ../chunker
 import ../errors
@@ -36,6 +37,7 @@ logScope:
 
 type
   CacheStore* = ref object of BlockStore
+    treeReader: TreeReader
     currentSize*: NBytes
     size*: NBytes
     cache: LruCache[Cid, Block]
@@ -273,16 +275,23 @@ proc new*(
   if cacheSize < chunkSize:
     raise newException(ValueError, "cacheSize cannot be less than chunkSize")
 
+  var treeReader = TreeReader.new()
+
   let
     currentSize = 0'nb
     size = int(cacheSize div chunkSize)
     cache = newLruCache[Cid, Block](size)
     cidAndProofCache = newLruCache[(Cid, Natural), (Cid, MerkleProof)](size)
     store = CacheStore(
+      treeReader: treeReader,
       cache: cache,
       cidAndProofCache: cidAndProofCache,
       currentSize: currentSize,
       size: cacheSize)
+
+  proc getBlockFromStore(cid: Cid): Future[?!Block] = store.getBlock(cid)
+
+  treeReader.getBlockFromStore = getBlockFromStore
 
   for blk in blocks:
     discard store.putBlockSync(blk)

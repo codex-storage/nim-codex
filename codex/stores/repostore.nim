@@ -24,6 +24,7 @@ import pkg/stew/endians2
 
 import ./blockstore
 import ./keyutils
+import ./treereader
 import ../blocktype
 import ../clock
 import ../systemclock
@@ -58,6 +59,7 @@ type
     quotaReservedBytes*: uint     # bytes reserved by the repo
     blockTtl*: Duration
     started*: bool
+    treeReader*: TreeReader
 
   BlockExpiration* = object
     cid*: Cid
@@ -613,16 +615,19 @@ func new*(
     T: type RepoStore,
     repoDs: Datastore,
     metaDs: Datastore,
+    treeReader: TreeReader = TreeReader.new(),
     clock: Clock = SystemClock.new(),
     postFixLen = 2,
     quotaMaxBytes = DefaultQuotaBytes,
-    blockTtl = DefaultBlockTtl
+    blockTtl = DefaultBlockTtl,
+    treeCacheCapacity = DefaultTreeCacheCapacity
 ): RepoStore =
   ## Create new instance of a RepoStore
   ##
-  RepoStore(
+  let store = RepoStore(
     repoDs: repoDs,
     metaDs: metaDs,
+    treeReader: treeReader,
     clock: clock,
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,

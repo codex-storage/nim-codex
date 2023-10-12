@@ -55,6 +55,30 @@ method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future
   
   raiseAssert("getBlockAndProof not implemented!")
 
+method getTree*(self: BlockStore, treeCid: Cid): Future[?!MerkleTree] {.base.} =
+  ## Get a merkle tree by Cid
+  ## 
+  
+  raiseAssert("Not implemented!")
+
+method getBlock*(self: BlockStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] {.base.} =
+  ## Get a block by Cid of a merkle tree and an index of a leaf in a tree, validate inclusion using merkle root
+  ## 
+  
+  raiseAssert("Not implemented!")
+
+method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.base.} =
+  ## Get a block and associated inclusion proof by Cid of a merkle tree and an index of a leaf in a tree
+  ## 
+  
+  raiseAssert("Not implemented!")
+
+method getBlocks*(self: BlockStore, treeCid: Cid, leavesCount: Natural, merkleRoot: MultiHash): Future[?!AsyncIter[?!Block]] {.base.} =
+  ## Get all blocks in range [0..<leavesCount] by Cid of a merkle tree, validate inclusion using merkle root
+  ## 
+
+  raiseAssert("Not implemented!")
+
 method putBlock*(
     self: BlockStore,
     blk: Block,
@@ -100,6 +124,12 @@ method delBlock*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!void]
 
   raiseAssert("delBlock not implemented!")
 
+method delBlock*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!void] {.base.} =
+  ## Delete a block from the blockstore
+  ##
+
+  raiseAssert("Not implemented!")
+
 method hasBlock*(self: BlockStore, cid: Cid): Future[?!bool] {.base.} =
   ## Check if the block exists in the blockstore
   ##
@@ -111,6 +141,12 @@ method hasBlock*(self: BlockStore, tree: Cid, index: Natural): Future[?!bool] {.
   ##
 
   raiseAssert("hasBlock not implemented!")
+
+method hasBlock*(self: BlockStore, tree: Cid, index: Natural): Future[?!bool] {.base.} =
+  ## Check if the block exists in the blockstore
+  ##
+
+  raiseAssert("Not implemented!")
 
 method listBlocks*(
   self: BlockStore,

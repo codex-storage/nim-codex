@@ -65,7 +65,7 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
     erasureInfo.write(4, manifest.originalDatasetSize.uint32)
     erasureInfo.finish()
 
-    header.write(4, erasureInfo)
+    header.write(5, erasureInfo)
 
   pbNode.write(1, header) # set the treeCid as the data field
   pbNode.finish()
@@ -95,7 +95,10 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
   if pbHeader.getField(1, treeCidBuf).isErr:
     return failure("Unable to decode `treeCid` from manifest!")
 
-  if pbHeader.getField(2, blockSize).isErr:
+  if pbHeader.getField(2, treeRootBuf).isErr:
+    return failure("Unable to decode `treeRoot` from manifest!")
+
+  if pbHeader.getField(3, blockSize).isErr:
     return failure("Unable to decode `blockSize` from manifest!")
 
   if pbHeader.getField(3, datasetSize).isErr:
