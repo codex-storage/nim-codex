@@ -21,10 +21,13 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ./blockstore
+import ./treereader
 import ../units
 import ../chunker
 import ../errors
 import ../manifest
+import ../merkletree
+import ../utils
 
 export blockstore
 
@@ -33,6 +36,7 @@ logScope:
 
 type
   CacheStore* = ref object of BlockStore
+    treeReader: TreeReader
     currentSize*: NBytes
     size*: NBytes
     cache: LruCache[Cid, Block]
@@ -50,16 +54,28 @@ method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
 
   if cid.isEmpty:
     trace "Empty block, ignoring"
-    return success cid.emptyBlock
+    return cid.emptyBlock
 
   if cid notin self.cache:
-    return failure (ref BlockNotFoundError)(msg: "Block not in cache")
+    return failure (ref BlockNotFoundError)(msg: "Block not in cache " & $cid)
 
   try:
     return success self.cache[cid]
   except CatchableError as exc:
     trace "Error requesting block from cache", cid, error = exc.msg
     return failure exc
+
+method getTree*(self: CacheStore, treeCid: Cid): Future[?!MerkleTree] =
+  self.treeReader.getTree(treeCid)
+
+method getBlock*(self: CacheStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] =
+  self.treeReader.getBlock(treeCid, index)
+
+method getBlocks*(self: CacheStore, treeCid: Cid, leavesCount: Natural, merkleRoot: MultiHash): Future[?!AsyncIter[?!Block]] =
+  self.treeReader.getBlocks(treeCid, leavesCount)
+
+method getBlockAndProof*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] =
+  self.treeReader.getBlockAndProof(treeCid, index)
 
 method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
@@ -72,6 +88,15 @@ method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
 
   return (cid in self.cache).success
 
+method hasBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!bool] {.async.} =
+  ## Check if the block exists in the blockstore
+  ##
+
+  without cid =? await self.treeReader.getBlockCid(treeCid, index), err:
+    return failure(err)
+  
+  await self.hasBlock(cid)
+
 func cids(self: CacheStore): (iterator: Cid {.gcsafe.}) =
   return iterator(): Cid =
     for cid in self.cache.keys:
@@ -80,12 +105,12 @@ func cids(self: CacheStore): (iterator: Cid {.gcsafe.}) =
 method listBlocks*(
     self: CacheStore,
     blockType = BlockType.Manifest
-): Future[?!BlocksIter] {.async.} =
+): Future[?!AsyncIter[?Cid]] {.async.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 
   var
-    iter = BlocksIter()
+    iter = AsyncIter[?Cid]()
 
   let
     cids = self.cids()
@@ -101,7 +126,7 @@ method listBlocks*(
       cid = cids()
 
       if finished(cids):
-        iter.finished = true
+        iter.finish
         return Cid.none
 
       without isManifest =? cid.isManifest, err:
@@ -182,6 +207,12 @@ method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
 
   return success()
 
+method delBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!void] {.async.} =
+  without cid =? await self.treeReader.getBlockCid(treeCid, index), err:
+    return failure(err)
+
+  return await self.delBlock(cid)
+
 method close*(self: CacheStore): Future[void] {.async.} =
   ## Close the blockstore, a no-op for this implementation
   ##
@@ -202,14 +233,21 @@ proc new*(
   if cacheSize < chunkSize:
     raise newException(ValueError, "cacheSize cannot be less than chunkSize")
 
+  var treeReader = TreeReader.new()
+
   let
     currentSize = 0'nb
     size = int(cacheSize div chunkSize)
     cache = newLruCache[Cid, Block](size)
     store = CacheStore(
+      treeReader: treeReader,
       cache: cache,
       currentSize: currentSize,
       size: cacheSize)
+
+  proc getBlockFromStore(cid: Cid): Future[?!Block] = store.getBlock(cid)
+
+  treeReader.getBlockFromStore = getBlockFromStore
 
   for blk in blocks:
     discard store.putBlockSync(blk)

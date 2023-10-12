@@ -70,4 +70,4 @@ checksuite "Cache Store":
 
 commonBlockStoreTests(
   "Cache", proc: BlockStore =
-    BlockStore(CacheStore.new(cacheSize = 500, chunkSize = 1)))
+    BlockStore(CacheStore.new(cacheSize = 1000, chunkSize = 1)))

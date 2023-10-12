@@ -57,7 +57,7 @@ asyncchecksuite "Test Discovery Engine":
 
     blockDiscovery.findBlockProvidersHandler =
       proc(d: MockDiscovery, cid: Cid): Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
-        pendingBlocks.resolve(blocks.filterIt( it.cid == cid))
+        pendingBlocks.resolve(blocks.filterIt( it.cid == cid).mapIt(BlockDelivery(blk: it, address: it.address)))
 
     await discoveryEngine.start()
     await allFuturesThrowing(allFinished(wants)).wait(1.seconds)
@@ -154,7 +154,9 @@ asyncchecksuite "Test Discovery Engine":
         var
           peerCtx = BlockExcPeerCtx(id: PeerId.example)
 
-        peerCtx.blocks[cid] = Presence(cid: cid, price: 0.u256)
+        let address = BlockAddress(leaf: false, cid: cid)
+
+        peerCtx.blocks[address] = Presence(address: address, price: 0.u256)
         peerStore.add(peerCtx)
         want.fire()
 

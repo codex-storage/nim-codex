@@ -15,10 +15,16 @@ import std/sequtils
 
 import pkg/chronos
 import pkg/chronicles
+import pkg/libp2p/[multicodec, cid, multibase, multihash]
+import pkg/libp2p/protobuf/minprotobuf
 
 import ../manifest
+import ../merkletree
 import ../stores
 import ../blocktype as bt
+import ../utils
+
+import pkg/stew/byteutils
 
 import ./backend
 
@@ -77,34 +83,57 @@ proc encode*(
 
   logScope:
     original_cid = manifest.cid.get()
-    original_len = manifest.len
+    original_len = manifest.blocksCount
     blocks       = blocks
     parity       = parity
 
   trace "Erasure coding manifest", blocks, parity
-  without var encoded =? Manifest.new(manifest, blocks, parity), error:
-    trace "Unable to create manifest", msg = error.msg
-    return error.failure
+
+  without tree =? await self.store.getTree(manifest.treeCid), err:
+    return err.failure
+
+  let leaves = tree.leaves
+
+  let
+    rounded = roundUp(manifest.blocksCount, blocks)
+    steps = divUp(manifest.blocksCount, blocks)
+    blocksCount = rounded + (steps * parity)
+
+  var cids = newSeq[Cid](blocksCount)
+
+
+  # copy original manifest blocks
+  for i in 0..<rounded:
+    if i < manifest.blocksCount:
+      without cid =? Cid.init(manifest.version, manifest.codec, leaves[i]).mapFailure, err:
+        return err.failure
+      cids[i] = cid
+    else:
+      without cid =? emptyCid(manifest.version, manifest.hcodec, manifest.codec), err:
+        return err.failure
+      cids[i] = cid
 
   logScope:
-    steps           = encoded.steps
-    rounded_blocks  = encoded.rounded
-    new_manifest    = encoded.len
+    steps           = steps
+    rounded_blocks  = rounded
+    new_manifest    = blocksCount
 
   var
     encoder = self.encoderProvider(manifest.blockSize.int, blocks, parity)
-
+  var toadd = 0
+  var tocount = 0
+  var maxidx = 0
   try:
-    for i in 0..<encoded.steps:
+    for i in 0..<steps:
       # TODO: Don't allocate a new seq every time, allocate once and zero out
       var
         data = newSeq[seq[byte]](blocks) # number of blocks to encode
         parityData = newSeqWith[seq[byte]](parity, newSeq[byte](manifest.blockSize.int))
         # calculate block indexes to retrieve
-        blockIdx = toSeq(countup(i, encoded.rounded - 1, encoded.steps))
+        blockIdx = toSeq(countup(i, rounded - 1, steps))
         # request all blocks from the store
         dataBlocks = await allFinished(
-          blockIdx.mapIt( self.store.getBlock(encoded[it]) ))
+          blockIdx.mapIt( self.store.getBlock(cids[it]) ))
 
       # TODO: this is a tight blocking loop so we sleep here to allow
       # other events to be processed, this should be addressed
@@ -113,7 +142,7 @@ proc encode*(
 
       for j in 0..<blocks:
         let idx = blockIdx[j]
-        if idx < manifest.len:
+        if idx < manifest.blocksCount:
           without blk =? (await dataBlocks[j]), error:
             trace "Unable to retrieve block", error = error.msg
             return failure error
@@ -132,16 +161,49 @@ proc encode*(
         return failure($res.error)
 
       for j in 0..<parity:
-        let idx = encoded.rounded + blockIdx[j]
+        let idx = rounded + blockIdx[j]
         without blk =? bt.Block.new(parityData[j]), error:
           trace "Unable to create parity block", err = error.msg
           return failure(error)
 
         trace "Adding parity block", cid = blk.cid, pos = idx
-        encoded[idx] = blk.cid
+        cids[idx] = blk.cid
+        maxidx = max(maxidx, idx)
+        toadd = toadd + blk.data.len
+        tocount.inc
         if isErr (await self.store.putBlock(blk)):
           trace "Unable to store block!", cid = blk.cid
           return failure("Unable to store block!")
+
+    without var builder =? MerkleTreeBuilder.init(manifest.hcodec), err:
+      return failure(err)
+
+    for cid in cids:
+      without mhash =? cid.mhash.mapFailure, err:
+        return err.failure
+      if err =? builder.addLeaf(mhash).errorOption:
+        return failure(err)
+    
+    without tree =? builder.build(), err:
+      return failure(err)
+    
+    without treeBlk =? bt.Block.new(tree.encode()), err:
+      return failure(err)
+
+    if err =? (await self.store.putBlock(treeBlk)).errorOption:
+      return failure("Unable to store merkle tree block " & $treeBlk.cid & ", nested err: " & err.msg)
+
+    let encoded = Manifest.new(
+      manifest = manifest,
+      treeCid = treeBlk.cid,
+      treeRoot = tree.root,
+      datasetSize = (manifest.blockSize.int * blocksCount).NBytes,
+      ecK = blocks,
+      ecM = parity
+    )
+
+    return encoded.success
+
   except CancelledError as exc:
     trace "Erasure coding encoding cancelled"
     raise exc # cancellation needs to be propagated
@@ -150,8 +212,6 @@ proc encode*(
     return failure(exc)
   finally:
     encoder.release()
-
-  return encoded.success
 
 proc decode*(
     self: Erasure,
@@ -167,7 +227,7 @@ proc decode*(
   logScope:
     steps           = encoded.steps
     rounded_blocks  = encoded.rounded
-    new_manifest    = encoded.len
+    new_manifest    = encoded.blocksCount
 
   var
     decoder = self.decoderProvider(encoded.blockSize.int, encoded.ecK, encoded.ecM)
@@ -177,10 +237,10 @@ proc decode*(
       # TODO: Don't allocate a new seq every time, allocate once and zero out
       let
         # calculate block indexes to retrieve
-        blockIdx = toSeq(countup(i, encoded.len - 1, encoded.steps))
+        blockIdx = toSeq(countup(i, encoded.blocksCount - 1, encoded.steps))
         # request all blocks from the store
         pendingBlocks = blockIdx.mapIt(
-            self.store.getBlock(encoded[it]) # Get the data blocks (first K)
+            self.store.getBlock(encoded.treeCid, it, encoded.treeRoot) # Get the data blocks (first K)
         )
 
       # TODO: this is a tight blocking loop so we sleep here to allow
@@ -255,8 +315,7 @@ proc decode*(
   finally:
     decoder.release()
 
-  without decoded =? Manifest.new(blocks = encoded.blocks[0..<encoded.originalLen]), error:
-    return error.failure
+  let decoded = Manifest.new(encoded)
 
   return decoded.success
 

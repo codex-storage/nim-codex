@@ -47,13 +47,13 @@ asyncchecksuite "Network - Handlers":
     discard await networkPeer.connect()
 
   test "Want List handler":
-    proc wantListHandler(peer: PeerId, wantList: Wantlist) {.gcsafe, async.} =
+    proc wantListHandler(peer: PeerId, wantList: WantList) {.gcsafe, async.} =
       # check that we got the correct amount of entries
       check wantList.entries.len == 4
 
       for b in blocks:
-        check b.cid in wantList.entries
-        let entry = wantList.entries[wantList.entries.find(b.cid)]
+        check b.address in wantList.entries
+        let entry = wantList.entries[wantList.entries.find(b.address)]
         check entry.wantType == WantType.WantHave
         check entry.priority == 1
         check entry.cancel == true
@@ -74,13 +74,13 @@ asyncchecksuite "Network - Handlers":
     await done.wait(500.millis)
 
   test "Blocks Handler":
-    proc blocksHandler(peer: PeerId, blks: seq[bt.Block]) {.gcsafe, async.} =
-      check blks == blocks
+    proc blocksDeliveryHandler(peer: PeerId, blocksDelivery: seq[BlockDelivery]) {.gcsafe, async.} =
+      check blocks == blocksDelivery.mapIt(it.blk)
       done.complete()
 
-    network.handlers.onBlocks = blocksHandler
+    network.handlers.onBlocksDelivery = blocksDeliveryHandler
 
-    let msg = Message(payload: makeBlocks(blocks))
+    let msg = Message(payload: blocks.mapIt(BlockDelivery(blk: it, address: it.address)))
     await buffer.pushData(lenPrefix(protobufEncode(msg)))
 
     await done.wait(500.millis)
@@ -88,10 +88,10 @@ asyncchecksuite "Network - Handlers":
   test "Presence Handler":
     proc presenceHandler(
       peer: PeerId,
-      precense: seq[BlockPresence]) {.gcsafe, async.} =
+      presence: seq[BlockPresence]) {.gcsafe, async.} =
       for b in blocks:
         check:
-          b.cid in precense
+          b.address in presence
 
       done.complete()
 
@@ -100,7 +100,7 @@ asyncchecksuite "Network - Handlers":
     let msg = Message(
       blockPresences: blocks.mapIt(
         BlockPresence(
-          cid: it.cid.data.buffer,
+          address: it.address,
           type: BlockPresenceType.Have
       )))
     await buffer.pushData(lenPrefix(protobufEncode(msg)))
@@ -177,13 +177,13 @@ asyncchecksuite "Network - Senders":
       switch2.stop())
 
   test "Send want list":
-    proc wantListHandler(peer: PeerId, wantList: Wantlist) {.gcsafe, async.} =
+    proc wantListHandler(peer: PeerId, wantList: WantList) {.gcsafe, async.} =
       # check that we got the correct amount of entries
       check wantList.entries.len == 4
 
       for b in blocks:
-        check b.cid in wantList.entries
-        let entry = wantList.entries[wantList.entries.find(b.cid)]
+        check b.address in wantList.entries
+        let entry = wantList.entries[wantList.entries.find(b.address)]
         check entry.wantType == WantType.WantHave
         check entry.priority == 1
         check entry.cancel == true
@@ -194,21 +194,21 @@ asyncchecksuite "Network - Senders":
     network2.handlers.onWantList = wantListHandler
     await network1.sendWantList(
       switch2.peerInfo.peerId,
-      blocks.mapIt( it.cid ),
+      blocks.mapIt( it.address ),
       1, true, WantType.WantHave,
       true, true)
 
     await done.wait(500.millis)
 
   test "send blocks":
-    proc blocksHandler(peer: PeerId, blks: seq[bt.Block]) {.gcsafe, async.} =
-      check blks == blocks
+    proc blocksDeliveryHandler(peer: PeerId, blocksDelivery: seq[BlockDelivery]) {.gcsafe, async.} =
+      check blocks == blocksDelivery.mapIt(it.blk)
       done.complete()
 
-    network2.handlers.onBlocks = blocksHandler
-    await network1.sendBlocks(
+    network2.handlers.onBlocksDelivery = blocksDeliveryHandler
+    await network1.sendBlocksDelivery(
       switch2.peerInfo.peerId,
-      blocks)
+      blocks.mapIt(BlockDelivery(blk: it, address: it.address)))
 
     await done.wait(500.millis)
 
@@ -218,7 +218,7 @@ asyncchecksuite "Network - Senders":
       precense: seq[BlockPresence]) {.gcsafe, async.} =
       for b in blocks:
         check:
-          b.cid in precense
+          b.address in precense
 
       done.complete()
 
@@ -228,7 +228,7 @@ asyncchecksuite "Network - Senders":
       switch2.peerInfo.peerId,
       blocks.mapIt(
         BlockPresence(
-          cid: it.cid.data.buffer,
+          address: it.address,
           type: BlockPresenceType.Have
       )))
 

@@ -16,6 +16,7 @@ import pkg/codex/chunker
 import pkg/codex/stores
 import pkg/codex/blocktype as bt
 import pkg/codex/clock
+import pkg/codex/utils/asynciter
 
 import ../helpers
 import ../helpers/mockclock
@@ -71,7 +72,7 @@ asyncchecksuite "RepoStore":
     mockClock = MockClock.new()
     mockClock.set(now)
 
-    repo = RepoStore.new(repoDs, metaDs, mockClock, quotaMaxBytes = 200)
+    repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes = 200)
 
   teardown:
     (await repoDs.close()).tryGet
@@ -244,7 +245,7 @@ asyncchecksuite "RepoStore":
       response.len == 0
 
   test "Should retrieve block expiration information":
-    proc unpack(beIter: Future[?!BlockExpirationIter]): Future[seq[BlockExpiration]] {.async.} =
+    proc unpack(beIter: Future[?!AsyncIter[?BlockExpiration]]): Future[seq[BlockExpiration]] {.async.} =
       var expirations = newSeq[BlockExpiration](0)
       without iter =? (await beIter), err:
         return expirations
@@ -289,7 +290,7 @@ commonBlockStoreTests(
       RepoStore.new(
         SQLiteDatastore.new(Memory).tryGet(),
         SQLiteDatastore.new(Memory).tryGet(),
-        MockClock.new())))
+        clock = MockClock.new())))
 
 const
   path = currentSourcePath().parentDir / "test"
@@ -309,6 +310,6 @@ commonBlockStoreTests(
       RepoStore.new(
         FSDatastore.new(path, depth).tryGet(),
         SQLiteDatastore.new(Memory).tryGet(),
-        MockClock.new())),
+        clock = MockClock.new())),
   before = before,
   after = after)

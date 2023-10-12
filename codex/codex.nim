@@ -204,6 +204,8 @@ proc new*(
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
 
+    treeReader = TreeReader.new()
+
     repoData = case config.repoKind
                 of repoFS: Datastore(FSDatastore.new($config.dataDir, depth = 5)
                   .expect("Should create repo file data store!"))
