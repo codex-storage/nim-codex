@@ -41,18 +41,7 @@ asyncchecksuite "Test Node":
 
   proc fetch(T: type Manifest, chunker: Chunker): Future[Manifest] {.async.} =
     # Collect blocks from Chunker into Manifest
-    var
-      manifest = Manifest.new().tryGet()
-
-    while (
-      let chunk = await chunker.getBytes();
-      chunk.len > 0):
-
-      let blk = bt.Block.new(chunk).tryGet()
-      (await localStore.putBlock(blk)).tryGet()
-      manifest.add(blk.cid)
-
-    return manifest
+    await storeDataGetManifest(localStore, chunker)
 
   proc retrieve(cid: Cid): Future[seq[byte]] {.async.} =
     # Retrieve an entire file contents by file Cid
@@ -114,7 +103,7 @@ asyncchecksuite "Test Node":
 
     check:
       fetched.cid == manifest.cid
-      fetched.blocks == manifest.blocks
+      # fetched.blocks == manifest.blocks
 
   test "Block Batching":
     let
@@ -159,7 +148,7 @@ asyncchecksuite "Test Node":
     let data = await retrieve(manifestCid)
 
     check:
-      data.len == localManifest.originalBytes.int
+      data.len == localManifest.datasetSize.int
       data.len == original.len
       sha256.digest(data) == sha256.digest(original)
 

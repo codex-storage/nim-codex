@@ -7,6 +7,7 @@ import pkg/codex/streams
 import pkg/codex/storageproofs as st
 import pkg/codex/stores
 import pkg/codex/manifest
+import pkg/codex/merkletree
 import pkg/codex/chunker
 import pkg/codex/rng
 import pkg/codex/blocktype as bt
@@ -18,6 +19,7 @@ const
   SectorSize = 31'nb
   SectorsPerBlock = BlockSize div SectorSize
   DataSetSize = BlockSize * 100
+  CacheSize = DataSetSize * 2
 
 asyncchecksuite "BLS PoR":
   var
@@ -26,25 +28,18 @@ asyncchecksuite "BLS PoR":
     store: BlockStore
     ssk: st.SecretKey
     spk: st.PublicKey
-    porStream: StoreStream
-    proofStream: StoreStream
+    porStream: SeekableStream
+    proofStream: SeekableStream
 
   setup:
     chunker = RandomChunker.new(Rng.instance(), size = DataSetSize.int, chunkSize = BlockSize)
-    store = CacheStore.new(cacheSize = DataSetSize, chunkSize = BlockSize)
-    manifest = Manifest.new(blockSize = BlockSize).tryGet()
+    store = CacheStore.new(cacheSize = CacheSize, chunkSize = BlockSize)
     (spk, ssk) = st.keyGen()
 
-    porStream = StoreStream.new(store, manifest)
-    proofStream = StoreStream.new(store, manifest)
+    manifest = await storeDataGetManifest(store, chunker)
 
-    while (
-      let chunk = await chunker.getBytes();
-      chunk.len > 0):
-
-      let blk = bt.Block.new(chunk).tryGet()
-      manifest.add(blk.cid)
-      (await store.putBlock(blk)).tryGet()
+    porStream = SeekableStoreStream.new(store, manifest)
+    proofStream = SeekableStoreStream.new(store, manifest)
 
   teardown:
     await close(porStream)
@@ -92,31 +87,23 @@ asyncchecksuite "Test Serialization":
     por: PoR
     q: seq[QElement]
     proof: Proof
-    porStream: StoreStream
-    proofStream: StoreStream
+    porStream: SeekableStream
+    proofStream: SeekableStream
 
   setup:
     chunker = RandomChunker.new(Rng.instance(), size = DataSetSize.int, chunkSize = BlockSize)
-    store = CacheStore.new(cacheSize = DataSetSize, chunkSize = BlockSize)
-    manifest = Manifest.new(blockSize = BlockSize).tryGet()
-
-    while (
-      let chunk = await chunker.getBytes();
-      chunk.len > 0):
-
-      let blk = bt.Block.new(chunk).tryGet()
-      manifest.add(blk.cid)
-      (await store.putBlock(blk)).tryGet()
+    store = CacheStore.new(cacheSize = CacheSize, chunkSize = BlockSize)
+    manifest = await storeDataGetManifest(store, chunker)
 
     (spk, ssk) = st.keyGen()
-    porStream = StoreStream.new(store, manifest)
+    porStream = SeekableStoreStream.new(store, manifest)
     por = await PoR.init(
       porStream,
       ssk,
       spk,
       BlockSize.int)
     q = generateQuery(por.tau, 22)
-    proofStream = StoreStream.new(store, manifest)
+    proofStream = SeekableStoreStream.new(store, manifest)
     proof = await generateProof(
       proofStream,
       q,

@@ -6,6 +6,7 @@ import pkg/asynctest
 
 import pkg/codex/rng
 import pkg/codex/streams
+import pkg/codex/merkletree
 import pkg/codex/storageproofs as st
 import pkg/codex/blocktype as bt
 
@@ -14,6 +15,7 @@ import ../helpers
 const
   BlockSize = 31'nb * 64'nb
   DataSetSize = BlockSize * 100
+  CacheSize = DataSetSize * 2
 
 asyncchecksuite "Test PoR store":
   let
@@ -27,7 +29,7 @@ asyncchecksuite "Test PoR store":
     spk: st.PublicKey
     repoDir: string
     stpstore: st.StpStore
-    porStream: StoreStream
+    porStream: SeekableStream
     por: PoR
     porMsg: PorMessage
     cid: Cid
@@ -35,29 +37,20 @@ asyncchecksuite "Test PoR store":
 
   setup:
     chunker = RandomChunker.new(Rng.instance(), size = DataSetSize.int, chunkSize = BlockSize)
-    store = CacheStore.new(cacheSize = DataSetSize, chunkSize = BlockSize)
-    manifest = Manifest.new(blockSize = BlockSize).tryGet()
+    store = CacheStore.new(cacheSize = CacheSize * 2, chunkSize = BlockSize)
     (spk, ssk) = st.keyGen()
 
-    while (
-      let chunk = await chunker.getBytes();
-      chunk.len > 0):
+    manifest = await storeDataGetManifest(store, chunker)
 
-      let blk = bt.Block.new(chunk).tryGet()
-      manifest.add(blk.cid)
-      (await store.putBlock(blk)).tryGet()
-
-    cid = manifest.cid.tryGet()
-    porStream = StoreStream.new(store, manifest)
+    cid = manifest.treeCid
+    porStream = SeekableStoreStream.new(store, manifest)
     por = await PoR.init(
       porStream,
       ssk, spk,
       BlockSize.int)
-
     porMsg = por.toMessage()
     tags = blocks.mapIt(
       Tag(idx: it, tag: porMsg.authenticators[it]) )
-
     repoDir = getAppDir() / "stp"
     createDir(repoDir)
     stpstore = st.StpStore.init(repoDir)

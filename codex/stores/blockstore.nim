@@ -17,6 +17,8 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ../blocktype
+import ../merkletree
+import ../utils
 
 export blocktype
 
@@ -26,21 +28,35 @@ type
   BlockType* {.pure.} = enum
     Manifest, Block, Both
 
-  GetNext* = proc(): Future[?Cid] {.upraises: [], gcsafe, closure.}
-
-  BlocksIter* = ref object
-    finished*: bool
-    next*: GetNext
-
   BlockStore* = ref object of RootObj
-
-iterator items*(self: BlocksIter): Future[?Cid] =
-  while not self.finished:
-    yield self.next()
 
 method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
   ## Get a block from the blockstore
   ##
+
+  raiseAssert("Not implemented!")
+
+method getTree*(self: BlockStore, treeCid: Cid): Future[?!MerkleTree] {.base.} =
+  ## Get a merkle tree by Cid
+  ## 
+  
+  raiseAssert("Not implemented!")
+
+method getBlock*(self: BlockStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] {.base.} =
+  ## Get a block by Cid of a merkle tree and an index of a leaf in a tree, validate inclusion using merkle root
+  ## 
+  
+  raiseAssert("Not implemented!")
+
+method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.base.} =
+  ## Get a block and associated inclusion proof by Cid of a merkle tree and an index of a leaf in a tree
+  ## 
+  
+  raiseAssert("Not implemented!")
+
+method getBlocks*(self: BlockStore, treeCid: Cid, leavesCount: Natural, merkleRoot: MultiHash): Future[?!AsyncIter[?!Block]] {.base.} =
+  ## Get all blocks in range [0..<leavesCount] by Cid of a merkle tree, validate inclusion using merkle root
+  ## 
 
   raiseAssert("Not implemented!")
 
@@ -60,7 +76,19 @@ method delBlock*(self: BlockStore, cid: Cid): Future[?!void] {.base.} =
 
   raiseAssert("Not implemented!")
 
+method delBlock*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!void] {.base.} =
+  ## Delete a block from the blockstore
+  ##
+
+  raiseAssert("Not implemented!")
+
 method hasBlock*(self: BlockStore, cid: Cid): Future[?!bool] {.base.} =
+  ## Check if the block exists in the blockstore
+  ##
+
+  raiseAssert("Not implemented!")
+
+method hasBlock*(self: BlockStore, tree: Cid, index: Natural): Future[?!bool] {.base.} =
   ## Check if the block exists in the blockstore
   ##
 
@@ -68,7 +96,7 @@ method hasBlock*(self: BlockStore, cid: Cid): Future[?!bool] {.base.} =
 
 method listBlocks*(
   self: BlockStore,
-  blockType = BlockType.Manifest): Future[?!BlocksIter] {.base.} =
+  blockType = BlockType.Manifest): Future[?!AsyncIter[?Cid]] {.base.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 
@@ -87,3 +115,9 @@ proc contains*(self: BlockStore, blk: Cid): Future[bool] {.async.} =
   ##
 
   return (await self.hasBlock(blk)) |? false
+
+proc contains*(self: BlockStore, address: BlockAddress): Future[bool] {.async.} =
+  return if address.leaf:
+    (await self.hasBlock(address.treeCid, address.index)) |? false
+    else:
+    (await self.hasBlock(address.cid)) |? false

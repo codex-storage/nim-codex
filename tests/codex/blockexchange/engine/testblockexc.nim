@@ -122,8 +122,8 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
     let blk = bt.Block.new("Block 1".toBytes).tryGet()
     (await nodeCmps2.localStore.putBlock(blk)).tryGet()
 
-    let entry = Entry(
-      `block`: blk.cid.data.buffer,
+    let entry = WantListEntry(
+      address: blk.address,
       priority: 1,
       cancel: false,
       wantType: WantType.WantBlock,

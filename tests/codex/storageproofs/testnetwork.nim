@@ -10,6 +10,7 @@ import pkg/codex/chunker
 import pkg/codex/storageproofs
 import pkg/codex/discovery
 import pkg/codex/manifest
+import pkg/codex/merkletree
 import pkg/codex/stores
 import pkg/codex/storageproofs as st
 import pkg/codex/blocktype as bt
@@ -21,6 +22,7 @@ import ../helpers
 const
   BlockSize = 31'nb * 64
   DataSetSize = BlockSize * 100
+  CacheSize = DataSetSize * 2
 
 asyncchecksuite "Storage Proofs Network":
   let
@@ -42,26 +44,19 @@ asyncchecksuite "Storage Proofs Network":
     spk: st.PublicKey
     porMsg: PorMessage
     cid: Cid
-    porStream: StoreStream
+    porStream: SeekableStoreStream
     por: PoR
     tags: seq[Tag]
 
   setup:
     chunker = RandomChunker.new(Rng.instance(), size = DataSetSize.int, chunkSize = BlockSize)
-    store = CacheStore.new(cacheSize = DataSetSize, chunkSize = BlockSize)
-    manifest = Manifest.new(blockSize = BlockSize).tryGet()
+    store = CacheStore.new(cacheSize = CacheSize, chunkSize = BlockSize)
     (spk, ssk) = st.keyGen()
 
-    while (
-      let chunk = await chunker.getBytes();
-      chunk.len > 0):
-
-      let blk = bt.Block.new(chunk).tryGet()
-      manifest.add(blk.cid)
-      (await store.putBlock(blk)).tryGet()
+    manifest = await storeDataGetManifest(store, chunker)
 
     cid = manifest.cid.tryGet()
-    porStream = StoreStream.new(store, manifest)
+    porStream = SeekableStoreStream.new(store, manifest)
     por = await PoR.init(
       porStream,
       ssk, spk,

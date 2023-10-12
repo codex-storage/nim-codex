@@ -12,8 +12,10 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronos
+import pkg/chronos/futures
 import pkg/chronicles
-import pkg/libp2p/cid
+import pkg/libp2p/[cid, multicodec, multihash]
+import pkg/lrucache
 import pkg/metrics
 import pkg/questionable
 import pkg/questionable/results
@@ -22,9 +24,12 @@ import pkg/stew/endians2
 
 import ./blockstore
 import ./keyutils
+import ./treereader
 import ../blocktype
 import ../clock
 import ../systemclock
+import ../merkletree
+import ../utils
 
 export blocktype, cid
 
@@ -54,19 +59,11 @@ type
     quotaReservedBytes*: uint     # bytes reserved by the repo
     blockTtl*: Duration
     started*: bool
+    treeReader*: TreeReader
 
   BlockExpiration* = object
     cid*: Cid
     expiration*: SecondsSince1970
-
-  GetNext = proc(): Future[?BlockExpiration] {.upraises: [], gcsafe, closure.}
-  BlockExpirationIter* = ref object
-    finished*: bool
-    next*: GetNext
-
-iterator items*(q: BlockExpirationIter): Future[?BlockExpiration] =
-  while not q.finished:
-    yield q.next()
 
 proc updateMetrics(self: RepoStore) =
   codexRepostoreBlocks.set(self.totalBlocks.int64)
@@ -91,7 +88,7 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
 
   if cid.isEmpty:
     trace "Empty block, ignoring"
-    return success cid.emptyBlock
+    return cid.emptyBlock
 
   without key =? makePrefixKey(self.postFixLen, cid), err:
     trace "Error getting key from provider", err = err.msg
@@ -105,7 +102,19 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
     return failure(newException(BlockNotFoundError, err.msg))
 
   trace "Got block for cid", cid
-  return Block.new(cid, data)
+  return Block.new(cid, data, verify = true)
+
+method getTree*(self: RepoStore, treeCid: Cid): Future[?!MerkleTree] =
+  self.treeReader.getTree(treeCid)
+
+method getBlock*(self: RepoStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] =
+  self.treeReader.getBlock(treeCid, index)
+
+method getBlocks*(self: RepoStore, treeCid: Cid, leavesCount: Natural, merkleRoot: MultiHash): Future[?!AsyncIter[?!Block]] =
+  self.treeReader.getBlocks(treeCid, leavesCount)
+
+method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] =
+  self.treeReader.getBlockAndProof(treeCid, index)
 
 proc getBlockExpirationTimestamp(self: RepoStore, ttl: ?Duration): SecondsSince1970 =
   let duration = ttl |? self.blockTtl
@@ -252,6 +261,12 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
   self.updateMetrics()
   return success()
 
+method delBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!void] {.async.} =
+  without cid =? await self.treeReader.getBlockCid(treeCid, index), err:
+    return failure(err)
+
+  await self.delBlock(cid)
+
 method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
   ##
@@ -269,15 +284,22 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
 
   return await self.repoDs.has(key)
 
+method hasBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!bool] {.async.} =
+  without cid =? await self.treeReader.getBlockCid(treeCid, index), err:
+    return failure(err)
+  
+  await self.hasBlock(cid)
+
 method listBlocks*(
   self: RepoStore,
-  blockType = BlockType.Manifest): Future[?!BlocksIter] {.async.} =
+  blockType = BlockType.Manifest
+): Future[?!AsyncIter[?Cid]] {.async.} =
   ## Get the list of blocks in the RepoStore.
   ## This is an intensive operation
   ##
 
   var
-    iter = BlocksIter()
+    iter = AsyncIter[?Cid]()
 
   let key =
     case blockType:
@@ -311,8 +333,8 @@ proc createBlockExpirationQuery(maxNumber: int, offset: int): ?!Query =
 method getBlockExpirations*(
   self: RepoStore,
   maxNumber: int,
-  offset: int): Future[?!BlockExpirationIter] {.async, base.} =
-  ## Get block expirations from the given RepoStore
+  offset: int): Future[?!AsyncIter[?BlockExpiration]] {.async, base.} =
+  ## Get block experiartions from the given RepoStore
   ##
 
   without query =? createBlockExpirationQuery(maxNumber, offset), err:
@@ -323,7 +345,7 @@ method getBlockExpirations*(
     trace "Unable to execute block expirations query"
     return failure(err)
 
-  var iter = BlockExpirationIter()
+  var iter = AsyncIter[?BlockExpiration]()
 
   proc next(): Future[?BlockExpiration] {.async.} =
     if not queryIter.finished:
@@ -338,7 +360,7 @@ method getBlockExpirations*(
         ).some
     else:
       discard await queryIter.dispose()
-    iter.finished = true
+    iter.finish
     return BlockExpiration.none
 
   iter.next = next
@@ -467,17 +489,25 @@ func new*(
     T: type RepoStore,
     repoDs: Datastore,
     metaDs: Datastore,
+    treeReader: TreeReader = TreeReader.new(),
     clock: Clock = SystemClock.new(),
     postFixLen = 2,
     quotaMaxBytes = DefaultQuotaBytes,
-    blockTtl = DefaultBlockTtl
+    blockTtl = DefaultBlockTtl,
+    treeCacheCapacity = DefaultTreeCacheCapacity
 ): RepoStore =
   ## Create new instance of a RepoStore
   ##
-  RepoStore(
+  let store = RepoStore(
     repoDs: repoDs,
     metaDs: metaDs,
+    treeReader: treeReader,
     clock: clock,
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,
     blockTtl: blockTtl)
+
+  proc getBlockFromStore(cid: Cid): Future[?!Block] = store.getBlock(cid)
+  
+  treeReader.getBlockFromStore = getBlockFromStore
+  store
