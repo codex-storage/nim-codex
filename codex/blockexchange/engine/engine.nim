@@ -122,9 +122,9 @@ proc stop*(b: BlockExcEngine) {.async.} =
 
 
 proc sendWantHave(
-  b: BlockExcEngine, 
-  address: BlockAddress, 
-  selectedPeer: BlockExcPeerCtx, 
+  b: BlockExcEngine,
+  address: BlockAddress,
+  selectedPeer: BlockExcPeerCtx,
   peers: seq[BlockExcPeerCtx]): Future[void] {.async.} =
   trace "Sending wantHave request to peers", address
   for p in peers:
@@ -137,8 +137,8 @@ proc sendWantHave(
           wantType = WantType.WantHave) # we only want to know if the peer has the block
 
 proc sendWantBlock(
-  b: BlockExcEngine, 
-  address: BlockAddress, 
+  b: BlockExcEngine,
+  address: BlockAddress,
   blockPeer: BlockExcPeerCtx): Future[void] {.async.} =
   trace "Sending wantBlock request to", peer = blockPeer.id, address
   await b.network.request.sendWantList(
@@ -189,14 +189,14 @@ proc requestBlock(
   if peers.len == 0:
     b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
 
-  let maybePeer = 
+  let maybePeer =
     if peers.len > 0:
       peers[index mod peers.len].some
     elif b.peers.len > 0:
       toSeq(b.peers)[index mod b.peers.len].some
     else:
       BlockExcPeerCtx.none
-  
+
   if peer =? maybePeer:
     asyncSpawn b.monitorBlockHandle(blockFuture, address, peer.id)
     treeReq.setInFlight(address)
@@ -204,8 +204,90 @@ proc requestBlock(
     codexBlockExchangeWantBlockListsSent.inc()
     await b.sendWantHave(address, peer, toSeq(b.peers))
     codexBlockExchangeWantHaveListsSent.inc()
-    
+
   return await blockFuture
+
+proc requestBlock(
+  b: BlockExcEngine,
+  treeReq: TreeReq,
+  index: Natural,
+  timeout = DefaultBlockTimeout
+): Future[Block] {.async.} =
+  let address = BlockAddress(leaf: true, treeCid: treeReq.treeCid, index: index)
+
+  let handleOrCid = treeReq.getWantHandleOrCid(index, timeout)
+  if handleOrCid.resolved:
+    without blk =? await b.localStore.getBlock(handleOrCid.cid), err:
+      return await b.requestBlock(handleOrCid.cid, timeout)
+    return blk
+
+  let blockFuture = handleOrCid.handle
+
+  if treeReq.isInFlight(index):
+    return await blockFuture
+
+  let peers = b.peers.selectCheapest(address)
+  if peers.len == 0:
+    b.discovery.queueFindBlocksReq(@[treeReq.treeCid])
+
+  let maybePeer =
+    if peers.len > 0:
+      peers[index mod peers.len].some
+    elif b.peers.len > 0:
+      toSeq(b.peers)[index mod b.peers.len].some
+    else:
+      BlockExcPeerCtx.none
+
+  if peer =? maybePeer:
+    asyncSpawn b.monitorBlockHandle(blockFuture, address, peer.id)
+    treeReq.trySetInFlight(index)
+    await b.sendWantBlock(address, peer)
+    codexBlockExchangeWantBlockListsSent.inc()
+    await b.sendWantHave(address, peer, toSeq(b.peers))
+    codexBlockExchangeWantHaveListsSent.inc()
+
+  return await blockFuture
+
+proc requestBlock*(
+  b: BlockExcEngine,
+  treeCid: Cid,
+  index: Natural,
+  merkleRoot: MultiHash,
+  timeout = DefaultBlockTimeout
+): Future[Block] =
+  without treeReq =? b.pendingBlocks.getOrPutTreeReq(treeCid, Natural.none, merkleRoot), err:
+    raise err
+
+  return b.requestBlock(treeReq, index, timeout)
+
+proc requestBlocks*(
+  b: BlockExcEngine,
+  treeCid: Cid,
+  leavesCount: Natural,
+  merkleRoot: MultiHash,
+  timeout = DefaultBlockTimeout
+): ?!AsyncIter[Block] =
+  without treeReq =? b.pendingBlocks.getOrPutTreeReq(treeCid, leavesCount.some, merkleRoot), err:
+    return failure(err)
+
+  var
+    iter = AsyncIter[Block]()
+    index = 0
+
+  proc next(): Future[Block] =
+    if index < leavesCount:
+      let fut = b.requestBlock(treeReq, index, timeout)
+      inc index
+      if index >= leavesCount:
+        iter.finished = true
+      return fut
+    else:
+      let fut = newFuture[Block]("engine.requestBlocks")
+      fut.fail(newException(CodexError, "No more elements for tree with cid " & $treeCid))
+      return fut
+
+  iter.next = next
+  return success(iter)
 
 proc blockPresenceHandler*(
   b: BlockExcEngine,
@@ -492,7 +574,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       trace "Handling lookup for entry", address = e.address
       if e.address.leaf:
         (await b.localStore.getBlockAndProof(e.address.treeCid, e.address.index)).map(
-          (blkAndProof: (Block, MerkleProof)) => 
+          (blkAndProof: (Block, MerkleProof)) =>
             BlockDelivery(address: e.address, blk: blkAndProof[0], proof: blkAndProof[1].some)
         )
       else:

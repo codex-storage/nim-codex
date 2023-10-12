@@ -99,7 +99,7 @@ proc getBlocks*(self: TreeReader, treeCid: Cid, leavesCount: Natural): Future[?!
 
 func new*(
   T: type TreeReader,
-  getBlockFromStore: GetBlock, 
+  getBlockFromStore: GetBlock,
   treeCacheCap = DefaultTreeCacheCapacity
 ): TreeReader {.noSideEffect.} =
   TreeReader(

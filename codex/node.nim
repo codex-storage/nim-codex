@@ -109,7 +109,7 @@ proc fetchBatched*(
   onBatch: BatchProc = nil): Future[?!void] {.async, gcsafe.} =
   ## Fetch manifest in batches of `batchSize`
   ##
-  
+
   let batchCount = divUp(manifest.blocksCount, batchSize)
 
   trace "Fetching blocks in batches of", size = batchSize
@@ -207,7 +207,7 @@ proc store*(
 
       without blk =? bt.Block.new(cid, chunk, verify = false):
         return failure("Unable to init block from chunk!")
-      
+
       cids.add(cid)
 
       if err =? (await self.blockStore.putBlock(blk)).errorOption:
@@ -227,7 +227,7 @@ proc store*(
 
   without treeCid =? Cid.init(CIDv1, dataCodec, tree.root).mapFailure, err:
     return failure(err)
-  
+
   for cid, index in cids:
     without proof =? tree.getProof(index), err:
       return failure(err)

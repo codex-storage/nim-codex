@@ -90,7 +90,7 @@ func new*(
     codec = multiCodec("raw")
 ): ?!Block =
   ## creates a new block for both storage and network IO
-  ## 
+  ##
 
   let
     hash = ? MultiHash.digest($mcodec, data).mapFailure
@@ -126,7 +126,7 @@ func new*(
 
 proc emptyCid*(version: CidVersion, hcodec: MultiCodec, dcodec: MultiCodec): ?!Cid =
   ## Returns cid representing empty content, given cid version, hash codec and data codec
-  ## 
+  ##
 
   const
     Sha256 = multiCodec("sha2-256")
@@ -155,11 +155,11 @@ proc emptyBlock*(version: CidVersion, hcodec: MultiCodec): ?!Block =
     .flatMap((cid: Cid) => Block.new(cid = cid, data = @[]))
 
 proc emptyBlock*(cid: Cid): ?!Block =
-  cid.mhash.mapFailure.flatMap((mhash: MultiHash) => 
+  cid.mhash.mapFailure.flatMap((mhash: MultiHash) =>
       emptyBlock(cid.cidver, mhash.mcodec))
 
 proc isEmpty*(cid: Cid): bool =
-  success(cid) == cid.mhash.mapFailure.flatMap((mhash: MultiHash) => 
+  success(cid) == cid.mhash.mapFailure.flatMap((mhash: MultiHash) =>
       emptyCid(cid.cidver, mhash.mcodec, cid.mcodec))
 
 proc isEmpty*(blk: Block): bool =

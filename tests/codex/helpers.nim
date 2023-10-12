@@ -43,7 +43,7 @@ proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, MerkleTree) =
   if blocks.len == 0:
     return failure("Blocks list was empty")
 
-  let 
+  let
     datasetSize = blocks.mapIt(it.data.len).foldl(a + b)
     blockSize = blocks.mapIt(it.data.len).foldl(max(a, b))
     tree = ? MerkleTree.init(blocks.mapIt(it.cid))

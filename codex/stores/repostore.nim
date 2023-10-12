@@ -64,7 +64,7 @@ type
   BlockExpiration* = object
     cid*: Cid
     expiration*: SecondsSince1970
-  
+
 proc updateMetrics(self: RepoStore) =
   codexRepostoreBlocks.set(self.totalBlocks.int64)
   codexRepostoreBytesUsed.set(self.quotaUsedBytes.int64)
@@ -88,18 +88,18 @@ proc encode(cidAndProof: (Cid, MerkleProof)): seq[byte] =
   pb.buffer
 
 proc decode(_: type (Cid, MerkleProof), data: seq[byte]): ?!(Cid, MerkleProof) =
-  var 
+  var
     pbNode = initProtoBuffer(data)
     cidBuf: seq[byte]
     proofBuf: seq[byte]
 
   discard pbNode.getField(1, cidBuf).mapFailure
   discard pbNode.getField(2, proofBuf).mapFailure
-  
-  let 
+
+  let
     cid = ? Cid.init(cidBuf).mapFailure
     proof = ? MerkleProof.decode(proofBuf)
-  
+
   (cid, proof)
 
 method putBlockCidAndProof*(
@@ -147,7 +147,7 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
 method getBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!Block] =
   without (blk, _) =? await self.getBlockAndProof(treeCid, index), err:
     return failure(err)
-  
+
   success(blk)
 
 
@@ -338,7 +338,7 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
 method hasBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!bool] {.async.} =
   without cid =? await self.treeReader.getBlockCid(treeCid, index), err:
     return failure(err)
-  
+
   await self.hasBlock(cid)
 
 method listBlocks*(
@@ -541,6 +541,7 @@ proc new*(
     T: type RepoStore,
     repoDs: Datastore,
     metaDs: Datastore,
+    treeReader: TreeReader = TreeReader.new(),
     clock: Clock = SystemClock.new(),
     postFixLen = 2,
     quotaMaxBytes = DefaultQuotaBytes,
@@ -552,6 +553,7 @@ proc new*(
   let store = RepoStore(
     repoDs: repoDs,
     metaDs: metaDs,
+    treeReader: treeReader,
     clock: clock,
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,

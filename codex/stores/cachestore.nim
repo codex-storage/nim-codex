@@ -91,7 +91,7 @@ method hasBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!bool]
 
   without cid =? await self.treeReader.getBlockCid(treeCid, index), err:
     return failure(err)
-  
+
   await self.hasBlock(cid)
 
 func cids(self: CacheStore): (iterator: Cid {.gcsafe.}) =
@@ -230,11 +230,14 @@ proc new*(
   if cacheSize < chunkSize:
     raise newException(ValueError, "cacheSize cannot be less than chunkSize")
 
+  var treeReader = TreeReader.new()
+
   let
     currentSize = 0'nb
     size = int(cacheSize div chunkSize)
     cache = newLruCache[Cid, Block](size)
     store = CacheStore(
+      treeReader: treeReader,
       cache: cache,
       currentSize: currentSize,
       size: cacheSize)

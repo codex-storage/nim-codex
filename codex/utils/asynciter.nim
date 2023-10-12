@@ -1,5 +1,4 @@
 import std/sugar
-
 import pkg/questionable
 import pkg/chronos
 import pkg/upraises
@@ -54,14 +53,14 @@ proc new*[T](_: type Iter, genNext: GenNext[T], isFinished: IsFinished, finishOn
 
   if isFinished():
     iter.finish
-  
+
   iter.next = next
   return iter
 
 proc fromItems*[T](_: type Iter, items: openArray[T]): Iter[T] =
   ## Create new iterator from items
   ##
-  
+
   Iter.fromSlice(0..<items.len)
     .map((i) => items[i])
 
@@ -81,7 +80,7 @@ proc fromRange*[U, V, S: Ordinal](_: type Iter, a: U, b: V, step: S = 1): Iter[U
     let u = i
     inc(i, step)
     u
-  
+
   proc isFinished(): bool =
     (step > 0 and i > b) or
       (step < 0 and i < b)
@@ -119,7 +118,6 @@ proc prefetch*[T](iter: Iter[T], n: Positive): Iter[T] =
   var ringBuf = newSeq[T](n)
   var iterLen = int.high
   var i = 0
-
   proc tryFetch(j: int): void =
     if not iter.finished:
       let item = iter.next()
