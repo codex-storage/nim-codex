@@ -55,4 +55,4 @@ method run*(state: SaleUnknown, machine: Machine): Future[?State] {.async.} =
   of SlotState.Failed:
     return some State(SaleFailed())
   of SlotState.Cancelled:
-    return some State(SalePayout())
+    return some State(SaleCancelled())
