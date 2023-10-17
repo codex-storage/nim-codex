@@ -44,20 +44,9 @@ proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, MerkleTree) =
     return failure("Blocks list was empty")
 
   let 
-    mcodec = (? blocks[0].cid.mhash.mapFailure).mcodec
     datasetSize = blocks.mapIt(it.data.len).foldl(a + b)
     blockSize = blocks.mapIt(it.data.len).foldl(max(a, b))
-
-  var builder = ? MerkleTreeBuilder.init(mcodec)
-
-  for b in blocks:
-    let mhash = ? b.cid.mhash.mapFailure
-    if mhash.mcodec != mcodec:
-      return failure("Blocks are not using the same codec")
-    ? builder.addLeaf(mhash)
-
-  let 
-    tree = ? builder.build()
+    tree = ? MerkleTree.init(blocks.mapIt(it.cid))
     treeBlk = ? Block.new(tree.encode())
     manifest = Manifest.new(
       treeCid = treeBlk.cid,
@@ -65,7 +54,7 @@ proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, MerkleTree) =
       blockSize = NBytes(blockSize),
       datasetSize = NBytes(datasetSize),
       version = CIDv1,
-      hcodec = mcodec
+      hcodec = tree.mcodec
     )
 
   return success((manifest, tree))

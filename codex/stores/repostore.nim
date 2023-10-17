@@ -104,9 +104,6 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   trace "Got block for cid", cid
   return Block.new(cid, data, verify = true)
 
-method getTree*(self: RepoStore, treeCid: Cid): Future[?!MerkleTree] =
-  self.treeReader.getTree(treeCid)
-
 method getBlock*(self: RepoStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] =
   self.treeReader.getBlock(treeCid, index)
 
@@ -314,14 +311,15 @@ method listBlocks*(
 
   proc next(): Future[?Cid] {.async.} =
     await idleAsync()
-    iter.finished = queryIter.finished
-    if not queryIter.finished:
+    if queryIter.finished:
+      iter.finish
+    else:
       if pair =? (await queryIter.next()) and cid =? pair.key:
         doAssert pair.data.len == 0
         trace "Retrieved record from repo", cid
         return Cid.init(cid.value).option
-
-    return Cid.none
+      else:
+        return Cid.none
 
   iter.next = next
   return success iter
