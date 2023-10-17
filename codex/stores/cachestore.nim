@@ -66,9 +66,6 @@ method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
     trace "Error requesting block from cache", cid, error = exc.msg
     return failure exc
 
-method getTree*(self: CacheStore, treeCid: Cid): Future[?!MerkleTree] =
-  self.treeReader.getTree(treeCid)
-
 method getBlock*(self: CacheStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] =
   self.treeReader.getBlock(treeCid, index)
 

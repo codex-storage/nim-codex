@@ -161,9 +161,6 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   trace "Got block for cid", cid
   return Block.new(cid, data, verify = true)
 
-method getTree*(self: RepoStore, treeCid: Cid): Future[?!MerkleTree] =
-  self.treeReader.getTree(treeCid)
-
 method getBlock*(self: RepoStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] =
   self.treeReader.getBlock(treeCid, index)
 
