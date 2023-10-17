@@ -129,9 +129,6 @@ method hasBlock*(self: NetworkStore, cid: Cid): Future[?!bool] {.async.} =
   trace "Checking network store for block existence", cid
   return await self.localStore.hasBlock(cid)
 
-method getTree*(self: NetworkStore, treeCid: Cid): Future[?!MerkleTree] =
-  self.localStore.getTree(treeCid)
-
 method close*(self: NetworkStore): Future[void] {.async.} =
   ## Close the underlying local blockstore
   ##

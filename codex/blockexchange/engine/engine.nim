@@ -277,24 +277,9 @@ proc requestBlocks*(
   without treeReq =? b.pendingBlocks.getOrPutTreeReq(treeCid, leavesCount.some, merkleRoot), err:
     return failure(err)
 
-  var
-    iter = AsyncIter[Block]()
-    index = 0
-
-  proc next(): Future[Block] =
-    if index < leavesCount:
-      let fut = b.requestBlock(treeReq, index, timeout)
-      inc index
-      if index >= leavesCount:
-        iter.finished = true
-      return fut
-    else:
-      let fut = newFuture[Block]("engine.requestBlocks")
-      fut.fail(newException(CodexError, "No more elements for tree with cid " & $treeCid))
-      return fut
-
-  iter.next = next
-  return success(iter)
+  return Iter.fromSlice(0..<leavesCount).map(
+    (index: int) => b.requestBlock(treeReq, index, timeout)
+  ).success
 
 proc blockPresenceHandler*(
   b: BlockExcEngine,
