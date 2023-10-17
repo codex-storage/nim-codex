@@ -334,7 +334,7 @@ method getBlockExpirations*(
   self: RepoStore,
   maxNumber: int,
   offset: int): Future[?!AsyncIter[?BlockExpiration]] {.async, base.} =
-  ## Get block experiartions from the given RepoStore
+  ## Get block expirations from the given RepoStore
   ##
 
   without query =? createBlockExpirationQuery(maxNumber, offset), err:
