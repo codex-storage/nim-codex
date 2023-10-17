@@ -1,8 +1,12 @@
 import pkg/metrics
+import pkg/chronicles
 import ../statemachine
 import ./errorhandling
 import ./started
 import ./cancelled
+
+logScope:
+    topics = "marketplace purchases submitted"
 
 declareCounter(codexPurchasesSubmitted, "codex purchases submitted")
 
@@ -18,6 +22,8 @@ method run*(state: PurchaseSubmitted, machine: Machine): Future[?State] {.async.
   let market = purchase.market
   let clock = purchase.clock
 
+  info "Request submitted, waiting for slots to be filled", requestId = purchase.requestId
+
   proc wait {.async.} =
     let done = newFuture[void]()
     proc callback(_: RequestId) =
@@ -27,7 +33,7 @@ method run*(state: PurchaseSubmitted, machine: Machine): Future[?State] {.async.
     await subscription.unsubscribe()
 
   proc withTimeout(future: Future[void]) {.async.} =
-    let expiry = request.expiry.truncate(int64)
+    let expiry = request.expiry.truncate(int64) + 1
     await future.withTimeout(clock, expiry)
 
   try:
