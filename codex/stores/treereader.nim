@@ -1,5 +1,4 @@
 import pkg/upraises
-
 import pkg/chronos
 import pkg/chronos/futures
 import pkg/chronicles
@@ -16,12 +15,11 @@ const DefaultTreeCacheCapacity* = 10    # Max number of trees stored in memory
 
 type
   GetBlock = proc (cid: Cid): Future[?!Block] {.upraises: [], gcsafe, closure.}
-  DelBlock = proc (cid: Cid): Future[?!void] {.upraises: [], gcsafe, closure.}
   TreeReader* = ref object of RootObj
     getBlockFromStore*: GetBlock
     treeCache*: LruCache[Cid, MerkleTree]
 
-method getTree*(self: TreeReader, cid: Cid): Future[?!MerkleTree] {.async.} =
+proc getTree*(self: TreeReader, cid: Cid): Future[?!MerkleTree] {.async.} =
   if tree =? self.treeCache.getOption(cid):
     return success(tree)
   else:
@@ -35,7 +33,7 @@ method getTree*(self: TreeReader, cid: Cid): Future[?!MerkleTree] {.async.} =
     trace "Got merkle tree for cid", cid
     return success(tree)
 
-method getBlockCidAndProof*(self: TreeReader, treeCid: Cid, index: Natural): Future[?!(Cid, MerkleProof)] {.async.} =
+proc getBlockCidAndProof*(self: TreeReader, treeCid: Cid, index: Natural): Future[?!(Cid, MerkleProof)] {.async.} =
   without tree =? await self.getTree(treeCid), err:
     return failure(err)
 
@@ -50,7 +48,7 @@ method getBlockCidAndProof*(self: TreeReader, treeCid: Cid, index: Natural): Fut
 
   return success((leafCid, proof))
 
-method getBlockCid*(self: TreeReader, treeCid: Cid, index: Natural): Future[?!Cid] {.async.} =
+proc getBlockCid*(self: TreeReader, treeCid: Cid, index: Natural): Future[?!Cid] {.async.} =
   without tree =? await self.getTree(treeCid), err:
     return failure(err)
 
@@ -62,7 +60,7 @@ method getBlockCid*(self: TreeReader, treeCid: Cid, index: Natural): Future[?!Ci
 
   return success(leafCid)
 
-method getBlock*(self: TreeReader, treeCid: Cid, index: Natural): Future[?!Block] {.async.} =
+proc getBlock*(self: TreeReader, treeCid: Cid, index: Natural): Future[?!Block] {.async.} =
   without leafCid =? await self.getBlockCid(treeCid, index), err:
     return failure(err)
 
@@ -71,7 +69,7 @@ method getBlock*(self: TreeReader, treeCid: Cid, index: Natural): Future[?!Block
 
   return success(blk)
 
-method getBlockAndProof*(self: TreeReader, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.async.} =
+proc getBlockAndProof*(self: TreeReader, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.async.} =
   without (leafCid, proof) =? await self.getBlockCidAndProof(treeCid, index), err:
     return failure(err)
 
@@ -80,28 +78,14 @@ method getBlockAndProof*(self: TreeReader, treeCid: Cid, index: Natural): Future
 
   return success((blk, proof))
 
-method getBlocks*(self: TreeReader, treeCid: Cid, leavesCount: Natural): Future[?!AsyncIter[?!Block]] {.async.} =
+proc getBlocks*(self: TreeReader, treeCid: Cid, leavesCount: Natural): Future[?!AsyncIter[?!Block]] {.async.} =
   without tree =? await self.getTree(treeCid), err:
     return failure(err)
 
-  var iter = AsyncIter[?!Block]()
-
-  proc checkLen(index: Natural): void =
-    if index >= leavesCount:
-      iter.finish
-
-  checkLen(0)
-
-  var index = 0
-  proc next(): Future[?!Block] {.async.} =
-    if not iter.finished:
+  let iter = Iter.fromSlice(0..<leavesCount)
+    .map(proc (index: int): Future[?!Block] {.async.} =
       without leaf =? tree.getLeaf(index), err:
-        inc index
-        checkLen(index)
         return failure(err)
-
-      inc index
-      checkLen(index)
 
       without leafCid =? Cid.init(treeCid.cidver, treeCid.mcodec, leaf).mapFailure, err:
         return failure(err)
@@ -110,10 +94,7 @@ method getBlocks*(self: TreeReader, treeCid: Cid, leavesCount: Natural): Future[
         return failure(err)
 
       return success(blk)
-    else:
-      return failure("No more elements for tree with cid " & $treeCid)
-
-  iter.next = next
+    )
   return success(iter)
 
 proc new*(T: type TreeReader, treeCacheCap = DefaultTreeCacheCapacity): TreeReader =

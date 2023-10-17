@@ -55,12 +55,6 @@ method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future
   
   raiseAssert("getBlockAndProof not implemented!")
 
-method getTree*(self: BlockStore, treeCid: Cid): Future[?!MerkleTree] {.base.} =
-  ## Get a merkle tree by Cid
-  ## 
-  
-  raiseAssert("Not implemented!")
-
 method getBlock*(self: BlockStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] {.base.} =
   ## Get a block by Cid of a merkle tree and an index of a leaf in a tree, validate inclusion using merkle root
   ## 

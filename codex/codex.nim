@@ -243,6 +243,7 @@ proc new*(
       repoDs = repoData,
       metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
         .expect("Should create meta data store!"),
+      treeReader = treeReader,
       quotaMaxBytes = config.storageQuota.uint,
       blockTtl = config.blockTtl)
 

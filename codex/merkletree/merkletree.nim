@@ -16,7 +16,7 @@ import std/algorithm
 import pkg/chronicles
 import pkg/questionable/results
 import pkg/nimcrypto/sha2
-import pkg/libp2p/[multicodec, multihash, vbuffer]
+import pkg/libp2p/[cid, multicodec, multihash, vbuffer]
 import pkg/stew/byteutils
 
 import ../errors
@@ -256,7 +256,7 @@ proc `==`*(a, b: MerkleTree): bool =
   (a.leavesCount == b.leavesCount) and
     (a.nodesBuffer == b.nodesBuffer)
 
-func init*(
+proc init*(
   T: type MerkleTree,
   mcodec: MultiCodec,
   digestSize: Natural,
@@ -276,6 +276,33 @@ func init*(
     )
   else:
     failure("Expected nodesBuffer len to be " & $(totalNodes * digestSize) & " but was " & $nodesBuffer.len)
+
+proc init*(
+  T: type MerkleTree,
+  cids: openArray[Cid]
+): ?!MerkleTree =
+  let leaves = collect:
+    for cid in cids:
+      without mhash =? cid.mhash.mapFailure, errx:
+        return failure(errx)
+      mhash
+
+  MerkleTree.init(leaves)
+
+proc init*(
+  T: type MerkleTree,
+  leaves: openArray[MultiHash]
+): ?!MerkleTree =
+  without leaf =? leaves.?[0]:
+    return failure("At least one leaf is required")
+  
+  var builder = ? MerkleTreeBuilder.init(mcodec = leaf.mcodec)
+
+  for l in leaves:
+    if err =? builder.addLeaf(l).errorOption:
+      return failure(err)
+  
+  builder.build()
 
 ###########################################################
 # MerkleProof
