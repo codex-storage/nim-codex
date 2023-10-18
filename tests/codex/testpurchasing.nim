@@ -105,7 +105,7 @@ asyncchecksuite "Purchasing":
     let purchase = await purchasing.purchase(request)
     check eventually market.requested.len > 0
     let request = market.requested[0]
-    clock.set(request.expiry.truncate(int64))
+    clock.set(request.expiry.truncate(int64)+1)
     expect PurchaseTimeout:
       await purchase.wait()
 
@@ -113,7 +113,7 @@ asyncchecksuite "Purchasing":
     let purchase = await purchasing.purchase(request)
     check eventually market.requested.len > 0
     let request = market.requested[0]
-    clock.set(request.expiry.truncate(int64))
+    clock.set(request.expiry.truncate(int64)+1)
     expect PurchaseTimeout:
       await purchase.wait()
     check market.withdrawn == @[request.id]
