@@ -10,6 +10,7 @@ import pkg/codex/utils/stintutils
 import ../contracts/time
 import ../contracts/deployment
 import ../codex/helpers
+import ../examples
 import ./twonodes
 
 
@@ -174,12 +175,12 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
 
     # client 2 makes storage available
     let startBalanceClient2 = await token.balanceOf(account2)
-    discard client2.postAvailability(size=0xFFFFF.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
+    discard client2.postAvailability(size=140000.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
 
     # client 1 requests storage but requires two nodes to host the content
     let startBalanceClient1 = await token.balanceOf(account1)
     let expiry = (await provider.currentTime()) + 10
-    let cid = client1.upload("some file contents").get
+    let cid = client1.upload(exampleString(100000)).get
     let id = client1.requestStorage(cid, duration=duration, reward=reward, proofProbability=3.u256, expiry=expiry, collateral=200.u256, nodes=2).get
 
     check eventually(client1.purchaseStateIs(id, "errored"), 20000)

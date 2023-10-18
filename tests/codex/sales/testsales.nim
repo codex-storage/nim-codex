@@ -453,7 +453,8 @@ asyncchecksuite "Sales":
       return success()
     createAvailability()
     await market.requestStorage(request)
-    clock.set(request.expiry.truncate(int64))
+    market.requestState[request.id]=RequestState.Cancelled
+    clock.set(request.expiry.truncate(int64)+1)
     check eventually (await reservations.all(Availability)).get == @[availability]
     check getAvailability().size == origSize
 
