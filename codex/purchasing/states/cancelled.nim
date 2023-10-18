@@ -7,7 +7,7 @@ import ./error
 declareCounter(codexPurchasesCancelled, "codex purchases cancelled")
 
 logScope:
-    topics = "marketplace purchases cancelled"
+  topics = "marketplace purchases cancelled"
 
 type PurchaseCancelled* = ref object of ErrorHandlingState
 

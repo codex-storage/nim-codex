@@ -6,7 +6,7 @@ import ../../utils/exceptions
 declareCounter(codexPurchasesError, "codex purchases error")
 
 logScope:
-    topics = "marketplace purchases errored"
+  topics = "marketplace purchases errored"
 
 type PurchaseErrored* = ref object of PurchaseState
   error*: ref CatchableError

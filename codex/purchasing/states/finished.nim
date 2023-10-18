@@ -5,7 +5,7 @@ import ../statemachine
 declareCounter(codexPurchasesFinished, "codex purchases finished")
 
 logScope:
-    topics = "marketplace purchases finished"
+  topics = "marketplace purchases finished"
 
 type PurchaseFinished* = ref object of PurchaseState
 

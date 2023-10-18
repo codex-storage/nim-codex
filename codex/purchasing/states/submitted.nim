@@ -6,7 +6,7 @@ import ./started
 import ./cancelled
 
 logScope:
-    topics = "marketplace purchases submitted"
+  topics = "marketplace purchases submitted"
 
 declareCounter(codexPurchasesSubmitted, "codex purchases submitted")
 

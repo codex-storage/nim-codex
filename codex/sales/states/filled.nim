@@ -11,7 +11,7 @@ import ./proving
 import ./provingsimulated
 
 logScope:
-    topics = "marketplace sales filled"
+  topics = "marketplace sales filled"
 
 type
   SaleFilled* = ref object of ErrorHandlingState

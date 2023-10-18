@@ -4,7 +4,7 @@ import ./errorhandling
 import ./errored
 
 logScope:
-    topics = "marketplace sales failed"
+  topics = "marketplace sales failed"
 
 type
   SaleFailed* = ref object of ErrorHandlingState

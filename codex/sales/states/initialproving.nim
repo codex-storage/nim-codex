@@ -7,7 +7,7 @@ import ./cancelled
 import ./failed
 
 logScope:
-    topics = "marketplace sales initial-proving"
+  topics = "marketplace sales initial-proving"
 
 type
   SaleInitialProving* = ref object of ErrorHandlingState
