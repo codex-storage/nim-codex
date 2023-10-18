@@ -118,4 +118,5 @@ jobs:
           files: ./coverage/coverage.f.info
           flags: unittests
           name: codecov-umbrella
+          token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
