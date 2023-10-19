@@ -1,5 +1,4 @@
 import std/random
-import std/strutils
 import std/sequtils
 import std/times
 import std/typetraits
@@ -45,14 +44,7 @@ proc example*(_: type StorageRequest): StorageRequest =
     ),
     content: StorageContent(
       cid: "zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob",
-      erasure: StorageErasure(
-        totalChunks: 12,
-      ),
-      por: StoragePoR(
-        u: @(array[480, byte].example),
-        publicKey: @(array[96, byte].example),
-        name: @(array[512, byte].example)
-      )
+      merkleRoot: array[32, byte].example
     ),
     expiry: (getTime() + initDuration(hours=1)).toUnix.u256,
     nonce: Nonce.example
