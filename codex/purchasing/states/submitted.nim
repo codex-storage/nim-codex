@@ -1,8 +1,12 @@
 import pkg/metrics
+import pkg/chronicles
 import ../statemachine
 import ./errorhandling
 import ./started
 import ./cancelled
+
+logScope:
+  topics = "marketplace purchases submitted"
 
 declareCounter(codexPurchasesSubmitted, "codex purchases submitted")
 
@@ -17,6 +21,8 @@ method run*(state: PurchaseSubmitted, machine: Machine): Future[?State] {.async.
   let request = !purchase.request
   let market = purchase.market
   let clock = purchase.clock
+
+  info "Request submitted, waiting for slots to be filled", requestId = purchase.requestId
 
   proc wait {.async.} =
     let done = newFuture[void]()

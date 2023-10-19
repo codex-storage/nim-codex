@@ -5,7 +5,7 @@ import ../salesagent
 import ./errorhandling
 
 logScope:
-    topics = "marketplace sales ignored"
+  topics = "marketplace sales ignored"
 
 type
   SaleIgnored* = ref object of ErrorHandlingState

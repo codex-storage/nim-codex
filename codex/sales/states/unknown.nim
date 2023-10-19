@@ -9,7 +9,7 @@ import ./cancelled
 import ./payout
 
 logScope:
-    topics = "marketplace sales unknown"
+  topics = "marketplace sales unknown"
 
 type
   SaleUnknown* = ref object of SaleState
