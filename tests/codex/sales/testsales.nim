@@ -453,10 +453,34 @@ asyncchecksuite "Sales":
       return success()
     createAvailability()
     await market.requestStorage(request)
+
+    # If we would not await, then the `clock.set` would run "too fast" as the `subscribeCancellation()`
+    # would otherwise not set the timeout early enough as it uses `clock.now` in the deadline calculation.
+    await sleepAsync(chronos.milliseconds(100))
     market.requestState[request.id]=RequestState.Cancelled
     clock.set(request.expiry.truncate(int64)+1)
     check eventually (await reservations.all(Availability)).get == @[availability]
     check getAvailability().size == origSize
+
+  test "verifies that request is indeed expired from onchain before firing onCancelled":
+    let origSize = availability.size
+    sales.onStore = proc(request: StorageRequest,
+                         slot: UInt256,
+                         onBatch: BatchProc): Future[?!void] {.async.} =
+      await sleepAsync(chronos.hours(1))
+      return success()
+    createAvailability()
+    await market.requestStorage(request)
+    market.requestState[request.id]=RequestState.New # "On-chain" is the request still ongoing even after local expiration
+
+    # If we would not await, then the `clock.set` would run "too fast" as the `subscribeCancellation()`
+    # would otherwise not set the timeout early enough as it uses `clock.now` in the deadline calculation.
+    await sleepAsync(chronos.milliseconds(100))
+    clock.set(request.expiry.truncate(int64)+1)
+    check getAvailability().size == 0
+
+    market.requestState[request.id]=RequestState.Cancelled # Now "on-chain" is also expired
+    check eventually getAvailability().size == origSize
 
   test "loads active slots from market":
     let me = await market.getSigner()

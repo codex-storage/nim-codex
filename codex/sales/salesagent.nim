@@ -68,9 +68,16 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
       return
 
     while true:
-      await clock.waitUntil(max(clock.now+1, request.expiry.truncate(int64)))
+      let deadline = max(clock.now, request.expiry.truncate(int64)) + 1
+      trace "Waiting for cancelled request", now=clock.now, expiry=request.expiry.truncate(int64) + 1
+      await clock.waitUntil(deadline)
 
-      if (state =? await agent.retrieveRequestState()) and state == RequestState.Cancelled:
+      without state =? await agent.retrieveRequestState():
+        error "Uknown request", requestId = data.requestId
+
+      trace "Request should be expired", state = state
+
+      if state == RequestState.Cancelled:
         agent.schedule(cancelledEvent(request))
         break
 
