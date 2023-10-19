@@ -296,11 +296,14 @@ asyncchecksuite "Sales":
       let blk = bt.Block.new( @[1.byte] ).get
       onBatch(@[ blk ])
       return success()
+    let sold = newFuture[void]()
+    sales.onSale = proc(request: StorageRequest, slotIndex: UInt256) =
+      sold.complete()
 
     createAvailability()
     let origSize = availability.size
     await market.requestStorage(request)
-    await sleepAsync(2.millis) # allow proving to start
+    await sold # allow proving to start
 
     # complete request
     market.slotState[request.slotId(slotIndex)] = SlotState.Finished
