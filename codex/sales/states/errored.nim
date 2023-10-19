@@ -7,7 +7,7 @@ import ../salesagent
 import ../../utils/exceptions
 
 logScope:
-    topics = "marketplace sales errored"
+  topics = "marketplace sales errored"
 
 type SaleErrored* = ref object of SaleState
   error*: ref CatchableError

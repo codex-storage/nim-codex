@@ -12,7 +12,7 @@ import ./marketplace
 export market
 
 logScope:
-    topics = "marketplace onchain market"
+  topics = "marketplace onchain market"
 
 type
   OnChainMarket* = ref object of Market

@@ -8,7 +8,7 @@ import ./failed
 import ./finished
 
 logScope:
-    topics = "marketplace sales payout"
+  topics = "marketplace sales payout"
 
 type
   SalePayout* = ref object of ErrorHandlingState
