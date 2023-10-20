@@ -10,6 +10,7 @@ import pkg/codex/manifest
 import pkg/codex/stores
 import pkg/codex/blocktype as bt
 import pkg/codex/rng
+import pkg/codex/utils
 
 import ./helpers
 
@@ -41,8 +42,8 @@ asyncchecksuite "Erasure encode/decode":
         parity)).tryGet()
 
     check:
-      encoded.blocksCount mod (buffers + parity) == 0
-      encoded.rounded == (manifest.blocksCount + (buffers - (manifest.blocksCount mod buffers)))
+      encoded.len mod (buffers + parity) == 0
+      encoded.rounded == roundUp(manifest.len, buffers)
       encoded.steps == encoded.rounded div buffers
 
     return encoded
@@ -144,7 +145,7 @@ asyncchecksuite "Erasure encode/decode":
       blocks: seq[int]
       offset = 0
 
-    while offset < encoded.steps - 1:
+    while offset < encoded.steps:
       let
         blockIdx = toSeq(countup(offset, encoded.blocksCount - 1, encoded.steps))
 
@@ -177,7 +178,8 @@ asyncchecksuite "Erasure encode/decode":
 
     let encoded = await encode(buffers, parity)
 
-    for b in 0..<encoded.steps * encoded.ecM:
+    # loose M original (systematic) symbols/blocks
+    for b in encoded.blocks[0..<encoded.steps * encoded.ecM]:
       (await store.delBlock(encoded.treeCid, b)).tryGet()
       (await store.delBlock(manifest.treeCid, b)).tryGet()
 
@@ -194,7 +196,8 @@ asyncchecksuite "Erasure encode/decode":
 
     let encoded = await encode(buffers, parity)
 
-    for b in (encoded.blocksCount - encoded.steps * encoded.ecM)..<encoded.blocksCount:
+    # loose M parity (all!) symbols/blocks from the dataset
+    for b in encoded.blocks[^(encoded.steps * encoded.ecM)..^1]:
       (await store.delBlock(encoded.treeCid, b)).tryGet()
       (await store.delBlock(manifest.treeCid, b)).tryGet()
 
