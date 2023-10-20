@@ -10,6 +10,7 @@ import pkg/codex/manifest
 import pkg/codex/stores
 import pkg/codex/blocktype as bt
 import pkg/codex/rng
+import pkg/codex/utils
 
 import ./helpers
 
@@ -51,7 +52,7 @@ asyncchecksuite "Erasure encode/decode":
 
     check:
       encoded.len mod (buffers + parity) == 0
-      encoded.rounded == (manifest.len + (buffers - (manifest.len mod buffers)))
+      encoded.rounded == roundUp(manifest.len, buffers)
       encoded.steps == encoded.rounded div buffers
 
     return encoded
@@ -64,13 +65,13 @@ asyncchecksuite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     var
-      column = rng.rand((encoded.len - 1) div encoded.steps) # random column
-      dropped: seq[Cid]
+      column = rng.rand((encoded.len div encoded.steps) - 1) # random column
+      dropped: seq[(int, Cid)]
 
     for _ in 0..<encoded.ecM:
-      dropped.add(encoded[column])
+      dropped.add((column, encoded[column]))
       (await store.delBlock(encoded[column])).tryGet()
-      column.inc(encoded.steps - 1)
+      column = (column + encoded.steps) mod encoded.len # wrap around
 
     var
       decoded = (await erasure.decode(encoded)).tryGet()
@@ -81,8 +82,9 @@ asyncchecksuite "Erasure encode/decode":
       decoded.len == encoded.originalLen
 
     for d in dropped:
-      let present = await store.hasBlock(d)
-      check present.tryGet()
+      if d[0] < manifest.len: # we don't support returning parity blocks yet
+        let present = await store.hasBlock(d[1])
+        check present.tryGet()
 
   test "Should not tolerate losing more than M data blocks in a single random column":
     const
@@ -92,13 +94,13 @@ asyncchecksuite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     var
-      column = rng.rand((encoded.len - 1) div encoded.steps) # random column
+      column = rng.rand((encoded.len div encoded.steps) - 1) # random column
       dropped: seq[Cid]
 
     for _ in 0..<encoded.ecM + 1:
       dropped.add(encoded[column])
       (await store.delBlock(encoded[column])).tryGet()
-      column.inc(encoded.steps)
+      column = (column + encoded.steps) mod encoded.len # wrap around
 
     var
       decoded: Manifest
@@ -149,7 +151,7 @@ asyncchecksuite "Erasure encode/decode":
       blocks: seq[int]
       offset = 0
 
-    while offset < encoded.steps - 1:
+    while offset < encoded.steps:
       let
         blockIdx = toSeq(countup(offset, encoded.len - 1, encoded.steps))
 
@@ -179,6 +181,7 @@ asyncchecksuite "Erasure encode/decode":
 
     let encoded = await encode(buffers, parity)
 
+    # loose M original (systematic) symbols/blocks
     for b in encoded.blocks[0..<encoded.steps * encoded.ecM]:
       (await store.delBlock(b)).tryGet()
 
@@ -195,6 +198,7 @@ asyncchecksuite "Erasure encode/decode":
 
     let encoded = await encode(buffers, parity)
 
+    # loose M parity (all!) symbols/blocks from the dataset
     for b in encoded.blocks[^(encoded.steps * encoded.ecM)..^1]:
       (await store.delBlock(b)).tryGet()
 
