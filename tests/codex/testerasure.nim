@@ -48,7 +48,7 @@ suite "Erasure encode/decode":
 
     check:
       encoded.len mod (buffers + parity) == 0
-      encoded.rounded == (manifest.len + (buffers - (manifest.len mod buffers)))
+      encoded.rounded == manifest.len - 1 + buffers - (manifest.len - 1) mod buffers
       encoded.steps == encoded.rounded div buffers
 
     return encoded
