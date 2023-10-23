@@ -1,6 +1,5 @@
 import ./codex/teststores
 import ./codex/testblockexchange
-import ./codex/teststorageproofs
 import ./codex/testasyncheapqueue
 import ./codex/testchunking
 import ./codex/testmanifest
