@@ -611,11 +611,10 @@ proc stop*(self: RepoStore): Future[void] {.async.} =
 
   self.started = false
 
-func new*(
+proc new*(
     T: type RepoStore,
     repoDs: Datastore,
     metaDs: Datastore,
-    treeReader: TreeReader = TreeReader.new(),
     clock: Clock = SystemClock.new(),
     postFixLen = 2,
     quotaMaxBytes = DefaultQuotaBytes,
@@ -627,7 +626,6 @@ func new*(
   let store = RepoStore(
     repoDs: repoDs,
     metaDs: metaDs,
-    treeReader: treeReader,
     clock: clock,
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,

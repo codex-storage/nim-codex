@@ -97,5 +97,11 @@ proc getBlocks*(self: TreeReader, treeCid: Cid, leavesCount: Natural): Future[?!
     )
   return success(iter)
 
-proc new*(T: type TreeReader, treeCacheCap = DefaultTreeCacheCapacity): TreeReader =
-  TreeReader(treeCache: newLruCache[Cid, MerkleTree](treeCacheCap))
+func new*(
+  T: type TreeReader,
+  getBlockFromStore: GetBlock, 
+  treeCacheCap = DefaultTreeCacheCapacity
+): TreeReader {.noSideEffect.} =
+  TreeReader(
+    getBlockFromStore: getBlockFromStore,
+    treeCache: newLruCache[Cid, MerkleTree](treeCacheCap))

@@ -59,7 +59,7 @@ type
     treeRoot*: MultiHash
     treeCid*: Cid
 
-  TreeHandler* = proc(tree: MerkleTree): Future[void] {.gcsafe.}
+  TreeHandler* = proc(tree: MerkleTree): Future[void] {.raises:[], gcsafe.}
 
   PendingBlocksManager* = ref object of RootObj
     blocks*: Table[BlockAddress, BlockReq] # pending Block requests
@@ -105,10 +105,7 @@ proc checkIfAllDelivered(p: PendingBlocksManager, treeReq: TreeReq): void =
       p.trees.del(treeReq.treeCid)
       return
     p.trees.del(treeReq.treeCid)
-    try:
-      asyncSpawn p.onTree(tree)
-    except Exception as err:
-      error "Exception when handling tree", msg = err.msg
+    asyncSpawn p.onTree(tree)
 
 proc getWantHandleOrCid*(
     treeReq: TreeReq,
