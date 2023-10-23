@@ -19,7 +19,6 @@ import ./utils/asynciter
 
 export asyncheapqueue, fileutils, asynciter
 
-
 func divUp*[T: SomeInteger](a, b : T): T =
   ## Division with result rounded up (rather than truncated as in 'div')
   assert(b != T(0))

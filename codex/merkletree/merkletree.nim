@@ -26,79 +26,65 @@ logScope:
 
 type
   MerkleTree* = object
-    mcodec: MultiCodec
-    digestSize: Natural
-    leavesCount: Natural
-    nodesBuffer*: seq[byte]
+    mcodec: MultiCodec      # multicodec of the hash function
+    maxWidth: Natural       # max width of the tree
+    height: Natural         # current height of the tree (levels - 1)
+    levels: Natural         # number of levels in the tree (height + 1)
+    leafs: Natural          # total number of leafs, if odd the last leaf will be hashed twice
+    nodes: seq[seq[byte]]   # nodes of the tree (this should be an iterator)
+
   MerkleProof* = object
     mcodec: MultiCodec
-    digestSize: Natural
     index: Natural
-    nodesBuffer*: seq[byte]
-  MerkleTreeBuilder* = object
-    mcodec: MultiCodec
-    digestSize: Natural
-    buffer: seq[byte]
+    nodes*: seq[seq[byte]]
 
 ###########################################################
-# Helper functions
+# MerkleTree
 ###########################################################
 
-func computeTreeHeight(leavesCount: int): int =
-  if isPowerOfTwo(leavesCount):
-    fastLog2(leavesCount) + 1
-  else:
-    fastLog2(leavesCount) + 2
+proc root*(self: MerkleTree): ?!MultiHash =
+  echo self.nodes.len
+  if self.nodes.len == 0 or self.nodes[^1].len == 0:
+    return failure("Tree hasn't been build")
 
-func computeLevels(leavesCount: int): seq[tuple[offset: int, width: int, index: int]] =
-  let height = computeTreeHeight(leavesCount)
-  var levels = newSeq[tuple[offset: int, width: int, index: int]](height)
-
-  levels[0].offset = 0
-  levels[0].width = leavesCount
-  levels[0].index = 0
-  for i in 1..<height:
-    levels[i].offset = levels[i - 1].offset + levels[i - 1].width
-    levels[i].width = (levels[i - 1].width + 1) div 2
-    levels[i].index = i
-  levels
-
-proc digestFn(mcodec: MultiCodec, dst: var openArray[byte], dstPos: int, data: openArray[byte]): ?!void =
-  var mhash = ? MultiHash.digest($mcodec, data).mapFailure
-  if (dstPos + mhash.size) > dst.len:
-    return failure("Not enough space in a destination buffer")
-  dst[dstPos..<dstPos + mhash.size] = mhash.data.buffer[mhash.dpos..<mhash.dpos + mhash.size]
-  success()
-
-###########################################################
-# MerkleTreeBuilder
-###########################################################
+  MultiHash.init(self.mcodec, self.nodes[^1]).mapFailure
 
 proc init*(
-  T: type MerkleTreeBuilder,
-  mcodec: MultiCodec = multiCodec("sha2-256")
-): ?!MerkleTreeBuilder =
-  let mhash = ? MultiHash.digest($mcodec, "".toBytes).mapFailure
-  success(MerkleTreeBuilder(mcodec: mcodec, digestSize: mhash.size, buffer: newSeq[byte]()))
-
-proc addDataBlock*(self: var MerkleTreeBuilder, dataBlock: openArray[byte]): ?!void =
-  ## Hashes the data block and adds the result of hashing to a buffer
+  T: type MerkleTree,
+  leafs: Natural,
+  mcodec: MultiCodec = multiCodec("sha2-256")): ?!MerkleTree =
+  ## Init empty tree with capacity `leafs`
   ##
-  let oldLen = self.buffer.len
-  self.buffer.setLen(oldLen + self.digestSize)
-  digestFn(self.mcodec, self.buffer, oldLen, dataBlock)
 
-proc addLeaf*(self: var MerkleTreeBuilder, leaf: MultiHash): ?!void =
-  if leaf.mcodec != self.mcodec or leaf.size != self.digestSize:
-    return failure("Expected mcodec to be " & $self.mcodec & " and digest size to be " &
-      $self.digestSize & " but was " & $leaf.mcodec & " and " & $leaf.size)
+  let
+    maxWidth = nextPowerOfTwo(leafs)
+    size = 2 * leafs
+    height = log2(size.float).Natural
+    self = MerkleTree(
+      mcodec: mcodec,
+      maxWidth: maxWidth,
+      leafs: leafs,
+      height: height,
+      levels: height - 1,
+      nodes: newSeq[seq[byte]](size))
 
-  let oldLen = self.buffer.len
-  self.buffer.setLen(oldLen + self.digestSize)
-  self.buffer[oldLen..<oldLen + self.digestSize] = leaf.data.buffer[leaf.dpos..<leaf.dpos + self.digestSize]
-  success()
+  success self
 
-proc build*(self: MerkleTreeBuilder): ?!MerkleTree =
+proc init*(
+  T: type MerkleTree,
+  leafs: openArray[seq[byte]],
+  mcodec: MultiCodec = multiCodec("sha2-256")): ?!MerkleTree =
+  ## Init tree from vector of leafs
+  ##
+
+  var
+    self = ? MerkleTree.init(leafs.len, mcodec)
+
+  self.nodes[0..<self.leafs] = leafs.toOpenArray(0, leafs.high)
+
+  success self
+
+proc buildSync*(self: var MerkleTree): ?!void =
   ## Builds a tree from previously added data blocks
   ##
   ## Tree built from data blocks A, B and C is
@@ -112,290 +98,41 @@ proc build*(self: MerkleTreeBuilder): ?!MerkleTree =
   ##
   ## Memory layout is [H0, H1, H2, H3, H4, H5]
   ##
-  let
-    mcodec = self.mcodec
-    digestSize = self.digestSize
-    leavesCount = self.buffer.len div self.digestSize
-
-  if leavesCount == 0:
-    return failure("At least one data block is required")
-
-  let levels = computeLevels(leavesCount)
-  let totalNodes = levels[^1].offset + 1
-
-  var tree = MerkleTree(mcodec: mcodec, digestSize: digestSize, leavesCount: leavesCount, nodesBuffer: newSeq[byte](totalNodes * digestSize))
-
-  # copy leaves
-  tree.nodesBuffer[0..<leavesCount * digestSize] = self.buffer[0..<leavesCount * digestSize]
-
-  # calculate intermediate nodes
-  var zero = newSeq[byte](digestSize)
-  var one = newSeq[byte](digestSize)
-  one[^1] = 0x01
 
   var
-    concatBuf = newSeq[byte](2 * digestSize)
-    prevLevel = levels[0]
-  for level in levels[1..^1]:
-    for i in 0..<level.width:
-      let parentIndex = level.offset + i
-      let leftChildIndex = prevLevel.offset + 2 * i
-      let rightChildIndex = leftChildIndex + 1
-
-      concatBuf[0..<digestSize] = tree.nodesBuffer[leftChildIndex * digestSize..<(leftChildIndex + 1) * digestSize]
-
-      var dummyValue = if prevLevel.index == 0: zero else: one
-
-      if rightChildIndex < prevLevel.offset + prevLevel.width:
-        concatBuf[digestSize..^1] = tree.nodesBuffer[rightChildIndex * digestSize..<(rightChildIndex + 1) * digestSize]
-      else:
-        concatBuf[digestSize..^1] = dummyValue
-
-      ? digestFn(mcodec, tree.nodesBuffer, parentIndex * digestSize, concatBuf)
-    prevLevel = level
-
-  return success(tree)
-
-###########################################################
-# MerkleTree
-###########################################################
-
-proc nodeBufferToMultiHash(self: (MerkleTree | MerkleProof), index: int): MultiHash =
-  var buf = newSeq[byte](self.digestSize)
-  let offset = index * self.digestSize
-  buf[0..^1] = self.nodesBuffer[offset..<(offset + self.digestSize)]
-
-  {.noSideEffect.}:
-    without mhash =? MultiHash.init($self.mcodec, buf).mapFailure, errx:
-      error "Error converting bytes to hash", msg = errx.msg
-  mhash
-
-proc len*(self: (MerkleTree | MerkleProof)): Natural =
-  self.nodesBuffer.len div self.digestSize
-
-proc nodes*(self: (MerkleTree | MerkleProof)): seq[MultiHash] {.noSideEffect.} =
-  toSeq(0..<self.len).map(i => self.nodeBufferToMultiHash(i))
-
-proc mcodec*(self: (MerkleTree | MerkleProof)): MultiCodec =
-  self.mcodec
-
-proc digestSize*(self: (MerkleTree | MerkleProof)): Natural =
-  self.digestSize
-
-proc root*(self: MerkleTree): MultiHash =
-  let rootIndex = self.len - 1
-  self.nodeBufferToMultiHash(rootIndex)
-
-proc leaves*(self: MerkleTree): seq[MultiHash] =
-  toSeq(0..<self.leavesCount).map(i => self.nodeBufferToMultiHash(i))
-
-proc leavesCount*(self: MerkleTree): Natural =
-  self.leavesCount
-
-proc getLeaf*(self: MerkleTree, index: Natural): ?!MultiHash =
-  if index >= self.leavesCount:
-    return failure("Index " & $index & " out of range [0.." & $(self.leavesCount - 1) & "]" )
-
-  success(self.nodeBufferToMultiHash(index))
-
-proc height*(self: MerkleTree): Natural =
-  computeTreeHeight(self.leavesCount)
-
-proc getProof*(self: MerkleTree, index: Natural): ?!MerkleProof =
-  ## Extracts proof from a tree for a given index
-  ##
-  ## Given a tree built from data blocks A, B and C
-  ##         H5
-  ##      /     \
-  ##    H3       H4
-  ##   /  \     /
-  ## H0    H1 H2
-  ## |     |  |
-  ## A     B  C
-  ##
-  ## Proofs of inclusion (index and path) are
-  ## - 0,[H1, H4] for data block A
-  ## - 1,[H0, H4] for data block B
-  ## - 2,[0x00, H3] for data block C
-  ##
-  if index >= self.leavesCount:
-    return failure("Index " & $index & " out of range [0.." & $(self.leavesCount - 1) & "]" )
-
-  var zero = newSeq[byte](self.digestSize)
-  var one = newSeq[byte](self.digestSize)
-  one[^1] = 0x01
-
-  let levels = computeLevels(self.leavesCount)
-  var proofNodesBuffer = newSeq[byte]((levels.len - 1) * self.digestSize)
-  for level in levels[0..^2]:
-    let lr = index shr level.index
-    let siblingIndex = if lr mod 2 == 0:
-      level.offset + lr + 1
+    length = if bool(self.leafs and 1):
+      self.nodes[self.leafs] = self.nodes[self.leafs - 1] # even out the tree
+      self.leafs + 1
     else:
-      level.offset + lr - 1
+      self.leafs
 
-    var dummyValue = if level.index == 0: zero else: one
+  while length > 1:
+    for i in 0..<length:
+      let
+        left = self.nodes[i * 2]
+        right = self.nodes[i * 2 + 1]
+        hash = ? MultiHash.digest($self.mcodec, left & right).mapFailure
 
-    if siblingIndex < level.offset + level.width:
-      proofNodesBuffer[level.index * self.digestSize..<(level.index + 1) * self.digestSize] =
-        self.nodesBuffer[siblingIndex * self.digestSize..<(siblingIndex + 1) * self.digestSize]
-    else:
-      proofNodesBuffer[level.index * self.digestSize..<(level.index + 1) * self.digestSize] = dummyValue
+      self.nodes[length + i] = hash.data.buffer
 
-  success(MerkleProof(mcodec: self.mcodec, digestSize: self.digestSize, index: index, nodesBuffer: proofNodesBuffer))
+    length = length shr 2
 
-proc `$`*(self: MerkleTree): string {.noSideEffect.} =
-  "mcodec:" & $self.mcodec &
-    ", digestSize: " & $self.digestSize &
-    ", leavesCount: " & $self.leavesCount &
-    ", nodes: " & $self.nodes
+  echo self.nodes
+  return success()
 
-proc `==`*(a, b: MerkleTree): bool =
-  (a.mcodec == b.mcodec) and
-  (a.digestSize == b.digestSize) and
-  (a.leavesCount == b.leavesCount) and
-    (a.nodesBuffer == b.nodesBuffer)
+when isMainModule:
+  import std/sequtils
 
-proc init*(
-  T: type MerkleTree,
-  mcodec: MultiCodec,
-  digestSize: Natural,
-  leavesCount: Natural,
-  nodesBuffer: seq[byte]
-): ?!MerkleTree =
-  let levels = computeLevels(leavesCount)
-  let totalNodes = levels[^1].offset + 1
-  if totalNodes * digestSize == nodesBuffer.len:
-    success(
-      MerkleTree(
-        mcodec: mcodec,
-        digestSize: digestSize,
-        leavesCount: leavesCount,
-        nodesBuffer: nodesBuffer
+  import pkg/stew/byteutils
+  import pkg/questionable
+  import pkg/questionable/results
+
+  var
+    leafs = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"]
+      .mapIt(
+        MultiHash.digest("sha2-256", it.toBytes).tryGet().data.buffer
       )
-    )
-  else:
-    failure("Expected nodesBuffer len to be " & $(totalNodes * digestSize) & " but was " & $nodesBuffer.len)
+    tree = MerkleTree.init(leafs).tryGet()
 
-proc init*(
-  T: type MerkleTree,
-  cids: openArray[Cid]
-): ?!MerkleTree =
-  let leaves = collect:
-    for cid in cids:
-      without mhash =? cid.mhash.mapFailure, errx:
-        return failure(errx)
-      mhash
-
-  MerkleTree.init(leaves)
-
-proc init*(
-  T: type MerkleTree,
-  leaves: openArray[MultiHash]
-): ?!MerkleTree =
-  without leaf =? leaves.?[0]:
-    return failure("At least one leaf is required")
-
-  var builder = ? MerkleTreeBuilder.init(mcodec = leaf.mcodec)
-
-  for l in leaves:
-    if err =? builder.addLeaf(l).errorOption:
-      return failure(err)
-
-  builder.build()
-
-###########################################################
-# MerkleProof
-###########################################################
-
-proc verifyLeaf*(self: MerkleProof, leaf: MultiHash, treeRoot: MultiHash): ?!bool =
-  if leaf.mcodec != self.mcodec:
-    return failure("Leaf mcodec was " & $leaf.mcodec & ", but " & $self.mcodec & " expected")
-
-  if leaf.mcodec != self.mcodec:
-    return failure("Tree root mcodec was " & $treeRoot.mcodec & ", but " & $treeRoot.mcodec & " expected")
-
-  var digestBuf = newSeq[byte](self.digestSize)
-  digestBuf[0..^1] = leaf.data.buffer[leaf.dpos..<(leaf.dpos + self.digestSize)]
-
-  let proofLen = self.nodesBuffer.len div self.digestSize
-  var concatBuf = newSeq[byte](2 * self.digestSize)
-  for i in 0..<proofLen:
-    let offset = i * self.digestSize
-    let lr = self.index shr i
-    if lr mod 2 == 0:
-      concatBuf[0..^1] = digestBuf & self.nodesBuffer[offset..<(offset + self.digestSize)]
-    else:
-      concatBuf[0..^1] = self.nodesBuffer[offset..<(offset + self.digestSize)] & digestBuf
-    ? digestFn(self.mcodec, digestBuf, 0, concatBuf)
-
-  let computedRoot = ? MultiHash.init(self.mcodec, digestBuf).mapFailure
-
-  success(computedRoot == treeRoot)
-
-
-proc verifyDataBlock*(self: MerkleProof, dataBlock: openArray[byte], treeRoot: MultiHash): ?!bool =
-  var digestBuf = newSeq[byte](self.digestSize)
-  ? digestFn(self.mcodec, digestBuf, 0, dataBlock)
-
-  let leaf = ? MultiHash.init(self.mcodec, digestBuf).mapFailure
-
-  self.verifyLeaf(leaf, treeRoot)
-
-proc index*(self: MerkleProof): Natural =
-  self.index
-
-proc `$`*(self: MerkleProof): string =
-  "mcodec:" & $self.mcodec &
-    ", digestSize: " & $self.digestSize &
-    ", index: " & $self.index &
-    ", nodes: " & $self.nodes
-
-func `==`*(a, b: MerkleProof): bool =
-  (a.index == b.index) and
-    (a.mcodec == b.mcodec) and
-    (a.digestSize == b.digestSize) and
-    (a.nodesBuffer == b.nodesBuffer)
-
-proc init*(
-  T: type MerkleProof,
-  index: Natural,
-  nodes: seq[MultiHash]
-): ?!MerkleProof =
-  if nodes.len == 0:
-    return failure("At least one node is required")
-
-  let
-    mcodec = nodes[0].mcodec
-    digestSize = nodes[0].size
-
-  var nodesBuffer = newSeq[byte](nodes.len * digestSize)
-  for nodeIndex, node in nodes:
-    nodesBuffer[nodeIndex * digestSize..<(nodeIndex + 1) * digestSize] = node.data.buffer[node.dpos..<node.dpos + digestSize]
-
-  success(MerkleProof(mcodec: mcodec, digestSize: digestSize, index: index, nodesBuffer: nodesBuffer))
-
-func init*(
-  T: type MerkleProof,
-  mcodec: MultiCodec,
-  digestSize: Natural,
-  index: Natural,
-  nodesBuffer: seq[byte]
-): ?!MerkleProof =
-
-  if nodesBuffer.len mod digestSize != 0:
-    return failure("nodesBuffer len is not a multiple of digestSize")
-
-  let treeHeight = (nodesBuffer.len div digestSize) + 1
-  let maxLeavesCount = 1 shl treeHeight
-  if index < maxLeavesCount:
-    return success(
-      MerkleProof(
-        mcodec: mcodec,
-        digestSize: digestSize,
-        index: index,
-        nodesBuffer: nodesBuffer
-      )
-    )
-  else:
-    return failure("index higher than max leaves count")
+  tree.buildSync().tryGet
+  echo tree.root().tryGet()

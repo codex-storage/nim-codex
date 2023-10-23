@@ -225,9 +225,8 @@ proc new*(
     originalDatasetSize: manifest.datasetSize)
 
 proc new*(
-    T: type Manifest,
-    manifest: Manifest
-): Manifest =
+  T: type Manifest,
+  manifest: Manifest): Manifest =
   ## Create an unprotected dataset from an
   ## erasure protected one
   ##
@@ -244,8 +243,7 @@ proc new*(
 proc new*(
   T: type Manifest,
   data: openArray[byte],
-  decoder = ManifestContainers[$DagPBCodec]
-): ?!Manifest =
+  decoder = ManifestContainers[$DagPBCodec]): ?!Manifest =
   ## Create a manifest instance from given data
   ##
   Manifest.decode(data, decoder)
@@ -263,8 +261,7 @@ proc new*(
   ecM: int,
   originalTreeCid: Cid,
   originalTreeRoot: MultiHash,
-  originalDatasetSize: NBytes
-): Manifest =
+  originalDatasetSize: NBytes): Manifest =
   Manifest(
     treeCid: treeCid,
     treeRoot: treeRoot,
