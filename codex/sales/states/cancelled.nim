@@ -9,14 +9,13 @@ logScope:
 
 type
   SaleCancelled* = ref object of ErrorHandlingState
-  SaleCancelledError* = object of CatchableError
-  SaleTimeoutError* = object of SaleCancelledError
 
 method `$`*(state: SaleCancelled): string = "SaleCancelled"
 
 method run*(state: SaleCancelled, machine: Machine): Future[?State] {.async.} =
-  let data = SalesAgent(machine).data
-  let market = SalesAgent(machine).context.market
+  let agent = SalesAgent(machine)
+  let data = agent.data
+  let market = agent.context.market
 
   without request =? data.request:
     raiseAssert "no sale request"
@@ -28,5 +27,12 @@ method run*(state: SaleCancelled, machine: Machine): Future[?State] {.async.} =
   debug "Collecting collateral and partial payout",  requestId = $data.requestId, slotIndex
   await market.freeSlot(slot.id)
 
-  let error = newException(SaleTimeoutError, "Sale cancelled due to timeout")
-  return some State(SaleErrored(error: error))
+  if onClear =? agent.context.onClear and
+      request =? data.request and
+      slotIndex =? data.slotIndex:
+    onClear(request, slotIndex)
+
+  if onCleanUp =? agent.onCleanUp:
+    await onCleanUp()
+
+  warn "Sale cancelled due to timeout",  requestId = $data.requestId, slotIndex

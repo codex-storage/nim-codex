@@ -1,4 +1,5 @@
 import std/options
+import std/sequtils
 from pkg/libp2p import `==`
 import pkg/chronos
 import pkg/stint
@@ -183,9 +184,12 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     let cid = client1.upload(exampleString(100000)).get
     let id = client1.requestStorage(cid, duration=duration, reward=reward, proofProbability=3.u256, expiry=expiry, collateral=200.u256, nodes=2).get
 
-    check eventually(client1.purchaseStateIs(id, "errored"), 20000)
-    let purchase = client1.getPurchase(id).get
-    check purchase.error.get == "Purchase cancelled due to timeout"
+    # We have to wait for Client 2 fills the slot, before advancing time.
+    # Until https://github.com/codex-storage/nim-codex/issues/594 is implemented nothing better then
+    # sleeping some seconds is available.
+    await sleepAsync(2.seconds)
+    await provider.advanceTimeTo(expiry+1)
+    check eventually(client1.purchaseStateIs(id, "cancelled"), 20000)
 
     check eventually ((await token.balanceOf(account2)) - startBalanceClient2) > 0 and ((await token.balanceOf(account2)) - startBalanceClient2) < 10*reward
     check eventually (startBalanceClient1 - (await token.balanceOf(account1))) == ((await token.balanceOf(account2)) - startBalanceClient2)
