@@ -118,16 +118,11 @@ proc fetchBatched*(
     return failure(err)
 
   for batchNum in 0..<batchCount:
-
     let blocks = collect:
       for i in 0..<batchSize:
         if not iter.finished:
           iter.next()
 
-
-    # let 
-    #   indexRange = (batchNum * batchSize)..<(min((batchNum + 1) * batchSize, manifest.blocksCount))
-    #   blocks = indexRange.mapIt(node.blockStore.getBlock(manifest.treeCid, it))
     try:
       await allFuturesThrowing(allFinished(blocks))
       if not onBatch.isNil:

@@ -59,7 +59,7 @@ type
     treeRoot*: MultiHash
     treeCid*: Cid
 
-  TreeHandler* = proc(tree: MerkleTree): Future[void] {.gcsafe.}
+  TreeHandler* = proc(tree: MerkleTree): Future[void] {.raises:[], gcsafe.}
 
   PendingBlocksManager* = ref object of RootObj
     blocks*: Table[Cid, BlockReq] # pending Block requests
@@ -107,10 +107,7 @@ proc checkIfAllDelivered(p: PendingBlocksManager, treeReq: TreeReq): void =
       p.trees.del(treeReq.treeCid)
       return
     p.trees.del(treeReq.treeCid)
-    try:
-      asyncSpawn p.onTree(tree)
-    except Exception as err:
-      error "Exception when handling tree", msg = err.msg
+    asyncSpawn p.onTree(tree)
 
 proc getWantHandleOrCid*(
     treeReq: TreeReq,
@@ -221,9 +218,7 @@ proc resolve*(
             trace "Block retrieval time", retrievalDurationUs
       else:
         warn "Delivery cid doesn't match block cid", deliveryCid = bd.address.cid, blockCid = bd.blk.cid
-
-    # resolve any pending blocks
-    if bd.address.leaf:
+    else: # when block.address.leaf == true
       p.trees.withValue(bd.address.treeCid, treeReq):
         treeReq.leaves.withValue(bd.address.index, leafReq):
           if not leafReq.delivered:
@@ -253,7 +248,7 @@ proc resolve*(
             else:
               warn "Missing proof for a block", address = bd.address
           else:
-            trace "Ignore veryfing proof for already delivered block", address = bd.address
+            trace "Ignore verifying proof for already delivered block", address = bd.address
 
 proc setInFlight*(p: PendingBlocksManager,
                   cid: Cid,

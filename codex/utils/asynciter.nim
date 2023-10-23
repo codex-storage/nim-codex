@@ -23,6 +23,12 @@ iterator items*[T](self: Iter[T]): T =
   while not self.finished:
     yield self.next()
 
+iterator pairs*[T](self: Iter[T]): tuple[key: int, val: T] {.inline.} =
+  var i = 0
+  while not self.finished:
+    yield (i, self.next())
+    inc(i)
+
 proc map*[T, U](fut: Future[T], fn: Function[T, U]): Future[U] {.async.} =
   let t = await fut
   fn(t)

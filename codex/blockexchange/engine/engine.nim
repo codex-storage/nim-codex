@@ -121,7 +121,11 @@ proc stop*(b: BlockExcEngine) {.async.} =
   trace "NetworkStore stopped"
 
 
-proc sendWantHave(b: BlockExcEngine, address: BlockAddress, selectedPeer: BlockExcPeerCtx, peers: seq[BlockExcPeerCtx]): Future[void] {.async.} =
+proc sendWantHave(
+  b: BlockExcEngine, 
+  address: BlockAddress, 
+  selectedPeer: BlockExcPeerCtx, 
+  peers: seq[BlockExcPeerCtx]): Future[void] {.async.} =
   trace "Sending wantHave request to peers", address
   for p in peers:
     if p != selectedPeer:
@@ -132,11 +136,10 @@ proc sendWantHave(b: BlockExcEngine, address: BlockAddress, selectedPeer: BlockE
           @[address],
           wantType = WantType.WantHave) # we only want to know if the peer has the block
 
-proc sendWantBlock(b: BlockExcEngine, address: BlockAddress, blockPeer: BlockExcPeerCtx): Future[void] {.async.} =
-  let cid = if address.leaf:
-      address.treeCid
-    else:
-      address.cid
+proc sendWantBlock(
+  b: BlockExcEngine, 
+  address: BlockAddress, 
+  blockPeer: BlockExcPeerCtx): Future[void] {.async.} =
   trace "Sending wantBlock request to", peer = blockPeer.id, address
   await b.network.request.sendWantList(
     blockPeer.id,
@@ -376,12 +379,15 @@ proc blocksDeliveryHandler*(
   blocksDelivery: seq[BlockDelivery]) {.async.} =
   trace "Got blocks from peer", peer, len = blocksDelivery.len
 
+  var storedBlocks: seq[BlockDelivery]
   for bd in blocksDelivery:
-    if isErr (await b.localStore.putBlock(bd.blk)):
-      trace "Unable to store block", cid = bd.blk.cid
+    if err =? (await b.localStore.putBlock(bd.blk)).errorOption:
+      trace "Unable to store block", cid = bd.blk.cid, err = err.msg
+    else:
+      storedBlocks.add(bd)
 
-  await b.resolveBlocks(blocksDelivery)
-  codexBlockExchangeBlocksReceived.inc(blocksDelivery.len.int64)
+  await b.resolveBlocks(storedBlocks)
+  codexBlockExchangeBlocksReceived.inc(storedBlocks.len.int64)
 
   let
     peerCtx = b.peers.get(peer)

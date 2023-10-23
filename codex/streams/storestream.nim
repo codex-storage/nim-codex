@@ -37,7 +37,7 @@ type
     store*: BlockStore          # Store where to lookup block contents
     manifest*: Manifest         # List of block CIDs
     pad*: bool                  # Pad last block to manifest.blockSize?
-    iter*: AsyncIter[?!Block]
+    iter: AsyncIter[?!Block]
     lastBlock: Block
     lastIndex: int
     offset: int

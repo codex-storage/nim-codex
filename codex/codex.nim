@@ -231,8 +231,6 @@ proc new*(
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
 
-    treeReader = TreeReader.new()
-
     repoData = case config.repoKind
                 of repoFS: Datastore(FSDatastore.new($config.dataDir, depth = 5)
                   .expect("Should create repo file data store!"))
@@ -243,7 +241,6 @@ proc new*(
       repoDs = repoData,
       metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
         .expect("Should create meta data store!"),
-      treeReader = treeReader,
       quotaMaxBytes = config.storageQuota.uint,
       blockTtl = config.blockTtl)
 
