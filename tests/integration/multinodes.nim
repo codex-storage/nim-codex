@@ -11,6 +11,7 @@ import std/times
 import pkg/chronicles
 import ../ethertest
 import ./codexclient
+import ./hardhat
 import ./nodes
 
 export ethertest
@@ -21,23 +22,24 @@ type
   RunningNode* = ref object
     role*: Role
     node*: NodeProcess
-    restClient*: CodexClient
-    datadir*: string
-    ethAccount*: Address
   StartNodes* = object
     clients*: StartNodeConfig
     providers*: StartNodeConfig
     validators*: StartNodeConfig
+    hardhat*: StartHardhatConfig
   StartNodeConfig* = object
     numNodes*: int
     cliOptions*: seq[CliOption]
     logFile*: bool
     logTopics*: seq[string]
     debugEnabled*: bool
+  StartHardhatConfig* = ref object
+    logFile*: bool
   Role* {.pure.} = enum
     Client,
     Provider,
-    Validator
+    Validator,
+    Hardhat
   CliOption* = object of RootObj
     nodeIdx*: ?int
     key*: string
@@ -51,15 +53,9 @@ proc `$`*(option: CliOption): string =
 
 proc new*(_: type RunningNode,
           role: Role,
-          node: NodeProcess,
-          restClient: CodexClient,
-          datadir: string,
-          ethAccount: Address): RunningNode =
+          node: NodeProcess): RunningNode =
   RunningNode(role: role,
-              node: node,
-              restClient: restClient,
-              datadir: datadir,
-              ethAccount: ethAccount)
+              node: node)
 
 proc nodes*(config: StartNodeConfig, numNodes: int): StartNodeConfig =
   if numNodes < 0:
@@ -126,47 +122,95 @@ proc withLogFile*(
 ): StartNodeConfig =
 
   var startConfig = config
-  var logDir = currentSourcePath.parentDir() / "logs" / "{starttime}"
-  createDir(logDir)
+  startConfig.logFile = logToFile
+  return startConfig
+
+proc withLogFile*(
+  config: StartHardhatConfig,
+  logToFile: bool = true
+): StartHardhatConfig =
+
+  var startConfig = config
   startConfig.logFile = logToFile
   return startConfig
 
 template multinodesuite*(name: string,
   startNodes: StartNodes, body: untyped) =
 
-  ethersuite name:
+  asyncchecksuite name:
+
+    var provider {.inject, used.}: JsonRpcProvider
+    var accounts {.inject, used.}: seq[Address]
 
     var running: seq[RunningNode]
     var bootstrap: string
     let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
 
-    proc newNodeProcess(index: int,
-                        config: StartNodeConfig
-    ): (NodeProcess, string, Address) =
+    proc getLogFile(role: Role, index: ?int): string =
+      var logDir = currentSourcePath.parentDir() / "logs" / $starttime
+      createDir(logDir)
+      var fn = $role
+      if idx =? index:
+        fn &= "_" & $idx
+      fn &= ".log"
+      let fileName = logDir / fn
+      return fileName
 
-      if index > accounts.len - 1:
-        raiseAssert("Cannot start node at index " & $index &
+    proc newHardhatProcess(config: StartHardhatConfig, role: Role): NodeProcess =
+      var options: seq[string] = @[]
+      if config.logFile:
+        let updatedLogFile = getLogFile(role, none int)
+        options.add "--log-file=" & updatedLogFile
+
+      let node = startHardhatProcess(options)
+      node.waitUntilStarted()
+
+      debug "started new hardhat node"
+      return node
+
+    proc newNodeProcess(roleIdx: int,
+                        config1: StartNodeConfig,
+                        role: Role
+    ): NodeProcess =
+
+      let nodeIdx = running.len
+      var config = config1
+
+      if nodeIdx > accounts.len - 1:
+        raiseAssert("Cannot start node at nodeIdx " & $nodeIdx &
           ", not enough eth accounts.")
 
-      let datadir = getTempDir() / "Codex" & $index
-      # let logdir = currentSourcePath.parentDir()
+      let datadir = getTempDir() / "Codex" / $starttime / $role & "_" & $roleIdx
+
+      if config.logFile:
+        let updatedLogFile = getLogFile(role, some roleIdx)
+        config.cliOptions.add CliOption(key: "--log-file", value: updatedLogFile)
+
+      if config.logTopics.len > 0:
+        config.cliOptions.add CliOption(key: "--log-level", value: "INFO;TRACE: " & config.logTopics.join(","))
+
       var options = config.cliOptions.map(o => $o)
         .concat(@[
-          "--api-port=" & $(8080 + index),
+          "--api-port=" & $(8080 + nodeIdx),
           "--data-dir=" & datadir,
           "--nat=127.0.0.1",
           "--listen-addrs=/ip4/127.0.0.1/tcp/0",
           "--disc-ip=127.0.0.1",
-          "--disc-port=" & $(8090 + index),
-          "--eth-account=" & $accounts[index]])
-      # if logFile =? config.logFile:
-      #   options.add "--log-file=" & logFile
-      if config.logTopics.len > 0:
-        options.add "--log-level=INFO;TRACE: " & config.logTopics.join(",")
+          "--disc-port=" & $(8090 + nodeIdx),
+          "--eth-account=" & $accounts[nodeIdx]])
 
       let node = startNode(options, config.debugEnabled)
       node.waitUntilStarted()
-      (node, datadir, accounts[index])
+
+      if config.debugEnabled:
+        debug "started new integration testing node and codex client",
+          role,
+          apiUrl = node.apiUrl,
+          discAddress = node.discoveryAddress,
+          address = accounts[nodeIdx],
+          cliOptions = config.cliOptions.join(",")
+
+      return node
 
     proc clients(): seq[RunningNode] {.used.} =
       running.filter(proc(r: RunningNode): bool = r.role == Role.Client)
@@ -177,92 +221,64 @@ template multinodesuite*(name: string,
     proc validators(): seq[RunningNode] {.used.} =
       running.filter(proc(r: RunningNode): bool = r.role == Role.Validator)
 
-    proc newCodexClient(index: int): CodexClient =
-      CodexClient.new("http://localhost:" & $(8080 + index) & "/api/codex/v1")
+    proc startHardhatNode(): NodeProcess =
+      var config = startNodes.hardhat
+      return newHardhatProcess(config, Role.Hardhat)
 
-    proc getLogFile(role: Role, index: int): string =
-      var logDir = currentSourcePath.parentDir() / "logs" / $starttime
-      createDir(logDir)
-      let fn = $role & "_" & $index & ".log"
-      let fileName = logDir / fn
-      echo ">>> replace log file name: ", fileName
-      return fileName
-
-    proc startClientNode() =
-      let index = running.len
+    proc startClientNode(): NodeProcess =
       let clientIdx = clients().len
       var config = startNodes.clients
       config.cliOptions.add CliOption(key: "--persistence")
-      if config.logFile:
-        let updatedLogFile = getLogFile(Role.Client, clientIdx)
-        config.cliOptions.add CliOption(key: "--log-file", value: updatedLogFile)
-      let (node, datadir, account) = newNodeProcess(index, config)
-      let restClient = newCodexClient(index)
-      running.add RunningNode.new(Role.Client, node, restClient, datadir,
-                                  account)
-      if config.debugEnabled:
-        debug "started new client node and codex client",
-          restApiPort = 8080 + index, discPort = 8090 + index, account
+      return newNodeProcess(clientIdx, config, Role.Client)
 
-    proc startProviderNode(cliOptions: seq[CliOption] = @[]) =
-      let index = running.len
+    proc startProviderNode(): NodeProcess =
       let providerIdx = providers().len
       var config = startNodes.providers
-      config.cliOptions = config.cliOptions.concat(cliOptions)
-      if config.logFile:
-        let updatedLogFile = getLogFile(Role.Provider, providerIdx)
-        config.cliOptions.add CliOption(key: "--log-file", value: updatedLogFile)
       config.cliOptions.add CliOption(key: "--bootstrap-node", value: bootstrap)
       config.cliOptions.add CliOption(key: "--persistence")
 
+      # filter out provider options by provided index
       config.cliOptions = config.cliOptions.filter(
-        o => (let idx = o.nodeIdx |? providerIdx; echo "idx: ", idx, ", index: ", index; idx == providerIdx)
+        o => (let idx = o.nodeIdx |? providerIdx; idx == providerIdx)
       )
 
-      let (node, datadir, account) = newNodeProcess(index, config)
-      let restClient = newCodexClient(index)
-      running.add RunningNode.new(Role.Provider, node, restClient, datadir,
-                                  account)
-      if config.debugEnabled:
-        debug "started new provider node and codex client",
-          restApiPort = 8080 + index, discPort = 8090 + index, account,
-          cliOptions = config.cliOptions.join(",")
+      return newNodeProcess(providerIdx, config, Role.Provider)
 
-    proc startValidatorNode() =
-      let index = running.len
-      let validatorIdx = providers().len
+    proc startValidatorNode(): NodeProcess =
+      let validatorIdx = validators().len
       var config = startNodes.validators
-      if config.logFile:
-        let updatedLogFile = getLogFile(Role.Validator, validatorIdx)
-        config.cliOptions.add CliOption(key: "--log-file", value: updatedLogFile)
       config.cliOptions.add CliOption(key: "--bootstrap-node", value: bootstrap)
       config.cliOptions.add CliOption(key: "--validator")
 
-      let (node, datadir, account) = newNodeProcess(index, config)
-      let restClient = newCodexClient(index)
-      running.add RunningNode.new(Role.Validator, node, restClient, datadir,
-                                  account)
-      if config.debugEnabled:
-        debug "started new validator node and codex client",
-          restApiPort = 8080 + index, discPort = 8090 + index, account
+      return newNodeProcess(validatorIdx, config, Role.Validator)
 
     setup:
+      if not startNodes.hardhat.isNil:
+        let node = startHardhatNode()
+        running.add RunningNode(role: Role.Hardhat, node: node)
+
+      echo "Connecting to hardhat on ws://localhost:8545..."
+      provider = JsonRpcProvider.new("ws://localhost:8545")
+      accounts = await provider.listAccounts()
+
       for i in 0..<startNodes.clients.numNodes:
-        startClientNode()
+        let node = startClientNode()
+        running.add RunningNode(role: Role.Client, node: node)
         if i == 0:
-          bootstrap = running[0].restClient.info()["spr"].getStr()
+          bootstrap = node.client.info()["spr"].getStr()
 
       for i in 0..<startNodes.providers.numNodes:
-        startProviderNode()
+        let node = startProviderNode()
+        running.add RunningNode(role: Role.Provider, node: node)
 
       for i in 0..<startNodes.validators.numNodes:
-        startValidatorNode()
+        let node = startValidatorNode()
+        running.add RunningNode(role: Role.Validator, node: node)
 
     teardown:
       for r in running:
-        r.restClient.close()
-        r.node.stop()
-        removeDir(r.datadir)
+        r.node.stop() # also stops rest client
+        r.node.removeDataDir()
       running = @[]
 
     body

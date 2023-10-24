@@ -21,9 +21,9 @@ const workingDir = currentSourcePath() / ".." / ".." / ".."
 const executable = "build" / "codex"
 
 type
-  NodeProcess* = ref object
-    process: Process
-    arguments: seq[string]
+  NodeProcess* = ref object of RootObj
+    process*: Process
+    arguments*: seq[string]
     debug: bool
     client: ?CodexClient
 
@@ -67,9 +67,13 @@ proc dataDir(node: NodeProcess): string =
   let config = CodexConf.load(cmdLine = node.arguments)
   config.dataDir.string
 
-proc apiUrl(node: NodeProcess): string =
+proc apiUrl*(node: NodeProcess): string =
   let config = CodexConf.load(cmdLine = node.arguments)
   "http://" & config.apiBindAddress & ":" & $config.apiPort & "/api/codex/v1"
+
+proc discoveryAddress*(node: NodeProcess): string =
+  let config = CodexConf.load(cmdLine = node.arguments)
+  $config.discoveryIp & ":" & $config.discoveryPort
 
 proc client*(node: NodeProcess): CodexClient =
   if client =? node.client:
