@@ -33,15 +33,6 @@ method run*(state: PurchaseSubmitted, machine: Machine): Future[?State] {.async.
     await subscription.unsubscribe()
 
   proc withTimeout(future: Future[void]) {.async.} =
-    # while true:
-    #   await clock.waitUntil(max(clock.now+1, request.expiry.truncate(int64)))
-    #
-    #   if (state =? await agent.retrieveRequestState()) and state == RequestState.Cancelled:
-    #     agent.schedule(cancelledEvent(request))
-    #     break
-    #
-    #   trace "Request is not yet cancelled, even it should be. Waiting some more."
-
     let expiry = request.expiry.truncate(int64) + 1
     await future.withTimeout(clock, expiry)
 
