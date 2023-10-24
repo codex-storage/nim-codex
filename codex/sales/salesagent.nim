@@ -54,6 +54,11 @@ proc retrieveRequest*(agent: SalesAgent) {.async.} =
   if data.request.isNone:
     data.request = await market.getRequest(data.requestId)
 
+proc retrieveRequestState*(agent: SalesAgent): Future[?RequestState] {.async.} =
+  let data = agent.data
+  let market = agent.context.market
+  return await market.requestState(data.requestId)
+
 proc subscribeCancellation(agent: SalesAgent) {.async.} =
   let data = agent.data
   let clock = agent.context.clock
@@ -62,8 +67,20 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
     without request =? data.request:
       return
 
-    await clock.waitUntil(request.expiry.truncate(int64))
-    agent.schedule(cancelledEvent(request))
+    while true:
+      let deadline = max(clock.now, request.expiry.truncate(int64)) + 1
+      trace "Waiting for request to be cancelled", now=clock.now, expiry=deadline
+      await clock.waitUntil(deadline)
+
+      without state =? await agent.retrieveRequestState():
+        error "Uknown request", requestId = data.requestId
+        return
+
+      if state == RequestState.Cancelled:
+        agent.schedule(cancelledEvent(request))
+        break
+
+      debug "The request is not yet canceled, even though it should be. Waiting for some more time.", currentState = state, now=clock.now
 
   data.cancelled = onCancelled()
 
