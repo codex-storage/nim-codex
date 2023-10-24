@@ -20,6 +20,7 @@ import pkg/libp2p/[cid, multicodec, multihash, vbuffer]
 import pkg/stew/byteutils
 
 import ../errors
+import ../utils
 
 logScope:
   topics = "codex merkletree"
@@ -27,10 +28,10 @@ logScope:
 type
   MerkleTree* = object
     mcodec: MultiCodec      # multicodec of the hash function
-    maxWidth: Natural       # max width of the tree
     height: Natural         # current height of the tree (levels - 1)
     levels: Natural         # number of levels in the tree (height + 1)
     leafs: Natural          # total number of leafs, if odd the last leaf will be hashed twice
+    size: Natural           # total number of nodes in the tree (corrected for odd leafs)
     nodes: seq[seq[byte]]   # nodes of the tree (this should be an iterator)
 
   MerkleProof* = object
@@ -43,46 +44,10 @@ type
 ###########################################################
 
 proc root*(self: MerkleTree): ?!MultiHash =
-  echo self.nodes.len
   if self.nodes.len == 0 or self.nodes[^1].len == 0:
     return failure("Tree hasn't been build")
 
   MultiHash.init(self.mcodec, self.nodes[^1]).mapFailure
-
-proc init*(
-  T: type MerkleTree,
-  leafs: Natural,
-  mcodec: MultiCodec = multiCodec("sha2-256")): ?!MerkleTree =
-  ## Init empty tree with capacity `leafs`
-  ##
-
-  let
-    maxWidth = nextPowerOfTwo(leafs)
-    size = 2 * leafs
-    height = log2(size.float).Natural
-    self = MerkleTree(
-      mcodec: mcodec,
-      maxWidth: maxWidth,
-      leafs: leafs,
-      height: height,
-      levels: height - 1,
-      nodes: newSeq[seq[byte]](size))
-
-  success self
-
-proc init*(
-  T: type MerkleTree,
-  leafs: openArray[seq[byte]],
-  mcodec: MultiCodec = multiCodec("sha2-256")): ?!MerkleTree =
-  ## Init tree from vector of leafs
-  ##
-
-  var
-    self = ? MerkleTree.init(leafs.len, mcodec)
-
-  self.nodes[0..<self.leafs] = leafs.toOpenArray(0, leafs.high)
-
-  success self
 
 proc buildSync*(self: var MerkleTree): ?!void =
   ## Builds a tree from previously added data blocks
@@ -113,12 +78,81 @@ proc buildSync*(self: var MerkleTree): ?!void =
         right = self.nodes[i * 2 + 1]
         hash = ? MultiHash.digest($self.mcodec, left & right).mapFailure
 
-      self.nodes[length + i] = hash.data.buffer
+      self.nodes[length + i] = hash.bytes
 
-    length = length shr 2
+    length = length shr 1
 
-  echo self.nodes
   return success()
+
+func getProofs(self: MerkleTree, indexes: openArray[Natural]): ?!seq[MerkleProof] =
+  ## Returns a proof for the given index
+  ##
+
+  if self.nodes.len == 0 or self.nodes[^1].len == 0:
+    return failure("Tree hasn't been build")
+
+  var
+    proofs = newSeq[MerkleProof]()
+
+  for idx in indexes:
+    var
+      index = idx
+      nodes: seq[seq[byte]]
+
+    nodes.add(self.nodes[idx])
+
+    for level in 1..<self.levels:
+      debugEcho level
+      nodes.add(
+        if bool(index and 1):
+          self.nodes[level + 1]
+        else:
+          self.nodes[level - 1])
+      index = index shr 1
+
+    proofs.add(
+      MerkleProof(
+        mcodec: self.mcodec,
+        index: index,
+        nodes: nodes))
+
+  return success proofs
+
+func init*(
+  T: type MerkleTree,
+  leafs: Natural,
+  mcodec: MultiCodec = multiCodec("sha2-256")): ?!MerkleTree =
+  ## Init empty tree with capacity `leafs`
+  ##
+
+  let
+    maxWidth = nextPowerOfTwo(leafs)
+    length = if bool(leafs and 1): leafs + 1 else: leafs
+    size = 2 * length
+    height = log2(maxWidth.float).Natural
+    self = MerkleTree(
+      mcodec: mcodec,
+      leafs: leafs,
+      size: size,
+      height: height,
+      levels: height - 1,
+      nodes: newSeq[seq[byte]](size))
+
+  success self
+
+func init*(
+  T: type MerkleTree,
+  leafs: openArray[seq[byte]],
+  mcodec: MultiCodec = multiCodec("sha2-256")): ?!MerkleTree =
+  ## Init tree from vector of leafs
+  ##
+
+  var
+    self = ? MerkleTree.init(leafs.len, mcodec)
+
+  self.nodes[0..<self.leafs] = leafs.toOpenArray(0, leafs.high)
+
+  success self
 
 when isMainModule:
   import std/sequtils
@@ -128,11 +162,14 @@ when isMainModule:
   import pkg/questionable/results
 
   var
-    leafs = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"]
-      .mapIt(
-        MultiHash.digest("sha2-256", it.toBytes).tryGet().data.buffer
-      )
+    leafs = [
+      "A", "B", "C", "D", "E", "F",
+      "G", "H", "I", "J", "K", "L",
+      "M", "N", "O", "P", "Q"]
+      .mapIt( MultiHash.digest("sha2-256", it.toBytes).tryGet().data.buffer )
     tree = MerkleTree.init(leafs).tryGet()
 
   tree.buildSync().tryGet
   echo tree.root().tryGet()
+
+  echo tree.getProofs(@[0.Natural, 1, 2, 3, 4, 5]).tryGet
