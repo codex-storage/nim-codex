@@ -231,6 +231,34 @@ asyncchecksuite "RepoStore":
       !response[0].key == expectedKey
       response[0].data == expectedExpiration.toBytes
 
+  test "Should update block expiration timestamp":
+    let
+      duration = 10.seconds
+      blk = createTestBlock(100)
+
+    let
+      expectedExpiration: SecondsSince1970 = 123 + 10
+      updatedExpectedExpiration: SecondsSince1970 = expectedExpiration + 10
+      expectedKey = Key.init("meta/ttl/" & $blk.cid).tryGet
+
+    (await repo.putBlock(blk, duration.some)).tryGet
+
+    var response = await queryMetaDs(expectedKey)
+
+    check:
+      response.len == 1
+      !response[0].key == expectedKey
+      response[0].data == expectedExpiration.toBytes
+
+    (await repo.updateExpiry(blk.cid, updatedExpectedExpiration)).tryGet
+
+    response = await queryMetaDs(expectedKey)
+
+    check:
+      response.len == 1
+      !response[0].key == expectedKey
+      response[0].data == updatedExpectedExpiration.toBytes
+
   test "delBlock should remove expiration metadata":
     let
       blk = createTestBlock(100)

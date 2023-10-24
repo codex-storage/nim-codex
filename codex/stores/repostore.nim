@@ -107,23 +107,47 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   trace "Got block for cid", cid
   return Block.new(cid, data)
 
-proc getBlockExpirationTimestamp(self: RepoStore, ttl: ?Duration): SecondsSince1970 =
-  let duration = ttl |? self.blockTtl
-  self.clock.now() + duration.seconds
-
 proc getBlockExpirationEntry(
   self: RepoStore,
-  batch: var seq[BatchEntry],
   cid: Cid,
-  ttl: ?Duration): ?!BatchEntry =
-  ## Get an expiration entry for a batch
+  ttl: SecondsSince1970): ?!BatchEntry =
+  ## Get an expiration entry for a batch with timestamp
   ##
 
   without key =? createBlockExpirationMetadataKey(cid), err:
     return failure(err)
 
-  let value = self.getBlockExpirationTimestamp(ttl).toBytes
-  return success((key, value))
+  return success((key, ttl.toBytes))
+
+proc getBlockExpirationEntry(
+  self: RepoStore,
+  cid: Cid,
+  ttl: ?Duration): ?!BatchEntry =
+  ## Get an expiration entry for a batch for duration since "now"
+  ##
+
+  let duration = ttl |? self.blockTtl
+  self.getBlockExpirationEntry(cid, self.clock.now() + duration.seconds)
+
+method updateExpiry*(
+    self: RepoStore,
+    cid: Cid,
+    expiry: SecondsSince1970
+): Future[?!void] {.async.} =
+  ## Updates block's assosicated expiry TTL in store
+  ##
+  logScope:
+    cid = cid
+
+  without blockExpEntry =? self.getBlockExpirationEntry(cid, expiry), err:
+    trace "Unable to create updated expiration metadata key", err = err.msg
+    return failure(err)
+
+  if err =? (await self.metaDs.put(blockExpEntry[0], blockExpEntry[1])).errorOption:
+    trace "Error updating expiration metadata entry", err = err.msg
+    return failure(err)
+
+  return success()
 
 proc persistTotalBlocksCount(self: RepoStore): Future[?!void] {.async.} =
   if err =? (await self.metaDs.put(
@@ -175,7 +199,7 @@ method putBlock*(
   trace "Updating quota", used
   batch.add((QuotaUsedKey, @(used.uint64.toBytesBE)))
 
-  without blockExpEntry =? self.getBlockExpirationEntry(batch, blk.cid, ttl), err:
+  without blockExpEntry =? self.getBlockExpirationEntry(blk.cid, ttl), err:
     trace "Unable to create block expiration metadata key", err = err.msg
     return failure(err)
   batch.add(blockExpEntry)
@@ -222,7 +246,6 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
     cid = cid
 
   trace "Deleting block"
-
 
   if cid.isEmpty:
     trace "Empty block, ignoring"
