@@ -26,6 +26,7 @@ ethersuite "Node block expiration tests":
       "--api-port=8080",
       "--data-dir=" & dataDir,
       "--nat=127.0.0.1",
+      "--listen-addrs=/ip4/127.0.0.1/tcp/0",
       "--disc-ip=127.0.0.1",
       "--disc-port=8090",
       "--block-ttl=" & $blockTtlSeconds,

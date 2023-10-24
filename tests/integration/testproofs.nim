@@ -63,6 +63,7 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
         "--data-dir=" & validatorDir,
         "--api-port=8089",
         "--disc-port=8099",
+        "--listen-addrs=/ip4/127.0.0.1/tcp/0",
         "--validator",
         "--eth-account=" & $accounts[2]
       ], debug = false
