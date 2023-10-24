@@ -64,10 +64,11 @@ proc getPurchase*(client: CodexClient, purchaseId: PurchaseId): ?!RestPurchase =
   let json = ? parseJson(body).catch
   RestPurchase.fromJson(json)
 
-proc getSlots*(client: CodexClient): JsonNode =
+proc getSlots*(client: CodexClient): ?!seq[Slot] =
   let url = client.baseurl & "/sales/slots"
   let body = client.http.getContent(url)
-  parseJson(body).catch |? nil
+  let json = ? parseJson(body).catch
+  seq[Slot].fromJson(json)
 
 proc postAvailability*(
     client: CodexClient,

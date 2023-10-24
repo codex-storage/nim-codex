@@ -22,4 +22,4 @@ method run*(state: PurchaseCancelled, machine: Machine): Future[?State] {.async.
   await purchase.market.withdrawFunds(purchase.requestId)
 
   let error = newException(Timeout, "Purchase cancelled due to timeout")
-  return some State(PurchaseErrored(error: error))
+  purchase.future.fail(error)
