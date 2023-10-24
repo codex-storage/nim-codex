@@ -23,7 +23,6 @@ type
   EventSubscription = ethers.Subscription
   OnChainMarketSubscription = ref object of MarketSubscription
     eventSubscription: EventSubscription
-  OnChainMarketError = object of CatchableError
 
 func new*(_: type OnChainMarket, contract: Marketplace): OnChainMarket =
   without signer =? contract.signer:
@@ -33,7 +32,7 @@ func new*(_: type OnChainMarket, contract: Marketplace): OnChainMarket =
     signer: signer,
   )
 
-proc approveFunds(market: OnChainMarket, amount: UInt256, waitForConfirmations = 0) {.async.} =
+proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
   debug "Approving tokens", amount
   let tokenAddress = await market.contract.token()
   let token = Erc20Token.new(tokenAddress, market.signer)
@@ -112,20 +111,13 @@ method getActiveSlot*(market: OnChainMarket,
       return none Slot
     raise e
 
-proc cancelTransaction(market: OnChainMarket, nonce: UInt256) {.async.} =
-  let address = await market.getSigner()
-  let cancelTx = Transaction(to: address, value: 0.u256, nonce: some nonce)
-  let populated = await market.signer.populateTransaction(cancelTx)
-  trace "cancelling transaction to prevent stuck transactions", nonce
-  discard market.signer.sendTransaction(populated)
-
 method fillSlot*(market: OnChainMarket,
                 requestId: RequestId,
                 slotIndex: UInt256,
                 proof: seq[byte],
                 collateral: UInt256) {.async.} =
 
-  await market.approveFunds(collateral, 1)
+  await market.approveFunds(collateral)
   trace "calling contract fillSlot", slotIndex, requestId
   discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(1)
 

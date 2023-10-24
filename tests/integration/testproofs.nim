@@ -244,7 +244,8 @@ multinodesuite "Simulate invalid proofs",
     clients: StartNodeConfig()
               .nodes(1)
               .debug()
-              .withLogFile(),
+              .withLogFile()
+              .withLogTopics("node"),
 
     providers:
       StartNodeConfig()
@@ -254,7 +255,6 @@ multinodesuite "Simulate invalid proofs",
         .withLogFile()
         .withLogTopics("marketplace",
                        "sales",
-                       "proving",
                        "reservations",
                        "node",
                        "JSONRPC-HTTP-CLIENT",
@@ -266,6 +266,7 @@ multinodesuite "Simulate invalid proofs",
     validators: StartNodeConfig()
                   .nodes(1)
                   .withLogFile()
+                  .withLogTopics("validator", "initial-proving", "proving")
   ):
 
     # .simulateProofFailuresFor(providerIdx = 0, failEveryNProofs = 2),
