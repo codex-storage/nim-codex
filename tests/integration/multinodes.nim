@@ -22,6 +22,7 @@ type
   RunningNode* = ref object
     role*: Role
     node*: NodeProcess
+    address*: ?Address
   StartNodes* = object
     clients*: StartNodeConfig
     providers*: StartNodeConfig
@@ -263,17 +264,29 @@ template multinodesuite*(name: string,
 
       for i in 0..<startNodes.clients.numNodes:
         let node = startClientNode()
-        running.add RunningNode(role: Role.Client, node: node)
+        running.add RunningNode(
+                      role: Role.Client,
+                      node: node,
+                      address: some accounts[running.len]
+                    )
         if i == 0:
           bootstrap = node.client.info()["spr"].getStr()
 
       for i in 0..<startNodes.providers.numNodes:
         let node = startProviderNode()
-        running.add RunningNode(role: Role.Provider, node: node)
+        running.add RunningNode(
+                      role: Role.Provider,
+                      node: node,
+                      address: some accounts[running.len]
+                    )
 
       for i in 0..<startNodes.validators.numNodes:
         let node = startValidatorNode()
-        running.add RunningNode(role: Role.Validator, node: node)
+        running.add RunningNode(
+                      role: Role.Validator,
+                      node: node,
+                      address: some accounts[running.len]
+                    )
 
     teardown:
       for r in running:

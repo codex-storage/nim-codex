@@ -251,7 +251,7 @@ multinodesuite "Simulate invalid proofs",
               .withLogTopics("node"),
 
     providers: StartNodeConfig()
-                .nodes(2)
+                .nodes(5)
                 .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=2)
                 .debug()
                 .withLogFile()
@@ -280,9 +280,12 @@ multinodesuite "Simulate invalid proofs",
 
   var marketplace: Marketplace
   var period: uint64
+  var token: Erc20Token
 
   setup:
-    marketplace = Marketplace.new(Marketplace.address, provider)
+    marketplace = Marketplace.new(Marketplace.address, provider.getSigner())
+    let tokenAddress = await marketplace.token()
+    token = Erc20Token.new(tokenAddress, provider.getSigner())
     let config = await marketplace.config()
     period = config.proofs.period.truncate(uint64)
 
@@ -300,36 +303,35 @@ multinodesuite "Simulate invalid proofs",
     let endOfPeriod = periodicity.periodEnd(currentPeriod)
     await provider.advanceTimeTo(endOfPeriod + 1)
 
-  proc waitUntilPurchaseIsStarted(proofProbability: uint64 = 1,
-                                  duration: uint64 = 12.periods,
-                                  expiry: uint64 = 4.periods): Future[PurchaseId] {.async.} =
+  proc requestStorage(proofProbability: uint64 = 1,
+                      duration: uint64 = 12.periods,
+                      expiry: uint64 = 4.periods): Future[PurchaseId] {.async.} =
 
     if clients().len < 1 or providers().len < 2:
       raiseAssert("must start at least one client and two providers")
 
-    let client0 = clients()[0].node.client
-    let storageProvider0 = providers()[0].node.client
-    let storageProvider1 = providers()[1].node.client
+    # post availability to each provider
+    for i in 0..<providers().len:
+      let provider = providers()[i].node.client
 
-    discard storageProvider0.postAvailability(
-      size=0xFFFFF.u256,
-      duration=duration.u256,
-      minPrice=300.u256,
-      maxCollateral=200.u256
-    )
-    discard storageProvider1.postAvailability(
-      size=0xFFFFF.u256,
-      duration=duration.u256,
-      minPrice=300.u256,
-      maxCollateral=200.u256
-    )
+      discard provider.postAvailability(
+        size=261888.u256, # should match 1 slot only
+        duration=duration.u256,
+        minPrice=300.u256,
+        maxCollateral=200.u256
+      )
+
+
+    let client0 = clients()[0].node.client
     let rng = rng.Rng.instance()
     let chunker = RandomChunker.new(rng, size = DefaultBlockSize * 2, chunkSize = DefaultBlockSize * 2)
     let data = await chunker.getBytes()
     let cid = client0.upload(byteutils.toHex(data)).get
     let expiry = (await provider.currentTime()) + expiry.u256
+
     # avoid timing issues by filling the slot at the start of the next period
     await advanceToNextPeriod()
+
     let id = client0.requestStorage(
       cid,
       expiry=expiry,
@@ -339,12 +341,13 @@ multinodesuite "Simulate invalid proofs",
       reward=400.u256,
       nodes=2'u
     ).get
-    check eventually client0.purchaseStateIs(id, "started")
+
     return id
 
   proc waitUntilPurchaseIsFinished(purchaseId: PurchaseId, duration: int) {.async.} =
     let client = clients()[0].node.client
     check eventually(client.purchaseStateIs(purchaseId, "finished"), duration * 1000)
+
 
   # TODO: these are very loose tests in that they are not testing EXACTLY how
   # proofs were marked as missed by the validator. These tests should be
@@ -352,14 +355,28 @@ multinodesuite "Simulate invalid proofs",
   # proofs are being marked as missed by the validator.
 
   test "provider that submits invalid proofs is paid out less":
-    let totalProofs = 7
+    let clientRestClient = clients()[0].node.client
+    let provider0 = providers()[0]
+    let provider1 = providers()[1]
+    let totalProofs = 25
 
-    let purchaseId = await waitUntilPurchaseIsStarted(duration=totalProofs.periods)
+    let purchaseId = await requestStorage(duration=totalProofs.periods)
+    check eventually clientRestClient.purchaseStateIs(purchaseId, "started")
     # await waitUntilPurchaseIsFinished(purchaseId, duration=totalProofs.periods.int)
 
-    let client = clients()[0].node.client
-    let duration = totalProofs.periods.int
-    check eventually(client.purchaseStateIs(purchaseId, "finished"), duration * 1000)
+    let duration = (totalProofs.periods.int + 2) * 10 # 10 seconds per period
+
+    check eventually(
+      clientRestClient.purchaseStateIs(purchaseId, "finished"), duration * 1000
+    )
+
+    check eventually (
+      (await token.balanceOf(!provider1.address)) >
+      (await token.balanceOf(!provider0.address))
+    )
+    echo "provider1 balance: ", (await token.balanceOf(!provider1.address))
+    echo "provider0 balance: ", (await token.balanceOf(!provider0.address))
+
 
     # var slotWasFreed = false
     # proc onSlotFreed(event: SlotFreed) =

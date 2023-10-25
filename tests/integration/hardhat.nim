@@ -80,8 +80,11 @@ proc start(node: HardhatProcess) =
 
 proc waitUntilOutput*(node: HardhatProcess, output: string) =
   if not node.started.isNil:
-    waitFor node.started.wait(5000.milliseconds)
-    return
+    try:
+      waitFor node.started.wait(5000.milliseconds)
+      return
+    except AsyncTimeoutError:
+      discard # should raiseAssert below
   else:
     for line in node.process.outputStream.lines:
       if line.contains(output):
