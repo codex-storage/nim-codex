@@ -77,9 +77,6 @@ method getActiveSlot*(
 
   raiseAssert("not implemented")
 
-method cancelTransaction(market: Market, nonce: UInt256) {.base, async.} =
-  raiseAssert("not implemented")
-
 method fillSlot*(market: Market,
                  requestId: RequestId,
                  slotIndex: UInt256,

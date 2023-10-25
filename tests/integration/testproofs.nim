@@ -344,11 +344,6 @@ multinodesuite "Simulate invalid proofs",
 
     return id
 
-  proc waitUntilPurchaseIsFinished(purchaseId: PurchaseId, duration: int) {.async.} =
-    let client = clients()[0].node.client
-    check eventually(client.purchaseStateIs(purchaseId, "finished"), duration * 1000)
-
-
   # TODO: these are very loose tests in that they are not testing EXACTLY how
   # proofs were marked as missed by the validator. These tests should be
   # tightened so that they are showing, as an integration test, that specific
@@ -362,13 +357,15 @@ multinodesuite "Simulate invalid proofs",
 
     let purchaseId = await requestStorage(duration=totalProofs.periods)
     check eventually clientRestClient.purchaseStateIs(purchaseId, "started")
-    # await waitUntilPurchaseIsFinished(purchaseId, duration=totalProofs.periods.int)
 
     let duration = (totalProofs.periods.int + 2) * 10 # 10 seconds per period
 
-    check eventually(
-      clientRestClient.purchaseStateIs(purchaseId, "finished"), duration * 1000
-    )
+    for _ in 0..<totalProofs.periods.int:
+      if clientRestClient.purchaseStateIs(purchaseId, "finished"):
+        break
+      else:
+        await advanceToNextPeriod()
+        await sleepAsync(1.seconds)
 
     check eventually (
       (await token.balanceOf(!provider1.address)) >
