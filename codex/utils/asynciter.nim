@@ -7,9 +7,11 @@ type
   Function*[T, U] = proc(fut: T): U {.upraises: [CatchableError], gcsafe, closure.}
   IsFinished* = proc(): bool {.upraises: [], gcsafe, closure.}
   GenNext*[T] = proc(): T {.upraises: [CatchableError], gcsafe, closure.}
+
   Iter*[T] = ref object
     finished: bool
     next*: GenNext[T]
+
   AsyncIter*[T] = Iter[Future[T]]
 
 proc finish*[T](self: Iter[T]): void =
@@ -32,7 +34,11 @@ proc map*[T, U](fut: Future[T], fn: Function[T, U]): Future[U] {.async.} =
   let t = await fut
   fn(t)
 
-proc new*[T](_: type Iter, genNext: GenNext[T], isFinished: IsFinished, finishOnErr: bool = true): Iter[T] =
+proc new*[T](
+  _: type Iter,
+  genNext: GenNext[T],
+  isFinished: IsFinished,
+  finishOnErr: bool = true): Iter[T] =
   var iter = Iter[T]()
 
   proc next(): T {.upraises: [CatchableError].} =
@@ -142,4 +148,3 @@ proc prefetch*[T](iter: Iter[T], n: Positive): Iter[T] =
     tryFetch(j)
 
   Iter.new(genNext, isFinished)
-

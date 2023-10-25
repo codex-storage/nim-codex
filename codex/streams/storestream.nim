@@ -51,12 +51,11 @@ method initStream*(s: SeekableStoreStream) =
   procCall LPStream(s).initStream()
 
 proc new*(
-    T: type SeekableStoreStream,
-    store: BlockStore,
-    manifest: Manifest,
-    pad = true
-): SeekableStoreStream =
-  ## Create a new SeekableStoreStream instance for a given store and manifest
+  T: type StoreStream,
+  store: BlockStore,
+  manifest: Manifest,
+  pad = true): StoreStream =
+  ## Create a new StoreStream instance for a given store and manifest
   ##
   result = SeekableStoreStream(
     store: store,
@@ -78,11 +77,10 @@ method atEof*(self: SeekableStoreStream): bool =
   self.offset >= self.size
 
 method readOnce*(
-    self: SeekableStoreStream,
-    pbytes: pointer,
-    nbytes: int
-): Future[int] {.async.} =
-  ## Read `nbytes` from current position in the SeekableStoreStream into output buffer pointed by `pbytes`.
+  self: StoreStream,
+  pbytes: pointer,
+  nbytes: int): Future[int] {.async.} =
+  ## Read `nbytes` from current position in the StoreStream into output buffer pointed by `pbytes`.
   ## Return how many bytes were actually read before EOF was encountered.
   ## Raise exception if we are already at EOF.
   ##

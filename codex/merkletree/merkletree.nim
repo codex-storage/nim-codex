@@ -27,12 +27,13 @@ logScope:
 
 type
   MerkleTree* = object
-    mcodec: MultiCodec      # multicodec of the hash function
-    height: Natural         # current height of the tree (levels - 1)
-    levels: Natural         # number of levels in the tree (height + 1)
-    leafs: Natural          # total number of leafs, if odd the last leaf will be hashed twice
-    size: Natural           # total number of nodes in the tree (corrected for odd leafs)
-    nodes: seq[seq[byte]]   # nodes of the tree (this should be an iterator)
+    mcodec: MultiCodec              # multicodec of the hash function
+    height: Natural                 # current height of the tree (levels - 1)
+    levels: Natural                 # number of levels in the tree (height + 1)
+    leafs: Natural                  # total number of leafs, if odd the last leaf will be hashed twice
+    size: Natural                   # total number of nodes in the tree (corrected for odd leafs)
+    leafsIter: AsyncIter[seq[byte]] # leafs iterator of the tree
+    nodesIter: AsyncIter[seq[byte]] # nodes iterator of the tree
 
   MerkleProof* = object
     mcodec: MultiCodec
@@ -49,7 +50,7 @@ proc root*(self: MerkleTree): ?!MultiHash =
 
   MultiHash.init(self.mcodec, self.nodes[^1]).mapFailure
 
-proc buildSync*(self: var MerkleTree): ?!void =
+proc build*(self: var MerkleTree): Future[?!void] {.async.} =
   ## Builds a tree from previously added data blocks
   ##
   ## Tree built from data blocks A, B and C is
@@ -121,6 +122,7 @@ func getProofs(self: MerkleTree, indexes: openArray[Natural]): ?!seq[MerkleProof
 func init*(
   T: type MerkleTree,
   leafs: Natural,
+  leafsIter: AsyncIter[seq[byte]],
   mcodec: MultiCodec = multiCodec("sha2-256")): ?!MerkleTree =
   ## Init empty tree with capacity `leafs`
   ##
@@ -136,21 +138,7 @@ func init*(
       size: size,
       height: height,
       levels: height - 1,
-      nodes: newSeq[seq[byte]](size))
-
-  success self
-
-func init*(
-  T: type MerkleTree,
-  leafs: openArray[seq[byte]],
-  mcodec: MultiCodec = multiCodec("sha2-256")): ?!MerkleTree =
-  ## Init tree from vector of leafs
-  ##
-
-  var
-    self = ? MerkleTree.init(leafs.len, mcodec)
-
-  self.nodes[0..<self.leafs] = leafs.toOpenArray(0, leafs.high)
+      nodesIter: leafsIter)
 
   success self
 

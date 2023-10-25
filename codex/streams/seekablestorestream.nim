@@ -47,13 +47,12 @@ method initStream*(s: SeekableStoreStream) =
   procCall SeekableStream(s).initStream()
 
 proc new*(
-    T: type SeekableStoreStream,
-    store: BlockStore,
-    manifest: Manifest,
-    pad = true
-): SeekableStoreStream =
+  T: type SeekableStoreStream,
+  store: BlockStore,
+  manifest: Manifest,
+  pad = true): SeekableStoreStream =
   ## Create a new SeekableStoreStream instance for a given store and manifest
-  ## 
+  ##
   result = SeekableStoreStream(
     store: store,
     manifest: manifest,
@@ -73,14 +72,13 @@ method atEof*(self: SeekableStoreStream): bool =
   self.offset >= self.size
 
 method readOnce*(
-    self: SeekableStoreStream,
-    pbytes: pointer,
-    nbytes: int
-): Future[int] {.async.} =
+  self: SeekableStoreStream,
+  pbytes: pointer,
+  nbytes: int): Future[int] {.async.} =
   ## Read `nbytes` from current position in the SeekableStoreStream into output buffer pointed by `pbytes`.
   ## Return how many bytes were actually read before EOF was encountered.
   ## Raise exception if we are already at EOF.
-  ## 
+  ##
 
   trace "Reading from manifest", cid = self.manifest.cid.get(), blocks = self.manifest.blocksCount
   if self.atEof:

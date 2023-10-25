@@ -16,8 +16,9 @@ import pkg/chronos
 import ./utils/asyncheapqueue
 import ./utils/fileutils
 import ./utils/asynciter
+import ./utils/digest
 
-export asyncheapqueue, fileutils, asynciter
+export asyncheapqueue, fileutils, asynciter, digest
 
 func divUp*[T: SomeInteger](a, b : T): T =
   ## Division with result rounded up (rather than truncated as in 'div')
