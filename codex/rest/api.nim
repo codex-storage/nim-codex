@@ -93,6 +93,35 @@ proc formatPeerRecord(peerRecord: PeerRecord): JsonNode =
   }
   return jobj
 
+proc formatManifestBlock(store: BlockStore, cid: Cid): Future[?JsonNode] {.async.} =
+  without blk =? await store.getBlock(cid):
+    return JsonNode.none
+
+  without manifest =? Manifest.decode(blk):
+    return JsonNode.none
+
+  let jobj = %*{
+    "cid": $cid,
+    "rootHash": $manifest.cid,
+    "originalBytes": $manifest.originalBytes,
+    "blockSize": $manifest.blockSize,
+    "protected": $manifest.protected
+  }
+
+  return jobj.some
+
+proc formatManifestBlocks(store: BlockStore, cids: BlocksIter): Future[JsonNode] {.async.} =
+  let jarray = newJArray()
+  for c in cids:
+    if cid =? await c:
+      if jnode =? await formatManifestBlock(store, cid):
+        jarray.add(jnode)
+
+  let jobj = %*{
+    "files": jarray
+  }
+  return jobj
+
 proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   var router = RestRouter.init(validate)
   router.api(
@@ -257,6 +286,16 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
       trace "Something went wrong error"
       return RestApiResponse.error(Http500)
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/files") do () -> RestApiResponse:
+      without cids =? await node.blockStore.listBlocks(BlockType.Manifest):
+        trace "Failed to listBlocks"
+        return RestApiResponse.error(Http500)
+
+      let json = await formatManifestBlocks(node.blockStore, cids)
+      return RestApiResponse.response($json, contentType="application/json")
 
   router.api(
     MethodPost,
