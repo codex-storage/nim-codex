@@ -75,7 +75,7 @@
 	branch = master
 [submodule "vendor/nim-chronos"]
 	path = vendor/nim-chronos
-	url = https://github.com/status-im/nim-chronos.git
+	url = https://github.com/codex-storage/nim-chronos.git
 	ignore = untracked
 	branch = master
 [submodule "vendor/nim-faststreams"]
