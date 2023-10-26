@@ -1,6 +1,7 @@
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/byteutils
+import pkg/libp2p
 import ../sales
 import ../purchasing
 import ../utils/json
@@ -35,3 +36,6 @@ func `%`*(obj: StorageRequest | Slot): JsonNode =
   jsonObj["id"] = %(obj.id)
 
   return jsonObj
+
+func `%`*(obj: Cid): JsonNode =
+  % $obj

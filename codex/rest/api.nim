@@ -101,13 +101,9 @@ proc formatManifestBlock(store: BlockStore, cid: Cid): Future[?JsonNode] {.async
     return JsonNode.none
 
   let jobj = %*{
-    "cid": $cid,
-    "rootHash": $manifest.cid,
-    "originalBytes": $manifest.originalBytes,
-    "blockSize": $manifest.blockSize,
-    "protected": $manifest.protected
+    "cid": cid,
+    "manifest": manifest
   }
-
   return jobj.some
 
 proc formatManifestBlocks(store: BlockStore, cids: BlocksIter): Future[JsonNode] {.async.} =

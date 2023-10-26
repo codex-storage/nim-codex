@@ -18,9 +18,11 @@ import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronicles
+# import pkg/json_serialization
 
 import ../errors
 import ../utils
+import ../utils/json
 import ../units
 import ../blocktype
 import ./types
@@ -29,14 +31,14 @@ export types
 
 type
   Manifest* = ref object of RootObj
-    rootHash: ?Cid          # Root (tree) hash of the contained data set
-    originalBytes*: NBytes  # Exact size of the original (uploaded) file
-    blockSize: NBytes       # Size of each contained block (might not be needed if blocks are len-prefixed)
-    blocks: seq[Cid]        # Block Cid
-    version: CidVersion     # Cid version
-    hcodec: MultiCodec      # Multihash codec
-    codec: MultiCodec       # Data set codec
-    case protected: bool    # Protected datasets have erasure coded info
+    rootHash {.serialize.}: ?Cid          # Root (tree) hash of the contained data set
+    originalBytes* {.serialize.}: NBytes  # Exact size of the original (uploaded) file
+    blockSize {.serialize.}: NBytes       # Size of each contained block (might not be needed if blocks are len-prefixed)
+    blocks: seq[Cid]                      # Block Cid
+    version: CidVersion                   # Cid version
+    hcodec: MultiCodec                    # Multihash codec
+    codec: MultiCodec                     # Data set codec
+    case protected {.serialize.}: bool    # Protected datasets have erasure coded info
     of true:
       ecK: int              # Number of blocks to encode
       ecM: int              # Number of resulting parity blocks
