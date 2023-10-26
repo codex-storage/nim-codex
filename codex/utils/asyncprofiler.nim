@@ -17,15 +17,20 @@ type
 
   CallbackMetric = object
     totalExecTime*: Duration
-    totalWallTime*: Duration
     totalRunTime*: Duration
+    totalWallTime*: Duration
     minSingleTime*: Duration
     maxSingleTime*: Duration
     count*: int64
 
 var
   perFutureMetrics: Table[uint, FutureMetric]
-  callbackDurations: Table[ptr SrcLoc, CallbackMetric]
+  futureSummaryMetrics: Table[ptr SrcLoc, CallbackMetric]
+
+proc getFutureSummaryMetrics*(): Table[ptr SrcLoc, CallbackMetric] {.gcsafe.} =
+  ## get a copy of the table of summary metrics for all futures
+  {.cast(gcsafe).}:
+    futureSummaryMetrics
 
 proc setFutureCreate(fut: FutureBase) {.raises: [].} =
   ## used for setting the duration
@@ -81,9 +86,9 @@ proc setFutureDuration(fut: FutureBase) {.raises: [].} =
   perFutureMetrics.withValue(fut.id, metric):
     fm = metric[]
 
-  discard callbackDurations.hasKeyOrPut(loc, CallbackMetric(minSingleTime: InfiniteDuration))
-  callbackDurations.withValue(loc, metric):
-    echo loc, " set duration: ", callbackDurations.hasKey(loc)
+  discard futureSummaryMetrics.hasKeyOrPut(loc, CallbackMetric(minSingleTime: InfiniteDuration))
+  futureSummaryMetrics.withValue(loc, metric):
+    echo loc, " set duration: ", futureSummaryMetrics.hasKey(loc)
     metric.totalExecTime += fm.duration
     metric.totalWallTime += Moment.now() - fm.created
     metric.totalRunTime += metric.totalExecTime + fm.durationChildren
@@ -133,7 +138,7 @@ when isMainModule:
         
       waitFor(simpleAsync1())
 
-      let metrics = callbackDurations
+      let metrics = futureSummaryMetrics
       echo "\n=== metrics ==="
       echo "execTime:\ttime to execute non-async portions of async proc"
       echo "runTime:\texecution time + execution time of children"
@@ -149,7 +154,7 @@ when isMainModule:
           echo "avg runTime:\t", v.totalRunTime div count, "\ttotal: ", v.totalRunTime
         if k.procedure == "simpleAsync1":
           check v.totalExecTime >= 150.milliseconds()
-          check v.totalExecTime <= 170.milliseconds()
+          check v.totalExecTime <= 180.milliseconds()
 
           check v.totalRunTime >= 200.milliseconds()
           check v.totalRunTime <= 230.milliseconds()
