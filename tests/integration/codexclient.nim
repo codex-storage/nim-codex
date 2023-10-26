@@ -141,3 +141,6 @@ proc close*(client: CodexClient) =
 proc restart*(client: CodexClient) =
   client.http.close()
   client.http = newHttpClient()
+
+proc purchaseStateIs(client: CodexClient, id: PurchaseId, state: string): bool =
+  client.getPurchase(id).option.?state == some state

@@ -23,18 +23,18 @@ type
     role*: Role
     node*: NodeProcess
     address*: ?Address
-  StartNodes* = object
-    clients*: StartNodeConfig
-    providers*: StartNodeConfig
-    validators*: StartNodeConfig
-    hardhat*: StartHardhatConfig
-  StartNodeConfig* = object
+  Nodes* = object
+    clients*: NodeConfig
+    providers*: NodeConfig
+    validators*: NodeConfig
+    hardhat*: HardhatConfig
+  NodeConfig* = object
     numNodes*: int
     cliOptions*: seq[CliOption]
     logFile*: bool
     logTopics*: seq[string]
     debugEnabled*: bool
-  StartHardhatConfig* = ref object
+  HardhatConfig* = ref object
     logFile*: bool
   Role* {.pure.} = enum
     Client,
@@ -58,7 +58,7 @@ proc new*(_: type RunningNode,
   RunningNode(role: role,
               node: node)
 
-proc nodes*(config: StartNodeConfig, numNodes: int): StartNodeConfig =
+proc nodes*(config: NodeConfig, numNodes: int): NodeConfig =
   if numNodes < 0:
     raise newException(ValueError, "numNodes must be >= 0")
 
@@ -67,10 +67,10 @@ proc nodes*(config: StartNodeConfig, numNodes: int): StartNodeConfig =
   return startConfig
 
 proc simulateProofFailuresFor*(
-  config: StartNodeConfig,
+  config: NodeConfig,
   providerIdx: int,
   failEveryNProofs: int
-): StartNodeConfig =
+): NodeConfig =
 
   if providerIdx > config.numNodes - 1:
     raise newException(ValueError, "provider index out of bounds")
@@ -85,16 +85,16 @@ proc simulateProofFailuresFor*(
   )
   return startConfig
 
-proc debug*(config: StartNodeConfig, enabled = true): StartNodeConfig =
+proc debug*(config: NodeConfig, enabled = true): NodeConfig =
   ## output log in stdout
   var startConfig = config
   startConfig.debugEnabled = enabled
   return startConfig
 
 # proc withLogFile*(
-#   config: StartNodeConfig,
+#   config: NodeConfig,
 #   file: bool | string
-# ): StartNodeConfig =
+# ): NodeConfig =
 
 #   var startConfig = config
 #   when file is bool:
@@ -109,34 +109,34 @@ proc debug*(config: StartNodeConfig, enabled = true): StartNodeConfig =
 #   return startConfig
 
 proc withLogTopics*(
-  config: StartNodeConfig,
+  config: NodeConfig,
   topics: varargs[string]
-): StartNodeConfig =
+): NodeConfig =
 
   var startConfig = config
   startConfig.logTopics = startConfig.logTopics.concat(@topics)
   return startConfig
 
 proc withLogFile*(
-  config: StartNodeConfig,
+  config: NodeConfig,
   logToFile: bool = true
-): StartNodeConfig =
+): NodeConfig =
 
   var startConfig = config
   startConfig.logFile = logToFile
   return startConfig
 
 proc withLogFile*(
-  config: StartHardhatConfig,
+  config: HardhatConfig,
   logToFile: bool = true
-): StartHardhatConfig =
+): HardhatConfig =
 
   var startConfig = config
   startConfig.logFile = logToFile
   return startConfig
 
 template multinodesuite*(name: string,
-  startNodes: StartNodes, body: untyped) =
+  startNodes: Nodes, body: untyped) =
 
   asyncchecksuite name:
 
@@ -160,7 +160,7 @@ template multinodesuite*(name: string,
       let fileName = logDir / fn
       return fileName
 
-    proc newHardhatProcess(config: StartHardhatConfig, role: Role): NodeProcess =
+    proc newHardhatProcess(config: HardhatConfig, role: Role): NodeProcess =
       var options: seq[string] = @[]
       if config.logFile:
         let updatedLogFile = getLogFile(role, none int)
@@ -173,7 +173,7 @@ template multinodesuite*(name: string,
       return node
 
     proc newNodeProcess(roleIdx: int,
-                        config1: StartNodeConfig,
+                        config1: NodeConfig,
                         role: Role
     ): NodeProcess =
 

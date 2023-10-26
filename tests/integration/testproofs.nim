@@ -5,10 +5,10 @@ import pkg/chronicles
 import pkg/stew/byteutils
 import pkg/codex/contracts
 import pkg/codex/periods
-import pkg/codex/rng
 import ../contracts/time
 import ../contracts/deployment
 import ../codex/helpers
+import ../examples
 import ./twonodes
 import ./multinodes
 
@@ -110,7 +110,7 @@ logScope:
 #     stopValidator(validator)
 
 # multinodesuite "Simulate invalid proofs",
-#   StartNodes.init(clients=1, providers=0, validators=1),
+#   Nodes.init(clients=1, providers=0, validators=1),
 #   DebugConfig.init(client=false, provider=false, validator=false):
 #     # .simulateProofFailuresFor(providerIdx = 0, failEveryNProofs = 2),
 
@@ -239,18 +239,48 @@ logScope:
 
 #     await subscription.unsubscribe()
 
-multinodesuite "Simulate invalid proofs",
-  StartNodes(
-    hardhat: StartHardhatConfig()
+multinodesuite "Simulate invalid proofs - 1 provider node",
+  Nodes(
+    hardhat: HardhatConfig()
               .withLogFile(),
 
-    clients: StartNodeConfig()
+    clients: NodeConfig()
               .nodes(1)
               .debug()
               .withLogFile()
               .withLogTopics("node"),
 
-    providers: StartNodeConfig()
+    providers: NodeConfig()
+                .nodes(1)
+                .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=2)
+                .debug()
+                .withLogFile()
+                .withLogTopics(
+                  "marketplace",
+                  "sales",
+                  "reservations",
+                  "node",
+                  "JSONRPC-HTTP-CLIENT",
+                  "JSONRPC-WS-CLIENT",
+                  "ethers",
+                  "restapi"
+                )
+  ):
+    test "1=1":
+      check 1 == 1
+
+multinodesuite "Simulate invalid proofs",
+  Nodes(
+    hardhat: HardhatConfig()
+              .withLogFile(),
+
+    clients: NodeConfig()
+              .nodes(1)
+              .debug()
+              .withLogFile()
+              .withLogTopics("node"),
+
+    providers: NodeConfig()
                 .nodes(5)
                 .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=2)
                 .debug()
@@ -266,17 +296,11 @@ multinodesuite "Simulate invalid proofs",
                   "restapi"
                 ),
 
-    validators: StartNodeConfig()
+    validators: NodeConfig()
                   .nodes(1)
                   .withLogFile()
                   .withLogTopics("validator", "initial-proving", "proving")
   ):
-
-    # .simulateProofFailuresFor(providerIdx = 0, failEveryNProofs = 2),
-  # DebugConfig.init(client=false, provider=true, validator=false, topics="marketplace,sales,proving,reservations,node,JSONRPC-HTTP-CLIENT,JSONRPC-WS-CLIENT,ethers"):
-
-  proc purchaseStateIs(client: CodexClient, id: PurchaseId, state: string): bool =
-    client.getPurchase(id).option.?state == some state
 
   var marketplace: Marketplace
   var period: uint64
@@ -303,29 +327,27 @@ multinodesuite "Simulate invalid proofs",
     let endOfPeriod = periodicity.periodEnd(currentPeriod)
     await provider.advanceTimeTo(endOfPeriod + 1)
 
-  proc requestStorage(proofProbability: uint64 = 1,
+  proc createAvailabilities(datasetSize: int, duration: uint64) =
+    # post availability to each provider
+    for i in 0..<providers().len:
+      let provider = providers()[i].node.client
+
+      discard provider.postAvailability(
+        size=datasetSize.u256, # should match 1 slot only
+        duration=duration.u256,
+        minPrice=300.u256,
+        maxCollateral=200.u256
+      )
+
+  proc requestStorage(data: seq[byte],
+                      proofProbability: uint64 = 1,
                       duration: uint64 = 12.periods,
                       expiry: uint64 = 4.periods): Future[PurchaseId] {.async.} =
 
     if clients().len < 1 or providers().len < 2:
       raiseAssert("must start at least one client and two providers")
 
-    # post availability to each provider
-    for i in 0..<providers().len:
-      let provider = providers()[i].node.client
-
-      discard provider.postAvailability(
-        size=261888.u256, # should match 1 slot only
-        duration=duration.u256,
-        minPrice=300.u256,
-        maxCollateral=200.u256
-      )
-
-
     let client0 = clients()[0].node.client
-    let rng = rng.Rng.instance()
-    let chunker = RandomChunker.new(rng, size = DefaultBlockSize * 2, chunkSize = DefaultBlockSize * 2)
-    let data = await chunker.getBytes()
     let cid = client0.upload(byteutils.toHex(data)).get
     let expiry = (await provider.currentTime()) + expiry.u256
 
@@ -355,10 +377,10 @@ multinodesuite "Simulate invalid proofs",
     let provider1 = providers()[1]
     let totalProofs = 25
 
-    let purchaseId = await requestStorage(duration=totalProofs.periods)
+    let data = await exampleData()
+    createAvailabilities(byteutils.toHex(data).len, totalProofs.periods)
+    let purchaseId = await requestStorage(data, duration=totalProofs.periods)
     check eventually clientRestClient.purchaseStateIs(purchaseId, "started")
-
-    let duration = (totalProofs.periods.int + 2) * 10 # 10 seconds per period
 
     for _ in 0..<totalProofs.periods.int:
       if clientRestClient.purchaseStateIs(purchaseId, "finished"):
