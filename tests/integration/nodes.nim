@@ -82,7 +82,7 @@ proc client*(node: NodeProcess): CodexClient =
   node.client = some client
   client
 
-proc stop*(node: NodeProcess) =
+method stop*(node: NodeProcess) {.base.} =
   if node.process != nil:
     node.process.terminate()
     discard node.process.waitForExit(timeout=5_000)

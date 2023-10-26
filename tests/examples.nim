@@ -2,12 +2,15 @@ import std/random
 import std/sequtils
 import std/times
 import std/typetraits
-
+import pkg/chronos
 import pkg/codex/contracts/requests
+import pkg/codex/rng
 import pkg/codex/sales/slotqueue
 import pkg/codex/stores
 
 import pkg/stint
+import ./codex/helpers/randomchunker
+
 proc exampleString*(length: int): string =
   let chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
   result = newString(length) # Create a new empty string with a given length
@@ -67,3 +70,8 @@ proc exampleProof*(): seq[byte] =
   while proof.len == 0:
     proof = seq[byte].example
   return proof
+
+proc exampleData*(): Future[seq[byte]] {.async.} =
+  let rng = rng.Rng.instance()
+  let chunker = RandomChunker.new(rng, size = DefaultBlockSize * 2, chunkSize = DefaultBlockSize * 2)
+  return await chunker.getBytes()

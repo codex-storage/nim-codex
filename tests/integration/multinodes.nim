@@ -148,7 +148,10 @@ template multinodesuite*(name: string,
     let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
 
     proc getLogFile(role: Role, index: ?int): string =
-      var logDir = currentSourcePath.parentDir() / "logs" / $starttime
+      var nameSanitized = name
+      for invalid in invalidFilenameChars.items:
+        nameSanitized = nameSanitized.replace(invalid, '_')
+      var logDir = currentSourcePath.parentDir() / "logs" / nameSanitized / $starttime
       createDir(logDir)
       var fn = $role
       if idx =? index:

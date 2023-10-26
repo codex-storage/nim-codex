@@ -9,7 +9,8 @@ import std/osproc
 import std/os
 import std/streams
 import std/strutils
-import codex/conf
+import pkg/codex/conf
+import pkg/codex/utils/trackedfutures
 import ./codexclient
 import ./nodes
 
@@ -22,34 +23,27 @@ logScope:
   topics = "integration testing nodes"
 
 const workingDir = currentSourcePath() / ".." / ".." / ".." / "vendor" / "codex-contracts-eth"
-when defined(windows):
-  const executable = "npmstart.bat"
-else:
-  const executable = "npmstart.sh"
-
 const startedOutput = "Started HTTP and WebSocket JSON-RPC server at"
 
 type
   HardhatProcess* = ref object of NodeProcess
-    logWrite: Future[void]
     logFile: ?IoHandle
     started: Future[void]
+    trackedFutures: TrackedFutures
 
-proc writeToLogFile*(node: HardhatProcess, logFilePath: string) {.async.} =
+proc captureOutput*(node: HardhatProcess, logFilePath: string) {.async.} =
   let logFileHandle = openFile(
     logFilePath,
     {OpenFlags.Write, OpenFlags.Create, OpenFlags.Truncate}
   )
 
   without fileHandle =? logFileHandle:
-    # echo "failed to open hardhat log file, path: ", logFilePath, ", error code: ", $logFileHandle.error
     error "failed to open log file",
       path = logFilePath,
       errorCode = $logFileHandle.error
 
   node.logFile = some fileHandle
   node.started = newFuture[void]("hardhat.started")
-
   try:
     for line in node.process.outputStream.lines:
 
@@ -68,14 +62,15 @@ proc writeToLogFile*(node: HardhatProcess, logFilePath: string) {.async.} =
 
 proc start(node: HardhatProcess) =
   node.process = osproc.startProcess(
-    executable,
+    "npm start",
     workingDir,
-    node.arguments)
+    # node.arguments,
+    options={poEvalCommand})
 
   for arg in node.arguments:
     if arg.contains "--log-file=":
       let logFilePath = arg.split("=")[1]
-      node.logWrite = node.writeToLogFile(logFilePath)
+      node.captureOutput(logFilePath).track(node)
       break
 
 proc waitUntilOutput*(node: HardhatProcess, output: string) =
@@ -96,19 +91,15 @@ proc waitUntilStarted*(node: HardhatProcess) =
 
 proc startHardhatProcess*(args: openArray[string]): HardhatProcess =
   ## Starts a Hardhat Node with the specified arguments.
-  let node = HardhatProcess(arguments: @args)
+  let node = HardhatProcess(arguments: @args, trackedFutures: TrackedFutures.new())
   node.start()
   node
 
-proc stop*(node: HardhatProcess) =
-  if node.process != nil:
-    node.process.terminate()
-    discard node.process.waitForExit(timeout=5_000)
-    node.process.close()
-    node.process = nil
+method stop*(node: HardhatProcess) =
+  # terminate the process
+  procCall NodeProcess(node).stop()
 
-  if not node.logWrite.isNil and not node.logWrite.finished:
-    waitFor node.logWrite.cancelAndWait()
+  waitFor node.trackedFutures.cancelTracked()
 
   if logFile =? node.logFile:
     discard logFile.closeFile()
