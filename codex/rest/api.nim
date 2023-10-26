@@ -118,51 +118,66 @@ proc formatManifestBlocks(store: BlockStore, cids: BlocksIter): Future[JsonNode]
         jarray.add(jnode)
 
   let jobj = %*{
-    "files": jarray
+    "content": jarray
   }
   return jobj
 
-proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
-  var router = RestRouter.init(validate)
-  router.api(
-    MethodGet,
-    "/api/codex/v1/connect/{peerId}") do (
-      peerId: PeerId,
-      addrs: seq[MultiAddress]) -> RestApiResponse:
-      ## Connect to a peer
-      ##
-      ## If `addrs` param is supplied, it will be used to
-      ## dial the peer, otherwise the `peerId` is used
-      ## to invoke peer discovery, if it succeeds
-      ## the returned addresses will be used to dial
-      ##
-      ## `addrs` the listening addresses of the peers to dial, eg the one specified with `--listen-addrs`
+proc initContentApi(node: CodexNodeRef, router: var RestRouter) =
+  router.rawApi(
+    MethodPost,
+    "/api/codex/v1/content") do (
+    ) -> RestApiResponse:
+      ## Upload a file in a streaming manner
       ##
 
-      if peerId.isErr:
-        return RestApiResponse.error(
-          Http400,
-          $peerId.error())
+      trace "Handling file upload"
+      var bodyReader = request.getBodyReader()
+      if bodyReader.isErr():
+        return RestApiResponse.error(Http500)
 
-      let addresses = if addrs.isOk and addrs.get().len > 0:
-            addrs.get()
-          else:
-            without peerRecord =? (await node.findPeer(peerId.get())):
-              return RestApiResponse.error(
-                Http400,
-                "Unable to find Peer!")
-            peerRecord.addresses.mapIt(it.address)
+      # Attempt to handle `Expect` header
+      # some clients (curl), wait 1000ms
+      # before giving up
+      #
+      await request.handleExpect()
+
+      let
+        reader = bodyReader.get()
+
       try:
-        await node.connect(peerId.get(), addresses)
-        return RestApiResponse.response("Successfully connected to peer")
-      except DialFailedError:
-        return RestApiResponse.error(Http400, "Unable to dial peer")
-      except CatchableError:
-        return RestApiResponse.error(Http400, "Unknown error dialling peer")
+        without cid =? (
+          await node.store(AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)))), error:
+          trace "Error uploading file", exc = error.msg
+          return RestApiResponse.error(Http500, error.msg)
+
+        codex_api_uploads.inc()
+        trace_a"U_dloaded file", cid
+        return RestApiResponse.response($cid)
+      except CancelledError:
+        trace "Upload cancelled error"
+        return RestApiResponse.error(Http500)
+      except AsyncStreamError:
+        trace "Async stream error"
+        return RestApiResponse.error(Http500)
+      finally:
+        await reader.closeWait()
+
+      trace "Something went wrong error"
+      return RestApiResponse.error(Http500)
 
   router.api(
     MethodGet,
-    "/api/codex/v1/download/{id}") do (
+    "/api/codex/v1/content") do () -> RestApiResponse:
+      without cids =? await node.blockStore.listBlocks(BlockType.Manifest):
+        trace "Failed to listBlocks"
+        return RestApiResponse.error(Http500)
+
+      let json = await formatManifestBlocks(node.blockStore, cids)
+      return RestApiResponse.response($json, contentType="application/json")
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/content/{id}") do (
       id: Cid, resp: HttpResponseRef) -> RestApiResponse:
       ## Download a file from the node in a streaming
       ## manner
@@ -206,6 +221,47 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         if not stream.isNil:
           await stream.close()
 
+proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
+  var router = RestRouter.init(validate)
+
+  initContentApi(node, router)
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/connect/{peerId}") do (
+      peerId: PeerId,
+      addrs: seq[MultiAddress]) -> RestApiResponse:
+      ## Connect to a peer
+      ##
+      ## If `addrs` param is supplied, it will be used to
+      ## dial the peer, otherwise the `peerId` is used
+      ## to invoke peer discovery, if it succeeds
+      ## the returned addresses will be used to dial
+      ##
+      ## `addrs` the listening addresses of the peers to dial, eg the one specified with `--listen-addrs`
+      ##
+
+      if peerId.isErr:
+        return RestApiResponse.error(
+          Http400,
+          $peerId.error())
+
+      let addresses = if addrs.isOk and addrs.get().len > 0:
+            addrs.get()
+          else:
+            without peerRecord =? (await node.findPeer(peerId.get())):
+              return RestApiResponse.error(
+                Http400,
+                "Unable to find Peer!")
+            peerRecord.addresses.mapIt(it.address)
+      try:
+        await node.connect(peerId.get(), addresses)
+        return RestApiResponse.response("Successfully connected to peer")
+      except DialFailedError:
+        return RestApiResponse.error(Http400, "Unable to dial peer")
+      except CatchableError:
+        return RestApiResponse.error(Http400, "Unknown error dialling peer")
+
   router.rawApi(
     MethodPost,
     "/api/codex/v1/storage/request/{cid}") do (cid: Cid) -> RestApiResponse:
@@ -244,58 +300,6 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
         return RestApiResponse.error(Http500, error.msg)
 
       return RestApiResponse.response(purchaseId.toHex)
-
-  router.rawApi(
-    MethodPost,
-    "/api/codex/v1/upload") do (
-    ) -> RestApiResponse:
-      ## Upload a file in a streaming manner
-      ##
-
-      trace "Handling file upload"
-      var bodyReader = request.getBodyReader()
-      if bodyReader.isErr():
-        return RestApiResponse.error(Http500)
-
-      # Attempt to handle `Expect` header
-      # some clients (curl), wait 1000ms
-      # before giving up
-      #
-      await request.handleExpect()
-
-      let
-        reader = bodyReader.get()
-
-      try:
-        without cid =? (
-          await node.store(AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)))), error:
-          trace "Error uploading file", exc = error.msg
-          return RestApiResponse.error(Http500, error.msg)
-
-        codex_api_uploads.inc()
-        trace "Uploaded file", cid
-        return RestApiResponse.response($cid)
-      except CancelledError:
-        trace "Upload cancelled error"
-        return RestApiResponse.error(Http500)
-      except AsyncStreamError:
-        trace "Async stream error"
-        return RestApiResponse.error(Http500)
-      finally:
-        await reader.closeWait()
-
-      trace "Something went wrong error"
-      return RestApiResponse.error(Http500)
-
-  router.api(
-    MethodGet,
-    "/api/codex/v1/files") do () -> RestApiResponse:
-      without cids =? await node.blockStore.listBlocks(BlockType.Manifest):
-        trace "Failed to listBlocks"
-        return RestApiResponse.error(Http500)
-
-      let json = await formatManifestBlocks(node.blockStore, cids)
-      return RestApiResponse.response($json, contentType="application/json")
 
   router.api(
     MethodPost,

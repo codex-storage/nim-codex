@@ -37,7 +37,7 @@ ethersuite "Node block expiration tests":
 
   proc uploadTestFile(): string =
     let client = newHttpClient()
-    let uploadUrl = baseurl & "/upload"
+    let uploadUrl = baseurl & "/content"
     let uploadResponse = client.post(uploadUrl, content)
     check uploadResponse.status == "200 OK"
     client.close()
@@ -45,7 +45,7 @@ ethersuite "Node block expiration tests":
 
   proc downloadTestFile(contentId: string): Response =
     let client = newHttpClient(timeout=3000)
-    let downloadUrl = baseurl & "/download/" & contentId
+    let downloadUrl = baseurl & "/content/" & contentId
     let content = client.get(downloadUrl)
     client.close()
     content

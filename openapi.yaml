@@ -205,14 +205,40 @@ components:
         request:
           $ref: "#/components/schemas/StorageRequest"
 
+    ContentList:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContentItem"
+
+    ContentItem:
+      type: object
+      properties:
+        cid:
+          $ref: "#/components/schemas/Cid"
+        rootHash:
+          type: string
+          description: "Root hash of the content"
+        originalBytes:
+          type: string
+          description: "Length of original content in bytes"
+        blockSize:
+          type: string
+          description: "Size of blocks"
+        protected:
+          type: string
+          description: "Indicates if content is protected by erasure-coding"
+
 servers:
   - url: "http://localhost:8080/api/codex/v1"
 
 tags:
   - name: Marketplace
     description: Marketplace information and operations
-  - name: Data
-    description: Data operations
+  - name: Content
+    description: Content operations
   - name: Node
     description: Node management
   - name: Debug
@@ -252,10 +278,51 @@ paths:
         "400":
           description: Peer either not found or was not possible to dial
 
-  "/download/{cid}":
+  "/content":
+    get:
+      summary: "Lists content CIDs stored in node"
+      tags: [ Content ]
+      operationId: listContent
+      responses:
+        "200":
+          description: Retrieved list of content CIDs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ContentList"
+        "400":
+          description: Invalid CID is specified
+        "404":
+          description: Content specified by the CID is not found
+        "500":
+          description: Well it was bad-bad
+
+    post:
+      summary: "Upload a file in a streaming manner"
+      tags: [ Content ]
+      operationId: upload
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: CID of uploaded file
+          content:
+            text/plain:
+              schema:
+                type: string
+        "500":
+          description: Well it was bad-bad and the upload did not work out
+
+  "/content/{cid}":
     get:
       summary: "Download a file from the node in a streaming manner"
-      tags: [ Data ]
+      tags: [ Content ]
       operationId: download
       parameters:
         - in: path
@@ -279,27 +346,6 @@ paths:
           description: Content specified by the CID is not found
         "500":
           description: Well it was bad-bad
-
-  "/upload":
-    post:
-      summary: "Upload a file in a streaming manner"
-      tags: [ Data ]
-      operationId: upload
-      requestBody:
-        content:
-          application/octet-stream:
-            schema:
-              type: string
-              format: binary
-      responses:
-        "200":
-          description: CID of uploaded file
-          content:
-            text/plain:
-              schema:
-                type: string
-        "500":
-          description: Well it was bad-bad and the upload did not work out
 
   "/sales/slots":
     get:
