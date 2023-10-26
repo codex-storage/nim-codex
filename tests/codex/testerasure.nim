@@ -61,7 +61,7 @@ suite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     var
-      column = rng.rand((encoded.len div encoded.steps) - 1) # random column
+      column = rng.rand(encoded.steps - 1) # random column
       dropped: seq[Cid]
 
     for _ in 0..<encoded.ecM:
@@ -89,7 +89,7 @@ suite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     var
-      column = rng.rand((encoded.len div encoded.steps) - 1) # random column
+      column = rng.rand(encoded.steps - 1) # random column
       dropped: seq[Cid]
 
     for _ in 0..<encoded.ecM + 1:
