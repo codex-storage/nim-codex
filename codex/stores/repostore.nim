@@ -64,7 +64,7 @@ type
   BlockExpiration* = object
     cid*: Cid
     expiration*: SecondsSince1970
-
+  
 proc updateMetrics(self: RepoStore) =
   codexRepostoreBlocks.set(self.totalBlocks.int64)
   codexRepostoreBytesUsed.set(self.quotaUsedBytes.int64)
@@ -78,6 +78,46 @@ func available*(self: RepoStore): uint =
 
 func available*(self: RepoStore, bytes: uint): bool =
   return bytes < self.available()
+
+proc encode(cidAndProof: (Cid, MerkleProof)): seq[byte] =
+  let (cid, proof) = cidAndProof
+  var pb = initProtoBuffer()
+  pb.write(1, cid.data.buffer)
+  pb.write(2, proof.encode)
+  pb.finish
+  pb.buffer
+
+proc decode(_: type (Cid, MerkleProof), data: seq[byte]): ?!(Cid, MerkleProof) =
+  var 
+    pbNode = initProtoBuffer(data)
+    cidBuf: seq[byte]
+    proofBuf: seq[byte]
+
+  discard pbNode.getField(1, cidBuf).mapFailure
+  discard pbNode.getField(2, proofBuf).mapFailure
+  
+  let 
+    cid = ? Cid.init(cidBuf).mapFailure
+    proof = ? MerkleProof.decode(proofBuf)
+  
+  (cid, proof)
+
+method putBlockCidAndProof*(
+  self: BlockStore,
+  treeCid: Cid,
+  index: Natural,
+  blockCid: Cid,
+  proof: MerkleProof
+): Future[?!void] {.async.} =
+  ## Put a block to the blockstore
+  ##
+
+  without key =? createBlockCidAndProofMetadataKey(address), err:
+    return failure(err)
+
+  let value = (blockCid, proof).encode()
+
+  await self.metaDs.put(key, value)
 
 method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the blockstore
@@ -104,14 +144,28 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   trace "Got block for cid", cid
   return Block.new(cid, data, verify = true)
 
-method getBlock*(self: RepoStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] =
-  self.treeReader.getBlock(treeCid, index)
+method getBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!Block] =
+  without (blk, _) =? await self.getBlockAndProof(treeCid, index), err:
+    return failure(err)
+  
+  success(blk)
 
-method getBlocks*(self: RepoStore, treeCid: Cid, leavesCount: Natural, merkleRoot: MultiHash): Future[?!AsyncIter[?!Block]] =
-  self.treeReader.getBlocks(treeCid, leavesCount)
 
 method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] =
-  self.treeReader.getBlockAndProof(treeCid, index)
+
+  without key =? createBlockCidAndProofMetadataKey(address), err:
+    return failure(err)
+
+  without value =? await self.metaDs.get(key), err:
+    return failure(err)
+
+  without (cid, proof) =? (Cid, MerkleProof).decode(value), err:
+    return failure(err)
+
+  without blk =? await self.getBlock(cid), err:
+    return failure(err)
+
+  succes(blk, proof)
 
 proc getBlockExpirationTimestamp(self: RepoStore, ttl: ?Duration): SecondsSince1970 =
   let duration = ttl |? self.blockTtl

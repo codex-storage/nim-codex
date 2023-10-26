@@ -30,16 +30,10 @@ type
 
   BlockStore* = ref object of RootObj
 
-method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
+method getBlock*(self: BlockStore, address: BlockAddress): Future[?!Block] {.base.} =
   ## Get a block from the blockstore
   ##
 
-  raiseAssert("Not implemented!")
-
-method getBlock*(self: BlockStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] {.base.} =
-  ## Get a block by Cid of a merkle tree and an index of a leaf in a tree, validate inclusion using merkle root
-  ## 
-  
   raiseAssert("Not implemented!")
 
 method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.base.} =
@@ -48,16 +42,23 @@ method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future
   
   raiseAssert("Not implemented!")
 
-method getBlocks*(self: BlockStore, treeCid: Cid, leavesCount: Natural, merkleRoot: MultiHash): Future[?!AsyncIter[?!Block]] {.base.} =
-  ## Get all blocks in range [0..<leavesCount] by Cid of a merkle tree, validate inclusion using merkle root
-  ## 
-
-  raiseAssert("Not implemented!")
-
 method putBlock*(
     self: BlockStore,
     blk: Block,
     ttl = Duration.none
+): Future[?!void] {.base.} =
+  ## Put a block to the blockstore
+  ##
+
+  raiseAssert("Not implemented!")
+
+# I cant use `BlockAddress` to wrap (treeCid, index) here. because as far as I know there's no way in Nim to force `assert(leaf == true)` in a compile time
+method putBlockCidAndProof*(
+  self: BlockStore,
+  treeCid: Cid,
+  index: Natural
+  blockCid: Cid,
+  proof: MerkleProof
 ): Future[?!void] {.base.} =
   ## Put a block to the blockstore
   ##

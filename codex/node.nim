@@ -190,8 +190,7 @@ proc store*(
     dataCodec = multiCodec("raw")
     chunker = LPStreamChunker.new(stream, chunkSize = blockSize)
 
-  without var treeBuilder =? MerkleTreeBuilder.init(hcodec), err:
-    return failure(err)
+  var cids: seq[Cid]
 
   try:
     while (
@@ -209,8 +208,7 @@ proc store*(
       without blk =? bt.Block.new(cid, chunk, verify = false):
         return failure("Unable to init block from chunk!")
       
-      if err =? treeBuilder.addLeaf(mhash).errorOption:
-        return failure(err)
+      cids.add(cid)
 
       if err =? (await self.blockStore.putBlock(blk)).errorOption:
         trace "Unable to store block", cid = blk.cid, err = err.msg
@@ -223,18 +221,23 @@ proc store*(
   finally:
     await stream.close()
 
-  without tree =? treeBuilder.build(), err:
-    return failure(err)
-  
-  without treeBlk =? bt.Block.new(tree.encode()), err:
+
+  without tree =? MerkleTree.init(cids), err:
     return failure(err)
 
-  if err =? (await self.blockStore.putBlock(treeBlk)).errorOption:
-    return failure("Unable to store merkle tree block " & $treeBlk.cid & ", nested err: " & err.msg)
+  without treeCid =? Cid.init(CIDv1, dataCodec, tree.root).mapFailure, err:
+    return failure(err)
+  
+  for cid, index in cids:
+    without proof =? tree.getProof(index), err:
+      return failure(err)
+    if err =? (await self.blockStore.putBlockCidAndProof(treeCid, index, cid, proof)).errorOption:
+      # TODO add log here
+      return failure(err)
 
   let manifest = Manifest.new(
     treeCid = treeBlk.cid,
-    treeRoot = tree.root,
+    treeRoot = tree.root, # TODO remove it
     blockSize = blockSize,
     datasetSize = NBytes(chunker.offset),
     version = CIDv1,

@@ -15,6 +15,7 @@ import pkg/datastore
 import pkg/libp2p
 import ../namespaces
 import ../manifest
+import ../merkletree
 
 const
   CodexMetaKey* = Key.init(CodexMetaNamespace).tryGet
@@ -23,6 +24,7 @@ const
   CodexTotalBlocksKey* = Key.init(CodexBlockTotalNamespace).tryGet
   CodexManifestKey* = Key.init(CodexManifestNamespace).tryGet
   BlocksTtlKey* = Key.init(CodexBlocksTtlNamespace).tryGet
+  BlockProofKey* = Key.init(CodexBlockProofNamespace).tryGet
   QuotaKey* = Key.init(CodexQuotaNamespace).tryGet
   QuotaUsedKey* = (QuotaKey / "used").tryGet
   QuotaReservedKey* = (QuotaKey / "reserved").tryGet
@@ -42,3 +44,7 @@ proc createBlockExpirationMetadataKey*(cid: Cid): ?!Key =
 proc createBlockExpirationMetadataQueryKey*(): ?!Key =
   let queryString = ? (BlocksTtlKey / "*")
   Key.init(queryString)
+
+proc createBlockCidAndProofMetadataKey*(treeCid: Cid, index: Natural): ?!Key =
+  (BlockProofKey / $treeCid) / $index
+  

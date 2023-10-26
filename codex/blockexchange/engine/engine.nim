@@ -175,60 +175,11 @@ proc monitorBlockHandle(b: BlockExcEngine, handle: Future[Block], address: Block
     b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
     await b.network.switch.disconnect(peerId)
 
-proc requestBlock*(
-  b: BlockExcEngine,
-  cid: Cid,
-  timeout = DefaultBlockTimeout): Future[Block] {.async.} =
-  trace "Begin block request", cid, peers = b.peers.len
-
-  if b.pendingBlocks.isInFlight(cid):
-    trace "Request handle already pending", cid
-    return await b.pendingBlocks.getWantHandle(cid, timeout)
-
-  let
-    blk = b.pendingBlocks.getWantHandle(cid, timeout)
-    address = BlockAddress(leaf: false, cid: cid)
-
-  trace "Selecting peers who have", address
-  var
-    peers = b.peers.selectCheapest(address)
-
-  without blockPeer =? b.findCheapestPeerForBlock(peers):
-      trace "No peers to request blocks from. Queue discovery...", cid
-      b.discovery.queueFindBlocksReq(@[cid])
-      return await blk
-
-  asyncSpawn b.monitorBlockHandle(blk, address, blockPeer.id)
-  b.pendingBlocks.setInFlight(cid, true)
-  await b.sendWantBlock(address, blockPeer)
-
-  codexBlockExchangeWantBlockListsSent.inc()
-
-  if (peers.len - 1) == 0:
-    trace "No peers to send want list to", cid
-    b.discovery.queueFindBlocksReq(@[cid])
-    return await blk
-
-  await b.sendWantHave(address, blockPeer, toSeq(b.peers))
-
-  codexBlockExchangeWantHaveListsSent.inc()
-
-  return await blk
-
 proc requestBlock(
   b: BlockExcEngine,
-  treeReq: TreeReq,
-  index: Natural,
+  address: BlockAddress
   timeout = DefaultBlockTimeout
 ): Future[Block] {.async.} =
-  let address = BlockAddress(leaf: true, treeCid: treeReq.treeCid, index: index)
-
-  let handleOrCid = treeReq.getWantHandleOrCid(index, timeout)
-  if handleOrCid.resolved:
-    without blk =? await b.localStore.getBlock(handleOrCid.cid), err:
-      return await b.requestBlock(handleOrCid.cid, timeout)
-    return blk
-
   let blockFuture = handleOrCid.handle
 
   if treeReq.isInFlight(index):
@@ -236,7 +187,7 @@ proc requestBlock(
 
   let peers = b.peers.selectCheapest(address)
   if peers.len == 0:
-    b.discovery.queueFindBlocksReq(@[treeReq.treeCid])
+    b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
 
   let maybePeer = 
     if peers.len > 0:
@@ -248,39 +199,13 @@ proc requestBlock(
   
   if peer =? maybePeer:
     asyncSpawn b.monitorBlockHandle(blockFuture, address, peer.id)
-    treeReq.trySetInFlight(index)
+    treeReq.setInFlight(address)
     await b.sendWantBlock(address, peer)
     codexBlockExchangeWantBlockListsSent.inc()
     await b.sendWantHave(address, peer, toSeq(b.peers))
     codexBlockExchangeWantHaveListsSent.inc()
     
   return await blockFuture
-
-proc requestBlock*(
-  b: BlockExcEngine,
-  treeCid: Cid,
-  index: Natural,
-  merkleRoot: MultiHash,
-  timeout = DefaultBlockTimeout
-): Future[Block] =
-  without treeReq =? b.pendingBlocks.getOrPutTreeReq(treeCid, Natural.none, merkleRoot), err:
-    raise err
-  
-  return b.requestBlock(treeReq, index, timeout)
-
-proc requestBlocks*(
-  b: BlockExcEngine,
-  treeCid: Cid,
-  leavesCount: Natural,
-  merkleRoot: MultiHash,
-  timeout = DefaultBlockTimeout
-): ?!AsyncIter[Block] =
-  without treeReq =? b.pendingBlocks.getOrPutTreeReq(treeCid, leavesCount.some, merkleRoot), err:
-    return failure(err)
-
-  return Iter.fromSlice(0..<leavesCount).map(
-    (index: int) => b.requestBlock(treeReq, index, timeout)
-  ).success
 
 proc blockPresenceHandler*(
   b: BlockExcEngine,
@@ -383,6 +308,7 @@ proc blocksDeliveryHandler*(
   for bd in blocksDelivery:
     if err =? (await b.localStore.putBlock(bd.blk)).errorOption:
       trace "Unable to store block", cid = bd.blk.cid, err = err.msg
+      # TODO store proof if bd.leaf
     else:
       storedBlocks.add(bd)
 
