@@ -24,22 +24,22 @@ type
     count*: int64
 
 var
-  futureDurations: Table[uint, FutureMetric]
+  perFutureMetrics: Table[uint, FutureMetric]
   callbackDurations: Table[ptr SrcLoc, CallbackMetric]
 
 proc setFutureCreate(fut: FutureBase) {.raises: [].} =
   ## used for setting the duration
   let loc = fut.internalLocation[Create]
-  futureDurations[fut.id] = FutureMetric()
-  futureDurations.withValue(fut.id, metric):
+  perFutureMetrics[fut.id] = FutureMetric()
+  perFutureMetrics.withValue(fut.id, metric):
     metric.created = Moment.now()
     echo loc, "; future create "
 
 proc setFutureStart(fut: FutureBase) {.raises: [].} =
   ## used for setting the duration
   let loc = fut.internalLocation[Create]
-  assert futureDurations.hasKey(fut.id)
-  futureDurations.withValue(fut.id, metric):
+  assert perFutureMetrics.hasKey(fut.id)
+  perFutureMetrics.withValue(fut.id, metric):
     let ts = Moment.now()
     metric.start = some ts
     metric.blocks.inc()
@@ -52,11 +52,11 @@ proc setFuturePause(fut, child: FutureBase) {.raises: [].} =
   var durationChildren = ZeroDuration
   var initDurationChildren = ZeroDuration
   if childLoc != nil:
-    futureDurations.withValue(child.id, metric):
+    perFutureMetrics.withValue(child.id, metric):
       durationChildren = metric.duration
       initDurationChildren = metric.initDuration
-  assert futureDurations.hasKey(fut.id)
-  futureDurations.withValue(fut.id, metric):
+  assert perFutureMetrics.hasKey(fut.id)
+  perFutureMetrics.withValue(fut.id, metric):
     if metric.start.isSome:
       let ts = Moment.now()
       metric.duration += ts - metric.start.get()
@@ -77,8 +77,8 @@ proc setFutureDuration(fut: FutureBase) {.raises: [].} =
   let loc = fut.internalLocation[Create]
   # assert  "set duration: " & $loc
   var fm: FutureMetric
-  # assert futureDurations.pop(fut.id, fm)
-  futureDurations.withValue(fut.id, metric):
+  # assert perFutureMetrics.pop(fut.id, fm)
+  perFutureMetrics.withValue(fut.id, metric):
     fm = metric[]
 
   discard callbackDurations.hasKeyOrPut(loc, CallbackMetric(minSingleTime: InfiniteDuration))
