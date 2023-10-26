@@ -26,14 +26,14 @@ logScope:
   topics = "codex merkletree"
 
 type
-  MerkleTree* = object
+  MerkleTree* = ref object of RootObj
     mcodec: MultiCodec              # multicodec of the hash function
     height: Natural                 # current height of the tree (levels - 1)
     levels: Natural                 # number of levels in the tree (height + 1)
     leafs: Natural                  # total number of leafs, if odd the last leaf will be hashed twice
+    length: Natural                 # corrected to even number of leafs in the tree
     size: Natural                   # total number of nodes in the tree (corrected for odd leafs)
     leafsIter: AsyncIter[seq[byte]] # leafs iterator of the tree
-    nodesIter: AsyncIter[seq[byte]] # nodes iterator of the tree
 
   MerkleProof* = object
     mcodec: MultiCodec
@@ -135,6 +135,7 @@ func init*(
     self = MerkleTree(
       mcodec: mcodec,
       leafs: leafs,
+      length: length,
       size: size,
       height: height,
       levels: height - 1,

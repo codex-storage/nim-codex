@@ -14,6 +14,9 @@ const
   CodexBlockTotalNamespace* = CodexMetaNamespace & "/total"   # number of blocks in the repo
   CodexBlocksNamespace* = CodexRepoNamespace & "/blocks"      # blocks namespace
   CodexManifestNamespace* = CodexRepoNamespace & "/manifests" # manifest namespace
+  CodexMerkleTreeNamespace* = CodexRepoNamespace & "/trees"   # merkle tree namespace
+  CodexMerkleTreeHeader* =                                    # merkle tree header
+    CodexMerkleTreeNamespace & "/header"
   CodexBlocksTtlNamespace* =                                  # Cid TTL
     CodexMetaNamespace & "/ttl"
   CodexBlockProofNamespace* =                                  # Cid and Proof
