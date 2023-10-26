@@ -28,8 +28,6 @@ import pkg/confutils
 import pkg/libp2p
 import pkg/libp2p/routing_record
 import pkg/codexdht/discv5/spr as spr
-import pkg/codexdht/discv5/routing_table as rt
-import pkg/codexdht/discv5/node as dn
 
 import ../node
 import ../blocktype
@@ -51,47 +49,6 @@ proc validate(
   value: string): int
   {.gcsafe, raises: [Defect].} =
   0
-
-proc formatAddress(address: Option[dn.Address]): string =
-  if address.isSome():
-    return $address.get()
-  return "<none>"
-
-proc formatNode(node: dn.Node): JsonNode =
-  let jobj = %*{
-    "nodeId": $node.id,
-    "peerId": $node.record.data.peerId,
-    "record": $node.record,
-    "address": formatAddress(node.address),
-    "seen": $node.seen
-  }
-  return jobj
-
-proc formatTable(routingTable: rt.RoutingTable): JsonNode =
-  let jarray = newJArray()
-  for bucket in routingTable.buckets:
-    for node in bucket.nodes:
-      jarray.add(formatNode(node))
-
-  let jobj = %*{
-    "localNode": formatNode(routingTable.localNode),
-    "nodes": jarray
-  }
-  return jobj
-
-proc formatPeerRecord(peerRecord: PeerRecord): JsonNode =
-  let jarray = newJArray()
-  for maddr in peerRecord.addresses:
-    jarray.add(%*{
-      "address": $maddr.address
-    })
-
-  let jobj = %*{
-    "peerId": $peerRecord.peerId,
-    "seqNo": $peerRecord.seqNo,
-    "addresses": jarray
-  }
-  return jobj
 
 proc formatManifestBlock(store: BlockStore, cid: Cid): Future[?JsonNode] {.async.} =
   without blk =? await store.getBlock(cid):
@@ -335,7 +292,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
               node.discovery.dhtRecord.get.toURI
             else:
               "",
-          "table": formatTable(node.discovery.protocol.routingTable),
+          "table": node.discovery.protocol.routingTable,
           "codex": {
             "version": $codexVersion,
             "revision": $codexRevision
@@ -356,7 +313,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
             Http400,
             "Unable to find Peer!")
 
-        let json = formatPeerRecord(peerRecord)
+        let json = %peerRecord
         trace "debug/peer returning peer record"
         return RestApiResponse.response($json)
 

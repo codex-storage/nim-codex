@@ -2,6 +2,8 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/byteutils
 import pkg/libp2p
+import pkg/codexdht/discv5/node as dn
+import pkg/codexdht/discv5/routing_table as rt
 import ../sales
 import ../purchasing
 import ../utils/json
@@ -39,3 +41,44 @@ func `%`*(obj: StorageRequest | Slot): JsonNode =
 
 func `%`*(obj: Cid): JsonNode =
   % $obj
+
+proc formatAddress(address: Option[dn.Address]): string =
+  if address.isSome():
+    return $address.get()
+  return "<none>"
+
+proc `%`*(node: dn.Node): JsonNode =
+  let jobj = %*{
+    "nodeId": $node.id,
+    "peerId": $node.record.data.peerId,
+    "record": $node.record,
+    "address": formatAddress(node.address),
+    "seen": $node.seen
+  }
+  return jobj
+
+proc `%`*(routingTable: rt.RoutingTable): JsonNode =
+  let jarray = newJArray()
+  for bucket in routingTable.buckets:
+    for node in bucket.nodes:
+      jarray.add(%node)
+
+  let jobj = %*{
+    "localNode": routingTable.localNode,
+    "nodes": jarray
+  }
+  return jobj
+
+proc `%`*(peerRecord: PeerRecord): JsonNode =
+  let jarray = newJArray()
+  for maddr in peerRecord.addresses:
+    jarray.add(%*{
+      "address": $maddr.address
+    })
+
+  let jobj = %*{
+    "peerId": $peerRecord.peerId,
+    "seqNo": $peerRecord.seqNo,
+    "addresses": jarray
+  }
+  return jobj
