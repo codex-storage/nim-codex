@@ -6,7 +6,7 @@ on:
   pull_request:
   workflow_dispatch:
 env:
-  cache_nonce: 0 # Allows for easily busting actions/cache caches
+  cache_nonce: 1 # Allows for easily busting actions/cache caches
   nim_version: v1.6.14
 jobs:
   build:
