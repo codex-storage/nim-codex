@@ -13,7 +13,10 @@ import std/sequtils
 import std/sugar
 import std/algorithm
 
+import pkg/upraises
+import pkg/chronos
 import pkg/chronicles
+import pkg/questionable
 import pkg/questionable/results
 import pkg/nimcrypto/sha2
 import pkg/libp2p/[cid, multicodec, multihash, vbuffer]
@@ -22,17 +25,21 @@ import pkg/stew/byteutils
 import ../errors
 import ../utils
 
+import ./merklestore
+
 logScope:
   topics = "codex merkletree"
 
 type
   MerkleTree* = ref object of RootObj
+    root*: ?MultiHash               # the root hash of the tree
     mcodec: MultiCodec              # multicodec of the hash function
     height: Natural                 # current height of the tree (levels - 1)
     levels: Natural                 # number of levels in the tree (height + 1)
     leafs: Natural                  # total number of leafs, if odd the last leaf will be hashed twice
     length: Natural                 # corrected to even number of leafs in the tree
     size: Natural                   # total number of nodes in the tree (corrected for odd leafs)
+    store: MerkleStore              # store for the tree
     leafsIter: AsyncIter[seq[byte]] # leafs iterator of the tree
 
   MerkleProof* = object
@@ -44,53 +51,42 @@ type
 # MerkleTree
 ###########################################################
 
-proc root*(self: MerkleTree): ?!MultiHash =
-  if self.nodes.len == 0 or self.nodes[^1].len == 0:
-    return failure("Tree hasn't been build")
-
-  MultiHash.init(self.mcodec, self.nodes[^1]).mapFailure
-
-proc build*(self: var MerkleTree): Future[?!void] {.async.} =
-  ## Builds a tree from previously added data blocks
-  ##
-  ## Tree built from data blocks A, B and C is
-  ##        H5=H(H3 & H4)
-  ##      /            \
-  ##    H3=H(H0 & H1)   H4=H(H2 & 0x00)
-  ##   /    \          /
-  ## H0=H(A) H1=H(B) H2=H(C)
-  ## |       |       |
-  ## A       B       C
-  ##
-  ## Memory layout is [H0, H1, H2, H3, H4, H5]
+proc build*(self: MerkleTree): Future[?!void] {.async.} =
+  ## Builds a tree from leafs
   ##
 
-  var
-    length = if bool(self.leafs and 1):
-      self.nodes[self.leafs] = self.nodes[self.leafs - 1] # even out the tree
-      self.leafs + 1
-    else:
-      self.leafs
-
+  var length = self.length
   while length > 1:
-    for i in 0..<length:
-      let
-        left = self.nodes[i * 2]
-        right = self.nodes[i * 2 + 1]
-        hash = ? MultiHash.digest($self.mcodec, left & right).mapFailure
+    for i in 0..<length div 2:
+      echo i
+      if self.leafsIter.finished:
+        return failure("Not enough leafs")
 
-      self.nodes[length + i] = hash.bytes
+      let
+        left = await self.leafsIter.next()
+        right = await self.leafsIter.next()
+
+      without hash =?
+        MultiHash.digest($self.mcodec, left & right).mapFailure, err:
+          return failure(err)
+
+      let index = self.length + length + i
+      (await self.store.put(index, hash.bytes)).tryGet
 
     length = length shr 1
 
+  without root =? (await self.store.get(self.size)) and
+    rootHash =? MultiHash.digest($self.mcodec, root).mapFailure, err:
+    return failure "Unable to get tree root"
+
+  self.root = rootHash.some
   return success()
 
-func getProofs(self: MerkleTree, indexes: openArray[Natural]): ?!seq[MerkleProof] =
+proc getProofs(
+  self: MerkleTree,
+  indexes: openArray[Natural]): Future[?!seq[MerkleProof]] {.async.} =
   ## Returns a proof for the given index
   ##
-
-  if self.nodes.len == 0 or self.nodes[^1].len == 0:
-    return failure("Tree hasn't been build")
 
   var
     proofs = newSeq[MerkleProof]()
@@ -100,15 +96,23 @@ func getProofs(self: MerkleTree, indexes: openArray[Natural]): ?!seq[MerkleProof
       index = idx
       nodes: seq[seq[byte]]
 
-    nodes.add(self.nodes[idx])
+    without node =? (await self.store.get(index)):
+      return failure "Unable to get node"
+
+    nodes.add(node)
 
     for level in 1..<self.levels:
       debugEcho level
-      nodes.add(
-        if bool(index and 1):
-          self.nodes[level + 1]
+      let
+        idx = if bool(index and 1):
+          level + 1
         else:
-          self.nodes[level - 1])
+          level - 1
+
+      without node =? (await self.store.get(idx)), err:
+        return failure "Unable to get node"
+
+      nodes.add(node)
       index = index shr 1
 
     proofs.add(
@@ -119,8 +123,9 @@ func getProofs(self: MerkleTree, indexes: openArray[Natural]): ?!seq[MerkleProof
 
   return success proofs
 
-func init*(
+func new*(
   T: type MerkleTree,
+  store: MerkleStore,
   leafs: Natural,
   leafsIter: AsyncIter[seq[byte]],
   mcodec: MultiCodec = multiCodec("sha2-256")): ?!MerkleTree =
@@ -133,32 +138,50 @@ func init*(
     size = 2 * length
     height = log2(maxWidth.float).Natural
     self = MerkleTree(
+      store: store,
       mcodec: mcodec,
       leafs: leafs,
       length: length,
       size: size,
       height: height,
       levels: height - 1,
-      nodesIter: leafsIter)
+      leafsIter: leafsIter)
 
   success self
 
 when isMainModule:
+  import std/os
   import std/sequtils
 
+  import pkg/chronos
   import pkg/stew/byteutils
   import pkg/questionable
   import pkg/questionable/results
 
-  var
-    leafs = [
-      "A", "B", "C", "D", "E", "F",
-      "G", "H", "I", "J", "K", "L",
-      "M", "N", "O", "P", "Q"]
-      .mapIt( MultiHash.digest("sha2-256", it.toBytes).tryGet().data.buffer )
-    tree = MerkleTree.init(leafs).tryGet()
+  proc main() {.async.} =
+    var
+      leafs = [
+        "A", "B", "C", "D", "E", "F",
+        "G", "H", "I", "J", "K", "L",
+        "M", "N", "O", "P"]
+        .mapIt(
+          MultiHash.digest("sha2-256", it.toBytes).tryGet().data.buffer
+        )
 
-  tree.buildSync().tryGet
-  echo tree.root().tryGet()
+    let
+      file = open("tmp.merkle" , fmReadWrite)
+      store = FileStore.new(file, os.getCurrentDir()).tryGet()
+      tree = MerkleTree.new(
+        store = store,
+        leafs.len,
+        Iter.fromSlice(0..<leafs.len)
+        .map(
+          proc(i: int): Future[seq[byte]] {.async.} =
+            leafs[i])).tryGet()
 
-  echo tree.getProofs(@[0.Natural, 1, 2, 3, 4, 5]).tryGet
+    (await tree.build()).tryGet
+    # echo tree.root.get()
+
+    # echo (await tree.getProofs(@[0.Natural, 1, 2, 3, 4, 5])).tryGet
+
+  waitFor main()

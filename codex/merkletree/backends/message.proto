@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package merklestore.message.pb;
+
+message IndexEntry {
+  int64 index = 1;
+  int64 offset = 2;
+}
+
+message Header {
+  repeated IndexEntry index = 1;
+}
