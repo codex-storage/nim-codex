@@ -161,149 +161,7 @@ proc initContentApi(node: CodexNodeRef, router: var RestRouter) =
         if not stream.isNil:
           await stream.close()
 
-proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
-  var router = RestRouter.init(validate)
-
-  initContentApi(node, router)
-
-  router.api(
-    MethodGet,
-    "/api/codex/v1/connect/{peerId}") do (
-      peerId: PeerId,
-      addrs: seq[MultiAddress]) -> RestApiResponse:
-      ## Connect to a peer
-      ##
-      ## If `addrs` param is supplied, it will be used to
-      ## dial the peer, otherwise the `peerId` is used
-      ## to invoke peer discovery, if it succeeds
-      ## the returned addresses will be used to dial
-      ##
-      ## `addrs` the listening addresses of the peers to dial, eg the one specified with `--listen-addrs`
-      ##
-
-      if peerId.isErr:
-        return RestApiResponse.error(
-          Http400,
-          $peerId.error())
-
-      let addresses = if addrs.isOk and addrs.get().len > 0:
-            addrs.get()
-          else:
-            without peerRecord =? (await node.findPeer(peerId.get())):
-              return RestApiResponse.error(
-                Http400,
-                "Unable to find Peer!")
-            peerRecord.addresses.mapIt(it.address)
-      try:
-        await node.connect(peerId.get(), addresses)
-        return RestApiResponse.response("Successfully connected to peer")
-      except DialFailedError:
-        return RestApiResponse.error(Http400, "Unable to dial peer")
-      except CatchableError:
-        return RestApiResponse.error(Http400, "Unknown error dialling peer")
-
-  router.rawApi(
-    MethodPost,
-    "/api/codex/v1/storage/request/{cid}") do (cid: Cid) -> RestApiResponse:
-      ## Create a request for storage
-      ##
-      ## cid              - the cid of a previously uploaded dataset
-      ## duration         - the duration of the request in seconds
-      ## proofProbability - how often storage proofs are required
-      ## reward           - the maximum amount of tokens paid per second per slot to hosts the client is willing to pay
-      ## expiry           - timestamp, in seconds, when the request expires if the Request does not find requested amount of nodes to host the data
-      ## nodes            - minimal number of nodes the content should be stored on
-      ## tolerance        - allowed number of nodes that can be lost before pronouncing the content lost
-      ## colateral        - requested collateral from hosts when they fill slot
-
-      without cid =? cid.tryGet.catch, error:
-        return RestApiResponse.error(Http400, error.msg)
-
-      let body = await request.getBody()
-
-      without params =? StorageRequestParams.fromJson(body), error:
-        return RestApiResponse.error(Http400, error.msg)
-
-      let nodes = params.nodes |? 1
-      let tolerance = params.tolerance |? 0
-
-      without purchaseId =? await node.requestStorage(
-        cid,
-        params.duration,
-        params.proofProbability,
-        nodes,
-        tolerance,
-        params.reward,
-        params.collateral,
-        params.expiry), error:
-
-        return RestApiResponse.error(Http500, error.msg)
-
-      return RestApiResponse.response(purchaseId.toHex)
-
-  router.api(
-    MethodPost,
-    "/api/codex/v1/debug/chronicles/loglevel") do (
-      level: Option[string]) -> RestApiResponse:
-      ## Set log level at run time
-      ##
-      ## e.g. `chronicles/loglevel?level=DEBUG`
-      ##
-      ## `level` - chronicles log level
-      ##
-
-      without res =? level and level =? res:
-        return RestApiResponse.error(Http400, "Missing log level")
-
-      try:
-        {.gcsafe.}:
-          updateLogLevel(level)
-      except CatchableError as exc:
-        return RestApiResponse.error(Http500, exc.msg)
-
-      return RestApiResponse.response("")
-
-  router.api(
-    MethodGet,
-    "/api/codex/v1/debug/info") do () -> RestApiResponse:
-      ## Print rudimentary node information
-      ##
-
-      let
-        json = %*{
-          "id": $node.switch.peerInfo.peerId,
-          "addrs": node.switch.peerInfo.addrs.mapIt( $it ),
-          "repo": $conf.dataDir,
-          "spr":
-            if node.discovery.dhtRecord.isSome:
-              node.discovery.dhtRecord.get.toURI
-            else:
-              "",
-          "table": node.discovery.protocol.routingTable,
-          "codex": {
-            "version": $codexVersion,
-            "revision": $codexRevision
-          }
-        }
-
-      return RestApiResponse.response($json, contentType="application/json")
-
-  when codex_enable_api_debug_peers:
-    router.api(
-      MethodGet,
-      "/api/codex/v1/debug/peer/{peerId}") do (peerId: PeerId) -> RestApiResponse:
-
-        trace "debug/peer start"
-        without peerRecord =? (await node.findPeer(peerId.get())):
-          trace "debug/peer peer not found!"
-          return RestApiResponse.error(
-            Http400,
-            "Unable to find Peer!")
-
-        let json = %peerRecord
-        trace "debug/peer returning peer record"
-        return RestApiResponse.response($json)
-
+proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
   router.api(
     MethodGet,
     "/api/codex/v1/sales/slots") do () -> RestApiResponse:
@@ -364,6 +222,46 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       return RestApiResponse.response(availability.toJson,
                                       contentType="application/json")
 
+proc initStorageApi(node: CodexNodeRef, router: var RestRouter) =
+  router.rawApi(
+    MethodPost,
+    "/api/codex/v1/storage/request/{cid}") do (cid: Cid) -> RestApiResponse:
+      ## Create a request for storage
+      ##
+      ## cid              - the cid of a previously uploaded dataset
+      ## duration         - the duration of the request in seconds
+      ## proofProbability - how often storage proofs are required
+      ## reward           - the maximum amount of tokens paid per second per slot to hosts the client is willing to pay
+      ## expiry           - timestamp, in seconds, when the request expires if the Request does not find requested amount of nodes to host the data
+      ## nodes            - minimal number of nodes the content should be stored on
+      ## tolerance        - allowed number of nodes that can be lost before pronouncing the content lost
+      ## colateral        - requested collateral from hosts when they fill slot
+
+      without cid =? cid.tryGet.catch, error:
+        return RestApiResponse.error(Http400, error.msg)
+
+      let body = await request.getBody()
+
+      without params =? StorageRequestParams.fromJson(body), error:
+        return RestApiResponse.error(Http400, error.msg)
+
+      let nodes = params.nodes |? 1
+      let tolerance = params.tolerance |? 0
+
+      without purchaseId =? await node.requestStorage(
+        cid,
+        params.duration,
+        params.proofProbability,
+        nodes,
+        tolerance,
+        params.reward,
+        params.collateral,
+        params.expiry), error:
+
+        return RestApiResponse.error(Http500, error.msg)
+
+      return RestApiResponse.response(purchaseId.toHex)
+
   router.api(
     MethodGet,
     "/api/codex/v1/storage/purchases/{id}") do (
@@ -386,5 +284,113 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       )
 
       return RestApiResponse.response($json, contentType="application/json")
+
+proc initDebugApi(node: CodexNodeRef, router: var RestRouter) =
+  router.api(
+    MethodGet,
+    "/api/codex/v1/debug/info") do () -> RestApiResponse:
+      ## Print rudimentary node information
+      ##
+
+      let
+        json = %*{
+          "id": $node.switch.peerInfo.peerId,
+          "addrs": node.switch.peerInfo.addrs.mapIt( $it ),
+          "repo": $conf.dataDir,
+          "spr":
+            if node.discovery.dhtRecord.isSome:
+              node.discovery.dhtRecord.get.toURI
+            else:
+              "",
+          "table": node.discovery.protocol.routingTable,
+          "codex": {
+            "version": $codexVersion,
+            "revision": $codexRevision
+          }
+        }
+
+      return RestApiResponse.response($json, contentType="application/json")
+
+  router.api(
+    MethodPost,
+    "/api/codex/v1/debug/chronicles/loglevel") do (
+      level: Option[string]) -> RestApiResponse:
+      ## Set log level at run time
+      ##
+      ## e.g. `chronicles/loglevel?level=DEBUG`
+      ##
+      ## `level` - chronicles log level
+      ##
+
+      without res =? level and level =? res:
+        return RestApiResponse.error(Http400, "Missing log level")
+
+      try:
+        {.gcsafe.}:
+          updateLogLevel(level)
+      except CatchableError as exc:
+        return RestApiResponse.error(Http500, exc.msg)
+
+      return RestApiResponse.response("")
+
+  when codex_enable_api_debug_peers:
+    router.api(
+      MethodGet,
+      "/api/codex/v1/debug/peer/{peerId}") do (peerId: PeerId) -> RestApiResponse:
+
+        trace "debug/peer start"
+        without peerRecord =? (await node.findPeer(peerId.get())):
+          trace "debug/peer peer not found!"
+          return RestApiResponse.error(
+            Http400,
+            "Unable to find Peer!")
+
+        let json = %peerRecord
+        trace "debug/peer returning peer record"
+        return RestApiResponse.response($json)
+
+proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
+  var router = RestRouter.init(validate)
+
+  initContentApi(node, router)
+  initSalesApi(node, router)
+  initStorageApi(node, router)
+  initDebugApi(node, router)
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/connect/{peerId}") do (
+      peerId: PeerId,
+      addrs: seq[MultiAddress]) -> RestApiResponse:
+      ## Connect to a peer
+      ##
+      ## If `addrs` param is supplied, it will be used to
+      ## dial the peer, otherwise the `peerId` is used
+      ## to invoke peer discovery, if it succeeds
+      ## the returned addresses will be used to dial
+      ##
+      ## `addrs` the listening addresses of the peers to dial, eg the one specified with `--listen-addrs`
+      ##
+
+      if peerId.isErr:
+        return RestApiResponse.error(
+          Http400,
+          $peerId.error())
+
+      let addresses = if addrs.isOk and addrs.get().len > 0:
+            addrs.get()
+          else:
+            without peerRecord =? (await node.findPeer(peerId.get())):
+              return RestApiResponse.error(
+                Http400,
+                "Unable to find Peer!")
+            peerRecord.addresses.mapIt(it.address)
+      try:
+        await node.connect(peerId.get(), addresses)
+        return RestApiResponse.response("Successfully connected to peer")
+      except DialFailedError:
+        return RestApiResponse.error(Http400, "Unable to dial peer")
+      except CatchableError:
+        return RestApiResponse.error(Http400, "Unknown error dialling peer")
 
   return router
