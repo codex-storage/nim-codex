@@ -58,7 +58,6 @@ proc formatManifestBlocks(node: CodexNodeRef): Future[JsonNode] {.async.} =
     content.add(restContent)
 
   await node.iterateManifests(formatManifest)
-
   return %content
 
 proc initContentApi(node: CodexNodeRef, router: var RestRouter) =
@@ -287,6 +286,8 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
       ## Print rudimentary node information
       ##
 
+      let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
+
       let
         json = %*{
           "id": $node.switch.peerInfo.peerId,
@@ -297,7 +298,7 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
               node.discovery.dhtRecord.get.toURI
             else:
               "",
-          "table": node.discovery.protocol.routingTable,
+          "table": table,
           "codex": {
             "version": $codexVersion,
             "revision": $codexRevision
@@ -340,7 +341,7 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
             Http400,
             "Unable to find Peer!")
 
-        let json = %peerRecord
+        let json = %RestPeerRecord.init(peerRecord)
         trace "debug/peer returning peer record"
         return RestApiResponse.response($json)
 

@@ -38,10 +38,53 @@ type
     cid* {.serialize.}: Cid
     manifest* {.serialize.}: Manifest
 
+  RestNode* = object
+    nodeId* {.serialize.}: NodeId
+    peerId* {.serialize.}: PeerId
+    record* {.serialize.}: SignedPeerRecord
+    address* {.serialize.}: Option[dn.Address]
+    seen* {.serialize.}: bool
+
+  RestRoutingTable* = object
+    localNode* {.serialize.}: RestNode
+    nodes* {.serialize.}: seq[RestNode]
+
+  RestPeerRecord* = object
+    peerId* {.serialize.}: PeerId
+    seqNo* {.serialize.}: uint64
+    addresses* {.serialize.}: seq[AddressInfo]
+
 proc init*(_: type RestContent, cid: Cid, manifest: Manifest): RestContent =
   RestContent(
     cid: cid,
     manifest: manifest
+  )
+
+proc init*(_: type RestNode, node: dn.Node): RestNode =
+  RestNode(
+    nodeId: node.id,
+    peerId: node.record.data.peerId,
+    record: node.record,
+    address: node.address,
+    seen: node.seen
+  )
+
+proc init*(_: type RestRoutingTable, routingTable: rt.RoutingTable): RestRoutingTable =
+  var nodes: seq[RestNode] = @[]
+  for bucket in routingTable.buckets:
+    for node in bucket.nodes:
+      nodes.add(RestNode.init(node))
+
+  RestRoutingTable(
+    localNode: RestNode.init(routingTable.localNode),
+    nodes: nodes
+  )
+
+proc init*(_: type RestPeerRecord, peerRecord: PeerRecord): RestPeerRecord =
+  RestPeerRecord(
+    peerId: peerRecord.peerId,
+    seqNo: peerRecord.seqNo,
+    addresses: peerRecord.addresses
   )
 
 func `%`*(obj: StorageRequest | Slot): JsonNode =
@@ -54,43 +97,14 @@ func `%`*(obj: StorageRequest | Slot): JsonNode =
 func `%`*(obj: Cid): JsonNode =
   % $obj
 
-proc formatAddress(address: Option[dn.Address]): string =
-  if address.isSome():
-    return $address.get()
-  return "<none>"
+func `%`*(obj: PeerId): JsonNode =
+  % $obj
 
-proc `%`*(node: dn.Node): JsonNode =
-  let jobj = %*{
-    "nodeId": $node.id,
-    "peerId": $node.record.data.peerId,
-    "record": $node.record,
-    "address": formatAddress(node.address),
-    "seen": $node.seen
-  }
-  return jobj
+func `%`*(obj: SignedPeerRecord): JsonNode =
+  % $obj
 
-proc `%`*(routingTable: rt.RoutingTable): JsonNode =
-  let jarray = newJArray()
-  for bucket in routingTable.buckets:
-    for node in bucket.nodes:
-      jarray.add(%node)
+func `%`*(obj: dn.Address): JsonNode =
+  % $obj
 
-  let jobj = %*{
-    "localNode": routingTable.localNode,
-    "nodes": jarray
-  }
-  return jobj
-
-proc `%`*(peerRecord: PeerRecord): JsonNode =
-  let jarray = newJArray()
-  for maddr in peerRecord.addresses:
-    jarray.add(%*{
-      "address": $maddr.address
-    })
-
-  let jobj = %*{
-    "peerId": $peerRecord.peerId,
-    "seqNo": $peerRecord.seqNo,
-    "addresses": jarray
-  }
-  return jobj
+func `%`*(obj: AddressInfo): JsonNode =
+  % $obj.address
