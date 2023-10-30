@@ -50,25 +50,16 @@ proc validate(
   {.gcsafe, raises: [Defect].} =
   0
 
-proc formatManifestBlock(store: BlockStore, cid: Cid): Future[?JsonNode] {.async.} =
-  without blk =? await store.getBlock(cid):
-    return JsonNode.none
-
-  without manifest =? Manifest.decode(blk):
-    return JsonNode.none
-
-  let jobj = %*{
-    "cid": cid,
-    "manifest": manifest
-  }
-  return jobj.some
-
-proc formatManifestBlocks(store: BlockStore, cids: BlocksIter): Future[JsonNode] {.async.} =
+proc formatManifestBlocks(node: CodexNodeRef): Future[JsonNode] {.async.} =
   let jarray = newJArray()
-  for c in cids:
-    if cid =? await c:
-      if jnode =? await formatManifestBlock(store, cid):
-        jarray.add(jnode)
+
+  proc formatManifest(cid: Cid, manifest: Manifest) =
+    jarray.add(%*{
+      "cid": cid,
+      "manifest": manifest
+    })
+
+  await node.iterateManifests(formatManifest)
 
   let jobj = %*{
     "content": jarray
@@ -121,11 +112,7 @@ proc initContentApi(node: CodexNodeRef, router: var RestRouter) =
   router.api(
     MethodGet,
     "/api/codex/v1/content") do () -> RestApiResponse:
-      without cids =? await node.blockStore.listBlocks(BlockType.Manifest):
-        trace "Failed to listBlocks"
-        return RestApiResponse.error(Http500)
-
-      let json = await formatManifestBlocks(node.blockStore, cids)
+      let json = await formatManifestBlocks(node)
       return RestApiResponse.response($json, contentType="application/json")
 
   router.api(
