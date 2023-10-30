@@ -74,3 +74,10 @@ func getPurchase*(purchasing: Purchasing, id: PurchaseId): ?Purchase =
     some purchasing.purchases[id]
   else:
     none Purchase
+
+func getPurchaseIds*(purchasing: Purchasing): seq[PurchaseId] =
+  var pIds: seq[PurchaseId] = @[]
+  for key in purchasing.purchases.keys:
+    pIds.add(key)
+  return pIds
+
