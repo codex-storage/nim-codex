@@ -51,20 +51,15 @@ proc validate(
   0
 
 proc formatManifestBlocks(node: CodexNodeRef): Future[JsonNode] {.async.} =
-  let jarray = newJArray()
+  var content: seq[RestContent] = @[]
 
   proc formatManifest(cid: Cid, manifest: Manifest) =
-    jarray.add(%*{
-      "cid": cid,
-      "manifest": manifest
-    })
+    let restContent = RestContent.init(cid, manifest)
+    content.add(restContent)
 
   await node.iterateManifests(formatManifest)
 
-  let jobj = %*{
-    "content": jarray
-  }
-  return jobj
+  return %content
 
 proc initContentApi(node: CodexNodeRef, router: var RestRouter) =
   router.rawApi(
@@ -285,7 +280,7 @@ proc initStorageApi(node: CodexNodeRef, router: var RestRouter) =
 
       return RestApiResponse.response($json, contentType="application/json")
 
-proc initDebugApi(node: CodexNodeRef, router: var RestRouter) =
+proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
   router.api(
     MethodGet,
     "/api/codex/v1/debug/info") do () -> RestApiResponse:
@@ -355,7 +350,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   initContentApi(node, router)
   initSalesApi(node, router)
   initStorageApi(node, router)
-  initDebugApi(node, router)
+  initDebugApi(node, conf, router)
 
   router.api(
     MethodGet,

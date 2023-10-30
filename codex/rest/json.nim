@@ -7,6 +7,8 @@ import pkg/codexdht/discv5/routing_table as rt
 import ../sales
 import ../purchasing
 import ../utils/json
+import ../units
+import ../manifest
 
 export json
 
@@ -31,6 +33,16 @@ type
     duration* {.serialize.}: UInt256
     minPrice* {.serialize.}: UInt256
     maxCollateral* {.serialize.}: UInt256
+
+  RestContent* = object
+    cid* {.serialize.}: Cid
+    manifest* {.serialize.}: Manifest
+
+proc init*(_: type RestContent, cid: Cid, manifest: Manifest): RestContent =
+  RestContent(
+    cid: cid,
+    manifest: manifest
+  )
 
 func `%`*(obj: StorageRequest | Slot): JsonNode =
   let jsonObj = newJObject()
