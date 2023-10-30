@@ -18,7 +18,6 @@ import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronicles
-# import pkg/json_serialization
 
 import ../errors
 import ../utils
