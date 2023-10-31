@@ -304,10 +304,12 @@ proc payForBlocks(engine: BlockExcEngine,
     sendPayment = engine.network.request.sendPayment
     price = peer.price(blocksDelivery.mapIt(it.address))
 
-  if payment =? engine.wallet.pay(peer, price):
-    trace "Sending payment for blocks", price
-    # echo "sendPayment"
-    await sendPayment(peer.id, payment)
+  let payment = engine.wallet.pay(peer, price)
+  if payment.isErr():
+    trace "error paying for blocks", price=price
+  else:
+    trace "Sending payment for blocks", price=price
+    await sendPayment(peer.id, payment.get())
 
 proc validateBlockDelivery(
   b: BlockExcEngine,
