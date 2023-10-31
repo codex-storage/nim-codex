@@ -38,7 +38,7 @@ proc setFutureCreate(fut: FutureBase) {.raises: [].} =
   perFutureMetrics[fut.id] = FutureMetric()
   perFutureMetrics.withValue(fut.id, metric):
     metric.created = Moment.now()
-    echo loc, "; future create "
+    # echo loc, "; future create "
 
 proc setFutureStart(fut: FutureBase) {.raises: [].} =
   ## used for setting the duration
@@ -48,7 +48,7 @@ proc setFutureStart(fut: FutureBase) {.raises: [].} =
     let ts = Moment.now()
     metric.start = some ts
     metric.blocks.inc()
-    echo loc, "; future start: ", metric.initDuration
+    # echo loc, "; future start: ", metric.initDuration
 
 proc setFuturePause(fut, child: FutureBase) {.raises: [].} =
   ## used for setting the duration
@@ -71,11 +71,11 @@ proc setFuturePause(fut, child: FutureBase) {.raises: [].} =
           # the first block of a child iterator also
           # runs on the parents clock, so we track our first block
           # time so any parents can get it
-      echo loc, "; child firstBlock time: ", initDurationChildren
+      # echo loc, "; child firstBlock time: ", initDurationChildren
 
       metric.durationChildren += durationChildren
       metric.start = none Moment
-    echo loc, "; future pause ", if childLoc.isNil: "" else: " child: " & $childLoc
+    # echo loc, "; future pause ", if childLoc.isNil: "" else: " child: " & $childLoc
 
 proc setFutureDuration(fut: FutureBase) {.raises: [].} =
   ## used for setting the duration
@@ -88,11 +88,11 @@ proc setFutureDuration(fut: FutureBase) {.raises: [].} =
 
   discard futureSummaryMetrics.hasKeyOrPut(loc, CallbackMetric(minSingleTime: InfiniteDuration))
   futureSummaryMetrics.withValue(loc, metric):
-    echo loc, " set duration: ", futureSummaryMetrics.hasKey(loc)
+    # echo loc, " set duration: ", futureSummaryMetrics.hasKey(loc)
     metric.totalExecTime += fm.duration
     metric.totalWallTime += Moment.now() - fm.created
     metric.totalRunTime += metric.totalExecTime + fm.durationChildren
-    echo loc, " child duration: ", fm.durationChildren
+    # echo loc, " child duration: ", fm.durationChildren
     metric.count.inc
     metric.minSingleTime = min(metric.minSingleTime, fm.duration)
     metric.maxSingleTime = max(metric.maxSingleTime, fm.duration)
@@ -102,19 +102,20 @@ proc setFutureDuration(fut: FutureBase) {.raises: [].} =
       metric.count = 0
 
 onFutureCreate =
-  proc (f: FutureBase) {.gcsafe.} =
+  proc (f: FutureBase) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}:
       f.setFutureCreate()
 onFutureRunning =
-  proc (f: FutureBase) {.gcsafe.} =
+  proc (f: FutureBase) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}:
       f.setFutureStart()
 onFuturePause =
-  proc (f, child: FutureBase) {.gcsafe.} =
+  proc (f, child: FutureBase) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}:
+      # echo "onFuturePause: ", f.pointer.repr, " ch: ", child.pointer.repr
       f.setFuturePause(child)
 onFutureStop =
-  proc (f: FutureBase) {.gcsafe.} =
+  proc (f: FutureBase) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}:
       f.setFuturePause(nil)
       f.setFutureDuration()
