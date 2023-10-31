@@ -70,7 +70,7 @@ proc start(node: HardhatProcess) =
   for arg in node.arguments:
     if arg.contains "--log-file=":
       let logFilePath = arg.split("=")[1]
-      node.captureOutput(logFilePath).track(node)
+      discard node.captureOutput(logFilePath).track(node)
       break
 
 proc waitUntilOutput*(node: HardhatProcess, output: string) =

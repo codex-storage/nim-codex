@@ -5,7 +5,6 @@ import pkg/ethers/erc20
 import ./contracts/requests
 import ./clock
 import ./periods
-import ./utils/exceptions
 
 export chronos
 export questionable

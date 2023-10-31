@@ -135,12 +135,11 @@ proc withLogFile*(
   startConfig.logFile = logToFile
   return startConfig
 
-template multinodesuite*(name: string,
-  startNodes: Nodes, body: untyped) =
+template multinodesuite*(name: string, startNodes: Nodes, body: untyped) =
 
   asyncchecksuite name:
 
-    var provider {.inject, used.}: JsonRpcProvider
+    var ethProvider {.inject, used.}: JsonRpcProvider
     var accounts {.inject, used.}: seq[Address]
 
     var running: seq[RunningNode]
@@ -262,8 +261,8 @@ template multinodesuite*(name: string,
         running.add RunningNode(role: Role.Hardhat, node: node)
 
       echo "Connecting to hardhat on ws://localhost:8545..."
-      provider = JsonRpcProvider.new("ws://localhost:8545")
-      accounts = await provider.listAccounts()
+      ethProvider = JsonRpcProvider.new("ws://localhost:8545")
+      accounts = await ethProvider.listAccounts()
 
       for i in 0..<startNodes.clients.numNodes:
         let node = startClientNode()

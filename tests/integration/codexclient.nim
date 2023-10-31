@@ -11,6 +11,8 @@ import pkg/codex/purchasing
 import pkg/codex/errors
 import pkg/codex/sales/reservations
 
+export purchasing
+
 type CodexClient* = ref object
   http: HttpClient
   baseurl: string
@@ -142,5 +144,8 @@ proc restart*(client: CodexClient) =
   client.http.close()
   client.http = newHttpClient()
 
-proc purchaseStateIs(client: CodexClient, id: PurchaseId, state: string): bool =
+proc purchaseStateIs*(client: CodexClient, id: PurchaseId, state: string): bool =
   client.getPurchase(id).option.?state == some state
+
+proc requestId*(client: CodexClient, id: PurchaseId): ?RequestId =
+  return client.getPurchase(id).option.?requestId

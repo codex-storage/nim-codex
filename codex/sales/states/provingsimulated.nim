@@ -4,7 +4,6 @@ when codex_enable_proof_failures:
   import pkg/chronicles
   import pkg/stint
   import pkg/ethers
-  import pkg/ethers/testing
 
   import ../../contracts/requests
   import ../../market

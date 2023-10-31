@@ -1,16 +1,16 @@
-import std/sequtils
-import std/os
-from std/times import getTime, toUnix
+# import std/sequtils
+# import std/os
+# from std/times import getTime, toUnix
 import pkg/chronicles
 import pkg/stew/byteutils
-import pkg/codex/contracts
-import pkg/codex/periods
+# import pkg/codex/contracts
+# import pkg/codex/periods
 import ../contracts/time
 import ../contracts/deployment
 import ../codex/helpers
 import ../examples
-import ./twonodes
-import ./multinodes
+# import ./twonodes
+import ./marketplacesuite
 
 export chronicles
 
@@ -239,7 +239,74 @@ logScope:
 
 #     await subscription.unsubscribe()
 
-multinodesuite "Simulate invalid proofs - 1 provider node",
+
+
+
+marketplacesuite "Simulate invalid proofs - 1 provider node",
+  Nodes(
+    # hardhat: HardhatConfig()
+    #           .withLogFile(),
+
+    clients: NodeConfig()
+              .nodes(1)
+              .debug()
+              .withLogFile()
+              .withLogTopics("node"),
+
+    providers: NodeConfig()
+                .nodes(1)
+                .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=1)
+                .debug()
+                .withLogFile()
+                .withLogTopics(
+                  "marketplace",
+                  "sales",
+                  "reservations",
+                  "node",
+                  "JSONRPC-HTTP-CLIENT",
+                  "JSONRPC-WS-CLIENT",
+                  "ethers",
+                  "restapi",
+                  "clock"
+                ),
+
+    validators: NodeConfig()
+                  .nodes(1)
+                  .withLogFile()
+                  .withLogTopics("validator", "initial-proving", "proving", "clock")
+  ):
+    test "slot is freed after too many invalid proofs submitted":
+      let client0 = clients()[0].node.client
+      let totalProofs = 50
+
+      let data = byteutils.toHex(await exampleData())
+      createAvailabilities(data.len, totalProofs.periods)
+
+      let cid = client0.upload(data).get
+
+      let purchaseId = await client0.requestStorage(cid, duration=totalProofs.periods)
+      let requestId = client0.requestId(purchaseId).get
+
+      check eventually client0.purchaseStateIs(purchaseId, "started")
+
+      var slotWasFreed = false
+      proc onSlotFreed(event: SlotFreed) {.gcsafe, upraises:[].} =
+        if event.requestId == requestId and
+           event.slotIndex == 0.u256: # assume only one slot, so index 0
+          slotWasFreed = true
+
+      let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
+
+      echo "waiting for proofs ", totalProofs
+      # check eventuallyP(slotWasFreed, totalProofs, 1.periods.int)
+      check eventually(slotWasFreed, totalProofs.periods.int * 1000)
+      echo "got to the end... freed: ", slotWasFreed
+
+      echo "unsubscribing from slotFreed"
+      await subscription.unsubscribe()
+      echo "unsubscribed from slotFreed"
+
+marketplacesuite "Simulate invalid proofs - 1 provider node",
   Nodes(
     hardhat: HardhatConfig()
               .withLogFile(),
@@ -252,7 +319,7 @@ multinodesuite "Simulate invalid proofs - 1 provider node",
 
     providers: NodeConfig()
                 .nodes(1)
-                .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=2)
+                .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=3)
                 .debug()
                 .withLogFile()
                 .withLogTopics(
@@ -263,153 +330,129 @@ multinodesuite "Simulate invalid proofs - 1 provider node",
                   "JSONRPC-HTTP-CLIENT",
                   "JSONRPC-WS-CLIENT",
                   "ethers",
-                  "restapi"
-                )
-  ):
-    test "1=1":
-      check 1 == 1
-
-multinodesuite "Simulate invalid proofs",
-  Nodes(
-    hardhat: HardhatConfig()
-              .withLogFile(),
-
-    clients: NodeConfig()
-              .nodes(1)
-              .debug()
-              .withLogFile()
-              .withLogTopics("node"),
-
-    providers: NodeConfig()
-                .nodes(5)
-                .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=2)
-                .debug()
-                .withLogFile()
-                .withLogTopics(
-                  "marketplace",
-                  "sales",
-                  "reservations",
-                  "node",
-                  "JSONRPC-HTTP-CLIENT",
-                  "JSONRPC-WS-CLIENT",
-                  "ethers",
-                  "restapi"
+                  "restapi",
+                  "clock"
                 ),
 
     validators: NodeConfig()
                   .nodes(1)
                   .withLogFile()
-                  .withLogTopics("validator", "initial-proving", "proving")
+                  .withLogTopics("validator", "initial-proving", "proving", "clock")
   ):
+    test "slot is not freed when not enough invalid proofs submitted":
+      let client0 = clients()[0].node.client
+      let totalProofs = 25
 
-  var marketplace: Marketplace
-  var period: uint64
-  var token: Erc20Token
+      let data = byteutils.toHex(await exampleData())
+      createAvailabilities(data.len, totalProofs.periods)
 
-  setup:
-    marketplace = Marketplace.new(Marketplace.address, provider.getSigner())
-    let tokenAddress = await marketplace.token()
-    token = Erc20Token.new(tokenAddress, provider.getSigner())
-    let config = await marketplace.config()
-    period = config.proofs.period.truncate(uint64)
+      let cid = client0.upload(data).get
 
-    # Our Hardhat configuration does use automine, which means that time tracked by `provider.currentTime()` is not
-    # advanced until blocks are mined and that happens only when transaction is submitted.
-    # As we use in tests provider.currentTime() which uses block timestamp this can lead to synchronization issues.
-    await provider.advanceTime(1.u256)
+      let purchaseId = await client0.requestStorage(cid, duration=totalProofs.periods)
+      let requestId = client0.requestId(purchaseId).get
 
-  proc periods(p: int): uint64 =
-    p.uint64 * period
+      check eventually client0.purchaseStateIs(purchaseId, "started")
 
-  proc advanceToNextPeriod {.async.} =
-    let periodicity = Periodicity(seconds: period.u256)
-    let currentPeriod = periodicity.periodOf(await provider.currentTime())
-    let endOfPeriod = periodicity.periodEnd(currentPeriod)
-    await provider.advanceTimeTo(endOfPeriod + 1)
+      var slotWasFreed = false
+      proc onSlotFreed(event: SlotFreed) {.gcsafe, upraises:[].} =
+        if event.requestId == requestId and
+           event.slotIndex == 0.u256: # assume only one slot, so index 0
+          slotWasFreed = true
 
-  proc createAvailabilities(datasetSize: int, duration: uint64) =
-    # post availability to each provider
-    for i in 0..<providers().len:
-      let provider = providers()[i].node.client
+      let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
-      discard provider.postAvailability(
-        size=datasetSize.u256, # should match 1 slot only
-        duration=duration.u256,
-        minPrice=300.u256,
-        maxCollateral=200.u256
-      )
+      echo "waiting for proofs: ", totalProofs
+      let freed = eventuallyP(slotWasFreed, totalProofs, 1.periods.int)
+      echo "got to the end... freed: ", freed
+      check not freed
+      # check not eventually(slotWasFreed, totalProofs.periods.int * 1000)
 
-  proc requestStorage(data: seq[byte],
-                      proofProbability: uint64 = 1,
-                      duration: uint64 = 12.periods,
-                      expiry: uint64 = 4.periods): Future[PurchaseId] {.async.} =
+      echo "unsubscribing from slotFreed"
+      await subscription.unsubscribe()
+      echo "unsubscribed from slotFreed"
 
-    if clients().len < 1 or providers().len < 2:
-      raiseAssert("must start at least one client and two providers")
+# marketplacesuite "Simulate invalid proofs",
+#   Nodes(
+#     hardhat: HardhatConfig()
+#               .withLogFile(),
 
-    let client0 = clients()[0].node.client
-    let cid = client0.upload(byteutils.toHex(data)).get
-    let expiry = (await provider.currentTime()) + expiry.u256
+#     clients: NodeConfig()
+#               .nodes(1)
+#               .debug()
+#               .withLogFile()
+#               .withLogTopics("node", "erasure"),
 
-    # avoid timing issues by filling the slot at the start of the next period
-    await advanceToNextPeriod()
+#     providers: NodeConfig()
+#                 .nodes(2)
+#                 .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=2)
+#                 .debug()
+#                 .withLogFile()
+#                 .withLogTopics(
+#                   "marketplace",
+#                   "sales",
+#                   "reservations",
+#                   "node",
+#                   "JSONRPC-HTTP-CLIENT",
+#                   "JSONRPC-WS-CLIENT",
+#                   "ethers",
+#                   "restapi"
+#                 ),
 
-    let id = client0.requestStorage(
-      cid,
-      expiry=expiry,
-      duration=duration.u256,
-      proofProbability=proofProbability.u256,
-      collateral=100.u256,
-      reward=400.u256,
-      nodes=2'u
-    ).get
+#     validators: NodeConfig()
+#                   .nodes(1)
+#                   .withLogFile()
+#                   .withLogTopics("validator", "initial-proving", "proving")
+#   ):
 
-    return id
+#   # TODO: these are very loose tests in that they are not testing EXACTLY how
+#   # proofs were marked as missed by the validator. These tests should be
+#   # tightened so that they are showing, as an integration test, that specific
+#   # proofs are being marked as missed by the validator.
 
-  # TODO: these are very loose tests in that they are not testing EXACTLY how
-  # proofs were marked as missed by the validator. These tests should be
-  # tightened so that they are showing, as an integration test, that specific
-  # proofs are being marked as missed by the validator.
+#   test "provider that submits invalid proofs is paid out less":
+#     let client0 = clients()[0].node.client
+#     let provider0 = providers()[0]
+#     let provider1 = providers()[1]
+#     let totalProofs = 25
 
-  test "provider that submits invalid proofs is paid out less":
-    let clientRestClient = clients()[0].node.client
-    let provider0 = providers()[0]
-    let provider1 = providers()[1]
-    let totalProofs = 25
+#     let data = byteutils.toHex(await exampleData())
+#     # createAvailabilities(data.len, totalProofs.periods)
 
-    let data = await exampleData()
-    createAvailabilities(byteutils.toHex(data).len, totalProofs.periods)
-    let purchaseId = await requestStorage(data, duration=totalProofs.periods)
-    check eventually clientRestClient.purchaseStateIs(purchaseId, "started")
+#     discard provider0.node.client.postAvailability(
+#       size=data.len.u256, # should match 1 slot only
+#       duration=totalProofs.periods.u256,
+#       minPrice=300.u256,
+#       maxCollateral=200.u256
+#     )
 
-    for _ in 0..<totalProofs.periods.int:
-      if clientRestClient.purchaseStateIs(purchaseId, "finished"):
-        break
-      else:
-        await advanceToNextPeriod()
-        await sleepAsync(1.seconds)
+#     let cid = client0.upload(data).get
 
-    check eventually (
-      (await token.balanceOf(!provider1.address)) >
-      (await token.balanceOf(!provider0.address))
-    )
-    echo "provider1 balance: ", (await token.balanceOf(!provider1.address))
-    echo "provider0 balance: ", (await token.balanceOf(!provider0.address))
+#     let purchaseId = await client0.requestStorage(
+#       cid,
+#       duration=totalProofs.periods,
+#       # tolerance=1
+#     )
 
+#     await sleepAsync(1.seconds) # allow time for provider0 to fill a slot
 
-    # var slotWasFreed = false
-    # proc onSlotFreed(event: SlotFreed) =
-    #   if slotId(event.requestId, event.slotIndex) == slotId:
-    #     slotWasFreed = true
-    # let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
+#     # now add availability for provider1, which should allow provider1 to put
+#     # the remaining slot in its queue
+#     discard provider1.node.client.postAvailability(
+#       size=data.len.u256, # should match 1 slot only
+#       duration=totalProofs.periods.u256,
+#       minPrice=300.u256,
+#       maxCollateral=200.u256
+#     )
 
-    # for _ in 0..<totalProofs:
-    #   if slotWasFreed:
-    #     break
-    #   else:
-    #     await advanceToNextPeriod()
-    #     await sleepAsync(1.seconds)
+#     check eventually client0.purchaseStateIs(purchaseId, "started")
 
-    # check slotWasFreed
+#     check eventuallyP(
+#       client0.purchaseStateIs(purchaseId, "finished"),
+#       totalProofs)
 
-    # await subscription.unsubscribe()
+#     check eventually (
+#       (await token.balanceOf(!provider1.address)) >
+#       (await token.balanceOf(!provider0.address))
+#     )
+#     echo "provider1 balance: ", (await token.balanceOf(!provider1.address))
+#     echo "provider0 balance: ", (await token.balanceOf(!provider0.address))
