@@ -231,17 +231,13 @@ asyncchecksuite "RepoStore":
       !response[0].key == expectedKey
       response[0].data == expectedExpiration.toBytes
 
-  test "Should update block expiration timestamp":
+  test "Should refuse update expiry with negative timestamp":
     let
-      duration = 10.seconds
       blk = createTestBlock(100)
+      expectedExpiration: SecondsSince1970 = now + 10
+      expectedKey = Key.init((BlocksTtlKey / $blk.cid).tryGet).tryGet
 
-    let
-      expectedExpiration: SecondsSince1970 = 123 + 10
-      updatedExpectedExpiration: SecondsSince1970 = expectedExpiration + 10
-      expectedKey = Key.init("meta/ttl/" & $blk.cid).tryGet
-
-    (await repo.putBlock(blk, duration.some)).tryGet
+    (await repo.putBlock(blk, some 10.seconds)).tryGet
 
     var response = await queryMetaDs(expectedKey)
 
@@ -250,7 +246,30 @@ asyncchecksuite "RepoStore":
       !response[0].key == expectedKey
       response[0].data == expectedExpiration.toBytes
 
-    (await repo.updateExpiry(blk.cid, updatedExpectedExpiration)).tryGet
+    expect ValueError:
+      (await repo.ensureExpiry(blk.cid, -1)).tryGet
+
+    expect ValueError:
+      (await repo.ensureExpiry(blk.cid, 0)).tryGet
+
+  test "Should update block expiration timestamp when new expiration is farther":
+    let
+      duration = 10
+      blk = createTestBlock(100)
+      expectedExpiration: SecondsSince1970 = now + duration
+      updatedExpectedExpiration: SecondsSince1970 = expectedExpiration + 10
+      expectedKey = Key.init((BlocksTtlKey / $blk.cid).tryGet).tryGet
+
+    (await repo.putBlock(blk, some duration.seconds)).tryGet
+
+    var response = await queryMetaDs(expectedKey)
+
+    check:
+      response.len == 1
+      !response[0].key == expectedKey
+      response[0].data == expectedExpiration.toBytes
+
+    (await repo.ensureExpiry(blk.cid, updatedExpectedExpiration)).tryGet
 
     response = await queryMetaDs(expectedKey)
 
@@ -258,6 +277,33 @@ asyncchecksuite "RepoStore":
       response.len == 1
       !response[0].key == expectedKey
       response[0].data == updatedExpectedExpiration.toBytes
+
+  test "Should not update block expiration timestamp when current expiration is farther then new one":
+    let
+      duration = 10
+      blk = createTestBlock(100)
+      expectedExpiration: SecondsSince1970 = now + duration
+      updatedExpectedExpiration: SecondsSince1970 = expectedExpiration - 10
+      expectedKey = Key.init((BlocksTtlKey / $blk.cid).tryGet).tryGet
+
+
+    (await repo.putBlock(blk, some duration.seconds)).tryGet
+
+    var response = await queryMetaDs(expectedKey)
+
+    check:
+      response.len == 1
+      !response[0].key == expectedKey
+      response[0].data == expectedExpiration.toBytes
+
+    (await repo.ensureExpiry(blk.cid, updatedExpectedExpiration)).tryGet
+
+    response = await queryMetaDs(expectedKey)
+
+    check:
+      response.len == 1
+      !response[0].key == expectedKey
+      response[0].data == expectedExpiration.toBytes
 
   test "delBlock should remove expiration metadata":
     let

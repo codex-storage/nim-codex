@@ -129,21 +129,33 @@ proc getBlockExpirationEntry(
   let duration = ttl |? self.blockTtl
   self.getBlockExpirationEntry(cid, self.clock.now() + duration.seconds)
 
-method updateExpiry*(
+method ensureExpiry*(
     self: RepoStore,
     cid: Cid,
     expiry: SecondsSince1970
 ): Future[?!void] {.async.} =
-  ## Updates block's assosicated expiry TTL in store
+  ## Ensure that block's assosicated expiry is at least given timestamp
+  ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
+
   logScope:
     cid = cid
 
-  without blockExpEntry =? self.getBlockExpirationEntry(cid, expiry), err:
+  if expiry <= 0:
+    return failure(newException(ValueError, "Expiry timestamp must be larger then zero"))
+
+  let expiryKey = createBlockExpirationMetadataKey(cid)
+  let currentExpiry = await self.metaDs.get(expiryKey.tryGet)
+
+  if currentExpiry.isOk and expiry < (!currentExpiry).toSecondsSince1970:
+    trace "Current expiry is larger then the specified one, no action needed"
+    return success()
+
+  without (key, data) =? self.getBlockExpirationEntry(cid, expiry), err:
     trace "Unable to create updated expiration metadata key", err = err.msg
     return failure(err)
 
-  if err =? (await self.metaDs.put(blockExpEntry[0], blockExpEntry[1])).errorOption:
+  if err =? (await self.metaDs.put(key, data)).errorOption:
     trace "Error updating expiration metadata entry", err = err.msg
     return failure(err)
 

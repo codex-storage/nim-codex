@@ -168,7 +168,7 @@ method putBlock*(
   discard self.putBlockSync(blk)
   return success()
 
-method updateExpiry*(
+method ensureExpiry*(
     self: CacheStore,
     cid: Cid,
     expiry: SecondsSince1970

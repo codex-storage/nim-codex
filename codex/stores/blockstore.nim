@@ -55,12 +55,13 @@ method putBlock*(
 
   raiseAssert("Not implemented!")
 
-method updateExpiry*(
+method ensureExpiry*(
     self: BlockStore,
     cid: Cid,
     expiry: SecondsSince1970
 ): Future[?!void] {.base.} =
-  ## Updates block's assosicated expiry TTL in store
+  ## Ensure that block's assosicated expiry is at least given timestamp
+  ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
 
   raiseAssert("Not implemented!")
