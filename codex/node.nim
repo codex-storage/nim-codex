@@ -88,7 +88,7 @@ proc fetchManifest*(
 
   trace "Retrieving manifest for cid", cid
 
-  without blk =? await node.blockStore.getBlock(cid), err:
+  without blk =? await node.blockStore.getBlock(BlockAddress.init(cid)), err:
     trace "Error retrieve manifest block", cid, err = err.msg
     return failure err
 
@@ -114,8 +114,8 @@ proc fetchBatched*(
 
   trace "Fetching blocks in batches of", size = batchSize
 
-  without iter =? await node.blockStore.getBlocks(manifest.treeCid, manifest.blocksCount, manifest.treeRoot), err:
-    return failure(err)
+  let iter = Iter.fromSlice(0..<manifest.blocksCount)
+    .map((i: int) => node.blockStore.getBlock(BlockAddress.init(manifest.treeCid, i)))
 
   for batchNum in 0..<batchCount:
     let blocks = collect:
@@ -161,7 +161,7 @@ proc retrieve*(
     let
       stream = BufferStream.new()
 
-    without blk =? (await node.blockStore.getBlock(cid)), err:
+    without blk =? (await node.blockStore.getBlock(BlockAddress.init(cid))), err:
       return failure(err)
 
     proc streamOneBlock(): Future[void] {.async.} =
@@ -221,14 +221,13 @@ proc store*(
   finally:
     await stream.close()
 
-
   without tree =? MerkleTree.init(cids), err:
     return failure(err)
 
-  without treeCid =? Cid.init(CIDv1, dataCodec, tree.root).mapFailure, err:
+  without treeCid =? tree.rootCid(CIDv1, dataCodec), err:
     return failure(err)
   
-  for cid, index in cids:
+  for index, cid in cids:
     without proof =? tree.getProof(index), err:
       return failure(err)
     if err =? (await self.blockStore.putBlockCidAndProof(treeCid, index, cid, proof)).errorOption:
@@ -236,8 +235,7 @@ proc store*(
       return failure(err)
 
   let manifest = Manifest.new(
-    treeCid = treeBlk.cid,
-    treeRoot = tree.root, # TODO remove it
+    treeCid = treeCid,
     blockSize = blockSize,
     datasetSize = NBytes(chunker.offset),
     version = CIDv1,
@@ -259,12 +257,13 @@ proc store*(
     return failure("Unable to store manifest " & $manifestBlk.cid)
 
   info "Stored data", manifestCid = manifestBlk.cid,
-                      treeCid = treeBlk.cid,
+                      treeCid = treeCid,
                       blocks = manifest.blocksCount,
                       datasetSize = manifest.datasetSize
 
   # Announce manifest
   await self.discovery.provide(manifestBlk.cid)
+  await self.discovery.provide(treeCid)
 
   return manifestBlk.cid.success
 

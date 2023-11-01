@@ -56,20 +56,17 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   # var treeRootVBuf = initVBuffer()
   var header = initProtoBuffer()
   header.write(1, manifest.treeCid.data.buffer)
-  # treeRootVBuf.write(manifest.treeRoot)
-  header.write(2, manifest.treeRoot.data.buffer)
-  header.write(3, manifest.blockSize.uint32)
-  header.write(4, manifest.datasetSize.uint32)
+  header.write(2, manifest.blockSize.uint32)
+  header.write(3, manifest.datasetSize.uint32)
   if manifest.protected:
     var erasureInfo = initProtoBuffer()
     erasureInfo.write(1, manifest.ecK.uint32)
     erasureInfo.write(2, manifest.ecM.uint32)
     erasureInfo.write(3, manifest.originalCid.data.buffer)
-    erasureInfo.write(4, manifest.originalTreeRoot.data.buffer)
-    erasureInfo.write(5, manifest.originalDatasetSize.uint32)
+    erasureInfo.write(4, manifest.originalDatasetSize.uint32)
     erasureInfo.finish()
 
-    header.write(5, erasureInfo)
+    header.write(4, erasureInfo)
 
   pbNode.write(1, header) # set the treeCid as the data field
   pbNode.finish()
@@ -85,9 +82,7 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     pbHeader: ProtoBuffer
     pbErasureInfo: ProtoBuffer
     treeCidBuf: seq[byte]
-    treeRootBuf: seq[byte]
     originalTreeCid: seq[byte]
-    originalTreeRootBuf: seq[byte]
     datasetSize: uint32
     blockSize: uint32
     originalDatasetSize: uint32
@@ -101,16 +96,13 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
   if pbHeader.getField(1, treeCidBuf).isErr:
     return failure("Unable to decode `treeCid` from manifest!")
 
-  if pbHeader.getField(2, treeRootBuf).isErr:
-    return failure("Unable to decode `treeRoot` from manifest!")
-
-  if pbHeader.getField(3, blockSize).isErr:
+  if pbHeader.getField(2, blockSize).isErr:
     return failure("Unable to decode `blockSize` from manifest!")
 
-  if pbHeader.getField(4, datasetSize).isErr:
+  if pbHeader.getField(3, datasetSize).isErr:
     return failure("Unable to decode `datasetSize` from manifest!")
 
-  if pbHeader.getField(5, pbErasureInfo).isErr:
+  if pbHeader.getField(4, pbErasureInfo).isErr:
     return failure("Unable to decode `erasureInfo` from manifest!")
 
   let protected = pbErasureInfo.buffer.len > 0
@@ -123,34 +115,18 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
 
     if pbErasureInfo.getField(3, originalTreeCid).isErr:
       return failure("Unable to decode `originalTreeCid` from manifest!")
-    
-    if pbErasureInfo.getField(4, originalTreeRootBuf).isErr:
-      return failure("Unable to decode `originalTreeRoot` from manifest!")
 
-    if pbErasureInfo.getField(5, originalDatasetSize).isErr:
+    if pbErasureInfo.getField(4, originalDatasetSize).isErr:
       return failure("Unable to decode `originalDatasetSize` from manifest!")
 
-  var 
-    treeRoot: MultiHash
-    originalTreeRoot: MultiHash
 
   let 
     treeCid = ? Cid.init(treeCidBuf).mapFailure
-    treeRootRes = ? MultiHash.decode(treeRootBuf, treeRoot).mapFailure
-
-  if treeRootRes != treeRootBuf.len:
-    return failure("Error decoding `treeRoot` as MultiHash")
-  
-  if protected:
-    let originalTreeRootRes = ? MultiHash.decode(originalTreeRootBuf, originalTreeRoot).mapFailure
-    if originalTreeRootRes != originalTreeRootBuf.len:
-      return failure("Error decoding `originalTreeRoot` as MultiHash")
 
   let
     self = if protected:
       Manifest.new(
         treeCid = treeCid,
-        treeRoot = treeRoot,
         datasetSize = datasetSize.NBytes,
         blockSize = blockSize.NBytes,
         version = treeCid.cidver,
@@ -159,13 +135,11 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
         ecK = ecK.int,
         ecM = ecM.int,
         originalTreeCid = ? Cid.init(originalTreeCid).mapFailure,
-        originalTreeRoot = originalTreeRoot,
         originalDatasetSize = originalDatasetSize.NBytes
       )
       else:
         Manifest.new(
           treeCid = treeCid,
-          treeRoot = treeRoot,
           datasetSize = datasetSize.NBytes,
           blockSize = blockSize.NBytes,
           version = treeCid.cidver,

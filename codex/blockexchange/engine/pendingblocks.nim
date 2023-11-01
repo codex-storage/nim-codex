@@ -18,8 +18,11 @@ import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
 import pkg/metrics
+import pkg/questionable/results
 
+import ../protobuf/blockexc
 import ../../blocktype
+import ../../merkletree
 
 logScope:
   topics = "codex pendingblocks"
@@ -63,7 +66,7 @@ proc getWantHandle*(
     p.updatePendingBlockGauge()
     return await p.blocks[address].handle.wait(timeout)
   except CancelledError as exc:
-    trace "Blocks cancelled", exc = exc.msg, cid
+    trace "Blocks cancelled", exc = exc.msg, address
     raise exc
   except CatchableError as exc:
     trace "Pending WANT failed or expired", exc = exc.msg
@@ -73,6 +76,13 @@ proc getWantHandle*(
     p.blocks.del(address)
     p.updatePendingBlockGauge()
 
+proc getWantHandle*(
+    p: PendingBlocksManager,
+    cid: Cid,
+    timeout = DefaultBlockTimeout,
+    inFlight = false
+): Future[Block] =
+  p.getWantHandle(BlockAddress.init(cid), timeout, inFlight)
 
 proc resolve*(
   p: PendingBlocksManager,
@@ -81,50 +91,49 @@ proc resolve*(
   ## Resolve pending blocks
   ##
 
-    for bd in blocksDelivery:
-      p.blocks.withValue(bd.address, blockReq):
-        trace "Resolving block", bd.address
+  for bd in blocksDelivery:
+    p.blocks.withValue(bd.address, blockReq):
+      trace "Resolving block", address = bd.address
 
-        if bd.address.leaf:
-          without proof =? bd.proof:
-            warn "Missing proof for a block", address = bd.address
-            continue
-          
-          if proof.index != bd.address.index:
-            warn "Proof index doesn't match leaf index", address = bd.address, proofIndex = proof.index
-            continue
-
-          without leaf =? bd.blk.cid.mhash.mapFailure, err:
-            error "Unable to get mhash from cid for block", address = bd.address, msg = err.msg
-            continue
-
-          without treeRoot =? bd.address.treeCid.mhash.mapFailure, err:
-            error "Unable to get mhash from treeCid for block", address = bd.address, msg = err.msg
-            continue
-
-          without verifyOutcome =? proof.verifyLeaf(leaf, treeRoot), err:
-            error "Unable to verify proof for block", address = bd.address, msg = err.msg
-            continue
-
-          if not verifyOutcome:
-            warn "Invalid proof provided for a block", address = bd.address
-        else:
-          # bd.address.leaf == false
-          if bd.address.cid != bd.blk.cid:
-            warn "Delivery cid doesn't match block cid", deliveryCid = bd.address.cid, blockCid = bd.blk.cid
-            continue
-
-        let
-          startTime = blockReq.startTime
-          stopTime = getMonoTime().ticks
-          retrievalDurationUs = (stopTime - startTime) div 1000
-
-        blockReq.handle.complete(blk)
+      if bd.address.leaf:
+        without proof =? bd.proof:
+          warn "Missing proof for a block", address = bd.address
+          continue
         
-        codexBlockExchangeRetrievalTimeUs.set(retrievalDurationUs)
-        trace "Block retrieval time", retrievalDurationUs
-      do:
-        warn "Attempting to resolve block delivery for not pending block", address = bd.address
+        if proof.index != bd.address.index:
+          warn "Proof index doesn't match leaf index", address = bd.address, proofIndex = proof.index
+          continue
+
+        without leaf =? bd.blk.cid.mhash.mapFailure, err:
+          error "Unable to get mhash from cid for block", address = bd.address, msg = err.msg
+          continue
+
+        without treeRoot =? bd.address.treeCid.mhash.mapFailure, err:
+          error "Unable to get mhash from treeCid for block", address = bd.address, msg = err.msg
+          continue
+
+        without verifyOutcome =? proof.verifyLeaf(leaf, treeRoot), err:
+          error "Unable to verify proof for block", address = bd.address, msg = err.msg
+          continue
+
+        if not verifyOutcome:
+          warn "Invalid proof provided for a block", address = bd.address
+      else: # bd.address.leaf == false
+        if bd.address.cid != bd.blk.cid:
+          warn "Delivery cid doesn't match block cid", deliveryCid = bd.address.cid, blockCid = bd.blk.cid
+          continue
+
+      let
+        startTime = blockReq.startTime
+        stopTime = getMonoTime().ticks
+        retrievalDurationUs = (stopTime - startTime) div 1000
+
+      blockReq.handle.complete(bd.blk)
+      
+      codexBlockExchangeRetrievalTimeUs.set(retrievalDurationUs)
+      trace "Block retrieval time", retrievalDurationUs
+    do:
+      warn "Attempting to resolve block delivery for not pending block", address = bd.address
 
 proc setInFlight*(p: PendingBlocksManager,
                   address: BlockAddress,
@@ -140,14 +149,15 @@ proc isInFlight*(p: PendingBlocksManager,
     result = pending[].inFlight
     trace "Getting inflight", address, inFlight = result
 
-proc pending*(p: PendingBlocksManager, address: Cid): bool =
+proc contains*(p: PendingBlocksManager, cid: Cid): bool =
+  BlockAddress.init(cid) in p.blocks
+
+proc contains*(p: PendingBlocksManager, address: BlockAddress): bool =
   address in p.blocks
 
-proc contains*(p: PendingBlocksManager, address: Cid): bool =
-  p.pending(address)
-
 iterator wantList*(p: PendingBlocksManager): BlockAddress =
-  p.blocks.keys
+  for a in p.blocks.keys:
+    yield a
 
 iterator wantListBlockCids*(p: PendingBlocksManager): Cid =
   for a in p.blocks.keys:
@@ -165,10 +175,6 @@ iterator wantHandles*(p: PendingBlocksManager): Future[Block] =
 
 proc wantListLen*(p: PendingBlocksManager): int =
   p.blocks.len
-
-iterator wantHandles*(p: PendingBlocksManager): Future[Block] =
-  for v in p.blocks.values:
-    yield v.handle
 
 func len*(p: PendingBlocksManager): int =
   p.blocks.len

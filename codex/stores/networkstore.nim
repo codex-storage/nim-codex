@@ -24,6 +24,7 @@ import ../utils/asynciter
 import ./blockstore
 import ../blockexchange
 import ../merkletree
+import ../blocktype
 
 export blockstore, blockexchange, asyncheapqueue
 
@@ -37,8 +38,8 @@ type
     engine*: BlockExcEngine # blockexc decision engine
     localStore*: BlockStore # local block store
 
-method getBlock*(self: BlockStore, address: BlockAddress): Future[?!Block] {.async.} =
-  trace "Getting block from local store or network", cid
+method getBlock*(self: NetworkStore, address: BlockAddress): Future[?!Block] {.async.} =
+  trace "Getting block from local store or network", address
 
   without blk =? await self.localStore.getBlock(address), error:
     if not (error of BlockNotFoundError): return failure error
@@ -51,6 +52,18 @@ method getBlock*(self: BlockStore, address: BlockAddress): Future[?!Block] {.asy
     return success newBlock
 
   return success blk
+
+method getBlock*(self: NetworkStore, cid: Cid): Future[?!Block] =
+  ## Get a block from the blockstore
+  ##
+
+  self.getBlock(BlockAddress.init(cid))
+
+method getBlock*(self: NetworkStore, treeCid: Cid, index: Natural): Future[?!Block] =
+  ## Get a block from the blockstore
+  ##
+
+  self.getBlock(BlockAddress.init(treeCid, index))
 
 method putBlock*(
     self: NetworkStore,
@@ -68,6 +81,15 @@ method putBlock*(
 
   await self.engine.resolveBlocks(@[blk])
   return success()
+
+method putBlockCidAndProof*(
+  self: NetworkStore,
+  treeCid: Cid,
+  index: Natural,
+  blockCid: Cid,
+  proof: MerkleProof
+): Future[?!void] =
+  self.localStore.putBlockCidAndProof(treeCid, index, blockCid, proof)
 
 method delBlock*(self: NetworkStore, cid: Cid): Future[?!void] =
   ## Delete a block from the blockstore

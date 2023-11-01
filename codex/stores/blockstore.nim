@@ -30,17 +30,29 @@ type
 
   BlockStore* = ref object of RootObj
 
+method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
+  ## Get a block from the blockstore
+  ##
+
+  raiseAssert("getBlock by cid Not implemented!")
+
+method getBlock*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!Block] {.base.} =
+  ## Get a block from the blockstore
+  ##
+
+  raiseAssert("getBlock by treecid Not implemented!")
+
 method getBlock*(self: BlockStore, address: BlockAddress): Future[?!Block] {.base.} =
   ## Get a block from the blockstore
   ##
 
-  raiseAssert("Not implemented!")
+  raiseAssert("getBlock by addr Not implemented!")
 
 method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.base.} =
   ## Get a block and associated inclusion proof by Cid of a merkle tree and an index of a leaf in a tree
   ## 
   
-  raiseAssert("Not implemented!")
+  raiseAssert("getBlockAndProof Not implemented!")
 
 method putBlock*(
     self: BlockStore,
@@ -50,20 +62,20 @@ method putBlock*(
   ## Put a block to the blockstore
   ##
 
-  raiseAssert("Not implemented!")
+  raiseAssert("putBlock Not implemented!")
 
 # I cant use `BlockAddress` to wrap (treeCid, index) here. because as far as I know there's no way in Nim to force `assert(leaf == true)` in a compile time
 method putBlockCidAndProof*(
   self: BlockStore,
   treeCid: Cid,
-  index: Natural
+  index: Natural,
   blockCid: Cid,
   proof: MerkleProof
 ): Future[?!void] {.base.} =
   ## Put a block to the blockstore
   ##
 
-  raiseAssert("Not implemented!")
+  raiseAssert("putBlockCidAndProof Not implemented!")
 
 method delBlock*(self: BlockStore, cid: Cid): Future[?!void] {.base.} =
   ## Delete a block from the blockstore

@@ -38,8 +38,8 @@ asyncchecksuite "BLS PoR":
 
     manifest = await storeDataGetManifest(store, chunker)
 
-    porStream = SeekableStoreStream.new(store, manifest)
-    proofStream = SeekableStoreStream.new(store, manifest)
+    porStream = StoreStream.new(store, manifest)
+    proofStream = StoreStream.new(store, manifest)
 
   teardown:
     await close(porStream)
@@ -96,14 +96,14 @@ asyncchecksuite "Test Serialization":
     manifest = await storeDataGetManifest(store, chunker)
 
     (spk, ssk) = st.keyGen()
-    porStream = SeekableStoreStream.new(store, manifest)
+    porStream = StoreStream.new(store, manifest)
     por = await PoR.init(
       porStream,
       ssk,
       spk,
       BlockSize.int)
     q = generateQuery(por.tau, 22)
-    proofStream = SeekableStoreStream.new(store, manifest)
+    proofStream = StoreStream.new(store, manifest)
     proof = await generateProof(
       proofStream,
       q,

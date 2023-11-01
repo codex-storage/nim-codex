@@ -186,6 +186,9 @@ proc root*(self: MerkleTree): MultiHash =
   let rootIndex = self.len - 1
   self.nodeBufferToMultiHash(rootIndex)
 
+proc rootCid*(self: MerkleTree, version = CIDv1, dataCodec = multiCodec("raw")): ?!Cid =
+  Cid.init(version, dataCodec, self.root).mapFailure
+
 proc leaves*(self: MerkleTree): seq[MultiHash] =
   toSeq(0..<self.leavesCount).map(i => self.nodeBufferToMultiHash(i))
 

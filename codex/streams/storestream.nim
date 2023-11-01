@@ -30,31 +30,31 @@ logScope:
   topics = "codex storestream"
 
 const
-  SeekableStoreStreamTrackerName* = "SeekableStoreStream"
+  StoreStreamTrackerName* = "StoreStream"
 
 type
   # Make SeekableStream from a sequence of blocks stored in Manifest
   # (only original file data - see StoreStream.size)
-  SeekableStoreStream* = ref object of SeekableStream
+  StoreStream* = ref object of SeekableStream
     store*: BlockStore          # Store where to lookup block contents
     manifest*: Manifest         # List of block CIDs
     pad*: bool                  # Pad last block to manifest.blockSize?
 
-method initStream*(s: SeekableStoreStream) =
+method initStream*(s: StoreStream) =
   if s.objName.len == 0:
-    s.objName = SeekableStoreStreamTrackerName
+    s.objName = StoreStreamTrackerName
 
   procCall SeekableStream(s).initStream()
 
 proc new*(
-    T: type SeekableStoreStream,
+    T: type StoreStream,
     store: BlockStore,
     manifest: Manifest,
     pad = true
-): SeekableStoreStream =
-  ## Create a new SeekableStoreStream instance for a given store and manifest
+): StoreStream =
+  ## Create a new StoreStream instance for a given store and manifest
   ## 
-  result = SeekableStoreStream(
+  result = StoreStream(
     store: store,
     manifest: manifest,
     pad: pad,
@@ -62,22 +62,22 @@ proc new*(
 
   result.initStream()
 
-method `size`*(self: SeekableStoreStream): int =
+method `size`*(self: StoreStream): int =
   bytes(self.manifest, self.pad).int
 
-proc `size=`*(self: SeekableStoreStream, size: int)
+proc `size=`*(self: StoreStream, size: int)
   {.error: "Setting the size is forbidden".} =
   discard
 
-method atEof*(self: SeekableStoreStream): bool =
+method atEof*(self: StoreStream): bool =
   self.offset >= self.size
 
 method readOnce*(
-    self: SeekableStoreStream,
+    self: StoreStream,
     pbytes: pointer,
     nbytes: int
 ): Future[int] {.async.} =
-  ## Read `nbytes` from current position in the SeekableStoreStream into output buffer pointed by `pbytes`.
+  ## Read `nbytes` from current position in the StoreStream into output buffer pointed by `pbytes`.
   ## Return how many bytes were actually read before EOF was encountered.
   ## Raise exception if we are already at EOF.
   ## 
@@ -86,7 +86,7 @@ method readOnce*(
   if self.atEof:
     raise newLPStreamEOFError()
 
-  # The loop iterates over blocks in the SeekableStoreStream,
+  # The loop iterates over blocks in the StoreStream,
   # reading them and copying their data into outbuf
   var read = 0  # Bytes read so far, and thus write offset in the outbuf
   while read < nbytes and not self.atEof:
@@ -118,7 +118,7 @@ method readOnce*(
 
   return read
 
-method closeImpl*(self: SeekableStoreStream) {.async.} =
-  trace "Closing SeekableStoreStream"
+method closeImpl*(self: StoreStream) {.async.} =
+  trace "Closing StoreStream"
   self.offset = self.size  # set Eof
   await procCall LPStream(self).closeImpl()

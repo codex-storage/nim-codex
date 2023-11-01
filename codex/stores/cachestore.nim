@@ -40,6 +40,7 @@ type
     currentSize*: NBytes
     size*: NBytes
     cache: LruCache[Cid, Block]
+    cidAndProofCache: LruCache[(Cid, Natural), (Cid, MerkleProof)]
 
   InvalidBlockSize* = object of CodexError
 
@@ -65,14 +66,28 @@ method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
     trace "Error requesting block from cache", cid, error = exc.msg
     return failure exc
 
-method getBlock*(self: CacheStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] =
-  self.treeReader.getBlock(treeCid, index)
+proc getCidAndProof(self: CacheStore, treeCid: Cid, index: Natural): ?!(Cid, MerkleProof) =
+  if cidAndProof =? self.cidAndProofCache.getOption((treeCid, index)):
+    success(cidAndProof)
+  else:
+    failure(newException(BlockNotFoundError, "Block not in cache: " & $BlockAddress.init(treeCid, index)))
 
-method getBlocks*(self: CacheStore, treeCid: Cid, leavesCount: Natural, merkleRoot: MultiHash): Future[?!AsyncIter[?!Block]] =
-  self.treeReader.getBlocks(treeCid, leavesCount)
+method getBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!Block] {.async.} =
+  without cidAndProof =? self.getCidAndProof(treeCid, index), err:
+    return failure(err)
 
-method getBlockAndProof*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] =
-  self.treeReader.getBlockAndProof(treeCid, index)
+  await self.getBlock(cidAndProof[0])
+
+method getBlockAndProof*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.async.} =
+  without cidAndProof =? self.getCidAndProof(treeCid, index), err:
+    return failure(err)
+
+  let (cid, proof) = cidAndProof
+
+  without blk =? await self.getBlock(cid), err:
+    return failure(err)
+
+  success((blk, proof))
 
 method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
@@ -234,13 +249,15 @@ proc new*(
     currentSize = 0'nb
     size = int(cacheSize div chunkSize)
     cache = newLruCache[Cid, Block](size)
+    cidAndProofCache = newLruCache[(Cid, Natural), (Cid, MerkleProof)](size)
     store = CacheStore(
       cache: cache,
+      cidAndProofCache: cidAndProofCache,
       currentSize: currentSize,
       size: cacheSize)
 
-  proc getBlockFromStore(cid: Cid): Future[?!Block] = store.getBlock(cid)
-  store.treeReader = TreeReader.new(getBlockFromStore)
+  # proc getBlockFromStore(cid: Cid): Future[?!Block] = store.getBlock(cid)
+  # store.treeReader = TreeReader.new(getBlockFromStore)
 
   for blk in blocks:
     discard store.putBlockSync(blk)

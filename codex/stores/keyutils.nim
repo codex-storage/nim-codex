@@ -10,12 +10,12 @@
 import pkg/upraises
 push: {.upraises: [].}
 
+import std/sugar
 import pkg/questionable/results
 import pkg/datastore
 import pkg/libp2p
 import ../namespaces
 import ../manifest
-import ../merkletree
 
 const
   CodexMetaKey* = Key.init(CodexMetaNamespace).tryGet
@@ -46,5 +46,5 @@ proc createBlockExpirationMetadataQueryKey*(): ?!Key =
   Key.init(queryString)
 
 proc createBlockCidAndProofMetadataKey*(treeCid: Cid, index: Natural): ?!Key =
-  (BlockProofKey / $treeCid) / $index
+  (BlockProofKey / $treeCid).flatMap((k: Key) => k / $index)
   

@@ -175,14 +175,14 @@ proc monitorBlockHandle(b: BlockExcEngine, handle: Future[Block], address: Block
     b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
     await b.network.switch.disconnect(peerId)
 
-proc requestBlock(
+proc requestBlock*(
   b: BlockExcEngine,
-  address: BlockAddress
+  address: BlockAddress,
   timeout = DefaultBlockTimeout
 ): Future[Block] {.async.} =
-  let blockFuture = handleOrCid.handle
+  let blockFuture = b.pendingBlocks.getWantHandle(address, timeout)
 
-  if treeReq.isInFlight(index):
+  if b.pendingBlocks.isInFlight(address):
     return await blockFuture
 
   let peers = b.peers.selectCheapest(address)
@@ -191,21 +191,28 @@ proc requestBlock(
 
   let maybePeer = 
     if peers.len > 0:
-      peers[index mod peers.len].some
+      peers[hash(address) mod peers.len].some
     elif b.peers.len > 0:
-      toSeq(b.peers)[index mod b.peers.len].some
+      toSeq(b.peers)[hash(address) mod b.peers.len].some
     else:
       BlockExcPeerCtx.none
   
   if peer =? maybePeer:
     asyncSpawn b.monitorBlockHandle(blockFuture, address, peer.id)
-    treeReq.setInFlight(address)
+    b.pendingBlocks.setInFlight(address)
     await b.sendWantBlock(address, peer)
     codexBlockExchangeWantBlockListsSent.inc()
     await b.sendWantHave(address, peer, toSeq(b.peers))
     codexBlockExchangeWantHaveListsSent.inc()
     
   return await blockFuture
+
+proc requestBlock*(
+  b: BlockExcEngine,
+  cid: Cid,
+  timeout = DefaultBlockTimeout
+): Future[Block] =
+  b.requestBlock(BlockAddress.init(cid))
 
 proc blockPresenceHandler*(
   b: BlockExcEngine,
@@ -423,18 +430,6 @@ proc paymentHandler*(
   else:
     context.paymentChannel = engine.wallet.acceptChannel(payment).option
 
-proc onTreeHandler(b: BlockExcEngine, tree: MerkleTree): Future[?!void] {.async.} =
-  trace "Handling tree"
-
-  without treeBlk =? Block.new(tree.encode()), err:
-    return failure(err)
-
-  if err =? (await b.localStore.putBlock(treeBlk)).errorOption:
-    return failure("Unable to store merkle tree block " & $treeBlk.cid & ", nested err: " & err.msg)
-
-  return success()
-
-
 proc setupPeer*(b: BlockExcEngine, peer: PeerId) {.async.} =
   ## Perform initial setup, such as want
   ## list exchange
@@ -496,7 +491,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
             BlockDelivery(address: e.address, blk: blkAndProof[0], proof: blkAndProof[1].some)
         )
       else:
-        (await b.localStore.getBlock(e.address.cid)).map(
+        (await b.localStore.getBlock(e.address)).map(
           (blk: Block) => BlockDelivery(address: e.address, blk: blk, proof: MerkleProof.none)
         )
 
@@ -597,18 +592,11 @@ proc new*(
   proc paymentHandler(peer: PeerId, payment: SignedState): Future[void] {.gcsafe.} =
     engine.paymentHandler(peer, payment)
 
-  proc onTree(tree: MerkleTree): Future[void] {.gcsafe, async.} =
-    if err =? (await engine.onTreeHandler(tree)).errorOption:
-      echo "Error handling a tree" & err.msg # TODO
-      # error "Error handling a tree", msg = err.msg
-
   network.handlers = BlockExcHandlers(
     onWantList: blockWantListHandler,
     onBlocksDelivery: blocksDeliveryHandler,
     onPresence: blockPresenceHandler,
     onAccount: accountHandler,
     onPayment: paymentHandler)
-
-  pendingBlocks.onTree = onTree
 
   return engine

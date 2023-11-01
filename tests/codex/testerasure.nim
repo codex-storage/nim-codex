@@ -146,7 +146,7 @@ asyncchecksuite "Erasure encode/decode":
         var idx: int
         while true:
           idx = rng.sample(blockIdx, blocks)
-          let blk = (await store.getBlock(encoded.treeCid, idx, encoded.treeRoot)).tryGet()
+          let blk = (await store.getBlock(encoded.treeCid, idx)).tryGet()
           if not blk.isEmpty:
             break
 
