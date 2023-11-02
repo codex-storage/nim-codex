@@ -105,29 +105,29 @@ proc initContentApi(node: CodexNodeRef, router: var RestRouter) =
 
   router.api(
     MethodGet,
-    "/api/codex/v1/content") do () -> RestApiResponse:
+    "/api/codex/v1/content/local") do () -> RestApiResponse:
       let json = await formatManifestBlocks(node)
       return RestApiResponse.response($json, contentType="application/json")
 
   router.api(
     MethodGet,
-    "/api/codex/v1/content/{id}") do (
-      id: Cid, resp: HttpResponseRef) -> RestApiResponse:
+    "/api/codex/v1/content/{cid}") do (
+      cid: Cid, resp: HttpResponseRef) -> RestApiResponse:
       ## Download a file from the node in a streaming
       ## manner
       ##
 
-      if id.isErr:
+      if cid.isErr:
         return RestApiResponse.error(
           Http400,
-          $id.error())
+          $cid.error())
 
       var
         stream: LPStream
 
       var bytes = 0
       try:
-        without stream =? (await node.retrieve(id.get())), error:
+        without stream =? (await node.retrieve(cid.get())), error:
           return RestApiResponse.error(Http404, error.msg)
 
         resp.addHeader("Content-Type", "application/octet-stream")
@@ -151,7 +151,7 @@ proc initContentApi(node: CodexNodeRef, router: var RestRouter) =
         trace "Excepting streaming blocks", exc = exc.msg
         return RestApiResponse.error(Http500)
       finally:
-        trace "Sent bytes", cid = id.get(), bytes
+        trace "Sent bytes", cid = cid.get(), bytes
         if not stream.isNil:
           await stream.close()
 
@@ -216,7 +216,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       return RestApiResponse.response(availability.toJson,
                                       contentType="application/json")
 
-proc initStorageApi(node: CodexNodeRef, router: var RestRouter) =
+proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
   router.rawApi(
     MethodPost,
     "/api/codex/v1/storage/request/{cid}") do (cid: Cid) -> RestApiResponse:
@@ -350,7 +350,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
 
   initContentApi(node, router)
   initSalesApi(node, router)
-  initStorageApi(node, router)
+  initPurchasingApi(node, router)
   initDebugApi(node, conf, router)
 
   router.api(

@@ -284,9 +284,9 @@ paths:
         "400":
           description: Peer either not found or was not possible to dial
 
-  "/content":
+  "/content/local":
     get:
-      summary: "Lists content CIDs stored in node"
+      summary: "Lists content manifest CIDs stored locally in node."
       tags: [ Content ]
       operationId: listContent
       responses:
@@ -305,8 +305,9 @@ paths:
         "500":
           description: Well it was bad-bad
 
+  "/content":
     post:
-      summary: "Upload a file in a streaming manner"
+      summary: "Upload a file in a streaming manner. Once finished, the file is stored in the node and can be retrieved by any node in the network using the returned CID."
       tags: [ Content ]
       operationId: upload
       requestBody:
@@ -327,7 +328,7 @@ paths:
 
   "/content/{cid}":
     get:
-      summary: "Download a file from the node in a streaming manner"
+      summary: "Download a file from the node in a streaming manner. If the file is not available locally, it will be retrieved from other nodes in the network if able."
       tags: [ Content ]
       operationId: download
       parameters:
