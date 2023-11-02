@@ -26,7 +26,7 @@ asyncchecksuite "Erasure encode/decode":
   setup:
     rng = Rng.instance()
     chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = BlockSize)
-    store = CacheStore.new(cacheSize = (dataSetSize * 4), chunkSize = BlockSize)
+    store = CacheStore.new(cacheSize = (dataSetSize * 8), chunkSize = BlockSize)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     manifest = await storeDataGetManifest(store, chunker)
 
@@ -59,6 +59,8 @@ asyncchecksuite "Erasure encode/decode":
       dropped.add(column)
       (await store.delBlock(encoded.treeCid, column)).tryGet()
       column.inc(encoded.steps - 1)
+
+    echo $dropped
 
     var
       decoded = (await erasure.decode(encoded)).tryGet()

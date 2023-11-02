@@ -293,6 +293,9 @@ proc encodeData(
     without treeCid =? tree.rootCid, err:
       return failure(err)
 
+    if err =? (await self.store.putAllProofs(tree)).errorOption:
+      return failure(err)
+
     let encodedManifest = Manifest.new(
       manifest = manifest,
       treeCid = treeCid,
@@ -349,9 +352,9 @@ proc decode*(
 
   var
     cids = seq[Cid].new()
+    recoveredIndices = newSeq[int]()
     decoder = self.decoderProvider(encoded.blockSize.int, encoded.ecK, encoded.ecM)
     emptyBlock = newSeq[byte](encoded.blockSize.int)
-    hasParity = false
 
   cids[].setLen(encoded.blocksCount)
   try:
@@ -399,6 +402,7 @@ proc decode*(
             return failure("Unable to store block!")
 
           cids[idx] = blk.cid
+          recoveredIndices.add(idx)
   except CancelledError as exc:
     trace "Erasure coding decoding cancelled"
     raise exc # cancellation needs to be propagated
@@ -408,6 +412,19 @@ proc decode*(
   finally:
     decoder.release()
 
+  without encodedTree =? MerkleTree.init(cids[]), err:
+    return failure(err)
+
+  without encodedTreeCid =? encodedTree.rootCid, err:
+    return failure(err)
+
+  if encodedTreeCid != encoded.treeCid:
+    return failure("Encoded tree root differs from the tree root computed out of recovered data")
+
+  let idxIter = Iter.fromItems(recoveredIndices)
+  if err =? (await self.store.putSomeProofs(encodedTree, idxIter)).errorOption:
+    return failure(err)
+
   without tree =? MerkleTree.init(cids[0..<encoded.originalBlocksCount]), err:
     return failure(err)
 
@@ -415,9 +432,10 @@ proc decode*(
     return failure(err)
 
   if treeCid != encoded.originalTreeCid:
-    return failure("Original tree root differs from tree root computed out of recovered data")
+    return failure("Original tree root differs from the tree root computed out of recovered data")
 
-  # TODO store proofs of recovered data
+  if err =? (await self.store.putSomeProofs(tree, idxIter.filter((i: int) => i < tree.leavesCount))).errorOption:
+      return failure(err)
 
   let decoded = Manifest.new(encoded)
 

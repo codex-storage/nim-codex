@@ -77,7 +77,7 @@ proc makeWantList*(
       full: full)
 
 proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest] {.async.} =
-  var cids: seq[Cid]
+  var cids = newSeq[Cid]()
 
   while (
     let chunk = await chunker.getBytes();

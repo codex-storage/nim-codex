@@ -123,17 +123,20 @@ proc resolve*(
           warn "Delivery cid doesn't match block cid", deliveryCid = bd.address.cid, blockCid = bd.blk.cid
           continue
 
-      let
-        startTime = blockReq.startTime
-        stopTime = getMonoTime().ticks
-        retrievalDurationUs = (stopTime - startTime) div 1000
+      if not blockReq.handle.finished:
+        let
+          startTime = blockReq.startTime
+          stopTime = getMonoTime().ticks
+          retrievalDurationUs = (stopTime - startTime) div 1000
 
-      blockReq.handle.complete(bd.blk)
-      
-      codexBlockExchangeRetrievalTimeUs.set(retrievalDurationUs)
-      trace "Block retrieval time", retrievalDurationUs
+        blockReq.handle.complete(bd.blk)
+        
+        codexBlockExchangeRetrievalTimeUs.set(retrievalDurationUs)
+        trace "Block retrieval time", retrievalDurationUs, address = bd.address
+      else:
+        trace "Block handle already finished", address = bd.address
     do:
-      warn "Attempting to resolve block delivery for not pending block", address = bd.address
+      warn "Attempting to resolve delivery for a block that's not currently a pending block", address = bd.address
 
 proc setInFlight*(p: PendingBlocksManager,
                   address: BlockAddress,

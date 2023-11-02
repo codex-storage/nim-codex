@@ -189,8 +189,13 @@ proc root*(self: MerkleTree): MultiHash =
 proc rootCid*(self: MerkleTree, version = CIDv1, dataCodec = multiCodec("raw")): ?!Cid =
   Cid.init(version, dataCodec, self.root).mapFailure
 
-proc leaves*(self: MerkleTree): seq[MultiHash] =
-  toSeq(0..<self.leavesCount).map(i => self.nodeBufferToMultiHash(i))
+iterator leaves*(self: MerkleTree): MultiHash =
+  for i in 0..<self.leavesCount:
+    yield self.nodeBufferToMultiHash(i)
+
+iterator leavesCids*(self: MerkleTree, version = CIDv1, dataCodec = multiCodec("raw")): ?!Cid =
+  for leaf in self.leaves:
+    yield Cid.init(version, dataCodec, leaf).mapFailure
 
 proc leavesCount*(self: MerkleTree): Natural =
   self.leavesCount
@@ -200,6 +205,10 @@ proc getLeaf*(self: MerkleTree, index: Natural): ?!MultiHash =
     return failure("Index " & $index & " out of range [0.." & $(self.leavesCount - 1) & "]" )
   
   success(self.nodeBufferToMultiHash(index))
+
+proc getLeafCid*(self: MerkleTree, index: Natural, version = CIDv1, dataCodec = multiCodec("raw")): ?!Cid =
+  let leaf = ? self.getLeaf(index)
+  Cid.init(version, dataCodec, leaf).mapFailure
 
 proc height*(self: MerkleTree): Natural =
   computeTreeHeight(self.leavesCount)

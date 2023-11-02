@@ -36,7 +36,6 @@ logScope:
 
 type
   CacheStore* = ref object of BlockStore
-    treeReader: TreeReader
     currentSize*: NBytes
     size*: NBytes
     cache: LruCache[Cid, Block]
@@ -89,6 +88,12 @@ method getBlockAndProof*(self: CacheStore, treeCid: Cid, index: Natural): Future
 
   success((blk, proof))
 
+method getBlock*(self: CacheStore, address: BlockAddress): Future[?!Block] =
+  if address.leaf:
+    self.getBlock(address.treeCid, address.index)
+  else:
+    self.getBlock(address.cid)
+
 method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
   ##
@@ -101,13 +106,14 @@ method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
   return (cid in self.cache).success
 
 method hasBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!bool] {.async.} =
-  ## Check if the block exists in the blockstore
-  ##
+  without cidAndProof =? self.getCidAndProof(treeCid, index), err:
+    if err of BlockNotFoundError:
+      return success(false)
+    else:
+      return failure(err)
 
-  without cid =? await self.treeReader.getBlockCid(treeCid, index), err:
-    return failure(err)
-  
-  await self.hasBlock(cid)
+  await self.hasBlock(cidAndProof[0])
+
 
 func cids(self: CacheStore): (iterator: Cid {.gcsafe.}) =
   return iterator(): Cid =
@@ -204,6 +210,16 @@ method putBlock*(
   discard self.putBlockSync(blk)
   return success()
 
+method putBlockCidAndProof*(
+  self: CacheStore,
+  treeCid: Cid,
+  index: Natural,
+  blockCid: Cid,
+  proof: MerkleProof
+): Future[?!void] {.async.} =
+  self.cidAndProofCache[(treeCid, index)] = (blockCid, proof)
+  success()
+
 method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
   ## Delete a block from the blockstore
   ##
@@ -220,10 +236,12 @@ method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
   return success()
 
 method delBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!void] {.async.} =
-  without cid =? await self.treeReader.getBlockCid(treeCid, index), err:
-    return failure(err)
+  let maybeRemoved = self.cidAndProofCache.del((treeCid, index))
 
-  return await self.delBlock(cid)
+  if removed =? maybeRemoved:
+    return await self.delBlock(removed[0])
+  
+  return success()
 
 method close*(self: CacheStore): Future[void] {.async.} =
   ## Close the blockstore, a no-op for this implementation

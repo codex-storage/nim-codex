@@ -24,7 +24,6 @@ import pkg/stew/endians2
 
 import ./blockstore
 import ./keyutils
-import ./treereader
 import ../blocktype
 import ../clock
 import ../systemclock
@@ -59,7 +58,6 @@ type
     quotaReservedBytes*: uint     # bytes reserved by the repo
     blockTtl*: Duration
     started*: bool
-    treeReader*: TreeReader
 
   BlockExpiration* = object
     cid*: Cid
@@ -333,10 +331,21 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
   return success()
 
 method delBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!void] {.async.} =
-  without cid =? await self.treeReader.getBlockCid(treeCid, index), err:
+  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
-  await self.delBlock(cid)
+  without value =? await self.metaDs.get(key), err:
+    if err of DatastoreKeyNotFound:
+      return success()
+    else:
+      return failure(err)
+
+  without cidAndProof =? (Cid, MerkleProof).decode(value), err:
+    return failure(err)
+
+  self.delBlock(cidAndProof[0])
+
+  await self.metaDs.delete(key)
 
 method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
@@ -567,19 +576,15 @@ proc new*(
     clock: Clock = SystemClock.new(),
     postFixLen = 2,
     quotaMaxBytes = DefaultQuotaBytes,
-    blockTtl = DefaultBlockTtl,
-    treeCacheCapacity = DefaultTreeCacheCapacity
+    blockTtl = DefaultBlockTtl
 ): RepoStore =
   ## Create new instance of a RepoStore
   ##
-  let store = RepoStore(
+  RepoStore(
     repoDs: repoDs,
     metaDs: metaDs,
     clock: clock,
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,
-    blockTtl: blockTtl)
-
-  proc getBlockFromStore(cid: Cid): Future[?!Block] = store.getBlock(cid)
-  store.treeReader = TreeReader.new(getBlockFromStore, treeCacheCapacity)
-  store
+    blockTtl: blockTtl
+  )
