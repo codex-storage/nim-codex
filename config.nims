@@ -5,6 +5,7 @@ import std/os
 const currentDir = currentSourcePath()[0 .. ^(len("config.nims") + 1)]
 
 --d:chronosFuturesInstrumentation
+--d:release
 
 when getEnv("NIMBUS_BUILD_SYSTEM") == "yes" and
    # BEWARE
