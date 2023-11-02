@@ -35,6 +35,9 @@ proc advance*(clock: MockClock, seconds: int64) =
 method now*(clock: MockClock): SecondsSince1970 =
   clock.time
 
+method lastBlockTimestamp*(clock: MockClock): Future[UInt256] {.base, async.} =
+  return clock.now.u256
+
 method waitUntil*(clock: MockClock, time: SecondsSince1970) {.async.} =
   if time > clock.now():
     let future = newFuture[void]()

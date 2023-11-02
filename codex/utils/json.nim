@@ -306,6 +306,16 @@ func `%`*[T: distinct](id: T): JsonNode =
 func toJson*(obj: object): string = $(%obj)
 func toJson*(obj: ref object): string = $(%obj)
 
+func toJson*[T: object](elements: openArray[T]): string =
+  let jObj = newJArray()
+  for elem in elements: jObj.add(%elem)
+  $jObj
+
+func toJson*[T: ref object](elements: openArray[T]): string =
+  let jObj = newJArray()
+  for elem in elements: jObj.add(%elem)
+  $jObj
+
 proc toJsnImpl(x: NimNode): NimNode =
   case x.kind
   of nnkBracket: # array

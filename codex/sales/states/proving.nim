@@ -1,5 +1,7 @@
 import std/options
 import pkg/chronicles
+import pkg/questionable
+import pkg/questionable/results
 import ../../clock
 import ../../utils/exceptions
 import ../statemachine
@@ -48,17 +50,20 @@ proc proveLoop(
   let slotId = slot.id
 
   logScope:
-    period = currentPeriod
+    # period = currentPeriod
     requestId = $request.id
     slotIndex
     slotId = $slot.id
 
   proc getCurrentPeriod(): Future[Period] {.async.} =
     let periodicity = await market.periodicity()
-    return periodicity.periodOf(clock.now().u256)
+    let blockchainNow = await clock.lastBlockTimestamp
+    return periodicity.periodOf(blockchainNow)
+    # return periodicity.periodOf(clock.now().u256)
 
   proc waitUntilPeriod(period: Period) {.async.} =
     let periodicity = await market.periodicity()
+    debug "waiting until time", time = periodicity.periodStart(period).truncate(int64)
     await clock.waitUntil(periodicity.periodStart(period).truncate(int64))
 
   while true:

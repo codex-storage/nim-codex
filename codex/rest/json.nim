@@ -34,6 +34,11 @@ type
     minPrice* {.serialize.}: UInt256
     maxCollateral* {.serialize.}: UInt256
 
+  RestSalesAgent* = object
+    state* {.serialize.}: string
+    requestId* {.serialize.}: RequestId
+    slotIndex* {.serialize.}: UInt256
+
   RestContent* = object
     cid* {.serialize.}: Cid
     manifest* {.serialize.}: Manifest

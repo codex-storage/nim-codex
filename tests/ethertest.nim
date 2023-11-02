@@ -1,4 +1,4 @@
-import std/json
+# import std/json
 import pkg/asynctest
 import pkg/ethers
 
@@ -26,4 +26,4 @@ template ethersuite*(name, body) =
     body
 
 export asynctest
-export ethers
+export ethers except `%`

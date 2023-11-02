@@ -1,5 +1,8 @@
 import pkg/chronos
+import pkg/questionable
+import pkg/questionable/results
 import pkg/stew/endians2
+import pkg/stint
 import pkg/upraises
 import pkg/stint
 
@@ -9,6 +12,9 @@ type
   Timeout* = object of CatchableError
 
 method now*(clock: Clock): SecondsSince1970 {.base, upraises: [].} =
+  raiseAssert "not implemented"
+
+method lastBlockTimestamp*(clock: Clock): Future[UInt256] {.base, async.} =
   raiseAssert "not implemented"
 
 method waitUntil*(clock: Clock, time: SecondsSince1970) {.base, async.} =

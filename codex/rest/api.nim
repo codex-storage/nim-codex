@@ -16,10 +16,9 @@ import std/sequtils
 
 import pkg/questionable
 import pkg/questionable/results
-import pkg/chronicles
+import pkg/chronicles except toJson
 import pkg/chronos
-import pkg/presto
-import pkg/libp2p
+import pkg/presto except toJson
 import pkg/metrics
 import pkg/stew/base10
 import pkg/stew/byteutils
@@ -32,8 +31,8 @@ import pkg/codexdht/discv5/spr as spr
 import ../node
 import ../blocktype
 import ../conf
-import ../contracts except `%*`, `%` # imported from contracts/marketplace (exporting ethers)
-import ../streams
+import ../contracts
+import ../streams/asyncstreamwrapper
 
 import ./coders
 import ./json
@@ -196,6 +195,28 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/sales/slots/{slotId}") do (slotId: SlotId) -> RestApiResponse:
+      ## Returns active slots for the host
+
+      without contracts =? node.contracts.host:
+        return RestApiResponse.error(Http503, "Sales unavailable")
+
+      without slotId =? slotId.tryGet.catch, error:
+        return RestApiResponse.error(Http400, error.msg)
+
+      without agent =? await contracts.sales.activeSale(slotId):
+        return RestApiResponse.error(Http404, "Provider not filling slot")
+
+      let restAgent = RestSalesAgent(
+        state: agent.state() |? "none",
+        slotIndex: agent.data.slotIndex,
+        requestId: agent.data.requestId
+      )
+
+      return RestApiResponse.response(restAgent.toJson, contentType="application/json")
 
   router.api(
     MethodGet,

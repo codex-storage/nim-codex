@@ -108,6 +108,18 @@ proc getPurchase*(client: CodexClient, purchaseId: PurchaseId): ?!RestPurchase =
   let json = ? parseJson(body).catch
   RestPurchase.fromJson(json)
 
+proc getSalesAgent*(client: CodexClient, slotId: SlotId): ?!RestSalesAgent =
+  let url = client.baseurl & "/sales/slots/" & slotId.toHex
+  echo "getting sales agent for id, ", slotId.toHex
+  try:
+    let body = client.http.getContent(url)
+    echo "get sales agent body: ", body
+    let json = ? parseJson(body).catch
+    return RestSalesAgent.fromJson(json)
+  except CatchableError as e:
+    echo "[client.getSalesAgent] error getting agent: ", e.msg
+    return failure e.msg
+
 proc getSlots*(client: CodexClient): ?!seq[Slot] =
   let url = client.baseurl & "/sales/slots"
   let body = client.http.getContent(url)
@@ -146,6 +158,9 @@ proc restart*(client: CodexClient) =
 
 proc purchaseStateIs*(client: CodexClient, id: PurchaseId, state: string): bool =
   client.getPurchase(id).option.?state == some state
+
+proc saleStateIs*(client: CodexClient, id: SlotId, state: string): bool =
+  client.getSalesAgent(id).option.?state == some state
 
 proc requestId*(client: CodexClient, id: PurchaseId): ?RequestId =
   return client.getPurchase(id).option.?requestId

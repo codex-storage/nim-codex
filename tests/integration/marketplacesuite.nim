@@ -2,6 +2,7 @@ import std/times
 import pkg/chronos
 import pkg/codex/contracts/marketplace as mp
 import pkg/codex/periods
+import pkg/codex/utils/json
 import ./multinodes
 
 export mp
@@ -13,14 +14,32 @@ template marketplacesuite*(name: string, startNodes: Nodes, body: untyped) =
 
     var marketplace {.inject, used.}: Marketplace
     var period: uint64
+    var periodicity: Periodicity
     var token {.inject, used.}: Erc20Token
+
+    proc getCurrentPeriod(): Future[Period] {.async.} =
+      return periodicity.periodOf(await ethProvider.currentTime())
 
     proc advanceToNextPeriod() {.async.} =
       let periodicity = Periodicity(seconds: period.u256)
-      let currentPeriod = periodicity.periodOf(ethProvider.currentTime())
-      let nextPeriod = periodicity.periodEnd(currentPeriod)
-      echo "advancing to next period start at ", nextPeriod + 1
-      await ethProvider.advanceTimeTo(nextPeriod + 1)
+      let currentPeriod = periodicity.periodOf(await ethProvider.currentTime())
+      let endOfPeriod = periodicity.periodEnd(currentPeriod)
+      echo "advancing to next period start at ", endOfPeriod + 1
+      await ethProvider.advanceTimeTo(endOfPeriod + 1)
+
+    proc timeUntil(period: Period): Future[times.Duration] {.async.} =
+      let currentPeriod = await getCurrentPeriod()
+      echo "[timeUntil] currentPeriod: ", currentPeriod
+      echo "[timeUntil] waiting until period: ", period
+      let endOfCurrPeriod = periodicity.periodEnd(currentPeriod)
+      let endOfLastPeriod = periodicity.periodEnd(period)
+      let endOfCurrPeriodTime = initTime(endOfCurrPeriod.truncate(int64), 0)
+      let endOfLastPeriodTime = initTime(endOfLastPeriod.truncate(int64), 0)
+      let r = endOfLastPeriodTime - endOfCurrPeriodTime
+      echo "[timeUntil] diff between end of current period and now: ", r
+      return r
+      # echo "advancing to next period start at ", endOfPeriod + 1
+      # await ethProvider.advanceTimeTo(endOfPeriod + 1)
 
     proc periods(p: int): uint64 =
       p.uint64 * period
@@ -88,6 +107,11 @@ template marketplacesuite*(name: string, startNodes: Nodes, body: untyped) =
       token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
       let config = await mp.config(marketplace)
       period = config.proofs.period.truncate(uint64)
+      periodicity = Periodicity(seconds: period.u256)
+
+
+
+      discard await ethProvider.send("evm_setIntervalMining", @[%1000])
 
 
 
