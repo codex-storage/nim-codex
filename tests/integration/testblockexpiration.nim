@@ -45,7 +45,7 @@ ethersuite "Node block expiration tests":
 
   proc downloadTestFile(contentId: string): Response =
     let client = newHttpClient(timeout=3000)
-    let downloadUrl = baseurl & "/content/" & contentId
+    let downloadUrl = baseurl & "/content/cid/" & contentId
     let content = client.get(downloadUrl)
     client.close()
     content

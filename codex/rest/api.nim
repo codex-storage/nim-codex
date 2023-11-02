@@ -111,7 +111,7 @@ proc initContentApi(node: CodexNodeRef, router: var RestRouter) =
 
   router.api(
     MethodGet,
-    "/api/codex/v1/content/{cid}") do (
+    "/api/codex/v1/content/cid/{cid}") do (
       cid: Cid, resp: HttpResponseRef) -> RestApiResponse:
       ## Download a file from the node in a streaming
       ## manner
