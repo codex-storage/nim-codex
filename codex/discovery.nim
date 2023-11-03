@@ -36,7 +36,7 @@ type
     protocol*: discv5.Protocol           # dht protocol
     key: PrivateKey                     # private key
     peerId: PeerId                      # the peer id of the local node
-    announceAddrs: seq[MultiAddress]    # addresses announced as part of the provider records
+    announceAddrs*: seq[MultiAddress]    # addresses announced as part of the provider records
     providerRecord*: ?SignedPeerRecord  # record to advertice node connection information, this carry any
                                         # address that the node can be connected on
     dhtRecord*: ?SignedPeerRecord       # record to advertice DHT connection information
@@ -74,7 +74,7 @@ method find*(
     cid: Cid
 ): Future[seq[SignedPeerRecord]] {.async, base.} =
   ## Find block providers
-  ## 
+  ##
 
   trace "Finding providers for block", cid
   without providers =?
@@ -187,8 +187,8 @@ proc new*(
     bootstrapNodes: openArray[SignedPeerRecord] = [],
     store: Datastore = SQLiteDatastore.new(Memory).expect("Should not fail!")
 ): Discovery =
-  ## Create a new Discovery node instance for the given key and datastore 
-  ## 
+  ## Create a new Discovery node instance for the given key and datastore
+  ##
 
   var
     self = Discovery(
