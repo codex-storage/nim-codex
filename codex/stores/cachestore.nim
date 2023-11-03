@@ -21,7 +21,6 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ./blockstore
-import ./treereader
 import ../units
 import ../chunker
 import ../errors
@@ -37,7 +36,6 @@ logScope:
 
 type
   CacheStore* = ref object of BlockStore
-    treeReader: TreeReader
     currentSize*: NBytes
     size*: NBytes
     cache: LruCache[Cid, Block]
@@ -285,9 +283,6 @@ proc new*(
       cidAndProofCache: cidAndProofCache,
       currentSize: currentSize,
       size: cacheSize)
-
-  proc getBlockFromStore(cid: Cid): Future[?!Block] = store.getBlock(cid)
-  store.treeReader = TreeReader.new(getBlockFromStore)
 
   for blk in blocks:
     discard store.putBlockSync(blk)

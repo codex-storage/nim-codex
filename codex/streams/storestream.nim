@@ -33,20 +33,18 @@ const
   StoreStreamTrackerName* = "StoreStream"
 
 type
-  StoreStream* = ref object of LPStream
+  # Make SeekableStream from a sequence of blocks stored in Manifest
+  # (only original file data - see StoreStream.size)
+  StoreStream* = ref object of SeekableStream
     store*: BlockStore          # Store where to lookup block contents
     manifest*: Manifest         # List of block CIDs
     pad*: bool                  # Pad last block to manifest.blockSize?
-    iter: AsyncIter[?!Block]
-    lastBlock: Block
-    lastIndex: int
-    offset: int
 
 method initStream*(s: StoreStream) =
   if s.objName.len == 0:
     s.objName = StoreStreamTrackerName
 
-  procCall LPStream(s).initStream()
+  procCall SeekableStream(s).initStream()
 
 proc new*(
     T: type StoreStream,
@@ -60,7 +58,6 @@ proc new*(
     store: store,
     manifest: manifest,
     pad: pad,
-    lastIndex: -1,
     offset: 0)
 
   result.initStream()
@@ -88,25 +85,15 @@ method readOnce*(
   trace "Reading from manifest", cid = self.manifest.cid.get(), blocks = self.manifest.blocksCount
   if self.atEof:
     raise newLPStreamEOFError()
-  
-  # Initialize a block iterator
-  if self.lastIndex < 0:
-    without iter =? await self.store.getBlocks(self.manifest.treeCid, self.manifest.blocksCount, self.manifest.treeRoot), err:
-      raise newLPStreamReadError(err)
-    self.iter = iter
 
+  # The loop iterates over blocks in the StoreStream,
+  # reading them and copying their data into outbuf
   var read = 0  # Bytes read so far, and thus write offset in the outbuf
   while read < nbytes and not self.atEof:
-    if self.offset >= (self.lastIndex + 1) * self.manifest.blockSize.int:
-      if not self.iter.finished:
-        without lastBlock =? await self.iter.next(), err:
-          raise newLPStreamReadError(err)
-        self.lastBlock = lastBlock
-        inc self.lastIndex
-      else:
-        raise newLPStreamReadError(newException(CodexError, "Block iterator finished prematurely"))
+    # Compute from the current stream position `self.offset` the block num/offset to read
     # Compute how many bytes to read from this block
     let
+      blockNum    = self.offset div self.manifest.blockSize.int
       blockOffset = self.offset mod self.manifest.blockSize.int
       readBytes   = min([self.size - self.offset,
                          nbytes - read,
@@ -120,10 +107,10 @@ method readOnce*(
     trace "Reading bytes from store stream", blockNum, cid = blk.cid, bytes = readBytes, blockOffset
 
     # Copy `readBytes` bytes starting at `blockOffset` from the block into the outbuf
-    if self.lastBlock.isEmpty:
+    if blk.isEmpty:
       zeroMem(pbytes.offset(read), readBytes)
     else:
-      copyMem(pbytes.offset(read), self.lastBlock.data[blockOffset].addr, readBytes)
+      copyMem(pbytes.offset(read), blk.data[blockOffset].addr, readBytes)
 
     # Update current positions in the stream and outbuf
     self.offset += readBytes
