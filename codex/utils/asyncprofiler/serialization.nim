@@ -1,7 +1,14 @@
+## Utilities for serializing profiler metrics.
+
+import std/json
+
 import asyncprofiler
 
-import ../json
+proc `%`*(o: Duration): JsonNode =
+  %(o.nanoseconds)
 
+proc `%`*(o: cstring): JsonNode =
+  %($(o))
 
 proc `%`*(o: MetricsSummary): JsonNode =
   var rows = newJArray()
@@ -11,9 +18,3 @@ proc `%`*(o: MetricsSummary): JsonNode =
     rows.add(row)
 
   rows
-
-proc `%`*(o: Duration): JsonNode =
-  %(o.nanoseconds)
-
-proc `%`*(o: cstring): JsonNode =
-  %($(o))

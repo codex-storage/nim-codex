@@ -31,10 +31,16 @@ import pkg/codexdht/discv5/spr as spr
 import ../node
 import ../blocktype
 import ../conf
+<<<<<<< HEAD
 import ../contracts
 import ../manifest
 import ../streams/asyncstreamwrapper
 import ../stores/blockstore
+=======
+import ../contracts except `%*`, `%` # imported from contracts/marketplace (exporting ethers)
+import ../streams
+import ../utils/asyncprofiler
+>>>>>>> f7c385f (add simple profiling API)
 
 import ./coders
 import ./json
@@ -182,6 +188,15 @@ proc initDataApi(node: CodexNodeRef, router: var RestRouter) =
           $cid.error())
 
       await node.retrieveCid(cid.get(), local = false, resp=resp)
+
+      return RestApiResponse.response($json, contentType="application/json")
+
+  when chronosFuturesInstrumentation:
+    router.api(
+      MethodGet,
+      "/api/codex/v1/debug/performance") do () -> RestApiResponse:
+        RestApiResponse.response(
+          $(%(getFutureSummaryMetrics())), contentType="application/json")
 
 proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
   router.api(

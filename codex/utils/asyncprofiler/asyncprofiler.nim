@@ -8,8 +8,9 @@ import ../json
 export tables, options, hashes, timer, chronos, SrcLoc
 
 type
-  FutureMetric* = object
-    ## Holds average timing information for a given closure
+  FutureMetrics* = object
+    ## Tracks timing information for a single future (typically an async
+    ## proc). Created when a future starts, and discarded when a future ends.
     closureLoc*: ptr SrcLoc
     created*: Moment
     start*: Option[Moment]
@@ -18,7 +19,8 @@ type
     initDuration*: Duration
     durationChildren*: Duration
 
-  CallbackMetric* = object
+  OverallMetrics* = object
+    ## Holds overall execution statistics for all runs of an async proc
     totalExecTime* {.serialize.}: Duration
     totalRunTime* {.serialize.}: Duration
     totalWallTime* {.serialize.}: Duration
@@ -26,22 +28,34 @@ type
     maxSingleTime* {.serialize.}: Duration
     count* {.serialize.}: int64
 
-  MetricsSummary* = Table[ptr SrcLoc, CallbackMetric]
+  MetricsSummary* = Table[ptr SrcLoc, OverallMetrics]
 
 var
-  perFutureMetrics: Table[uint, FutureMetric]
+  perFutureMetrics: Table[uint, FutureMetrics]
   futureSummaryMetrics: MetricsSummary
 
 proc getFutureSummaryMetrics*(): MetricsSummary {.gcsafe.} =
-  ## get a copy of the table of summary metrics for all futures
+  ## get a copy of the table of summary metrics for all futures.
   {.cast(gcsafe).}:
     futureSummaryMetrics
+
+proc addRun(self: var OverallMetrics, run: FutureMetrics) =
+  ## Adds metrics for a single run of a given async proc to its OverallMetrics.
+  self.totalExecTime += run.duration
+  self.totalWallTime += Moment.now() - run.created
+  self.totalRunTime += self.totalExecTime + run.durationChildren
+  self.count.inc
+  self.minSingleTime = min(self.minSingleTime, run.duration)
+  self.maxSingleTime = max(self.maxSingleTime, run.duration)
+  # handle overflow
+  if self.count == self.count.typeof.high:
+    self.totalExecTime = ZeroDuration
+    self.count = 0
 
 proc setFutureCreate(fut: FutureBase) {.raises: [].} =
   ## used for setting the duration
   {.cast(gcsafe).}:
-    let loc = fut.internalLocation[Create]
-    perFutureMetrics[fut.id] = FutureMetric()
+    perFutureMetrics[fut.id] = FutureMetrics()
     perFutureMetrics.withValue(fut.id, metric):
       metric.created = Moment.now()
       # echo loc, "; future create "
@@ -49,7 +63,6 @@ proc setFutureCreate(fut: FutureBase) {.raises: [].} =
 proc setFutureStart(fut: FutureBase) {.raises: [].} =
   ## used for setting the duration
   {.cast(gcsafe).}:
-    let loc = fut.internalLocation[Create]
     assert perFutureMetrics.hasKey(fut.id)
     perFutureMetrics.withValue(fut.id, metric):
       let ts = Moment.now()
@@ -60,7 +73,6 @@ proc setFutureStart(fut: FutureBase) {.raises: [].} =
 proc setFuturePause(fut, child: FutureBase) {.raises: [].} =
   {.cast(gcsafe).}:
     ## used for setting the duration
-    let loc = fut.internalLocation[Create]
     let childLoc = if child.isNil: nil else: child.internalLocation[Create]
     var durationChildren = ZeroDuration
     var initDurationChildren = ZeroDuration
@@ -79,47 +91,36 @@ proc setFuturePause(fut, child: FutureBase) {.raises: [].} =
             # the first block of a child iterator also
             # runs on the parents clock, so we track our first block
             # time so any parents can get it
-        # echo loc, "; child firstBlock time: ", initDurationChildren
 
         metric.durationChildren += durationChildren
         metric.start = none Moment
-      # echo loc, "; future pause ", if childLoc.isNil: "" else: " child: " & $childLoc
 
 proc setFutureDuration(fut: FutureBase) {.raises: [].} =
   {.cast(gcsafe).}:
     ## used for setting the duration
     let loc = fut.internalLocation[Create]
     # assert  "set duration: " & $loc
-    var fm: FutureMetric
-    # assert perFutureMetrics.pop(fut.id, fm)
+    var runMetrics: FutureMetrics
     perFutureMetrics.withValue(fut.id, metric):
-      fm = metric[]
+      runMetrics = metric[]
 
-    discard futureSummaryMetrics.hasKeyOrPut(loc, CallbackMetric(minSingleTime: InfiniteDuration))
+    discard futureSummaryMetrics.hasKeyOrPut(loc,
+      OverallMetrics(minSingleTime: InfiniteDuration))
     futureSummaryMetrics.withValue(loc, metric):
-      # echo loc, " set duration: ", futureSummaryMetrics.hasKey(loc)
-      metric.totalExecTime += fm.duration
-      metric.totalWallTime += Moment.now() - fm.created
-      metric.totalRunTime += metric.totalExecTime + fm.durationChildren
-      # echo loc, " child duration: ", fm.durationChildren
-      metric.count.inc
-      metric.minSingleTime = min(metric.minSingleTime, fm.duration)
-      metric.maxSingleTime = max(metric.maxSingleTime, fm.duration)
-      # handle overflow
-      if metric.count == metric.count.typeof.high:
-        metric.totalExecTime = ZeroDuration
-        metric.count = 0
+      metric[].addRun(runMetrics)
 
 onFutureCreate =
   proc (f: FutureBase) {.nimcall, gcsafe, raises: [].} =
     f.setFutureCreate()
+
 onFutureRunning =
   proc (f: FutureBase) {.nimcall, gcsafe, raises: [].} =
     f.setFutureStart()
+
 onFuturePause =
   proc (f, child: FutureBase) {.nimcall, gcsafe, raises: [].} =
-    # echo "onFuturePause: ", f.pointer.repr, " ch: ", child.pointer.repr
     f.setFuturePause(child)
+
 onFutureStop =
   proc (f: FutureBase) {.nimcall, gcsafe, raises: [].} =
     f.setFuturePause(nil)
