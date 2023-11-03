@@ -1,3 +1,4 @@
+import std/sequtils
 import std/tables
 import std/unittest
 import std/json
@@ -14,7 +15,7 @@ checksuite "asyncprofiler utils":
     line: 1
   )
 
-  let metric = OverallMetrics(
+  let fooMetric = OverallMetrics(
     totalExecTime: 2.seconds,
     totalRunTime: 2.seconds,
     totalWallTime: 2.seconds,
@@ -24,7 +25,7 @@ checksuite "asyncprofiler utils":
   )
 
   test "should serialize OverallMetrics":
-    check %metric == %*{
+    check %fooMetric == %*{
       "totalExecTime": 2000000000,
       "totalRunTime": 2000000000,
       "totalWallTime": 2000000000,
@@ -42,7 +43,7 @@ checksuite "asyncprofiler utils":
 
   test "should serialize MetricsSummary":
     var summary: MetricsSummary = {
-      (addr fooLoc): metric
+      (addr fooLoc): fooMetric
     }.toTable
 
     check %summary == %*[%*{
@@ -58,3 +59,30 @@ checksuite "asyncprofiler utils":
       "maxSingleTime": 1500000000,
       "count": 10
     }]
+
+  test "should sort MetricsSummary by the required key":
+    var barLoc = SrcLoc(
+      procedure: "bar",
+      file: "bar.nim",
+      line: 1
+    )
+
+    var barMetrics = OverallMetrics(
+      totalExecTime: 3.seconds,
+      totalRunTime: 1.seconds,
+      totalWallTime: 1.seconds,
+      minSingleTime: 100.nanoseconds,
+      maxSingleTime: 1500.milliseconds,
+      count: 5
+    )
+
+    var summary: MetricsSummary = {
+      (addr fooLoc): fooMetric,
+      (addr barLoc): barMetrics
+    }.toTable
+
+    check (%summary).sortBy("totalExecTime").getElems.map(
+      proc (x: JsonNode): string = x["location"]["procedure"].getStr) == @["bar", "foo"]
+
+    check (%summary).sortBy("count").getElems.map(
+      proc (x: JsonNode): string = x["location"]["procedure"].getStr) == @["foo", "bar"]

@@ -195,8 +195,13 @@ proc initDataApi(node: CodexNodeRef, router: var RestRouter) =
     router.api(
       MethodGet,
       "/api/codex/v1/debug/performance") do () -> RestApiResponse:
-        RestApiResponse.response(
-          $(%(getFutureSummaryMetrics())), contentType="application/json")
+        # Returns profiling information, highest totalExecTime first
+
+        without metrics =? sortBy(%(getFutureSummaryMetrics()),
+          "totalExecTime").catch, error:
+            return RestApiResponse.error(Http500, error.msg)
+
+        RestApiResponse.response($(metrics), contentType="application/json")
 
 proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
   router.api(
