@@ -7,7 +7,7 @@ import codex/utils/asyncprofiler
 
 import ../../helpers
 
-checksuite "asyncprofiler utils":
+checksuite "asyncprofiler metrics serializer":
 
   var fooLoc = SrcLoc(
     procedure: "foo",
