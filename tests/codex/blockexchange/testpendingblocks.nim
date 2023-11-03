@@ -18,7 +18,7 @@ checksuite "Pending Blocks":
 
     discard pendingBlocks.getWantHandle(blk.cid)
 
-    check pendingBlocks.pending(blk.cid)
+    check blk.cid in pendingBlocks
 
   test "Should resolve want handle":
     let

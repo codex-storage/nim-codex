@@ -44,7 +44,7 @@ asyncchecksuite "Storage Proofs Network":
     spk: st.PublicKey
     porMsg: PorMessage
     cid: Cid
-    porStream: SeekableStoreStream
+    porStream: StoreStream
     por: PoR
     tags: seq[Tag]
 
@@ -56,7 +56,7 @@ asyncchecksuite "Storage Proofs Network":
     manifest = await storeDataGetManifest(store, chunker)
 
     cid = manifest.cid.tryGet()
-    porStream = SeekableStoreStream.new(store, manifest)
+    porStream = StoreStream.new(store, manifest)
     por = await PoR.init(
       porStream,
       ssk, spk,

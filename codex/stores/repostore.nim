@@ -24,7 +24,6 @@ import pkg/stew/endians2
 
 import ./blockstore
 import ./keyutils
-import ./treereader
 import ../blocktype
 import ../clock
 import ../systemclock
@@ -59,12 +58,11 @@ type
     quotaReservedBytes*: uint     # bytes reserved by the repo
     blockTtl*: Duration
     started*: bool
-    treeReader*: TreeReader
 
   BlockExpiration* = object
     cid*: Cid
     expiration*: SecondsSince1970
-
+  
 proc updateMetrics(self: RepoStore) =
   codexRepostoreBlocks.set(self.totalBlocks.int64)
   codexRepostoreBytesUsed.set(self.quotaUsedBytes.int64)
@@ -78,6 +76,62 @@ func available*(self: RepoStore): uint =
 
 func available*(self: RepoStore, bytes: uint): bool =
   return bytes < self.available()
+
+proc encode(cidAndProof: (Cid, MerkleProof)): seq[byte] =
+  let 
+    (cid, proof) = cidAndProof
+    cidBytes = cid.data.buffer
+    proofBytes = proof.encode
+
+  var buf = newSeq[byte](1 + cidBytes.len + proofBytes.len)
+
+  buf[0] = cid.data.buffer.len.byte # cid shouldnt be more than 255 bytes?
+  buf[1..cidBytes.len] = cidBytes
+  buf[cidBytes.len + 1..^1] = proofBytes
+
+  buf
+
+proc decode(_: type (Cid, MerkleProof), data: seq[byte]): ?!(Cid, MerkleProof) =
+  let cidLen = data[0].int
+
+  let 
+    cid = ? Cid.init(data[1..cidLen]).mapFailure
+    proof = ? MerkleProof.decode(data[cidLen + 1..^1])
+  
+  success((cid, proof))
+
+method putBlockCidAndProof*(
+  self: RepoStore,
+  treeCid: Cid,
+  index: Natural,
+  blockCid: Cid,
+  proof: MerkleProof
+): Future[?!void] {.async.} =
+  ## Put a block to the blockstore
+  ##
+
+  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
+    return failure(err)
+
+  let value = (blockCid, proof).encode()
+
+  await self.metaDs.put(key, value)
+
+proc getCidAndProof(
+  self: RepoStore,
+  treeCid: Cid,
+  index: Natural
+): Future[?!(Cid, MerkleProof)] {.async.} =
+  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
+    return failure(err)
+
+  without value =? await self.metaDs.get(key), err:
+    if err of DatastoreKeyNotFound:
+      return failure(newException(BlockNotFoundError, err.msg))
+    else:
+      return failure(err)
+
+  return (Cid, MerkleProof).decode(value)
 
 method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the blockstore
@@ -104,14 +158,32 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   trace "Got block for cid", cid
   return Block.new(cid, data, verify = true)
 
-method getBlock*(self: RepoStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] =
-  self.treeReader.getBlock(treeCid, index)
 
-method getBlocks*(self: RepoStore, treeCid: Cid, leavesCount: Natural, merkleRoot: MultiHash): Future[?!AsyncIter[?!Block]] =
-  self.treeReader.getBlocks(treeCid, leavesCount)
+method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.async.} =
+  without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
+    return failure(err)
 
-method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] =
-  self.treeReader.getBlockAndProof(treeCid, index)
+  let (cid, proof) = cidAndProof
+
+  without blk =? await self.getBlock(cid), err:
+    return failure(err)
+
+  success((blk, proof))
+
+method getBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!Block] {.async.} =
+  without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
+    return failure(err)
+
+  await self.getBlock(cidAndProof[0])
+
+method getBlock*(self: RepoStore, address: BlockAddress): Future[?!Block] =
+  ## Get a block from the blockstore
+  ##
+
+  if address.leaf:
+    self.getBlock(address.treeCid, address.index)
+  else:
+    self.getBlock(address.cid)
 
 proc getBlockExpirationTimestamp(self: RepoStore, ttl: ?Duration): SecondsSince1970 =
   let duration = ttl |? self.blockTtl
@@ -259,10 +331,21 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
   return success()
 
 method delBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!void] {.async.} =
-  without cid =? await self.treeReader.getBlockCid(treeCid, index), err:
+  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
-  await self.delBlock(cid)
+  without value =? await self.metaDs.get(key), err:
+    if err of DatastoreKeyNotFound:
+      return success()
+    else:
+      return failure(err)
+
+  without cidAndProof =? (Cid, MerkleProof).decode(value), err:
+    return failure(err)
+
+  self.delBlock(cidAndProof[0])
+
+  await self.metaDs.delete(key)
 
 method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
@@ -282,10 +365,13 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   return await self.repoDs.has(key)
 
 method hasBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!bool] {.async.} =
-  without cid =? await self.treeReader.getBlockCid(treeCid, index), err:
-    return failure(err)
-  
-  await self.hasBlock(cid)
+  without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
+    if err of BlockNotFoundError:
+      return success(false)
+    else:
+      return failure(err)
+
+  await self.hasBlock(cidAndProof[0])
 
 method listBlocks*(
   self: RepoStore,
@@ -490,19 +576,15 @@ proc new*(
     clock: Clock = SystemClock.new(),
     postFixLen = 2,
     quotaMaxBytes = DefaultQuotaBytes,
-    blockTtl = DefaultBlockTtl,
-    treeCacheCapacity = DefaultTreeCacheCapacity
+    blockTtl = DefaultBlockTtl
 ): RepoStore =
   ## Create new instance of a RepoStore
   ##
-  let store = RepoStore(
+  RepoStore(
     repoDs: repoDs,
     metaDs: metaDs,
     clock: clock,
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,
-    blockTtl: blockTtl)
-
-  proc getBlockFromStore(cid: Cid): Future[?!Block] = store.getBlock(cid)
-  store.treeReader = TreeReader.new(getBlockFromStore, treeCacheCapacity)
-  store
+    blockTtl: blockTtl
+  )

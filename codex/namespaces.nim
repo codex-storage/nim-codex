@@ -16,6 +16,8 @@ const
   CodexManifestNamespace* = CodexRepoNamespace & "/manifests" # manifest namespace
   CodexBlocksTtlNamespace* =                                  # Cid TTL
     CodexMetaNamespace & "/ttl"
+  CodexBlockProofNamespace* =                                  # Cid and Proof
+    CodexMetaNamespace & "/proof"
   CodexDhtNamespace* = "dht"                                  # Dht namespace
   CodexDhtProvidersNamespace* =                               # Dht providers namespace
     CodexDhtNamespace & "/providers"

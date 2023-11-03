@@ -97,7 +97,7 @@ proc getPendingBlocks(
   var
     # request blocks from the store
     pendingBlocks = indicies.map( (i: int) =>
-      self.store.getBlock(manifest.treeCid, i, manifest.treeRoot).map((r: ?!bt.Block) => (r, i)) # Get the data blocks (first K)
+      self.store.getBlock(BlockAddress.init(manifest.treeCid, i)).map((r: ?!bt.Block) => (r, i)) # Get the data blocks (first K)
     )
 
   proc isFinished(): bool = pendingBlocks.len == 0
@@ -290,16 +290,15 @@ proc encodeData(
     without tree =? MerkleTree.init(cids[]), err:
       return failure(err)
 
-    without treeBlk =? bt.Block.new(tree.encode()), err:
+    without treeCid =? tree.rootCid, err:
       return failure(err)
 
-    if err =? (await self.store.putBlock(treeBlk)).errorOption:
-      return failure("Unable to store merkle tree block " & $treeBlk.cid & ", nested err: " & err.msg)
+    if err =? (await self.store.putAllProofs(tree)).errorOption:
+      return failure(err)
 
     let encodedManifest = Manifest.new(
       manifest = manifest,
-      treeCid = treeBlk.cid,
-      treeRoot = tree.root,
+      treeCid = treeCid,
       datasetSize = (manifest.blockSize.int * params.blocksCount).NBytes,
       ecK = params.ecK,
       ecM = params.ecM
@@ -353,9 +352,9 @@ proc decode*(
 
   var
     cids = seq[Cid].new()
+    recoveredIndices = newSeq[int]()
     decoder = self.decoderProvider(encoded.blockSize.int, encoded.ecK, encoded.ecM)
     emptyBlock = newSeq[byte](encoded.blockSize.int)
-    hasParity = false
 
   cids[].setLen(encoded.blocksCount)
   try:
@@ -403,6 +402,7 @@ proc decode*(
             return failure("Unable to store block!")
 
           cids[idx] = blk.cid
+          recoveredIndices.add(idx)
   except CancelledError as exc:
     trace "Erasure coding decoding cancelled"
     raise exc # cancellation needs to be propagated
@@ -415,14 +415,18 @@ proc decode*(
   without tree =? MerkleTree.init(cids[0..<encoded.originalBlocksCount]), err:
     return failure(err)
 
-  if tree.root != encoded.originalTreeRoot:
-    return failure("Original tree root differs from tree root computed out of recovered data")
-
-  without treeBlk =? bt.Block.new(tree.encode()), err:
+  without treeCid =? tree.rootCid, err:
     return failure(err)
-  
-  if err =? (await self.store.putBlock(treeBlk)).errorOption:
-    return failure("Unable to store merkle tree block " & $treeBlk.cid & ", nested err: " & err.msg)
+
+  if treeCid != encoded.originalTreeCid:
+    return failure("Original tree root differs from the tree root computed out of recovered data")
+
+  let idxIter = Iter
+    .fromItems(recoveredIndices)
+    .filter((i: int) => i < tree.leavesCount)
+
+  if err =? (await self.store.putSomeProofs(tree, idxIter)).errorOption:
+      return failure(err)
 
   let decoded = Manifest.new(encoded)
 

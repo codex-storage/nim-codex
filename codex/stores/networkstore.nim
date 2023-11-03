@@ -17,13 +17,14 @@ import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
 
-import ../blocktype as bt
+import ../blocktype
 import ../utils/asyncheapqueue
 import ../utils/asynciter
 
 import ./blockstore
 import ../blockexchange
 import ../merkletree
+import ../blocktype
 
 export blockstore, blockexchange, asyncheapqueue
 
@@ -37,53 +38,36 @@ type
     engine*: BlockExcEngine # blockexc decision engine
     localStore*: BlockStore # local block store
 
-method getBlock*(self: NetworkStore, cid: Cid): Future[?!bt.Block] {.async.} =
-  trace "Getting block from local store or network", cid
+method getBlock*(self: NetworkStore, address: BlockAddress): Future[?!Block] {.async.} =
+  trace "Getting block from local store or network", address
 
-  without blk =? await self.localStore.getBlock(cid), error:
+  without blk =? await self.localStore.getBlock(address), error:
     if not (error of BlockNotFoundError): return failure error
-    trace "Block not in local store", cid
+    trace "Block not in local store", address
 
-    without newBlock =? (await self.engine.requestBlock(cid)).catch, error:
-      trace "Unable to get block from exchange engine", cid
+    without newBlock =? (await self.engine.requestBlock(address)).catch, error:
+      trace "Unable to get block from exchange engine", address
       return failure error
 
     return success newBlock
 
   return success blk
 
-method getBlock*(self: NetworkStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] {.async.} =
-  without localBlock =? await self.localStore.getBlock(treeCid, index, merkleRoot), err:
-    if err of BlockNotFoundError:
-      trace "Requesting block from the network engine", treeCid, index
-      try:
-        let networkBlock = await self.engine.requestBlock(treeCid, index, merkleRoot)
-        return success(networkBlock)
-      except CatchableError as err:
-        return failure(err)
-    else:
-      failure(err)
-  return success(localBlock)
+method getBlock*(self: NetworkStore, cid: Cid): Future[?!Block] =
+  ## Get a block from the blockstore
+  ##
 
-method getBlocks*(self: NetworkStore, treeCid: Cid, leavesCount: Natural, merkleRoot: MultiHash): Future[?!AsyncIter[?!Block]] {.async.} =
-  without localIter =? await self.localStore.getBlocks(treeCid, leavesCount, merkleRoot), err:
-    if err of BlockNotFoundError:
-      trace "Requesting blocks from the network engine", treeCid, leavesCount
-      without var networkIter =? self.engine.requestBlocks(treeCid, leavesCount, merkleRoot), err:
-        failure(err)
+  self.getBlock(BlockAddress.init(cid))
 
-      let iter = networkIter
-        .prefetch(BlockPrefetchAmount)
-        .map(proc (fut: Future[Block]): Future[?!Block] {.async.} = catch: (await fut))
+method getBlock*(self: NetworkStore, treeCid: Cid, index: Natural): Future[?!Block] =
+  ## Get a block from the blockstore
+  ##
 
-      return success(iter)
-    else:
-      return failure(err)
-  return success(localIter)
+  self.getBlock(BlockAddress.init(treeCid, index))
 
 method putBlock*(
     self: NetworkStore,
-    blk: bt.Block,
+    blk: Block,
     ttl = Duration.none
 ): Future[?!void] {.async.} =
   ## Store block locally and notify the network
@@ -97,6 +81,15 @@ method putBlock*(
 
   await self.engine.resolveBlocks(@[blk])
   return success()
+
+method putBlockCidAndProof*(
+  self: NetworkStore,
+  treeCid: Cid,
+  index: Natural,
+  blockCid: Cid,
+  proof: MerkleProof
+): Future[?!void] =
+  self.localStore.putBlockCidAndProof(treeCid, index, blockCid, proof)
 
 method delBlock*(self: NetworkStore, cid: Cid): Future[?!void] =
   ## Delete a block from the blockstore

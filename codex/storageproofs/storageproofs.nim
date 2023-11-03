@@ -69,7 +69,7 @@ proc setupProofs*(
   let
     (spk, ssk) = keyGen()
     por = await PoR.init(
-      SeekableStoreStream.new(self.store, manifest),
+      StoreStream.new(self.store, manifest),
       ssk,
       spk,
       manifest.blockSize)

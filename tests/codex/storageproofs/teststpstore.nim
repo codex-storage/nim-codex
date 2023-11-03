@@ -43,7 +43,7 @@ asyncchecksuite "Test PoR store":
     manifest = await storeDataGetManifest(store, chunker)
 
     cid = manifest.treeCid
-    porStream = SeekableStoreStream.new(store, manifest)
+    porStream = StoreStream.new(store, manifest)
     por = await PoR.init(
       porStream,
       ssk, spk,
