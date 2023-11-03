@@ -144,18 +144,22 @@ method ensureExpiry*(
   if expiry <= 0:
     return failure(newException(ValueError, "Expiry timestamp must be larger then zero"))
 
-  let expiryKey = createBlockExpirationMetadataKey(cid)
-  let currentExpiry = await self.metaDs.get(expiryKey.tryGet)
+  without expiryKey =? createBlockExpirationMetadataKey(cid), err:
+    return failure(err)
 
-  if currentExpiry.isOk and expiry < (!currentExpiry).toSecondsSince1970:
+  without currentExpiry =? await self.metaDs.get(expiryKey), err:
+    if err of DatastoreKeyNotFound:
+      error "No current expiry exists for the block"
+    else:
+      error "Could not read datastore key", err = err.msg
+
+    return failure(err)
+
+  if expiry < currentExpiry.toSecondsSince1970:
     trace "Current expiry is larger then the specified one, no action needed"
     return success()
 
-  without (key, data) =? self.getBlockExpirationEntry(cid, expiry), err:
-    trace "Unable to create updated expiration metadata key", err = err.msg
-    return failure(err)
-
-  if err =? (await self.metaDs.put(key, data)).errorOption:
+  if err =? (await self.metaDs.put(expiryKey, expiry.toBytes)).errorOption:
     trace "Error updating expiration metadata entry", err = err.msg
     return failure(err)
 

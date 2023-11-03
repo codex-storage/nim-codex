@@ -252,6 +252,13 @@ asyncchecksuite "RepoStore":
     expect ValueError:
       (await repo.ensureExpiry(blk.cid, 0)).tryGet
 
+  test "Should fail when updating expiry of non-existing block":
+    let
+      blk = createTestBlock(100)
+
+    expect DatastoreKeyNotFound:
+      (await repo.ensureExpiry(blk.cid, 10)).tryGet
+
   test "Should update block expiration timestamp when new expiration is farther":
     let
       duration = 10
