@@ -256,7 +256,7 @@ asyncchecksuite "RepoStore":
     let
       blk = createTestBlock(100)
 
-    expect DatastoreKeyNotFound:
+    expect BlockNotFoundError:
       (await repo.ensureExpiry(blk.cid, 10)).tryGet
 
   test "Should update block expiration timestamp when new expiration is farther":

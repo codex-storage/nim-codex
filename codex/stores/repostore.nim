@@ -150,12 +150,12 @@ method ensureExpiry*(
   without currentExpiry =? await self.metaDs.get(expiryKey), err:
     if err of DatastoreKeyNotFound:
       error "No current expiry exists for the block"
+      return failure(newException(BlockNotFoundError, err.msg))
     else:
       error "Could not read datastore key", err = err.msg
+      return failure(err)
 
-    return failure(err)
-
-  if expiry < currentExpiry.toSecondsSince1970:
+  if expiry <= currentExpiry.toSecondsSince1970:
     trace "Current expiry is larger then the specified one, no action needed"
     return success()
 
