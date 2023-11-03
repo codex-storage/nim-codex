@@ -412,19 +412,6 @@ proc decode*(
   finally:
     decoder.release()
 
-  without encodedTree =? MerkleTree.init(cids[]), err:
-    return failure(err)
-
-  without encodedTreeCid =? encodedTree.rootCid, err:
-    return failure(err)
-
-  if encodedTreeCid != encoded.treeCid:
-    return failure("Encoded tree root differs from the tree root computed out of recovered data")
-
-  let idxIter = Iter.fromItems(recoveredIndices)
-  if err =? (await self.store.putSomeProofs(encodedTree, idxIter)).errorOption:
-    return failure(err)
-
   without tree =? MerkleTree.init(cids[0..<encoded.originalBlocksCount]), err:
     return failure(err)
 
@@ -434,7 +421,11 @@ proc decode*(
   if treeCid != encoded.originalTreeCid:
     return failure("Original tree root differs from the tree root computed out of recovered data")
 
-  if err =? (await self.store.putSomeProofs(tree, idxIter.filter((i: int) => i < tree.leavesCount))).errorOption:
+  let idxIter = Iter
+    .fromItems(recoveredIndices)
+    .filter((i: int) => i < tree.leavesCount)
+
+  if err =? (await self.store.putSomeProofs(tree, idxIter)).errorOption:
       return failure(err)
 
   let decoded = Manifest.new(encoded)

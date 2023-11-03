@@ -10,10 +10,12 @@
 import std/math
 import std/bitops
 import std/sequtils
+import std/options
 import std/sugar
 import std/algorithm
 
 import pkg/chronicles
+import pkg/questionable
 import pkg/questionable/results
 import pkg/nimcrypto/sha2
 import pkg/libp2p/[cid, multicodec, multihash, vbuffer]
@@ -291,18 +293,6 @@ proc init*(
 
 proc init*(
   T: type MerkleTree,
-  cids: openArray[Cid]
-): ?!MerkleTree =
-  let leaves = collect:
-    for cid in cids:
-      without mhash =? cid.mhash.mapFailure, errx:
-        return failure(errx)
-      mhash
-
-  MerkleTree.init(leaves)
-
-proc init*(
-  T: type MerkleTree,
   leaves: openArray[MultiHash]
 ): ?!MerkleTree =
   without leaf =? leaves.?[0]:
@@ -315,6 +305,18 @@ proc init*(
       return failure(err)
   
   builder.build()
+
+proc init*(
+  T: type MerkleTree,
+  cids: openArray[Cid]
+): ?!MerkleTree =
+  let leaves = collect:
+    for idx, cid in cids:
+      without mhash =? cid.mhash.mapFailure, errx:
+        return failure(errx)
+      mhash
+
+  MerkleTree.init(leaves)
 
 ###########################################################
 # MerkleProof

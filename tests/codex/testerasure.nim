@@ -58,20 +58,19 @@ asyncchecksuite "Erasure encode/decode":
     for _ in 0..<encoded.ecM:
       dropped.add(column)
       (await store.delBlock(encoded.treeCid, column)).tryGet()
+      (await store.delBlock(manifest.treeCid, column)).tryGet()
       column.inc(encoded.steps - 1)
-
-    echo $dropped
 
     var
       decoded = (await erasure.decode(encoded)).tryGet()
 
     check:
-      decoded.cid.tryGet() == manifest.cid.tryGet()
-      decoded.cid.tryGet() == encoded.originalCid
+      decoded.treeCid == manifest.treeCid
+      decoded.treeCid == encoded.originalCid
       decoded.blocksCount == encoded.originalBlocksCount
 
     for d in dropped:
-      let present = await store.hasBlock(encoded.treeCid, d)
+      let present = await store.hasBlock(manifest.treeCid, d)
       check present.tryGet()
 
   test "Should not tolerate losing more than M data blocks in a single random column":
@@ -88,6 +87,7 @@ asyncchecksuite "Erasure encode/decode":
     for _ in 0..<encoded.ecM + 1:
       dropped.add(column)
       (await store.delBlock(encoded.treeCid, column)).tryGet()
+      (await store.delBlock(manifest.treeCid, column)).tryGet()
       column.inc(encoded.steps)
 
     var
@@ -97,7 +97,7 @@ asyncchecksuite "Erasure encode/decode":
       decoded = (await erasure.decode(encoded)).tryGet()
 
     for d in dropped:
-      let present = await store.hasBlock(encoded.treeCid, d)
+      let present = await store.hasBlock(manifest.treeCid, d)
       check not present.tryGet()
 
   test "Should tolerate losing M data blocks in M random columns":
@@ -121,6 +121,7 @@ asyncchecksuite "Erasure encode/decode":
 
     for idx in blocks:
       (await store.delBlock(encoded.treeCid, idx)).tryGet()
+      (await store.delBlock(manifest.treeCid, idx)).tryGet()
       discard
 
     discard (await erasure.decode(encoded)).tryGet()
@@ -157,6 +158,7 @@ asyncchecksuite "Erasure encode/decode":
 
     for idx in blocks:
       (await store.delBlock(encoded.treeCid, idx)).tryGet()
+      (await store.delBlock(manifest.treeCid, idx)).tryGet()
       discard
 
     var
@@ -174,6 +176,7 @@ asyncchecksuite "Erasure encode/decode":
 
     for b in 0..<encoded.steps * encoded.ecM:
       (await store.delBlock(encoded.treeCid, b)).tryGet()
+      (await store.delBlock(manifest.treeCid, b)).tryGet()
 
     discard (await erasure.decode(encoded)).tryGet()
 
@@ -190,6 +193,7 @@ asyncchecksuite "Erasure encode/decode":
 
     for b in (encoded.blocksCount - encoded.steps * encoded.ecM)..<encoded.blocksCount:
       (await store.delBlock(encoded.treeCid, b)).tryGet()
+      (await store.delBlock(manifest.treeCid, b)).tryGet()
 
     discard (await erasure.decode(encoded)).tryGet()
 

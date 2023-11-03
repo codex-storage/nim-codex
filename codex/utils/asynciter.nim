@@ -95,22 +95,23 @@ proc map*[T, U](iter: Iter[T], fn: Function[T, U]): Iter[U] =
   )
 
 proc filter*[T](iter: Iter[T], predicate: Function[T, bool]): Iter[T] =
-  var nextItem: T
+  var nextT: Option[T]
 
   proc tryFetch(): void =
+    nextT = T.none
     while not iter.finished:
-      let item = iter.next()
-      if predicate(item):
-        nextItem = item
+      let t = iter.next()
+      if predicate(t):
+        nextT = some(t)
         break
 
   proc genNext(): T =
-    let t = nextItem
+    let t = nextT.unsafeGet
     tryFetch()
     return t
 
   proc isFinished(): bool =
-    iter.finished
+    nextT.isNone
 
   tryFetch()
   Iter.new(genNext, isFinished)
