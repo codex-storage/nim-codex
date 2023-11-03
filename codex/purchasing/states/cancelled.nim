@@ -4,7 +4,7 @@ import ../statemachine
 import ./errorhandling
 import ./error
 
-declareCounter(codexPurchasesCancelled, "codex purchases cancelled")
+declareCounter(codex_purchases_cancelled, "codex purchases cancelled")
 
 logScope:
   topics = "marketplace purchases cancelled"
@@ -15,7 +15,7 @@ method `$`*(state: PurchaseCancelled): string =
   "cancelled"
 
 method run*(state: PurchaseCancelled, machine: Machine): Future[?State] {.async.} =
-  codexPurchasesCancelled.inc()
+  codex_purchases_cancelled.inc()
   let purchase = Purchase(machine)
 
   warn "Request cancelled, withdrawing remaining funds",  requestId = $purchase.requestId
