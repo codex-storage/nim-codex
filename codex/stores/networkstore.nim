@@ -24,6 +24,7 @@ import ../utils/asynciter
 import ./blockstore
 import ../blockexchange
 import ../merkletree
+import ../blocktype
 
 export blockstore, blockexchange, asyncheapqueue
 
@@ -52,34 +53,17 @@ method getBlock*(self: NetworkStore, address: BlockAddress): Future[?!Block] {.a
 
   return success blk
 
-method getBlock*(self: NetworkStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] {.async.} =
-  without localBlock =? await self.localStore.getBlock(treeCid, index, merkleRoot), err:
-    if err of BlockNotFoundError:
-      trace "Requesting block from the network engine", treeCid, index
-      try:
-        let networkBlock = await self.engine.requestBlock(treeCid, index, merkleRoot)
-        return success(networkBlock)
-      except CatchableError as err:
-        return failure(err)
-    else:
-      failure(err)
-  return success(localBlock)
+method getBlock*(self: NetworkStore, cid: Cid): Future[?!Block] =
+  ## Get a block from the blockstore
+  ##
 
-method getBlocks*(self: NetworkStore, treeCid: Cid, leavesCount: Natural, merkleRoot: MultiHash): Future[?!AsyncIter[?!Block]] {.async.} =
-  without localIter =? await self.localStore.getBlocks(treeCid, leavesCount, merkleRoot), err:
-    if err of BlockNotFoundError:
-      trace "Requesting blocks from the network engine", treeCid, leavesCount
-      without var networkIter =? self.engine.requestBlocks(treeCid, leavesCount, merkleRoot), err:
-        failure(err)
+  self.getBlock(BlockAddress.init(cid))
 
-      let iter = networkIter
-        .prefetch(BlockPrefetchAmount)
-        .map(proc (fut: Future[Block]): Future[?!Block] {.async.} = catch: (await fut))
+method getBlock*(self: NetworkStore, treeCid: Cid, index: Natural): Future[?!Block] =
+  ## Get a block from the blockstore
+  ##
 
-      return success(iter)
-    else:
-      return failure(err)
-  return success(localIter)
+  self.getBlock(BlockAddress.init(treeCid, index))
 
 method putBlock*(
     self: NetworkStore,
@@ -106,27 +90,6 @@ method putBlockCidAndProof*(
   proof: MerkleProof
 ): Future[?!void] =
   self.localStore.putBlockCidAndProof(treeCid, index, blockCid, proof)
-
-method ensureExpiry*(
-    self: NetworkStore,
-    cid: Cid,
-    expiry: SecondsSince1970
-): Future[?!void] {.async.} =
-  ## Ensure that block's assosicated expiry is at least given timestamp
-  ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
-  ##
-
-  if (await self.localStore.hasBlock(cid)).tryGet:
-    return await self.localStore.ensureExpiry(cid, expiry)
-  else:
-    trace "Updating expiry - block not in local store", cid
-
-  return success()
-
-method listBlocks*(
-  self: NetworkStore,
-  blockType = BlockType.Manifest): Future[?!AsyncIter[?Cid]] =
-  self.localStore.listBlocks(blockType)
 
 method delBlock*(self: NetworkStore, cid: Cid): Future[?!void] =
   ## Delete a block from the blockstore

@@ -47,10 +47,9 @@ proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, MerkleTree) =
     datasetSize = blocks.mapIt(it.data.len).foldl(a + b)
     blockSize = blocks.mapIt(it.data.len).foldl(max(a, b))
     tree = ? MerkleTree.init(blocks.mapIt(it.cid))
-    treeBlk = ? Block.new(tree.encode())
+    treeCid = ? tree.rootCid
     manifest = Manifest.new(
-      treeCid = treeBlk.cid,
-      treeRoot = tree.root,
+      treeCid = treeCid,
       blockSize = NBytes(blockSize),
       datasetSize = NBytes(datasetSize),
       version = CIDv1,
@@ -78,30 +77,28 @@ proc makeWantList*(
       full: full)
 
 proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest] {.async.} =
-  var builder = MerkleTreeBuilder.init().tryGet()
+  var cids = newSeq[Cid]()
 
   while (
     let chunk = await chunker.getBytes();
     chunk.len > 0):
 
     let blk = Block.new(chunk).tryGet()
-    # builder.addDataBlock(blk.data).tryGet()
-    let mhash = blk.cid.mhash.mapFailure.tryGet()
-    builder.addLeaf(mhash).tryGet()
+    cids.add(blk.cid)
     (await store.putBlock(blk)).tryGet()
 
-  let
-    tree = builder.build().tryGet()
-    treeBlk = Block.new(tree.encode()).tryGet()
+  let 
+    tree = MerkleTree.init(cids).tryGet()
+    treeCid = tree.rootCid.tryGet()
+    manifest = Manifest.new(
+      treeCid = treeCid,
+      blockSize = NBytes(chunker.chunkSize),
+      datasetSize = NBytes(chunker.offset),
+    )
 
-  let manifest = Manifest.new(
-    treeCid = treeBlk.cid,
-    treeRoot = tree.root,
-    blockSize = NBytes(chunker.chunkSize),
-    datasetSize = NBytes(chunker.offset),
-  )
-
-  (await store.putBlock(treeBlk)).tryGet()
+  for i in 0..<tree.leavesCount:
+    let proof = tree.getProof(i).tryGet()
+    (await store.putBlockCidAndProof(treeCid, i, cids[i], proof)).tryGet()
 
   return manifest
 
@@ -119,7 +116,7 @@ proc corruptBlocks*(
 
     pos.add(i)
     var
-      blk = (await store.getBlock(manifest.treeCid, i, manifest.treeRoot)).tryGet()
+      blk = (await store.getBlock(manifest.treeCid, i)).tryGet()
       bytePos: seq[int]
 
     doAssert bytes < blk.data.len

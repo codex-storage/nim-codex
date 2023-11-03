@@ -116,8 +116,8 @@ proc fetchBatched*(
 
   trace "Fetching blocks in batches of", size = batchSize
 
-  without iter =? await node.blockStore.getBlocks(manifest.treeCid, manifest.blocksCount, manifest.treeRoot), err:
-    return failure(err)
+  let iter = Iter.fromSlice(0..<manifest.blocksCount)
+    .map((i: int) => node.blockStore.getBlock(BlockAddress.init(manifest.treeCid, i)))
 
   for batchNum in 0..<batchCount:
 
@@ -197,8 +197,7 @@ proc store*(
     dataCodec = multiCodec("raw")
     chunker = LPStreamChunker.new(stream, chunkSize = blockSize)
 
-  without var treeBuilder =? MerkleTreeBuilder.init(hcodec), err:
-    return failure(err)
+  var cids: seq[Cid]
 
   try:
     while (
@@ -216,8 +215,7 @@ proc store*(
       without blk =? bt.Block.new(cid, chunk, verify = false):
         return failure("Unable to init block from chunk!")
       
-      if err =? treeBuilder.addLeaf(mhash).errorOption:
-        return failure(err)
+      cids.add(cid)
 
       if err =? (await self.blockStore.putBlock(blk)).errorOption:
         trace "Unable to store block", cid = blk.cid, err = err.msg
@@ -230,18 +228,21 @@ proc store*(
   finally:
     await stream.close()
 
-  without tree =? treeBuilder.build(), err:
+  without tree =? MerkleTree.init(cids), err:
+    return failure(err)
+
+  without treeCid =? tree.rootCid(CIDv1, dataCodec), err:
     return failure(err)
   
-  without treeBlk =? bt.Block.new(tree.encode()), err:
-    return failure(err)
-
-  if err =? (await self.blockStore.putBlock(treeBlk)).errorOption:
-    return failure("Unable to store merkle tree block " & $treeBlk.cid & ", nested err: " & err.msg)
+  for index, cid in cids:
+    without proof =? tree.getProof(index), err:
+      return failure(err)
+    if err =? (await self.blockStore.putBlockCidAndProof(treeCid, index, cid, proof)).errorOption:
+      # TODO add log here
+      return failure(err)
 
   let manifest = Manifest.new(
-    treeCid = treeBlk.cid,
-    treeRoot = tree.root,
+    treeCid = treeCid,
     blockSize = blockSize,
     datasetSize = NBytes(chunker.offset),
     version = CIDv1,
@@ -263,12 +264,13 @@ proc store*(
     return failure("Unable to store manifest " & $manifestBlk.cid)
 
   info "Stored data", manifestCid = manifestBlk.cid,
-                      treeCid = treeBlk.cid,
+                      treeCid = treeCid,
                       blocks = manifest.blocksCount,
                       datasetSize = manifest.datasetSize
 
   # Announce manifest
   await self.discovery.provide(manifestBlk.cid)
+  await self.discovery.provide(treeCid)
 
   return manifestBlk.cid.success
 

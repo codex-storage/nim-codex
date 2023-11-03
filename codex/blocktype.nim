@@ -78,6 +78,12 @@ proc cidOrTreeCid*(a: BlockAddress): Cid =
 proc address*(b: Block): BlockAddress =
   BlockAddress(leaf: false, cid: b.cid)
 
+proc init*(_: type BlockAddress, cid: Cid): BlockAddress =
+  BlockAddress(leaf: false, cid: cid)
+
+proc init*(_: type BlockAddress, treeCid: Cid, index: Natural): BlockAddress =
+  BlockAddress(leaf: true, treeCid: treeCid, index: index)
+
 proc `$`*(b: Block): string =
   result &= "cid: " & $b.cid
   result &= "\ndata: " & string.fromBytes(b.data)
