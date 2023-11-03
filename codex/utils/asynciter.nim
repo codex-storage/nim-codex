@@ -52,12 +52,12 @@ proc new*[T](_: type Iter, genNext: GenNext[T], isFinished: IsFinished, finishOn
   iter.next = next
   return iter
 
-proc fromItems*[T](_: type Iter, items: openArray[T]): Iter[T] =
+proc fromItems*[T](_: type Iter, items: seq[T]): Iter[T] =
   ## Create new iterator from items
   ##
   
   Iter.fromSlice(0..<items.len)
-    .map((i) => items[i])
+    .map((i: int) => items[i])
 
 proc fromSlice*[U, V: Ordinal](_: type Iter, slice: HSlice[U, V]): Iter[U] =
   ## Creates new iterator from slice
@@ -89,22 +89,23 @@ proc map*[T, U](iter: Iter[T], fn: Function[T, U]): Iter[U] =
   )
 
 proc filter*[T](iter: Iter[T], predicate: Function[T, bool]): Iter[T] =
-  var nextItem: T
+  var nextT: Option[T]
 
   proc tryFetch(): void =
+    nextT = T.none
     while not iter.finished:
-      let item = iter.next()
-      if predicate(item):
-        nextItem = some(item)
+      let t = iter.next()
+      if predicate(t):
+        nextT = some(t)
         break
 
   proc genNext(): T =
-    let t = nextItem
+    let t = nextT.unsafeGet
     tryFetch()
     return t
 
   proc isFinished(): bool =
-    iter.finished
+    nextT.isNone
 
   tryFetch()
   Iter.new(genNext, isFinished)

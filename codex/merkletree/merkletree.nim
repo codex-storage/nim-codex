@@ -14,6 +14,7 @@ import std/sugar
 import std/algorithm
 
 import pkg/chronicles
+import pkg/questionable
 import pkg/questionable/results
 import pkg/nimcrypto/sha2
 import pkg/libp2p/[cid, multicodec, multihash, vbuffer]
@@ -186,8 +187,16 @@ proc root*(self: MerkleTree): MultiHash =
   let rootIndex = self.len - 1
   self.nodeBufferToMultiHash(rootIndex)
 
-proc leaves*(self: MerkleTree): seq[MultiHash] =
-  toSeq(0..<self.leavesCount).map(i => self.nodeBufferToMultiHash(i))
+proc rootCid*(self: MerkleTree, version = CIDv1, dataCodec = multiCodec("raw")): ?!Cid =
+  Cid.init(version, dataCodec, self.root).mapFailure
+
+iterator leaves*(self: MerkleTree): MultiHash =
+  for i in 0..<self.leavesCount:
+    yield self.nodeBufferToMultiHash(i)
+
+iterator leavesCids*(self: MerkleTree, version = CIDv1, dataCodec = multiCodec("raw")): ?!Cid =
+  for leaf in self.leaves:
+    yield Cid.init(version, dataCodec, leaf).mapFailure
 
 proc leavesCount*(self: MerkleTree): Natural =
   self.leavesCount
@@ -197,6 +206,10 @@ proc getLeaf*(self: MerkleTree, index: Natural): ?!MultiHash =
     return failure("Index " & $index & " out of range [0.." & $(self.leavesCount - 1) & "]" )
   
   success(self.nodeBufferToMultiHash(index))
+
+proc getLeafCid*(self: MerkleTree, index: Natural, version = CIDv1, dataCodec = multiCodec("raw")): ?!Cid =
+  let leaf = ? self.getLeaf(index)
+  Cid.init(version, dataCodec, leaf).mapFailure
 
 proc height*(self: MerkleTree): Natural =
   computeTreeHeight(self.leavesCount)
@@ -279,18 +292,6 @@ proc init*(
 
 proc init*(
   T: type MerkleTree,
-  cids: openArray[Cid]
-): ?!MerkleTree =
-  let leaves = collect:
-    for cid in cids:
-      without mhash =? cid.mhash.mapFailure, errx:
-        return failure(errx)
-      mhash
-
-  MerkleTree.init(leaves)
-
-proc init*(
-  T: type MerkleTree,
   leaves: openArray[MultiHash]
 ): ?!MerkleTree =
   without leaf =? leaves.?[0]:
@@ -303,6 +304,18 @@ proc init*(
       return failure(err)
   
   builder.build()
+
+proc init*(
+  T: type MerkleTree,
+  cids: openArray[Cid]
+): ?!MerkleTree =
+  let leaves = collect:
+    for idx, cid in cids:
+      without mhash =? cid.mhash.mapFailure, errx:
+        return failure(errx)
+      mhash
+
+  MerkleTree.init(leaves)
 
 ###########################################################
 # MerkleProof

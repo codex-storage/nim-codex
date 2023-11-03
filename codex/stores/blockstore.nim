@@ -35,43 +35,25 @@ method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
   ## Get a block from the blockstore
   ##
 
-  raiseAssert("getBlock by cid not implemented!")
+  raiseAssert("getBlock by cid Not implemented!")
 
 method getBlock*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!Block] {.base.} =
   ## Get a block from the blockstore
   ##
 
-  raiseAssert("getBlock by treecid not implemented!")
+  raiseAssert("getBlock by treecid Not implemented!")
 
 method getBlock*(self: BlockStore, address: BlockAddress): Future[?!Block] {.base.} =
   ## Get a block from the blockstore
   ##
 
-  raiseAssert("getBlock by addr not implemented!")
+  raiseAssert("getBlock by addr Not implemented!")
 
 method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.base.} =
   ## Get a block and associated inclusion proof by Cid of a merkle tree and an index of a leaf in a tree
   ## 
   
-  raiseAssert("getBlockAndProof not implemented!")
-
-method getBlock*(self: BlockStore, treeCid: Cid, index: Natural, merkleRoot: MultiHash): Future[?!Block] {.base.} =
-  ## Get a block by Cid of a merkle tree and an index of a leaf in a tree, validate inclusion using merkle root
-  ## 
-  
-  raiseAssert("Not implemented!")
-
-method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.base.} =
-  ## Get a block and associated inclusion proof by Cid of a merkle tree and an index of a leaf in a tree
-  ## 
-  
-  raiseAssert("Not implemented!")
-
-method getBlocks*(self: BlockStore, treeCid: Cid, leavesCount: Natural, merkleRoot: MultiHash): Future[?!AsyncIter[?!Block]] {.base.} =
-  ## Get all blocks in range [0..<leavesCount] by Cid of a merkle tree, validate inclusion using merkle root
-  ## 
-
-  raiseAssert("Not implemented!")
+  raiseAssert("getBlockAndProof Not implemented!")
 
 method putBlock*(
     self: BlockStore,
@@ -81,8 +63,9 @@ method putBlock*(
   ## Put a block to the blockstore
   ##
 
-  raiseAssert("putBlock not implemented!")
+  raiseAssert("putBlock Not implemented!")
 
+# I cant use `BlockAddress` to wrap (treeCid, index) here. because as far as I know there's no way in Nim to force `assert(leaf == true)` in a compile time
 method putBlockCidAndProof*(
   self: BlockStore,
   treeCid: Cid,
@@ -93,7 +76,7 @@ method putBlockCidAndProof*(
   ## Put a block to the blockstore
   ##
 
-  raiseAssert("putBlockCidAndProof not implemented!")
+  raiseAssert("putBlockCidAndProof Not implemented!")
 
 method ensureExpiry*(
     self: BlockStore,

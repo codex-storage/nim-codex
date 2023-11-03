@@ -30,8 +30,7 @@ export types
 
 type
   Manifest* = ref object of RootObj
-    treeCid: Cid           # Cid of the merkle tree
-    treeRoot: MultiHash    # Root hash of the merkle tree
+    treeCid: Cid           # Root of the merkle tree
     datasetSize: NBytes    # Total size of all blocks
     blockSize: NBytes      # Size of each contained block (might not be needed if blocks are len-prefixed)
     version: CidVersion    # Cid version
@@ -41,8 +40,7 @@ type
     of true:
       ecK: int               # Number of blocks to encode
       ecM: int               # Number of resulting parity blocks
-      originalTreeCid: Cid     # The original Cid of the dataset being erasure coded
-      originalTreeRoot: MultiHash
+      originalTreeCid: Cid     # The original root of the dataset being erasure coded
       originalDatasetSize: NBytes
     else:
       discard
@@ -75,23 +73,17 @@ proc ecK*(self: Manifest): int =
 proc ecM*(self: Manifest): int =
   self.ecM
 
-proc originalCid*(self: Manifest): Cid =
+proc originalTreeCid*(self: Manifest): Cid =
   self.originalTreeCid
 
 proc originalBlocksCount*(self: Manifest): int =
   divUp(self.originalDatasetSize.int, self.blockSize.int)
-
-proc originalTreeRoot*(self: Manifest): MultiHash =
-  self.originalTreeRoot
 
 proc originalDatasetSize*(self: Manifest): NBytes =
   self.originalDatasetSize
 
 proc treeCid*(self: Manifest): Cid =
   self.treeCid
-
-proc treeRoot*(self: Manifest): MultiHash =
-  self.treeRoot
 
 proc blocksCount*(self: Manifest): int =
   divUp(self.datasetSize.int, self.blockSize.int)
@@ -140,7 +132,6 @@ proc cid*(self: Manifest): ?!Cid {.deprecated: "use treeCid instead".} =
 
 proc `==`*(a, b: Manifest): bool =
   (a.treeCid == b.treeCid) and
-  (a.treeRoot == b.treeRoot) and
   (a.datasetSize == b.datasetSize) and
   (a.blockSize == b.blockSize) and
   (a.version == b.version) and
@@ -151,14 +142,12 @@ proc `==`*(a, b: Manifest): bool =
       (a.ecK == b.ecK) and
       (a.ecM == b.ecM) and
       (a.originalTreeCid == b.originalTreeCid) and
-      (a.originalTreeRoot == b.originalTreeRoot) and
       (a.originalDatasetSize == b.originalDatasetSize)
     else:
       true)
 
 proc `$`*(self: Manifest): string =
   "treeCid: " & $self.treeCid &
-    ", treeRoot: " & $self.treeRoot &
     ", datasetSize: " & $self.datasetSize &
     ", blockSize: " & $self.blockSize &
     ", version: " & $self.version &
@@ -169,7 +158,6 @@ proc `$`*(self: Manifest): string =
       ", ecK: " & $self.ecK &
       ", ecM: " & $self.ecM &
       ", originalTreeCid: " & $self.originalTreeCid &
-      ", originalTreeRoot: " & $self.originalTreeRoot &
       ", originalDatasetSize: " & $self.originalDatasetSize
     else:
       "")
@@ -181,7 +169,6 @@ proc `$`*(self: Manifest): string =
 proc new*(
     T: type Manifest,
     treeCid: Cid,
-    treeRoot: MultiHash,
     blockSize: NBytes,
     datasetSize: NBytes,
     version: CidVersion = CIDv1,
@@ -192,7 +179,6 @@ proc new*(
 
   T(
     treeCid: treeCid,
-    treeRoot: treeRoot,
     blockSize: blockSize,
     datasetSize: datasetSize,
     version: version,
@@ -204,7 +190,6 @@ proc new*(
     T: type Manifest,
     manifest: Manifest,
     treeCid: Cid,
-    treeRoot: MultiHash,
     datasetSize: NBytes,
     ecK, ecM: int
 ): Manifest =
@@ -213,7 +198,6 @@ proc new*(
   ##
   Manifest(
     treeCid: treeCid,
-    treeRoot: treeRoot,
     datasetSize: datasetSize,
     version: manifest.version,
     codec: manifest.codec,
@@ -222,7 +206,6 @@ proc new*(
     protected: true,
     ecK: ecK, ecM: ecM,
     originalTreeCid: manifest.treeCid,
-    originalTreeRoot: manifest.treeRoot,
     originalDatasetSize: manifest.datasetSize)
 
 proc new*(
@@ -233,8 +216,7 @@ proc new*(
   ## erasure protected one
   ##
   Manifest(
-    treeCid: manifest.originalCid,
-    treeRoot: manifest.originalTreeRoot,
+    treeCid: manifest.originalTreeCid,
     datasetSize: manifest.originalDatasetSize,
     version: manifest.version,
     codec: manifest.codec,
@@ -254,7 +236,6 @@ proc new*(
 proc new*(
   T: type Manifest,
   treeCid: Cid,
-  treeRoot: MultiHash,
   datasetSize: NBytes,
   blockSize: NBytes,
   version: CidVersion,
@@ -263,12 +244,10 @@ proc new*(
   ecK: int,
   ecM: int,
   originalTreeCid: Cid,
-  originalTreeRoot: MultiHash,
   originalDatasetSize: NBytes
 ): Manifest =
   Manifest(
     treeCid: treeCid,
-    treeRoot: treeRoot,
     datasetSize: datasetSize,
     blockSize: blockSize,
     version: version,
@@ -278,6 +257,5 @@ proc new*(
     ecK: ecK,
     ecM: ecM,
     originalTreeCid: originalTreeCid,
-    originalTreeRoot: originalTreeRoot,
     originalDatasetSize: originalDatasetSize
   )

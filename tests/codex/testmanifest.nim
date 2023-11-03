@@ -17,7 +17,6 @@ checksuite "Manifest":
     var
       manifest = Manifest.new(
         treeCid = Cid.example,
-        treeRoot = MultiHash.example,
         blockSize = 1.MiBs,
         datasetSize = 100.MiBs)
 
