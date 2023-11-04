@@ -39,12 +39,12 @@ export peers, pendingblocks, payments, discovery
 logScope:
   topics = "codex blockexcengine"
 
-declareCounter(codexBlockExchangeWantHaveListsSent, "codex blockexchange wantHave lists sent")
-declareCounter(codexBlockExchangeWantHaveListsReceived, "codex blockexchange wantHave lists received")
-declareCounter(codexBlockExchangeWantBlockListsSent, "codex blockexchange wantBlock lists sent")
-declareCounter(codexBlockExchangeWantBlockListsReceived, "codex blockexchange wantBlock lists received")
-declareCounter(codexBlockExchangeBlocksSent, "codex blockexchange blocks sent")
-declareCounter(codexBlockExchangeBlocksReceived, "codex blockexchange blocks received")
+declareCounter(codex_block_exchange_want_have_lists_sent, "codex blockexchange wantHave lists sent")
+declareCounter(codex_block_exchange_want_have_lists_received, "codex blockexchange wantHave lists received")
+declareCounter(codex_block_exchange_want_block_lists_sent, "codex blockexchange wantBlock lists sent")
+declareCounter(codex_block_exchange_want_block_lists_received, "codex blockexchange wantBlock lists received")
+declareCounter(codex_block_exchange_blocks_sent, "codex blockexchange blocks sent")
+declareCounter(codex_block_exchange_blocks_received, "codex blockexchange blocks received")
 
 const
   DefaultMaxPeersPerRequest* = 10
@@ -201,9 +201,9 @@ proc requestBlock*(
     asyncSpawn b.monitorBlockHandle(blockFuture, address, peer.id)
     b.pendingBlocks.setInFlight(address)
     await b.sendWantBlock(address, peer)
-    codexBlockExchangeWantBlockListsSent.inc()
+    codex_block_exchange_want_block_lists_sent.inc()
     await b.sendWantHave(address, peer, toSeq(b.peers))
-    codexBlockExchangeWantHaveListsSent.inc()
+    codex_block_exchange_want_have_lists_sent.inc()
     
   return await blockFuture
 
@@ -369,7 +369,7 @@ proc blocksDeliveryHandler*(
     validatedBlocksDelivery.add(bd)
 
   await b.resolveBlocks(validatedBlocksDelivery)
-  codexBlockExchangeBlocksReceived.inc(validatedBlocksDelivery.len.int64)
+  codex_block_exchange_blocks_received.inc(validatedBlocksDelivery.len.int64)
 
   let
     peerCtx = b.peers.get(peer)
@@ -411,7 +411,7 @@ proc wantListHandler*(
           .price.toBytesBE)
 
       if e.wantType == WantType.WantHave:
-        codexBlockExchangeWantHaveListsReceived.inc()
+        codex_block_exchange_want_have_lists_received.inc()
 
       if not have and e.sendDontHave:
         trace "Adding dont have entry to presence response", address = e.address
@@ -430,7 +430,7 @@ proc wantListHandler*(
       elif e.wantType == WantType.WantBlock:
         trace "Added entry to peer's want blocks list", address = e.address
         peerCtx.peerWants.add(e)
-        codexBlockExchangeWantBlockListsReceived.inc()
+        codex_block_exchange_want_block_lists_received.inc()
     else:
       # peer doesn't want this block anymore
       if e.cancel:
@@ -560,7 +560,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
         blocksDelivery
       )
 
-      codexBlockExchangeBlocksSent.inc(blocksDelivery.len.int64)
+      codex_block_exchange_blocks_sent.inc(blocksDelivery.len.int64)
 
       trace "About to remove entries from peerWants", blocks = blocksDelivery.len, items = task.peerWants.len
       # Remove successfully sent blocks

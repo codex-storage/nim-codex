@@ -16,7 +16,7 @@ type
   SalePreparing* = ref object of ErrorHandlingState
 
 logScope:
-    topics = "marketplace sales preparing"
+  topics = "marketplace sales preparing"
 
 method `$`*(state: SalePreparing): string = "SalePreparing"
 

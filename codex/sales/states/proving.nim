@@ -11,7 +11,7 @@ import ./errored
 import ./payout
 
 logScope:
-    topics = "marketplace sales proving"
+  topics = "marketplace sales proving"
 
 type
   SlotNotFilledError* = object of CatchableError

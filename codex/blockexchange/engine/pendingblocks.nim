@@ -27,8 +27,8 @@ import ../../merkletree
 logScope:
   topics = "codex pendingblocks"
 
-declareGauge(codexBlockExchangePendingBlockRequests, "codex blockexchange pending block requests")
-declareGauge(codexBlockExchangeRetrievalTimeUs, "codex blockexchange block retrieval time us")
+declareGauge(codex_block_exchange_pending_block_requests, "codex blockexchange pending block requests")
+declareGauge(codex_block_exchange_retrieval_time_us, "codex blockexchange block retrieval time us")
 
 const
   DefaultBlockTimeout* = 10.minutes
@@ -43,7 +43,7 @@ type
     blocks*: Table[BlockAddress, BlockReq] # pending Block requests
 
 proc updatePendingBlockGauge(p: PendingBlocksManager) =
-  codexBlockExchangePendingBlockRequests.set(p.blocks.len.int64)
+  codex_block_exchange_pending_block_requests.set(p.blocks.len.int64)
 
 proc getWantHandle*(
     p: PendingBlocksManager,
@@ -103,7 +103,7 @@ proc resolve*(
 
         blockReq.handle.complete(bd.blk)
         
-        codexBlockExchangeRetrievalTimeUs.set(retrievalDurationUs)
+        codex_block_exchange_retrieval_time_us.set(retrievalDurationUs)
         trace "Block retrieval time", retrievalDurationUs, address = bd.address
       else:
         trace "Block handle already finished", address = bd.address

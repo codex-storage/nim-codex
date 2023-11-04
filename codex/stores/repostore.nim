@@ -35,9 +35,9 @@ export blocktype, cid
 logScope:
   topics = "codex repostore"
 
-declareGauge(codexRepostoreBlocks, "codex repostore blocks")
-declareGauge(codexRepostoreBytesUsed, "codex repostore bytes used")
-declareGauge(codexRepostoreBytesReserved, "codex repostore bytes reserved")
+declareGauge(codex_repostore_blocks, "codex repostore blocks")
+declareGauge(codex_repostore_bytes_used, "codex repostore bytes used")
+declareGauge(codex_repostore_bytes_reserved, "codex repostore bytes reserved")
 
 const
   DefaultBlockTtl* = 24.hours
@@ -64,9 +64,9 @@ type
     expiration*: SecondsSince1970
   
 proc updateMetrics(self: RepoStore) =
-  codexRepostoreBlocks.set(self.totalBlocks.int64)
-  codexRepostoreBytesUsed.set(self.quotaUsedBytes.int64)
-  codexRepostoreBytesReserved.set(self.quotaReservedBytes.int64)
+  codex_repostore_blocks.set(self.totalBlocks.int64)
+  codex_repostore_bytes_used.set(self.quotaUsedBytes.int64)
+  codex_repostore_bytes_reserved.set(self.quotaReservedBytes.int64)
 
 func totalUsed*(self: RepoStore): uint =
   (self.quotaUsedBytes + self.quotaReservedBytes)
