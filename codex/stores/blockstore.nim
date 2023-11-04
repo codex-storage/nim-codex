@@ -35,25 +35,25 @@ method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
   ## Get a block from the blockstore
   ##
 
-  raiseAssert("getBlock by cid Not implemented!")
+  raiseAssert("getBlock by cid not implemented!")
 
 method getBlock*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!Block] {.base.} =
   ## Get a block from the blockstore
   ##
 
-  raiseAssert("getBlock by treecid Not implemented!")
+  raiseAssert("getBlock by treecid not implemented!")
 
 method getBlock*(self: BlockStore, address: BlockAddress): Future[?!Block] {.base.} =
   ## Get a block from the blockstore
   ##
 
-  raiseAssert("getBlock by addr Not implemented!")
+  raiseAssert("getBlock by addr not implemented!")
 
 method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.base.} =
   ## Get a block and associated inclusion proof by Cid of a merkle tree and an index of a leaf in a tree
   ## 
   
-  raiseAssert("getBlockAndProof Not implemented!")
+  raiseAssert("getBlockAndProof not implemented!")
 
 method putBlock*(
     self: BlockStore,
@@ -63,9 +63,8 @@ method putBlock*(
   ## Put a block to the blockstore
   ##
 
-  raiseAssert("putBlock Not implemented!")
+  raiseAssert("putBlock not implemented!")
 
-# I cant use `BlockAddress` to wrap (treeCid, index) here. because as far as I know there's no way in Nim to force `assert(leaf == true)` in a compile time
 method putBlockCidAndProof*(
   self: BlockStore,
   treeCid: Cid,
@@ -76,7 +75,7 @@ method putBlockCidAndProof*(
   ## Put a block to the blockstore
   ##
 
-  raiseAssert("putBlockCidAndProof Not implemented!")
+  raiseAssert("putBlockCidAndProof not implemented!")
 
 method ensureExpiry*(
     self: BlockStore,
@@ -101,12 +100,6 @@ method delBlock*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!void]
 
   raiseAssert("delBlock not implemented!")
 
-method delBlock*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!void] {.base.} =
-  ## Delete a block from the blockstore
-  ##
-
-  raiseAssert("Not implemented!")
-
 method hasBlock*(self: BlockStore, cid: Cid): Future[?!bool] {.base.} =
   ## Check if the block exists in the blockstore
   ##
@@ -118,12 +111,6 @@ method hasBlock*(self: BlockStore, tree: Cid, index: Natural): Future[?!bool] {.
   ##
 
   raiseAssert("hasBlock not implemented!")
-
-method hasBlock*(self: BlockStore, tree: Cid, index: Natural): Future[?!bool] {.base.} =
-  ## Check if the block exists in the blockstore
-  ##
-
-  raiseAssert("Not implemented!")
 
 method listBlocks*(
   self: BlockStore,
