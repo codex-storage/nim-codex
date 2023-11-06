@@ -452,7 +452,7 @@ paths:
               schema:
                 type: array
                 items:
-                  id: string
+                  type: string
         "503":
           description: Purchasing is unavailable
 
