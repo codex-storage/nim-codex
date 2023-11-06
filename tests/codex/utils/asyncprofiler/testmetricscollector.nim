@@ -52,7 +52,7 @@ checksuite "asyncprofiler metrics collector":
 
   test "should keep track of basic worst-case exec time stats":
     var registry = newRegistry()
-    var collector = ProfilingCollector.newCollector(
+    var collector = ProfilerInfo.newCollector(
       name = "profiling_metrics",
       help = "Metrics from the profiler",
       registry = registry,
@@ -64,7 +64,7 @@ checksuite "asyncprofiler metrics collector":
 
   test "should create labeled series for the k slowest procs in terms of totalExecTime":
     var registry = newRegistry()
-    var collector = ProfilingCollector.newCollector(
+    var collector = ProfilerInfo.newCollector(
       name = "profiling_metrics",
       help = "Metrics from the profiler",
       registry = registry,

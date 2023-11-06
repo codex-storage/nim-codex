@@ -8,7 +8,7 @@ import metrics
 
 when defined(metrics):
   type
-    ProfilingCollector* = ref object of Gauge
+    ProfilerInfo* = ref object of Gauge
       perfSampler: PerfSampler
       k: int
 
@@ -17,14 +17,14 @@ when defined(metrics):
     ProfilerMetric = (SrcLoc, OverallMetrics)
 
   proc newCollector*(
-    ProfilingCollector: typedesc,
+    ProfilerInfo: typedesc,
     name: string,
     help: string,
     perfSampler: PerfSampler,
     k: int = 10,
     registry: Registry = defaultRegistry,
-  ): ProfilingCollector =
-    result = ProfilingCollector.newCollector(
+  ): ProfilerInfo =
+    result = ProfilerInfo.newCollector(
       name = name, help = help, registry = registry)
     result.perfSampler = perfSampler
     result.k = k
@@ -33,7 +33,7 @@ when defined(metrics):
     float64 = duration.nanoseconds.float64
 
   proc collectSlowestProcs(
-    self: ProfilingCollector,
+    self: ProfilerInfo,
     profilerMetrics: seq[ProfilerMetric],
     prometheusMetrics: var Metrics,
     timestampMillis: int64,
@@ -82,7 +82,7 @@ when defined(metrics):
         "max_single_exec_time", metrics.maxSingleTime, prometheusMetrics)
 
   proc collectOutlierMetrics(
-    self: ProfilingCollector,
+    self: ProfilerInfo,
     profilerMetrics: seq[ProfilerMetric],
     prometheusMetrics: var Metrics,
     timestampMillis: int64,
@@ -112,7 +112,7 @@ when defined(metrics):
       timestamp: timestampMillis,
     ))
 
-  method collect*(self: ProfilingCollector): Metrics =
+  method collect*(self: ProfilerInfo): Metrics =
     let now = times.getTime().toMilliseconds()
 
     var prometheusMetrics = Metrics()
