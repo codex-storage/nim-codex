@@ -16,6 +16,7 @@ import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
 
+import ../clock
 import ../blocktype
 import ../merkletree
 import ../utils
@@ -75,6 +76,17 @@ method putBlockCidAndProof*(
   ##
 
   raiseAssert("putBlockCidAndProof not implemented!")
+
+method ensureExpiry*(
+    self: BlockStore,
+    cid: Cid,
+    expiry: SecondsSince1970
+): Future[?!void] {.base.} =
+  ## Ensure that block's assosicated expiry is at least given timestamp
+  ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
+  ##
+
+  raiseAssert("Not implemented!")
 
 method delBlock*(self: BlockStore, cid: Cid): Future[?!void] {.base.} =
   ## Delete a block from the blockstore

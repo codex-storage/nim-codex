@@ -185,23 +185,63 @@ method getBlock*(self: RepoStore, address: BlockAddress): Future[?!Block] =
   else:
     self.getBlock(address.cid)
 
-proc getBlockExpirationTimestamp(self: RepoStore, ttl: ?Duration): SecondsSince1970 =
-  let duration = ttl |? self.blockTtl
-  self.clock.now() + duration.seconds
-
 proc getBlockExpirationEntry(
   self: RepoStore,
-  batch: var seq[BatchEntry],
   cid: Cid,
-  ttl: ?Duration): ?!BatchEntry =
-  ## Get an expiration entry for a batch
+  ttl: SecondsSince1970): ?!BatchEntry =
+  ## Get an expiration entry for a batch with timestamp
   ##
 
   without key =? createBlockExpirationMetadataKey(cid), err:
     return failure(err)
 
-  let value = self.getBlockExpirationTimestamp(ttl).toBytes
-  return success((key, value))
+  return success((key, ttl.toBytes))
+
+proc getBlockExpirationEntry(
+  self: RepoStore,
+  cid: Cid,
+  ttl: ?Duration): ?!BatchEntry =
+  ## Get an expiration entry for a batch for duration since "now"
+  ##
+
+  let duration = ttl |? self.blockTtl
+  self.getBlockExpirationEntry(cid, self.clock.now() + duration.seconds)
+
+method ensureExpiry*(
+    self: RepoStore,
+    cid: Cid,
+    expiry: SecondsSince1970
+): Future[?!void] {.async.} =
+  ## Ensure that block's assosicated expiry is at least given timestamp
+  ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
+  ##
+
+  logScope:
+    cid = cid
+
+  if expiry <= 0:
+    return failure(newException(ValueError, "Expiry timestamp must be larger then zero"))
+
+  without expiryKey =? createBlockExpirationMetadataKey(cid), err:
+    return failure(err)
+
+  without currentExpiry =? await self.metaDs.get(expiryKey), err:
+    if err of DatastoreKeyNotFound:
+      error "No current expiry exists for the block"
+      return failure(newException(BlockNotFoundError, err.msg))
+    else:
+      error "Could not read datastore key", err = err.msg
+      return failure(err)
+
+  if expiry <= currentExpiry.toSecondsSince1970:
+    trace "Current expiry is larger then the specified one, no action needed"
+    return success()
+
+  if err =? (await self.metaDs.put(expiryKey, expiry.toBytes)).errorOption:
+    trace "Error updating expiration metadata entry", err = err.msg
+    return failure(err)
+
+  return success()
 
 proc persistTotalBlocksCount(self: RepoStore): Future[?!void] {.async.} =
   if err =? (await self.metaDs.put(
@@ -253,7 +293,7 @@ method putBlock*(
   trace "Updating quota", used
   batch.add((QuotaUsedKey, @(used.uint64.toBytesBE)))
 
-  without blockExpEntry =? self.getBlockExpirationEntry(batch, blk.cid, ttl), err:
+  without blockExpEntry =? self.getBlockExpirationEntry(blk.cid, ttl), err:
     trace "Unable to create block expiration metadata key", err = err.msg
     return failure(err)
   batch.add(blockExpEntry)
@@ -300,7 +340,6 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
     cid = cid
 
   trace "Deleting block"
-
 
   if cid.isEmpty:
     trace "Empty block, ignoring"

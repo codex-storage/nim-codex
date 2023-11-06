@@ -20,6 +20,7 @@ import pkg/libp2p
 import ../blocktype
 import ../utils/asyncheapqueue
 import ../utils/asynciter
+import ../clock
 
 import ./blockstore
 import ../blockexchange
@@ -90,6 +91,22 @@ method putBlockCidAndProof*(
   proof: MerkleProof
 ): Future[?!void] =
   self.localStore.putBlockCidAndProof(treeCid, index, blockCid, proof)
+
+method ensureExpiry*(
+    self: NetworkStore,
+    cid: Cid,
+    expiry: SecondsSince1970
+): Future[?!void] {.async.} =
+  ## Ensure that block's assosicated expiry is at least given timestamp
+  ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
+  ##
+
+  if (await self.localStore.hasBlock(cid)).tryGet:
+    return await self.localStore.ensureExpiry(cid, expiry)
+  else:
+    trace "Updating expiry - block not in local store", cid
+
+  return success()
 
 method delBlock*(self: NetworkStore, cid: Cid): Future[?!void] =
   ## Delete a block from the blockstore
