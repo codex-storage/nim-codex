@@ -109,17 +109,17 @@ when isMainModule:
 
       notice "Stopping Codex"
 
-      let metrics = getFutureSummaryMetrics()
-      for (k,v) in metrics.pairs():
-        let count = v.count
-        if count > 0:
-          echo ""
-          echo "metric: ", $k
-          echo "count: ", count
-          echo "avg execTime:\t", v.totalExecTime div count, "\ttotal: ", v.totalExecTime
-          echo "avg wallTime:\t", v.totalWallTime div count, "\ttotal: ", v.totalWallTime
-          echo "avg runTime:\t", v.totalRunTime div count, "\ttotal: ", v.totalRunTime
-
+      when defined(chronosFuturesInstrumentation):
+        let metrics = getFutureSummaryMetrics()
+        for (k,v) in metrics.pairs():
+          let count = v.count
+          if count > 0:
+            echo ""
+            echo "metric: ", $k
+            echo "count: ", count
+            echo "avg execTime:\t", v.totalExecTime div count, "\ttotal: ", v.totalExecTime
+            echo "avg wallTime:\t", v.totalWallTime div count, "\ttotal: ", v.totalWallTime
+            echo "avg runTime:\t", v.totalRunTime div count, "\ttotal: ", v.totalRunTime
 
     try:
       setControlCHook(controlCHandler)
