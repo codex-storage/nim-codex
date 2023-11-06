@@ -8,7 +8,7 @@ import metrics
 
 when defined(metrics):
   type
-    ProfilerInfo* = ref object of Gauge
+    AsyncProfilerInfo* = ref object of Gauge
       perfSampler: PerfSampler
       k: int
 
@@ -17,14 +17,14 @@ when defined(metrics):
     ProfilerMetric = (SrcLoc, OverallMetrics)
 
   proc newCollector*(
-    ProfilerInfo: typedesc,
+    AsyncProfilerInfo: typedesc,
     name: string,
     help: string,
     perfSampler: PerfSampler,
     k: int = 10,
     registry: Registry = defaultRegistry,
-  ): ProfilerInfo =
-    result = ProfilerInfo.newCollector(
+  ): AsyncProfilerInfo =
+    result = AsyncProfilerInfo.newCollector(
       name = name, help = help, registry = registry)
     result.perfSampler = perfSampler
     result.k = k
@@ -33,7 +33,7 @@ when defined(metrics):
     float64 = duration.nanoseconds.float64
 
   proc collectSlowestProcs(
-    self: ProfilerInfo,
+    self: AsyncProfilerInfo,
     profilerMetrics: seq[ProfilerMetric],
     prometheusMetrics: var Metrics,
     timestampMillis: int64,
@@ -82,7 +82,7 @@ when defined(metrics):
         "max_single_exec_time", metrics.maxSingleTime, prometheusMetrics)
 
   proc collectOutlierMetrics(
-    self: ProfilerInfo,
+    self: AsyncProfilerInfo,
     profilerMetrics: seq[ProfilerMetric],
     prometheusMetrics: var Metrics,
     timestampMillis: int64,
@@ -112,13 +112,12 @@ when defined(metrics):
       timestamp: timestampMillis,
     ))
 
-  method collect*(self: ProfilerInfo): Metrics =
+  method collect*(self: AsyncProfilerInfo): Metrics =
     let now = times.getTime().toMilliseconds()
 
     var prometheusMetrics = Metrics()
     prometheusMetrics[@[]] = newSeq[Metric]()
 
-    # Samples the underlying metrics and orders pairs by total execution time.
     var currentMetrics = self.
       perfSampler().
       pairs.
@@ -140,3 +139,7 @@ when defined(metrics):
 
     prometheusMetrics
 
+  var asyncProfilerInfo* {.global.} = AsyncProfilerInfo.newCollector(
+    "async_profiler_info", "Async profiler info",
+    perfSampler = getFutureSummaryMetrics
+  )
