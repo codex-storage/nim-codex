@@ -89,7 +89,7 @@ proc initContentApi(node: CodexNodeRef, router: var RestRouter) =
           return RestApiResponse.error(Http500, error.msg)
 
         codex_api_uploads.inc()
-        trace_a"U_dloaded file", cid
+        trace "Uploaded file", cid
         return RestApiResponse.response($cid)
       except CancelledError:
         trace "Upload cancelled error"
