@@ -41,7 +41,7 @@ checksuite "asyncprofiler metrics collector":
       count: 1
     ),
     (addr locations[3]): OverallMetrics(
-      totalExecTime: 60145.nanoseconds,
+      totalExecTime: 60645.nanoseconds,
       totalRunTime: 156214.nanoseconds,
       totalWallTime: 60813.nanoseconds,
       minSingleTime: 5333.nanoseconds,
@@ -55,12 +55,31 @@ checksuite "asyncprofiler metrics collector":
     var collector = ProfilingCollector.newCollector(
       name = "profiling_metrics",
       help = "Metrics from the profiler",
-      registry = registry, perfSampler = proc (): MetricsSummary = sample
+      registry = registry,
+      perfSampler = proc (): MetricsSummary = sample
     )
 
     check collector.valueByName("largest_total_exec_time") == 91660
     check collector.valueByName("largest_max_exec_time") == 81660
 
+  test "should create labeled series for the k slowest procs in terms of totalExecTime":
+    var registry = newRegistry()
+    var collector = ProfilingCollector.newCollector(
+      name = "profiling_metrics",
+      help = "Metrics from the profiler",
+      registry = registry,
+      k = 3,
+      perfSampler = proc (): MetricsSummary = sample
+    )
 
+    check collector.valueByName("total_exec_time",
+      labelValues = @["start", "discovery.nim", "192"]) == 91660
+    check collector.valueByName("total_exec_time",
+      labelValues = @["start", "discovery.nim", "174"]) == 90062
+    check collector.valueByName("total_exec_time",
+      labelValues = @["update", "sqliteds.nim", "107"]) == 60645
 
-
+    # This is out of the top-k slowest, so should not have been recorded.
+    expect system.KeyError:
+      discard collector.valueByName("total_exec_time",
+        labelValues = @["query", "manager.nim", "323"])

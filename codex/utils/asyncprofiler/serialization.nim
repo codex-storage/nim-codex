@@ -25,4 +25,4 @@ proc sortBy*(jArray: JsonNode, metric: string): JsonNode {.raises: [ref KeyError
   %(jArray.getElems.sorted(
     proc (a, b: JsonNode): int {.raises: [ref KeyError].} =
       cmp(a[metric].getInt, b[metric].getInt),
-    order=SortOrder.Descending))
+    order = SortOrder.Descending))
