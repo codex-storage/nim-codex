@@ -17,6 +17,7 @@ import pkg/libp2p
 
 import ../blocktype as bt
 import ../utils/asyncheapqueue
+import ../clock
 
 import ./blockstore
 import ../blockexchange
@@ -63,6 +64,22 @@ method putBlock*(
   await self.engine.resolveBlocks(@[blk])
   return success()
 
+method ensureExpiry*(
+    self: NetworkStore,
+    cid: Cid,
+    expiry: SecondsSince1970
+): Future[?!void] {.async.} =
+  ## Ensure that block's assosicated expiry is at least given timestamp
+  ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
+  ##
+
+  if (await self.localStore.hasBlock(cid)).tryGet:
+    return await self.localStore.ensureExpiry(cid, expiry)
+  else:
+    trace "Updating expiry - block not in local store", cid
+
+  return success()
+
 method delBlock*(self: NetworkStore, cid: Cid): Future[?!void] =
   ## Delete a block from the blockstore
   ##
@@ -91,8 +108,8 @@ proc new*(
   engine: BlockExcEngine,
   localStore: BlockStore
 ): NetworkStore =
-  ## Create new instance of a NetworkStore 
-  ## 
+  ## Create new instance of a NetworkStore
+  ##
   NetworkStore(
       localStore: localStore,
       engine: engine)
