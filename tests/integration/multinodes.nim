@@ -1,6 +1,4 @@
-# import std/dirs
 import std/httpclient
-import std/json
 import std/macros
 import std/os
 import std/sequtils

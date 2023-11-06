@@ -110,14 +110,11 @@ proc getPurchase*(client: CodexClient, purchaseId: PurchaseId): ?!RestPurchase =
 
 proc getSalesAgent*(client: CodexClient, slotId: SlotId): ?!RestSalesAgent =
   let url = client.baseurl & "/sales/slots/" & slotId.toHex
-  echo "getting sales agent for id, ", slotId.toHex
   try:
     let body = client.http.getContent(url)
-    echo "get sales agent body: ", body
     let json = ? parseJson(body).catch
     return RestSalesAgent.fromJson(json)
   except CatchableError as e:
-    echo "[client.getSalesAgent] error getting agent: ", e.msg
     return failure e.msg
 
 proc getSlots*(client: CodexClient): ?!seq[Slot] =

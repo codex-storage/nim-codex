@@ -24,42 +24,19 @@ template marketplacesuite*(name: string, startNodes: Nodes, body: untyped) =
       let periodicity = Periodicity(seconds: period.u256)
       let currentPeriod = periodicity.periodOf(await ethProvider.currentTime())
       let endOfPeriod = periodicity.periodEnd(currentPeriod)
-      echo "advancing to next period start at ", endOfPeriod + 1
       await ethProvider.advanceTimeTo(endOfPeriod + 1)
 
     proc timeUntil(period: Period): Future[times.Duration] {.async.} =
       let currentPeriod = await getCurrentPeriod()
-      echo "[timeUntil] currentPeriod: ", currentPeriod
-      echo "[timeUntil] waiting until period: ", period
       let endOfCurrPeriod = periodicity.periodEnd(currentPeriod)
       let endOfLastPeriod = periodicity.periodEnd(period)
       let endOfCurrPeriodTime = initTime(endOfCurrPeriod.truncate(int64), 0)
       let endOfLastPeriodTime = initTime(endOfLastPeriod.truncate(int64), 0)
       let r = endOfLastPeriodTime - endOfCurrPeriodTime
-      echo "[timeUntil] diff between end of current period and now: ", r
       return r
-      # echo "advancing to next period start at ", endOfPeriod + 1
-      # await ethProvider.advanceTimeTo(endOfPeriod + 1)
 
     proc periods(p: int): uint64 =
       p.uint64 * period
-
-    template eventuallyP(condition: untyped, totalProofs: int, sleep: int): bool =
-      proc e: Future[bool] {.async.} =
-        for i in 0..<totalProofs.int:
-          if condition:
-            echo "condition is true, returning, ", i, " out of ", totalProofs.int
-            return true
-          else:
-            echo $(getTime().toUnix) & " advancing to the next period... ", i, " out of ", totalProofs.int
-            await advanceToNextPeriod()
-            await sleepAsync(chronos.seconds(sleep))
-
-        return false
-
-      let r = await e()
-      echo "returning result of eventuallyP: ", r
-      r
 
     proc createAvailabilities(datasetSize: int, duration: uint64) =
       # post availability to each provider
@@ -75,7 +52,6 @@ template marketplacesuite*(name: string, startNodes: Nodes, body: untyped) =
 
     proc requestStorage(client: CodexClient,
                         cid: Cid,
-                        # provider: JsonRpcProvider,
                         proofProbability: uint64 = 1,
                         duration: uint64 = 12.periods,
                         expiry: uint64 = 4.periods,
