@@ -120,6 +120,7 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
 
   test "Should send want-have for block":
     let blk = bt.Block.new("Block 1".toBytes).tryGet()
+    let blkFut = nodeCmps1.pendingBlocks.getWantHandle( blk.cid )
     (await nodeCmps2.localStore.putBlock(blk)).tryGet()
 
     let entry = WantListEntry(
@@ -136,6 +137,7 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
       .pushOrUpdateNoWait(peerCtx1).isOk
 
     check eventually (await nodeCmps1.localStore.hasBlock(blk.cid)).tryGet()
+    check eventually (await blkFut) == blk
 
   test "Should get blocks from remote":
     let

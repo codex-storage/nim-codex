@@ -242,8 +242,13 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
       .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
         advertised[cid] = switch[3].peerInfo.signedPeerRecord
 
+    discard blocks[0..5].mapIt(blockexc[1].engine.pendingBlocks.getWantHandle(it.address))
     await blockexc[1].engine.blocksDeliveryHandler(switch[0].peerInfo.peerId, blocks[0..5].mapIt(BlockDelivery(blk: it, address: it.address)))
+
+    discard blocks[4..10].mapIt(blockexc[2].engine.pendingBlocks.getWantHandle(it.address))
     await blockexc[2].engine.blocksDeliveryHandler(switch[0].peerInfo.peerId, blocks[4..10].mapIt(BlockDelivery(blk: it, address: it.address)))
+
+    discard blocks[10..15].mapIt(blockexc[3].engine.pendingBlocks.getWantHandle(it.address))
     await blockexc[3].engine.blocksDeliveryHandler(switch[0].peerInfo.peerId, blocks[10..15].mapIt(BlockDelivery(blk: it, address: it.address)))
 
     MockDiscovery(blockexc[0].engine.discovery.discovery)
@@ -258,13 +263,13 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
 
     await allFuturesThrowing(
       switch.mapIt( it.start() ) &
-      blockexc.mapIt( it.engine.start() ))
+      blockexc.mapIt( it.engine.start() )).wait(10.seconds)
 
-    await allFutures(futs)
+    await allFutures(futs).wait(10.seconds)
 
     await allFuturesThrowing(
       blockexc.mapIt( it.engine.stop() ) &
-      switch.mapIt( it.stop() ))
+      switch.mapIt( it.stop() )).wait(10.seconds)
 
   test "E2E - Should advertise and discover blocks with peers already connected":
     # Distribute the blocks amongst 1..3
@@ -284,8 +289,13 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
       .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
         advertised[cid] = switch[3].peerInfo.signedPeerRecord
 
+    discard blocks[0..5].mapIt(blockexc[1].engine.pendingBlocks.getWantHandle(it.address))
     await blockexc[1].engine.blocksDeliveryHandler(switch[0].peerInfo.peerId, blocks[0..5].mapIt(BlockDelivery(blk: it, address: it.address)))
+
+    discard blocks[4..10].mapIt(blockexc[2].engine.pendingBlocks.getWantHandle(it.address))
     await blockexc[2].engine.blocksDeliveryHandler(switch[0].peerInfo.peerId, blocks[4..10].mapIt(BlockDelivery(blk: it, address: it.address)))
+
+    discard blocks[10..15].mapIt(blockexc[3].engine.pendingBlocks.getWantHandle(it.address))
     await blockexc[3].engine.blocksDeliveryHandler(switch[0].peerInfo.peerId, blocks[10..15].mapIt(BlockDelivery(blk: it, address: it.address)))
 
     MockDiscovery(blockexc[0].engine.discovery.discovery)
@@ -299,10 +309,10 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
 
     await allFuturesThrowing(
       switch.mapIt( it.start() ) &
-      blockexc.mapIt( it.engine.start() ))
+      blockexc.mapIt( it.engine.start() )).wait(10.seconds)
 
     await allFutures(futs).wait(10.seconds)
 
     await allFuturesThrowing(
       blockexc.mapIt( it.engine.stop() ) &
-      switch.mapIt( it.stop() ))
+      switch.mapIt( it.stop() )).wait(10.seconds)
