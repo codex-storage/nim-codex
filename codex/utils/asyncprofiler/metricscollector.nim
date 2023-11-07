@@ -73,13 +73,13 @@ when defined(metrics):
         prometheusMetrics[labelValues] = procMetrics
 
       addLabeledMetric(
-        "total_exec_time", metrics.totalExecTime, prometheusMetrics)
+        "chronos_exec_time_total", metrics.totalExecTime, prometheusMetrics)
       addLabeledMetric(
-        "total_run_time", metrics.totalRunTime, prometheusMetrics)
+        "chronos_run_time_total", metrics.totalRunTime, prometheusMetrics)
       addLabeledMetric(
-        "total_wall_time", metrics.totalWallTime, prometheusMetrics)
+        "chronos_wall_time_total", metrics.totalWallTime, prometheusMetrics)
       addLabeledMetric(
-        "max_single_exec_time", metrics.maxSingleTime, prometheusMetrics)
+        "chronos_single_exec_time_max", metrics.maxSingleTime, prometheusMetrics)
 
   proc collectOutlierMetrics(
     self: AsyncProfilerInfo,
@@ -101,13 +101,13 @@ when defined(metrics):
         largestExecTime = metric.totalExecTime
 
     prometheusMetrics[@[]].add(Metric(
-      name: "largest_total_exec_time",
+      name: "chronos_largest_exec_time_total",
       value: largestExecTime.metricValue(),
       timestamp: timestampMillis,
     ))
 
     prometheusMetrics[@[]].add(Metric(
-      name: "largest_max_exec_time",
+      name: "chronos_largest_exec_time_max",
       value: largestMaxExecTime.metricValue(),
       timestamp: timestampMillis,
     ))

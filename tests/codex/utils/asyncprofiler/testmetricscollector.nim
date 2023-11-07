@@ -59,8 +59,8 @@ checksuite "asyncprofiler metrics collector":
       perfSampler = proc (): MetricsSummary = sample
     )
 
-    check collector.valueByName("largest_total_exec_time") == 91660
-    check collector.valueByName("largest_max_exec_time") == 81660
+    check collector.valueByName("chronos_largest_exec_time_total") == 91660
+    check collector.valueByName("chronos_largest_exec_time_max") == 81660
 
   test "should create labeled series for the k slowest procs in terms of totalExecTime":
     var registry = newRegistry()
@@ -72,14 +72,14 @@ checksuite "asyncprofiler metrics collector":
       perfSampler = proc (): MetricsSummary = sample
     )
 
-    check collector.valueByName("total_exec_time",
+    check collector.valueByName("chronos_exec_time_total",
       labelValues = @["start", "discovery.nim", "192"]) == 91660
-    check collector.valueByName("total_exec_time",
+    check collector.valueByName("chronos_exec_time_total",
       labelValues = @["start", "discovery.nim", "174"]) == 90062
-    check collector.valueByName("total_exec_time",
+    check collector.valueByName("chronos_exec_time_total",
       labelValues = @["update", "sqliteds.nim", "107"]) == 60645
 
     # This is out of the top-k slowest, so should not have been recorded.
     expect system.KeyError:
-      discard collector.valueByName("total_exec_time",
+      discard collector.valueByName("chronos_exec_time_total",
         labelValues = @["query", "manager.nim", "323"])
