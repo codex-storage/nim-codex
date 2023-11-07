@@ -205,15 +205,15 @@ components:
         request:
           $ref: "#/components/schemas/StorageRequest"
 
-    ContentList:
+    DataList:
       type: object
       properties:
         content:
           type: array
           items:
-            $ref: "#/components/schemas/ContentItem"
+            $ref: "#/components/schemas/DataItem"
 
-    ContentItem:
+    DataItem:
       type: object
       properties:
         cid:
@@ -243,8 +243,8 @@ servers:
 tags:
   - name: Marketplace
     description: Marketplace information and operations
-  - name: Content
-    description: Content operations
+  - name: Data
+    description: Data operations
   - name: Node
     description: Node management
   - name: Debug
@@ -284,11 +284,11 @@ paths:
         "400":
           description: Peer either not found or was not possible to dial
 
-  "/content/local":
+  "/data/local":
     get:
-      summary: "Lists content manifest CIDs stored locally in node."
-      tags: [ Content ]
-      operationId: listContent
+      summary: "Lists manifest CIDs stored locally in node."
+      tags: [ Data ]
+      operationId: listData
       responses:
         "200":
           description: Retrieved list of content CIDs
@@ -297,7 +297,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/ContentList"
+                  $ref: "#/components/schemas/DataList"
         "400":
           description: Invalid CID is specified
         "404":
@@ -305,10 +305,10 @@ paths:
         "500":
           description: Well it was bad-bad
 
-  "/content":
+  "/data":
     post:
       summary: "Upload a file in a streaming manner. Once finished, the file is stored in the node and can be retrieved by any node in the network using the returned CID."
-      tags: [ Content ]
+      tags: [ Data ]
       operationId: upload
       requestBody:
         content:
@@ -326,10 +326,10 @@ paths:
         "500":
           description: Well it was bad-bad and the upload did not work out
 
-  "/content/cid/{cid}":
+  "/data/cid/{cid}":
     get:
       summary: "Download a file from the node in a streaming manner. If the file is not available locally, it will be retrieved from other nodes in the network if able."
-      tags: [ Content ]
+      tags: [ Data ]
       operationId: download
       parameters:
         - in: path

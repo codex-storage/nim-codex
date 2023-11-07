@@ -60,10 +60,10 @@ proc formatManifestBlocks(node: CodexNodeRef): Future[JsonNode] {.async.} =
   await node.iterateManifests(formatManifest)
   return %content
 
-proc initContentApi(node: CodexNodeRef, router: var RestRouter) =
+proc initDataApi(node: CodexNodeRef, router: var RestRouter) =
   router.rawApi(
     MethodPost,
-    "/api/codex/v1/content") do (
+    "/api/codex/v1/data") do (
     ) -> RestApiResponse:
       ## Upload a file in a streaming manner
       ##
@@ -105,13 +105,13 @@ proc initContentApi(node: CodexNodeRef, router: var RestRouter) =
 
   router.api(
     MethodGet,
-    "/api/codex/v1/content/local") do () -> RestApiResponse:
+    "/api/codex/v1/data/local") do () -> RestApiResponse:
       let json = await formatManifestBlocks(node)
       return RestApiResponse.response($json, contentType="application/json")
 
   router.api(
     MethodGet,
-    "/api/codex/v1/content/cid/{cid}") do (
+    "/api/codex/v1/data/cid/{cid}") do (
       cid: Cid, resp: HttpResponseRef) -> RestApiResponse:
       ## Download a file from the node in a streaming
       ## manner

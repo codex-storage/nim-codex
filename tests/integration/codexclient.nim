@@ -27,7 +27,7 @@ proc setLogLevel*(client: CodexClient, level: string) =
   assert response.status == "200 OK"
 
 proc upload*(client: CodexClient, contents: string): ?!Cid =
-  let response = client.http.post(client.baseurl & "/content", contents)
+  let response = client.http.post(client.baseurl & "/data", contents)
   assert response.status == "200 OK"
   Cid.init(response.body).mapFailure
 
