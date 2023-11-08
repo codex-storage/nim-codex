@@ -284,7 +284,7 @@ paths:
         "400":
           description: Peer either not found or was not possible to dial
 
-  "/data/local":
+  "/local":
     get:
       summary: "Lists manifest CIDs stored locally in node."
       tags: [ Data ]
@@ -326,7 +326,7 @@ paths:
         "500":
           description: Well it was bad-bad and the upload did not work out
 
-  "/data/cid/{cid}":
+  "/data/{cid}":
     get:
       summary: "Download a file from the node in a streaming manner. If the file is not available locally, it will be retrieved from other nodes in the network if able."
       tags: [ Data ]

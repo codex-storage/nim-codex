@@ -46,14 +46,14 @@ ethersuite "Node block expiration tests":
 
   proc downloadTestFile(contentId: string): Response =
     let client = newHttpClient(timeout=3000)
-    let downloadUrl = baseurl & "/data/cid/" & contentId
+    let downloadUrl = baseurl & "/data/" & contentId
     let content = client.get(downloadUrl)
     client.close()
     content
 
   proc hasFile(contentId: string): bool =
     let client = newHttpClient(timeout=3000)
-    let dataLocalUrl = baseurl & "/data/local"
+    let dataLocalUrl = baseurl & "/local"
     let content = client.get(dataLocalUrl)
     client.close()
     return content.body.contains(contentId)

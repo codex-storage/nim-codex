@@ -105,13 +105,13 @@ proc initDataApi(node: CodexNodeRef, router: var RestRouter) =
 
   router.api(
     MethodGet,
-    "/api/codex/v1/data/local") do () -> RestApiResponse:
+    "/api/codex/v1/local") do () -> RestApiResponse:
       let json = await formatManifestBlocks(node)
       return RestApiResponse.response($json, contentType="application/json")
 
   router.api(
     MethodGet,
-    "/api/codex/v1/data/cid/{cid}") do (
+    "/api/codex/v1/data/{cid}") do (
       cid: Cid, resp: HttpResponseRef) -> RestApiResponse:
       ## Download a file from the node in a streaming
       ## manner
