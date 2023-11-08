@@ -1,3 +1,4 @@
+import std/times
 import std/unittest
 
 import pkg/metrics
@@ -17,45 +18,51 @@ suite "asyncprofiler metrics collector":
 
   let sample = {
     (addr locations[0]): OverallMetrics(
-      totalExecTime: 90062.nanoseconds,
-      totalRunTime: 113553.nanoseconds,
-      totalWallTime: 174567.nanoseconds,
-      minSingleTime: 80062.nanoseconds,
-      maxSingleTime: 80062.nanoseconds,
+      totalExecTime: timer.nanoseconds(90062),
+      totalRunTime: timer.nanoseconds(113553),
+      totalWallTime: timer.nanoseconds(174567),
+      minSingleTime: timer.nanoseconds(80062),
+      maxSingleTime: timer.nanoseconds(80062),
       count: 1
     ),
     (addr locations[1]): OverallMetrics(
-      totalExecTime: 91660.nanoseconds,
-      totalRunTime: 71660.nanoseconds,
-      totalWallTime: 72941.nanoseconds,
-      minSingleTime: 71660.nanoseconds,
-      maxSingleTime: 81660.nanoseconds,
+      totalExecTime: timer.nanoseconds(91660),
+      totalRunTime: timer.nanoseconds(71660),
+      totalWallTime: timer.nanoseconds(72941),
+      minSingleTime: timer.nanoseconds(71660),
+      maxSingleTime: timer.nanoseconds(81660),
       count: 1
     ),
     (addr locations[2]): OverallMetrics(
-      totalExecTime: 60529.nanoseconds,
-      totalRunTime: 60529.nanoseconds,
-      totalWallTime: 60784.nanoseconds,
-      minSingleTime: 60529.nanoseconds,
-      maxSingleTime: 60529.nanoseconds,
+      totalExecTime: timer.nanoseconds(60529),
+      totalRunTime: timer.nanoseconds(60529),
+      totalWallTime: timer.nanoseconds(60784),
+      minSingleTime: timer.nanoseconds(60529),
+      maxSingleTime: timer.nanoseconds(60529),
       count: 1
     ),
     (addr locations[3]): OverallMetrics(
-      totalExecTime: 60645.nanoseconds,
-      totalRunTime: 156214.nanoseconds,
-      totalWallTime: 60813.nanoseconds,
-      minSingleTime: 5333.nanoseconds,
-      maxSingleTime: 41257.nanoseconds,
+      totalExecTime: timer.nanoseconds(60645),
+      totalRunTime: timer.nanoseconds(156214),
+      totalWallTime: timer.nanoseconds(60813),
+      minSingleTime: timer.nanoseconds(5333),
+      maxSingleTime: timer.nanoseconds(41257),
       count: 3
     ),
   }.toTable
 
-  var collector = AsyncProfilerInfo.newCollector(
-    perfSampler = proc (): MetricsSummary = sample,
-    k = 3,
-  )
+  var wallTime = getTime()
+
+  var collector: AsyncProfilerInfo
 
   setup:
+    collector = AsyncProfilerInfo.newCollector(
+      perfSampler = proc (): MetricsSummary = sample,
+      clock = proc (): Time = wallTime,
+      sampleInterval = times.initDuration(minutes = 5),
+      k = 3,
+    )
+
     collector.reset()
     collector.collect()
 
@@ -75,3 +82,13 @@ suite "asyncprofiler metrics collector":
     expect system.KeyError:
       discard chronos_exec_time_total.value(
         labelValues = @["query", "manager.nim", "323"])
+
+  test "should not collect metrics again unless enough time has elapsed from last collection":
+    check collector.collections == 1
+    collector.collect()
+    check collector.collections == 1
+
+    wallTime += 6.minutes
+
+    collector.collect()
+    check collector.collections == 2

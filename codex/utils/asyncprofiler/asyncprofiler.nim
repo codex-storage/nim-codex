@@ -30,14 +30,22 @@ type
 
   MetricsSummary* = Table[ptr SrcLoc, OverallMetrics]
 
+  ChangeListener* = proc (): void {.raises: [].}
+
 var
   perFutureMetrics {.threadvar.}: Table[uint, FutureMetrics]
   futureSummaryMetrics {.threadvar.}: MetricsSummary
+  onChange {.threadvar.}: ChangeListener
 
 proc getFutureSummaryMetrics*(): MetricsSummary {.gcsafe.} =
   ## get a copy of the table of summary metrics for all futures.
   {.cast(gcsafe).}:
     futureSummaryMetrics
+
+proc setChangeCallback*(callback: ChangeListener): void =
+  ## Allows registration of a single callback which gets called whenever
+  ## a the summary metric table changes.
+  onChange = callback
 
 proc addRun(self: var OverallMetrics, run: FutureMetrics) =
   ## Adds metrics for a single run of a given async proc to its OverallMetrics.
@@ -51,6 +59,9 @@ proc addRun(self: var OverallMetrics, run: FutureMetrics) =
   if self.count == self.count.typeof.high:
     self.totalExecTime = ZeroDuration
     self.count = 0
+
+  if not isNil(onChange):
+    onChange()
 
 proc setFutureCreate(fut: FutureBase) {.raises: [].} =
   ## used for setting the duration
