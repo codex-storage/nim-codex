@@ -6,7 +6,7 @@ import codex/utils/asyncprofiler
 
 import ../../helpers
 
-checksuite "asyncprofiler metrics collector":
+suite "asyncprofiler metrics collector":
 
   var locations = @[
     SrcLoc(procedure: "start", file: "discovery.nim", line: 174),
@@ -50,36 +50,28 @@ checksuite "asyncprofiler metrics collector":
     ),
   }.toTable
 
-  test "should keep track of basic worst-case exec time stats":
-    var registry = newRegistry()
-    var collector = AsyncProfilerInfo.newCollector(
-      name = "profiling_metrics",
-      help = "Metrics from the profiler",
-      registry = registry,
-      perfSampler = proc (): MetricsSummary = sample
-    )
+  var collector = AsyncProfilerInfo.newCollector(
+    perfSampler = proc (): MetricsSummary = sample,
+    k = 3,
+  )
 
-    check collector.valueByName("chronos_largest_exec_time_total") == 91660
-    check collector.valueByName("chronos_largest_exec_time_max") == 81660
+  setup:
+    collector.reset()
+    collector.collect()
+
+  test "should keep track of basic worst-case exec time stats":
+    check chronos_largest_exec_time_total.value == 91660
+    check chronos_largest_exec_time_max.value == 81660
 
   test "should create labeled series for the k slowest procs in terms of totalExecTime":
-    var registry = newRegistry()
-    var collector = AsyncProfilerInfo.newCollector(
-      name = "profiling_metrics",
-      help = "Metrics from the profiler",
-      registry = registry,
-      k = 3,
-      perfSampler = proc (): MetricsSummary = sample
-    )
-
-    check collector.valueByName("chronos_exec_time_total",
+    check chronos_exec_time_total.value(
       labelValues = @["start", "discovery.nim", "192"]) == 91660
-    check collector.valueByName("chronos_exec_time_total",
+    check chronos_exec_time_total.value(
       labelValues = @["start", "discovery.nim", "174"]) == 90062
-    check collector.valueByName("chronos_exec_time_total",
+    check chronos_exec_time_total.value(
       labelValues = @["update", "sqliteds.nim", "107"]) == 60645
 
     # This is out of the top-k slowest, so should not have been recorded.
     expect system.KeyError:
-      discard collector.valueByName("chronos_exec_time_total",
+      discard chronos_exec_time_total.value(
         labelValues = @["query", "manager.nim", "323"])

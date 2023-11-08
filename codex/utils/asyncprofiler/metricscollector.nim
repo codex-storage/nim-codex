@@ -8,39 +8,74 @@ import metrics
 
 when defined(metrics):
   type
-    AsyncProfilerInfo* = ref object of Gauge
+    AsyncProfilerInfo* = ref object of RootObj
       perfSampler: PerfSampler
+      sampleInterval: int
       k: int
 
     PerfSampler = proc (): MetricsSummary {.raises: [].}
 
     ProfilerMetric = (SrcLoc, OverallMetrics)
 
+  const locationLabels = ["proc", "file", "line"]
+
+  # Per-proc Metrics
+  declarePublicGauge(
+    chronos_exec_time_total,
+    "total time in which this proc actively occupied the event loop thread",
+    labels = locationLabels,
+  )
+
+  declarePublicGauge(
+    chronos_run_time_total,
+    "chronos_exec_time_total of this proc plus of all its children (procs" &
+    "that this proc called and awaited for)",
+    labels = locationLabels,
+  )
+
+  declarePublicGauge(
+    chronos_wall_time_total,
+    "the amount of time elapsed from when the async proc was started to when" &
+    "it completed",
+    labels = locationLabels,
+  )
+
+  declarePublicGauge(
+    chronos_call_count_total,
+    "the total number of times this async proc was called and completed",
+    labels = locationLabels,
+  )
+
+  # Per-proc Statistics
+  declarePublicGauge(
+    chronos_single_exec_time_max,
+    "the maximum execution time for a single call of this proc",
+    labels = locationLabels,
+  )
+
+  # Global Statistics
+  declarePublicGauge(
+    chronos_largest_exec_time_total,
+    "the largest chronos_exec_time_total of all procs",
+  )
+
+  declarePublicGauge(
+    chronos_largest_exec_time_max,
+    "the largest chronos_single_exec_time_max of all procs",
+  )
+
   proc newCollector*(
     AsyncProfilerInfo: typedesc,
-    name: string,
-    help: string,
     perfSampler: PerfSampler,
     k: int = 10,
-    registry: Registry = defaultRegistry,
-  ): AsyncProfilerInfo =
-    result = AsyncProfilerInfo.newCollector(
-      name = name, help = help, registry = registry)
-    result.perfSampler = perfSampler
-    result.k = k
-
-  proc metricValue(duration: timer.Duration):
-    float64 = duration.nanoseconds.float64
+  ): AsyncProfilerInfo = AsyncProfilerInfo(perfSampler: perfSampler, k: k)
 
   proc collectSlowestProcs(
     self: AsyncProfilerInfo,
     profilerMetrics: seq[ProfilerMetric],
-    prometheusMetrics: var Metrics,
     timestampMillis: int64,
     k: int,
   ): void =
-
-    const locationLabelsKeys = @["proc", "file", "line"]
 
     for (i, pair) in enumerate(profilerMetrics):
       if i == k:
@@ -48,43 +83,29 @@ when defined(metrics):
 
       let (location, metrics) = pair
 
-      proc addLabeledMetric(name: string,
-        value: timer.Duration,
-        prometheusMetrics: var Metrics): void =
-        let labelValues = @[
-          $(location.procedure),
-          $(location.file),
-          $(location.line),
-        ]
+      let locationLabels = @[
+        $(location.procedure),
+        $(location.file),
+        $(location.line),
+      ]
 
-        var procMetrics = prometheusMetrics.mGetOrPut(labelValues, @[])
+      chronos_exec_time_total.set(metrics.totalExecTime.nanoseconds,
+        labelValues = locationLabels)
 
-        procMetrics.add(
-          Metric(
-            name: name,
-            value: value.metricValue(),
-            labels: locationLabelsKeys,
-            labelValues: labelValues,
-          )
-        )
+      chronos_run_time_total.set(metrics.totalRunTime.nanoseconds,
+        labelValues = locationLabels)
 
-        # If you don't reassign, your modifications are simply lost due to nim's
-        # weird var semantics.
-        prometheusMetrics[labelValues] = procMetrics
+      chronos_wall_time_total.set(metrics.totalWallTime.nanoseconds,
+        labelValues = locationLabels)
 
-      addLabeledMetric(
-        "chronos_exec_time_total", metrics.totalExecTime, prometheusMetrics)
-      addLabeledMetric(
-        "chronos_run_time_total", metrics.totalRunTime, prometheusMetrics)
-      addLabeledMetric(
-        "chronos_wall_time_total", metrics.totalWallTime, prometheusMetrics)
-      addLabeledMetric(
-        "chronos_single_exec_time_max", metrics.maxSingleTime, prometheusMetrics)
+      chronos_single_exec_time_max.set(metrics.maxSingleTime.nanoseconds,
+        labelValues = locationLabels)
+
+      chronos_call_count_total.set(metrics.count, labelValues = locationLabels)
 
   proc collectOutlierMetrics(
     self: AsyncProfilerInfo,
     profilerMetrics: seq[ProfilerMetric],
-    prometheusMetrics: var Metrics,
     timestampMillis: int64,
   ): void =
     ## Adds summary metrics for the procs that have the highest exec time
@@ -100,23 +121,11 @@ when defined(metrics):
       if metric.totalExecTime > largestExecTime:
         largestExecTime = metric.totalExecTime
 
-    prometheusMetrics[@[]].add(Metric(
-      name: "chronos_largest_exec_time_total",
-      value: largestExecTime.metricValue(),
-      timestamp: timestampMillis,
-    ))
+    chronos_largest_exec_time_total.set(largestExecTime.nanoseconds)
+    chronos_largest_exec_time_max.set(largestMaxExecTime.nanoseconds)
 
-    prometheusMetrics[@[]].add(Metric(
-      name: "chronos_largest_exec_time_max",
-      value: largestMaxExecTime.metricValue(),
-      timestamp: timestampMillis,
-    ))
-
-  method collect*(self: AsyncProfilerInfo): Metrics =
+  proc collect*(self: AsyncProfilerInfo): void =
     let now = times.getTime().toMilliseconds()
-
-    var prometheusMetrics = Metrics()
-    prometheusMetrics[@[]] = newSeq[Metric]()
 
     var currentMetrics = self.
       perfSampler().
@@ -132,14 +141,25 @@ when defined(metrics):
         order = SortOrder.Descending
       )
 
-    # otherwise the compiler keeps complaining of a phantom KeyError
-    {.cast(raises:[]).}:
-      self.collectOutlierMetrics(currentMetrics, prometheusMetrics, now)
-      self.collectSlowestProcs(currentMetrics, prometheusMetrics, now, self.k)
+    self.collectOutlierMetrics(currentMetrics, now)
+    self.collectSlowestProcs(currentMetrics, now, self.k)
 
-    prometheusMetrics
+  proc resetMetric(gauge: Gauge): void =
+    # We try to be as conservative as possible and not write directly to
+    # internal state. We do need to read from it, though.
+    for labelValues in gauge.metrics.keys:
+      gauge.set(0.int64, labelValues = labelValues)
 
-  var asyncProfilerInfo* {.global.} = AsyncProfilerInfo.newCollector(
-    "async_profiler_info", "Async profiler info",
-    perfSampler = getFutureSummaryMetrics
-  )
+  proc reset*(self: AsyncProfilerInfo): void =
+    resetMetric(chronos_exec_time_total)
+    resetMetric(chronos_run_time_total)
+    resetMetric(chronos_wall_time_total)
+    resetMetric(chronos_call_count_total)
+    resetMetric(chronos_single_exec_time_max)
+    resetMetric(chronos_largest_exec_time_total)
+    resetMetric(chronos_largest_exec_time_max)
+
+  proc run*(self: AsyncProfilerInfo) {.async.} =
+    while true:
+      self.collect()
+      await sleepAsync(timer.milliseconds(self.sampleInterval))

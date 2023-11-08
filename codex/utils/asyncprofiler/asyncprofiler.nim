@@ -31,8 +31,8 @@ type
   MetricsSummary* = Table[ptr SrcLoc, OverallMetrics]
 
 var
-  perFutureMetrics: Table[uint, FutureMetrics]
-  futureSummaryMetrics: MetricsSummary
+  perFutureMetrics {.threadvar.}: Table[uint, FutureMetrics]
+  futureSummaryMetrics {.threadvar.}: MetricsSummary
 
 proc getFutureSummaryMetrics*(): MetricsSummary {.gcsafe.} =
   ## get a copy of the table of summary metrics for all futures.
