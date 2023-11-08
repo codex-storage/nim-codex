@@ -64,7 +64,6 @@ proc isProofRequired*(marketplace: Marketplace, id: SlotId): bool {.contract, vi
 proc willProofBeRequired*(marketplace: Marketplace, id: SlotId): bool {.contract, view.}
 proc getChallenge*(marketplace: Marketplace, id: SlotId): array[32, byte] {.contract, view.}
 proc getPointer*(marketplace: Marketplace, id: SlotId): uint8 {.contract, view.}
-proc inDowntime*(marketplace: Marketplace, id: SlotId): bool {.contract, view.}
 
 proc submitProof*(marketplace: Marketplace, id: SlotId, proof: seq[byte]) {.contract.}
 proc markProofAsMissing*(marketplace: Marketplace, id: SlotId, period: UInt256) {.contract.}

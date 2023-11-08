@@ -60,7 +60,6 @@ proc retrieveRequestState*(agent: SalesAgent): Future[?RequestState] {.async.} =
   return await market.requestState(data.requestId)
 
 func state*(agent: SalesAgent): ?string =
-  debugEcho "[salesagent] getting state..."
   proc description(state: State): string =
     $state
   agent.query(description)

@@ -58,7 +58,6 @@ template marketplacesuite*(name: string, startNodes: Nodes, body: untyped) =
                         nodes = providers().len,
                         tolerance = 0): Future[PurchaseId] {.async.} =
 
-      # let cid = client.upload(byteutils.toHex(data)).get
       let expiry = (await ethProvider.currentTime()) + expiry.u256
 
       # avoid timing issues by filling the slot at the start of the next period
@@ -85,11 +84,7 @@ template marketplacesuite*(name: string, startNodes: Nodes, body: untyped) =
       period = config.proofs.period.truncate(uint64)
       periodicity = Periodicity(seconds: period.u256)
 
-
-
       discard await ethProvider.send("evm_setIntervalMining", @[%1000])
-
-
 
       # Our Hardhat configuration does use automine, which means that time tracked by `provider.currentTime()` is not
       # advanced until blocks are mined and that happens only when transaction is submitted.

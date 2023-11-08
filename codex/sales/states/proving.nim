@@ -57,13 +57,10 @@ proc proveLoop(
 
   proc getCurrentPeriod(): Future[Period] {.async.} =
     let periodicity = await market.periodicity()
-    let blockchainNow = await clock.lastBlockTimestamp
-    return periodicity.periodOf(blockchainNow)
-    # return periodicity.periodOf(clock.now().u256)
+    return periodicity.periodOf(clock.now().u256)
 
   proc waitUntilPeriod(period: Period) {.async.} =
     let periodicity = await market.periodicity()
-    debug "waiting until time", time = periodicity.periodStart(period).truncate(int64)
     await clock.waitUntil(periodicity.periodStart(period).truncate(int64))
 
   while true:

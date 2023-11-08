@@ -34,7 +34,6 @@ proc transition(_: type Event, previous, next: State): Event =
       return some next
 
 proc query*[T](machine: Machine, query: Query[T]): ?T =
-  if not machine.state.isNil: debugEcho "machine state: ", $machine.state
   if machine.state.isNil:
     none T
   else:

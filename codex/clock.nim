@@ -14,9 +14,6 @@ type
 method now*(clock: Clock): SecondsSince1970 {.base, upraises: [].} =
   raiseAssert "not implemented"
 
-method lastBlockTimestamp*(clock: Clock): Future[UInt256] {.base, async.} =
-  raiseAssert "not implemented"
-
 method waitUntil*(clock: Clock, time: SecondsSince1970) {.base, async.} =
   raiseAssert "not implemented"
 

@@ -89,23 +89,6 @@ proc debug*(config: NodeConfig, enabled = true): NodeConfig =
   startConfig.debugEnabled = enabled
   return startConfig
 
-# proc withLogFile*(
-#   config: NodeConfig,
-#   file: bool | string
-# ): NodeConfig =
-
-#   var startConfig = config
-#   when file is bool:
-#     if not file: startConfig.logFile = none string
-#     else: startConfig.logFile =
-#             some currentSourcePath.parentDir() / "codex" & $index & ".log"
-#   else:
-#     if file.len <= 0:
-#       raise newException(ValueError, "file path length must be > 0")
-#     startConfig.logFile = some file
-
-#   return startConfig
-
 proc withLogTopics*(
   config: NodeConfig,
   topics: varargs[string]
@@ -135,10 +118,7 @@ proc withLogFile*(
 
 template multinodesuite*(name: string, startNodes: Nodes, body: untyped) =
 
-  asyncchecksuite name:
-
-    var ethProvider {.inject, used.}: JsonRpcProvider
-    var accounts {.inject, used.}: seq[Address]
+  ethersuite name:
 
     var running: seq[RunningNode]
     var bootstrap: string
@@ -257,10 +237,6 @@ template multinodesuite*(name: string, startNodes: Nodes, body: untyped) =
       if not startNodes.hardhat.isNil:
         let node = startHardhatNode()
         running.add RunningNode(role: Role.Hardhat, node: node)
-
-      echo "Connecting to hardhat on ws://localhost:8545..."
-      ethProvider = JsonRpcProvider.new("ws://localhost:8545")
-      accounts = await ethProvider.listAccounts()
 
       for i in 0..<startNodes.clients.numNodes:
         let node = startClientNode()

@@ -14,8 +14,9 @@ logScope:
 
 marketplacesuite "Simulate invalid proofs - 1 provider node",
   Nodes(
-    hardhat: HardhatConfig()
-              .withLogFile(),
+    # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
+    # hardhat: HardhatConfig()
+    #           .withLogFile(),
 
     clients: NodeConfig()
               .nodes(1)
@@ -64,7 +65,7 @@ marketplacesuite "Simulate invalid proofs - 1 provider node",
       var slotWasFreed = false
       proc onSlotFreed(event: SlotFreed) {.gcsafe, upraises:[].} =
         if event.requestId == requestId and
-           event.slotIndex == 0.u256: # assume only one slot, so index 0
+          event.slotIndex == 0.u256: # assume only one slot, so index 0
           slotWasFreed = true
 
       let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
@@ -77,8 +78,9 @@ marketplacesuite "Simulate invalid proofs - 1 provider node",
 
 marketplacesuite "Simulate invalid proofs - 1 provider node",
   Nodes(
-    hardhat: HardhatConfig()
-              .withLogFile(),
+    # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
+    # hardhat: HardhatConfig()
+    #           .withLogFile(),
 
     clients: NodeConfig()
               .nodes(1)
@@ -164,8 +166,9 @@ marketplacesuite "Simulate invalid proofs - 1 provider node",
 
 marketplacesuite "Simulate invalid proofs",
   Nodes(
-    hardhat: HardhatConfig()
-              .withLogFile(),
+    # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
+    # hardhat: HardhatConfig()
+    #           .withLogFile(),
 
     clients: NodeConfig()
               .nodes(1)

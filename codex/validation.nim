@@ -37,9 +37,7 @@ proc slots*(validation: Validation): seq[SlotId] =
   validation.slots.toSeq
 
 proc getCurrentPeriod(validation: Validation): Future[UInt256] {.async.} =
-  let currentTime = await validation.clock.lastBlockTimestamp
-  return validation.periodicity.periodOf(currentTime)
-  # return validation.periodicity.periodOf(validation.clock.now().u256)
+  return validation.periodicity.periodOf(validation.clock.now().u256)
 
 proc waitUntilNextPeriod(validation: Validation) {.async.} =
   let period = await validation.getCurrentPeriod()

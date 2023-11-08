@@ -58,10 +58,6 @@ method proofDowntime*(market: OnChainMarket): Future[uint8] {.async.} =
 method getPointer*(market: OnChainMarket, slotId: SlotId): Future[uint8] {.async.} =
   return await market.contract.getPointer(slotId)
 
-method currentBlockchainTime*(market: OnChainMarket): Future[UInt256] {.async.} =
-  let provider = market.contract.provider
-  return (!await provider.getBlock(BlockTag.latest)).timestamp
-
 method myRequests*(market: OnChainMarket): Future[seq[RequestId]] {.async.} =
   return await market.contract.myRequests
 

@@ -23,13 +23,13 @@ ethersuite "Marketplace contracts":
     token = token.connect(account)
 
   setup:
-    client = provider.getSigner(accounts[0])
-    host = provider.getSigner(accounts[1])
+    client = ethProvider.getSigner(accounts[0])
+    host = ethProvider.getSigner(accounts[1])
 
-    marketplace = Marketplace.new(Marketplace.address, provider.getSigner())
+    marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
 
     let tokenAddress = await marketplace.token()
-    token = Erc20Token.new(tokenAddress, provider.getSigner())
+    token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
 
     let config = await marketplace.config()
     periodicity = Periodicity(seconds: config.proofs.period)
@@ -46,13 +46,13 @@ ethersuite "Marketplace contracts":
     slotId = request.slotId(0.u256)
 
   proc waitUntilProofRequired(slotId: SlotId) {.async.} =
-    let currentPeriod = periodicity.periodOf(await provider.currentTime())
-    await provider.advanceTimeTo(periodicity.periodEnd(currentPeriod))
+    let currentPeriod = periodicity.periodOf(await ethProvider.currentTime())
+    await ethProvider.advanceTimeTo(periodicity.periodEnd(currentPeriod) + 1)
     while not (
       (await marketplace.isProofRequired(slotId)) and
       (await marketplace.getPointer(slotId)) < 250
     ):
-      await provider.advanceTime(periodicity.seconds)
+      await ethProvider.advanceTime(periodicity.seconds)
 
   proc startContract() {.async.} =
     for slotIndex in 1..<request.ask.slots:
@@ -67,9 +67,9 @@ ethersuite "Marketplace contracts":
   test "can mark missing proofs":
     switchAccount(host)
     await waitUntilProofRequired(slotId)
-    let missingPeriod = periodicity.periodOf(await provider.currentTime())
+    let missingPeriod = periodicity.periodOf(await ethProvider.currentTime())
     let endOfPeriod = periodicity.periodEnd(missingPeriod)
-    await provider.advanceTimeTo(endOfPeriod + 1)
+    await ethProvider.advanceTimeTo(endOfPeriod + 1)
     switchAccount(client)
     await marketplace.markProofAsMissing(slotId, missingPeriod)
 
@@ -78,17 +78,17 @@ ethersuite "Marketplace contracts":
     let address = await host.getAddress()
     await startContract()
     let requestEnd = await marketplace.requestEnd(request.id)
-    await provider.advanceTimeTo(requestEnd.u256 + 1)
+    await ethProvider.advanceTimeTo(requestEnd.u256 + 1)
     let startBalance = await token.balanceOf(address)
     await marketplace.freeSlot(slotId)
     let endBalance = await token.balanceOf(address)
     check endBalance == (startBalance + request.ask.duration * request.ask.reward + request.ask.collateral)
 
   test "cannot mark proofs missing for cancelled request":
-    await provider.advanceTimeTo(request.expiry + 1)
+    await ethProvider.advanceTimeTo(request.expiry + 1)
     switchAccount(client)
-    let missingPeriod = periodicity.periodOf(await provider.currentTime())
-    await provider.advanceTime(periodicity.seconds)
+    let missingPeriod = periodicity.periodOf(await ethProvider.currentTime())
+    await ethProvider.advanceTime(periodicity.seconds)
     check await marketplace
       .markProofAsMissing(slotId, missingPeriod)
       .reverts("Slot not accepting proofs")

@@ -10,13 +10,12 @@ logScope:
   topics = "contracts clock"
 
 type
-  LastBlockUnknownError* = object of CatchableError
   OnChainClock* = ref object of Clock
     provider: Provider
     subscription: Subscription
-    offset: times.Duration
     started: bool
     newBlock: AsyncEvent
+    lastBlockTime: UInt256
 
 proc new*(_: type OnChainClock, provider: Provider): OnChainClock =
   OnChainClock(provider: provider, newBlock: newAsyncEvent())
@@ -27,9 +26,7 @@ method start*(clock: OnChainClock) {.async.} =
   clock.started = true
 
   proc onBlock(blck: Block) {.upraises:[].} =
-    let blockTime = initTime(blck.timestamp.truncate(int64), 0)
-    let computerTime = getTime()
-    clock.offset = blockTime - computerTime
+    clock.lastBlockTime = blck.timestamp
     clock.newBlock.fire()
 
   if latestBlock =? (await clock.provider.getBlock(BlockTag.latest)):
@@ -45,16 +42,17 @@ method stop*(clock: OnChainClock) {.async.} =
   await clock.subscription.unsubscribe()
 
 method now*(clock: OnChainClock): SecondsSince1970 =
-  doAssert clock.started, "clock should be started before calling now()"
-  toUnix(getTime() + clock.offset)
-
-method lastBlockTimestamp*(clock: OnChainClock): Future[UInt256] {.async.} =
-  without blk =? await clock.provider.getBlock(BlockTag.latest):
-    raise newException(LastBlockUnknownError, "failed to get last block")
-
-  return blk.timestamp
+  try:
+    if queriedBlock =? (waitFor clock.provider.getBlock(BlockTag.latest)):
+      if queriedBlock.timestamp != clock.lastBlockTime:
+        trace "queried block and event block are not in sync",
+          queriedBlockLessThanEventBlock = queriedBlock.timestamp < clock.lastBlockTime
+      return queriedBlock.timestamp.truncate(int64)
+  except CatchableError as e:
+    warn "failed to get latest block timestamp"
+    return clock.lastBlockTime.truncate(int64)
 
 method waitUntil*(clock: OnChainClock, time: SecondsSince1970) {.async.} =
-  while (let difference = time - (await clock.lastBlockTimestamp).truncate(int64); difference > 0):
+  while (let difference = time - clock.now(); difference > 0):
     clock.newBlock.clear()
     discard await clock.newBlock.wait().withTimeout(chronos.seconds(difference))
