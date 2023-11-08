@@ -348,7 +348,7 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
 proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   var router = RestRouter.init(validate)
 
-  initContentApi(node, router)
+  initDataApi(node, router)
   initSalesApi(node, router)
   initPurchasingApi(node, router)
   initDebugApi(node, conf, router)
