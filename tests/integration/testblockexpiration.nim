@@ -1,5 +1,6 @@
 import std/os
 import std/httpclient
+import std/strutils
 from std/net import TimeoutError
 
 import pkg/chronos
@@ -50,6 +51,13 @@ ethersuite "Node block expiration tests":
     client.close()
     content
 
+  proc hasFile(contentId: string): bool =
+    let client = newHttpClient(timeout=3000)
+    let dataLocalUrl = baseurl & "/data/local"
+    let content = client.get(dataLocalUrl)
+    client.close()
+    return content.body.contains(contentId)
+
   test "node retains not-expired file":
     startTestNode(blockTtlSeconds = 10)
 
@@ -59,6 +67,7 @@ ethersuite "Node block expiration tests":
 
     let response = downloadTestFile(contentId)
     check:
+      hasFile(contentId)
       response.status == "200 OK"
       response.body == content
 
@@ -68,6 +77,9 @@ ethersuite "Node block expiration tests":
     let contentId = uploadTestFile()
 
     await sleepAsync(3.seconds)
+
+    check:
+      not hasFile(contentId)
 
     expect TimeoutError:
       discard downloadTestFile(contentId)
