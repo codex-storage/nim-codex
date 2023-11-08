@@ -26,14 +26,14 @@ type
     providers*: NodeConfig
     validators*: NodeConfig
     hardhat*: HardhatConfig
-  NodeConfig* = object
+  Config* = object of RootObj
+    logFile*: bool
+  NodeConfig* = object of Config
     numNodes*: int
     cliOptions*: seq[CliOption]
-    logFile*: bool
     logTopics*: seq[string]
     debugEnabled*: bool
-  HardhatConfig* = ref object
-    logFile*: bool
+  HardhatConfig* = ref object of Config
   Role* {.pure.} = enum
     Client,
     Provider,
@@ -98,19 +98,10 @@ proc withLogTopics*(
   startConfig.logTopics = startConfig.logTopics.concat(@topics)
   return startConfig
 
-proc withLogFile*(
-  config: NodeConfig,
+proc withLogFile*[T: Config](
+  config: T,
   logToFile: bool = true
-): NodeConfig =
-
-  var startConfig = config
-  startConfig.logFile = logToFile
-  return startConfig
-
-proc withLogFile*(
-  config: HardhatConfig,
-  logToFile: bool = true
-): HardhatConfig =
+): T =
 
   var startConfig = config
   startConfig.logFile = logToFile
@@ -123,17 +114,32 @@ template multinodesuite*(name: string, startNodes: Nodes, body: untyped) =
     var running: seq[RunningNode]
     var bootstrap: string
     let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
+    var currentTestName = ""
+
+    template test(namet, bodyt) =
+      currentTestName = namet
+      test namet:
+        bodyt
 
     proc getLogFile(role: Role, index: ?int): string =
-      var nameSanitized = name
+      # create log file path, format:
+      # tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+      var suiteNameSanitized = name
+      var testNameSanitized = currentTestName
       for invalid in invalidFilenameChars.items:
-        nameSanitized = nameSanitized.replace(invalid, '_')
-      var logDir = currentSourcePath.parentDir() / "logs" / nameSanitized / $starttime
+        suiteNameSanitized = suiteNameSanitized.replace(invalid, '_')
+        testNameSanitized = testNameSanitized.replace(invalid, '_')
+
+      var logDir = currentSourcePath.parentDir() /
+        "logs" /
+        $starttime & " " & suiteNameSanitized / $testNameSanitized
       createDir(logDir)
+
       var fn = $role
       if idx =? index:
         fn &= "_" & $idx
       fn &= ".log"
+
       let fileName = logDir / fn
       return fileName
 

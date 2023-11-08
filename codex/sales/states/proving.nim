@@ -79,6 +79,7 @@ proc proveLoop(
       debug "Proof is required", period = currentPeriod
       await state.prove(slot, onProve, market, currentPeriod)
 
+    debug "waiting until next period"
     await waitUntilPeriod(currentPeriod + 1)
 
 method `$`*(state: SaleProving): string = "SaleProving"

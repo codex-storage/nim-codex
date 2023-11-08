@@ -16,15 +16,31 @@ template marketplacesuite*(name: string, startNodes: Nodes, body: untyped) =
     var period: uint64
     var periodicity: Periodicity
     var token {.inject, used.}: Erc20Token
+    var continuousMineFut: Future[void]
 
     proc getCurrentPeriod(): Future[Period] {.async.} =
       return periodicity.periodOf(await ethProvider.currentTime())
 
     proc advanceToNextPeriod() {.async.} =
       let periodicity = Periodicity(seconds: period.u256)
-      let currentPeriod = periodicity.periodOf(await ethProvider.currentTime())
+      let currentTime = await ethProvider.currentTime()
+      let currentPeriod = periodicity.periodOf(currentTime)
       let endOfPeriod = periodicity.periodEnd(currentPeriod)
       await ethProvider.advanceTimeTo(endOfPeriod + 1)
+
+    template eventuallyP(condition: untyped, finalPeriod: Period): bool =
+
+      proc eventuallyP: Future[bool] {.async.} =
+        while(
+          let currentPeriod = await getCurrentPeriod();
+          currentPeriod <= finalPeriod
+        ):
+          if condition:
+            return true
+          await sleepAsync(1.millis)
+        return condition
+
+      await eventuallyP()
 
     proc timeUntil(period: Period): Future[times.Duration] {.async.} =
       let currentPeriod = await getCurrentPeriod()
@@ -60,9 +76,6 @@ template marketplacesuite*(name: string, startNodes: Nodes, body: untyped) =
 
       let expiry = (await ethProvider.currentTime()) + expiry.u256
 
-      # avoid timing issues by filling the slot at the start of the next period
-      await advanceToNextPeriod()
-
       let id = client.requestStorage(
         cid,
         expiry=expiry,
@@ -76,6 +89,14 @@ template marketplacesuite*(name: string, startNodes: Nodes, body: untyped) =
 
       return id
 
+    proc continuouslyAdvanceEvery(every: chronos.Duration) {.async.} =
+      try:
+        while true:
+          await advanceToNextPeriod()
+          await sleepAsync(every)
+      except CancelledError:
+        discard
+
     setup:
       marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
       let tokenAddress = await marketplace.token()
@@ -84,11 +105,9 @@ template marketplacesuite*(name: string, startNodes: Nodes, body: untyped) =
       period = config.proofs.period.truncate(uint64)
       periodicity = Periodicity(seconds: period.u256)
 
-      discard await ethProvider.send("evm_setIntervalMining", @[%1000])
+      continuousMineFut = continuouslyAdvanceEvery(chronos.millis(500))
 
-      # Our Hardhat configuration does use automine, which means that time tracked by `provider.currentTime()` is not
-      # advanced until blocks are mined and that happens only when transaction is submitted.
-      # As we use in tests provider.currentTime() which uses block timestamp this can lead to synchronization issues.
-      await ethProvider.advanceTime(1.u256)
+    teardown:
+      await continuousMineFut.cancelAndWait()
 
     body
