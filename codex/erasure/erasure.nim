@@ -154,13 +154,15 @@ proc encode*(
 
 proc decode*(
   self: Erasure,
-  encoded: Manifest): Future[?!Manifest] {.async.} =
+  encoded: Manifest,
+  needed: int = encoded.ecK): Future[?!Manifest] {.async.} =
   ## Decode a protected manifest into it's original
   ## manifest
   ##
   ## `encoded` - the encoded (protected) manifest to
   ##             be recovered
-  ##
+  ## `needed` - number of pieces to retrieve before attempting decode.
+  ##             Defaults to MDS ecK.
 
   logScope:
     steps           = encoded.steps
@@ -197,7 +199,7 @@ proc decode*(
       while true:
         # Continue to receive blocks until we have just enough for decoding
         # or no more blocks can arrive
-        if (resolved >= encoded.ecK) or (idxPendingBlocks.len == 0):
+        if (resolved >= needed) or (idxPendingBlocks.len == 0):
           break
 
         let
