@@ -33,9 +33,9 @@ type
   ChangeListener* = proc (): void {.raises: [].}
 
 var
-  perFutureMetrics {.threadvar.}: Table[uint, FutureMetrics]
-  futureSummaryMetrics {.threadvar.}: MetricsSummary
-  onChange {.threadvar.}: ChangeListener
+  perFutureMetrics: Table[uint, FutureMetrics]
+  futureSummaryMetrics: MetricsSummary
+  onChange: ChangeListener
 
 proc getFutureSummaryMetrics*(): MetricsSummary {.gcsafe.} =
   ## get a copy of the table of summary metrics for all futures.

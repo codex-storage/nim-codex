@@ -19,7 +19,7 @@ when defined(metrics):
 
     PerfSampler = proc (): MetricsSummary {.raises: [].}
 
-    Clock = proc(): Time {.raises: [].}
+    Clock = proc (): Time {.raises: [].}
 
     ProfilerMetric = (SrcLoc, OverallMetrics)
 
@@ -181,15 +181,12 @@ when defined(metrics):
     resetMetric(chronos_largest_exec_time_total)
     resetMetric(chronos_largest_exec_time_max)
 
-  var asyncProfilerInfo* {.threadvar.}: AsyncProfilerInfo
-
-  proc initDefault(AsyncProfilerInfo: typedesc): void =
-    asyncProfilerInfo = AsyncProfilerInfo.newCollector(
-      perfSampler = asyncprofiler.getFutureSummaryMetrics,
+  var asyncProfilerInfo* {.global.}: AsyncProfilerInfo = AsyncProfilerInfo.newCollector(
+      perfSampler = getFutureSummaryMetrics,
       k = 10,
       # We want to collect metrics every 5 seconds.
-      sampleInterval = times.milliseconds(5 * 1000),
-      clock = proc (): Time = time.getTime(),
+      sampleInterval = initDuration(seconds = 5),
+      clock = proc (): Time = getTime(),
     )
 
-    setChangeCallback(asyncProfilerInfo)
+  setChangeCallback(proc (): void = asyncProfilerInfo.collect())
