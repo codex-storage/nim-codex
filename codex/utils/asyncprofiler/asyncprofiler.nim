@@ -33,9 +33,12 @@ type
   ChangeListener* = proc (): void {.raises: [].}
 
 var
-  perFutureMetrics: Table[uint, FutureMetrics]
-  futureSummaryMetrics: MetricsSummary
-  onChange: ChangeListener
+  perFutureMetrics {.threadvar.}: Table[uint, FutureMetrics]
+  futureSummaryMetrics {.threadvar.}: MetricsSummary
+  onChange {.threadvar.}: ChangeListener
+  # FIXME this is a HACK because it's currently not simple to disable
+  #   the profiler on a thread-by-thread basis.
+  enabledForCurrentThread {.threadvar.}: bool
 
 proc getFutureSummaryMetrics*(): MetricsSummary {.gcsafe.} =
   ## get a copy of the table of summary metrics for all futures.
@@ -114,22 +117,31 @@ proc setFutureDuration(fut: FutureBase) {.raises: [].} =
     futureSummaryMetrics.withValue(loc, metric):
       metric[].addRun(runMetrics)
 
+proc enableChronosProfiling* (): void =
+  ## This gates for which chronos event loops we want to collect metrics. This
+  ## method should be called for each event loop, before chronos is started.
+  enabledForCurrentThread = true
+
 onFutureCreate =
   proc (f: FutureBase) {.nimcall, gcsafe, raises: [].} =
-    f.setFutureCreate()
+    if enabledForCurrentThread:
+      f.setFutureCreate()
 
 onFutureRunning =
   proc (f: FutureBase) {.nimcall, gcsafe, raises: [].} =
-    f.setFutureStart()
+    if enabledForCurrentThread:
+      f.setFutureStart()
 
 onFuturePause =
   proc (f, child: FutureBase) {.nimcall, gcsafe, raises: [].} =
-    f.setFuturePause(child)
+    if enabledForCurrentThread:
+      f.setFuturePause(child)
 
 onFutureStop =
   proc (f: FutureBase) {.nimcall, gcsafe, raises: [].} =
-    f.setFuturePause(nil)
-    f.setFutureDuration()
+    if enabledForCurrentThread:
+      f.setFuturePause(nil)
+      f.setFutureDuration()
 
 when isMainModule:
   import std/unittest

@@ -16,7 +16,6 @@ when defined(metrics):
       init: bool
       lastSample: Time
       collections*: uint
-      threadId: int
 
     PerfSampler = proc (): MetricsSummary {.raises: [].}
 
@@ -71,8 +70,9 @@ when defined(metrics):
     "the largest chronos_single_exec_time_max of all procs",
   )
 
+  # Keeps track of the thread initializing the module. This is the only thread
+  # that will be allowed to interact with the metrics collector.
   let moduleInitThread = getThreadId()
-  echo "MODULE INIT THREAD: ", getThreadId()
 
   proc newCollector*(
     AsyncProfilerInfo: typedesc,
@@ -87,7 +87,6 @@ when defined(metrics):
     sampleInterval: sampleInterval,
     init: true,
     lastSample: low(Time),
-    threadId: getThreadId(),
   )
 
   proc collectSlowestProcs(
@@ -145,17 +144,16 @@ when defined(metrics):
     chronos_largest_exec_time_max.set(largestMaxExecTime.nanoseconds)
 
   proc collect*(self: AsyncProfilerInfo, force: bool = false): void =
-    if getThreadId() != self.threadId:
-      raise (ref Defect)(msg: "AsyncProfilerInfo.collect() called from a different thread" &
-        " than the one it was initialized with.")
+    # Calling this method from the wrong thread has happened a lot in the past,
+    # so this makes sure we're not doing anything funny.
+    assert getThreadId() == moduleInitThread, "You cannot call collect() from" &
+      " a thread other than the one that initialized the metricscolletor module"
 
     let now = self.clock()
-
     if not force and (now - self.lastSample < self.sampleInterval):
       return
 
     self.collections += 1
-
     var currentMetrics = self.
       perfSampler().
       pairs.
@@ -163,6 +161,13 @@ when defined(metrics):
       map(
         proc (pair: (ptr SrcLoc, OverallMetrics)): ProfilerMetric =
           (pair[0][], pair[1])
+      ).
+      # We don't scoop metrics with 0 exec time as we have a limited number of
+      # prometheus slots, and those are less likely to be useful in debugging
+      # Chronos performance issues.
+      filter(
+        proc (pair: ProfilerMetric): bool =
+          pair[1].totalExecTime.nanoseconds > 0
       ).
       sorted(
         proc (a, b: ProfilerMetric): int =
@@ -193,12 +198,9 @@ when defined(metrics):
   var asyncProfilerInfo* {.global.}: AsyncProfilerInfo
 
   proc initDefault*(AsyncProfilerInfo: typedesc, k: int) =
-
-    echo "INIT DEFAULT THREAD: ", getThreadId()
-
-    if moduleInitThread != getThreadId():
-      raise (ref Defect)(msg: "AsyncProfilerInfo.initDefault() called from a different thread" &
-        " than the one it was initialized with.")
+    assert getThreadId() == moduleInitThread, "You cannot call " &
+      "initDefault() from a thread other than the one that initialized the " &
+      "metricscolletor module."
 
     asyncProfilerInfo = AsyncProfilerInfo.newCollector(
       perfSampler = getFutureSummaryMetrics,

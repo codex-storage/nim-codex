@@ -59,6 +59,7 @@ when isMainModule:
   #   or we get a circular import.
   when chronosFuturesInstrumentation:
     AsyncProfilerInfo.initDefault(k = config.profilerMaxMetrics)
+    enableChronosProfiling()
 
   case config.cmd:
   of StartUpCommand.noCommand:
