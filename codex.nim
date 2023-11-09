@@ -19,13 +19,11 @@ import pkg/confutils/toml/std/uri as confTomlUri
 import pkg/toml_serialization
 import pkg/libp2p
 
-when defined(chronosFuturesInstrumentation):
-  import ./codex/utils/asyncprofiler
-
 import ./codex/conf
 import ./codex/codex
 import ./codex/units
 import ./codex/utils/keyutils
+import ./codex/utils/asyncprofiler
 
 export codex, conf, libp2p, chronos, chronicles
 
@@ -56,6 +54,11 @@ when isMainModule:
   )
   config.setupLogging()
   config.setupMetrics()
+
+  # TODO this should not be here, but currently can't have it in setupMetrics
+  #   or we get a circular import.
+  when chronosFuturesInstrumentation:
+    AsyncProfilerInfo.initDefault(k = config.profilerMaxMetrics)
 
   case config.cmd:
   of StartUpCommand.noCommand:
@@ -108,18 +111,6 @@ when isMainModule:
       state = CodexStatus.Stopping
 
       notice "Stopping Codex"
-
-      when defined(chronosFuturesInstrumentation):
-        let metrics = getFutureSummaryMetrics()
-        for (k,v) in metrics.pairs():
-          let count = v.count
-          if count > 0:
-            echo ""
-            echo "metric: ", $k
-            echo "count: ", count
-            echo "avg execTime:\t", v.totalExecTime div count, "\ttotal: ", v.totalExecTime
-            echo "avg wallTime:\t", v.totalWallTime div count, "\ttotal: ", v.totalWallTime
-            echo "avg runTime:\t", v.totalRunTime div count, "\ttotal: ", v.totalRunTime
 
     try:
       setControlCHook(controlCHandler)

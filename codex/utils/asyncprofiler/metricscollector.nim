@@ -181,12 +181,15 @@ when defined(metrics):
     resetMetric(chronos_largest_exec_time_total)
     resetMetric(chronos_largest_exec_time_max)
 
-  var asyncProfilerInfo* {.global.}: AsyncProfilerInfo = AsyncProfilerInfo.newCollector(
+  var asyncProfilerInfo* {.global.}: AsyncProfilerInfo
+
+  proc initDefault*(AsyncProfilerInfo: typedesc, k: int) =
+    asyncProfilerInfo = AsyncProfilerInfo.newCollector(
       perfSampler = getFutureSummaryMetrics,
-      k = 10,
+      k = k,
       # We want to collect metrics every 5 seconds.
       sampleInterval = initDuration(seconds = 5),
       clock = proc (): Time = getTime(),
     )
 
-  setChangeCallback(proc (): void = asyncProfilerInfo.collect())
+    setChangeCallback(proc (): void = asyncProfilerInfo.collect())

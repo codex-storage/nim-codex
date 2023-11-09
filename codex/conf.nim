@@ -106,6 +106,11 @@ type
       abbr: "d"
       name: "data-dir" }: OutDir
 
+    profilerMaxMetrics* {.
+      desc: "Maximum number of metrics to export to Prometheus."
+      defaultValue: 100
+      name: "profiler-max-metrics" }: int
+
     case cmd* {.
       command
       defaultValue: noCommand }: StartUpCommand

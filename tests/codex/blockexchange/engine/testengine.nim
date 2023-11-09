@@ -16,9 +16,8 @@ import pkg/codex/chunker
 import pkg/codex/discovery
 import pkg/codex/blocktype
 import pkg/codex/utils/asyncheapqueue
+import pkg/codex/utils/asyncprofiler
 
-when defined(chronosFuturesInstrumentation):
-  import pkg/codex/utils/asyncprofiler
 import ../../helpers
 import ../../examples
 
