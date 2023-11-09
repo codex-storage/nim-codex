@@ -51,7 +51,7 @@ proc validate(
   0
 
 proc formatManifestBlocks(node: CodexNodeRef): Future[JsonNode] {.async.} =
-  var content: seq[RestContent] = @[]
+  var content: seq[RestContent]
 
   proc formatManifest(cid: Cid, manifest: Manifest) =
     let restContent = RestContent.init(cid, manifest)
@@ -59,6 +59,51 @@ proc formatManifestBlocks(node: CodexNodeRef): Future[JsonNode] {.async.} =
 
   await node.iterateManifests(formatManifest)
   return %content
+
+proc retrieveCid(
+  node: CodexNodeRef,
+  cid: Cid,
+  local: bool = true,
+  resp: HttpResponseRef): Future[RestApiResponse] {.async.} =
+  ## Download a file from the node in a streaming
+  ## manner
+  ##
+
+  var
+    stream: LPStream
+
+  var bytes = 0
+  try:
+    without stream =? (await node.retrieve(cid, local)), error:
+      if error of BlockNotFoundError:
+        return RestApiResponse.error(Http404, error.msg)
+      else:
+        return RestApiResponse.error(Http500, error.msg)
+
+    resp.addHeader("Content-Type", "application/octet-stream")
+    await resp.prepareChunked()
+
+    while not stream.atEof:
+      var
+        buff = newSeqUninitialized[byte](DefaultBlockSize.int)
+        len = await stream.readOnce(addr buff[0], buff.len)
+
+      buff.setLen(len)
+      if buff.len <= 0:
+        break
+
+      bytes += buff.len
+      trace "Sending chunk", size = buff.len
+      await resp.sendChunk(addr buff[0], buff.len)
+    await resp.finish()
+    codex_api_downloads.inc()
+  except CatchableError as exc:
+    trace "Excepting streaming blocks", exc = exc.msg
+    return RestApiResponse.error(Http500)
+  finally:
+    trace "Sent bytes", cid = cid, bytes
+    if not stream.isNil:
+      await stream.close()
 
 proc initDataApi(node: CodexNodeRef, router: var RestRouter) =
   router.rawApi(
@@ -105,7 +150,7 @@ proc initDataApi(node: CodexNodeRef, router: var RestRouter) =
 
   router.api(
     MethodGet,
-    "/api/codex/v1/local") do () -> RestApiResponse:
+    "/api/codex/v1/data") do () -> RestApiResponse:
       let json = await formatManifestBlocks(node)
       return RestApiResponse.response($json, contentType="application/json")
 
@@ -113,7 +158,20 @@ proc initDataApi(node: CodexNodeRef, router: var RestRouter) =
     MethodGet,
     "/api/codex/v1/data/{cid}") do (
       cid: Cid, resp: HttpResponseRef) -> RestApiResponse:
-      ## Download a file from the node in a streaming
+      ## Download a file from the local node in a streaming
+      ## manner
+      if cid.isErr:
+        return RestApiResponse.error(
+          Http400,
+          $cid.error())
+
+      await node.retrieveCid(cid.get(), local = true, resp=resp)
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/data/{cid}/network") do (
+      cid: Cid, resp: HttpResponseRef) -> RestApiResponse:
+      ## Download a file from the network in a streaming
       ## manner
       ##
 
@@ -122,38 +180,7 @@ proc initDataApi(node: CodexNodeRef, router: var RestRouter) =
           Http400,
           $cid.error())
 
-      var
-        stream: LPStream
-
-      var bytes = 0
-      try:
-        without stream =? (await node.retrieve(cid.get())), error:
-          return RestApiResponse.error(Http404, error.msg)
-
-        resp.addHeader("Content-Type", "application/octet-stream")
-        await resp.prepareChunked()
-
-        while not stream.atEof:
-          var
-            buff = newSeqUninitialized[byte](DefaultBlockSize.int)
-            len = await stream.readOnce(addr buff[0], buff.len)
-
-          buff.setLen(len)
-          if buff.len <= 0:
-            break
-
-          bytes += buff.len
-          trace "Sending chunk", size = buff.len
-          await resp.sendChunk(addr buff[0], buff.len)
-        await resp.finish()
-        codex_api_downloads.inc()
-      except CatchableError as exc:
-        trace "Excepting streaming blocks", exc = exc.msg
-        return RestApiResponse.error(Http500)
-      finally:
-        trace "Sent bytes", cid = cid.get(), bytes
-        if not stream.isNil:
-          await stream.close()
+      await node.retrieveCid(cid.get(), local = false, resp=resp)
 
 proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
   router.api(
