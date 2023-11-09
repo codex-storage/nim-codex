@@ -24,9 +24,12 @@ asyncchecksuite "Erasure encode/decode":
   var erasure: Erasure
 
   setup:
+    let
+      repoDs = SQLiteDatastore.new(Memory).tryGet()
+      metaDs = SQLiteDatastore.new(Memory).tryGet()
     rng = Rng.instance()
     chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = BlockSize)
-    store = CacheStore.new(cacheSize = (dataSetSize * 8), chunkSize = BlockSize)
+    store = RepoStore.new(repoDs, metaDs)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     manifest = await storeDataGetManifest(store, chunker)
 

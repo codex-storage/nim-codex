@@ -104,8 +104,12 @@ proc getPendingBlocks(
 
   proc genNext(): Future[(?!bt.Block, int)] {.async.} = 
     let completedFut = await one(pendingBlocks)
-    pendingBlocks.del(pendingBlocks.find(completedFut))
-    return await completedFut
+    if (let i = pendingBlocks.find(completedFut); i >= 0):
+      pendingBlocks.del(i)
+      return await completedFut
+    else:
+      let (_, index) = await completedFut
+      raise newException(CatchableError, "Future for block id not found, tree cid: " & $manifest.treeCid & ", index: " & $index)
 
   Iter.new(genNext, isFinished)
  
@@ -128,7 +132,7 @@ proc prepareEncodingData(
   for fut in pendingBlocksIter:
     let (blkOrErr, idx) = await fut
     without blk =? blkOrErr, err:
-      warn "Failed retreiving a block", idx, treeCid = manifest.treeCid
+      warn "Failed retreiving a block", treeCid = manifest.treeCid, idx, msg = err.msg
       continue
     
     let pos = indexToPos(params.steps, idx, step)
@@ -180,7 +184,7 @@ proc prepareDecodingData(
 
     let (blkOrErr, idx) = await fut
     without blk =? blkOrErr, err:
-      trace "Failed retreiving a block", idx, treeCid = encoded.treeCid
+      trace "Failed retreiving a block", idx, treeCid = encoded.treeCid, msg = err.msg
       continue
 
     let
@@ -368,7 +372,6 @@ proc decode*(
         data = seq[seq[byte]].new()
         parityData = seq[seq[byte]].new()
         recovered = newSeqWith[seq[byte]](encoded.ecK, newSeq[byte](encoded.blockSize.int))
-        resolved = 0
 
       data[].setLen(encoded.ecK)        # set len to K
       parityData[].setLen(encoded.ecM)  # set len to M

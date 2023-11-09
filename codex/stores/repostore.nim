@@ -78,26 +78,27 @@ func available*(self: RepoStore, bytes: uint): bool =
   return bytes < self.available()
 
 proc encode(cidAndProof: (Cid, MerkleProof)): seq[byte] =
+  ## Encodes a tuple of cid and merkle proof in a following format:
+  ## | 8-bytes | n-bytes | remaining bytes |
+  ## |    n    |   cid   |      proof      |
+  ## 
+  ## where n is a size of cid
+  ## 
   let 
     (cid, proof) = cidAndProof
     cidBytes = cid.data.buffer
     proofBytes = proof.encode
+    n = cidBytes.len
+    nBytes = n.uint64.toBytesBE
 
-  var buf = newSeq[byte](1 + cidBytes.len + proofBytes.len)
-
-  buf[0] = cid.data.buffer.len.byte # cid shouldnt be more than 255 bytes?
-  buf[1..cidBytes.len] = cidBytes
-  buf[cidBytes.len + 1..^1] = proofBytes
-
-  buf
+  @nBytes & cidBytes & proofBytes
 
 proc decode(_: type (Cid, MerkleProof), data: seq[byte]): ?!(Cid, MerkleProof) =
-  let cidLen = data[0].int
-
+  let
+    n = uint64.fromBytesBE(data[0..<sizeof(uint64)]).int
   let 
-    cid = ? Cid.init(data[1..cidLen]).mapFailure
-    proof = ? MerkleProof.decode(data[cidLen + 1..^1])
-  
+    cid = ? Cid.init(data[sizeof(uint64)..<sizeof(uint64) + n]).mapFailure
+    proof = ? MerkleProof.decode(data[sizeof(uint64) + n..^1])
   success((cid, proof))
 
 method putBlockCidAndProof*(
@@ -608,7 +609,7 @@ proc stop*(self: RepoStore): Future[void] {.async.} =
 
   self.started = false
 
-proc new*(
+func new*(
     T: type RepoStore,
     repoDs: Datastore,
     metaDs: Datastore,
