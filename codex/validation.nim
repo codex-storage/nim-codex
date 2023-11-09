@@ -36,11 +36,11 @@ proc new*(
 proc slots*(validation: Validation): seq[SlotId] =
   validation.slots.toSeq
 
-proc getCurrentPeriod(validation: Validation): Future[UInt256] {.async.} =
+proc getCurrentPeriod(validation: Validation): UInt256 =
   return validation.periodicity.periodOf(validation.clock.now().u256)
 
 proc waitUntilNextPeriod(validation: Validation) {.async.} =
-  let period = await validation.getCurrentPeriod()
+  let period = validation.getCurrentPeriod()
   let periodEnd = validation.periodicity.periodEnd(period)
   trace "Waiting until next period", currentPeriod = period
   await validation.clock.waitUntil(periodEnd.truncate(int64) + 1)
@@ -68,14 +68,14 @@ proc markProofAsMissing(validation: Validation,
                         slotId: SlotId,
                         period: Period) {.async.} =
   logScope:
-    currentPeriod = await validation.getCurrentPeriod()
+    currentPeriod = validation.getCurrentPeriod()
 
   try:
     if await validation.market.canProofBeMarkedAsMissing(slotId, period):
       trace "Marking proof as missing", slotId = $slotId, periodProofMissed = period
       await validation.market.markProofAsMissing(slotId, period)
     else:
-      let inDowntime = await validation.market.inDowntime(slotId)
+      let inDowntime {.used.} = await validation.market.inDowntime(slotId)
       trace "Proof not missing", checkedPeriod = period, inDowntime
   except CancelledError:
     raise
@@ -84,7 +84,7 @@ proc markProofAsMissing(validation: Validation,
 
 proc markProofsAsMissing(validation: Validation) {.async.} =
   for slotId in validation.slots:
-    let previousPeriod = (await validation.getCurrentPeriod()) - 1
+    let previousPeriod = validation.getCurrentPeriod() - 1
     await validation.markProofAsMissing(slotId, previousPeriod)
 
 proc run(validation: Validation) {.async.} =
