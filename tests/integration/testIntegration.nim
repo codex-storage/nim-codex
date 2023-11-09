@@ -14,6 +14,7 @@ import ../contracts/deployment
 import ../codex/helpers
 import ../examples
 import ./twonodes
+import ./marketplacesuite
 
 
 # For debugging you can enable logging output with debugX = true
@@ -21,17 +22,11 @@ import ./twonodes
 # to enable custom logging levels for specific topics like: debug2 = "INFO; TRACE: marketplace"
 
 twonodessuite "Integration tests", debug1 = false, debug2 = false:
-
-  proc purchaseStateIs(client: CodexClient, id: PurchaseId, state: string): bool =
-    without purchase =? client.getPurchase(id):
-      return false
-    return purchase.state == state
-
   setup:
-    # Our Hardhat configuration does use automine, which means that time tracked by `provider.currentTime()` is not
+    # Our Hardhat configuration does use automine, which means that time tracked by `ethProvider.currentTime()` is not
     # advanced until blocks are mined and that happens only when transaction is submitted.
-    # As we use in tests provider.currentTime() which uses block timestamp this can lead to synchronization issues.
-    await provider.advanceTime(1.u256)
+    # As we use in tests ethProvider.currentTime() which uses block timestamp this can lead to synchronization issues.
+    await ethProvider.advanceTime(1.u256)
 
   test "nodes can print their peer information":
     check client1.info() != client2.info()
@@ -101,7 +96,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check availability in client1.getAvailabilities().get
 
   test "node handles storage request":
-    let expiry = (await provider.currentTime()) + 10
+    let expiry = (await ethProvider.currentTime()) + 10
     let cid = client1.upload("some file contents").get
     let id1 = client1.requestStorage(cid, duration=100.u256, reward=2.u256, proofProbability=3.u256, expiry=expiry, collateral=200.u256).get
     let id2 = client1.requestStorage(cid, duration=400.u256, reward=5.u256, proofProbability=6.u256, expiry=expiry, collateral=201.u256).get
@@ -113,7 +108,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     let chunker = RandomChunker.new(rng, size = DefaultBlockSize * 2, chunkSize = DefaultBlockSize * 2)
     let data = await chunker.getBytes()
     let cid = client1.upload(byteutils.toHex(data)).get
-    let expiry = (await provider.currentTime()) + 30
+    let expiry = (await ethProvider.currentTime()) + 30
     let id = client1.requestStorage(
       cid,
       duration=100.u256,
@@ -135,7 +130,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
 
   # TODO: We currently do not support encoding single chunks
   # test "node retrieves purchase status with 1 chunk":
-  #   let expiry = (await provider.currentTime()) + 30
+  #   let expiry = (await ethProvider.currentTime()) + 30
   #   let cid = client1.upload("some file contents").get
   #   let id = client1.requestStorage(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, expiry=expiry, collateral=200.u256, nodes=2, tolerance=1).get
   #   let request = client1.getPurchase(id).get.request.get
@@ -148,7 +143,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
   #   check request.ask.maxSlotLoss == 1'u64
 
   test "node remembers purchase status after restart":
-    let expiry = (await provider.currentTime()) + 30
+    let expiry = (await ethProvider.currentTime()) + 30
     let cid = client1.upload("some file contents").get
     let id = client1.requestStorage(cid,
                                     duration=100.u256,
@@ -178,7 +173,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     discard client2.postAvailability(size=size, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256)
 
     # client 1 requests storage
-    let expiry = (await provider.currentTime()) + 30
+    let expiry = (await ethProvider.currentTime()) + 30
     let cid = client1.upload("some file contents").get
     let id = client1.requestStorage(cid, duration=100.u256, reward=400.u256, proofProbability=3.u256, expiry=expiry, collateral=200.u256).get
 
@@ -191,9 +186,9 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check newSize > 0 and newSize < size
 
   test "node slots gets paid out":
-    let marketplace = Marketplace.new(Marketplace.address, provider.getSigner())
+    let marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
     let tokenAddress = await marketplace.token()
-    let token = Erc20Token.new(tokenAddress, provider.getSigner())
+    let token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
     let reward = 400.u256
     let duration = 100.u256
 
@@ -202,7 +197,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     discard client2.postAvailability(size=0xFFFFF.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
 
     # client 1 requests storage
-    let expiry = (await provider.currentTime()) + 30
+    let expiry = (await ethProvider.currentTime()) + 30
     let cid = client1.upload("some file contents").get
     let id = client1.requestStorage(cid, duration=duration, reward=reward, proofProbability=3.u256, expiry=expiry, collateral=200.u256).get
 
@@ -213,7 +208,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     # Proving mechanism uses blockchain clock to do proving/collect/cleanup round
     # hence we must use `advanceTime` over `sleepAsync` as Hardhat does mine new blocks
     # only with new transaction
-    await provider.advanceTime(duration)
+    await ethProvider.advanceTime(duration)
 
     check eventually (await token.balanceOf(account2)) - startBalance == duration*reward
 
@@ -233,29 +228,91 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check responseBefore.status == "400 Bad Request"
     check responseBefore.body == "Expiry has to be before the request's end (now + duration)"
 
+
+marketplacesuite "Marketplace integration tests - 1 client, 1 provider",
+  Nodes(
+    # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
+    # hardhat: HardhatConfig()
+    #           .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log,
+
+    clients: NodeConfig()
+              .nodes(1)
+              # .debug() # uncomment to enable console log output.debug()
+              # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+              .withLogTopics("node", "erasure"),
+
+    providers: NodeConfig()
+                .nodes(1)
+                # .debug() # uncomment to enable console log output
+                # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+                .withLogTopics(
+                  "marketplace",
+                  "sales",
+                  "reservations",
+                  "node",
+                  "JSONRPC-HTTP-CLIENT",
+                  "JSONRPC-WS-CLIENT",
+                  "ethers",
+                  "restapi",
+                  "clock"
+                )
+):
   test "expired request partially pays out for stored time":
-    let marketplace = Marketplace.new(Marketplace.address, provider.getSigner())
-    let tokenAddress = await marketplace.token()
-    let token = Erc20Token.new(tokenAddress, provider.getSigner())
     let reward = 400.u256
-    let duration = 100.u256
+    let duration = 100.periods
+    let collateral = 200.u256
+    let expiry = 4.periods
+    let data = byteutils.toHex(await exampleData())
+    let client = clients()[0]
+    let provider = providers()[0]
+    let clientApi = client.node.client
+    let providerApi = provider.node.client
+    let startBalanceProvider = await token.balanceOf(!provider.address)
+    let startBalanceClient = await token.balanceOf(!client.address)
 
-    # client 2 makes storage available
-    let startBalanceClient2 = await token.balanceOf(account2)
-    discard client2.postAvailability(size=140000.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
+    # provider makes storage available
+    discard providerApi.postAvailability(
+      size=data.len.u256,
+      duration=duration.u256,
+      minPrice=reward,
+      maxCollateral=collateral)
 
-    # client 1 requests storage but requires two nodes to host the content
-    let startBalanceClient1 = await token.balanceOf(account1)
-    let expiry = (await provider.currentTime()) + 10
-    let cid = client1.upload(exampleString(100000)).get
-    let id = client1.requestStorage(cid, duration=duration, reward=reward, proofProbability=3.u256, expiry=expiry, collateral=200.u256, nodes=2).get
+    let cid = clientApi.upload(data).get
 
-    # We have to wait for Client 2 fills the slot, before advancing time.
-    # Until https://github.com/codex-storage/nim-codex/issues/594 is implemented nothing better then
-    # sleeping some seconds is available.
-    await sleepAsync(2.seconds)
-    await provider.advanceTimeTo(expiry+1)
-    check eventually(client1.purchaseStateIs(id, "cancelled"), 20000)
+    var slotIdxFilled = none UInt256
+    proc onSlotFilled(event: SlotFilled) {.upraises:[].} =
+      slotIdxFilled = some event.slotIndex
+    let subscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
 
-    check eventually ((await token.balanceOf(account2)) - startBalanceClient2) > 0 and ((await token.balanceOf(account2)) - startBalanceClient2) < 10*reward
-    check eventually (startBalanceClient1 - (await token.balanceOf(account1))) == ((await token.balanceOf(account2)) - startBalanceClient2)
+    # client requests storage but requires two nodes to host the content
+    let id = await clientApi.requestStorage(
+      cid,
+      duration=duration,
+      reward=reward,
+      expiry=expiry,
+      collateral=collateral,
+      nodes=2
+    )
+
+    # wait until one slot is filled
+    check eventually slotIdxFilled.isSome
+
+    # wait until sale is cancelled
+    without requestId =? clientApi.requestId(id):
+      fail()
+    let slotId = slotId(requestId, !slotIdxFilled)
+    check eventually(providerApi.saleStateIs(slotId, "SaleCancelled"))
+
+    check eventually (
+      let endBalanceProvider = (await token.balanceOf(!provider.address));
+      let difference = endBalanceProvider - startBalanceProvider;
+      difference > 0 and
+      difference < expiry.u256*reward
+    )
+    check eventually (
+      let endBalanceClient = (await token.balanceOf(!client.address));
+      let endBalanceProvider = (await token.balanceOf(!provider.address));
+      (startBalanceClient - endBalanceClient) == (endBalanceProvider - startBalanceProvider)
+    )
+
+    await subscription.unsubscribe()

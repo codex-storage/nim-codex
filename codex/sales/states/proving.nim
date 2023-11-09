@@ -50,7 +50,6 @@ proc proveLoop(
   let slotId = slot.id
 
   logScope:
-    # period = currentPeriod
     requestId = $request.id
     slotIndex
     slotId = $slot.id

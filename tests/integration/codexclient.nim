@@ -154,10 +154,14 @@ proc restart*(client: CodexClient) =
   client.http = newHttpClient()
 
 proc purchaseStateIs*(client: CodexClient, id: PurchaseId, state: string): bool =
-  client.getPurchase(id).option.?state == some state
+  without purchase =? client.getPurchase(id):
+    return false
+  return purchase.state == state
 
 proc saleStateIs*(client: CodexClient, id: SlotId, state: string): bool =
-  client.getSalesAgent(id).option.?state == some state
+  without agent =? client.getSalesAgent(id):
+    return false
+  return agent.state == state
 
 proc requestId*(client: CodexClient, id: PurchaseId): ?RequestId =
   return client.getPurchase(id).option.?requestId

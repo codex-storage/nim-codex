@@ -42,15 +42,6 @@ template marketplacesuite*(name: string, startNodes: Nodes, body: untyped) =
 
       await eventuallyP()
 
-    proc timeUntil(period: Period): Future[times.Duration] {.async.} =
-      let currentPeriod = await getCurrentPeriod()
-      let endOfCurrPeriod = periodicity.periodEnd(currentPeriod)
-      let endOfLastPeriod = periodicity.periodEnd(period)
-      let endOfCurrPeriodTime = initTime(endOfCurrPeriod.truncate(int64), 0)
-      let endOfLastPeriodTime = initTime(endOfLastPeriod.truncate(int64), 0)
-      let r = endOfLastPeriodTime - endOfCurrPeriodTime
-      return r
-
     proc periods(p: int): uint64 =
       p.uint64 * period
 
@@ -70,6 +61,8 @@ template marketplacesuite*(name: string, startNodes: Nodes, body: untyped) =
                         cid: Cid,
                         proofProbability: uint64 = 1,
                         duration: uint64 = 12.periods,
+                        reward = 400.u256,
+                        collateral = 100.u256,
                         expiry: uint64 = 4.periods,
                         nodes = providers().len,
                         tolerance = 0): Future[PurchaseId] {.async.} =
@@ -81,8 +74,8 @@ template marketplacesuite*(name: string, startNodes: Nodes, body: untyped) =
         expiry=expiry,
         duration=duration.u256,
         proofProbability=proofProbability.u256,
-        collateral=100.u256,
-        reward=400.u256,
+        collateral=collateral,
+        reward=reward,
         nodes=nodes.uint,
         tolerance=tolerance.uint
       ).get
