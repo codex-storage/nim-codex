@@ -68,7 +68,8 @@ ethersuite "Marketplace contracts":
     switchAccount(host)
     await waitUntilProofRequired(slotId)
     let missingPeriod = periodicity.periodOf(await provider.currentTime())
-    await provider.advanceTime(periodicity.seconds)
+    let endOfPeriod = periodicity.periodEnd(missingPeriod)
+    await provider.advanceTimeTo(endOfPeriod + 1)
     switchAccount(client)
     await marketplace.markProofAsMissing(slotId, missingPeriod)
 
@@ -77,7 +78,7 @@ ethersuite "Marketplace contracts":
     let address = await host.getAddress()
     await startContract()
     let requestEnd = await marketplace.requestEnd(request.id)
-    await provider.advanceTimeTo(requestEnd.u256)
+    await provider.advanceTimeTo(requestEnd.u256 + 1)
     let startBalance = await token.balanceOf(address)
     await marketplace.freeSlot(slotId)
     let endBalance = await token.balanceOf(address)
