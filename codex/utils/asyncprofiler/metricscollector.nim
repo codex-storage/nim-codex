@@ -16,6 +16,7 @@ when defined(metrics):
       init: bool
       lastSample: Time
       collections*: uint
+      threadId: int
 
     PerfSampler = proc (): MetricsSummary {.raises: [].}
 
@@ -70,6 +71,9 @@ when defined(metrics):
     "the largest chronos_single_exec_time_max of all procs",
   )
 
+  let moduleInitThread = getThreadId()
+  echo "MODULE INIT THREAD: ", getThreadId()
+
   proc newCollector*(
     AsyncProfilerInfo: typedesc,
     perfSampler: PerfSampler,
@@ -83,6 +87,7 @@ when defined(metrics):
     sampleInterval: sampleInterval,
     init: true,
     lastSample: low(Time),
+    threadId: getThreadId(),
   )
 
   proc collectSlowestProcs(
@@ -140,6 +145,10 @@ when defined(metrics):
     chronos_largest_exec_time_max.set(largestMaxExecTime.nanoseconds)
 
   proc collect*(self: AsyncProfilerInfo, force: bool = false): void =
+    if getThreadId() != self.threadId:
+      raise (ref Defect)(msg: "AsyncProfilerInfo.collect() called from a different thread" &
+        " than the one it was initialized with.")
+
     let now = self.clock()
 
     if not force and (now - self.lastSample < self.sampleInterval):
@@ -184,6 +193,13 @@ when defined(metrics):
   var asyncProfilerInfo* {.global.}: AsyncProfilerInfo
 
   proc initDefault*(AsyncProfilerInfo: typedesc, k: int) =
+
+    echo "INIT DEFAULT THREAD: ", getThreadId()
+
+    if moduleInitThread != getThreadId():
+      raise (ref Defect)(msg: "AsyncProfilerInfo.initDefault() called from a different thread" &
+        " than the one it was initialized with.")
+
     asyncProfilerInfo = AsyncProfilerInfo.newCollector(
       perfSampler = getFutureSummaryMetrics,
       k = k,
