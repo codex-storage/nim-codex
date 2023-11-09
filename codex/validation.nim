@@ -2,8 +2,6 @@ import std/sets
 import std/sequtils
 import pkg/chronos
 import pkg/chronicles
-import pkg/questionable
-import pkg/questionable/results
 import ./market
 import ./clock
 

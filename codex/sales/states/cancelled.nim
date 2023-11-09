@@ -2,7 +2,6 @@ import pkg/chronicles
 import ../salesagent
 import ../statemachine
 import ./errorhandling
-import ./errored
 
 logScope:
   topics = "marketplace sales cancelled"

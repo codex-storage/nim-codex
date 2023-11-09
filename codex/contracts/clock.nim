@@ -1,4 +1,3 @@
-import std/times
 import pkg/ethers
 import pkg/chronos
 import pkg/stint

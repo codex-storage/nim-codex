@@ -11,7 +11,6 @@ from pkg/codex/rest/json import RestPurchase
 import pkg/codex/utils/json as utilsjson
 import pkg/questionable
 import pkg/questionable/results
-import pkg/libp2p
 import ../helpers
 
 checksuite "json serialization":

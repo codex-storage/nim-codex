@@ -1,6 +1,4 @@
 import pkg/chronos
-import pkg/questionable
-import pkg/questionable/results
 import pkg/stew/endians2
 import pkg/stint
 import pkg/upraises

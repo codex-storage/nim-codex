@@ -5,7 +5,6 @@ import std/times
 
 import pkg/asynctest
 import pkg/chronos
-import pkg/chronicles
 import pkg/stew/byteutils
 import pkg/datastore
 import pkg/questionable

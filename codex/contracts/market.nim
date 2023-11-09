@@ -6,7 +6,6 @@ import pkg/ethers except `%`
 import pkg/ethers/testing
 import pkg/upraises
 import pkg/questionable
-import ../utils/json
 import ../market
 import ./marketplace except `%`
 
