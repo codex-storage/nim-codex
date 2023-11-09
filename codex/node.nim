@@ -63,6 +63,8 @@ type
     discovery*: Discovery
     contracts*: Contracts
 
+  OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, closure.}
+
 proc findPeer*(
   node: CodexNodeRef,
   peerId: PeerId): Future[?PeerRecord] {.async.} =
@@ -266,6 +268,23 @@ proc store*(
   await self.discovery.provide(treeCid)
 
   return manifestBlk.cid.success
+
+proc iterateManifests*(node: CodexNodeRef, onManifest: OnManifest) {.async.} =
+  without cids =? await node.blockStore.listBlocks(BlockType.Manifest):
+    warn "Failed to listBlocks"
+    return
+
+  for c in cids:
+    if cid =? await c:
+      without blk =? await node.blockStore.getBlock(cid):
+        warn "Failed to get manifest block by cid", cid
+        return
+
+      without manifest =? Manifest.decode(blk):
+        warn "Failed to decode manifest", cid
+        return
+
+      onManifest(cid, manifest)
 
 proc requestStorage*(
   self: CodexNodeRef,

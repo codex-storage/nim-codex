@@ -21,6 +21,7 @@ import pkg/chronicles
 
 import ../errors
 import ../utils
+import ../utils/json
 import ../units
 import ../blocktype
 import ./types
@@ -29,17 +30,17 @@ export types
 
 type
   Manifest* = ref object of RootObj
-    treeCid: Cid           # Root of the merkle tree
-    datasetSize: NBytes    # Total size of all blocks
-    blockSize: NBytes      # Size of each contained block (might not be needed if blocks are len-prefixed)
-    version: CidVersion    # Cid version
-    hcodec: MultiCodec     # Multihash codec
-    codec: MultiCodec      # Data set codec
-    case protected: bool   # Protected datasets have erasure coded info
+    treeCid {.serialize.}: Cid            # Root of the merkle tree
+    datasetSize {.serialize.}: NBytes     # Total size of all blocks
+    blockSize {.serialize.}: NBytes       # Size of each contained block (might not be needed if blocks are len-prefixed)
+    version: CidVersion                   # Cid version
+    hcodec: MultiCodec                    # Multihash codec
+    codec: MultiCodec                     # Data set codec
+    case protected {.serialize.}: bool    # Protected datasets have erasure coded info
     of true:
-      ecK: int               # Number of blocks to encode
-      ecM: int               # Number of resulting parity blocks
-      originalTreeCid: Cid     # The original root of the dataset being erasure coded
+      ecK: int                            # Number of blocks to encode
+      ecM: int                            # Number of resulting parity blocks
+      originalTreeCid: Cid                # The original root of the dataset being erasure coded
       originalDatasetSize: NBytes
     else:
       discard
