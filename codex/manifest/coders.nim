@@ -26,7 +26,7 @@ import ../errors
 import ../blocktype
 import ./types
 
-proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
+proc encode*(coder: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   ## Encode the manifest into a ``ManifestCodec``
   ## multicodec container (Dag-pb) for now
   ##
@@ -41,8 +41,7 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   #   Message ErasureInfo {
   #     optional uint32 ecK = 1;                  # number of encoded blocks
   #     optional uint32 ecM = 2;                  # number of parity blocks
-  #     optional bytes originalTreeCid = 3;       # cid of the original dataset
-  #     optional uint32 originalDatasetSize = 4;  # size of the original dataset
+  #     optional bytes originalManifest = 3;      # manifest of the original dataset
   #   }
   #   Message Header {
   #     optional bytes treeCid = 1;       # cid (root) of the tree
@@ -61,8 +60,7 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
     var erasureInfo = initProtoBuffer()
     erasureInfo.write(1, manifest.ecK.uint32)
     erasureInfo.write(2, manifest.ecM.uint32)
-    erasureInfo.write(3, manifest.originalTreeCid.data.buffer)
-    erasureInfo.write(4, manifest.originalDatasetSize.uint32)
+    erasureInfo.write(3, ? coder.encode(manifest.originalManifest)) # TODO: fix check
     erasureInfo.finish()
 
     header.write(4, erasureInfo)
@@ -72,7 +70,7 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
 
   return pbNode.buffer.success
 
-proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
+proc decode*(coder: DagPBCoder, data: openArray[byte]): ?!Manifest =
   ## Decode a manifest from a data blob
   ##
 
@@ -81,10 +79,9 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     pbHeader: ProtoBuffer
     pbErasureInfo: ProtoBuffer
     treeCidBuf: seq[byte]
-    originalTreeCid: seq[byte]
+    originalManifest: Manifest
     datasetSize: uint32
     blockSize: uint32
-    originalDatasetSize: uint32
     ecK, ecM: uint32
 
   # Decode `Header` message
@@ -112,12 +109,10 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     if pbErasureInfo.getField(2, ecM).isErr:
       return failure("Unable to decode `M` from manifest!")
 
-    if pbErasureInfo.getField(3, originalTreeCid).isErr:
-      return failure("Unable to decode `originalTreeCid` from manifest!")
-
-    if pbErasureInfo.getField(4, originalDatasetSize).isErr:
-      return failure("Unable to decode `originalDatasetSize` from manifest!")
-
+    var buffer = newSeq[byte]()
+    if pbErasureInfo.getField(3, buffer).isErr:
+      return failure("Unable to decode `originalManifest` from manifest!")
+    originalManifest = coder.decode(buffer).get # TODO: fix check
 
   let 
     treeCid = ? Cid.init(treeCidBuf).mapFailure
@@ -133,8 +128,7 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
         codec = treeCid.mcodec,
         ecK = ecK.int,
         ecM = ecM.int,
-        originalTreeCid = ? Cid.init(originalTreeCid).mapFailure,
-        originalDatasetSize = originalDatasetSize.NBytes
+        originalManifest originalManifest
       )
       else:
         Manifest.new(

@@ -40,8 +40,7 @@ type
     of true:
       ecK: int                              # Number of blocks to encode
       ecM: int                              # Number of resulting parity blocks
-      originalTreeCid: Cid                  # The original root of the dataset being erasure coded
-      originalDatasetSize: NBytes
+      originalManifest: Manifest            # The original Manifest being erasure coded
     else:
       discard
 
@@ -73,11 +72,15 @@ proc ecK*(self: Manifest): int =
 proc ecM*(self: Manifest): int =
   self.ecM
 
+proc originalManifest*(self: Manifest): Manifest =
+  self.originalManifest
+
 proc originalTreeCid*(self: Manifest): Cid =
-  self.originalTreeCid
+  self.originalManifest.treeCid
 
 proc originalBlocksCount*(self: Manifest): int =
-  divUp(self.originalDatasetSize.int, self.blockSize.int)
+  divUp(self.originalManifest.datasetSize.int, self.blockSize.int)
+
 
 proc originalDatasetSize*(self: Manifest): NBytes =
   self.originalDatasetSize
@@ -141,8 +144,7 @@ proc `==`*(a, b: Manifest): bool =
     (if a.protected:
       (a.ecK == b.ecK) and
       (a.ecM == b.ecM) and
-      (a.originalTreeCid == b.originalTreeCid) and
-      (a.originalDatasetSize == b.originalDatasetSize)
+      (a.originalManifest == b.originalManifest)
     else:
       true)
 
@@ -157,8 +159,7 @@ proc `$`*(self: Manifest): string =
     (if self.protected:
       ", ecK: " & $self.ecK &
       ", ecM: " & $self.ecM &
-      ", originalTreeCid: " & $self.originalTreeCid &
-      ", originalDatasetSize: " & $self.originalDatasetSize
+      ", originalManifest: " & $self.originalManifest
     else:
       "")
 
@@ -205,8 +206,7 @@ proc new*(
     blockSize: manifest.blockSize,
     protected: true,
     ecK: ecK, ecM: ecM,
-    originalTreeCid: manifest.treeCid,
-    originalDatasetSize: manifest.datasetSize)
+    originalManifest: manifest)
 
 proc new*(
     T: type Manifest,
@@ -215,14 +215,7 @@ proc new*(
   ## Create an unprotected dataset from an
   ## erasure protected one
   ##
-  Manifest(
-    treeCid: manifest.originalTreeCid,
-    datasetSize: manifest.originalDatasetSize,
-    version: manifest.version,
-    codec: manifest.codec,
-    hcodec: manifest.hcodec,
-    blockSize: manifest.blockSize,
-    protected: false)
+  manifest.originalManifest
 
 proc new*(
   T: type Manifest,
@@ -243,8 +236,7 @@ proc new*(
   codec: MultiCodec,
   ecK: int,
   ecM: int,
-  originalTreeCid: Cid,
-  originalDatasetSize: NBytes
+  originalManifest: Manifest
 ): Manifest =
   Manifest(
     treeCid: treeCid,
@@ -256,6 +248,5 @@ proc new*(
     protected: true,
     ecK: ecK,
     ecM: ecM,
-    originalTreeCid: originalTreeCid,
-    originalDatasetSize: originalDatasetSize
+    originalManifest: originalManifest
   )
