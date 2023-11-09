@@ -70,7 +70,7 @@ ethersuite "On-Chain Market":
 
   test "supports withdrawing of funds":
     await market.requestStorage(request)
-    await provider.advanceTimeTo(request.expiry)
+    await provider.advanceTimeTo(request.expiry + 1)
     await market.withdrawFunds(request.id)
 
   test "supports request subscriptions":
@@ -213,7 +213,7 @@ ethersuite "On-Chain Market":
       receivedIds.add(id)
     let subscription = await market.subscribeRequestCancelled(request.id, onRequestCancelled)
 
-    await provider.advanceTimeTo(request.expiry)
+    await provider.advanceTimeTo(request.expiry + 1)
     await market.withdrawFunds(request.id)
     check receivedIds == @[request.id]
     await subscription.unsubscribe()
@@ -252,7 +252,7 @@ ethersuite "On-Chain Market":
       receivedIds.add(requestId)
 
     let subscription = await market.subscribeRequestCancelled(request.id, onRequestCancelled)
-    await provider.advanceTimeTo(request.expiry) # shares expiry with otherRequest
+    await provider.advanceTimeTo(request.expiry + 1) # shares expiry with otherRequest
     await market.withdrawFunds(otherRequest.id)
     check receivedIds.len == 0
     await market.withdrawFunds(request.id)
