@@ -300,8 +300,9 @@ proc init*(
   var builder = ? MerkleTreeBuilder.init(mcodec = leaf.mcodec)
 
   for l in leaves:
-    if err =? builder.addLeaf(l).errorOption:
-      return failure(err)
+    let res = builder.addLeaf(l)
+    if res.isErr:
+      return failure(res.error)
   
   builder.build()
 
@@ -309,11 +310,14 @@ proc init*(
   T: type MerkleTree,
   cids: openArray[Cid]
 ): ?!MerkleTree =
-  let leaves = collect:
-    for idx, cid in cids:
-      without mhash =? cid.mhash.mapFailure, errx:
-        return failure(errx)
-      mhash
+  var leaves = newSeq[MultiHash]()
+  
+  for cid in cids:
+    let res = cid.mhash.mapFailure
+    if res.isErr:
+      return failure(res.error)
+    else:
+      leaves.add(res.value)
 
   MerkleTree.init(leaves)
 
