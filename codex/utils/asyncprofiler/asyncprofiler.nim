@@ -51,14 +51,10 @@ proc addRun(self: var OverallMetrics, run: FutureMetrics) =
   ## Adds metrics for a single run of a given async proc to its OverallMetrics.
   self.totalExecTime += run.duration
   self.totalWallTime += Moment.now() - run.created
-  self.totalRunTime += self.totalExecTime + run.durationChildren
+  self.totalRunTime += run.duration + run.durationChildren
   self.count.inc
   self.minSingleTime = min(self.minSingleTime, run.duration)
   self.maxSingleTime = max(self.maxSingleTime, run.duration)
-  # handle overflow
-  if self.count == self.count.typeof.high:
-    self.totalExecTime = ZeroDuration
-    self.count = 0
 
   if not isNil(onChange):
     onChange()
@@ -69,7 +65,6 @@ proc setFutureCreate(fut: FutureBase) {.raises: [].} =
     perFutureMetrics[fut.id] = FutureMetrics()
     perFutureMetrics.withValue(fut.id, metric):
       metric.created = Moment.now()
-      # echo loc, "; future create "
 
 proc setFutureStart(fut: FutureBase) {.raises: [].} =
   ## used for setting the duration
@@ -79,7 +74,6 @@ proc setFutureStart(fut: FutureBase) {.raises: [].} =
       let ts = Moment.now()
       metric.start = some ts
       metric.blocks.inc()
-      # echo loc, "; future start: ", metric.initDuration
 
 proc setFuturePause(fut, child: FutureBase) {.raises: [].} =
   {.cast(gcsafe).}:
