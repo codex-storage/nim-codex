@@ -80,6 +80,11 @@ method ensureExpiry*(
 
   return success()
 
+method listBlocks*(
+  self: NetworkStore,
+  blockType = BlockType.Manifest): Future[?!BlocksIter] =
+  self.localStore.listBlocks(blockType)
+
 method delBlock*(self: NetworkStore, cid: Cid): Future[?!void] =
   ## Delete a block from the blockstore
   ##
