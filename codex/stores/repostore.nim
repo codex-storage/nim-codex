@@ -609,7 +609,7 @@ proc stop*(self: RepoStore): Future[void] {.async.} =
 
   self.started = false
 
-proc new*(
+func new*(
     T: type RepoStore,
     repoDs: Datastore,
     metaDs: Datastore,
