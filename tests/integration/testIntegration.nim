@@ -78,6 +78,17 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check:
       resp2.error.msg == "404 Not Found"
 
+  test "node lists local files":
+    let content1 = "some file contents"
+    let content2 = "some other contents"
+
+    let cid1 = client1.upload(content1).get
+    let cid2 = client1.upload(content2).get
+    let list = client1.list().get
+
+    check:
+      [cid1, cid2].allIt(it in list.mapIt(it.cid))
+
   test "node handles new storage availability":
     let availability1 = client1.postAvailability(size=1.u256, duration=2.u256, minPrice=3.u256, maxCollateral=4.u256).get
     let availability2 = client1.postAvailability(size=4.u256, duration=5.u256, minPrice=6.u256, maxCollateral=7.u256).get

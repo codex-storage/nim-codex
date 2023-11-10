@@ -73,13 +73,6 @@ proc fromJson*(
   catch parseEnum[T](json.str)
 
 proc fromJson*(
-  T: type enum,
-  json: JsonNode
-): ?!T =
-  expectJsonKind(string, JString, json)
-  catch parseEnum[T](json.str)
-
-proc fromJson*(
   _: type string,
   json: JsonNode
 ): ?!string =
