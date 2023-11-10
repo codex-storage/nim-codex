@@ -11,6 +11,7 @@ from pkg/codex/rest/json import RestPurchase
 import pkg/codex/utils/json as utilsjson
 import pkg/questionable
 import pkg/questionable/results
+import pkg/libp2p
 import ../examples
 import ../helpers
 
@@ -212,6 +213,10 @@ checksuite "json serialization":
                         "expiry": "1691545330"
                       }""".flatten
     check request.toJson == expected
+
+  test "deserialize enum":
+    let json = newJString($CidVersion.CIDv1)
+    check !CidVersion.fromJson(json) == CIDv1
 
   test "deserializes UInt256 from non-hex string representation":
     let json = newJString("100000")
