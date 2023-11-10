@@ -65,7 +65,7 @@ template expectJsonKind(
 ) =
   expectJsonKind(expectedType, {expectedKind}, json)
 
-proc fromJson(
+proc fromJson*(
   T: type enum,
   json: JsonNode
 ): ?!T =
