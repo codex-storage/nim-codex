@@ -1,6 +1,5 @@
 import pkg/chronos
 import pkg/stew/endians2
-import pkg/stint
 import pkg/upraises
 import pkg/stint
 

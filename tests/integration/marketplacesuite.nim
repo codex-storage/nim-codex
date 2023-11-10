@@ -8,9 +8,9 @@ import ./multinodes
 export mp
 export multinodes
 
-template marketplacesuite*(name: string, startNodes: Nodes, body: untyped) =
+template marketplacesuite*(name: string, body: untyped) =
 
-  multinodesuite name, startNodes:
+  multinodesuite name:
 
     var marketplace {.inject, used.}: Marketplace
     var period: uint64

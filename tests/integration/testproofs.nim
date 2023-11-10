@@ -12,195 +12,187 @@ export chronicles
 logScope:
   topics = "integration test proofs"
 
-marketplacesuite "Simulate invalid proofs, 1 provider node, every proof invalid",
-  Nodes(
+
+marketplacesuite "Hosts submit regular proofs":
+
+  test "hosts submit periodic proofs for slots they fill", NodeConfigs(
     # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
-    # hardhat: HardhatConfig()
-    #           .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log,
+    # hardhat: HardhatConfig().withLogFile()
 
-    clients: NodeConfig()
-              .nodes(1)
-              # .debug() # uncomment to enable console log output
-              # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-              .withLogTopics("node"),
+    clients:
+      NodeConfig()
+        .nodes(1)
+        # .debug() # uncomment to enable console log output
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("node"),
 
-    providers: NodeConfig()
-                .nodes(1)
-                .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=1)
-                # .debug() # uncomment to enable console log output
-                # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-                .withLogTopics(
-                  "marketplace",
-                  "sales",
-                  "reservations",
-                  "node",
-                  "JSONRPC-HTTP-CLIENT",
-                  "JSONRPC-WS-CLIENT",
-                  "ethers",
-                  "restapi",
-                  "clock"
-                ),
-
-    validators: NodeConfig()
-                  .nodes(1)
-                  # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-                  # .debug() # uncomment to enable console log output
-                  .withLogTopics("validator", "initial-proving", "proving", "clock", "onchain", "ethers")
+    providers:
+      NodeConfig()
+        .nodes(1)
+        # .debug() # uncomment to enable console log output
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("marketplace", "sales", "reservations", "node", "clock"),
   ):
+    let client0 = clients()[0].node.client
+    let totalPeriods = 50
 
-    test "slot is freed after too many invalid proofs submitted":
-      let client0 = clients()[0].node.client
-      let totalPeriods = 50
+    let data = byteutils.toHex(await exampleData())
+    createAvailabilities(data.len, totalPeriods.periods)
 
-      let data = byteutils.toHex(await exampleData())
-      createAvailabilities(data.len, totalPeriods.periods)
+    let cid = client0.upload(data).get
 
-      let cid = client0.upload(data).get
+    let purchaseId = await client0.requestStorage(cid, duration=totalPeriods.periods)
+    check eventually client0.purchaseStateIs(purchaseId, "started")
 
-      let purchaseId = await client0.requestStorage(cid, duration=totalPeriods.periods)
-      let requestId = client0.requestId(purchaseId).get
+    var proofWasSubmitted = false
+    proc onProofSubmitted(event: ProofSubmitted) =
+      proofWasSubmitted = true
 
-      check eventually client0.purchaseStateIs(purchaseId, "started")
+    let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
 
-      var slotWasFreed = false
-      proc onSlotFreed(event: SlotFreed) {.gcsafe, upraises:[].} =
-        if event.requestId == requestId and
-          event.slotIndex == 0.u256: # assume only one slot, so index 0
-          slotWasFreed = true
+    let currentPeriod = await getCurrentPeriod()
+    check eventuallyP(proofWasSubmitted, currentPeriod + totalPeriods.u256 + 1)
 
-      let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
+    await subscription.unsubscribe()
 
-      let currentPeriod = await getCurrentPeriod()
-      check eventuallyP(slotWasFreed, currentPeriod + totalPeriods.u256 + 1)
 
-      await subscription.unsubscribe()
 
-marketplacesuite "Simulate invalid proofs, 1 provider node, every 3rd proof invalid",
-  Nodes(
-    # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
-    # hardhat: HardhatConfig()
-    #           .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log,
-
-    clients: NodeConfig()
-              .nodes(1)
-              # .debug() # uncomment to enable console log output
-              # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-              .withLogTopics("node"),
-
-    providers: NodeConfig()
-                .nodes(1)
-                .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=3)
-                # .debug() # uncomment to enable console log output
-                # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-                .withLogTopics(
-                  "marketplace",
-                  "sales",
-                  "reservations",
-                  "node",
-                  "JSONRPC-HTTP-CLIENT",
-                  "JSONRPC-WS-CLIENT",
-                  "ethers",
-                  "restapi",
-                  "clock"
-                ),
-
-    validators: NodeConfig()
-                  .nodes(1)
-                  # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-                  .withLogTopics("validator", "initial-proving", "proving", "clock", "onchain", "ethers")
-  ):
-
-    test "hosts submit periodic proofs for slots they fill":
-      let client0 = clients()[0].node.client
-      let totalPeriods = 50
-
-      let data = byteutils.toHex(await exampleData())
-      createAvailabilities(data.len, totalPeriods.periods)
-
-      let cid = client0.upload(data).get
-
-      let purchaseId = await client0.requestStorage(cid, duration=totalPeriods.periods)
-      check eventually client0.purchaseStateIs(purchaseId, "started")
-
-      var proofWasSubmitted = false
-      proc onProofSubmitted(event: ProofSubmitted) =
-        proofWasSubmitted = true
-
-      let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
-
-      let currentPeriod = await getCurrentPeriod()
-      check eventuallyP(proofWasSubmitted, currentPeriod + totalPeriods.u256 + 1)
-
-      await subscription.unsubscribe()
-
-    test "slot is not freed when not enough invalid proofs submitted":
-      let client0 = clients()[0].node.client
-      let totalPeriods = 25
-
-      let data = byteutils.toHex(await exampleData())
-      createAvailabilities(data.len, totalPeriods.periods)
-
-      let cid = client0.upload(data).get
-
-      let purchaseId = await client0.requestStorage(cid, duration=totalPeriods.periods)
-      let requestId = client0.requestId(purchaseId).get
-
-      check eventually client0.purchaseStateIs(purchaseId, "started")
-
-      var slotWasFreed = false
-      proc onSlotFreed(event: SlotFreed) {.gcsafe, upraises:[].} =
-        if event.requestId == requestId and
-           event.slotIndex == 0.u256: # assume only one slot, so index 0
-          slotWasFreed = true
-
-      let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
-
-      # check not freed
-      let currentPeriod = await getCurrentPeriod()
-      check not eventuallyP(slotWasFreed, currentPeriod + totalPeriods.u256 + 1)
-
-      await subscription.unsubscribe()
-
-marketplacesuite "Simulate invalid proofs",
-  Nodes(
-    # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
-    # hardhat: HardhatConfig()
-    #           .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log,
-
-    clients: NodeConfig()
-              .nodes(1)
-              # .debug() # uncomment to enable console log output.debug()
-              # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-              .withLogTopics("node", "erasure"),
-
-    providers: NodeConfig()
-                .nodes(2)
-                .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=2)
-                # .debug() # uncomment to enable console log output
-                # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-                .withLogTopics(
-                  "marketplace",
-                  "sales",
-                  "reservations",
-                  "node",
-                  "JSONRPC-HTTP-CLIENT",
-                  "JSONRPC-WS-CLIENT",
-                  "ethers",
-                  "restapi"
-                ),
-
-    validators: NodeConfig()
-                  .nodes(1)
-                  # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-                  .withLogTopics("validator", "initial-proving", "proving")
-  ):
+marketplacesuite "Simulate invalid proofs":
 
   # TODO: these are very loose tests in that they are not testing EXACTLY how
   # proofs were marked as missed by the validator. These tests should be
   # tightened so that they are showing, as an integration test, that specific
   # proofs are being marked as missed by the validator.
 
-  test "provider that submits invalid proofs is paid out less":
+  test "slot is freed after too many invalid proofs submitted", NodeConfigs(
+    # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
+    # hardhat: HardhatConfig().withLogFile()
+
+    clients:
+      NodeConfig()
+        .nodes(1)
+        # .debug() # uncomment to enable console log output
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("node"),
+
+    providers:
+      NodeConfig()
+        .nodes(1)
+        .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=1)
+        # .debug() # uncomment to enable console log output
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("marketplace", "sales", "reservations", "node", "clock"),
+
+    validators:
+      NodeConfig()
+        .nodes(1)
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .debug() # uncomment to enable console log output
+        .withLogTopics("validator", "clock", "onchain", "ethers")
+  ):
+    let client0 = clients()[0].node.client
+    let totalPeriods = 50
+
+    let data = byteutils.toHex(await exampleData())
+    createAvailabilities(data.len, totalPeriods.periods)
+
+    let cid = client0.upload(data).get
+
+    let purchaseId = await client0.requestStorage(cid, duration=totalPeriods.periods)
+    let requestId = client0.requestId(purchaseId).get
+
+    check eventually client0.purchaseStateIs(purchaseId, "started")
+
+    var slotWasFreed = false
+    proc onSlotFreed(event: SlotFreed) {.gcsafe, upraises:[].} =
+      if event.requestId == requestId and
+        event.slotIndex == 0.u256: # assume only one slot, so index 0
+        slotWasFreed = true
+
+    let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
+
+    let currentPeriod = await getCurrentPeriod()
+    check eventuallyP(slotWasFreed, currentPeriod + totalPeriods.u256 + 1)
+
+    await subscription.unsubscribe()
+
+  test "slot is not freed when not enough invalid proofs submitted", NodeConfigs(
+    # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
+    # hardhat: HardhatConfig().withLogFile()
+
+    clients:
+      NodeConfig()
+        .nodes(1)
+        # .debug() # uncomment to enable console log output
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("node"),
+
+    providers:
+      NodeConfig()
+        .nodes(1)
+        .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=3)
+        # .debug() # uncomment to enable console log output
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("marketplace", "sales", "reservations", "node", "clock"),
+
+    validators:
+      NodeConfig()
+        .nodes(1)
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("validator", "clock", "onchain", "ethers")
+  ):
+    let client0 = clients()[0].node.client
+    let totalPeriods = 25
+
+    let data = byteutils.toHex(await exampleData())
+    createAvailabilities(data.len, totalPeriods.periods)
+
+    let cid = client0.upload(data).get
+
+    let purchaseId = await client0.requestStorage(cid, duration=totalPeriods.periods)
+    let requestId = client0.requestId(purchaseId).get
+
+    check eventually client0.purchaseStateIs(purchaseId, "started")
+
+    var slotWasFreed = false
+    proc onSlotFreed(event: SlotFreed) {.gcsafe, upraises:[].} =
+      if event.requestId == requestId and
+          event.slotIndex == 0.u256: # assume only one slot, so index 0
+        slotWasFreed = true
+
+    let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
+
+    # check not freed
+    let currentPeriod = await getCurrentPeriod()
+    check not eventuallyP(slotWasFreed, currentPeriod + totalPeriods.u256 + 1)
+
+    await subscription.unsubscribe()
+
+  test "host that submits invalid proofs is paid out less", NodeConfigs(
+    # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
+    # hardhat: HardhatConfig().withLogFile()
+
+    clients:
+      NodeConfig()
+        .nodes(1)
+        # .debug() # uncomment to enable console log output.debug()
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("node", "erasure"),
+
+    providers:
+      NodeConfig()
+        .nodes(2)
+        .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=2)
+        # .debug() # uncomment to enable console log output
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("marketplace", "sales", "reservations", "node", "clock"),
+
+    validators:
+      NodeConfig()
+        .nodes(1)
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("validator")
+  ):
     let client0 = clients()[0].node.client
     let provider0 = providers()[0]
     let provider1 = providers()[1]

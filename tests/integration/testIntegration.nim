@@ -229,35 +229,27 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check responseBefore.body == "Expiry has to be before the request's end (now + duration)"
 
 
-marketplacesuite "Marketplace integration tests - 1 client, 1 provider",
-  Nodes(
-    # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
-    # hardhat: HardhatConfig()
-    #           .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log,
+marketplacesuite "Marketplace payouts":
 
-    clients: NodeConfig()
-              .nodes(1)
-              # .debug() # uncomment to enable console log output.debug()
-              # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-              .withLogTopics("node", "erasure"),
+  test "expired request partially pays out for stored time",
+    NodeConfigs(
+      # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
+      # hardhat: HardhatConfig().withLogFile()
 
-    providers: NodeConfig()
-                .nodes(1)
-                # .debug() # uncomment to enable console log output
-                # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-                .withLogTopics(
-                  "marketplace",
-                  "sales",
-                  "reservations",
-                  "node",
-                  "JSONRPC-HTTP-CLIENT",
-                  "JSONRPC-WS-CLIENT",
-                  "ethers",
-                  "restapi",
-                  "clock"
-                )
-):
-  test "expired request partially pays out for stored time":
+      clients:
+        NodeConfig()
+          .nodes(1)
+          # .debug() # uncomment to enable console log output.debug()
+          # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+          .withLogTopics("node", "erasure"),
+
+      providers:
+        NodeConfig()
+          .nodes(1)
+          # .debug() # uncomment to enable console log output
+          # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+          .withLogTopics("marketplace", "sales", "reservations", "node", "clock"),
+  ):
     let reward = 400.u256
     let duration = 100.periods
     let collateral = 200.u256

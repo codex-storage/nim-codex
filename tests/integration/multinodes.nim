@@ -21,7 +21,7 @@ type
     role*: Role
     node*: NodeProcess
     address*: ?Address
-  Nodes* = object
+  NodeConfigs* = object
     clients*: NodeConfig
     providers*: NodeConfig
     validators*: NodeConfig
@@ -107,7 +107,7 @@ proc withLogFile*[T: Config](
   startConfig.logFile = logToFile
   return startConfig
 
-template multinodesuite*(name: string, startNodes: Nodes, body: untyped) =
+template multinodesuite*(name: string, body: untyped) =
 
   ethersuite name:
 
@@ -115,11 +115,13 @@ template multinodesuite*(name: string, startNodes: Nodes, body: untyped) =
     var bootstrap: string
     let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
     var currentTestName = ""
+    var nodeConfigs: NodeConfigs
 
-    template test(namet, bodyt) =
-      currentTestName = namet
-      test namet:
-        bodyt
+    template test(tname, startNodeConfigs, tbody) =
+      currentTestName = tname
+      nodeConfigs = startNodeConfigs
+      test tname:
+        tbody
 
     proc getLogFile(role: Role, index: ?int): string =
       # create log file path, format:
@@ -209,18 +211,18 @@ template multinodesuite*(name: string, startNodes: Nodes, body: untyped) =
       running.filter(proc(r: RunningNode): bool = r.role == Role.Validator)
 
     proc startHardhatNode(): NodeProcess =
-      var config = startNodes.hardhat
+      var config = nodeConfigs.hardhat
       return newHardhatProcess(config, Role.Hardhat)
 
     proc startClientNode(): NodeProcess =
       let clientIdx = clients().len
-      var config = startNodes.clients
+      var config = nodeConfigs.clients
       config.cliOptions.add CliOption(key: "--persistence")
       return newNodeProcess(clientIdx, config, Role.Client)
 
     proc startProviderNode(): NodeProcess =
       let providerIdx = providers().len
-      var config = startNodes.providers
+      var config = nodeConfigs.providers
       config.cliOptions.add CliOption(key: "--bootstrap-node", value: bootstrap)
       config.cliOptions.add CliOption(key: "--persistence")
 
@@ -233,18 +235,18 @@ template multinodesuite*(name: string, startNodes: Nodes, body: untyped) =
 
     proc startValidatorNode(): NodeProcess =
       let validatorIdx = validators().len
-      var config = startNodes.validators
+      var config = nodeConfigs.validators
       config.cliOptions.add CliOption(key: "--bootstrap-node", value: bootstrap)
       config.cliOptions.add CliOption(key: "--validator")
 
       return newNodeProcess(validatorIdx, config, Role.Validator)
 
     setup:
-      if not startNodes.hardhat.isNil:
+      if not nodeConfigs.hardhat.isNil:
         let node = startHardhatNode()
         running.add RunningNode(role: Role.Hardhat, node: node)
 
-      for i in 0..<startNodes.clients.numNodes:
+      for i in 0..<nodeConfigs.clients.numNodes:
         let node = startClientNode()
         running.add RunningNode(
                       role: Role.Client,
@@ -254,7 +256,7 @@ template multinodesuite*(name: string, startNodes: Nodes, body: untyped) =
         if i == 0:
           bootstrap = node.client.info()["spr"].getStr()
 
-      for i in 0..<startNodes.providers.numNodes:
+      for i in 0..<nodeConfigs.providers.numNodes:
         let node = startProviderNode()
         running.add RunningNode(
                       role: Role.Provider,
@@ -262,7 +264,7 @@ template multinodesuite*(name: string, startNodes: Nodes, body: untyped) =
                       address: some accounts[running.len]
                     )
 
-      for i in 0..<startNodes.validators.numNodes:
+      for i in 0..<nodeConfigs.validators.numNodes:
         let node = startValidatorNode()
         running.add RunningNode(
                       role: Role.Validator,
