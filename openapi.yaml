@@ -307,8 +307,6 @@ paths:
           description: Content specified by the CID is not found
         "500":
           description: Well it was bad-bad
-
-  "/data":
     post:
       summary: "Upload a file in a streaming manner. Once finished, the file is stored in the node and can be retrieved by any node in the network using the returned CID."
       tags: [ Data ]
@@ -333,7 +331,7 @@ paths:
     get:
       summary: "Download a file from the local node in a streaming manner. If the file is not available locally, a 404 is returned."
       tags: [ Data ]
-      operationId: download
+      operationId: downloadLocal
       parameters:
         - in: path
           name: cid
@@ -361,7 +359,7 @@ paths:
     get:
       summary: "Download a file from the network in a streaming manner. If the file is not available locally, it will be retrieved from other nodes in the network if able."
       tags: [ Data ]
-      operationId: download
+      operationId: downloadNetwork
       parameters:
         - in: path
           name: cid
