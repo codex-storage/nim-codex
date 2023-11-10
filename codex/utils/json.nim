@@ -177,7 +177,7 @@ proc fromJson*(
   json: JsonNode
 ): ?!Cid =
   expectJsonKind(Cid, JString, json)
-  Cid.init($json).mapFailure
+  Cid.init(json.str).mapFailure
 
 proc fromJson*[T](
   _: type seq[T],
