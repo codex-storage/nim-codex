@@ -327,6 +327,14 @@ checksuite "json serialization":
     check deserialized.mystring == expected.mystring
     check deserialized.myint == expected.myint
 
+  test "deserializes Cid":
+    let
+      jCid = newJString("zdj7Wakya26ggQWkvMdHYFcPgZ7Qh2HdMooQDDFDHkk4uHS14")
+      cid = "zdj7Wakya26ggQWkvMdHYFcPgZ7Qh2HdMooQDDFDHkk4uHS14"
+
+    check:
+      !Cid.fromJson(jCid) == !Cid.init(cid).mapFailure
+
   test "deserializes StorageRequest":
     check !StorageRequest.fromJson(requestJson) == request
 
