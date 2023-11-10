@@ -65,6 +65,13 @@ template expectJsonKind(
 ) =
   expectJsonKind(expectedType, {expectedKind}, json)
 
+proc fromJson(
+  T: type enum,
+  json: JsonNode
+): ?!T =
+  expectJsonKind(string, JString, json)
+  catch parseEnum[T](json.str)
+
 proc fromJson*(
   T: type enum,
   json: JsonNode
