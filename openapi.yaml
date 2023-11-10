@@ -287,7 +287,7 @@ paths:
         "400":
           description: Peer either not found or was not possible to dial
 
-  "/local":
+  "/data":
     get:
       summary: "Lists manifest CIDs stored locally in node."
       tags: [ Data ]
@@ -331,7 +331,35 @@ paths:
 
   "/data/{cid}":
     get:
-      summary: "Download a file from the node in a streaming manner. If the file is not available locally, it will be retrieved from other nodes in the network if able."
+      summary: "Download a file from the local node in a streaming manner. If the file is not available locally, a 404 is returned."
+      tags: [ Data ]
+      operationId: download
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+              $ref: "#/components/schemas/Cid"
+          description: File to be downloaded.
+
+      responses:
+        "200":
+          description: Retrieved content specified by CID
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid CID is specified
+        "404":
+          description: Content specified by the CID is unavailable locally
+        "500":
+          description: Well it was bad-bad
+
+  "/data/{cid}/network":
+    get:
+      summary: "Download a file from the network in a streaming manner. If the file is not available locally, it will be retrieved from other nodes in the network if able."
       tags: [ Data ]
       operationId: download
       parameters:
