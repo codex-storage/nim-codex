@@ -307,6 +307,7 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
               node.discovery.dhtRecord.get.toURI
             else:
               "",
+          "announceAddresses": node.discovery.announceAddrs,
           "table": table,
           "codex": {
             "version": $codexVersion,

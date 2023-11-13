@@ -108,3 +108,6 @@ func `%`*(obj: dn.Address): JsonNode =
 
 func `%`*(obj: AddressInfo): JsonNode =
   % $obj.address
+
+func `%`*(obj: MultiAddress): JsonNode =
+  % $obj
