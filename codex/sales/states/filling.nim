@@ -8,7 +8,7 @@ import ./cancelled
 import ./failed
 
 logScope:
-    topics = "marketplace sales filling"
+  topics = "marketplace sales filling"
 
 type
   SaleFilling* = ref object of ErrorHandlingState

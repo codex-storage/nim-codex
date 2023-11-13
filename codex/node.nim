@@ -60,6 +60,8 @@ type
     discovery*: Discovery
     contracts*: Contracts
 
+  OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, closure.}
+
 proc findPeer*(
   node: CodexNodeRef,
   peerId: PeerId): Future[?PeerRecord] {.async.} =
@@ -235,6 +237,23 @@ proc store*(
 
   return manifest.cid.success
 
+proc iterateManifests*(node: CodexNodeRef, onManifest: OnManifest) {.async.} =
+  without cids =? await node.blockStore.listBlocks(BlockType.Manifest):
+    warn "Failed to listBlocks"
+    return
+
+  for c in cids:
+    if cid =? await c:
+      without blk =? await node.blockStore.getBlock(cid):
+        warn "Failed to get manifest block by cid", cid
+        return
+
+      without manifest =? Manifest.decode(blk):
+        warn "Failed to decode manifest", cid
+        return
+
+      onManifest(cid, manifest)
+
 proc requestStorage*(
   self: CodexNodeRef,
   cid: Cid,
@@ -284,7 +303,13 @@ proc requestStorage*(
   let request = StorageRequest(
     ask: StorageAsk(
       slots: nodes + tolerance,
-      slotSize: (encoded.blockSize.int * encoded.steps).u256,
+      # TODO: Specify slot-specific size (as below) once dispersal is
+      # implemented. The current implementation downloads the entire dataset, so
+      # it is currently set to be the size of the entire dataset. This is
+      # because the slotSize is used to determine the amount of bytes to reserve
+      # in a Reservations
+      # TODO: slotSize: (encoded.blockSize.int * encoded.steps).u256,
+      slotSize: (encoded.blockSize.int * encoded.blocks.len).u256,
       duration: duration,
       proofProbability: proofProbability,
       reward: reward,

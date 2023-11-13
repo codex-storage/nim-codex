@@ -1,5 +1,6 @@
 import std/os
 import std/httpclient
+import std/strutils
 from std/net import TimeoutError
 
 import pkg/chronos
@@ -26,16 +27,18 @@ ethersuite "Node block expiration tests":
       "--api-port=8080",
       "--data-dir=" & dataDir,
       "--nat=127.0.0.1",
+      "--listen-addrs=/ip4/127.0.0.1/tcp/0",
       "--disc-ip=127.0.0.1",
       "--disc-port=8090",
       "--block-ttl=" & $blockTtlSeconds,
       "--block-mi=1",
       "--block-mn=10"
     ], debug = false)
+    node.waitUntilStarted()
 
   proc uploadTestFile(): string =
     let client = newHttpClient()
-    let uploadUrl = baseurl & "/upload"
+    let uploadUrl = baseurl & "/data"
     let uploadResponse = client.post(uploadUrl, content)
     check uploadResponse.status == "200 OK"
     client.close()
@@ -43,10 +46,17 @@ ethersuite "Node block expiration tests":
 
   proc downloadTestFile(contentId: string): Response =
     let client = newHttpClient(timeout=3000)
-    let downloadUrl = baseurl & "/download/" & contentId
+    let downloadUrl = baseurl & "/data/" & contentId
     let content = client.get(downloadUrl)
     client.close()
     content
+
+  proc hasFile(contentId: string): bool =
+    let client = newHttpClient(timeout=3000)
+    let dataLocalUrl = baseurl & "/local"
+    let content = client.get(dataLocalUrl)
+    client.close()
+    return content.body.contains(contentId)
 
   test "node retains not-expired file":
     startTestNode(blockTtlSeconds = 10)
@@ -57,6 +67,7 @@ ethersuite "Node block expiration tests":
 
     let response = downloadTestFile(contentId)
     check:
+      hasFile(contentId)
       response.status == "200 OK"
       response.body == content
 
@@ -66,6 +77,9 @@ ethersuite "Node block expiration tests":
     let contentId = uploadTestFile()
 
     await sleepAsync(3.seconds)
+
+    check:
+      not hasFile(contentId)
 
     expect TimeoutError:
       discard downloadTestFile(contentId)

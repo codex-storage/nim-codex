@@ -1,9 +1,17 @@
 import std/random
+import std/strutils
 import std/sequtils
 import std/times
+import std/typetraits
 import pkg/codex/contracts/requests
 import pkg/codex/sales/slotqueue
 import pkg/stint
+
+proc exampleString*(length: int): string =
+  let chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  result = newString(length) # Create a new empty string with a given length
+  for i in 0..<length:
+    result[i] = chars[rand(chars.len-1)] # Generate a random index and set the string's character
 
 proc example*[T: SomeInteger](_: type T): T =
   rand(T)
@@ -19,8 +27,9 @@ proc example*[T](_: type seq[T]): seq[T] =
 proc example*(_: type UInt256): UInt256 =
   UInt256.fromBytes(array[32, byte].example)
 
-proc example*[T: RequestId | SlotId | Nonce](_: type T): T =
-  T(array[32, byte].example)
+proc example*[T: distinct](_: type T): T =
+  type baseType = T.distinctBase
+  T(baseType.example)
 
 proc example*(_: type StorageRequest): StorageRequest =
   StorageRequest(

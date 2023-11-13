@@ -103,6 +103,8 @@ proc stop*(machine: Machine) {.async.} =
   if not machine.started:
     return
 
+  trace "stopping state machine"
+
   machine.started = false
   await machine.trackedFutures.cancelTracked()
 

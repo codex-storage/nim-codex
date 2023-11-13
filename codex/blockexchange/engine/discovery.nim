@@ -140,7 +140,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
       let
         haves = b.peers.peersHave(cid)
 
-      trace "Current number of peers for block", cid, count = haves.len
+      trace "Current number of peers for block", cid, peers = haves.len
       if haves.len < b.minPeersPerBlock:
         trace "Discovering block", cid
         try:

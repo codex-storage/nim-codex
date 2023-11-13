@@ -208,6 +208,38 @@ components:
         request:
           $ref: "#/components/schemas/StorageRequest"
 
+    DataList:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/DataItem"
+
+    DataItem:
+      type: object
+      properties:
+        cid:
+          $ref: "#/components/schemas/Cid"
+        manifest:
+          $ref: "#/components/schemas/ManifestItem"
+
+    ManifestItem:
+      type: object
+      properties:
+        rootHash:
+          $ref: "#/components/schemas/Cid"
+          description: "Root hash of the content"
+        originalBytes:
+          type: number
+          description: "Length of original content in bytes"
+        blockSize:
+          type: number
+          description: "Size of blocks"
+        protected:
+          type: boolean
+          description: "Indicates if content is protected by erasure-coding"
+
 servers:
   - url: "http://localhost:8080/api/codex/v1"
 
@@ -255,9 +287,51 @@ paths:
         "400":
           description: Peer either not found or was not possible to dial
 
-  "/download/{cid}":
+  "/local":
     get:
-      summary: "Download a file from the node in a streaming manner"
+      summary: "Lists manifest CIDs stored locally in node."
+      tags: [ Data ]
+      operationId: listData
+      responses:
+        "200":
+          description: Retrieved list of content CIDs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DataList"
+        "400":
+          description: Invalid CID is specified
+        "404":
+          description: Content specified by the CID is not found
+        "500":
+          description: Well it was bad-bad
+
+  "/data":
+    post:
+      summary: "Upload a file in a streaming manner. Once finished, the file is stored in the node and can be retrieved by any node in the network using the returned CID."
+      tags: [ Data ]
+      operationId: upload
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: CID of uploaded file
+          content:
+            text/plain:
+              schema:
+                type: string
+        "500":
+          description: Well it was bad-bad and the upload did not work out
+
+  "/data/{cid}":
+    get:
+      summary: "Download a file from the node in a streaming manner. If the file is not available locally, it will be retrieved from other nodes in the network if able."
       tags: [ Data ]
       operationId: download
       parameters:
@@ -282,27 +356,6 @@ paths:
           description: Content specified by the CID is not found
         "500":
           description: Well it was bad-bad
-
-  "/upload":
-    post:
-      summary: "Upload a file in a streaming manner"
-      tags: [ Data ]
-      operationId: upload
-      requestBody:
-        content:
-          application/octet-stream:
-            schema:
-              type: string
-              format: binary
-      responses:
-        "200":
-          description: CID of uploaded file
-          content:
-            text/plain:
-              schema:
-                type: string
-        "500":
-          description: Well it was bad-bad and the upload did not work out
 
   "/sales/slots":
     get:
@@ -362,6 +415,50 @@ paths:
         "503":
           description: Sales are unavailable
 
+  "/storage/request/{cid}":
+    post:
+      summary: "Creates a new Request for storage"
+      tags: [ Marketplace ]
+      operationId: createStorageRequest
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+            $ref: "#/components/schemas/Cid"
+          description: CID of the uploaded data that should be stored
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StorageRequestCreation"
+      responses:
+        "200":
+          description: Returns the Request ID as decimal string
+        "400":
+          description: Invalid or missing Request ID
+        "404":
+          description: Request ID not found
+        "503":
+          description: Purchasing is unavailable
+
+  "/storage/purchases":
+    get:
+      summary: "Returns list of purchase IDs"
+      tags: [ Marketplace ]
+      operationId: getPurchases
+      responses:
+        "200":
+          description: Gets all purchase IDs stored in node
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "503":
+          description: Purchasing is unavailable
+
   "/storage/purchases/{id}":
     get:
       summary: "Returns purchase details"
@@ -387,33 +484,6 @@ paths:
           description: Invalid or missing Purchase ID
         "404":
           description: Purchase not found
-        "503":
-          description: Purchasing is unavailable
-
-  "/storage/request/{cid}":
-    post:
-      summary: "Creates a new Request for storage"
-      tags: [ Marketplace ]
-      operationId: createStorageRequest
-      parameters:
-        - in: path
-          name: cid
-          required: true
-          schema:
-            $ref: "#/components/schemas/Cid"
-          description: CID of the uploaded data that should be stored
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/StorageRequestCreation"
-      responses:
-        "200":
-          description: Returns the Request ID as decimal string
-        "400":
-          description: Invalid or missing Request ID
-        "404":
-          description: Request ID not found
         "503":
           description: Purchasing is unavailable
 

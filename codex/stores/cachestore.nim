@@ -25,6 +25,7 @@ import ../units
 import ../chunker
 import ../errors
 import ../manifest
+import ../clock
 
 export blockstore
 
@@ -167,6 +168,16 @@ method putBlock*(
   discard self.putBlockSync(blk)
   return success()
 
+method ensureExpiry*(
+    self: CacheStore,
+    cid: Cid,
+    expiry: SecondsSince1970
+): Future[?!void] {.async.} =
+  ## Updates block's assosicated TTL in store - not applicable for CacheStore
+  ##
+
+  discard # CacheStore does not have notion of TTL
+
 method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
   ## Delete a block from the blockstore
   ##
@@ -195,9 +206,9 @@ proc new*(
     chunkSize: NBytes = DefaultChunkSize
 ): CacheStore {.raises: [Defect, ValueError].} =
   ## Create a new CacheStore instance
-  ## 
+  ##
   ## `cacheSize` and `chunkSize` are both in bytes
-  ## 
+  ##
 
   if cacheSize < chunkSize:
     raise newException(ValueError, "cacheSize cannot be less than chunkSize")

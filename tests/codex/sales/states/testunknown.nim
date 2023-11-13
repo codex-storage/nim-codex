@@ -8,6 +8,7 @@ import pkg/codex/sales/states/errored
 import pkg/codex/sales/states/filled
 import pkg/codex/sales/states/finished
 import pkg/codex/sales/states/failed
+import pkg/codex/sales/states/payout
 import ../../helpers/mockmarket
 import ../../examples
 import ../../helpers
@@ -45,10 +46,10 @@ checksuite "sales state 'unknown'":
     let next = await state.run(agent)
     check !next of SaleFilled
 
-  test "switches to finished state when on chain state is 'finished'":
+  test "switches to payout state when on chain state is 'finished'":
     market.slotState[slotId] = SlotState.Finished
     let next = await state.run(agent)
-    check !next of SaleFinished
+    check !next of SalePayout
 
   test "switches to finished state when on chain state is 'paid'":
     market.slotState[slotId] = SlotState.Paid

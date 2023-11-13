@@ -11,7 +11,6 @@
 
 import std/tables
 import pkg/libp2p
-import pkg/questionable
 
 import ../units
 export units

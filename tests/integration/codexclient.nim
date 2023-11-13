@@ -27,7 +27,7 @@ proc setLogLevel*(client: CodexClient, level: string) =
   assert response.status == "200 OK"
 
 proc upload*(client: CodexClient, contents: string): ?!Cid =
-  let response = client.http.post(client.baseurl & "/upload", contents)
+  let response = client.http.post(client.baseurl & "/data", contents)
   assert response.status == "200 OK"
   Cid.init(response.body).mapFailure
 
@@ -64,10 +64,11 @@ proc getPurchase*(client: CodexClient, purchaseId: PurchaseId): ?!RestPurchase =
   let json = ? parseJson(body).catch
   RestPurchase.fromJson(json)
 
-proc getSlots*(client: CodexClient): JsonNode =
+proc getSlots*(client: CodexClient): ?!seq[Slot] =
   let url = client.baseurl & "/sales/slots"
   let body = client.http.getContent(url)
-  parseJson(body).catch |? nil
+  let json = ? parseJson(body).catch
+  seq[Slot].fromJson(json)
 
 proc postAvailability*(
     client: CodexClient,

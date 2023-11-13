@@ -24,8 +24,8 @@ import ../../blocktype
 logScope:
   topics = "codex pendingblocks"
 
-declareGauge(codexBlockExchangePendingBlockRequests, "codex blockexchange pending block requests")
-declareGauge(codexBlockExchangeRetrievalTimeUs, "codex blockexchange block retrieval time us")
+declareGauge(codex_block_exchange_pending_block_requests, "codex blockexchange pending block requests")
+declareGauge(codex_block_exchange_retrieval_time_us, "codex blockexchange block retrieval time us")
 
 const
   DefaultBlockTimeout* = 10.minutes
@@ -40,7 +40,7 @@ type
     blocks*: Table[Cid, BlockReq] # pending Block requests
 
 proc updatePendingBlockGauge(p: PendingBlocksManager) =
-  codexBlockExchangePendingBlockRequests.set(p.blocks.len.int64)
+  codex_block_exchange_pending_block_requests.set(p.blocks.len.int64)
 
 proc getWantHandle*(
     p: PendingBlocksManager,
@@ -88,7 +88,7 @@ proc resolve*(p: PendingBlocksManager,
           startTime = pending[].startTime
           stopTime = getMonoTime().ticks
           retrievalDurationUs = (stopTime - startTime) div 1000
-        codexBlockExchangeRetrievalTimeUs.set(retrievalDurationUs)
+        codex_block_exchange_retrieval_time_us.set(retrievalDurationUs)
         trace "Block retrieval time", retrievalDurationUs
 
 proc setInFlight*(p: PendingBlocksManager,

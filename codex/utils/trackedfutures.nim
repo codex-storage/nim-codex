@@ -16,14 +16,12 @@ proc len*(self: TrackedFutures): int = self.futures.len
 
 proc removeFuture(self: TrackedFutures, future: FutureBase) =
   if not self.cancelling and not future.isNil:
-    trace "removing tracked future"
     self.futures.del(future.id)
 
 proc track*[T](self: TrackedFutures, fut: Future[T]): Future[T] =
   if self.cancelling:
     return fut
 
-  trace "tracking future", id = fut.id
   self.futures[fut.id] = FutureBase(fut)
 
   fut
@@ -41,6 +39,8 @@ proc track*[T, U](future: Future[T], self: U): Future[T] =
 
 proc cancelTracked*(self: TrackedFutures) {.async.} =
   self.cancelling = true
+
+  trace "cancelling tracked futures"
 
   for future in self.futures.values:
     if not future.isNil and not future.finished:

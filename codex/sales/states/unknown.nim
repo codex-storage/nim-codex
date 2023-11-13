@@ -6,9 +6,10 @@ import ./finished
 import ./failed
 import ./errored
 import ./cancelled
+import ./payout
 
 logScope:
-    topics = "marketplace sales unknown"
+  topics = "marketplace sales unknown"
 
 type
   SaleUnknown* = ref object of SaleState
@@ -47,7 +48,11 @@ method run*(state: SaleUnknown, machine: Machine): Future[?State] {.async.} =
     return some State(SaleErrored(error: error))
   of SlotState.Filled:
     return some State(SaleFilled())
-  of SlotState.Finished, SlotState.Paid:
+  of SlotState.Finished:
+    return some State(SalePayout())
+  of SlotState.Paid:
     return some State(SaleFinished())
   of SlotState.Failed:
     return some State(SaleFailed())
+  of SlotState.Cancelled:
+    return some State(SaleCancelled())

@@ -38,6 +38,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         "--nat=127.0.0.1",
         "--disc-ip=127.0.0.1",
         "--disc-port=8090",
+        "--listen-addrs=/ip4/127.0.0.1/tcp/0",
         "--persistence",
         "--eth-account=" & $account1
       ]
@@ -46,6 +47,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         node1Args.add("--log-level=" & debug1)
 
       node1 = startNode(node1Args, debug = debug1)
+      node1.waitUntilStarted()
 
       let bootstrap = client1.info()["spr"].getStr()
 
@@ -55,6 +57,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         "--nat=127.0.0.1",
         "--disc-ip=127.0.0.1",
         "--disc-port=8091",
+        "--listen-addrs=/ip4/127.0.0.1/tcp/0",
         "--bootstrap-node=" & bootstrap,
         "--persistence",
         "--eth-account=" & $account2
@@ -64,6 +67,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         node2Args.add("--log-level=" & debug2)
 
       node2 = startNode(node2Args, debug = debug2)
+      node2.waitUntilStarted()
 
     teardown:
       client1.close()

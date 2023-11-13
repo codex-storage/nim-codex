@@ -7,7 +7,7 @@ import ./cancelled
 import ./failed
 
 logScope:
-    topics = "marketplace sales finished"
+  topics = "marketplace sales finished"
 
 type
   SaleFinished* = ref object of ErrorHandlingState
@@ -23,7 +23,6 @@ method onFailed*(state: SaleFinished, request: StorageRequest): ?State =
 method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
   let data = agent.data
-  let context = agent.context
 
   without request =? data.request:
     raiseAssert "no sale request"
@@ -33,5 +32,5 @@ method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
 
   info "Slot finished and paid out", requestId = $data.requestId, slotIndex
 
-  if onCleanUp =? context.onCleanUp:
+  if onCleanUp =? agent.onCleanUp:
     await onCleanUp()
