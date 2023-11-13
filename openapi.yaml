@@ -412,6 +412,50 @@ paths:
         "503":
           description: Sales are unavailable
 
+  "/storage/request/{cid}":
+    post:
+      summary: "Creates a new Request for storage"
+      tags: [ Marketplace ]
+      operationId: createStorageRequest
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+            $ref: "#/components/schemas/Cid"
+          description: CID of the uploaded data that should be stored
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StorageRequestCreation"
+      responses:
+        "200":
+          description: Returns the Request ID as decimal string
+        "400":
+          description: Invalid or missing Request ID
+        "404":
+          description: Request ID not found
+        "503":
+          description: Purchasing is unavailable
+
+  "/storage/purchases":
+    get:
+      summary: "Returns list of purchase IDs"
+      tags: [ Marketplace ]
+      operationId: getPurchases
+      responses:
+        "200":
+          description: Gets all purchase IDs stored in node
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "503":
+          description: Purchasing is unavailable
+
   "/storage/purchases/{id}":
     get:
       summary: "Returns purchase details"
@@ -437,33 +481,6 @@ paths:
           description: Invalid or missing Purchase ID
         "404":
           description: Purchase not found
-        "503":
-          description: Purchasing is unavailable
-
-  "/storage/request/{cid}":
-    post:
-      summary: "Creates a new Request for storage"
-      tags: [ Marketplace ]
-      operationId: createStorageRequest
-      parameters:
-        - in: path
-          name: cid
-          required: true
-          schema:
-            $ref: "#/components/schemas/Cid"
-          description: CID of the uploaded data that should be stored
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/StorageRequestCreation"
-      responses:
-        "200":
-          description: Returns the Request ID as decimal string
-        "400":
-          description: Invalid or missing Request ID
-        "404":
-          description: Request ID not found
         "503":
           description: Purchasing is unavailable
 
