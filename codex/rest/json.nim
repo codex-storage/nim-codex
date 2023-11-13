@@ -100,6 +100,9 @@ func `%`*(obj: Cid): JsonNode =
 func `%`*(obj: PeerId): JsonNode =
   % $obj
 
+func `%`*(obj: NodeId): JsonNode =
+  % $obj
+
 func `%`*(obj: SignedPeerRecord): JsonNode =
   % $obj
 
