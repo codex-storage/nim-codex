@@ -11,6 +11,8 @@ import pkg/questionable/results
 import pkg/codex/stores/cachestore
 import pkg/codex/chunker
 import pkg/codex/manifest
+import pkg/codex/merkletree
+import pkg/codex/utils
 
 import ../helpers
 
@@ -27,6 +29,8 @@ proc commonBlockStoreTests*(name: string,
   asyncchecksuite name & " Store Common":
     var
       newBlock, newBlock1, newBlock2, newBlock3: Block
+      manifest: Manifest
+      tree: MerkleTree
       store: BlockStore
 
     setup:
@@ -34,6 +38,8 @@ proc commonBlockStoreTests*(name: string,
       newBlock1 = Block.new("1".repeat(100).toBytes()).tryGet()
       newBlock2 = Block.new("2".repeat(100).toBytes()).tryGet()
       newBlock3 = Block.new("3".repeat(100).toBytes()).tryGet()
+
+      (manifest, tree) = makeManifestAndTree(@[newBlock, newBlock1, newBlock2, newBlock3]).tryGet()
 
       if not isNil(before):
         await before()
@@ -104,10 +110,10 @@ proc commonBlockStoreTests*(name: string,
     test "listBlocks Manifest":
       let
         blocks = @[newBlock1, newBlock2, newBlock3]
-        manifest = Manifest.new(blocks = blocks.mapIt( it.cid )).tryGet()
         manifestBlock = Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
+        treeBlock = Block.new(tree.encode()).tryGet()
         putHandles = await allFinished(
-         (manifestBlock & blocks).mapIt( store.putBlock( it ) ))
+         (@[treeBlock, manifestBlock] & blocks).mapIt( store.putBlock( it ) ))
 
       for handle in putHandles:
         check not handle.failed
@@ -128,10 +134,10 @@ proc commonBlockStoreTests*(name: string,
     test "listBlocks Both":
       let
         blocks = @[newBlock1, newBlock2, newBlock3]
-        manifest = Manifest.new(blocks = blocks.mapIt( it.cid )).tryGet()
         manifestBlock = Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
+        treeBlock = Block.new(tree.encode()).tryGet()
         putHandles = await allFinished(
-         (manifestBlock & blocks).mapIt( store.putBlock( it ) ))
+         (@[treeBlock, manifestBlock] & blocks).mapIt( store.putBlock( it ) ))
 
       for handle in putHandles:
         check not handle.failed
@@ -146,4 +152,4 @@ proc commonBlockStoreTests*(name: string,
           check (await store.hasBlock(cid)).tryGet()
           count.inc
 
-      check count == 4
+      check count == 5

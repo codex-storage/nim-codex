@@ -30,19 +30,18 @@ export types
 
 type
   Manifest* = ref object of RootObj
-    rootHash {.serialize.}: ?Cid          # Root (tree) hash of the contained data set
-    originalBytes* {.serialize.}: NBytes  # Exact size of the original (uploaded) file
+    treeCid {.serialize.}: Cid            # Root of the merkle tree
+    datasetSize {.serialize.}: NBytes     # Total size of all blocks
     blockSize {.serialize.}: NBytes       # Size of each contained block (might not be needed if blocks are len-prefixed)
-    blocks: seq[Cid]                      # Block Cid
     version: CidVersion                   # Cid version
     hcodec: MultiCodec                    # Multihash codec
     codec: MultiCodec                     # Data set codec
     case protected {.serialize.}: bool    # Protected datasets have erasure coded info
     of true:
-      ecK: int              # Number of blocks to encode
-      ecM: int              # Number of resulting parity blocks
-      originalCid: Cid      # The original Cid of the dataset being erasure coded
-      originalLen: int      # The length of the original manifest
+      ecK: int                            # Number of blocks to encode
+      ecM: int                            # Number of resulting parity blocks
+      originalTreeCid: Cid                # The original root of the dataset being erasure coded
+      originalDatasetSize: NBytes
     else:
       discard
 
@@ -53,8 +52,8 @@ type
 proc blockSize*(self: Manifest): NBytes =
   self.blockSize
 
-proc blocks*(self: Manifest): seq[Cid] =
-  self.blocks
+proc datasetSize*(self: Manifest): NBytes =
+  self.datasetSize
 
 proc version*(self: Manifest): CidVersion =
   self.version
@@ -74,32 +73,24 @@ proc ecK*(self: Manifest): int =
 proc ecM*(self: Manifest): int =
   self.ecM
 
-proc originalCid*(self: Manifest): Cid =
-  self.originalCid
+proc originalTreeCid*(self: Manifest): Cid =
+  self.originalTreeCid
 
-proc originalLen*(self: Manifest): int =
-  self.originalLen
+proc originalBlocksCount*(self: Manifest): int =
+  divUp(self.originalDatasetSize.int, self.blockSize.int)
+
+proc originalDatasetSize*(self: Manifest): NBytes =
+  self.originalDatasetSize
+
+proc treeCid*(self: Manifest): Cid =
+  self.treeCid
+
+proc blocksCount*(self: Manifest): int =
+  divUp(self.datasetSize.int, self.blockSize.int)
 
 ############################################################
 # Operations on block list
 ############################################################
-
-func len*(self: Manifest): int =
-  self.blocks.len
-
-func `[]`*(self: Manifest, i: Natural): Cid =
-  self.blocks[i]
-
-func `[]=`*(self: var Manifest, i: Natural, item: Cid) =
-  self.rootHash = Cid.none
-  self.blocks[i] = item
-
-func `[]`*(self: Manifest, i: BackwardsIndex): Cid =
-  self.blocks[self.len - i.int]
-
-func `[]=`*(self: Manifest, i: BackwardsIndex, item: Cid) =
-  self.rootHash = Cid.none
-  self.blocks[self.len - i.int] = item
 
 func isManifest*(cid: Cid): ?!bool =
   let res = ?cid.contentType().mapFailure(CodexError)
@@ -108,25 +99,6 @@ func isManifest*(cid: Cid): ?!bool =
 func isManifest*(mc: MultiCodec): ?!bool =
   ($mc in ManifestContainers).success
 
-proc add*(self: Manifest, cid: Cid) =
-  assert not self.protected  # we expect that protected manifests are created with properly-sized self.blocks
-  self.rootHash = Cid.none
-  trace "Adding cid to manifest", cid
-  self.blocks.add(cid)
-  self.originalBytes = self.blocks.len.NBytes * self.blockSize
-
-iterator items*(self: Manifest): Cid =
-  for b in self.blocks:
-    yield b
-
-iterator pairs*(self: Manifest): tuple[key: int, val: Cid] =
-  for pair in self.blocks.pairs():
-    yield pair
-
-func contains*(self: Manifest, cid: Cid): bool =
-  cid in self.blocks
-
-
 ############################################################
 # Various sizes and verification
 ############################################################
@@ -134,79 +106,61 @@ func contains*(self: Manifest, cid: Cid): bool =
 func bytes*(self: Manifest, pad = true): NBytes =
   ## Compute how many bytes corresponding StoreStream(Manifest, pad) will return
   if pad or self.protected:
-    self.len.NBytes * self.blockSize
+    self.blocksCount.NBytes * self.blockSize
   else:
-    self.originalBytes
+    self.datasetSize
 
 func rounded*(self: Manifest): int =
   ## Number of data blocks in *protected* manifest including padding at the end
-  roundUp(self.originalLen, self.ecK)
+  roundUp(self.originalBlocksCount, self.ecK)
 
 func steps*(self: Manifest): int =
   ## Number of EC groups in *protected* manifest
-  divUp(self.originalLen, self.ecK)
+  divUp(self.originalBlocksCount, self.ecK)
 
 func verify*(self: Manifest): ?!void =
   ## Check manifest correctness
   ##
-  let originalLen = (if self.protected: self.originalLen else: self.len)
 
-  if divUp(self.originalBytes, self.blockSize) != originalLen:
-    return failure newException(CodexError, "Broken manifest: wrong originalBytes")
-
-  if self.protected and (self.len != self.steps * (self.ecK + self.ecM)):
-    return failure newException(CodexError, "Broken manifest: wrong originalLen")
+  if self.protected and (self.blocksCount != self.steps * (self.ecK + self.ecM)):
+    return failure newException(CodexError, "Broken manifest: wrong originalBlocksCount")
 
   return success()
 
+proc cid*(self: Manifest): ?!Cid {.deprecated: "use treeCid instead".} =
+  self.treeCid.success
 
-############################################################
-# Cid computation
-############################################################
+proc `==`*(a, b: Manifest): bool =
+  (a.treeCid == b.treeCid) and
+  (a.datasetSize == b.datasetSize) and
+  (a.blockSize == b.blockSize) and
+  (a.version == b.version) and
+  (a.hcodec == b.hcodec) and
+  (a.codec == b.codec) and
+  (a.protected == b.protected) and
+    (if a.protected:
+      (a.ecK == b.ecK) and
+      (a.ecM == b.ecM) and
+      (a.originalTreeCid == b.originalTreeCid) and
+      (a.originalDatasetSize == b.originalDatasetSize)
+    else:
+      true)
 
-template hashBytes(mh: MultiHash): seq[byte] =
-  ## get the hash bytes of a multihash object
-  ##
-
-  mh.data.buffer[mh.dpos..(mh.dpos + mh.size - 1)]
-
-proc makeRoot*(self: Manifest): ?!void =
-  ## Create a tree hash root of the contained
-  ## block hashes
-  ##
-
-  var
-    stack: seq[MultiHash]
-
-  for cid in self:
-    stack.add(? cid.mhash.mapFailure)
-
-    while stack.len > 1:
-      let
-        (b1, b2) = (stack.pop(), stack.pop())
-        mh = ? MultiHash.digest(
-          $self.hcodec,
-          (b1.hashBytes() & b2.hashBytes()))
-          .mapFailure
-      stack.add(mh)
-
-  if stack.len == 1:
-    let digest = ? EmptyDigests[self.version][self.hcodec].catch
-    let cid = ? Cid.init(self.version, self.codec, digest).mapFailure
-
-    self.rootHash = cid.some
-
-  success()
-
-proc cid*(self: Manifest): ?!Cid =
-  ## Generate a root hash using the treehash algorithm
-  ##
-
-  if self.rootHash.isNone:
-    ? self.makeRoot()
-
-  (!self.rootHash).success
-
+proc `$`*(self: Manifest): string =
+  "treeCid: " & $self.treeCid &
+    ", datasetSize: " & $self.datasetSize &
+    ", blockSize: " & $self.blockSize &
+    ", version: " & $self.version &
+    ", hcodec: " & $self.hcodec &
+    ", codec: " & $self.codec &
+    ", protected: " & $self.protected &
+    (if self.protected:
+      ", ecK: " & $self.ecK &
+      ", ecM: " & $self.ecM &
+      ", originalTreeCid: " & $self.originalTreeCid &
+      ", originalDatasetSize: " & $self.originalDatasetSize
+    else:
+      "")
 
 ############################################################
 # Constructors
@@ -214,67 +168,61 @@ proc cid*(self: Manifest): ?!Cid =
 
 proc new*(
     T: type Manifest,
-    blocks: openArray[Cid] = [],
-    protected = false,
-    version = CIDv1,
+    treeCid: Cid,
+    blockSize: NBytes,
+    datasetSize: NBytes,
+    version: CidVersion = CIDv1,
     hcodec = multiCodec("sha2-256"),
     codec = multiCodec("raw"),
-    blockSize = DefaultBlockSize
-): ?!Manifest =
-  ## Create a manifest using an array of `Cid`s
-  ##
-
-  if hcodec notin EmptyDigests[version]:
-    return failure("Unsupported manifest hash codec!")
+    protected = false,
+): Manifest =
 
   T(
-    blocks: @blocks,
+    treeCid: treeCid,
+    blockSize: blockSize,
+    datasetSize: datasetSize,
     version: version,
     codec: codec,
     hcodec: hcodec,
-    blockSize: blockSize,
-    originalBytes: blocks.len.NBytes * blockSize,
-    protected: protected).success
+    protected: protected)
 
 proc new*(
     T: type Manifest,
     manifest: Manifest,
+    treeCid: Cid,
+    datasetSize: NBytes,
     ecK, ecM: int
-): ?!Manifest =
+): Manifest =
   ## Create an erasure protected dataset from an
-  ## un-protected one
+  ## unprotected one
   ##
+  Manifest(
+    treeCid: treeCid,
+    datasetSize: datasetSize,
+    version: manifest.version,
+    codec: manifest.codec,
+    hcodec: manifest.hcodec,
+    blockSize: manifest.blockSize,
+    protected: true,
+    ecK: ecK, ecM: ecM,
+    originalTreeCid: manifest.treeCid,
+    originalDatasetSize: manifest.datasetSize)
 
-  var
-    self = Manifest(
-      version: manifest.version,
-      codec: manifest.codec,
-      hcodec: manifest.hcodec,
-      originalBytes: manifest.originalBytes,
-      blockSize: manifest.blockSize,
-      protected: true,
-      ecK: ecK, ecM: ecM,
-      originalCid: ? manifest.cid,
-      originalLen: manifest.len)
-
-  let
-    encodedLen = self.rounded + (self.steps * ecM)
-
-  self.blocks = newSeq[Cid](encodedLen)
-
-  # copy original manifest blocks
-  for i in 0..<self.rounded:
-    if i < manifest.len:
-      self.blocks[i] = manifest[i]
-    else:
-      self.blocks[i] = EmptyCid[manifest.version]
-      .catch
-      .get()[manifest.hcodec]
-      .catch
-      .get()
-
-  ? self.verify()
-  self.success
+proc new*(
+    T: type Manifest,
+    manifest: Manifest
+): Manifest =
+  ## Create an unprotected dataset from an
+  ## erasure protected one
+  ##
+  Manifest(
+    treeCid: manifest.originalTreeCid,
+    datasetSize: manifest.originalDatasetSize,
+    version: manifest.version,
+    codec: manifest.codec,
+    hcodec: manifest.hcodec,
+    blockSize: manifest.blockSize,
+    protected: false)
 
 proc new*(
   T: type Manifest,
@@ -287,50 +235,27 @@ proc new*(
 
 proc new*(
   T: type Manifest,
-  rootHash: Cid,
-  originalBytes: NBytes,
+  treeCid: Cid,
+  datasetSize: NBytes,
   blockSize: NBytes,
-  blocks: seq[Cid],
   version: CidVersion,
   hcodec: MultiCodec,
   codec: MultiCodec,
   ecK: int,
   ecM: int,
-  originalCid: Cid,
-  originalLen: int
+  originalTreeCid: Cid,
+  originalDatasetSize: NBytes
 ): Manifest =
   Manifest(
-    rootHash: rootHash.some,
-    originalBytes: originalBytes,
+    treeCid: treeCid,
+    datasetSize: datasetSize,
     blockSize: blockSize,
-    blocks: blocks,
     version: version,
     hcodec: hcodec,
     codec: codec,
     protected: true,
     ecK: ecK,
     ecM: ecM,
-    originalCid: originalCid,
-    originalLen: originalLen
-  )
-
-proc new*(
-  T: type Manifest,
-  rootHash: Cid,
-  originalBytes: NBytes,
-  blockSize: NBytes,
-  blocks: seq[Cid],
-  version: CidVersion,
-  hcodec: MultiCodec,
-  codec: MultiCodec
-): Manifest =
-  Manifest(
-    rootHash: rootHash.some,
-    originalBytes: originalBytes,
-    blockSize: blockSize,
-    blocks: blocks,
-    version: version,
-    hcodec: hcodec,
-    codec: codec,
-    protected: false,
+    originalTreeCid: originalTreeCid,
+    originalDatasetSize: originalDatasetSize
   )

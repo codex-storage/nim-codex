@@ -18,8 +18,11 @@ import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
 import pkg/metrics
+import pkg/questionable/results
 
+import ../protobuf/blockexc
 import ../../blocktype
+import ../../merkletree
 
 logScope:
   topics = "codex pendingblocks"
@@ -37,14 +40,14 @@ type
     startTime*: int64
 
   PendingBlocksManager* = ref object of RootObj
-    blocks*: Table[Cid, BlockReq] # pending Block requests
+    blocks*: Table[BlockAddress, BlockReq] # pending Block requests
 
 proc updatePendingBlockGauge(p: PendingBlocksManager) =
   codex_block_exchange_pending_block_requests.set(p.blocks.len.int64)
 
 proc getWantHandle*(
     p: PendingBlocksManager,
-    cid: Cid,
+    address: BlockAddress,
     timeout = DefaultBlockTimeout,
     inFlight = false
 ): Future[Block] {.async.} =
@@ -52,72 +55,105 @@ proc getWantHandle*(
   ##
 
   try:
-    if cid notin p.blocks:
-      p.blocks[cid] = BlockReq(
+    if address notin p.blocks:
+      p.blocks[address] = BlockReq(
         handle: newFuture[Block]("pendingBlocks.getWantHandle"),
         inFlight: inFlight,
         startTime: getMonoTime().ticks)
 
-      trace "Adding pending future for block", cid, inFlight = p.blocks[cid].inFlight
+      trace "Adding pending future for block", address, inFlight = p.blocks[address].inFlight
 
     p.updatePendingBlockGauge()
-    return await p.blocks[cid].handle.wait(timeout)
+    return await p.blocks[address].handle.wait(timeout)
   except CancelledError as exc:
-    trace "Blocks cancelled", exc = exc.msg, cid
+    trace "Blocks cancelled", exc = exc.msg, address
     raise exc
   except CatchableError as exc:
     trace "Pending WANT failed or expired", exc = exc.msg
     # no need to cancel, it is already cancelled by wait()
     raise exc
   finally:
-    p.blocks.del(cid)
+    p.blocks.del(address)
     p.updatePendingBlockGauge()
 
-proc resolve*(p: PendingBlocksManager,
-              blocks: seq[Block]) =
+proc getWantHandle*(
+    p: PendingBlocksManager,
+    cid: Cid,
+    timeout = DefaultBlockTimeout,
+    inFlight = false
+): Future[Block] =
+  p.getWantHandle(BlockAddress.init(cid), timeout, inFlight)
+
+proc resolve*(
+  p: PendingBlocksManager,
+  blocksDelivery: seq[BlockDelivery]
+  ) {.gcsafe, raises: [].} =
   ## Resolve pending blocks
   ##
 
-  for blk in blocks:
-    # resolve any pending blocks
-    p.blocks.withValue(blk.cid, pending):
-      if not pending[].handle.completed:
-        trace "Resolving block", cid = blk.cid
-        pending[].handle.complete(blk)
+  for bd in blocksDelivery:
+    p.blocks.withValue(bd.address, blockReq):
+      trace "Resolving block", address = bd.address
+
+      if not blockReq.handle.finished:
         let
-          startTime = pending[].startTime
+          startTime = blockReq.startTime
           stopTime = getMonoTime().ticks
           retrievalDurationUs = (stopTime - startTime) div 1000
+
+        blockReq.handle.complete(bd.blk)
+        
         codex_block_exchange_retrieval_time_us.set(retrievalDurationUs)
-        trace "Block retrieval time", retrievalDurationUs
+        trace "Block retrieval time", retrievalDurationUs, address = bd.address
+      else:
+        trace "Block handle already finished", address = bd.address
+    do:
+      warn "Attempting to resolve block that's not currently a pending block", address = bd.address
 
 proc setInFlight*(p: PendingBlocksManager,
-                  cid: Cid,
+                  address: BlockAddress,
                   inFlight = true) =
-  p.blocks.withValue(cid, pending):
+  p.blocks.withValue(address, pending):
     pending[].inFlight = inFlight
-    trace "Setting inflight", cid, inFlight = pending[].inFlight
+    trace "Setting inflight", address, inFlight = pending[].inFlight
 
 proc isInFlight*(p: PendingBlocksManager,
-                 cid: Cid
+                 address: BlockAddress,
                 ): bool =
-  p.blocks.withValue(cid, pending):
+  p.blocks.withValue(address, pending):
     result = pending[].inFlight
-    trace "Getting inflight", cid, inFlight = result
-
-proc pending*(p: PendingBlocksManager, cid: Cid): bool =
-  cid in p.blocks
+    trace "Getting inflight", address, inFlight = result
 
 proc contains*(p: PendingBlocksManager, cid: Cid): bool =
-  p.pending(cid)
+  BlockAddress.init(cid) in p.blocks
 
-iterator wantList*(p: PendingBlocksManager): Cid =
-  for k in p.blocks.keys:
-    yield k
+proc contains*(p: PendingBlocksManager, address: BlockAddress): bool =
+  address in p.blocks
+
+iterator wantList*(p: PendingBlocksManager): BlockAddress =
+  for a in p.blocks.keys:
+    yield a
+
+iterator wantListBlockCids*(p: PendingBlocksManager): Cid =
+  for a in p.blocks.keys:
+    if not a.leaf:
+      yield a.cid
+
+iterator wantListCids*(p: PendingBlocksManager): Cid =
+  var yieldedCids = initHashSet[Cid]()
+  for a in p.blocks.keys:
+    let cid = a.cidOrTreeCid
+    if cid notin yieldedCids:
+      yieldedCids.incl(cid)
+      yield cid
+
 
 iterator wantHandles*(p: PendingBlocksManager): Future[Block] =
   for v in p.blocks.values:
     yield v.handle
+
+proc wantListLen*(p: PendingBlocksManager): int =
+  p.blocks.len
 
 func len*(p: PendingBlocksManager): int =
   p.blocks.len

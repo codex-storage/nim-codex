@@ -13,7 +13,8 @@ import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
 
-import codex/stores/repostore
+import pkg/codex/stores/repostore
+import pkg/codex/utils/asynciter
 
 type
   MockRepoStore* = ref object of RepoStore
@@ -31,15 +32,14 @@ method delBlock*(self: MockRepoStore, cid: Cid): Future[?!void] {.async.} =
   dec self.iteratorIndex
   return success()
 
-method getBlockExpirations*(self: MockRepoStore, maxNumber: int, offset: int): Future[?!BlockExpirationIter] {.async.} =
+method getBlockExpirations*(self: MockRepoStore, maxNumber: int, offset: int): Future[?!AsyncIter[?BlockExpiration]] {.async.} =
   if self.getBlockExpirationsThrows:
     raise new CatchableError
 
   self.getBeMaxNumber = maxNumber
   self.getBeOffset = offset
 
-  var iter = BlockExpirationIter()
-  iter.finished = false
+  var iter = AsyncIter[?BlockExpiration]()
 
   self.iteratorIndex = offset
   var numberLeft = maxNumber
@@ -49,7 +49,7 @@ method getBlockExpirations*(self: MockRepoStore, maxNumber: int, offset: int): F
       let selectedBlock = self.testBlockExpirations[self.iteratorIndex]
       inc self.iteratorIndex
       return selectedBlock.some
-    iter.finished = true
+    iter.finish
     return BlockExpiration.none
 
   iter.next = next
