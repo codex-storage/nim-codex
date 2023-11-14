@@ -66,6 +66,13 @@ template expectJsonKind(
   expectJsonKind(expectedType, {expectedKind}, json)
 
 proc fromJson*(
+  T: type enum,
+  json: JsonNode
+): ?!T =
+  expectJsonKind(string, JString, json)
+  catch parseEnum[T](json.str)
+
+proc fromJson*(
   _: type string,
   json: JsonNode
 ): ?!string =
@@ -177,7 +184,7 @@ proc fromJson*(
   json: JsonNode
 ): ?!Cid =
   expectJsonKind(Cid, JString, json)
-  Cid.init($json).mapFailure
+  Cid.init(json.str).mapFailure
 
 proc fromJson*[T](
   _: type seq[T],
@@ -189,34 +196,16 @@ proc fromJson*[T](
     arr.add(? T.fromJson(elem))
   success arr
 
-proc fromJson*[T: object](
+proc fromJson*[T: ref object or object](
   _: type T,
   json: JsonNode
 ): ?!T =
   expectJsonKind(T, JObject, json)
-  var res = T.default
-  # Leave this in, it's good for debugging:
-  # trace "deserializing object", to = $T, json
-  for name, value in fieldPairs(res):
-    if json{name} != nil:
-      without parsed =? type(value).fromJson(json{name}), e:
-        error "error deserializing field",
-          field = $T & "." & name,
-          json = json{name},
-          error = e.msg
-        return failure(e)
-      value = parsed
-  success(res)
+  var res = when type(T) is ref: T.new() else: T.default
 
-proc fromJson*[T: ref object](
-  _: type T,
-  json: JsonNode
-): ?!T =
-  expectJsonKind(T, JObject, json)
-  var res = T.new()
   # Leave this in, it's good for debugging:
   # trace "deserializing object", to = $T, json
-  for name, value in fieldPairs(res[]):
+  for name, value in fieldPairs(when type(T) is ref: res[] else: res):
     if json{name} != nil:
       without parsed =? type(value).fromJson(json{name}), e:
         error "error deserializing field",
