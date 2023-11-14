@@ -40,6 +40,7 @@ type
     of true:
       ecK: int                              # Number of blocks to encode
       ecM: int                              # Number of resulting parity blocks
+      interleave: int                       # How far apart are blocks of an erasure code according to original index
       originalManifest: Manifest            # The original Manifest being erasure coded
     else:
       discard
@@ -71,6 +72,9 @@ proc ecK*(self: Manifest): int =
 
 proc ecM*(self: Manifest): int =
   self.ecM
+
+proc interleave*(self: Manifest): int =
+  self.interleave
 
 proc originalManifest*(self: Manifest): Manifest =
   self.originalManifest
@@ -119,7 +123,7 @@ func rounded*(self: Manifest): int =
 
 func steps*(self: Manifest): int =
   ## Number of EC groups in *protected* manifest
-  divUp(self.originalBlocksCount, self.ecK)
+  divUp(self.originalBlocksCount, self.ecK * self.interleave)
 
 func verify*(self: Manifest): ?!void =
   ## Check manifest correctness
@@ -144,6 +148,7 @@ proc `==`*(a, b: Manifest): bool =
     (if a.protected:
       (a.ecK == b.ecK) and
       (a.ecM == b.ecM) and
+      (a.interleave == b.interleave) and
       (a.originalManifest == b.originalManifest)
     else:
       true)
@@ -159,6 +164,7 @@ proc `$`*(self: Manifest): string =
     (if self.protected:
       ", ecK: " & $self.ecK &
       ", ecM: " & $self.ecM &
+      ", interleave: " & $self.interleave &
       ", originalManifest: " & $self.originalManifest
     else:
       "")
@@ -192,7 +198,8 @@ proc new*(
     manifest: Manifest,
     treeCid: Cid,
     datasetSize: NBytes,
-    ecK, ecM: int
+    ecK, ecM: int,
+    interleave: int
 ): Manifest =
   ## Create an erasure protected dataset from an
   ## unprotected one
@@ -206,6 +213,7 @@ proc new*(
     blockSize: manifest.blockSize,
     protected: true,
     ecK: ecK, ecM: ecM,
+    interleave: interleave,
     originalManifest: manifest)
 
 proc new*(
@@ -236,6 +244,7 @@ proc new*(
   codec: MultiCodec,
   ecK: int,
   ecM: int,
+  interleave: int,
   originalManifest: Manifest
 ): Manifest =
   Manifest(
@@ -248,5 +257,6 @@ proc new*(
     protected: true,
     ecK: ecK,
     ecM: ecM,
+    interleave: interleave,
     originalManifest: originalManifest
   )

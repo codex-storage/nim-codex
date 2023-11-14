@@ -60,7 +60,8 @@ proc encode*(coder: DagPBCoder, manifest: Manifest): ?!seq[byte] =
     var erasureInfo = initProtoBuffer()
     erasureInfo.write(1, manifest.ecK.uint32)
     erasureInfo.write(2, manifest.ecM.uint32)
-    erasureInfo.write(3, ? coder.encode(manifest.originalManifest)) # TODO: fix check
+    erasureInfo.write(3, manifest.interleave.uint32)
+    erasureInfo.write(4, ? coder.encode(manifest.originalManifest)) # TODO: fix check
     erasureInfo.finish()
 
     header.write(4, erasureInfo)
@@ -82,7 +83,7 @@ proc decode*(coder: DagPBCoder, data: openArray[byte]): ?!Manifest =
     originalManifest: Manifest
     datasetSize: uint32
     blockSize: uint32
-    ecK, ecM: uint32
+    ecK, ecM, interleave: uint32
 
   # Decode `Header` message
   if pbNode.getField(1, pbHeader).isErr:
@@ -109,8 +110,11 @@ proc decode*(coder: DagPBCoder, data: openArray[byte]): ?!Manifest =
     if pbErasureInfo.getField(2, ecM).isErr:
       return failure("Unable to decode `M` from manifest!")
 
+    if pbErasureInfo.getField(3, interleave).isErr:
+      return failure("Unable to decode `interleave` from manifest!")
+
     var buffer = newSeq[byte]()
-    if pbErasureInfo.getField(3, buffer).isErr:
+    if pbErasureInfo.getField(4, buffer).isErr:
       return failure("Unable to decode `originalManifest` from manifest!")
     originalManifest = coder.decode(buffer).get # TODO: fix check
 
@@ -128,7 +132,8 @@ proc decode*(coder: DagPBCoder, data: openArray[byte]): ?!Manifest =
         codec = treeCid.mcodec,
         ecK = ecK.int,
         ecM = ecM.int,
-        originalManifest originalManifest
+        interleave = interleave.int, #TODO
+        originalManifest = originalManifest
       )
       else:
         Manifest.new(
