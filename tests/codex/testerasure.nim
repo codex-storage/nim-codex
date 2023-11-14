@@ -1,4 +1,5 @@
 import std/sequtils
+import std/sugar
 
 import pkg/asynctest
 import pkg/chronos
@@ -42,8 +43,8 @@ asyncchecksuite "Erasure encode/decode":
         parity)).tryGet()
 
     check:
-      encoded.len mod (buffers + parity) == 0
-      encoded.rounded == roundUp(manifest.len, buffers)
+      encoded.blocksCount mod (buffers + parity) == 0
+      encoded.rounded == roundUp(manifest.blocksCount, buffers)
       encoded.steps == encoded.rounded div buffers
 
     return encoded
@@ -56,14 +57,14 @@ asyncchecksuite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     var
-      column = rng.rand((encoded.blocksCount - 1) div encoded.steps) # random column
+      column = rng.rand((encoded.blocksCount div encoded.steps) - 1) # random column
       dropped: seq[int]
 
     for _ in 0..<encoded.ecM:
       dropped.add(column)
       (await store.delBlock(encoded.treeCid, column)).tryGet()
       (await store.delBlock(manifest.treeCid, column)).tryGet()
-      column.inc(encoded.steps - 1)
+      column = (column + encoded.steps) mod encoded.blocksCount # wrap around
 
     var
       decoded = (await erasure.decode(encoded)).tryGet()
@@ -74,8 +75,9 @@ asyncchecksuite "Erasure encode/decode":
       decoded.blocksCount == encoded.originalBlocksCount
 
     for d in dropped:
-      let present = await store.hasBlock(manifest.treeCid, d)
-      check present.tryGet()
+      if d < manifest.blocksCount: # we don't support returning parity blocks yet
+        let present = await store.hasBlock(manifest.treeCid, d)
+        check present.tryGet()
 
   test "Should not tolerate losing more than M data blocks in a single random column":
     const
@@ -85,14 +87,14 @@ asyncchecksuite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     var
-      column = rng.rand((encoded.blocksCount - 1) div encoded.steps) # random column
+      column = rng.rand((encoded.blocksCount div encoded.steps) - 1) # random column
       dropped: seq[int]
 
     for _ in 0..<encoded.ecM + 1:
       dropped.add(column)
       (await store.delBlock(encoded.treeCid, column)).tryGet()
       (await store.delBlock(manifest.treeCid, column)).tryGet()
-      column.inc(encoded.steps)
+      column = (column + encoded.steps) mod encoded.blocksCount # wrap around
 
     var
       decoded: Manifest
@@ -179,7 +181,7 @@ asyncchecksuite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     # loose M original (systematic) symbols/blocks
-    for b in encoded.blocks[0..<encoded.steps * encoded.ecM]:
+    for b in 0..<(encoded.steps * encoded.ecM):
       (await store.delBlock(encoded.treeCid, b)).tryGet()
       (await store.delBlock(manifest.treeCid, b)).tryGet()
 
@@ -194,10 +196,14 @@ asyncchecksuite "Erasure encode/decode":
       buffers = 20
       parity = 10
 
-    let encoded = await encode(buffers, parity)
+    let
+      encoded = await encode(buffers, parity)
+      blocks = collect:
+        for i in 0..encoded.blocksCount:
+          i
 
     # loose M parity (all!) symbols/blocks from the dataset
-    for b in encoded.blocks[^(encoded.steps * encoded.ecM)..^1]:
+    for b in blocks[^(encoded.steps * encoded.ecM)..^1]:
       (await store.delBlock(encoded.treeCid, b)).tryGet()
       (await store.delBlock(manifest.treeCid, b)).tryGet()
 
