@@ -46,14 +46,11 @@ proc download*(client: CodexClient, cid: Cid, local = false): ?!string =
 
 proc list*(client: CodexClient): ?!seq[RestContent] =
   let url = client.baseurl & "/data"
-  echo url
   let response = client.http.get(url)
 
-  echo $response.status
   if response.status != "200 OK":
     return failure(response.status)
 
-  echo response.body.parseJson.pretty
   let json = ? parseJson(response.body).catch
   seq[RestContent].fromJson(json)
 
