@@ -9,13 +9,15 @@
 ## 
 
 import std/parseutils
+import std/options
 
 import pkg/chronos
 
 import ./utils/asyncheapqueue
 import ./utils/fileutils
+import ./utils/asynciter
 
-export asyncheapqueue, fileutils
+export asyncheapqueue, fileutils, asynciter
 
 
 func divUp*[T: SomeInteger](a, b : T): T =
@@ -26,6 +28,13 @@ func divUp*[T: SomeInteger](a, b : T): T =
 func roundUp*[T](a, b : T): T =
   ## Round up 'a' to the next value divisible by 'b'
   divUp(a,b) * b
+
+proc orElse*[A](a, b: Option[A]): Option[A] =
+  if (a.isSome()): 
+    a 
+  else: 
+    b
+
 
 when not declared(parseDuration): # Odd code formatting to minimize diff v. mainLine
  const Whitespace = {' ', '\t', '\v', '\r', '\l', '\f'}
