@@ -18,7 +18,7 @@ checksuite "Pending Blocks":
 
     discard pendingBlocks.getWantHandle(blk.cid)
 
-    check pendingBlocks.pending(blk.cid)
+    check blk.cid in pendingBlocks
 
   test "Should resolve want handle":
     let
@@ -27,7 +27,7 @@ checksuite "Pending Blocks":
       handle = pendingBlocks.getWantHandle(blk.cid)
 
     check blk.cid in pendingBlocks
-    pendingBlocks.resolve(@[blk])
+    pendingBlocks.resolve(@[blk].mapIt(BlockDelivery(blk: it, address: it.address)))
     check (await handle) == blk
     check blk.cid notin pendingBlocks
 
@@ -64,7 +64,7 @@ checksuite "Pending Blocks":
 
     check:
       blks.mapIt( $it.cid ).sorted(cmp[string]) ==
-      toSeq(pendingBlocks.wantList).mapIt( $it ).sorted(cmp[string])
+      toSeq(pendingBlocks.wantListBlockCids).mapIt( $it ).sorted(cmp[string])
 
   test "Should get want handles list":
     let
@@ -74,7 +74,7 @@ checksuite "Pending Blocks":
       wantHandles = toSeq(pendingBlocks.wantHandles)
 
     check wantHandles.len == handles.len
-    pendingBlocks.resolve(blks)
+    pendingBlocks.resolve(blks.mapIt(BlockDelivery(blk: it, address: it.address)))
 
     check:
       (await allFinished(wantHandles)).mapIt( $it.read.cid ).sorted(cmp[string]) ==

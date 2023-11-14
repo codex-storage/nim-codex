@@ -35,12 +35,12 @@ checksuite "Peer Context Store Peer Selection":
   var
     store: PeerCtxStore
     peerCtxs: seq[BlockExcPeerCtx]
-    cids: seq[Cid]
+    addresses: seq[BlockAddress]
 
   setup:
     store = PeerCtxStore.new()
-    cids = collect(newSeq):
-      for i in 0..<10: Cid.example
+    addresses = collect(newSeq):
+      for i in 0..<10: BlockAddress(leaf: false, cid: Cid.example)
 
     peerCtxs = collect(newSeq):
       for i in 0..<10: BlockExcPeerCtx.example
@@ -50,20 +50,20 @@ checksuite "Peer Context Store Peer Selection":
 
   teardown:
     store = nil
-    cids = @[]
+    addresses = @[]
     peerCtxs = @[]
 
   test "Should select peers that have Cid":
     peerCtxs[0].blocks = collect(initTable):
-      for i, c in cids:
-        { c: Presence(cid: c, price: i.u256) }
+      for i, a in addresses:
+        { a: Presence(address: a, price: i.u256) }
 
     peerCtxs[5].blocks = collect(initTable):
-      for i, c in cids:
-        { c: Presence(cid: c, price: i.u256) }
+      for i, a in addresses:
+        { a: Presence(address: a, price: i.u256) }
 
     let
-      peers = store.peersHave(cids[0])
+      peers = store.peersHave(addresses[0])
 
     check peers.len == 2
     check peerCtxs[0] in peers
@@ -71,19 +71,19 @@ checksuite "Peer Context Store Peer Selection":
 
   test "Should select cheapest peers for Cid":
     peerCtxs[0].blocks = collect(initTable):
-      for i, c in cids:
-        { c: Presence(cid: c, price: (5 + i).u256) }
+      for i, a in addresses:
+        { a: Presence(address: a, price: (5 + i).u256) }
 
     peerCtxs[5].blocks = collect(initTable):
-      for i, c in cids:
-        { c: Presence(cid: c, price: (2 + i).u256) }
+      for i, a in addresses:
+        { a: Presence(address: a, price: (2 + i).u256) }
 
     peerCtxs[9].blocks = collect(initTable):
-      for i, c in cids:
-        { c: Presence(cid: c, price: i.u256) }
+      for i, a in addresses:
+        { a: Presence(address: a, price: i.u256) }
 
     let
-      peers = store.selectCheapest(cids[0])
+      peers = store.selectCheapest(addresses[0])
 
     check peers.len == 3
     check peers[0] == peerCtxs[9]
@@ -92,9 +92,9 @@ checksuite "Peer Context Store Peer Selection":
 
   test "Should select peers that want Cid":
     let
-      entries = cids.mapIt(
-        Entry(
-          `block`: it.data.buffer,
+      entries = addresses.mapIt(
+        WantListEntry(
+          address: it,
           priority: 1,
           cancel: false,
           wantType: WantType.WantBlock,
@@ -104,7 +104,7 @@ checksuite "Peer Context Store Peer Selection":
     peerCtxs[5].peerWants = entries
 
     let
-      peers = store.peersWant(cids[4])
+      peers = store.peersWant(addresses[4])
 
     check peers.len == 2
     check peerCtxs[0] in peers
