@@ -102,8 +102,7 @@ asyncchecksuite "Test Node":
       fetched = (await node.fetchManifest(manifestBlock.cid)).tryGet()
 
     check:
-      fetched.cid == manifest.cid
-      # fetched.blocks == manifest.blocks
+      fetched == manifest
 
   test "Block Batching":
     let

@@ -111,7 +111,7 @@ proc fetchBatched*(
   onBatch: BatchProc = nil): Future[?!void] {.async, gcsafe.} =
   ## Fetch manifest in batches of `batchSize`
   ##
-  
+
   let batchCount = divUp(manifest.blocksCount, batchSize)
 
   trace "Fetching blocks in batches of", size = batchSize
@@ -120,16 +120,11 @@ proc fetchBatched*(
     .map((i: int) => node.blockStore.getBlock(BlockAddress.init(manifest.treeCid, i)))
 
   for batchNum in 0..<batchCount:
-
     let blocks = collect:
       for i in 0..<batchSize:
         if not iter.finished:
           iter.next()
 
-
-    # let 
-    #   indexRange = (batchNum * batchSize)..<(min((batchNum + 1) * batchSize, manifest.blocksCount))
-    #   blocks = indexRange.mapIt(node.blockStore.getBlock(manifest.treeCid, it))
     try:
       await allFuturesThrowing(allFinished(blocks))
       if not onBatch.isNil:
@@ -214,7 +209,7 @@ proc store*(
 
       without blk =? bt.Block.new(cid, chunk, verify = false):
         return failure("Unable to init block from chunk!")
-      
+
       cids.add(cid)
 
       if err =? (await self.blockStore.putBlock(blk)).errorOption:
@@ -233,7 +228,7 @@ proc store*(
 
   without treeCid =? tree.rootCid(CIDv1, dataCodec), err:
     return failure(err)
-  
+
   for index, cid in cids:
     without proof =? tree.getProof(index), err:
       return failure(err)
