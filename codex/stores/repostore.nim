@@ -62,7 +62,7 @@ type
   BlockExpiration* = object
     cid*: Cid
     expiration*: SecondsSince1970
-  
+
 proc updateMetrics(self: RepoStore) =
   codex_repostore_blocks.set(self.totalBlocks.int64)
   codex_repostore_bytes_used.set(self.quotaUsedBytes.int64)
@@ -81,10 +81,10 @@ proc encode(cidAndProof: (Cid, MerkleProof)): seq[byte] =
   ## Encodes a tuple of cid and merkle proof in a following format:
   ## | 8-bytes | n-bytes | remaining bytes |
   ## |    n    |   cid   |      proof      |
-  ## 
+  ##
   ## where n is a size of cid
-  ## 
-  let 
+  ##
+  let
     (cid, proof) = cidAndProof
     cidBytes = cid.data.buffer
     proofBytes = proof.encode
@@ -96,7 +96,6 @@ proc encode(cidAndProof: (Cid, MerkleProof)): seq[byte] =
 proc decode(_: type (Cid, MerkleProof), data: seq[byte]): ?!(Cid, MerkleProof) =
   let
     n = uint64.fromBytesBE(data[0..<sizeof(uint64)]).int
-  let 
     cid = ? Cid.init(data[sizeof(uint64)..<sizeof(uint64) + n]).mapFailure
     proof = ? MerkleProof.decode(data[sizeof(uint64) + n..^1])
   success((cid, proof))

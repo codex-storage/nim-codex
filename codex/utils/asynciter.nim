@@ -54,14 +54,14 @@ proc new*[T](_: type Iter, genNext: GenNext[T], isFinished: IsFinished, finishOn
 
   if isFinished():
     iter.finish
-  
+
   iter.next = next
   return iter
 
 proc fromItems*[T](_: type Iter, items: seq[T]): Iter[T] =
   ## Create new iterator from items
   ##
-  
+
   Iter.fromSlice(0..<items.len)
     .map((i: int) => items[i])
 
@@ -81,7 +81,7 @@ proc fromRange*[U, V, S: Ordinal](_: type Iter, a: U, b: V, step: S = 1): Iter[U
     let u = i
     inc(i, step)
     u
-  
+
   proc isFinished(): bool =
     (step > 0 and i > b) or
       (step < 0 and i < b)
