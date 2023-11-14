@@ -187,26 +187,33 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
     MethodGet,
     "/api/codex/v1/sales/slots") do () -> RestApiResponse:
       ## Returns active slots for the host
+      try:
+        without contracts =? node.contracts.host:
+          return RestApiResponse.error(Http503, "Sales unavailable")
 
-      without contracts =? node.contracts.host:
-        return RestApiResponse.error(Http503, "Sales unavailable")
-
-      let json = %(await contracts.sales.mySlots())
-      return RestApiResponse.response($json, contentType="application/json")
+        let json = %(await contracts.sales.mySlots())
+        return RestApiResponse.response($json, contentType="application/json")
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
 
   router.api(
     MethodGet,
     "/api/codex/v1/sales/availability") do () -> RestApiResponse:
       ## Returns storage that is for sale
 
-      without contracts =? node.contracts.host:
-        return RestApiResponse.error(Http503, "Sales unavailable")
+      try:
+        without contracts =? node.contracts.host:
+          return RestApiResponse.error(Http503, "Sales unavailable")
 
-      without avails =? (await contracts.sales.context.reservations.all(Availability)), err:
-        return RestApiResponse.error(Http500, err.msg)
+        without avails =? (await contracts.sales.context.reservations.all(Availability)), err:
+          return RestApiResponse.error(Http500, err.msg)
 
-      let json = %avails
-      return RestApiResponse.response($json, contentType="application/json")
+        let json = %avails
+        return RestApiResponse.response($json, contentType="application/json")
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
 
   router.rawApi(
     MethodPost,
@@ -218,30 +225,34 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       ## minPrice       - minimum price to be paid (in amount of tokens)
       ## maxCollateral  - maximum collateral user is willing to pay per filled Slot (in amount of tokens)
 
-      without contracts =? node.contracts.host:
-        return RestApiResponse.error(Http503, "Sales unavailable")
+      try:
+        without contracts =? node.contracts.host:
+          return RestApiResponse.error(Http503, "Sales unavailable")
 
-      let body = await request.getBody()
+        let body = await request.getBody()
 
-      without restAv =? RestAvailability.fromJson(body), error:
-        return RestApiResponse.error(Http400, error.msg)
+        without restAv =? RestAvailability.fromJson(body), error:
+          return RestApiResponse.error(Http400, error.msg)
 
-      let reservations = contracts.sales.context.reservations
+        let reservations = contracts.sales.context.reservations
 
-      if not reservations.hasAvailable(restAv.size.truncate(uint)):
-        return RestApiResponse.error(Http422, "Not enough storage quota")
+        if not reservations.hasAvailable(restAv.size.truncate(uint)):
+          return RestApiResponse.error(Http422, "Not enough storage quota")
 
-      without availability =? (
-        await reservations.createAvailability(
-          restAv.size,
-          restAv.duration,
-          restAv.minPrice,
-          restAv.maxCollateral)
-        ), error:
-        return RestApiResponse.error(Http500, error.msg)
+        without availability =? (
+          await reservations.createAvailability(
+            restAv.size,
+            restAv.duration,
+            restAv.minPrice,
+            restAv.maxCollateral)
+          ), error:
+          return RestApiResponse.error(Http500, error.msg)
 
-      return RestApiResponse.response(availability.toJson,
-                                      contentType="application/json")
+        return RestApiResponse.response(availability.toJson,
+                                        contentType="application/json")
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
 
 proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
   router.rawApi(
@@ -258,62 +269,74 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       ## tolerance        - allowed number of nodes that can be lost before pronouncing the content lost
       ## colateral        - requested collateral from hosts when they fill slot
 
-      without cid =? cid.tryGet.catch, error:
-        return RestApiResponse.error(Http400, error.msg)
+      try:
+        without cid =? cid.tryGet.catch, error:
+          return RestApiResponse.error(Http400, error.msg)
 
-      let body = await request.getBody()
+        let body = await request.getBody()
 
-      without params =? StorageRequestParams.fromJson(body), error:
-        return RestApiResponse.error(Http400, error.msg)
+        without params =? StorageRequestParams.fromJson(body), error:
+          return RestApiResponse.error(Http400, error.msg)
 
-      let nodes = params.nodes |? 1
-      let tolerance = params.tolerance |? 0
+        let nodes = params.nodes |? 1
+        let tolerance = params.tolerance |? 0
 
-      without purchaseId =? await node.requestStorage(
-        cid,
-        params.duration,
-        params.proofProbability,
-        nodes,
-        tolerance,
-        params.reward,
-        params.collateral,
-        params.expiry), error:
+        without purchaseId =? await node.requestStorage(
+          cid,
+          params.duration,
+          params.proofProbability,
+          nodes,
+          tolerance,
+          params.reward,
+          params.collateral,
+          params.expiry), error:
 
-        return RestApiResponse.error(Http500, error.msg)
+          return RestApiResponse.error(Http500, error.msg)
 
-      return RestApiResponse.response(purchaseId.toHex)
+        return RestApiResponse.response(purchaseId.toHex)
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
 
   router.api(
     MethodGet,
     "/api/codex/v1/storage/purchases/{id}") do (
       id: PurchaseId) -> RestApiResponse:
 
-      without contracts =? node.contracts.client:
-        return RestApiResponse.error(Http503, "Purchasing unavailable")
+      try:
+        without contracts =? node.contracts.client:
+          return RestApiResponse.error(Http503, "Purchasing unavailable")
 
-      without id =? id.tryGet.catch, error:
-        return RestApiResponse.error(Http400, error.msg)
+        without id =? id.tryGet.catch, error:
+          return RestApiResponse.error(Http400, error.msg)
 
-      without purchase =? contracts.purchasing.getPurchase(id):
-        return RestApiResponse.error(Http404)
+        without purchase =? contracts.purchasing.getPurchase(id):
+          return RestApiResponse.error(Http404)
 
-      let json = % RestPurchase(
-        state: purchase.state |? "none",
-        error: purchase.error.?msg,
-        request: purchase.request,
-        requestId: purchase.requestId
-      )
+        let json = % RestPurchase(
+          state: purchase.state |? "none",
+          error: purchase.error.?msg,
+          request: purchase.request,
+          requestId: purchase.requestId
+        )
 
-      return RestApiResponse.response($json, contentType="application/json")
+        return RestApiResponse.response($json, contentType="application/json")
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
 
   router.api(
     MethodGet,
     "/api/codex/v1/storage/purchases") do () -> RestApiResponse:
-      without contracts =? node.contracts.client:
-        return RestApiResponse.error(Http503, "Purchasing unavailable")
+      try:
+        without contracts =? node.contracts.client:
+          return RestApiResponse.error(Http503, "Purchasing unavailable")
 
-      let purchaseIds = contracts.purchasing.getPurchaseIds()
-      return RestApiResponse.response($ %purchaseIds, contentType="application/json")
+        let purchaseIds = contracts.purchasing.getPurchaseIds()
+        return RestApiResponse.response($ %purchaseIds, contentType="application/json")
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
 
 proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
   router.api(
@@ -322,27 +345,31 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
       ## Print rudimentary node information
       ##
 
-      let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
+      try:
+        let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
 
-      let
-        json = %*{
-          "id": $node.switch.peerInfo.peerId,
-          "addrs": node.switch.peerInfo.addrs.mapIt( $it ),
-          "repo": $conf.dataDir,
-          "spr":
-            if node.discovery.dhtRecord.isSome:
-              node.discovery.dhtRecord.get.toURI
-            else:
-              "",
-          "announceAddresses": node.discovery.announceAddrs,
-          "table": table,
-          "codex": {
-            "version": $codexVersion,
-            "revision": $codexRevision
+        let
+          json = %*{
+            "id": $node.switch.peerInfo.peerId,
+            "addrs": node.switch.peerInfo.addrs.mapIt( $it ),
+            "repo": $conf.dataDir,
+            "spr":
+              if node.discovery.dhtRecord.isSome:
+                node.discovery.dhtRecord.get.toURI
+              else:
+                "",
+            "announceAddresses": node.discovery.announceAddrs,
+            "table": table,
+            "codex": {
+              "version": $codexVersion,
+              "revision": $codexRevision
+            }
           }
-        }
 
-      return RestApiResponse.response($json, contentType="application/json")
+        return RestApiResponse.response($json, contentType="application/json")
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
 
   router.api(
     MethodPost,
@@ -355,22 +382,27 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
       ## `level` - chronicles log level
       ##
 
-      without res =? level and level =? res:
-        return RestApiResponse.error(Http400, "Missing log level")
-
       try:
-        {.gcsafe.}:
-          updateLogLevel(level)
-      except CatchableError as exc:
-        return RestApiResponse.error(Http500, exc.msg)
+        without res =? level and level =? res:
+          return RestApiResponse.error(Http400, "Missing log level")
 
-      return RestApiResponse.response("")
+        try:
+          {.gcsafe.}:
+            updateLogLevel(level)
+        except CatchableError as exc:
+          return RestApiResponse.error(Http500, exc.msg)
+
+        return RestApiResponse.response("")
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
 
   when codex_enable_api_debug_peers:
     router.api(
       MethodGet,
       "/api/codex/v1/debug/peer/{peerId}") do (peerId: PeerId) -> RestApiResponse:
 
+      try:
         trace "debug/peer start"
         without peerRecord =? (await node.findPeer(peerId.get())):
           trace "debug/peer peer not found!"
@@ -381,6 +413,9 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
         let json = %RestPeerRecord.init(peerRecord)
         trace "debug/peer returning peer record"
         return RestApiResponse.response($json)
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
 
 proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   var router = RestRouter.init(validate)
@@ -424,6 +459,6 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
       except DialFailedError:
         return RestApiResponse.error(Http400, "Unable to dial peer")
       except CatchableError:
-        return RestApiResponse.error(Http400, "Unknown error dialling peer")
+        return RestApiResponse.error(Http500, "Unknown error dialling peer")
 
   return router
