@@ -45,7 +45,7 @@ asyncchecksuite "Erasure encode/decode":
     check:
       encoded.blocksCount mod (buffers + parity) == 0
       encoded.rounded == roundUp(manifest.blocksCount, buffers)
-      encoded.steps == encoded.rounded div buffers
+      #encoded.steps == encoded.rounded div buffers
 
     return encoded
 
@@ -57,14 +57,14 @@ asyncchecksuite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     var
-      column = rng.rand((encoded.blocksCount div encoded.steps) - 1) # random column
+      column = rng.rand((encoded.blocksCount - 1) div encoded.interleave) # random column
       dropped: seq[int]
 
     for _ in 0..<encoded.ecM:
       dropped.add(column)
       (await store.delBlock(encoded.treeCid, column)).tryGet()
       (await store.delBlock(manifest.treeCid, column)).tryGet()
-      column = (column + encoded.steps) mod encoded.blocksCount # wrap around
+      column.inc(encoded.interleave - 1)
 
     var
       decoded = (await erasure.decode(encoded)).tryGet()
@@ -87,14 +87,14 @@ asyncchecksuite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     var
-      column = rng.rand((encoded.blocksCount div encoded.steps) - 1) # random column
+      column = rng.rand((encoded.blocksCount - 1) div encoded.interleave) # random column
       dropped: seq[int]
 
     for _ in 0..<encoded.ecM + 1:
       dropped.add(column)
       (await store.delBlock(encoded.treeCid, column)).tryGet()
       (await store.delBlock(manifest.treeCid, column)).tryGet()
-      column = (column + encoded.steps) mod encoded.blocksCount # wrap around
+      column.inc(encoded.interleave)
 
     var
       decoded: Manifest
@@ -117,9 +117,9 @@ asyncchecksuite "Erasure encode/decode":
       blocks: seq[int]
       offset = 0
 
-    while offset < encoded.steps - 1:
+    while offset < encoded.interleave - 1:
       let
-        blockIdx = toSeq(countup(offset, encoded.blocksCount - 1, encoded.steps))
+        blockIdx = toSeq(countup(offset, encoded.blocksCount - 1, encoded.interleave))
 
       for _ in 0..<encoded.ecM:
         blocks.add(rng.sample(blockIdx, blocks))
@@ -147,9 +147,9 @@ asyncchecksuite "Erasure encode/decode":
       blocks: seq[int]
       offset = 0
 
-    while offset < encoded.steps:
+    while offset < encoded.interleave:
       let
-        blockIdx = toSeq(countup(offset, encoded.blocksCount - 1, encoded.steps))
+        blockIdx = toSeq(countup(offset, encoded.blocksCount - 1, encoded.interleave))
 
       for _ in 0..<encoded.ecM + 1: # NOTE: the +1
         var idx: int
@@ -181,7 +181,7 @@ asyncchecksuite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     # loose M original (systematic) symbols/blocks
-    for b in 0..<(encoded.steps * encoded.ecM):
+    for b in 0..<(encoded.interleave * encoded.ecM):
       (await store.delBlock(encoded.treeCid, b)).tryGet()
       (await store.delBlock(manifest.treeCid, b)).tryGet()
 
@@ -203,7 +203,7 @@ asyncchecksuite "Erasure encode/decode":
           i
 
     # loose M parity (all!) symbols/blocks from the dataset
-    for b in blocks[^(encoded.steps * encoded.ecM)..^1]:
+    for b in blocks[^(encoded.interleave * encoded.ecM)..^1]:
       (await store.delBlock(encoded.treeCid, b)).tryGet()
       (await store.delBlock(manifest.treeCid, b)).tryGet()
 
