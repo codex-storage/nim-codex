@@ -121,7 +121,11 @@ proc stop*(b: BlockExcEngine) {.async.} =
   trace "NetworkStore stopped"
 
 
-proc sendWantHave(b: BlockExcEngine, address: BlockAddress, selectedPeer: BlockExcPeerCtx, peers: seq[BlockExcPeerCtx]): Future[void] {.async.} =
+proc sendWantHave(
+  b: BlockExcEngine,
+  address: BlockAddress,
+  selectedPeer: BlockExcPeerCtx,
+  peers: seq[BlockExcPeerCtx]): Future[void] {.async.} =
   trace "Sending wantHave request to peers", address
   for p in peers:
     if p != selectedPeer:
@@ -132,11 +136,10 @@ proc sendWantHave(b: BlockExcEngine, address: BlockAddress, selectedPeer: BlockE
           @[address],
           wantType = WantType.WantHave) # we only want to know if the peer has the block
 
-proc sendWantBlock(b: BlockExcEngine, address: BlockAddress, blockPeer: BlockExcPeerCtx): Future[void] {.async.} =
-  let cid = if address.leaf:
-      address.treeCid
-    else:
-      address.cid
+proc sendWantBlock(
+  b: BlockExcEngine,
+  address: BlockAddress,
+  blockPeer: BlockExcPeerCtx): Future[void] {.async.} =
   trace "Sending wantBlock request to", peer = blockPeer.id, address
   await b.network.request.sendWantList(
     blockPeer.id,
@@ -186,22 +189,22 @@ proc requestBlock*(
   if peers.len == 0:
     b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
 
-  let maybePeer = 
+  let maybePeer =
     if peers.len > 0:
       peers[hash(address) mod peers.len].some
     elif b.peers.len > 0:
       toSeq(b.peers)[hash(address) mod b.peers.len].some
     else:
       BlockExcPeerCtx.none
-  
+
   if peer =? maybePeer:
     asyncSpawn b.monitorBlockHandle(blockFuture, address, peer.id)
     b.pendingBlocks.setInFlight(address)
     await b.sendWantBlock(address, peer)
-    codexBlockExchangeWantBlockListsSent.inc()
+    codex_block_exchange_want_block_lists_sent.inc()
     await b.sendWantHave(address, peer, toSeq(b.peers))
-    codexBlockExchangeWantHaveListsSent.inc()
-    
+    codex_block_exchange_want_have_lists_sent.inc()
+
   return await blockFuture
 
 proc requestBlock*(
@@ -357,7 +360,7 @@ proc validateBlockDelivery(
   if bd.address.leaf:
     without proof =? bd.proof:
       return failure("Missing proof")
-    
+
     if proof.index != bd.address.index:
       return failure("Proof index " & $proof.index & " doesn't match leaf index " & $bd.address.index)
 
@@ -406,7 +409,7 @@ proc blocksDeliveryHandler*(
     validatedBlocksDelivery.add(bd)
 
   await b.resolveBlocks(validatedBlocksDelivery)
-  codexBlockExchangeBlocksReceived.inc(validatedBlocksDelivery.len.int64)
+  codex_block_exchange_blocks_received.inc(validatedBlocksDelivery.len.int64)
 
   let
     peerCtx = b.peers.get(peer)
@@ -573,7 +576,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       trace "Handling lookup for entry", address = e.address
       if e.address.leaf:
         (await b.localStore.getBlockAndProof(e.address.treeCid, e.address.index)).map(
-          (blkAndProof: (Block, MerkleProof)) => 
+          (blkAndProof: (Block, MerkleProof)) =>
             BlockDelivery(address: e.address, blk: blkAndProof[0], proof: blkAndProof[1].some)
         )
       else:
@@ -597,7 +600,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
         blocksDelivery
       )
 
-      codexBlockExchangeBlocksSent.inc(blocksDelivery.len.int64)
+      codex_block_exchange_blocks_sent.inc(blocksDelivery.len.int64)
 
       trace "About to remove entries from peerWants", blocks = blocksDelivery.len, items = task.peerWants.len
       # Remove successfully sent blocks

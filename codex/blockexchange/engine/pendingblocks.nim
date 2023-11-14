@@ -102,8 +102,8 @@ proc resolve*(
           retrievalDurationUs = (stopTime - startTime) div 1000
 
         blockReq.handle.complete(bd.blk)
-        
-        codexBlockExchangeRetrievalTimeUs.set(retrievalDurationUs)
+
+        codex_block_exchange_retrieval_time_us.set(retrievalDurationUs)
         trace "Block retrieval time", retrievalDurationUs, address = bd.address
       else:
         trace "Block handle already finished", address = bd.address
