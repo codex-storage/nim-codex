@@ -214,46 +214,6 @@ proc requestBlock*(
 ): Future[Block] =
   b.requestBlock(BlockAddress.init(cid))
 
-proc requestBlock(
-  b: BlockExcEngine,
-  treeReq: TreeReq,
-  index: Natural,
-  timeout = DefaultBlockTimeout
-): Future[Block] {.async.} =
-  let blockFuture = b.pendingBlocks.getWantHandle(address, timeout)
-
-  if b.pendingBlocks.isInFlight(address):
-    return await blockFuture
-
-  let peers = b.peers.selectCheapest(address)
-  if peers.len == 0:
-    b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
-
-  let maybePeer = 
-    if peers.len > 0:
-      peers[hash(address) mod peers.len].some
-    elif b.peers.len > 0:
-      toSeq(b.peers)[hash(address) mod b.peers.len].some
-    else:
-      BlockExcPeerCtx.none
-  
-  if peer =? maybePeer:
-    asyncSpawn b.monitorBlockHandle(blockFuture, address, peer.id)
-    b.pendingBlocks.setInFlight(address)
-    await b.sendWantBlock(address, peer)
-    codexBlockExchangeWantBlockListsSent.inc()
-    await b.sendWantHave(address, peer, toSeq(b.peers))
-    codexBlockExchangeWantHaveListsSent.inc()
-    
-  return await blockFuture
-
-proc requestBlock*(
-  b: BlockExcEngine,
-  cid: Cid,
-  timeout = DefaultBlockTimeout
-): Future[Block] =
-  b.requestBlock(BlockAddress.init(cid))
-
 proc blockPresenceHandler*(
   b: BlockExcEngine,
   peer: PeerId,
@@ -389,21 +349,24 @@ proc blocksDeliveryHandler*(
 
   var validatedBlocksDelivery: seq[BlockDelivery]
   for bd in blocksDelivery:
+    logScope:
+      peer      = peer
+      address   = bd.address
 
     if err =? b.validateBlockDelivery(bd).errorOption:
-      warn "Block validation failed", address = bd.address, msg = err.msg
+      warn "Block validation failed", msg = err.msg
       continue
 
     if err =? (await b.localStore.putBlock(bd.blk)).errorOption:
-      error "Unable to store block", address = bd.address, err = err.msg
+      error "Unable to store block", err = err.msg
       continue
 
     if bd.address.leaf:
       without proof =? bd.proof:
-        error "Proof expected for a leaf block delivery", address = bd.address
+        error "Proof expected for a leaf block delivery"
         continue
       if err =? (await b.localStore.putBlockCidAndProof(bd.address.treeCid, bd.address.index, bd.blk.cid, proof)).errorOption:
-        error "Unable to store proof and cid for a block", address = bd.address
+        error "Unable to store proof and cid for a block"
         continue
 
     validatedBlocksDelivery.add(bd)
@@ -438,11 +401,11 @@ proc wantListHandler*(
 
     logScope:
       peer      = peerCtx.id
-      # cid       = e.cid
+      address   = e.address
       wantType  = $e.wantType
 
     if idx < 0: # updating entry
-      trace "Processing new want list entry", address = e.address
+      trace "Processing new want list entry"
 
       let
         have = await e.address in b.localStore
@@ -454,21 +417,21 @@ proc wantListHandler*(
         codex_block_exchange_want_have_lists_received.inc()
 
       if not have and e.sendDontHave:
-        trace "Adding dont have entry to presence response", address = e.address
+        trace "Adding dont have entry to presence response"
         presence.add(
           BlockPresence(
           address: e.address,
           `type`: BlockPresenceType.DontHave,
           price: price))
       elif have and e.wantType == WantType.WantHave:
-        trace "Adding have entry to presence response", address = e.address
+        trace "Adding have entry to presence response"
         presence.add(
           BlockPresence(
           address: e.address,
           `type`: BlockPresenceType.Have,
           price: price))
       elif e.wantType == WantType.WantBlock:
-        trace "Added entry to peer's want blocks list", address = e.address
+        trace "Added entry to peer's want blocks list"
         peerCtx.peerWants.add(e)
         codex_block_exchange_want_block_lists_received.inc()
     else:

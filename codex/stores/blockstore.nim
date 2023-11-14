@@ -51,26 +51,8 @@ method getBlock*(self: BlockStore, address: BlockAddress): Future[?!Block] {.bas
 
 method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.base.} =
   ## Get a block and associated inclusion proof by Cid of a merkle tree and an index of a leaf in a tree
-  ## 
-  
-  raiseAssert("getBlockAndProof not implemented!")
-
-method getBlock*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!Block] {.base.} =
-  ## Get a block from the blockstore
   ##
 
-  raiseAssert("getBlock by treecid not implemented!")
-
-method getBlock*(self: BlockStore, address: BlockAddress): Future[?!Block] {.base.} =
-  ## Get a block from the blockstore
-  ##
-
-  raiseAssert("getBlock by addr not implemented!")
-
-method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.base.} =
-  ## Get a block and associated inclusion proof by Cid of a merkle tree and an index of a leaf in a tree
-  ## 
-  
   raiseAssert("getBlockAndProof not implemented!")
 
 method putBlock*(
@@ -118,19 +100,7 @@ method delBlock*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!void]
 
   raiseAssert("delBlock not implemented!")
 
-method delBlock*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!void] {.base.} =
-  ## Delete a block from the blockstore
-  ##
-
-  raiseAssert("delBlock not implemented!")
-
 method hasBlock*(self: BlockStore, cid: Cid): Future[?!bool] {.base.} =
-  ## Check if the block exists in the blockstore
-  ##
-
-  raiseAssert("hasBlock not implemented!")
-
-method hasBlock*(self: BlockStore, tree: Cid, index: Natural): Future[?!bool] {.base.} =
   ## Check if the block exists in the blockstore
   ##
 

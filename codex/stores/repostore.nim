@@ -62,7 +62,7 @@ type
   BlockExpiration* = object
     cid*: Cid
     expiration*: SecondsSince1970
-  
+
 proc updateMetrics(self: RepoStore) =
   codex_repostore_blocks.set(self.totalBlocks.int64)
   codex_repostore_bytes_used.set(self.quotaUsedBytes.int64)
@@ -78,26 +78,26 @@ func available*(self: RepoStore, bytes: uint): bool =
   return bytes < self.available()
 
 proc encode(cidAndProof: (Cid, MerkleProof)): seq[byte] =
-  let 
+  ## Encodes a tuple of cid and merkle proof in a following format:
+  ## | 8-bytes | n-bytes | remaining bytes |
+  ## |    n    |   cid   |      proof      |
+  ##
+  ## where n is a size of cid
+  ##
+  let
     (cid, proof) = cidAndProof
     cidBytes = cid.data.buffer
     proofBytes = proof.encode
+    n = cidBytes.len
+    nBytes = n.uint64.toBytesBE
 
-  var buf = newSeq[byte](1 + cidBytes.len + proofBytes.len)
-
-  buf[0] = cid.data.buffer.len.byte # cid shouldnt be more than 255 bytes?
-  buf[1..cidBytes.len] = cidBytes
-  buf[cidBytes.len + 1..^1] = proofBytes
-
-  buf
+  @nBytes & cidBytes & proofBytes
 
 proc decode(_: type (Cid, MerkleProof), data: seq[byte]): ?!(Cid, MerkleProof) =
-  let cidLen = data[0].int
-
-  let 
-    cid = ? Cid.init(data[1..cidLen]).mapFailure
-    proof = ? MerkleProof.decode(data[cidLen + 1..^1])
-  
+  let
+    n = uint64.fromBytesBE(data[0..<sizeof(uint64)]).int
+    cid = ? Cid.init(data[sizeof(uint64)..<sizeof(uint64) + n]).mapFailure
+    proof = ? MerkleProof.decode(data[sizeof(uint64) + n..^1])
   success((cid, proof))
 
 method putBlockCidAndProof*(
@@ -457,7 +457,7 @@ method getBlockExpirations*(
   self: RepoStore,
   maxNumber: int,
   offset: int): Future[?!AsyncIter[?BlockExpiration]] {.async, base.} =
-  ## Get block experiartions from the given RepoStore
+  ## Get block expirations from the given RepoStore
   ##
 
   without query =? createBlockExpirationQuery(maxNumber, offset), err:
@@ -612,7 +612,6 @@ func new*(
     T: type RepoStore,
     repoDs: Datastore,
     metaDs: Datastore,
-    treeReader: TreeReader = TreeReader.new(),
     clock: Clock = SystemClock.new(),
     postFixLen = 2,
     quotaMaxBytes = DefaultQuotaBytes,
@@ -623,7 +622,6 @@ func new*(
   RepoStore(
     repoDs: repoDs,
     metaDs: metaDs,
-    treeReader: treeReader,
     clock: clock,
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,
