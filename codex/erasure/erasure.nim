@@ -102,7 +102,7 @@ proc getPendingBlocks(
 
   proc isFinished(): bool = pendingBlocks.len == 0
 
-  proc genNext(): Future[(?!bt.Block, int)] {.async.} = 
+  proc genNext(): Future[(?!bt.Block, int)] {.async.} =
     let completedFut = await one(pendingBlocks)
     if (let i = pendingBlocks.find(completedFut); i >= 0):
       pendingBlocks.del(i)
@@ -112,7 +112,7 @@ proc getPendingBlocks(
       raise newException(CatchableError, "Future for block id not found, tree cid: " & $manifest.treeCid & ", index: " & $index)
 
   Iter.new(genNext, isFinished)
- 
+
 proc prepareEncodingData(
   self: Erasure,
   manifest: Manifest,
@@ -134,7 +134,7 @@ proc prepareEncodingData(
     without blk =? blkOrErr, err:
       warn "Failed retreiving a block", treeCid = manifest.treeCid, idx, msg = err.msg
       continue
-    
+
     let pos = indexToPos(params.steps, idx, step)
     shallowCopy(data[pos], if blk.isEmpty: emptyBlock else: blk.data)
     cids[idx] = blk.cid
@@ -168,7 +168,7 @@ proc prepareDecodingData(
   ## `emptyBlock` - the empty block to be used for padding
   ##
 
-  let 
+  let
     indicies = toSeq(countup(step, encoded.blocksCount - 1, encoded.steps))
     pendingBlocksIter = self.getPendingBlocks(encoded, indicies)
 
