@@ -27,6 +27,7 @@ import ../errors
 import ../manifest
 import ../merkletree
 import ../utils
+import ../clock
 
 export blockstore
 
@@ -219,6 +220,16 @@ method putBlockCidAndProof*(
   self.cidAndProofCache[(treeCid, index)] = (blockCid, proof)
   success()
 
+method ensureExpiry*(
+    self: CacheStore,
+    cid: Cid,
+    expiry: SecondsSince1970
+): Future[?!void] {.async.} =
+  ## Updates block's assosicated TTL in store - not applicable for CacheStore
+  ##
+
+  discard # CacheStore does not have notion of TTL
+
 method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
   ## Delete a block from the blockstore
   ##
@@ -239,7 +250,7 @@ method delBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!void]
 
   if removed =? maybeRemoved:
     return await self.delBlock(removed[0])
-  
+
   return success()
 
 method close*(self: CacheStore): Future[void] {.async.} =
