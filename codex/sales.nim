@@ -63,6 +63,9 @@ proc `onSale=`*(sales: Sales, callback: OnSale) =
 proc `onProve=`*(sales: Sales, callback: OnProve) =
   sales.context.onProve = some callback
 
+proc `onExpiryUpdate=`*(sales: Sales, callback: OnExpiryUpdate) =
+  sales.context.onExpiryUpdate = some callback
+
 proc onStore*(sales: Sales): ?OnStore = sales.context.onStore
 
 proc onClear*(sales: Sales): ?OnClear = sales.context.onClear
@@ -70,6 +73,8 @@ proc onClear*(sales: Sales): ?OnClear = sales.context.onClear
 proc onSale*(sales: Sales): ?OnSale = sales.context.onSale
 
 proc onProve*(sales: Sales): ?OnProve = sales.context.onProve
+
+proc onExpiryUpdate*(sales: Sales): ?OnExpiryUpdate = sales.context.onExpiryUpdate
 
 func new*(_: type Sales,
           market: Market,

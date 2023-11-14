@@ -108,6 +108,23 @@ method ensureExpiry*(
 
   return success()
 
+method ensureExpiry*(
+    self: NetworkStore,
+    treeCid: Cid,
+    index: Natural,
+    expiry: SecondsSince1970
+): Future[?!void] {.async.} =
+  ## Ensure that block's assosicated expiry is at least given timestamp
+  ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
+  ##
+
+  if (await self.localStore.hasBlock(treeCid, index)).tryGet:
+    return await self.localStore.ensureExpiry(treeCid, index, expiry)
+  else:
+    trace "Updating expiry - block not in local store", treeCid
+
+  return success()
+
 method listBlocks*(
   self: NetworkStore,
   blockType = BlockType.Manifest): Future[?!AsyncIter[?Cid]] =

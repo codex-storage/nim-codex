@@ -13,7 +13,7 @@ type
 
 proc new*(
     _: type HostInteractions,
-    clock: OnChainClock,
+    clock: Clock,
     sales: Sales
 ): HostInteractions =
   ## Create a new HostInteractions instance
