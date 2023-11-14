@@ -250,7 +250,7 @@ method delBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!void]
 
   if removed =? maybeRemoved:
     return await self.delBlock(removed[0])
-  
+
   return success()
 
 method close*(self: CacheStore): Future[void] {.async.} =
