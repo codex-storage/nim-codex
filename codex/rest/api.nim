@@ -279,6 +279,15 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
 
       return RestApiResponse.response($json, contentType="application/json")
 
+  router.api(
+    MethodGet,
+    "/api/codex/v1/storage/purchases") do () -> RestApiResponse:
+      without contracts =? node.contracts.client:
+        return RestApiResponse.error(Http503, "Purchasing unavailable")
+
+      let purchaseIds = contracts.purchasing.getPurchaseIds()
+      return RestApiResponse.response($ %purchaseIds, contentType="application/json")
+
 proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
   router.api(
     MethodGet,
