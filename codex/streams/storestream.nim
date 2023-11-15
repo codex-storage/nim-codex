@@ -1,5 +1,5 @@
-## Nim-Dagger
-## Copyright (c) 2022 Status Research & Development GmbH
+## Nim-Codex
+## Copyright (c) 2023 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -20,6 +20,7 @@ import pkg/stew/ptrops
 import ../stores
 import ../manifest
 import ../blocktype
+import ../utils
 
 import ./seekablestream
 
@@ -52,7 +53,7 @@ proc new*(
     pad = true
 ): StoreStream =
   ## Create a new StoreStream instance for a given store and manifest
-  ##
+  ## 
   result = StoreStream(
     store: store,
     manifest: manifest,
@@ -79,9 +80,9 @@ method readOnce*(
   ## Read `nbytes` from current position in the StoreStream into output buffer pointed by `pbytes`.
   ## Return how many bytes were actually read before EOF was encountered.
   ## Raise exception if we are already at EOF.
-  ##
+  ## 
 
-  trace "Reading from manifest", cid = self.manifest.cid.get(), blocks = self.manifest.len
+  trace "Reading from manifest", cid = self.manifest.cid.get(), blocks = self.manifest.blocksCount
   if self.atEof:
     raise newLPStreamEOFError()
 
@@ -97,9 +98,10 @@ method readOnce*(
       readBytes   = min([self.size - self.offset,
                          nbytes - read,
                          self.manifest.blockSize.int - blockOffset])
+      address     = BlockAddress(leaf: true, treeCid: self.manifest.treeCid, index: blockNum)
 
     # Read contents of block `blockNum`
-    without blk =? await self.store.getBlock(self.manifest[blockNum]), error:
+    without blk =? await self.store.getBlock(address), error:
       raise newLPStreamReadError(error)
 
     trace "Reading bytes from store stream", blockNum, cid = blk.cid, bytes = readBytes, blockOffset

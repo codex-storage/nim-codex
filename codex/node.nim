@@ -11,13 +11,14 @@ import std/options
 import std/tables
 import std/sequtils
 import std/strformat
+import std/sugar
 
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronicles
 import pkg/chronos
 
-import pkg/libp2p/switch
+import pkg/libp2p/[switch, multicodec, multihash]
 import pkg/libp2p/stream/bufferstream
 
 # TODO: remove once exported by libp2p
@@ -27,6 +28,7 @@ import pkg/libp2p/signed_envelope
 import ./chunker
 import ./blocktype as bt
 import ./manifest
+import ./merkletree
 import ./stores/blockstore
 import ./blockexchange
 import ./streams
@@ -34,6 +36,7 @@ import ./erasure
 import ./discovery
 import ./contracts
 import ./node/batch
+import ./utils
 
 export batch
 
@@ -87,7 +90,7 @@ proc fetchManifest*(
 
   trace "Retrieving manifest for cid", cid
 
-  without blk =? await node.blockStore.getBlock(cid), err:
+  without blk =? await node.blockStore.getBlock(BlockAddress.init(cid)), err:
     trace "Error retrieve manifest block", cid, err = err.msg
     return failure err
 
@@ -109,17 +112,20 @@ proc fetchBatched*(
   ## Fetch manifest in batches of `batchSize`
   ##
 
-  let
-    batches =
-      (manifest.blocks.len div batchSize) +
-      (manifest.blocks.len mod batchSize)
+  let batchCount = divUp(manifest.blocksCount, batchSize)
 
   trace "Fetching blocks in batches of", size = batchSize
-  for blks in manifest.blocks.distribute(max(1, batches), true):
-    try:
-      let
-        blocks = blks.mapIt(node.blockStore.getBlock( it ))
 
+  let iter = Iter.fromSlice(0..<manifest.blocksCount)
+    .map((i: int) => node.blockStore.getBlock(BlockAddress.init(manifest.treeCid, i)))
+
+  for batchNum in 0..<batchCount:
+    let blocks = collect:
+      for i in 0..<batchSize:
+        if not iter.finished:
+          iter.next()
+
+    try:
       await allFuturesThrowing(allFinished(blocks))
       if not onBatch.isNil:
         await onBatch(blocks.mapIt( it.read.get ))
@@ -157,7 +163,7 @@ proc retrieve*(
     let
       stream = BufferStream.new()
 
-    without blk =? (await node.blockStore.getBlock(cid)), err:
+    without blk =? (await node.blockStore.getBlock(BlockAddress.init(cid))), err:
       return failure(err)
 
     proc streamOneBlock(): Future[void] {.async.} =
@@ -181,11 +187,12 @@ proc store*(
   ##
   trace "Storing data"
 
-  without var blockManifest =? Manifest.new(blockSize = blockSize):
-    return failure("Unable to create Block Set")
+  let
+    hcodec = multiCodec("sha2-256")
+    dataCodec = multiCodec("raw")
+    chunker = LPStreamChunker.new(stream, chunkSize = blockSize)
 
-  # Manifest and chunker should use the same blockSize
-  let chunker = LPStreamChunker.new(stream, chunkSize = blockSize)
+  var cids: seq[Cid]
 
   try:
     while (
@@ -193,10 +200,18 @@ proc store*(
       chunk.len > 0):
 
       trace "Got data from stream", len = chunk.len
-      without blk =? bt.Block.new(chunk):
+
+      without mhash =? MultiHash.digest($hcodec, chunk).mapFailure, err:
+        return failure(err)
+
+      without cid =? Cid.init(CIDv1, dataCodec, mhash).mapFailure, err:
+        return failure(err)
+
+      without blk =? bt.Block.new(cid, chunk, verify = false):
         return failure("Unable to init block from chunk!")
 
-      blockManifest.add(blk.cid)
+      cids.add(cid)
+
       if err =? (await self.blockStore.putBlock(blk)).errorOption:
         trace "Unable to store block", cid = blk.cid, err = err.msg
         return failure(&"Unable to store block {blk.cid}")
@@ -208,34 +223,51 @@ proc store*(
   finally:
     await stream.close()
 
+  without tree =? MerkleTree.init(cids), err:
+    return failure(err)
+
+  without treeCid =? tree.rootCid(CIDv1, dataCodec), err:
+    return failure(err)
+
+  for index, cid in cids:
+    without proof =? tree.getProof(index), err:
+      return failure(err)
+    if err =? (await self.blockStore.putBlockCidAndProof(treeCid, index, cid, proof)).errorOption:
+      # TODO add log here
+      return failure(err)
+
+  let manifest = Manifest.new(
+    treeCid = treeCid,
+    blockSize = blockSize,
+    datasetSize = NBytes(chunker.offset),
+    version = CIDv1,
+    hcodec = hcodec,
+    codec = dataCodec
+  )
   # Generate manifest
-  blockManifest.originalBytes = NBytes(chunker.offset)  # store the exact file size
-  without data =? blockManifest.encode():
+  without data =? manifest.encode(), err:
     return failure(
-      newException(CodexError, "Could not generate dataset manifest!"))
+      newException(CodexError, "Error encoding manifest: " & err.msg))
 
   # Store as a dag-pb block
-  without manifest =? bt.Block.new(data = data, codec = DagPBCodec):
+  without manifestBlk =? bt.Block.new(data = data, codec = DagPBCodec):
     trace "Unable to init block from manifest data!"
     return failure("Unable to init block from manifest data!")
 
-  if isErr (await self.blockStore.putBlock(manifest)):
-    trace "Unable to store manifest", cid = manifest.cid
-    return failure("Unable to store manifest " & $manifest.cid)
+  if isErr (await self.blockStore.putBlock(manifestBlk)):
+    trace "Unable to store manifest", cid = manifestBlk.cid
+    return failure("Unable to store manifest " & $manifestBlk.cid)
 
-  without cid =? blockManifest.cid, error:
-    trace "Unable to generate manifest Cid!", exc = error.msg
-    return failure(error.msg)
-
-  trace "Stored data", manifestCid = manifest.cid,
-                       contentCid = cid,
-                       blocks = blockManifest.len,
-                       size=blockManifest.originalBytes
+  info "Stored data", manifestCid = manifestBlk.cid,
+                      treeCid = treeCid,
+                      blocks = manifest.blocksCount,
+                      datasetSize = manifest.datasetSize
 
   # Announce manifest
-  await self.discovery.provide(manifest.cid)
+  await self.discovery.provide(manifestBlk.cid)
+  await self.discovery.provide(treeCid)
 
-  return manifest.cid.success
+  return manifestBlk.cid.success
 
 proc iterateManifests*(node: CodexNodeRef, onManifest: OnManifest) {.async.} =
   without cids =? await node.blockStore.listBlocks(BlockType.Manifest):
@@ -309,7 +341,7 @@ proc requestStorage*(
       # because the slotSize is used to determine the amount of bytes to reserve
       # in a Reservations
       # TODO: slotSize: (encoded.blockSize.int * encoded.steps).u256,
-      slotSize: (encoded.blockSize.int * encoded.blocks.len).u256,
+      slotSize: (encoded.blockSize.int * encoded.blocksCount).u256,
       duration: duration,
       proofProbability: proofProbability,
       reward: reward,
@@ -319,7 +351,7 @@ proc requestStorage*(
     content: StorageContent(
       cid: $encodedBlk.cid,
       erasure: StorageErasure(
-        totalChunks: encoded.len.uint64,
+        totalChunks: encoded.blocksCount.uint64,
       ),
       por: StoragePoR(
         u: @[],         # TODO: PoR setup

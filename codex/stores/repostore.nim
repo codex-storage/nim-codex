@@ -12,8 +12,10 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronos
+import pkg/chronos/futures
 import pkg/chronicles
-import pkg/libp2p/cid
+import pkg/libp2p/[cid, multicodec, multihash]
+import pkg/lrucache
 import pkg/metrics
 import pkg/questionable
 import pkg/questionable/results
@@ -25,6 +27,8 @@ import ./keyutils
 import ../blocktype
 import ../clock
 import ../systemclock
+import ../merkletree
+import ../utils
 
 export blocktype, cid
 
@@ -59,15 +63,6 @@ type
     cid*: Cid
     expiration*: SecondsSince1970
 
-  GetNext = proc(): Future[?BlockExpiration] {.upraises: [], gcsafe, closure.}
-  BlockExpirationIter* = ref object
-    finished*: bool
-    next*: GetNext
-
-iterator items*(q: BlockExpirationIter): Future[?BlockExpiration] =
-  while not q.finished:
-    yield q.next()
-
 proc updateMetrics(self: RepoStore) =
   codex_repostore_blocks.set(self.totalBlocks.int64)
   codex_repostore_bytes_used.set(self.quotaUsedBytes.int64)
@@ -82,6 +77,62 @@ func available*(self: RepoStore): uint =
 func available*(self: RepoStore, bytes: uint): bool =
   return bytes < self.available()
 
+proc encode(cidAndProof: (Cid, MerkleProof)): seq[byte] =
+  ## Encodes a tuple of cid and merkle proof in a following format:
+  ## | 8-bytes | n-bytes | remaining bytes |
+  ## |    n    |   cid   |      proof      |
+  ##
+  ## where n is a size of cid
+  ##
+  let
+    (cid, proof) = cidAndProof
+    cidBytes = cid.data.buffer
+    proofBytes = proof.encode
+    n = cidBytes.len
+    nBytes = n.uint64.toBytesBE
+
+  @nBytes & cidBytes & proofBytes
+
+proc decode(_: type (Cid, MerkleProof), data: seq[byte]): ?!(Cid, MerkleProof) =
+  let
+    n = uint64.fromBytesBE(data[0..<sizeof(uint64)]).int
+    cid = ? Cid.init(data[sizeof(uint64)..<sizeof(uint64) + n]).mapFailure
+    proof = ? MerkleProof.decode(data[sizeof(uint64) + n..^1])
+  success((cid, proof))
+
+method putBlockCidAndProof*(
+  self: RepoStore,
+  treeCid: Cid,
+  index: Natural,
+  blockCid: Cid,
+  proof: MerkleProof
+): Future[?!void] {.async.} =
+  ## Put a block to the blockstore
+  ##
+
+  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
+    return failure(err)
+
+  let value = (blockCid, proof).encode()
+
+  await self.metaDs.put(key, value)
+
+proc getCidAndProof(
+  self: RepoStore,
+  treeCid: Cid,
+  index: Natural
+): Future[?!(Cid, MerkleProof)] {.async.} =
+  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
+    return failure(err)
+
+  without value =? await self.metaDs.get(key), err:
+    if err of DatastoreKeyNotFound:
+      return failure(newException(BlockNotFoundError, err.msg))
+    else:
+      return failure(err)
+
+  return (Cid, MerkleProof).decode(value)
+
 method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the blockstore
   ##
@@ -91,7 +142,7 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
 
   if cid.isEmpty:
     trace "Empty block, ignoring"
-    return success cid.emptyBlock
+    return cid.emptyBlock
 
   without key =? makePrefixKey(self.postFixLen, cid), err:
     trace "Error getting key from provider", err = err.msg
@@ -105,7 +156,34 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
     return failure(newException(BlockNotFoundError, err.msg))
 
   trace "Got block for cid", cid
-  return Block.new(cid, data)
+  return Block.new(cid, data, verify = true)
+
+
+method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.async.} =
+  without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
+    return failure(err)
+
+  let (cid, proof) = cidAndProof
+
+  without blk =? await self.getBlock(cid), err:
+    return failure(err)
+
+  success((blk, proof))
+
+method getBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!Block] {.async.} =
+  without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
+    return failure(err)
+
+  await self.getBlock(cidAndProof[0])
+
+method getBlock*(self: RepoStore, address: BlockAddress): Future[?!Block] =
+  ## Get a block from the blockstore
+  ##
+
+  if address.leaf:
+    self.getBlock(address.treeCid, address.index)
+  else:
+    self.getBlock(address.cid)
 
 proc getBlockExpirationEntry(
   self: RepoStore,
@@ -291,6 +369,23 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
   self.updateMetrics()
   return success()
 
+method delBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!void] {.async.} =
+  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
+    return failure(err)
+
+  without value =? await self.metaDs.get(key), err:
+    if err of DatastoreKeyNotFound:
+      return success()
+    else:
+      return failure(err)
+
+  without cidAndProof =? (Cid, MerkleProof).decode(value), err:
+    return failure(err)
+
+  self.delBlock(cidAndProof[0])
+
+  await self.metaDs.delete(key)
+
 method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
   ##
@@ -308,15 +403,25 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
 
   return await self.repoDs.has(key)
 
+method hasBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!bool] {.async.} =
+  without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
+    if err of BlockNotFoundError:
+      return success(false)
+    else:
+      return failure(err)
+
+  await self.hasBlock(cidAndProof[0])
+
 method listBlocks*(
   self: RepoStore,
-  blockType = BlockType.Manifest): Future[?!BlocksIter] {.async.} =
+  blockType = BlockType.Manifest
+): Future[?!AsyncIter[?Cid]] {.async.} =
   ## Get the list of blocks in the RepoStore.
   ## This is an intensive operation
   ##
 
   var
-    iter = BlocksIter()
+    iter = AsyncIter[?Cid]()
 
   let key =
     case blockType:
@@ -331,14 +436,15 @@ method listBlocks*(
 
   proc next(): Future[?Cid] {.async.} =
     await idleAsync()
-    iter.finished = queryIter.finished
-    if not queryIter.finished:
+    if queryIter.finished:
+      iter.finish
+    else:
       if pair =? (await queryIter.next()) and cid =? pair.key:
         doAssert pair.data.len == 0
         trace "Retrieved record from repo", cid
         return Cid.init(cid.value).option
-
-    return Cid.none
+      else:
+        return Cid.none
 
   iter.next = next
   return success iter
@@ -350,7 +456,7 @@ proc createBlockExpirationQuery(maxNumber: int, offset: int): ?!Query =
 method getBlockExpirations*(
   self: RepoStore,
   maxNumber: int,
-  offset: int): Future[?!BlockExpirationIter] {.async, base.} =
+  offset: int): Future[?!AsyncIter[?BlockExpiration]] {.async, base.} =
   ## Get block expirations from the given RepoStore
   ##
 
@@ -362,7 +468,7 @@ method getBlockExpirations*(
     trace "Unable to execute block expirations query"
     return failure(err)
 
-  var iter = BlockExpirationIter()
+  var iter = AsyncIter[?BlockExpiration]()
 
   proc next(): Future[?BlockExpiration] {.async.} =
     if not queryIter.finished:
@@ -377,7 +483,7 @@ method getBlockExpirations*(
         ).some
     else:
       discard await queryIter.dispose()
-    iter.finished = true
+    iter.finish
     return BlockExpiration.none
 
   iter.next = next
@@ -519,4 +625,5 @@ func new*(
     clock: clock,
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,
-    blockTtl: blockTtl)
+    blockTtl: blockTtl
+  )
