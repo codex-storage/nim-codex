@@ -35,17 +35,18 @@ asyncchecksuite "Erasure encode/decode":
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     manifest = await storeDataGetManifest(store, chunker)
 
-  proc encode(buffers, parity: int): Future[Manifest] {.async.} =
+  proc encode(buffers, parity: int, interleave: int = 0,
+              manifest: Manifest = manifest): Future[Manifest] {.async.} =
     let
       encoded = (await erasure.encode(
         manifest,
         buffers,
-        parity)).tryGet()
+        parity, interleave)).tryGet()
 
     check:
       encoded.blocksCount mod (buffers + parity) == 0
-      encoded.rounded == roundUp(manifest.blocksCount, buffers)
-      #encoded.steps == encoded.rounded div buffers
+      #encoded.rounded == (manifest.blocksCount + (buffers - (manifest.blocksCount mod buffers)))
+      encoded.steps == (encoded.rounded - 1) div (buffers * encoded.interleave) + 1
 
     return encoded
 
@@ -221,3 +222,97 @@ asyncchecksuite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     discard (await erasure.decode(encoded)).tryGet()
+
+  test "Encode without interleaving (horizontal): Should tolerate losing M data blocks in a single random row":
+    const
+      buffers = 20
+      parity = 10
+      interleave = 1
+
+    let encoded = await encode(buffers, parity, interleave)
+
+    var
+      idx = rng.rand(encoded.steps - 1) # random row
+      dropped: seq[int]
+
+    for _ in 0..<encoded.ecM:
+      dropped.add(idx)
+      (await store.delBlock(encoded.treeCid, idx)).tryGet()
+      (await store.delBlock(manifest.treeCid, idx)).tryGet()
+      idx.inc(encoded.interleave)
+
+    var
+      decoded = (await erasure.decode(encoded)).tryGet()
+
+    check:
+      decoded.treeCid == manifest.treeCid
+      decoded.treeCid == encoded.originalTreeCid
+      decoded.blocksCount == encoded.originalBlocksCount
+
+    for d in dropped:
+      let present = await store.hasBlock(manifest.treeCid, d)
+      check present.tryGet()
+
+  test "Encode without interleaving (horizontal): Should not tolerate losing M+1 data blocks in a single random row":
+    const
+      buffers = 20
+      parity = 10
+      interleave = 1
+
+    let encoded = await encode(buffers, parity, interleave)
+
+    var
+      idx = rng.rand(encoded.steps - 1) # random row
+      dropped: seq[int]
+
+    for _ in 0..<encoded.ecM + 1:
+      dropped.add(idx)
+      (await store.delBlock(encoded.treeCid, idx)).tryGet()
+      (await store.delBlock(manifest.treeCid, idx)).tryGet()
+      idx.inc(encoded.interleave)
+
+    var
+      decoded: Manifest
+
+    expect ResultFailure:
+      decoded = (await erasure.decode(encoded)).tryGet()
+
+    for d in dropped:
+      let present = await store.hasBlock(manifest.treeCid, d)
+      check not present.tryGet()
+
+
+  test "2D encode: Should tolerate losing M data blocks in a single random row":
+    const
+      k1 = 7
+      m1 = 3
+      i1 = 1
+      k2 = 5
+      m2 = 2
+      i2 = k1 + m1
+
+    let
+      encoded1 = await encode(k1, m1, i1)
+      encoded2 = await encode(k2, m2, i2, encoded1)
+
+    var
+      idx = rng.rand(encoded2.steps - 1) # random row
+      dropped: seq[int]
+
+    for _ in 0..<encoded2.ecM:
+      dropped.add(idx)
+      (await store.delBlock(encoded2.treeCid, idx)).tryGet()
+      idx.inc(encoded2.interleave)
+
+    var
+      decoded1 = (await erasure.decode(encoded2)).tryGet()
+      decoded = (await erasure.decode(decoded1)).tryGet()
+
+    check:
+      decoded.treeCid == manifest.treeCid
+      decoded.treeCid == encoded1.originalTreeCid
+      decoded.blocksCount == encoded1.originalBlocksCount
+
+    for d in dropped:
+      let present = await store.hasBlock(manifest.treeCid, d)
+      check present.tryGet()
