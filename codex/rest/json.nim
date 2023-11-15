@@ -39,7 +39,7 @@ type
     manifest* {.serialize.}: Manifest
 
   RestNode* = object
-    nodeId* {.serialize.}: NodeId
+    nodeId* {.serialize.}: RestNodeId
     peerId* {.serialize.}: PeerId
     record* {.serialize.}: SignedPeerRecord
     address* {.serialize.}: Option[dn.Address]
@@ -54,6 +54,9 @@ type
     seqNo* {.serialize.}: uint64
     addresses* {.serialize.}: seq[AddressInfo]
 
+  RestNodeId* = object
+    id*: NodeId
+
 proc init*(_: type RestContent, cid: Cid, manifest: Manifest): RestContent =
   RestContent(
     cid: cid,
@@ -62,7 +65,7 @@ proc init*(_: type RestContent, cid: Cid, manifest: Manifest): RestContent =
 
 proc init*(_: type RestNode, node: dn.Node): RestNode =
   RestNode(
-    nodeId: node.id,
+    nodeId: RestNodeId.init(node.id),
     peerId: node.record.data.peerId,
     record: node.record,
     address: node.address,
@@ -87,6 +90,11 @@ proc init*(_: type RestPeerRecord, peerRecord: PeerRecord): RestPeerRecord =
     addresses: peerRecord.addresses
   )
 
+proc init*(_: type RestNodeId, id: NodeId): RestNodeId =
+  RestNodeId(
+    id: id
+  )
+
 func `%`*(obj: StorageRequest | Slot): JsonNode =
   let jsonObj = newJObject()
   for k, v in obj.fieldPairs: jsonObj[k] = %v
@@ -99,6 +107,9 @@ func `%`*(obj: Cid): JsonNode =
 
 func `%`*(obj: PeerId): JsonNode =
   % $obj
+
+func `%`*(obj: RestNodeId): JsonNode =
+  % $obj.id
 
 func `%`*(obj: SignedPeerRecord): JsonNode =
   % $obj
