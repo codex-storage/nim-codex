@@ -118,7 +118,7 @@ proc bootstrapInteractions(
   if config.persistence:
     # This is used for simulation purposes. Normal nodes won't be compiled with this flag
     # and hence the proof failure will always be 0.
-    when codex_enable_proof_failures:
+    when codex_testing:
       let proofFailures = config.simulateProofFailures
       if proofFailures > 0:
         warn "Enabling proof failure simulation!"

@@ -95,7 +95,7 @@ if not defined(macosx):
     --define:nimStackTraceOverride
     switch("import", "libbacktrace")
 
-switch("define", "codex_enable_proof_failures=true")
+switch("define", "codex_testing=true")
 
 # `switch("warning[CaseTransition]", "off")` fails with "Error: invalid command line option: '--warning[CaseTransition]'"
 switch("warning", "CaseTransition:off")

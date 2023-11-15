@@ -2,6 +2,7 @@ import pkg/ethers
 import pkg/chronos
 import pkg/stint
 import ../clock
+import ../conf
 
 export clock
 
@@ -41,14 +42,17 @@ method stop*(clock: OnChainClock) {.async.} =
   await clock.subscription.unsubscribe()
 
 method now*(clock: OnChainClock): SecondsSince1970 =
-  try:
-    if queriedBlock =? (waitFor clock.provider.getBlock(BlockTag.latest)):
-      if queriedBlock.timestamp != clock.lastBlockTime:
-        trace "queried block and event block are not in sync",
-          queriedBlockLessThanEventBlock = queriedBlock.timestamp < clock.lastBlockTime
-      return queriedBlock.timestamp.truncate(int64)
-  except CatchableError as e:
-    warn "failed to get latest block timestamp"
+  when codex_testing:
+    # hardhat's latest block.timestamp is usually 1s behind the block timestamp
+    # in the newHeads event. When testing, always return the latest block.
+    try:
+      if queriedBlock =? (waitFor clock.provider.getBlock(BlockTag.latest)):
+        return queriedBlock.timestamp.truncate(int64)
+    except CatchableError as e:
+      warn "failed to get latest block timestamp"
+      return clock.lastBlockTime.truncate(int64)
+
+  else:
     return clock.lastBlockTime.truncate(int64)
 
 method waitUntil*(clock: OnChainClock, time: SecondsSince1970) {.async.} =

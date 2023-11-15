@@ -4,6 +4,7 @@ import pkg/chronos
 import pkg/chronicles
 import ./market
 import ./clock
+import ./utils/exceptions
 
 export market
 export sets
@@ -78,7 +79,7 @@ proc markProofAsMissing(validation: Validation,
   except CancelledError:
     raise
   except CatchableError as e:
-    error "Marking proof as missing failed", msg = e.msg
+    error "Marking proof as missing failed", msg = e.msgDetail
 
 proc markProofsAsMissing(validation: Validation) {.async.} =
   for slotId in validation.slots:

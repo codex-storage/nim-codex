@@ -25,13 +25,13 @@ task codex, "build codex binary":
   buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
 task testCodex, "Build & run Codex tests":
-  test "testCodex", params = "-d:codex_enable_proof_failures=true"
+  test "testCodex", params = "-d:codex_testing=true"
 
 task testContracts, "Build & run Codex Contract tests":
   test "testContracts"
 
 task testIntegration, "Run integration tests":
-  buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_enable_proof_failures=true"
+  buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_testing=true"
   test "testIntegration"
 
 task build, "build codex binary":
