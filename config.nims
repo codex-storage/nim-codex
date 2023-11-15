@@ -10,6 +10,7 @@ when getEnv("NIMBUS_BUILD_SYSTEM") == "yes" and
    # matching where the Nim command was invocated. This means that we
    # must do all file existance checks with full absolute paths:
    system.fileExists(currentDir & "nimbus-build-system.paths"):
+
   include "nimbus-build-system.paths"
 
 when defined(release):
