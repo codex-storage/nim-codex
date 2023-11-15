@@ -316,3 +316,43 @@ asyncchecksuite "Erasure encode/decode":
     for d in dropped:
       let present = await store.hasBlock(manifest.treeCid, d)
       check present.tryGet()
+
+  test "3D encode: Should tolerate losing M data blocks in a single random row":
+    const
+      k1 = 7
+      m1 = 3
+      i1 = 1
+      k2 = 5
+      m2 = 2
+      i2 = k1 + m1
+      k3 = 3
+      m3 = 1
+      i3 = i1 * (k2 + m2)
+
+    let
+      encoded1 = await encode(k1, m1, i1)
+      encoded2 = await encode(k2, m2, i2, encoded1)
+      encoded3 = await encode(k3, m3, i3, encoded2)
+
+    var
+      idx = rng.rand(encoded3.steps - 1) # random row
+      dropped: seq[int]
+
+    for _ in 0..<encoded3.ecM:
+      dropped.add(idx)
+      (await store.delBlock(encoded3.treeCid, idx)).tryGet()
+      idx.inc(encoded3.interleave)
+
+    var
+      decoded2 = (await erasure.decode(encoded3)).tryGet()
+      decoded1 = (await erasure.decode(decoded2)).tryGet()
+      decoded = (await erasure.decode(decoded1)).tryGet()
+
+    check:
+      decoded.treeCid == manifest.treeCid
+      decoded.treeCid == encoded1.originalTreeCid
+      decoded.blocksCount == encoded1.originalBlocksCount
+
+    for d in dropped:
+      let present = await store.hasBlock(manifest.treeCid, d)
+      check present.tryGet()
