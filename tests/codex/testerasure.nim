@@ -57,14 +57,14 @@ asyncchecksuite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     var
-      column = rng.rand((encoded.blocksCount - 1) div encoded.interleave) # random column
+      column = rng.rand(encoded.interleave - 1) # random column
       dropped: seq[int]
 
     for _ in 0..<encoded.ecM:
       dropped.add(column)
       (await store.delBlock(encoded.treeCid, column)).tryGet()
       (await store.delBlock(manifest.treeCid, column)).tryGet()
-      column.inc(encoded.interleave - 1)
+      column.inc(encoded.interleave)
 
     var
       decoded = (await erasure.decode(encoded)).tryGet()
@@ -87,7 +87,7 @@ asyncchecksuite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     var
-      column = rng.rand((encoded.blocksCount - 1) div encoded.interleave) # random column
+      column = rng.rand(encoded.interleave - 1) # random column
       dropped: seq[int]
 
     for _ in 0..<encoded.ecM + 1:
