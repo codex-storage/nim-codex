@@ -3,7 +3,12 @@
 # Parameters
 if [[ "${NAT_IP_AUTO}" == "true" ]]; then
   export CODEX_NAT=$(hostname --ip-address)
-  echo "Set CODEX_NAT: ${CODEX_NAT}"
+  echo "Internal: Set CODEX_NAT: ${CODEX_NAT}"
+fi
+
+if [[ "${NAT_PUBLIC_IP_AUTO}" == "true" ]]; then
+  export CODEX_NAT=$(curl https://ipinfo.io/ip)
+  echo "Public: Set CODEX_NAT: ${CODEX_NAT}"
 fi
 
 # If marketplace is enabled from the testing environment,
