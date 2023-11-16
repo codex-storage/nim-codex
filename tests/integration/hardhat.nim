@@ -3,7 +3,6 @@ import pkg/questionable/results
 import pkg/confutils
 import pkg/chronicles
 import pkg/chronos
-import pkg/libp2p
 import pkg/stew/io2
 import std/osproc
 import std/os

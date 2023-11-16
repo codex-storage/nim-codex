@@ -8,7 +8,6 @@ import pkg/codex/rng
 import pkg/stew/byteutils
 import pkg/ethers/erc20
 import pkg/codex/contracts
-import pkg/codex/utils/stintutils
 import ../contracts/time
 import ../contracts/deployment
 import ../codex/helpers

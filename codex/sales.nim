@@ -210,7 +210,6 @@ proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
   return slots
 
 proc activeSale*(sales: Sales, slotId: SlotId): Future[?SalesAgent] {.async.} =
-  let market = sales.context.market
   for agent in sales.agents:
     if slotId(agent.data.requestId, agent.data.slotIndex) == slotId:
       return some agent

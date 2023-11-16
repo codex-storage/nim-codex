@@ -1,6 +1,5 @@
 import std/times
 import pkg/chronos
-import pkg/stint
 import codex/clock
 
 export clock

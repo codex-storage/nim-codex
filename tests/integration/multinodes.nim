@@ -1,8 +1,5 @@
-import std/httpclient
-import std/macros
 import std/os
 import std/sequtils
-import std/strformat
 import std/strutils
 import std/sugar
 import std/times
