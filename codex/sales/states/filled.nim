@@ -31,13 +31,7 @@ method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
   let context = agent.context
 
   let market = context.market
-
-
-
   let host = await market.getHost(data.requestId, data.slotIndex)
-
-
-
   let me = await market.getSigner()
 
   if host == me.some:
