@@ -54,6 +54,8 @@ proc waitUntilStarted*(node: NodeProcess) =
   if node.debug:
     sleep(5_000)
   else:
+    when defined(windows):
+      sleep(5_000)
     node.waitUntilOutput("Started codex node")
 
 proc startNode*(args: openArray[string], debug: string | bool = false): NodeProcess =
