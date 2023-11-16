@@ -385,6 +385,25 @@ proc encode*(
 
   return success encodedManifest
 
+proc encodeMulti*(
+  self: Erasure,
+  manifest: Manifest,
+  code: seq[(int,int)]): Future[?!Manifest] {.async.} =
+  ## Encode a manifest into one that is erasure protected in multiple dimensions.
+  ##
+  ## code: list of (K,M) RS code parameter pairs
+
+  var
+    mfest = manifest
+    i = 1
+
+  for (k,m) in code:
+    mfest = (await self.encode(mfest, k, m, i)).tryGet()
+    i *= (k+m)
+
+  return success mfest
+
+
 proc decode*(
     self: Erasure,
     encoded: Manifest
@@ -494,6 +513,26 @@ proc decode*(
   let decoded = Manifest.new(encoded)
 
   return decoded.success
+
+proc decodeMulti*(
+    self: Erasure,
+    encoded: Manifest
+): Future[?!Manifest] {.async.} =
+  ## Decode a protected manifest into it's original unprotected
+  ## manifest
+  ##
+  ## `encoded` - the encoded (protected) manifest to
+  ##             be recovered
+  ##
+
+  var
+    mfest = encoded
+
+  while mfest.protected:
+    mfest = (await self.decode(mfest)).tryGet()
+
+  return success mfest
+
 
 proc start*(self: Erasure) {.async.} =
   return

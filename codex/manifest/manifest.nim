@@ -85,6 +85,11 @@ proc originalTreeCid*(self: Manifest): Cid =
 proc originalBlocksCount*(self: Manifest): int =
   divUp(self.originalManifest.datasetSize.int, self.blockSize.int)
 
+proc unprotectedBlocksCount*(self: Manifest): int =
+  var mfest = self
+  while mfest.protected:
+    mfest = mfest.originalManifest
+  divUp(mfest.datasetSize.int, self.blockSize.int)
 
 proc originalDatasetSize*(self: Manifest): NBytes =
   self.originalDatasetSize

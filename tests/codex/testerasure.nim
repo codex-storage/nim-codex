@@ -356,3 +356,36 @@ asyncchecksuite "Erasure encode/decode":
     for d in dropped:
       let present = await store.hasBlock(manifest.treeCid, d)
       check present.tryGet()
+
+  test "3D encode: test multi-dimensional API":
+    const
+      encoding = @[(7, 3),(5, 2),(3, 1)]
+
+    let
+      encoded = (await erasure.encodeMulti(manifest, encoding)).tryGet()
+      decoded = (await erasure.decodeMulti(encoded)).tryGet()
+
+    check:
+      decoded.treeCid == manifest.treeCid
+      decoded.blocksCount == encoded.unprotectedBlocksCount
+
+  test "3D encode: test multi-dimensional API with drop":
+    const
+      encoding = @[(7, 3),(5, 2),(3, 1)]
+
+    let encoded = (await erasure.encodeMulti(manifest, encoding)).tryGet()
+
+    var
+      idx = rng.rand(encoded.steps - 1) # random row
+      dropped: seq[int]
+
+    for _ in 0..<encoded.ecM:
+      dropped.add(idx)
+      (await store.delBlock(encoded.treeCid, idx)).tryGet()
+      idx.inc(encoded.interleave)
+
+    let decoded = (await erasure.decodeMulti(encoded)).tryGet()
+
+    check:
+      decoded.treeCid == manifest.treeCid
+      decoded.blocksCount == encoded.unprotectedBlocksCount
