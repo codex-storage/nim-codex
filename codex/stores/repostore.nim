@@ -110,6 +110,7 @@ method putBlockCidAndProof*(
   ## Put a block to the blockstore
   ##
 
+  trace "putBlockCidAndProof", treeCid, index, blockCid
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 

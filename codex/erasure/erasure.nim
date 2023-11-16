@@ -342,6 +342,7 @@ proc encodeData(
     without treeCid =? tree.rootCid, err:
       return failure(err)
 
+    trace "Storing proofs for", treeCid
     if err =? (await self.store.putAllProofs(tree)).errorOption:
       return failure(err)
 
