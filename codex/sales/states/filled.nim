@@ -29,19 +29,23 @@ method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
   let data = agent.data
   let context = agent.context
+
   let market = context.market
 
-  without slotIndex =? data.slotIndex:
-    raiseAssert("no slot index assigned")
 
-  let host = await market.getHost(data.requestId, slotIndex)
+
+  let host = await market.getHost(data.requestId, data.slotIndex)
+
+
+
   let me = await market.getSigner()
-  if host == me.some:
-    info "Slot succesfully filled", requestId = $data.requestId, slotIndex
 
-    if request =? data.request and slotIndex =? data.slotIndex:
+  if host == me.some:
+    info "Slot succesfully filled", requestId = $data.requestId, slotIndex = $data.slotIndex
+
+    if request =? data.request:
       if onFilled =? agent.onFilled:
-        onFilled(request, slotIndex)
+        onFilled(request, data.slotIndex)
 
     when codex_enable_proof_failures:
       if context.simulateProofFailures > 0:

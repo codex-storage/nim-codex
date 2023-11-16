@@ -112,18 +112,15 @@ method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
   without onProve =? context.onProve:
     raiseAssert "onProve callback not set"
 
-  without slotIndex =? data.slotIndex:
-    raiseAssert("no slot index assigned")
-
   without market =? context.market:
     raiseAssert("market not set")
 
   without clock =? context.clock:
     raiseAssert("clock not set")
 
-  debug "Start proving", requestId = $data.requestId, slotIndex
+  debug "Start proving", requestId = $data.requestId, slotIndex = $data.slotIndex
   try:
-    let loop = state.proveLoop(market, clock, request, slotIndex, onProve)
+    let loop = state.proveLoop(market, clock, request, data.slotIndex, onProve)
     state.loop = loop
     await loop
   except CancelledError:
@@ -133,7 +130,7 @@ method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
     return some State(SaleErrored(error: e))
   finally:
     # Cleanup of the proving loop
-    debug "Stopping proving.", requestId = $data.requestId, slotIndex
+    debug "Stopping proving.", requestId = $data.requestId, slotIndex = $data.slotIndex
 
     if not state.loop.isNil:
         if not state.loop.finished:

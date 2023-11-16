@@ -42,15 +42,12 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
   without request =? data.request:
     raiseAssert "no sale request"
 
-  without slotIndex =? data.slotIndex:
-    raiseAssert("no slot index assigned")
-
   without reservation =? data.reservation:
     raiseAssert("no reservation")
 
   logScope:
     requestId = request.id
-    slotIndex
+    slotIndex = data.slotIndex
     reservationId = reservation.id
     availabilityId = reservation.availabilityId
 
@@ -72,7 +69,7 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
 
   trace "Starting download"
   if err =? (await onStore(request,
-                           slotIndex,
+                           data.slotIndex,
                            onBatch)).errorOption:
     return some State(SaleErrored(error: err))
 
