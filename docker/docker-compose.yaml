@@ -30,7 +30,7 @@ services:
       - CODEX_VALIDATOR=${CODEX_VALIDATOR:-false}
       - CODEX_VALIDATOR_MAX_SLOTS=${CODEX_VALIDATOR_MAX_SLOTS:-1000}
       - NAT_IP_AUTO=false
-      - NAT_PUBLIC_IP_AUTO=true
+      - NAT_PUBLIC_IP_AUTO=https://ipinfo.io/ip
     ports:
       - 8080:8080/tcp # REST API
       - 8008:8008/tcp # Metrics
