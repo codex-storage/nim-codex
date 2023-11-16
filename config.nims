@@ -113,6 +113,9 @@ switch("define", "libp2p_pki_schemes=secp256k1")
 # we can't use it. And codex.cfg doesn't work
 switch("define", "chronicles_sinks=textlines[dynamic],json[dynamic],textlines[dynamic]")
 
+# Workaround for assembler incompatibility between constantine and secp256k1
+switch("define", "use_asm_syntax_intel=false")
+
 # begin Nimble config (version 1)
 when system.fileExists("nimble.paths"):
   include "nimble.paths"
