@@ -320,7 +320,7 @@ proc requestStorage*(
   tolerance: uint,
   reward: UInt256,
   collateral: UInt256,
-  expiry = UInt256.none): Future[?!PurchaseId] {.async.} =
+  expiry:  UInt256): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
   ##
@@ -384,7 +384,7 @@ proc requestStorage*(
         name: @[]       # TODO: PoR setup
       )
     ),
-    expiry: expiry |? 0.u256
+    expiry: expiry
   )
 
   let purchase = await contracts.purchasing.purchase(request)
