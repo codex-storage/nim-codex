@@ -203,11 +203,11 @@ when defined(metrics):
       "metricscolletor module."
 
     asyncProfilerInfo = AsyncProfilerInfo.newCollector(
-      perfSampler = getFutureSummaryMetrics,
+      perfSampler = proc (): MetricsSummary = profiler.getFutureSummaryMetrics(),
       k = k,
       # We want to collect metrics every 5 seconds.
       sampleInterval = initDuration(seconds = 5),
       clock = proc (): Time = getTime(),
     )
 
-    setChangeCallback(proc (): void = asyncProfilerInfo.collect())
+    profiler.setChangeCallback(proc (): void = asyncProfilerInfo.collect())

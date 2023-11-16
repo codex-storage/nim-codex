@@ -31,16 +31,11 @@ import pkg/codexdht/discv5/spr as spr
 import ../node
 import ../blocktype
 import ../conf
-<<<<<<< HEAD
 import ../contracts
 import ../manifest
 import ../streams/asyncstreamwrapper
 import ../stores/blockstore
-=======
-import ../contracts except `%*`, `%` # imported from contracts/marketplace (exporting ethers)
-import ../streams
 import ../utils/asyncprofiler
->>>>>>> f7c385f (add simple profiling API)
 
 import ./coders
 import ./json
@@ -190,18 +185,6 @@ proc initDataApi(node: CodexNodeRef, router: var RestRouter) =
       await node.retrieveCid(cid.get(), local = false, resp=resp)
 
       return RestApiResponse.response($json, contentType="application/json")
-
-  when chronosFuturesInstrumentation:
-    router.api(
-      MethodGet,
-      "/api/codex/v1/debug/performance") do () -> RestApiResponse:
-        # Returns profiling information, highest totalExecTime first
-
-        without metrics =? sortBy(%(getFutureSummaryMetrics()),
-          "totalExecTime").catch, error:
-            return RestApiResponse.error(Http500, error.msg)
-
-        RestApiResponse.response($(metrics), contentType="application/json")
 
 proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
   router.api(
@@ -472,9 +455,22 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
         let json = %RestPeerRecord.init(peerRecord)
         trace "debug/peer returning peer record"
         return RestApiResponse.response($json)
+
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
+
+  when chronosFuturesInstrumentation:
+    router.api(
+      MethodGet,
+      "/api/codex/v1/debug/performance") do () -> RestApiResponse:
+        # Returns profiling information, highest totalExecTime first
+
+        without metrics =? sortBy(%(profiler.getFutureSummaryMetrics()),
+          "totalExecTime").catch, error:
+            return RestApiResponse.error(Http500, error.msg)
+
+        RestApiResponse.response($(metrics), contentType="application/json")
 
 proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
   var router = RestRouter.init(validate)
