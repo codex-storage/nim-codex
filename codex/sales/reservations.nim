@@ -28,7 +28,7 @@ push: {.upraises: [].}
 
 import std/typetraits
 import pkg/chronos
-import pkg/chronicles
+import pkg/chronicles except toJson
 import pkg/datastore
 import pkg/nimcrypto
 import pkg/questionable

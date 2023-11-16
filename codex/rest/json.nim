@@ -6,7 +6,6 @@ import pkg/codexdht/discv5/routing_table as rt
 import ../sales
 import ../purchasing
 import ../utils/json
-import ../units
 import ../manifest
 
 export json

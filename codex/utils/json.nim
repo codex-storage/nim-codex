@@ -303,18 +303,7 @@ func `%`*[T: distinct](id: T): JsonNode =
   type baseType = T.distinctBase
   % baseType(id)
 
-func toJson*(obj: object): string = $(%obj)
-func toJson*(obj: ref object): string = $(%obj)
-
-func toJson*[T: object](elements: openArray[T]): string =
-  let jObj = newJArray()
-  for elem in elements: jObj.add(%elem)
-  $jObj
-
-func toJson*[T: ref object](elements: openArray[T]): string =
-  let jObj = newJArray()
-  for elem in elements: jObj.add(%elem)
-  $jObj
+func toJson*[T](item: T): string = $(%item)
 
 proc toJsnImpl(x: NimNode): NimNode =
   case x.kind

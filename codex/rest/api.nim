@@ -32,6 +32,7 @@ import ../node
 import ../blocktype
 import ../conf
 import ../contracts
+import ../manifest
 import ../streams/asyncstreamwrapper
 
 import ./coders
