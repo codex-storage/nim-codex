@@ -402,6 +402,28 @@ paths:
         "503":
           description: Sales are unavailable
 
+  "/sales/slots/{slotId}":
+    get:
+      summary: "Returns active slot with id {slotId} for the host"
+      tags: [ Marketplace ]
+      operationId: getActiveSlotById
+      responses:
+        "200":
+          description: Retrieved active slot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Slot"
+
+        "400":
+          description: Invalid or missing SlotId
+
+        "404":
+          description: Host is not in an active sale for the slot
+
+        "503":
+          description: Sales are unavailable
+
   "/sales/availability":
     get:
       summary: "Returns storage that is for sale"
@@ -504,9 +526,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Purchase"
+                $ref: "#/components/schemas/Purchase"
         "400":
           description: Invalid or missing Purchase ID
         "404":

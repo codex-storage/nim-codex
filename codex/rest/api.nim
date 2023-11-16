@@ -199,7 +199,8 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
   router.api(
     MethodGet,
     "/api/codex/v1/sales/slots/{slotId}") do (slotId: SlotId) -> RestApiResponse:
-      ## Returns active slots for the host
+      ## Returns active slot with id {slotId} for the host. Returns 404 if the
+      ## slot is not active for the host.
 
       without contracts =? node.contracts.host:
         return RestApiResponse.error(Http503, "Sales unavailable")
