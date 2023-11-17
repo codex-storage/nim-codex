@@ -6,6 +6,7 @@ import ./codex/testmanifest
 import ./codex/testnode
 import ./codex/teststorestream
 import ./codex/testpurchasing
+import ./codex/testproof
 import ./codex/testsales
 import ./codex/testerasure
 import ./codex/testutils
