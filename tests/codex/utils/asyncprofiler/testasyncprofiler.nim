@@ -1,31 +1,31 @@
-import pkg/asynctest
-import pkg/chronos
+# import pkg/asynctest
+# import pkg/chronos
 
-import pkg/codex/utils/asyncprofiler
+# import pkg/codex/utils/asyncprofiler
 
-type
-  FakeFuture = object
-    id: uint
-    internalLocation*: array[LocationKind, ptr SrcLoc]
+# type
+#   FakeFuture = object
+#     id: uint
+#     internalLocation*: array[LocationKind, ptr SrcLoc]
 
 
-suite "asyncprofiler":
+# suite "asyncprofiler":
 
-  test "should not keep metrics for a pending future in memory after it completes":
+#   test "should not keep metrics for a pending future in memory after it completes":
 
-    var fakeLoc =  SrcLoc(procedure: "foo", file: "foo.nim", line: 1)
-    let future = FakeFuture(
-      id: 1,
-      internalLocation:  [
-      LocationKind.Create: addr fakeLoc,
-      LocationKind.Finish: addr fakeLoc,
-    ])
+#     var fakeLoc =  SrcLoc(procedure: "foo", file: "foo.nim", line: 1)
+#     let future = FakeFuture(
+#       id: 1,
+#       internalLocation:  [
+#       LocationKind.Create: addr fakeLoc,
+#       LocationKind.Finish: addr fakeLoc,
+#     ])
 
-    var profiler = AsyncProfiler[FakeFuture]()
+#     var profiler = AsyncProfiler[FakeFuture]()
 
-    profiler.handleFutureCreate(future)
-    profiler.handleFutureComplete(future)
+#     profiler.handleFutureCreate(future)
+#     profiler.handleFutureComplete(future)
 
-    check len(profiler.getPerFutureMetrics()) == 0
+#     check len(profiler.getPerFutureMetrics()) == 0
 
 

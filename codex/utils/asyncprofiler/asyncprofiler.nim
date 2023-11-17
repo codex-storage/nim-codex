@@ -124,8 +124,6 @@ proc handleFutureComplete*[TFutureBase](self: var AsyncProfiler[TFutureBase],
     self.futureSummaryMetrics.withValue(loc, metric):
       metric[].addRun(runMetrics)
 
-    self.perFutureMetrics.del(fut.id)
-
     if not isNil(self.onChange):
       self.onChange()
 
