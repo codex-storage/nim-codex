@@ -83,8 +83,7 @@ asyncchecksuite "Reservations module":
   test "reserved availability exists":
     let availability = createAvailability()
 
-    without exists =? await reservations.exists(availability.key.get):
-      fail()
+    let exists = await reservations.exists(availability.key.get)
 
     check exists
 
