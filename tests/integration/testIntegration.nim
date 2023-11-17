@@ -22,7 +22,9 @@ import ./twonodes
 twonodessuite "Integration tests", debug1 = false, debug2 = false:
 
   proc purchaseStateIs(client: CodexClient, id: PurchaseId, state: string): bool =
-    client.getPurchase(id).option.?state == some state
+    without purchase =? client.getPurchase(id):
+      return false
+    return purchase.state == state
 
   setup:
     # Our Hardhat configuration does use automine, which means that time tracked by `provider.currentTime()` is not

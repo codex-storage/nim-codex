@@ -28,11 +28,8 @@ method run(state: SalePayout, machine: Machine): Future[?State] {.async.} =
   without request =? data.request:
     raiseAssert "no sale request"
 
-  without slotIndex =? data.slotIndex:
-    raiseAssert("no slot index assigned")
-
-  let slot = Slot(request: request, slotIndex: slotIndex)
-  debug "Collecting finished slot's reward",  requestId = $data.requestId, slotIndex
+  let slot = Slot(request: request, slotIndex: data.slotIndex)
+  debug "Collecting finished slot's reward",  requestId = $data.requestId, slotIndex = $data.slotIndex
   await market.freeSlot(slot.id)
 
   return some State(SaleFinished())

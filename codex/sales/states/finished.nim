@@ -27,10 +27,7 @@ method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
   without request =? data.request:
     raiseAssert "no sale request"
 
-  without slotIndex =? data.slotIndex:
-    raiseAssert("no slot index assigned")
-
-  info "Slot finished and paid out", requestId = $data.requestId, slotIndex
+  info "Slot finished and paid out", requestId = $data.requestId, slotIndex = $data.slotIndex
 
   if onCleanUp =? agent.onCleanUp:
     await onCleanUp()
