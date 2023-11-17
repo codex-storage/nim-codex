@@ -9,7 +9,6 @@
 
 import std/tables
 import std/sugar
-import std/sequtils
 export tables
 
 import pkg/upraises
@@ -89,9 +88,7 @@ proc `$`*(b: Block): string =
   result &= "cid: " & $b.cid
   result &= "\ndata: " & string.fromBytes(b.data)
 
-proc emptyCid*(version: CidVersion, hcodec: MultiCodec, dcodec: MultiCodec): ?!Cid
-
-proc new*(
+func new*(
     T: type Block,
     data: openArray[byte] = [],
     version = CIDv1,
@@ -101,13 +98,9 @@ proc new*(
   ## creates a new block for both storage and network IO
   ##
 
-  let cid =
-    if all(data, proc (x: byte): bool = x == 0):
-      ? emptyCid(version, mcodec, codec)
-    else:
-      let
-        hash = ? MultiHash.digest($mcodec, data).mapFailure
-      ? Cid.init(version, codec, hash).mapFailure
+  let
+    hash = ? MultiHash.digest($mcodec, data).mapFailure
+    cid = ? Cid.init(version, codec, hash).mapFailure
 
   # TODO: If the hash is `>=` to the data,
   # use the Cid as a container!
