@@ -45,6 +45,10 @@ proc start(node: NodeProcess) =
 proc waitUntilOutput*(node: NodeProcess, output: string) =
   if node.debug:
     raiseAssert "cannot read node output when in debug mode"
+  when defined(windows):
+    let lines = node.process.outputStream.lines.toSeq
+    echo ">>> lines count: ", lines.len
+    echo ">>> lines: ", lines
   for line in node.process.outputStream.lines:
     if line.contains(output):
       return
@@ -54,8 +58,6 @@ proc waitUntilStarted*(node: NodeProcess) =
   if node.debug:
     sleep(5_000)
   else:
-    when defined(windows):
-      sleep(5_000)
     node.waitUntilOutput("Started codex node")
 
 proc startNode*(args: openArray[string], debug: string | bool = false): NodeProcess =
