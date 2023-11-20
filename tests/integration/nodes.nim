@@ -4,6 +4,7 @@ import pkg/chronicles
 import pkg/libp2p
 import std/osproc
 import std/os
+import std/sequtils
 import std/streams
 import std/strutils
 import codex/conf
