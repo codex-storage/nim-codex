@@ -18,6 +18,10 @@ import pkg/codex/stores
 import pkg/codex/blocktype as bt
 import pkg/codex/clock
 import pkg/codex/utils/asynciter
+import pkg/codex/contracts/requests
+import pkg/codex/contracts
+
+import pkg/codex/proof/datasampler
 
 import ../helpers
 import ../examples
@@ -25,9 +29,31 @@ import ../examples
 let
   bytesPerBlock = 64 * 1024
   numberOfSlotBlocks = 10
+  slot = Slot(
+    request: StorageRequest(
+      client: Address.example,
+      ask: StorageAsk(
+        slots: 10,
+        slotSize: u256(bytesPerBlock * numberOfSlotBlocks),
+        duration: UInt256.example,
+        proofProbability: UInt256.example,
+        reward: UInt256.example,
+        collateral: UInt256.example,
+        maxSlotLoss: 123.uint64
+      ),
+      content: StorageContent(
+        cid: "cidstringtodo",
+        erasure: StorageErasure(),
+        por: StoragePoR()
+      ),
+      expiry: UInt256.example,
+      nonce: Nonce.example
+    ),
+    slotIndex: u256(3)
+  )
 
 asyncchecksuite "Test proof datasampler":
-  let chunker = RandomChunker.new(Rng.instance(),
+  let chunker = RandomChunker.new(rng.Rng.instance(),
     size = bytesPerBlock * numberOfSlotBlocks,
     chunkSize = bytesPerBlock)
 
@@ -43,5 +69,13 @@ asyncchecksuite "Test proof datasampler":
   setup:
     await createSlotBlocks()
 
-  test "Should pass":
-    check true
+  test "Should calculate total number of cells in Slot":
+    let
+      slotSizeInBytes = slot.request.ask.slotSize
+      expectedNumberOfCells = slotSizeInBytes div CellSize
+
+    check:
+      expectedNumberOfCells == 320
+      expectedNumberOfCells == getNumberOfCellsInSlot(slot)
+
+
