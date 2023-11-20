@@ -20,19 +20,15 @@ method run*(state: SaleCancelled, machine: Machine): Future[?State] {.async.} =
   without request =? data.request:
     raiseAssert "no sale request"
 
-  without slotIndex =? data.slotIndex:
-    raiseAssert("no slot index assigned")
-
-  let slot = Slot(request: request, slotIndex: slotIndex)
-  debug "Collecting collateral and partial payout",  requestId = $data.requestId, slotIndex
+  let slot = Slot(request: request, slotIndex: data.slotIndex)
+  debug "Collecting collateral and partial payout",  requestId = $data.requestId, slotIndex = $data.slotIndex
   await market.freeSlot(slot.id)
 
   if onClear =? agent.context.onClear and
-      request =? data.request and
-      slotIndex =? data.slotIndex:
-    onClear(request, slotIndex)
+      request =? data.request:
+    onClear(request, data.slotIndex)
 
   if onCleanUp =? agent.onCleanUp:
     await onCleanUp()
 
-  warn "Sale cancelled due to timeout",  requestId = $data.requestId, slotIndex
+  warn "Sale cancelled due to timeout",  requestId = $data.requestId, slotIndex = $data.slotIndex

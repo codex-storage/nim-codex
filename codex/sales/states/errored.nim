@@ -25,9 +25,8 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
   error "Sale error", error=state.error.msgDetail, requestId = data.requestId, slotIndex = data.slotIndex
 
   if onClear =? context.onClear and
-      request =? data.request and
-      slotIndex =? data.slotIndex:
-    onClear(request, slotIndex)
+      request =? data.request:
+    onClear(request, data.slotIndex)
 
   if onCleanUp =? agent.onCleanUp:
     await onCleanUp()
