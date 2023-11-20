@@ -100,6 +100,12 @@ proc decode(_: type (Cid, MerkleProof), data: seq[byte]): ?!(Cid, MerkleProof) =
     proof = ? MerkleProof.decode(data[sizeof(uint64) + n..^1])
   success((cid, proof))
 
+proc decodeCid(_: type (Cid, MerkleProof), data: seq[byte]): ?!Cid =
+  let
+    n = uint64.fromBytesBE(data[0..<sizeof(uint64)]).int
+    cid = ? Cid.init(data[sizeof(uint64)..<sizeof(uint64) + n]).mapFailure
+  success(cid)
+
 method putBlockCidAndProof*(
   self: RepoStore,
   treeCid: Cid,
@@ -132,6 +138,22 @@ proc getCidAndProof(
       return failure(err)
 
   return (Cid, MerkleProof).decode(value)
+
+proc getCid(
+  self: RepoStore,
+  treeCid: Cid,
+  index: Natural
+): Future[?!Cid] {.async.} =
+  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
+    return failure(err)
+
+  without value =? await self.metaDs.get(key), err:
+    if err of DatastoreKeyNotFound:
+      return failure(newException(BlockNotFoundError, err.msg))
+    else:
+      return failure(err)
+
+  return (Cid, MerkleProof).decodeCid(value)
 
 method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the blockstore
@@ -171,10 +193,10 @@ method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[
   success((blk, proof))
 
 method getBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!Block] {.async.} =
-  without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
+  without cid =? await self.getCid(treeCid, index), err:
     return failure(err)
 
-  await self.getBlock(cidAndProof[0])
+  await self.getBlock(cid)
 
 method getBlock*(self: RepoStore, address: BlockAddress): Future[?!Block] =
   ## Get a block from the blockstore
@@ -379,10 +401,11 @@ method delBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!void] 
     else:
       return failure(err)
 
-  without cidAndProof =? (Cid, MerkleProof).decode(value), err:
+  without cid =? (Cid, MerkleProof).decodeCid(value), err:
     return failure(err)
 
-  self.delBlock(cidAndProof[0])
+  if err =? (await self.delBlock(cid)).errorOption:
+    return failure(err)
 
   await self.metaDs.delete(key)
 
@@ -404,13 +427,13 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   return await self.repoDs.has(key)
 
 method hasBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!bool] {.async.} =
-  without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
+  without cid =? await self.getCid(treeCid, index), err:
     if err of BlockNotFoundError:
       return success(false)
     else:
       return failure(err)
 
-  await self.hasBlock(cidAndProof[0])
+  await self.hasBlock(cid)
 
 method listBlocks*(
   self: RepoStore,
