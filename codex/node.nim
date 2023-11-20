@@ -26,6 +26,7 @@ import pkg/libp2p/routing_record
 import pkg/libp2p/signed_envelope
 
 import ./chunker
+import ./clock
 import ./blocktype as bt
 import ./manifest
 import ./merkletree
@@ -62,6 +63,7 @@ type
     erasure*: Erasure
     discovery*: Discovery
     contracts*: Contracts
+    clock*: Clock
 
   OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, closure.}
 
@@ -418,6 +420,9 @@ proc start*(node: CodexNodeRef) {.async.} =
   if not node.discovery.isNil:
     await node.discovery.start()
 
+  if not node.clock.isNil:
+    await node.clock.start()
+
   if hostContracts =? node.contracts.host:
     # TODO: remove Sales callbacks, pass BlockStore and StorageProofs instead
     hostContracts.sales.onStore = proc(request: StorageRequest,
@@ -498,6 +503,9 @@ proc stop*(node: CodexNodeRef) {.async.} =
 
   if not node.discovery.isNil:
     await node.discovery.stop()
+
+  if not node.clock.isNil:
+    await node.clock.stop()
 
   if clientContracts =? node.contracts.client:
     await clientContracts.stop()
