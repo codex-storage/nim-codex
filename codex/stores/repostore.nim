@@ -256,7 +256,7 @@ method ensureExpiry*(
       return failure(err)
 
   if expiry <= currentExpiry.toSecondsSince1970:
-    trace "Current expiry is larger then the specified one, no action needed", current = currentExpiry.toSecondsSince1970, ensuring = expiry
+    trace "Current expiry is larger than or equal to the specified one, no action needed", current = currentExpiry.toSecondsSince1970, ensuring = expiry
     return success()
 
   if err =? (await self.metaDs.put(expiryKey, expiry.toBytes)).errorOption:

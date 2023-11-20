@@ -125,7 +125,7 @@ proc fetchBatched*(
   manifest: Manifest,
   batchSize = FetchBatch,
   onBatch: BatchProc = nil,
-  expiry: ?SecondsSince1970 = SecondsSince1970.none): Future[?!void] {.async, gcsafe.} =
+  expiry = SecondsSince1970.none): Future[?!void] {.async, gcsafe.} =
   ## Fetch manifest in batches of `batchSize`
   ##
 
