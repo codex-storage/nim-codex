@@ -42,7 +42,7 @@ method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
       raiseAssert "no sale request"
 
     if onFilled =? agent.onFilled:
-      onFilled(request, slotIndex)
+      onFilled(request, data.slotIndex)
 
     without onExpiryUpdate =? context.onExpiryUpdate:
       raiseAssert "onExpiryUpdate callback not set"
