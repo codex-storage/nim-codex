@@ -181,7 +181,7 @@ proc getImpl(
   self: Reservations,
   key: Key): Future[?!seq[byte]] {.async.} =
 
-  if exists =? (await self.exists(key)) and not exists:
+  if not await self.exists(key):
     let err = newException(NotExistsError, "object with key " & $key & " does not exist")
     return failure(err)
 
@@ -226,7 +226,7 @@ proc delete(
 
   trace "deleting object", key
 
-  if exists =? (await self.exists(key)) and not exists:
+  if not await self.exists(key):
     return success()
 
   if err =? (await self.repo.metaDs.delete(key)).errorOption:

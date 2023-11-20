@@ -30,11 +30,8 @@ method run*(state: SaleInitialProving, machine: Machine): Future[?State] {.async
   without onProve =? context.onProve:
     raiseAssert "onProve callback not set"
 
-  without slotIndex =? data.slotIndex:
-    raiseAssert("no slot index assigned")
-
   debug "Generating initial proof", requestId = $data.requestId
-  let proof = await onProve(Slot(request: request, slotIndex: slotIndex))
+  let proof = await onProve(Slot(request: request, slotIndex: data.slotIndex))
   debug "Finished proof calculation", requestId = $data.requestId
 
   return some State(SaleFilling(proof: proof))

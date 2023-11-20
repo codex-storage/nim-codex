@@ -20,11 +20,8 @@ method run*(state: SaleFailed, machine: Machine): Future[?State] {.async.} =
   without request =? data.request:
     raiseAssert "no sale request"
 
-  without slotIndex =? data.slotIndex:
-    raiseAssert("no slot index assigned")
-
-  let slot = Slot(request: request, slotIndex: slotIndex)
-  debug "Removing slot from mySlots",  requestId = $data.requestId, slotIndex
+  let slot = Slot(request: request, slotIndex: data.slotIndex)
+  debug "Removing slot from mySlots",  requestId = $data.requestId, slotIndex = $data.slotIndex
   await market.freeSlot(slot.id)
 
   let error = newException(SaleFailedError, "Sale failed")

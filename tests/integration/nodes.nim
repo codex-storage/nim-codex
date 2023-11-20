@@ -88,5 +88,4 @@ proc restart*(node: NodeProcess) =
   node.waitUntilStarted()
 
 proc removeDataDir*(node: NodeProcess) =
-  if dataDir =? node.dataDir:
-    removeDir(dataDir)
+  removeDir(node.dataDir)
