@@ -193,3 +193,9 @@
 [submodule "vendor/npeg"]
 	path = vendor/npeg
 	url = https://github.com/zevv/npeg
+[submodule "vendor/nim-poseidon2"]
+	path = vendor/nim-poseidon2
+	url = https://github.com/codex-storage/nim-poseidon2.git
+[submodule "vendor/constantine"]
+	path = vendor/constantine
+	url = https://github.com/mratsim/constantine.git

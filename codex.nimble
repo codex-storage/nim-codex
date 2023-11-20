@@ -30,5 +30,6 @@ requires "leopard >= 0.1.0 & < 0.2.0"
 requires "blscurve"
 requires "libp2pdht"
 requires "eth"
+requires "https://github.com/codex-storage/nim-poseidon2.git >= 0.1.0 & < 0.2.0"
 
 include "build.nims"
