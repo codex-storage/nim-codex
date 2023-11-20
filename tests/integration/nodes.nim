@@ -47,13 +47,17 @@ proc waitUntilOutput*(node: NodeProcess, output: string) =
   if node.debug:
     raiseAssert "cannot read node output when in debug mode"
   when defined(windows):
-    sleep(5_000)
+    # sleep(5_000)
     let lines = node.process.outputStream.lines.toSeq
     echo ">>> lines count: ", lines.len
     echo ">>> lines: ", lines
-  for line in node.process.outputStream.lines:
-    if line.contains(output):
-      return
+    for l in lines:
+      if l.contains(output):
+        return
+  else:
+    for line in node.process.outputStream.lines:
+      if line.contains(output):
+        return
   raiseAssert "node did not output '" & output & "'"
 
 proc waitUntilStarted*(node: NodeProcess) =
