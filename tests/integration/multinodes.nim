@@ -120,18 +120,20 @@ template multinodesuite*(name: string, body: untyped) =
       test tname:
         tbody
 
+    proc sanitize(pathSegment: string): string =
+      var sanitized = pathSegment
+      for invalid in invalidFilenameChars.items:
+        sanitized = sanitized.replace(invalid, '_')
+      sanitized
+
     proc getLogFile(role: Role, index: ?int): string =
       # create log file path, format:
       # tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-      var suiteNameSanitized = name
-      var testNameSanitized = currentTestName
-      for invalid in invalidFilenameChars.items:
-        suiteNameSanitized = suiteNameSanitized.replace(invalid, '_')
-        testNameSanitized = testNameSanitized.replace(invalid, '_')
 
       var logDir = currentSourcePath.parentDir() /
         "logs" /
-        $starttime & " " & suiteNameSanitized / $testNameSanitized
+        sanitize($starttime & " " & name) /
+        sanitize($currentTestName)
       createDir(logDir)
 
       var fn = $role
@@ -166,7 +168,9 @@ template multinodesuite*(name: string, body: untyped) =
         raiseAssert("Cannot start node at nodeIdx " & $nodeIdx &
           ", not enough eth accounts.")
 
-      let datadir = getTempDir() / "Codex" / $starttime / $role & "_" & $roleIdx
+      let datadir = getTempDir() / "Codex" /
+        sanitize($starttime) /
+        sanitize($role & "_" & $roleIdx)
 
       if config.logFile:
         let updatedLogFile = getLogFile(role, some roleIdx)
