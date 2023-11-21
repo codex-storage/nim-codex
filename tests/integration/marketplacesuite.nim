@@ -90,16 +90,26 @@ template marketplacesuite*(name: string, body: untyped) =
         discard
 
     setup:
+      echo ">>> [marketplacesuite.setup] setup start"
       marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
+      echo ">>> [marketplacesuite.setup] setup 1"
       let tokenAddress = await marketplace.token()
+      echo ">>> [marketplacesuite.setup] setup 2"
       token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
+      echo ">>> [marketplacesuite.setup] setup 3"
       let config = await mp.config(marketplace)
+      echo ">>> [marketplacesuite.setup] setup 4"
       period = config.proofs.period.truncate(uint64)
+      echo ">>> [marketplacesuite.setup] setup 5"
       periodicity = Periodicity(seconds: period.u256)
+      echo ">>> [marketplacesuite.setup] setup 6"
 
       continuousMineFut = continuouslyAdvanceEvery(chronos.millis(500))
+      echo ">>> [marketplacesuite.setup] setup 7"
 
     teardown:
+      echo ">>> [marketplacesuite.teardown] teardown start"
       await continuousMineFut.cancelAndWait()
+      echo ">>> [marketplacesuite.teardown] teardown end"
 
     body
