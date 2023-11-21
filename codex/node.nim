@@ -138,9 +138,13 @@ proc fetchBatched*(
 
 proc retrieve*(
   node: CodexNodeRef,
-  cid: Cid): Future[?!LPStream] {.async.} =
+  cid: Cid,
+  local: bool = true): Future[?!LPStream] {.async.} =
   ## Retrieve by Cid a single block or an entire dataset described by manifest
   ##
+
+  if local and not await (cid in node.blockStore):
+    return failure((ref BlockNotFoundError)(msg: "Block not found in local store"))
 
   if manifest =? (await node.fetchManifest(cid)):
     trace "Retrieving blocks from manifest", cid

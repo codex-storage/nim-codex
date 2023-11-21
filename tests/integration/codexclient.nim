@@ -1,5 +1,7 @@
 import std/httpclient
 import std/strutils
+import std/sequtils
+
 from pkg/libp2p import Cid, `$`, init
 import pkg/chronicles
 import pkg/stint
@@ -30,6 +32,27 @@ proc upload*(client: CodexClient, contents: string): ?!Cid =
   let response = client.http.post(client.baseurl & "/data", contents)
   assert response.status == "200 OK"
   Cid.init(response.body).mapFailure
+
+proc download*(client: CodexClient, cid: Cid, local = false): ?!string =
+  let
+    response = client.http.get(
+      client.baseurl & "/data/" & $cid &
+      (if local: "" else: "/network"))
+
+  if response.status != "200 OK":
+    return failure(response.status)
+
+  success response.body
+
+proc list*(client: CodexClient): ?!seq[RestContent] =
+  let url = client.baseurl & "/data"
+  let response = client.http.get(url)
+
+  if response.status != "200 OK":
+    return failure(response.status)
+
+  let json = ? parseJson(response.body).catch
+  seq[RestContent].fromJson(json)
 
 proc requestStorage*(
     client: CodexClient,

@@ -44,19 +44,21 @@ ethersuite "Node block expiration tests":
     client.close()
     uploadResponse.body
 
-  proc downloadTestFile(contentId: string): Response =
+  proc downloadTestFile(contentId: string, local = false): Response =
     let client = newHttpClient(timeout=3000)
-    let downloadUrl = baseurl & "/data/" & contentId
+    let downloadUrl = baseurl & "/data/" &
+      contentId & (if local: "" else: "/network")
+
     let content = client.get(downloadUrl)
     client.close()
     content
 
   proc hasFile(contentId: string): bool =
     let client = newHttpClient(timeout=3000)
-    let dataLocalUrl = baseurl & "/local"
+    let dataLocalUrl = baseurl & "/data/" & contentId
     let content = client.get(dataLocalUrl)
     client.close()
-    return content.body.contains(contentId)
+    content.code == Http200
 
   test "node retains not-expired file":
     startTestNode(blockTtlSeconds = 10)
@@ -65,7 +67,7 @@ ethersuite "Node block expiration tests":
 
     await sleepAsync(2.seconds)
 
-    let response = downloadTestFile(contentId)
+    let response = downloadTestFile(contentId, local = true)
     check:
       hasFile(contentId)
       response.status == "200 OK"
@@ -80,6 +82,4 @@ ethersuite "Node block expiration tests":
 
     check:
       not hasFile(contentId)
-
-    expect TimeoutError:
-      discard downloadTestFile(contentId)
+      downloadTestFile(contentId, local = true).code == Http404
