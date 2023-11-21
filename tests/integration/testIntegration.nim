@@ -1,5 +1,6 @@
 import std/options
 import std/sequtils
+import std/httpclient
 from pkg/libp2p import `==`
 import pkg/chronos
 import pkg/stint
@@ -215,6 +216,19 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     await provider.advanceTime(duration)
 
     check eventually (await token.balanceOf(account2)) - startBalance == duration*reward
+
+  test "node requires expiry and its value to be in future":
+    let currentTime = await provider.currentTime()
+    let cid = client1.upload("some file contents").get
+
+    let responseMissing = client1.requestStorageRaw(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256)
+    check responseMissing.status == "400 Bad Request"
+    check responseMissing.body == "Expiry required"
+
+    let responsePast = client1.requestStorageRaw(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256, expiry=currentTime-10)
+    check responsePast.status == "400 Bad Request"
+    check responsePast.body == "Expiry needs to be in future"
+
 
   test "expired request partially pays out for stored time":
     let marketplace = Marketplace.new(Marketplace.address, provider.getSigner())

@@ -3,6 +3,7 @@ import std/strutils
 import std/sequtils
 
 from pkg/libp2p import Cid, `$`, init
+# from std/json import `[]=`
 import pkg/chronicles
 import pkg/stint
 import pkg/questionable/results
@@ -54,6 +55,36 @@ proc list*(client: CodexClient): ?!seq[RestContent] =
   let json = ? parseJson(response.body).catch
   seq[RestContent].fromJson(json)
 
+proc requestStorageRaw*(
+    client: CodexClient,
+    cid: Cid,
+    duration: UInt256,
+    reward: UInt256,
+    proofProbability: UInt256,
+    collateral: UInt256,
+    expiry: UInt256 = 0.u256,
+    nodes: uint = 1,
+    tolerance: uint = 0
+): Response =
+
+  ## Call request storage REST endpoint
+  ##
+  let url = client.baseurl & "/storage/request/" & $cid
+  let json = %*{
+      "duration": duration,
+      "reward": reward,
+      "proofProbability": proofProbability,
+      "collateral": collateral,
+      "nodes": nodes,
+      # "expiry": expiry,
+      "tolerance": tolerance
+    }
+
+  if expiry != 0:
+    json["expiry"] = %expiry
+
+  return client.http.post(url, $json)
+
 proc requestStorage*(
     client: CodexClient,
     cid: Cid,
@@ -67,17 +98,7 @@ proc requestStorage*(
 ): ?!PurchaseId =
   ## Call request storage REST endpoint
   ##
-  let url = client.baseurl & "/storage/request/" & $cid
-  let json = %*{
-    "duration": duration,
-    "reward": reward,
-    "proofProbability": proofProbability,
-    "expiry": expiry,
-    "collateral": collateral,
-    "nodes": nodes,
-    "tolerance": tolerance
-  }
-  let response = client.http.post(url, $json)
+  let response = client.requestStorageRaw(cid, duration, reward, proofProbability, collateral, expiry, nodes, tolerance)
   assert response.status == "200 OK"
   PurchaseId.fromHex(response.body).catch
 
