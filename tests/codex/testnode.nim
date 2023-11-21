@@ -271,13 +271,14 @@ asyncchecksuite "Test Node - host contracts":
     close(file)
     await node.stop()
 
+  test "onExpiryUpdate callback is set":
+    check sales.onExpiryUpdate.isSome
+
   test "onExpiryUpdate callback":
     let
       # The blocks have set default TTL, so in order to update it we have to have larger TTL
       expectedExpiry: SecondsSince1970 = clock.now + DefaultBlockTtl.seconds + 11123
-
-    without expiryUpdateCallback =? sales.onExpiryUpdate:
-      raiseAssert "onExpiryUpdate not set"
+      expiryUpdateCallback = !sales.onExpiryUpdate
 
     (await expiryUpdateCallback(manifestCid, expectedExpiry)).tryGet()
 
@@ -288,10 +289,11 @@ asyncchecksuite "Test Node - host contracts":
 
       check (expiry.tryGet).toSecondsSince1970 == expectedExpiry
 
-  test "onStore callback":
-    without onStore =? sales.onStore:
-      raiseAssert "onStore not set"
+  test "onStore callback is set":
+    check sales.onStore.isSome
 
+  test "onStore callback":
+    let onStore = !sales.onStore
     var request = StorageRequest.example
     request.content.cid = manifestCid
     var fetchedBytes: uint = 0
