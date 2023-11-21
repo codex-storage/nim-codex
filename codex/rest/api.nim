@@ -34,6 +34,7 @@ import ../conf
 import ../contracts
 import ../manifest
 import ../streams/asyncstreamwrapper
+import ../stores/blockstore
 
 import ./coders
 import ./json
