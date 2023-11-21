@@ -271,7 +271,7 @@ method ensureExpiry*(
     index: Natural,
     expiry: SecondsSince1970
 ): Future[?!void] {.async.} =
-  ## Ensure that block's assosicated expiry is at least given timestamp
+  ## Ensure that block's associated expiry is at least given timestamp
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
   without cidAndProof =? await self.getCidAndProof(treeCid, index), err:

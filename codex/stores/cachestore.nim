@@ -236,7 +236,7 @@ method ensureExpiry*(
     index: Natural,
     expiry: SecondsSince1970
 ): Future[?!void] {.async.} =
-  ## Updates block's assosicated TTL in store - not applicable for CacheStore
+  ## Updates block's associated TTL in store - not applicable for CacheStore
   ##
 
   discard # CacheStore does not have notion of TTL
