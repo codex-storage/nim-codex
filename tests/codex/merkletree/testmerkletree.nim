@@ -42,13 +42,19 @@ checksuite "merkletree":
   setup:
     for i in 0..<data.len:
       expectedLeaves[i] = MultiHash.digest($sha256, data[i]).tryGet()
-    
+
     builder = MerkleTreeBuilder.init(sha256).tryGet()
     var zero: array[32, byte]
     var one: array[32, byte]
     one[^1] = 0x01
     zeroHash = MultiHash.init($sha256, zero).tryGet()
     oneHash = MultiHash.init($sha256, one).tryGet()
+
+  test "cannot init tree without any leafs":
+    let treeOrErr = MerkleTree.init(newSeq[MultiHash]())
+
+    check:
+      treeOrErr.isErr
 
   test "tree with one leaf has expected structure":
     builder.addDataBlock(data[0]).tryGet()
@@ -82,7 +88,7 @@ checksuite "merkletree":
 
     let
       expectedRoot = combine(
-        combine(expectedLeaves[0], expectedLeaves[1]), 
+        combine(expectedLeaves[0], expectedLeaves[1]),
         combine(expectedLeaves[2], zeroHash)
       )
 
@@ -109,15 +115,15 @@ checksuite "merkletree":
         combine(
           combine(
             combine(expectedLeaves[0], expectedLeaves[1]),
-            combine(expectedLeaves[2], expectedLeaves[3]), 
+            combine(expectedLeaves[2], expectedLeaves[3]),
           ),
-          combine( 
-            combine(expectedLeaves[4], expectedLeaves[5]), 
+          combine(
+            combine(expectedLeaves[4], expectedLeaves[5]),
             combine(expectedLeaves[6], expectedLeaves[7])
           )
         ),
         combine(
-          combine( 
+          combine(
             combine(expectedLeaves[8], zeroHash),
             oneHash
           ),
@@ -148,7 +154,7 @@ checksuite "merkletree":
     check:
       tree.getProof(0).tryGet().verifyDataBlock(data[0], tree.root).tryGet()
       tree.getProof(1).tryGet().verifyDataBlock(data[1], tree.root).tryGet()
-  
+
   test "tree with three leaves provides expected proofs":
     builder.addDataBlock(data[0]).tryGet()
     builder.addDataBlock(data[1]).tryGet()
@@ -186,34 +192,34 @@ checksuite "merkletree":
     let tree = builder.build().tryGet()
 
     let expectedProofs = {
-      4: 
+      4:
         MerkleProof.init(4, @[
-          expectedLeaves[5], 
-          combine(expectedLeaves[6], expectedLeaves[7]), 
+          expectedLeaves[5],
+          combine(expectedLeaves[6], expectedLeaves[7]),
           combine(
               combine(expectedLeaves[0], expectedLeaves[1]),
-              combine(expectedLeaves[2], expectedLeaves[3]), 
+              combine(expectedLeaves[2], expectedLeaves[3]),
           ),
           combine(
-            combine( 
+            combine(
               combine(expectedLeaves[8], zeroHash),
               oneHash
             ),
             oneHash
           )
         ]).tryGet(),
-      8: 
+      8:
         MerkleProof.init(8, @[
-          zeroHash, 
+          zeroHash,
           oneHash,
           oneHash,
           combine(
             combine(
               combine(expectedLeaves[0], expectedLeaves[1]),
-              combine(expectedLeaves[2], expectedLeaves[3]), 
+              combine(expectedLeaves[2], expectedLeaves[3]),
             ),
-            combine( 
-              combine(expectedLeaves[4], expectedLeaves[5]), 
+            combine(
+              combine(expectedLeaves[4], expectedLeaves[5]),
               combine(expectedLeaves[6], expectedLeaves[7])
             )
           )
