@@ -10,7 +10,7 @@ type
     clock*: Clock
 
 method start*(self: ContractInteractions) {.async, base.} =
-  await self.clock.start()
+  discard
 
 method stop*(self: ContractInteractions) {.async, base.} =
-  await self.clock.stop()
+  discard

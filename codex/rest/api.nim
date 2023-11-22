@@ -270,6 +270,9 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       ## colateral        - requested collateral from hosts when they fill slot
 
       try:
+        without contracts =? node.contracts.client:
+          return RestApiResponse.error(Http503, "Purchasing unavailable")
+
         without cid =? cid.tryGet.catch, error:
           return RestApiResponse.error(Http400, error.msg)
 
@@ -281,6 +284,15 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
         let nodes = params.nodes |? 1
         let tolerance = params.tolerance |? 0
 
+        without expiry =? params.expiry:
+          return RestApiResponse.error(Http400, "Expiry required")
+
+        if node.clock.isNil:
+          return RestApiResponse.error(Http500)
+
+        if expiry <= node.clock.now.u256:
+          return RestApiResponse.error(Http400, "Expiry needs to be in future")
+
         without purchaseId =? await node.requestStorage(
           cid,
           params.duration,
@@ -289,7 +301,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
           tolerance,
           params.reward,
           params.collateral,
-          params.expiry), error:
+          expiry), error:
 
           return RestApiResponse.error(Http500, error.msg)
 

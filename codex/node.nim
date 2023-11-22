@@ -26,6 +26,7 @@ import pkg/libp2p/routing_record
 import pkg/libp2p/signed_envelope
 
 import ./chunker
+import ./clock
 import ./blocktype as bt
 import ./manifest
 import ./merkletree
@@ -62,6 +63,7 @@ type
     erasure*: Erasure
     discovery*: Discovery
     contracts*: Contracts
+    clock*: Clock
 
   OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, closure.}
 
@@ -320,7 +322,7 @@ proc requestStorage*(
   tolerance: uint,
   reward: UInt256,
   collateral: UInt256,
-  expiry = UInt256.none): Future[?!PurchaseId] {.async.} =
+  expiry:  UInt256): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
   ##
@@ -384,7 +386,7 @@ proc requestStorage*(
         name: @[]       # TODO: PoR setup
       )
     ),
-    expiry: expiry |? 0.u256
+    expiry: expiry
   )
 
   let purchase = await contracts.purchasing.purchase(request)
@@ -417,6 +419,9 @@ proc start*(node: CodexNodeRef) {.async.} =
 
   if not node.discovery.isNil:
     await node.discovery.start()
+
+  if not node.clock.isNil:
+    await node.clock.start()
 
   if hostContracts =? node.contracts.host:
     # TODO: remove Sales callbacks, pass BlockStore and StorageProofs instead
@@ -498,6 +503,9 @@ proc stop*(node: CodexNodeRef) {.async.} =
 
   if not node.discovery.isNil:
     await node.discovery.stop()
+
+  if not node.clock.isNil:
+    await node.clock.stop()
 
   if clientContracts =? node.contracts.client:
     await clientContracts.stop()

@@ -135,6 +135,7 @@ components:
         - duration
         - proofProbability
         - collateral
+        - expiry
       properties:
         duration:
           $ref: "#/components/schemas/Duration"
