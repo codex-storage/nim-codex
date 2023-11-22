@@ -1,4 +1,5 @@
 import ../contracts/requests
+import ../blocktype as bt
 
 import std/bitops
 import std/sugar
@@ -9,14 +10,16 @@ import pkg/poseidon2
 
 import misc
 
-type
-  DSFieldElement* = F
-  DSCellIndex* = uint64
-
 const
   # Size of a cell.
   # A cell is a sample of storage-data selected for proving.
-  CellSize* = u256(2048)
+  CellSize* = 2048.uint64
+
+type
+  DSFieldElement* = F
+  DSCellIndex* = uint64
+  DSSample* = array[CellSize, byte]
+
 
 func extractLowBits*[n: static int](A: BigInt[n], k: int): uint64 =
   assert(k > 0 and k <= 64)
@@ -37,19 +40,19 @@ proc getCellIndex(fe: DSFieldElement, numberOfCells: int): uint64 =
 
   return extractLowBits(fe.toBig(), log2)
 
-proc getNumberOfCellsInSlot*(slot: Slot): int =
-  (slot.request.ask.slotSize div CellSize).truncate(int)
+proc getNumberOfCellsInSlot*(slot: Slot): uint64 =
+  (slot.request.ask.slotSize.truncate(uint64) div CellSize)
 
 proc findCellIndex*(
   slotRootHash: DSFieldElement,
   challenge: DSFieldElement,
   counter: DSFieldElement,
-  numberOfCells: int): DSCellIndex =
+  numberOfCells: uint64): DSCellIndex =
   # Computes the cell index for a single sample.
   let
     input = @[slotRootHash, challenge, counter]
     hash = Sponge.digest(input, rate = 2)
-    index = getCellIndex(hash, numberOfCells)
+    index = getCellIndex(hash, numberOfCells.int)
 
   return index
 
@@ -61,3 +64,14 @@ func findCellIndices*(
   # Computes nSamples cell indices.
   let numberOfCells = getNumberOfCellsInSlot(slot)
   return collect(newSeq, (for i in 1..nSamples: findCellIndex(slotRootHash, challenge, toF(i), numberOfCells)))
+
+proc getSlotBlockIndex*(cellIndex: DSCellIndex, blockSize: uint64): uint64 =
+  let numberOfCellsPerBlock = blockSize div CellSize
+  return cellIndex div numberOfCellsPerBlock
+
+proc getCellIndexInBlock*(cellIndex: DSCellIndex, blockSize: uint64): uint64 =
+  let numberOfCellsPerBlock = blockSize div CellSize
+  return cellIndex mod numberOfCellsPerBlock
+
+proc getSampleFromBlock*(blk: bt.Block, cellIndex: DSCellIndex, blockSize: uint64): DSSample =
+  raiseAssert("a")

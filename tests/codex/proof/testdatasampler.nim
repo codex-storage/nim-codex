@@ -2,6 +2,7 @@ import std/os
 import std/strutils
 import std/sequtils
 import std/sugar
+import std/random
 
 import pkg/questionable
 import pkg/questionable/results
@@ -80,7 +81,7 @@ asyncchecksuite "Test proof datasampler":
       let log2 = ceilingLog2(value)
       return (1 shl log2) == value
 
-    let numberOfCells = getNumberOfCellsInSlot(slot)
+    let numberOfCells = getNumberOfCellsInSlot(slot).int
 
     check:
       isPow2(numberOfCells)
@@ -97,11 +98,15 @@ asyncchecksuite "Test proof datasampler":
       extract(0x9A, 7) == 0x1A.uint64
       extract(0x1248, 10) == 0x248.uint64
       extract(0x1248, 12) == 0x248.uint64
+      # extract(0x1248306A560C9AC0, 10) == 0x2C0.uint64
+      # extract(0x1248306A560C9AC0, 12) == 0xAC0.uint64
+      # extract(0x1248306A560C9AC0, 50) == 0x306A560C9AC0.uint64
+      # extract(0x1248306A560C9AC0, 52) == 0x8306A560C9AC0.uint64
 
   test "Should calculate total number of cells in Slot":
     let
-      slotSizeInBytes = slot.request.ask.slotSize
-      expectedNumberOfCells = (slotSizeInBytes div CellSize).truncate(int)
+      slotSizeInBytes = (slot.request.ask.slotSize).truncate(uint64)
+      expectedNumberOfCells = slotSizeInBytes div CellSize
 
     check:
       expectedNumberOfCells == 512
@@ -118,7 +123,7 @@ asyncchecksuite "Test proof datasampler":
 
     proc getExpectedIndex(i: int): DSCellIndex =
       let hash = Sponge.digest(@[slotRootHash, challenge, toF(i)], rate = 2)
-      return extractLowBits(hash.toBig(), ceilingLog2(numberOfCells))
+      return extractLowBits(hash.toBig(), ceilingLog2(numberOfCells.int))
 
     check:
       cellIndex(1) == getExpectedIndex(1)
@@ -139,3 +144,45 @@ asyncchecksuite "Test proof datasampler":
     check:
       cellIndices(3) == getExpectedIndices(3)
       cellIndices(3) == knownIndices
+
+  for (input, expected) in [(10, 0), (31, 0), (32, 1), (63, 1), (64, 2)]:
+    test "Can get slotBlockIndex from cell index (" & $input & " -> " & $expected & ")":
+      let
+        cellIndex = input.uint64
+        blockSize = (64 * 1024).uint64
+
+        slotBlockIndex = getSlotBlockIndex(cellIndex, blockSize)
+
+      check:
+        slotBlockIndex == expected.uint64
+
+  for (input, expected) in [(10, 10), (31, 31), (32, 0), (63, 31), (64, 0)]:
+    test "Can get cellIndexInBlock from cell index (" & $input & " -> " & $expected & ")":
+      let
+        cellIndex = input.uint64
+        blockSize = (64 * 1024).uint64
+
+        cellIndexInBlock = getCellIndexInBlock(cellIndex, blockSize)
+
+      check:
+        cellIndexInBlock == expected.uint64
+
+  test "Can get sample from block":
+    let
+      blockSize = CellSize * 2
+      bytes = newSeqWith(blockSize.int, rand(uint8))
+      blk = bt.Block.new(bytes).tryGet()
+
+      sample0 = getSampleFromBlock(blk, 0, blockSize.uint64)
+      sample1 = getSampleFromBlock(blk, 1, blockSize.uint64)
+
+    check:
+      sample0 == bytes[0..<CellSize]
+      sample1 == bytes[CellSize..^1]
+
+    # proc getSampleFromBlock(blk: bt.Block, cellIndex: DSCellIndex, blockSize: uint64): DSSample
+
+
+    # let length = rand(4096)
+  # let bytes = newSeqWith(length, rand(uint8))
+  # bt.Block.new(bytes).tryGet()
