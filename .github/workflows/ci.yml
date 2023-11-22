@@ -93,7 +93,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: integration-tests-logs
-          path: ${{github.workspace}}/tests/integration/logs/
+          path: ./tests/integration/logs/
           retention-days: 1
 
   coverage:
