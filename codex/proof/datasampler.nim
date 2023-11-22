@@ -1,6 +1,7 @@
 import ../contracts/requests
 
 import std/bitops
+import std/sugar
 
 import pkg/constantine/math/arithmetic
 import pkg/poseidon2/types
@@ -52,11 +53,11 @@ proc findCellIndex*(
 
   return index
 
-# func findCellIndices*(
-#   slot: Slot,
-#   slotRootHash: DSFieldElement,
-#   challenge: DSFieldElement,
-#   nSamples: int): seq[int] =
-#   # Computes nSamples cell indices.
-#   let numberOfCells = getNumberOfCellsInSlot(slot)
-#   return collect(newSeq, (for i in 1..nSamples: findCellIndex(slotRootHash, challenge, toF(i), numberOfCells)))
+func findCellIndices*(
+  slot: Slot,
+  slotRootHash: DSFieldElement,
+  challenge: DSFieldElement,
+  nSamples: int): seq[DSCellIndex] =
+  # Computes nSamples cell indices.
+  let numberOfCells = getNumberOfCellsInSlot(slot)
+  return collect(newSeq, (for i in 1..nSamples: findCellIndex(slotRootHash, challenge, toF(i), numberOfCells)))
