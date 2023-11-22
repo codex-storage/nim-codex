@@ -3,7 +3,6 @@ import std/strutils
 import std/sequtils
 
 from pkg/libp2p import Cid, `$`, init
-# from std/json import `[]=`
 import pkg/chronicles
 import pkg/stint
 import pkg/questionable/results
@@ -76,7 +75,6 @@ proc requestStorageRaw*(
       "proofProbability": proofProbability,
       "collateral": collateral,
       "nodes": nodes,
-      # "expiry": expiry,
       "tolerance": tolerance
     }
 
