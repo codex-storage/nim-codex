@@ -104,11 +104,28 @@ proc fetchManifest*(
 
   return manifest.success
 
+proc updateExpiry*(node: CodexNodeRef, manifestCid: Cid, expiry: SecondsSince1970): Future[?!void] {.async.} =
+  without manifest =? await node.fetchManifest(manifestCid), error:
+    trace "Unable to fetch manifest for cid", manifestCid
+    return failure(error)
+
+  try:
+      let ensuringFutures = Iter.fromSlice(0..<manifest.blocksCount)
+                               .mapIt(node.blockStore.ensureExpiry( manifest.treeCid, it, expiry ))
+      await allFuturesThrowing(ensuringFutures)
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    return failure(exc.msg)
+
+  return success()
+
 proc fetchBatched*(
   node: CodexNodeRef,
   manifest: Manifest,
   batchSize = FetchBatch,
-  onBatch: BatchProc = nil): Future[?!void] {.async, gcsafe.} =
+  onBatch: BatchProc = nil,
+  expiry = SecondsSince1970.none): Future[?!void] {.async, gcsafe.} =
   ## Fetch manifest in batches of `batchSize`
   ##
 
@@ -127,6 +144,10 @@ proc fetchBatched*(
 
     try:
       await allFuturesThrowing(allFinished(blocks))
+
+      if expiryValue =? expiry:
+        await allFuturesThrowing(blocks.mapIt(node.blockStore.ensureExpiry(it.read.get.cid, expiryValue)))
+
       if not onBatch.isNil:
         await onBatch(blocks.mapIt( it.read.get ))
     except CancelledError as exc:
@@ -419,12 +440,20 @@ proc start*(node: CodexNodeRef) {.async.} =
       # since fetching of blocks will have to be selective according
       # to a combination of parameters, such as node slot position
       # and dataset geometry
-      if fetchErr =? (await node.fetchBatched(manifest, onBatch = onBatch)).errorOption:
+      if fetchErr =? (await node.fetchBatched(manifest, onBatch = onBatch, expiry = some request.expiry.toSecondsSince1970)).errorOption:
         let error = newException(CodexError, "Unable to retrieve blocks")
         error.parent = fetchErr
         return failure(error)
 
       return success()
+
+    hostContracts.sales.onExpiryUpdate = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.async.} =
+      without cid =? Cid.init(rootCid):
+        trace "Unable to parse Cid", cid
+        let error = newException(CodexError, "Unable to parse Cid")
+        return failure(error)
+
+      return await node.updateExpiry(cid, expiry)
 
     hostContracts.sales.onClear = proc(request: StorageRequest,
                                        slotIndex: UInt256) =

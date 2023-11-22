@@ -17,6 +17,7 @@ type
     onClear*: ?OnClear
     onSale*: ?OnSale
     onProve*: ?OnProve
+    onExpiryUpdate*: ?OnExpiryUpdate
     reservations*: Reservations
     slotQueue*: SlotQueue
     simulateProofFailures*: int
@@ -25,6 +26,7 @@ type
                   slot: UInt256,
                   onBatch: BatchProc): Future[?!void] {.gcsafe, upraises: [].}
   OnProve* = proc(slot: Slot): Future[seq[byte]] {.gcsafe, upraises: [].}
+  OnExpiryUpdate* = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.gcsafe, upraises: [].}
   OnClear* = proc(request: StorageRequest,
                   slotIndex: UInt256) {.gcsafe, upraises: [].}
   OnSale* = proc(request: StorageRequest,

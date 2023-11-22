@@ -256,7 +256,7 @@ method ensureExpiry*(
       return failure(err)
 
   if expiry <= currentExpiry.toSecondsSince1970:
-    trace "Current expiry is larger then the specified one, no action needed"
+    trace "Current expiry is larger than or equal to the specified one, no action needed", current = currentExpiry.toSecondsSince1970, ensuring = expiry
     return success()
 
   if err =? (await self.metaDs.put(expiryKey, expiry.toBytes)).errorOption:
@@ -264,6 +264,20 @@ method ensureExpiry*(
     return failure(err)
 
   return success()
+
+method ensureExpiry*(
+    self: RepoStore,
+    treeCid: Cid,
+    index: Natural,
+    expiry: SecondsSince1970
+): Future[?!void] {.async.} =
+  ## Ensure that block's associated expiry is at least given timestamp
+  ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
+  ##
+  without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
+    return failure(err)
+
+  await self.ensureExpiry(cidAndProof[0], expiry)
 
 proc persistTotalBlocksCount(self: RepoStore): Future[?!void] {.async.} =
   if err =? (await self.metaDs.put(

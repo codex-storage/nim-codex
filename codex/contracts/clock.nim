@@ -17,7 +17,7 @@ type
 proc new*(_: type OnChainClock, provider: Provider): OnChainClock =
   OnChainClock(provider: provider, newBlock: newAsyncEvent())
 
-proc start*(clock: OnChainClock) {.async.} =
+method start*(clock: OnChainClock) {.async.} =
   if clock.started:
     return
   clock.started = true
@@ -33,7 +33,7 @@ proc start*(clock: OnChainClock) {.async.} =
 
   clock.subscription = await clock.provider.subscribe(onBlock)
 
-proc stop*(clock: OnChainClock) {.async.} =
+method stop*(clock: OnChainClock) {.async.} =
   if not clock.started:
     return
   clock.started = false

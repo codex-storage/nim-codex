@@ -7,7 +7,7 @@ export clock
 
 type
   ContractInteractions* = ref object of RootObj
-    clock*: OnChainClock
+    clock*: Clock
 
 method start*(self: ContractInteractions) {.async, base.} =
   await self.clock.start()

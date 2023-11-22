@@ -59,6 +59,10 @@ asyncchecksuite "Sales - start":
                          slot: UInt256,
                          onBatch: BatchProc): Future[?!void] {.async.} =
       return success()
+
+    sales.onExpiryUpdate = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.async.} =
+      return success()
+
     queue = sales.context.slotQueue
     sales.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       return proof
@@ -157,6 +161,10 @@ asyncchecksuite "Sales":
                          slot: UInt256,
                          onBatch: BatchProc): Future[?!void] {.async.} =
       return success()
+
+    sales.onExpiryUpdate = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.async.} =
+      return success()
+
     queue = sales.context.slotQueue
     sales.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
       return proof
