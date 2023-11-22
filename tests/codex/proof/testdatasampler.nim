@@ -169,16 +169,18 @@ asyncchecksuite "Test proof datasampler":
 
   test "Can get sample from block":
     let
-      blockSize = CellSize * 2
+      blockSize = CellSize * 3
       bytes = newSeqWith(blockSize.int, rand(uint8))
       blk = bt.Block.new(bytes).tryGet()
 
       sample0 = getSampleFromBlock(blk, 0, blockSize.uint64)
       sample1 = getSampleFromBlock(blk, 1, blockSize.uint64)
+      sample2 = getSampleFromBlock(blk, 2, blockSize.uint64)
 
     check:
       sample0 == bytes[0..<CellSize]
-      sample1 == bytes[CellSize..^1]
+      sample1 == bytes[CellSize..<(CellSize*2)]
+      sample2 == bytes[(CellSize*2)..^1]
 
     # proc getSampleFromBlock(blk: bt.Block, cellIndex: DSCellIndex, blockSize: uint64): DSSample
 

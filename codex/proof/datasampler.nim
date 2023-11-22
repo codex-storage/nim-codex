@@ -18,7 +18,7 @@ const
 type
   DSFieldElement* = F
   DSCellIndex* = uint64
-  DSSample* = array[CellSize, byte]
+  DSSample* = seq[byte]
 
 
 func extractLowBits*[n: static int](A: BigInt[n], k: int): uint64 =
@@ -74,4 +74,9 @@ proc getCellIndexInBlock*(cellIndex: DSCellIndex, blockSize: uint64): uint64 =
   return cellIndex mod numberOfCellsPerBlock
 
 proc getSampleFromBlock*(blk: bt.Block, cellIndex: DSCellIndex, blockSize: uint64): DSSample =
-  raiseAssert("a")
+  let
+    inBlockCellIndex = getCellIndexInBlock(cellIndex, blockSize)
+    dataStart = (CellSize * inBlockCellIndex)
+    dataEnd = dataStart + CellSize
+
+  return blk.data[dataStart ..< dataEnd]
