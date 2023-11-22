@@ -135,48 +135,31 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
     createSlot()
     discard await localStore.putBlock(manifestBlock)
 
-  test "Can get index for slot block":
-    proc getIndex(i: int): uint64 =
-      getIndexForSlotBlock(slot, bytesPerBlock.NBytes, i)
-
-    proc getExpected(i: int): uint64 =
-      (slotIndex * numberOfSlotBlocks + i).uint64
-
-    check:
-      getIndex(0) == getExpected(0)
-      getIndex(0) == 12
-      getIndex(1) == getExpected(1)
-      getIndex(1) == 13
-      getIndex(10) == getExpected(10)
-      getIndex(10) == 22
-
-  test "Can get slot block by index":
-    proc getBlocks(i: int): Future[(bt.Block, bt.Block)] {.async.} =
+  for (input, expected) in [(0, 12), (1, 13), (10, 22)]:
+    test "Can get index for slot block (" & $input & " -> " & $expected & ")":
       let
-        slotBlock = (await getSlotBlock(slot, localStore, 3)).tryget()
-        expectedIndex = getIndexForSlotBlock(slot, bytesPerBlock.NBytes, 3)
+        index = getIndexForSlotBlock(slot, bytesPerBlock.NBytes, input.uint64)
+        expectedIndex = (slotIndex * numberOfSlotBlocks + input).uint64
+
+      check:
+        index == expected.uint64
+        index == expectedIndex
+
+  for input in [0, 1, numberOfSlotBlocks-1]:
+    test "Can get slot block by index (" & $input & ")":
+      let
+        slotBlock = (await getSlotBlock(slot, localStore, input.uint64)).tryget()
+        expectedIndex = getIndexForSlotBlock(slot, bytesPerBlock.NBytes, input.uint64)
         expectedBlock = datasetBlocks[expectedIndex]
-      return (slotBlock, expectedBlock)
 
-    let (slotBlock0, expectedBlock0) = await getBlocks(0)
-    let (slotBlock3, expectedBlock3) = await getBlocks(3)
-    let (slotBlockLast5, expectedBlockLast5) = await getBlocks(numberOfSlotBlocks - 3)
-    let (slotBlockLast, expectedBlockLast) = await getBlocks(numberOfSlotBlocks - 1)
-
-    check:
-      slotBlock0.cid == expectedBlock0.cid
-      slotBlock0.data == expectedBlock0.data
-      slotBlock3.cid == expectedBlock3.cid
-      slotBlock3.data == expectedBlock3.data
-      slotBlockLast5.cid == expectedBlockLast5.cid
-      slotBlockLast5.data == expectedBlockLast5.data
-      slotBlockLast.cid == expectedBlockLast.cid
-      slotBlockLast.data == expectedBlockLast.data
+      check:
+        slotBlock.cid == expectedBlock.cid
+        slotBlock.data == expectedBlock.data
 
   test "Can fail to get block when index is out of range":
     let
-      b1 = await getSlotBlock(slot, localStore, numberOfSlotBlocks)
-      b2 = await getSlotBlock(slot, localStore, numberOfSlotBlocks + 1)
+      b1 = await getSlotBlock(slot, localStore, numberOfSlotBlocks.uint64)
+      b2 = await getSlotBlock(slot, localStore, (numberOfSlotBlocks + 1).uint64)
 
     check:
       b1.isErr

@@ -26,18 +26,18 @@ proc getManifestForSlot*(slot: Slot, blockstore: BlockStore): Future[?!Manifest]
 
   return success(manifest)
 
-proc getIndexForSlotBlock*(slot: Slot, blockSize: NBytes, slotBlockIndex: int): uint64 =
+proc getIndexForSlotBlock*(slot: Slot, blockSize: NBytes, slotBlockIndex: uint64): uint64 =
   let
     slotSize = slot.request.ask.slotSize.truncate(uint64)
     blocksInSlot = slotSize div blockSize.uint64
     slotIndex = slot.slotIndex.truncate(uint64)
 
-    datasetIndex = (slotIndex * blocksInSlot) + slotBlockIndex.uint64
+    datasetIndex = (slotIndex * blocksInSlot) + slotBlockIndex
 
   trace "Converted slotBlockIndex to datasetIndex", slotBlockIndex, datasetIndex
   return datasetIndex
 
-proc getSlotBlock*(slot: Slot, blockstore: BlockStore, slotBlockIndex: int): Future[?!Block] {.async.} =
+proc getSlotBlock*(slot: Slot, blockstore: BlockStore, slotBlockIndex: uint64): Future[?!Block] {.async.} =
   without manifest =? (await getManifestForSlot(slot, blockstore)), err:
     error "Failed to get manifest for slot"
     return failure(err)
