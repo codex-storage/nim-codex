@@ -32,12 +32,21 @@ proc getIndexForSlotBlock*(slot: Slot, blockSize: NBytes, slotBlockIndex: int): 
     blocksInSlot = slotSize div blockSize.uint64
     slotIndex = slot.slotIndex.truncate(uint64)
 
-  return (slotIndex * blocksInSlot) + slotBlockIndex.uint64
+    datasetIndex = (slotIndex * blocksInSlot) + slotBlockIndex.uint64
+
+  trace "Converted slotBlockIndex to datasetIndex", slotBlockIndex, datasetIndex
+  return datasetIndex
 
 proc getSlotBlock*(slot: Slot, blockstore: BlockStore, slotBlockIndex: int): Future[?!Block] {.async.} =
   without manifest =? (await getManifestForSlot(slot, blockstore)), err:
     error "Failed to get manifest for slot"
     return failure(err)
 
-  let datasetIndex = getIndexForSlotBlock(slot, manifest.blockSize, slotBlockIndex)
+  let
+    blocksInManifest = (manifest.datasetSize div manifest.blockSize).uint64
+    datasetIndex = getIndexForSlotBlock(slot, manifest.blockSize, slotBlockIndex)
+
+  if datasetIndex >= blocksInManifest:
+    return failure("Found slotBlockIndex that is out-of-range: " & $datasetIndex)
+
   return await blockstore.getBlock(manifest.treeCid, datasetIndex)
