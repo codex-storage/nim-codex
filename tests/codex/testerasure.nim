@@ -324,10 +324,10 @@ asyncchecksuite "Erasure encode/decode":
       i1 = 1
       k2 = 5
       m2 = 2
-      i2 = k1 + m1
+      i2 = i1 * (k1 + m1)
       k3 = 3
-      m3 = 1
-      i3 = i1 * (k2 + m2)
+      m3 = 2
+      i3 = i2 * (k2 + m2)
 
     let
       encoded1 = await encode(k1, m1, i1)
@@ -353,9 +353,12 @@ asyncchecksuite "Erasure encode/decode":
       decoded.treeCid == encoded1.originalTreeCid
       decoded.blocksCount == encoded1.originalBlocksCount
 
+    # Checking after decoding one layer.
     for d in dropped:
-      let present = await store.hasBlock(manifest.treeCid, d)
-      check present.tryGet()
+      if not encoded3.isParity(d) and not encoded3.isPadding(d): # Parity blocks are not restored
+        let present = await store.hasBlock(encoded2.treeCid, encoded3.oldIndex(d))
+        echo present
+        check present.tryGet()
 
   test "3D encode: test multi-dimensional API":
     const
