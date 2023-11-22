@@ -91,7 +91,7 @@ jobs:
 
       - name: Upload integration tests log files
         uses: actions/upload-artifact@v3
-        if: matrix.tests == 'integration'
+        if: matrix.tests == 'integration' || matrix.tests == 'all'
         with:
           name: integration-tests-logs
           path: tests/integration/logs/
