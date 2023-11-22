@@ -11,7 +11,7 @@ import ../contracts/requests
 import ../stores/blockstore
 import ../manifest
 
-proc getTreeCidForSlot*(slot: Slot, blockstore: BlockStore): Future[?!Cid] {.async.} =
+proc getManifestForSlot*(slot: Slot, blockstore: BlockStore): Future[?!Manifest] {.async.} =
   without manifestBlockCid =? Cid.init(slot.request.content.cid).mapFailure, err:
     error "Unable to init CID from slot.content.cid"
     return failure err
@@ -24,8 +24,20 @@ proc getTreeCidForSlot*(slot: Slot, blockstore: BlockStore): Future[?!Cid] {.asy
     error "Unable to decode manifest"
     return failure("Unable to decode manifest")
 
-  return success(manifest.treeCid)
+  return success(manifest)
 
-proc getSlotBlock*(slot: Slot, blockstore: BlockStore, treeCid: Cid, slotBlockIndex: int): Future[?!Block] {.async.} =
-  raiseAssert("a")
+proc getIndexForSlotBlock*(slot: Slot, blockSize: NBytes, slotBlockIndex: int): uint64 =
+  let
+    slotSize = slot.request.ask.slotSize.truncate(uint64)
+    blocksInSlot = slotSize div blockSize.uint64
+    slotIndex = slot.slotIndex.truncate(uint64)
 
+  return (slotIndex * blocksInSlot) + slotBlockIndex.uint64
+
+proc getSlotBlock*(slot: Slot, blockstore: BlockStore, slotBlockIndex: int): Future[?!Block] {.async.} =
+  without manifest =? (await getManifestForSlot(slot, blockstore)), err:
+    error "Failed to get manifest for slot"
+    return failure(err)
+
+  let datasetIndex = getIndexForSlotBlock(slot, manifest.blockSize, slotBlockIndex)
+  return await blockstore.getBlock(manifest.treeCid, datasetIndex)
