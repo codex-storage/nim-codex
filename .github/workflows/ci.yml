@@ -89,6 +89,13 @@ jobs:
         if: matrix.tests == 'integration' || matrix.tests == 'all'
         run: make -j${ncpu} testIntegration
 
+      - name: Upload integration tests log files
+        uses: actions/upload-artifact@v3
+        with:
+          name: integration-tests-logs
+          path: ${{github.workspace}}/tests/integration/logs/
+          retention-days: 1
+
   coverage:
     continue-on-error: true
     runs-on: ubuntu-latest
