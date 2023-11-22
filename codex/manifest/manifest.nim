@@ -100,6 +100,36 @@ proc treeCid*(self: Manifest): Cid =
 proc blocksCount*(self: Manifest): int =
   divUp(self.datasetSize.int, self.blockSize.int)
 
+proc indexToCoord(encoded: Manifest, idx: int): (int, int, int) {.inline.} =
+  let
+    column = (idx mod encoded.interleave)
+    step = (idx div encoded.interleave) div (encoded.ecK + encoded.ecM)
+    pos = (idx div encoded.interleave) mod (encoded.ecK + encoded.ecM)
+  (step, column, pos)
+
+func indexToPos(encoded: Manifest, idx: int): int {.inline.} =
+  (idx div encoded.interleave) mod (encoded.ecK + encoded.ecM)
+
+func isParity*(self: Manifest, idx: int): bool {.inline.} =
+  self.protected and self.indexToPos(idx) >= self.ecK
+
+func oldIndex*(encoded: Manifest, idx: int): int =
+  (idx div (encoded.interleave * (encoded.ecK + encoded.ecM))) * (encoded.interleave * encoded.ecK) +
+  (idx mod (encoded.interleave * (encoded.ecK + encoded.ecM)))
+
+proc isPadding*(self: Manifest, idx: int): bool =
+  var
+    mfest = self
+    i = idx
+  while mfest.protected:
+    let coord = mfest.indexToCoord(i)
+    if mfest.isParity(i):
+      return false
+    i = mfest.oldIndex(i)
+    mfest = mfest.originalManifest
+
+  result = (i >= mfest.blocksCount)
+
 ############################################################
 # Operations on block list
 ############################################################
