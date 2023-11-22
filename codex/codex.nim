@@ -65,7 +65,6 @@ proc bootstrapInteractions(
     config = s.config
     repo = s.repoStore
 
-  s.codexNode.clock = SystemClock()
 
   if not config.persistence and not config.validator:
     if config.ethAccount.isSome or config.ethPrivateKey.isSome:
@@ -113,6 +112,8 @@ proc bootstrapInteractions(
 
   if config.validator or config.persistence:
     s.codexNode.clock = clock
+  else:
+    s.codexNode.clock = SystemClock()
 
   if config.persistence:
     # This is used for simulation purposes. Normal nodes won't be compiled with this flag
