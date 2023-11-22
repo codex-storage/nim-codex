@@ -41,6 +41,8 @@ asyncchecksuite "Test slotblocks":
       treeCid = Cid.example,
       blockSize = 1.MiBs,
       datasetSize = 100.MiBs)
+
+  var
     manifestBlock = bt.Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
     slot = Slot(
       request: StorageRequest(
@@ -67,7 +69,8 @@ asyncchecksuite "Test slotblocks":
   #       break
   #     slotBlocks.add(bt.Block.new(chunk).tryGet())
 
-  # setup:
+  setup:
+    discard await localStore.putBlock(manifestBlock)
   #   await createSlotBlocks()
 
   test "Can get tree root for slot":
@@ -75,3 +78,29 @@ asyncchecksuite "Test slotblocks":
 
     check:
       cid == manifest.treeCid
+
+  test "Can fail to get tree root for invalid cid":
+    slot.request.content.cid = "invalid"
+    let cid = (await getTreeCidForSlot(slot, localStore))
+
+    check:
+      cid.isErr
+
+  test "Can fail to get tree root when manifest block not found":
+    let
+      emptyStore = CacheStore.new()
+      cid = (await getTreeCidForSlot(slot, emptyStore))
+
+    check:
+      cid.isErr
+
+  test "Can fail to get tree root when manifest fails to decode":
+    manifestBlock.data = @[]
+
+    let cid = (await getTreeCidForSlot(slot, localStore))
+
+    check:
+      cid.isErr
+
+
+
