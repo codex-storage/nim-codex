@@ -23,14 +23,14 @@ marketplacesuite "Hosts submit regular proofs":
       NodeConfig()
         .nodes(1)
         .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("node"),
 
     providers:
       NodeConfig()
         .nodes(1)
         .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("marketplace", "sales", "reservations", "node", "clock"),
   ):
     let client0 = clients()[0].node.client
@@ -72,7 +72,7 @@ marketplacesuite "Simulate invalid proofs":
       NodeConfig()
         .nodes(1)
         .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("node"),
 
     providers:
@@ -80,13 +80,13 @@ marketplacesuite "Simulate invalid proofs":
         .nodes(1)
         .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=1)
         .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("marketplace", "sales", "reservations", "node", "clock"),
 
     validators:
       NodeConfig()
         .nodes(1)
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .debug() # uncomment to enable console log output
         .withLogTopics("validator", "clock", "onchain", "ethers")
   ):
@@ -124,7 +124,7 @@ marketplacesuite "Simulate invalid proofs":
       NodeConfig()
         .nodes(1)
         .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("node"),
 
     providers:
@@ -132,13 +132,13 @@ marketplacesuite "Simulate invalid proofs":
         .nodes(1)
         .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=3)
         .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("marketplace", "sales", "reservations", "node", "clock"),
 
     validators:
       NodeConfig()
         .nodes(1)
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("validator", "clock", "onchain", "ethers")
   ):
     let client0 = clients()[0].node.client
@@ -176,7 +176,7 @@ marketplacesuite "Simulate invalid proofs":
       NodeConfig()
         .nodes(1)
         .debug() # uncomment to enable console log output.debug()
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("node", "erasure"),
 
     providers:
@@ -184,13 +184,13 @@ marketplacesuite "Simulate invalid proofs":
         .nodes(2)
         .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=2)
         .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("marketplace", "sales", "reservations", "node", "clock"),
 
     validators:
       NodeConfig()
         .nodes(1)
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("validator")
   ):
     let client0 = clients()[0].node.client
