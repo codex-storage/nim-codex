@@ -29,6 +29,11 @@ import ./types
 export types
 
 type
+  Encoding = object
+      ecK: int                              # Number of blocks to encode
+      ecM: int                              # Number of resulting parity blocks
+      interleave: int                       # How far apart are blocks of an erasure code according to original index
+
   Manifest* = ref object of RootObj
     treeCid {.serialize.}: Cid              # Root of the merkle tree
     datasetSize {.serialize.}:  NBytes      # Total size of all blocks
@@ -38,9 +43,7 @@ type
     codec: MultiCodec                       # Data set codec
     case protected {.serialize.}: bool      # Protected datasets have erasure coded info
     of true:
-      ecK: int                              # Number of blocks to encode
-      ecM: int                              # Number of resulting parity blocks
-      interleave: int                       # How far apart are blocks of an erasure code according to original index
+      code: Encoding                        # Parameters of the RS code applied
       originalManifest: Manifest            # The original Manifest being erasure coded
     else:
       discard
@@ -68,13 +71,13 @@ proc protected*(self: Manifest): bool =
   self.protected
 
 proc ecK*(self: Manifest): int =
-  self.ecK
+  self.code.ecK
 
 proc ecM*(self: Manifest): int =
-  self.ecM
+  self.code.ecM
 
 proc interleave*(self: Manifest): int =
-  self.interleave
+  self.code.interleave
 
 proc originalManifest*(self: Manifest): Manifest =
   self.originalManifest
@@ -247,8 +250,10 @@ proc new*(
     hcodec: manifest.hcodec,
     blockSize: manifest.blockSize,
     protected: true,
-    ecK: ecK, ecM: ecM,
-    interleave: interleave,
+    code: Encoding(
+      ecK: ecK,
+      ecM: ecM,
+      interleave: interleave),
     originalManifest: manifest)
 
 proc new*(
@@ -290,8 +295,9 @@ proc new*(
     hcodec: hcodec,
     codec: codec,
     protected: true,
-    ecK: ecK,
-    ecM: ecM,
-    interleave: interleave,
+    code: Encoding(
+      ecK: ecK,
+      ecM: ecM,
+      interleave: interleave),
     originalManifest: originalManifest
   )
