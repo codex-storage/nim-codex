@@ -1,6 +1,7 @@
 import std/os
 import std/strutils
 import std/sequtils
+import std/sugar
 
 import pkg/questionable
 import pkg/questionable/results
@@ -73,7 +74,8 @@ asyncchecksuite "Test proof datasampler":
   setup:
     await createSlotBlocks()
 
-  test "number of cells is a power of two":
+  test "Number of cells is a power of two":
+    # This is to check that the data used for testing is sane.
     proc isPow2(value: int): bool =
       let log2 = ceilingLog2(value)
       return (1 shl log2) == value
@@ -105,11 +107,35 @@ asyncchecksuite "Test proof datasampler":
       expectedNumberOfCells == 512
       expectedNumberOfCells == getNumberOfCellsInSlot(slot)
 
+  let knownIndices = @[178.uint64, 277.uint64, 366.uint64]
+
   test "Can find single cell index":
-    let
-      counter: DSFieldElement = toF(1)
-      numberOfCells = getNumberOfCellsInSlot(slot)
-      cellIndex = findCellIndex(slotRootHash, challenge, counter, numberOfCells)
+    let numberOfCells = getNumberOfCellsInSlot(slot)
+
+    proc cellIndex(i: int): DSCellIndex =
+      let counter: DSFieldElement = toF(i)
+      return findCellIndex(slotRootHash, challenge, counter, numberOfCells)
+
+    proc getExpectedIndex(i: int): DSCellIndex =
+      let hash = Sponge.digest(@[slotRootHash, challenge, toF(i)], rate = 2)
+      return extractLowBits(hash.toBig(), ceilingLog2(numberOfCells))
 
     check:
-      cellIndex == 2
+      cellIndex(1) == getExpectedIndex(1)
+      cellIndex(1) == knownIndices[0]
+      cellIndex(2) == getExpectedIndex(2)
+      cellIndex(2) == knownIndices[1]
+      cellIndex(3) == getExpectedIndex(3)
+      cellIndex(3) == knownIndices[2]
+
+  test "Can find sequence of cell indices":
+    proc cellIndices(n: int): seq[DSCellIndex]  =
+      findCellIndices(slot, slotRootHash, challenge, n)
+
+    let numberOfCells = getNumberOfCellsInSlot(slot)
+    proc getExpectedIndices(n: int): seq[DSCellIndex]  =
+      return collect(newSeq, (for i in 1..n: findCellIndex(slotRootHash, challenge, toF(i), numberOfCells)))
+
+    check:
+      cellIndices(3) == getExpectedIndices(3)
+      cellIndices(3) == knownIndices
