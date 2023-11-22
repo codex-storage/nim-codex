@@ -463,7 +463,8 @@ proc decode*(
 
         for i in 0..<encoded.ecK:
           let idx = newIndex(encoded, step, column, i)
-          if data[i].len <= 0 and not cids[idx].isEmpty:
+          if data[i].len <= 0 and not (cids[idx].isEmpty or encoded.isPadding(idx)):
+            # if block was missing, and it wasn't padding, restore the block
             without blk =? bt.Block.new(recovered[i]), error:
               trace "Unable to create block!", exc = error.msg
               return failure(error)
@@ -475,6 +476,10 @@ proc decode*(
 
             cids[idx] = blk.cid
             recoveredIndices.add(idx)
+          elif data[i].len <= 0 and encoded.isPadding(idx):
+            without emptyBlockCid =? emptyCid(encoded.version, encoded.hcodec, encoded.codec), err:
+              return failure(err)
+            cids[idx] = emptyBlockCid
   except CancelledError as exc:
     trace "Erasure coding decoding cancelled"
     raise exc # cancellation needs to be propagated
