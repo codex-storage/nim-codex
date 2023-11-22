@@ -47,12 +47,17 @@ method now*(clock: OnChainClock): SecondsSince1970 =
     # in the newHeads event. When testing, always return the latest block.
     try:
       if queriedBlock =? (waitFor clock.provider.getBlock(BlockTag.latest)):
+        trace "using last block timestamp for clock.now",
+          lastBlockTimestamp = queriedBlock.timestamp.truncate(int64),
+          cachedBlockTimestamp = clock.lastBlockTime.truncate(int64)
         return queriedBlock.timestamp.truncate(int64)
     except CatchableError as e:
-      warn "failed to get latest block timestamp"
+      warn "failed to get latest block timestamp", error = e.msg
       return clock.lastBlockTime.truncate(int64)
 
   else:
+    trace "using cached block timestamp (newHeads) for clock.now",
+      timestamp = clock.lastBlockTime.truncate(int64)
     return clock.lastBlockTime.truncate(int64)
 
 method waitUntil*(clock: OnChainClock, time: SecondsSince1970) {.async.} =
