@@ -91,9 +91,10 @@ jobs:
 
       - name: Upload integration tests log files
         uses: actions/upload-artifact@v3
+        if: matrix.tests == 'integration'
         with:
           name: integration-tests-logs
-          path: ./tests/integration/logs/
+          path: tests/integration/logs/
           retention-days: 1
 
   coverage:
