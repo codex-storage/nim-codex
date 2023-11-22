@@ -371,7 +371,7 @@ asyncchecksuite "Erasure encode/decode":
 
   test "3D encode: test multi-dimensional API with drop":
     const
-      encoding = @[(7, 3),(5, 2),(3, 1)]
+      encoding = @[(7, 3),(5, 2),(3, 2)]
 
     let encoded = (await erasure.encodeMulti(manifest, encoding)).tryGet()
 
