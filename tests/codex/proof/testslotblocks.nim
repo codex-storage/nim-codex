@@ -1,25 +1,12 @@
-import std/os
-import std/strutils
 import std/sequtils
-import std/sugar
 
-import pkg/questionable
-import pkg/questionable/results
-import pkg/constantine/math/arithmetic
-import pkg/poseidon2/types
-import pkg/poseidon2
 import pkg/chronos
 import pkg/asynctest
-import pkg/stew/byteutils
-import pkg/stew/endians2
-import pkg/datastore
 import pkg/codex/rng
 import pkg/codex/stores/cachestore
 import pkg/codex/chunker
 import pkg/codex/stores
 import pkg/codex/blocktype as bt
-import pkg/codex/clock
-import pkg/codex/utils/asynciter
 import pkg/codex/contracts/requests
 import pkg/codex/contracts
 import pkg/codex/merkletree
@@ -31,7 +18,7 @@ import ../examples
 
 let
   bytesPerBlock = 64 * 1024
-  numberOfSlotBlocks = 16
+  numberOfSlotBlocks = 4
   slotIndex = 3
 
 asyncchecksuite "Test slotblocks - manifest":
@@ -157,11 +144,11 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
 
     check:
       getIndex(0) == getExpected(0)
-      getIndex(0) == 48
+      getIndex(0) == 12
       getIndex(1) == getExpected(1)
-      getIndex(1) == 49
+      getIndex(1) == 13
       getIndex(10) == getExpected(10)
-      getIndex(10) == 58
+      getIndex(10) == 22
 
   test "Can get slot block by index":
     proc getBlocks(i: int): Future[(bt.Block, bt.Block)] {.async.} =
@@ -185,3 +172,12 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
       slotBlockLast5.data == expectedBlockLast5.data
       slotBlockLast.cid == expectedBlockLast.cid
       slotBlockLast.data == expectedBlockLast.data
+
+  test "Can fail to get block when index is out of range":
+    let
+      b1 = await getSlotBlock(slot, localStore, numberOfSlotBlocks)
+      b2 = await getSlotBlock(slot, localStore, numberOfSlotBlocks + 1)
+
+    check:
+      b1.isErr
+      b2.isErr
