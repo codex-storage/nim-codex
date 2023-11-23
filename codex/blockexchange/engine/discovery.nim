@@ -158,7 +158,6 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
           let
             dialed = await allFinished(
               peers
-                .filterIt( not b.network.isSelf(it.data.peerId) )
                 .mapIt( b.network.dialPeer(it.data) ))
 
           for i, f in dialed:
