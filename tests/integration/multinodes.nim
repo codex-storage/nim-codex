@@ -192,14 +192,6 @@ template multinodesuite*(name: string, body: untyped) =
       let node = startNode(options, config.debugEnabled)
       node.waitUntilStarted()
 
-      if config.debugEnabled:
-        debug "started new integration testing node and codex client",
-          role,
-          apiUrl = node.apiUrl,
-          discAddress = node.discoveryAddress,
-          address = accounts[nodeIdx],
-          cliOptions = config.cliOptions.join(",")
-
       return node
 
     proc clients(): seq[RunningNode] {.used.} =

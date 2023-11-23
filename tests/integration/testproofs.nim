@@ -177,7 +177,7 @@ marketplacesuite "Simulate invalid proofs":
         .nodes(1)
         .debug() # uncomment to enable console log output.debug()
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("node", "erasure"),
+        .withLogTopics("node", "erasure", "clock", "purchases"),
 
     providers:
       NodeConfig()

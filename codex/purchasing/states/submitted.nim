@@ -34,6 +34,7 @@ method run*(state: PurchaseSubmitted, machine: Machine): Future[?State] {.async.
 
   proc withTimeout(future: Future[void]) {.async.} =
     let expiry = request.expiry.truncate(int64) + 1
+    trace "waiting for request fulfillment or expiry", expiry
     await future.withTimeout(clock, expiry)
 
   try:
