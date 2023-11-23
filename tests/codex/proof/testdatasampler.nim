@@ -24,6 +24,7 @@ import pkg/codex/utils/asynciter
 import pkg/codex/contracts/requests
 import pkg/codex/contracts
 import pkg/codex/merkletree
+import pkg/codex/stores/cachestore
 
 import pkg/codex/proof/datasampler
 import pkg/codex/proof/misc
@@ -157,6 +158,17 @@ asyncchecksuite "Test proof datasampler":
       check:
         slotBlockIndex == expected.uint64
 
+  for input in 0 ..< numberOfSlotBlocks:
+    test "Can get datasetBlockIndex from slotBlockIndex (" & $input & ")":
+      let
+        slotBlockIndex = input.uint64
+        datasetBlockIndex = getDatasetBlockIndex(slot, slotBlockIndex, bytesPerBlock.uint64)
+        slotIndex = slot.slotIndex.truncate(uint64)
+        expectedIndex = (numberOfSlotBlocks.uint64 * slotIndex) + slotBlockIndex
+
+      check:
+        datasetBlockIndex == expectedIndex
+
   for (input, expected) in [(10, 10), (31, 31), (32, 0), (63, 31), (64, 0)]:
     test "Can get cellIndexInBlock from cell index (" & $input & " -> " & $expected & ")":
       let
@@ -217,3 +229,14 @@ asyncchecksuite "Test proof datasampler":
       cell0Proof.verifyDataBlock(cell0Bytes, miniTree.root).tryGet()
       cell1Proof.verifyDataBlock(cell1Bytes, miniTree.root).tryGet()
       cell2Proof.verifyDataBlock(cell2Bytes, miniTree.root).tryGet()
+
+  # test "Can gather proof input":
+  #   # This is the main entry point for this module, and what it's all about.
+  #   let
+  #     localStore = CacheStore.new()
+  #     dataSetPoseidonTree = MerkleTree.init(@[Cid.example])
+  #     a = (await getProofInput(slot, localStore, slotRootHash, dataSetPoseidonTree, challenge, 3)).tryget()
+
+  #   echo "a.blockInclProofs: " & $a.blockInclProofs.len
+  #   echo "a.cellInclProofs: " & $a.cellInclProofs.len
+  #   echo "a.sampleData: " & $a.sampleData.len
