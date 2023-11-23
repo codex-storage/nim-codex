@@ -185,17 +185,15 @@ proc requestBlock*(
   if b.pendingBlocks.isInFlight(address):
     return await blockFuture
 
-  let peers = b.peers.selectCheapest(address)
-  if peers.len == 0:
-    b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
-
-  let maybePeer =
-    if peers.len > 0:
-      peers[hash(address) mod peers.len].some
-    elif b.peers.len > 0:
-      toSeq(b.peers)[hash(address) mod b.peers.len].some
-    else:
-      BlockExcPeerCtx.none
+  let
+    peers = b.peers.selectCheapest(address)
+    maybePeer =
+      if peers.len > 0:
+        peers[hash(address) mod peers.len].some
+      elif b.peers.len > 0:
+        toSeq(b.peers)[hash(address) mod b.peers.len].some
+      else:
+        BlockExcPeerCtx.none
 
   if peer =? maybePeer:
     asyncSpawn b.monitorBlockHandle(blockFuture, address, peer.id)
