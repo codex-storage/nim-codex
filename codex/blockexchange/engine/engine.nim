@@ -172,8 +172,8 @@ proc monitorBlockHandle(b: BlockExcEngine, handle: Future[Block], address: Block
     # prioritization
 
     # drop unresponsive peer
-    b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
     await b.network.switch.disconnect(peerId)
+    b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
 
 proc requestBlock*(
   b: BlockExcEngine,
