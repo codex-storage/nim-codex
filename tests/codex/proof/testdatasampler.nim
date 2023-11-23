@@ -23,6 +23,7 @@ import pkg/codex/clock
 import pkg/codex/utils/asynciter
 import pkg/codex/contracts/requests
 import pkg/codex/contracts
+import pkg/codex/merkletree
 
 import pkg/codex/proof/datasampler
 import pkg/codex/proof/misc
@@ -167,24 +168,52 @@ asyncchecksuite "Test proof datasampler":
       check:
         cellIndexInBlock == expected.uint64
 
-  test "Can get sample from block":
+  test "Can get cell from block":
     let
       blockSize = CellSize * 3
       bytes = newSeqWith(blockSize.int, rand(uint8))
       blk = bt.Block.new(bytes).tryGet()
 
-      sample0 = getSampleFromBlock(blk, 0, blockSize.uint64)
-      sample1 = getSampleFromBlock(blk, 1, blockSize.uint64)
-      sample2 = getSampleFromBlock(blk, 2, blockSize.uint64)
+      sample0 = getCellFromBlock(blk, 0, blockSize.uint64)
+      sample1 = getCellFromBlock(blk, 1, blockSize.uint64)
+      sample2 = getCellFromBlock(blk, 2, blockSize.uint64)
 
     check:
       sample0 == bytes[0..<CellSize]
       sample1 == bytes[CellSize..<(CellSize*2)]
       sample2 == bytes[(CellSize*2)..^1]
 
-    # proc getSampleFromBlock(blk: bt.Block, cellIndex: DSCellIndex, blockSize: uint64): DSSample
+  test "Can convert block into cells":
+    let
+      blockSize = CellSize * 3
+      bytes = newSeqWith(blockSize.int, rand(uint8))
+      blk = bt.Block.new(bytes).tryGet()
 
+      cells = getBlockCells(blk, blockSize)
 
-    # let length = rand(4096)
-  # let bytes = newSeqWith(length, rand(uint8))
-  # bt.Block.new(bytes).tryGet()
+    check:
+      cells.len == 3
+      cells[0] == bytes[0..<CellSize]
+      cells[1] == bytes[CellSize..<(CellSize*2)]
+      cells[2] == bytes[(CellSize*2)..^1]
+
+  test "Can create mini tree for block cells":
+    let
+      blockSize = CellSize * 3
+      bytes = newSeqWith(blockSize.int, rand(uint8))
+      blk = bt.Block.new(bytes).tryGet()
+      cell0Bytes = bytes[0..<CellSize]
+      cell1Bytes = bytes[CellSize..<(CellSize*2)]
+      cell2Bytes = bytes[(CellSize*2)..^1]
+
+      miniTree = getBlockCellMiniTree(blk, blockSize).tryGet()
+
+    let
+      cell0Proof = miniTree.getProof(0).tryGet()
+      cell1Proof = miniTree.getProof(1).tryGet()
+      cell2Proof = miniTree.getProof(2).tryGet()
+
+    check:
+      cell0Proof.verifyDataBlock(cell0Bytes, miniTree.root).tryGet()
+      cell1Proof.verifyDataBlock(cell1Bytes, miniTree.root).tryGet()
+      cell2Proof.verifyDataBlock(cell2Bytes, miniTree.root).tryGet()

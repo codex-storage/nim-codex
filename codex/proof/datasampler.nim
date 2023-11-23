@@ -1,9 +1,13 @@
 import ../contracts/requests
 import ../blocktype as bt
+import ../merkletree
 
 import std/bitops
 import std/sugar
 
+import pkg/chronicles
+import pkg/questionable
+import pkg/questionable/results
 import pkg/constantine/math/arithmetic
 import pkg/poseidon2/types
 import pkg/poseidon2
@@ -18,7 +22,7 @@ const
 type
   DSFieldElement* = F
   DSCellIndex* = uint64
-  DSSample* = seq[byte]
+  DSCell* = seq[byte]
 
 
 func extractLowBits*[n: static int](A: BigInt[n], k: int): uint64 =
@@ -73,10 +77,30 @@ proc getCellIndexInBlock*(cellIndex: DSCellIndex, blockSize: uint64): uint64 =
   let numberOfCellsPerBlock = blockSize div CellSize
   return cellIndex mod numberOfCellsPerBlock
 
-proc getSampleFromBlock*(blk: bt.Block, cellIndex: DSCellIndex, blockSize: uint64): DSSample =
+proc getCellFromBlock*(blk: bt.Block, cellIndex: DSCellIndex, blockSize: uint64): DSCell =
   let
     inBlockCellIndex = getCellIndexInBlock(cellIndex, blockSize)
     dataStart = (CellSize * inBlockCellIndex)
     dataEnd = dataStart + CellSize
 
   return blk.data[dataStart ..< dataEnd]
+
+proc getBlockCells*(blk: bt.Block, blockSize: uint64): seq[DSCell] =
+  let numberOfCellsPerBlock = blockSize div CellSize
+  var cells: seq[DSCell]
+  for i in 0..<numberOfCellsPerBlock:
+    cells.add(getCellFromBlock(blk, i, blockSize))
+  return cells
+
+proc getBlockCellMiniTree*(blk: bt.Block, blockSize: uint64): ?!MerkleTree =
+  without var builder =? MerkleTreeBuilder.init(): # TODO tree with poseidon2 as hasher please
+    error "Failed to create merkle tree builder"
+    return failure("Failed to create merkle tree builder")
+
+  let cells = getBlockCells(blk, blockSize)
+  for cell in cells:
+    if builder.addDataBlock(cell).isErr:
+      error "Failed to add cell data to tree"
+      return failure("Failed to add cell data to tree")
+
+  return builder.build()
