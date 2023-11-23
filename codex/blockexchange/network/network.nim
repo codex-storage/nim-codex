@@ -85,7 +85,7 @@ proc isSelf*(b: BlockExcNetwork, peer: PeerId): bool =
   ## Check if peer is self
   ##
 
-  return b.switch.peerInfo.peerId == peer
+  return b.peerId == peer
 
 proc send*(b: BlockExcNetwork, id: PeerId, msg: pb.Message) {.async.} =
   ## Send message to peer
@@ -281,7 +281,7 @@ proc dialPeer*(b: BlockExcNetwork, peer: PeerRecord) {.async.} =
   ## Dial a peer
   ##
 
-  if peer.peerId == b.switch.peerInfo.peerId:
+  if b.isSelf(peer.peerId):
     trace "Skipping dialing self", peer = peer.peerId
     return
 
