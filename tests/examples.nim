@@ -8,11 +8,6 @@ import pkg/codex/sales/slotqueue
 import pkg/codex/stores
 
 import pkg/stint
-import pkg/chronos
-
-proc toTimesDuration(d: chronos.Duration): times.Duration =
-  initDuration(seconds=d.seconds)
-
 proc exampleString*(length: int): string =
   let chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
   result = newString(length) # Create a new empty string with a given length
@@ -53,7 +48,7 @@ proc example*(_: type StorageRequest): StorageRequest =
       cid: "zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob",
       merkleRoot: array[32, byte].example
     ),
-    expiry: (getTime() + 1.hours + DefaultBlockTtl.toTimesDuration).toUnix.u256,
+    expiry: (getTime() + 1.hours).toUnix.u256,
     nonce: Nonce.example
   )
 

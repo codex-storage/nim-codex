@@ -1,6 +1,7 @@
 import std/os
 import std/options
 import std/math
+import std/times
 
 import pkg/asynctest
 import pkg/chronos
@@ -28,6 +29,9 @@ import ../examples
 import ./helpers
 import ./helpers/mockmarket
 import ./helpers/mockclock
+
+proc toTimesDuration(d: chronos.Duration): times.Duration =
+  initDuration(seconds=d.seconds)
 
 asyncchecksuite "Test Node":
   let
@@ -281,6 +285,7 @@ asyncchecksuite "Test Node - host contracts":
     let onStore = !sales.onStore
     var request = StorageRequest.example
     request.content.cid = manifestCid
+    request.expiry = (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix.u256
     var fetchedBytes: uint = 0
 
     let onBatch = proc(blocks: seq[bt.Block]) {.async.} =
