@@ -212,7 +212,7 @@ twonodessuite "Integration tests", debug1 = true, debug2 = true:
     check eventually (await token.balanceOf(account2)) - startBalance == duration*reward
 
   test "node requires expiry and its value to be in future":
-    let currentTime = await provider.currentTime()
+    let currentTime = await ethProvider.currentTime()
     let cid = client1.upload("some file contents").get
 
     let responseMissing = client1.requestStorageRaw(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256)
@@ -247,7 +247,7 @@ marketplacesuite "Marketplace payouts":
           .nodes(1)
           .debug() # uncomment to enable console log output
           .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-          .withLogTopics("marketplace", "sales", "reservations", "node", "proving"),
+          .withLogTopics("marketplace", "sales", "reservations", "node", "proving", "clock"),
   ):
     let reward = 400.u256
     let duration = 100.periods
