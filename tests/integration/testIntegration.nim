@@ -239,15 +239,15 @@ marketplacesuite "Marketplace payouts":
         NodeConfig()
           .nodes(1)
           .debug() # uncomment to enable console log output.debug()
-          # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+          .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
           .withLogTopics("node", "erasure"),
 
       providers:
         NodeConfig()
           .nodes(1)
           .debug() # uncomment to enable console log output
-          # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-          .withLogTopics("marketplace", "sales", "reservations", "node", "clock"),
+          .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+          .withLogTopics("marketplace", "sales", "reservations", "node", "proving"),
   ):
     let reward = 400.u256
     let duration = 100.periods

@@ -288,7 +288,7 @@ proc onStorageRequested(sales: Sales,
                         expiry: UInt256) =
 
   logScope:
-    topics = " marketplace sales onStorageRequested"
+    topics = "marketplace sales onStorageRequested"
     requestId
     slots = ask.slots
     expiry

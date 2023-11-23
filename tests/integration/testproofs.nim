@@ -31,7 +31,7 @@ marketplacesuite "Hosts submit regular proofs":
         .nodes(1)
         .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node", "clock"),
+        .withLogTopics("marketplace", "sales", "reservations", "node"),
   ):
     let client0 = clients()[0].node.client
     let totalPeriods = 50
@@ -81,14 +81,14 @@ marketplacesuite "Simulate invalid proofs":
         .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=1)
         .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node", "clock"),
+        .withLogTopics("marketplace", "sales", "reservations", "node"),
 
     validators:
       NodeConfig()
         .nodes(1)
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .debug() # uncomment to enable console log output
-        .withLogTopics("validator", "clock", "onchain", "ethers")
+        .withLogTopics("validator", "onchain", "ethers")
   ):
     let client0 = clients()[0].node.client
     let totalPeriods = 50
@@ -133,13 +133,13 @@ marketplacesuite "Simulate invalid proofs":
         .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=3)
         .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node", "clock"),
+        .withLogTopics("marketplace", "sales", "reservations", "node"),
 
     validators:
       NodeConfig()
         .nodes(1)
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("validator", "clock", "onchain", "ethers")
+        .withLogTopics("validator", "onchain", "ethers")
   ):
     let client0 = clients()[0].node.client
     let totalPeriods = 25
@@ -185,7 +185,7 @@ marketplacesuite "Simulate invalid proofs":
         .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=2)
         .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node", "clock"),
+        .withLogTopics("marketplace", "sales", "reservations", "node"),
 
     validators:
       NodeConfig()
