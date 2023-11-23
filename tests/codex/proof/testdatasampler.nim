@@ -230,13 +230,13 @@ asyncchecksuite "Test proof datasampler":
       cell1Proof.verifyDataBlock(cell1Bytes, miniTree.root).tryGet()
       cell2Proof.verifyDataBlock(cell2Bytes, miniTree.root).tryGet()
 
-  # test "Can gather proof input":
-  #   # This is the main entry point for this module, and what it's all about.
-  #   let
-  #     localStore = CacheStore.new()
-  #     dataSetPoseidonTree = MerkleTree.init(@[Cid.example])
-  #     a = (await getProofInput(slot, localStore, slotRootHash, dataSetPoseidonTree, challenge, 3)).tryget()
+  test "Can gather proof input":
+    # This is the main entry point for this module, and what it's all about.
+    let
+      localStore = CacheStore.new()
+      dataSetPoseidonTree = MerkleTree.init(@[Cid.example]).tryget()
+      a = (await getProofInput(slot, localStore, slotRootHash, dataSetPoseidonTree, challenge, 3)).tryget()
 
-  #   echo "a.blockInclProofs: " & $a.blockInclProofs.len
-  #   echo "a.cellInclProofs: " & $a.cellInclProofs.len
-  #   echo "a.sampleData: " & $a.sampleData.len
+    echo "a.blockInclProofs: " & $a.blockInclProofs.len
+    echo "a.cellInclProofs: " & $a.cellInclProofs.len
+    echo "a.sampleData: " & $a.sampleData.len
