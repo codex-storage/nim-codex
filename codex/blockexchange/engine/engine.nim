@@ -124,11 +124,11 @@ proc stop*(b: BlockExcEngine) {.async.} =
 proc sendWantHave(
   b: BlockExcEngine,
   address: BlockAddress,
-  selectedPeer: BlockExcPeerCtx,
+  excluded: seq[BlockExcPeerCtx],
   peers: seq[BlockExcPeerCtx]): Future[void] {.async.} =
   trace "Sending wantHave request to peers", address
   for p in peers:
-    if p != selectedPeer:
+    if p notin excluded:
       if address notin p.peerHave:
         trace " wantHave > ", peer = p.id
         await b.network.request.sendWantList(
@@ -200,7 +200,7 @@ proc requestBlock*(
     b.pendingBlocks.setInFlight(address)
     await b.sendWantBlock(address, peer)
     codex_block_exchange_want_block_lists_sent.inc()
-    await b.sendWantHave(address, peer, toSeq(b.peers))
+    await b.sendWantHave(address, @[peer], toSeq(b.peers))
     codex_block_exchange_want_have_lists_sent.inc()
 
   return await blockFuture
