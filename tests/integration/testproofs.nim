@@ -211,7 +211,8 @@ marketplacesuite "Simulate invalid proofs":
 
     let purchaseId = await client0.requestStorage(
       cid,
-      duration=totalPeriods.periods
+      duration=totalPeriods.periods,
+      expiry=10.periods
     )
 
     without requestId =? client0.requestId(purchaseId):
