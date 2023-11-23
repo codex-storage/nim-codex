@@ -229,7 +229,6 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check responsePast.status == "400 Bad Request"
     check responsePast.body == "Expiry needs to be in future"
 
-
   test "expired request partially pays out for stored time":
     let marketplace = Marketplace.new(Marketplace.address, provider.getSigner())
     let tokenAddress = await marketplace.token()
