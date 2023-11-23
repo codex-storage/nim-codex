@@ -81,7 +81,7 @@ method find*(
     (await d.protocol.getProviders(cid.toNodeId())).mapFailure, error:
     trace "Error finding providers for block", cid, error = error.msg
 
-  return providers
+  return providers.filterIt( not (it.data.peerId == d.peerId) )
 
 method provide*(d: Discovery, cid: Cid) {.async, base.} =
   ## Provide a bock Cid
