@@ -75,6 +75,18 @@ type
     getConn: ConnProvider
     inflightSema: AsyncSemaphore
 
+proc peerId*(b: BlockExcNetwork): PeerId =
+  ## Return peer id
+  ##
+
+  return b.switch.peerInfo.peerId
+
+proc isSelf*(b: BlockExcNetwork, peer: PeerId): bool =
+  ## Check if peer is self
+  ##
+
+  return b.switch.peerInfo.peerId == peer
+
 proc send*(b: BlockExcNetwork, id: PeerId, msg: pb.Message) {.async.} =
   ## Send message to peer
   ##
