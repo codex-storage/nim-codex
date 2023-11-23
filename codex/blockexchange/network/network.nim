@@ -273,6 +273,13 @@ proc setupPeer*(b: BlockExcNetwork, peer: PeerId) =
   discard b.getOrCreatePeer(peer)
 
 proc dialPeer*(b: BlockExcNetwork, peer: PeerRecord) {.async.} =
+  ## Dial a peer
+  ##
+
+  if peer.peerId == b.switch.peerInfo.peerId:
+    trace "Skipping dialing self", peer = peer.peerId
+    return
+
   await b.switch.connect(peer.peerId, peer.addresses.mapIt(it.address))
 
 proc dropPeer*(b: BlockExcNetwork, peer: PeerId) =
