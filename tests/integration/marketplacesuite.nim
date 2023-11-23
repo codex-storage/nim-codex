@@ -104,7 +104,11 @@ template marketplacesuite*(name: string, body: untyped) =
       periodicity = Periodicity(seconds: period.u256)
       echo ">>> [marketplacesuite.setup] setup 6"
 
-      continuousMineFut = continuouslyAdvanceEvery(chronos.millis(500))
+      when defined(windows):
+        let millis = chronos.millis(500)
+      else:
+        let millis = chronos.millis(1000)
+      continuousMineFut = continuouslyAdvanceEvery(millis)
       echo ">>> [marketplacesuite.setup] setup 7"
 
     teardown:
