@@ -1,11 +1,14 @@
 import ../contracts/requests
 import ../blocktype as bt
 import ../merkletree
+import ../manifest
+import ../stores/blockstore
 
 import std/bitops
 import std/sugar
 
 import pkg/chronicles
+import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
 import pkg/constantine/math/arithmetic
@@ -13,6 +16,7 @@ import pkg/poseidon2/types
 import pkg/poseidon2
 
 import misc
+import slotblocks
 
 const
   # Size of a cell.
@@ -23,7 +27,10 @@ type
   DSFieldElement* = F
   DSCellIndex* = uint64
   DSCell* = seq[byte]
-
+  ProofInput* = ref object
+    blockInclProofs*: seq[MerkleProof]
+    cellInclProofs*: seq[MerkleProof]
+    sampleData*: seq[byte]
 
 func extractLowBits*[n: static int](A: BigInt[n], k: int): uint64 =
   assert(k > 0 and k <= 64)
@@ -73,6 +80,14 @@ proc getSlotBlockIndex*(cellIndex: DSCellIndex, blockSize: uint64): uint64 =
   let numberOfCellsPerBlock = blockSize div CellSize
   return cellIndex div numberOfCellsPerBlock
 
+proc getDatasetBlockIndex*(slot: Slot, slotBlockIndex: uint64, blockSize: uint64): uint64 =
+  let
+    slotIndex = slot.slotIndex.truncate(uint64)
+    slotSize = slot.request.ask.slotSize.truncate(uint64)
+    blocksInSlot = slotSize div blockSize
+
+  return (blocksInSlot * slotIndex) + slotBlockIndex
+
 proc getCellIndexInBlock*(cellIndex: DSCellIndex, blockSize: uint64): uint64 =
   let numberOfCellsPerBlock = blockSize div CellSize
   return cellIndex mod numberOfCellsPerBlock
@@ -104,3 +119,54 @@ proc getBlockCellMiniTree*(blk: bt.Block, blockSize: uint64): ?!MerkleTree =
       return failure("Failed to add cell data to tree")
 
   return builder.build()
+
+proc getProofInput*(
+  slot: Slot,
+  blockStore: BlockStore,
+  slotRootHash: DSFieldElement,
+  dataSetPoseidonTree: MerkleTree,
+  challenge: DSFieldElement,
+  nSamples: int
+): Future[?!ProofInput] {.async.} =
+  var
+    blockProofs: seq[MerkleProof]
+    cellProofs: seq[MerkleProof]
+    sampleData: seq[byte]
+
+  without manifest =? await getManifestForSlot(slot, blockStore), err:
+    error "Failed to get manifest for slot"
+    return failure(err)
+
+  let
+    blockSize = manifest.blockSize.uint64
+    cellIndices = findCellIndices(slot, slotRootHash, challenge, nSamples)
+
+  for cellIndex in cellIndices:
+    let slotBlockIndex = getSlotBlockIndex(cellIndex, blockSize)
+    without blk =? await getSlotBlock(slot, blockStore, manifest, slotBlockIndex), err:
+      error "Failed to get slot block"
+      return failure(err)
+
+    without miniTree =? getBlockCellMiniTree(blk, blockSize), err:
+      error "Failed to calculate minitree for block"
+      return failure(err)
+
+    # without blockProof =? dataSetPoseidonTree.getProof(???block index in dataset!), err:
+    #   error "Failed to get dataset inclusion proof"
+    #   return failure(err)
+    # blockProofs.add(blockProof)
+
+    without cellProof =? miniTree.getProof(cellIndex), err:
+      error "Failed to get cell inclusion proof"
+      return failure(err)
+    cellProofs.add(cellProof)
+
+    let cell = getCellFromBlock(blk, cellIndex, blockSize)
+    sampleData = sampleData & cell
+
+  trace "Successfully collected proof input data"
+  success(ProofInput(
+    blockInclProofs: blockProofs,
+    cellInclProofs: cellProofs,
+    sampleData: sampleData
+  ))
