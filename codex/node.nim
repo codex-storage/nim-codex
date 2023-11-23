@@ -126,8 +126,7 @@ proc fetchBatched*(
   node: CodexNodeRef,
   manifest: Manifest,
   batchSize = FetchBatch,
-  onBatch: BatchProc = nil,
-  expiry = SecondsSince1970.none): Future[?!void] {.async, gcsafe.} =
+  onBatch: BatchProc = nil): Future[?!void] {.async, gcsafe.} =
   ## Fetch manifest in batches of `batchSize`
   ##
 
@@ -146,9 +145,6 @@ proc fetchBatched*(
 
     try:
       await allFuturesThrowing(allFinished(blocks))
-
-      if expiryValue =? expiry:
-        await allFuturesThrowing(blocks.mapIt(node.blockStore.ensureExpiry(it.read.get.cid, expiryValue)))
 
       if not onBatch.isNil:
         await onBatch(blocks.mapIt( it.read.get ))
@@ -434,11 +430,13 @@ proc start*(node: CodexNodeRef) {.async.} =
         return failure(error)
 
       trace "Fetching block for manifest", cid
-      # TODO: This will probably require a call to `getBlock` either way,
-      # since fetching of blocks will have to be selective according
-      # to a combination of parameters, such as node slot position
-      # and dataset geometry
-      if fetchErr =? (await node.fetchBatched(manifest, onBatch = onBatch, expiry = some request.expiry.toSecondsSince1970)).errorOption:
+      let expiry = request.expiry.toSecondsSince1970
+      proc expiryUpdateOnBatch(blocks: seq[bt.Block]): Future[void] {.async.} =
+        let ensureExpiryFutures = blocks.mapIt(node.blockStore.ensureExpiry(it.cid, expiry))
+        await allFuturesThrowing(ensureExpiryFutures)
+        await onBatch(blocks)
+
+      if fetchErr =? (await node.fetchBatched(manifest, onBatch = expiryUpdateOnBatch)).errorOption:
         let error = newException(CodexError, "Unable to retrieve blocks")
         error.parent = fetchErr
         return failure(error)

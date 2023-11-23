@@ -133,21 +133,6 @@ asyncchecksuite "Test Node":
           check blocks.len > 0 and blocks.len <= batchSize
       )).tryGet()
 
-  test "Block Batching with expiry":
-    let
-      manifest = await Manifest.fetch(chunker)
-      # The blocks have set default TTL, so in order to update it we have to have larger TTL
-      expectedExpiry: SecondsSince1970 = clock.now + DefaultBlockTtl.seconds + 123
-
-    (await node.fetchBatched(manifest, expiry=some expectedExpiry)).tryGet()
-
-    for index in 0..<manifest.blocksCount:
-      let blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
-      let expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet
-      let expiry = await localStoreMetaDs.get(expiryKey)
-
-      check (expiry.tryGet).toSecondsSince1970 == expectedExpiry
-
   test "Store and retrieve Data Stream":
     let
       stream = BufferStream.new()
@@ -306,3 +291,9 @@ asyncchecksuite "Test Node - host contracts":
 
     check fetchedBytes == 2291520
 
+    for index in 0..<manifest.blocksCount:
+      let blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
+      let expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet
+      let expiry = await localStoreMetaDs.get(expiryKey)
+
+      check (expiry.tryGet).toSecondsSince1970 == request.expiry.toSecondsSince1970
