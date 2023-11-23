@@ -8,6 +8,7 @@
 ## those terms.
 
 import std/algorithm
+import std/sequtils
 
 import pkg/chronos
 import pkg/chronicles
@@ -33,10 +34,10 @@ logScope:
 
 type
   Discovery* = ref object of RootObj
-    protocol*: discv5.Protocol           # dht protocol
+    protocol*: discv5.Protocol          # dht protocol
     key: PrivateKey                     # private key
     peerId: PeerId                      # the peer id of the local node
-    announceAddrs*: seq[MultiAddress]    # addresses announced as part of the provider records
+    announceAddrs*: seq[MultiAddress]   # addresses announced as part of the provider records
     providerRecord*: ?SignedPeerRecord  # record to advertice node connection information, this carry any
                                         # address that the node can be connected on
     dhtRecord*: ?SignedPeerRecord       # record to advertice DHT connection information
@@ -54,9 +55,8 @@ proc toNodeId*(host: ca.Address): NodeId =
   readUintBE[256](keccak256.digest(host.toArray).data)
 
 proc findPeer*(
-    d: Discovery,
-    peerId: PeerId
-): Future[?PeerRecord] {.async.} =
+  d: Discovery,
+  peerId: PeerId): Future[?PeerRecord] {.async.} =
   trace "protocol.resolve..."
   ## Find peer using the given Discovery object
   ##
@@ -70,9 +70,8 @@ proc findPeer*(
       PeerRecord.none
 
 method find*(
-    d: Discovery,
-    cid: Cid
-): Future[seq[SignedPeerRecord]] {.async, base.} =
+  d: Discovery,
+  cid: Cid): Future[seq[SignedPeerRecord]] {.async, base.} =
   ## Find block providers
   ##
 
@@ -98,9 +97,8 @@ method provide*(d: Discovery, cid: Cid) {.async, base.} =
   trace "Provided to nodes", nodes = nodes.len
 
 method find*(
-    d: Discovery,
-    host: ca.Address
-): Future[seq[SignedPeerRecord]] {.async, base.} =
+  d: Discovery,
+  host: ca.Address): Future[seq[SignedPeerRecord]] {.async, base.} =
   ## Find host providers
   ##
 
@@ -131,9 +129,8 @@ method provide*(d: Discovery, host: ca.Address) {.async, base.} =
     trace "Provided to nodes", nodes = nodes.len
 
 method removeProvider*(
-    d: Discovery,
-    peerId: PeerId
-): Future[void] {.base.} =
+  d: Discovery,
+  peerId: PeerId): Future[void] {.base.} =
   ## Remove provider from providers table
   ##
 
