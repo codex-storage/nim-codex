@@ -157,8 +157,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
           trace "Discovered peers for block", peers = peers.len, cid
           let
             dialed = await allFinished(
-              peers
-                .mapIt( b.network.dialPeer(it.data) ))
+              peers.mapIt( b.network.dialPeer(it.data) ))
 
           for i, f in dialed:
             if f.failed:
