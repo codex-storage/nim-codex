@@ -178,8 +178,7 @@ proc monitorBlockHandle(b: BlockExcEngine, handle: Future[Block], address: Block
 proc requestBlock*(
   b: BlockExcEngine,
   address: BlockAddress,
-  timeout = DefaultBlockTimeout
-): Future[Block] {.async.} =
+  timeout = DefaultBlockTimeout): Future[Block] {.async.} =
   let blockFuture = b.pendingBlocks.getWantHandle(address, timeout)
 
   if b.pendingBlocks.isInFlight(address):
@@ -208,8 +207,7 @@ proc requestBlock*(
 proc requestBlock*(
   b: BlockExcEngine,
   cid: Cid,
-  timeout = DefaultBlockTimeout
-): Future[Block] =
+  timeout = DefaultBlockTimeout): Future[Block] =
   b.requestBlock(BlockAddress.init(cid))
 
 proc blockPresenceHandler*(
@@ -228,8 +226,8 @@ proc blockPresenceHandler*(
     if presence =? Presence.init(blk):
       logScope:
         address   = $presence.address
-        have  = presence.have
-        price = presence.price
+        have      = presence.have
+        price     = presence.price
 
       trace "Updating precense"
       peerCtx.setPresence(presence)

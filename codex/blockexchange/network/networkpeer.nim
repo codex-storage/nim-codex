@@ -83,8 +83,7 @@ func new*(
   T: type NetworkPeer,
   peer: PeerId,
   connProvider: ConnProvider,
-  rpcHandler: RPCHandler
-): NetworkPeer =
+  rpcHandler: RPCHandler): NetworkPeer =
 
   doAssert(not isNil(connProvider),
     "should supply connection provider")
