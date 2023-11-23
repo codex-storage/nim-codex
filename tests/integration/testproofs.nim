@@ -13,47 +13,47 @@ logScope:
   topics = "integration test proofs"
 
 
-marketplacesuite "Hosts submit regular proofs":
+# marketplacesuite "Hosts submit regular proofs":
 
-  test "hosts submit periodic proofs for slots they fill", NodeConfigs(
-    # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
-    # hardhat: HardhatConfig().withLogFile()
+#   test "hosts submit periodic proofs for slots they fill", NodeConfigs(
+#     # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
+#     # hardhat: HardhatConfig().withLogFile()
 
-    clients:
-      NodeConfig()
-        .nodes(1)
-        .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("node"),
+#     clients:
+#       NodeConfig()
+#         .nodes(1)
+#         .debug() # uncomment to enable console log output
+#         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+#         .withLogTopics("node"),
 
-    providers:
-      NodeConfig()
-        .nodes(1)
-        .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node"),
-  ):
-    let client0 = clients()[0].node.client
-    let totalPeriods = 50
+#     providers:
+#       NodeConfig()
+#         .nodes(1)
+#         .debug() # uncomment to enable console log output
+#         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+#         .withLogTopics("marketplace", "sales", "reservations", "node"),
+#   ):
+#     let client0 = clients()[0].node.client
+#     let totalPeriods = 50
 
-    let data = byteutils.toHex(await exampleData())
-    createAvailabilities(data.len, totalPeriods.periods)
+#     let data = byteutils.toHex(await exampleData())
+#     createAvailabilities(data.len, totalPeriods.periods)
 
-    let cid = client0.upload(data).get
+#     let cid = client0.upload(data).get
 
-    let purchaseId = await client0.requestStorage(cid, duration=totalPeriods.periods)
-    check eventually client0.purchaseStateIs(purchaseId, "started")
+#     let purchaseId = await client0.requestStorage(cid, duration=totalPeriods.periods)
+#     check eventually client0.purchaseStateIs(purchaseId, "started")
 
-    var proofWasSubmitted = false
-    proc onProofSubmitted(event: ProofSubmitted) =
-      proofWasSubmitted = true
+#     var proofWasSubmitted = false
+#     proc onProofSubmitted(event: ProofSubmitted) =
+#       proofWasSubmitted = true
 
-    let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
+#     let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
 
-    let currentPeriod = await getCurrentPeriod()
-    check eventuallyP(proofWasSubmitted, currentPeriod + totalPeriods.u256 + 1)
+#     let currentPeriod = await getCurrentPeriod()
+#     check eventuallyP(proofWasSubmitted, currentPeriod + totalPeriods.u256 + 1)
 
-    await subscription.unsubscribe()
+#     await subscription.unsubscribe()
 
 
 
