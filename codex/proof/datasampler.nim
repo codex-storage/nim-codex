@@ -17,20 +17,8 @@ import pkg/poseidon2
 
 import misc
 import slotblocks
-
-const
-  # Size of a cell.
-  # A cell is a sample of storage-data selected for proving.
-  CellSize* = 2048.uint64
-
-type
-  DSFieldElement* = F
-  DSCellIndex* = uint64
-  DSCell* = seq[byte]
-  ProofInput* = ref object
-    blockInclProofs*: seq[MerkleProof]
-    cellInclProofs*: seq[MerkleProof]
-    sampleData*: seq[byte]
+import indexing
+import types
 
 func extractLowBits*[n: static int](A: BigInt[n], k: int): uint64 =
   assert(k > 0 and k <= 64)
@@ -45,7 +33,7 @@ func extractLowBits*[n: static int](A: BigInt[n], k: int): uint64 =
       r = bitor(r, 1'u64 shl i)
   return r
 
-proc getCellIndex(fe: DSFieldElement, numberOfCells: int): uint64 =
+proc convertToSlotCellIndex(fe: DSFieldElement, numberOfCells: int): uint64 =
   let log2 = ceilingLog2(numberOfCells)
   assert((1 shl log2) == numberOfCells , "expected `numberOfCells` to be a power of two.")
 
@@ -54,48 +42,32 @@ proc getCellIndex(fe: DSFieldElement, numberOfCells: int): uint64 =
 proc getNumberOfCellsInSlot*(slot: Slot): uint64 =
   (slot.request.ask.slotSize.truncate(uint64) div CellSize)
 
-proc findCellIndex*(
+proc findSlotCellIndex*(
   slotRootHash: DSFieldElement,
   challenge: DSFieldElement,
   counter: DSFieldElement,
-  numberOfCells: uint64): DSCellIndex =
-  # Computes the cell index for a single sample.
+  numberOfCells: uint64): DSSlotCellIndex =
+  # Computes the slot-cell index for a single sample.
   let
     input = @[slotRootHash, challenge, counter]
     hash = Sponge.digest(input, rate = 2)
-    index = getCellIndex(hash, numberOfCells.int)
+    index = convertToSlotCellIndex(hash, numberOfCells.int)
 
   return index
 
-func findCellIndices*(
+func findSlotCellIndices*(
   slot: Slot,
   slotRootHash: DSFieldElement,
   challenge: DSFieldElement,
-  nSamples: int): seq[DSCellIndex] =
-  # Computes nSamples cell indices.
+  nSamples: int): seq[DSSlotCellIndex] =
+  # Computes nSamples slot-cell indices.
   let numberOfCells = getNumberOfCellsInSlot(slot)
-  return collect(newSeq, (for i in 1..nSamples: findCellIndex(slotRootHash, challenge, toF(i), numberOfCells)))
+  return collect(newSeq, (for i in 1..nSamples: findSlotCellIndex(slotRootHash, challenge, toF(i), numberOfCells)))
 
-proc getSlotBlockIndex*(cellIndex: DSCellIndex, blockSize: uint64): uint64 =
-  let numberOfCellsPerBlock = blockSize div CellSize
-  return cellIndex div numberOfCellsPerBlock
-
-proc getDatasetBlockIndex*(slot: Slot, slotBlockIndex: uint64, blockSize: uint64): uint64 =
+proc getCellFromBlock*(blk: bt.Block, slotCellIndex: DSSlotCellIndex, blockSize: uint64): DSCell =
   let
-    slotIndex = slot.slotIndex.truncate(uint64)
-    slotSize = slot.request.ask.slotSize.truncate(uint64)
-    blocksInSlot = slotSize div blockSize
-
-  return (blocksInSlot * slotIndex) + slotBlockIndex
-
-proc getCellIndexInBlock*(cellIndex: DSCellIndex, blockSize: uint64): uint64 =
-  let numberOfCellsPerBlock = blockSize div CellSize
-  return cellIndex mod numberOfCellsPerBlock
-
-proc getCellFromBlock*(blk: bt.Block, cellIndex: DSCellIndex, blockSize: uint64): DSCell =
-  let
-    inBlockCellIndex = getCellIndexInBlock(cellIndex, blockSize)
-    dataStart = (CellSize * inBlockCellIndex)
+    blockCellIndex = getBlockCellIndexForSlotCellIndex(slotCellIndex, blockSize)
+    dataStart = (CellSize * blockCellIndex)
     dataEnd = dataStart + CellSize
 
   return blk.data[dataStart ..< dataEnd]
@@ -124,13 +96,14 @@ proc getProofInput*(
   slot: Slot,
   blockStore: BlockStore,
   slotRootHash: DSFieldElement,
-  dataSetPoseidonTree: MerkleTree,
+  slotPoseidonTree: MerkleTree,
+  datasetToSlotProof: MerkleProof,
   challenge: DSFieldElement,
   nSamples: int
 ): Future[?!ProofInput] {.async.} =
   var
-    blockProofs: seq[MerkleProof]
-    cellProofs: seq[MerkleProof]
+    slotToBlockProofs: seq[MerkleProof]
+    blockToCellProofs: seq[MerkleProof]
     sampleData: seq[byte]
 
   without manifest =? await getManifestForSlot(slot, blockStore), err:
@@ -139,10 +112,13 @@ proc getProofInput*(
 
   let
     blockSize = manifest.blockSize.uint64
-    cellIndices = findCellIndices(slot, slotRootHash, challenge, nSamples)
+    slotCellIndices = findSlotCellIndices(slot, slotRootHash, challenge, nSamples)
 
-  for cellIndex in cellIndices:
-    let slotBlockIndex = getSlotBlockIndex(cellIndex, blockSize)
+  for slotCellIndex in slotCellIndices:
+    let
+      slotBlockIndex = getSlotBlockIndexForSlotCellIndex(slotCellIndex, blockSize)
+      datasetBlockIndex = getDatasetBlockIndexForSlotBlockIndex(slot, slotBlockIndex, blockSize)
+
     without blk =? await getSlotBlock(slot, blockStore, manifest, slotBlockIndex), err:
       error "Failed to get slot block"
       return failure(err)
@@ -151,22 +127,23 @@ proc getProofInput*(
       error "Failed to calculate minitree for block"
       return failure(err)
 
-    # without blockProof =? dataSetPoseidonTree.getProof(???block index in dataset!), err:
-    #   error "Failed to get dataset inclusion proof"
-    #   return failure(err)
-    # blockProofs.add(blockProof)
+    without blockProof =? slotPoseidonTree.getProof(datasetBlockIndex), err:
+      error "Failed to get dataset inclusion proof"
+      return failure(err)
+    slotToBlockProofs.add(blockProof)
 
-    without cellProof =? miniTree.getProof(cellIndex), err:
+    without cellProof =? miniTree.getProof(slotCellIndex), err:
       error "Failed to get cell inclusion proof"
       return failure(err)
-    cellProofs.add(cellProof)
+    blockToCellProofs.add(cellProof)
 
-    let cell = getCellFromBlock(blk, cellIndex, blockSize)
+    let cell = getCellFromBlock(blk, slotCellIndex, blockSize)
     sampleData = sampleData & cell
 
   trace "Successfully collected proof input data"
   success(ProofInput(
-    blockInclProofs: blockProofs,
-    cellInclProofs: cellProofs,
+    datasetToSlotProof: datasetToSlotProof,
+    slotToBlockProofs: slotToBlockProofs,
+    blockToCellProofs: blockToCellProofs,
     sampleData: sampleData
   ))

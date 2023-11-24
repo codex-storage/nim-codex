@@ -10,6 +10,7 @@ import pkg/questionable/results
 import ../contracts/requests
 import ../stores/blockstore
 import ../manifest
+import indexing
 
 proc getManifestForSlot*(slot: Slot, blockstore: BlockStore): Future[?!Manifest] {.async.} =
   without manifestBlockCid =? Cid.init(slot.request.content.cid).mapFailure, err:
@@ -26,21 +27,10 @@ proc getManifestForSlot*(slot: Slot, blockstore: BlockStore): Future[?!Manifest]
 
   return success(manifest)
 
-proc getIndexForSlotBlock*(slot: Slot, blockSize: NBytes, slotBlockIndex: uint64): uint64 =
-  let
-    slotSize = slot.request.ask.slotSize.truncate(uint64)
-    blocksInSlot = slotSize div blockSize.uint64
-    slotIndex = slot.slotIndex.truncate(uint64)
-
-    datasetIndex = (slotIndex * blocksInSlot) + slotBlockIndex
-
-  trace "Converted slotBlockIndex to datasetIndex", slotBlockIndex, datasetIndex
-  return datasetIndex
-
 proc getSlotBlock*(slot: Slot, blockstore: BlockStore, manifest: Manifest, slotBlockIndex: uint64): Future[?!Block] {.async.} =
   let
     blocksInManifest = (manifest.datasetSize div manifest.blockSize).uint64
-    datasetIndex = getIndexForSlotBlock(slot, manifest.blockSize, slotBlockIndex)
+    datasetIndex = getDatasetBlockIndexForSlotBlockIndex(slot, manifest.blockSize.uint64, slotBlockIndex)
 
   if datasetIndex >= blocksInManifest:
     return failure("Found slotBlockIndex that is out-of-range: " & $datasetIndex)
