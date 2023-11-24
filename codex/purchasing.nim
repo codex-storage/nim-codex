@@ -18,11 +18,11 @@ type
     clock: Clock
     purchases: Table[PurchaseId, Purchase]
     proofProbability*: UInt256
-    requestExpiryInterval*: UInt256
+    requestExpiryInterval*: int64
   PurchaseTimeout* = Timeout
 
 const DefaultProofProbability = 100.u256
-const DefaultRequestExpiryInterval = (10 * 60).u256
+const DefaultRequestExpiryInterval = 10 * 60
 
 proc new*(_: type Purchasing, market: Market, clock: Clock): Purchasing =
   Purchasing(
@@ -51,9 +51,9 @@ proc populate*(purchasing: Purchasing,
               ): Future[StorageRequest] {.async.} =
   result = request
   if result.ask.proofProbability == 0.u256:
-    result.ask.proofProbability = purchasing.proofProbability
-  if result.expiry == 0.u256:
-    result.expiry = (purchasing.clock.now().u256 + purchasing.requestExpiryInterval)
+    result.ask.proofProbability = purchasing.proofProbafbility
+  if result.expiry == 0:
+    result.expiry = (purchasing.clock.now() + purchasing.requestExpiryInterval)
   if result.nonce == Nonce.default:
     var id = result.nonce.toArray
     doAssert randomBytes(id) == 32

@@ -18,7 +18,7 @@ type
   StorageRequested* = object of Event
     requestId*: RequestId
     ask*: StorageAsk
-    expiry*: UInt256
+    expiry*: int64
   SlotFilled* = object of Event
     requestId* {.indexed.}: RequestId
     slotIndex*: UInt256

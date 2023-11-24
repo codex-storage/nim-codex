@@ -35,7 +35,7 @@ type
     duration: UInt256
     reward: UInt256
     collateral: UInt256
-    expiry: UInt256
+    expiry: int64
 
   # don't need to -1 to prevent overflow when adding 1 (to always allow push)
   # because AsyncHeapQueue size is of type `int`, which is larger than `uint16`
@@ -131,7 +131,7 @@ proc init*(_: type SlotQueueItem,
           requestId: RequestId,
           slotIndex: uint16,
           ask: StorageAsk,
-          expiry: UInt256): SlotQueueItem =
+          expiry: int64): SlotQueueItem =
 
   SlotQueueItem(
     requestId: requestId,
@@ -155,7 +155,7 @@ proc init*(_: type SlotQueueItem,
 proc init*(_: type SlotQueueItem,
           requestId: RequestId,
           ask: StorageAsk,
-          expiry: UInt256): seq[SlotQueueItem] =
+          expiry: int64): seq[SlotQueueItem] =
 
   if not ask.slots.inRange:
     raise newException(SlotsOutOfRangeError, "Too many slots")

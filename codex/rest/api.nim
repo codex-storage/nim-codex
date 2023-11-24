@@ -290,7 +290,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
         if node.clock.isNil:
           return RestApiResponse.error(Http500)
 
-        if expiry <= node.clock.now.u256:
+        if expiry <= node.clock.now:
           return RestApiResponse.error(Http400, "Expiry needs to be in future")
 
         without purchaseId =? await node.requestStorage(

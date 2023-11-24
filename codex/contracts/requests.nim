@@ -16,7 +16,7 @@ type
     client* {.serialize.}: Address
     ask* {.serialize.}: StorageAsk
     content* {.serialize.}: StorageContent
-    expiry* {.serialize.}: UInt256
+    expiry* {.serialize.}: int64
     nonce*: Nonce
   StorageAsk* = object
     slots* {.serialize.}: uint64

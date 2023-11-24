@@ -277,7 +277,7 @@ proc onAvailabilityAdded(sales: Sales, availability: Availability) {.async.} =
 proc onStorageRequested(sales: Sales,
                         requestId: RequestId,
                         ask: StorageAsk,
-                        expiry: UInt256) =
+                        expiry: int64) =
 
   logScope:
     topics = " marketplace sales onStorageRequested"
@@ -358,7 +358,7 @@ proc subscribeRequested(sales: Sales) {.async.} =
 
   proc onStorageRequested(requestId: RequestId,
                           ask: StorageAsk,
-                          expiry: UInt256) =
+                          expiry: int64) =
     sales.onStorageRequested(requestId, ask, expiry)
 
   try:

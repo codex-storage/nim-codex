@@ -322,7 +322,7 @@ proc requestStorage*(
   tolerance: uint,
   reward: UInt256,
   collateral: UInt256,
-  expiry:  UInt256): Future[?!PurchaseId] {.async.} =
+  expiry:  int64): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
   ##
@@ -445,7 +445,7 @@ proc start*(node: CodexNodeRef) {.async.} =
       # since fetching of blocks will have to be selective according
       # to a combination of parameters, such as node slot position
       # and dataset geometry
-      if fetchErr =? (await node.fetchBatched(manifest, onBatch = onBatch, expiry = some request.expiry.toSecondsSince1970)).errorOption:
+      if fetchErr =? (await node.fetchBatched(manifest, onBatch = onBatch, expiry = some request.expiry)).errorOption:
         let error = newException(CodexError, "Unable to retrieve blocks")
         error.parent = fetchErr
         return failure(error)

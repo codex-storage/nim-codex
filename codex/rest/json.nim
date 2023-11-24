@@ -18,7 +18,7 @@ type
     proofProbability* {.serialize.}: UInt256
     reward* {.serialize.}: UInt256
     collateral* {.serialize.}: UInt256
-    expiry* {.serialize.}: ?UInt256
+    expiry* {.serialize.}: ?int64
     nodes* {.serialize.}: ?uint
     tolerance* {.serialize.}: ?uint
 

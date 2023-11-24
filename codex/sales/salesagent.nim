@@ -68,7 +68,7 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
       return
 
     while true:
-      let deadline = max(clock.now, request.expiry.truncate(int64)) + 1
+      let deadline = max(clock.now, request.expiry) + 1
       trace "Waiting for request to be cancelled", now=clock.now, expiry=deadline
       await clock.waitUntil(deadline)
 

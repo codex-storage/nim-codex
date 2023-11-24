@@ -17,7 +17,7 @@ type
   Subscription* = ref object of RootObj
   OnRequest* = proc(id: RequestId,
                     ask: StorageAsk,
-                    expiry: UInt256) {.gcsafe, upraises:[].}
+                    expiry: int64) {.gcsafe, upraises:[].}
   OnFulfillment* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
   OnSlotFilled* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises:[].}
   OnSlotFreed* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises: [].}
@@ -27,7 +27,7 @@ type
   PastStorageRequest* = object
     requestId*: RequestId
     ask*: StorageAsk
-    expiry*: UInt256
+    expiry*: int64
 
 method getSigner*(market: Market): Future[Address] {.base, async.} =
   raiseAssert("not implemented")

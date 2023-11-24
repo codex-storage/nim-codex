@@ -373,6 +373,11 @@ proc release*(
 
   trace "releasing bytes and updating reservation"
 
+  let error = newException(BytesOutOfBoundsError,
+      "trying to release an amount of bytes that is greater than the total " &
+      "size of the Reservation")
+  return failure(error)
+
   without key =? key(reservationId, availabilityId), error:
     return failure(error)
 
