@@ -12,6 +12,7 @@ import pkg/codex/contracts
 import pkg/codex/merkletree
 
 import pkg/codex/proof/slotblocks
+import pkg/codex/proof/indexing
 
 import ../helpers
 import ../examples
@@ -135,22 +136,12 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
     createSlot()
     discard await localStore.putBlock(manifestBlock)
 
-  for (input, expected) in [(0, 12), (1, 13), (10, 22)]:
-    test "Can get index for slot block (" & $input & " -> " & $expected & ")":
-      let
-        index = getIndexForSlotBlock(slot, bytesPerBlock.NBytes, input.uint64)
-        expectedIndex = (slotIndex * numberOfSlotBlocks + input).uint64
-
-      check:
-        index == expected.uint64
-        index == expectedIndex
-
   for input in [0, 1, numberOfSlotBlocks-1]:
     test "Can get slot block by index (" & $input & ")":
       let
         slotBlock = (await getSlotBlock(slot, localStore, input.uint64)).tryget()
-        expectedIndex = getIndexForSlotBlock(slot, bytesPerBlock.NBytes, input.uint64)
-        expectedBlock = datasetBlocks[expectedIndex]
+        expectedDatasetBlockIndex = getDatasetBlockIndexForSlotBlockIndex(slot, bytesPerBlock.uint64, input.uint64)
+        expectedBlock = datasetBlocks[expectedDatasetBlockIndex]
 
       check:
         slotBlock.cid == expectedBlock.cid

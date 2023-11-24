@@ -28,6 +28,8 @@ import pkg/codex/stores/cachestore
 
 import pkg/codex/proof/datasampler
 import pkg/codex/proof/misc
+import pkg/codex/proof/types
+#import pkg/codex/proof/indexing
 
 import ../helpers
 import ../examples
@@ -116,69 +118,36 @@ asyncchecksuite "Test proof datasampler":
 
   let knownIndices = @[178.uint64, 277.uint64, 366.uint64]
 
-  test "Can find single cell index":
+  test "Can find single slot-cell index":
     let numberOfCells = getNumberOfCellsInSlot(slot)
 
-    proc cellIndex(i: int): DSCellIndex =
+    proc slotCellIndex(i: int): DSSlotCellIndex =
       let counter: DSFieldElement = toF(i)
-      return findCellIndex(slotRootHash, challenge, counter, numberOfCells)
+      return findSlotCellIndex(slotRootHash, challenge, counter, numberOfCells)
 
-    proc getExpectedIndex(i: int): DSCellIndex =
+    proc getExpectedIndex(i: int): DSSlotCellIndex =
       let hash = Sponge.digest(@[slotRootHash, challenge, toF(i)], rate = 2)
       return extractLowBits(hash.toBig(), ceilingLog2(numberOfCells.int))
 
     check:
-      cellIndex(1) == getExpectedIndex(1)
-      cellIndex(1) == knownIndices[0]
-      cellIndex(2) == getExpectedIndex(2)
-      cellIndex(2) == knownIndices[1]
-      cellIndex(3) == getExpectedIndex(3)
-      cellIndex(3) == knownIndices[2]
+      slotCellIndex(1) == getExpectedIndex(1)
+      slotCellIndex(1) == knownIndices[0]
+      slotCellIndex(2) == getExpectedIndex(2)
+      slotCellIndex(2) == knownIndices[1]
+      slotCellIndex(3) == getExpectedIndex(3)
+      slotCellIndex(3) == knownIndices[2]
 
-  test "Can find sequence of cell indices":
-    proc cellIndices(n: int): seq[DSCellIndex]  =
-      findCellIndices(slot, slotRootHash, challenge, n)
+  test "Can find sequence of slot-cell indices":
+    proc slotCellIndices(n: int): seq[DSSlotCellIndex]  =
+      findSlotCellIndices(slot, slotRootHash, challenge, n)
 
     let numberOfCells = getNumberOfCellsInSlot(slot)
-    proc getExpectedIndices(n: int): seq[DSCellIndex]  =
-      return collect(newSeq, (for i in 1..n: findCellIndex(slotRootHash, challenge, toF(i), numberOfCells)))
+    proc getExpectedIndices(n: int): seq[DSSlotCellIndex]  =
+      return collect(newSeq, (for i in 1..n: findSlotCellIndex(slotRootHash, challenge, toF(i), numberOfCells)))
 
     check:
-      cellIndices(3) == getExpectedIndices(3)
-      cellIndices(3) == knownIndices
-
-  for (input, expected) in [(10, 0), (31, 0), (32, 1), (63, 1), (64, 2)]:
-    test "Can get slotBlockIndex from cell index (" & $input & " -> " & $expected & ")":
-      let
-        cellIndex = input.uint64
-        blockSize = (64 * 1024).uint64
-
-        slotBlockIndex = getSlotBlockIndex(cellIndex, blockSize)
-
-      check:
-        slotBlockIndex == expected.uint64
-
-  for input in 0 ..< numberOfSlotBlocks:
-    test "Can get datasetBlockIndex from slotBlockIndex (" & $input & ")":
-      let
-        slotBlockIndex = input.uint64
-        datasetBlockIndex = getDatasetBlockIndex(slot, slotBlockIndex, bytesPerBlock.uint64)
-        slotIndex = slot.slotIndex.truncate(uint64)
-        expectedIndex = (numberOfSlotBlocks.uint64 * slotIndex) + slotBlockIndex
-
-      check:
-        datasetBlockIndex == expectedIndex
-
-  for (input, expected) in [(10, 10), (31, 31), (32, 0), (63, 31), (64, 0)]:
-    test "Can get cellIndexInBlock from cell index (" & $input & " -> " & $expected & ")":
-      let
-        cellIndex = input.uint64
-        blockSize = (64 * 1024).uint64
-
-        cellIndexInBlock = getCellIndexInBlock(cellIndex, blockSize)
-
-      check:
-        cellIndexInBlock == expected.uint64
+      slotCellIndices(3) == getExpectedIndices(3)
+      slotCellIndices(3) == knownIndices
 
   test "Can get cell from block":
     let
@@ -234,9 +203,19 @@ asyncchecksuite "Test proof datasampler":
     # This is the main entry point for this module, and what it's all about.
     let
       localStore = CacheStore.new()
-      dataSetPoseidonTree = MerkleTree.init(@[Cid.example]).tryget()
-      a = (await getProofInput(slot, localStore, slotRootHash, dataSetPoseidonTree, challenge, 3)).tryget()
+      datasetToSlotProof = MerkleProof.example
+      slotPoseidonTree = MerkleTree.init(@[Cid.example]).tryget()
+      nSamples = 3
 
-    echo "a.blockInclProofs: " & $a.blockInclProofs.len
-    echo "a.cellInclProofs: " & $a.cellInclProofs.len
+      a = (await getProofInput(
+        slot,
+        localStore,
+        slotRootHash,
+        slotPoseidonTree,
+        datasetToSlotProof,
+        challenge,
+        nSamples)).tryget()
+
+    echo "a.slotToBlockProofs: " & $a.slotToBlockProofs.len
+    echo "a.blockToCellProofs: " & $a.blockToCellProofs.len
     echo "a.sampleData: " & $a.sampleData.len
