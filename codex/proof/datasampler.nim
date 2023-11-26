@@ -20,6 +20,9 @@ import slotblocks
 import indexing
 import types
 
+logScope:
+  topics = "codex datasampler"
+
 func extractLowBits*[n: static int](A: BigInt[n], k: int): uint64 =
   assert(k > 0 and k <= 64)
   var r: uint64 = 0
@@ -114,10 +117,12 @@ proc getProofInput*(
     blockSize = manifest.blockSize.uint64
     slotCellIndices = findSlotCellIndices(slot, slotRootHash, challenge, nSamples)
 
+  trace "Collecing input for proof", selectedSlotCellIndices = $slotCellIndices
   for slotCellIndex in slotCellIndices:
     let
       slotBlockIndex = getSlotBlockIndexForSlotCellIndex(slotCellIndex, blockSize)
-      datasetBlockIndex = getDatasetBlockIndexForSlotBlockIndex(slot, slotBlockIndex, blockSize)
+      datasetBlockIndex = getDatasetBlockIndexForSlotBlockIndex(slot, blockSize, slotBlockIndex)
+      blockCellIndex = getBlockCellIndexForSlotCellIndex(slotCellIndex, blockSize)
 
     without blk =? await getSlotBlock(slot, blockStore, manifest, slotBlockIndex), err:
       error "Failed to get slot block"
@@ -127,20 +132,20 @@ proc getProofInput*(
       error "Failed to calculate minitree for block"
       return failure(err)
 
-    without blockProof =? slotPoseidonTree.getProof(datasetBlockIndex), err:
-      error "Failed to get dataset inclusion proof"
+    without blockProof =? slotPoseidonTree.getProof(slotBlockIndex), err:
+      error "Failed to get slot-to-block inclusion proof"
       return failure(err)
     slotToBlockProofs.add(blockProof)
 
-    without cellProof =? miniTree.getProof(slotCellIndex), err:
-      error "Failed to get cell inclusion proof"
+    without cellProof =? miniTree.getProof(blockCellIndex), err:
+      error "Failed to get block-to-cell inclusion proof"
       return failure(err)
     blockToCellProofs.add(cellProof)
 
     let cell = getCellFromBlock(blk, slotCellIndex, blockSize)
     sampleData = sampleData & cell
 
-  trace "Successfully collected proof input data"
+  trace "Successfully collected proof input"
   success(ProofInput(
     datasetToSlotProof: datasetToSlotProof,
     slotToBlockProofs: slotToBlockProofs,

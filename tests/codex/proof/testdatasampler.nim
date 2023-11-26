@@ -1,26 +1,17 @@
-import std/os
-import std/strutils
 import std/sequtils
 import std/sugar
 import std/random
 
-import pkg/questionable
 import pkg/questionable/results
 import pkg/constantine/math/arithmetic
 import pkg/poseidon2/types
 import pkg/poseidon2
 import pkg/chronos
 import pkg/asynctest
-import pkg/stew/byteutils
-import pkg/stew/endians2
-import pkg/datastore
-import pkg/codex/rng
 import pkg/codex/stores/cachestore
 import pkg/codex/chunker
 import pkg/codex/stores
 import pkg/codex/blocktype as bt
-import pkg/codex/clock
-import pkg/codex/utils/asynciter
 import pkg/codex/contracts/requests
 import pkg/codex/contracts
 import pkg/codex/merkletree
@@ -29,55 +20,32 @@ import pkg/codex/stores/cachestore
 import pkg/codex/proof/datasampler
 import pkg/codex/proof/misc
 import pkg/codex/proof/types
-#import pkg/codex/proof/indexing
+import pkg/codex/proof/indexing
 
 import ../helpers
 import ../examples
+import testdatasampler_expected
 
 let
   bytesPerBlock = 64 * 1024
-  numberOfSlotBlocks = 16
   challenge: DSFieldElement = toF(12345)
   slotRootHash: DSFieldElement = toF(6789)
-  slot = Slot(
-    request: StorageRequest(
-      client: Address.example,
-      ask: StorageAsk(
-        slots: 10,
-        slotSize: u256(bytesPerBlock * numberOfSlotBlocks),
-        duration: UInt256.example,
-        proofProbability: UInt256.example,
-        reward: UInt256.example,
-        collateral: UInt256.example,
-        maxSlotLoss: 123.uint64
+
+asyncchecksuite "Test proof datasampler - components":
+  let
+    numberOfSlotBlocks = 16
+    slot = Slot(
+      request: StorageRequest(
+        ask: StorageAsk(
+          slots: 10,
+          slotSize: u256(bytesPerBlock * numberOfSlotBlocks),
+        ),
+        content: StorageContent(
+          cid: $Cid.example
+        )
       ),
-      content: StorageContent(
-        cid: "cidstringtodo",
-        erasure: StorageErasure(),
-        por: StoragePoR()
-      ),
-      expiry: UInt256.example,
-      nonce: Nonce.example
-    ),
-    slotIndex: u256(3)
-  )
-
-asyncchecksuite "Test proof datasampler":
-  let chunker = RandomChunker.new(rng.Rng.instance(),
-    size = bytesPerBlock * numberOfSlotBlocks,
-    chunkSize = bytesPerBlock)
-
-  var slotBlocks: seq[bt.Block]
-
-  proc createSlotBlocks(): Future[void] {.async.} =
-    while true:
-      let chunk = await chunker.getBytes()
-      if chunk.len <= 0:
-        break
-      slotBlocks.add(bt.Block.new(chunk).tryGet())
-
-  setup:
-    await createSlotBlocks()
+      slotIndex: u256(3)
+    )
 
   test "Number of cells is a power of two":
     # This is to check that the data used for testing is sane.
@@ -199,15 +167,89 @@ asyncchecksuite "Test proof datasampler":
       cell1Proof.verifyDataBlock(cell1Bytes, miniTree.root).tryGet()
       cell2Proof.verifyDataBlock(cell2Bytes, miniTree.root).tryGet()
 
+asyncchecksuite "Test proof datasampler - main":
+  let
+    numberOfSlotBlocks = 4 # 16
+    totalNumberOfSlots = 2 #4
+    datasetSlotIndex = 1
+    localStore = CacheStore.new()
+
+  var
+    manifest: Manifest
+    manifestBlock: bt.Block
+    slot: Slot
+    datasetBlocks: seq[bt.Block]
+
+  proc createDatasetBlocks(): Future[void] {.async.} =
+    let numberOfCellsNeeded = (numberOfSlotBlocks * totalNumberOfSlots * bytesPerBlock).uint64 div CellSize
+    var data: seq[byte] = @[]
+
+    # This generates a number of blocks that have different data, such that
+    # Each cell in each block is unique, but nothing is random.
+    for i in 0 ..< numberOfCellsNeeded:
+      data = data & (i.byte).repeat(CellSize)
+
+    let chunker = MockChunker.new(
+      dataset = data,
+      chunkSize = bytesPerBlock)
+
+    while true:
+      let chunk = await chunker.getBytes()
+      if chunk.len <= 0:
+        break
+      let b = bt.Block.new(chunk).tryGet()
+      datasetBlocks.add(b)
+      discard await localStore.putBlock(b)
+
+  proc createManifest(): Future[void] {.async.} =
+    let
+      cids = datasetBlocks.mapIt(it.cid)
+      tree = MerkleTree.init(cids).tryGet()
+      treeCid = tree.rootCid().tryGet()
+
+    for index, cid in cids:
+      let proof = tree.getProof(index).tryget()
+      discard await localStore.putBlockCidAndProof(treeCid, index, cid, proof)
+
+    manifest = Manifest.new(
+      treeCid = treeCid,
+      blockSize = bytesPerBlock.NBytes,
+      datasetSize = (bytesPerBlock * numberOfSlotBlocks * totalNumberOfSlots).NBytes)
+    manifestBlock = bt.Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
+
+  proc createSlot(): void =
+    slot = Slot(
+      request: StorageRequest(
+        ask: StorageAsk(
+          slotSize: u256(bytesPerBlock * numberOfSlotBlocks)
+        ),
+        content: StorageContent(
+          cid: $manifestBlock.cid
+        ),
+      ),
+      slotIndex: u256(datasetSlotIndex)
+    )
+
+  setup:
+    await createDatasetBlocks()
+    await createManifest()
+    createSlot()
+    discard await localStore.putBlock(manifestBlock)
+
   test "Can gather proof input":
     # This is the main entry point for this module, and what it's all about.
     let
-      localStore = CacheStore.new()
       datasetToSlotProof = MerkleProof.example
-      slotPoseidonTree = MerkleTree.init(@[Cid.example]).tryget()
+      datasetBlockIndexFirst = getDatasetBlockIndexForSlotBlockIndex(slot, bytesPerBlock.uint64, 0.uint64)
+      datasetBlockIndexLast = datasetBlockIndexFirst + numberOfSlotBlocks.uint64
+      slotBlocks = datasetBlocks[datasetBlockIndexFirst ..< datasetBlockIndexLast]
+      slotBlockCids = slotBlocks.mapIt(it.cid)
+      slotPoseidonTree = MerkleTree.init(slotBlockCids).tryGet()
       nSamples = 3
 
-      a = (await getProofInput(
+    discard await localStore.putBlock(manifestBlock)
+
+    let a = (await getProofInput(
         slot,
         localStore,
         slotRootHash,
@@ -216,6 +258,16 @@ asyncchecksuite "Test proof datasampler":
         challenge,
         nSamples)).tryget()
 
-    echo "a.slotToBlockProofs: " & $a.slotToBlockProofs.len
-    echo "a.blockToCellProofs: " & $a.blockToCellProofs.len
-    echo "a.sampleData: " & $a.sampleData.len
+    proc toStr(proof: MerkleProof): string =
+      toHex(proof.nodesBuffer)
+
+    let
+      expectedSlotToBlockProofs = getExpectedSlotToBlockProofs()
+      expectedBlockToCellProofs = getExpectedBlockToCellProofs()
+      expectedSampleData = getExpectedSampleData()
+
+    check:
+      a.datasetToSlotProof == datasetToSlotProof
+      a.slotToBlockProofs.mapIt(toStr(it)) == expectedSlotToBlockProofs
+      a.blockToCellProofs.mapIt(toStr(it)) == expectedBlockToCellProofs
+      toHex(a.sampleData) == expectedSampleData

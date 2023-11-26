@@ -20,7 +20,7 @@ import ../examples
 let
   bytesPerBlock = 64 * 1024
   numberOfSlotBlocks = 4
-  slotIndex = 3
+  datasetSlotIndex = 3
 
 asyncchecksuite "Test slotblocks - manifest":
   let
@@ -41,7 +41,7 @@ asyncchecksuite "Test slotblocks - manifest":
           cid: $manifestBlock.cid
         ),
       ),
-      slotIndex: u256(slotIndex)
+      slotIndex: u256(datasetSlotIndex)
     )
 
   setup:
@@ -116,7 +116,6 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
       datasetSize = (bytesPerBlock * numberOfSlotBlocks * totalNumberOfSlots).NBytes)
     manifestBlock = bt.Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
 
-
   proc createSlot(): void =
     slot = Slot(
       request: StorageRequest(
@@ -127,7 +126,7 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
           cid: $manifestBlock.cid
         ),
       ),
-      slotIndex: u256(slotIndex)
+      slotIndex: u256(datasetSlotIndex)
     )
 
   setup:
