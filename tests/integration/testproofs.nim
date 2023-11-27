@@ -22,14 +22,14 @@ marketplacesuite "Hosts submit regular proofs":
     clients:
       NodeConfig()
         .nodes(1)
-        .debug() # uncomment to enable console log output
+        # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("node"),
 
     providers:
       NodeConfig()
         .nodes(1)
-        .debug() # uncomment to enable console log output
+        # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("marketplace", "sales", "reservations", "node"),
   ):
@@ -71,7 +71,7 @@ marketplacesuite "Simulate invalid proofs":
     clients:
       NodeConfig()
         .nodes(1)
-        .debug() # uncomment to enable console log output
+        # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("node"),
 
@@ -79,7 +79,7 @@ marketplacesuite "Simulate invalid proofs":
       NodeConfig()
         .nodes(1)
         .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=1)
-        .debug() # uncomment to enable console log output
+        # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("marketplace", "sales", "reservations", "node"),
 
@@ -87,7 +87,7 @@ marketplacesuite "Simulate invalid proofs":
       NodeConfig()
         .nodes(1)
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .debug() # uncomment to enable console log output
+        # .debug() # uncomment to enable console log output
         .withLogTopics("validator", "onchain", "ethers")
   ):
     let client0 = clients()[0].node.client
@@ -123,7 +123,7 @@ marketplacesuite "Simulate invalid proofs":
     clients:
       NodeConfig()
         .nodes(1)
-        .debug() # uncomment to enable console log output
+        # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("node"),
 
@@ -131,14 +131,14 @@ marketplacesuite "Simulate invalid proofs":
       NodeConfig()
         .nodes(1)
         .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=3)
-        .debug() # uncomment to enable console log output
+        # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("marketplace", "sales", "reservations", "node"),
 
     validators:
       NodeConfig()
         .nodes(1)
-        .debug()
+        # .debug()
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("validator", "onchain", "ethers")
   ):
@@ -176,7 +176,7 @@ marketplacesuite "Simulate invalid proofs":
     clients:
       NodeConfig()
         .nodes(1)
-        .debug() # uncomment to enable console log output.debug()
+        # .debug() # uncomment to enable console log output.debug()
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("node", "erasure", "clock", "purchases"),
 
@@ -184,14 +184,14 @@ marketplacesuite "Simulate invalid proofs":
       NodeConfig()
         .nodes(2)
         .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=2)
-        .debug() # uncomment to enable console log output
+        # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("marketplace", "sales", "reservations", "node"),
 
     validators:
       NodeConfig()
         .nodes(1)
-        .debug()
+        # .debug()
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("validator")
   ):

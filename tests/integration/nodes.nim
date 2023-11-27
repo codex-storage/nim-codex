@@ -40,7 +40,8 @@ proc start(node: NodeProcess) =
     node.process = osproc.startProcess(
       executable,
       workingDir,
-      node.arguments
+      node.arguments,
+      options={poStdErrToStdOut, poInteractive}
     )
 
 proc waitUntilOutput*(node: NodeProcess, output: string) =
@@ -51,12 +52,6 @@ proc waitUntilOutput*(node: NodeProcess, output: string) =
     if line.contains(output):
       return
   raiseAssert "node did not output '" & output & "'"
-
-proc waitUntilStarted*(node: NodeProcess) =
-  if node.debug or defined(windows):
-    sleep(5_000)
-  else:
-    node.waitUntilOutput("Started codex node")
 
 proc startNode*(args: openArray[string], debug: string | bool = false): NodeProcess =
   ## Starts a Codex Node with the specified arguments.
@@ -83,6 +78,12 @@ proc client*(node: NodeProcess): CodexClient =
   let client = CodexClient.new(node.apiUrl)
   node.client = some client
   client
+
+proc waitUntilStarted*(node: NodeProcess) =
+  while true:
+    if client(node).isAvailable:
+      break
+    sleep(1)
 
 method stop*(node: NodeProcess) {.base.} =
   if node.process != nil:
