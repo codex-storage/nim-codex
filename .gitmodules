@@ -164,9 +164,9 @@
 [submodule "vendor/nim-leopard"]
 	path = vendor/nim-leopard
 	url = https://github.com/status-im/nim-leopard.git
-[submodule "vendor/nim-libp2p-dht"]
-	path = vendor/nim-libp2p-dht
-	url = https://github.com/status-im/nim-libp2p-dht.git
+[submodule "vendor/nim-codex-dht"]
+	path = vendor/nim-codex-dht
+	url = https://github.com/codex-storage/nim-codex-dht.git
 	ignore = untracked
 	branch = master
 [submodule "vendor/nim-datastore"]
