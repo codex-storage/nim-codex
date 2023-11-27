@@ -272,16 +272,15 @@ asyncchecksuite "Test proof datasampler - main":
       nSamples = 3
       input = (await dataSampler.getProofInput(challenge, nSamples)).tryget()
 
+    proc equal(a: FieldElement, b: FieldElement): bool =
+      a.toDecimal() == b.toDecimal()
+
     proc toStr(proof: MerkleProof): string =
       toHex(proof.nodesBuffer)
 
     let
-      expectedSlotToBlockProofs = getExpectedSlotToBlockProofs()
-      expectedBlockToCellProofs = getExpectedBlockToCellProofs()
-      expectedSampleData = getExpectedSampleData()
-
-    proc equal(a: FieldElement, b: FieldElement): bool =
-      a.toDecimal() == b.toDecimal()
+      expectedMerkleProofs = getExpectedSlotToBlockProofs()
+      expectedCellData = getExpectedCellData()
 
     check:
       # datasetRoot*: FieldElement
@@ -299,9 +298,13 @@ asyncchecksuite "Test proof datasampler - main":
       # datasetToSlotProof*: MerkleProof
       input.datasetToSlotProof == datasetToSlotProof
       # proofSamples*: seq[ProofSample]
-      # yeah
-
-
+      toStr(input.proofSamples[0].merkleProof) == expectedMerkleProofs[0]
+      toStr(input.proofSamples[1].merkleProof) == expectedMerkleProofs[1]
+      toStr(input.proofSamples[2].merkleProof) == expectedMerkleProofs[2]
+      # cell data
+      toHex(input.proofSamples[0].cellData) == expectedCellData[0]
+      toHex(input.proofSamples[1].cellData) == expectedCellData[1]
+      toHex(input.proofSamples[2].cellData) == expectedCellData[2]
 
       # input.slotToBlockProofs.mapIt(toStr(it)) == expectedSlotToBlockProofs
       # input.blockToCellProofs.mapIt(toStr(it)) == expectedBlockToCellProofs

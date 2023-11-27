@@ -146,7 +146,7 @@ proc getProofInput*(self: DataSampler, challenge: FieldElement, nSamples: int): 
   var
     slotToBlockProofs: seq[MerkleProof]
     blockToCellProofs: seq[MerkleProof]
-    sampleData: seq[byte]
+    samples: seq[ProofSample]
 
   let slotCellIndices = self.findSlotCellIndices(challenge, nSamples)
 
@@ -175,7 +175,14 @@ proc getProofInput*(self: DataSampler, challenge: FieldElement, nSamples: int): 
     blockToCellProofs.add(cellProof)
 
     let cell = self.getCellFromBlock(blk, slotCellIndex)
-    sampleData = sampleData & cell
+
+    proc combine(bottom: MerkleProof, top: MerkleProof): MerkleProof =
+      return bottom
+
+    samples.add(ProofSample(
+      cellData: cell,
+      merkleProof: combine(cellProof, blockProof)
+    ))
 
   trace "Successfully collected proof input"
   success(ProofInput(
@@ -186,9 +193,5 @@ proc getProofInput*(self: DataSampler, challenge: FieldElement, nSamples: int): 
     datasetSlotIndex: self.datasetSlotIndex,
     slotRoot: self.slotRootHash,
     datasetToSlotProof: self.datasetToSlotProof,
-    #proofSamples: yeah!
-
-    # slotToBlockProofs: slotToBlockProofs,
-    # blockToCellProofs: blockToCellProofs,
-    # sampleData: sampleData
+    proofSamples: samples
   ))
