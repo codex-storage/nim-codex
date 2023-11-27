@@ -1,5 +1,7 @@
 import std/httpclient
 import std/strutils
+import std/sequtils
+
 from pkg/libp2p import Cid, `$`, init
 import pkg/chronicles
 import pkg/stint
@@ -31,6 +33,56 @@ proc upload*(client: CodexClient, contents: string): ?!Cid =
   assert response.status == "200 OK"
   Cid.init(response.body).mapFailure
 
+proc download*(client: CodexClient, cid: Cid, local = false): ?!string =
+  let
+    response = client.http.get(
+      client.baseurl & "/data/" & $cid &
+      (if local: "" else: "/network"))
+
+  if response.status != "200 OK":
+    return failure(response.status)
+
+  success response.body
+
+proc list*(client: CodexClient): ?!seq[RestContent] =
+  let url = client.baseurl & "/data"
+  let response = client.http.get(url)
+
+  if response.status != "200 OK":
+    return failure(response.status)
+
+  let json = ? parseJson(response.body).catch
+  seq[RestContent].fromJson(json)
+
+proc requestStorageRaw*(
+    client: CodexClient,
+    cid: Cid,
+    duration: UInt256,
+    reward: UInt256,
+    proofProbability: UInt256,
+    collateral: UInt256,
+    expiry: UInt256 = 0.u256,
+    nodes: uint = 1,
+    tolerance: uint = 0
+): Response =
+
+  ## Call request storage REST endpoint
+  ##
+  let url = client.baseurl & "/storage/request/" & $cid
+  let json = %*{
+      "duration": duration,
+      "reward": reward,
+      "proofProbability": proofProbability,
+      "collateral": collateral,
+      "nodes": nodes,
+      "tolerance": tolerance
+    }
+
+  if expiry != 0:
+    json["expiry"] = %expiry
+
+  return client.http.post(url, $json)
+
 proc requestStorage*(
     client: CodexClient,
     cid: Cid,
@@ -44,17 +96,7 @@ proc requestStorage*(
 ): ?!PurchaseId =
   ## Call request storage REST endpoint
   ##
-  let url = client.baseurl & "/storage/request/" & $cid
-  let json = %*{
-    "duration": duration,
-    "reward": reward,
-    "proofProbability": proofProbability,
-    "expiry": expiry,
-    "collateral": collateral,
-    "nodes": nodes,
-    "tolerance": tolerance
-  }
-  let response = client.http.post(url, $json)
+  let response = client.requestStorageRaw(cid, duration, reward, proofProbability, collateral, expiry, nodes, tolerance)
   assert response.status == "200 OK"
   PurchaseId.fromHex(response.body).catch
 

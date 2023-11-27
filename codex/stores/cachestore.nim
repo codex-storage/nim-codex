@@ -230,6 +230,17 @@ method ensureExpiry*(
 
   discard # CacheStore does not have notion of TTL
 
+method ensureExpiry*(
+    self: CacheStore,
+    treeCid: Cid,
+    index: Natural,
+    expiry: SecondsSince1970
+): Future[?!void] {.async.} =
+  ## Updates block's associated TTL in store - not applicable for CacheStore
+  ##
+
+  discard # CacheStore does not have notion of TTL
+
 method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
   ## Delete a block from the blockstore
   ##

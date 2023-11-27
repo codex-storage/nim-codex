@@ -1,4 +1,5 @@
 import pkg/questionable
+import pkg/questionable/results
 import pkg/chronicles
 import ../../conf
 import ../statemachine
@@ -37,9 +38,18 @@ method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
   if host == me.some:
     info "Slot succesfully filled", requestId = $data.requestId, slotIndex = $data.slotIndex
 
-    if request =? data.request:
-      if onFilled =? agent.onFilled:
-        onFilled(request, data.slotIndex)
+    without request =? data.request:
+      raiseAssert "no sale request"
+
+    if onFilled =? agent.onFilled:
+      onFilled(request, data.slotIndex)
+
+    without onExpiryUpdate =? context.onExpiryUpdate:
+      raiseAssert "onExpiryUpdate callback not set"
+
+    let requestEnd = await market.getRequestEnd(data.requestId)
+    if err =? (await onExpiryUpdate(request.content.cid, requestEnd)).errorOption:
+      return some State(SaleErrored(error: err))
 
     when codex_enable_proof_failures:
       if context.simulateProofFailures > 0:

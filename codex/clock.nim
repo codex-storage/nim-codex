@@ -1,6 +1,7 @@
 import pkg/chronos
 import pkg/stew/endians2
 import pkg/upraises
+import pkg/stint
 
 type
   Clock* = ref object of RootObj
@@ -12,6 +13,12 @@ method now*(clock: Clock): SecondsSince1970 {.base, upraises: [].} =
 
 method waitUntil*(clock: Clock, time: SecondsSince1970) {.base, async.} =
   raiseAssert "not implemented"
+
+method start*(clock: Clock) {.base, async.} =
+  discard
+
+method stop*(clock: Clock) {.base, async.} =
+  discard
 
 proc withTimeout*(future: Future[void],
                   clock: Clock,
@@ -32,3 +39,6 @@ proc toBytes*(i: SecondsSince1970): seq[byte] =
 proc toSecondsSince1970*(bytes: seq[byte]): SecondsSince1970 =
   let asUint = uint64.fromBytes(bytes)
   cast[int64](asUint)
+
+proc toSecondsSince1970*(bigint: UInt256): SecondsSince1970 =
+  bigint.truncate(int64)

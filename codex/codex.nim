@@ -34,6 +34,7 @@ import ./utils/fileutils
 import ./erasure
 import ./discovery
 import ./contracts
+import ./systemclock
 import ./contracts/clock
 import ./contracts/deployment
 import ./utils/addrutils
@@ -55,12 +56,15 @@ type
   EthWallet = ethers.Wallet
 
 proc bootstrapInteractions(
-    config: CodexConf,
-    repo: RepoStore
-): Future[Contracts] {.async.} =
+    s: CodexServer
+): Future[void] {.async.} =
   ## bootstrap interactions and return contracts
   ## using clients, hosts, validators pairings
   ##
+  let
+    config = s.config
+    repo = s.repoStore
+
 
   if not config.persistence and not config.validator:
     if config.ethAccount.isSome or config.ethPrivateKey.isSome:
@@ -106,6 +110,11 @@ proc bootstrapInteractions(
   var host: ?HostInteractions
   var validator: ?ValidatorInteractions
 
+  if config.validator or config.persistence:
+    s.codexNode.clock = clock
+  else:
+    s.codexNode.clock = SystemClock()
+
   if config.persistence:
     # This is used for simulation purposes. Normal nodes won't be compiled with this flag
     # and hence the proof failure will always be 0.
@@ -126,7 +135,7 @@ proc bootstrapInteractions(
     let validation = Validation.new(clock, market, config.validatorMaxSlots)
     validator = some ValidatorInteractions.new(clock, validation)
 
-  return (client, host, validator)
+  s.codexNode.contracts = (client, host, validator)
 
 proc start*(s: CodexServer) {.async.} =
   trace "Starting codex node", config = $s.config
@@ -161,7 +170,7 @@ proc start*(s: CodexServer) {.async.} =
   s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
   s.codexNode.discovery.updateDhtRecord(s.config.nat, s.config.discoveryPort)
 
-  s.codexNode.contracts = await bootstrapInteractions(s.config, s.repoStore)
+  await s.bootstrapInteractions()
   await s.codexNode.start()
   s.restServer.start()
 

@@ -1,5 +1,6 @@
 import std/options
 import std/sequtils
+import std/httpclient
 from pkg/libp2p import `==`
 import pkg/chronos
 import pkg/stint
@@ -42,6 +43,53 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     let cid1 = client1.upload("some file contents").get
     let cid2 = client1.upload("some other contents").get
     check cid1 != cid2
+
+  test "node allows local file downloads":
+    let content1 = "some file contents"
+    let content2 = "some other contents"
+
+    let cid1 = client1.upload(content1).get
+    let cid2 = client2.upload(content2).get
+
+    let resp1 = client1.download(cid1, local = true).get
+    let resp2 = client2.download(cid2, local = true).get
+
+    check:
+      content1 == resp1
+      content2 == resp2
+
+  test "node allows remote file downloads":
+    let content1 = "some file contents"
+    let content2 = "some other contents"
+
+    let cid1 = client1.upload(content1).get
+    let cid2 = client2.upload(content2).get
+
+    let resp2 = client1.download(cid2, local = false).get
+    let resp1 = client2.download(cid1, local = false).get
+
+    check:
+      content1 == resp1
+      content2 == resp2
+
+  test "node fails retrieving non-existing local file":
+    let content1 = "some file contents"
+    let cid1 = client1.upload(content1).get # upload to first node
+    let resp2 = client2.download(cid1, local = true) # try retrieving from second node
+
+    check:
+      resp2.error.msg == "404 Not Found"
+
+  test "node lists local files":
+    let content1 = "some file contents"
+    let content2 = "some other contents"
+
+    let cid1 = client1.upload(content1).get
+    let cid2 = client1.upload(content2).get
+    let list = client1.list().get
+
+    check:
+      [cid1, cid2].allIt(it in list.mapIt(it.cid))
 
   test "node handles new storage availability":
     let availability1 = client1.postAvailability(size=1.u256, duration=2.u256, minPrice=3.u256, maxCollateral=4.u256).get
@@ -168,6 +216,19 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     await provider.advanceTime(duration)
 
     check eventually (await token.balanceOf(account2)) - startBalance == duration*reward
+
+  test "node requires expiry and its value to be in future":
+    let currentTime = await provider.currentTime()
+    let cid = client1.upload("some file contents").get
+
+    let responseMissing = client1.requestStorageRaw(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256)
+    check responseMissing.status == "400 Bad Request"
+    check responseMissing.body == "Expiry required"
+
+    let responsePast = client1.requestStorageRaw(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256, expiry=currentTime-10)
+    check responsePast.status == "400 Bad Request"
+    check responsePast.body == "Expiry needs to be in future"
+
 
   test "expired request partially pays out for stored time":
     let marketplace = Marketplace.new(Marketplace.address, provider.getSigner())
