@@ -193,7 +193,7 @@ asyncchecksuite "Test proof datasampler - main":
     check:
       isPow2(numberOfCells)
 
-  let knownIndices = @[50.uint64, 21.uint64, 110.uint64]
+  let knownIndices = @[74.uint64, 41.uint64, 51.uint64]
 
   test "Can find single slot-cell index":
     proc slotCellIndex(i: int): uint64 =
@@ -203,7 +203,8 @@ asyncchecksuite "Test proof datasampler - main":
     proc getExpectedIndex(i: int): uint64 =
       let
         numberOfCellsInSlot = (bytesPerBlock * numberOfSlotBlocks) div CellSize.int
-        hash = Sponge.digest(@[datasetRootHash, challenge, toF(i)], rate = 2)
+        slotRootHash = toF(1234) # TODO - replace with slotPoseidonTree.root when it is a poseidon tree.
+        hash = Sponge.digest(@[slotRootHash, challenge, toF(i)], rate = 2)
       return extractLowBits(hash.toBig(), ceilingLog2(numberOfCellsInSlot))
 
     check:
