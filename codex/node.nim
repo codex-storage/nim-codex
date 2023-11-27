@@ -377,14 +377,7 @@ proc requestStorage*(
     ),
     content: StorageContent(
       cid: $encodedBlk.cid,
-      erasure: StorageErasure(
-        totalChunks: encoded.blocksCount.uint64,
-      ),
-      por: StoragePoR(
-        u: @[],         # TODO: PoR setup
-        publicKey: @[], # TODO: PoR setup
-        name: @[]       # TODO: PoR setup
-      )
+      merkleRoot: array[32, byte].default # TODO: add merkle root for storage proofs
     ),
     expiry: expiry
   )

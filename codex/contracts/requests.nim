@@ -28,14 +28,7 @@ type
     maxSlotLoss* {.serialize.}: uint64
   StorageContent* = object
     cid* {.serialize.}: string
-    erasure*: StorageErasure
-    por*: StoragePoR
-  StorageErasure* = object
-    totalChunks*: uint64
-  StoragePoR* = object
-    u*: seq[byte]
-    publicKey*: seq[byte]
-    name*: seq[byte]
+    merkleRoot*: array[32, byte]
   Slot* = object
     request* {.serialize.}: StorageRequest
     slotIndex* {.serialize.}: UInt256
@@ -111,27 +104,8 @@ func fromTuple(_: type StorageAsk, tupl: tuple): StorageAsk =
 func fromTuple(_: type StorageContent, tupl: tuple): StorageContent =
   StorageContent(
     cid: tupl[0],
-    erasure: tupl[1],
-    por: tupl[2]
+    merkleRoot: tupl[1]
   )
-
-func fromTuple(_: type StorageErasure, tupl: tuple): StorageErasure =
-  StorageErasure(
-    totalChunks: tupl[0]
-  )
-
-func fromTuple(_: type StoragePoR, tupl: tuple): StoragePoR =
-  StoragePoR(
-    u: tupl[0],
-    publicKey: tupl[1],
-    name: tupl[2]
-  )
-
-func solidityType*(_: type StoragePoR): string =
-  solidityType(StoragePoR.fieldTypes)
-
-func solidityType*(_: type StorageErasure): string =
-  solidityType(StorageErasure.fieldTypes)
 
 func solidityType*(_: type StorageContent): string =
   solidityType(StorageContent.fieldTypes)
@@ -141,12 +115,6 @@ func solidityType*(_: type StorageAsk): string =
 
 func solidityType*(_: type StorageRequest): string =
   solidityType(StorageRequest.fieldTypes)
-
-func encode*(encoder: var AbiEncoder, por: StoragePoR) =
-  encoder.write(por.fieldValues)
-
-func encode*(encoder: var AbiEncoder, erasure: StorageErasure) =
-  encoder.write(erasure.fieldValues)
 
 func encode*(encoder: var AbiEncoder, content: StorageContent) =
   encoder.write(content.fieldValues)
@@ -162,14 +130,6 @@ func encode*(encoder: var AbiEncoder, request: StorageRequest) =
 
 func encode*(encoder: var AbiEncoder, request: Slot) =
   encoder.write(request.fieldValues)
-
-func decode*(decoder: var AbiDecoder, T: type StoragePoR): ?!T =
-  let tupl = ?decoder.read(StoragePoR.fieldTypes)
-  success StoragePoR.fromTuple(tupl)
-
-func decode*(decoder: var AbiDecoder, T: type StorageErasure): ?!T =
-  let tupl = ?decoder.read(StorageErasure.fieldTypes)
-  success StorageErasure.fromTuple(tupl)
 
 func decode*(decoder: var AbiDecoder, T: type StorageContent): ?!T =
   let tupl = ?decoder.read(StorageContent.fieldTypes)
