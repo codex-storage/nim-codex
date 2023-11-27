@@ -34,7 +34,7 @@ type
     blockStore: BlockStore
     slotBlocks: SlotBlocks
     # The following data is invariant over time for a given slot:
-    slotRootHash: DSFieldElement
+    slotRootHash: FieldElement
     slotPoseidonTree: MerkleTree
     datasetToSlotProof: MerkleProof
     blockSize: uint64
@@ -48,7 +48,7 @@ proc new*(
     T: type DataSampler,
     slot: Slot,
     blockStore: BlockStore,
-    slotRootHash: DSFieldElement,
+    slotRootHash: FieldElement,
     slotPoseidonTree: MerkleTree,
     datasetToSlotProof: MerkleProof
 ): Future[?!DataSampler] {.async.} =
@@ -87,7 +87,7 @@ func extractLowBits*[n: static int](A: BigInt[n], k: int): uint64 =
       r = bitor(r, 1'u64 shl i)
   return r
 
-proc convertToSlotCellIndex(self: DataSampler, fe: DSFieldElement): uint64 =
+proc convertToSlotCellIndex(self: DataSampler, fe: FieldElement): uint64 =
   let
     n = self.numberOfCellsInSlot.int
     log2 = ceilingLog2(n)
@@ -95,33 +95,32 @@ proc convertToSlotCellIndex(self: DataSampler, fe: DSFieldElement): uint64 =
 
   return extractLowBits(fe.toBig(), log2)
 
-proc getSlotBlockIndexForSlotCellIndex*(self: DataSampler, slotCellIndex: DSSlotCellIndex): uint64 =
+func getSlotBlockIndexForSlotCellIndex*(self: DataSampler, slotCellIndex: uint64): uint64 =
   return slotCellIndex div self.numberOfCellsPerBlock
 
-proc getBlockCellIndexForSlotCellIndex*(self: DataSampler, slotCellIndex: DSSlotCellIndex): uint64 =
+func getBlockCellIndexForSlotCellIndex*(self: DataSampler, slotCellIndex: uint64): uint64 =
   return slotCellIndex mod self.numberOfCellsPerBlock
 
-proc findSlotCellIndex*(self: DataSampler, challenge: DSFieldElement, counter: DSFieldElement): DSSlotCellIndex =
+proc findSlotCellIndex*(self: DataSampler, challenge: FieldElement, counter: FieldElement): uint64 =
   # Computes the slot-cell index for a single sample.
   let
     input = @[self.slotRootHash, challenge, counter]
     hash = Sponge.digest(input, rate = 2)
   return convertToSlotCellIndex(self, hash)
 
-func findSlotCellIndices*(self: DataSampler, challenge: DSFieldElement, nSamples: int): seq[DSSlotCellIndex] =
+func findSlotCellIndices*(self: DataSampler, challenge: FieldElement, nSamples: int): seq[uint64] =
   # Computes nSamples slot-cell indices.
   return collect(newSeq, (for i in 1..nSamples: self.findSlotCellIndex(challenge, toF(i))))
 
-proc getCellFromBlock*(self: DataSampler, blk: bt.Block, slotCellIndex: DSSlotCellIndex): DSCell =
+proc getCellFromBlock*(self: DataSampler, blk: bt.Block, slotCellIndex: uint64): Cell =
   let
     blockCellIndex = self.getBlockCellIndexForSlotCellIndex(slotCellIndex)
     dataStart = (CellSize * blockCellIndex)
     dataEnd = dataStart + CellSize
-
   return blk.data[dataStart ..< dataEnd]
 
-proc getBlockCells*(self: DataSampler, blk: bt.Block): seq[DSCell] =
-  var cells: seq[DSCell]
+proc getBlockCells*(self: DataSampler, blk: bt.Block): seq[Cell] =
+  var cells: seq[Cell]
   for i in 0 ..< self.numberOfCellsPerBlock:
     cells.add(self.getCellFromBlock(blk, i))
   return cells
@@ -139,7 +138,7 @@ proc getBlockCellMiniTree*(self: DataSampler, blk: bt.Block): ?!MerkleTree =
 
   return builder.build()
 
-proc getProofInput*(self: DataSampler, challenge: DSFieldElement, nSamples: int): Future[?!ProofInput] {.async.} =
+proc getProofInput*(self: DataSampler, challenge: FieldElement, nSamples: int): Future[?!ProofInput] {.async.} =
   var
     slotToBlockProofs: seq[MerkleProof]
     blockToCellProofs: seq[MerkleProof]
