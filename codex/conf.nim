@@ -46,7 +46,7 @@ const
   codex_enable_api_debug_peers* {.booldefine.} = false
   codex_enable_proof_failures* {.booldefine.} = false
   codex_enable_log_counter* {.booldefine.} = false
-  chronosFuturesInstrumentation* {.booldefine.} = false
+  chronosProfiling* {.booldefine.} = false
 
 type
   StartUpCommand* {.pure.} = enum

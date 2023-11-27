@@ -1,10 +1,10 @@
 import std/times
 import std/unittest
 
+import pkg/chronos/profiler
 import pkg/metrics
 
-import codex/utils/asyncprofiler
-
+import codex/utils/asyncprofiler/metricscollector
 import ../../helpers
 
 suite "asyncprofiler metrics collector":
@@ -18,45 +18,40 @@ suite "asyncprofiler metrics collector":
   ]
 
   let sample = {
-    (addr locations[0]): OverallMetrics(
-      totalExecTime: timer.nanoseconds(90062),
-      totalRunTime: timer.nanoseconds(113553),
-      totalWallTime: timer.nanoseconds(174567),
-      minSingleTime: timer.nanoseconds(80062),
-      maxSingleTime: timer.nanoseconds(80062),
-      count: 1
+    locations[0]: AggregateFutureMetrics(
+      execTime: timer.nanoseconds(90062),
+      execTimeMax: timer.nanoseconds(80062),
+      childrenExecTime: timer.nanoseconds(52044),
+      wallClockTime: timer.nanoseconds(174567),
+      callCount: 1
     ),
-    (addr locations[1]): OverallMetrics(
-      totalExecTime: timer.nanoseconds(91660),
-      totalRunTime: timer.nanoseconds(71660),
-      totalWallTime: timer.nanoseconds(72941),
-      minSingleTime: timer.nanoseconds(71660),
-      maxSingleTime: timer.nanoseconds(81660),
-      count: 1
+    locations[1]: AggregateFutureMetrics(
+      execTime: timer.nanoseconds(91660),
+      execTimeMax: timer.nanoseconds(81660),
+      childrenExecTime: timer.nanoseconds(52495),
+      wallClockTime: timer.nanoseconds(72941),
+      callCount: 1
     ),
-    (addr locations[2]): OverallMetrics(
-      totalExecTime: timer.nanoseconds(60529),
-      totalRunTime: timer.nanoseconds(60529),
-      totalWallTime: timer.nanoseconds(60784),
-      minSingleTime: timer.nanoseconds(60529),
-      maxSingleTime: timer.nanoseconds(60529),
-      count: 1
+    locations[2]: AggregateFutureMetrics(
+      execTime: timer.nanoseconds(60529),
+      execTimeMax: timer.nanoseconds(60529),
+      childrenExecTime: timer.nanoseconds(9689),
+      wallClockTime: timer.nanoseconds(60784),
+      callCount: 1
     ),
-    (addr locations[3]): OverallMetrics(
-      totalExecTime: timer.nanoseconds(60645),
-      totalRunTime: timer.nanoseconds(156214),
-      totalWallTime: timer.nanoseconds(60813),
-      minSingleTime: timer.nanoseconds(5333),
-      maxSingleTime: timer.nanoseconds(41257),
-      count: 3
+    locations[3]: AggregateFutureMetrics(
+      execTime: timer.nanoseconds(60645),
+      execTimeMax: timer.nanoseconds(41257),
+      childrenExecTime: timer.nanoseconds(72934),
+      wallClockTime: timer.nanoseconds(60813),
+      callCount: 3
     ),
-    (addr locations[4]): OverallMetrics(
-      totalExecTime: timer.nanoseconds(0),
-      totalRunTime: timer.nanoseconds(156214),
-      totalWallTime: timer.nanoseconds(60813),
-      minSingleTime: timer.nanoseconds(0),
-      maxSingleTime: timer.nanoseconds(0),
-      count: 3
+    locations[4]: AggregateFutureMetrics(
+      execTime: timer.nanoseconds(0),
+      execTimeMax: timer.nanoseconds(0),
+      childrenExecTime: timer.nanoseconds(0),
+      wallClockTime: timer.nanoseconds(60813),
+      callCount: 3
     )
   }.toTable
 
@@ -66,7 +61,7 @@ suite "asyncprofiler metrics collector":
 
   proc setupCollector(k: int = high(int)): void =
     collector = AsyncProfilerInfo.newCollector(
-      perfSampler = proc (): MetricsSummary = sample,
+      perfSampler = proc (): MetricsTotals = sample,
       clock = proc (): Time = wallTime,
       sampleInterval = times.initDuration(minutes = 5),
       k = k,
@@ -75,25 +70,19 @@ suite "asyncprofiler metrics collector":
     collector.reset()
     collector.collect()
 
-  test "should keep track of basic worst-case exec time stats":
+  test "should create labeled series for the k slowest procs in terms of execTime":
     setupCollector(k = 3)
 
-    check chronos_largest_exec_time_total.value == 91660
-    check chronos_largest_exec_time_max.value == 81660
-
-  test "should create labeled series for the k slowest procs in terms of totalExecTime":
-    setupCollector(k = 3)
-
-    check chronos_exec_time_total.value(
-      labelValues = @["start", "discovery.nim", "192"]) == 91660
-    check chronos_exec_time_total.value(
-      labelValues = @["start", "discovery.nim", "174"]) == 90062
-    check chronos_exec_time_total.value(
-      labelValues = @["update", "sqliteds.nim", "107"]) == 60645
+    check chronos_exec_time_with_children_total.value(
+      labelValues = @["start", "discovery.nim", "192"]) == 144155
+    check chronos_exec_time_with_children_total.value(
+      labelValues = @["start", "discovery.nim", "174"]) == 142106
+    check chronos_exec_time_with_children_total.value(
+      labelValues = @["update", "sqliteds.nim", "107"]) == 133579
 
     # This is out of the top-k slowest, so should not have been recorded.
     expect system.KeyError:
-      discard chronos_exec_time_total.value(
+      discard chronos_exec_time_with_children_total.value(
         labelValues = @["query", "manager.nim", "323"])
 
   test "should not collect metrics again unless enough time has elapsed from last collection":

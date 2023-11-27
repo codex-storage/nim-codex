@@ -1,8 +1,9 @@
 import ../conf
 
-when chronosFuturesInstrumentation:
-  import ./asyncprofiler/asyncprofiler
+when chronosProfiling:
+  import chronos/profiler
+
   import ./asyncprofiler/serialization
   import ./asyncprofiler/metricscollector
 
-  export asyncprofiler, serialization, metricscollector
+  export profiler, serialization, metricscollector

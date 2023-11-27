@@ -57,9 +57,9 @@ when isMainModule:
 
   # TODO this should not be here, but currently can't have it in setupMetrics
   #   or we get a circular import.
-  when chronosFuturesInstrumentation:
+  when chronosProfiling:
+    enableProfiling()
     AsyncProfilerInfo.initDefault(k = config.profilerMaxMetrics)
-    enableChronosProfiling()
 
   case config.cmd:
   of StartUpCommand.noCommand:

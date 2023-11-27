@@ -460,14 +460,14 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
 
-  when chronosFuturesInstrumentation:
+  when chronosProfiling:
     router.api(
       MethodGet,
       "/api/codex/v1/debug/performance") do () -> RestApiResponse:
-        # Returns profiling information, highest totalExecTime first
+        # Returns profiling information, highest execTime first
 
-        without metrics =? sortBy(%(profiler.getFutureSummaryMetrics()),
-          "totalExecTime").catch, error:
+        without metrics =? sortBy(%(getMetrics().totals),
+          "execTime").catch, error:
             return RestApiResponse.error(Http500, error.msg)
 
         RestApiResponse.response($(metrics), contentType="application/json")

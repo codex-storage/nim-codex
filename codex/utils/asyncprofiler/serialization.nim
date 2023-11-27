@@ -2,7 +2,7 @@
 import std/algorithm
 import std/json
 
-import asyncprofiler
+import chronos/profiler
 
 proc `%`*(o: Duration): JsonNode =
   %(o.nanoseconds)
@@ -10,16 +10,16 @@ proc `%`*(o: Duration): JsonNode =
 proc `%`*(o: cstring): JsonNode =
   %($(o))
 
-proc toJson*(o: MetricsSummary): JsonNode =
+proc toJson*(o: Table[SrcLoc, AggregateFutureMetrics]): JsonNode =
   var rows = newJArray()
   for (location, metric) in o.pairs:
     var row = %(metric)
-    row["location"] = %(location[])
+    row["location"] = %(location)
     rows.add(row)
 
   rows
 
-proc `%`*(o: MetricsSummary): JsonNode = o.toJson()
+proc `%`*(o: Table[SrcLoc, AggregateFutureMetrics]): JsonNode = o.toJson()
 
 proc sortBy*(jArray: JsonNode, metric: string): JsonNode {.raises: [ref KeyError].} =
   %(jArray.getElems.sorted(

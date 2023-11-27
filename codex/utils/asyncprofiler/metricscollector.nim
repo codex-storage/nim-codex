@@ -1,10 +1,12 @@
 import std/algorithm
 import std/enumerate
 import std/sequtils
+import std/tables
 import std/times
 
-import asyncprofiler
-import metrics
+import pkg/chronos
+import pkg/chronos/profiler
+import pkg/metrics
 
 when defined(metrics):
   type
@@ -17,11 +19,11 @@ when defined(metrics):
       lastSample: Time
       collections*: uint
 
-    PerfSampler = proc (): MetricsSummary {.raises: [].}
+    PerfSampler = proc (): MetricsTotals {.raises: [].}
 
     Clock = proc (): Time {.raises: [].}
 
-    ProfilerMetric = (SrcLoc, OverallMetrics)
+    ProfilerMetric = (SrcLoc, AggregateFutureMetrics)
 
   const locationLabels = ["proc", "file", "line"]
 
@@ -33,8 +35,8 @@ when defined(metrics):
   )
 
   declarePublicGauge(
-    chronos_run_time_total,
-    "chronos_exec_time_total of this proc plus of all its children (procs" &
+    chronos_exec_time_with_children_total,
+    "chronos_exec_time_with_children_total of this proc plus of all its children (procs" &
     "that this proc called and awaited for)",
     labels = locationLabels,
   )
@@ -57,17 +59,6 @@ when defined(metrics):
     chronos_single_exec_time_max,
     "the maximum execution time for a single call of this proc",
     labels = locationLabels,
-  )
-
-  # Global Statistics
-  declarePublicGauge(
-    chronos_largest_exec_time_total,
-    "the largest chronos_exec_time_total of all procs",
-  )
-
-  declarePublicGauge(
-    chronos_largest_exec_time_max,
-    "the largest chronos_single_exec_time_max of all procs",
   )
 
   # Keeps track of the thread initializing the module. This is the only thread
@@ -108,40 +99,22 @@ when defined(metrics):
         $(location.line),
       ]
 
-      chronos_exec_time_total.set(metrics.totalExecTime.nanoseconds,
+      chronos_exec_time_total.set(metrics.execTime.nanoseconds,
         labelValues = locationLabels)
 
-      chronos_run_time_total.set(metrics.totalRunTime.nanoseconds,
+      chronos_exec_time_with_children_total.set(
+        metrics.execTimeWithChildren.nanoseconds,
+        labelValues = locationLabels
+      )
+
+      chronos_wall_time_total.set(metrics.wallClockTime.nanoseconds,
         labelValues = locationLabels)
 
-      chronos_wall_time_total.set(metrics.totalWallTime.nanoseconds,
+      chronos_single_exec_time_max.set(metrics.execTimeMax.nanoseconds,
         labelValues = locationLabels)
 
-      chronos_single_exec_time_max.set(metrics.maxSingleTime.nanoseconds,
+      chronos_call_count_total.set(metrics.callCount.int64,
         labelValues = locationLabels)
-
-      chronos_call_count_total.set(metrics.count, labelValues = locationLabels)
-
-  proc collectOutlierMetrics(
-    self: AsyncProfilerInfo,
-    profilerMetrics: seq[ProfilerMetric],
-    timestampMillis: int64,
-  ): void =
-    ## Adds summary metrics for the procs that have the highest exec time
-    ## (which stops the async loop) and the highest max exec time. This can
-    ## help spot outliers.
-
-    var largestExecTime = low(timer.Duration)
-    var largestMaxExecTime = low(timer.Duration)
-
-    for (_, metric) in profilerMetrics:
-      if metric.maxSingleTime > largestMaxExecTime:
-        largestMaxExecTime = metric.maxSingleTime
-      if metric.totalExecTime > largestExecTime:
-        largestExecTime = metric.totalExecTime
-
-    chronos_largest_exec_time_total.set(largestExecTime.nanoseconds)
-    chronos_largest_exec_time_max.set(largestMaxExecTime.nanoseconds)
 
   proc collect*(self: AsyncProfilerInfo, force: bool = false): void =
     # Calling this method from the wrong thread has happened a lot in the past,
@@ -158,24 +131,19 @@ when defined(metrics):
       perfSampler().
       pairs.
       toSeq.
-      map(
-        proc (pair: (ptr SrcLoc, OverallMetrics)): ProfilerMetric =
-          (pair[0][], pair[1])
-      ).
       # We don't scoop metrics with 0 exec time as we have a limited number of
       # prometheus slots, and those are less likely to be useful in debugging
       # Chronos performance issues.
       filter(
         proc (pair: ProfilerMetric): bool =
-          pair[1].totalExecTime.nanoseconds > 0
+          pair[1].execTimeWithChildren.nanoseconds > 0
       ).
       sorted(
         proc (a, b: ProfilerMetric): int =
-          cmp(a[1].totalExecTime, b[1].totalExecTime),
+          cmp(a[1].execTimeWithChildren, b[1].execTimeWithChildren),
         order = SortOrder.Descending
       )
 
-    self.collectOutlierMetrics(currentMetrics, now.toMilliseconds())
     self.collectSlowestProcs(currentMetrics, now.toMilliseconds(), self.k)
 
     self.lastSample = now
@@ -188,14 +156,13 @@ when defined(metrics):
 
   proc reset*(self: AsyncProfilerInfo): void =
     resetMetric(chronos_exec_time_total)
-    resetMetric(chronos_run_time_total)
+    resetMetric(chronos_exec_time_with_children_total)
     resetMetric(chronos_wall_time_total)
     resetMetric(chronos_call_count_total)
     resetMetric(chronos_single_exec_time_max)
-    resetMetric(chronos_largest_exec_time_total)
-    resetMetric(chronos_largest_exec_time_max)
 
   var asyncProfilerInfo* {.global.}: AsyncProfilerInfo
+  var wrappedEventHandler {.global.}: proc (e: Event) {.nimcall, gcsafe, raises: [].}
 
   proc initDefault*(AsyncProfilerInfo: typedesc, k: int) =
     assert getThreadId() == moduleInitThread, "You cannot call " &
@@ -203,11 +170,18 @@ when defined(metrics):
       "metricscolletor module."
 
     asyncProfilerInfo = AsyncProfilerInfo.newCollector(
-      perfSampler = proc (): MetricsSummary = profiler.getFutureSummaryMetrics(),
+      perfSampler = proc (): MetricsTotals = getMetrics().totals,
       k = k,
       # We want to collect metrics every 5 seconds.
       sampleInterval = initDuration(seconds = 5),
       clock = proc (): Time = getTime(),
     )
 
-    profiler.setChangeCallback(proc (): void = asyncProfilerInfo.collect())
+    wrappedEventHandler = handleFutureEvent
+    handleFutureEvent = proc (e: Event) {.nimcall, gcsafe.} =
+      {.cast(gcsafe).}:
+        wrappedEventHandler(e)
+
+        if e.newState == ExtendedFutureState.Completed:
+          asyncProfilerInfo.collect()
+
