@@ -7,9 +7,8 @@ const
   CellSize* = 2048.uint64
 
 type
-  DSFieldElement* = F
-  DSSlotCellIndex* = uint64
-  DSCell* = seq[byte]
+  FieldElement* = F
+  Cell* = seq[byte]
   ProofInput* = ref object
     datasetToSlotProof*: MerkleProof
     slotToBlockProofs*: seq[MerkleProof]

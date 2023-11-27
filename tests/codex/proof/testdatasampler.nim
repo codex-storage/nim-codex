@@ -28,8 +28,8 @@ import testdatasampler_expected
 
 let
   bytesPerBlock = 64 * 1024
-  challenge: DSFieldElement = toF(12345)
-  slotRootHash: DSFieldElement = toF(6789)
+  challenge: FieldElement = toF(12345)
+  slotRootHash: FieldElement = toF(6789)
 
 asyncchecksuite "Test proof datasampler - components":
   let
@@ -181,6 +181,109 @@ asyncchecksuite "Test proof datasampler - main":
     createSlotPoseidonTree()
     await createDataSampler()
 
+  test "Number of cells is a power of two":
+    # This is to check that the data used for testing is sane.
+    proc isPow2(value: int): bool =
+      let log2 = ceilingLog2(value)
+      return (1 shl log2) == value
+
+    let numberOfCells = getNumberOfCellsInSlot(slot).int
+
+    check:
+      isPow2(numberOfCells)
+
+  let knownIndices = @[50.uint64, 21.uint64, 110.uint64]
+
+  test "Can find single slot-cell index":
+    proc slotCellIndex(i: int): uint64 =
+      let counter: FieldElement = toF(i)
+      return dataSampler.findSlotCellIndex(challenge, counter)
+
+    proc getExpectedIndex(i: int): uint64 =
+      let
+        numberOfCellsInSlot = (bytesPerBlock * numberOfSlotBlocks) div CellSize.int
+        hash = Sponge.digest(@[slotRootHash, challenge, toF(i)], rate = 2)
+      return extractLowBits(hash.toBig(), ceilingLog2(numberOfCellsInSlot))
+
+    check:
+      slotCellIndex(1) == getExpectedIndex(1)
+      slotCellIndex(1) == knownIndices[0]
+      slotCellIndex(2) == getExpectedIndex(2)
+      slotCellIndex(2) == knownIndices[1]
+      slotCellIndex(3) == getExpectedIndex(3)
+      slotCellIndex(3) == knownIndices[2]
+
+  test "Can find sequence of slot-cell indices":
+    proc slotCellIndices(n: int): seq[uint64]  =
+      dataSampler.findSlotCellIndices(challenge, n)
+
+    proc getExpectedIndices(n: int): seq[uint64]  =
+      return collect(newSeq, (for i in 1..n: dataSampler.findSlotCellIndex(challenge, toF(i))))
+
+    check:
+      slotCellIndices(3) == getExpectedIndices(3)
+      slotCellIndices(3) == knownIndices
+
+  let
+    bytes = newSeqWith(bytesPerBlock, rand(uint8))
+    blk = bt.Block.new(bytes).tryGet()
+    cell0Bytes = bytes[0..<CellSize]
+    cell1Bytes = bytes[CellSize..<(CellSize*2)]
+    cell2Bytes = bytes[(CellSize*2)..<(CellSize*3)]
+
+  test "Can get cell from block":
+    let
+      sample0 = dataSampler.getCellFromBlock(blk, 0)
+      sample1 = dataSampler.getCellFromBlock(blk, 1)
+      sample2 = dataSampler.getCellFromBlock(blk, 2)
+
+    check:
+      sample0 == cell0Bytes
+      sample1 == cell1Bytes
+      sample2 == cell2Bytes
+
+  test "Can convert block into cells":
+    let cells = dataSampler.getBlockCells(blk)
+
+    check:
+      cells.len == (bytesPerBlock div CellSize.int)
+      cells[0] == cell0Bytes
+      cells[1] == cell1Bytes
+      cells[2] == cell2Bytes
+
+  test "Can create mini tree for block cells":
+    let miniTree = dataSampler.getBlockCellMiniTree(blk).tryGet()
+
+    let
+      cell0Proof = miniTree.getProof(0).tryGet()
+      cell1Proof = miniTree.getProof(1).tryGet()
+      cell2Proof = miniTree.getProof(2).tryGet()
+
+    check:
+      cell0Proof.verifyDataBlock(cell0Bytes, miniTree.root).tryGet()
+      cell1Proof.verifyDataBlock(cell1Bytes, miniTree.root).tryGet()
+      cell2Proof.verifyDataBlock(cell2Bytes, miniTree.root).tryGet()
+
+  test "Can gather proof input":
+    # This is the main entry point for this module, and what it's all about.
+    let
+      nSamples = 3
+      input = (await dataSampler.getProofInput(challenge, nSamples)).tryget()
+
+    proc toStr(proof: MerkleProof): string =
+      toHex(proof.nodesBuffer)
+
+    let
+      expectedSlotToBlockProofs = getExpectedSlotToBlockProofs()
+      expectedBlockToCellProofs = getExpectedBlockToCellProofs()
+      expectedSampleData = getExpectedSampleData()
+
+    check:
+      input.datasetToSlotProof == datasetToSlotProof
+      input.slotToBlockProofs.mapIt(toStr(it)) == expectedSlotToBlockProofs
+      input.blockToCellProofs.mapIt(toStr(it)) == expectedBlockToCellProofs
+      toHex(input.sampleData) == expectedSampleData
+
   for (input, expected) in [(10, 0), (31, 0), (32, 1), (63, 1), (64, 2)]:
     test "Can get slotBlockIndex from slotCellIndex (" & $input & " -> " & $expected & ")":
       let
@@ -198,105 +301,3 @@ asyncchecksuite "Test proof datasampler - main":
 
       check:
         blockCellIndex == expected.uint64
-
-  let knownIndices = @[178.uint64, 277.uint64, 366.uint64]
-
-  test "Can find single slot-cell index":
-    proc slotCellIndex(i: int): DSSlotCellIndex =
-      let counter: DSFieldElement = toF(i)
-      return dataSampler.findSlotCellIndex(challenge, counter)
-
-    proc getExpectedIndex(i: int): DSSlotCellIndex =
-      let
-        numberOfCellsInSlot = (bytesPerBlock * numberOfSlotBlocks) div CellSize.int
-        hash = Sponge.digest(@[slotRootHash, challenge, toF(i)], rate = 2)
-      return extractLowBits(hash.toBig(), ceilingLog2(numberOfCellsInSlot))
-
-    check:
-      slotCellIndex(1) == getExpectedIndex(1)
-      slotCellIndex(1) == knownIndices[0]
-      slotCellIndex(2) == getExpectedIndex(2)
-      slotCellIndex(2) == knownIndices[1]
-      slotCellIndex(3) == getExpectedIndex(3)
-      slotCellIndex(3) == knownIndices[2]
-
-  # test "Can find sequence of slot-cell indices":
-  #   proc slotCellIndices(n: int): seq[DSSlotCellIndex]  =
-  #     dataSampler.findSlotCellIndices(challenge, n)
-
-  #   proc getExpectedIndices(n: int): seq[DSSlotCellIndex]  =
-  #     return collect(newSeq, (for i in 1..n: dataSampler.findSlotCellIndex(challenge, toF(i))))
-
-  #   check:
-  #     slotCellIndices(3) == getExpectedIndices(3)
-  #     slotCellIndices(3) == knownIndices
-
-  # test "Can get cell from block":
-  #   let
-  #     bytes = newSeqWith(bytesPerBlock, rand(uint8))
-  #     blk = bt.Block.new(bytes).tryGet()
-
-  #     sample0 = dataSampler.getCellFromBlock(blk, 0)
-  #     sample1 = dataSampler.getCellFromBlock(blk, 1)
-  #     sample2 = dataSampler.getCellFromBlock(blk, 2)
-
-  #   check:
-  #     sample0 == bytes[0..<CellSize]
-  #     sample1 == bytes[CellSize..<(CellSize*2)]
-  #     sample2 == bytes[(CellSize*2)..^1]
-
-  # test "Can convert block into cells":
-  #   let
-  #     bytes = newSeqWith(bytesPerBlock, rand(uint8))
-  #     blk = bt.Block.new(bytes).tryGet()
-
-  #     cells = dataSampler.getBlockCells(blk)
-
-  #   check:
-  #     cells.len == (bytesPerBlock div CellSize.int)
-  #     cells[0] == bytes[0..<CellSize]
-  #     cells[1] == bytes[CellSize..<(CellSize*2)]
-  #     cells[2] == bytes[(CellSize*2)..(CellSize*3)]
-
-  # test "Can create mini tree for block cells":
-  #   let
-  #     bytes = newSeqWith(bytesPerBlock, rand(uint8))
-  #     blk = bt.Block.new(bytes).tryGet()
-  #     cell0Bytes = bytes[0..<CellSize]
-  #     cell1Bytes = bytes[CellSize..<(CellSize*2)]
-  #     cell2Bytes = bytes[(CellSize*2)..^1]
-
-  #     miniTree = dataSampler.getBlockCellMiniTree(blk).tryGet()
-
-  #   let
-  #     cell0Proof = miniTree.getProof(0).tryGet()
-  #     cell1Proof = miniTree.getProof(1).tryGet()
-  #     cell2Proof = miniTree.getProof(2).tryGet()
-
-  #   check:
-  #     cell0Proof.verifyDataBlock(cell0Bytes, miniTree.root).tryGet()
-  #     cell1Proof.verifyDataBlock(cell1Bytes, miniTree.root).tryGet()
-  #     cell2Proof.verifyDataBlock(cell2Bytes, miniTree.root).tryGet()
-
-
-  # test "Can gather proof input":
-  #   # This is the main entry point for this module, and what it's all about.
-  #   let nSamples = 3
-
-  #   discard await localStore.putBlock(manifestBlock)
-
-  #   let input = (await dataSampler.getProofInput(challenge, nSamples)).tryget()
-
-  #   proc toStr(proof: MerkleProof): string =
-  #     toHex(proof.nodesBuffer)
-
-  #   let
-  #     expectedSlotToBlockProofs = getExpectedSlotToBlockProofs()
-  #     expectedBlockToCellProofs = getExpectedBlockToCellProofs()
-  #     expectedSampleData = getExpectedSampleData()
-
-  #   check:
-  #     input.datasetToSlotProof == datasetToSlotProof
-  #     input.slotToBlockProofs.mapIt(toStr(it)) == expectedSlotToBlockProofs
-  #     input.blockToCellProofs.mapIt(toStr(it)) == expectedBlockToCellProofs
-  #     toHex(input.sampleData) == expectedSampleData
