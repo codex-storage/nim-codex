@@ -29,7 +29,7 @@ type
     client: ?CodexClient
 
 proc start(node: NodeProcess) =
-  if node.debug:
+  if node.debug or defined(windows):
     node.process = osproc.startProcess(
       executable,
       workingDir,
@@ -40,8 +40,7 @@ proc start(node: NodeProcess) =
     node.process = osproc.startProcess(
       executable,
       workingDir,
-      node.arguments,
-      options={poStdErrToStdOut, poInteractive}
+      node.arguments
     )
 
 proc waitUntilOutput*(node: NodeProcess, output: string) =
