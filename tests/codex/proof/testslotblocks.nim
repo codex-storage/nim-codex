@@ -12,7 +12,6 @@ import pkg/codex/contracts
 import pkg/codex/merkletree
 
 import pkg/codex/proof/slotblocks
-import pkg/codex/proof/indexing
 
 import ../helpers
 import ../examples
@@ -47,15 +46,20 @@ asyncchecksuite "Test slotblocks - manifest":
   setup:
     discard await localStore.putBlock(manifestBlock)
 
+  proc getManifest(store: BlockStore): Future[?!Manifest] {.async.} =
+    without slotBlocks =? await SlotBlocks.new(slot, store), err:
+      return failure(err)
+    return success(slotBlocks.manifest)
+
   test "Can get manifest for slot":
-    let m = (await getManifestForSlot(slot, localStore)).tryGet()
+    let m = (await getManifest(localStore)).tryGet()
 
     check:
       m.treeCid == manifest.treeCid
 
   test "Can fail to get manifest for invalid cid":
     slot.request.content.cid = "invalid"
-    let m = (await getManifestForSlot(slot, localStore))
+    let m = (await getManifest(localStore))
 
     check:
       m.isErr
@@ -63,7 +67,7 @@ asyncchecksuite "Test slotblocks - manifest":
   test "Can fail to get manifest when manifest block not found":
     let
       emptyStore = CacheStore.new()
-      m = (await getManifestForSlot(slot, emptyStore))
+      m = (await getManifest(emptyStore))
 
     check:
       m.isErr
@@ -71,7 +75,7 @@ asyncchecksuite "Test slotblocks - manifest":
   test "Can fail to get manifest when manifest fails to decode":
     manifestBlock.data = @[]
 
-    let m = (await getManifestForSlot(slot, localStore))
+    let m = (await getManifest(localStore))
 
     check:
       m.isErr
@@ -90,6 +94,7 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
     manifestBlock: bt.Block
     slot: Slot
     datasetBlocks: seq[bt.Block]
+    slotBlocks: SlotBlocks
 
   proc createDatasetBlocks(): Future[void] {.async.} =
     while true:
@@ -129,17 +134,33 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
       slotIndex: u256(datasetSlotIndex)
     )
 
+  proc createSlotBlocks(): Future[void] {.async.} =
+    slotBlocks = (await SlotBlocks.new(slot, localStore)).tryGet()
+
   setup:
     await createDatasetBlocks()
     await createManifest()
     createSlot()
     discard await localStore.putBlock(manifestBlock)
+    await createSlotBlocks()
+
+  for input in 0 ..< numberOfSlotBlocks:
+    test "Can get datasetBlockIndex from slotBlockIndex (" & $input & ")":
+      let
+        slotBlockIndex = input.uint64
+        datasetBlockIndex = slotBlocks.getDatasetBlockIndexForSlotBlockIndex(slotBlockIndex)
+        datasetSlotIndex = slot.slotIndex.truncate(uint64)
+        expectedIndex = (numberOfSlotBlocks.uint64 * datasetSlotIndex) + slotBlockIndex
+
+      check:
+        datasetBlockIndex == expectedIndex
 
   for input in [0, 1, numberOfSlotBlocks-1]:
     test "Can get slot block by index (" & $input & ")":
       let
-        slotBlock = (await getSlotBlock(slot, localStore, input.uint64)).tryget()
-        expectedDatasetBlockIndex = getDatasetBlockIndexForSlotBlockIndex(slot, bytesPerBlock.uint64, input.uint64)
+        slotBlockIndex = input.uint64
+        slotBlock = (await slotBlocks.getSlotBlock(slotBlockIndex)).tryget()
+        expectedDatasetBlockIndex = slotBlocks.getDatasetBlockIndexForSlotBlockIndex(slotBlockIndex)
         expectedBlock = datasetBlocks[expectedDatasetBlockIndex]
 
       check:
@@ -148,8 +169,8 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
 
   test "Can fail to get block when index is out of range":
     let
-      b1 = await getSlotBlock(slot, localStore, numberOfSlotBlocks.uint64)
-      b2 = await getSlotBlock(slot, localStore, (numberOfSlotBlocks + 1).uint64)
+      b1 = await slotBlocks.getSlotBlock(numberOfSlotBlocks.uint64)
+      b2 = await slotBlocks.getSlotBlock((numberOfSlotBlocks + 1).uint64)
 
     check:
       b1.isErr
