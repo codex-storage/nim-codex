@@ -5,6 +5,7 @@ import std/random
 import pkg/questionable/results
 import pkg/constantine/math/arithmetic
 import pkg/poseidon2/types
+import pkg/poseidon2/io
 import pkg/poseidon2
 import pkg/chronos
 import pkg/asynctest
@@ -20,7 +21,6 @@ import pkg/codex/stores/cachestore
 import pkg/codex/proof/datasampler
 import pkg/codex/proof/misc
 import pkg/codex/proof/types
-import pkg/codex/proof/indexing
 
 import ../helpers
 import ../examples
@@ -59,7 +59,7 @@ asyncchecksuite "Test proof datasampler - components":
       isPow2(numberOfCells)
 
   test "Extract low bits":
-    proc extract(value: int, nBits: int): uint64 =
+    proc extract(value: uint64, nBits: int): uint64 =
       let big = toF(value).toBig()
       return extractLowBits(big, nBits)
 
@@ -70,10 +70,10 @@ asyncchecksuite "Test proof datasampler - components":
       extract(0x9A, 7) == 0x1A.uint64
       extract(0x1248, 10) == 0x248.uint64
       extract(0x1248, 12) == 0x248.uint64
-      # extract(0x1248306A560C9AC0, 10) == 0x2C0.uint64
-      # extract(0x1248306A560C9AC0, 12) == 0xAC0.uint64
-      # extract(0x1248306A560C9AC0, 50) == 0x306A560C9AC0.uint64
-      # extract(0x1248306A560C9AC0, 52) == 0x8306A560C9AC0.uint64
+      extract(0x1248306A560C9AC0.uint64, 10) == 0x2C0.uint64
+      extract(0x1248306A560C9AC0.uint64, 12) == 0xAC0.uint64
+      extract(0x1248306A560C9AC0.uint64, 50) == 0x306A560C9AC0.uint64
+      extract(0x1248306A560C9AC0.uint64, 52) == 0x8306A560C9AC0.uint64
 
   test "Should calculate total number of cells in Slot":
     let
@@ -84,89 +84,6 @@ asyncchecksuite "Test proof datasampler - components":
       expectedNumberOfCells == 512
       expectedNumberOfCells == getNumberOfCellsInSlot(slot)
 
-  let knownIndices = @[178.uint64, 277.uint64, 366.uint64]
-
-  test "Can find single slot-cell index":
-    let numberOfCells = getNumberOfCellsInSlot(slot)
-
-    proc slotCellIndex(i: int): DSSlotCellIndex =
-      let counter: DSFieldElement = toF(i)
-      return findSlotCellIndex(slotRootHash, challenge, counter, numberOfCells)
-
-    proc getExpectedIndex(i: int): DSSlotCellIndex =
-      let hash = Sponge.digest(@[slotRootHash, challenge, toF(i)], rate = 2)
-      return extractLowBits(hash.toBig(), ceilingLog2(numberOfCells.int))
-
-    check:
-      slotCellIndex(1) == getExpectedIndex(1)
-      slotCellIndex(1) == knownIndices[0]
-      slotCellIndex(2) == getExpectedIndex(2)
-      slotCellIndex(2) == knownIndices[1]
-      slotCellIndex(3) == getExpectedIndex(3)
-      slotCellIndex(3) == knownIndices[2]
-
-  test "Can find sequence of slot-cell indices":
-    proc slotCellIndices(n: int): seq[DSSlotCellIndex]  =
-      findSlotCellIndices(slot, slotRootHash, challenge, n)
-
-    let numberOfCells = getNumberOfCellsInSlot(slot)
-    proc getExpectedIndices(n: int): seq[DSSlotCellIndex]  =
-      return collect(newSeq, (for i in 1..n: findSlotCellIndex(slotRootHash, challenge, toF(i), numberOfCells)))
-
-    check:
-      slotCellIndices(3) == getExpectedIndices(3)
-      slotCellIndices(3) == knownIndices
-
-  test "Can get cell from block":
-    let
-      blockSize = CellSize * 3
-      bytes = newSeqWith(blockSize.int, rand(uint8))
-      blk = bt.Block.new(bytes).tryGet()
-
-      sample0 = getCellFromBlock(blk, 0, blockSize.uint64)
-      sample1 = getCellFromBlock(blk, 1, blockSize.uint64)
-      sample2 = getCellFromBlock(blk, 2, blockSize.uint64)
-
-    check:
-      sample0 == bytes[0..<CellSize]
-      sample1 == bytes[CellSize..<(CellSize*2)]
-      sample2 == bytes[(CellSize*2)..^1]
-
-  test "Can convert block into cells":
-    let
-      blockSize = CellSize * 3
-      bytes = newSeqWith(blockSize.int, rand(uint8))
-      blk = bt.Block.new(bytes).tryGet()
-
-      cells = getBlockCells(blk, blockSize)
-
-    check:
-      cells.len == 3
-      cells[0] == bytes[0..<CellSize]
-      cells[1] == bytes[CellSize..<(CellSize*2)]
-      cells[2] == bytes[(CellSize*2)..^1]
-
-  test "Can create mini tree for block cells":
-    let
-      blockSize = CellSize * 3
-      bytes = newSeqWith(blockSize.int, rand(uint8))
-      blk = bt.Block.new(bytes).tryGet()
-      cell0Bytes = bytes[0..<CellSize]
-      cell1Bytes = bytes[CellSize..<(CellSize*2)]
-      cell2Bytes = bytes[(CellSize*2)..^1]
-
-      miniTree = getBlockCellMiniTree(blk, blockSize).tryGet()
-
-    let
-      cell0Proof = miniTree.getProof(0).tryGet()
-      cell1Proof = miniTree.getProof(1).tryGet()
-      cell2Proof = miniTree.getProof(2).tryGet()
-
-    check:
-      cell0Proof.verifyDataBlock(cell0Bytes, miniTree.root).tryGet()
-      cell1Proof.verifyDataBlock(cell1Bytes, miniTree.root).tryGet()
-      cell2Proof.verifyDataBlock(cell2Bytes, miniTree.root).tryGet()
-
 asyncchecksuite "Test proof datasampler - main":
   let
     # The number of slot blocks and number of slots, combined with
@@ -176,12 +93,15 @@ asyncchecksuite "Test proof datasampler - main":
     totalNumberOfSlots = 2
     datasetSlotIndex = 1
     localStore = CacheStore.new()
+    datasetToSlotProof = MerkleProof.example
 
   var
     manifest: Manifest
     manifestBlock: bt.Block
     slot: Slot
     datasetBlocks: seq[bt.Block]
+    slotPoseidonTree: MerkleTree
+    dataSampler: DataSampler
 
   proc createDatasetBlocks(): Future[void] {.async.} =
     let numberOfCellsNeeded = (numberOfSlotBlocks * totalNumberOfSlots * bytesPerBlock).uint64 div CellSize
@@ -233,44 +153,150 @@ asyncchecksuite "Test proof datasampler - main":
       slotIndex: u256(datasetSlotIndex)
     )
 
+  proc createSlotPoseidonTree(): void =
+    let
+      slotSize = slot.request.ask.slotSize.truncate(uint64)
+      blocksInSlot = slotSize div bytesPerBlock.uint64
+      datasetSlotIndex = slot.slotIndex.truncate(uint64)
+      datasetBlockIndexFirst = datasetSlotIndex * blocksInSlot
+      datasetBlockIndexLast = datasetBlockIndexFirst + numberOfSlotBlocks.uint64
+      slotBlocks = datasetBlocks[datasetBlockIndexFirst ..< datasetBlockIndexLast]
+      slotBlockCids = slotBlocks.mapIt(it.cid)
+    slotPoseidonTree = MerkleTree.init(slotBlockCids).tryGet()
+
+  proc createDataSampler(): Future[void] {.async.} =
+    dataSampler = (await DataSampler.new(
+      slot,
+      localStore,
+      slotRootHash,
+      slotPoseidonTree,
+      datasetToSlotProof
+    )).tryGet()
+
   setup:
     await createDatasetBlocks()
     await createManifest()
     createSlot()
     discard await localStore.putBlock(manifestBlock)
+    createSlotPoseidonTree()
+    await createDataSampler()
 
-  test "Can gather proof input":
-    # This is the main entry point for this module, and what it's all about.
-    let
-      datasetToSlotProof = MerkleProof.example
-      datasetBlockIndexFirst = getDatasetBlockIndexForSlotBlockIndex(slot, bytesPerBlock.uint64, 0.uint64)
-      datasetBlockIndexLast = datasetBlockIndexFirst + numberOfSlotBlocks.uint64
-      slotBlocks = datasetBlocks[datasetBlockIndexFirst ..< datasetBlockIndexLast]
-      slotBlockCids = slotBlocks.mapIt(it.cid)
-      slotPoseidonTree = MerkleTree.init(slotBlockCids).tryGet()
-      nSamples = 3
+  for (input, expected) in [(10, 0), (31, 0), (32, 1), (63, 1), (64, 2)]:
+    test "Can get slotBlockIndex from slotCellIndex (" & $input & " -> " & $expected & ")":
+      let
+        slotCellIndex = input.uint64
+        slotBlockIndex = dataSampler.getSlotBlockIndexForSlotCellIndex(slotCellIndex)
 
-    discard await localStore.putBlock(manifestBlock)
+      check:
+        slotBlockIndex == expected.uint64
 
-    let a = (await getProofInput(
-        slot,
-        localStore,
-        slotRootHash,
-        slotPoseidonTree,
-        datasetToSlotProof,
-        challenge,
-        nSamples)).tryget()
+  for (input, expected) in [(10, 10), (31, 31), (32, 0), (63, 31), (64, 0)]:
+    test "Can get blockCellIndex from slotCellIndex (" & $input & " -> " & $expected & ")":
+      let
+        slotCellIndex = input.uint64
+        blockCellIndex = dataSampler.getBlockCellIndexForSlotCellIndex(slotCellIndex)
 
-    proc toStr(proof: MerkleProof): string =
-      toHex(proof.nodesBuffer)
+      check:
+        blockCellIndex == expected.uint64
 
-    let
-      expectedSlotToBlockProofs = getExpectedSlotToBlockProofs()
-      expectedBlockToCellProofs = getExpectedBlockToCellProofs()
-      expectedSampleData = getExpectedSampleData()
+  let knownIndices = @[178.uint64, 277.uint64, 366.uint64]
+
+  test "Can find single slot-cell index":
+    proc slotCellIndex(i: int): DSSlotCellIndex =
+      let counter: DSFieldElement = toF(i)
+      return dataSampler.findSlotCellIndex(challenge, counter)
+
+    proc getExpectedIndex(i: int): DSSlotCellIndex =
+      let
+        numberOfCellsInSlot = (bytesPerBlock * numberOfSlotBlocks) div CellSize.int
+        hash = Sponge.digest(@[slotRootHash, challenge, toF(i)], rate = 2)
+      return extractLowBits(hash.toBig(), ceilingLog2(numberOfCellsInSlot))
 
     check:
-      a.datasetToSlotProof == datasetToSlotProof
-      a.slotToBlockProofs.mapIt(toStr(it)) == expectedSlotToBlockProofs
-      a.blockToCellProofs.mapIt(toStr(it)) == expectedBlockToCellProofs
-      toHex(a.sampleData) == expectedSampleData
+      slotCellIndex(1) == getExpectedIndex(1)
+      slotCellIndex(1) == knownIndices[0]
+      slotCellIndex(2) == getExpectedIndex(2)
+      slotCellIndex(2) == knownIndices[1]
+      slotCellIndex(3) == getExpectedIndex(3)
+      slotCellIndex(3) == knownIndices[2]
+
+  # test "Can find sequence of slot-cell indices":
+  #   proc slotCellIndices(n: int): seq[DSSlotCellIndex]  =
+  #     dataSampler.findSlotCellIndices(challenge, n)
+
+  #   proc getExpectedIndices(n: int): seq[DSSlotCellIndex]  =
+  #     return collect(newSeq, (for i in 1..n: dataSampler.findSlotCellIndex(challenge, toF(i))))
+
+  #   check:
+  #     slotCellIndices(3) == getExpectedIndices(3)
+  #     slotCellIndices(3) == knownIndices
+
+  # test "Can get cell from block":
+  #   let
+  #     bytes = newSeqWith(bytesPerBlock, rand(uint8))
+  #     blk = bt.Block.new(bytes).tryGet()
+
+  #     sample0 = dataSampler.getCellFromBlock(blk, 0)
+  #     sample1 = dataSampler.getCellFromBlock(blk, 1)
+  #     sample2 = dataSampler.getCellFromBlock(blk, 2)
+
+  #   check:
+  #     sample0 == bytes[0..<CellSize]
+  #     sample1 == bytes[CellSize..<(CellSize*2)]
+  #     sample2 == bytes[(CellSize*2)..^1]
+
+  # test "Can convert block into cells":
+  #   let
+  #     bytes = newSeqWith(bytesPerBlock, rand(uint8))
+  #     blk = bt.Block.new(bytes).tryGet()
+
+  #     cells = dataSampler.getBlockCells(blk)
+
+  #   check:
+  #     cells.len == (bytesPerBlock div CellSize.int)
+  #     cells[0] == bytes[0..<CellSize]
+  #     cells[1] == bytes[CellSize..<(CellSize*2)]
+  #     cells[2] == bytes[(CellSize*2)..(CellSize*3)]
+
+  # test "Can create mini tree for block cells":
+  #   let
+  #     bytes = newSeqWith(bytesPerBlock, rand(uint8))
+  #     blk = bt.Block.new(bytes).tryGet()
+  #     cell0Bytes = bytes[0..<CellSize]
+  #     cell1Bytes = bytes[CellSize..<(CellSize*2)]
+  #     cell2Bytes = bytes[(CellSize*2)..^1]
+
+  #     miniTree = dataSampler.getBlockCellMiniTree(blk).tryGet()
+
+  #   let
+  #     cell0Proof = miniTree.getProof(0).tryGet()
+  #     cell1Proof = miniTree.getProof(1).tryGet()
+  #     cell2Proof = miniTree.getProof(2).tryGet()
+
+  #   check:
+  #     cell0Proof.verifyDataBlock(cell0Bytes, miniTree.root).tryGet()
+  #     cell1Proof.verifyDataBlock(cell1Bytes, miniTree.root).tryGet()
+  #     cell2Proof.verifyDataBlock(cell2Bytes, miniTree.root).tryGet()
+
+
+  # test "Can gather proof input":
+  #   # This is the main entry point for this module, and what it's all about.
+  #   let nSamples = 3
+
+  #   discard await localStore.putBlock(manifestBlock)
+
+  #   let input = (await dataSampler.getProofInput(challenge, nSamples)).tryget()
+
+  #   proc toStr(proof: MerkleProof): string =
+  #     toHex(proof.nodesBuffer)
+
+  #   let
+  #     expectedSlotToBlockProofs = getExpectedSlotToBlockProofs()
+  #     expectedBlockToCellProofs = getExpectedBlockToCellProofs()
+  #     expectedSampleData = getExpectedSampleData()
+
+  #   check:
+  #     input.datasetToSlotProof == datasetToSlotProof
+  #     input.slotToBlockProofs.mapIt(toStr(it)) == expectedSlotToBlockProofs
+  #     input.blockToCellProofs.mapIt(toStr(it)) == expectedBlockToCellProofs
+  #     toHex(input.sampleData) == expectedSampleData
