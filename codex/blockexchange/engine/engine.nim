@@ -124,11 +124,11 @@ proc stop*(b: BlockExcEngine) {.async.} =
 proc sendWantHave(
   b: BlockExcEngine,
   address: BlockAddress,
-  selectedPeer: BlockExcPeerCtx,
+  excluded: seq[BlockExcPeerCtx],
   peers: seq[BlockExcPeerCtx]): Future[void] {.async.} =
   trace "Sending wantHave request to peers", address
   for p in peers:
-    if p != selectedPeer:
+    if p notin excluded:
       if address notin p.peerHave:
         trace " wantHave > ", peer = p.id
         await b.network.request.sendWantList(
@@ -172,14 +172,13 @@ proc monitorBlockHandle(b: BlockExcEngine, handle: Future[Block], address: Block
     # prioritization
 
     # drop unresponsive peer
-    b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
     await b.network.switch.disconnect(peerId)
+    b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
 
 proc requestBlock*(
   b: BlockExcEngine,
   address: BlockAddress,
-  timeout = DefaultBlockTimeout
-): Future[Block] {.async.} =
+  timeout = DefaultBlockTimeout): Future[Block] {.async.} =
   let blockFuture = b.pendingBlocks.getWantHandle(address, timeout)
 
   if b.pendingBlocks.isInFlight(address):
@@ -202,7 +201,7 @@ proc requestBlock*(
     b.pendingBlocks.setInFlight(address)
     await b.sendWantBlock(address, peer)
     codex_block_exchange_want_block_lists_sent.inc()
-    await b.sendWantHave(address, peer, toSeq(b.peers))
+    await b.sendWantHave(address, @[peer], toSeq(b.peers))
     codex_block_exchange_want_have_lists_sent.inc()
 
   return await blockFuture
@@ -210,8 +209,7 @@ proc requestBlock*(
 proc requestBlock*(
   b: BlockExcEngine,
   cid: Cid,
-  timeout = DefaultBlockTimeout
-): Future[Block] =
+  timeout = DefaultBlockTimeout): Future[Block] =
   b.requestBlock(BlockAddress.init(cid))
 
 proc blockPresenceHandler*(
@@ -230,8 +228,8 @@ proc blockPresenceHandler*(
     if presence =? Presence.init(blk):
       logScope:
         address   = $presence.address
-        have  = presence.have
-        price = presence.price
+        have      = presence.have
+        price     = presence.price
 
       trace "Updating precense"
       peerCtx.setPresence(presence)
