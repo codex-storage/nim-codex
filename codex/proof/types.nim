@@ -9,8 +9,15 @@ const
 type
   FieldElement* = F
   Cell* = seq[byte]
+  ProofSample* = ref object
+    cellData*: Cell
+    merkleProof*: MerkleProof
   ProofInput* = ref object
+    datasetRoot*: FieldElement
+    entropy*: FieldElement
+    numberOfCellsInSlot*: uint64
+    numberOfSlots*: uint64
+    datasetSlotIndex*: uint64
+    slotRoot*: FieldElement
     datasetToSlotProof*: MerkleProof
-    slotToBlockProofs*: seq[MerkleProof]
-    blockToCellProofs*: seq[MerkleProof]
-    sampleData*: seq[byte]
+    proofSamples*: seq[ProofSample]

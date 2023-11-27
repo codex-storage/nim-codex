@@ -34,7 +34,7 @@ type
     blockStore: BlockStore
     slotBlocks: SlotBlocks
     # The following data is invariant over time for a given slot:
-    slotRootHash: FieldElement
+    datasetRoot: FieldElement
     slotPoseidonTree: MerkleTree
     datasetToSlotProof: MerkleProof
     blockSize: uint64
@@ -48,7 +48,7 @@ proc new*(
     T: type DataSampler,
     slot: Slot,
     blockStore: BlockStore,
-    slotRootHash: FieldElement,
+    datasetRoot: FieldElement,
     slotPoseidonTree: MerkleTree,
     datasetToSlotProof: MerkleProof
 ): Future[?!DataSampler] {.async.} =
@@ -66,7 +66,7 @@ proc new*(
     slot: slot,
     blockStore: blockStore,
     slotBlocks: slotBlocks,
-    slotRootHash: slotRootHash,
+    datasetRoot: datasetRoot,
     slotPoseidonTree: slotPoseidonTree,
     datasetToSlotProof: datasetToSlotProof,
     blockSize: blockSize,
