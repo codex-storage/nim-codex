@@ -35,10 +35,12 @@ type
     slotBlocks: SlotBlocks
     # The following data is invariant over time for a given slot:
     datasetRoot: FieldElement
+    slotRootHash: FieldElement
     slotPoseidonTree: MerkleTree
     datasetToSlotProof: MerkleProof
     blockSize: uint64
     numberOfCellsInSlot: uint64
+    datasetSlotIndex: uint64
     numberOfCellsPerBlock: uint64
 
 proc getNumberOfCellsInSlot*(slot: Slot): uint64 =
@@ -67,10 +69,12 @@ proc new*(
     blockStore: blockStore,
     slotBlocks: slotBlocks,
     datasetRoot: datasetRoot,
+    slotRootHash: toF(1234), # TODO - when slotPoseidonTree is a poseidon tree, its root should be a FieldElement.
     slotPoseidonTree: slotPoseidonTree,
     datasetToSlotProof: datasetToSlotProof,
     blockSize: blockSize,
     numberOfCellsInSlot: numberOfCellsInSlot,
+    datasetSlotIndex: slot.slotIndex.truncate(uint64),
     numberOfCellsPerBlock: blockSize div CellSize
   ))
 
@@ -175,8 +179,16 @@ proc getProofInput*(self: DataSampler, challenge: FieldElement, nSamples: int): 
 
   trace "Successfully collected proof input"
   success(ProofInput(
+    datasetRoot: self.datasetRoot,
+    entropy: challenge,
+    numberOfCellsInSlot: self.numberOfCellsInSlot,
+    numberOfSlots: self.slot.request.ask.slots,
+    datasetSlotIndex: self.datasetSlotIndex,
+    slotRoot: self.slotRootHash,
     datasetToSlotProof: self.datasetToSlotProof,
-    slotToBlockProofs: slotToBlockProofs,
-    blockToCellProofs: blockToCellProofs,
-    sampleData: sampleData
+    #proofSamples: yeah!
+
+    # slotToBlockProofs: slotToBlockProofs,
+    # blockToCellProofs: blockToCellProofs,
+    # sampleData: sampleData
   ))
