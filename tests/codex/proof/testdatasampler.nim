@@ -169,8 +169,11 @@ asyncchecksuite "Test proof datasampler - components":
 
 asyncchecksuite "Test proof datasampler - main":
   let
-    numberOfSlotBlocks = 4 # 16
-    totalNumberOfSlots = 2 #4
+    # The number of slot blocks and number of slots, combined with
+    # the bytes per block, make it so that there are exactly 256 cells
+    # in the dataset.
+    numberOfSlotBlocks = 4
+    totalNumberOfSlots = 2
     datasetSlotIndex = 1
     localStore = CacheStore.new()
 

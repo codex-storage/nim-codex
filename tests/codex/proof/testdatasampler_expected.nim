@@ -19,5 +19,5 @@ proc getExpectedBlockToCellProofs*(): seq[string] =
 
 proc getExpectedSampleData*(): string =
   "B2".repeat(CellSize) &
-  "59".repeat(CellSize) &
+  "95".repeat(CellSize) &
   "EE".repeat(CellSize)
