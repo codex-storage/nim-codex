@@ -28,7 +28,7 @@ type
   HardhatProcess* = ref object of NodeProcess
     logFile: ?IoHandle
     started: Future[void]
-    trackedFutures: TrackedFutures
+    # trackedFutures: TrackedFutures
 
 proc captureOutput*(node: HardhatProcess, logFilePath: string) {.async.} =
   let logFileHandle = openFile(
@@ -44,27 +44,42 @@ proc captureOutput*(node: HardhatProcess, logFilePath: string) {.async.} =
   node.logFile = some fileHandle
   node.started = newFuture[void]("hardhat.started")
   try:
-    for line in node.process.outputStream.lines:
+    while true:
+      while(let line = await node.process.stdOutStream.readLine(); line != ""):
+        echo "got line: ", line
+        if line.contains(startedOutput):
+          node.started.complete()
 
-      if line.contains(startedOutput):
-        node.started.complete()
+        if error =? fileHandle.writeFile(line & "\n").errorOption:
+          error "failed to write to hardhat file", errorCode = error
+          discard fileHandle.closeFile()
+          return
 
-      if error =? fileHandle.writeFile(line & "\n").errorOption:
-        error "failed to write to hardhat file", errorCode = error
-        discard fileHandle.closeFile()
-        return
-
+        await sleepAsync(1.millis)
       await sleepAsync(1.millis)
+
+    # for line in node.process.outputStream.lines:
+
+    #   if line.contains(startedOutput):
+    #     node.started.complete()
+
+    #   if error =? fileHandle.writeFile(line & "\n").errorOption:
+    #     error "failed to write to hardhat file", errorCode = error
+    #     discard fileHandle.closeFile()
+    #     return
+
+    #   await sleepAsync(1.millis)
 
   except CancelledError:
     discard
 
-proc start(node: HardhatProcess) =
-  node.process = osproc.startProcess(
+proc start(node: HardhatProcess) {.async.} =
+  node.process = await startProcess(
     "npm start",
     workingDir,
     # node.arguments,
-    options={poEvalCommand})
+    options={AsyncProcessOption.EvalCommand}
+  )
 
   for arg in node.arguments:
     if arg.contains "--log-file=":
@@ -72,41 +87,41 @@ proc start(node: HardhatProcess) =
       discard node.captureOutput(logFilePath).track(node)
       break
 
-proc waitUntilOutput*(node: HardhatProcess, output: string) =
+proc waitUntilOutput*(node: HardhatProcess, output: string) {.async.} =
   if not node.started.isNil:
     try:
-      waitFor node.started.wait(5000.milliseconds)
+      await node.started.wait(5000.milliseconds)
       return
     except AsyncTimeoutError:
       discard # should raiseAssert below
-  else:
-    for line in node.process.outputStream.lines:
-      if line.contains(output):
-        return
+  # else:
+  #   for line in node.process.outputStream.lines:
+  #     if line.contains(output):
+  #       return
   raiseAssert "node did not output '" & output & "'"
 
-proc waitUntilStarted*(node: HardhatProcess) =
-  node.waitUntilOutput(startedOutput)
+proc waitUntilStarted*(node: HardhatProcess) {.async.} =
+  await node.waitUntilOutput(startedOutput)
 
-proc startHardhatProcess*(args: openArray[string]): HardhatProcess =
+proc startHardhatProcess*(args: seq[string]): Future[HardhatProcess] {.async.} =
   ## Starts a Hardhat Node with the specified arguments.
   let node = HardhatProcess(arguments: @args, trackedFutures: TrackedFutures.new())
-  node.start()
+  await node.start()
   node
 
-method stop*(node: HardhatProcess) =
+method stop*(node: HardhatProcess) {.async.} =
   # terminate the process
   procCall NodeProcess(node).stop()
 
-  waitFor node.trackedFutures.cancelTracked()
+  await node.trackedFutures.cancelTracked()
 
   if logFile =? node.logFile:
     discard logFile.closeFile()
 
-proc restart*(node: HardhatProcess) =
-  node.stop()
-  node.start()
-  node.waitUntilStarted()
+proc restart*(node: HardhatProcess) {.async.} =
+  await node.stop()
+  await node.start()
+  await node.waitUntilStarted()
 
 proc removeDataDir*(node: HardhatProcess) =
   discard

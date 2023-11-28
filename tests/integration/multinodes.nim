@@ -144,14 +144,18 @@ template multinodesuite*(name: string, body: untyped) =
       let fileName = logDir / fn
       return fileName
 
-    proc newHardhatProcess(config: HardhatConfig, role: Role): NodeProcess =
+    proc newHardhatProcess(
+      config: HardhatConfig,
+      role: Role
+    ): Future[NodeProcess] {.async.} =
+
       var options: seq[string] = @[]
       if config.logFile:
         let updatedLogFile = getLogFile(role, none int)
         options.add "--log-file=" & updatedLogFile
 
-      let node = startHardhatProcess(options)
-      node.waitUntilStarted()
+      let node = await startHardhatProcess(options)
+      await node.waitUntilStarted()
 
       debug "started new hardhat node"
       return node
@@ -159,7 +163,7 @@ template multinodesuite*(name: string, body: untyped) =
     proc newNodeProcess(roleIdx: int,
                         config1: NodeConfig,
                         role: Role
-    ): NodeProcess =
+    ): Future[NodeProcess] {.async.} =
 
       let nodeIdx = running.len
       var config = config1
@@ -189,8 +193,10 @@ template multinodesuite*(name: string, body: untyped) =
           "--disc-port=" & $(8090 + nodeIdx),
           "--eth-account=" & $accounts[nodeIdx]])
 
-      let node = startNode(options, config.debugEnabled)
-      node.waitUntilStarted()
+      let node = await startNode(options, config.debugEnabled)
+      echo "[multinodes.newNodeProcess] waiting until ", role, " node started"
+      await node.waitUntilStarted()
+      echo "[multinodes.newNodeProcess] ", role, " NODE STARTED"
 
       return node
 
@@ -203,17 +209,17 @@ template multinodesuite*(name: string, body: untyped) =
     proc validators(): seq[RunningNode] {.used.} =
       running.filter(proc(r: RunningNode): bool = r.role == Role.Validator)
 
-    proc startHardhatNode(): NodeProcess =
+    proc startHardhatNode(): Future[NodeProcess] {.async.} =
       var config = nodeConfigs.hardhat
-      return newHardhatProcess(config, Role.Hardhat)
+      return await newHardhatProcess(config, Role.Hardhat)
 
-    proc startClientNode(): NodeProcess =
+    proc startClientNode(): Future[NodeProcess] {.async.} =
       let clientIdx = clients().len
       var config = nodeConfigs.clients
       config.cliOptions.add CliOption(key: "--persistence")
-      return newNodeProcess(clientIdx, config, Role.Client)
+      return await newNodeProcess(clientIdx, config, Role.Client)
 
-    proc startProviderNode(): NodeProcess =
+    proc startProviderNode(): Future[NodeProcess] {.async.} =
       let providerIdx = providers().len
       var config = nodeConfigs.providers
       config.cliOptions.add CliOption(key: "--bootstrap-node", value: bootstrap)
@@ -224,50 +230,57 @@ template multinodesuite*(name: string, body: untyped) =
         o => (let idx = o.nodeIdx |? providerIdx; idx == providerIdx)
       )
 
-      return newNodeProcess(providerIdx, config, Role.Provider)
+      return await newNodeProcess(providerIdx, config, Role.Provider)
 
-    proc startValidatorNode(): NodeProcess =
+    proc startValidatorNode(): Future[NodeProcess] {.async.} =
       let validatorIdx = validators().len
       var config = nodeConfigs.validators
       config.cliOptions.add CliOption(key: "--bootstrap-node", value: bootstrap)
       config.cliOptions.add CliOption(key: "--validator")
 
-      return newNodeProcess(validatorIdx, config, Role.Validator)
+      return await newNodeProcess(validatorIdx, config, Role.Validator)
 
     setup:
       if not nodeConfigs.hardhat.isNil:
-        let node = startHardhatNode()
+        let node = await startHardhatNode()
         running.add RunningNode(role: Role.Hardhat, node: node)
 
       for i in 0..<nodeConfigs.clients.numNodes:
-        let node = startClientNode()
+        echo "[multinodes.setup] starting client node ", i
+        let node = await startClientNode()
         running.add RunningNode(
                       role: Role.Client,
                       node: node,
                       address: some accounts[running.len]
                     )
+        echo "[multinodes.setup] added running client node ", i
         if i == 0:
+          echo "[multinodes.setup] getting client 0 bootstrap spr"
           bootstrap = node.client.info()["spr"].getStr()
+          echo "[multinodes.setup] got client 0 bootstrap spr: ", bootstrap
 
       for i in 0..<nodeConfigs.providers.numNodes:
-        let node = startProviderNode()
+        echo "[multinodes.setup] starting provider node ", i
+        let node = await startProviderNode()
         running.add RunningNode(
                       role: Role.Provider,
                       node: node,
                       address: some accounts[running.len]
                     )
+        echo "[multinodes.setup] added running provider node ", i
 
       for i in 0..<nodeConfigs.validators.numNodes:
-        let node = startValidatorNode()
+        let node = await startValidatorNode()
         running.add RunningNode(
                       role: Role.Validator,
                       node: node,
                       address: some accounts[running.len]
                     )
+        echo "[multinodes.setup] added running validator node ", i
 
     teardown:
       for r in running:
-        r.node.stop() # also stops rest client
+        await r.node.stop() # also stops rest client
         r.node.removeDataDir()
       running = @[]
 
