@@ -120,9 +120,12 @@ method stop*(node: NodeProcess) {.base, async.} =
     if err =? node.process.terminate().errorOption:
       echo "ERROR terminating node process, error code: ", err
     echo "stopping codex client"
-    await node.closeAndWaitClient().wait(5.seconds)
     discard await node.process.waitForExit(timeout=5.seconds)
     await node.process.closeWait()
+    if client =? node.client:
+      client.close()
+      node.client = none CodexClient
+    # await node.closeAndWaitClient().wait(5.seconds)
     node.process = nil
     echo "code node and client stopped"
 

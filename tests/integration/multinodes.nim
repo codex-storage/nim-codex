@@ -104,6 +104,20 @@ proc withLogFile*[T: Config](
   startConfig.logFile = logToFile
   return startConfig
 
+proc nextFreePort(startPort: int): Future[int] {.async.} =
+  let cmd = when defined(windows):
+              "netstat -ano | findstr :"
+            else:
+              "lsof -ti:"
+  var port = startPort
+  while true:
+    let portInUse = await execCommandEx(cmd & $port)
+    if portInUse.stdOutput == "":
+      echo "port ", port, " is free"
+      return port
+    else:
+      inc port
+
 template multinodesuite*(name: string, body: untyped) =
 
   ethersuite name:
@@ -185,12 +199,12 @@ template multinodesuite*(name: string, body: untyped) =
 
       var options = config.cliOptions.map(o => $o)
         .concat(@[
-          "--api-port=" & $(8080 + nodeIdx),
+          "--api-port=" & $ await nextFreePort(8080 + nodeIdx),
           "--data-dir=" & datadir,
           "--nat=127.0.0.1",
           "--listen-addrs=/ip4/127.0.0.1/tcp/0",
           "--disc-ip=127.0.0.1",
-          "--disc-port=" & $(8090 + nodeIdx),
+          "--disc-port=" & $ await nextFreePort(8090 + nodeIdx),
           "--eth-account=" & $accounts[nodeIdx]])
 
       let node = await startNode(options, config.debugEnabled)
