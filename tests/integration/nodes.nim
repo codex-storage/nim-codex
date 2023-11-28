@@ -46,10 +46,7 @@ proc waitUntilOutput*(node: NodeProcess, output: string, started: Future[void]) 
   let stream = node.process.stdOutStream
 
   try:
-    let lineEnding = when defined(windows): "\r\n"
-                     else: "\n"
-
-    while(let line = await stream.readLine(0, lineEnding); line != ""):
+    while(let line = await stream.readLine(0, "\n"); line != ""):
       if node.debug:
         echo line
 
