@@ -1,6 +1,3 @@
-import std/bitops
-import std/sugar
-
 import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p

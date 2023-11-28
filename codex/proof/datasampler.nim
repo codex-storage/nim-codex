@@ -12,7 +12,6 @@ import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
 import pkg/constantine/math/arithmetic
-import pkg/poseidon2/types
 import pkg/poseidon2
 
 import misc

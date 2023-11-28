@@ -5,7 +5,6 @@ import std/random
 import pkg/questionable/results
 import pkg/constantine/math/arithmetic
 import pkg/constantine/math/io/io_fields
-import pkg/poseidon2/types
 import pkg/poseidon2/io
 import pkg/poseidon2
 import pkg/chronos
