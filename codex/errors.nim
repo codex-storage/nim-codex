@@ -8,6 +8,8 @@
 ## those terms.
 
 import pkg/stew/results
+import pkg/chronos
+import pkg/questionable/results
 
 export results
 
@@ -26,3 +28,13 @@ template mapFailure*[T, V, E](
 
 template mapFailure*[T, V](exp: Result[T, V]): Result[T, ref CatchableError] =
   mapFailure(exp, CodexError)
+
+proc allFutureResult*[T](fut: seq[Future[T]]): Future[?!void] {.async.} =
+  try:
+    await allFuturesThrowing(fut)
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    return failure(exc.msg)
+
+  return success()

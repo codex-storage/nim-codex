@@ -51,7 +51,7 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
     reservationId = reservation.id
     availabilityId = reservation.availabilityId
 
-  proc onBatch(blocks: seq[bt.Block]) {.async.} =
+  proc onBatch(blocks: seq[bt.Block]): Future[?!void] {.async.} =
     # release batches of blocks as they are written to disk and
     # update availability size
     var bytes: uint = 0
@@ -59,13 +59,9 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
       bytes += blk.data.len.uint
 
     trace "Releasing batch of bytes written to disk", bytes
-    let r = await reservations.release(reservation.id,
+    return await reservations.release(reservation.id,
                                        reservation.availabilityId,
                                        bytes)
-    # `tryGet` will raise the exception that occurred during release, if there
-    # was one. The exception will be caught in the closure and sent to the
-    # SaleErrored state.
-    r.tryGet()
 
   trace "Starting download"
   if err =? (await onStore(request,

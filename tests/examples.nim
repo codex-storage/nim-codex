@@ -2,10 +2,12 @@ import std/random
 import std/sequtils
 import std/times
 import std/typetraits
+
 import pkg/codex/contracts/requests
 import pkg/codex/sales/slotqueue
-import pkg/stint
+import pkg/codex/stores
 
+import pkg/stint
 proc exampleString*(length: int): string =
   let chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
   result = newString(length) # Create a new empty string with a given length
@@ -46,7 +48,7 @@ proc example*(_: type StorageRequest): StorageRequest =
       cid: "zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob",
       merkleRoot: array[32, byte].example
     ),
-    expiry: (getTime() + initDuration(hours=1)).toUnix.u256,
+    expiry: (getTime() + 1.hours).toUnix.u256,
     nonce: Nonce.example
   )
 
