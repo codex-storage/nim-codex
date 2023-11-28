@@ -9,6 +9,7 @@ import pkg/chronicles
 import pkg/stew/byteutils
 import pkg/datastore
 import pkg/questionable
+import pkg/questionable/results
 import pkg/stint
 
 import pkg/nitro
@@ -133,8 +134,9 @@ asyncchecksuite "Test Node":
       (await node.fetchBatched(
         manifest,
         batchSize = batchSize,
-        proc(blocks: seq[bt.Block]) {.gcsafe, async.} =
+        proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, async.} =
           check blocks.len > 0 and blocks.len <= batchSize
+          return success()
       )).tryGet()
 
   test "Store and retrieve Data Stream":
@@ -241,7 +243,7 @@ asyncchecksuite "Test Node - host contracts":
 
     # Setup Host Contracts and dependencies
     let market = MockMarket.new()
-    sales = Sales.new(market, clock, localStore, 0)
+    sales = Sales.new(market, clock, localStore)
     let hostContracts = some HostInteractions.new(clock, sales)
     node.contracts = (ClientInteractions.none, hostContracts, ValidatorInteractions.none)
 
@@ -288,12 +290,12 @@ asyncchecksuite "Test Node - host contracts":
     request.expiry = (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix.u256
     var fetchedBytes: uint = 0
 
-    let onBatch = proc(blocks: seq[bt.Block]) {.async.} =
+    let onBatch = proc(blocks: seq[bt.Block]): Future[?!void] {.async.} =
       for blk in blocks:
         fetchedBytes += blk.data.len.uint
+      return success()
 
     (await onStore(request, 0.u256, onBatch)).tryGet()
-
     check fetchedBytes == 2291520
 
     for index in 0..<manifest.blocksCount:

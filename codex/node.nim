@@ -38,6 +38,7 @@ import ./discovery
 import ./contracts
 import ./node/batch
 import ./utils
+import ./errors
 
 export batch
 
@@ -143,15 +144,11 @@ proc fetchBatched*(
         if not iter.finished:
           iter.next()
 
-    try:
-      await allFuturesThrowing(allFinished(blocks))
+    if blocksErr =? (await allFutureResult(blocks)).errorOption:
+      return failure(blocksErr)
 
-      if not onBatch.isNil:
-        await onBatch(blocks.mapIt( it.read.get ))
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      return failure(exc.msg)
+    if not onBatch.isNil and batchErr =? (await onBatch(blocks.mapIt( it.read.get ))).errorOption:
+      return failure(batchErr)
 
   return success()
 
@@ -431,10 +428,15 @@ proc start*(node: CodexNodeRef) {.async.} =
 
       trace "Fetching block for manifest", cid
       let expiry = request.expiry.toSecondsSince1970
-      proc expiryUpdateOnBatch(blocks: seq[bt.Block]): Future[void] {.async.} =
+      proc expiryUpdateOnBatch(blocks: seq[bt.Block]): Future[?!void] {.async.} =
         let ensureExpiryFutures = blocks.mapIt(node.blockStore.ensureExpiry(it.cid, expiry))
-        await allFuturesThrowing(ensureExpiryFutures)
-        await onBatch(blocks)
+        if updateExpiryErr =? (await allFutureResult(ensureExpiryFutures)).errorOption:
+          return failure(updateExpiryErr)
+
+        if not onBatch.isNil and onBatchErr =? (await onBatch(blocks)).errorOption:
+          return failure(onBatchErr)
+
+        return success()
 
       if fetchErr =? (await node.fetchBatched(manifest, onBatch = expiryUpdateOnBatch)).errorOption:
         let error = newException(CodexError, "Unable to retrieve blocks")
@@ -463,7 +465,7 @@ proc start*(node: CodexNodeRef) {.async.} =
     try:
       await hostContracts.start()
     except CatchableError as error:
-      error "Unable to start host contract interactions: ", error=error.msg
+      error "Unable to start host contract interactions", error=error.msg
       node.contracts.host = HostInteractions.none
 
   if clientContracts =? node.contracts.client:
