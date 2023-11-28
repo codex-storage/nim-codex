@@ -142,47 +142,47 @@ proc getBlockCellMiniTree*(self: DataSampler, blk: bt.Block): ?!MerkleTree =
 
   return builder.build()
 
-proc getProofInput*(self: DataSampler, challenge: FieldElement, nSamples: int): Future[?!ProofInput] {.async.} =
-  var
-    slotToBlockProofs: seq[MerkleProof]
-    blockToCellProofs: seq[MerkleProof]
-    samples: seq[ProofSample]
+proc createProofSample(self: DataSampler, slotCellIndex: uint64) : Future[?!ProofSample] {.async.} =
+  let
+    slotBlockIndex = self.getSlotBlockIndexForSlotCellIndex(slotCellIndex)
+    blockCellIndex = self.getBlockCellIndexForSlotCellIndex(slotCellIndex)
 
+  without blk =? await self.slotBlocks.getSlotBlock(slotBlockIndex), err:
+    error "Failed to get slot block"
+    return failure(err)
+
+  without miniTree =? self.getBlockCellMiniTree(blk), err:
+    error "Failed to calculate minitree for block"
+    return failure(err)
+
+  without blockProof =? self.slotPoseidonTree.getProof(slotBlockIndex), err:
+    error "Failed to get slot-to-block inclusion proof"
+    return failure(err)
+
+  without cellProof =? miniTree.getProof(blockCellIndex), err:
+    error "Failed to get block-to-cell inclusion proof"
+    return failure(err)
+
+  let cell = self.getCellFromBlock(blk, slotCellIndex)
+
+  return success(ProofSample(
+    cellData: cell,
+    slotBlockIndex: slotBlockIndex,
+    cellBlockProof: cellProof,
+    blockCellIndex: blockCellIndex,
+    blockSlotProof: blockProof
+  ))
+
+proc getProofInput*(self: DataSampler, challenge: FieldElement, nSamples: int): Future[?!ProofInput] {.async.} =
+  var samples: seq[ProofSample]
   let slotCellIndices = self.findSlotCellIndices(challenge, nSamples)
 
   trace "Collecing input for proof", selectedSlotCellIndices = $slotCellIndices
   for slotCellIndex in slotCellIndices:
-    let
-      slotBlockIndex = self.getSlotBlockIndexForSlotCellIndex(slotCellIndex)
-      blockCellIndex = self.getBlockCellIndexForSlotCellIndex(slotCellIndex)
-
-    without blk =? await self.slotBlocks.getSlotBlock(slotBlockIndex), err:
-      error "Failed to get slot block"
+    without sample =? await self.createProofSample(slotCellIndex), err:
+      error "Failed to create proof sample"
       return failure(err)
-
-    without miniTree =? self.getBlockCellMiniTree(blk), err:
-      error "Failed to calculate minitree for block"
-      return failure(err)
-
-    without blockProof =? self.slotPoseidonTree.getProof(slotBlockIndex), err:
-      error "Failed to get slot-to-block inclusion proof"
-      return failure(err)
-    slotToBlockProofs.add(blockProof)
-
-    without cellProof =? miniTree.getProof(blockCellIndex), err:
-      error "Failed to get block-to-cell inclusion proof"
-      return failure(err)
-    blockToCellProofs.add(cellProof)
-
-    let cell = self.getCellFromBlock(blk, slotCellIndex)
-
-    proc combine(bottom: MerkleProof, top: MerkleProof): MerkleProof =
-      return bottom
-
-    samples.add(ProofSample(
-      cellData: cell,
-      merkleProof: combine(cellProof, blockProof)
-    ))
+    samples.add(sample)
 
   trace "Successfully collected proof input"
   success(ProofInput(

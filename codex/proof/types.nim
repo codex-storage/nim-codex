@@ -11,7 +11,10 @@ type
   Cell* = seq[byte]
   ProofSample* = ref object
     cellData*: Cell
-    merkleProof*: MerkleProof
+    slotBlockIndex*: uint64
+    cellBlockProof*: MerkleProof
+    blockCellIndex*: uint64
+    blockSlotProof*: MerkleProof
   ProofInput* = ref object
     datasetRoot*: FieldElement
     entropy*: FieldElement

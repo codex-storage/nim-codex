@@ -267,7 +267,7 @@ asyncchecksuite "Test proof datasampler - main":
       cell2Proof.verifyDataBlock(cell2Bytes, miniTree.root).tryGet()
 
   test "Can gather proof input":
-    # This is the main entry point for this module, and what it's all about.
+    # This is the main function for this module, and what it's all about.
     let
       nSamples = 3
       input = (await dataSampler.getProofInput(challenge, nSamples)).tryget()
@@ -279,36 +279,39 @@ asyncchecksuite "Test proof datasampler - main":
       toHex(proof.nodesBuffer)
 
     let
-      expectedMerkleProofs = getExpectedSlotToBlockProofs()
+      expectedBlockSlotProofs = getExpectedBlockSlotProofs()
+      expectedCellBlockProofs = getExpectedCellBlockProofs()
       expectedCellData = getExpectedCellData()
 
     check:
-      # datasetRoot*: FieldElement
       equal(input.datasetRoot, datasetRootHash)
-      # entropy*: FieldElement
       equal(input.entropy, challenge)
-      # numberOfCellsInSlot*: uint64
       input.numberOfCellsInSlot == (bytesPerBlock * numberOfSlotBlocks).uint64 div CellSize
-      # numberOfSlots*: uint64
       input.numberOfSlots == slot.request.ask.slots
-      # datasetSlotIndex*: uint64
       input.datasetSlotIndex == slot.slotIndex.truncate(uint64)
-      # slotRoot*: FieldElement
       equal(input.slotRoot, toF(1234)) # TODO - when slotPoseidonTree is a poseidon tree, its root should be a FieldElement.
-      # datasetToSlotProof*: MerkleProof
       input.datasetToSlotProof == datasetToSlotProof
-      # proofSamples*: seq[ProofSample]
-      toStr(input.proofSamples[0].merkleProof) == expectedMerkleProofs[0]
-      toStr(input.proofSamples[1].merkleProof) == expectedMerkleProofs[1]
-      toStr(input.proofSamples[2].merkleProof) == expectedMerkleProofs[2]
+
+      # block-slot proofs
+      input.proofSamples[0].slotBlockIndex == 2
+      input.proofSamples[1].slotBlockIndex == 1
+      input.proofSamples[2].slotBlockIndex == 1
+      toStr(input.proofSamples[0].blockSlotProof) == expectedBlockSlotProofs[0]
+      toStr(input.proofSamples[1].blockSlotProof) == expectedBlockSlotProofs[1]
+      toStr(input.proofSamples[2].blockSlotProof) == expectedBlockSlotProofs[2]
+
+      # cell-block proofs
+      input.proofSamples[0].blockCellIndex == 10
+      input.proofSamples[1].blockCellIndex == 9
+      input.proofSamples[2].blockCellIndex == 19
+      toStr(input.proofSamples[0].cellBlockProof) == expectedCellBlockProofs[0]
+      toStr(input.proofSamples[1].cellBlockProof) == expectedCellBlockProofs[1]
+      toStr(input.proofSamples[2].cellBlockProof) == expectedCellBlockProofs[2]
+
       # cell data
       toHex(input.proofSamples[0].cellData) == expectedCellData[0]
       toHex(input.proofSamples[1].cellData) == expectedCellData[1]
       toHex(input.proofSamples[2].cellData) == expectedCellData[2]
-
-      # input.slotToBlockProofs.mapIt(toStr(it)) == expectedSlotToBlockProofs
-      # input.blockToCellProofs.mapIt(toStr(it)) == expectedBlockToCellProofs
-      # toHex(input.sampleData) == expectedSampleData
 
   for (input, expected) in [(10, 0), (31, 0), (32, 1), (63, 1), (64, 2)]:
     test "Can get slotBlockIndex from slotCellIndex (" & $input & " -> " & $expected & ")":
