@@ -11,12 +11,8 @@
 
 import std/tables
 import pkg/libp2p
-# import pkg/constantine/math/config/curves
-# import pkg/constantine/math/config/curves_prop_curve
-# import pkg/constantine/math/arithmetic
 import pkg/constantine/math/io/io_fields
 import pkg/poseidon2
-# import pkg/poseidon2/io
 
 import ../units
 export units
@@ -38,9 +34,9 @@ const
 proc `==`*(a, b: VerificationHash): bool =
   a.toHex() == b.toHex()
 
-proc fromInt*(T: type VerificationHash, value: SomeInteger | SomeUnsignedInt): VerificationHash =
-  #raiseAssert("a")
-  toF(value)
+# not working, undeclared identifier 'getCurveOrder'
+# proc fromInt*(T: type VerificationHash, value: SomeInteger | SomeUnsignedInt): VerificationHash =
+#   toF(value)
 
 proc encode*(a: VerificationHash): string =
   a.toHex()

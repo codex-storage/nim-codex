@@ -175,12 +175,12 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
 
   ? self.verify()
 
-  # if verifiable:
-  #   return Manifest.new(
-  #     manifest = self,
-  #     datasetRoot = VerificationHash.decode(datasetRoot),
-  #     slotRoots = slotRoots.mapIt(VerificationHash.decode(it))
-  #   )
+  if verifiable:
+    return Manifest.new(
+      manifest = self,
+      datasetRoot = VerificationHash.decode(datasetRoot),
+      slotRoots = slotRoots.mapIt(VerificationHash.decode(it))
+    )
 
   self.success
 
