@@ -3,8 +3,6 @@ import std/sequtils
 import pkg/chronos
 import pkg/questionable/results
 import pkg/asynctest
-import pkg/stew/byteutils
-import pkg/poseidon2
 import pkg/codex/chunker
 import pkg/codex/blocktype as bt
 import pkg/codex/manifest
@@ -61,10 +59,8 @@ checksuite "Manifest":
 
     var manifest = Manifest.new(
       manifest = protectedManifest,
-      # datasetRoot = VerificationHash.fromInt(12),
-      # slotRoots = @[VerificationHash.fromInt(23), VerificationHash.fromInt(34)]
-      datasetRoot = toF(12),
-      slotRoots = @[toF(23), toF(34)]
+      datasetRoot = VerificationHash.fromInt(12),
+      slotRoots = @[VerificationHash.fromInt(23), VerificationHash.fromInt(34)]
     ).tryGet()
 
     let

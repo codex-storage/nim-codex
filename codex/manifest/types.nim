@@ -16,6 +16,7 @@ import pkg/poseidon2
 
 import ../units
 export units
+export curves # workaround for "undeclared identifier: 'getCurveOrder'" from constantine
 
 const
   BlockCodec* = multiCodec("raw")
@@ -34,9 +35,8 @@ const
 proc `==`*(a, b: VerificationHash): bool =
   a.toHex() == b.toHex()
 
-# not working, undeclared identifier 'getCurveOrder'
-# proc fromInt*(T: type VerificationHash, value: SomeInteger | SomeUnsignedInt): VerificationHash =
-#   toF(value)
+proc fromInt*(T: type VerificationHash, value: SomeInteger | SomeUnsignedInt): VerificationHash =
+  toF(value)
 
 proc encode*(a: VerificationHash): string =
   a.toHex()
