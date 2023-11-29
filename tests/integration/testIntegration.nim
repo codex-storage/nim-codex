@@ -236,14 +236,14 @@ marketplacesuite "Marketplace payouts":
       # hardhat: HardhatConfig().withLogFile()
 
       clients:
-        NodeConfig()
+        CodexConfig()
           .nodes(1)
           .debug() # uncomment to enable console log output.debug()
           .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
           .withLogTopics("node", "erasure"),
 
       providers:
-        NodeConfig()
+        CodexConfig()
           .nodes(1)
           .debug() # uncomment to enable console log output
           .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
@@ -256,10 +256,10 @@ marketplacesuite "Marketplace payouts":
     let data = byteutils.toHex(await exampleData())
     let client = clients()[0]
     let provider = providers()[0]
-    let clientApi = client.node.client
-    let providerApi = provider.node.client
-    let startBalanceProvider = await token.balanceOf(!provider.address)
-    let startBalanceClient = await token.balanceOf(!client.address)
+    let clientApi = client.client
+    let providerApi = provider.client
+    let startBalanceProvider = await token.balanceOf(provider.ethAccount)
+    let startBalanceClient = await token.balanceOf(client.ethAccount)
 
     # provider makes storage available
     discard providerApi.postAvailability(
@@ -295,14 +295,14 @@ marketplacesuite "Marketplace payouts":
     check eventually(providerApi.saleStateIs(slotId, "SaleCancelled"))
 
     check eventually (
-      let endBalanceProvider = (await token.balanceOf(!provider.address));
+      let endBalanceProvider = (await token.balanceOf(provider.ethAccount));
       let difference = endBalanceProvider - startBalanceProvider;
       difference > 0 and
       difference < expiry.u256*reward
     )
     check eventually (
-      let endBalanceClient = (await token.balanceOf(!client.address));
-      let endBalanceProvider = (await token.balanceOf(!provider.address));
+      let endBalanceClient = (await token.balanceOf(client.ethAccount));
+      let endBalanceProvider = (await token.balanceOf(provider.ethAccount));
       (startBalanceClient - endBalanceClient) == (endBalanceProvider - startBalanceProvider)
     )
 
