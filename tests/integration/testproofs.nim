@@ -17,23 +17,23 @@ marketplacesuite "Hosts submit regular proofs":
 
   test "hosts submit periodic proofs for slots they fill", NodeConfigs(
     # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
-    # hardhat: HardhatConfig().withLogFile()
+    # hardhat: HardhatConfig().debug().withLogFile(),
 
     clients:
-      NodeConfig()
+      CodexConfig()
         .nodes(1)
-        # .debug() # uncomment to enable console log output
+        .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("node"),
 
     providers:
-      NodeConfig()
+      CodexConfig()
         .nodes(1)
-        # .debug() # uncomment to enable console log output
+        .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("marketplace", "sales", "reservations", "node"),
   ):
-    let client0 = clients()[0].node.client
+    let client0 = clients()[0].client
     let totalPeriods = 50
 
     let data = byteutils.toHex(await exampleData())
@@ -66,17 +66,17 @@ marketplacesuite "Simulate invalid proofs":
 
   test "slot is freed after too many invalid proofs submitted", NodeConfigs(
     # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
-    # hardhat: HardhatConfig().withLogFile()
+    # hardhat: HardhatConfig().debug().withLogFile(),
 
     clients:
-      NodeConfig()
+      CodexConfig()
         .nodes(1)
         # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("node"),
 
     providers:
-      NodeConfig()
+      CodexConfig()
         .nodes(1)
         .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=1)
         # .debug() # uncomment to enable console log output
@@ -84,13 +84,13 @@ marketplacesuite "Simulate invalid proofs":
         .withLogTopics("marketplace", "sales", "reservations", "node"),
 
     validators:
-      NodeConfig()
+      CodexConfig()
         .nodes(1)
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         # .debug() # uncomment to enable console log output
         .withLogTopics("validator", "onchain", "ethers")
   ):
-    let client0 = clients()[0].node.client
+    let client0 = clients()[0].client
     let totalPeriods = 50
 
     let data = byteutils.toHex(await exampleData())
@@ -118,17 +118,17 @@ marketplacesuite "Simulate invalid proofs":
 
   test "slot is not freed when not enough invalid proofs submitted", NodeConfigs(
     # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
-    # hardhat: HardhatConfig().withLogFile()
+    # hardhat: HardhatConfig().debug().withLogFile(),
 
     clients:
-      NodeConfig()
+      CodexConfig()
         .nodes(1)
         # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("node"),
 
     providers:
-      NodeConfig()
+      CodexConfig()
         .nodes(1)
         .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=3)
         # .debug() # uncomment to enable console log output
@@ -136,13 +136,13 @@ marketplacesuite "Simulate invalid proofs":
         .withLogTopics("marketplace", "sales", "reservations", "node"),
 
     validators:
-      NodeConfig()
+      CodexConfig()
         .nodes(1)
         # .debug()
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("validator", "onchain", "ethers")
   ):
-    let client0 = clients()[0].node.client
+    let client0 = clients()[0].client
     let totalPeriods = 25
 
     let data = byteutils.toHex(await exampleData())
@@ -171,17 +171,17 @@ marketplacesuite "Simulate invalid proofs":
 
   test "host that submits invalid proofs is paid out less", NodeConfigs(
     # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
-    # hardhat: HardhatConfig().withLogFile()
+    # hardhat: HardhatConfig().debug().withLogFile(),
 
     clients:
-      NodeConfig()
+      CodexConfig()
         .nodes(1)
         # .debug() # uncomment to enable console log output.debug()
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("node", "erasure", "clock", "purchases"),
 
     providers:
-      NodeConfig()
+      CodexConfig()
         .nodes(2)
         .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=2)
         # .debug() # uncomment to enable console log output
@@ -189,20 +189,20 @@ marketplacesuite "Simulate invalid proofs":
         .withLogTopics("marketplace", "sales", "reservations", "node"),
 
     validators:
-      NodeConfig()
+      CodexConfig()
         .nodes(1)
         # .debug()
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("validator")
   ):
-    let client0 = clients()[0].node.client
+    let client0 = clients()[0].client
     let provider0 = providers()[0]
     let provider1 = providers()[1]
     let totalPeriods = 25
 
     let data = byteutils.toHex(await exampleData())
 
-    discard provider0.node.client.postAvailability(
+    discard provider0.client.postAvailability(
       size=data.len.u256, # should match 1 slot only
       duration=totalPeriods.periods.u256,
       minPrice=300.u256,
@@ -232,7 +232,7 @@ marketplacesuite "Simulate invalid proofs":
 
     # now add availability for provider1, which should allow provider1 to put
     # the remaining slot in its queue
-    discard provider1.node.client.postAvailability(
+    discard provider1.client.postAvailability(
       size=data.len.u256, # should match 1 slot only
       duration=totalPeriods.periods.u256,
       minPrice=300.u256,
@@ -243,24 +243,24 @@ marketplacesuite "Simulate invalid proofs":
     let provider1slotId = slotId(requestId, provider1slotIndex)
 
     # Wait til second slot is filled. SaleFilled happens too quickly, check SaleProving instead.
-    check eventually provider1.node.client.saleStateIs(provider1slotId, "SaleProving")
+    check eventually provider1.client.saleStateIs(provider1slotId, "SaleProving")
 
     check eventually client0.purchaseStateIs(purchaseId, "started")
 
     let currentPeriod = await getCurrentPeriod()
     check eventuallyP(
       # SaleFinished happens too quickly, check SalePayout instead
-      provider0.node.client.saleStateIs(provider0slotId, "SalePayout"),
+      provider0.client.saleStateIs(provider0slotId, "SalePayout"),
       currentPeriod + totalPeriods.u256 + 1)
 
     check eventuallyP(
       # SaleFinished happens too quickly, check SalePayout instead
-      provider1.node.client.saleStateIs(provider1slotId, "SalePayout"),
+      provider1.client.saleStateIs(provider1slotId, "SalePayout"),
       currentPeriod + totalPeriods.u256 + 1)
 
     check eventually(
-      (await token.balanceOf(!provider1.address)) >
-      (await token.balanceOf(!provider0.address))
+      (await token.balanceOf(provider1.ethAccount)) >
+      (await token.balanceOf(provider0.ethAccount))
     )
 
     await subscription.unsubscribe()

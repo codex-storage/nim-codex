@@ -24,15 +24,6 @@ proc info*(client: CodexClient): JsonNode =
   let url = client.baseurl & "/debug/info"
   client.http.getContent(url).parseJson()
 
-proc isAvailable*(client: CodexClient): bool =
-  try:
-    discard client.info
-    return true
-  except OSError as e:
-    if e.msg == "Connection refused":
-      return false
-    raise e
-
 proc setLogLevel*(client: CodexClient, level: string) =
   let url = client.baseurl & "/debug/chronicles/loglevel?level=" & level
   let headers = newHttpHeaders({"Content-Type": "text/plain"})

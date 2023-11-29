@@ -47,7 +47,7 @@ template marketplacesuite*(name: string, body: untyped) =
     proc createAvailabilities(datasetSize: int, duration: uint64) =
       # post availability to each provider
       for i in 0..<providers().len:
-        let provider = providers()[i].node.client
+        let provider = providers()[i].client
 
         discard provider.postAvailability(
           size=datasetSize.u256, # should match 1 slot only
@@ -90,6 +90,7 @@ template marketplacesuite*(name: string, body: untyped) =
         discard
 
     setup:
+      echo "[marketplacesuite.setup] setup start"
       marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
       let tokenAddress = await marketplace.token()
       token = Erc20Token.new(tokenAddress, ethProvider.getSigner())

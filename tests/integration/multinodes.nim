@@ -5,104 +5,37 @@ import std/sugar
 import std/times
 import pkg/chronicles
 import ../ethertest
-import ./codexclient
-import ./hardhat
-import ./nodes
+import ./hardhatprocess
+import ./codexprocess
+import ./hardhatconfig
+import ./codexconfig
 
 export ethertest
-export codexclient
-export nodes
+export hardhatprocess
+export codexprocess
+export hardhatconfig
+export codexconfig
 
 type
   RunningNode* = ref object
     role*: Role
     node*: NodeProcess
-    address*: ?Address
   NodeConfigs* = object
-    clients*: NodeConfig
-    providers*: NodeConfig
-    validators*: NodeConfig
+    clients*: CodexConfig
+    providers*: CodexConfig
+    validators*: CodexConfig
     hardhat*: HardhatConfig
-  Config* = object of RootObj
-    logFile*: bool
-  NodeConfig* = object of Config
-    numNodes*: int
-    cliOptions*: seq[CliOption]
-    logTopics*: seq[string]
-    debugEnabled*: bool
-  HardhatConfig* = ref object of Config
   Role* {.pure.} = enum
     Client,
     Provider,
     Validator,
     Hardhat
-  CliOption* = object of RootObj
-    nodeIdx*: ?int
-    key*: string
-    value*: string
-
-proc `$`*(option: CliOption): string =
-  var res = option.key
-  if option.value.len > 0:
-    res &= "=" & option.value
-  return res
 
 proc new*(_: type RunningNode,
           role: Role,
           node: NodeProcess): RunningNode =
   RunningNode(role: role,
               node: node)
-
-proc nodes*(config: NodeConfig, numNodes: int): NodeConfig =
-  if numNodes < 0:
-    raise newException(ValueError, "numNodes must be >= 0")
-
-  var startConfig = config
-  startConfig.numNodes = numNodes
-  return startConfig
-
-proc simulateProofFailuresFor*(
-  config: NodeConfig,
-  providerIdx: int,
-  failEveryNProofs: int
-): NodeConfig =
-
-  if providerIdx > config.numNodes - 1:
-    raise newException(ValueError, "provider index out of bounds")
-
-  var startConfig = config
-  startConfig.cliOptions.add(
-    CliOption(
-      nodeIdx: some providerIdx,
-      key: "--simulate-proof-failures",
-      value: $failEveryNProofs
-    )
-  )
-  return startConfig
-
-proc debug*(config: NodeConfig, enabled = true): NodeConfig =
-  ## output log in stdout
-  var startConfig = config
-  startConfig.debugEnabled = enabled
-  return startConfig
-
-proc withLogTopics*(
-  config: NodeConfig,
-  topics: varargs[string]
-): NodeConfig =
-
-  var startConfig = config
-  startConfig.logTopics = startConfig.logTopics.concat(@topics)
-  return startConfig
-
-proc withLogFile*[T: Config](
-  config: T,
-  logToFile: bool = true
-): T =
-
-  var startConfig = config
-  startConfig.logFile = logToFile
-  return startConfig
 
 proc nextFreePort(startPort: int): Future[int] {.async.} =
   let cmd = when defined(windows):
@@ -129,6 +62,7 @@ template multinodesuite*(name: string, body: untyped) =
     var nodeConfigs: NodeConfigs
 
     template test(tname, startNodeConfigs, tbody) =
+      echo "[multinodes] inside test template, tname: ", tname, ", startNodeConfigs: ", startNodeConfigs
       currentTestName = tname
       nodeConfigs = startNodeConfigs
       test tname:
@@ -163,24 +97,24 @@ template multinodesuite*(name: string, body: untyped) =
       role: Role
     ): Future[NodeProcess] {.async.} =
 
-      var options: seq[string] = @[]
+      var args: seq[string] = @[]
       if config.logFile:
         let updatedLogFile = getLogFile(role, none int)
-        options.add "--log-file=" & updatedLogFile
-
-      let node = await startHardhatProcess(options)
+        args.add "--log-file=" & updatedLogFile
+      echo ">>> [multinodes] starting hardhat node with args: ", args
+      let node = await HardhatProcess.startNode(args, config.debugEnabled, "hardhat")
       await node.waitUntilStarted()
 
       debug "started new hardhat node"
       return node
 
-    proc newNodeProcess(roleIdx: int,
-                        config1: NodeConfig,
+    proc newCodexProcess(roleIdx: int,
+                        config: CodexConfig,
                         role: Role
     ): Future[NodeProcess] {.async.} =
 
       let nodeIdx = running.len
-      var config = config1
+      var conf = config
 
       if nodeIdx > accounts.len - 1:
         raiseAssert("Cannot start node at nodeIdx " & $nodeIdx &
@@ -190,14 +124,20 @@ template multinodesuite*(name: string, body: untyped) =
         sanitize($starttime) /
         sanitize($role & "_" & $roleIdx)
 
-      if config.logFile:
+      if conf.logFile:
         let updatedLogFile = getLogFile(role, some roleIdx)
-        config.cliOptions.add CliOption(key: "--log-file", value: updatedLogFile)
+        conf.cliOptions.add CliOption(key: "--log-file", value: updatedLogFile)
 
-      if config.logTopics.len > 0:
-        config.cliOptions.add CliOption(key: "--log-level", value: "INFO;TRACE: " & config.logTopics.join(","))
+      let logLevel = conf.logLevel |? LogLevel.INFO
+      if conf.logTopics.len > 0:
+        conf.cliOptions.add CliOption(
+          key: "--log-level",
+          value: $logLevel & ";TRACE: " & conf.logTopics.join(",")
+        )
+      else:
+        conf.cliOptions.add CliOption(key: "--log-level", value: $logLevel)
 
-      var options = config.cliOptions.map(o => $o)
+      var args = conf.cliOptions.map(o => $o)
         .concat(@[
           "--api-port=" & $ await nextFreePort(8080 + nodeIdx),
           "--data-dir=" & datadir,
@@ -207,21 +147,30 @@ template multinodesuite*(name: string, body: untyped) =
           "--disc-port=" & $ await nextFreePort(8090 + nodeIdx),
           "--eth-account=" & $accounts[nodeIdx]])
 
-      let node = await startNode(options, config.debugEnabled)
-      echo "[multinodes.newNodeProcess] waiting until ", role, " node started"
+      let node = await CodexProcess.startNode(args, conf.debugEnabled, $role & $roleIdx)
+      echo "[multinodes.newCodexProcess] waiting until ", role, " node started"
       await node.waitUntilStarted()
-      echo "[multinodes.newNodeProcess] ", role, " NODE STARTED"
+      echo "[multinodes.newCodexProcess] ", role, " NODE STARTED"
 
       return node
 
-    proc clients(): seq[RunningNode] {.used.} =
-      running.filter(proc(r: RunningNode): bool = r.role == Role.Client)
+    proc clients(): seq[CodexProcess] {.used.} =
+      return collect:
+        for r in running:
+          if r.role == Role.Client:
+            CodexProcess(r.node)
 
-    proc providers(): seq[RunningNode] {.used.} =
-      running.filter(proc(r: RunningNode): bool = r.role == Role.Provider)
+    proc providers(): seq[CodexProcess] {.used.} =
+      return collect:
+        for r in running:
+          if r.role == Role.Provider:
+            CodexProcess(r.node)
 
-    proc validators(): seq[RunningNode] {.used.} =
-      running.filter(proc(r: RunningNode): bool = r.role == Role.Validator)
+    proc validators(): seq[CodexProcess] {.used.} =
+      return collect:
+        for r in running:
+          if r.role == Role.Validator:
+            CodexProcess(r.node)
 
     proc startHardhatNode(): Future[NodeProcess] {.async.} =
       var config = nodeConfigs.hardhat
@@ -231,7 +180,7 @@ template multinodesuite*(name: string, body: untyped) =
       let clientIdx = clients().len
       var config = nodeConfigs.clients
       config.cliOptions.add CliOption(key: "--persistence")
-      return await newNodeProcess(clientIdx, config, Role.Client)
+      return await newCodexProcess(clientIdx, config, Role.Client)
 
     proc startProviderNode(): Future[NodeProcess] {.async.} =
       let providerIdx = providers().len
@@ -244,7 +193,7 @@ template multinodesuite*(name: string, body: untyped) =
         o => (let idx = o.nodeIdx |? providerIdx; idx == providerIdx)
       )
 
-      return await newNodeProcess(providerIdx, config, Role.Provider)
+      return await newCodexProcess(providerIdx, config, Role.Provider)
 
     proc startValidatorNode(): Future[NodeProcess] {.async.} =
       let validatorIdx = validators().len
@@ -252,45 +201,47 @@ template multinodesuite*(name: string, body: untyped) =
       config.cliOptions.add CliOption(key: "--bootstrap-node", value: bootstrap)
       config.cliOptions.add CliOption(key: "--validator")
 
-      return await newNodeProcess(validatorIdx, config, Role.Validator)
+      return await newCodexProcess(validatorIdx, config, Role.Validator)
 
     setup:
+      echo "[multinodes.setup] setup start"
       if not nodeConfigs.hardhat.isNil:
+        echo "[multinodes.setup] starting hardhat node "
         let node = await startHardhatNode()
         running.add RunningNode(role: Role.Hardhat, node: node)
 
-      for i in 0..<nodeConfigs.clients.numNodes:
-        echo "[multinodes.setup] starting client node ", i
-        let node = await startClientNode()
-        running.add RunningNode(
-                      role: Role.Client,
-                      node: node,
-                      address: some accounts[running.len]
-                    )
-        echo "[multinodes.setup] added running client node ", i
-        if i == 0:
-          echo "[multinodes.setup] getting client 0 bootstrap spr"
-          bootstrap = node.client.info()["spr"].getStr()
-          echo "[multinodes.setup] got client 0 bootstrap spr: ", bootstrap
+      if not nodeConfigs.clients.isNil:
+        for i in 0..<nodeConfigs.clients.numNodes:
+          echo "[multinodes.setup] starting client node ", i
+          let node = await startClientNode()
+          running.add RunningNode(
+                        role: Role.Client,
+                        node: node
+                      )
+          echo "[multinodes.setup] added running client node ", i
+          if i == 0:
+            echo "[multinodes.setup] getting client 0 bootstrap spr"
+            bootstrap = CodexProcess(node).client.info()["spr"].getStr()
+            echo "[multinodes.setup] got client 0 bootstrap spr: ", bootstrap
 
-      for i in 0..<nodeConfigs.providers.numNodes:
-        echo "[multinodes.setup] starting provider node ", i
-        let node = await startProviderNode()
-        running.add RunningNode(
-                      role: Role.Provider,
-                      node: node,
-                      address: some accounts[running.len]
-                    )
-        echo "[multinodes.setup] added running provider node ", i
+      if not nodeConfigs.providers.isNil:
+        for i in 0..<nodeConfigs.providers.numNodes:
+          echo "[multinodes.setup] starting provider node ", i
+          let node = await startProviderNode()
+          running.add RunningNode(
+                        role: Role.Provider,
+                        node: node
+                      )
+          echo "[multinodes.setup] added running provider node ", i
 
-      for i in 0..<nodeConfigs.validators.numNodes:
-        let node = await startValidatorNode()
-        running.add RunningNode(
-                      role: Role.Validator,
-                      node: node,
-                      address: some accounts[running.len]
-                    )
-        echo "[multinodes.setup] added running validator node ", i
+      if not nodeConfigs.validators.isNil:
+        for i in 0..<nodeConfigs.validators.numNodes:
+          let node = await startValidatorNode()
+          running.add RunningNode(
+                        role: Role.Validator,
+                        node: node
+                      )
+          echo "[multinodes.setup] added running validator node ", i
 
     teardown:
       for r in running:
