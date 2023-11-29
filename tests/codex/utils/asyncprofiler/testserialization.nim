@@ -22,15 +22,17 @@ checksuite "asyncprofiler metrics serializer":
     wallClockTime: 2.seconds,
     childrenExecTime: 10.seconds,
     execTimeMax: 1500.milliseconds,
+    zombieEventCount: 0,
     callCount: 10
   )
 
-  test "should serialize OverallMetrics":
+  test "should serialize AggregateFutureMetrics":
     check %fooMetric == %*{
       "execTime": 2000000000,
       "wallClockTime": 2000000000,
       "childrenExecTime": 10000000000,
       "execTimeMax": 1500000000,
+      "zombieEventCount": 0,
       "callCount": 10
     }
 
@@ -41,7 +43,7 @@ checksuite "asyncprofiler metrics serializer":
       "line": 1
     }
 
-  test "should serialize metrics totals":
+  test "should serialize MetricsTotals":
     var summary: MetricsTotals = {
       fooLoc: fooMetric
     }.toTable
@@ -56,6 +58,7 @@ checksuite "asyncprofiler metrics serializer":
       "wallClockTime": 2000000000,
       "childrenExecTime": 10000000000,
       "execTimeMax": 1500000000,
+      "zombieEventCount": 0,
       "callCount": 10
     }]
 
@@ -71,6 +74,7 @@ checksuite "asyncprofiler metrics serializer":
       wallClockTime: 1.seconds,
       execTimeMax: 1500.milliseconds,
       childrenExecTime: 1.seconds,
+      zombieEventCount: 0,
       callCount: 5
     )
 
