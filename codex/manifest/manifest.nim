@@ -287,33 +287,30 @@ proc new*(
   )
 
 proc new*(
-  T: type Manifest,
-  treeCid: Cid,
-  datasetSize: NBytes,
-  blockSize: NBytes,
-  version: CidVersion,
-  hcodec: MultiCodec,
-  codec: MultiCodec,
-  ecK: int,
-  ecM: int,
-  originalTreeCid: Cid,
-  originalDatasetSize: NBytes,
-  datasetRoot: VerificationHash,
-  slotRoots: seq[VerificationHash]
-): Manifest =
-  Manifest(
-    treeCid: treeCid,
-    datasetSize: datasetSize,
-    blockSize: blockSize,
-    version: version,
-    hcodec: hcodec,
-    codec: codec,
+    T: type Manifest,
+    manifest: Manifest,
+    datasetRoot: VerificationHash,
+    slotRoots: seq[VerificationHash]
+): ?!Manifest =
+  ## Create a verifiable dataset from an
+  ## protected one
+  ##
+  if not manifest.protected:
+    return failure newException(CodexError, "Can create verifiable manifest only from protected manifest.")
+
+  success(Manifest(
+    treeCid: manifest.treeCid,
+    datasetSize: manifest.datasetSize,
+    version: manifest.version,
+    codec: manifest.codec,
+    hcodec: manifest.hcodec,
+    blockSize: manifest.blockSize,
     protected: true,
-    ecK: ecK,
-    ecM: ecM,
-    originalTreeCid: originalTreeCid,
-    originalDatasetSize: originalDatasetSize,
+    ecK: manifest.ecK,
+    ecM: manifest.ecM,
+    originalTreeCid: manifest.treeCid,
+    originalDatasetSize: manifest.originalDatasetSize,
     verifiable: true,
     datasetRoot: datasetRoot,
     slotRoots: slotRoots
-  )
+  ))

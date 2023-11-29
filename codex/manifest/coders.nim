@@ -14,6 +14,7 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import std/tables
+import std/sequtils
 
 import pkg/libp2p
 import pkg/questionable
@@ -38,11 +39,16 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   # contains the following protobuf `Message`
   #
   # ```protobuf
+  #   Message VerificationInfo {
+  #     bytes datasetRoot = 1;            # Decimal encoded field-element
+  #     repeated bytes slotRoots = 2;     # Decimal encoded field-elements
+  #   }
   #   Message ErasureInfo {
-  #     optional uint32 ecK = 1;                  # number of encoded blocks
-  #     optional uint32 ecM = 2;                  # number of parity blocks
-  #     optional bytes originalTreeCid = 3;       # cid of the original dataset
-  #     optional uint32 originalDatasetSize = 4;  # size of the original dataset
+  #     optional uint32 ecK = 1;                            # number of encoded blocks
+  #     optional uint32 ecM = 2;                            # number of parity blocks
+  #     optional bytes originalTreeCid = 3;                 # cid of the original dataset
+  #     optional uint32 originalDatasetSize = 4;            # size of the original dataset
+  #     optional VerificationInformation verification = 5;  # verification information
   #   }
   #   Message Header {
   #     optional bytes treeCid = 1;       # cid (root) of the tree
@@ -63,8 +69,15 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
     erasureInfo.write(2, manifest.ecM.uint32)
     erasureInfo.write(3, manifest.originalTreeCid.data.buffer)
     erasureInfo.write(4, manifest.originalDatasetSize.uint32)
-    erasureInfo.finish()
 
+    if manifest.verifiable:
+      var verificationInfo = initProtoBuffer()
+      verificationInfo.write(1, manifest.datasetRoot.encode())
+      for slotRoot in manifest.slotRoots:
+        verificationInfo.write(2, slotRoot.encode())
+      erasureInfo.write(5, verificationInfo)
+
+    erasureInfo.finish()
     header.write(4, erasureInfo)
 
   pbNode.write(1, header) # set the treeCid as the data field
@@ -80,12 +93,15 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     pbNode = initProtoBuffer(data)
     pbHeader: ProtoBuffer
     pbErasureInfo: ProtoBuffer
+    pbVerificationInfo: ProtoBuffer
     treeCidBuf: seq[byte]
     originalTreeCid: seq[byte]
     datasetSize: uint32
     blockSize: uint32
     originalDatasetSize: uint32
     ecK, ecM: uint32
+    datasetRoot: string
+    slotRoots: seq[string]
 
   # Decode `Header` message
   if pbNode.getField(1, pbHeader).isErr:
@@ -105,6 +121,7 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     return failure("Unable to decode `erasureInfo` from manifest!")
 
   let protected = pbErasureInfo.buffer.len > 0
+  var verifiable = false
   if protected:
     if pbErasureInfo.getField(1, ecK).isErr:
       return failure("Unable to decode `K` from manifest!")
@@ -118,8 +135,18 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     if pbErasureInfo.getField(4, originalDatasetSize).isErr:
       return failure("Unable to decode `originalDatasetSize` from manifest!")
 
+    if pbErasureInfo.getField(5, pbVerificationInfo).isErr:
+      return failure("Unable to decode `verificationInfo` from manifest!")
 
-  let 
+    verifiable = pbVerificationInfo.buffer.len > 0
+    if verifiable:
+      if pbVerificationInfo.getField(1, datasetRoot).isErr:
+        return failure("Unable to decode `datasetRoot` from manifest!")
+
+      if pbVerificationInfo.getRequiredRepeatedField(2, slotRoots).isErr:
+        return failure("Unable to decode `slotRoots` from manifest!")
+
+  let
     treeCid = ? Cid.init(treeCidBuf).mapFailure
 
   let
@@ -147,6 +174,14 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
         )
 
   ? self.verify()
+
+  # if verifiable:
+  #   return Manifest.new(
+  #     manifest = self,
+  #     datasetRoot = VerificationHash.decode(datasetRoot),
+  #     slotRoots = slotRoots.mapIt(VerificationHash.decode(it))
+  #   )
+
   self.success
 
 proc encode*(

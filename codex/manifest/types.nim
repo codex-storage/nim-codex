@@ -11,8 +11,12 @@
 
 import std/tables
 import pkg/libp2p
-import pkg/poseidon2/types
+# import pkg/constantine/math/config/curves
+# import pkg/constantine/math/config/curves_prop_curve
+# import pkg/constantine/math/arithmetic
 import pkg/constantine/math/io/io_fields
+import pkg/poseidon2
+# import pkg/poseidon2/io
 
 import ../units
 export units
@@ -32,4 +36,14 @@ const
   }.toTable
 
 proc `==`*(a, b: VerificationHash): bool =
-  a.toDecimal() == b.toDecimal()
+  a.toHex() == b.toHex()
+
+proc fromInt*(T: type VerificationHash, value: SomeInteger | SomeUnsignedInt): VerificationHash =
+  #raiseAssert("a")
+  toF(value)
+
+proc encode*(a: VerificationHash): string =
+  a.toHex()
+
+proc decode*(T: type VerificationHash, str: string): VerificationHash =
+  F.fromHex(str)
