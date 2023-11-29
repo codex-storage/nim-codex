@@ -47,3 +47,22 @@ checksuite "Manifest":
     check:
       decoded == manifest
 
+  # test "Should encode/decode to/from verifiable manifest":
+  #   var
+  #     manifest = Manifest.new(
+  #       manifest = Manifest.new(
+  #         treeCid = Cid.example,
+  #         blockSize = 1.MiBs,
+  #         datasetSize = 100.MiBs),
+  #       treeCid = Cid.example,
+  #       datasetSize = 200.MiBs,
+  #       eck = 10,
+  #       ecM = 10
+  #     )
+
+  #   let
+  #     e = manifest.encode().tryGet()
+  #     decoded = Manifest.decode(e).tryGet()
+
+  #   check:
+  #     decoded == manifest

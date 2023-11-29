@@ -11,6 +11,8 @@
 
 import std/tables
 import pkg/libp2p
+import pkg/poseidon2/types
+import pkg/constantine/math/io/io_fields
 
 import ../units
 export units
@@ -22,8 +24,12 @@ const
 type
   ManifestCoderType*[codec: static MultiCodec] = object
   DagPBCoder* = ManifestCoderType[multiCodec("dag-pb")]
+  VerificationHash* = F
 
 const
   ManifestContainers* = {
     $DagPBCodec: DagPBCoder()
   }.toTable
+
+proc `==`*(a, b: VerificationHash): bool =
+  a.toDecimal() == b.toDecimal()

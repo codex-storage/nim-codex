@@ -42,6 +42,12 @@ type
       ecM: int                              # Number of resulting parity blocks
       originalTreeCid: Cid                  # The original root of the dataset being erasure coded
       originalDatasetSize: NBytes
+      case verifiable {.serialize.}: bool   # Verifiable datasets can be used to generate storage proofs
+      of true:
+        datasetRoot: VerificationHash
+        slotRoots: seq[VerificationHash]
+      else:
+        discard
     else:
       discard
 
@@ -87,6 +93,15 @@ proc treeCid*(self: Manifest): Cid =
 
 proc blocksCount*(self: Manifest): int =
   divUp(self.datasetSize.int, self.blockSize.int)
+
+proc verifiable*(self: Manifest): bool =
+  self.verifiable
+
+proc datasetRoot*(self: Manifest): VerificationHash =
+  self.datasetRoot
+
+proc slotRoots*(self: Manifest): seq[VerificationHash] =
+  self.slotRoots
 
 ############################################################
 # Operations on block list
@@ -142,7 +157,13 @@ proc `==`*(a, b: Manifest): bool =
       (a.ecK == b.ecK) and
       (a.ecM == b.ecM) and
       (a.originalTreeCid == b.originalTreeCid) and
-      (a.originalDatasetSize == b.originalDatasetSize)
+      (a.originalDatasetSize == b.originalDatasetSize) and
+      (a.verifiable == b.verifiable) and
+        (if a.verifiable:
+          (a.datasetRoot == b.datasetRoot) and
+          (a.slotRoots == b.slotRoots)
+        else:
+          true)
     else:
       true)
 
@@ -158,7 +179,12 @@ proc `$`*(self: Manifest): string =
       ", ecK: " & $self.ecK &
       ", ecM: " & $self.ecM &
       ", originalTreeCid: " & $self.originalTreeCid &
-      ", originalDatasetSize: " & $self.originalDatasetSize
+      ", originalDatasetSize: " & $self.originalDatasetSize &
+      (if self.verifiable:
+        ", datasetRoot: " & $self.datasetRoot &
+        ", slotRoots: " & $self.slotRoots
+      else:
+        "")
     else:
       "")
 
@@ -258,4 +284,36 @@ proc new*(
     ecM: ecM,
     originalTreeCid: originalTreeCid,
     originalDatasetSize: originalDatasetSize
+  )
+
+proc new*(
+  T: type Manifest,
+  treeCid: Cid,
+  datasetSize: NBytes,
+  blockSize: NBytes,
+  version: CidVersion,
+  hcodec: MultiCodec,
+  codec: MultiCodec,
+  ecK: int,
+  ecM: int,
+  originalTreeCid: Cid,
+  originalDatasetSize: NBytes,
+  datasetRoot: VerificationHash,
+  slotRoots: seq[VerificationHash]
+): Manifest =
+  Manifest(
+    treeCid: treeCid,
+    datasetSize: datasetSize,
+    blockSize: blockSize,
+    version: version,
+    hcodec: hcodec,
+    codec: codec,
+    protected: true,
+    ecK: ecK,
+    ecM: ecM,
+    originalTreeCid: originalTreeCid,
+    originalDatasetSize: originalDatasetSize,
+    verifiable: true,
+    datasetRoot: datasetRoot,
+    slotRoots: slotRoots
   )
