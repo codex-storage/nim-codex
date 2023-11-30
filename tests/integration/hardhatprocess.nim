@@ -4,12 +4,10 @@ import pkg/confutils
 import pkg/chronicles
 import pkg/chronos
 import pkg/stew/io2
-import std/osproc
 import std/os
 import std/sets
-import std/streams
+import std/sequtils
 import std/strutils
-import std/sugar
 import pkg/codex/conf
 import pkg/codex/utils/trackedfutures
 import ./codexclient
@@ -30,13 +28,16 @@ method workingDir(node: HardhatProcess): string =
   return currentSourcePath() / ".." / ".." / ".." / "vendor" / "codex-contracts-eth"
 
 method executable(node: HardhatProcess): string =
-  return "npm start"
+  return "node_modules" / ".bin" / "hardhat"
 
 method startedOutput(node: HardhatProcess): string =
   return "Started HTTP and WebSocket JSON-RPC server at"
 
 method processOptions(node: HardhatProcess): set[AsyncProcessOption] =
-  return {AsyncProcessOption.EvalCommand, AsyncProcessOption.StdErrToStdOut}
+  return {}
+
+method outputLineEndings(node: HardhatProcess): string =
+  return "\n"
 
 proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
   let logFileHandle = openFile(
@@ -53,11 +54,31 @@ proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
 
   return fileHandle
 
+method start*(node: HardhatProcess) {.async.} =
+
+  let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
+  trace "starting node",
+    args = node.arguments,
+    executable = node.executable,
+    workingDir = node.workingDir,
+    processOptions = poptions
+
+  try:
+    node.process = await startProcess(
+      node.executable,
+      node.workingDir,
+      @["node", "--export", "deployment-localhost.json"].concat(node.arguments),
+      options = poptions,
+      stdoutHandle = AsyncProcess.Pipe
+    )
+  except CatchableError as e:
+    error "failed to start node process", error = e.msg
+
 proc startNode*(
   _: type HardhatProcess,
-  args: seq[string] = @[],
+  args: seq[string],
   debug: string | bool = false,
-  name: string = "hardhat"
+  name: string
 ): Future[HardhatProcess] {.async.} =
 
   var logFilePath = ""
@@ -70,14 +91,20 @@ proc startNode*(
       arguments.add arg
 
   trace "starting hardhat node", arguments
-  echo ">>> starting hardhat node with args: ", arguments
-  let node = await NodeProcess.startNode(arguments, debug, "hardhat")
-  let hardhat = HardhatProcess(node)
+  ## Starts a Hardhat Node with the specified arguments.
+  ## Set debug to 'true' to see output of the node.
+  let hardhat = HardhatProcess(
+    arguments: arguments,
+    debug: ($debug != "false"),
+    trackedFutures: TrackedFutures.new(),
+    name: "hardhat"
+  )
+
+  await hardhat.start()
 
   if logFilePath != "":
     hardhat.logFile = some hardhat.openLogFile(logFilePath)
 
-  # let hardhat = HardhatProcess()
   return hardhat
 
 method onOutputLineCaptured(node: HardhatProcess, line: string) =
@@ -91,9 +118,10 @@ method onOutputLineCaptured(node: HardhatProcess, line: string) =
 
 method stop*(node: HardhatProcess) {.async.} =
   # terminate the process
-  procCall NodeProcess(node).stop()
+  await procCall NodeProcess(node).stop()
 
   if logFile =? node.logFile:
+    trace "closing hardhat log file"
     discard logFile.closeFile()
 
 method removeDataDir*(node: HardhatProcess) =

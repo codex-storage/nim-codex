@@ -33,6 +33,9 @@ method startedOutput(node: CodexProcess): string =
 method processOptions(node: CodexProcess): set[AsyncProcessOption] =
   return {AsyncProcessOption.StdErrToStdOut}
 
+method outputLineEndings(node: CodexProcess): string =
+  return "\n"
+
 method onOutputLineCaptured(node: CodexProcess, line: string) =
   discard
 

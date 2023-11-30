@@ -16,20 +16,20 @@ logScope:
 marketplacesuite "Hosts submit regular proofs":
 
   test "hosts submit periodic proofs for slots they fill", NodeConfigs(
-    # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
-    # hardhat: HardhatConfig().debug().withLogFile(),
+    # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
+    # hardhat: HardhatConfig().withLogFile(),
 
     clients:
       CodexConfig()
         .nodes(1)
-        .debug() # uncomment to enable console log output
+        # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("node"),
 
     providers:
       CodexConfig()
         .nodes(1)
-        .debug() # uncomment to enable console log output
+        # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("marketplace", "sales", "reservations", "node"),
   ):
@@ -56,7 +56,6 @@ marketplacesuite "Hosts submit regular proofs":
     await subscription.unsubscribe()
 
 
-
 marketplacesuite "Simulate invalid proofs":
 
   # TODO: these are very loose tests in that they are not testing EXACTLY how
@@ -65,8 +64,8 @@ marketplacesuite "Simulate invalid proofs":
   # proofs are being marked as missed by the validator.
 
   test "slot is freed after too many invalid proofs submitted", NodeConfigs(
-    # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
-    # hardhat: HardhatConfig().debug().withLogFile(),
+    # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
+    # hardhat: HardhatConfig().withLogFile(),
 
     clients:
       CodexConfig()
@@ -117,8 +116,8 @@ marketplacesuite "Simulate invalid proofs":
     await subscription.unsubscribe()
 
   test "slot is not freed when not enough invalid proofs submitted", NodeConfigs(
-    # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
-    # hardhat: HardhatConfig().debug().withLogFile(),
+    # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
+    # hardhat: HardhatConfig().withLogFile(),
 
     clients:
       CodexConfig()
@@ -170,8 +169,8 @@ marketplacesuite "Simulate invalid proofs":
     await subscription.unsubscribe()
 
   test "host that submits invalid proofs is paid out less", NodeConfigs(
-    # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
-    # hardhat: HardhatConfig().debug().withLogFile(),
+    # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
+    # hardhat: HardhatConfig().withLogFile(),
 
     clients:
       CodexConfig()

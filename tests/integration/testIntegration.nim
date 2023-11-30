@@ -20,7 +20,7 @@ import ./marketplacesuite
 # You can also pass a string in same format like for the `--log-level` parameter
 # to enable custom logging levels for specific topics like: debug2 = "INFO; TRACE: marketplace"
 
-twonodessuite "Integration tests", debug1 = true, debug2 = true:
+twonodessuite "Integration tests", debug1 = false, debug2 = false:
   setup:
     # Our Hardhat configuration does use automine, which means that time tracked by `ethProvider.currentTime()` is not
     # advanced until blocks are mined and that happens only when transaction is submitted.
@@ -232,20 +232,20 @@ marketplacesuite "Marketplace payouts":
 
   test "expired request partially pays out for stored time",
     NodeConfigs(
-      # Uncomment to start Hardhat automatically, mainly so logs can be inspected locally
+      # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
       # hardhat: HardhatConfig().withLogFile()
 
       clients:
         CodexConfig()
           .nodes(1)
-          .debug() # uncomment to enable console log output.debug()
+          # .debug() # uncomment to enable console log output.debug()
           .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
           .withLogTopics("node", "erasure"),
 
       providers:
         CodexConfig()
           .nodes(1)
-          .debug() # uncomment to enable console log output
+          # .debug() # uncomment to enable console log output
           .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
           .withLogTopics("marketplace", "sales", "reservations", "node", "proving", "clock"),
   ):

@@ -3,11 +3,7 @@ import pkg/questionable/results
 import pkg/confutils
 import pkg/chronicles
 import pkg/libp2p
-import pkg/stew/byteutils
-import std/osproc
 import std/os
-import std/sequtils
-import std/streams
 import std/strutils
 import codex/conf
 import codex/utils/exceptions
@@ -40,24 +36,35 @@ method startedOutput(node: NodeProcess): string {.base.} =
 method processOptions(node: NodeProcess): set[AsyncProcessOption] {.base.} =
   raiseAssert "[processOptions] not implemented"
 
+method outputLineEndings(node: NodeProcess): string {.base.} =
+  raiseAssert "[outputLineEndings] not implemented"
+
 method onOutputLineCaptured(node: NodeProcess, line: string) {.base.} =
   raiseAssert "[onOutputLineCaptured] not implemented"
 
-method start(node: NodeProcess) {.base, async.} =
+method start*(node: NodeProcess) {.base, async.} =
   logScope:
     nodeName = node.name
 
-  trace "starting node", args = node.arguments
+  let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
+  trace "starting node",
+    args = node.arguments,
+    executable = node.executable,
+    workingDir = node.workingDir,
+    processOptions = poptions
 
-  node.process = await startProcess(
-    node.executable,
-    node.workingDir,
-    node.arguments,
-    options = node.processOptions,
-    stdoutHandle = AsyncProcess.Pipe
-  )
+  try:
+    node.process = await startProcess(
+      node.executable,
+      node.workingDir,
+      node.arguments,
+      options = poptions,
+      stdoutHandle = AsyncProcess.Pipe
+    )
+  except CatchableError as e:
+    error "failed to start node process", error = e.msg
 
-proc captureOutput*(
+proc captureOutput(
   node: NodeProcess,
   output: string,
   started: Future[void]
@@ -68,20 +75,23 @@ proc captureOutput*(
 
   trace "waiting for output", output
 
-  let stream = node.process.stdOutStream
+  let stream = node.process.stdoutStream
 
   try:
-    while(let line = await stream.readLine(0, "\n"); line != ""):
-      if node.debug:
-        # would be nice if chronicles could parse and display with colors
-        echo line
+    while node.process.running.option == some true:
+      while(let line = await stream.readLine(0, node.outputLineEndings); line != ""):
+        if node.debug:
+          # would be nice if chronicles could parse and display with colors
+          echo line
 
-      if not started.isNil and not started.finished and line.contains(output):
-        started.complete()
+        if not started.isNil and not started.finished and line.contains(output):
+          started.complete()
 
-      node.onOutputLineCaptured(line)
+        node.onOutputLineCaptured(line)
 
+        await sleepAsync(1.millis)
       await sleepAsync(1.millis)
+
   except AsyncStreamReadError as e:
     error "error reading output stream", error = e.msgDetail
 
@@ -110,18 +120,20 @@ method stop*(node: NodeProcess) {.base, async.} =
   await node.trackedFutures.cancelTracked()
   if node.process != nil:
     try:
-      if err =? node.process.terminate().errorOption:
-        error "failed to terminate node process", errorCode = err
-      discard await node.process.waitForExit(timeout=5.seconds)
-      # close process' streams
+      trace "waiting for node process to exit"
+      let exitCode = await node.process.waitForExit(ZeroDuration)
+      if exitCode > 0:
+        error "failed to exit process, check for zombies", exitCode
+
+      trace "closing node process' streams"
       await node.process.closeWait()
 
-    except AsyncTimeoutError as e:
-      error "waiting for process exit timed out", error = e.msgDetail
     except CatchableError as e:
       error "error stopping node process", error = e.msg
+
     finally:
       node.process = nil
+
     trace "node stopped"
 
 proc waitUntilStarted*(node: NodeProcess) {.async.} =

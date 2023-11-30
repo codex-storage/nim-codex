@@ -4,13 +4,15 @@ import std/strutils
 import std/sugar
 import std/times
 import pkg/chronicles
-import ../ethertest
+import pkg/ethers
+import pkg/asynctest
 import ./hardhatprocess
 import ./codexprocess
 import ./hardhatconfig
 import ./codexconfig
 
-export ethertest
+export asynctest
+export ethers except `%`
 export hardhatprocess
 export codexprocess
 export hardhatconfig
@@ -44,25 +46,28 @@ proc nextFreePort(startPort: int): Future[int] {.async.} =
               "lsof -ti:"
   var port = startPort
   while true:
+    trace "checking if port is free", port
     let portInUse = await execCommandEx(cmd & $port)
     if portInUse.stdOutput == "":
-      echo "port ", port, " is free"
+      trace "port is free", port
       return port
     else:
       inc port
 
 template multinodesuite*(name: string, body: untyped) =
 
-  ethersuite name:
+  asyncchecksuite name:
 
     var running: seq[RunningNode]
     var bootstrap: string
     let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
     var currentTestName = ""
     var nodeConfigs: NodeConfigs
+    var ethProvider {.inject, used.}: JsonRpcProvider
+    var accounts {.inject, used.}: seq[Address]
+    var snapshot: JsonNode
 
     template test(tname, startNodeConfigs, tbody) =
-      echo "[multinodes] inside test template, tname: ", tname, ", startNodeConfigs: ", startNodeConfigs
       currentTestName = tname
       nodeConfigs = startNodeConfigs
       test tname:
@@ -101,11 +106,11 @@ template multinodesuite*(name: string, body: untyped) =
       if config.logFile:
         let updatedLogFile = getLogFile(role, none int)
         args.add "--log-file=" & updatedLogFile
-      echo ">>> [multinodes] starting hardhat node with args: ", args
+
       let node = await HardhatProcess.startNode(args, config.debugEnabled, "hardhat")
       await node.waitUntilStarted()
 
-      debug "started new hardhat node"
+      trace "hardhat node started"
       return node
 
     proc newCodexProcess(roleIdx: int,
@@ -148,25 +153,30 @@ template multinodesuite*(name: string, body: untyped) =
           "--eth-account=" & $accounts[nodeIdx]])
 
       let node = await CodexProcess.startNode(args, conf.debugEnabled, $role & $roleIdx)
-      echo "[multinodes.newCodexProcess] waiting until ", role, " node started"
       await node.waitUntilStarted()
-      echo "[multinodes.newCodexProcess] ", role, " NODE STARTED"
+      trace "node started", nodeName = $role & $roleIdx
 
       return node
 
-    proc clients(): seq[CodexProcess] {.used.} =
+    proc hardhat: HardhatProcess =
+      for r in running:
+        if r.role == Role.Hardhat:
+          return HardhatProcess(r.node)
+      return nil
+
+    proc clients: seq[CodexProcess] {.used.} =
       return collect:
         for r in running:
           if r.role == Role.Client:
             CodexProcess(r.node)
 
-    proc providers(): seq[CodexProcess] {.used.} =
+    proc providers: seq[CodexProcess] {.used.} =
       return collect:
         for r in running:
           if r.role == Role.Provider:
             CodexProcess(r.node)
 
-    proc validators(): seq[CodexProcess] {.used.} =
+    proc validators: seq[CodexProcess] {.used.} =
       return collect:
         for r in running:
           if r.role == Role.Validator:
@@ -204,35 +214,38 @@ template multinodesuite*(name: string, body: untyped) =
       return await newCodexProcess(validatorIdx, config, Role.Validator)
 
     setup:
-      echo "[multinodes.setup] setup start"
       if not nodeConfigs.hardhat.isNil:
-        echo "[multinodes.setup] starting hardhat node "
         let node = await startHardhatNode()
         running.add RunningNode(role: Role.Hardhat, node: node)
 
+      try:
+        ethProvider = JsonRpcProvider.new("ws://localhost:8545")
+        # if hardhat was NOT started by the test, take a snapshot so it can be
+        # reverted in the test teardown
+        if nodeConfigs.hardhat.isNil:
+          snapshot = await send(ethProvider, "evm_snapshot")
+        accounts = await ethProvider.listAccounts()
+      except CatchableError as e:
+        fatal "failed to connect to hardhat", error = e.msg
+        raiseAssert "Hardhat not running. Run hardhat manually before executing tests, or include a HardhatConfig in the test setup."
+
       if not nodeConfigs.clients.isNil:
         for i in 0..<nodeConfigs.clients.numNodes:
-          echo "[multinodes.setup] starting client node ", i
           let node = await startClientNode()
           running.add RunningNode(
                         role: Role.Client,
                         node: node
                       )
-          echo "[multinodes.setup] added running client node ", i
           if i == 0:
-            echo "[multinodes.setup] getting client 0 bootstrap spr"
             bootstrap = CodexProcess(node).client.info()["spr"].getStr()
-            echo "[multinodes.setup] got client 0 bootstrap spr: ", bootstrap
 
       if not nodeConfigs.providers.isNil:
         for i in 0..<nodeConfigs.providers.numNodes:
-          echo "[multinodes.setup] starting provider node ", i
           let node = await startProviderNode()
           running.add RunningNode(
                         role: Role.Provider,
                         node: node
                       )
-          echo "[multinodes.setup] added running provider node ", i
 
       if not nodeConfigs.validators.isNil:
         for i in 0..<nodeConfigs.validators.numNodes:
@@ -241,12 +254,21 @@ template multinodesuite*(name: string, body: untyped) =
                         role: Role.Validator,
                         node: node
                       )
-          echo "[multinodes.setup] added running validator node ", i
 
     teardown:
-      for r in running:
-        await r.node.stop() # also stops rest client
-        r.node.removeDataDir()
+      for nodes in @[validators(), clients(), providers()]:
+        for node in nodes:
+          await node.stop() # also stops rest client
+          node.removeDataDir()
+
+      # if hardhat was started in the test, kill the node
+      # otherwise revert the snapshot taken in the test setup
+      let hardhat = hardhat()
+      if not hardhat.isNil:
+        await hardhat.stop()
+      else:
+        discard await send(ethProvider, "evm_revert", @[snapshot])
+
       running = @[]
 
     body

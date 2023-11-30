@@ -90,7 +90,6 @@ template marketplacesuite*(name: string, body: untyped) =
         discard
 
     setup:
-      echo "[marketplacesuite.setup] setup start"
       marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
       let tokenAddress = await marketplace.token()
       token = Erc20Token.new(tokenAddress, ethProvider.getSigner())

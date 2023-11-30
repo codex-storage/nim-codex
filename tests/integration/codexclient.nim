@@ -1,6 +1,5 @@
 import std/httpclient
 import std/strutils
-import std/sequtils
 
 from pkg/libp2p import Cid, `$`, init
 import pkg/chronicles
