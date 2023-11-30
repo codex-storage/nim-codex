@@ -9,6 +9,7 @@ import pkg/codex/chunker
 import pkg/codex/merkletree
 
 import ../helpers
+import ../examples
 
 import codex/slotbuilder/slotbuilder
 
@@ -62,7 +63,31 @@ asyncchecksuite "Slot builder":
   setup:
     await createBlocks()
     await createProtectedManifest()
-    slotBuilder = SlotBuilder.new(localStore, protectedManifest)
+    slotBuilder = SlotBuilder.new(localStore, protectedManifest).tryGet()
+
+  test "Can only create slotBuilder with protected manifest":
+    let unprotectedManifest = Manifest.new(
+      treeCid = Cid.example,
+      blockSize = blockSize.NBytes,
+      datasetSize = datasetSize.NBytes)
+
+    check:
+      SlotBuilder.new(localStore, unprotectedManifest).isErr
+
+  test "Number of blocks must be devisable by number of slots":
+    let mismatchManifest = Manifest.new(
+      manifest = Manifest.new(
+        treeCid = Cid.example,
+        blockSize = blockSize.NBytes,
+        datasetSize = datasetSize.NBytes),
+      treeCid = Cid.example,
+      datasetSize = datasetSize.NBytes,
+      ecK = numberOfSlots - 1,
+      ecM = 0
+    )
+
+    check:
+      SlotBuilder.new(localStore, mismatchManifest).isErr
 
   for i in 0 ..< numberOfSlots:
     test "Can get the protected slot blocks given a slot index (" & $i & ")":
@@ -70,7 +95,7 @@ asyncchecksuite "Slot builder":
         selectStart = i * numberOfSlotBlocks
         selectEnd = selectStart + numberOfSlotBlocks
         expectedCids = datasetBlocks.mapIt(it.cid)[selectStart ..< selectEnd]
-        cids = slotBuilder.getSlotBlockCids(i.uint64)
+        blocks = slotBuilder.getSlotBlocks(i.uint64)
 
       check:
-        cids == expectedCids
+        blocks.mapIt(it.cid) == expectedCids
