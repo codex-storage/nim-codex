@@ -1,4 +1,5 @@
 import ./manifest/coders
 import ./manifest/manifest
+import ./manifest/indexingstrategy
 
-export manifest, coders
+export manifest, coders, indexingstrategy

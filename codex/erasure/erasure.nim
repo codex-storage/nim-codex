@@ -127,7 +127,12 @@ proc prepareEncodingData(
   ##
 
   let
-    indicies = toSeq(countup(step, params.rounded - 1, params.steps))
+    strategy = SteppedIndexingStrategy.new(
+      firstIndex = 0,
+      lastIndex = params.rounded - 1,
+      numberOfIterations = params.steps
+    )
+    indicies = strategy.getIndicies(step)
     pendingBlocksIter = self.getPendingBlocks(manifest, indicies.filterIt(it < manifest.blocksCount))
 
   var resolved = 0
@@ -171,7 +176,12 @@ proc prepareDecodingData(
   ##
 
   let
-    indicies = toSeq(countup(step, encoded.blocksCount - 1, encoded.steps))
+    strategy = SteppedIndexingStrategy.new(
+      firstIndex = 0,
+      lastIndex = encoded.blocksCount - 1,
+      numberOfIterations = encoded.steps
+    )
+    indicies = strategy.getIndicies(step)
     pendingBlocksIter = self.getPendingBlocks(encoded, indicies)
 
   var
