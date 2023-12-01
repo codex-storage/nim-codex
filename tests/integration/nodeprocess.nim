@@ -120,8 +120,12 @@ method stop*(node: NodeProcess) {.base, async.} =
   await node.trackedFutures.cancelTracked()
   if node.process != nil:
     try:
+      trace "terminating node process..."
+      if errCode =? node.process.terminate().errorOption:
+        error "failed to terminate process", errCode
+
       trace "waiting for node process to exit"
-      let exitCode = await node.process.waitForExit(ZeroDuration)
+      let exitCode = await node.process.waitForExit(3.seconds)
       if exitCode > 0:
         error "failed to exit process, check for zombies", exitCode
 
