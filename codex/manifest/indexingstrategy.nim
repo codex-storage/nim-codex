@@ -1,4 +1,5 @@
 import std/sequtils
+import ../utils
 
 type
   # Representing a strategy for grouping indices (of blocks usually)
@@ -8,6 +9,7 @@ type
     firstIndex: int             # Lowest index that can be returned
     lastIndex: int              # Highest index that can be returned
     numberOfIterations: int     # getIndices(iteration) will run from 0 ..< numberOfIterations
+    step: int
 
   # Simplest approach:
   # 0 => 0, 1, 2
@@ -35,15 +37,16 @@ proc new*(T: type IndexingStrategy, firstIndex, lastIndex, numberOfIterations: i
   T(
     firstIndex: firstIndex,
     lastIndex: lastIndex,
-    numberOfIterations: numberOfIterations
+    numberOfIterations: numberOfIterations,
+    step: divUp((lastIndex - firstIndex), numberOfIterations)
   )
 
 method getIndicies*(self: LinearIndexingStrategy, iteration: int): seq[int] =
   self.assertIteration(iteration)
 
   let
-    first = self.firstIndex + iteration * self.numberOfIterations
-    last = min(first + self.numberOfIterations, self.lastIndex)
+    first = self.firstIndex + iteration * self.step
+    last = min(first + self.step, self.lastIndex)
   toSeq(countup(first, last - 1, 1))
 
 method getIndicies*(self: SteppedIndexingStrategy, iteration: int): seq[int] =
@@ -51,5 +54,5 @@ method getIndicies*(self: SteppedIndexingStrategy, iteration: int): seq[int] =
 
   let
     first = self.firstIndex + iteration
-    last = first + (self.numberOfIterations * self.numberOfIterations)
+    last = first + (self.step * self.numberOfIterations)
   toSeq(countup(first, last - 1, self.numberOfIterations))
