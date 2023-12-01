@@ -10,6 +10,7 @@ import ./hardhatprocess
 import ./codexprocess
 import ./hardhatconfig
 import ./codexconfig
+import ../checktest
 
 export asynctest
 export ethers except `%`
