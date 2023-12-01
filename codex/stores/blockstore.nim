@@ -43,6 +43,11 @@ method getBlock*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!Block
 
   raiseAssert("getBlock by treecid not implemented!")
 
+method getCid*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!Cid] {.base.} =
+  ## Get a cid given a tree and index
+  ##
+  raiseAssert("getCid by treecid not implemented!")
+
 method getBlock*(self: BlockStore, address: BlockAddress): Future[?!Block] {.base.} =
   ## Get a block from the blockstore
   ##

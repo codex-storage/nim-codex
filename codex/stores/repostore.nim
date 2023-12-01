@@ -146,7 +146,7 @@ proc getCidAndProof(
   trace "Got cid and proof for block", cid, proof = $proof
   return success (cid, proof)
 
-proc getCid(
+method getCid*(
   self: RepoStore,
   treeCid: Cid,
   index: Natural): Future[?!Cid] {.async.} =

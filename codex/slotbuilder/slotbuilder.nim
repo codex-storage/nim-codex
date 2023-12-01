@@ -1,7 +1,8 @@
 import pkg/libp2p
+import pkg/chronos
+import pkg/chronicles
 import pkg/questionable/results
-import pkg/codex/blocktype as bt
-import ../blocktype
+import ../merkletree
 import ../stores
 import ../manifest
 
@@ -30,6 +31,93 @@ proc new*(
     numberOfSlotBlocks: numberOfSlotBlocks
   ))
 
-proc getSlotBlocks*(self: SlotBuilder, datasetSlotIndex: uint64): seq[bt.Block] =
-  raiseAssert("a")
+proc getTreeLeaf(self: SlotBuilder, datasetTreeCid: Cid, datasetBlockIndex: int): Future[?!MultiHash] {.async.} =
+  without slotBlockCid =? await self.blockStore.getCid(datasetTreeCid, datasetBlockIndex), err:
+    error "Failed to get block for tree at index", index=datasetBlockIndex, tree=datasetTreeCid
+    return failure(err)
 
+  without slotBlockLeaf =? slotBlockCid.mhash:
+    error "Failed to get multihash from slot block CID", slotBlockCid
+    return failure("Failed to get multihash from slot block CID")
+
+  return success(slotBlockLeaf)
+
+proc createAndSaveSlotTree(self: SlotBuilder, datasetSlotIndex: int): Future[?!MerkleTree] {.async.} =
+  without var builder =? MerkleTreeBuilder.init(), err:
+    return failure(err)
+
+  let
+    datasetTreeCid = self.manifest.treeCid
+    datasetBlockIndexStart = datasetSlotIndex * self.numberOfSlotBlocks
+    datasetBlockIndexEnd = datasetBlockIndexStart + self.numberOfSlotBlocks
+
+  for index in datasetBlockIndexStart ..< datasetBlockIndexEnd:
+    without slotBlockLeaf =? await self.getTreeLeaf(datasetTreeCid, index), err:
+      return failure(err)
+    if builder.addLeaf(slotBlockLeaf).isErr:
+      error "Failed to add slotBlockCid to slot tree builder"
+      return failure("Failed to add slotBlockCid to slot tree builder")
+
+  without slotTree =? builder.build(), err:
+    error "Failed to build slot tree"
+    return failure(err)
+
+  if (await self.blockStore.putAllProofs(slotTree)).isErr:
+    error "Failed to store slot tree"
+    return failure("Failed to store slot tree")
+
+  return success(slotTree)
+
+proc createSlotManifest*(self: SlotBuilder, datasetSlotIndex: int): Future[?!Manifest] {.async.} =
+  without slotTree =? await self.createAndSaveSlotTree(datasetSlotIndex), err:
+    error "Failed to create slot tree"
+    return failure(err)
+
+  without slotTreeRootCid =? slotTree.rootCid, err:
+    error "Failed to get root CID from slot tree"
+    return failure(err)
+
+  var slotManifest = Manifest.new(
+    treeCid = slotTreeRootCid,
+    datasetSize = self.numberOfSlotBlocks.NBytes * self.manifest.blockSize,
+    blockSize = self.manifest.blockSize,
+    version = self.manifest.version,
+    hcodec = self.manifest.hcodec,
+    codec = self.manifest.codec,
+    ecK = self.manifest.ecK, # should change this = EC params of first ECing. there's be another!
+    ecM = self.manifest.ecK,
+    originalTreeCid = self.manifest.originalTreeCid,
+    originalDatasetSize = self.manifest.originalDatasetSize
+  )
+
+   #treeCid: Cid
+   # datasetSize: NBytes
+   # blockSize: NBytes
+   # version: CidVersion
+   # hcodec: MultiCodec
+   # codex: MultiCodec
+   # ecK: int
+   # ecM: int
+   # originalTreeCid: Cid
+   # originalDatasetSize: NBytes
+
+#  treeCid: Cid
+# datasetSize: NBytes
+# blockSize: NBytes
+#          version: CidVersion
+# hcodec: MultiCodec
+# codec: MultiCodec
+# ecK: int
+#          ecM: int
+# originalTreeCid: Cid
+# originalDatasetSize: NBytes): Manifest
+#   first type mismatch at position: 7
+
+
+
+  slotManifest.isSlot = true
+  slotManifest.datasetSlotIndex = datasetSlotIndex
+  slotManifest.originalProtectedTreeCid = self.manifest.treeCid
+  slotManifest.originalProtectedDatasetSize = self.manifest.datasetSize
+
+  return success(slotManifest)

@@ -90,12 +90,28 @@ asyncchecksuite "Slot builder":
       SlotBuilder.new(localStore, mismatchManifest).isErr
 
   for i in 0 ..< numberOfSlots:
-    test "Can get the protected slot blocks given a slot index (" & $i & ")":
+    test "Can create slot manifest given index (" & $i & ")":
       let
         selectStart = i * numberOfSlotBlocks
         selectEnd = selectStart + numberOfSlotBlocks
         expectedCids = datasetBlocks.mapIt(it.cid)[selectStart ..< selectEnd]
-        blocks = slotBuilder.getSlotBlocks(i.uint64)
+        m = (await slotBuilder.createSlotIntermediateManifest(i)).tryGet()
 
       check:
-        blocks.mapIt(it.cid) == expectedCids
+        m.treeCid # check
+        m.datasetSize == (numberOfSlotBlocks * blockSize).NBytes
+        m.blockSize == blockSize
+        m.version == manifest.version
+        m.hcodec == manifest.hcodec
+        m.codec == manifest.codec
+        #m.ecK == ??
+        #m.ecM == ??
+        m.originalTreeCid == manifest.originalTreeCid
+        m.originalDatasetSize = manifest.originalDatasetSize
+
+        m.isSlot == true
+        m.datasetSlotIndex == i
+        m.originalProtectedTreeCide == manifest.treeCid
+        m.originalProtectedDatasetSize == manifest.datasetSize
+
+
