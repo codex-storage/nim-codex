@@ -45,6 +45,12 @@ type
     else:
       discard
 
+    # WIP:
+    isSlot* {.serialize.}: bool
+    datasetSlotIndex*: int
+    originalProtectedTreeCid*: Cid
+    originalProtectedDatasetSize*: NBytes
+
 ############################################################
 # Accessors
 ############################################################

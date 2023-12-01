@@ -77,6 +77,12 @@ method getBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!Block
 
   await self.getBlock(cidAndProof[0])
 
+method getCid*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!Cid] {.async.} =
+  without cidAndProof =? self.getCidAndProof(treeCid, index), err:
+    return failure(err)
+
+  return success(cidAndProof[0])
+
 method getBlockAndProof*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.async.} =
   without cidAndProof =? self.getCidAndProof(treeCid, index), err:
     return failure(err)

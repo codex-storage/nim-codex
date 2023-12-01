@@ -139,7 +139,7 @@ proc getCidAndProof(
 
   return (Cid, MerkleProof).decode(value)
 
-proc getCid(
+method getCid*(
   self: RepoStore,
   treeCid: Cid,
   index: Natural
