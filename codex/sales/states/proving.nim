@@ -79,27 +79,13 @@ proc proveLoop(
 method `$`*(state: SaleProving): string = "SaleProving"
 
 method onCancelled*(state: SaleProving, request: StorageRequest): ?State =
-  if not state.loop.isNil:
-    if not state.loop.finished:
-      try:
-        waitFor state.loop.cancelAndWait()
-      except CatchableError as e:
-        error "Error during cancelation of prooving loop", msg = e.msg
-
-    state.loop = nil
-
+  # state.loop cancellation happens automatically when run is cancelled due to
+  # state change
   return some State(SaleCancelled())
 
 method onFailed*(state: SaleProving, request: StorageRequest): ?State =
-  if not state.loop.isNil:
-    if not state.loop.finished:
-      try:
-        waitFor state.loop.cancelAndWait()
-      except CatchableError as e:
-        error "Error during cancelation of prooving loop", msg = e.msg
-
-    state.loop = nil
-
+  # state.loop cancellation happens automatically when run is cancelled due to
+  # state change
   return some State(SaleFailed())
 
 method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
