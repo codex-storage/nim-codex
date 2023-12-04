@@ -27,16 +27,21 @@ for offset in @[0, 1, 100]:
         stepped.getIndicies(1) == @[1, 4, 7, 10].mapIt(it + offset)
         stepped.getIndicies(2) == @[2, 5, 8, 11].mapIt(it + offset)
 
-checksuite "Indexing strategies - oob":
+checksuite "Indexing strategies":
   let
     linear = LinearIndexingStrategy.new(0, 10, 3)
     stepped = SteppedIndexingStrategy.new(0, 10, 3)
 
-  test "linear":
+  test "smallest range":
+    let s = SteppedIndexingStrategy.new(0, 0, 1)
+    check:
+      s.getIndicies(0) == @[0]
+
+  test "linear - oob":
     expect AssertionDefect:
       discard linear.getIndicies(3)
 
-  test "stepped":
+  test "stepped - oob":
     expect AssertionDefect:
       discard stepped.getIndicies(3)
 

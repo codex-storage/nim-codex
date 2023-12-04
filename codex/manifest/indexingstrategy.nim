@@ -54,5 +54,5 @@ method getIndicies*(self: SteppedIndexingStrategy, iteration: int): seq[int] =
 
   let
     first = self.firstIndex + iteration
-    last = first + (self.step * self.numberOfIterations)
-  toSeq(countup(first, last - 1, self.numberOfIterations))
+    last = max(first, first - 1 + (self.step * self.numberOfIterations))
+  toSeq(countup(first, last, self.numberOfIterations))
