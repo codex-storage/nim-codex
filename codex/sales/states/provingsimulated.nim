@@ -1,5 +1,5 @@
 import ../../conf
-when codex_testing:
+when codex_enable_proof_failures:
   import std/strutils
   import pkg/chronicles
   import pkg/stint

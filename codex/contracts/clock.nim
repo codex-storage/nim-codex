@@ -23,7 +23,6 @@ proc new*(_: type OnChainClock, provider: Provider): OnChainClock =
 method start*(clock: OnChainClock) {.async.} =
   if clock.started:
     return
-  clock.started = true
 
   proc onBlock(blck: Block) {.upraises:[].} =
     clock.lastBlockTime = blck.timestamp
@@ -33,16 +32,17 @@ method start*(clock: OnChainClock) {.async.} =
     onBlock(latestBlock)
 
   clock.subscription = await clock.provider.subscribe(onBlock)
+  clock.started = true
 
 method stop*(clock: OnChainClock) {.async.} =
   if not clock.started:
     return
-  clock.started = false
 
   await clock.subscription.unsubscribe()
+  clock.started = false
 
 method now*(clock: OnChainClock): SecondsSince1970 =
-  when codex_testing:
+  when codex_use_hardhat:
     # hardhat's latest block.timestamp is usually 1s behind the block timestamp
     # in the newHeads event. When testing, always return the latest block.
     try:
@@ -56,6 +56,7 @@ method now*(clock: OnChainClock): SecondsSince1970 =
       return clock.lastBlockTime.truncate(int64)
 
   else:
+    doAssert clock.started, "clock should be started before calling now()"
     trace "using cached block timestamp (newHeads) for clock.now",
       timestamp = clock.lastBlockTime.truncate(int64)
     return clock.lastBlockTime.truncate(int64)

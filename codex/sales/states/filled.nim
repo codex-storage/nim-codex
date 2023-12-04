@@ -51,7 +51,7 @@ method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
     if err =? (await onExpiryUpdate(request.content.cid, requestEnd)).errorOption:
       return some State(SaleErrored(error: err))
 
-    when codex_testing:
+    when codex_enable_proof_failures:
       if context.simulateProofFailures > 0:
         info "Proving with failure rate", rate = context.simulateProofFailures
         return some State(SaleProvingSimulated(failEveryNProofs: context.simulateProofFailures))
