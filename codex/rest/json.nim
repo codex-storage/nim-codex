@@ -1,5 +1,4 @@
 import pkg/questionable
-import pkg/questionable/results
 import pkg/stew/byteutils
 import pkg/libp2p
 import pkg/codexdht/discv5/node as dn
@@ -7,7 +6,6 @@ import pkg/codexdht/discv5/routing_table as rt
 import ../sales
 import ../purchasing
 import ../utils/json
-import ../units
 import ../manifest
 
 export json
@@ -33,6 +31,11 @@ type
     duration* {.serialize.}: UInt256
     minPrice* {.serialize.}: UInt256
     maxCollateral* {.serialize.}: UInt256
+
+  RestSalesAgent* = object
+    state* {.serialize.}: string
+    requestId* {.serialize.}: RequestId
+    slotIndex* {.serialize.}: UInt256
 
   RestContent* = object
     cid* {.serialize.}: Cid

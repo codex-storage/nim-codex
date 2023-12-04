@@ -25,6 +25,11 @@ components:
       description: Content Identifier as specified at https://github.com/multiformats/cid
       example: QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N
 
+    SlotId:
+      type: string
+      description: Keccak hash of the abi encoded tuple (RequestId, slot index)
+      example: 268a781e0db3f7cf36b18e5f4fdb7f586ec9edd08e5500b17c0e518a769f114a
+
     LogLevel:
       type: string
       description: "One of the log levels: TRACE, DEBUG, INFO, NOTICE, WARN, ERROR or FATAL"
@@ -120,8 +125,7 @@ components:
       type: object
       properties:
         id:
-          type: string
-          description: Slot ID
+          $ref: "#/components/schemas/SlotId"
         request:
           $ref: "#/components/schemas/StorageRequest"
         slotIndex:
@@ -402,6 +406,35 @@ paths:
         "503":
           description: Sales are unavailable
 
+  "/sales/slots/{slotId}":
+    get:
+      summary: "Returns active slot with id {slotId} for the host"
+      tags: [ Marketplace ]
+      operationId: getActiveSlotById
+      parameters:
+        - in: path
+          name: slotId
+          required: true
+          schema:
+            $ref: "#/components/schemas/Cid"
+          description: File to be downloaded.
+      responses:
+        "200":
+          description: Retrieved active slot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Slot"
+
+        "400":
+          description: Invalid or missing SlotId
+
+        "404":
+          description: Host is not in an active sale for the slot
+
+        "503":
+          description: Sales are unavailable
+
   "/sales/availability":
     get:
       summary: "Returns storage that is for sale"
@@ -504,9 +537,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Purchase"
+                $ref: "#/components/schemas/Purchase"
         "400":
           description: Invalid or missing Purchase ID
         "404":
