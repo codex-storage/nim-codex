@@ -40,7 +40,7 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   #
   # ```protobuf
   #   Message VerificationInfo {
-  #     bytes datasetRoot = 1;            # Decimal encoded field-element
+  #     bytes verificationRoot = 1;            # Decimal encoded field-element
   #     repeated bytes slotRoots = 2;     # Decimal encoded field-elements
   #   }
   #   Message ErasureInfo {
