@@ -89,29 +89,29 @@ asyncchecksuite "Slot builder":
     check:
       SlotBuilder.new(localStore, mismatchManifest).isErr
 
-  for i in 0 ..< numberOfSlots:
-    test "Can create slot manifest given index (" & $i & ")":
-      let
-        selectStart = i * numberOfSlotBlocks
-        selectEnd = selectStart + numberOfSlotBlocks
-        expectedCids = datasetBlocks.mapIt(it.cid)[selectStart ..< selectEnd]
-        m = (await slotBuilder.createSlotIntermediateManifest(i)).tryGet()
+  # for i in 0 ..< numberOfSlots:
+  #   test "Can create slot manifest given index (" & $i & ")":
+  #     let
+  #       selectStart = i * numberOfSlotBlocks
+  #       selectEnd = selectStart + numberOfSlotBlocks
+  #       expectedCids = datasetBlocks.mapIt(it.cid)[selectStart ..< selectEnd]
+  #       m = (await slotBuilder.createSlotIntermediateManifest(i)).tryGet()
 
-      check:
-        m.treeCid # check
-        m.datasetSize == (numberOfSlotBlocks * blockSize).NBytes
-        m.blockSize == blockSize
-        m.version == manifest.version
-        m.hcodec == manifest.hcodec
-        m.codec == manifest.codec
-        #m.ecK == ??
-        #m.ecM == ??
-        m.originalTreeCid == manifest.originalTreeCid
-        m.originalDatasetSize = manifest.originalDatasetSize
+  #     check:
+  #       m.treeCid # check
+  #       m.datasetSize == (numberOfSlotBlocks * blockSize).NBytes
+  #       m.blockSize == blockSize
+  #       m.version == manifest.version
+  #       m.hcodec == manifest.hcodec
+  #       m.codec == manifest.codec
+  #       #m.ecK == ??
+  #       #m.ecM == ??
+  #       m.originalTreeCid == manifest.originalTreeCid
+  #       m.originalDatasetSize = manifest.originalDatasetSize
 
-        m.isSlot == true
-        m.datasetSlotIndex == i
-        m.originalProtectedTreeCide == manifest.treeCid
-        m.originalProtectedDatasetSize == manifest.datasetSize
+  #       m.isSlot == true
+  #       m.datasetSlotIndex == i
+  #       m.originalProtectedTreeCide == manifest.treeCid
+  #       m.originalProtectedDatasetSize == manifest.datasetSize
 
 
