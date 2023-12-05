@@ -101,10 +101,10 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check availability in client1.getAvailabilities().get
 
   test "node handles storage request":
-    let expiry = (await provider.currentTime()) + 30
+    let expiry = (await provider.currentTime()) + 10
     let cid = client1.upload("some file contents").get
-    let id1 = client1.requestStorage(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, expiry=expiry, collateral=200.u256).get
-    let id2 = client1.requestStorage(cid, duration=4.u256, reward=5.u256, proofProbability=6.u256, expiry=expiry, collateral=201.u256).get
+    let id1 = client1.requestStorage(cid, duration=100.u256, reward=2.u256, proofProbability=3.u256, expiry=expiry, collateral=200.u256).get
+    let id2 = client1.requestStorage(cid, duration=400.u256, reward=5.u256, proofProbability=6.u256, expiry=expiry, collateral=201.u256).get
     check id1 != id2
 
   test "node retrieves purchase status":
@@ -116,7 +116,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     let expiry = (await provider.currentTime()) + 30
     let id = client1.requestStorage(
       cid,
-      duration=1.u256,
+      duration=100.u256,
       reward=2.u256,
       proofProbability=3.u256,
       expiry=expiry,
@@ -125,7 +125,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
       tolerance=1).get
 
     let request = client1.getPurchase(id).get.request.get
-    check request.ask.duration == 1.u256
+    check request.ask.duration == 100.u256
     check request.ask.reward == 2.u256
     check request.ask.proofProbability == 3.u256
     check request.expiry == expiry
@@ -151,7 +151,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     let expiry = (await provider.currentTime()) + 30
     let cid = client1.upload("some file contents").get
     let id = client1.requestStorage(cid,
-                                    duration=1.u256,
+                                    duration=100.u256,
                                     reward=2.u256,
                                     proofProbability=3.u256,
                                     expiry=expiry,
@@ -163,7 +163,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
 
     check eventually client1.purchaseStateIs(id, "submitted")
     let request = client1.getPurchase(id).get.request.get
-    check request.ask.duration == 1.u256
+    check request.ask.duration == 100.u256
     check request.ask.reward == 2.u256
     check request.ask.proofProbability == 3.u256
     check request.expiry == expiry
@@ -228,6 +228,10 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     let responsePast = client1.requestStorageRaw(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256, expiry=currentTime-10)
     check responsePast.status == "400 Bad Request"
     check responsePast.body == "Expiry needs to be in future"
+
+    let responseBefore = client1.requestStorageRaw(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256, expiry=currentTime+10)
+    check responseBefore.status == "400 Bad Request"
+    check responseBefore.body == "Expiry has to be before the request's end (now + duration)"
 
   test "expired request partially pays out for stored time":
     let marketplace = Marketplace.new(Marketplace.address, provider.getSigner())
