@@ -1,3 +1,4 @@
+import std/math
 import pkg/libp2p
 import pkg/chronos
 import pkg/chronicles
@@ -5,6 +6,12 @@ import pkg/questionable/results
 import ../merkletree
 import ../stores
 import ../manifest
+
+let
+  # TODO: Unified with the CellSize specified in branch "data-sampler"
+  # Number of bytes in a cell. A cell is the smallest unit of data used
+  # in the proving circuit.
+  CellSize* = 2048
 
 type
   SlotBuilder* = object of RootObj
@@ -57,6 +64,33 @@ proc selectSlotBlocks*(self: SlotBuilder, datasetSlotIndex: int): Future[?!seq[C
 
   return success(cids)
 
+proc findNextPowerOfTwo*(i: int): int =
+  # TODO: this is just a copy of the test implementation.
+  # If anyone wants to try to make a faster version, plz do.
+  # constantine has one in bithacks.nim 'nextPowerOfTwo_vartime'
+  if i < 1:
+    return 1
+  let
+    logtwo = log2(i.float)
+    roundUp = ceil(logtwo)
+    nextPow = pow(2.float, roundUp)
+  return nextPow.int
+
+proc calculateNumberOfPaddingCells*(self: SlotBuilder, numberOfSlotBlocks: int): int =
+  let
+    blockSize = self.manifest.blockSize.int
+    expectZero = blockSize mod CellSize
+
+  if expectZero != 0:
+    raiseAssert("BlockSize should always be divisable by Cell size (2kb).")
+
+  let
+    cellsPerBlock = blockSize div CellSize
+    numberOfCells = numberOfSlotBlocks * cellsPerBlock
+    nextPowerOfTwo = findNextPowerOfTwo(numberOfCells)
+
+  return nextPowerOfTwo - numberOfCells
+
 proc createAndSaveSlotTree*(self: SlotBuilder, datasetSlotIndex: int): Future[?!MerkleTree] {.async.} =
   without var builder =? MerkleTreeBuilder.init(), err:
     return failure(err)
@@ -66,6 +100,8 @@ proc createAndSaveSlotTree*(self: SlotBuilder, datasetSlotIndex: int): Future[?!
   # select slot blocks
 
   # pad till cells are power of two
+  # -> get number of padding cells
+  # -> convert to number of padding blocks
 
   # build tree
 
