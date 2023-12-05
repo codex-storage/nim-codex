@@ -103,9 +103,12 @@ proc requestStorage*(
 
 proc getPurchase*(client: CodexClient, purchaseId: PurchaseId): ?!RestPurchase =
   let url = client.baseurl & "/storage/purchases/" & purchaseId.toHex
-  let body = client.http.getContent(url)
-  let json = ? parseJson(body).catch
-  RestPurchase.fromJson(json)
+  try:
+    let body = client.http.getContent(url)
+    let json = ? parseJson(body).catch
+    return RestPurchase.fromJson(json)
+  except CatchableError as e:
+    return failure e.msg
 
 proc getSalesAgent*(client: CodexClient, slotId: SlotId): ?!RestSalesAgent =
   let url = client.baseurl & "/sales/slots/" & slotId.toHex

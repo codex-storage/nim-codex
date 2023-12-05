@@ -1,4 +1,5 @@
 import pkg/stew/byteutils
+import pkg/codex/units
 import ./marketplacesuite
 import ../examples
 
@@ -81,3 +82,61 @@ marketplacesuite "Marketplace payouts":
     )
 
     await subscription.unsubscribe()
+
+marketplacesuite "Marketplace example (dist test clone)":
+
+  test "Marketplace example",
+    NodeConfigs(
+      # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
+      # hardhat: HardhatConfig().withLogFile()
+
+      clients:
+        CodexConfig()
+          .nodes(1)
+          # .debug() # uncomment to enable console log output.debug()
+          .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+          .withLogTopics("node", "erasure", "restapi"),
+
+      providers:
+        CodexConfig()
+          .nodes(1)
+          # .debug() # uncomment to enable console log output
+          .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=3)
+          .withStorageQuota(11.GiBs)
+          .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+          .withLogTopics("marketplace", "sales", "reservations", "node", "proving", "clock", "restapi"),
+  ):
+    let reward = 400.u256
+    let duration = 100.periods
+    let collateral = 200.u256
+    let expiry = 4.periods
+    let data = byteutils.toHex(await exampleData(10.MiBs))
+    let client = clients()[0]
+    let provider = providers()[0]
+    let clientApi = client.client
+    let providerApi = provider.client
+    let startBalanceProvider = await token.balanceOf(provider.ethAccount)
+    let startBalanceClient = await token.balanceOf(client.ethAccount)
+
+    # provider makes storage available
+    discard providerApi.postAvailability(
+      size=10.GiBs.u256,
+      duration=180.u256,
+      minPrice=1.u256,
+      maxCollateral=20.u256)
+
+    let cid = clientApi.upload(data).get
+
+    # client requests storage but requires two nodes to host the content
+    trace "requesting storage"
+    let id = await clientApi.requestStorage(
+      cid,
+      proofProbability=5.uint64,
+      duration=60.uint64,
+      reward=2.u256,
+      collateral=10.u256,
+      expiry=300.uint64
+    )
+
+    trace "checking purchase state"
+    check eventually(clientApi.purchaseStateIs(id, "started"))

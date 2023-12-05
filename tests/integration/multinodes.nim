@@ -34,12 +34,6 @@ type
     Validator,
     Hardhat
 
-proc new*(_: type RunningNode,
-          role: Role,
-          node: NodeProcess): RunningNode =
-  RunningNode(role: role,
-              node: node)
-
 proc nextFreePort(startPort: int): Future[int] {.async.} =
   let cmd = when defined(windows):
               "netstat -ano | findstr :"

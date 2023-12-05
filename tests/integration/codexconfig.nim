@@ -1,5 +1,6 @@
 import std/options
 import std/sequtils
+import pkg/codex/units
 import ./clioption
 import ./nodeconfig
 
@@ -46,4 +47,15 @@ proc withLogTopics*(
 
   var startConfig = config
   startConfig.logTopics = startConfig.logTopics.concat(@topics)
+  return startConfig
+
+proc withStorageQuota*(
+  config: CodexConfig,
+  quota: NBytes
+): CodexConfig =
+
+  var startConfig = config
+  startConfig.cliOptions.add(
+    CliOption(key: "--storage-quota", value: $quota)
+  )
   return startConfig

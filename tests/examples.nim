@@ -71,7 +71,10 @@ proc exampleProof*(): seq[byte] =
     proof = seq[byte].example
   return proof
 
-proc exampleData*(): Future[seq[byte]] {.async.} =
+proc exampleData*(size: NBytes): Future[seq[byte]] {.async.} =
   let rng = rng.Rng.instance()
-  let chunker = RandomChunker.new(rng, size = DefaultBlockSize * 2, chunkSize = DefaultBlockSize * 2)
+  let chunker = RandomChunker.new(rng, size = size, chunkSize = DefaultBlockSize * 2)
   return await chunker.getBytes()
+
+proc exampleData*(): Future[seq[byte]] {.async.} =
+  await exampleData(DefaultBlockSize * 2)

@@ -14,6 +14,7 @@ import std/strutils
 import pkg/upraises
 import pkg/json_serialization
 import pkg/json_serialization/std/options
+import pkg/stint
 
 type
   NBytes* = distinct Natural
@@ -45,8 +46,10 @@ proc `'nb`*(n: string): NBytes = parseInt(n).NBytes
 
 const
   MiB = 1024.NBytes * 1024.NBytes # ByteSz, 1 mebibyte = 1,048,576 ByteSz
+  GiB = MiB * 1024.NBytes # ByteSz, 1 gigabyte = 1,073,741,824 ByteSz
 
 proc MiBs*(v: Natural): NBytes = v.NBytes * MiB
+proc GiBs*(v: Natural): NBytes = v.NBytes * GiB
 
 func divUp*[T: NBytes](a, b : T): int =
   ## Division with result rounded up (rather than truncated as in 'div')
@@ -64,6 +67,9 @@ proc readValue*(
     value: var NBytes
 ) {.upraises: [SerializationError, IOError].} =
   value = NBytes reader.readValue(int)
+
+func u256*(nbytes: NBytes): UInt256 =
+  Natural(nbytes).u256
 
 when isMainModule:
 
