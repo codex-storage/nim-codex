@@ -7,7 +7,7 @@ import ../clock
 import ./interactions
 
 export purchasing
-export chronicles except `%`, `%*`, toJson
+export chronicles except toJson
 
 type
   ClientInteractions* = ref object of ContractInteractions

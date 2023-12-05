@@ -40,7 +40,7 @@ import ../contracts/requests
 import ../utils/json
 
 export requests
-export chronicles except `%`, `%*`, toJson
+export chronicles except toJson
 
 logScope:
   topics = "sales reservations"

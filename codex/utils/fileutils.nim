@@ -18,7 +18,7 @@ import pkg/chronicles
 import stew/io2
 
 export io2
-export chronicles except `%`, `%*`, toJson
+export chronicles except toJson
 
 when defined(windows):
   import stew/[windows/acl]

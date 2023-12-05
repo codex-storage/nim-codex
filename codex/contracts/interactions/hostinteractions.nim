@@ -5,7 +5,7 @@ import ../../sales
 import ./interactions
 
 export sales
-export chronicles except `%`, `%*`, toJson
+export chronicles except toJson
 
 type
   HostInteractions* = ref object of ContractInteractions
