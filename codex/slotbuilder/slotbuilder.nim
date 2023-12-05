@@ -143,95 +143,11 @@ proc buildSlotTree*(self: SlotBuilder, slotBlocks: seq[Cid], numberOfPaddingCell
 
   return success(slotTree)
 
-proc createAndSaveSlotTree*(self: SlotBuilder, datasetSlotIndex: int): Future[?!MerkleTree] {.async.} =
+proc createSlotTree*(self: SlotBuilder, datasetSlotIndex: int): Future[?!MerkleTree] {.async.} =
+  without slotBlocks =? await self.selectSlotBlocks(datasetSlotIndex), err:
+    error "Failed to select slot blocks"
+    return failure(err)
 
+  let numberOfPaddingCells = self.calculateNumberOfPaddingCells(slotBlocks.len)
 
-  raiseAssert("not implemented")
-
-  # select slot blocks
-
-  # pad till cells are power of two
-  # -> get number of padding cells
-  # -> convert to number of padding blocks
-
-  # build tree
-
-  # save tree
-
-  # return tree
-
-  # let
-  #   datasetTreeCid = self.manifest.treeCid
-  #   datasetBlockIndexStart = datasetSlotIndex * self.numberOfSlotBlocks
-  #   datasetBlockIndexEnd = datasetBlockIndexStart + self.numberOfSlotBlocks
-
-  # for index in datasetBlockIndexStart ..< datasetBlockIndexEnd:
-  #   without slotBlockLeaf =? await self.getTreeLeafCid(datasetTreeCid, index), err:
-  #     return failure(err)
-  #   if builder.addLeaf(slotBlockLeaf).isErr:
-  #     error "Failed to add slotBlockCid to slot tree builder"
-  #     return failure("Failed to add slotBlockCid to slot tree builder")
-
-  # without slotTree =? builder.build(), err:
-  #   error "Failed to build slot tree"
-  #   return failure(err)
-
-  # if (await self.blockStore.putAllProofs(slotTree)).isErr:
-  #   error "Failed to store slot tree"
-  #   return failure("Failed to store slot tree")
-
-  # return success(slotTree)
-
-# proc createSlotManifest*(self: SlotBuilder, datasetSlotIndex: int): Future[?!Manifest] {.async.} =
-#   without slotTree =? await self.createAndSaveSlotTree(datasetSlotIndex), err:
-#     error "Failed to create slot tree"
-#     return failure(err)
-
-#   without slotTreeRootCid =? slotTree.rootCid, err:
-#     error "Failed to get root CID from slot tree"
-#     return failure(err)
-
-#   var slotManifest = Manifest.new(
-#     treeCid = slotTreeRootCid,
-#     datasetSize = self.numberOfSlotBlocks.NBytes * self.manifest.blockSize,
-#     blockSize = self.manifest.blockSize,
-#     version = self.manifest.version,
-#     hcodec = self.manifest.hcodec,
-#     codec = self.manifest.codec,
-#     ecK = self.manifest.ecK, # should change this = EC params of first ECing. there's be another!
-#     ecM = self.manifest.ecK,
-#     originalTreeCid = self.manifest.originalTreeCid,
-#     originalDatasetSize = self.manifest.originalDatasetSize
-#   )
-
-#    #treeCid: Cid
-#    # datasetSize: NBytes
-#    # blockSize: NBytes
-#    # version: CidVersion
-#    # hcodec: MultiCodec
-#    # codex: MultiCodec
-#    # ecK: int
-#    # ecM: int
-#    # originalTreeCid: Cid
-#    # originalDatasetSize: NBytes
-
-# #  treeCid: Cid
-# # datasetSize: NBytes
-# # blockSize: NBytes
-# #          version: CidVersion
-# # hcodec: MultiCodec
-# # codec: MultiCodec
-# # ecK: int
-# #          ecM: int
-# # originalTreeCid: Cid
-# # originalDatasetSize: NBytes): Manifest
-# #   first type mismatch at position: 7
-
-
-
-#   slotManifest.isSlot = true
-#   slotManifest.datasetSlotIndex = datasetSlotIndex
-#   slotManifest.originalProtectedTreeCid = self.manifest.treeCid
-#   slotManifest.originalProtectedDatasetSize = self.manifest.datasetSize
-
-#   return success(slotManifest)
+  return await self.buildSlotTree(slotBlocks, numberOfPaddingCells)
