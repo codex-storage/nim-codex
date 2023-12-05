@@ -6,6 +6,7 @@ import pkg/questionable/results
 import ../merkletree
 import ../stores
 import ../manifest
+import ../utils
 
 let
   # TODO: Unified with the CellSize specified in branch "data-sampler"
@@ -37,6 +38,9 @@ proc new*(
     manifest: manifest,
     numberOfSlotBlocks: numberOfSlotBlocks
   ))
+
+proc cellsPerBlock(self: SlotBuilder): int =
+  self.manifest.blockSize.int div CellSize
 
 proc getTreeLeafCid(self: SlotBuilder, datasetTreeCid: Cid, datasetBlockIndex: int): Future[?!Cid] {.async.} =
   without slotBlockCid =? await self.blockStore.getCid(datasetTreeCid, datasetBlockIndex), err:
@@ -85,15 +89,62 @@ proc calculateNumberOfPaddingCells*(self: SlotBuilder, numberOfSlotBlocks: int):
     raiseAssert("BlockSize should always be divisable by Cell size (2kb).")
 
   let
-    cellsPerBlock = blockSize div CellSize
-    numberOfCells = numberOfSlotBlocks * cellsPerBlock
+    numberOfCells = numberOfSlotBlocks * self.cellsPerBlock
     nextPowerOfTwo = findNextPowerOfTwo(numberOfCells)
 
   return nextPowerOfTwo - numberOfCells
 
-proc createAndSaveSlotTree*(self: SlotBuilder, datasetSlotIndex: int): Future[?!MerkleTree] {.async.} =
-  without var builder =? MerkleTreeBuilder.init(), err:
+proc addSlotBlocksToTreeBuilder(builder: var MerkleTreeBuilder, slotBlocks: seq[Cid]): ?!void =
+  for slotBlockCid in slotBlocks:
+    without leafHash =? slotBlockCid.mhash:
+      error "Failed to get leaf hash from CID"
+      return failure("Failed to get leaf hash from CID")
+
+    if builder.addLeaf(leafHash).isErr:
+      error "Failed to add slotBlockCid to slot tree builder"
+      return failure("Failed to add slotBlockCid to slot tree builder")
+
+  return success()
+
+proc addPadBlocksToTreeBuilder(self: SlotBuilder, builder: var MerkleTreeBuilder, nBlocks: int): ?!void =
+  without cid =? emptyCid(self.manifest.version, self.manifest.hcodec, self.manifest.codec), err:
+    error "Unable to initialize empty cid"
     return failure(err)
+
+  without emptyLeaf =? cid.mhash:
+      error "Failed to get leaf hash from empty CID"
+      return failure("Failed to get leaf hash from empty CID")
+
+  for i in 0 ..< nBlocks:
+    if builder.addLeaf(emptyLeaf).isErr:
+      error "Failed to add empty leaf to slot tree builder"
+      return failure("Failed to add empty leaf to slot tree builder")
+
+  return success()
+
+proc buildSlotTree*(self: SlotBuilder, slotBlocks: seq[Cid], numberOfPaddingCells: int): Future[?!MerkleTree] {.async.} =
+  let numberOfPadBlocks = divUp(numberOfPaddingCells, self.cellsPerBlock)
+
+  without var builder =? MerkleTreeBuilder.init(), err:
+    error "Failed to initialize merkle tree builder"
+    return failure(err)
+
+  if addSlotBlocksToTreeBuilder(builder, slotBlocks).isErr:
+    error "Failed to add slot blocks to tree builder"
+    return failure("Failed to add slot blocks to tree builder")
+
+  if self.addPadBlocksToTreeBuilder(builder, numberOfPadBlocks).isErr:
+    error "Failed to add padding blocks to tree builder"
+    return failure("Failed to add padding blocks to tree builder")
+
+  without slotTree =? builder.build(), err:
+    error "Failed to build slot tree"
+    return failure(err)
+
+  return success(slotTree)
+
+proc createAndSaveSlotTree*(self: SlotBuilder, datasetSlotIndex: int): Future[?!MerkleTree] {.async.} =
+
 
   raiseAssert("not implemented")
 
