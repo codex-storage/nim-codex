@@ -1,6 +1,10 @@
 import std/sequtils
 import ../utils
 
+# I'm choosing to use an assert here because:
+# 1. These are a programmer errors and *should not* happen during application runtime.
+# 2. Users don't have to deal with Result types.
+
 type
   # Representing a strategy for grouping indices (of blocks usually)
   # Given an interation-count as input, will produce a seq of
@@ -25,15 +29,17 @@ type
 
 proc assertIteration(self: IndexingStrategy, iteration: int): void =
   if iteration >= self.numberOfIterations:
-    # I'm choosing to use an assert here because:
-    # 1. This is a programmer error and *should not* happen during application runtime.
-    # 2. Users don't have to deal with Result types.
     raiseAssert("Indexing iteration can't be greater than or equal to numberOfIterations.")
 
 method getIndicies*(self: IndexingStrategy, iteration: int): seq[int] {.base.} =
   raiseAssert("Not implemented")
 
 proc new*(T: type IndexingStrategy, firstIndex, lastIndex, numberOfIterations: int): T =
+  if firstIndex > lastIndex:
+    raiseAssert("firstIndex (" & $firstIndex & ") can't be greater than lastIndex (" & $lastIndex & ")")
+  if numberOfIterations <= 0:
+    raiseAssert("numberOfIteration (" & $numberOfIterations & ") must be greater than zero.")
+
   T(
     firstIndex: firstIndex,
     lastIndex: lastIndex,
@@ -45,14 +51,11 @@ method getIndicies*(self: LinearIndexingStrategy, iteration: int): seq[int] =
   self.assertIteration(iteration)
 
   let
-    first = self.firstIndex + iteration * self.step
+    first = self.firstIndex + iteration * (self.step + 1)
     last = min(first + self.step, self.lastIndex)
-  toSeq(countup(first, last - 1, 1))
+
+  toSeq(countup(first, last, 1))
 
 method getIndicies*(self: SteppedIndexingStrategy, iteration: int): seq[int] =
   self.assertIteration(iteration)
-
-  let
-    first = self.firstIndex + iteration
-    last = max(first, first - 1 + (self.step * self.numberOfIterations))
-  toSeq(countup(first, last, self.numberOfIterations))
+  toSeq(countup(self.firstIndex + iteration, self.lastIndex, self.numberOfIterations))
