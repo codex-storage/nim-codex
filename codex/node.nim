@@ -38,6 +38,7 @@ import ./discovery
 import ./contracts
 import ./node/batch
 import ./utils
+import ./errors
 
 export batch
 
@@ -126,8 +127,7 @@ proc fetchBatched*(
   node: CodexNodeRef,
   manifest: Manifest,
   batchSize = FetchBatch,
-  onBatch: BatchProc = nil,
-  expiry = SecondsSince1970.none): Future[?!void] {.async, gcsafe.} =
+  onBatch: BatchProc = nil): Future[?!void] {.async, gcsafe.} =
   ## Fetch manifest in batches of `batchSize`
   ##
 
@@ -144,18 +144,11 @@ proc fetchBatched*(
         if not iter.finished:
           iter.next()
 
-    try:
-      await allFuturesThrowing(allFinished(blocks))
+    if blocksErr =? (await allFutureResult(blocks)).errorOption:
+      return failure(blocksErr)
 
-      if expiryValue =? expiry:
-        await allFuturesThrowing(blocks.mapIt(node.blockStore.ensureExpiry(it.read.get.cid, expiryValue)))
-
-      if not onBatch.isNil:
-        await onBatch(blocks.mapIt( it.read.get ))
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      return failure(exc.msg)
+    if not onBatch.isNil and batchErr =? (await onBatch(blocks.mapIt( it.read.get ))).errorOption:
+      return failure(batchErr)
 
   return success()
 
@@ -434,11 +427,18 @@ proc start*(node: CodexNodeRef) {.async.} =
         return failure(error)
 
       trace "Fetching block for manifest", cid
-      # TODO: This will probably require a call to `getBlock` either way,
-      # since fetching of blocks will have to be selective according
-      # to a combination of parameters, such as node slot position
-      # and dataset geometry
-      if fetchErr =? (await node.fetchBatched(manifest, onBatch = onBatch, expiry = some request.expiry.toSecondsSince1970)).errorOption:
+      let expiry = request.expiry.toSecondsSince1970
+      proc expiryUpdateOnBatch(blocks: seq[bt.Block]): Future[?!void] {.async.} =
+        let ensureExpiryFutures = blocks.mapIt(node.blockStore.ensureExpiry(it.cid, expiry))
+        if updateExpiryErr =? (await allFutureResult(ensureExpiryFutures)).errorOption:
+          return failure(updateExpiryErr)
+
+        if not onBatch.isNil and onBatchErr =? (await onBatch(blocks)).errorOption:
+          return failure(onBatchErr)
+
+        return success()
+
+      if fetchErr =? (await node.fetchBatched(manifest, onBatch = expiryUpdateOnBatch)).errorOption:
         let error = newException(CodexError, "Unable to retrieve blocks")
         error.parent = fetchErr
         return failure(error)
@@ -465,7 +465,7 @@ proc start*(node: CodexNodeRef) {.async.} =
     try:
       await hostContracts.start()
     except CatchableError as error:
-      error "Unable to start host contract interactions: ", error=error.msg
+      error "Unable to start host contract interactions", error=error.msg
       node.contracts.host = HostInteractions.none
 
   if clientContracts =? node.contracts.client:

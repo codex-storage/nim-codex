@@ -1,6 +1,7 @@
 import std/os
 import std/options
 import std/math
+import std/times
 
 import pkg/asynctest
 import pkg/chronos
@@ -8,6 +9,7 @@ import pkg/chronicles
 import pkg/stew/byteutils
 import pkg/datastore
 import pkg/questionable
+import pkg/questionable/results
 import pkg/stint
 
 import pkg/nitro
@@ -28,6 +30,9 @@ import ../examples
 import ./helpers
 import ./helpers/mockmarket
 import ./helpers/mockclock
+
+proc toTimesDuration(d: chronos.Duration): times.Duration =
+  initDuration(seconds=d.seconds)
 
 asyncchecksuite "Test Node":
   let
@@ -129,24 +134,10 @@ asyncchecksuite "Test Node":
       (await node.fetchBatched(
         manifest,
         batchSize = batchSize,
-        proc(blocks: seq[bt.Block]) {.gcsafe, async.} =
+        proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, async.} =
           check blocks.len > 0 and blocks.len <= batchSize
+          return success()
       )).tryGet()
-
-  test "Block Batching with expiry":
-    let
-      manifest = await Manifest.fetch(chunker)
-      # The blocks have set default TTL, so in order to update it we have to have larger TTL
-      expectedExpiry: SecondsSince1970 = clock.now + DefaultBlockTtl.seconds + 123
-
-    (await node.fetchBatched(manifest, expiry=some expectedExpiry)).tryGet()
-
-    for index in 0..<manifest.blocksCount:
-      let blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
-      let expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet
-      let expiry = await localStoreMetaDs.get(expiryKey)
-
-      check (expiry.tryGet).toSecondsSince1970 == expectedExpiry
 
   test "Store and retrieve Data Stream":
     let
@@ -252,7 +243,7 @@ asyncchecksuite "Test Node - host contracts":
 
     # Setup Host Contracts and dependencies
     let market = MockMarket.new()
-    sales = Sales.new(market, clock, localStore, 0)
+    sales = Sales.new(market, clock, localStore)
     let hostContracts = some HostInteractions.new(clock, sales)
     node.contracts = (ClientInteractions.none, hostContracts, ValidatorInteractions.none)
 
@@ -296,13 +287,20 @@ asyncchecksuite "Test Node - host contracts":
     let onStore = !sales.onStore
     var request = StorageRequest.example
     request.content.cid = manifestCid
+    request.expiry = (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix.u256
     var fetchedBytes: uint = 0
 
-    let onBatch = proc(blocks: seq[bt.Block]) {.async.} =
+    let onBatch = proc(blocks: seq[bt.Block]): Future[?!void] {.async.} =
       for blk in blocks:
         fetchedBytes += blk.data.len.uint
+      return success()
 
     (await onStore(request, 0.u256, onBatch)).tryGet()
-
     check fetchedBytes == 2291520
 
+    for index in 0..<manifest.blocksCount:
+      let blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
+      let expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet
+      let expiry = await localStoreMetaDs.get(expiryKey)
+
+      check (expiry.tryGet).toSecondsSince1970 == request.expiry.toSecondsSince1970
