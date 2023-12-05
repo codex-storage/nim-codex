@@ -18,6 +18,7 @@ import codex/slotbuilder/slotbuilder
 asyncchecksuite "Slot builder":
   let
     blockSize = 64 * 1024
+    numberOfCellsPerBlock = blockSize div CellSize
     numberOfSlotBlocks = 6
     numberOfSlots = 5
     numberOfDatasetBlocks = numberOfSlotBlocks * numberOfSlots
@@ -121,50 +122,63 @@ asyncchecksuite "Slot builder":
       check:
         expectedPadCells == nPadCells
 
+  for i in 0 ..< numberOfSlots:
+    test "Can select slot block CIDs (index: " & $i & ")":
+      let
+        steppedStrategy = SteppedIndexingStrategy.new(0, numberOfDatasetBlocks - 1, numberOfSlots)
+        expectedDatasetBlockIndicies = steppedStrategy.getIndicies(i)
+        expectedBlockCids = expectedDatasetBlockIndicies.mapIt(datasetBlocks[it].cid)
+
+        slotBlockCids = (await slotBuilder.selectSlotBlocks(i)).tryGet()
+
+      check:
+        expectedBlockCids == slotBlockCids
+
+  test "Can create slot tree":
+    let
+      slotBlockCids = datasetBlocks[0 ..< numberOfSlotBlocks].mapIt(it.cid)
+      numPadCells = numberOfCellsPerBlock div 2 # We expect 1 pad block.
+      expectedEmptyCid = emptyCid(protectedManifest.version, protectedManifest.hcodec, protectedManifest.codec)
+
+      slotTree = (await slotBuilder.buildSlotTree(slotBlockCids, numPadCells)).tryGet()
+
+    check:
+      # Tree size
+      slotTree.leavesCount == slotBlockCids.len + 1
+
+    for i in 0 ..< numberOfSlotBlocks:
+      check:
+        # Each slot block
+        slotTree.getLeafCid(i).tryget() == slotBlockCids[i]
+
+    check:
+      # 1 pad block
+      slotTree.getLeafCid(numberOfSlotBlocks) == expectedEmptyCid
 
 
-  # for i in 0 ..< numberOfSlots:
-  #   test "Can select slot block CIDs (index: " & $i & ")":
-  #     let
-  #       steppedStrategy = SteppedIndexingStrategy.new(0, numberOfDatasetBlocks - 1, numberOfSlots)
-  #       expectedDatasetBlockIndicies = steppedStrategy.getIndicies(i)
-  #       expectedBlockCids = expectedDatasetBlockIndicies.mapIt(datasetBlocks[it].cid)
-
-  #       slotBlockCids = (await slotBuilder.selectSlotBlocks(i)).tryGet()
-
-  #     check:
-  #       expectedBlockCids == slotBlockCids
 
 
 
+    # test "Can create slot tree (index: " & $i & ")":
+    #   let
+    #     slotBlockCids =
+    #     m = (await slotBuilder.buildSlotTree(slotBlockCids, numPadCells)).tryGet()
 
+    #   check:
+    #     m.treeCid # check
+    #     m.datasetSize == (numberOfSlotBlocks * blockSize).NBytes
+    #     m.blockSize == blockSize
+    #     m.version == manifest.version
+    #     m.hcodec == manifest.hcodec
+    #     m.codec == manifest.codec
+    #     #m.ecK == ??
+    #     #m.ecM == ??
+    #     m.originalTreeCid == manifest.originalTreeCid
+    #     m.originalDatasetSize = manifest.originalDatasetSize
 
-
-
-
-  # for i in 0 ..< numberOfSlots:
-  #   test "Can create slot tree given index (" & $i & ")":
-  #     let
-  #       selectStart = i * numberOfSlotBlocks
-  #       selectEnd = selectStart + numberOfSlotBlocks
-  #       expectedCids = datasetBlocks.mapIt(it.cid)[selectStart ..< selectEnd]
-  #       m = (await slotBuilder.createSlotIntermediateManifest(i)).tryGet()
-
-  #     check:
-  #       m.treeCid # check
-  #       m.datasetSize == (numberOfSlotBlocks * blockSize).NBytes
-  #       m.blockSize == blockSize
-  #       m.version == manifest.version
-  #       m.hcodec == manifest.hcodec
-  #       m.codec == manifest.codec
-  #       #m.ecK == ??
-  #       #m.ecM == ??
-  #       m.originalTreeCid == manifest.originalTreeCid
-  #       m.originalDatasetSize = manifest.originalDatasetSize
-
-  #       m.isSlot == true
-  #       m.datasetSlotIndex == i
-  #       m.originalProtectedTreeCide == manifest.treeCid
-  #       m.originalProtectedDatasetSize == manifest.datasetSize
+    #     m.isSlot == true
+    #     m.datasetSlotIndex == i
+    #     m.originalProtectedTreeCide == manifest.treeCid
+    #     m.originalProtectedDatasetSize == manifest.datasetSize
 
 
