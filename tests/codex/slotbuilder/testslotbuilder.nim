@@ -11,6 +11,7 @@ import pkg/codex/merkletree
 import ../helpers
 import ../examples
 
+import codex/manifest/indexingstrategy
 import codex/slotbuilder/slotbuilder
 
 asyncchecksuite "Slot builder":
@@ -18,7 +19,8 @@ asyncchecksuite "Slot builder":
     blockSize = 64 * 1024
     numberOfSlotBlocks = 6
     numberOfSlots = 5
-    datasetSize = numberOfSlotBlocks * numberOfSlots * blockSize
+    numberOfDatasetBlocks = numberOfSlotBlocks * numberOfSlots
+    datasetSize = numberOfDatasetBlocks * blockSize
     chunker = RandomChunker.new(Rng.instance(), size = datasetSize, chunkSize = blockSize)
 
   var
@@ -89,8 +91,20 @@ asyncchecksuite "Slot builder":
     check:
       SlotBuilder.new(localStore, mismatchManifest).isErr
 
+  for i in 0 ..< numberOfSlots:
+    test "Can select slot block CIDs (index: " & $i & ")":
+      let
+        steppedStrategy = SteppedIndexingStrategy.new(0, numberOfDatasetBlocks - 1, numberOfSlots)
+        expectedDatasetBlockIndicies = steppedStrategy.getIndicies(i)
+        expectedBlockCids = expectedDatasetBlockIndicies.mapIt(datasetBlocks[it].cid)
+
+        slotBlockCids = (await slotBuilder.selectSlotBlocks(i)).tryGet()
+
+      check:
+        expectedBlockCids == slotBlockCids
+
   # for i in 0 ..< numberOfSlots:
-  #   test "Can create slot manifest given index (" & $i & ")":
+  #   test "Can create slot tree given index (" & $i & ")":
   #     let
   #       selectStart = i * numberOfSlotBlocks
   #       selectEnd = selectStart + numberOfSlotBlocks
