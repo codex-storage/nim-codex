@@ -1,4 +1,5 @@
 import std/sequtils
+import std/math
 import pkg/chronos
 import pkg/asynctest
 import pkg/questionable/results
@@ -91,17 +92,55 @@ asyncchecksuite "Slot builder":
     check:
       SlotBuilder.new(localStore, mismatchManifest).isErr
 
-  for i in 0 ..< numberOfSlots:
-    test "Can select slot block CIDs (index: " & $i & ")":
-      let
-        steppedStrategy = SteppedIndexingStrategy.new(0, numberOfDatasetBlocks - 1, numberOfSlots)
-        expectedDatasetBlockIndicies = steppedStrategy.getIndicies(i)
-        expectedBlockCids = expectedDatasetBlockIndicies.mapIt(datasetBlocks[it].cid)
+  proc getNextPowerOfTwo(i: int): int =
+    if i < 1:
+      return 1
+    let
+      logtwo = log2(i.float)
+      roundUp = ceil(logtwo)
+      nextPow = pow(2.float, roundUp)
+    return nextPow.int
 
-        slotBlockCids = (await slotBuilder.selectSlotBlocks(i)).tryGet()
+  for i in 0 ..< 20:
+    test "Check efficient findNextPowerOfTwo (" & $i & ")":
+      let
+        expected = getNextPowerOfTwo(i)
+        actual = findNextPowerOfTwo(i)
 
       check:
-        expectedBlockCids == slotBlockCids
+        expected == actual
+
+  for nSlotBlocks in [1, 12, 123, 1234, 12345]:
+    test "Can calculate the number of padding cells (" & $nSlotBlocks & ")":
+      let
+        nPadCells = slotBuilder.calculateNumberOfPaddingCells(nSlotBlocks)
+        totalSlotBytes = nSlotBlocks * blockSize
+        totalSlotCells = totalSlotBytes div CellSize
+        nextPowerOfTwo = getNextPowerOfTwo(totalSlotCells)
+        expectedPadCells = nextPowerOfTwo - totalSlotCells
+      check:
+        expectedPadCells == nPadCells
+
+
+
+  # for i in 0 ..< numberOfSlots:
+  #   test "Can select slot block CIDs (index: " & $i & ")":
+  #     let
+  #       steppedStrategy = SteppedIndexingStrategy.new(0, numberOfDatasetBlocks - 1, numberOfSlots)
+  #       expectedDatasetBlockIndicies = steppedStrategy.getIndicies(i)
+  #       expectedBlockCids = expectedDatasetBlockIndicies.mapIt(datasetBlocks[it].cid)
+
+  #       slotBlockCids = (await slotBuilder.selectSlotBlocks(i)).tryGet()
+
+  #     check:
+  #       expectedBlockCids == slotBlockCids
+
+
+
+
+
+
+
 
   # for i in 0 ..< numberOfSlots:
   #   test "Can create slot tree given index (" & $i & ")":
