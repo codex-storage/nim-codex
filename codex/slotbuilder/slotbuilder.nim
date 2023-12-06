@@ -45,17 +45,6 @@ proc new*(
 proc cellsPerBlock(self: SlotBuilder): int =
   self.manifest.blockSize.int div CellSize
 
-proc getTreeLeafCid(self: SlotBuilder, datasetTreeCid: Cid, datasetBlockIndex: int): Future[?!Cid] {.async.} =
-  without slotBlockCid =? await self.blockStore.getCid(datasetTreeCid, datasetBlockIndex), err:
-    error "Failed to get block for tree at index", index=datasetBlockIndex, tree=datasetTreeCid
-    return failure(err)
-
-  # without slotBlockLeaf =? slotBlockCid.mhash:
-  #   error "Failed to get multihash from slot block CID", slotBlockCid
-  #   return failure("Failed to get multihash from slot block CID")
-
-  return success(slotBlockCid)
-
 proc selectSlotBlocks*(self: SlotBuilder, datasetSlotIndex: int): Future[?!seq[Cid]] {.async.} =
   var cids = newSeq[Cid]()
   let
@@ -64,8 +53,9 @@ proc selectSlotBlocks*(self: SlotBuilder, datasetSlotIndex: int): Future[?!seq[C
     numberOfSlots = self.manifest.ecK
     strategy = SteppedIndexingStrategy.new(0, blockCount - 1, numberOfSlots)
 
-  for index in strategy.getIndicies(datasetSlotIndex):
-    without slotBlockCid =? await self.getTreeLeafCid(datasetTreeCid, index), err:
+  for datasetBlockIndex in strategy.getIndicies(datasetSlotIndex):
+    without slotBlockCid =? await self.blockStore.getCid(datasetTreeCid, datasetBlockIndex), err:
+      error "Failed to get block CID for tree at index", index=datasetBlockIndex, tree=datasetTreeCid
       return failure(err)
     cids.add(slotBlockCid)
 
@@ -84,13 +74,6 @@ proc findNextPowerOfTwo*(i: int): int =
   return nextPow.int
 
 proc calculateNumberOfPaddingCells*(self: SlotBuilder, numberOfSlotBlocks: int): int =
-  let
-    blockSize = self.manifest.blockSize.int
-    expectZero = blockSize mod CellSize
-
-  if expectZero != 0:
-    raiseAssert("BlockSize should always be divisable by Cell size (2kb).")
-
   let
     numberOfCells = numberOfSlotBlocks * self.cellsPerBlock
     nextPowerOfTwo = findNextPowerOfTwo(numberOfCells)
@@ -153,4 +136,5 @@ proc createSlotTree*(self: SlotBuilder, datasetSlotIndex: int): Future[?!MerkleT
 
   let numberOfPaddingCells = self.calculateNumberOfPaddingCells(slotBlocks.len)
 
+  trace "Creating slot tree", datasetSlotIndex=datasetSlotIndex, nSlotBlocks=slotBlocks.len, nPaddingCells=numberOfPaddingCells
   return await self.buildSlotTree(slotBlocks, numberOfPaddingCells)
