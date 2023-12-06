@@ -11,62 +11,37 @@ import ./helpers
 import ./examples
 
 checksuite "Manifest":
-  test "Should encode/decode to/from base manifest":
-    var
-      manifest = Manifest.new(
-        treeCid = Cid.example,
-        blockSize = 1.MiBs,
-        datasetSize = 100.MiBs)
-
-    let
-      e = manifest.encode().tryGet()
-      decoded = Manifest.decode(e).tryGet()
-
-    check:
-      decoded == manifest
-
-  test "Should encode/decode to/from protected manifest":
-    var
-      manifest = Manifest.new(
-        manifest = Manifest.new(
-          treeCid = Cid.example,
-          blockSize = 1.MiBs,
-          datasetSize = 100.MiBs),
-        treeCid = Cid.example,
-        datasetSize = 200.MiBs,
-        eck = 10,
-        ecM = 10
-      )
-
-    let
-      e = manifest.encode().tryGet()
-      decoded = Manifest.decode(e).tryGet()
-
-    check:
-      decoded == manifest
-
-  test "Should encode/decode to/from verifiable manifest":
-    let protectedManifest = Manifest.new(
-      manifest = Manifest.new(
-        treeCid = Cid.example,
-        blockSize = 1.MiBs,
-        datasetSize = 100.MiBs),
+  let
+    manifest = Manifest.new(
+      treeCid = Cid.example,
+      blockSize = 1.MiBs,
+      datasetSize = 100.MiBs
+    )
+    protectedManifest = Manifest.new(
+      manifest = manifest,
       treeCid = Cid.example,
       datasetSize = 200.MiBs,
       eck = 10,
       ecM = 10
     )
-
-    var manifest = Manifest.new(
+    verifiableManifest = Manifest.new(
       manifest = protectedManifest,
       verificationRoot = VerificationHash.fromInt(12),
       slotRoots = @[VerificationHash.fromInt(23), VerificationHash.fromInt(34)]
     ).tryGet()
 
-    let
-      e = manifest.encode().tryGet()
-      decoded = Manifest.decode(e).tryGet()
+  proc encodeDecode(manifest: Manifest): Manifest =
+    let e = manifest.encode().tryGet()
+    Manifest.decode(e).tryGet()
 
+  test "Should encode/decode to/from base manifest":
     check:
-      decoded == manifest
+      encodeDecode(manifest) == manifest
 
+  test "Should encode/decode to/from protected manifest":
+    check:
+      encodeDecode(protectedManifest) == protectedManifest
+
+  test "Should encode/decode to/from verifiable manifest":
+    check:
+      encodeDecode(verifiableManifest) == verifiableManifest

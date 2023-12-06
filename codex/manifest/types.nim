@@ -10,13 +10,11 @@
 # This module defines Manifest and all related types
 
 import std/tables
+import std/strutils
 import pkg/libp2p
-import pkg/constantine/math/io/io_fields
-import pkg/poseidon2
 
 import ../units
 export units
-export curves # workaround for "undeclared identifier: 'getCurveOrder'" from constantine
 
 const
   BlockCodec* = multiCodec("raw")
@@ -25,21 +23,23 @@ const
 type
   ManifestCoderType*[codec: static MultiCodec] = object
   DagPBCoder* = ManifestCoderType[multiCodec("dag-pb")]
-  VerificationHash* = F
+  VerificationHash* = int
+  # TODO: Replace this with a wrapper type that supports Poseidon2
+  # and is can be encoded/decoded, AND is JSON-serializable
 
 const
   ManifestContainers* = {
     $DagPBCodec: DagPBCoder()
   }.toTable
 
-proc `==`*(a, b: VerificationHash): bool =
-  a.toHex() == b.toHex()
-
 proc fromInt*(T: type VerificationHash, value: SomeInteger | SomeUnsignedInt): VerificationHash =
-  toF(value)
+  value.int
 
 proc encode*(a: VerificationHash): string =
-  a.toHex()
+  $a
 
 proc decode*(T: type VerificationHash, str: string): VerificationHash =
-  F.fromHex(str)
+  try:
+    parseInt(str)
+  except ValueError:
+    0
