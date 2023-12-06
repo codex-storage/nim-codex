@@ -44,7 +44,7 @@ type
       originalDatasetSize: NBytes
       case verifiable {.serialize.}: bool   # Verifiable datasets can be used to generate storage proofs
       of true:
-        datasetRoot: VerificationHash
+        verificationRoot: VerificationHash
         slotRoots: seq[VerificationHash]
       else:
         discard
@@ -97,8 +97,8 @@ proc blocksCount*(self: Manifest): int =
 proc verifiable*(self: Manifest): bool =
   self.verifiable
 
-proc datasetRoot*(self: Manifest): VerificationHash =
-  self.datasetRoot
+proc verificationRoot*(self: Manifest): VerificationHash =
+  self.verificationRoot
 
 proc slotRoots*(self: Manifest): seq[VerificationHash] =
   self.slotRoots
@@ -160,7 +160,7 @@ proc `==`*(a, b: Manifest): bool =
       (a.originalDatasetSize == b.originalDatasetSize) and
       (a.verifiable == b.verifiable) and
         (if a.verifiable:
-          (a.datasetRoot == b.datasetRoot) and
+          (a.verificationRoot == b.verificationRoot) and
           (a.slotRoots == b.slotRoots)
         else:
           true)
@@ -181,7 +181,7 @@ proc `$`*(self: Manifest): string =
       ", originalTreeCid: " & $self.originalTreeCid &
       ", originalDatasetSize: " & $self.originalDatasetSize &
       (if self.verifiable:
-        ", datasetRoot: " & $self.datasetRoot &
+        ", verificationRoot: " & $self.verificationRoot &
         ", slotRoots: " & $self.slotRoots
       else:
         "")
@@ -289,7 +289,7 @@ proc new*(
 proc new*(
     T: type Manifest,
     manifest: Manifest,
-    datasetRoot: VerificationHash,
+    verificationRoot: VerificationHash,
     slotRoots: seq[VerificationHash]
 ): ?!Manifest =
   ## Create a verifiable dataset from an
@@ -311,6 +311,6 @@ proc new*(
     originalTreeCid: manifest.treeCid,
     originalDatasetSize: manifest.originalDatasetSize,
     verifiable: true,
-    datasetRoot: datasetRoot,
+    verificationRoot: verificationRoot,
     slotRoots: slotRoots
   ))

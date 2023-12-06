@@ -59,7 +59,7 @@ checksuite "Manifest":
 
     var manifest = Manifest.new(
       manifest = protectedManifest,
-      datasetRoot = VerificationHash.fromInt(12),
+      verificationRoot = VerificationHash.fromInt(12),
       slotRoots = @[VerificationHash.fromInt(23), VerificationHash.fromInt(34)]
     ).tryGet()
 

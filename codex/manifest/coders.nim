@@ -72,7 +72,7 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
 
     if manifest.verifiable:
       var verificationInfo = initProtoBuffer()
-      verificationInfo.write(1, manifest.datasetRoot.encode())
+      verificationInfo.write(1, manifest.verificationRoot.encode())
       for slotRoot in manifest.slotRoots:
         verificationInfo.write(2, slotRoot.encode())
       erasureInfo.write(5, verificationInfo)
@@ -100,7 +100,7 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     blockSize: uint32
     originalDatasetSize: uint32
     ecK, ecM: uint32
-    datasetRoot: string
+    verificationRoot: string
     slotRoots: seq[string]
 
   # Decode `Header` message
@@ -140,8 +140,8 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
 
     verifiable = pbVerificationInfo.buffer.len > 0
     if verifiable:
-      if pbVerificationInfo.getField(1, datasetRoot).isErr:
-        return failure("Unable to decode `datasetRoot` from manifest!")
+      if pbVerificationInfo.getField(1, verificationRoot).isErr:
+        return failure("Unable to decode `verificationRoot` from manifest!")
 
       if pbVerificationInfo.getRequiredRepeatedField(2, slotRoots).isErr:
         return failure("Unable to decode `slotRoots` from manifest!")
@@ -178,7 +178,7 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
   if verifiable:
     return Manifest.new(
       manifest = self,
-      datasetRoot = VerificationHash.decode(datasetRoot),
+      verificationRoot = VerificationHash.decode(verificationRoot),
       slotRoots = slotRoots.mapIt(VerificationHash.decode(it))
     )
 
