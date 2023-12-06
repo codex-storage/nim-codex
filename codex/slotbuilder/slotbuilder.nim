@@ -30,7 +30,10 @@ proc new*(
     return failure("Can only create SlotBuilder using protected manifests.")
 
   if (manifest.blocksCount mod manifest.ecK) != 0:
-    return failure("Number of blocks must be devisable by number of slots.")
+    return failure("Number of blocks must be divisable by number of slots.")
+
+  if (manifest.blockSize.int mod CellSize) != 0:
+    return failure("Block size must be divisable by cell size.")
 
   let numberOfSlotBlocks = manifest.blocksCount div manifest.ecK
   success(SlotBuilder(
