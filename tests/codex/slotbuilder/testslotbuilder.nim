@@ -96,6 +96,21 @@ asyncchecksuite "Slot builder":
     check:
       SlotBuilder.new(localStore, mismatchManifest).isErr
 
+  test "Block size must be divisable by cell size":
+    let mismatchManifest = Manifest.new(
+      manifest = Manifest.new(
+        treeCid = Cid.example,
+        blockSize = (blockSize - 1).NBytes,
+        datasetSize = (datasetSize - numberOfDatasetBlocks).NBytes),
+      treeCid = Cid.example,
+      datasetSize = (datasetSize - numberOfDatasetBlocks).NBytes,
+      ecK = numberOfSlots,
+      ecM = 0
+    )
+
+    check:
+      SlotBuilder.new(localStore, mismatchManifest).isErr
+
   proc getNextPowerOfTwo(i: int): int =
     if i < 1:
       return 1
@@ -177,6 +192,4 @@ asyncchecksuite "Slot builder":
     check:
       # 1 pad block
       slotTree.getLeafCid(numberOfSlotBlocks).tryget() == expectedEmptyCid
-
-
 
