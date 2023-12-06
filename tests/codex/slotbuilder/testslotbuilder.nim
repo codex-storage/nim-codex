@@ -111,32 +111,13 @@ asyncchecksuite "Slot builder":
     check:
       SlotBuilder.new(localStore, mismatchManifest).isErr
 
-  proc getNextPowerOfTwo(i: int): int =
-    if i < 1:
-      return 1
-    let
-      logtwo = log2(i.float)
-      roundUp = ceil(logtwo)
-      nextPow = pow(2.float, roundUp)
-    return nextPow.int
-
-  for i in 0 ..< 20:
-    test "Check efficient findNextPowerOfTwo (" & $i & ")":
-      let
-        expected = getNextPowerOfTwo(i)
-        actual = findNextPowerOfTwo(i)
-
-      check:
-        expected == actual
-
   for nSlotBlocks in [1, 12, 123, 1234, 12345]:
     test "Can calculate the number of padding cells (" & $nSlotBlocks & ")":
       let
         nPadCells = slotBuilder.calculateNumberOfPaddingCells(nSlotBlocks)
         totalSlotBytes = nSlotBlocks * blockSize
         totalSlotCells = totalSlotBytes div CellSize
-        nextPowerOfTwo = getNextPowerOfTwo(totalSlotCells)
-        expectedPadCells = nextPowerOfTwo - totalSlotCells
+        expectedPadCells = nextPowerOfTwo(totalSlotCells) - totalSlotCells
       check:
         expectedPadCells == nPadCells
 
@@ -178,7 +159,7 @@ asyncchecksuite "Slot builder":
       slotBlockCids = datasetBlocks[0 ..< numberOfSlotBlocks].mapIt(it.cid)
       numPadCells = numberOfCellsPerBlock div 2 # We expect 1 pad block.
 
-      slotTree = (await slotBuilder.buildSlotTree(slotBlockCids, numPadCells)).tryGet()
+      slotTree = slotBuilder.buildSlotTree(slotBlockCids, numPadCells).tryGet()
 
     check:
       # Tree size

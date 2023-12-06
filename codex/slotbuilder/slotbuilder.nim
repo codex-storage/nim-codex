@@ -1,4 +1,5 @@
 import std/math
+import std/sequtils
 import pkg/libp2p
 import pkg/chronos
 import pkg/chronicles
@@ -58,76 +59,27 @@ proc selectSlotBlocks*(self: SlotBuilder, datasetSlotIndex: int): Future[?!seq[C
       error "Failed to get block CID for tree at index", index=datasetBlockIndex, tree=datasetTreeCid
       return failure(err)
     cids.add(slotBlockCid)
+    # TODO: Remove this sleep. It's here to prevent us from locking up the thread.
+    await sleepAsync(10.millis)
 
   return success(cids)
-
-proc findNextPowerOfTwo*(i: int): int =
-  # TODO: this is just a copy of the test implementation.
-  # If anyone wants to try to make a faster version, plz do.
-  # constantine has one in bithacks.nim 'nextPowerOfTwo_vartime'
-  if i < 1:
-    return 1
-  let
-    logtwo = log2(i.float)
-    roundUp = ceil(logtwo)
-    nextPow = pow(2.float, roundUp)
-  return nextPow.int
 
 proc calculateNumberOfPaddingCells*(self: SlotBuilder, numberOfSlotBlocks: int): int =
   let
     numberOfCells = numberOfSlotBlocks * self.cellsPerBlock
-    nextPowerOfTwo = findNextPowerOfTwo(numberOfCells)
+    nextPowerOfTwo = nextPowerOfTwo(numberOfCells)
 
   return nextPowerOfTwo - numberOfCells
 
-proc addSlotBlocksToTreeBuilder(builder: var MerkleTreeBuilder, slotBlocks: seq[Cid]): ?!void =
-  for slotBlockCid in slotBlocks:
-    without leafHash =? slotBlockCid.mhash:
-      error "Failed to get leaf hash from CID"
-      return failure("Failed to get leaf hash from CID")
-
-    if builder.addLeaf(leafHash).isErr:
-      error "Failed to add slotBlockCid to slot tree builder"
-      return failure("Failed to add slotBlockCid to slot tree builder")
-
-  return success()
-
-proc addPadBlocksToTreeBuilder(self: SlotBuilder, builder: var MerkleTreeBuilder, nBlocks: int): ?!void =
-  without cid =? emptyCid(self.manifest.version, self.manifest.hcodec, self.manifest.codec), err:
+proc buildSlotTree*(self: SlotBuilder, slotBlocks: seq[Cid], numberOfPaddingCells: int): ?!MerkleTree =
+  without emptyCid =? emptyCid(self.manifest.version, self.manifest.hcodec, self.manifest.codec), err:
     error "Unable to initialize empty cid"
     return failure(err)
 
-  without emptyLeaf =? cid.mhash:
-      error "Failed to get leaf hash from empty CID"
-      return failure("Failed to get leaf hash from empty CID")
-
-  for i in 0 ..< nBlocks:
-    if builder.addLeaf(emptyLeaf).isErr:
-      error "Failed to add empty leaf to slot tree builder"
-      return failure("Failed to add empty leaf to slot tree builder")
-
-  return success()
-
-proc buildSlotTree*(self: SlotBuilder, slotBlocks: seq[Cid], numberOfPaddingCells: int): Future[?!MerkleTree] {.async.} =
   let numberOfPadBlocks = divUp(numberOfPaddingCells, self.cellsPerBlock)
+  let padding = newSeqWith(numberOfPadBlocks, emptyCid)
 
-  without var builder =? MerkleTreeBuilder.init(), err:
-    error "Failed to initialize merkle tree builder"
-    return failure(err)
-
-  if addSlotBlocksToTreeBuilder(builder, slotBlocks).isErr:
-    error "Failed to add slot blocks to tree builder"
-    return failure("Failed to add slot blocks to tree builder")
-
-  if self.addPadBlocksToTreeBuilder(builder, numberOfPadBlocks).isErr:
-    error "Failed to add padding blocks to tree builder"
-    return failure("Failed to add padding blocks to tree builder")
-
-  without slotTree =? builder.build(), err:
-    error "Failed to build slot tree"
-    return failure(err)
-
-  return success(slotTree)
+  MerkleTree.init(slotBlocks & padding)
 
 proc createSlotTree*(self: SlotBuilder, datasetSlotIndex: int): Future[?!MerkleTree] {.async.} =
   without slotBlocks =? await self.selectSlotBlocks(datasetSlotIndex), err:
@@ -137,4 +89,4 @@ proc createSlotTree*(self: SlotBuilder, datasetSlotIndex: int): Future[?!MerkleT
   let numberOfPaddingCells = self.calculateNumberOfPaddingCells(slotBlocks.len)
 
   trace "Creating slot tree", datasetSlotIndex=datasetSlotIndex, nSlotBlocks=slotBlocks.len, nPaddingCells=numberOfPaddingCells
-  return await self.buildSlotTree(slotBlocks, numberOfPaddingCells)
+  return self.buildSlotTree(slotBlocks, numberOfPaddingCells)
