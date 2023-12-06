@@ -28,7 +28,7 @@ logScope:
   topics = "codex datasampler"
 
 type
-  DataSampler* = ref object of RootObj
+  DataSampler* = object of RootObj
     slot: Slot
     blockStore: BlockStore
     slotBlocks: SlotBlocks
@@ -81,8 +81,6 @@ func extractLowBits*[n: static int](A: BigInt[n], k: int): uint64 =
   assert(k > 0 and k <= 64)
   var r: uint64 = 0
   for i in 0..<k:
-    # A is big-endian. Run index backwards: n-1-i
-    #let b = bit[n](A, n-1-i)
     let b = bit[n](A, i)
 
     let y = uint64(b)
