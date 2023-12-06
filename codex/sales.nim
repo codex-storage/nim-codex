@@ -373,7 +373,7 @@ proc subscribeCancellation(sales: Sales) {.async.} =
   let queue = context.slotQueue
 
   proc onCancelled(requestId: RequestId) =
-    trace "request cancelled, removing all request slots from queue"
+    trace "request cancelled (via contract RequestCancelled event), removing all request slots from queue"
     queue.delete(requestId)
 
   try:
