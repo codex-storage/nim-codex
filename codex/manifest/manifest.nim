@@ -180,6 +180,7 @@ proc `$`*(self: Manifest): string =
       ", ecM: " & $self.ecM &
       ", originalTreeCid: " & $self.originalTreeCid &
       ", originalDatasetSize: " & $self.originalDatasetSize &
+      ", verifiable: " & $self.verifiable &
       (if self.verifiable:
         ", verificationRoot: " & $self.verificationRoot &
         ", slotRoots: " & $self.slotRoots
