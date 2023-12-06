@@ -55,9 +55,10 @@ proc new*(
 ): Future[?!DataSampler] {.async.} =
   # Create a DataSampler for a slot.
   # A DataSampler can create the input required for the proving circuit.
-  without slotBlocks =? await SlotBlocks.new(slot, blockStore), err:
+  # TODO: line this up with the slot builder in the 'slot builder' branch.
+  without slotBlocks =? await SlotBlocks.new(slot, blockStore):
     error "Failed to create SlotBlocks object for slot"
-    return failure(err)
+    return failure("Failed to create SlotBlocks object for slot")
 
   let
     numberOfCellsInSlot = getNumberOfCellsInSlot(slot)
