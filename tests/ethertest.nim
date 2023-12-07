@@ -26,4 +26,4 @@ template ethersuite*(name, body) =
     body
 
 export asynctest
-export ethers
+export ethers except `%`

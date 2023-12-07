@@ -75,6 +75,10 @@ proc fromHex*[T: distinct](_: type T, hex: string): T =
   type baseType = T.distinctBase
   T baseType.fromHex(hex)
 
+proc toHex*[T: distinct](id: T): string =
+  type baseType = T.distinctBase
+  baseType(id).toHex
+
 func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
   StorageRequest(
     client: tupl[0],

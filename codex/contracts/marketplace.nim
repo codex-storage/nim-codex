@@ -8,8 +8,8 @@ import ./requests
 import ./config
 
 export stint
-export ethers
-export erc20
+export ethers except `%`, `%*`, toJson
+export erc20 except `%`, `%*`, toJson
 export config
 export requests
 

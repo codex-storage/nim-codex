@@ -11,6 +11,8 @@ import pkg/codex/purchasing
 import pkg/codex/errors
 import pkg/codex/sales/reservations
 
+export purchasing
+
 type CodexClient* = ref object
   http: HttpClient
   baseurl: string
@@ -106,6 +108,18 @@ proc getPurchase*(client: CodexClient, purchaseId: PurchaseId): ?!RestPurchase =
   let json = ? parseJson(body).catch
   RestPurchase.fromJson(json)
 
+proc getSalesAgent*(client: CodexClient, slotId: SlotId): ?!RestSalesAgent =
+  let url = client.baseurl & "/sales/slots/" & slotId.toHex
+  echo "getting sales agent for id, ", slotId.toHex
+  try:
+    let body = client.http.getContent(url)
+    echo "get sales agent body: ", body
+    let json = ? parseJson(body).catch
+    return RestSalesAgent.fromJson(json)
+  except CatchableError as e:
+    echo "[client.getSalesAgent] error getting agent: ", e.msg
+    return failure e.msg
+
 proc getSlots*(client: CodexClient): ?!seq[Slot] =
   let url = client.baseurl & "/sales/slots"
   let body = client.http.getContent(url)
@@ -126,7 +140,7 @@ proc postAvailability*(
     "maxCollateral": maxCollateral,
   }
   let response = client.http.post(url, $json)
-  assert response.status == "200 OK"
+  doAssert response.status == "200 OK", "expected 200 OK, got " & response.status & ", body: " & response.body
   Availability.fromJson(response.body.parseJson)
 
 proc getAvailabilities*(client: CodexClient): ?!seq[Availability] =
@@ -141,3 +155,12 @@ proc close*(client: CodexClient) =
 proc restart*(client: CodexClient) =
   client.http.close()
   client.http = newHttpClient()
+
+proc purchaseStateIs*(client: CodexClient, id: PurchaseId, state: string): bool =
+  client.getPurchase(id).option.?state == some state
+
+proc saleStateIs*(client: CodexClient, id: SlotId, state: string): bool =
+  client.getSalesAgent(id).option.?state == some state
+
+proc requestId*(client: CodexClient, id: PurchaseId): ?RequestId =
+  return client.getPurchase(id).option.?requestId

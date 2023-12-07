@@ -59,6 +59,11 @@ proc retrieveRequestState*(agent: SalesAgent): Future[?RequestState] {.async.} =
   let market = agent.context.market
   return await market.requestState(data.requestId)
 
+func state*(agent: SalesAgent): ?string =
+  proc description(state: State): string =
+    $state
+  agent.query(description)
+
 proc subscribeCancellation(agent: SalesAgent) {.async.} =
   let data = agent.data
   let clock = agent.context.clock

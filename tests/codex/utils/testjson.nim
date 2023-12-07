@@ -3,7 +3,7 @@ import std/options
 import std/strformat
 import std/strutils
 import std/unittest
-import pkg/chronicles
+import pkg/chronicles except toJson
 import pkg/stew/byteutils
 import pkg/stint
 import pkg/codex/contracts/requests
