@@ -265,10 +265,6 @@ proc new*(
     store = NetworkStore.new(engine, repoStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery)
-
-  trace "create everything but rest server"
-
-  let
     restServer = RestServerRef.new(
       codexNode.initRestApi(config),
       initTAddress(config.apiBindAddress , config.apiPort),

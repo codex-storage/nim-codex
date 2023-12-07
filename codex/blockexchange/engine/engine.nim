@@ -306,7 +306,6 @@ proc payForBlocks(engine: BlockExcEngine,
 
   if payment =? engine.wallet.pay(peer, price):
     trace "Sending payment for blocks", price
-    # echo "sendPayment"
     await sendPayment(peer.id, payment)
 
 proc validateBlockDelivery(
