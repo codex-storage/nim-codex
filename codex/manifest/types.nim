@@ -23,23 +23,8 @@ const
 type
   ManifestCoderType*[codec: static MultiCodec] = object
   DagPBCoder* = ManifestCoderType[multiCodec("dag-pb")]
-  VerificationHash* = int
-  # TODO: Replace this with a wrapper type that supports Poseidon2
-  # and is can be encoded/decoded, AND is JSON-serializable
 
 const
   ManifestContainers* = {
     $DagPBCodec: DagPBCoder()
   }.toTable
-
-proc fromInt*(T: type VerificationHash, value: SomeInteger | SomeUnsignedInt): VerificationHash =
-  value.int
-
-proc encode*(a: VerificationHash): string =
-  $a
-
-proc decode*(T: type VerificationHash, str: string): VerificationHash =
-  try:
-    parseInt(str)
-  except ValueError:
-    0

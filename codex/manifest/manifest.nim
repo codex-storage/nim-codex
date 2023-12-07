@@ -44,8 +44,8 @@ type
       originalDatasetSize: NBytes
       case verifiable {.serialize.}: bool   # Verifiable datasets can be used to generate storage proofs
       of true:
-        verificationRoot: VerificationHash
-        slotRoots: seq[VerificationHash]
+        verificationRoot: Cid
+        slotRoots: seq[Cid]
       else:
         discard
     else:
@@ -97,10 +97,10 @@ proc blocksCount*(self: Manifest): int =
 proc verifiable*(self: Manifest): bool =
   self.verifiable
 
-proc verificationRoot*(self: Manifest): VerificationHash =
+proc verificationRoot*(self: Manifest): Cid =
   self.verificationRoot
 
-proc slotRoots*(self: Manifest): seq[VerificationHash] =
+proc slotRoots*(self: Manifest): seq[Cid] =
   self.slotRoots
 
 ############################################################
@@ -290,8 +290,8 @@ proc new*(
 proc new*(
     T: type Manifest,
     manifest: Manifest,
-    verificationRoot: VerificationHash,
-    slotRoots: seq[VerificationHash]
+    verificationRoot: Cid,
+    slotRoots: seq[Cid]
 ): ?!Manifest =
   ## Create a verifiable dataset from an
   ## protected one

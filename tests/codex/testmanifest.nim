@@ -26,8 +26,8 @@ checksuite "Manifest":
     )
     verifiableManifest = Manifest.new(
       manifest = protectedManifest,
-      verificationRoot = VerificationHash.fromInt(12),
-      slotRoots = @[VerificationHash.fromInt(23), VerificationHash.fromInt(34)]
+      verificationRoot = Cid.example,
+      slotRoots = @[Cid.example, Cid.example]
     ).tryGet()
 
   proc encodeDecode(manifest: Manifest): Manifest =

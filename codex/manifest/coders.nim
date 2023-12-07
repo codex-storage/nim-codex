@@ -72,9 +72,9 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
 
     if manifest.verifiable:
       var verificationInfo = initProtoBuffer()
-      verificationInfo.write(1, manifest.verificationRoot.encode())
+      verificationInfo.write(1, manifest.verificationRoot.data.buffer)
       for slotRoot in manifest.slotRoots:
-        verificationInfo.write(2, slotRoot.encode())
+        verificationInfo.write(2, slotRoot.data.buffer)
       erasureInfo.write(5, verificationInfo)
 
     erasureInfo.finish()
@@ -100,8 +100,8 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     blockSize: uint32
     originalDatasetSize: uint32
     ecK, ecM: uint32
-    verificationRoot: string
-    slotRoots: seq[string]
+    verificationRoot: seq[byte]
+    slotRoots: seq[seq[byte]]
 
   # Decode `Header` message
   if pbNode.getField(1, pbHeader).isErr:
@@ -176,10 +176,14 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
   ? self.verify()
 
   if verifiable:
+    let
+      verificationRootCid = ? Cid.init(verificationRoot).mapFailure
+      slotRootCids = slotRoots.mapIt(? Cid.init(it).mapFailure)
+
     return Manifest.new(
       manifest = self,
-      verificationRoot = VerificationHash.decode(verificationRoot),
-      slotRoots = slotRoots.mapIt(VerificationHash.decode(it))
+      verificationRoot = verificationRootCid,
+      slotRoots = slotRootCids
     )
 
   self.success
