@@ -184,8 +184,6 @@ proc initDataApi(node: CodexNodeRef, router: var RestRouter) =
 
       await node.retrieveCid(cid.get(), local = false, resp=resp)
 
-      return RestApiResponse.response($json, contentType="application/json")
-
 proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
   router.api(
     MethodGet,
