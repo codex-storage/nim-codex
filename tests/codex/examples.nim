@@ -7,7 +7,6 @@ import pkg/codex/rng
 import pkg/codex/stores
 import pkg/codex/blocktype as bt
 import pkg/codex/sales
-import pkg/codex/market
 import ../examples
 
 export examples
