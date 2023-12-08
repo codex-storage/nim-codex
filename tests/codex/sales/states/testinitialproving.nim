@@ -8,6 +8,7 @@ import pkg/codex/sales/states/failed
 import pkg/codex/sales/states/filling
 import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
+import pkg/codex/market
 import ../../examples
 import ../../helpers
 
@@ -21,8 +22,8 @@ asyncchecksuite "sales state 'initialproving'":
   var agent: SalesAgent
 
   setup:
-    let onProve = proc (slot: Slot): Future[seq[byte]] {.async.} =
-                            return proof
+    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[seq[byte]] {.async.} =
+                          return proof
     let context = SalesContext(onProve: onProve.some)
     agent = newSalesAgent(context,
                           request.id,

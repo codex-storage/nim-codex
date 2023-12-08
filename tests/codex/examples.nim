@@ -7,6 +7,7 @@ import pkg/codex/rng
 import pkg/codex/stores
 import pkg/codex/blocktype as bt
 import pkg/codex/sales
+import pkg/codex/market
 import ../examples
 
 export examples
@@ -72,3 +73,5 @@ proc example*(_: type Reservation): Reservation =
     slotId = SlotId.example
   )
 
+proc example*(_: type ProofChallenge): ProofChallenge =
+  array[32, byte].example

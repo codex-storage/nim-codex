@@ -27,7 +27,7 @@ asyncchecksuite "sales state 'proving'":
   setup:
     clock = MockClock.new()
     market = MockMarket.new()
-    let onProve = proc (slot: Slot): Future[seq[byte]] {.async.} =
+    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[seq[byte]] {.async.} =
                         return proof
     let context = SalesContext(market: market, clock: clock, onProve: onProve.some)
     agent = newSalesAgent(context,

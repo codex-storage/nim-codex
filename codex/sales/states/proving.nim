@@ -21,12 +21,13 @@ type
 method prove*(
   state: SaleProving,
   slot: Slot,
+  challenge: ProofChallenge,
   onProve: OnProve,
   market: Market,
   currentPeriod: Period
 ) {.base, async.} =
   try:
-    let proof = await onProve(slot)
+    let proof = await onProve(slot, challenge)
     debug "Submitting proof", currentPeriod = currentPeriod, slotId = $slot.id
     await market.submitProof(slot.id, proof)
   except CatchableError as e:
@@ -71,8 +72,9 @@ proc proveLoop(
     debug "Proving for new period", period = currentPeriod
 
     if (await market.isProofRequired(slotId)) or (await market.willProofBeRequired(slotId)):
-      debug "Proof is required", period = currentPeriod
-      await state.prove(slot, onProve, market, currentPeriod)
+      let challenge = await market.getChallenge(slotId)
+      debug "Proof is required", period = currentPeriod, challenge = challenge
+      await state.prove(slot, challenge, onProve, market, currentPeriod)
 
     await waitUntilPeriod(currentPeriod + 1)
 

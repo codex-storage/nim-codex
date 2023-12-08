@@ -235,7 +235,6 @@ method freeSlot*(market: MockMarket, slotId: SlotId) {.async.} =
       break
   market.slotState[slotId] = SlotState.Free
 
-
 method withdrawFunds*(market: MockMarket,
                       requestId: RequestId) {.async.} =
   market.withdrawn.add(requestId)
