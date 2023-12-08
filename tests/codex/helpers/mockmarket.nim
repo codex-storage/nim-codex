@@ -29,6 +29,7 @@ type
     withdrawn*: seq[RequestId]
     proofsRequired: HashSet[SlotId]
     proofsToBeRequired: HashSet[SlotId]
+    proofChallenge*: ProofChallenge
     proofEnds: Table[SlotId, UInt256]
     signer: Address
     subscriptions: Subscriptions
@@ -259,6 +260,9 @@ proc setProofToBeRequired*(mock: MockMarket, id: SlotId, required: bool) =
 method willProofBeRequired*(mock: MockMarket,
                             id: SlotId): Future[bool] {.async.} =
   return mock.proofsToBeRequired.contains(id)
+
+method getChallenge*(mock: MockMarket, id: SlotId): Future[ProofChallenge] {.async.} =
+  return mock.proofChallenge
 
 proc setProofEnd*(mock: MockMarket, id: SlotId, proofEnd: UInt256) =
   mock.proofEnds[id] = proofEnd

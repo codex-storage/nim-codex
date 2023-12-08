@@ -72,6 +72,3 @@ proc example*(_: type Reservation): Reservation =
     size = uint16.example.u256,
     slotId = SlotId.example
   )
-
-proc example*(_: type ProofChallenge): ProofChallenge =
-  array[32, byte].example

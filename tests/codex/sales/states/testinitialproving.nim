@@ -11,20 +11,26 @@ import pkg/codex/sales/salescontext
 import pkg/codex/market
 import ../../examples
 import ../../helpers
+import ../../helpers/mockmarket
 
 asyncchecksuite "sales state 'initialproving'":
-
   let proof = exampleProof()
   let request = StorageRequest.example
   let slotIndex = (request.ask.slots div 2).u256
+  let market = MockMarket.new()
 
   var state: SaleInitialProving
   var agent: SalesAgent
+  var receivedChallenge: ProofChallenge
 
   setup:
     let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[seq[byte]] {.async.} =
+                          receivedChallenge = challenge
                           return proof
-    let context = SalesContext(onProve: onProve.some)
+    let context = SalesContext(
+      onProve: onProve.some,
+      market: market
+    )
     agent = newSalesAgent(context,
                           request.id,
                           slotIndex,
@@ -43,3 +49,10 @@ asyncchecksuite "sales state 'initialproving'":
     let next = await state.run(agent)
     check !next of SaleFilling
     check SaleFilling(!next).proof == proof
+
+  test "onProve callback provides proof challenge":
+    market.proofChallenge = ProofChallenge.example
+
+    let future = state.run(agent)
+
+    check receivedChallenge == market.proofChallenge
