@@ -23,6 +23,7 @@ checksuite "asyncprofiler metrics serializer":
     childrenExecTime: 10.seconds,
     execTimeMax: 1500.milliseconds,
     zombieEventCount: 0,
+    stillbornCount: 0,
     callCount: 10
   )
 
@@ -33,6 +34,7 @@ checksuite "asyncprofiler metrics serializer":
       "childrenExecTime": 10000000000,
       "execTimeMax": 1500000000,
       "zombieEventCount": 0,
+      "stillbornCount": 0,
       "callCount": 10
     }
 
@@ -59,6 +61,7 @@ checksuite "asyncprofiler metrics serializer":
       "childrenExecTime": 10000000000,
       "execTimeMax": 1500000000,
       "zombieEventCount": 0,
+      "stillbornCount": 0,
       "callCount": 10
     }]
 
@@ -75,6 +78,7 @@ checksuite "asyncprofiler metrics serializer":
       execTimeMax: 1500.milliseconds,
       childrenExecTime: 1.seconds,
       zombieEventCount: 0,
+      stillbornCount: 0,
       callCount: 5
     )
 
