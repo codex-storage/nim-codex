@@ -28,6 +28,7 @@ type
     requestId*: RequestId
     ask*: StorageAsk
     expiry*: UInt256
+  ProofChallenge* = array[32, byte]
 
 method getSigner*(market: Market): Future[Address] {.base, async.} =
   raiseAssert("not implemented")
@@ -101,6 +102,9 @@ method isProofRequired*(market: Market,
 
 method willProofBeRequired*(market: Market,
                             id: SlotId): Future[bool] {.base, async.} =
+  raiseAssert("not implemented")
+
+method getChallenge*(market: Market, id: SlotId): Future[ProofChallenge] {.base, async.} =
   raiseAssert("not implemented")
 
 method submitProof*(market: Market,
