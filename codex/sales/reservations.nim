@@ -359,6 +359,56 @@ proc createReservation*(
 
   return success(reservation)
 
+proc returnBytes*(
+  self: Reservations,
+  availabilityId: AvailabilityId,
+  reservationId: ReservationId,
+  bytes: UInt256): Future[?!void] {.async.} =
+
+  logScope:
+    reservationId
+    availabilityId
+    bytes
+
+  trace "Returning bytes"
+
+  without key =? key(reservationId, availabilityId), error:
+    return failure(error)
+
+  without var reservation =? (await self.get(key, Reservation)), error:
+    return failure(error)
+
+  # If there is still some bytes in the reservation, we substract those from the
+  # bytes that we are gonna try to return because these reservation's bytes
+  # are still reserved in the Repo thanks to its parent availability
+  let bytesToBeReserved = (bytes - reservation.size).truncate(uint)
+
+  # First lets see if we can re-reserve the bytes, if the Repo's quota
+  # is depleted then we will fail-fast as there is nothing to be done atm.
+  trace "Re-reserving bytes at repo", count = bytesToBeReserved
+  if reserveErr =? (await self.repo.reserve(bytesToBeReserved)).errorOption:
+    return failure(reserveErr.toErr(ReserveFailedError))
+
+  without availabilityKey =? availabilityId.key, error:
+    return failure(error)
+
+  without var availability =? await self.get(availabilityKey, Availability), error:
+    return failure(error)
+
+  availability.size += bytes
+
+  # Update availability with returned size
+  if updateErr =? (await self.update(availability)).errorOption:
+
+    trace "Rolling back returning bytes"
+    if rollbackErr =? (await self.repo.release(bytesToBeReserved)).errorOption:
+      rollbackErr.parent = updateErr
+      return failure(rollbackErr)
+
+    return failure(updateErr)
+
+  return success()
+
 proc release*(
   self: Reservations,
   reservationId: ReservationId,
