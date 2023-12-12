@@ -143,6 +143,9 @@ method willProofBeRequired*(market: OnChainMarket,
       return false
     raise e
 
+method getChallenge*(market: OnChainMarket, id: SlotId): Future[ProofChallenge] {.async.} =
+  return await market.contract.getChallenge(id)
+
 method submitProof*(market: OnChainMarket,
                     id: SlotId,
                     proof: seq[byte]) {.async.} =

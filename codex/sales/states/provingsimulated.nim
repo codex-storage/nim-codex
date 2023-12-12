@@ -22,7 +22,7 @@ when codex_enable_proof_failures:
   proc onSubmitProofError(error: ref CatchableError, period: UInt256, slotId: SlotId) =
     error "Submitting invalid proof failed", period = period, slotId = $slotId, msg = error.msg
 
-  method prove*(state: SaleProvingSimulated, slot: Slot, onProve: OnProve, market: Market, currentPeriod: Period) {.async.} =
+  method prove*(state: SaleProvingSimulated, slot: Slot, challenge: ProofChallenge, onProve: OnProve, market: Market, currentPeriod: Period) {.async.} =
     trace "Processing proving in simulated mode"
     state.proofCount += 1
     if state.failEveryNProofs > 0 and
@@ -38,4 +38,4 @@ when codex_enable_proof_failures:
       except CatchableError as e:
         onSubmitProofError(e, currentPeriod, slot.id)
     else:
-      await procCall SaleProving(state).prove(slot, onProve, market, currentPeriod)
+      await procCall SaleProving(state).prove(slot, challenge, onProve, market, currentPeriod)

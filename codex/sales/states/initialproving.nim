@@ -31,7 +31,10 @@ method run*(state: SaleInitialProving, machine: Machine): Future[?State] {.async
     raiseAssert "onProve callback not set"
 
   debug "Generating initial proof", requestId = $data.requestId
-  let proof = await onProve(Slot(request: request, slotIndex: data.slotIndex))
+  let
+    slot = Slot(request: request, slotIndex: data.slotIndex)
+    challenge = await context.market.getChallenge(slot.id)
+    proof = await onProve(slot, challenge)
   debug "Finished proof calculation", requestId = $data.requestId
 
   return some State(SaleFilling(proof: proof))
