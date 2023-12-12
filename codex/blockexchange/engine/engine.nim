@@ -493,7 +493,8 @@ proc setupPeer*(b: BlockExcEngine, peer: PeerId) {.async.} =
   if peer notin b.peers:
     trace "Setting up new peer", peer
     b.peers.add(BlockExcPeerCtx(
-      id: peer
+      id: peer,
+      lock: newAsyncLock()
     ))
     trace "Added peer", peers = b.peers.len
 
@@ -584,7 +585,9 @@ proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
       peerCtx = await b.taskQueue.pop()
 
     trace "Got new task from queue", peerId = peerCtx.id
+    await peerCtx.lock.acquire()
     await b.taskHandler(peerCtx)
+    peerCtx.lock.release()
 
   trace "Exiting blockexc task runner"
 
