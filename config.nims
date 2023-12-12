@@ -115,6 +115,7 @@ switch("define", "chronicles_sinks=textlines[dynamic],json[dynamic],textlines[dy
 
 # Workaround for assembler incompatibility between constantine and secp256k1
 switch("define", "use_asm_syntax_intel=false")
+switch("define", "ctt_asm=false")
 
 # begin Nimble config (version 1)
 when system.fileExists("nimble.paths"):

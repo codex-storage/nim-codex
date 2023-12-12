@@ -10,6 +10,7 @@
 # This module defines Manifest and all related types
 
 import std/tables
+import std/strutils
 import pkg/libp2p
 
 import ../units
