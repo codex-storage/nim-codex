@@ -23,11 +23,13 @@ asyncchecksuite "sales state 'proving'":
   var clock: MockClock
   var agent: SalesAgent
   var state: SaleProving
+  var receivedChallenge: ProofChallenge
 
   setup:
     clock = MockClock.new()
     market = MockMarket.new()
-    let onProve = proc (slot: Slot): Future[seq[byte]] {.async.} =
+    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[seq[byte]] {.async.} =
+                        receivedChallenge = challenge
                         return proof
     let context = SalesContext(market: market, clock: clock, onProve: onProve.some)
     agent = newSalesAgent(context,
@@ -80,3 +82,11 @@ asyncchecksuite "sales state 'proving'":
     check eventually future.finished
     check !(future.read()) of SalePayout
 
+  test "onProve callback provides proof challenge":
+    market.proofChallenge = ProofChallenge.example
+    market.slotState[slot.id] = SlotState.Filled
+    market.setProofRequired(slot.id, true)
+
+    let future = state.run(agent)
+
+    check receivedChallenge == market.proofChallenge
