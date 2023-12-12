@@ -51,7 +51,7 @@ proc selectSlotBlocks*(self: SlotBuilder, datasetSlotIndex: int): Future[?!seq[C
   let
     datasetTreeCid = self.manifest.treeCid
     blockCount = self.manifest.blocksCount
-    numberOfSlots = self.manifest.ecK
+    numberOfSlots = self.manifest.numberOfSlots
     strategy = SteppedIndexingStrategy.new(0, blockCount - 1, numberOfSlots)
 
   for datasetBlockIndex in strategy.getIndicies(datasetSlotIndex):
