@@ -16,11 +16,12 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronos
-import pkg/chronicles
 import pkg/libp2p
 
 import ../protobuf/blockexc
 import ../../blocktype
+import ../../logging
+
 
 import ./peercontext
 export peercontext

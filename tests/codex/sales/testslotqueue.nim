@@ -1,11 +1,11 @@
 import std/sequtils
 import pkg/asynctest
-import pkg/chronicles
 import pkg/chronos
 import pkg/datastore
 import pkg/questionable
 import pkg/questionable/results
 
+import pkg/codex/logging
 import pkg/codex/sales/slotqueue
 
 import ../helpers

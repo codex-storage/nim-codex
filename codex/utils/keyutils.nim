@@ -10,12 +10,12 @@
 import pkg/upraises
 push: {.upraises: [].}
 
-import pkg/chronicles
 import pkg/questionable/results
 import pkg/libp2p/crypto/crypto
 
 import ./fileutils
 import ../errors
+import ../logging
 import ../rng
 
 export crypto

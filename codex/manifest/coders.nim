@@ -19,12 +19,12 @@ import std/sequtils
 import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
-import pkg/chronicles
 import pkg/chronos
 
 import ./manifest
 import ../errors
 import ../blocktype
+import ../logging
 import ./types
 
 proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =

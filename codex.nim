@@ -7,7 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/chronicles
 import pkg/chronos
 import pkg/questionable
 import pkg/confutils
@@ -21,10 +20,11 @@ import pkg/libp2p
 
 import ./codex/conf
 import ./codex/codex
+import ./codex/logging
 import ./codex/units
 import ./codex/utils/keyutils
 
-export codex, conf, libp2p, chronos, chronicles
+export codex, conf, libp2p, chronos, logging
 
 when isMainModule:
   import std/sequtils

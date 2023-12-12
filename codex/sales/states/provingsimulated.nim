@@ -1,12 +1,12 @@
 import ../../conf
 when codex_enable_proof_failures:
   import std/strutils
-  import pkg/chronicles
   import pkg/stint
   import pkg/ethers
   import pkg/ethers/testing
 
   import ../../contracts/requests
+  import ../../logging
   import ../../market
   import ../salescontext
   import ./proving
@@ -20,7 +20,7 @@ when codex_enable_proof_failures:
       proofCount: int
 
   proc onSubmitProofError(error: ref CatchableError, period: UInt256, slotId: SlotId) =
-    error "Submitting invalid proof failed", period = period, slotId = $slotId, msg = error.msg
+    error "Submitting invalid proof failed", period = period, slotId, msg = error.msg
 
   method prove*(state: SaleProvingSimulated, slot: Slot, challenge: ProofChallenge, onProve: OnProve, market: Market, currentPeriod: Period) {.async.} =
     trace "Processing proving in simulated mode"

@@ -1,4 +1,4 @@
-import pkg/chronicles
+import ../../logging
 import ../statemachine
 import ../salesagent
 import ./errorhandling
@@ -30,11 +30,11 @@ method run*(state: SaleInitialProving, machine: Machine): Future[?State] {.async
   without onProve =? context.onProve:
     raiseAssert "onProve callback not set"
 
-  debug "Generating initial proof", requestId = $data.requestId
+  debug "Generating initial proof", requestId = data.requestId
   let
     slot = Slot(request: request, slotIndex: data.slotIndex)
     challenge = await context.market.getChallenge(slot.id)
     proof = await onProve(slot, challenge)
-  debug "Finished proof calculation", requestId = $data.requestId
+  debug "Finished proof calculation", requestId = data.requestId
 
   return some State(SaleFilling(proof: proof))

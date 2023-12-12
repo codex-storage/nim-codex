@@ -1,9 +1,10 @@
 import pkg/questionable
 import pkg/questionable/results
 import pkg/upraises
-import pkg/chronicles
+
 import ../statemachine
 import ../salesagent
+import ../../logging
 import ../../utils/exceptions
 
 logScope:

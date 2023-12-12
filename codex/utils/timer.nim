@@ -11,8 +11,9 @@
 ## Used to execute a callback in a loop
 
 import pkg/chronos
-import pkg/chronicles
 import pkg/upraises
+
+import ../logging
 
 type
   TimerCallback* = proc(): Future[void] {.gcsafe, upraises:[].}

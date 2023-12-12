@@ -14,12 +14,12 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronos
-import pkg/chronicles
 import pkg/stew/ptrops
 
 import ../stores
 import ../manifest
 import ../blocktype
+import ../logging
 import ../utils
 
 import ./seekablestream

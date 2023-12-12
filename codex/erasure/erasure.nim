@@ -15,10 +15,10 @@ import std/sequtils
 import std/sugar
 
 import pkg/chronos
-import pkg/chronicles
 import pkg/libp2p/[multicodec, cid, multibase, multihash]
 import pkg/libp2p/protobuf/minprotobuf
 
+import ../logging
 import ../manifest
 import ../merkletree
 import ../stores

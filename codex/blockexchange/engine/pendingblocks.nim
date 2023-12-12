@@ -14,7 +14,6 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
-import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
 import pkg/metrics
@@ -23,6 +22,7 @@ import pkg/questionable/results
 import ../protobuf/blockexc
 import ../../blocktype
 import ../../merkletree
+import ../../logging
 
 logScope:
   topics = "codex pendingblocks"

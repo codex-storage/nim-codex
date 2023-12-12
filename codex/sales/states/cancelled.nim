@@ -1,4 +1,4 @@
-import pkg/chronicles
+import ../../logging
 import ../salesagent
 import ../statemachine
 import ./errorhandling
@@ -21,7 +21,7 @@ method run*(state: SaleCancelled, machine: Machine): Future[?State] {.async.} =
     raiseAssert "no sale request"
 
   let slot = Slot(request: request, slotIndex: data.slotIndex)
-  debug "Collecting collateral and partial payout",  requestId = $data.requestId, slotIndex = $data.slotIndex
+  debug "Collecting collateral and partial payout",  requestId = data.requestId, slotIndex = data.slotIndex
   await market.freeSlot(slot.id)
 
   if onClear =? agent.context.onClear and
@@ -31,4 +31,4 @@ method run*(state: SaleCancelled, machine: Machine): Future[?State] {.async.} =
   if onCleanUp =? agent.onCleanUp:
     await onCleanUp(returnBytes = true)
 
-  warn "Sale cancelled due to timeout",  requestId = $data.requestId, slotIndex = $data.slotIndex
+  warn "Sale cancelled due to timeout",  requestId = data.requestId, slotIndex = data.slotIndex

@@ -1,10 +1,10 @@
 import std/sugar
 import pkg/questionable
 import pkg/chronos
-import pkg/chronicles
 import pkg/upraises
-import ./trackedfutures
+import ../logging
 import ./then
+import ./trackedfutures
 
 push: {.upraises:[].}
 
