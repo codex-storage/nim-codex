@@ -20,16 +20,15 @@ import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/stew/byteutils
 import pkg/questionable
 import pkg/questionable/results
-import pkg/chronicles
 import pkg/json_serialization
 
 import ./units
 import ./utils
-import ./formats
 import ./errors
+import ./logging
 import ./codextypes
 
-export errors, formats, units, codextypes
+export errors, logging, units, codextypes
 
 type
   Block* = ref object of RootObj
@@ -43,6 +42,12 @@ type
       index*: Natural
     else:
       cid*: Cid
+
+logging.formatIt(BlockAddress):
+  if it.leaf:
+    "treeCid: " & shortLog($it.treeCid) & ", index: " & $it.index
+  else:
+    "cid: " & shortLog($it.cid)
 
 proc `==`*(a, b: BlockAddress): bool =
   a.leaf == b.leaf and
@@ -58,12 +63,6 @@ proc `$`*(a: BlockAddress): string =
     "treeCid: " & $a.treeCid & ", index: " & $a.index
   else:
     "cid: " & $a.cid
-
-proc writeValue*(
-  writer: var JsonWriter,
-  value: Cid
-) {.upraises:[IOError].} =
-  writer.writeValue($value)
 
 proc cidOrTreeCid*(a: BlockAddress): Cid =
   if a.leaf:

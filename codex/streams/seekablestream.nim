@@ -9,9 +9,10 @@
 
 import pkg/libp2p/stream/lpstream
 import pkg/chronos
-import pkg/chronicles
 
-export lpstream, chronos, chronicles
+import ../logging
+
+export lpstream, chronos, logging
 
 logScope:
   topics = "codex seekablestream"

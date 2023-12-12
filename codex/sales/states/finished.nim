@@ -1,5 +1,6 @@
 import pkg/chronos
-import pkg/chronicles
+
+import ../../logging
 import ../statemachine
 import ../salesagent
 import ./errorhandling
@@ -27,7 +28,7 @@ method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
   without request =? data.request:
     raiseAssert "no sale request"
 
-  info "Slot finished and paid out", requestId = $data.requestId, slotIndex = $data.slotIndex
+  info "Slot finished and paid out", requestId = data.requestId, slotIndex = data.slotIndex
 
   if onCleanUp =? agent.onCleanUp:
     await onCleanUp()

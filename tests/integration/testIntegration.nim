@@ -19,7 +19,7 @@ import ./twonodes
 # You can also pass a string in same format like for the `--log-level` parameter
 # to enable custom logging levels for specific topics like: debug2 = "INFO; TRACE: marketplace"
 
-twonodessuite "Integration tests", debug1 = false, debug2 = false:
+twonodessuite "Integration tests", debug1 = true, debug2 = true:
 
   proc purchaseStateIs(client: CodexClient, id: PurchaseId, state: string): bool =
     without purchase =? client.getPurchase(id):

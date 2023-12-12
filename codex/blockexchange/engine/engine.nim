@@ -14,7 +14,6 @@ import std/algorithm
 import std/sugar
 
 import pkg/chronos
-import pkg/chronicles
 import pkg/libp2p/[cid, switch, multihash, multicodec]
 import pkg/metrics
 import pkg/stint
@@ -23,6 +22,7 @@ import ../../stores/blockstore
 import ../../blocktype
 import ../../utils
 import ../../merkletree
+import ../../logging
 
 import ../protobuf/blockexc
 import ../protobuf/presence

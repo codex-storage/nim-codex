@@ -1,4 +1,4 @@
-import pkg/chronicles
+import ../../logging
 import ../../market
 import ../statemachine
 import ../salesagent
@@ -29,7 +29,7 @@ method run(state: SalePayout, machine: Machine): Future[?State] {.async.} =
     raiseAssert "no sale request"
 
   let slot = Slot(request: request, slotIndex: data.slotIndex)
-  debug "Collecting finished slot's reward",  requestId = $data.requestId, slotIndex = $data.slotIndex
+  debug "Collecting finished slot's reward",  requestId = data.requestId, slotIndex = data.slotIndex
   await market.freeSlot(slot.id)
 
   return some State(SaleFinished())

@@ -19,12 +19,12 @@ import std/sequtils
 import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
-import pkg/chronicles
 import pkg/chronos
 
 import ./manifest
 import ../errors
 import ../blocktype
+import ../logging
 
 proc encode*(manifest: Manifest): ?!seq[byte] =
   ## Encode the manifest into a ``ManifestCodec``

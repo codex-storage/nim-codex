@@ -1,5 +1,6 @@
 import pkg/metrics
-import pkg/chronicles
+
+import ../../logging
 import ../statemachine
 import ./errorhandling
 import ./finished

@@ -12,7 +12,6 @@ import std/strutils
 import std/os
 import std/tables
 
-import pkg/chronicles
 import pkg/chronos
 import pkg/presto
 import pkg/libp2p
@@ -39,6 +38,7 @@ import ./contracts/clock
 import ./contracts/deployment
 import ./utils/addrutils
 import ./namespaces
+import ./logging
 
 logScope:
   topics = "codex node"

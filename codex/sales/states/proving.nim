@@ -1,7 +1,7 @@
 import std/options
-import pkg/chronicles
 import pkg/questionable/results
 import ../../clock
+import ../../logging
 import ../statemachine
 import ../salesagent
 import ../salescontext
@@ -32,7 +32,7 @@ method prove*(
       error "Failed to generate proof", error = err.msg
       # In this state, there's nothing we can do except try again next time.
       return
-    debug "Submitting proof", currentPeriod = currentPeriod, slotId = $slot.id
+    debug "Submitting proof", currentPeriod = currentPeriod, slotId = slot.id
     await market.submitProof(slot.id, proof)
   except CatchableError as e:
     error "Submitting proof failed", msg = e.msg
@@ -51,9 +51,9 @@ proc proveLoop(
 
   logScope:
     period = currentPeriod
-    requestId = $request.id
+    requestId = request.id
     slotIndex
-    slotId = $slot.id
+    slotId = slot.id
 
   proc getCurrentPeriod(): Future[Period] {.async.} =
     let periodicity = await market.periodicity()
@@ -110,7 +110,7 @@ method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
   without clock =? context.clock:
     raiseAssert("clock not set")
 
-  debug "Start proving", requestId = $data.requestId, slotIndex = $data.slotIndex
+  debug "Start proving", requestId = data.requestId, slotIndex = data.slotIndex
   try:
     let loop = state.proveLoop(market, clock, request, data.slotIndex, onProve)
     state.loop = loop
@@ -122,7 +122,7 @@ method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
     return some State(SaleErrored(error: e))
   finally:
     # Cleanup of the proving loop
-    debug "Stopping proving.", requestId = $data.requestId, slotIndex = $data.slotIndex
+    debug "Stopping proving.", requestId = data.requestId, slotIndex = data.slotIndex
 
     if not state.loop.isNil:
         if not state.loop.finished:

@@ -1,11 +1,11 @@
 import pkg/chronos
-import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
 import pkg/upraises
 import ../contracts/requests
 import ../errors
+import ../logging
 import ./statemachine
 import ./salescontext
 import ./salesdata

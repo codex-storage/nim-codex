@@ -1,7 +1,7 @@
 import pkg/metrics
-import pkg/chronicles
 import ../statemachine
 import ../../utils/exceptions
+import ../../logging
 
 declareCounter(codex_purchases_error, "codex purchases error")
 

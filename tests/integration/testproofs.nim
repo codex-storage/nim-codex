@@ -1,9 +1,9 @@
 import std/sequtils
 import std/os
 from std/times import getTime, toUnix
-import pkg/chronicles
-import codex/contracts
-import codex/periods
+import pkg/codex/contracts
+import pkg/codex/logging
+import pkg/codex/periods
 import ../contracts/time
 import ../contracts/deployment
 import ./twonodes

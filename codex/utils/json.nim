@@ -6,13 +6,13 @@ import std/strutils
 import std/strformat
 import std/tables
 import std/typetraits
-import pkg/chronicles
 from pkg/libp2p import Cid, init
 import pkg/contractabi
 import pkg/stew/byteutils
 import pkg/stint
 import pkg/questionable/results
 import ../errors
+import ../logging
 
 export json except `%`, `%*`
 

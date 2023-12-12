@@ -1,6 +1,7 @@
-import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
+
+import ../../logging
 import ../../market
 import ../salesagent
 import ../statemachine

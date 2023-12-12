@@ -1,7 +1,8 @@
 import std/sugar
 import std/tables
-import pkg/chronicles
 import pkg/chronos
+
+import ../logging
 import ../utils/then
 
 type

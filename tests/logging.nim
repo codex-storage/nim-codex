@@ -1,5 +1,5 @@
 when not defined(nimscript):
-  import pkg/chronicles
+  import pkg/codex/logging
 
   proc ignoreLogging(level: LogLevel, message: LogOutputStr) =
     discard

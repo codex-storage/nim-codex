@@ -13,13 +13,13 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
-import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronos
 import pkg/libp2p except shuffle
 
 import ./blocktype
+import ./logging
 
 export blocktype
 
