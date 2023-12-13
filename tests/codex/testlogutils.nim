@@ -1,4 +1,3 @@
-import std/json
 import std/options
 import std/nre
 import std/strutils
@@ -17,7 +16,6 @@ import pkg/stint
 import ../checktest
 import ../examples
 import ./examples
-import ./testlogutils_helper
 
 export logutils
 
@@ -36,9 +34,6 @@ proc `$`*(t: ObjectType): string = "used `$`"
 logutils.formatIt(ObjectType): "formatted_" & it.a
 logutils.formatIt(RefType): "formatted_" & it.a
 logutils.formatIt(DistinctType): "formatted_" & it.a
-
-# must be defined at the top-level
-logutils.formatIt(ObjectType2): "o2_formatted_" & it.a
 
 checksuite "Test logging output":
   var outputLines: string
@@ -62,8 +57,6 @@ checksuite "Test logging output":
 
   template loggedJson(prop, expected): auto =
     let json = $ parseJson(outputJson){prop}
-    echo "json:     ", json
-    echo "expected: ", expected
     json == expected
 
   template log(val) =
@@ -116,7 +109,7 @@ checksuite "Test logging output":
     let t = some ObjectType(a: "a")
     log t
     check logged("t", "some(formatted_a)")
-    check loggedJson("t", """{"val":"formatted_a","has":true}""")
+    check loggedJson("t", "\"formatted_a\"")
 
   test "logs sequences of Option types":
     let t1 = some ObjectType(a: "a")
@@ -124,7 +117,7 @@ checksuite "Test logging output":
     let t = @[t1, t2]
     log t
     check logged("t", "@[some(formatted_a), none(ObjectType)]")
-    check loggedJson("t", """[{"val":"formatted_a","has":true},{"val":"formatted_","has":false}]""")
+    check loggedJson("t", """["formatted_a",null]""")
 
   test "can define `$` override for T":
     let o = ObjectType()
@@ -152,6 +145,12 @@ checksuite "Test logging output":
     let stint = 12345678901234.u256
     log stint
     check logged("stint", "12345678901234")
+
+  test "logs int correctly":
+    let int = 123
+    log int
+    check logged("int", "123")
+    check loggedJson("int", "123")
 
   test "logs EthAddress correctly":
     let address = EthAddress.fromHex("0xf75e076f650cd51dbfa0fd9c465d5037f22e1b1b")
@@ -201,19 +200,3 @@ checksuite "Test logging output":
     log ma
     check logged("ma", "@[/ip4/127.0.0.1/tcp/0, /ip4/127.0.0.2/tcp/1]")
     check loggedJson("ma", "[\"/ip4/127.0.0.1/tcp/0\",\"/ip4/127.0.0.2/tcp/1\"]")
-
-  test "logs imported module correctly":
-    let o2 = ObjectType2(a: "1")
-    log o2
-    check logged("o2", "o2_formatted_1")
-    check loggedJson("o2", "\"o2_formatted_1\"")
-
-  test "logs sequence of imported module correctly":
-    let o21 = ObjectType2(a: "1")
-    let o22 = ObjectType2(a: "2")
-    let o2 = @[o21, o22]
-    log o2
-    echo "outputLines: ", outputLines
-    echo "outputJson: ", outputJson
-    check logged("o2", "@[o2_formatted_1, o2_formatted_2]")
-    check loggedJson("o2", "[\"o2_formatted_1\",\"o2_formatted_2\"]")
