@@ -17,6 +17,7 @@ import pkg/stint
 import ../checktest
 import ../examples
 import ./examples
+import ./testlogutils_helper
 
 export logutils
 
@@ -36,7 +37,10 @@ logutils.formatIt(ObjectType): "formatted_" & it.a
 logutils.formatIt(RefType): "formatted_" & it.a
 logutils.formatIt(DistinctType): "formatted_" & it.a
 
-checksuite "Test logging outputLines":
+# must be defined at the top-level
+logutils.formatIt(ObjectType2): "o2_formatted_" & it.a
+
+checksuite "Test logging output":
   var outputLines: string
   var outputJson: string
 
@@ -58,6 +62,8 @@ checksuite "Test logging outputLines":
 
   template loggedJson(prop, expected): auto =
     let json = $ parseJson(outputJson){prop}
+    echo "json:     ", json
+    echo "expected: ", expected
     json == expected
 
   template log(val) =
@@ -161,6 +167,7 @@ checksuite "Test logging outputLines":
     let id = RequestId.fromHex("0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea")
     log id
     check logged("id", "0x7120..3dea")
+    check loggedJson("id", "\"0x7120..3dea\"")
 
   test "logs seq[RequestId] correctly":
     let id = RequestId.fromHex("0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea")
@@ -174,19 +181,39 @@ checksuite "Test logging outputLines":
     let id = SlotId.fromHex("0x9ab2c4d102a95d990facb022d67b3c9b39052597c006fddf122bed2cb594c282")
     log id
     check logged("id", "0x9ab2..c282")
+    check loggedJson("id", "\"0x9ab2..c282\"")
 
   test "logs Nonce correctly":
     let id = SlotId.fromHex("ce88f368a7b776172ebd29a212456eb66acb60f169ee76eae91935e7fafad6ea")
     log id
     check logged("id", "0xce88..d6ea")
+    check loggedJson("id", "\"0xce88..d6ea\"")
 
   test "logs MultiAddress correctly":
     let ma = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet
     log ma
     check logged("ma", "/ip4/127.0.0.1/tcp/0")
+    check loggedJson("ma", "\"/ip4/127.0.0.1/tcp/0\"")
 
   test "logs seq[MultiAddress] correctly":
     let ma = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet,
                MultiAddress.init("/ip4/127.0.0.2/tcp/1").tryGet]
     log ma
     check logged("ma", "@[/ip4/127.0.0.1/tcp/0, /ip4/127.0.0.2/tcp/1]")
+    check loggedJson("ma", "[\"/ip4/127.0.0.1/tcp/0\",\"/ip4/127.0.0.2/tcp/1\"]")
+
+  test "logs imported module correctly":
+    let o2 = ObjectType2(a: "1")
+    log o2
+    check logged("o2", "o2_formatted_1")
+    check loggedJson("o2", "\"o2_formatted_1\"")
+
+  test "logs sequence of imported module correctly":
+    let o21 = ObjectType2(a: "1")
+    let o22 = ObjectType2(a: "2")
+    let o2 = @[o21, o22]
+    log o2
+    echo "outputLines: ", outputLines
+    echo "outputJson: ", outputJson
+    check logged("o2", "@[o2_formatted_1, o2_formatted_2]")
+    check loggedJson("o2", "[\"o2_formatted_1\",\"o2_formatted_2\"]")

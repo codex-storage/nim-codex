@@ -23,7 +23,7 @@ import ../utils
 import ../utils/json
 import ../units
 import ../blocktype
-import ../logging
+import ../logutils
 import ./types
 
 export types

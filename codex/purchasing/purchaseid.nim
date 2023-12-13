@@ -4,7 +4,7 @@ import ../logutils
 
 type PurchaseId* = distinct array[32, byte]
 
-chronicles.formatIt(PurchaseId): it.short0xHexLog
+logutils.formatIt(PurchaseId): it.short0xHexLog
 
 proc hash*(x: PurchaseId): Hash {.borrow.}
 proc `==`*(x, y: PurchaseId): bool {.borrow.}
