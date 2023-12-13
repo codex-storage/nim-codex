@@ -4,13 +4,15 @@ import std/strutils
 import std/sugar
 import std/typetraits
 
-import pkg/chronicles
+import pkg/chronicles except toJson
 import pkg/faststreams
 from pkg/libp2p import Cid, MultiAddress, `$`
 import pkg/questionable
 import pkg/stew/byteutils
 import pkg/stint
 import pkg/upraises
+
+import ./utils/json
 
 export byteutils
 export chronicles except toJson, formatIt
@@ -49,34 +51,48 @@ func short0xHexLog*[U: distinct, T: seq[U]](v: T): string =
   type BaseType = U.distinctBase
   "@[" & v.map(x => BaseType(x).short0xHexLog).join(",") & "]"
 
-proc formatSeq*(val: seq[string]): string =
+proc formatTextLineSeq*(val: seq[string]): string =
   "@[" & val.join(", ") & "]"
 
-template formatOption*(val, T, body): auto =
+template formatTextLineOption*(val, T, body): auto =
   var v = "none(" & $T & ")"
   if it =? val:
     v = "some(" & body & ")" # that I used to know :)
   v
 
+template formatJsonOption*(val, T, body): auto =
+  var v = none string
+  if it =? val:
+    v = some body # that I used to know :)
+  v
+
 template formatIt*(T: type, body: untyped) {.dirty.} =
 
-  proc writeValue*(writer: var JsonWriter, it: T) {.upraises:[IOError].} =
-    let formatted = body
-    writer.writeValue(formatted)
+  proc setProperty*(r: var JsonRecord, key: string, val: ?T) =
+    let v = val.formatJsonOption(T, body)
+    setProperty(r, key, %v)
+
+  proc setProperty*(r: var JsonRecord, key: string, val: seq[?T]) =
+    let v = val.map(it => it.formatJsonOption(T, body))
+    setProperty(r, key, %v)
+
+  proc setProperty*(r: var JsonRecord, key: string, val: seq[T]) =
+    let v = val.map(it => body)
+    setProperty(r, key, %v)
 
   proc setProperty*(r: var JsonRecord, key: string, it: T) {.upraises:[IOError].} =
     let v = body
     setProperty(r, key, v)
 
   proc setProperty*(r: var TextLineRecord, key: string, val: ?T) =
-    setProperty(r, key, val.formatOption(T, body))
+    setProperty(r, key, val.formatTextLineOption(T, body))
 
   proc setProperty*(r: var TextLineRecord, key: string, val: seq[?T]) =
-    let v = val.map(item => item.formatOption(T, body)).formatSeq
+    let v = val.map(item => item.formatTextLineOption(T, body)).formatTextLineSeq
     setProperty(r, key, v)
 
   proc setProperty*(r: var TextLineRecord, key: string, val: seq[T]) =
-    let v = val.map(it => body).formatSeq
+    let v = val.map(it => body).formatTextLineSeq
     setProperty(r, key, v)
 
   proc setProperty*(r: var TextLineRecord, key: string, it: T) {.upraises:[ValueError].} =

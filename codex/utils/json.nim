@@ -12,12 +12,8 @@ import pkg/stew/byteutils
 import pkg/stint
 import pkg/questionable/results
 import ../errors
-import ../logutils
 
 export json except `%`, `%*`
-
-logScope:
-  topics = "json serialization"
 
 type
   SerializationError = object of CodexError
