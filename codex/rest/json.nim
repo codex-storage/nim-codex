@@ -60,6 +60,12 @@ type
   RestNodeId* = object
     id*: NodeId
 
+  RestRepoStore* = object
+    totalBlocks* {.serialize.}: uint
+    quotaMaxBytes* {.serialize.}: uint
+    quotaUsedBytes* {.serialize.}: uint
+    quotaReservedBytes* {.serialize.}: uint
+
 proc init*(_: type RestContent, cid: Cid, manifest: Manifest): RestContent =
   RestContent(
     cid: cid,
