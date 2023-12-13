@@ -22,7 +22,7 @@ import ../../stores/blockstore
 import ../../blocktype
 import ../../utils
 import ../../merkletree
-import ../../logging
+import ../../logutils
 
 import ../protobuf/blockexc
 import ../protobuf/presence

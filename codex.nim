@@ -20,11 +20,11 @@ import pkg/libp2p
 
 import ./codex/conf
 import ./codex/codex
-import ./codex/logging
+import ./codex/logutils
 import ./codex/units
 import ./codex/utils/keyutils
 
-export codex, conf, libp2p, chronos, logging
+export codex, conf, libp2p, chronos, logutils
 
 when isMainModule:
   import std/sequtils

@@ -20,7 +20,7 @@ import pkg/libp2p/[cid, multicodec, multihash, vbuffer]
 import pkg/stew/byteutils
 
 import ../errors
-import ../logging
+import ../logutils
 
 logScope:
   topics = "codex merkletree"

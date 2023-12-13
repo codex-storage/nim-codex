@@ -24,7 +24,7 @@ import pkg/chronos
 import ./manifest
 import ../errors
 import ../blocktype
-import ../logging
+import ../logutils
 import ./types
 
 proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =

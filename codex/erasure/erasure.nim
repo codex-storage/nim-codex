@@ -18,7 +18,7 @@ import pkg/chronos
 import pkg/libp2p/[multicodec, cid, multibase, multihash]
 import pkg/libp2p/protobuf/minprotobuf
 
-import ../logging
+import ../logutils
 import ../manifest
 import ../merkletree
 import ../stores

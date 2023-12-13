@@ -18,7 +18,7 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ../../blocktype as bt
-import ../../logging
+import ../../logutils
 import ../protobuf/blockexc as pb
 import ../protobuf/payments
 

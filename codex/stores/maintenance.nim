@@ -18,7 +18,7 @@ import ./repostore
 import ../utils/timer
 import ../utils/asynciter
 import ../clock
-import ../logging
+import ../logutils
 import ../systemclock
 
 const

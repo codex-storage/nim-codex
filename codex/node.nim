@@ -38,7 +38,7 @@ import ./contracts
 import ./node/batch
 import ./utils
 import ./errors
-import ./logging
+import ./logutils
 
 export batch
 

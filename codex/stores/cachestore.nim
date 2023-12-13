@@ -23,7 +23,7 @@ import ./blockstore
 import ../units
 import ../chunker
 import ../errors
-import ../logging
+import ../logutils
 import ../manifest
 import ../merkletree
 import ../utils

@@ -2,7 +2,7 @@
 import pkg/asynctest
 import pkg/stew/byteutils
 import pkg/codex/chunker
-import pkg/codex/logging
+import pkg/codex/logutils
 import pkg/chronos
 
 import ./helpers

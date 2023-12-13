@@ -22,7 +22,7 @@ import pkg/questionable/results
 import ../protobuf/blockexc
 import ../../blocktype
 import ../../merkletree
-import ../../logging
+import ../../logutils
 
 logScope:
   topics = "codex pendingblocks"

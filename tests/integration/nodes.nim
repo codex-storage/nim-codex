@@ -3,7 +3,7 @@ import std/os
 import std/streams
 import std/strutils
 import pkg/codex/conf
-import pkg/codex/logging
+import pkg/codex/logutils
 import pkg/confutils
 import pkg/libp2p
 import pkg/questionable

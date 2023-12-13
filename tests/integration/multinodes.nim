@@ -2,7 +2,7 @@ import std/os
 import std/macros
 import std/json
 import std/httpclient
-import pkg/codex/logging
+import pkg/codex/logutils
 import ../ethertest
 import ./codexclient
 import ./nodes

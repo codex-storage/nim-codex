@@ -2,7 +2,7 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ../../blocktype as bt
-import ../../logging
+import ../../logutils
 import ../../market
 import ../salesagent
 import ../statemachine

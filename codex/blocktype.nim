@@ -24,9 +24,9 @@ import pkg/json_serialization
 import ./units
 import ./utils
 import ./errors
-import ./logging
+import ./logutils
 
-export errors, logging, units
+export errors, logutils, units
 
 const
   # Size of blocks for storage / network exchange,
@@ -46,7 +46,7 @@ type
     else:
       cid*: Cid
 
-logging.formatIt(BlockAddress):
+logutils.formatIt(BlockAddress):
   if it.leaf:
     "treeCid: " & shortLog($it.treeCid) & ", index: " & $it.index
   else:

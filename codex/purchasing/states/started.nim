@@ -1,6 +1,6 @@
 import pkg/metrics
 
-import ../../logging
+import ../../logutils
 import ../statemachine
 import ./errorhandling
 import ./finished

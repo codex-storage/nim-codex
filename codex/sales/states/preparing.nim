@@ -1,7 +1,7 @@
 import pkg/questionable
 import pkg/questionable/results
 
-import ../../logging
+import ../../logutils
 import ../../market
 import ../salesagent
 import ../statemachine

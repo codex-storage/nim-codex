@@ -3,7 +3,7 @@ import std/sequtils
 import pkg/chronos
 import ./market
 import ./clock
-import ./logging
+import ./logutils
 
 export market
 export sets

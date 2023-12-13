@@ -12,7 +12,7 @@ import pkg/stew/byteutils
 import pkg/stint
 import pkg/questionable/results
 import ../errors
-import ../logging
+import ../logutils
 
 export json except `%`, `%*`
 

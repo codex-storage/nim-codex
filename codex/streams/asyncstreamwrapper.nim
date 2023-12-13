@@ -13,7 +13,7 @@ push: {.upraises: [].}
 import pkg/chronos
 import pkg/libp2p
 
-import ../logging
+import ../logutils
 
 logScope:
   topics = "libp2p asyncstreamwrapper"
@@ -38,7 +38,7 @@ proc new*(
     writer: AsyncStreamWriter = nil
 ): AsyncStreamWrapper =
   ## Create new instance of an asynchronous stream wrapper
-  ## 
+  ##
   let
     stream = C(reader: reader, writer: writer)
 

@@ -20,7 +20,7 @@ import pkg/libp2p
 
 import ../protobuf/blockexc
 import ../../blocktype
-import ../../logging
+import ../../logutils
 
 
 import ./peercontext

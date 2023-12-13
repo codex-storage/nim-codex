@@ -15,7 +15,7 @@ import pkg/libp2p/crypto/crypto
 
 import ./fileutils
 import ../errors
-import ../logging
+import ../logutils
 import ../rng
 
 export crypto
@@ -39,6 +39,6 @@ proc setupKey*(path: string): ?!PrivateKey =
     warn "The network private key file is not safe, aborting"
     return failure newException(
       CodexKeyUnsafeError, "The network private key file is not safe")
-  
+
   let kb = ? path.readAllBytes().mapFailure(CodexKeyError)
   return PrivateKey.init(kb).mapFailure(CodexKeyError)

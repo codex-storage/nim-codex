@@ -1,11 +1,11 @@
 import pkg/chronos
 
-import ../../logging
+import ../../logutils
 import ../../sales
 import ./interactions
 
 export sales
-export logging
+export logutils
 
 type
   HostInteractions* = ref object of ContractInteractions

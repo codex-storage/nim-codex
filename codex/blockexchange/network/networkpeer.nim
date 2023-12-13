@@ -16,7 +16,7 @@ import pkg/libp2p
 import ../protobuf/blockexc
 import ../protobuf/message
 import ../../errors
-import ../../logging
+import ../../logutils
 
 logScope:
   topics = "codex blockexcnetworkpeer"

@@ -2,7 +2,7 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ../../conf
-import ../../logging
+import ../../logutils
 import ../statemachine
 import ../salesagent
 import ./errorhandling

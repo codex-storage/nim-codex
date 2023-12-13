@@ -26,7 +26,7 @@ import ./keyutils
 import ../blocktype
 import ../clock
 import ../systemclock
-import ../logging
+import ../logutils
 import ../merkletree
 import ../utils
 

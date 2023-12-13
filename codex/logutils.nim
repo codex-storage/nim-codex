@@ -53,19 +53,18 @@ proc formatSeq*(val: seq[string]): string =
   "@[" & val.join(", ") & "]"
 
 template formatOption*(val, T, body): auto =
-  var v = "None(" & $T & ")"
+  var v = "none(" & $T & ")"
   if it =? val:
-    v = "Some(" & body & ")" # that I used to know :)
+    v = "some(" & body & ")" # that I used to know :)
   v
 
 template formatIt*(T: type, body: untyped) {.dirty.} =
-  chronicles.formatIt(T, body)
 
   proc writeValue*(writer: var JsonWriter, it: T) {.upraises:[IOError].} =
     let formatted = body
     writer.writeValue(formatted)
 
-  proc setProperty*(r: var JsonRecord, key: string, it: T) =
+  proc setProperty*(r: var JsonRecord, key: string, it: T) {.upraises:[IOError].} =
     let v = body
     setProperty(r, key, v)
 
@@ -80,7 +79,7 @@ template formatIt*(T: type, body: untyped) {.dirty.} =
     let v = val.map(it => body).formatSeq
     setProperty(r, key, v)
 
-  proc setProperty*(r: var TextLineRecord, key: string, it: T) =
+  proc setProperty*(r: var TextLineRecord, key: string, it: T) {.upraises:[ValueError].} =
     let v = body
     setProperty(r, key, v)
 

@@ -1,4 +1,4 @@
-import ../../logging
+import ../../logutils
 import ../../market
 import ../statemachine
 import ../salesagent

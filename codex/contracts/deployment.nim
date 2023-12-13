@@ -5,7 +5,7 @@ import pkg/ethers
 import pkg/questionable
 
 import ../conf
-import ../logging
+import ../logutils
 import ./marketplace
 
 type Deployment* = ref object

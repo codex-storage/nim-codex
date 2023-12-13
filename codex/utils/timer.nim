@@ -13,7 +13,7 @@
 import pkg/chronos
 import pkg/upraises
 
-import ../logging
+import ../logutils
 
 type
   TimerCallback* = proc(): Future[void] {.gcsafe, upraises:[].}

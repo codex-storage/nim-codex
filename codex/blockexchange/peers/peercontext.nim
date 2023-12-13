@@ -22,7 +22,7 @@ import ../protobuf/payments
 import ../protobuf/presence
 
 import ../../blocktype
-import ../../logging
+import ../../logutils
 
 export payments, nitro
 

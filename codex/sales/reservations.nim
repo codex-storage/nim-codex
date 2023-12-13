@@ -34,13 +34,13 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
 import pkg/stew/byteutils
-import ../logging
+import ../logutils
 import ../stores
 import ../contracts/requests
 import ../utils/json
 
 export requests
-export logging
+export logutils
 
 logScope:
   topics = "sales reservations"
@@ -139,7 +139,7 @@ proc toErr[E1: ref CatchableError, E2: ReservationsError](
 
   return newException(E2, msg, e1)
 
-logging.formatIt(SomeStorableId): it.toJson
+logutils.formatIt(SomeStorableId): it.toJson
 
 proc `onAvailabilityAdded=`*(self: Reservations,
                             onAvailabilityAdded: OnAvailabilityAdded) =

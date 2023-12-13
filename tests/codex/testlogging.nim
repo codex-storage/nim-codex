@@ -6,7 +6,7 @@ import std/unittest
 import pkg/codex/blocktype
 import pkg/codex/conf
 import pkg/codex/contracts/requests
-import pkg/codex/logging
+import pkg/codex/logutils
 import pkg/codex/purchasing/purchaseid
 import pkg/codex/units
 import pkg/codex/utils/json
@@ -18,7 +18,7 @@ import ../checktest
 import ../examples
 import ./examples
 
-export logging
+export logutils
 
 logStream testlines[textlines[notimestamps,dynamic]]
 logStream testjson[json[notimestamps,dynamic]]
@@ -32,9 +32,9 @@ type
 
 # must be defined at the top-level
 proc `$`*(t: ObjectType): string = "used `$`"
-logging.formatIt(ObjectType): "formatted_" & it.a
-logging.formatIt(RefType): "formatted_" & it.a
-logging.formatIt(DistinctType): "formatted_" & it.a
+logutils.formatIt(ObjectType): "formatted_" & it.a
+logutils.formatIt(RefType): "formatted_" & it.a
+logutils.formatIt(DistinctType): "formatted_" & it.a
 
 checksuite "Test logging outputLines":
   var outputLines: string
@@ -109,7 +109,7 @@ checksuite "Test logging outputLines":
   test "logs Option types":
     let t = some ObjectType(a: "a")
     log t
-    check logged("t", "Some(formatted_a)")
+    check logged("t", "some(formatted_a)")
     check loggedJson("t", """{"val":"formatted_a","has":true}""")
 
   test "logs sequences of Option types":
@@ -117,7 +117,7 @@ checksuite "Test logging outputLines":
     let t2 = none ObjectType
     let t = @[t1, t2]
     log t
-    check logged("t", "@[Some(formatted_a), None(ObjectType)]")
+    check logged("t", "@[some(formatted_a), none(ObjectType)]")
     check loggedJson("t", """[{"val":"formatted_a","has":true},{"val":"formatted_","has":false}]""")
 
   test "can define `$` override for T":

@@ -5,7 +5,7 @@ import pkg/datastore
 import pkg/questionable
 import pkg/questionable/results
 
-import pkg/codex/logging
+import pkg/codex/logutils
 import pkg/codex/sales/slotqueue
 
 import ../helpers

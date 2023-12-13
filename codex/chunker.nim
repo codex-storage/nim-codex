@@ -19,7 +19,7 @@ import pkg/chronos
 import pkg/libp2p except shuffle
 
 import ./blocktype
-import ./logging
+import ./logutils
 
 export blocktype
 

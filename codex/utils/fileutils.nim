@@ -16,10 +16,10 @@ push: {.upraises: [].}
 import std/strutils
 import pkg/stew/io2
 
-import ../logging
+import ../logutils
 
 export io2
-export logging
+export logutils
 
 when defined(windows):
   import stew/[windows/acl]
