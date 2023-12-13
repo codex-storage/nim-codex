@@ -175,13 +175,14 @@ asyncchecksuite "Reservations module":
     let updated = !(await reservations.get(key, Availability))
     check updated.size == orig
 
-  test "calling returnBytes returns bytes back to availability":
+  test "calling returnBytesToAvailability returns bytes back to availability":
     let availability = createAvailability()
     let reservation = createReservation(availability)
     let orig = availability.size - reservation.size
+    let origQuota = repo.quotaReservedBytes
     let returnedBytes = reservation.size + 200.u256
 
-    check isOk await reservations.returnBytes(
+    check isOk await reservations.returnBytesToAvailability(
       reservation.availabilityId, reservation.id, returnedBytes
     )
 
@@ -189,18 +190,7 @@ asyncchecksuite "Reservations module":
     let updated = !(await reservations.get(key, Availability))
 
     check updated.size > orig
-    check (updated.size - orig) == returnedBytes
-
-  test "calling returnBytes reserves only bytes not belonging reservation":
-    let availability = createAvailability()
-    let reservation = createReservation(availability)
-    let origQuota = repo.quotaReservedBytes
-    let returnedBytes = reservation.size + 200.u256
-
-    check isOk await reservations.returnBytes(
-      reservation.availabilityId, reservation.id, returnedBytes
-    )
-
+    check (updated.size - orig) == 200.u256
     check (repo.quotaReservedBytes - origQuota) == 200
 
   test "reservation can be partially released":

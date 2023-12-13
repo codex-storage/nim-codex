@@ -124,7 +124,7 @@ proc cleanUp(sales: Sales,
   # that the cleanUp was called before the sales process really started, so
   # there are not really any bytes to be returned
   if returnBytes and request =? data.request and reservation =? data.reservation:
-    if returnErr =? (await sales.context.reservations.returnBytes(
+    if returnErr =? (await sales.context.reservations.returnBytesToAvailability(
                         reservation.availabilityId,
                         reservation.id,
                         request.ask.slotSize
