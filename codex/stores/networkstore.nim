@@ -18,7 +18,7 @@ import pkg/questionable/results
 import ../clock
 import ../blocktype
 import ../blockexchange
-import ../logging
+import ../logutils
 import ../merkletree
 import ../utils/asyncheapqueue
 import ../utils/asynciter

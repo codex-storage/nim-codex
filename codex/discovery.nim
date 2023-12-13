@@ -20,7 +20,7 @@ import pkg/codexdht/discv5/protocol as discv5
 
 import ./rng
 import ./errors
-import ./logging
+import ./logutils
 
 export discv5
 

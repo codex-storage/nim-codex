@@ -2,7 +2,7 @@ import std/sugar
 import std/tables
 import pkg/chronos
 
-import ../logging
+import ../logutils
 import ../utils/then
 
 type

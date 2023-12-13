@@ -20,7 +20,7 @@ import pkg/metrics
 
 import ../protobuf/blockexc
 import ../../blocktype
-import ../../logging
+import ../../logutils
 
 logScope:
   topics = "codex pendingblocks"

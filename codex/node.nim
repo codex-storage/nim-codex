@@ -40,7 +40,7 @@ import ./discovery
 import ./contracts
 import ./utils
 import ./errors
-import ./logging
+import ./logutils
 
 export batch
 

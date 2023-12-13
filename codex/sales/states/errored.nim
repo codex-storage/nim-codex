@@ -4,7 +4,7 @@ import pkg/upraises
 
 import ../statemachine
 import ../salesagent
-import ../../logging
+import ../../logutils
 import ../../utils/exceptions
 
 logScope:

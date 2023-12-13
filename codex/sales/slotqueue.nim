@@ -5,7 +5,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/upraises
 import ../errors
-import ../logging
+import ../logutils
 import ../rng
 import ../utils
 import ../contracts/requests

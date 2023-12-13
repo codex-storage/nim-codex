@@ -1,5 +1,5 @@
-import ../../logging
 import pkg/questionable/results
+import ../../logutils
 import ../statemachine
 import ../salesagent
 import ./errorhandling

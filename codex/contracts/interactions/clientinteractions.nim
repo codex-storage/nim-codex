@@ -1,13 +1,13 @@
 import pkg/ethers
 
 import ../../purchasing
-import ../../logging
+import ../../logutils
 import ../market
 import ../clock
 import ./interactions
 
 export purchasing
-export logging
+export logutils
 
 type
   ClientInteractions* = ref object of ContractInteractions

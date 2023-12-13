@@ -6,7 +6,7 @@ when codex_enable_proof_failures:
   import pkg/ethers/testing
 
   import ../../contracts/requests
-  import ../../logging
+  import ../../logutils
   import ../../market
   import ../salescontext
   import ./proving

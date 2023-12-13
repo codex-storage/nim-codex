@@ -34,7 +34,7 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ./discovery
-import ./logging
+import ./logutils
 import ./stores
 import ./units
 import ./utils

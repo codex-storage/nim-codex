@@ -8,7 +8,7 @@ import pkg/questionable/results
 import pkg/stew/byteutils
 import pkg/json_serialization
 import pkg/upraises
-import ../logging
+import ../logutils
 import ../utils/json
 
 export contractabi
@@ -81,9 +81,9 @@ proc toHex*[T: distinct](id: T): string =
   type baseType = T.distinctBase
   baseType(id).toHex
 
-logging.formatIt(Nonce): it.short0xHexLog
-logging.formatIt(RequestId): it.short0xHexLog
-logging.formatIt(SlotId): it.short0xHexLog
+logutils.formatIt(Nonce): it.short0xHexLog
+logutils.formatIt(RequestId): it.short0xHexLog
+logutils.formatIt(SlotId): it.short0xHexLog
 
 func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
   StorageRequest(

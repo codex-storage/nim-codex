@@ -7,7 +7,7 @@ import pkg/stew/byteutils
 import pkg/stint
 import pkg/codex/contracts/requests
 from pkg/codex/rest/json import RestPurchase
-import pkg/codex/logging
+import pkg/codex/logutils
 import pkg/codex/utils/json as utilsjson
 import pkg/questionable
 import pkg/questionable/results

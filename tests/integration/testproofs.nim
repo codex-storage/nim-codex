@@ -2,7 +2,7 @@ import std/sequtils
 import std/os
 from std/times import getTime, toUnix
 import pkg/codex/contracts
-import pkg/codex/logging
+import pkg/codex/logutils
 import pkg/codex/periods
 import ../contracts/time
 import ../contracts/deployment

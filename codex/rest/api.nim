@@ -27,7 +27,7 @@ import pkg/libp2p
 import pkg/libp2p/routing_record
 import pkg/codexdht/discv5/spr as spr
 
-import ../logging
+import ../logutils
 import ../node
 import ../blocktype
 import ../conf

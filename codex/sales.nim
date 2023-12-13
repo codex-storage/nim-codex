@@ -9,7 +9,7 @@ import ./clock
 import ./stores
 import ./contracts/requests
 import ./contracts/marketplace
-import ./logging
+import ./logutils
 import ./sales/salescontext
 import ./sales/salesagent
 import ./sales/statemachine

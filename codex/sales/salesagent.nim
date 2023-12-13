@@ -5,7 +5,7 @@ import pkg/stint
 import pkg/upraises
 import ../contracts/requests
 import ../errors
-import ../logging
+import ../logutils
 import ./statemachine
 import ./salescontext
 import ./salesdata

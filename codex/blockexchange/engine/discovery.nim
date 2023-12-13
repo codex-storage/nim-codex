@@ -24,7 +24,7 @@ import ../peers
 import ../../utils
 import ../../discovery
 import ../../stores/blockstore
-import ../../logging
+import ../../logutils
 
 logScope:
   topics = "codex discoveryengine"

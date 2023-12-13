@@ -5,7 +5,7 @@ import std/sequtils
 from pkg/libp2p import Cid, `$`, init
 import pkg/stint
 import pkg/questionable/results
-import pkg/codex/logging
+import pkg/codex/logutils
 import pkg/codex/rest/json
 import pkg/codex/purchasing
 import pkg/codex/errors

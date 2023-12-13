@@ -25,10 +25,10 @@ import pkg/json_serialization
 import ./units
 import ./utils
 import ./errors
-import ./logging
+import ./logutils
 import ./codextypes
 
-export errors, logging, units, codextypes
+export errors, logutils, units, codextypes
 
 type
   Block* = ref object of RootObj
@@ -43,7 +43,7 @@ type
     else:
       cid*: Cid
 
-logging.formatIt(BlockAddress):
+logutils.formatIt(BlockAddress):
   if it.leaf:
     "treeCid: " & shortLog($it.treeCid) & ", index: " & $it.index
   else:

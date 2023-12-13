@@ -2,7 +2,7 @@ import std/sugar
 import pkg/questionable
 import pkg/chronos
 import pkg/upraises
-import ../logging
+import ../logutils
 import ./then
 import ./trackedfutures
 

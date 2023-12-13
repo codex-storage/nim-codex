@@ -38,7 +38,7 @@ import ./contracts/clock
 import ./contracts/deployment
 import ./utils/addrutils
 import ./namespaces
-import ./logging
+import ./logutils
 
 logScope:
   topics = "codex node"

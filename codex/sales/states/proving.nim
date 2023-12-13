@@ -1,7 +1,7 @@
 import std/options
 import pkg/questionable/results
 import ../../clock
-import ../../logging
+import ../../logutils
 import ../statemachine
 import ../salesagent
 import ../salescontext
