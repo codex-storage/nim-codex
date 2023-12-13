@@ -22,7 +22,7 @@ import ../utils
 import ../utils/json
 import ../units
 import ../blocktype
-import ../logging
+import ../logutils
 
 type
   Manifest* = ref object of RootObj

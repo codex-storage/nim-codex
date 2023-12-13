@@ -43,6 +43,7 @@ import ./errors
 import ./logutils
 
 export batch
+export logutils
 
 logScope:
   topics = "codex node"
