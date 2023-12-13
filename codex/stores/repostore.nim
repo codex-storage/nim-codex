@@ -11,6 +11,8 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
+import std/sugar
+
 import pkg/chronos
 import pkg/chronos/futures
 import pkg/libp2p/[cid, multicodec, multihash]
@@ -23,12 +25,14 @@ import pkg/stew/endians2
 
 import ./blockstore
 import ./keyutils
+import ./typeddatastore
 import ../blocktype
 import ../clock
 import ../systemclock
 import ../logutils
 import ../merkletree
 import ../utils
+import ../utils/genericcoders
 
 export blocktype, cid
 
@@ -41,10 +45,9 @@ declareGauge(codex_repostore_bytes_reserved, "codex repostore bytes reserved")
 
 const
   DefaultBlockTtl* = 24.hours
-  DefaultQuotaBytes* = 1'u shl 33'u # ~8GB
+  DefaultQuotaBytes* = 8.GiBs
 
 type
-  QuotaUsedError* = object of CodexError
   QuotaNotEnoughError* = object of CodexError
 
   RepoStore* = ref object of BlockStore
@@ -52,115 +55,267 @@ type
     repoDs*: Datastore
     metaDs*: Datastore
     clock: Clock
-    totalBlocks*: uint            # number of blocks in the store
-    quotaMaxBytes*: uint          # maximum available bytes
-    quotaUsedBytes*: uint         # bytes used by the repo
-    quotaReservedBytes*: uint     # bytes reserved by the repo
+    quotaMaxBytes*: NBytes
+    quotaUsage*: QuotaUsage
+    totalBlocks*: Natural
     blockTtl*: Duration
     started*: bool
 
+  QuotaUsage* = object
+    used: NBytes
+    reserved: NBytes
+
+  BlockMetadata* = object
+    expiry*: SecondsSince1970
+    size*: NBytes
+    refCount*: Natural
+
+  LeafMetadata* = object
+    blkCid: Cid
+    proof: CodexProof
+
   BlockExpiration* = object
     cid*: Cid
-    expiration*: SecondsSince1970
+    expiry*: SecondsSince1970
 
-proc updateMetrics(self: RepoStore) =
-  codex_repostore_blocks.set(self.totalBlocks.int64)
-  codex_repostore_bytes_used.set(self.quotaUsedBytes.int64)
-  codex_repostore_bytes_reserved.set(self.quotaReservedBytes.int64)
+func quotaUsedBytes*(self: RepoStore): NBytes =
+  self.quotaUsage.used
 
-func totalUsed*(self: RepoStore): uint =
+func quotaReservedBytes*(self: RepoStore): NBytes =
+  self.quotaUsage.reserved
+
+func totalUsed*(self: RepoStore): NBytes =
   (self.quotaUsedBytes + self.quotaReservedBytes)
 
-func available*(self: RepoStore): uint =
+func available*(self: RepoStore): NBytes =
   return self.quotaMaxBytes - self.totalUsed
 
-func available*(self: RepoStore, bytes: uint): bool =
+func available*(self: RepoStore, bytes: NBytes): bool =
   return bytes < self.available()
 
-proc encode(cidAndProof: (Cid, CodexProof)): seq[byte] =
-  ## Encodes a tuple of cid and merkle proof in a following format:
-  ## | 8-bytes | n-bytes | remaining bytes |
-  ## |    n    |   cid   |      proof      |
-  ##
-  ## where n is a size of cid
-  ##
-  let
-    (cid, proof) = cidAndProof
-    cidBytes = cid.data.buffer
-    proofBytes = proof.encode
-    n = cidBytes.len
-    nBytes = n.uint64.toBytesBE
+proc encode(t: Cid): seq[byte] = t.data.buffer
+proc decode(T: type Cid, bytes: seq[byte]): ?!Cid = Cid.init(bytes).mapFailure
 
-  @nBytes & cidBytes & proofBytes
+proc encode(t: QuotaUsage): seq[byte] = t.autoencode
+proc decode(T: type QuotaUsage, bytes: seq[byte]): ?!T = T.autodecode(bytes)
 
-proc decode(_: type (Cid, CodexProof), data: seq[byte]): ?!(Cid, CodexProof) =
-  let
-    n = uint64.fromBytesBE(data[0..<sizeof(uint64)]).int
-    cid = ? Cid.init(data[sizeof(uint64)..<sizeof(uint64) + n]).mapFailure
-    proof = ? CodexProof.decode(data[sizeof(uint64) + n..^1])
-  success((cid, proof))
+proc encode(t: BlockMetadata): seq[byte] = t.autoencode
+proc decode(T: type BlockMetadata, bytes: seq[byte]): ?!T = T.autodecode(bytes)
 
-proc decodeCid(_: type (Cid, CodexProof), data: seq[byte]): ?!Cid =
-  let
-    n = uint64.fromBytesBE(data[0..<sizeof(uint64)]).int
-    cid = ? Cid.init(data[sizeof(uint64)..<sizeof(uint64) + n]).mapFailure
-  success(cid)
+proc encode(t: LeafMetadata): seq[byte] = t.autoencode
+proc decode(T: type LeafMetadata, bytes: seq[byte]): ?!T = T.autodecode(bytes)
 
-method putCidAndProof*(
+###########################################################
+# Helper types and procs
+###########################################################
+
+type
+  DeleteResultKind = enum
+    Deleted = 0,    # block removed from store
+    InUse = 1,      # block not removed, refCount > 0 and not expired
+    NotFound = 2    # block not found in store
+
+  DeleteResult = object
+    kind: DeleteResultKind
+    released: NBytes
+
+  StoreResultKind = enum
+    Stored = 0,         # new block stored
+    AlreadyInStore = 1  # block already in store
+
+  StoreResult = object
+    kind: StoreResultKind
+    used: NBytes
+
+proc encode(t: DeleteResult): seq[byte] = t.autoencode
+proc decode(T: type DeleteResult, bytes: seq[byte]): ?!T = T.autodecode(bytes)
+
+proc encode(t: StoreResult): seq[byte] = t.autoencode
+proc decode(T: type StoreResult, bytes: seq[byte]): ?!T = T.autodecode(bytes)
+
+proc putLeafMetadata(self: RepoStore, treeCid: Cid, index: Natural, blkCid: Cid, proof: CodexProof): Future[?!StoreResultKind] {.async.} =
+  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
+    return failure(err)
+
+  await self.metaDs.modifyTGetU(key,
+    proc (maybeCurrMd: ?LeafMetadata): Future[(?LeafMetadata, StoreResultKind)] {.async.} =
+      var
+        md: LeafMetadata
+        res: StoreResultKind
+
+      if currMd =? maybeCurrMd:
+        md = currMd
+        res = AlreadyInStore
+      else:
+        md = LeafMetadata(blkCid: blkCid, proof: proof)
+        res = Stored
+
+      (md.some, res)
+  )
+
+proc getLeafMetadata(self: RepoStore, treeCid: Cid, index: Natural): Future[?!LeafMetadata] {.async.} =
+  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
+    return failure(err)
+
+  without leafMd =? await self.metaDs.get(key), err:
+    if err of DatastoreKeyNotFound:
+      return failure(newException(BlockNotFoundError, err.msg))
+    else:
+      return failure(err)
+
+  LeafMetadata.decode(leafMd)
+
+proc updateTotalBlocksCount(self: RepoStore, plusCount: Natural = 0, minusCount: Natural = 0): Future[?!void] {.async.} =
+  await self.metaDs.modifyT(CodexTotalBlocksKey,
+    proc (maybeCurrCount: ?Natural): Future[?Natural] {.async.} =
+      let count: Natural =
+        if currCount =? maybeCurrCount:
+          currCount + plusCount - minusCount
+        else:
+          plusCount - minusCount
+
+      self.totalBlocks = count
+      codex_repostore_blocks.set(count.int64)
+      count.some
+  )
+
+proc updateQuotaUsage(
   self: RepoStore,
-  treeCid: Cid,
-  index: Natural,
-  blockCid: Cid,
-  proof: CodexProof
+  plusUsed: NBytes = 0.NBytes,
+  minusUsed: NBytes = 0.NBytes,
+  plusReserved: NBytes = 0.NBytes,
+  minusReserved: NBytes = 0.NBytes
 ): Future[?!void] {.async.} =
-  ## Put a block to the blockstore
-  ##
+  await self.metaDs.modifyT(QuotaUsedKey,
+    proc (maybeCurrUsage: ?QuotaUsage): Future[?QuotaUsage] {.async.} =
+      var usage: QuotaUsage
 
-  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
-    return failure(err)
+      if currUsage =? maybeCurrUsage:
+        usage = QuotaUsage(used: currUsage.used + plusUsed - minusUsed, reserved: currUsage.reserved + plusReserved - minusReserved)
+      else:
+        usage = QuotaUsage(used: plusUsed - minusUsed, reserved: plusReserved - minusReserved)
 
-  trace "Storing block cid and proof with key", key
+      if usage.used + usage.reserved > self.quotaMaxBytes:
+        raise newException(QuotaNotEnoughError,
+          "Quota usage would exceed the limit. Used: " & $usage.used & ", reserved: " &
+            $usage.reserved & ", limit: " & $self.quotaMaxBytes)
+      else:
+        self.quotaUsage = usage
+        codex_repostore_bytes_used.set(usage.used.int64)
+        codex_repostore_bytes_reserved.set(usage.reserved.int64)
+        return usage.some
+  )
 
-  let value = (blockCid, proof).encode()
-
-  await self.metaDs.put(key, value)
-
-method getCidAndProof*(
+proc updateBlockMetadata(
   self: RepoStore,
-  treeCid: Cid,
-  index: Natural): Future[?!(Cid, CodexProof)] {.async.} =
-  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
+  cid: Cid,
+  plusRefCount: Natural = 0,
+  minusRefCount: Natural = 0,
+  minExpiry: SecondsSince1970 = 0
+): Future[?!void] {.async.} =
+  if cid.isEmpty:
+    return success()
+
+  without metaKey =? createBlockExpirationMetadataKey(cid), err:
     return failure(err)
 
-  without value =? await self.metaDs.get(key), err:
-    if err of DatastoreKeyNotFound:
-      return failure(newException(BlockNotFoundError, err.msg))
-    else:
-      return failure(err)
+  await self.metaDs.modifyT(metaKey,
+    proc (maybeCurrBlockMd: ?BlockMetadata): Future[?BlockMetadata] {.async.} =
+      if currBlockMd =? maybeCurrBlockMd:
+        BlockMetadata(
+          size: currBlockMd.size,
+          expiry: max(currBlockMd.expiry, minExpiry),
+          refCount: currBlockMd.refCount + plusRefCount - minusRefCount
+        ).some
+      else:
+        raise newException(BlockNotFoundError, "Metadata for block with cid " & $cid & " not found")
+  )
 
-  without (cid, proof) =? (Cid, CodexProof).decode(value), err:
-    trace "Unable to decode cid and proof", err = err.msg
+proc storeBlock(self: RepoStore, blk: Block, minExpiry: SecondsSince1970): Future[?!StoreResult] {.async.} =
+  if blk.isEmpty:
+    return success(StoreResult(kind: AlreadyInStore))
+
+  without metaKey =? createBlockExpirationMetadataKey(blk.cid), err:
     return failure(err)
 
-  trace "Got cid and proof for block", cid, proof = $proof
-  return success (cid, proof)
-
-method getCid*(
-  self: RepoStore,
-  treeCid: Cid,
-  index: Natural): Future[?!Cid] {.async.} =
-  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
+  without blkKey =? makePrefixKey(self.postFixLen, blk.cid), err:
     return failure(err)
 
-  without value =? await self.metaDs.get(key), err:
-    if err of DatastoreKeyNotFound:
-      trace "Cid not found", treeCid, index
-      return failure(newException(BlockNotFoundError, err.msg))
-    else:
-      trace "Error getting cid from datastore", err = err.msg, key
-      return failure(err)
+  await self.metaDs.modifyTGetU(metaKey,
+    proc (maybeCurrMd: ?BlockMetadata): Future[(?BlockMetadata, StoreResult)] {.async.} =
+      var
+        md: BlockMetadata
+        res: StoreResult
 
-  return (Cid, CodexProof).decodeCid(value)
+      if currMd =? maybeCurrMd:
+        if currMd.size == blk.data.len.NBytes:
+          md = BlockMetadata(size: currMd.size, expiry: max(currMd.expiry, minExpiry), refCount: currMd.refCount)
+          res = StoreResult(kind: AlreadyInStore)
+
+          # making sure that the block acutally is stored in the repoDs
+          without hasBlock =? await self.repoDs.has(blkKey), err:
+            raise err
+
+          if not hasBlock:
+            warn "Block metadata is present, but block is absent. Restoring block.", cid = blk.cid
+            if err =? (await self.repoDs.put(blkKey, blk.data)).errorOption:
+              raise err
+        else:
+          raise newException(CatchableError, "Repo already stores a block with the same cid but with a different size, cid: " & $blk.cid)
+      else:
+        md = BlockMetadata(size: blk.data.len.NBytes, expiry: minExpiry, refCount: 0)
+        res = StoreResult(kind: Stored, used: blk.data.len.NBytes)
+        if err =? (await self.repoDs.put(blkKey, blk.data)).errorOption:
+          raise err
+
+      (md.some, res)
+  )
+
+proc tryDeleteBlock(self: RepoStore, cid: Cid, expiryLimit = SecondsSince1970.low): Future[?!DeleteResult] {.async.} =
+  if cid.isEmpty:
+    return success(DeleteResult(kind: InUse))
+
+  without metaKey =? createBlockExpirationMetadataKey(cid), err:
+    return failure(err)
+
+  without blkKey =? makePrefixKey(self.postFixLen, cid), err:
+    return failure(err)
+
+  await self.metaDs.modifyTGetU(metaKey,
+    proc (maybeCurrMd: ?BlockMetadata): Future[(?BlockMetadata, DeleteResult)] {.async.} =
+      var
+        maybeMeta: ?BlockMetadata
+        res: DeleteResult
+
+      if currMd =? maybeCurrMd:
+        if currMd.refCount == 0 or currMd.expiry < expiryLimit:
+          maybeMeta = BlockMetadata.none
+          res = DeleteResult(kind: Deleted, released: currMd.size)
+
+          if err =? (await self.repoDs.delete(blkKey)).errorOption:
+            raise err
+        else:
+          maybeMeta = currMd.some
+          res = DeleteResult(kind: InUse)
+      else:
+        maybeMeta = BlockMetadata.none
+        res = DeleteResult(kind: NotFound)
+
+        # making sure that the block acutally is removed from the repoDs
+        without hasBlock =? await self.repoDs.has(blkKey), err:
+          raise err
+
+        if hasBlock:
+          warn "Block metadata is absent, but block is present. Removing block.", cid
+          if err =? (await self.repoDs.delete(blkKey)).errorOption:
+            raise err
+
+      (maybeMeta, res)
+  )
+
+###########################################################
+# BlockStore API
+###########################################################
 
 method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the blockstore
@@ -187,23 +342,20 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   trace "Got block for cid", cid
   return Block.new(cid, data, verify = true)
 
-
 method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, CodexProof)] {.async.} =
-  without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
+  without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     return failure(err)
 
-  let (cid, proof) = cidAndProof
-
-  without blk =? await self.getBlock(cid), err:
+  without blk =? await self.getBlock(leafMd.blkCid), err:
     return failure(err)
 
-  success((blk, proof))
+  success((blk, leafMd.proof))
 
 method getBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!Block] {.async.} =
-  without cid =? await self.getCid(treeCid, index), err:
+  without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     return failure(err)
 
-  await self.getBlock(cid)
+  await self.getBlock(leafMd.blkCid)
 
 method getBlock*(self: RepoStore, address: BlockAddress): Future[?!Block] =
   ## Get a block from the blockstore
@@ -214,28 +366,6 @@ method getBlock*(self: RepoStore, address: BlockAddress): Future[?!Block] =
   else:
     self.getBlock(address.cid)
 
-proc getBlockExpirationEntry(
-  self: RepoStore,
-  cid: Cid,
-  ttl: SecondsSince1970): ?!BatchEntry =
-  ## Get an expiration entry for a batch with timestamp
-  ##
-
-  without key =? createBlockExpirationMetadataKey(cid), err:
-    return failure(err)
-
-  return success((key, ttl.toBytes))
-
-proc getBlockExpirationEntry(
-  self: RepoStore,
-  cid: Cid,
-  ttl: ?Duration): Future[?!BatchEntry] {.async.} =
-  ## Get an expiration entry for a batch for duration since "now"
-  ##
-
-  let duration = ttl |? self.blockTtl
-  self.getBlockExpirationEntry(cid, (await self.clock.now()) + duration.seconds)
-
 method ensureExpiry*(
     self: RepoStore,
     cid: Cid,
@@ -245,36 +375,10 @@ method ensureExpiry*(
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
 
-  logScope:
-    cid = cid
-
   if expiry <= 0:
     return failure(newException(ValueError, "Expiry timestamp must be larger then zero"))
 
-  without expiryKey =? createBlockExpirationMetadataKey(cid), err:
-    return failure(err)
-
-  without currentExpiry =? await self.metaDs.get(expiryKey), err:
-    if err of DatastoreKeyNotFound:
-      error "No current expiry exists for the block"
-      return failure(newException(BlockNotFoundError, err.msg))
-    else:
-      error "Could not read datastore key", err = err.msg
-      return failure(err)
-
-  logScope:
-    current = currentExpiry.toSecondsSince1970
-    ensuring = expiry
-
-  if expiry <= currentExpiry.toSecondsSince1970:
-    trace "Expiry is larger than or equal to requested"
-    return success()
-
-  if err =? (await self.metaDs.put(expiryKey, expiry.toBytes)).errorOption:
-    trace "Error updating expiration metadata entry", err = err.msg
-    return failure(err)
-
-  return success()
+  await self.updateBlockMetadata(cid, minExpiry = expiry)
 
 method ensureExpiry*(
     self: RepoStore,
@@ -285,18 +389,61 @@ method ensureExpiry*(
   ## Ensure that block's associated expiry is at least given timestamp
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
-  without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
+
+  without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     return failure(err)
 
-  await self.ensureExpiry(cidAndProof[0], expiry)
+  await self.ensureExpiry(leafMd.blkCid, expiry)
 
-proc persistTotalBlocksCount(self: RepoStore): Future[?!void] {.async.} =
-  if err =? (await self.metaDs.put(
-      CodexTotalBlocksKey,
-      @(self.totalBlocks.uint64.toBytesBE))).errorOption:
-    trace "Error total blocks key!", err = err.msg
+method putCidAndProof*(
+  self: RepoStore,
+  treeCid: Cid,
+  index: Natural,
+  blkCid: Cid,
+  proof: CodexProof
+): Future[?!void] {.async.} =
+  ## Put a block to the blockstore
+  ##
+
+  logScope:
+    treeCid = treeCid
+    index = index
+    blkCid = blkCid
+
+  trace "Storing LeafMetadata"
+
+  without res =? await self.putLeafMetadata(treeCid, index, blkCid, proof), err:
     return failure(err)
+
+  if blkCid.mcodec == BlockCodec:
+    if res == Stored:
+      if err =? (await self.updateBlockMetadata(blkCid, plusRefCount = 1)).errorOption:
+        return failure(err)
+      trace "Leaf metadata stored, block refCount incremented"
+    else:
+      trace "Leaf metadata already exists"
+
   return success()
+
+method getCidAndProof*(
+  self: RepoStore,
+  treeCid: Cid,
+  index: Natural
+): Future[?!(Cid, CodexProof)] {.async.} =
+  without leafMd =? await self.getLeafMetadata(treeCid, index), err:
+    return failure(err)
+
+  success((leafMd.blkCid, leafMd.proof))
+
+method getCid*(
+  self: RepoStore,
+  treeCid: Cid,
+  index: Natural
+): Future[?!Cid] {.async.} =
+  without leafMd =? await self.getLeafMetadata(treeCid, index), err:
+    return failure(err)
+
+  success(leafMd.blkCid)
 
 method putBlock*(
   self: RepoStore,
@@ -308,133 +455,64 @@ method putBlock*(
   logScope:
     cid = blk.cid
 
-  if blk.isEmpty:
-    trace "Empty block, ignoring"
-    return success()
+  let expiry = (await self.clock.now()) + (ttl |? self.blockTtl).seconds
 
-  without key =? makePrefixKey(self.postFixLen, blk.cid), err:
-    trace "Error getting key from provider", err = err.msg
+  without res =? await self.storeBlock(blk, expiry), err:
     return failure(err)
 
-  if await key in self.repoDs:
-    trace "Block already in store", cid = blk.cid
-    return success()
-
-  if (self.totalUsed + blk.data.len.uint) > self.quotaMaxBytes:
-    error "Cannot store block, quota used!", used = self.totalUsed
-    return failure(
-      newException(QuotaUsedError, "Cannot store block, quota used!"))
-
-  trace "Storing block with key", key
-
-  var
-    batch: seq[BatchEntry]
-
-  let
-    used = self.quotaUsedBytes + blk.data.len.uint
-
-  if err =? (await self.repoDs.put(key, blk.data)).errorOption:
-    trace "Error storing block", err = err.msg
-    return failure(err)
-
-  trace "Updating quota", used
-  batch.add((QuotaUsedKey, @(used.uint64.toBytesBE)))
-
-  without blockExpEntry =? (await self.getBlockExpirationEntry(blk.cid, ttl)), err:
-    trace "Unable to create block expiration metadata key", err = err.msg
-    return failure(err)
-  batch.add(blockExpEntry)
-
-  if err =? (await self.metaDs.put(batch)).errorOption:
-    trace "Error updating quota bytes", err = err.msg
-
-    if err =? (await self.repoDs.delete(key)).errorOption:
-      trace "Error deleting block after failed quota update", err = err.msg
+  if res.kind == Stored:
+    trace "Block Stored"
+    if err =? (await self.updateQuotaUsage(plusUsed = res.used)).errorOption:
+      # rollback changes
+      without delRes =? await self.tryDeleteBlock(blk.cid), err:
+        return failure(err)
       return failure(err)
 
-    return failure(err)
+    if err =? (await self.updateTotalBlocksCount(plusCount = 1)).errorOption:
+      return failure(err)
+  else:
+    trace "Block already exists"
 
-  self.quotaUsedBytes = used
-  inc self.totalBlocks
-  if isErr (await self.persistTotalBlocksCount()):
-    trace "Unable to update block total metadata"
-    return failure("Unable to update block total metadata")
-
-  self.updateMetrics()
   return success()
-
-proc updateQuotaBytesUsed(self: RepoStore, blk: Block): Future[?!void] {.async.} =
-  let used = self.quotaUsedBytes - blk.data.len.uint
-  if err =? (await self.metaDs.put(
-      QuotaUsedKey,
-      @(used.uint64.toBytesBE))).errorOption:
-    trace "Error updating quota key!", err = err.msg
-    return failure(err)
-  self.quotaUsedBytes = used
-  self.updateMetrics()
-  return success()
-
-proc removeBlockExpirationEntry(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
-  without key =? createBlockExpirationMetadataKey(cid), err:
-    return failure(err)
-  return await self.metaDs.delete(key)
 
 method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
-  ## Delete a block from the blockstore
+  ## Delete a block from the blockstore when block refCount is 0 or block is expired
   ##
 
   logScope:
     cid = cid
 
-  trace "Deleting block"
+  trace "Attempting to delete a block"
 
-  if cid.isEmpty:
-    trace "Empty block, ignoring"
-    return success()
+  without res =? await self.tryDeleteBlock(cid, (await self.clock.now())), err:
+    return failure(err)
 
-  if blk =? (await self.getBlock(cid)):
-    if key =? makePrefixKey(self.postFixLen, cid) and
-      err =? (await self.repoDs.delete(key)).errorOption:
-      trace "Error deleting block!", err = err.msg
+  if res.kind == Deleted:
+    trace "Block deleted"
+    if err =? (await self.updateTotalBlocksCount(minusCount = 1)).errorOption:
       return failure(err)
 
-    if isErr (await self.updateQuotaBytesUsed(blk)):
-      trace "Unable to update quote-bytes-used in metadata store"
-      return failure("Unable to update quote-bytes-used in metadata store")
+    if err =? (await self.updateQuotaUsage(minusUsed = res.released)).errorOption:
+      return failure(err)
+  elif res.kind == InUse:
+    trace "Block in use, refCount > 0 and not expired"
+  else:
+    trace "Block not found in store"
 
-    if isErr (await self.removeBlockExpirationEntry(blk.cid)):
-      trace "Unable to remove block expiration entry from metadata store"
-      return failure("Unable to remove block expiration entry from metadata store")
-
-    trace "Deleted block", cid, totalUsed = self.totalUsed
-
-  dec self.totalBlocks
-  if isErr (await self.persistTotalBlocksCount()):
-    trace "Unable to update block total metadata"
-    return failure("Unable to update block total metadata")
-
-  self.updateMetrics()
   return success()
 
 method delBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!void] {.async.} =
-  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
-    return failure(err)
-
-  trace "Fetching proof", key
-  without value =? await self.metaDs.get(key), err:
-    if err of DatastoreKeyNotFound:
+  without leafMd =? await self.getLeafMetadata(treeCid, index), err:
+    if err of BlockNotFoundError:
       return success()
     else:
       return failure(err)
 
-  without cid =? (Cid, CodexProof).decodeCid(value), err:
-    return failure(err)
+  if err =? (await self.updateBlockMetadata(leafMd.blkCid, minusRefCount = 1)).errorOption:
+    if not (err of BlockNotFoundError):
+      return failure(err)
 
-  trace "Deleting block", cid
-  if err =? (await self.delBlock(cid)).errorOption:
-    return failure(err)
-
-  await self.metaDs.delete(key)
+  await self.delBlock(leafMd.blkCid) # safe delete, only if refCount == 0
 
 method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
@@ -454,13 +532,13 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   return await self.repoDs.has(key)
 
 method hasBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!bool] {.async.} =
-  without cid =? await self.getCid(treeCid, index), err:
+  without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     if err of BlockNotFoundError:
       return success(false)
     else:
       return failure(err)
 
-  await self.hasBlock(cid)
+  await self.hasBlock(leafMd.blkCid)
 
 method listBlocks*(
   self: RepoStore,
@@ -507,37 +585,37 @@ method getBlockExpirations*(
   self: RepoStore,
   maxNumber: int,
   offset: int): Future[?!AsyncIter[?BlockExpiration]] {.async, base.} =
-  ## Get block expirations from the given RepoStore
+  ## Get iterator with block expirations
   ##
 
   without query =? createBlockExpirationQuery(maxNumber, offset), err:
     trace "Unable to format block expirations query"
     return failure(err)
 
-  without queryIter =? (await self.metaDs.query(query)), err:
+  without queryIter =? (await queryT[BlockMetadata](self.metaDs, query)), err:
     trace "Unable to execute block expirations query"
     return failure(err)
 
-  var iter = AsyncIter[?BlockExpiration]()
+  let iter = queryIter.map(
+    proc (fut: Future[(?Key, ?!BlockMetadata)]): Future[?BlockExpiration] {.async.} =
+      let (maybeKey, blockMdOrErr) = await fut
 
-  proc next(): Future[?BlockExpiration] {.async.} =
-    if not queryIter.finished:
-      if pair =? (await queryIter.next()) and blockKey =? pair.key:
-        let expirationTimestamp = pair.data
-        let cidResult = Cid.init(blockKey.value)
-        if not cidResult.isOk:
-          raiseAssert("Unable to parse CID from blockKey.value: " & blockKey.value & $cidResult.error)
-        return BlockExpiration(
-          cid: cidResult.get,
-          expiration: expirationTimestamp.toSecondsSince1970
-        ).some
-    else:
-      discard await queryIter.dispose()
-    iter.finish
-    return BlockExpiration.none
+      without key =? maybeKey:
+        warn "Entry without a key"
+        return BlockExpiration.none
 
-  iter.next = next
-  return success iter
+      without cid =? Cid.init(key.value).mapFailure, err:
+        error "Failed decoding cid", err = err.msg
+        return BlockExpiration.none
+
+      without blockMd =? blockMdOrErr, err:
+        error "Failed fetching metadata for block", cid = cid, err = err.msg
+        return BlockExpiration.none
+
+      BlockExpiration(cid: cid, expiry: blockMd.expiry).some
+  )
+
+  iter.success
 
 method close*(self: RepoStore): Future[void] {.async.} =
   ## Close the blockstore, cleaning up resources managed by it.
@@ -552,55 +630,25 @@ method close*(self: RepoStore): Future[void] {.async.} =
   if not self.repoDs.isNil:
     (await self.repoDs.close()).expect("Should repo datastore")
 
-proc reserve*(self: RepoStore, bytes: uint): Future[?!void] {.async.} =
+###########################################################
+# RepoStore procs
+###########################################################
+
+proc reserve*(self: RepoStore, bytes: NBytes): Future[?!void] {.async.} =
   ## Reserve bytes
   ##
 
-  trace "Reserving bytes", reserved = self.quotaReservedBytes, bytes
+  trace "Reserving bytes", bytes
 
-  if (self.totalUsed + bytes) > self.quotaMaxBytes:
-    trace "Not enough storage quota to reserver", reserve = self.totalUsed + bytes
-    return failure(
-      newException(QuotaNotEnoughError, "Not enough storage quota to reserver"))
+  await self.updateQuotaUsage(plusReserved = bytes)
 
-  self.quotaReservedBytes += bytes
-  if err =? (await self.metaDs.put(
-    QuotaReservedKey,
-    @(toBytesBE(self.quotaReservedBytes.uint64)))).errorOption:
-
-    trace "Error reserving bytes", err = err.msg
-
-    self.quotaReservedBytes += bytes
-    return failure(err)
-
-  return success()
-
-proc release*(self: RepoStore, bytes: uint): Future[?!void] {.async.} =
+proc release*(self: RepoStore, bytes: NBytes): Future[?!void] {.async.} =
   ## Release bytes
   ##
 
-  trace "Releasing bytes", reserved = self.quotaReservedBytes, bytes
+  trace "Releasing bytes", bytes
 
-  if (self.quotaReservedBytes.int - bytes.int) < 0:
-    trace "Cannot release this many bytes",
-      quotaReservedBytes = self.quotaReservedBytes, bytes
-
-    return failure("Cannot release this many bytes")
-
-  self.quotaReservedBytes -= bytes
-  if err =? (await self.metaDs.put(
-    QuotaReservedKey,
-    @(toBytesBE(self.quotaReservedBytes.uint64)))).errorOption:
-
-    trace "Error releasing bytes", err = err.msg
-
-    self.quotaReservedBytes -= bytes
-
-    return failure(err)
-
-  trace "Released bytes", bytes
-  self.updateMetrics()
-  return success()
+  await self.updateQuotaUsage(minusReserved = bytes)
 
 proc start*(self: RepoStore): Future[void] {.async.} =
   ## Start repo
@@ -610,45 +658,13 @@ proc start*(self: RepoStore): Future[void] {.async.} =
     trace "Repo already started"
     return
 
-  trace "Starting repo"
+  trace "Starting rep"
+  if err =? (await self.updateTotalBlocksCount()).errorOption:
+    raise newException(CodexError, err.msg)
 
-  without total =? await self.metaDs.get(CodexTotalBlocksKey), err:
-    if not (err of DatastoreKeyNotFound):
-      error "Unable to read total number of blocks from metadata store", err = err.msg, key = $CodexTotalBlocksKey
+  if err =? (await self.updateQuotaUsage()).errorOption:
+    raise newException(CodexError, err.msg)
 
-  if total.len > 0:
-    self.totalBlocks = uint64.fromBytesBE(total).uint
-  trace "Number of blocks in store at start", total = self.totalBlocks
-
-  ## load current persist and cache bytes from meta ds
-  without quotaUsedBytes =? await self.metaDs.get(QuotaUsedKey), err:
-    if not (err of DatastoreKeyNotFound):
-      error "Error getting cache bytes from datastore",
-        err = err.msg, key = $QuotaUsedKey
-
-      raise newException(Defect, err.msg)
-
-  if quotaUsedBytes.len > 0:
-    self.quotaUsedBytes = uint64.fromBytesBE(quotaUsedBytes).uint
-
-  notice "Current bytes used for cache quota", bytes = self.quotaUsedBytes
-
-  without quotaReservedBytes =? await self.metaDs.get(QuotaReservedKey), err:
-    if not (err of DatastoreKeyNotFound):
-      error "Error getting persist bytes from datastore",
-        err = err.msg, key = $QuotaReservedKey
-
-      raise newException(Defect, err.msg)
-
-  if quotaReservedBytes.len > 0:
-    self.quotaReservedBytes = uint64.fromBytesBE(quotaReservedBytes).uint
-
-  if self.quotaUsedBytes > self.quotaMaxBytes:
-    raiseAssert "All storage quota used, increase storage quota!"
-
-  notice "Current bytes used for persist quota", bytes = self.quotaReservedBytes
-
-  self.updateMetrics()
   self.started = true
 
 proc stop*(self: RepoStore): Future[void] {.async.} =

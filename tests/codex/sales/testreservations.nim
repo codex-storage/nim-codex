@@ -66,9 +66,9 @@ asyncchecksuite "Reservations module":
     check availability.id != AvailabilityId.default
 
   test "creating availability reserves bytes in repo":
-    let orig = repo.available
+    let orig = repo.available.uint
     let availability = createAvailability()
-    check repo.available == (orig.u256 - availability.size).truncate(uint)
+    check repo.available.uint == (orig.u256 - availability.size).truncate(uint)
 
   test "can get all availabilities":
     let availability1 = createAvailability()
@@ -191,7 +191,7 @@ asyncchecksuite "Reservations module":
 
     check updated.size > orig
     check (updated.size - orig) == 200.u256
-    check (repo.quotaReservedBytes - origQuota) == 200
+    check (repo.quotaReservedBytes - origQuota) == 200.NBytes
 
   test "reservation can be partially released":
     let availability = createAvailability()
@@ -275,17 +275,17 @@ asyncchecksuite "Reservations module":
     check got.error of NotExistsError
 
   test "can get available bytes in repo":
-    check reservations.available == DefaultQuotaBytes
+    check reservations.available == DefaultQuotaBytes.uint
 
   test "reports quota available to be reserved":
-    check reservations.hasAvailable(DefaultQuotaBytes - 1)
+    check reservations.hasAvailable(DefaultQuotaBytes.uint - 1)
 
   test "reports quota not available to be reserved":
-    check not reservations.hasAvailable(DefaultQuotaBytes + 1)
+    check not reservations.hasAvailable(DefaultQuotaBytes.uint + 1)
 
   test "fails to create availability with size that is larger than available quota":
     let created = await reservations.createAvailability(
-      (DefaultQuotaBytes + 1).u256,
+      (DefaultQuotaBytes.uint + 1).u256,
       UInt256.example,
       UInt256.example,
       UInt256.example

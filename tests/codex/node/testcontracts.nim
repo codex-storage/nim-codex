@@ -31,6 +31,7 @@ import pkg/codex/erasure
 import pkg/codex/merkletree
 import pkg/codex/blocktype as bt
 import pkg/codex/utils/asynciter
+import pkg/codex/utils/genericcoders
 import pkg/codex/indexingstrategy
 
 import pkg/codex/node {.all.}
@@ -107,10 +108,11 @@ asyncchecksuite "Test Node - Host contracts":
     for index in 0..<manifest.blocksCount:
       let
         blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
-        expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet
-        expiry = await localStoreMetaDs.get(expiryKey)
+        key = (createBlockExpirationMetadataKey(blk.cid)).tryGet
+        bytes = (await localStoreMetaDs.get(key)).tryGet
+        blkMd = BlockMetadata.autodecode(bytes).tryGet
 
-      check (expiry.tryGet).toSecondsSince1970 == expectedExpiry
+      check blkMd.expiry == expectedExpiry
 
   test "onStore callback is set":
     check sales.onStore.isSome
@@ -136,7 +138,8 @@ asyncchecksuite "Test Node - Host contracts":
     for index in indexer.getIndicies(1):
       let
         blk = (await localStore.getBlock(verifiable.treeCid, index)).tryGet
-        expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet
-        expiry = await localStoreMetaDs.get(expiryKey)
+        key = (createBlockExpirationMetadataKey(blk.cid)).tryGet
+        bytes = (await localStoreMetaDs.get(key)).tryGet
+        blkMd = BlockMetadata.autodecode(bytes).tryGet
 
-      check (expiry.tryGet).toSecondsSince1970 == request.expiry.toSecondsSince1970
+      check blkMd.expiry == request.expiry.toSecondsSince1970
