@@ -4,8 +4,8 @@ import pkg/questionable
 import pkg/chronos
 
 type
-  Function*[T, U] = proc(fut: T): U {.raises: [CatchableError], gcsafe, noSideEffect.}
-  IsFinished* = proc(): bool {.raises: [], gcsafe, noSideEffect.}
+  Function*[T, U] = proc(fut: T): U {.raises: [CatchableError], gcsafe, closure.}
+  IsFinished* = proc(): bool {.raises: [], gcsafe, closure.}
   GenNext*[T] = proc(): T {.raises: [CatchableError], gcsafe.}
   Iter*[T] = ref object
     finished: bool
@@ -57,8 +57,18 @@ proc new*[T](_: type Iter, genNext: GenNext[T], isFinished: IsFinished, finishOn
   iter.next = next
   return iter
 
+proc emptyIter*[T](): Iter[T] =
+  ## Creates an empty iterator
+  ##
+
+  proc genNext(): T {.upraises: [CatchableError].} =
+    raise newException(CatchableError, "Next item requested from an empty iterator")
+  proc isFinished(): bool = true
+
+  Iter.new(genNext, isFinished)
+
 proc fromItems*[T](_: type Iter, items: seq[T]): Iter[T] =
-  ## Create new iterator from items
+  ## Creates new iterator from items
   ##
 
   Iter.fromSlice(0..<items.len)
