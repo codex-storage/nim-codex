@@ -38,15 +38,15 @@ proc lenPrefix*(msg: openArray[byte]): seq[byte] =
 
   return buf
 
-proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, MerkleTree) =
+proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, CodexMerkleTree) =
 
   if blocks.len == 0:
     return failure("Blocks list was empty")
 
-  let 
+  let
     datasetSize = blocks.mapIt(it.data.len).foldl(a + b)
     blockSize = blocks.mapIt(it.data.len).foldl(max(a, b))
-    tree = ? MerkleTree.init(blocks.mapIt(it.cid))
+    tree = ? CodexMerkleTree.init(blocks.mapIt(it.cid))
     treeCid = ? tree.rootCid
     manifest = Manifest.new(
       treeCid = treeCid,
@@ -87,8 +87,8 @@ proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest
     cids.add(blk.cid)
     (await store.putBlock(blk)).tryGet()
 
-  let 
-    tree = MerkleTree.init(cids).tryGet()
+  let
+    tree = CodexMerkleTree.init(cids).tryGet()
     treeCid = tree.rootCid.tryGet()
     manifest = Manifest.new(
       treeCid = treeCid,

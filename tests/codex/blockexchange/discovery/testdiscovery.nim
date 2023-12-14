@@ -26,7 +26,7 @@ asyncchecksuite "Block Advertising and Discovery":
   var
     blocks: seq[bt.Block]
     manifest: Manifest
-    tree: MerkleTree
+    tree: CodexMerkleTree
     manifestBlock: bt.Block
     switch: Switch
     peerStore: PeerCtxStore

@@ -17,7 +17,6 @@ import ../units
 export units
 
 const
-  BlockCodec* = multiCodec("raw")
   DagPBCodec* = multiCodec("dag-pb")
 
 type

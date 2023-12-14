@@ -87,7 +87,7 @@ method putBlockCidAndProof*(
   treeCid: Cid,
   index: Natural,
   blockCid: Cid,
-  proof: MerkleProof): Future[?!void] =
+  proof: CodexMerkleProof): Future[?!void] =
   self.localStore.putBlockCidAndProof(treeCid, index, blockCid, proof)
 
 method ensureExpiry*(
