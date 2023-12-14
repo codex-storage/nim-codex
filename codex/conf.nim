@@ -53,7 +53,7 @@ type
     noCommand,
     initNode
 
-  LogKind* = enum
+  LogKind* {.pure.} = enum
     Auto = "auto"
     Colors = "colors"
     NoColors = "nocolors"
