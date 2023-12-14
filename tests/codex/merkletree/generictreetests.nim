@@ -129,4 +129,4 @@ proc checkGenericTree*[H, K, U](
       for i in 0..<data.len:
         let proof = tree.getProof(i).tryGet
         check:
-          proof.verify(expectedRoot).isOk
+          proof.verify(tree.leaves[i], expectedRoot).isOk
