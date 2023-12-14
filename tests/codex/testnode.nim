@@ -115,9 +115,8 @@ asyncchecksuite "Test Node":
       manifest = await Manifest.fetch(chunker)
 
       manifestBlock = bt.Block.new(
-          manifest.encode().tryGet(),
-          codec = DagPBCodec
-        ).tryGet()
+        manifest.encode().tryGet(),
+        codec = ManifestCodec).tryGet()
 
     (await localStore.putBlock(manifestBlock)).tryGet()
 
@@ -253,7 +252,7 @@ asyncchecksuite "Test Node - host contracts":
     manifest = await storeDataGetManifest(localStore, chunker)
     let manifestBlock = bt.Block.new(
         manifest.encode().tryGet(),
-        codec = DagPBCodec
+        codec = ManifestCodec
       ).tryGet()
     manifestCid = $(manifestBlock.cid)
     (await localStore.putBlock(manifestBlock)).tryGet()

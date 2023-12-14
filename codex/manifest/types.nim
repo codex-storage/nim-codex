@@ -12,17 +12,13 @@
 import std/tables
 import pkg/libp2p
 
-import ../units
-export units
-
-const
-  DagPBCodec* = multiCodec("dag-pb")
+import ../blocktype
 
 type
-  ManifestCoderType*[codec: static MultiCodec] = object
-  DagPBCoder* = ManifestCoderType[multiCodec("dag-pb")]
+  ManifestCoderTypeHolder*[codec: static MultiCodec] = object
+  ManifestCoderType* = ManifestCoderTypeHolder[ManifestCodec]
 
 const
   ManifestContainers* = {
-    $DagPBCodec: DagPBCoder()
+    $ManifestCodec: ManifestCoderType()
   }.toTable
