@@ -34,7 +34,7 @@ import ../conf
 import ../contracts
 import ../manifest
 import ../streams/asyncstreamwrapper
-import ../stores/blockstore
+import ../stores
 
 import ./coders
 import ./json
@@ -106,7 +106,7 @@ proc retrieveCid(
     if not stream.isNil:
       await stream.close()
 
-proc initDataApi(node: CodexNodeRef, router: var RestRouter) =
+proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
   router.rawApi(
     MethodPost,
     "/api/codex/v1/data") do (
@@ -182,6 +182,17 @@ proc initDataApi(node: CodexNodeRef, router: var RestRouter) =
           $cid.error())
 
       await node.retrieveCid(cid.get(), local = false, resp=resp)
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/space") do () -> RestApiResponse:
+      let json = % RestRepoStore(
+        totalBlocks: repoStore.totalBlocks,
+        quotaMaxBytes: repoStore.quotaMaxBytes,
+        quotaUsedBytes: repoStore.quotaUsedBytes,
+        quotaReservedBytes: repoStore.quotaReservedBytes
+      )
+      return RestApiResponse.response($json, contentType="application/json")
 
 proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
   router.api(
@@ -456,10 +467,10 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
 
-proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
+proc initRestApi*(node: CodexNodeRef, conf: CodexConf, repoStore: RepoStore): RestRouter =
   var router = RestRouter.init(validate)
 
-  initDataApi(node, router)
+  initDataApi(node, repoStore, router)
   initSalesApi(node, router)
   initPurchasingApi(node, router)
   initDebugApi(node, conf, router)

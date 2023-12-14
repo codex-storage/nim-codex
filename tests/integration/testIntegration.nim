@@ -44,6 +44,16 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     let cid2 = client1.upload("some other contents").get
     check cid1 != cid2
 
+  test "node shows used and available space":
+    discard client1.upload("some file contents").get
+    discard client1.postAvailability(size=12.u256, duration=2.u256, minPrice=3.u256, maxCollateral=4.u256).get
+    let space = client1.space().tryGet()
+    check:
+      space.totalBlocks == 2.uint
+      space.quotaMaxBytes == 8589934592.uint
+      space.quotaUsedBytes == 65518.uint
+      space.quotaReservedBytes == 12.uint
+
   test "node allows local file downloads":
     let content1 = "some file contents"
     let content2 = "some other contents"
