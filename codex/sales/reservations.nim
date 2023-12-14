@@ -139,7 +139,8 @@ proc toErr[E1: ref CatchableError, E2: ReservationsError](
 
   return newException(E2, msg, e1)
 
-logutils.formatIt(SomeStorableId): it.toJson
+logutils.formatIt(LogFormat.textLines, SomeStorableId): it.short0xHexLog
+logutils.formatIt(LogFormat.json, SomeStorableId): it.to0xHexLog
 
 proc `onAvailabilityAdded=`*(self: Reservations,
                             onAvailabilityAdded: OnAvailabilityAdded) =

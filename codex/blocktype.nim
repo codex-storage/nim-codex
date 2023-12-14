@@ -19,12 +19,12 @@ import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/stew/byteutils
 import pkg/questionable
 import pkg/questionable/results
-import pkg/json_serialization
 
 import ./units
 import ./utils
 import ./errors
 import ./logutils
+import ./utils/json
 
 export errors, logutils, units
 
@@ -41,16 +41,18 @@ type
   BlockAddress* = object
     case leaf*: bool
     of true:
-      treeCid*: Cid
-      index*: Natural
+      treeCid* {.serialize.}: Cid
+      index* {.serialize.}: Natural
     else:
-      cid*: Cid
+      cid* {.serialize.}: Cid
 
-logutils.formatIt(BlockAddress):
+logutils.formatIt(LogFormat.textLines, BlockAddress):
   if it.leaf:
     "treeCid: " & shortLog($it.treeCid) & ", index: " & $it.index
   else:
     "cid: " & shortLog($it.cid)
+
+logutils.formatIt(LogFormat.json, BlockAddress): %it
 
 proc `==`*(a, b: BlockAddress): bool =
   a.leaf == b.leaf and

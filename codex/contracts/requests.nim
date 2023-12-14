@@ -80,9 +80,12 @@ proc toHex*[T: distinct](id: T): string =
   type baseType = T.distinctBase
   baseType(id).toHex
 
-logutils.formatIt(Nonce): it.short0xHexLog
-logutils.formatIt(RequestId): it.short0xHexLog
-logutils.formatIt(SlotId): it.short0xHexLog
+logutils.formatIt(LogFormat.textLines, Nonce): it.short0xHexLog
+logutils.formatIt(LogFormat.textLines, RequestId): it.short0xHexLog
+logutils.formatIt(LogFormat.textLines, SlotId): it.short0xHexLog
+logutils.formatIt(LogFormat.json, Nonce): it.to0xHexLog
+logutils.formatIt(LogFormat.json, RequestId): it.to0xHexLog
+logutils.formatIt(LogFormat.json, SlotId): it.to0xHexLog
 
 func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
   StorageRequest(

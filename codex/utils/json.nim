@@ -6,7 +6,8 @@ import std/strutils
 import std/strformat
 import std/tables
 import std/typetraits
-from pkg/libp2p import Cid, init
+from pkg/ethers import Address
+from pkg/libp2p import Cid, init, `$`
 import pkg/contractabi
 import pkg/stew/byteutils
 import pkg/stint
@@ -298,6 +299,10 @@ func `%`*[T](elements: openArray[T]): JsonNode =
 func `%`*[T: distinct](id: T): JsonNode =
   type baseType = T.distinctBase
   % baseType(id)
+
+func `%`*(cid: Cid): JsonNode = % $cid
+
+func `%`*(address: Address): JsonNode = % $address
 
 func toJson*[T](item: T): string = $(%item)
 
