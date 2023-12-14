@@ -328,7 +328,7 @@ proc validateBlockDelivery(
     without treeRoot =? bd.address.treeCid.mhash.mapFailure, err:
       return failure("Unable to get mhash from treeCid for block, nested err: " & err.msg)
 
-    if err =? proof.verify(treeRoot).errorOption:
+    if err =? proof.verify(leaf, treeRoot).errorOption:
       return failure("Unable to verify proof for block, nested err: " & err.msg)
 
   else: # not leaf
