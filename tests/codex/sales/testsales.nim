@@ -149,6 +149,7 @@ asyncchecksuite "Sales":
 
     let me = await market.getSigner()
     market.activeSlots[me] = @[]
+    market.requestEnds[request.id] = request.expiry.toSecondsSince1970
 
     clock = MockClock.new()
     let repoDs = SQLiteDatastore.new(Memory).tryGet()
@@ -169,7 +170,6 @@ asyncchecksuite "Sales":
     sales.onProve = proc(slot: Slot, challenge: ProofChallenge): Future[seq[byte]] {.async.} =
       return proof
     await sales.start()
-    request.expiry = (clock.now() + 42).u256
     itemsProcessed = @[]
 
   teardown:
