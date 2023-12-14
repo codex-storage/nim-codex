@@ -24,6 +24,8 @@ import pkg/questionable/results
 import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/stew/byteutils
 
+import ../../utils
+import ../../rng
 import ../../errors
 import ../../blocktype
 
@@ -86,22 +88,28 @@ func getProof*(self: CodexMerkleTree, index: int): ?!CodexMerkleProof =
 
   success proof
 
-func verify*(self: CodexMerkleProof, root: MultiHash): ?!void =
+func verify*(self: CodexMerkleProof, leaf: MultiHash, root: MultiHash): ?!void =
   ## Verify hash
   ##
 
   let
-    bytes = root.bytes
+    rootBytes = root.bytes
+    leafBytes = leaf.bytes
 
-  if self.mcodec != root.mcodec:
+  if self.mcodec != root.mcodec or
+    self.mcodec != leaf.mcodec:
     return failure "Hash codec mismatch"
 
-  if bytes.len != root.size:
+  if rootBytes.len != root.size and
+    leafBytes.len != leaf.size:
     return failure "Invalid hash length"
 
-  ? self.verify(bytes)
+  ? self.verify(leafBytes, rootBytes)
 
   success()
+
+func verify*(self: CodexMerkleProof, leaf: Cid, root: Cid): ?!void =
+  self.verify(? leaf.mhash.mapFailure, ? leaf.mhash.mapFailure)
 
 proc rootCid*(
   self: CodexMerkleTree,
@@ -132,6 +140,17 @@ func getLeafCid*(
     CidVersion.CIDv1,
     dataCodec,
     ? MultiHash.init(self.mcodec, self.root).mapFailure).mapFailure
+
+proc `==`*(a, b: CodexMerkleTree): bool =
+  (a.mcodec == b.mcodec) and
+  (a.leavesCount == b.leavesCount) and
+  (a.levels == b.levels)
+
+proc `==`*(a, b: CodexMerkleProof): bool =
+  (a.mcodec == b.mcodec) and
+  (a.nleaves == b.nleaves) and
+  (a.path == b.path) and
+  (a.index == b.index)
 
 func compress*(
   x, y: openArray[byte],
@@ -192,10 +211,10 @@ func init*(
 
   CodexMerkleTree.init(mcodec, leaves)
 
-func fromNodes*(
+proc fromNodes*(
   _: type CodexMerkleTree,
   mcodec: MultiCodec,
-  nodes: openArray[seq[ByteHash]],
+  nodes: openArray[ByteHash],
   nleaves: int): ?!CodexMerkleTree =
 
   if nodes.len == 0:
@@ -203,33 +222,35 @@ func fromNodes*(
 
   let
     mhash = ? mcodec.getMhash()
-    Zero = newSeq[ByteHash](mhash.size)
-    compressor = proc(x, y: openArray[byte], key: ByteTreeKey): ?!ByteHash {.noSideEffect.} =
+    Zero = newSeq[byte](mhash.size)
+    compressor = proc(x, y: seq[byte], key: ByteTreeKey): ?!ByteHash {.noSideEffect.} =
       compress(x, y, key, mhash)
 
   if mhash.size != nodes[0].len:
     return failure "Invalid hash length"
 
-  let
-    self = CodexMerkleTree(compress: compressor, zero: Zero, mhash: mhash)
-
   var
+    self = CodexMerkleTree(compress: compressor, zero: Zero, mhash: mhash)
     layer = nleaves
     pos = 0
 
-  while layer > 0:
-    self.layers.add( nodes[pos..<layer].toSeq() )
+  while pos < nodes.len:
+    self.layers.add( nodes[pos..<(pos + layer)] )
     pos += layer
-    layer = layer shr 1
+    layer = divUp(layer, 2)
 
-  ? self.proof(Rng.instance.rand(nleaves)).?verify(self.root) # sanity check
+  let
+    index = Rng.instance.rand(nleaves - 1)
+    proof = ? self.getProof(index)
 
+  ? proof.verify(self.leaves[index], self.root) # sanity check
   success self
 
 func init*(
   _: type CodexMerkleProof,
   mcodec: MultiCodec,
   index: int,
+  nleaves: int,
   nodes: openArray[ByteHash]): ?!CodexMerkleProof =
 
   if nodes.len == 0:
@@ -237,9 +258,15 @@ func init*(
 
   let
     mhash = ? mcodec.getMhash()
-    Zero: ByteHash = newSeq[byte](mhash.size)
+    Zero = newSeq[byte](mhash.size)
     compressor = proc(x, y: seq[byte], key: ByteTreeKey): ?!seq[byte] {.noSideEffect.} =
       compress(x, y, key, mhash)
-    self = CodexMerkleProof(compress: compressor, zero: Zero, mhash: mhash)
 
-  success self
+
+  success CodexMerkleProof(
+    compress: compressor,
+    zero: Zero,
+    mhash: mhash,
+    index: index,
+    nleaves: nleaves,
+    path: @nodes)
