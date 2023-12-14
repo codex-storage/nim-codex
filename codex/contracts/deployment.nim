@@ -1,4 +1,3 @@
-import std/json
 import std/os
 import std/tables
 import pkg/ethers
