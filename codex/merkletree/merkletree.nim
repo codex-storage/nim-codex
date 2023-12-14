@@ -12,7 +12,6 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import std/bitops
-import std/sequtils
 
 import pkg/questionable/results
 
@@ -35,7 +34,6 @@ type
 
   MerkleProof*[H, K] = object of RootObj
     index*   : int                  # linear index of the leaf, starting from 0
-    leaf*    : H                    # value of the leaf
     path*    : seq[H]               # order: from the bottom to the top
     nleaves* : int                  # number of leaves in the tree (=size of input)
     compress*: CompressFn[H, K]     # compress function
@@ -84,7 +82,6 @@ func getProof*[H, K](self: MerkleTree[H, K], index: int, proof: var MerkleProof[
     m = (m + 1) shr 1
 
   proof.index = index
-  proof.leaf  = self.layers[0][index]
   proof.path  = path
   proof.nleaves = nleaves
   proof.compress = self.compress
@@ -96,11 +93,11 @@ func getProof*[H, K](self: MerkleTree[H, K], index: int): MerkleProof[H, K] =
   self.getProof(index, proof)
   return proof
 
-func reconstructRoot*[H, K](proof: MerkleProof[H, K]): ?!H =
+func reconstructRoot*[H, K](proof: MerkleProof[H, K], leaf: H): ?!H =
   var
     m = proof.nleaves
     j = proof.index
-    h = proof.leaf
+    h = leaf
     bottomFlag = K.KeyBottomLayer
 
   for p in proof.path:
@@ -121,8 +118,8 @@ func reconstructRoot*[H, K](proof: MerkleProof[H, K]): ?!H =
 
   return success h
 
-func verify*[H, K](proof: MerkleProof[H, K], root: H): ?!void =
-  return if root == ? reconstructRoot(proof):
+func verify*[H, K](proof: MerkleProof[H, K], leaf: H, root: H): ?!void =
+  return if root == ? proof.reconstructRoot(leaf):
       success()
     else:
       failure("invalid proof")

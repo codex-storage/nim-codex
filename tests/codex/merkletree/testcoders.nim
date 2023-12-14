@@ -1,42 +1,48 @@
-# import std/unittest
+import std/unittest
+import std/sequtils
 
-# import pkg/questionable/results
-# import pkg/stew/byteutils
+import pkg/questionable/results
+import pkg/stew/byteutils
 
-# import pkg/codex/merkletree
-# import ../helpers
+import pkg/codex/merkletree
+import ../helpers
 
-# checksuite "merkletree - coders":
-#   const data =
-#     [
-#       "0123456789012345678901234567890123456789".toBytes,
-#       "1234567890123456789012345678901234567890".toBytes,
-#       "2345678901234567890123456789012345678901".toBytes,
-#       "3456789012345678901234567890123456789012".toBytes,
-#       "4567890123456789012345678901234567890123".toBytes,
-#       "5678901234567890123456789012345678901234".toBytes,
-#       "6789012345678901234567890123456789012345".toBytes,
-#       "7890123456789012345678901234567890123456".toBytes,
-#       "8901234567890123456789012345678901234567".toBytes,
-#       "9012345678901234567890123456789012345678".toBytes,
-#     ]
+const data =
+  [
+    "00000000000000000000000000000001".toBytes,
+    "00000000000000000000000000000002".toBytes,
+    "00000000000000000000000000000003".toBytes,
+    "00000000000000000000000000000004".toBytes,
+    "00000000000000000000000000000005".toBytes,
+    "00000000000000000000000000000006".toBytes,
+    "00000000000000000000000000000007".toBytes,
+    "00000000000000000000000000000008".toBytes,
+    "00000000000000000000000000000009".toBytes,
+    "00000000000000000000000000000010".toBytes,
+  ]
 
-#   test "encoding and decoding a tree yields the same tree":
-#     var builder = MerkleTreeBuilder.init(multiCodec("sha2-256")).tryGet()
-#     builder.addDataBlock(data[0]).tryGet()
-#     builder.addDataBlock(data[1]).tryGet()
-#     builder.addDataBlock(data[2]).tryGet()
-#     builder.addDataBlock(data[3]).tryGet()
-#     builder.addDataBlock(data[4]).tryGet()
-#     builder.addDataBlock(data[5]).tryGet()
-#     builder.addDataBlock(data[6]).tryGet()
-#     builder.addDataBlock(data[7]).tryGet()
-#     builder.addDataBlock(data[8]).tryGet()
-#     builder.addDataBlock(data[9]).tryGet()
+checksuite "merkletree - coders":
 
-#     let tree = builder.build().tryGet()
-#     let encodedBytes = tree.encode()
-#     let decodedTree = CodexMerkleTree.decode(encodedBytes).tryGet()
+  test "encoding and decoding a tree yields the same tree":
+    let
+      tree = CodexMerkleTree.init(multiCodec("sha2-256"), data).tryGet()
+      encodedBytes = tree.encode()
+      decodedTree = CodexMerkleTree.decode(encodedBytes).tryGet()
 
-#     check:
-#       tree == decodedTree
+    check:
+      tree == decodedTree
+
+  test "encoding and decoding a proof yields the same proof":
+    let
+      tree = CodexMerkleTree.init(multiCodec("sha2-256"), data).tryGet()
+      proof = tree.getProof(4).tryGet()
+
+    check:
+      proof.verify(tree.leaves[4], tree.root).isOk
+
+    let
+      encodedBytes = proof.encode()
+      decodedProof = CodexMerkleProof.decode(encodedBytes).tryGet()
+
+    check:
+      proof == decodedProof
