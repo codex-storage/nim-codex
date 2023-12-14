@@ -17,8 +17,8 @@ import ../checktest
 
 export logutils
 
-logStream testlines[textlines[notimestamps,dynamic]]
-logStream testjson[json[notimestamps,dynamic]]
+logStream testlines[textlines[nocolors,notimestamps,dynamic]]
+logStream testjson[json[nocolors,notimestamps,dynamic]]
 
 type
   ObjectType = object
@@ -45,10 +45,10 @@ checksuite "Test logging output":
   var outputJson: string
 
   proc writeToLines(logLevel: LogLevel, msg: LogOutputStr) =
-    outputLines &= stripAnsi(msg) # nocolors in the stream definition doesn't seem to work
+    outputLines &= msg
 
   proc writeToJson(logLevel: LogLevel, msg: LogOutputStr) =
-    outputJson &= stripAnsi(msg)
+    outputJson &= msg
 
   setup:
     outputLines = ""
