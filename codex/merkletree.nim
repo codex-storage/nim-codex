@@ -1,4 +1,5 @@
 import ./merkletree/merkletree
-import ./merkletree/coders
+import ./merkletree/codexmerkletree
+import ./merkletree/poseidon2merkletree
 
-export merkletree, coders
+export codexmerkletree, poseidon2merkletree, merkletree
