@@ -281,7 +281,8 @@ type
 
   EthAddress* = ethers.Address
 
-logutils.formatIt(EthAddress): it.short0xHexLog
+logutils.formatIt(LogFormat.textLines, EthAddress): it.short0xHexLog
+logutils.formatIt(LogFormat.json, EthAddress): %it
 
 proc getCodexVersion(): string =
   let tag = strip(staticExec("git tag"))
