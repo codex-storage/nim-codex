@@ -111,23 +111,4 @@ func `%`*(obj: StorageRequest | Slot): JsonNode =
 
   return jsonObj
 
-func `%`*(obj: Cid): JsonNode =
-  % $obj
-
-func `%`*(obj: PeerId): JsonNode =
-  % $obj
-
-func `%`*(obj: RestNodeId): JsonNode =
-  % $obj.id
-
-func `%`*(obj: SignedPeerRecord): JsonNode =
-  % $obj
-
-func `%`*(obj: dn.Address): JsonNode =
-  % $obj
-
-func `%`*(obj: AddressInfo): JsonNode =
-  % $obj.address
-
-func `%`*(obj: MultiAddress): JsonNode =
-  % $obj
+func `%`*(obj: RestNodeId): JsonNode = % $obj.id
