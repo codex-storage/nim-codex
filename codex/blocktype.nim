@@ -36,19 +36,11 @@ const
 
   # hashes
   Sha256Hash* = multiCodec("sha2-256")
-  Poseidon2SpongeHash* = multiCodec("poseidon2-alt_bn_128-sponge-r2")
-  Poseidon2MerkleHash* = multiCodec("poseidon2-alt_bn_128-merkle-2kb")
 
   # CIDs
   Raw = multiCodec("raw")
   DagPB* = multiCodec("dag-pb")
   DagJson* = multiCodec("dag-json")
-
-  ManifestCodec* = multiCodec("codex-manifest")
-  BlockCodec* = multiCodec("codex-block")
-  DatasetRootCodec* = multiCodec("codex-root")
-  SlotRoot* = multiCodec("codex-slot-root")
-  ProvingRoot* = multiCodec("codex-proving-root")
 
 type
   Block* = ref object of RootObj
