@@ -40,7 +40,12 @@ import ./units
 import ./utils
 
 export units
-export net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval
+export net
+export
+  DefaultQuotaBytes,
+  DefaultBlockTtl,
+  DefaultBlockMaintenanceInterval,
+  DefaultNumberOfBlocksToMaintainPerInterval
 
 const
   codex_enable_api_debug_peers* {.booldefine.} = false
