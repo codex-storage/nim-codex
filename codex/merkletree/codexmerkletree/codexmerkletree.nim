@@ -119,10 +119,10 @@ proc rootCid*(
   if self.root.len == 0:
     return failure "Empty root"
 
-  Cid.init(
-    version,
-    dataCodec,
-    ? MultiHash.init(self.mcodec, self.root).mapFailure).mapFailure
+  let
+    mhash = ? MultiHash.init(self.mcodec, self.root).mapFailure
+
+  Cid.init(version, DatasetRootCodec, mhash).mapFailure
 
 func getLeafCid*(
   self: CodexMerkleTree,
