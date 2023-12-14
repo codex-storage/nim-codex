@@ -1,5 +1,4 @@
 import std/options
-import std/nre
 import std/strutils
 import std/unittest
 import pkg/codex/blocktype
@@ -8,7 +7,6 @@ import pkg/codex/contracts/requests
 import pkg/codex/logutils
 import pkg/codex/purchasing/purchaseid
 import pkg/codex/units
-# import pkg/codex/utils/json as jsonutils
 import pkg/libp2p/cid
 import pkg/libp2p/multiaddress
 import pkg/stew/byteutils
@@ -57,8 +55,8 @@ checksuite "Test logging output":
     testjson.outputs[0].writer = writeToJson
 
   template logged(prop, expected): auto =
-    let regex = prop & """\=\"?""" & expected.escapeRe & """\"?"""
-    outputLines.contains(re(regex))
+    let toFind = prop & "=" & expected
+    outputLines.contains(toFind)
 
   template loggedJson(prop, expected): auto =
     let json = $ parseJson(outputJson){prop}
@@ -79,7 +77,7 @@ checksuite "Test logging output":
     let t2 = ObjectType(a: "b")
     let t = @[t1, t2]
     log t
-    check logged("t", "@[formatted_a, formatted_b]")
+    check logged("t", "\"@[formatted_a, formatted_b]\"")
     check loggedJson("t", "[\"formatted_a\",\"formatted_b\"]")
 
   test "logs ref types":
@@ -93,7 +91,7 @@ checksuite "Test logging output":
     let t2 = RefType(a: "b")
     let t = @[t1, t2]
     log t
-    check logged("t", "@[formatted_a, formatted_b]")
+    check logged("t", "\"@[formatted_a, formatted_b]\"")
     check loggedJson("t", "[\"a\",\"b\"]")
 
   test "logs distinct types":
@@ -107,7 +105,7 @@ checksuite "Test logging output":
     let t2 = DistinctType(ObjectType(a: "b"))
     let t = @[t1, t2]
     log t
-    check logged("t", "@[formatted_a, formatted_b]")
+    check logged("t", "\"@[formatted_a, formatted_b]\"")
     check loggedJson("t", "[\"formatted_a\",\"formatted_b\"]")
 
   test "formatIt can return non-string types":
@@ -127,7 +125,7 @@ checksuite "Test logging output":
     let t2 = none ObjectType
     let t = @[t1, t2]
     log t
-    check logged("t", "@[some(formatted_a), none(ObjectType)]")
+    check logged("t", "\"@[some(formatted_a), none(ObjectType)]\"")
     check loggedJson("t", """["formatted_a",null]""")
 
   test "can define `$` override for T":
@@ -144,7 +142,7 @@ checksuite "Test logging output":
     let cid = Cid.init("zb2rhgsDE16rLtbwTFeNKbdSobtKiWdjJPvKEuPgrQAfndjU1").tryGet
     let ba = BlockAddress.init(cid, 0)
     log ba
-    check logged("ba", "treeCid: zb2*fndjU1, index: 0")
+    check logged("ba", "\"treeCid: zb2*fndjU1, index: 0\"")
     check loggedJson("ba", """{"treeCid":"zb2rhgsDE16rLtbwTFeNKbdSobtKiWdjJPvKEuPgrQAfndjU1","index":0}""")
 
   test "logs Cid correctly":
@@ -187,7 +185,7 @@ checksuite "Test logging output":
     let id2 = RequestId.fromHex("0x9ab2c4d102a95d990facb022d67b3c9b39052597c006fddf122bed2cb594c282")
     let ids = @[id, id2]
     log ids
-    check logged("ids", "@[0x7120..3dea, 0x9ab2..c282]")
+    check logged("ids", "\"@[0x7120..3dea, 0x9ab2..c282]\"")
     check loggedJson("ids", """["0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea","0x9ab2c4d102a95d990facb022d67b3c9b39052597c006fddf122bed2cb594c282"]""")
 
   test "logs SlotId correctly":
@@ -212,5 +210,5 @@ checksuite "Test logging output":
     let ma = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet,
                MultiAddress.init("/ip4/127.0.0.2/tcp/1").tryGet]
     log ma
-    check logged("ma", "@[/ip4/127.0.0.1/tcp/0, /ip4/127.0.0.2/tcp/1]")
+    check logged("ma", "\"@[/ip4/127.0.0.1/tcp/0, /ip4/127.0.0.2/tcp/1]\"")
     check loggedJson("ma", "[\"/ip4/127.0.0.1/tcp/0\",\"/ip4/127.0.0.2/tcp/1\"]")
