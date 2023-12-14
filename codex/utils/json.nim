@@ -7,8 +7,9 @@ import std/strformat
 import std/tables
 import std/typetraits
 from pkg/ethers import Address
-from pkg/libp2p import Cid, init, `$`
+from pkg/libp2p import Cid, PeerId, SignedPeerRecord, MultiAddress, AddressInfo, init, `$`
 import pkg/contractabi
+import pkg/codexdht/discv5/node as dn
 import pkg/stew/byteutils
 import pkg/stint
 import pkg/questionable/results
@@ -302,7 +303,17 @@ func `%`*[T: distinct](id: T): JsonNode =
 
 func `%`*(cid: Cid): JsonNode = % $cid
 
-func `%`*(address: Address): JsonNode = % $address
+func `%`*(obj: PeerId): JsonNode = % $obj
+
+func `%`*(obj: SignedPeerRecord): JsonNode = % $obj
+
+func `%`*(obj: dn.Address): JsonNode = % $obj
+
+func `%`*(obj: AddressInfo): JsonNode = % $obj.address
+
+func `%`*(obj: MultiAddress): JsonNode = % $obj
+
+func `%`*(address: ethers.Address): JsonNode = % $address
 
 func toJson*[T](item: T): string = $(%item)
 
