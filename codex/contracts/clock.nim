@@ -1,3 +1,4 @@
+import std/times
 import pkg/ethers
 import pkg/chronos
 import pkg/stint
@@ -13,6 +14,7 @@ type
   OnChainClock* = ref object of Clock
     provider: Provider
     subscription: Subscription
+    offset: times.Duration
     started: bool
     newBlock: AsyncEvent
     lastBlockTime: UInt256
@@ -25,6 +27,9 @@ method start*(clock: OnChainClock) {.async.} =
     return
 
   proc onBlock(blck: Block) {.upraises:[].} =
+    let blockTime = initTime(blck.timestamp.truncate(int64), 0)
+    let computerTime = getTime()
+    clock.offset = blockTime - computerTime
     clock.lastBlockTime = blck.timestamp
     clock.newBlock.fire()
 
@@ -57,9 +62,7 @@ method now*(clock: OnChainClock): SecondsSince1970 =
 
   else:
     doAssert clock.started, "clock should be started before calling now()"
-    trace "using cached block timestamp (newHeads) for clock.now",
-      timestamp = clock.lastBlockTime.truncate(int64)
-    return clock.lastBlockTime.truncate(int64)
+    return toUnix(getTime() + clock.offset)
 
 method waitUntil*(clock: OnChainClock, time: SecondsSince1970) {.async.} =
   while (let difference = time - clock.now(); difference > 0):
