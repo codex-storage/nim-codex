@@ -77,7 +77,7 @@ func available*(self: RepoStore): uint =
 func available*(self: RepoStore, bytes: uint): bool =
   return bytes < self.available()
 
-proc encode(cidAndProof: (Cid, MerkleProof)): seq[byte] =
+proc encode(cidAndProof: (Cid, CodexMerkleProof)): seq[byte] =
   ## Encodes a tuple of cid and merkle proof in a following format:
   ## | 8-bytes | n-bytes | remaining bytes |
   ## |    n    |   cid   |      proof      |
@@ -93,14 +93,14 @@ proc encode(cidAndProof: (Cid, MerkleProof)): seq[byte] =
 
   @nBytes & cidBytes & proofBytes
 
-proc decode(_: type (Cid, MerkleProof), data: seq[byte]): ?!(Cid, MerkleProof) =
+proc decode(_: type (Cid, CodexMerkleProof), data: seq[byte]): ?!(Cid, CodexMerkleProof) =
   let
     n = uint64.fromBytesBE(data[0..<sizeof(uint64)]).int
     cid = ? Cid.init(data[sizeof(uint64)..<sizeof(uint64) + n]).mapFailure
-    proof = ? MerkleProof.decode(data[sizeof(uint64) + n..^1])
+    proof = ? CodexMerkleProof.decode(data[sizeof(uint64) + n..^1])
   success((cid, proof))
 
-proc decodeCid(_: type (Cid, MerkleProof), data: seq[byte]): ?!Cid =
+proc decodeCid(_: type (Cid, CodexMerkleProof), data: seq[byte]): ?!Cid =
   let
     n = uint64.fromBytesBE(data[0..<sizeof(uint64)]).int
     cid = ? Cid.init(data[sizeof(uint64)..<sizeof(uint64) + n]).mapFailure
@@ -111,7 +111,7 @@ method putBlockCidAndProof*(
   treeCid: Cid,
   index: Natural,
   blockCid: Cid,
-  proof: MerkleProof
+  proof: CodexMerkleProof
 ): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
@@ -127,7 +127,7 @@ proc getCidAndProof(
   self: RepoStore,
   treeCid: Cid,
   index: Natural
-): Future[?!(Cid, MerkleProof)] {.async.} =
+): Future[?!(Cid, CodexMerkleProof)] {.async.} =
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
@@ -137,7 +137,7 @@ proc getCidAndProof(
     else:
       return failure(err)
 
-  return (Cid, MerkleProof).decode(value)
+  return (Cid, CodexMerkleProof).decode(value)
 
 proc getCid(
   self: RepoStore,
@@ -153,7 +153,7 @@ proc getCid(
     else:
       return failure(err)
 
-  return (Cid, MerkleProof).decodeCid(value)
+  return (Cid, CodexMerkleProof).decodeCid(value)
 
 method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the blockstore
@@ -181,7 +181,7 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   return Block.new(cid, data, verify = true)
 
 
-method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.async.} =
+method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, CodexMerkleProof)] {.async.} =
   without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
     return failure(err)
 
@@ -415,7 +415,7 @@ method delBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!void] 
     else:
       return failure(err)
 
-  without cid =? (Cid, MerkleProof).decodeCid(value), err:
+  without cid =? (Cid, CodexMerkleProof).decodeCid(value), err:
     return failure(err)
 
   if err =? (await self.delBlock(cid)).errorOption:
