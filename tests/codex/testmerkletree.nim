@@ -1,4 +1,4 @@
-import ./merkletree/testmerkletree
-import ./merkletree/testcoders
+import ./merkletree/testcodexmerkletree
+import ./merkletree/testcodexcoders
 
 {.warning[UnusedImport]: off.}
