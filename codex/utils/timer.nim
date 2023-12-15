@@ -16,7 +16,6 @@ push: {.upraises: [].}
 
 import pkg/chronos
 import pkg/chronicles
-import pkg/upraises
 
 type
   TimerCallback* = proc(): Future[void] {.gcsafe, upraises:[].}
