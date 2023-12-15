@@ -73,6 +73,17 @@ checksuite "merkletree":
       tree.mcodec == sha256
       tree.leaves == data
 
+  test "Should build from nodes":
+    let
+      tree = CodexMerkleTree.init(sha256, leaves = data).tryGet
+      fromNodes = CodexMerkleTree.fromNodes(
+        nodes = toSeq(tree.nodes),
+        nleaves = tree.leavesCount).tryGet
+
+    check:
+      tree.mcodec == sha256
+      tree == fromNodes
+
 let
   mhash = sha256.getMhash().tryGet
   zero: seq[byte] = newSeq[byte](mhash.size)
