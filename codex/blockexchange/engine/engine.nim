@@ -493,8 +493,7 @@ proc setupPeer*(b: BlockExcEngine, peer: PeerId) {.async.} =
   if peer notin b.peers:
     trace "Setting up new peer", peer
     b.peers.add(BlockExcPeerCtx(
-      id: peer,
-      lock: newAsyncLock()
+      id: peer
     ))
     trace "Added peer", peers = b.peers.len
 
@@ -534,6 +533,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
   trace "wantsBlocks", peer = task.id, n = wantsBlocks.len
   if wantsBlocks.len > 0:
     trace "Got peer want blocks list", items = wantsBlocks.len
+    task.peerWants = task.peerWants.filterIt(it notin wantsBlocks)
 
     wantsBlocks.sort(SortOrder.Descending)
 
@@ -551,9 +551,6 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
 
     let
       blocksDeliveryFut = await allFinished(wantsBlocks.map(localLookup))
-
-    # Extract successfully received blocks
-    let
       blocksDelivery = blocksDeliveryFut
         .filterIt(it.completed and it.read.isOk)
         .mapIt(it.read.get)
@@ -567,14 +564,6 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
 
       codex_block_exchange_blocks_sent.inc(blocksDelivery.len.int64)
 
-      trace "About to remove entries from peerWants", blocks = blocksDelivery.len, items = task.peerWants.len
-      # Remove successfully sent blocks
-      task.peerWants.keepIf(
-        proc(e: WantListEntry): bool =
-          not blocksDelivery.anyIt( it.address == e.address )
-      )
-      trace "Removed entries from peerWants", items = task.peerWants.len
-
 proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
   ## process tasks
   ##
@@ -585,9 +574,7 @@ proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
       peerCtx = await b.taskQueue.pop()
 
     trace "Got new task from queue", peerId = peerCtx.id
-    await peerCtx.lock.acquire()
     await b.taskHandler(peerCtx)
-    peerCtx.lock.release()
 
   trace "Exiting blockexc task runner"
 
