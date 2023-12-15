@@ -7,7 +7,7 @@
 	path = vendor/nim-libp2p
 	url = https://github.com/status-im/nim-libp2p.git
 	ignore = untracked
-	branch = master
+	branch = unstable
 [submodule "vendor/nimcrypto"]
 	path = vendor/nimcrypto
 	url = https://github.com/cheatfate/nimcrypto.git
@@ -145,6 +145,7 @@
 [submodule "vendor/nim-ethers"]
 	path = vendor/nim-ethers
 	url = https://github.com/status-im/nim-ethers
+	branch = feat/chronos-v4
 [submodule "vendor/lrucache.nim"]
 	path = vendor/lrucache.nim
 	url = https://github.com/status-im/lrucache.nim
