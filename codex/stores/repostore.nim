@@ -119,6 +119,8 @@ method putBlockCidAndProof*(
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
+  trace "Storing block cid and proof with key", key
+
   let value = (blockCid, proof).encode()
 
   await self.metaDs.put(key, value)
@@ -137,20 +139,25 @@ proc getCidAndProof(
     else:
       return failure(err)
 
-  return (Cid, CodexMerkleProof).decode(value)
+  without (cid, proof) =? (Cid, CodexMerkleProof).decode(value), err:
+    trace "Unable to decode cid and proof", err = err.msg
+
+  trace "Got cid and proof for block", cid, proof = $proof
+  return success (cid, proof)
 
 proc getCid(
   self: RepoStore,
   treeCid: Cid,
-  index: Natural
-): Future[?!Cid] {.async.} =
+  index: Natural): Future[?!Cid] {.async.} =
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
   without value =? await self.metaDs.get(key), err:
     if err of DatastoreKeyNotFound:
+      trace "Cid not found", treeCid, index
       return failure(newException(BlockNotFoundError, err.msg))
     else:
+      trace "Error getting cid from datastore", err = err.msg, key
       return failure(err)
 
   return (Cid, CodexMerkleProof).decodeCid(value)
@@ -409,6 +416,7 @@ method delBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!void] 
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
+  trace "Fetching proof", key
   without value =? await self.metaDs.get(key), err:
     if err of DatastoreKeyNotFound:
       return success()
@@ -418,6 +426,7 @@ method delBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!void] 
   without cid =? (Cid, CodexMerkleProof).decodeCid(value), err:
     return failure(err)
 
+  trace "Deleting block", cid
   if err =? (await self.delBlock(cid)).errorOption:
     return failure(err)
 
