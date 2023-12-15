@@ -15,7 +15,7 @@ proc checkGenericTree*[H, K, U](
   let
     data = @data
 
-  checksuite "Correctness CodexMerkleTree tests - " & name:
+  checksuite "Correctness tests - " & name:
 
     test "Should build correct tree for even bottom layer":
       let
