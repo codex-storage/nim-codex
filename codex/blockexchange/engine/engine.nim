@@ -532,8 +532,8 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
 
   trace "wantsBlocks", peer = task.id, n = wantsBlocks.len
   if wantsBlocks.len > 0:
-    trace "Got peer want blocks list", items = wantsBlocks.len
     task.peerWants = task.peerWants.filterIt(it notin wantsBlocks)
+    trace "Removed entries from peerWants", peerWants = task.peerWants.len
 
     wantsBlocks.sort(SortOrder.Descending)
 
