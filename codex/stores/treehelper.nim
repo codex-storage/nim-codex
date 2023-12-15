@@ -48,5 +48,3 @@ proc putSomeProofs*(store: BlockStore, tree: CodexMerkleTree, iter: Iter[Natural
 
 proc putAllProofs*(store: BlockStore, tree: CodexMerkleTree): Future[?!void] =
   store.putSomeProofs(tree, Iter.fromSlice(0..<tree.leavesCount))
-
-
