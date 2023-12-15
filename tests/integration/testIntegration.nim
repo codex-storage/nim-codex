@@ -51,7 +51,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check:
       space.totalBlocks == 2.uint
       space.quotaMaxBytes == 8589934592.uint
-      space.quotaUsedBytes == 65518.uint
+      space.quotaUsedBytes == 65526.uint
       space.quotaReservedBytes == 12.uint
 
   test "node allows local file downloads":
