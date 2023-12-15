@@ -54,7 +54,10 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   #     optional bytes treeCid = 1;       # cid (root) of the tree
   #     optional uint32 blockSize = 2;    # size of a single block
   #     optional uint64 datasetSize = 3;  # size of the dataset
-  #     optional ErasureInfo erasure = 4; # erasure coding info
+  #     optional codec: MultiCodec = 4;   # Dataset codec
+  #     optional hcodec: MultiCodec = 5   # Multihash codec
+  #     optional version: CidVersion = 6; # Cid version
+  #     optional ErasureInfo erasure = 7; # erasure coding info
   #   }
   # ```
   #
@@ -63,6 +66,9 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   header.write(1, manifest.treeCid.data.buffer)
   header.write(2, manifest.blockSize.uint32)
   header.write(3, manifest.datasetSize.uint32)
+  header.write(4, manifest.codec.uint32)
+  header.write(5, manifest.hcodec.uint32)
+  header.write(6, manifest.version.uint32)
   if manifest.protected:
     var erasureInfo = initProtoBuffer()
     erasureInfo.write(1, manifest.ecK.uint32)
@@ -78,7 +84,7 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
       erasureInfo.write(5, verificationInfo)
 
     erasureInfo.finish()
-    header.write(4, erasureInfo)
+    header.write(7, erasureInfo)
 
   pbNode.write(1, header) # set the treeCid as the data field
   pbNode.finish()
@@ -97,6 +103,9 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     treeCidBuf: seq[byte]
     originalTreeCid: seq[byte]
     datasetSize: uint32
+    codec: uint32
+    hcodec: uint32
+    version: uint32
     blockSize: uint32
     originalDatasetSize: uint32
     ecK, ecM: uint32
@@ -117,7 +126,16 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
   if pbHeader.getField(3, datasetSize).isErr:
     return failure("Unable to decode `datasetSize` from manifest!")
 
-  if pbHeader.getField(4, pbErasureInfo).isErr:
+  if pbHeader.getField(4, codec).isErr:
+    return failure("Unable to decode `codec` from manifest!")
+
+  if pbHeader.getField(5, hcodec).isErr:
+    return failure("Unable to decode `hcodec` from manifest!")
+
+  if pbHeader.getField(6, version).isErr:
+    return failure("Unable to decode `version` from manifest!")
+
+  if pbHeader.getField(7, pbErasureInfo).isErr:
     return failure("Unable to decode `erasureInfo` from manifest!")
 
   let protected = pbErasureInfo.buffer.len > 0
@@ -155,23 +173,21 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
         treeCid = treeCid,
         datasetSize = datasetSize.NBytes,
         blockSize = blockSize.NBytes,
-        version = treeCid.cidver,
-        hcodec = (? treeCid.mhash.mapFailure).mcodec,
-        codec = treeCid.mcodec,
+        version = CidVersion(version),
+        hcodec = hcodec.MultiCodec,
+        codec = codec.MultiCodec,
         ecK = ecK.int,
         ecM = ecM.int,
         originalTreeCid = ? Cid.init(originalTreeCid).mapFailure,
-        originalDatasetSize = originalDatasetSize.NBytes
-      )
+        originalDatasetSize = originalDatasetSize.NBytes)
       else:
         Manifest.new(
           treeCid = treeCid,
           datasetSize = datasetSize.NBytes,
           blockSize = blockSize.NBytes,
-          version = treeCid.cidver,
-          hcodec = (? treeCid.mhash.mapFailure).mcodec,
-          codec = treeCid.mcodec
-        )
+          version = CidVersion(version),
+          hcodec = hcodec.MultiCodec,
+          codec = codec.MultiCodec)
 
   ? self.verify()
 
