@@ -56,6 +56,16 @@ proc list*(client: CodexClient): ?!seq[RestContent] =
   let json = ? parseJson(response.body).catch
   seq[RestContent].fromJson(json)
 
+proc space*(client: CodexClient): ?!RestRepoStore =
+  let url = client.baseurl & "/space"
+  let response = client.http.get(url)
+
+  if response.status != "200 OK":
+    return failure(response.status)
+
+  let json = ? parseJson(response.body).catch
+  RestRepoStore.fromJson(json)
+
 proc requestStorageRaw*(
     client: CodexClient,
     cid: Cid,
