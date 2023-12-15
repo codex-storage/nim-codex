@@ -97,7 +97,9 @@ proc getPendingBlocks(
   var
     # request blocks from the store
     pendingBlocks = indicies.map( (i: int) =>
-      self.store.getBlock(BlockAddress.init(manifest.treeCid, i)).map((r: ?!bt.Block) => (r, i)) # Get the data blocks (first K)
+      self.store.getBlock(
+        BlockAddress.init(manifest.treeCid, i)
+      ).map((r: ?!bt.Block) => (r, i)) # Get the data blocks (first K)
     )
 
   proc isFinished(): bool = pendingBlocks.len == 0
@@ -308,6 +310,7 @@ proc encodeData(
       ecM = params.ecM
     )
 
+    trace "Encoded data successfully", treeCid, blocksCount = params.blocksCount
     return encodedManifest.success
   except CancelledError as exc:
     trace "Erasure coding encoding cancelled"
