@@ -266,7 +266,7 @@ proc new*(
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery)
     restServer = RestServerRef.new(
-      codexNode.initRestApi(config),
+      codexNode.initRestApi(config, repoStore),
       initTAddress(config.apiBindAddress , config.apiPort),
       bufferSize = (1024 * 64),
       maxRequestBodySize = int.high)
