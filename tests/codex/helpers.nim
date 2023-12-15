@@ -51,10 +51,7 @@ proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, CodexMerkleTree) =
     manifest = Manifest.new(
       treeCid = treeCid,
       blockSize = NBytes(blockSize),
-      datasetSize = NBytes(datasetSize),
-      version = CIDv1,
-      hcodec = tree.mcodec
-    )
+      datasetSize = NBytes(datasetSize))
 
   return success((manifest, tree))
 
@@ -93,8 +90,7 @@ proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest
     manifest = Manifest.new(
       treeCid = treeCid,
       blockSize = NBytes(chunker.chunkSize),
-      datasetSize = NBytes(chunker.offset),
-    )
+      datasetSize = NBytes(chunker.offset))
 
   for i in 0..<tree.leavesCount:
     let proof = tree.getProof(i).tryGet()
