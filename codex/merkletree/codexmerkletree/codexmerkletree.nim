@@ -18,7 +18,6 @@ import std/sugar
 import std/algorithm
 import std/tables
 
-import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/libp2p/[cid, multicodec, multihash]
@@ -35,6 +34,10 @@ export merkletree
 
 logScope:
   topics = "codex merkletree"
+
+const
+  DatasetRootCodec* = multiCodec("codex-root") # TODO: move to blocktype
+  BlockCodec* = multiCodec("raw") # TODO: fix multicodec to `codex-block` and move to blocktype
 
 type
   ByteTreeKey* {.pure.} = enum
@@ -135,11 +138,9 @@ func getLeafCid*(
 
   let
     leaf = self.leaves[i]
+    mhash = ? MultiHash.init($self.mcodec, leaf).mapFailure
 
-  Cid.init(
-    CidVersion.CIDv1,
-    dataCodec,
-    ? MultiHash.init(self.mcodec, self.root).mapFailure).mapFailure
+  Cid.init(version, dataCodec, mhash).mapFailure
 
 proc `==`*(a, b: CodexMerkleTree): bool =
   (a.mcodec == b.mcodec) and
@@ -151,6 +152,15 @@ proc `==`*(a, b: CodexMerkleProof): bool =
   (a.nleaves == b.nleaves) and
   (a.path == b.path) and
   (a.index == b.index)
+
+proc `$`*(self: CodexMerkleTree): string =
+  "CodexMerkleTree(" & $self.mcodec & ", " & $self.leavesCount & ")"
+
+proc `$`*(self: CodexMerkleProof): string =
+  "CodexMerkleProof(" &
+    $self.mcodec & ", " &
+    $self.nleaves & ", " &
+    $self.index & ")"
 
 func compress*(
   x, y: openArray[byte],
@@ -165,7 +175,7 @@ func compress*(
 
 func init*(
   _: type CodexMerkleTree,
-  mcodec: MultiCodec,
+  mcodec: MultiCodec = multiCodec("sha2-256"),
   leaves: openArray[ByteHash]): ?!CodexMerkleTree =
 
   if leaves.len == 0:
@@ -213,7 +223,7 @@ func init*(
 
 proc fromNodes*(
   _: type CodexMerkleTree,
-  mcodec: MultiCodec,
+  mcodec: MultiCodec = multiCodec("sha2-256"),
   nodes: openArray[ByteHash],
   nleaves: int): ?!CodexMerkleTree =
 
@@ -248,7 +258,7 @@ proc fromNodes*(
 
 func init*(
   _: type CodexMerkleProof,
-  mcodec: MultiCodec,
+  mcodec: MultiCodec = multiCodec("sha2-256"),
   index: int,
   nleaves: int,
   nodes: openArray[ByteHash]): ?!CodexMerkleProof =
