@@ -20,7 +20,7 @@ import pkg/questionable/results
 import ../../units
 import ../../errors
 
-import ./codexmerkletree
+import ./codex
 
 const MaxMerkleTreeSize = 100.MiBs.uint
 const MaxMerkleProofSize = 1.MiBs.uint

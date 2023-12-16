@@ -11,12 +11,9 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
-import std/math
 import std/bitops
 import std/sequtils
 import std/sugar
-import std/algorithm
-import std/tables
 
 import pkg/questionable
 import pkg/questionable/results
