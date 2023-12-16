@@ -7,9 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/upraises
-
-push: {.upraises: [].}
+{.push raises: [].}
 
 import std/bitops
 
@@ -18,14 +16,14 @@ import pkg/questionable/results
 import ../errors
 
 type
-  PutFn*[H] = proc(i: Natural, x: H): ?!void {.noSideEffect, upraises: [].}
-  GetFn*[H] = proc(i: Natural): ?!H {.noSideEffect, upraises: [].}
+  PutFn*[H] = proc(i: Natural, x: H): ?!void {.noSideEffect, raises: [].}
+  GetFn*[H] = proc(i: Natural): ?!H {.noSideEffect, raises: [].}
 
   StoreBackend*[H] = object
     put: PutFn[H]
     get: GetFn[H]
 
-  CompressFn*[H, K] = proc (x, y: H, key: K): ?!H {.noSideEffect, upraises: [].}
+  CompressFn*[H, K] = proc (x, y: H, key: K): ?!H {.noSideEffect, raises: [].}
 
   MerkleTree*[H, K] = object of RootObj
     layers*  : seq[seq[H]]
