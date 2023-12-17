@@ -37,7 +37,7 @@ proc checkGenericTree*[H, K, U](
         tree = makeTree( data[0..7] )
 
       check:
-        tree.root == expectedRoot
+        tree.root.tryGet == expectedRoot
 
     test "Should build correct tree for un-even bottom layer":
       let
@@ -59,7 +59,7 @@ proc checkGenericTree*[H, K, U](
         tree = makeTree( data[0..6] )
 
       check:
-        tree.root == expectedRoot
+        tree.root.tryGet == expectedRoot
 
     test "Should build correct tree for even bottom and uneven upper layers":
       let
@@ -93,7 +93,7 @@ proc checkGenericTree*[H, K, U](
         tree = makeTree( data[0..9] )
 
       check:
-        tree.root == expectedRoot
+        tree.root.tryGet == expectedRoot
 
     test "Should get and validate correct proofs":
       let
