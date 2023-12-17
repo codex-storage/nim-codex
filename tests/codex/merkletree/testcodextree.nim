@@ -5,10 +5,11 @@ import std/tables
 import pkg/questionable/results
 import pkg/stew/byteutils
 import pkg/nimcrypto/sha2
+import pkg/libp2p
 
 import pkg/codex/merkletree
 
-import ../helpers
+# import ../helpers
 import ./generictreetests
 
 # TODO: Generalize to other hashes

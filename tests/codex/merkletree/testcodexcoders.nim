@@ -38,7 +38,7 @@ checksuite "merkletree - coders":
       proof = tree.getProof(4).tryGet()
 
     check:
-      proof.verify(tree.leaves[4], tree.root).isOk
+      proof.verify(tree.leaves[4], tree.root.tryGet).isOk
 
     let
       encodedBytes = proof.encode()
