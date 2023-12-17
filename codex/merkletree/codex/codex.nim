@@ -46,10 +46,10 @@ type
   ByteTree* = MerkleTree[ByteHash, ByteTreeKey]
   ByteTreeProof* = MerkleProof[ByteHash, ByteTreeKey]
 
-  CodexMerkleTree* = object of ByteTree
+  CodexMerkleTree* = ref object of ByteTree
     mhash: MHash
 
-  CodexMerkleProof* = object of ByteTreeProof
+  CodexMerkleProof* = ref object of ByteTreeProof
     mhash: MHash
 
 func getMhash*(mcodec: MultiCodec): ?!MHash =
@@ -150,13 +150,16 @@ proc `==`*(a, b: CodexMerkleProof): bool =
   (a.index == b.index)
 
 proc `$`*(self: CodexMerkleTree): string =
-  "CodexMerkleTree(" & $self.mcodec & ", " & $self.leavesCount & ")"
+  "CodexMerkleTree( mcodec: " &
+    $self.mcodec &
+    ", leavesCount: " &
+    $self.leavesCount & " )"
 
 proc `$`*(self: CodexMerkleProof): string =
-  "CodexMerkleProof(" &
-    $self.mcodec & ", " &
-    $self.nleaves & ", " &
-    $self.index & ")"
+  "CodexMerkleProof( mcodec: " &
+    $self.mcodec & ", nleaves: " &
+    $self.nleaves & ", index: " &
+    $self.index & " )"
 
 func compress*(
   x, y: openArray[byte],
@@ -249,7 +252,7 @@ proc fromNodes*(
     index = Rng.instance.rand(nleaves - 1)
     proof = ? self.getProof(index)
 
-  ? proof.verify(self.leaves[index], self.root) # sanity check
+  ? proof.verify(self.leaves[index], ? self.root) # sanity check
   success self
 
 func init*(
