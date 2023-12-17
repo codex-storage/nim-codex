@@ -58,17 +58,22 @@ iterator nodes*[H, K](self: MerkleTree[H, K]): H =
     for node in layer:
       yield node
 
-func root*[H, K](self: MerkleTree[H, K]): H =
+func root*[H, K](self: MerkleTree[H, K]): ?!H =
   let last = self.layers[self.layers.len - 1]
-  assert( last.len == 1 )
+  if last.len != 1:
+    return failure "invalid tree"
 
-  return last[0]
+  return success last[0]
 
-func getProof*[H, K](self: MerkleTree[H, K], index: int, proof: var MerkleProof[H, K]) =
+func getProof*[H, K](
+  self: MerkleTree[H, K],
+  index: int,
+  proof: var MerkleProof[H, K]): ?!void =
   let depth   = self.depth
   let nleaves = self.leavesCount
 
-  assert( index >= 0 and index < nleaves )
+  if not (index >= 0 and index < nleaves):
+    return failure "index out of bounds"
 
   var path : seq[H] = newSeq[H](depth)
   var k = index
@@ -84,12 +89,15 @@ func getProof*[H, K](self: MerkleTree[H, K], index: int, proof: var MerkleProof[
   proof.nleaves = nleaves
   proof.compress = self.compress
 
-func getProof*[H, K](self: MerkleTree[H, K], index: int): MerkleProof[H, K] =
+  success()
+
+func getProof*[H, K](self: MerkleTree[H, K], index: int): ?!MerkleProof[H, K] =
   var
     proof: MerkleProof[H, K]
 
-  self.getProof(index, proof)
-  return proof
+  ? self.getProof(index, proof)
+
+  success proof
 
 func reconstructRoot*[H, K](proof: MerkleProof[H, K], leaf: H): ?!H =
   var
