@@ -13,7 +13,6 @@ push: {.upraises: [].}
 
 import std/bitops
 import std/sequtils
-import std/sugar
 
 import pkg/questionable
 import pkg/questionable/results
@@ -84,7 +83,7 @@ func getProof*(self: CodexMerkleTree, index: int): ?!CodexMerkleProof =
   var
     proof = CodexMerkleProof(mhash: self.mhash)
 
-  self.getProof(index, proof)
+  ? self.getProof(index, proof)
 
   success proof
 
@@ -116,11 +115,11 @@ proc rootCid*(
   version = CIDv1,
   dataCodec = DatasetRootCodec): ?!Cid =
 
-  if self.root.len == 0:
+  if (? self.root).len == 0:
     return failure "Empty root"
 
   let
-    mhash = ? MultiHash.init(self.mcodec, self.root).mapFailure
+    mhash = ? MultiHash.init(self.mcodec, ? self.root).mapFailure
 
   Cid.init(version, DatasetRootCodec, mhash).mapFailure
 
