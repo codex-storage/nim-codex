@@ -29,7 +29,7 @@ const
     ]
   sha256 = multiCodec("sha2-256")
 
-checksuite "Test CodexMerkleTree":
+suite "Test CodexMerkleTree":
   test "Cannot init tree without any multihash leaves":
     check:
       CodexMerkleTree.init(leaves = newSeq[MultiHash]()).isErr
@@ -54,10 +54,11 @@ checksuite "Test CodexMerkleTree":
 
   test "Should build tree from cid leaves":
     var
-      expectedLeaves = data.mapIt(  Cid.init(
-        CidVersion.CIDv1,
-        BlockCodec,
-        MultiHash.digest($sha256, it).tryGet
+      expectedLeaves = data.mapIt(
+        Cid.init(
+          CidVersion.CIDv1,
+          BlockCodec,
+          MultiHash.digest($sha256, it).tryGet
       ).tryGet )
 
     let
