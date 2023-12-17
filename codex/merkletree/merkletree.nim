@@ -25,12 +25,12 @@ type
 
   CompressFn*[H, K] = proc (x, y: H, key: K): ?!H {.noSideEffect, raises: [].}
 
-  MerkleTree*[H, K] = object of RootObj
+  MerkleTree*[H, K] = ref object of RootObj
     layers*  : seq[seq[H]]
     compress*: CompressFn[H, K]
     zero*    : H
 
-  MerkleProof*[H, K] = object of RootObj
+  MerkleProof*[H, K] = ref object of RootObj
     index*   : int                  # linear index of the leaf, starting from 0
     path*    : seq[H]               # order: from the bottom to the top
     nleaves* : int                  # number of leaves in the tree (=size of input)
@@ -68,7 +68,7 @@ func root*[H, K](self: MerkleTree[H, K]): ?!H =
 func getProof*[H, K](
   self: MerkleTree[H, K],
   index: int,
-  proof: var MerkleProof[H, K]): ?!void =
+  proof: MerkleProof[H, K]): ?!void =
   let depth   = self.depth
   let nleaves = self.leavesCount
 
@@ -93,7 +93,7 @@ func getProof*[H, K](
 
 func getProof*[H, K](self: MerkleTree[H, K], index: int): ?!MerkleProof[H, K] =
   var
-    proof: MerkleProof[H, K]
+    proof = MerkleProof[H, K]()
 
   ? self.getProof(index, proof)
 
