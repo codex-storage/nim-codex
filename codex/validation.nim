@@ -72,7 +72,9 @@ proc markProofAsMissing(validation: Validation,
     if await validation.market.canProofBeMarkedAsMissing(slotId, period):
       trace "Marking proof as missing", slotId = $slotId, periodProofMissed = period
       await validation.market.markProofAsMissing(slotId, period)
-    else: trace "Proof not missing", checkedPeriod = period
+    else:
+      let inDowntime {.used.} = await validation.market.inDowntime(slotId)
+      trace "Proof not missing", checkedPeriod = period, inDowntime
   except CancelledError:
     raise
   except CatchableError as e:
