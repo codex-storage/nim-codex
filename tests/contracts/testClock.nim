@@ -8,21 +8,21 @@ ethersuite "On-Chain Clock":
   var clock: OnChainClock
 
   setup:
-    clock = OnChainClock.new(provider)
+    clock = OnChainClock.new(ethProvider)
     await clock.start()
 
   teardown:
     await clock.stop()
 
   test "returns the current time of the EVM":
-    let latestBlock = (!await provider.getBlock(BlockTag.latest))
+    let latestBlock = (!await ethProvider.getBlock(BlockTag.latest))
     let timestamp = latestBlock.timestamp.truncate(int64)
     check clock.now() == timestamp
 
   test "updates time with timestamp of new blocks":
     let future = (getTime() + 42.years).toUnix
-    discard await provider.send("evm_setNextBlockTimestamp", @[%future])
-    discard await provider.send("evm_mine")
+    discard await ethProvider.send("evm_setNextBlockTimestamp", @[%future])
+    discard await ethProvider.send("evm_mine")
     check clock.now() == future
 
   test "updates time using wall-clock in-between blocks":
@@ -33,8 +33,8 @@ ethersuite "On-Chain Clock":
   test "can wait until a certain time is reached by the chain":
     let future = clock.now() + 42 # seconds
     let waiting = clock.waitUntil(future)
-    discard await provider.send("evm_setNextBlockTimestamp", @[%future])
-    discard await provider.send("evm_mine")
+    discard await ethProvider.send("evm_setNextBlockTimestamp", @[%future])
+    discard await ethProvider.send("evm_mine")
     check await waiting.withTimeout(chronos.milliseconds(100))
 
   test "can wait until a certain time is reached by the wall-clock":
@@ -44,7 +44,7 @@ ethersuite "On-Chain Clock":
 
   test "raises when not started":
     expect AssertionDefect:
-      discard OnChainClock.new(provider).now()
+      discard OnChainClock.new(ethProvider).now()
 
   test "raises when stopped":
     await clock.stop()
