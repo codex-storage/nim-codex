@@ -22,13 +22,13 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
     client.getPurchase(id).option.?state == some state
 
   setup:
-    marketplace = Marketplace.new(Marketplace.address, provider)
+    marketplace = Marketplace.new(Marketplace.address, ethProvider)
     period = (await marketplace.config()).proofs.period.truncate(uint64)
 
-    # Our Hardhat configuration does use automine, which means that time tracked by `provider.currentTime()` is not
+    # Our Hardhat configuration does use automine, which means that time tracked by `ethProvider.currentTime()` is not
     # advanced until blocks are mined and that happens only when transaction is submitted.
-    # As we use in tests provider.currentTime() which uses block timestamp this can lead to synchronization issues.
-    await provider.advanceTime(1.u256)
+    # As we use in tests ethProvider.currentTime() which uses block timestamp this can lead to synchronization issues.
+    await ethProvider.advanceTime(1.u256)
 
   proc waitUntilPurchaseIsStarted(proofProbability: uint64 = 3,
                                   duration: uint64 = 100 * period,
@@ -40,7 +40,7 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
       maxCollateral=200.u256
     )
     let cid = client1.upload("some file contents").get
-    let expiry = (await provider.currentTime()) + expiry.u256
+    let expiry = (await ethProvider.currentTime()) + expiry.u256
     let id = client1.requestStorage(
       cid,
       expiry=expiry,
@@ -53,9 +53,9 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
 
   proc advanceToNextPeriod {.async.} =
     let periodicity = Periodicity(seconds: period.u256)
-    let currentPeriod = periodicity.periodOf(await provider.currentTime())
+    let currentPeriod = periodicity.periodOf(await ethProvider.currentTime())
     let endOfPeriod = periodicity.periodEnd(currentPeriod)
-    await provider.advanceTimeTo(endOfPeriod + 1)
+    await ethProvider.advanceTimeTo(endOfPeriod + 1)
 
   proc startValidator: NodeProcess =
     let validator = startNode(
@@ -81,7 +81,7 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
     proc onProofSubmitted(event: ProofSubmitted) =
       proofWasSubmitted = true
     let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
-    await provider.advanceTime(period.u256)
+    await ethProvider.advanceTime(period.u256)
     check eventually proofWasSubmitted
     await subscription.unsubscribe()
 
@@ -110,7 +110,7 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
 
 multinodesuite "Simulate invalid proofs",
   StartNodes.init(clients=1'u, providers=0'u, validators=1'u),
-  DebugNodes.init(client=false, provider=false, validator=false):
+  DebugNodes.init(client=false, ethProvider=false, validator=false):
 
   proc purchaseStateIs(client: CodexClient, id: PurchaseId, state: string): bool =
     client.getPurchase(id).option.?state == some state
@@ -120,15 +120,15 @@ multinodesuite "Simulate invalid proofs",
   var slotId: SlotId
 
   setup:
-    marketplace = Marketplace.new(Marketplace.address, provider)
+    marketplace = Marketplace.new(Marketplace.address, ethProvider)
     let config = await marketplace.config()
     period = config.proofs.period.truncate(uint64)
     slotId = SlotId(array[32, byte].default) # ensure we aren't reusing from prev test
 
-    # Our Hardhat configuration does use automine, which means that time tracked by `provider.currentTime()` is not
+    # Our Hardhat configuration does use automine, which means that time tracked by `ethProvider.currentTime()` is not
     # advanced until blocks are mined and that happens only when transaction is submitted.
-    # As we use in tests provider.currentTime() which uses block timestamp this can lead to synchronization issues.
-    await provider.advanceTime(1.u256)
+    # As we use in tests ethProvider.currentTime() which uses block timestamp this can lead to synchronization issues.
+    await ethProvider.advanceTime(1.u256)
 
   proc periods(p: Ordinal | uint): uint64 =
     when p is uint:
@@ -137,16 +137,16 @@ multinodesuite "Simulate invalid proofs",
 
   proc advanceToNextPeriod {.async.} =
     let periodicity = Periodicity(seconds: period.u256)
-    let currentPeriod = periodicity.periodOf(await provider.currentTime())
+    let currentPeriod = periodicity.periodOf(await ethProvider.currentTime())
     let endOfPeriod = periodicity.periodEnd(currentPeriod)
-    await provider.advanceTimeTo(endOfPeriod + 1)
+    await ethProvider.advanceTimeTo(endOfPeriod + 1)
 
   proc waitUntilPurchaseIsStarted(proofProbability: uint64 = 1,
                                   duration: uint64 = 12.periods,
                                   expiry: uint64 = 4.periods) {.async.} =
 
     if clients().len < 1 or providers().len < 1:
-      raiseAssert("must start at least one client and one provider")
+      raiseAssert("must start at least one client and one ethProvider")
 
     let client = clients()[0].restClient
     let storageProvider = providers()[0].restClient
@@ -158,7 +158,7 @@ multinodesuite "Simulate invalid proofs",
       maxCollateral=200.u256
     )
     let cid = client.upload("some file contents " & $ getTime().toUnix).get
-    let expiry = (await provider.currentTime()) + expiry.u256
+    let expiry = (await ethProvider.currentTime()) + expiry.u256
     # avoid timing issues by filling the slot at the start of the next period
     await advanceToNextPeriod()
     let id = client.requestStorage(
