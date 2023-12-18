@@ -79,7 +79,7 @@ let
   makeTree = proc(data: seq[Poseidon2Hash]): Poseidon2MerkleTree =
     Poseidon2MerkleTree.init(leaves = data).tryGet
 
-checkGenericTree(
+testGenericTree(
   "Poseidon2MerkleTree",
   toSeq( data.concat().elements(Poseidon2Hash) ),
   zero,

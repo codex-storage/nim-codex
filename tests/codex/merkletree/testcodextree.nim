@@ -98,7 +98,7 @@ let
   makeTree = proc(data: seq[seq[byte]]): CodexMerkleTree =
     CodexMerkleTree.init(sha256, leaves = data).tryGet
 
-checkGenericTree(
+testGenericTree(
   "CodexMerkleTree",
   @data,
   zero,

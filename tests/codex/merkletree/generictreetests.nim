@@ -3,9 +3,7 @@ import std/sequtils
 
 import pkg/codex/merkletree
 
-import ../helpers
-
-proc checkGenericTree*[H, K, U](
+proc testGenericTree*[H, K, U](
   name: string,
   data: openArray[H],
   zero: H,
@@ -15,7 +13,7 @@ proc checkGenericTree*[H, K, U](
   let
     data = @data
 
-  checksuite "Correctness tests - " & name:
+  suite "Correctness tests - " & name:
 
     test "Should build correct tree for even bottom layer":
       let
