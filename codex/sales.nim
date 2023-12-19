@@ -503,6 +503,7 @@ proc start*(sales: Sales) {.async.} =
   await sales.load()
   await sales.startSlotQueue()
   await sales.subscribe()
+  sales.running = true
 
 proc stop*(sales: Sales) {.async.} =
   trace "stopping sales"
