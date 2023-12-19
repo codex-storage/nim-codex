@@ -43,8 +43,7 @@ divMaths(NBytes)
 proc `$`*(ts: NBytes): string = $(int(ts)) & "'NByte"
 proc `'nb`*(n: string): NBytes = parseInt(n).NBytes
 
-logutils.formatIt(LogFormat.textLines, NBytes): $it
-logutils.formatIt(LogFormat.json, NBytes): $it
+logutils.formatIt(NBytes): $it
 
 const
   MiB = 1024.NBytes * 1024.NBytes # ByteSz, 1 mebibyte = 1,048,576 ByteSz
