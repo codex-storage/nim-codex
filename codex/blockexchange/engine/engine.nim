@@ -532,9 +532,13 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
 
   trace "wantsBlocks", peer = task.id, n = wantsBlocks.len
   if wantsBlocks.len > 0:
-    task.peerWants = task.peerWants.filterIt(it notin wantsBlocks)
-    trace "Removed entries from peerWants", peerWants = task.peerWants.len
-
+    # Consider only the wants not currently in-flight,
+    # Then mark them as in-flight.
+    wantsBlocks.keepItIf(not it.inFlight)
+    let wantAddresses = wantsBlocks.mapIt(it.address)
+    for peerWant in task.peerWants.mitems:
+      if peerWant.address in wantAddresses:
+        peerWant.inFlight = true
     wantsBlocks.sort(SortOrder.Descending)
 
     proc localLookup(e: WantListEntry): Future[?!BlockDelivery] {.async.} =
@@ -563,6 +567,10 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       )
 
       codex_block_exchange_blocks_sent.inc(blocksDelivery.len.int64)
+
+      let deliveryAddresses = blocksDelivery.mapIt(it.address)
+      task.peerWants.keepItIf(it.address notin deliveryAddresses)
+      trace "Removed entries from peerWants", peerWants = task.peerWants.len
 
 proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
   ## process tasks
