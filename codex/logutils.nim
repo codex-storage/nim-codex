@@ -1,89 +1,89 @@
-# logutils is a module that has several goals:
-# 1. Fix json logging output (run with `--log-format=json`) which was
-#    effectively broken for many types using default Chronicles json
-#    serialization.
-# 2. Ability to specify log output for textlines and json sinks together or
-#    separately
-#     - This is useful if consuming json in some kind of log parser and need
-#       valid json with real values
-#     - eg a shortened Cid is nice to see in a text log in stdout, but won't
-#       provide a real Cid when parsed in json
-# 4. Remove usages of `nim-json-serialization` from the codebase
-# 5. Remove need to declare `writeValue` for new types
-# 6. Remove need to [avoid importing or exporting `toJson`, `%`, `%*` to prevent
-#    conflicts](https://github.com/codex-storage/nim-codex/pull/645#issuecomment-1838834467)
-#
-# When declaring a new type, one should consider importing the `codex/logutils`
-# module, and specifying `formatIt`. If textlines log output and json log output
-# need to be different, overload `formatIt` and specify a `LogFormat`. If json
-# serialization is needed, it can be declared with a `%` proc. `logutils`
-# imports and exports `utils/json` which handles the de/serialization, examples
-# below. **Only `codex/logutils` needs to be imported.**
-#
-# Using `logutils` in the Codex codebase:
-# - Instead of importing `pkg/chronicles`, import `pkg/codex/logutils`
-#     - most of `chronicles` is exported by `logutils`
-# - Instead of importing `std/json`, import `pkg/codex/utils/json`
-#     - `std/json` is exported by `utils/json` which is exported by `logutils`
-# - Instead of importing `pkg/nim-json-serialization`, import
-#   `pkg/codex/utils/json`
-#     - one of the goals is to remove the use of `nim-json-serialization`
-#
-# ```nim
-# import pkg/codex/logutils
-#
-# type
-#   BlockAddress* = object
-#     case leaf*: bool
-#     of true:
-#       treeCid* {.serialize.}: Cid
-#       index* {.serialize.}: Natural
-#     else:
-#       cid* {.serialize.}: Cid
-#
-# logutils.formatIt(LogFormat.textLines, BlockAddress):
-#   if it.leaf:
-#     "treeCid: " & shortLog($it.treeCid) & ", index: " & $it.index
-#   else:
-#     "cid: " & shortLog($it.cid)
-#
-# logutils.formatIt(LogFormat.json, BlockAddress): %it
-#
-# # chronicles textlines output
-# TRC test tid=14397405 ba="treeCid: zb2*fndjU1, index: 0"
-# # chronicles json output
-# {"lvl":"TRC","msg":"test","tid":14397405,"ba":{"treeCid":"zb2rhgsDE16rLtbwTFeNKbdSobtKiWdjJPvKEuPgrQAfndjU1","index":0}}
-# ```
-# In this case, `BlockAddress` is just an object, so `utils/json` can handle
-# serializing it without issue (only fields annotated with `{.serialize.}` will
-# serialize (aka opt-in serialization)).
-#
-# If one so wished, another option for the textlines log output, would be to
-# simply `toString` the serialised json:
-# ```nim
-# logutils.formatIt(LogFormat.textLines, BlockAddress): $ %it
-# # or, more succinctly:
-# logutils.formatIt(LogFormat.textLines, BlockAddress): it.toJson
-# ```
-# In that case, both the textlines and json sinks would have the same output, so
-# we could reduce this even further by not specifying a `LogFormat`:
-# ```nim
-# type
-#   BlockAddress* = object
-#     case leaf*: bool
-#     of true:
-#       treeCid* {.serialize.}: Cid
-#       index* {.serialize.}: Natural
-#     else:
-#       cid* {.serialize.}: Cid
-#
-# logutils.formatIt(BlockAddress): %it
-#
-# # chronicles textlines output
-# TRC test tid=14400673 ba="{\"treeCid\":\"zb2rhgsDE16rLtbwTFeNKbdSobtKiWdjJPvKEuPgrQAfndjU1\",\"index\":0}"
-# # chronicles json output
-# {"lvl":"TRC","msg":"test","tid":14400673,"ba":{"treeCid":"zb2rhgsDE16rLtbwTFeNKbdSobtKiWdjJPvKEuPgrQAfndjU1","index":0}}
-# ```
+## logutils is a module that has several goals:
+## 1. Fix json logging output (run with `--log-format=json`) which was
+##    effectively broken for many types using default Chronicles json
+##    serialization.
+## 2. Ability to specify log output for textlines and json sinks together or
+##    separately
+##     - This is useful if consuming json in some kind of log parser and need
+##       valid json with real values
+##     - eg a shortened Cid is nice to see in a text log in stdout, but won't
+##       provide a real Cid when parsed in json
+## 4. Remove usages of `nim-json-serialization` from the codebase
+## 5. Remove need to declare `writeValue` for new types
+## 6. Remove need to [avoid importing or exporting `toJson`, `%`, `%*` to prevent
+##    conflicts](https://github.com/codex-storage/nim-codex/pull/645#issuecomment-1838834467)
+##
+## When declaring a new type, one should consider importing the `codex/logutils`
+## module, and specifying `formatIt`. If textlines log output and json log output
+## need to be different, overload `formatIt` and specify a `LogFormat`. If json
+## serialization is needed, it can be declared with a `%` proc. `logutils`
+## imports and exports `utils/json` which handles the de/serialization, examples
+## below. **Only `codex/logutils` needs to be imported.**
+##
+## Using `logutils` in the Codex codebase:
+## - Instead of importing `pkg/chronicles`, import `pkg/codex/logutils`
+##     - most of `chronicles` is exported by `logutils`
+## - Instead of importing `std/json`, import `pkg/codex/utils/json`
+##     - `std/json` is exported by `utils/json` which is exported by `logutils`
+## - Instead of importing `pkg/nim-json-serialization`, import
+##   `pkg/codex/utils/json`
+##     - one of the goals is to remove the use of `nim-json-serialization`
+##
+## ```nim
+## import pkg/codex/logutils
+##
+## type
+##   BlockAddress* = object
+##     case leaf*: bool
+##     of true:
+##       treeCid* {.serialize.}: Cid
+##       index* {.serialize.}: Natural
+##     else:
+##       cid* {.serialize.}: Cid
+##
+## logutils.formatIt(LogFormat.textLines, BlockAddress):
+##   if it.leaf:
+##     "treeCid: " & shortLog($it.treeCid) & ", index: " & $it.index
+##   else:
+##     "cid: " & shortLog($it.cid)
+##
+## logutils.formatIt(LogFormat.json, BlockAddress): %it
+##
+## # chronicles textlines output
+## TRC test tid=14397405 ba="treeCid: zb2*fndjU1, index: 0"
+## # chronicles json output
+## {"lvl":"TRC","msg":"test","tid":14397405,"ba":{"treeCid":"zb2rhgsDE16rLtbwTFeNKbdSobtKiWdjJPvKEuPgrQAfndjU1","index":0}}
+## ```
+## In this case, `BlockAddress` is just an object, so `utils/json` can handle
+## serializing it without issue (only fields annotated with `{.serialize.}` will
+## serialize (aka opt-in serialization)).
+##
+## If one so wished, another option for the textlines log output, would be to
+## simply `toString` the serialised json:
+## ```nim
+## logutils.formatIt(LogFormat.textLines, BlockAddress): $ %it
+## # or, more succinctly:
+## logutils.formatIt(LogFormat.textLines, BlockAddress): it.toJson
+## ```
+## In that case, both the textlines and json sinks would have the same output,
+## so we could reduce this even further by not specifying a `LogFormat`:
+## ```nim
+## type
+##   BlockAddress* = object
+##     case leaf*: bool
+##     of true:
+##       treeCid* {.serialize.}: Cid
+##       index* {.serialize.}: Natural
+##     else:
+##       cid* {.serialize.}: Cid
+##
+## logutils.formatIt(BlockAddress): %it
+##
+## # chronicles textlines output
+## TRC test tid=14400673 ba="{\"treeCid\":\"zb2rhgsDE16rLtbwTFeNKbdSobtKiWdjJPvKEuPgrQAfndjU1\",\"index\":0}"
+## # chronicles json output
+## {"lvl":"TRC","msg":"test","tid":14400673,"ba":{"treeCid":"zb2rhgsDE16rLtbwTFeNKbdSobtKiWdjJPvKEuPgrQAfndjU1","index":0}}
+## ```
 
 import std/options
 import std/sequtils
