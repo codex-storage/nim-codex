@@ -254,7 +254,7 @@ jobs:
       max-parallel: 1
       matrix:
         tests: ${{ fromJSON(needs.compute-tests-inputs.outputs.continuous_tests_list) }}
-    uses: codex-storage/cs-codex-dist-tests/.github/workflows/continuous-tests.yaml@master
+    uses: codex-storage/cs-codex-dist-tests/.github/workflows/run-continuous-tests.yaml@master
     with:
       source: ${{ needs.compute-tests-inputs.outputs.source }}
       branch: ${{ needs.compute-tests-inputs.outputs.branch }}
