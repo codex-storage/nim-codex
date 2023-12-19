@@ -111,6 +111,12 @@ method periodicity*(mock: MockMarket): Future[Periodicity] {.async.} =
 method proofTimeout*(market: MockMarket): Future[UInt256] {.async.} =
   return market.config.proofs.timeout
 
+method proofDowntime*(market: MockMarket): Future[uint8] {.async.} =
+  return market.config.proofs.downtime
+
+method getPointer*(market: MockMarket, slotId: SlotId): Future[uint8] {.async.} =
+  return 0 # TODO
+
 method requestStorage*(market: MockMarket, request: StorageRequest) {.async.} =
   market.requested.add(request)
   var subscriptions = market.subscriptions.onRequest
