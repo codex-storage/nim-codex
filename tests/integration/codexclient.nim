@@ -3,9 +3,9 @@ import std/strutils
 import std/sequtils
 
 from pkg/libp2p import Cid, `$`, init
-import pkg/chronicles
 import pkg/stint
 import pkg/questionable/results
+import pkg/codex/logutils
 import pkg/codex/rest/json
 import pkg/codex/purchasing
 import pkg/codex/errors

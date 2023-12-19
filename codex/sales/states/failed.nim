@@ -1,4 +1,4 @@
-import pkg/chronicles
+import ../../logutils
 import ../salesagent
 import ../statemachine
 import ./errorhandling
@@ -21,7 +21,7 @@ method run*(state: SaleFailed, machine: Machine): Future[?State] {.async.} =
     raiseAssert "no sale request"
 
   let slot = Slot(request: request, slotIndex: data.slotIndex)
-  debug "Removing slot from mySlots",  requestId = $data.requestId, slotIndex = $data.slotIndex
+  debug "Removing slot from mySlots",  requestId = data.requestId, slotIndex = data.slotIndex
   await market.freeSlot(slot.id)
 
   let error = newException(SaleFailedError, "Sale failed")
