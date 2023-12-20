@@ -8,8 +8,9 @@ import ../merkletree
 import ../stores
 import ../manifest
 import ../utils
+import ../utils/digest
 
-let
+const
   # TODO: Unified with the CellSize specified in branch "data-sampler"
   # Number of bytes in a cell. A cell is the smallest unit of data used
   # in the proving circuit.
@@ -19,7 +20,7 @@ type
   SlotBuilder* = object of RootObj
     blockStore: BlockStore
     manifest: Manifest
-    numberOfSlotBlocks: int
+    slotBlocks: int
 
 proc new*(
     T: type SlotBuilder,
@@ -36,57 +37,73 @@ proc new*(
   if (manifest.blockSize.int mod CellSize) != 0:
     return failure("Block size must be divisable by cell size.")
 
-  let numberOfSlotBlocks = manifest.blocksCount div manifest.ecK
-  success(SlotBuilder(
+  let slotBlocks = manifest.blocksCount div manifest.numberOfSlots
+  success SlotBuilder(
     blockStore: blockStore,
     manifest: manifest,
-    numberOfSlotBlocks: numberOfSlotBlocks
-  ))
+    slotBlocks: slotBlocks)
 
 proc cellsPerBlock(self: SlotBuilder): int =
   self.manifest.blockSize.int div CellSize
 
-proc selectSlotBlocks*(self: SlotBuilder, datasetSlotIndex: int): Future[?!seq[Cid]] {.async.} =
-  var cids = newSeq[Cid]()
+proc selectSlotBlocks*(
+  self: SlotBuilder,
+  slotIndex: int): Future[?!seq[Poseidon2Hash]] {.async.} =
+
   let
-    datasetTreeCid = self.manifest.treeCid
+    treeCid = self.manifest.treeCid
     blockCount = self.manifest.blocksCount
     numberOfSlots = self.manifest.numberOfSlots
     strategy = SteppedIndexingStrategy.new(0, blockCount - 1, numberOfSlots)
 
-  for datasetBlockIndex in strategy.getIndicies(datasetSlotIndex):
-    without slotBlockCid =? await self.blockStore.getCid(datasetTreeCid, datasetBlockIndex), err:
-      error "Failed to get block CID for tree at index", index=datasetBlockIndex, tree=datasetTreeCid
+  logScope:
+    treeCid = treeCid
+    blockCount = blockCount
+    numberOfSlots = numberOfSlots
+    index = blockIndex
+
+  var blocks = newSeq[Poseidon2Hash]()
+  for blockIndex in strategy.getIndicies(slotIndex):
+    without blk =? await self.blockStore.getBlock(treeCid, blockIndex), err:
+      error "Failed to get block CID for tree at index"
+
       return failure(err)
-    cids.add(slotBlockCid)
+
+    without digestTree =? Poseidon2Tree.digest(blk.data, CellSize) and
+        blockDigest =? digestTree.root, err:
+      error "Failed to create digest for block"
+
+      return failure(err)
+
+    blocks.add(blockDigest)
     # TODO: Remove this sleep. It's here to prevent us from locking up the thread.
     await sleepAsync(10.millis)
 
-  return success(cids)
+  success blocks
 
-proc calculateNumberOfPaddingCells*(self: SlotBuilder, numberOfSlotBlocks: int): int =
+proc numPaddingCells*(self: SlotBuilder, slotBlocks: int): int =
   let
-    numberOfCells = numberOfSlotBlocks * self.cellsPerBlock
+    numberOfCells = slotBlocks * self.cellsPerBlock
     nextPowerOfTwo = nextPowerOfTwo(numberOfCells)
 
   return nextPowerOfTwo - numberOfCells
 
-proc buildSlotTree*(self: SlotBuilder, slotBlocks: seq[Cid], numberOfPaddingCells: int): ?!MerkleTree =
+proc buildSlotTree*(self: SlotBuilder, slotBlocks: seq[Cid], paddingCells: int): ?!Poseidon2Tree =
   without emptyCid =? emptyCid(self.manifest.version, self.manifest.hcodec, self.manifest.codec), err:
     error "Unable to initialize empty cid"
     return failure(err)
 
-  let numberOfPadBlocks = divUp(numberOfPaddingCells, self.cellsPerBlock)
-  let padding = newSeqWith(numberOfPadBlocks, emptyCid)
+  let paddingBlocks = divUp(paddingCells, self.cellsPerBlock)
+  let padding = newSeqWith(paddingBlocks, emptyCid)
 
-  MerkleTree.init(slotBlocks & padding)
+  Poseidon2Tree.init(slotBlocks & padding)
 
-proc createSlotTree*(self: SlotBuilder, datasetSlotIndex: int): Future[?!MerkleTree] {.async.} =
-  without slotBlocks =? await self.selectSlotBlocks(datasetSlotIndex), err:
+proc createSlots*(self: SlotBuilder, slotIndex: int): Future[?!Manifest] {.async.} =
+  without slotBlocks =? await self.selectSlotBlocks(slotIndex), err:
     error "Failed to select slot blocks"
     return failure(err)
 
-  let numberOfPaddingCells = self.calculateNumberOfPaddingCells(slotBlocks.len)
+  let paddingCells = self.numPaddingCells(slotBlocks.len)
 
-  trace "Creating slot tree", datasetSlotIndex=datasetSlotIndex, nSlotBlocks=slotBlocks.len, nPaddingCells=numberOfPaddingCells
-  return self.buildSlotTree(slotBlocks, numberOfPaddingCells)
+  trace "Creating slot tree", slotIndex, nSlotBlocks = slotBlocks.len, paddingCells
+  return self.buildSlotTree(slotBlocks, paddingCells)

@@ -39,12 +39,12 @@ type
 
   ByteHash* = seq[byte]
   ByteTree* = MerkleTree[ByteHash, ByteTreeKey]
-  ByteTreeProof* = MerkleProof[ByteHash, ByteTreeKey]
+  ByteProof* = MerkleProof[ByteHash, ByteTreeKey]
 
   CodexTree* = ref object of ByteTree
     mhash: MHash
 
-  CodexProof* = ref object of ByteTreeProof
+  CodexProof* = ref object of ByteProof
     mhash: MHash
 
 func getMhash*(mcodec: MultiCodec): ?!MHash =

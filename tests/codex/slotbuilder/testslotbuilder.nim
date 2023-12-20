@@ -13,8 +13,8 @@ import pkg/codex/utils
 import ../helpers
 import ../examples
 
-import codex/manifest/indexingstrategy
-import codex/slotbuilder/slotbuilder
+import pkg/codex/manifest/indexingstrategy
+import pkg/codex/slotbuilder/slotbuilder
 
 asyncchecksuite "Slot builder":
   let
@@ -45,7 +45,7 @@ asyncchecksuite "Slot builder":
   proc createProtectedManifest(): Future[void] {.async.} =
     let
       cids = datasetBlocks.mapIt(it.cid)
-      tree = MerkleTree.init(cids).tryGet()
+      tree = Poseidon2Tree.init(cids).tryGet()
       treeCid = tree.rootCid().tryGet()
 
     for index, cid in cids:
