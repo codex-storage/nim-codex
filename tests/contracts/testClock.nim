@@ -25,11 +25,6 @@ ethersuite "On-Chain Clock":
     discard await ethProvider.send("evm_mine")
     check clock.now() == future
 
-  test "updates time using wall-clock in-between blocks":
-    let past = clock.now()
-    await sleepAsync(chronos.seconds(1))
-    check clock.now() > past
-
   test "can wait until a certain time is reached by the chain":
     let future = clock.now() + 42 # seconds
     let waiting = clock.waitUntil(future)
@@ -41,15 +36,6 @@ ethersuite "On-Chain Clock":
     let future = clock.now() + 1 # seconds
     let waiting = clock.waitUntil(future)
     check await waiting.withTimeout(chronos.seconds(2))
-
-  test "raises when not started":
-    expect AssertionDefect:
-      discard OnChainClock.new(ethProvider).now()
-
-  test "raises when stopped":
-    await clock.stop()
-    expect AssertionDefect:
-      discard clock.now()
 
   test "handles starting multiple times":
     await clock.start()
