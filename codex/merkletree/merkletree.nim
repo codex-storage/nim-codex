@@ -109,7 +109,7 @@ func reconstructRoot*[H, K](proof: MerkleProof[H, K], leaf: H): ?!H =
   for p in proof.path:
     let oddIndex : bool = (bitand(j,1) != 0)
     if oddIndex:
-      # the index of the child is odd, so the node tiself can't be odd (a bit counterintuitive, yeah :)
+      # the index of the child is odd, so the node itself can't be odd (a bit counterintuitive, yeah :)
       h = ? proof.compress( p, h, bottomFlag )
     else:
       if j == m - 1:
