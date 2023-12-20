@@ -59,7 +59,7 @@ proc testGenericTree*[H, K, U](
       check:
         tree.root.tryGet == expectedRoot
 
-    test "Should build correct tree for even bottom and uneven upper layers":
+    test "Should build correct tree for even bottom and odd upper layers":
       let
         expectedRoot = compress(
           compress(
