@@ -8,6 +8,7 @@ when codex_enable_proof_failures:
   import ../../contracts/requests
   import ../../logutils
   import ../../market
+  import ../../utils/exceptions
   import ../salescontext
   import ./proving
 
@@ -20,7 +21,7 @@ when codex_enable_proof_failures:
       proofCount: int
 
   proc onSubmitProofError(error: ref CatchableError, period: UInt256, slotId: SlotId) =
-    error "Submitting invalid proof failed", period = period, slotId, msg = error.msg
+    error "Submitting invalid proof failed", period, slotId, msg = error.msgDetail
 
   method prove*(state: SaleProvingSimulated, slot: Slot, challenge: ProofChallenge, onProve: OnProve, market: Market, currentPeriod: Period) {.async.} =
     trace "Processing proving in simulated mode"
@@ -32,8 +33,8 @@ when codex_enable_proof_failures:
       try:
         warn "Submitting INVALID proof", period = currentPeriod, slotId = slot.id
         await market.submitProof(slot.id, Groth16Proof.default)
-      except ProviderError as e:
-        if not e.revertReason.contains("Invalid proof"):
+      except SignerError as e:
+        if not e.msgDetail.contains("Invalid proof"):
           onSubmitProofError(e, currentPeriod, slot.id)
       except CatchableError as e:
         onSubmitProofError(e, currentPeriod, slot.id)
