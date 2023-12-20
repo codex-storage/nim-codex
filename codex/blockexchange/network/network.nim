@@ -10,6 +10,7 @@
 import std/tables
 import std/sequtils
 
+import pkg/chronicles
 import pkg/chronos
 
 import pkg/libp2p
@@ -18,7 +19,6 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ../../blocktype as bt
-import ../../logutils
 import ../protobuf/blockexc as pb
 import ../protobuf/payments
 

@@ -19,14 +19,15 @@ import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/stew/byteutils
 import pkg/questionable
 import pkg/questionable/results
+import pkg/chronicles
+import pkg/json_serialization
 
 import ./units
 import ./utils
+import ./formats
 import ./errors
-import ./logutils
-import ./utils/json
 
-export errors, logutils, units
+export errors, formats, units
 
 const
   # Size of blocks for storage / network exchange,
@@ -41,18 +42,11 @@ type
   BlockAddress* = object
     case leaf*: bool
     of true:
-      treeCid* {.serialize.}: Cid
-      index* {.serialize.}: Natural
+      treeCid*: Cid
+      index*: Natural
     else:
-      cid* {.serialize.}: Cid
+      cid*: Cid
 
-logutils.formatIt(LogFormat.textLines, BlockAddress):
-  if it.leaf:
-    "treeCid: " & shortLog($it.treeCid) & ", index: " & $it.index
-  else:
-    "cid: " & shortLog($it.cid)
-
-logutils.formatIt(LogFormat.json, BlockAddress): %it
 
 proc `==`*(a, b: BlockAddress): bool =
   a.leaf == b.leaf and
@@ -68,6 +62,12 @@ proc `$`*(a: BlockAddress): string =
     "treeCid: " & $a.treeCid & ", index: " & $a.index
   else:
     "cid: " & $a.cid
+
+proc writeValue*(
+  writer: var JsonWriter,
+  value: Cid
+) {.upraises:[IOError].} =
+  writer.writeValue($value)
 
 proc cidOrTreeCid*(a: BlockAddress): Cid =
   if a.leaf:

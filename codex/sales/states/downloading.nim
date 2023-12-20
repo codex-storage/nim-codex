@@ -1,8 +1,7 @@
+import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
-
 import ../../blocktype as bt
-import ../../logutils
 import ../../market
 import ../salesagent
 import ../statemachine

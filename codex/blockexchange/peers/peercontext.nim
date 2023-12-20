@@ -12,6 +12,7 @@ import std/tables
 import std/sugar
 import std/sets
 
+import pkg/chronicles
 import pkg/libp2p
 import pkg/chronos
 import pkg/nitro
@@ -22,7 +23,6 @@ import ../protobuf/payments
 import ../protobuf/presence
 
 import ../../blocktype
-import ../../logutils
 
 export payments, nitro
 

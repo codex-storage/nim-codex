@@ -1,13 +1,13 @@
 import pkg/ethers
+import pkg/chronicles
 
 import ../../purchasing
-import ../../logutils
 import ../market
 import ../clock
 import ./interactions
 
 export purchasing
-export logutils
+export chronicles except toJson
 
 type
   ClientInteractions* = ref object of ContractInteractions

@@ -13,6 +13,7 @@ import std/sequtils
 import std/sugar
 import std/algorithm
 
+import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/nimcrypto/sha2
@@ -20,7 +21,6 @@ import pkg/libp2p/[cid, multicodec, multihash, vbuffer]
 import pkg/stew/byteutils
 
 import ../errors
-import ../logutils
 
 logScope:
   topics = "codex merkletree"

@@ -1,12 +1,12 @@
+import pkg/questionable
+import pkg/confutils
+import pkg/chronicles
+import pkg/libp2p
 import std/osproc
 import std/os
 import std/streams
 import std/strutils
-import pkg/codex/conf
-import pkg/codex/logutils
-import pkg/confutils
-import pkg/libp2p
-import pkg/questionable
+import codex/conf
 import ./codexclient
 
 export codexclient

@@ -1,7 +1,6 @@
 import pkg/metrics
-
+import pkg/chronicles
 import ../statemachine
-import ../../logutils
 
 declareCounter(codex_purchases_finished, "codex purchases finished")
 

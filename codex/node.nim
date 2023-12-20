@@ -15,6 +15,7 @@ import std/sugar
 
 import pkg/questionable
 import pkg/questionable/results
+import pkg/chronicles
 import pkg/chronos
 
 import pkg/libp2p/[switch, multicodec, multihash]
@@ -38,10 +39,8 @@ import ./contracts
 import ./node/batch
 import ./utils
 import ./errors
-import ./logutils
 
 export batch
-export logutils
 
 logScope:
   topics = "codex node"
@@ -484,7 +483,7 @@ proc start*(node: CodexNodeRef) {.async.} =
       node.contracts.validator = ValidatorInteractions.none
 
   node.networkId = node.switch.peerInfo.peerId
-  notice "Started codex node", id = node.networkId, addrs = node.switch.peerInfo.addrs
+  notice "Started codex node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
 
 proc stop*(node: CodexNodeRef) {.async.} =
   trace "Stopping node"

@@ -13,6 +13,7 @@ push: {.upraises: [].}
 
 import std/options
 
+import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
 import pkg/lrucache
@@ -23,7 +24,6 @@ import ./blockstore
 import ../units
 import ../chunker
 import ../errors
-import ../logutils
 import ../manifest
 import ../merkletree
 import ../utils

@@ -1,11 +1,11 @@
-import pkg/chronos
+import pkg/ethers
+import pkg/chronicles
 
-import ../../logutils
 import ../../sales
 import ./interactions
 
 export sales
-export logutils
+export chronicles except toJson
 
 type
   HostInteractions* = ref object of ContractInteractions

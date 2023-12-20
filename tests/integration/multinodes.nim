@@ -1,7 +1,8 @@
 import std/os
 import std/macros
+import std/json
 import std/httpclient
-import pkg/codex/logutils
+import pkg/chronicles
 import ../ethertest
 import ./codexclient
 import ./nodes

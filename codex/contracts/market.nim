@@ -1,11 +1,11 @@
 import std/sequtils
 import std/strutils
 import std/sugar
+import pkg/chronicles
 import pkg/ethers
 import pkg/ethers/testing
 import pkg/upraises
 import pkg/questionable
-import ../logutils
 import ../market
 import ./marketplace
 

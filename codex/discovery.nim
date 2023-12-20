@@ -11,6 +11,7 @@ import std/algorithm
 import std/sequtils
 
 import pkg/chronos
+import pkg/chronicles
 import pkg/libp2p/[cid, multicodec, routing_record, signed_envelope]
 import pkg/questionable
 import pkg/questionable/results
@@ -20,7 +21,7 @@ import pkg/codexdht/discv5/protocol as discv5
 
 import ./rng
 import ./errors
-import ./logutils
+import ./formats
 
 export discv5
 
