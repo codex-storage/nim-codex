@@ -45,6 +45,7 @@ export net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval,
 const
   codex_enable_api_debug_peers* {.booldefine.} = false
   codex_enable_proof_failures* {.booldefine.} = false
+  codex_use_hardhat* {.booldefine.} = false
   codex_enable_log_counter* {.booldefine.} = false
 
 type
