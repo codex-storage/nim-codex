@@ -5,6 +5,7 @@ import std/times
 
 import pkg/asynctest
 import pkg/chronos
+import pkg/chronicles
 import pkg/stew/byteutils
 import pkg/datastore
 import pkg/questionable
@@ -17,7 +18,6 @@ import pkg/codexdht/discv5/protocol as discv5
 import pkg/codex/stores
 import pkg/codex/clock
 import pkg/codex/contracts
-import pkg/codex/logutils
 import pkg/codex/systemclock
 import pkg/codex/blockexchange
 import pkg/codex/chunker

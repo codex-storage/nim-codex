@@ -18,6 +18,7 @@ import std/strutils
 import std/typetraits
 
 import pkg/chronos
+import pkg/chronicles
 import pkg/chronicles/helpers
 import pkg/chronicles/topics_registry
 import pkg/confutils/defs
@@ -34,7 +35,6 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ./discovery
-import ./logutils
 import ./stores
 import ./units
 import ./utils
@@ -53,7 +53,7 @@ type
     noCommand,
     initNode
 
-  LogKind* {.pure.} = enum
+  LogKind* = enum
     Auto = "auto"
     Colors = "colors"
     NoColors = "nocolors"
@@ -276,9 +276,6 @@ type
 
   EthAddress* = ethers.Address
 
-logutils.formatIt(LogFormat.textLines, EthAddress): it.short0xHexLog
-logutils.formatIt(LogFormat.json, EthAddress): %it
-
 proc getCodexVersion(): string =
   let tag = strip(staticExec("git tag"))
   if tag.isEmptyOrWhitespace:
@@ -410,7 +407,7 @@ proc completeCmdArg*(T: type Duration; val: string): seq[string] =
   discard
 
 # silly chronicles, colors is a compile-time property
-proc stripAnsi*(v: string): string =
+proc stripAnsi(v: string): string =
   var
     res = newStringOfCap(v.len)
     i: int

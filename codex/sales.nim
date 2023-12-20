@@ -3,13 +3,13 @@ import std/sugar
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
+import pkg/chronicles
 import pkg/datastore
 import ./market
 import ./clock
 import ./stores
 import ./contracts/requests
 import ./contracts/marketplace
-import ./logutils
 import ./sales/salescontext
 import ./sales/salesagent
 import ./sales/statemachine
@@ -165,7 +165,7 @@ proc filled(
     processing.complete()
 
 proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
-  debug "processing slot from queue", requestId = item.requestId,
+  debug "processing slot from queue", requestId = $item.requestId,
     slot = item.slotIndex
 
   let agent = newSalesAgent(

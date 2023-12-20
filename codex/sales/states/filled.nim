@@ -1,8 +1,7 @@
 import pkg/questionable
 import pkg/questionable/results
-
+import pkg/chronicles
 import ../../conf
-import ../../logutils
 import ../statemachine
 import ../salesagent
 import ./errorhandling
@@ -37,7 +36,7 @@ method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
   let me = await market.getSigner()
 
   if host == me.some:
-    info "Slot succesfully filled", requestId = data.requestId, slotIndex = data.slotIndex
+    info "Slot succesfully filled", requestId = $data.requestId, slotIndex = $data.slotIndex
 
     without request =? data.request:
       raiseAssert "no sale request"

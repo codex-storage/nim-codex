@@ -9,17 +9,16 @@
 
 ## Partially taken from nim beacon chain
 
+import std/strutils
 import pkg/upraises
 
 push: {.upraises: [].}
 
-import std/strutils
-import pkg/stew/io2
-
-import ../logutils
+import pkg/chronicles
+import stew/io2
 
 export io2
-export logutils
+export chronicles except toJson
 
 when defined(windows):
   import stew/[windows/acl]

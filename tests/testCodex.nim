@@ -2,7 +2,6 @@ import ./codex/teststores
 import ./codex/testblockexchange
 import ./codex/testasyncheapqueue
 import ./codex/testchunking
-import ./codex/testlogutils
 import ./codex/testmanifest
 import ./codex/testnode
 import ./codex/teststorestream

@@ -11,6 +11,7 @@
 ## Looks for and removes expired blocks from blockstores.
 
 import pkg/chronos
+import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 
@@ -18,7 +19,6 @@ import ./repostore
 import ../utils/timer
 import ../utils/asynciter
 import ../clock
-import ../logutils
 import ../systemclock
 
 const

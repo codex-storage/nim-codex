@@ -17,13 +17,13 @@ import pkg/libp2p/protobuf/minprotobuf
 import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
+import pkg/chronicles
 
 import ../errors
 import ../utils
 import ../utils/json
 import ../units
 import ../blocktype
-import ../logutils
 import ./types
 
 export types

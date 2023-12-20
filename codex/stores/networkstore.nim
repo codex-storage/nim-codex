@@ -7,22 +7,25 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-
 import pkg/upraises
+
 push: {.upraises: [].}
 
+import std/sugar
+
+import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
 import pkg/questionable/results
 
-import ../clock
-import ../blocktype
-import ../blockexchange
-import ../logutils
-import ../merkletree
 import ../utils/asyncheapqueue
 import ../utils/asynciter
+import ../clock
+
+import ../blocktype
 import ./blockstore
+import ../blockexchange
+import ../merkletree
 
 export blockstore, blockexchange, asyncheapqueue
 
