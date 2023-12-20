@@ -59,7 +59,7 @@ iterator nodes*[H, K](self: MerkleTree[H, K]): H =
       yield node
 
 func root*[H, K](self: MerkleTree[H, K]): ?!H =
-  let last = self.layers[self.layers.len - 1]
+  let last = self.layers[^1]
   if last.len != 1:
     return failure "invalid tree"
 
