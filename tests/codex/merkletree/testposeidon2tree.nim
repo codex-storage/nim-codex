@@ -33,7 +33,7 @@ const
       "0000000000000000000000000000010".toBytes,
     ]
 
-suite "Test CodexMerkleTree":
+suite "Test CodexTree":
   var
     expectedLeaves: seq[Poseidon2Hash]
 
@@ -42,18 +42,18 @@ suite "Test CodexMerkleTree":
 
   test "Should fail init tree from empty leaves":
     check:
-      Poseidon2MerkleTree.init( leaves = newSeq[Poseidon2Hash](0) ).isErr
+      Poseidon2Tree.init( leaves = newSeq[Poseidon2Hash](0) ).isErr
 
   test "Init tree from poseidon2 leaves":
     let
-      tree = Poseidon2MerkleTree.init( leaves = expectedLeaves ).tryGet
+      tree = Poseidon2Tree.init( leaves = expectedLeaves ).tryGet
 
     check:
       tree.leaves == expectedLeaves
 
   test "Init tree from byte leaves":
     let
-      tree = Poseidon2MerkleTree.init(
+      tree = Poseidon2Tree.init(
         leaves = data.mapIt(
           array[31, byte].initCopyFrom( it )
         )).tryGet
@@ -63,8 +63,8 @@ suite "Test CodexMerkleTree":
 
   test "Should build from nodes":
     let
-      tree = Poseidon2MerkleTree.init(leaves = expectedLeaves).tryGet
-      fromNodes = Poseidon2MerkleTree.fromNodes(
+      tree = Poseidon2Tree.init(leaves = expectedLeaves).tryGet
+      fromNodes = Poseidon2Tree.fromNodes(
         nodes = toSeq(tree.nodes),
         nleaves = tree.leavesCount).tryGet
 
@@ -77,11 +77,11 @@ let
     key: PoseidonKeysEnum): Poseidon2Hash {.noSideEffect.} =
     compress(x, y, key.toKey)
 
-  makeTree = proc(data: seq[Poseidon2Hash]): Poseidon2MerkleTree =
-    Poseidon2MerkleTree.init(leaves = data).tryGet
+  makeTree = proc(data: seq[Poseidon2Hash]): Poseidon2Tree =
+    Poseidon2Tree.init(leaves = data).tryGet
 
 testGenericTree(
-  "Poseidon2MerkleTree",
+  "Poseidon2Tree",
   toSeq( data.concat().elements(Poseidon2Hash) ),
   zero,
   compressor,

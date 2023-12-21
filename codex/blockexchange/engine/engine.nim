@@ -535,12 +535,12 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       trace "Handling lookup for entry", address = e.address
       if e.address.leaf:
         (await b.localStore.getBlockAndProof(e.address.treeCid, e.address.index)).map(
-          (blkAndProof: (Block, CodexMerkleProof)) =>
+          (blkAndProof: (Block, CodexProof)) =>
             BlockDelivery(address: e.address, blk: blkAndProof[0], proof: blkAndProof[1].some)
         )
       else:
         (await b.localStore.getBlock(e.address)).map(
-          (blk: Block) => BlockDelivery(address: e.address, blk: blk, proof: CodexMerkleProof.none)
+          (blk: Block) => BlockDelivery(address: e.address, blk: blk, proof: CodexProof.none)
         )
 
     let

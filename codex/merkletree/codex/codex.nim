@@ -46,10 +46,10 @@ type
   ByteTree* = MerkleTree[ByteHash, ByteTreeKey]
   ByteTreeProof* = MerkleProof[ByteHash, ByteTreeKey]
 
-  CodexMerkleTree* = ref object of ByteTree
+  CodexTree* = ref object of ByteTree
     mhash: MHash
 
-  CodexMerkleProof* = ref object of ByteTreeProof
+  CodexProof* = ref object of ByteTreeProof
     mhash: MHash
 
 func getMhash*(mcodec: MultiCodec): ?!MHash =
@@ -61,13 +61,13 @@ func getMhash*(mcodec: MultiCodec): ?!MHash =
 
   success mhash
 
-func digestSize*(self: (CodexMerkleTree or CodexMerkleProof)): int =
+func digestSize*(self: (CodexTree or CodexProof)): int =
   ## Number of leaves
   ##
 
   self.mhash.size
 
-func mcodec*(self: (CodexMerkleTree or CodexMerkleProof)): MultiCodec =
+func mcodec*(self: (CodexTree or CodexProof)): MultiCodec =
   ## Multicodec
   ##
 
@@ -79,15 +79,15 @@ func bytes*(mhash: MultiHash): seq[byte] =
 
   mhash.data.buffer[mhash.dpos..<mhash.dpos + mhash.size]
 
-func getProof*(self: CodexMerkleTree, index: int): ?!CodexMerkleProof =
+func getProof*(self: CodexTree, index: int): ?!CodexProof =
   var
-    proof = CodexMerkleProof(mhash: self.mhash)
+    proof = CodexProof(mhash: self.mhash)
 
   ? self.getProof(index, proof)
 
   success proof
 
-func verify*(self: CodexMerkleProof, leaf: MultiHash, root: MultiHash): ?!void =
+func verify*(self: CodexProof, leaf: MultiHash, root: MultiHash): ?!void =
   ## Verify hash
   ##
 
@@ -107,11 +107,11 @@ func verify*(self: CodexMerkleProof, leaf: MultiHash, root: MultiHash): ?!void =
 
   success()
 
-func verify*(self: CodexMerkleProof, leaf: Cid, root: Cid): ?!void =
+func verify*(self: CodexProof, leaf: Cid, root: Cid): ?!void =
   self.verify(? leaf.mhash.mapFailure, ? leaf.mhash.mapFailure)
 
 proc rootCid*(
-  self: CodexMerkleTree,
+  self: CodexTree,
   version = CIDv1,
   dataCodec = DatasetRootCodec): ?!Cid =
 
@@ -124,7 +124,7 @@ proc rootCid*(
   Cid.init(version, DatasetRootCodec, mhash).mapFailure
 
 func getLeafCid*(
-  self: CodexMerkleTree,
+  self: CodexTree,
   i: Natural,
   version = CIDv1,
   dataCodec = BlockCodec): ?!Cid =
@@ -138,25 +138,25 @@ func getLeafCid*(
 
   Cid.init(version, dataCodec, mhash).mapFailure
 
-proc `==`*(a, b: CodexMerkleTree): bool =
+proc `==`*(a, b: CodexTree): bool =
   (a.mcodec == b.mcodec) and
   (a.leavesCount == b.leavesCount) and
   (a.levels == b.levels)
 
-proc `==`*(a, b: CodexMerkleProof): bool =
+proc `==`*(a, b: CodexProof): bool =
   (a.mcodec == b.mcodec) and
   (a.nleaves == b.nleaves) and
   (a.path == b.path) and
   (a.index == b.index)
 
-proc `$`*(self: CodexMerkleTree): string =
-  "CodexMerkleTree( mcodec: " &
+proc `$`*(self: CodexTree): string =
+  "CodexTree( mcodec: " &
     $self.mcodec &
     ", leavesCount: " &
     $self.leavesCount & " )"
 
-proc `$`*(self: CodexMerkleProof): string =
-  "CodexMerkleProof( mcodec: " &
+proc `$`*(self: CodexProof): string =
+  "CodexProof( mcodec: " &
     $self.mcodec & ", nleaves: " &
     $self.nleaves & ", index: " &
     $self.index & " )"
@@ -173,9 +173,9 @@ func compress*(
   success digest
 
 func init*(
-  _: type CodexMerkleTree,
+  _: type CodexTree,
   mcodec: MultiCodec = multiCodec("sha2-256"),
-  leaves: openArray[ByteHash]): ?!CodexMerkleTree =
+  leaves: openArray[ByteHash]): ?!CodexTree =
 
   if leaves.len == 0:
     return failure "Empty leaves"
@@ -190,14 +190,14 @@ func init*(
     return failure "Invalid hash length"
 
   var
-    self = CodexMerkleTree(mhash: mhash, compress: compressor, zero: Zero)
+    self = CodexTree(mhash: mhash, compress: compressor, zero: Zero)
 
   self.layers = ? merkleTreeWorker(self, leaves, isBottomLayer = true)
   success self
 
 func init*(
-  _: type CodexMerkleTree,
-  leaves: openArray[MultiHash]): ?!CodexMerkleTree =
+  _: type CodexTree,
+  leaves: openArray[MultiHash]): ?!CodexTree =
 
   if leaves.len == 0:
     return failure "Empty leaves"
@@ -206,11 +206,11 @@ func init*(
     mcodec = leaves[0].mcodec
     leaves = leaves.mapIt( it.bytes )
 
-  CodexMerkleTree.init(mcodec, leaves)
+  CodexTree.init(mcodec, leaves)
 
 func init*(
-  _: type CodexMerkleTree,
-  leaves: openArray[Cid]): ?!CodexMerkleTree =
+  _: type CodexTree,
+  leaves: openArray[Cid]): ?!CodexTree =
   if leaves.len == 0:
     return failure "Empty leaves"
 
@@ -218,13 +218,13 @@ func init*(
     mcodec = (? leaves[0].mhash.mapFailure).mcodec
     leaves = leaves.mapIt( (? it.mhash.mapFailure).bytes )
 
-  CodexMerkleTree.init(mcodec, leaves)
+  CodexTree.init(mcodec, leaves)
 
 proc fromNodes*(
-  _: type CodexMerkleTree,
+  _: type CodexTree,
   mcodec: MultiCodec = multiCodec("sha2-256"),
   nodes: openArray[ByteHash],
-  nleaves: int): ?!CodexMerkleTree =
+  nleaves: int): ?!CodexTree =
 
   if nodes.len == 0:
     return failure "Empty nodes"
@@ -239,7 +239,7 @@ proc fromNodes*(
     return failure "Invalid hash length"
 
   var
-    self = CodexMerkleTree(compress: compressor, zero: Zero, mhash: mhash)
+    self = CodexTree(compress: compressor, zero: Zero, mhash: mhash)
     layer = nleaves
     pos = 0
 
@@ -256,11 +256,11 @@ proc fromNodes*(
   success self
 
 func init*(
-  _: type CodexMerkleProof,
+  _: type CodexProof,
   mcodec: MultiCodec = multiCodec("sha2-256"),
   index: int,
   nleaves: int,
-  nodes: openArray[ByteHash]): ?!CodexMerkleProof =
+  nodes: openArray[ByteHash]): ?!CodexProof =
 
   if nodes.len == 0:
     return failure "Empty nodes"
@@ -272,7 +272,7 @@ func init*(
       compress(x, y, key, mhash)
 
 
-  success CodexMerkleProof(
+  success CodexProof(
     compress: compressor,
     zero: Zero,
     mhash: mhash,

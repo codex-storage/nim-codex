@@ -49,7 +49,7 @@ method getBlock*(self: BlockStore, address: BlockAddress): Future[?!Block] {.bas
 
   raiseAssert("getBlock by addr not implemented!")
 
-method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!(Block, CodexMerkleProof)] {.base.} =
+method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!(Block, CodexProof)] {.base.} =
   ## Get a block and associated inclusion proof by Cid of a merkle tree and an index of a leaf in a tree
   ##
 
@@ -70,7 +70,7 @@ method putBlockCidAndProof*(
   treeCid: Cid,
   index: Natural,
   blockCid: Cid,
-  proof: CodexMerkleProof
+  proof: CodexProof
 ): Future[?!void] {.base.} =
   ## Put a block to the blockstore
   ##

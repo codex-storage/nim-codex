@@ -36,8 +36,8 @@ type
     KeyOdd
     KeyOddAndBottomLayer
 
-  Poseidon2MerkleTree* = MerkleTree[Poseidon2Hash, PoseidonKeysEnum]
-  Poseidon2MerkleProof* = MerkleProof[Poseidon2Hash, PoseidonKeysEnum]
+  Poseidon2Tree* = MerkleTree[Poseidon2Hash, PoseidonKeysEnum]
+  Poseidon2Proof* = MerkleProof[Poseidon2Hash, PoseidonKeysEnum]
 
 converter toKey*(key: PoseidonKeysEnum): Poseidon2Hash =
   case key:
@@ -49,18 +49,18 @@ converter toKey*(key: PoseidonKeysEnum): Poseidon2Hash =
 converter toBool(x: CtBool): bool =
   bool(x)
 
-proc `==`*(a, b: Poseidon2MerkleTree): bool =
+proc `==`*(a, b: Poseidon2Tree): bool =
   (a.leavesCount == b.leavesCount) and
   (a.levels == b.levels)
 
-proc `==`*(a, b: Poseidon2MerkleProof): bool =
+proc `==`*(a, b: Poseidon2Proof): bool =
   (a.nleaves == b.nleaves) and
   (a.path == b.path) and
   (a.index == b.index)
 
 func init*(
-  _: type Poseidon2MerkleTree,
-  leaves: openArray[Poseidon2Hash]): ?!Poseidon2MerkleTree =
+  _: type Poseidon2Tree,
+  leaves: openArray[Poseidon2Hash]): ?!Poseidon2Tree =
 
   if leaves.len == 0:
     return failure "Empty leaves"
@@ -72,21 +72,21 @@ func init*(
       success compress( x, y, key.toKey )
 
   var
-    self = Poseidon2MerkleTree(compress: compressor, zero: zero)
+    self = Poseidon2Tree(compress: compressor, zero: zero)
 
   self.layers = ? merkleTreeWorker(self, leaves, isBottomLayer = true)
   success self
 
 func init*(
-  _: type Poseidon2MerkleTree,
-  leaves: openArray[array[31, byte]]): ?!Poseidon2MerkleTree =
-  Poseidon2MerkleTree.init(
+  _: type Poseidon2Tree,
+  leaves: openArray[array[31, byte]]): ?!Poseidon2Tree =
+  Poseidon2Tree.init(
     leaves.mapIt( Poseidon2Hash.fromBytes(it) ))
 
 proc fromNodes*(
-  _: type Poseidon2MerkleTree,
+  _: type Poseidon2Tree,
   nodes: openArray[Poseidon2Hash],
-  nleaves: int): ?!Poseidon2MerkleTree =
+  nleaves: int): ?!Poseidon2Tree =
 
   if nodes.len == 0:
     return failure "Empty nodes"
@@ -98,7 +98,7 @@ proc fromNodes*(
       success compress( x, y, key.toKey )
 
   var
-    self = Poseidon2MerkleTree(compress: compressor, zero: zero)
+    self = Poseidon2Tree(compress: compressor, zero: zero)
     layer = nleaves
     pos = 0
 

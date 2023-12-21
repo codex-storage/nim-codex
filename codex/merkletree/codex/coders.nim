@@ -11,8 +11,6 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
-import std/sequtils
-
 import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
@@ -25,7 +23,7 @@ import ./codex
 const MaxMerkleTreeSize = 100.MiBs.uint
 const MaxMerkleProofSize = 1.MiBs.uint
 
-proc encode*(self: CodexMerkleTree): seq[byte] =
+proc encode*(self: CodexTree): seq[byte] =
   var pb = initProtoBuffer(maxSize = MaxMerkleTreeSize)
   pb.write(1, self.mcodec.uint64)
   pb.write(2, self.leavesCount.uint64)
@@ -38,7 +36,7 @@ proc encode*(self: CodexMerkleTree): seq[byte] =
   pb.finish
   pb.buffer
 
-proc decode*(_: type CodexMerkleTree, data: seq[byte]): ?!CodexMerkleTree =
+proc decode*(_: type CodexTree, data: seq[byte]): ?!CodexTree =
   var pb = initProtoBuffer(data, maxSize = MaxMerkleTreeSize)
   var mcodecCode: uint64
   var leavesCount: uint64
@@ -59,9 +57,9 @@ proc decode*(_: type CodexMerkleTree, data: seq[byte]): ?!CodexMerkleTree =
       discard ? initProtoBuffer(nodeBuff).getField(1, node).mapFailure
       nodes.add node
 
-  CodexMerkleTree.fromNodes(mcodec, nodes, leavesCount.int)
+  CodexTree.fromNodes(mcodec, nodes, leavesCount.int)
 
-proc encode*(self: CodexMerkleProof): seq[byte] =
+proc encode*(self: CodexProof): seq[byte] =
   var pb = initProtoBuffer(maxSize = MaxMerkleProofSize)
   pb.write(1, self.mcodec.uint64)
   pb.write(2, self.index.uint64)
@@ -76,7 +74,7 @@ proc encode*(self: CodexMerkleProof): seq[byte] =
   pb.finish
   pb.buffer
 
-proc decode*(_: type CodexMerkleProof, data: seq[byte]): ?!CodexMerkleProof =
+proc decode*(_: type CodexProof, data: seq[byte]): ?!CodexProof =
   var pb = initProtoBuffer(data, maxSize = MaxMerkleProofSize)
   var mcodecCode: uint64
   var index: uint64
@@ -101,4 +99,4 @@ proc decode*(_: type CodexMerkleProof, data: seq[byte]): ?!CodexMerkleProof =
       discard ? nodePb.getField(1, node).mapFailure
       nodes.add node
 
-  CodexMerkleProof.init(mcodec, index.int, nleaves.int, nodes)
+  CodexProof.init(mcodec, index.int, nleaves.int, nodes)

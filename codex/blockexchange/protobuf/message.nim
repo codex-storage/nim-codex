@@ -37,7 +37,7 @@ type
   BlockDelivery* = object
     blk*: Block
     address*: BlockAddress
-    proof*: ?CodexMerkleProof    # Present only if `address.leaf` is true
+    proof*: ?CodexProof    # Present only if `address.leaf` is true
 
   BlockPresenceType* = enum
     Have = 0,
@@ -219,12 +219,12 @@ proc decode*(_: type BlockDelivery, pb: ProtoBuffer): ProtoResult[BlockDelivery]
   if value.address.leaf:
     var proofBuf = newSeq[byte]()
     if ? pb.getField(4, proofBuf):
-      let proof = ? CodexMerkleProof.decode(proofBuf).mapErr(x => ProtoError.IncorrectBlob)
+      let proof = ? CodexProof.decode(proofBuf).mapErr(x => ProtoError.IncorrectBlob)
       value.proof = proof.some
     else:
-      value.proof = CodexMerkleProof.none
+      value.proof = CodexProof.none
   else:
-    value.proof = CodexMerkleProof.none
+    value.proof = CodexProof.none
 
   ok(value)
 

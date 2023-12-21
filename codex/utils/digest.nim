@@ -14,8 +14,8 @@ import pkg/questionable/results
 import ../merkletree
 
 func digestTree*(
-  _: type Poseidon2MerkleTree,
-  bytes: openArray[byte], chunkSize: int): ?!Poseidon2MerkleTree =
+  _: type Poseidon2Tree,
+  bytes: openArray[byte], chunkSize: int): ?!Poseidon2Tree =
   ## Hashes chunks of data with a sponge of rate 2, and combines the
   ## resulting chunk hashes in a merkle root.
   ##
@@ -28,13 +28,13 @@ func digestTree*(
     let digest = Sponge.digest(bytes.toOpenArray(start, finish - 1), rate = 2)
     leaves.add(digest)
     index += chunkSize
-  return Poseidon2MerkleTree.init(leaves)
+  return Poseidon2Tree.init(leaves)
 
 func digest*(
-  _: type Poseidon2MerkleTree,
+  _: type Poseidon2Tree,
   bytes: openArray[byte], chunkSize: int): ?!Poseidon2Hash =
   ## Hashes chunks of data with a sponge of rate 2, and combines the
   ## resulting chunk hashes in a merkle root.
   ##
 
-  (? Poseidon2MerkleTree.digestTree(bytes, chunkSize)).root
+  (? Poseidon2Tree.digestTree(bytes, chunkSize)).root

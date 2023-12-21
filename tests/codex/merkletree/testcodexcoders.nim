@@ -25,16 +25,16 @@ checksuite "merkletree - coders":
 
   test "encoding and decoding a tree yields the same tree":
     let
-      tree = CodexMerkleTree.init(multiCodec("sha2-256"), data).tryGet()
+      tree = CodexTree.init(multiCodec("sha2-256"), data).tryGet()
       encodedBytes = tree.encode()
-      decodedTree = CodexMerkleTree.decode(encodedBytes).tryGet()
+      decodedTree = CodexTree.decode(encodedBytes).tryGet()
 
     check:
       tree == decodedTree
 
   test "encoding and decoding a proof yields the same proof":
     let
-      tree = CodexMerkleTree.init(multiCodec("sha2-256"), data).tryGet()
+      tree = CodexTree.init(multiCodec("sha2-256"), data).tryGet()
       proof = tree.getProof(4).tryGet()
 
     check:
@@ -42,7 +42,7 @@ checksuite "merkletree - coders":
 
     let
       encodedBytes = proof.encode()
-      decodedProof = CodexMerkleProof.decode(encodedBytes).tryGet()
+      decodedProof = CodexProof.decode(encodedBytes).tryGet()
 
     check:
       proof == decodedProof

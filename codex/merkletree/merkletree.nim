@@ -125,7 +125,7 @@ func reconstructRoot*[H, K](proof: MerkleProof[H, K], leaf: H): ?!H =
   return success h
 
 func verify*[H, K](proof: MerkleProof[H, K], leaf: H, root: H): ?!void =
-  return if root == ? proof.reconstructRoot(leaf):
+  return if bool(root == ? proof.reconstructRoot(leaf)):
       success()
     else:
       failure("invalid proof")

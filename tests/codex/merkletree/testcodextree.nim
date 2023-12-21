@@ -30,24 +30,24 @@ const
     ]
   sha256 = multiCodec("sha2-256")
 
-suite "Test CodexMerkleTree":
+suite "Test CodexTree":
   test "Cannot init tree without any multihash leaves":
     check:
-      CodexMerkleTree.init(leaves = newSeq[MultiHash]()).isErr
+      CodexTree.init(leaves = newSeq[MultiHash]()).isErr
 
   test "Cannot init tree without any cid leaves":
     check:
-      CodexMerkleTree.init(leaves = newSeq[Cid]()).isErr
+      CodexTree.init(leaves = newSeq[Cid]()).isErr
 
   test "Cannot init tree without any byte leaves":
     check:
-      CodexMerkleTree.init(sha256, leaves =  newSeq[ByteHash]()).isErr
+      CodexTree.init(sha256, leaves =  newSeq[ByteHash]()).isErr
 
   test "Should build tree from multihash leaves":
     var
       expectedLeaves = data.mapIt(  MultiHash.digest($sha256, it).tryGet() )
 
-    var tree = CodexMerkleTree.init(leaves = expectedLeaves)
+    var tree = CodexTree.init(leaves = expectedLeaves)
     check:
       tree.isOk
       tree.get().leaves == expectedLeaves.mapIt( it.bytes )
@@ -63,7 +63,7 @@ suite "Test CodexMerkleTree":
       ).tryGet )
 
     let
-      tree = CodexMerkleTree.init(leaves = expectedLeaves)
+      tree = CodexTree.init(leaves = expectedLeaves)
 
     check:
       tree.isOk
@@ -72,7 +72,7 @@ suite "Test CodexMerkleTree":
 
   test "Should build from raw bytes (should not hash leaves)":
     let
-      tree = CodexMerkleTree.init(sha256, leaves = data).tryGet
+      tree = CodexTree.init(sha256, leaves = data).tryGet
 
     check:
       tree.mcodec == sha256
@@ -80,8 +80,8 @@ suite "Test CodexMerkleTree":
 
   test "Should build from nodes":
     let
-      tree = CodexMerkleTree.init(sha256, leaves = data).tryGet
-      fromNodes = CodexMerkleTree.fromNodes(
+      tree = CodexTree.init(sha256, leaves = data).tryGet
+      fromNodes = CodexTree.fromNodes(
         nodes = toSeq(tree.nodes),
         nleaves = tree.leavesCount).tryGet
 
@@ -95,11 +95,11 @@ let
   compress = proc(x, y: seq[byte], key: ByteTreeKey): seq[byte] =
     compress(x, y, key, mhash).tryGet
 
-  makeTree = proc(data: seq[seq[byte]]): CodexMerkleTree =
-    CodexMerkleTree.init(sha256, leaves = data).tryGet
+  makeTree = proc(data: seq[seq[byte]]): CodexTree =
+    CodexTree.init(sha256, leaves = data).tryGet
 
 testGenericTree(
-  "CodexMerkleTree",
+  "CodexTree",
   @data,
   zero,
   compress,

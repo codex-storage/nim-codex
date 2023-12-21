@@ -9,6 +9,7 @@ import pkg/codex/manifest
 import pkg/codex/merkletree
 import pkg/codex/blockexchange
 import pkg/codex/rng
+import pkg/constantine/platforms/abstractions
 
 import ./helpers/nodeutils
 import ./helpers/randomchunker
@@ -20,6 +21,10 @@ import ../checktest
 export randomchunker, nodeutils, mockdiscovery, mockchunker, always, checktest, manifest
 
 export libp2p except setup, eventually
+
+# Only use in tests
+converter toBool*(x: CtBool): bool =
+  bool(x)
 
 # NOTE: The meaning of equality for blocks
 # is changed here, because blocks are now `ref`
@@ -38,7 +43,7 @@ proc lenPrefix*(msg: openArray[byte]): seq[byte] =
 
   return buf
 
-proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, CodexMerkleTree) =
+proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, CodexTree) =
 
   if blocks.len == 0:
     return failure("Blocks list was empty")
@@ -46,7 +51,7 @@ proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, CodexMerkleTree) =
   let
     datasetSize = blocks.mapIt(it.data.len).foldl(a + b)
     blockSize = blocks.mapIt(it.data.len).foldl(max(a, b))
-    tree = ? CodexMerkleTree.init(blocks.mapIt(it.cid))
+    tree = ? CodexTree.init(blocks.mapIt(it.cid))
     treeCid = ? tree.rootCid
     manifest = Manifest.new(
       treeCid = treeCid,
@@ -85,7 +90,7 @@ proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest
     (await store.putBlock(blk)).tryGet()
 
   let
-    tree = CodexMerkleTree.init(cids).tryGet()
+    tree = CodexTree.init(cids).tryGet()
     treeCid = tree.rootCid.tryGet()
     manifest = Manifest.new(
       treeCid = treeCid,

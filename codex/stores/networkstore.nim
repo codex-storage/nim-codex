@@ -11,8 +11,6 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
-import std/sugar
-
 import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
@@ -87,7 +85,7 @@ method putBlockCidAndProof*(
   treeCid: Cid,
   index: Natural,
   blockCid: Cid,
-  proof: CodexMerkleProof): Future[?!void] =
+  proof: CodexProof): Future[?!void] =
   self.localStore.putBlockCidAndProof(treeCid, index, blockCid, proof)
 
 method ensureExpiry*(
