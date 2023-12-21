@@ -31,10 +31,6 @@ export merkletree
 logScope:
   topics = "codex merkletree"
 
-const
-  DatasetRootCodec* = multiCodec("codex-root") # TODO: move to blocktype
-  BlockCodec* = multiCodec("raw") # TODO: fix multicodec to `codex-block` and move to blocktype
-
 type
   ByteTreeKey* {.pure.} = enum
     KeyNone               = 0x0.byte
@@ -174,9 +170,9 @@ func compress*(
   success digest
 
 func init*(
-  _: type CodexTree,
-  mcodec: MultiCodec = multiCodec("sha2-256"),
-  leaves: openArray[ByteHash]): ?!CodexTree =
+  _: type CodexMerkleTree,
+  mcodec: MultiCodec = Sha256HashCodec,
+  leaves: openArray[ByteHash]): ?!CodexMerkleTree =
 
   if leaves.len == 0:
     return failure "Empty leaves"
@@ -222,8 +218,8 @@ func init*(
   CodexTree.init(mcodec, leaves)
 
 proc fromNodes*(
-  _: type CodexTree,
-  mcodec: MultiCodec = multiCodec("sha2-256"),
+  _: type CodexMerkleTree,
+  mcodec: MultiCodec = Sha256HashCodec,
   nodes: openArray[ByteHash],
   nleaves: int): ?!CodexTree =
 
@@ -257,8 +253,8 @@ proc fromNodes*(
   success self
 
 func init*(
-  _: type CodexProof,
-  mcodec: MultiCodec = multiCodec("sha2-256"),
+  _: type CodexMerkleProof,
+  mcodec: MultiCodec = Sha256HashCodec,
   index: int,
   nleaves: int,
   nodes: openArray[ByteHash]): ?!CodexProof =
