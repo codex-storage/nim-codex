@@ -27,12 +27,14 @@ suite "Digest - MerkleTree":
       leaves.add(digest)
 
     let
-      digestTree = Poseidon2MerkleTree.digest(bytes, chunkSize = 2*KB).tryGet
-      tree = Poseidon2MerkleTree.init(leaves).tryGet
-      root = tree.root.tryGet
-      expected = digestTree.root.tryGet
+      digest = Poseidon2MerkleTree.digest(bytes, chunkSize = 2*KB).tryGet
+      spongeDigest = SpongeMerkle.digest(bytes, chunkSize = 2*KB)
+      codexPosTree = Poseidon2MerkleTree.init(leaves).tryGet
+      rootDigest = codexPosTree.root.tryGet
 
-    check bool( root == expected )
+    check:
+      bool( digest == spongeDigest )
+      bool( digest == rootDigest )
 
   test "Handles partial chunk at the end":
 
@@ -48,9 +50,11 @@ suite "Digest - MerkleTree":
     leaves.add(Sponge.digest(partialChunk, rate = 2))
 
     let
-      digestTree = Poseidon2MerkleTree.digest(bytes, chunkSize = 2*KB).tryGet
-      tree = Poseidon2MerkleTree.init(leaves).tryGet
-      root = tree.root.tryGet
-      expected = digestTree.root.tryGet
+      digest = Poseidon2MerkleTree.digest(bytes, chunkSize = 2*KB).tryGet
+      spongeDigest = SpongeMerkle.digest(bytes, chunkSize = 2*KB)
+      codexPosTree = Poseidon2MerkleTree.init(leaves).tryGet
+      rootDigest = codexPosTree.root.tryGet
 
-    check bool( root == expected )
+    check:
+      bool( digest == spongeDigest )
+      bool( digest == rootDigest )

@@ -16,6 +16,7 @@ import pkg/constantine/platforms/abstractions
 import pkg/codex/merkletree
 
 import ./generictreetests
+import ../helpers
 
 const
   data =
