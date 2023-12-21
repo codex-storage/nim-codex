@@ -9,7 +9,6 @@ import pkg/codex/manifest
 import pkg/codex/merkletree
 import pkg/codex/blockexchange
 import pkg/codex/rng
-import pkg/constantine/platforms/abstractions
 
 import ./helpers/nodeutils
 import ./helpers/randomchunker
@@ -21,10 +20,6 @@ import ../checktest
 export randomchunker, nodeutils, mockdiscovery, mockchunker, always, checktest, manifest
 
 export libp2p except setup, eventually
-
-# Only use in tests
-converter toBool*(x: CtBool): bool =
-  bool(x)
 
 # NOTE: The meaning of equality for blocks
 # is changed here, because blocks are now `ref`
