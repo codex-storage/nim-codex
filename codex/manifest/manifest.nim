@@ -108,11 +108,10 @@ proc slotRoots*(self: Manifest): seq[Cid] =
 ############################################################
 
 func isManifest*(cid: Cid): ?!bool =
-  let res = ?cid.contentType().mapFailure(CodexError)
-  ($(res) in ManifestContainers).success
+  success (ManifestCodec == ? cid.contentType().mapFailure(CodexError))
 
 func isManifest*(mc: MultiCodec): ?!bool =
-  ($mc in ManifestContainers).success
+  success mc == ManifestCodec
 
 ############################################################
 # Various sizes and verification
@@ -199,8 +198,8 @@ proc new*(
   blockSize: NBytes,
   datasetSize: NBytes,
   version: CidVersion = CIDv1,
-  hcodec = multiCodec("sha2-256"),
-  codec = multiCodec("raw"),
+  hcodec = Sha256HashCodec,
+  codec = BlockCodec,
   protected = false): Manifest =
 
   T(
@@ -252,12 +251,11 @@ proc new*(
 
 proc new*(
   T: type Manifest,
-  data: openArray[byte],
-  decoder = ManifestContainers[$ManifestCodec]): ?!Manifest =
+  data: openArray[byte]): ?!Manifest =
   ## Create a manifest instance from given data
   ##
 
-  Manifest.decode(data, decoder)
+  Manifest.decode(data)
 
 proc new*(
   T: type Manifest,

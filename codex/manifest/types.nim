@@ -13,12 +13,3 @@ import std/tables
 import pkg/libp2p
 
 import ../blocktype
-
-type
-  ManifestCoderTypeHolder*[codec: static MultiCodec] = object
-  ManifestCoderType* = ManifestCoderTypeHolder[ManifestCodec]
-
-const
-  ManifestContainers* = {
-    $ManifestCodec: ManifestCoderType()
-  }.toTable
