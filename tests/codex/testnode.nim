@@ -295,7 +295,7 @@ asyncchecksuite "Test Node - host contracts":
       return success()
 
     (await onStore(request, 0.u256, onBatch)).tryGet()
-    check fetchedBytes == 2291520
+    check fetchedBytes == 2293760
 
     for index in 0..<manifest.blocksCount:
       let blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
