@@ -13,6 +13,8 @@ import pkg/questionable/results
 import pkg/codex/merkletree
 import pkg/codex/utils/digest
 
+import ./helpers
+
 suite "Digest - MerkleTree":
 
   const KB = 1024

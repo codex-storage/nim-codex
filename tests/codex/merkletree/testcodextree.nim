@@ -9,7 +9,7 @@ import pkg/libp2p
 
 import pkg/codex/merkletree
 
-# import ../helpers
+import ./helpers
 import ./generictreetests
 
 # TODO: Generalize to other hashes

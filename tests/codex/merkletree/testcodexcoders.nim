@@ -5,7 +5,7 @@ import pkg/questionable/results
 import pkg/stew/byteutils
 
 import pkg/codex/merkletree
-import ../helpers
+import ./helpers
 
 const data =
   [
