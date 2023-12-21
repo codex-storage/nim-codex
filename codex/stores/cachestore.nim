@@ -39,7 +39,7 @@ type
     currentSize*: NBytes
     size*: NBytes
     cache: LruCache[Cid, Block]
-    cidAndProofCache: LruCache[(Cid, Natural), (Cid, MerkleProof)]
+    cidAndProofCache: LruCache[(Cid, Natural), (Cid, CodexProof)]
 
   InvalidBlockSize* = object of CodexError
 
@@ -65,7 +65,7 @@ method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
     trace "Error requesting block from cache", cid, error = exc.msg
     return failure exc
 
-proc getCidAndProof(self: CacheStore, treeCid: Cid, index: Natural): ?!(Cid, MerkleProof) =
+proc getCidAndProof(self: CacheStore, treeCid: Cid, index: Natural): ?!(Cid, CodexProof) =
   if cidAndProof =? self.cidAndProofCache.getOption((treeCid, index)):
     success(cidAndProof)
   else:
@@ -77,7 +77,7 @@ method getBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!Block
 
   await self.getBlock(cidAndProof[0])
 
-method getBlockAndProof*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.async.} =
+method getBlockAndProof*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!(Block, CodexProof)] {.async.} =
   without cidAndProof =? self.getCidAndProof(treeCid, index), err:
     return failure(err)
 
@@ -215,7 +215,7 @@ method putBlockCidAndProof*(
   treeCid: Cid,
   index: Natural,
   blockCid: Cid,
-  proof: MerkleProof
+  proof: CodexProof
 ): Future[?!void] {.async.} =
   self.cidAndProofCache[(treeCid, index)] = (blockCid, proof)
   success()
@@ -288,7 +288,7 @@ proc new*(
     currentSize = 0'nb
     size = int(cacheSize div chunkSize)
     cache = newLruCache[Cid, Block](size)
-    cidAndProofCache = newLruCache[(Cid, Natural), (Cid, MerkleProof)](size)
+    cidAndProofCache = newLruCache[(Cid, Natural), (Cid, CodexProof)](size)
     store = CacheStore(
       cache: cache,
       cidAndProofCache: cidAndProofCache,

@@ -33,9 +33,9 @@ type
     treeCid {.serialize.}: Cid              # Root of the merkle tree
     datasetSize {.serialize.}:  NBytes      # Total size of all blocks
     blockSize {.serialize.}: NBytes         # Size of each contained block (might not be needed if blocks are len-prefixed)
-    version: CidVersion                     # Cid version
+    codec: MultiCodec                       # Dataset codec
     hcodec: MultiCodec                      # Multihash codec
-    codec: MultiCodec                       # Data set codec
+    version: CidVersion                     # Cid version
     case protected {.serialize.}: bool      # Protected datasets have erasure coded info
     of true:
       ecK: int                              # Number of blocks to encode
@@ -194,15 +194,14 @@ proc `$`*(self: Manifest): string =
 ############################################################
 
 proc new*(
-    T: type Manifest,
-    treeCid: Cid,
-    blockSize: NBytes,
-    datasetSize: NBytes,
-    version: CidVersion = CIDv1,
-    hcodec = multiCodec("sha2-256"),
-    codec = multiCodec("raw"),
-    protected = false,
-): Manifest =
+  T: type Manifest,
+  treeCid: Cid,
+  blockSize: NBytes,
+  datasetSize: NBytes,
+  version: CidVersion = CIDv1,
+  hcodec = multiCodec("sha2-256"),
+  codec = multiCodec("raw"),
+  protected = false): Manifest =
 
   T(
     treeCid: treeCid,
@@ -214,15 +213,15 @@ proc new*(
     protected: protected)
 
 proc new*(
-    T: type Manifest,
-    manifest: Manifest,
-    treeCid: Cid,
-    datasetSize: NBytes,
-    ecK, ecM: int
-): Manifest =
+  T: type Manifest,
+  manifest: Manifest,
+  treeCid: Cid,
+  datasetSize: NBytes,
+  ecK, ecM: int): Manifest =
   ## Create an erasure protected dataset from an
   ## unprotected one
   ##
+
   Manifest(
     treeCid: treeCid,
     datasetSize: datasetSize,
@@ -236,9 +235,8 @@ proc new*(
     originalDatasetSize: manifest.datasetSize)
 
 proc new*(
-    T: type Manifest,
-    manifest: Manifest
-): Manifest =
+  T: type Manifest,
+  manifest: Manifest): Manifest =
   ## Create an unprotected dataset from an
   ## erasure protected one
   ##
@@ -254,10 +252,10 @@ proc new*(
 proc new*(
   T: type Manifest,
   data: openArray[byte],
-  decoder = ManifestContainers[$DagPBCodec]
-): ?!Manifest =
+  decoder = ManifestContainers[$DagPBCodec]): ?!Manifest =
   ## Create a manifest instance from given data
   ##
+
   Manifest.decode(data, decoder)
 
 proc new*(
@@ -271,8 +269,8 @@ proc new*(
   ecK: int,
   ecM: int,
   originalTreeCid: Cid,
-  originalDatasetSize: NBytes
-): Manifest =
+  originalDatasetSize: NBytes): Manifest =
+
   Manifest(
     treeCid: treeCid,
     datasetSize: datasetSize,
@@ -288,11 +286,10 @@ proc new*(
   )
 
 proc new*(
-    T: type Manifest,
-    manifest: Manifest,
-    verificationRoot: Cid,
-    slotRoots: seq[Cid]
-): ?!Manifest =
+  T: type Manifest,
+  manifest: Manifest,
+  verificationRoot: Cid,
+  slotRoots: seq[Cid]): ?!Manifest =
   ## Create a verifiable dataset from an
   ## protected one
   ##
@@ -313,5 +310,4 @@ proc new*(
     originalDatasetSize: manifest.originalDatasetSize,
     verifiable: true,
     verificationRoot: verificationRoot,
-    slotRoots: slotRoots
-  ))
+    slotRoots: slotRoots))

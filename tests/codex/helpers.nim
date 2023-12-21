@@ -38,23 +38,20 @@ proc lenPrefix*(msg: openArray[byte]): seq[byte] =
 
   return buf
 
-proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, MerkleTree) =
+proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, CodexTree) =
 
   if blocks.len == 0:
     return failure("Blocks list was empty")
 
-  let 
+  let
     datasetSize = blocks.mapIt(it.data.len).foldl(a + b)
     blockSize = blocks.mapIt(it.data.len).foldl(max(a, b))
-    tree = ? MerkleTree.init(blocks.mapIt(it.cid))
+    tree = ? CodexTree.init(blocks.mapIt(it.cid))
     treeCid = ? tree.rootCid
     manifest = Manifest.new(
       treeCid = treeCid,
       blockSize = NBytes(blockSize),
-      datasetSize = NBytes(datasetSize),
-      version = CIDv1,
-      hcodec = tree.mcodec
-    )
+      datasetSize = NBytes(datasetSize))
 
   return success((manifest, tree))
 
@@ -87,14 +84,13 @@ proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest
     cids.add(blk.cid)
     (await store.putBlock(blk)).tryGet()
 
-  let 
-    tree = MerkleTree.init(cids).tryGet()
+  let
+    tree = CodexTree.init(cids).tryGet()
     treeCid = tree.rootCid.tryGet()
     manifest = Manifest.new(
       treeCid = treeCid,
       blockSize = NBytes(chunker.chunkSize),
-      datasetSize = NBytes(chunker.offset),
-    )
+      datasetSize = NBytes(chunker.offset))
 
   for i in 0..<tree.leavesCount:
     let proof = tree.getProof(i).tryGet()
