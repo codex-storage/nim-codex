@@ -31,10 +31,10 @@ type
   Poseidon2Hash* = F
 
   PoseidonKeysEnum* = enum  # can't use non-ordinals as enum values
-    KeyNone               = "0x0"
-    KeyBottomLayer        = "0x1"
-    KeyOdd                = "0x2"
-    KeyOddAndBottomLayer  = "0x3"
+    KeyNone
+    KeyBottomLayer
+    KeyOdd
+    KeyOddAndBottomLayer
 
   Poseidon2MerkleTree* = MerkleTree[Poseidon2Hash, PoseidonKeysEnum]
   Poseidon2MerkleProof* = MerkleProof[Poseidon2Hash, PoseidonKeysEnum]
@@ -46,7 +46,7 @@ converter toKey*(key: PoseidonKeysEnum): Poseidon2Hash =
   of KeyOdd: KeyOddF
   of KeyOddAndBottomLayer: KeyOddAndBottomLayerF
 
-converter toBool*(x: CtBool): bool =
+converter toBool(x: CtBool): bool =
   bool(x)
 
 proc `==`*(a, b: Poseidon2MerkleTree): bool =
