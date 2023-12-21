@@ -208,8 +208,8 @@ proc store*(
   trace "Storing data"
 
   let
-    hcodec = multiCodec("sha2-256")
-    dataCodec = multiCodec("raw")
+    hcodec = Sha256HashCodec
+    dataCodec = BlockCodec
     chunker = LPStreamChunker.new(stream, chunkSize = blockSize)
 
   var cids: seq[Cid]
