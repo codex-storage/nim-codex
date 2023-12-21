@@ -14,19 +14,14 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/libp2p/protobuf/minprotobuf
-import pkg/libp2p
-import pkg/questionable
+import pkg/libp2p/[cid, multihash, multicodec]
 import pkg/questionable/results
-import pkg/chronicles
 
 import ../errors
 import ../utils
 import ../utils/json
 import ../units
 import ../blocktype
-import ./types
-
-export types
 
 type
   Manifest* = ref object of RootObj

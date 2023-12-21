@@ -30,8 +30,6 @@ export blockstore, blockexchange, asyncheapqueue
 logScope:
   topics = "codex networkstore"
 
-const BlockPrefetchAmount = 5
-
 type
   NetworkStore* = ref object of BlockStore
     engine*: BlockExcEngine # blockexc decision engine

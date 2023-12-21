@@ -12,14 +12,11 @@
 import std/tables
 import std/sugar
 
-import pkg/poseidon2
-import pkg/poseidon2/io
 import pkg/libp2p/multicodec
 import pkg/libp2p/multihash
 import pkg/libp2p/cid
 import pkg/results
 import pkg/questionable/results
-import pkg/nimcrypto/sha2
 
 import ./units
 import ./errors

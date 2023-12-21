@@ -9,7 +9,6 @@
 
 import std/tables
 import std/sugar
-import std/strformat
 
 export tables
 

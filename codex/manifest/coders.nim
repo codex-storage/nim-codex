@@ -25,7 +25,6 @@ import pkg/chronos
 import ./manifest
 import ../errors
 import ../blocktype
-import ./types
 
 proc encode*(manifest: Manifest): ?!seq[byte] =
   ## Encode the manifest into a ``ManifestCodec``

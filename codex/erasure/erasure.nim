@@ -16,7 +16,7 @@ import std/sugar
 
 import pkg/chronos
 import pkg/chronicles
-import pkg/libp2p/[multicodec, cid, multibase, multihash]
+import pkg/libp2p/[multicodec, cid, multihash]
 import pkg/libp2p/protobuf/minprotobuf
 
 import ../manifest
@@ -379,7 +379,7 @@ proc decode*(
       data[].setLen(encoded.ecK)        # set len to K
       parityData[].setLen(encoded.ecM)  # set len to M
 
-      without (dataPieces, parityPieces) =?
+      without (dataPieces, _) =?
         (await self.prepareDecodingData(encoded, step, data, parityData, cids, emptyBlock)), err:
         trace "Unable to prepare data", error = err.msg
         return failure(err)

@@ -8,7 +8,6 @@
 ## those terms.
 
 import std/options
-import std/tables
 import std/sequtils
 import std/strformat
 import std/sugar

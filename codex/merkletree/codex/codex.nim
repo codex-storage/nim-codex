@@ -140,20 +140,8 @@ proc `$`*(self: CodexTree): string =
     ", leavesCount: " &
     $self.leavesCount & " )"
 
-proc `==`*(a, b: CodexMerkleProof): bool =
-  (a.mcodec == b.mcodec) and
-  (a.nleaves == b.nleaves) and
-  (a.path == b.path) and
-  (a.index == b.index)
-
-proc `$`*(self: CodexMerkleTree): string =
-  "CodexMerkleTree( mcodec: " &
-    $self.mcodec &
-    ", leavesCount: " &
-    $self.leavesCount & " )"
-
-proc `$`*(self: CodexMerkleProof): string =
-  "CodexMerkleProof( mcodec: " &
+proc `$`*(self: CodexProof): string =
+  "CodexProof( mcodec: " &
     $self.mcodec & ", nleaves: " &
     $self.nleaves & ", index: " &
     $self.index & " )"
@@ -170,9 +158,9 @@ func compress*(
   success digest
 
 func init*(
-  _: type CodexMerkleTree,
+  _: type CodexTree,
   mcodec: MultiCodec = Sha256HashCodec,
-  leaves: openArray[ByteHash]): ?!CodexMerkleTree =
+  leaves: openArray[ByteHash]): ?!CodexTree =
 
   if leaves.len == 0:
     return failure "Empty leaves"
@@ -218,7 +206,7 @@ func init*(
   CodexTree.init(mcodec, leaves)
 
 proc fromNodes*(
-  _: type CodexMerkleTree,
+  _: type CodexTree,
   mcodec: MultiCodec = Sha256HashCodec,
   nodes: openArray[ByteHash],
   nleaves: int): ?!CodexTree =
@@ -253,7 +241,7 @@ proc fromNodes*(
   success self
 
 func init*(
-  _: type CodexMerkleProof,
+  _: type CodexProof,
   mcodec: MultiCodec = Sha256HashCodec,
   index: int,
   nleaves: int,
