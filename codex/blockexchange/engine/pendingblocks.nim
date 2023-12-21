@@ -18,11 +18,9 @@ import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
 import pkg/metrics
-import pkg/questionable/results
 
 import ../protobuf/blockexc
 import ../../blocktype
-import ../../merkletree
 
 logScope:
   topics = "codex pendingblocks"

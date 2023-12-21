@@ -97,7 +97,9 @@ proc getPendingBlocks(
   var
     # request blocks from the store
     pendingBlocks = indicies.map( (i: int) =>
-      self.store.getBlock(BlockAddress.init(manifest.treeCid, i)).map((r: ?!bt.Block) => (r, i)) # Get the data blocks (first K)
+      self.store.getBlock(
+        BlockAddress.init(manifest.treeCid, i)
+      ).map((r: ?!bt.Block) => (r, i)) # Get the data blocks (first K)
     )
 
   proc isFinished(): bool = pendingBlocks.len == 0
@@ -301,7 +303,7 @@ proc encodeData(
           return failure("Unable to store block!")
         idx.inc(params.steps)
 
-    without tree =? MerkleTree.init(cids[]), err:
+    without tree =? CodexTree.init(cids[]), err:
       return failure(err)
 
     without treeCid =? tree.rootCid, err:
@@ -318,6 +320,7 @@ proc encodeData(
       ecM = params.ecM
     )
 
+    trace "Encoded data successfully", treeCid, blocksCount = params.blocksCount
     return encodedManifest.success
   except CancelledError as exc:
     trace "Erasure coding encoding cancelled"
@@ -425,7 +428,7 @@ proc decode*(
   finally:
     decoder.release()
 
-  without tree =? MerkleTree.init(cids[0..<encoded.originalBlocksCount]), err:
+  without tree =? CodexTree.init(cids[0..<encoded.originalBlocksCount]), err:
     return failure(err)
 
   without treeCid =? tree.rootCid, err:

@@ -77,7 +77,7 @@ func available*(self: RepoStore): uint =
 func available*(self: RepoStore, bytes: uint): bool =
   return bytes < self.available()
 
-proc encode(cidAndProof: (Cid, MerkleProof)): seq[byte] =
+proc encode(cidAndProof: (Cid, CodexProof)): seq[byte] =
   ## Encodes a tuple of cid and merkle proof in a following format:
   ## | 8-bytes | n-bytes | remaining bytes |
   ## |    n    |   cid   |      proof      |
@@ -93,14 +93,14 @@ proc encode(cidAndProof: (Cid, MerkleProof)): seq[byte] =
 
   @nBytes & cidBytes & proofBytes
 
-proc decode(_: type (Cid, MerkleProof), data: seq[byte]): ?!(Cid, MerkleProof) =
+proc decode(_: type (Cid, CodexProof), data: seq[byte]): ?!(Cid, CodexProof) =
   let
     n = uint64.fromBytesBE(data[0..<sizeof(uint64)]).int
     cid = ? Cid.init(data[sizeof(uint64)..<sizeof(uint64) + n]).mapFailure
-    proof = ? MerkleProof.decode(data[sizeof(uint64) + n..^1])
+    proof = ? CodexProof.decode(data[sizeof(uint64) + n..^1])
   success((cid, proof))
 
-proc decodeCid(_: type (Cid, MerkleProof), data: seq[byte]): ?!Cid =
+proc decodeCid(_: type (Cid, CodexProof), data: seq[byte]): ?!Cid =
   let
     n = uint64.fromBytesBE(data[0..<sizeof(uint64)]).int
     cid = ? Cid.init(data[sizeof(uint64)..<sizeof(uint64) + n]).mapFailure
@@ -111,13 +111,15 @@ method putBlockCidAndProof*(
   treeCid: Cid,
   index: Natural,
   blockCid: Cid,
-  proof: MerkleProof
+  proof: CodexProof
 ): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
+
+  trace "Storing block cid and proof with key", key
 
   let value = (blockCid, proof).encode()
 
@@ -127,7 +129,7 @@ proc getCidAndProof(
   self: RepoStore,
   treeCid: Cid,
   index: Natural
-): Future[?!(Cid, MerkleProof)] {.async.} =
+): Future[?!(Cid, CodexProof)] {.async.} =
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
@@ -137,23 +139,29 @@ proc getCidAndProof(
     else:
       return failure(err)
 
-  return (Cid, MerkleProof).decode(value)
+  without (cid, proof) =? (Cid, CodexProof).decode(value), err:
+    trace "Unable to decode cid and proof", err = err.msg
+    return failure(err)
+
+  trace "Got cid and proof for block", cid, proof = $proof
+  return success (cid, proof)
 
 method getCid*(
   self: RepoStore,
   treeCid: Cid,
-  index: Natural
-): Future[?!Cid] {.async.} =
+  index: Natural): Future[?!Cid] {.async.} =
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
   without value =? await self.metaDs.get(key), err:
     if err of DatastoreKeyNotFound:
+      trace "Cid not found", treeCid, index
       return failure(newException(BlockNotFoundError, err.msg))
     else:
+      trace "Error getting cid from datastore", err = err.msg, key
       return failure(err)
 
-  return (Cid, MerkleProof).decodeCid(value)
+  return (Cid, CodexProof).decodeCid(value)
 
 method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the blockstore
@@ -181,7 +189,7 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   return Block.new(cid, data, verify = true)
 
 
-method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.async.} =
+method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, CodexProof)] {.async.} =
   without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
     return failure(err)
 
@@ -409,15 +417,17 @@ method delBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!void] 
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
+  trace "Fetching proof", key
   without value =? await self.metaDs.get(key), err:
     if err of DatastoreKeyNotFound:
       return success()
     else:
       return failure(err)
 
-  without cid =? (Cid, MerkleProof).decodeCid(value), err:
+  without cid =? (Cid, CodexProof).decodeCid(value), err:
     return failure(err)
 
+  trace "Deleting block", cid
   if err =? (await self.delBlock(cid)).errorOption:
     return failure(err)
 

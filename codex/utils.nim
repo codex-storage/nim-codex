@@ -6,7 +6,7 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
-## 
+##
 
 import std/parseutils
 import std/options
@@ -30,11 +30,10 @@ func roundUp*[T](a, b : T): T =
   divUp(a,b) * b
 
 proc orElse*[A](a, b: Option[A]): Option[A] =
-  if (a.isSome()): 
-    a 
-  else: 
+  if (a.isSome()):
+    a
+  else:
     b
-
 
 when not declared(parseDuration): # Odd code formatting to minimize diff v. mainLine
  const Whitespace = {' ', '\t', '\v', '\r', '\l', '\f'}

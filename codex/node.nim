@@ -243,7 +243,7 @@ proc store*(
   finally:
     await stream.close()
 
-  without tree =? MerkleTree.init(cids), err:
+  without tree =? CodexTree.init(cids), err:
     return failure(err)
 
   without treeCid =? tree.rootCid(CIDv1, dataCodec), err:
