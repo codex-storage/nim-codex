@@ -47,4 +47,3 @@ proc createBlockExpirationMetadataQueryKey*(): ?!Key =
 
 proc createBlockCidAndProofMetadataKey*(treeCid: Cid, index: Natural): ?!Key =
   (BlockProofKey / $treeCid).flatMap((k: Key) => k / $index)
-  

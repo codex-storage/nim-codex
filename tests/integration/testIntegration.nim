@@ -51,7 +51,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check:
       space.totalBlocks == 2.uint
       space.quotaMaxBytes == 8589934592.uint
-      space.quotaUsedBytes == 65518.uint
+      space.quotaUsedBytes == 65526.uint
       space.quotaReservedBytes == 12.uint
 
   test "node allows local file downloads":
@@ -247,30 +247,29 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
   # reason. This test has been completely refactored in
   # https://github.com/codex-storage/nim-codex/pull/607 in which it will be
   # reintroduced.
-  test "expired request partially pays out for stored time":
-    skip
-    let marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
-    let tokenAddress = await marketplace.token()
-    let token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
-    let reward = 400.u256
-    let duration = 100.u256
+  # test "expired request partially pays out for stored time":
+  #   let marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
+  #   let tokenAddress = await marketplace.token()
+  #   let token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
+  #   let reward = 400.u256
+  #   let duration = 100.u256
 
-    # client 2 makes storage available
-    let startBalanceClient2 = await token.balanceOf(account2)
-    discard client2.postAvailability(size=140000.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
+  #   # client 2 makes storage available
+  #   let startBalanceClient2 = await token.balanceOf(account2)
+  #   discard client2.postAvailability(size=140000.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
 
-    # client 1 requests storage but requires two nodes to host the content
-    let startBalanceClient1 = await token.balanceOf(account1)
-    let expiry = (await ethProvider.currentTime()) + 10
-    let cid = client1.upload(exampleString(100000)).get
-    let id = client1.requestStorage(cid, duration=duration, reward=reward, proofProbability=3.u256, expiry=expiry, collateral=200.u256, nodes=2).get
+  #   # client 1 requests storage but requires two nodes to host the content
+  #   let startBalanceClient1 = await token.balanceOf(account1)
+  #   let expiry = (await ethProvider.currentTime()) + 10
+  #   let cid = client1.upload(exampleString(100000)).get
+  #   let id = client1.requestStorage(cid, duration=duration, reward=reward, proofProbability=3.u256, expiry=expiry, collateral=200.u256, nodes=2).get
 
-    # We have to wait for Client 2 fills the slot, before advancing time.
-    # Until https://github.com/codex-storage/nim-codex/issues/594 is implemented nothing better then
-    # sleeping some seconds is available.
-    await sleepAsync(2.seconds)
-    await ethProvider.advanceTimeTo(expiry+1)
-    check eventually(client1.purchaseStateIs(id, "cancelled"), 20000)
+  #   # We have to wait for Client 2 fills the slot, before advancing time.
+  #   # Until https://github.com/codex-storage/nim-codex/issues/594 is implemented nothing better then
+  #   # sleeping some seconds is available.
+  #   await sleepAsync(2.seconds)
+  #   await ethProvider.advanceTimeTo(expiry+1)
+  #   check eventually(client1.purchaseStateIs(id, "cancelled"), 20000)
 
-    check eventually ((await token.balanceOf(account2)) - startBalanceClient2) > 0 and ((await token.balanceOf(account2)) - startBalanceClient2) < 10*reward
-    check eventually (startBalanceClient1 - (await token.balanceOf(account1))) == ((await token.balanceOf(account2)) - startBalanceClient2)
+  #   check eventually ((await token.balanceOf(account2)) - startBalanceClient2) > 0 and ((await token.balanceOf(account2)) - startBalanceClient2) < 10*reward
+  #   check eventually (startBalanceClient1 - (await token.balanceOf(account1))) == ((await token.balanceOf(account2)) - startBalanceClient2)

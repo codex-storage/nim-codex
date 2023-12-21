@@ -34,6 +34,14 @@ const
   # should be divisible by 31 for PoR and by 64 for Leopard ECC
   DefaultBlockSize* = NBytes 31 * 64 * 33
 
+  # hashes
+  Sha256Hash* = multiCodec("sha2-256")
+
+  # CIDs
+  Raw = multiCodec("raw")
+  DagPB* = multiCodec("dag-pb")
+  DagJson* = multiCodec("dag-json")
+
 type
   Block* = ref object of RootObj
     cid*: Cid

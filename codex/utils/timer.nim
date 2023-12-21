@@ -10,9 +10,12 @@
 ## Timer
 ## Used to execute a callback in a loop
 
+import pkg/upraises
+
+push: {.upraises: [].}
+
 import pkg/chronos
 import pkg/chronicles
-import pkg/upraises
 
 type
   TimerCallback* = proc(): Future[void] {.gcsafe, upraises:[].}

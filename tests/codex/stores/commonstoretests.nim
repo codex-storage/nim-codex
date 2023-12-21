@@ -30,7 +30,7 @@ proc commonBlockStoreTests*(name: string,
     var
       newBlock, newBlock1, newBlock2, newBlock3: Block
       manifest: Manifest
-      tree: MerkleTree
+      tree: CodexTree
       store: BlockStore
 
     setup:

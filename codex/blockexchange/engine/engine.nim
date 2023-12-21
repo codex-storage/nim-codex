@@ -328,11 +328,9 @@ proc validateBlockDelivery(
     without treeRoot =? bd.address.treeCid.mhash.mapFailure, err:
       return failure("Unable to get mhash from treeCid for block, nested err: " & err.msg)
 
-    without verifyOutcome =? proof.verifyLeaf(leaf, treeRoot), err:
+    if err =? proof.verify(leaf, treeRoot).errorOption:
       return failure("Unable to verify proof for block, nested err: " & err.msg)
 
-    if not verifyOutcome:
-      return failure("Provided inclusion proof is invalid")
   else: # not leaf
     if bd.address.cid != bd.blk.cid:
       return failure("Delivery cid " & $bd.address.cid & " doesn't match block cid " & $bd.blk.cid)
@@ -537,12 +535,12 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       trace "Handling lookup for entry", address = e.address
       if e.address.leaf:
         (await b.localStore.getBlockAndProof(e.address.treeCid, e.address.index)).map(
-          (blkAndProof: (Block, MerkleProof)) =>
+          (blkAndProof: (Block, CodexProof)) =>
             BlockDelivery(address: e.address, blk: blkAndProof[0], proof: blkAndProof[1].some)
         )
       else:
         (await b.localStore.getBlock(e.address)).map(
-          (blk: Block) => BlockDelivery(address: e.address, blk: blk, proof: MerkleProof.none)
+          (blk: Block) => BlockDelivery(address: e.address, blk: blk, proof: CodexProof.none)
         )
 
     let

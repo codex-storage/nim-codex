@@ -145,4 +145,3 @@ proc prefetch*[T](iter: Iter[T], n: Positive): Iter[T] =
     tryFetch(j)
 
   Iter.new(genNext, isFinished)
-
