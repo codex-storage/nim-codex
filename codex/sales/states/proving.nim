@@ -131,7 +131,7 @@ method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
         try:
           await state.loop.cancelAndWait()
         except CatchableError as e:
-          error "Error during cancelation of prooving loop", msg = e.msg
+          error "Error during cancellation of proving loop", msg = e.msg
 
       state.loop = nil
 

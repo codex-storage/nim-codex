@@ -13,7 +13,6 @@ import ../contracts/deployment
 import ../codex/helpers
 import ../examples
 import ./twonodes
-import ./marketplacesuite
 
 # For debugging you can enable logging output with debugX = true
 # You can also pass a string in same format like for the `--log-level` parameter

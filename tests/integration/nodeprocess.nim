@@ -25,22 +25,22 @@ type
     name*: string
 
 method workingDir(node: NodeProcess): string {.base.} =
-  raiseAssert "[workingDir] not implemented"
+  raiseAssert "not implemented"
 
 method executable(node: NodeProcess): string {.base.} =
-  raiseAssert "[executable] not implemented"
+  raiseAssert "not implemented"
 
 method startedOutput(node: NodeProcess): string {.base.} =
-  raiseAssert "[startedOutput] not implemented"
+  raiseAssert "not implemented"
 
 method processOptions(node: NodeProcess): set[AsyncProcessOption] {.base.} =
-  raiseAssert "[processOptions] not implemented"
+  raiseAssert "not implemented"
 
 method outputLineEndings(node: NodeProcess): string {.base.} =
-  raiseAssert "[outputLineEndings] not implemented"
+  raiseAssert "not implemented"
 
 method onOutputLineCaptured(node: NodeProcess, line: string) {.base.} =
-  raiseAssert "[onOutputLineCaptured] not implemented"
+  raiseAssert "not implemented"
 
 method start*(node: NodeProcess) {.base, async.} =
   logScope:
