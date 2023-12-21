@@ -141,6 +141,7 @@ proc getCidAndProof(
 
   without (cid, proof) =? (Cid, CodexMerkleProof).decode(value), err:
     trace "Unable to decode cid and proof", err = err.msg
+    return failure(err)
 
   trace "Got cid and proof for block", cid, proof = $proof
   return success (cid, proof)
