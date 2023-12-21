@@ -140,20 +140,8 @@ proc `$`*(self: CodexTree): string =
     ", leavesCount: " &
     $self.leavesCount & " )"
 
-proc `==`*(a, b: CodexMerkleProof): bool =
-  (a.mcodec == b.mcodec) and
-  (a.nleaves == b.nleaves) and
-  (a.path == b.path) and
-  (a.index == b.index)
-
-proc `$`*(self: CodexMerkleTree): string =
-  "CodexMerkleTree( mcodec: " &
-    $self.mcodec &
-    ", leavesCount: " &
-    $self.leavesCount & " )"
-
-proc `$`*(self: CodexMerkleProof): string =
-  "CodexMerkleProof( mcodec: " &
+proc `$`*(self: CodexProof): string =
+  "CodexProof( mcodec: " &
     $self.mcodec & ", nleaves: " &
     $self.nleaves & ", index: " &
     $self.index & " )"
