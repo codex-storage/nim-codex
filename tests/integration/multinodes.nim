@@ -36,10 +36,6 @@ type
     Hardhat
 
 proc nextFreePort(startPort: int): Future[int] {.async.} =
-  let cmd = when defined(windows):
-              "netstat -ano | findstr :"
-            else:
-              "lsof -ti:"
 
   proc client(server: StreamServer, transp: StreamTransport) {.async.} =
     await transp.closeWait()
