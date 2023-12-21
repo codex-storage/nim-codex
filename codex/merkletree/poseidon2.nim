@@ -46,18 +46,6 @@ converter toKey*(key: PoseidonKeysEnum): Poseidon2Hash =
   of KeyOdd: KeyOddF
   of KeyOddAndBottomLayer: KeyOddAndBottomLayerF
 
-converter toBool(x: CtBool): bool =
-  bool(x)
-
-proc `==`*(a, b: Poseidon2Tree): bool =
-  (a.leavesCount == b.leavesCount) and
-  (a.levels == b.levels)
-
-proc `==`*(a, b: Poseidon2Proof): bool =
-  (a.nleaves == b.nleaves) and
-  (a.path == b.path) and
-  (a.index == b.index)
-
 func init*(
   _: type Poseidon2Tree,
   leaves: openArray[Poseidon2Hash]): ?!Poseidon2Tree =

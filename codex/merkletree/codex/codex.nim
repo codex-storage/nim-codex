@@ -138,17 +138,6 @@ func getLeafCid*(
 
   Cid.init(version, dataCodec, mhash).mapFailure
 
-proc `==`*(a, b: CodexTree): bool =
-  (a.mcodec == b.mcodec) and
-  (a.leavesCount == b.leavesCount) and
-  (a.levels == b.levels)
-
-proc `==`*(a, b: CodexProof): bool =
-  (a.mcodec == b.mcodec) and
-  (a.nleaves == b.nleaves) and
-  (a.path == b.path) and
-  (a.index == b.index)
-
 proc `$`*(self: CodexTree): string =
   "CodexTree( mcodec: " &
     $self.mcodec &
