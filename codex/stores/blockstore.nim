@@ -70,17 +70,26 @@ method putBlock*(
 
   raiseAssert("putBlock not implemented!")
 
-method putBlockCidAndProof*(
+method putCidAndProof*(
   self: BlockStore,
   treeCid: Cid,
   index: Natural,
   blockCid: Cid,
   proof: CodexProof
 ): Future[?!void] {.base.} =
-  ## Put a block to the blockstore
+  ## Put a block proof to the blockstore
   ##
 
-  raiseAssert("putBlockCidAndProof not implemented!")
+  raiseAssert("putCidAndProof not implemented!")
+
+method getCidAndProof*(
+  self: BlockStore,
+  treeCid: Cid,
+  index: Natural): Future[?!(Cid, CodexProof)] {.base.} =
+  ## Get a block proof from the blockstore
+  ##
+
+  raiseAssert("putCidAndProof not implemented!")
 
 method ensureExpiry*(
     self: BlockStore,

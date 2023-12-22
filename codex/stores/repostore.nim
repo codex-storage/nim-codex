@@ -106,7 +106,7 @@ proc decodeCid(_: type (Cid, CodexProof), data: seq[byte]): ?!Cid =
     cid = ? Cid.init(data[sizeof(uint64)..<sizeof(uint64) + n]).mapFailure
   success(cid)
 
-method putBlockCidAndProof*(
+method putCidAndProof*(
   self: RepoStore,
   treeCid: Cid,
   index: Natural,
@@ -125,11 +125,10 @@ method putBlockCidAndProof*(
 
   await self.metaDs.put(key, value)
 
-proc getCidAndProof(
+method getCidAndProof*(
   self: RepoStore,
   treeCid: Cid,
-  index: Natural
-): Future[?!(Cid, CodexProof)] {.async.} =
+  index: Natural): Future[?!(Cid, CodexProof)] {.async.} =
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
@@ -541,7 +540,8 @@ method close*(self: RepoStore): Future[void] {.async.} =
   ## For some implementations this may be a no-op
   ##
 
-  (await self.repoDs.close()).expect("Should close datastore")
+  (await self.metaDs.close()).expect("Should meta datastore")
+  (await self.repoDs.close()).expect("Should repo datastore")
 
 proc reserve*(self: RepoStore, bytes: uint): Future[?!void] {.async.} =
   ## Reserve bytes

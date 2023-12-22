@@ -65,20 +65,24 @@ method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
     trace "Error requesting block from cache", cid, error = exc.msg
     return failure exc
 
-proc getCidAndProof(self: CacheStore, treeCid: Cid, index: Natural): ?!(Cid, CodexProof) =
+method getCidAndProof*(
+  self: CacheStore,
+  treeCid: Cid,
+  index: Natural): Future[?!(Cid, CodexProof)] {.async.} =
+
   if cidAndProof =? self.cidAndProofCache.getOption((treeCid, index)):
     success(cidAndProof)
   else:
     failure(newException(BlockNotFoundError, "Block not in cache: " & $BlockAddress.init(treeCid, index)))
 
 method getBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!Block] {.async.} =
-  without cidAndProof =? self.getCidAndProof(treeCid, index), err:
+  without cidAndProof =? (await self.getCidAndProof(treeCid, index)), err:
     return failure(err)
 
   await self.getBlock(cidAndProof[0])
 
 method getBlockAndProof*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!(Block, CodexProof)] {.async.} =
-  without cidAndProof =? self.getCidAndProof(treeCid, index), err:
+  without cidAndProof =? (await self.getCidAndProof(treeCid, index)), err:
     return failure(err)
 
   let (cid, proof) = cidAndProof
@@ -106,14 +110,13 @@ method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
   return (cid in self.cache).success
 
 method hasBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!bool] {.async.} =
-  without cidAndProof =? self.getCidAndProof(treeCid, index), err:
+  without cidAndProof =? (await self.getCidAndProof(treeCid, index)), err:
     if err of BlockNotFoundError:
       return success(false)
     else:
       return failure(err)
 
   await self.hasBlock(cidAndProof[0])
-
 
 func cids(self: CacheStore): (iterator: Cid {.gcsafe.}) =
   return iterator(): Cid =
@@ -210,7 +213,7 @@ method putBlock*(
   discard self.putBlockSync(blk)
   return success()
 
-method putBlockCidAndProof*(
+method putCidAndProof*(
   self: CacheStore,
   treeCid: Cid,
   index: Natural,

@@ -78,13 +78,13 @@ method putBlock*(
   await self.engine.resolveBlocks(@[blk])
   return success()
 
-method putBlockCidAndProof*(
+method putCidAndProof*(
   self: NetworkStore,
   treeCid: Cid,
   index: Natural,
   blockCid: Cid,
   proof: CodexProof): Future[?!void] =
-  self.localStore.putBlockCidAndProof(treeCid, index, blockCid, proof)
+  self.localStore.putCidAndProof(treeCid, index, blockCid, proof)
 
 method ensureExpiry*(
   self: NetworkStore,

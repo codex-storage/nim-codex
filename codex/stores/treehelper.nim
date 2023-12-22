@@ -36,7 +36,7 @@ proc putSomeProofs*(store: BlockStore, tree: CodexTree, iter: Iter[int]): Future
     without proof =? tree.getProof(i), err:
       return failure(err)
 
-    let res = await store.putBlockCidAndProof(treeCid, i, blkCid, proof)
+    let res = await store.putCidAndProof(treeCid, i, blkCid, proof)
 
     if err =? res.errorOption:
       return failure(err)
