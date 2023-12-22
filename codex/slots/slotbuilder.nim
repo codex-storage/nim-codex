@@ -251,7 +251,7 @@ proc new*(
     # all trees have to be padded to power of two
     numBlockCells = manifest.blockSize.int div cellSize                       # number of cells per block
     blockPadBytes
-      = newSeq[byte](numBlockCells.nextPowerOfTwoPad * cellSize)  # power of two padding for blocks
+      = newSeq[byte](numBlockCells.nextPowerOfTwoPad * cellSize)              # power of two padding for blocks
     slotsPadLeafs
       = newSeqWith((manifest.blocksCount div manifest.numSlots).nextPowerOfTwoPad, Poseidon2Zero)                                                  # power of two padding for block roots
     rootsPadLeafs
