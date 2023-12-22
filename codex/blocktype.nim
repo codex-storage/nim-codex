@@ -31,14 +31,6 @@ import ./codextypes
 
 export errors, formats, units, codextypes
 
-  # hashes
-  Sha256Hash* = multiCodec("sha2-256")
-
-  # CIDs
-  Raw = multiCodec("raw")
-  DagPB* = multiCodec("dag-pb")
-  DagJson* = multiCodec("dag-json")
-
 type
   Block* = ref object of RootObj
     cid*: Cid
