@@ -1,5 +1,5 @@
 import std/sequtils
-import ../utils
+import ./utils
 
 # I'm choosing to use an assert here because:
 # 1. These are a programmer errors and *should not* happen during application runtime.
@@ -10,10 +10,10 @@ type
   # Given an interation-count as input, will produce a seq of
   # selected indices.
   IndexingStrategy* = ref object of RootObj
-    firstIndex: int             # Lowest index that can be returned
-    lastIndex: int              # Highest index that can be returned
-    numberOfIterations: int     # getIndices(iteration) will run from 0 ..< numberOfIterations
-    step: int
+    firstIndex*: int             # Lowest index that can be returned
+    lastIndex*: int              # Highest index that can be returned
+    numberOfIterations*: int     # getIndices(iteration) will run from 0 ..< numberOfIterations
+    step*: int
 
   # Simplest approach:
   # 0 => 0, 1, 2
