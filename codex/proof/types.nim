@@ -7,20 +7,19 @@ const
   CellSize* = 2048.uint64
 
 type
-  FieldElement* = F
   Cell* = seq[byte]
   ProofSample* = ref object
     cellData*: Cell
     slotBlockIndex*: uint64
-    cellBlockProof*: MerkleProof
+    cellBlockProof*: Poseidon2Proof
     blockCellIndex*: uint64
-    blockSlotProof*: MerkleProof
+    blockSlotProof*: Poseidon2Proof
   ProofInput* = ref object
-    datasetRoot*: FieldElement
-    entropy*: FieldElement
+    datasetRoot*: Poseidon2Hash
+    entropy*: Poseidon2Hash
     numberOfCellsInSlot*: uint64
     numberOfSlots*: uint64
     datasetSlotIndex*: uint64
-    slotRoot*: FieldElement
-    datasetToSlotProof*: MerkleProof
+    slotRoot*: Poseidon2Hash
+    datasetToSlotProof*: Poseidon2Proof
     proofSamples*: seq[ProofSample]

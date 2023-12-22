@@ -73,5 +73,7 @@ proc example*(_: type Reservation): Reservation =
     slotId = SlotId.example
   )
 
-proc example*(_: type MerkleProof): MerkleProof =
-  MerkleProof.init(3, @[MultiHash.example]).tryget()
+proc example*(_: type Poseidon2Proof): Poseidon2Proof =
+  var example = MerkleProof[Poseidon2Hash, PoseidonKeysEnum]()
+  example.index = 123
+  example

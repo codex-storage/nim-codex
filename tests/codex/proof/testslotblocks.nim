@@ -2,6 +2,7 @@ import std/sequtils
 
 import pkg/chronos
 import pkg/asynctest
+import pkg/stew/arrayops
 import pkg/codex/rng
 import pkg/codex/stores/cachestore
 import pkg/codex/chunker
@@ -20,6 +21,14 @@ let
   bytesPerBlock = 64 * 1024
   numberOfSlotBlocks = 4
   datasetSlotIndex = 3
+
+proc toCid(pHash: Poseidon2Hash): Cid =
+  # TODO: Clearly this needs to be the poseidon-cid codex:
+  let mhash = MultiHash.init(multiCodec("poseidon2-alt_bn_128-merkle-2kb"), pHash.toBytes()).tryGet()
+  return Cid.init(CIDv1, DatasetRootCodec, mhash).tryGet()
+
+proc toPoseidon2Hash(cid: Cid): Poseidon2Hash =
+  let a = array[31, byte].initCopyFrom(cid.data.buffer)
 
 asyncchecksuite "Test slotblocks - manifest":
   let
@@ -105,21 +114,40 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
       datasetBlocks.add(b)
       discard await localStore.putBlock(b)
 
+  # proc createManifest(): Future[void] {.async.} =
+  #   let
+  #     cids = datasetBlocks.mapIt(it.cid)
+  #     tree = MerkleTree.init(cids).tryGet()
+  #     treeCid = tree.rootCid().tryGet()
+
+  #   for index, cid in cids:
+  #     let proof = tree.getProof(index).tryget()
+  #     discard await localStore.putBlockCidAndProof(treeCid, index, cid, proof)
+
+  #   manifest = Manifest.new(
+  #     treeCid = treeCid,
+  #     blockSize = bytesPerBlock.NBytes,
+  #     datasetSize = (bytesPerBlock * numberOfSlotBlocks * totalNumberOfSlots).NBytes)
+  #   manifestBlock = bt.Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
+
   proc createManifest(): Future[void] {.async.} =
     let
       cids = datasetBlocks.mapIt(it.cid)
-      tree = MerkleTree.init(cids).tryGet()
-      treeCid = tree.rootCid().tryGet()
+      tree = Poseidon2Tree.init(cids.mapIt(Sponge.digest(it.data.buffer, rate = 2))).tryGet()
+      treeCid = tree.root().tryGet().toCid()
 
-    for index, cid in cids:
-      let proof = tree.getProof(index).tryget()
-      discard await localStore.putBlockCidAndProof(treeCid, index, cid, proof)
+    # on hold: till we can store poseidon proofs
+    # for index, cid in cids:
+    #   let proof = tree.getProof(index).tryget()
+    #   discard await localStore.putBlockCidAndProof(treeCid, index, cid, proof)
 
     manifest = Manifest.new(
       treeCid = treeCid,
       blockSize = bytesPerBlock.NBytes,
       datasetSize = (bytesPerBlock * numberOfSlotBlocks * totalNumberOfSlots).NBytes)
     manifestBlock = bt.Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
+
+
 
   proc createSlot(): void =
     slot = Slot(

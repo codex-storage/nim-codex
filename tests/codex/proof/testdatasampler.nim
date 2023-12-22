@@ -1,6 +1,7 @@
 import std/sequtils
 import std/sugar
 import std/random
+import std/strutils
 
 import pkg/questionable/results
 import pkg/constantine/math/arithmetic
@@ -9,6 +10,7 @@ import pkg/poseidon2/io
 import pkg/poseidon2
 import pkg/chronos
 import pkg/asynctest
+import pkg/stew/arrayops
 import pkg/codex/stores/cachestore
 import pkg/codex/chunker
 import pkg/codex/stores
@@ -28,8 +30,21 @@ import testdatasampler_expected
 
 let
   bytesPerBlock = 64 * 1024
-  challenge: FieldElement = toF(12345)
-  datasetRootHash: FieldElement = toF(6789)
+  challenge: Poseidon2Hash = toF(12345)
+  datasetRootHash: Poseidon2Hash = toF(6789)
+
+proc toCid(pHash: Poseidon2Hash): Cid =
+  # TODO: Should this string be a constant somewhere?
+  let mhash = MultiHash.init(multiCodec("poseidon2-alt_bn_128-sponge-r2"), pHash.toBytes()).tryGet()
+  return Cid.init(CIDv1, DatasetRootCodec, mhash).tryGet()
+
+proc toPoseidon2Hash(cid: Cid): Poseidon2Hash =
+  let a = array[31, byte].initCopyFrom(cid.data.buffer)
+
+  # func toArray(bytes: openArray[byte]): array[31, byte] =
+  #   result[0..<bytes.len] = bytes[0..<bytes.len]
+
+  return Poseidon2Hash.fromBytes(a)
 
 asyncchecksuite "Test proof datasampler - components":
   let
@@ -46,6 +61,10 @@ asyncchecksuite "Test proof datasampler - components":
       ),
       slotIndex: u256(3)
     )
+
+  test "Check conversion helpers":
+    check: challenge.toBytes() == toPoseidon2Hash(toCid(challenge)).toBytes()
+
 
   test "Number of cells is a power of two":
     # This is to check that the data used for testing is sane.
@@ -93,14 +112,14 @@ asyncchecksuite "Test proof datasampler - main":
     totalNumberOfSlots = 2
     datasetSlotIndex = 1
     localStore = CacheStore.new()
-    datasetToSlotProof = MerkleProof.example
+    datasetToSlotProof = Poseidon2Proof.example
 
   var
     manifest: Manifest
     manifestBlock: bt.Block
     slot: Slot
     datasetBlocks: seq[bt.Block]
-    slotPoseidonTree: MerkleTree
+    slotPoseidonTree: Poseidon2Tree
     dataSampler: DataSampler
 
   proc createDatasetBlocks(): Future[void] {.async.} =
@@ -127,12 +146,13 @@ asyncchecksuite "Test proof datasampler - main":
   proc createManifest(): Future[void] {.async.} =
     let
       cids = datasetBlocks.mapIt(it.cid)
-      tree = MerkleTree.init(cids).tryGet()
-      treeCid = tree.rootCid().tryGet()
+      tree = Poseidon2Tree.init(cids.mapIt(Sponge.digest(it.data.buffer, rate = 2))).tryGet()
+      treeCid = tree.root().tryGet().toCid()
 
-    for index, cid in cids:
-      let proof = tree.getProof(index).tryget()
-      discard await localStore.putBlockCidAndProof(treeCid, index, cid, proof)
+    # on hold: till we can store poseidon proofs
+    # for index, cid in cids:
+    #   let proof = tree.getProof(index).tryget()
+    #   discard await localStore.putBlockCidAndProof(treeCid, index, cid, proof)
 
     manifest = Manifest.new(
       treeCid = treeCid,
@@ -162,7 +182,7 @@ asyncchecksuite "Test proof datasampler - main":
       datasetBlockIndexLast = datasetBlockIndexFirst + numberOfSlotBlocks.uint64
       slotBlocks = datasetBlocks[datasetBlockIndexFirst ..< datasetBlockIndexLast]
       slotBlockCids = slotBlocks.mapIt(it.cid)
-    slotPoseidonTree = MerkleTree.init(slotBlockCids).tryGet()
+    slotPoseidonTree = Poseidon2Tree.init(slotBlockCids.mapIt(it.toPoseidon2Hash())).tryGet()
 
   proc createDataSampler(): Future[void] {.async.} =
     dataSampler = (await DataSampler.new(
@@ -196,7 +216,7 @@ asyncchecksuite "Test proof datasampler - main":
 
   test "Can find single slot-cell index":
     proc slotCellIndex(i: int): uint64 =
-      let counter: FieldElement = toF(i)
+      let counter: Poseidon2Hash = toF(i)
       return dataSampler.findSlotCellIndex(challenge, counter)
 
     proc getExpectedIndex(i: int): uint64 =
@@ -260,10 +280,16 @@ asyncchecksuite "Test proof datasampler - main":
       cell1Proof = miniTree.getProof(1).tryGet()
       cell2Proof = miniTree.getProof(2).tryGet()
 
+      cell0Hash = Sponge.digest(cell0Bytes, rate = 2)
+      cell1Hash = Sponge.digest(cell1Bytes, rate = 2)
+      cell2Hash = Sponge.digest(cell2Bytes, rate = 2)
+
+      root = miniTree.root().tryGet()
+
     check:
-      cell0Proof.verifyDataBlock(cell0Bytes, miniTree.root).tryGet()
-      cell1Proof.verifyDataBlock(cell1Bytes, miniTree.root).tryGet()
-      cell2Proof.verifyDataBlock(cell2Bytes, miniTree.root).tryGet()
+      not cell0Proof.verify(cell0Hash, root).isErr()
+      not cell1Proof.verify(cell1Hash, root).isErr()
+      not cell2Proof.verify(cell2Hash, root).isErr()
 
   test "Can gather proof input":
     # This is the main function for this module, and what it's all about.
@@ -271,11 +297,13 @@ asyncchecksuite "Test proof datasampler - main":
       nSamples = 3
       input = (await dataSampler.getProofInput(challenge, nSamples)).tryget()
 
-    proc equal(a: FieldElement, b: FieldElement): bool =
+    proc equal(a: Poseidon2Hash, b: Poseidon2Hash): bool =
       a.toDecimal() == b.toDecimal()
 
-    proc toStr(proof: MerkleProof): string =
-      toHex(proof.nodesBuffer)
+    proc toStr(proof: Poseidon2Proof): string =
+      let a = proof.path.mapIt(toHex(it))
+      join(a)
+      #toHex(proof.path)
 
     let
       expectedBlockSlotProofs = getExpectedBlockSlotProofs()
@@ -288,7 +316,7 @@ asyncchecksuite "Test proof datasampler - main":
       input.numberOfCellsInSlot == (bytesPerBlock * numberOfSlotBlocks).uint64 div CellSize
       input.numberOfSlots == slot.request.ask.slots
       input.datasetSlotIndex == slot.slotIndex.truncate(uint64)
-      equal(input.slotRoot, toF(1234)) # TODO - when slotPoseidonTree is a poseidon tree, its root should be a FieldElement.
+      equal(input.slotRoot, toF(1234)) # TODO - when slotPoseidonTree is a poseidon tree, its root should be a Poseidon2Hash.
       input.datasetToSlotProof == datasetToSlotProof
 
       # block-slot proofs
