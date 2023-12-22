@@ -16,13 +16,6 @@ import pkg/questionable/results
 import ../errors
 
 type
-  PutFn*[H] = proc(i: Natural, x: H): ?!void {.noSideEffect, raises: [].}
-  GetFn*[H] = proc(i: Natural): ?!H {.noSideEffect, raises: [].}
-
-  StoreBackend*[H] = object
-    put: PutFn[H]
-    get: GetFn[H]
-
   CompressFn*[H, K] = proc (x, y: H, key: K): ?!H {.noSideEffect, raises: [].}
 
   MerkleTree*[H, K] = ref object of RootObj
