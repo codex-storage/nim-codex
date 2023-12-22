@@ -25,6 +25,7 @@ import ../stores
 import ../blocktype as bt
 import ../utils
 import ../utils/asynciter
+import ../indexingstrategy
 
 import pkg/stew/byteutils
 
@@ -223,7 +224,10 @@ proc prepareDecodingData(
 
   return success (dataPieces, parityPieces)
 
-proc init(_: type EncodingParams, manifest: Manifest, ecK: int, ecM: int): ?!EncodingParams =
+proc init*(
+  _: type EncodingParams,
+  manifest: Manifest,
+  ecK: int, ecM: int): ?!EncodingParams =
   if ecK > manifest.blocksCount:
     return failure("Unable to encode manifest, not enough blocks, ecK = " & $ecK & ", blocksCount = " & $manifest.blocksCount)
 
