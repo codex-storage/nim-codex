@@ -527,18 +527,19 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
 
   var
     wantsBlocks = task.peerWants.filterIt(
-      it.wantType == WantType.WantBlock
+      it.wantType == WantType.WantBlock and not it.inFlight
     )
+
+  proc updateInFlight(addresses: seq[BlockAddress], inFlight: bool) =
+    for peerWant in task.peerWants.mitems:
+      if peerWant.address in addresses:
+        peerWant.inFlight = inFlight
 
   trace "wantsBlocks", peer = task.id, n = wantsBlocks.len
   if wantsBlocks.len > 0:
-    # Consider only the wants not currently in-flight,
-    # Then mark them as in-flight.
-    wantsBlocks.keepItIf(not it.inFlight)
+    # Mark wants as in-flight.
     let wantAddresses = wantsBlocks.mapIt(it.address)
-    for peerWant in task.peerWants.mitems:
-      if peerWant.address in wantAddresses:
-        peerWant.inFlight = true
+    updateInFlight(wantAddresses, true)
     wantsBlocks.sort(SortOrder.Descending)
 
     proc localLookup(e: WantListEntry): Future[?!BlockDelivery] {.async.} =
@@ -558,6 +559,14 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       blocksDelivery = blocksDeliveryFut
         .filterIt(it.completed and it.read.isOk)
         .mapIt(it.read.get)
+
+    # All the wants that failed local lookup must be set to not-in-flight again.
+    let
+      lookupFailed = blocksDeliveryFut
+        .filterIt(not it.completed or not it.read.isOk)
+        .mapIt(it.read.get)
+      failedAddresses = lookupFailed.mapIt(it.address)
+    updateInFlight(failedAddresses, false)
 
     if blocksDelivery.len > 0:
       trace "Sending blocks to peer", peer = task.id, blocks = blocksDelivery.len
