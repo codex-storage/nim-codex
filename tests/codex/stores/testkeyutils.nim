@@ -29,8 +29,8 @@ proc createManifestCid(): ?!Cid =
   let
     length = rand(4096)
     bytes = newSeqWith(length, rand(uint8))
-    mcodec = multiCodec("sha2-256")
-    codec = multiCodec("dag-pb")
+    mcodec = Sha256HashCodec
+    codec = ManifestCodec
     version = CIDv1
 
   let hash = ? MultiHash.digest($mcodec, bytes).mapFailure

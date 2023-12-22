@@ -6,7 +6,7 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
-## 
+##
 
 import std/hashes
 import std/strutils
@@ -31,6 +31,7 @@ template basicMaths(T: untyped) =
   proc `+=` *(x: var T, y: T) {.borrow.}
   proc `-=` *(x: var T, y: T) {.borrow.}
   proc `hash` *(x: T): Hash {.borrow.}
+
 template divMaths(T: untyped) =
   proc `mod` *(x, y: T): T = T(`mod`(x.Natural, y.Natural))
   proc `div` *(x, y: T): Natural = `div`(x.Natural, y.Natural)

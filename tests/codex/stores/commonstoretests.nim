@@ -110,7 +110,7 @@ proc commonBlockStoreTests*(name: string,
     test "listBlocks Manifest":
       let
         blocks = @[newBlock1, newBlock2, newBlock3]
-        manifestBlock = Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
+        manifestBlock = Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
         treeBlock = Block.new(tree.encode()).tryGet()
         putHandles = await allFinished(
          (@[treeBlock, manifestBlock] & blocks).mapIt( store.putBlock( it ) ))
@@ -134,7 +134,7 @@ proc commonBlockStoreTests*(name: string,
     test "listBlocks Both":
       let
         blocks = @[newBlock1, newBlock2, newBlock3]
-        manifestBlock = Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
+        manifestBlock = Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
         treeBlock = Block.new(tree.encode()).tryGet()
         putHandles = await allFinished(
          (@[treeBlock, manifestBlock] & blocks).mapIt( store.putBlock( it ) ))
