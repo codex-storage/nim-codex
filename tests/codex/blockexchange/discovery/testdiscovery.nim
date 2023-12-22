@@ -56,7 +56,7 @@ asyncchecksuite "Block Advertising and Discovery":
 
     (manifest, tree) = makeManifestAndTree(blocks).tryGet()
     manifestBlock = bt.Block.new(
-      manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
+      manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
 
     (await localStore.putBlock(manifestBlock)).tryGet()
 

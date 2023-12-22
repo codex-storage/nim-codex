@@ -2,7 +2,6 @@ import pkg/metrics
 import pkg/chronicles
 import ../statemachine
 import ./errorhandling
-import ./error
 
 declareCounter(codex_purchases_cancelled, "codex purchases cancelled")
 

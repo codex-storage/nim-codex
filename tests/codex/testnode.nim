@@ -115,9 +115,8 @@ asyncchecksuite "Test Node":
       manifest = await Manifest.fetch(chunker)
 
       manifestBlock = bt.Block.new(
-          manifest.encode().tryGet(),
-          codec = DagPBCodec
-        ).tryGet()
+        manifest.encode().tryGet(),
+        codec = ManifestCodec).tryGet()
 
     (await localStore.putBlock(manifestBlock)).tryGet()
 
@@ -253,7 +252,7 @@ asyncchecksuite "Test Node - host contracts":
     manifest = await storeDataGetManifest(localStore, chunker)
     let manifestBlock = bt.Block.new(
         manifest.encode().tryGet(),
-        codec = DagPBCodec
+        codec = ManifestCodec
       ).tryGet()
     manifestCid = $(manifestBlock.cid)
     (await localStore.putBlock(manifestBlock)).tryGet()
@@ -296,7 +295,7 @@ asyncchecksuite "Test Node - host contracts":
       return success()
 
     (await onStore(request, 0.u256, onBatch)).tryGet()
-    check fetchedBytes == 2291520
+    check fetchedBytes == 2293760
 
     for index in 0..<manifest.blocksCount:
       let blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet

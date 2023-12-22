@@ -9,6 +9,7 @@
 
 import std/tables
 import std/sugar
+
 export tables
 
 import pkg/upraises
@@ -26,21 +27,9 @@ import ./units
 import ./utils
 import ./formats
 import ./errors
+import ./codextypes
 
-export errors, formats, units
-
-const
-  # Size of blocks for storage / network exchange,
-  # should be divisible by 31 for PoR and by 64 for Leopard ECC
-  DefaultBlockSize* = NBytes 31 * 64 * 33
-
-  # hashes
-  Sha256Hash* = multiCodec("sha2-256")
-
-  # CIDs
-  Raw = multiCodec("raw")
-  DagPB* = multiCodec("dag-pb")
-  DagJson* = multiCodec("dag-json")
+export errors, formats, units, codextypes
 
 type
   Block* = ref object of RootObj
@@ -100,8 +89,8 @@ func new*(
     T: type Block,
     data: openArray[byte] = [],
     version = CIDv1,
-    mcodec = multiCodec("sha2-256"),
-    codec = multiCodec("raw")
+    mcodec = Sha256HashCodec,
+    codec = BlockCodec
 ): ?!Block =
   ## creates a new block for both storage and network IO
   ##
@@ -116,7 +105,7 @@ func new*(
     cid: cid,
     data: @data).success
 
-func new*(
+proc new*(
     T: type Block,
     cid: Cid,
     data: openArray[byte],
@@ -138,34 +127,8 @@ func new*(
     data: @data
   ).success
 
-proc emptyCid*(version: CidVersion, hcodec: MultiCodec, dcodec: MultiCodec): ?!Cid =
-  ## Returns cid representing empty content, given cid version, hash codec and data codec
-  ##
-
-  const
-    Sha256 = multiCodec("sha2-256")
-    Raw = multiCodec("raw")
-    DagPB = multiCodec("dag-pb")
-    DagJson = multiCodec("dag-json")
-
-  var index {.global, threadvar.}: Table[(CidVersion, MultiCodec, MultiCodec), Cid]
-  once:
-    index = {
-        # source https://ipld.io/specs/codecs/dag-pb/fixtures/cross-codec/#dagpb_empty
-        (CIDv0, Sha256, DagPB): ? Cid.init("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n").mapFailure,
-        (CIDv1, Sha256, DagPB): ? Cid.init("zdj7Wkkhxcu2rsiN6GUyHCLsSLL47kdUNfjbFqBUUhMFTZKBi").mapFailure, # base36: bafybeihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku
-        (CIDv1, Sha256, DagJson): ? Cid.init("z4EBG9jGUWMVxX9deANWX7iPyExLswe2akyF7xkNAaYgugvnhmP").mapFailure, # base36: baguqeera6mfu3g6n722vx7dbitpnbiyqnwah4ddy4b5c3rwzxc5pntqcupta
-        (CIDv1, Sha256, Raw): ? Cid.init("zb2rhmy65F3REf8SZp7De11gxtECBGgUKaLdiDj7MCGCHxbDW").mapFailure,
-      }.toTable
-
-  index[(version, hcodec, dcodec)].catch
-
-proc emptyDigest*(version: CidVersion, hcodec: MultiCodec, dcodec: MultiCodec): ?!MultiHash =
-  emptyCid(version, hcodec, dcodec)
-    .flatMap((cid: Cid) => cid.mhash.mapFailure)
-
 proc emptyBlock*(version: CidVersion, hcodec: MultiCodec): ?!Block =
-  emptyCid(version, hcodec, multiCodec("raw"))
+  emptyCid(version, hcodec, BlockCodec)
     .flatMap((cid: Cid) => Block.new(cid = cid, data = @[]))
 
 proc emptyBlock*(cid: Cid): ?!Block =

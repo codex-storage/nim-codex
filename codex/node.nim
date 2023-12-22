@@ -8,7 +8,6 @@
 ## those terms.
 
 import std/options
-import std/tables
 import std/sequtils
 import std/strformat
 import std/sugar
@@ -208,8 +207,8 @@ proc store*(
   trace "Storing data"
 
   let
-    hcodec = multiCodec("sha2-256")
-    dataCodec = multiCodec("raw")
+    hcodec = Sha256HashCodec
+    dataCodec = BlockCodec
     chunker = LPStreamChunker.new(stream, chunkSize = blockSize)
 
   var cids: seq[Cid]
@@ -270,7 +269,7 @@ proc store*(
       newException(CodexError, "Error encoding manifest: " & err.msg))
 
   # Store as a dag-pb block
-  without manifestBlk =? bt.Block.new(data = data, codec = DagPBCodec):
+  without manifestBlk =? bt.Block.new(data = data, codec = ManifestCodec):
     trace "Unable to init block from manifest data!"
     return failure("Unable to init block from manifest data!")
 
@@ -344,7 +343,7 @@ proc requestStorage*(
     trace "Unable to encode protected manifest"
     return failure(error)
 
-  without encodedBlk =? bt.Block.new(data = encodedData, codec = DagPBCodec), error:
+  without encodedBlk =? bt.Block.new(data = encodedData, codec = ManifestCodec), error:
     trace "Unable to create block from encoded manifest"
     return failure(error)
 

@@ -175,7 +175,6 @@ proc decode*(_: type WantListEntry, pb: ProtoBuffer): ProtoResult[WantListEntry]
     value = WantListEntry()
     field: uint64
     ipb: ProtoBuffer
-    buf = newSeq[byte]()
   if ? pb.getField(1, ipb):
     value.address = ? BlockAddress.decode(ipb)
   if ? pb.getField(2, field):
@@ -203,7 +202,6 @@ proc decode*(_: type WantList, pb: ProtoBuffer): ProtoResult[WantList] =
 proc decode*(_: type BlockDelivery, pb: ProtoBuffer): ProtoResult[BlockDelivery] =
   var
     value = BlockDelivery()
-    field: uint64
     dataBuf = newSeq[byte]()
     cidBuf = newSeq[byte]()
     cid: Cid
