@@ -56,7 +56,7 @@ proc originalBlocksCount*(self: Manifest): int =
 proc blocksCount*(self: Manifest): int =
   divUp(self.datasetSize.int, self.blockSize.int)
 
-proc numberOfSlots*(self: Manifest): int =
+proc numSlots*(self: Manifest): int =
   if not self.protected:
     0
   else:
