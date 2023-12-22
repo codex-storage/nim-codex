@@ -9,6 +9,7 @@ import pkg/codex/manifest
 import pkg/codex/merkletree
 import pkg/codex/blockexchange
 import pkg/codex/rng
+import pkg/codex/utils
 
 import ./helpers/nodeutils
 import ./helpers/randomchunker
@@ -26,6 +27,13 @@ export libp2p except setup, eventually
 # types. This is only in tests!!!
 func `==`*(a, b: Block): bool =
   (a.cid == b.cid) and (a.data == b.data)
+
+proc calcEcBlocksCount*(blocksCount: int, ecK, ecM: int): int =
+  let
+    rounded = roundUp(blocksCount, ecK)
+    steps = divUp(blocksCount, ecK)
+
+  rounded + (steps * ecM)
 
 proc lenPrefix*(msg: openArray[byte]): seq[byte] =
   ## Write `msg` with a varint-encoded length prefix
@@ -94,7 +102,7 @@ proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest
 
   for i in 0..<tree.leavesCount:
     let proof = tree.getProof(i).tryGet()
-    (await store.putBlockCidAndProof(treeCid, i, cids[i], proof)).tryGet()
+    (await store.putCidAndProof(treeCid, i, cids[i], proof)).tryGet()
 
   return manifest
 
