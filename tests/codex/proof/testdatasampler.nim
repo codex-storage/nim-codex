@@ -33,19 +33,6 @@ let
   challenge: Poseidon2Hash = toF(12345)
   datasetRootHash: Poseidon2Hash = toF(6789)
 
-proc toCid(pHash: Poseidon2Hash): Cid =
-  # TODO: Should this string be a constant somewhere?
-  let mhash = MultiHash.init(multiCodec("poseidon2-alt_bn_128-sponge-r2"), pHash.toBytes()).tryGet()
-  return Cid.init(CIDv1, DatasetRootCodec, mhash).tryGet()
-
-proc toPoseidon2Hash(cid: Cid): Poseidon2Hash =
-  let a = array[31, byte].initCopyFrom(cid.data.buffer)
-
-  # func toArray(bytes: openArray[byte]): array[31, byte] =
-  #   result[0..<bytes.len] = bytes[0..<bytes.len]
-
-  return Poseidon2Hash.fromBytes(a)
-
 asyncchecksuite "Test proof datasampler - components":
   let
     numberOfSlotBlocks = 16
@@ -63,8 +50,7 @@ asyncchecksuite "Test proof datasampler - components":
     )
 
   test "Check conversion helpers":
-    check: challenge.toBytes() == toPoseidon2Hash(toCid(challenge)).toBytes()
-
+    check: challenge.toBytes() == toPoseidon2Hash(toCid(challenge, SlotRootCodec)).tryGet().toBytes()
 
   test "Number of cells is a power of two":
     # This is to check that the data used for testing is sane.
@@ -97,7 +83,7 @@ asyncchecksuite "Test proof datasampler - components":
   test "Should calculate total number of cells in Slot":
     let
       slotSizeInBytes = (slot.request.ask.slotSize).truncate(uint64)
-      expectedNumberOfCells = slotSizeInBytes div CellSize
+      expectedNumberOfCells = slotSizeInBytes div DefaultCellSize.uint64
 
     check:
       expectedNumberOfCells == 512
@@ -123,13 +109,13 @@ asyncchecksuite "Test proof datasampler - main":
     dataSampler: DataSampler
 
   proc createDatasetBlocks(): Future[void] {.async.} =
-    let numberOfCellsNeeded = (numberOfSlotBlocks * totalNumberOfSlots * bytesPerBlock).uint64 div CellSize
+    let numberOfCellsNeeded = (numberOfSlotBlocks * totalNumberOfSlots * bytesPerBlock).uint64 div DefaultCellSize.uint64
     var data: seq[byte] = @[]
 
     # This generates a number of blocks that have different data, such that
     # Each cell in each block is unique, but nothing is random.
     for i in 0 ..< numberOfCellsNeeded:
-      data = data & (i.byte).repeat(CellSize)
+      data = data & (i.byte).repeat(DefaultCellSize.uint64)
 
     let chunker = MockChunker.new(
       dataset = data,
@@ -147,7 +133,7 @@ asyncchecksuite "Test proof datasampler - main":
     let
       cids = datasetBlocks.mapIt(it.cid)
       tree = Poseidon2Tree.init(cids.mapIt(Sponge.digest(it.data.buffer, rate = 2))).tryGet()
-      treeCid = tree.root().tryGet().toCid()
+      treeCid = tree.root().tryGet().toCid(DatasetRootCodec)
 
     # on hold: till we can store poseidon proofs
     # for index, cid in cids:
@@ -158,7 +144,7 @@ asyncchecksuite "Test proof datasampler - main":
       treeCid = treeCid,
       blockSize = bytesPerBlock.NBytes,
       datasetSize = (bytesPerBlock * numberOfSlotBlocks * totalNumberOfSlots).NBytes)
-    manifestBlock = bt.Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
+    manifestBlock = bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
 
   proc createSlot(): void =
     slot = Slot(
@@ -182,7 +168,7 @@ asyncchecksuite "Test proof datasampler - main":
       datasetBlockIndexLast = datasetBlockIndexFirst + numberOfSlotBlocks.uint64
       slotBlocks = datasetBlocks[datasetBlockIndexFirst ..< datasetBlockIndexLast]
       slotBlockCids = slotBlocks.mapIt(it.cid)
-    slotPoseidonTree = Poseidon2Tree.init(slotBlockCids.mapIt(it.toPoseidon2Hash())).tryGet()
+    slotPoseidonTree = Poseidon2Tree.init(slotBlockCids.mapIt(it.toPoseidon2Hash().tryGet())).tryGet()
 
   proc createDataSampler(): Future[void] {.async.} =
     dataSampler = (await DataSampler.new(
@@ -221,7 +207,7 @@ asyncchecksuite "Test proof datasampler - main":
 
     proc getExpectedIndex(i: int): uint64 =
       let
-        numberOfCellsInSlot = (bytesPerBlock * numberOfSlotBlocks) div CellSize.int
+        numberOfCellsInSlot = (bytesPerBlock * numberOfSlotBlocks) div DefaultCellSize.uint64.int
         slotRootHash = toF(1234) # TODO - replace with slotPoseidonTree.root when it is a poseidon tree.
         hash = Sponge.digest(@[slotRootHash, challenge, toF(i)], rate = 2)
       return extractLowBits(hash.toBig(), ceilingLog2(numberOfCellsInSlot))
@@ -248,9 +234,9 @@ asyncchecksuite "Test proof datasampler - main":
   let
     bytes = newSeqWith(bytesPerBlock, rand(uint8))
     blk = bt.Block.new(bytes).tryGet()
-    cell0Bytes = bytes[0..<CellSize]
-    cell1Bytes = bytes[CellSize..<(CellSize*2)]
-    cell2Bytes = bytes[(CellSize*2)..<(CellSize*3)]
+    cell0Bytes = bytes[0..<DefaultCellSize.uint64]
+    cell1Bytes = bytes[DefaultCellSize.uint64..<(DefaultCellSize.uint64*2)]
+    cell2Bytes = bytes[(DefaultCellSize.uint64*2)..<(DefaultCellSize.uint64*3)]
 
   test "Can get cell from block":
     let
@@ -267,7 +253,7 @@ asyncchecksuite "Test proof datasampler - main":
     let cells = dataSampler.getBlockCells(blk)
 
     check:
-      cells.len == (bytesPerBlock div CellSize.int)
+      cells.len == (bytesPerBlock div DefaultCellSize.uint64.int)
       cells[0] == cell0Bytes
       cells[1] == cell1Bytes
       cells[2] == cell2Bytes
@@ -313,7 +299,7 @@ asyncchecksuite "Test proof datasampler - main":
     check:
       equal(input.datasetRoot, datasetRootHash)
       equal(input.entropy, challenge)
-      input.numberOfCellsInSlot == (bytesPerBlock * numberOfSlotBlocks).uint64 div CellSize
+      input.numberOfCellsInSlot == (bytesPerBlock * numberOfSlotBlocks).uint64 div DefaultCellSize.uint64
       input.numberOfSlots == slot.request.ask.slots
       input.datasetSlotIndex == slot.slotIndex.truncate(uint64)
       equal(input.slotRoot, toF(1234)) # TODO - when slotPoseidonTree is a poseidon tree, its root should be a Poseidon2Hash.

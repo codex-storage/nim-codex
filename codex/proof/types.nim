@@ -1,11 +1,6 @@
 import pkg/poseidon2/types
 import ../merkletree
 
-const
-  # Size of a cell.
-  # A cell is a sample of storage-data selected for proving.
-  CellSize* = 2048.uint64
-
 type
   Cell* = seq[byte]
   ProofSample* = ref object

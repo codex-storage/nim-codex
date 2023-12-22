@@ -2,6 +2,7 @@
 
 import std/strutils
 import pkg/codex/proof/types
+import pkg/codex/codextypes
 
 proc getExpectedCellBlockProofs*(): seq[string] =
   @[
@@ -19,7 +20,7 @@ proc getExpectedBlockSlotProofs*(): seq[string] =
 
 proc getExpectedCellData*(): seq[string] =
   @[
-    "CA".repeat(CellSize),
-    "A9".repeat(CellSize),
-    "B3".repeat(CellSize)
+    "CA".repeat(DefaultCellSize.int),
+    "A9".repeat(DefaultCellSize.int),
+    "B3".repeat(DefaultCellSize.int)
   ]

@@ -14,6 +14,9 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/constantine/math/arithmetic
 import pkg/poseidon2
+import pkg/poseidon2/io
+import pkg/libp2p
+import pkg/stew/arrayops
 
 import misc
 import slotblocks
@@ -28,11 +31,11 @@ import types
 logScope:
   topics = "codex datasampler"
 
-proc toCid(pHash: Poseidon2Hash, mcodec: MultiCodec): Cid =
+proc toCid*(pHash: Poseidon2Hash, mcodec: MultiCodec): Cid =
   let mhash = MultiHash.init(multiCodec("poseidon2-alt_bn_128-merkle-2kb"), pHash.toBytes()).tryGet()
   return Cid.init(CIDv1, mcodec, mhash).tryGet()
 
-proc toPoseidon2Hash(cid: Cid): ?!Poseidon2Hash =
+proc toPoseidon2Hash*(cid: Cid): ?!Poseidon2Hash =
   if cid.cidver != CIDv1:
     return failure("Unexpected CID version")
 
@@ -40,11 +43,11 @@ proc toPoseidon2Hash(cid: Cid): ?!Poseidon2Hash =
     return failure("CID is not a poseidon2-alt_bn_128-merkle-2kb")
 
   let
-    bytes = array[32, byte].initCopyFrom(cid.data.buffer)
+    bytes: array[32, byte] = array[32, byte].initCopyFrom(cid.data.buffer)
     hash = Poseidon2Hash.fromBytes(bytes)
   if not hash.isSome():
     return failure("Unable to convert CID to Poseidon2Hash")
-  return success(hash)
+  return success(hash.get())
 
 type
   DataSampler* = object of RootObj
@@ -62,7 +65,7 @@ type
     numberOfCellsPerBlock: uint64
 
 proc getNumberOfCellsInSlot*(slot: Slot): uint64 =
-  (slot.request.ask.slotSize.truncate(uint64) div CellSize)
+  (slot.request.ask.slotSize.truncate(uint64) div DefaultCellSize.uint64)
 
 proc new*(
     T: type DataSampler,
@@ -94,7 +97,7 @@ proc new*(
     blockSize: blockSize,
     numberOfCellsInSlot: numberOfCellsInSlot,
     datasetSlotIndex: slot.slotIndex.truncate(uint64),
-    numberOfCellsPerBlock: blockSize div CellSize
+    numberOfCellsPerBlock: blockSize div DefaultCellSize.uint64
   ))
 
 func extractLowBits*[n: static int](A: BigInt[n], k: int): uint64 =
@@ -136,8 +139,8 @@ func findSlotCellIndices*(self: DataSampler, challenge: Poseidon2Hash, nSamples:
 proc getCellFromBlock*(self: DataSampler, blk: bt.Block, slotCellIndex: uint64): Cell =
   let
     blockCellIndex = self.getBlockCellIndexForSlotCellIndex(slotCellIndex)
-    dataStart = (CellSize * blockCellIndex)
-    dataEnd = dataStart + CellSize
+    dataStart = (DefaultCellSize.uint64 * blockCellIndex)
+    dataEnd = dataStart + DefaultCellSize.uint64
   return blk.data[dataStart ..< dataEnd]
 
 proc getBlockCells*(self: DataSampler, blk: bt.Block): seq[Cell] =
