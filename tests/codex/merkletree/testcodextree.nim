@@ -7,6 +7,7 @@ import pkg/stew/byteutils
 import pkg/nimcrypto/sha2
 import pkg/libp2p
 
+import pkg/codex/codextypes
 import pkg/codex/merkletree
 
 import ./helpers
@@ -28,7 +29,7 @@ const
       "00000000000000000000000000000009".toBytes,
       "00000000000000000000000000000010".toBytes,
     ]
-  sha256 = multiCodec("sha2-256")
+  sha256 = Sha256HashCodec
 
 suite "Test CodexTree":
   test "Cannot init tree without any multihash leaves":

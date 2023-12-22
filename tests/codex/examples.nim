@@ -53,7 +53,7 @@ proc example*(_: type BlockExcPeerCtx): BlockExcPeerCtx =
 proc example*(_: type Cid): Cid =
   bt.Block.example.cid
 
-proc example*(_: type MultiHash, mcodec = multiCodec("sha2-256")): MultiHash =
+proc example*(_: type MultiHash, mcodec = Sha256HashCodec): MultiHash =
   let bytes = newSeqWith(256, rand(uint8))
   MultiHash.digest($mcodec, bytes).tryGet()
 

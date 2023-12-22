@@ -14,19 +14,14 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/libp2p/protobuf/minprotobuf
-import pkg/libp2p
-import pkg/questionable
+import pkg/libp2p/[cid, multihash, multicodec]
 import pkg/questionable/results
-import pkg/chronicles
 
 import ../errors
 import ../utils
 import ../utils/json
 import ../units
 import ../blocktype
-import ./types
-
-export types
 
 type
   Manifest* = ref object of RootObj
@@ -108,11 +103,10 @@ proc slotRoots*(self: Manifest): seq[Cid] =
 ############################################################
 
 func isManifest*(cid: Cid): ?!bool =
-  let res = ?cid.contentType().mapFailure(CodexError)
-  ($(res) in ManifestContainers).success
+  success (ManifestCodec == ? cid.contentType().mapFailure(CodexError))
 
 func isManifest*(mc: MultiCodec): ?!bool =
-  ($mc in ManifestContainers).success
+  success mc == ManifestCodec
 
 ############################################################
 # Various sizes and verification
@@ -199,8 +193,8 @@ proc new*(
   blockSize: NBytes,
   datasetSize: NBytes,
   version: CidVersion = CIDv1,
-  hcodec = multiCodec("sha2-256"),
-  codec = multiCodec("raw"),
+  hcodec = Sha256HashCodec,
+  codec = BlockCodec,
   protected = false): Manifest =
 
   T(
@@ -240,6 +234,7 @@ proc new*(
   ## Create an unprotected dataset from an
   ## erasure protected one
   ##
+
   Manifest(
     treeCid: manifest.originalTreeCid,
     datasetSize: manifest.originalDatasetSize,
@@ -251,12 +246,11 @@ proc new*(
 
 proc new*(
   T: type Manifest,
-  data: openArray[byte],
-  decoder = ManifestContainers[$DagPBCodec]): ?!Manifest =
+  data: openArray[byte]): ?!Manifest =
   ## Create a manifest instance from given data
   ##
 
-  Manifest.decode(data, decoder)
+  Manifest.decode(data)
 
 proc new*(
   T: type Manifest,

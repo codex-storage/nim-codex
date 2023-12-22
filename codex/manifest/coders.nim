@@ -25,9 +25,8 @@ import pkg/chronos
 import ./manifest
 import ../errors
 import ../blocktype
-import ./types
 
-proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
+proc encode*(manifest: Manifest): ?!seq[byte] =
   ## Encode the manifest into a ``ManifestCodec``
   ## multicodec container (Dag-pb) for now
   ##
@@ -50,6 +49,7 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   #     optional uint32 originalDatasetSize = 4;            # size of the original dataset
   #     optional VerificationInformation verification = 5;  # verification information
   #   }
+  #
   #   Message Header {
   #     optional bytes treeCid = 1;       # cid (root) of the tree
   #     optional uint32 blockSize = 2;    # size of a single block
@@ -91,7 +91,7 @@ proc encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
 
   return pbNode.buffer.success
 
-proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
+proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
   ## Decode a manifest from a data blob
   ##
 
@@ -204,25 +204,6 @@ proc decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
 
   self.success
 
-proc encode*(
-    self: Manifest,
-    encoder = ManifestContainers[$DagPBCodec]
-): ?!seq[byte] =
-  ## Encode a manifest using `encoder`
-  ##
-
-  encoder.encode(self)
-
-func decode*(
-    _: type Manifest,
-    data: openArray[byte],
-    decoder = ManifestContainers[$DagPBCodec]
-): ?!Manifest =
-  ## Decode a manifest using `decoder`
-  ##
-
-  decoder.decode(data)
-
 func decode*(_: type Manifest, blk: Block): ?!Manifest =
   ## Decode a manifest using `decoder`
   ##
@@ -230,6 +211,4 @@ func decode*(_: type Manifest, blk: Block): ?!Manifest =
   if not ? blk.cid.isManifest:
     return failure "Cid not a manifest codec"
 
-  Manifest.decode(
-    blk.data,
-    ? ManifestContainers[$(?blk.cid.contentType().mapFailure)].catch)
+  Manifest.decode(blk.data)
