@@ -4,10 +4,10 @@ import pkg/asynctest
 
 import ./helpers
 
-import codex/manifest/indexingstrategy
+import pkg/codex/indexingstrategy
 
 for offset in @[0, 1, 2, 100]:
-  checksuite "Indexing strategies (Offset: " & $offset & ")":
+  suite "Indexing strategies (Offset: " & $offset & ")":
     let
       firstIndex = 0 + offset
       lastIndex = 12 + offset
@@ -27,7 +27,7 @@ for offset in @[0, 1, 2, 100]:
         stepped.getIndicies(1) == @[1, 4, 7, 10].mapIt(it + offset)
         stepped.getIndicies(2) == @[2, 5, 8, 11].mapIt(it + offset)
 
-checksuite "Indexing strategies":
+suite "Indexing strategies":
   let
     linear = LinearIndexingStrategy.new(0, 10, 3)
     stepped = SteppedIndexingStrategy.new(0, 10, 3)
@@ -63,4 +63,3 @@ checksuite "Indexing strategies":
   test "stepped - oob":
     expect AssertionDefect:
       discard stepped.getIndicies(3)
-
