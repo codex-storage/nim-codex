@@ -21,7 +21,11 @@ proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
   buildBinary name, srcDir, params
   exec "build/" & name
 
+task buildStorageProofs, "build codex storage proofs":
+  buildBinary "storage_proofs", srcDir = "codex/utils/", params = "-f "
+
 task codex, "build codex binary":
+  buildStorageProofsTask()
   buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
 task testCodex, "Build & run Codex tests":
