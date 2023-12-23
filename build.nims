@@ -22,6 +22,8 @@ proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
   exec "build/" & name
 
 task buildStorageProofs, "build codex storage proofs":
+  ## pre-build codex-storage-proofs to cache the first cargo build
+  ## though `codex-storage-proofs/codex_storage_proofs.nim` calls cargo build again
   withDir "vendor/codex-storage-proofs/":
     exec "cargo build --release"
   buildBinary "storage_proofs", srcDir = "codex/utils/", params = "-f "
