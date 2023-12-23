@@ -22,6 +22,8 @@ proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
   exec "build/" & name
 
 task buildStorageProofs, "build codex storage proofs":
+  withDir "vendor/codex-storage-proofs/":
+    exec "cargo build --release"
   buildBinary "storage_proofs", srcDir = "codex/utils/", params = "-f "
 
 task codex, "build codex binary":
@@ -29,6 +31,7 @@ task codex, "build codex binary":
   buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
 task testCodex, "Build & run Codex tests":
+  buildStorageProofsTask()
   test "testCodex", params = "-d:codex_enable_proof_failures=true -d:codex_use_hardhat=true"
 
 task testContracts, "Build & run Codex Contract tests":
