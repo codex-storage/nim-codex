@@ -77,7 +77,6 @@ proc new*(
 ): Future[?!DataSampler] {.async.} =
   # Create a DataSampler for a slot.
   # A DataSampler can create the input required for the proving circuit.
-  # TODO: line this up with the slot builder in the 'slot builder' branch.
   without slotBlocks =? await SlotBlocks.new(slot, blockStore):
     error "Failed to create SlotBlocks object for slot"
     return failure("Failed to create SlotBlocks object for slot")
@@ -91,7 +90,7 @@ proc new*(
     blockStore: blockStore,
     slotBlocks: slotBlocks,
     datasetRoot: datasetRoot,
-    slotRootHash: toF(1234), # TODO - when slotPoseidonTree is a poseidon tree, its root should be a Poseidon2Hash.
+    slotRootHash: slotPoseidonTree.root(),
     slotPoseidonTree: slotPoseidonTree,
     datasetToSlotProof: datasetToSlotProof,
     blockSize: blockSize,
@@ -183,9 +182,9 @@ proc createProofSample(self: DataSampler, slotCellIndex: uint64) : Future[?!Proo
   return success(ProofSample(
     cellData: cell,
     slotBlockIndex: slotBlockIndex,
-    cellBlockProof: cellProof,
+    blockSlotProof: blockProof,
     blockCellIndex: blockCellIndex,
-    blockSlotProof: blockProof
+    cellBlockProof: cellProof
   ))
 
 proc getProofInput*(self: DataSampler, challenge: Poseidon2Hash, nSamples: int): Future[?!ProofInput] {.async.} =

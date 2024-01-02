@@ -135,10 +135,11 @@ asyncchecksuite "Test proof datasampler - main":
       tree = Poseidon2Tree.init(cids.mapIt(Sponge.digest(it.data.buffer, rate = 2))).tryGet()
       treeCid = tree.root().tryGet().toCid(DatasetRootCodec)
 
-    # on hold: till we can store poseidon proofs
-    # for index, cid in cids:
-    #   let proof = tree.getProof(index).tryget()
-    #   discard await localStore.putBlockCidAndProof(treeCid, index, cid, proof)
+    for index, leaf in tree.leaves:
+      let
+        leafCid = leaf.toCellCid().tryGet() # See slot builder for 'toCellCid'
+        proof = tree.getProof(index).tryGet().toEncodableProof().tryGet()
+      discard await localStore.putCidAndProof(treeCid, index, leafCid, proof)
 
     manifest = Manifest.new(
       treeCid = treeCid,
@@ -208,7 +209,7 @@ asyncchecksuite "Test proof datasampler - main":
     proc getExpectedIndex(i: int): uint64 =
       let
         numberOfCellsInSlot = (bytesPerBlock * numberOfSlotBlocks) div DefaultCellSize.uint64.int
-        slotRootHash = toF(1234) # TODO - replace with slotPoseidonTree.root when it is a poseidon tree.
+        slotRootHash = slotPoseidonTree.root()
         hash = Sponge.digest(@[slotRootHash, challenge, toF(i)], rate = 2)
       return extractLowBits(hash.toBig(), ceilingLog2(numberOfCellsInSlot))
 
@@ -302,7 +303,7 @@ asyncchecksuite "Test proof datasampler - main":
       input.numberOfCellsInSlot == (bytesPerBlock * numberOfSlotBlocks).uint64 div DefaultCellSize.uint64
       input.numberOfSlots == slot.request.ask.slots
       input.datasetSlotIndex == slot.slotIndex.truncate(uint64)
-      equal(input.slotRoot, toF(1234)) # TODO - when slotPoseidonTree is a poseidon tree, its root should be a Poseidon2Hash.
+      equal(input.slotRoot, slotPoseidonTree.root())
       input.datasetToSlotProof == datasetToSlotProof
 
       # block-slot proofs

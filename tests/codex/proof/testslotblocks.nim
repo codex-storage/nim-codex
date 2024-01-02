@@ -175,10 +175,11 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
   for input in 0 ..< numberOfSlotBlocks:
     test "Can get datasetBlockIndex from slotBlockIndex (" & $input & ")":
       let
+        strategy = SteppedIndexingStrategy.new(0, manifest.blocksCount - 1, totalNumberOfSlots)
         slotBlockIndex = input.uint64
         datasetBlockIndex = slotBlocks.getDatasetBlockIndexForSlotBlockIndex(slotBlockIndex)
         datasetSlotIndex = slot.slotIndex.truncate(uint64)
-        expectedIndex = (numberOfSlotBlocks.uint64 * datasetSlotIndex) + slotBlockIndex
+        expectedIndex = strategy.getIndicies(datasetSlotIndex)[slotBlockIndex]
 
       check:
         datasetBlockIndex == expectedIndex

@@ -6,9 +6,9 @@ type
   ProofSample* = ref object
     cellData*: Cell
     slotBlockIndex*: uint64
-    cellBlockProof*: Poseidon2Proof
-    blockCellIndex*: uint64
     blockSlotProof*: Poseidon2Proof
+    blockCellIndex*: uint64
+    cellBlockProof*: Poseidon2Proof
   ProofInput* = ref object
     datasetRoot*: Poseidon2Hash
     entropy*: Poseidon2Hash
