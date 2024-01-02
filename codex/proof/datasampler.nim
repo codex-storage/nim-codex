@@ -32,15 +32,16 @@ logScope:
   topics = "codex datasampler"
 
 proc toCid*(pHash: Poseidon2Hash, mcodec: MultiCodec): Cid =
-  let mhash = MultiHash.init(multiCodec("poseidon2-alt_bn_128-merkle-2kb"), pHash.toBytes()).tryGet()
+  let mhash = MultiHash.init(Pos2Bn128MrklCodec, pHash.toBytes()).tryGet()
   return Cid.init(CIDv1, mcodec, mhash).tryGet()
 
 proc toPoseidon2Hash*(cid: Cid): ?!Poseidon2Hash =
   if cid.cidver != CIDv1:
     return failure("Unexpected CID version")
 
-  if cid.mcodec != multiCodec("poseidon2-alt_bn_128-merkle-2kb"):
-    return failure("CID is not a poseidon2-alt_bn_128-merkle-2kb")
+check how slot builder converts to and from CID!
+  # if cid.mcodec != multiCodec("poseidon2-alt_bn_128-merkle-2kb"):
+  #   return failure("CID is not a poseidon2-alt_bn_128-merkle-2kb")
 
   let
     bytes: array[32, byte] = array[32, byte].initCopyFrom(cid.data.buffer)
@@ -70,10 +71,7 @@ proc getNumberOfCellsInSlot*(slot: Slot): uint64 =
 proc new*(
     T: type DataSampler,
     slot: Slot,
-    blockStore: BlockStore,
-    datasetRoot: Poseidon2Hash,
-    slotPoseidonTree: Poseidon2Tree,
-    datasetToSlotProof: Poseidon2Proof
+    blockStore: BlockStore
 ): Future[?!DataSampler] {.async.} =
   # Create a DataSampler for a slot.
   # A DataSampler can create the input required for the proving circuit.
@@ -82,20 +80,28 @@ proc new*(
     return failure("Failed to create SlotBlocks object for slot")
 
   let
+    manifest = slotBlocks.manifest
     numberOfCellsInSlot = getNumberOfCellsInSlot(slot)
-    blockSize = slotBlocks.manifest.blockSize.uint64
+    blockSize = manifest.blockSize.uint64
+
+  if not manifest.verifiable:
+    return failure("Can only create DataSampler using verifiable manifests.")
+
+  without starter =? await startDataSampler(blockStore, manifest, slot), err:
+    error "Failed to start data sampler"
+    return failure(err)
 
   success(DataSampler(
     slot: slot,
     blockStore: blockStore,
     slotBlocks: slotBlocks,
-    datasetRoot: datasetRoot,
-    slotRootHash: slotPoseidonTree.root(),
-    slotPoseidonTree: slotPoseidonTree,
-    datasetToSlotProof: datasetToSlotProof,
+    datasetRoot: manifest.verificationRoot,
+    slotRootHash: starter.slotPoseidonTree.root(),
+    slotPoseidonTree: starter.slotPoseidonTree,
+    datasetToSlotProof: starter.datasetToSlotProof,
     blockSize: blockSize,
     numberOfCellsInSlot: numberOfCellsInSlot,
-    datasetSlotIndex: slot.slotIndex.truncate(uint64),
+    datasetSlotIndex: starter.datasetSlotIndex,
     numberOfCellsPerBlock: blockSize div DefaultCellSize.uint64
   ))
 
