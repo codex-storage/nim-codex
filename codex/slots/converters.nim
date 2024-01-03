@@ -22,7 +22,8 @@ proc toPoseidon2Hash*(cid: Cid, mcodec: MultiCodec, cidCodec: MultiCodec): ?!Pos
     return failure("Cid is not of expected codec. Was: " & $cid.mcodec & " but expected: " & $cidCodec)
 
   let
-    bytes: array[32, byte] = array[32, byte].initCopyFrom(cid.data.buffer)
+    mhash = ? cid.mhash.mapFailure
+    bytes: array[32, byte] = array[32, byte].initCopyFrom(mhash.digestBytes())
     hash = Poseidon2Hash.fromBytes(bytes)
   if not hash.isSome():
     return failure("Unable to convert Cid to Poseidon2Hash")
