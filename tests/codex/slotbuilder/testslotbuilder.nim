@@ -24,6 +24,7 @@ import ../merkletree/helpers
 
 import pkg/codex/indexingstrategy {.all.}
 import pkg/codex/slots/slotbuilder {.all.}
+import pkg/codex/slots/converters
 
 suite "Slot builder":
   let
