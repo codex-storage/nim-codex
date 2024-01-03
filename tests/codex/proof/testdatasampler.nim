@@ -50,9 +50,6 @@ asyncchecksuite "Test proof datasampler - components":
       slotIndex: u256(3)
     )
 
-  test "Check conversion helpers":
-    check: challenge.toBytes() == toPoseidon2Hash(toCid(challenge, SlotRootCodec)).tryGet().toBytes()
-
   test "Number of cells is a power of two":
     # This is to check that the data used for testing is sane.
     proc isPow2(value: int): bool =
@@ -134,7 +131,7 @@ asyncchecksuite "Test proof datasampler - main":
     let
       cids = datasetBlocks.mapIt(it.cid)
       tree = Poseidon2Tree.init(cids.mapIt(Sponge.digest(it.data.buffer, rate = 2))).tryGet()
-      treeCid = tree.root().tryGet().toCid(DatasetRootCodec)
+      treeCid = tree.root().tryGet().toProvingCid().tryGet()
 
     for index, leaf in tree.leaves:
       let
@@ -170,15 +167,15 @@ asyncchecksuite "Test proof datasampler - main":
       datasetBlockIndexLast = datasetBlockIndexFirst + numberOfSlotBlocks.uint64
       slotBlocks = datasetBlocks[datasetBlockIndexFirst ..< datasetBlockIndexLast]
       slotBlockCids = slotBlocks.mapIt(it.cid)
-    slotPoseidonTree = Poseidon2Tree.init(slotBlockCids.mapIt(it.toPoseidon2Hash().tryGet())).tryGet()
+    slotPoseidonTree = Poseidon2Tree.init(slotBlockCids.mapIt(it.fromCellCid().tryGet())).tryGet()
 
   proc createDataSampler(): Future[void] {.async.} =
     dataSampler = (await DataSampler.new(
       slot,
-      localStore,
-      datasetRootHash,
-      slotPoseidonTree,
-      datasetToSlotProof
+      localStore
+      # datasetRootHash,
+      # slotPoseidonTree,
+      # datasetToSlotProof
     )).tryGet()
 
   setup:
@@ -210,7 +207,7 @@ asyncchecksuite "Test proof datasampler - main":
     proc getExpectedIndex(i: int): uint64 =
       let
         numberOfCellsInSlot = (bytesPerBlock * numberOfSlotBlocks) div DefaultCellSize.uint64.int
-        slotRootHash = slotPoseidonTree.root()
+        slotRootHash = slotPoseidonTree.root().tryGet()
         hash = Sponge.digest(@[slotRootHash, challenge, toF(i)], rate = 2)
       return extractLowBits(hash.toBig(), ceilingLog2(numberOfCellsInSlot))
 
@@ -304,7 +301,7 @@ asyncchecksuite "Test proof datasampler - main":
       input.numberOfCellsInSlot == (bytesPerBlock * numberOfSlotBlocks).uint64 div DefaultCellSize.uint64
       input.numberOfSlots == slot.request.ask.slots
       input.datasetSlotIndex == slot.slotIndex.truncate(uint64)
-      equal(input.slotRoot, slotPoseidonTree.root())
+      equal(input.slotRoot, slotPoseidonTree.root().tryGet())
       input.datasetToSlotProof == datasetToSlotProof
 
       # block-slot proofs

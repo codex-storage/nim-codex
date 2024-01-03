@@ -21,6 +21,8 @@ import pkg/stew/arrayops
 import misc
 import slotblocks
 import types
+import datasamplerstarter
+import ../slots/converters
 
 # Index naming convention:
 # "<ContainerType><ElementType>Index" => The index of an ElementType within a ContainerType.
@@ -68,16 +70,24 @@ proc new*(
   if not manifest.verifiable:
     return failure("Can only create DataSampler using verifiable manifests.")
 
-  without starter =? await startDataSampler(blockStore, manifest, slot), err:
+  without starter =? (await startDataSampler(blockStore, manifest, slot)), error:
     error "Failed to start data sampler"
-    return failure(err)
+    return failure(error)
+
+  without datasetRoot =? manifest.verificationRoot.fromProvingCid(), error:
+    error "Failed to convert manifest verification root to Poseidon2Hash"
+    return failure(error)
+
+  without slotRootHash =? starter.slotPoseidonTree.root(), error:
+    error "Failed to get slot tree root"
+    return failure(error)
 
   success(DataSampler(
     slot: slot,
     blockStore: blockStore,
     slotBlocks: slotBlocks,
-    datasetRoot: manifest.verificationRoot,
-    slotRootHash: starter.slotPoseidonTree.root(),
+    datasetRoot: datasetRoot,
+    slotRootHash: slotRootHash,
     slotPoseidonTree: starter.slotPoseidonTree,
     datasetToSlotProof: starter.datasetToSlotProof,
     blockSize: blockSize,

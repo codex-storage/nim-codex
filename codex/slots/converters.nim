@@ -1,3 +1,4 @@
+import std/sequtils
 import pkg/libp2p
 import pkg/questionable/results
 import pkg/stew/arrayops
@@ -14,7 +15,7 @@ func toCid(hash: Poseidon2Hash, mcodec: MultiCodec, cidCodec: MultiCodec): ?!Cid
     treeCid = ? Cid.init(CIDv1, cidCodec, mhash).mapFailure
   success treeCid
 
-proc toPoseidon2Hash*(cid: Cid, mcodec: MultiCodec, cidCodec: MultiCodec): ?!Poseidon2Hash =
+proc toPoseidon2Hash(cid: Cid, mcodec: MultiCodec, cidCodec: MultiCodec): ?!Poseidon2Hash =
   if cid.cidver != CIDv1:
     return failure("Unexpected CID version")
 
@@ -46,3 +47,24 @@ func toProvingCid*(hash: Poseidon2Hash): ?!Cid =
 
 func fromProvingCid*(cid: Cid): ?!Poseidon2Hash =
   toPoseidon2Hash(cid, multiCodec("identity"), SlotProvingRootCodec)
+
+func toEncodableProof*(proof: Poseidon2Proof): ?!CodexProof =
+  let
+    encodableProof = CodexProof(
+      mcodec: multiCodec("identity"),
+      index: proof.index,
+      nleaves: proof.nleaves,
+      path: proof.path.mapIt( @(it.toBytes) ))
+
+  success encodableProof
+
+func toVerifiableProof*(proof: CodexProof): ?!Poseidon2Proof =
+  let
+    verifiableProof = Poseidon2Proof(
+      index: proof.index,
+      nleaves: proof.nleaves,
+      path: proof.path.mapIt(
+        ? Poseidon2Hash.fromBytes(it.toArray32).toResult
+      ))
+
+  success verifiableProof
