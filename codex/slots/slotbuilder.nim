@@ -26,6 +26,7 @@ import ../stores
 import ../manifest
 import ../utils
 import ../utils/digest
+import ./converters
 
 const
   # TODO: Unified with the CellSize specified in branch "data-sampler"
@@ -75,27 +76,6 @@ func numBlockRoots*(self: SlotBuilder): Natural =
   ##
 
   self.manifest.blockSize.int div self.cellSize
-
-func toCellCid(cell: Poseidon2Hash): ?!Cid =
-  let
-    cellMhash = ? MultiHash.init(Pos2Bn128MrklCodec, cell.toBytes).mapFailure
-    cellCid = ? Cid.init(CIDv1, CodexSlotCell, cellMhash).mapFailure
-
-  success cellCid
-
-func toSlotCid(root: Poseidon2Hash): ?!Cid =
-  let
-    mhash = ? MultiHash.init($multiCodec("identity"), root.toBytes).mapFailure
-    treeCid = ? Cid.init(CIDv1, SlotRootCodec, mhash).mapFailure
-
-  success treeCid
-
-func toProvingCid(root: Poseidon2Hash): ?!Cid =
-  let
-    mhash = ? MultiHash.init($multiCodec("identity"), root.toBytes).mapFailure
-    treeCid = ? Cid.init(CIDv1, SlotProvingRootCodec, mhash).mapFailure
-
-  success treeCid
 
 func mapToSlotCids(slotRoots: seq[Poseidon2Hash]): ?!seq[Cid] =
   success slotRoots.mapIt( ? it.toSlotCid )

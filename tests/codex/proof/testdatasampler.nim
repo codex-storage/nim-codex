@@ -23,6 +23,7 @@ import pkg/codex/stores/cachestore
 import pkg/codex/proof/datasampler
 import pkg/codex/proof/misc
 import pkg/codex/proof/types
+import pkg/codex/slots/converters
 
 import ../helpers
 import ../examples

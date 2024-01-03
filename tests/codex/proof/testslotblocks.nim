@@ -13,6 +13,7 @@ import pkg/codex/contracts
 import pkg/codex/merkletree
 
 import pkg/codex/proof/slotblocks
+import pkg/codex/indexingstrategy
 
 import ../helpers
 import ../examples
@@ -39,7 +40,7 @@ asyncchecksuite "Test slotblocks - manifest":
       datasetSize = 100.MiBs)
 
   var
-    manifestBlock = bt.Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
+    manifestBlock = bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
     slot = Slot(
       request: StorageRequest(
         ask: StorageAsk(
@@ -89,7 +90,6 @@ asyncchecksuite "Test slotblocks - manifest":
     check:
       m.isErr
 
-
 asyncchecksuite "Test slotblocks - slot blocks by index":
   let
     totalNumberOfSlots = 4
@@ -114,22 +114,6 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
       datasetBlocks.add(b)
       discard await localStore.putBlock(b)
 
-  # proc createManifest(): Future[void] {.async.} =
-  #   let
-  #     cids = datasetBlocks.mapIt(it.cid)
-  #     tree = MerkleTree.init(cids).tryGet()
-  #     treeCid = tree.rootCid().tryGet()
-
-  #   for index, cid in cids:
-  #     let proof = tree.getProof(index).tryget()
-  #     discard await localStore.putBlockCidAndProof(treeCid, index, cid, proof)
-
-  #   manifest = Manifest.new(
-  #     treeCid = treeCid,
-  #     blockSize = bytesPerBlock.NBytes,
-  #     datasetSize = (bytesPerBlock * numberOfSlotBlocks * totalNumberOfSlots).NBytes)
-  #   manifestBlock = bt.Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
-
   proc createManifest(): Future[void] {.async.} =
     let
       cids = datasetBlocks.mapIt(it.cid)
@@ -145,9 +129,7 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
       treeCid = treeCid,
       blockSize = bytesPerBlock.NBytes,
       datasetSize = (bytesPerBlock * numberOfSlotBlocks * totalNumberOfSlots).NBytes)
-    manifestBlock = bt.Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
-
-
+    manifestBlock = bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
 
   proc createSlot(): void =
     slot = Slot(
@@ -179,7 +161,7 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
         slotBlockIndex = input.uint64
         datasetBlockIndex = slotBlocks.getDatasetBlockIndexForSlotBlockIndex(slotBlockIndex)
         datasetSlotIndex = slot.slotIndex.truncate(uint64)
-        expectedIndex = strategy.getIndicies(datasetSlotIndex)[slotBlockIndex]
+        expectedIndex = strategy.getIndicies(datasetSlotIndex.int)[slotBlockIndex]
 
       check:
         datasetBlockIndex == expectedIndex

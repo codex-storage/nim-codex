@@ -7,6 +7,7 @@ import pkg/questionable/results
 import ../contracts/requests
 import ../stores/blockstore
 import ../manifest
+import ../indexingstrategy
 
 type
   SlotBlocks* = ref object of RootObj
@@ -48,7 +49,7 @@ proc new*(
         0, manifest.blocksCount - 1, manifest.numSlots)
       else:
         strategy
-    datasetBlockIndices = strategy.getIndicies(slot.slotIndex.truncate(uint64))
+    datasetBlockIndices = strategy.getIndicies(slot.slotIndex.truncate(uint64).int)
 
   success(SlotBlocks(
     slot: slot,
@@ -60,12 +61,12 @@ proc new*(
 proc manifest*(self: SlotBlocks): Manifest =
   self.manifest
 
-proc getDatasetBlockIndexForSlotBlockIndex*(self: SlotBlocks, slotBlockIndex: uint64): uint64 =
-  return datasetBlockIndices[slotBlockIndex]
+proc getDatasetBlockIndexForSlotBlockIndex*(self: SlotBlocks, slotBlockIndex: uint64): int =
+  return self.datasetBlockIndices[slotBlockIndex]
 
 proc getSlotBlock*(self: SlotBlocks, slotBlockIndex: uint64): Future[?!Block] {.async.} =
   let
-    blocksInManifest = (self.manifest.datasetSize div self.manifest.blockSize).uint64
+    blocksInManifest = (self.manifest.datasetSize div self.manifest.blockSize).int
     datasetBlockIndex = self.getDatasetBlockIndexForSlotBlockIndex(slotBlockIndex)
 
   if datasetBlockIndex >= blocksInManifest:

@@ -31,25 +31,6 @@ import types
 logScope:
   topics = "codex datasampler"
 
-proc toCid*(pHash: Poseidon2Hash, mcodec: MultiCodec): Cid =
-  let mhash = MultiHash.init(Pos2Bn128MrklCodec, pHash.toBytes()).tryGet()
-  return Cid.init(CIDv1, mcodec, mhash).tryGet()
-
-proc toPoseidon2Hash*(cid: Cid): ?!Poseidon2Hash =
-  if cid.cidver != CIDv1:
-    return failure("Unexpected CID version")
-
-check how slot builder converts to and from CID!
-  # if cid.mcodec != multiCodec("poseidon2-alt_bn_128-merkle-2kb"):
-  #   return failure("CID is not a poseidon2-alt_bn_128-merkle-2kb")
-
-  let
-    bytes: array[32, byte] = array[32, byte].initCopyFrom(cid.data.buffer)
-    hash = Poseidon2Hash.fromBytes(bytes)
-  if not hash.isSome():
-    return failure("Unable to convert CID to Poseidon2Hash")
-  return success(hash.get())
-
 type
   DataSampler* = object of RootObj
     slot: Slot
@@ -174,7 +155,6 @@ proc createProofSample(self: DataSampler, slotCellIndex: uint64) : Future[?!Proo
     error "Failed to calculate minitree for block"
     return failure(err)
 
-  # Should getProof(index) be a uint64?
   without blockProof =? self.slotPoseidonTree.getProof(slotBlockIndex.int), err:
     error "Failed to get slot-to-block inclusion proof"
     return failure(err)
