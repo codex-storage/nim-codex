@@ -262,9 +262,7 @@ suite "Slot builder":
           posProof = slotTree.getProof(cellIndex).tryGet
 
         check:
-          verifiableProof.index == posProof.index
-          verifiableProof.nleaves == posProof.nleaves
-          verifiableProof.path == posProof.path
+          verifiableProof == posProof
 
   test "Should build correct verification root":
     let
