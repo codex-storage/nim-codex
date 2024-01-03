@@ -13,7 +13,6 @@ push: {.upraises: [].}
 
 import std/bitops
 import std/sequtils
-
 import pkg/questionable
 import pkg/questionable/results
 import pkg/libp2p/[cid, multicodec, multihash]
@@ -40,15 +39,15 @@ type
 
   ByteHash* = seq[byte]
   ByteTree* = MerkleTree[ByteHash, ByteTreeKey]
-  ByteTreeProof* = MerkleProof[ByteHash, ByteTreeKey]
+  ByteProof* = MerkleProof[ByteHash, ByteTreeKey]
 
   CodexTree* = ref object of ByteTree
-    mhash: MHash
+    mcodec*: MultiCodec
 
-  CodexProof* = ref object of ByteTreeProof
-    mhash: MHash
+  CodexProof* = ref object of ByteProof
+    mcodec*: MultiCodec
 
-func getMhash*(mcodec: MultiCodec): ?!MHash =
+func mhash*(mcodec: MultiCodec): ?!MHash =
   let
     mhash = CodeHashes.getOrDefault(mcodec)
 
@@ -63,21 +62,15 @@ func digestSize*(self: (CodexTree or CodexProof)): int =
 
   self.mhash.size
 
-func mcodec*(self: (CodexTree or CodexProof)): MultiCodec =
-  ## Multicodec
-  ##
-
-  self.mhash.mcodec
-
-func bytes*(mhash: MultiHash): seq[byte] =
-  ## Extract hash bytes
+func digestBytes*(mhash: MultiHash): seq[byte] =
+  ## Extract hash digestBytes
   ##
 
   mhash.data.buffer[mhash.dpos..<mhash.dpos + mhash.size]
 
 func getProof*(self: CodexTree, index: int): ?!CodexProof =
   var
-    proof = CodexProof(mhash: self.mhash)
+    proof = CodexProof(mcodec: self.mcodec)
 
   ? self.getProof(index, proof)
 
@@ -88,8 +81,8 @@ func verify*(self: CodexProof, leaf: MultiHash, root: MultiHash): ?!void =
   ##
 
   let
-    rootBytes = root.bytes
-    leafBytes = leaf.bytes
+    rootBytes = root.digestBytes
+    leafBytes = leaf.digestBytes
 
   if self.mcodec != root.mcodec or
     self.mcodec != leaf.mcodec:
@@ -166,7 +159,7 @@ func init*(
     return failure "Empty leaves"
 
   let
-    mhash = ? mcodec.getMhash()
+    mhash = ? mcodec.mhash()
     compressor = proc(x, y: seq[byte], key: ByteTreeKey): ?!ByteHash {.noSideEffect.} =
       compress(x, y, key, mhash)
     Zero: ByteHash = newSeq[byte](mhash.size)
@@ -175,7 +168,7 @@ func init*(
     return failure "Invalid hash length"
 
   var
-    self = CodexTree(mhash: mhash, compress: compressor, zero: Zero)
+    self = CodexTree(mcodec: mcodec, compress: compressor, zero: Zero)
 
   self.layers = ? merkleTreeWorker(self, leaves, isBottomLayer = true)
   success self
@@ -189,7 +182,7 @@ func init*(
 
   let
     mcodec = leaves[0].mcodec
-    leaves = leaves.mapIt( it.bytes )
+    leaves = leaves.mapIt( it.digestBytes )
 
   CodexTree.init(mcodec, leaves)
 
@@ -201,7 +194,7 @@ func init*(
 
   let
     mcodec = (? leaves[0].mhash.mapFailure).mcodec
-    leaves = leaves.mapIt( (? it.mhash.mapFailure).bytes )
+    leaves = leaves.mapIt( (? it.mhash.mapFailure).digestBytes )
 
   CodexTree.init(mcodec, leaves)
 
@@ -215,7 +208,7 @@ proc fromNodes*(
     return failure "Empty nodes"
 
   let
-    mhash = ? mcodec.getMhash()
+    mhash = ? mcodec.mhash()
     Zero = newSeq[byte](mhash.size)
     compressor = proc(x, y: seq[byte], key: ByteTreeKey): ?!ByteHash {.noSideEffect.} =
       compress(x, y, key, mhash)
@@ -224,7 +217,7 @@ proc fromNodes*(
     return failure "Invalid hash length"
 
   var
-    self = CodexTree(compress: compressor, zero: Zero, mhash: mhash)
+    self = CodexTree(compress: compressor, zero: Zero, mcodec: mcodec)
     layer = nleaves
     pos = 0
 
@@ -251,16 +244,15 @@ func init*(
     return failure "Empty nodes"
 
   let
-    mhash = ? mcodec.getMhash()
+    mhash = ? mcodec.mhash()
     Zero = newSeq[byte](mhash.size)
     compressor = proc(x, y: seq[byte], key: ByteTreeKey): ?!seq[byte] {.noSideEffect.} =
       compress(x, y, key, mhash)
 
-
   success CodexProof(
     compress: compressor,
     zero: Zero,
-    mhash: mhash,
+    mcodec: mcodec,
     index: index,
     nleaves: nleaves,
     path: @nodes)

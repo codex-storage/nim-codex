@@ -27,6 +27,8 @@ const
   KeyOddF               = F.fromhex("0x2")
   KeyOddAndBottomLayerF = F.fromhex("0x3")
 
+  Poseidon2Zero* = zero
+
 type
   Poseidon2Hash* = F
 
@@ -38,6 +40,9 @@ type
 
   Poseidon2Tree* = MerkleTree[Poseidon2Hash, PoseidonKeysEnum]
   Poseidon2Proof* = MerkleProof[Poseidon2Hash, PoseidonKeysEnum]
+
+func toArray32*(bytes: openArray[byte]): array[32, byte] =
+  result[0..<bytes.len] = bytes[0..<bytes.len]
 
 converter toKey*(key: PoseidonKeysEnum): Poseidon2Hash =
   case key:
@@ -60,7 +65,7 @@ func init*(
       success compress( x, y, key.toKey )
 
   var
-    self = Poseidon2Tree(compress: compressor, zero: zero)
+    self = Poseidon2Tree(compress: compressor, zero: Poseidon2Zero)
 
   self.layers = ? merkleTreeWorker(self, leaves, isBottomLayer = true)
   success self

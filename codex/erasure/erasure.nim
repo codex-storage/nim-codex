@@ -25,6 +25,7 @@ import ../stores
 import ../blocktype as bt
 import ../utils
 import ../utils/asynciter
+import ../indexingstrategy
 
 import pkg/stew/byteutils
 
@@ -127,7 +128,12 @@ proc prepareEncodingData(
   ##
 
   let
-    indicies = toSeq(countup(step, params.rounded - 1, params.steps))
+    strategy = SteppedIndexingStrategy.new(
+      firstIndex = 0,
+      lastIndex = params.rounded - 1,
+      numberOfIterations = params.steps
+    )
+    indicies = strategy.getIndicies(step)
     pendingBlocksIter = self.getPendingBlocks(manifest, indicies.filterIt(it < manifest.blocksCount))
 
   var resolved = 0
@@ -171,7 +177,12 @@ proc prepareDecodingData(
   ##
 
   let
-    indicies = toSeq(countup(step, encoded.blocksCount - 1, encoded.steps))
+    strategy = SteppedIndexingStrategy.new(
+      firstIndex = 0,
+      lastIndex = encoded.blocksCount - 1,
+      numberOfIterations = encoded.steps
+    )
+    indicies = strategy.getIndicies(step)
     pendingBlocksIter = self.getPendingBlocks(encoded, indicies)
 
   var
@@ -213,7 +224,10 @@ proc prepareDecodingData(
 
   return success (dataPieces, parityPieces)
 
-proc init(_: type EncodingParams, manifest: Manifest, ecK: int, ecM: int): ?!EncodingParams =
+proc init*(
+  _: type EncodingParams,
+  manifest: Manifest,
+  ecK: int, ecM: int): ?!EncodingParams =
   if ecK > manifest.blocksCount:
     return failure("Unable to encode manifest, not enough blocks, ecK = " & $ecK & ", blocksCount = " & $manifest.blocksCount)
 

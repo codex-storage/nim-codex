@@ -15,5 +15,7 @@ import ./codex/testsystemclock
 import ./codex/testvalidation
 import ./codex/testasyncstreamwrapper
 import ./codex/testmerkletree
+import ./codex/testslotbuilder
+import ./codex/testindexingstrategy
 
 {.warning[UnusedImport]: off.}

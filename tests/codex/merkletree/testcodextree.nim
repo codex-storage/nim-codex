@@ -51,7 +51,7 @@ suite "Test CodexTree":
     var tree = CodexTree.init(leaves = expectedLeaves)
     check:
       tree.isOk
-      tree.get().leaves == expectedLeaves.mapIt( it.bytes )
+      tree.get().leaves == expectedLeaves.mapIt( it.digestBytes )
       tree.get().mcodec == sha256
 
   test "Should build tree from cid leaves":
@@ -68,10 +68,10 @@ suite "Test CodexTree":
 
     check:
       tree.isOk
-      tree.get().leaves == expectedLeaves.mapIt( it.mhash.tryGet.bytes )
+      tree.get().leaves == expectedLeaves.mapIt( it.mhash.tryGet.digestBytes )
       tree.get().mcodec == sha256
 
-  test "Should build from raw bytes (should not hash leaves)":
+  test "Should build from raw digestbytes (should not hash leaves)":
     let
       tree = CodexTree.init(sha256, leaves = data).tryGet
 
@@ -91,7 +91,7 @@ suite "Test CodexTree":
       tree == fromNodes
 
 let
-  mhash = sha256.getMhash().tryGet
+  mhash = sha256.mhash().tryGet
   zero: seq[byte] = newSeq[byte](mhash.size)
   compress = proc(x, y: seq[byte], key: ByteTreeKey): seq[byte] =
     compress(x, y, key, mhash).tryGet
