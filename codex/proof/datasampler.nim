@@ -1,9 +1,3 @@
-import ../contracts/requests
-import ../blocktype as bt
-import ../merkletree
-import ../manifest
-import ../stores/blockstore
-
 import std/bitops
 import std/sugar
 import std/sequtils
@@ -22,7 +16,13 @@ import misc
 import slotblocks
 import types
 import datasamplerstarter
+import ../contracts/requests
+import ../blocktype as bt
+import ../merkletree
+import ../manifest
+import ../stores/blockstore
 import ../slots/converters
+import ../utils/digest
 
 # Index naming convention:
 # "<ContainerType><ElementType>Index" => The index of an ElementType within a ContainerType.
@@ -41,7 +41,7 @@ type
     # The following data is invariant over time for a given slot:
     datasetRoot: Poseidon2Hash
     slotRootHash: Poseidon2Hash
-    slotPoseidonTree: Poseidon2Tree
+    slotTreeCid: Cid
     datasetToSlotProof: Poseidon2Proof
     blockSize: uint64
     numberOfCellsInSlot: uint64
@@ -88,7 +88,7 @@ proc new*(
     slotBlocks: slotBlocks,
     datasetRoot: datasetRoot,
     slotRootHash: slotRootHash,
-    slotPoseidonTree: starter.slotPoseidonTree,
+    slotTreeCid: starter.slotTreeCid,
     datasetToSlotProof: starter.datasetToSlotProof,
     blockSize: blockSize,
     numberOfCellsInSlot: numberOfCellsInSlot,
@@ -122,14 +122,12 @@ func getBlockCellIndexForSlotCellIndex*(self: DataSampler, slotCellIndex: uint64
   return slotCellIndex mod self.numberOfCellsPerBlock
 
 proc findSlotCellIndex*(self: DataSampler, challenge: Poseidon2Hash, counter: Poseidon2Hash): uint64 =
-  # Computes the slot-cell index for a single sample.
   let
     input = @[self.slotRootHash, challenge, counter]
     hash = Sponge.digest(input, rate = 2)
   return convertToSlotCellIndex(self, hash)
 
 func findSlotCellIndices*(self: DataSampler, challenge: Poseidon2Hash, nSamples: int): seq[uint64] =
-  # Computes nSamples slot-cell indices.
   return collect(newSeq, (for i in 1..nSamples: self.findSlotCellIndex(challenge, toF(i))))
 
 proc getCellFromBlock*(self: DataSampler, blk: bt.Block, slotCellIndex: uint64): Cell =
@@ -139,23 +137,20 @@ proc getCellFromBlock*(self: DataSampler, blk: bt.Block, slotCellIndex: uint64):
     dataEnd = dataStart + DefaultCellSize.uint64
   return blk.data[dataStart ..< dataEnd]
 
-proc getBlockCells*(self: DataSampler, blk: bt.Block): seq[Cell] =
-  var cells: seq[Cell]
-  for i in 0 ..< self.numberOfCellsPerBlock:
-    cells.add(self.getCellFromBlock(blk, i))
-  return cells
-
 proc getBlockCellMiniTree*(self: DataSampler, blk: bt.Block): ?!Poseidon2Tree =
-  let
-    cells = self.getBlockCells(blk)
-    cellHashes = cells.mapIt(Sponge.digest(it, rate = 2))
+  return digestTree(blk.data, DefaultCellSize.int)
 
-  return Poseidon2Tree.init(cellHashes)
+proc getSlotBlockProof(self: DataSampler, slotBlockIndex: uint64): Future[?!Poseidon2Proof] {.async.} =
+  await self.blockStore.getCidAndProof(self.slotTreeCid, slotBlockIndex.int)
 
 proc createProofSample(self: DataSampler, slotCellIndex: uint64) : Future[?!ProofSample] {.async.} =
   let
     slotBlockIndex = self.getSlotBlockIndexForSlotCellIndex(slotCellIndex)
     blockCellIndex = self.getBlockCellIndexForSlotCellIndex(slotCellIndex)
+
+  without blockProof =? self.getSlotBlockProof(slotBlockIndex), err:
+    error "Failed to get slot-to-block inclusion proof"
+    return failure(err)
 
   without blk =? await self.slotBlocks.getSlotBlock(slotBlockIndex), err:
     error "Failed to get slot block"
@@ -163,10 +158,6 @@ proc createProofSample(self: DataSampler, slotCellIndex: uint64) : Future[?!Proo
 
   without miniTree =? self.getBlockCellMiniTree(blk), err:
     error "Failed to calculate minitree for block"
-    return failure(err)
-
-  without blockProof =? self.slotPoseidonTree.getProof(slotBlockIndex.int), err:
-    error "Failed to get slot-to-block inclusion proof"
     return failure(err)
 
   without cellProof =? miniTree.getProof(blockCellIndex.int), err:

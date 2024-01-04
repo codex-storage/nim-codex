@@ -17,7 +17,7 @@ type
   DataSamplerStarter* = object of RootObj
     datasetSlotIndex*: uint64
     datasetToSlotProof*: Poseidon2Proof
-    slotPoseidonTree*: Poseidon2Tree
+    slotTreeCid*: Cid
 
 proc getNumberOfBlocksInSlot*(slot: Slot, manifest: Manifest): uint64 =
   let blockSize = manifest.blockSize.uint64
@@ -35,42 +35,61 @@ proc rollUp[T](input: seq[?!T]): ?!seq[T] =
 proc convertSlotRootCidsToHashes(slotRoots: seq[Cid]): ?!seq[Poseidon2Hash] =
   rollUp(slotRoots.mapIt(it.fromSlotCid()))
 
-proc calculateDatasetSlotProof(slotRoots: seq[Cid], slotIndex: uint64): ?!Poseidon2Proof =
+proc calculateDatasetSlotProof(manifest: Manifest, slotRoots: seq[Cid], slotIndex: uint64): ?!Poseidon2Proof =
   without leafs =? convertSlotRootCidsToHashes(slotRoots), err:
     error "Failed to convert leaf Cids"
     return failure(err)
 
-  without tree =? Poseidon2Tree.init(leafs), err:
+  # Todo: Duplicate of SlotBuilder.nim:166 and 212
+  # -> Extract/unify top-tree creation.
+  let rootsPadLeafs = newSeqWith(manifest.numSlots.nextPowerOfTwoPad, Poseidon2Zero)
+
+  without tree =? Poseidon2Tree.init(leafs & self.rootsPadLeafs), err:
     error "Failed to calculate Dataset-SlotRoot tree"
     return failure(err)
 
   tree.getProof(slotIndex.int)
 
-proc recreateSlotTree(blockStore: BlockStore, manifest: Manifest, datasetSlotIndex: uint64): Future[?!Poseidon2Tree] {.async.} =
+proc recreateSlotTree(blockStore: BlockStore, manifest: Manifest, slotTreeCid: Cid, datasetSlotIndex: uint64): Future[?!void] {.async.} =
+  without expectedSlotRoot =? slotTreeCid.fromSlotCid(), err:
+    error "Failed to convert slotTreeCid to hash"
+    return failure(err)
+
   without slotBuilder =? SlotBuilder.new(blockStore, manifest), err:
     error "Failed to initialize SlotBuilder"
     return failure(err)
 
-  await slotBuilder.buildSlotTree(datasetSlotIndex.int)
+  without reconsturctedSlotRoot =? (await slotBuilder.buildSlot(datasetSlotIndex.int)), err:
+    error "Failed to reconstruct slot tree", error = err.msg
+    return failure(err)
 
-proc ensureSlotTree(blockStore: BlockStore, manifest: Manifest, slot: Slot, datasetSlotIndex: uint64): Future[?!Poseidon2Tree] {.async.} =
-  let
-    numberOfSlotBlocks = getNumberOfBlocksInSlot(slot, manifest)
-    slotCid = manifest.slotRoots[datasetSlotIndex]
+  if not reconsturctedSlotRoot == expectedSlotRoot:
+    error "Reconstructed slot root does not match manifest slot root."
+    return failure("Reconstructed slot root does not match manifest slot root.")
 
-  for blockIndex in 0 ..< numberOfSlotBlocks:
-    without (blockCid, proof) =? await blockStore.getCidAndProof(slotCid, blockIndex), err:
-      error "Error when loading cid and proof from blockStore: ", error = err.msg
-      warn "Failed to load slot tree from blockStore. Recreating..."
-      return await recreateSlotTree(blockStore, manifest, datasetSlotIndex)
+  success()
 
-  # TODO: Build a tree out of these proofs somehow!
-  raiseAssert("building tree from proofs not implemented???")
+proc ensureSlotTree(blockStore: BlockStore, manifest: Manifest, slot: Slot, slotTreeCid: Cid, datasetSlotIndex: uint64): Future[?!void] {.async.} =
+  let numberOfSlotBlocks = getNumberOfBlocksInSlot(slot, manifest)
+
+  # Do we need to check all blocks, or is [0] good enough?
+  # What if a few indices are found, but a few aren't? Can that even happen?
+  for slotBlockIndex in 0 ..< numberOfSlotBlocks:
+    without hasTree =? (await blockStore.hasBlock(slotTreeCid, slotBlockIndex)), err:
+      error "Failed to determine if slot-tree block is present in blockStore: ", error = err.msg
+      return failure(err)
+
+    if not hasTree:
+      info "Slot tree not present in blockStore. Recreating..."
+      return await recreateSlotTree(blockStore, manifest, slotTreeCid, datasetSlotIndex)
+
+  success()
 
 proc startDataSampler*(blockStore: BlockStore, manifest: Manifest, slot: Slot): Future[?!DataSamplerStarter] {.async.} =
   let
     datasetSlotIndex = slot.slotIndex.truncate(uint64)
     slotRoots = manifest.slotRoots
+    slotTreeCid = manifest.slotRoots[datasetSlotIndex]
 
   trace "Initializing data sampler", datasetSlotIndex
 
@@ -85,5 +104,5 @@ proc startDataSampler*(blockStore: BlockStore, manifest: Manifest, slot: Slot): 
   success(DataSamplerStarter(
     datasetSlotIndex: datasetSlotIndex,
     datasetToSlotProof: datasetToSlotProof,
-    slotPoseidonTree: slotPoseidonTree
+    slotTreeCid: slotTreeCid
   ))
