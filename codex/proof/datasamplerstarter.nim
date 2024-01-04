@@ -88,21 +88,28 @@ proc ensureSlotTree(blockStore: BlockStore, manifest: Manifest, slot: Slot, slot
   success()
 
 proc startDataSampler*(blockStore: BlockStore, manifest: Manifest, slot: Slot): Future[?!DataSamplerStarter] {.async.} =
+  trace "Initializing data sampler", slotIndex = slot.slotIndex
+
+  if not manifest.verifiable:
+    return failure("Can only create DataSampler using verifiable manifests.")
+
   let
     datasetSlotIndex = slot.slotIndex.truncate(uint64)
     slotRoots = manifest.slotRoots
     slotTreeCid = manifest.slotRoots[datasetSlotIndex]
 
-  trace "Initializing data sampler", datasetSlotIndex
+  echo "a"
 
   without datasetToSlotProof =? calculateDatasetSlotProof(manifest, slotRoots, datasetSlotIndex), err:
     error "Failed to calculate dataset-slot inclusion proof", error = err.msg
     return failure(err)
 
+  echo "b"
   if err =? (await ensureSlotTree(blockStore, manifest, slot, slotTreeCid, datasetSlotIndex)).errorOption:
     error "Failed to load or recreate slot tree", error = err.msg
     return failure(err)
 
+  echo "c"
   success(DataSamplerStarter(
     datasetSlotIndex: datasetSlotIndex,
     datasetToSlotProof: datasetToSlotProof,

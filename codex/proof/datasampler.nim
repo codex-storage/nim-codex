@@ -67,9 +67,6 @@ proc new*(
     numberOfCellsInSlot = getNumberOfCellsInSlot(slot)
     blockSize = manifest.blockSize.uint64
 
-  if not manifest.verifiable:
-    return failure("Can only create DataSampler using verifiable manifests.")
-
   without starter =? (await startDataSampler(blockStore, manifest, slot)), e:
     error "Failed to start data sampler", error = e.msg
     return failure(e)
