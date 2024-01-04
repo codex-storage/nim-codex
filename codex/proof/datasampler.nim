@@ -58,9 +58,9 @@ proc new*(
 ): Future[?!DataSampler] {.async.} =
   # Create a DataSampler for a slot.
   # A DataSampler can create the input required for the proving circuit.
-  without slotBlocks =? await SlotBlocks.new(slot, blockStore):
-    error "Failed to create SlotBlocks object for slot"
-    return failure("Failed to create SlotBlocks object for slot")
+  without slotBlocks =? (await SlotBlocks.new(slot, blockStore)), e:
+    error "Failed to create SlotBlocks object for slot", error = e.msg
+    return failure(e)
 
   let
     manifest = slotBlocks.manifest
@@ -70,17 +70,17 @@ proc new*(
   if not manifest.verifiable:
     return failure("Can only create DataSampler using verifiable manifests.")
 
-  without starter =? (await startDataSampler(blockStore, manifest, slot)), error:
-    error "Failed to start data sampler"
-    return failure(error)
+  without starter =? (await startDataSampler(blockStore, manifest, slot)), e:
+    error "Failed to start data sampler", error = e.msg
+    return failure(e)
 
-  without datasetRoot =? manifest.verificationRoot.fromProvingCid(), error:
-    error "Failed to convert manifest verification root to Poseidon2Hash"
-    return failure(error)
+  without datasetRoot =? manifest.verificationRoot.fromProvingCid(), e:
+    error "Failed to convert manifest verification root to Poseidon2Hash", error = e.msg
+    return failure(e)
 
-  without slotRootHash =? starter.slotPoseidonTree.root(), error:
-    error "Failed to get slot tree root"
-    return failure(error)
+  without slotRootHash =? starter.slotTreeCid.fromSlotCid(), e:
+    error "Failed to convert slot cid to hash", error = e.msg
+    return failure(e)
 
   success(DataSampler(
     slot: slot,
@@ -138,30 +138,38 @@ proc getCellFromBlock*(self: DataSampler, blk: bt.Block, slotCellIndex: uint64):
   return blk.data[dataStart ..< dataEnd]
 
 proc getBlockCellMiniTree*(self: DataSampler, blk: bt.Block): ?!Poseidon2Tree =
-  return digestTree(blk.data, DefaultCellSize.int)
+  return Poseidon2Tree.digestTree(blk.data, DefaultCellSize.int)
 
 proc getSlotBlockProof(self: DataSampler, slotBlockIndex: uint64): Future[?!Poseidon2Proof] {.async.} =
-  await self.blockStore.getCidAndProof(self.slotTreeCid, slotBlockIndex.int)
+  without (cid, proof) =? (await self.blockStore.getCidAndProof(self.slotTreeCid, slotBlockIndex.int)), err:
+    error "Unable to load cid and proof", error = err.msg
+    return failure(err)
+
+  without poseidon2Proof =? proof.toVerifiableProof(), err:
+    error "Unable to convert proof", error = err.msg
+    return failure(err)
+
+  return success(poseidon2Proof)
 
 proc createProofSample(self: DataSampler, slotCellIndex: uint64) : Future[?!ProofSample] {.async.} =
   let
     slotBlockIndex = self.getSlotBlockIndexForSlotCellIndex(slotCellIndex)
     blockCellIndex = self.getBlockCellIndexForSlotCellIndex(slotCellIndex)
 
-  without blockProof =? self.getSlotBlockProof(slotBlockIndex), err:
-    error "Failed to get slot-to-block inclusion proof"
+  without blockProof =? (await self.getSlotBlockProof(slotBlockIndex)), err:
+    error "Failed to get slot-to-block inclusion proof", error = err.msg
     return failure(err)
 
   without blk =? await self.slotBlocks.getSlotBlock(slotBlockIndex), err:
-    error "Failed to get slot block"
+    error "Failed to get slot block", error = err.msg
     return failure(err)
 
   without miniTree =? self.getBlockCellMiniTree(blk), err:
-    error "Failed to calculate minitree for block"
+    error "Failed to calculate minitree for block", error = err.msg
     return failure(err)
 
   without cellProof =? miniTree.getProof(blockCellIndex.int), err:
-    error "Failed to get block-to-cell inclusion proof"
+    error "Failed to get block-to-cell inclusion proof", error = err.msg
     return failure(err)
 
   let cell = self.getCellFromBlock(blk, slotCellIndex)
@@ -181,7 +189,7 @@ proc getProofInput*(self: DataSampler, challenge: Poseidon2Hash, nSamples: int):
   trace "Collecing input for proof", selectedSlotCellIndices = $slotCellIndices
   for slotCellIndex in slotCellIndices:
     without sample =? await self.createProofSample(slotCellIndex), err:
-      error "Failed to create proof sample"
+      error "Failed to create proof sample", error = err.msg
       return failure(err)
     samples.add(sample)
 

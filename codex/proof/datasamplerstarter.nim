@@ -4,6 +4,7 @@ import pkg/chronicles
 import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
+import pkg/constantine/math/io/io_fields
 
 import ../contracts/requests
 import ../blocktype as bt
@@ -23,6 +24,7 @@ proc getNumberOfBlocksInSlot*(slot: Slot, manifest: Manifest): uint64 =
   let blockSize = manifest.blockSize.uint64
   (slot.request.ask.slotSize.truncate(uint64) div blockSize)
 
+# This shouldn't be necessary... is it? Should it be in utils?
 proc rollUp[T](input: seq[?!T]): ?!seq[T] =
   var output = newSeq[T]()
   for element in input:
@@ -37,33 +39,33 @@ proc convertSlotRootCidsToHashes(slotRoots: seq[Cid]): ?!seq[Poseidon2Hash] =
 
 proc calculateDatasetSlotProof(manifest: Manifest, slotRoots: seq[Cid], slotIndex: uint64): ?!Poseidon2Proof =
   without leafs =? convertSlotRootCidsToHashes(slotRoots), err:
-    error "Failed to convert leaf Cids"
+    error "Failed to convert leaf Cids", error = err.msg
     return failure(err)
 
   # Todo: Duplicate of SlotBuilder.nim:166 and 212
   # -> Extract/unify top-tree creation.
   let rootsPadLeafs = newSeqWith(manifest.numSlots.nextPowerOfTwoPad, Poseidon2Zero)
 
-  without tree =? Poseidon2Tree.init(leafs & self.rootsPadLeafs), err:
-    error "Failed to calculate Dataset-SlotRoot tree"
+  without tree =? Poseidon2Tree.init(leafs & rootsPadLeafs), err:
+    error "Failed to calculate Dataset-SlotRoot tree", error = err.msg
     return failure(err)
 
   tree.getProof(slotIndex.int)
 
 proc recreateSlotTree(blockStore: BlockStore, manifest: Manifest, slotTreeCid: Cid, datasetSlotIndex: uint64): Future[?!void] {.async.} =
   without expectedSlotRoot =? slotTreeCid.fromSlotCid(), err:
-    error "Failed to convert slotTreeCid to hash"
+    error "Failed to convert slotTreeCid to hash", error = err.msg
     return failure(err)
 
   without slotBuilder =? SlotBuilder.new(blockStore, manifest), err:
-    error "Failed to initialize SlotBuilder"
+    error "Failed to initialize SlotBuilder", error = err.msg
     return failure(err)
 
   without reconsturctedSlotRoot =? (await slotBuilder.buildSlot(datasetSlotIndex.int)), err:
     error "Failed to reconstruct slot tree", error = err.msg
     return failure(err)
 
-  if not reconsturctedSlotRoot == expectedSlotRoot:
+  if reconsturctedSlotRoot.toDecimal() != expectedSlotRoot.toDecimal():
     error "Reconstructed slot root does not match manifest slot root."
     return failure("Reconstructed slot root does not match manifest slot root.")
 
@@ -93,12 +95,12 @@ proc startDataSampler*(blockStore: BlockStore, manifest: Manifest, slot: Slot): 
 
   trace "Initializing data sampler", datasetSlotIndex
 
-  without datasetToSlotProof =? calculateDatasetSlotProof(slotRoots, datasetSlotIndex), err:
-    error "Failed to calculate dataset-slot inclusion proof"
+  without datasetToSlotProof =? calculateDatasetSlotProof(manifest, slotRoots, datasetSlotIndex), err:
+    error "Failed to calculate dataset-slot inclusion proof", error = err.msg
     return failure(err)
 
-  without slotPoseidonTree =? await ensureSlotTree(blockStore, manifest, slot, datasetSlotIndex), err:
-    error "Failed to load or recreate slot tree"
+  if err =? (await ensureSlotTree(blockStore, manifest, slot, slotTreeCid, datasetSlotIndex)).errorOption:
+    error "Failed to load or recreate slot tree", error = err.msg
     return failure(err)
 
   success(DataSamplerStarter(
