@@ -15,6 +15,7 @@ import pkg/codex/contracts/requests
 import pkg/codex/contracts
 import pkg/codex/merkletree
 import pkg/codex/stores/cachestore
+import pkg/codex/indexingstrategy
 
 import pkg/codex/proof/datasamplerstarter
 import pkg/codex/slots/converters
@@ -46,6 +47,7 @@ asyncchecksuite "Test datasampler starter":
     slot: Slot
     datasetBlocks: seq[bt.Block]
     slotTree: Poseidon2Tree
+    slotRootCid: Cid
     slotRoots: seq[Poseidon2Hash]
     datasetToSlotTree: Poseidon2Tree
     datasetRootHash: Poseidon2Hash
@@ -75,9 +77,11 @@ asyncchecksuite "Test datasampler starter":
     let
       slotSize = (bytesPerBlock * numberOfSlotBlocks).uint64
       blocksInSlot = slotSize div bytesPerBlock.uint64
-      datasetBlockIndexFirst = datasetSlotIndex * blocksInSlot
-      datasetBlockIndexLast = datasetBlockIndexFirst + numberOfSlotBlocks.uint64
-      slotBlocks = datasetBlocks[datasetBlockIndexFirst ..< datasetBlockIndexLast]
+      datasetBlockIndexingStrategy = SteppedIndexingStrategy.new(0, datasetBlocks.len - 1, totalNumberOfSlots)
+      datasetBlockIndices = datasetBlockIndexingStrategy.getIndicies(datasetSlotIndex.int)
+
+    let
+      slotBlocks = datasetBlockIndices.mapIt(datasetBlocks[it])
       slotBlockRoots = slotBlocks.mapIt(Poseidon2Tree.digest(it.data, DefaultCellSize.int).tryGet())
       slotTree = Poseidon2Tree.init(slotBlockRoots).tryGet()
       slotTreeCid = slotTree.root().tryGet().toSlotCid().tryGet()
@@ -96,6 +100,7 @@ asyncchecksuite "Test datasampler starter":
     for i in 0 ..< totalNumberOfSlots:
       slotTrees.add(await createSlotTree(i.uint64))
     slotTree = slotTrees[datasetSlotIndex]
+    slotRootCid = slotTrees[datasetSlotIndex].root().tryGet().toSlotCid().tryGet()
     slotRoots = slotTrees.mapIt(it.root().tryGet())
     let rootsPadLeafs = newSeqWith(totalNumberOfSlots.nextPowerOfTwoPad, Poseidon2Zero)
     datasetToSlotTree = Poseidon2Tree.init(slotRoots & rootsPadLeafs).tryGet()
@@ -103,15 +108,17 @@ asyncchecksuite "Test datasampler starter":
 
   proc createManifest(): Future[void] {.async.} =
     let
-      # cids = datasetBlocks.mapIt(it.cid)
-      # tree = Poseidon2Tree.init(cids.mapIt(Sponge.digest(it.data.buffer, rate = 2))).tryGet()
-      treeCid = datasetRootHash.toProvingCid().tryGet()
+      cids = datasetBlocks.mapIt(it.cid)
+      tree = CodexTree.init(cids).tryGet()
+      treeCid = tree.rootCid(CIDv1, BlockCodec).tryGet()
 
-    # for index, leaf in tree.leaves:
-    #   let
-    #     leafCid = leaf.toCellCid().tryGet()
-    #     proof = tree.getProof(index).tryGet().toEncodableProof().tryGet()
-    #   discard await localStore.putCidAndProof(treeCid, index, leafCid, proof)
+    for i in 0 ..< datasetBlocks.len:
+      let
+        blk = datasetBlocks[i]
+        leafCid = blk.cid
+        proof = tree.getProof(i).tryGet()
+      discard await localStore.putBlock(blk)
+      discard await localStore.putCidAndProof(treeCid, i, leafCid, proof)
 
     # Basic manifest:
     manifest = Manifest.new(
@@ -192,3 +199,43 @@ asyncchecksuite "Test datasampler starter":
 
     check:
       start.slotTreeCid == expectedCid
+
+  test "Fails when manifest is not a verifiable manifest":
+    # Basic manifest:
+    manifest = Manifest.new(
+      treeCid = manifest.treeCid,
+      blockSize = bytesPerBlock.NBytes,
+      datasetSize = (bytesPerBlock * numberOfSlotBlocks * totalNumberOfSlots).NBytes)
+
+    let start = await startDataSampler(localStore, manifest, slot)
+
+    check:
+      start.isErr
+      start.error.msg == "Can only create DataSampler using verifiable manifests."
+
+  test "Fails when reconstructed dataset root does not match manifest root":
+    manifest.slotRoots.add(toF(999).toSlotCid().tryGet())
+
+    let start = await startDataSampler(localStore, manifest, slot)
+
+    check:
+      start.isErr
+      start.error.msg == "Reconstructed dataset root does not match manifest dataset root."
+
+  test "Starter will recreate Slot tree when not present in local store":
+    # Remove proofs from the local store
+    var expectedProofs = newSeq[(Cid, CodexProof)]()
+    for i in 0 ..< numberOfSlotBlocks:
+      expectedProofs.add((await localStore.getCidAndProof(slotRootCid, i)).tryGet())
+      discard (await localStore.delBlock(slotRootCid, i))
+
+    echo "proofs removed"
+    discard await run()
+
+    for i in 0 ..< numberOfSlotBlocks:
+      let
+        expectedProof = expectedProofs[i]
+        actualProof = (await localStore.getCidAndProof(slotRootCid, i)).tryGet()
+
+      check:
+        expectedProof == actualProof

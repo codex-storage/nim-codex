@@ -50,6 +50,18 @@ proc calculateDatasetSlotProof(manifest: Manifest, slotRoots: seq[Cid], slotInde
     error "Failed to calculate Dataset-SlotRoot tree", error = err.msg
     return failure(err)
 
+  without reconsturctedDatasetRoot =? tree.root(), err:
+    error "Failed to get reconstructed dataset root tree", error = err.msg
+    return failure(err)
+
+  without expectedDatasetRoot =? manifest.verificationRoot.fromProvingCid(), err:
+    error "Failed to decode verification root from manifest", error = err.msg
+    return failure(err)
+
+  if reconsturctedDatasetRoot.toDecimal() != expectedDatasetRoot.toDecimal():
+    error "Reconstructed dataset root does not match manifest dataset root."
+    return failure("Reconstructed dataset root does not match manifest dataset root.")
+
   tree.getProof(slotIndex.int)
 
 proc recreateSlotTree(blockStore: BlockStore, manifest: Manifest, slotTreeCid: Cid, datasetSlotIndex: uint64): Future[?!void] {.async.} =
@@ -86,7 +98,7 @@ proc ensureSlotTree(blockStore: BlockStore, manifest: Manifest, slot: Slot, slot
 proc startDataSampler*(blockStore: BlockStore, manifest: Manifest, slot: Slot): Future[?!DataSamplerStarter] {.async.} =
   trace "Initializing data sampler", slotIndex = slot.slotIndex
 
-  if not manifest.verifiable:
+  if not manifest.protected or not manifest.verifiable:
     return failure("Can only create DataSampler using verifiable manifests.")
 
   let
