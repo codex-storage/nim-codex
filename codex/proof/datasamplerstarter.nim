@@ -77,11 +77,7 @@ proc ensureSlotTree(blockStore: BlockStore, manifest: Manifest, slot: Slot, slot
   # Do we need to check all blocks, or is [0] good enough?
   # What if a few indices are found, but a few aren't? Can that even happen?
   for slotBlockIndex in 0 ..< numberOfSlotBlocks:
-    without hasTree =? (await blockStore.hasBlock(slotTreeCid, slotBlockIndex)), err:
-      error "Failed to determine if slot-tree block is present in blockStore: ", error = err.msg
-      return failure(err)
-
-    if not hasTree:
+    without (cid, proof) =? (await blockStore.getCidAndProof(slotTreeCid, slotBlockIndex)), err:
       info "Slot tree not present in blockStore. Recreating..."
       return await recreateSlotTree(blockStore, manifest, slotTreeCid, datasetSlotIndex)
 
@@ -98,18 +94,14 @@ proc startDataSampler*(blockStore: BlockStore, manifest: Manifest, slot: Slot): 
     slotRoots = manifest.slotRoots
     slotTreeCid = manifest.slotRoots[datasetSlotIndex]
 
-  echo "a"
-
   without datasetToSlotProof =? calculateDatasetSlotProof(manifest, slotRoots, datasetSlotIndex), err:
     error "Failed to calculate dataset-slot inclusion proof", error = err.msg
     return failure(err)
 
-  echo "b"
   if err =? (await ensureSlotTree(blockStore, manifest, slot, slotTreeCid, datasetSlotIndex)).errorOption:
     error "Failed to load or recreate slot tree", error = err.msg
     return failure(err)
 
-  echo "c"
   success(DataSamplerStarter(
     datasetSlotIndex: datasetSlotIndex,
     datasetToSlotProof: datasetToSlotProof,
