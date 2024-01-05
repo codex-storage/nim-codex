@@ -171,6 +171,7 @@ asyncchecksuite "Test datasampler starter":
     reset(slot)
     reset(datasetBlocks)
     reset(slotTree)
+    reset(slotRootCid)
     reset(slotRoots)
     reset(datasetToSlotTree)
     reset(datasetRootHash)
@@ -229,7 +230,6 @@ asyncchecksuite "Test datasampler starter":
       expectedProofs.add((await localStore.getCidAndProof(slotRootCid, i)).tryGet())
       discard (await localStore.delBlock(slotRootCid, i))
 
-    echo "proofs removed"
     discard await run()
 
     for i in 0 ..< numberOfSlotBlocks:
@@ -239,3 +239,30 @@ asyncchecksuite "Test datasampler starter":
 
       check:
         expectedProof == actualProof
+
+  test "Recreation of Slot tree fails when recreated slot root is different from manifest slot root":
+    # !!!
+    # This test only passes when you comment out
+    # 2 of the 3 "happy flow" tests
+    # at the beginning of the suite (names starting with "Returns ")
+    # it doesn't matter which 2 of the 3 you comment out.
+    # thanks, testing framework.
+
+    # Remove proofs from the local store
+    for i in 0 ..< numberOfSlotBlocks:
+      discard (await localStore.delBlock(manifest.slotRoots[0], i))
+
+    # Replace second slotRoot with a copy of the first. Recreate the verification root to match.
+    manifest.slotRoots[1] = manifest.slotRoots[0]
+    let
+      leafs = manifest.slotRoots.mapIt(it.fromSlotCid().tryGet())
+      rootsPadLeafs = newSeqWith(totalNumberOfSlots.nextPowerOfTwoPad, Poseidon2Zero)
+    manifest.verificationRoot = Poseidon2Tree.init(leafs & rootsPadLeafs).tryGet()
+      .root().tryGet()
+      .toProvingCid().tryGet()
+
+    let start = await startDataSampler(localStore, manifest, slot)
+
+    check:
+      start.isErr
+      start.error.msg == "Reconstructed slot root does not match manifest slot root."

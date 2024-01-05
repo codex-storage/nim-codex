@@ -73,11 +73,11 @@ proc recreateSlotTree(blockStore: BlockStore, manifest: Manifest, slotTreeCid: C
     error "Failed to initialize SlotBuilder", error = err.msg
     return failure(err)
 
-  without reconsturctedSlotRoot =? (await slotBuilder.buildSlot(datasetSlotIndex.int)), err:
+  without reconstructedSlotRoot =? (await slotBuilder.buildSlot(datasetSlotIndex.int)), err:
     error "Failed to reconstruct slot tree", error = err.msg
     return failure(err)
 
-  if reconsturctedSlotRoot.toDecimal() != expectedSlotRoot.toDecimal():
+  if reconstructedSlotRoot.toDecimal() != expectedSlotRoot.toDecimal():
     error "Reconstructed slot root does not match manifest slot root."
     return failure("Reconstructed slot root does not match manifest slot root.")
 
