@@ -39,7 +39,6 @@ asyncchecksuite "Test datasampler starter":
     totalNumberOfSlots = 2
     datasetSlotIndex = 1
     localStore = CacheStore.new()
-    datasetToSlotProof = Poseidon2Proof.example
 
   var
     manifest: Manifest
