@@ -61,15 +61,15 @@ proc new*(
 proc manifest*(self: SlotBlocks): Manifest =
   self.manifest
 
-proc getDatasetBlockIndexForSlotBlockIndex*(self: SlotBlocks, slotBlockIndex: uint64): int =
-  return self.datasetBlockIndices[slotBlockIndex]
+proc getDatasetBlockIndexForSlotBlockIndex*(self: SlotBlocks, slotBlockIndex: uint64): ?!int =
+  if slotBlockIndex.int >= self.datasetBlockIndices.len:
+    return failure("slotBlockIndex is out-of-range: " & $slotBlockIndex)
+  return success(self.datasetBlockIndices[slotBlockIndex])
 
 proc getSlotBlock*(self: SlotBlocks, slotBlockIndex: uint64): Future[?!Block] {.async.} =
-  let
-    blocksInManifest = (self.manifest.datasetSize div self.manifest.blockSize).int
-    datasetBlockIndex = self.getDatasetBlockIndexForSlotBlockIndex(slotBlockIndex)
+  let blocksInManifest = (self.manifest.datasetSize div self.manifest.blockSize).int
 
-  if datasetBlockIndex >= blocksInManifest:
-    return failure("Found datasetBlockIndex that is out-of-range: " & $datasetBlockIndex)
+  without datasetBlockIndex =? self.getDatasetBlockIndexForSlotBlockIndex(slotBlockIndex), err:
+    return failure(err)
 
   return await self.blockStore.getBlock(self.manifest.treeCid, datasetBlockIndex)

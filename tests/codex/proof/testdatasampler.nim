@@ -242,6 +242,7 @@ asyncchecksuite "Test proof datasampler - main":
     reset(slotRoots)
     reset(datasetToSlotTree)
     reset(datasetRootHash)
+    reset(dataSampler)
 
   test "Number of cells is a power of two":
     # This is to check that the data used for testing is sane.
