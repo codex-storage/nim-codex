@@ -23,7 +23,7 @@ import ../examples
 import ../merkletree/helpers
 
 import pkg/codex/indexingstrategy {.all.}
-import pkg/codex/slots/slotbuilder {.all.}
+import pkg/codex/slots {.all.}
 
 suite "Slot builder":
   let
@@ -318,7 +318,7 @@ suite "Slot builder":
       manifest = (await slotBuilder.buildManifest()).tryGet()
       mhash = manifest.verificationRoot.mhash.tryGet()
       mhashBytes = mhash.digestBytes
-      rootHash = Poseidon2Hash.fromBytes(mhashBytes.toArray32).toResult.tryGet()
+      rootHash = Poseidon2Hash.fromBytes(mhashBytes.toArray32).get
 
     check:
       expectedRoot == rootHash

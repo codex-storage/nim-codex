@@ -31,7 +31,7 @@ template mapFailure*[T, V, E](
 template mapFailure*[T, V](exp: Result[T, V]): Result[T, ref CatchableError] =
   mapFailure(exp, CodexError)
 
-template toResult*[T](exp: Option[T]): Result[T, ref CatchableError] =
+template toFailure*[T](exp: Option[T]): Result[T, ref CatchableError] =
   if exp.isSome:
     success exp.get
   else:
