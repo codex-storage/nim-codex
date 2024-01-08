@@ -103,6 +103,7 @@ proc numSlots*(self: Manifest): int =
     0
   else:
     self.ecK + self.ecM
+
 ############################################################
 # Operations on block list
 ############################################################
@@ -293,9 +294,10 @@ proc new*(
   ## protected one
   ##
   if not manifest.protected:
-    return failure newException(CodexError, "Can create verifiable manifest only from protected manifest.")
+    return failure newException(
+      CodexError, "Can create verifiable manifest only from protected manifest.")
 
-  success(Manifest(
+  success Manifest(
     treeCid: manifest.treeCid,
     datasetSize: manifest.datasetSize,
     version: manifest.version,
@@ -309,4 +311,4 @@ proc new*(
     originalDatasetSize: manifest.originalDatasetSize,
     verifiable: true,
     verificationRoot: verificationRoot,
-    slotRoots: slotRoots))
+    slotRoots: slotRoots)
