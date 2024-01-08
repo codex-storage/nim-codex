@@ -34,6 +34,10 @@ task testIntegration, "Run integration tests":
   buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_enable_proof_failures=true -d:codex_use_hardhat=true"
   test "testIntegration"
 
+task testValgrind, "Run tests with valgrind":
+  buildBinary "codex", params = "--profiler:on --stacktrace:on -d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
+  exec "valgrind ./build/testCodex"
+
 task build, "build codex binary":
   codexTask()
 
