@@ -28,31 +28,6 @@ let
   numberOfSlotBlocks = 4
   datasetSlotIndex = 3
 
-# asyncchecksuite "Test slotblocks - manifest":
-#   let
-#     localStore = CacheStore.new()
-#     manifest = Manifest.new(
-#       treeCid = Cid.example,
-#       blockSize = 1.MiBs,
-#       datasetSize = 100.MiBs)
-
-#   var
-#     manifestBlock = bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
-#     slot = Slot(
-#       request: StorageRequest(
-#         ask: StorageAsk(
-#           slotSize: u256(bytesPerBlock * numberOfSlotBlocks)
-#         ),
-#         content: StorageContent(
-#           cid: $manifestBlock.cid
-#         ),
-#       ),
-#       slotIndex: u256(datasetSlotIndex)
-#     )
-
-#   setup:
-#     discard await localStore.putBlock(manifestBlock)
-
 asyncchecksuite "Test slotblocks - slot blocks by index":
   let
     # The number of slot blocks and number of slots, combined with

@@ -38,9 +38,9 @@ asyncchecksuite "Test datasampler starter":
     numberOfSlotBlocks = 4
     totalNumberOfSlots = 2
     datasetSlotIndex = 1
-    localStore = CacheStore.new()
 
   var
+    localStore: CacheStore
     manifest: Manifest
     manifestBlock: bt.Block
     slot: Slot
@@ -158,6 +158,7 @@ asyncchecksuite "Test datasampler starter":
     )
 
   setup:
+    localStore = CacheStore.new()
     await createDatasetBlocks()
     await createDatasetRootHashAndSlotTree()
     await createManifest()
