@@ -43,6 +43,13 @@ type
     slotsPadLeafs: seq[Poseidon2Hash]
     rootsPadLeafs: seq[Poseidon2Hash]
 
+func nextPowerOfTwoPad*(a: int): int =
+  ## Returns the difference between the original
+  ## value and the next power of two.
+  ##
+
+  nextPowerOfTwo(a) - a
+
 func numBlockPadBytes*(self: SlotBuilder): Natural =
   ## Number of padding bytes required for a pow2
   ## merkle tree for each block.
@@ -79,7 +86,7 @@ func numBlockRoots*(self: SlotBuilder): Natural =
 func toCellCid*(cell: Poseidon2Hash): ?!Cid =
   let
     cellMhash = ? MultiHash.init(Pos2Bn128MrklCodec, cell.toBytes).mapFailure
-    cellCid = ? Cid.init(CIDv1, CodexSlotCell, cellMhash).mapFailure
+    cellCid = ? Cid.init(CIDv1, CodexSlotCellCodec, cellMhash).mapFailure
 
   success cellCid
 
@@ -120,7 +127,7 @@ func toVerifiableProof*(
       index: proof.index,
       nleaves: proof.nleaves,
       path: proof.path.mapIt(
-        ? Poseidon2Hash.fromBytes(it.toArray32).toResult
+        ? Poseidon2Hash.fromBytes(it.toArray32).toFailure
       ))
 
   success verifiableProof
@@ -196,7 +203,7 @@ proc buildSlot*(
 
   tree.root()
 
-proc buildSlots*(self: SlotBuilder): Future[?!seq[Poseidon2Hash]] {.async.} =
+proc buildSlots*(self: SlotBuilder): Future[?!(seq[Poseidon2Hash], Poseidon2Hash)] {.async.} =
   let
     slotRoots: seq[Poseidon2Hash] = collect(newSeq):
       for i in 0..<self.manifest.numSlots:
@@ -227,13 +234,6 @@ proc buildManifest*(self: SlotBuilder): Future[?!Manifest] {.async.} =
     return failure(err)
 
   Manifest.new(self.manifest, provingRootCid, rootCids)
-
-func nextPowerOfTwoPad*(a: int): int =
-  ## Returns the difference between the original
-  ## value and the next power of two.
-  ##
-
-  nextPowerOfTwo(a) - a
 
 proc new*(
   T: type SlotBuilder,
