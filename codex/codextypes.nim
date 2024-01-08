@@ -39,7 +39,7 @@ const
   BlockCodec* = multiCodec("codex-block")
   SlotRootCodec* = multiCodec("codex-slot-root")
   SlotProvingRootCodec* = multiCodec("codex-proving-root")
-  CodexSlotCell* = multiCodec("codex-slot-cell")
+  CodexSlotCellCodec* = multiCodec("codex-slot-cell")
 
   CodexHashesCodecs* = [
     Sha256HashCodec,
@@ -53,7 +53,7 @@ const
     BlockCodec,
     SlotRootCodec,
     SlotProvingRootCodec,
-    CodexSlotCell,
+    CodexSlotCellCodec,
   ]
 
 proc initEmptyCidTable(): ?!Table[(CidVersion, MultiCodec, MultiCodec), Cid] =
