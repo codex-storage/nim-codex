@@ -272,6 +272,7 @@ suite "Slot builder":
         localStore,
         protectedManifest,
         cellSize = cellSize).tryGet()
+      slotRoots = (await slotBuilder.buildSlots()).tryGet
 
       slotsHashes = collect(newSeq):
         for i in 0 ..< numSlots:
@@ -287,7 +288,34 @@ suite "Slot builder":
           Merkle.digest(slotHashes & slotsPadLeafs)
 
       expectedRoot = Merkle.digest(slotsHashes & rootsPadLeafs)
-      manifest = (await slotBuilder.buildSlots()).tryGet()
+      rootHash = slotBuilder.buildRootsTree(slotRoots).tryGet().root.tryGet()
+
+    check:
+      expectedRoot == rootHash
+
+  test "Should build correct verification root manifest":
+    let
+      steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
+      slotBuilder = SlotBuilder.new(
+        localStore,
+        protectedManifest,
+        cellSize = cellSize).tryGet()
+
+      slotsHashes = collect(newSeq):
+        for i in 0 ..< numSlots:
+          let
+            expectedBlocks = steppedStrategy
+              .getIndicies(i)
+              .mapIt( datasetBlocks[it] )
+
+            slotHashes: seq[Poseidon2Hash] = collect(newSeq):
+              for blk in expectedBlocks:
+                SpongeMerkle.digest(blk.data & blockPadBytes, cellSize)
+
+          Merkle.digest(slotHashes & slotsPadLeafs)
+
+      expectedRoot = Merkle.digest(slotsHashes & rootsPadLeafs)
+      manifest = (await slotBuilder.buildManifest()).tryGet()
       mhash = manifest.verificationRoot.mhash.tryGet()
       mhashBytes = mhash.digestBytes
       rootHash = Poseidon2Hash.fromBytes(mhashBytes.toArray32).toResult.tryGet()

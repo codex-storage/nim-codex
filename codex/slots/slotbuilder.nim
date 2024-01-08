@@ -76,28 +76,28 @@ func numBlockRoots*(self: SlotBuilder): Natural =
 
   self.manifest.blockSize.int div self.cellSize
 
-func toCellCid(cell: Poseidon2Hash): ?!Cid =
+func toCellCid*(cell: Poseidon2Hash): ?!Cid =
   let
     cellMhash = ? MultiHash.init(Pos2Bn128MrklCodec, cell.toBytes).mapFailure
     cellCid = ? Cid.init(CIDv1, CodexSlotCell, cellMhash).mapFailure
 
   success cellCid
 
-func toSlotCid(root: Poseidon2Hash): ?!Cid =
+func toSlotCid*(root: Poseidon2Hash): ?!Cid =
   let
     mhash = ? MultiHash.init($multiCodec("identity"), root.toBytes).mapFailure
     treeCid = ? Cid.init(CIDv1, SlotRootCodec, mhash).mapFailure
 
   success treeCid
 
-func toProvingCid(root: Poseidon2Hash): ?!Cid =
+func toProvingCid*(root: Poseidon2Hash): ?!Cid =
   let
     mhash = ? MultiHash.init($multiCodec("identity"), root.toBytes).mapFailure
     treeCid = ? Cid.init(CIDv1, SlotProvingRootCodec, mhash).mapFailure
 
   success treeCid
 
-func mapToSlotCids(slotRoots: seq[Poseidon2Hash]): ?!seq[Cid] =
+func mapToSlotCids*(slotRoots: seq[Poseidon2Hash]): ?!seq[Cid] =
   success slotRoots.mapIt( ? it.toSlotCid )
 
 func toEncodableProof*(
@@ -154,9 +154,6 @@ proc getCellHashes*(
           error "Failed to create digest for block"
           return failure(err)
 
-        # TODO: Remove this sleep. It's here to prevent us from locking up the thread.
-        # await sleepAsync(10.millis)
-
         digest
 
   success hashes
@@ -199,7 +196,7 @@ proc buildSlot*(
 
   tree.root()
 
-proc buildSlots(self: SlotBuilder): Future[?!Manifest] {.async.} =
+proc buildSlots*(self: SlotBuilder): Future[?!seq[Poseidon2Hash]] {.async.} =
   let
     slotRoots: seq[Poseidon2Hash] = collect(newSeq):
       for i in 0..<self.manifest.numSlots:
@@ -208,7 +205,20 @@ proc buildSlots(self: SlotBuilder): Future[?!Manifest] {.async.} =
           return failure(err)
         root
 
-  without provingRootCid =? Poseidon2Tree.init(slotRoots & self.rootsPadLeafs).?root.?toProvingCid, err:
+  success slotRoots
+
+func buildRootsTree*(
+  self: SlotBuilder,
+  slotRoots: seq[Poseidon2Hash]): ?!Poseidon2Tree =
+  Poseidon2Tree.init(slotRoots & self.rootsPadLeafs)
+
+proc buildManifest*(self: SlotBuilder): Future[?!Manifest] {.async.} =
+
+  without slotRoots =? await self.buildSlots(), err:
+    error "Failed to build slot roots", err = err.msg
+    return failure(err)
+
+  without provingRootCid =? self.buildRootsTree(slotRoots).?root.?toProvingCid, err:
     error "Failed to build proving tree", err = err.msg
     return failure(err)
 
@@ -219,8 +229,8 @@ proc buildSlots(self: SlotBuilder): Future[?!Manifest] {.async.} =
   Manifest.new(self.manifest, provingRootCid, rootCids)
 
 func nextPowerOfTwoPad*(a: int): int =
-  ## Returns the next power of two of `a` and `b` and the difference between
-  ## the original value and the next power of two.
+  ## Returns the difference between the original
+  ## value and the next power of two.
   ##
 
   nextPowerOfTwo(a) - a
@@ -250,12 +260,10 @@ proc new*(
 
     # all trees have to be padded to power of two
     numBlockCells = manifest.blockSize.int div cellSize                       # number of cells per block
-    blockPadBytes
-      = newSeq[byte](numBlockCells.nextPowerOfTwoPad * cellSize)              # power of two padding for blocks
-    slotsPadLeafs
-      = newSeqWith((manifest.blocksCount div manifest.numSlots).nextPowerOfTwoPad, Poseidon2Zero)                                                  # power of two padding for block roots
-    rootsPadLeafs
-      = newSeqWith(manifest.numSlots.nextPowerOfTwoPad, Poseidon2Zero)
+    blockPadBytes = newSeq[byte](numBlockCells.nextPowerOfTwoPad * cellSize)  # power of two padding for blocks
+    numSlotLeafs = (manifest.blocksCount div manifest.numSlots)
+    slotsPadLeafs = newSeqWith(numSlotLeafs.nextPowerOfTwoPad, Poseidon2Zero) # power of two padding for block roots
+    rootsPadLeafs = newSeqWith(manifest.numSlots.nextPowerOfTwoPad, Poseidon2Zero)
 
   success SlotBuilder(
     store: store,
