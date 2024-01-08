@@ -106,7 +106,7 @@ asyncchecksuite "Test proof datasampler - main":
 
   setup:
     env = await createProvingTestEnvironment()
-    let bytes = newSeqWith(env.bytesPerBlock, rand(uint8))
+    let bytes = newSeqWith(bytesPerBlock, rand(uint8))
     blk = bt.Block.new(bytes).tryGet()
     cell0Bytes = bytes[0..<DefaultCellSize.uint64]
     cell1Bytes = bytes[DefaultCellSize.uint64..<(DefaultCellSize.uint64*2)]
@@ -138,7 +138,7 @@ asyncchecksuite "Test proof datasampler - main":
 
     proc getExpectedIndex(i: int): uint64 =
       let
-        numberOfCellsInSlot = (env.bytesPerBlock * env.numberOfSlotBlocks) div DefaultCellSize.uint64.int
+        numberOfCellsInSlot = (bytesPerBlock * numberOfSlotBlocks) div DefaultCellSize.uint64.int
         slotRootHash = env.slotTree.root().tryGet()
         hash = Sponge.digest(@[slotRootHash, env.challenge, toF(i)], rate = 2)
       return extractLowBits(hash.toBig(), ceilingLog2(numberOfCellsInSlot))
@@ -209,12 +209,12 @@ asyncchecksuite "Test proof datasampler - main":
       expectedBlockSlotProofs = getExpectedBlockSlotProofs()
       expectedCellBlockProofs = getExpectedCellBlockProofs()
       expectedCellData = getExpectedCellData()
-      expectedProof = env.datasetToSlotTree.getProof(env.datasetSlotIndex).tryGet()
+      expectedProof = env.datasetToSlotTree.getProof(datasetSlotIndex).tryGet()
 
     check:
       equal(input.datasetRoot, env.datasetRootHash)
       equal(input.entropy, env.challenge)
-      input.numberOfCellsInSlot == (env.bytesPerBlock * env.numberOfSlotBlocks).uint64 div DefaultCellSize.uint64
+      input.numberOfCellsInSlot == (bytesPerBlock * numberOfSlotBlocks).uint64 div DefaultCellSize.uint64
       input.numberOfSlots == env.slot.request.ask.slots
       input.datasetSlotIndex == env.slot.slotIndex.truncate(uint64)
       equal(input.slotRoot, env.slotTree.root().tryGet())

@@ -29,10 +29,6 @@ import ../merkletree/helpers
 type
   ProvingTestEnvironment* = ref object
     # Invariant:
-    bytesPerBlock*: int
-    numberOfSlotBlocks*: int
-    totalNumberOfSlots*: int
-    datasetSlotIndex*: int
     challenge*: Poseidon2Hash
     # Variant:
     localStore*: CacheStore
@@ -46,8 +42,17 @@ type
     datasetToSlotTree*: Poseidon2Tree
     datasetRootHash*: Poseidon2Hash
 
+const
+  # The number of slot blocks and number of slots, combined with
+  # the bytes per block, make it so that there are exactly 256 cells
+  # in the dataset.
+  bytesPerBlock* = 64 * 1024
+  numberOfSlotBlocks* = 4
+  totalNumberOfSlots* = 2
+  datasetSlotIndex* = 1
+
 proc createDatasetBlocks(self: ProvingTestEnvironment): Future[void] {.async.} =
-  let numberOfCellsNeeded = (self.numberOfSlotBlocks * self.totalNumberOfSlots * self.bytesPerBlock).uint64 div DefaultCellSize.uint64
+  let numberOfCellsNeeded = (numberOfSlotBlocks * totalNumberOfSlots * bytesPerBlock).uint64 div DefaultCellSize.uint64
   var data: seq[byte] = @[]
 
   # This generates a number of blocks that have different data, such that
@@ -57,7 +62,7 @@ proc createDatasetBlocks(self: ProvingTestEnvironment): Future[void] {.async.} =
 
   let chunker = MockChunker.new(
     dataset = data,
-    chunkSize = self.bytesPerBlock)
+    chunkSize = bytesPerBlock)
 
   while true:
     let chunk = await chunker.getBytes()
@@ -67,12 +72,12 @@ proc createDatasetBlocks(self: ProvingTestEnvironment): Future[void] {.async.} =
     self.datasetBlocks.add(b)
     discard await self.localStore.putBlock(b)
 
-proc createSlotTree(self: ProvingTestEnvironment, datasetSlotIndex: uint64): Future[Poseidon2Tree] {.async.} =
+proc createSlotTree(self: ProvingTestEnvironment, dSlotIndex: uint64): Future[Poseidon2Tree] {.async.} =
   let
-    slotSize = (self.bytesPerBlock * self.numberOfSlotBlocks).uint64
-    blocksInSlot = slotSize div self.bytesPerBlock.uint64
-    datasetBlockIndexingStrategy = SteppedIndexingStrategy.new(0, self.datasetBlocks.len - 1, self.totalNumberOfSlots)
-    datasetBlockIndices = datasetBlockIndexingStrategy.getIndicies(datasetSlotIndex.int)
+    slotSize = (bytesPerBlock * numberOfSlotBlocks).uint64
+    blocksInSlot = slotSize div bytesPerBlock.uint64
+    datasetBlockIndexingStrategy = SteppedIndexingStrategy.new(0, self.datasetBlocks.len - 1, totalNumberOfSlots)
+    datasetBlockIndices = datasetBlockIndexingStrategy.getIndicies(dSlotIndex.int)
 
   let
     slotBlocks = datasetBlockIndices.mapIt(self.datasetBlocks[it])
@@ -80,7 +85,7 @@ proc createSlotTree(self: ProvingTestEnvironment, datasetSlotIndex: uint64): Fut
     tree = Poseidon2Tree.init(slotBlockRoots).tryGet()
     treeCid = tree.root().tryGet().toSlotCid().tryGet()
 
-  for i in 0 ..< self.numberOfSlotBlocks:
+  for i in 0 ..< numberOfSlotBlocks:
     let
       blkCid = slotBlockRoots[i].toCellCid().tryGet()
       proof = tree.getProof(i).tryGet().toEncodableProof().tryGet()
@@ -91,12 +96,12 @@ proc createSlotTree(self: ProvingTestEnvironment, datasetSlotIndex: uint64): Fut
 
 proc createDatasetRootHashAndSlotTree(self: ProvingTestEnvironment): Future[void] {.async.} =
   var slotTrees = newSeq[Poseidon2Tree]()
-  for i in 0 ..< self.totalNumberOfSlots:
+  for i in 0 ..< totalNumberOfSlots:
     slotTrees.add(await self.createSlotTree(i.uint64))
-  self.slotTree = slotTrees[self.datasetSlotIndex]
-  self.slotRootCid = slotTrees[self.datasetSlotIndex].root().tryGet().toSlotCid().tryGet()
+  self.slotTree = slotTrees[datasetSlotIndex]
+  self.slotRootCid = slotTrees[datasetSlotIndex].root().tryGet().toSlotCid().tryGet()
   self.slotRoots = slotTrees.mapIt(it.root().tryGet())
-  let rootsPadLeafs = newSeqWith(self.totalNumberOfSlots.nextPowerOfTwoPad, Poseidon2Zero)
+  let rootsPadLeafs = newSeqWith(totalNumberOfSlots.nextPowerOfTwoPad, Poseidon2Zero)
   self.datasetToSlotTree = Poseidon2Tree.init(self.slotRoots & rootsPadLeafs).tryGet()
   self.datasetRootHash = self.datasetToSlotTree.root().tryGet()
 
@@ -117,15 +122,15 @@ proc createManifest(self: ProvingTestEnvironment): Future[void] {.async.} =
   # Basic manifest:
   self.manifest = Manifest.new(
     treeCid = treeCid,
-    blockSize = self.bytesPerBlock.NBytes,
-    datasetSize = (self.bytesPerBlock * self.numberOfSlotBlocks * self.totalNumberOfSlots).NBytes)
+    blockSize = bytesPerBlock.NBytes,
+    datasetSize = (bytesPerBlock * numberOfSlotBlocks * totalNumberOfSlots).NBytes)
 
   # Protected manifest:
   self.manifest = Manifest.new(
     manifest = self.manifest,
     treeCid = treeCid,
     datasetSize = self.manifest.datasetSize,
-    ecK = self.totalNumberOfSlots,
+    ecK = totalNumberOfSlots,
     ecM = 0
   )
 
@@ -143,25 +148,18 @@ proc createSlot(self: ProvingTestEnvironment): void =
   self.slot = Slot(
     request: StorageRequest(
       ask: StorageAsk(
-        slotSize: u256(self.bytesPerBlock * self.numberOfSlotBlocks)
+        slotSize: u256(bytesPerBlock * numberOfSlotBlocks)
       ),
       content: StorageContent(
         cid: $self.manifestBlock.cid
       ),
     ),
-    slotIndex: u256(self.datasetSlotIndex)
+    slotIndex: u256(datasetSlotIndex)
   )
 
 proc createProvingTestEnvironment*(): Future[ProvingTestEnvironment] {.async.} =
   var testEnv = ProvingTestEnvironment(
-    challenge: toF(12345),
-    # The number of slot blocks and number of slots, combined with
-    # the bytes per block, make it so that there are exactly 256 cells
-    # in the dataset.
-    bytesPerBlock: 64 * 1024,
-    numberOfSlotBlocks: 4,
-    totalNumberOfSlots: 2,
-    datasetSlotIndex: 1,
+    challenge: toF(12345)
   )
 
   testEnv.localStore = CacheStore.new()

@@ -43,12 +43,12 @@ asyncchecksuite "Test datasampler starter":
     let start = await run()
 
     check:
-      start.datasetSlotIndex == env.datasetSlotIndex.uint64
+      start.datasetSlotIndex == datasetSlotIndex.uint64
 
   test "Returns dataset-to-slot proof":
     let
       start = await run()
-      expectedProof = env.datasetToSlotTree.getProof(env.datasetSlotIndex).tryGet()
+      expectedProof = env.datasetToSlotTree.getProof(datasetSlotIndex).tryGet()
 
     check:
       start.datasetToSlotProof == expectedProof
@@ -65,7 +65,7 @@ asyncchecksuite "Test datasampler starter":
     # Basic manifest:
     env.manifest = Manifest.new(
       treeCid = env.manifest.treeCid,
-      blockSize = env.bytesPerBlock.NBytes,
+      blockSize = bytesPerBlock.NBytes,
       datasetSize = env.manifest.datasetSize)
 
     let start = await startDataSampler(env.localStore, env.manifest, env.slot)
@@ -86,13 +86,13 @@ asyncchecksuite "Test datasampler starter":
   test "Starter will recreate Slot tree when not present in local store":
     # Remove proofs from the local store
     var expectedProofs = newSeq[(Cid, CodexProof)]()
-    for i in 0 ..< env.numberOfSlotBlocks:
+    for i in 0 ..< numberOfSlotBlocks:
       expectedProofs.add((await env.localStore.getCidAndProof(env.slotRootCid, i)).tryGet())
       discard (await env.localStore.delBlock(env.slotRootCid, i))
 
     discard await run()
 
-    for i in 0 ..< env.numberOfSlotBlocks:
+    for i in 0 ..< numberOfSlotBlocks:
       let
         expectedProof = expectedProofs[i]
         actualProof = (await env.localStore.getCidAndProof(env.slotRootCid, i)).tryGet()
@@ -102,14 +102,14 @@ asyncchecksuite "Test datasampler starter":
 
   test "Recreation of Slot tree fails when recreated slot root is different from manifest slot root":
     # Remove proofs from the local store
-    for i in 0 ..< env.numberOfSlotBlocks:
+    for i in 0 ..< numberOfSlotBlocks:
       discard (await env.localStore.delBlock(env.manifest.slotRoots[0], i))
 
     # Replace second slotRoot with a copy of the first. Recreate the verification root to match.
     env.manifest.slotRoots[1] = env.manifest.slotRoots[0]
     let
       leafs = env.manifest.slotRoots.mapIt(it.fromSlotCid().tryGet())
-      rootsPadLeafs = newSeqWith(env.totalNumberOfSlots.nextPowerOfTwoPad, Poseidon2Zero)
+      rootsPadLeafs = newSeqWith(totalNumberOfSlots.nextPowerOfTwoPad, Poseidon2Zero)
     env.manifest.verificationRoot = Poseidon2Tree.init(leafs & rootsPadLeafs).tryGet()
       .root().tryGet()
       .toProvingCid().tryGet()
