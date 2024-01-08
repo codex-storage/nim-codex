@@ -25,22 +25,22 @@ import ../blocktype
 
 type
   Manifest* = ref object of RootObj
-    treeCid* {.serialize.}: Cid             # Root of the merkle tree
-    datasetSize* {.serialize.}:  NBytes     # Total size of all blocks
-    blockSize* {.serialize.}: NBytes        # Size of each contained block (might not be needed if blocks are len-prefixed)
-    codec*: MultiCodec                      # Dataset codec
-    hcodec*: MultiCodec                     # Multihash codec
-    version*: CidVersion                    # Cid version
-    case protected* {.serialize.}: bool     # Protected datasets have erasure coded info
+    treeCid {.serialize.}: Cid              # Root of the merkle tree
+    datasetSize {.serialize.}:  NBytes      # Total size of all blocks
+    blockSize {.serialize.}: NBytes         # Size of each contained block (might not be needed if blocks are len-prefixed)
+    codec: MultiCodec                       # Dataset codec
+    hcodec: MultiCodec                      # Multihash codec
+    version: CidVersion                     # Cid version
+    case protected {.serialize.}: bool      # Protected datasets have erasure coded info
     of true:
-      ecK*: int                             # Number of blocks to encode
-      ecM*: int                             # Number of resulting parity blocks
-      originalTreeCid*: Cid                 # The original root of the dataset being erasure coded
-      originalDatasetSize*: NBytes
-      case verifiable* {.serialize.}: bool  # Verifiable datasets can be used to generate storage proofs
+      ecK: int                              # Number of blocks to encode
+      ecM: int                              # Number of resulting parity blocks
+      originalTreeCid: Cid                  # The original root of the dataset being erasure coded
+      originalDatasetSize: NBytes
+      case verifiable {.serialize.}: bool   # Verifiable datasets can be used to generate storage proofs
       of true:
-        verificationRoot*: Cid
-        slotRoots*: seq[Cid]
+        verificationRoot: Cid
+        slotRoots: seq[Cid]
       else:
         discard
     else:
@@ -50,18 +50,59 @@ type
 # Accessors
 ############################################################
 
+proc blockSize*(self: Manifest): NBytes =
+  self.blockSize
+
+proc datasetSize*(self: Manifest): NBytes =
+  self.datasetSize
+
+proc version*(self: Manifest): CidVersion =
+  self.version
+
+proc hcodec*(self: Manifest): MultiCodec =
+  self.hcodec
+
+proc codec*(self: Manifest): MultiCodec =
+  self.codec
+
+proc protected*(self: Manifest): bool =
+  self.protected
+
+proc ecK*(self: Manifest): int =
+  self.ecK
+
+proc ecM*(self: Manifest): int =
+  self.ecM
+
+proc originalTreeCid*(self: Manifest): Cid =
+  self.originalTreeCid
+
 proc originalBlocksCount*(self: Manifest): int =
   divUp(self.originalDatasetSize.int, self.blockSize.int)
 
+proc originalDatasetSize*(self: Manifest): NBytes =
+  self.originalDatasetSize
+
+proc treeCid*(self: Manifest): Cid =
+  self.treeCid
+
 proc blocksCount*(self: Manifest): int =
   divUp(self.datasetSize.int, self.blockSize.int)
+
+proc verifiable*(self: Manifest): bool =
+  self.verifiable
+
+proc verificationRoot*(self: Manifest): Cid =
+  self.verificationRoot
+
+proc slotRoots*(self: Manifest): seq[Cid] =
+  self.slotRoots
 
 proc numSlots*(self: Manifest): int =
   if not self.protected:
     0
   else:
     self.ecK + self.ecM
-
 ############################################################
 # Operations on block list
 ############################################################
