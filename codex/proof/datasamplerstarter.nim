@@ -50,7 +50,7 @@ proc calculateDatasetSlotProof(manifest: Manifest, slotRoots: seq[Cid], slotInde
     error "Failed to calculate Dataset-SlotRoot tree", error = err.msg
     return failure(err)
 
-  without reconsturctedDatasetRoot =? tree.root(), err:
+  without reconstructedDatasetRoot =? tree.root(), err:
     error "Failed to get reconstructed dataset root tree", error = err.msg
     return failure(err)
 
@@ -58,7 +58,7 @@ proc calculateDatasetSlotProof(manifest: Manifest, slotRoots: seq[Cid], slotInde
     error "Failed to decode verification root from manifest", error = err.msg
     return failure(err)
 
-  if reconsturctedDatasetRoot.toDecimal() != expectedDatasetRoot.toDecimal():
+  if reconstructedDatasetRoot != expectedDatasetRoot:
     error "Reconstructed dataset root does not match manifest dataset root."
     return failure("Reconstructed dataset root does not match manifest dataset root.")
 
@@ -77,7 +77,7 @@ proc recreateSlotTree(blockStore: BlockStore, manifest: Manifest, slotTreeCid: C
     error "Failed to reconstruct slot tree", error = err.msg
     return failure(err)
 
-  if reconstructedSlotRoot.toDecimal() != expectedSlotRoot.toDecimal():
+  if reconstructedSlotRoot != expectedSlotRoot:
     error "Reconstructed slot root does not match manifest slot root."
     return failure("Reconstructed slot root does not match manifest slot root.")
 
