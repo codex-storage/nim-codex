@@ -29,11 +29,10 @@ const
       "0000000000000000000000000000006".toBytes,
       "0000000000000000000000000000007".toBytes,
       "0000000000000000000000000000008".toBytes,
-      "0000000000000000000000000000009".toBytes,
-      "0000000000000000000000000000010".toBytes,
+      "0000000000000000000000000000009".toBytes, # note one less to account for padding of field elements
     ]
 
-suite "Test CodexTree":
+suite "Test Poseidon2Tree":
   var
     expectedLeaves: seq[Poseidon2Hash]
 
@@ -54,8 +53,8 @@ suite "Test CodexTree":
   test "Init tree from byte leaves":
     let
       tree = Poseidon2Tree.init(
-        leaves = data.mapIt(
-          array[31, byte].initCopyFrom( it )
+        leaves = expectedLeaves.mapIt(
+          array[31, byte].initCopyFrom( it.toBytes )
         )).tryGet
 
     check:

@@ -251,7 +251,7 @@ proc store*(
   for index, cid in cids:
     without proof =? tree.getProof(index), err:
       return failure(err)
-    if err =? (await self.blockStore.putBlockCidAndProof(treeCid, index, cid, proof)).errorOption:
+    if err =? (await self.blockStore.putCidAndProof(treeCid, index, cid, proof)).errorOption:
       # TODO add log here
       return failure(err)
 

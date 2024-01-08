@@ -98,6 +98,11 @@ proc verificationRoot*(self: Manifest): Cid =
 proc slotRoots*(self: Manifest): seq[Cid] =
   self.slotRoots
 
+proc numSlots*(self: Manifest): int =
+  if not self.protected:
+    0
+  else:
+    self.ecK + self.ecM
 ############################################################
 # Operations on block list
 ############################################################

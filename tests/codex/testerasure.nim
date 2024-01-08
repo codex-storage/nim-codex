@@ -15,7 +15,7 @@ import pkg/codex/utils
 
 import ./helpers
 
-asyncchecksuite "Erasure encode/decode":
+suite "Erasure encode/decode":
   const BlockSize = 1024'nb
   const dataSetSize = BlockSize * 123 # weird geometry
 

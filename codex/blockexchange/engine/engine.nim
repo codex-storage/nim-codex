@@ -361,7 +361,12 @@ proc blocksDeliveryHandler*(
       without proof =? bd.proof:
         error "Proof expected for a leaf block delivery"
         continue
-      if err =? (await b.localStore.putBlockCidAndProof(bd.address.treeCid, bd.address.index, bd.blk.cid, proof)).errorOption:
+      if err =? (await b.localStore.putCidAndProof(
+          bd.address.treeCid,
+          bd.address.index,
+          bd.blk.cid,
+          proof)).errorOption:
+
         error "Unable to store proof and cid for a block"
         continue
 

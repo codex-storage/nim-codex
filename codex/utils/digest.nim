@@ -10,6 +10,7 @@
 import pkg/poseidon2
 import pkg/poseidon2/io
 import pkg/questionable/results
+import pkg/libp2p/multihash
 
 import ../merkletree
 
@@ -38,3 +39,15 @@ func digest*(
   ##
 
   (? Poseidon2Tree.digestTree(bytes, chunkSize)).root
+
+func digestMhash*(
+  _: type Poseidon2Tree,
+  bytes: openArray[byte], chunkSize: int): ?!MultiHash =
+  ## Hashes chunks of data with a sponge of rate 2 and
+  ## returns the multihash of the root
+  ##
+
+  let
+    hash = ? Poseidon2Tree.digest(bytes, chunkSize)
+
+  ? MultiHash.init(Pos2Bn128MrklCodec, hash).mapFailure

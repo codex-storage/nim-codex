@@ -39,6 +39,7 @@ const
   BlockCodec* = multiCodec("codex-block")
   SlotRootCodec* = multiCodec("codex-slot-root")
   SlotProvingRootCodec* = multiCodec("codex-proving-root")
+  CodexSlotCell* = multiCodec("codex-slot-cell")
 
   CodexHashesCodecs* = [
     Sha256HashCodec,
@@ -52,15 +53,15 @@ const
     BlockCodec,
     SlotRootCodec,
     SlotProvingRootCodec,
+    CodexSlotCell,
   ]
-
 
 proc initEmptyCidTable(): ?!Table[(CidVersion, MultiCodec, MultiCodec), Cid] =
   ## Initialize padding blocks table
   ##
   ## TODO: Ideally this is done at compile time, but for now
   ## we do it at runtime because of an `importc` error that is
-  ## coming from somwhere in MultiHash that I can't track down.
+  ## coming from somewhere in MultiHash that I can't track down.
   ##
 
   let
@@ -68,8 +69,6 @@ proc initEmptyCidTable(): ?!Table[(CidVersion, MultiCodec, MultiCodec), Cid] =
     PadHashes = {
       Sha256HashCodec: ? MultiHash.digest($Sha256HashCodec, emptyData).mapFailure,
       Sha512HashCodec: ? MultiHash.digest($Sha512HashCodec, emptyData).mapFailure,
-      Pos2Bn128SpngCodec: ? MultiHash.digest($Pos2Bn128SpngCodec, emptyData).mapFailure,
-      Pos2Bn128MrklCodec: ? MultiHash.digest($Pos2Bn128SpngCodec, emptyData).mapFailure,
     }.toTable
 
   var
