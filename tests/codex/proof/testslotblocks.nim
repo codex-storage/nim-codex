@@ -52,7 +52,7 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
 
   proc createDatasetBlocks(): Future[void] {.async.} =
     let numberOfCellsNeeded = (numberOfSlotBlocks * totalNumberOfSlots * bytesPerBlock).uint64 div DefaultCellSize.uint64
-    var data: seq[byte] = @[]
+    var data: seq[byte]
 
     # This generates a number of blocks that have different data, such that
     # Each cell in each block is unique, but nothing is random.

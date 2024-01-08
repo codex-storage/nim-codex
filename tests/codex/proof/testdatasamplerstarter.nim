@@ -25,170 +25,30 @@ import pkg/codex/slots/slotbuilder
 import ../helpers
 import ../examples
 import ../merkletree/helpers
-
-let
-  bytesPerBlock = 64 * 1024
-  challenge: Poseidon2Hash = toF(12345)
+import ./provingtestenv
 
 asyncchecksuite "Test datasampler starter":
-  let
-    # The number of slot blocks and number of slots, combined with
-    # the bytes per block, make it so that there are exactly 256 cells
-    # in the dataset.
-    numberOfSlotBlocks = 4
-    totalNumberOfSlots = 2
-    datasetSlotIndex = 1
-
-  var
-    localStore: CacheStore
-    manifest: Manifest
-    manifestBlock: bt.Block
-    slot: Slot
-    datasetBlocks: seq[bt.Block]
-    slotTree: Poseidon2Tree
-    slotRootCid: Cid
-    slotRoots: seq[Poseidon2Hash]
-    datasetToSlotTree: Poseidon2Tree
-    datasetRootHash: Poseidon2Hash
-
-  proc createDatasetBlocks(): Future[void] {.async.} =
-    let numberOfCellsNeeded = (numberOfSlotBlocks * totalNumberOfSlots * bytesPerBlock).uint64 div DefaultCellSize.uint64
-    var data: seq[byte] = @[]
-
-    # This generates a number of blocks that have different data, such that
-    # Each cell in each block is unique, but nothing is random.
-    for i in 0 ..< numberOfCellsNeeded:
-      data = data & (i.byte).repeat(DefaultCellSize.uint64)
-
-    let chunker = MockChunker.new(
-      dataset = data,
-      chunkSize = bytesPerBlock)
-
-    while true:
-      let chunk = await chunker.getBytes()
-      if chunk.len <= 0:
-        break
-      let b = bt.Block.new(chunk).tryGet()
-      datasetBlocks.add(b)
-      discard await localStore.putBlock(b)
-
-  proc createSlotTree(datasetSlotIndex: uint64): Future[Poseidon2Tree] {.async.} =
-    let
-      slotSize = (bytesPerBlock * numberOfSlotBlocks).uint64
-      blocksInSlot = slotSize div bytesPerBlock.uint64
-      datasetBlockIndexingStrategy = SteppedIndexingStrategy.new(0, datasetBlocks.len - 1, totalNumberOfSlots)
-      datasetBlockIndices = datasetBlockIndexingStrategy.getIndicies(datasetSlotIndex.int)
-
-    let
-      slotBlocks = datasetBlockIndices.mapIt(datasetBlocks[it])
-      slotBlockRoots = slotBlocks.mapIt(Poseidon2Tree.digest(it.data, DefaultCellSize.int).tryGet())
-      slotTree = Poseidon2Tree.init(slotBlockRoots).tryGet()
-      slotTreeCid = slotTree.root().tryGet().toSlotCid().tryGet()
-
-    for i in 0 ..< numberOfSlotBlocks:
-      let
-        blkCid = slotBlockRoots[i].toCellCid().tryGet()
-        proof = slotTree.getProof(i).tryGet().toEncodableProof().tryGet()
-
-      discard await localStore.putCidAndProof(slotTreeCid, i, blkCid, proof)
-
-    return slotTree
-
-  proc createDatasetRootHashAndSlotTree(): Future[void] {.async.} =
-    var slotTrees = newSeq[Poseidon2Tree]()
-    for i in 0 ..< totalNumberOfSlots:
-      slotTrees.add(await createSlotTree(i.uint64))
-    slotTree = slotTrees[datasetSlotIndex]
-    slotRootCid = slotTrees[datasetSlotIndex].root().tryGet().toSlotCid().tryGet()
-    slotRoots = slotTrees.mapIt(it.root().tryGet())
-    let rootsPadLeafs = newSeqWith(totalNumberOfSlots.nextPowerOfTwoPad, Poseidon2Zero)
-    datasetToSlotTree = Poseidon2Tree.init(slotRoots & rootsPadLeafs).tryGet()
-    datasetRootHash = datasetToSlotTree.root().tryGet()
-
-  proc createManifest(): Future[void] {.async.} =
-    let
-      cids = datasetBlocks.mapIt(it.cid)
-      tree = CodexTree.init(cids).tryGet()
-      treeCid = tree.rootCid(CIDv1, BlockCodec).tryGet()
-
-    for i in 0 ..< datasetBlocks.len:
-      let
-        blk = datasetBlocks[i]
-        leafCid = blk.cid
-        proof = tree.getProof(i).tryGet()
-      discard await localStore.putBlock(blk)
-      discard await localStore.putCidAndProof(treeCid, i, leafCid, proof)
-
-    # Basic manifest:
-    manifest = Manifest.new(
-      treeCid = treeCid,
-      blockSize = bytesPerBlock.NBytes,
-      datasetSize = (bytesPerBlock * numberOfSlotBlocks * totalNumberOfSlots).NBytes)
-
-    # Protected manifest:
-    manifest = Manifest.new(
-      manifest = manifest,
-      treeCid = treeCid,
-      datasetSize = (bytesPerBlock * numberOfSlotBlocks * totalNumberOfSlots).NBytes,
-      ecK = totalNumberOfSlots,
-      ecM = 0
-    )
-
-    # Verifiable manifest:
-    manifest = Manifest.new(
-      manifest = manifest,
-      verificationRoot = datasetRootHash.toProvingCid().tryGet(),
-      slotRoots = slotRoots.mapIt(it.toSlotCid().tryGet())
-    ).tryGet()
-
-    manifestBlock = bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
-    discard await localStore.putBlock(manifestBlock)
-
-  proc createSlot(): void =
-    slot = Slot(
-      request: StorageRequest(
-        ask: StorageAsk(
-          slotSize: u256(bytesPerBlock * numberOfSlotBlocks)
-        ),
-        content: StorageContent(
-          cid: $manifestBlock.cid
-        ),
-      ),
-      slotIndex: u256(datasetSlotIndex)
-    )
+  var env: ProvingTestEnvironment
 
   setup:
-    localStore = CacheStore.new()
-    await createDatasetBlocks()
-    await createDatasetRootHashAndSlotTree()
-    await createManifest()
-    createSlot()
+    env = await createProvingTestEnvironment()
 
   teardown:
-    await localStore.close()
-    reset(manifest)
-    reset(manifestBlock)
-    reset(slot)
-    reset(datasetBlocks)
-    reset(slotTree)
-    reset(slotRootCid)
-    reset(slotRoots)
-    reset(datasetToSlotTree)
-    reset(datasetRootHash)
+    reset(env)
 
   proc run(): Future[DataSamplerStarter] {.async.} =
-    (await startDataSampler(localStore, manifest, slot)).tryGet()
+    (await startDataSampler(env.localStore, env.manifest, env.slot)).tryGet()
 
   test "Returns dataset slot index":
     let start = await run()
 
     check:
-      start.datasetSlotIndex == datasetSlotIndex.uint64
+      start.datasetSlotIndex == env.datasetSlotIndex.uint64
 
   test "Returns dataset-to-slot proof":
     let
       start = await run()
-      expectedProof = datasetToSlotTree.getProof(datasetSlotIndex).tryGet()
+      expectedProof = env.datasetToSlotTree.getProof(env.datasetSlotIndex).tryGet()
 
     check:
       start.datasetToSlotProof == expectedProof
@@ -196,28 +56,28 @@ asyncchecksuite "Test datasampler starter":
   test "Returns slot tree CID":
     let
       start = await run()
-      expectedCid = slotTree.root().tryGet().toSlotCid().tryGet()
+      expectedCid = env.slotTree.root().tryGet().toSlotCid().tryGet()
 
     check:
       start.slotTreeCid == expectedCid
 
   test "Fails when manifest is not a verifiable manifest":
     # Basic manifest:
-    manifest = Manifest.new(
-      treeCid = manifest.treeCid,
-      blockSize = bytesPerBlock.NBytes,
-      datasetSize = (bytesPerBlock * numberOfSlotBlocks * totalNumberOfSlots).NBytes)
+    env.manifest = Manifest.new(
+      treeCid = env.manifest.treeCid,
+      blockSize = env.bytesPerBlock.NBytes,
+      datasetSize = env.manifest.datasetSize)
 
-    let start = await startDataSampler(localStore, manifest, slot)
+    let start = await startDataSampler(env.localStore, env.manifest, env.slot)
 
     check:
       start.isErr
       start.error.msg == "Can only create DataSampler using verifiable manifests."
 
-  test "Fails when reconstructed dataset root does not match manifest root":
-    manifest.slotRoots.add(toF(999).toSlotCid().tryGet())
+  test "Fails when reconstructed dataset root does not match env.manifest root":
+    env.manifest.slotRoots.add(toF(999).toSlotCid().tryGet())
 
-    let start = await startDataSampler(localStore, manifest, slot)
+    let start = await startDataSampler(env.localStore, env.manifest, env.slot)
 
     check:
       start.isErr
@@ -226,42 +86,35 @@ asyncchecksuite "Test datasampler starter":
   test "Starter will recreate Slot tree when not present in local store":
     # Remove proofs from the local store
     var expectedProofs = newSeq[(Cid, CodexProof)]()
-    for i in 0 ..< numberOfSlotBlocks:
-      expectedProofs.add((await localStore.getCidAndProof(slotRootCid, i)).tryGet())
-      discard (await localStore.delBlock(slotRootCid, i))
+    for i in 0 ..< env.numberOfSlotBlocks:
+      expectedProofs.add((await env.localStore.getCidAndProof(env.slotRootCid, i)).tryGet())
+      discard (await env.localStore.delBlock(env.slotRootCid, i))
 
     discard await run()
 
-    for i in 0 ..< numberOfSlotBlocks:
+    for i in 0 ..< env.numberOfSlotBlocks:
       let
         expectedProof = expectedProofs[i]
-        actualProof = (await localStore.getCidAndProof(slotRootCid, i)).tryGet()
+        actualProof = (await env.localStore.getCidAndProof(env.slotRootCid, i)).tryGet()
 
       check:
         expectedProof == actualProof
 
   test "Recreation of Slot tree fails when recreated slot root is different from manifest slot root":
-    # !!!
-    # This test only passes when you comment out
-    # 2 of the 3 "happy flow" tests
-    # at the beginning of the suite (names starting with "Returns ")
-    # it doesn't matter which 2 of the 3 you comment out.
-    # thanks, testing framework.
-
     # Remove proofs from the local store
-    for i in 0 ..< numberOfSlotBlocks:
-      discard (await localStore.delBlock(manifest.slotRoots[0], i))
+    for i in 0 ..< env.numberOfSlotBlocks:
+      discard (await env.localStore.delBlock(env.manifest.slotRoots[0], i))
 
     # Replace second slotRoot with a copy of the first. Recreate the verification root to match.
-    manifest.slotRoots[1] = manifest.slotRoots[0]
+    env.manifest.slotRoots[1] = env.manifest.slotRoots[0]
     let
-      leafs = manifest.slotRoots.mapIt(it.fromSlotCid().tryGet())
-      rootsPadLeafs = newSeqWith(totalNumberOfSlots.nextPowerOfTwoPad, Poseidon2Zero)
-    manifest.verificationRoot = Poseidon2Tree.init(leafs & rootsPadLeafs).tryGet()
+      leafs = env.manifest.slotRoots.mapIt(it.fromSlotCid().tryGet())
+      rootsPadLeafs = newSeqWith(env.totalNumberOfSlots.nextPowerOfTwoPad, Poseidon2Zero)
+    env.manifest.verificationRoot = Poseidon2Tree.init(leafs & rootsPadLeafs).tryGet()
       .root().tryGet()
       .toProvingCid().tryGet()
 
-    let start = await startDataSampler(localStore, manifest, slot)
+    let start = await startDataSampler(env.localStore, env.manifest, env.slot)
 
     check:
       start.isErr
