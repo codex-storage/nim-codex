@@ -32,13 +32,12 @@ import ../helpers
 import ../examples
 import ../merkletree/helpers
 import testdatasampler_expected
-
-let
-  bytesPerBlock = 64 * 1024
-  challenge: Poseidon2Hash = toF(12345)
+import ./provingtestenv
 
 asyncchecksuite "Test proof datasampler - components":
   let
+    bytesPerBlock = 64 * 1024
+    challenge: Poseidon2Hash = toF(12345)
     numberOfSlotBlocks = 16
     slot = Slot(
       request: StorageRequest(
@@ -91,157 +90,32 @@ asyncchecksuite "Test proof datasampler - components":
       expectedNumberOfCells == getNumberOfCellsInSlot(slot)
 
 asyncchecksuite "Test proof datasampler - main":
-  let
-    # The number of slot blocks and number of slots, combined with
-    # the bytes per block, make it so that there are exactly 256 cells
-    # in the dataset.
-    numberOfSlotBlocks = 4
-    totalNumberOfSlots = 2
-    datasetSlotIndex = 1
-    localStore = CacheStore.new()
-
   var
-    manifest: Manifest
-    manifestBlock: bt.Block
-    slot: Slot
-    datasetBlocks: seq[bt.Block]
-    slotTree: Poseidon2Tree
-    slotRootCid: Cid
-    slotRoots: seq[Poseidon2Hash]
-    datasetToSlotTree: Poseidon2Tree
-    datasetRootHash: Poseidon2Hash
+    env: ProvingTestEnvironment
     dataSampler: DataSampler
-
-  proc createDatasetBlocks(): Future[void] {.async.} =
-    let numberOfCellsNeeded = (numberOfSlotBlocks * totalNumberOfSlots * bytesPerBlock).uint64 div DefaultCellSize.uint64
-    var data: seq[byte] = @[]
-
-    # This generates a number of blocks that have different data, such that
-    # Each cell in each block is unique, but nothing is random.
-    for i in 0 ..< numberOfCellsNeeded:
-      data = data & (i.byte).repeat(DefaultCellSize.uint64)
-
-    let chunker = MockChunker.new(
-      dataset = data,
-      chunkSize = bytesPerBlock)
-
-    while true:
-      let chunk = await chunker.getBytes()
-      if chunk.len <= 0:
-        break
-      let b = bt.Block.new(chunk).tryGet()
-      datasetBlocks.add(b)
-      discard await localStore.putBlock(b)
-
-  proc createSlotTree(datasetSlotIndex: uint64): Future[Poseidon2Tree] {.async.} =
-    let
-      slotSize = (bytesPerBlock * numberOfSlotBlocks).uint64
-      blocksInSlot = slotSize div bytesPerBlock.uint64
-      datasetBlockIndexingStrategy = SteppedIndexingStrategy.new(0, datasetBlocks.len - 1, totalNumberOfSlots)
-      datasetBlockIndices = datasetBlockIndexingStrategy.getIndicies(datasetSlotIndex.int)
-
-    let
-      slotBlocks = datasetBlockIndices.mapIt(datasetBlocks[it])
-      slotBlockRoots = slotBlocks.mapIt(Poseidon2Tree.digest(it.data, DefaultCellSize.int).tryGet())
-      slotTree = Poseidon2Tree.init(slotBlockRoots).tryGet()
-      slotTreeCid = slotTree.root().tryGet().toSlotCid().tryGet()
-
-    for i in 0 ..< numberOfSlotBlocks:
-      let
-        blkCid = slotBlockRoots[i].toCellCid().tryGet()
-        proof = slotTree.getProof(i).tryGet().toEncodableProof().tryGet()
-
-      discard await localStore.putCidAndProof(slotTreeCid, i, blkCid, proof)
-
-    return slotTree
-
-  proc createDatasetRootHashAndSlotTree(): Future[void] {.async.} =
-    var slotTrees = newSeq[Poseidon2Tree]()
-    for i in 0 ..< totalNumberOfSlots:
-      slotTrees.add(await createSlotTree(i.uint64))
-    slotTree = slotTrees[datasetSlotIndex]
-    slotRootCid = slotTrees[datasetSlotIndex].root().tryGet().toSlotCid().tryGet()
-    slotRoots = slotTrees.mapIt(it.root().tryGet())
-    let rootsPadLeafs = newSeqWith(totalNumberOfSlots.nextPowerOfTwoPad, Poseidon2Zero)
-    datasetToSlotTree = Poseidon2Tree.init(slotRoots & rootsPadLeafs).tryGet()
-    datasetRootHash = datasetToSlotTree.root().tryGet()
-
-  proc createManifest(): Future[void] {.async.} =
-    let
-      cids = datasetBlocks.mapIt(it.cid)
-      tree = CodexTree.init(cids).tryGet()
-      treeCid = tree.rootCid(CIDv1, BlockCodec).tryGet()
-
-    for i in 0 ..< datasetBlocks.len:
-      let
-        blk = datasetBlocks[i]
-        leafCid = blk.cid
-        proof = tree.getProof(i).tryGet()
-      discard await localStore.putBlock(blk)
-      discard await localStore.putCidAndProof(treeCid, i, leafCid, proof)
-
-    # Basic manifest:
-    manifest = Manifest.new(
-      treeCid = treeCid,
-      blockSize = bytesPerBlock.NBytes,
-      datasetSize = (bytesPerBlock * numberOfSlotBlocks * totalNumberOfSlots).NBytes)
-
-    # Protected manifest:
-    manifest = Manifest.new(
-      manifest = manifest,
-      treeCid = treeCid,
-      datasetSize = (bytesPerBlock * numberOfSlotBlocks * totalNumberOfSlots).NBytes,
-      ecK = totalNumberOfSlots,
-      ecM = 0
-    )
-
-    # Verifiable manifest:
-    manifest = Manifest.new(
-      manifest = manifest,
-      verificationRoot = datasetRootHash.toProvingCid().tryGet(),
-      slotRoots = slotRoots.mapIt(it.toSlotCid().tryGet())
-    ).tryGet()
-
-    manifestBlock = bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
-    discard await localStore.putBlock(manifestBlock)
-
-  proc createSlot(): void =
-    slot = Slot(
-      request: StorageRequest(
-        ask: StorageAsk(
-          slotSize: u256(bytesPerBlock * numberOfSlotBlocks)
-        ),
-        content: StorageContent(
-          cid: $manifestBlock.cid
-        ),
-      ),
-      slotIndex: u256(datasetSlotIndex)
-    )
+    blk: bt.Block
+    cell0Bytes: seq[byte]
+    cell1Bytes: seq[byte]
+    cell2Bytes: seq[byte]
 
   proc createDataSampler(): Future[void] {.async.} =
     dataSampler = (await DataSampler.new(
-      slot,
-      localStore
+      env.slot,
+      env.localStore
     )).tryGet()
 
   setup:
-    await createDatasetBlocks()
-    await createDatasetRootHashAndSlotTree()
-    await createManifest()
-    createSlot()
+    env = await createProvingTestEnvironment()
+    let bytes = newSeqWith(env.bytesPerBlock, rand(uint8))
+    blk = bt.Block.new(bytes).tryGet()
+    cell0Bytes = bytes[0..<DefaultCellSize.uint64]
+    cell1Bytes = bytes[DefaultCellSize.uint64..<(DefaultCellSize.uint64*2)]
+    cell2Bytes = bytes[(DefaultCellSize.uint64*2)..<(DefaultCellSize.uint64*3)]
+
     await createDataSampler()
 
   teardown:
-    await localStore.close()
-    reset(manifest)
-    reset(manifestBlock)
-    reset(slot)
-    reset(datasetBlocks)
-    reset(slotTree)
-    reset(slotRootCid)
-    reset(slotRoots)
-    reset(datasetToSlotTree)
-    reset(datasetRootHash)
+    reset(env)
     reset(dataSampler)
 
   test "Number of cells is a power of two":
@@ -250,7 +124,7 @@ asyncchecksuite "Test proof datasampler - main":
       let log2 = ceilingLog2(value)
       return (1 shl log2) == value
 
-    let numberOfCells = getNumberOfCellsInSlot(slot).int
+    let numberOfCells = getNumberOfCellsInSlot(env.slot).int
 
     check:
       isPow2(numberOfCells)
@@ -260,13 +134,13 @@ asyncchecksuite "Test proof datasampler - main":
   test "Can find single slot-cell index":
     proc slotCellIndex(i: int): uint64 =
       let counter: Poseidon2Hash = toF(i)
-      return dataSampler.findSlotCellIndex(challenge, counter)
+      return dataSampler.findSlotCellIndex(env.challenge, counter)
 
     proc getExpectedIndex(i: int): uint64 =
       let
-        numberOfCellsInSlot = (bytesPerBlock * numberOfSlotBlocks) div DefaultCellSize.uint64.int
-        slotRootHash = slotTree.root().tryGet()
-        hash = Sponge.digest(@[slotRootHash, challenge, toF(i)], rate = 2)
+        numberOfCellsInSlot = (env.bytesPerBlock * env.numberOfSlotBlocks) div DefaultCellSize.uint64.int
+        slotRootHash = env.slotTree.root().tryGet()
+        hash = Sponge.digest(@[slotRootHash, env.challenge, toF(i)], rate = 2)
       return extractLowBits(hash.toBig(), ceilingLog2(numberOfCellsInSlot))
 
     check:
@@ -279,21 +153,14 @@ asyncchecksuite "Test proof datasampler - main":
 
   test "Can find sequence of slot-cell indices":
     proc slotCellIndices(n: int): seq[uint64]  =
-      dataSampler.findSlotCellIndices(challenge, n)
+      dataSampler.findSlotCellIndices(env.challenge, n)
 
     proc getExpectedIndices(n: int): seq[uint64]  =
-      return collect(newSeq, (for i in 1..n: dataSampler.findSlotCellIndex(challenge, toF(i))))
+      return collect(newSeq, (for i in 1..n: dataSampler.findSlotCellIndex(env.challenge, toF(i))))
 
     check:
       slotCellIndices(3) == getExpectedIndices(3)
       slotCellIndices(3) == knownIndices
-
-  let
-    bytes = newSeqWith(bytesPerBlock, rand(uint8))
-    blk = bt.Block.new(bytes).tryGet()
-    cell0Bytes = bytes[0..<DefaultCellSize.uint64]
-    cell1Bytes = bytes[DefaultCellSize.uint64..<(DefaultCellSize.uint64*2)]
-    cell2Bytes = bytes[(DefaultCellSize.uint64*2)..<(DefaultCellSize.uint64*3)]
 
   test "Can get cell from block":
     let
@@ -329,7 +196,7 @@ asyncchecksuite "Test proof datasampler - main":
     # This is the main function for this module, and what it's all about.
     let
       nSamples = 3
-      input = (await dataSampler.getProofInput(challenge, nSamples)).tryget()
+      input = (await dataSampler.getProofInput(env.challenge, nSamples)).tryget()
 
     proc equal(a: Poseidon2Hash, b: Poseidon2Hash): bool =
       a.toDecimal() == b.toDecimal()
@@ -342,15 +209,15 @@ asyncchecksuite "Test proof datasampler - main":
       expectedBlockSlotProofs = getExpectedBlockSlotProofs()
       expectedCellBlockProofs = getExpectedCellBlockProofs()
       expectedCellData = getExpectedCellData()
-      expectedProof = datasetToSlotTree.getProof(datasetSlotIndex).tryGet()
+      expectedProof = env.datasetToSlotTree.getProof(env.datasetSlotIndex).tryGet()
 
     check:
-      equal(input.datasetRoot, datasetRootHash)
-      equal(input.entropy, challenge)
-      input.numberOfCellsInSlot == (bytesPerBlock * numberOfSlotBlocks).uint64 div DefaultCellSize.uint64
-      input.numberOfSlots == slot.request.ask.slots
-      input.datasetSlotIndex == slot.slotIndex.truncate(uint64)
-      equal(input.slotRoot, slotTree.root().tryGet())
+      equal(input.datasetRoot, env.datasetRootHash)
+      equal(input.entropy, env.challenge)
+      input.numberOfCellsInSlot == (env.bytesPerBlock * env.numberOfSlotBlocks).uint64 div DefaultCellSize.uint64
+      input.numberOfSlots == env.slot.request.ask.slots
+      input.datasetSlotIndex == env.slot.slotIndex.truncate(uint64)
+      equal(input.slotRoot, env.slotTree.root().tryGet())
       input.datasetToSlotProof == expectedProof
 
       # block-slot proofs
