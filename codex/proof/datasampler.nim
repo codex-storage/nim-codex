@@ -64,9 +64,10 @@ proc new*(
   )
 
 proc start*(self: DataSampler): Future[?!void] {.async.} =
-  without slotBlocks =? (await SlotBlocks.new(self.slot, self.blockStore)), e:
-    error "Failed to create SlotBlocks object for slot", error = e.msg
-    return failure(e)
+  let slotBlocks = SlotBlocks.new(self.slot, self.blockStore)
+  if err =? (await slotBlocks.start()).errorOption:
+    error "Failed to create SlotBlocks object for slot", error = err.msg
+    return failure(err)
 
   let
     manifest = slotBlocks.manifest
