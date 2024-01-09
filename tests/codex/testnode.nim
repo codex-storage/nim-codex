@@ -32,11 +32,11 @@ import ./helpers/mockmarket
 import ./helpers/mockclock
 
 proc toTimesDuration(d: chronos.Duration): times.Duration =
-  initDuration(seconds=d.seconds)
+  initDuration(seconds = d.seconds)
 
 asyncchecksuite "Test Node":
   let
-    (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
+    path = currentSourcePath().parentDir
 
   var
     file: File
@@ -63,12 +63,14 @@ asyncchecksuite "Test Node":
   proc retrieve(cid: Cid): Future[seq[byte]] {.async.} =
     # Retrieve an entire file contents by file Cid
     let
-      oddChunkSize = math.trunc(DefaultBlockSize.float/1.359).int  # Let's check that node.retrieve can correctly rechunk data
+      oddChunkSize = math.trunc(DefaultBlockSize.float / 1.359).int  # Let's check that node.retrieve can correctly rechunk data
       stream = (await node.retrieve(cid)).tryGet()
+
     var
       data: seq[byte]
 
-    defer: await stream.close()
+    defer:
+      await stream.close()
 
     while not stream.atEof:
       var
@@ -81,7 +83,7 @@ asyncchecksuite "Test Node":
     return data
 
   setup:
-    file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
+    file = open(path /../ "fixtures" / "test.jpg")
     chunker = FileChunker.new(file = file, chunkSize = DefaultBlockSize)
     switch = newStandardSwitch()
     wallet = WalletRef.new(EthPrivateKey.random())
@@ -90,7 +92,7 @@ asyncchecksuite "Test Node":
     clock = SystemClock.new()
     localStoreMetaDs = SQLiteDatastore.new(Memory).tryGet()
     localStoreRepoDs = SQLiteDatastore.new(Memory).tryGet()
-    localStore = RepoStore.new(localStoreRepoDs, localStoreMetaDs, clock=clock)
+    localStore = RepoStore.new(localStoreRepoDs, localStoreMetaDs, clock = clock)
     await localStore.start()
 
     blockDiscovery = Discovery.new(
@@ -144,6 +146,7 @@ asyncchecksuite "Test Node":
       storeFut = node.store(stream)
       oddChunkSize = math.trunc(DefaultBlockSize.float/3.14).NBytes  # Let's check that node.store can correctly rechunk these odd chunks
       oddChunker = FileChunker.new(file = file, chunkSize = oddChunkSize, pad = false)  # TODO: doesn't work with pad=tue
+
     var
       original: seq[byte]
 
@@ -159,14 +162,9 @@ asyncchecksuite "Test Node":
 
     let
       manifestCid = (await storeFut).tryGet()
-    check:
-      (await localStore.hasBlock(manifestCid)).tryGet()
-
-    let
       manifestBlock = (await localStore.getBlock(manifestCid)).tryGet()
       localManifest = Manifest.decode(manifestBlock).tryGet()
-
-    let data = await retrieve(manifestCid)
+      data = await retrieve(manifestCid)
 
     check:
       data.len == localManifest.datasetSize.int
@@ -186,10 +184,9 @@ asyncchecksuite "Test Node":
     await stream.readExactly(addr data[0], data.len)
     check string.fromBytes(data) == testString
 
-
 asyncchecksuite "Test Node - host contracts":
   let
-    (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
+    path = currentSourcePath().parentDir
 
   var
     file: File
@@ -217,7 +214,7 @@ asyncchecksuite "Test Node - host contracts":
     await storeDataGetManifest(localStore, chunker)
 
   setup:
-    file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
+    file = open(path /../ "fixtures" / "test.jpg")
     chunker = FileChunker.new(file = file, chunkSize = DefaultBlockSize)
     switch = newStandardSwitch()
     wallet = WalletRef.new(EthPrivateKey.random())
@@ -273,9 +270,10 @@ asyncchecksuite "Test Node - host contracts":
     (await expiryUpdateCallback(manifestCid, expectedExpiry)).tryGet()
 
     for index in 0..<manifest.blocksCount:
-      let blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
-      let expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet
-      let expiry = await localStoreMetaDs.get(expiryKey)
+      let
+        blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
+        expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet
+        expiry = await localStoreMetaDs.get(expiryKey)
 
       check (expiry.tryGet).toSecondsSince1970 == expectedExpiry
 
@@ -298,8 +296,9 @@ asyncchecksuite "Test Node - host contracts":
     check fetchedBytes == 2293760
 
     for index in 0..<manifest.blocksCount:
-      let blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
-      let expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet
-      let expiry = await localStoreMetaDs.get(expiryKey)
+      let
+        blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
+        expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet
+        expiry = await localStoreMetaDs.get(expiryKey)
 
       check (expiry.tryGet).toSecondsSince1970 == request.expiry.toSecondsSince1970

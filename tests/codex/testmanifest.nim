@@ -26,7 +26,7 @@ checksuite "Manifest":
     )
     verifiableManifest = Manifest.new(
       manifest = protectedManifest,
-      verificationRoot = Cid.example,
+      slotsRoot = Cid.example,
       slotRoots = @[Cid.example, Cid.example]
     ).tryGet()
 
