@@ -327,7 +327,7 @@ suite "Slot builder":
     check:
       expectedRoot == rootHash
 
-  test "Should build from verification manifest":
+  test "Should build from verifiable manifest":
     let
       steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
       slotBuilder = SlotBuilder.new(
