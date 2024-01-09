@@ -326,7 +326,7 @@ proc requestStorage*(
   ## - Call into the marketplace and purchasing contracts
   ##
 
-  lotScope:
+  logScope:
     cid               = cid
     duration          = duration
     nodes             = nodes
