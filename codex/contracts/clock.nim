@@ -2,6 +2,7 @@ import std/times
 import pkg/ethers
 import pkg/chronos
 import pkg/stint
+import pkg/upraises
 import ../clock
 import ../conf
 
@@ -46,7 +47,7 @@ method stop*(clock: OnChainClock) {.async.} =
   await clock.subscription.unsubscribe()
   clock.started = false
 
-method now*(clock: OnChainClock): SecondsSince1970 =
+method now*(clock: OnChainClock): SecondsSince1970 {.raises: [].}=
   when codex_use_hardhat:
     # hardhat's latest block.timestamp is usually 1s behind the block timestamp
     # in the newHeads event. When testing, always return the latest block.

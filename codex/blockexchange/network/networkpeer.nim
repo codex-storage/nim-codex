@@ -22,9 +22,9 @@ logScope:
   topics = "codex blockexcnetworkpeer"
 
 type
-  ConnProvider* = proc(): Future[Connection] {.gcsafe, closure.}
+  ConnProvider* = proc (): Future[Connection] {.gcsafe, closure, raises: [].}
 
-  RPCHandler* = proc(peer: NetworkPeer, msg: Message): Future[void] {.gcsafe.}
+  RPCHandler* = proc (peer: NetworkPeer, msg: Message): Future[void] {.gcsafe, raises: [].}
 
   NetworkPeer* = ref object of RootObj
     id*: PeerId

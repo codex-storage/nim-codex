@@ -75,8 +75,8 @@ proc markProofAsMissing(validation: Validation,
     else:
       let inDowntime {.used.} = await validation.market.inDowntime(slotId)
       trace "Proof not missing", checkedPeriod = period, inDowntime
-  except CancelledError:
-    raise
+  except CancelledError as e:
+    raise e
   except CatchableError as e:
     error "Marking proof as missing failed", msg = e.msg
 

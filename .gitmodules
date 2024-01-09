@@ -169,10 +169,11 @@
 	path = vendor/nim-codex-dht
 	url = https://github.com/codex-storage/nim-codex-dht.git
 	ignore = untracked
-	branch = master
+	branch = feat/chronos-v4
 [submodule "vendor/nim-datastore"]
 	path = vendor/nim-datastore
 	url = https://github.com/status-im/nim-datastore.git
+  branch = master
 [submodule "vendor/nim-sqlite3-abi"]
 	path = vendor/nim-sqlite3-abi
 	url = https://github.com/arnetheduck/nim-sqlite3-abi.git

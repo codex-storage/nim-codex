@@ -34,11 +34,11 @@ const
   MaxInflight* = 100
 
 type
-  WantListHandler* = proc(peer: PeerId, wantList: WantList): Future[void] {.gcsafe.}
-  BlocksDeliveryHandler* = proc(peer: PeerId, blocks: seq[BlockDelivery]): Future[void] {.gcsafe.}
-  BlockPresenceHandler* = proc(peer: PeerId, precense: seq[BlockPresence]): Future[void] {.gcsafe.}
-  AccountHandler* = proc(peer: PeerId, account: Account): Future[void] {.gcsafe.}
-  PaymentHandler* = proc(peer: PeerId, payment: SignedState): Future[void] {.gcsafe.}
+  WantListHandler* = proc(peer: PeerId, wantList: WantList): Future[void] {.gcsafe, raises: [].}
+  BlocksDeliveryHandler* = proc(peer: PeerId, blocks: seq[BlockDelivery]): Future[void] {.gcsafe, raises: [].}
+  BlockPresenceHandler* = proc(peer: PeerId, precense: seq[BlockPresence]): Future[void] {.gcsafe, raises: [].}
+  AccountHandler* = proc(peer: PeerId, account: Account): Future[void] {.gcsafe, raises: [].}
+  PaymentHandler* = proc(peer: PeerId, payment: SignedState): Future[void] {.gcsafe, raises: [].}
   WantListSender* = proc(
     id: PeerId,
     addresses: seq[BlockAddress],
@@ -46,7 +46,7 @@ type
     cancel: bool = false,
     wantType: WantType = WantType.WantHave,
     full: bool = false,
-    sendDontHave: bool = false): Future[void] {.gcsafe.}
+    sendDontHave: bool = false): Future[void] {.gcsafe, raises: [].}
 
   BlockExcHandlers* = object
     onWantList*: WantListHandler
@@ -55,10 +55,10 @@ type
     onAccount*: AccountHandler
     onPayment*: PaymentHandler
 
-  BlocksDeliverySender* = proc(peer: PeerId, blocksDelivery: seq[BlockDelivery]): Future[void] {.gcsafe.}
-  PresenceSender* = proc(peer: PeerId, presence: seq[BlockPresence]): Future[void] {.gcsafe.}
-  AccountSender* = proc(peer: PeerId, account: Account): Future[void] {.gcsafe.}
-  PaymentSender* = proc(peer: PeerId, payment: SignedState): Future[void] {.gcsafe.}
+  BlocksDeliverySender* = proc(peer: PeerId, blocksDelivery: seq[BlockDelivery]): Future[void] {.gcsafe, raises: [].}
+  PresenceSender* = proc(peer: PeerId, presence: seq[BlockPresence]): Future[void] {.gcsafe, raises: [].}
+  AccountSender* = proc(peer: PeerId, account: Account): Future[void] {.gcsafe, raises: [].}
+  PaymentSender* = proc(peer: PeerId, payment: SignedState): Future[void] {.gcsafe, raises: [].}
 
   BlockExcRequest* = object
     sendWantList*: WantListSender

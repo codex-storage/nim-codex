@@ -35,12 +35,12 @@ proc timerLoop(timer: Timer) {.async.} =
     while true:
       await timer.callback()
       await sleepAsync(timer.interval)
-  except CancelledError:
-    raise
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     error "Timer caught unhandled exception: ", name=timer.name, msg=exc.msg
 
-method start*(timer: Timer, callback: TimerCallback, interval: Duration) {.base.} =
+method start*(timer: Timer, callback: TimerCallback, interval: Duration) {.base, raises: [].} =
   if timer.loopFuture != nil:
     return
   trace "Timer starting: ", name=timer.name

@@ -14,6 +14,7 @@ import pkg/stew/byteutils
 import pkg/stint
 import pkg/questionable/results
 import ../errors
+import exceptions
 
 export json except `%`, `%*`
 
@@ -27,12 +28,12 @@ proc newUnexpectedKindError(
   expectedType: type,
   expectedKinds: string,
   json: JsonNode
-): ref UnexpectedKindError =
+): ref UnexpectedKindError {.raises: [].} =
   let kind = if json.isNil: "nil"
              else: $json.kind
   newException(UnexpectedKindError,
-    &"deserialization to {$expectedType} failed: expected {expectedKinds} " &
-    &"but got {kind}")
+    "deserialization to " & $expectedType & " failed: expected " &
+    expectedKinds & " but got " & kind)
 
 proc newUnexpectedKindError(
   expectedType: type,
@@ -218,14 +219,16 @@ proc fromJson*[T: object](
   _: type T,
   bytes: seq[byte]
 ): ?!T =
-  let json = ?catch parseJson(string.fromBytes(bytes))
+  # FIXME remove launderBare when we upgrade to nim 2.0.0
+  let json = ?catch launderBare parseJson(string.fromBytes(bytes))
   T.fromJson(json)
 
 proc fromJson*[T: ref object](
   _: type T,
   bytes: seq[byte]
 ): ?!T =
-  let json = ?catch parseJson(string.fromBytes(bytes))
+  # FIXME remove launderBare when we upgrade to nim 2.0.0
+  let json = ?catch launderBare parseJson(string.fromBytes(bytes))
   T.fromJson(json)
 
 func `%`*(s: string): JsonNode = newJString(s)

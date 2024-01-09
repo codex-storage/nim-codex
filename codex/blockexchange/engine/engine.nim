@@ -83,7 +83,7 @@ type
 proc scheduleTask(b: BlockExcEngine, task: BlockExcPeerCtx): bool {.gcsafe} =
   b.taskQueue.pushOrUpdateNoWait(task).isOk()
 
-proc blockexcTaskRunner(b: BlockExcEngine): Future[void] {.gcsafe.}
+proc blockexcTaskRunner(b: BlockExcEngine): Future[void] {.gcsafe, raises: [].}
 
 proc start*(b: BlockExcEngine) {.async.} =
   ## Start the blockexc task

@@ -67,7 +67,6 @@ else:
 --threads:on
 --opt:speed
 --excessiveStackTrace:on
---experimental:strictEffects
 # enable metric collection
 --define:metrics
 # for heap-usage-by-instance-type metrics and object base-type strings
