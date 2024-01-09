@@ -25,6 +25,7 @@ import pkg/libp2p/routing_record
 import pkg/libp2p/signed_envelope
 
 import ./chunker
+import ./slots
 import ./clock
 import ./blocktype as bt
 import ./manifest
@@ -324,19 +325,30 @@ proc requestStorage*(
   ## - Run the PoR setup on the erasure dataset
   ## - Call into the marketplace and purchasing contracts
   ##
-  trace "Received a request for storage!", cid, duration, nodes, tolerance, reward, proofProbability, collateral, expiry
+
+  lotScope:
+    cid               = cid
+    duration          = duration
+    nodes             = nodes
+    tolerance         = tolerance
+    reward            = reward
+    proofProbability  = proofProbability
+    collateral        = collateral
+    expiry            = expiry
+
+  trace "Received a request for storage!"
 
   without contracts =? self.contracts.client:
     trace "Purchasing not available"
     return failure "Purchasing not available"
 
   without manifest =? await self.fetchManifest(cid), error:
-    trace "Unable to fetch manifest for cid", cid
+    trace "Unable to fetch manifest for cid"
     raise error
 
   # Erasure code the dataset according to provided parameters
   without encoded =? (await self.erasure.encode(manifest, nodes.int, tolerance.int)), error:
-    trace "Unable to erasure code dataset", cid
+    trace "Unable to erasure code dataset"
     return failure(error)
 
   without encodedData =? encoded.encode(), error:
@@ -349,6 +361,26 @@ proc requestStorage*(
 
   if isErr (await self.blockStore.putBlock(encodedBlk)):
     trace "Unable to store encoded manifest block", cid = encodedBlk.cid
+    return failure("Unable to store encoded manifest block")
+
+  without slotsBuilder =? SlotBuilder.new(self.blockStore, encoded), err:
+    trace "Unable to create slot builder"
+    return failure(err)
+
+  without verifiable =? (await slotsBuilder.buildManifest()), err:
+    trace "Unable to build verifiable manifest"
+    return failure(err)
+
+  without encodedVerifiable =? verifiable.encode(), err:
+    trace "Unable to encode verifiable manifest"
+    return failure(err)
+
+  without verifiableBlk =? bt.Block.new(data = encodedVerifiable, codec = ManifestCodec), error:
+    trace "Unable to create block from verifiable manifest"
+    return failure(error)
+
+  if isErr (await self.blockStore.putBlock(verifiableBlk)):
+    trace "Unable to store verifiable manifest block", cid = encodedBlk.cid
     return failure("Unable to store encoded manifest block")
 
   let request = StorageRequest(
@@ -375,7 +407,7 @@ proc requestStorage*(
   )
 
   let purchase = await contracts.purchasing.purchase(request)
-  return success purchase.id
+  success purchase.id
 
 proc new*(
   T: type CodexNodeRef,
