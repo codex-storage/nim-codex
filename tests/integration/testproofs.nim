@@ -103,7 +103,7 @@ marketplacesuite "Simulate invalid proofs":
     check eventually client0.purchaseStateIs(purchaseId, "started")
 
     var slotWasFreed = false
-    proc onSlotFreed(event: SlotFreed) {.gcsafe, upraises:[].} =
+    proc onSlotFreed(event: SlotFreed) =
       if event.requestId == requestId and
         event.slotIndex == 0.u256: # assume only one slot, so index 0
         slotWasFreed = true
@@ -155,7 +155,7 @@ marketplacesuite "Simulate invalid proofs":
     check eventually client0.purchaseStateIs(purchaseId, "started")
 
     var slotWasFreed = false
-    proc onSlotFreed(event: SlotFreed) {.gcsafe, upraises:[].} =
+    proc onSlotFreed(event: SlotFreed) =
       if event.requestId == requestId and
           event.slotIndex == 0.u256: # assume only one slot, so index 0
         slotWasFreed = true
@@ -221,7 +221,7 @@ marketplacesuite "Simulate invalid proofs":
 
 
     var provider0slotIndex = none UInt256
-    proc onSlotFilled(event: SlotFilled) {.upraises:[].} =
+    proc onSlotFilled(event: SlotFilled) =
       provider0slotIndex = some event.slotIndex
 
     let subscription = await marketplace.subscribe(SlotFilled, onSlotFilled)

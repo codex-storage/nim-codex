@@ -1,5 +1,4 @@
 import pkg/stew/byteutils
-import pkg/codex/units
 import ./marketplacesuite
 import ../examples
 
@@ -46,8 +45,9 @@ marketplacesuite "Marketplace payouts":
     let cid = clientApi.upload(data).get
 
     var slotIdxFilled = none UInt256
-    proc onSlotFilled(event: SlotFilled) {.upraises:[].} =
+    proc onSlotFilled(event: SlotFilled) =
       slotIdxFilled = some event.slotIndex
+
     let subscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
 
     # client requests storage but requires two nodes to host the content
