@@ -16,12 +16,12 @@ type
     manifest: Manifest
     datasetBlockIndices: seq[int]
 
-proc getManifestForSlot(slot: Slot, blockStore: BlockStore): Future[?!Manifest] {.async.} =
-  without manifestBlockCid =? Cid.init(slot.request.content.cid).mapFailure, err:
+proc getManifestForSlot(self: SlotBlocks): Future[?!Manifest] {.async.} =
+  without manifestBlockCid =? Cid.init(self.slot.request.content.cid).mapFailure, err:
     error "Unable to init CID from slot.content.cid"
     return failure err
 
-  without manifestBlock =? await blockStore.getBlock(manifestBlockCid), err:
+  without manifestBlock =? await self.blockStore.getBlock(manifestBlockCid), err:
     error "Failed to fetch manifest block", cid = manifestBlockCid
     return failure err
 
@@ -34,29 +34,28 @@ proc getManifestForSlot(slot: Slot, blockStore: BlockStore): Future[?!Manifest] 
 proc new*(
     T: type SlotBlocks,
     slot: Slot,
-    blockStore: BlockStore,
-    strategy: IndexingStrategy = nil
-): Future[?!SlotBlocks] {.async.} =
+    blockStore: BlockStore
+): SlotBlocks =
+  SlotBlocks(
+    slot: slot,
+    blockStore: blockStore
+  )
+
+proc start*(self: SlotBlocks, strategy: IndexingStrategy = nil): Future[?!void] {.async.} =
   # Create a SlotBlocks object for a slot.
   # SlotBlocks lets you get the manifest of a slot and blocks by slotBlockIndex for a slot.
-  without manifest =? await getManifestForSlot(slot, blockStore):
+  without manifest =? await self.getManifestForSlot():
     error "Failed to get manifest for slot"
     return failure("Failed to get manifest for slot")
+  self.manifest = manifest
 
-  let
-    strategy = if strategy == nil:
+  let strategy = if strategy == nil:
       SteppedIndexingStrategy.new(
         0, manifest.blocksCount - 1, manifest.numSlots)
       else:
         strategy
-    datasetBlockIndices = strategy.getIndicies(slot.slotIndex.truncate(uint64).int)
-
-  success(SlotBlocks(
-    slot: slot,
-    blockStore: blockStore,
-    manifest: manifest,
-    datasetBlockIndices: datasetBlockIndices
-  ))
+  self.datasetBlockIndices = strategy.getIndicies(self.slot.slotIndex.truncate(uint64).int)
+  success()
 
 proc manifest*(self: SlotBlocks): Manifest =
   self.manifest

@@ -30,7 +30,14 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
     slotBlocks: SlotBlocks
 
   proc createSlotBlocks(): Future[void] {.async.} =
-    slotBlocks = (await SlotBlocks.new(env.slot, env.localStore)).tryGet()
+    slotBlocks = SlotBlocks.new(env.slot, env.localStore)
+    (await slotBlocks.start()).tryGet()
+
+  proc createSlotBlocks(slot: Slot, store: BlockStore): Future[?!SlotBlocks] {.async.} =
+    let sb = SlotBlocks.new(slot, store)
+    if err =? (await sb.start()).errorOption:
+      return failure(err)
+    return success(sb)
 
   setup:
     env = await createProvingTestEnvironment()
@@ -48,7 +55,7 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
 
   test "Can fail to get manifest for invalid cid":
     env.slot.request.content.cid = "invalid"
-    let s = (await SlotBlocks.new(env.slot, env.localStore))
+    let s = await createSlotBlocks(env.slot, env.localStore)
 
     check:
       s.isErr
@@ -56,7 +63,7 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
   test "Can fail to get manifest when manifest block not found":
     let
       emptyStore = CacheStore.new()
-      s = (await SlotBlocks.new(env.slot, emptyStore))
+      s = await createSlotBlocks(env.slot, emptyStore)
 
     check:
       s.isErr
@@ -64,7 +71,7 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
   test "Can fail to get manifest when manifest fails to decode":
     env.manifestBlock.data = @[]
 
-    let s = (await SlotBlocks.new(env.slot, env.localStore))
+    let s = await createSlotBlocks(env.slot, env.localStore)
 
     check:
       s.isErr

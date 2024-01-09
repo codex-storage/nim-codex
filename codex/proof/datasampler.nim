@@ -34,7 +34,7 @@ logScope:
   topics = "codex datasampler"
 
 type
-  DataSampler* = object of RootObj
+  DataSampler* = ref object of RootObj
     slot: Slot
     blockStore: BlockStore
     slotBlocks: SlotBlocks
@@ -55,19 +55,25 @@ proc new*(
     T: type DataSampler,
     slot: Slot,
     blockStore: BlockStore
-): Future[?!DataSampler] {.async.} =
+): DataSampler =
   # Create a DataSampler for a slot.
   # A DataSampler can create the input required for the proving circuit.
-  without slotBlocks =? (await SlotBlocks.new(slot, blockStore)), e:
+  DataSampler(
+    slot: slot,
+    blockStore: blockStore
+  )
+
+proc start*(self: DataSampler): Future[?!void] {.async.} =
+  without slotBlocks =? (await SlotBlocks.new(self.slot, self.blockStore)), e:
     error "Failed to create SlotBlocks object for slot", error = e.msg
     return failure(e)
 
   let
     manifest = slotBlocks.manifest
-    numberOfCellsInSlot = getNumberOfCellsInSlot(slot)
+    numberOfCellsInSlot = getNumberOfCellsInSlot(self.slot)
     blockSize = manifest.blockSize.uint64
 
-  without starter =? (await startDataSampler(blockStore, manifest, slot)), e:
+  without starter =? (await startDataSampler(self.blockStore, manifest, self.slot)), e:
     error "Failed to start data sampler", error = e.msg
     return failure(e)
 
@@ -79,19 +85,16 @@ proc new*(
     error "Failed to convert slot cid to hash", error = e.msg
     return failure(e)
 
-  success(DataSampler(
-    slot: slot,
-    blockStore: blockStore,
-    slotBlocks: slotBlocks,
-    datasetRoot: datasetRoot,
-    slotRootHash: slotRootHash,
-    slotTreeCid: starter.slotTreeCid,
-    datasetToSlotProof: starter.datasetToSlotProof,
-    blockSize: blockSize,
-    numberOfCellsInSlot: numberOfCellsInSlot,
-    datasetSlotIndex: starter.datasetSlotIndex,
-    numberOfCellsPerBlock: blockSize div DefaultCellSize.uint64
-  ))
+  self.slotBlocks = slotBlocks
+  self.datasetRoot = datasetRoot
+  self.slotRootHash = slotRootHash
+  self.slotTreeCid = starter.slotTreeCid
+  self.datasetToSlotProof = starter.datasetToSlotProof
+  self.blockSize = blockSize
+  self.numberOfCellsInSlot = numberOfCellsInSlot
+  self.datasetSlotIndex = starter.datasetSlotIndex
+  self.numberOfCellsPerBlock = blockSize div DefaultCellSize.uint64
+  success()
 
 func extractLowBits*[n: static int](A: BigInt[n], k: int): uint64 =
   assert(k > 0 and k <= 64)

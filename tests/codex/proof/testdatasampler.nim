@@ -99,10 +99,11 @@ asyncchecksuite "Test proof datasampler - main":
     cell2Bytes: seq[byte]
 
   proc createDataSampler(): Future[void] {.async.} =
-    dataSampler = (await DataSampler.new(
+    dataSampler = DataSampler.new(
       env.slot,
       env.localStore
-    )).tryGet()
+    )
+    (await dataSampler.start()).tryGet()
 
   setup:
     env = await createProvingTestEnvironment()
