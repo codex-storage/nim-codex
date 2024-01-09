@@ -26,7 +26,7 @@ method start*(clock: OnChainClock) {.async.} =
   if clock.started:
     return
 
-  proc onBlock(blck: Block) {.upraises:[].} =
+  proc onBlock(blck: Block) =
     let blockTime = initTime(blck.timestamp.truncate(int64), 0)
     let computerTime = getTime()
     clock.offset = blockTime - computerTime
