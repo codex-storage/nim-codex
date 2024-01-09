@@ -1,13 +1,19 @@
+import std/sequtils
+import std/sugar
+
 import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
+import pkg/upraises
 
 import ../contracts/requests
 import ../stores/blockstore
 import ../manifest
 import ../indexingstrategy
+import ../node/batch
+import ../utils
 
 type
   SlotBlocks* = ref object of RootObj
@@ -15,6 +21,9 @@ type
     blockStore: BlockStore
     manifest: Manifest
     datasetBlockIndices: seq[int]
+
+const
+  DefaultFetchBatchSize = 200
 
 proc getManifestForSlot(self: SlotBlocks): Future[?!Manifest] {.async.} =
   without manifestBlockCid =? Cid.init(self.slot.request.content.cid).mapFailure, err:
@@ -66,9 +75,33 @@ proc getDatasetBlockIndexForSlotBlockIndex*(self: SlotBlocks, slotBlockIndex: ui
   return success(self.datasetBlockIndices[slotBlockIndex])
 
 proc getSlotBlock*(self: SlotBlocks, slotBlockIndex: uint64): Future[?!Block] {.async.} =
-  let blocksInManifest = (self.manifest.datasetSize div self.manifest.blockSize).int
-
   without datasetBlockIndex =? self.getDatasetBlockIndexForSlotBlockIndex(slotBlockIndex), err:
     return failure(err)
 
   return await self.blockStore.getBlock(self.manifest.treeCid, datasetBlockIndex)
+
+proc fetchBlocksBatched*(
+  self: SlotBlocks,
+  batchSize = DefaultFetchBatchSize,
+  onBatch: BatchProc = nil): Future[?!void] {.async, gcsafe.} =
+  let
+    numSlotBlocks = divUp(self.manifest.blocksCount, self.manifest.numSlots)
+    batchCount = divUp(numSlotBlocks, batchSize)
+  trace "Fetching slot blocks in batches", batchSize, numSlotBlocks
+
+  let iter = Iter.fromSlice(0 ..< self.manifest.blocksCount)
+    .map((i: int) => self.getSlotBlock(i.uint64))
+
+  for batchNum in 0 ..< batchCount:
+    let blocks = collect:
+      for i in 0 ..< batchSize:
+        if not iter.finished:
+          iter.next()
+
+    if blocksErr =? (await allFutureResult(blocks)).errorOption:
+      return failure(blocksErr)
+
+    if not onBatch.isNil and batchErr =? (await onBatch(blocks.mapIt( it.read.get ))).errorOption:
+      return failure(batchErr)
+
+  return success()
