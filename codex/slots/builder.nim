@@ -280,20 +280,21 @@ proc new*(
     slotsPadLeafs = newSeqWith(numSlotLeafs.nextPowerOfTwoPad, Poseidon2Zero) # power of two padding for block roots
     rootsPadLeafs = newSeqWith(manifest.numSlots.nextPowerOfTwoPad, Poseidon2Zero)
 
-  var
-    slotsRoot: ?Poseidon2Hash
-    slotRoots: seq[Poseidon2Hash]
+  let (slotsRoot, slotRoots) =
+    if manifest.verifiable:
+      if manifest.slotRoots.len == 0:
+        return failure "Manifest is verifiable but has no slot roots."
 
-  if manifest.verifiable:
-    if manifest.slotRoots.len == 0:
-      return failure "Manifest is verifiable but has no slot roots."
+      let
+        slotRoot = Poseidon2Hash.fromBytes( ( ? manifest.slotsRoot.mhash.mapFailure ).digestBytes.toArray32 )
+        slotRoots = manifest.slotRoots.mapIt(
+          ? Poseidon2Hash.fromBytes(
+            ( ? it.mhash.mapFailure ).digestBytes.toArray32
+          ).toFailure
+        )
 
-    slotsRoot = Poseidon2Hash.fromBytes( ( ? manifest.slotsRoot.mhash.mapFailure ).digestBytes.toArray32 )
-    slotRoots = manifest.slotRoots.mapIt(
-        ? Poseidon2Hash.fromBytes(
-          ( ? it.mhash.mapFailure ).digestBytes.toArray32
-        ).toFailure
-      )
+      (slotRoot, slotRoots)
+    else: (none Poseidon2Hash, @[])
 
   success SlotBuilder(
     store: store,
