@@ -109,7 +109,7 @@ func toSlotsRootsCid*(root: Poseidon2Hash): ?!Cid =
 
   success treeCid
 
-func toSlotCids*(slotRoots: seq[Poseidon2Hash]): ?!seq[Cid] =
+func toSlotCids*(slotRoots: openArray[Poseidon2Hash]): ?!seq[Cid] =
   success slotRoots.mapIt( ? it.toSlotCid )
 
 func toEncodableProof*(
@@ -210,8 +210,8 @@ proc buildSlot*(
 
 func buildRootsTree*(
   self: SlotBuilder,
-  slotRoots: seq[Poseidon2Hash]): ?!Poseidon2Tree =
-  Poseidon2Tree.init(slotRoots & self.rootsPadLeafs)
+  slotRoots: openArray[Poseidon2Hash]): ?!Poseidon2Tree =
+  Poseidon2Tree.init(@slotRoots & self.rootsPadLeafs)
 
 proc buildSlots*(self: SlotBuilder): Future[?!void] {.async.} =
   if self.slotRoots.len == 0:
