@@ -19,6 +19,7 @@ import pkg/chronicles
 import pkg/questionable/results
 import pkg/poseidon2
 import pkg/poseidon2/io
+import pkg/constantine/math/arithmetic/finite_fields
 
 import ../indexingstrategy
 import ../merkletree
@@ -30,7 +31,6 @@ import ../utils/poseidon2digest
 
 const
   # TODO: Unified with the CellSize specified in branch "data-sampler"
-  # Number of bytes in a cell. A cell is the smallest unit of data used
   # in the proving circuit.
   CellSize* = 2048
 
