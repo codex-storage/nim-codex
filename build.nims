@@ -35,7 +35,7 @@ task testIntegration, "Run integration tests":
   test "testIntegration"
 
 task testValgrind, "Run tests with valgrind":
-  buildBinary "codex", params = "--profiler:on --stacktrace:on -d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
+  buildBinary "codex", params = "--profiler:on --stacktrace:on -d:useMalloc -d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
   exec "valgrind ./build/testCodex"
 
 task build, "build codex binary":
