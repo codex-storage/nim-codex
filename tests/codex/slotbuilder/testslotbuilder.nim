@@ -130,6 +130,9 @@ suite "Slot builder":
   teardown:
     await localStore.close()
 
+    # TODO: THIS IS A BUG IN asynctest, because it doesn't release the
+    #       objects after the test is done, so we need to do it manually
+    #
     # Need to reset all objects because otherwise they get
     # captured by the test runner closures, not good!
     reset(datasetBlocks)
@@ -272,8 +275,9 @@ suite "Slot builder":
         localStore,
         protectedManifest,
         cellSize = cellSize).tryGet()
-      slotRoots = (await slotBuilder.buildSlots()).tryGet
 
+    (await slotBuilder.buildSlots()).tryGet
+    let
       slotsHashes = collect(newSeq):
         for i in 0 ..< numSlots:
           let
@@ -288,7 +292,7 @@ suite "Slot builder":
           Merkle.digest(slotHashes & slotsPadLeafs)
 
       expectedRoot = Merkle.digest(slotsHashes & rootsPadLeafs)
-      rootHash = slotBuilder.buildRootsTree(slotRoots).tryGet().root.tryGet()
+      rootHash = slotBuilder.buildRootsTree(slotBuilder.slotRoots).tryGet().root.tryGet()
 
     check:
       expectedRoot == rootHash
@@ -316,9 +320,28 @@ suite "Slot builder":
 
       expectedRoot = Merkle.digest(slotsHashes & rootsPadLeafs)
       manifest = (await slotBuilder.buildManifest()).tryGet()
-      mhash = manifest.verificationRoot.mhash.tryGet()
+      mhash = manifest.slotsRoot.mhash.tryGet()
       mhashBytes = mhash.digestBytes
       rootHash = Poseidon2Hash.fromBytes(mhashBytes.toArray32).get
 
     check:
       expectedRoot == rootHash
+
+  test "Should build from verification manifest":
+    let
+      steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
+      slotBuilder = SlotBuilder.new(
+        localStore,
+        protectedManifest,
+        cellSize = cellSize).tryGet()
+
+      verificationManifest = (await slotBuilder.buildManifest()).tryGet()
+
+      verificationBuilder = SlotBuilder.new(
+        localStore,
+        verificationManifest,
+        cellSize = cellSize).tryGet()
+
+    check:
+      slotBuilder.slotRoots == verificationBuilder.slotRoots
+      slotBuilder.slotsRoot == verificationBuilder.slotsRoot

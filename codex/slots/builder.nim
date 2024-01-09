@@ -26,6 +26,7 @@ import ../stores
 import ../manifest
 import ../utils
 import ../utils/digest
+import ../utils/poseidon2digest
 
 const
   # TODO: Unified with the CellSize specified in branch "data-sampler"
@@ -34,7 +35,9 @@ const
   CellSize* = 2048
 
 type
-  SlotBuilder* = object of RootObj
+  # TODO: should be a generic type that
+  # supports all merkle trees
+  SlotBuilder* = ref object of RootObj
     store: BlockStore
     manifest: Manifest
     strategy: IndexingStrategy
@@ -42,6 +45,8 @@ type
     blockPadBytes: seq[byte]
     slotsPadLeafs: seq[Poseidon2Hash]
     rootsPadLeafs: seq[Poseidon2Hash]
+    slotRoots*: seq[Poseidon2Hash]
+    slotsRoot*: ?Poseidon2Hash
 
 func nextPowerOfTwoPad*(a: int): int =
   ## Returns the difference between the original
@@ -97,14 +102,14 @@ func toSlotCid*(root: Poseidon2Hash): ?!Cid =
 
   success treeCid
 
-func toProvingCid*(root: Poseidon2Hash): ?!Cid =
+func toSlotsRootsCid*(root: Poseidon2Hash): ?!Cid =
   let
     mhash = ? MultiHash.init($multiCodec("identity"), root.toBytes).mapFailure
     treeCid = ? Cid.init(CIDv1, SlotProvingRootCodec, mhash).mapFailure
 
   success treeCid
 
-func mapToSlotCids*(slotRoots: seq[Poseidon2Hash]): ?!seq[Cid] =
+func toSlotCids*(slotRoots: seq[Poseidon2Hash]): ?!seq[Cid] =
   success slotRoots.mapIt( ? it.toSlotCid )
 
 func toEncodableProof*(
@@ -203,37 +208,47 @@ proc buildSlot*(
 
   tree.root()
 
-proc buildSlots*(self: SlotBuilder): Future[?!(seq[Poseidon2Hash], Poseidon2Hash)] {.async.} =
-  let
-    slotRoots: seq[Poseidon2Hash] = collect(newSeq):
-      for i in 0..<self.manifest.numSlots:
-        without root =? (await self.buildSlot(i)), err:
-          error "Failed to build slot", err = err.msg, index = i
-          return failure(err)
-        root
-
-  success slotRoots
-
 func buildRootsTree*(
   self: SlotBuilder,
   slotRoots: seq[Poseidon2Hash]): ?!Poseidon2Tree =
   Poseidon2Tree.init(slotRoots & self.rootsPadLeafs)
 
-proc buildManifest*(self: SlotBuilder): Future[?!Manifest] {.async.} =
+proc buildSlots*(self: SlotBuilder): Future[?!void] {.async.} =
+  if self.slotRoots.len == 0:
+    self.slotRoots = collect(newSeq):
+      for i in 0..<self.manifest.numSlots:
+        without slotRoot =? (await self.buildSlot(i)), err:
+          error "Failed to build slot", err = err.msg, index = i
+          return failure(err)
+        slotRoot
 
-  without slotRoots =? await self.buildSlots(), err:
+  without root =? self.buildRootsTree(self.slotRoots).?root(), err:
+    error "Failed to build slot roots tree", err = err.msg
+    return failure(err)
+
+  if self.slotsRoot.isSome and
+    not bool(self.slotsRoot.get == root): # TODO: `!=` doesn't work for SecretBool
+      return failure "Existing slots root doesn't match reconstructed root."
+  else:
+    self.slotsRoot = some root
+
+  success()
+
+proc buildManifest*(self: SlotBuilder): Future[?!Manifest] {.async.} =
+  if err =? (await self.buildSlots()).errorOption:
     error "Failed to build slot roots", err = err.msg
     return failure(err)
 
-  without provingRootCid =? self.buildRootsTree(slotRoots).?root.?toProvingCid, err:
-    error "Failed to build proving tree", err = err.msg
-    return failure(err)
-
-  without rootCids =? slotRoots.mapToSlotCids(), err:
+  without rootCids =? self.slotRoots.toSlotCids(), err:
     error "Failed to map slot roots to CIDs", err = err.msg
     return failure(err)
 
-  Manifest.new(self.manifest, provingRootCid, rootCids)
+  without rootProvingCidRes =? self.slotsRoot.?toSlotsRootsCid() and
+    rootProvingCid =? rootProvingCidRes, err: # TODO: why doesn't `=?` unpack the result?
+    error "Failed to map slot roots to CIDs", err = err.msg
+    return failure(err)
+
+  Manifest.new(self.manifest, rootProvingCid, rootCids)
 
 proc new*(
   T: type SlotBuilder,
@@ -265,6 +280,21 @@ proc new*(
     slotsPadLeafs = newSeqWith(numSlotLeafs.nextPowerOfTwoPad, Poseidon2Zero) # power of two padding for block roots
     rootsPadLeafs = newSeqWith(manifest.numSlots.nextPowerOfTwoPad, Poseidon2Zero)
 
+  var
+    slotsRoot: ?Poseidon2Hash
+    slotRoots: seq[Poseidon2Hash]
+
+  if manifest.verifiable:
+    if manifest.slotRoots.len == 0:
+      return failure "Manifest is verifiable but has no slot roots."
+
+    slotsRoot = Poseidon2Hash.fromBytes( ( ? manifest.slotsRoot.mhash.mapFailure ).digestBytes.toArray32 )
+    slotRoots = manifest.slotRoots.mapIt(
+        ? Poseidon2Hash.fromBytes(
+          ( ? it.mhash.mapFailure ).digestBytes.toArray32
+        ).toFailure
+      )
+
   success SlotBuilder(
     store: store,
     manifest: manifest,
@@ -272,4 +302,6 @@ proc new*(
     cellSize: cellSize,
     blockPadBytes: blockPadBytes,
     slotsPadLeafs: slotsPadLeafs,
-    rootsPadLeafs: rootsPadLeafs)
+    rootsPadLeafs: rootsPadLeafs,
+    slotsRoot: slotsRoot,
+    slotRoots: slotRoots)
