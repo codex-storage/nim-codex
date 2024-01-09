@@ -17,7 +17,8 @@ import ../utils
 
 type
   SlotBlocks* = ref object of RootObj
-    slot: Slot
+    slotIndex: uint64
+    contentCid: string
     blockStore: BlockStore
     manifest: Manifest
     datasetBlockIndices: seq[int]
@@ -26,8 +27,8 @@ const
   DefaultFetchBatchSize = 200
 
 proc getManifestForSlot(self: SlotBlocks): Future[?!Manifest] {.async.} =
-  without manifestBlockCid =? Cid.init(self.slot.request.content.cid).mapFailure, err:
-    error "Unable to init CID from slot.content.cid"
+  without manifestBlockCid =? Cid.init(self.contentCid).mapFailure, err:
+    error "Unable to init CID from slot request content cid"
     return failure err
 
   without manifestBlock =? await self.blockStore.getBlock(manifestBlockCid), err:
@@ -42,11 +43,13 @@ proc getManifestForSlot(self: SlotBlocks): Future[?!Manifest] {.async.} =
 
 proc new*(
     T: type SlotBlocks,
-    slot: Slot,
+    slotIndex: UInt256,
+    contentCid: string,
     blockStore: BlockStore
 ): SlotBlocks =
   SlotBlocks(
-    slot: slot,
+    slotIndex: slotIndex.truncate(uint64),
+    contentCid: contentCid,
     blockStore: blockStore
   )
 
@@ -63,7 +66,7 @@ proc start*(self: SlotBlocks, strategy: IndexingStrategy = nil): Future[?!void] 
         0, manifest.blocksCount - 1, manifest.numSlots)
       else:
         strategy
-  self.datasetBlockIndices = strategy.getIndicies(self.slot.slotIndex.truncate(uint64).int)
+  self.datasetBlockIndices = strategy.getIndicies(self.slotIndex.int)
   success()
 
 proc manifest*(self: SlotBlocks): Manifest =

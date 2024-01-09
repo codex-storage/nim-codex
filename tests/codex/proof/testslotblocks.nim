@@ -24,17 +24,23 @@ import ../examples
 import ../merkletree/helpers
 import ./provingtestenv
 
-asyncchecksuite "Test slotblocks - slot blocks by index":
+asyncchecksuite "Test slotblocks":
   var
     env: ProvingTestEnvironment
     slotBlocks: SlotBlocks
 
   proc createSlotBlocks(): Future[void] {.async.} =
-    slotBlocks = SlotBlocks.new(env.slot, env.localStore)
+    slotBlocks = SlotBlocks.new(
+      env.slot.slotIndex,
+      env.slot.request.content.cid,
+      env.localStore)
     (await slotBlocks.start()).tryGet()
 
-  proc createSlotBlocks(slot: Slot, store: BlockStore): Future[?!SlotBlocks] {.async.} =
-    let sb = SlotBlocks.new(slot, store)
+  proc createSlotBlocks(store: BlockStore): Future[?!SlotBlocks] {.async.} =
+    let sb = SlotBlocks.new(
+      env.slot.slotIndex,
+      env.slot.request.content.cid,
+      store)
     if err =? (await sb.start()).errorOption:
       return failure(err)
     return success(sb)
@@ -55,7 +61,7 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
 
   test "Can fail to get manifest for invalid cid":
     env.slot.request.content.cid = "invalid"
-    let s = await createSlotBlocks(env.slot, env.localStore)
+    let s = await createSlotBlocks(env.localStore)
 
     check:
       s.isErr
@@ -63,7 +69,7 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
   test "Can fail to get manifest when manifest block not found":
     let
       emptyStore = CacheStore.new()
-      s = await createSlotBlocks(env.slot, emptyStore)
+      s = await createSlotBlocks(emptyStore)
 
     check:
       s.isErr
@@ -71,7 +77,7 @@ asyncchecksuite "Test slotblocks - slot blocks by index":
   test "Can fail to get manifest when manifest fails to decode":
     env.manifestBlock.data = @[]
 
-    let s = await createSlotBlocks(env.slot, env.localStore)
+    let s = await createSlotBlocks(env.localStore)
 
     check:
       s.isErr

@@ -64,7 +64,10 @@ proc new*(
   )
 
 proc start*(self: DataSampler): Future[?!void] {.async.} =
-  let slotBlocks = SlotBlocks.new(self.slot, self.blockStore)
+  let slotBlocks = SlotBlocks.new(
+    self.slot.slotIndex,
+    self.slot.request.content.cid,
+    self.blockStore)
   if err =? (await slotBlocks.start()).errorOption:
     error "Failed to create SlotBlocks object for slot", error = err.msg
     return failure(err)

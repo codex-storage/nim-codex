@@ -38,6 +38,7 @@ import ./contracts
 import ./node/batch
 import ./utils
 import ./errors
+import ./proof/slotblocks
 
 export batch
 
