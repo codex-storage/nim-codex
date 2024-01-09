@@ -62,6 +62,11 @@ proc numSlots*(self: Manifest): int =
   else:
     self.ecK + self.ecM
 
+proc numSlots*(self: Manifest): int =
+  if not self.protected:
+    0
+  else:
+    self.ecK + self.ecM
 ############################################################
 # Operations on block list
 ############################################################
