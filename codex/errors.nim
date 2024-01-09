@@ -31,7 +31,8 @@ template mapFailure*[T, V, E](
 template mapFailure*[T, V](exp: Result[T, V]): Result[T, ref CatchableError] =
   mapFailure(exp, CodexError)
 
-template toFailure*[T](exp: Option[T]): Result[T, ref CatchableError] =
+# TODO: using a template here, causes bad codegen
+func toFailure*[T](exp: Option[T]): Result[T, ref CatchableError] {.inline.} =
   if exp.isSome:
     success exp.get
   else:
