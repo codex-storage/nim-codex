@@ -289,7 +289,7 @@ proc new*(
   T: type Manifest,
   manifest: Manifest,
   slotsRoot: Cid,
-  slotRoots: seq[Cid]): ?!Manifest =
+  slotRoots: openArray[Cid]): ?!Manifest =
   ## Create a verifiable dataset from an
   ## protected one
   ##
@@ -316,4 +316,4 @@ proc new*(
     originalDatasetSize: manifest.originalDatasetSize,
     verifiable: true,
     slotsRoot: slotsRoot,
-    slotRoots: slotRoots)
+    slotRoots: @slotRoots)
