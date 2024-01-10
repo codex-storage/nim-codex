@@ -34,10 +34,15 @@ const
   # in the proving circuit.
   CellSize* = 2048
 
+  DefaultEmptyBlock* = newSeq[byte](DefaultBlockSize.int)
+  DefaultEmptyCell* = newSeq[byte](DefaultCellSize.int)
+
+  EmptyBlockDigest* = Poseidon2Tree.digest(DefaultEmptyBlock, CellSize).tryGet
+
 type
   # TODO: should be a generic type that
   # supports all merkle trees
-  SlotBuilder* = ref object of RootObj
+  SlotsBuilder* = ref object of RootObj
     store: BlockStore
     manifest: Manifest
     strategy: IndexingStrategy
@@ -45,8 +50,20 @@ type
     blockPadBytes: seq[byte]
     slotsPadLeafs: seq[Poseidon2Hash]
     rootsPadLeafs: seq[Poseidon2Hash]
-    slotRoots*: seq[Poseidon2Hash]
-    slotsRoot*: ?Poseidon2Hash
+    slotRoots: seq[Poseidon2Hash]
+    slotsRoot: ?Poseidon2Hash
+
+func slotRoots*(self: SlotsBuilder): seq[Poseidon2Hash] {.inline.} =
+  ## Returns the slot roots.
+  ##
+
+  self.slotRoots
+
+func slotsRoot*(self: SlotsBuilder): ?Poseidon2Hash {.inline.} =
+  ## Returns the slots root (verification root).
+  ##
+
+  self.slotsRoot
 
 func nextPowerOfTwoPad*(a: int): int =
   ## Returns the difference between the original
@@ -55,34 +72,34 @@ func nextPowerOfTwoPad*(a: int): int =
 
   nextPowerOfTwo(a) - a
 
-func numBlockPadBytes*(self: SlotBuilder): Natural =
+func numBlockPadBytes*(self: SlotsBuilder): Natural =
   ## Number of padding bytes required for a pow2
   ## merkle tree for each block.
   ##
 
   self.blockPadBytes.len
 
-func numSlotsPadLeafs*(self: SlotBuilder): Natural =
+func numSlotsPadLeafs*(self: SlotsBuilder): Natural =
   ## Number of padding field elements required for a pow2
   ## merkle tree for each slot.
   ##
 
   self.slotsPadLeafs.len
 
-func numRootsPadLeafs*(self: SlotBuilder): Natural =
+func numRootsPadLeafs*(self: SlotsBuilder): Natural =
   ## Number of padding field elements required for a pow2
   ## merkle tree for the slot roots.
   ##
 
   self.rootsPadLeafs.len
 
-func numSlotBlocks*(self: SlotBuilder): Natural =
+func numSlotBlocks*(self: SlotsBuilder): Natural =
   ## Number of blocks per slot.
   ##
 
   self.manifest.blocksCount div self.manifest.numSlots
 
-func numBlockRoots*(self: SlotBuilder): Natural =
+func numBlockRoots*(self: SlotsBuilder): Natural =
   ## Number of cells per block.
   ##
 
@@ -102,15 +119,15 @@ func toSlotCid*(root: Poseidon2Hash): ?!Cid =
 
   success treeCid
 
+func toSlotCids*(slotRoots: openArray[Poseidon2Hash]): ?!seq[Cid] =
+  success slotRoots.mapIt( ? it.toSlotCid )
+
 func toSlotsRootsCid*(root: Poseidon2Hash): ?!Cid =
   let
     mhash = ? MultiHash.init($multiCodec("identity"), root.toBytes).mapFailure
     treeCid = ? Cid.init(CIDv1, SlotProvingRootCodec, mhash).mapFailure
 
   success treeCid
-
-func toSlotCids*(slotRoots: openArray[Poseidon2Hash]): ?!seq[Cid] =
-  success slotRoots.mapIt( ? it.toSlotCid )
 
 func toEncodableProof*(
   proof: Poseidon2Proof): ?!CodexProof =
@@ -138,7 +155,7 @@ func toVerifiableProof*(
   success verifiableProof
 
 proc getCellHashes*(
-  self: SlotBuilder,
+  self: SlotsBuilder,
   slotIndex: int): Future[?!seq[Poseidon2Hash]] {.async.} =
 
   let
@@ -162,16 +179,19 @@ proc getCellHashes*(
           error "Failed to get block CID for tree at index"
           return failure(err)
 
-        without digest =? Poseidon2Tree.digest(blk.data & self.blockPadBytes, self.cellSize), err:
-          error "Failed to create digest for block"
-          return failure(err)
+        if blk.isEmpty:
+          EmptyBlockDigest
+        else:
+          without digest =? Poseidon2Tree.digest(blk.data & self.blockPadBytes, self.cellSize), err:
+            error "Failed to create digest for block"
+            return failure(err)
 
-        digest
+          digest
 
   success hashes
 
 proc buildSlotTree*(
-  self: SlotBuilder,
+  self: SlotsBuilder,
   slotIndex: int): Future[?!Poseidon2Tree] {.async.} =
   without cellHashes =? (await self.getCellHashes(slotIndex)), err:
     error "Failed to select slot blocks", err = err.msg
@@ -180,10 +200,16 @@ proc buildSlotTree*(
   Poseidon2Tree.init(cellHashes & self.slotsPadLeafs)
 
 proc buildSlot*(
-  self: SlotBuilder,
+  self: SlotsBuilder,
   slotIndex: int): Future[?!Poseidon2Hash] {.async.} =
   ## Build a slot tree and store it in the block store.
   ##
+
+  logScope:
+    cid         = self.manifest.treeCid
+    slotIndex   = slotIndex
+
+  trace "Building slot tree"
 
   without tree =? (await self.buildSlotTree(slotIndex)) and
     treeCid =? tree.root.?toSlotCid, err:
@@ -209,11 +235,20 @@ proc buildSlot*(
   tree.root()
 
 func buildRootsTree*(
-  self: SlotBuilder,
+  self: SlotsBuilder,
   slotRoots: openArray[Poseidon2Hash]): ?!Poseidon2Tree =
   Poseidon2Tree.init(@slotRoots & self.rootsPadLeafs)
 
-proc buildSlots*(self: SlotBuilder): Future[?!void] {.async.} =
+proc buildSlots*(self: SlotsBuilder): Future[?!void] {.async.} =
+  ## Build all slot trees and store them in the block store.
+  ##
+
+  logScope:
+    cid         = self.manifest.treeCid
+    blockCount  = self.manifest.blocksCount
+
+  trace "Building slots"
+
   if self.slotRoots.len == 0:
     self.slotRoots = collect(newSeq):
       for i in 0..<self.manifest.numSlots:
@@ -234,7 +269,7 @@ proc buildSlots*(self: SlotBuilder): Future[?!void] {.async.} =
 
   success()
 
-proc buildManifest*(self: SlotBuilder): Future[?!Manifest] {.async.} =
+proc buildManifest*(self: SlotsBuilder): Future[?!Manifest] {.async.} =
   if err =? (await self.buildSlots()).errorOption:
     error "Failed to build slot roots", err = err.msg
     return failure(err)
@@ -244,21 +279,21 @@ proc buildManifest*(self: SlotBuilder): Future[?!Manifest] {.async.} =
     return failure(err)
 
   without rootProvingCidRes =? self.slotsRoot.?toSlotsRootsCid() and
-    rootProvingCid =? rootProvingCidRes, err: # TODO: why doesn't `=?` unpack the result?
+    rootProvingCid =? rootProvingCidRes, err: # TODO: why doesn't `.?` unpack the result?
     error "Failed to map slot roots to CIDs", err = err.msg
     return failure(err)
 
   Manifest.new(self.manifest, rootProvingCid, rootCids)
 
 proc new*(
-  T: type SlotBuilder,
+  T: type SlotsBuilder,
   store: BlockStore,
   manifest: Manifest,
   strategy: IndexingStrategy = nil,
-  cellSize = CellSize): ?!SlotBuilder =
+  cellSize = CellSize): ?!SlotsBuilder =
 
   if not manifest.protected:
-    return failure("Can only create SlotBuilder using protected manifests.")
+    return failure("Can only create SlotsBuilder using protected manifests.")
 
   if (manifest.blocksCount mod manifest.numSlots) != 0:
     return failure("Number of blocks must be divisable by number of slots.")
@@ -296,7 +331,7 @@ proc new*(
       (slotRoot, slotRoots)
     else: (none Poseidon2Hash, @[])
 
-  success SlotBuilder(
+  success SlotsBuilder(
     store: store,
     manifest: manifest,
     strategy: strategy,
