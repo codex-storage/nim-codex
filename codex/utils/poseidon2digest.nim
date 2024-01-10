@@ -8,7 +8,6 @@
 ## those terms.
 
 import pkg/poseidon2
-import pkg/poseidon2/io
 import pkg/questionable/results
 import pkg/libp2p/multihash
 
