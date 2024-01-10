@@ -238,7 +238,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
       tolerance=1)
 
     check responseBefore.status == "400 Bad Request"
-    check responseBefore.body == "Tolerance cannot be greater or equal than nodes"
+    check responseBefore.body == "Tolerance cannot be greater or equal than nodes (nodes - tolerance)"
 
   test "node requires expiry and its value to be in future":
     let currentTime = await ethProvider.currentTime()
