@@ -37,8 +37,6 @@ const
   DefaultEmptyBlock* = newSeq[byte](DefaultBlockSize.int)
   DefaultEmptyCell* = newSeq[byte](DefaultCellSize.int)
 
-  EmptyBlockDigest* = Poseidon2Tree.digest(DefaultEmptyBlock, CellSize).tryGet
-
 type
   # TODO: should be a generic type that
   # supports all merkle trees
@@ -47,6 +45,7 @@ type
     manifest: Manifest
     strategy: IndexingStrategy
     cellSize: int
+    blockEmptyDigest: Poseidon2Hash
     blockPadBytes: seq[byte]
     slotsPadLeafs: seq[Poseidon2Hash]
     rootsPadLeafs: seq[Poseidon2Hash]
@@ -180,7 +179,7 @@ proc getCellHashes*(
           return failure(err)
 
         if blk.isEmpty:
-          EmptyBlockDigest
+          self.blockEmptyDigest
         else:
           without digest =? Poseidon2Tree.digest(blk.data & self.blockPadBytes, self.cellSize), err:
             error "Failed to create digest for block"
@@ -314,6 +313,7 @@ proc new*(
     numSlotLeafs = (manifest.blocksCount div manifest.numSlots)
     slotsPadLeafs = newSeqWith(numSlotLeafs.nextPowerOfTwoPad, Poseidon2Zero) # power of two padding for block roots
     rootsPadLeafs = newSeqWith(manifest.numSlots.nextPowerOfTwoPad, Poseidon2Zero)
+    blockEmptyDigest = ? Poseidon2Tree.digest(DefaultEmptyBlock & blockPadBytes, CellSize)
 
   let (slotsRoot, slotRoots) =
     if manifest.verifiable:
@@ -340,4 +340,5 @@ proc new*(
     slotsPadLeafs: slotsPadLeafs,
     rootsPadLeafs: rootsPadLeafs,
     slotsRoot: slotsRoot,
-    slotRoots: slotRoots)
+    slotRoots: slotRoots,
+    blockEmptyDigest: blockEmptyDigest)
