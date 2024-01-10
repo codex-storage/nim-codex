@@ -16,13 +16,13 @@ import pkg/contractabi/address as ca
 type
   MockDiscovery* = ref object of Discovery
     findBlockProvidersHandler*: proc(d: MockDiscovery, cid: Cid):
-      Future[seq[SignedPeerRecord]] {.gcsafe.}
+      Future[seq[SignedPeerRecord]] {.gcsafe, raises: [].}
     publishBlockProvideHandler*: proc(d: MockDiscovery, cid: Cid):
-      Future[void] {.gcsafe.}
+      Future[void] {.gcsafe, raises: [].}
     findHostProvidersHandler*: proc(d: MockDiscovery, host: ca.Address):
-      Future[seq[SignedPeerRecord]] {.gcsafe.}
+      Future[seq[SignedPeerRecord]] {.gcsafe, raises: [].}
     publishHostProvideHandler*: proc(d: MockDiscovery, host: ca.Address):
-      Future[void] {.gcsafe.}
+      Future[void] {.gcsafe, raises: [].}
 
 proc new*(T: type MockDiscovery): MockDiscovery =
   MockDiscovery()
@@ -32,7 +32,7 @@ proc findPeer*(
     peerId: PeerId
 ): Future[?PeerRecord] {.async.} =
   ## mock find a peer - always return none
-  ## 
+  ##
   return none(PeerRecord)
 
 method find*(

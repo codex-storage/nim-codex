@@ -2,7 +2,7 @@ import std/sequtils
 import std/sugar
 import std/tables
 
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/chronos
 
 import pkg/libp2p/errors
@@ -120,7 +120,10 @@ asyncchecksuite "Block Advertising and Discovery":
       advertised = newFuture[Cid]()
 
     blockDiscovery
-      .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid) {.async.} =
+      .publishBlockProvideHandler = proc(
+        d: MockDiscovery,
+        cid: Cid
+      ) {.async: (handleException: true).} =
         check manifestBlock.cid == cid
         advertised.complete(cid)
 
@@ -162,7 +165,10 @@ asyncchecksuite "Block Advertising and Discovery":
     ))
 
     blockDiscovery.findBlockProvidersHandler =
-      proc(d: MockDiscovery, cid: Cid): Future[seq[SignedPeerRecord]] =
+      proc(
+        d: MockDiscovery,
+        cid: Cid
+      ): Future[seq[SignedPeerRecord]] {.async: (handleException: true).} =
         check false
 
     await engine.start() # fire up discovery loop

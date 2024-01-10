@@ -3,7 +3,7 @@ import std/random
 import std/algorithm
 
 import pkg/stew/byteutils
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/chronos
 import pkg/libp2p/errors
 import pkg/libp2p/routing_record
@@ -60,8 +60,8 @@ asyncchecksuite "NetworkStore engine basic":
       cancel: bool = false,
       wantType: WantType = WantType.WantHave,
       full: bool = false,
-      sendDontHave: bool = false) {.gcsafe, async.} =
-        check addresses.mapIt($it.cidOrTreeCid).sorted == blocks.mapIt( $it.cid ).sorted
+      sendDontHave: bool = false) {.gcsafe, async: (handleException: true).} =
+        check addresses.mapIt($it.cidOrTreeCid).sorted == blocks.mapIt($it.cid).sorted
         done.complete()
 
     let
@@ -94,7 +94,7 @@ asyncchecksuite "NetworkStore engine basic":
   test "Should send account to new peers":
     let pricing = Pricing.example
 
-    proc sendAccount(peer: PeerId, account: Account) {.gcsafe, async.} =
+    proc sendAccount(peer: PeerId, account: Account) {.gcsafe, async: (handleException: true).} =
       check account.address == pricing.address
       done.complete()
 
@@ -189,7 +189,7 @@ asyncchecksuite "NetworkStore engine handlers":
         blocks.mapIt( it.cid ),
         wantType = WantType.WantBlock) # only `wantBlock` are stored in `peerWants`
 
-    proc handler() {.async.} =
+    proc handler() {.async: (handleException: true).} =
       let ctx = await engine.taskQueue.pop()
       check ctx.id == peerId
       # only `wantBlock` scheduled
@@ -204,7 +204,7 @@ asyncchecksuite "NetworkStore engine handlers":
       done = newFuture[void]()
       wantList = makeWantList(blocks.mapIt( it.cid ))
 
-    proc sendPresence(peerId: PeerId, presence: seq[BlockPresence]) {.gcsafe, async.} =
+    proc sendPresence(peerId: PeerId, presence: seq[BlockPresence]) {.gcsafe, async: (handleException: true).} =
       check presence.mapIt( it.address ) == wantList.entries.mapIt( it.address )
       done.complete()
 
@@ -226,7 +226,7 @@ asyncchecksuite "NetworkStore engine handlers":
         blocks.mapIt( it.cid ),
         sendDontHave = true)
 
-    proc sendPresence(peerId: PeerId, presence: seq[BlockPresence]) {.gcsafe, async.} =
+    proc sendPresence(peerId: PeerId, presence: seq[BlockPresence]) {.gcsafe, async: (handleException: true).} =
       check presence.mapIt( it.address ) == wantList.entries.mapIt( it.address )
       for p in presence:
         check:
@@ -248,7 +248,7 @@ asyncchecksuite "NetworkStore engine handlers":
         blocks.mapIt( it.cid ),
         sendDontHave = true)
 
-    proc sendPresence(peerId: PeerId, presence: seq[BlockPresence]) {.gcsafe, async.} =
+    proc sendPresence(peerId: PeerId, presence: seq[BlockPresence]) {.gcsafe, async: (handleException: true).} =
       for p in presence:
         if p.address.cidOrTreeCid != blocks[0].cid and p.address.cidOrTreeCid != blocks[1].cid:
           check p.`type` == BlockPresenceType.DontHave
@@ -295,7 +295,7 @@ asyncchecksuite "NetworkStore engine handlers":
 
     engine.network = BlockExcNetwork(
       request: BlockExcRequest(
-        sendPayment: proc(receiver: PeerId, payment: SignedState) {.gcsafe, async.} =
+        sendPayment: proc(receiver: PeerId, payment: SignedState) {.gcsafe, async: (handleException: true).} =
           let
             amount =
               blocks.mapIt(
@@ -421,7 +421,7 @@ asyncchecksuite "Task Handler":
   test "Should send want-blocks in priority order":
     proc sendBlocksDelivery(
       id: PeerId,
-      blocksDelivery: seq[BlockDelivery]) {.gcsafe, async.} =
+      blocksDelivery: seq[BlockDelivery]) {.gcsafe, async: (handleException: true).} =
       check blocksDelivery.len == 2
       check:
         blocksDelivery[1].address == blocks[0].address
@@ -458,7 +458,7 @@ asyncchecksuite "Task Handler":
     let missing = @[Block.new("missing".toBytes).tryGet()]
     let price = (!engine.pricing).price
 
-    proc sendPresence(id: PeerId, presence: seq[BlockPresence]) {.gcsafe, async.} =
+    proc sendPresence(id: PeerId, presence: seq[BlockPresence]) {.gcsafe, async: (handleException: true).} =
       check presence.mapIt(!Presence.init(it)) == @[
         Presence(address: present[0].address, have: true, price: price),
         Presence(address: present[1].address, have: true, price: price),

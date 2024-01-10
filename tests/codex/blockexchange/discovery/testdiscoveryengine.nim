@@ -2,7 +2,7 @@ import std/sequtils
 import std/sugar
 import std/tables
 
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 
 import pkg/chronos
 
@@ -100,7 +100,10 @@ asyncchecksuite "Test Discovery Engine":
       want = newFuture[void]()
 
     blockDiscovery.findBlockProvidersHandler =
-      proc(d: MockDiscovery, cid: Cid): Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
+      proc(
+        d: MockDiscovery,
+        cid: Cid
+      ): Future[seq[SignedPeerRecord]] {.async: (handleException: true), gcsafe.} =
         check cid == blocks[0].cid
         if not want.finished:
           want.complete()
@@ -123,7 +126,10 @@ asyncchecksuite "Test Discovery Engine":
       have = newFuture[void]()
 
     blockDiscovery.publishBlockProvideHandler =
-      proc(d: MockDiscovery, cid: Cid) {.async, gcsafe.} =
+      proc(
+        d: MockDiscovery,
+        cid: Cid
+      ) {.async: (handleException: true), gcsafe.} =
         check cid == blocks[0].cid
         if not have.finished:
           have.complete()
@@ -147,7 +153,10 @@ asyncchecksuite "Test Discovery Engine":
       want = newAsyncEvent()
 
     blockDiscovery.findBlockProvidersHandler =
-      proc(d: MockDiscovery, cid: Cid): Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
+      proc(
+        d: MockDiscovery,
+        cid: Cid
+      ): Future[seq[SignedPeerRecord]] {.async: (handleException: true), gcsafe.} =
 
         check cid == blocks[0].cid
         check peerStore.len < minPeers
@@ -184,8 +193,10 @@ asyncchecksuite "Test Discovery Engine":
       count = 0
 
     blockDiscovery.findBlockProvidersHandler =
-      proc(d: MockDiscovery, cid: Cid):
-        Future[seq[SignedPeerRecord]] {.gcsafe, async.} =
+      proc(
+        d: MockDiscovery,
+        cid: Cid
+      ): Future[seq[SignedPeerRecord]] {.gcsafe, async: (handleException: true).} =
         check cid == blocks[0].cid
         if count > 0:
           check false
@@ -218,7 +229,10 @@ asyncchecksuite "Test Discovery Engine":
       count = 0
 
     blockDiscovery.publishBlockProvideHandler =
-      proc(d: MockDiscovery, cid: Cid) {.async, gcsafe.} =
+      proc(
+        d: MockDiscovery,
+        cid: Cid
+      ) {.async: (handleException: true), gcsafe.} =
         check cid == blocks[0].cid
         if count > 0:
           check false

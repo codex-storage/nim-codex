@@ -1,7 +1,7 @@
 import std/sequtils
 import std/sugar
 
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/chronos
 import pkg/datastore
 import pkg/questionable/results
@@ -35,7 +35,9 @@ suite "Erasure encode/decode":
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     manifest = await storeDataGetManifest(store, chunker)
 
-  proc encode(buffers, parity: int): Future[Manifest] {.async.} =
+  proc encode(
+      buffers, parity: int): Future[Manifest] {.async:
+        (handleException: true).} =
     let
       encoded = (await erasure.encode(
         manifest,

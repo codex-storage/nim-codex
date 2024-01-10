@@ -1,7 +1,7 @@
 import std/sequtils
 import std/tables
 
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/chronos
 
 import pkg/codex/rng
@@ -47,7 +47,8 @@ asyncchecksuite "Network - Handlers":
     discard await networkPeer.connect()
 
   test "Want List handler":
-    proc wantListHandler(peer: PeerId, wantList: WantList) {.gcsafe, async.} =
+    proc wantListHandler(peer: PeerId, wantList: WantList) {.gcsafe,
+        async: (handleException: true).} =
       # check that we got the correct amount of entries
       check wantList.entries.len == 4
 
@@ -74,7 +75,10 @@ asyncchecksuite "Network - Handlers":
     await done.wait(500.millis)
 
   test "Blocks Handler":
-    proc blocksDeliveryHandler(peer: PeerId, blocksDelivery: seq[BlockDelivery]) {.gcsafe, async.} =
+    proc blocksDeliveryHandler(
+      peer: PeerId,
+      blocksDelivery: seq[BlockDelivery]
+    ) {.gcsafe, async: (handleException: true).} =
       check blocks == blocksDelivery.mapIt(it.blk)
       done.complete()
 
@@ -88,7 +92,7 @@ asyncchecksuite "Network - Handlers":
   test "Presence Handler":
     proc presenceHandler(
       peer: PeerId,
-      presence: seq[BlockPresence]) {.gcsafe, async.} =
+      presence: seq[BlockPresence]) {.gcsafe, async: (handleException: true).} =
       for b in blocks:
         check:
           b.address in presence
@@ -110,7 +114,10 @@ asyncchecksuite "Network - Handlers":
   test "Handles account messages":
     let account = Account(address: EthAddress.example)
 
-    proc handleAccount(peer: PeerId, received: Account) {.gcsafe, async.} =
+    proc handleAccount(
+      peer: PeerId,
+      received: Account
+    ) {.gcsafe, async: (handleException: true).} =
       check received == account
       done.complete()
 
@@ -124,7 +131,10 @@ asyncchecksuite "Network - Handlers":
   test "Handles payment messages":
     let payment = SignedState.example
 
-    proc handlePayment(peer: PeerId, received: SignedState) {.gcsafe, async.} =
+    proc handlePayment(
+      peer: PeerId,
+      received: SignedState
+    ) {.gcsafe, async: (handleException: true).} =
       check received == payment
       done.complete()
 
@@ -177,7 +187,10 @@ asyncchecksuite "Network - Senders":
       switch2.stop())
 
   test "Send want list":
-    proc wantListHandler(peer: PeerId, wantList: WantList) {.gcsafe, async.} =
+    proc wantListHandler(
+      peer: PeerId,
+      wantList: WantList
+    ) {.gcsafe, async: (handleException: true).} =
       # check that we got the correct amount of entries
       check wantList.entries.len == 4
 
@@ -201,7 +214,10 @@ asyncchecksuite "Network - Senders":
     await done.wait(500.millis)
 
   test "send blocks":
-    proc blocksDeliveryHandler(peer: PeerId, blocksDelivery: seq[BlockDelivery]) {.gcsafe, async.} =
+    proc blocksDeliveryHandler(
+      peer: PeerId,
+      blocksDelivery: seq[BlockDelivery]
+    ) {.gcsafe, async: (handleException: true).} =
       check blocks == blocksDelivery.mapIt(it.blk)
       done.complete()
 
@@ -215,7 +231,7 @@ asyncchecksuite "Network - Senders":
   test "send presence":
     proc presenceHandler(
       peer: PeerId,
-      precense: seq[BlockPresence]) {.gcsafe, async.} =
+      precense: seq[BlockPresence]) {.gcsafe, async: (handleException: true).} =
       for b in blocks:
         check:
           b.address in precense
@@ -237,7 +253,10 @@ asyncchecksuite "Network - Senders":
   test "send account":
     let account = Account(address: EthAddress.example)
 
-    proc handleAccount(peer: PeerId, received: Account) {.gcsafe, async.} =
+    proc handleAccount(
+      peer: PeerId,
+      received: Account
+    ) {.gcsafe, async: (handleException: true).} =
       check received == account
       done.complete()
 
@@ -249,7 +268,10 @@ asyncchecksuite "Network - Senders":
   test "send payment":
     let payment = SignedState.example
 
-    proc handlePayment(peer: PeerId, received: SignedState) {.gcsafe, async.} =
+    proc handlePayment(
+      peer: PeerId,
+      received: SignedState
+    ) {.gcsafe, async: (handleException: true).} =
       check received == payment
       done.complete()
 
@@ -293,7 +315,10 @@ asyncchecksuite "Network - Test Limits":
   test "Concurrent Sends":
     let account = Account(address: EthAddress.example)
     network2.handlers.onAccount =
-      proc(peer: PeerId, received: Account) {.gcsafe, async.} =
+      proc(
+        peer: PeerId,
+        received: Account
+      ) {.gcsafe, async: (handleException: true).} =
         check false
 
     let fut = network1.send(

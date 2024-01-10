@@ -1,4 +1,4 @@
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/chronos
 import pkg/stew/byteutils
 import ../../examples

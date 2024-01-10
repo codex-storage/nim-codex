@@ -6,7 +6,7 @@ import pkg/questionable
 import pkg/questionable/results
 
 import pkg/chronos
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/stew/byteutils
 import pkg/stew/endians2
 import pkg/datastore
