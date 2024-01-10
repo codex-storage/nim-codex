@@ -1,7 +1,7 @@
 import std/strutils
 
 import pkg/chronos
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/stew/byteutils
 import pkg/questionable/results
 import pkg/codex/stores/cachestore

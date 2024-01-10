@@ -5,7 +5,7 @@
   "hostOS": "macosx",
   "items": {
     "asynctest": {
-      "commit": "fe1a34caf572b05f8bdba3b650f1871af9fce31e",
+      "commit": "8e2f4e73b97123be0f0041c129942b32df23ecb1",
       "dir": "vendor/asynctest",
       "url": "https://github.com/codex-storage/asynctest"
     },

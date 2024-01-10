@@ -1,5 +1,5 @@
 
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/stew/byteutils
 import pkg/codex/chunker
 import pkg/codex/logutils

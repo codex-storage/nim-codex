@@ -1,4 +1,4 @@
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/codex/contracts/requests
 import pkg/codex/sales
 import pkg/codex/sales/salesagent

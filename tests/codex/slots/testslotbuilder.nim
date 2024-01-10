@@ -4,7 +4,7 @@ import std/importutils
 import std/sugar
 
 import pkg/chronos
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/questionable/results
 import pkg/codex/blocktype as bt
 import pkg/codex/rng

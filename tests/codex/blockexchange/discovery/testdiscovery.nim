@@ -2,7 +2,7 @@ import std/sequtils
 import std/sugar
 import std/tables
 
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/chronos
 
 import pkg/libp2p/errors

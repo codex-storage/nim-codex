@@ -3,7 +3,7 @@ import std/random
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronos
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/datastore
 
 import pkg/codex/stores

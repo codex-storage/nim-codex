@@ -2,7 +2,7 @@ import std/sequtils
 
 import pkg/chronos
 import pkg/questionable/results
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/codex/chunker
 import pkg/codex/blocktype as bt
 import pkg/codex/manifest

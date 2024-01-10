@@ -1,5 +1,5 @@
-
-import pkg/asynctest
+import std/json
+import pkg/asynctest/chronos/unittest
 import pkg/ethers
 
 import ./checktest
@@ -25,5 +25,5 @@ template ethersuite*(name, body) =
 
     body
 
-export asynctest
+export unittest
 export ethers except `%`

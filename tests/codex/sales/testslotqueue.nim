@@ -1,5 +1,6 @@
 import std/sequtils
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
+import pkg/chronicles
 import pkg/chronos
 import pkg/datastore
 import pkg/questionable

@@ -1,6 +1,6 @@
 import std/sequtils
 import pkg/chronos
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 
 import pkg/codex/utils/asynciter
 

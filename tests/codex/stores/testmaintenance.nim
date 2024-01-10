@@ -8,7 +8,7 @@
 ## those terms.
 
 import pkg/chronos
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/questionable/results
 import pkg/codex/blocktype as bt
 import pkg/codex/stores/repostore

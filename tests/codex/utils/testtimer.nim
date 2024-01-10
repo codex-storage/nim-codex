@@ -8,7 +8,7 @@
 ## those terms.
 
 import pkg/chronos
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 
 import codex/utils/timer
 import ../helpers

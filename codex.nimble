@@ -7,7 +7,7 @@ srcDir = "."
 installFiles  = @["build.nims"]
 
 requires "nim >= 1.2.0"
-requires "asynctest >= 0.3.2 & < 0.4.0"
+requires "asynctest >= 0.5.1 & < 0.6.0"
 requires "bearssl >= 0.1.4"
 requires "chronicles >= 0.7.2"
 requires "chronos >= 2.5.2"

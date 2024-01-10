@@ -1,7 +1,7 @@
 import std/sugar
 import std/sequtils
+import std/unittest
 
-import pkg/unittest2
 import pkg/libp2p
 
 import pkg/codex/blockexchange/peers

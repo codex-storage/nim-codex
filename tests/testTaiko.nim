@@ -2,7 +2,7 @@ import std/times
 import std/os
 import std/json
 import std/tempfiles
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/chronos
 import pkg/stint
 import pkg/questionable

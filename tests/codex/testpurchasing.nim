@@ -1,5 +1,5 @@
 import std/times
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/chronos
 import pkg/stint
 import pkg/codex/purchasing

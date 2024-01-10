@@ -3,7 +3,7 @@ import std/strutils
 import std/options
 
 import pkg/chronos
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/libp2p/multicodec
 import pkg/stew/byteutils
 import pkg/questionable
