@@ -57,7 +57,7 @@ suite "Slot builder":
     manifest: Manifest
     protectedManifest: Manifest
     expectedEmptyCid: Cid
-    slotBuilder: SlotBuilder
+    slotBuilder: SlotsBuilder
     chunker: Chunker
 
   proc createBlocks(): Future[void] {.async.} =
@@ -115,7 +115,7 @@ suite "Slot builder":
       protectedManifest.hcodec,
       protectedManifest.codec).tryGet()
 
-  privateAccess(SlotBuilder) # enable access to private fields
+  privateAccess(SlotsBuilder) # enable access to private fields
 
   setup:
     let
@@ -151,8 +151,8 @@ suite "Slot builder":
         datasetSize = originalDatasetSize.NBytes)
 
     check:
-      SlotBuilder.new(localStore, unprotectedManifest, cellSize = cellSize)
-        .error.msg == "Can only create SlotBuilder using protected manifests."
+      SlotsBuilder.new(localStore, unprotectedManifest, cellSize = cellSize)
+        .error.msg == "Can only create SlotsBuilder using protected manifests."
 
   test "Number of blocks must be devisable by number of slots":
     let
@@ -167,7 +167,7 @@ suite "Slot builder":
         ecM = ecM)
 
     check:
-      SlotBuilder.new(localStore, mismatchManifest, cellSize = cellSize)
+      SlotsBuilder.new(localStore, mismatchManifest, cellSize = cellSize)
         .error.msg == "Number of blocks must be divisable by number of slots."
 
   test "Block size must be divisable by cell size":
@@ -183,11 +183,11 @@ suite "Slot builder":
         ecM = ecM)
 
     check:
-      SlotBuilder.new(localStore, mismatchManifest, cellSize = cellSize)
+      SlotsBuilder.new(localStore, mismatchManifest, cellSize = cellSize)
         .error.msg == "Block size must be divisable by cell size."
 
   test "Should build correct slot builder":
-    slotBuilder = SlotBuilder.new(
+    slotBuilder = SlotsBuilder.new(
       localStore,
       protectedManifest,
       cellSize = cellSize).tryGet()
@@ -200,7 +200,7 @@ suite "Slot builder":
   test "Should build slot hashes for all slots":
     let
       steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
-      slotBuilder = SlotBuilder.new(
+      slotBuilder = SlotsBuilder.new(
         localStore,
         protectedManifest,
         cellSize = cellSize).tryGet()
@@ -223,7 +223,7 @@ suite "Slot builder":
   test "Should build slot trees for all slots":
     let
       steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
-      slotBuilder = SlotBuilder.new(
+      slotBuilder = SlotsBuilder.new(
         localStore,
         protectedManifest,
         cellSize = cellSize).tryGet()
@@ -246,7 +246,7 @@ suite "Slot builder":
 
   test "Should persist trees for all slots":
     let
-      slotBuilder = SlotBuilder.new(
+      slotBuilder = SlotsBuilder.new(
         localStore,
         protectedManifest,
         cellSize = cellSize).tryGet()
@@ -271,7 +271,7 @@ suite "Slot builder":
   test "Should build correct verification root":
     let
       steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
-      slotBuilder = SlotBuilder.new(
+      slotBuilder = SlotsBuilder.new(
         localStore,
         protectedManifest,
         cellSize = cellSize).tryGet()
@@ -300,7 +300,7 @@ suite "Slot builder":
   test "Should build correct verification root manifest":
     let
       steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
-      slotBuilder = SlotBuilder.new(
+      slotBuilder = SlotsBuilder.new(
         localStore,
         protectedManifest,
         cellSize = cellSize).tryGet()
@@ -330,14 +330,14 @@ suite "Slot builder":
   test "Should build from verifiable manifest":
     let
       steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
-      slotBuilder = SlotBuilder.new(
+      slotBuilder = SlotsBuilder.new(
         localStore,
         protectedManifest,
         cellSize = cellSize).tryGet()
 
       verificationManifest = (await slotBuilder.buildManifest()).tryGet()
 
-      verificationBuilder = SlotBuilder.new(
+      verificationBuilder = SlotsBuilder.new(
         localStore,
         verificationManifest,
         cellSize = cellSize).tryGet()
