@@ -75,7 +75,11 @@ asyncchecksuite "Test datasampler starter":
       start.error.msg == "Can only create DataSampler using verifiable manifests."
 
   test "Fails when reconstructed dataset root does not match env.manifest root":
-    env.manifest.slotRoots.add(toF(999).toSlotCid().tryGet())
+    env.manifest = Manifest.new(
+      manifest = env.manifest,
+      verificationRoot = env.manifest.verificationRoot,
+      slotRoots = env.manifest.slotRoots & (toF(999).toSlotCid().tryGet())
+    ).tryGet()
 
     let start = await startDataSampler(env.localStore, env.manifest, env.slot)
 
@@ -106,13 +110,19 @@ asyncchecksuite "Test datasampler starter":
       discard (await env.localStore.delBlock(env.manifest.slotRoots[0], i))
 
     # Replace second slotRoot with a copy of the first. Recreate the verification root to match.
-    env.manifest.slotRoots[1] = env.manifest.slotRoots[0]
     let
-      leafs = env.manifest.slotRoots.mapIt(it.fromSlotCid().tryGet())
+      newSlotRoots = newSeq[Cid]() & env.manifest.slotRoots[0] & env.manifest.slotRoots[0]
+      leafs = newSlotRoots.mapIt(it.fromSlotCid().tryGet())
       rootsPadLeafs = newSeqWith(totalNumberOfSlots.nextPowerOfTwoPad, Poseidon2Zero)
-    env.manifest.verificationRoot = Poseidon2Tree.init(leafs & rootsPadLeafs).tryGet()
-      .root().tryGet()
-      .toProvingCid().tryGet()
+      newVerificationRoot = Poseidon2Tree.init(leafs & rootsPadLeafs).tryGet()
+        .root().tryGet()
+        .toProvingCid().tryGet()
+
+    env.manifest = Manifest.new(
+      manifest = env.manifest,
+      verificationRoot = newVerificationRoot,
+      slotRoots = newSlotRoots
+    ).tryGet()
 
     let start = await startDataSampler(env.localStore, env.manifest, env.slot)
 
