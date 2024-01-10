@@ -33,7 +33,8 @@ func new*(
   ## create a new instance of a Purchase
   ##
   var purchase = Purchase.new()
-  purchase.future = Future[void].new()
+  {.cast(noSideEffect).}:
+    purchase.future = newFuture[void]()
   purchase.requestId = requestId
   purchase.market = market
   purchase.clock = clock
