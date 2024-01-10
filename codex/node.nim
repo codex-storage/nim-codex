@@ -85,6 +85,21 @@ func erasure*(self: CodexNodeRef): Erasure =
 func discovery*(self: CodexNodeRef): Discovery =
   return self.discovery
 
+proc storeManifest*(self: CodexNodeRef, manifest: Manifest): Future[?!bt.Block] {.async.} =
+  without encodedVerifiable =? manifest.encode(), err:
+    trace "Unable to encode verifiable manifest"
+    return failure(err)
+
+  without blk =? bt.Block.new(data = encodedVerifiable, codec = ManifestCodec), error:
+    trace "Unable to create block from verifiable manifest"
+    return failure(error)
+
+  if err =? (await self.blockStore.putBlock(blk)).errorOption:
+    trace "Unable to store verifiable manifest block", cid = blk.cid, err = err.msg
+    return failure(err)
+
+  success blk
+
 proc findPeer*(
   node: CodexNodeRef,
   peerId: PeerId): Future[?PeerRecord] {.async.} =
@@ -252,7 +267,6 @@ proc store*(
       if err =? (await self.blockStore.putBlock(blk)).errorOption:
         trace "Unable to store block", cid = blk.cid, err = err.msg
         return failure(&"Unable to store block {blk.cid}")
-
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -279,21 +293,11 @@ proc store*(
     datasetSize = NBytes(chunker.offset),
     version = CIDv1,
     hcodec = hcodec,
-    codec = dataCodec
-  )
-  # Generate manifest
-  without data =? manifest.encode(), err:
-    return failure(
-      newException(CodexError, "Error encoding manifest: " & err.msg))
+    codec = dataCodec)
 
-  # Store as a dag-pb block
-  without manifestBlk =? bt.Block.new(data = data, codec = ManifestCodec):
-    trace "Unable to init block from manifest data!"
-    return failure("Unable to init block from manifest data!")
-
-  if isErr (await self.blockStore.putBlock(manifestBlk)):
-    trace "Unable to store manifest", cid = manifestBlk.cid
-    return failure("Unable to store manifest " & $manifestBlk.cid)
+  without manifestBlk =? await self.storeManifest(manifest), err:
+    trace "Unable to store manifest"
+    return failure(err)
 
   info "Stored data", manifestCid = manifestBlk.cid,
                       treeCid = treeCid,
@@ -371,16 +375,8 @@ proc setupRequest(
     trace "Unable to build verifiable manifest"
     return failure(err)
 
-  without encodedVerifiable =? verifiable.encode(), err:
-    trace "Unable to encode verifiable manifest"
-    return failure(err)
-
-  without verifiableBlk =? bt.Block.new(data = encodedVerifiable, codec = ManifestCodec), error:
-    trace "Unable to create block from verifiable manifest"
-    return failure(error)
-
-  if err =? (await self.blockStore.putBlock(verifiableBlk)).errorOption:
-    trace "Unable to store verifiable manifest block", cid = verifiableBlk.cid, err = err.msg
+  without manifestBlk =? await self.storeManifest(verifiable), err:
+    trace "Unable to store verifiable manifest"
     return failure(err)
 
   let
@@ -399,8 +395,7 @@ proc setupRequest(
     request = StorageRequest(
       ask: StorageAsk(
         slots: verifiable.numSlots.uint64,
-        # TODO: slotSize: (encoded.blockSize.int * encoded.steps).u256,
-        slotSize: ((verifiable.blocksCount.int * verifiable.numSlots) * verifiable.blockSize.int).u256,
+        slotSize: builder.slotBytes.uint.u256,
         duration: duration,
         proofProbability: proofProbability,
         reward: reward,
@@ -408,7 +403,7 @@ proc setupRequest(
         maxSlotLoss: tolerance
       ),
       content: StorageContent(
-        cid: $verifiableBlk.cid, # TODO: why string?
+        cid: $manifestBlk.cid, # TODO: why string?
         merkleRoot: slotsRoot
       ),
       expiry: expiry
