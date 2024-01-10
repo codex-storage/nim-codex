@@ -15,7 +15,6 @@ import ../codex/helpers
 import ../examples
 import ./twonodes
 
-
 # For debugging you can enable logging output with debugX = true
 # You can also pass a string in same format like for the `--log-level` parameter
 # to enable custom logging levels for specific topics like: debug2 = "INFO; TRACE: marketplace"
@@ -140,7 +139,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check request.ask.proofProbability == 3.u256
     check request.expiry == expiry
     check request.ask.collateral == 200.u256
-    check request.ask.slots == 3'u64
+    check request.ask.slots == 2'u64
     check request.ask.maxSlotLoss == 1'u64
 
   # TODO: We currently do not support encoding single chunks
@@ -180,7 +179,6 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check request.ask.collateral == 200.u256
     check request.ask.slots == 1'u64
     check request.ask.maxSlotLoss == 0'u64
-
 
   test "nodes negotiate contracts on the marketplace":
     let size = 0xFFFFF.u256
@@ -226,6 +224,21 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     await ethProvider.advanceTime(duration)
 
     check eventually (await token.balanceOf(account2)) - startBalance == duration*reward
+
+  test "request storage fails if nodes and tolerance aren't correct":
+    let cid = client1.upload("some file contents").get
+    let expiry = (await ethProvider.currentTime()) + 30
+    let responseBefore = client1.requestStorageRaw(cid,
+      duration=100.u256,
+      reward=2.u256,
+      proofProbability=3.u256,
+      expiry=expiry,
+      collateral=200.u256,
+      nodes=1,
+      tolerance=1)
+
+    check responseBefore.status == "400 Bad Request"
+    check responseBefore.body == "Tolerance cannot be greater or equal than nodes"
 
   test "node requires expiry and its value to be in future":
     let currentTime = await ethProvider.currentTime()
