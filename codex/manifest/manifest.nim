@@ -33,11 +33,11 @@ type
     version: CidVersion                     # Cid version
     case protected {.serialize.}: bool      # Protected datasets have erasure coded info
     of true:
-      ecK: int                             # Number of blocks to encode
-      ecM: int                             # Number of resulting parity blocks
-      originalTreeCid: Cid                 # The original root of the dataset being erasure coded
+      ecK: int                              # Number of blocks to encode
+      ecM: int                              # Number of resulting parity blocks
+      originalTreeCid: Cid                  # The original root of the dataset being erasure coded
       originalDatasetSize: NBytes
-      case verifiable {.serialize.}: bool  # Verifiable datasets can be used to generate storage proofs
+      case verifiable {.serialize.}: bool   # Verifiable datasets can be used to generate storage proofs
       of true:
         verificationRoot: Cid
         slotRoots: seq[Cid]
@@ -103,7 +103,6 @@ proc numSlots*(self: Manifest): int =
     0
   else:
     self.ecK + self.ecM
-
 ############################################################
 # Operations on block list
 ############################################################
