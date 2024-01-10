@@ -219,7 +219,7 @@ asyncchecksuite "Test Node - Basic":
       builder = SlotsBuilder.new(localStore, protected).tryGet()
       verifiable = (await builder.buildManifest()).tryGet()
       verifiableBlock = bt.Block.new(
-        manifest.encode().tryGet(),
+        verifiable.encode().tryGet(),
         codec = ManifestCodec).tryGet()
 
     (await localStore.putBlock(manifestBlock)).tryGet()
