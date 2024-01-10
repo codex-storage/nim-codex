@@ -186,9 +186,13 @@ proc createProofSample(self: DataSampler, slotCellIndex: uint64) : Future[?!Proo
     cellBlockProof: cellProof
   ))
 
-proc getProofInput*(self: DataSampler, challenge: Poseidon2Hash, nSamples: int): Future[?!ProofInput] {.async.} =
+proc getProofInput*(self: DataSampler, challenge: array[32, byte], nSamples: int): Future[?!ProofInput] {.async.} =
   var samples: seq[ProofSample]
-  let slotCellIndices = self.findSlotCellIndices(challenge, nSamples)
+  without entropy =? Poseidon2Hash.fromBytes(challenge), err:
+    error "Failed to convert challenge bytes to Poseidon2Hash", error = err.msg
+    return failure(err)
+
+  let slotCellIndices = self.findSlotCellIndices(entropy, nSamples)
 
   trace "Collecing input for proof", selectedSlotCellIndices = $slotCellIndices
   for slotCellIndex in slotCellIndices:
@@ -200,7 +204,7 @@ proc getProofInput*(self: DataSampler, challenge: Poseidon2Hash, nSamples: int):
   trace "Successfully collected proof input"
   success(ProofInput(
     datasetRoot: self.datasetRoot,
-    entropy: challenge,
+    entropy: entropy,
     numberOfCellsInSlot: self.numberOfCellsInSlot,
     numberOfSlots: self.slot.request.ask.slots,
     datasetSlotIndex: self.datasetSlotIndex,

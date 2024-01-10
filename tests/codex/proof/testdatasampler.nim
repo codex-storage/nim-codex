@@ -194,10 +194,10 @@ asyncchecksuite "Test proof datasampler - main":
       not cell2Proof.verify(cell2Hash, root).isErr()
 
   test "Can gather proof input":
-    # This is the main function for this module, and what it's all about.
     let
       nSamples = 3
-      input = (await dataSampler.getProofInput(env.challenge, nSamples)).tryget()
+      challengeBytes = env.challenge.toBytes()
+      input = (await dataSampler.getProofInput(challengeBytes, nSamples)).tryget()
 
     proc equal(a: Poseidon2Hash, b: Poseidon2Hash): bool =
       a.toDecimal() == b.toDecimal()
