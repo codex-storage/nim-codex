@@ -16,6 +16,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/chronicles
 import pkg/chronos
+import pkg/poseidon2
 
 import pkg/libp2p/[switch, multicodec, multihash]
 import pkg/libp2p/stream/bufferstream
@@ -39,6 +40,7 @@ import ./contracts
 import ./node/batch
 import ./utils
 import ./errors
+import ./merkletree
 
 export batch
 
@@ -57,16 +59,31 @@ type
     validator: ?ValidatorInteractions
 
   CodexNodeRef* = ref object
-    switch*: Switch
-    networkId*: PeerId
-    blockStore*: BlockStore
-    engine*: BlockExcEngine
-    erasure*: Erasure
-    discovery*: Discovery
+    switch: Switch
+    networkId: PeerId
+    blockStore: BlockStore
+    engine: BlockExcEngine
+    erasure: Erasure
+    discovery: Discovery
     contracts*: Contracts
     clock*: Clock
 
   OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, closure.}
+
+func switch*(self: CodexNodeRef): Switch =
+  return self.switch
+
+func blockStore*(self: CodexNodeRef): BlockStore =
+  return self.blockStore
+
+func engine*(self: CodexNodeRef): BlockExcEngine =
+  return self.engine
+
+func erasure*(self: CodexNodeRef): Erasure =
+  return self.erasure
+
+func discovery*(self: CodexNodeRef): Discovery =
+  return self.discovery
 
 proc findPeer*(
   node: CodexNodeRef,
@@ -306,6 +323,100 @@ proc iterateManifests*(node: CodexNodeRef, onManifest: OnManifest) {.async.} =
 
       onManifest(cid, manifest)
 
+proc setupRequest(
+  self: CodexNodeRef,
+  cid: Cid,
+  duration: UInt256,
+  proofProbability: UInt256,
+  nodes: uint,
+  tolerance: uint,
+  reward: UInt256,
+  collateral: UInt256,
+  expiry:  UInt256): Future[?!StorageRequest] {.async.} =
+  ## Setup slots for a given dataset
+  ##
+
+  let
+    ecK = nodes - tolerance
+    ecM = tolerance
+
+  logScope:
+    cid               = cid
+    duration          = duration
+    nodes             = nodes
+    tolerance         = tolerance
+    reward            = reward
+    proofProbability  = proofProbability
+    collateral        = collateral
+    expiry            = expiry
+    ecK               = ecK
+    ecM               = ecM
+
+  trace "Setting up slots"
+
+  without manifest =? await self.fetchManifest(cid), error:
+    trace "Unable to fetch manifest for cid"
+    return failure error
+
+  # Erasure code the dataset according to provided parameters
+  without encoded =? (await self.erasure.encode(manifest, ecK, ecM)), error:
+    trace "Unable to erasure code dataset"
+    return failure(error)
+
+  without builder =? SlotsBuilder.new(self.blockStore, encoded), err:
+    trace "Unable to create slot builder"
+    return failure(err)
+
+  without verifiable =? (await builder.buildManifest()), err:
+    trace "Unable to build verifiable manifest"
+    return failure(err)
+
+  without encodedVerifiable =? verifiable.encode(), err:
+    trace "Unable to encode verifiable manifest"
+    return failure(err)
+
+  without verifiableBlk =? bt.Block.new(data = encodedVerifiable, codec = ManifestCodec), error:
+    trace "Unable to create block from verifiable manifest"
+    return failure(error)
+
+  if err =? (await self.blockStore.putBlock(verifiableBlk)).errorOption:
+    trace "Unable to store verifiable manifest block", cid = verifiableBlk.cid, err = err.msg
+    return failure(err)
+
+  let
+    slotsRoot =
+      if builder.slotsRoot.isNone:
+          return failure("No slots root")
+        else:
+          builder.slotsRoot.get.toBytes
+
+    slotRoots =
+      if builder.slotRoots.len <= 0:
+          return failure("Slots are empty")
+        else:
+          builder.slotRoots.mapIt( it.toBytes )
+
+    request = StorageRequest(
+      ask: StorageAsk(
+        slots: verifiable.numSlots.uint64,
+        # TODO: slotSize: (encoded.blockSize.int * encoded.steps).u256,
+        slotSize: ((verifiable.blocksCount.int * verifiable.numSlots) * verifiable.blockSize.int).u256,
+        duration: duration,
+        proofProbability: proofProbability,
+        reward: reward,
+        collateral: collateral,
+        maxSlotLoss: tolerance
+      ),
+      content: StorageContent(
+        cid: $verifiableBlk.cid, # TODO: why string?
+        merkleRoot: slotsRoot
+      ),
+      expiry: expiry
+    )
+
+  trace "Request created", request = $request
+  success request
+
 proc requestStorage*(
   self: CodexNodeRef,
   cid: Cid,
@@ -318,12 +429,6 @@ proc requestStorage*(
   expiry:  UInt256): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
-  ##
-  ## Roughly the flow is as follows:
-  ## - Get the original cid from the store (should have already been uploaded)
-  ## - Erasure code it according to the nodes and tolerance parameters
-  ## - Run the PoR setup on the erasure dataset
-  ## - Call into the marketplace and purchasing contracts
   ##
 
   logScope:
@@ -342,69 +447,18 @@ proc requestStorage*(
     trace "Purchasing not available"
     return failure "Purchasing not available"
 
-  without manifest =? await self.fetchManifest(cid), error:
-    trace "Unable to fetch manifest for cid"
-    raise error
-
-  # Erasure code the dataset according to provided parameters
-  without encoded =? (await self.erasure.encode(manifest, nodes.int, tolerance.int)), error:
-    trace "Unable to erasure code dataset"
-    return failure(error)
-
-  without encodedData =? encoded.encode(), error:
-    trace "Unable to encode protected manifest"
-    return failure(error)
-
-  without encodedBlk =? bt.Block.new(data = encodedData, codec = ManifestCodec), error:
-    trace "Unable to create block from encoded manifest"
-    return failure(error)
-
-  if isErr (await self.blockStore.putBlock(encodedBlk)):
-    trace "Unable to store encoded manifest block", cid = encodedBlk.cid
-    return failure("Unable to store encoded manifest block")
-
-  without slotsBuilder =? SlotBuilder.new(self.blockStore, encoded), err:
-    trace "Unable to create slot builder"
-    return failure(err)
-
-  without verifiable =? (await slotsBuilder.buildManifest()), err:
-    trace "Unable to build verifiable manifest"
-    return failure(err)
-
-  without encodedVerifiable =? verifiable.encode(), err:
-    trace "Unable to encode verifiable manifest"
-    return failure(err)
-
-  without verifiableBlk =? bt.Block.new(data = encodedVerifiable, codec = ManifestCodec), error:
-    trace "Unable to create block from verifiable manifest"
-    return failure(error)
-
-  if isErr (await self.blockStore.putBlock(verifiableBlk)):
-    trace "Unable to store verifiable manifest block", cid = encodedBlk.cid
-    return failure("Unable to store encoded manifest block")
-
-  let request = StorageRequest(
-    ask: StorageAsk(
-      slots: nodes + tolerance,
-      # TODO: Specify slot-specific size (as below) once dispersal is
-      # implemented. The current implementation downloads the entire dataset, so
-      # it is currently set to be the size of the entire dataset. This is
-      # because the slotSize is used to determine the amount of bytes to reserve
-      # in a Reservations
-      # TODO: slotSize: (encoded.blockSize.int * encoded.steps).u256,
-      slotSize: (encoded.blockSize.int * encoded.blocksCount).u256,
-      duration: duration,
-      proofProbability: proofProbability,
-      reward: reward,
-      collateral: collateral,
-      maxSlotLoss: tolerance
-    ),
-    content: StorageContent(
-      cid: $encodedBlk.cid,
-      merkleRoot: array[32, byte].default # TODO: add merkle root for storage proofs
-    ),
-    expiry: expiry
-  )
+  without request =?
+    (await self.setupRequest(
+      cid,
+      duration,
+      proofProbability,
+      nodes,
+      tolerance,
+      reward,
+      collateral,
+      expiry)), err:
+    trace "Unable to setup request"
+    return failure err
 
   let purchase = await contracts.purchasing.purchase(request)
   success purchase.id
