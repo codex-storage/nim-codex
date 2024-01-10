@@ -92,13 +92,25 @@ func numRootsPadLeafs*(self: SlotsBuilder): Natural =
 
   self.rootsPadLeafs.len
 
+func numSlots*(self: SlotsBuilder): Natural =
+  ## Number of slots.
+  ##
+
+  self.manifest.numSlots
+
 func numSlotBlocks*(self: SlotsBuilder): Natural =
   ## Number of blocks per slot.
   ##
 
   self.manifest.blocksCount div self.manifest.numSlots
 
-func numBlockRoots*(self: SlotsBuilder): Natural =
+func slotBytes*(self: SlotsBuilder): NBytes =
+  ## Number of bytes per slot.
+  ##
+
+  (self.manifest.blockSize.int * self.numSlotBlocks).NBytes
+
+func numBlockCells*(self: SlotsBuilder): Natural =
   ## Number of cells per block.
   ##
 
