@@ -112,7 +112,8 @@ proc getPendingBlocks(
       return await completedFut
     else:
       let (_, index) = await completedFut
-      raise newException(CatchableError, "Future for block id not found, tree cid: " & $manifest.treeCid & ", index: " & $index)
+      raise newException(CatchableError,
+        "Future for block id not found, tree cid: " & $manifest.treeCid & ", index: " & $index)
 
   Iter.new(genNext, isFinished)
 
@@ -229,7 +230,11 @@ proc init*(
   manifest: Manifest,
   ecK: int, ecM: int): ?!EncodingParams =
   if ecK > manifest.blocksCount:
-    return failure("Unable to encode manifest, not enough blocks, ecK = " & $ecK & ", blocksCount = " & $manifest.blocksCount)
+    return failure(
+      "Unable to encode manifest, not enough blocks, ecK = " &
+      $ecK &
+      ", blocksCount = " &
+      $manifest.blocksCount)
 
   let
     rounded = roundUp(manifest.blocksCount, ecK)
@@ -338,8 +343,8 @@ proc encodeData(
 proc encode*(
   self: Erasure,
   manifest: Manifest,
-  blocks: int,
-  parity: int): Future[?!Manifest] {.async.} =
+  blocks: uint,
+  parity: uint): Future[?!Manifest] {.async.} =
   ## Encode a manifest into one that is erasure protected.
   ##
   ## `manifest`   - the original manifest to be encoded
@@ -347,7 +352,7 @@ proc encode*(
   ## `parity`     - the number of parity blocks to generate - M
   ##
 
-  without params =? EncodingParams.init(manifest, blocks, parity), err:
+  without params =? EncodingParams.init(manifest, blocks.int, parity.int), err:
     return failure(err)
 
   without encodedManifest =? await self.encodeData(manifest, params), err:
