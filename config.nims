@@ -73,6 +73,7 @@ else:
 --define:nimTypeNames
 --styleCheck:usages
 --styleCheck:error
+--maxLoopIterationsVM:1000000000
 
 when (NimMajor, NimMinor) >= (1, 4):
   --warning:"ObservableStores:off"
