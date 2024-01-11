@@ -39,6 +39,7 @@ import ./contracts/clock
 import ./contracts/deployment
 import ./utils/addrutils
 import ./namespaces
+import ./storagehandler
 
 logScope:
   topics = "codex node"
@@ -51,6 +52,7 @@ type
     codexNode: CodexNodeRef
     repoStore: RepoStore
     maintenance: BlockMaintainer
+    storageHandler: StorageHandler
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
   EthWallet = ethers.Wallet
@@ -265,6 +267,7 @@ proc new*(
     store = NetworkStore.new(engine, repoStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery)
+    storageHandler = StorageHandler.init(codexNode)
     restServer = RestServerRef.new(
       codexNode.initRestApi(config, repoStore),
       initTAddress(config.apiBindAddress , config.apiPort),
@@ -279,5 +282,5 @@ proc new*(
     codexNode: codexNode,
     restServer: restServer,
     repoStore: repoStore,
-    maintenance: maintenance
-  )
+    maintenance: maintenance,
+    storageHandler: storageHandler)
