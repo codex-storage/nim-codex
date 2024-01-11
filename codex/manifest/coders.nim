@@ -39,7 +39,7 @@ proc encode*(manifest: Manifest): ?!seq[byte] =
   #
   # ```protobuf
   #   Message VerificationInfo {
-  #     bytes verificationRoot = 1;            # Decimal encoded field-element
+  #     bytes verifyRoot = 1;             # Decimal encoded field-element
   #     repeated bytes slotRoots = 2;     # Decimal encoded field-elements
   #   }
   #   Message ErasureInfo {
@@ -78,7 +78,7 @@ proc encode*(manifest: Manifest): ?!seq[byte] =
 
     if manifest.verifiable:
       var verificationInfo = initProtoBuffer()
-      verificationInfo.write(1, manifest.verificationRoot.data.buffer)
+      verificationInfo.write(1, manifest.verifyRoot.data.buffer)
       for slotRoot in manifest.slotRoots:
         verificationInfo.write(2, slotRoot.data.buffer)
       erasureInfo.write(5, verificationInfo)
@@ -109,7 +109,7 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
     blockSize: uint32
     originalDatasetSize: uint32
     ecK, ecM: uint32
-    verificationRoot: seq[byte]
+    verifyRoot: seq[byte]
     slotRoots: seq[seq[byte]]
 
   # Decode `Header` message
@@ -158,8 +158,8 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
 
     verifiable = pbVerificationInfo.buffer.len > 0
     if verifiable:
-      if pbVerificationInfo.getField(1, verificationRoot).isErr:
-        return failure("Unable to decode `verificationRoot` from manifest!")
+      if pbVerificationInfo.getField(1, verifyRoot).isErr:
+        return failure("Unable to decode `verifyRoot` from manifest!")
 
       if pbVerificationInfo.getRequiredRepeatedField(2, slotRoots).isErr:
         return failure("Unable to decode `slotRoots` from manifest!")
@@ -193,12 +193,12 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
 
   if verifiable:
     let
-      verificationRootCid = ? Cid.init(verificationRoot).mapFailure
+      verifyRootCid = ? Cid.init(verifyRoot).mapFailure
       slotRootCids = slotRoots.mapIt(? Cid.init(it).mapFailure)
 
     return Manifest.new(
       manifest = self,
-      verificationRoot = verificationRootCid,
+      verifyRoot = verifyRootCid,
       slotRoots = slotRootCids
     )
 

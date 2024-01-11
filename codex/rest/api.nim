@@ -300,8 +300,8 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       ## proofProbability - how often storage proofs are required
       ## reward           - the maximum amount of tokens paid per second per slot to hosts the client is willing to pay
       ## expiry           - timestamp, in seconds, when the request expires if the Request does not find requested amount of nodes to host the data
-      ## nodes            - minimal number of nodes the content should be stored on
-      ## tolerance        - allowed number of nodes that can be lost before pronouncing the content lost
+      ## nodes            - number of nodes the content should be stored on
+      ## tolerance        - allowed number of nodes that can be lost before content is lost
       ## colateral        - requested collateral from hosts when they fill slot
 
       try:
@@ -318,6 +318,9 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
 
         let nodes = params.nodes |? 1
         let tolerance = params.tolerance |? 0
+
+        if (nodes - tolerance) < 1:
+          return RestApiResponse.error(Http400, "Tolerance cannot be greater or equal than nodes (nodes - tolerance)")
 
         without expiry =? params.expiry:
           return RestApiResponse.error(Http400, "Expiry required")

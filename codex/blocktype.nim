@@ -44,7 +44,6 @@ type
     else:
       cid*: Cid
 
-
 proc `==`*(a, b: BlockAddress): bool =
   a.leaf == b.leaf and
     (

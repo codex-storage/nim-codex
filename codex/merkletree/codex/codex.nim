@@ -23,6 +23,8 @@ import ../../rng
 import ../../errors
 import ../../blocktype
 
+from ../../utils/digest import digestBytes
+
 import ../merkletree
 
 export merkletree
@@ -61,12 +63,6 @@ func digestSize*(self: (CodexTree or CodexProof)): int =
   ##
 
   self.mhash.size
-
-func digestBytes*(mhash: MultiHash): seq[byte] =
-  ## Extract hash digestBytes
-  ##
-
-  mhash.data.buffer[mhash.dpos..<mhash.dpos + mhash.size]
 
 func getProof*(self: CodexTree, index: int): ?!CodexProof =
   var
