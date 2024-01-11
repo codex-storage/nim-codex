@@ -9,6 +9,7 @@ import pkg/libp2p
 
 import pkg/codex/codextypes
 import pkg/codex/merkletree
+import pkg/codex/utils/digest
 
 import ./helpers
 import ./generictreetests

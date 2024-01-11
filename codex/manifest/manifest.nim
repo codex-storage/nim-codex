@@ -39,7 +39,7 @@ type
       originalDatasetSize: NBytes
       case verifiable {.serialize.}: bool   # Verifiable datasets can be used to generate storage proofs
       of true:
-        verificationRoot: Cid
+        slotsRoot: Cid
         slotRoots: seq[Cid]
       else:
         discard
@@ -92,8 +92,8 @@ proc blocksCount*(self: Manifest): int =
 proc verifiable*(self: Manifest): bool =
   self.verifiable
 
-proc verificationRoot*(self: Manifest): Cid =
-  self.verificationRoot
+proc slotsRoot*(self: Manifest): Cid =
+  self.slotsRoot
 
 proc slotRoots*(self: Manifest): seq[Cid] =
   self.slotRoots
@@ -103,6 +103,7 @@ proc numSlots*(self: Manifest): int =
     0
   else:
     self.ecK + self.ecM
+
 ############################################################
 # Operations on block list
 ############################################################
@@ -159,7 +160,7 @@ proc `==`*(a, b: Manifest): bool =
       (a.originalDatasetSize == b.originalDatasetSize) and
       (a.verifiable == b.verifiable) and
         (if a.verifiable:
-          (a.verificationRoot == b.verificationRoot) and
+          (a.slotsRoot == b.slotsRoot) and
           (a.slotRoots == b.slotRoots)
         else:
           true)
@@ -181,7 +182,7 @@ proc `$`*(self: Manifest): string =
       ", originalDatasetSize: " & $self.originalDatasetSize &
       ", verifiable: " & $self.verifiable &
       (if self.verifiable:
-        ", verificationRoot: " & $self.verificationRoot &
+        ", slotsRoot: " & $self.slotsRoot &
         ", slotRoots: " & $self.slotRoots
       else:
         "")
@@ -287,15 +288,21 @@ proc new*(
 proc new*(
   T: type Manifest,
   manifest: Manifest,
-  verificationRoot: Cid,
-  slotRoots: seq[Cid]): ?!Manifest =
+  slotsRoot: Cid,
+  slotRoots: openArray[Cid]): ?!Manifest =
   ## Create a verifiable dataset from an
   ## protected one
   ##
-  if not manifest.protected:
-    return failure newException(CodexError, "Can create verifiable manifest only from protected manifest.")
 
-  success(Manifest(
+  if not manifest.protected:
+    return failure newException(
+      CodexError, "Can create verifiable manifest only from protected manifest.")
+
+  if slotRoots.len != manifest.numSlots:
+    return failure newException(
+      CodexError, "Wrong number of slot roots.")
+
+  success Manifest(
     treeCid: manifest.treeCid,
     datasetSize: manifest.datasetSize,
     version: manifest.version,
@@ -308,5 +315,5 @@ proc new*(
     originalTreeCid: manifest.treeCid,
     originalDatasetSize: manifest.originalDatasetSize,
     verifiable: true,
-    verificationRoot: verificationRoot,
-    slotRoots: slotRoots))
+    slotsRoot: slotsRoot,
+    slotRoots: @slotRoots)

@@ -31,13 +31,16 @@ proc toPoseidon2Hash(cid: Cid, mcodec: MultiCodec, cidCodec: MultiCodec): ?!Pose
   return success(hash.get())
 
 func toCellCid*(hash: Poseidon2Hash): ?!Cid =
-  toCid(hash, Pos2Bn128MrklCodec, CodexSlotCell)
+  toCid(hash, Pos2Bn128MrklCodec, CodexSlotCellCodec)
 
 func fromCellCid*(cid: Cid): ?!Poseidon2Hash =
   toPoseidon2Hash(cid, Pos2Bn128MrklCodec, CodexSlotCell)
 
 func toSlotCid*(hash: Poseidon2Hash): ?!Cid =
   toCid(hash, multiCodec("identity"), SlotRootCodec)
+
+func toSlotCids*(slotRoots: openArray[Poseidon2Hash]): ?!seq[Cid] =
+  success slotRoots.mapIt( ? it.toSlotCid )
 
 func fromSlotCid*(cid: Cid): ?!Poseidon2Hash =
   toPoseidon2Hash(cid, multiCodec("identity"), SlotRootCodec)
@@ -48,23 +51,27 @@ func toProvingCid*(hash: Poseidon2Hash): ?!Cid =
 func fromProvingCid*(cid: Cid): ?!Poseidon2Hash =
   toPoseidon2Hash(cid, multiCodec("identity"), SlotProvingRootCodec)
 
-func toEncodableProof*(proof: Poseidon2Proof): ?!CodexProof =
+func toEncodableProof*(
+  proof: Poseidon2Proof): ?!CodexProof =
+
   let
     encodableProof = CodexProof(
-      mcodec: multiCodec("identity"),
+      mcodec: multiCodec("identity"), # copy bytes as is
       index: proof.index,
       nleaves: proof.nleaves,
       path: proof.path.mapIt( @(it.toBytes) ))
 
   success encodableProof
 
-func toVerifiableProof*(proof: CodexProof): ?!Poseidon2Proof =
+func toVerifiableProof*(
+  proof: CodexProof): ?!Poseidon2Proof =
+
   let
     verifiableProof = Poseidon2Proof(
       index: proof.index,
       nleaves: proof.nleaves,
       path: proof.path.mapIt(
-        ? Poseidon2Hash.fromBytes(it.toArray32).toResult
+        ? Poseidon2Hash.fromBytes(it.toArray32).toFailure
       ))
 
   success verifiableProof

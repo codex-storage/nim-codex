@@ -2,6 +2,8 @@ import std/os
 import std/options
 import std/math
 import std/times
+import std/sequtils
+import std/importutils
 
 import pkg/asynctest
 import pkg/chronos
@@ -11,6 +13,8 @@ import pkg/datastore
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
+import pkg/poseidon2
+import pkg/poseidon2/io
 
 import pkg/nitro
 import pkg/codexdht/discv5/protocol as discv5
@@ -21,23 +25,61 @@ import pkg/codex/contracts
 import pkg/codex/systemclock
 import pkg/codex/blockexchange
 import pkg/codex/chunker
-import pkg/codex/node
+import pkg/codex/slots
 import pkg/codex/manifest
 import pkg/codex/discovery
+import pkg/codex/erasure
+import pkg/codex/merkletree
 import pkg/codex/blocktype as bt
+
+import pkg/codex/node {.all.}
 
 import ../examples
 import ./helpers
 import ./helpers/mockmarket
 import ./helpers/mockclock
 
+privateAccess(CodexNodeRef) # enable access to private fields
+
 proc toTimesDuration(d: chronos.Duration): times.Duration =
-  initDuration(seconds=d.seconds)
+  initDuration(seconds = d.seconds)
 
-asyncchecksuite "Test Node":
+proc drain(
+  stream: LPStream | Result[lpstream.LPStream, ref CatchableError]):
+  Future[seq[byte]] {.async.} =
+
   let
-    (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
+    stream =
+      when typeof(stream) is Result[lpstream.LPStream, ref CatchableError]:
+        stream.tryGet()
+      else:
+        stream
 
+  defer:
+    await stream.close()
+
+  var data: seq[byte]
+  while not stream.atEof:
+    var
+      buf = newSeq[byte](DefaultBlockSize.int)
+      res = await stream.readOnce(addr buf[0], DefaultBlockSize.int)
+    check res <= DefaultBlockSize.int
+    buf.setLen(res)
+    data &= buf
+
+  data
+
+proc pipeChunker(stream: BufferStream, chunker: Chunker) {.async.} =
+  try:
+    while (
+      let chunk = await chunker.getBytes();
+      chunk.len > 0):
+      await stream.pushData(chunk)
+  finally:
+    await stream.pushEof()
+    await stream.close()
+
+template setupAndTearDown() {.dirty.} =
   var
     file: File
     chunker: Chunker
@@ -55,33 +97,13 @@ asyncchecksuite "Test Node":
     peerStore: PeerCtxStore
     pendingBlocks: PendingBlocksManager
     discovery: DiscoveryEngine
+    erasure: Erasure
 
-  proc fetch(T: type Manifest, chunker: Chunker): Future[Manifest] {.async.} =
-    # Collect blocks from Chunker into Manifest
-    await storeDataGetManifest(localStore, chunker)
-
-  proc retrieve(cid: Cid): Future[seq[byte]] {.async.} =
-    # Retrieve an entire file contents by file Cid
-    let
-      oddChunkSize = math.trunc(DefaultBlockSize.float/1.359).int  # Let's check that node.retrieve can correctly rechunk data
-      stream = (await node.retrieve(cid)).tryGet()
-    var
-      data: seq[byte]
-
-    defer: await stream.close()
-
-    while not stream.atEof:
-      var
-        buf = newSeq[byte](oddChunkSize)
-        res = await stream.readOnce(addr buf[0], oddChunkSize)
-      check res <= oddChunkSize
-      buf.setLen(res)
-      data &= buf
-
-    return data
+  let
+    path = currentSourcePath().parentDir
 
   setup:
-    file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
+    file = open(path /../ "fixtures" / "test.jpg")
     chunker = FileChunker.new(file = file, chunkSize = DefaultBlockSize)
     switch = newStandardSwitch()
     wallet = WalletRef.new(EthPrivateKey.random())
@@ -90,7 +112,7 @@ asyncchecksuite "Test Node":
     clock = SystemClock.new()
     localStoreMetaDs = SQLiteDatastore.new(Memory).tryGet()
     localStoreRepoDs = SQLiteDatastore.new(Memory).tryGet()
-    localStore = RepoStore.new(localStoreRepoDs, localStoreMetaDs, clock=clock)
+    localStore = RepoStore.new(localStoreRepoDs, localStoreMetaDs, clock = clock)
     await localStore.start()
 
     blockDiscovery = Discovery.new(
@@ -102,7 +124,8 @@ asyncchecksuite "Test Node":
     discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
     engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
-    node = CodexNodeRef.new(switch, store, engine, nil, blockDiscovery) # TODO: pass `Erasure`
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+    node = CodexNodeRef.new(switch, store, engine, erasure, blockDiscovery)
 
     await node.start()
 
@@ -110,9 +133,12 @@ asyncchecksuite "Test Node":
     close(file)
     await node.stop()
 
+asyncchecksuite "Test Node - Basic":
+  setupAndTearDown()
+
   test "Fetch Manifest":
     let
-      manifest = await Manifest.fetch(chunker)
+      manifest = await storeDataGetManifest(localStore, chunker)
 
       manifestBlock = bt.Block.new(
         manifest.encode().tryGet(),
@@ -127,7 +153,7 @@ asyncchecksuite "Test Node":
       fetched == manifest
 
   test "Block Batching":
-    let manifest = await Manifest.fetch(chunker)
+    let manifest = await storeDataGetManifest(localStore, chunker)
 
     for batchSize in 1..12:
       (await node.fetchBatched(
@@ -142,8 +168,9 @@ asyncchecksuite "Test Node":
     let
       stream = BufferStream.new()
       storeFut = node.store(stream)
-      oddChunkSize = math.trunc(DefaultBlockSize.float/3.14).NBytes  # Let's check that node.store can correctly rechunk these odd chunks
+      oddChunkSize = math.trunc(DefaultBlockSize.float / 3.14).NBytes  # Let's check that node.store can correctly rechunk these odd chunks
       oddChunker = FileChunker.new(file = file, chunkSize = oddChunkSize, pad = false)  # TODO: doesn't work with pad=tue
+
     var
       original: seq[byte]
 
@@ -159,14 +186,9 @@ asyncchecksuite "Test Node":
 
     let
       manifestCid = (await storeFut).tryGet()
-    check:
-      (await localStore.hasBlock(manifestCid)).tryGet()
-
-    let
       manifestBlock = (await localStore.getBlock(manifestCid)).tryGet()
       localManifest = Manifest.decode(manifestBlock).tryGet()
-
-    let data = await retrieve(manifestCid)
+      data = await (await node.retrieve(manifestCid)).drain()
 
     check:
       data.len == localManifest.datasetSize.int
@@ -186,80 +208,72 @@ asyncchecksuite "Test Node":
     await stream.readExactly(addr data[0], data.len)
     check string.fromBytes(data) == testString
 
+  test "Setup purchase request":
+    let
+      manifest = await storeDataGetManifest(localStore, chunker)
+      manifestBlock = bt.Block.new(
+        manifest.encode().tryGet(),
+        codec = ManifestCodec).tryGet()
 
-asyncchecksuite "Test Node - host contracts":
-  let
-    (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
+      protected = (await erasure.encode(manifest, 3, 2)).tryGet()
+      builder = SlotsBuilder.new(localStore, protected).tryGet()
+      verifiable = (await builder.buildManifest()).tryGet()
+      verifiableBlock = bt.Block.new(
+        verifiable.encode().tryGet(),
+        codec = ManifestCodec).tryGet()
+
+    (await localStore.putBlock(manifestBlock)).tryGet()
+
+    let
+      request = (await node.setupRequest(
+        cid = manifestBlock.cid,
+        nodes = 5,
+        tolerance = 2,
+        duration = 100.u256,
+        reward = 2.u256,
+        proofProbability = 3.u256,
+        expiry = 200.u256,
+        collateral = 200.u256)).tryGet
+
+    check:
+      (await verifiableBlock.cid in localStore) == true
+      request.content.cid == $verifiableBlock.cid
+      request.content.merkleRoot == builder.slotsRoot.get.toBytes
+
+asyncchecksuite "Test Node - Host contracts":
+  setupAndTearDown()
 
   var
-    file: File
-    chunker: Chunker
-    switch: Switch
-    wallet: WalletRef
-    network: BlockExcNetwork
-    clock: MockClock
-    localStore: RepoStore
-    localStoreRepoDs: DataStore
-    localStoreMetaDs: DataStore
-    engine: BlockExcEngine
-    store: NetworkStore
     sales: Sales
-    node: CodexNodeRef
-    blockDiscovery: Discovery
-    peerStore: PeerCtxStore
-    pendingBlocks: PendingBlocksManager
-    discovery: DiscoveryEngine
+    purchasing: Purchasing
     manifest: Manifest
-    manifestCid: string
-
-  proc fetch(T: type Manifest, chunker: Chunker): Future[Manifest] {.async.} =
-    # Collect blocks from Chunker into Manifest
-    await storeDataGetManifest(localStore, chunker)
+    manifestCidStr: string
+    manifestCid: Cid
+    market: MockMarket
 
   setup:
-    file = open(path.splitFile().dir /../ "fixtures" / "test.jpg")
-    chunker = FileChunker.new(file = file, chunkSize = DefaultBlockSize)
-    switch = newStandardSwitch()
-    wallet = WalletRef.new(EthPrivateKey.random())
-    network = BlockExcNetwork.new(switch)
-
-    clock = MockClock.new()
-    localStoreMetaDs = SQLiteDatastore.new(Memory).tryGet()
-    localStoreRepoDs = SQLiteDatastore.new(Memory).tryGet()
-    localStore = RepoStore.new(localStoreRepoDs, localStoreMetaDs, clock=clock)
-    await localStore.start()
-
-    blockDiscovery = Discovery.new(
-      switch.peerInfo.privateKey,
-      announceAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0")
-        .expect("Should return multiaddress")])
-    peerStore = PeerCtxStore.new()
-    pendingBlocks = PendingBlocksManager.new()
-    discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
-    engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
-    store = NetworkStore.new(engine, localStore)
-    node = CodexNodeRef.new(switch, store, engine, nil, blockDiscovery) # TODO: pass `Erasure`
-
     # Setup Host Contracts and dependencies
-    let market = MockMarket.new()
+    market = MockMarket.new()
     sales = Sales.new(market, clock, localStore)
-    let hostContracts = some HostInteractions.new(clock, sales)
-    node.contracts = (ClientInteractions.none, hostContracts, ValidatorInteractions.none)
+
+    node.contracts = (
+      none ClientInteractions,
+      some HostInteractions.new(clock, sales),
+      none ValidatorInteractions)
 
     await node.start()
 
     # Populate manifest in local store
     manifest = await storeDataGetManifest(localStore, chunker)
-    let manifestBlock = bt.Block.new(
+    let
+      manifestBlock = bt.Block.new(
         manifest.encode().tryGet(),
-        codec = ManifestCodec
-      ).tryGet()
-    manifestCid = $(manifestBlock.cid)
-    (await localStore.putBlock(manifestBlock)).tryGet()
+        codec = ManifestCodec).tryGet()
 
-  teardown:
-    close(file)
-    await node.stop()
+    manifestCid = manifestBlock.cid
+    manifestCidStr = $(manifestCid)
+
+    (await localStore.putBlock(manifestBlock)).tryGet()
 
   test "onExpiryUpdate callback is set":
     check sales.onExpiryUpdate.isSome
@@ -270,12 +284,13 @@ asyncchecksuite "Test Node - host contracts":
       expectedExpiry: SecondsSince1970 = clock.now + DefaultBlockTtl.seconds + 11123
       expiryUpdateCallback = !sales.onExpiryUpdate
 
-    (await expiryUpdateCallback(manifestCid, expectedExpiry)).tryGet()
+    (await expiryUpdateCallback(manifestCidStr, expectedExpiry)).tryGet()
 
     for index in 0..<manifest.blocksCount:
-      let blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
-      let expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet
-      let expiry = await localStoreMetaDs.get(expiryKey)
+      let
+        blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
+        expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet
+        expiry = await localStoreMetaDs.get(expiryKey)
 
       check (expiry.tryGet).toSecondsSince1970 == expectedExpiry
 
@@ -285,7 +300,7 @@ asyncchecksuite "Test Node - host contracts":
   test "onStore callback":
     let onStore = !sales.onStore
     var request = StorageRequest.example
-    request.content.cid = manifestCid
+    request.content.cid = manifestCidStr
     request.expiry = (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix.u256
     var fetchedBytes: uint = 0
 
@@ -298,8 +313,9 @@ asyncchecksuite "Test Node - host contracts":
     check fetchedBytes == 2293760
 
     for index in 0..<manifest.blocksCount:
-      let blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
-      let expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet
-      let expiry = await localStoreMetaDs.get(expiryKey)
+      let
+        blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
+        expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet
+        expiry = await localStoreMetaDs.get(expiryKey)
 
       check (expiry.tryGet).toSecondsSince1970 == request.expiry.toSecondsSince1970

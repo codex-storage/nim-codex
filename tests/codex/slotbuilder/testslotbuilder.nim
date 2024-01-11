@@ -11,6 +11,7 @@ import pkg/codex/rng
 import pkg/codex/stores
 import pkg/codex/chunker
 import pkg/codex/merkletree
+import pkg/codex/manifest {.all.}
 import pkg/codex/utils
 import pkg/codex/utils/digest
 import pkg/datastore
@@ -25,6 +26,10 @@ import ../merkletree/helpers
 import pkg/codex/indexingstrategy {.all.}
 import pkg/codex/slots/slotbuilder {.all.}
 import pkg/codex/slots/converters
+import pkg/codex/slots {.all.}
+
+privateAccess(SlotsBuilder) # enable access to private fields
+privateAccess(Manifest) # enable access to private fields
 
 suite "Slot builder":
   let
@@ -58,7 +63,7 @@ suite "Slot builder":
     manifest: Manifest
     protectedManifest: Manifest
     expectedEmptyCid: Cid
-    slotBuilder: SlotBuilder
+    slotBuilder: SlotsBuilder
     chunker: Chunker
 
   proc createBlocks(): Future[void] {.async.} =
@@ -116,8 +121,6 @@ suite "Slot builder":
       protectedManifest.hcodec,
       protectedManifest.codec).tryGet()
 
-  privateAccess(SlotBuilder) # enable access to private fields
-
   setup:
     let
       repoDs = SQLiteDatastore.new(Memory).tryGet()
@@ -131,6 +134,9 @@ suite "Slot builder":
   teardown:
     await localStore.close()
 
+    # TODO: THIS IS A BUG IN asynctest, because it doesn't release the
+    #       objects after the test is done, so we need to do it manually
+    #
     # Need to reset all objects because otherwise they get
     # captured by the test runner closures, not good!
     reset(datasetBlocks)
@@ -149,8 +155,8 @@ suite "Slot builder":
         datasetSize = originalDatasetSize.NBytes)
 
     check:
-      SlotBuilder.new(localStore, unprotectedManifest, cellSize = cellSize)
-        .error.msg == "Can only create SlotBuilder using protected manifests."
+      SlotsBuilder.new(localStore, unprotectedManifest, cellSize = cellSize)
+        .error.msg == "Can only create SlotsBuilder using protected manifests."
 
   test "Number of blocks must be devisable by number of slots":
     let
@@ -165,7 +171,7 @@ suite "Slot builder":
         ecM = ecM)
 
     check:
-      SlotBuilder.new(localStore, mismatchManifest, cellSize = cellSize)
+      SlotsBuilder.new(localStore, mismatchManifest, cellSize = cellSize)
         .error.msg == "Number of blocks must be divisable by number of slots."
 
   test "Block size must be divisable by cell size":
@@ -181,11 +187,11 @@ suite "Slot builder":
         ecM = ecM)
 
     check:
-      SlotBuilder.new(localStore, mismatchManifest, cellSize = cellSize)
+      SlotsBuilder.new(localStore, mismatchManifest, cellSize = cellSize)
         .error.msg == "Block size must be divisable by cell size."
 
   test "Should build correct slot builder":
-    slotBuilder = SlotBuilder.new(
+    slotBuilder = SlotsBuilder.new(
       localStore,
       protectedManifest,
       cellSize = cellSize).tryGet()
@@ -198,7 +204,7 @@ suite "Slot builder":
   test "Should build slot hashes for all slots":
     let
       steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
-      slotBuilder = SlotBuilder.new(
+      slotBuilder = SlotsBuilder.new(
         localStore,
         protectedManifest,
         cellSize = cellSize).tryGet()
@@ -221,7 +227,7 @@ suite "Slot builder":
   test "Should build slot trees for all slots":
     let
       steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
-      slotBuilder = SlotBuilder.new(
+      slotBuilder = SlotsBuilder.new(
         localStore,
         protectedManifest,
         cellSize = cellSize).tryGet()
@@ -244,7 +250,7 @@ suite "Slot builder":
 
   test "Should persist trees for all slots":
     let
-      slotBuilder = SlotBuilder.new(
+      slotBuilder = SlotsBuilder.new(
         localStore,
         protectedManifest,
         cellSize = cellSize).tryGet()
@@ -269,12 +275,13 @@ suite "Slot builder":
   test "Should build correct verification root":
     let
       steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
-      slotBuilder = SlotBuilder.new(
+      slotBuilder = SlotsBuilder.new(
         localStore,
         protectedManifest,
         cellSize = cellSize).tryGet()
-      slotRoots = (await slotBuilder.buildSlots()).tryGet
 
+    (await slotBuilder.buildSlots()).tryGet
+    let
       slotsHashes = collect(newSeq):
         for i in 0 ..< numSlots:
           let
@@ -289,7 +296,7 @@ suite "Slot builder":
           Merkle.digest(slotHashes & slotsPadLeafs)
 
       expectedRoot = Merkle.digest(slotsHashes & rootsPadLeafs)
-      rootHash = slotBuilder.buildRootsTree(slotRoots).tryGet().root.tryGet()
+      rootHash = slotBuilder.buildRootsTree(slotBuilder.slotRoots).tryGet().root.tryGet()
 
     check:
       expectedRoot == rootHash
@@ -297,7 +304,7 @@ suite "Slot builder":
   test "Should build correct verification root manifest":
     let
       steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
-      slotBuilder = SlotBuilder.new(
+      slotBuilder = SlotsBuilder.new(
         localStore,
         protectedManifest,
         cellSize = cellSize).tryGet()
@@ -317,9 +324,78 @@ suite "Slot builder":
 
       expectedRoot = Merkle.digest(slotsHashes & rootsPadLeafs)
       manifest = (await slotBuilder.buildManifest()).tryGet()
-      mhash = manifest.verificationRoot.mhash.tryGet()
+      mhash = manifest.slotsRoot.mhash.tryGet()
       mhashBytes = mhash.digestBytes
-      rootHash = Poseidon2Hash.fromBytes(mhashBytes.toArray32).toResult.tryGet()
+      rootHash = Poseidon2Hash.fromBytes(mhashBytes.toArray32).get
 
     check:
       expectedRoot == rootHash
+
+  test "Should not build from verifiable manifest with 0 slots":
+    var
+      slotBuilder = SlotsBuilder.new(
+        localStore,
+        protectedManifest,
+        cellSize = cellSize).tryGet()
+      verificationManifest = (await slotBuilder.buildManifest()).tryGet()
+
+    verificationManifest.slotRoots = @[]
+    check SlotsBuilder.new(
+        localStore,
+        verificationManifest,
+        cellSize = cellSize).isErr
+
+  test "Should not build from verifiable manifest with incorrect number of slots":
+    var
+      slotBuilder = SlotsBuilder.new(
+        localStore,
+        protectedManifest,
+        cellSize = cellSize).tryGet()
+
+      verificationManifest = (await slotBuilder.buildManifest()).tryGet()
+
+    verificationManifest.slotRoots.del(
+      verificationManifest.slotRoots.len - 1
+    )
+
+    check SlotsBuilder.new(
+        localStore,
+        verificationManifest,
+        cellSize = cellSize).isErr
+
+  test "Should not build from verifiable manifest with slots root":
+    let
+      slotBuilder = SlotsBuilder.new(
+        localStore,
+        protectedManifest,
+        cellSize = cellSize).tryGet()
+
+      verificationManifest = (await slotBuilder.buildManifest()).tryGet()
+      offset = verificationManifest.slotsRoot.data.buffer.len div 2
+
+    rng.shuffle(
+      Rng.instance,
+      verificationManifest.slotsRoot.data.buffer)
+
+    check SlotsBuilder.new(
+        localStore,
+        verificationManifest,
+        cellSize = cellSize).isErr
+
+  test "Should build from verifiable manifest":
+    let
+      slotBuilder = SlotsBuilder.new(
+        localStore,
+        protectedManifest,
+        cellSize = cellSize).tryGet()
+
+      verificationManifest = (await slotBuilder.buildManifest()).tryGet()
+
+      verificationBuilder = SlotsBuilder.new(
+        localStore,
+        verificationManifest,
+        cellSize = cellSize).tryGet()
+
+    check:
+      slotBuilder.slotRoots == verificationBuilder.slotRoots
+      slotBuilder.slotsRoot == verificationBuilder.slotsRoot
