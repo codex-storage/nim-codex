@@ -41,7 +41,8 @@ proc checkIteration(
       IndexingError,
       "Indexing iteration can't be greater than or equal to numberOfIterations.")
 
-method getIndicies*(
+
+method getIndices*(
   self: IndexingStrategy,
   iteration: int): Iter[int] {.base, raises: [IndexingError].} =
   raiseAssert("Not implemented")

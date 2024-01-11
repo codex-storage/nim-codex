@@ -1,6 +1,6 @@
 import std/sequtils
 import pkg/chronos
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 
 import pkg/codex/utils/asynciter
 
@@ -19,15 +19,15 @@ for offset in @[0, 1, 2, 100]:
 
     test "linear":
       check:
-        toSeq(linear.getIndicies(0)) == @[0, 1, 2, 3, 4].mapIt(it + offset)
-        toSeq(linear.getIndicies(1)) == @[5, 6, 7, 8, 9].mapIt(it + offset)
-        toSeq(linear.getIndicies(2)) == @[10, 11, 12].mapIt(it + offset)
+        linear.getIndices(0) == @[0, 1, 2, 3, 4].mapIt(it + offset)
+        linear.getIndices(1) == @[5, 6, 7, 8, 9].mapIt(it + offset)
+        linear.getIndices(2) == @[10, 11, 12].mapIt(it + offset)
 
     test "stepped":
       check:
-        toSeq(stepped.getIndicies(0)) == @[0, 3, 6, 9, 12].mapIt(it + offset)
-        toSeq(stepped.getIndicies(1)) == @[1, 4, 7, 10].mapIt(it + offset)
-        toSeq(stepped.getIndicies(2)) == @[2, 5, 8, 11].mapIt(it + offset)
+        stepped.getIndices(0) == @[0, 3, 6, 9, 12].mapIt(it + offset)
+        stepped.getIndices(1) == @[1, 4, 7, 10].mapIt(it + offset)
+        stepped.getIndices(2) == @[2, 5, 8, 11].mapIt(it + offset)
 
 suite "Indexing strategies":
   let
@@ -39,16 +39,16 @@ suite "Indexing strategies":
       l = LinearIndexingStrategy.new(0, 0, 1)
       s = SteppedIndexingStrategy.new(0, 0, 1)
     check:
-      toSeq(l.getIndicies(0)) == @[0]
-      toSeq(s.getIndicies(0)) == @[0]
+      l.getIndices(0) == @[0]
+      s.getIndices(0) == @[0]
 
   test "smallest range 1":
     let
       l = LinearIndexingStrategy.new(0, 1, 1)
       s = SteppedIndexingStrategy.new(0, 1, 1)
     check:
-      toSeq(l.getIndicies(0)) == @[0, 1]
-      toSeq(s.getIndicies(0)) == @[0, 1]
+      l.getIndices(0) == @[0, 1]
+      s.getIndices(0) == @[0, 1]
 
   test "first index must be smaller than last index":
     expect IndexingWrongIndexError:
@@ -60,8 +60,8 @@ suite "Indexing strategies":
 
   test "linear - oob":
     expect IndexingError:
-      discard linear.getIndicies(3)
+      discard linear.getIndices(3)
 
   test "stepped - oob":
     expect IndexingError:
-      discard stepped.getIndicies(3)
+      discard stepped.getIndices(3)
