@@ -1,6 +1,8 @@
 import std/sequtils
 import ./utils
 
+{.push raises: [].}
+
 # I'm choosing to use an assert here because:
 # 1. These are a programmer errors and *should not* happen during application runtime.
 # 2. Users don't have to deal with Result types.
