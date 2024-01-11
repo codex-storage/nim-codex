@@ -1,11 +1,12 @@
 import pkg/questionable
 import pkg/questionable/results
 import pkg/upraises
-import ../node/batch
+
 import ../market
 import ../clock
 import ./slotqueue
 import ./reservations
+import ../blocktype as bt
 
 type
   SalesContext* = ref object
@@ -22,9 +23,10 @@ type
     slotQueue*: SlotQueue
     simulateProofFailures*: int
 
+  BlocksCb* = proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, raises: [].}
   OnStore* = proc(request: StorageRequest,
                   slot: UInt256,
-                  onBatch: BatchProc): Future[?!void] {.gcsafe, upraises: [].}
+                  blocksCb: BlocksCb): Future[?!void] {.gcsafe, upraises: [].}
   OnProve* = proc(slot: Slot, challenge: ProofChallenge): Future[seq[byte]] {.gcsafe, upraises: [].}
   OnExpiryUpdate* = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.gcsafe, upraises: [].}
   OnClear* = proc(request: StorageRequest,
