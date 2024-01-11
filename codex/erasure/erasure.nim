@@ -72,11 +72,11 @@ type
     store*: BlockStore
 
   EncodingParams = object
-    ecK: int
-    ecM: int
-    rounded: int
-    steps: int
-    blocksCount: int
+    ecK: Natural
+    ecM: Natural
+    rounded: Natural
+    steps: Natural
+    blocksCount: Natural
 
 func indexToPos(steps, idx, step: int): int {.inline.} =
   ## Convert an index to a position in the encoded
@@ -121,10 +121,10 @@ proc prepareEncodingData(
   self: Erasure,
   manifest: Manifest,
   params: EncodingParams,
-  step: int,
+  step: Natural,
   data: ref seq[seq[byte]],
   cids: ref seq[Cid],
-  emptyBlock: seq[byte]): Future[?!int] {.async.} =
+  emptyBlock: seq[byte]): Future[?!Natural] {.async.} =
   ## Prepare data for encoding
   ##
 
@@ -158,16 +158,16 @@ proc prepareEncodingData(
       return failure(err)
     cids[idx] = emptyBlockCid
 
-  success(resolved)
+  success(resolved.Natural)
 
 proc prepareDecodingData(
   self: Erasure,
   encoded: Manifest,
-  step: int,
+  step: Natural,
   data: ref seq[seq[byte]],
   parityData: ref seq[seq[byte]],
   cids: ref seq[Cid],
-  emptyBlock: seq[byte]): Future[?!(int, int)] {.async.} =
+  emptyBlock: seq[byte]): Future[?!(Natural, Natural)] {.async.} =
   ## Prepare data for decoding
   ## `encoded`    - the encoded manifest
   ## `step`       - the current step
@@ -223,12 +223,12 @@ proc prepareDecodingData(
 
     resolved.inc
 
-  return success (dataPieces, parityPieces)
+  return success (dataPieces.Natural, parityPieces.Natural)
 
 proc init*(
   _: type EncodingParams,
   manifest: Manifest,
-  ecK: int, ecM: int): ?!EncodingParams =
+  ecK: Natural, ecM: Natural): ?!EncodingParams =
   if ecK > manifest.blocksCount:
     return failure(
       "Unable to encode manifest, not enough blocks, ecK = " &
@@ -343,8 +343,8 @@ proc encodeData(
 proc encode*(
   self: Erasure,
   manifest: Manifest,
-  blocks: uint,
-  parity: uint): Future[?!Manifest] {.async.} =
+  blocks: Natural,
+  parity: Natural): Future[?!Manifest] {.async.} =
   ## Encode a manifest into one that is erasure protected.
   ##
   ## `manifest`   - the original manifest to be encoded
@@ -378,7 +378,7 @@ proc decode*(
 
   var
     cids = seq[Cid].new()
-    recoveredIndices = newSeq[int]()
+    recoveredIndices = newSeq[Natural]()
     decoder = self.decoderProvider(encoded.blockSize.int, encoded.ecK, encoded.ecM)
     emptyBlock = newSeq[byte](encoded.blockSize.int)
 
@@ -448,7 +448,7 @@ proc decode*(
 
   let idxIter = Iter
     .fromItems(recoveredIndices)
-    .filter((i: int) => i < tree.leavesCount)
+    .filter((i: Natural) => i < tree.leavesCount)
 
   if err =? (await self.store.putSomeProofs(tree, idxIter)).errorOption:
       return failure(err)
