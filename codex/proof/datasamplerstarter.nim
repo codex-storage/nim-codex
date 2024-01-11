@@ -12,7 +12,7 @@ import ../merkletree
 import ../manifest
 import ../stores/blockstore
 import ../slots/converters
-import ../slots/slotbuilder
+import ../slots/builder
 
 type
   DataSamplerStarter* = object of RootObj
@@ -54,7 +54,7 @@ proc calculateDatasetSlotProof(manifest: Manifest, slotRoots: seq[Cid], slotInde
     error "Failed to get reconstructed dataset root tree", error = err.msg
     return failure(err)
 
-  without expectedDatasetRoot =? manifest.verificationRoot.fromProvingCid(), err:
+  without expectedDatasetRoot =? manifest.slotsRoot.fromProvingCid(), err:
     error "Failed to decode verification root from manifest", error = err.msg
     return failure(err)
 
@@ -69,11 +69,11 @@ proc recreateSlotTree(blockStore: BlockStore, manifest: Manifest, slotTreeCid: C
     error "Failed to convert slotTreeCid to hash", error = err.msg
     return failure(err)
 
-  without slotBuilder =? SlotBuilder.new(blockStore, manifest), err:
+  without slotsBuilder =? SlotsBuilder.new(blockStore, manifest), err:
     error "Failed to initialize SlotBuilder", error = err.msg
     return failure(err)
 
-  without reconstructedSlotRoot =? (await slotBuilder.buildSlot(datasetSlotIndex.int)), err:
+  without reconstructedSlotRoot =? (await slotsBuilder.buildSlot(datasetSlotIndex.int)), err:
     error "Failed to reconstruct slot tree", error = err.msg
     return failure(err)
 

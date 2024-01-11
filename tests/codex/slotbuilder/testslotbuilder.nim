@@ -24,7 +24,7 @@ import ../examples
 import ../merkletree/helpers
 
 import pkg/codex/indexingstrategy {.all.}
-import pkg/codex/slots/slotbuilder {.all.}
+import pkg/codex/slots/builder {.all.}
 import pkg/codex/slots/converters
 import pkg/codex/slots {.all.}
 

@@ -8,6 +8,7 @@ import pkg/poseidon2/io
 import ../merkletree
 import ../codextypes
 import ../errors
+import ../utils/digest
 
 func toCid(hash: Poseidon2Hash, mcodec: MultiCodec, cidCodec: MultiCodec): ?!Cid =
   let
@@ -34,7 +35,7 @@ func toCellCid*(hash: Poseidon2Hash): ?!Cid =
   toCid(hash, Pos2Bn128MrklCodec, CodexSlotCellCodec)
 
 func fromCellCid*(cid: Cid): ?!Poseidon2Hash =
-  toPoseidon2Hash(cid, Pos2Bn128MrklCodec, CodexSlotCell)
+  toPoseidon2Hash(cid, Pos2Bn128MrklCodec, CodexSlotCellCodec)
 
 func toSlotCid*(hash: Poseidon2Hash): ?!Cid =
   toCid(hash, multiCodec("identity"), SlotRootCodec)

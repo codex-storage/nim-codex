@@ -81,7 +81,7 @@ proc start*(self: DataSampler): Future[?!void] {.async.} =
     error "Failed to start data sampler", error = e.msg
     return failure(e)
 
-  without datasetRoot =? manifest.verificationRoot.fromProvingCid(), e:
+  without datasetRoot =? manifest.slotsRoot.fromProvingCid(), e:
     error "Failed to convert manifest verification root to Poseidon2Hash", error = e.msg
     return failure(e)
 

@@ -244,7 +244,7 @@ proc buildManifest*(self: SlotsBuilder): Future[?!Manifest] {.async.} =
     error "Failed to map slot roots to CIDs", err = err.msg
     return failure(err)
 
-  without rootProvingCidRes =? self.slotsRoot.?toSlotsRootsCid() and
+  without rootProvingCidRes =? self.slotsRoot.?toProvingCid() and
     rootProvingCid =? rootProvingCidRes, err: # TODO: why doesn't `.?` unpack the result?
     error "Failed to map slot roots to CIDs", err = err.msg
     return failure(err)
