@@ -300,7 +300,7 @@ proc new*(
   T: type SlotsBuilder,
   store: BlockStore,
   manifest: Manifest,
-  strategy: IndexingStrategy = nil,
+  strategy: ?IndexingStrategy = none IndexingStrategy,
   cellSize = CellSize): ?!SlotsBuilder =
 
   if not manifest.protected:
@@ -313,11 +313,11 @@ proc new*(
     return failure("Block size must be divisable by cell size.")
 
   let
-    strategy = if strategy == nil:
+    strategy = if strategy.isNone:
       SteppedIndexingStrategy.new(
         0, manifest.blocksCount - 1, manifest.numSlots)
       else:
-        strategy
+        strategy.get
 
     # all trees have to be padded to power of two
     numBlockCells = manifest.blockSize.int div cellSize                       # number of cells per block
@@ -327,23 +327,7 @@ proc new*(
     rootsPadLeafs = newSeqWith(manifest.numSlots.nextPowerOfTwoPad, Poseidon2Zero)
     blockEmptyDigest = ? Poseidon2Tree.digest(DefaultEmptyBlock & blockPadBytes, CellSize)
 
-  let (slotsRoot, slotRoots) =
-    if manifest.verifiable:
-      if manifest.slotRoots.len == 0:
-        return failure "Manifest is verifiable but has no slot roots."
-
-      let
-        slotRoot = Poseidon2Hash.fromBytes( ( ? manifest.slotsRoot.mhash.mapFailure ).digestBytes.toArray32 )
-        slotRoots = manifest.slotRoots.mapIt(
-          ? Poseidon2Hash.fromBytes(
-            ( ? it.mhash.mapFailure ).digestBytes.toArray32
-          ).toFailure
-        )
-
-      (slotRoot, slotRoots)
-    else: (none Poseidon2Hash, @[])
-
-  success SlotsBuilder(
+  var self = SlotsBuilder(
     store: store,
     manifest: manifest,
     strategy: strategy,
@@ -351,6 +335,31 @@ proc new*(
     blockPadBytes: blockPadBytes,
     slotsPadLeafs: slotsPadLeafs,
     rootsPadLeafs: rootsPadLeafs,
-    slotsRoot: slotsRoot,
-    slotRoots: slotRoots,
     blockEmptyDigest: blockEmptyDigest)
+
+  if manifest.verifiable:
+    if manifest.slotRoots.len == 0 or manifest.slotRoots.len != manifest.numSlots:
+      return failure "Manifest is verifiable but slot roots are missing or invalid."
+
+    let
+      slotRoot = ? Poseidon2Hash.fromBytes(
+        ( ? manifest.slotsRoot.mhash.mapFailure ).digestBytes.toArray32
+      ).toFailure
+
+      slotRoots = manifest.slotRoots.mapIt(
+        ? Poseidon2Hash.fromBytes(
+          ( ? it.mhash.mapFailure ).digestBytes.toArray32
+        ).toFailure
+      )
+
+    without root =? self.buildRootsTree(slotRoots).?root(), err:
+      error "Failed to build slot roots tree", err = err.msg
+      return failure(err)
+
+    if not bool(slotRoot == root): # TODO: `!=` doesn't work for SecretBool
+      return failure "Existing slots root doesn't match reconstructed root."
+
+    self.slotRoots = slotRoots
+    self.slotsRoot = some slotRoot
+
+  success self
