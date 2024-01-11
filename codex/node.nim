@@ -87,15 +87,15 @@ func discovery*(self: CodexNodeRef): Discovery =
 
 proc storeManifest*(self: CodexNodeRef, manifest: Manifest): Future[?!bt.Block] {.async.} =
   without encodedVerifiable =? manifest.encode(), err:
-    trace "Unable to encode verifiable manifest"
+    trace "Unable to encode manifest"
     return failure(err)
 
   without blk =? bt.Block.new(data = encodedVerifiable, codec = ManifestCodec), error:
-    trace "Unable to create block from verifiable manifest"
+    trace "Unable to create block from manifest"
     return failure(error)
 
   if err =? (await self.blockStore.putBlock(blk)).errorOption:
-    trace "Unable to store verifiable manifest block", cid = blk.cid, err = err.msg
+    trace "Unable to store manifest block", cid = blk.cid, err = err.msg
     return failure(err)
 
   success blk
