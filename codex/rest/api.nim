@@ -301,7 +301,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       ## reward           - the maximum amount of tokens paid per second per slot to hosts the client is willing to pay
       ## expiry           - timestamp, in seconds, when the request expires if the Request does not find requested amount of nodes to host the data
       ## nodes            - number of nodes the content should be stored on
-      ## tolerance        - allowed number of nodes that can be lost content is lost
+      ## tolerance        - allowed number of nodes that can be lost before content is lost
       ## colateral        - requested collateral from hosts when they fill slot
 
       try:
