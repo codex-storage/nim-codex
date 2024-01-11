@@ -1,4 +1,4 @@
 import ./node/testnode
-import ./node/teststoragecontracts
+import ./node/testcontracts
 
 {.warning[UnusedImport]: off.}
