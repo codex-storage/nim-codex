@@ -28,7 +28,7 @@ proc setLogLevel*(client: CodexClient, level: string) =
   let url = client.baseurl & "/debug/chronicles/loglevel?level=" & level
   let headers = newHttpHeaders({"Content-Type": "text/plain"})
   let response = client.http.request(url, httpMethod=HttpPost, headers=headers)
-  assert response.status == "200 OK"
+  assert response.status == "200 OK", response.status
 
 proc upload*(client: CodexClient, contents: string): ?!Cid =
   let response = client.http.post(client.baseurl & "/data", contents)

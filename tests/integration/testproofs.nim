@@ -30,9 +30,11 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
     # As we use in tests ethProvider.currentTime() which uses block timestamp this can lead to synchronization issues.
     await ethProvider.advanceTime(1.u256)
 
-  proc waitUntilPurchaseIsStarted(proofProbability: uint64 = 3,
-                                  duration: uint64 = 100 * period,
-                                  expiry: uint64 = 30) {.async.} =
+  proc waitUntilPurchaseIsStarted(
+    proofProbability: uint64 = 3,
+    duration: uint64 = 100 * period,
+    expiry: uint64 = 30
+  ) {.async: (handleException: true, raises: [AsyncExceptionError]).} =
     discard client2.postAvailability(
       size=0xFFFFF.u256,
       duration=duration.u256,
@@ -141,9 +143,11 @@ multinodesuite "Simulate invalid proofs",
     let endOfPeriod = periodicity.periodEnd(currentPeriod)
     await ethProvider.advanceTimeTo(endOfPeriod + 1)
 
-  proc waitUntilPurchaseIsStarted(proofProbability: uint64 = 1,
-                                  duration: uint64 = 12.periods,
-                                  expiry: uint64 = 4.periods) {.async.} =
+  proc waitUntilPurchaseIsStarted(
+    proofProbability: uint64 = 1,
+    duration: uint64 = 12.periods,
+    expiry: uint64 = 4.periods
+  ) {.async: (handleException: true, raises: [AsyncExceptionError]).} =
 
     if clients().len < 1 or providers().len < 1:
       raiseAssert("must start at least one client and one ethProvider")
