@@ -29,6 +29,10 @@ import ../utils
 import ../utils/digest
 import ../utils/poseidon2digest
 
+import ./converters
+
+export converters
+
 const
   # TODO: Unified with the CellSize specified in branch "data-sampler"
   # in the proving circuit.
@@ -116,54 +120,12 @@ func numBlockCells*(self: SlotsBuilder): Natural =
 
   self.manifest.blockSize.int div self.cellSize
 
-func toCellCid*(cell: Poseidon2Hash): ?!Cid =
-  let
-    cellMhash = ? MultiHash.init(Pos2Bn128MrklCodec, cell.toBytes).mapFailure
-    cellCid = ? Cid.init(CIDv1, CodexSlotCellCodec, cellMhash).mapFailure
+func slotIndicies*(self: SlotsBuilder, slot: Natural): seq[int] =
+  ## Returns the slot indices.
+  ## TODO: should return an iterator
+  ##
 
-  success cellCid
-
-func toSlotCid*(root: Poseidon2Hash): ?!Cid =
-  let
-    mhash = ? MultiHash.init($multiCodec("identity"), root.toBytes).mapFailure
-    treeCid = ? Cid.init(CIDv1, SlotRootCodec, mhash).mapFailure
-
-  success treeCid
-
-func toSlotCids*(slotRoots: openArray[Poseidon2Hash]): ?!seq[Cid] =
-  success slotRoots.mapIt( ? it.toSlotCid )
-
-func toSlotsRootsCid*(root: Poseidon2Hash): ?!Cid =
-  let
-    mhash = ? MultiHash.init($multiCodec("identity"), root.toBytes).mapFailure
-    treeCid = ? Cid.init(CIDv1, SlotProvingRootCodec, mhash).mapFailure
-
-  success treeCid
-
-func toEncodableProof*(
-  proof: Poseidon2Proof): ?!CodexProof =
-
-  let
-    encodableProof = CodexProof(
-      mcodec: multiCodec("identity"), # copy bytes as is
-      index: proof.index,
-      nleaves: proof.nleaves,
-      path: proof.path.mapIt( @(it.toBytes) ))
-
-  success encodableProof
-
-func toVerifiableProof*(
-  proof: CodexProof): ?!Poseidon2Proof =
-
-  let
-    verifiableProof = Poseidon2Proof(
-      index: proof.index,
-      nleaves: proof.nleaves,
-      path: proof.path.mapIt(
-        ? Poseidon2Hash.fromBytes(it.toArray32).toFailure
-      ))
-
-  success verifiableProof
+  self.strategy.getIndicies(slot)
 
 proc getCellHashes*(
   self: SlotsBuilder,
@@ -212,7 +174,7 @@ proc buildSlotTree*(
 
 proc buildSlot*(
   self: SlotsBuilder,
-  slotIndex: int): Future[?!Poseidon2Hash] {.async.} =
+  slotIndex: Natural): Future[?!Poseidon2Hash] {.async.} =
   ## Build a slot tree and store it in the block store.
   ##
 
@@ -338,7 +300,7 @@ proc new*(
 
   if manifest.verifiable:
     if manifest.slotRoots.len == 0 or manifest.slotRoots.len != manifest.numSlots:
-      return failure "Manifest is verifiable but slot r"
+      return failure "Manifest is verifiable but slot roots are missing or invalid."
 
     let
       slotRoot = ? Poseidon2Hash.fromBytes(
