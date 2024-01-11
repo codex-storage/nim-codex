@@ -380,11 +380,11 @@ proc setupRequest(
     return failure(err)
 
   let
-    slotsRoot =
-      if builder.slotsRoot.isNone:
+    verifyRoot =
+      if builder.verifyRoot.isNone:
           return failure("No slots root")
         else:
-          builder.slotsRoot.get.toBytes
+          builder.verifyRoot.get.toBytes
 
     slotRoots =
       if builder.slotRoots.len <= 0:
@@ -404,7 +404,7 @@ proc setupRequest(
       ),
       content: StorageContent(
         cid: $manifestBlk.cid, # TODO: why string?
-        merkleRoot: slotsRoot
+        merkleRoot: verifyRoot
       ),
       expiry: expiry
     )

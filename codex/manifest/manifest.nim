@@ -39,8 +39,8 @@ type
       originalDatasetSize: NBytes
       case verifiable {.serialize.}: bool   # Verifiable datasets can be used to generate storage proofs
       of true:
-        slotsRoot: Cid
-        slotRoots: seq[Cid]
+        verifyRoot: Cid                     # Root of the top level merkle tree built from slot roots
+        slotRoots: seq[Cid]                 # Individual slot root built from the original dataset blocks
       else:
         discard
     else:
@@ -92,8 +92,8 @@ proc blocksCount*(self: Manifest): int =
 proc verifiable*(self: Manifest): bool =
   self.verifiable
 
-proc slotsRoot*(self: Manifest): Cid =
-  self.slotsRoot
+proc verifyRoot*(self: Manifest): Cid =
+  self.verifyRoot
 
 proc slotRoots*(self: Manifest): seq[Cid] =
   self.slotRoots
@@ -160,7 +160,7 @@ proc `==`*(a, b: Manifest): bool =
       (a.originalDatasetSize == b.originalDatasetSize) and
       (a.verifiable == b.verifiable) and
         (if a.verifiable:
-          (a.slotsRoot == b.slotsRoot) and
+          (a.verifyRoot == b.verifyRoot) and
           (a.slotRoots == b.slotRoots)
         else:
           true)
@@ -182,7 +182,7 @@ proc `$`*(self: Manifest): string =
       ", originalDatasetSize: " & $self.originalDatasetSize &
       ", verifiable: " & $self.verifiable &
       (if self.verifiable:
-        ", slotsRoot: " & $self.slotsRoot &
+        ", verifyRoot: " & $self.verifyRoot &
         ", slotRoots: " & $self.slotRoots
       else:
         "")
@@ -288,7 +288,7 @@ proc new*(
 proc new*(
   T: type Manifest,
   manifest: Manifest,
-  slotsRoot: Cid,
+  verifyRoot: Cid,
   slotRoots: openArray[Cid]): ?!Manifest =
   ## Create a verifiable dataset from an
   ## protected one
@@ -315,5 +315,5 @@ proc new*(
     originalTreeCid: manifest.treeCid,
     originalDatasetSize: manifest.originalDatasetSize,
     verifiable: true,
-    slotsRoot: slotsRoot,
+    verifyRoot: verifyRoot,
     slotRoots: @slotRoots)

@@ -238,7 +238,7 @@ asyncchecksuite "Test Node - Basic":
     check:
       (await verifiableBlock.cid in localStore) == true
       request.content.cid == $verifiableBlock.cid
-      request.content.merkleRoot == builder.slotsRoot.get.toBytes
+      request.content.merkleRoot == builder.verifyRoot.get.toBytes
 
 asyncchecksuite "Test Node - Host contracts":
   setupAndTearDown()
