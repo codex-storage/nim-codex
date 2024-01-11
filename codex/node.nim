@@ -37,12 +37,8 @@ import ./streams
 import ./erasure
 import ./discovery
 import ./contracts
-import ./node/batch
 import ./utils
 import ./errors
-import ./merkletree
-
-export batch
 
 logScope:
   topics = "codex node"
@@ -51,14 +47,12 @@ const
   FetchBatch = 200
 
 type
-  CodexError = object of CatchableError
-
   Contracts* = tuple
     client: ?ClientInteractions
     host: ?HostInteractions
     validator: ?ValidatorInteractions
 
-  CodexNodeRef* = ref object
+  CodexNode* = object
     switch: Switch
     networkId: PeerId
     blockStore: BlockStore
@@ -67,8 +61,12 @@ type
     discovery: Discovery
     contracts*: Contracts
     clock*: Clock
+    storage*: Contracts
 
-  OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, closure.}
+  CodexNodeRef* = ref CodexNode
+
+  OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, raises: [].}
+  BatchProc* = proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, raises: [].}
 
 func switch*(self: CodexNodeRef): Switch =
   return self.switch
@@ -490,58 +488,6 @@ proc start*(node: CodexNodeRef) {.async.} =
     await node.clock.start()
 
   if hostContracts =? node.contracts.host:
-    # TODO: remove Sales callbacks, pass BlockStore and StorageProofs instead
-    hostContracts.sales.onStore = proc(request: StorageRequest,
-                                       slot: UInt256,
-                                       onBatch: BatchProc): Future[?!void] {.async.} =
-      ## store data in local storage
-      ##
-
-      without cid =? Cid.init(request.content.cid):
-        trace "Unable to parse Cid", cid
-        let error = newException(CodexError, "Unable to parse Cid")
-        return failure(error)
-
-      without manifest =? await node.fetchManifest(cid), error:
-        trace "Unable to fetch manifest for cid", cid
-        return failure(error)
-
-      trace "Fetching block for manifest", cid
-      let expiry = request.expiry.toSecondsSince1970
-      proc expiryUpdateOnBatch(blocks: seq[bt.Block]): Future[?!void] {.async.} =
-        let ensureExpiryFutures = blocks.mapIt(node.blockStore.ensureExpiry(it.cid, expiry))
-        if updateExpiryErr =? (await allFutureResult(ensureExpiryFutures)).errorOption:
-          return failure(updateExpiryErr)
-
-        if not onBatch.isNil and onBatchErr =? (await onBatch(blocks)).errorOption:
-          return failure(onBatchErr)
-
-        return success()
-
-      if fetchErr =? (await node.fetchBatched(manifest, onBatch = expiryUpdateOnBatch)).errorOption:
-        let error = newException(CodexError, "Unable to retrieve blocks")
-        error.parent = fetchErr
-        return failure(error)
-
-      return success()
-
-    hostContracts.sales.onExpiryUpdate = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.async.} =
-      without cid =? Cid.init(rootCid):
-        trace "Unable to parse Cid", cid
-        let error = newException(CodexError, "Unable to parse Cid")
-        return failure(error)
-
-      return await node.updateExpiry(cid, expiry)
-
-    hostContracts.sales.onClear = proc(request: StorageRequest,
-                                       slotIndex: UInt256) =
-      # TODO: remove data from local storage
-      discard
-
-    hostContracts.sales.onProve = proc(slot: Slot, challenge: ProofChallenge): Future[seq[byte]] {.async.} =
-      # TODO: generate proof
-      return @[42'u8]
-
     try:
       await hostContracts.start()
     except CatchableError as error:
