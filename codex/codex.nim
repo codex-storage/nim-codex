@@ -39,7 +39,6 @@ import ./contracts/clock
 import ./contracts/deployment
 import ./utils/addrutils
 import ./namespaces
-import ./storagehandler
 
 logScope:
   topics = "codex node"
@@ -52,14 +51,12 @@ type
     codexNode: CodexNodeRef
     repoStore: RepoStore
     maintenance: BlockMaintainer
-    storageHandler: StorageHandler
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
   EthWallet = ethers.Wallet
 
 proc bootstrapInteractions(
-    s: CodexServer
-): Future[void] {.async.} =
+  s: CodexServer): Future[void] {.async.} =
   ## bootstrap interactions and return contracts
   ## using clients, hosts, validators pairings
   ##
@@ -192,10 +189,9 @@ proc stop*(s: CodexServer) {.async.} =
   s.runHandle.complete()
 
 proc new*(
-    T: type CodexServer,
-    config: CodexConf,
-    privateKey: CodexPrivateKey
-): CodexServer =
+  T: type CodexServer,
+  config: CodexConf,
+  privateKey: CodexPrivateKey): CodexServer =
   ## create CodexServer including setting up datastore, repostore, etc
   let
     switch = SwitchBuilder
@@ -267,7 +263,6 @@ proc new*(
     store = NetworkStore.new(engine, repoStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery)
-    storageHandler = StorageHandler.init(codexNode)
     restServer = RestServerRef.new(
       codexNode.initRestApi(config, repoStore),
       initTAddress(config.apiBindAddress , config.apiPort),
@@ -282,5 +277,4 @@ proc new*(
     codexNode: codexNode,
     restServer: restServer,
     repoStore: repoStore,
-    maintenance: maintenance,
-    storageHandler: storageHandler)
+    maintenance: maintenance)
