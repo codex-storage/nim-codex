@@ -11,6 +11,7 @@ import pkg/codex/rng
 import pkg/codex/stores
 import pkg/codex/chunker
 import pkg/codex/merkletree
+import pkg/codex/manifest {.all.}
 import pkg/codex/utils
 import pkg/codex/utils/digest
 import pkg/datastore
@@ -24,6 +25,9 @@ import ../merkletree/helpers
 
 import pkg/codex/indexingstrategy {.all.}
 import pkg/codex/slots {.all.}
+
+privateAccess(SlotsBuilder) # enable access to private fields
+privateAccess(Manifest) # enable access to private fields
 
 suite "Slot builder":
   let
@@ -114,8 +118,6 @@ suite "Slot builder":
       protectedManifest.version,
       protectedManifest.hcodec,
       protectedManifest.codec).tryGet()
-
-  privateAccess(SlotsBuilder) # enable access to private fields
 
   setup:
     let
@@ -327,9 +329,59 @@ suite "Slot builder":
     check:
       expectedRoot == rootHash
 
+  test "Should not build from verifiable manifest with 0 slots":
+    var
+      slotBuilder = SlotsBuilder.new(
+        localStore,
+        protectedManifest,
+        cellSize = cellSize).tryGet()
+      verificationManifest = (await slotBuilder.buildManifest()).tryGet()
+
+    verificationManifest.slotRoots = @[]
+    check SlotsBuilder.new(
+        localStore,
+        verificationManifest,
+        cellSize = cellSize).isErr
+
+  test "Should not build from verifiable manifest with incorrect number of slots":
+    var
+      slotBuilder = SlotsBuilder.new(
+        localStore,
+        protectedManifest,
+        cellSize = cellSize).tryGet()
+
+      verificationManifest = (await slotBuilder.buildManifest()).tryGet()
+
+    verificationManifest.slotRoots.del(
+      verificationManifest.slotRoots.len - 1
+    )
+
+    check SlotsBuilder.new(
+        localStore,
+        verificationManifest,
+        cellSize = cellSize).isErr
+
+  test "Should not build from verifiable manifest with slots root":
+    let
+      slotBuilder = SlotsBuilder.new(
+        localStore,
+        protectedManifest,
+        cellSize = cellSize).tryGet()
+
+      verificationManifest = (await slotBuilder.buildManifest()).tryGet()
+      offset = verificationManifest.slotsRoot.data.buffer.len div 2
+
+    rng.shuffle(
+      Rng.instance,
+      verificationManifest.slotsRoot.data.buffer)
+
+    check SlotsBuilder.new(
+        localStore,
+        verificationManifest,
+        cellSize = cellSize).isErr
+
   test "Should build from verifiable manifest":
     let
-      steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
       slotBuilder = SlotsBuilder.new(
         localStore,
         protectedManifest,
