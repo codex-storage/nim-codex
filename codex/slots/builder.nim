@@ -51,7 +51,7 @@ type
     slotsPadLeafs: seq[Poseidon2Hash]
     rootsPadLeafs: seq[Poseidon2Hash]
     slotRoots: seq[Poseidon2Hash]
-    slotsRoot: ?Poseidon2Hash
+    verifyRoot: ?Poseidon2Hash
 
 func slotRoots*(self: SlotsBuilder): seq[Poseidon2Hash] {.inline.} =
   ## Returns the slot roots.
@@ -59,11 +59,11 @@ func slotRoots*(self: SlotsBuilder): seq[Poseidon2Hash] {.inline.} =
 
   self.slotRoots
 
-func slotsRoot*(self: SlotsBuilder): ?Poseidon2Hash {.inline.} =
+func verifyRoot*(self: SlotsBuilder): ?Poseidon2Hash {.inline.} =
   ## Returns the slots root (verification root).
   ##
 
-  self.slotsRoot
+  self.verifyRoot
 
 func nextPowerOfTwoPad*(a: int): int =
   ## Returns the difference between the original
@@ -227,11 +227,10 @@ proc buildSlots*(self: SlotsBuilder): Future[?!void] {.async.} =
     error "Failed to build slot roots tree", err = err.msg
     return failure(err)
 
-  if self.slotsRoot.isSome and
-    not bool(self.slotsRoot.get == root): # TODO: `!=` doesn't work for SecretBool
+  if self.verifyRoot.isSome and self.verifyRoot.get != root:
       return failure "Existing slots root doesn't match reconstructed root."
   else:
-    self.slotsRoot = some root
+    self.verifyRoot = some root
 
   success()
 
@@ -244,7 +243,7 @@ proc buildManifest*(self: SlotsBuilder): Future[?!Manifest] {.async.} =
     error "Failed to map slot roots to CIDs", err = err.msg
     return failure(err)
 
-  without rootProvingCidRes =? self.slotsRoot.?toProvingCid() and
+  without rootProvingCidRes =? self.verifyRoot.?toSlotsRootsCid() and
     rootProvingCid =? rootProvingCidRes, err: # TODO: why doesn't `.?` unpack the result?
     error "Failed to map slot roots to CIDs", err = err.msg
     return failure(err)
@@ -298,7 +297,7 @@ proc new*(
 
     let
       slotRoot = ? Poseidon2Hash.fromBytes(
-        ( ? manifest.slotsRoot.mhash.mapFailure ).digestBytes.toArray32
+        ( ? manifest.verifyRoot.mhash.mapFailure ).digestBytes.toArray32
       ).toFailure
 
       slotRoots = manifest.slotRoots.mapIt(
@@ -311,10 +310,10 @@ proc new*(
       error "Failed to build slot roots tree", err = err.msg
       return failure(err)
 
-    if not bool(slotRoot == root): # TODO: `!=` doesn't work for SecretBool
+    if slotRoot != root:
       return failure "Existing slots root doesn't match reconstructed root."
 
     self.slotRoots = slotRoots
-    self.slotsRoot = some slotRoot
+    self.verifyRoot = some slotRoot
 
   success self

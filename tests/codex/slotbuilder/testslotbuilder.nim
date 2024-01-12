@@ -324,7 +324,7 @@ suite "Slot builder":
 
       expectedRoot = Merkle.digest(slotsHashes & rootsPadLeafs)
       manifest = (await slotBuilder.buildManifest()).tryGet()
-      mhash = manifest.slotsRoot.mhash.tryGet()
+      mhash = manifest.verifyRoot.mhash.tryGet()
       mhashBytes = mhash.digestBytes
       rootHash = Poseidon2Hash.fromBytes(mhashBytes.toArray32).get
 
@@ -337,12 +337,12 @@ suite "Slot builder":
         localStore,
         protectedManifest,
         cellSize = cellSize).tryGet()
-      verificationManifest = (await slotBuilder.buildManifest()).tryGet()
+      verifyManifest = (await slotBuilder.buildManifest()).tryGet()
 
-    verificationManifest.slotRoots = @[]
+    verifyManifest.slotRoots = @[]
     check SlotsBuilder.new(
         localStore,
-        verificationManifest,
+        verifyManifest,
         cellSize = cellSize).isErr
 
   test "Should not build from verifiable manifest with incorrect number of slots":
@@ -352,15 +352,15 @@ suite "Slot builder":
         protectedManifest,
         cellSize = cellSize).tryGet()
 
-      verificationManifest = (await slotBuilder.buildManifest()).tryGet()
+      verifyManifest = (await slotBuilder.buildManifest()).tryGet()
 
-    verificationManifest.slotRoots.del(
-      verificationManifest.slotRoots.len - 1
+    verifyManifest.slotRoots.del(
+      verifyManifest.slotRoots.len - 1
     )
 
     check SlotsBuilder.new(
         localStore,
-        verificationManifest,
+        verifyManifest,
         cellSize = cellSize).isErr
 
   test "Should not build from verifiable manifest with slots root":
@@ -370,16 +370,16 @@ suite "Slot builder":
         protectedManifest,
         cellSize = cellSize).tryGet()
 
-      verificationManifest = (await slotBuilder.buildManifest()).tryGet()
-      offset = verificationManifest.slotsRoot.data.buffer.len div 2
+      verifyManifest = (await slotBuilder.buildManifest()).tryGet()
+      offset = verifyManifest.verifyRoot.data.buffer.len div 2
 
     rng.shuffle(
       Rng.instance,
-      verificationManifest.slotsRoot.data.buffer)
+      verifyManifest.verifyRoot.data.buffer)
 
     check SlotsBuilder.new(
         localStore,
-        verificationManifest,
+        verifyManifest,
         cellSize = cellSize).isErr
 
   test "Should build from verifiable manifest":
@@ -389,13 +389,13 @@ suite "Slot builder":
         protectedManifest,
         cellSize = cellSize).tryGet()
 
-      verificationManifest = (await slotBuilder.buildManifest()).tryGet()
+      verifyManifest = (await slotBuilder.buildManifest()).tryGet()
 
       verificationBuilder = SlotsBuilder.new(
         localStore,
-        verificationManifest,
+        verifyManifest,
         cellSize = cellSize).tryGet()
 
     check:
       slotBuilder.slotRoots == verificationBuilder.slotRoots
-      slotBuilder.slotsRoot == verificationBuilder.slotsRoot
+      slotBuilder.verifyRoot == verificationBuilder.verifyRoot

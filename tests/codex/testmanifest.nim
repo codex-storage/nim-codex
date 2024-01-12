@@ -43,7 +43,7 @@ checksuite "Manifest":
 
     verifiableManifest = Manifest.new(
       manifest = protectedManifest,
-      slotsRoot = slotsRootsCid,
+      verifyRoot = slotsRootsCid,
       slotRoots = slotLeavesCids
     ).tryGet()
 

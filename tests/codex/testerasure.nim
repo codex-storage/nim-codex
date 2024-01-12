@@ -39,8 +39,8 @@ suite "Erasure encode/decode":
     let
       encoded = (await erasure.encode(
         manifest,
-        buffers.uint,
-        parity.uint)).tryGet()
+        buffers.Natural,
+        parity.Natural)).tryGet()
 
     check:
       encoded.blocksCount mod (buffers + parity) == 0
