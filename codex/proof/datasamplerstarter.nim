@@ -12,13 +12,14 @@ import ../manifest
 import ../stores/blockstore
 import ../slots/converters
 import ../slots/builder
-import ./proofpadding
+import proofpadding
 
 type
   DataSamplerStarter* = object of RootObj
     datasetSlotIndex*: uint64
     datasetToSlotProof*: Poseidon2Proof
     slotTreeCid*: Cid
+    padding*: ProofPadding
 
 proc getNumberOfBlocksInSlot*(slot: Slot, manifest: Manifest): uint64 =
   let blockSize = manifest.blockSize.uint64
@@ -114,8 +115,13 @@ proc startDataSampler*(blockStore: BlockStore, manifest: Manifest, slot: Slot): 
     error "Failed to load or recreate slot tree", error = err.msg
     return failure(err)
 
+  without padding =? ProofPadding.new(manifest, DefaultCellSize), err:
+    error "Failed to calculate proof padding", error = err.msg
+    return failure(err)
+
   success(DataSamplerStarter(
     datasetSlotIndex: datasetSlotIndex,
     datasetToSlotProof: datasetToSlotProof,
-    slotTreeCid: slotTreeCid
+    slotTreeCid: slotTreeCid,
+    padding: padding
   ))

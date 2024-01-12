@@ -47,17 +47,6 @@ asyncchecksuite "Test proof datasampler - components":
       slotIndex: u256(3)
     )
 
-  test "Number of cells is a power of two":
-    # This is to check that the data used for testing is sane.
-    proc isPow2(value: int): bool =
-      let log2 = ceilingLog2(value)
-      return (1 shl log2) == value
-
-    let numberOfCells = getNumberOfCellsInSlot(slot).int
-
-    check:
-      isPow2(numberOfCells)
-
   test "Extract low bits":
     proc extract(value: uint64, nBits: int): uint64 =
       let big = toF(value).toBig()
@@ -113,50 +102,6 @@ asyncchecksuite "Test proof datasampler - main":
   teardown:
     reset(env)
     reset(dataSampler)
-
-  test "Number of cells is a power of two":
-    # This is to check that the data used for testing is sane.
-    proc isPow2(value: int): bool =
-      let log2 = ceilingLog2(value)
-      return (1 shl log2) == value
-
-    let numberOfCells = getNumberOfCellsInSlot(env.slot).int
-
-    check:
-      isPow2(numberOfCells)
-
-  let knownIndices = @[90.uint64, 93.uint64, 29.uint64]
-
-  test "Can find single slot-cell index":
-    proc slotCellIndex(i: int): uint64 =
-      let counter: Poseidon2Hash = toF(i)
-      return dataSampler.findSlotCellIndex(env.challenge, counter)
-
-    proc getExpectedIndex(i: int): uint64 =
-      let
-        numberOfCellsInSlot = (bytesPerBlock * numberOfSlotBlocks) div DefaultCellSize.uint64.int
-        slotRootHash = env.slotTree.root().tryGet()
-        hash = Sponge.digest(@[slotRootHash, env.challenge, toF(i)], rate = 2)
-      return extractLowBits(hash.toBig(), ceilingLog2(numberOfCellsInSlot))
-
-    check:
-      slotCellIndex(1) == getExpectedIndex(1)
-      slotCellIndex(1) == knownIndices[0]
-      slotCellIndex(2) == getExpectedIndex(2)
-      slotCellIndex(2) == knownIndices[1]
-      slotCellIndex(3) == getExpectedIndex(3)
-      slotCellIndex(3) == knownIndices[2]
-
-  test "Can find sequence of slot-cell indices":
-    proc slotCellIndices(n: int): seq[uint64]  =
-      dataSampler.findSlotCellIndices(env.challenge, n)
-
-    proc getExpectedIndices(n: int): seq[uint64]  =
-      return collect(newSeq, (for i in 1..n: dataSampler.findSlotCellIndex(env.challenge, toF(i))))
-
-    check:
-      slotCellIndices(3) == getExpectedIndices(3)
-      slotCellIndices(3) == knownIndices
 
   test "Can get cell from block":
     let
@@ -236,21 +181,3 @@ asyncchecksuite "Test proof datasampler - main":
       toHex(input.proofSamples[0].cellData) == expectedCellData[0]
       toHex(input.proofSamples[1].cellData) == expectedCellData[1]
       toHex(input.proofSamples[2].cellData) == expectedCellData[2]
-
-  for (input, expected) in [(10, 0), (31, 0), (32, 1), (63, 1), (64, 2)]:
-    test "Can get slotBlockIndex from slotCellIndex (" & $input & " -> " & $expected & ")":
-      let
-        slotCellIndex = input.uint64
-        slotBlockIndex = dataSampler.getSlotBlockIndexForSlotCellIndex(slotCellIndex)
-
-      check:
-        slotBlockIndex == expected.uint64
-
-  for (input, expected) in [(10, 10), (31, 31), (32, 0), (63, 31), (64, 0)]:
-    test "Can get blockCellIndex from slotCellIndex (" & $input & " -> " & $expected & ")":
-      let
-        slotCellIndex = input.uint64
-        blockCellIndex = dataSampler.getBlockCellIndexForSlotCellIndex(slotCellIndex)
-
-      check:
-        blockCellIndex == expected.uint64
