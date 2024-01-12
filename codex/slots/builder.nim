@@ -26,6 +26,7 @@ import ../merkletree
 import ../stores
 import ../manifest
 import ../utils
+import ../utils/asynciter
 import ../utils/digest
 import ../utils/poseidon2digest
 
@@ -120,12 +121,12 @@ func numBlockCells*(self: SlotsBuilder): Natural =
 
   self.manifest.blockSize.int div self.cellSize
 
-func slotIndicies*(self: SlotsBuilder, slot: Natural): seq[int] =
+func slotIndicies*(self: SlotsBuilder, slot: Natural): ?!Iter[int] =
   ## Returns the slot indices.
   ## TODO: should return an iterator
   ##
 
-  self.strategy.getIndicies(slot)
+  self.strategy.getIndicies(slot).catch
 
 proc getCellHashes*(
   self: SlotsBuilder,
@@ -275,8 +276,8 @@ proc new*(
 
   let
     strategy = if strategy.isNone:
-      SteppedIndexingStrategy.new(
-        0, manifest.blocksCount - 1, manifest.numSlots)
+      ? SteppedIndexingStrategy.new(
+        0, manifest.blocksCount - 1, manifest.numSlots).catch
       else:
         strategy.get
 
