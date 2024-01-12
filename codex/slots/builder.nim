@@ -29,13 +29,13 @@ import ../utils
 import ../utils/digest
 import ./converters
 import ../utils/poseidon2digest
+import ../proof/proofpadding
 
 const
   # TODO: Unified with the CellSize specified in branch "data-sampler"
   # in the proving circuit.
   CellSize* = 2048
 
-  DefaultEmptyBlock* = newSeq[byte](DefaultBlockSize.int)
   DefaultEmptyCell* = newSeq[byte](DefaultCellSize.int)
 
 type
@@ -46,10 +46,7 @@ type
     manifest: Manifest
     strategy: IndexingStrategy
     cellSize: int
-    blockEmptyDigest: Poseidon2Hash
-    blockPadBytes: seq[byte]
-    slotsPadLeafs: seq[Poseidon2Hash]
-    rootsPadLeafs: seq[Poseidon2Hash]
+    padding: ProofPadding
     slotRoots: seq[Poseidon2Hash]
     verifyRoot: ?Poseidon2Hash
 
@@ -65,33 +62,26 @@ func verifyRoot*(self: SlotsBuilder): ?Poseidon2Hash {.inline.} =
 
   self.verifyRoot
 
-func nextPowerOfTwoPad*(a: int): int =
-  ## Returns the difference between the original
-  ## value and the next power of two.
-  ##
-
-  nextPowerOfTwo(a) - a
-
 func numBlockPadBytes*(self: SlotsBuilder): Natural =
   ## Number of padding bytes required for a pow2
   ## merkle tree for each block.
   ##
 
-  self.blockPadBytes.len
+  self.padding.blockPadBytes.len
 
 func numSlotsPadLeafs*(self: SlotsBuilder): Natural =
   ## Number of padding field elements required for a pow2
   ## merkle tree for each slot.
   ##
 
-  self.slotsPadLeafs.len
+  self.padding.slotsPadLeafs.len
 
 func numRootsPadLeafs*(self: SlotsBuilder): Natural =
   ## Number of padding field elements required for a pow2
   ## merkle tree for the slot roots.
   ##
 
-  self.rootsPadLeafs.len
+  self.padding.rootsPadLeafs.len
 
 func numSlots*(self: SlotsBuilder): Natural =
   ## Number of slots.
@@ -146,9 +136,9 @@ proc getCellHashes*(
           return failure(err)
 
         if blk.isEmpty:
-          self.blockEmptyDigest
+          self.padding.blockEmptyDigest
         else:
-          without digest =? Poseidon2Tree.digest(blk.data & self.blockPadBytes, self.cellSize), err:
+          without digest =? Poseidon2Tree.digest(blk.data & self.padding.blockPadBytes, self.cellSize), err:
             error "Failed to create digest for block"
             return failure(err)
 
@@ -163,7 +153,7 @@ proc buildSlotTree*(
     error "Failed to select slot blocks", err = err.msg
     return failure(err)
 
-  Poseidon2Tree.init(cellHashes & self.slotsPadLeafs)
+  Poseidon2Tree.init(cellHashes & self.padding.slotsPadLeafs)
 
 proc buildSlot*(
   self: SlotsBuilder,
@@ -203,7 +193,7 @@ proc buildSlot*(
 func buildRootsTree*(
   self: SlotsBuilder,
   slotRoots: openArray[Poseidon2Hash]): ?!Poseidon2Tree =
-  Poseidon2Tree.init(@slotRoots & self.rootsPadLeafs)
+  Poseidon2Tree.init(@slotRoots & self.padding.rootsPadLeafs)
 
 proc buildSlots*(self: SlotsBuilder): Future[?!void] {.async.} =
   ## Build all slot trees and store them in the block store.
@@ -257,14 +247,9 @@ proc new*(
   strategy: ?IndexingStrategy = none IndexingStrategy,
   cellSize = CellSize): ?!SlotsBuilder =
 
-  if not manifest.protected:
-    return failure("Can only create SlotsBuilder using protected manifests.")
-
-  if (manifest.blocksCount mod manifest.numSlots) != 0:
-    return failure("Number of blocks must be divisable by number of slots.")
-
-  if (manifest.blockSize.int mod cellSize) != 0:
-    return failure("Block size must be divisable by cell size.")
+  without padding =? ProofPadding.new(manifest, cellSize.NBytes), err:
+    error "Unable to create ProofPadding", error = err.msg
+    return failure(err)
 
   let
     strategy = if strategy.isNone:
@@ -273,23 +258,12 @@ proc new*(
       else:
         strategy.get
 
-    # all trees have to be padded to power of two
-    numBlockCells = manifest.blockSize.int div cellSize                       # number of cells per block
-    blockPadBytes = newSeq[byte](numBlockCells.nextPowerOfTwoPad * cellSize)  # power of two padding for blocks
-    numSlotLeafs = (manifest.blocksCount div manifest.numSlots)
-    slotsPadLeafs = newSeqWith(numSlotLeafs.nextPowerOfTwoPad, Poseidon2Zero) # power of two padding for block roots
-    rootsPadLeafs = newSeqWith(manifest.numSlots.nextPowerOfTwoPad, Poseidon2Zero)
-    blockEmptyDigest = ? Poseidon2Tree.digest(DefaultEmptyBlock & blockPadBytes, CellSize)
-
   var self = SlotsBuilder(
     store: store,
     manifest: manifest,
     strategy: strategy,
     cellSize: cellSize,
-    blockPadBytes: blockPadBytes,
-    slotsPadLeafs: slotsPadLeafs,
-    rootsPadLeafs: rootsPadLeafs,
-    blockEmptyDigest: blockEmptyDigest)
+    padding: padding)
 
   if manifest.verifiable:
     if manifest.slotRoots.len == 0 or manifest.slotRoots.len != manifest.numSlots:

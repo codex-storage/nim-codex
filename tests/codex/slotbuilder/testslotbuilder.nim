@@ -24,6 +24,7 @@ import ../examples
 import ../merkletree/helpers
 
 import pkg/codex/indexingstrategy {.all.}
+import pkg/codex/proof/proofpadding
 import pkg/codex/slots/builder {.all.}
 import pkg/codex/slots/converters
 import pkg/codex/slots {.all.}
@@ -156,7 +157,7 @@ suite "Slot builder":
 
     check:
       SlotsBuilder.new(localStore, unprotectedManifest, cellSize = cellSize)
-        .error.msg == "Can only create SlotsBuilder using protected manifests."
+        .error.msg == "Protected manifest is required."
 
   test "Number of blocks must be devisable by number of slots":
     let

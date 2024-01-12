@@ -18,6 +18,7 @@ import pkg/codex/stores/cachestore
 import pkg/codex/indexingstrategy
 
 import pkg/codex/proof/datasamplerstarter
+import pkg/codex/proof/proofpadding
 import pkg/codex/slots/converters
 import pkg/codex/utils/poseidon2digest
 import pkg/codex/slots/builder

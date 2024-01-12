@@ -13,6 +13,7 @@ import ../manifest
 import ../stores/blockstore
 import ../slots/converters
 import ../slots/builder
+import ./proofpadding
 
 type
   DataSamplerStarter* = object of RootObj
