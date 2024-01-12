@@ -112,7 +112,8 @@ proc getPendingBlocks(
       return await completedFut
     else:
       let (_, index) = await completedFut
-      raise newException(CatchableError,
+      raise newException(
+        CatchableError,
         "Future for block id not found, tree cid: " & $manifest.treeCid & ", index: " & $index)
 
   Iter.new(genNext, isFinished)
@@ -134,7 +135,7 @@ proc prepareEncodingData(
       lastIndex = params.rounded - 1,
       numberOfIterations = params.steps
     )
-    indicies = strategy.getIndicies(step)
+    indicies = toSeq(strategy.getIndicies(step))
     pendingBlocksIter = self.getPendingBlocks(manifest, indicies.filterIt(it < manifest.blocksCount))
 
   var resolved = 0
@@ -183,7 +184,7 @@ proc prepareDecodingData(
       lastIndex = encoded.blocksCount - 1,
       numberOfIterations = encoded.steps
     )
-    indicies = strategy.getIndicies(step)
+    indicies = toSeq(strategy.getIndicies(step))
     pendingBlocksIter = self.getPendingBlocks(encoded, indicies)
 
   var
