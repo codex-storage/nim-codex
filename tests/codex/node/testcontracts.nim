@@ -31,6 +31,7 @@ import pkg/codex/discovery
 import pkg/codex/erasure
 import pkg/codex/merkletree
 import pkg/codex/blocktype as bt
+import pkg/codex/utils/asynciter
 
 import pkg/codex/node {.all.}
 
@@ -120,19 +121,18 @@ asyncchecksuite "Test Node - Host contracts":
     request.expiry = (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix.u256
     var fetchedBytes: uint = 0
 
-    let onBatch = proc(blocks: seq[bt.Block]): Future[?!void] {.async.} =
-      discard
-      # for blk in blocks:
-      #   fetchedBytes += blk.data.len.uint
-      # return success()
+    let onBlocks = proc(blocks: seq[bt.Block]): Future[?!void] {.async.} =
+      for blk in blocks:
+        fetchedBytes += blk.data.len.uint
+      return success()
 
-    (await onStore(request, 0.u256, onBatch)).tryGet()
-    # check fetchedBytes == 2293760
+    (await onStore(request, 1.u256, onBlocks)).tryGet()
+    check fetchedBytes == 786432
 
-    # for index in 0..<manifest.blocksCount:
-    #   let
-    #     blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
-    #     expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet
-    #     expiry = await localStoreMetaDs.get(expiryKey)
+    for index in !builder.slotIndicies(1):
+      let
+        blk = (await localStore.getBlock(verifiable.treeCid, index)).tryGet
+        expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet
+        expiry = await localStoreMetaDs.get(expiryKey)
 
-    #   check (expiry.tryGet).toSecondsSince1970 == request.expiry.toSecondsSince1970
+      check (expiry.tryGet).toSecondsSince1970 == request.expiry.toSecondsSince1970
