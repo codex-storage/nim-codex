@@ -22,7 +22,7 @@ import ../merkletree
 import ../manifest
 import ../stores/blockstore
 import ../slots/converters
-import ../utils/digest
+import ../utils/poseidon2digest
 
 # Index naming convention:
 # "<ContainerType><ElementType>Index" => The index of an ElementType within a ContainerType.
@@ -81,7 +81,7 @@ proc start*(self: DataSampler): Future[?!void] {.async.} =
     error "Failed to start data sampler", error = e.msg
     return failure(e)
 
-  without datasetRoot =? manifest.slotsRoot.fromProvingCid(), e:
+  without datasetRoot =? manifest.verifyRoot.fromProvingCid(), e:
     error "Failed to convert manifest verification root to Poseidon2Hash", error = e.msg
     return failure(e)
 

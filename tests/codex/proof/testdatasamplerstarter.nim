@@ -19,8 +19,8 @@ import pkg/codex/indexingstrategy
 
 import pkg/codex/proof/datasamplerstarter
 import pkg/codex/slots/converters
-import pkg/codex/utils/digest
-import pkg/codex/slots/slotbuilder
+import pkg/codex/utils/poseidon2digest
+import pkg/codex/slots/builder
 
 import ../helpers
 import ../examples
@@ -74,11 +74,14 @@ asyncchecksuite "Test datasampler starter":
       start.isErr
       start.error.msg == "Can only create DataSampler using verifiable manifests."
 
-  test "Fails when reconstructed dataset root does not match env.manifest root":
+  test "Fails when reconstructed dataset root does not match manifest root":
+    var newSlotRoots = env.manifest.slotRoots
+    newSlotRoots[0] = toF(999).toSlotCid().tryGet()
+
     env.manifest = Manifest.new(
       manifest = env.manifest,
-      verificationRoot = env.manifest.verificationRoot,
-      slotRoots = env.manifest.slotRoots & (toF(999).toSlotCid().tryGet())
+      verifyRoot = env.manifest.verifyRoot,
+      slotRoots = newSlotRoots
     ).tryGet()
 
     let start = await startDataSampler(env.localStore, env.manifest, env.slot)
@@ -109,18 +112,18 @@ asyncchecksuite "Test datasampler starter":
     for i in 0 ..< numberOfSlotBlocks:
       discard (await env.localStore.delBlock(env.manifest.slotRoots[0], i))
 
-    # Replace second slotRoot with a copy of the first. Recreate the verification root to match.
+    # Replace second slotRoot with a copy of the first. Recreate the verify root to match.
     let
       newSlotRoots = newSeq[Cid]() & env.manifest.slotRoots[0] & env.manifest.slotRoots[0]
       leafs = newSlotRoots.mapIt(it.fromSlotCid().tryGet())
       rootsPadLeafs = newSeqWith(totalNumberOfSlots.nextPowerOfTwoPad, Poseidon2Zero)
-      newVerificationRoot = Poseidon2Tree.init(leafs & rootsPadLeafs).tryGet()
+      newVerifyRoot = Poseidon2Tree.init(leafs & rootsPadLeafs).tryGet()
         .root().tryGet()
         .toProvingCid().tryGet()
 
     env.manifest = Manifest.new(
       manifest = env.manifest,
-      verificationRoot = newVerificationRoot,
+      verifyRoot = newVerifyRoot,
       slotRoots = newSlotRoots
     ).tryGet()
 

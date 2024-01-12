@@ -12,12 +12,10 @@ import pkg/codex/contracts/requests
 import pkg/codex/contracts
 import pkg/codex/merkletree
 import pkg/codex/indexingstrategy
-
 import pkg/codex/proof/slotblocks
 import pkg/codex/slots/converters
-import pkg/codex/indexingstrategy
-import pkg/codex/utils/digest
-import pkg/codex/slots/slotbuilder
+import pkg/codex/utils/poseidon2digest
+import pkg/codex/slots/builder
 
 import ../helpers
 import ../examples

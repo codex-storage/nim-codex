@@ -54,7 +54,7 @@ proc calculateDatasetSlotProof(manifest: Manifest, slotRoots: seq[Cid], slotInde
     error "Failed to get reconstructed dataset root tree", error = err.msg
     return failure(err)
 
-  without expectedDatasetRoot =? manifest.slotsRoot.fromProvingCid(), err:
+  without expectedDatasetRoot =? manifest.verifyRoot.fromProvingCid(), err:
     error "Failed to decode verification root from manifest", error = err.msg
     return failure(err)
 

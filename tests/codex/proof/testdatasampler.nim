@@ -26,7 +26,7 @@ import pkg/codex/proof/misc
 import pkg/codex/proof/types
 import pkg/codex/slots/converters
 import pkg/codex/utils/digest
-import pkg/codex/slots/slotbuilder
+import pkg/codex/slots/builder
 
 import ../helpers
 import ../examples

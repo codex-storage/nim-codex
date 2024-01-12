@@ -19,8 +19,8 @@ import pkg/codex/indexingstrategy
 
 import pkg/codex/proof/datasamplerstarter
 import pkg/codex/slots/converters
-import pkg/codex/utils/digest
-import pkg/codex/slots/slotbuilder
+import pkg/codex/utils/poseidon2digest
+import pkg/codex/slots/builder
 
 import ../helpers
 import ../examples
@@ -137,7 +137,7 @@ proc createManifest(self: ProvingTestEnvironment): Future[void] {.async.} =
   # Verifiable manifest:
   self.manifest = Manifest.new(
     manifest = self.manifest,
-    verificationRoot = self.datasetRootHash.toProvingCid().tryGet(),
+    verifyRoot = self.datasetRootHash.toProvingCid().tryGet(),
     slotRoots = self.slotRoots.mapIt(it.toSlotCid().tryGet())
   ).tryGet()
 

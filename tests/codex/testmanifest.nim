@@ -10,6 +10,7 @@ import pkg/poseidon2
 
 import pkg/codex/slots
 import pkg/codex/merkletree
+import pkg/codex/slots/converters
 
 import ./helpers
 import ./examples
@@ -39,7 +40,7 @@ checksuite "Manifest":
     slotLeavesCids = leaves.toSlotCids().tryGet
 
     tree = Poseidon2Tree.init(leaves).tryGet
-    slotsRootsCid = tree.root.tryGet.toSlotsRootsCid().tryGet
+    slotsRootsCid = tree.root.tryGet.toProvingCid().tryGet
 
     verifiableManifest = Manifest.new(
       manifest = protectedManifest,
