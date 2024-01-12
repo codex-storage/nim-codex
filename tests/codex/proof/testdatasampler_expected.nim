@@ -1,7 +1,6 @@
 # Snapshot of expected values for testdatasampler.
 
 import std/strutils
-import pkg/codex/proof/types
 import pkg/codex/codextypes
 
 proc getExpectedCellBlockProofs*(): seq[string] =

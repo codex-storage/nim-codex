@@ -10,7 +10,6 @@ import pkg/poseidon2/io
 import pkg/poseidon2
 import pkg/chronos
 import pkg/asynctest
-import pkg/stew/arrayops
 import pkg/codex/stores/cachestore
 import pkg/codex/chunker
 import pkg/codex/stores
@@ -19,14 +18,10 @@ import pkg/codex/contracts/requests
 import pkg/codex/contracts
 import pkg/codex/merkletree
 import pkg/codex/stores/cachestore
-import pkg/codex/indexingstrategy
 
 import pkg/codex/proof/datasampler
 import pkg/codex/proof/misc
 import pkg/codex/proof/types
-import pkg/codex/slots/converters
-import pkg/codex/utils/digest
-import pkg/codex/slots/builder
 
 import ../helpers
 import ../examples

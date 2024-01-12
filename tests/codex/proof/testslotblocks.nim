@@ -2,23 +2,16 @@ import std/sequtils
 
 import pkg/chronos
 import pkg/asynctest
-import pkg/stew/arrayops
-import pkg/codex/rng
 import pkg/codex/stores/cachestore
 import pkg/codex/chunker
 import pkg/codex/stores
 import pkg/codex/blocktype as bt
 import pkg/codex/contracts/requests
 import pkg/codex/contracts
-import pkg/codex/merkletree
 import pkg/codex/indexingstrategy
 import pkg/codex/proof/slotblocks
-import pkg/codex/slots/converters
-import pkg/codex/utils/poseidon2digest
-import pkg/codex/slots/builder
 
 import ../helpers
-import ../examples
 import ../merkletree/helpers
 import ./provingtestenv
 

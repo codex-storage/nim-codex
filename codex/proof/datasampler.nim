@@ -1,6 +1,5 @@
 import std/bitops
 import std/sugar
-import std/sequtils
 
 import pkg/chronicles
 import pkg/chronos

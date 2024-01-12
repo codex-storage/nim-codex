@@ -1,8 +1,6 @@
 import std/sequtils
 
 import pkg/questionable/results
-import pkg/constantine/math/arithmetic
-import pkg/constantine/math/io/io_fields
 import pkg/poseidon2/io
 import pkg/poseidon2
 import pkg/chronos
@@ -15,16 +13,12 @@ import pkg/codex/contracts/requests
 import pkg/codex/contracts
 import pkg/codex/merkletree
 import pkg/codex/stores/cachestore
-import pkg/codex/indexingstrategy
 
 import pkg/codex/proof/datasamplerstarter
 import pkg/codex/proof/proofpadding
 import pkg/codex/slots/converters
-import pkg/codex/utils/poseidon2digest
-import pkg/codex/slots/builder
 
 import ../helpers
-import ../examples
 import ../merkletree/helpers
 import ./provingtestenv
 

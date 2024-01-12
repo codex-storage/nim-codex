@@ -21,6 +21,7 @@ import pkg/poseidon2
 import pkg/poseidon2/io
 import pkg/constantine/math/arithmetic/finite_fields
 
+import ../blocktype as bt
 import ../indexingstrategy
 import ../merkletree
 import ../stores
@@ -30,6 +31,7 @@ import ../utils/digest
 import ./converters
 import ../utils/poseidon2digest
 import ../proof/proofpadding
+import ../proof/proofblock
 
 const
   # TODO: Unified with the CellSize specified in branch "data-sampler"
@@ -110,6 +112,11 @@ func numBlockCells*(self: SlotsBuilder): Natural =
 func mapToSlotCids(slotRoots: seq[Poseidon2Hash]): ?!seq[Cid] =
   success slotRoots.mapIt( ? it.toSlotCid )
 
+proc getBlockRoot(self: SlotsBuilder, blk: bt.Block): ?!Poseidon2Hash =
+  without proofBlock =? ProofBlock.new(self.padding, blk, self.cellSize.NBytes), err:
+    return failure(err)
+  proofBlock.root()
+
 proc getCellHashes*(
   self: SlotsBuilder,
   slotIndex: int): Future[?!seq[Poseidon2Hash]] {.async.} =
@@ -132,17 +139,14 @@ proc getCellHashes*(
         trace "Getting block CID for tree at index"
 
         without blk =? (await self.store.getBlock(treeCid, blockIndex)), err:
-          error "Failed to get block CID for tree at index"
+          error "Failed to get block CID for tree at index", error = err.msg
           return failure(err)
 
-        if blk.isEmpty:
-          self.padding.blockEmptyDigest
-        else:
-          without digest =? Poseidon2Tree.digest(blk.data & self.padding.blockPadBytes, self.cellSize), err:
-            error "Failed to create digest for block"
-            return failure(err)
+        without digest =? self.getBlockRoot(blk), err:
+          error "Failed to create digest for block", error = err.msg
+          return failure(err)
 
-          digest
+        digest
 
   success hashes
 

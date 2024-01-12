@@ -4,7 +4,6 @@ import pkg/chronicles
 import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
-import pkg/constantine/math/io/io_fields
 
 import ../contracts/requests
 import ../blocktype as bt

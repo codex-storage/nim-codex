@@ -1,7 +1,4 @@
 import std/sequtils
-import std/random
-import std/strutils
-
 import pkg/questionable/results
 import pkg/poseidon2/io
 import pkg/poseidon2
@@ -12,12 +9,9 @@ import pkg/codex/contracts
 import pkg/codex/merkletree
 import pkg/codex/stores/cachestore
 import pkg/codex/proof/proofpadding
-import pkg/codex/proof/misc
-import pkg/codex/proof/types
 import pkg/codex/utils/poseidon2digest
 
 import ../helpers
-import ../examples
 import ../merkletree/helpers
 import ./provingtestenv
 
