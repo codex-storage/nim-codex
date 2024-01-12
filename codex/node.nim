@@ -43,7 +43,7 @@ import ./utils
 import ./errors
 
 logScope:
-  topics = "codex self"
+  topics = "codex node"
 
 const
   FetchBatch = 200
@@ -563,8 +563,8 @@ proc onClear(
 
 proc onProve(
   self: CodexNodeRef,
-  slot: Slot, challenge:
-  ProofChallenge): Future[seq[byte]] {.async.} =
+  slot: Slot,
+  challenge: ProofChallenge): Future[seq[byte]] {.async.} =
   # TODO: generate proof
   return @[42'u8]
 
@@ -623,10 +623,10 @@ proc start*(self: CodexNodeRef) {.async.} =
       self.contracts.validator = ValidatorInteractions.none
 
   self.networkId = self.switch.peerInfo.peerId
-  notice "Started codex self", id = $self.networkId, addrs = self.switch.peerInfo.addrs
+  notice "Started codex node", id = $self.networkId, addrs = self.switch.peerInfo.addrs
 
 proc stop*(self: CodexNodeRef) {.async.} =
-  trace "Stopping self"
+  trace "Stopping node"
 
   if not self.engine.isNil:
     await self.engine.stop()
