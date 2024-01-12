@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [].}
+
 import std/options
 import std/sequtils
 import std/strformat
@@ -163,24 +165,19 @@ proc updateExpiry*(
 
 proc fetchBatched*(
   self: CodexNodeRef,
-  manifest: Manifest,
+  cid: Cid,
+  iter: Iter[int],
   batchSize = FetchBatch,
   onBatch: BatchProc = nil): Future[?!void] {.async, gcsafe.} =
-  ## Fetch manifest in batches of `batchSize`
+  ## Fetch blocks in batches of `batchSize`
   ##
 
   let
-    batchCount = divUp(manifest.blocksCount, batchSize)
+    iter = iter.map(
+      (i: int) => self.blockStore.getBlock(BlockAddress.init(cid, i))
+    )
 
-  trace "Fetching blocks in batches of", size = batchSize
-
-  let
-    iter = Iter
-      .fromSlice(0..<manifest.blocksCount)
-      .map((i: int) =>
-        self.blockStore.getBlock(BlockAddress.init(manifest.treeCid, i)))
-
-  for batchNum in 0..<batchCount:
+  while not iter.finished:
     let blocks = collect:
       for i in 0..<batchSize:
         if not iter.finished:
@@ -193,7 +190,20 @@ proc fetchBatched*(
       batchErr =? (await onBatch(blocks.mapIt( it.read.get ))).errorOption:
       return failure(batchErr)
 
-  return success()
+  success()
+
+proc fetchBatched*(
+  self: CodexNodeRef,
+  manifest: Manifest,
+  batchSize = FetchBatch,
+  onBatch: BatchProc = nil): Future[?!void] =
+  ## Fetch manifest in batches of `batchSize`
+  ##
+
+  trace "Fetching blocks in batches of", size = batchSize
+
+  let iter = Iter.fromSlice(0..<manifest.blocksCount)
+  self.fetchBatched(manifest.treeCid, iter, batchSize, onBatch)
 
 proc retrieve*(
   self: CodexNodeRef,
