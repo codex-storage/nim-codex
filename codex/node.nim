@@ -487,6 +487,12 @@ proc onStore(
   ## store data in local storage
   ##
 
+  logScope:
+    cid = request.content.cid
+    slotIdx = slotIdx
+
+  trace "Received a request to store a slot!"
+
   without cid =? Cid.init(request.content.cid):
     trace "Unable to parse Cid", cid
     let err = newException(CodexError, "Unable to parse Cid")
@@ -500,10 +506,32 @@ proc onStore(
     trace "Unable to create slots builder", err = err.msg
     return failure(err)
 
-  let slotIdx = slotIdx.truncate(int)
-  if slotIdx.int > manifest.slotRoots.high:
+  let
+    slotIdx = slotIdx.truncate(int)
+    expiry = request.expiry.toSecondsSince1970
+
+  if slotIdx > manifest.slotRoots.high:
     trace "Slot index not in manifest", slotIdx
     return failure(newException(CodexError, "Slot index not in manifest"))
+
+  proc updateExpiry(blocks: seq[bt.Block]): Future[?!void] {.async.} =
+    trace "Updating expiry for blocks", blocks = blocks.len
+
+    let ensureExpiryFutures = blocks.mapIt(self.blockStore.ensureExpiry(it.cid, expiry))
+    if updateExpiryErr =? (await allFutureResult(ensureExpiryFutures)).errorOption:
+      return failure(updateExpiryErr)
+
+    echo "blocksCb.isNil: ", blocksCb.isNil
+    if not blocksCb.isNil and err =? (await blocksCb(blocks)).errorOption:
+      trace "Unable to process blocks", err = err.msg
+      return failure(err)
+
+    return success()
+
+  if blksIter =? builder.slotIndicies(slotIdx) and
+    err =? (await self.fetchBatched(manifest.treeCid, blksIter, onBatch = updateExpiry)).errorOption:
+    trace "Unable to fetch blocks", err = err.msg
+    return failure(err)
 
   without slotRoot =? (await builder.buildSlot(slotIdx.Natural)), err:
     trace "Unable to build slot", err = err.msg
