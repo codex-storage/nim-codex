@@ -40,6 +40,7 @@ import ./utils/trackedfutures
 export stint
 export reservations
 export salesagent
+export salescontext
 
 logScope:
   topics = "sales marketplace"

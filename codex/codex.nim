@@ -56,8 +56,7 @@ type
   EthWallet = ethers.Wallet
 
 proc bootstrapInteractions(
-    s: CodexServer
-): Future[void] {.async.} =
+  s: CodexServer): Future[void] {.async.} =
   ## bootstrap interactions and return contracts
   ## using clients, hosts, validators pairings
   ##
@@ -190,10 +189,9 @@ proc stop*(s: CodexServer) {.async.} =
   s.runHandle.complete()
 
 proc new*(
-    T: type CodexServer,
-    config: CodexConf,
-    privateKey: CodexPrivateKey
-): CodexServer =
+  T: type CodexServer,
+  config: CodexConf,
+  privateKey: CodexPrivateKey): CodexServer =
   ## create CodexServer including setting up datastore, repostore, etc
   let
     switch = SwitchBuilder
@@ -279,5 +277,4 @@ proc new*(
     codexNode: codexNode,
     restServer: restServer,
     repoStore: repoStore,
-    maintenance: maintenance
-  )
+    maintenance: maintenance)
