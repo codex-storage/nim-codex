@@ -32,34 +32,16 @@ type
   DataSampler* = ref object of RootObj
     slot: Slot
     blockStore: BlockStore
-    slotBlocks: SlotBlocks
     # The following data is invariant over time for a given slot:
-    datasetRoot: FieldElement
-    slotRootHash: FieldElement
-    slotPoseidonTree: MerkleTree
-    datasetToSlotProof: MerkleProof
-    blockSize: uint64
-    numberOfCellsInSlot: uint64
-    datasetSlotIndex: uint64
-    numberOfCellsPerBlock: uint64
-
-proc getNumberOfCellsInSlot*(slot: Slot): uint64 =
-  (slot.request.ask.slotSize.truncate(uint64) div CellSize)
+    builder: SlotsBuilder
 
 proc new*(
     T: type DataSampler,
     slot: Slot,
     blockStore: BlockStore,
-    datasetRoot: FieldElement,
-    slotPoseidonTree: MerkleTree,
-    datasetToSlotProof: MerkleProof
-): Future[?!DataSampler] {.async.} =
+    builder: SlotsBuilder): Future[?!DataSampler] {.async.} =
   # Create a DataSampler for a slot.
   # A DataSampler can create the input required for the proving circuit.
-  without slotBlocks =? await SlotBlocks.new(slot, blockStore), err:
-    error "Failed to create SlotBlocks object for slot"
-    return failure(err)
-
   let
     numberOfCellsInSlot = getNumberOfCellsInSlot(slot)
     blockSize = slotBlocks.manifest.blockSize.uint64
@@ -78,18 +60,22 @@ proc new*(
     numberOfCellsPerBlock: blockSize div CellSize
   ))
 
-func extractLowBits*[n: static int](A: BigInt[n], k: int): uint64 =
-  assert(k > 0 and k <= 64)
-  var r: uint64 = 0
-  for i in 0..<k:
-    # A is big-endian. Run index backwards: n-1-i
-    #let b = bit[n](A, n-1-i)
-    let b = bit[n](A, i)
+proc getDatasetBlockIndexForSlotBlockIndex*(self: DataSampler, slotBlockIndex: uint64): uint64 =
+  let
+    slotSize = self.slot.request.ask.slotSize.truncate(uint64)
+    blocksInSlot = slotSize div self.manifest.blockSize.uint64
+    datasetSlotIndex = self.slot.slotIndex.truncate(uint64)
+  return (datasetSlotIndex * blocksInSlot) + slotBlockIndex
 
-    let y = uint64(b)
-    if (y != 0):
-      r = bitor(r, 1'u64 shl i)
-  return r
+proc getSlotBlock*(self: DataSampler, slotBlockIndex: uint64): Future[?!Block] {.async.} =
+  let
+    blocksInManifest = (self.manifest.datasetSize div self.manifest.blockSize).uint64
+    datasetBlockIndex = self.getDatasetBlockIndexForSlotBlockIndex(slotBlockIndex)
+
+  if datasetBlockIndex >= blocksInManifest:
+    return failure("Found datasetBlockIndex that is out-of-range: " & $datasetBlockIndex)
+
+  return await self.blockStore.getBlock(self.manifest.treeCid, datasetBlockIndex)
 
 proc convertToSlotCellIndex(self: DataSampler, fe: FieldElement): uint64 =
   let
