@@ -17,6 +17,7 @@ import pkg/codex/indexingstrategy
 import pkg/codex/proof/proofpadding
 import pkg/codex/slots/converters
 import pkg/codex/utils/poseidon2digest
+import pkg/codex/utils/asynciter
 
 import ../helpers
 import ../merkletree/helpers
@@ -72,7 +73,7 @@ proc createSlotTree(self: ProvingTestEnvironment, dSlotIndex: uint64): Future[Po
     slotSize = (bytesPerBlock * numberOfSlotBlocks).uint64
     blocksInSlot = slotSize div bytesPerBlock.uint64
     datasetBlockIndexingStrategy = SteppedIndexingStrategy.new(0, self.datasetBlocks.len - 1, totalNumberOfSlots)
-    datasetBlockIndices = datasetBlockIndexingStrategy.getIndicies(dSlotIndex.int)
+    datasetBlockIndices = toSeq(datasetBlockIndexingStrategy.getIndicies(dSlotIndex.int))
 
   let
     slotBlocks = datasetBlockIndices.mapIt(self.datasetBlocks[it])

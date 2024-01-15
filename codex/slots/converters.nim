@@ -10,6 +10,7 @@
 import std/sequtils
 
 import pkg/libp2p
+import pkg/stew/arrayops
 import pkg/questionable
 import pkg/questionable/results
 import pkg/poseidon2
@@ -18,6 +19,7 @@ import pkg/poseidon2/io
 import ../codextypes
 import ../merkletree
 import ../errors
+import ../utils/digest
 
 func toCid(hash: Poseidon2Hash, mcodec: MultiCodec, cidCodec: MultiCodec): ?!Cid =
   let

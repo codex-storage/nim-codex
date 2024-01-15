@@ -12,7 +12,6 @@ import ../contracts/requests
 import ../stores/blockstore
 import ../manifest
 import ../indexingstrategy
-import ../node/batch
 import ../utils
 
 type
@@ -66,7 +65,7 @@ proc start*(self: SlotBlocks, strategy: IndexingStrategy = nil): Future[?!void] 
         0, manifest.blocksCount - 1, manifest.numSlots)
       else:
         strategy
-  self.datasetBlockIndices = strategy.getIndicies(self.slotIndex.int)
+  self.datasetBlockIndices = toSeq(strategy.getIndicies(self.slotIndex.int))
   success()
 
 proc manifest*(self: SlotBlocks): Manifest =
@@ -82,29 +81,3 @@ proc getSlotBlock*(self: SlotBlocks, slotBlockIndex: uint64): Future[?!Block] {.
     return failure(err)
 
   return await self.blockStore.getBlock(self.manifest.treeCid, datasetBlockIndex)
-
-proc fetchBlocksBatched*(
-  self: SlotBlocks,
-  batchSize = DefaultFetchBatchSize,
-  onBatch: BatchProc = nil): Future[?!void] {.async, gcsafe.} =
-  let
-    numSlotBlocks = divUp(self.manifest.blocksCount, self.manifest.numSlots)
-    batchCount = divUp(numSlotBlocks, batchSize)
-  trace "Fetching slot blocks in batches", batchSize, numSlotBlocks
-
-  let iter = Iter.fromSlice(0 ..< self.manifest.blocksCount)
-    .map((i: int) => self.getSlotBlock(i.uint64))
-
-  for batchNum in 0 ..< batchCount:
-    let blocks = collect:
-      for i in 0 ..< batchSize:
-        if not iter.finished:
-          iter.next()
-
-    if blocksErr =? (await allFutureResult(blocks)).errorOption:
-      return failure(blocksErr)
-
-    if not onBatch.isNil and batchErr =? (await onBatch(blocks.mapIt( it.read.get ))).errorOption:
-      return failure(batchErr)
-
-  return success()

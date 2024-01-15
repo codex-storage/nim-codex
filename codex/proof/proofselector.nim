@@ -52,6 +52,9 @@ proc new*(
     numberOfCellsInSlot: numberOfCellsInSlot
   )
 
+proc numberOfCellsInSlot*(self: ProofSelector): uint64 =
+  self.numberOfCellsInSlot
+
 func extractLowBits*[n: static int](A: BigInt[n], k: int): uint64 =
   assert(k > 0 and k <= 64)
   var r: uint64 = 0

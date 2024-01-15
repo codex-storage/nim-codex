@@ -172,6 +172,7 @@ proc getProofInput*(self: DataSampler, challenge: array[32, byte], nSamples: int
   success(ProofInput(
     datasetRoot: self.datasetRoot,
     entropy: entropy,
+    numberOfCellsInSlot: self.proofSelector.numberOfCellsInSlot,
     numberOfSlots: self.slot.request.ask.slots,
     datasetSlotIndex: self.datasetSlotIndex,
     slotRoot: self.slotRootHash,

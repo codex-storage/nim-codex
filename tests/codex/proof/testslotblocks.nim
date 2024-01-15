@@ -10,6 +10,7 @@ import pkg/codex/contracts/requests
 import pkg/codex/contracts
 import pkg/codex/indexingstrategy
 import pkg/codex/proof/slotblocks
+import pkg/codex/utils/asynciter
 
 import ../helpers
 import ../merkletree/helpers
@@ -80,7 +81,7 @@ asyncchecksuite "Test slotblocks":
         slotBlockIndex = input.uint64
         datasetBlockIndex = slotBlocks.getDatasetBlockIndexForSlotBlockIndex(slotBlockIndex).tryGet()
         datasetSlotIndex = env.slot.slotIndex.truncate(uint64)
-        expectedIndex = strategy.getIndicies(datasetSlotIndex.int)[slotBlockIndex]
+        expectedIndex = toSeq(strategy.getIndicies(datasetSlotIndex.int))[slotBlockIndex]
 
       check:
         datasetBlockIndex == expectedIndex
@@ -105,34 +106,3 @@ asyncchecksuite "Test slotblocks":
     check:
       b1.isErr
       b2.isErr
-
-  test "Can fetch blocks":
-    proc getExpectedBatchBlocks(offset: int, num: int): Future[seq[Cid]] {.async.} =
-      var cids = newSeq[Cid]()
-      for i in 0 ..< num:
-        let blk = (await slotBlocks.getSlotBlock((i + offset).uint64)).tryGet()
-        cids.add(blk.cid)
-      return cids
-
-    let
-      numberOfBatchBlocks = numberOfSlotBlocks div 2
-      expectedFirstBatch = await getExpectedBatchBlocks(0, numberOfBatchBlocks)
-      expectedSecondBatch = await getExpectedBatchBlocks(numberOfBatchBlocks, numberOfBatchBlocks)
-
-    var batches = 0
-    proc checkBatch(blocks: seq[bt.Block]): Future[?!void] {.async.} =
-      let cids = blocks.mapIt(it.cid)
-      if batches == 0:
-        check cids == expectedFirstBatch
-      elif batches == 1:
-        check cids == expectedSecondBatch
-      else:
-        fail()
-      inc batches
-      return success()
-
-    discard await slotBlocks.fetchBlocksBatched(
-      batchSize = numberOfBatchBlocks,
-      onBatch = checkBatch
-    )
-    check batches == 2

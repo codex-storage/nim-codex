@@ -29,51 +29,7 @@ import ../merkletree/helpers
 import testdatasampler_expected
 import ./provingtestenv
 
-asyncchecksuite "Test proof datasampler - components":
-  let
-    bytesPerBlock = 64 * 1024
-    challenge: Poseidon2Hash = toF(12345)
-    numberOfSlotBlocks = 16
-    slot = Slot(
-      request: StorageRequest(
-        ask: StorageAsk(
-          slots: 10,
-          slotSize: u256(bytesPerBlock * numberOfSlotBlocks),
-        ),
-        content: StorageContent(
-          cid: $Cid.example
-        )
-      ),
-      slotIndex: u256(3)
-    )
-
-  test "Extract low bits":
-    proc extract(value: uint64, nBits: int): uint64 =
-      let big = toF(value).toBig()
-      return extractLowBits(big, nBits)
-
-    check:
-      extract(0x88, 4) == 0x8.uint64
-      extract(0x88, 7) == 0x8.uint64
-      extract(0x9A, 5) == 0x1A.uint64
-      extract(0x9A, 7) == 0x1A.uint64
-      extract(0x1248, 10) == 0x248.uint64
-      extract(0x1248, 12) == 0x248.uint64
-      extract(0x1248306A560C9AC0.uint64, 10) == 0x2C0.uint64
-      extract(0x1248306A560C9AC0.uint64, 12) == 0xAC0.uint64
-      extract(0x1248306A560C9AC0.uint64, 50) == 0x306A560C9AC0.uint64
-      extract(0x1248306A560C9AC0.uint64, 52) == 0x8306A560C9AC0.uint64
-
-  test "Should calculate total number of cells in Slot":
-    let
-      slotSizeInBytes = (slot.request.ask.slotSize).truncate(uint64)
-      expectedNumberOfCells = slotSizeInBytes div DefaultCellSize.uint64
-
-    check:
-      expectedNumberOfCells == 512
-      expectedNumberOfCells == getNumberOfCellsInSlot(slot)
-
-asyncchecksuite "Test proof datasampler - main":
+asyncchecksuite "Test proof datasampler":
   var
     env: ProvingTestEnvironment
     dataSampler: DataSampler
@@ -113,25 +69,6 @@ asyncchecksuite "Test proof datasampler - main":
       sample0 == cell0Bytes
       sample1 == cell1Bytes
       sample2 == cell2Bytes
-
-  test "Can create mini tree for block cells":
-    let miniTree = dataSampler.getBlockCellMiniTree(blk).tryGet()
-
-    let
-      cell0Proof = miniTree.getProof(0).tryGet()
-      cell1Proof = miniTree.getProof(1).tryGet()
-      cell2Proof = miniTree.getProof(2).tryGet()
-
-      cell0Hash = Sponge.digest(cell0Bytes, rate = 2)
-      cell1Hash = Sponge.digest(cell1Bytes, rate = 2)
-      cell2Hash = Sponge.digest(cell2Bytes, rate = 2)
-
-      root = miniTree.root().tryGet()
-
-    check:
-      not cell0Proof.verify(cell0Hash, root).isErr()
-      not cell1Proof.verify(cell1Hash, root).isErr()
-      not cell2Proof.verify(cell2Hash, root).isErr()
 
   test "Can gather proof input":
     let

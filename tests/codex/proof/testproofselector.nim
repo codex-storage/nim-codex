@@ -19,14 +19,13 @@ import pkg/codex/contracts
 import pkg/codex/merkletree
 import pkg/codex/stores/cachestore
 
-import pkg/codex/proof/datasampler
+import pkg/codex/proof/proofselector
 import pkg/codex/proof/misc
 import pkg/codex/proof/types
 
 import ../helpers
 import ../examples
 import ../merkletree/helpers
-import testdatasampler_expected
 import ./provingtestenv
 
 asyncchecksuite "Test proof selector":
