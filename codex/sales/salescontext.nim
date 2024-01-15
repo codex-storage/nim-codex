@@ -17,17 +17,15 @@ type
     onStore*: ?OnStore
     onClear*: ?OnClear
     onSale*: ?OnSale
-    onProve*: ?OnProve
     onExpiryUpdate*: ?OnExpiryUpdate
     reservations*: Reservations
     slotQueue*: SlotQueue
     simulateProofFailures*: int
 
   BlocksCb* = proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, raises: [].}
-  OnStore* = proc(request: StorageRequest,
-                  slot: UInt256,
-                  blocksCb: BlocksCb): Future[?!void] {.gcsafe, upraises: [].}
-  OnProve* = proc(slot: Slot, challenge: ProofChallenge): Future[seq[byte]] {.gcsafe, upraises: [].}
+  OnStore* = proc(slot: Slot,
+                  blocksCb: BlocksCb): Future[?!OnProve] {.gcsafe, upraises: [].}
+  OnProve* = proc(challenge: ProofChallenge): Future[seq[byte]] {.gcsafe, upraises: [].}
   OnExpiryUpdate* = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.gcsafe, upraises: [].}
   OnClear* = proc(request: StorageRequest,
                   slotIndex: UInt256) {.gcsafe, upraises: [].}
