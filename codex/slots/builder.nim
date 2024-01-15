@@ -27,11 +27,16 @@ import ../merkletree
 import ../stores
 import ../manifest
 import ../utils
+import ../utils/asynciter
 import ../utils/digest
 import ./converters
 import ../utils/poseidon2digest
 import ../proof/proofpadding
 import ../proof/proofblock
+
+import ./converters
+
+export converters
 
 const
   # TODO: Unified with the CellSize specified in branch "data-sampler"
@@ -109,13 +114,17 @@ func numBlockCells*(self: SlotsBuilder): Natural =
 
   self.manifest.blockSize.int div self.cellSize
 
-func mapToSlotCids(slotRoots: seq[Poseidon2Hash]): ?!seq[Cid] =
-  success slotRoots.mapIt( ? it.toSlotCid )
-
 proc getBlockRoot(self: SlotsBuilder, blk: bt.Block): ?!Poseidon2Hash =
   without proofBlock =? ProofBlock.new(self.padding, blk, self.cellSize.NBytes), err:
     return failure(err)
   proofBlock.root()
+
+func slotIndicies*(self: SlotsBuilder, slot: Natural): ?!Iter[int] =
+  ## Returns the slot indices.
+  ## TODO: should return an iterator
+  ##
+
+  self.strategy.getIndicies(slot).catch
 
 proc getCellHashes*(
   self: SlotsBuilder,
@@ -161,7 +170,7 @@ proc buildSlotTree*(
 
 proc buildSlot*(
   self: SlotsBuilder,
-  slotIndex: int): Future[?!Poseidon2Hash] {.async.} =
+  slotIndex: Natural): Future[?!Poseidon2Hash] {.async.} =
   ## Build a slot tree and store it in the block store.
   ##
 
@@ -257,8 +266,8 @@ proc new*(
 
   let
     strategy = if strategy.isNone:
-      SteppedIndexingStrategy.new(
-        0, manifest.blocksCount - 1, manifest.numSlots)
+      ? SteppedIndexingStrategy.new(
+        0, manifest.blocksCount - 1, manifest.numSlots).catch
       else:
         strategy.get
 

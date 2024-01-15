@@ -51,7 +51,7 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
     reservationId = reservation.id
     availabilityId = reservation.availabilityId
 
-  proc onBatch(blocks: seq[bt.Block]): Future[?!void] {.async.} =
+  proc onBlocks(blocks: seq[bt.Block]): Future[?!void] {.async.} =
     # release batches of blocks as they are written to disk and
     # update availability size
     var bytes: uint = 0
@@ -66,7 +66,7 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
   trace "Starting download"
   if err =? (await onStore(request,
                            data.slotIndex,
-                           onBatch)).errorOption:
+                           onBlocks)).errorOption:
     return some State(SaleErrored(error: err))
 
   trace "Download complete"

@@ -1,14 +1,23 @@
+## Nim-Codex
+## Copyright (c) 2024 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
+
 import std/sequtils
+
 import pkg/libp2p
+import pkg/questionable
 import pkg/questionable/results
-import pkg/stew/arrayops
 import pkg/poseidon2
 import pkg/poseidon2/io
 
-import ../merkletree
 import ../codextypes
+import ../merkletree
 import ../errors
-import ../utils/digest
 
 func toCid(hash: Poseidon2Hash, mcodec: MultiCodec, cidCodec: MultiCodec): ?!Cid =
   let
@@ -57,10 +66,10 @@ func toEncodableProof*(
 
   let
     encodableProof = CodexProof(
-      mcodec: multiCodec("identity"), # copy bytes as is
+      mcodec: multiCodec("identity"),
       index: proof.index,
       nleaves: proof.nleaves,
-      path: proof.path.mapIt( @(it.toBytes) ))
+      path: proof.path.mapIt( @( it.toBytes ) ))
 
   success encodableProof
 

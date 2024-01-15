@@ -540,8 +540,13 @@ method close*(self: RepoStore): Future[void] {.async.} =
   ## For some implementations this may be a no-op
   ##
 
-  (await self.metaDs.close()).expect("Should meta datastore")
-  (await self.repoDs.close()).expect("Should repo datastore")
+  trace "Closing repostore"
+
+  if not self.metaDs.isNil:
+    (await self.metaDs.close()).expect("Should meta datastore")
+
+  if not self.repoDs.isNil:
+    (await self.repoDs.close()).expect("Should repo datastore")
 
 proc reserve*(self: RepoStore, bytes: uint): Future[?!void] {.async.} =
   ## Reserve bytes
@@ -650,8 +655,7 @@ proc stop*(self: RepoStore): Future[void] {.async.} =
     return
 
   trace "Stopping repo"
-  (await self.repoDs.close()).expect("Should close repo store!")
-  (await self.metaDs.close()).expect("Should close meta store!")
+  await self.close()
 
   self.started = false
 
