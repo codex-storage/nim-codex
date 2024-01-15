@@ -37,7 +37,7 @@ type
     inFlight*: bool
     startTime*: int64
 
-  PendingBlocksManager* = ref object of RootObj
+  PendingBlocksManager* = ref object
     blocks*: Table[BlockAddress, BlockReq] # pending Block requests
 
 proc updatePendingBlockGauge(p: PendingBlocksManager) =
@@ -53,16 +53,16 @@ proc getWantHandle*(
   ##
 
   try:
-    if address notin p.blocks:
-      p.blocks[address] = BlockReq(
-        handle: newFuture[Block]("pendingBlocks.getWantHandle"),
-        inFlight: inFlight,
-        startTime: getMonoTime().ticks)
+    let req = p.blocks.mgetOrPut(
+        address,
+        BlockReq(
+          handle: newFuture[Block]("pendingBlocks.getWantHandle"),
+          inFlight: inFlight,
+          startTime: getMonoTime().ticks))
 
-      trace "Adding pending future for block", address, inFlight = p.blocks[address].inFlight
-
+    trace "Adding or retrieving pending future for block", address, inFlight = p.blocks[address].inFlight
     p.updatePendingBlockGauge()
-    return await p.blocks[address].handle.wait(timeout)
+    await req.handle.wait(timeout)
   except CancelledError as exc:
     trace "Blocks cancelled", exc = exc.msg, address
     raise exc
@@ -78,14 +78,12 @@ proc getWantHandle*(
     p: PendingBlocksManager,
     cid: Cid,
     timeout = DefaultBlockTimeout,
-    inFlight = false
-): Future[Block] =
+    inFlight = false): Future[Block] =
   p.getWantHandle(BlockAddress.init(cid), timeout, inFlight)
 
 proc resolve*(
   p: PendingBlocksManager,
-  blocksDelivery: seq[BlockDelivery]
-  ) {.gcsafe, raises: [].} =
+  blocksDelivery: seq[BlockDelivery]) {.gcsafe, raises: [].} =
   ## Resolve pending blocks
   ##
 
@@ -108,16 +106,17 @@ proc resolve*(
     do:
       warn "Attempting to resolve block that's not currently a pending block", address = bd.address
 
-proc setInFlight*(p: PendingBlocksManager,
-                  address: BlockAddress,
-                  inFlight = true) =
+proc setInFlight*(
+  p: PendingBlocksManager,
+  address: BlockAddress,
+  inFlight = true) =
   p.blocks.withValue(address, pending):
     pending[].inFlight = inFlight
     trace "Setting inflight", address, inFlight = pending[].inFlight
 
-proc isInFlight*(p: PendingBlocksManager,
-                 address: BlockAddress,
-                ): bool =
+proc isInFlight*(
+  p: PendingBlocksManager,
+  address: BlockAddress): bool =
   p.blocks.withValue(address, pending):
     result = pending[].inFlight
     trace "Getting inflight", address, inFlight = result
@@ -144,7 +143,6 @@ iterator wantListCids*(p: PendingBlocksManager): Cid =
     if cid notin yieldedCids:
       yieldedCids.incl(cid)
       yield cid
-
 
 iterator wantHandles*(p: PendingBlocksManager): Future[Block] =
   for v in p.blocks.values:
