@@ -15,9 +15,9 @@ import pkg/questionable/results
 import pkg/poseidon2
 import pkg/poseidon2/io
 
-import ../codextypes
-import ../merkletree
-import ../errors
+import ../../codextypes
+import ../../merkletree
+import ../../errors
 
 func toCellCid*(cell: Poseidon2Hash): ?!Cid =
   let
