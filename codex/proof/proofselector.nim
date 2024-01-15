@@ -84,7 +84,7 @@ proc findSlotCellIndex*(self: ProofSelector, challenge: Poseidon2Hash, counter: 
   let
     input = @[self.slotRootHash, challenge, counter]
     hash = Sponge.digest(input, rate = 2)
-  return convertToSlotCellIndex(self, hash)
+  return self.convertToSlotCellIndex(hash)
 
 func findSlotCellIndices*(self: ProofSelector, challenge: Poseidon2Hash, nSamples: int): seq[uint64] =
   return collect(newSeq, (for i in 1..nSamples: self.findSlotCellIndex(challenge, toF(i))))

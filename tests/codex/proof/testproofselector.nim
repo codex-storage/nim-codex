@@ -29,22 +29,27 @@ import ../merkletree/helpers
 import ./provingtestenv
 
 asyncchecksuite "Test proof selector":
-  let
-    bytesPerBlock = 64 * 1024
-    challenge: Poseidon2Hash = toF(12345)
-    numberOfSlotBlocks = 16
-    slot = Slot(
-      request: StorageRequest(
-        ask: StorageAsk(
-          slots: 10,
-          slotSize: u256(bytesPerBlock * numberOfSlotBlocks),
-        ),
-        content: StorageContent(
-          cid: $Cid.example
-        )
-      ),
-      slotIndex: u256(3)
+  let knownIndices = @[90.uint64, 93.uint64, 29.uint64]
+
+  var
+    env: ProvingTestEnvironment
+    proofSelector: ProofSelector
+
+  proc createProofSelector() =
+    proofSelector = ProofSelector.new(
+      slot = env.slot,
+      manifest = env.manifest,
+      slotRootHash = env.slotRoots[datasetSlotIndex],
+      cellSize = DefaultCellSize
     )
+
+  setup:
+    env = await createProvingTestEnvironment()
+    createProofSelector()
+
+  teardown:
+    reset(env)
+    reset(proofSelector)
 
   test "Extract low bits":
     proc extract(value: uint64, nBits: int): uint64 =
@@ -62,29 +67,6 @@ asyncchecksuite "Test proof selector":
       extract(0x1248306A560C9AC0.uint64, 12) == 0xAC0.uint64
       extract(0x1248306A560C9AC0.uint64, 50) == 0x306A560C9AC0.uint64
       extract(0x1248306A560C9AC0.uint64, 52) == 0x8306A560C9AC0.uint64
-
-asyncchecksuite "Test proof selector":
-  let knownIndices = @[90.uint64, 93.uint64, 29.uint64]
-
-  var
-    env: ProvingTestEnvironment
-    proofSelector: ProofSelector
-
-  proc createProofSelector() =
-    proofSelector = ProofSelector.new(
-      slot = env.slot,
-      manifest = env.manifest,
-      slotRootHash = env.slotRoots[0],
-      cellSize = DefaultCellSize
-    )
-
-  setup:
-    env = await createProvingTestEnvironment()
-    createProofSelector()
-
-  teardown:
-    reset(env)
-    reset(proofSelector)
 
   test "Can find single slot-cell index":
     proc slotCellIndex(i: int): uint64 =
