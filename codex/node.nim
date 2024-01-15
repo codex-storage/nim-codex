@@ -481,8 +481,9 @@ proc requestStorage*(
 
 proc onStore(
   self: CodexNodeRef,
-  slot: Slot,
-  blocksCb: BlocksCb): Future[?!OnProve] {.async.} =
+  request: StorageRequest,
+  slotIdx: UInt256,
+  blocksCb: BlocksCb): Future[?!void] {.async.} =
   ## store data in local storage
   ##
 
@@ -491,9 +492,6 @@ proc onStore(
     slotIdx = slotIdx
 
   trace "Received a request to store a slot!"
-  let
-    request = slot.request
-    slotIdx = slot.slotIndex
 
   without cid =? Cid.init(request.content.cid):
     trace "Unable to parse Cid", cid
@@ -543,19 +541,7 @@ proc onStore(
     trace "Slot root mismatch", manifest = manifest.slotRoots[slotIdx.int], recovered = slotRoot.toSlotCid()
     return failure(newException(CodexError, "Slot root mismatch"))
 
-  let dataSampler = DataSampler.new(slot, self.blockStore)
-  if err =? (await dataSampler.start()).errorOption:
-    error "Failed to start data sampler", error = err.msg
-    return failure(err)
-
-  proc onProve(challenge: ProofChallenge): Future[?!seq[byte]] {.async.} =
-    without input =? (await dataSampler.getProofInput(challenge, nSamples = 3)), err:
-      error "Failed to generate proof input", error = err.msg
-      return failure(err)
-
-    return success(@[42'u8])
-
-  return success(onProve)
+  return success()
 
 proc onExpiryUpdate(
   self: CodexNodeRef,
@@ -574,6 +560,13 @@ proc onClear(
   slotIndex: UInt256) =
 # TODO: remove data from local storage
   discard
+
+proc onProve(
+  self: CodexNodeRef,
+  slot: Slot,
+  challenge: ProofChallenge): Future[seq[byte]] {.async.} =
+  # TODO: generate proof
+  return @[42'u8]
 
 proc start*(self: CodexNodeRef) {.async.} =
   if not self.engine.isNil:
