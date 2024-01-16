@@ -163,6 +163,7 @@ runs:
 
     # FIXME: drop this once https://github.com/nim-lang/Nim/issues/23214 gets upstreamed/backported
     - name: Set NIM_REPO
+      shell: ${{ inputs.shell }} {0}
       run: echo "NIM_REPO='https://github.com/gmega/Nim'" >> ${GITHUB_ENV}
 
     - name: Build Nim and Codex dependencies
