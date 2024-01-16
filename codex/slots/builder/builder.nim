@@ -127,6 +127,13 @@ func numBlockCells*(self: SlotsBuilder): Natural =
 
   (self.manifest.blockSize div self.cellSize).Natural
 
+func cellSize*(self: SlotsBuilder): NBytes =
+  ## Cell size.
+  ##
+
+  self.cellSize
+
+
 func numSlotCells*(self: SlotsBuilder): Natural =
   ## Number of cells per slot.
   ##
