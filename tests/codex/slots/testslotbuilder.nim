@@ -31,23 +31,23 @@ privateAccess(Manifest) # enable access to private fields
 
 suite "Slot builder":
   let
-    blockSize = 1024
-    cellSize = 64
+    blockSize = NBytes 1024
+    cellSize = NBytes 64
     ecK = 3
     ecM = 2
 
     numSlots = ecK + ecM
     numDatasetBlocks = 100
-    numBlockCells = blockSize div cellSize
+    numBlockCells = (blockSize div cellSize).int
 
     numTotalBlocks = calcEcBlocksCount(numDatasetBlocks, ecK, ecM)                # total number of blocks in the dataset after
                                                                                   # EC (should will match number of slots)
-    originalDatasetSize = numDatasetBlocks * blockSize                            # size of the dataset before EC
-    totalDatasetSize = numTotalBlocks * blockSize                                 # size of the dataset after EC
+    originalDatasetSize = numDatasetBlocks * blockSize.int                        # size of the dataset before EC
+    totalDatasetSize = numTotalBlocks * blockSize.int                             # size of the dataset after EC
     numTotalSlotBlocks = nextPowerOfTwo(numTotalBlocks div numSlots)
 
     blockPadBytes =
-      newSeq[byte](numBlockCells.nextPowerOfTwoPad * cellSize)                    # power of two padding for blocks
+      newSeq[byte](numBlockCells.nextPowerOfTwoPad * cellSize.int)                # power of two padding for blocks
 
     slotsPadLeafs =
       newSeqWith((numTotalBlocks div numSlots).nextPowerOfTwoPad, Poseidon2Zero)  # power of two padding for block roots
@@ -215,7 +215,7 @@ suite "Slot builder":
 
         expectedHashes: seq[Poseidon2Hash] = collect(newSeq):
           for blk in expectedBlock:
-            SpongeMerkle.digest(blk.data & blockPadBytes, cellSize)
+            SpongeMerkle.digest(blk.data & blockPadBytes, cellSize.int)
 
         cellHashes = (await slotBuilder.getCellHashes(i)).tryGet()
 
@@ -238,7 +238,7 @@ suite "Slot builder":
 
         expectedHashes: seq[Poseidon2Hash] = collect(newSeq):
           for blk in expectedBlock:
-            SpongeMerkle.digest(blk.data & blockPadBytes, cellSize)
+            SpongeMerkle.digest(blk.data & blockPadBytes, cellSize.int)
         expectedRoot = Merkle.digest(expectedHashes & slotsPadLeafs)
 
         slotTree = (await slotBuilder.buildSlotTree(i)).tryGet()
@@ -289,12 +289,12 @@ suite "Slot builder":
 
             slotHashes: seq[Poseidon2Hash] = collect(newSeq):
               for blk in expectedBlocks:
-                SpongeMerkle.digest(blk.data & blockPadBytes, cellSize)
+                SpongeMerkle.digest(blk.data & blockPadBytes, cellSize.int)
 
           Merkle.digest(slotHashes & slotsPadLeafs)
 
       expectedRoot = Merkle.digest(slotsHashes & rootsPadLeafs)
-      rootHash = slotBuilder.buildRootsTree(slotBuilder.slotRoots).tryGet().root.tryGet()
+      rootHash = slotBuilder.buildVerifyTree(slotBuilder.slotRoots).tryGet().root.tryGet()
 
     check:
       expectedRoot == rootHash
@@ -316,7 +316,7 @@ suite "Slot builder":
 
             slotHashes: seq[Poseidon2Hash] = collect(newSeq):
               for blk in expectedBlocks:
-                SpongeMerkle.digest(blk.data & blockPadBytes, cellSize)
+                SpongeMerkle.digest(blk.data & blockPadBytes, cellSize.int)
 
           Merkle.digest(slotHashes & slotsPadLeafs)
 
