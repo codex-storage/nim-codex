@@ -63,7 +63,7 @@ proc getIter(first, last, step: int): Iter[int] =
 
   Iter.new(get, isFinished)
 
-method getIndicies*(
+method getIndices*(
   self: LinearIndexingStrategy,
   iteration: int): Iter[int] {.raises: [IndexingError].} =
 
@@ -75,7 +75,7 @@ method getIndicies*(
 
   getIter(first, last, 1)
 
-method getIndicies*(
+method getIndices*(
   self: SteppedIndexingStrategy,
   iteration: int): Iter[int] {.raises: [IndexingError].} =
 

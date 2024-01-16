@@ -3,7 +3,7 @@ import std/times
 
 import pkg/libp2p
 import pkg/chronos
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 
 import pkg/codex/codextypes
 import pkg/codex/chunker
@@ -13,7 +13,7 @@ proc toTimesDuration*(d: chronos.Duration): times.Duration =
 
 proc drain*(
   stream: LPStream | Result[lpstream.LPStream, ref CatchableError]):
-  Future[seq[byte]] {.async.} =
+  Future[seq[byte]] {.async: (handleException: true, raises: [AsyncExceptionError]).} =
 
   let
     stream =
@@ -36,7 +36,10 @@ proc drain*(
 
   data
 
-proc pipeChunker*(stream: BufferStream, chunker: Chunker) {.async.} =
+proc pipeChunker*(
+  stream: BufferStream,
+  chunker: Chunker
+) {.async: (handleException: true, raises: [AsyncExceptionError]).} =
   try:
     while (
       let chunk = await chunker.getBytes();

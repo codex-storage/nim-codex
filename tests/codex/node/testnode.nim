@@ -5,7 +5,7 @@ import std/times
 import std/sequtils
 import std/importutils
 
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/chronos
 import pkg/stew/byteutils
 import pkg/datastore
@@ -69,7 +69,7 @@ asyncchecksuite "Test Node - Basic":
       (await node.fetchBatched(
         manifest,
         batchSize = batchSize,
-        proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, async.} =
+        proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, async: (handleException: true).} =
           check blocks.len > 0 and blocks.len <= batchSize
           return success()
       )).tryGet()
