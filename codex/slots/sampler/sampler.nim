@@ -69,7 +69,14 @@ proc new*(
     blockStore: blockStore,
     builder: builder)
 
-proc getProofs*(
+proc getCell*(self: DataSampler, blkBytes: seq[byte], blkCellIdx: uint64): Cell =
+  let
+    cellSize = self.builder.cellSize.uint64
+    dataStart = (cellSize * blkCellIdx)
+    dataEnd = dataStart + cellSize
+  return blkBytes[dataStart ..< dataEnd]
+
+proc getProofInput*(
   self: DataSampler,
   entropy: ProofChallenge,
   nSamples: Natural): Future[?!ProofInput] {.async.} =
@@ -126,7 +133,9 @@ proc getProofs*(
         error "Failed to get proof from block tree", err = err.msg
         return failure(err)
 
-      Sample(data: bytes, proof: blockProof)
+      let cellData = self.getCell(bytes, blkCellIdx)
+
+      Sample(data: cellData, proof: blockProof)
 
   success ProofInput(
     entropy: entropy,
