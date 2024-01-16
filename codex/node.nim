@@ -558,7 +558,7 @@ proc onProve(
 
   logScope:
     cid = cidStr
-    slot = slot
+    slot = slotIdx
     challenge = challenge
 
   trace "Received proof challenge"
