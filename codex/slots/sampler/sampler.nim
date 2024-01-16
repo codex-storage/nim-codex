@@ -108,7 +108,7 @@ proc getProofInput*(
     treeCid = treeCid
 
   trace "Collecting input for proof"
-  let proofs = collect(newSeq):
+  let samples = collect(newSeq):
     for cellIdx in cellIdxs:
       let
         blockIdx = cellIdx.toBlockIdx(self.builder.numSlotCells)
@@ -119,7 +119,7 @@ proc getProofInput*(
         blockIdx = blockIdx
         blkCellIdx = blkCellIdx
 
-      without (cid, slotProof) =? await self.blockStore.getCidAndProof(
+      without (cid, _) =? await self.blockStore.getCidAndProof(
         self.builder.manifest.treeCid,
         blockIdx.Natural), err:
         error "Failed to get block from block store", err = err.msg
@@ -144,4 +144,4 @@ proc getProofInput*(
     numSlots: self.builder.numSlots,
     numCells: self.builder.numSlotCells,
     slotIndex: self.index,
-    samples: proofs)
+    samples: samples)
