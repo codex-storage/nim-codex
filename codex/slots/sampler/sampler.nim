@@ -69,10 +69,10 @@ proc new*(
     blockStore: blockStore,
     builder: builder)
 
-proc getCell*(self: DataSampler, blkBytes: seq[byte], blkCellIdx: uint64): Cell =
+proc getCell*(self: DataSampler, blkBytes: seq[byte], blkCellIdx: Natural): Cell =
   let
     cellSize = self.builder.cellSize.uint64
-    dataStart = (cellSize * blkCellIdx)
+    dataStart = cellSize * blkCellIdx.uint64
     dataEnd = dataStart + cellSize
   return blkBytes[dataStart ..< dataEnd]
 
