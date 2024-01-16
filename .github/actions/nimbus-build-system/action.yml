@@ -11,7 +11,8 @@ inputs:
     default: "amd64"
   nim_version:
     description: "Nim version"
-    default: "version-1-6"
+    # FIXME: change this once https://github.com/nim-lang/Nim/issues/23214 gets upstreamed/backported
+    default: "f45bdea94ac4ed9a9bae03426275456aeb0cab2a"
   shell:
     description: "Shell to run commands in"
     default: "bash --noprofile --norc -e -o pipefail"
@@ -159,6 +160,10 @@ runs:
     - name: Set NIM_COMMIT
       shell: ${{ inputs.shell }} {0}
       run: echo "NIM_COMMIT=${{ inputs.nim_version }}" >> ${GITHUB_ENV}
+
+    # FIXME: drop this once https://github.com/nim-lang/Nim/issues/23214 gets upstreamed/backported
+    - name: Set NIM_REPO
+      run: echo "NIM_REPO='https://github.com/gmega/Nim'" >> ${GITHUB_ENV}
 
     - name: Build Nim and Codex dependencies
       shell: ${{ inputs.shell }} {0}
