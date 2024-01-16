@@ -80,3 +80,4 @@ func cellIndices*(
     let idx = cellIndex(entropy, slotRoot, numCells, indices.len + 1)
     indices.add(idx.Natural)
   indices
+

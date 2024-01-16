@@ -1,4 +1,4 @@
 import ./builder/builder
-import ./builder/converters
+import ./converters
 
 export builder, converters

@@ -348,16 +348,7 @@ proc new*(
     if manifest.slotRoots.len == 0 or manifest.slotRoots.len != manifest.numSlots:
       return failure "Manifest is verifiable but slot roots are missing or invalid."
 
-    let
-      # slotRoot = ? Poseidon2Hash.fromBytes(
-      #   ( ? manifest.verifyRoot.mhash.mapFailure ).digestBytes.toArray32
-      # ).toFailure
-
-      slotRoots = manifest.slotRoots.mapIt(it.fromSlotCid().toFailure)
-      #   ? Poseidon2Hash.fromBytes(
-      #     ( ? it.mhash.mapFailure ).digestBytes.toArray32
-      #   ).toFailure
-      # )
+    let slotRoots = manifest.slotRoots.mapIt( (? it.fromSlotCid()))
 
     without tree =? self.buildVerifyTree(slotRoots), err:
       error "Failed to build slot roots tree", err = err.msg
