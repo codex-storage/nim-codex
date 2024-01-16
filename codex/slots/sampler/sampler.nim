@@ -37,12 +37,15 @@ type
 
   Sample* = object
     data*: Cell
-    proof*: Poseidon2Proof
+    slotProof*: Poseidon2Proof
+    cellProof*: Poseidon2Proof
+    slotBlockIdx*: Natural
+    blockCellIdx*: Natural
 
   ProofInput* = object
     entropy*: Poseidon2Hash
     verifyRoot*: Poseidon2Hash
-    slotProof*: Poseidon2Proof
+    verifyProof*: Poseidon2Proof
     numSlots*: Natural
     numCells*: Natural
     slotIndex*: Natural
@@ -69,7 +72,14 @@ proc new*(
     blockStore: blockStore,
     builder: builder)
 
-proc getProofs*(
+proc getCell*(self: DataSampler, blkBytes: seq[byte], blkCellIdx: Natural): Cell =
+  let
+    cellSize = self.builder.cellSize.uint64
+    dataStart = cellSize * blkCellIdx.uint64
+    dataEnd = dataStart + cellSize
+  return blkBytes[dataStart ..< dataEnd]
+
+proc getProofInput*(
   self: DataSampler,
   entropy: ProofChallenge,
   nSamples: Natural): Future[?!ProofInput] {.async.} =
@@ -81,16 +91,16 @@ proc getProofs*(
     return failure("Failed to parse entropy")
 
   without verifyTree =? self.builder.verifyTree and
-    slotProof =? verifyTree.getProof(self.index) and
+    verifyProof =? verifyTree.getProof(self.index) and
     verifyRoot =? verifyTree.root(), err:
     error "Failed to get slot proof from verify tree", err = err.msg
     return failure(err)
 
   let
-    treeCid = self.builder.manifest.treeCid
+    slotTreeCid = self.builder.manifest.slotRoots[self.index]
+    numCellsPerBlock = (self.builder.manifest.blockSize div self.builder.cellSize).Natural
     cellIdxs = entropy.cellIndices(
       self.builder.slotRoots[self.index],
-      self.builder.slotIndicies(self.index),
       self.builder.numSlotCells,
       nSamples)
 
@@ -98,27 +108,36 @@ proc getProofs*(
     index = self.index
     samples = nSamples
     cells = cellIdxs
-    treeCid = treeCid
+    slotTreeCid = slotTreeCid
 
   trace "Collecting input for proof"
-  let proofs = collect(newSeq):
+  let samples = collect(newSeq):
     for cellIdx in cellIdxs:
       let
-        blockIdx = cellIdx.toBlockIdx(self.builder.numSlotCells)
-        blkCellIdx = cellIdx.toBlockCellIdx(self.builder.numBlockCells)
+        blockIdx = cellIdx.toBlockIdx(numCellsPerBlock)
+        blkCellIdx = cellIdx.toBlockCellIdx(numCellsPerBlock)
 
       logScope:
         cellIdx = cellIdx
         blockIdx = blockIdx
         blkCellIdx = blkCellIdx
 
-      without (cid, slotProof) =? await self.blockStore.getCidAndProof(
-        self.builder.manifest.treeCid,
+      without (cid, proof) =? await self.blockStore.getCidAndProof(
+        slotTreeCid,
         blockIdx.Natural), err:
         error "Failed to get block from block store", err = err.msg
         return failure(err)
 
-      without (bytes, blkTree) =? await self.builder.buildBlockTree(blockIdx), err:
+      without slotProof =? proof.toVerifiableProof(), err:
+        error "Unable to convert slot proof to poseidon proof", error = err.msg
+        return failure(err)
+
+      # This converts our slotBlockIndex to a datasetBlockIndex using the
+      # indexing-strategy used by the builder.
+      # We need this to fetch the block data. We can't do it by slotTree + slotBlkIdx.
+      let datasetBlockIndex = self.builder.slotIndicies(self.index)[blockIdx]
+
+      without (bytes, blkTree) =? await self.builder.buildBlockTree(datasetBlockIndex), err:
         error "Failed to build block tree", err = err.msg
         return failure(err)
 
@@ -126,13 +145,21 @@ proc getProofs*(
         error "Failed to get proof from block tree", err = err.msg
         return failure(err)
 
-      Sample(data: bytes, proof: blockProof)
+      let cellData = self.getCell(bytes, blkCellIdx)
+
+      Sample(
+        data: cellData,
+        slotProof: slotProof,
+        cellProof: blockProof,
+        slotBlockIdx: blockIdx.Natural,
+        blockCellIdx: blkCellIdx.Natural
+      )
 
   success ProofInput(
     entropy: entropy,
     verifyRoot: verifyRoot,
-    slotProof: slotProof,
+    verifyProof: verifyProof,
     numSlots: self.builder.numSlots,
     numCells: self.builder.numSlotCells,
     slotIndex: self.index,
-    samples: proofs)
+    samples: samples)

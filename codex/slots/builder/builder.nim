@@ -30,8 +30,7 @@ import ../../utils
 import ../../utils/asynciter
 import ../../utils/digest
 import ../../utils/poseidon2digest
-
-import ./converters
+import ../converters
 
 export converters
 
@@ -126,6 +125,13 @@ func numBlockCells*(self: SlotsBuilder): Natural =
   ##
 
   (self.manifest.blockSize div self.cellSize).Natural
+
+func cellSize*(self: SlotsBuilder): NBytes =
+  ## Cell size.
+  ##
+
+  self.cellSize
+
 
 func numSlotCells*(self: SlotsBuilder): Natural =
   ## Number of cells per slot.
@@ -290,7 +296,7 @@ proc buildManifest*(self: SlotsBuilder): Future[?!Manifest] {.async.} =
     error "Failed to map slot roots to CIDs", err = err.msg
     return failure(err)
 
-  without rootProvingCidRes =? self.verifyRoot.?toSlotsRootsCid() and
+  without rootProvingCidRes =? self.verifyRoot.?toVerifyCid() and
     rootProvingCid =? rootProvingCidRes, err: # TODO: why doesn't `.?` unpack the result?
     error "Failed to map slot roots to CIDs", err = err.msg
     return failure(err)
@@ -342,20 +348,19 @@ proc new*(
     if manifest.slotRoots.len == 0 or manifest.slotRoots.len != manifest.numSlots:
       return failure "Manifest is verifiable but slot roots are missing or invalid."
 
-    let
-      slotRoot = ? Poseidon2Hash.fromBytes(
-        ( ? manifest.verifyRoot.mhash.mapFailure ).digestBytes.toArray32
-      ).toFailure
-
-      slotRoots = manifest.slotRoots.mapIt(
-        ? Poseidon2Hash.fromBytes(
-          ( ? it.mhash.mapFailure ).digestBytes.toArray32
-        ).toFailure
-      )
+    let slotRoots = manifest.slotRoots.mapIt( (? it.fromSlotCid()))
 
     without tree =? self.buildVerifyTree(slotRoots), err:
       error "Failed to build slot roots tree", err = err.msg
       return failure(err)
+
+    without expectedRoot =? manifest.verifyRoot.fromVerifyCid(), err:
+      error "Unable to convert manifest verifyRoot to hash", error = err.msg
+      return failure(err)
+
+    if verifyRoot =? tree.root:
+      if verifyRoot != expectedRoot:
+        return failure "Existing slots root doesn't match reconstructed root."
 
     self.slotRoots = slotRoots
     self.verifyTree = some tree

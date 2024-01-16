@@ -1,9 +1,11 @@
 import pkg/chronicles
+import pkg/questionable/results
 import ../statemachine
 import ../salesagent
 import ./errorhandling
 import ./filling
 import ./cancelled
+import ./errored
 import ./failed
 
 logScope:
@@ -34,7 +36,10 @@ method run*(state: SaleInitialProving, machine: Machine): Future[?State] {.async
   let
     slot = Slot(request: request, slotIndex: data.slotIndex)
     challenge = await context.market.getChallenge(slot.id)
-    proof = await onProve(slot, challenge)
+  without proof =? (await onProve(slot, challenge)), err:
+    error "Failed to generate initial proof", error = err.msg
+    return some State(SaleErrored(error: err))
+
   debug "Finished proof calculation", requestId = $data.requestId
 
   return some State(SaleFilling(proof: proof))
