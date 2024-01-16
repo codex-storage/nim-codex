@@ -39,11 +39,11 @@ checksuite "Manifest":
     slotLeavesCids = leaves.toSlotCids().tryGet
 
     tree = Poseidon2Tree.init(leaves).tryGet
-    slotsRootsCid = tree.root.tryGet.toSlotsRootsCid().tryGet
+    verifyCid = tree.root.tryGet.toVerifyCid().tryGet
 
     verifiableManifest = Manifest.new(
       manifest = protectedManifest,
-      verifyRoot = slotsRootsCid,
+      verifyRoot = verifyCid,
       slotRoots = slotLeavesCids
     ).tryGet()
 
