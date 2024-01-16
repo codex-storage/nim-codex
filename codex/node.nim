@@ -548,7 +548,7 @@ proc onStore(
 proc onProve(
   self: CodexNodeRef,
   slot: Slot,
-  challenge: ProofChallenge): Future[seq[byte]] {.async.} =
+  challenge: ProofChallenge): Future[?!seq[byte]] {.async.} =
   ## Generats a proof for a given slot and challenge
   ##
 
@@ -564,24 +564,27 @@ proc onProve(
   trace "Received proof challenge"
 
   without cid =? Cid.init(cidStr).mapFailure, err:
-    trace "Unable to parse Cid", cid, err = err.msg
-    return
+    error "Unable to parse Cid", cid, err = err.msg
+    return failure(err)
 
   without manifest =? await self.fetchManifest(cid), err:
-    trace "Unable to fetch manifest for cid", err = err.msg
-    return
+    error "Unable to fetch manifest for cid", err = err.msg
+    return failure(err)
 
   without builder =? SlotsBuilder.new(self.blockStore, manifest), err:
-    trace "Unable to create slots builder", err = err.msg
-    return
+    error "Unable to create slots builder", err = err.msg
+    return failure(err)
 
   without sampler =? DataSampler.new(slotIdx, self.blockStore, builder), err:
-    trace "Unable to create data sampler", err = err.msg
-    return
+    error "Unable to create data sampler", err = err.msg
+    return failure(err)
 
   without proofInput =? await sampler.getProofInput(challenge, nSamples = 3), err:
-    trace "Unable to get proof input for slot", err = err.msg
-    return
+    error "Unable to get proof input for slot", err = err.msg
+    return failure(err)
+
+  # Todo: send proofInput to circuit. Get proof. (Profit, repeat.)
+  success(@[42'u8])
 
 proc onExpiryUpdate(
   self: CodexNodeRef,
@@ -631,7 +634,7 @@ proc start*(self: CodexNodeRef) {.async.} =
       self.onClear(request, slotIndex)
 
     hostContracts.sales.onProve =
-      proc(slot: Slot, challenge: ProofChallenge): Future[seq[byte]] =
+      proc(slot: Slot, challenge: ProofChallenge): Future[?!seq[byte]] =
         # TODO: generate proof
         self.onProve(slot, challenge)
 
