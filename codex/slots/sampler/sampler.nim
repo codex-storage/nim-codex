@@ -1,183 +1,138 @@
-import ../contracts/requests
-import ../blocktype as bt
-import ../merkletree
-import ../manifest
-import ../stores/blockstore
+## Nim-Codex
+## Copyright (c) 2023 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
 
-import std/bitops
 import std/sugar
+import std/sequtils
 
 import pkg/chronicles
 import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
 import pkg/constantine/math/arithmetic
-import pkg/poseidon2/types
 import pkg/poseidon2
+import pkg/poseidon2/types
+import pkg/poseidon2/io
 
-import misc
-import slotblocks
-import types
+import ../../market
+import ../../blocktype as bt
+import ../../merkletree
+import ../../manifest
+import ../../stores
 
-# Index naming convention:
-# "<ContainerType><ElementType>Index" => The index of an ElementType within a ContainerType.
-# Some examples:
-# SlotBlockIndex => The index of a Block within a Slot.
-# DatasetBlockIndex => The index of a Block within a Dataset.
+import ../builder
+
+import ./utils
 
 logScope:
   topics = "codex datasampler"
 
 type
+  Cell* = seq[byte]
+
+  Sample* = object
+    data*: Cell
+    proof*: Poseidon2Proof
+
+  ProofInput* = object
+    entropy*: Poseidon2Hash
+    verifyRoot*: Poseidon2Hash
+    slotProof*: Poseidon2Proof
+    numSlots*: Natural
+    numCells*: Natural
+    slotIndex*: Natural
+    samples*: seq[Sample]
+
   DataSampler* = ref object of RootObj
-    slot: Slot
+    index: Natural
     blockStore: BlockStore
     # The following data is invariant over time for a given slot:
     builder: SlotsBuilder
 
 proc new*(
     T: type DataSampler,
-    slot: Slot,
+    index: Natural,
     blockStore: BlockStore,
-    builder: SlotsBuilder): Future[?!DataSampler] {.async.} =
-  # Create a DataSampler for a slot.
-  # A DataSampler can create the input required for the proving circuit.
-  let
-    numberOfCellsInSlot = getNumberOfCellsInSlot(slot)
-    blockSize = slotBlocks.manifest.blockSize.uint64
+    builder: SlotsBuilder): ?!DataSampler =
 
-  success(DataSampler(
-    slot: slot,
+  if index > builder.slotRoots.high:
+    error "Slot index is out of range"
+    return failure("Slot index is out of range")
+
+  success DataSampler(
+    index: index,
     blockStore: blockStore,
-    slotBlocks: slotBlocks,
-    datasetRoot: datasetRoot,
-    slotRootHash: toF(1234), # TODO - when slotPoseidonTree is a poseidon tree, its root should be a FieldElement.
-    slotPoseidonTree: slotPoseidonTree,
-    datasetToSlotProof: datasetToSlotProof,
-    blockSize: blockSize,
-    numberOfCellsInSlot: numberOfCellsInSlot,
-    datasetSlotIndex: slot.slotIndex.truncate(uint64),
-    numberOfCellsPerBlock: blockSize div CellSize
-  ))
+    builder: builder)
 
-proc getDatasetBlockIndexForSlotBlockIndex*(self: DataSampler, slotBlockIndex: uint64): uint64 =
+proc getProofs*(
+  self: DataSampler,
+  entropy: ProofChallenge,
+  nSamples: Natural): Future[?!ProofInput] {.async.} =
+  ## Generate proofs as input to the proving circuit.
+  ##
+
+  without entropy =? Poseidon2Hash.fromBytes(entropy):
+    error "Failed to parse entropy"
+    return failure("Failed to parse entropy")
+
+  without verifyTree =? self.builder.verifyTree and
+    slotProof =? verifyTree.getProof(self.index) and
+    verifyRoot =? verifyTree.root(), err:
+    error "Failed to get slot proof from verify tree", err = err.msg
+    return failure(err)
+
   let
-    slotSize = self.slot.request.ask.slotSize.truncate(uint64)
-    blocksInSlot = slotSize div self.manifest.blockSize.uint64
-    datasetSlotIndex = self.slot.slotIndex.truncate(uint64)
-  return (datasetSlotIndex * blocksInSlot) + slotBlockIndex
+    treeCid = self.builder.manifest.treeCid
+    cellIdxs = entropy.cellIndices(
+      self.builder.slotRoots[self.index],
+      self.builder.slotIndicies(self.index),
+      self.builder.numSlotCells,
+      nSamples)
 
-proc getSlotBlock*(self: DataSampler, slotBlockIndex: uint64): Future[?!Block] {.async.} =
-  let
-    blocksInManifest = (self.manifest.datasetSize div self.manifest.blockSize).uint64
-    datasetBlockIndex = self.getDatasetBlockIndexForSlotBlockIndex(slotBlockIndex)
+  logScope:
+    index = self.index
+    samples = nSamples
+    cells = cellIdxs
+    treeCid = treeCid
 
-  if datasetBlockIndex >= blocksInManifest:
-    return failure("Found datasetBlockIndex that is out-of-range: " & $datasetBlockIndex)
+  trace "Collecting input for proof"
+  let proofs = collect(newSeq):
+    for cellIdx in cellIdxs:
+      let
+        blockIdx = cellIdx.toBlockIdx(self.builder.numSlotCells)
+        blkCellIdx = cellIdx.toBlockCellIdx(self.builder.numBlockCells)
 
-  return await self.blockStore.getBlock(self.manifest.treeCid, datasetBlockIndex)
+      logScope:
+        cellIdx = cellIdx
+        blockIdx = blockIdx
+        blkCellIdx = blkCellIdx
 
-proc convertToSlotCellIndex(self: DataSampler, fe: FieldElement): uint64 =
-  let
-    n = self.numberOfCellsInSlot.int
-    log2 = ceilingLog2(n)
-  assert((1 shl log2) == n , "expected `numberOfCellsInSlot` to be a power of two.")
+      without (cid, slotProof) =? await self.blockStore.getCidAndProof(
+        self.builder.manifest.treeCid,
+        blockIdx.Natural), err:
+        error "Failed to get block from block store", err = err.msg
+        return failure(err)
 
-  return extractLowBits(fe.toBig(), log2)
+      without (bytes, blkTree) =? await self.builder.buildBlockTree(blockIdx), err:
+        error "Failed to build block tree", err = err.msg
+        return failure(err)
 
-func getSlotBlockIndexForSlotCellIndex*(self: DataSampler, slotCellIndex: uint64): uint64 =
-  return slotCellIndex div self.numberOfCellsPerBlock
+      without blockProof =? blkTree.getProof(blkCellIdx), err:
+        error "Failed to get proof from block tree", err = err.msg
+        return failure(err)
 
-func getBlockCellIndexForSlotCellIndex*(self: DataSampler, slotCellIndex: uint64): uint64 =
-  return slotCellIndex mod self.numberOfCellsPerBlock
+      Sample(data: bytes, proof: blockProof)
 
-proc findSlotCellIndex*(self: DataSampler, challenge: FieldElement, counter: FieldElement): uint64 =
-  # Computes the slot-cell index for a single sample.
-  let
-    input = @[self.slotRootHash, challenge, counter]
-    hash = Sponge.digest(input, rate = 2)
-  return convertToSlotCellIndex(self, hash)
-
-func findSlotCellIndices*(self: DataSampler, challenge: FieldElement, nSamples: int): seq[uint64] =
-  # Computes nSamples slot-cell indices.
-  return collect(newSeq, (for i in 1..nSamples: self.findSlotCellIndex(challenge, toF(i))))
-
-proc getCellFromBlock*(self: DataSampler, blk: bt.Block, slotCellIndex: uint64): Cell =
-  let
-    blockCellIndex = self.getBlockCellIndexForSlotCellIndex(slotCellIndex)
-    dataStart = (CellSize * blockCellIndex)
-    dataEnd = dataStart + CellSize
-  return blk.data[dataStart ..< dataEnd]
-
-proc getBlockCells*(self: DataSampler, blk: bt.Block): seq[Cell] =
-  var cells: seq[Cell]
-  for i in 0 ..< self.numberOfCellsPerBlock:
-    cells.add(self.getCellFromBlock(blk, i))
-  return cells
-
-proc getBlockCellMiniTree*(self: DataSampler, blk: bt.Block): ?!MerkleTree =
-  without var builder =? MerkleTreeBuilder.init(): # TODO tree with poseidon2 as hasher please
-    error "Failed to create merkle tree builder"
-    return failure("Failed to create merkle tree builder")
-
-  let cells = self.getBlockCells(blk)
-  for cell in cells:
-    if builder.addDataBlock(cell).isErr:
-      error "Failed to add cell data to tree"
-      return failure("Failed to add cell data to tree")
-
-  return builder.build()
-
-proc getProofInput*(self: DataSampler, challenge: FieldElement, nSamples: int): Future[?!ProofInput] {.async.} =
-  var
-    slotToBlockProofs: seq[MerkleProof]
-    blockToCellProofs: seq[MerkleProof]
-    samples: seq[ProofSample]
-
-  let slotCellIndices = self.findSlotCellIndices(challenge, nSamples)
-
-  trace "Collecing input for proof", selectedSlotCellIndices = $slotCellIndices
-  for slotCellIndex in slotCellIndices:
-    let
-      slotBlockIndex = self.getSlotBlockIndexForSlotCellIndex(slotCellIndex)
-      blockCellIndex = self.getBlockCellIndexForSlotCellIndex(slotCellIndex)
-
-    without blk =? await self.slotBlocks.getSlotBlock(slotBlockIndex), err:
-      error "Failed to get slot block"
-      return failure(err)
-
-    without miniTree =? self.getBlockCellMiniTree(blk), err:
-      error "Failed to calculate minitree for block"
-      return failure(err)
-
-    without blockProof =? self.slotPoseidonTree.getProof(slotBlockIndex), err:
-      error "Failed to get slot-to-block inclusion proof"
-      return failure(err)
-    slotToBlockProofs.add(blockProof)
-
-    without cellProof =? miniTree.getProof(blockCellIndex), err:
-      error "Failed to get block-to-cell inclusion proof"
-      return failure(err)
-    blockToCellProofs.add(cellProof)
-
-    let cell = self.getCellFromBlock(blk, slotCellIndex)
-
-    proc combine(bottom: MerkleProof, top: MerkleProof): MerkleProof =
-      return bottom
-
-    samples.add(ProofSample(
-      cellData: cell,
-      merkleProof: combine(cellProof, blockProof)
-    ))
-
-  trace "Successfully collected proof input"
-  success(ProofInput(
-    datasetRoot: self.datasetRoot,
-    entropy: challenge,
-    numberOfCellsInSlot: self.numberOfCellsInSlot,
-    numberOfSlots: self.slot.request.ask.slots,
-    datasetSlotIndex: self.datasetSlotIndex,
-    slotRoot: self.slotRootHash,
-    datasetToSlotProof: self.datasetToSlotProof,
-    proofSamples: samples
-  ))
+  success ProofInput(
+    entropy: entropy,
+    verifyRoot: verifyRoot,
+    slotProof: slotProof,
+    numSlots: self.builder.numSlots,
+    numCells: self.builder.numSlotCells,
+    slotIndex: self.index,
+    samples: proofs)
