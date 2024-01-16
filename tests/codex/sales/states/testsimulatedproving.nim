@@ -44,8 +44,8 @@ asyncchecksuite "sales state 'simulated-proving'":
     market.setProofRequired(slot.id, true)
     subscription = await market.subscribeProofSubmission(onProofSubmission)
 
-    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[seq[byte]] {.async.} =
-                        return proof
+    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[?!seq[byte]] {.async.} =
+                        return success(proof)
     let context = SalesContext(market: market, clock: clock, onProve: onProve.some)
     agent = newSalesAgent(context,
                           request.id,

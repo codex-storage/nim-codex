@@ -24,9 +24,9 @@ asyncchecksuite "sales state 'initialproving'":
   var receivedChallenge: ProofChallenge
 
   setup:
-    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[seq[byte]] {.async.} =
+    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[?!seq[byte]] {.async.} =
                           receivedChallenge = challenge
-                          return proof
+                          return success(proof)
     let context = SalesContext(
       onProve: onProve.some,
       market: market
