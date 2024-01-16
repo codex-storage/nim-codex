@@ -354,6 +354,14 @@ proc new*(
       error "Failed to build slot roots tree", err = err.msg
       return failure(err)
 
+    without expectedRoot =? manifest.verifyRoot.fromVerifyCid(), err:
+      error "Unable to convert manifest verifyRoot to hash", error = err.msg
+      return failure(err)
+
+    if verifyRoot =? tree.root:
+      if verifyRoot != expectedRoot:
+        return failure "Existing slots root doesn't match reconstructed root."
+
     self.slotRoots = slotRoots
     self.verifyTree = some tree
 

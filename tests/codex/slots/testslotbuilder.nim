@@ -361,7 +361,7 @@ suite "Slot builder":
         verifyManifest,
         cellSize = cellSize).isErr
 
-  test "Should not build from verifiable manifest with slots root":
+  test "Should not build from verifiable manifest with invalid verify root":
     let
       slotBuilder = SlotsBuilder.new(
         localStore,
