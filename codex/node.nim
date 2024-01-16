@@ -579,8 +579,8 @@ proc onProve(
     trace "Unable to create data sampler", err = err.msg
     return
 
-  without proof =? await sampler.getProofs(challenge, slotIdx), err:
-    trace "Unable to get proofs for slot", err = err.msg
+  without proofInput =? await sampler.getProofInput(challenge, nSamples = 3), err:
+    trace "Unable to get proof input for slot", err = err.msg
     return
 
 proc onExpiryUpdate(
