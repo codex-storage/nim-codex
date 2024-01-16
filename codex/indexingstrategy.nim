@@ -103,5 +103,4 @@ proc new*(
     firstIndex: firstIndex,
     lastIndex: lastIndex,
     numberOfIterations: numberOfIterations,
-    step: divUp((lastIndex - firstIndex), numberOfIterations)
-  )
+    step: divUp((lastIndex - firstIndex), numberOfIterations))
