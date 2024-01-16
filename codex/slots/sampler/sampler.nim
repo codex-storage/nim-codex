@@ -37,12 +37,13 @@ type
 
   Sample* = object
     data*: Cell
-    proof*: Poseidon2Proof
+    slotProof*: Poseidon2Proof
+    cellProof*: Poseidon2Proof
 
   ProofInput* = object
     entropy*: Poseidon2Hash
     verifyRoot*: Poseidon2Hash
-    slotProof*: Poseidon2Proof
+    verifyProof*: Poseidon2Proof
     numSlots*: Natural
     numCells*: Natural
     slotIndex*: Natural
@@ -88,16 +89,15 @@ proc getProofInput*(
     return failure("Failed to parse entropy")
 
   without verifyTree =? self.builder.verifyTree and
-    slotProof =? verifyTree.getProof(self.index) and
+    verifyProof =? verifyTree.getProof(self.index) and
     verifyRoot =? verifyTree.root(), err:
     error "Failed to get slot proof from verify tree", err = err.msg
     return failure(err)
 
   let
-    treeCid = self.builder.manifest.treeCid
+    slotTreeCid = self.builder.manifest.slotRoots[self.index]
     cellIdxs = entropy.cellIndices(
       self.builder.slotRoots[self.index],
-      self.builder.slotIndicies(self.index),
       self.builder.numSlotCells,
       nSamples)
 
@@ -105,7 +105,7 @@ proc getProofInput*(
     index = self.index
     samples = nSamples
     cells = cellIdxs
-    treeCid = treeCid
+    slotTreeCid = slotTreeCid
 
   trace "Collecting input for proof"
   let samples = collect(newSeq):
@@ -119,8 +119,8 @@ proc getProofInput*(
         blockIdx = blockIdx
         blkCellIdx = blkCellIdx
 
-      without (cid, _) =? await self.blockStore.getCidAndProof(
-        self.builder.manifest.treeCid,
+      without (cid, slotProof) =? await self.blockStore.getCidAndProof(
+        slotTreeCid,
         blockIdx.Natural), err:
         error "Failed to get block from block store", err = err.msg
         return failure(err)
@@ -135,12 +135,12 @@ proc getProofInput*(
 
       let cellData = self.getCell(bytes, blkCellIdx)
 
-      Sample(data: cellData, proof: blockProof)
+      Sample(data: cellData, slotProof: slotProof, cellProof: blockProof)
 
   success ProofInput(
     entropy: entropy,
     verifyRoot: verifyRoot,
-    slotProof: slotProof,
+    verifyProof: verifyProof,
     numSlots: self.builder.numSlots,
     numCells: self.builder.numSlotCells,
     slotIndex: self.index,

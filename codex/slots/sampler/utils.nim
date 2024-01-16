@@ -17,7 +17,7 @@ import pkg/constantine/math/arithmetic
 
 import ../../merkletree
 
-func extractLowBits[n: static int](elm: BigInt[n], k: int): uint64 =
+func extractLowBits*[n: static int](elm: BigInt[n], k: int): uint64 =
   assert( k > 0 and k <= 64 )
   var r  = 0'u64
   for i in 0..<k:
@@ -72,11 +72,9 @@ func cellIndex*(
 func cellIndices*(
   entropy: Poseidon2Hash,
   slotRoot: Poseidon2Hash,
-  validIdxs: seq[int],
   numCells: Natural, nSamples: Natural): seq[Natural] =
 
   var indices: seq[int]
   while (indices.len < nSamples):
     let idx = entropy.cellIndex(slotRoot, numCells, indices.len + 1)
-    if idx.toBlockIdx(numCells) in validIdxs:
-      indices.add(idx)
+    indices.add(idx)
