@@ -15,6 +15,8 @@ import pkg/poseidon2/io
 
 import pkg/constantine/math/arithmetic
 
+import pkg/constantine/math/io/io_fields
+
 import ../../merkletree
 
 func extractLowBits*[n: static int](elm: BigInt[n], k: int): uint64 =
@@ -64,8 +66,7 @@ func cellIndex*(
   let log2 = ceilingLog2(numCells)
   doAssert( 1 shl log2 == numCells , "`numCells` is assumed to be a power of two" )
 
-  let
-    hash = Sponge.digest( @[ entropy, slotRoot, counter.toF ], rate = 2 )
+  let hash = Sponge.digest( @[ slotRoot, entropy, counter.toF ], rate = 2 )
 
   return int( extractLowBits(hash, log2) )
 
@@ -74,7 +75,8 @@ func cellIndices*(
   slotRoot: Poseidon2Hash,
   numCells: Natural, nSamples: Natural): seq[Natural] =
 
-  var indices: seq[int]
+  var indices: seq[Natural]
   while (indices.len < nSamples):
-    let idx = entropy.cellIndex(slotRoot, numCells, indices.len + 1)
-    indices.add(idx)
+    let idx = cellIndex(entropy, slotRoot, numCells, indices.len + 1)
+    indices.add(idx.Natural)
+  indices

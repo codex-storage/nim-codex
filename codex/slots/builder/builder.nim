@@ -30,8 +30,7 @@ import ../../utils
 import ../../utils/asynciter
 import ../../utils/digest
 import ../../utils/poseidon2digest
-
-import ./converters
+import ../converters
 
 export converters
 
@@ -297,7 +296,7 @@ proc buildManifest*(self: SlotsBuilder): Future[?!Manifest] {.async.} =
     error "Failed to map slot roots to CIDs", err = err.msg
     return failure(err)
 
-  without rootProvingCidRes =? self.verifyRoot.?toSlotsRootsCid() and
+  without rootProvingCidRes =? self.verifyRoot.?toVerifyCid() and
     rootProvingCid =? rootProvingCidRes, err: # TODO: why doesn't `.?` unpack the result?
     error "Failed to map slot roots to CIDs", err = err.msg
     return failure(err)
@@ -350,15 +349,15 @@ proc new*(
       return failure "Manifest is verifiable but slot roots are missing or invalid."
 
     let
-      slotRoot = ? Poseidon2Hash.fromBytes(
-        ( ? manifest.verifyRoot.mhash.mapFailure ).digestBytes.toArray32
-      ).toFailure
+      # slotRoot = ? Poseidon2Hash.fromBytes(
+      #   ( ? manifest.verifyRoot.mhash.mapFailure ).digestBytes.toArray32
+      # ).toFailure
 
-      slotRoots = manifest.slotRoots.mapIt(
-        ? Poseidon2Hash.fromBytes(
-          ( ? it.mhash.mapFailure ).digestBytes.toArray32
-        ).toFailure
-      )
+      slotRoots = manifest.slotRoots.mapIt(it.fromSlotCid().toFailure)
+      #   ? Poseidon2Hash.fromBytes(
+      #     ( ? it.mhash.mapFailure ).digestBytes.toArray32
+      #   ).toFailure
+      # )
 
     without tree =? self.buildVerifyTree(slotRoots), err:
       error "Failed to build slot roots tree", err = err.msg
