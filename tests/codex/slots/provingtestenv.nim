@@ -78,7 +78,9 @@ proc createSlotTree(self: ProvingTestEnvironment, dSlotIndex: uint64): Future[Po
 
   let
     slotBlocks = datasetBlockIndices.mapIt(self.datasetBlocks[it])
-    slotBlockRoots = slotBlocks.mapIt(Poseidon2Tree.digest(it.data, DefaultCellSize.int).tryGet())
+    numBlockCells = bytesPerBlock.int div DefaultCellSize.int
+    blockPadBytes = newSeq[byte](numBlockCells.nextPowerOfTwoPad * DefaultCellSize.int)
+    slotBlockRoots = slotBlocks.mapIt(Poseidon2Tree.digest(it.data & blockPadBytes, DefaultCellSize.int).tryGet())
     tree = Poseidon2Tree.init(slotBlockRoots).tryGet()
     treeCid = tree.root().tryGet().toSlotCid().tryGet()
 
@@ -145,6 +147,7 @@ proc createSlot(self: ProvingTestEnvironment): void =
   self.slot = Slot(
     request: StorageRequest(
       ask: StorageAsk(
+        slots: totalNumberOfSlots.uint64,
         slotSize: u256(bytesPerBlock * numberOfSlotBlocks)
       ),
       content: StorageContent(

@@ -39,6 +39,8 @@ type
     data*: Cell
     slotProof*: Poseidon2Proof
     cellProof*: Poseidon2Proof
+    slotBlockIdx*: Natural
+    blockCellIdx*: Natural
 
   ProofInput* = object
     entropy*: Poseidon2Hash
@@ -96,6 +98,7 @@ proc getProofInput*(
 
   let
     slotTreeCid = self.builder.manifest.slotRoots[self.index]
+    numCellsPerBlock = (self.builder.manifest.blockSize div self.builder.cellSize).Natural
     cellIdxs = entropy.cellIndices(
       self.builder.slotRoots[self.index],
       self.builder.numSlotCells,
@@ -111,21 +114,30 @@ proc getProofInput*(
   let samples = collect(newSeq):
     for cellIdx in cellIdxs:
       let
-        blockIdx = cellIdx.toBlockIdx(self.builder.numSlotCells)
-        blkCellIdx = cellIdx.toBlockCellIdx(self.builder.numBlockCells)
+        blockIdx = cellIdx.toBlockIdx(numCellsPerBlock)
+        blkCellIdx = cellIdx.toBlockCellIdx(numCellsPerBlock)
 
       logScope:
         cellIdx = cellIdx
         blockIdx = blockIdx
         blkCellIdx = blkCellIdx
 
-      without (cid, slotProof) =? await self.blockStore.getCidAndProof(
+      without (cid, proof) =? await self.blockStore.getCidAndProof(
         slotTreeCid,
         blockIdx.Natural), err:
         error "Failed to get block from block store", err = err.msg
         return failure(err)
 
-      without (bytes, blkTree) =? await self.builder.buildBlockTree(blockIdx), err:
+      without slotProof =? proof.toVerifiableProof(), err:
+        error "Unable to convert slot proof to poseidon proof", error = err.msg
+        return failure(err)
+
+      # This converts our slotBlockIndex to a datasetBlockIndex using the
+      # indexing-strategy used by the builder.
+      # We need this to fetch the block data. We can't do it by slotTree + slotBlkIdx.
+      let datasetBlockIndex = self.builder.slotIndicies(self.index)[blockIdx]
+
+      without (bytes, blkTree) =? await self.builder.buildBlockTree(datasetBlockIndex), err:
         error "Failed to build block tree", err = err.msg
         return failure(err)
 
@@ -135,7 +147,13 @@ proc getProofInput*(
 
       let cellData = self.getCell(bytes, blkCellIdx)
 
-      Sample(data: cellData, slotProof: slotProof, cellProof: blockProof)
+      Sample(
+        data: cellData,
+        slotProof: slotProof,
+        cellProof: blockProof,
+        slotBlockIdx: blockIdx.Natural,
+        blockCellIdx: blkCellIdx.Natural
+      )
 
   success ProofInput(
     entropy: entropy,
