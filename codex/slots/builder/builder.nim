@@ -36,9 +36,8 @@ import ./converters
 export converters
 
 const
-  # TODO: Unified with the CellSize specified in branch "data-sampler"
+  # TODO: Unified with the DefaultCellSize specified in branch "data-sampler"
   # in the proving circuit.
-  CellSize* = 2048
 
   DefaultEmptyBlock* = newSeq[byte](DefaultBlockSize.int)
   DefaultEmptyCell* = newSeq[byte](DefaultCellSize.int)
@@ -50,8 +49,8 @@ type
     store: BlockStore
     manifest: Manifest
     strategy: IndexingStrategy
-    cellSize: int
-    blockEmptyDigest: Poseidon2Hash
+    cellSize: NBytes
+    emptyDigestTree: Poseidon2Tree
     blockPadBytes: seq[byte]
     slotsPadLeafs: seq[Poseidon2Hash]
     rootsPadLeafs: seq[Poseidon2Hash]
@@ -126,18 +125,56 @@ func numBlockCells*(self: SlotsBuilder): Natural =
   ## Number of cells per block.
   ##
 
-  self.manifest.blockSize.int div self.cellSize
+  (self.manifest.blockSize div self.cellSize).Natural
 
-func slotIndicies*(self: SlotsBuilder, slot: Natural): ?!Iter[int] =
+func numSlotCells*(self: SlotsBuilder): Natural =
+  ## Number of cells per slot.
+  ##
+
+  self.numBlockCells * self.numSlotBlocks
+
+func slotIndiciesIter*(self: SlotsBuilder, slot: Natural): ?!Iter[int] =
   ## Returns the slot indices.
-  ## TODO: should return an iterator
   ##
 
   self.strategy.getIndicies(slot).catch
 
+func slotIndicies*(self: SlotsBuilder, slot: Natural): seq[int] =
+  ## Returns the slot indices.
+  ##
+
+  if iter =? self.strategy.getIndicies(slot).catch:
+    toSeq(iter)
+  else:
+    trace "Failed to get slot indicies"
+    newSeq[int]()
+
+func manifest*(self: SlotsBuilder): Manifest =
+  ## Returns the manifest.
+  ##
+
+  self.manifest
+
+proc buildBlockTree*(
+  self: SlotsBuilder,
+  blkIdx: Natural): Future[?!(seq[byte], Poseidon2Tree)] {.async.} =
+  without blk =? await self.store.getBlock(self.manifest.treeCid, blkIdx), err:
+    error "Failed to get block CID for tree at index"
+    return failure(err)
+
+  if blk.isEmpty:
+    success (DefaultEmptyBlock & self.blockPadBytes, self.emptyDigestTree)
+  else:
+    without tree =?
+      Poseidon2Tree.digestTree(blk.data & self.blockPadBytes, self.cellSize.int), err:
+      error "Failed to create digest for block"
+      return failure(err)
+
+    success (blk.data, tree)
+
 proc getCellHashes*(
   self: SlotsBuilder,
-  slotIndex: int): Future[?!seq[Poseidon2Hash]] {.async.} =
+  slotIndex: Natural): Future[?!seq[Poseidon2Hash]] {.async.} =
 
   let
     treeCid = self.manifest.treeCid
@@ -148,32 +185,26 @@ proc getCellHashes*(
     treeCid = treeCid
     blockCount = blockCount
     numberOfSlots = numberOfSlots
-    index = blockIndex
+    index = blkIdx
     slotIndex = slotIndex
 
   let
     hashes: seq[Poseidon2Hash] = collect(newSeq):
-      for blockIndex in self.strategy.getIndicies(slotIndex):
+      for blkIdx in self.strategy.getIndicies(slotIndex):
         trace "Getting block CID for tree at index"
 
-        without blk =? (await self.store.getBlock(treeCid, blockIndex)), err:
-          error "Failed to get block CID for tree at index"
+        without (_, tree) =? (await self.buildBlockTree(blkIdx)) and
+          digest =? tree.root, err:
+          error "Failed to get block CID for tree at index", err = err.msg
           return failure(err)
 
-        if blk.isEmpty:
-          self.blockEmptyDigest
-        else:
-          without digest =? Poseidon2Tree.digest(blk.data & self.blockPadBytes, self.cellSize), err:
-            error "Failed to create digest for block"
-            return failure(err)
-
-          digest
+        digest
 
   success hashes
 
 proc buildSlotTree*(
   self: SlotsBuilder,
-  slotIndex: int): Future[?!Poseidon2Tree] {.async.} =
+  slotIndex: Natural): Future[?!Poseidon2Tree] {.async.} =
   without cellHashes =? (await self.getCellHashes(slotIndex)), err:
     error "Failed to select slot blocks", err = err.msg
     return failure(err)
@@ -215,7 +246,7 @@ proc buildSlot*(
 
   tree.root()
 
-func buildRootsTree*(
+func buildVerifyTree*(
   self: SlotsBuilder,
   slotRoots: openArray[Poseidon2Hash]): ?!Poseidon2Tree =
   Poseidon2Tree.init(@slotRoots & self.rootsPadLeafs)
@@ -238,7 +269,7 @@ proc buildSlots*(self: SlotsBuilder): Future[?!void] {.async.} =
           return failure(err)
         slotRoot
 
-  without tree =? self.buildRootsTree(self.slotRoots) and root =? tree.root, err:
+  without tree =? self.buildVerifyTree(self.slotRoots) and root =? tree.root, err:
     error "Failed to build slot roots tree", err = err.msg
     return failure(err)
 
@@ -271,7 +302,7 @@ proc new*(
   store: BlockStore,
   manifest: Manifest,
   strategy: ?IndexingStrategy = none IndexingStrategy,
-  cellSize = CellSize): ?!SlotsBuilder =
+  cellSize = DefaultCellSize): ?!SlotsBuilder =
 
   if not manifest.protected:
     return failure("Can only create SlotsBuilder using protected manifests.")
@@ -279,7 +310,7 @@ proc new*(
   if (manifest.blocksCount mod manifest.numSlots) != 0:
     return failure("Number of blocks must be divisable by number of slots.")
 
-  if (manifest.blockSize.int mod cellSize) != 0:
+  if (manifest.blockSize mod cellSize) != 0.NBytes:
     return failure("Block size must be divisable by cell size.")
 
   let
@@ -290,12 +321,12 @@ proc new*(
         strategy.get
 
     # all trees have to be padded to power of two
-    numBlockCells = manifest.blockSize.int div cellSize                       # number of cells per block
-    blockPadBytes = newSeq[byte](numBlockCells.nextPowerOfTwoPad * cellSize)  # power of two padding for blocks
+    numBlockCells = (manifest.blockSize div cellSize).int                         # number of cells per block
+    blockPadBytes = newSeq[byte](numBlockCells.nextPowerOfTwoPad * cellSize.int)  # power of two padding for blocks
     numSlotLeafs = (manifest.blocksCount div manifest.numSlots)
-    slotsPadLeafs = newSeqWith(numSlotLeafs.nextPowerOfTwoPad, Poseidon2Zero) # power of two padding for block roots
+    slotsPadLeafs = newSeqWith(numSlotLeafs.nextPowerOfTwoPad, Poseidon2Zero)     # power of two padding for block roots
     rootsPadLeafs = newSeqWith(manifest.numSlots.nextPowerOfTwoPad, Poseidon2Zero)
-    blockEmptyDigest = ? Poseidon2Tree.digest(DefaultEmptyBlock & blockPadBytes, CellSize)
+    emptyDigestTree = ? Poseidon2Tree.digestTree(DefaultEmptyBlock & blockPadBytes, DefaultCellSize.int)
 
   var self = SlotsBuilder(
     store: store,
@@ -305,7 +336,7 @@ proc new*(
     blockPadBytes: blockPadBytes,
     slotsPadLeafs: slotsPadLeafs,
     rootsPadLeafs: rootsPadLeafs,
-    blockEmptyDigest: blockEmptyDigest)
+    emptyDigestTree: emptyDigestTree)
 
   if manifest.verifiable:
     if manifest.slotRoots.len == 0 or manifest.slotRoots.len != manifest.numSlots:
@@ -322,7 +353,7 @@ proc new*(
         ).toFailure
       )
 
-    without tree =? self.buildRootsTree(slotRoots), err:
+    without tree =? self.buildVerifyTree(slotRoots), err:
       error "Failed to build slot roots tree", err = err.msg
       return failure(err)
 
