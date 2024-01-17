@@ -79,10 +79,10 @@ asyncchecksuite "Test proof sampler utils":
       slotCellIndex(3) == knownIndices[2]
 
   test "Can find sequence of slot-cell indices":
-    proc slotCellIndices(n: int): seq[Natural] =
-      cellIndices(env.challenge, slotRoot, env.slotIndicies.concat, cellsPerBlock, numCells, n)
+    proc slotCellIndices(n: int): seq[Natural]  =
+      cellIndices(env.challenge, slotRoot, numCells, n)
 
-    proc getExpectedIndices(n: int): seq[Natural] =
+    proc getExpectedIndices(n: int): seq[Natural]  =
       return collect(newSeq, (for i in 1..n: cellIndex(env.challenge, slotRoot, numCells, i)))
 
     check:

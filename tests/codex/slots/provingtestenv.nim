@@ -43,7 +43,6 @@ type
     manifest*: Manifest
     manifestBlock*: bt.Block
     slot*: Slot
-    slotIndicies*: seq[seq[int]]
     datasetBlocks*: seq[bt.Block]
     slotTree*: Poseidon2Tree
     slotRootCid*: Cid
@@ -78,8 +77,6 @@ proc createSlotTree(self: ProvingTestEnvironment, dSlotIndex: uint64): Future[Po
     datasetBlockIndexingStrategy = SteppedIndexingStrategy.new(0, self.datasetBlocks.len - 1, totalNumberOfSlots)
     datasetBlockIndices = toSeq(datasetBlockIndexingStrategy.getIndicies(dSlotIndex.int))
 
-  self.slotIndicies[dSlotIndex] = datasetBlockIndices
-
   let
     slotBlocks = datasetBlockIndices.mapIt(self.datasetBlocks[it])
     numBlockCells = bytesPerBlock.int div DefaultCellSize.int
@@ -101,7 +98,6 @@ proc createDatasetRootHashAndSlotTree(self: ProvingTestEnvironment): Future[void
   var slotTrees = newSeq[Poseidon2Tree]()
   for i in 0 ..< totalNumberOfSlots:
     slotTrees.add(await self.createSlotTree(i.uint64))
-
   self.slotTree = slotTrees[datasetSlotIndex]
   self.slotRootCid = slotTrees[datasetSlotIndex].root().tryGet().toSlotCid().tryGet()
   self.slotRoots = slotTrees.mapIt(it.root().tryGet())
@@ -164,8 +160,7 @@ proc createSlot(self: ProvingTestEnvironment): void =
 
 proc createProvingTestEnvironment*(): Future[ProvingTestEnvironment] {.async.} =
   var testEnv = ProvingTestEnvironment(
-    challenge: toF(12345),
-    slotIndicies: newSeq[seq[int]](totalNumberOfSlots)
+    challenge: toF(12345)
   )
 
   testEnv.localStore = CacheStore.new()

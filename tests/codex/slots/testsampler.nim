@@ -97,22 +97,22 @@ asyncchecksuite "Test DataSampler":
       input.verifyProof == expectedProof
 
       # block-slot proofs
-      input.samples[0].slotBlockIdx == 3
-      input.samples[1].slotBlockIdx == 3
-      input.samples[2].slotBlockIdx == 3
+      input.samples[0].slotBlockIdx == 2
+      input.samples[1].slotBlockIdx == 2
+      input.samples[2].slotBlockIdx == 0
       toStr(input.samples[0].slotProof) == expectedBlockSlotProofs[0]
       toStr(input.samples[1].slotProof) == expectedBlockSlotProofs[1]
       toStr(input.samples[2].slotProof) == expectedBlockSlotProofs[2]
 
       # cell-block proofs
-      input.samples[0].blockCellIdx == 1
+      input.samples[0].blockCellIdx == 26
       input.samples[1].blockCellIdx == 29
-      input.samples[2].blockCellIdx == 5
+      input.samples[2].blockCellIdx == 29
       toStr(input.samples[0].cellProof) == expectedCellBlockProofs[0]
       toStr(input.samples[1].cellProof) == expectedCellBlockProofs[1]
       toStr(input.samples[2].cellProof) == expectedCellBlockProofs[2]
 
-      # cell data
+      # # cell data
       toHex(input.samples[0].data) == expectedCellData[0]
       toHex(input.samples[1].data) == expectedCellData[1]
       toHex(input.samples[2].data) == expectedCellData[2]
