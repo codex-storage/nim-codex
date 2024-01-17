@@ -37,10 +37,9 @@ proc toPoseidon2Hash(cid: Cid, mcodec: MultiCodec, cidCodec: MultiCodec): ?!Pose
   let
     mhash = ? cid.mhash.mapFailure
     bytes: array[32, byte] = array[32, byte].initCopyFrom(mhash.digestBytes())
-    hash = Poseidon2Hash.fromBytes(bytes)
-  if not hash.isSome():
-    return failure("Unable to convert Cid to Poseidon2Hash")
-  return success(hash.get())
+    hash = ? Poseidon2Hash.fromBytes(bytes).toFailure
+
+  success hash
 
 func toCellCid*(hash: Poseidon2Hash): ?!Cid =
   toCid(hash, Pos2Bn128MrklCodec, CodexSlotCellCodec)
