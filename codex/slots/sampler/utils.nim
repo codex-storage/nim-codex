@@ -15,8 +15,6 @@ import pkg/poseidon2/io
 
 import pkg/constantine/math/arithmetic
 
-import pkg/constantine/math/io/io_fields
-
 import ../../merkletree
 
 func extractLowBits*[n: static int](elm: BigInt[n], k: int): uint64 =
@@ -47,37 +45,45 @@ func ceilingLog2*(x : int) : int =
   else:
     return (floorLog2(x-1) + 1)
 
-func toBlockIdx*(cells: Natural, numCells: Natural): Natural =
+func toBlockIdx*(cell: Natural, numCells: Natural): Natural =
   let log2 = ceilingLog2(numCells)
   doAssert( 1 shl log2 == numCells , "`numCells` is assumed to be a power of two" )
 
-  return cells div numCells
+  return cell div numCells
 
-func toBlockCellIdx*(cells: Natural, numCells: Natural): Natural =
+func toBlockCellIdx*(cell: Natural, numCells: Natural): Natural =
   let log2 = ceilingLog2(numCells)
   doAssert( 1 shl log2 == numCells , "`numCells` is assumed to be a power of two" )
 
-  return cells mod numCells
+  return cell mod numCells
 
 func cellIndex*(
   entropy: Poseidon2Hash,
   slotRoot: Poseidon2Hash,
-  numCells: Natural, counter: Natural): Natural =
+  numCells: Natural,
+  counter: Natural): Natural =
   let log2 = ceilingLog2(numCells)
   doAssert( 1 shl log2 == numCells , "`numCells` is assumed to be a power of two" )
 
-  let hash = Sponge.digest( @[ slotRoot, entropy, counter.toF ], rate = 2 )
+  let
+    hash = Sponge.digest( @[ slotRoot, entropy, counter.toF ], rate = 2 )
 
-  return int( extractLowBits(hash, log2) )
+  extractLowBits(hash, log2)
 
 func cellIndices*(
   entropy: Poseidon2Hash,
   slotRoot: Poseidon2Hash,
-  numCells: Natural, nSamples: Natural): seq[Natural] =
+  slotIndicies: seq[int],
+  cellsPerBlock: Natural,
+  numCells: Natural,
+  nSamples: Natural): seq[Natural] =
 
-  var indices: seq[Natural]
+  var
+    indices: seq[Natural]
+    counter = 1
   while (indices.len < nSamples):
-    let idx = cellIndex(entropy, slotRoot, numCells, indices.len + 1)
-    indices.add(idx.Natural)
+    let idx = cellIndex(entropy, slotRoot, numCells, counter)
+    if idx.toBlockIdx(cellsPerBlock) in slotIndicies and idx notin indices:
+      indices.add(idx.Natural)
+    counter.inc
   indices
-
