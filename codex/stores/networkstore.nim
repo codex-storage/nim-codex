@@ -86,6 +86,15 @@ method putCidAndProof*(
   proof: CodexProof): Future[?!void] =
   self.localStore.putCidAndProof(treeCid, index, blockCid, proof)
 
+method getCidAndProof*(
+  self: NetworkStore,
+  treeCid: Cid,
+  index: Natural): Future[?!(Cid, CodexProof)] =
+  ## Get a block proof from the blockstore
+  ##
+
+  self.localStore.getCidAndProof(treeCid, index)
+
 method ensureExpiry*(
   self: NetworkStore,
   cid: Cid,
