@@ -1,5 +1,6 @@
 import std/options
 import pkg/chronicles
+import pkg/questionable/results
 import ../../clock
 import ../statemachine
 import ../salesagent
@@ -27,7 +28,10 @@ method prove*(
   currentPeriod: Period
 ) {.base, async.} =
   try:
-    let proof = await onProve(slot, challenge)
+    without proof =? (await onProve(slot, challenge)), err:
+      error "Failed to generate proof", error = err.msg
+      # In this state, there's nothing we can do except try again next time.
+      return
     debug "Submitting proof", currentPeriod = currentPeriod, slotId = $slot.id
     await market.submitProof(slot.id, proof)
   except CatchableError as e:

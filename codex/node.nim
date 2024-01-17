@@ -102,20 +102,6 @@ proc storeManifest*(
 
   success blk
 
-proc findPeer*(
-  self: CodexNodeRef,
-  peerId: PeerId): Future[?PeerRecord] {.async.} =
-  ## Find peer using the discovery service from the given CodexNode
-  ##
-  return await self.discovery.findPeer(peerId)
-
-proc connect*(
-  self: CodexNodeRef,
-  peerId: PeerId,
-  addrs: seq[MultiAddress]
-): Future[void] =
-  self.switch.connect(peerId, addrs)
-
 proc fetchManifest*(
   self: CodexNodeRef,
   cid: Cid): Future[?!Manifest] {.async.} =
@@ -140,6 +126,20 @@ proc fetchManifest*(
   trace "Decoded manifest", cid
 
   return manifest.success
+
+proc findPeer*(
+  self: CodexNodeRef,
+  peerId: PeerId): Future[?PeerRecord] {.async.} =
+  ## Find peer using the discovery service from the given CodexNode
+  ##
+  return await self.discovery.findPeer(peerId)
+
+proc connect*(
+  self: CodexNodeRef,
+  peerId: PeerId,
+  addrs: seq[MultiAddress]
+): Future[void] =
+  self.switch.connect(peerId, addrs)
 
 proc updateExpiry*(
   self: CodexNodeRef,
@@ -493,9 +493,8 @@ proc onStore(
 
   trace "Received a request to store a slot!"
 
-  without cid =? Cid.init(request.content.cid):
+  without cid =? Cid.init(request.content.cid).mapFailure, err:
     trace "Unable to parse Cid", cid
-    let err = newException(CodexError, "Unable to parse Cid")
     return failure(err)
 
   without manifest =? (await self.fetchManifest(cid)), err:
@@ -521,15 +520,17 @@ proc onStore(
     if updateExpiryErr =? (await allFutureResult(ensureExpiryFutures)).errorOption:
       return failure(updateExpiryErr)
 
-    echo "blocksCb.isNil: ", blocksCb.isNil
     if not blocksCb.isNil and err =? (await blocksCb(blocks)).errorOption:
       trace "Unable to process blocks", err = err.msg
       return failure(err)
 
     return success()
 
-  if blksIter =? builder.slotIndicies(slotIdx) and
-    err =? (await self.fetchBatched(manifest.treeCid, blksIter, onBatch = updateExpiry)).errorOption:
+  if blksIter =? builder.slotIndiciesIter(slotIdx) and
+    err =? (await self.fetchBatched(
+      manifest.treeCid,
+      blksIter,
+      onBatch = updateExpiry)).errorOption:
     trace "Unable to fetch blocks", err = err.msg
     return failure(err)
 
@@ -542,6 +543,47 @@ proc onStore(
     return failure(newException(CodexError, "Slot root mismatch"))
 
   return success()
+
+proc onProve(
+  self: CodexNodeRef,
+  slot: Slot,
+  challenge: ProofChallenge): Future[?!seq[byte]] {.async.} =
+  ## Generats a proof for a given slot and challenge
+  ##
+
+  let
+    cidStr = slot.request.content.cid
+    slotIdx = slot.slotIndex.truncate(Natural)
+
+  logScope:
+    cid = cidStr
+    slot = slotIdx
+    challenge = challenge
+
+  trace "Received proof challenge"
+
+  without cid =? Cid.init(cidStr).mapFailure, err:
+    error "Unable to parse Cid", cid, err = err.msg
+    return failure(err)
+
+  without manifest =? await self.fetchManifest(cid), err:
+    error "Unable to fetch manifest for cid", err = err.msg
+    return failure(err)
+
+  without builder =? SlotsBuilder.new(self.blockStore, manifest), err:
+    error "Unable to create slots builder", err = err.msg
+    return failure(err)
+
+  without sampler =? DataSampler.new(slotIdx, self.blockStore, builder), err:
+    error "Unable to create data sampler", err = err.msg
+    return failure(err)
+
+  without proofInput =? await sampler.getProofInput(challenge, nSamples = 3), err:
+    error "Unable to get proof input for slot", err = err.msg
+    return failure(err)
+
+  # Todo: send proofInput to circuit. Get proof. (Profit, repeat.)
+  success(@[42'u8])
 
 proc onExpiryUpdate(
   self: CodexNodeRef,
@@ -560,13 +602,6 @@ proc onClear(
   slotIndex: UInt256) =
 # TODO: remove data from local storage
   discard
-
-proc onProve(
-  self: CodexNodeRef,
-  slot: Slot,
-  challenge: ProofChallenge): Future[seq[byte]] {.async.} =
-  # TODO: generate proof
-  return @[42'u8]
 
 proc start*(self: CodexNodeRef) {.async.} =
   if not self.engine.isNil:
@@ -598,7 +633,7 @@ proc start*(self: CodexNodeRef) {.async.} =
       self.onClear(request, slotIndex)
 
     hostContracts.sales.onProve =
-      proc(slot: Slot, challenge: ProofChallenge): Future[seq[byte]] =
+      proc(slot: Slot, challenge: ProofChallenge): Future[?!seq[byte]] =
         # TODO: generate proof
         self.onProve(slot, challenge)
 

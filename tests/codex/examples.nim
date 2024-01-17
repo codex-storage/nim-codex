@@ -7,6 +7,7 @@ import pkg/codex/rng
 import pkg/codex/stores
 import pkg/codex/blocktype as bt
 import pkg/codex/sales
+import pkg/codex/merkletree
 import ../examples
 
 export examples
@@ -71,3 +72,11 @@ proc example*(_: type Reservation): Reservation =
     size = uint16.example.u256,
     slotId = SlotId.example
   )
+
+proc example*(_: type MerkleProof): MerkleProof =
+  MerkleProof.init(3, @[MultiHash.example]).tryget()
+
+proc example*(_: type Poseidon2Proof): Poseidon2Proof =
+  var example = MerkleProof[Poseidon2Hash, PoseidonKeysEnum]()
+  example.index = 123
+  example
