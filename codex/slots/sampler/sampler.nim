@@ -18,6 +18,7 @@ import pkg/constantine/math/arithmetic
 import pkg/poseidon2
 import pkg/poseidon2/types
 import pkg/poseidon2/io
+import pkg/stew/arrayops
 
 import ../../market
 import ../../blocktype as bt
@@ -86,9 +87,9 @@ proc getProofInput*(
   ## Generate proofs as input to the proving circuit.
   ##
 
-  without entropy =? Poseidon2Hash.fromBytes(entropy):
-    error "Failed to parse entropy"
-    return failure("Failed to parse entropy")
+  let
+    entropy = Poseidon2Hash.fromBytes(
+      array[31, byte].initCopyFrom(entropy[0..30])) # truncate to 31 bytes, otherwise it _might_ be greater than mod
 
   without verifyTree =? self.builder.verifyTree and
     verifyProof =? verifyTree.getProof(self.index) and
