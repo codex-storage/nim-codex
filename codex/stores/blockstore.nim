@@ -89,7 +89,7 @@ method getCidAndProof*(
   ## Get a block proof from the blockstore
   ##
 
-  raiseAssert("putCidAndProof not implemented!")
+  raiseAssert("getCidAndProof not implemented!")
 
 method ensureExpiry*(
     self: BlockStore,
