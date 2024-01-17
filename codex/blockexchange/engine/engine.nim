@@ -450,7 +450,7 @@ proc wantListHandler*(
     trace "Sending presence to remote", items = presence.len
     await b.network.request.sendPresence(peer, presence)
 
-  trace "Scheduling a task for this peer, to look over their want-list", peer
+  trace "Scheduling a task to check want-list", peer
   if not b.scheduleTask(peerCtx):
     trace "Unable to schedule task for peer", peer
 

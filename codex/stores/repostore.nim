@@ -241,7 +241,7 @@ method ensureExpiry*(
     cid: Cid,
     expiry: SecondsSince1970
 ): Future[?!void] {.async.} =
-  ## Ensure that block's assosicated expiry is at least given timestamp
+  ## Ensure that block's associated expiry is at least given timestamp
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
 
@@ -262,8 +262,12 @@ method ensureExpiry*(
       error "Could not read datastore key", err = err.msg
       return failure(err)
 
+  logScope:
+    current = currentExpiry.toSecondsSince1970
+    ensuring = expiry
+
   if expiry <= currentExpiry.toSecondsSince1970:
-    trace "Current expiry is larger than or equal to the specified one, no action needed", current = currentExpiry.toSecondsSince1970, ensuring = expiry
+    trace "Expiry is larger than or equal to requested"
     return success()
 
   if err =? (await self.metaDs.put(expiryKey, expiry.toBytes)).errorOption:
