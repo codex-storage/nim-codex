@@ -34,6 +34,9 @@ import ../converters
 
 export converters
 
+logScope:
+  topics = "codex slotsbuilder"
+
 const
   # TODO: Unified with the DefaultCellSize specified in branch "data-sampler"
   # in the proving circuit.
