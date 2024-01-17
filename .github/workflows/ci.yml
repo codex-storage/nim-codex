@@ -9,7 +9,7 @@ env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
   # FIXME: change this once https://github.com/nim-lang/Nim/issues/23214 gets upstreamed/backported
   nim_version: f45bdea94ac4ed9a9bae03426275456aeb0cab2a
-  nim_repo: "https://github.com/gmega/Nim"
+  nim_repo_url: https://github.com/gmega/Nim
 jobs:
   build:
     strategy:
@@ -60,7 +60,7 @@ jobs:
           os: ${{ matrix.os }}
           shell: ${{ matrix.shell }}
           nim_version: ${{ env.nim_version }}
-          nim_repo: ${{ env.nim_repo}}
+          nim_repo_url: ${{ env.nim_repo_url }}
 
       ## Part 1 Tests ##
       - name: Unit tests
@@ -106,6 +106,7 @@ jobs:
         with:
           os: linux
           nim_version: ${{ env.nim_version }}
+          nim_repo_url: ${{ env.nim_repo_url }}
 
       - name: Generate coverage data
         run: |

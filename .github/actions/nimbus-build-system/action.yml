@@ -12,7 +12,7 @@ inputs:
   nim_version:
     description: "Nim version"
     default: "version-1-6"
-  nim_repo:
+  nim_repo_url:
     description: "Nim compiler repository"
     default: "https://github.com/nim-lang/Nim"
   shell:
@@ -166,7 +166,7 @@ runs:
     # FIXME: drop this once https://github.com/nim-lang/Nim/issues/23214 gets upstreamed/backported
     - name: Set NIM_REPO
       shell: ${{ inputs.shell }} {0}
-      run: echo "NIM_REPO=${{ inputs.nim_repo }}" >> ${GITHUB_ENV}
+      run: echo "NIM_REPO=${{ inputs.nim_repo_url }}" >> ${GITHUB_ENV}
 
     - name: Build Nim and Codex dependencies
       shell: ${{ inputs.shell }} {0}
