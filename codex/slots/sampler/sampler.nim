@@ -98,24 +98,33 @@ proc getProofInput*(
 
   let
     slotTreeCid = self.builder.manifest.slotRoots[self.index]
-    numCellsPerBlock = (self.builder.manifest.blockSize div self.builder.cellSize).Natural
+    slotRoot = self.builder.slotRoots[self.index]
+    treeCid = self.builder.manifest.treeCid
+    cellsPerBlock = self.builder.numBlockCells
+    cellsPerSlot = self.builder.numSlotCells
+    slotIndicies = self.builder.slotIndicies(self.index)
     cellIdxs = entropy.cellIndices(
-      self.builder.slotRoots[self.index],
-      self.builder.numSlotCells,
+      slotRoot,
+      slotIndicies,
+      cellsPerBlock,
+      cellsPerSlot,
       nSamples)
 
   logScope:
+    treeCid = treeCid
+    slotTreeCid = slotTreeCid
     index = self.index
     samples = nSamples
     cells = cellIdxs
-    slotTreeCid = slotTreeCid
+    cellsPerSlot = cellsPerSlot
+    cellsPerBlock = cellsPerBlock
 
   trace "Collecting input for proof"
   let samples = collect(newSeq):
     for cellIdx in cellIdxs:
       let
-        blockIdx = cellIdx.toBlockIdx(numCellsPerBlock)
-        blkCellIdx = cellIdx.toBlockCellIdx(numCellsPerBlock)
+        blockIdx = cellIdx.toBlockIdx(cellsPerBlock)
+        blkCellIdx = cellIdx.toBlockCellIdx(cellsPerBlock)
 
       logScope:
         cellIdx = cellIdx
@@ -132,12 +141,7 @@ proc getProofInput*(
         error "Unable to convert slot proof to poseidon proof", error = err.msg
         return failure(err)
 
-      # This converts our slotBlockIndex to a datasetBlockIndex using the
-      # indexing-strategy used by the builder.
-      # We need this to fetch the block data. We can't do it by slotTree + slotBlkIdx.
-      let datasetBlockIndex = self.builder.slotIndicies(self.index)[blockIdx]
-
-      without (bytes, blkTree) =? await self.builder.buildBlockTree(datasetBlockIndex), err:
+      without (bytes, blkTree) =? await self.builder.buildBlockTree(blockIdx), err:
         error "Failed to build block tree", err = err.msg
         return failure(err)
 
@@ -145,15 +149,14 @@ proc getProofInput*(
         error "Failed to get proof from block tree", err = err.msg
         return failure(err)
 
-      let cellData = self.getCell(bytes, blkCellIdx)
+      trace "Created sample"
 
       Sample(
-        data: cellData,
+        data: self.getCell(bytes, blkCellIdx),
         slotProof: slotProof,
         cellProof: blockProof,
         slotBlockIdx: blockIdx.Natural,
-        blockCellIdx: blkCellIdx.Natural
-      )
+        blockCellIdx: blkCellIdx.Natural)
 
   success ProofInput(
     entropy: entropy,
