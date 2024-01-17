@@ -22,6 +22,18 @@ import pkg/codex/utils/asynciter
 import ../helpers
 import ../merkletree/helpers
 
+const
+  # The number of slot blocks and number of slots, combined with
+  # the bytes per block, make it so that there are exactly 256 cells
+  # in the dataset.
+  bytesPerBlock* = 64 * 1024
+  cellsPerBlock* = bytesPerBlock div DefaultCellSize.int
+  numberOfSlotBlocks* = 4
+  totalNumberOfSlots* = 2
+  datasetSlotIndex* = 1
+  cellsPerSlot* = (bytesPerBlock * numberOfSlotBlocks) div DefaultCellSize.int
+  totalNumCells = ((numberOfSlotBlocks * totalNumberOfSlots * bytesPerBlock) div DefaultCellSize.int)
+
 type
   ProvingTestEnvironment* = ref object
     # Invariant:
@@ -31,6 +43,7 @@ type
     manifest*: Manifest
     manifestBlock*: bt.Block
     slot*: Slot
+    slotIndicies*: seq[seq[int]]
     datasetBlocks*: seq[bt.Block]
     slotTree*: Poseidon2Tree
     slotRootCid*: Cid
@@ -38,23 +51,12 @@ type
     datasetToSlotTree*: Poseidon2Tree
     datasetRootHash*: Poseidon2Hash
 
-const
-  # The number of slot blocks and number of slots, combined with
-  # the bytes per block, make it so that there are exactly 256 cells
-  # in the dataset.
-  bytesPerBlock* = 64 * 1024
-  numberOfSlotBlocks* = 4
-  totalNumberOfSlots* = 2
-  datasetSlotIndex* = 1
-  cellsPerSlot* = (bytesPerBlock * numberOfSlotBlocks) div DefaultCellSize.int
-
 proc createDatasetBlocks(self: ProvingTestEnvironment): Future[void] {.async.} =
-  let numberOfCellsNeeded = (numberOfSlotBlocks * totalNumberOfSlots * bytesPerBlock).uint64 div DefaultCellSize.uint64
   var data: seq[byte] = @[]
 
   # This generates a number of blocks that have different data, such that
   # Each cell in each block is unique, but nothing is random.
-  for i in 0 ..< numberOfCellsNeeded:
+  for i in 0 ..< totalNumCells:
     data = data & (i.byte).repeat(DefaultCellSize.uint64)
 
   let chunker = MockChunker.new(
@@ -75,6 +77,8 @@ proc createSlotTree(self: ProvingTestEnvironment, dSlotIndex: uint64): Future[Po
     blocksInSlot = slotSize div bytesPerBlock.uint64
     datasetBlockIndexingStrategy = SteppedIndexingStrategy.new(0, self.datasetBlocks.len - 1, totalNumberOfSlots)
     datasetBlockIndices = toSeq(datasetBlockIndexingStrategy.getIndicies(dSlotIndex.int))
+
+  self.slotIndicies[dSlotIndex] = datasetBlockIndices
 
   let
     slotBlocks = datasetBlockIndices.mapIt(self.datasetBlocks[it])
@@ -97,6 +101,7 @@ proc createDatasetRootHashAndSlotTree(self: ProvingTestEnvironment): Future[void
   var slotTrees = newSeq[Poseidon2Tree]()
   for i in 0 ..< totalNumberOfSlots:
     slotTrees.add(await self.createSlotTree(i.uint64))
+
   self.slotTree = slotTrees[datasetSlotIndex]
   self.slotRootCid = slotTrees[datasetSlotIndex].root().tryGet().toSlotCid().tryGet()
   self.slotRoots = slotTrees.mapIt(it.root().tryGet())
@@ -159,7 +164,8 @@ proc createSlot(self: ProvingTestEnvironment): void =
 
 proc createProvingTestEnvironment*(): Future[ProvingTestEnvironment] {.async.} =
   var testEnv = ProvingTestEnvironment(
-    challenge: toF(12345)
+    challenge: toF(12345),
+    slotIndicies: newSeq[seq[int]](totalNumberOfSlots)
   )
 
   testEnv.localStore = CacheStore.new()
