@@ -47,17 +47,17 @@ func ceilingLog2*(x : int) : int =
   else:
     return (floorLog2(x-1) + 1)
 
-func toBlockIdx*(cells: Natural, numCells: Natural): Natural =
+func toBlockIdx*(cell: Natural, numCells: Natural): Natural =
   let log2 = ceilingLog2(numCells)
   doAssert( 1 shl log2 == numCells , "`numCells` is assumed to be a power of two" )
 
-  return cells div numCells
+  return cell div numCells
 
-func toBlockCellIdx*(cells: Natural, numCells: Natural): Natural =
+func toBlockCellIdx*(cell: Natural, numCells: Natural): Natural =
   let log2 = ceilingLog2(numCells)
   doAssert( 1 shl log2 == numCells , "`numCells` is assumed to be a power of two" )
 
-  return cells mod numCells
+  return cell mod numCells
 
 func cellIndex*(
   entropy: Poseidon2Hash,
