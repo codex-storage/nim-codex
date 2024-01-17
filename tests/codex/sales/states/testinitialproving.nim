@@ -6,6 +6,7 @@ import pkg/codex/sales/states/initialproving
 import pkg/codex/sales/states/cancelled
 import pkg/codex/sales/states/failed
 import pkg/codex/sales/states/filling
+import pkg/codex/sales/states/errored
 import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
 import pkg/codex/market
@@ -56,3 +57,19 @@ asyncchecksuite "sales state 'initialproving'":
     let future = state.run(agent)
 
     check receivedChallenge == market.proofChallenge
+
+  test "switches to errored state when onProve callback fails":
+    let onProveFailed: OnProve = proc(slot: Slot, challenge: ProofChallenge): Future[?!seq[byte]] {.async.} =
+      return failure("oh no!")
+
+    let proofFailedContext = SalesContext(
+      onProve: onProveFailed.some,
+      market: market
+    )
+    agent = newSalesAgent(proofFailedContext,
+                          request.id,
+                          slotIndex,
+                          request.some)
+
+    let next = await state.run(agent)
+    check !next of SaleErrored
