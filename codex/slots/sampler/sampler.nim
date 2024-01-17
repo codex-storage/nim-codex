@@ -99,7 +99,7 @@ proc getProofInput*(
 
   let
     slotTreeCid = self.builder.manifest.slotRoots[self.index]
-    numCellsPerBlock = (self.builder.manifest.blockSize div self.builder.cellSize).Natural
+    cellsPerBlock = self.builder.numBlockCells
     cellIdxs = entropy.cellIndices(
       self.builder.slotRoots[self.index],
       self.builder.numSlotCells,
@@ -115,8 +115,8 @@ proc getProofInput*(
   let samples = collect(newSeq):
     for cellIdx in cellIdxs:
       let
-        blockIdx = cellIdx.toBlockIdx(numCellsPerBlock)
-        blkCellIdx = cellIdx.toBlockCellIdx(numCellsPerBlock)
+        blockIdx = cellIdx.toBlockIdx(cellsPerBlock)
+        blkCellIdx = cellIdx.toBlockCellIdx(cellsPerBlock)
 
       logScope:
         cellIdx = cellIdx
@@ -146,15 +146,12 @@ proc getProofInput*(
         error "Failed to get proof from block tree", err = err.msg
         return failure(err)
 
-      let cellData = self.getCell(bytes, blkCellIdx)
-
       Sample(
-        data: cellData,
+        data: self.getCell(bytes, blkCellIdx),
         slotProof: slotProof,
         cellProof: blockProof,
         slotBlockIdx: blockIdx.Natural,
-        blockCellIdx: blkCellIdx.Natural
-      )
+        blockCellIdx: blkCellIdx.Natural)
 
   success ProofInput(
     entropy: entropy,
