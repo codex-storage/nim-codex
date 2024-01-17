@@ -115,17 +115,17 @@ proc getProofInput*(
   let samples = collect(newSeq):
     for cellIdx in cellIdxs:
       let
-        blockIdx = cellIdx.toBlockIdx(cellsPerBlock)
-        blkCellIdx = cellIdx.toBlockCellIdx(cellsPerBlock)
+        blkCellIdx = cellIdx.toBlockCellIdx(cellsPerBlock) # block cell index
+        slotCellIdx = cellIdx.toBlockIdx(cellsPerBlock) # slot tree index
 
       logScope:
         cellIdx = cellIdx
-        blockIdx = blockIdx
+        slotCellIdx = slotCellIdx
         blkCellIdx = blkCellIdx
 
       without (cid, proof) =? await self.blockStore.getCidAndProof(
         slotTreeCid,
-        blockIdx.Natural), err:
+        slotCellIdx.Natural), err:
         error "Failed to get block from block store", err = err.msg
         return failure(err)
 
@@ -136,7 +136,7 @@ proc getProofInput*(
       # This converts our slotBlockIndex to a datasetBlockIndex using the
       # indexing-strategy used by the builder.
       # We need this to fetch the block data. We can't do it by slotTree + slotBlkIdx.
-      let datasetBlockIndex = self.builder.slotIndicies(self.index)[blockIdx]
+      let datasetBlockIndex = self.builder.slotIndicies(self.index)[slotCellIdx]
 
       without (bytes, blkTree) =? await self.builder.buildBlockTree(datasetBlockIndex), err:
         error "Failed to build block tree", err = err.msg
@@ -150,7 +150,7 @@ proc getProofInput*(
         data: self.getCell(bytes, blkCellIdx),
         slotProof: slotProof,
         cellProof: blockProof,
-        slotBlockIdx: blockIdx.Natural,
+        slotBlockIdx: slotCellIdx.Natural,
         blockCellIdx: blkCellIdx.Natural)
 
   success ProofInput(
