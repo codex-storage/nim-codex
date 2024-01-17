@@ -56,6 +56,11 @@ type
   CodexPrivateKey* = libp2p.PrivateKey # alias
   EthWallet = ethers.Wallet
 
+proc waitForSync(provider: Provider): Future[void] {.async.} =
+  while await provider.isSyncing:
+    notice "Waiting for Ethereum provider to sync..."
+    await sleepAsync(10.seconds)
+
 proc bootstrapInteractions(
   s: CodexServer): Future[void] {.async.} =
   ## bootstrap interactions and return contracts
@@ -79,6 +84,7 @@ proc bootstrapInteractions(
     quit QuitFailure
 
   let provider = JsonRpcProvider.new(config.ethProvider)
+  await waitForSync(provider)
   var signer: Signer
   if account =? config.ethAccount:
     signer = provider.getSigner(account)
