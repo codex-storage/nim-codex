@@ -132,7 +132,6 @@ func cellSize*(self: SlotsBuilder): NBytes =
 
   self.cellSize
 
-
 func numSlotCells*(self: SlotsBuilder): Natural =
   ## Number of cells per slot.
   ##

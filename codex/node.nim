@@ -520,7 +520,6 @@ proc onStore(
     if updateExpiryErr =? (await allFutureResult(ensureExpiryFutures)).errorOption:
       return failure(updateExpiryErr)
 
-    echo "blocksCb.isNil: ", blocksCb.isNil
     if not blocksCb.isNil and err =? (await blocksCb(blocks)).errorOption:
       trace "Unable to process blocks", err = err.msg
       return failure(err)
