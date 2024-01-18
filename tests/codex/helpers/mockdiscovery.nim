@@ -16,13 +16,13 @@ import pkg/contractabi/address as ca
 type
   MockDiscovery* = ref object of Discovery
     findBlockProvidersHandler*: proc(d: MockDiscovery, cid: Cid):
-      Future[seq[SignedPeerRecord]] {.gcsafe, raises: [].}
+      Future[seq[SignedPeerRecord]] {.gcsafe, async.}
     publishBlockProvideHandler*: proc(d: MockDiscovery, cid: Cid):
-      Future[void] {.gcsafe, raises: [].}
+      Future[void] {.gcsafe, async.}
     findHostProvidersHandler*: proc(d: MockDiscovery, host: ca.Address):
-      Future[seq[SignedPeerRecord]] {.gcsafe, raises: [].}
+      Future[seq[SignedPeerRecord]] {.gcsafe, async.}
     publishHostProvideHandler*: proc(d: MockDiscovery, host: ca.Address):
-      Future[void] {.gcsafe, raises: [].}
+      Future[void] {.gcsafe, async.}
 
 proc new*(T: type MockDiscovery): MockDiscovery =
   MockDiscovery()

@@ -34,11 +34,11 @@ const
   MaxInflight* = 100
 
 type
-  WantListHandler* = proc(peer: PeerId, wantList: WantList): Future[void] {.gcsafe, raises: [].}
-  BlocksDeliveryHandler* = proc(peer: PeerId, blocks: seq[BlockDelivery]): Future[void] {.gcsafe, raises: [].}
-  BlockPresenceHandler* = proc(peer: PeerId, precense: seq[BlockPresence]): Future[void] {.gcsafe, raises: [].}
-  AccountHandler* = proc(peer: PeerId, account: Account): Future[void] {.gcsafe, raises: [].}
-  PaymentHandler* = proc(peer: PeerId, payment: SignedState): Future[void] {.gcsafe, raises: [].}
+  WantListHandler* = proc(peer: PeerId, wantList: WantList): Future[void] {.gcsafe, async.}
+  BlocksDeliveryHandler* = proc(peer: PeerId, blocks: seq[BlockDelivery]): Future[void] {.gcsafe, async.}
+  BlockPresenceHandler* = proc(peer: PeerId, precense: seq[BlockPresence]): Future[void] {.gcsafe, async.}
+  AccountHandler* = proc(peer: PeerId, account: Account): Future[void] {.gcsafe, async.}
+  PaymentHandler* = proc(peer: PeerId, payment: SignedState): Future[void] {.gcsafe, async.}
   WantListSender* = proc(
     id: PeerId,
     addresses: seq[BlockAddress],
@@ -46,7 +46,7 @@ type
     cancel: bool = false,
     wantType: WantType = WantType.WantHave,
     full: bool = false,
-    sendDontHave: bool = false): Future[void] {.gcsafe, raises: [].}
+    sendDontHave: bool = false): Future[void] {.gcsafe, async.}
 
   BlockExcHandlers* = object
     onWantList*: WantListHandler
@@ -55,10 +55,10 @@ type
     onAccount*: AccountHandler
     onPayment*: PaymentHandler
 
-  BlocksDeliverySender* = proc(peer: PeerId, blocksDelivery: seq[BlockDelivery]): Future[void] {.gcsafe, raises: [].}
-  PresenceSender* = proc(peer: PeerId, presence: seq[BlockPresence]): Future[void] {.gcsafe, raises: [].}
-  AccountSender* = proc(peer: PeerId, account: Account): Future[void] {.gcsafe, raises: [].}
-  PaymentSender* = proc(peer: PeerId, payment: SignedState): Future[void] {.gcsafe, raises: [].}
+  BlocksDeliverySender* = proc(peer: PeerId, blocksDelivery: seq[BlockDelivery]): Future[void] {.gcsafe, async.}
+  PresenceSender* = proc(peer: PeerId, presence: seq[BlockPresence]): Future[void] {.gcsafe, async.}
+  AccountSender* = proc(peer: PeerId, account: Account): Future[void] {.gcsafe, async.}
+  PaymentSender* = proc(peer: PeerId, payment: SignedState): Future[void] {.gcsafe, async.}
 
   BlockExcRequest* = object
     sendWantList*: WantListSender
@@ -122,7 +122,7 @@ proc sendWantList*(
   cancel: bool = false,
   wantType: WantType = WantType.WantHave,
   full: bool = false,
-  sendDontHave: bool = false): Future[void] =
+  sendDontHave: bool = false): Future[void] {.async: (raw: true).}=
   ## Send a want message to peer
   ##
 
@@ -154,7 +154,7 @@ proc handleBlocksDelivery(
 proc sendBlocksDelivery*(
   b: BlockExcNetwork,
   id: PeerId,
-  blocksDelivery: seq[BlockDelivery]): Future[void] =
+  blocksDelivery: seq[BlockDelivery]): Future[void] {.async: (raw: true).} =
   ## Send blocks to remote
   ##
 
@@ -174,7 +174,7 @@ proc handleBlockPresence(
 proc sendBlockPresence*(
   b: BlockExcNetwork,
   id: PeerId,
-  presence: seq[BlockPresence]): Future[void] =
+  presence: seq[BlockPresence]): Future[void] {.async: (raw: true).} =
   ## Send presence to remote
   ##
 
@@ -193,7 +193,7 @@ proc handleAccount(
 proc sendAccount*(
   b: BlockExcNetwork,
   id: PeerId,
-  account: Account): Future[void] =
+  account: Account): Future[void] {.async: (raw: true).} =
   ## Send account info to remote
   ##
 
@@ -202,7 +202,7 @@ proc sendAccount*(
 proc sendPayment*(
   b: BlockExcNetwork,
   id: PeerId,
-  payment: SignedState): Future[void] =
+  payment: SignedState): Future[void] {.async: (raw: true).} =
   ## Send payment to remote
   ##
 
@@ -259,7 +259,7 @@ proc getOrCreatePeer(b: BlockExcNetwork, peer: PeerId): NetworkPeer =
   if not isNil(b.getConn):
     getConn = b.getConn
 
-  let rpcHandler = proc (p: NetworkPeer, msg: Message): Future[void] =
+  let rpcHandler = proc (p: NetworkPeer, msg: Message): Future[void] {.async: (raw: true).}=
     b.rpcHandler(p, msg)
 
   # create new pubsub peer
@@ -340,16 +340,16 @@ proc new*(
       id, cids, priority, cancel,
       wantType, full, sendDontHave)
 
-  proc sendBlocksDelivery(id: PeerId, blocksDelivery: seq[BlockDelivery]): Future[void] {.gcsafe.} =
+  proc sendBlocksDelivery(id: PeerId, blocksDelivery: seq[BlockDelivery]): Future[void] {.gcsafe, async: (raw: true).} =
     self.sendBlocksDelivery(id, blocksDelivery)
 
-  proc sendPresence(id: PeerId, presence: seq[BlockPresence]): Future[void] {.gcsafe.} =
+  proc sendPresence(id: PeerId, presence: seq[BlockPresence]): Future[void] {.gcsafe, async: (raw: true).} =
     self.sendBlockPresence(id, presence)
 
-  proc sendAccount(id: PeerId, account: Account): Future[void] {.gcsafe.} =
+  proc sendAccount(id: PeerId, account: Account): Future[void] {.gcsafe, async: (raw: true).} =
     self.sendAccount(id, account)
 
-  proc sendPayment(id: PeerId, payment: SignedState): Future[void] {.gcsafe.} =
+  proc sendPayment(id: PeerId, payment: SignedState): Future[void] {.gcsafe, async: (raw: true).} =
     self.sendPayment(id, payment)
 
   self.request = BlockExcRequest(

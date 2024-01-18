@@ -1,6 +1,5 @@
 import pkg/questionable
 import pkg/questionable/results
-import pkg/upraises
 
 import ../market
 import ../clock
@@ -23,13 +22,13 @@ type
     slotQueue*: SlotQueue
     simulateProofFailures*: int
 
-  BlocksCb* = proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, raises: [].}
+  BlocksCb* = proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, async.}
   OnStore* = proc(request: StorageRequest,
                   slot: UInt256,
-                  blocksCb: BlocksCb): Future[?!void] {.gcsafe, upraises: [].}
-  OnProve* = proc(slot: Slot, challenge: ProofChallenge): Future[?!seq[byte]] {.gcsafe, upraises: [].}
-  OnExpiryUpdate* = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.gcsafe, upraises: [].}
+                  blocksCb: BlocksCb): Future[?!void] {.gcsafe, async.}
+  OnProve* = proc(slot: Slot, challenge: ProofChallenge): Future[seq[byte]] {.gcsafe, async.}
+  OnExpiryUpdate* = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.gcsafe, async.}
   OnClear* = proc(request: StorageRequest,
-                  slotIndex: UInt256) {.gcsafe, upraises: [].}
+                  slotIndex: UInt256) {.gcsafe, raises: [].}
   OnSale* = proc(request: StorageRequest,
-                 slotIndex: UInt256) {.gcsafe, upraises: [].}
+                 slotIndex: UInt256) {.gcsafe, raises: [].}
