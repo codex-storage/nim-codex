@@ -21,10 +21,19 @@ proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
   buildBinary name, srcDir, params
   exec "build/" & name
 
+task buildStorageProofs, "build codex storage proofs":
+  ## pre-build codex-storage-proofs to cache the first cargo build
+  ## though `codex-storage-proofs/codex_storage_proofs.nim` calls cargo build again
+  withDir "vendor/codex-storage-proofs/":
+    exec "cargo build --release"
+  buildBinary "storage_proofs", srcDir = "codex/utils/", params = "-f "
+
 task codex, "build codex binary":
+  buildStorageProofsTask()
   buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
 task testCodex, "Build & run Codex tests":
+  buildStorageProofsTask()
   test "testCodex", params = "-d:codex_enable_proof_failures=true -d:codex_use_hardhat=true"
 
 task testContracts, "Build & run Codex Contract tests":
