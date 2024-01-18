@@ -56,7 +56,6 @@ jobs:
         with:
           os: ${{ matrix.os }}
           shell: ${{ matrix.shell }}
-          nim_version: ${{ env.nim_version }}
 
       ## Part 1 Tests ##
       - name: Unit tests
@@ -101,7 +100,6 @@ jobs:
         uses: ./.github/actions/nimbus-build-system
         with:
           os: linux
-          nim_version: ${{ env.nim_version }}
 
       - name: Generate coverage data
         run: |
