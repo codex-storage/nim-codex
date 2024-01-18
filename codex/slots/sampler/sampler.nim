@@ -111,7 +111,7 @@ proc getProofInput*(
   let
     cellIdxs = entropy.cellIndices(
       self.builder.slotRoots[self.index],
-      self.builder.numSlotCells,
+      self.builder.numSlotCellsPadded,
       nSamples)
 
   trace "Found cell indices", cellIdxs
@@ -119,17 +119,17 @@ proc getProofInput*(
   let samples = collect(newSeq):
     for cellIdx in cellIdxs:
       let
-        blkCellIdx = cellIdx.toBlockCellIdx(cellsPerBlock) # block cell index
-        slotCellIdx = cellIdx.toBlockIdx(cellsPerBlock) # slot tree index
+        blkCellIdx = cellIdx.toBlockCellIdx(cellsPerBlock)
+        slotBlkIdx = cellIdx.toBlockIdx(cellsPerBlock)
 
       logScope:
         cellIdx = cellIdx
-        slotCellIdx = slotCellIdx
+        slotBlkIdx = slotBlkIdx
         blkCellIdx = blkCellIdx
 
       without (cid, proof) =? await self.blockStore.getCidAndProof(
         slotTreeCid,
-        slotCellIdx.Natural), err:
+        slotBlkIdx.Natural), err:
         error "Failed to get block from block store", err = err.msg
         return failure(err)
 
@@ -137,25 +137,45 @@ proc getProofInput*(
         error "Unable to convert slot proof to poseidon proof", error = err.msg
         return failure(err)
 
-      # This converts our slotBlockIndex to a datasetBlockIndex using the
-      # indexing-strategy used by the builder.
-      # We need this to fetch the block data. We can't do it by slotTree + slotBlkIdx.
-      let datasetBlockIndex = self.builder.slotIndicies(self.index)[slotCellIdx]
+      # If the cell index is greater than or equal to the UNPADDED number of slot cells,
+      # Then we're sampling inside a padded block.
+      # In this case, we use the pre-generated zero-data and pre-generated padding-proof for this cell index.
+      if cellIdx >= self.builder.numSlotCells:
+        # TODO unit-test me!
+        trace "Sampling a padded block"
 
-      without (bytes, blkTree) =? await self.builder.buildBlockTree(datasetBlockIndex), err:
-        error "Failed to build block tree", err = err.msg
-        return failure(err)
+        without blockProof =? self.builder.emptyDigestTree.getProof(blkCellIdx), err:
+          error "Failed to get proof from empty block tree", err = err.msg
+          return failure(err)
 
-      without blockProof =? blkTree.getProof(blkCellIdx), err:
-        error "Failed to get proof from block tree", err = err.msg
-        return failure(err)
+        Sample(
+          data: newSeq[byte](self.builder.cellSize.int),
+          slotProof: slotProof,
+          cellProof: blockProof,
+          slotBlockIdx: slotBlkIdx.Natural,
+          blockCellIdx: blkCellIdx.Natural)
 
-      Sample(
-        data: self.getCell(bytes, blkCellIdx),
-        slotProof: slotProof,
-        cellProof: blockProof,
-        slotBlockIdx: slotCellIdx.Natural,
-        blockCellIdx: blkCellIdx.Natural)
+      else:
+        trace "Sampling a dataset block"
+        # This converts our slotBlockIndex to a datasetBlockIndex using the
+        # indexing-strategy used by the builder.
+        # We need this to fetch the block data. We can't do it by slotTree + slotBlkIdx.
+        let datasetBlockIndex = self.builder.slotIndicies(self.index)[slotBlkIdx]
+
+        without (bytes, blkTree) =? await self.builder.buildBlockTree(datasetBlockIndex), err:
+          error "Failed to build block tree", err = err.msg
+          return failure(err)
+
+        without blockProof =? blkTree.getProof(blkCellIdx), err:
+          error "Failed to get proof from block tree", err = err.msg
+          return failure(err)
+
+        Sample(
+          data: self.getCell(bytes, blkCellIdx),
+          slotProof: slotProof,
+          cellProof: blockProof,
+          slotBlockIdx: slotBlkIdx.Natural,
+          blockCellIdx: blkCellIdx.Natural)
 
   success ProofInput(
     entropy: entropy,

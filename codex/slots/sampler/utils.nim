@@ -68,7 +68,6 @@ func cellIndex*(
   doAssert( 1 shl log2 == numCells , "`numCells` is assumed to be a power of two" )
 
   let hash = Sponge.digest( @[ slotRoot, entropy, counter.toF ], rate = 2 )
-
   return int( extractLowBits(hash, log2) )
 
 func cellIndices*(
