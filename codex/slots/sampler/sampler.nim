@@ -100,18 +100,22 @@ proc getProofInput*(
   let
     slotTreeCid = self.builder.manifest.slotRoots[self.index]
     cellsPerBlock = self.builder.numBlockCells
+
+  logScope:
+    index = self.index
+    samples = nSamples
+    slotTreeCid = slotTreeCid
+
+  trace "Collecting input for proof"
+
+  let
     cellIdxs = entropy.cellIndices(
       self.builder.slotRoots[self.index],
       self.builder.numSlotCells,
       nSamples)
 
-  logScope:
-    index = self.index
-    samples = nSamples
-    cells = cellIdxs
-    slotTreeCid = slotTreeCid
+  trace "Found cell indices", cellIdxs
 
-  trace "Collecting input for proof"
   let samples = collect(newSeq):
     for cellIdx in cellIdxs:
       let

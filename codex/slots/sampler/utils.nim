@@ -10,6 +10,7 @@
 import std/sugar
 import std/bitops
 
+import pkg/chronicles
 import pkg/poseidon2
 import pkg/poseidon2/io
 
@@ -74,6 +75,8 @@ func cellIndices*(
   entropy: Poseidon2Hash,
   slotRoot: Poseidon2Hash,
   numCells: Natural, nSamples: Natural): seq[Natural] =
+
+  trace "Calculating cell indices", numCells, nSamples
 
   var indices: seq[Natural]
   while (indices.len < nSamples):
