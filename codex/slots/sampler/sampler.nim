@@ -105,7 +105,6 @@ proc createProofSample(self: DataSampler, slotTreeCid: Cid, cellIdx: Natural): F
   # Then we're sampling inside a padded block.
   # In this case, we use the pre-generated zero-data and pre-generated padding-proof for this cell index.
   if cellIdx >= self.builder.numSlotCells:
-    # TODO unit-test me!
     trace "Sampling a padded block"
 
     without blockProof =? self.builder.emptyDigestTree.getProof(blkCellIdx), err:
@@ -167,14 +166,12 @@ proc getProofInput*(
 
   trace "Collecting input for proof"
 
-  let
-    cellIdxs = entropy.cellIndices(
+  let cellIdxs = entropy.cellIndices(
       self.builder.slotRoots[self.index],
       self.builder.numSlotCellsPadded,
       nSamples)
 
   trace "Found cell indices", cellIdxs
-
   let samples = collect(newSeq):
     for cellIdx in cellIdxs:
       without sample =? (await self.createProofSample(slotTreeCid, cellIdx)), err:
