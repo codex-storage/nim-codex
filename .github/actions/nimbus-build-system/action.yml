@@ -150,14 +150,13 @@ runs:
       uses: actions/cache@v3
       with:
         path: NimBinaries
-        key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-cache-${{ env.cache_nonce }}-${{ github.run_id }}
-        restore-keys: ${{ inputs.os }}-${{ inputs.cpu }}-nim-cache-${{ env.cache_nonce }}
+        key: ${{ inputs.os }}-${{ inputs.cpu }}-cache-${{ env.cache_nonce }}-${{ github.run_id }}
+        restore-keys: ${{ inputs.os }}-${{ inputs.cpu }}-cache-${{ env.cache_nonce }}
 
     - name: Build Nim and Codex dependencies
       shell: ${{ inputs.shell }} {0}
       run: |
-        . ./env.sh
-        make -j${ncpu} CI_CACHE=NimBinaries ARCH_OVERRIDE=${PLATFORM} QUICK_AND_DIRTY_COMPILER=1 update
+        ./env.sh make -j${ncpu} CI_CACHE=NimBinaries ARCH_OVERRIDE=${PLATFORM} QUICK_AND_DIRTY_COMPILER=1 update
         echo
-        nim --version
+        ./env.sh nim --version
 
