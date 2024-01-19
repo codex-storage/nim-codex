@@ -60,7 +60,7 @@ jobs:
       ## Part 1 Tests ##
       - name: Unit tests
         if: matrix.tests == 'unittest' || matrix.tests == 'all'
-        run: make -j${ncpu} test
+        run: ./env.sh make -j${ncpu} test
 
       # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
       - name: Setup Node.js
@@ -80,12 +80,12 @@ jobs:
       ## Part 2 Tests ##
       - name: Contract tests
         if: matrix.tests == 'contract' || matrix.tests == 'all'
-        run: make -j${ncpu} testContracts
+        run: ./env.sh make -j${ncpu} testContracts
 
       ## Part 3 Tests ##
       - name: Integration tests
         if: matrix.tests == 'integration' || matrix.tests == 'all'
-        run: make -j${ncpu} testIntegration
+        run: ./env.sh make -j${ncpu} testIntegration
 
   coverage:
     continue-on-error: true
@@ -103,8 +103,7 @@ jobs:
 
       - name: Generate coverage data
         run: |
-          . ./env.sh
-          make -j${ncpu} coverage-script
+          ./env.sh make -j${ncpu} coverage-script
         shell: bash
 
       - name: Upload coverage data to Codecov
