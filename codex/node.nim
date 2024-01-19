@@ -528,7 +528,7 @@ proc onStore(
 
     return success()
 
-  if blksIter =? builder.slotIndiciesIter(slotIdx) and
+  if blksIter =? builder.slotIndicesIter(slotIdx) and
     err =? (await self.fetchBatched(
       manifest.treeCid,
       blksIter,

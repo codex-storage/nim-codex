@@ -129,7 +129,7 @@ asyncchecksuite "Test Node - Host contracts":
     (await onStore(request, 1.u256, onBlocks)).tryGet()
     check fetchedBytes == 786432
 
-    for index in !builder.slotIndices(1):
+    for index in builder.slotIndices(1):
       let
         blk = (await localStore.getBlock(verifiable.treeCid, index)).tryGet
         expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet

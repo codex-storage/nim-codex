@@ -75,7 +75,7 @@ proc createSlotTree(self: ProvingTestEnvironment, dSlotIndex: uint64): Future[Po
     slotSize = (bytesPerBlock * numberOfSlotBlocks).uint64
     blocksInSlot = slotSize div bytesPerBlock.uint64
     datasetBlockIndexingStrategy = SteppedIndexingStrategy.new(0, self.datasetBlocks.len - 1, totalNumberOfSlots)
-    datasetBlockIndices = toSeq(datasetBlockIndexingStrategy.getIndicies(dSlotIndex.int))
+    datasetBlockIndices = toSeq(datasetBlockIndexingStrategy.getIndices(dSlotIndex.int))
 
   let
     slotBlocks = datasetBlockIndices.mapIt(self.datasetBlocks[it])

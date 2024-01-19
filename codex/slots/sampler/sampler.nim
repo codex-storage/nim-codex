@@ -136,7 +136,7 @@ proc getProofInput*(
       # This converts our slotBlockIndex to a datasetBlockIndex using the
       # indexing-strategy used by the builder.
       # We need this to fetch the block data. We can't do it by slotTree + slotBlkIdx.
-      let datasetBlockIndex = self.builder.slotIndicies(self.index)[slotCellIdx]
+      let datasetBlockIndex = self.builder.slotIndices(self.index)[slotCellIdx]
 
       without (bytes, blkTree) =? await self.builder.buildBlockTree(datasetBlockIndex), err:
         error "Failed to build block tree", err = err.msg

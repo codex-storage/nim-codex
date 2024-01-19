@@ -141,20 +141,20 @@ func numSlotCells*(self: SlotsBuilder): Natural =
 
   self.numBlockCells * self.numSlotBlocks
 
-func slotIndiciesIter*(self: SlotsBuilder, slot: Natural): ?!Iter[int] =
+func slotIndicesIter*(self: SlotsBuilder, slot: Natural): ?!Iter[int] =
   ## Returns the slot indices.
   ##
 
-  self.strategy.getIndicies(slot).catch
+  self.strategy.getIndices(slot).catch
 
-func slotIndicies*(self: SlotsBuilder, slot: Natural): seq[int] =
+func slotIndices*(self: SlotsBuilder, slot: Natural): seq[int] =
   ## Returns the slot indices.
   ##
 
-  if iter =? self.strategy.getIndicies(slot).catch:
+  if iter =? self.strategy.getIndices(slot).catch:
     toSeq(iter)
   else:
-    trace "Failed to get slot indicies"
+    trace "Failed to get slot indices"
     newSeq[int]()
 
 func manifest*(self: SlotsBuilder): Manifest =
@@ -198,7 +198,7 @@ proc getCellHashes*(
 
   let
     hashes: seq[Poseidon2Hash] = collect(newSeq):
-      for blkIdx in self.strategy.getIndicies(slotIndex):
+      for blkIdx in self.strategy.getIndices(slotIndex):
         trace "Getting block CID for tree at index"
 
         without (_, tree) =? (await self.buildBlockTree(blkIdx)) and
