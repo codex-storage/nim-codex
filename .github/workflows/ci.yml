@@ -103,7 +103,7 @@ jobs:
 
       - name: Generate coverage data
         run: |
-          # make -j${ncpu} coverage
+          . ./env.sh
           make -j${ncpu} coverage-script
         shell: bash
 
