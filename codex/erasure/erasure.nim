@@ -38,26 +38,38 @@ logScope:
 type
   ## Encode a manifest into one that is erasure protected.
   ##
-  ## The new manifest has K `blocks` that are encoded into
-  ## additional M `parity` blocks. The resulting dataset
-  ## is padded with empty blocks if it doesn't have a square
-  ## shape.
-  ##
-  ## NOTE: The padding blocks could be excluded
-  ## from transmission, but they aren't for now.
-  ##
-  ## The resulting dataset is logically divided into rows
-  ## where a row is made up of B blocks. There are then,
-  ## K + M = N rows in total, each of length B blocks. Rows
-  ## are assumed to be of the same number of (B) blocks.
-  ##
-  ## The encoding is systematic and the rows can be
-  ## read sequentially by any node without decoding.
-  ##
-  ## Decoding is possible with any K rows or partial K
-  ## columns (with up to M blocks missing per column),
-  ## or any combination there of.
-  ##
+  ## A layer of erasure protection is added on top of an 
+  ## existing (eventally already protected) manifest, using
+  ## a Reed Solomon code. The RS code is applied with parameters
+  ## K (original blocks) and M (parity blocks), with a block
+  ## level interleaving of I.
+  ##  
+  ## For every i = 0 ..< I and j = 0 ..< K, we apply the erasure
+  ## code over the K blocks with indices i + j * I
+  ## Resulting M parity blocks will be assigned new indices
+  ## in the resulting manifest:
+  ##   newIndex(i,j) = i + j * I, j = K ..< K+M
+  ## 
+  ## The above procedure encodes exactly I * K blocks into 
+  ## I * (K+M) blocks. This can also be viewed as the original data
+  ## being in an I * K matrix with I columns and K rows. Each column
+  ## is then encoded individually, generating M new rows.
+  ## 
+  ## If the original data is of a size different from I * K, it is 
+  ## padded to multiples of I * K, and encoded in multiple steps.
+  ## 
+  ## With b original blocks, we get
+  ##  - steps: b div (I * K) 
+  ##  - original block i is encoded in
+  ##    - step: s = i div (I * K)
+  ##    - column: c = i mod I
+  ##    - code position: p = i mod K 
+  ##  - original block i is mapped to 
+  ##    - newIndex(s, c, v) = s * I * (K+N) + 
+  ## 
+  ## 
+  ## If the original data has more than
+  ## K * I blocks, the precedure is reapeated multiple times.
 
   EncoderProvider* = proc(size, blocks, parity: int): EncoderBackend
     {.raises: [Defect], noSideEffect.}
