@@ -60,7 +60,7 @@ jobs:
       ## Part 1 Tests ##
       - name: Unit tests
         if: matrix.tests == 'unittest' || matrix.tests == 'all'
-        run: make -j${ncpu} test
+        run: ./env.sh make -j${ncpu} test
 
       # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
       - name: Setup Node.js
