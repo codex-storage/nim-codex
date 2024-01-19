@@ -11,7 +11,10 @@ ABS_PATH="$(cd ${REL_PATH}; pwd)"
 
 ENV_FILE="${ABS_PATH}/vendor/nimbus-build-system/scripts/env.sh"
 
+# Allows the user to override the default Nim compiler version and repo URL.
 export NIM_COMMIT="${NIM_COMMIT:-${NIM_VERSION}}"
+export NIM_REPO="${NIM_REPO:-${NIM_REPO_URL}}"
+
 if ! [ -f "$ENV_FILE" ]; then
   # Before the first "make update", the env file doesn't exist, so just run
   # the command that comes after (without a child shell), if any. Running
