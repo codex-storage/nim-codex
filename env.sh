@@ -12,12 +12,20 @@ ENV_FILE="${ABS_PATH}/vendor/nimbus-build-system/scripts/env.sh"
 
 export NIM_COMMIT="${NIM_COMMIT:-${NIM_VERSION}}"
 if ! [ -f "$ENV_FILE" ]; then
-  # Before the first "make update", the env file doesn't exist, so just run
-  # the command that comes after (without a child shell), if any. Running
-  # ./env.sh make update will cause the right compiler to be built right from
-  # the start.
-  echo "Nimbus env file not found"
-  "$@"
+  # Before the first "make update", the env file doesn't exist.
+  echo "Nimbus env file not found."
+  # If more than one argument is passed, we assume it's a command to run.
+  # Probably "make update".
+  if [ $# -gt 0 ]; then
+    "$@"
+  # Otherwise just print a little reminder to the user.
+  else
+    echo "You need to run:                     "
+    echo "                                     "
+    echo "   ./env.sh make -j{CPU_CORES} update"
+    echo "                                     "
+    echo "to build the compiler.               "
+  fi
 else
   source "${ENV_FILE}"
 fi
