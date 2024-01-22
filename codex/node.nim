@@ -583,7 +583,7 @@ proc onProve(
     error "Unable to create slots builder", err = err.msg
     return failure(err)
 
-  without sampler =? DataSampler.new(slotIdx, self.blockStore, builder), err:
+  without sampler =? Poseidon2Sampler.new(slotIdx, self.blockStore, builder), err:
     error "Unable to create data sampler", err = err.msg
     return failure(err)
 
