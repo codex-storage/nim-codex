@@ -562,10 +562,8 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
 
     # All the wants that failed local lookup must be set to not-in-flight again.
     let
-      lookupFailed = blocksDeliveryFut
-        .filterIt(not it.completed or not it.read.isOk)
-        .mapIt(it.read.get)
-      failedAddresses = lookupFailed.mapIt(it.address)
+      successAddresses = blocksDelivery.mapIt(it.address)
+      failedAddresses = wantsBlocks.mapIt(it.address).filterIt(it notin successAddresses)
     updateInFlight(failedAddresses, false)
 
     if blocksDelivery.len > 0:
