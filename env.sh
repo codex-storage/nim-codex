@@ -13,7 +13,7 @@ ENV_FILE="${ABS_PATH}/vendor/nimbus-build-system/scripts/env.sh"
 export NIM_COMMIT="${NIM_COMMIT:-${NIM_VERSION}}"
 if ! [ -f "$ENV_FILE" ]; then
   # Before the first "make update", the env file doesn't exist.
-  echo "Nimbus env file not found."
+  echo "Nimbus build system env file not found."
   # If more than one argument is passed, we assume it's a command to run.
   # Probably "make update".
   if [ $# -gt 0 ]; then
