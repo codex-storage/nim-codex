@@ -1,3 +1,4 @@
+import std/math
 import pkg/stew/byteutils
 import ./marketplacesuite
 import ../examples
@@ -28,6 +29,7 @@ marketplacesuite "Marketplace payouts":
     let collateral = 200.u256
     let expiry = 4.periods
     let data = byteutils.toHex(await exampleData())
+    let slotSize = (data.len / 2).ceil.int.u256
     let client = clients()[0]
     let provider = providers()[0]
     let clientApi = client.client
@@ -37,7 +39,7 @@ marketplacesuite "Marketplace payouts":
 
     # provider makes storage available
     discard providerApi.postAvailability(
-      size=data.len.u256,
+      size=slotSize, # large enough to only fill 1 slot, thus causing a cancellation
       duration=duration.u256,
       minPrice=reward,
       maxCollateral=collateral)

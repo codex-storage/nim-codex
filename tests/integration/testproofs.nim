@@ -1,3 +1,4 @@
+import std/math
 from std/times import inMilliseconds
 import pkg/codex/logutils
 import pkg/stew/byteutils
@@ -200,9 +201,10 @@ marketplacesuite "Simulate invalid proofs":
     let totalPeriods = 25
 
     let data = byteutils.toHex(await exampleData())
+    let slotSize = (data.len / 2).ceil.int.u256
 
     discard provider0.client.postAvailability(
-      size=data.len.u256, # should match 1 slot only
+      size=slotSize, # should match 1 slot only
       duration=totalPeriods.periods.u256,
       minPrice=300.u256,
       maxCollateral=200.u256
@@ -232,7 +234,7 @@ marketplacesuite "Simulate invalid proofs":
     # now add availability for provider1, which should allow provider1 to put
     # the remaining slot in its queue
     discard provider1.client.postAvailability(
-      size=data.len.u256, # should match 1 slot only
+      size=slotSize, # should match 1 slot only
       duration=totalPeriods.periods.u256,
       minPrice=300.u256,
       maxCollateral=200.u256
