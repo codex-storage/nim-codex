@@ -59,19 +59,19 @@ type
     slotRoots: seq[H]
     verifyTree: ?T
 
-func slotRoots*[T, H](self: SlotsBuilder[T, H]): seq[H] {.inline.} =
+func slotRoots*[T, H](self: SlotsBuilder[T, H]): seq[H] =
   ## Returns the slot roots.
   ##
 
   self.slotRoots
 
-func verifyTree*[T, H](self: SlotsBuilder[T, H]): ?H {.inline.} =
+func verifyTree*[T, H](self: SlotsBuilder[T, H]): ?T =
   ## Returns the slots tree (verification tree).
   ##
 
   self.verifyTree
 
-func verifyRoot*[T, H](self: SlotsBuilder[T, H]): ?H {.inline.} =
+func verifyRoot*[T, H](self: SlotsBuilder[T, H]): ?H =
   ## Returns the slots root (verification root).
   ##
 
