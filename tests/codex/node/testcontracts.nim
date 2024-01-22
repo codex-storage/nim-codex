@@ -54,7 +54,7 @@ asyncchecksuite "Test Node - Host contracts":
     manifestCidStr: string
     manifestCid: Cid
     market: MockMarket
-    builder: SlotsBuilder
+    builder: Poseidon2Builder
     verifiable: Manifest
     verifiableBlock: bt.Block
     protected: Manifest
@@ -84,7 +84,7 @@ asyncchecksuite "Test Node - Host contracts":
     (await localStore.putBlock(manifestBlock)).tryGet()
 
     protected = (await erasure.encode(manifest, 3, 2)).tryGet()
-    builder = SlotsBuilder.new(localStore, protected).tryGet()
+    builder = Poseidon2Builder.new(localStore, protected).tryGet()
     verifiable = (await builder.buildManifest()).tryGet()
     verifiableBlock = bt.Block.new(
       verifiable.encode().tryGet(),

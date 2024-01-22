@@ -19,7 +19,7 @@ import pkg/codex/contracts
 import pkg/codex/merkletree
 import pkg/codex/stores/cachestore
 
-import pkg/codex/slots/sampler
+import pkg/codex/slots
 import pkg/codex/slots/builder/builder
 
 import ../helpers
@@ -28,20 +28,20 @@ import ../merkletree/helpers
 import testsampler_expected
 import ./provingtestenv
 
-asyncchecksuite "Test DataSampler":
+asyncchecksuite "Test Poseidon2Sampler":
   var
     env: ProvingTestEnvironment
-    dataSampler: DataSampler
+    dataSampler: Poseidon2Sampler
     blk: bt.Block
     cell0Bytes: seq[byte]
     cell1Bytes: seq[byte]
     cell2Bytes: seq[byte]
 
   proc createDataSampler(): Future[void] {.async.} =
-    dataSampler = DataSampler.new(
+    dataSampler = Poseidon2Sampler.new(
       datasetSlotIndex,
       env.localStore,
-      SlotsBuilder.new(env.localStore, env.manifest).tryGet()).tryGet()
+      Poseidon2Builder.new(env.localStore, env.manifest).tryGet()).tryGet()
 
   setup:
     randomize()

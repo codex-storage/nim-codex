@@ -36,59 +36,44 @@ logScope:
 type
   Cell* = seq[byte]
 
-  Sample* = object
+  Sample*[P] = object
     data*: Cell
-    slotProof*: Poseidon2Proof
-    cellProof*: Poseidon2Proof
+    slotProof*: P
+    cellProof*: P
     slotBlockIdx*: Natural
     blockCellIdx*: Natural
 
-  ProofInput* = object
-    entropy*: Poseidon2Hash
-    verifyRoot*: Poseidon2Hash
-    verifyProof*: Poseidon2Proof
+  ProofInput*[H, P] = object
+    entropy*: H
+    verifyRoot*: H
+    verifyProof*: P
     numSlots*: Natural
     numCells*: Natural
     slotIndex*: Natural
-    samples*: seq[Sample]
+    samples*: seq[Sample[P]]
 
-  DataSampler* = ref object of RootObj
+  DataSampler*[T, H, P] = ref object of RootObj
     index: Natural
     blockStore: BlockStore
     # The following data is invariant over time for a given slot:
-    builder: SlotsBuilder
+    builder: SlotsBuilder[T, H]
 
-proc new*(
-    T: type DataSampler,
-    index: Natural,
-    blockStore: BlockStore,
-    builder: SlotsBuilder): ?!DataSampler =
-
-  if index > builder.slotRoots.high:
-    error "Slot index is out of range"
-    return failure("Slot index is out of range")
-
-  success DataSampler(
-    index: index,
-    blockStore: blockStore,
-    builder: builder)
-
-proc getCell*(self: DataSampler, blkBytes: seq[byte], blkCellIdx: Natural): Cell =
+proc getCell*[T, H, P](self: DataSampler[T, H, P], blkBytes: seq[byte], blkCellIdx: Natural): Cell =
   let
     cellSize = self.builder.cellSize.uint64
     dataStart = cellSize * blkCellIdx.uint64
     dataEnd = dataStart + cellSize
   return blkBytes[dataStart ..< dataEnd]
 
-proc getProofInput*(
-  self: DataSampler,
+proc getProofInput*[T, H, P](
+  self: DataSampler[T, H, P],
   entropy: ProofChallenge,
-  nSamples: Natural): Future[?!ProofInput] {.async.} =
+  nSamples: Natural): Future[?!ProofInput[H, P]] {.async.} =
   ## Generate proofs as input to the proving circuit.
   ##
 
   let
-    entropy = Poseidon2Hash.fromBytes(
+    entropy = H.fromBytes(
       array[31, byte].initCopyFrom(entropy[0..30])) # truncate to 31 bytes, otherwise it _might_ be greater than mod
 
   without verifyTree =? self.builder.verifyTree and
@@ -146,14 +131,14 @@ proc getProofInput*(
         error "Failed to get proof from block tree", err = err.msg
         return failure(err)
 
-      Sample(
+      Sample[P](
         data: self.getCell(bytes, blkCellIdx),
         slotProof: slotProof,
         cellProof: blockProof,
         slotBlockIdx: slotCellIdx.Natural,
         blockCellIdx: blkCellIdx.Natural)
 
-  success ProofInput(
+  success ProofInput[H, P](
     entropy: entropy,
     verifyRoot: verifyRoot,
     verifyProof: verifyProof,
@@ -161,3 +146,18 @@ proc getProofInput*(
     numCells: self.builder.numSlotCells,
     slotIndex: self.index,
     samples: samples)
+
+proc new*[T, H, P](
+    _: type DataSampler[T, H, P],
+    index: Natural,
+    blockStore: BlockStore,
+    builder: SlotsBuilder[T, H]): ?!DataSampler[T, H, P] =
+
+  if index > builder.slotRoots.high:
+    error "Slot index is out of range"
+    return failure("Slot index is out of range")
+
+  success DataSampler[T, H, P](
+    index: index,
+    blockStore: blockStore,
+    builder: builder)
