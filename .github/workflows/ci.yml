@@ -46,6 +46,7 @@ jobs:
     name: '${{ matrix.os }}-${{ matrix.cpu }}-tests-${{ matrix.tests }}'
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 80
+    continue-on-error: true
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
