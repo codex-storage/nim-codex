@@ -453,6 +453,27 @@ asyncchecksuite "Task Handler":
 
     await engine.taskHandler(peersCtx[0])
 
+  test "Should set in-flight for outgoing blocks":
+    proc sendBlocksDelivery(
+      id: PeerId,
+      blocksDelivery: seq[BlockDelivery]) {.gcsafe, async.} =
+      check peersCtx[0].peerWants[0].inFlight
+
+    for blk in blocks:
+      (await engine.localStore.putBlock(blk)).tryGet()
+    engine.network.request.sendBlocksDelivery = sendBlocksDelivery
+
+    peersCtx[0].peerWants.add(WantListEntry(
+      address: blocks[0].address,
+      priority: 50,
+      cancel: false,
+      wantType: WantType.WantBlock,
+      sendDontHave: false,
+      inFlight: false)
+    )
+    await engine.taskHandler(peersCtx[0])
+
+
   test "Should send presence":
     let present = blocks
     let missing = @[Block.new("missing".toBytes).tryGet()]
