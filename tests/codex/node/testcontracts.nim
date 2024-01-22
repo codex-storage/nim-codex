@@ -5,7 +5,7 @@ import std/times
 import std/sequtils
 import std/importutils
 
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 import pkg/chronos
 import pkg/stew/byteutils
 import pkg/datastore

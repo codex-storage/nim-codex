@@ -3,7 +3,7 @@ import std/times
 
 import pkg/libp2p
 import pkg/chronos
-import pkg/asynctest
+import pkg/asynctest/chronos/unittest
 
 import pkg/codex/codextypes
 import pkg/codex/chunker
