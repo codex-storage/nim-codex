@@ -1,6 +1,7 @@
-import pkg/asynctest/chronos/unittest
 import pkg/chronos
 import codex/utils/trackedfutures
+
+import ../../asynctest
 import ../helpers
 
 type Module = object

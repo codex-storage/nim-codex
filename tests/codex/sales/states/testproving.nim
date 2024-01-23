@@ -1,4 +1,3 @@
-import pkg/asynctest/chronos/unittest
 import pkg/chronos
 import pkg/questionable
 import pkg/codex/contracts/requests
@@ -8,6 +7,8 @@ import pkg/codex/sales/states/failed
 import pkg/codex/sales/states/payout
 import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
+
+import ../../../asynctest
 import ../../examples
 import ../../helpers
 import ../../helpers/mockmarket

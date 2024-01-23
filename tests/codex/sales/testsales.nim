@@ -1,7 +1,6 @@
 import std/sequtils
 import std/sugar
 import std/times
-import pkg/asynctest/chronos/unittest
 import pkg/chronos
 import pkg/datastore
 import pkg/questionable
@@ -14,6 +13,7 @@ import pkg/codex/sales/slotqueue
 import pkg/codex/stores/repostore
 import pkg/codex/blocktype as bt
 import pkg/codex/node
+import ../../asynctest
 import ../helpers
 import ../helpers/mockmarket
 import ../helpers/mockclock

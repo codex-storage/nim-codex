@@ -10,13 +10,13 @@
 import std/random
 import std/sequtils
 import pkg/chronos
-import pkg/asynctest/chronos/unittest
 import pkg/questionable
 import pkg/questionable/results
 import pkg/codex/blocktype as bt
 import pkg/codex/stores/repostore
 import pkg/codex/clock
 
+import ../../asynctest
 import ../helpers/mocktimer
 import ../helpers/mockrepostore
 import ../helpers/mockclock

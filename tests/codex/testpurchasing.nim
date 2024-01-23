@@ -1,5 +1,4 @@
 import std/times
-import pkg/asynctest/chronos/unittest
 import pkg/chronos
 import pkg/stint
 import pkg/codex/purchasing
@@ -9,6 +8,8 @@ import pkg/codex/purchasing/states/submitted
 import pkg/codex/purchasing/states/unknown
 import pkg/codex/purchasing/states/cancelled
 import pkg/codex/purchasing/states/failed
+
+import ../asynctest
 import ./helpers/mockmarket
 import ./helpers/mockclock
 import ./examples

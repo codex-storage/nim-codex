@@ -2,7 +2,6 @@ import std/sequtils
 
 import pkg/chronos
 import pkg/questionable/results
-import pkg/asynctest/chronos/unittest
 import pkg/codex/chunker
 import pkg/codex/blocktype as bt
 import pkg/codex/manifest
@@ -11,6 +10,7 @@ import pkg/poseidon2
 import pkg/codex/slots
 import pkg/codex/merkletree
 
+import ../asynctest
 import ./helpers
 import ./examples
 

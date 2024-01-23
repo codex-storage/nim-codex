@@ -1,8 +1,9 @@
-import pkg/asynctest/chronos/unittest
 import pkg/chronos
 
 import codex/validation
 import codex/periods
+
+import ../asynctest
 import ./helpers/mockmarket
 import ./helpers/mockclock
 import ./examples

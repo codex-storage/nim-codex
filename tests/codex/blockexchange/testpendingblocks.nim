@@ -2,13 +2,13 @@ import std/sequtils
 import std/algorithm
 
 import pkg/chronos
-import pkg/asynctest/chronos/unittest
 import pkg/stew/byteutils
 
 import pkg/codex/blocktype as bt
 import pkg/codex/blockexchange
 
 import ../helpers
+import ../../asynctest
 
 checksuite "Pending Blocks":
   test "Should add want handle":
