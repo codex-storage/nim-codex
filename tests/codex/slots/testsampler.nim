@@ -10,6 +10,7 @@ import pkg/poseidon2/io
 import pkg/poseidon2
 import pkg/chronos
 import pkg/asynctest
+import pkg/nimcrypto
 import pkg/codex/stores/cachestore
 import pkg/codex/chunker
 import pkg/codex/stores
@@ -113,6 +114,6 @@ asyncchecksuite "Test DataSampler":
       toStr(input.samples[2].cellProof) == expectedCellBlockProofs[2]
 
       # # cell data
-      toHex(input.samples[0].data) == expectedCellData[0]
-      toHex(input.samples[1].data) == expectedCellData[1]
-      toHex(input.samples[2].data) == expectedCellData[2]
+      nimcrypto.toHex(input.samples[0].data) == expectedCellData[0]
+      nimcrypto.toHex(input.samples[1].data) == expectedCellData[1]
+      nimcrypto.toHex(input.samples[2].data) == expectedCellData[2]

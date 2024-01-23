@@ -1,4 +1,3 @@
-import std/json
 import pkg/chronos
 import pkg/ethers/testing
 import pkg/ethers/erc20

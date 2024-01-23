@@ -1,4 +1,4 @@
-import pkg/chronicles
+import ../../logutils
 import ../statemachine
 import ../salesagent
 import ./filled

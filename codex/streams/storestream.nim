@@ -14,12 +14,12 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronos
-import pkg/chronicles
 import pkg/stew/ptrops
 
 import ../stores
 import ../manifest
 import ../blocktype
+import ../logutils
 import ../utils
 
 import ./seekablestream
@@ -53,7 +53,7 @@ proc new*(
     pad = true
 ): StoreStream =
   ## Create a new StoreStream instance for a given store and manifest
-  ## 
+  ##
   result = StoreStream(
     store: store,
     manifest: manifest,
@@ -80,7 +80,7 @@ method readOnce*(
   ## Read `nbytes` from current position in the StoreStream into output buffer pointed by `pbytes`.
   ## Return how many bytes were actually read before EOF was encountered.
   ## Raise exception if we are already at EOF.
-  ## 
+  ##
 
   trace "Reading from manifest", cid = self.manifest.cid.get(), blocks = self.manifest.blocksCount
   if self.atEof:

@@ -13,7 +13,6 @@ push: {.upraises: [].}
 
 import pkg/chronos
 import pkg/chronos/futures
-import pkg/chronicles
 import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/lrucache
 import pkg/metrics
@@ -27,6 +26,7 @@ import ./keyutils
 import ../blocktype
 import ../clock
 import ../systemclock
+import ../logutils
 import ../merkletree
 import ../utils
 

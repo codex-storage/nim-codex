@@ -1,12 +1,13 @@
 import std/hashes
+import std/sequtils
 import std/typetraits
 import pkg/contractabi
 import pkg/nimcrypto
 import pkg/ethers/fields
 import pkg/questionable/results
 import pkg/stew/byteutils
-import pkg/json_serialization
 import pkg/upraises
+import ../logutils
 import ../utils/json
 
 export contractabi
@@ -78,6 +79,13 @@ proc fromHex*[T: distinct](_: type T, hex: string): T =
 proc toHex*[T: distinct](id: T): string =
   type baseType = T.distinctBase
   baseType(id).toHex
+
+logutils.formatIt(LogFormat.textLines, Nonce): it.short0xHexLog
+logutils.formatIt(LogFormat.textLines, RequestId): it.short0xHexLog
+logutils.formatIt(LogFormat.textLines, SlotId): it.short0xHexLog
+logutils.formatIt(LogFormat.json, Nonce): it.to0xHexLog
+logutils.formatIt(LogFormat.json, RequestId): it.to0xHexLog
+logutils.formatIt(LogFormat.json, SlotId): it.to0xHexLog
 
 func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
   StorageRequest(
@@ -176,17 +184,3 @@ func price*(request: StorageRequest): UInt256 =
 
 func size*(ask: StorageAsk): UInt256 =
   ask.slots.u256 * ask.slotSize
-
-proc writeValue*(
-  writer: var JsonWriter,
-  value: SlotId | RequestId) {.upraises:[IOError].} =
-
-  mixin writeValue
-  writer.writeValue value.toArray
-
-proc readValue*[T: SlotId | RequestId](
-  reader: var JsonReader,
-  value: var T) {.upraises: [SerializationError, IOError].} =
-
-  mixin readValue
-  value = T reader.readValue(T.distinctBase)
