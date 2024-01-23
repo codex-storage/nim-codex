@@ -541,7 +541,7 @@ proc onStore(
     return failure(err)
 
   if cid =? slotRoot.toSlotCid() and cid != manifest.slotRoots[slotIdx.int]:
-    trace "Slot root mismatch", manifest = manifest.slotRoots[slotIdx.int], recovered = $slotRoot.toSlotCid()
+    trace "Slot root mismatch", manifest = manifest.slotRoots[slotIdx.int], recovered = slotRoot.toSlotCid()
     return failure(newException(CodexError, "Slot root mismatch"))
 
   return success()

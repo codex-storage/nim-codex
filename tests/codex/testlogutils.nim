@@ -9,6 +9,8 @@ import pkg/codex/purchasing/purchaseid
 import pkg/codex/units
 import pkg/libp2p/cid
 import pkg/libp2p/multiaddress
+import pkg/questionable
+import pkg/questionable/results
 import pkg/stew/byteutils
 import pkg/stint
 import ../checktest
@@ -128,6 +130,24 @@ checksuite "Test logging output":
     check logged("t", "\"@[some(formatted_a), none(ObjectType)]\"")
     check loggedJson("t", """["formatted_a",null]""")
 
+  test "logs Result types -- success with string property":
+    let t: ?!ObjectType = success ObjectType(a: "a")
+    log t
+    check logged("t", "formatted_a")
+    check loggedJson("t", "\"formatted_a\"")
+
+  test "logs Result types -- success with int property":
+    let t: ?!AnotherType = success AnotherType(a: 1)
+    log t
+    check logged("t", "1")
+    check loggedJson("t", "1")
+
+  test "logs Result types -- failure":
+    let t: ?!ObjectType = ObjectType.failure newException(ValueError, "some error")
+    log t
+    check logged("t", "\"Error: some error\"")
+    check loggedJson("t", """{"error":"some error"}""")
+
   test "can define `$` override for T":
     let o = ObjectType()
     check $o == "used `$`"
@@ -195,10 +215,10 @@ checksuite "Test logging output":
     check loggedJson("id", "\"0x9ab2c4d102a95d990facb022d67b3c9b39052597c006fddf122bed2cb594c282\"")
 
   test "logs Nonce correctly":
-    let id = SlotId.fromHex("ce88f368a7b776172ebd29a212456eb66acb60f169ee76eae91935e7fafad6ea")
-    log id
-    check logged("id", "0xce88..d6ea")
-    check loggedJson("id", "\"0xce88f368a7b776172ebd29a212456eb66acb60f169ee76eae91935e7fafad6ea\"")
+    let n = Nonce.fromHex("ce88f368a7b776172ebd29a212456eb66acb60f169ee76eae91935e7fafad6ea")
+    log n
+    check logged("n", "0xce88..d6ea")
+    check loggedJson("n", "\"0xce88f368a7b776172ebd29a212456eb66acb60f169ee76eae91935e7fafad6ea\"")
 
   test "logs MultiAddress correctly":
     let ma = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet

@@ -94,6 +94,7 @@ import std/typetraits
 import pkg/chronicles except toJson, `%`
 from pkg/libp2p import Cid, MultiAddress, `$`
 import pkg/questionable
+import pkg/questionable/results
 import pkg/stew/byteutils
 import pkg/stint
 import pkg/upraises
@@ -108,6 +109,7 @@ export strutils
 export sugar
 export upraises
 export json
+export results
 
 func shortLog*(long: string, ellipses = "*", start = 3, stop = 6): string =
   ## Returns compact string representation of ``long``.
@@ -149,7 +151,7 @@ func to0xHexLog*[U: distinct, T: seq[U]](v: T): string =
 proc formatTextLineSeq*(val: seq[string]): string =
   "@[" & val.join(", ") & "]"
 
-template formatIt*(format: LogFormat, T: typedesc, body: untyped) {.dirty.} =
+template formatIt*(format: LogFormat, T: typedesc, body: untyped) =
   # Provides formatters for logging with Chronicles for the given type and
   # `LogFormat`.
   # NOTE: `seq[T]`, `Option[T]`, and `seq[Option[T]]` are overriddden
@@ -162,19 +164,34 @@ template formatIt*(format: LogFormat, T: typedesc, body: untyped) {.dirty.} =
       else:
         newJNull()
 
+    proc formatJsonResult*(val: ?!T): JsonNode =
+      without it =? val, error:
+        let jObj = newJObject()
+        jObj["error"] = newJString(error.msg)
+        return jObj
+      json.`%`(body)
+
+    proc setProperty*(r: var JsonRecord, key: string, res: ?!T) =
+      var it {.inject, used.}: T
+      setProperty(r, key, res.formatJsonResult)
+
     proc setProperty*(r: var JsonRecord, key: string, opt: ?T) =
+      var it {.inject, used.}: T
       let v = opt.formatJsonOption
       setProperty(r, key, v)
 
     proc setProperty*(r: var JsonRecord, key: string, opts: seq[?T]) =
+      var it {.inject, used.}: T
       let v = opts.map(opt => opt.formatJsonOption)
       setProperty(r, key, json.`%`(v))
 
     proc setProperty*(r: var JsonRecord, key: string, val: seq[T]) =
+      var it {.inject, used.}: T
       let v = val.map(it => body)
       setProperty(r, key, json.`%`(v))
 
-    proc setProperty*(r: var JsonRecord, key: string, it: T) {.upraises:[ValueError, IOError].} =
+    proc setProperty*(r: var JsonRecord, key: string, val: T) {.upraises:[ValueError, IOError].} =
+      var it {.inject, used.}: T = val
       let v = body
       setProperty(r, key, json.`%`(v))
 
@@ -185,19 +202,32 @@ template formatIt*(format: LogFormat, T: typedesc, body: untyped) {.dirty.} =
         v = "some(" & $(body) & ")" # that I used to know :)
       v
 
+    proc formatTextLineResult*(val: ?!T): string =
+      without it =? val, error:
+        return "Error: " & error.msg
+      $(body)
+
+    proc setProperty*(r: var TextLineRecord, key: string, res: ?!T) =
+      var it {.inject, used.}: T
+      setProperty(r, key, res.formatTextLineResult)
+
     proc setProperty*(r: var TextLineRecord, key: string, opt: ?T) =
+      var it {.inject, used.}: T
       let v = opt.formatTextLineOption
       setProperty(r, key, v)
 
     proc setProperty*(r: var TextLineRecord, key: string, opts: seq[?T]) =
+      var it {.inject, used.}: T
       let v = opts.map(opt => opt.formatTextLineOption)
       setProperty(r, key, v.formatTextLineSeq)
 
     proc setProperty*(r: var TextLineRecord, key: string, val: seq[T]) =
+      var it {.inject, used.}: T
       let v = val.map(it => body)
       setProperty(r, key, v.formatTextLineSeq)
 
-    proc setProperty*(r: var TextLineRecord, key: string, it: T) {.upraises:[ValueError, IOError].} =
+    proc setProperty*(r: var TextLineRecord, key: string, val: T) {.upraises:[ValueError, IOError].} =
+      var it {.inject, used.}: T = val
       let v = body
       setProperty(r, key, v)
 
