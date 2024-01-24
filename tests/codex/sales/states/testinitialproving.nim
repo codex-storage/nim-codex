@@ -16,7 +16,7 @@ import ../../helpers
 import ../../helpers/mockmarket
 
 asyncchecksuite "sales state 'initialproving'":
-  let proof = exampleProof()
+  let proof = Groth16Proof.example
   let request = StorageRequest.example
   let slotIndex = (request.ask.slots div 2).u256
   let market = MockMarket.new()
@@ -26,7 +26,7 @@ asyncchecksuite "sales state 'initialproving'":
   var receivedChallenge: ProofChallenge
 
   setup:
-    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[?!seq[byte]] {.async.} =
+    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[?!Groth16Proof] {.async.} =
                           receivedChallenge = challenge
                           return success(proof)
     let context = SalesContext(
@@ -60,7 +60,7 @@ asyncchecksuite "sales state 'initialproving'":
     check receivedChallenge == market.proofChallenge
 
   test "switches to errored state when onProve callback fails":
-    let onProveFailed: OnProve = proc(slot: Slot, challenge: ProofChallenge): Future[?!seq[byte]] {.async.} =
+    let onProveFailed: OnProve = proc(slot: Slot, challenge: ProofChallenge): Future[?!Groth16Proof] {.async.} =
       return failure("oh no!")
 
     let proofFailedContext = SalesContext(

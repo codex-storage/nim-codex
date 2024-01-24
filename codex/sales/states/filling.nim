@@ -12,7 +12,7 @@ logScope:
 
 type
   SaleFilling* = ref object of ErrorHandlingState
-    proof*: seq[byte]
+    proof*: Groth16Proof
 
 method `$`*(state: SaleFilling): string = "SaleFilling"
 

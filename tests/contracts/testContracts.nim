@@ -8,7 +8,7 @@ import ./time
 import ./deployment
 
 ethersuite "Marketplace contracts":
-  let proof = exampleProof()
+  let proof = Groth16Proof.example
 
   var client, host: Signer
   var marketplace: Marketplace

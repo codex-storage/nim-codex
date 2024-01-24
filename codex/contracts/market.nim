@@ -8,6 +8,7 @@ import pkg/questionable
 import ../logutils
 import ../market
 import ./marketplace
+import ./proofs
 
 export market
 
@@ -120,7 +121,7 @@ method getActiveSlot*(market: OnChainMarket,
 method fillSlot(market: OnChainMarket,
                 requestId: RequestId,
                 slotIndex: UInt256,
-                proof: seq[byte],
+                proof: Groth16Proof,
                 collateral: UInt256) {.async.} =
   await market.approveFunds(collateral)
   await market.contract.fillSlot(requestId, slotIndex, proof)
@@ -155,7 +156,7 @@ method getChallenge*(market: OnChainMarket, id: SlotId): Future[ProofChallenge] 
 
 method submitProof*(market: OnChainMarket,
                     id: SlotId,
-                    proof: seq[byte]) {.async.} =
+                    proof: Groth16Proof) {.async.} =
   await market.contract.submitProof(id, proof)
 
 method markProofAsMissing*(market: OnChainMarket,
@@ -272,7 +273,7 @@ method subscribeProofSubmission*(market: OnChainMarket,
                                  callback: OnProofSubmitted):
                                 Future[MarketSubscription] {.async.} =
   proc onEvent(event: ProofSubmitted) {.upraises: [].} =
-    callback(event.id, event.proof)
+    callback(event.id)
   let subscription = await market.contract.subscribe(ProofSubmitted, onEvent)
   return OnChainMarketSubscription(eventSubscription: subscription)
 

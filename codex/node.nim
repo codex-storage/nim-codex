@@ -549,7 +549,7 @@ proc onStore(
 proc onProve(
   self: CodexNodeRef,
   slot: Slot,
-  challenge: ProofChallenge): Future[?!seq[byte]] {.async.} =
+  challenge: ProofChallenge): Future[?!Groth16Proof] {.async.} =
   ## Generats a proof for a given slot and challenge
   ##
 
@@ -585,7 +585,7 @@ proc onProve(
     return failure(err)
 
   # Todo: send proofInput to circuit. Get proof. (Profit, repeat.)
-  success(@[42'u8])
+  success(Groth16Proof.default)
 
 proc onExpiryUpdate(
   self: CodexNodeRef,
@@ -635,7 +635,7 @@ proc start*(self: CodexNodeRef) {.async.} =
       self.onClear(request, slotIndex)
 
     hostContracts.sales.onProve =
-      proc(slot: Slot, challenge: ProofChallenge): Future[?!seq[byte]] =
+      proc(slot: Slot, challenge: ProofChallenge): Future[?!Groth16Proof] =
         # TODO: generate proof
         self.onProve(slot, challenge)
 

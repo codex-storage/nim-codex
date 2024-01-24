@@ -5,6 +5,7 @@ import pkg/stint
 import pkg/chronos
 import ../clock
 import ./requests
+import ./proofs
 import ./config
 
 export stint
@@ -33,7 +34,6 @@ type
     requestId* {.indexed.}: RequestId
   ProofSubmitted* = object of Event
     id*: SlotId
-    proof*: seq[byte]
 
 
 proc config*(marketplace: Marketplace): MarketplaceConfig {.contract, view.}
@@ -43,7 +43,7 @@ proc slashPercentage*(marketplace: Marketplace): UInt256 {.contract, view.}
 proc minCollateralThreshold*(marketplace: Marketplace): UInt256 {.contract, view.}
 
 proc requestStorage*(marketplace: Marketplace, request: StorageRequest) {.contract.}
-proc fillSlot*(marketplace: Marketplace, requestId: RequestId, slotIndex: UInt256, proof: seq[byte]) {.contract.}
+proc fillSlot*(marketplace: Marketplace, requestId: RequestId, slotIndex: UInt256, proof: Groth16Proof) {.contract.}
 proc withdrawFunds*(marketplace: Marketplace, requestId: RequestId) {.contract.}
 proc freeSlot*(marketplace: Marketplace, id: SlotId) {.contract.}
 proc getRequest*(marketplace: Marketplace, id: RequestId): StorageRequest {.contract, view.}
@@ -65,5 +65,5 @@ proc willProofBeRequired*(marketplace: Marketplace, id: SlotId): bool {.contract
 proc getChallenge*(marketplace: Marketplace, id: SlotId): array[32, byte] {.contract, view.}
 proc getPointer*(marketplace: Marketplace, id: SlotId): uint8 {.contract, view.}
 
-proc submitProof*(marketplace: Marketplace, id: SlotId, proof: seq[byte]) {.contract.}
+proc submitProof*(marketplace: Marketplace, id: SlotId, proof: Groth16Proof) {.contract.}
 proc markProofAsMissing*(marketplace: Marketplace, id: SlotId, period: UInt256) {.contract.}

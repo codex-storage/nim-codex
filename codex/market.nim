@@ -3,12 +3,14 @@ import pkg/upraises
 import pkg/questionable
 import pkg/ethers/erc20
 import ./contracts/requests
+import ./contracts/proofs
 import ./clock
 import ./periods
 
 export chronos
 export questionable
 export requests
+export proofs
 export SecondsSince1970
 export periods
 
@@ -23,7 +25,7 @@ type
   OnSlotFreed* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises: [].}
   OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
-  OnProofSubmitted* = proc(id: SlotId, proof: seq[byte]) {.gcsafe, upraises:[].}
+  OnProofSubmitted* = proc(id: SlotId) {.gcsafe, upraises:[].}
   PastStorageRequest* = object
     requestId*: RequestId
     ask*: StorageAsk
@@ -91,7 +93,7 @@ method getActiveSlot*(
 method fillSlot*(market: Market,
                  requestId: RequestId,
                  slotIndex: UInt256,
-                 proof: seq[byte],
+                 proof: Groth16Proof,
                  collateral: UInt256) {.base, async.} =
   raiseAssert("not implemented")
 
@@ -120,7 +122,7 @@ method getChallenge*(market: Market, id: SlotId): Future[ProofChallenge] {.base,
 
 method submitProof*(market: Market,
                     id: SlotId,
-                    proof: seq[byte]) {.base, async.} =
+                    proof: Groth16Proof) {.base, async.} =
   raiseAssert("not implemented")
 
 method markProofAsMissing*(market: Market,

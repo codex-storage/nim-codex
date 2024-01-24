@@ -1,6 +1,5 @@
 import std/options
 import pkg/chronos
-import pkg/stew/byteutils
 import codex/contracts
 import ../ethertest
 import ./examples
@@ -8,7 +7,7 @@ import ./time
 import ./deployment
 
 ethersuite "On-Chain Market":
-  let proof = exampleProof()
+  let proof = Groth16Proof.example
 
   var market: OnChainMarket
   var marketplace: Marketplace
@@ -261,19 +260,11 @@ ethersuite "On-Chain Market":
 
   test "supports proof submission subscriptions":
     var receivedIds: seq[SlotId]
-    var receivedProofs: seq[seq[byte]]
-
-    proc onProofSubmission(id: SlotId, proof: seq[byte]) =
+    proc onProofSubmission(id: SlotId) =
       receivedIds.add(id)
-      receivedProofs.add(proof)
-
     let subscription = await market.subscribeProofSubmission(onProofSubmission)
-
     await market.submitProof(slotId(request.id, slotIndex), proof)
-
     check receivedIds == @[slotId(request.id, slotIndex)]
-    check receivedProofs == @[proof]
-
     await subscription.unsubscribe()
 
   test "request is none when unknown":
