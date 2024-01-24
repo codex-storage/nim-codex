@@ -32,6 +32,9 @@ type
     expiry*: UInt256
   ProofChallenge* = array[32, byte]
 
+method getZkeyHash*(market: Market): Future[?string] {.base, async.} =
+  raiseAssert("not implemented")
+
 method getSigner*(market: Market): Future[Address] {.base, async.} =
   raiseAssert("not implemented")
 
