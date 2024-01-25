@@ -15,13 +15,13 @@ import std/sugar
 
 import pkg/libp2p
 import pkg/chronos
-import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/poseidon2
 import pkg/poseidon2/io
 import pkg/constantine/math/arithmetic/finite_fields
 
+import ../../logutils
 import ../../indexingstrategy
 import ../../merkletree
 import ../../stores

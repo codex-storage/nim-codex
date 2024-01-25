@@ -11,12 +11,12 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronos
-import pkg/chronicles
 import pkg/libp2p
 
 import ../protobuf/blockexc
 import ../protobuf/message
 import ../../errors
+import ../../logutils
 
 logScope:
   topics = "codex blockexcnetworkpeer"
