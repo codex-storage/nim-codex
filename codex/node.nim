@@ -585,7 +585,12 @@ proc onProve(
     return failure(err)
 
   # Todo: send proofInput to circuit. Get proof. (Profit, repeat.)
-  success(Groth16Proof.default)
+
+  # For now: dummy proof that is not all zero's, so that it is accepted by the
+  # dummy verifier:
+  var proof = Groth16Proof.default
+  proof.a.x = 42.u256
+  success(proof)
 
 proc onExpiryUpdate(
   self: CodexNodeRef,
