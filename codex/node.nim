@@ -16,7 +16,6 @@ import std/sugar
 
 import pkg/questionable
 import pkg/questionable/results
-import pkg/chronicles
 import pkg/chronos
 import pkg/poseidon2
 
@@ -41,6 +40,9 @@ import ./discovery
 import ./contracts
 import ./utils
 import ./errors
+import ./logutils
+
+export logutils
 
 logScope:
   topics = "codex node"
@@ -658,7 +660,7 @@ proc start*(self: CodexNodeRef) {.async.} =
       self.contracts.validator = ValidatorInteractions.none
 
   self.networkId = self.switch.peerInfo.peerId
-  notice "Started codex node", id = $self.networkId, addrs = self.switch.peerInfo.addrs
+  notice "Started codex node", id = self.networkId, addrs = self.switch.peerInfo.addrs
 
 proc stop*(self: CodexNodeRef) {.async.} =
   trace "Stopping node"

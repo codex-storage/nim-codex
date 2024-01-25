@@ -28,19 +28,19 @@ push: {.upraises: [].}
 
 import std/typetraits
 import pkg/chronos
-import pkg/chronicles except toJson
 import pkg/datastore
 import pkg/nimcrypto
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
 import pkg/stew/byteutils
+import ../logutils
 import ../stores
 import ../contracts/requests
 import ../utils/json
 
 export requests
-export chronicles except toJson
+export logutils
 
 logScope:
   topics = "sales reservations"
@@ -139,13 +139,8 @@ proc toErr[E1: ref CatchableError, E2: ReservationsError](
 
   return newException(E2, msg, e1)
 
-proc writeValue*(
-  writer: var JsonWriter,
-  value: SomeStorableId) {.upraises:[IOError].} =
-  ## used for chronicles' logs
-
-  mixin writeValue
-  writer.writeValue %value
+logutils.formatIt(LogFormat.textLines, SomeStorableId): it.short0xHexLog
+logutils.formatIt(LogFormat.json, SomeStorableId): it.to0xHexLog
 
 proc `onAvailabilityAdded=`*(self: Reservations,
                             onAvailabilityAdded: OnAvailabilityAdded) =

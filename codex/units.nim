@@ -12,8 +12,8 @@ import std/hashes
 import std/strutils
 
 import pkg/upraises
-import pkg/json_serialization
-import pkg/json_serialization/std/options
+
+import ./logutils
 
 type
   NBytes* = distinct Natural
@@ -43,6 +43,7 @@ divMaths(NBytes)
 proc `$`*(ts: NBytes): string = $(int(ts)) & "'NByte"
 proc `'nb`*(n: string): NBytes = parseInt(n).NBytes
 
+logutils.formatIt(NBytes): $it
 
 const
   MiB = 1024.NBytes * 1024.NBytes # ByteSz, 1 mebibyte = 1,048,576 ByteSz
@@ -53,18 +54,6 @@ func divUp*[T: NBytes](a, b : T): int =
   ## Division with result rounded up (rather than truncated as in 'div')
   assert(b != T(0))
   if a==T(0):  int(0) else: int( ((a - T(1)) div b) + 1 )
-
-proc writeValue*(
-    writer: var JsonWriter,
-    value: NBytes
-) {.upraises:[IOError].} =
-  writer.writeValue value.int
-
-proc readValue*(
-    reader: var JsonReader,
-    value: var NBytes
-) {.upraises: [SerializationError, IOError].} =
-  value = NBytes reader.readValue(int)
 
 when isMainModule:
 

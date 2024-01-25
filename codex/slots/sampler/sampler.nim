@@ -10,7 +10,6 @@
 import std/sugar
 import std/sequtils
 
-import pkg/chronicles
 import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
@@ -20,6 +19,7 @@ import pkg/poseidon2/types
 import pkg/poseidon2/io
 import pkg/stew/arrayops
 
+import ../../logutils
 import ../../market
 import ../../blocktype as bt
 import ../../merkletree

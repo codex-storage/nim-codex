@@ -1,11 +1,11 @@
 import std/sequtils
 import std/tables
-import pkg/chronicles
 import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
 import pkg/upraises
 import ../errors
+import ../logutils
 import ../rng
 import ../utils
 import ../contracts/requests
