@@ -16,7 +16,6 @@ import std/sequtils
 
 import pkg/questionable
 import pkg/questionable/results
-import pkg/chronicles except toJson
 import pkg/chronos
 import pkg/presto except toJson
 import pkg/metrics except toJson
@@ -28,6 +27,7 @@ import pkg/libp2p
 import pkg/libp2p/routing_record
 import pkg/codexdht/discv5/spr as spr
 
+import ../logutils
 import ../node
 import ../blocktype
 import ../conf

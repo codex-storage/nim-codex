@@ -1,5 +1,6 @@
-import pkg/chronicles
 import pkg/chronos
+
+import ../../logutils
 import ../statemachine
 import ../salesagent
 import ./errorhandling

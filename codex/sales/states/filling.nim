@@ -1,4 +1,4 @@
-import pkg/chronicles
+import ../../logutils
 import ../../market
 import ../statemachine
 import ../salesagent
@@ -32,5 +32,5 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   without (collateral =? data.request.?ask.?collateral):
     raiseAssert "Request not set"
 
-  debug "Filling slot", requestId = $data.requestId, slotIndex = $data.slotIndex
+  debug "Filling slot", requestId = data.requestId, slotIndex = data.slotIndex
   await market.fillSlot(data.requestId, data.slotIndex, state.proof, collateral)
