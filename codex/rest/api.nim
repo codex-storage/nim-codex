@@ -8,6 +8,7 @@
 ## those terms.
 
 import pkg/upraises
+import macros
 
 push: {.upraises: [].}
 
@@ -35,6 +36,7 @@ import ../contracts
 import ../manifest
 import ../streams/asyncstreamwrapper
 import ../stores
+import ../utils/options
 
 import ./coders
 import ./json
@@ -253,9 +255,10 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
   router.rawApi(
     MethodPost,
     "/api/codex/v1/sales/availability") do () -> RestApiResponse:
-      ## Add available storage to sell
+      ## Add available storage to sell.
+      ## Every time Availability's offer finishes, its capacity is returned to the availability.
       ##
-      ## size           - size of available storage in bytes
+      ## totalSize      - size of available storage in bytes
       ## duration       - maximum time the storage should be sold for (in seconds)
       ## minPrice       - minimum price to be paid (in amount of tokens)
       ## maxCollateral  - maximum collateral user is willing to pay per filled Slot (in amount of tokens)
@@ -271,12 +274,15 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
         let reservations = contracts.sales.context.reservations
 
-        if not reservations.hasAvailable(restAv.size.truncate(uint)):
+        if restAv.totalSize == 0:
+          return RestApiResponse.error(Http400, "Total size must be larger then zero")
+
+        if not reservations.hasAvailable(restAv.totalSize.truncate(uint)):
           return RestApiResponse.error(Http422, "Not enough storage quota")
 
         without availability =? (
           await reservations.createAvailability(
-            restAv.size,
+            restAv.totalSize,
             restAv.duration,
             restAv.minPrice,
             restAv.maxCollateral)
@@ -284,7 +290,106 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
           return RestApiResponse.error(Http500, error.msg)
 
         return RestApiResponse.response(availability.toJson,
+                                        Http201,
                                         contentType="application/json")
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
+
+  router.rawApi(
+    MethodPatch,
+    "/api/codex/v1/sales/availability/{id}") do (id: AvailabilityId) -> RestApiResponse:
+      ## Updates Availability.
+      ## The new parameters will be only considered for new requests.
+      ## Existing Requests linked to this Availability will continue as is.
+      ##
+      ## totalSize      - size of available storage in bytes. When decreasing the size, then lower limit is the currently `totalSize - freeSize`.
+      ## duration       - maximum time the storage should be sold for (in seconds)
+      ## minPrice       - minimum price to be paid (in amount of tokens)
+      ## maxCollateral  - maximum collateral user is willing to pay per filled Slot (in amount of tokens)
+
+      try:
+        without contracts =? node.contracts.host:
+          return RestApiResponse.error(Http503, "Sales unavailable")
+
+        without id =? id.tryGet.catch, error:
+          return RestApiResponse.error(Http400, error.msg)
+        without keyId =? id.key.tryGet.catch, error:
+          return RestApiResponse.error(Http400, error.msg)
+
+        let
+          body = await request.getBody()
+          reservations = contracts.sales.context.reservations
+
+        type OptRestAvailability = Optionalize(RestAvailability)
+
+        without restAv =? OptRestAvailability.fromJson(body), error:
+          return RestApiResponse.error(Http400, error.msg)
+
+        without availability =? (await reservations.get(keyId, Availability)), error:
+          if error of NotExistsError:
+            return RestApiResponse.error(Http404, "Availability not found")
+
+          return RestApiResponse.error(Http500, error.msg)
+
+        if isSome restAv.freeSize:
+          return RestApiResponse.error(Http400, "Updating freeSize is not allowed")
+
+        if size =? restAv.totalSize:
+          # we don't allow lowering the totalSize bellow currently utilized size
+          if size < (availability.totalSize - availability.freeSize):
+            return RestApiResponse.error(Http400, "New totalSize must be larger then current totalSize - freeSize, which is currently: " & $(availability.totalSize - availability.freeSize))
+
+          if err =? (await reservations.changeAvailabilitySize(availability, size)).errorOption:
+            return RestApiResponse.error(Http500, err.msg)
+
+          availability.freeSize += size - availability.totalSize
+          availability.totalSize = size
+
+        if duration =? restAv.duration:
+          availability.duration = duration
+
+        if minPrice =? restAv.minPrice:
+          availability.minPrice = minPrice
+
+        if maxCollateral =? restAv.maxCollateral:
+          availability.maxCollateral = maxCollateral
+
+        if err =? (await reservations.update(availability)).errorOption:
+          return RestApiResponse.error(Http500, err.msg)
+
+        return RestApiResponse.response("", Http204)
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
+
+  router.rawApi(
+    MethodGet,
+    "/api/codex/v1/sales/availability/{id}/reservations") do (id: AvailabilityId) -> RestApiResponse:
+      ## Gets Availability's reservations.
+
+      try:
+        without contracts =? node.contracts.host:
+          return RestApiResponse.error(Http503, "Sales unavailable")
+
+        without id =? id.tryGet.catch, error:
+          return RestApiResponse.error(Http400, error.msg)
+        without keyId =? id.key.tryGet.catch, error:
+          return RestApiResponse.error(Http400, error.msg)
+
+        let reservations = contracts.sales.context.reservations
+
+        if error =? (await reservations.get(keyId, Availability)).errorOption:
+          if error of NotExistsError:
+            return RestApiResponse.error(Http404, "Availability not found")
+          else:
+            return RestApiResponse.error(Http500, error.msg)
+
+        without availabilitysReservations =? (await reservations.all(Reservation, id.some)), err:
+          return RestApiResponse.error(Http500, err.msg)
+
+        let json = %availabilitysReservations
+        return RestApiResponse.response($json, contentType="application/json")
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
@@ -329,10 +434,11 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
           return RestApiResponse.error(Http500)
 
         if expiry <= node.clock.now.u256:
-          return RestApiResponse.error(Http400, "Expiry needs to be in future")
+          return RestApiResponse.error(Http400, "Expiry needs to be in future. Now: " & $node.clock.now)
 
-        if expiry > node.clock.now.u256 + params.duration:
-          return RestApiResponse.error(Http400, "Expiry has to be before the request's end (now + duration)")
+        let expiryLimit = node.clock.now.u256 + params.duration
+        if expiry > expiryLimit:
+          return RestApiResponse.error(Http400, "Expiry has to be before the request's end (now + duration). Limit: " & $expiryLimit)
 
         without purchaseId =? await node.requestStorage(
           cid,

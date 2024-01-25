@@ -4,6 +4,7 @@ import pkg/libp2p
 import pkg/codexdht/discv5/node as dn
 import pkg/codexdht/discv5/routing_table as rt
 import ../sales
+import ../clock
 import ../purchasing
 import ../utils/json
 import ../manifest
@@ -27,10 +28,19 @@ type
     error* {.serialize.}: ?string
 
   RestAvailability* = object
-    size* {.serialize.}: UInt256
+    totalSize* {.serialize.}: UInt256
     duration* {.serialize.}: UInt256
     minPrice* {.serialize.}: UInt256
     maxCollateral* {.serialize.}: UInt256
+    freeSize* {.serialize.}: ?UInt256
+
+  RestReservation* = object
+    id* {.serialize.}: ReservationId
+    availabilityId* {.serialize.}: AvailabilityId
+    size* {.serialize.}: UInt256
+    requestId* {.serialize.}: RequestId
+    slotIndex* {.serialize.}: UInt256
+    request* {.serialize.}: StorageRequest
 
   RestSalesAgent* = object
     state* {.serialize.}: string
