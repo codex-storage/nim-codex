@@ -16,7 +16,8 @@ ethersuite "On-Chain Market":
   var periodicity: Periodicity
 
   setup:
-    marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
+    let address = Marketplace.address(dummyVerifier = true)
+    marketplace = Marketplace.new(address, ethProvider.getSigner())
     let config = await marketplace.config()
 
     market = OnChainMarket.new(marketplace)
