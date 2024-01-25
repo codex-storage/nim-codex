@@ -111,6 +111,9 @@ ethersuite "On-Chain Market":
     check (await market.willProofBeRequired(slotId(request.id, slotIndex))) == false
 
   test "submits proofs":
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await advanceToNextPeriod()
     await market.submitProof(slotId(request.id, slotIndex), proof)
 
   test "marks a proof as missing":
@@ -260,6 +263,9 @@ ethersuite "On-Chain Market":
     await subscription.unsubscribe()
 
   test "supports proof submission subscriptions":
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await advanceToNextPeriod()
     var receivedIds: seq[SlotId]
     proc onProofSubmission(id: SlotId) =
       receivedIds.add(id)
