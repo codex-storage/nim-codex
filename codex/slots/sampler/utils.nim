@@ -10,6 +10,7 @@
 import std/sugar
 import std/bitops
 
+import pkg/chronicles
 import pkg/poseidon2
 import pkg/poseidon2/io
 
@@ -67,13 +68,14 @@ func cellIndex*(
   doAssert( 1 shl log2 == numCells , "`numCells` is assumed to be a power of two" )
 
   let hash = Sponge.digest( @[ slotRoot, entropy, counter.toF ], rate = 2 )
-
   return int( extractLowBits(hash, log2) )
 
 func cellIndices*(
   entropy: Poseidon2Hash,
   slotRoot: Poseidon2Hash,
   numCells: Natural, nSamples: Natural): seq[Natural] =
+
+  trace "Calculating cell indices", numCells, nSamples
 
   var indices: seq[Natural]
   while (indices.len < nSamples):

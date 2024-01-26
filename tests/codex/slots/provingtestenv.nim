@@ -1,4 +1,5 @@
 import std/sequtils
+import std/math
 
 import pkg/questionable/results
 import pkg/poseidon2/io
@@ -28,7 +29,8 @@ const
   # in the dataset.
   bytesPerBlock* = 64 * 1024
   cellsPerBlock* = bytesPerBlock div DefaultCellSize.int
-  numberOfSlotBlocks* = 4
+  numberOfSlotBlocks* = 3
+  numberOfSlotBlocksPadded* = numberOfSlotBlocks.nextPowerOfTwo
   totalNumberOfSlots* = 2
   datasetSlotIndex* = 1
   cellsPerSlot* = (bytesPerBlock * numberOfSlotBlocks) div DefaultCellSize.int
@@ -37,7 +39,14 @@ const
 type
   ProvingTestEnvironment* = ref object
     # Invariant:
-    challenge*: Poseidon2Hash
+    # These challenges are chosen such that with the testenv default values
+    # and nSamples=3, they will land on [3x data cells + 0x padded cell],
+    # and [2x data cells + 1x padded cell] respectively:
+    challengeNoPad*: Poseidon2Hash
+    challengeOnePad*: Poseidon2Hash
+    blockPadBytes*: seq[byte]
+    emptyBlockTree*: Poseidon2Tree
+    emptyBlockCid*: Cid
     # Variant:
     localStore*: CacheStore
     manifest*: Manifest
@@ -79,17 +88,19 @@ proc createSlotTree(self: ProvingTestEnvironment, dSlotIndex: uint64): Future[Po
 
   let
     slotBlocks = datasetBlockIndices.mapIt(self.datasetBlocks[it])
-    numBlockCells = bytesPerBlock.int div DefaultCellSize.int
-    blockPadBytes = newSeq[byte](numBlockCells.nextPowerOfTwoPad * DefaultCellSize.int)
-    slotBlockRoots = slotBlocks.mapIt(Poseidon2Tree.digest(it.data & blockPadBytes, DefaultCellSize.int).tryGet())
-    tree = Poseidon2Tree.init(slotBlockRoots).tryGet()
+    slotBlockRoots = slotBlocks.mapIt(Poseidon2Tree.digest(it.data & self.blockPadBytes, DefaultCellSize.int).tryGet())
+    slotBlockRootPads = newSeqWith((slotBlockRoots.len).nextPowerOfTwoPad, Poseidon2Zero)
+    tree = Poseidon2Tree.init(slotBlockRoots & slotBlockRootPads).tryGet()
     treeCid = tree.root().tryGet().toSlotCid().tryGet()
 
-  for i in 0 ..< numberOfSlotBlocks:
-    let
+  for i in 0 ..< numberOfSlotBlocksPadded:
+    var blkCid: Cid
+    if i < slotBlockRoots.len:
       blkCid = slotBlockRoots[i].toCellCid().tryGet()
-      proof = tree.getProof(i).tryGet().toEncodableProof().tryGet()
+    else:
+      blkCid = self.emptyBlockCid
 
+    let proof = tree.getProof(i).tryGet().toEncodableProof().tryGet()
     discard await self.localStore.putCidAndProof(treeCid, i, blkCid, proof)
 
   return tree
@@ -159,8 +170,18 @@ proc createSlot(self: ProvingTestEnvironment): void =
   )
 
 proc createProvingTestEnvironment*(): Future[ProvingTestEnvironment] {.async.} =
+  let
+    numBlockCells = bytesPerBlock.int div DefaultCellSize.int
+    blockPadBytes = newSeq[byte](numBlockCells.nextPowerOfTwoPad * DefaultCellSize.int)
+    emptyBlockTree = Poseidon2Tree.digestTree(DefaultEmptyBlock & blockPadBytes, DefaultCellSize.int).tryGet()
+    emptyBlockCid = emptyBlockTree.root.tryGet().toCellCid().tryGet()
+
   var testEnv = ProvingTestEnvironment(
-    challenge: toF(12345)
+    challengeNoPad: toF(6),
+    challengeOnePad: toF(9),
+    blockPadBytes: blockPadBytes,
+    emptyBlockTree: emptyBlockTree,
+    emptyBlockCid: emptyBlockCid
   )
 
   testEnv.localStore = CacheStore.new()
