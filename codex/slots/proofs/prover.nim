@@ -6,10 +6,41 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
+##
+
+import pkg/chronos
+import pkg/circomcompat
+import pkg/poseidon2
+import pkg/questionable/results
+
+import ../../merkletree
+
+import ./backends
+import ../types
 
 type
-  Prover* = ref object RootObj
+  Prover*[HashT, ProofT, BackendT] = ref object of RootObj
+    backend: BackendT
 
-proc prove()
+  AnyProof* = Proof
+  AnyHash* = Poseidon2Hash
+  AnyProverBacked* = CircomCompat[AnyHash, AnyProof]
+  AnyProver* = Prover[AnyHash, AnyProof, AnyProverBacked]
 
-proc verify()
+proc prove*(
+  self: AnyProver,
+  input: ProofInput[AnyHash]): Future[?!AnyProof] {.async.} =
+  ## Prove a statement using backend.
+  ## Returns a future that resolves to a proof.
+
+  ## TODO: implement
+  await self.backend.prove(input)
+
+proc verify*(
+  self: AnyProver,
+  proof: AnyProof): Future[?!bool] {.async.} =
+  ## Prove a statement using backend.
+  ## Returns a future that resolves to a proof.
+
+  ## TODO: implement
+  await self.backend.verify(proof)
