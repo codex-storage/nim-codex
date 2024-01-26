@@ -1315,7 +1315,6 @@ def executeCommand(command, *args):
 
 def __lldb_init_module(debugger, internal_dict):
     # fmt: off
-    print("internal_dict: ", internal_dict.keys())
     debugger.HandleCommand(f"breakpoint command add -F {__name__}.breakpoint_function_wrapper --script-type python 1")
     debugger.HandleCommand(f"type summary add -w nim -n sequence -F  {__name__}.Sequence -x tySequence_+[[:alnum:]]+$")
     debugger.HandleCommand(f"type synthetic add -w nim -l {__name__}.SeqChildrenProvider -x tySequence_+[[:alnum:]]+$")
@@ -1377,5 +1376,5 @@ def __lldb_init_module(debugger, internal_dict):
     debugger.HandleCommand(f"type summary add -w nim -n uinteger32 -F  {__name__}.UnsignedNumber -x NU32")
     debugger.HandleCommand(f"type summary add -w nim -n uinteger64 -F  {__name__}.UnsignedNumber -x NU64")
     debugger.HandleCommand("type category enable nim")
-    debugger.HandleCommand(f"command script add -f {__name__}.echo echo")
+    debugger.HandleCommand(f"command script add -f  {__name__}.echo echo")
     # fmt: on
