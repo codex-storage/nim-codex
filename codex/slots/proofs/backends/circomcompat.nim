@@ -172,7 +172,10 @@ proc prove*[H](
       if backend != nil:
         backend.addr.releaseCircomCompat()
 
-  success proof
+  success CircomProof(
+    proof: proof,
+    cfg: self.backendCfg,
+    backend: backend)
 
 proc verify*(
   self: CircomCompat,
