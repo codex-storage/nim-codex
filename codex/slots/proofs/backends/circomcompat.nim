@@ -63,6 +63,7 @@ proc prove*(
   var
     entropy = input.entropy.toBytes
     verifyRoot = input.verifyRoot.toBytes
+    slotRoot = input.slotRoot.toBytes
 
   if backend.pushInputU256Array(
     "entropy".cstring, entropy.addr, entropy.len.uint32) != ERR_OK:
@@ -70,6 +71,10 @@ proc prove*(
 
   if backend.pushInputU256Array(
     "dataSetRoot".cstring, verifyRoot.addr, verifyRoot.len.uint32) != ERR_OK:
+    return failure("Failed to push data set root")
+
+  if backend.pushInputU256Array(
+    "slotRoot".cstring, slotRoot.addr, slotRoot.len.uint32) != ERR_OK:
     return failure("Failed to push data set root")
 
   if backend.pushInputU32(
@@ -90,19 +95,19 @@ proc prove*(
   # arrays are always flattened
   if backend.pushInputU256Array(
     "slotProof".cstring,
-    slotProof.addr,
-    uint input.verifyProof.len) != ERR_OK:
+    slotProof[0].addr,
+    uint (32 * input.verifyProof.len)) != ERR_OK:
       return failure("Failed to push slot proof")
 
   for s in input.samples:
     var
-      merklePaths = s.merkleProof.mapIt( it.toBytes ).concat
+      merklePaths = s.merkleProof.mapIt( it.toBytes )
       data = s.data
 
     if backend.pushInputU256Array(
       "merklePaths".cstring,
       merklePaths[0].addr,
-      uint merklePaths.len) != ERR_OK:
+      uint (32 * merklePaths.len)) != ERR_OK:
         return failure("Failed to push merkle paths")
 
     if backend.pushInputU256Array(
