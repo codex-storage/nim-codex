@@ -19,6 +19,8 @@ import ../../../stores
 import ../../types
 import ../../../merkletree
 
+import pkg/constantine/math/arithmetic
+
 export circomcompat
 
 type
@@ -135,7 +137,7 @@ proc prove*(
     cfg: self.backendCfg,
     backend: backend)
 
-proc verify*(proof: CircomProof): ?!bool =
+proc verify*(self: CircomCompat, proof: CircomProof): ?!bool =
   ## Verify a proof using a backend
   ##
 
