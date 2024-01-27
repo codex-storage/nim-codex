@@ -110,6 +110,10 @@ proc prove*[H](
     "slotRoot".cstring, slotRoot[0].addr, slotRoot.len.uint32) != ERR_OK:
     return failure("Failed to push data set root")
 
+  if backend.pushInputU256Array(
+    "slotRoot".cstring, slotRoot.addr, slotRoot.len.uint32) != ERR_OK:
+    return failure("Failed to push data set root")
+
   if backend.pushInputU32(
     "nCellsPerSlot".cstring, input.nCellsPerSlot.uint32) != ERR_OK:
     return failure("Failed to push nCellsPerSlot")
