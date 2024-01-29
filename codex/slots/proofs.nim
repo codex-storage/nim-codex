@@ -1,4 +1,4 @@
-import ./proofs/backends/circomcompat
+import ./proofs/backends
 import ./proofs/prover
 
 export circomcompat, prover
