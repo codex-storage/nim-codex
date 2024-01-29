@@ -20,7 +20,7 @@ import ./helpers
 
 # privateAccess(CircomCompat)
 
-suite "Test Backend":
+suite "Test Circom Compat Backend":
   let
     r1cs = "tests/circuits/fixtures/proof_main.r1cs"
     wasm = "tests/circuits/fixtures/proof_main.wasm"
