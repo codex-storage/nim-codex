@@ -226,6 +226,24 @@ type
         name: "persistence"
       .}: bool
 
+      circomR1cs* {.
+        desc: "The r1cs file for the storage circuit"
+        defaultValue: defaultDataDir() / "circuits" / "proof_main.r1cs"
+        name: "circuit-r1cs"
+      .}: string
+
+      circomWasm* {.
+        desc: "The wasm file for the storage circuit"
+        defaultValue: defaultDataDir() / "circuits" / "proof_main.wasm"
+        name: "circuit-wasm"
+      .}: string
+
+      circomZkey* {.
+        desc: "The zkey file for the storage circuit"
+        defaultValue: defaultDataDir() / "circuits" / "proof_main.zkey"
+        name: "circuit-zkey"
+      .}: string
+
       ethProvider* {.
         desc: "The URL of the JSON-RPC API of the Ethereum node"
         defaultValue: "ws://localhost:8545"
