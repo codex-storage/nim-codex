@@ -21,6 +21,9 @@ import ../../../merkletree
 
 import pkg/constantine/math/arithmetic
 
+import pkg/constantine/math/arithmetic
+import pkg/constantine/math/io/io_bigints
+
 export circomcompat
 
 type
@@ -30,10 +33,12 @@ type
     zKeyPath    : string
     backendCfg  : ptr CircomBn254Cfg
 
-  CircomProof* = object
-    proof*: Proof
-    backend: ptr CircomCompatCtx
-    cfg: ptr CircomBn254Cfg
+  CircomG1* = G1
+  CircomG2* = G2
+
+  CircomProof* = Proof
+  CircomInputs* = Inputs
+  CircomKey* = VerifyingKey
 
 proc release*(self: CircomCompat) =
   ## Release the backend
@@ -41,12 +46,19 @@ proc release*(self: CircomCompat) =
 
   self.backendCfg.unsafeAddr.releaseCfg()
 
-proc release*(proof: CircomProof) =
-  ## Release the backend context
+proc getVerifyingKey*(
+  self: CircomCompat): ?!ptr CircomKey =
+  ## Get the verifying key
   ##
 
-  proof.backend.unsafeAddr.release_circom_compat()
-  doAssert(proof.backend == nil)
+  var
+    cfg: ptr CircomBn254Cfg = self.backendCfg
+    vkpPtr: ptr VerifyingKey = nil
+
+  if cfg.getVerifyingKey(vkpPtr.addr) != ERR_OK or vkpPtr == nil:
+    return failure("Failed to get verifying key")
+
+  success vkpPtr
 
 proc prove*(
   self: CircomCompat,
@@ -130,44 +142,33 @@ proc prove*(
       proofPtr[]
     finally:
       if proofPtr != nil:
-        release_proof(proofPtr.addr)
+        proofPtr.addr.releaseProof()
 
-  success CircomProof(
-    proof: proof,
-    cfg: self.backendCfg,
-    backend: backend)
+      if backend != nil:
+        backend.addr.releaseCircomCompat()
 
-proc verify*(self: CircomCompat, proof: CircomProof): ?!bool =
+  success proof
+
+proc verify*(
+  self: CircomCompat,
+  proof: CircomProof,
+  inputs: CircomInputs,
+  vkp: CircomKey): ?!bool =
   ## Verify a proof using a backend
   ##
 
   var
-    inputsPtr: ptr Inputs = nil
-    vkPtr: ptr VerifyingKey = nil
+    proofPtr : ptr Proof = unsafeAddr proof
+    inputsPtr: ptr Inputs = unsafeAddr inputs
+    vpkPtr: ptr CircomKey = unsafeAddr vkp
 
-  if (let res = proof.cfg.getVerifyingKey(vkPtr.addr); res != ERR_OK) or
-    vkPtr == nil:
-    return failure("Failed to get verifying key - err code: " & $res)
-
-  if (let res = proof.backend.getPubInputs(inputsPtr.addr); res != ERR_OK) or
-    inputsPtr == nil:
-    return failure("Failed to get public inputs - err code: " & $res)
-
-  try:
-    let res = verifyCircuit(proof.proof.unsafeAddr, inputsPtr, vkPtr)
-    if res == ERR_OK:
-      success true
-    elif res == ERR_FAILED_TO_VERIFY_PROOF:
-      success false
-    else:
-      failure("Failed to verify proof - err code: " & $res)
-
-  finally:
-    if inputsPtr != nil:
-      releaseInputs(inputsPtr.addr)
-
-    if vkPtr != nil:
-      releaseKey(vkPtr.addr)
+  let res = verifyCircuit(proofPtr, inputsPtr, vpkPtr)
+  if res == ERR_OK:
+    success true
+  elif res == ERR_FAILED_TO_VERIFY_PROOF:
+    success false
+  else:
+    failure("Failed to verify proof - err code: " & $res)
 
 proc init*(
   _: type CircomCompat,
