@@ -1,4 +1,3 @@
-import pkg/asynctest/chronos/unittest
 import pkg/chronos
 import pkg/chronos/transports/stream
 import pkg/chronos/transports/common
@@ -6,6 +5,7 @@ import pkg/chronos/streams/asyncstream
 import pkg/codex/streams
 import pkg/stew/byteutils
 
+import ../asynctest
 import ./helpers
 
 asyncchecksuite "AsyncStreamWrapper":

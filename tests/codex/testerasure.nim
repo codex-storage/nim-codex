@@ -1,7 +1,6 @@
 import std/sequtils
 import std/sugar
 
-import pkg/asynctest/chronos/unittest
 import pkg/chronos
 import pkg/datastore
 import pkg/questionable/results
@@ -13,6 +12,7 @@ import pkg/codex/blocktype as bt
 import pkg/codex/rng
 import pkg/codex/utils
 
+import ../asynctest
 import ./helpers
 
 suite "Erasure encode/decode":

@@ -2,7 +2,6 @@ import std/sequtils
 import std/sugar
 import std/tables
 
-import pkg/asynctest/chronos/unittest
 import pkg/chronos
 
 import pkg/libp2p/errors
@@ -15,10 +14,11 @@ import pkg/codex/manifest
 import pkg/codex/merkletree
 import pkg/codex/blocktype as bt
 
-import ../../helpers/mockdiscovery
-
+import ../../../asynctest
 import ../../helpers
+import ../../helpers/mockdiscovery
 import ../../examples
+
 
 asyncchecksuite "Block Advertising and Discovery":
   let chunker = RandomChunker.new(Rng.instance(), size = 4096, chunkSize = 256)

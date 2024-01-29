@@ -10,7 +10,6 @@ import pkg/constantine/math/io/io_fields
 import pkg/poseidon2/io
 import pkg/poseidon2
 import pkg/chronos
-import pkg/asynctest/chronos/unittest
 import pkg/codex/stores/cachestore
 import pkg/codex/chunker
 import pkg/codex/stores
@@ -22,6 +21,7 @@ import pkg/codex/stores/cachestore
 
 import pkg/codex/slots/sampler/utils
 
+import ../../asynctest
 import ../helpers
 import ../examples
 import ../merkletree/helpers

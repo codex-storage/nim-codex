@@ -1,6 +1,7 @@
-import pkg/asynctest/chronos/unittest
+import std/json
 import pkg/ethers
 
+import ./asynctest
 import ./checktest
 
 ## Unit testing suite that sets up an Ethereum testing environment.

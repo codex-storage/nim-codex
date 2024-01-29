@@ -1,10 +1,10 @@
 import pkg/chronos
-import pkg/asynctest/chronos/unittest
 import pkg/stew/results
 
 import pkg/codex/utils/asyncheapqueue
 import pkg/codex/rng
 
+import ../asynctest
 import ./helpers
 
 type

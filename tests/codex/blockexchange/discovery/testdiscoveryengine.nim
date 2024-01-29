@@ -2,8 +2,6 @@ import std/sequtils
 import std/sugar
 import std/tables
 
-import pkg/asynctest/chronos/unittest
-
 import pkg/chronos
 
 import pkg/codex/rng
@@ -13,9 +11,9 @@ import pkg/codex/chunker
 import pkg/codex/blocktype as bt
 import pkg/codex/blockexchange/engine
 
-import ../../helpers/mockdiscovery
-
+import ../../../asynctest
 import ../../helpers
+import ../../helpers/mockdiscovery
 import ../../examples
 
 asyncchecksuite "Test Discovery Engine":

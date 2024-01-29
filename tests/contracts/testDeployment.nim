@@ -1,9 +1,9 @@
-import pkg/asynctest/chronos/unittest
 import pkg/ethers
 import codex/contracts/deployment
 import codex/conf
 import codex/contracts
 
+import ../asynctest
 import ../checktest
 
 type MockProvider = ref object of Provider

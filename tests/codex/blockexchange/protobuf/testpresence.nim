@@ -1,7 +1,8 @@
-import pkg/asynctest/chronos/unittest
 import pkg/chronos
 
 import pkg/codex/blockexchange/protobuf/presence
+
+import ../../../asynctest
 import ../../examples
 import ../../helpers
 

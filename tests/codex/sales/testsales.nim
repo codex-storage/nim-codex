@@ -1,7 +1,6 @@
 import std/sequtils
 import std/sugar
 import std/times
-import pkg/asynctest/chronos/unittest
 import pkg/chronos
 import pkg/datastore
 import pkg/questionable
@@ -14,7 +13,7 @@ import pkg/codex/sales/slotqueue
 import pkg/codex/stores/repostore
 import pkg/codex/blocktype as bt
 import pkg/codex/node
-import pkg/codex/utils/asyncspawn
+import ../../asynctest
 import ../helpers
 import ../helpers/mockmarket
 import ../helpers/mockclock
@@ -289,7 +288,7 @@ asyncchecksuite "Sales":
                          slot: UInt256,
                          onBatch: BatchProc): Future[?!void] {.async.} =
       let blk = bt.Block.new( @[1.byte] ).get
-      asyncSpawn onBatch( blk.repeat(request.ask.slotSize.truncate(int)) )
+      discard await onBatch( blk.repeat(request.ask.slotSize.truncate(int)) )
       return success()
 
     createAvailability()
@@ -303,7 +302,7 @@ asyncchecksuite "Sales":
                          onBatch: BatchProc): Future[?!void] {.async.} =
       slotIndex = slot
       let blk = bt.Block.new( @[1.byte] ).get
-      asyncSpawn onBatch(@[ blk ])
+      discard await onBatch(@[ blk ])
       return success()
     let sold = newFuture[void]()
     sales.onSale = proc(request: StorageRequest, slotIndex: UInt256) =

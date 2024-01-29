@@ -5,7 +5,6 @@ import std/times
 import std/sequtils
 import std/importutils
 
-import pkg/asynctest/chronos/unittest
 import pkg/chronos
 import pkg/stew/byteutils
 import pkg/datastore
@@ -35,6 +34,7 @@ import pkg/codex/utils/asynciter
 
 import pkg/codex/node {.all.}
 
+import ../../asynctest
 import ../../examples
 import ../helpers
 import ../helpers/mockmarket

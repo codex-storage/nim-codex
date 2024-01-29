@@ -1,10 +1,10 @@
 
-import pkg/asynctest/chronos/unittest
 import pkg/stew/byteutils
 import pkg/codex/chunker
 import pkg/codex/logutils
 import pkg/chronos
 
+import ../asynctest
 import ./helpers
 
 asyncchecksuite "Chunking":
