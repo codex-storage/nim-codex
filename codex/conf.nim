@@ -105,7 +105,7 @@ type
       name: "metrics-port" }: Port
 
     dataDir* {.
-      desc: "The directory where codex will store configuration and data."
+      desc: "The directory where codex will store configuration and data"
       defaultValue: defaultDataDir()
       defaultValueDesc: ""
       abbr: "d"
@@ -154,7 +154,7 @@ type
         name: "net-privkey" }: string
 
       bootstrapNodes* {.
-        desc: "Specifies one or more bootstrap nodes to use when connecting to the network."
+        desc: "Specifies one or more bootstrap nodes to use when connecting to the network"
         abbr: "b"
         name: "bootstrap-node" }: seq[SignedPeerRecord]
 
@@ -182,7 +182,7 @@ type
         abbr: "p" }: Port
 
       repoKind* {.
-        desc: "backend for main repo store (fs, sqlite)"
+        desc: "Backend for main repo store (fs, sqlite)"
         defaultValueDesc: "fs"
         defaultValue: repoFS
         name: "repo-kind" }: RepoKind
@@ -202,13 +202,13 @@ type
         abbr: "t" }: Duration
 
       blockMaintenanceInterval* {.
-        desc: "Time interval in seconds - determines frequency of block maintenance cycle: how often blocks are checked for expiration and cleanup."
+        desc: "Time interval in seconds - determines frequency of block maintenance cycle: how often blocks are checked for expiration and cleanup"
         defaultValue: DefaultBlockMaintenanceInterval
         defaultValueDesc: $DefaultBlockMaintenanceInterval
         name: "block-mi" }: Duration
 
       blockMaintenanceNumberOfBlocks* {.
-        desc: "Number of blocks to check every maintenance cycle."
+        desc: "Number of blocks to check every maintenance cycle"
         defaultValue: DefaultNumberOfBlocksToMaintainPerInterval
         defaultValueDesc: $DefaultNumberOfBlocksToMaintainPerInterval
         name: "block-mn" }: int
