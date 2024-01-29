@@ -123,7 +123,7 @@ proc createProofSample(self: DataSampler, slotTreeCid: Cid, cellIdx: Natural): F
     # This converts our slotBlockIndex to a datasetBlockIndex using the
     # indexing-strategy used by the builder.
     # We need this to fetch the block data. We can't do it by slotTree + slotBlkIdx.
-    let datasetBlockIndex = self.builder.slotIndicies(self.index)[slotBlkIdx]
+    let datasetBlockIndex = self.builder.slotIndices(self.index)[slotBlkIdx]
 
     without (bytes, blkTree) =? await self.builder.buildBlockTree(datasetBlockIndex), err:
       error "Failed to build block tree", err = err.msg
