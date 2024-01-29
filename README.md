@@ -76,30 +76,31 @@ The following options are available:
      --metrics              Enable the metrics server [=false].
      --metrics-address      Listening address of the metrics server [=127.0.0.1].
      --metrics-port         Listening HTTP port of the metrics server [=8008].
- -d, --data-dir             The directory where codex will store configuration and data..
+ -d, --data-dir             The directory where codex will store configuration and data.
  -i, --listen-addrs         Multi Addresses to listen on [=/ip4/0.0.0.0/tcp/0].
  -a, --nat                  IP Addresses to announce behind a NAT [=127.0.0.1].
  -e, --disc-ip              Discovery listen address [=0.0.0.0].
  -u, --disc-port            Discovery (UDP) port [=8090].
      --net-privkey          Source of network (secp256k1) private key file path or name [=key].
- -b, --bootstrap-node       Specifies one or more bootstrap nodes to use when connecting to the network..
+ -b, --bootstrap-node       Specifies one or more bootstrap nodes to use when connecting to the network.
      --max-peers            The maximum number of peers to connect to [=160].
      --agent-string         Node agent string which is used as identifier in network [=Codex].
      --api-bindaddr         The REST API bind address [=127.0.0.1].
  -p, --api-port             The REST Api port [=8080].
-     --repo-kind            backend for main repo store (fs, sqlite) [=fs].
+     --repo-kind            Backend for main repo store (fs, sqlite) [=fs].
  -q, --storage-quota        The size of the total storage quota dedicated to the node [=8589934592].
  -t, --block-ttl            Default block timeout in seconds - 0 disables the ttl [=$DefaultBlockTtl].
      --block-mi             Time interval in seconds - determines frequency of block maintenance cycle: how
-                            often blocks are checked for expiration and cleanup.
+                            often blocks are checked for expiration and cleanup
                             [=$DefaultBlockMaintenanceInterval].
-     --block-mn             Number of blocks to check every maintenance cycle. [=1000].
- -c, --cache-size           The size in MiB of the block cache, 0 disables the cache - might help on slow
-                            hardrives [=0].
+     --block-mn             Number of blocks to check every maintenance cycle [=1000].
+ -c, --cache-size           The size of the block cache, 0 disables the cache - might help on slow hardrives
+                            [=0].
      --persistence          Enables persistence mechanism, requires an Ethereum node [=false].
      --eth-provider         The URL of the JSON-RPC API of the Ethereum node [=ws://localhost:8545].
      --eth-account          The Ethereum account that is used for storage contracts [=EthAddress.none].
-     --eth-deployment       The json file describing the contract deployment [=string.none].
+     --eth-private-key      File containing Ethereum private key for storage contracts [=string.none].
+     --marketplace-address  Address of deployed Marketplace contract [=EthAddress.none].
      --validator            Enables validator, requires an Ethereum node [=false].
      --validator-max-slots  Maximum number of slots that the validator monitors [=1000].
 
