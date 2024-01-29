@@ -129,6 +129,12 @@ func numBlockCells*(self: SlotsBuilder): Natural =
 
   (self.manifest.blockSize div self.cellSize).Natural
 
+func numBlockCellsPadded*(self: SlotsBuilder): Natural =
+  ## Number of cells per block including padding.
+  ##
+
+  nextPowerOfTwo(self.numBlockCells.int).Natural
+
 func cellSize*(self: SlotsBuilder): NBytes =
   ## Cell size.
   ##
@@ -140,6 +146,18 @@ func numSlotCells*(self: SlotsBuilder): Natural =
   ##
 
   self.numBlockCells * self.numSlotBlocks
+
+func numSlotCellsPadded*(self: SlotsBuilder): Natural =
+  ## Number of cells per slot including padding.
+  ##
+
+  nextPowerOfTwo(self.numBlockCellsPadded.int * self.numSlotBlocks.int).Natural
+
+func emptyDigestTree*(self: SlotsBuilder): Poseidon2Tree {.inline.} =
+  ## Returns the tree of a padding block.
+  ##
+
+  self.emptyDigestTree
 
 func slotIndicesIter*(self: SlotsBuilder, slot: Natural): ?!Iter[int] =
   ## Returns the slot indices.
@@ -180,7 +198,7 @@ proc buildBlockTree*(
 
     success (blk.data, tree)
 
-proc getCellHashes*(
+proc getBlockHashes*(
   self: SlotsBuilder,
   slotIndex: Natural): Future[?!seq[Poseidon2Hash]] {.async.} =
 
@@ -201,9 +219,9 @@ proc getCellHashes*(
       for blkIdx in self.strategy.getIndices(slotIndex):
         trace "Getting block CID for tree at index"
 
-        without (_, tree) =? (await self.buildBlockTree(blkIdx)) and
-          digest =? tree.root, err:
-          error "Failed to get block CID for tree at index", err = err.msg
+        without (_, blockTree) =? (await self.buildBlockTree(blkIdx)) and
+          digest =? blockTree.root, err:
+          error "Failed to get block CID for block tree at index", err = err.msg
           return failure(err)
 
         digest
@@ -213,11 +231,11 @@ proc getCellHashes*(
 proc buildSlotTree*(
   self: SlotsBuilder,
   slotIndex: Natural): Future[?!Poseidon2Tree] {.async.} =
-  without cellHashes =? (await self.getCellHashes(slotIndex)), err:
+  without blockHashes =? (await self.getBlockHashes(slotIndex)), err:
     error "Failed to select slot blocks", err = err.msg
     return failure(err)
 
-  Poseidon2Tree.init(cellHashes & self.slotsPadLeafs)
+  Poseidon2Tree.init(blockHashes & self.slotsPadLeafs)
 
 proc buildSlot*(
   self: SlotsBuilder,
@@ -331,8 +349,8 @@ proc new*(
     # all trees have to be padded to power of two
     numBlockCells = (manifest.blockSize div cellSize).int                         # number of cells per block
     blockPadBytes = newSeq[byte](numBlockCells.nextPowerOfTwoPad * cellSize.int)  # power of two padding for blocks
-    numSlotLeafs = (manifest.blocksCount div manifest.numSlots)
-    slotsPadLeafs = newSeqWith(numSlotLeafs.nextPowerOfTwoPad, Poseidon2Zero)     # power of two padding for block roots
+    numSlotBlocks = (manifest.blocksCount div manifest.numSlots)
+    slotsPadLeafs = newSeqWith(numSlotBlocks.nextPowerOfTwoPad, Poseidon2Zero)     # power of two padding for block roots
     rootsPadLeafs = newSeqWith(manifest.numSlots.nextPowerOfTwoPad, Poseidon2Zero)
     emptyDigestTree = ? Poseidon2Tree.digestTree(DefaultEmptyBlock & blockPadBytes, DefaultCellSize.int)
 

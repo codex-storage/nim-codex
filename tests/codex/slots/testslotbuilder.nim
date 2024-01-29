@@ -217,7 +217,7 @@ suite "Slot builder":
           for blk in expectedBlock:
             SpongeMerkle.digest(blk.data & blockPadBytes, cellSize.int)
 
-        cellHashes = (await slotBuilder.getCellHashes(i)).tryGet()
+        cellHashes = (await slotBuilder.getBlockHashes(i)).tryGet()
 
       check:
         expectedHashes == cellHashes
