@@ -115,7 +115,7 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
 
 multinodesuite "Simulate invalid proofs",
   StartNodes.init(clients=1'u, providers=0'u, validators=1'u),
-  DebugNodes.init(client=false, ethProvider=false, validator=false):
+  DebugNodes.init(client=false, provider=false, validator=false):
 
   proc purchaseStateIs(client: CodexClient, id: PurchaseId, state: string): bool =
     client.getPurchase(id).option.?state == some state
