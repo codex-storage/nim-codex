@@ -4,6 +4,7 @@ import std/times
 import pkg/libp2p
 import pkg/chronos
 
+import pkg/codex/slots
 import pkg/codex/codextypes
 import pkg/codex/chunker
 
@@ -50,6 +51,8 @@ proc pipeChunker*(stream: BufferStream, chunker: Chunker) {.async.} =
 template setupAndTearDown*() {.dirty.} =
   var
     file: File
+    r1cs: string
+    wasm: string
     chunker: Chunker
     switch: Switch
     wallet: WalletRef
@@ -66,12 +69,16 @@ template setupAndTearDown*() {.dirty.} =
     pendingBlocks: PendingBlocksManager
     discovery: DiscoveryEngine
     erasure: Erasure
+    circomBackend: CircomCompat
+    prover: Prover
 
   let
     path = currentSourcePath().parentDir
 
   setup:
     file = open(path /../ "" /../ "fixtures" / "test.jpg")
+    r1cs = path /../ "" /../ "circuits" / "fixtures" / "proofs_main.r1cs"
+    wasm = path /../ "" /../ "circuits" / "fixtures" / "proofs_main.r1cs"
     chunker = FileChunker.new(file = file, chunkSize = DefaultBlockSize)
     switch = newStandardSwitch()
     wallet = WalletRef.new(EthPrivateKey.random())
@@ -93,7 +100,9 @@ template setupAndTearDown*() {.dirty.} =
     engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-    node = CodexNodeRef.new(switch, store, engine, erasure, blockDiscovery)
+    circomBackend = CircomCompat.init(r1cs, wasm)
+    prover = Prover.new(store, circomBackend)
+    node = CodexNodeRef.new(switch, store, engine, erasure, prover.some, blockDiscovery)
 
     await node.start()
 
