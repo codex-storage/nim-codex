@@ -142,7 +142,7 @@ jobs:
       - name: Docker - Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: digests
+          name: digests-${{ matrix.target.arch }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -182,7 +182,8 @@ jobs:
       - name: Docker - Download digests
         uses: actions/download-artifact@v4
         with:
-          name: digests
+          pattern: digests-*
+          merge-multiple: true
           path: /tmp/digests
 
       - name: Docker - Set up Buildx
