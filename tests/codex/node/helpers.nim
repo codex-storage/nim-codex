@@ -3,10 +3,11 @@ import std/times
 
 import pkg/libp2p
 import pkg/chronos
-import pkg/asynctest
 
 import pkg/codex/codextypes
 import pkg/codex/chunker
+
+import ../../asynctest
 
 proc toTimesDuration*(d: chronos.Duration): times.Duration =
   initDuration(seconds = d.seconds)

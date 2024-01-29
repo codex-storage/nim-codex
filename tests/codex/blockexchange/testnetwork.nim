@@ -1,7 +1,6 @@
 import std/sequtils
 import std/tables
 
-import pkg/asynctest
 import pkg/chronos
 
 import pkg/codex/rng
@@ -9,8 +8,9 @@ import pkg/codex/chunker
 import pkg/codex/blocktype as bt
 import pkg/codex/blockexchange
 
-import ../helpers
+import ../../asynctest
 import ../examples
+import ../helpers
 
 asyncchecksuite "Network - Handlers":
   let

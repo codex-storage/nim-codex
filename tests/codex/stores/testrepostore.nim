@@ -6,7 +6,6 @@ import pkg/questionable
 import pkg/questionable/results
 
 import pkg/chronos
-import pkg/asynctest
 import pkg/stew/byteutils
 import pkg/stew/endians2
 import pkg/datastore
@@ -18,6 +17,7 @@ import pkg/codex/blocktype as bt
 import pkg/codex/clock
 import pkg/codex/utils/asynciter
 
+import ../../asynctest
 import ../helpers
 import ../helpers/mockclock
 import ../examples

@@ -8,12 +8,12 @@
 ## those terms.
 
 import pkg/chronos
-import pkg/asynctest
 import pkg/questionable/results
 import pkg/codex/blocktype as bt
 import pkg/codex/stores/repostore
 import pkg/codex/clock
 
+import ../../asynctest
 import ../helpers
 import ../helpers/mocktimer
 import ../helpers/mockrepostore

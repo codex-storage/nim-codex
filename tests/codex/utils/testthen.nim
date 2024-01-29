@@ -1,8 +1,9 @@
-import pkg/asynctest
 import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
 import codex/utils/then
+
+import ../../asynctest
 import ../helpers
 
 proc newError(): ref CatchableError =

@@ -1,7 +1,7 @@
-
-import pkg/asynctest
+import std/json
 import pkg/ethers
 
+import ./asynctest
 import ./checktest
 
 ## Unit testing suite that sets up an Ethereum testing environment.
@@ -25,5 +25,5 @@ template ethersuite*(name, body) =
 
     body
 
-export asynctest
+export unittest
 export ethers except `%`

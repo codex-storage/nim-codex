@@ -1,13 +1,14 @@
-import pkg/asynctest
 import pkg/chronos
 
 import pkg/codex/blockexchange/protobuf/presence
+
+import ../../../asynctest
 import ../../examples
 import ../../helpers
 
 checksuite "block presence protobuf messages":
 
-  let 
+  let
     cid = Cid.example
     address = BlockAddress(leaf: false, cid: cid)
     price = UInt256.example
