@@ -28,6 +28,7 @@ import ./conf
 import ./rng
 import ./rest/api
 import ./stores
+import ./slots
 import ./blockexchange
 import ./utils/fileutils
 import ./erasure
@@ -262,7 +263,14 @@ proc new*(
     engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-    codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery)
+    prover = if config.persistence:
+      circomBackend = CircomCompat.init(config.circomR1cs, config.circomWasm, config.circomZkey)
+      some Prover.new(store, circomBackend)
+    else:
+      none Prover
+
+    codexNode = CodexNodeRef.new(switch, store, engine, erasure, prover, discovery)
+
     restServer = RestServerRef.new(
       codexNode.initRestApi(config, repoStore),
       initTAddress(config.apiBindAddress , config.apiPort),
