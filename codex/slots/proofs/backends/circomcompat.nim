@@ -23,6 +23,9 @@ import ../../../codextypes
 
 import pkg/constantine/math/arithmetic
 
+import pkg/constantine/math/arithmetic
+import pkg/constantine/math/io/io_bigints
+
 export circomcompat
 
 type
@@ -178,10 +181,8 @@ proc prove*[H](
       if backend != nil:
         backend.addr.releaseCircomCompat()
 
-  success CircomProof(
-    proof: proof,
-    cfg: self.backendCfg,
-    backend: backend)
+      if backend != nil:
+        backend.addr.releaseCircomCompat()
 
 proc verify*(
   self: CircomCompat,
