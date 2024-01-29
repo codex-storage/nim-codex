@@ -2,6 +2,7 @@ import std/sequtils
 import std/sugar
 import std/random
 import std/strutils
+import std/math
 
 import pkg/questionable/results
 import pkg/constantine/math/arithmetic
@@ -27,17 +28,19 @@ import ../merkletree/helpers
 import ./provingtestenv
 
 asyncchecksuite "Test proof sampler utils":
-  let knownIndices: seq[Natural] = @[90, 93, 29]
+  let knownIndices: seq[Natural] = @[57, 82, 49]
 
   var
     env: ProvingTestEnvironment
     slotRoot: Poseidon2Hash
     numCells: Natural
+    numCellsPadded: Natural
 
   setup:
     env = await createProvingTestEnvironment()
     slotRoot = env.slotRoots[datasetSlotIndex]
     numCells = cellsPerSlot
+    numCellsPadded = numCells.nextPowerOfTwo
 
   teardown:
     reset(env)
@@ -61,14 +64,15 @@ asyncchecksuite "Test proof sampler utils":
 
   test "Can find single slot-cell index":
     proc slotCellIndex(i: Natural): Natural =
-      return cellIndex(env.challenge, slotRoot, numCells, i)
+      return cellIndex(env.challengeNoPad, slotRoot, numCellsPadded, i)
 
     proc getExpectedIndex(i: int): Natural =
       let
         numberOfCellsInSlot = (bytesPerBlock * numberOfSlotBlocks) div DefaultCellSize.uint64.int
-        hash = Sponge.digest(@[slotRoot, env.challenge, toF(i)], rate = 2)
+        numberOfCellsInSlotPadded = numberOfCellsInSlot.nextPowerOfTwo
+        hash = Sponge.digest(@[slotRoot, env.challengeNoPad, toF(i)], rate = 2)
 
-      return int(extractLowBits(hash.toBig(), ceilingLog2(numberOfCellsInSlot)))
+      return int(extractLowBits(hash.toBig(), ceilingLog2(numberOfCellsInSlotPadded)))
 
     check:
       slotCellIndex(1) == getExpectedIndex(1)
@@ -80,10 +84,10 @@ asyncchecksuite "Test proof sampler utils":
 
   test "Can find sequence of slot-cell indices":
     proc slotCellIndices(n: int): seq[Natural]  =
-      cellIndices(env.challenge, slotRoot, numCells, n)
+      cellIndices(env.challengeNoPad, slotRoot, numCellsPadded, n)
 
     proc getExpectedIndices(n: int): seq[Natural]  =
-      return collect(newSeq, (for i in 1..n: cellIndex(env.challenge, slotRoot, numCells, i)))
+      return collect(newSeq, (for i in 1..n: cellIndex(env.challengeNoPad, slotRoot, numCellsPadded, i)))
 
     check:
       slotCellIndices(3) == getExpectedIndices(3)
