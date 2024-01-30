@@ -293,7 +293,6 @@ proc getCodexVersion(): string =
 proc getCodexRevision(): string =
   # using a slice in a static context breaks nimsuggest for some reason
   var res = strip(staticExec("git rev-parse --short HEAD"))
-  res.setLen(6)
   return res
 
 proc getNimBanner(): string =
