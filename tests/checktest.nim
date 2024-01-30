@@ -3,25 +3,26 @@ import ./helpers
 ## Unit testing suite that calls checkTrackers in teardown to check for memory leaks using chronos trackers.
 template checksuite*(name, body) =
   suite name:
-    multisetup()
+    proc suiteProc =
+      multisetup()
 
-    teardown:
-      checkTrackers()
+      teardown:
+        checkTrackers()
 
-    # Avoids GcUnsafe2 warnings with chronos
-    # Copied from asynctest/templates.nim
-    let suiteproc = proc =
       body
 
-    suiteproc()
+    suiteProc()
 
 template asyncchecksuite*(name, body) =
   suite name:
-    asyncmultisetup()
+    proc suiteProc =
+      asyncmultisetup()
 
-    teardown:
-      checkTrackers()
+      teardown:
+        checkTrackers()
 
-    body
+      body
+
+    suiteProc()
 
 export helpers

@@ -1,4 +1,3 @@
-import pkg/asynctest
 import pkg/questionable
 import pkg/chronos
 import pkg/codex/contracts/requests
@@ -10,6 +9,8 @@ import pkg/codex/sales/states/errored
 import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
 import pkg/codex/market
+
+import ../../../asynctest
 import ../../examples
 import ../../helpers
 import ../../helpers/mockmarket
