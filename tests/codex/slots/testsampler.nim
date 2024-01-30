@@ -10,7 +10,6 @@ import pkg/poseidon2/io
 import pkg/poseidon2
 import pkg/chronos
 import pkg/nimcrypto
-import pkg/asynctest/chronos/unittest
 import pkg/codex/stores/cachestore
 import pkg/codex/chunker
 import pkg/codex/stores
