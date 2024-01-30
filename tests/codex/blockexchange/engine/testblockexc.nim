@@ -1,7 +1,6 @@
 import std/sequtils
 import std/algorithm
 
-import pkg/asynctest
 import pkg/chronos
 import pkg/stew/byteutils
 
@@ -12,6 +11,7 @@ import pkg/codex/chunker
 import pkg/codex/discovery
 import pkg/codex/blocktype as bt
 
+import ../../../asynctest
 import ../../examples
 import ../../helpers
 

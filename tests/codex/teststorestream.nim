@@ -1,13 +1,13 @@
 import pkg/chronos
-import pkg/asynctest
 import pkg/questionable/results
-
-import ./helpers
 
 import pkg/codex/streams
 import pkg/codex/stores
 import pkg/codex/manifest
 import pkg/codex/blocktype as bt
+
+import ../asynctest
+import ./helpers
 
 asyncchecksuite "StoreStream":
   var

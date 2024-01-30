@@ -4,7 +4,6 @@ import std/importutils
 import std/sugar
 
 import pkg/chronos
-import pkg/asynctest
 import pkg/questionable/results
 import pkg/codex/blocktype as bt
 import pkg/codex/rng
@@ -19,6 +18,7 @@ import pkg/poseidon2
 import pkg/poseidon2/io
 import constantine/math/io/io_fields
 
+import ../../asynctest
 import ../helpers
 import ../examples
 import ../merkletree/helpers
@@ -217,7 +217,7 @@ suite "Slot builder":
           for blk in expectedBlock:
             SpongeMerkle.digest(blk.data & blockPadBytes, cellSize.int)
 
-        cellHashes = (await slotBuilder.getCellHashes(i)).tryGet()
+        cellHashes = (await slotBuilder.getBlockHashes(i)).tryGet()
 
       check:
         expectedHashes == cellHashes

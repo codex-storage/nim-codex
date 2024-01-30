@@ -1,4 +1,3 @@
-import pkg/asynctest
 import pkg/questionable/results
 
 import pkg/codex/clock
@@ -11,6 +10,7 @@ import pkg/codex/sales/states/errored
 import pkg/codex/sales/states/proving
 import pkg/codex/sales/states/finished
 
+import ../../../asynctest
 import ../../helpers/mockmarket
 import ../../examples
 import ../../helpers

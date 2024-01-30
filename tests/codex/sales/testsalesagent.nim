@@ -1,5 +1,4 @@
 import std/times
-import pkg/asynctest
 import pkg/chronos
 import pkg/codex/sales
 import pkg/codex/sales/salesagent
@@ -7,6 +6,8 @@ import pkg/codex/sales/salescontext
 import pkg/codex/sales/statemachine
 import pkg/codex/sales/states/errorhandling
 import pkg/codex/proving
+
+import ../../asynctest
 import ../helpers/mockmarket
 import ../helpers/mockclock
 import ../helpers

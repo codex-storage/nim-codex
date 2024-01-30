@@ -47,7 +47,7 @@ jobs:
     timeout-minutes: 80
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -64,9 +64,9 @@ jobs:
 
       # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-         node-version: 18.15
+          node-version: 18.15
 
       - name: Start Ethereum node with Codex contracts
         if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'all'
@@ -92,7 +92,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 

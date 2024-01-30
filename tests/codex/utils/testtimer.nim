@@ -8,9 +8,10 @@
 ## those terms.
 
 import pkg/chronos
-import pkg/asynctest
 
 import codex/utils/timer
+
+import ../../asynctest
 import ../helpers
 
 asyncchecksuite "Timer":

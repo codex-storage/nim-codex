@@ -9,7 +9,6 @@ import pkg/constantine/math/io/io_fields
 import pkg/poseidon2/io
 import pkg/poseidon2
 import pkg/chronos
-import pkg/asynctest
 import pkg/nimcrypto
 import pkg/codex/stores/cachestore
 import pkg/codex/chunker
@@ -26,7 +25,8 @@ import pkg/codex/slots/builder/builder
 import ../helpers
 import ../examples
 import ../merkletree/helpers
-import testsampler_expected
+import ../../asynctest
+import ./testsampler_expected
 import ./provingtestenv
 
 asyncchecksuite "Test DataSampler":
@@ -73,7 +73,7 @@ asyncchecksuite "Test DataSampler":
   test "Can gather proof input":
     let
       nSamples = 3
-      challengeBytes = env.challenge.toBytes()
+      challengeBytes = env.challengeNoPad.toBytes()
       input = (await dataSampler.getProofInput(challengeBytes, nSamples)).tryget()
 
     proc equal(a: Poseidon2Hash, b: Poseidon2Hash): bool =
@@ -91,29 +91,65 @@ asyncchecksuite "Test DataSampler":
 
     check:
       equal(input.verifyRoot, env.datasetRootHash)
-      equal(input.entropy, env.challenge)
+      equal(input.entropy, env.challengeNoPad)
       input.numCells == ((bytesPerBlock * numberOfSlotBlocks) div DefaultCellSize.int).Natural
       input.numSlots == totalNumberOfSlots.Natural
       input.slotIndex == env.slot.slotIndex.truncate(Natural)
       input.verifyProof == expectedProof
 
       # block-slot proofs
-      input.samples[0].slotBlockIdx == 2
+      input.samples[0].slotBlockIdx == 1
       input.samples[1].slotBlockIdx == 2
-      input.samples[2].slotBlockIdx == 0
+      input.samples[2].slotBlockIdx == 1
       toStr(input.samples[0].slotProof) == expectedBlockSlotProofs[0]
       toStr(input.samples[1].slotProof) == expectedBlockSlotProofs[1]
       toStr(input.samples[2].slotProof) == expectedBlockSlotProofs[2]
 
       # cell-block proofs
-      input.samples[0].blockCellIdx == 26
-      input.samples[1].blockCellIdx == 29
-      input.samples[2].blockCellIdx == 29
+      input.samples[0].blockCellIdx == 25
+      input.samples[1].blockCellIdx == 18
+      input.samples[2].blockCellIdx == 17
       toStr(input.samples[0].cellProof) == expectedCellBlockProofs[0]
       toStr(input.samples[1].cellProof) == expectedCellBlockProofs[1]
       toStr(input.samples[2].cellProof) == expectedCellBlockProofs[2]
 
-      # # cell data
+      # cell data
       nimcrypto.toHex(input.samples[0].data) == expectedCellData[0]
       nimcrypto.toHex(input.samples[1].data) == expectedCellData[1]
       nimcrypto.toHex(input.samples[2].data) == expectedCellData[2]
+
+  test "Can select samples in padded cells":
+    let
+      nSamples = 3
+      challengeBytes = env.challengeOnePad.toBytes()
+      input = (await dataSampler.getProofInput(challengeBytes, nSamples)).tryget()
+
+    proc equal(a: Poseidon2Hash, b: Poseidon2Hash): bool =
+      a.toDecimal() == b.toDecimal()
+
+    proc toStr(proof: Poseidon2Proof): string =
+      let a = proof.path.mapIt(toHex(it))
+      join(a)
+
+    let expectedProof = env.datasetToSlotTree.getProof(datasetSlotIndex).tryGet()
+
+    check:
+      equal(input.verifyRoot, env.datasetRootHash)
+      equal(input.entropy, env.challengeOnePad)
+      input.numCells == ((bytesPerBlock * numberOfSlotBlocks) div DefaultCellSize.int).Natural
+      input.numSlots == totalNumberOfSlots.Natural
+      input.slotIndex == env.slot.slotIndex.truncate(Natural)
+      input.verifyProof == expectedProof
+
+      input.samples[0].slotBlockIdx == 2
+      input.samples[1].slotBlockIdx == 2
+      input.samples[2].slotBlockIdx == 3
+      # The third sample is a padded sample
+      toStr(input.samples[2].slotProof) == toStr(env.slotTree.getProof(3).tryGet())
+
+      input.samples[0].blockCellIdx == 29
+      input.samples[1].blockCellIdx == 26
+      input.samples[2].blockCellIdx == 30
+      toStr(input.samples[2].cellProof) == toStr(env.emptyBlockTree.getProof(30).tryGet())
+
+      input.samples[2].data == newSeq[byte](DefaultCellSize.int)
