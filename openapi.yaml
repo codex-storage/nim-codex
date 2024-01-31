@@ -245,6 +245,22 @@ components:
           type: boolean
           description: "Indicates if content is protected by erasure-coding"
 
+    Space:
+      type: object
+      properties:
+        totalBlocks:
+          type: number
+          description: "Number of blocks stored by the node"
+        quotaMaxBytes:
+          type: number
+          description: "Maximum storage space used by the node"
+        quotaUsedBytes:
+          type: number
+          description: "Amount of storage space currently in use"
+        quotaReservedBytes:
+          type: number
+          description: "Amount of storage space reserved"
+
 servers:
   - url: "http://localhost:8080/api/codex/v1"
 
@@ -371,8 +387,7 @@ paths:
           required: true
           schema:
               $ref: "#/components/schemas/Cid"
-          description: File to be downloaded.
-
+          description: "File to be downloaded."
       responses:
         "200":
           description: Retrieved content specified by CID
@@ -387,6 +402,22 @@ paths:
           description: Content specified by the CID is not found
         "500":
           description: Well it was bad-bad
+
+  "/space":
+    get:
+      summary: "Gets a summary of the storage space allocation of the node."
+      tags: [ Data ]
+      operationId: space
+      responses:
+        "200":
+          description: "Summary of storage allocation"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Space"
+
+        "500":
+          description: "It's not working as planned"
 
   "/sales/slots":
     get:

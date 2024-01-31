@@ -9,7 +9,6 @@
 
 import std/hashes
 import std/sequtils
-import pkg/libp2p
 import pkg/stew/endians2
 
 import message

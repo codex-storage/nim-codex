@@ -18,7 +18,6 @@ import std/strutils
 import std/typetraits
 
 import pkg/chronos
-import pkg/chronicles
 import pkg/chronicles/helpers
 import pkg/chronicles/topics_registry
 import pkg/confutils/defs
@@ -35,16 +34,23 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ./discovery
+import ./logutils
 import ./stores
 import ./units
 import ./utils
 
 export units
-export net, DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval, DefaultNumberOfBlocksToMaintainPerInterval
+export net
+export
+  DefaultQuotaBytes,
+  DefaultBlockTtl,
+  DefaultBlockMaintenanceInterval,
+  DefaultNumberOfBlocksToMaintainPerInterval
 
 const
   codex_enable_api_debug_peers* {.booldefine.} = false
   codex_enable_proof_failures* {.booldefine.} = false
+  codex_use_hardhat* {.booldefine.} = false
   codex_enable_log_counter* {.booldefine.} = false
   chronosProfiling* {.booldefine.} = false
 
@@ -53,7 +59,7 @@ type
     noCommand,
     initNode
 
-  LogKind* = enum
+  LogKind* {.pure.} = enum
     Auto = "auto"
     Colors = "colors"
     NoColors = "nocolors"
@@ -100,7 +106,7 @@ type
       name: "metrics-port" }: Port
 
     dataDir* {.
-      desc: "The directory where codex will store configuration and data."
+      desc: "The directory where codex will store configuration and data"
       defaultValue: defaultDataDir()
       defaultValueDesc: ""
       abbr: "d"
@@ -154,7 +160,7 @@ type
         name: "net-privkey" }: string
 
       bootstrapNodes* {.
-        desc: "Specifies one or more bootstrap nodes to use when connecting to the network."
+        desc: "Specifies one or more bootstrap nodes to use when connecting to the network"
         abbr: "b"
         name: "bootstrap-node" }: seq[SignedPeerRecord]
 
@@ -182,7 +188,7 @@ type
         abbr: "p" }: Port
 
       repoKind* {.
-        desc: "backend for main repo store (fs, sqlite)"
+        desc: "Backend for main repo store (fs, sqlite)"
         defaultValueDesc: "fs"
         defaultValue: repoFS
         name: "repo-kind" }: RepoKind
@@ -202,13 +208,13 @@ type
         abbr: "t" }: Duration
 
       blockMaintenanceInterval* {.
-        desc: "Time interval in seconds - determines frequency of block maintenance cycle: how often blocks are checked for expiration and cleanup."
+        desc: "Time interval in seconds - determines frequency of block maintenance cycle: how often blocks are checked for expiration and cleanup"
         defaultValue: DefaultBlockMaintenanceInterval
         defaultValueDesc: $DefaultBlockMaintenanceInterval
         name: "block-mi" }: Duration
 
       blockMaintenanceNumberOfBlocks* {.
-        desc: "Number of blocks to check every maintenance cycle."
+        desc: "Number of blocks to check every maintenance cycle"
         defaultValue: DefaultNumberOfBlocksToMaintainPerInterval
         defaultValueDesc: $DefaultNumberOfBlocksToMaintainPerInterval
         name: "block-mn" }: int
@@ -281,6 +287,9 @@ type
 
   EthAddress* = ethers.Address
 
+logutils.formatIt(LogFormat.textLines, EthAddress): it.short0xHexLog
+logutils.formatIt(LogFormat.json, EthAddress): %it
+
 proc getCodexVersion(): string =
   let tag = strip(staticExec("git tag"))
   if tag.isEmptyOrWhitespace:
@@ -290,7 +299,6 @@ proc getCodexVersion(): string =
 proc getCodexRevision(): string =
   # using a slice in a static context breaks nimsuggest for some reason
   var res = strip(staticExec("git rev-parse --short HEAD"))
-  res.setLen(6)
   return res
 
 proc getNimBanner(): string =
@@ -412,7 +420,7 @@ proc completeCmdArg*(T: type Duration; val: string): seq[string] =
   discard
 
 # silly chronicles, colors is a compile-time property
-proc stripAnsi(v: string): string =
+proc stripAnsi*(v: string): string =
   var
     res = newStringOfCap(v.len)
     i: int

@@ -29,6 +29,7 @@ type
     withdrawn*: seq[RequestId]
     proofsRequired: HashSet[SlotId]
     proofsToBeRequired: HashSet[SlotId]
+    proofChallenge*: ProofChallenge
     proofEnds: Table[SlotId, UInt256]
     signer: Address
     subscriptions: Subscriptions
@@ -109,6 +110,12 @@ method periodicity*(mock: MockMarket): Future[Periodicity] {.async.} =
 
 method proofTimeout*(market: MockMarket): Future[UInt256] {.async.} =
   return market.config.proofs.timeout
+
+method proofDowntime*(market: MockMarket): Future[uint8] {.async.} =
+  return market.config.proofs.downtime
+
+method getPointer*(market: MockMarket, slotId: SlotId): Future[uint8] {.async.} =
+  return 0 # TODO
 
 method requestStorage*(market: MockMarket, request: StorageRequest) {.async.} =
   market.requested.add(request)
@@ -235,7 +242,6 @@ method freeSlot*(market: MockMarket, slotId: SlotId) {.async.} =
       break
   market.slotState[slotId] = SlotState.Free
 
-
 method withdrawFunds*(market: MockMarket,
                       requestId: RequestId) {.async.} =
   market.withdrawn.add(requestId)
@@ -260,6 +266,9 @@ proc setProofToBeRequired*(mock: MockMarket, id: SlotId, required: bool) =
 method willProofBeRequired*(mock: MockMarket,
                             id: SlotId): Future[bool] {.async.} =
   return mock.proofsToBeRequired.contains(id)
+
+method getChallenge*(mock: MockMarket, id: SlotId): Future[ProofChallenge] {.async.} =
+  return mock.proofChallenge
 
 proc setProofEnd*(mock: MockMarket, id: SlotId, proofEnd: UInt256) =
   mock.proofEnds[id] = proofEnd

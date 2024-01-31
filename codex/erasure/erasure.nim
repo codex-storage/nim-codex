@@ -15,16 +15,17 @@ import std/sequtils
 import std/sugar
 
 import pkg/chronos
-import pkg/chronicles
-import pkg/libp2p/[multicodec, cid, multibase, multihash]
+import pkg/libp2p/[multicodec, cid, multihash]
 import pkg/libp2p/protobuf/minprotobuf
 
+import ../logutils
 import ../manifest
 import ../merkletree
 import ../stores
 import ../blocktype as bt
 import ../utils
 import ../utils/asynciter
+import ../indexingstrategy
 
 import pkg/stew/byteutils
 
@@ -71,11 +72,11 @@ type
     store*: BlockStore
 
   EncodingParams = object
-    ecK: int
-    ecM: int
-    rounded: int
-    steps: int
-    blocksCount: int
+    ecK: Natural
+    ecM: Natural
+    rounded: Natural
+    steps: Natural
+    blocksCount: Natural
 
 func indexToPos(steps, idx, step: int): int {.inline.} =
   ## Convert an index to a position in the encoded
@@ -97,7 +98,9 @@ proc getPendingBlocks(
   var
     # request blocks from the store
     pendingBlocks = indicies.map( (i: int) =>
-      self.store.getBlock(BlockAddress.init(manifest.treeCid, i)).map((r: ?!bt.Block) => (r, i)) # Get the data blocks (first K)
+      self.store.getBlock(
+        BlockAddress.init(manifest.treeCid, i)
+      ).map((r: ?!bt.Block) => (r, i)) # Get the data blocks (first K)
     )
 
   proc isFinished(): bool = pendingBlocks.len == 0
@@ -109,7 +112,9 @@ proc getPendingBlocks(
       return await completedFut
     else:
       let (_, index) = await completedFut
-      raise newException(CatchableError, "Future for block id not found, tree cid: " & $manifest.treeCid & ", index: " & $index)
+      raise newException(
+        CatchableError,
+        "Future for block id not found, tree cid: " & $manifest.treeCid & ", index: " & $index)
 
   Iter.new(genNext, isFinished)
 
@@ -117,15 +122,20 @@ proc prepareEncodingData(
   self: Erasure,
   manifest: Manifest,
   params: EncodingParams,
-  step: int,
+  step: Natural,
   data: ref seq[seq[byte]],
   cids: ref seq[Cid],
-  emptyBlock: seq[byte]): Future[?!int] {.async.} =
+  emptyBlock: seq[byte]): Future[?!Natural] {.async.} =
   ## Prepare data for encoding
   ##
 
   let
-    indicies = toSeq(countup(step, params.rounded - 1, params.steps))
+    strategy = SteppedIndexingStrategy.new(
+      firstIndex = 0,
+      lastIndex = params.rounded - 1,
+      numberOfIterations = params.steps
+    )
+    indicies = toSeq(strategy.getIndicies(step))
     pendingBlocksIter = self.getPendingBlocks(manifest, indicies.filterIt(it < manifest.blocksCount))
 
   var resolved = 0
@@ -149,16 +159,16 @@ proc prepareEncodingData(
       return failure(err)
     cids[idx] = emptyBlockCid
 
-  success(resolved)
+  success(resolved.Natural)
 
 proc prepareDecodingData(
   self: Erasure,
   encoded: Manifest,
-  step: int,
+  step: Natural,
   data: ref seq[seq[byte]],
   parityData: ref seq[seq[byte]],
   cids: ref seq[Cid],
-  emptyBlock: seq[byte]): Future[?!(int, int)] {.async.} =
+  emptyBlock: seq[byte]): Future[?!(Natural, Natural)] {.async.} =
   ## Prepare data for decoding
   ## `encoded`    - the encoded manifest
   ## `step`       - the current step
@@ -169,7 +179,12 @@ proc prepareDecodingData(
   ##
 
   let
-    indicies = toSeq(countup(step, encoded.blocksCount - 1, encoded.steps))
+    strategy = SteppedIndexingStrategy.new(
+      firstIndex = 0,
+      lastIndex = encoded.blocksCount - 1,
+      numberOfIterations = encoded.steps
+    )
+    indicies = toSeq(strategy.getIndicies(step))
     pendingBlocksIter = self.getPendingBlocks(encoded, indicies)
 
   var
@@ -209,11 +224,18 @@ proc prepareDecodingData(
 
     resolved.inc
 
-  return success (dataPieces, parityPieces)
+  return success (dataPieces.Natural, parityPieces.Natural)
 
-proc init(_: type EncodingParams, manifest: Manifest, ecK: int, ecM: int): ?!EncodingParams =
+proc init*(
+  _: type EncodingParams,
+  manifest: Manifest,
+  ecK: Natural, ecM: Natural): ?!EncodingParams =
   if ecK > manifest.blocksCount:
-    return failure("Unable to encode manifest, not enough blocks, ecK = " & $ecK & ", blocksCount = " & $manifest.blocksCount)
+    return failure(
+      "Unable to encode manifest, not enough blocks, ecK = " &
+      $ecK &
+      ", blocksCount = " &
+      $manifest.blocksCount)
 
   let
     rounded = roundUp(manifest.blocksCount, ecK)
@@ -291,7 +313,7 @@ proc encodeData(
           return failure("Unable to store block!")
         idx.inc(params.steps)
 
-    without tree =? MerkleTree.init(cids[]), err:
+    without tree =? CodexTree.init(cids[]), err:
       return failure(err)
 
     without treeCid =? tree.rootCid, err:
@@ -308,6 +330,7 @@ proc encodeData(
       ecM = params.ecM
     )
 
+    trace "Encoded data successfully", treeCid, blocksCount = params.blocksCount
     return encodedManifest.success
   except CancelledError as exc:
     trace "Erasure coding encoding cancelled"
@@ -321,8 +344,8 @@ proc encodeData(
 proc encode*(
   self: Erasure,
   manifest: Manifest,
-  blocks: int,
-  parity: int): Future[?!Manifest] {.async.} =
+  blocks: Natural,
+  parity: Natural): Future[?!Manifest] {.async.} =
   ## Encode a manifest into one that is erasure protected.
   ##
   ## `manifest`   - the original manifest to be encoded
@@ -330,7 +353,7 @@ proc encode*(
   ## `parity`     - the number of parity blocks to generate - M
   ##
 
-  without params =? EncodingParams.init(manifest, blocks, parity), err:
+  without params =? EncodingParams.init(manifest, blocks.int, parity.int), err:
     return failure(err)
 
   without encodedManifest =? await self.encodeData(manifest, params), err:
@@ -356,7 +379,7 @@ proc decode*(
 
   var
     cids = seq[Cid].new()
-    recoveredIndices = newSeq[int]()
+    recoveredIndices = newSeq[Natural]()
     decoder = self.decoderProvider(encoded.blockSize.int, encoded.ecK, encoded.ecM)
     emptyBlock = newSeq[byte](encoded.blockSize.int)
 
@@ -376,7 +399,7 @@ proc decode*(
       data[].setLen(encoded.ecK)        # set len to K
       parityData[].setLen(encoded.ecM)  # set len to M
 
-      without (dataPieces, parityPieces) =?
+      without (dataPieces, _) =?
         (await self.prepareDecodingData(encoded, step, data, parityData, cids, emptyBlock)), err:
         trace "Unable to prepare data", error = err.msg
         return failure(err)
@@ -415,7 +438,7 @@ proc decode*(
   finally:
     decoder.release()
 
-  without tree =? MerkleTree.init(cids[0..<encoded.originalBlocksCount]), err:
+  without tree =? CodexTree.init(cids[0..<encoded.originalBlocksCount]), err:
     return failure(err)
 
   without treeCid =? tree.rootCid, err:
@@ -426,7 +449,7 @@ proc decode*(
 
   let idxIter = Iter
     .fromItems(recoveredIndices)
-    .filter((i: int) => i < tree.leavesCount)
+    .filter((i: Natural) => i < tree.leavesCount)
 
   if err =? (await self.store.putSomeProofs(tree, idxIter)).errorOption:
       return failure(err)

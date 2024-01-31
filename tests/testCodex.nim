@@ -2,6 +2,7 @@ import ./codex/teststores
 import ./codex/testblockexchange
 import ./codex/testasyncheapqueue
 import ./codex/testchunking
+import ./codex/testlogutils
 import ./codex/testmanifest
 import ./codex/testnode
 import ./codex/teststorestream
@@ -14,5 +15,7 @@ import ./codex/testsystemclock
 import ./codex/testvalidation
 import ./codex/testasyncstreamwrapper
 import ./codex/testmerkletree
+import ./codex/testslots
+import ./codex/testindexingstrategy
 
 {.warning[UnusedImport]: off.}

@@ -1,11 +1,10 @@
-import std/json
 import std/os
 import std/tables
 import pkg/ethers
 import pkg/questionable
-import pkg/chronicles
 
 import ../conf
+import ../logutils
 import ./marketplace
 
 type Deployment* = ref object

@@ -16,7 +16,6 @@ import std/sequtils
 
 import pkg/questionable
 import pkg/questionable/results
-import pkg/chronicles except toJson
 import pkg/chronos
 import pkg/presto except toJson
 import pkg/metrics except toJson
@@ -28,14 +27,15 @@ import pkg/libp2p
 import pkg/libp2p/routing_record
 import pkg/codexdht/discv5/spr as spr
 
+import ../logutils
 import ../node
 import ../blocktype
 import ../conf
 import ../contracts
 import ../manifest
 import ../streams/asyncstreamwrapper
-import ../stores/blockstore
 import ../utils/asyncprofiler
+import ../stores
 
 import ./coders
 import ./json
@@ -107,7 +107,7 @@ proc retrieveCid(
     if not stream.isNil:
       await stream.close()
 
-proc initDataApi(node: CodexNodeRef, router: var RestRouter) =
+proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
   router.rawApi(
     MethodPost,
     "/api/codex/v1/data") do (
@@ -183,6 +183,17 @@ proc initDataApi(node: CodexNodeRef, router: var RestRouter) =
           $cid.error())
 
       await node.retrieveCid(cid.get(), local = false, resp=resp)
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/space") do () -> RestApiResponse:
+      let json = % RestRepoStore(
+        totalBlocks: repoStore.totalBlocks,
+        quotaMaxBytes: repoStore.quotaMaxBytes,
+        quotaUsedBytes: repoStore.quotaUsedBytes,
+        quotaReservedBytes: repoStore.quotaReservedBytes
+      )
+      return RestApiResponse.response($json, contentType="application/json")
 
 proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
   router.api(
@@ -290,8 +301,8 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       ## proofProbability - how often storage proofs are required
       ## reward           - the maximum amount of tokens paid per second per slot to hosts the client is willing to pay
       ## expiry           - timestamp, in seconds, when the request expires if the Request does not find requested amount of nodes to host the data
-      ## nodes            - minimal number of nodes the content should be stored on
-      ## tolerance        - allowed number of nodes that can be lost before pronouncing the content lost
+      ## nodes            - number of nodes the content should be stored on
+      ## tolerance        - allowed number of nodes that can be lost before content is lost
       ## colateral        - requested collateral from hosts when they fill slot
 
       try:
@@ -308,6 +319,9 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
 
         let nodes = params.nodes |? 1
         let tolerance = params.tolerance |? 0
+
+        if (nodes - tolerance) < 1:
+          return RestApiResponse.error(Http400, "Tolerance cannot be greater or equal than nodes (nodes - tolerance)")
 
         without expiry =? params.expiry:
           return RestApiResponse.error(Http400, "Expiry required")
@@ -470,10 +484,10 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
 
         RestApiResponse.response($(metrics), contentType="application/json")
 
-proc initRestApi*(node: CodexNodeRef, conf: CodexConf): RestRouter =
+proc initRestApi*(node: CodexNodeRef, conf: CodexConf, repoStore: RepoStore): RestRouter =
   var router = RestRouter.init(validate)
 
-  initDataApi(node, router)
+  initDataApi(node, repoStore, router)
   initSalesApi(node, router)
   initPurchasingApi(node, router)
   initDebugApi(node, conf, router)

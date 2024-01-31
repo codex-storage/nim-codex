@@ -2,7 +2,6 @@ import std/sequtils
 import std/sugar
 import std/tables
 
-import pkg/asynctest
 import pkg/chronos
 
 import pkg/libp2p/errors
@@ -15,10 +14,11 @@ import pkg/codex/manifest
 import pkg/codex/merkletree
 import pkg/codex/blocktype as bt
 
-import ../../helpers/mockdiscovery
-
+import ../../../asynctest
 import ../../helpers
+import ../../helpers/mockdiscovery
 import ../../examples
+
 
 asyncchecksuite "Block Advertising and Discovery":
   let chunker = RandomChunker.new(Rng.instance(), size = 4096, chunkSize = 256)
@@ -26,7 +26,7 @@ asyncchecksuite "Block Advertising and Discovery":
   var
     blocks: seq[bt.Block]
     manifest: Manifest
-    tree: MerkleTree
+    tree: CodexTree
     manifestBlock: bt.Block
     switch: Switch
     peerStore: PeerCtxStore
@@ -56,7 +56,7 @@ asyncchecksuite "Block Advertising and Discovery":
 
     (manifest, tree) = makeManifestAndTree(blocks).tryGet()
     manifestBlock = bt.Block.new(
-      manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
+      manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
 
     (await localStore.putBlock(manifestBlock)).tryGet()
 

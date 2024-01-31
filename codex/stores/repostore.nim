@@ -13,7 +13,6 @@ push: {.upraises: [].}
 
 import pkg/chronos
 import pkg/chronos/futures
-import pkg/chronicles
 import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/lrucache
 import pkg/metrics
@@ -27,6 +26,7 @@ import ./keyutils
 import ../blocktype
 import ../clock
 import ../systemclock
+import ../logutils
 import ../merkletree
 import ../utils
 
@@ -77,7 +77,7 @@ func available*(self: RepoStore): uint =
 func available*(self: RepoStore, bytes: uint): bool =
   return bytes < self.available()
 
-proc encode(cidAndProof: (Cid, MerkleProof)): seq[byte] =
+proc encode(cidAndProof: (Cid, CodexProof)): seq[byte] =
   ## Encodes a tuple of cid and merkle proof in a following format:
   ## | 8-bytes | n-bytes | remaining bytes |
   ## |    n    |   cid   |      proof      |
@@ -93,25 +93,25 @@ proc encode(cidAndProof: (Cid, MerkleProof)): seq[byte] =
 
   @nBytes & cidBytes & proofBytes
 
-proc decode(_: type (Cid, MerkleProof), data: seq[byte]): ?!(Cid, MerkleProof) =
+proc decode(_: type (Cid, CodexProof), data: seq[byte]): ?!(Cid, CodexProof) =
   let
     n = uint64.fromBytesBE(data[0..<sizeof(uint64)]).int
     cid = ? Cid.init(data[sizeof(uint64)..<sizeof(uint64) + n]).mapFailure
-    proof = ? MerkleProof.decode(data[sizeof(uint64) + n..^1])
+    proof = ? CodexProof.decode(data[sizeof(uint64) + n..^1])
   success((cid, proof))
 
-proc decodeCid(_: type (Cid, MerkleProof), data: seq[byte]): ?!Cid =
+proc decodeCid(_: type (Cid, CodexProof), data: seq[byte]): ?!Cid =
   let
     n = uint64.fromBytesBE(data[0..<sizeof(uint64)]).int
     cid = ? Cid.init(data[sizeof(uint64)..<sizeof(uint64) + n]).mapFailure
   success(cid)
 
-method putBlockCidAndProof*(
+method putCidAndProof*(
   self: RepoStore,
   treeCid: Cid,
   index: Natural,
   blockCid: Cid,
-  proof: MerkleProof
+  proof: CodexProof
 ): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
@@ -119,15 +119,16 @@ method putBlockCidAndProof*(
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
+  trace "Storing block cid and proof with key", key
+
   let value = (blockCid, proof).encode()
 
   await self.metaDs.put(key, value)
 
-proc getCidAndProof(
+method getCidAndProof*(
   self: RepoStore,
   treeCid: Cid,
-  index: Natural
-): Future[?!(Cid, MerkleProof)] {.async.} =
+  index: Natural): Future[?!(Cid, CodexProof)] {.async.} =
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
@@ -137,23 +138,29 @@ proc getCidAndProof(
     else:
       return failure(err)
 
-  return (Cid, MerkleProof).decode(value)
+  without (cid, proof) =? (Cid, CodexProof).decode(value), err:
+    trace "Unable to decode cid and proof", err = err.msg
+    return failure(err)
 
-proc getCid(
+  trace "Got cid and proof for block", cid, proof = $proof
+  return success (cid, proof)
+
+method getCid*(
   self: RepoStore,
   treeCid: Cid,
-  index: Natural
-): Future[?!Cid] {.async.} =
+  index: Natural): Future[?!Cid] {.async.} =
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
   without value =? await self.metaDs.get(key), err:
     if err of DatastoreKeyNotFound:
+      trace "Cid not found", treeCid, index
       return failure(newException(BlockNotFoundError, err.msg))
     else:
+      trace "Error getting cid from datastore", err = err.msg, key
       return failure(err)
 
-  return (Cid, MerkleProof).decodeCid(value)
+  return (Cid, CodexProof).decodeCid(value)
 
 method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the blockstore
@@ -181,7 +188,7 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   return Block.new(cid, data, verify = true)
 
 
-method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.async.} =
+method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, CodexProof)] {.async.} =
   without cidAndProof =? await self.getCidAndProof(treeCid, index), err:
     return failure(err)
 
@@ -234,7 +241,7 @@ method ensureExpiry*(
     cid: Cid,
     expiry: SecondsSince1970
 ): Future[?!void] {.async.} =
-  ## Ensure that block's assosicated expiry is at least given timestamp
+  ## Ensure that block's associated expiry is at least given timestamp
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
 
@@ -255,8 +262,12 @@ method ensureExpiry*(
       error "Could not read datastore key", err = err.msg
       return failure(err)
 
+  logScope:
+    current = currentExpiry.toSecondsSince1970
+    ensuring = expiry
+
   if expiry <= currentExpiry.toSecondsSince1970:
-    trace "Current expiry is larger than or equal to the specified one, no action needed", current = currentExpiry.toSecondsSince1970, ensuring = expiry
+    trace "Expiry is larger than or equal to requested"
     return success()
 
   if err =? (await self.metaDs.put(expiryKey, expiry.toBytes)).errorOption:
@@ -409,15 +420,17 @@ method delBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!void] 
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
+  trace "Fetching proof", key
   without value =? await self.metaDs.get(key), err:
     if err of DatastoreKeyNotFound:
       return success()
     else:
       return failure(err)
 
-  without cid =? (Cid, MerkleProof).decodeCid(value), err:
+  without cid =? (Cid, CodexProof).decodeCid(value), err:
     return failure(err)
 
+  trace "Deleting block", cid
   if err =? (await self.delBlock(cid)).errorOption:
     return failure(err)
 
@@ -531,7 +544,13 @@ method close*(self: RepoStore): Future[void] {.async.} =
   ## For some implementations this may be a no-op
   ##
 
-  (await self.repoDs.close()).expect("Should close datastore")
+  trace "Closing repostore"
+
+  if not self.metaDs.isNil:
+    (await self.metaDs.close()).expect("Should meta datastore")
+
+  if not self.repoDs.isNil:
+    (await self.repoDs.close()).expect("Should repo datastore")
 
 proc reserve*(self: RepoStore, bytes: uint): Future[?!void] {.async.} =
   ## Reserve bytes
@@ -640,8 +659,7 @@ proc stop*(self: RepoStore): Future[void] {.async.} =
     return
 
   trace "Stopping repo"
-  (await self.repoDs.close()).expect("Should close repo store!")
-  (await self.metaDs.close()).expect("Should close meta store!")
+  await self.close()
 
   self.started = false
 

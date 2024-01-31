@@ -1,8 +1,7 @@
 import std/os
 import std/macros
-import std/json
 import std/httpclient
-import pkg/chronicles
+import pkg/codex/logutils
 import ../ethertest
 import ./codexclient
 import ./nodes
@@ -24,7 +23,7 @@ type
     validators*: uint
   DebugNodes* = object
     client*: bool
-    provider*: bool
+    ethProvider*: bool
     validator*: bool
     topics*: string
   Role* {.pure.} = enum
@@ -49,15 +48,15 @@ proc init*(_: type StartNodes,
   StartNodes(clients: clients, providers: providers, validators: validators)
 
 proc init*(_: type DebugNodes,
-          client, provider, validator: bool,
+          client, ethProvider, validator: bool,
           topics: string = "validator,proving,market"): DebugNodes =
-  DebugNodes(client: client, provider: provider, validator: validator,
+  DebugNodes(client: client, ethProvider: ethProvider, validator: validator,
              topics: topics)
 
 template multinodesuite*(name: string,
   startNodes: StartNodes, debugNodes: DebugNodes, body: untyped) =
 
-  if (debugNodes.client or debugNodes.provider) and
+  if (debugNodes.client or debugNodes.ethProvider) and
       (enabledLogLevel > LogLevel.TRACE or
       enabledLogLevel == LogLevel.NONE):
     echo ""
@@ -116,12 +115,12 @@ template multinodesuite*(name: string,
         "--bootstrap-node=" & bootstrap,
         "--persistence",
         "--simulate-proof-failures=" & $failEveryNProofs],
-        debugNodes.provider)
+        debugNodes.ethProvider)
       let restClient = newCodexClient(index)
       running.add RunningNode.new(Role.Provider, node, restClient, datadir,
                                   account)
-      if debugNodes.provider:
-        debug "started new provider node and codex client",
+      if debugNodes.ethProvider:
+        debug "started new ethProvider node and codex client",
           restApiPort = 8080 + index, discPort = 8090 + index, account
 
     proc startValidatorNode() =

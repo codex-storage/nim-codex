@@ -9,10 +9,8 @@
 
 import std/sequtils
 import std/tables
-import std/sugar
 import std/sets
 
-import pkg/chronicles
 import pkg/libp2p
 import pkg/chronos
 import pkg/nitro
@@ -23,6 +21,7 @@ import ../protobuf/payments
 import ../protobuf/presence
 
 import ../../blocktype
+import ../../logutils
 
 export payments, nitro
 
@@ -32,12 +31,12 @@ logScope:
 type
   BlockExcPeerCtx* = ref object of RootObj
     id*: PeerId
-    blocks*: Table[BlockAddress, Presence]     # remote peer have list including price
-    peerWants*: seq[WantListEntry]            # remote peers want lists
-    exchanged*: int                   # times peer has exchanged with us
-    lastExchange*: Moment             # last time peer has exchanged with us
-    account*: ?Account                # ethereum account of this peer
-    paymentChannel*: ?ChannelId       # payment channel id
+    blocks*: Table[BlockAddress, Presence]  # remote peer have list including price
+    peerWants*: seq[WantListEntry]          # remote peers want lists
+    exchanged*: int                         # times peer has exchanged with us
+    lastExchange*: Moment                   # last time peer has exchanged with us
+    account*: ?Account                      # ethereum account of this peer
+    paymentChannel*: ?ChannelId             # payment channel id
 
 proc peerHave*(self: BlockExcPeerCtx): seq[BlockAddress] =
   toSeq(self.blocks.keys)

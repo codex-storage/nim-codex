@@ -1,11 +1,11 @@
 import std/sequtils
 import std/strutils
 import std/sugar
-import pkg/chronicles
 import pkg/ethers
 import pkg/ethers/testing
 import pkg/upraises
 import pkg/questionable
+import ../logutils
 import ../market
 import ./marketplace
 
@@ -49,6 +49,13 @@ method periodicity*(market: OnChainMarket): Future[Periodicity] {.async.} =
 method proofTimeout*(market: OnChainMarket): Future[UInt256] {.async.} =
   let config = await market.contract.config()
   return config.proofs.timeout
+
+method proofDowntime*(market: OnChainMarket): Future[uint8] {.async.} =
+  let config = await market.contract.config()
+  return config.proofs.downtime
+
+method getPointer*(market: OnChainMarket, slotId: SlotId): Future[uint8] {.async.} =
+  return await market.contract.getPointer(slotId)
 
 method myRequests*(market: OnChainMarket): Future[seq[RequestId]] {.async.} =
   return await market.contract.myRequests
@@ -142,6 +149,9 @@ method willProofBeRequired*(market: OnChainMarket,
     if e.revertReason.contains("Slot is free"):
       return false
     raise e
+
+method getChallenge*(market: OnChainMarket, id: SlotId): Future[ProofChallenge] {.async.} =
+  return await market.contract.getChallenge(id)
 
 method submitProof*(market: OnChainMarket,
                     id: SlotId,

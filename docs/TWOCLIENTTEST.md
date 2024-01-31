@@ -110,7 +110,7 @@ We're now ready to upload a file to the network. In this example we'll use node 
 Replace `<FILE PATH>` with the path to the file you want to upload in the following command:
 
 ```bash
- curl -H "content-type: application/octet-stream" -H "Expect: 100-continue" -T "<FILE PATH>" 127.0.0.1:8080/api/codex/v1/content -X POST
+ curl -H "content-type: application/octet-stream" -H "Expect: 100-continue" -T "<FILE PATH>" 127.0.0.1:8080/api/codex/v1/data -X POST
 ```
 
 (Hint: if curl is reluctant to show you the response, add `-o <FILENAME>` to write the result to a file.)
@@ -122,7 +122,7 @@ Depending on the file size this may take a moment. Codex is processing the file 
 Replace `<CID>` with the identifier returned in the previous step. Replace `<OUTPUT FILE>` with the filename where you want to store the downloaded file.
 
 ```bash
- curl 127.0.0.1:8081/api/codex/v1/content/zdj7Wfm18wewSWL9SPqddhJuu5ii1TJD39rtt3JbVYdKcqM1K --output <OUTPUT FILE>
+ curl 127.0.0.1:8081/api/codex/v1/data/<CID>/network --output <OUTPUT FILE>
  ```
 
 Notice we are connecting to the second node in order to download the file. The CID we provide contains the information needed to locate the file within the network.

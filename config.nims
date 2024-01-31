@@ -11,7 +11,7 @@ when getEnv("NIMBUS_BUILD_SYSTEM") == "yes" and
    # BEWARE
    # In Nim 1.6, config files are evaluated with a working directory
    # matching where the Nim command was invocated. This means that we
-   # must do all file existance checks with full absolute paths:
+   # must do all file existence checks with full absolute paths:
    system.fileExists(currentDir & "nimbus-build-system.paths"):
   include "nimbus-build-system.paths"
 
@@ -76,6 +76,7 @@ else:
 --define:nimTypeNames
 --styleCheck:usages
 --styleCheck:error
+--maxLoopIterationsVM:1000000000
 
 when (NimMajor, NimMinor) >= (1, 4):
   --warning:"ObservableStores:off"
@@ -98,8 +99,6 @@ if not defined(macosx):
     --define:nimStackTraceOverride
     switch("import", "libbacktrace")
 
-switch("define", "codex_enable_proof_failures=true")
-
 # `switch("warning[CaseTransition]", "off")` fails with "Error: invalid command line option: '--warning[CaseTransition]'"
 switch("warning", "CaseTransition:off")
 
@@ -118,6 +117,7 @@ switch("define", "chronicles_sinks=textlines[dynamic],json[dynamic],textlines[dy
 
 # Workaround for assembler incompatibility between constantine and secp256k1
 switch("define", "use_asm_syntax_intel=false")
+switch("define", "ctt_asm=false")
 
 # begin Nimble config (version 1)
 when system.fileExists("nimble.paths"):

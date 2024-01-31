@@ -1,11 +1,11 @@
 import pkg/chronos
-import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
 import pkg/upraises
 import ../contracts/requests
 import ../errors
+import ../logutils
 import ./statemachine
 import ./salescontext
 import ./salesdata
@@ -25,7 +25,7 @@ type
     onCleanUp*: OnCleanUp
     onFilled*: ?OnFilled
 
-  OnCleanUp* = proc: Future[void] {.gcsafe, upraises: [].}
+  OnCleanUp* = proc (returnBytes = false): Future[void] {.gcsafe, upraises: [].}
   OnFilled* = proc(request: StorageRequest,
                    slotIndex: UInt256) {.gcsafe, upraises: [].}
 

@@ -28,6 +28,7 @@ type
     requestId*: RequestId
     ask*: StorageAsk
     expiry*: UInt256
+  ProofChallenge* = array[32, byte]
 
 method getSigner*(market: Market): Future[Address] {.base, async.} =
   raiseAssert("not implemented")
@@ -37,6 +38,17 @@ method periodicity*(market: Market): Future[Periodicity] {.base, async.} =
 
 method proofTimeout*(market: Market): Future[UInt256] {.base, async.} =
   raiseAssert("not implemented")
+
+method proofDowntime*(market: Market): Future[uint8] {.base, async.} =
+  raiseAssert("not implemented")
+
+method getPointer*(market: Market, slotId: SlotId): Future[uint8] {.base, async.} =
+  raiseAssert("not implemented")
+
+proc inDowntime*(market: Market, slotId: SlotId): Future[bool] {.async.} =
+  let downtime = await market.proofDowntime
+  let pntr = await market.getPointer(slotId)
+  return pntr < downtime
 
 method requestStorage*(market: Market,
                        request: StorageRequest) {.base, async.} =
@@ -101,6 +113,9 @@ method isProofRequired*(market: Market,
 
 method willProofBeRequired*(market: Market,
                             id: SlotId): Future[bool] {.base, async.} =
+  raiseAssert("not implemented")
+
+method getChallenge*(market: Market, id: SlotId): Future[ProofChallenge] {.base, async.} =
   raiseAssert("not implemented")
 
 method submitProof*(market: Market,

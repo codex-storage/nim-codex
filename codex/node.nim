@@ -7,16 +7,17 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [].}
+
 import std/options
-import std/tables
 import std/sequtils
 import std/strformat
 import std/sugar
 
 import pkg/questionable
 import pkg/questionable/results
-import pkg/chronicles
 import pkg/chronos
+import pkg/poseidon2
 
 import pkg/libp2p/[switch, multicodec, multihash]
 import pkg/libp2p/stream/bufferstream
@@ -26,6 +27,7 @@ import pkg/libp2p/routing_record
 import pkg/libp2p/signed_envelope
 
 import ./chunker
+import ./slots
 import ./clock
 import ./blocktype as bt
 import ./manifest
@@ -36,11 +38,11 @@ import ./streams
 import ./erasure
 import ./discovery
 import ./contracts
-import ./node/batch
 import ./utils
 import ./errors
+import ./logutils
 
-export batch
+export logutils
 
 logScope:
   topics = "codex node"
@@ -49,41 +51,61 @@ const
   FetchBatch = 200
 
 type
-  CodexError = object of CatchableError
-
   Contracts* = tuple
     client: ?ClientInteractions
     host: ?HostInteractions
     validator: ?ValidatorInteractions
 
-  CodexNodeRef* = ref object
-    switch*: Switch
-    networkId*: PeerId
-    blockStore*: BlockStore
-    engine*: BlockExcEngine
-    erasure*: Erasure
-    discovery*: Discovery
+  CodexNode* = object
+    switch: Switch
+    networkId: PeerId
+    blockStore: BlockStore
+    engine: BlockExcEngine
+    erasure: Erasure
+    discovery: Discovery
     contracts*: Contracts
     clock*: Clock
+    storage*: Contracts
 
-  OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, closure.}
+  CodexNodeRef* = ref CodexNode
 
-proc findPeer*(
-  node: CodexNodeRef,
-  peerId: PeerId): Future[?PeerRecord] {.async.} =
-  ## Find peer using the discovery service from the given CodexNode
-  ##
-  return await node.discovery.findPeer(peerId)
+  OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, raises: [].}
+  BatchProc* = proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, raises: [].}
 
-proc connect*(
-  node: CodexNodeRef,
-  peerId: PeerId,
-  addrs: seq[MultiAddress]
-): Future[void] =
-  node.switch.connect(peerId, addrs)
+func switch*(self: CodexNodeRef): Switch =
+  return self.switch
+
+func blockStore*(self: CodexNodeRef): BlockStore =
+  return self.blockStore
+
+func engine*(self: CodexNodeRef): BlockExcEngine =
+  return self.engine
+
+func erasure*(self: CodexNodeRef): Erasure =
+  return self.erasure
+
+func discovery*(self: CodexNodeRef): Discovery =
+  return self.discovery
+
+proc storeManifest*(
+  self: CodexNodeRef,
+  manifest: Manifest): Future[?!bt.Block] {.async.} =
+  without encodedVerifiable =? manifest.encode(), err:
+    trace "Unable to encode manifest"
+    return failure(err)
+
+  without blk =? bt.Block.new(data = encodedVerifiable, codec = ManifestCodec), error:
+    trace "Unable to create block from manifest"
+    return failure(error)
+
+  if err =? (await self.blockStore.putBlock(blk)).errorOption:
+    trace "Unable to store manifest block", cid = blk.cid, err = err.msg
+    return failure(err)
+
+  success blk
 
 proc fetchManifest*(
-  node: CodexNodeRef,
+  self: CodexNodeRef,
   cid: Cid): Future[?!Manifest] {.async.} =
   ## Fetch and decode a manifest block
   ##
@@ -93,7 +115,7 @@ proc fetchManifest*(
 
   trace "Retrieving manifest for cid", cid
 
-  without blk =? await node.blockStore.getBlock(BlockAddress.init(cid)), err:
+  without blk =? await self.blockStore.getBlock(BlockAddress.init(cid)), err:
     trace "Error retrieve manifest block", cid, err = err.msg
     return failure err
 
@@ -107,15 +129,35 @@ proc fetchManifest*(
 
   return manifest.success
 
-proc updateExpiry*(node: CodexNodeRef, manifestCid: Cid, expiry: SecondsSince1970): Future[?!void] {.async.} =
-  without manifest =? await node.fetchManifest(manifestCid), error:
+proc findPeer*(
+  self: CodexNodeRef,
+  peerId: PeerId): Future[?PeerRecord] {.async.} =
+  ## Find peer using the discovery service from the given CodexNode
+  ##
+  return await self.discovery.findPeer(peerId)
+
+proc connect*(
+  self: CodexNodeRef,
+  peerId: PeerId,
+  addrs: seq[MultiAddress]
+): Future[void] =
+  self.switch.connect(peerId, addrs)
+
+proc updateExpiry*(
+  self: CodexNodeRef,
+  manifestCid: Cid,
+  expiry: SecondsSince1970): Future[?!void] {.async.} =
+
+  without manifest =? await self.fetchManifest(manifestCid), error:
     trace "Unable to fetch manifest for cid", manifestCid
     return failure(error)
 
   try:
-      let ensuringFutures = Iter.fromSlice(0..<manifest.blocksCount)
-                               .mapIt(node.blockStore.ensureExpiry( manifest.treeCid, it, expiry ))
-      await allFuturesThrowing(ensuringFutures)
+    let
+      ensuringFutures = Iter
+        .fromSlice(0..<manifest.blocksCount)
+        .mapIt(self.blockStore.ensureExpiry( manifest.treeCid, it, expiry ))
+    await allFuturesThrowing(ensuringFutures)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -124,21 +166,20 @@ proc updateExpiry*(node: CodexNodeRef, manifestCid: Cid, expiry: SecondsSince197
   return success()
 
 proc fetchBatched*(
-  node: CodexNodeRef,
-  manifest: Manifest,
+  self: CodexNodeRef,
+  cid: Cid,
+  iter: Iter[int],
   batchSize = FetchBatch,
   onBatch: BatchProc = nil): Future[?!void] {.async, gcsafe.} =
-  ## Fetch manifest in batches of `batchSize`
+  ## Fetch blocks in batches of `batchSize`
   ##
 
-  let batchCount = divUp(manifest.blocksCount, batchSize)
+  let
+    iter = iter.map(
+      (i: int) => self.blockStore.getBlock(BlockAddress.init(cid, i))
+    )
 
-  trace "Fetching blocks in batches of", size = batchSize
-
-  let iter = Iter.fromSlice(0..<manifest.blocksCount)
-    .map((i: int) => node.blockStore.getBlock(BlockAddress.init(manifest.treeCid, i)))
-
-  for batchNum in 0..<batchCount:
+  while not iter.finished:
     let blocks = collect:
       for i in 0..<batchSize:
         if not iter.finished:
@@ -147,29 +188,43 @@ proc fetchBatched*(
     if blocksErr =? (await allFutureResult(blocks)).errorOption:
       return failure(blocksErr)
 
-    if not onBatch.isNil and batchErr =? (await onBatch(blocks.mapIt( it.read.get ))).errorOption:
+    if not onBatch.isNil and
+      batchErr =? (await onBatch(blocks.mapIt( it.read.get ))).errorOption:
       return failure(batchErr)
 
-  return success()
+  success()
+
+proc fetchBatched*(
+  self: CodexNodeRef,
+  manifest: Manifest,
+  batchSize = FetchBatch,
+  onBatch: BatchProc = nil): Future[?!void] =
+  ## Fetch manifest in batches of `batchSize`
+  ##
+
+  trace "Fetching blocks in batches of", size = batchSize
+
+  let iter = Iter.fromSlice(0..<manifest.blocksCount)
+  self.fetchBatched(manifest.treeCid, iter, batchSize, onBatch)
 
 proc retrieve*(
-  node: CodexNodeRef,
+  self: CodexNodeRef,
   cid: Cid,
   local: bool = true): Future[?!LPStream] {.async.} =
   ## Retrieve by Cid a single block or an entire dataset described by manifest
   ##
 
-  if local and not await (cid in node.blockStore):
+  if local and not await (cid in self.blockStore):
     return failure((ref BlockNotFoundError)(msg: "Block not found in local store"))
 
-  if manifest =? (await node.fetchManifest(cid)):
+  if manifest =? (await self.fetchManifest(cid)):
     trace "Retrieving blocks from manifest", cid
     if manifest.protected:
       # Retrieve, decode and save to the local store all EС groups
       proc erasureJob(): Future[void] {.async.} =
         try:
           # Spawn an erasure decoding job
-          without res =? (await node.erasure.decode(manifest)), error:
+          without res =? (await self.erasure.decode(manifest)), error:
             trace "Unable to erasure decode manifest", cid, exc = error.msg
         except CatchableError as exc:
           trace "Exception decoding manifest", cid, exc = exc.msg
@@ -178,12 +233,12 @@ proc retrieve*(
 
     # Retrieve all blocks of the dataset sequentially from the local store or network
     trace "Creating store stream for manifest", cid
-    LPStream(StoreStream.new(node.blockStore, manifest, pad = false)).success
+    LPStream(StoreStream.new(self.blockStore, manifest, pad = false)).success
   else:
     let
       stream = BufferStream.new()
 
-    without blk =? (await node.blockStore.getBlock(BlockAddress.init(cid))), err:
+    without blk =? (await self.blockStore.getBlock(BlockAddress.init(cid))), err:
       return failure(err)
 
     proc streamOneBlock(): Future[void] {.async.} =
@@ -208,8 +263,8 @@ proc store*(
   trace "Storing data"
 
   let
-    hcodec = multiCodec("sha2-256")
-    dataCodec = multiCodec("raw")
+    hcodec = Sha256HashCodec
+    dataCodec = BlockCodec
     chunker = LPStreamChunker.new(stream, chunkSize = blockSize)
 
   var cids: seq[Cid]
@@ -235,7 +290,6 @@ proc store*(
       if err =? (await self.blockStore.putBlock(blk)).errorOption:
         trace "Unable to store block", cid = blk.cid, err = err.msg
         return failure(&"Unable to store block {blk.cid}")
-
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -243,7 +297,7 @@ proc store*(
   finally:
     await stream.close()
 
-  without tree =? MerkleTree.init(cids), err:
+  without tree =? CodexTree.init(cids), err:
     return failure(err)
 
   without treeCid =? tree.rootCid(CIDv1, dataCodec), err:
@@ -252,7 +306,7 @@ proc store*(
   for index, cid in cids:
     without proof =? tree.getProof(index), err:
       return failure(err)
-    if err =? (await self.blockStore.putBlockCidAndProof(treeCid, index, cid, proof)).errorOption:
+    if err =? (await self.blockStore.putCidAndProof(treeCid, index, cid, proof)).errorOption:
       # TODO add log here
       return failure(err)
 
@@ -262,21 +316,11 @@ proc store*(
     datasetSize = NBytes(chunker.offset),
     version = CIDv1,
     hcodec = hcodec,
-    codec = dataCodec
-  )
-  # Generate manifest
-  without data =? manifest.encode(), err:
-    return failure(
-      newException(CodexError, "Error encoding manifest: " & err.msg))
+    codec = dataCodec)
 
-  # Store as a dag-pb block
-  without manifestBlk =? bt.Block.new(data = data, codec = DagPBCodec):
-    trace "Unable to init block from manifest data!"
-    return failure("Unable to init block from manifest data!")
-
-  if isErr (await self.blockStore.putBlock(manifestBlk)):
-    trace "Unable to store manifest", cid = manifestBlk.cid
-    return failure("Unable to store manifest " & $manifestBlk.cid)
+  without manifestBlk =? await self.storeManifest(manifest), err:
+    trace "Unable to store manifest"
+    return failure(err)
 
   info "Stored data", manifestCid = manifestBlk.cid,
                       treeCid = treeCid,
@@ -289,14 +333,14 @@ proc store*(
 
   return manifestBlk.cid.success
 
-proc iterateManifests*(node: CodexNodeRef, onManifest: OnManifest) {.async.} =
-  without cids =? await node.blockStore.listBlocks(BlockType.Manifest):
+proc iterateManifests*(self: CodexNodeRef, onManifest: OnManifest) {.async.} =
+  without cids =? await self.blockStore.listBlocks(BlockType.Manifest):
     warn "Failed to listBlocks"
     return
 
   for c in cids:
     if cid =? await c:
-      without blk =? await node.blockStore.getBlock(cid):
+      without blk =? await self.blockStore.getBlock(cid):
         warn "Failed to get manifest block by cid", cid
         return
 
@@ -305,6 +349,91 @@ proc iterateManifests*(node: CodexNodeRef, onManifest: OnManifest) {.async.} =
         return
 
       onManifest(cid, manifest)
+
+proc setupRequest(
+  self: CodexNodeRef,
+  cid: Cid,
+  duration: UInt256,
+  proofProbability: UInt256,
+  nodes: uint,
+  tolerance: uint,
+  reward: UInt256,
+  collateral: UInt256,
+  expiry:  UInt256): Future[?!StorageRequest] {.async.} =
+  ## Setup slots for a given dataset
+  ##
+
+  let
+    ecK = nodes - tolerance
+    ecM = tolerance
+
+  logScope:
+    cid               = cid
+    duration          = duration
+    nodes             = nodes
+    tolerance         = tolerance
+    reward            = reward
+    proofProbability  = proofProbability
+    collateral        = collateral
+    expiry            = expiry
+    ecK               = ecK
+    ecM               = ecM
+
+  trace "Setting up slots"
+
+  without manifest =? await self.fetchManifest(cid), error:
+    trace "Unable to fetch manifest for cid"
+    return failure error
+
+  # Erasure code the dataset according to provided parameters
+  without encoded =? (await self.erasure.encode(manifest, ecK, ecM)), error:
+    trace "Unable to erasure code dataset"
+    return failure(error)
+
+  without builder =? SlotsBuilder.new(self.blockStore, encoded), err:
+    trace "Unable to create slot builder"
+    return failure(err)
+
+  without verifiable =? (await builder.buildManifest()), err:
+    trace "Unable to build verifiable manifest"
+    return failure(err)
+
+  without manifestBlk =? await self.storeManifest(verifiable), err:
+    trace "Unable to store verifiable manifest"
+    return failure(err)
+
+  let
+    verifyRoot =
+      if builder.verifyRoot.isNone:
+          return failure("No slots root")
+        else:
+          builder.verifyRoot.get.toBytes
+
+    slotRoots =
+      if builder.slotRoots.len <= 0:
+          return failure("Slots are empty")
+        else:
+          builder.slotRoots.mapIt( it.toBytes )
+
+    request = StorageRequest(
+      ask: StorageAsk(
+        slots: verifiable.numSlots.uint64,
+        slotSize: builder.slotBytes.uint.u256,
+        duration: duration,
+        proofProbability: proofProbability,
+        reward: reward,
+        collateral: collateral,
+        maxSlotLoss: tolerance
+      ),
+      content: StorageContent(
+        cid: $manifestBlk.cid, # TODO: why string?
+        merkleRoot: verifyRoot
+      ),
+      expiry: expiry
+    )
+
+  trace "Request created", request = $request
+  success request
 
 proc requestStorage*(
   self: CodexNodeRef,
@@ -319,64 +448,246 @@ proc requestStorage*(
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
   ##
-  ## Roughly the flow is as follows:
-  ## - Get the original cid from the store (should have already been uploaded)
-  ## - Erasure code it according to the nodes and tolerance parameters
-  ## - Run the PoR setup on the erasure dataset
-  ## - Call into the marketplace and purchasing contracts
-  ##
-  trace "Received a request for storage!", cid, duration, nodes, tolerance, reward, proofProbability, collateral, expiry
+
+  logScope:
+    cid               = cid
+    duration          = duration
+    nodes             = nodes
+    tolerance         = tolerance
+    reward            = reward
+    proofProbability  = proofProbability
+    collateral        = collateral
+    expiry            = expiry
+
+  trace "Received a request for storage!"
 
   without contracts =? self.contracts.client:
     trace "Purchasing not available"
     return failure "Purchasing not available"
 
-  without manifest =? await self.fetchManifest(cid), error:
-    trace "Unable to fetch manifest for cid", cid
-    raise error
-
-  # Erasure code the dataset according to provided parameters
-  without encoded =? (await self.erasure.encode(manifest, nodes.int, tolerance.int)), error:
-    trace "Unable to erasure code dataset", cid
-    return failure(error)
-
-  without encodedData =? encoded.encode(), error:
-    trace "Unable to encode protected manifest"
-    return failure(error)
-
-  without encodedBlk =? bt.Block.new(data = encodedData, codec = DagPBCodec), error:
-    trace "Unable to create block from encoded manifest"
-    return failure(error)
-
-  if isErr (await self.blockStore.putBlock(encodedBlk)):
-    trace "Unable to store encoded manifest block", cid = encodedBlk.cid
-    return failure("Unable to store encoded manifest block")
-
-  let request = StorageRequest(
-    ask: StorageAsk(
-      slots: nodes + tolerance,
-      # TODO: Specify slot-specific size (as below) once dispersal is
-      # implemented. The current implementation downloads the entire dataset, so
-      # it is currently set to be the size of the entire dataset. This is
-      # because the slotSize is used to determine the amount of bytes to reserve
-      # in a Reservations
-      # TODO: slotSize: (encoded.blockSize.int * encoded.steps).u256,
-      slotSize: (encoded.blockSize.int * encoded.blocksCount).u256,
-      duration: duration,
-      proofProbability: proofProbability,
-      reward: reward,
-      collateral: collateral,
-      maxSlotLoss: tolerance
-    ),
-    content: StorageContent(
-      cid: $encodedBlk.cid,
-      merkleRoot: array[32, byte].default # TODO: add merkle root for storage proofs
-    ),
-    expiry: expiry
-  )
+  without request =?
+    (await self.setupRequest(
+      cid,
+      duration,
+      proofProbability,
+      nodes,
+      tolerance,
+      reward,
+      collateral,
+      expiry)), err:
+    trace "Unable to setup request"
+    return failure err
 
   let purchase = await contracts.purchasing.purchase(request)
-  return success purchase.id
+  success purchase.id
+
+proc onStore(
+  self: CodexNodeRef,
+  request: StorageRequest,
+  slotIdx: UInt256,
+  blocksCb: BlocksCb): Future[?!void] {.async.} =
+  ## store data in local storage
+  ##
+
+  logScope:
+    cid = request.content.cid
+    slotIdx = slotIdx
+
+  trace "Received a request to store a slot!"
+
+  without cid =? Cid.init(request.content.cid).mapFailure, err:
+    trace "Unable to parse Cid", cid
+    return failure(err)
+
+  without manifest =? (await self.fetchManifest(cid)), err:
+    trace "Unable to fetch manifest for cid", cid, err = err.msg
+    return failure(err)
+
+  without builder =? SlotsBuilder.new(self.blockStore, manifest), err:
+    trace "Unable to create slots builder", err = err.msg
+    return failure(err)
+
+  let
+    slotIdx = slotIdx.truncate(int)
+    expiry = request.expiry.toSecondsSince1970
+
+  if slotIdx > manifest.slotRoots.high:
+    trace "Slot index not in manifest", slotIdx
+    return failure(newException(CodexError, "Slot index not in manifest"))
+
+  proc updateExpiry(blocks: seq[bt.Block]): Future[?!void] {.async.} =
+    trace "Updating expiry for blocks", blocks = blocks.len
+
+    let ensureExpiryFutures = blocks.mapIt(self.blockStore.ensureExpiry(it.cid, expiry))
+    if updateExpiryErr =? (await allFutureResult(ensureExpiryFutures)).errorOption:
+      return failure(updateExpiryErr)
+
+    if not blocksCb.isNil and err =? (await blocksCb(blocks)).errorOption:
+      trace "Unable to process blocks", err = err.msg
+      return failure(err)
+
+    return success()
+
+  if blksIter =? builder.slotIndiciesIter(slotIdx) and
+    err =? (await self.fetchBatched(
+      manifest.treeCid,
+      blksIter,
+      onBatch = updateExpiry)).errorOption:
+    trace "Unable to fetch blocks", err = err.msg
+    return failure(err)
+
+  without slotRoot =? (await builder.buildSlot(slotIdx.Natural)), err:
+    trace "Unable to build slot", err = err.msg
+    return failure(err)
+
+  if cid =? slotRoot.toSlotCid() and cid != manifest.slotRoots[slotIdx.int]:
+    trace "Slot root mismatch", manifest = manifest.slotRoots[slotIdx.int], recovered = slotRoot.toSlotCid()
+    return failure(newException(CodexError, "Slot root mismatch"))
+
+  return success()
+
+proc onProve(
+  self: CodexNodeRef,
+  slot: Slot,
+  challenge: ProofChallenge): Future[?!seq[byte]] {.async.} =
+  ## Generats a proof for a given slot and challenge
+  ##
+
+  let
+    cidStr = slot.request.content.cid
+    slotIdx = slot.slotIndex.truncate(Natural)
+
+  logScope:
+    cid = cidStr
+    slot = slotIdx
+    challenge = challenge
+
+  trace "Received proof challenge"
+
+  without cid =? Cid.init(cidStr).mapFailure, err:
+    error "Unable to parse Cid", cid, err = err.msg
+    return failure(err)
+
+  without manifest =? await self.fetchManifest(cid), err:
+    error "Unable to fetch manifest for cid", err = err.msg
+    return failure(err)
+
+  without builder =? SlotsBuilder.new(self.blockStore, manifest), err:
+    error "Unable to create slots builder", err = err.msg
+    return failure(err)
+
+  without sampler =? DataSampler.new(slotIdx, self.blockStore, builder), err:
+    error "Unable to create data sampler", err = err.msg
+    return failure(err)
+
+  without proofInput =? await sampler.getProofInput(challenge, nSamples = 3), err:
+    error "Unable to get proof input for slot", err = err.msg
+    return failure(err)
+
+  # Todo: send proofInput to circuit. Get proof. (Profit, repeat.)
+  success(@[42'u8])
+
+proc onExpiryUpdate(
+  self: CodexNodeRef,
+  rootCid: string,
+  expiry: SecondsSince1970): Future[?!void] {.async.} =
+  without cid =? Cid.init(rootCid):
+    trace "Unable to parse Cid", cid
+    let error = newException(CodexError, "Unable to parse Cid")
+    return failure(error)
+
+  return await self.updateExpiry(cid, expiry)
+
+proc onClear(
+  self: CodexNodeRef,
+  request: StorageRequest,
+  slotIndex: UInt256) =
+# TODO: remove data from local storage
+  discard
+
+proc start*(self: CodexNodeRef) {.async.} =
+  if not self.engine.isNil:
+    await self.engine.start()
+
+  if not self.erasure.isNil:
+    await self.erasure.start()
+
+  if not self.discovery.isNil:
+    await self.discovery.start()
+
+  if not self.clock.isNil:
+    await self.clock.start()
+
+  if hostContracts =? self.contracts.host:
+    hostContracts.sales.onStore =
+      proc(
+        request: StorageRequest,
+        slot: UInt256,
+        onBatch: BatchProc): Future[?!void] = self.onStore(request, slot, onBatch)
+
+    hostContracts.sales.onExpiryUpdate =
+      proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] =
+        self.onExpiryUpdate(rootCid, expiry)
+
+    hostContracts.sales.onClear =
+      proc(request: StorageRequest, slotIndex: UInt256) =
+      # TODO: remove data from local storage
+      self.onClear(request, slotIndex)
+
+    hostContracts.sales.onProve =
+      proc(slot: Slot, challenge: ProofChallenge): Future[?!seq[byte]] =
+        # TODO: generate proof
+        self.onProve(slot, challenge)
+
+    try:
+      await hostContracts.start()
+    except CatchableError as error:
+      error "Unable to start host contract interactions", error=error.msg
+      self.contracts.host = HostInteractions.none
+
+  if clientContracts =? self.contracts.client:
+    try:
+      await clientContracts.start()
+    except CatchableError as error:
+      error "Unable to start client contract interactions: ", error=error.msg
+      self.contracts.client = ClientInteractions.none
+
+  if validatorContracts =? self.contracts.validator:
+    try:
+      await validatorContracts.start()
+    except CatchableError as error:
+      error "Unable to start validator contract interactions: ", error=error.msg
+      self.contracts.validator = ValidatorInteractions.none
+
+  self.networkId = self.switch.peerInfo.peerId
+  notice "Started codex node", id = self.networkId, addrs = self.switch.peerInfo.addrs
+
+proc stop*(self: CodexNodeRef) {.async.} =
+  trace "Stopping node"
+
+  if not self.engine.isNil:
+    await self.engine.stop()
+
+  if not self.erasure.isNil:
+    await self.erasure.stop()
+
+  if not self.discovery.isNil:
+    await self.discovery.stop()
+
+  if not self.clock.isNil:
+    await self.clock.stop()
+
+  if clientContracts =? self.contracts.client:
+    await clientContracts.stop()
+
+  if hostContracts =? self.contracts.host:
+    await hostContracts.stop()
+
+  if validatorContracts =? self.contracts.validator:
+    await validatorContracts.stop()
+
+  if not self.blockStore.isNil:
+    await self.blockStore.close
 
 proc new*(
   T: type CodexNodeRef,
@@ -386,8 +697,9 @@ proc new*(
   erasure: Erasure,
   discovery: Discovery,
   contracts = Contracts.default): CodexNodeRef =
-  ## Create new instance of a Codex node, call `start` to run it
+  ## Create new instance of a Codex self, call `start` to run it
   ##
+
   CodexNodeRef(
     switch: switch,
     blockStore: store,
@@ -395,119 +707,3 @@ proc new*(
     erasure: erasure,
     discovery: discovery,
     contracts: contracts)
-
-proc start*(node: CodexNodeRef) {.async.} =
-  if not node.engine.isNil:
-    await node.engine.start()
-
-  if not node.erasure.isNil:
-    await node.erasure.start()
-
-  if not node.discovery.isNil:
-    await node.discovery.start()
-
-  if not node.clock.isNil:
-    await node.clock.start()
-
-  if hostContracts =? node.contracts.host:
-    # TODO: remove Sales callbacks, pass BlockStore and StorageProofs instead
-    hostContracts.sales.onStore = proc(request: StorageRequest,
-                                       slot: UInt256,
-                                       onBatch: BatchProc): Future[?!void] {.async.} =
-      ## store data in local storage
-      ##
-
-      without cid =? Cid.init(request.content.cid):
-        trace "Unable to parse Cid", cid
-        let error = newException(CodexError, "Unable to parse Cid")
-        return failure(error)
-
-      without manifest =? await node.fetchManifest(cid), error:
-        trace "Unable to fetch manifest for cid", cid
-        return failure(error)
-
-      trace "Fetching block for manifest", cid
-      let expiry = request.expiry.toSecondsSince1970
-      proc expiryUpdateOnBatch(blocks: seq[bt.Block]): Future[?!void] {.async.} =
-        let ensureExpiryFutures = blocks.mapIt(node.blockStore.ensureExpiry(it.cid, expiry))
-        if updateExpiryErr =? (await allFutureResult(ensureExpiryFutures)).errorOption:
-          return failure(updateExpiryErr)
-
-        if not onBatch.isNil and onBatchErr =? (await onBatch(blocks)).errorOption:
-          return failure(onBatchErr)
-
-        return success()
-
-      if fetchErr =? (await node.fetchBatched(manifest, onBatch = expiryUpdateOnBatch)).errorOption:
-        let error = newException(CodexError, "Unable to retrieve blocks")
-        error.parent = fetchErr
-        return failure(error)
-
-      return success()
-
-    hostContracts.sales.onExpiryUpdate = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.async.} =
-      without cid =? Cid.init(rootCid):
-        trace "Unable to parse Cid", cid
-        let error = newException(CodexError, "Unable to parse Cid")
-        return failure(error)
-
-      return await node.updateExpiry(cid, expiry)
-
-    hostContracts.sales.onClear = proc(request: StorageRequest,
-                                       slotIndex: UInt256) =
-      # TODO: remove data from local storage
-      discard
-
-    hostContracts.sales.onProve = proc(slot: Slot): Future[seq[byte]] {.async.} =
-      # TODO: generate proof
-      return @[42'u8]
-
-    try:
-      await hostContracts.start()
-    except CatchableError as error:
-      error "Unable to start host contract interactions", error=error.msg
-      node.contracts.host = HostInteractions.none
-
-  if clientContracts =? node.contracts.client:
-    try:
-      await clientContracts.start()
-    except CatchableError as error:
-      error "Unable to start client contract interactions: ", error=error.msg
-      node.contracts.client = ClientInteractions.none
-
-  if validatorContracts =? node.contracts.validator:
-    try:
-      await validatorContracts.start()
-    except CatchableError as error:
-      error "Unable to start validator contract interactions: ", error=error.msg
-      node.contracts.validator = ValidatorInteractions.none
-
-  node.networkId = node.switch.peerInfo.peerId
-  notice "Started codex node", id = $node.networkId, addrs = node.switch.peerInfo.addrs
-
-proc stop*(node: CodexNodeRef) {.async.} =
-  trace "Stopping node"
-
-  if not node.engine.isNil:
-    await node.engine.stop()
-
-  if not node.erasure.isNil:
-    await node.erasure.stop()
-
-  if not node.discovery.isNil:
-    await node.discovery.stop()
-
-  if not node.clock.isNil:
-    await node.clock.stop()
-
-  if clientContracts =? node.contracts.client:
-    await clientContracts.stop()
-
-  if hostContracts =? node.contracts.host:
-    await hostContracts.stop()
-
-  if validatorContracts =? node.contracts.validator:
-    await validatorContracts.stop()
-
-  if not node.blockStore.isNil:
-    await node.blockStore.close

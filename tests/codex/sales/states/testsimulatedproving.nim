@@ -1,4 +1,3 @@
-import pkg/asynctest
 import pkg/chronos
 import pkg/questionable
 import pkg/codex/contracts/requests
@@ -9,6 +8,8 @@ import pkg/codex/sales/states/failed
 import pkg/codex/sales/states/payout
 import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
+
+import ../../../asynctest
 import ../../examples
 import ../../helpers
 import ../../helpers/mockmarket
@@ -44,8 +45,8 @@ asyncchecksuite "sales state 'simulated-proving'":
     market.setProofRequired(slot.id, true)
     subscription = await market.subscribeProofSubmission(onProofSubmission)
 
-    let onProve = proc (slot: Slot): Future[seq[byte]] {.async.} =
-                        return proof
+    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[?!seq[byte]] {.async.} =
+                        return success(proof)
     let context = SalesContext(market: market, clock: clock, onProve: onProve.some)
     agent = newSalesAgent(context,
                           request.id,

@@ -3,13 +3,13 @@ import std/random
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronos
-import pkg/asynctest
 import pkg/datastore
 
 import pkg/codex/stores
 import pkg/codex/sales
 import pkg/codex/utils/json
 
+import ../../asynctest
 import ../examples
 import ../helpers
 
@@ -174,6 +174,24 @@ asyncchecksuite "Reservations module":
     let key = availability.key.get
     let updated = !(await reservations.get(key, Availability))
     check updated.size == orig
+
+  test "calling returnBytesToAvailability returns bytes back to availability":
+    let availability = createAvailability()
+    let reservation = createReservation(availability)
+    let orig = availability.size - reservation.size
+    let origQuota = repo.quotaReservedBytes
+    let returnedBytes = reservation.size + 200.u256
+
+    check isOk await reservations.returnBytesToAvailability(
+      reservation.availabilityId, reservation.id, returnedBytes
+    )
+
+    let key = availability.key.get
+    let updated = !(await reservations.get(key, Availability))
+
+    check updated.size > orig
+    check (updated.size - orig) == 200.u256
+    check (repo.quotaReservedBytes - origQuota) == 200
 
   test "reservation can be partially released":
     let availability = createAvailability()

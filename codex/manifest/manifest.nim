@@ -14,34 +14,36 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/libp2p/protobuf/minprotobuf
-import pkg/libp2p
-import pkg/questionable
+import pkg/libp2p/[cid, multihash, multicodec]
 import pkg/questionable/results
-import pkg/chronicles
 
 import ../errors
 import ../utils
 import ../utils/json
 import ../units
 import ../blocktype
-import ./types
-
-export types
+import ../logutils
 
 type
   Manifest* = ref object of RootObj
     treeCid {.serialize.}: Cid              # Root of the merkle tree
     datasetSize {.serialize.}:  NBytes      # Total size of all blocks
     blockSize {.serialize.}: NBytes         # Size of each contained block (might not be needed if blocks are len-prefixed)
-    version: CidVersion                     # Cid version
+    codec: MultiCodec                       # Dataset codec
     hcodec: MultiCodec                      # Multihash codec
-    codec: MultiCodec                       # Data set codec
+    version: CidVersion                     # Cid version
     case protected {.serialize.}: bool      # Protected datasets have erasure coded info
     of true:
       ecK: int                              # Number of blocks to encode
       ecM: int                              # Number of resulting parity blocks
       originalTreeCid: Cid                  # The original root of the dataset being erasure coded
       originalDatasetSize: NBytes
+      case verifiable {.serialize.}: bool   # Verifiable datasets can be used to generate storage proofs
+      of true:
+        verifyRoot: Cid                     # Root of the top level merkle tree built from slot roots
+        slotRoots: seq[Cid]                 # Individual slot root built from the original dataset blocks
+      else:
+        discard
     else:
       discard
 
@@ -88,16 +90,30 @@ proc treeCid*(self: Manifest): Cid =
 proc blocksCount*(self: Manifest): int =
   divUp(self.datasetSize.int, self.blockSize.int)
 
+proc verifiable*(self: Manifest): bool =
+  self.verifiable
+
+proc verifyRoot*(self: Manifest): Cid =
+  self.verifyRoot
+
+proc slotRoots*(self: Manifest): seq[Cid] =
+  self.slotRoots
+
+proc numSlots*(self: Manifest): int =
+  if not self.protected:
+    0
+  else:
+    self.ecK + self.ecM
+
 ############################################################
 # Operations on block list
 ############################################################
 
 func isManifest*(cid: Cid): ?!bool =
-  let res = ?cid.contentType().mapFailure(CodexError)
-  ($(res) in ManifestContainers).success
+  success (ManifestCodec == ? cid.contentType().mapFailure(CodexError))
 
 func isManifest*(mc: MultiCodec): ?!bool =
-  ($mc in ManifestContainers).success
+  success mc == ManifestCodec
 
 ############################################################
 # Various sizes and verification
@@ -142,7 +158,13 @@ proc `==`*(a, b: Manifest): bool =
       (a.ecK == b.ecK) and
       (a.ecM == b.ecM) and
       (a.originalTreeCid == b.originalTreeCid) and
-      (a.originalDatasetSize == b.originalDatasetSize)
+      (a.originalDatasetSize == b.originalDatasetSize) and
+      (a.verifiable == b.verifiable) and
+        (if a.verifiable:
+          (a.verifyRoot == b.verifyRoot) and
+          (a.slotRoots == b.slotRoots)
+        else:
+          true)
     else:
       true)
 
@@ -158,7 +180,13 @@ proc `$`*(self: Manifest): string =
       ", ecK: " & $self.ecK &
       ", ecM: " & $self.ecM &
       ", originalTreeCid: " & $self.originalTreeCid &
-      ", originalDatasetSize: " & $self.originalDatasetSize
+      ", originalDatasetSize: " & $self.originalDatasetSize &
+      ", verifiable: " & $self.verifiable &
+      (if self.verifiable:
+        ", verifyRoot: " & $self.verifyRoot &
+        ", slotRoots: " & $self.slotRoots
+      else:
+        "")
     else:
       "")
 
@@ -167,15 +195,14 @@ proc `$`*(self: Manifest): string =
 ############################################################
 
 proc new*(
-    T: type Manifest,
-    treeCid: Cid,
-    blockSize: NBytes,
-    datasetSize: NBytes,
-    version: CidVersion = CIDv1,
-    hcodec = multiCodec("sha2-256"),
-    codec = multiCodec("raw"),
-    protected = false,
-): Manifest =
+  T: type Manifest,
+  treeCid: Cid,
+  blockSize: NBytes,
+  datasetSize: NBytes,
+  version: CidVersion = CIDv1,
+  hcodec = Sha256HashCodec,
+  codec = BlockCodec,
+  protected = false): Manifest =
 
   T(
     treeCid: treeCid,
@@ -187,15 +214,15 @@ proc new*(
     protected: protected)
 
 proc new*(
-    T: type Manifest,
-    manifest: Manifest,
-    treeCid: Cid,
-    datasetSize: NBytes,
-    ecK, ecM: int
-): Manifest =
+  T: type Manifest,
+  manifest: Manifest,
+  treeCid: Cid,
+  datasetSize: NBytes,
+  ecK, ecM: int): Manifest =
   ## Create an erasure protected dataset from an
   ## unprotected one
   ##
+
   Manifest(
     treeCid: treeCid,
     datasetSize: datasetSize,
@@ -209,12 +236,12 @@ proc new*(
     originalDatasetSize: manifest.datasetSize)
 
 proc new*(
-    T: type Manifest,
-    manifest: Manifest
-): Manifest =
+  T: type Manifest,
+  manifest: Manifest): Manifest =
   ## Create an unprotected dataset from an
   ## erasure protected one
   ##
+
   Manifest(
     treeCid: manifest.originalTreeCid,
     datasetSize: manifest.originalDatasetSize,
@@ -226,12 +253,11 @@ proc new*(
 
 proc new*(
   T: type Manifest,
-  data: openArray[byte],
-  decoder = ManifestContainers[$DagPBCodec]
-): ?!Manifest =
+  data: openArray[byte]): ?!Manifest =
   ## Create a manifest instance from given data
   ##
-  Manifest.decode(data, decoder)
+
+  Manifest.decode(data)
 
 proc new*(
   T: type Manifest,
@@ -244,8 +270,8 @@ proc new*(
   ecK: int,
   ecM: int,
   originalTreeCid: Cid,
-  originalDatasetSize: NBytes
-): Manifest =
+  originalDatasetSize: NBytes): Manifest =
+
   Manifest(
     treeCid: treeCid,
     datasetSize: datasetSize,
@@ -259,3 +285,36 @@ proc new*(
     originalTreeCid: originalTreeCid,
     originalDatasetSize: originalDatasetSize
   )
+
+proc new*(
+  T: type Manifest,
+  manifest: Manifest,
+  verifyRoot: Cid,
+  slotRoots: openArray[Cid]): ?!Manifest =
+  ## Create a verifiable dataset from an
+  ## protected one
+  ##
+
+  if not manifest.protected:
+    return failure newException(
+      CodexError, "Can create verifiable manifest only from protected manifest.")
+
+  if slotRoots.len != manifest.numSlots:
+    return failure newException(
+      CodexError, "Wrong number of slot roots.")
+
+  success Manifest(
+    treeCid: manifest.treeCid,
+    datasetSize: manifest.datasetSize,
+    version: manifest.version,
+    codec: manifest.codec,
+    hcodec: manifest.hcodec,
+    blockSize: manifest.blockSize,
+    protected: true,
+    ecK: manifest.ecK,
+    ecM: manifest.ecM,
+    originalTreeCid: manifest.treeCid,
+    originalDatasetSize: manifest.originalDatasetSize,
+    verifiable: true,
+    verifyRoot: verifyRoot,
+    slotRoots: @slotRoots)

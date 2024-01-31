@@ -5,7 +5,7 @@
   "hostOS": "macosx",
   "items": {
     "asynctest": {
-      "commit": "fe1a34caf572b05f8bdba3b650f1871af9fce31e",
+      "commit": "8e2f4e73b97123be0f0041c129942b32df23ecb1",
       "dir": "vendor/asynctest",
       "url": "https://github.com/codex-storage/asynctest"
     },
@@ -190,7 +190,7 @@
       "url": "https://github.com/zevv/npeg"
     },
     "questionable": {
-      "commit": "b3cf35ac450fd42c9ea83dc084f5cba2efc55da3",
+      "commit": "47692e0d923ada8f7f731275b2a87614c0150987",
       "dir": "vendor/questionable",
       "url": "https://github.com/codex-storage/questionable"
     },

@@ -1,10 +1,10 @@
 
-import pkg/asynctest
 import pkg/stew/byteutils
 import pkg/codex/chunker
-import pkg/chronicles
+import pkg/codex/logutils
 import pkg/chronos
 
+import ../asynctest
 import ./helpers
 
 asyncchecksuite "Chunking":
@@ -61,7 +61,7 @@ asyncchecksuite "Chunking":
 
   test "should chunk file":
     let
-      (path, _, _) = instantiationInfo(-2, fullPaths = true) # get this file's name
+      path = currentSourcePath()
       file = open(path)
       fileChunker = FileChunker.new(file = file, chunkSize = 256'nb, pad = false)
 

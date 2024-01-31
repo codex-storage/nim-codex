@@ -10,13 +10,13 @@
 import std/random
 import std/sequtils
 import pkg/chronos
-import pkg/asynctest
 import pkg/questionable
 import pkg/questionable/results
 import pkg/codex/blocktype as bt
 import pkg/codex/stores/repostore
 import pkg/codex/clock
 
+import ../../asynctest
 import ../helpers/mocktimer
 import ../helpers/mockrepostore
 import ../helpers/mockclock
@@ -29,8 +29,8 @@ proc createManifestCid(): ?!Cid =
   let
     length = rand(4096)
     bytes = newSeqWith(length, rand(uint8))
-    mcodec = multiCodec("sha2-256")
-    codec = multiCodec("dag-pb")
+    mcodec = Sha256HashCodec
+    codec = ManifestCodec
     version = CIDv1
 
   let hash = ? MultiHash.digest($mcodec, bytes).mapFailure

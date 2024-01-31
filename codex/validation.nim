@@ -1,9 +1,9 @@
 import std/sets
 import std/sequtils
 import pkg/chronos
-import pkg/chronicles
 import ./market
 import ./clock
+import ./logutils
 
 export market
 export sets
@@ -48,7 +48,7 @@ proc subscribeSlotFilled(validation: Validation) {.async.} =
     let slotId = slotId(requestId, slotIndex)
     if slotId notin validation.slots:
       if validation.slots.len < validation.maxSlots:
-        trace "Adding slot", slotId = $slotId
+        trace "Adding slot", slotId
         validation.slots.incl(slotId)
   let subscription = await validation.market.subscribeSlotFilled(onSlotFilled)
   validation.subscriptions.add(subscription)
@@ -58,7 +58,7 @@ proc removeSlotsThatHaveEnded(validation: Validation) {.async.} =
   for slotId in validation.slots:
     let state = await validation.market.slotState(slotId)
     if state != SlotState.Filled:
-      trace "Removing slot", slot = $slotId
+      trace "Removing slot", slotId
       ended.incl(slotId)
   validation.slots.excl(ended)
 
@@ -70,9 +70,11 @@ proc markProofAsMissing(validation: Validation,
 
   try:
     if await validation.market.canProofBeMarkedAsMissing(slotId, period):
-      trace "Marking proof as missing", slotId = $slotId, periodProofMissed = period
+      trace "Marking proof as missing", slotId, periodProofMissed = period
       await validation.market.markProofAsMissing(slotId, period)
-    else: trace "Proof not missing", checkedPeriod = period
+    else:
+      let inDowntime {.used.} = await validation.market.inDowntime(slotId)
+      trace "Proof not missing", checkedPeriod = period, inDowntime
   except CancelledError:
     raise
   except CatchableError as e:

@@ -3,13 +3,13 @@ import std/sugar
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
-import pkg/chronicles
 import pkg/datastore
 import ./market
 import ./clock
 import ./stores
 import ./contracts/requests
 import ./contracts/marketplace
+import ./logutils
 import ./sales/salescontext
 import ./sales/salesagent
 import ./sales/statemachine
@@ -40,6 +40,7 @@ import ./utils/trackedfutures
 export stint
 export reservations
 export salesagent
+export salescontext
 
 logScope:
   topics = "sales marketplace"
@@ -109,6 +110,7 @@ proc remove(sales: Sales, agent: SalesAgent) {.async.} =
 
 proc cleanUp(sales: Sales,
              agent: SalesAgent,
+             returnBytes: bool,
              processing: Future[void]) {.async.} =
 
   let data = agent.data
@@ -119,9 +121,19 @@ proc cleanUp(sales: Sales,
     reservationId = data.reservation.?id |? ReservationId.default,
     availabilityId = data.reservation.?availabilityId |? AvailabilityId.default
 
-  # TODO: return bytes that were used in the request back to the availability
-  # as well, which will require removing the bytes from disk (perhaps via
-  # setting blockTTL to -1 and then running block maintainer?)
+  # if reservation for the SalesAgent was not created, then it means
+  # that the cleanUp was called before the sales process really started, so
+  # there are not really any bytes to be returned
+  if returnBytes and request =? data.request and reservation =? data.reservation:
+    if returnErr =? (await sales.context.reservations.returnBytesToAvailability(
+                        reservation.availabilityId,
+                        reservation.id,
+                        request.ask.slotSize
+                      )).errorOption:
+          error "failure returning bytes",
+            error = returnErr.msg,
+            availabilityId = reservation.availabilityId,
+            bytes = request.ask.slotSize
 
   # delete reservation and return reservation bytes back to the availability
   if reservation =? data.reservation and
@@ -154,7 +166,7 @@ proc filled(
     processing.complete()
 
 proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
-  debug "processing slot from queue", requestId = $item.requestId,
+  debug "processing slot from queue", requestId = item.requestId,
     slot = item.slotIndex
 
   let agent = newSalesAgent(
@@ -164,8 +176,8 @@ proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
     none StorageRequest
   )
 
-  agent.onCleanUp = proc {.async.} =
-    await sales.cleanUp(agent, done)
+  agent.onCleanUp = proc (returnBytes = false) {.async.} =
+    await sales.cleanUp(agent, returnBytes, done)
 
   agent.onFilled = some proc(request: StorageRequest, slotIndex: UInt256) =
     sales.filled(request, slotIndex, done)
@@ -229,9 +241,9 @@ proc load*(sales: Sales) {.async.} =
       slot.slotIndex,
       some slot.request)
 
-    agent.onCleanUp = proc {.async.} =
+    agent.onCleanUp = proc(returnBytes = false) {.async.} =
       let done = newFuture[void]("onCleanUp_Dummy")
-      await sales.cleanUp(agent, done)
+      await sales.cleanUp(agent, returnBytes, done)
       await done # completed in sales.cleanUp
 
     agent.start(SaleUnknown())
@@ -289,7 +301,7 @@ proc onStorageRequested(sales: Sales,
                         expiry: UInt256) =
 
   logScope:
-    topics = " marketplace sales onStorageRequested"
+    topics = "marketplace sales onStorageRequested"
     requestId
     slots = ask.slots
     expiry
@@ -492,6 +504,7 @@ proc start*(sales: Sales) {.async.} =
   await sales.load()
   await sales.startSlotQueue()
   await sales.subscribe()
+  sales.running = true
 
 proc stop*(sales: Sales) {.async.} =
   trace "stopping sales"

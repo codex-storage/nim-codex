@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import std/options
+
 import pkg/stew/results
 import pkg/chronos
 import pkg/questionable/results
@@ -28,6 +30,13 @@ template mapFailure*[T, V, E](
 
 template mapFailure*[T, V](exp: Result[T, V]): Result[T, ref CatchableError] =
   mapFailure(exp, CodexError)
+
+# TODO: using a template here, causes bad codegen
+func toFailure*[T](exp: Option[T]): Result[T, ref CatchableError] {.inline.} =
+  if exp.isSome:
+    success exp.get
+  else:
+    T.failure("Option is None")
 
 proc allFutureResult*[T](fut: seq[Future[T]]): Future[?!void] {.async.} =
   try:

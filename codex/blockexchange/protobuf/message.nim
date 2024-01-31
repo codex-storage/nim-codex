@@ -37,7 +37,7 @@ type
   BlockDelivery* = object
     blk*: Block
     address*: BlockAddress
-    proof*: ?MerkleProof    # Present only if `address.leaf` is true
+    proof*: ?CodexProof    # Present only if `address.leaf` is true
 
   BlockPresenceType* = enum
     Have = 0,
@@ -152,7 +152,7 @@ proc decode*(_: type BlockAddress, pb: ProtoBuffer): ProtoResult[BlockAddress] =
 
   if ? pb.getField(1, field):
     leaf = bool(field)
-  
+
   if leaf:
     var
       treeCid: Cid
@@ -175,7 +175,6 @@ proc decode*(_: type WantListEntry, pb: ProtoBuffer): ProtoResult[WantListEntry]
     value = WantListEntry()
     field: uint64
     ipb: ProtoBuffer
-    buf = newSeq[byte]()
   if ? pb.getField(1, ipb):
     value.address = ? BlockAddress.decode(ipb)
   if ? pb.getField(2, field):
@@ -203,7 +202,6 @@ proc decode*(_: type WantList, pb: ProtoBuffer): ProtoResult[WantList] =
 proc decode*(_: type BlockDelivery, pb: ProtoBuffer): ProtoResult[BlockDelivery] =
   var
     value = BlockDelivery()
-    field: uint64
     dataBuf = newSeq[byte]()
     cidBuf = newSeq[byte]()
     cid: Cid
@@ -215,16 +213,16 @@ proc decode*(_: type BlockDelivery, pb: ProtoBuffer): ProtoResult[BlockDelivery]
     value.blk = ? Block.new(cid, dataBuf, verify = true).mapErr(x => ProtoError.IncorrectBlob)
   if ? pb.getField(3, ipb):
     value.address = ? BlockAddress.decode(ipb)
-  
+
   if value.address.leaf:
     var proofBuf = newSeq[byte]()
     if ? pb.getField(4, proofBuf):
-      let proof = ? MerkleProof.decode(proofBuf).mapErr(x => ProtoError.IncorrectBlob)
+      let proof = ? CodexProof.decode(proofBuf).mapErr(x => ProtoError.IncorrectBlob)
       value.proof = proof.some
     else:
-      value.proof = MerkleProof.none
+      value.proof = CodexProof.none
   else:
-    value.proof = MerkleProof.none
+    value.proof = CodexProof.none
 
   ok(value)
 

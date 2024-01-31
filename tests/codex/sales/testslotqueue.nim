@@ -1,13 +1,14 @@
 import std/sequtils
-import pkg/asynctest
 import pkg/chronicles
 import pkg/chronos
 import pkg/datastore
 import pkg/questionable
 import pkg/questionable/results
 
+import pkg/codex/logutils
 import pkg/codex/sales/slotqueue
 
+import ../../asynctest
 import ../helpers
 import ../helpers/mockmarket
 import ../examples

@@ -1,9 +1,11 @@
-import pkg/asynctest
 import pkg/chronos
 import pkg/stew/byteutils
+import pkg/codex/stores
+
+import ../../../asynctest
 import ../../examples
 import ../../helpers
-import pkg/codex/stores
+
 
 checksuite "account protobuf messages":
 

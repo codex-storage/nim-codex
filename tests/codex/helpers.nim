@@ -9,6 +9,7 @@ import pkg/codex/manifest
 import pkg/codex/merkletree
 import pkg/codex/blockexchange
 import pkg/codex/rng
+import pkg/codex/utils
 
 import ./helpers/nodeutils
 import ./helpers/randomchunker
@@ -27,6 +28,13 @@ export libp2p except setup, eventually
 func `==`*(a, b: Block): bool =
   (a.cid == b.cid) and (a.data == b.data)
 
+proc calcEcBlocksCount*(blocksCount: int, ecK, ecM: int): int =
+  let
+    rounded = roundUp(blocksCount, ecK)
+    steps = divUp(blocksCount, ecK)
+
+  rounded + (steps * ecM)
+
 proc lenPrefix*(msg: openArray[byte]): seq[byte] =
   ## Write `msg` with a varint-encoded length prefix
   ##
@@ -38,23 +46,20 @@ proc lenPrefix*(msg: openArray[byte]): seq[byte] =
 
   return buf
 
-proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, MerkleTree) =
+proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, CodexTree) =
 
   if blocks.len == 0:
     return failure("Blocks list was empty")
 
-  let 
+  let
     datasetSize = blocks.mapIt(it.data.len).foldl(a + b)
     blockSize = blocks.mapIt(it.data.len).foldl(max(a, b))
-    tree = ? MerkleTree.init(blocks.mapIt(it.cid))
+    tree = ? CodexTree.init(blocks.mapIt(it.cid))
     treeCid = ? tree.rootCid
     manifest = Manifest.new(
       treeCid = treeCid,
       blockSize = NBytes(blockSize),
-      datasetSize = NBytes(datasetSize),
-      version = CIDv1,
-      hcodec = tree.mcodec
-    )
+      datasetSize = NBytes(datasetSize))
 
   return success((manifest, tree))
 
@@ -87,18 +92,17 @@ proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest
     cids.add(blk.cid)
     (await store.putBlock(blk)).tryGet()
 
-  let 
-    tree = MerkleTree.init(cids).tryGet()
+  let
+    tree = CodexTree.init(cids).tryGet()
     treeCid = tree.rootCid.tryGet()
     manifest = Manifest.new(
       treeCid = treeCid,
       blockSize = NBytes(chunker.chunkSize),
-      datasetSize = NBytes(chunker.offset),
-    )
+      datasetSize = NBytes(chunker.offset))
 
   for i in 0..<tree.leavesCount:
     let proof = tree.getProof(i).tryGet()
-    (await store.putBlockCidAndProof(treeCid, i, cids[i], proof)).tryGet()
+    (await store.putCidAndProof(treeCid, i, cids[i], proof)).tryGet()
 
   return manifest
 

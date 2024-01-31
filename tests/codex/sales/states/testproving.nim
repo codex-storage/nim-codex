@@ -1,4 +1,3 @@
-import pkg/asynctest
 import pkg/chronos
 import pkg/questionable
 import pkg/codex/contracts/requests
@@ -8,6 +7,8 @@ import pkg/codex/sales/states/failed
 import pkg/codex/sales/states/payout
 import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
+
+import ../../../asynctest
 import ../../examples
 import ../../helpers
 import ../../helpers/mockmarket
@@ -23,12 +24,14 @@ asyncchecksuite "sales state 'proving'":
   var clock: MockClock
   var agent: SalesAgent
   var state: SaleProving
+  var receivedChallenge: ProofChallenge
 
   setup:
     clock = MockClock.new()
     market = MockMarket.new()
-    let onProve = proc (slot: Slot): Future[seq[byte]] {.async.} =
-                        return proof
+    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[?!seq[byte]] {.async.} =
+                        receivedChallenge = challenge
+                        return success(proof)
     let context = SalesContext(market: market, clock: clock, onProve: onProve.some)
     agent = newSalesAgent(context,
                           request.id,
@@ -80,3 +83,11 @@ asyncchecksuite "sales state 'proving'":
     check eventually future.finished
     check !(future.read()) of SalePayout
 
+  test "onProve callback provides proof challenge":
+    market.proofChallenge = ProofChallenge.example
+    market.slotState[slot.id] = SlotState.Filled
+    market.setProofRequired(slot.id, true)
+
+    let future = state.run(agent)
+
+    check receivedChallenge == market.proofChallenge

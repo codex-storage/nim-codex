@@ -1,8 +1,9 @@
-import pkg/asynctest
 import pkg/questionable
 import pkg/chronos
 import pkg/upraises
 import codex/utils/asyncstatemachine
+
+import ../../asynctest
 import ../helpers
 
 type

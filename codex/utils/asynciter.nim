@@ -2,12 +2,11 @@ import std/sugar
 
 import pkg/questionable
 import pkg/chronos
-import pkg/upraises
 
 type
-  Function*[T, U] = proc(fut: T): U {.upraises: [CatchableError], gcsafe, closure.}
-  IsFinished* = proc(): bool {.upraises: [], gcsafe, closure.}
-  GenNext*[T] = proc(): T {.upraises: [CatchableError], gcsafe, closure.}
+  Function*[T, U] = proc(fut: T): U {.raises: [CatchableError], gcsafe, closure.}
+  IsFinished* = proc(): bool {.raises: [], gcsafe, closure.}
+  GenNext*[T] = proc(): T {.raises: [CatchableError], gcsafe, closure.}
   Iter*[T] = ref object
     finished: bool
     next*: GenNext[T]
@@ -36,7 +35,7 @@ proc map*[T, U](fut: Future[T], fn: Function[T, U]): Future[U] {.async.} =
 proc new*[T](_: type Iter, genNext: GenNext[T], isFinished: IsFinished, finishOnErr: bool = true): Iter[T] =
   var iter = Iter[T]()
 
-  proc next(): T {.upraises: [CatchableError].} =
+  proc next(): T {.raises: [CatchableError].} =
     if not iter.finished:
       var item: T
       try:
@@ -145,4 +144,3 @@ proc prefetch*[T](iter: Iter[T], n: Positive): Iter[T] =
     tryFetch(j)
 
   Iter.new(genNext, isFinished)
-

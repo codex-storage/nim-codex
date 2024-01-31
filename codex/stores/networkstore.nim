@@ -7,32 +7,27 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/upraises
 
+import pkg/upraises
 push: {.upraises: [].}
 
-import std/sugar
-
-import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
 import pkg/questionable/results
 
+import ../clock
+import ../blocktype
+import ../blockexchange
+import ../logutils
+import ../merkletree
 import ../utils/asyncheapqueue
 import ../utils/asynciter
-import ../clock
-
-import ../blocktype
 import ./blockstore
-import ../blockexchange
-import ../merkletree
 
 export blockstore, blockexchange, asyncheapqueue
 
 logScope:
   topics = "codex networkstore"
-
-const BlockPrefetchAmount = 5
 
 type
   NetworkStore* = ref object of BlockStore
@@ -82,13 +77,22 @@ method putBlock*(
   await self.engine.resolveBlocks(@[blk])
   return success()
 
-method putBlockCidAndProof*(
+method putCidAndProof*(
   self: NetworkStore,
   treeCid: Cid,
   index: Natural,
   blockCid: Cid,
-  proof: MerkleProof): Future[?!void] =
-  self.localStore.putBlockCidAndProof(treeCid, index, blockCid, proof)
+  proof: CodexProof): Future[?!void] =
+  self.localStore.putCidAndProof(treeCid, index, blockCid, proof)
+
+method getCidAndProof*(
+  self: NetworkStore,
+  treeCid: Cid,
+  index: Natural): Future[?!(Cid, CodexProof)] =
+  ## Get a block proof from the blockstore
+  ##
+
+  self.localStore.getCidAndProof(treeCid, index)
 
 method ensureExpiry*(
   self: NetworkStore,

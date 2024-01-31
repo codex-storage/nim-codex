@@ -1,7 +1,6 @@
 import std/sequtils
 import std/sugar
 
-import pkg/asynctest
 import pkg/chronos
 import pkg/datastore
 import pkg/questionable/results
@@ -13,9 +12,10 @@ import pkg/codex/blocktype as bt
 import pkg/codex/rng
 import pkg/codex/utils
 
+import ../asynctest
 import ./helpers
 
-asyncchecksuite "Erasure encode/decode":
+suite "Erasure encode/decode":
   const BlockSize = 1024'nb
   const dataSetSize = BlockSize * 123 # weird geometry
 
@@ -39,8 +39,8 @@ asyncchecksuite "Erasure encode/decode":
     let
       encoded = (await erasure.encode(
         manifest,
-        buffers,
-        parity)).tryGet()
+        buffers.Natural,
+        parity.Natural)).tryGet()
 
     check:
       encoded.blocksCount mod (buffers + parity) == 0

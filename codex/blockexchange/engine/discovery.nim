@@ -10,22 +10,21 @@
 import std/sequtils
 
 import pkg/chronos
-import pkg/chronicles
 import pkg/libp2p/cid
 import pkg/metrics
 import pkg/questionable
 import pkg/questionable/results
 
-import ../protobuf/presence
+import ./pendingblocks
 
+import ../protobuf/presence
 import ../network
 import ../peers
 
 import ../../utils
 import ../../discovery
 import ../../stores/blockstore
-
-import ./pendingblocks
+import ../../logutils
 
 logScope:
   topics = "codex discoveryengine"

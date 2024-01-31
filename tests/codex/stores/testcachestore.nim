@@ -1,7 +1,6 @@
 import std/strutils
 
 import pkg/chronos
-import pkg/asynctest
 import pkg/stew/byteutils
 import pkg/questionable/results
 import pkg/codex/stores/cachestore
@@ -9,6 +8,7 @@ import pkg/codex/chunker
 
 import ./commonstoretests
 
+import ../../asynctest
 import ../helpers
 
 checksuite "Cache Store":

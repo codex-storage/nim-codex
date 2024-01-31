@@ -3,9 +3,9 @@ import std/strutils
 import std/sequtils
 
 from pkg/libp2p import Cid, `$`, init
-import pkg/chronicles
 import pkg/stint
 import pkg/questionable/results
+import pkg/codex/logutils
 import pkg/codex/rest/json
 import pkg/codex/purchasing
 import pkg/codex/errors
@@ -55,6 +55,16 @@ proc list*(client: CodexClient): ?!seq[RestContent] =
 
   let json = ? parseJson(response.body).catch
   seq[RestContent].fromJson(json)
+
+proc space*(client: CodexClient): ?!RestRepoStore =
+  let url = client.baseurl & "/space"
+  let response = client.http.get(url)
+
+  if response.status != "200 OK":
+    return failure(response.status)
+
+  let json = ? parseJson(response.body).catch
+  RestRepoStore.fromJson(json)
 
 proc requestStorageRaw*(
     client: CodexClient,

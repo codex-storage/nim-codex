@@ -3,7 +3,6 @@ import std/strutils
 import std/options
 
 import pkg/chronos
-import pkg/asynctest
 import pkg/libp2p/multicodec
 import pkg/stew/byteutils
 import pkg/questionable
@@ -14,6 +13,7 @@ import pkg/codex/manifest
 import pkg/codex/merkletree
 import pkg/codex/utils
 
+import ../../asynctest
 import ../helpers
 
 type
@@ -30,7 +30,7 @@ proc commonBlockStoreTests*(name: string,
     var
       newBlock, newBlock1, newBlock2, newBlock3: Block
       manifest: Manifest
-      tree: MerkleTree
+      tree: CodexTree
       store: BlockStore
 
     setup:
@@ -110,7 +110,7 @@ proc commonBlockStoreTests*(name: string,
     test "listBlocks Manifest":
       let
         blocks = @[newBlock1, newBlock2, newBlock3]
-        manifestBlock = Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
+        manifestBlock = Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
         treeBlock = Block.new(tree.encode()).tryGet()
         putHandles = await allFinished(
          (@[treeBlock, manifestBlock] & blocks).mapIt( store.putBlock( it ) ))
@@ -134,7 +134,7 @@ proc commonBlockStoreTests*(name: string,
     test "listBlocks Both":
       let
         blocks = @[newBlock1, newBlock2, newBlock3]
-        manifestBlock = Block.new(manifest.encode().tryGet(), codec = DagPBCodec).tryGet()
+        manifestBlock = Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
         treeBlock = Block.new(tree.encode()).tryGet()
         putHandles = await allFinished(
          (@[treeBlock, manifestBlock] & blocks).mapIt( store.putBlock( it ) ))

@@ -3,7 +3,6 @@ import std/random
 import std/algorithm
 
 import pkg/stew/byteutils
-import pkg/asynctest
 import pkg/chronos
 import pkg/libp2p/errors
 import pkg/libp2p/routing_record
@@ -18,6 +17,7 @@ import pkg/codex/blocktype
 import pkg/codex/utils/asyncheapqueue
 import pkg/codex/utils/asyncprofiler
 
+import ../../../asynctest
 import ../../helpers
 import ../../examples
 

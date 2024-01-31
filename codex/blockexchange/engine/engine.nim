@@ -14,7 +14,6 @@ import std/algorithm
 import std/sugar
 
 import pkg/chronos
-import pkg/chronicles
 import pkg/libp2p/[cid, switch, multihash, multicodec]
 import pkg/metrics
 import pkg/stint
@@ -23,6 +22,7 @@ import ../../stores/blockstore
 import ../../blocktype
 import ../../utils
 import ../../merkletree
+import ../../logutils
 
 import ../protobuf/blockexc
 import ../protobuf/presence
@@ -328,11 +328,9 @@ proc validateBlockDelivery(
     without treeRoot =? bd.address.treeCid.mhash.mapFailure, err:
       return failure("Unable to get mhash from treeCid for block, nested err: " & err.msg)
 
-    without verifyOutcome =? proof.verifyLeaf(leaf, treeRoot), err:
+    if err =? proof.verify(leaf, treeRoot).errorOption:
       return failure("Unable to verify proof for block, nested err: " & err.msg)
 
-    if not verifyOutcome:
-      return failure("Provided inclusion proof is invalid")
   else: # not leaf
     if bd.address.cid != bd.blk.cid:
       return failure("Delivery cid " & $bd.address.cid & " doesn't match block cid " & $bd.blk.cid)
@@ -363,7 +361,12 @@ proc blocksDeliveryHandler*(
       without proof =? bd.proof:
         error "Proof expected for a leaf block delivery"
         continue
-      if err =? (await b.localStore.putBlockCidAndProof(bd.address.treeCid, bd.address.index, bd.blk.cid, proof)).errorOption:
+      if err =? (await b.localStore.putCidAndProof(
+          bd.address.treeCid,
+          bd.address.index,
+          bd.blk.cid,
+          proof)).errorOption:
+
         error "Unable to store proof and cid for a block"
         continue
 
@@ -447,7 +450,7 @@ proc wantListHandler*(
     trace "Sending presence to remote", items = presence.len
     await b.network.request.sendPresence(peer, presence)
 
-  trace "Scheduling a task for this peer, to look over their want-list", peer
+  trace "Scheduling a task to check want-list", peer
   if not b.scheduleTask(peerCtx):
     trace "Unable to schedule task for peer", peer
 
@@ -537,12 +540,12 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       trace "Handling lookup for entry", address = e.address
       if e.address.leaf:
         (await b.localStore.getBlockAndProof(e.address.treeCid, e.address.index)).map(
-          (blkAndProof: (Block, MerkleProof)) =>
+          (blkAndProof: (Block, CodexProof)) =>
             BlockDelivery(address: e.address, blk: blkAndProof[0], proof: blkAndProof[1].some)
         )
       else:
         (await b.localStore.getBlock(e.address)).map(
-          (blk: Block) => BlockDelivery(address: e.address, blk: blk, proof: MerkleProof.none)
+          (blk: Block) => BlockDelivery(address: e.address, blk: blk, proof: CodexProof.none)
         )
 
     let

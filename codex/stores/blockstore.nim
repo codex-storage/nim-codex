@@ -43,13 +43,18 @@ method getBlock*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!Block
 
   raiseAssert("getBlock by treecid not implemented!")
 
+method getCid*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!Cid] {.base.} =
+  ## Get a cid given a tree and index
+  ##
+  raiseAssert("getCid by treecid not implemented!")
+
 method getBlock*(self: BlockStore, address: BlockAddress): Future[?!Block] {.base.} =
   ## Get a block from the blockstore
   ##
 
   raiseAssert("getBlock by addr not implemented!")
 
-method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!(Block, MerkleProof)] {.base.} =
+method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!(Block, CodexProof)] {.base.} =
   ## Get a block and associated inclusion proof by Cid of a merkle tree and an index of a leaf in a tree
   ##
 
@@ -65,17 +70,26 @@ method putBlock*(
 
   raiseAssert("putBlock not implemented!")
 
-method putBlockCidAndProof*(
+method putCidAndProof*(
   self: BlockStore,
   treeCid: Cid,
   index: Natural,
   blockCid: Cid,
-  proof: MerkleProof
+  proof: CodexProof
 ): Future[?!void] {.base.} =
-  ## Put a block to the blockstore
+  ## Put a block proof to the blockstore
   ##
 
-  raiseAssert("putBlockCidAndProof not implemented!")
+  raiseAssert("putCidAndProof not implemented!")
+
+method getCidAndProof*(
+  self: BlockStore,
+  treeCid: Cid,
+  index: Natural): Future[?!(Cid, CodexProof)] {.base.} =
+  ## Get a block proof from the blockstore
+  ##
+
+  raiseAssert("getCidAndProof not implemented!")
 
 method ensureExpiry*(
     self: BlockStore,

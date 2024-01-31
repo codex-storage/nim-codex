@@ -28,19 +28,19 @@ push: {.upraises: [].}
 
 import std/typetraits
 import pkg/chronos
-import pkg/chronicles except toJson
 import pkg/datastore
 import pkg/nimcrypto
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
 import pkg/stew/byteutils
+import ../logutils
 import ../stores
 import ../contracts/requests
 import ../utils/json
 
 export requests
-export chronicles except toJson
+export logutils
 
 logScope:
   topics = "sales reservations"
@@ -139,13 +139,8 @@ proc toErr[E1: ref CatchableError, E2: ReservationsError](
 
   return newException(E2, msg, e1)
 
-proc writeValue*(
-  writer: var JsonWriter,
-  value: SomeStorableId) {.upraises:[IOError].} =
-  ## used for chronicles' logs
-
-  mixin writeValue
-  writer.writeValue %value
+logutils.formatIt(LogFormat.textLines, SomeStorableId): it.short0xHexLog
+logutils.formatIt(LogFormat.json, SomeStorableId): it.to0xHexLog
 
 proc `onAvailabilityAdded=`*(self: Reservations,
                             onAvailabilityAdded: OnAvailabilityAdded) =
@@ -358,6 +353,58 @@ proc createReservation*(
     return failure(updateErr)
 
   return success(reservation)
+
+proc returnBytesToAvailability*(
+  self: Reservations,
+  availabilityId: AvailabilityId,
+  reservationId: ReservationId,
+  bytes: UInt256): Future[?!void] {.async.} =
+
+  logScope:
+    reservationId
+    availabilityId
+
+
+  without key =? key(reservationId, availabilityId), error:
+    return failure(error)
+
+  without var reservation =? (await self.get(key, Reservation)), error:
+    return failure(error)
+
+  # We are ignoring bytes that are still present in the Reservation because
+  # they will be returned to Availability through `deleteReservation`.
+  let bytesToBeReturned = bytes - reservation.size
+
+  if bytesToBeReturned == 0:
+    trace "No bytes are returned", requestSizeBytes = bytes, returningBytes = bytesToBeReturned
+    return success()
+
+  trace "Returning bytes", requestSizeBytes = bytes, returningBytes = bytesToBeReturned
+
+  # First lets see if we can re-reserve the bytes, if the Repo's quota
+  # is depleted then we will fail-fast as there is nothing to be done atm.
+  if reserveErr =? (await self.repo.reserve(bytesToBeReturned.truncate(uint))).errorOption:
+    return failure(reserveErr.toErr(ReserveFailedError))
+
+  without availabilityKey =? availabilityId.key, error:
+    return failure(error)
+
+  without var availability =? await self.get(availabilityKey, Availability), error:
+    return failure(error)
+
+  availability.size += bytesToBeReturned
+
+  # Update availability with returned size
+  if updateErr =? (await self.update(availability)).errorOption:
+
+    trace "Rolling back returning bytes"
+    if rollbackErr =? (await self.repo.release(bytesToBeReturned.truncate(uint))).errorOption:
+      rollbackErr.parent = updateErr
+      return failure(rollbackErr)
+
+    return failure(updateErr)
+
+  return success()
 
 proc release*(
   self: Reservations,
