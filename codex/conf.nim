@@ -33,14 +33,15 @@ import pkg/ethers
 import pkg/questionable
 import pkg/questionable/results
 
+import ./codextypes
 import ./discovery
 import ./logutils
 import ./stores
 import ./units
 import ./utils
 
-export units
-export net
+export units, net, codextypes
+
 export
   DefaultQuotaBytes,
   DefaultBlockTtl,
@@ -229,20 +230,32 @@ type
       circomR1cs* {.
         desc: "The r1cs file for the storage circuit"
         defaultValue: defaultDataDir() / "circuits" / "proof_main.r1cs"
-        name: "circuit-r1cs"
+        name: "circom-r1cs"
       .}: string
 
       circomWasm* {.
         desc: "The wasm file for the storage circuit"
         defaultValue: defaultDataDir() / "circuits" / "proof_main.wasm"
-        name: "circuit-wasm"
+        name: "circom-wasm"
       .}: string
 
       circomZkey* {.
         desc: "The zkey file for the storage circuit"
         defaultValue: defaultDataDir() / "circuits" / "proof_main.zkey"
-        name: "circuit-zkey"
+        name: "circom-zkey"
       .}: string
+
+      circomNoZkey* {.
+        desc: "Ignore the zkey file - use only for testing!"
+        defaultValue: false
+        name: "circom-no-zkey"
+      .}: bool
+
+      numProofSamples* {.
+        desc: "Number of samples to prove"
+        defaultValue: DefaultSamplesNum
+        defaultValueDesc: $DefaultSamplesNum
+        name: "proof-samples" }: int
 
       ethProvider* {.
         desc: "The URL of the JSON-RPC API of the Ethereum node"
