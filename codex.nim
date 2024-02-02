@@ -23,6 +23,7 @@ import ./codex/codex
 import ./codex/logutils
 import ./codex/units
 import ./codex/utils/keyutils
+import ./codex/codextypes
 
 export codex, conf, libp2p, chronos, logutils
 
