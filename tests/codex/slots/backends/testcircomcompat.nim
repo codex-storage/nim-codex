@@ -49,13 +49,13 @@ suite "Test Circom Compat Backend":
     verifyingKeyPtr.addr.releaseKey()    # this comes from the rust FFI
     circom.release()                     # this comes from the rust FFI
 
-  test "Should verify with known input":
+  test "Should verify with correct input":
     let
       proof = circom.prove(proofInput).tryGet
 
     check circom.verify(proof, publicInputs, verifyingKeyPtr[]).tryGet
 
-  test "Should not verify with wrong input":
+  test "Should not verify with incorrect input":
     proofInput.slotIndex = 1 # change slot index
 
     let
