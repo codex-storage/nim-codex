@@ -20,6 +20,7 @@ import ../../manifest
 import ../../merkletree
 import ../../stores
 import ../../market
+import ../../utils/poseidon2digest
 
 import ../builder
 import ../sampler
@@ -35,6 +36,8 @@ type
   AnyKeys* = CircomKey
   AnyHash* = Poseidon2Hash
   AnyBackend* = CircomCompat
+  AnyBuilder* = Poseidon2Builder
+  AnySampler* = Poseidon2Sampler
 
   Prover* = ref object of RootObj
     backend: AnyBackend
@@ -44,7 +47,8 @@ proc prove*(
   self: Prover,
   slotIdx: int,
   manifest: Manifest,
-  challenge: ProofChallenge): Future[?!AnyProof] {.async.} =
+  challenge: ProofChallenge,
+  nSamples = DefaultSamplesNum): Future[?!AnyProof] {.async.} =
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
 
@@ -55,15 +59,15 @@ proc prove*(
 
   trace "Received proof challenge"
 
-  without builder =? Poseidon2Builder.new(self.store, manifest), err:
+  without builder =? AnyBuilder.new(self.store, manifest), err:
     error "Unable to create slots builder", err = err.msg
     return failure(err)
 
-  without sampler =? Poseidon2Sampler.new(slotIdx, self.store, builder), err:
+  without sampler =? AnySampler.new(slotIdx, self.store, builder), err:
     error "Unable to create data sampler", err = err.msg
     return failure(err)
 
-  without proofInput =? await sampler.getProofInput(challenge, nSamples = 3), err:
+  without proofInput =? await sampler.getProofInput(challenge, nSamples), err:
     error "Unable to get proof input for slot", err = err.msg
     return failure(err)
 
@@ -82,7 +86,7 @@ proc verify*(
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
 
-  discard self.backend.verify(proof, inputs, vpk)
+  self.backend.verify(proof, inputs, vpk)
 
 proc new*(
   _: type Prover,
