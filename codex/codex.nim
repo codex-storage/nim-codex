@@ -39,6 +39,7 @@ import ./contracts/clock
 import ./contracts/deployment
 import ./utils/addrutils
 import ./namespaces
+import ./codextypes
 import ./logutils
 
 logScope:
@@ -131,6 +132,7 @@ proc bootstrapInteractions(
     let sales = Sales.new(market, clock, repo, proofFailures)
     client = some ClientInteractions.new(clock, purchasing)
     host = some HostInteractions.new(clock, sales)
+
   if config.validator:
     let validation = Validation.new(clock, market, config.validatorMaxSlots)
     validator = some ValidatorInteractions.new(clock, validation)
@@ -264,12 +266,21 @@ proc new*(
     store = NetworkStore.new(engine, repoStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     prover = if config.persistence:
-      circomBackend = CircomCompat.init(config.circomR1cs, config.circomWasm, config.circomZkey)
-      some Prover.new(store, circomBackend)
+      let
+        zkey = if config.circomNoZkey: "" else: config.circomZkey
+      some Prover.new(
+        store,
+        CircomCompat.init(config.circomR1cs, config.circomWasm, zkey))
     else:
       none Prover
 
-    codexNode = CodexNodeRef.new(switch, store, engine, erasure, prover, discovery)
+    codexNode = CodexNodeRef.new(
+      switch = switch,
+      store = store,
+      engine = engine,
+      erasure = erasure,
+      prover = prover,
+      discovery = discovery)
 
     restServer = RestServerRef.new(
       codexNode.initRestApi(config, repoStore),
