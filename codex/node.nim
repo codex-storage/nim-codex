@@ -65,6 +65,7 @@ type
     engine: BlockExcEngine
     erasure: Erasure
     prover: ?Prover
+    numSamples: int
     discovery: Discovery
     contracts*: Contracts
     clock*: Clock
@@ -551,9 +552,13 @@ proc onStore(
     trace "Unable to build slot", err = err.msg
     return failure(err)
 
+  trace "Slot successfully retrieved and reconstructed"
+
   if cid =? slotRoot.toSlotCid() and cid != manifest.slotRoots[slotIdx.int]:
     trace "Slot root mismatch", manifest = manifest.slotRoots[slotIdx.int], recovered = slotRoot.toSlotCid()
     return failure(newException(CodexError, "Slot root mismatch"))
+
+  trace "Storage request processed"
 
   return success()
 
@@ -586,7 +591,7 @@ proc onProve(
       error "Unable to fetch manifest for cid", err = err.msg
       return failure(err)
 
-    without proof =? await prover.prove(slotIdx, manifest, challenge), err:
+    without proof =? await prover.prove(slotIdx, manifest, challenge, self.numSamples), err:
       error "Unable to generate proof", err = err.msg
       return failure(err)
 
@@ -712,7 +717,8 @@ proc new*(
   erasure: Erasure,
   prover = Prover.none,
   discovery: Discovery,
-  contracts = Contracts.default): CodexNodeRef =
+  contracts = Contracts.default,
+  numSamples = DefaultSamplesNum): CodexNodeRef =
   ## Create new instance of a Codex self, call `start` to run it
   ##
 
@@ -723,4 +729,5 @@ proc new*(
     erasure: erasure,
     prover: prover,
     discovery: discovery,
-    contracts: contracts)
+    contracts: contracts,
+    numSamples: numSamples)
