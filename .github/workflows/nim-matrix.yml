@@ -1,52 +1,27 @@
-name: CI
+name: Nim matrix
 on:
-  push:
-    branches:
-      - master
-  pull_request:
+  merge_group:
   workflow_dispatch:
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
-  nim_version: v1.6.14
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
-  cancel-in-progress: true
 jobs:
   build:
     strategy:
       matrix:
+        nim_version: [v1.6.14, v1.6.16, v1.6.18, v2.0.0, v2.0.2]
         include:
           - os: linux
             cpu: amd64
             builder: ubuntu-latest
+            # builder: buildjet-4vcpu-ubuntu-2204
             shell: bash --noprofile --norc -e -o pipefail
             tests: all
-          - os: macos
-            cpu: amd64
-            builder: macos-latest
-            shell: bash --noprofile --norc -e -o pipefail
-            tests: all
-          - os: windows
-            cpu: amd64
-            builder: windows-latest
-            shell: msys2
-            tests: unittest
-          - os: windows
-            cpu: amd64
-            builder: windows-latest
-            shell: msys2
-            tests: contract
-          - os: windows
-            cpu: amd64
-            builder: windows-latest
-            shell: msys2
-            tests: integration
 
     defaults:
       run:
         shell: ${{ matrix.shell }} {0}
 
-    name: '${{ matrix.os }}-${{ matrix.cpu }}-tests-${{ matrix.tests }}'
+    name: '${{ matrix.nim_version }}-${{ matrix.os }}-${{ matrix.cpu }}-tests-${{ matrix.tests }}'
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 80
     steps:
@@ -91,38 +66,6 @@ jobs:
       - name: Integration tests
         if: matrix.tests == 'integration' || matrix.tests == 'all'
         run: make -j${ncpu} testIntegration
-
-  coverage:
-    continue-on-error: true
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Setup Nimbus Build System
-        uses: ./.github/actions/nimbus-build-system
-        with:
-          os: linux
-          nim_version: ${{ env.nim_version }}
-
-      - name: Generate coverage data
-        run: |
-          # make -j${ncpu} coverage
-          make -j${ncpu} coverage-script
-        shell: bash
-
-      - name: Upload coverage data to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          directory: ./coverage/
-          fail_ci_if_error: true
-          files: ./coverage/coverage.f.info
-          flags: unittests
-          name: codecov-umbrella
-          token: ${{ secrets.CODECOV_TOKEN }}
-          verbose: true
 
   build-status:
     if: always()
