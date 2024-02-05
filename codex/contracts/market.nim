@@ -39,10 +39,9 @@ proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
 
   discard await token.increaseAllowance(market.contract.address(), amount).confirm(1)
 
-method getZkeyHash*(market: Market): Future[?string] {.async.} =
+method getZkeyHash*(market: OnChainMarket): Future[?string] {.async.} =
   let config = await market.contract.config()
-  let period = config.proofs.period
-  return
+  return some config.proofs.zkeyHash
 
 method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
   return await market.signer.getAddress()
