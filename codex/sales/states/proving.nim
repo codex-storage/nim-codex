@@ -57,7 +57,7 @@ proc proveLoop(
 
   proc getCurrentPeriod(): Future[Period] {.async.} =
     let periodicity = await market.periodicity()
-    return periodicity.periodOf(clock.now().u256)
+    return periodicity.periodOf((await clock.now()).u256)
 
   proc waitUntilPeriod(period: Period) {.async.} =
     let periodicity = await market.periodicity()
