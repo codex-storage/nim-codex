@@ -31,9 +31,9 @@ asyncchecksuite "validation":
   teardown:
     await validation.stop()
 
-  proc advanceToNextPeriod =
+  proc advanceToNextPeriod {.async.} =
     let periodicity = Periodicity(seconds: period.u256)
-    let period = periodicity.periodOf(clock.now().u256)
+    let period = periodicity.periodOf((await clock.now()).u256)
     let periodEnd = periodicity.periodEnd(period)
     clock.set((periodEnd + 1).truncate(int))
 
