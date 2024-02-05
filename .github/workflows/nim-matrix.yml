@@ -1,76 +1,30 @@
 name: Nim matrix
+
 on:
   merge_group:
   workflow_dispatch:
+
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
+  nim_version: v1.6.14, v1.6.16, v1.6.18, v2.0.0, v2.0.2
+
 jobs:
-  build:
-    strategy:
-      matrix:
-        nim_version: [v1.6.14, v1.6.16, v1.6.18, v2.0.0, v2.0.2]
-        include:
-          - os: linux
-            cpu: amd64
-            builder: ubuntu-latest
-            # builder: buildjet-4vcpu-ubuntu-2204
-            shell: bash --noprofile --norc -e -o pipefail
-            tests: all
-
-    defaults:
-      run:
-        shell: ${{ matrix.shell }} {0}
-
-    name: '${{ matrix.nim_version }}-${{ matrix.os }}-${{ matrix.cpu }}-tests-${{ matrix.tests }}'
-    runs-on: ${{ matrix.builder }}
-    timeout-minutes: 80
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Setup Nimbus Build System
-        uses: ./.github/actions/nimbus-build-system
-        with:
-          os: ${{ matrix.os }}
-          shell: ${{ matrix.shell }}
-          nim_version: ${{ env.nim_version }}
-
-      ## Part 1 Tests ##
-      - name: Unit tests
-        if: matrix.tests == 'unittest' || matrix.tests == 'all'
-        run: make -j${ncpu} test
-
-      # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18.15
-
-      - name: Start Ethereum node with Codex contracts
-        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'all'
-        working-directory: vendor/codex-contracts-eth
-        env:
-          MSYS2_PATH_TYPE: inherit
-        run: |
-          npm install
-          npm start &
-
-      ## Part 2 Tests ##
-      - name: Contract tests
-        if: matrix.tests == 'contract' || matrix.tests == 'all'
-        run: make -j${ncpu} testContracts
-
-      ## Part 3 Tests ##
-      - name: Integration tests
-        if: matrix.tests == 'integration' || matrix.tests == 'all'
-        run: make -j${ncpu} testIntegration
-
-  build-status:
-    if: always()
-    needs: [build]
+  matrix:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      cache_nonce: ${{ env.cache_nonce }}
     steps:
-      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')  || contains(needs.*.result, 'skipped') }}
-        run: exit 1
+    - name: Compute matrix
+      id: matrix
+      uses: fabiocaccamo/create-matrix-action@v4
+      with:
+        matrix: |
+          os {linux}, cpu {amd64}, builder {ubuntu-latest}, tests {all}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+
+  build:
+    needs: matrix
+    uses: ./.github/workflows/ci-reusable.yml
+    with:
+      matrix: ${{ needs.matrix.outputs.matrix }}
+      cache_nonce: ${{ needs.matrix.outputs.cache_nonce }}
