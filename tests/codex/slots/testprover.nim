@@ -32,7 +32,7 @@ suite "Test Prover":
     samples = 5
     blockSize = DefaultBlockSize
     cellSize = DefaultCellSize
-    ecK = 2
+    ecK = 3
     ecM = 2
     numDatasetBlocks = 8
 
