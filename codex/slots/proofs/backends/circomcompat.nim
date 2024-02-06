@@ -28,6 +28,14 @@ import pkg/constantine/math/io/io_bigints
 
 export circomcompat
 
+const
+  # TODO: this defaults need to be adjusted and/or replased with cli config params
+  DefaultMaxDepth*       = 32
+  DefaultMaxLog2NSlots*  = 8
+  DefaultBlockTreeDepth* = 5
+  DefaultNCellFldElms*   = 67
+  DefaultNSamples*       = 5
+
 type
   CircomCompat* = object
     slotDepth     : int     # max depth of the slot tree
@@ -116,7 +124,7 @@ proc prove*[H](
     return failure("Failed to push data set root")
 
   if backend.pushInputU256Array(
-    "slotRoot".cstring, slotRoot.addr, slotRoot.len.uint32) != ERR_OK:
+    "slotRoot".cstring, slotRoot[0].addr, slotRoot.len.uint32) != ERR_OK:
     return failure("Failed to push data set root")
 
   if backend.pushInputU32(
