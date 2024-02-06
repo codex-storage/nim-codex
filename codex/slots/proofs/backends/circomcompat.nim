@@ -14,9 +14,10 @@ import std/sequtils
 import pkg/chronos
 import pkg/questionable/results
 import pkg/circomcompat
+import pkg/poseidon2/io
 
-import ../../../stores
 import ../../types
+import ../../../stores
 import ../../../merkletree
 
 import pkg/constantine/math/arithmetic
@@ -26,19 +27,32 @@ import pkg/constantine/math/io/io_bigints
 
 export circomcompat
 
+const
+  # TODO: this defaults need to be adjusted and/or replased with cli config params
+  DefaultMaxDepth*       = 32
+  DefaultMaxLog2NSlots*  = 8
+  DefaultBlockTreeDepth* = 5
+  DefaultNCellFldElms*   = 67
+  DefaultNSamples*       = 5
+
 type
   CircomCompat* = object
     r1csPath    : string
     wasmPath    : string
     zKeyPath    : string
     backendCfg  : ptr CircomBn254Cfg
+    maxDepth    : int
+    log2NSlots  : int
+    blkDepth    : int
+    cellFldElms : int
+    nSamples    : int
 
   CircomG1* = G1
   CircomG2* = G2
 
-  CircomProof* = Proof
+  CircomProof*  = Proof
+  CircomKey*    = VerifyingKey
   CircomInputs* = Inputs
-  CircomKey* = VerifyingKey
 
 proc release*(self: CircomCompat) =
   ## Release the backend
@@ -60,12 +74,13 @@ proc getVerifyingKey*(
 
   success vkpPtr
 
-proc prove*(
+proc prove*[H](
   self: CircomCompat,
-  input: ProofInput[Poseidon2Hash]): ?!CircomProof =
+  input: ProofInput[H]): ?!CircomProof =
   ## Encode buffers using a backend
   ##
 
+  # TODO: All parameters should match circom's static parametter
   var
     backend: ptr CircomCompatCtx
 
@@ -76,27 +91,27 @@ proc prove*(
 
   var
     entropy = input.entropy.toBytes
-    verifyRoot = input.verifyRoot.toBytes
+    dataSetRoot = input.datasetRoot.toBytes
     slotRoot = input.slotRoot.toBytes
 
   if backend.pushInputU256Array(
-    "entropy".cstring, entropy.addr, entropy.len.uint32) != ERR_OK:
+    "entropy".cstring, entropy[0].addr, entropy.len.uint32) != ERR_OK:
     return failure("Failed to push entropy")
 
   if backend.pushInputU256Array(
-    "dataSetRoot".cstring, verifyRoot.addr, verifyRoot.len.uint32) != ERR_OK:
+    "dataSetRoot".cstring, dataSetRoot[0].addr, dataSetRoot.len.uint32) != ERR_OK:
     return failure("Failed to push data set root")
 
   if backend.pushInputU256Array(
-    "slotRoot".cstring, slotRoot.addr, slotRoot.len.uint32) != ERR_OK:
+    "slotRoot".cstring, slotRoot[0].addr, slotRoot.len.uint32) != ERR_OK:
     return failure("Failed to push data set root")
 
   if backend.pushInputU32(
-    "nCellsPerSlot".cstring, input.numCells.uint32) != ERR_OK:
+    "nCellsPerSlot".cstring, input.nCellsPerSlot.uint32) != ERR_OK:
     return failure("Failed to push nCellsPerSlot")
 
   if backend.pushInputU32(
-    "nSlotsPerDataSet".cstring, input.numSlots.uint32) != ERR_OK:
+    "nSlotsPerDataSet".cstring, input.nSlotsPerDataSet.uint32) != ERR_OK:
     return failure("Failed to push nSlotsPerDataSet")
 
   if backend.pushInputU32(
@@ -104,30 +119,34 @@ proc prove*(
     return failure("Failed to push slotIndex")
 
   var
-    slotProof = input.verifyProof.mapIt( it.toBytes ).concat
+    slotProof = input.slotProof.mapIt( it.toBytes ).concat
+
+  slotProof.setLen(self.log2NSlots) # adjust to match circom static params
 
   # arrays are always flattened
   if backend.pushInputU256Array(
     "slotProof".cstring,
     slotProof[0].addr,
-    uint (32 * input.verifyProof.len)) != ERR_OK:
+    uint (slotProof[0].len * slotProof.len)) != ERR_OK:
       return failure("Failed to push slot proof")
 
   for s in input.samples:
     var
-      merklePaths = s.merkleProof.mapIt( it.toBytes )
-      data = s.data
+      merklePaths = s.merklePaths.mapIt( it.toBytes )
+      data = s.cellData
 
+    merklePaths.setLen(self.maxDepth)
     if backend.pushInputU256Array(
       "merklePaths".cstring,
       merklePaths[0].addr,
-      uint (32 * merklePaths.len)) != ERR_OK:
+      uint (merklePaths[0].len * merklePaths.len)) != ERR_OK:
         return failure("Failed to push merkle paths")
 
+    data.setLen(self.cellFldElms * 32) # TODO: sizeof field bits/bytes
     if backend.pushInputU256Array(
       "cellData".cstring,
       data[0].addr,
-      uint data.len) != ERR_OK:
+      data.len.uint) != ERR_OK:
         return failure("Failed to push cell data")
 
   var
@@ -172,9 +191,14 @@ proc verify*(
 
 proc init*(
   _: type CircomCompat,
-  r1csPath: string,
-  wasmPath: string,
-  zKeyPath: string = ""): CircomCompat =
+  r1csPath:   string,
+  wasmPath:   string,
+  zKeyPath:   string = "",
+  maxDepth    = DefaultMaxDepth,
+  log2NSlots  = DefaultMaxLog2NSlots,
+  blkDepth    = DefaultBlockTreeDepth,
+  cellFldElms = DefaultNCellFldElms,
+  nSamples    = DefaultNSamples): CircomCompat =
   ## Create a new backend
   ##
 
@@ -187,7 +211,12 @@ proc init*(
     raiseAssert("failed to initialize circom compat config")
 
   CircomCompat(
-    r1csPath: r1csPath,
-    wasmPath: wasmPath,
-    zKeyPath: zKeyPath,
-    backendCfg: cfg)
+    r1csPath:     r1csPath,
+    wasmPath:     wasmPath,
+    zKeyPath:     zKeyPath,
+    backendCfg:   cfg,
+    maxDepth:     maxDepth,
+    log2NSlots:   log2NSlots,
+    blkDepth:     blkDepth,
+    cellFldElms:  cellFldElms,
+    nSamples:     nSamples)
