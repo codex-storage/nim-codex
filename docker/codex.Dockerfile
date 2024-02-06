@@ -19,9 +19,9 @@ RUN echo 'export PATH="${NIMBLE_DIR}/bin:${PATH}"' >> "${HOME}/.bash_env"
 
 WORKDIR ${BUILD_HOME}
 COPY . .
-RUN make clean
-RUN make -j ${MAKE_PARALLEL} update
-RUN make -j ${MAKE_PARALLEL}
+RUN ./env.sh make clean
+RUN ./env.sh make -j ${MAKE_PARALLEL} update
+RUN ./env.sh make -j ${MAKE_PARALLEL}
 
 # Create
 FROM ${IMAGE}

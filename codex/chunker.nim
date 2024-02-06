@@ -29,7 +29,7 @@ const
 type
   # default reader type
   ChunkBuffer* = ptr UncheckedArray[byte]
-  Reader* = proc(data: ChunkBuffer, len: int): Future[int] {.gcsafe, raises: [Defect].}
+  Reader* = proc(data: ChunkBuffer, len: int): Future[int] {.gcsafe, async.}
 
   # Reader that splits input data into fixed-size chunks
   Chunker* = ref object

@@ -14,7 +14,7 @@ proc toTimesDuration*(d: chronos.Duration): times.Duration =
 
 proc drain*(
   stream: LPStream | Result[lpstream.LPStream, ref CatchableError]):
-  Future[seq[byte]] {.async.} =
+  Future[seq[byte]] {.async: (handleException: true, raises: [AsyncExceptionError]).} =
 
   let
     stream =
@@ -37,7 +37,10 @@ proc drain*(
 
   data
 
-proc pipeChunker*(stream: BufferStream, chunker: Chunker) {.async.} =
+proc pipeChunker*(
+  stream: BufferStream,
+  chunker: Chunker
+) {.async: (handleException: true, raises: [AsyncExceptionError]).} =
   try:
     while (
       let chunk = await chunker.getBytes();

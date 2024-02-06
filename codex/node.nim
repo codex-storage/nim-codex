@@ -70,7 +70,7 @@ type
   CodexNodeRef* = ref CodexNode
 
   OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, raises: [].}
-  BatchProc* = proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, raises: [].}
+  BatchProc* = proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, async.}
 
 func switch*(self: CodexNodeRef): Switch =
   return self.switch
@@ -528,7 +528,7 @@ proc onStore(
 
     return success()
 
-  if blksIter =? builder.slotIndiciesIter(slotIdx) and
+  if blksIter =? builder.slotIndicesIter(slotIdx) and
     err =? (await self.fetchBatched(
       manifest.treeCid,
       blksIter,

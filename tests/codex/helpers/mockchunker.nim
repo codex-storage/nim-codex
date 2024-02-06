@@ -19,23 +19,23 @@ proc new*(
   ## Create a chunker that produces data
   ##
 
-  let 
+  let
     chunkSize = chunkSize.NBytes
     dataset = @dataset
-  
+
   var consumed = 0
-  proc reader(data: ChunkBuffer, len: int): Future[int] {.async, gcsafe, raises: [Defect].} =
+  proc reader(data: ChunkBuffer, len: int): Future[int] {.async, gcsafe.} =
 
     if consumed >= dataset.len:
       return 0
 
     var read = 0
-    while read < len and 
+    while read < len and
       read < chunkSize.int and
       (consumed + read) < dataset.len:
       data[read] = dataset[consumed + read]
       read.inc
-    
+
     consumed += read
     return read
 

@@ -118,7 +118,7 @@ method hasBlock*(self: CacheStore, treeCid: Cid, index: Natural): Future[?!bool]
 
   await self.hasBlock(cidAndProof[0])
 
-func cids(self: CacheStore): (iterator: Cid {.gcsafe.}) =
+func cids(self: CacheStore): (iterator: Cid {.gcsafe, raises: [].}) =
   return iterator(): Cid =
     for cid in self.cache.keys:
       yield cid

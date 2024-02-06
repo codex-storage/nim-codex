@@ -210,7 +210,7 @@ suite "Slot builder":
     for i in 0 ..< numSlots:
       let
         expectedBlock = steppedStrategy
-          .getIndicies(i)
+          .getIndices(i)
           .mapIt( datasetBlocks[it] )
 
         expectedHashes: seq[Poseidon2Hash] = collect(newSeq):
@@ -233,7 +233,7 @@ suite "Slot builder":
     for i in 0 ..< numSlots:
       let
         expectedBlock = steppedStrategy
-          .getIndicies(i)
+          .getIndices(i)
           .mapIt( datasetBlocks[it] )
 
         expectedHashes: seq[Poseidon2Hash] = collect(newSeq):
@@ -284,7 +284,7 @@ suite "Slot builder":
         for i in 0 ..< numSlots:
           let
             expectedBlocks = steppedStrategy
-              .getIndicies(i)
+              .getIndices(i)
               .mapIt( datasetBlocks[it] )
 
             slotHashes: seq[Poseidon2Hash] = collect(newSeq):
@@ -311,7 +311,7 @@ suite "Slot builder":
         for i in 0 ..< numSlots:
           let
             expectedBlocks = steppedStrategy
-              .getIndicies(i)
+              .getIndices(i)
               .mapIt( datasetBlocks[it] )
 
             slotHashes: seq[Poseidon2Hash] = collect(newSeq):

@@ -41,7 +41,8 @@ proc checkIteration(
       IndexingError,
       "Indexing iteration can't be greater than or equal to numberOfIterations.")
 
-method getIndicies*(
+
+method getIndices*(
   self: IndexingStrategy,
   iteration: int): Iter[int] {.base, raises: [IndexingError].} =
   raiseAssert("Not implemented")
@@ -62,7 +63,7 @@ proc getIter(first, last, step: int): Iter[int] =
 
   Iter.new(get, isFinished)
 
-method getIndicies*(
+method getIndices*(
   self: LinearIndexingStrategy,
   iteration: int): Iter[int] {.raises: [IndexingError].} =
 
@@ -74,7 +75,7 @@ method getIndicies*(
 
   getIter(first, last, 1)
 
-method getIndicies*(
+method getIndices*(
   self: SteppedIndexingStrategy,
   iteration: int): Iter[int] {.raises: [IndexingError].} =
 

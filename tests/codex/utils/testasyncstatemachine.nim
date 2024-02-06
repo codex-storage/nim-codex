@@ -23,7 +23,8 @@ method run(state: State1, machine: Machine): Future[?State] {.async.} =
   inc runs[0]
   return some State(State2.new())
 
-method run(state: State2, machine: Machine): Future[?State] {.async.} =
+method run(state: State2,
+    machine: Machine): Future[?State] {.async: (handleException: true).} =
   inc runs[1]
   try:
     await sleepAsync(1.hours)

@@ -2,6 +2,7 @@ import std/times
 import pkg/ethers
 import pkg/chronos
 import pkg/stint
+import pkg/upraises
 import ../clock
 import ../conf
 

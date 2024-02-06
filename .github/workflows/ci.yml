@@ -9,8 +9,8 @@ on:
 
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
-  nim_version: v1.6.14
-    
+  nim_version:
+    repo_current # This is the version that's currently in the repo
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
@@ -54,12 +54,10 @@ jobs:
         uses: ./.github/actions/nimbus-build-system
         with:
           os: linux
-          nim_version: ${{ env.nim_version }}
 
       - name: Generate coverage data
         run: |
-          # make -j${ncpu} coverage
-          make -j${ncpu} coverage-script
+          ./env.sh make -j${ncpu} coverage-script
         shell: bash
 
       - name: Upload coverage data to Codecov
