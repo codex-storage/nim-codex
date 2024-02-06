@@ -10,7 +10,12 @@ ABS_PATH="$(cd ${REL_PATH}; pwd)"
 
 ENV_FILE="${ABS_PATH}/vendor/nimbus-build-system/scripts/env.sh"
 
-export NIM_COMMIT="${NIM_COMMIT:-${NIM_VERSION}}"
+# This makes it look nicer in the CI: if the version in the matrix says
+# "repo_current", then we'll use the version that's registered here.
+if [ "${NIM_COMMIT}" = "repo_current" ] || [ "${NIM_COMMIT}" = "" ]; then
+  export NIM_COMMIT="${NIM_VERSION}"
+fi
+
 if ! [ -f "$ENV_FILE" ]; then
   # Before the first "make update", the env file doesn't exist.
   echo "Nimbus build system env file not found."
