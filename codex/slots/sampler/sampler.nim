@@ -39,6 +39,7 @@ func getCell*[T, H](
   self: DataSampler[T, H],
   blkBytes: seq[byte],
   blkCellIdx: Natural): seq[byte] =
+
   let
     cellSize = self.builder.cellSize.uint64
     dataStart = cellSize * blkCellIdx.uint64
