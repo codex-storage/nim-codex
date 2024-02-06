@@ -1,5 +1,6 @@
 import std/sequtils
 import std/sugar
+import std/math
 
 import ../../asynctest
 
@@ -14,30 +15,33 @@ import pkg/codex/chunker
 import pkg/codex/blocktype as bt
 import pkg/codex/slots
 import pkg/codex/stores
+import pkg/poseidon2/io
+import pkg/codex/utils/poseidon2digest
+
+import pkg/constantine/math/arithmetic
+import pkg/constantine/math/io/io_bigints
+import pkg/constantine/math/io/io_fields
 
 import ./helpers
 import ../helpers
 import ./backends/helpers
 
+const
+  slotId = 1
+  samples = 5
+  blockSize = DefaultBlockSize
+  cellSize = DefaultCellSize
+  ecK = 2
+  ecM = 2
+  numDatasetBlocks = 8
+
 suite "Test Prover":
-  let
-    blockSize = NBytes 1024
-    cellSize = NBytes 64
-    ecK = 3
-    ecM = 2
-
-    numSlots = ecK + ecM
-    numDatasetBlocks = 100
-    numTotalBlocks = calcEcBlocksCount(numDatasetBlocks, ecK, ecM)  # total number of blocks in the dataset after
-                                                                    # EC (should will match number of slots)
-    originalDatasetSize = numDatasetBlocks * blockSize.int
-    totalDatasetSize    = numTotalBlocks * blockSize.int
-
   var
     datasetBlocks: seq[bt.Block]
     store: BlockStore
-    chunker: Chunker
-    verifiableManifest: Manifest
+    manifest: Manifest
+    protected: Manifest
+    verifiable: Manifest
     sampler: Poseidon2Sampler
 
   setup:
@@ -46,24 +50,14 @@ suite "Test Prover":
       metaDs = SQLiteDatastore.new(Memory).tryGet()
 
     store = RepoStore.new(repoDs, metaDs)
-    chunker = RandomChunker.new(Rng.instance(), size = totalDatasetSize, chunkSize = blockSize)
-    datasetBlocks = await chunker.createBlocks(store)
 
-    let
-      (manifest, protectedManifest) =
-          await createProtectedManifest(
-            datasetBlocks,
-            store,
-            numDatasetBlocks,
-            ecK, ecM,
-            blockSize,
-            originalDatasetSize,
-            totalDatasetSize)
-
-      builder = Poseidon2Builder.new(store, protectedManifest, cellSize = cellSize).tryGet
-
-    # build the slots
-    verifiableManifest = (await builder.buildManifest()).tryGet
+    (manifest, protected, verifiable) =
+        await createVerifiableManifest(
+          store,
+          numDatasetBlocks,
+          ecK, ecM,
+          blockSize,
+          cellSize)
 
   test "Should sample and prove a slot":
     let
@@ -72,17 +66,13 @@ suite "Test Prover":
 
       circomBackend = CircomCompat.init(r1cs, wasm)
       prover = Prover.new(store, circomBackend)
-      challenge = 12345.toF.toBytes.toArray32
-      proof = (await prover.prove(1, verifiableManifest, 5, challenge)).tryGet
+      challenge = 1234567.toF.toBytes.toArray32
+      proof = (await prover.prove(1, verifiable, challenge, 5)).tryGet
       key = circomBackend.getVerifyingKey().tryGet
-      builder = Poseidon2Builder.new(store, verifiableManifest).tryGet
+      builder = Poseidon2Builder.new(store, verifiable).tryGet
       sampler = Poseidon2Sampler.new(1, store, builder).tryGet
       proofInput = (await sampler.getProofInput(challenge, 5)).tryGet
-      inputs = toCircomInputs(PublicInputs(
-        slotIndex: proofInput.slotIndex.toF,
-        datasetRoot: proofInput.verifyRoot,
-        entropy: proofInput.entropy
-      ))
+      inputs = proofInput.toPublicInputs.toCircomInputs
 
     check:
-      (await prover.verify(proof, inputs, key[])).tryGet
+      (await prover.verify(proof, inputs, key[])).tryGet == true
