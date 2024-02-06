@@ -26,6 +26,15 @@ import ./helpers
 import ../helpers
 import ./backends/helpers
 
+const
+  slotId = 1
+  samples = 5
+  blockSize = DefaultBlockSize
+  cellSize = DefaultCellSize
+  ecK = 2
+  ecM = 2
+  numDatasetBlocks = 8
+
 suite "Test Prover":
   let
     slotId = 1
