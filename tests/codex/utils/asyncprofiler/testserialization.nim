@@ -7,9 +7,7 @@ import chronos/profiler
 
 import codex/utils/asyncprofiler/serialization
 
-import ../../helpers
-
-checksuite "asyncprofiler metrics serializer":
+suite "asyncprofiler metrics serializer":
 
   let fooLoc = SrcLoc(
     procedure: "foo",

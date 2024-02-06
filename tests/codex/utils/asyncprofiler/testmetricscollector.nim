@@ -5,7 +5,6 @@ import pkg/chronos/profiler
 import pkg/metrics
 
 import codex/utils/asyncprofiler/metricscollector
-import ../../helpers
 
 suite "asyncprofiler metrics collector":
 

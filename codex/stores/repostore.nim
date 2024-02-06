@@ -203,6 +203,9 @@ method getBlock*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!Block]
   without cid =? await self.getCid(treeCid, index), err:
     return failure(err)
 
+  trace "Mapped tree cid and index into block cid", treeCid=treeCid,
+    index=index, cid=cid
+
   await self.getBlock(cid)
 
 method getBlock*(self: RepoStore, address: BlockAddress): Future[?!Block] =
