@@ -47,12 +47,12 @@ method stop*(clock: OnChainClock) {.async.} =
   await clock.subscription.unsubscribe()
   clock.started = false
 
-method now*(clock: OnChainClock): SecondsSince1970 {.raises: [].}=
+method now*(clock: OnChainClock): Future[SecondsSince1970] {.async.} =
   when codex_use_hardhat:
     # hardhat's latest block.timestamp is usually 1s behind the block timestamp
     # in the newHeads event. When testing, always return the latest block.
     try:
-      if queriedBlock =? (waitFor clock.provider.getBlock(BlockTag.latest)):
+      if queriedBlock =? (await clock.provider.getBlock(BlockTag.latest)):
         trace "using last block timestamp for clock.now",
           lastBlockTimestamp = queriedBlock.timestamp.truncate(int64),
           cachedBlockTimestamp = clock.lastBlockTime.truncate(int64)
@@ -66,6 +66,6 @@ method now*(clock: OnChainClock): SecondsSince1970 {.raises: [].}=
     return toUnix(getTime() + clock.offset)
 
 method waitUntil*(clock: OnChainClock, time: SecondsSince1970) {.async.} =
-  while (let difference = time - clock.now(); difference > 0):
+  while (let difference = time - (await clock.now()); difference > 0):
     clock.newBlock.clear()
     discard await clock.newBlock.wait().withTimeout(chronos.seconds(difference))

@@ -31,9 +31,9 @@ asyncchecksuite "validation":
   teardown:
     await validation.stop()
 
-  proc advanceToNextPeriod =
+  proc advanceToNextPeriod {.async.} =
     let periodicity = Periodicity(seconds: period.u256)
-    let period = periodicity.periodOf(clock.now().u256)
+    let period = periodicity.periodOf((await clock.now()).u256)
     let periodEnd = periodicity.periodEnd(period)
     clock.set((periodEnd + 1).truncate(int))
 
@@ -48,20 +48,20 @@ asyncchecksuite "validation":
     test "when slot state changes, it is removed from the list":
       await market.fillSlot(slot.request.id, slot.slotIndex, @[], collateral)
       market.slotState[slot.id] = state
-      advanceToNextPeriod()
+      await advanceToNextPeriod()
       check eventually validation.slots.len == 0
 
   test "when a proof is missed, it is marked as missing":
     await market.fillSlot(slot.request.id, slot.slotIndex, @[], collateral)
     market.setCanProofBeMarkedAsMissing(slot.id, true)
-    advanceToNextPeriod()
+    await advanceToNextPeriod()
     await sleepAsync(1.millis)
     check market.markedAsMissingProofs.contains(slot.id)
 
   test "when a proof can not be marked as missing, it will not be marked":
     await market.fillSlot(slot.request.id, slot.slotIndex, @[], collateral)
     market.setCanProofBeMarkedAsMissing(slot.id, false)
-    advanceToNextPeriod()
+    await advanceToNextPeriod()
     await sleepAsync(1.millis)
     check market.markedAsMissingProofs.len == 0
 

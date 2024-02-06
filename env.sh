@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# This is the compiler version that will get used everywher.
+# This is the compiler version that will get used everywhere by default.
 NIM_VERSION="f45bdea94ac4ed9a9bae03426275456aeb0cab2a"
 NIM_REPO_URL="https://github.com/gmega/Nim"
 
@@ -11,9 +11,12 @@ ABS_PATH="$(cd ${REL_PATH}; pwd)"
 
 ENV_FILE="${ABS_PATH}/vendor/nimbus-build-system/scripts/env.sh"
 
-# Allows the user to override the default Nim compiler version and repo URL.
-export NIM_COMMIT="${NIM_COMMIT:-${NIM_VERSION}}"
-export NIM_REPO="${NIM_REPO:-${NIM_REPO_URL}}"
+# This makes it look nicer in the CI: if the version in the matrix says
+# "repo_current", then we'll use the version that's registered here.
+if [ "${NIM_COMMIT}" = "repo_current" ] || [ "${NIM_COMMIT}" = "" ]; then
+  export NIM_COMMIT="${NIM_VERSION}"
+  export NIM_REPO="${NIM_REPO_URL}"
+fi
 
 if ! [ -f "$ENV_FILE" ]; then
   # Before the first "make update", the env file doesn't exist.
