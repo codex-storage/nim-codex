@@ -130,10 +130,10 @@ proc prepareEncodingData(
   ##
 
   let
-    strategy = SteppedIndexingStrategy.new(
+    strategy = SteppedStrategy.init(
       firstIndex = 0,
       lastIndex = params.rounded - 1,
-      numberOfIterations = params.steps
+      iterations = params.steps
     )
     indicies = toSeq(strategy.getIndicies(step))
     pendingBlocksIter = self.getPendingBlocks(manifest, indicies.filterIt(it < manifest.blocksCount))
@@ -179,10 +179,10 @@ proc prepareDecodingData(
   ##
 
   let
-    strategy = SteppedIndexingStrategy.new(
+    strategy = SteppedStrategy.init(
       firstIndex = 0,
       lastIndex = encoded.blocksCount - 1,
-      numberOfIterations = encoded.steps
+      iterations = encoded.steps
     )
     indicies = toSeq(strategy.getIndicies(step))
     pendingBlocksIter = self.getPendingBlocks(encoded, indicies)

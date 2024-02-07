@@ -201,7 +201,7 @@ suite "Slot builder":
 
   test "Should build slot hashes for all slots":
     let
-      steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
+      steppedStrategy = SteppedStrategy.init(0, numTotalBlocks - 1, numSlots)
       slotBuilder = SlotsBuilder.new(
         localStore,
         protectedManifest,
@@ -224,7 +224,7 @@ suite "Slot builder":
 
   test "Should build slot trees for all slots":
     let
-      steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
+      steppedStrategy = SteppedStrategy.init(0, numTotalBlocks - 1, numSlots)
       slotBuilder = SlotsBuilder.new(
         localStore,
         protectedManifest,
@@ -272,7 +272,7 @@ suite "Slot builder":
 
   test "Should build correct verification root":
     let
-      steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
+      steppedStrategy = SteppedStrategy.init(0, numTotalBlocks - 1, numSlots)
       slotBuilder = SlotsBuilder.new(
         localStore,
         protectedManifest,
@@ -301,7 +301,7 @@ suite "Slot builder":
 
   test "Should build correct verification root manifest":
     let
-      steppedStrategy = SteppedIndexingStrategy.new(0, numTotalBlocks - 1, numSlots)
+      steppedStrategy = SteppedStrategy.init(0, numTotalBlocks - 1, numSlots)
       slotBuilder = SlotsBuilder.new(
         localStore,
         protectedManifest,
