@@ -65,10 +65,6 @@ proc new*(
 method `size`*(self: StoreStream): int =
   bytes(self.manifest, self.pad).int
 
-proc `size=`*(self: StoreStream, size: int)
-  {.error: "Setting the size is forbidden".} =
-  discard
-
 method atEof*(self: StoreStream): bool =
   self.offset >= self.size
 
