@@ -31,6 +31,7 @@ import pkg/codex/erasure
 import pkg/codex/merkletree
 import pkg/codex/blocktype as bt
 import pkg/codex/utils/asynciter
+import pkg/codex/indexingstrategy
 
 import pkg/codex/node {.all.}
 
@@ -54,7 +55,7 @@ asyncchecksuite "Test Node - Host contracts":
     manifestCidStr: string
     manifestCid: Cid
     market: MockMarket
-    builder: SlotsBuilder
+    builder: Poseidon2Builder
     verifiable: Manifest
     verifiableBlock: bt.Block
     protected: Manifest
@@ -84,7 +85,7 @@ asyncchecksuite "Test Node - Host contracts":
     (await localStore.putBlock(manifestBlock)).tryGet()
 
     protected = (await erasure.encode(manifest, 3, 2)).tryGet()
-    builder = SlotsBuilder.new(localStore, protected).tryGet()
+    builder = Poseidon2Builder.new(localStore, protected).tryGet()
     verifiable = (await builder.buildManifest()).tryGet()
     verifiableBlock = bt.Block.new(
       verifiable.encode().tryGet(),
@@ -127,9 +128,12 @@ asyncchecksuite "Test Node - Host contracts":
       return success()
 
     (await onStore(request, 1.u256, onBlocks)).tryGet()
-    check fetchedBytes == 786432
+    check fetchedBytes == 851968
 
-    for index in builder.slotIndicies(1):
+    let indexer = verifiable.protectedStrategy.init(
+      0, verifiable.blocksCount - 1, verifiable.numSlots)
+
+    for index in indexer.getIndicies(1):
       let
         blk = (await localStore.getBlock(verifiable.treeCid, index)).tryGet
         expiryKey = (createBlockExpirationMetadataKey(blk.cid)).tryGet

@@ -21,6 +21,7 @@ import ../../merkletree
 import ../../manifest
 import ../../stores
 
+import ../converters
 import ../builder
 import ../types
 import ./utils
@@ -67,23 +68,18 @@ proc getSample*[T, H](
     origBlockIdx  = origBlockIdx
 
   trace "Retrieving sample from block tree"
-  without (_, proof) =? await self.blockStore.getCidAndProof(
-    slotTreeCid,
-    blkSlotIdx.Natural), err:
-    error "Failed to proof for slot block index", err = err.msg
-    return failure(err)
-
-  without slotProof =? proof.toVerifiableProof(), err:
-    error "Unable to convert slot proof to poseidon proof", error = err.msg
-    return failure(err)
-
-  without (bytes, blkTree) =? await self.builder.buildBlockTree(
-    origBlockIdx,
-    blkSlotIdx), err:
-    error "Failed to build block tree", err = err.msg
-    return failure(err)
-
   let
+    (_, proof) = (await self.blockStore.getCidAndProof(
+      slotTreeCid, blkSlotIdx.Natural)).valueOr:
+      return failure("Failed to get slot tree CID and proof")
+
+    slotProof = proof.toVerifiableProof().valueOr:
+      return failure("Failed to get verifiable proof")
+
+    (bytes, blkTree) = (await self.builder.buildBlockTree(
+      origBlockIdx, blkSlotIdx)).valueOr:
+      return failure("Failed to build block tree")
+
     cellData = self.getCell(bytes, blkCellIdx)
     cellProof = blkTree.getProof(blkCellIdx).valueOr:
       return failure("Failed to get proof from block tree")
@@ -112,7 +108,6 @@ proc getProofInput*[T, H](
     datasetRoot = verifyTree.root().valueOr:
       return failure("Failed to get dataset root")
 
-  let
     slotTreeCid = self.builder.manifest.slotRoots[self.index]
     slotRoot    = self.builder.slotRoots[self.index]
     cellIdxs    = entropy.cellIndices(
@@ -126,11 +121,8 @@ proc getProofInput*[T, H](
   trace "Collecting input for proof"
   let samples = collect(newSeq):
     for cellIdx in cellIdxs:
-      without sample =? await self.getSample(cellIdx, slotTreeCid, slotRoot), err:
-        error "Failed to get sample", err = err.msg
-        return failure(err)
-
-      sample
+      (await self.getSample(cellIdx, slotTreeCid, slotRoot)).valueOr:
+        return failure("Failed to get sample")
 
   success ProofInput[H](
     entropy: entropy,
