@@ -595,10 +595,6 @@ proc onProve(
       error "Unable to generate proof", err = err.msg
       return failure(err)
 
-  without proofInput =? await sampler.getProofInput(challenge, nSamples = 3), err:
-    error "Unable to get proof input for slot", err = err.msg
-    return failure(err)
-
   # Todo: send proofInput to circuit. Get proof. (Profit, repeat.)
 
   # For now: dummy proof that is not all zero's, so that it is accepted by the
