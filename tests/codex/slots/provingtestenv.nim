@@ -142,7 +142,8 @@ proc createManifest(self: ProvingTestEnvironment): Future[void] {.async.} =
     treeCid = treeCid,
     datasetSize = self.manifest.datasetSize,
     ecK = totalNumberOfSlots,
-    ecM = 0
+    ecM = 0,
+    strategy = StrategyType.SteppedStrategy
   )
 
   # Verifiable manifest:

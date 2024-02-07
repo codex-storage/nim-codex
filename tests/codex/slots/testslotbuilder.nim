@@ -100,7 +100,8 @@ suite "Slot builder":
       treeCid = protectedTreeCid,
       datasetSize = totalDatasetSize.NBytes,
       ecK = ecK,
-      ecM = ecM)
+      ecM = ecM,
+      strategy = StrategyType.SteppedStrategy)
 
     let
       manifestBlock = bt.Block.new(
@@ -166,7 +167,8 @@ suite "Slot builder":
         treeCid = Cid.example,
         datasetSize = totalDatasetSize.NBytes,
         ecK = ecK - 1,
-        ecM = ecM)
+        ecM = ecM,
+        strategy = StrategyType.SteppedStrategy)
 
     check:
       SlotsBuilder.new(localStore, mismatchManifest, cellSize = cellSize)
@@ -182,7 +184,8 @@ suite "Slot builder":
         treeCid = Cid.example,
         datasetSize = (totalDatasetSize - 1).NBytes,
         ecK = ecK,
-        ecM = ecM)
+        ecM = ecM,
+        strategy = StrategyType.SteppedStrategy)
 
     check:
       SlotsBuilder.new(localStore, mismatchManifest, cellSize = cellSize)

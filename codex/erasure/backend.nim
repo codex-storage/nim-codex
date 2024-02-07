@@ -14,17 +14,17 @@ push: {.upraises: [].}
 import ../stores
 
 type
-  Backend* = ref object of RootObj
+  ErasureBackend* = ref object of RootObj
     blockSize*: int # block size in bytes
     buffers*: int   # number of original pieces
     parity*: int    # number of redundancy pieces
 
-  EncoderBackend* = ref object of Backend
-  DecoderBackend* = ref object of Backend
+  EncoderBackend* = ref object of ErasureBackend
+  DecoderBackend* = ref object of ErasureBackend
 
-method release*(self: Backend) {.base.} =
+method release*(self: ErasureBackend) {.base.} =
   ## release the backend
-  ## 
+  ##
   raiseAssert("not implemented!")
 
 method encode*(
@@ -33,7 +33,7 @@ method encode*(
     parity: var openArray[seq[byte]]
 ): Result[void, cstring] {.base.} =
   ## encode buffers using a backend
-  ## 
+  ##
   raiseAssert("not implemented!")
 
 method decode*(
@@ -43,5 +43,5 @@ method decode*(
     recovered: var openArray[seq[byte]]
 ): Result[void, cstring] {.base.} =
   ## decode buffers using a backend
-  ## 
+  ##
   raiseAssert("not implemented!")
