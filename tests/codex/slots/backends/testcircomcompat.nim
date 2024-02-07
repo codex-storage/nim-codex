@@ -69,11 +69,11 @@ suite "Test Circom Compat Backend":
   let
     slotId = 3
     samples = 5
-    blockSize = DefaultBlockSize
-    cellSize = DefaultCellSize
     ecK = 2
     ecM = 2
     numDatasetBlocks = 8
+    blockSize = DefaultBlockSize
+    cellSize = DefaultCellSize
 
     r1cs = "tests/circuits/fixtures/proof_main.r1cs"
     wasm = "tests/circuits/fixtures/proof_main.wasm"
