@@ -142,8 +142,8 @@ method getCidAndProof*(
     trace "Unable to decode cid and proof", err = err.msg
     return failure(err)
 
-  trace "Got cid and proof for block", treeCid=treeCid, index=index,
-    cid, proof = $proof
+  trace "Got cid and proof for block", treeCid = treeCid, index = index,
+    cid = cid, proof = $proof
 
   return success (cid, proof)
 
@@ -162,10 +162,10 @@ method getCid*(
       trace "Error getting cid from datastore", err = err.msg, key
       return failure(err)
 
-  trace "Got cid for block", treeCid=treeCid, index=index,
-    cid, proof = $proof
+  let cid = (Cid, CodexProof).decodeCid(value)
+  trace "Got cid for block", treeCid = treeCid, index = index, cid = cid
 
-  return (Cid, CodexProof).decodeCid(value)
+  return cid
 
 method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   ## Get a block from the blockstore
