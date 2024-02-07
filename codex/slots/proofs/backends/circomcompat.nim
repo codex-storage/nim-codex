@@ -21,7 +21,6 @@ import ../../../stores
 import ../../../merkletree
 
 import pkg/constantine/math/arithmetic
-
 import pkg/constantine/math/arithmetic
 import pkg/constantine/math/io/io_bigints
 
@@ -29,23 +28,23 @@ export circomcompat
 
 const
   # TODO: this defaults need to be adjusted and/or replased with cli config params
-  DefaultMaxDepth*       = 32
-  DefaultMaxLog2NSlots*  = 8
-  DefaultBlockTreeDepth* = 5
-  DefaultNCellFldElms*   = 67
-  DefaultNSamples*       = 5
+  DefaultMaxSlotDepth*    = 32
+  DefaultMaxDatasetDepth* = 8
+  DefaultBlockDepth*      = 5
+  DefaultCellElms*        = 67
+  DefaultNSamples*        = 5
 
 type
   CircomCompat* = object
-    r1csPath    : string
-    wasmPath    : string
-    zKeyPath    : string
-    backendCfg  : ptr CircomBn254Cfg
-    maxDepth    : int
-    log2NSlots  : int
-    blkDepth    : int
-    cellFldElms : int
-    nSamples    : int
+    slotDepth     : int     # max depth of the slot tree
+    datasetDepth  : int     # max depth of dataset  tree
+    blkDepth      : int     # depth of the block merkle tree (pow2 for now)
+    cellElms      : int     # number of field elements per cell
+    numSamples    : int     # number of samples per slot
+    r1csPath      : string  # path to the r1cs file
+    wasmPath      : string  # path to the wasm file
+    zKeyPath      : string  # path to the zkey file
+    backendCfg    : ptr CircomBn254Cfg
 
   CircomG1* = G1
   CircomG2* = G2
@@ -79,6 +78,22 @@ proc prove*[H](
   input: ProofInput[H]): ?!CircomProof =
   ## Encode buffers using a backend
   ##
+
+  # NOTE: All inputs are statically sized per circuit
+  # and adjusted accordingly right before being passed
+  # to the circom ffi - `setLen` is used to adjust the
+  # sequence length to the correct size which also 0 pads
+  # to the correct length
+  doAssert input.samples.len == self.numSamples,
+    "Number of samples does not match"
+
+  doAssert input.slotProof.len <= self.datasetDepth,
+    "Number of slot proofs does not match"
+
+  doAssert input.samples.allIt(
+    block:
+      (it.merklePaths.len <= self.slotDepth + self.blkDepth and
+      it.cellData.len <= self.cellElms * 32)), "Merkle paths length does not match"
 
   # TODO: All parameters should match circom's static parametter
   var
@@ -121,7 +136,7 @@ proc prove*[H](
   var
     slotProof = input.slotProof.mapIt( it.toBytes ).concat
 
-  slotProof.setLen(self.log2NSlots) # adjust to match circom static params
+  slotProof.setLen(self.datasetDepth) # zero pad inputs to correct size
 
   # arrays are always flattened
   if backend.pushInputU256Array(
@@ -135,14 +150,14 @@ proc prove*[H](
       merklePaths = s.merklePaths.mapIt( it.toBytes )
       data = s.cellData
 
-    merklePaths.setLen(self.maxDepth)
+    merklePaths.setLen(self.slotDepth) # zero pad inputs to correct size
     if backend.pushInputU256Array(
       "merklePaths".cstring,
       merklePaths[0].addr,
       uint (merklePaths[0].len * merklePaths.len)) != ERR_OK:
         return failure("Failed to push merkle paths")
 
-    data.setLen(self.cellFldElms * 32) # TODO: sizeof field bits/bytes
+    data.setLen(self.cellElms * 32) # zero pad inputs to correct size
     if backend.pushInputU256Array(
       "cellData".cstring,
       data[0].addr,
@@ -191,14 +206,14 @@ proc verify*(
 
 proc init*(
   _: type CircomCompat,
-  r1csPath:   string,
-  wasmPath:   string,
-  zKeyPath:   string = "",
-  maxDepth    = DefaultMaxDepth,
-  log2NSlots  = DefaultMaxLog2NSlots,
-  blkDepth    = DefaultBlockTreeDepth,
-  cellFldElms = DefaultNCellFldElms,
-  nSamples    = DefaultNSamples): CircomCompat =
+  r1csPath      : string,
+  wasmPath      : string,
+  zKeyPath      : string = "",
+  slotDepth     = DefaultMaxSlotDepth,
+  datasetDepth  = DefaultMaxDatasetDepth,
+  blkDepth      = DefaultBlockDepth,
+  cellElms      = DefaultCellElms,
+  numSamples    = DefaultNSamples): CircomCompat =
   ## Create a new backend
   ##
 
@@ -208,15 +223,15 @@ proc init*(
     wasmPath.cstring,
     if zKeyPath.len > 0: zKeyPath.cstring else: nil,
     addr cfg) != ERR_OK or cfg == nil:
-    raiseAssert("failed to initialize circom compat config")
+      raiseAssert("failed to initialize circom compat config")
 
   CircomCompat(
-    r1csPath:     r1csPath,
-    wasmPath:     wasmPath,
-    zKeyPath:     zKeyPath,
-    backendCfg:   cfg,
-    maxDepth:     maxDepth,
-    log2NSlots:   log2NSlots,
-    blkDepth:     blkDepth,
-    cellFldElms:  cellFldElms,
-    nSamples:     nSamples)
+    r1csPath    : r1csPath,
+    wasmPath    : wasmPath,
+    zKeyPath    : zKeyPath,
+    backendCfg  : cfg,
+    slotDepth   : slotDepth,
+    datasetDepth: datasetDepth,
+    blkDepth    : blkDepth,
+    cellElms    : cellElms,
+    numSamples  : numSamples)
