@@ -341,7 +341,7 @@ proc new*(
 
   let
     strategy = if strategy.isNone:
-      ? SteppedIndexingStrategy.new(
+      ? SteppedStrategy.init(
         0, manifest.blocksCount - 1, manifest.numSlots).catch
       else:
         strategy.get
