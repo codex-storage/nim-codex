@@ -31,7 +31,7 @@ when codex_enable_proof_failures:
 
       try:
         warn "Submitting INVALID proof", period = currentPeriod, slotId = slot.id
-        await market.submitProof(slot.id, newSeq[byte](0))
+        await market.submitProof(slot.id, Groth16Proof.default)
       except ProviderError as e:
         if not e.revertReason.contains("Invalid proof"):
           onSubmitProofError(e, currentPeriod, slot.id)

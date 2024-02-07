@@ -4,6 +4,7 @@ import std/times
 import std/typetraits
 
 import pkg/codex/contracts/requests
+import pkg/codex/contracts/proofs
 import pkg/codex/sales/slotqueue
 import pkg/codex/stores
 
@@ -62,8 +63,18 @@ proc example*(_: type SlotQueueItem): SlotQueueItem =
   let slot = Slot.example
   SlotQueueItem.init(request, slot.slotIndex.truncate(uint16))
 
-proc exampleProof*(): seq[byte] =
-  var proof: seq[byte]
-  while proof.len == 0:
-    proof = seq[byte].example
-  return proof
+proc example(_: type G1Point): G1Point =
+  G1Point(x: UInt256.example, y: UInt256.example)
+
+proc example(_: type G2Point): G2Point =
+  G2Point(
+    x: [UInt256.example, UInt256.example],
+    y: [UInt256.example, UInt256.example]
+  )
+
+proc example*(_: type Groth16Proof): Groth16Proof =
+  Groth16Proof(
+    a: G1Point.example,
+    b: G2Point.example,
+    c: G1Point.example
+  )

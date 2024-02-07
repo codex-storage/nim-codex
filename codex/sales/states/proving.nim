@@ -2,6 +2,7 @@ import std/options
 import pkg/questionable/results
 import ../../clock
 import ../../logutils
+import ../../utils/exceptions
 import ../statemachine
 import ../salesagent
 import ../salescontext
@@ -35,7 +36,7 @@ method prove*(
     debug "Submitting proof", currentPeriod = currentPeriod, slotId = slot.id
     await market.submitProof(slot.id, proof)
   except CatchableError as e:
-    error "Submitting proof failed", msg = e.msg
+    error "Submitting proof failed", msg = e.msgDetail
 
 proc proveLoop(
   state: SaleProving,

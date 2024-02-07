@@ -12,6 +12,11 @@ import ./multinodes
 logScope:
   topics = "test proofs"
 
+# TODO: This is currently the address of the marketplace with a dummy
+# verifier. Use real marketplace address once we can generate actual
+# Groth16 ZK proofs.
+let marketplaceAddress = Marketplace.address(dummyVerifier = true)
+
 twonodessuite "Proving integration test", debug1=false, debug2=false:
   let validatorDir = getTempDir() / "CodexValidator"
 
@@ -22,7 +27,7 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
     client.getPurchase(id).option.?state == some state
 
   setup:
-    marketplace = Marketplace.new(Marketplace.address, ethProvider)
+    marketplace = Marketplace.new(marketplaceAddress, ethProvider)
     period = (await marketplace.config()).proofs.period.truncate(uint64)
 
     # Our Hardhat configuration does use automine, which means that time tracked by `ethProvider.currentTime()` is not
@@ -110,7 +115,7 @@ twonodessuite "Proving integration test", debug1=false, debug2=false:
 
 multinodesuite "Simulate invalid proofs",
   StartNodes.init(clients=1'u, providers=0'u, validators=1'u),
-  DebugNodes.init(client=false, ethProvider=false, validator=false):
+  DebugNodes.init(client=false, provider=false, validator=false):
 
   proc purchaseStateIs(client: CodexClient, id: PurchaseId, state: string): bool =
     client.getPurchase(id).option.?state == some state
@@ -120,7 +125,7 @@ multinodesuite "Simulate invalid proofs",
   var slotId: SlotId
 
   setup:
-    marketplace = Marketplace.new(Marketplace.address, ethProvider)
+    marketplace = Marketplace.new(marketplaceAddress, ethProvider)
     let config = await marketplace.config()
     period = config.proofs.period.truncate(uint64)
     slotId = SlotId(array[32, byte].default) # ensure we aren't reusing from prev test

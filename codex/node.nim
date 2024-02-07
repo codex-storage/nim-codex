@@ -549,7 +549,7 @@ proc onStore(
 proc onProve(
   self: CodexNodeRef,
   slot: Slot,
-  challenge: ProofChallenge): Future[?!seq[byte]] {.async.} =
+  challenge: ProofChallenge): Future[?!Groth16Proof] {.async.} =
   ## Generats a proof for a given slot and challenge
   ##
 
@@ -585,7 +585,12 @@ proc onProve(
     return failure(err)
 
   # Todo: send proofInput to circuit. Get proof. (Profit, repeat.)
-  success(@[42'u8])
+
+  # For now: dummy proof that is not all zero's, so that it is accepted by the
+  # dummy verifier:
+  var proof = Groth16Proof.default
+  proof.a.x = 42.u256
+  success(proof)
 
 proc onExpiryUpdate(
   self: CodexNodeRef,
@@ -635,7 +640,7 @@ proc start*(self: CodexNodeRef) {.async.} =
       self.onClear(request, slotIndex)
 
     hostContracts.sales.onProve =
-      proc(slot: Slot, challenge: ProofChallenge): Future[?!seq[byte]] =
+      proc(slot: Slot, challenge: ProofChallenge): Future[?!Groth16Proof] =
         # TODO: generate proof
         self.onProve(slot, challenge)
 
