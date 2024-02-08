@@ -9,7 +9,7 @@
 
 import pkg/upraises
 
-push: {.upraises: [].}
+{.push raises: [].}
 
 import std/os
 import std/terminal
@@ -55,9 +55,11 @@ const
   codex_enable_log_counter* {.booldefine.} = false
 
 type
-  StartUpCommand* {.pure.} = enum
-    noCommand,
-    initNode
+  StartUpCmd* {.pure.} = enum
+    Persistence
+
+  PersistenceCmd* {.pure.} = enum
+    Validator
 
   LogKind* {.pure.} = enum
     Auto = "auto"
@@ -112,144 +114,120 @@ type
       abbr: "d"
       name: "data-dir" }: OutDir
 
+    listenAddrs* {.
+      desc: "Multi Addresses to listen on"
+      defaultValue: @[
+        MultiAddress.init("/ip4/0.0.0.0/tcp/0")
+        .expect("Should init multiaddress")]
+      defaultValueDesc: "/ip4/0.0.0.0/tcp/0"
+      abbr: "i"
+      name: "listen-addrs" }: seq[MultiAddress]
+
+    # TODO: change this once we integrate nat support
+    nat* {.
+      desc: "IP Addresses to announce behind a NAT"
+      defaultValue: ValidIpAddress.init("127.0.0.1")
+      defaultValueDesc: "127.0.0.1"
+      abbr: "a"
+      name: "nat" }: ValidIpAddress
+
+    discoveryIp* {.
+      desc: "Discovery listen address"
+      defaultValue: ValidIpAddress.init(IPv4_any())
+      defaultValueDesc: "0.0.0.0"
+      abbr: "e"
+      name: "disc-ip" }: ValidIpAddress
+
+    discoveryPort* {.
+      desc: "Discovery (UDP) port"
+      defaultValue: 8090.Port
+      defaultValueDesc: "8090"
+      abbr: "u"
+      name: "disc-port" }: Port
+
+    netPrivKeyFile* {.
+      desc: "Source of network (secp256k1) private key file path or name"
+      defaultValue: "key"
+      name: "net-privkey" }: string
+
+    bootstrapNodes* {.
+      desc: "Specifies one or more bootstrap nodes to use when connecting to the network"
+      abbr: "b"
+      name: "bootstrap-node" }: seq[SignedPeerRecord]
+
+    maxPeers* {.
+      desc: "The maximum number of peers to connect to"
+      defaultValue: 160
+      name: "max-peers" }: int
+
+    agentString* {.
+      defaultValue: "Codex"
+      desc: "Node agent string which is used as identifier in network"
+      name: "agent-string" }: string
+
+    apiBindAddress* {.
+      desc: "The REST API bind address"
+      defaultValue: "127.0.0.1"
+      name: "api-bindaddr"
+    }: string
+
+    apiPort* {.
+      desc: "The REST Api port",
+      defaultValue: 8080.Port
+      defaultValueDesc: "8080"
+      name: "api-port"
+      abbr: "p" }: Port
+
+    repoKind* {.
+      desc: "Backend for main repo store (fs, sqlite)"
+      defaultValueDesc: "fs"
+      defaultValue: repoFS
+      name: "repo-kind" }: RepoKind
+
+    storageQuota* {.
+      desc: "The size of the total storage quota dedicated to the node"
+      defaultValue: DefaultQuotaBytes
+      defaultValueDesc: $DefaultQuotaBytes
+      name: "storage-quota"
+      abbr: "q" }: NBytes
+
+    blockTtl* {.
+      desc: "Default block timeout in seconds - 0 disables the ttl"
+      defaultValue: DefaultBlockTtl
+      defaultValueDesc: $DefaultBlockTtl
+      name: "block-ttl"
+      abbr: "t" }: Duration
+
+    blockMaintenanceInterval* {.
+      desc: "Time interval in seconds - determines frequency of block maintenance cycle: how often blocks are checked for expiration and cleanup"
+      defaultValue: DefaultBlockMaintenanceInterval
+      defaultValueDesc: $DefaultBlockMaintenanceInterval
+      name: "block-mi" }: Duration
+
+    blockMaintenanceNumberOfBlocks* {.
+      desc: "Number of blocks to check every maintenance cycle"
+      defaultValue: DefaultNumberOfBlocksToMaintainPerInterval
+      defaultValueDesc: $DefaultNumberOfBlocksToMaintainPerInterval
+      name: "block-mn" }: int
+
+    cacheSize* {.
+      desc: "The size of the block cache, 0 disables the cache - might help on slow hardrives"
+      defaultValue: 0
+      defaultValueDesc: "0"
+      name: "cache-size"
+      abbr: "c" }: NBytes
+
+    logFile* {.
+        desc: "Logs to file"
+        defaultValue: string.none
+        name: "log-file"
+        hidden
+      .}: Option[string]
+
     case cmd* {.
-      command
-      defaultValue: noCommand }: StartUpCommand
+      command }: StartUpCmd
 
-    of noCommand:
-
-      listenAddrs* {.
-        desc: "Multi Addresses to listen on"
-        defaultValue: @[
-          MultiAddress.init("/ip4/0.0.0.0/tcp/0")
-          .expect("Should init multiaddress")]
-        defaultValueDesc: "/ip4/0.0.0.0/tcp/0"
-        abbr: "i"
-        name: "listen-addrs" }: seq[MultiAddress]
-
-      # TODO: change this once we integrate nat support
-      nat* {.
-        desc: "IP Addresses to announce behind a NAT"
-        defaultValue: ValidIpAddress.init("127.0.0.1")
-        defaultValueDesc: "127.0.0.1"
-        abbr: "a"
-        name: "nat" }: ValidIpAddress
-
-      discoveryIp* {.
-        desc: "Discovery listen address"
-        defaultValue: ValidIpAddress.init(IPv4_any())
-        defaultValueDesc: "0.0.0.0"
-        abbr: "e"
-        name: "disc-ip" }: ValidIpAddress
-
-      discoveryPort* {.
-        desc: "Discovery (UDP) port"
-        defaultValue: 8090.Port
-        defaultValueDesc: "8090"
-        abbr: "u"
-        name: "disc-port" }: Port
-
-      netPrivKeyFile* {.
-        desc: "Source of network (secp256k1) private key file path or name"
-        defaultValue: "key"
-        name: "net-privkey" }: string
-
-      bootstrapNodes* {.
-        desc: "Specifies one or more bootstrap nodes to use when connecting to the network"
-        abbr: "b"
-        name: "bootstrap-node" }: seq[SignedPeerRecord]
-
-      maxPeers* {.
-        desc: "The maximum number of peers to connect to"
-        defaultValue: 160
-        name: "max-peers" }: int
-
-      agentString* {.
-        defaultValue: "Codex"
-        desc: "Node agent string which is used as identifier in network"
-        name: "agent-string" }: string
-
-      apiBindAddress* {.
-        desc: "The REST API bind address"
-        defaultValue: "127.0.0.1"
-        name: "api-bindaddr"
-      }: string
-
-      apiPort* {.
-        desc: "The REST Api port",
-        defaultValue: 8080.Port
-        defaultValueDesc: "8080"
-        name: "api-port"
-        abbr: "p" }: Port
-
-      repoKind* {.
-        desc: "Backend for main repo store (fs, sqlite)"
-        defaultValueDesc: "fs"
-        defaultValue: repoFS
-        name: "repo-kind" }: RepoKind
-
-      storageQuota* {.
-        desc: "The size of the total storage quota dedicated to the node"
-        defaultValue: DefaultQuotaBytes
-        defaultValueDesc: $DefaultQuotaBytes
-        name: "storage-quota"
-        abbr: "q" }: NBytes
-
-      blockTtl* {.
-        desc: "Default block timeout in seconds - 0 disables the ttl"
-        defaultValue: DefaultBlockTtl
-        defaultValueDesc: $DefaultBlockTtl
-        name: "block-ttl"
-        abbr: "t" }: Duration
-
-      blockMaintenanceInterval* {.
-        desc: "Time interval in seconds - determines frequency of block maintenance cycle: how often blocks are checked for expiration and cleanup"
-        defaultValue: DefaultBlockMaintenanceInterval
-        defaultValueDesc: $DefaultBlockMaintenanceInterval
-        name: "block-mi" }: Duration
-
-      blockMaintenanceNumberOfBlocks* {.
-        desc: "Number of blocks to check every maintenance cycle"
-        defaultValue: DefaultNumberOfBlocksToMaintainPerInterval
-        defaultValueDesc: $DefaultNumberOfBlocksToMaintainPerInterval
-        name: "block-mn" }: int
-
-      cacheSize* {.
-        desc: "The size of the block cache, 0 disables the cache - might help on slow hardrives"
-        defaultValue: 0
-        defaultValueDesc: "0"
-        name: "cache-size"
-        abbr: "c" }: NBytes
-
-      persistence* {.
-        desc: "Enables persistence mechanism, requires an Ethereum node"
-        defaultValue: false
-        name: "persistence"
-      .}: bool
-
-      circomR1cs* {.
-        desc: "The r1cs file for the storage circuit"
-        defaultValue: defaultDataDir() / "circuits" / "proof_main.r1cs"
-        name: "circom-r1cs"
-      .}: string
-
-      circomWasm* {.
-        desc: "The wasm file for the storage circuit"
-        defaultValue: defaultDataDir() / "circuits" / "proof_main.wasm"
-        name: "circom-wasm"
-      .}: string
-
-      circomZkey* {.
-        desc: "The zkey file for the storage circuit"
-        defaultValue: defaultDataDir() / "circuits" / "proof_main.zkey"
-        name: "circom-zkey"
-      .}: string
-
-      circomNoZkey* {.
-        desc: "Ignore the zkey file - use only for testing!"
-        defaultValue: false
-        name: "circom-no-zkey"
-      .}: bool
+    of Persistence:
 
       numProofSamples* {.
         desc: "Number of samples to prove"
@@ -281,39 +259,57 @@ type
         name: "marketplace-address"
       .}: Option[EthAddress]
 
-      validator* {.
-        desc: "Enables validator, requires an Ethereum node"
+      circomR1cs* {.
+        desc: "The r1cs file for the storage circuit"
+        defaultValue: $defaultDataDir() / "circuits" / "proof_main.r1cs"
+        name: "circom-r1cs"
+      .}: string
+
+      circomWasm* {.
+        desc: "The wasm file for the storage circuit"
+        defaultValue: $defaultDataDir() / "circuits" / "proof_main.wasm"
+        name: "circom-wasm"
+      .}: string
+
+      circomZkey* {.
+        desc: "The zkey file for the storage circuit"
+        defaultValue: $defaultDataDir() / "circuits" / "proof_main.zkey"
+        name: "circom-zkey"
+      .}: string
+
+      circomNoZkey* {.
+        desc: "Ignore the zkey file - use only for testing!"
         defaultValue: false
-        name: "validator"
+        name: "circom-no-zkey"
       .}: bool
 
-      validatorMaxSlots* {.
-        desc: "Maximum number of slots that the validator monitors"
-        defaultValue: 1000
-        name: "validator-max-slots"
-      .}: int
+      case persistenceCmd* {.
+        command }: PersistenceCmd
 
-      simulateProofFailures* {.
-          desc: "Simulates proof failures once every N proofs. 0 = disabled."
-          defaultValue: 0
-          name: "simulate-proof-failures"
-          hidden
+      of Validator:
+        validatorMaxSlots* {.
+          desc: "Maximum number of slots that the validator monitors"
+          defaultValue: 1000
+          name: "validator-max-slots"
         .}: int
 
-      logFile* {.
-          desc: "Logs to file"
-          defaultValue: string.none
-          name: "log-file"
-          hidden
-        .}: Option[string]
-
-    of initNode:
-      discard
+        simulateProofFailures* {.
+            desc: "Simulates proof failures once every N proofs. 0 = disabled."
+            defaultValue: 0
+            name: "simulate-proof-failures"
+            hidden
+          .}: int
 
   EthAddress* = ethers.Address
 
 logutils.formatIt(LogFormat.textLines, EthAddress): it.short0xHexLog
 logutils.formatIt(LogFormat.json, EthAddress): %it
+
+func persistence*(self: CodexConf): bool =
+  self.cmd == StartUpCmd.Persistence
+
+func validator*(self: CodexConf): bool =
+  self.persistenceCmd == PersistenceCmd.Validator
 
 proc getCodexVersion(): string =
   let tag = strip(staticExec("git tag"))

@@ -66,7 +66,6 @@ proc bootstrapInteractions(
     config = s.config
     repo = s.repoStore
 
-
   if not config.persistence and not config.validator:
     if config.ethAccount.isSome or config.ethPrivateKey.isSome:
       warn "Ethereum account was set, but neither persistence nor validator is enabled"
