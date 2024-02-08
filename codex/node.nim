@@ -38,9 +38,11 @@ import ./streams
 import ./erasure
 import ./discovery
 import ./contracts
+import ./indexingstrategy
 import ./utils
 import ./errors
 import ./logutils
+import ./utils/poseidon2digest
 
 export logutils
 
@@ -390,7 +392,7 @@ proc setupRequest(
     trace "Unable to erasure code dataset"
     return failure(error)
 
-  without builder =? SlotsBuilder.new(self.blockStore, encoded), err:
+  without builder =? Poseidon2Builder.new(self.blockStore, encoded), err:
     trace "Unable to create slot builder"
     return failure(err)
 
@@ -503,7 +505,7 @@ proc onStore(
     trace "Unable to fetch manifest for cid", cid, err = err.msg
     return failure(err)
 
-  without builder =? SlotsBuilder.new(self.blockStore, manifest), err:
+  without builder =? Poseidon2Builder.new(self.blockStore, manifest), err:
     trace "Unable to create slots builder", err = err.msg
     return failure(err)
 
@@ -528,8 +530,13 @@ proc onStore(
 
     return success()
 
-  if blksIter =? builder.slotIndiciesIter(slotIdx) and
-    err =? (await self.fetchBatched(
+  without indexer =? manifest.protectedStrategy.init(
+    0, manifest.blocksCount() - 1, manifest.numSlots).catch and
+    blksIter =? indexer.getIndicies(slotIdx).catch, err:
+      trace "Unable to create indexing strategy from protected manifest", err = err.msg
+      return failure(err)
+
+  if err =? (await self.fetchBatched(
       manifest.treeCid,
       blksIter,
       onBatch = updateExpiry)).errorOption:
@@ -572,7 +579,7 @@ proc onProve(
     error "Unable to fetch manifest for cid", err = err.msg
     return failure(err)
 
-  without builder =? SlotsBuilder.new(self.blockStore, manifest), err:
+  without builder =? Poseidon2Builder.new(self.blockStore, manifest), err:
     error "Unable to create slots builder", err = err.msg
     return failure(err)
 

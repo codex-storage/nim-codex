@@ -7,16 +7,14 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/upraises
-
-push: {.upraises: [].}
+{.push raises: [].}
 
 import std/bitops
 import std/sequtils
+
 import pkg/questionable
 import pkg/questionable/results
 import pkg/libp2p/[cid, multicodec, multihash]
-import pkg/stew/byteutils
 
 import ../../utils
 import ../../rng
@@ -72,7 +70,7 @@ func getProof*(self: CodexTree, index: int): ?!CodexProof =
 
   success proof
 
-func verify*(self: CodexProof, leaf: MultiHash, root: MultiHash): ?!void =
+func verify*(self: CodexProof, leaf: MultiHash, root: MultiHash): ?!bool =
   ## Verify hash
   ##
 
@@ -88,11 +86,9 @@ func verify*(self: CodexProof, leaf: MultiHash, root: MultiHash): ?!void =
     leafBytes.len != leaf.size:
     return failure "Invalid hash length"
 
-  ? self.verify(leafBytes, rootBytes)
+  self.verify(leafBytes, rootBytes)
 
-  success()
-
-func verify*(self: CodexProof, leaf: Cid, root: Cid): ?!void =
+func verify*(self: CodexProof, leaf: Cid, root: Cid): ?!bool =
   self.verify(? leaf.mhash.mapFailure, ? leaf.mhash.mapFailure)
 
 proc rootCid*(
@@ -124,16 +120,19 @@ func getLeafCid*(
   Cid.init(version, dataCodec, mhash).mapFailure
 
 proc `$`*(self: CodexTree): string =
-  "CodexTree( mcodec: " &
-    $self.mcodec &
-    ", leavesCount: " &
-    $self.leavesCount & " )"
+  let root = if self.root.isOk: byteutils.toHex(self.root.get) else: "none"
+  "CodexTree(" &
+    " root: " & root &
+    ", leavesCount: " & $self.leavesCount &
+    ", levels: " & $self.levels &
+    ", mcodec: " & $self.mcodec & " )"
 
 proc `$`*(self: CodexProof): string =
-  "CodexProof( mcodec: " &
-    $self.mcodec & ", nleaves: " &
-    $self.nleaves & ", index: " &
-    $self.index & " )"
+  "CodexProof(" &
+  " nleaves: " & $self.nleaves &
+  ", index: " & $self.index &
+  ", path: " & $self.path.mapIt( byteutils.toHex(it) ) &
+  ", mcodec: " & $self.mcodec & " )"
 
 func compress*(
   x, y: openArray[byte],
@@ -226,7 +225,9 @@ proc fromNodes*(
     index = Rng.instance.rand(nleaves - 1)
     proof = ? self.getProof(index)
 
-  ? proof.verify(self.leaves[index], ? self.root) # sanity check
+  if not ? proof.verify(self.leaves[index], ? self.root): # sanity check
+    return failure "Unable to verify tree built from nodes"
+
   success self
 
 func init*(
