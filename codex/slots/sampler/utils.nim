@@ -84,30 +84,3 @@ func cellIndices*(
     let idx = cellIndex(entropy, slotRoot, numCells, indices.len + 1)
     indices.add(idx.Natural)
   indices
-
-func checkCellProof*[H, P](
-  cellData: seq[byte],
-  cellProof: P,
-  blkRoot: H,
-  slotProof: P,
-  slotRoot: H): ?!bool =
-  ## Check the proof for a given cell.
-  ##
-
-  let
-    cellLeaf = H.spongeDigest(cellData).valueOr:
-      return failure("Failed to digest cell data")
-
-    slotLeaf = cellProof.reconstructRoot(cellLeaf).valueOr:
-      return failure("Failed to reconstruct slot leaf")
-
-    recRoot = slotProof.reconstructRoot(slotLeaf).valueOr:
-      return failure("Failed to reconstruct slot root")
-
-  if blkRoot != slotLeaf:
-    return failure("Block root does not match slot leaf")
-
-  if recRoot != slotRoot:
-    return failure("Reconstructed slot root does not match expected slot root")
-
-  success true
