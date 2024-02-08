@@ -78,11 +78,11 @@ func toVerifiableProof*(
   proof: CodexProof): ?!Poseidon2Proof =
 
   let
-    verifiableProof = Poseidon2Proof(
-      index: proof.index,
-      nleaves: proof.nleaves,
-      path: proof.path.mapIt(
-        ? Poseidon2Hash.fromBytes(it.toArray32).toFailure
-      ))
+    nodes = proof.path.mapIt(
+      ? Poseidon2Hash.fromBytes(it.toArray32).toFailure
+    )
 
-  success verifiableProof
+  Poseidon2Proof.init(
+    index = proof.index,
+    nleaves = proof.nleaves,
+    nodes = nodes)
