@@ -26,7 +26,7 @@ import ../backends/helpers
 import ../helpers
 import ../../helpers
 
-suite "Test control samples":
+suite "Test Sampler - control samples":
 
   var
     inputData: string
@@ -73,7 +73,7 @@ suite "Test control samples":
 
     check datasetProof.verify(proofInput.slotRoot, proofInput.datasetRoot).tryGet
 
-suite "Test sampler samples":
+suite "Test Sampler":
 
   let
     slotIndex     = 3

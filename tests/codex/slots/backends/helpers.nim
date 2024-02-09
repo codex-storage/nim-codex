@@ -37,6 +37,31 @@ func toPublicInputs*[H](input: ProofInput[H]): PublicInputs[H] =
     entropy: input.entropy
   )
 
+proc toCircomInputs*[H](inputs: PublicInputs[H]): CircomInputs =
+  var
+    slotIndex = inputs.slotIndex.toF.toBytes.toArray32
+    datasetRoot = inputs.datasetRoot.toBytes.toArray32
+    entropy = inputs.entropy.toBytes.toArray32
+
+    elms = [
+      entropy,
+      datasetRoot,
+      slotIndex
+    ]
+
+  let inputsPtr = allocShared0(32 * elms.len)
+  copyMem(inputsPtr, addr elms[0], elms.len * 32)
+
+  CircomInputs(
+    elms: cast[ptr array[32, byte]](inputsPtr),
+    len: elms.len.uint
+  )
+
+proc releaseNimInputs*(inputs: var CircomInputs) =
+  if not inputs.elms.isNil:
+    deallocShared(inputs.elms)
+    inputs.elms = nil
+
 func toJsonDecimal*(big: BigInt[254]): string =
   let s = big.toDecimal.strip( leading = true, trailing = false, chars = {'0'} )
   if s.len == 0: "0" else: s
