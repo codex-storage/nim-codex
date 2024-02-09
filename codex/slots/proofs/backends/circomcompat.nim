@@ -21,10 +21,6 @@ import ../../../stores
 import ../../../merkletree
 import ../../../codextypes
 
-import pkg/constantine/math/arithmetic
-import pkg/constantine/math/arithmetic
-import pkg/constantine/math/io/io_bigints
-
 export circomcompat
 
 type
