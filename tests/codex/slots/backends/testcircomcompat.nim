@@ -23,7 +23,7 @@ import pkg/constantine/math/io/io_bigints
 import ./helpers
 import ../helpers
 
-suite "Test Circom Compat Backend - control input":
+suite "Test Circom Compat Backend - control inputs":
   let
     r1cs = "tests/circuits/fixtures/proof_main.r1cs"
     wasm = "tests/circuits/fixtures/proof_main.wasm"
@@ -51,13 +51,13 @@ suite "Test Circom Compat Backend - control input":
     verifyingKeyPtr.addr.releaseKey()    # this comes from the rust FFI
     circom.release()                     # this comes from the rust FFI
 
-  test "Should verify with correct input":
+  test "Should verify with correct inputs":
     let
       proof = circom.prove(proofInput).tryGet
 
     check circom.verify(proof, publicInputs, verifyingKeyPtr[]).tryGet
 
-  test "Should not verify with incorrect input":
+  test "Should not verify with incorrect inputs":
     proofInput.slotIndex = 1 # change slot index
 
     let
