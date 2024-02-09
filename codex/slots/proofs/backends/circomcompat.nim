@@ -19,10 +19,7 @@ import pkg/poseidon2/io
 import ../../types
 import ../../../stores
 import ../../../merkletree
-
-import pkg/constantine/math/arithmetic
-import pkg/constantine/math/arithmetic
-import pkg/constantine/math/io/io_bigints
+import ../../../codextypes
 
 export circomcompat
 
