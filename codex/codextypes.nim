@@ -28,8 +28,6 @@ const
   DefaultBlockSize* = NBytes 1024 * 64
   DefaultCellSize* = NBytes 2048
 
-  DefaultSamplesNum* = 20
-
   # hashes
   Sha256HashCodec* = multiCodec("sha2-256")
   Sha512HashCodec* = multiCodec("sha2-512")
