@@ -33,7 +33,7 @@ const
   DefaultMaxDatasetDepth* = 8
   DefaultBlockDepth*      = 5
   DefaultCellElms*        = 67
-  DefaultNSamples*        = 5
+  DefaultSamplesNum*      = 5
 
 type
   CircomCompat* = object
