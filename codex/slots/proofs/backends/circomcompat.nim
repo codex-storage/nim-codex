@@ -26,14 +26,6 @@ import pkg/constantine/math/io/io_bigints
 
 export circomcompat
 
-const
-  # TODO: this defaults need to be adjusted and/or replased with cli config params
-  DefaultMaxSlotDepth*    = 32
-  DefaultMaxDatasetDepth* = 8
-  DefaultBlockDepth*      = 5
-  DefaultCellElms*        = 67
-  DefaultSamplesNum*      = 5
-
 type
   CircomCompat* = object
     slotDepth     : int     # max depth of the slot tree

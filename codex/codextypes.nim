@@ -28,6 +28,13 @@ const
   DefaultBlockSize* = NBytes 1024 * 64
   DefaultCellSize* = NBytes 2048
 
+  # Proving defaults
+  DefaultMaxSlotDepth*    = 32
+  DefaultMaxDatasetDepth* = 8
+  DefaultBlockDepth*      = 5
+  DefaultCellElms*        = 67
+  DefaultSamplesNum*      = 5
+
   # hashes
   Sha256HashCodec* = multiCodec("sha2-256")
   Sha512HashCodec* = multiCodec("sha2-512")
