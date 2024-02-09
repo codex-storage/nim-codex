@@ -158,9 +158,11 @@ proc prove*[H](
 
   let proof =
     try:
-      if self.backendCfg.proveCircuit(backend, proofPtr.addr) != ERR_OK or
+      if (
+        let res = self.backendCfg.proveCircuit(backend, proofPtr.addr);
+        res != ERR_OK) or
         proofPtr == nil:
-        return failure("Failed to prove")
+        return failure("Failed to prove - err code: " & $res)
 
       proofPtr[]
     finally:
