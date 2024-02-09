@@ -53,19 +53,13 @@ runs:
           mingw-w64-ucrt-x86_64-toolchain
           mingw-w64-ucrt-x86_64-cmake
           mingw-w64-ucrt-x86_64-ntldd-git
-        shell: msys2 {0}
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable-x86_64-pc-windows-gnu -y
-          echo `cygpath $USERPROFILE/.cargo/bin` >> ${GITHUB_PATH}
-          echo
-          rustup --version
-          cargo --version
-          rustc --version
+          mingw-w64-ucrt-x86_64-rust
 
     - name: MSYS2 (Windows i386)
       if: inputs.os == 'windows' && inputs.cpu == 'i386'
       uses: msys2/setup-msys2@v2
       with:
+        path-type: inherit
         msystem: MINGW32
         install: >
           base-devel
@@ -73,14 +67,7 @@ runs:
           mingw-w64-i686-toolchain
           mingw-w64-i686-cmake
           mingw-w64-i686-ntldd-git
-        shell: msys2 {0}
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable-i686-pc-windows-gnu -y
-          echo `cygpath $USERPROFILE/.cargo/bin` >> ${GITHUB_PATH}
-          echo
-          rustup --version
-          cargo --version
-          rustc --version
+          mingw-w64-i686-rust
 
     - name: Derive environment variables
       shell: ${{ inputs.shell }} {0}
