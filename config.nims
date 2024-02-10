@@ -74,6 +74,8 @@ else:
 --styleCheck:usages
 --styleCheck:error
 --maxLoopIterationsVM:1000000000
+--fieldChecks:on
+--warningAsError:"ProveField:on"
 
 when (NimMajor, NimMinor) >= (1, 4):
   --warning:"ObservableStores:off"
