@@ -258,26 +258,28 @@ proc new*(
     engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+
     prover = if config.persistence:
-      if not fileAccessible($config.circomR1cs, {AccessFlags.Read}):
+      if not fileAccessible($config.circomR1cs, {AccessFlags.Read}) and
+        $(config.circomR1cs).endsWith(".r1cs"):
         error "Circom R1CS file not accessible"
         raise (ref Defect)(
-          msg: "r1cs file not readable or doesn't exist")
+          msg: "r1cs file not readable, doesn't exist or wrong extension (.r1cs)")
 
-      if not fileAccessible($config.circomWasm, {AccessFlags.Read}):
-        error "Circom WASM file not accessible"
+      if not fileAccessible($config.circomWasm, {AccessFlags.Read}) and
+        $(config.circomWasm).endsWith(".wasm"):
+        error "Circom wasm file not accessible"
         raise (ref Defect)(
-          msg: "wasm file not readable or doesn't exist")
+          msg: "wasm file not readable, doesn't exist or wrong extension (.wasm)")
 
       let zkey = if not config.circomNoZkey:
-          if not fileAccessible($config.circomNoZkey, {AccessFlags.Read}):
-            error "Circom WASM file not accessible"
+          if not fileAccessible($config.circomZkey, {AccessFlags.Read}) and
+            $(config.circomZkey).endsWith(".zkey"):
+            error "Circom zkey file not accessible"
             raise (ref Defect)(
-              msg: "wasm file not readable or doesn't exist")
-
-          $config.circomNoZkey
-        else:
-          ""
+              msg: "zkey file not readable, doesn't exist or wrong extension (.zkey)")
+          $config.circomZkey
+        else: ""
 
       some Prover.new(store, CircomCompat.init($config.circomR1cs, $config.circomWasm, zkey))
     else:
