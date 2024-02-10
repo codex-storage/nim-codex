@@ -6,6 +6,7 @@ import pkg/chronos
 
 import pkg/codex/codextypes
 import pkg/codex/chunker
+import pkg/codex/slots
 
 import ../../asynctest
 
@@ -93,7 +94,7 @@ template setupAndTearDown*() {.dirty.} =
     engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-    node = CodexNodeRef.new(switch, store, engine, erasure, blockDiscovery)
+    node = CodexNodeRef.new(switch, store, engine, erasure, Prover.none, blockDiscovery)
 
     await node.start()
 
