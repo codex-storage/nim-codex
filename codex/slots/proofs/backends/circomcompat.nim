@@ -88,6 +88,10 @@ proc prove*[H](
   var
     backend: ptr CircomCompatCtx
 
+  defer:
+    if backend != nil:
+      backend.addr.releaseCircomCompat()
+
   if initCircomCompat(
     self.backendCfg,
     addr backend) != ERR_OK or backend == nil:
@@ -168,9 +172,6 @@ proc prove*[H](
     finally:
       if proofPtr != nil:
         proofPtr.addr.releaseProof()
-
-      if backend != nil:
-        backend.addr.releaseCircomCompat()
 
   success proof
 
