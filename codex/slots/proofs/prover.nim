@@ -42,13 +42,13 @@ type
   Prover* = ref object of RootObj
     backend: AnyBackend
     store: BlockStore
+    nSamples: int
 
 proc prove*(
   self: Prover,
   slotIdx: int,
   manifest: Manifest,
-  challenge: ProofChallenge,
-  nSamples = DefaultSamplesNum): Future[?!AnyProof] {.async.} =
+  challenge: ProofChallenge): Future[?!AnyProof] {.async.} =
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
 
@@ -67,7 +67,7 @@ proc prove*(
     error "Unable to create data sampler", err = err.msg
     return failure(err)
 
-  without proofInput =? await sampler.getProofInput(challenge, nSamples), err:
+  without proofInput =? await sampler.getProofInput(challenge, self.nSamples), err:
     error "Unable to get proof input for slot", err = err.msg
     return failure(err)
 
@@ -91,8 +91,10 @@ proc verify*(
 proc new*(
   _: type Prover,
   store: BlockStore,
-  backend: AnyBackend): Prover =
+  backend: AnyBackend,
+  nSamples: int): Prover =
 
   Prover(
     backend: backend,
-    store: store)
+    store: store,
+    nSamples: nSamples)
