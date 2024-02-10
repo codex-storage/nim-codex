@@ -86,6 +86,8 @@ when (NimMajor, NimMinor) >= (1, 6):
 when (NimMajor, NimMinor, NimPatch) >= (1, 6, 11):
   --warning:"BareExcept:off"
 
+switch("define", "nimOldCaseObjects") # needed for confutils commands
+
 switch("define", "withoutPCRE")
 
 # the default open files limit is too low on macOS (512), breaking the

@@ -110,10 +110,6 @@ proc prove*[H](
     "slotRoot".cstring, slotRoot[0].addr, slotRoot.len.uint32) != ERR_OK:
     return failure("Failed to push data set root")
 
-  if backend.pushInputU256Array(
-    "slotRoot".cstring, slotRoot[0].addr, slotRoot.len.uint32) != ERR_OK:
-    return failure("Failed to push data set root")
-
   if backend.pushInputU32(
     "nCellsPerSlot".cstring, input.nCellsPerSlot.uint32) != ERR_OK:
     return failure("Failed to push nCellsPerSlot")
@@ -176,8 +172,7 @@ proc prove*[H](
       if backend != nil:
         backend.addr.releaseCircomCompat()
 
-      if backend != nil:
-        backend.addr.releaseCircomCompat()
+  success proof
 
 proc verify*(
   self: CircomCompat,

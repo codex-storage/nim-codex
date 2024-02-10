@@ -7,8 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/upraises
-
 {.push raises: [].}
 
 import std/os
@@ -48,18 +46,32 @@ export
   DefaultBlockMaintenanceInterval,
   DefaultNumberOfBlocksToMaintainPerInterval
 
+proc defaultDataDir*(): string =
+  let dataDir = when defined(windows):
+    "AppData" / "Roaming" / "Codex"
+  elif defined(macosx):
+    "Library" / "Application Support" / "Codex"
+  else:
+    ".cache" / "codex"
+
+  getHomeDir() / dataDir
+
 const
   codex_enable_api_debug_peers* {.booldefine.} = false
   codex_enable_proof_failures* {.booldefine.} = false
   codex_use_hardhat* {.booldefine.} = false
   codex_enable_log_counter* {.booldefine.} = false
 
+  DefaultDataDir* = defaultDataDir()
+
 type
   StartUpCmd* {.pure.} = enum
-    Persistence
+    noCmd
+    persistence
 
   PersistenceCmd* {.pure.} = enum
-    Validator
+    noCmd
+    validator
 
   LogKind* {.pure.} = enum
     Auto = "auto"
@@ -109,8 +121,8 @@ type
 
     dataDir* {.
       desc: "The directory where codex will store configuration and data"
-      defaultValue: defaultDataDir()
-      defaultValueDesc: ""
+      defaultValue: DefaultDataDir
+      defaultValueDesc: $DefaultDataDir
       abbr: "d"
       name: "data-dir" }: OutDir
 
@@ -225,16 +237,9 @@ type
       .}: Option[string]
 
     case cmd* {.
+      defaultValue: noCmd
       command }: StartUpCmd
-
-    of Persistence:
-
-      numProofSamples* {.
-        desc: "Number of samples to prove"
-        defaultValue: DefaultSamplesNum
-        defaultValueDesc: $DefaultSamplesNum
-        name: "proof-samples" }: int
-
+    of persistence:
       ethProvider* {.
         desc: "The URL of the JSON-RPC API of the Ethereum node"
         defaultValue: "ws://localhost:8545"
@@ -244,55 +249,94 @@ type
       ethAccount* {.
         desc: "The Ethereum account that is used for storage contracts"
         defaultValue: EthAddress.none
+        defaultValueDesc: ""
         name: "eth-account"
       .}: Option[EthAddress]
 
       ethPrivateKey* {.
         desc: "File containing Ethereum private key for storage contracts"
         defaultValue: string.none
+        defaultValueDesc: ""
         name: "eth-private-key"
       .}: Option[string]
 
       marketplaceAddress* {.
         desc: "Address of deployed Marketplace contract"
         defaultValue: EthAddress.none
+        defaultValueDesc: ""
         name: "marketplace-address"
       .}: Option[EthAddress]
 
       circomR1cs* {.
         desc: "The r1cs file for the storage circuit"
-        defaultValue: $defaultDataDir() / "circuits" / "proof_main.r1cs"
+        defaultValue: $DefaultDataDir / "circuits" / "proof_main.r1cs"
+        defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.r1cs"
         name: "circom-r1cs"
-      .}: string
+      .}: InputFile
 
       circomWasm* {.
         desc: "The wasm file for the storage circuit"
-        defaultValue: $defaultDataDir() / "circuits" / "proof_main.wasm"
+        defaultValue: $DefaultDataDir / "circuits" / "proof_main.wasm"
+        defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.wasm"
         name: "circom-wasm"
-      .}: string
+      .}: InputFile
 
       circomZkey* {.
         desc: "The zkey file for the storage circuit"
-        defaultValue: $defaultDataDir() / "circuits" / "proof_main.zkey"
+        defaultValue: $DefaultDataDir / "circuits" / "proof_main.zkey"
+        defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.zkey"
         name: "circom-zkey"
-      .}: string
+      .}: InputFile
 
+      # TODO: should probably be hidden and behind a feature flag
       circomNoZkey* {.
         desc: "Ignore the zkey file - use only for testing!"
         defaultValue: false
         name: "circom-no-zkey"
       .}: bool
 
+      numProofSamples* {.
+        desc: "Number of samples to prove"
+        defaultValue: DefaultSamplesNum
+        defaultValueDesc: $DefaultSamplesNum
+        name: "proof-samples" }: int
+
+      maxSlotDepth* {.
+        desc: "The maximum depth of the slot tree"
+        defaultValue: DefaultMaxSlotDepth
+        defaultValueDesc: $DefaultMaxSlotDepth
+        name: "max-slot-depth" }: int
+
+      maxDatasetDepth* {.
+        desc: "The maximum depth of the dataset tree"
+        defaultValue: DefaultMaxDatasetDepth
+        defaultValueDesc: $DefaultMaxDatasetDepth
+        name: "max-dataset-depth" }: int
+
+      maxBlockDepth* {.
+        desc: "The maximum depth of the network block merkle tree"
+        defaultValue: DefaultBlockDepth
+        defaultValueDesc: $DefaultBlockDepth
+        name: "max-block-depth" }: int
+
+      maxCellElms* {.
+        desc: "The maximum number of elements in a cell"
+        defaultValue: DefaultCellElms
+        defaultValueDesc: $DefaultCellElms
+        name: "max-cell-elements" }: int
+
       case persistenceCmd* {.
+        defaultValue: noCmd
         command }: PersistenceCmd
 
-      of Validator:
+      of validator:
         validatorMaxSlots* {.
           desc: "Maximum number of slots that the validator monitors"
           defaultValue: 1000
           name: "validator-max-slots"
         .}: int
 
+        # TODO: should go behind a feature flag
         simulateProofFailures* {.
             desc: "Simulates proof failures once every N proofs. 0 = disabled."
             defaultValue: 0
@@ -300,16 +344,22 @@ type
             hidden
           .}: int
 
+      of PersistenceCmd.noCmd:
+        discard # end of validator
+
+    of StartUpCmd.noCmd:
+      discard # end of persistence
+
   EthAddress* = ethers.Address
 
 logutils.formatIt(LogFormat.textLines, EthAddress): it.short0xHexLog
 logutils.formatIt(LogFormat.json, EthAddress): %it
 
 func persistence*(self: CodexConf): bool =
-  self.cmd == StartUpCmd.Persistence
+  self.cmd == StartUpCmd.persistence
 
 func validator*(self: CodexConf): bool =
-  self.persistenceCmd == PersistenceCmd.Validator
+  self.persistence and self.persistenceCmd == PersistenceCmd.validator
 
 proc getCodexVersion(): string =
   let tag = strip(staticExec("git tag"))
@@ -335,16 +385,6 @@ const
     "Codex revision: " & codexRevision & "\p" &
     nimBanner
 
-proc defaultDataDir*(): string =
-  let dataDir = when defined(windows):
-    "AppData" / "Roaming" / "Codex"
-  elif defined(macosx):
-    "Library" / "Application Support" / "Codex"
-  else:
-    ".cache" / "codex"
-
-  getHomeDir() / dataDir
-
 proc parseCmdArg*(T: typedesc[MultiAddress],
                   input: string): MultiAddress
                  {.upraises: [ValueError, LPError].} =
@@ -353,7 +393,7 @@ proc parseCmdArg*(T: typedesc[MultiAddress],
   if res.isOk:
     ma = res.get()
   else:
-    warn "Invalid MultiAddress", input=input, error=res.error()
+    warn "Invalid MultiAddress", input=input, error = res.error()
     quit QuitFailure
   ma
 
@@ -361,10 +401,10 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
   var res: SignedPeerRecord
   try:
     if not res.fromURI(uri):
-      warn "Invalid SignedPeerRecord uri", uri=uri
+      warn "Invalid SignedPeerRecord uri", uri = uri
       quit QuitFailure
   except CatchableError as exc:
-    warn "Invalid SignedPeerRecord uri", uri=uri, error=exc.msg
+    warn "Invalid SignedPeerRecord uri", uri = uri, error = exc.msg
     quit QuitFailure
   res
 
@@ -375,7 +415,7 @@ proc parseCmdArg*(T: type NBytes, val: string): T =
   var num = 0'i64
   let count = parseSize(val, num, alwaysBin = true)
   if count == 0:
-      warn "Invalid number of bytes", nbytes=val
+      warn "Invalid number of bytes", nbytes = val
       quit QuitFailure
   NBytes(num)
 
@@ -383,7 +423,7 @@ proc parseCmdArg*(T: type Duration, val: string): T =
   var dur: Duration
   let count = parseDuration(val, dur)
   if count == 0:
-      warn "Invalid duration parse", dur=dur
+      warn "Cannot parse duration", dur = dur
       quit QuitFailure
   dur
 

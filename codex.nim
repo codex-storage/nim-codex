@@ -88,7 +88,11 @@ when isMainModule:
         config.dataDir / config.netPrivKeyFile
 
     privateKey = setupKey(keyPath).expect("Should setup private key!")
-    server = CodexServer.new(config, privateKey)
+    server = try:
+      CodexServer.new(config, privateKey)
+    except Exception as exc:
+      error "Failed to start Codex", msg = exc.msg
+      quit QuitFailure
 
   ## Ctrl+C handling
   proc controlCHandler() {.noconv.} =
@@ -125,8 +129,12 @@ when isMainModule:
 
   state = CodexStatus.Running
   while state == CodexStatus.Running:
-    # poll chronos
-    chronos.poll()
+    try:
+      # poll chronos
+      chronos.poll()
+    except Exception as exc:
+      error "Unhandled exception in async proc, aborting", msg = exc.msg
+      quit QuitFailure
 
   # wait fot futures to finish
   let res = waitFor allFinished(pendingFuts)
