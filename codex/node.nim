@@ -556,11 +556,13 @@ proc onStore(
     trace "Unable to build slot", err = err.msg
     return failure(err)
 
+  trace "Slot successfully retrieved and reconstructed"
+
   if cid =? slotRoot.toSlotCid() and cid != manifest.slotRoots[slotIdx.int]:
     trace "Slot root mismatch", manifest = manifest.slotRoots[slotIdx.int], recovered = slotRoot.toSlotCid()
     return failure(newException(CodexError, "Slot root mismatch"))
 
-  trace "Slot successfully retrieved and reconstructed"
+  trace "Storage request processed"
 
   return success()
 
@@ -593,16 +595,8 @@ proc onProve(
       error "Unable to fetch manifest for cid", err = err.msg
       return failure(err)
 
-    without builder =? Poseidon2Builder.new(self.networkStore.localStore, manifest), err:
-      error "Unable to create slots builder", err = err.msg
-      return failure(err)
-
-    without sampler =? DataSampler.new(slotIdx, self.networkStore.localStore, builder), err:
-      error "Unable to create data sampler", err = err.msg
-      return failure(err)
-
-    without proofInput =? await sampler.getProofInput(challenge, nSamples = 3), err:
-      error "Unable to get proof input for slot", err = err.msg
+    without proof =? await prover.prove(slotIdx, manifest, challenge), err:
+      error "Unable to generate proof", err = err.msg
       return failure(err)
 
   # Todo: send proofInput to circuit. Get proof. (Profit, repeat.)
