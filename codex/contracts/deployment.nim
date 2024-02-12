@@ -17,7 +17,8 @@ const knownAddresses = {
   # TODO: This is currently the address of the marketplace with a dummy
   # verifier. Replace with "0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44" once we
   # can generate actual Groth16 ZK proofs
-  "Marketplace": Address.init("0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f"),
+  # "Marketplace": Address.init("0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f"),
+  "Marketplace": Address.init("0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44"),
  }.toTable,
  # Taiko Alpha-3 Testnet
  "167005": {
