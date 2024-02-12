@@ -118,6 +118,9 @@ switch("define", "chronicles_sinks=textlines[dynamic],json[dynamic],textlines[dy
 switch("define", "use_asm_syntax_intel=false")
 switch("define", "ctt_asm=false")
 
+# Allow the use of old-style case objects for nim config compatibility
+switch("define", "nimOldCaseObjects")
+
 # begin Nimble config (version 1)
 when system.fileExists("nimble.paths"):
   include "nimble.paths"
