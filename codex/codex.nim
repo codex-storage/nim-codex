@@ -261,27 +261,31 @@ proc new*(
 
     prover = if config.persistence:
       if not fileAccessible($config.circomR1cs, {AccessFlags.Read}) and
-        $(config.circomR1cs).endsWith(".r1cs"):
+        endsWith($config.circomR1cs, ".r1cs"):
         error "Circom R1CS file not accessible"
         raise (ref Defect)(
           msg: "r1cs file not readable, doesn't exist or wrong extension (.r1cs)")
 
       if not fileAccessible($config.circomWasm, {AccessFlags.Read}) and
-        $(config.circomWasm).endsWith(".wasm"):
+        endsWith($config.circomWasm, ".wasm"):
         error "Circom wasm file not accessible"
         raise (ref Defect)(
           msg: "wasm file not readable, doesn't exist or wrong extension (.wasm)")
 
       let zkey = if not config.circomNoZkey:
           if not fileAccessible($config.circomZkey, {AccessFlags.Read}) and
-            $(config.circomZkey).endsWith(".zkey"):
+            endsWith($config.circomZkey, ".zkey"):
             error "Circom zkey file not accessible"
             raise (ref Defect)(
               msg: "zkey file not readable, doesn't exist or wrong extension (.zkey)")
+
           $config.circomZkey
         else: ""
 
-      some Prover.new(store, CircomCompat.init($config.circomR1cs, $config.circomWasm, zkey))
+      some Prover.new(
+        store,
+        CircomCompat.init($config.circomR1cs, $config.circomWasm, zkey),
+        config.numProofSamples)
     else:
       none Prover
 
