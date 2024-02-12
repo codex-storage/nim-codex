@@ -37,26 +37,13 @@ type
     wasmPath      : string  # path to the wasm file
     zKeyPath      : string  # path to the zkey file
     backendCfg    : ptr CircomBn254Cfg
+    vkp           : ptr CircomKey
 
 proc release*(self: CircomCompat) =
   ## Release the backend
   ##
 
   self.backendCfg.unsafeAddr.releaseCfg()
-
-proc getVerifyingKey*(
-  self: CircomCompat): ?!ptr CircomKey =
-  ## Get the verifying key
-  ##
-
-  var
-    cfg: ptr CircomBn254Cfg = self.backendCfg
-    vkpPtr: ptr VerifyingKey = nil
-
-  if cfg.getVerifyingKey(vkpPtr.addr) != ERR_OK or vkpPtr == nil:
-    return failure("Failed to get verifying key")
-
-  success vkpPtr
 
 proc prove*[H](
   self: CircomCompat,
@@ -181,15 +168,17 @@ proc verify*[H](
   var
     proofPtr = unsafeAddr proof
     inputs = inputs.toCircomInputs()
-    vkpPtr = ? self.getVerifyingKey()
 
-  let res = verifyCircuit(proofPtr, inputs.addr, vkpPtr)
-  if res == ERR_OK:
-    success true
-  elif res == ERR_FAILED_TO_VERIFY_PROOF:
-    success false
-  else:
-    failure("Failed to verify proof - err code: " & $res)
+  try:
+    let res = verifyCircuit(proofPtr, inputs.addr, self.vkp)
+    if res == ERR_OK:
+      success true
+    elif res == ERR_FAILED_TO_VERIFY_PROOF:
+      success false
+    else:
+      failure("Failed to verify proof - err code: " & $res)
+  finally:
+    inputs.releaseCircomInputs()
 
 proc init*(
   _: type CircomCompat,
@@ -212,13 +201,20 @@ proc init*(
     addr cfg) != ERR_OK or cfg == nil:
       raiseAssert("failed to initialize circom compat config")
 
+  var
+    vkpPtr: ptr VerifyingKey = nil
+
+  if cfg.getVerifyingKey(vkpPtr.addr) != ERR_OK or vkpPtr == nil:
+    raiseAssert("Failed to get verifying key")
+
   CircomCompat(
     r1csPath    : r1csPath,
     wasmPath    : wasmPath,
     zKeyPath    : zKeyPath,
-    backendCfg  : cfg,
     slotDepth   : slotDepth,
     datasetDepth: datasetDepth,
     blkDepth    : blkDepth,
     cellElms    : cellElms,
-    numSamples  : numSamples)
+    numSamples  : numSamples,
+    backendCfg  : cfg,
+    vkp: vkpPtr)
