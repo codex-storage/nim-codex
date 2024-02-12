@@ -31,7 +31,7 @@ suite "Test Circom Compat Backend - control inputs":
   var
     circom: CircomCompat
     verifyingKeyPtr: ptr CircomKey
-    proofInput: ProofInput[Poseidon2Hash]
+    proofInput: ProofInputs[Poseidon2Hash]
     publicInputs: CircomInputs
 
   setup:
@@ -47,7 +47,7 @@ suite "Test Circom Compat Backend - control inputs":
     verifyingKeyPtr = circom.getVerifyingKey().tryGet
 
   teardown:
-    publicInputs.releaseNimInputs()      # this is allocated by nim
+    publicInputs.releaseCircomInputs()      # this is allocated by nim
     verifyingKeyPtr.addr.releaseKey()    # this comes from the rust FFI
     circom.release()                     # this comes from the rust FFI
 
@@ -85,7 +85,7 @@ suite "Test Circom Compat Backend":
     verifiable: Manifest
     circom: CircomCompat
     verifyingKeyPtr: ptr CircomKey
-    proofInput: ProofInput[Poseidon2Hash]
+    proofInput: ProofInputs[Poseidon2Hash]
     publicInputs: CircomInputs
     challenge: array[32, byte]
     builder: Poseidon2Builder
@@ -118,7 +118,7 @@ suite "Test Circom Compat Backend":
     publicInputs = proofInput.toPublicInputs.toCircomInputs
 
   teardown:
-    publicInputs.releaseNimInputs()      # this is allocated by nim
+    publicInputs.releaseCircomInputs()      # this is allocated by nim
     verifyingKeyPtr.addr.releaseKey()    # this comes from the rust FFI
     circom.release()                     # this comes from the rust FFI
 

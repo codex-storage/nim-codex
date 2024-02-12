@@ -17,7 +17,7 @@ type
     datasetRoot*: H
     entropy*: H
 
-  ProofInput*[H] = object
+  ProofInputs*[H] = object
     entropy*: H
     datasetRoot*: H
     slotIndex*: Natural

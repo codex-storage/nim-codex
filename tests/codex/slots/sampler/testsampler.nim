@@ -31,7 +31,7 @@ suite "Test Sampler - control samples":
   var
     inputData: string
     inputJson: JsonNode
-    proofInput: ProofInput[Poseidon2Hash]
+    proofInput: ProofInputs[Poseidon2Hash]
 
   setup:
     inputData = readFile("tests/circuits/fixtures/input.json")
