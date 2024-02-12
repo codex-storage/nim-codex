@@ -97,23 +97,6 @@ asyncchecksuite "Test Node - Host contracts":
   test "onExpiryUpdate callback is set":
     check sales.onExpiryUpdate.isSome
 
-  test "onExpiryUpdate callback":
-    let
-      # The blocks have set default TTL, so in order to update it we have to have larger TTL
-      expectedExpiry: SecondsSince1970 = (await clock.now) + DefaultBlockTtl.seconds + 11123
-      expiryUpdateCallback = !sales.onExpiryUpdate
-
-    (await expiryUpdateCallback(manifestCidStr, expectedExpiry)).tryGet()
-
-    for index in 0..<manifest.blocksCount:
-      let
-        blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
-        key = (createBlockExpirationMetadataKey(blk.cid)).tryGet
-        bytes = (await localStoreMetaDs.get(key)).tryGet
-        blkMd = BlockMetadata.autodecode(bytes).tryGet
-
-      check blkMd.expiry == expectedExpiry
-
   test "onStore callback is set":
     check sales.onStore.isSome
 
@@ -121,7 +104,7 @@ asyncchecksuite "Test Node - Host contracts":
     let onStore = !sales.onStore
     var request = StorageRequest.example
     request.content.cid = $verifiableBlock.cid
-    request.expiry = (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix.u256
+    request.expiry = (getTime() + 1.hours).toUnix.u256
     var fetchedBytes: uint = 0
 
     let onBlocks = proc(blocks: seq[bt.Block]): Future[?!void] {.async.} =
@@ -131,15 +114,3 @@ asyncchecksuite "Test Node - Host contracts":
 
     (await onStore(request, 1.u256, onBlocks)).tryGet()
     check fetchedBytes == 851968
-
-    let indexer = verifiable.protectedStrategy.init(
-      0, verifiable.blocksCount - 1, verifiable.numSlots)
-
-    for index in indexer.getIndicies(1):
-      let
-        blk = (await localStore.getBlock(verifiable.treeCid, index)).tryGet
-        key = (createBlockExpirationMetadataKey(blk.cid)).tryGet
-        bytes = (await localStoreMetaDs.get(key)).tryGet
-        blkMd = BlockMetadata.autodecode(bytes).tryGet
-
-      check blkMd.expiry == request.expiry.toSecondsSince1970

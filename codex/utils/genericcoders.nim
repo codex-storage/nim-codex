@@ -44,6 +44,35 @@ proc decode*(T: type bool, bytes: seq[byte]): ?!T =
   else:
     failure("Not enought bytes to decode `bool`")
 
+proc encode*[T](ts: seq[T]): seq[byte] =
+  if ts.len == 0:
+    return newSeq[byte]()
+
+  var pb = initProtoBuffer()
+
+  for t in ts:
+    pb.write(1, t.encode())
+
+  pb.finish
+  pb.buffer
+
+
+proc decode*[T](_: type seq[T], bytes: seq[byte]): ?!seq[T] =
+  if bytes.len == 0:
+    return success(newSeq[T]())
+
+  var
+    pb = initProtoBuffer(bytes, maxSize = MaxBufferSize)
+    nestedBytes: seq[seq[byte]]
+    ts: seq[T]
+
+  if ? pb.getRepeatedField(1, nestedBytes).mapFailure:
+    for b in nestedBytes:
+      let t = ? T.decode(b)
+      ts.add(t)
+
+  success(ts)
+
 proc autoencode*[T: tuple | object](tup: T): seq[byte] =
   var
     pb = initProtoBuffer(maxSize = MaxBufferSize)

@@ -58,6 +58,7 @@ template setupAndTearDown*() {.dirty.} =
     localStore: RepoStore
     localStoreRepoDs: DataStore
     localStoreMetaDs: DataStore
+    maintenance: DatasetMaintainer
     engine: BlockExcEngine
     store: NetworkStore
     node: CodexNodeRef
@@ -77,11 +78,11 @@ template setupAndTearDown*() {.dirty.} =
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
 
-    clock = SystemClock.new()
     localStoreMetaDs = SQLiteDatastore.new(Memory).tryGet()
     localStoreRepoDs = SQLiteDatastore.new(Memory).tryGet()
-    localStore = RepoStore.new(localStoreRepoDs, localStoreMetaDs, clock = clock)
+    localStore = RepoStore.new(localStoreRepoDs, localStoreMetaDs)
     await localStore.start()
+    maintenance = DatasetMaintainer.new(localStore, localStoreMetaDs)
 
     blockDiscovery = Discovery.new(
       switch.peerInfo.privateKey,
@@ -93,7 +94,7 @@ template setupAndTearDown*() {.dirty.} =
     engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-    node = CodexNodeRef.new(switch, store, engine, erasure, blockDiscovery)
+    node = CodexNodeRef.new(switch, store, maintenance, engine, erasure, blockDiscovery)
 
     await node.start()
 
