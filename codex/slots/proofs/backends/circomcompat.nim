@@ -20,8 +20,11 @@ import ../../types
 import ../../../stores
 import ../../../merkletree
 import ../../../codextypes
+import ../../../contracts
 
-export circomcompat
+import ./converters
+
+export circomcompat, converters
 
 type
   CircomCompat* = object
@@ -34,13 +37,6 @@ type
     wasmPath      : string  # path to the wasm file
     zKeyPath      : string  # path to the zkey file
     backendCfg    : ptr CircomBn254Cfg
-
-  CircomG1* = G1
-  CircomG2* = G2
-
-  CircomProof*  = Proof
-  CircomKey*    = VerifyingKey
-  CircomInputs* = Inputs
 
 proc release*(self: CircomCompat) =
   ## Release the backend
@@ -64,7 +60,7 @@ proc getVerifyingKey*(
 
 proc prove*[H](
   self: CircomCompat,
-  input: ProofInput[H]): ?!CircomProof =
+  input: ProofInputs[H]): ?!CircomProof =
   ## Encode buffers using a backend
   ##
 
@@ -175,20 +171,19 @@ proc prove*[H](
 
   success proof
 
-proc verify*(
+proc verify*[H](
   self: CircomCompat,
   proof: CircomProof,
-  inputs: CircomInputs,
-  vkp: CircomKey): ?!bool =
+  inputs: ProofInputs[H]): ?!bool =
   ## Verify a proof using a backend
   ##
 
   var
-    proofPtr : ptr Proof = unsafeAddr proof
-    inputsPtr: ptr Inputs = unsafeAddr inputs
-    vpkPtr: ptr CircomKey = unsafeAddr vkp
+    proofPtr = unsafeAddr proof
+    inputs = inputs.toCircomInputs()
+    vkpPtr = ? self.getVerifyingKey()
 
-  let res = verifyCircuit(proofPtr, inputsPtr, vpkPtr)
+  let res = verifyCircuit(proofPtr, inputs.addr, vkpPtr)
   if res == ERR_OK:
     success true
   elif res == ERR_FAILED_TO_VERIFY_PROOF:
