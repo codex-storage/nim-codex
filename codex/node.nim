@@ -595,17 +595,28 @@ proc onProve(
       error "Unable to fetch manifest for cid", err = err.msg
       return failure(err)
 
-    without proof =? await prover.prove(slotIdx, manifest, challenge), err:
-      error "Unable to generate proof", err = err.msg
-      return failure(err)
+    when defined(verify_circuit):
+      without (inputs, proof) =? await prover.prove(slotIdx, manifest, challenge), err:
+        error "Unable to generate proof", err = err.msg
+        return failure(err)
 
-  # Todo: send proofInput to circuit. Get proof. (Profit, repeat.)
+      without checked =? await prover.verify(proof, inputs), err:
+        error "Unable to verify proof", err = err.msg
+        return failure(err)
 
-  # For now: dummy proof that is not all zero's, so that it is accepted by the
-  # dummy verifier:
-  var proof = Groth16Proof.default
-  proof.a.x = 42.u256
-  success(proof)
+      if not checked:
+        error "Proof verification failed"
+        return failure("Proof verification failed")
+
+    else:
+      without (_, proof) =? await prover.prove(slotIdx, manifest, challenge), err:
+        error "Unable to generate proof", err = err.msg
+        return failure(err)
+
+    success proof.toGroth16Proof()
+  else:
+    warn "Prover not enabled"
+    failure "Prover not enabled"
 
 proc onExpiryUpdate(
   self: CodexNodeRef,
