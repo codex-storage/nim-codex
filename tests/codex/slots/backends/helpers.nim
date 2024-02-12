@@ -30,43 +30,18 @@ func fromCircomData*[H](cellData: seq[byte]): seq[H] =
 
   cellElms
 
-func toPublicInputs*[H](input: ProofInput[H]): PublicInputs[H] =
+func toPublicInputs*[H](input: ProofInputs[H]): PublicInputs[H] =
   PublicInputs[H](
     slotIndex: input.slotIndex,
     datasetRoot: input.datasetRoot,
     entropy: input.entropy
   )
 
-proc toCircomInputs*[H](inputs: PublicInputs[H]): CircomInputs =
-  var
-    slotIndex = inputs.slotIndex.toF.toBytes.toArray32
-    datasetRoot = inputs.datasetRoot.toBytes.toArray32
-    entropy = inputs.entropy.toBytes.toArray32
-
-    elms = [
-      entropy,
-      datasetRoot,
-      slotIndex
-    ]
-
-  let inputsPtr = allocShared0(32 * elms.len)
-  copyMem(inputsPtr, addr elms[0], elms.len * 32)
-
-  CircomInputs(
-    elms: cast[ptr array[32, byte]](inputsPtr),
-    len: elms.len.uint
-  )
-
-proc releaseNimInputs*(inputs: var CircomInputs) =
-  if not inputs.elms.isNil:
-    deallocShared(inputs.elms)
-    inputs.elms = nil
-
 func toJsonDecimal*(big: BigInt[254]): string =
   let s = big.toDecimal.strip( leading = true, trailing = false, chars = {'0'} )
   if s.len == 0: "0" else: s
 
-func toJson*[H](input: ProofInput[H]): JsonNode =
+func toJson*[H](input: ProofInputs[H]): JsonNode =
   var
     input = input
 
@@ -86,7 +61,7 @@ func toJson*[H](input: ProofInput[H]): JsonNode =
     )
   }
 
-func jsonToProofInput*[H](inputJson: JsonNode): ProofInput[H] =
+func jsonToProofInput*[H](inputJson: JsonNode): ProofInputs[H] =
   let
     cellData =
       inputJson["cellData"].mapIt(
@@ -152,7 +127,7 @@ func jsonToProofInput*[H](inputJson: JsonNode): ProofInput[H] =
     nSlotsPerDataSet = inputJson["nSlotsPerDataSet"].getInt
     slotIndex = inputJson["slotIndex"].getInt
 
-  ProofInput[H](
+  ProofInputs[H](
     entropy: entropy,
     slotIndex: slotIndex,
     datasetRoot: datasetRoot,
