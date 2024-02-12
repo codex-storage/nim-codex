@@ -17,16 +17,16 @@
 ## module, and specifying `formatIt`. If textlines log output and json log output
 ## need to be different, overload `formatIt` and specify a `LogFormat`. If json
 ## serialization is needed, it can be declared with a `%` proc. `logutils`
-## imports and exports `utils/json` which handles the de/serialization, examples
+## imports and exports `nim-serde` which handles the de/serialization, examples
 ## below. **Only `codex/logutils` needs to be imported.**
 ##
 ## Using `logutils` in the Codex codebase:
 ## - Instead of importing `pkg/chronicles`, import `pkg/codex/logutils`
 ##     - most of `chronicles` is exported by `logutils`
-## - Instead of importing `std/json`, import `pkg/codex/utils/json`
-##     - `std/json` is exported by `utils/json` which is exported by `logutils`
+## - Instead of importing `std/json`, import `pkg/serde`
+##     - `std/json` is exported by `serde` which is exported by `logutils`
 ## - Instead of importing `pkg/nim-json-serialization`, import
-##   `pkg/codex/utils/json`
+##   `pkg/codex/serde`
 ##     - one of the goals is to remove the use of `nim-json-serialization`
 ##
 ## ```nim
@@ -54,7 +54,7 @@
 ## # chronicles json output
 ## {"lvl":"TRC","msg":"test","tid":14397405,"ba":{"treeCid":"zb2rhgsDE16rLtbwTFeNKbdSobtKiWdjJPvKEuPgrQAfndjU1","index":0}}
 ## ```
-## In this case, `BlockAddress` is just an object, so `utils/json` can handle
+## In this case, `BlockAddress` is just an object, so `nim-serde` can handle
 ## serializing it without issue (only fields annotated with `{.serialize.}` will
 ## serialize (aka opt-in serialization)).
 ##
@@ -95,20 +95,19 @@ import pkg/chronicles except toJson, `%`
 from pkg/libp2p import Cid, MultiAddress, `$`
 import pkg/questionable
 import pkg/questionable/results
+import pkg/serde except formatIt
 import pkg/stew/byteutils
 import pkg/stint
 import pkg/upraises
-
-import ./utils/json
 
 export byteutils
 export chronicles except toJson, formatIt, `%`
 export questionable
 export sequtils
+export serde except formatIt
 export strutils
 export sugar
 export upraises
-export json
 export results
 
 func shortLog*(long: string, ellipses = "*", start = 3, stop = 6): string =
@@ -160,7 +159,7 @@ template formatIt*(format: LogFormat, T: typedesc, body: untyped) =
   when format == LogFormat.json:
     proc formatJsonOption(val: ?T): JsonNode =
       if it =? val:
-        json.`%`(body)
+        serde.`%`(body)
       else:
         newJNull()
 
@@ -169,7 +168,7 @@ template formatIt*(format: LogFormat, T: typedesc, body: untyped) =
         let jObj = newJObject()
         jObj["error"] = newJString(error.msg)
         return jObj
-      json.`%`(body)
+      serde.`%`(body)
 
     proc setProperty*(r: var JsonRecord, key: string, res: ?!T) =
       var it {.inject, used.}: T
@@ -183,17 +182,17 @@ template formatIt*(format: LogFormat, T: typedesc, body: untyped) =
     proc setProperty*(r: var JsonRecord, key: string, opts: seq[?T]) =
       var it {.inject, used.}: T
       let v = opts.map(opt => opt.formatJsonOption)
-      setProperty(r, key, json.`%`(v))
+      setProperty(r, key, serde.`%`(v))
 
     proc setProperty*(r: var JsonRecord, key: string, val: seq[T]) =
       var it {.inject, used.}: T
       let v = val.map(it => body)
-      setProperty(r, key, json.`%`(v))
+      setProperty(r, key, serde.`%`(v))
 
     proc setProperty*(r: var JsonRecord, key: string, val: T) {.upraises:[ValueError, IOError].} =
       var it {.inject, used.}: T = val
       let v = body
-      setProperty(r, key, json.`%`(v))
+      setProperty(r, key, serde.`%`(v))
 
   elif format == LogFormat.textLines:
     proc formatTextLineOption*(val: ?T): string =

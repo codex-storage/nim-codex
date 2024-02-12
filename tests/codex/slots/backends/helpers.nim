@@ -9,11 +9,11 @@ import pkg/poseidon2/io
 import pkg/constantine/math/arithmetic
 import pkg/constantine/math/io/io_bigints
 import pkg/constantine/math/io/io_fields
+import pkg/serde
 
 import pkg/codex/merkletree
 import pkg/codex/slots
 import pkg/codex/slots/types
-import pkg/codex/utils/json
 
 export types
 

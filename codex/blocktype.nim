@@ -17,6 +17,7 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/libp2p/[cid, multicodec, multihash]
+import pkg/serde
 import pkg/stew/byteutils
 import pkg/questionable
 import pkg/questionable/results
@@ -25,7 +26,6 @@ import ./units
 import ./utils
 import ./errors
 import ./logutils
-import ./utils/json
 import ./codextypes
 
 export errors, logutils, units, codextypes

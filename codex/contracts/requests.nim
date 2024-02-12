@@ -5,10 +5,10 @@ import pkg/contractabi
 import pkg/nimcrypto
 import pkg/ethers/fields
 import pkg/questionable/results
+import pkg/serde
 import pkg/stew/byteutils
 import pkg/upraises
 import ../logutils
-import ../utils/json
 
 export contractabi
 

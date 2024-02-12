@@ -7,11 +7,11 @@ import ../../../asynctest
 import pkg/questionable
 import pkg/questionable/results
 import pkg/datastore
+import pkg/serde
 
 import pkg/codex/rng
 import pkg/codex/stores
 import pkg/codex/merkletree
-import pkg/codex/utils/json
 import pkg/codex/codextypes
 import pkg/codex/slots
 import pkg/codex/slots/builder
