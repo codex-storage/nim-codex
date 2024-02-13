@@ -608,11 +608,13 @@ proc onProve(
         error "Proof verification failed"
         return failure("Proof verification failed")
 
+      trace "Proof verified successfully"
     else:
       without (_, proof) =? await prover.prove(slotIdx, manifest, challenge), err:
         error "Unable to generate proof", err = err.msg
         return failure(err)
 
+    trace "Proof generated successfully"
     success proof.toGroth16Proof()
   else:
     warn "Prover not enabled"
