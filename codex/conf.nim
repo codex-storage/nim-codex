@@ -325,6 +325,14 @@ type
         defaultValueDesc: $DefaultCellElms
         name: "max-cell-elements" }: int
 
+      # TODO: should go behind a feature flag
+      simulateProofFailures* {.
+          desc: "Simulates proof failures once every N proofs. 0 = disabled."
+          defaultValue: 0
+          name: "simulate-proof-failures"
+          hidden
+        .}: int
+
       case persistenceCmd* {.
         defaultValue: noCmd
         command }: PersistenceCmd
@@ -335,14 +343,6 @@ type
           defaultValue: 1000
           name: "validator-max-slots"
         .}: int
-
-        # TODO: should go behind a feature flag
-        simulateProofFailures* {.
-            desc: "Simulates proof failures once every N proofs. 0 = disabled."
-            defaultValue: 0
-            name: "simulate-proof-failures"
-            hidden
-          .}: int
 
       of PersistenceCmd.noCmd:
         discard # end of validator
