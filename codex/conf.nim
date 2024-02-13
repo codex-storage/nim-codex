@@ -70,7 +70,7 @@ type
     persistence
 
   PersistenceCmd* {.pure.} = enum
-    noCmd
+    prover
     validator
 
   LogKind* {.pure.} = enum
@@ -267,64 +267,6 @@ type
         name: "marketplace-address"
       .}: Option[EthAddress]
 
-      circomR1cs* {.
-        desc: "The r1cs file for the storage circuit"
-        defaultValue: $DefaultDataDir / "circuits" / "proof_main.r1cs"
-        defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.r1cs"
-        name: "circom-r1cs"
-      .}: InputFile
-
-      circomWasm* {.
-        desc: "The wasm file for the storage circuit"
-        defaultValue: $DefaultDataDir / "circuits" / "proof_main.wasm"
-        defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.wasm"
-        name: "circom-wasm"
-      .}: InputFile
-
-      circomZkey* {.
-        desc: "The zkey file for the storage circuit"
-        defaultValue: $DefaultDataDir / "circuits" / "proof_main.zkey"
-        defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.zkey"
-        name: "circom-zkey"
-      .}: InputFile
-
-      # TODO: should probably be hidden and behind a feature flag
-      circomNoZkey* {.
-        desc: "Ignore the zkey file - use only for testing!"
-        defaultValue: false
-        name: "circom-no-zkey"
-      .}: bool
-
-      numProofSamples* {.
-        desc: "Number of samples to prove"
-        defaultValue: DefaultSamplesNum
-        defaultValueDesc: $DefaultSamplesNum
-        name: "proof-samples" }: int
-
-      maxSlotDepth* {.
-        desc: "The maximum depth of the slot tree"
-        defaultValue: DefaultMaxSlotDepth
-        defaultValueDesc: $DefaultMaxSlotDepth
-        name: "max-slot-depth" }: int
-
-      maxDatasetDepth* {.
-        desc: "The maximum depth of the dataset tree"
-        defaultValue: DefaultMaxDatasetDepth
-        defaultValueDesc: $DefaultMaxDatasetDepth
-        name: "max-dataset-depth" }: int
-
-      maxBlockDepth* {.
-        desc: "The maximum depth of the network block merkle tree"
-        defaultValue: DefaultBlockDepth
-        defaultValueDesc: $DefaultBlockDepth
-        name: "max-block-depth" }: int
-
-      maxCellElms* {.
-        desc: "The maximum number of elements in a cell"
-        defaultValue: DefaultCellElms
-        defaultValueDesc: $DefaultCellElms
-        name: "max-cell-elements" }: int
-
       # TODO: should go behind a feature flag
       simulateProofFailures* {.
           desc: "Simulates proof failures once every N proofs. 0 = disabled."
@@ -334,18 +276,73 @@ type
         .}: int
 
       case persistenceCmd* {.
-        defaultValue: noCmd
         command }: PersistenceCmd
 
-      of validator:
+      of PersistenceCmd.validator:
         validatorMaxSlots* {.
           desc: "Maximum number of slots that the validator monitors"
           defaultValue: 1000
           name: "validator-max-slots"
         .}: int
 
-      of PersistenceCmd.noCmd:
-        discard # end of validator
+      of PersistenceCmd.prover:
+        circomR1cs* {.
+          desc: "The r1cs file for the storage circuit"
+          defaultValue: $DefaultDataDir / "circuits" / "proof_main.r1cs"
+          defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.r1cs"
+          name: "circom-r1cs"
+        .}: InputFile
+
+        circomWasm* {.
+          desc: "The wasm file for the storage circuit"
+          defaultValue: $DefaultDataDir / "circuits" / "proof_main.wasm"
+          defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.wasm"
+          name: "circom-wasm"
+        .}: InputFile
+
+        circomZkey* {.
+          desc: "The zkey file for the storage circuit"
+          defaultValue: $DefaultDataDir / "circuits" / "proof_main.zkey"
+          defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.zkey"
+          name: "circom-zkey"
+        .}: InputFile
+
+        # TODO: should probably be hidden and behind a feature flag
+        circomNoZkey* {.
+          desc: "Ignore the zkey file - use only for testing!"
+          defaultValue: false
+          name: "circom-no-zkey"
+        .}: bool
+
+        numProofSamples* {.
+          desc: "Number of samples to prove"
+          defaultValue: DefaultSamplesNum
+          defaultValueDesc: $DefaultSamplesNum
+          name: "proof-samples" }: int
+
+        maxSlotDepth* {.
+          desc: "The maximum depth of the slot tree"
+          defaultValue: DefaultMaxSlotDepth
+          defaultValueDesc: $DefaultMaxSlotDepth
+          name: "max-slot-depth" }: int
+
+        maxDatasetDepth* {.
+          desc: "The maximum depth of the dataset tree"
+          defaultValue: DefaultMaxDatasetDepth
+          defaultValueDesc: $DefaultMaxDatasetDepth
+          name: "max-dataset-depth" }: int
+
+        maxBlockDepth* {.
+          desc: "The maximum depth of the network block merkle tree"
+          defaultValue: DefaultBlockDepth
+          defaultValueDesc: $DefaultBlockDepth
+          name: "max-block-depth" }: int
+
+        maxCellElms* {.
+          desc: "The maximum number of elements in a cell"
+          defaultValue: DefaultCellElms
+          defaultValueDesc: $DefaultCellElms
+          name: "max-cell-elements" }: int
 
     of StartUpCmd.noCmd:
       discard # end of persistence
@@ -360,6 +357,9 @@ func persistence*(self: CodexConf): bool =
 
 func validator*(self: CodexConf): bool =
   self.persistence and self.persistenceCmd == PersistenceCmd.validator
+
+func prover*(self: CodexConf): bool =
+  self.persistence and self.persistenceCmd == PersistenceCmd.prover
 
 proc getCodexVersion(): string =
   let tag = strip(staticExec("git tag"))
