@@ -259,7 +259,7 @@ proc new*(
     store = NetworkStore.new(engine, repoStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
 
-    prover = if config.persistence:
+    prover = if config.prover:
       if not fileAccessible($config.circomR1cs, {AccessFlags.Read}) and
         endsWith($config.circomR1cs, ".r1cs"):
         error "Circom R1CS file not accessible"
