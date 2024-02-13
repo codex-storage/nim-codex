@@ -14,8 +14,8 @@ ARG MAKE_PARALLEL
 ARG NIMFLAGS
 
 RUN apt-get update && apt-get install -y git cmake curl make bash lcov build-essential nim
-RUN echo 'export NIMBLE_DIR="${HOME}/.nimble"' >> "${HOME}/.bash_env"
-RUN echo 'export PATH="${NIMBLE_DIR}/bin:${PATH}"' >> "${HOME}/.bash_env"
+RUN curl --proto '=https' --tlsv1.3 https://sh.rustup.rs -sSf | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 WORKDIR ${BUILD_HOME}
 COPY . .
