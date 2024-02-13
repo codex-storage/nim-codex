@@ -104,11 +104,11 @@ proc init*(_: type RestNodeId, id: NodeId): RestNodeId =
     id: id
   )
 
-func `%`*(obj: StorageRequest | Slot): JsonNode =
+proc `%`*(obj: StorageRequest | Slot): JsonNode =
   let jsonObj = newJObject()
   for k, v in obj.fieldPairs: jsonObj[k] = %v
   jsonObj["id"] = %(obj.id)
 
   return jsonObj
 
-func `%`*(obj: RestNodeId): JsonNode = % $obj.id
+proc `%`*(obj: RestNodeId): JsonNode = % $obj.id
