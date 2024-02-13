@@ -239,3 +239,5 @@ formatIt(LogFormat.textLines, Cid): shortLog($it)
 formatIt(LogFormat.json, Cid): $it
 formatIt(UInt256): $it
 formatIt(MultiAddress): $it
+formatIt(LogFormat.textLines, array[32, byte]): it.short0xHexLog
+formatIt(LogFormat.json, array[32, byte]): it.to0xHex
