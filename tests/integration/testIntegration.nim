@@ -175,13 +175,28 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
 
   test "nodes negotiate contracts on the marketplace":
     let size = 0xFFFFF.u256
+    let dataSetSize =  8 * DefaultBlockSize.int
     # client 2 makes storage available
     discard client2.postAvailability(size=size, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256)
 
+    let chunker = RandomChunker.new(rng.Rng.instance(), size = dataSetSize, chunkSize = DefaultBlockSize)
+    var data: seq[byte]
+
+    while data.len < dataSetSize:
+      data.add(await chunker.getBytes())
+
     # client 1 requests storage
     let expiry = (await ethProvider.currentTime()) + 30
-    let cid = client1.upload("some file contents").get
-    let id = client1.requestStorage(cid, duration=100.u256, reward=400.u256, proofProbability=3.u256, expiry=expiry, collateral=200.u256).get
+    let cid = client1.upload(string.fromBytes(data)).get
+    let id = client1.requestStorage(
+      cid,
+      duration=100.u256,
+      reward=400.u256,
+      proofProbability=3.u256,
+      expiry=expiry,
+      collateral=200.u256,
+      nodes = 5,
+      tolerance = 2).get
 
     check eventually client1.purchaseStateIs(id, "started")
     let purchase = client1.getPurchase(id).get
@@ -205,7 +220,15 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     # client 1 requests storage
     let expiry = (await ethProvider.currentTime()) + 30
     let cid = client1.upload("some file contents").get
-    let id = client1.requestStorage(cid, duration=duration, reward=reward, proofProbability=3.u256, expiry=expiry, collateral=200.u256).get
+    let id = client1.requestStorage(
+      cid,
+      duration=duration,
+      reward=reward,
+      proofProbability=3.u256,
+      expiry=expiry,
+      collateral=200.u256,
+      nodes = 5,
+      tolerance = 2).get
 
     check eventually client1.purchaseStateIs(id, "started")
     let purchase = client1.getPurchase(id).get
