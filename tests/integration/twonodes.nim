@@ -40,9 +40,9 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         "--listen-addrs=/ip4/127.0.0.1/tcp/0",
         "persistence",
         "prover",
-        "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
-        "--circom-wasm=tests/circuits/fixtures/proof_main.wasm",
-        "--circom-no-zkey",
+        "--circom-r1cs=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs",
+        "--circom-wasm=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm",
+        "--circom-zkey=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.zkey",
         "--eth-account=" & $account1
       ]
 
@@ -64,9 +64,9 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         "--bootstrap-node=" & bootstrap,
         "persistence",
         "prover",
-        "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
-        "--circom-wasm=tests/circuits/fixtures/proof_main.wasm",
-        "--circom-no-zkey",
+        "--circom-r1cs=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs",
+        "--circom-wasm=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm",
+        "--circom-zkey=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.zkey",
         "--eth-account=" & $account2
       ]
 
