@@ -23,10 +23,10 @@
 ## Using `logutils` in the Codex codebase:
 ## - Instead of importing `pkg/chronicles`, import `pkg/codex/logutils`
 ##     - most of `chronicles` is exported by `logutils`
-## - Instead of importing `std/json`, import `pkg/serde`
+## - Instead of importing `std/json`, import `pkg/serde/json`
 ##     - `std/json` is exported by `serde` which is exported by `logutils`
 ## - Instead of importing `pkg/nim-json-serialization`, import
-##   `pkg/codex/serde`
+##   `pkg/serde/json` or use codex-specific overloads by importing `utils/json`
 ##     - one of the goals is to remove the use of `nim-json-serialization`
 ##
 ## ```nim
@@ -95,7 +95,7 @@ import pkg/chronicles except toJson, `%`
 from pkg/libp2p import Cid, MultiAddress, `$`
 import pkg/questionable
 import pkg/questionable/results
-import pkg/serde except formatIt
+import ./utils/json except formatIt # TODO: remove exception?
 import pkg/stew/byteutils
 import pkg/stint
 import pkg/upraises
@@ -104,7 +104,7 @@ export byteutils
 export chronicles except toJson, formatIt, `%`
 export questionable
 export sequtils
-export serde except formatIt
+export json except formatIt
 export strutils
 export sugar
 export upraises
@@ -159,7 +159,7 @@ template formatIt*(format: LogFormat, T: typedesc, body: untyped) =
   when format == LogFormat.json:
     proc formatJsonOption(val: ?T): JsonNode =
       if it =? val:
-        serde.`%`(body)
+        json.`%`(body)
       else:
         newJNull()
 
@@ -168,7 +168,7 @@ template formatIt*(format: LogFormat, T: typedesc, body: untyped) =
         let jObj = newJObject()
         jObj["error"] = newJString(error.msg)
         return jObj
-      serde.`%`(body)
+      json.`%`(body)
 
     proc setProperty*(r: var JsonRecord, key: string, res: ?!T) =
       var it {.inject, used.}: T
@@ -182,17 +182,17 @@ template formatIt*(format: LogFormat, T: typedesc, body: untyped) =
     proc setProperty*(r: var JsonRecord, key: string, opts: seq[?T]) =
       var it {.inject, used.}: T
       let v = opts.map(opt => opt.formatJsonOption)
-      setProperty(r, key, serde.`%`(v))
+      setProperty(r, key, json.`%`(v))
 
     proc setProperty*(r: var JsonRecord, key: string, val: seq[T]) =
       var it {.inject, used.}: T
       let v = val.map(it => body)
-      setProperty(r, key, serde.`%`(v))
+      setProperty(r, key, json.`%`(v))
 
     proc setProperty*(r: var JsonRecord, key: string, val: T) {.upraises:[ValueError, IOError].} =
       var it {.inject, used.}: T = val
       let v = body
-      setProperty(r, key, serde.`%`(v))
+      setProperty(r, key, json.`%`(v))
 
   elif format == LogFormat.textLines:
     proc formatTextLineOption*(val: ?T): string =

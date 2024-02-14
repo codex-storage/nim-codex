@@ -1,7 +1,7 @@
 import std/times
 import pkg/chronos
-import pkg/serde
 import codex/contracts/clock
+import codex/utils/json
 import ../ethertest
 
 ethersuite "On-Chain Clock":

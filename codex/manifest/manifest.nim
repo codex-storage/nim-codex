@@ -16,10 +16,10 @@ push: {.upraises: [].}
 import pkg/libp2p/protobuf/minprotobuf
 import pkg/libp2p/[cid, multihash, multicodec]
 import pkg/questionable/results
-import pkg/serde
 
 import ../errors
 import ../utils
+import ../utils/json
 import ../units
 import ../blocktype
 import ../indexingstrategy

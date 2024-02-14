@@ -32,12 +32,12 @@ import pkg/datastore
 import pkg/nimcrypto
 import pkg/questionable
 import pkg/questionable/results
-import pkg/serde
 import pkg/stint
 import pkg/stew/byteutils
 import ../logutils
 import ../stores
 import ../contracts/requests
+import ../utils/json
 
 export requests
 export logutils

@@ -3,12 +3,12 @@ import std/options
 import std/strformat
 import std/strutils
 import std/unittest
-import pkg/serde
 import pkg/stew/byteutils
 import pkg/stint
 import pkg/codex/contracts/requests
 from pkg/codex/rest/json import RestPurchase
 import pkg/codex/logutils
+import pkg/codex/utils/json as utilsjson
 import pkg/questionable
 import pkg/questionable/results
 import pkg/libp2p
