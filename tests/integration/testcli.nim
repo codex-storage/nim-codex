@@ -16,14 +16,16 @@ suite "Command line interface":
   test "complains when persistence is enabled without accessible wasm file":
     let node = startNode(@[
       "persistence",
+      "prover",
       "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs"
     ])
-    node.waitUntilOutput("wasm file not readable, doesn't exist or wrong extension (.wasm)")
+    node.waitUntilOutput("Circom wasm file not accessible")
     node.stop()
 
   test "complains when persistence is enabled without accessible zkey file":
     let node = startNode(@[
       "persistence",
+      "prover",
       "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
       "--circom-wasm=tests/circuits/fixtures/proof_main.wasm"
     ])
@@ -33,6 +35,7 @@ suite "Command line interface":
   test "complains when persistence is enabled without ethereum account":
     let node = startNode(@[
       "persistence",
+      "prover",
       "--circom-r1cs=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs",
       "--circom-wasm=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm",
       "--circom-zkey=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.zkey"
@@ -45,6 +48,7 @@ suite "Command line interface":
     discard unsafeKeyFile.writeFile(key, 0o666)
     let node = startNode(@[
       "persistence",
+      "prover",
       "--circom-r1cs=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs",
       "--circom-wasm=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm",
       "--circom-zkey=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.zkey",
