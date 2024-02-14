@@ -26,7 +26,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     await ethProvider.advanceTime(1.u256)
 
   test "nodes can print their peer information":
-    check client1.info() != client2.info()
+    check !client1.info() != !client2.info()
 
   test "nodes can set chronicles log level":
     client1.setLogLevel("DEBUG;TRACE:codex")

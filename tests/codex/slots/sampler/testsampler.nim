@@ -35,7 +35,7 @@ suite "Test Sampler - control samples":
 
   setup:
     inputData = readFile("tests/circuits/fixtures/input.json")
-    inputJson = parseJson(inputData)
+    inputJson = !JsonNode.parse(inputData)
     proofInput = Poseidon2Hash.jsonToProofInput(inputJson)
 
   test "Should verify control samples":
