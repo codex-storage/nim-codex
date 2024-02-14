@@ -614,8 +614,10 @@ proc onProve(
         error "Unable to generate proof", err = err.msg
         return failure(err)
 
-    trace "Proof generated successfully"
-    success proof.toGroth16Proof()
+    let groth16Proof = proof.toGroth16Proof()
+    trace "Proof generated successfully", groth16Proof
+
+    success groth16Proof
   else:
     warn "Prover not enabled"
     failure "Prover not enabled"
