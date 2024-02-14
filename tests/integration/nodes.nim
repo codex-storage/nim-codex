@@ -46,7 +46,7 @@ proc waitUntilOutput*(node: NodeProcess, output: string) =
 
 proc waitUntilStarted*(node: NodeProcess) =
   if node.debug:
-    sleep(5_000)
+    sleep(10_000)
   else:
     node.waitUntilOutput("Started codex node")
 
