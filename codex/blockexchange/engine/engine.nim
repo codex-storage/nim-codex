@@ -120,7 +120,6 @@ proc stop*(b: BlockExcEngine) {.async.} =
 
   trace "NetworkStore stopped"
 
-
 proc sendWantHave(
   b: BlockExcEngine,
   address: BlockAddress,
@@ -130,7 +129,6 @@ proc sendWantHave(
   for p in peers:
     if p notin excluded:
       if address notin p.peerHave:
-        trace " wantHave > ", peer = p.id
         await b.network.request.sendWantList(
           p.id,
           @[address],
@@ -156,11 +154,18 @@ proc findCheapestPeerForBlock(b: BlockExcEngine, cheapestPeers: seq[BlockExcPeer
     return some(peers[0])
   return some(cheapestPeers[0]) # get cheapest
 
-proc monitorBlockHandle(b: BlockExcEngine, handle: Future[Block], address: BlockAddress, peerId: PeerId) {.async.} =
+proc monitorBlockHandle(
+  b: BlockExcEngine,
+  handle: Future[Block],
+  address: BlockAddress,
+  peerId: PeerId) {.async.} =
+
   try:
     trace "Monitoring block handle", address, peerId
     discard await handle
     trace "Block handle success", address, peerId
+  except CancelledError as exc:
+    trace "Block handle cancelled", address, peerId
   except CatchableError as exc:
     trace "Error block handle, disconnecting peer", address, exc = exc.msg, peerId
 
@@ -178,38 +183,38 @@ proc monitorBlockHandle(b: BlockExcEngine, handle: Future[Block], address: Block
 proc requestBlock*(
   b: BlockExcEngine,
   address: BlockAddress,
-  timeout = DefaultBlockTimeout): Future[Block] {.async.} =
+  timeout = DefaultBlockTimeout): Future[?!Block] {.async.} =
   let blockFuture = b.pendingBlocks.getWantHandle(address, timeout)
 
   if b.pendingBlocks.isInFlight(address):
-    return await blockFuture
+    success await blockFuture
+  else:
+    let peers = b.peers.selectCheapest(address)
+    if peers.len == 0:
+      b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
 
-  let peers = b.peers.selectCheapest(address)
-  if peers.len == 0:
-    b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
+    let maybePeer =
+      if peers.len > 0:
+        peers[hash(address) mod peers.len].some
+      elif b.peers.len > 0:
+        toSeq(b.peers)[hash(address) mod b.peers.len].some
+      else:
+        BlockExcPeerCtx.none
 
-  let maybePeer =
-    if peers.len > 0:
-      peers[hash(address) mod peers.len].some
-    elif b.peers.len > 0:
-      toSeq(b.peers)[hash(address) mod b.peers.len].some
-    else:
-      BlockExcPeerCtx.none
+    if peer =? maybePeer:
+      asyncSpawn b.monitorBlockHandle(blockFuture, address, peer.id)
+      b.pendingBlocks.setInFlight(address)
+      await b.sendWantBlock(address, peer)
+      codex_block_exchange_want_block_lists_sent.inc()
+      await b.sendWantHave(address, @[peer], toSeq(b.peers))
+      codex_block_exchange_want_have_lists_sent.inc()
 
-  if peer =? maybePeer:
-    asyncSpawn b.monitorBlockHandle(blockFuture, address, peer.id)
-    b.pendingBlocks.setInFlight(address)
-    await b.sendWantBlock(address, peer)
-    codex_block_exchange_want_block_lists_sent.inc()
-    await b.sendWantHave(address, @[peer], toSeq(b.peers))
-    codex_block_exchange_want_have_lists_sent.inc()
-
-  return await blockFuture
+    success await blockFuture
 
 proc requestBlock*(
   b: BlockExcEngine,
   cid: Cid,
-  timeout = DefaultBlockTimeout): Future[Block] =
+  timeout = DefaultBlockTimeout): Future[?!Block] =
   b.requestBlock(BlockAddress.init(cid))
 
 proc blockPresenceHandler*(
@@ -293,7 +298,10 @@ proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.asy
   b.discovery.queueProvideBlocksReq(cids.toSeq)
 
 proc resolveBlocks*(b: BlockExcEngine, blocks: seq[Block]) {.async.} =
-  await b.resolveBlocks(blocks.mapIt(BlockDelivery(blk: it, address: BlockAddress(leaf: false, cid: it.cid))))
+  await b.resolveBlocks(
+    blocks.mapIt(
+      BlockDelivery(blk: it, address: BlockAddress(leaf: false, cid: it.cid)
+  )))
 
 proc payForBlocks(engine: BlockExcEngine,
                   peer: BlockExcPeerCtx,
@@ -310,8 +318,7 @@ proc payForBlocks(engine: BlockExcEngine,
 
 proc validateBlockDelivery(
   b: BlockExcEngine,
-  bd: BlockDelivery
-): ?!void =
+  bd: BlockDelivery): ?!void =
   if bd.address notin b.pendingBlocks:
     return failure("Received block is not currently a pending block")
 
