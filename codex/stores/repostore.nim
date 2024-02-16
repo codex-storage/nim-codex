@@ -27,8 +27,6 @@ import ./blockstore
 import ./keyutils
 import ./typeddatastore
 import ../blocktype
-import ../clock
-import ../systemclock
 import ../logutils
 import ../merkletree
 import ../utils
@@ -44,7 +42,6 @@ declareGauge(codex_repostore_bytes_used, "codex repostore bytes used")
 declareGauge(codex_repostore_bytes_reserved, "codex repostore bytes reserved")
 
 const
-  DefaultBlockTtl* = 24.hours
   DefaultQuotaBytes* = 8.GiBs
 
 type
@@ -54,11 +51,9 @@ type
     postFixLen*: int
     repoDs*: Datastore
     metaDs*: Datastore
-    clock: Clock
     quotaMaxBytes*: NBytes
     quotaUsage*: QuotaUsage
     totalBlocks*: Natural
-    blockTtl*: Duration
     started*: bool
 
   QuotaUsage* = object
@@ -66,17 +61,12 @@ type
     reserved: NBytes
 
   BlockMetadata* = object
-    expiry*: SecondsSince1970
     size*: NBytes
     refCount*: Natural
 
   LeafMetadata* = object
     blkCid: Cid
     proof: CodexProof
-
-  BlockExpiration* = object
-    cid*: Cid
-    expiry*: SecondsSince1970
 
 func quotaUsedBytes*(self: RepoStore): NBytes =
   self.quotaUsage.used
@@ -112,7 +102,7 @@ proc decode(T: type LeafMetadata, bytes: seq[byte]): ?!T = T.autodecode(bytes)
 type
   DeleteResultKind = enum
     Deleted = 0,    # block removed from store
-    InUse = 1,      # block not removed, refCount > 0 and not expired
+    InUse = 1,      # block not removed, refCount > 0
     NotFound = 2    # block not found in store
 
   DeleteResult = object
@@ -210,8 +200,7 @@ proc updateBlockMetadata(
   self: RepoStore,
   cid: Cid,
   plusRefCount: Natural = 0,
-  minusRefCount: Natural = 0,
-  minExpiry: SecondsSince1970 = 0
+  minusRefCount: Natural = 0
 ): Future[?!void] {.async.} =
   if cid.isEmpty:
     return success()
@@ -224,14 +213,13 @@ proc updateBlockMetadata(
       if currBlockMd =? maybeCurrBlockMd:
         BlockMetadata(
           size: currBlockMd.size,
-          expiry: max(currBlockMd.expiry, minExpiry),
           refCount: currBlockMd.refCount + plusRefCount - minusRefCount
         ).some
       else:
         raise newException(BlockNotFoundError, "Metadata for block with cid " & $cid & " not found")
   )
 
-proc storeBlock(self: RepoStore, blk: Block, minExpiry: SecondsSince1970): Future[?!StoreResult] {.async.} =
+proc storeBlock(self: RepoStore, blk: Block): Future[?!StoreResult] {.async.} =
   if blk.isEmpty:
     return success(StoreResult(kind: AlreadyInStore))
 
@@ -249,7 +237,7 @@ proc storeBlock(self: RepoStore, blk: Block, minExpiry: SecondsSince1970): Futur
 
       if currMd =? maybeCurrMd:
         if currMd.size == blk.data.len.NBytes:
-          md = BlockMetadata(size: currMd.size, expiry: max(currMd.expiry, minExpiry), refCount: currMd.refCount)
+          md = BlockMetadata(size: currMd.size, refCount: currMd.refCount)
           res = StoreResult(kind: AlreadyInStore)
 
           # making sure that the block acutally is stored in the repoDs
@@ -263,7 +251,7 @@ proc storeBlock(self: RepoStore, blk: Block, minExpiry: SecondsSince1970): Futur
         else:
           raise newException(CatchableError, "Repo already stores a block with the same cid but with a different size, cid: " & $blk.cid)
       else:
-        md = BlockMetadata(size: blk.data.len.NBytes, expiry: minExpiry, refCount: 0)
+        md = BlockMetadata(size: blk.data.len.NBytes, refCount: 0)
         res = StoreResult(kind: Stored, used: blk.data.len.NBytes)
         if err =? (await self.repoDs.put(blkKey, blk.data)).errorOption:
           raise err
@@ -271,7 +259,7 @@ proc storeBlock(self: RepoStore, blk: Block, minExpiry: SecondsSince1970): Futur
       (md.some, res)
   )
 
-proc tryDeleteBlock(self: RepoStore, cid: Cid, expiryLimit = SecondsSince1970.low): Future[?!DeleteResult] {.async.} =
+proc tryDeleteBlock(self: RepoStore, cid: Cid): Future[?!DeleteResult] {.async.} =
   if cid.isEmpty:
     return success(DeleteResult(kind: InUse))
 
@@ -288,7 +276,7 @@ proc tryDeleteBlock(self: RepoStore, cid: Cid, expiryLimit = SecondsSince1970.lo
         res: DeleteResult
 
       if currMd =? maybeCurrMd:
-        if currMd.refCount == 0 or currMd.expiry < expiryLimit:
+        if currMd.refCount == 0:
           maybeMeta = BlockMetadata.none
           res = DeleteResult(kind: Deleted, released: currMd.size)
 
@@ -366,35 +354,6 @@ method getBlock*(self: RepoStore, address: BlockAddress): Future[?!Block] =
   else:
     self.getBlock(address.cid)
 
-method ensureExpiry*(
-    self: RepoStore,
-    cid: Cid,
-    expiry: SecondsSince1970
-): Future[?!void] {.async.} =
-  ## Ensure that block's associated expiry is at least given timestamp
-  ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
-  ##
-
-  if expiry <= 0:
-    return failure(newException(ValueError, "Expiry timestamp must be larger then zero"))
-
-  await self.updateBlockMetadata(cid, minExpiry = expiry)
-
-method ensureExpiry*(
-    self: RepoStore,
-    treeCid: Cid,
-    index: Natural,
-    expiry: SecondsSince1970
-): Future[?!void] {.async.} =
-  ## Ensure that block's associated expiry is at least given timestamp
-  ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
-  ##
-
-  without leafMd =? await self.getLeafMetadata(treeCid, index), err:
-    return failure(err)
-
-  await self.ensureExpiry(leafMd.blkCid, expiry)
-
 method putCidAndProof*(
   self: RepoStore,
   treeCid: Cid,
@@ -447,17 +406,14 @@ method getCid*(
 
 method putBlock*(
   self: RepoStore,
-  blk: Block,
-  ttl = Duration.none): Future[?!void] {.async.} =
+  blk: Block): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
 
   logScope:
     cid = blk.cid
 
-  let expiry = (await self.clock.now()) + (ttl |? self.blockTtl).seconds
-
-  without res =? await self.storeBlock(blk, expiry), err:
+  without res =? await self.storeBlock(blk), err:
     return failure(err)
 
   if res.kind == Stored:
@@ -476,7 +432,7 @@ method putBlock*(
   return success()
 
 method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
-  ## Delete a block from the blockstore when block refCount is 0 or block is expired
+  ## Delete a block from the blockstore when block refCount is 0
   ##
 
   logScope:
@@ -484,7 +440,7 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
 
   trace "Attempting to delete a block"
 
-  without res =? await self.tryDeleteBlock(cid, (await self.clock.now())), err:
+  without res =? await self.tryDeleteBlock(cid), err:
     return failure(err)
 
   if res.kind == Deleted:
@@ -495,7 +451,7 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
     if err =? (await self.updateQuotaUsage(minusUsed = res.released)).errorOption:
       return failure(err)
   elif res.kind == InUse:
-    trace "Block in use, refCount > 0 and not expired"
+    trace "Block in use, refCount > 0"
   else:
     trace "Block not found in store"
 
@@ -577,46 +533,6 @@ method listBlocks*(
   iter.next = next
   return success iter
 
-proc createBlockExpirationQuery(maxNumber: int, offset: int): ?!Query =
-  let queryKey = ? createBlockExpirationMetadataQueryKey()
-  success Query.init(queryKey, offset = offset, limit = maxNumber)
-
-method getBlockExpirations*(
-  self: RepoStore,
-  maxNumber: int,
-  offset: int): Future[?!AsyncIter[?BlockExpiration]] {.async, base.} =
-  ## Get iterator with block expirations
-  ##
-
-  without query =? createBlockExpirationQuery(maxNumber, offset), err:
-    trace "Unable to format block expirations query"
-    return failure(err)
-
-  without queryIter =? (await queryT[BlockMetadata](self.metaDs, query)), err:
-    trace "Unable to execute block expirations query"
-    return failure(err)
-
-  let iter = queryIter.map(
-    proc (fut: Future[(?Key, ?!BlockMetadata)]): Future[?BlockExpiration] {.async.} =
-      let (maybeKey, blockMdOrErr) = await fut
-
-      without key =? maybeKey:
-        warn "Entry without a key"
-        return BlockExpiration.none
-
-      without cid =? Cid.init(key.value).mapFailure, err:
-        error "Failed decoding cid", err = err.msg
-        return BlockExpiration.none
-
-      without blockMd =? blockMdOrErr, err:
-        error "Failed fetching metadata for block", cid = cid, err = err.msg
-        return BlockExpiration.none
-
-      BlockExpiration(cid: cid, expiry: blockMd.expiry).some
-  )
-
-  iter.success
-
 method close*(self: RepoStore): Future[void] {.async.} =
   ## Close the blockstore, cleaning up resources managed by it.
   ## For some implementations this may be a no-op
@@ -683,18 +599,14 @@ func new*(
     T: type RepoStore,
     repoDs: Datastore,
     metaDs: Datastore,
-    clock: Clock = SystemClock.new(),
     postFixLen = 2,
-    quotaMaxBytes = DefaultQuotaBytes,
-    blockTtl = DefaultBlockTtl
+    quotaMaxBytes = DefaultQuotaBytes
 ): RepoStore =
   ## Create new instance of a RepoStore
   ##
   RepoStore(
     repoDs: repoDs,
     metaDs: metaDs,
-    clock: clock,
     postFixLen: postFixLen,
-    quotaMaxBytes: quotaMaxBytes,
-    blockTtl: blockTtl
+    quotaMaxBytes: quotaMaxBytes
   )

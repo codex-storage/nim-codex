@@ -62,6 +62,7 @@ type
     switch: Switch
     networkId: PeerId
     blockStore: BlockStore
+    maintenance: DatasetMaintainer
     engine: BlockExcEngine
     erasure: Erasure
     discovery: Discovery
@@ -154,18 +155,8 @@ proc updateExpiry*(
     trace "Unable to fetch manifest for cid", manifestCid
     return failure(error)
 
-  try:
-    let
-      ensuringFutures = Iter
-        .fromSlice(0..<manifest.blocksCount)
-        .mapIt(self.blockStore.ensureExpiry( manifest.treeCid, it, expiry ))
-    await allFuturesThrowing(ensuringFutures)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    return failure(exc.msg)
+  await self.maintenance.ensureExpiry(manifest.treeCid, expiry)
 
-  return success()
 
 proc fetchBatched*(
   self: CodexNodeRef,
@@ -235,6 +226,13 @@ proc retrieve*(
 
     # Retrieve all blocks of the dataset sequentially from the local store or network
     trace "Creating store stream for manifest", cid
+
+    if err =? (await self.maintenance.trackExpiry(
+        manifest.treeCid,
+        manifest.blocksCount,
+        manifestsCids = @[cid])).errorOption:
+      return failure(err)
+
     LPStream(StoreStream.new(self.blockStore, manifest, pad = false)).success
   else:
     let
@@ -253,6 +251,10 @@ proc retrieve*(
         await stream.pushEof()
 
     asyncSpawn streamOneBlock()
+
+    if err =? (await self.maintenance.trackExpiry(cid)).errorOption:
+      return failure(err)
+
     LPStream(stream).success()
 
 proc store*(
@@ -322,6 +324,12 @@ proc store*(
 
   without manifestBlk =? await self.storeManifest(manifest), err:
     trace "Unable to store manifest"
+    return failure(err)
+
+  if err =? (await self.maintenance.trackExpiry(
+      treeCid,
+      manifest.blocksCount,
+      manifestsCids = @[manifestBlk.cid])).errorOption:
     return failure(err)
 
   info "Stored data", manifestCid = manifestBlk.cid,
@@ -517,18 +525,17 @@ proc onStore(
     trace "Slot index not in manifest", slotIdx
     return failure(newException(CodexError, "Slot index not in manifest"))
 
-  proc updateExpiry(blocks: seq[bt.Block]): Future[?!void] {.async.} =
-    trace "Updating expiry for blocks", blocks = blocks.len
+  proc onBatch(blocks: seq[bt.Block]): Future[?!void] {.async.} =
+    if not blocksCb.isNil:
+      await blocksCb(blocks)
+    else:
+      success()
 
-    let ensureExpiryFutures = blocks.mapIt(self.blockStore.ensureExpiry(it.cid, expiry))
-    if updateExpiryErr =? (await allFutureResult(ensureExpiryFutures)).errorOption:
-      return failure(updateExpiryErr)
-
-    if not blocksCb.isNil and err =? (await blocksCb(blocks)).errorOption:
-      trace "Unable to process blocks", err = err.msg
-      return failure(err)
-
-    return success()
+  if err =? (await self.maintenance.trackExpiry(
+      manifest.treeCid,
+      manifest.blocksCount,
+      manifestsCids = @[cid])).errorOption:
+    return failure(err)
 
   without indexer =? manifest.protectedStrategy.init(
     0, manifest.blocksCount() - 1, manifest.numSlots).catch and
@@ -539,7 +546,7 @@ proc onStore(
   if err =? (await self.fetchBatched(
       manifest.treeCid,
       blksIter,
-      onBatch = updateExpiry)).errorOption:
+      onBatch = onBatch)).errorOption:
     trace "Unable to fetch blocks", err = err.msg
     return failure(err)
 
@@ -550,6 +557,11 @@ proc onStore(
   if cid =? slotRoot.toSlotCid() and cid != manifest.slotRoots[slotIdx.int]:
     trace "Slot root mismatch", manifest = manifest.slotRoots[slotIdx.int], recovered = slotRoot.toSlotCid()
     return failure(newException(CodexError, "Slot root mismatch"))
+
+  if err =? (await self.maintenance.ensureExpiry(
+      manifest.treeCid,
+      expiry)).errorOption:
+    return failure(err)
 
   return success()
 
@@ -705,6 +717,7 @@ proc new*(
   T: type CodexNodeRef,
   switch: Switch,
   store: BlockStore,
+  maintenance: DatasetMaintainer,
   engine: BlockExcEngine,
   erasure: Erasure,
   discovery: Discovery,
@@ -715,6 +728,7 @@ proc new*(
   CodexNodeRef(
     switch: switch,
     blockStore: store,
+    maintenance: maintenance,
     engine: engine,
     erasure: erasure,
     discovery: discovery,

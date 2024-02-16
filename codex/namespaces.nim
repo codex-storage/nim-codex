@@ -18,6 +18,8 @@ const
     CodexMetaNamespace & "/ttl"
   CodexBlockProofNamespace* =                                  # Cid and Proof
     CodexMetaNamespace & "/proof"
+  CodexDatasetMetadataNamespace* =                                  # Dataset
+    CodexMetaNamespace & "/dataset"
   CodexDhtNamespace* = "dht"                                  # Dht namespace
   CodexDhtProvidersNamespace* =                               # Dht providers namespace
     CodexDhtNamespace & "/providers"
