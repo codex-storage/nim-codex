@@ -70,6 +70,14 @@ jobs:
         if: matrix.tests == 'integration' || matrix.tests == 'all'
         run: make -j${ncpu} testIntegration
 
+      - name: Upload integration tests log files
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: integration-tests-logs
+          path: tests/integration/logs/
+          retention-days: 1
+
   status:
     if: always()
     needs: [build]
