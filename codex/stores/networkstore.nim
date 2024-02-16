@@ -8,8 +8,7 @@
 ## those terms.
 
 
-import pkg/upraises
-push: {.upraises: [].}
+{.push raises: [].}
 
 import pkg/chronos
 import pkg/libp2p
@@ -169,6 +168,4 @@ proc new*(
 ): NetworkStore =
   ## Create new instance of a NetworkStore
   ##
-  NetworkStore(
-      localStore: localStore,
-      engine: engine)
+  NetworkStore(localStore: localStore, engine: engine)
