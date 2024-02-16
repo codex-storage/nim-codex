@@ -67,7 +67,7 @@ asyncchecksuite "Sales - start":
     sales.onProve = proc(slot: Slot, challenge: ProofChallenge): Future[?!Groth16Proof] {.async.} =
       return success(proof)
     itemsProcessed = @[]
-    request.expiry = ((await clock.now()) + 42).u256
+    request.expiry = (clock.now() + 42).u256
 
   teardown:
     await sales.stop()
