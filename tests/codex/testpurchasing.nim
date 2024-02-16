@@ -161,7 +161,7 @@ checksuite "Purchasing state machine":
     market.requestState[request5.id] = RequestState.Failed
 
     # ensure the started state doesn't error, giving a false positive test result
-    market.requestEnds[request2.id] = (await clock.now()) - 1
+    market.requestEnds[request2.id] = clock.now() - 1
 
     await purchasing.load()
     check eventually purchasing.getPurchase(PurchaseId(request1.id)).?finished == false.some
@@ -182,7 +182,7 @@ checksuite "Purchasing state machine":
   test "moves to PurchaseStarted when request state is Started":
     let request = StorageRequest.example
     let purchase = Purchase.new(request, market, clock)
-    market.requestEnds[request.id] = (await clock.now()) + request.ask.duration.truncate(int64)
+    market.requestEnds[request.id] = clock.now() + request.ask.duration.truncate(int64)
     market.requested = @[request]
     market.requestState[request.id] = RequestState.Started
     let next = await PurchaseUnknown().run(purchase)
@@ -215,7 +215,7 @@ checksuite "Purchasing state machine":
   test "moves to PurchaseFailed state once RequestFailed emitted":
     let request = StorageRequest.example
     let purchase = Purchase.new(request, market, clock)
-    market.requestEnds[request.id] =  (await clock.now()) + request.ask.duration.truncate(int64)
+    market.requestEnds[request.id] = clock.now() + request.ask.duration.truncate(int64)
     let future = PurchaseStarted().run(purchase)
 
     market.emitRequestFailed(request.id)
@@ -226,7 +226,7 @@ checksuite "Purchasing state machine":
   test "moves to PurchaseFinished state once request finishes":
     let request = StorageRequest.example
     let purchase = Purchase.new(request, market, clock)
-    market.requestEnds[request.id] = (await clock.now()) + request.ask.duration.truncate(int64)
+    market.requestEnds[request.id] = clock.now() + request.ask.duration.truncate(int64)
     let future = PurchaseStarted().run(purchase)
 
     clock.advance(request.ask.duration.truncate(int64))

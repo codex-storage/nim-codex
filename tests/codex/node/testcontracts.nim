@@ -99,7 +99,7 @@ asyncchecksuite "Test Node - Host contracts":
   test "onExpiryUpdate callback":
     let
       # The blocks have set default TTL, so in order to update it we have to have larger TTL
-      expectedExpiry: SecondsSince1970 = (await clock.now) + DefaultBlockTtl.seconds + 11123
+      expectedExpiry: SecondsSince1970 = clock.now + DefaultBlockTtl.seconds + 11123
       expiryUpdateCallback = !sales.onExpiryUpdate
 
     (await expiryUpdateCallback(manifestCidStr, expectedExpiry)).tryGet()

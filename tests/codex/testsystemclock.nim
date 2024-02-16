@@ -1,15 +1,14 @@
 import std/times
+import std/unittest
 
 import codex/systemclock
-
-import ../asynctest
 import ./helpers
 
-asyncchecksuite "SystemClock":
+checksuite "SystemClock":
   test "Should get now":
     let clock = SystemClock.new()
 
     let expectedNow = times.now().utc
-    let now = (await clock.now())
+    let now = clock.now()
 
     check now == expectedNow.toTime().toUnix()
