@@ -92,7 +92,12 @@ template setupAndTearDown*() {.dirty.} =
     discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
     engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
-    node = CodexNodeRef.new(switch, store, engine, blockDiscovery)
+    node = CodexNodeRef.new(
+      switch = switch,
+      networkStore = store,
+      engine = engine,
+      prover = Prover.none,
+      discovery = blockDiscovery)
 
     await node.start()
 
