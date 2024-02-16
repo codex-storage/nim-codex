@@ -36,9 +36,9 @@ suite "Command line interface":
     let node = startNode(@[
       "persistence",
       "prover",
-      "--circom-r1cs=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs",
-      "--circom-wasm=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm",
-      "--circom-zkey=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.zkey"
+      "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
+      "--circom-wasm=tests/circuits/fixtures/proof_main.wasm",
+      "--circom-zkey=tests/circuits/fixtures/proof_main.zkey"
     ])
     node.waitUntilOutput("Persistence enabled, but no Ethereum account was set")
     node.stop()
@@ -49,9 +49,9 @@ suite "Command line interface":
     let node = startNode(@[
       "persistence",
       "prover",
-      "--circom-r1cs=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs",
-      "--circom-wasm=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm",
-      "--circom-zkey=vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.zkey",
+      "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
+      "--circom-wasm=tests/circuits/fixtures/proof_main.wasm",
+      "--circom-zkey=tests/circuits/fixtures/proof_main.zkey",
       "--eth-private-key=" & unsafeKeyFile])
     node.waitUntilOutput("Ethereum private key file does not have safe file permissions")
     node.stop()
