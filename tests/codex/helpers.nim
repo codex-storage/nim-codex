@@ -31,7 +31,7 @@ func `==`*(a, b: Block): bool =
 proc calcEcBlocksCount*(blocksCount: int, ecK, ecM: int): int =
   let
     rounded = roundUp(blocksCount, ecK)
-    steps = divUp(blocksCount, ecK)
+    steps = divUp(rounded, ecK)
 
   rounded + (steps * ecM)
 
