@@ -82,6 +82,7 @@ proc init*(_: type BlockAddress, treeCid: Cid, index: Natural): BlockAddress =
   BlockAddress(leaf: true, treeCid: treeCid, index: index)
 
 proc `$`*(b: Block): string =
+  # if not b.isNil:
   result &= "cid: " & $b.cid
   result &= "\ndata: " & string.fromBytes(b.data)
 
