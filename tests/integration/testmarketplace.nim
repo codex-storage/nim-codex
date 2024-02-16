@@ -1,5 +1,6 @@
 import std/math
 import pkg/stew/byteutils
+import pkg/codex/units
 import ./marketplacesuite
 import ../examples
 
@@ -22,24 +23,28 @@ marketplacesuite "Marketplace payouts":
           .nodes(1)
           # .debug() # uncomment to enable console log output
           .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-          .withLogTopics("marketplace", "sales", "reservations", "node", "proving", "clock"),
+          .withLogTopics("node", "marketplace", "sales", "reservations", "node", "proving", "clock"),
   ):
     let reward = 400.u256
     let duration = 100.periods
     let collateral = 200.u256
     let expiry = 4.periods
-    let data = byteutils.toHex(await exampleData())
-    let slotSize = (data.len / 2).ceil.int.u256
+    let datasetSizeInBlocks = 3
+    let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
     let client = clients()[0]
     let provider = providers()[0]
     let clientApi = client.client
     let providerApi = provider.client
     let startBalanceProvider = await token.balanceOf(provider.ethAccount)
     let startBalanceClient = await token.balanceOf(client.ethAccount)
+    # original data = 3 blocks so slot size will be 4 blocks
+    let slotSize = (DefaultBlockSize * 4.NBytes).Natural.u256
 
     # provider makes storage available
     discard providerApi.postAvailability(
-      size=slotSize, # large enough to only fill 1 slot, thus causing a cancellation
+      # make availability size large enough to only fill 1 slot, thus causing a
+      # cancellation
+      size=slotSize,
       duration=duration.u256,
       minPrice=reward,
       maxCollateral=collateral)
@@ -59,7 +64,9 @@ marketplacesuite "Marketplace payouts":
       reward=reward,
       expiry=expiry,
       collateral=collateral,
-      nodes=2
+      nodes=3,
+      tolerance=1,
+      origDatasetSizeInBlocks=datasetSizeInBlocks
     )
 
     # wait until one slot is filled

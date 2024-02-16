@@ -6,11 +6,11 @@ import std/times
 import pkg/codex/logutils
 import pkg/chronos/transports/stream
 import pkg/ethers
-import pkg/asynctest
 import ./hardhatprocess
 import ./codexprocess
 import ./hardhatconfig
 import ./codexconfig
+import ../asynctest
 import ../checktest
 
 export asynctest

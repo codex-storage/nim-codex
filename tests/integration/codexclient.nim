@@ -108,7 +108,8 @@ proc requestStorage*(
   ## Call request storage REST endpoint
   ##
   let response = client.requestStorageRaw(cid, duration, reward, proofProbability, collateral, expiry, nodes, tolerance)
-  assert response.status == "200 OK"
+  if response.status != "200 OK":
+    doAssert(false, response.body)
   PurchaseId.fromHex(response.body).catch
 
 proc getPurchase*(client: CodexClient, purchaseId: PurchaseId): ?!RestPurchase =

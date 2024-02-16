@@ -8,11 +8,16 @@ import pkg/codex/rng
 import pkg/codex/contracts/proofs
 import pkg/codex/sales/slotqueue
 import pkg/codex/stores
+import pkg/codex/units
 
 import pkg/chronos
+import pkg/stew/byteutils
 import pkg/stint
 
 import ./codex/helpers/randomchunker
+
+export randomchunker
+export units
 
 proc exampleString*(length: int): string =
   let chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -84,10 +89,15 @@ proc example*(_: type Groth16Proof): Groth16Proof =
     c: G1Point.example
   )
 
-proc exampleData*(size: NBytes): Future[seq[byte]] {.async.} =
-  let rng = rng.Rng.instance()
-  let chunker = RandomChunker.new(rng, size = size, chunkSize = DefaultBlockSize * 2)
-  return await chunker.getBytes()
+proc example*(_: type RandomChunker, blocks: int): Future[string] {.async.} =
+  # doAssert blocks >= 3, "must be more than 3 blocks"
+  let rng = Rng.instance()
+  let chunker = RandomChunker.new(
+    rng, size = DefaultBlockSize * blocks.NBytes, chunkSize = DefaultBlockSize)
+  var data: seq[byte]
+  while (let moar = await chunker.getBytes(); moar != []):
+    data.add moar
+  return byteutils.toHex(data)
 
-proc exampleData*(): Future[seq[byte]] {.async.} =
-  await exampleData(DefaultBlockSize * 2)
+proc example*(_:  type RandomChunker): Future[string] {.async.} =
+  await RandomChunker.example(3)

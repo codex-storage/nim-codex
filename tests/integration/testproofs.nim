@@ -36,13 +36,17 @@ marketplacesuite "Hosts submit regular proofs":
   ):
     let client0 = clients()[0].client
     let totalPeriods = 50
+    let datasetSizeInBlocks = 2
 
-    let data = byteutils.toHex(await exampleData())
+    let data = await RandomChunker.example(blocks=1)
     createAvailabilities(data.len, totalPeriods.periods)
 
     let cid = client0.upload(data).get
 
-    let purchaseId = await client0.requestStorage(cid, duration=totalPeriods.periods)
+    let purchaseId = await client0.requestStorage(
+      cid,
+      duration=totalPeriods.periods,
+      origDatasetSizeInBlocks = datasetSizeInBlocks)
     check eventually client0.purchaseStateIs(purchaseId, "started")
 
     var proofWasSubmitted = false
@@ -93,12 +97,16 @@ marketplacesuite "Simulate invalid proofs":
     let client0 = clients()[0].client
     let totalPeriods = 50
 
-    let data = byteutils.toHex(await exampleData())
+    let datasetSizeInBlocks = 2
+    let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
     createAvailabilities(data.len, totalPeriods.periods)
 
     let cid = client0.upload(data).get
 
-    let purchaseId = await client0.requestStorage(cid, duration=totalPeriods.periods)
+    let purchaseId = await client0.requestStorage(
+      cid,
+      duration=totalPeriods.periods,
+      origDatasetSizeInBlocks=datasetSizeInBlocks)
     let requestId = client0.requestId(purchaseId).get
 
     check eventually client0.purchaseStateIs(purchaseId, "started")
@@ -145,12 +153,16 @@ marketplacesuite "Simulate invalid proofs":
     let client0 = clients()[0].client
     let totalPeriods = 25
 
-    let data = byteutils.toHex(await exampleData())
+    let datasetSizeInBlocks = 2
+    let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
     createAvailabilities(data.len, totalPeriods.periods)
 
     let cid = client0.upload(data).get
 
-    let purchaseId = await client0.requestStorage(cid, duration=totalPeriods.periods)
+    let purchaseId = await client0.requestStorage(
+      cid,
+      duration=totalPeriods.periods,
+      origDatasetSizeInBlocks=datasetSizeInBlocks)
     let requestId = client0.requestId(purchaseId).get
 
     check eventually client0.purchaseStateIs(purchaseId, "started")
@@ -158,7 +170,7 @@ marketplacesuite "Simulate invalid proofs":
     var slotWasFreed = false
     proc onSlotFreed(event: SlotFreed) =
       if event.requestId == requestId and
-          event.slotIndex == 0.u256: # assume only one slot, so index 0
+          event.slotIndex == 0.u256:
         slotWasFreed = true
 
     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
@@ -182,7 +194,7 @@ marketplacesuite "Simulate invalid proofs":
 
     providers:
       CodexConfig()
-        .nodes(2)
+        .nodes(3)
         .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=2)
         # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
@@ -198,10 +210,13 @@ marketplacesuite "Simulate invalid proofs":
     let client0 = clients()[0].client
     let provider0 = providers()[0]
     let provider1 = providers()[1]
+    let provider2 = providers()[2]
     let totalPeriods = 25
 
-    let data = byteutils.toHex(await exampleData())
-    let slotSize = (data.len / 2).ceil.int.u256
+    let datasetSizeInBlocks = 3
+    let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
+    # original data = 3 blocks so slot size will be 4 blocks
+    let slotSize = (DefaultBlockSize * 4.NBytes).Natural.u256
 
     discard provider0.client.postAvailability(
       size=slotSize, # should match 1 slot only
@@ -215,48 +230,65 @@ marketplacesuite "Simulate invalid proofs":
     let purchaseId = await client0.requestStorage(
       cid,
       duration=totalPeriods.periods,
-      expiry=10.periods
+      expiry=10.periods,
+      nodes=3,
+      tolerance=1,
+      origDatasetSizeInBlocks=datasetSizeInBlocks
     )
 
     without requestId =? client0.requestId(purchaseId):
       fail()
 
-
-    var provider0slotIndex = none UInt256
+    var filledSlotIds: seq[SlotId] = @[]
     proc onSlotFilled(event: SlotFilled) =
-      provider0slotIndex = some event.slotIndex
+      let slotId = slotId(event.requestId, event.slotIndex)
+      filledSlotIds.add slotId
 
     let subscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
 
     # wait til first slot is filled
-    check eventually provider0slotIndex.isSome
+    check eventually filledSlotIds.len > 0
 
-    # now add availability for provider1, which should allow provider1 to put
-    # the remaining slot in its queue
+    # now add availability for providers 1 and 2, which should allow them to to
+    # put the remaining slots in their queues
     discard provider1.client.postAvailability(
       size=slotSize, # should match 1 slot only
       duration=totalPeriods.periods.u256,
       minPrice=300.u256,
       maxCollateral=200.u256
     )
-    let provider1slotIndex = if provider0slotIndex == some 0.u256: 1.u256 else: 0.u256
-    let provider0slotId = slotId(requestId, !provider0slotIndex)
-    let provider1slotId = slotId(requestId, provider1slotIndex)
+
+    check eventually filledSlotIds.len > 1
+
+    discard provider2.client.postAvailability(
+      size=slotSize, # should match 1 slot only
+      duration=totalPeriods.periods.u256,
+      minPrice=300.u256,
+      maxCollateral=200.u256
+    )
+
+    check eventually filledSlotIds.len > 2
 
     # Wait til second slot is filled. SaleFilled happens too quickly, check SaleProving instead.
-    check eventually provider1.client.saleStateIs(provider1slotId, "SaleProving")
+    check eventually provider1.client.saleStateIs(filledSlotIds[1], "SaleProving")
+    check eventually provider2.client.saleStateIs(filledSlotIds[2], "SaleProving")
 
     check eventually client0.purchaseStateIs(purchaseId, "started")
 
     let currentPeriod = await getCurrentPeriod()
     check eventuallyP(
       # SaleFinished happens too quickly, check SalePayout instead
-      provider0.client.saleStateIs(provider0slotId, "SalePayout"),
+      provider0.client.saleStateIs(filledSlotIds[0], "SalePayout"),
       currentPeriod + totalPeriods.u256 + 1)
 
     check eventuallyP(
       # SaleFinished happens too quickly, check SalePayout instead
-      provider1.client.saleStateIs(provider1slotId, "SalePayout"),
+      provider1.client.saleStateIs(filledSlotIds[1], "SalePayout"),
+      currentPeriod + totalPeriods.u256 + 1)
+
+    check eventuallyP(
+      # SaleFinished happens too quickly, check SalePayout instead
+      provider2.client.saleStateIs(filledSlotIds[2], "SalePayout"),
       currentPeriod + totalPeriods.u256 + 1)
 
     check eventually(
