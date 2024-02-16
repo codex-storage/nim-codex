@@ -70,8 +70,8 @@ type
     persistence
 
   PersistenceCmd* {.pure.} = enum
+    noCmd
     prover
-    validator
 
   LogKind* {.pure.} = enum
     Auto = "auto"
@@ -275,15 +275,21 @@ type
           hidden
         .}: int
 
-      case persistenceCmd* {.
-        command }: PersistenceCmd
+      validator* {.
+        desc: "Enables validator, requires an Ethereum node"
+        defaultValue: false
+        name: "validator"
+      .}: bool
 
-      of PersistenceCmd.validator:
-        validatorMaxSlots* {.
-          desc: "Maximum number of slots that the validator monitors"
-          defaultValue: 1000
-          name: "validator-max-slots"
-        .}: int
+      validatorMaxSlots* {.
+        desc: "Maximum number of slots that the validator monitors"
+        defaultValue: 1000
+        name: "validator-max-slots"
+      .}: int
+
+      case persistenceCmd* {.
+        defaultValue: noCmd
+        command }: PersistenceCmd
 
       of PersistenceCmd.prover:
         circomR1cs* {.
@@ -343,6 +349,8 @@ type
           defaultValue: DefaultCellElms
           defaultValueDesc: $DefaultCellElms
           name: "max-cell-elements" }: int
+      of PersistenceCmd.noCmd:
+        discard
 
     of StartUpCmd.noCmd:
       discard # end of persistence
@@ -354,9 +362,6 @@ logutils.formatIt(LogFormat.json, EthAddress): %it
 
 func persistence*(self: CodexConf): bool =
   self.cmd == StartUpCmd.persistence
-
-func validator*(self: CodexConf): bool =
-  self.persistence and self.persistenceCmd == PersistenceCmd.validator
 
 func prover*(self: CodexConf): bool =
   self.persistence and self.persistenceCmd == PersistenceCmd.prover
