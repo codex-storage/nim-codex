@@ -43,18 +43,25 @@ suite "Slot builder":
     ecM = 2
 
     numSlots = ecK + ecM
-    numDatasetBlocks = 50
+    numDatasetBlocks = 8
     numTotalBlocks = calcEcBlocksCount(numDatasetBlocks, ecK, ecM)  # total number of blocks in the dataset after
                                                                     # EC (should will match number of slots)
     originalDatasetSize = numDatasetBlocks * blockSize.int
     totalDatasetSize    = numTotalBlocks * blockSize.int
 
-    numBlockCells     = (blockSize div cellSize).int                # number of cells per block
-    numSlotBlocks     = numTotalBlocks div numSlots                 # number of blocks per slot
-    numSlotCells      = numSlotBlocks * numBlockCells               # number of uncorrected slot cells
-    pow2SlotCells     = nextPowerOfTwo(numSlotCells)                # pow2 cells per slot
-    numPadSlotBlocks  = pow2SlotCells div numBlockCells             # pow2 blocks per slot
-    numPadBlocksTotal = numPadSlotBlocks * numSlots                 # total number of pad blocks
+    numSlotBlocks     = numTotalBlocks div numSlots
+    numBlockCells     = (blockSize div cellSize).int                      # number of cells per block
+    numSlotCells      = numSlotBlocks * numBlockCells                     # number of uncorrected slot cells
+    pow2SlotCells     = nextPowerOfTwo(numSlotCells)                      # pow2 cells per slot
+    numPadSlotBlocks  = (pow2SlotCells div numBlockCells) - numSlotBlocks # pow2 blocks per slot
+
+    numSlotBlocksTotal  =                                                 # pad blocks per slot
+      if numPadSlotBlocks > 0:
+          numPadSlotBlocks + numSlotBlocks
+        else:
+          numSlotBlocks
+
+    numBlocksTotal  = numSlotBlocksTotal * numSlots
 
     # empty digest
     emptyDigest = SpongeMerkle.digest(newSeq[byte](blockSize.int), cellSize.int)
@@ -157,39 +164,39 @@ suite "Slot builder":
       builder.cellSize == cellSize
       builder.numSlots == numSlots
       builder.numBlockCells == numBlockCells
-      builder.numSlotBlocks == numPadSlotBlocks
+      builder.numSlotBlocks == numSlotBlocksTotal
       builder.numSlotCells == pow2SlotCells
-      builder.numBlocks == numPadBlocksTotal
+      builder.numBlocks == numBlocksTotal
 
   test "Should build slot hashes for all slots":
     let
       steppedStrategy = Strategy.init(
-        0, numPadBlocksTotal - 1, numSlots)
+        0, numBlocksTotal - 1, numSlots)
 
       builder = Poseidon2Builder.new(
         localStore,
         protectedManifest,
         cellSize = cellSize).tryGet()
 
-    # for i in 0..<numSlots:
-    let
-      expectedHashes = collect(newSeq):
-        for j, idx in steppedStrategy.getIndicies(0):
-          if j > (protectedManifest.numSlotBlocks - 1):
-            emptyDigest
-          else:
-            SpongeMerkle.digest(datasetBlocks[idx].data, cellSize.int)
+    for i in 0..<numSlots:
+      let
+        expectedHashes = collect(newSeq):
+          for j, idx in steppedStrategy.getIndicies(i):
+            if j > (protectedManifest.numSlotBlocks - 1):
+              emptyDigest
+            else:
+              SpongeMerkle.digest(datasetBlocks[idx].data, cellSize.int)
 
-      cellHashes = (await builder.getCellHashes(0)).tryGet()
+        cellHashes = (await builder.getCellHashes(i)).tryGet()
 
-    check:
-      cellHashes.len == expectedHashes.len
-      cellHashes == expectedHashes
+      check:
+        cellHashes.len == expectedHashes.len
+        cellHashes == expectedHashes
 
   test "Should build slot trees for all slots":
     let
       steppedStrategy = Strategy.init(
-        0, numPadBlocksTotal - 1, numSlots)
+        0, numBlocksTotal - 1, numSlots)
 
       builder = Poseidon2Builder.new(
         localStore,
@@ -237,7 +244,7 @@ suite "Slot builder":
 
   test "Should build correct verification root":
     let
-      steppedStrategy = Strategy.init(0, numPadBlocksTotal - 1, numSlots)
+      steppedStrategy = Strategy.init(0, numBlocksTotal - 1, numSlots)
       builder = Poseidon2Builder.new(
         localStore,
         protectedManifest,
@@ -265,7 +272,7 @@ suite "Slot builder":
 
   test "Should build correct verification root manifest":
     let
-      steppedStrategy = Strategy.init(0, numPadBlocksTotal - 1, numSlots)
+      steppedStrategy = Strategy.init(0, numBlocksTotal - 1, numSlots)
       builder = Poseidon2Builder.new(
         localStore,
         protectedManifest,
@@ -331,6 +338,7 @@ suite "Slot builder":
         protectedManifest,
         cellSize = cellSize).tryGet()
 
+    var
       verifyManifest = (await builder.buildManifest()).tryGet()
       offset = verifyManifest.verifyRoot.data.buffer.len div 2
 

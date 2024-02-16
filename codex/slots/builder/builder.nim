@@ -331,27 +331,37 @@ proc new*[T, H](
     return failure("Block size must be divisable by cell size.")
 
   let
-    numBlockCells     = (manifest.blockSize div cellSize).int         # number of cells per block
-    numSlotCells      = manifest.numSlotBlocks * numBlockCells        # number of uncorrected slot cells
-    pow2SlotCells     = nextPowerOfTwo(numSlotCells)                  # pow2 cells per slot
-    numPadSlotBlocks  = pow2SlotCells div numBlockCells               # pow2 blocks per slot
-    numPadBlocksTotal = numPadSlotBlocks * manifest.numSlots          # total number of pad blocks
+    numSlotBlocks     = manifest.numSlotBlocks
+    numBlockCells     = (manifest.blockSize div cellSize).int             # number of cells per block
+    numSlotCells      = manifest.numSlotBlocks * numBlockCells            # number of uncorrected slot cells
+    pow2SlotCells     = nextPowerOfTwo(numSlotCells)                      # pow2 cells per slot
+    numPadSlotBlocks  = (pow2SlotCells div numBlockCells) - numSlotBlocks # pow2 blocks per slot
 
-    emptyBlock        = newSeq[byte](manifest.blockSize.int)
-    emptyDigestTree   = ? T.digestTree(emptyBlock, cellSize.int)
+    numSlotBlocksTotal  =                                                 # pad blocks per slot
+      if numPadSlotBlocks > 0:
+          numPadSlotBlocks + numSlotBlocks
+        else:
+          numSlotBlocks
+
+    numBlocksTotal      = numSlotBlocksTotal * manifest.numSlots          # number of blocks per slot
+
+    emptyBlock          = newSeq[byte](manifest.blockSize.int)
+    emptyDigestTree     = ? T.digestTree(emptyBlock, cellSize.int)
 
     strategy = ? strategy.init(
       0,
-      numPadBlocksTotal - 1,
+      numBlocksTotal - 1,
       manifest.numSlots).catch
 
   logScope:
-    numBlockCells     = numBlockCells
-    numSlotCells      = numSlotCells
-    pow2SlotCells     = pow2SlotCells
-    numPadSlotBlocks  = numPadSlotBlocks
-    numPadBlocksTotal = numPadBlocksTotal
-    strategy          = strategy.strategyType
+    numSlotBlocks       = numSlotBlocks
+    numBlockCells       = numBlockCells
+    numSlotCells        = numSlotCells
+    pow2SlotCells       = pow2SlotCells
+    numPadSlotBlocks    = numPadSlotBlocks
+    numBlocksTotal      = numBlocksTotal
+    numSlotBlocksTotal  = numSlotBlocksTotal
+    strategy            = strategy.strategyType
 
   trace "Creating slots builder"
 
@@ -362,7 +372,7 @@ proc new*[T, H](
       strategy: strategy,
       cellSize: cellSize,
       emptyBlock: emptyBlock,
-      numSlotBlocks: numPadSlotBlocks,
+      numSlotBlocks: numSlotBlocksTotal,
       emptyDigestTree: emptyDigestTree)
 
   if manifest.verifiable:
