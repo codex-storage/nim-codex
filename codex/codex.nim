@@ -260,8 +260,6 @@ proc new*(
     blockDiscovery = DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
     engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
-    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-
     prover = if config.prover:
       if not fileAccessible($config.circomR1cs, {AccessFlags.Read}) and
         endsWith($config.circomR1cs, ".r1cs"):
@@ -294,9 +292,8 @@ proc new*(
 
     codexNode = CodexNodeRef.new(
       switch = switch,
-      store = store,
+      networkStore = store,
       engine = engine,
-      erasure = erasure,
       prover = prover,
       discovery = discovery)
 
