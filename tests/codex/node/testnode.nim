@@ -120,6 +120,7 @@ asyncchecksuite "Test Node - Basic":
 
   test "Setup purchase request":
     let
+      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
       manifest = await storeDataGetManifest(localStore, chunker)
       manifestBlock = bt.Block.new(
         manifest.encode().tryGet(),
