@@ -41,14 +41,6 @@ jobs:
       matrix: ${{ needs.matrix.outputs.matrix }}
       cache_nonce: ${{ needs.matrix.outputs.cache_nonce }}
 
-      - name: Upload integration tests log files
-        uses: actions/upload-artifact@v3
-        if: always()
-        with:
-          name: integration-tests-logs
-          path: tests/integration/logs/
-          retention-days: 1
-
   coverage:
     runs-on: ubuntu-latest
     steps:
