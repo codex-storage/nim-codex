@@ -2,8 +2,10 @@
 import std/sequtils
 import std/sugar
 import std/strutils
+import std/options
 
 import pkg/poseidon2
+import pkg/poseidon2/io
 import pkg/constantine/math/arithmetic
 import pkg/constantine/math/io/io_bigints
 import pkg/constantine/math/io/io_fields
@@ -15,7 +17,7 @@ import pkg/codex/utils/json
 
 export types
 
-func fromCircomData*[H](cellData: seq[byte]): seq[H] =
+func fromCircomData*(_: type Poseidon2Hash, cellData: seq[byte]): seq[Poseidon2Hash] =
   var
     pos = 0
     cellElms: seq[Bn254Fr]
@@ -30,43 +32,40 @@ func fromCircomData*[H](cellData: seq[byte]): seq[H] =
 
   cellElms
 
-func toPublicInputs*[H](input: ProofInput[H]): PublicInputs[H] =
-  PublicInputs[H](
-    slotIndex: input.slotIndex,
-    datasetRoot: input.datasetRoot,
-    entropy: input.entropy
-  )
-
-proc toCircomInputs*[H](inputs: PublicInputs[H]): CircomInputs =
-  var
-    slotIndex = inputs.slotIndex.toF.toBytes.toArray32
-    datasetRoot = inputs.datasetRoot.toBytes.toArray32
-    entropy = inputs.entropy.toBytes.toArray32
-
-    elms = [
-      entropy,
-      datasetRoot,
-      slotIndex
-    ]
-
-  let inputsPtr = allocShared0(32 * elms.len)
-  copyMem(inputsPtr, addr elms[0], elms.len * 32)
-
-  CircomInputs(
-    elms: cast[ptr array[32, byte]](inputsPtr),
-    len: elms.len.uint
-  )
-
-proc releaseNimInputs*(inputs: var CircomInputs) =
-  if not inputs.elms.isNil:
-    deallocShared(inputs.elms)
-    inputs.elms = nil
-
 func toJsonDecimal*(big: BigInt[254]): string =
   let s = big.toDecimal.strip( leading = true, trailing = false, chars = {'0'} )
   if s.len == 0: "0" else: s
 
-func toJson*[H](input: ProofInput[H]): JsonNode =
+func toJson*(g1: CircomG1): JsonNode =
+  %* {
+    "x": Bn254Fr.fromBytes(g1.x).get.toBig.toJsonDecimal,
+    "y": Bn254Fr.fromBytes(g1.y).get.toBig.toJsonDecimal
+  }
+
+func toJson*(g2: CircomG2): JsonNode =
+  %* {
+    "x": [
+      Bn254Fr.fromBytes(g2.x[0]).get.toBig.toJsonDecimal,
+      Bn254Fr.fromBytes(g2.x[1]).get.toBig.toJsonDecimal],
+    "y": [
+      Bn254Fr.fromBytes(g2.y[0]).get.toBig.toJsonDecimal,
+      Bn254Fr.fromBytes(g2.y[1]).get.toBig.toJsonDecimal]
+  }
+
+proc toJson*(vpk: VerifyingKey): JsonNode =
+  let
+    ic = toSeq(cast[ptr UncheckedArray[CircomG1]](vpk.ic).toOpenArray(0, vpk.icLen.int - 1))
+
+  echo ic.len
+  %* {
+    "alpha1": vpk.alpha1.toJson,
+    "beta2": vpk.beta2.toJson,
+    "gamma2": vpk.gamma2.toJson,
+    "delta2": vpk.delta2.toJson,
+    "ic": ic.mapIt( it.toJson )
+  }
+
+func toJson*(input: ProofInputs[Poseidon2Hash]): JsonNode =
   var
     input = input
 
@@ -79,14 +78,14 @@ func toJson*[H](input: ProofInput[H]): JsonNode =
     "slotRoot": input.slotRoot.toDecimal,
     "slotProof": input.slotProof.mapIt( it.toBig.toJsonDecimal ),
     "cellData": input.samples.mapIt(
-      toSeq( it.cellData.elements(H) ).mapIt( it.toBig.toJsonDecimal )
+      toSeq( it.cellData.elements(Poseidon2Hash) ).mapIt( it.toBig.toJsonDecimal )
     ),
     "merklePaths": input.samples.mapIt(
       it.merklePaths.mapIt( it.toBig.toJsonDecimal )
     )
   }
 
-func jsonToProofInput*[H](inputJson: JsonNode): ProofInput[H] =
+func jsonToProofInput*(_: type Poseidon2Hash, inputJson: JsonNode): ProofInputs[Poseidon2Hash] =
   let
     cellData =
       inputJson["cellData"].mapIt(
@@ -107,7 +106,7 @@ func jsonToProofInput*[H](inputJson: JsonNode): ProofInput[H] =
             block:
               var
                 big: BigInt[254]
-                hash: H
+                hash: Poseidon2Hash
               assert bool(big.fromDecimal( it.getStr ))
               hash.fromBig( big )
               hash
@@ -118,7 +117,7 @@ func jsonToProofInput*[H](inputJson: JsonNode): ProofInput[H] =
       block:
         var
           big: BigInt[254]
-          hash: H
+          hash: Poseidon2Hash
         assert bool(big.fromDecimal( it.str ))
         hash.fromBig( big )
         hash
@@ -127,7 +126,7 @@ func jsonToProofInput*[H](inputJson: JsonNode): ProofInput[H] =
     datasetRoot = block:
       var
         big: BigInt[254]
-        hash: H
+        hash: Poseidon2Hash
       assert bool(big.fromDecimal( inputJson["dataSetRoot"].str ))
       hash.fromBig( big )
       hash
@@ -135,7 +134,7 @@ func jsonToProofInput*[H](inputJson: JsonNode): ProofInput[H] =
     slotRoot = block:
       var
         big: BigInt[254]
-        hash: H
+        hash: Poseidon2Hash
       assert bool(big.fromDecimal( inputJson["slotRoot"].str ))
       hash.fromBig( big )
       hash
@@ -143,7 +142,7 @@ func jsonToProofInput*[H](inputJson: JsonNode): ProofInput[H] =
     entropy = block:
       var
         big: BigInt[254]
-        hash: H
+        hash: Poseidon2Hash
       assert bool(big.fromDecimal( inputJson["entropy"].str ))
       hash.fromBig( big )
       hash
@@ -152,7 +151,7 @@ func jsonToProofInput*[H](inputJson: JsonNode): ProofInput[H] =
     nSlotsPerDataSet = inputJson["nSlotsPerDataSet"].getInt
     slotIndex = inputJson["slotIndex"].getInt
 
-  ProofInput[H](
+  ProofInputs[Poseidon2Hash](
     entropy: entropy,
     slotIndex: slotIndex,
     datasetRoot: datasetRoot,
@@ -161,7 +160,7 @@ func jsonToProofInput*[H](inputJson: JsonNode): ProofInput[H] =
     nCellsPerSlot: nCellsPerSlot,
     nSlotsPerDataSet: nSlotsPerDataSet,
     samples: zip(cellData, merklePaths)
-      .mapIt(Sample[H](
+      .mapIt(Sample[Poseidon2Hash](
         cellData: it[0],
         merklePaths: it[1]
       ))
