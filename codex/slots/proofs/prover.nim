@@ -30,25 +30,27 @@ import ../types
 
 export backends
 
-type
-  AnyProof* = CircomProof
-  AnyInputs* = CircomInputs
-  AnyKeys* = CircomKey
-  AnyHash* = Poseidon2Hash
-  AnyBackend* = CircomCompat
-  AnyBuilder* = Poseidon2Builder
-  AnySampler* = Poseidon2Sampler
+logScope:
+  topics = "codex prover"
 
+type
+  AnyBackend* = CircomCompat
+  AnyProof* = CircomProof
+
+  AnySampler* = Poseidon2Sampler
+  AnyBuilder* = Poseidon2Builder
+
+  AnyProofInputs* = ProofInputs[Poseidon2Hash]
   Prover* = ref object of RootObj
     backend: AnyBackend
     store: BlockStore
+    nSamples: int
 
 proc prove*(
   self: Prover,
   slotIdx: int,
   manifest: Manifest,
-  challenge: ProofChallenge,
-  nSamples = DefaultSamplesNum): Future[?!AnyProof] {.async.} =
+  challenge: ProofChallenge): Future[?!(AnyProofInputs, AnyProof)] {.async.} =
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
 
@@ -67,7 +69,7 @@ proc prove*(
     error "Unable to create data sampler", err = err.msg
     return failure(err)
 
-  without proofInput =? await sampler.getProofInput(challenge, nSamples), err:
+  without proofInput =? await sampler.getProofInput(challenge, self.nSamples), err:
     error "Unable to get proof input for slot", err = err.msg
     return failure(err)
 
@@ -76,23 +78,24 @@ proc prove*(
     error "Unable to prove slot", err = err.msg
     return failure(err)
 
-  success proof
+  success (proofInput, proof)
 
 proc verify*(
   self: Prover,
   proof: AnyProof,
-  inputs: AnyInputs,
-  vpk: AnyKeys): Future[?!bool] {.async.} =
+  inputs: AnyProofInputs): Future[?!bool] {.async.} =
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
 
-  self.backend.verify(proof, inputs, vpk)
+  self.backend.verify(proof, inputs)
 
 proc new*(
   _: type Prover,
   store: BlockStore,
-  backend: AnyBackend): Prover =
+  backend: AnyBackend,
+  nSamples: int): Prover =
 
   Prover(
     backend: backend,
-    store: store)
+    store: store,
+    nSamples: nSamples)
