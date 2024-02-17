@@ -64,6 +64,8 @@ type
     blockStore: BlockStore
     engine: BlockExcEngine
     erasure: Erasure
+    prover: ?Prover
+    numSamples: int
     discovery: Discovery
     contracts*: Contracts
     clock*: Clock
@@ -85,6 +87,9 @@ func engine*(self: CodexNodeRef): BlockExcEngine =
 
 func erasure*(self: CodexNodeRef): Erasure =
   return self.erasure
+
+func prover*(self: CodexNodeRef): ?Prover =
+  return self.prover
 
 func discovery*(self: CodexNodeRef): Discovery =
   return self.discovery
@@ -547,9 +552,13 @@ proc onStore(
     trace "Unable to build slot", err = err.msg
     return failure(err)
 
+  trace "Slot successfully retrieved and reconstructed"
+
   if cid =? slotRoot.toSlotCid() and cid != manifest.slotRoots[slotIdx.int]:
     trace "Slot root mismatch", manifest = manifest.slotRoots[slotIdx.int], recovered = slotRoot.toSlotCid()
     return failure(newException(CodexError, "Slot root mismatch"))
+
+  trace "Storage request processed"
 
   return success()
 
@@ -571,25 +580,20 @@ proc onProve(
 
   trace "Received proof challenge"
 
-  without cid =? Cid.init(cidStr).mapFailure, err:
-    error "Unable to parse Cid", cid, err = err.msg
-    return failure(err)
+  if prover =? self.prover:
+    trace "Prover enabled"
 
-  without manifest =? await self.fetchManifest(cid), err:
-    error "Unable to fetch manifest for cid", err = err.msg
-    return failure(err)
+    without cid =? Cid.init(cidStr).mapFailure, err:
+      error "Unable to parse Cid", cid, err = err.msg
+      return failure(err)
 
-  without builder =? Poseidon2Builder.new(self.blockStore, manifest), err:
-    error "Unable to create slots builder", err = err.msg
-    return failure(err)
+    without manifest =? await self.fetchManifest(cid), err:
+      error "Unable to fetch manifest for cid", err = err.msg
+      return failure(err)
 
-  without sampler =? DataSampler.new(slotIdx, self.blockStore, builder), err:
-    error "Unable to create data sampler", err = err.msg
-    return failure(err)
-
-  without proofInput =? await sampler.getProofInput(challenge, nSamples = 3), err:
-    error "Unable to get proof input for slot", err = err.msg
-    return failure(err)
+    without proof =? await prover.prove(slotIdx, manifest, challenge, self.numSamples), err:
+      error "Unable to generate proof", err = err.msg
+      return failure(err)
 
   # Todo: send proofInput to circuit. Get proof. (Profit, repeat.)
 
@@ -707,8 +711,10 @@ proc new*(
   store: BlockStore,
   engine: BlockExcEngine,
   erasure: Erasure,
+  prover = Prover.none,
   discovery: Discovery,
-  contracts = Contracts.default): CodexNodeRef =
+  contracts = Contracts.default,
+  numSamples = DefaultSamplesNum): CodexNodeRef =
   ## Create new instance of a Codex self, call `start` to run it
   ##
 
@@ -717,5 +723,7 @@ proc new*(
     blockStore: store,
     engine: engine,
     erasure: erasure,
+    prover: prover,
     discovery: discovery,
-    contracts: contracts)
+    contracts: contracts,
+    numSamples: numSamples)

@@ -28,6 +28,7 @@ import ./conf
 import ./rng
 import ./rest/api
 import ./stores
+import ./slots
 import ./blockexchange
 import ./utils/fileutils
 import ./erasure
@@ -38,6 +39,7 @@ import ./contracts/clock
 import ./contracts/deployment
 import ./utils/addrutils
 import ./namespaces
+import ./codextypes
 import ./logutils
 
 logScope:
@@ -130,6 +132,7 @@ proc bootstrapInteractions(
     let sales = Sales.new(market, clock, repo, proofFailures)
     client = some ClientInteractions.new(clock, purchasing)
     host = some HostInteractions.new(clock, sales)
+
   if config.validator:
     let validation = Validation.new(clock, market, config.validatorMaxSlots)
     validator = some ValidatorInteractions.new(clock, validation)
@@ -262,7 +265,23 @@ proc new*(
     engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-    codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery)
+    prover = if config.persistence:
+      let
+        zkey = if config.circomNoZkey: "" else: config.circomZkey
+      some Prover.new(
+        store,
+        CircomCompat.init(config.circomR1cs, config.circomWasm, zkey))
+    else:
+      none Prover
+
+    codexNode = CodexNodeRef.new(
+      switch = switch,
+      store = store,
+      engine = engine,
+      erasure = erasure,
+      prover = prover,
+      discovery = discovery)
+
     restServer = RestServerRef.new(
       codexNode.initRestApi(config, repoStore),
       initTAddress(config.apiBindAddress , config.apiPort),

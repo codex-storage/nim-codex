@@ -60,11 +60,10 @@ proc getBytes*(c: Chunker): Future[seq[byte]] {.async.} =
   return move buff
 
 proc new*(
-    T: type Chunker,
-    reader: Reader,
-    chunkSize = DefaultChunkSize,
-    pad = true
-): Chunker =
+  T: type Chunker,
+  reader: Reader,
+  chunkSize = DefaultChunkSize,
+  pad = true): Chunker =
   ## create a new Chunker instance
   ##
   Chunker(
@@ -74,11 +73,10 @@ proc new*(
     pad: pad)
 
 proc new*(
-    T: type LPStreamChunker,
-    stream: LPStream,
-    chunkSize = DefaultChunkSize,
-    pad = true
-): LPStreamChunker =
+  T: type LPStreamChunker,
+  stream: LPStream,
+  chunkSize = DefaultChunkSize,
+  pad = true): LPStreamChunker =
   ## create the default File chunker
   ##
 
@@ -102,11 +100,10 @@ proc new*(
     pad = pad)
 
 proc new*(
-    T: type FileChunker,
-    file: File,
-    chunkSize = DefaultChunkSize,
-    pad = true
-): FileChunker =
+  T: type FileChunker,
+  file: File,
+  chunkSize = DefaultChunkSize,
+  pad = true): FileChunker =
   ## create the default File chunker
   ##
 

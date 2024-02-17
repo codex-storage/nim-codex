@@ -39,6 +39,9 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         "--disc-port=8090",
         "--listen-addrs=/ip4/127.0.0.1/tcp/0",
         "--persistence",
+        "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
+        "--circom-wasm=tests/circuits/fixtures/proof_main.wasm",
+        "--circom-no-zkey",
         "--eth-account=" & $account1
       ]
 
@@ -59,6 +62,9 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         "--listen-addrs=/ip4/127.0.0.1/tcp/0",
         "--bootstrap-node=" & bootstrap,
         "--persistence",
+        "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
+        "--circom-wasm=tests/circuits/fixtures/proof_main.wasm",
+        "--circom-no-zkey",
         "--eth-account=" & $account2
       ]
 
