@@ -34,12 +34,12 @@ asyncchecksuite "Test proof sampler utils":
   var
     inputData: string
     inputJson: JsonNode
-    proofInput: ProofInput[Poseidon2Hash]
+    proofInput: ProofInputs[Poseidon2Hash]
 
   setup:
     inputData = readFile("tests/circuits/fixtures/input.json")
     inputJson = parseJson(inputData)
-    proofInput = jsonToProofInput[Poseidon2Hash](inputJson)
+    proofInput = Poseidon2Hash.jsonToProofInput(inputJson)
 
   test "Extract low bits":
     proc extract(value: uint64, nBits: int): uint64 =
