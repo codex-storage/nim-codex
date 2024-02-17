@@ -267,7 +267,6 @@ proc new*(
       switch = switch,
       networkStore = store,
       engine = engine,
-      prover = prover,
       discovery = discovery)
 
     restServer = RestServerRef.new(
