@@ -91,7 +91,7 @@ proc getSample*[T, H](
 proc getProofInput*[T, H](
   self: DataSampler[T, H],
   entropy: ProofChallenge,
-  nSamples: Natural): Future[?!ProofInput[H]] {.async.} =
+  nSamples: Natural): Future[?!ProofInputs[H]] {.async.} =
   ## Generate proofs as input to the proving circuit.
   ##
 
@@ -124,7 +124,7 @@ proc getProofInput*[T, H](
       (await self.getSample(cellIdx, slotTreeCid, slotRoot)).valueOr:
         return failure("Failed to get sample")
 
-  success ProofInput[H](
+  success ProofInputs[H](
     entropy: entropy,
     datasetRoot: datasetRoot,
     slotProof: slotProof.path,
