@@ -562,7 +562,7 @@ proc onStore(
     trace "Slot root mismatch", manifest = manifest.slotRoots[slotIdx.int], recovered = slotRoot.toSlotCid()
     return failure(newException(CodexError, "Slot root mismatch"))
 
-  trace "Storage request processed"
+  trace "Slot successfully retrieved and reconstructed"
 
   return success()
 
