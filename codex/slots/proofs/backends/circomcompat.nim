@@ -20,8 +20,11 @@ import ../../types
 import ../../../stores
 import ../../../merkletree
 import ../../../codextypes
+import ../../../contracts
 
-export circomcompat
+import ./converters
+
+export circomcompat, converters
 
 type
   CircomCompat* = object
@@ -32,40 +35,24 @@ type
     numSamples    : int     # number of samples per slot
     r1csPath      : string  # path to the r1cs file
     wasmPath      : string  # path to the wasm file
-    zKeyPath      : string  # path to the zkey file
+    zkeyPath      : string  # path to the zkey file
     backendCfg    : ptr CircomBn254Cfg
-
-  CircomG1* = G1
-  CircomG2* = G2
-
-  CircomProof*  = Proof
-  CircomKey*    = VerifyingKey
-  CircomInputs* = Inputs
+    vkp*          : ptr CircomKey
 
 proc release*(self: CircomCompat) =
-  ## Release the backend
+  ## Release the ctx
   ##
 
-  self.backendCfg.unsafeAddr.releaseCfg()
+  if not isNil(self.backendCfg):
+    self.backendCfg.unsafeAddr.releaseCfg()
 
-proc getVerifyingKey*(
-  self: CircomCompat): ?!ptr CircomKey =
-  ## Get the verifying key
-  ##
-
-  var
-    cfg: ptr CircomBn254Cfg = self.backendCfg
-    vkpPtr: ptr VerifyingKey = nil
-
-  if cfg.getVerifyingKey(vkpPtr.addr) != ERR_OK or vkpPtr == nil:
-    return failure("Failed to get verifying key")
-
-  success vkpPtr
+  if not isNil(self.vkp):
+    self.vkp.unsafeAddr.release_key()
 
 proc prove*[H](
   self: CircomCompat,
-  input: ProofInput[H]): ?!CircomProof =
-  ## Encode buffers using a backend
+  input: ProofInputs[H]): ?!CircomProof =
+  ## Encode buffers using a ctx
   ##
 
   # NOTE: All inputs are statically sized per circuit
@@ -86,43 +73,43 @@ proc prove*[H](
 
   # TODO: All parameters should match circom's static parametter
   var
-    backend: ptr CircomCompatCtx
+    ctx: ptr CircomCompatCtx
 
   defer:
-    if backend != nil:
-      backend.addr.releaseCircomCompat()
+    if ctx != nil:
+      ctx.addr.releaseCircomCompat()
 
   if initCircomCompat(
     self.backendCfg,
-    addr backend) != ERR_OK or backend == nil:
-    raiseAssert("failed to initialize CircomCompat backend")
+    addr ctx) != ERR_OK or ctx == nil:
+    raiseAssert("failed to initialize CircomCompat ctx")
 
   var
     entropy = input.entropy.toBytes
     dataSetRoot = input.datasetRoot.toBytes
     slotRoot = input.slotRoot.toBytes
 
-  if backend.pushInputU256Array(
+  if ctx.pushInputU256Array(
     "entropy".cstring, entropy[0].addr, entropy.len.uint32) != ERR_OK:
     return failure("Failed to push entropy")
 
-  if backend.pushInputU256Array(
+  if ctx.pushInputU256Array(
     "dataSetRoot".cstring, dataSetRoot[0].addr, dataSetRoot.len.uint32) != ERR_OK:
     return failure("Failed to push data set root")
 
-  if backend.pushInputU256Array(
+  if ctx.pushInputU256Array(
     "slotRoot".cstring, slotRoot[0].addr, slotRoot.len.uint32) != ERR_OK:
     return failure("Failed to push data set root")
 
-  if backend.pushInputU32(
+  if ctx.pushInputU32(
     "nCellsPerSlot".cstring, input.nCellsPerSlot.uint32) != ERR_OK:
     return failure("Failed to push nCellsPerSlot")
 
-  if backend.pushInputU32(
+  if ctx.pushInputU32(
     "nSlotsPerDataSet".cstring, input.nSlotsPerDataSet.uint32) != ERR_OK:
     return failure("Failed to push nSlotsPerDataSet")
 
-  if backend.pushInputU32(
+  if ctx.pushInputU32(
     "slotIndex".cstring, input.slotIndex.uint32) != ERR_OK:
     return failure("Failed to push slotIndex")
 
@@ -132,7 +119,7 @@ proc prove*[H](
   slotProof.setLen(self.datasetDepth) # zero pad inputs to correct size
 
   # arrays are always flattened
-  if backend.pushInputU256Array(
+  if ctx.pushInputU256Array(
     "slotProof".cstring,
     slotProof[0].addr,
     uint (slotProof[0].len * slotProof.len)) != ERR_OK:
@@ -144,14 +131,14 @@ proc prove*[H](
       data = s.cellData
 
     merklePaths.setLen(self.slotDepth) # zero pad inputs to correct size
-    if backend.pushInputU256Array(
+    if ctx.pushInputU256Array(
       "merklePaths".cstring,
       merklePaths[0].addr,
       uint (merklePaths[0].len * merklePaths.len)) != ERR_OK:
         return failure("Failed to push merkle paths")
 
     data.setLen(self.cellElms * 32) # zero pad inputs to correct size
-    if backend.pushInputU256Array(
+    if ctx.pushInputU256Array(
       "cellData".cstring,
       data[0].addr,
       data.len.uint) != ERR_OK:
@@ -163,7 +150,7 @@ proc prove*[H](
   let proof =
     try:
       if (
-        let res = self.backendCfg.proveCircuit(backend, proofPtr.addr);
+        let res = self.backendCfg.proveCircuit(ctx, proofPtr.addr);
         res != ERR_OK) or
         proofPtr == nil:
         return failure("Failed to prove - err code: " & $res)
@@ -175,55 +162,66 @@ proc prove*[H](
 
   success proof
 
-proc verify*(
+proc verify*[H](
   self: CircomCompat,
   proof: CircomProof,
-  inputs: CircomInputs,
-  vkp: CircomKey): ?!bool =
-  ## Verify a proof using a backend
+  inputs: ProofInputs[H]): ?!bool =
+  ## Verify a proof using a ctx
   ##
 
   var
-    proofPtr : ptr Proof = unsafeAddr proof
-    inputsPtr: ptr Inputs = unsafeAddr inputs
-    vpkPtr: ptr CircomKey = unsafeAddr vkp
+    proofPtr = unsafeAddr proof
+    inputs = inputs.toCircomInputs()
 
-  let res = verifyCircuit(proofPtr, inputsPtr, vpkPtr)
-  if res == ERR_OK:
-    success true
-  elif res == ERR_FAILED_TO_VERIFY_PROOF:
-    success false
-  else:
-    failure("Failed to verify proof - err code: " & $res)
+  try:
+    let res = verifyCircuit(proofPtr, inputs.addr, self.vkp)
+    if res == ERR_OK:
+      success true
+    elif res == ERR_FAILED_TO_VERIFY_PROOF:
+      success false
+    else:
+      failure("Failed to verify proof - err code: " & $res)
+  finally:
+    inputs.releaseCircomInputs()
 
 proc init*(
   _: type CircomCompat,
   r1csPath      : string,
   wasmPath      : string,
-  zKeyPath      : string = "",
+  zkeyPath      : string = "",
   slotDepth     = DefaultMaxSlotDepth,
   datasetDepth  = DefaultMaxDatasetDepth,
   blkDepth      = DefaultBlockDepth,
   cellElms      = DefaultCellElms,
   numSamples    = DefaultSamplesNum): CircomCompat =
-  ## Create a new backend
+  ## Create a new ctx
   ##
 
   var cfg: ptr CircomBn254Cfg
+  var zkey = if zkeyPath.len > 0: zkeyPath.cstring else: nil
+
   if initCircomConfig(
     r1csPath.cstring,
     wasmPath.cstring,
-    if zKeyPath.len > 0: zKeyPath.cstring else: nil,
-    addr cfg) != ERR_OK or cfg == nil:
+    zkey, cfg.addr) != ERR_OK or cfg == nil:
+      if cfg != nil: cfg.addr.releaseCfg()
       raiseAssert("failed to initialize circom compat config")
+
+  var
+    vkpPtr: ptr VerifyingKey = nil
+
+  if cfg.getVerifyingKey(vkpPtr.addr) != ERR_OK or vkpPtr == nil:
+    if vkpPtr != nil: vkpPtr.addr.releaseKey()
+    raiseAssert("Failed to get verifying key")
 
   CircomCompat(
     r1csPath    : r1csPath,
     wasmPath    : wasmPath,
-    zKeyPath    : zKeyPath,
-    backendCfg  : cfg,
+    zkeyPath    : zkeyPath,
     slotDepth   : slotDepth,
     datasetDepth: datasetDepth,
     blkDepth    : blkDepth,
     cellElms    : cellElms,
-    numSamples  : numSamples)
+    numSamples  : numSamples,
+    backendCfg  : cfg,
+    vkp         : vkpPtr)

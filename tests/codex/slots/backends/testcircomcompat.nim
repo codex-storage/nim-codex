@@ -3,8 +3,9 @@ import std/sequtils
 import std/sugar
 import std/options
 
-import pkg/chronos
 import ../../../asynctest
+
+import pkg/chronos
 import pkg/poseidon2
 import pkg/datastore
 
@@ -16,10 +17,6 @@ import pkg/codex/codextypes
 import pkg/codex/manifest
 import pkg/codex/stores
 
-import pkg/constantine/math/arithmetic
-import pkg/constantine/math/io/io_fields
-import pkg/constantine/math/io/io_bigints
-
 import ./helpers
 import ../helpers
 
@@ -27,56 +24,50 @@ suite "Test Circom Compat Backend - control inputs":
   let
     r1cs = "tests/circuits/fixtures/proof_main.r1cs"
     wasm = "tests/circuits/fixtures/proof_main.wasm"
+    zkey = "tests/circuits/fixtures/proof_main.zkey"
 
   var
     circom: CircomCompat
-    verifyingKeyPtr: ptr CircomKey
-    proofInput: ProofInput[Poseidon2Hash]
-    publicInputs: CircomInputs
+    proofInputs: ProofInputs[Poseidon2Hash]
 
   setup:
     let
       inputData = readFile("tests/circuits/fixtures/input.json")
       inputJson = parseJson(inputData)
 
-    proofInput = jsonToProofInput[Poseidon2Hash](inputJson)
-    publicInputs = toPublicInputs[Poseidon2Hash](proofInput).toCircomInputs
-
-    # circom = CircomCompat.init(r1cs, wasm, zkey)
-    circom = CircomCompat.init(r1cs, wasm)
-    verifyingKeyPtr = circom.getVerifyingKey().tryGet
+    proofInputs = Poseidon2Hash.jsonToProofInput(inputJson)
+    circom = CircomCompat.init(r1cs, wasm, zkey)
 
   teardown:
-    publicInputs.releaseNimInputs()      # this is allocated by nim
-    verifyingKeyPtr.addr.releaseKey()    # this comes from the rust FFI
-    circom.release()                     # this comes from the rust FFI
+    circom.release()  # this comes from the rust FFI
 
   test "Should verify with correct inputs":
     let
-      proof = circom.prove(proofInput).tryGet
+      proof = circom.prove(proofInputs).tryGet
 
-    check circom.verify(proof, publicInputs, verifyingKeyPtr[]).tryGet
+    check circom.verify(proof, proofInputs).tryGet
 
   test "Should not verify with incorrect inputs":
-    proofInput.slotIndex = 1 # change slot index
+    proofInputs.slotIndex = 1 # change slot index
 
     let
-      proof = circom.prove(proofInput).tryGet
+      proof = circom.prove(proofInputs).tryGet
 
-    check circom.verify(proof, publicInputs, verifyingKeyPtr[]).tryGet == false
+    check circom.verify(proof, proofInputs).tryGet == false
 
 suite "Test Circom Compat Backend":
   let
-    slotId = 3
-    samples = 5
     ecK = 2
     ecM = 2
+    slotId = 3
+    samples = 5
     numDatasetBlocks = 8
     blockSize = DefaultBlockSize
     cellSize = DefaultCellSize
 
     r1cs = "tests/circuits/fixtures/proof_main.r1cs"
     wasm = "tests/circuits/fixtures/proof_main.wasm"
+    zkey = "tests/circuits/fixtures/proof_main.zkey"
 
   var
     store: BlockStore
@@ -84,9 +75,7 @@ suite "Test Circom Compat Backend":
     protected: Manifest
     verifiable: Manifest
     circom: CircomCompat
-    verifyingKeyPtr: ptr CircomKey
-    proofInput: ProofInput[Poseidon2Hash]
-    publicInputs: CircomInputs
+    proofInputs: ProofInputs[Poseidon2Hash]
     challenge: array[32, byte]
     builder: Poseidon2Builder
     sampler: Poseidon2Sampler
@@ -109,29 +98,24 @@ suite "Test Circom Compat Backend":
     builder = Poseidon2Builder.new(store, verifiable).tryGet
     sampler = Poseidon2Sampler.new(slotId, store, builder).tryGet
 
-    # circom = CircomCompat.init(r1cs, wasm, zkey)
-    circom = CircomCompat.init(r1cs, wasm)
-    verifyingKeyPtr = circom.getVerifyingKey().tryGet
+    circom = CircomCompat.init(r1cs, wasm, zkey)
     challenge = 1234567.toF.toBytes.toArray32
 
-    proofInput = (await sampler.getProofInput(challenge, samples)).tryGet
-    publicInputs = proofInput.toPublicInputs.toCircomInputs
+    proofInputs = (await sampler.getProofInput(challenge, samples)).tryGet
 
   teardown:
-    publicInputs.releaseNimInputs()      # this is allocated by nim
-    verifyingKeyPtr.addr.releaseKey()    # this comes from the rust FFI
-    circom.release()                     # this comes from the rust FFI
+    circom.release()  # this comes from the rust FFI
 
   test "Should verify with correct input":
     var
-      proof = circom.prove(proofInput).tryGet
+      proof = circom.prove(proofInputs).tryGet
 
-    check circom.verify(proof, publicInputs, verifyingKeyPtr[]).tryGet
+    check circom.verify(proof, proofInputs).tryGet
 
   test "Should not verify with incorrect input":
-    proofInput.slotIndex = 1 # change slot index
+    proofInputs.slotIndex = 1 # change slot index
 
     let
-      proof = circom.prove(proofInput).tryGet
+      proof = circom.prove(proofInputs).tryGet
 
-    check circom.verify(proof, publicInputs, verifyingKeyPtr[]).tryGet == false
+    check circom.verify(proof, proofInputs).tryGet == false

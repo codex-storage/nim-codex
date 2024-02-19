@@ -31,12 +31,12 @@ suite "Test Sampler - control samples":
   var
     inputData: string
     inputJson: JsonNode
-    proofInput: ProofInput[Poseidon2Hash]
+    proofInput: ProofInputs[Poseidon2Hash]
 
   setup:
     inputData = readFile("tests/circuits/fixtures/input.json")
     inputJson = parseJson(inputData)
-    proofInput = jsonToProofInput[Poseidon2Hash](inputJson)
+    proofInput = Poseidon2Hash.jsonToProofInput(inputJson)
 
   test "Should verify control samples":
     let
@@ -58,7 +58,7 @@ suite "Test Sampler - control samples":
           proofInput.nCellsPerSlot,
           sample.merklePaths[5..<9]).tryGet
 
-        cellData = fromCircomData[Poseidon2Hash](sample.cellData)
+        cellData = Poseidon2Hash.fromCircomData(sample.cellData)
         cellLeaf = Poseidon2Hash.spongeDigest(cellData, rate = 2).tryGet
         slotLeaf = cellProof.reconstructRoot(cellLeaf).tryGet
 
@@ -154,7 +154,7 @@ suite "Test Sampler":
           nSlotCells,
           sample.merklePaths[5..<sample.merklePaths.len]).tryGet
 
-        cellData = fromCircomData[Poseidon2Hash](sample.cellData)
+        cellData = Poseidon2Hash.fromCircomData(sample.cellData)
         cellLeaf = Poseidon2Hash.spongeDigest(cellData, rate = 2).tryGet
         slotLeaf = cellProof.reconstructRoot(cellLeaf).tryGet
 

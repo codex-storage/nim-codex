@@ -18,10 +18,6 @@ import pkg/codex/stores
 import pkg/poseidon2/io
 import pkg/codex/utils/poseidon2digest
 
-import pkg/constantine/math/arithmetic
-import pkg/constantine/math/io/io_bigints
-import pkg/constantine/math/io/io_fields
-
 import ./helpers
 import ../helpers
 import ./backends/helpers
@@ -30,11 +26,11 @@ suite "Test Prover":
   let
     slotId = 1
     samples = 5
-    blockSize = DefaultBlockSize
-    cellSize = DefaultCellSize
     ecK = 3
     ecM = 2
     numDatasetBlocks = 8
+    blockSize = DefaultBlockSize
+    cellSize = DefaultCellSize
 
   var
     datasetBlocks: seq[bt.Block]
@@ -65,14 +61,9 @@ suite "Test Prover":
       wasm = "tests/circuits/fixtures/proof_main.wasm"
 
       circomBackend = CircomCompat.init(r1cs, wasm)
-      prover = Prover.new(store, circomBackend)
+      prover = Prover.new(store, circomBackend, samples)
       challenge = 1234567.toF.toBytes.toArray32
-      proof = (await prover.prove(1, verifiable, challenge, 5)).tryGet
-      key = circomBackend.getVerifyingKey().tryGet
-      builder = Poseidon2Builder.new(store, verifiable).tryGet
-      sampler = Poseidon2Sampler.new(1, store, builder).tryGet
-      proofInput = (await sampler.getProofInput(challenge, 5)).tryGet
-      inputs = proofInput.toPublicInputs.toCircomInputs
+      (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
 
     check:
-      (await prover.verify(proof, inputs, key[])).tryGet == true
+      (await prover.verify(proof, inputs)).tryGet == true
