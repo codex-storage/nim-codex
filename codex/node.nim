@@ -231,7 +231,7 @@ proc retrieve*(
               self.networkStore,
               leoEncoderProvider,
               leoDecoderProvider)
-          without res =? (await erasure.decode(manifest)), error:
+          without _ =? (await erasure.decode(manifest)), error:
             trace "Unable to erasure decode manifest", cid, exc = error.msg
         except CatchableError as exc:
           trace "Exception decoding manifest", cid, exc = exc.msg
@@ -584,28 +584,30 @@ proc onProve(
 
   trace "Received proof challenge"
 
-  if prover =? self.prover:
-    trace "Prover enabled"
+  without prover =? self.prover:
+    return failure "No prover configured"
 
-    without cid =? Cid.init(cidStr).mapFailure, err:
-      error "Unable to parse Cid", cid, err = err.msg
-      return failure(err)
+  trace "Prover enabled"
 
-    without manifest =? await self.fetchManifest(cid), err:
-      error "Unable to fetch manifest for cid", err = err.msg
-      return failure(err)
+  without cid =? Cid.init(cidStr).mapFailure, err:
+    error "Unable to parse Cid", cid, err = err.msg
+    return failure(err)
 
-    without builder =? Poseidon2Builder.new(self.networkStore.localStore, manifest), err:
-      error "Unable to create slots builder", err = err.msg
-      return failure(err)
+  without manifest =? await self.fetchManifest(cid), err:
+    error "Unable to fetch manifest for cid", err = err.msg
+    return failure(err)
 
-    without sampler =? DataSampler.new(slotIdx, self.networkStore.localStore, builder), err:
-      error "Unable to create data sampler", err = err.msg
-      return failure(err)
+  without builder =? Poseidon2Builder.new(self.networkStore.localStore, manifest), err:
+    error "Unable to create slots builder", err = err.msg
+    return failure(err)
 
-    without proofInput =? await sampler.getProofInput(challenge, nSamples = 3), err:
-      error "Unable to get proof input for slot", err = err.msg
-      return failure(err)
+  without sampler =? DataSampler.new(slotIdx, self.networkStore.localStore, builder), err:
+    error "Unable to create data sampler", err = err.msg
+    return failure(err)
+
+  without proofInput =? await sampler.getProofInput(challenge, nSamples = 3), err:
+    error "Unable to get proof input for slot", err = err.msg
+    return failure(err)
 
   # Todo: send proofInput to circuit. Get proof. (Profit, repeat.)
 
