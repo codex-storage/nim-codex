@@ -331,8 +331,8 @@ suite "Slot builder":
         protectedManifest,
         cellSize = cellSize).tryGet()
 
+    var
       verifyManifest = (await builder.buildManifest()).tryGet()
-      offset = verifyManifest.verifyRoot.data.buffer.len div 2
 
     rng.shuffle(
       Rng.instance,

@@ -31,7 +31,7 @@ import ./codextypes
 export errors, logutils, units, codextypes
 
 type
-  Block* = ref object of RootObj
+  Block* = object of RootObj
     cid*: Cid
     data*: seq[byte]
 
@@ -86,12 +86,11 @@ proc `$`*(b: Block): string =
   result &= "\ndata: " & string.fromBytes(b.data)
 
 func new*(
-    T: type Block,
-    data: openArray[byte] = [],
-    version = CIDv1,
-    mcodec = Sha256HashCodec,
-    codec = BlockCodec
-): ?!Block =
+  T: type Block,
+  data: openArray[byte] = [],
+  version = CIDv1,
+  mcodec = Sha256HashCodec,
+  codec = BlockCodec): ?!Block =
   ## creates a new block for both storage and network IO
   ##
 
