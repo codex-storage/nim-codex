@@ -74,7 +74,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ${{ matrix.os }}-integration-tests-logs
+          name: ${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-integration-tests-logs
           path: tests/integration/logs/
           retention-days: 1
 
