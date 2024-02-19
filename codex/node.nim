@@ -459,7 +459,8 @@ proc requestStorage*(
     reward            = reward
     proofProbability  = proofProbability
     collateral        = collateral
-    expiry            = expiry
+    expiry            = expiry.truncate(int64)
+    now               = self.clock.now
 
   trace "Received a request for storage!"
 
