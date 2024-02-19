@@ -531,10 +531,13 @@ proc onStore(
     return success()
 
   without indexer =? manifest.protectedStrategy.init(
-    0, manifest.blocksCount() - 1, manifest.numSlots).catch and
-    blksIter =? indexer.getIndicies(slotIdx).catch, err:
-      trace "Unable to create indexing strategy from protected manifest", err = err.msg
-      return failure(err)
+    0, manifest.numSlotBlocks() - 1, manifest.numSlots).catch, err:
+    trace "Unable to create indexing strategy from protected manifest", err = err.msg
+    return failure(err)
+
+  without blksIter =? indexer.getIndicies(slotIdx).catch, err:
+    trace "Unable to get indicies from strategy", err = err.msg
+    return failure(err)
 
   if err =? (await self.fetchBatched(
       manifest.treeCid,
