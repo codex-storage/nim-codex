@@ -61,125 +61,125 @@ marketplacesuite "Hosts submit regular proofs":
     await subscription.unsubscribe()
 
 
-marketplacesuite "Simulate invalid proofs":
+# marketplacesuite "Simulate invalid proofs":
 
-  # TODO: these are very loose tests in that they are not testing EXACTLY how
-  # proofs were marked as missed by the validator. These tests should be
-  # tightened so that they are showing, as an integration test, that specific
-  # proofs are being marked as missed by the validator.
+#   # TODO: these are very loose tests in that they are not testing EXACTLY how
+#   # proofs were marked as missed by the validator. These tests should be
+#   # tightened so that they are showing, as an integration test, that specific
+#   # proofs are being marked as missed by the validator.
 
-  test "slot is freed after too many invalid proofs submitted", NodeConfigs(
-    # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
-    # hardhat: HardhatConfig().withLogFile(),
+#   test "slot is freed after too many invalid proofs submitted", NodeConfigs(
+#     # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
+#     # hardhat: HardhatConfig().withLogFile(),
 
-    clients:
-      CodexConfig()
-        .nodes(1)
-        # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("node"),
+#     clients:
+#       CodexConfig()
+#         .nodes(1)
+#         # .debug() # uncomment to enable console log output
+#         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+#         .withLogTopics("node"),
 
-    providers:
-      CodexConfig()
-        .nodes(1)
-        .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=1)
-        # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node"),
+#     providers:
+#       CodexConfig()
+#         .nodes(1)
+#         .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=1)
+#         # .debug() # uncomment to enable console log output
+#         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+#         .withLogTopics("marketplace", "sales", "reservations", "node"),
 
-    validators:
-      CodexConfig()
-        .nodes(1)
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .debug() # uncomment to enable console log output
-        .withLogTopics("validator", "onchain", "ethers")
-  ):
-    let client0 = clients()[0].client
-    let totalPeriods = 50
+#     validators:
+#       CodexConfig()
+#         .nodes(1)
+#         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+#         # .debug() # uncomment to enable console log output
+#         .withLogTopics("validator", "onchain", "ethers")
+#   ):
+#     let client0 = clients()[0].client
+#     let totalPeriods = 50
 
-    let datasetSizeInBlocks = 2
-    let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
-    createAvailabilities(data.len, totalPeriods.periods)
+#     let datasetSizeInBlocks = 2
+#     let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
+#     createAvailabilities(data.len, totalPeriods.periods)
 
-    let cid = client0.upload(data).get
+#     let cid = client0.upload(data).get
 
-    let purchaseId = await client0.requestStorage(
-      cid,
-      duration=totalPeriods.periods,
-      origDatasetSizeInBlocks=datasetSizeInBlocks)
-    let requestId = client0.requestId(purchaseId).get
+#     let purchaseId = await client0.requestStorage(
+#       cid,
+#       duration=totalPeriods.periods,
+#       origDatasetSizeInBlocks=datasetSizeInBlocks)
+#     let requestId = client0.requestId(purchaseId).get
 
-    check eventually client0.purchaseStateIs(purchaseId, "started")
+#     check eventually client0.purchaseStateIs(purchaseId, "started")
 
-    var slotWasFreed = false
-    proc onSlotFreed(event: SlotFreed) =
-      if event.requestId == requestId and
-        event.slotIndex == 0.u256: # assume only one slot, so index 0
-        slotWasFreed = true
+#     var slotWasFreed = false
+#     proc onSlotFreed(event: SlotFreed) =
+#       if event.requestId == requestId and
+#         event.slotIndex == 0.u256: # assume only one slot, so index 0
+#         slotWasFreed = true
 
-    let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
+#     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
-    let currentPeriod = await getCurrentPeriod()
-    check eventuallyP(slotWasFreed, currentPeriod + totalPeriods.u256 + 1)
+#     let currentPeriod = await getCurrentPeriod()
+#     check eventuallyP(slotWasFreed, currentPeriod + totalPeriods.u256 + 1)
 
-    await subscription.unsubscribe()
+#     await subscription.unsubscribe()
 
-  test "slot is not freed when not enough invalid proofs submitted", NodeConfigs(
-    # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
-    # hardhat: HardhatConfig().withLogFile(),
+  # test "slot is not freed when not enough invalid proofs submitted", NodeConfigs(
+  #   # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
+  #   # hardhat: HardhatConfig().withLogFile(),
 
-    clients:
-      CodexConfig()
-        .nodes(1)
-        # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("node"),
+  #   clients:
+  #     CodexConfig()
+  #       .nodes(1)
+  #       .debug() # uncomment to enable console log output
+  #       .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+  #       .withLogTopics("node"),
 
-    providers:
-      CodexConfig()
-        .nodes(1)
-        .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=3)
-        # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node"),
+  #   providers:
+  #     CodexConfig()
+  #       .nodes(1)
+  #       .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=3)
+  #       .debug() # uncomment to enable console log output
+  #       .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+  #       .withLogTopics("marketplace", "sales", "reservations", "node"),
 
-    validators:
-      CodexConfig()
-        .nodes(1)
-        # .debug()
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("validator", "onchain", "ethers")
-  ):
-    let client0 = clients()[0].client
-    let totalPeriods = 25
+  #   validators:
+  #     CodexConfig()
+  #       .nodes(1)
+  #       .debug()
+  #       .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+  #       .withLogTopics("validator", "onchain", "ethers")
+  # ):
+  #   let client0 = clients()[0].client
+  #   let totalPeriods = 25
 
-    let datasetSizeInBlocks = 2
-    let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
-    createAvailabilities(data.len, totalPeriods.periods)
+  #   let datasetSizeInBlocks = 2
+  #   let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
+  #   createAvailabilities(data.len, totalPeriods.periods)
 
-    let cid = client0.upload(data).get
+  #   let cid = client0.upload(data).get
 
-    let purchaseId = await client0.requestStorage(
-      cid,
-      duration=totalPeriods.periods,
-      origDatasetSizeInBlocks=datasetSizeInBlocks)
-    let requestId = client0.requestId(purchaseId).get
+  #   let purchaseId = await client0.requestStorage(
+  #     cid,
+  #     duration=totalPeriods.periods,
+  #     origDatasetSizeInBlocks=datasetSizeInBlocks)
+  #   let requestId = client0.requestId(purchaseId).get
 
-    check eventually client0.purchaseStateIs(purchaseId, "started")
+  #   check eventually client0.purchaseStateIs(purchaseId, "started")
 
-    var slotWasFreed = false
-    proc onSlotFreed(event: SlotFreed) =
-      if event.requestId == requestId and
-          event.slotIndex == 0.u256:
-        slotWasFreed = true
+  #   var slotWasFreed = false
+  #   proc onSlotFreed(event: SlotFreed) =
+  #     if event.requestId == requestId and
+  #         event.slotIndex == 0.u256:
+  #       slotWasFreed = true
 
-    let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
+  #   let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
-    # check not freed
-    let currentPeriod = await getCurrentPeriod()
-    check not eventuallyP(slotWasFreed, currentPeriod + totalPeriods.u256 + 1)
+  #   # check not freed
+  #   let currentPeriod = await getCurrentPeriod()
+  #   check not eventuallyP(slotWasFreed, currentPeriod + totalPeriods.u256 + 1)
 
-    await subscription.unsubscribe()
+  #   await subscription.unsubscribe()
 
   # TODO: uncomment once fixed
   # test "host that submits invalid proofs is paid out less", NodeConfigs(

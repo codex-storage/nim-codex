@@ -191,14 +191,14 @@ template multinodesuite*(name: string, body: untyped) =
     proc startClientNode(): Future[NodeProcess] {.async.} =
       let clientIdx = clients().len
       var config = nodeConfigs.clients
-      config.cliOptions.add CliOption(key: "--persistence")
+      config.cliOptions.add CliOption(key: "persistence")
       return await newCodexProcess(clientIdx, config, Role.Client)
 
     proc startProviderNode(): Future[NodeProcess] {.async.} =
       let providerIdx = providers().len
       var config = nodeConfigs.providers
       config.cliOptions.add CliOption(key: "--bootstrap-node", value: bootstrap)
-      config.cliOptions.add CliOption(key: "--persistence")
+      config.cliOptions.add CliOption(key: "persistence")
 
       # filter out provider options by provided index
       config.cliOptions = config.cliOptions.filter(

@@ -38,7 +38,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         "--disc-ip=127.0.0.1",
         "--disc-port=8090",
         "--listen-addrs=/ip4/127.0.0.1/tcp/0",
-        "--persistence",
+        "persistence",
         "--eth-account=" & $account1
       ]
 
@@ -58,7 +58,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         "--disc-port=8091",
         "--listen-addrs=/ip4/127.0.0.1/tcp/0",
         "--bootstrap-node=" & bootstrap,
-        "--persistence",
+        "persistence",
         "--eth-account=" & $account2
       ]
 
