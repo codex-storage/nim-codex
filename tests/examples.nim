@@ -4,11 +4,21 @@ import std/times
 import std/typetraits
 
 import pkg/codex/contracts/requests
+import pkg/codex/rng
 import pkg/codex/contracts/proofs
 import pkg/codex/sales/slotqueue
 import pkg/codex/stores
+import pkg/codex/units
 
+import pkg/chronos
+import pkg/stew/byteutils
 import pkg/stint
+
+import ./codex/helpers/randomchunker
+
+export randomchunker
+export units
+
 proc exampleString*(length: int): string =
   let chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
   result = newString(length) # Create a new empty string with a given length
@@ -78,3 +88,16 @@ proc example*(_: type Groth16Proof): Groth16Proof =
     b: G2Point.example,
     c: G1Point.example
   )
+
+proc example*(_: type RandomChunker, blocks: int): Future[string] {.async.} =
+  # doAssert blocks >= 3, "must be more than 3 blocks"
+  let rng = Rng.instance()
+  let chunker = RandomChunker.new(
+    rng, size = DefaultBlockSize * blocks.NBytes, chunkSize = DefaultBlockSize)
+  var data: seq[byte]
+  while (let moar = await chunker.getBytes(); moar != []):
+    data.add moar
+  return byteutils.toHex(data)
+
+proc example*(_:  type RandomChunker): Future[string] {.async.} =
+  await RandomChunker.example(3)

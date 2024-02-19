@@ -57,7 +57,8 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
     # update availability size
     var bytes: uint = 0
     for blk in blocks:
-      bytes += blk.data.len.uint
+      if not blk.cid.isEmpty:
+        bytes += blk.data.len.uint
 
     trace "Releasing batch of bytes written to disk", bytes
     return await reservations.release(reservation.id,

@@ -29,7 +29,7 @@ import ../logutils
 # TODO: Manifest should be reworked to more concrete types,
 # perhaps using inheritance
 type
-  Manifest* = ref object of RootObj
+  Manifest* = object of RootObj
     treeCid {.serialize.}: Cid              # Root of the merkle tree
     datasetSize {.serialize.}: NBytes       # Total size of all blocks
     blockSize {.serialize.}: NBytes         # Size of each contained block (might not be needed if blocks are len-prefixed)
@@ -148,7 +148,7 @@ func rounded*(self: Manifest): int =
 
 func steps*(self: Manifest): int =
   ## Number of EC groups in *protected* manifest
-  divUp(self.originalBlocksCount, self.ecK)
+  divUp(self.rounded, self.ecK)
 
 func verify*(self: Manifest): ?!void =
   ## Check manifest correctness
