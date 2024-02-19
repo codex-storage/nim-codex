@@ -78,7 +78,7 @@ type
 func switch*(self: CodexNodeRef): Switch =
   return self.switch
 
-func networkStore*(self: CodexNodeRef): BlockStore =
+func blockStore*(self: CodexNodeRef): BlockStore =
   return self.networkStore
 
 func engine*(self: CodexNodeRef): BlockExcEngine =
@@ -556,13 +556,11 @@ proc onStore(
     trace "Unable to build slot", err = err.msg
     return failure(err)
 
-  trace "Slot successfully retrieved and reconstructed"
-
   if cid =? slotRoot.toSlotCid() and cid != manifest.slotRoots[slotIdx.int]:
     trace "Slot root mismatch", manifest = manifest.slotRoots[slotIdx.int], recovered = slotRoot.toSlotCid()
     return failure(newException(CodexError, "Slot root mismatch"))
 
-  trace "Storage request processed"
+  trace "Slot successfully retrieved and reconstructed"
 
   return success()
 
