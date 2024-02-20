@@ -193,6 +193,30 @@ asyncchecksuite "Reservations module":
     check (updated.freeSize - orig) == 200.u256
     check (repo.quotaReservedBytes - origQuota) == 200
 
+  test "changeAvailabilitySize releases quota when lowering size":
+    let
+      availability = createAvailability()
+      origQuota = repo.quotaReservedBytes
+      newSize = availability.totalSize - 100
+
+    check isOk await reservations.changeAvailabilitySize(
+      availability, newSize
+    )
+
+    check (origQuota - repo.quotaReservedBytes) == 100
+
+  test "changeAvailabilitySize reserves quota when growing size":
+    let
+      availability = createAvailability()
+      origQuota = repo.quotaReservedBytes
+      newSize = availability.totalSize + 100
+    echo "call"
+    check isOk await reservations.changeAvailabilitySize(
+      availability, newSize
+    )
+    echo "check"
+    check (repo.quotaReservedBytes - origQuota) == 100
+
   test "reservation can be partially released":
     let availability = createAvailability()
     let reservation = createReservation(availability)

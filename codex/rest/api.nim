@@ -8,7 +8,6 @@
 ## those terms.
 
 import pkg/upraises
-import macros
 
 push: {.upraises: [].}
 
@@ -358,7 +357,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
         if err =? (await reservations.update(availability)).errorOption:
           return RestApiResponse.error(Http500, err.msg)
 
-        return RestApiResponse.response("", Http204)
+        return RestApiResponse.response(Http200)
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)

@@ -14,10 +14,12 @@
 ## |----------------------------------------|              |--------------------------------------|
 ## | AvailabilityId   | id            | PK  |<-||-------o<-| AvailabilityId | availabilityId | FK |
 ## |----------------------------------------|              |--------------------------------------|
-## | UInt256          | freeSize      |     |              | UInt256        | size           |    |
+## | UInt256          | totalSize     |     |              | UInt256        | size           |    |
 ## |----------------------------------------|              |--------------------------------------|
-## | UInt256          | duration      |     |              | SlotId         | slotId         |    |
+## | UInt256          | freeSize      |     |              | SlotId         | slotId         |    |
 ## |----------------------------------------|              +--------------------------------------+
+## | UInt256          | duration      |     |
+## |----------------------------------------|
 ## | UInt256          | minPrice      |     |
 ## |----------------------------------------|
 ## | UInt256          | maxCollateral |     |
@@ -360,11 +362,11 @@ proc changeAvailabilitySize*(
   ## Method that adjusts the repo reservations according the changed sizes.
   ## The Availability.totalSize must not be updated yet!
 
-  if availability.totalSize - newSize < 0: # storage added
+  if availability.totalSize < newSize: # storage added
     if reserveErr =? (await self.repo.reserve((newSize - availability.totalSize).truncate(uint))).errorOption:
       return failure(reserveErr.toErr(ReserveFailedError))
 
-  elif availability.totalSize - newSize > 0: # storage removed
+  elif availability.totalSize > newSize: # storage removed
     if reserveErr =? (await self.repo.release((availability.totalSize - newSize).truncate(uint))).errorOption:
       return failure(reserveErr.toErr(ReleaseFailedError))
 
