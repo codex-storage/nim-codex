@@ -124,9 +124,9 @@ asyncchecksuite "Test Node - Basic":
       manifestBlock = bt.Block.new(
         manifest.encode().tryGet(),
         codec = ManifestCodec).tryGet()
-
+      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
       protected = (await erasure.encode(manifest, 3, 2)).tryGet()
-      builder = SlotsBuilder.new(localStore, protected).tryGet()
+      builder = Poseidon2Builder.new(localStore, protected).tryGet()
       verifiable = (await builder.buildManifest()).tryGet()
       verifiableBlock = bt.Block.new(
         verifiable.encode().tryGet(),

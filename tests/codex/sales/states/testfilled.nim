@@ -31,7 +31,7 @@ checksuite "sales state 'filled'":
     slot = MockSlot(requestId: request.id,
                     host: Address.example,
                     slotIndex: slotIndex,
-                    proof: @[])
+                    proof: Groth16Proof.default)
 
     market.requestEnds[request.id] = 321
     onExpiryUpdatePassedExpiry = -1

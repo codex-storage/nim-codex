@@ -17,13 +17,15 @@ type
     period*: UInt256 # proofs requirements are calculated per period (in seconds)
     timeout*: UInt256 # mark proofs as missing before the timeout (in seconds)
     downtime*: uint8 # ignore this much recent blocks for proof requirements
+    zkeyHash*: string # hash of the zkey file which is linked to the verifier
 
 
 func fromTuple(_: type ProofConfig, tupl: tuple): ProofConfig =
   ProofConfig(
     period: tupl[0],
     timeout: tupl[1],
-    downtime: tupl[2]
+    downtime: tupl[2],
+    zkeyHash: tupl[3]
   )
 
 func fromTuple(_: type CollateralConfig, tupl: tuple): CollateralConfig =

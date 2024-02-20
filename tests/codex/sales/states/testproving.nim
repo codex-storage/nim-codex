@@ -18,7 +18,7 @@ asyncchecksuite "sales state 'proving'":
 
   let slot = Slot.example
   let request = slot.request
-  let proof = exampleProof()
+  let proof = Groth16Proof.example
 
   var market: MockMarket
   var clock: MockClock
@@ -29,7 +29,7 @@ asyncchecksuite "sales state 'proving'":
   setup:
     clock = MockClock.new()
     market = MockMarket.new()
-    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[?!seq[byte]] {.async.} =
+    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[?!Groth16Proof] {.async.} =
                         receivedChallenge = challenge
                         return success(proof)
     let context = SalesContext(market: market, clock: clock, onProve: onProve.some)
@@ -53,11 +53,9 @@ asyncchecksuite "sales state 'proving'":
 
   test "submits proofs":
     var receivedIds: seq[SlotId]
-    var receivedProofs: seq[seq[byte]]
 
-    proc onProofSubmission(id: SlotId, proof: seq[byte]) =
+    proc onProofSubmission(id: SlotId) =
       receivedIds.add(id)
-      receivedProofs.add(proof)
 
     let subscription = await market.subscribeProofSubmission(onProofSubmission)
     market.slotState[slot.id] = SlotState.Filled
@@ -67,7 +65,7 @@ asyncchecksuite "sales state 'proving'":
     market.setProofRequired(slot.id, true)
     await market.advanceToNextPeriod()
 
-    check eventually receivedIds == @[slot.id] and receivedProofs == @[proof]
+    check eventually receivedIds == @[slot.id]
 
     await future.cancelAndWait()
     await subscription.unsubscribe()

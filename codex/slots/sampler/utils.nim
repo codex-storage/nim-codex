@@ -9,8 +9,9 @@
 
 import std/sugar
 import std/bitops
+import std/sequtils
 
-import pkg/chronicles
+import pkg/questionable/results
 import pkg/poseidon2
 import pkg/poseidon2/io
 
@@ -20,8 +21,11 @@ import pkg/constantine/math/io/io_fields
 
 import ../../merkletree
 
+func toInputData*[H](data: seq[byte]): seq[byte] =
+  return toSeq(data.elements(H)).mapIt( @(it.toBytes) ).concat
+
 func extractLowBits*[n: static int](elm: BigInt[n], k: int): uint64 =
-  assert( k > 0 and k <= 64 )
+  doAssert( k > 0 and k <= 64 )
   var r  = 0'u64
   for i in 0..<k:
     let b = bit[n](elm, i)
@@ -48,13 +52,13 @@ func ceilingLog2*(x : int) : int =
   else:
     return (floorLog2(x-1) + 1)
 
-func toBlockIdx*(cell: Natural, numCells: Natural): Natural =
+func toBlkInSlot*(cell: Natural, numCells: Natural): Natural =
   let log2 = ceilingLog2(numCells)
   doAssert( 1 shl log2 == numCells , "`numCells` is assumed to be a power of two" )
 
   return cell div numCells
 
-func toBlockCellIdx*(cell: Natural, numCells: Natural): Natural =
+func toCellInBlk*(cell: Natural, numCells: Natural): Natural =
   let log2 = ceilingLog2(numCells)
   doAssert( 1 shl log2 == numCells , "`numCells` is assumed to be a power of two" )
 
@@ -67,7 +71,7 @@ func cellIndex*(
   let log2 = ceilingLog2(numCells)
   doAssert( 1 shl log2 == numCells , "`numCells` is assumed to be a power of two" )
 
-  let hash = Sponge.digest( @[ slotRoot, entropy, counter.toF ], rate = 2 )
+  let hash = Sponge.digest( @[ entropy, slotRoot, counter.toF ], rate = 2 )
   return int( extractLowBits(hash, log2) )
 
 func cellIndices*(
@@ -75,11 +79,8 @@ func cellIndices*(
   slotRoot: Poseidon2Hash,
   numCells: Natural, nSamples: Natural): seq[Natural] =
 
-  trace "Calculating cell indices", numCells, nSamples
-
   var indices: seq[Natural]
   while (indices.len < nSamples):
     let idx = cellIndex(entropy, slotRoot, numCells, indices.len + 1)
     indices.add(idx.Natural)
   indices
-

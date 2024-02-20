@@ -8,7 +8,6 @@ import pkg/codex/rng
 import pkg/stew/byteutils
 import pkg/ethers/erc20
 import pkg/codex/contracts
-import pkg/codex/utils/stintutils
 import ../contracts/time
 import ../contracts/deployment
 import ../codex/helpers
@@ -20,12 +19,6 @@ import ./twonodes
 # to enable custom logging levels for specific topics like: debug2 = "INFO; TRACE: marketplace"
 
 twonodessuite "Integration tests", debug1 = false, debug2 = false:
-
-  proc purchaseStateIs(client: CodexClient, id: PurchaseId, state: string): bool =
-    without purchase =? client.getPurchase(id):
-      return false
-    return purchase.state == state
-
   setup:
     # Our Hardhat configuration does use automine, which means that time tracked by `ethProvider.currentTime()` is not
     # advanced until blocks are mined and that happens only when transaction is submitted.
@@ -255,34 +248,3 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     let responseBefore = client1.requestStorageRaw(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256, expiry=currentTime+10)
     check responseBefore.status == "400 Bad Request"
     check responseBefore.body == "Expiry has to be before the request's end (now + duration)"
-
-  # TODO: skipping this test for now as is not passing on macos/linux for some
-  # reason. This test has been completely refactored in
-  # https://github.com/codex-storage/nim-codex/pull/607 in which it will be
-  # reintroduced.
-  # test "expired request partially pays out for stored time":
-  #   let marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
-  #   let tokenAddress = await marketplace.token()
-  #   let token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
-  #   let reward = 400.u256
-  #   let duration = 100.u256
-
-  #   # client 2 makes storage available
-  #   let startBalanceClient2 = await token.balanceOf(account2)
-  #   discard client2.postAvailability(size=140000.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
-
-  #   # client 1 requests storage but requires two nodes to host the content
-  #   let startBalanceClient1 = await token.balanceOf(account1)
-  #   let expiry = (await ethProvider.currentTime()) + 10
-  #   let cid = client1.upload(exampleString(100000)).get
-  #   let id = client1.requestStorage(cid, duration=duration, reward=reward, proofProbability=3.u256, expiry=expiry, collateral=200.u256, nodes=2).get
-
-  #   # We have to wait for Client 2 fills the slot, before advancing time.
-  #   # Until https://github.com/codex-storage/nim-codex/issues/594 is implemented nothing better then
-  #   # sleeping some seconds is available.
-  #   await sleepAsync(2.seconds)
-  #   await ethProvider.advanceTimeTo(expiry+1)
-  #   check eventually(client1.purchaseStateIs(id, "cancelled"), 20000)
-
-  #   check eventually ((await token.balanceOf(account2)) - startBalanceClient2) > 0 and ((await token.balanceOf(account2)) - startBalanceClient2) < 10*reward
-  #   check eventually (startBalanceClient1 - (await token.balanceOf(account1))) == ((await token.balanceOf(account2)) - startBalanceClient2)

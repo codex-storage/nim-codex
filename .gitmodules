@@ -199,3 +199,13 @@
 [submodule "vendor/constantine"]
 	path = vendor/constantine
 	url = https://github.com/mratsim/constantine.git
+[submodule "vendor/nim-circom-compat"]
+	path = vendor/nim-circom-compat
+	url = https://github.com/codex-storage/nim-circom-compat.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/codex-storage-proofs-circuits"]
+	path = vendor/codex-storage-proofs-circuits
+	url = https://github.com/codex-storage/codex-storage-proofs-circuits.git
+	ignore = untracked
+	branch = master

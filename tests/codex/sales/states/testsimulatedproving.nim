@@ -19,7 +19,7 @@ asyncchecksuite "sales state 'simulated-proving'":
 
   let slot = Slot.example
   let request = slot.request
-  let proof = exampleProof()
+  let proof = Groth16Proof.example
   let failEveryNProofs = 3
   let totalProofs = 6
 
@@ -29,14 +29,12 @@ asyncchecksuite "sales state 'simulated-proving'":
   var state: SaleProvingSimulated
 
   var proofSubmitted: Future[void] = newFuture[void]("proofSubmitted")
-  var submitted: seq[seq[byte]]
   var subscription: Subscription
 
   setup:
     clock = MockClock.new()
 
-    proc onProofSubmission(id: SlotId, proof: seq[byte]) =
-      submitted.add(proof)
+    proc onProofSubmission(id: SlotId) =
       proofSubmitted.complete()
       proofSubmitted = newFuture[void]("proofSubmitted")
 
@@ -45,7 +43,7 @@ asyncchecksuite "sales state 'simulated-proving'":
     market.setProofRequired(slot.id, true)
     subscription = await market.subscribeProofSubmission(onProofSubmission)
 
-    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[?!seq[byte]] {.async.} =
+    let onProve = proc (slot: Slot, challenge: ProofChallenge): Future[?!Groth16Proof] {.async.} =
                         return success(proof)
     let context = SalesContext(market: market, clock: clock, onProve: onProve.some)
     agent = newSalesAgent(context,
@@ -79,9 +77,10 @@ asyncchecksuite "sales state 'simulated-proving'":
 
   test "submits invalid proof every 3 proofs":
     let future = state.run(agent)
+    let invalid = Groth16Proof.default
 
     await market.waitForProvingRounds(totalProofs)
-    check submitted == @[proof, proof, @[], proof, proof, @[]]
+    check market.submitted == @[proof, proof, invalid, proof, proof, invalid]
 
     await future.cancelAndWait()
 
