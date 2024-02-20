@@ -142,6 +142,15 @@ asyncchecksuite "NetworkStore engine handlers":
     localStore: BlockStore
     blocks: seq[Block]
 
+  const NOP_SEND_WANT_LIST = proc(
+    id: PeerId,
+    addresses: seq[BlockAddress],
+    priority: int32 = 0,
+    cancel: bool = false,
+    wantType: WantType = WantType.WantHave,
+    full: bool = false,
+    sendDontHave: bool = false) {.gcsafe, async.} = discard
+
   setup:
     rng = Rng.instance()
     chunker = RandomChunker.new(rng, size = 1024'nb, chunkSize = 256'nb)
@@ -275,6 +284,10 @@ asyncchecksuite "NetworkStore engine handlers":
 
     let blocksDelivery = blocks.mapIt(BlockDelivery(blk: it, address: it.address))
 
+    # Install NOP for want list sends so cancellations don't cause a crash
+    engine.network = BlockExcNetwork(
+      request: BlockExcRequest(sendWantList: NOP_SEND_WANT_LIST))
+
     await engine.blocksDeliveryHandler(peerId, blocksDelivery)
     let resolved = await allFinished(pending)
     check resolved.mapIt( it.read ) == blocks
@@ -306,10 +319,14 @@ asyncchecksuite "NetworkStore engine handlers":
 
           check receiver == peerId
           check balances[account.address.toDestination] == amount
-          done.complete()
+          done.complete(),
+
+        # Install NOP for want list sends so cancellations don't cause a crash
+        sendWantList: NOP_SEND_WANT_LIST
     ))
 
-    await engine.blocksDeliveryHandler(peerId, blocks.mapIt(BlockDelivery(blk: it, address: it.address)))
+    await engine.blocksDeliveryHandler(peerId, blocks.mapIt(
+      BlockDelivery(blk: it, address: it.address)))
     await done.wait(100.millis)
 
   test "Should handle block presence":
@@ -351,6 +368,35 @@ asyncchecksuite "NetworkStore engine handlers":
     for a in blocks.mapIt(it.address):
       check a in peerCtx.peerHave
       check peerCtx.blocks[a].price == price
+
+  test "Should send cancellations for received blocks":
+    let
+      pending = blocks.mapIt(engine.pendingBlocks.getWantHandle(it.cid))
+      blocksDelivery = blocks.mapIt(BlockDelivery(blk: it, address: it.address))
+      cancellations = newTable(
+        blocks.mapIt((it.address, newFuture[void]())).toSeq
+      )
+
+    proc sendWantList(
+      id: PeerId,
+      addresses: seq[BlockAddress],
+      priority: int32 = 0,
+      cancel: bool = false,
+      wantType: WantType = WantType.WantHave,
+      full: bool = false,
+      sendDontHave: bool = false) {.gcsafe, async.} =
+        if cancel:
+          for address in addresses:
+            cancellations[address].complete()
+
+    engine.network = BlockExcNetwork(
+      request: BlockExcRequest(
+        sendWantList: sendWantList
+    ))
+
+    await engine.blocksDeliveryHandler(peerId, blocksDelivery)
+    discard await allFinished(pending)
+    await allFuturesThrowing(cancellations.values().toSeq)
 
 asyncchecksuite "Task Handler":
   var
