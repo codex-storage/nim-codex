@@ -106,6 +106,19 @@ proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest
 
   return manifest
 
+proc makeRandomBlocks*(
+  datasetSize: int, blockSize: NBytes): Future[seq[Block]] {.async.} =
+
+  var chunker = RandomChunker.new(Rng.instance(), size = datasetSize,
+    chunkSize = blockSize)
+
+  while true:
+    let chunk = await chunker.getBytes()
+    if chunk.len <= 0:
+      break
+
+    result.add(Block.new(chunk).tryGet())
+
 proc corruptBlocks*(
   store: BlockStore,
   manifest: Manifest,

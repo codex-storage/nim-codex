@@ -120,7 +120,6 @@ proc stop*(b: BlockExcEngine) {.async.} =
 
   trace "NetworkStore stopped"
 
-
 proc sendWantHave(
   b: BlockExcEngine,
   address: BlockAddress,
@@ -145,16 +144,6 @@ proc sendWantBlock(
     blockPeer.id,
     @[address],
     wantType = WantType.WantBlock) # we want this remote to send us a block
-
-proc findCheapestPeerForBlock(b: BlockExcEngine, cheapestPeers: seq[BlockExcPeerCtx]): ?BlockExcPeerCtx =
-  if cheapestPeers.len <= 0:
-    trace "No cheapest peers, selecting first in list"
-    let
-      peers = toSeq(b.peers) # Get any peer
-    if peers.len <= 0:
-      return none(BlockExcPeerCtx)
-    return some(peers[0])
-  return some(cheapestPeers[0]) # get cheapest
 
 proc monitorBlockHandle(b: BlockExcEngine, handle: Future[Block], address: BlockAddress, peerId: PeerId) {.async.} =
   try:
@@ -231,7 +220,7 @@ proc blockPresenceHandler*(
         have      = presence.have
         price     = presence.price
 
-      trace "Updating precense"
+      trace "Updating presence"
       peerCtx.setPresence(presence)
 
   let
@@ -280,6 +269,17 @@ proc scheduleTasks(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.asyn
 
           break # do next peer
 
+proc issueCancellations(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
+  ## Tells neighboring peers that we're no longer interested in a block.
+  trace "Sending block request cancellations to peers", addrs = addrs.len
+
+  for neighbor in b.peers:
+    await b.network.request.sendWantList(
+      id = neighbor.id,
+      addresses = addrs,
+      cancel = true
+    )
+
 proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
   trace "Resolving blocks", blocks = blocksDelivery.len
 
@@ -290,6 +290,8 @@ proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.asy
     cids.incl(bd.blk.cid)
     if bd.address.leaf:
       cids.incl(bd.address.treeCid)
+
+  asyncSpawn b.issueCancellations(blocksDelivery.mapIt(it.address))
   b.discovery.queueProvideBlocksReq(cids.toSeq)
 
 proc resolveBlocks*(b: BlockExcEngine, blocks: seq[Block]) {.async.} =
@@ -398,7 +400,7 @@ proc wantListHandler*(
 
   for e in wantList.entries:
     let
-      idx = peerCtx.peerWants.find(e)
+      idx = peerCtx.peerWants.findIt(it.address == e.address)
 
     logScope:
       peer      = peerCtx.id
