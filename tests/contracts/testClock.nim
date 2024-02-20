@@ -17,23 +17,23 @@ ethersuite "On-Chain Clock":
   test "returns the current time of the EVM":
     let latestBlock = (!await ethProvider.getBlock(BlockTag.latest))
     let timestamp = latestBlock.timestamp.truncate(int64)
-    check (await clock.now()) == timestamp
+    check clock.now() == timestamp
 
   test "updates time with timestamp of new blocks":
     let future = (getTime() + 42.years).toUnix
     discard await ethProvider.send("evm_setNextBlockTimestamp", @[%future])
     discard await ethProvider.send("evm_mine")
-    check (await clock.now()) == future
+    check clock.now() == future
 
   test "can wait until a certain time is reached by the chain":
-    let future = (await clock.now()) + 42 # seconds
+    let future = clock.now() + 42 # seconds
     let waiting = clock.waitUntil(future)
     discard await ethProvider.send("evm_setNextBlockTimestamp", @[%future])
     discard await ethProvider.send("evm_mine")
     check await waiting.withTimeout(chronos.milliseconds(100))
 
   test "can wait until a certain time is reached by the wall-clock":
-    let future = (await clock.now()) + 1 # seconds
+    let future = clock.now() + 1 # seconds
     let waiting = clock.waitUntil(future)
     check await waiting.withTimeout(chronos.seconds(2))
 

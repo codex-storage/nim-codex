@@ -1,6 +1,5 @@
 import std/httpclient
 import std/strutils
-import std/sequtils
 
 from pkg/libp2p import Cid, `$`, init
 import pkg/stint
@@ -109,25 +108,26 @@ proc requestStorage*(
   ## Call request storage REST endpoint
   ##
   let response = client.requestStorageRaw(cid, duration, reward, proofProbability, collateral, expiry, nodes, tolerance)
-  assert response.status == "200 OK"
+  if response.status != "200 OK":
+    doAssert(false, response.body)
   PurchaseId.fromHex(response.body).catch
 
 proc getPurchase*(client: CodexClient, purchaseId: PurchaseId): ?!RestPurchase =
   let url = client.baseurl & "/storage/purchases/" & purchaseId.toHex
-  let body = client.http.getContent(url)
-  let json = ? parseJson(body).catch
-  RestPurchase.fromJson(json)
+  try:
+    let body = client.http.getContent(url)
+    let json = ? parseJson(body).catch
+    return RestPurchase.fromJson(json)
+  except CatchableError as e:
+    return failure e.msg
 
 proc getSalesAgent*(client: CodexClient, slotId: SlotId): ?!RestSalesAgent =
   let url = client.baseurl & "/sales/slots/" & slotId.toHex
-  echo "getting sales agent for id, ", slotId.toHex
   try:
     let body = client.http.getContent(url)
-    echo "get sales agent body: ", body
     let json = ? parseJson(body).catch
     return RestSalesAgent.fromJson(json)
   except CatchableError as e:
-    echo "[client.getSalesAgent] error getting agent: ", e.msg
     return failure e.msg
 
 proc getSlots*(client: CodexClient): ?!seq[Slot] =

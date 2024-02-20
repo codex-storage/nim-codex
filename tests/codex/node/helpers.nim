@@ -68,7 +68,6 @@ template setupAndTearDown*() {.dirty.} =
     peerStore: PeerCtxStore
     pendingBlocks: PendingBlocksManager
     discovery: DiscoveryEngine
-    erasure: Erasure
 
   let
     path = currentSourcePath().parentDir
@@ -95,8 +94,7 @@ template setupAndTearDown*() {.dirty.} =
     discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
     engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
-    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-    node = CodexNodeRef.new(switch, store, engine, erasure, blockDiscovery)
+    node = CodexNodeRef.new(switch, store, engine, blockDiscovery)
 
     await node.start()
 

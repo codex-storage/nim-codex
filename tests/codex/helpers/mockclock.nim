@@ -32,11 +32,11 @@ proc set*(clock: MockClock, time: SecondsSince1970) =
 proc advance*(clock: MockClock, seconds: int64) =
   clock.set(clock.time + seconds)
 
-method now*(clock: MockClock): Future[SecondsSince1970] {.async.} =
+method now*(clock: MockClock): SecondsSince1970 {.raises: [].} =
   clock.time
 
 method waitUntil*(clock: MockClock, time: SecondsSince1970) {.async.} =
-  if time > (await clock.now()):
+  if time > clock.now():
     let future = newFuture[void]()
     clock.waiting.add(Waiting(until: time, future: future))
     await future

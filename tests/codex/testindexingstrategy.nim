@@ -14,8 +14,8 @@ for offset in @[0, 1, 2, 100]:
       firstIndex = 0 + offset
       lastIndex = 12 + offset
       nIters = 3
-      linear = LinearIndexingStrategy.new(firstIndex, lastIndex, nIters)
-      stepped = SteppedIndexingStrategy.new(firstIndex, lastIndex, nIters)
+      linear = LinearStrategy.init(firstIndex, lastIndex, nIters)
+      stepped = SteppedStrategy.init(firstIndex, lastIndex, nIters)
 
     test "linear":
       check:
@@ -31,32 +31,32 @@ for offset in @[0, 1, 2, 100]:
 
 suite "Indexing strategies":
   let
-    linear = LinearIndexingStrategy.new(0, 10, 3)
-    stepped = SteppedIndexingStrategy.new(0, 10, 3)
+    linear = LinearStrategy.init(0, 10, 3)
+    stepped = SteppedStrategy.init(0, 10, 3)
 
   test "smallest range 0":
     let
-      l = LinearIndexingStrategy.new(0, 0, 1)
-      s = SteppedIndexingStrategy.new(0, 0, 1)
+      l = LinearStrategy.init(0, 0, 1)
+      s = SteppedStrategy.init(0, 0, 1)
     check:
       toSeq(l.getIndices(0)) == @[0]
       toSeq(s.getIndices(0)) == @[0]
 
   test "smallest range 1":
     let
-      l = LinearIndexingStrategy.new(0, 1, 1)
-      s = SteppedIndexingStrategy.new(0, 1, 1)
+      l = LinearStrategy.init(0, 1, 1)
+      s = SteppedStrategy.init(0, 1, 1)
     check:
       toSeq(l.getIndices(0)) == @[0, 1]
       toSeq(s.getIndices(0)) == @[0, 1]
 
   test "first index must be smaller than last index":
     expect IndexingWrongIndexError:
-      discard LinearIndexingStrategy.new(10, 0, 1)
+      discard LinearStrategy.init(10, 0, 1)
 
-  test "numberOfIterations must be greater than zero":
+  test "iterations must be greater than zero":
     expect IndexingWrongIterationsError:
-      discard LinearIndexingStrategy.new(0, 10, 0)
+      discard LinearStrategy.init(0, 10, 0)
 
   test "linear - oob":
     expect IndexingError:

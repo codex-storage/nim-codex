@@ -229,12 +229,12 @@ proc getBlockExpirationEntry(
 proc getBlockExpirationEntry(
   self: RepoStore,
   cid: Cid,
-  ttl: ?Duration): Future[?!BatchEntry] {.async.} =
+  ttl: ?Duration): ?!BatchEntry =
   ## Get an expiration entry for a batch for duration since "now"
   ##
 
   let duration = ttl |? self.blockTtl
-  self.getBlockExpirationEntry(cid, (await self.clock.now()) + duration.seconds)
+  self.getBlockExpirationEntry(cid, self.clock.now() + duration.seconds)
 
 method ensureExpiry*(
     self: RepoStore,
@@ -340,7 +340,7 @@ method putBlock*(
   trace "Updating quota", used
   batch.add((QuotaUsedKey, @(used.uint64.toBytesBE)))
 
-  without blockExpEntry =? (await self.getBlockExpirationEntry(blk.cid, ttl)), err:
+  without blockExpEntry =? self.getBlockExpirationEntry(blk.cid, ttl), err:
     trace "Unable to create block expiration metadata key", err = err.msg
     return failure(err)
   batch.add(blockExpEntry)

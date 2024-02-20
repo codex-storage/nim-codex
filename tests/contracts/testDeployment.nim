@@ -31,11 +31,11 @@ asyncchecksuite "Deployment":
 
   test "uses chainId hardcoded values as fallback":
     let deployment = Deployment.new(provider, configFactory())
-    provider.chainId = 31337.u256
+    provider.chainId = 167005.u256
 
     let address = await deployment.address(Marketplace)
     check address.isSome
-    check $(!address) == "0x59b670e9fa9d0a427751af201d676719a970857b"
+    check $(!address) == "0x948cf9291b77bd7ad84781b9047129addf1b894f"
 
   test "return none for unknown networks":
     let deployment = Deployment.new(provider, configFactory())

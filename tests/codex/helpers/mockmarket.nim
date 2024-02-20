@@ -6,6 +6,7 @@ import std/sugar
 import pkg/questionable
 import pkg/codex/market
 import pkg/codex/contracts/requests
+import pkg/codex/contracts/proofs
 import pkg/codex/contracts/config
 import ../examples
 
@@ -24,6 +25,7 @@ type
     fulfilled*: seq[Fulfillment]
     filled*: seq[MockSlot]
     freed*: seq[SlotId]
+    submitted*: seq[Groth16Proof]
     markedAsMissingProofs*: seq[SlotId]
     canBeMarkedAsMissing: HashSet[SlotId]
     withdrawn*: seq[RequestId]
@@ -36,13 +38,13 @@ type
     config*: MarketplaceConfig
   Fulfillment* = object
     requestId*: RequestId
-    proof*: seq[byte]
+    proof*: Groth16Proof
     host*: Address
   MockSlot* = object
     requestId*: RequestId
     host*: Address
     slotIndex*: UInt256
-    proof*: seq[byte]
+    proof*: Groth16Proof
   Subscriptions = object
     onRequest: seq[RequestSubscription]
     onFulfillment: seq[FulfillmentSubscription]
@@ -215,7 +217,7 @@ proc emitRequestFailed*(market: MockMarket, requestId: RequestId) =
 proc fillSlot*(market: MockMarket,
                requestId: RequestId,
                slotIndex: UInt256,
-               proof: seq[byte],
+               proof: Groth16Proof,
                host: Address) =
   let slot = MockSlot(
     requestId: requestId,
@@ -230,7 +232,7 @@ proc fillSlot*(market: MockMarket,
 method fillSlot*(market: MockMarket,
                  requestId: RequestId,
                  slotIndex: UInt256,
-                 proof: seq[byte],
+                 proof: Groth16Proof,
                  collateral: UInt256) {.async.} =
   market.fillSlot(requestId, slotIndex, proof, market.signer)
 
@@ -273,9 +275,10 @@ method getChallenge*(mock: MockMarket, id: SlotId): Future[ProofChallenge] {.asy
 proc setProofEnd*(mock: MockMarket, id: SlotId, proofEnd: UInt256) =
   mock.proofEnds[id] = proofEnd
 
-method submitProof*(mock: MockMarket, id: SlotId, proof: seq[byte]) {.async.} =
+method submitProof*(mock: MockMarket, id: SlotId, proof: Groth16Proof) {.async.} =
+  mock.submitted.add(proof)
   for subscription in mock.subscriptions.onProofSubmitted:
-    subscription.callback(id, proof)
+    subscription.callback(id)
 
 method markProofAsMissing*(market: MockMarket,
                            id: SlotId,

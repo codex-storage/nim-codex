@@ -8,7 +8,7 @@ import ./time
 import ./deployment
 
 ethersuite "Marketplace contracts":
-  let proof = exampleProof()
+  let proof = Groth16Proof.example
 
   var client, host: Signer
   var marketplace: Marketplace
@@ -25,7 +25,8 @@ ethersuite "Marketplace contracts":
     client = ethProvider.getSigner(accounts[0])
     host = ethProvider.getSigner(accounts[1])
 
-    marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
+    let address = Marketplace.address(dummyVerifier = true)
+    marketplace = Marketplace.new(address, ethProvider.getSigner())
 
     let tokenAddress = await marketplace.token()
     token = Erc20Token.new(tokenAddress, ethProvider.getSigner())

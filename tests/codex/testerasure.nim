@@ -11,6 +11,7 @@ import pkg/codex/stores
 import pkg/codex/blocktype as bt
 import pkg/codex/rng
 import pkg/codex/utils
+import pkg/codex/indexingstrategy
 
 import ../asynctest
 import ./helpers

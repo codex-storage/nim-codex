@@ -42,6 +42,7 @@ runs:
       if: inputs.os == 'windows' && inputs.cpu == 'amd64'
       uses: msys2/setup-msys2@v2
       with:
+        path-type: inherit
         msystem: UCRT64
         install: >
           base-devel
@@ -49,11 +50,13 @@ runs:
           mingw-w64-ucrt-x86_64-toolchain
           mingw-w64-ucrt-x86_64-cmake
           mingw-w64-ucrt-x86_64-ntldd-git
+          mingw-w64-ucrt-x86_64-rust
 
     - name: MSYS2 (Windows i386)
       if: inputs.os == 'windows' && inputs.cpu == 'i386'
       uses: msys2/setup-msys2@v2
       with:
+        path-type: inherit
         msystem: MINGW32
         install: >
           base-devel
@@ -61,6 +64,7 @@ runs:
           mingw-w64-i686-toolchain
           mingw-w64-i686-cmake
           mingw-w64-i686-ntldd-git
+          mingw-w64-i686-rust
 
     - name: Derive environment variables
       shell: ${{ inputs.shell }} {0}

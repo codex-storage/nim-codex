@@ -77,6 +77,7 @@ type
     rounded: Natural
     steps: Natural
     blocksCount: Natural
+    strategy: StrategyType
 
 func indexToPos(steps, idx, step: int): int {.inline.} =
   ## Convert an index to a position in the encoded
@@ -130,10 +131,10 @@ proc prepareEncodingData(
   ##
 
   let
-    strategy = SteppedIndexingStrategy.new(
+    strategy = params.strategy.init(
       firstIndex = 0,
       lastIndex = params.rounded - 1,
-      numberOfIterations = params.steps
+      iterations = params.steps
     )
     indices = toSeq(strategy.getIndices(step))
     pendingBlocksIter = self.getPendingBlocks(manifest, indices.filterIt(it < manifest.blocksCount))
@@ -179,10 +180,10 @@ proc prepareDecodingData(
   ##
 
   let
-    strategy = SteppedIndexingStrategy.new(
+    strategy = encoded.protectedStrategy.init(
       firstIndex = 0,
       lastIndex = encoded.blocksCount - 1,
-      numberOfIterations = encoded.steps
+      iterations = encoded.steps
     )
     indices = toSeq(strategy.getIndices(step))
     pendingBlocksIter = self.getPendingBlocks(encoded, indices)
@@ -229,7 +230,8 @@ proc prepareDecodingData(
 proc init*(
   _: type EncodingParams,
   manifest: Manifest,
-  ecK: Natural, ecM: Natural): ?!EncodingParams =
+  ecK: Natural, ecM: Natural,
+  strategy: StrategyType): ?!EncodingParams =
   if ecK > manifest.blocksCount:
     return failure(
       "Unable to encode manifest, not enough blocks, ecK = " &
@@ -242,13 +244,14 @@ proc init*(
     steps = divUp(manifest.blocksCount, ecK)
     blocksCount = rounded + (steps * ecM)
 
-  EncodingParams(
+  success EncodingParams(
     ecK: ecK,
     ecM: ecM,
     rounded: rounded,
     steps: steps,
-    blocksCount: blocksCount
-  ).success
+    blocksCount: blocksCount,
+    strategy: strategy
+  )
 
 proc encodeData(
   self: Erasure,
@@ -327,11 +330,12 @@ proc encodeData(
       treeCid = treeCid,
       datasetSize = (manifest.blockSize.int * params.blocksCount).NBytes,
       ecK = params.ecK,
-      ecM = params.ecM
+      ecM = params.ecM,
+      strategy = params.strategy
     )
 
     trace "Encoded data successfully", treeCid, blocksCount = params.blocksCount
-    return encodedManifest.success
+    success encodedManifest
   except CancelledError as exc:
     trace "Erasure coding encoding cancelled"
     raise exc # cancellation needs to be propagated
@@ -345,7 +349,8 @@ proc encode*(
   self: Erasure,
   manifest: Manifest,
   blocks: Natural,
-  parity: Natural): Future[?!Manifest] {.async.} =
+  parity: Natural,
+  strategy = SteppedStrategy): Future[?!Manifest] {.async.} =
   ## Encode a manifest into one that is erasure protected.
   ##
   ## `manifest`   - the original manifest to be encoded
@@ -353,7 +358,7 @@ proc encode*(
   ## `parity`     - the number of parity blocks to generate - M
   ##
 
-  without params =? EncodingParams.init(manifest, blocks.int, parity.int), err:
+  without params =? EncodingParams.init(manifest, blocks.int, parity.int, strategy), err:
     return failure(err)
 
   without encodedManifest =? await self.encodeData(manifest, params), err:
@@ -362,9 +367,8 @@ proc encode*(
   return success encodedManifest
 
 proc decode*(
-    self: Erasure,
-    encoded: Manifest
-): Future[?!Manifest] {.async.} =
+  self: Erasure,
+  encoded: Manifest): Future[?!Manifest] {.async.} =
   ## Decode a protected manifest into it's original
   ## manifest
   ##
@@ -465,11 +469,10 @@ proc stop*(self: Erasure) {.async.} =
   return
 
 proc new*(
-    T: type Erasure,
-    store: BlockStore,
-    encoderProvider: EncoderProvider,
-    decoderProvider: DecoderProvider
-): Erasure =
+  T: type Erasure,
+  store: BlockStore,
+  encoderProvider: EncoderProvider,
+  decoderProvider: DecoderProvider): Erasure =
   ## Create a new Erasure instance for encoding and decoding manifests
 
   Erasure(

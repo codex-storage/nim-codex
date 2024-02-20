@@ -38,6 +38,7 @@ import ./contracts/clock
 import ./contracts/deployment
 import ./utils/addrutils
 import ./namespaces
+import ./codextypes
 import ./logutils
 
 logScope:
@@ -261,8 +262,13 @@ proc new*(
     blockDiscovery = DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
     engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
-    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
-    codexNode = CodexNodeRef.new(switch, store, engine, erasure, discovery)
+
+    codexNode = CodexNodeRef.new(
+      switch = switch,
+      networkStore = store,
+      engine = engine,
+      discovery = discovery)
+
     restServer = RestServerRef.new(
       codexNode.initRestApi(config, repoStore),
       initTAddress(config.apiBindAddress , config.apiPort),
