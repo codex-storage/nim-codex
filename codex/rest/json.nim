@@ -34,14 +34,6 @@ type
     maxCollateral* {.serialize.}: UInt256
     freeSize* {.serialize.}: ?UInt256
 
-  RestReservation* = object
-    id* {.serialize.}: ReservationId
-    availabilityId* {.serialize.}: AvailabilityId
-    size* {.serialize.}: UInt256
-    requestId* {.serialize.}: RequestId
-    slotIndex* {.serialize.}: UInt256
-    request* {.serialize.}: StorageRequest
-
   RestSalesAgent* = object
     state* {.serialize.}: string
     requestId* {.serialize.}: RequestId

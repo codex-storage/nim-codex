@@ -153,7 +153,7 @@ proc patchAvailabilityRaw*(
     availabilityId: AvailabilityId,
     totalSize, freeSize, duration, minPrice, maxCollateral: ?UInt256 = UInt256.none
 ): Response =
-  ## Post sales availability endpoint
+  ## Updates availability
   ##
   let url = client.baseurl & "/sales/availability/" & $availabilityId
   var json = %*{}
@@ -183,12 +183,17 @@ proc patchAvailability*(
   let response = client.patchAvailabilityRaw(availabilityId, totalSize=totalSize, duration=duration, minPrice=minPrice, maxCollateral=maxCollateral)
   doAssert response.status == "200 OK", "expected 200 OK, got " & response.status
 
-
 proc getAvailabilities*(client: CodexClient): ?!seq[Availability] =
   ## Call sales availability REST endpoint
   let url = client.baseurl & "/sales/availability"
   let body = client.http.getContent(url)
   seq[Availability].fromJson(body)
+
+proc getAvailabilityReservations*(client: CodexClient, availabilityId: AvailabilityId): ?!seq[Reservation] =
+  ## Retrieves Availability's Reservations
+  let url = client.baseurl & "/sales/availability/" & $availabilityId & "/reservations"
+  let body = client.http.getContent(url)
+  seq[Reservation].fromJson(parseJson(body))
 
 proc close*(client: CodexClient) =
   client.http.close()

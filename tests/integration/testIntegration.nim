@@ -186,7 +186,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     let size = 0xFFFFFF.u256
     let data = await RandomChunker.example(blocks=8)
     # client 2 makes storage available
-    discard client2.postAvailability(totalSize=size, duration=20*60.u256, minPrice=300.u256, maxCollateral=300.u256)
+    let availability = client2.postAvailability(totalSize=size, duration=20*60.u256, minPrice=300.u256, maxCollateral=300.u256).get
 
     # client 1 requests storage
     let expiry = (await ethProvider.currentTime()) + 5*60
@@ -208,6 +208,10 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check availabilities.len == 1
     let newSize = availabilities[0].freeSize
     check newSize > 0 and newSize < size
+
+    let reservations = client2.getAvailabilityReservations(availability.id).get
+    check reservations.len == 1
+    check reservations[0].requestId == purchase.requestId
 
   test "node slots gets paid out":
     let size = 0xFFFFFF.u256

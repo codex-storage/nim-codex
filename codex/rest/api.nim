@@ -387,6 +387,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
         without availabilitysReservations =? (await reservations.all(Reservation, id.some)), err:
           return RestApiResponse.error(Http500, err.msg)
 
+        # TODO: Expand this structure with information about the linked StorageRequest not only RequestID
         let json = %availabilitysReservations
         return RestApiResponse.response($json, contentType="application/json")
       except CatchableError as exc:
