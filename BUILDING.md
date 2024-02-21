@@ -101,6 +101,13 @@ File: `C:/Users/<username>/AppData/Roaming/Code/User/settings.json`
 }
 ```
 
+### Rust
+
+The current implementation of Codex's zero-knowledge proving circuit requires the installation of rust v1.76.0 or greater. Be sure to install it for your OS and add it to your terminal's path such that the command `cargo --version` gives a compatible version.
+
+If you're using MSYS2-UCRT:
+- Make sure you're up-to-date first: `pacman -Suy`
+- Then install UCRT-rust: `pacman -S mingw-w64-ucrt-x86_64-rust`
 
 ### Other
 
