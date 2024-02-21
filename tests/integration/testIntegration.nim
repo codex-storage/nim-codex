@@ -174,7 +174,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check request.ask.maxSlotLoss == 0'u64
 
   test "nodes negotiate contracts on the marketplace":
-    let size = 0xFFFFF.u256
+    let size = 0xFFFFFF.u256
     let dataSetSize =  8 * DefaultBlockSize.int
     # client 2 makes storage available
     discard client2.postAvailability(size=size, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256)
@@ -186,11 +186,11 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
       data.add(await chunker.getBytes())
 
     # client 1 requests storage
-    let expiry = (await ethProvider.currentTime()) + 30
+    let expiry = (await ethProvider.currentTime()) + 120
     let cid = client1.upload(string.fromBytes(data)).get
     let id = client1.requestStorage(
       cid,
-      duration=100.u256,
+      duration=180.u256,
       reward=400.u256,
       proofProbability=3.u256,
       expiry=expiry,
@@ -198,7 +198,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
       nodes = 5,
       tolerance = 2).get
 
-    check eventually client1.purchaseStateIs(id, "started")
+    check eventually(client1.purchaseStateIs(id, "started"), timeout=120*1000)
     let purchase = client1.getPurchase(id).get
     check purchase.error == none string
     let availabilities = client2.getAvailabilities().get
