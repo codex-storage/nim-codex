@@ -281,7 +281,7 @@ proc cancelBlocks(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
 
   let failed = sends.filterIt(it.request.failed).mapIt(it.peer.id)
   if failed.len > 0:
-    warn "Failed to send block request cancellations to peers", failed = $failed
+    trace "Failed to send block request cancellations to peers", failed = $failed
 
 proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
   trace "Resolving blocks", blocks = blocksDelivery.len
