@@ -1,7 +1,7 @@
-import std/math
 import pkg/stew/byteutils
 import pkg/codex/units
 import ./marketplacesuite
+import ./nodeconfigs
 import ../examples
 
 marketplacesuite "Marketplace payouts":
@@ -9,21 +9,21 @@ marketplacesuite "Marketplace payouts":
   test "expired request partially pays out for stored time",
     NodeConfigs(
       # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
-      # hardhat: HardhatConfig().withLogFile()
+      hardhat: HardhatConfig.none,
 
       clients:
-        CodexConfig()
-          .nodes(1),
+        CodexConfigs.init(nodes=1)
           # .debug() # uncomment to enable console log output.debug()
           # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-          # .withLogTopics("node", "erasure"),
+          # .withLogTopics("node", "erasure")
+          .some,
 
       providers:
-        CodexConfig()
-          .nodes(1)
+        CodexConfigs.init(nodes=1)
           # .debug() # uncomment to enable console log output
           # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-          # .withLogTopics("node", "marketplace", "sales", "reservations", "node", "proving", "clock"),
+          # .withLogTopics("node", "marketplace", "sales", "reservations", "node", "proving", "clock")
+          .some,
   ):
     let reward = 400.u256
     let duration = 10.periods
