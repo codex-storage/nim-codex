@@ -274,9 +274,8 @@ proc issueCancellations(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
   trace "Sending block request cancellations to peers", addrs = addrs.len
 
   let sends = b.peers.mapIt(
-    (peer: it, request: b.network.request.sendWantList(id = it.id,
-      addresses = addrs, cancel = true))
-  )
+    (peer: it, request: b.network.request.sendWantCancellations(peer = it.id,
+      addresses = addrs)))
 
   discard await allFinished(sends.mapIt(it.request))
 

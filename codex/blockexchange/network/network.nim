@@ -39,14 +39,6 @@ type
   BlockPresenceHandler* = proc(peer: PeerId, precense: seq[BlockPresence]): Future[void] {.gcsafe.}
   AccountHandler* = proc(peer: PeerId, account: Account): Future[void] {.gcsafe.}
   PaymentHandler* = proc(peer: PeerId, payment: SignedState): Future[void] {.gcsafe.}
-  WantListSender* = proc(
-    id: PeerId,
-    addresses: seq[BlockAddress],
-    priority: int32 = 0,
-    cancel: bool = false,
-    wantType: WantType = WantType.WantHave,
-    full: bool = false,
-    sendDontHave: bool = false): Future[void] {.gcsafe.}
 
   BlockExcHandlers* = object
     onWantList*: WantListHandler
@@ -55,6 +47,15 @@ type
     onAccount*: AccountHandler
     onPayment*: PaymentHandler
 
+  WantListSender* = proc(
+    id: PeerId,
+    addresses: seq[BlockAddress],
+    priority: int32 = 0,
+    cancel: bool = false,
+    wantType: WantType = WantType.WantHave,
+    full: bool = false,
+    sendDontHave: bool = false): Future[void] {.gcsafe.}
+  WantCancellationSender* = proc(peer: PeerId, addresses: seq[BlockAddress]): Future[void] {.gcsafe.}
   BlocksDeliverySender* = proc(peer: PeerId, blocksDelivery: seq[BlockDelivery]): Future[void] {.gcsafe.}
   PresenceSender* = proc(peer: PeerId, presence: seq[BlockPresence]): Future[void] {.gcsafe.}
   AccountSender* = proc(peer: PeerId, account: Account): Future[void] {.gcsafe.}
@@ -62,6 +63,7 @@ type
 
   BlockExcRequest* = object
     sendWantList*: WantListSender
+    sendWantCancellations*: WantCancellationSender
     sendBlocksDelivery*: BlocksDeliverySender
     sendPresence*: PresenceSender
     sendAccount*: AccountSender
@@ -138,6 +140,17 @@ proc sendWantList*(
     full: full)
 
   b.send(id, Message(wantlist: msg))
+
+proc sendWantCancellations*(
+  b: BlockExcNetwork,
+  id: PeerId,
+  addresses: seq[BlockAddress]): Future[void] {.async.} =
+  ## Informs a remote peer that we're no longer interested in a set of blocks
+  ##
+
+  trace "Sending block request cancellation to peer", addrs = addresses.len, peer = id
+
+  await b.sendWantList(id = id, addresses = addresses, cancel = true)
 
 proc handleBlocksDelivery(
   b: BlockExcNetwork,
@@ -340,6 +353,9 @@ proc new*(
       id, cids, priority, cancel,
       wantType, full, sendDontHave)
 
+  proc sendWantCancellations(id: PeerId, addresses: seq[BlockAddress]): Future[void] {.gcsafe.} =
+    self.sendWantCancellations(id, addresses)
+
   proc sendBlocksDelivery(id: PeerId, blocksDelivery: seq[BlockDelivery]): Future[void] {.gcsafe.} =
     self.sendBlocksDelivery(id, blocksDelivery)
 
@@ -354,6 +370,7 @@ proc new*(
 
   self.request = BlockExcRequest(
     sendWantList: sendWantList,
+    sendWantCancellations: sendWantCancellations,
     sendBlocksDelivery: sendBlocksDelivery,
     sendPresence: sendPresence,
     sendAccount: sendAccount,
