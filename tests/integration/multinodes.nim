@@ -32,6 +32,10 @@ type
     Provider,
     Validator,
     Hardhat
+  MultiNodeSuiteError = object of CatchableError
+
+proc raiseMultiNodeSuiteError(msg: string) =
+  raise newException(MultiNodeSuiteError, msg)
 
 proc nextFreePort(startPort: int): Future[int] {.async.} =
 
@@ -66,8 +70,6 @@ template multinodesuite*(name: string, body: untyped) =
     var ethProvider {.inject, used.}: JsonRpcProvider
     var accounts {.inject, used.}: seq[Address]
     var snapshot: JsonNode
-
-    proc teardownImpl(): Future[void] {.gcsafe.}
 
     template test(tname, startNodeConfigs, tbody) =
       currentTestName = tname
@@ -111,7 +113,10 @@ template multinodesuite*(name: string, body: untyped) =
         args.add "--log-file=" & updatedLogFile
 
       let node = await HardhatProcess.startNode(args, config.debugEnabled, "hardhat")
-      await node.waitUntilStarted()
+      try:
+        await node.waitUntilStarted()
+      except NodeProcessError as e:
+        raiseMultiNodeSuiteError "hardhat node not started: " & e.msg
 
       trace "hardhat node started"
       return node
@@ -125,9 +130,8 @@ template multinodesuite*(name: string, body: untyped) =
       var config = conf
 
       if nodeIdx > accounts.len - 1:
-        await teardownImpl()
-        raiseAssert("Cannot start node at nodeIdx " & $nodeIdx &
-          ", not enough eth accounts.")
+        raiseMultiNodeSuiteError "Cannot start node at nodeIdx " & $nodeIdx &
+          ", not enough eth accounts."
 
       let datadir = getTempDir() / "Codex" /
         sanitize($starttime) /
@@ -146,19 +150,19 @@ template multinodesuite*(name: string, body: untyped) =
         config.addCliOption("--disc-port", $ await nextFreePort(8090 + nodeIdx))
 
       except CodexConfigError as e:
-        fatal "invalid cli option", error = e.msg
-        echo "[FATAL] invalid cli option ", e.msg
-        await teardownImpl()
-        fail()
-        return
+        raiseMultiNodeSuiteError "invalid cli option, error: " & e.msg
 
       let node = await CodexProcess.startNode(
         config.cliArgs,
         config.debugEnabled,
         $role & $roleIdx
       )
-      await node.waitUntilStarted()
-      trace "node started", nodeName = $role & $roleIdx
+
+      try:
+        await node.waitUntilStarted()
+        trace "node started", nodeName = $role & $roleIdx
+      except NodeProcessError as e:
+        raiseMultiNodeSuiteError "node not started, error: " & e.msg
 
       return node
 
@@ -215,7 +219,7 @@ template multinodesuite*(name: string, body: untyped) =
 
       return await newCodexProcess(validatorIdx, config, Role.Validator)
 
-    proc teardownImpl {.async.} =
+    proc teardownImpl() {.async.} =
       for nodes in @[validators(), clients(), providers()]:
         for node in nodes:
           await node.stop() # also stops rest client
@@ -231,10 +235,27 @@ template multinodesuite*(name: string, body: untyped) =
 
       running = @[]
 
+    template failAndTeardownOnError(message: string, tryBody: untyped) =
+      try:
+        tryBody
+      except CatchableError as er:
+        fatal message, error=er.msg
+        echo "[FATAL] ", message, ": ", er.msg
+        await teardownImpl()
+        when declared(teardownAllIMPL):
+          teardownAllIMPL()
+        fail()
+        quit(1)
+
     setup:
       if var conf =? nodeConfigs.hardhat:
-        let node = await startHardhatNode(conf)
-        running.add RunningNode(role: Role.Hardhat, node: node)
+        try:
+          let node = await startHardhatNode(conf)
+          running.add RunningNode(role: Role.Hardhat, node: node)
+        except CatchableError as e:
+          echo "failed to start hardhat node"
+          fail()
+          quit(1)
 
       try:
         ethProvider = JsonRpcProvider.new("ws://localhost:8545")
@@ -244,37 +265,40 @@ template multinodesuite*(name: string, body: untyped) =
           snapshot = await send(ethProvider, "evm_snapshot")
         accounts = await ethProvider.listAccounts()
       except CatchableError as e:
-        fatal "failed to connect to hardhat", error = e.msg
-        echo "[FATAL] Hardhat not running. Run hardhat manually before executing tests, or include a HardhatConfig in the test setup."
-        await teardownImpl()
+        echo "Hardhat not running. Run hardhat manually " &
+            "before executing tests, or include a " &
+            "HardhatConfig in the test setup."
         fail()
-        return
+        quit(1)
 
       if var clients =? nodeConfigs.clients:
-        for config in clients.configs:
-          let node = await startClientNode(config)
-          running.add RunningNode(
-                        role: Role.Client,
-                        node: node
-                      )
-          if clients().len == 1:
-            bootstrap = CodexProcess(node).client.info()["spr"].getStr()
+        failAndTeardownOnError "failed to start client nodes":
+          for config in clients.configs:
+            let node = await startClientNode(config)
+            running.add RunningNode(
+                          role: Role.Client,
+                          node: node
+                        )
+            if clients().len == 1:
+              bootstrap = CodexProcess(node).client.info()["spr"].getStr()
 
       if var providers =? nodeConfigs.providers:
-        for config in providers.configs.mitems:
-          let node = await startProviderNode(config)
-          running.add RunningNode(
-                        role: Role.Provider,
-                        node: node
-                      )
+        failAndTeardownOnError "failed to start provider nodes":
+          for config in providers.configs.mitems:
+            let node = await startProviderNode(config)
+            running.add RunningNode(
+                          role: Role.Provider,
+                          node: node
+                        )
 
       if var validators =? nodeConfigs.validators:
-        for config in validators.configs.mitems:
-          let node = await startValidatorNode(config)
-          running.add RunningNode(
-                        role: Role.Validator,
-                        node: node
-                      )
+        failAndTeardownOnError "failed to start validator nodes":
+          for config in validators.configs.mitems:
+            let node = await startValidatorNode(config)
+            running.add RunningNode(
+                          role: Role.Validator,
+                          node: node
+                        )
 
     teardown:
       await teardownImpl()
