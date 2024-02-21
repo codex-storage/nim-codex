@@ -8,7 +8,7 @@ import ../examples
 import ./marketplacesuite
 import ./nodeconfigs
 
-export chronicles
+export logutils
 
 logScope:
   topics = "integration test proofs"

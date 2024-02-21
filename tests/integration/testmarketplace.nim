@@ -1,7 +1,7 @@
-import std/math
 import pkg/stew/byteutils
 import pkg/codex/units
 import ./marketplacesuite
+import ./nodeconfigs
 import ../examples
 
 marketplacesuite "Marketplace payouts":
@@ -9,27 +9,27 @@ marketplacesuite "Marketplace payouts":
   test "expired request partially pays out for stored time",
     NodeConfigs(
       # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
-      # hardhat: HardhatConfig().withLogFile()
+      hardhat: HardhatConfig.none,
 
       clients:
-        CodexConfig()
-          .nodes(1)
+        CodexConfigs.init(nodes=1)
           # .debug() # uncomment to enable console log output.debug()
           .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-          .withLogTopics("node", "erasure"),
+          .withLogTopics("node", "erasure")
+          .some,
 
       providers:
-        CodexConfig()
-          .nodes(1)
+        CodexConfigs.init(nodes=5)
           # .debug() # uncomment to enable console log output
           .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-          .withLogTopics("node", "marketplace", "sales", "reservations", "node", "proving", "clock"),
+          .withLogTopics("node", "marketplace", "sales", "reservations", "node", "proving", "clock")
+          .some,
   ):
     let reward = 400.u256
     let duration = 100.periods
     let collateral = 200.u256
     let expiry = 4.periods
-    let datasetSizeInBlocks = 3
+    let datasetSizeInBlocks = 8
     let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
     let client = clients()[0]
     let provider = providers()[0]
@@ -37,7 +37,8 @@ marketplacesuite "Marketplace payouts":
     let providerApi = provider.client
     let startBalanceProvider = await token.balanceOf(provider.ethAccount)
     let startBalanceClient = await token.balanceOf(client.ethAccount)
-    # original data = 3 blocks so slot size will be 4 blocks
+    # dataset size = 8 block, with 5 nodes, the slot size = 4 blocks, give each
+    # node enough availability to fill one slot only
     let slotSize = (DefaultBlockSize * 4.NBytes).Natural.u256
 
     # provider makes storage available
@@ -64,7 +65,7 @@ marketplacesuite "Marketplace payouts":
       reward=reward,
       expiry=expiry,
       collateral=collateral,
-      nodes=3,
+      nodes=5,
       tolerance=1,
       origDatasetSizeInBlocks=datasetSizeInBlocks
     )
