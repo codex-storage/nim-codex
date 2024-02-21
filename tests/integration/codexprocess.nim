@@ -40,17 +40,17 @@ method onOutputLineCaptured(node: CodexProcess, line: string) =
   discard
 
 proc dataDir(node: CodexProcess): string =
-  let config = CodexConf.load(cmdLine = node.arguments)
+  let config = CodexConf.load(cmdLine = node.arguments, quitOnFailure = false)
   return config.dataDir.string
 
 proc ethAccount*(node: CodexProcess): Address =
-  let config = CodexConf.load(cmdLine = node.arguments)
+  let config = CodexConf.load(cmdLine = node.arguments, quitOnFailure = false)
   without ethAccount =? config.ethAccount:
     raiseAssert "eth account not set"
   return Address(ethAccount)
 
 proc apiUrl*(node: CodexProcess): string =
-  let config = CodexConf.load(cmdLine = node.arguments)
+  let config = CodexConf.load(cmdLine = node.arguments, quitOnFailure = false)
   return "http://" & config.apiBindAddress & ":" & $config.apiPort & "/api/codex/v1"
 
 proc client*(node: CodexProcess): CodexClient =

@@ -1,4 +1,3 @@
-import std/math
 from std/times import inMilliseconds
 import pkg/codex/logutils
 import pkg/stew/byteutils
@@ -7,6 +6,7 @@ import ../contracts/deployment
 import ../codex/helpers
 import ../examples
 import ./marketplacesuite
+import ./nodeconfigs
 
 export chronicles
 
@@ -18,21 +18,22 @@ marketplacesuite "Hosts submit regular proofs":
 
   test "hosts submit periodic proofs for slots they fill", NodeConfigs(
     # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
-    # hardhat: HardhatConfig().withLogFile(),
+    hardhat:
+      HardhatConfig.none,
 
     clients:
-      CodexConfig()
-        .nodes(1),
+      CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("node"),
+        # .withLogTopics("node")
+        .some,
 
     providers:
-      CodexConfig()
-        .nodes(1)
+      CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("marketplace", "sales", "reservations", "node"),
+        # .withLogTopics("marketplace", "sales", "reservations", "node")
+        .some,
   ):
     let client0 = clients()[0].client
     let expiry = 5.periods
@@ -72,29 +73,30 @@ marketplacesuite "Simulate invalid proofs":
 
   test "slot is freed after too many invalid proofs submitted", NodeConfigs(
     # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
-    # hardhat: HardhatConfig().withLogFile(),
+    hardhat:
+      HardhatConfig.none,
 
     clients:
-      CodexConfig()
-        .nodes(1),
+      CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("node", "clock"),
+        # .withLogTopics("node", "clock")
+        .some,
 
     providers:
-      CodexConfig()
-        .nodes(1)
-        .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=1),
+      CodexConfigs.init(nodes=1)
+        .withSimulateProofFailures(idx=0, failEveryNProofs=1)
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("marketplace", "sales", "reservations", "node", "clock"),
+        # .withLogTopics("marketplace", "sales", "reservations", "node", "clock")
+        .some,
 
     validators:
-      CodexConfig()
-        .nodes(1)
+      CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         # .withLogTopics("validator", "onchain", "ethers", "clock")
+        .some
   ):
     let client0 = clients()[0].client
     let expiry = 5.periods
@@ -130,29 +132,29 @@ marketplacesuite "Simulate invalid proofs":
 
   test "slot is not freed when not enough invalid proofs submitted", NodeConfigs(
     # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
-    # hardhat: HardhatConfig().withLogFile(),
+    hardhat: HardhatConfig.none,
 
     clients:
-      CodexConfig()
-        .nodes(1),
+      CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("marketplace", "sales", "reservations", "node", "clock"),
+        # .withLogTopics("marketplace", "sales", "reservations", "node", "clock")
+        .some,
 
     providers:
-      CodexConfig()
-        .nodes(1)
-        .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=1),
+      CodexConfigs.init(nodes=1)
+        .withSimulateProofFailures(idx=0, failEveryNProofs=1)
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("marketplace", "sales", "reservations", "node"),
+        # .withLogTopics("marketplace", "sales", "reservations", "node")
+        .some,
 
     validators:
-      CodexConfig()
-        .nodes(1)
+      CodexConfigs.init(nodes=1)
         # .debug()
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         # .withLogTopics("validator", "onchain", "ethers", "clock")
+        .some
   ):
     let client0 = clients()[0].client
     let expiry = 5.periods

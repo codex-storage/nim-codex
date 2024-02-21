@@ -54,6 +54,8 @@ method start*(node: NodeProcess) {.base, async.} =
     processOptions = poptions
 
   try:
+    if node.debug:
+      echo "starting codex node with args: ", node.arguments.join(" ")
     node.process = await startProcess(
       node.executable,
       node.workingDir,
@@ -149,10 +151,11 @@ proc waitUntilStarted*(node: NodeProcess) {.async.} =
   let started = newFuture[void]()
   try:
     discard node.captureOutput(node.startedOutput, started).track(node)
-    await started.wait(5.seconds)
+    await started.wait(35.seconds) # allow enough time for proof generation
   except AsyncTimeoutError as e:
     # attempt graceful shutdown in case node was partially started, prevent
     # zombies
+    # TODO: raise error here so that all nodes can be shutdown gracefully
     await node.stop()
     raiseAssert "node did not output '" & node.startedOutput & "'"
 
