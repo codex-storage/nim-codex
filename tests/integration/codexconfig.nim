@@ -22,7 +22,6 @@ type
   CodexConfig* = object
     cliOptions: Table[StartUpCmd, Table[string, CliOption]]
     cliPersistenceOptions: Table[PersistenceCmd, Table[string, CliOption]]
-    parsedCli: CodexConf
     debugEnabled*: bool
   CodexConfigError* = object of CatchableError
 
@@ -47,9 +46,9 @@ proc checkBounds(self: CodexConfigs, idx: int) {.raises: [CodexConfigError].} =
   if idx notin 0..<self.configs.len:
     raiseCodexConfigError "index must be in bounds of the number of nodes"
 
-proc validateCliArgs(
-  config: var CodexConfig,
-  msg: string) {.gcsafe, raises: [CodexConfigError].} =
+proc buildConfig(
+  config: CodexConfig,
+  msg: string): CodexConf {.gcsafe, raises: [CodexConfigError].} =
 
   proc postFix(msg: string): string =
     if msg.len > 0:
@@ -57,8 +56,7 @@ proc validateCliArgs(
     else: ""
 
   try:
-    config.parsedCli = CodexConf.load(cmdLine = config.cliArgs,
-                                      quitOnFailure = false)
+    return CodexConf.load(cmdLine = config.cliArgs, quitOnFailure = false)
   except ConfigurationError as e:
     raiseCodexConfigError msg & e.msg.postFix
   except Exception as e:
@@ -73,7 +71,7 @@ proc addCliOption*(
   var options = config.cliPersistenceOptions.getOrDefault(group)
   options[cliOption.key] = cliOption # overwrite if already exists
   config.cliPersistenceOptions[group] = options
-  config.validateCliArgs("Invalid cli arg " & $cliOption)
+  discard config.buildConfig("Invalid cli arg " & $cliOption)
 
 proc addCliOption*(
   config: var CodexConfig,
@@ -90,7 +88,7 @@ proc addCliOption*(
   var options = config.cliOptions.getOrDefault(group)
   options[cliOption.key] = cliOption # overwrite if already exists
   config.cliOptions[group] = options
-  config.validateCliArgs("Invalid cli arg " & $cliOption)
+  discard config.buildConfig("Invalid cli arg " & $cliOption)
 
 proc addCliOption*(
   config: var CodexConfig,
@@ -135,11 +133,13 @@ proc cliArgs*(
     return args
 
 proc logFile*(config: CodexConfig): ?string {.raises: [CodexConfigError].} =
-  config.parsedCli.logFile
+  let built = config.buildConfig("Invalid codex config cli params")
+  built.logFile
 
 proc logLevel*(config: CodexConfig): LogLevel {.raises: [CodexConfigError].} =
   convertError:
-    return parseEnum[LogLevel](config.parsedCli.logLevel.toUpperAscii)
+    let built = config.buildConfig("Invalid codex config cli params")
+    return parseEnum[LogLevel](built.logLevel.toUpperAscii)
 
 proc debug*(
   self: CodexConfigs,
@@ -245,7 +245,8 @@ proc logLevelWithTopics(
 
   convertError:
     var logLevel = LogLevel.INFO
-    logLevel = parseEnum[LogLevel](config.parsedCli.logLevel.toUpperAscii)
+    let built = config.buildConfig("Invalid codex config cli params")
+    logLevel = parseEnum[LogLevel](built.logLevel.toUpperAscii)
     let level = $logLevel & ";TRACE: " & topics.join(",")
     return level
 
