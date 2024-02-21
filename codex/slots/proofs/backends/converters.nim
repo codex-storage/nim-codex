@@ -54,14 +54,14 @@ func toG1*(g: CircomG1): G1Point =
 
 func toG2*(g: CircomG2): G2Point =
   G2Point(
-    x: [
-      UInt256.fromBytesLE(g.x[0]),
-      UInt256.fromBytesLE(g.x[1])
-    ],
-    y: [
-      UInt256.fromBytesLE(g.y[0]),
-      UInt256.fromBytesLE(g.y[1])
-    ])
+    x: Fp2Element(
+      real: UInt256.fromBytesLE(g.x[0]),
+      imag: UInt256.fromBytesLE(g.x[1])
+    ),
+    y: Fp2Element(
+      real: UInt256.fromBytesLE(g.y[0]),
+      imag: UInt256.fromBytesLE(g.y[1])
+    ))
 
 func toGroth16Proof*(proof: CircomProof): Groth16Proof =
   Groth16Proof(
