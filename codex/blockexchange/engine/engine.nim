@@ -269,7 +269,7 @@ proc scheduleTasks(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.asyn
 
           break # do next peer
 
-proc issueCancellations(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
+proc cancelBlocks(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
   ## Tells neighboring peers that we're no longer interested in a block.
   trace "Sending block request cancellations to peers", addrs = addrs.len
 
@@ -277,7 +277,7 @@ proc issueCancellations(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
     (peer: it, request: b.network.request.sendWantCancellations(peer = it.id,
       addresses = addrs)))
 
-  discard await allFinished(sends.mapIt(it.request))
+  await allFutures(sends.mapIt(it.request))
 
   let failed = sends.filterIt(it.request.failed).mapIt(it.peer.id)
   if failed.len > 0:
@@ -294,7 +294,7 @@ proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.asy
     if bd.address.leaf:
       cids.incl(bd.address.treeCid)
 
-  await b.issueCancellations(blocksDelivery.mapIt(it.address))
+  await b.cancelBlocks(blocksDelivery.mapIt(it.address))
   b.discovery.queueProvideBlocksReq(cids.toSeq)
 
 proc resolveBlocks*(b: BlockExcEngine, blocks: seq[Block]) {.async.} =
