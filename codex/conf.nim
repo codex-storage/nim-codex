@@ -38,7 +38,7 @@ import ./stores
 import ./units
 import ./utils
 
-export units, net, codextypes
+export units, net, codextypes, logutils
 
 export
   DefaultQuotaBytes,
