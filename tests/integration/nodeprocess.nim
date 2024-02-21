@@ -23,6 +23,7 @@ type
     debug: bool
     trackedFutures*: TrackedFutures
     name*: string
+  NodeProcessError* = object of CatchableError
 
 method workingDir(node: NodeProcess): string {.base.} =
   raiseAssert "not implemented"
@@ -152,12 +153,14 @@ proc waitUntilStarted*(node: NodeProcess) {.async.} =
   try:
     discard node.captureOutput(node.startedOutput, started).track(node)
     await started.wait(35.seconds) # allow enough time for proof generation
-  except AsyncTimeoutError as e:
+  except AsyncTimeoutError:
     # attempt graceful shutdown in case node was partially started, prevent
     # zombies
-    # TODO: raise error here so that all nodes can be shutdown gracefully
     await node.stop()
-    raiseAssert "node did not output '" & node.startedOutput & "'"
+    # raise error here so that all nodes (not just this one) can be
+    # shutdown gracefully
+    raise newException(NodeProcessError, "node did not output '" &
+      node.startedOutput & "'")
 
 proc restart*(node: NodeProcess) {.async.} =
   await node.stop()
