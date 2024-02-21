@@ -48,7 +48,7 @@ proc checkBounds(self: CodexConfigs, idx: int) {.raises: [CodexConfigError].} =
 
 proc buildConfig(
   config: CodexConfig,
-  msg: string): CodexConf {.gcsafe, raises: [CodexConfigError].} =
+  msg: string): CodexConf {.raises: [CodexConfigError].} =
 
   proc postFix(msg: string): string =
     if msg.len > 0:
@@ -66,7 +66,7 @@ proc buildConfig(
 proc addCliOption*(
   config: var CodexConfig,
   group = PersistenceCmd.noCmd,
-  cliOption: CliOption) {.gcsafe, raises: [CodexConfigError].} =
+  cliOption: CliOption) {.raises: [CodexConfigError].} =
 
   var options = config.cliPersistenceOptions.getOrDefault(group)
   options[cliOption.key] = cliOption # overwrite if already exists
@@ -76,14 +76,14 @@ proc addCliOption*(
 proc addCliOption*(
   config: var CodexConfig,
   group = PersistenceCmd.noCmd,
-  key: string, value = "") {.gcsafe, raises: [CodexConfigError].} =
+  key: string, value = "") {.raises: [CodexConfigError].} =
 
   config.addCliOption(group, CliOption(key: key, value: value))
 
 proc addCliOption*(
   config: var CodexConfig,
   group = StartUpCmd.noCmd,
-  cliOption: CliOption) {.gcsafe, raises: [CodexConfigError].} =
+  cliOption: CliOption) {.raises: [CodexConfigError].} =
 
   var options = config.cliOptions.getOrDefault(group)
   options[cliOption.key] = cliOption # overwrite if already exists
@@ -93,19 +93,19 @@ proc addCliOption*(
 proc addCliOption*(
   config: var CodexConfig,
   group = StartUpCmd.noCmd,
-  key: string, value = "") {.gcsafe, raises: [CodexConfigError].} =
+  key: string, value = "") {.raises: [CodexConfigError].} =
 
   config.addCliOption(group, CliOption(key: key, value: value))
 
 proc addCliOption*(
   config: var CodexConfig,
-  cliOption: CliOption) {.gcsafe, raises: [CodexConfigError].} =
+  cliOption: CliOption) {.raises: [CodexConfigError].} =
 
   config.addCliOption(StartUpCmd.noCmd, cliOption)
 
 proc addCliOption*(
   config: var CodexConfig,
-  key: string, value = "") {.gcsafe, raises: [CodexConfigError].} =
+  key: string, value = "") {.raises: [CodexConfigError].} =
 
   config.addCliOption(StartUpCmd.noCmd, CliOption(key: key, value: value))
 
