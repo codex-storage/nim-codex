@@ -142,7 +142,7 @@ asyncchecksuite "NetworkStore engine handlers":
     localStore: BlockStore
     blocks: seq[Block]
 
-  const NOP_SEND_WANT_LIST = proc(
+  const NopSendWantListProc = proc(
     id: PeerId,
     addresses: seq[BlockAddress],
     priority: int32 = 0,
@@ -286,7 +286,7 @@ asyncchecksuite "NetworkStore engine handlers":
 
     # Install NOP for want list sends so cancellations don't cause a crash
     engine.network = BlockExcNetwork(
-      request: BlockExcRequest(sendWantList: NOP_SEND_WANT_LIST))
+      request: BlockExcRequest(sendWantList: NopSendWantListProc))
 
     await engine.blocksDeliveryHandler(peerId, blocksDelivery)
     let resolved = await allFinished(pending)
@@ -322,7 +322,7 @@ asyncchecksuite "NetworkStore engine handlers":
           done.complete(),
 
         # Install NOP for want list sends so cancellations don't cause a crash
-        sendWantList: NOP_SEND_WANT_LIST
+        sendWantList: NopSendWantListProc
     ))
 
     await engine.blocksDeliveryHandler(peerId, blocks.mapIt(

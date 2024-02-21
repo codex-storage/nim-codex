@@ -273,12 +273,16 @@ proc issueCancellations(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
   ## Tells neighboring peers that we're no longer interested in a block.
   trace "Sending block request cancellations to peers", addrs = addrs.len
 
-  for neighbor in b.peers:
-    await b.network.request.sendWantList(
-      id = neighbor.id,
-      addresses = addrs,
-      cancel = true
-    )
+  let sends = b.peers.mapIt(
+    (peer: it, request: b.network.request.sendWantList(id = it.id,
+      addresses = addrs, cancel = true))
+  )
+
+  discard await allFinished(sends.mapIt(it.request))
+
+  let failed = sends.filterIt(it.request.failed).mapIt(it.peer.id)
+  if failed.len > 0:
+    warn "Failed to send block request cancellations to peers", failed = $failed
 
 proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
   trace "Resolving blocks", blocks = blocksDelivery.len
@@ -291,7 +295,7 @@ proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.asy
     if bd.address.leaf:
       cids.incl(bd.address.treeCid)
 
-  asyncSpawn b.issueCancellations(blocksDelivery.mapIt(it.address))
+  await b.issueCancellations(blocksDelivery.mapIt(it.address))
   b.discovery.queueProvideBlocksReq(cids.toSeq)
 
 proc resolveBlocks*(b: BlockExcEngine, blocks: seq[Block]) {.async.} =
