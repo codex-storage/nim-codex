@@ -1,4 +1,5 @@
 import pkg/questionable/results
+import ../../clock
 import ../../logutils
 import ../statemachine
 import ../salesagent
@@ -25,12 +26,19 @@ method onFailed*(state: SaleInitialProving, request: StorageRequest): ?State =
 method run*(state: SaleInitialProving, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
   let context = SalesAgent(machine).context
+  let market = context.market
+  let clock = context.clock
 
   without request =? data.request:
     raiseAssert "no sale request"
 
   without onProve =? context.onProve:
     raiseAssert "onProve callback not set"
+
+  debug "Waiting until next period"
+  let periodicity = await market.periodicity()
+  let period = periodicity.periodOf(clock.now().u256)
+  await clock.waitUntil(periodicity.periodEnd(period).truncate(int64) + 1)
 
   debug "Generating initial proof", requestId = data.requestId
   let
