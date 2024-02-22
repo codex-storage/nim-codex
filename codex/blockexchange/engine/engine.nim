@@ -273,15 +273,15 @@ proc cancelBlocks(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
   ## Tells neighboring peers that we're no longer interested in a block.
   trace "Sending block request cancellations to peers", addrs = addrs.len
 
-  let sends = b.peers.mapIt(
-    (peer: it, request: b.network.request.sendWantCancellations(peer = it.id,
-      addresses = addrs)))
+  let failed = (await allFinished(
+    b.peers.mapIt(
+      b.network.request.sendWantCancellations(
+        peer = it.id,
+        addresses = addrs))))
+    .filterIt(it.failed)
 
-  await allFutures(sends.mapIt(it.request))
-
-  let failed = sends.filterIt(it.request.failed).mapIt(it.peer.id)
   if failed.len > 0:
-    trace "Failed to send block request cancellations to peers", failed = $failed
+    trace "Failed to send block request cancellations to peers", peers = failed.len
 
 proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
   trace "Resolving blocks", blocks = blocksDelivery.len
