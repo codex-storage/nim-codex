@@ -14,12 +14,15 @@ import ../../../asynctest
 import ../../examples
 import ../../helpers
 import ../../helpers/mockmarket
+import ../../helpers/mockclock
+import ../helpers/periods
 
 asyncchecksuite "sales state 'initialproving'":
   let proof = Groth16Proof.example
   let request = StorageRequest.example
   let slotIndex = (request.ask.slots div 2).u256
   let market = MockMarket.new()
+  let clock = MockClock.new()
 
   var state: SaleInitialProving
   var agent: SalesAgent
@@ -31,13 +34,20 @@ asyncchecksuite "sales state 'initialproving'":
                           return success(proof)
     let context = SalesContext(
       onProve: onProve.some,
-      market: market
+      market: market,
+      clock: clock
     )
     agent = newSalesAgent(context,
                           request.id,
                           slotIndex,
                           request.some)
     state = SaleInitialProving.new()
+
+  proc allowProofToStart {.async.} =
+    # wait until we're in initialproving state
+    await sleepAsync(10.millis)
+    # it won't start proving until the next period
+    await clock.advanceToNextPeriod(market)
 
   test "switches to cancelled state when request expires":
     let next = state.onCancelled(request)
@@ -48,7 +58,10 @@ asyncchecksuite "sales state 'initialproving'":
     check !next of SaleFailed
 
   test "switches to filling state when initial proving is complete":
-    let next = await state.run(agent)
+    let future = state.run(agent)
+    await allowProofToStart()
+    let next = await future
+
     check !next of SaleFilling
     check SaleFilling(!next).proof == proof
 
@@ -56,6 +69,9 @@ asyncchecksuite "sales state 'initialproving'":
     market.proofChallenge = ProofChallenge.example
 
     let future = state.run(agent)
+    await allowProofToStart()
+
+    discard await future
 
     check receivedChallenge == market.proofChallenge
 
@@ -65,12 +81,16 @@ asyncchecksuite "sales state 'initialproving'":
 
     let proofFailedContext = SalesContext(
       onProve: onProveFailed.some,
-      market: market
+      market: market,
+      clock: clock
     )
     agent = newSalesAgent(proofFailedContext,
                           request.id,
                           slotIndex,
                           request.some)
 
-    let next = await state.run(agent)
+    let future = state.run(agent)
+    await allowProofToStart()
+    let next = await future
+
     check !next of SaleErrored
