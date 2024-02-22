@@ -21,7 +21,8 @@ type
     configs*: seq[CodexConfig]
   CodexConfig* = object
     cliOptions: Table[StartUpCmd, Table[string, CliOption]]
-    cliPersistenceOptions: Table[PersistenceCmd, Table[string, CliOption]]
+    # TODO: uncomment once PersistenceCmd is added
+    # cliPersistenceOptions: Table[PersistenceCmd, Table[string, CliOption]]
     debugEnabled*: bool
   CodexConfigError* = object of CatchableError
 
@@ -63,22 +64,24 @@ proc buildConfig(
     ## TODO: remove once proper exception handling added to nim-confutils
     raiseCodexConfigError msg & e.msg.postFix
 
-proc addCliOption*(
-  config: var CodexConfig,
-  group = PersistenceCmd.noCmd,
-  cliOption: CliOption) {.raises: [CodexConfigError].} =
+# TODO: uncomment once PersistenceCmd is added
+# proc addCliOption*(
+#   config: var CodexConfig,
+#   group = PersistenceCmd.noCmd,
+#   cliOption: CliOption) {.raises: [CodexConfigError].} =
 
-  var options = config.cliPersistenceOptions.getOrDefault(group)
-  options[cliOption.key] = cliOption # overwrite if already exists
-  config.cliPersistenceOptions[group] = options
-  discard config.buildConfig("Invalid cli arg " & $cliOption)
+#   var options = config.cliPersistenceOptions.getOrDefault(group)
+#   options[cliOption.key] = cliOption # overwrite if already exists
+#   config.cliPersistenceOptions[group] = options
+#   discard config.buildConfig("Invalid cli arg " & $cliOption)
 
-proc addCliOption*(
-  config: var CodexConfig,
-  group = PersistenceCmd.noCmd,
-  key: string, value = "") {.raises: [CodexConfigError].} =
+# TODO: uncomment once PersistenceCmd is added
+# proc addCliOption*(
+#   config: var CodexConfig,
+#   group = PersistenceCmd.noCmd,
+#   key: string, value = "") {.raises: [CodexConfigError].} =
 
-  config.addCliOption(group, CliOption(key: key, value: value))
+#   config.addCliOption(group, CliOption(key: key, value: value))
 
 proc addCliOption*(
   config: var CodexConfig,
@@ -123,12 +126,13 @@ proc cliArgs*(
         var opts = config.cliOptions[cmd].values.toSeq
         args = args.concat( opts.map(o => $o) )
 
-    for cmd in PersistenceCmd:
-      if config.cliPersistenceOptions.hasKey(cmd):
-        if cmd != PersistenceCmd.noCmd:
-          args.add $cmd
-        var opts = config.cliPersistenceOptions[cmd].values.toSeq
-        args = args.concat( opts.map(o => $o) )
+    # TODO: uncomment once PersistenceCmd is added
+    # for cmd in PersistenceCmd:
+    #   if config.cliPersistenceOptions.hasKey(cmd):
+    #     if cmd != PersistenceCmd.noCmd:
+    #       args.add $cmd
+    #     var opts = config.cliPersistenceOptions[cmd].values.toSeq
+    #     args = args.concat( opts.map(o => $o) )
 
     return args
 
