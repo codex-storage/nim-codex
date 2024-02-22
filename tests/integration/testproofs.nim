@@ -30,9 +30,9 @@ marketplacesuite "Hosts submit regular proofs":
 
     providers:
       CodexConfigs.init(nodes=5)
-        # .debug() # uncomment to enable console log output
+        .debug(idx=0) # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node")
+        .withLogTopics("marketplace", "sales", "reservations", "node", "clock")
         .some,
   ):
     let client0 = clients()[0].client
@@ -51,9 +51,9 @@ marketplacesuite "Hosts submit regular proofs":
       duration=totalPeriods.periods,
       expiry=30.periods,
       nodes=5,
-      tolerance=1,
+      tolerance=2,
       origDatasetSizeInBlocks = datasetSizeInBlocks)
-    check eventually client0.purchaseStateIs(purchaseId, "started")
+    check eventually(client0.purchaseStateIs(purchaseId, "started"), timeout=totalPeriods.periods.int * 1000)
 
     var proofWasSubmitted = false
     proc onProofSubmitted(event: ProofSubmitted) =

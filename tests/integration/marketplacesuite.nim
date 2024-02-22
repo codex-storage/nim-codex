@@ -1,5 +1,5 @@
 import pkg/chronos
-import pkg/ethers/erc20
+import pkg/ethers/erc20 except `%`
 from pkg/libp2p import Cid
 import pkg/codex/contracts/marketplace as mp
 import pkg/codex/periods
@@ -60,7 +60,7 @@ template marketplacesuite*(name: string, body: untyped) =
           maxCollateral=200.u256
         )
 
-    proc validateRequest(nodes, tolerance, origDatasetSizeInBlocks: uint) =
+    proc validateRequest(nodes, tolerance, origDatasetSizeInBlocks: int) =
       if nodes > 1:
         doAssert(origDatasetSizeInBlocks >= 3,
                   "dataset size must be greater than or equal to 3 blocks with " &
@@ -76,6 +76,8 @@ template marketplacesuite*(name: string, body: untyped) =
                         nodes = providers().len,
                         tolerance = 0,
                         origDatasetSizeInBlocks: int): Future[PurchaseId] {.async.} =
+
+      validateRequest(nodes, tolerance, origDatasetSizeInBlocks)
 
       let expiry = (await ethProvider.currentTime()) + expiry.u256
 
@@ -93,18 +95,14 @@ template marketplacesuite*(name: string, body: untyped) =
       return id
 
     proc continuouslyAdvanceEvery(every: chronos.Duration) {.async.} =
-      try:
-        while true:
-          await advanceToNextPeriod()
-          await sleepAsync(every)
-      except CancelledError:
-        discard
+      discard await ethProvider.send("evm_setAutomine", @[%false])
+      discard await ethProvider.send("evm_setIntervalMining", @[%5000]);
 
     setup:
       # TODO: This is currently the address of the marketplace with a dummy
       # verifier. Use real marketplace address, `Marketplace.address` once we
       # can generate actual Groth16 ZK proofs.
-      let marketplaceAddress = Marketplace.address(dummyVerifier = true)
+      let marketplaceAddress = Marketplace.address(dummyVerifier = false)
       marketplace = Marketplace.new(marketplaceAddress, ethProvider.getSigner())
       let tokenAddress = await marketplace.token()
       token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
@@ -112,7 +110,7 @@ template marketplacesuite*(name: string, body: untyped) =
       period = config.proofs.period.truncate(uint64)
       periodicity = Periodicity(seconds: period.u256)
 
-      continuousMineFut = continuouslyAdvanceEvery(chronos.millis(500))
+      continuousMineFut = continuouslyAdvanceEvery(chronos.millis(30000))
 
     teardown:
       await continuousMineFut.cancelAndWait()
