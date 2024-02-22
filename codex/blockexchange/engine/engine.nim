@@ -287,11 +287,7 @@ proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.asy
   await b.scheduleTasks(blocksDelivery)
   var cids = initHashSet[Cid]()
   for bd in blocksDelivery:
-    echo "call incl ", $bd
-    echo "call incl ", $bd.blk.cid
-    echo "call incl ", $bd.blk
     cids.incl(bd.blk.cid)
-    echo "called incl ", $bd.blk.cid
     if bd.address.leaf:
       cids.incl(bd.address.treeCid)
   b.discovery.queueProvideBlocksReq(cids.toSeq)
