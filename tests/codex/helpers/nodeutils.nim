@@ -62,3 +62,6 @@ proc connectNodes*(nodes: seq[Switch]) {.async.} =
     for node in nodes:
       if dialer.peerInfo.peerId != node.peerInfo.peerId:
         await dialer.connect(node.peerInfo.peerId, node.peerInfo.addrs)
+
+proc connectNodes*(nodes: seq[NodesComponents]) {.async.} =
+  await connectNodes(nodes.mapIt( it.switch ))
