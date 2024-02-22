@@ -47,22 +47,8 @@ method stop*(clock: OnChainClock) {.async.} =
   clock.started = false
 
 method now*(clock: OnChainClock): SecondsSince1970 =
-  when codex_use_hardhat:
-    # hardhat's latest block.timestamp is usually 1s behind the block timestamp
-    # in the newHeads event. When testing, always return the latest block.
-    try:
-      if queriedBlock =? (waitFor clock.provider.getBlock(BlockTag.latest)):
-        trace "using last block timestamp for clock.now",
-          lastBlockTimestamp = queriedBlock.timestamp.truncate(int64),
-          cachedBlockTimestamp = clock.lastBlockTime.truncate(int64)
-        return queriedBlock.timestamp.truncate(int64)
-    except CatchableError as e:
-      warn "failed to get latest block timestamp", error = e.msg
-      return clock.lastBlockTime.truncate(int64)
-
-  else:
-    doAssert clock.started, "clock should be started before calling now()"
-    return toUnix(getTime() + clock.offset)
+  doAssert clock.started, "clock should be started before calling now()"
+  return toUnix(getTime() + clock.offset)
 
 method waitUntil*(clock: OnChainClock, time: SecondsSince1970) {.async.} =
   while (let difference = time - clock.now(); difference > 0):
