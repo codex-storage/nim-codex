@@ -57,13 +57,22 @@ asyncchecksuite "sales state 'initialproving'":
     let next = state.onFailed(request)
     check !next of SaleFailed
 
-  test "switches to filling state when initial proving is complete":
+  test "waits for the beginning of the period to get the challenge":
+    let future = state.run(agent)
+    await sleepAsync(10.millis)
+    check not future.finished
+    await allowProofToStart()
+    discard await future
+
+  test "waits another period when the proof pointer is about to wrap around":
+    market.proofPointer = 250
     let future = state.run(agent)
     await allowProofToStart()
-    let next = await future
-
-    check !next of SaleFilling
-    check SaleFilling(!next).proof == proof
+    await sleepAsync(10.millis)
+    check not future.finished
+    market.proofPointer = 100
+    await allowProofToStart()
+    discard await future
 
   test "onProve callback provides proof challenge":
     market.proofChallenge = ProofChallenge.example
@@ -74,6 +83,14 @@ asyncchecksuite "sales state 'initialproving'":
     discard await future
 
     check receivedChallenge == market.proofChallenge
+
+  test "switches to filling state when initial proving is complete":
+    let future = state.run(agent)
+    await allowProofToStart()
+    let next = await future
+
+    check !next of SaleFilling
+    check SaleFilling(!next).proof == proof
 
   test "switches to errored state when onProve callback fails":
     let onProveFailed: OnProve = proc(slot: Slot, challenge: ProofChallenge): Future[?!Groth16Proof] {.async.} =
