@@ -22,6 +22,10 @@ Instructions below correspond roughly to environmental setups in nim-codex's [CI
 
 Other approaches may be viable. On macOS, some users may prefer [MacPorts](https://www.macports.org/) to [Homebrew](https://brew.sh/). On Windows, rather than use MSYS2, some users may prefer to install developer tools with [winget](https://docs.microsoft.com/en-us/windows/package-manager/winget/), [Scoop](https://scoop.sh/), or [Chocolatey](https://chocolatey.org/), or download installers for e.g. Make and CMake while otherwise relying on official Windows developer tools. Community contributions to these docs and our build system are welcome!
 
+### Rust
+
+The current implementation of Codex's zero-knowledge proving circuit requires the installation of rust v1.76.0 or greater. Be sure to install it for your OS and add it to your terminal's path such that the command `cargo --version` gives a compatible version.
+
 ### Linux
 
 *Package manager commands may require `sudo` depending on OS setup.*
@@ -69,7 +73,8 @@ Launch an MSYS2 [environment](https://www.msys2.org/docs/environments/). UCRT64 
 
 Assuming a UCRT64 environment, in Bash run
 ```text
-$ pacman -S base-devel git unzip mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake
+$ pacman -Suy
+$ pacman -S base-devel git unzip mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-rust
 ```
 
 <!-- #### Headless Windows container -->
@@ -100,7 +105,6 @@ File: `C:/Users/<username>/AppData/Roaming/Code/User/settings.json`
     }
 }
 ```
-
 
 ### Other
 
