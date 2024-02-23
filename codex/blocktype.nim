@@ -31,7 +31,7 @@ import ./codextypes
 export errors, logutils, units, codextypes
 
 type
-  Block* = object
+  Block* = ref object
     cid*: Cid
     data*: seq[byte]
 
