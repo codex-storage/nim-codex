@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Environment variables from files
+if [[ -n "${ENV_PATH}" ]]; then
+  [[ -f ${ENV_PATH} ]] && source ${ENV_PATH} || for f in ${ENV_PATH}/*; do source $f; done
+fi
+
 # Parameters
 if [[ -z "${CODEX_NAT}" ]]; then
   if [[ "${NAT_IP_AUTO}" == "true" && -z "${NAT_PUBLIC_IP_AUTO}" ]]; then
