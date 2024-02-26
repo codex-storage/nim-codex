@@ -167,7 +167,7 @@ marketplacesuite "Simulate invalid proofs":
 
     providers:
       CodexConfigs.init(nodes=5)
-        .withSimulateProofFailures(idx=0, failEveryNProofs=3)
+        .withSimulateProofFailures(idx=4, failEveryNProofs=3)
         # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("marketplace", "sales", "reservations", "node")
@@ -181,38 +181,42 @@ marketplacesuite "Simulate invalid proofs":
         .some
   ):
     let client0 = clients()[0].client
-    let totalPeriods = 25
+    let duration = 25.periods
+    let expiry = 10.periods
 
     let datasetSizeInBlocks = 8
     let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
     # dataset size = 8 block, with 5 nodes, the slot size = 4 blocks, give each
     # node enough availability to fill one slot only
-    createAvailabilities((DefaultBlockSize * 4.NBytes).Natural, totalPeriods.periods)
+    let slotSize = DefaultBlockSize.int * 4
 
     let cid = client0.upload(data).get
 
     let purchaseId = await client0.requestStorage(
       cid,
-      duration=totalPeriods.periods,
-      expiry=30.periods,
+      duration=duration,
+      expiry=expiry,
+      proofProbability=1,
       nodes=5,
-      tolerance=1,
+      tolerance=2,
       origDatasetSizeInBlocks=datasetSizeInBlocks)
+
     let requestId = client0.requestId(purchaseId).get
+
+    discard await waitForAllSlotsFilled(slotSize, duration)
 
     check eventually client0.purchaseStateIs(purchaseId, "started")
 
     var slotWasFreed = false
     proc onSlotFreed(event: SlotFreed) =
       if event.requestId == requestId and
-          event.slotIndex == 0.u256:
+          event.slotIndex == 4.u256:
         slotWasFreed = true
 
     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
     # check not freed
-    let currentPeriod = await getCurrentPeriod()
-    check not eventuallyP(slotWasFreed, currentPeriod + totalPeriods.u256 + 1)
+    check not eventually(slotWasFreed, timeout=duration.int*1000)
 
     await subscription.unsubscribe()
 
