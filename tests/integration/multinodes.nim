@@ -1,167 +1,276 @@
 import std/os
-import std/macros
-import std/httpclient
+import std/sequtils
+import std/strutils
+import std/sugar
+import std/times
 import pkg/codex/logutils
-import ../ethertest
-import ./codexclient
-import ./nodes
+import pkg/chronos/transports/stream
+import pkg/ethers
+import ./hardhatprocess
+import ./codexprocess
+import ./hardhatconfig
+import ./codexconfig
+import ../asynctest
+import ../checktest
 
-export ethertest
-export codexclient
-export nodes
+export asynctest
+export ethers except `%`
+export hardhatprocess
+export codexprocess
+export hardhatconfig
+export codexconfig
 
 type
   RunningNode* = ref object
     role*: Role
     node*: NodeProcess
-    restClient*: CodexClient
-    datadir*: string
-    ethAccount*: Address
-  StartNodes* = object
-    clients*: uint
-    providers*: uint
-    validators*: uint
-  DebugNodes* = object
-    client*: bool
-    ethProvider*: bool
-    validator*: bool
-    topics*: string
+  NodeConfigs* = object
+    clients*: CodexConfig
+    providers*: CodexConfig
+    validators*: CodexConfig
+    hardhat*: HardhatConfig
   Role* {.pure.} = enum
     Client,
     Provider,
-    Validator
+    Validator,
+    Hardhat
 
-proc new*(_: type RunningNode,
-          role: Role,
-          node: NodeProcess,
-          restClient: CodexClient,
-          datadir: string,
-          ethAccount: Address): RunningNode =
-  RunningNode(role: role,
-              node: node,
-              restClient: restClient,
-              datadir: datadir,
-              ethAccount: ethAccount)
+proc nextFreePort(startPort: int): Future[int] {.async.} =
 
-proc init*(_: type StartNodes,
-          clients, providers, validators: uint): StartNodes =
-  StartNodes(clients: clients, providers: providers, validators: validators)
+  proc client(server: StreamServer, transp: StreamTransport) {.async.} =
+    await transp.closeWait()
 
-proc init*(_: type DebugNodes,
-          client, ethProvider, validator: bool,
-          topics: string = "validator,proving,market"): DebugNodes =
-  DebugNodes(client: client, ethProvider: ethProvider, validator: validator,
-             topics: topics)
+  var port = startPort
+  while true:
+    trace "checking if port is free", port
+    try:
+      let host = initTAddress("127.0.0.1", port)
+      # We use ReuseAddr here only to be able to reuse the same IP/Port when
+      # there's a TIME_WAIT socket. It's useful when running the test multiple
+      # times or if a test ran previously using the same port.
+      var server = createStreamServer(host, client, {ReuseAddr})
+      trace "port is free", port
+      await server.closeWait()
+      return port
+    except TransportOsError:
+      trace "port is not free", port
+      inc port
 
-template multinodesuite*(name: string,
-  startNodes: StartNodes, debugNodes: DebugNodes, body: untyped) =
+template multinodesuite*(name: string, body: untyped) =
 
-  if (debugNodes.client or debugNodes.ethProvider) and
-      (enabledLogLevel > LogLevel.TRACE or
-      enabledLogLevel == LogLevel.NONE):
-    echo ""
-    echo "More test debug logging is available by running the tests with " &
-      "'-d:chronicles_log_level=TRACE " &
-      "-d:chronicles_disabled_topics=websock " &
-      "-d:chronicles_default_output_device=stdout " &
-      "-d:chronicles_sinks=textlines'"
-    echo ""
-
-  ethersuite name:
+  asyncchecksuite name:
 
     var running: seq[RunningNode]
     var bootstrap: string
+    let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
+    var currentTestName = ""
+    var nodeConfigs: NodeConfigs
+    var ethProvider {.inject, used.}: JsonRpcProvider
+    var accounts {.inject, used.}: seq[Address]
+    var snapshot: JsonNode
 
-    proc newNodeProcess(index: int,
-                        addlOptions: seq[string],
-                        debug: bool): (NodeProcess, string, Address) =
+    template test(tname, startNodeConfigs, tbody) =
+      currentTestName = tname
+      nodeConfigs = startNodeConfigs
+      test tname:
+        tbody
 
-      if index > accounts.len - 1:
-        raiseAssert("Cannot start node at index " & $index &
+    proc sanitize(pathSegment: string): string =
+      var sanitized = pathSegment
+      for invalid in invalidFilenameChars.items:
+        sanitized = sanitized.replace(invalid, '_')
+      sanitized
+
+    proc getLogFile(role: Role, index: ?int): string =
+      # create log file path, format:
+      # tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+
+      var logDir = currentSourcePath.parentDir() /
+        "logs" /
+        sanitize($starttime & " " & name) /
+        sanitize($currentTestName)
+      createDir(logDir)
+
+      var fn = $role
+      if idx =? index:
+        fn &= "_" & $idx
+      fn &= ".log"
+
+      let fileName = logDir / fn
+      return fileName
+
+    proc newHardhatProcess(
+      config: HardhatConfig,
+      role: Role
+    ): Future[NodeProcess] {.async.} =
+
+      var args: seq[string] = @[]
+      if config.logFile:
+        let updatedLogFile = getLogFile(role, none int)
+        args.add "--log-file=" & updatedLogFile
+
+      let node = await HardhatProcess.startNode(args, config.debugEnabled, "hardhat")
+      await node.waitUntilStarted()
+
+      trace "hardhat node started"
+      return node
+
+    proc newCodexProcess(roleIdx: int,
+                        config: CodexConfig,
+                        role: Role
+    ): Future[NodeProcess] {.async.} =
+
+      let nodeIdx = running.len
+      var conf = config
+
+      if nodeIdx > accounts.len - 1:
+        raiseAssert("Cannot start node at nodeIdx " & $nodeIdx &
           ", not enough eth accounts.")
 
-      let datadir = getTempDir() / "Codex" & $index
-      var options = @[
-        "--api-port=" & $(8080 + index),
-        "--data-dir=" & datadir,
-        "--nat=127.0.0.1",
-        "--listen-addrs=/ip4/127.0.0.1/tcp/0",
-        "--disc-ip=127.0.0.1",
-        "--disc-port=" & $(8090 + index),
-        "--eth-account=" & $accounts[index]]
-        .concat(addlOptions)
-      if debug: options.add "--log-level=INFO;TRACE: " & debugNodes.topics
-      let node = startNode(options, debug = debug)
-      node.waitUntilStarted()
-      (node, datadir, accounts[index])
+      let datadir = getTempDir() / "Codex" /
+        sanitize($starttime) /
+        sanitize($role & "_" & $roleIdx)
 
-    proc newCodexClient(index: int): CodexClient =
-      CodexClient.new("http://localhost:" & $(8080 + index) & "/api/codex/v1")
+      if conf.logFile:
+        let updatedLogFile = getLogFile(role, some roleIdx)
+        conf.cliOptions.add CliOption(key: "--log-file", value: updatedLogFile)
 
-    proc startClientNode() =
-      let index = running.len
-      let (node, datadir, account) = newNodeProcess(
-        index, @["--persistence"], debugNodes.client)
-      let restClient = newCodexClient(index)
-      running.add RunningNode.new(Role.Client, node, restClient, datadir,
-                                  account)
-      if debugNodes.client:
-        debug "started new client node and codex client",
-          restApiPort = 8080 + index, discPort = 8090 + index, account
+      let logLevel = conf.logLevel |? LogLevel.INFO
+      if conf.logTopics.len > 0:
+        conf.cliOptions.add CliOption(
+          key: "--log-level",
+          value: $logLevel & ";TRACE: " & conf.logTopics.join(",")
+        )
+      else:
+        conf.cliOptions.add CliOption(key: "--log-level", value: $logLevel)
 
-    proc startProviderNode(failEveryNProofs: uint = 0) =
-      let index = running.len
-      let (node, datadir, account) = newNodeProcess(index, @[
-        "--bootstrap-node=" & bootstrap,
-        "--persistence",
-        "--simulate-proof-failures=" & $failEveryNProofs],
-        debugNodes.ethProvider)
-      let restClient = newCodexClient(index)
-      running.add RunningNode.new(Role.Provider, node, restClient, datadir,
-                                  account)
-      if debugNodes.ethProvider:
-        debug "started new ethProvider node and codex client",
-          restApiPort = 8080 + index, discPort = 8090 + index, account
+      var args = conf.cliOptions.map(o => $o)
+        .concat(@[
+          "--api-port=" & $ await nextFreePort(8080 + nodeIdx),
+          "--data-dir=" & datadir,
+          "--nat=127.0.0.1",
+          "--listen-addrs=/ip4/127.0.0.1/tcp/0",
+          "--disc-ip=127.0.0.1",
+          "--disc-port=" & $ await nextFreePort(8090 + nodeIdx),
+          "--eth-account=" & $accounts[nodeIdx]])
 
-    proc startValidatorNode() =
-      let index = running.len
-      let (node, datadir, account) = newNodeProcess(index, @[
-        "--bootstrap-node=" & bootstrap,
-        "--validator"],
-        debugNodes.validator)
-      let restClient = newCodexClient(index)
-      running.add RunningNode.new(Role.Validator, node, restClient, datadir,
-                                  account)
-      if debugNodes.validator:
-        debug "started new validator node and codex client",
-          restApiPort = 8080 + index, discPort = 8090 + index, account
+      let node = await CodexProcess.startNode(args, conf.debugEnabled, $role & $roleIdx)
+      await node.waitUntilStarted()
+      trace "node started", nodeName = $role & $roleIdx
 
-    proc clients(): seq[RunningNode] {.used.} =
-      running.filter(proc(r: RunningNode): bool = r.role == Role.Client)
+      return node
 
-    proc providers(): seq[RunningNode] {.used.} =
-      running.filter(proc(r: RunningNode): bool = r.role == Role.Provider)
+    proc hardhat: HardhatProcess =
+      for r in running:
+        if r.role == Role.Hardhat:
+          return HardhatProcess(r.node)
+      return nil
 
-    proc validators(): seq[RunningNode] {.used.} =
-      running.filter(proc(r: RunningNode): bool = r.role == Role.Validator)
+    proc clients: seq[CodexProcess] {.used.} =
+      return collect:
+        for r in running:
+          if r.role == Role.Client:
+            CodexProcess(r.node)
+
+    proc providers: seq[CodexProcess] {.used.} =
+      return collect:
+        for r in running:
+          if r.role == Role.Provider:
+            CodexProcess(r.node)
+
+    proc validators: seq[CodexProcess] {.used.} =
+      return collect:
+        for r in running:
+          if r.role == Role.Validator:
+            CodexProcess(r.node)
+
+    proc startHardhatNode(): Future[NodeProcess] {.async.} =
+      var config = nodeConfigs.hardhat
+      return await newHardhatProcess(config, Role.Hardhat)
+
+    proc startClientNode(): Future[NodeProcess] {.async.} =
+      let clientIdx = clients().len
+      var config = nodeConfigs.clients
+      config.cliOptions.add CliOption(key: "--persistence")
+      return await newCodexProcess(clientIdx, config, Role.Client)
+
+    proc startProviderNode(): Future[NodeProcess] {.async.} =
+      let providerIdx = providers().len
+      var config = nodeConfigs.providers
+      config.cliOptions.add CliOption(key: "--bootstrap-node", value: bootstrap)
+      config.cliOptions.add CliOption(key: "--persistence")
+
+      # filter out provider options by provided index
+      config.cliOptions = config.cliOptions.filter(
+        o => (let idx = o.nodeIdx |? providerIdx; idx == providerIdx)
+      )
+
+      return await newCodexProcess(providerIdx, config, Role.Provider)
+
+    proc startValidatorNode(): Future[NodeProcess] {.async.} =
+      let validatorIdx = validators().len
+      var config = nodeConfigs.validators
+      config.cliOptions.add CliOption(key: "--bootstrap-node", value: bootstrap)
+      config.cliOptions.add CliOption(key: "--validator")
+
+      return await newCodexProcess(validatorIdx, config, Role.Validator)
 
     setup:
-      for i in 0..<startNodes.clients:
-        startClientNode()
-        if i == 0:
-          bootstrap = running[0].restClient.info()["spr"].getStr()
+      if not nodeConfigs.hardhat.isNil:
+        let node = await startHardhatNode()
+        running.add RunningNode(role: Role.Hardhat, node: node)
 
-      for i in 0..<startNodes.providers:
-        startProviderNode()
+      try:
+        ethProvider = JsonRpcProvider.new("ws://localhost:8545")
+        # if hardhat was NOT started by the test, take a snapshot so it can be
+        # reverted in the test teardown
+        if nodeConfigs.hardhat.isNil:
+          snapshot = await send(ethProvider, "evm_snapshot")
+        accounts = await ethProvider.listAccounts()
+      except CatchableError as e:
+        fatal "failed to connect to hardhat", error = e.msg
+        raiseAssert "Hardhat not running. Run hardhat manually before executing tests, or include a HardhatConfig in the test setup."
 
-      for i in 0..<startNodes.validators:
-        startValidatorNode()
+      if not nodeConfigs.clients.isNil:
+        for i in 0..<nodeConfigs.clients.numNodes:
+          let node = await startClientNode()
+          running.add RunningNode(
+                        role: Role.Client,
+                        node: node
+                      )
+          if i == 0:
+            bootstrap = CodexProcess(node).client.info()["spr"].getStr()
+
+      if not nodeConfigs.providers.isNil:
+        for i in 0..<nodeConfigs.providers.numNodes:
+          let node = await startProviderNode()
+          running.add RunningNode(
+                        role: Role.Provider,
+                        node: node
+                      )
+
+      if not nodeConfigs.validators.isNil:
+        for i in 0..<nodeConfigs.validators.numNodes:
+          let node = await startValidatorNode()
+          running.add RunningNode(
+                        role: Role.Validator,
+                        node: node
+                      )
 
     teardown:
-      for r in running:
-        r.restClient.close()
-        r.node.stop()
-        removeDir(r.datadir)
+      for nodes in @[validators(), clients(), providers()]:
+        for node in nodes:
+          await node.stop() # also stops rest client
+          node.removeDataDir()
+
+      # if hardhat was started in the test, kill the node
+      # otherwise revert the snapshot taken in the test setup
+      let hardhat = hardhat()
+      if not hardhat.isNil:
+        await hardhat.stop()
+      else:
+        discard await send(ethProvider, "evm_revert", @[snapshot])
+
       running = @[]
 
     body

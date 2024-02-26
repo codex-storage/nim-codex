@@ -1,96 +1,47 @@
 name: CI
+
 on:
   push:
     branches:
       - master
   pull_request:
   workflow_dispatch:
+
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
   nim_version: v1.6.14
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: linux
-            cpu: amd64
-            builder: ubuntu-latest
-            shell: bash --noprofile --norc -e -o pipefail
-            tests: all
-          - os: macos
-            cpu: amd64
-            builder: macos-latest
-            shell: bash --noprofile --norc -e -o pipefail
-            tests: all
-          - os: windows
-            cpu: amd64
-            builder: windows-latest
-            shell: msys2
-            tests: unittest
-          - os: windows
-            cpu: amd64
-            builder: windows-latest
-            shell: msys2
-            tests: contract
-          - os: windows
-            cpu: amd64
-            builder: windows-latest
-            shell: msys2
-            tests: integration
-
-    defaults:
-      run:
-        shell: ${{ matrix.shell }} {0}
-
-    name: '${{ matrix.os }}-${{ matrix.cpu }}-tests-${{ matrix.tests }}'
-    runs-on: ${{ matrix.builder }}
-    timeout-minutes: 80
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      cache_nonce: ${{ env.cache_nonce }}
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
+    - name: Compute matrix
+      id: matrix
+      uses: fabiocaccamo/create-matrix-action@v4
+      with:
+        matrix: |
+          os {linux},   cpu {amd64}, builder {ubuntu-latest},  tests {all},         nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {macos},   cpu {amd64}, builder {macos-13},       tests {all},         nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {windows}, cpu {amd64}, builder {windows-latest}, tests {unittest},    nim_version {${{ env.nim_version }}}, shell {msys2}
+          os {windows}, cpu {amd64}, builder {windows-latest}, tests {contract},    nim_version {${{ env.nim_version }}}, shell {msys2}
+          os {windows}, cpu {amd64}, builder {windows-latest}, tests {integration}, nim_version {${{ env.nim_version }}}, shell {msys2}
 
-      - name: Setup Nimbus Build System
-        uses: ./.github/actions/nimbus-build-system
-        with:
-          os: ${{ matrix.os }}
-          shell: ${{ matrix.shell }}
-          nim_version: ${{ env.nim_version }}
-
-      ## Part 1 Tests ##
-      - name: Unit tests
-        if: matrix.tests == 'unittest' || matrix.tests == 'all'
-        run: make -j${ncpu} test
-
-      # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18.15
-
-      - name: Start Ethereum node with Codex contracts
-        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'all'
-        working-directory: vendor/codex-contracts-eth
-        env:
-          MSYS2_PATH_TYPE: inherit
-        run: |
-          npm install
-          npm start &
-
-      ## Part 2 Tests ##
-      - name: Contract tests
-        if: matrix.tests == 'contract' || matrix.tests == 'all'
-        run: make -j${ncpu} testContracts
-
-      ## Part 3 Tests ##
-      - name: Integration tests
-        if: matrix.tests == 'integration' || matrix.tests == 'all'
-        run: make -j${ncpu} testIntegration
+  build:
+    needs: matrix
+    uses: ./.github/workflows/ci-reusable.yml
+    with:
+      matrix: ${{ needs.matrix.outputs.matrix }}
+      cache_nonce: ${{ needs.matrix.outputs.cache_nonce }}
 
   coverage:
-    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
@@ -111,7 +62,7 @@ jobs:
         shell: bash
 
       - name: Upload coverage data to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           directory: ./coverage/
           fail_ci_if_error: true

@@ -1,6 +1,5 @@
 import std/options
 import pkg/chronos
-import pkg/stew/byteutils
 import codex/contracts
 import ../ethertest
 import ./examples
@@ -8,7 +7,7 @@ import ./time
 import ./deployment
 
 ethersuite "On-Chain Market":
-  let proof = exampleProof()
+  let proof = Groth16Proof.example
 
   var market: OnChainMarket
   var marketplace: Marketplace
@@ -17,7 +16,8 @@ ethersuite "On-Chain Market":
   var periodicity: Periodicity
 
   setup:
-    marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
+    let address = Marketplace.address(dummyVerifier = true)
+    marketplace = Marketplace.new(address, ethProvider.getSigner())
     let config = await marketplace.config()
 
     market = OnChainMarket.new(marketplace)
@@ -111,6 +111,9 @@ ethersuite "On-Chain Market":
     check (await market.willProofBeRequired(slotId(request.id, slotIndex))) == false
 
   test "submits proofs":
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await advanceToNextPeriod()
     await market.submitProof(slotId(request.id, slotIndex), proof)
 
   test "marks a proof as missing":
@@ -260,20 +263,15 @@ ethersuite "On-Chain Market":
     await subscription.unsubscribe()
 
   test "supports proof submission subscriptions":
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await advanceToNextPeriod()
     var receivedIds: seq[SlotId]
-    var receivedProofs: seq[seq[byte]]
-
-    proc onProofSubmission(id: SlotId, proof: seq[byte]) =
+    proc onProofSubmission(id: SlotId) =
       receivedIds.add(id)
-      receivedProofs.add(proof)
-
     let subscription = await market.subscribeProofSubmission(onProofSubmission)
-
     await market.submitProof(slotId(request.id, slotIndex), proof)
-
     check receivedIds == @[slotId(request.id, slotIndex)]
-    check receivedProofs == @[proof]
-
     await subscription.unsubscribe()
 
   test "request is none when unknown":

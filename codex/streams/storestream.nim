@@ -110,7 +110,7 @@ method readOnce*(
     if blk.isEmpty:
       zeroMem(pbytes.offset(read), readBytes)
     else:
-      copyMem(pbytes.offset(read), blk.data[blockOffset].addr, readBytes)
+      copyMem(pbytes.offset(read), blk.data[blockOffset].unsafeAddr, readBytes)
 
     # Update current positions in the stream and outbuf
     self.offset += readBytes

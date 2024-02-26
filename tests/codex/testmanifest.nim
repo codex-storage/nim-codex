@@ -9,6 +9,7 @@ import pkg/poseidon2
 
 import pkg/codex/slots
 import pkg/codex/merkletree
+import pkg/codex/indexingstrategy
 
 import ../asynctest
 import ./helpers
@@ -27,7 +28,8 @@ checksuite "Manifest":
       treeCid = Cid.example,
       datasetSize = 200.MiBs,
       eck = 2,
-      ecM = 2
+      ecM = 2,
+      strategy = SteppedStrategy
     )
 
     leaves = [

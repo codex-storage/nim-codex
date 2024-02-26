@@ -22,12 +22,16 @@ import ../utils
 import ../utils/json
 import ../units
 import ../blocktype
+import ../indexingstrategy
 import ../logutils
 
+
+# TODO: Manifest should be reworked to more concrete types,
+# perhaps using inheritance
 type
-  Manifest* = ref object of RootObj
+  Manifest* = object of RootObj
     treeCid {.serialize.}: Cid              # Root of the merkle tree
-    datasetSize {.serialize.}:  NBytes      # Total size of all blocks
+    datasetSize {.serialize.}: NBytes       # Total size of all blocks
     blockSize {.serialize.}: NBytes         # Size of each contained block (might not be needed if blocks are len-prefixed)
     codec: MultiCodec                       # Dataset codec
     hcodec: MultiCodec                      # Multihash codec
@@ -38,10 +42,13 @@ type
       ecM: int                              # Number of resulting parity blocks
       originalTreeCid: Cid                  # The original root of the dataset being erasure coded
       originalDatasetSize: NBytes
+      protectedStrategy: StrategyType       # Indexing strategy used to build the slot roots
       case verifiable {.serialize.}: bool   # Verifiable datasets can be used to generate storage proofs
       of true:
         verifyRoot: Cid                     # Root of the top level merkle tree built from slot roots
         slotRoots: seq[Cid]                 # Individual slot root built from the original dataset blocks
+        cellSize: NBytes                    # Size of each slot cell
+        verifiableStrategy: StrategyType    # Indexing strategy used to build the slot roots
       else:
         discard
     else:
@@ -51,59 +58,68 @@ type
 # Accessors
 ############################################################
 
-proc blockSize*(self: Manifest): NBytes =
+func blockSize*(self: Manifest): NBytes =
   self.blockSize
 
-proc datasetSize*(self: Manifest): NBytes =
+func datasetSize*(self: Manifest): NBytes =
   self.datasetSize
 
-proc version*(self: Manifest): CidVersion =
+func version*(self: Manifest): CidVersion =
   self.version
 
-proc hcodec*(self: Manifest): MultiCodec =
+func hcodec*(self: Manifest): MultiCodec =
   self.hcodec
 
-proc codec*(self: Manifest): MultiCodec =
+func codec*(self: Manifest): MultiCodec =
   self.codec
 
-proc protected*(self: Manifest): bool =
+func protected*(self: Manifest): bool =
   self.protected
 
-proc ecK*(self: Manifest): int =
+func ecK*(self: Manifest): int =
   self.ecK
 
-proc ecM*(self: Manifest): int =
+func ecM*(self: Manifest): int =
   self.ecM
 
-proc originalTreeCid*(self: Manifest): Cid =
+func originalTreeCid*(self: Manifest): Cid =
   self.originalTreeCid
 
-proc originalBlocksCount*(self: Manifest): int =
+func originalBlocksCount*(self: Manifest): int =
   divUp(self.originalDatasetSize.int, self.blockSize.int)
 
-proc originalDatasetSize*(self: Manifest): NBytes =
+func originalDatasetSize*(self: Manifest): NBytes =
   self.originalDatasetSize
 
-proc treeCid*(self: Manifest): Cid =
+func treeCid*(self: Manifest): Cid =
   self.treeCid
 
-proc blocksCount*(self: Manifest): int =
+func blocksCount*(self: Manifest): int =
   divUp(self.datasetSize.int, self.blockSize.int)
 
-proc verifiable*(self: Manifest): bool =
-  self.verifiable
+func verifiable*(self: Manifest): bool =
+  bool (self.protected and self.verifiable)
 
-proc verifyRoot*(self: Manifest): Cid =
+func verifyRoot*(self: Manifest): Cid =
   self.verifyRoot
 
-proc slotRoots*(self: Manifest): seq[Cid] =
+func slotRoots*(self: Manifest): seq[Cid] =
   self.slotRoots
 
-proc numSlots*(self: Manifest): int =
-  if not self.protected:
-    0
-  else:
-    self.ecK + self.ecM
+func numSlots*(self: Manifest): int =
+  self.ecK + self.ecM
+
+func cellSize*(self: Manifest): NBytes =
+  self.cellSize
+
+func protectedStrategy*(self: Manifest): StrategyType =
+  self.protectedStrategy
+
+func verifiableStrategy*(self: Manifest): StrategyType =
+  self.verifiableStrategy
+
+func numSlotBlocks*(self: Manifest): int =
+  divUp(self.blocksCount, self.numSlots)
 
 ############################################################
 # Operations on block list
@@ -132,7 +148,7 @@ func rounded*(self: Manifest): int =
 
 func steps*(self: Manifest): int =
   ## Number of EC groups in *protected* manifest
-  divUp(self.originalBlocksCount, self.ecK)
+  divUp(self.rounded, self.ecK)
 
 func verify*(self: Manifest): ?!void =
   ## Check manifest correctness
@@ -143,10 +159,10 @@ func verify*(self: Manifest): ?!void =
 
   return success()
 
-proc cid*(self: Manifest): ?!Cid {.deprecated: "use treeCid instead".} =
+func cid*(self: Manifest): ?!Cid {.deprecated: "use treeCid instead".} =
   self.treeCid.success
 
-proc `==`*(a, b: Manifest): bool =
+func `==`*(a, b: Manifest): bool =
   (a.treeCid == b.treeCid) and
   (a.datasetSize == b.datasetSize) and
   (a.blockSize == b.blockSize) and
@@ -159,16 +175,19 @@ proc `==`*(a, b: Manifest): bool =
       (a.ecM == b.ecM) and
       (a.originalTreeCid == b.originalTreeCid) and
       (a.originalDatasetSize == b.originalDatasetSize) and
+      (a.protectedStrategy == b.protectedStrategy) and
       (a.verifiable == b.verifiable) and
         (if a.verifiable:
           (a.verifyRoot == b.verifyRoot) and
-          (a.slotRoots == b.slotRoots)
+          (a.slotRoots == b.slotRoots) and
+          (a.cellSize == b.cellSize) and
+          (a.verifiableStrategy == b.verifiableStrategy)
         else:
           true)
     else:
       true)
 
-proc `$`*(self: Manifest): string =
+func `$`*(self: Manifest): string =
   "treeCid: " & $self.treeCid &
     ", datasetSize: " & $self.datasetSize &
     ", blockSize: " & $self.blockSize &
@@ -194,7 +213,7 @@ proc `$`*(self: Manifest): string =
 # Constructors
 ############################################################
 
-proc new*(
+func new*(
   T: type Manifest,
   treeCid: Cid,
   blockSize: NBytes,
@@ -213,12 +232,13 @@ proc new*(
     hcodec: hcodec,
     protected: protected)
 
-proc new*(
+func new*(
   T: type Manifest,
   manifest: Manifest,
   treeCid: Cid,
   datasetSize: NBytes,
-  ecK, ecM: int): Manifest =
+  ecK, ecM: int,
+  strategy: StrategyType): Manifest =
   ## Create an erasure protected dataset from an
   ## unprotected one
   ##
@@ -233,9 +253,10 @@ proc new*(
     protected: true,
     ecK: ecK, ecM: ecM,
     originalTreeCid: manifest.treeCid,
-    originalDatasetSize: manifest.datasetSize)
+    originalDatasetSize: manifest.datasetSize,
+    protectedStrategy: strategy)
 
-proc new*(
+func new*(
   T: type Manifest,
   manifest: Manifest): Manifest =
   ## Create an unprotected dataset from an
@@ -251,15 +272,7 @@ proc new*(
     blockSize: manifest.blockSize,
     protected: false)
 
-proc new*(
-  T: type Manifest,
-  data: openArray[byte]): ?!Manifest =
-  ## Create a manifest instance from given data
-  ##
-
-  Manifest.decode(data)
-
-proc new*(
+func new*(
   T: type Manifest,
   treeCid: Cid,
   datasetSize: NBytes,
@@ -270,7 +283,8 @@ proc new*(
   ecK: int,
   ecM: int,
   originalTreeCid: Cid,
-  originalDatasetSize: NBytes): Manifest =
+  originalDatasetSize: NBytes,
+  strategy: StrategyType): Manifest =
 
   Manifest(
     treeCid: treeCid,
@@ -283,14 +297,16 @@ proc new*(
     ecK: ecK,
     ecM: ecM,
     originalTreeCid: originalTreeCid,
-    originalDatasetSize: originalDatasetSize
-  )
+    originalDatasetSize: originalDatasetSize,
+    protectedStrategy: strategy)
 
-proc new*(
+func new*(
   T: type Manifest,
   manifest: Manifest,
   verifyRoot: Cid,
-  slotRoots: openArray[Cid]): ?!Manifest =
+  slotRoots: openArray[Cid],
+  cellSize = DefaultCellSize,
+  strategy = SteppedStrategy): ?!Manifest =
   ## Create a verifiable dataset from an
   ## protected one
   ##
@@ -317,4 +333,14 @@ proc new*(
     originalDatasetSize: manifest.originalDatasetSize,
     verifiable: true,
     verifyRoot: verifyRoot,
-    slotRoots: @slotRoots)
+    slotRoots: @slotRoots,
+    cellSize: cellSize,
+    verifiableStrategy: strategy)
+
+func new*(
+  T: type Manifest,
+  data: openArray[byte]): ?!Manifest =
+  ## Create a manifest instance from given data
+  ##
+
+  Manifest.decode(data)

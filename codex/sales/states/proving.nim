@@ -2,6 +2,7 @@ import std/options
 import pkg/questionable/results
 import ../../clock
 import ../../logutils
+import ../../utils/exceptions
 import ../statemachine
 import ../salesagent
 import ../salescontext
@@ -35,7 +36,7 @@ method prove*(
     debug "Submitting proof", currentPeriod = currentPeriod, slotId = slot.id
     await market.submitProof(slot.id, proof)
   except CatchableError as e:
-    error "Submitting proof failed", msg = e.msg
+    error "Submitting proof failed", msg = e.msgDetail
 
 proc proveLoop(
   state: SaleProving,
@@ -80,6 +81,7 @@ proc proveLoop(
       debug "Proof is required", period = currentPeriod, challenge = challenge
       await state.prove(slot, challenge, onProve, market, currentPeriod)
 
+    debug "waiting until next period"
     await waitUntilPeriod(currentPeriod + 1)
 
 method `$`*(state: SaleProving): string = "SaleProving"
@@ -125,12 +127,12 @@ method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
     debug "Stopping proving.", requestId = data.requestId, slotIndex = data.slotIndex
 
     if not state.loop.isNil:
-        if not state.loop.finished:
-          try:
-            await state.loop.cancelAndWait()
-          except CatchableError as e:
-            error "Error during cancelation of prooving loop", msg = e.msg
+      if not state.loop.finished:
+        try:
+          await state.loop.cancelAndWait()
+        except CatchableError as e:
+          error "Error during cancellation of proving loop", msg = e.msg
 
-        state.loop = nil
+      state.loop = nil
 
   return some State(SalePayout())

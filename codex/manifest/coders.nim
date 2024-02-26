@@ -25,6 +25,7 @@ import ./manifest
 import ../errors
 import ../blocktype
 import ../logutils
+import ../indexingstrategy
 
 proc encode*(manifest: Manifest): ?!seq[byte] =
   ## Encode the manifest into a ``ManifestCodec``
@@ -75,13 +76,16 @@ proc encode*(manifest: Manifest): ?!seq[byte] =
     erasureInfo.write(2, manifest.ecM.uint32)
     erasureInfo.write(3, manifest.originalTreeCid.data.buffer)
     erasureInfo.write(4, manifest.originalDatasetSize.uint32)
+    erasureInfo.write(5, manifest.protectedStrategy.uint32)
 
     if manifest.verifiable:
       var verificationInfo = initProtoBuffer()
       verificationInfo.write(1, manifest.verifyRoot.data.buffer)
       for slotRoot in manifest.slotRoots:
         verificationInfo.write(2, slotRoot.data.buffer)
-      erasureInfo.write(5, verificationInfo)
+      verificationInfo.write(3, manifest.cellSize.uint32)
+      verificationInfo.write(4, manifest.verifiableStrategy.uint32)
+      erasureInfo.write(6, verificationInfo)
 
     erasureInfo.finish()
     header.write(7, erasureInfo)
@@ -109,8 +113,11 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
     blockSize: uint32
     originalDatasetSize: uint32
     ecK, ecM: uint32
+    protectedStrategy: uint32
     verifyRoot: seq[byte]
     slotRoots: seq[seq[byte]]
+    cellSize: uint32
+    verifiableStrategy: uint32
 
   # Decode `Header` message
   if pbNode.getField(1, pbHeader).isErr:
@@ -153,7 +160,10 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
     if pbErasureInfo.getField(4, originalDatasetSize).isErr:
       return failure("Unable to decode `originalDatasetSize` from manifest!")
 
-    if pbErasureInfo.getField(5, pbVerificationInfo).isErr:
+    if pbErasureInfo.getField(5, protectedStrategy).isErr:
+      return failure("Unable to decode `protectedStrategy` from manifest!")
+
+    if pbErasureInfo.getField(6, pbVerificationInfo).isErr:
       return failure("Unable to decode `verificationInfo` from manifest!")
 
     verifiable = pbVerificationInfo.buffer.len > 0
@@ -163,6 +173,12 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
 
       if pbVerificationInfo.getRequiredRepeatedField(2, slotRoots).isErr:
         return failure("Unable to decode `slotRoots` from manifest!")
+
+      if pbVerificationInfo.getField(3, cellSize).isErr:
+        return failure("Unable to decode `cellSize` from manifest!")
+
+      if pbVerificationInfo.getField(4, verifiableStrategy).isErr:
+        return failure("Unable to decode `verifiableStrategy` from manifest!")
 
   let
     treeCid = ? Cid.init(treeCidBuf).mapFailure
@@ -179,7 +195,8 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
         ecK = ecK.int,
         ecM = ecM.int,
         originalTreeCid = ? Cid.init(originalTreeCid).mapFailure,
-        originalDatasetSize = originalDatasetSize.NBytes)
+        originalDatasetSize = originalDatasetSize.NBytes,
+        strategy = StrategyType(protectedStrategy))
       else:
         Manifest.new(
           treeCid = treeCid,
@@ -199,7 +216,9 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
     return Manifest.new(
       manifest = self,
       verifyRoot = verifyRootCid,
-      slotRoots = slotRootCids
+      slotRoots = slotRootCids,
+      cellSize = cellSize.NBytes,
+      strategy = StrategyType(verifiableStrategy)
     )
 
   self.success

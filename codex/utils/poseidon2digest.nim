@@ -10,29 +10,59 @@
 import pkg/poseidon2
 import pkg/questionable/results
 import pkg/libp2p/multihash
+import pkg/stew/byteutils
+
+import pkg/constantine/math/arithmetic
+import pkg/constantine/math/io/io_bigints
+import pkg/constantine/math/io/io_fields
 
 import ../merkletree
 
+func spongeDigest*(
+  _: type Poseidon2Hash,
+  bytes: openArray[byte],
+  rate: static int = 2): ?!Poseidon2Hash =
+  ## Hashes chunks of data with a sponge of rate 1 or 2.
+  ##
+
+  success Sponge.digest(bytes, rate)
+
+func spongeDigest*(
+  _: type Poseidon2Hash,
+  bytes: openArray[Bn254Fr],
+  rate: static int = 2): ?!Poseidon2Hash =
+  ## Hashes chunks of elements with a sponge of rate 1 or 2.
+  ##
+
+  success Sponge.digest(bytes, rate)
+
 func digestTree*(
   _: type Poseidon2Tree,
-  bytes: openArray[byte], chunkSize: int): ?!Poseidon2Tree =
+  bytes: openArray[byte],
+  chunkSize: int): ?!Poseidon2Tree =
   ## Hashes chunks of data with a sponge of rate 2, and combines the
   ## resulting chunk hashes in a merkle root.
   ##
+
+  # doAssert not(rate == 1 or rate == 2), "rate can only be 1 or 2"
+
+  if not chunkSize > 0:
+    return failure("chunkSize must be greater than 0")
 
   var index = 0
   var leaves: seq[Poseidon2Hash]
   while index < bytes.len:
     let start = index
     let finish = min(index + chunkSize, bytes.len)
-    let digest = Sponge.digest(bytes.toOpenArray(start, finish - 1), rate = 2)
+    let digest = ? Poseidon2Hash.spongeDigest(bytes.toOpenArray(start, finish - 1), 2)
     leaves.add(digest)
     index += chunkSize
   return Poseidon2Tree.init(leaves)
 
 func digest*(
   _: type Poseidon2Tree,
-  bytes: openArray[byte], chunkSize: int): ?!Poseidon2Hash =
+  bytes: openArray[byte],
+  chunkSize: int): ?!Poseidon2Hash =
   ## Hashes chunks of data with a sponge of rate 2, and combines the
   ## resulting chunk hashes in a merkle root.
   ##
@@ -41,7 +71,8 @@ func digest*(
 
 func digestMhash*(
   _: type Poseidon2Tree,
-  bytes: openArray[byte], chunkSize: int): ?!MultiHash =
+  bytes: openArray[byte],
+  chunkSize: int): ?!MultiHash =
   ## Hashes chunks of data with a sponge of rate 2 and
   ## returns the multihash of the root
   ##

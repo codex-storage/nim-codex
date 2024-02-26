@@ -79,4 +79,5 @@ proc example*(_: type MerkleProof): MerkleProof =
 proc example*(_: type Poseidon2Proof): Poseidon2Proof =
   var example = MerkleProof[Poseidon2Hash, PoseidonKeysEnum]()
   example.index = 123
+  example.path = @[1, 2, 3, 4].mapIt( it.toF )
   example
