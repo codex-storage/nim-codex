@@ -25,7 +25,7 @@ marketplacesuite "Hosts submit regular proofs":
       CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("node")
+        .withLogTopics("node, marketplace")
         .some,
 
     providers:
@@ -36,24 +36,31 @@ marketplacesuite "Hosts submit regular proofs":
         .some,
   ):
     let client0 = clients()[0].client
-    let totalPeriods = 50
+    let duration = 50.periods
+    let expiry = 30.periods
     let datasetSizeInBlocks = 8
 
     let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
     # dataset size = 8 block, with 5 nodes, the slot size = 4 blocks, give each
     # node enough availability to fill one slot only
-    createAvailabilities((DefaultBlockSize * 4.NBytes).Natural, totalPeriods.periods)
+    let slotSize = DefaultBlockSize.int * 4
 
     let cid = client0.upload(data).get
 
     let purchaseId = await client0.requestStorage(
       cid,
-      duration=totalPeriods.periods,
-      expiry=30.periods,
+      duration=duration,
+      expiry=expiry,
       nodes=5,
       tolerance=2,
       origDatasetSizeInBlocks = datasetSizeInBlocks)
-    check eventually(client0.purchaseStateIs(purchaseId, "started"), timeout=totalPeriods.periods.int * 1000)
+
+    discard await waitForAllSlotsFilled(slotSize, duration)
+
+    # contract should now be started
+    check eventually(
+      client0.purchaseStateIs(purchaseId, "started"),
+      timeout=expiry.int * 1000)
 
     var proofWasSubmitted = false
     proc onProofSubmitted(event: ProofSubmitted) =
@@ -61,8 +68,7 @@ marketplacesuite "Hosts submit regular proofs":
 
     let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
 
-    let currentPeriod = await getCurrentPeriod()
-    check eventuallyP(proofWasSubmitted, currentPeriod + totalPeriods.u256 + 1)
+    check eventually(proofWasSubmitted, timeout=duration.int*1000)
 
     await subscription.unsubscribe()
 
@@ -83,15 +89,15 @@ marketplacesuite "Simulate invalid proofs":
       CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("node")
+        .withLogTopics("node, marketplace")
         .some,
 
     providers:
       CodexConfigs.init(nodes=5)
-        .withSimulateProofFailures(idx=0, failEveryNProofs=1)
-        # .debug() # uncomment to enable console log output
+        .debug(idx=0) # uncomment to enable console log output
+        .withSimulateProofFailures(idx=4, failEveryNProofs=1)
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node")
+        .withLogTopics("marketplace", "sales", "reservations", "node", "clock", "slotsbuilder")
         .some,
 
     validators:
@@ -102,37 +108,49 @@ marketplacesuite "Simulate invalid proofs":
         .some
   ):
     let client0 = clients()[0].client
-    let totalPeriods = 50
-
+    let duration = 50.periods
+    let expiry = 30.periods
     let datasetSizeInBlocks = 8
+
     let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
     # dataset size = 8 block, with 5 nodes, the slot size = 4 blocks, give each
     # node enough availability to fill one slot only
-    createAvailabilities((DefaultBlockSize * 4.NBytes).Natural, totalPeriods.periods)
+    let slotSize = DefaultBlockSize.int * 4
 
     let cid = client0.upload(data).get
 
     let purchaseId = await client0.requestStorage(
       cid,
-      duration=totalPeriods.periods,
-      expiry=30.periods,
+      duration=duration,
+      expiry=expiry,
+      proofProbability=1,
       nodes=5,
-      tolerance=1,
-      origDatasetSizeInBlocks=datasetSizeInBlocks)
+      tolerance=2,
+      origDatasetSizeInBlocks = datasetSizeInBlocks)
+
+    discard await waitForAllSlotsFilled(slotSize, duration)
+
+    # contract should now be started
+    check eventually(
+      client0.purchaseStateIs(purchaseId, "started"),
+      timeout=expiry.int * 1000)
+
+    startIntervalMining(1000)
+    changePeriodAdvancementTo(6000)
+    # await switchToIntervalMining(intervalMillis=5000)
+
     let requestId = client0.requestId(purchaseId).get
-
-    check eventually client0.purchaseStateIs(purchaseId, "started")
-
     var slotWasFreed = false
     proc onSlotFreed(event: SlotFreed) =
       if event.requestId == requestId and
-        event.slotIndex == 0.u256: # assume only one slot, so index 0
+        event.slotIndex == 4.u256: # assume only one slot, so index 0
         slotWasFreed = true
 
     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
-    let currentPeriod = await getCurrentPeriod()
-    check eventuallyP(slotWasFreed, currentPeriod + totalPeriods.u256 + 1)
+    # let currentPeriod = await getCurrentPeriod()
+    # check eventuallyP(slotWasFreed, currentPeriod + totalPeriods.u256 + 1)
+    check eventually(slotWasFreed, timeout=duration.int*1000)
 
     await subscription.unsubscribe()
 
@@ -226,86 +244,37 @@ marketplacesuite "Simulate invalid proofs":
   ):
     let client0 = clients()[0].client
     let providers = providers()
-    let totalPeriods = 25
+    let duration = 25.periods
+    let expiry = 10.periods
 
     let datasetSizeInBlocks = 8
     let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
-    # original data = 3 blocks so slot size will be 4 blocks
-    let slotSize = (DefaultBlockSize * 4.NBytes).Natural.u256
-
-    discard providers[0].client.postAvailability(
-      size=slotSize, # should match 1 slot only
-      duration=totalPeriods.periods.u256,
-      minPrice=300.u256,
-      maxCollateral=200.u256
-    )
+    # dataset size = 8 block, with 5 nodes, the slot size = 4 blocks, give each
+    # node enough availability to fill one slot only
+    let slotSize = DefaultBlockSize.int * 4
 
     let cid = client0.upload(data).get
 
     let purchaseId = await client0.requestStorage(
       cid,
-      duration=totalPeriods.periods,
-      expiry=10.periods,
+      duration=duration,
+      expiry=expiry,
       nodes=5,
-      tolerance=1,
+      tolerance=2,
       origDatasetSizeInBlocks=datasetSizeInBlocks
     )
 
     without requestId =? client0.requestId(purchaseId):
       fail()
 
-    var filledSlotIds: seq[SlotId] = @[]
-    proc onSlotFilled(event: SlotFilled) =
-      let slotId = slotId(event.requestId, event.slotIndex)
-      filledSlotIds.add slotId
-
-    let subscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
-
-    # wait til first slot is filled
-    check eventually filledSlotIds.len > 0
-
-    template waitForSlotFilled(provider: CodexProcess, idx: int) =
-      discard provider.client.postAvailability(
-        size=slotSize, # should match 1 slot only
-        duration=totalPeriods.periods.u256,
-        minPrice=300.u256,
-        maxCollateral=200.u256
-      )
-
-      check eventually filledSlotIds.len > idx
-
-    # TODO: becausee we now have 5+ slots to fill plus proof generation, this
-    # may take way too long. Another idea is to update the SlotFilled contract
-    # event to include the host that filled the slot. With that, we can use
-    # `onSlotFilled` to build a provider > slotIdx table in memory and use that
-    # to check sale states
-    for i in 1..<providers.len:
-      # now add availability for remaining providers, which should allow them to
-      # to put the remaining slots in their queues. They need to fill slots
-      # one-by-one so we can track their slot idx/ids
-      let provider = providers[i]
-      provider.waitForSlotFilled(i)
-
-
-    # Wait til remaining providers are in the Proving state.
-    for i in 1..<providers.len:
-      check eventually providers[i].client.saleStateIs(filledSlotIds[i], "SaleProving")
-
+    discard await waitForAllSlotsFilled(slotSize, duration)
     # contract should now be started
     check eventually client0.purchaseStateIs(purchaseId, "started")
 
-    # all providers should now be able to reach the SalePayout state once the
-    # contract has finishe
-    let currentPeriod = await getCurrentPeriod()
-    for i in 0..<providers.len:
-      check eventuallyP(
-        # SaleFinished happens too quickly, check SalePayout instead
-        providers[i].client.saleStateIs(filledSlotIds[i], "SalePayout"),
-        currentPeriod + totalPeriods.u256 + 1)
+    check eventually(client0.purchaseStateIs(purchaseId, "finished"),
+      timeout=duration.int*1000)
 
     check eventually(
       (await token.balanceOf(providers[1].ethAccount)) >
       (await token.balanceOf(providers[0].ethAccount))
     )
-
-    await subscription.unsubscribe()
