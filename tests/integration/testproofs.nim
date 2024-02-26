@@ -25,7 +25,7 @@ marketplacesuite "Hosts submit regular proofs":
       CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("node")
+        # .withLogTopics("node, marketplace")
         .some,
 
     providers:
@@ -80,7 +80,7 @@ marketplacesuite "Simulate invalid proofs":
       CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("node", "clock")
+        # .withLogTopics("node", "marketplace", "clock")
         .some,
 
     providers:
@@ -88,7 +88,7 @@ marketplacesuite "Simulate invalid proofs":
         .withSimulateProofFailures(idx=0, failEveryNProofs=1)
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("marketplace", "sales", "reservations", "node", "clock")
+        # .withLogTopics("marketplace", "sales", "reservations", "node", "clock", "slotsbuilder")
         .some,
 
     validators:

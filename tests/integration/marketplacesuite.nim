@@ -61,7 +61,7 @@ template marketplacesuite*(name: string, body: untyped) =
 
     proc requestStorage(client: CodexClient,
                         cid: Cid,
-                        proofProbability: uint64 = 1,
+                        proofProbability = 1,
                         duration: uint64 = 12.periods,
                         reward = 400.u256,
                         collateral = 100.u256,
