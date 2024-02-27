@@ -67,19 +67,26 @@ proc proveLoop(
   while true:
     let currentPeriod = await getCurrentPeriod()
     let slotState = await market.slotState(slot.id)
-    if slotState == SlotState.Finished:
+
+    case slotState
+    of SlotState.Filled:
+      debug "Proving for new period", period = currentPeriod
+      if (await market.isProofRequired(slotId)) or (await market.willProofBeRequired(slotId)):
+        let challenge = await market.getChallenge(slotId)
+        debug "Proof is required", period = currentPeriod, challenge = challenge
+        await state.prove(slot, challenge, onProve, market, currentPeriod)
+    of SlotState.Cancelled:
+      debug "Slot reached cancelled state"
+      # do nothing, let onCancelled callback take care of it
+    of SlotState.Failed:
+      debug "Slot reached failed state"
+      # do nothing, let onFailed callback take care of it
+    of SlotState.Finished:
       debug "Slot reached finished state", period = currentPeriod
-      return
-
-    if slotState != SlotState.Filled:
-      raise newException(SlotNotFilledError, "Slot is not in Filled state!")
-
-    debug "Proving for new period", period = currentPeriod
-
-    if (await market.isProofRequired(slotId)) or (await market.willProofBeRequired(slotId)):
-      let challenge = await market.getChallenge(slotId)
-      debug "Proof is required", period = currentPeriod, challenge = challenge
-      await state.prove(slot, challenge, onProve, market, currentPeriod)
+      return # exit the loop
+    else:
+      let message = "Slot is not in Filled state, but in state: " & $slotState
+      raise newException(SlotNotFilledError, message)
 
     debug "waiting until next period"
     await waitUntilPeriod(currentPeriod + 1)
