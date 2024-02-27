@@ -205,11 +205,11 @@ template multinodesuite*(name: string, body: untyped) =
       config.addCliOption("--bootstrap-node", bootstrap)
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
       config.addCliOption(PersistenceCmd.prover, "--circom-r1cs",
-        "tests/circuits/fixtures/proof_main.r1cs")
+        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs")
       config.addCliOption(PersistenceCmd.prover, "--circom-wasm",
-        "tests/circuits/fixtures/proof_main.wasm")
+        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm")
       config.addCliOption(PersistenceCmd.prover, "--circom-zkey",
-        "tests/circuits/fixtures/proof_main.zkey")
+        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.zkey")
 
       return await newCodexProcess(providerIdx, config, Role.Provider)
 
