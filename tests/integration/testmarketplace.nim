@@ -62,8 +62,7 @@ marketplacesuite "Marketplace payouts":
       expiry=expiry,
       collateral=collateral,
       nodes=3,
-      tolerance=1,
-      origDatasetSizeInBlocks=datasetSizeInBlocks
+      tolerance=1
     )
 
     # wait until one slot is filled
