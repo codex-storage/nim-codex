@@ -60,12 +60,6 @@ template marketplacesuite*(name: string, body: untyped) =
           maxCollateral=200.u256
         )
 
-    proc validateRequest(nodes, tolerance, origDatasetSizeInBlocks: int) =
-      if nodes > 1:
-        doAssert(origDatasetSizeInBlocks >= 3,
-                  "dataset size must be greater than or equal to 3 blocks with " &
-                  "more than one node")
-
     proc requestStorage(client: CodexClient,
                         cid: Cid,
                         proofProbability = 3,
@@ -74,10 +68,7 @@ template marketplacesuite*(name: string, body: untyped) =
                         collateral = 100.u256,
                         expiry: uint64 = 4.periods,
                         nodes = providers().len,
-                        tolerance = 0,
-                        origDatasetSizeInBlocks: int): Future[PurchaseId] {.async.} =
-
-      validateRequest(nodes, tolerance, origDatasetSizeInBlocks)
+                        tolerance = 0): Future[PurchaseId] {.async.} =
 
       let expiry = (await ethProvider.currentTime()) + expiry.u256
 

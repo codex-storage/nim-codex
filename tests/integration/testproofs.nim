@@ -46,8 +46,8 @@ marketplacesuite "Hosts submit regular proofs":
 
     let purchaseId = await client0.requestStorage(
       cid,
-      duration=totalPeriods.periods,
-      origDatasetSizeInBlocks = datasetSizeInBlocks)
+      duration=duration
+    )
     check eventually client0.purchaseStateIs(purchaseId, "started")
 
     var proofWasSubmitted = false
@@ -106,8 +106,8 @@ marketplacesuite "Simulate invalid proofs":
 
     let purchaseId = await client0.requestStorage(
       cid,
-      duration=totalPeriods.periods,
-      origDatasetSizeInBlocks=datasetSizeInBlocks)
+      duration=totalPeriods.periods
+    )
     let requestId = client0.requestId(purchaseId).get
 
     check eventually client0.purchaseStateIs(purchaseId, "started")
@@ -162,8 +162,8 @@ marketplacesuite "Simulate invalid proofs":
 
     let purchaseId = await client0.requestStorage(
       cid,
-      duration=totalPeriods.periods,
-      origDatasetSizeInBlocks=datasetSizeInBlocks)
+      duration=totalPeriods.periods
+    )
     let requestId = client0.requestId(purchaseId).get
 
     check eventually client0.purchaseStateIs(purchaseId, "started")
