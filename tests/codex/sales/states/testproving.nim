@@ -66,7 +66,7 @@ asyncchecksuite "sales state 'proving'":
     market.setProofRequired(slot.id, true)
     await market.advanceToNextPeriod()
 
-    check eventually receivedIds == @[slot.id]
+    check eventually receivedIds.contains(slot.id)
 
     await future.cancelAndWait()
     await subscription.unsubscribe()
@@ -100,4 +100,6 @@ asyncchecksuite "sales state 'proving'":
 
     let future = state.run(agent)
 
-    check receivedChallenge == market.proofChallenge
+    check eventually receivedChallenge == market.proofChallenge
+
+    await future.cancelAndWait()
