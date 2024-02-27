@@ -35,19 +35,22 @@ marketplacesuite "Hosts submit regular proofs":
         .withLogTopics("marketplace", "sales", "reservations", "node"),
   ):
     let client0 = clients()[0].client
-    let totalPeriods = 50
-    let datasetSizeInBlocks = 2
+    let expiry = 5.periods
+    let duration = expiry + 5.periods
 
-    let data = await RandomChunker.example(blocks=1)
-    createAvailabilities(data.len, totalPeriods.periods)
+    let data = await RandomChunker.example(blocks=8)
+    createAvailabilities(data.len * 2, duration) # TODO: better value for data.len
 
     let cid = client0.upload(data).get
 
     let purchaseId = await client0.requestStorage(
       cid,
-      duration=totalPeriods.periods
+      expiry=expiry,
+      duration=duration,
+      nodes=3,
+      tolerance=1
     )
-    check eventually client0.purchaseStateIs(purchaseId, "started")
+    check eventually(client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000)
 
     var proofWasSubmitted = false
     proc onProofSubmitted(event: ProofSubmitted) =
@@ -55,8 +58,7 @@ marketplacesuite "Hosts submit regular proofs":
 
     let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
 
-    let currentPeriod = await getCurrentPeriod()
-    check eventuallyP(proofWasSubmitted, currentPeriod + totalPeriods.u256 + 1)
+    check eventually(proofWasSubmitted, timeout=(duration - expiry).int * 1000)
 
     await subscription.unsubscribe()
 
@@ -95,33 +97,34 @@ marketplacesuite "Simulate invalid proofs":
         .withLogTopics("validator", "onchain", "ethers")
   ):
     let client0 = clients()[0].client
-    let totalPeriods = 50
+    let expiry = 5.periods
+    let duration = expiry + 5.periods
 
-    let datasetSizeInBlocks = 2
-    let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
-    createAvailabilities(data.len, totalPeriods.periods)
+    let data = await RandomChunker.example(blocks=8)
+    createAvailabilities(data.len * 2, duration) # TODO: better value for data.len
 
     let cid = client0.upload(data).get
 
     let purchaseId = await client0.requestStorage(
       cid,
-      expiry=10.periods,
-      duration=totalPeriods.periods
+      expiry=expiry,
+      duration=duration,
+      nodes=3,
+      tolerance=1,
+      proofProbability=1
     )
     let requestId = client0.requestId(purchaseId).get
 
-    check eventually client0.purchaseStateIs(purchaseId, "started")
+    check eventually(client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000)
 
     var slotWasFreed = false
     proc onSlotFreed(event: SlotFreed) =
-      if event.requestId == requestId and
-        event.slotIndex == 0.u256: # assume only one slot, so index 0
+      if event.requestId == requestId:
         slotWasFreed = true
 
     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
-    let currentPeriod = await getCurrentPeriod()
-    check eventuallyP(slotWasFreed, currentPeriod + totalPeriods.u256 + 1)
+    check eventually(slotWasFreed, timeout=(duration - expiry).int * 1000)
 
     await subscription.unsubscribe()
 
@@ -152,34 +155,37 @@ marketplacesuite "Simulate invalid proofs":
         .withLogTopics("validator", "onchain", "ethers")
   ):
     let client0 = clients()[0].client
-    let totalPeriods = 25
+    let expiry = 5.periods
+    # In 2 periods you cannot have enough invalid proofs submitted:
+    let duration = expiry + 2.periods
 
-    let datasetSizeInBlocks = 2
-    let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
-    createAvailabilities(data.len, totalPeriods.periods)
+    let data = await RandomChunker.example(blocks=8)
+    createAvailabilities(data.len * 2, duration) # TODO: better value for data.len
 
     let cid = client0.upload(data).get
 
     let purchaseId = await client0.requestStorage(
       cid,
-      expiry=10.periods,
-      duration=totalPeriods.periods
+      expiry=expiry,
+      duration=duration,
+      nodes=3,
+      tolerance=1,
+      proofProbability=1
     )
     let requestId = client0.requestId(purchaseId).get
 
-    check eventually client0.purchaseStateIs(purchaseId, "started")
+    check eventually(client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000)
 
     var slotWasFreed = false
     proc onSlotFreed(event: SlotFreed) =
-      if event.requestId == requestId and
-          event.slotIndex == 0.u256:
+      if event.requestId == requestId:
         slotWasFreed = true
 
     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
     # check not freed
-    let currentPeriod = await getCurrentPeriod()
-    check not eventuallyP(slotWasFreed, currentPeriod + totalPeriods.u256 + 1)
+    await sleepAsync((duration - expiry).int * 1000)
+    check not slotWasFreed
 
     await subscription.unsubscribe()
 
