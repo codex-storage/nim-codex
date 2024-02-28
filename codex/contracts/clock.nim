@@ -17,7 +17,6 @@ type
     offset: times.Duration
     started: bool
     newBlock: AsyncEvent
-    lastBlockTime: UInt256
 
 proc new*(_: type OnChainClock, provider: Provider): OnChainClock =
   OnChainClock(provider: provider, newBlock: newAsyncEvent())
@@ -30,7 +29,6 @@ method start*(clock: OnChainClock) {.async.} =
     let blockTime = initTime(blck.timestamp.truncate(int64), 0)
     let computerTime = getTime()
     clock.offset = blockTime - computerTime
-    clock.lastBlockTime = blck.timestamp
     clock.newBlock.fire()
 
   if latestBlock =? (await clock.provider.getBlock(BlockTag.latest)):
