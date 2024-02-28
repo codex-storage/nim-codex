@@ -13,17 +13,17 @@ marketplacesuite "Marketplace payouts":
 
       clients:
         CodexConfig()
-          .nodes(1)
+          .nodes(1),
           # .debug() # uncomment to enable console log output.debug()
-          .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-          .withLogTopics("node", "erasure"),
+          # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+          # .withLogTopics("node", "erasure"),
 
       providers:
         CodexConfig()
           .nodes(1)
           # .debug() # uncomment to enable console log output
-          .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-          .withLogTopics("node", "marketplace", "sales", "reservations", "node", "proving", "clock"),
+          # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+          # .withLogTopics("node", "marketplace", "sales", "reservations", "node", "proving", "clock"),
   ):
     let reward = 400.u256
     let duration = 10.periods

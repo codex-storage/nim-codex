@@ -22,17 +22,17 @@ marketplacesuite "Hosts submit regular proofs":
 
     clients:
       CodexConfig()
-        .nodes(1)
+        .nodes(1),
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("node"),
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("node"),
 
     providers:
       CodexConfig()
         .nodes(1)
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node"),
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("marketplace", "sales", "reservations", "node"),
   ):
     let client0 = clients()[0].client
     let expiry = 5.periods
@@ -76,25 +76,25 @@ marketplacesuite "Simulate invalid proofs":
 
     clients:
       CodexConfig()
-        .nodes(1)
+        .nodes(1),
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("node"),
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("node"),
 
     providers:
       CodexConfig()
         .nodes(1)
-        .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=1)
+        .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=1),
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node"),
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("marketplace", "sales", "reservations", "node"),
 
     validators:
       CodexConfig()
         .nodes(1)
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         # .debug() # uncomment to enable console log output
-        .withLogTopics("validator", "onchain", "ethers")
+        # .withLogTopics("validator", "onchain", "ethers")
   ):
     let client0 = clients()[0].client
     let expiry = 5.periods
@@ -134,25 +134,25 @@ marketplacesuite "Simulate invalid proofs":
 
     clients:
       CodexConfig()
-        .nodes(1)
+        .nodes(1),
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("node"),
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("marketplace", "sales", "reservations", "node"),
 
     providers:
       CodexConfig()
         .nodes(1)
-        .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=3)
+        .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=3),
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node"),
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("marketplace", "sales", "reservations", "node"),
 
     validators:
       CodexConfig()
         .nodes(1)
         # .debug()
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("validator", "onchain", "ethers")
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("validator", "onchain", "ethers")
   ):
     let client0 = clients()[0].client
     let expiry = 5.periods
