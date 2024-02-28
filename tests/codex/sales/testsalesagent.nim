@@ -112,6 +112,23 @@ asyncchecksuite "Sales agent":
     clock.set(request.expiry.truncate(int64) + 1)
     check eventually onCancelCalled
 
+  for requestState in {RequestState.New, Started, Finished, Failed}:
+    test "onCancelled is not called when request state is " & $requestState:
+      agent.start(MockState.new())
+      await agent.subscribe()
+      market.requestState[request.id] = requestState
+      clock.set(request.expiry.truncate(int64) + 1)
+      await sleepAsync(100.millis)
+      check not onCancelCalled
+
+  for requestState in {RequestState.Started, Finished, Failed}:
+    test "cancelled future is finished when request state is " & $requestState:
+      agent.start(MockState.new())
+      await agent.subscribe()
+      market.requestState[request.id] = requestState
+      clock.set(request.expiry.truncate(int64) + 1)
+      check eventually agent.data.cancelled.finished
+
   test "cancelled future is finished (cancelled) when onFulfilled called":
     agent.start(MockState.new())
     await agent.subscribe()
