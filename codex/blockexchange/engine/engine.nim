@@ -568,7 +568,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
     # All the wants that failed local lookup must be set to not-in-flight again.
     let
       successAddresses = blocksDelivery.mapIt(it.address)
-      failedAddresses = wantsBlocks.mapIt(it.address).filterIt(it notin successAddresses)
+      failedAddresses = wantAddresses.filterIt(it notin successAddresses)
     updateInFlight(failedAddresses, false)
 
     if blocksDelivery.len > 0:
@@ -580,8 +580,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
 
       codex_block_exchange_blocks_sent.inc(blocksDelivery.len.int64)
 
-      let deliveryAddresses = blocksDelivery.mapIt(it.address)
-      task.peerWants.keepItIf(it.address notin deliveryAddresses)
+      task.peerWants.keepItIf(it.address notin successAddresses)
       trace "Removed entries from peerWants", peerWants = task.peerWants.len
 
 proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
