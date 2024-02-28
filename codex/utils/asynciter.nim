@@ -4,8 +4,8 @@ import pkg/questionable
 import pkg/chronos
 
 type
-  Function*[T, U] = proc(fut: T): U {.raises: [CatchableError], gcsafe, closure.}
-  IsFinished* = proc(): bool {.raises: [], gcsafe, closure.}
+  Function*[T, U] = proc(fut: T): U {.raises: [CatchableError], gcsafe.}
+  IsFinished* = proc(): bool {.raises: [], gcsafe.}
   GenNext*[T] = proc(): T {.raises: [CatchableError], gcsafe.}
   Iter*[T] = ref object
     finished: bool
