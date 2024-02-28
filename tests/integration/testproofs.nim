@@ -24,8 +24,8 @@ marketplacesuite "Hosts submit regular proofs":
     clients:
       CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("node")
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("node")
         .some,
 
     providers:
@@ -78,23 +78,23 @@ marketplacesuite "Simulate invalid proofs":
     clients:
       CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("node")
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("node")
         .some,
 
     providers:
       CodexConfigs.init(nodes=1)
         .withSimulateProofFailures(idx=0, failEveryNProofs=1)
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node")
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("marketplace", "sales", "reservations", "node")
         .some,
 
     validators:
       CodexConfigs.init(nodes=1)
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         # .debug() # uncomment to enable console log output
-        .withLogTopics("validator", "onchain", "ethers")
+        # .withLogTopics("validator", "onchain", "ethers")
         .some
   ):
     let client0 = clients()[0].client
@@ -136,23 +136,23 @@ marketplacesuite "Simulate invalid proofs":
     clients:
       CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("node")
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("node")
         .some,
 
     providers:
       CodexConfigs.init(nodes=1)
         .withSimulateProofFailures(idx=0, failEveryNProofs=3)
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node")
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("marketplace", "sales", "reservations", "node")
         .some,
 
     validators:
       CodexConfigs.init(nodes=1)
         # .debug()
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("validator", "onchain", "ethers")
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("validator", "onchain", "ethers")
         .some
   ):
     let client0 = clients()[0].client
