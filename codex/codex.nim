@@ -57,9 +57,12 @@ type
   EthWallet = ethers.Wallet
 
 proc waitForSync(provider: Provider): Future[void] {.async.} =
+  var sleepTime = 1
   while await provider.isSyncing:
     notice "Waiting for Ethereum provider to sync..."
-    await sleepAsync(10.seconds)
+    await sleepAsync(sleepTime.seconds)
+    if sleepTime < 10:
+      inc sleepTime
 
 proc bootstrapInteractions(
   s: CodexServer): Future[void] {.async.} =
