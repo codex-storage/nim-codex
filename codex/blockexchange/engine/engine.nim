@@ -532,13 +532,19 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
 
   var
     wantsBlocks = task.peerWants.filterIt(
-      it.wantType == WantType.WantBlock
+      it.wantType == WantType.WantBlock and not it.inFlight
     )
+
+  proc updateInFlight(addresses: seq[BlockAddress], inFlight: bool) =
+    for peerWant in task.peerWants.mitems:
+      if peerWant.address in addresses:
+        peerWant.inFlight = inFlight
 
   trace "wantsBlocks", peer = task.id, n = wantsBlocks.len
   if wantsBlocks.len > 0:
-    trace "Got peer want blocks list", items = wantsBlocks.len
-
+    # Mark wants as in-flight.
+    let wantAddresses = wantsBlocks.mapIt(it.address)
+    updateInFlight(wantAddresses, true)
     wantsBlocks.sort(SortOrder.Descending)
 
     proc localLookup(e: WantListEntry): Future[?!BlockDelivery] {.async.} =
@@ -555,12 +561,15 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
 
     let
       blocksDeliveryFut = await allFinished(wantsBlocks.map(localLookup))
-
-    # Extract successfully received blocks
-    let
       blocksDelivery = blocksDeliveryFut
         .filterIt(it.completed and it.read.isOk)
         .mapIt(it.read.get)
+
+    # All the wants that failed local lookup must be set to not-in-flight again.
+    let
+      successAddresses = blocksDelivery.mapIt(it.address)
+      failedAddresses = wantAddresses.filterIt(it notin successAddresses)
+    updateInFlight(failedAddresses, false)
 
     if blocksDelivery.len > 0:
       trace "Sending blocks to peer", peer = task.id, blocks = blocksDelivery.len
@@ -571,13 +580,8 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
 
       codex_block_exchange_blocks_sent.inc(blocksDelivery.len.int64)
 
-      trace "About to remove entries from peerWants", blocks = blocksDelivery.len, items = task.peerWants.len
-      # Remove successfully sent blocks
-      task.peerWants.keepIf(
-        proc(e: WantListEntry): bool =
-          not blocksDelivery.anyIt( it.address == e.address )
-      )
-      trace "Removed entries from peerWants", items = task.peerWants.len
+      task.peerWants.keepItIf(it.address notin successAddresses)
+      trace "Removed entries from peerWants", peerWants = task.peerWants.len
 
 proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
   ## process tasks
