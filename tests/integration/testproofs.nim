@@ -31,8 +31,8 @@ marketplacesuite "Hosts submit regular proofs":
     providers:
       CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node")
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("marketplace", "sales", "reservations", "node")
         .some,
   ):
     let client0 = clients()[0].client
@@ -137,7 +137,7 @@ marketplacesuite "Simulate invalid proofs":
       CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("node")
+        # .withLogTopics("marketplace", "sales", "reservations", "node")
         .some,
 
     providers:
