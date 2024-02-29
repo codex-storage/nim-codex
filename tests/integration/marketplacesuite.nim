@@ -154,8 +154,6 @@ template marketplacesuite*(name: string, body: untyped) =
       period = config.proofs.period.truncate(uint64)
       periodicity = Periodicity(seconds: period.u256)
 
-      continuousMineFut = continuouslyAdvanceEvery(chronos.millis(15000))
-
     teardown:
       if not continuousMineFut.isNil and not continuousMineFut.finished:
         await continuousMineFut.cancelAndWait()
