@@ -184,7 +184,7 @@ marketplacesuite "Simulate invalid proofs":
     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
     # check not freed
-    await sleepAsync((duration - expiry).int * 1000)
+    await sleepAsync((duration - expiry).int.seconds)
     check not slotWasFreed
 
     await subscription.unsubscribe()
