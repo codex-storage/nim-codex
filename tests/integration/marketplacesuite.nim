@@ -19,7 +19,6 @@ template marketplacesuite*(name: string, body: untyped) =
     var period: uint64
     var periodicity: Periodicity
     var token {.inject, used.}: Erc20Token
-    var continuousMineFut: Future[void]
 
     proc getCurrentPeriod(): Future[Period] {.async.} =
       return periodicity.periodOf(await ethProvider.currentTime())
@@ -92,14 +91,6 @@ template marketplacesuite*(name: string, body: untyped) =
 
       return id
 
-    proc continuouslyAdvanceEvery(every: chronos.Duration) {.async.} =
-      try:
-        while true:
-          await advanceToNextPeriod()
-          await sleepAsync(every)
-      except CancelledError:
-        discard
-
     setup:
       # TODO: This is currently the address of the marketplace with a dummy
       # verifier. Use real marketplace address, `Marketplace.address` once we
@@ -111,10 +102,5 @@ template marketplacesuite*(name: string, body: untyped) =
       let config = await mp.config(marketplace)
       period = config.proofs.period.truncate(uint64)
       periodicity = Periodicity(seconds: period.u256)
-
-      continuousMineFut = continuouslyAdvanceEvery(chronos.millis(500))
-
-    teardown:
-      await continuousMineFut.cancelAndWait()
 
     body
