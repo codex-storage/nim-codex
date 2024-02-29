@@ -28,9 +28,8 @@ marketplacesuite "Marketplace payouts":
     let reward = 400.u256
     let duration = 10.periods
     let collateral = 200.u256
-    let expiry = 10.periods
-    let datasetSizeInBlocks = 3
-    let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
+    let expiry = 5.periods
+    let data = await RandomChunker.example(blocks=8)
     let client = clients()[0]
     let provider = providers()[0]
     let clientApi = client.client
