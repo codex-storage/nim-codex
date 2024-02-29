@@ -142,7 +142,7 @@ marketplacesuite "Simulate invalid proofs":
     providers:
       CodexConfig()
         .nodes(1)
-        .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=3),
+        .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=1),
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         # .withLogTopics("marketplace", "sales", "reservations", "node"),
