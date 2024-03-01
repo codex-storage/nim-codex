@@ -2,7 +2,9 @@
 
 # Environment variables from files
 if [[ -n "${ENV_PATH}" ]]; then
-  [[ -f ${ENV_PATH} ]] && source ${ENV_PATH} || for f in ${ENV_PATH}/*; do source $f; done
+  set -a
+  [[ -f "${ENV_PATH}" ]] && source "${ENV_PATH}" || for f in "${ENV_PATH}"/*; do source "$f"; done
+  set +a
 fi
 
 # Parameters
