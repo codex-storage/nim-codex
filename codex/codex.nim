@@ -266,28 +266,6 @@ proc new*(
     engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
     prover = if config.prover:
-      if not fileAccessible($config.circomR1cs, {AccessFlags.Read}) and
-        endsWith($config.circomR1cs, ".r1cs"):
-        error "Circom R1CS file not accessible"
-        raise (ref Defect)(
-          msg: "r1cs file not readable, doesn't exist or wrong extension (.r1cs)")
-
-      if not fileAccessible($config.circomWasm, {AccessFlags.Read}) and
-        endsWith($config.circomWasm, ".wasm"):
-        error "Circom wasm file not accessible"
-        raise (ref Defect)(
-          msg: "wasm file not readable, doesn't exist or wrong extension (.wasm)")
-
-      let zkey = if not config.circomNoZkey:
-          if not fileAccessible($config.circomZkey, {AccessFlags.Read}) and
-            endsWith($config.circomZkey, ".zkey"):
-            error "Circom zkey file not accessible"
-            raise (ref Defect)(
-              msg: "zkey file not readable, doesn't exist or wrong extension (.zkey)")
-
-          $config.circomZkey
-        else: ""
-
       some Prover.new(
         store,
         config.numProofSamples)
