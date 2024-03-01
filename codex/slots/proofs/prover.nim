@@ -13,6 +13,7 @@ import pkg/chronicles
 import pkg/circomcompat
 import pkg/poseidon2
 import pkg/questionable/results
+import pkg/confutils/defs
 
 import pkg/libp2p/cid
 
@@ -97,14 +98,13 @@ proc start*(
 ) =
   echo "prover start!"
   echo proofCeremonyUrl
+  self.backend = CircomCompat.init($config.circomR1cs, $config.circomWasm, $config.circomZkey)
 
 proc new*(
   _: type Prover,
   store: BlockStore,
-  backend: AnyBackend,
   nSamples: int): Prover =
 
   Prover(
-    backend: backend,
     store: store,
     nSamples: nSamples)
