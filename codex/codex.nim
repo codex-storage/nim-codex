@@ -292,7 +292,6 @@ proc new*(
       echo "Prover is some!"
       some Prover.new(
         store,
-        CircomCompat.init($config.circomR1cs, $config.circomWasm, zkey),
         config.numProofSamples)
     else:
       echo "Prover is none!"
