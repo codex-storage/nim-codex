@@ -170,7 +170,9 @@ proc start*(s: CodexServer) {.async.} =
   let proofCeremonyUrl = await s.bootstrapInteractions()
 
   if prover =? s.codexNode.prover:
-    prover.start(s.config, proofCeremonyUrl)
+    if err =? (await prover.start(s.config, proofCeremonyUrl)).errorOption:
+      error "Failed to start prover", msg = err.msg
+      return # should we abort start-up this way?
 
   await s.codexNode.start()
   s.restServer.start()
@@ -286,12 +288,10 @@ proc new*(
           $config.circomZkey
         else: ""
 
-      echo "Prover is some!"
       some Prover.new(
         store,
         config.numProofSamples)
     else:
-      echo "Prover is none!"
       none Prover
 
     codexNode = CodexNodeRef.new(
