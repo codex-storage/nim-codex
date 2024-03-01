@@ -13,7 +13,6 @@ import pkg/chronicles
 import pkg/circomcompat
 import pkg/poseidon2
 import pkg/questionable/results
-import pkg/confutils/defs
 
 import pkg/libp2p/cid
 
@@ -28,6 +27,7 @@ import ../builder
 import ../sampler
 
 import ./backends
+import ./backendfactory
 import ../types
 
 export backends
@@ -36,7 +36,6 @@ logScope:
   topics = "codex prover"
 
 type
-  AnyBackend* = CircomCompat
   AnyProof* = CircomProof
 
   AnySampler* = Poseidon2Sampler
@@ -97,43 +96,16 @@ proc verify*(
   else:
     return failure("Prover was not started")
 
-proc initializeFromConfig(
-  self: Prover,
-  config: CodexConf): ?!void =
-
-  # check provided files exist
-  # initialize backend with files
-  # or failure
-
-  self.backend = some CircomCompat.init($config.circomR1cs, $config.circomWasm, $config.circomZkey)
-  success()
-
-proc initializeFromCeremonyFiles(
-  self: Prover): ?!void =
-
-  # initialize from previously-downloaded files if they exist
-  echo "todo"
-  success()
-
-proc initializeFromCeremonyUrl(
-  self: Prover,
-  proofCeremonyUrl: ?string): Future[?!void] {.async.} =
-
-  # download the ceremony url
-  # unzip it
-  return self.initializeFromCeremonyFiles()
-
 proc start*(
   self: Prover,
   config: CodexConf,
   proofCeremonyUrl: ?string): Future[?!void] {.async.} =
-  if cliErr =? self.initializeFromConfig(config).errorOption:
-    info "Could not initialize prover backend from CLI options...", msg = cliErr.msg
-    if localErr =? self.initializeFromCeremonyFiles().errorOption:
-      info "Could not initialize prover backend from local files...", msg = localErr.msg
-      if urlErr =? (await self.initializeFromCeremonyUrl(proofCeremonyUrl)).errorOption:
-        warn "Could not initialize prover backend from ceremony url...", msg = urlErr.msg
-        return failure(urlErr)
+
+  without backend =? (await initializeBackend(config, proofCeremonyUrl)), err:
+    error "Failed to initialize backend", msg = err.msg
+    return failure(err)
+
+  self.backend = some backend
   return success()
 
 proc new*(
