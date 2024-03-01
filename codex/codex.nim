@@ -23,6 +23,7 @@ import pkg/stew/shims/net as stewnet
 import pkg/datastore
 import pkg/ethers except Rng
 import pkg/stew/io2
+import pkg/questionable
 
 import ./node
 import ./conf
@@ -66,7 +67,7 @@ proc waitForSync(provider: Provider): Future[void] {.async.} =
       inc sleepTime
 
 proc bootstrapInteractions(
-  s: CodexServer): Future[void] {.async.} =
+  s: CodexServer): Future[?string] {.async.} =
   ## bootstrap interactions and return contracts
   ## using clients, hosts, validators pairings
   ##
@@ -139,6 +140,7 @@ proc bootstrapInteractions(
       validator = some ValidatorInteractions.new(clock, validation)
 
     s.codexNode.contracts = (client, host, validator)
+    return await market.getZkeyHash()
 
 proc start*(s: CodexServer) {.async.} =
   trace "Starting codex node", config = $s.config
@@ -173,7 +175,11 @@ proc start*(s: CodexServer) {.async.} =
   s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
   s.codexNode.discovery.updateDhtRecord(s.config.nat, s.config.discoveryPort)
 
-  await s.bootstrapInteractions()
+  let proofCeremonyUrl = await s.bootstrapInteractions()
+
+  if prover =? s.codexNode.prover:
+    prover.start(s.config, proofCeremonyUrl)
+
   await s.codexNode.start()
   s.restServer.start()
 
@@ -283,11 +289,13 @@ proc new*(
           $config.circomZkey
         else: ""
 
+      echo "Prover is some!"
       some Prover.new(
         store,
         CircomCompat.init($config.circomR1cs, $config.circomWasm, zkey),
         config.numProofSamples)
     else:
+      echo "Prover is none!"
       none Prover
 
     codexNode = CodexNodeRef.new(

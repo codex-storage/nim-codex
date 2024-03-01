@@ -21,6 +21,7 @@ import ../../merkletree
 import ../../stores
 import ../../market
 import ../../utils/poseidon2digest
+import ../../conf
 
 import ../builder
 import ../sampler
@@ -88,6 +89,14 @@ proc verify*(
   ## Returns a future that resolves to a proof.
 
   self.backend.verify(proof, inputs)
+
+proc start*(
+  self: Prover,
+  config: CodexConf,
+  proofCeremonyUrl: ?string
+) =
+  echo "prover start!"
+  echo proofCeremonyUrl
 
 proc new*(
   _: type Prover,
