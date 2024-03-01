@@ -64,7 +64,7 @@ type
     networkId: PeerId
     networkStore: NetworkStore
     engine: BlockExcEngine
-    prover: ?Prover
+    prover*: ?Prover
     discovery: Discovery
     contracts*: Contracts
     clock*: Clock
