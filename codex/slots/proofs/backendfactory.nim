@@ -1,4 +1,6 @@
 import os
+import httpclient
+import zip/zipfiles
 import pkg/chronos
 import pkg/questionable
 import pkg/confutils/defs
@@ -42,6 +44,9 @@ proc wasmFilePath(config: CodexConf): string =
 proc zkeyFilePath(config: CodexConf): string =
   config.dataDir / "circuit.zkey"
 
+proc zipFilePath(config: CodexConf): string =
+  config.dataDir / "circuit.zip"
+
 proc initializeFromCeremonyFiles(config: CodexConf): ?!AnyBackend =
   if fileExists(config.r1csFilePath) and
     fileExists(config.wasmFilePath) and
@@ -53,16 +58,35 @@ proc initializeFromCeremonyFiles(config: CodexConf): ?!AnyBackend =
 
   failure("Ceremony files not found")
 
+proc downloadCeremonyUrl(
+  config: CodexConf,
+  proofCeremonyUrl: string
+) =
+  var client = newHttpClient()
+  client.downloadFile(
+    "https://circuit.codex.storage/proving-key/" & proofCeremonyUrl, config.zipFilePath)
+
+proc unzipCeremonyFile(
+  config: CodexConf): ?!void =
+  var z: ZipArchive
+  if not z.open(config.zipFilePath):
+    return failure("Unable to open zip file: " & config.zipFilePath)
+  z.extractAll($config.dataDir)
+  success()
+
 proc initializeFromCeremonyUrl(
   config: CodexConf,
   proofCeremonyUrl: ?string): Future[?!AnyBackend] {.async.} =
 
-  # download the ceremony url
-  # unzip it
-
-  without backend =? initializeFromCeremonyFiles(config), err:
-    return failure(err)
-  return success(backend)
+  if url =? proofCeremonyUrl:
+    downloadCeremonyUrl(config, url)
+    if err =? unzipCeremonyFile(config).errorOption:
+      return failure(err)
+    without backend =? initializeFromCeremonyFiles(config), err:
+      return failure(err)
+    return success(backend)
+  else:
+    return failure("Ceremony URL not found")
 
 proc initializeBackend*(
   config: CodexConf,
