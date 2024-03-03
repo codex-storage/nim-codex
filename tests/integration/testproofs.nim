@@ -79,7 +79,7 @@ marketplacesuite "Simulate invalid proofs":
       CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("node")
+        # .withLogTopics("node", "clock")
         .some,
 
     providers:
@@ -87,14 +87,14 @@ marketplacesuite "Simulate invalid proofs":
         .withSimulateProofFailures(idx=0, failEveryNProofs=1)
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("marketplace", "sales", "reservations", "node")
+        # .withLogTopics("marketplace", "sales", "reservations", "node", "clock")
         .some,
 
     validators:
       CodexConfigs.init(nodes=1)
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         # .debug() # uncomment to enable console log output
-        # .withLogTopics("validator", "onchain", "ethers")
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("validator", "onchain", "ethers", "clock")
         .some
   ):
     let client0 = clients()[0].client
@@ -137,7 +137,7 @@ marketplacesuite "Simulate invalid proofs":
       CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("marketplace", "sales", "reservations", "node")
+        # .withLogTopics("marketplace", "sales", "reservations", "node", "clock")
         .some,
 
     providers:
@@ -152,7 +152,7 @@ marketplacesuite "Simulate invalid proofs":
       CodexConfigs.init(nodes=1)
         # .debug()
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("validator", "onchain", "ethers")
+        # .withLogTopics("validator", "onchain", "ethers", "clock")
         .some
   ):
     let client0 = clients()[0].client
