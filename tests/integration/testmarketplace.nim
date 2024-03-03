@@ -54,7 +54,7 @@ marketplacesuite "Marketplace payouts":
 
     let subscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
 
-    # client requests storage but requires five slots to host the content
+    # client requests storage but requires multiple slots to host the content
     let id = await clientApi.requestStorage(
       cid,
       duration=duration,
