@@ -98,7 +98,7 @@ marketplacesuite "Simulate invalid proofs":
   ):
     let client0 = clients()[0].client
     let expiry = 5.periods
-    let duration = expiry + 5.periods
+    let duration = expiry + 10.periods
 
     let data = await RandomChunker.example(blocks=8)
     createAvailabilities(data.len * 2, duration) # TODO: better value for data.len
