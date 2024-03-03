@@ -24,15 +24,15 @@ marketplacesuite "Hosts submit regular proofs":
     clients:
       CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("node")
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("node")
         .some,
 
     providers:
       CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("marketplace", "sales", "reservations", "node")
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("marketplace", "sales", "reservations", "node")
         .some,
   ):
     let client0 = clients()[0].client
@@ -78,23 +78,23 @@ marketplacesuite "Simulate invalid proofs":
     clients:
       CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("node", "clock")
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("node", "clock")
         .some,
 
     providers:
       CodexConfigs.init(nodes=1)
         .withSimulateProofFailures(idx=0, failEveryNProofs=1)
         # .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("marketplace", "sales", "reservations", "node", "clock")
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("marketplace", "sales", "reservations", "node", "clock")
         .some,
 
     validators:
       CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("validator", "onchain", "ethers", "clock")
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("validator", "onchain", "ethers", "clock")
         .some
   ):
     let client0 = clients()[0].client
@@ -136,23 +136,23 @@ marketplacesuite "Simulate invalid proofs":
     clients:
       CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("marketplace", "sales", "reservations", "node", "clock")
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("marketplace", "sales", "reservations", "node", "clock")
         .some,
 
     providers:
       CodexConfigs.init(nodes=1)
         .withSimulateProofFailures(idx=0, failEveryNProofs=1)
         # .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("marketplace", "sales", "reservations", "node")
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("marketplace", "sales", "reservations", "node")
         .some,
 
     validators:
       CodexConfigs.init(nodes=1)
         # .debug()
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("validator", "onchain", "ethers", "clock")
+        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("validator", "onchain", "ethers", "clock")
         .some
   ):
     let client0 = clients()[0].client
