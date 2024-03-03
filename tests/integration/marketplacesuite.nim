@@ -84,11 +84,7 @@ template marketplacesuite*(name: string, body: untyped) =
       return id
 
     setup:
-      # TODO: This is currently the address of the marketplace with a dummy
-      # verifier. Use real marketplace address, `Marketplace.address` once we
-      # can generate actual Groth16 ZK proofs.
-      let marketplaceAddress = Marketplace.address(dummyVerifier = false)
-      marketplace = Marketplace.new(marketplaceAddress, ethProvider.getSigner())
+      marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
       let tokenAddress = await marketplace.token()
       token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
       let config = await mp.config(marketplace)
