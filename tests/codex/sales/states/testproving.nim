@@ -42,7 +42,9 @@ asyncchecksuite "sales state 'proving'":
 
   proc advanceToNextPeriod(market: Market) {.async.} =
     let periodicity = await market.periodicity()
-    clock.advance(periodicity.seconds.truncate(int64))
+    let current = periodicity.periodOf(clock.now().u256)
+    let periodEnd = periodicity.periodEnd(current)
+    clock.set(periodEnd.truncate(int64) + 1)
 
   test "switches to cancelled state when request expires":
     let next = state.onCancelled(request)
