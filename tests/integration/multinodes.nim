@@ -221,7 +221,10 @@ template multinodesuite*(name: string, body: untyped) =
         running.add RunningNode(role: Role.Hardhat, node: node)
 
       try:
-        ethProvider = JsonRpcProvider.new("ws://localhost:8545")
+        # Workaround for https://github.com/NomicFoundation/hardhat/issues/2053
+        # Do not use websockets, but use http and polling to stop subscriptions
+        # from being removed after 5 minutes
+        ethProvider = JsonRpcProvider.new("http://localhost:8545")
         # if hardhat was NOT started by the test, take a snapshot so it can be
         # reverted in the test teardown
         if nodeConfigs.hardhat.isNil:
