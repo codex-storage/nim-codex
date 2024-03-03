@@ -15,24 +15,39 @@ type
     provider: Provider
     subscription: Subscription
     offset: times.Duration
+    blockNumber: UInt256
     started: bool
     newBlock: AsyncEvent
 
 proc new*(_: type OnChainClock, provider: Provider): OnChainClock =
   OnChainClock(provider: provider, newBlock: newAsyncEvent())
 
+proc update(clock: OnChainClock, blck: Block) =
+  if number =? blck.number and number > clock.blockNumber:
+    let blockTime = initTime(blck.timestamp.truncate(int64), 0)
+    let computerTime = getTime()
+    clock.offset = blockTime - computerTime
+    clock.blockNumber = number
+    trace "updated clock", blockTime=blck.timestamp, blockNumber=number, offset=clock.offset
+    clock.newBlock.fire()
+
+proc update(clock: OnChainClock) {.async.} =
+  try:
+    if latest =? (await clock.provider.getBlock(BlockTag.latest)):
+      clock.update(latest)
+  except CatchableError as error:
+    debug "error updating clock: ", error=error.msg
+    discard
+
 method start*(clock: OnChainClock) {.async.} =
   if clock.started:
     return
 
-  proc onBlock(blck: Block) =
-    let blockTime = initTime(blck.timestamp.truncate(int64), 0)
-    let computerTime = getTime()
-    clock.offset = blockTime - computerTime
-    clock.newBlock.fire()
+  proc onBlock(_: Block) =
+    # ignore block parameter; hardhat may call this with pending blocks
+    asyncSpawn clock.update()
 
-  if latestBlock =? (await clock.provider.getBlock(BlockTag.latest)):
-    onBlock(latestBlock)
+  await clock.update()
 
   clock.subscription = await clock.provider.subscribe(onBlock)
   clock.started = true
