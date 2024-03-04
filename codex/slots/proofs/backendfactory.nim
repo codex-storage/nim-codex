@@ -69,10 +69,7 @@ proc downloadCeremony(
   # In the future, the zip file will be stored in the Codex network
   # instead of a url + ceremonyHash, we'll get a CID from the marketplace contract.
 
-  echo "OVERRIDE!"
-  let hash = "1f512a1c6a089eff7eb22b810438c34fc59d4b0e7935dbc77ec77255d39ec094"
-
-  let url = "https://circuit.codex.storage/proving-key/" & hash # was ceremonyHash
+  let url = "https://circuit.codex.storage/proving-key/" & ceremonyHash
   trace "Downloading ceremony file", url, filepath = config.zipFilePath
   try:
     # Nim's default webclient does not support SSL on all platforms.
