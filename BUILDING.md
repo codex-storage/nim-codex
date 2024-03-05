@@ -33,7 +33,7 @@ The current implementation of Codex's zero-knowledge proving circuit requires th
 On a bare bones installation of Debian (or a distribution derived from Debian, such as Ubuntu), run
 
 ```text
-$ apt-get update && apt-get install build-essential cmake curl git
+$ apt-get update && apt-get install build-essential cmake curl git libzip-dev
 ```
 
 Non-Debian distributions have different package managers: `apk`, `dnf`, `pacman`, `rpm`, `yum`, etc.
@@ -41,7 +41,7 @@ Non-Debian distributions have different package managers: `apk`, `dnf`, `pacman`
 For example, on a bare bones installation of Fedora, run
 
 ```text
-$ dnf install @development-tools cmake gcc-c++ which
+$ dnf install @development-tools cmake gcc-c++ libzip which
 ```
 
 ### macOS
@@ -53,7 +53,7 @@ $ xcode-select --install
 
 Install [Homebrew (`brew`)](https://brew.sh/) and in a new terminal run
 ```text
-$ brew install bash cmake
+$ brew install bash cmake libzip
 ```
 
 Check that `PATH` is setup correctly
