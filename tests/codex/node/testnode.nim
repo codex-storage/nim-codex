@@ -4,6 +4,7 @@ import std/math
 import std/times
 import std/sequtils
 import std/importutils
+import std/cpuinfo
 
 import pkg/chronos
 import pkg/stew/byteutils
@@ -13,6 +14,7 @@ import pkg/questionable/results
 import pkg/stint
 import pkg/poseidon2
 import pkg/poseidon2/io
+import pkg/taskpools
 
 import pkg/nitro
 import pkg/codexdht/discv5/protocol as discv5
@@ -135,7 +137,7 @@ asyncchecksuite "Test Node - Basic":
 
   test "Setup purchase request":
     let
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
       manifest = await storeDataGetManifest(localStore, chunker)
       manifestBlock = bt.Block.new(
         manifest.encode().tryGet(),
