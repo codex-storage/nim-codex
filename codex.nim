@@ -80,7 +80,7 @@ when isMainModule:
 
     var
       state: CodexStatus
-      pendingFuts: seq[Future[void]]
+      shutdown: Future[void]
 
     let
       keyPath =
@@ -93,6 +93,12 @@ when isMainModule:
       server = CodexServer.new(config, privateKey)
 
     ## Ctrl+C handling
+    proc doShutdown() =
+      shutdown = server.stop()
+      state = CodexStatus.Stopping
+
+      notice "Stopping Codex"
+
     proc controlCHandler() {.noconv.} =
       when defined(windows):
         # workaround for https://github.com/nim-lang/Nim/issues/4057
@@ -101,10 +107,7 @@ when isMainModule:
         except Exception as exc: raiseAssert exc.msg # shouldn't happen
       notice "Shutting down after having received SIGINT"
 
-      pendingFuts.add(server.stop())
-      state = CodexStatus.Stopping
-
-      notice "Stopping Codex"
+      doShutdown()
 
     try:
       setControlCHook(controlCHandler)
@@ -116,26 +119,31 @@ when isMainModule:
       proc SIGTERMHandler(signal: cint) {.noconv.} =
         notice "Shutting down after having received SIGTERM"
 
-        pendingFuts.add(server.stop())
-        state = CodexStatus.Stopping
-
-        notice "Stopping Codex"
+        doShutdown()
 
       c_signal(ansi_c.SIGTERM, SIGTERMHandler)
 
-    pendingFuts.add(server.start())
+    try:
+      waitFor server.start()
+    except CatchableError as error:
+      error "Codex failed to start", error = error.msg
+      # XXX ideally we'd like to issue a stop instead of quitting cold turkey,
+      #   but this would mean we'd have to fix the implementation of all
+      #   services so they won't crash if we attempt to stop them before they
+      #   had a chance to start (currently you'll get a SISGSEV if you try to).
+      quit QuitFailure
 
     state = CodexStatus.Running
     while state == CodexStatus.Running:
       # poll chronos
       chronos.poll()
 
-    # wait fot futures to finish
-    let res = waitFor allFinished(pendingFuts)
-    state = CodexStatus.Stopped
-
-    if res.anyIt( it.failed ):
-      error "Codex didn't shutdown correctly"
+    try:
+      # signal handlers guarantee that the shutdown Future will
+      # be assigned before state switches to Stopping
+      waitFor shutdown
+    except CatchableError as error:
+      error "Codex didn't shutdown correctly", error = error.msg
       quit QuitFailure
 
     notice "Exited codex"
