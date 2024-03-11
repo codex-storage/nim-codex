@@ -62,6 +62,7 @@ proc proveLoop(
 
   proc waitUntilPeriod(period: Period) {.async.} =
     let periodicity = await market.periodicity()
+    # Ensure that we're past the period boundary by waiting an additional second
     await clock.waitUntil(periodicity.periodStart(period).truncate(int64) + 1)
 
   while true:
