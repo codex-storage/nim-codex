@@ -105,6 +105,7 @@ marketplacesuite "Simulate invalid proofs":
 
     let purchaseId = await client0.requestStorage(
       cid,
+      expiry=10.periods,
       duration=totalPeriods.periods,
       origDatasetSizeInBlocks=datasetSizeInBlocks)
     let requestId = client0.requestId(purchaseId).get
@@ -161,6 +162,7 @@ marketplacesuite "Simulate invalid proofs":
 
     let purchaseId = await client0.requestStorage(
       cid,
+      expiry=10.periods,
       duration=totalPeriods.periods,
       origDatasetSizeInBlocks=datasetSizeInBlocks)
     let requestId = client0.requestId(purchaseId).get

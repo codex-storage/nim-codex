@@ -60,7 +60,8 @@ method proofDowntime*(market: OnChainMarket): Future[uint8] {.async.} =
   return config.proofs.downtime
 
 method getPointer*(market: OnChainMarket, slotId: SlotId): Future[uint8] {.async.} =
-  return await market.contract.getPointer(slotId)
+  let overrides = CallOverrides(blockTag: some BlockTag.pending)
+  return await market.contract.getPointer(slotId, overrides)
 
 method myRequests*(market: OnChainMarket): Future[seq[RequestId]] {.async.} =
   return await market.contract.myRequests
@@ -88,7 +89,8 @@ method getRequest(market: OnChainMarket,
 method requestState*(market: OnChainMarket,
                      requestId: RequestId): Future[?RequestState] {.async.} =
   try:
-    return some await market.contract.requestState(requestId)
+    let overrides = CallOverrides(blockTag: some BlockTag.pending)
+    return some await market.contract.requestState(requestId, overrides)
   except ProviderError as e:
     if e.revertReason.contains("Unknown request"):
       return none RequestState
@@ -96,7 +98,8 @@ method requestState*(market: OnChainMarket,
 
 method slotState*(market: OnChainMarket,
                   slotId: SlotId): Future[SlotState] {.async.} =
-  return await market.contract.slotState(slotId)
+  let overrides = CallOverrides(blockTag: some BlockTag.pending)
+  return await market.contract.slotState(slotId, overrides)
 
 method getRequestEnd*(market: OnChainMarket,
                       id: RequestId): Future[SecondsSince1970] {.async.} =
@@ -140,7 +143,8 @@ method withdrawFunds(market: OnChainMarket,
 method isProofRequired*(market: OnChainMarket,
                         id: SlotId): Future[bool] {.async.} =
   try:
-    return await market.contract.isProofRequired(id)
+    let overrides = CallOverrides(blockTag: some BlockTag.pending)
+    return await market.contract.isProofRequired(id, overrides)
   except ProviderError as e:
     if e.revertReason.contains("Slot is free"):
       return false
@@ -149,14 +153,16 @@ method isProofRequired*(market: OnChainMarket,
 method willProofBeRequired*(market: OnChainMarket,
                             id: SlotId): Future[bool] {.async.} =
   try:
-    return await market.contract.willProofBeRequired(id)
+    let overrides = CallOverrides(blockTag: some BlockTag.pending)
+    return await market.contract.willProofBeRequired(id, overrides)
   except ProviderError as e:
     if e.revertReason.contains("Slot is free"):
       return false
     raise e
 
 method getChallenge*(market: OnChainMarket, id: SlotId): Future[ProofChallenge] {.async.} =
-  return await market.contract.getChallenge(id)
+  let overrides = CallOverrides(blockTag: some BlockTag.pending)
+  return await market.contract.getChallenge(id, overrides)
 
 method submitProof*(market: OnChainMarket,
                     id: SlotId,
