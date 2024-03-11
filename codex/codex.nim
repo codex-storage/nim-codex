@@ -46,7 +46,6 @@ logScope:
 
 type
   CodexServer* = ref object
-    runHandle: Future[void]
     config: CodexConf
     restServer: RestServerRef
     codexNode: CodexNodeRef
@@ -183,9 +182,6 @@ proc start*(s: CodexServer) {.async.} =
   await s.codexNode.start()
   s.restServer.start()
 
-  s.runHandle = newFuture[void]("codex.runHandle")
-  await s.runHandle
-
 proc stop*(s: CodexServer) {.async.} =
   notice "Stopping codex node"
 
@@ -195,8 +191,6 @@ proc stop*(s: CodexServer) {.async.} =
     s.codexNode.stop(),
     s.repoStore.stop(),
     s.maintenance.stop())
-
-  s.runHandle.complete()
 
 proc new*(
   T: type CodexServer,
