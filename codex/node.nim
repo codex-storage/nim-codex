@@ -209,6 +209,62 @@ proc fetchBatched*(
   let iter = Iter.fromSlice(0..<manifest.blocksCount)
   self.fetchBatched(manifest.treeCid, iter, batchSize, onBatch)
 
+proc streamSingleBlock(
+  self: CodexNodeRef,
+  cid: Cid
+): Future[?!LPstream] {.async.} =
+  ## Streams the contents of a single block.
+  ##
+  trace "Streaming single block", cid = cid
+
+  let
+    stream = BufferStream.new()
+
+  without blk =? (await self.networkStore.getBlock(BlockAddress.init(cid))), err:
+    return failure(err)
+
+  proc streamOneBlock(): Future[void] {.async.} =
+    try:
+      await stream.pushData(blk.data)
+    except CatchableError as exc:
+      trace "Unable to send block", cid, exc = exc.msg
+      discard
+    finally:
+      await stream.pushEof()
+
+  asyncSpawn streamOneBlock()
+  LPStream(stream).success
+
+proc streamEntireDataset(
+  self: CodexNodeRef,
+  manifest: Manifest,
+  manifestCid: Cid,
+): ?!LPStream =
+  ## Streams the contents of the entire dataset described by the manifest.
+  ##
+  trace "Retrieving blocks from manifest", manifestCid
+
+  if manifest.protected:
+    # Retrieve, decode and save to the local store all EС groups
+    proc erasureJob(): Future[void] {.async.} =
+      try:
+        # Spawn an erasure decoding job
+        let
+          erasure = Erasure.new(
+            self.networkStore,
+            leoEncoderProvider,
+            leoDecoderProvider)
+        without _ =? (await erasure.decode(manifest)), error:
+          trace "Unable to erasure decode manifest", manifestCid, exc = error.msg
+      except CatchableError as exc:
+        trace "Exception decoding manifest", manifestCid, exc = exc.msg
+
+    asyncSpawn erasureJob()
+
+  # Retrieve all blocks of the dataset sequentially from the local store or network
+  trace "Creating store stream for manifest", manifestCid
+  LPStream(StoreStream.new(self.networkStore, manifest, pad = false)).success
+
 proc retrieve*(
   self: CodexNodeRef,
   cid: Cid,
@@ -219,46 +275,13 @@ proc retrieve*(
   if local and not await (cid in self.networkStore):
     return failure((ref BlockNotFoundError)(msg: "Block not found in local store"))
 
-  if manifest =? (await self.fetchManifest(cid)):
-    trace "Retrieving blocks from manifest", cid
-    if manifest.protected:
-      # Retrieve, decode and save to the local store all EС groups
-      proc erasureJob(): Future[void] {.async.} =
-        try:
-          # Spawn an erasure decoding job
-          let
-            erasure = Erasure.new(
-              self.networkStore,
-              leoEncoderProvider,
-              leoDecoderProvider)
-          without _ =? (await erasure.decode(manifest)), error:
-            trace "Unable to erasure decode manifest", cid, exc = error.msg
-        except CatchableError as exc:
-          trace "Exception decoding manifest", cid, exc = exc.msg
-
-      asyncSpawn erasureJob()
-
-    # Retrieve all blocks of the dataset sequentially from the local store or network
-    trace "Creating store stream for manifest", cid
-    LPStream(StoreStream.new(self.networkStore, manifest, pad = false)).success
-  else:
-    let
-      stream = BufferStream.new()
-
-    without blk =? (await self.networkStore.getBlock(BlockAddress.init(cid))), err:
+  without manifest =? (await self.fetchManifest(cid)), err:
+    if err of AsyncTimeoutError:
       return failure(err)
 
-    proc streamOneBlock(): Future[void] {.async.} =
-      try:
-        await stream.pushData(blk.data)
-      except CatchableError as exc:
-        trace "Unable to send block", cid, exc = exc.msg
-        discard
-      finally:
-        await stream.pushEof()
+    return await self.streamSingleBlock(cid)
 
-    asyncSpawn streamOneBlock()
-    LPStream(stream).success()
+  self.streamEntireDataset(manifest, cid)
 
 proc store*(
   self: CodexNodeRef,

@@ -73,6 +73,7 @@ type
     peersPerRequest: int                          # Max number of peers to request from
     wallet*: WalletRef                            # Nitro wallet for micropayments
     pricing*: ?Pricing                            # Optional bandwidth pricing
+    blockFetchTimeout*: Duration                  # Timeout for fetching blocks over the network
     discovery*: DiscoveryEngine
 
   Pricing* = object
@@ -167,8 +168,8 @@ proc monitorBlockHandle(b: BlockExcEngine, handle: Future[Block], address: Block
 proc requestBlock*(
   b: BlockExcEngine,
   address: BlockAddress,
-  timeout = DefaultBlockTimeout): Future[Block] {.async.} =
-  let blockFuture = b.pendingBlocks.getWantHandle(address, timeout)
+): Future[Block] {.async.} =
+  let blockFuture = b.pendingBlocks.getWantHandle(address, b.blockFetchTimeout)
 
   if b.pendingBlocks.isInFlight(address):
     return await blockFuture
@@ -197,8 +198,8 @@ proc requestBlock*(
 
 proc requestBlock*(
   b: BlockExcEngine,
-  cid: Cid,
-  timeout = DefaultBlockTimeout): Future[Block] =
+  cid: Cid
+): Future[Block] =
   b.requestBlock(BlockAddress.init(cid))
 
 proc blockPresenceHandler*(
@@ -606,7 +607,8 @@ proc new*(
     peerStore: PeerCtxStore,
     pendingBlocks: PendingBlocksManager,
     concurrentTasks = DefaultConcurrentTasks,
-    peersPerRequest = DefaultMaxPeersPerRequest
+    peersPerRequest = DefaultMaxPeersPerRequest,
+    blockFetchTimeout = DefaultBlockTimeout,
 ): BlockExcEngine =
   ## Create new block exchange engine instance
   ##
@@ -621,7 +623,8 @@ proc new*(
       wallet: wallet,
       concurrentTasks: concurrentTasks,
       taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize),
-      discovery: discovery)
+      discovery: discovery,
+      blockFetchTimeout: blockFetchTimeout)
 
   proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =
     if event.kind == PeerEventKind.Joined:
