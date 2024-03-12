@@ -32,6 +32,7 @@ type
     minPrice* {.serialize.}: UInt256
     maxCollateral* {.serialize.}: UInt256
     freeSize* {.serialize.}: ?UInt256
+    until* {.serialize.}: int64
 
   RestSalesAgent* = object
     state* {.serialize.}: string

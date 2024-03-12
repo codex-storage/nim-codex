@@ -62,6 +62,8 @@ type
     duration* {.serialize.}: UInt256
     minPrice* {.serialize.}: UInt256
     maxCollateral* {.serialize.}: UInt256
+    # 0 means non-restricted, otherwise contains timestamp until the Availability will be renewed
+    until* {.serialize.}: SecondsSince1970
   Reservation* = ref object
     id* {.serialize.}: ReservationId
     availabilityId* {.serialize.}: AvailabilityId
@@ -305,12 +307,13 @@ proc createAvailability*(
   size: UInt256,
   duration: UInt256,
   minPrice: UInt256,
-  maxCollateral: UInt256): Future[?!Availability] {.async.} =
+  maxCollateral: UInt256,
+  until: SecondsSince1970 = 0): Future[?!Availability] {.async.} =
 
   trace "creating availability", size, duration, minPrice, maxCollateral
 
   let availability = Availability.init(
-    size, size, duration, minPrice, maxCollateral
+    size, size, duration, minPrice, maxCollateral, until
   )
   let bytes = availability.freeSize.truncate(uint)
 
