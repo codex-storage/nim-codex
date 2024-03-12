@@ -325,8 +325,9 @@ proc createReservation*(
     return failure(error)
 
   if availability.size < slotSize:
-    let error = newException(BytesOutOfBoundsError, "trying to reserve an " &
-      "amount of bytes that is greater than the total size of the Availability")
+    let error = newException(
+      BytesOutOfBoundsError,
+      "trying to reserve an amount of bytes that is greater than the total size of the Availability")
     return failure(error)
 
   if createResErr =? (await self.update(reservation)).errorOption:
@@ -427,9 +428,9 @@ proc release*(
     return failure(error)
 
   if reservation.size < bytes.u256:
-    let error = newException(BytesOutOfBoundsError,
-      "trying to release an amount of bytes that is greater than the total " &
-      "size of the Reservation")
+    let error = newException(
+      BytesOutOfBoundsError,
+      "trying to release an amount of bytes that is greater than the total size of the Reservation")
     return failure(error)
 
   if releaseErr =? (await self.repo.release(bytes)).errorOption:
@@ -540,7 +541,7 @@ proc findAvailability*(
 
         return some availability
 
-      trace "availiability did not match",
+      trace "availability did not match",
         size, availsize = availability.size,
         duration, availDuration = availability.duration,
         minPrice, availMinPrice = availability.minPrice,

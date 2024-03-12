@@ -174,16 +174,25 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check request.ask.maxSlotLoss == 0'u64
 
   test "nodes negotiate contracts on the marketplace":
-    let size = 0xFFFFF.u256
+    let size = 0xFFFFFF.u256
+    let data = await RandomChunker.example(blocks=8)
     # client 2 makes storage available
-    discard client2.postAvailability(size=size, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256)
+    discard client2.postAvailability(size=size, duration=20*60.u256, minPrice=300.u256, maxCollateral=300.u256)
 
     # client 1 requests storage
-    let expiry = (await ethProvider.currentTime()) + 30
-    let cid = client1.upload("some file contents").get
-    let id = client1.requestStorage(cid, duration=100.u256, reward=400.u256, proofProbability=3.u256, expiry=expiry, collateral=200.u256).get
+    let expiry = (await ethProvider.currentTime()) + 5*60
+    let cid = client1.upload(data).get
+    let id = client1.requestStorage(
+      cid,
+      duration=10*60.u256,
+      reward=400.u256,
+      proofProbability=3.u256,
+      expiry=expiry,
+      collateral=200.u256,
+      nodes = 5,
+      tolerance = 2).get
 
-    check eventually client1.purchaseStateIs(id, "started")
+    check eventually(client1.purchaseStateIs(id, "started"), timeout=5*60*1000)
     let purchase = client1.getPurchase(id).get
     check purchase.error == none string
     let availabilities = client2.getAvailabilities().get
@@ -192,22 +201,33 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check newSize > 0 and newSize < size
 
   test "node slots gets paid out":
+    let size = 0xFFFFFF.u256
+    let data = await RandomChunker.example(blocks = 8)
     let marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
     let tokenAddress = await marketplace.token()
     let token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
     let reward = 400.u256
-    let duration = 100.u256
+    let duration = 10*60.u256
+    let nodes = 5'u
 
     # client 2 makes storage available
     let startBalance = await token.balanceOf(account2)
-    discard client2.postAvailability(size=0xFFFFF.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
+    discard client2.postAvailability(size=size, duration=20*60.u256, minPrice=300.u256, maxCollateral=300.u256).get
 
     # client 1 requests storage
-    let expiry = (await ethProvider.currentTime()) + 30
-    let cid = client1.upload("some file contents").get
-    let id = client1.requestStorage(cid, duration=duration, reward=reward, proofProbability=3.u256, expiry=expiry, collateral=200.u256).get
+    let expiry = (await ethProvider.currentTime()) + 5*60
+    let cid = client1.upload(data).get
+    let id = client1.requestStorage(
+      cid,
+      duration=duration,
+      reward=reward,
+      proofProbability=3.u256,
+      expiry=expiry,
+      collateral=200.u256,
+      nodes = nodes,
+      tolerance = 2).get
 
-    check eventually client1.purchaseStateIs(id, "started")
+    check eventually(client1.purchaseStateIs(id, "started"), timeout=5*60*1000)
     let purchase = client1.getPurchase(id).get
     check purchase.error == none string
 
@@ -216,7 +236,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     # only with new transaction
     await ethProvider.advanceTime(duration)
 
-    check eventually (await token.balanceOf(account2)) - startBalance == duration*reward
+    check eventually (await token.balanceOf(account2)) - startBalance == duration*reward*nodes.u256
 
   test "request storage fails if nodes and tolerance aren't correct":
     let cid = client1.upload("some file contents").get
