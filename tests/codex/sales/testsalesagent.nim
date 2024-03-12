@@ -5,7 +5,6 @@ import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
 import pkg/codex/sales/statemachine
 import pkg/codex/sales/states/errorhandling
-import pkg/codex/proving
 
 import ../../asynctest
 import ../helpers/mockmarket
@@ -73,7 +72,6 @@ asyncchecksuite "Sales agent":
                           request.id,
                           slotIndex,
                           some request)
-    request.expiry = (getTime() + initDuration(hours=1)).toUnix.u256
 
   teardown:
     await agent.stop()
@@ -108,11 +106,28 @@ asyncchecksuite "Sales agent":
     await agent.unsubscribe()
 
   test "current state onCancelled called when cancel emitted":
-    let state = MockState.new()
-    agent.start(state)
+    agent.start(MockState.new())
     await agent.subscribe()
-    clock.set(request.expiry.truncate(int64))
+    market.requestState[request.id] = RequestState.Cancelled
+    clock.set(request.expiry.truncate(int64) + 1)
     check eventually onCancelCalled
+
+  for requestState in {RequestState.New, Started, Finished, Failed}:
+    test "onCancelled is not called when request state is " & $requestState:
+      agent.start(MockState.new())
+      await agent.subscribe()
+      market.requestState[request.id] = requestState
+      clock.set(request.expiry.truncate(int64) + 1)
+      await sleepAsync(100.millis)
+      check not onCancelCalled
+
+  for requestState in {RequestState.Started, Finished, Failed}:
+    test "cancelled future is finished when request state is " & $requestState:
+      agent.start(MockState.new())
+      await agent.subscribe()
+      market.requestState[request.id] = requestState
+      clock.set(request.expiry.truncate(int64) + 1)
+      check eventually agent.data.cancelled.finished
 
   test "cancelled future is finished (cancelled) when onFulfilled called":
     agent.start(MockState.new())
