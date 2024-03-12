@@ -3,13 +3,16 @@ import std/sequtils
 import std/strutils
 import std/sugar
 import std/times
+import pkg/codex/conf
 import pkg/codex/logutils
 import pkg/chronos/transports/stream
 import pkg/ethers
-import ./hardhatprocess
+import pkg/questionable
+import ./codexconfig
 import ./codexprocess
 import ./hardhatconfig
-import ./codexconfig
+import ./hardhatprocess
+import ./nodeconfigs
 import ../asynctest
 import ../checktest
 
@@ -24,16 +27,15 @@ type
   RunningNode* = ref object
     role*: Role
     node*: NodeProcess
-  NodeConfigs* = object
-    clients*: CodexConfig
-    providers*: CodexConfig
-    validators*: CodexConfig
-    hardhat*: HardhatConfig
   Role* {.pure.} = enum
     Client,
     Provider,
     Validator,
     Hardhat
+  MultiNodeSuiteError = object of CatchableError
+
+proc raiseMultiNodeSuiteError(msg: string) =
+  raise newException(MultiNodeSuiteError, msg)
 
 proc nextFreePort(startPort: int): Future[int] {.async.} =
 
@@ -79,6 +81,7 @@ template multinodesuite*(name: string, body: untyped) =
       var sanitized = pathSegment
       for invalid in invalidFilenameChars.items:
         sanitized = sanitized.replace(invalid, '_')
+                             .replace(' ', '_')
       sanitized
 
     proc getLogFile(role: Role, index: ?int): string =
@@ -87,7 +90,7 @@ template multinodesuite*(name: string, body: untyped) =
 
       var logDir = currentSourcePath.parentDir() /
         "logs" /
-        sanitize($starttime & " " & name) /
+        sanitize($starttime & "__" & name) /
         sanitize($currentTestName)
       createDir(logDir)
 
@@ -110,53 +113,56 @@ template multinodesuite*(name: string, body: untyped) =
         args.add "--log-file=" & updatedLogFile
 
       let node = await HardhatProcess.startNode(args, config.debugEnabled, "hardhat")
-      await node.waitUntilStarted()
+      try:
+        await node.waitUntilStarted()
+      except NodeProcessError as e:
+        raiseMultiNodeSuiteError "hardhat node not started: " & e.msg
 
       trace "hardhat node started"
       return node
 
     proc newCodexProcess(roleIdx: int,
-                        config: CodexConfig,
+                        conf: CodexConfig,
                         role: Role
     ): Future[NodeProcess] {.async.} =
 
       let nodeIdx = running.len
-      var conf = config
+      var config = conf
 
       if nodeIdx > accounts.len - 1:
-        raiseAssert("Cannot start node at nodeIdx " & $nodeIdx &
-          ", not enough eth accounts.")
+        raiseMultiNodeSuiteError "Cannot start node at nodeIdx " & $nodeIdx &
+          ", not enough eth accounts."
 
       let datadir = getTempDir() / "Codex" /
         sanitize($starttime) /
         sanitize($role & "_" & $roleIdx)
 
-      if conf.logFile:
-        let updatedLogFile = getLogFile(role, some roleIdx)
-        conf.cliOptions.add CliOption(key: "--log-file", value: updatedLogFile)
+      try:
+        if config.logFile.isSome:
+          let updatedLogFile = getLogFile(role, some roleIdx)
+          config.withLogFile(updatedLogFile)
 
-      let logLevel = conf.logLevel |? LogLevel.INFO
-      if conf.logTopics.len > 0:
-        conf.cliOptions.add CliOption(
-          key: "--log-level",
-          value: $logLevel & ";TRACE: " & conf.logTopics.join(",")
-        )
-      else:
-        conf.cliOptions.add CliOption(key: "--log-level", value: $logLevel)
+        config.addCliOption("--api-port", $ await nextFreePort(8080 + nodeIdx))
+        config.addCliOption("--data-dir", datadir)
+        config.addCliOption("--nat", "127.0.0.1")
+        config.addCliOption("--listen-addrs", "/ip4/127.0.0.1/tcp/0")
+        config.addCliOption("--disc-ip", "127.0.0.1")
+        config.addCliOption("--disc-port", $ await nextFreePort(8090 + nodeIdx))
 
-      var args = conf.cliOptions.map(o => $o)
-        .concat(@[
-          "--api-port=" & $ await nextFreePort(8080 + nodeIdx),
-          "--data-dir=" & datadir,
-          "--nat=127.0.0.1",
-          "--listen-addrs=/ip4/127.0.0.1/tcp/0",
-          "--disc-ip=127.0.0.1",
-          "--disc-port=" & $ await nextFreePort(8090 + nodeIdx),
-          "--eth-account=" & $accounts[nodeIdx]])
+      except CodexConfigError as e:
+        raiseMultiNodeSuiteError "invalid cli option, error: " & e.msg
 
-      let node = await CodexProcess.startNode(args, conf.debugEnabled, $role & $roleIdx)
-      await node.waitUntilStarted()
-      trace "node started", nodeName = $role & $roleIdx
+      let node = await CodexProcess.startNode(
+        config.cliArgs,
+        config.debugEnabled,
+        $role & $roleIdx
+      )
+
+      try:
+        await node.waitUntilStarted()
+        trace "node started", nodeName = $role & $roleIdx
+      except NodeProcessError as e:
+        raiseMultiNodeSuiteError "node not started, error: " & e.msg
 
       return node
 
@@ -184,85 +190,36 @@ template multinodesuite*(name: string, body: untyped) =
           if r.role == Role.Validator:
             CodexProcess(r.node)
 
-    proc startHardhatNode(): Future[NodeProcess] {.async.} =
-      var config = nodeConfigs.hardhat
+    proc startHardhatNode(config: HardhatConfig): Future[NodeProcess] {.async.} =
       return await newHardhatProcess(config, Role.Hardhat)
 
-    proc startClientNode(): Future[NodeProcess] {.async.} =
+    proc startClientNode(conf: CodexConfig): Future[NodeProcess] {.async.} =
       let clientIdx = clients().len
-      var config = nodeConfigs.clients
-      config.cliOptions.add CliOption(key: "--persistence")
+      var config = conf
+      config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
       return await newCodexProcess(clientIdx, config, Role.Client)
 
-    proc startProviderNode(): Future[NodeProcess] {.async.} =
+    proc startProviderNode(conf: CodexConfig): Future[NodeProcess] {.async.} =
       let providerIdx = providers().len
-      var config = nodeConfigs.providers
-      config.cliOptions.add CliOption(key: "--bootstrap-node", value: bootstrap)
-      config.cliOptions.add CliOption(key: "--persistence")
-
-      # filter out provider options by provided index
-      config.cliOptions = config.cliOptions.filter(
-        o => (let idx = o.nodeIdx |? providerIdx; idx == providerIdx)
-      )
+      var config = conf
+      config.addCliOption("--bootstrap-node", bootstrap)
+      config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
+      config.addCliOption(PersistenceCmd.prover, "--circom-r1cs", "tests/circuits/fixtures/proof_main.r1cs")
+      config.addCliOption(PersistenceCmd.prover, "--circom-wasm", "tests/circuits/fixtures/proof_main.wasm")
+      config.addCliOption(PersistenceCmd.prover, "--circom-zkey", "tests/circuits/fixtures/proof_main.zkey")
 
       return await newCodexProcess(providerIdx, config, Role.Provider)
 
-    proc startValidatorNode(): Future[NodeProcess] {.async.} =
+    proc startValidatorNode(conf: CodexConfig): Future[NodeProcess] {.async.} =
       let validatorIdx = validators().len
-      var config = nodeConfigs.validators
-      config.cliOptions.add CliOption(key: "--bootstrap-node", value: bootstrap)
-      config.cliOptions.add CliOption(key: "--validator")
+      var config = conf
+      config.addCliOption("--bootstrap-node", bootstrap)
+      config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
+      config.addCliOption(StartUpCmd.persistence, "--validator")
 
       return await newCodexProcess(validatorIdx, config, Role.Validator)
 
-    setup:
-      if not nodeConfigs.hardhat.isNil:
-        let node = await startHardhatNode()
-        running.add RunningNode(role: Role.Hardhat, node: node)
-
-      try:
-        # Workaround for https://github.com/NomicFoundation/hardhat/issues/2053
-        # Do not use websockets, but use http and polling to stop subscriptions
-        # from being removed after 5 minutes
-        ethProvider = JsonRpcProvider.new("http://localhost:8545")
-        # if hardhat was NOT started by the test, take a snapshot so it can be
-        # reverted in the test teardown
-        if nodeConfigs.hardhat.isNil:
-          snapshot = await send(ethProvider, "evm_snapshot")
-        # ensure that we have a recent block with a fresh timestamp
-        discard await send(ethProvider, "evm_mine")
-        accounts = await ethProvider.listAccounts()
-      except CatchableError as e:
-        fatal "failed to connect to hardhat", error = e.msg
-        raiseAssert "Hardhat not running. Run hardhat manually before executing tests, or include a HardhatConfig in the test setup."
-
-      if not nodeConfigs.clients.isNil:
-        for i in 0..<nodeConfigs.clients.numNodes:
-          let node = await startClientNode()
-          running.add RunningNode(
-                        role: Role.Client,
-                        node: node
-                      )
-          if i == 0:
-            bootstrap = CodexProcess(node).client.info()["spr"].getStr()
-
-      if not nodeConfigs.providers.isNil:
-        for i in 0..<nodeConfigs.providers.numNodes:
-          let node = await startProviderNode()
-          running.add RunningNode(
-                        role: Role.Provider,
-                        node: node
-                      )
-
-      if not nodeConfigs.validators.isNil:
-        for i in 0..<nodeConfigs.validators.numNodes:
-          let node = await startValidatorNode()
-          running.add RunningNode(
-                        role: Role.Validator,
-                        node: node
-                      )
-
-    teardown:
+    proc teardownImpl() {.async.} =
       for nodes in @[validators(), clients(), providers()]:
         for node in nodes:
           await node.stop() # also stops rest client
@@ -277,5 +234,78 @@ template multinodesuite*(name: string, body: untyped) =
         discard await send(ethProvider, "evm_revert", @[snapshot])
 
       running = @[]
+
+    template failAndTeardownOnError(message: string, tryBody: untyped) =
+      try:
+        tryBody
+      except CatchableError as er:
+        fatal message, error=er.msg
+        echo "[FATAL] ", message, ": ", er.msg
+        await teardownImpl()
+        when declared(teardownAllIMPL):
+          teardownAllIMPL()
+        fail()
+        quit(1)
+
+    setup:
+      if var conf =? nodeConfigs.hardhat:
+        try:
+          let node = await startHardhatNode(conf)
+          running.add RunningNode(role: Role.Hardhat, node: node)
+        except CatchableError as e:
+          echo "failed to start hardhat node"
+          fail()
+          quit(1)
+
+      try:
+        # Workaround for https://github.com/NomicFoundation/hardhat/issues/2053
+        # Do not use websockets, but use http and polling to stop subscriptions
+        # from being removed after 5 minutes
+        ethProvider = JsonRpcProvider.new("http://localhost:8545")
+        # if hardhat was NOT started by the test, take a snapshot so it can be
+        # reverted in the test teardown
+        if nodeConfigs.hardhat.isNone:
+          snapshot = await send(ethProvider, "evm_snapshot")
+        # ensure that we have a recent block with a fresh timestamp
+        discard await send(ethProvider, "evm_mine")
+        accounts = await ethProvider.listAccounts()
+      except CatchableError as e:
+        echo "Hardhat not running. Run hardhat manually " &
+            "before executing tests, or include a " &
+            "HardhatConfig in the test setup."
+        fail()
+        quit(1)
+
+      if var clients =? nodeConfigs.clients:
+        failAndTeardownOnError "failed to start client nodes":
+          for config in clients.configs:
+            let node = await startClientNode(config)
+            running.add RunningNode(
+                          role: Role.Client,
+                          node: node
+                        )
+            if clients().len == 1:
+              bootstrap = CodexProcess(node).client.info()["spr"].getStr()
+
+      if var providers =? nodeConfigs.providers:
+        failAndTeardownOnError "failed to start provider nodes":
+          for config in providers.configs.mitems:
+            let node = await startProviderNode(config)
+            running.add RunningNode(
+                          role: Role.Provider,
+                          node: node
+                        )
+
+      if var validators =? nodeConfigs.validators:
+        failAndTeardownOnError "failed to start validator nodes":
+          for config in validators.configs.mitems:
+            let node = await startValidatorNode(config)
+            running.add RunningNode(
+                          role: Role.Validator,
+                          node: node
+                        )
+
+    teardown:
+      await teardownImpl()
 
     body

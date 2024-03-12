@@ -1,10 +1,7 @@
-import pkg/questionable
-
 type
-  CliOption* = object of RootObj
-    nodeIdx*: ?int
-    key*: string
-    value*: string
+  CliOption* = object
+    key*: string            # option key, including `--`
+    value*: string          # option value
 
 proc `$`*(option: CliOption): string =
   var res = option.key

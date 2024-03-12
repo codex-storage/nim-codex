@@ -20,4 +20,3 @@ proc address*(_: type Marketplace, dummyVerifier = false): Address =
     hardhatMarketWithDummyVerifier
   else:
     hardhatMarketAddress
-
