@@ -19,7 +19,6 @@ template marketplacesuite*(name: string, body: untyped) =
     var period: uint64
     var periodicity: Periodicity
     var token {.inject, used.}: Erc20Token
-    var continuousMineFut: Future[void]
 
     proc getCurrentPeriod(): Future[Period] {.async.} =
       return periodicity.periodOf(await ethProvider.currentTime())
@@ -60,12 +59,6 @@ template marketplacesuite*(name: string, body: untyped) =
           maxCollateral=200.u256
         )
 
-    proc validateRequest(nodes, tolerance, origDatasetSizeInBlocks: uint) =
-      if nodes > 1:
-        doAssert(origDatasetSizeInBlocks >= 3,
-                  "dataset size must be greater than or equal to 3 blocks with " &
-                  "more than one node")
-
     proc requestStorage(client: CodexClient,
                         cid: Cid,
                         proofProbability: uint64 = 1,
@@ -74,9 +67,7 @@ template marketplacesuite*(name: string, body: untyped) =
                         collateral = 100.u256,
                         expiry: uint64 = 4.periods,
                         nodes = providers().len,
-                        tolerance = 0,
-                        origDatasetSizeInBlocks: int): Future[PurchaseId] {.async.} =
-
+                        tolerance = 0): Future[PurchaseId] {.async.} =
       let expiry = (await ethProvider.currentTime()) + expiry.u256
 
       let id = client.requestStorage(
@@ -92,14 +83,6 @@ template marketplacesuite*(name: string, body: untyped) =
 
       return id
 
-    proc continuouslyAdvanceEvery(every: chronos.Duration) {.async.} =
-      try:
-        while true:
-          await advanceToNextPeriod()
-          await sleepAsync(every)
-      except CancelledError:
-        discard
-
     setup:
       # TODO: This is currently the address of the marketplace with a dummy
       # verifier. Use real marketplace address, `Marketplace.address` once we
@@ -111,10 +94,5 @@ template marketplacesuite*(name: string, body: untyped) =
       let config = await mp.config(marketplace)
       period = config.proofs.period.truncate(uint64)
       periodicity = Periodicity(seconds: period.u256)
-
-      continuousMineFut = continuouslyAdvanceEvery(chronos.millis(500))
-
-    teardown:
-      await continuousMineFut.cancelAndWait()
 
     body
