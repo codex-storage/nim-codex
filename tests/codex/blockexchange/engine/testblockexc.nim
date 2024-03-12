@@ -278,7 +278,7 @@ asyncchecksuite "NetworkStore - multiple nodes":
     # As soon as we connect the downloader to the blockHolder, the block should
     # propagate to the downloader...
     await connectNodes(@[downloader, blockHolder])
-    check (await blockRequest).cid == aBlock.cid
+    check (await blockRequest).tryGet().cid == aBlock.cid
     check (await downloader.engine.localStore.hasBlock(aBlock.cid)).tryGet()
 
     # ... and the bystander should have cancelled the want-have

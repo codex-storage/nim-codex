@@ -22,10 +22,9 @@ type
     decoder*: Option[LeoDecoder]
 
 method encode*(
-    self: LeoEncoderBackend,
-    data,
-    parity: var openArray[seq[byte]]
-): Result[void, cstring] =
+  self: LeoEncoderBackend,
+  data,
+  parity: var openArray[seq[byte]]): Result[void, cstring] =
   ## Encode data using Leopard backend
 
   if parity.len == 0:
@@ -43,11 +42,10 @@ method encode*(
   encoder.encode(data, parity)
 
 method decode*(
-    self: LeoDecoderBackend,
-    data,
-    parity,
-    recovered: var openArray[seq[byte]]
-): Result[void, cstring] =
+  self: LeoDecoderBackend,
+  data,
+  parity,
+  recovered: var openArray[seq[byte]]): Result[void, cstring] =
   ## Decode data using given Leopard backend
 
   var decoder =
@@ -71,26 +69,24 @@ method release*(self: LeoDecoderBackend) =
     self.decoder.get().free()
 
 proc new*(
-    T: type LeoEncoderBackend,
-    blockSize,
-    buffers,
-    parity: int
-): LeoEncoderBackend =
+  T: type LeoEncoderBackend,
+  blockSize,
+  buffers,
+  parity: int): LeoEncoderBackend =
   ## Create an instance of an Leopard Encoder backend
-  ## 
+  ##
   LeoEncoderBackend(
     blockSize: blockSize,
     buffers: buffers,
     parity: parity)
 
 proc new*(
-    T: type LeoDecoderBackend,
-    blockSize,
-    buffers,
-    parity: int
-): LeoDecoderBackend =
+  T: type LeoDecoderBackend,
+  blockSize,
+  buffers,
+  parity: int): LeoDecoderBackend =
   ## Create an instance of an Leopard Decoder backend
-  ## 
+  ##
   LeoDecoderBackend(
     blockSize: blockSize,
     buffers: buffers,

@@ -81,8 +81,13 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
         error "Uknown request", requestId = data.requestId
         return
 
-      if state == RequestState.Cancelled:
+      case state
+      of New:
+        discard
+      of RequestState.Cancelled:
         agent.schedule(cancelledEvent(request))
+        break
+      of RequestState.Started, RequestState.Finished, RequestState.Failed:
         break
 
       debug "The request is not yet canceled, even though it should be. Waiting for some more time.", currentState = state, now=clock.now

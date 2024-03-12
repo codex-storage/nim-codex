@@ -135,11 +135,11 @@ asyncchecksuite "Test Node - Basic":
 
   test "Setup purchase request":
     let
+      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
       manifest = await storeDataGetManifest(localStore, chunker)
       manifestBlock = bt.Block.new(
         manifest.encode().tryGet(),
         codec = ManifestCodec).tryGet()
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
       protected = (await erasure.encode(manifest, 3, 2)).tryGet()
       builder = Poseidon2Builder.new(localStore, protected).tryGet()
       verifiable = (await builder.buildManifest()).tryGet()

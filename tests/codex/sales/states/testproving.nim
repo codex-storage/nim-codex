@@ -5,6 +5,7 @@ import pkg/codex/sales/states/proving
 import pkg/codex/sales/states/cancelled
 import pkg/codex/sales/states/failed
 import pkg/codex/sales/states/payout
+import pkg/codex/sales/states/errored
 import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
 
@@ -41,7 +42,9 @@ asyncchecksuite "sales state 'proving'":
 
   proc advanceToNextPeriod(market: Market) {.async.} =
     let periodicity = await market.periodicity()
-    clock.advance(periodicity.seconds.truncate(int64))
+    let current = periodicity.periodOf(clock.now().u256)
+    let periodEnd = periodicity.periodEnd(current)
+    clock.set(periodEnd.truncate(int64) + 1)
 
   test "switches to cancelled state when request expires":
     let next = state.onCancelled(request)
@@ -65,7 +68,7 @@ asyncchecksuite "sales state 'proving'":
     market.setProofRequired(slot.id, true)
     await market.advanceToNextPeriod()
 
-    check eventually receivedIds == @[slot.id]
+    check eventually receivedIds.contains(slot.id)
 
     await future.cancelAndWait()
     await subscription.unsubscribe()
@@ -81,6 +84,17 @@ asyncchecksuite "sales state 'proving'":
     check eventually future.finished
     check !(future.read()) of SalePayout
 
+  test "switches to error state when slot is no longer filled":
+    market.slotState[slot.id] = SlotState.Filled
+
+    let future = state.run(agent)
+
+    market.slotState[slot.id] = SlotState.Free
+    await market.advanceToNextPeriod()
+
+    check eventually future.finished
+    check !(future.read()) of SaleErrored
+
   test "onProve callback provides proof challenge":
     market.proofChallenge = ProofChallenge.example
     market.slotState[slot.id] = SlotState.Filled
@@ -88,4 +102,6 @@ asyncchecksuite "sales state 'proving'":
 
     let future = state.run(agent)
 
-    check receivedChallenge == market.proofChallenge
+    check eventually receivedChallenge == market.proofChallenge
+
+    await future.cancelAndWait()

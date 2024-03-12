@@ -579,6 +579,8 @@ proc onStore(
     trace "Unable to build slot", err = err.msg
     return failure(err)
 
+  trace "Slot successfully retrieved and reconstructed"
+
   if cid =? slotRoot.toSlotCid() and cid != manifest.slotRoots[slotIdx.int]:
     trace "Slot root mismatch", manifest = manifest.slotRoots[slotIdx.int], recovered = slotRoot.toSlotCid()
     return failure(newException(CodexError, "Slot root mismatch"))
@@ -616,25 +618,32 @@ proc onProve(
       error "Unable to fetch manifest for cid", err = err.msg
       return failure(err)
 
-    without builder =? Poseidon2Builder.new(self.networkStore.localStore, manifest), err:
-      error "Unable to create slots builder", err = err.msg
-      return failure(err)
+    when defined(verify_circuit):
+      without (inputs, proof) =? await prover.prove(slotIdx, manifest, challenge), err:
+        error "Unable to generate proof", err = err.msg
+        return failure(err)
 
-    without sampler =? DataSampler.new(slotIdx, self.networkStore.localStore, builder), err:
-      error "Unable to create data sampler", err = err.msg
-      return failure(err)
+      without checked =? await prover.verify(proof, inputs), err:
+        error "Unable to verify proof", err = err.msg
+        return failure(err)
 
-    without proofInput =? await sampler.getProofInput(challenge, nSamples = 3), err:
-      error "Unable to get proof input for slot", err = err.msg
-      return failure(err)
+      if not checked:
+        error "Proof verification failed"
+        return failure("Proof verification failed")
 
-  # Todo: send proofInput to circuit. Get proof. (Profit, repeat.)
+      trace "Proof verified successfully"
+    else:
+      without (_, proof) =? await prover.prove(slotIdx, manifest, challenge), err:
+        error "Unable to generate proof", err = err.msg
+        return failure(err)
 
-  # For now: dummy proof that is not all zero's, so that it is accepted by the
-  # dummy verifier:
-  var proof = Groth16Proof.default
-  proof.a.x = 42.u256
-  success(proof)
+    let groth16Proof = proof.toGroth16Proof()
+    trace "Proof generated successfully", groth16Proof
+
+    success groth16Proof
+  else:
+    warn "Prover not enabled"
+    failure "Prover not enabled"
 
 proc onExpiryUpdate(
   self: CodexNodeRef,

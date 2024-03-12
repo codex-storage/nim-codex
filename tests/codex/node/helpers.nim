@@ -7,6 +7,7 @@ import pkg/chronos
 import pkg/codex/codextypes
 import pkg/codex/chunker
 import pkg/codex/stores
+import pkg/codex/slots
 
 import ../../asynctest
 
@@ -106,7 +107,12 @@ template setupAndTearDown*() {.dirty.} =
     discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
     engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
-    node = CodexNodeRef.new(switch, store, engine, blockDiscovery)
+    node = CodexNodeRef.new(
+      switch = switch,
+      networkStore = store,
+      engine = engine,
+      prover = Prover.none,
+      discovery = blockDiscovery)
 
     await node.start()
 
