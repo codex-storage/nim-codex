@@ -57,8 +57,8 @@ asyncchecksuite "Reservations module":
     check (await reservations.all(Availability)).get.len == 0
 
   test "generates unique ids for storage availability":
-    let availability1 = Availability.init(1.u256, 1.u256, 2.u256, 3.u256, 4.u256)
-    let availability2 = Availability.init(1.u256, 1.u256, 2.u256, 3.u256, 4.u256)
+    let availability1 = Availability.init(1.u256, 2.u256, 3.u256, 4.u256, 5.u256)
+    let availability2 = Availability.init(1.u256, 2.u256, 3.u256, 4.u256, 5.u256)
     check availability1.id != availability2.id
 
   test "can reserve available storage":

@@ -17,6 +17,7 @@ proc `as`*[T](value: T, U: type): ?U =
 
 Option.liftBinary `as`
 
+# Template that wraps type with `Option[]` only if it is already not `Option` type
 template WrapOption*(input: untyped): type =
   when input is Option:
     input
@@ -24,12 +25,7 @@ template WrapOption*(input: untyped): type =
     Option[input]
 
 
-template Optionalize*(t: typed): untyped =
-  ## Takes object type and wraps all the first level fields into
-  ## Option type unless it is already Option type.
-  createType(t)
-
-macro createType*(t: typedesc): untyped =
+macro createType(t: typedesc): untyped =
   var objectType = getType(t)
 
   # Work around for https://github.com/nim-lang/Nim/issues/23112
@@ -39,17 +35,27 @@ macro createType*(t: typedesc): untyped =
   expectKind(objectType, NimNodeKind.nnkObjectTy)
   var fields = nnkRecList.newTree()
 
+  # Generates the list of fields that are wrapped in `Option[T]`.
+  # Technically wrapped with `WrapOption` which is template used to prevent
+  # re-wrapping already filed which is `Option[T]`.
   for field in objectType[2]:
     let fieldType = getTypeInst(field)
     let newFieldNode =
-          nnkIdentDefs.newTree(newIdentNode($field), nnkCall.newTree(ident("WrapOption"), fieldType), newEmptyNode())
+          nnkIdentDefs.newTree(ident($field), nnkCall.newTree(ident("WrapOption"), fieldType), newEmptyNode())
 
     fields.add(newFieldNode)
 
-
+  # Creates new object type T with the fields lists from steps above.
+  let tSym = genSym(nskType, "T")
   nnkStmtList.newTree(
       nnkTypeSection.newTree(
-        nnkTypeDef.newTree(ident("T"), newEmptyNode(), nnkObjectTy.newTree(newEmptyNode(), newEmptyNode(), fields))
+        nnkTypeDef.newTree(tSym, newEmptyNode(), nnkObjectTy.newTree(newEmptyNode(), newEmptyNode(), fields))
       ),
-      ident("T")
+      tSym
   )
+
+template Optionalize*(t: typed): untyped =
+  ## Takes object type and wraps all the first level fields into
+  ## Option type unless it is already Option type.
+  createType(t)
+

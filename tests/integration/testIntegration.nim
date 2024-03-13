@@ -282,7 +282,39 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check responseBefore.status == "400 Bad Request"
     check "Expiry has to be before the request's end (now + duration)" in responseBefore.body
 
-  test "updating availability":
+  test "updating non-existing availability":
+    let availability = client1.postAvailability(totalSize=140000.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
+
+    client1.patchAvailability(availability.id, duration=100.u256.some, minPrice=200.u256.some, maxCollateral=200.u256.some)
+
+    let updatedAvailability = (client1.getAvailabilities().get).findItem(availability).get
+    check updatedAvailability.duration == 100
+    check updatedAvailability.minPrice == 200
+    check updatedAvailability.maxCollateral == 200
+    check updatedAvailability.totalSize == 140000
+    check updatedAvailability.freeSize == 140000
+
+    let nonExistingResponse = client1.patchAvailabilityRaw(AvailabilityId.example, duration=100.u256.some, minPrice=200.u256.some, maxCollateral=200.u256.some)
+    check nonExistingResponse.status == "404 Not Found"
+
+  test "updating availability - freeSize is not allowed to be changed":
+    let availability = client1.postAvailability(totalSize=140000.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
+
+    client1.patchAvailability(availability.id, duration=100.u256.some, minPrice=200.u256.some, maxCollateral=200.u256.some)
+
+    let updatedAvailability = (client1.getAvailabilities().get).findItem(availability).get
+    check updatedAvailability.duration == 100
+    check updatedAvailability.minPrice == 200
+    check updatedAvailability.maxCollateral == 200
+    check updatedAvailability.totalSize == 140000
+    check updatedAvailability.freeSize == 140000
+
+    let freeSizeResponse = client1.patchAvailabilityRaw(availability.id, freeSize=110000.u256.some)
+    check freeSizeResponse.status == "400 Bad Request"
+    check "not allowed" in  freeSizeResponse.body
+
+
+  test "updating availability - updating totalSize":
     let availability = client1.postAvailability(totalSize=140000.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
 
     client1.patchAvailability(availability.id, duration=100.u256.some, minPrice=200.u256.some, maxCollateral=200.u256.some)
@@ -294,27 +326,20 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check updatedAvailability.totalSize == 140000
     check updatedAvailability.freeSize == 140000
 
-    # Non existing availability
-    let nonExistingResponse = client1.patchAvailabilityRaw(AvailabilityId.example, duration=100.u256.some, minPrice=200.u256.some, maxCollateral=200.u256.some)
-    check nonExistingResponse.status == "404 Not Found"
-
-    # FreeSize is not allowed to be changed
-    let freeSizeResponse = client1.patchAvailabilityRaw(availability.id, freeSize=110000.u256.some)
-    check freeSizeResponse.status == "400 Bad Request"
-    check "not allowed" in  freeSizeResponse.body
-
-    # Updating TotalSize
     client1.patchAvailability(availability.id, totalSize=100000.u256.some)
     updatedAvailability = (client1.getAvailabilities().get).findItem(availability).get
     check updatedAvailability.totalSize == 100000
     check updatedAvailability.freeSize == 100000
+
+  test "updating availability - updating totalSize does not allow bellow utilized":
+    let availability = client1.postAvailability(totalSize=140000.u256, duration=200.u256, minPrice=200.u256, maxCollateral=300.u256).get
 
     # Lets create storage request that will utilize some of the availability's space
     let expiry = (await ethProvider.currentTime()) + 30
     let cid = client2.upload("some file contents").get
     let id = client2.requestStorage(cid, duration=100.u256, reward=400.u256, proofProbability=3.u256, expiry=expiry, collateral=200.u256).get
     check eventually client2.purchaseStateIs(id, "started")
-    updatedAvailability = (client1.getAvailabilities().get).findItem(availability).get
+    let updatedAvailability = (client1.getAvailabilities().get).findItem(availability).get
     check updatedAvailability.totalSize != updatedAvailability.freeSize
 
     let utilizedSize = updatedAvailability.totalSize - updatedAvailability.freeSize
@@ -322,7 +347,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check totalSizeResponse.status == "400 Bad Request"
     check "totalSize must be larger then current totalSize" in totalSizeResponse.body
 
-    client1.patchAvailability(availability.id, totalSize=120000.u256.some)
+    client1.patchAvailability(availability.id, totalSize=160000.u256.some)
     let newUpdatedAvailability = (client1.getAvailabilities().get).findItem(availability).get
-    check newUpdatedAvailability.totalSize == 120000
+    check newUpdatedAvailability.totalSize == 160000
     check newUpdatedAvailability.freeSize - updatedAvailability.freeSize == 20000
