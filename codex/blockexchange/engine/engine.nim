@@ -174,12 +174,10 @@ proc monitorBlockHandle(
 proc requestBlock*(
   b: BlockExcEngine,
   address: BlockAddress,
-): Future[Block] {.async.} =
+): Future[?!Block] {.async.} =
   let blockFuture = b.pendingBlocks.getWantHandle(address, b.blockFetchTimeout)
 
-  if b.pendingBlocks.isInFlight(address):
-    success await blockFuture
-  else:
+  if not b.pendingBlocks.isInFlight(address):
     let peers = b.peers.selectCheapest(address)
     if peers.len == 0:
       b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
@@ -200,12 +198,17 @@ proc requestBlock*(
       await b.sendWantHave(address, @[peer], toSeq(b.peers))
       codex_block_exchange_want_have_lists_sent.inc()
 
-    success await blockFuture
+    # Don't let timeouts bubble up. We can't be to broad here or we break
+    # cancellations.
+    try:
+      success await blockFuture
+    except AsyncTimeoutError as err:
+      failure err
 
 proc requestBlock*(
   b: BlockExcEngine,
   cid: Cid
-): Future[Block] =
+): Future[?!Block] =
   b.requestBlock(BlockAddress.init(cid))
 
 proc blockPresenceHandler*(

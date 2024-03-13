@@ -62,7 +62,7 @@ asyncchecksuite "Test Node - Basic":
     check:
       fetched == manifest
 
-  test "should not lookup non-existing blocks twice":
+  test "Should not lookup non-existing blocks twice":
     # https://github.com/codex-storage/nim-codex/issues/699
     let
       cstore = CountingStore.new(engine, localStore)
