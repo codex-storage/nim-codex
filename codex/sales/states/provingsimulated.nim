@@ -33,7 +33,7 @@ when codex_enable_proof_failures:
       try:
         warn "Submitting INVALID proof", period = currentPeriod, slotId = slot.id
         await market.submitProof(slot.id, Groth16Proof.default)
-      except ProviderError as e:
+      except SignerError as e:
         if not e.msgDetail.contains("Invalid proof"):
           onSubmitProofError(e, currentPeriod, slot.id)
       except CatchableError as e:

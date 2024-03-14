@@ -46,7 +46,7 @@ proc waitUntilOutput*(node: NodeProcess, output: string) =
 
 proc waitUntilStarted*(node: NodeProcess) =
   if node.debug:
-    sleep(5_000)
+    sleep(10_000)
   else:
     node.waitUntilOutput("Started codex node")
 
@@ -58,11 +58,11 @@ proc startNode*(args: openArray[string], debug: string | bool = false): NodeProc
   node
 
 proc dataDir(node: NodeProcess): string =
-  let config = CodexConf.load(cmdLine = node.arguments)
+  let config = CodexConf.load(cmdLine = node.arguments, quitOnFailure = false)
   config.dataDir.string
 
 proc apiUrl(node: NodeProcess): string =
-  let config = CodexConf.load(cmdLine = node.arguments)
+  let config = CodexConf.load(cmdLine = node.arguments, quitOnFailure = false)
   "http://" & config.apiBindAddress & ":" & $config.apiPort & "/api/codex/v1"
 
 proc client*(node: NodeProcess): CodexClient =

@@ -61,10 +61,9 @@ method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future
   raiseAssert("getBlockAndProof not implemented!")
 
 method putBlock*(
-    self: BlockStore,
-    blk: Block,
-    ttl = Duration.none
-): Future[?!void] {.base.} =
+  self: BlockStore,
+  blk: Block,
+  ttl = Duration.none): Future[?!void] {.base.} =
   ## Put a block to the blockstore
   ##
 
@@ -75,8 +74,7 @@ method putCidAndProof*(
   treeCid: Cid,
   index: Natural,
   blockCid: Cid,
-  proof: CodexProof
-): Future[?!void] {.base.} =
+  proof: CodexProof): Future[?!void] {.base.} =
   ## Put a block proof to the blockstore
   ##
 
@@ -92,10 +90,9 @@ method getCidAndProof*(
   raiseAssert("getCidAndProof not implemented!")
 
 method ensureExpiry*(
-    self: BlockStore,
-    cid: Cid,
-    expiry: SecondsSince1970
-): Future[?!void] {.base.} =
+  self: BlockStore,
+  cid: Cid,
+  expiry: SecondsSince1970): Future[?!void] {.base.} =
   ## Ensure that block's assosicated expiry is at least given timestamp
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
@@ -103,11 +100,10 @@ method ensureExpiry*(
   raiseAssert("Not implemented!")
 
 method ensureExpiry*(
-    self: BlockStore,
-    treeCid: Cid,
-    index: Natural,
-    expiry: SecondsSince1970
-): Future[?!void] {.base.} =
+  self: BlockStore,
+  treeCid: Cid,
+  index: Natural,
+  expiry: SecondsSince1970): Future[?!void] {.base.} =
   ## Ensure that block's associated expiry is at least given timestamp
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##

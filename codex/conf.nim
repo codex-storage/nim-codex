@@ -7,9 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/upraises
-
-push: {.upraises: [].}
+{.push raises: [].}
 
 import std/os
 import std/terminal
@@ -33,19 +31,30 @@ import pkg/ethers
 import pkg/questionable
 import pkg/questionable/results
 
+import ./codextypes
 import ./discovery
 import ./logutils
 import ./stores
 import ./units
 import ./utils
 
-export units
-export net
+export units, net, codextypes, logutils
+
 export
   DefaultQuotaBytes,
   DefaultBlockTtl,
   DefaultBlockMaintenanceInterval,
   DefaultNumberOfBlocksToMaintainPerInterval
+
+proc defaultDataDir*(): string =
+  let dataDir = when defined(windows):
+    "AppData" / "Roaming" / "Codex"
+  elif defined(macosx):
+    "Library" / "Application Support" / "Codex"
+  else:
+    ".cache" / "codex"
+
+  getHomeDir() / dataDir
 
 const
   codex_enable_api_debug_peers* {.booldefine.} = false
@@ -54,10 +63,16 @@ const
   codex_enable_log_counter* {.booldefine.} = false
   chronosProfiling* {.booldefine.} = false
 
+  DefaultDataDir* = defaultDataDir()
+
 type
-  StartUpCommand* {.pure.} = enum
-    noCommand,
-    initNode
+  StartUpCmd* {.pure.} = enum
+    noCmd
+    persistence
+
+  PersistenceCmd* {.pure.} = enum
+    noCmd
+    prover
 
   LogKind* {.pure.} = enum
     Auto = "auto"
@@ -107,8 +122,8 @@ type
 
     dataDir* {.
       desc: "The directory where codex will store configuration and data"
-      defaultValue: defaultDataDir()
-      defaultValueDesc: ""
+      defaultValue: DefaultDataDir
+      defaultValueDesc: $DefaultDataDir
       abbr: "d"
       name: "data-dir" }: OutDir
 
@@ -117,121 +132,120 @@ type
       defaultValue: 100
       name: "profiler-max-metrics" }: int
 
+    listenAddrs* {.
+      desc: "Multi Addresses to listen on"
+      defaultValue: @[
+        MultiAddress.init("/ip4/0.0.0.0/tcp/0")
+        .expect("Should init multiaddress")]
+      defaultValueDesc: "/ip4/0.0.0.0/tcp/0"
+      abbr: "i"
+      name: "listen-addrs" }: seq[MultiAddress]
+
+    # TODO: change this once we integrate nat support
+    nat* {.
+      desc: "IP Addresses to announce behind a NAT"
+      defaultValue: ValidIpAddress.init("127.0.0.1")
+      defaultValueDesc: "127.0.0.1"
+      abbr: "a"
+      name: "nat" }: ValidIpAddress
+
+    discoveryIp* {.
+      desc: "Discovery listen address"
+      defaultValue: ValidIpAddress.init(IPv4_any())
+      defaultValueDesc: "0.0.0.0"
+      abbr: "e"
+      name: "disc-ip" }: ValidIpAddress
+
+    discoveryPort* {.
+      desc: "Discovery (UDP) port"
+      defaultValue: 8090.Port
+      defaultValueDesc: "8090"
+      abbr: "u"
+      name: "disc-port" }: Port
+
+    netPrivKeyFile* {.
+      desc: "Source of network (secp256k1) private key file path or name"
+      defaultValue: "key"
+      name: "net-privkey" }: string
+
+    bootstrapNodes* {.
+      desc: "Specifies one or more bootstrap nodes to use when connecting to the network"
+      abbr: "b"
+      name: "bootstrap-node" }: seq[SignedPeerRecord]
+
+    maxPeers* {.
+      desc: "The maximum number of peers to connect to"
+      defaultValue: 160
+      name: "max-peers" }: int
+
+    agentString* {.
+      defaultValue: "Codex"
+      desc: "Node agent string which is used as identifier in network"
+      name: "agent-string" }: string
+
+    apiBindAddress* {.
+      desc: "The REST API bind address"
+      defaultValue: "127.0.0.1"
+      name: "api-bindaddr"
+    }: string
+
+    apiPort* {.
+      desc: "The REST Api port",
+      defaultValue: 8080.Port
+      defaultValueDesc: "8080"
+      name: "api-port"
+      abbr: "p" }: Port
+
+    repoKind* {.
+      desc: "Backend for main repo store (fs, sqlite)"
+      defaultValueDesc: "fs"
+      defaultValue: repoFS
+      name: "repo-kind" }: RepoKind
+
+    storageQuota* {.
+      desc: "The size of the total storage quota dedicated to the node"
+      defaultValue: DefaultQuotaBytes
+      defaultValueDesc: $DefaultQuotaBytes
+      name: "storage-quota"
+      abbr: "q" }: NBytes
+
+    blockTtl* {.
+      desc: "Default block timeout in seconds - 0 disables the ttl"
+      defaultValue: DefaultBlockTtl
+      defaultValueDesc: $DefaultBlockTtl
+      name: "block-ttl"
+      abbr: "t" }: Duration
+
+    blockMaintenanceInterval* {.
+      desc: "Time interval in seconds - determines frequency of block maintenance cycle: how often blocks are checked for expiration and cleanup"
+      defaultValue: DefaultBlockMaintenanceInterval
+      defaultValueDesc: $DefaultBlockMaintenanceInterval
+      name: "block-mi" }: Duration
+
+    blockMaintenanceNumberOfBlocks* {.
+      desc: "Number of blocks to check every maintenance cycle"
+      defaultValue: DefaultNumberOfBlocksToMaintainPerInterval
+      defaultValueDesc: $DefaultNumberOfBlocksToMaintainPerInterval
+      name: "block-mn" }: int
+
+    cacheSize* {.
+      desc: "The size of the block cache, 0 disables the cache - might help on slow hardrives"
+      defaultValue: 0
+      defaultValueDesc: "0"
+      name: "cache-size"
+      abbr: "c" }: NBytes
+
+    logFile* {.
+        desc: "Logs to file"
+        defaultValue: string.none
+        name: "log-file"
+        hidden
+      .}: Option[string]
+
     case cmd* {.
-      command
-      defaultValue: noCommand }: StartUpCommand
-
-    of noCommand:
-
-      listenAddrs* {.
-        desc: "Multi Addresses to listen on"
-        defaultValue: @[
-          MultiAddress.init("/ip4/0.0.0.0/tcp/0")
-          .expect("Should init multiaddress")]
-        defaultValueDesc: "/ip4/0.0.0.0/tcp/0"
-        abbr: "i"
-        name: "listen-addrs" }: seq[MultiAddress]
-
-      # TODO: change this once we integrate nat support
-      nat* {.
-        desc: "IP Addresses to announce behind a NAT"
-        defaultValue: ValidIpAddress.init("127.0.0.1")
-        defaultValueDesc: "127.0.0.1"
-        abbr: "a"
-        name: "nat" }: ValidIpAddress
-
-      discoveryIp* {.
-        desc: "Discovery listen address"
-        defaultValue: ValidIpAddress.init(IPv4_any())
-        defaultValueDesc: "0.0.0.0"
-        abbr: "e"
-        name: "disc-ip" }: ValidIpAddress
-
-      discoveryPort* {.
-        desc: "Discovery (UDP) port"
-        defaultValue: 8090.Port
-        defaultValueDesc: "8090"
-        abbr: "u"
-        name: "disc-port" }: Port
-
-      netPrivKeyFile* {.
-        desc: "Source of network (secp256k1) private key file path or name"
-        defaultValue: "key"
-        name: "net-privkey" }: string
-
-      bootstrapNodes* {.
-        desc: "Specifies one or more bootstrap nodes to use when connecting to the network"
-        abbr: "b"
-        name: "bootstrap-node" }: seq[SignedPeerRecord]
-
-      maxPeers* {.
-        desc: "The maximum number of peers to connect to"
-        defaultValue: 160
-        name: "max-peers" }: int
-
-      agentString* {.
-        defaultValue: "Codex"
-        desc: "Node agent string which is used as identifier in network"
-        name: "agent-string" }: string
-
-      apiBindAddress* {.
-        desc: "The REST API bind address"
-        defaultValue: "127.0.0.1"
-        name: "api-bindaddr"
-      }: string
-
-      apiPort* {.
-        desc: "The REST Api port",
-        defaultValue: 8080.Port
-        defaultValueDesc: "8080"
-        name: "api-port"
-        abbr: "p" }: Port
-
-      repoKind* {.
-        desc: "Backend for main repo store (fs, sqlite)"
-        defaultValueDesc: "fs"
-        defaultValue: repoFS
-        name: "repo-kind" }: RepoKind
-
-      storageQuota* {.
-        desc: "The size of the total storage quota dedicated to the node"
-        defaultValue: DefaultQuotaBytes
-        defaultValueDesc: $DefaultQuotaBytes
-        name: "storage-quota"
-        abbr: "q" }: NBytes
-
-      blockTtl* {.
-        desc: "Default block timeout in seconds - 0 disables the ttl"
-        defaultValue: DefaultBlockTtl
-        defaultValueDesc: $DefaultBlockTtl
-        name: "block-ttl"
-        abbr: "t" }: Duration
-
-      blockMaintenanceInterval* {.
-        desc: "Time interval in seconds - determines frequency of block maintenance cycle: how often blocks are checked for expiration and cleanup"
-        defaultValue: DefaultBlockMaintenanceInterval
-        defaultValueDesc: $DefaultBlockMaintenanceInterval
-        name: "block-mi" }: Duration
-
-      blockMaintenanceNumberOfBlocks* {.
-        desc: "Number of blocks to check every maintenance cycle"
-        defaultValue: DefaultNumberOfBlocksToMaintainPerInterval
-        defaultValueDesc: $DefaultNumberOfBlocksToMaintainPerInterval
-        name: "block-mn" }: int
-
-      cacheSize* {.
-        desc: "The size of the block cache, 0 disables the cache - might help on slow hardrives"
-        defaultValue: 0
-        defaultValueDesc: "0"
-        name: "cache-size"
-        abbr: "c" }: NBytes
-
-      persistence* {.
-        desc: "Enables persistence mechanism, requires an Ethereum node"
-        defaultValue: false
-        name: "persistence"
-      .}: bool
-
+      defaultValue: noCmd
+      command }: StartUpCmd
+    of persistence:
       ethProvider* {.
         desc: "The URL of the JSON-RPC API of the Ethereum node"
         defaultValue: "ws://localhost:8545"
@@ -241,20 +255,31 @@ type
       ethAccount* {.
         desc: "The Ethereum account that is used for storage contracts"
         defaultValue: EthAddress.none
+        defaultValueDesc: ""
         name: "eth-account"
       .}: Option[EthAddress]
 
       ethPrivateKey* {.
         desc: "File containing Ethereum private key for storage contracts"
         defaultValue: string.none
+        defaultValueDesc: ""
         name: "eth-private-key"
       .}: Option[string]
 
       marketplaceAddress* {.
         desc: "Address of deployed Marketplace contract"
         defaultValue: EthAddress.none
+        defaultValueDesc: ""
         name: "marketplace-address"
       .}: Option[EthAddress]
+
+      # TODO: should go behind a feature flag
+      simulateProofFailures* {.
+          desc: "Simulates proof failures once every N proofs. 0 = disabled."
+          defaultValue: 0
+          name: "simulate-proof-failures"
+          hidden
+        .}: int
 
       validator* {.
         desc: "Enables validator, requires an Ethereum node"
@@ -268,27 +293,84 @@ type
         name: "validator-max-slots"
       .}: int
 
-      simulateProofFailures* {.
-          desc: "Simulates proof failures once every N proofs. 0 = disabled."
-          defaultValue: 0
-          name: "simulate-proof-failures"
-          hidden
-        .}: int
+      case persistenceCmd* {.
+        defaultValue: noCmd
+        command }: PersistenceCmd
 
-      logFile* {.
-          desc: "Logs to file"
-          defaultValue: string.none
-          name: "log-file"
-          hidden
-        .}: Option[string]
+      of PersistenceCmd.prover:
+        circomR1cs* {.
+          desc: "The r1cs file for the storage circuit"
+          defaultValue: $DefaultDataDir / "circuits" / "proof_main.r1cs"
+          defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.r1cs"
+          name: "circom-r1cs"
+        .}: InputFile
 
-    of initNode:
-      discard
+        circomWasm* {.
+          desc: "The wasm file for the storage circuit"
+          defaultValue: $DefaultDataDir / "circuits" / "proof_main.wasm"
+          defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.wasm"
+          name: "circom-wasm"
+        .}: InputFile
+
+        circomZkey* {.
+          desc: "The zkey file for the storage circuit"
+          defaultValue: $DefaultDataDir / "circuits" / "proof_main.zkey"
+          defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.zkey"
+          name: "circom-zkey"
+        .}: InputFile
+
+        # TODO: should probably be hidden and behind a feature flag
+        circomNoZkey* {.
+          desc: "Ignore the zkey file - use only for testing!"
+          defaultValue: false
+          name: "circom-no-zkey"
+        .}: bool
+
+        numProofSamples* {.
+          desc: "Number of samples to prove"
+          defaultValue: DefaultSamplesNum
+          defaultValueDesc: $DefaultSamplesNum
+          name: "proof-samples" }: int
+
+        maxSlotDepth* {.
+          desc: "The maximum depth of the slot tree"
+          defaultValue: DefaultMaxSlotDepth
+          defaultValueDesc: $DefaultMaxSlotDepth
+          name: "max-slot-depth" }: int
+
+        maxDatasetDepth* {.
+          desc: "The maximum depth of the dataset tree"
+          defaultValue: DefaultMaxDatasetDepth
+          defaultValueDesc: $DefaultMaxDatasetDepth
+          name: "max-dataset-depth" }: int
+
+        maxBlockDepth* {.
+          desc: "The maximum depth of the network block merkle tree"
+          defaultValue: DefaultBlockDepth
+          defaultValueDesc: $DefaultBlockDepth
+          name: "max-block-depth" }: int
+
+        maxCellElms* {.
+          desc: "The maximum number of elements in a cell"
+          defaultValue: DefaultCellElms
+          defaultValueDesc: $DefaultCellElms
+          name: "max-cell-elements" }: int
+      of PersistenceCmd.noCmd:
+        discard
+
+    of StartUpCmd.noCmd:
+      discard # end of persistence
 
   EthAddress* = ethers.Address
 
 logutils.formatIt(LogFormat.textLines, EthAddress): it.short0xHexLog
 logutils.formatIt(LogFormat.json, EthAddress): %it
+
+func persistence*(self: CodexConf): bool =
+  self.cmd == StartUpCmd.persistence
+
+func prover*(self: CodexConf): bool =
+  self.persistence and self.persistenceCmd == PersistenceCmd.prover
 
 proc getCodexVersion(): string =
   let tag = strip(staticExec("git tag"))
@@ -314,16 +396,6 @@ const
     "Codex revision: " & codexRevision & "\p" &
     nimBanner
 
-proc defaultDataDir*(): string =
-  let dataDir = when defined(windows):
-    "AppData" / "Roaming" / "Codex"
-  elif defined(macosx):
-    "Library" / "Application Support" / "Codex"
-  else:
-    ".cache" / "codex"
-
-  getHomeDir() / dataDir
-
 proc parseCmdArg*(T: typedesc[MultiAddress],
                   input: string): MultiAddress
                  {.upraises: [ValueError, LPError].} =
@@ -332,7 +404,7 @@ proc parseCmdArg*(T: typedesc[MultiAddress],
   if res.isOk:
     ma = res.get()
   else:
-    warn "Invalid MultiAddress", input=input, error=res.error()
+    warn "Invalid MultiAddress", input=input, error = res.error()
     quit QuitFailure
   ma
 
@@ -340,10 +412,10 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
   var res: SignedPeerRecord
   try:
     if not res.fromURI(uri):
-      warn "Invalid SignedPeerRecord uri", uri=uri
+      warn "Invalid SignedPeerRecord uri", uri = uri
       quit QuitFailure
   except CatchableError as exc:
-    warn "Invalid SignedPeerRecord uri", uri=uri, error=exc.msg
+    warn "Invalid SignedPeerRecord uri", uri = uri, error = exc.msg
     quit QuitFailure
   res
 
@@ -354,7 +426,7 @@ proc parseCmdArg*(T: type NBytes, val: string): T =
   var num = 0'i64
   let count = parseSize(val, num, alwaysBin = true)
   if count == 0:
-      warn "Invalid number of bytes", nbytes=val
+      warn "Invalid number of bytes", nbytes = val
       quit QuitFailure
   NBytes(num)
 
@@ -362,7 +434,7 @@ proc parseCmdArg*(T: type Duration, val: string): T =
   var dur: Duration
   let count = parseDuration(val, dur)
   if count == 0:
-      warn "Invalid duration parse", dur=dur
+      warn "Cannot parse duration", dur = dur
       quit QuitFailure
   dur
 

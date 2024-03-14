@@ -143,14 +143,10 @@ asyncchecksuite "NetworkStore engine handlers":
     localStore: BlockStore
     blocks: seq[Block]
 
-  const NOP_SEND_WANT_LIST = proc(
+  const NopSendWantCancellationsProc = proc(
     id: PeerId,
-    addresses: seq[BlockAddress],
-    priority: int32 = 0,
-    cancel: bool = false,
-    wantType: WantType = WantType.WantHave,
-    full: bool = false,
-    sendDontHave: bool = false) {.gcsafe, async.} = discard
+    addresses: seq[BlockAddress]
+  ) {.gcsafe, async.} = discard
 
   setup:
     rng = Rng.instance()
@@ -285,9 +281,9 @@ asyncchecksuite "NetworkStore engine handlers":
 
     let blocksDelivery = blocks.mapIt(BlockDelivery(blk: it, address: it.address))
 
-    # Install NOP for want list sends so cancellations don't cause a crash
+    # Install NOP for want list cancellations so they don't cause a crash
     engine.network = BlockExcNetwork(
-      request: BlockExcRequest(sendWantList: NOP_SEND_WANT_LIST))
+      request: BlockExcRequest(sendWantCancellations: NopSendWantCancellationsProc))
 
     await engine.blocksDeliveryHandler(peerId, blocksDelivery)
     let resolved = await allFinished(pending)
@@ -322,8 +318,8 @@ asyncchecksuite "NetworkStore engine handlers":
           check balances[account.address.toDestination] == amount
           done.complete(),
 
-        # Install NOP for want list sends so cancellations don't cause a crash
-        sendWantList: NOP_SEND_WANT_LIST
+        # Install NOP for want list cancellations so they don't cause a crash
+        sendWantCancellations: NopSendWantCancellationsProc
     ))
 
     await engine.blocksDeliveryHandler(peerId, blocks.mapIt(
@@ -378,21 +374,16 @@ asyncchecksuite "NetworkStore engine handlers":
         blocks.mapIt((it.address, newFuture[void]())).toSeq
       )
 
-    proc sendWantList(
+    proc sendWantCancellations(
       id: PeerId,
-      addresses: seq[BlockAddress],
-      priority: int32 = 0,
-      cancel: bool = false,
-      wantType: WantType = WantType.WantHave,
-      full: bool = false,
-      sendDontHave: bool = false) {.gcsafe, async.} =
-        if cancel:
-          for address in addresses:
-            cancellations[address].complete()
+      addresses: seq[BlockAddress]
+    ) {.gcsafe, async.} =
+        for address in addresses:
+          cancellations[address].complete()
 
     engine.network = BlockExcNetwork(
       request: BlockExcRequest(
-        sendWantList: sendWantList
+        sendWantCancellations: sendWantCancellations
     ))
 
     await engine.blocksDeliveryHandler(peerId, blocksDelivery)
@@ -499,6 +490,39 @@ asyncchecksuite "Task Handler":
     )
 
     await engine.taskHandler(peersCtx[0])
+
+  test "Should set in-flight for outgoing blocks":
+    proc sendBlocksDelivery(
+      id: PeerId,
+      blocksDelivery: seq[BlockDelivery]) {.gcsafe, async.} =
+      check peersCtx[0].peerWants[0].inFlight
+
+    for blk in blocks:
+      (await engine.localStore.putBlock(blk)).tryGet()
+    engine.network.request.sendBlocksDelivery = sendBlocksDelivery
+
+    peersCtx[0].peerWants.add(WantListEntry(
+      address: blocks[0].address,
+      priority: 50,
+      cancel: false,
+      wantType: WantType.WantBlock,
+      sendDontHave: false,
+      inFlight: false)
+    )
+    await engine.taskHandler(peersCtx[0])
+
+  test "Should clear in-flight when local lookup fails":
+    peersCtx[0].peerWants.add(WantListEntry(
+      address: blocks[0].address,
+      priority: 50,
+      cancel: false,
+      wantType: WantType.WantBlock,
+      sendDontHave: false,
+      inFlight: false)
+    )
+    await engine.taskHandler(peersCtx[0])
+
+    check not peersCtx[0].peerWants[0].inFlight
 
   test "Should send presence":
     let present = blocks

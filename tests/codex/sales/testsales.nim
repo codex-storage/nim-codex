@@ -19,6 +19,7 @@ import ../helpers/mockmarket
 import ../helpers/mockclock
 import ../helpers/always
 import ../examples
+import ./helpers/periods
 
 asyncchecksuite "Sales - start":
   let proof = Groth16Proof.example
@@ -176,6 +177,12 @@ asyncchecksuite "Sales":
     await sales.stop()
     await repo.stop()
 
+  proc allowRequestToStart {.async.} =
+    # wait until we're in initialproving state
+    await sleepAsync(10.millis)
+    # it won't start proving until the next period
+    await clock.advanceToNextPeriod(market)
+
   proc getAvailability: Availability =
     let key = availability.id.key.get
     (waitFor reservations.get(key, Availability)).get
@@ -311,7 +318,8 @@ asyncchecksuite "Sales":
     createAvailability()
     let origSize = availability.size
     await market.requestStorage(request)
-    await sold # allow proving to start
+    await allowRequestToStart()
+    await sold
 
     # complete request
     market.slotState[request.slotId(slotIndex)] = SlotState.Finished
@@ -379,6 +387,8 @@ asyncchecksuite "Sales":
       saleFailed = true
     createAvailability()
     await market.requestStorage(request)
+    await allowRequestToStart()
+
     check eventually saleFailed
 
   test "makes storage available again when data retrieval fails":
@@ -400,12 +410,16 @@ asyncchecksuite "Sales":
       return success(Groth16Proof.example)
     createAvailability()
     await market.requestStorage(request)
+    await allowRequestToStart()
+
     check eventually provingRequest == request
     check provingSlot < request.ask.slots.u256
 
   test "fills a slot":
     createAvailability()
     await market.requestStorage(request)
+    await allowRequestToStart()
+
     check eventually market.filled.len > 0
     check market.filled[0].requestId == request.id
     check market.filled[0].slotIndex < request.ask.slots.u256
@@ -421,6 +435,8 @@ asyncchecksuite "Sales":
       soldSlotIndex = slotIndex
     createAvailability()
     await market.requestStorage(request)
+    await allowRequestToStart()
+
     check eventually soldRequest == request
     check soldSlotIndex < request.ask.slots.u256
 
@@ -437,6 +453,8 @@ asyncchecksuite "Sales":
       clearedSlotIndex = slotIndex
     createAvailability()
     await market.requestStorage(request)
+    await allowRequestToStart()
+
     check eventually clearedRequest == request
     check clearedSlotIndex < request.ask.slots.u256
 

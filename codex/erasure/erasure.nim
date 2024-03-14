@@ -241,7 +241,7 @@ proc init*(
 
   let
     rounded = roundUp(manifest.blocksCount, ecK)
-    steps = divUp(manifest.blocksCount, ecK)
+    steps = divUp(rounded, ecK)
     blocksCount = rounded + (steps * ecM)
 
   success EncodingParams(

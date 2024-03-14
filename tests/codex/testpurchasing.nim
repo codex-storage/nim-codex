@@ -98,7 +98,7 @@ asyncchecksuite "Purchasing":
     let requestEnd = getTime().toUnix() + 42
     market.requestEnds[request.id] = requestEnd
     market.emitRequestFulfilled(request.id)
-    clock.set(requestEnd)
+    clock.set(requestEnd + 1)
     await purchase.wait()
     check purchase.error.isNone
 
@@ -229,7 +229,7 @@ checksuite "Purchasing state machine":
     market.requestEnds[request.id] = clock.now() + request.ask.duration.truncate(int64)
     let future = PurchaseStarted().run(purchase)
 
-    clock.advance(request.ask.duration.truncate(int64))
+    clock.advance(request.ask.duration.truncate(int64) + 1)
 
     let next = await future
     check !next of PurchaseFinished

@@ -1,5 +1,5 @@
 # Variables
-ARG BUILDER=ubuntu:lunar-20230415
+ARG BUILDER=ubuntu:22.04
 ARG IMAGE=${BUILDER}
 ARG BUILD_HOME=/src
 ARG MAKE_PARALLEL=${MAKE_PARALLEL:-4}
@@ -13,9 +13,7 @@ ARG BUILD_HOME
 ARG MAKE_PARALLEL
 ARG NIMFLAGS
 
-RUN apt-get update && apt-get install -y git cmake curl make bash lcov build-essential nim
-RUN curl --proto '=https' --tlsv1.3 https://sh.rustup.rs -sSf | sh -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
+RUN apt-get update && apt-get install -y git cmake curl make bash lcov build-essential rustc cargo
 
 WORKDIR ${BUILD_HOME}
 COPY . .
@@ -32,7 +30,7 @@ ARG NAT_IP_AUTO
 WORKDIR ${APP_HOME}
 COPY --from=builder ${BUILD_HOME}/build/codex /usr/local/bin
 COPY --chmod=0755 docker/docker-entrypoint.sh /
-RUN apt-get update && apt-get install -y libgomp1 bash curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libgomp1 bash curl jq && rm -rf /var/lib/apt/lists/*
 ENV NAT_IP_AUTO=${NAT_IP_AUTO}
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["codex"]
