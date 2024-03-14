@@ -38,29 +38,12 @@ marketplacesuite "Hosts submit regular proofs":
     let totalPeriods = 50
     let datasetSizeInBlocks = 2
 
-<<<<<<< HEAD
-  proc waitUntilPurchaseIsStarted(
-    proofProbability: uint64 = 3,
-    duration: uint64 = 100 * period,
-    expiry: uint64 = 30
-  ) {.async: (handleException: true, raises: [AsyncExceptionError]).} =
-    discard client2.postAvailability(
-      size=0xFFFFF.u256,
-      duration=duration.u256,
-      minPrice=300.u256,
-      maxCollateral=200.u256
-    )
-    let cid = client1.upload("some file contents").get
-    let expiry = (await ethProvider.currentTime()) + expiry.u256
-    let id = client1.requestStorage(
-=======
     let data = await RandomChunker.example(blocks=1)
     createAvailabilities(data.len, totalPeriods.periods)
 
     let cid = client0.upload(data).get
 
     let purchaseId = await client0.requestStorage(
->>>>>>> master
       cid,
       duration=totalPeriods.periods,
       origDatasetSizeInBlocks = datasetSizeInBlocks)
@@ -78,72 +61,7 @@ marketplacesuite "Hosts submit regular proofs":
     await subscription.unsubscribe()
 
 
-<<<<<<< HEAD
-  proc purchaseStateIs(client: CodexClient, id: PurchaseId, state: string): bool =
-    client.getPurchase(id).option.?state == some state
-
-  var marketplace: Marketplace
-  var period: uint64
-  var slotId: SlotId
-
-  setup:
-    marketplace = Marketplace.new(Marketplace.address, ethProvider)
-    let config = await marketplace.config()
-    period = config.proofs.period.truncate(uint64)
-    slotId = SlotId(array[32, byte].default) # ensure we aren't reusing from prev test
-
-    # Our Hardhat configuration does use automine, which means that time tracked by `ethProvider.currentTime()` is not
-    # advanced until blocks are mined and that happens only when transaction is submitted.
-    # As we use in tests ethProvider.currentTime() which uses block timestamp this can lead to synchronization issues.
-    await ethProvider.advanceTime(1.u256)
-
-  proc periods(p: Ordinal | uint): uint64 =
-    when p is uint:
-      p * period
-    else: p.uint * period
-
-  proc advanceToNextPeriod {.async.} =
-    let periodicity = Periodicity(seconds: period.u256)
-    let currentPeriod = periodicity.periodOf(await ethProvider.currentTime())
-    let endOfPeriod = periodicity.periodEnd(currentPeriod)
-    await ethProvider.advanceTimeTo(endOfPeriod + 1)
-
-  proc waitUntilPurchaseIsStarted(
-    proofProbability: uint64 = 1,
-    duration: uint64 = 12.periods,
-    expiry: uint64 = 4.periods
-  ) {.async: (handleException: true, raises: [AsyncExceptionError]).} =
-
-    if clients().len < 1 or providers().len < 1:
-      raiseAssert("must start at least one client and one ethProvider")
-
-    let client = clients()[0].restClient
-    let storageProvider = providers()[0].restClient
-
-    discard storageProvider.postAvailability(
-      size=0xFFFFF.u256,
-      duration=duration.u256,
-      minPrice=300.u256,
-      maxCollateral=200.u256
-    )
-    let cid = client.upload("some file contents " & $ getTime().toUnix).get
-    let expiry = (await ethProvider.currentTime()) + expiry.u256
-    # avoid timing issues by filling the slot at the start of the next period
-    await advanceToNextPeriod()
-    let id = client.requestStorage(
-      cid,
-      expiry=expiry,
-      duration=duration.u256,
-      proofProbability=proofProbability.u256,
-      collateral=100.u256,
-      reward=400.u256
-    ).get
-    check eventually client.purchaseStateIs(id, "started")
-    let purchase = client.getPurchase(id).get
-    slotId = slotId(purchase.requestId, 0.u256)
-=======
 marketplacesuite "Simulate invalid proofs":
->>>>>>> master
 
   # TODO: these are very loose tests in that they are not testing EXACTLY how
   # proofs were marked as missed by the validator. These tests should be
