@@ -288,7 +288,11 @@ template multinodesuite*(name: string, body: untyped) =
                           node: node
                         )
             if clients().len == 1:
-              bootstrap = CodexProcess(node).client.info()["spr"].getStr()
+              without ninfo =? CodexProcess(node).client.info():
+                # raise CatchableError instead of Defect (with .get or !) so we
+                # can gracefully shutdown and prevent zombies
+                raiseMultiNodeSuiteError "Failed to get node info"
+              bootstrap = ninfo["spr"].getStr()
 
       if var providers =? nodeConfigs.providers:
         failAndTeardownOnError "failed to start provider nodes":

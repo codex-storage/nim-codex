@@ -8,11 +8,11 @@ import ../../../asynctest
 import pkg/chronos
 import pkg/poseidon2
 import pkg/datastore
+import pkg/serde/json
 
 import pkg/codex/slots {.all.}
 import pkg/codex/slots/types {.all.}
 import pkg/codex/merkletree
-import pkg/codex/utils/json
 import pkg/codex/codextypes
 import pkg/codex/manifest
 import pkg/codex/stores
@@ -33,7 +33,7 @@ suite "Test Circom Compat Backend - control inputs":
   setup:
     let
       inputData = readFile("tests/circuits/fixtures/input.json")
-      inputJson = parseJson(inputData)
+      inputJson = !JsonNode.parse(inputData)
 
     proofInputs = Poseidon2Hash.jsonToProofInput(inputJson)
     circom = CircomCompat.init(r1cs, wasm, zkey)
