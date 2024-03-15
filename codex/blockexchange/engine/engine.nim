@@ -198,12 +198,12 @@ proc requestBlock*(
       await b.sendWantHave(address, @[peer], toSeq(b.peers))
       codex_block_exchange_want_have_lists_sent.inc()
 
-    # Don't let timeouts bubble up. We can't be to broad here or we break
-    # cancellations.
-    try:
-      success await blockFuture
-    except AsyncTimeoutError as err:
-      failure err
+  # Don't let timeouts bubble up. We can't be too broad here or we break
+  # cancellations.
+  try:
+    success await blockFuture
+  except AsyncTimeoutError as err:
+    failure err
 
 proc requestBlock*(
   b: BlockExcEngine,
