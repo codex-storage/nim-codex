@@ -1,7 +1,5 @@
 import os
 import std/strutils
-import std/sugar
-import std/math
 
 import ../../asynctest
 
@@ -12,7 +10,6 @@ import pkg/codex/slots/proofs/backends
 import pkg/codex/slots/proofs/backendfactory
 import pkg/codex/slots/proofs/backendutils
 
-import ./helpers
 import ../helpers
 
 type
@@ -34,6 +31,11 @@ method initializeCircomBackend*(
   self.argR1csFile = r1csFile
   self.argWasmFile = wasmFile
   self.argZKeyFile = zKeyFile
+  # We return a backend with *something* that's not nil that we can check for.
+  var 
+    key = VerifyingKey(icLen: 123)
+    vkpPtr: ptr VerifyingKey = key.addr
+  return CircomCompat(vkp: vkpPtr)
 
 method downloadFile*(
   self: BackendUtilsMock,
@@ -85,6 +87,7 @@ suite "Test BackendFactory":
       backend = (await initializeBackend(config, ceremonyHash, utilsMock)).tryGet
 
     check:
+      backend.vkp != nil
       utilsMock.argR1csFile == $config.circomR1cs
       utilsMock.argWasmFile == $config.circomWasm
       utilsMock.argZKeyFile == $config.circomZkey
@@ -110,6 +113,7 @@ suite "Test BackendFactory":
       backend = (await initializeBackend(config, ceremonyHash, utilsMock)).tryGet
 
     check:
+      backend.vkp != nil
       utilsMock.argR1csFile == config.dataDir / "proof_main.r1cs"
       utilsMock.argWasmFile == config.dataDir / "proof_main.wasm"
       utilsMock.argZKeyFile == config.dataDir / "proof_main.zkey"
@@ -135,6 +139,7 @@ suite "Test BackendFactory":
       backend = (await initializeBackend(config, ceremonyHash, utilsMock)).tryGet
 
     check:
+      backend.vkp != nil
       utilsMock.argR1csFile == config.dataDir / "proof_main.r1cs"
       utilsMock.argWasmFile == config.dataDir / "proof_main.wasm"
       utilsMock.argZKeyFile == config.dataDir / "proof_main.zkey"

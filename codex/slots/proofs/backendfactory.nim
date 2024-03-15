@@ -103,4 +103,7 @@ proc initializeBackend*(
       without backend =? (await initializeFromCeremonyHash(config, ceremonyHash, utils)), urlErr:
         warn "Could not initialize prover backend from ceremony url...", msg = urlErr.msg
         return failure(urlErr)
+      # Unexpected: value of backend does not survive leaving each scope. (definition does though...)
+      return success(backend)
+    return success(backend)
   return success(backend)
