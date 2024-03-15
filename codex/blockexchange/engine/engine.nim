@@ -73,6 +73,7 @@ type
     peersPerRequest: int                          # Max number of peers to request from
     wallet*: WalletRef                            # Nitro wallet for micropayments
     pricing*: ?Pricing                            # Optional bandwidth pricing
+    blockFetchTimeout*: Duration                  # Timeout for fetching blocks over the network
     discovery*: DiscoveryEngine
 
   Pricing* = object
@@ -173,12 +174,10 @@ proc monitorBlockHandle(
 proc requestBlock*(
   b: BlockExcEngine,
   address: BlockAddress,
-  timeout = DefaultBlockTimeout): Future[?!Block] {.async.} =
-  let blockFuture = b.pendingBlocks.getWantHandle(address, timeout)
+): Future[?!Block] {.async.} =
+  let blockFuture = b.pendingBlocks.getWantHandle(address, b.blockFetchTimeout)
 
-  if b.pendingBlocks.isInFlight(address):
-    success await blockFuture
-  else:
+  if not b.pendingBlocks.isInFlight(address):
     let peers = b.peers.selectCheapest(address)
     if peers.len == 0:
       b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
@@ -199,12 +198,17 @@ proc requestBlock*(
       await b.sendWantHave(address, @[peer], toSeq(b.peers))
       codex_block_exchange_want_have_lists_sent.inc()
 
+  # Don't let timeouts bubble up. We can't be too broad here or we break
+  # cancellations.
+  try:
     success await blockFuture
+  except AsyncTimeoutError as err:
+    failure err
 
 proc requestBlock*(
   b: BlockExcEngine,
-  cid: Cid,
-  timeout = DefaultBlockTimeout): Future[?!Block] =
+  cid: Cid
+): Future[?!Block] =
   b.requestBlock(BlockAddress.init(cid))
 
 proc blockPresenceHandler*(
@@ -614,7 +618,8 @@ proc new*(
     peerStore: PeerCtxStore,
     pendingBlocks: PendingBlocksManager,
     concurrentTasks = DefaultConcurrentTasks,
-    peersPerRequest = DefaultMaxPeersPerRequest
+    peersPerRequest = DefaultMaxPeersPerRequest,
+    blockFetchTimeout = DefaultBlockTimeout,
 ): BlockExcEngine =
   ## Create new block exchange engine instance
   ##
@@ -629,7 +634,8 @@ proc new*(
       wallet: wallet,
       concurrentTasks: concurrentTasks,
       taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize),
-      discovery: discovery)
+      discovery: discovery,
+      blockFetchTimeout: blockFetchTimeout)
 
   proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =
     if event.kind == PeerEventKind.Joined:
