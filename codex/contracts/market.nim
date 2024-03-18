@@ -43,10 +43,9 @@ template convertEthersError(body) =
 
 proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
   debug "Approving tokens", amount
-  let tokenAddress = await market.contract.token()
-  let token = Erc20Token.new(tokenAddress, market.signer)
-
   convertEthersError:
+    let tokenAddress = await market.contract.token()
+    let token = Erc20Token.new(tokenAddress, market.signer)
     discard await token.increaseAllowance(market.contract.address(), amount).confirm(1)
 
 method getZkeyHash*(market: OnChainMarket): Future[?string] {.async.} =
