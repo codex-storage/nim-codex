@@ -75,9 +75,9 @@
 	branch = master
 [submodule "vendor/nim-chronos"]
 	path = vendor/nim-chronos
-	url = https://github.com/status-im/nim-chronos.git
+	url = https://github.com/codex-storage/nim-chronos.git
 	ignore = untracked
-	branch = master
+	branch = feature/profiler
 [submodule "vendor/nim-faststreams"]
 	path = vendor/nim-faststreams
 	url = https://github.com/status-im/nim-faststreams.git
@@ -209,3 +209,6 @@
 	url = https://github.com/codex-storage/codex-storage-proofs-circuits.git
 	ignore = untracked
 	branch = master
+[submodule "vendor/zip"]
+	path = vendor/zip
+	url = https://github.com/nim-lang/zip.git

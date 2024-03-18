@@ -24,6 +24,7 @@ nimble.paths
 
 # vscode
 .vscode
+.history
 
 # JetBrain's IDEs
 .idea

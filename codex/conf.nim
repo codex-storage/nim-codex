@@ -61,6 +61,7 @@ const
   codex_enable_proof_failures* {.booldefine.} = false
   codex_use_hardhat* {.booldefine.} = false
   codex_enable_log_counter* {.booldefine.} = false
+  chronosProfiling* {.booldefine.} = false
 
   DefaultDataDir* = defaultDataDir()
 
@@ -125,6 +126,11 @@ type
       defaultValueDesc: $DefaultDataDir
       abbr: "d"
       name: "data-dir" }: OutDir
+
+    profilerMaxMetrics* {.
+      desc: "Maximum number of metrics to export to Prometheus."
+      defaultValue: 100
+      name: "profiler-max-metrics" }: int
 
     listenAddrs* {.
       desc: "Multi Addresses to listen on"

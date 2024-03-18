@@ -15,6 +15,8 @@ import pkg/codex/chunker
 import pkg/codex/blocktype as bt
 import pkg/codex/slots
 import pkg/codex/stores
+import pkg/codex/conf
+import pkg/confutils/defs
 import pkg/poseidon2/io
 import pkg/codex/utils/poseidon2digest
 
@@ -57,13 +59,23 @@ suite "Test Prover":
 
   test "Should sample and prove a slot":
     let
-      r1cs = "tests/circuits/fixtures/proof_main.r1cs"
-      wasm = "tests/circuits/fixtures/proof_main.wasm"
-
-      circomBackend = CircomCompat.init(r1cs, wasm)
-      prover = Prover.new(store, circomBackend, samples)
+      prover = Prover.new(store, samples)
       challenge = 1234567.toF.toBytes.toArray32
-      (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
+      config = CodexConf(
+        cmd: StartUpCmd.persistence,
+        nat: ValidIpAddress.init("127.0.0.1"),
+        discoveryIp: ValidIpAddress.init(IPv4_any()),
+        metricsAddress: ValidIpAddress.init("127.0.0.1"),
+        persistenceCmd: PersistenceCmd.prover,
+        circomR1cs: InputFile("tests/circuits/fixtures/proof_main.r1cs"),
+        circomWasm: InputFile("tests/circuits/fixtures/proof_main.wasm"),
+        circomZkey: InputFile("tests/circuits/fixtures/proof_main.zkey")
+      )
+      ceremonyHash = string.none
+
+    (await prover.start(config, ceremonyHash)).tryGet()
+
+    let (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
 
     check:
       (await prover.verify(proof, inputs)).tryGet == true

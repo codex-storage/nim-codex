@@ -23,6 +23,7 @@ import pkg/stew/shims/net as stewnet
 import pkg/datastore
 import pkg/ethers except Rng
 import pkg/stew/io2
+import pkg/questionable
 
 import ./node
 import ./conf
@@ -66,7 +67,7 @@ proc waitForSync(provider: Provider): Future[void] {.async.} =
       inc sleepTime
 
 proc bootstrapInteractions(
-  s: CodexServer): Future[void] {.async.} =
+  s: CodexServer): Future[?string] {.async.} =
   ## bootstrap interactions and return contracts
   ## using clients, hosts, validators pairings
   ##
@@ -139,6 +140,7 @@ proc bootstrapInteractions(
       validator = some ValidatorInteractions.new(clock, validation)
 
     s.codexNode.contracts = (client, host, validator)
+    return await market.getZkeyHash()
 
 proc start*(s: CodexServer) {.async.} =
   trace "Starting codex node", config = $s.config
@@ -173,7 +175,13 @@ proc start*(s: CodexServer) {.async.} =
   s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
   s.codexNode.discovery.updateDhtRecord(s.config.nat, s.config.discoveryPort)
 
-  await s.bootstrapInteractions()
+  let proofCeremonyUrl = await s.bootstrapInteractions()
+
+  if prover =? s.codexNode.prover:
+    if err =? (await prover.start(s.config, proofCeremonyUrl)).errorOption:
+      error "Failed to start prover", msg = err.msg
+      return # should we abort start-up this way?
+
   await s.codexNode.start()
   s.restServer.start()
 
@@ -261,31 +269,8 @@ proc new*(
     engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
     prover = if config.prover:
-      if not fileAccessible($config.circomR1cs, {AccessFlags.Read}) and
-        endsWith($config.circomR1cs, ".r1cs"):
-        error "Circom R1CS file not accessible"
-        raise (ref Defect)(
-          msg: "r1cs file not readable, doesn't exist or wrong extension (.r1cs)")
-
-      if not fileAccessible($config.circomWasm, {AccessFlags.Read}) and
-        endsWith($config.circomWasm, ".wasm"):
-        error "Circom wasm file not accessible"
-        raise (ref Defect)(
-          msg: "wasm file not readable, doesn't exist or wrong extension (.wasm)")
-
-      let zkey = if not config.circomNoZkey:
-          if not fileAccessible($config.circomZkey, {AccessFlags.Read}) and
-            endsWith($config.circomZkey, ".zkey"):
-            error "Circom zkey file not accessible"
-            raise (ref Defect)(
-              msg: "zkey file not readable, doesn't exist or wrong extension (.zkey)")
-
-          $config.circomZkey
-        else: ""
-
       some Prover.new(
         store,
-        CircomCompat.init($config.circomR1cs, $config.circomWasm, zkey),
         config.numProofSamples)
     else:
       none Prover

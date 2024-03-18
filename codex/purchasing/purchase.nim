@@ -24,7 +24,7 @@ export Purchase
 export purchaseid
 export statemachine
 
-func new*(
+proc new*(
     _: type Purchase,
     requestId: RequestId,
     market: Market,
@@ -33,15 +33,14 @@ func new*(
   ## create a new instance of a Purchase
   ##
   var purchase = Purchase.new()
-  {.cast(noSideEffect).}:
-    purchase.future = newFuture[void]()
+  purchase.future = newFuture[void]("purchase.future")
   purchase.requestId = requestId
   purchase.market = market
   purchase.clock = clock
 
   return purchase
 
-func new*(
+proc new*(
     _: type Purchase,
     request: StorageRequest,
     market: Market,

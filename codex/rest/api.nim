@@ -34,6 +34,7 @@ import ../conf
 import ../contracts
 import ../manifest
 import ../streams/asyncstreamwrapper
+import ../utils/asyncprofiler
 import ../stores
 
 import ./coders
@@ -466,9 +467,22 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
         let json = %RestPeerRecord.init(peerRecord)
         trace "debug/peer returning peer record"
         return RestApiResponse.response($json)
+
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
+
+  when chronosProfiling:
+    router.api(
+      MethodGet,
+      "/api/codex/v1/debug/performance") do () -> RestApiResponse:
+        # Returns profiling information, highest execTime first
+
+        without metrics =? sortBy(%(getMetrics().totals),
+          "execTime").catch, error:
+            return RestApiResponse.error(Http500, error.msg)
+
+        RestApiResponse.response($(metrics), contentType="application/json")
 
 proc initRestApi*(node: CodexNodeRef, conf: CodexConf, repoStore: RepoStore): RestRouter =
   var router = RestRouter.init(validate)

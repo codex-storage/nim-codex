@@ -15,6 +15,7 @@ import pkg/codex/chunker
 import pkg/codex/discovery
 import pkg/codex/blocktype
 import pkg/codex/utils/asyncheapqueue
+import pkg/codex/utils/asyncprofiler
 
 import ../../../asynctest
 import ../../helpers
