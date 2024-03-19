@@ -36,6 +36,7 @@ type
     reward: UInt256
     collateral: UInt256
     expiry: UInt256
+    seen: bool
 
   # don't need to -1 to prevent overflow when adding 1 (to always allow push)
   # because AsyncHeapQueue size is of type `int`, which is larger than `uint16`
@@ -83,6 +84,9 @@ proc `<`*(a, b: SlotQueueItem): bool =
   proc addIf(score: var uint8, condition: bool, addition: int) =
     if condition:
       score += 1'u8 shl addition
+
+  scoreA.addIf(a.seen > b.seen, 4)
+  scoreB.addIf(a.seen < b.seen, 4)
 
   scoreA.addIf(a.profitability > b.profitability, 3)
   scoreB.addIf(a.profitability < b.profitability, 3)
