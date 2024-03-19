@@ -19,9 +19,9 @@ type CodexClient* = ref object
 proc new*(_: type CodexClient, baseurl: string): CodexClient =
   CodexClient(http: newHttpClient(), baseurl: baseurl)
 
-proc info*(client: CodexClient): JsonNode =
+proc info*(client: CodexClient): ?!JsonNode =
   let url = client.baseurl & "/debug/info"
-  client.http.getContent(url).parseJson()
+  JsonNode.parse( client.http.getContent(url) )
 
 proc setLogLevel*(client: CodexClient, level: string) =
   let url = client.baseurl & "/debug/chronicles/loglevel?level=" & level
@@ -52,8 +52,7 @@ proc list*(client: CodexClient): ?!seq[RestContent] =
   if response.status != "200 OK":
     return failure(response.status)
 
-  let json = ? parseJson(response.body).catch
-  seq[RestContent].fromJson(json)
+  seq[RestContent].fromJson(response.body)
 
 proc space*(client: CodexClient): ?!RestRepoStore =
   let url = client.baseurl & "/space"
@@ -62,8 +61,7 @@ proc space*(client: CodexClient): ?!RestRepoStore =
   if response.status != "200 OK":
     return failure(response.status)
 
-  let json = ? parseJson(response.body).catch
-  RestRepoStore.fromJson(json)
+  RestRepoStore.fromJson(response.body)
 
 proc requestStorageRaw*(
     client: CodexClient,
@@ -116,8 +114,7 @@ proc getPurchase*(client: CodexClient, purchaseId: PurchaseId): ?!RestPurchase =
   let url = client.baseurl & "/storage/purchases/" & purchaseId.toHex
   try:
     let body = client.http.getContent(url)
-    let json = ? parseJson(body).catch
-    return RestPurchase.fromJson(json)
+    return RestPurchase.fromJson(body)
   except CatchableError as e:
     return failure e.msg
 
@@ -125,16 +122,14 @@ proc getSalesAgent*(client: CodexClient, slotId: SlotId): ?!RestSalesAgent =
   let url = client.baseurl & "/sales/slots/" & slotId.toHex
   try:
     let body = client.http.getContent(url)
-    let json = ? parseJson(body).catch
-    return RestSalesAgent.fromJson(json)
+    return RestSalesAgent.fromJson(body)
   except CatchableError as e:
     return failure e.msg
 
 proc getSlots*(client: CodexClient): ?!seq[Slot] =
   let url = client.baseurl & "/sales/slots"
   let body = client.http.getContent(url)
-  let json = ? parseJson(body).catch
-  seq[Slot].fromJson(json)
+  seq[Slot].fromJson(body)
 
 proc postAvailability*(
     client: CodexClient,
@@ -151,13 +146,13 @@ proc postAvailability*(
   }
   let response = client.http.post(url, $json)
   doAssert response.status == "200 OK", "expected 200 OK, got " & response.status & ", body: " & response.body
-  Availability.fromJson(response.body.parseJson)
+  Availability.fromJson(response.body)
 
 proc getAvailabilities*(client: CodexClient): ?!seq[Availability] =
   ## Call sales availability REST endpoint
   let url = client.baseurl & "/sales/availability"
   let body = client.http.getContent(url)
-  seq[Availability].fromJson(parseJson(body))
+  seq[Availability].fromJson(body)
 
 proc close*(client: CodexClient) =
   client.http.close()

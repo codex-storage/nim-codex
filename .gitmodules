@@ -209,3 +209,6 @@
 	url = https://github.com/codex-storage/codex-storage-proofs-circuits.git
 	ignore = untracked
 	branch = master
+[submodule "vendor/nim-serde"]
+	path = vendor/nim-serde
+	url = https://github.com/codex-storage/nim-serde.git
