@@ -10,6 +10,7 @@
 import std/sequtils
 
 import pkg/taskpools
+import pkg/taskpools/flowvars
 import pkg/chronos
 import pkg/chronos/threadsync
 import pkg/questionable/results
@@ -20,6 +21,10 @@ import ../logutils
 
 logScope:
   topics = "codex asyncerasure"
+
+const
+  CompletitionTimeout = 1.seconds # Maximum await time for completition after receiving a signal
+  CompletitionRetryDelay = 10.millis
 
 type
   EncoderBackendPtr = ptr EncoderBackend
@@ -68,7 +73,7 @@ proc encodeTask(args: EncodeTaskArgs, data: seq[seq[byte]]): EncodeTaskResult =
       return ok(arrHolder)
     else:
       return err(res.error)
-  except Exception as exception:
+  except CatchableError as exception:
     return err(exception.msg.cstring)
   finally:
     if err =? args.signal.fireSync().mapFailure.errorOption():
@@ -98,7 +103,7 @@ proc decodeTask(args: DecodeTaskArgs, data: seq[seq[byte]], parity: seq[seq[byte
       return ok(arrHolder)
     else:
       return err(res.error)
-  except Exception as exception:
+  except CatchableError as exception:
     return err(exception.msg.cstring)
   finally:
     if err =? args.signal.fireSync().mapFailure.errorOption():
@@ -119,6 +124,21 @@ proc proxySpawnDecodeTask(
 ): Flowvar[DecodeTaskResult] =
   tp.spawn decodeTask(args, data[], parity[])
 
+proc awaitResult[T](signal: ThreadSignalPtr, handle: Flowvar[T]): Future[?!T] {.async.} =
+  await wait(signal)
+
+  var
+    res: T
+    awaitTotal: Duration
+  while awaitTotal < CompletitionTimeout:
+      if handle.tryComplete(res):
+        return success(res)
+      else:
+        awaitTotal += CompletitionRetryDelay
+        await sleepAsync(CompletitionRetryDelay)
+
+  return failure("Task signaled finish but didn't return any result within " & $CompletitionRetryDelay)
+
 proc asyncEncode*(
   tp: Taskpool,
   backend: EncoderBackend,
@@ -135,8 +155,8 @@ proc asyncEncode*(
       args = EncodeTaskArgs(signal: signal, backend: unsafeAddr backend, blockSize: blockSize, ecM: ecM)
       handle = proxySpawnEncodeTask(tp, args, data)
 
-    await wait(signal)
-    let res = sync handle # should be completed
+    without res =? await awaitResult(signal, handle), err:
+      return failure(err)
 
     if res.isOk:
       var parity = seq[seq[byte]].new()
@@ -170,8 +190,8 @@ proc asyncDecode*(
       args = DecodeTaskArgs(signal: signal, backend: unsafeAddr backend, blockSize: blockSize, ecK: ecK)
       handle = proxySpawnDecodeTask(tp, args, data, parity)
 
-    await wait(signal)
-    let res = sync handle # should be completed
+    without res =? await awaitResult(signal, handle), err:
+      return failure(err)
 
     if res.isOk:
       var recovered = seq[seq[byte]].new()
