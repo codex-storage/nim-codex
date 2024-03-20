@@ -52,7 +52,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
       node1 = startNode(node1Args, debug = debug1)
       node1.waitUntilStarted()
 
-      let bootstrap = client1.info()["spr"].getStr()
+      let bootstrap = (!client1.info()["spr"]).getStr()
 
       var node2Args = @[
         "--api-port=8081",

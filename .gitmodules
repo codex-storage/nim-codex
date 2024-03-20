@@ -5,7 +5,7 @@
 	branch = master
 [submodule "vendor/nim-libp2p"]
 	path = vendor/nim-libp2p
-	url = https://github.com/status-im/nim-libp2p.git
+	url = https://github.com/vacp2p/nim-libp2p.git
 	ignore = untracked
 	branch = master
 [submodule "vendor/nimcrypto"]
@@ -209,6 +209,9 @@
 	url = https://github.com/codex-storage/codex-storage-proofs-circuits.git
 	ignore = untracked
 	branch = master
+[submodule "vendor/nim-serde"]
+	path = vendor/nim-serde
+	url = https://github.com/codex-storage/nim-serde.git
 [submodule "vendor/zip"]
 	path = vendor/zip
 	url = https://github.com/nim-lang/zip.git
