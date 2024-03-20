@@ -85,8 +85,8 @@ proc `<`*(a, b: SlotQueueItem): bool =
     if condition:
       score += 1'u8 shl addition
 
-  scoreA.addIf(a.seen > b.seen, 4)
-  scoreB.addIf(a.seen < b.seen, 4)
+  scoreA.addIf(a.seen < b.seen, 4)
+  scoreB.addIf(a.seen > b.seen, 4)
 
   scoreA.addIf(a.profitability > b.profitability, 3)
   scoreB.addIf(a.profitability < b.profitability, 3)
@@ -126,7 +126,7 @@ proc new*(_: type SlotQueue,
   # avoid instantiating `workers` in constructor to avoid side effects in
   # `newAsyncQueue` procedure
 
-proc init*(_: type SlotQueueWorker): SlotQueueWorker =
+proc init(_: type SlotQueueWorker): SlotQueueWorker =
   SlotQueueWorker(
     doneProcessing: newFuture[void]("slotqueue.worker.processing")
   )
@@ -135,7 +135,8 @@ proc init*(_: type SlotQueueItem,
           requestId: RequestId,
           slotIndex: uint16,
           ask: StorageAsk,
-          expiry: UInt256): SlotQueueItem =
+          expiry: UInt256,
+          seen = false): SlotQueueItem =
 
   SlotQueueItem(
     requestId: requestId,
@@ -144,7 +145,8 @@ proc init*(_: type SlotQueueItem,
     duration: ask.duration,
     reward: ask.reward,
     collateral: ask.collateral,
-    expiry: expiry
+    expiry: expiry,
+    seen: seen
   )
 
 proc init*(_: type SlotQueueItem,

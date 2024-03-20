@@ -163,8 +163,6 @@ suite "Slot queue":
     check itemB < itemA # B higher priority than A
     check itemA > itemB
 
-  # TODO: fix above test to use MockSlotQueueItem. Also add multiple tests for each item property
-
   test "correct prioritizes SlotQueueItems based on 'seen'":
     let request = StorageRequest.example
     let itemA = MockSlotQueueItem(
