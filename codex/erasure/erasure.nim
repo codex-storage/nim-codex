@@ -287,10 +287,6 @@ proc encodeData(
         data = seq[seq[byte]].new() # number of blocks to encode
 
       data[].setLen(params.ecK)
-      # TODO: this is a tight blocking loop so we sleep here to allow
-      # other events to be processed, this should be addressed
-      # by threading
-      await sleepAsync(10.millis)
 
       without resolved =?
         (await self.prepareEncodingData(manifest, params, step, data, cids, emptyBlock)), err:
@@ -390,11 +386,6 @@ proc decode*(
   cids[].setLen(encoded.blocksCount)
   try:
     for step in 0..<encoded.steps:
-      # TODO: this is a tight blocking loop so we sleep here to allow
-      # other events to be processed, this should be addressed
-      # by threading
-      await sleepAsync(10.millis)
-
       var
         data = seq[seq[byte]].new()
         parity = seq[seq[byte]].new()
