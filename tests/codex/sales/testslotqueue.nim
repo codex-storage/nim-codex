@@ -10,6 +10,7 @@ import pkg/codex/sales/slotqueue
 import ../../asynctest
 import ../helpers
 import ../helpers/mockmarket
+import ../helpers/mockslotqueueitem
 import ../examples
 
 suite "Slot queue start/stop":
@@ -161,6 +162,133 @@ suite "Slot queue":
     let itemB = SlotQueueItem.init(requestB, 0)
     check itemB < itemA # B higher priority than A
     check itemA > itemB
+
+  # TODO: fix above test to use MockSlotQueueItem. Also add multiple tests for each item property
+
+  test "correct prioritizes SlotQueueItems based on 'seen'":
+    let request = StorageRequest.example
+    let itemA = MockSlotQueueItem(
+      requestId: request.id,
+      slotIndex: 0,
+      slotSize: 1.u256,
+      duration: 1.u256,
+      reward: 2.u256, # profitability is higher (good)
+      collateral: 1.u256,
+      expiry: 1.u256,
+      seen: true # seen (bad), more weight than profitability
+    )
+    let itemB = MockSlotQueueItem(
+      requestId: request.id,
+      slotIndex: 0,
+      slotSize: 1.u256,
+      duration: 1.u256,
+      reward: 1.u256, # profitability is lower (bad)
+      collateral: 1.u256,
+      expiry: 1.u256,
+      seen: false # not seen (good)
+    )
+    check itemB.toSlotQueueItem < itemA.toSlotQueueItem # B higher priority than A
+    check itemA.toSlotQueueItem > itemB.toSlotQueueItem
+
+  test "correct prioritizes SlotQueueItems based on profitability":
+    let request = StorageRequest.example
+    let itemA = MockSlotQueueItem(
+      requestId: request.id,
+      slotIndex: 0,
+      slotSize: 1.u256,
+      duration: 1.u256,
+      reward: 1.u256, # reward is lower (bad)
+      collateral: 1.u256, # collateral is lower (good)
+      expiry: 1.u256,
+      seen: false
+    )
+    let itemB = MockSlotQueueItem(
+      requestId: request.id,
+      slotIndex: 0,
+      slotSize: 1.u256,
+      duration: 1.u256,
+      reward: 2.u256, # reward is higher (good), more weight than collateral
+      collateral: 2.u256, # collateral is higher (bad)
+      expiry: 1.u256,
+      seen: false
+    )
+
+    check itemB.toSlotQueueItem < itemA.toSlotQueueItem # < indicates higher priority
+
+  test "correct prioritizes SlotQueueItems based on collateral":
+    let request = StorageRequest.example
+    let itemA = MockSlotQueueItem(
+      requestId: request.id,
+      slotIndex: 0,
+      slotSize: 1.u256,
+      duration: 1.u256,
+      reward: 1.u256,
+      collateral: 2.u256, # collateral is higher (bad)
+      expiry: 2.u256, # expiry is longer (good)
+      seen: false
+    )
+    let itemB = MockSlotQueueItem(
+      requestId: request.id,
+      slotIndex: 0,
+      slotSize: 1.u256,
+      duration: 1.u256,
+      reward: 1.u256,
+      collateral: 1.u256, # collateral is lower (good), more weight than expiry
+      expiry: 1.u256, # expiry is shorter (bad)
+      seen: false
+    )
+
+    check itemB.toSlotQueueItem < itemA.toSlotQueueItem # < indicates higher priority
+
+  test "correct prioritizes SlotQueueItems based on expiry":
+    let request = StorageRequest.example
+    let itemA = MockSlotQueueItem(
+      requestId: request.id,
+      slotIndex: 0,
+      slotSize: 1.u256, # slotSize is smaller (good)
+      duration: 1.u256,
+      reward: 1.u256,
+      collateral: 1.u256,
+      expiry: 1.u256, # expiry is shorter (bad)
+      seen: false
+    )
+    let itemB = MockSlotQueueItem(
+      requestId: request.id,
+      slotIndex: 0,
+      slotSize: 2.u256, # slotSize is larger (bad)
+      duration: 1.u256,
+      reward: 1.u256,
+      collateral: 1.u256,
+      expiry: 2.u256, # expiry is longer (good), more weight than slotSize
+      seen: false
+    )
+
+    check itemB.toSlotQueueItem < itemA.toSlotQueueItem # < indicates higher priority
+
+  test "correct prioritizes SlotQueueItems based on slotSize":
+    let request = StorageRequest.example
+    let itemA = MockSlotQueueItem(
+      requestId: request.id,
+      slotIndex: 0,
+      slotSize: 2.u256, # slotSize is larger (bad)
+      duration: 1.u256,
+      reward: 1.u256,
+      collateral: 1.u256,
+      expiry: 1.u256, # expiry is shorter (bad)
+      seen: false
+    )
+    let itemB = MockSlotQueueItem(
+      requestId: request.id,
+      slotIndex: 0,
+      slotSize: 1.u256, # slotSize is smaller (good)
+      duration: 1.u256,
+      reward: 1.u256,
+      collateral: 1.u256,
+      expiry: 1.u256,
+      seen: false
+    )
+
+    check itemB.toSlotQueueItem < itemA.toSlotQueueItem # < indicates higher priority
 
   test "expands available all possible slot indices on init":
     let request = StorageRequest.example
