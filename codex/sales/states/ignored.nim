@@ -17,4 +17,7 @@ method run*(state: SaleIgnored, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
 
   if onCleanUp =? agent.onCleanUp:
-    await onCleanUp()
+    # Ignored slots mean there was no availability. In order to prevent small
+    # availabilities from draining the queue, mark this slot as seen and re-add
+    # back into the queue.
+    await onCleanUp(reprocessSlot = true)

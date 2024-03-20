@@ -111,15 +111,19 @@ proc remove(sales: Sales, agent: SalesAgent) {.async.} =
 proc cleanUp(sales: Sales,
              agent: SalesAgent,
              returnBytes: bool,
+             reprocessSlot: bool,
              processing: Future[void]) {.async.} =
 
   let data = agent.data
 
-  trace "cleaning up sales agent",
-    requestId = data.requestId,
-    slotIndex = data.slotIndex,
-    reservationId = data.reservation.?id |? ReservationId.default,
+  logScope:
+    topics = "sales cleanUp"
+    requestId = data.requestId
+    slotIndex = data.slotIndex
+    reservationId = data.reservation.?id |? ReservationId.default
     availabilityId = data.reservation.?availabilityId |? AvailabilityId.default
+
+  trace "cleaning up sales agent"
 
   # if reservation for the SalesAgent was not created, then it means
   # that the cleanUp was called before the sales process really started, so
@@ -132,7 +136,6 @@ proc cleanUp(sales: Sales,
                       )).errorOption:
           error "failure returning bytes",
             error = returnErr.msg,
-            availabilityId = reservation.availabilityId,
             bytes = request.ask.slotSize
 
   # delete reservation and return reservation bytes back to the availability
@@ -141,12 +144,21 @@ proc cleanUp(sales: Sales,
                     reservation.id,
                     reservation.availabilityId
                   )).errorOption:
-      error "failure deleting reservation",
-        error = deleteErr.msg,
-        reservationId = reservation.id,
-        availabilityId = reservation.availabilityId
+      error "failure deleting reservation", error = deleteErr.msg
 
   await sales.remove(agent)
+
+  # Re-add items back into the queue to prevent small availabilities from
+  # draining the queue. Seen items will be ordered last.
+  if reprocessSlot and request =? data.request:
+    let queue = sales.context.slotQueue
+    var seenItem = SlotQueueItem.init(data.requestId,
+                                      data.slotIndex.truncate(uint16),
+                                      data.ask,
+                                      request.expiry,
+                                      seen = true)
+    if err =? queue.push(seenItem).errorOption:
+      error "failed to readd slot to queue", error = err.msg
 
   # signal back to the slot queue to cycle a worker
   if not processing.isNil and not processing.finished():
@@ -176,8 +188,8 @@ proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
     none StorageRequest
   )
 
-  agent.onCleanUp = proc (returnBytes = false) {.async.} =
-    await sales.cleanUp(agent, returnBytes, done)
+  agent.onCleanUp = proc (returnBytes = false, reprocessSlot = false) {.async.} =
+    await sales.cleanUp(agent, returnBytes, reprocessSlot, done)
 
   agent.onFilled = some proc(request: StorageRequest, slotIndex: UInt256) =
     sales.filled(request, slotIndex, done)
@@ -222,7 +234,6 @@ proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
   return slots
 
 proc activeSale*(sales: Sales, slotId: SlotId): Future[?SalesAgent] {.async.} =
-  let market = sales.context.market
   for agent in sales.agents:
     if slotId(agent.data.requestId, agent.data.slotIndex) == slotId:
       return some agent
@@ -241,10 +252,17 @@ proc load*(sales: Sales) {.async.} =
       slot.slotIndex,
       some slot.request)
 
-    agent.onCleanUp = proc(returnBytes = false) {.async.} =
+    agent.onCleanUp = proc(returnBytes = false, reprocessSlot = false) {.async.} =
+      # since workers are not being dispatched, this future has not been created
+      # by a worker. Create a dummy one here so we can call sales.cleanUp
       let done = newFuture[void]("onCleanUp_Dummy")
-      await sales.cleanUp(agent, returnBytes, done)
-      await done # completed in sales.cleanUp
+      await sales.cleanUp(agent, returnBytes, reprocessSlot, done)
+
+    # TODO: this seemed to be missing during load, but unknown if it was
+    # intentionally left out for some unknown reason?
+    agent.onFilled = some proc(request: StorageRequest, slotIndex: UInt256) =
+      let done = newFuture[void]("onFilled_Dummy")
+      sales.filled(request, slotIndex, done)
 
     agent.start(SaleUnknown())
     sales.agents.add agent
