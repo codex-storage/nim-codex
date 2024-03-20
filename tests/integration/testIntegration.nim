@@ -210,7 +210,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check newSize > 0 and newSize < size
 
     let reservations = client2.getAvailabilityReservations(availability.id).get
-    check reservations.len == 1
+    check reservations.len == 5
     check reservations[0].requestId == purchase.requestId
 
   test "node slots gets paid out":
@@ -332,13 +332,24 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check updatedAvailability.freeSize == 100000
 
   test "updating availability - updating totalSize does not allow bellow utilized":
-    let availability = client1.postAvailability(totalSize=140000.u256, duration=200.u256, minPrice=200.u256, maxCollateral=300.u256).get
+    let originalSize = 0xFFFFFF.u256
+    let data = await RandomChunker.example(blocks=8)
+    let availability = client1.postAvailability(totalSize=originalSize, duration=20*60.u256, minPrice=300.u256, maxCollateral=300.u256).get
 
     # Lets create storage request that will utilize some of the availability's space
-    let expiry = (await ethProvider.currentTime()) + 30
-    let cid = client2.upload("some file contents").get
-    let id = client2.requestStorage(cid, duration=100.u256, reward=400.u256, proofProbability=3.u256, expiry=expiry, collateral=200.u256).get
-    check eventually client2.purchaseStateIs(id, "started")
+    let expiry = (await ethProvider.currentTime()) + 5*60
+    let cid = client2.upload(data).get
+    let id = client2.requestStorage(
+      cid,
+      duration=10*60.u256,
+      reward=400.u256,
+      proofProbability=3.u256,
+      expiry=expiry,
+      collateral=200.u256,
+      nodes = 5,
+      tolerance = 2).get
+
+    check eventually(client2.purchaseStateIs(id, "started"), timeout=5*60*1000)
     let updatedAvailability = (client1.getAvailabilities().get).findItem(availability).get
     check updatedAvailability.totalSize != updatedAvailability.freeSize
 
@@ -347,7 +358,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check totalSizeResponse.status == "400 Bad Request"
     check "totalSize must be larger then current totalSize" in totalSizeResponse.body
 
-    client1.patchAvailability(availability.id, totalSize=160000.u256.some)
+    client1.patchAvailability(availability.id, totalSize=(originalSize + 20000).some)
     let newUpdatedAvailability = (client1.getAvailabilities().get).findItem(availability).get
-    check newUpdatedAvailability.totalSize == 160000
+    check newUpdatedAvailability.totalSize == originalSize + 20000
     check newUpdatedAvailability.freeSize - updatedAvailability.freeSize == 20000

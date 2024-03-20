@@ -9,6 +9,7 @@ import pkg/codex/rest/json
 import pkg/codex/purchasing
 import pkg/codex/errors
 import pkg/codex/sales/reservations
+import pkg/codex/utils/options
 
 export purchasing
 
@@ -156,24 +157,9 @@ proc patchAvailabilityRaw*(
   ## Updates availability
   ##
   let url = client.baseurl & "/sales/availability/" & $availabilityId
-  var json = %*{}
-
-  if totalSize =? totalSize:
-    json["totalSize"] = %totalSize
-
-  if freeSize =? freeSize:
-    json["freeSize"] = %freeSize
-
-  if duration =? duration:
-    json["duration"] = %duration
-
-  if minPrice =? minPrice:
-    json["minPrice"] = %minPrice
-
-  if maxCollateral =? maxCollateral:
-    json["maxCollateral"] = %maxCollateral
-
-  client.http.patch(url, $json)
+  type OptRestAvailability = Optionalize(RestAvailability)
+  let availability = OptRestAvailability(totalSize: totalSize, freeSize: freeSize, duration: duration, minPrice: minPrice, maxCollateral: maxCollateral)
+  client.http.patch(url, availability.toJson)
 
 proc patchAvailability*(
     client: CodexClient,

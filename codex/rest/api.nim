@@ -321,7 +321,6 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
           reservations = contracts.sales.context.reservations
 
         type OptRestAvailability = Optionalize(RestAvailability)
-
         without restAv =? OptRestAvailability.fromJson(body), error:
           return RestApiResponse.error(Http400, error.msg)
 
@@ -338,9 +337,6 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
           # we don't allow lowering the totalSize bellow currently utilized size
           if size < (availability.totalSize - availability.freeSize):
             return RestApiResponse.error(Http400, "New totalSize must be larger then current totalSize - freeSize, which is currently: " & $(availability.totalSize - availability.freeSize))
-
-          if err =? (await reservations.changeAvailabilitySize(availability, size)).errorOption:
-            return RestApiResponse.error(Http500, err.msg)
 
           availability.freeSize += size - availability.totalSize
           availability.totalSize = size
@@ -384,12 +380,11 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
           else:
             return RestApiResponse.error(Http500, error.msg)
 
-        without availabilitysReservations =? (await reservations.all(Reservation, id.some)), err:
+        without availabilitysReservations =? (await reservations.all(Reservation, id)), err:
           return RestApiResponse.error(Http500, err.msg)
 
         # TODO: Expand this structure with information about the linked StorageRequest not only RequestID
-        let json = %availabilitysReservations
-        return RestApiResponse.response($json, contentType="application/json")
+        return RestApiResponse.response(availabilitysReservations.toJson, contentType="application/json")
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)

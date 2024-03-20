@@ -106,6 +106,19 @@ asyncchecksuite "Reservations module":
       reservations.contains(reservation1)
       reservations.contains(reservation2)
 
+  test "can get reservations of specific availability":
+    let availability1 = createAvailability()
+    let availability2 = createAvailability()
+    let reservation1 = createReservation(availability1)
+    let reservation2 = createReservation(availability2)
+    let reservations = !(await reservations.all(Reservation, availability1.id))
+
+    check:
+      # perform unordered checks
+      reservations.len == 1
+      reservations.contains(reservation1)
+      not reservations.contains(reservation2)
+
   test "cannot create reservation with non-existant availability":
     let availability = Availability.example
     let created = await reservations.createReservation(
@@ -193,28 +206,22 @@ asyncchecksuite "Reservations module":
     check (updated.freeSize - orig) == 200.u256
     check (repo.quotaReservedBytes - origQuota) == 200
 
-  test "changeAvailabilitySize releases quota when lowering size":
+  test "update releases quota when lowering size":
     let
       availability = createAvailability()
       origQuota = repo.quotaReservedBytes
-      newSize = availability.totalSize - 100
+    availability.totalSize = availability.totalSize - 100
 
-    check isOk await reservations.changeAvailabilitySize(
-      availability, newSize
-    )
-
+    check isOk await reservations.update(availability)
     check (origQuota - repo.quotaReservedBytes) == 100
 
-  test "changeAvailabilitySize reserves quota when growing size":
+  test "update reserves quota when growing size":
     let
       availability = createAvailability()
       origQuota = repo.quotaReservedBytes
-      newSize = availability.totalSize + 100
-    echo "call"
-    check isOk await reservations.changeAvailabilitySize(
-      availability, newSize
-    )
-    echo "check"
+    availability.totalSize = availability.totalSize + 100
+
+    check isOk await reservations.update(availability)
     check (repo.quotaReservedBytes - origQuota) == 100
 
   test "reservation can be partially released":

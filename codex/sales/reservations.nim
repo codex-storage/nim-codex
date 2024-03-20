@@ -197,7 +197,7 @@ proc get*(
 
   return success obj
 
-proc update*(
+proc updateImpl(
   self: Reservations,
   obj: SomeStorableObject): Future[?!void] {.async.} =
 
@@ -213,6 +213,39 @@ proc update*(
     return failure(err.toErr(UpdateFailedError))
 
   return success()
+
+proc update*(
+  self: Reservations,
+  obj: Reservation): Future[?!void] {.async.} =
+  return await self.updateImpl(obj)
+
+proc update*(
+  self: Reservations,
+  obj: Availability): Future[?!void] {.async.} =
+
+  without key =? obj.key, error:
+    return failure(error)
+
+  let getResult = await self.get(key, Availability)
+
+  if getResult.isOk:
+    let oldAvailability = !getResult
+
+    # Sizing of the availability changed, we need to adjust the repo reservation accordingly
+    if oldAvailability.totalSize != obj.totalSize:
+      if oldAvailability.totalSize < obj.totalSize: # storage added
+        if reserveErr =? (await self.repo.reserve((obj.totalSize - oldAvailability.totalSize).truncate(uint))).errorOption:
+          return failure(reserveErr.toErr(ReserveFailedError))
+
+      elif oldAvailability.totalSize > obj.totalSize: # storage removed
+        if reserveErr =? (await self.repo.release((oldAvailability.totalSize - obj.totalSize).truncate(uint))).errorOption:
+          return failure(reserveErr.toErr(ReleaseFailedError))
+  else:
+    let err = getResult.error()
+    if not (err of NotExistsError):
+      return failure(err)
+
+  return await self.updateImpl(obj)
 
 proc delete(
   self: Reservations,
@@ -354,24 +387,6 @@ proc createReservation*(
 
   return success(reservation)
 
-proc changeAvailabilitySize*(
-  self: Reservations,
-  availability: Availability,
-  newSize: UInt256
-  ): Future[?!void] {.async.} =
-  ## Method that adjusts the repo reservations according the changed sizes.
-  ## The Availability.totalSize must not be updated yet!
-
-  if availability.totalSize < newSize: # storage added
-    if reserveErr =? (await self.repo.reserve((newSize - availability.totalSize).truncate(uint))).errorOption:
-      return failure(reserveErr.toErr(ReserveFailedError))
-
-  elif availability.totalSize > newSize: # storage removed
-    if reserveErr =? (await self.repo.release((availability.totalSize - newSize).truncate(uint))).errorOption:
-      return failure(reserveErr.toErr(ReleaseFailedError))
-
-  return success()
-
 proc returnBytesToAvailability*(
   self: Reservations,
   availabilityId: AvailabilityId,
@@ -474,18 +489,18 @@ iterator items(self: StorableIter): Future[?seq[byte]] =
 proc storables(
   self: Reservations,
   T: type SomeStorableObject,
-  availabilityId: ?AvailabilityId = AvailabilityId.none
+  queryKey: Key = ReservationsKey
 ): Future[?!StorableIter] {.async.} =
 
   var iter = StorableIter()
-  let query = Query.init(ReservationsKey)
+  let query = Query.init(queryKey)
   when T is Availability:
     # should indicate key length of 4, but let the .key logic determine it
     without defaultKey =? AvailabilityId.default.key, error:
       return failure(error)
   elif T is Reservation:
     # should indicate key length of 5, but let the .key logic determine it
-    without defaultKey =? key(ReservationId.default, availabilityId |? AvailabilityId.default), error:
+    without defaultKey =? key(ReservationId.default, AvailabilityId.default), error:
       return failure(error)
   else:
     raiseAssert "unknown type"
@@ -493,6 +508,7 @@ proc storables(
   without results =? await self.repo.metaDs.query(query), error:
     return failure(error)
 
+  # /sales/reservations
   proc next(): Future[?seq[byte]] {.async.} =
     await idleAsync()
     iter.finished = results.finished
@@ -509,15 +525,15 @@ proc storables(
   iter.next = next
   return success iter
 
-proc all*(
+proc allImpl(
   self: Reservations,
   T: type SomeStorableObject,
-  availabilityId: ?AvailabilityId = AvailabilityId.none
+  queryKey: Key = ReservationsKey
 ): Future[?!seq[T]] {.async.} =
 
   var ret: seq[T] = @[]
 
-  without storables =? (await self.storables(T, availabilityId)), error:
+  without storables =? (await self.storables(T, queryKey)), error:
     return failure(error)
 
   for storable in storables.items:
@@ -533,6 +549,22 @@ proc all*(
     ret.add obj
 
   return success(ret)
+
+proc all*(
+  self: Reservations,
+  T: type SomeStorableObject
+): Future[?!seq[T]] {.async.} =
+  return await self.allImpl(T)
+
+proc all*(
+  self: Reservations,
+  T: type SomeStorableObject,
+  availabilityId: AvailabilityId
+): Future[?!seq[T]] {.async.} =
+  without key =? (ReservationsKey / $availabilityId):
+    return failure("no key")
+
+  return await self.allImpl(T, key)
 
 proc findAvailability*(
   self: Reservations,
