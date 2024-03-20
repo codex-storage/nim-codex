@@ -24,6 +24,7 @@ import pkg/stew/shims/net as stewnet
 import pkg/datastore
 import pkg/ethers except Rng
 import pkg/stew/io2
+import pkg/taskpools
 
 import ./node
 import ./conf
@@ -320,5 +321,5 @@ proc new*(
     codexNode: codexNode,
     restServer: restServer,
     repoStore: repoStore,
-    maintenance: maintenance
+    maintenance: maintenance,
     taskpool: taskpool)
