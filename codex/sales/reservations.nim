@@ -295,6 +295,17 @@ proc deleteReservation*(
     if updateErr =? (await self.update(availability)).errorOption:
       return failure(updateErr)
 
+    # inform subscribers that Availability has been modified (with increased
+    # size)
+    if onAvailabilityAdded =? self.onAvailabilityAdded:
+      try:
+        await onAvailabilityAdded(availability)
+      except CatchableError as e:
+        # we don't have any insight into types of exceptions that
+        # `onAvailabilityAdded` can raise because it is caller-defined
+        warn "Unknown error during 'onAvailabilityAdded' callback",
+          availabilityId = availability.id, error = e.msg
+
   if err =? (await self.repo.metaDs.delete(key)).errorOption:
     return failure(err.toErr(DeleteFailedError))
 
@@ -333,8 +344,8 @@ proc createAvailability*(
     except CancelledError as error:
       raise error
     except CatchableError as e:
-      # we don't have any insight into types of errors that `onProcessSlot` can
-      # throw because it is caller-defined
+      # we don't have any insight into types of exceptions that
+      # `onAvailabilityAdded` can raise because it is caller-defined
       warn "Unknown error during 'onAvailabilityAdded' callback",
         availabilityId = availability.id, error = e.msg
 
@@ -438,6 +449,17 @@ proc returnBytesToAvailability*(
       return failure(rollbackErr)
 
     return failure(updateErr)
+
+  # inform subscribers that Availability has been modified (with increased
+  # size)
+  if onAvailabilityAdded =? self.onAvailabilityAdded:
+    try:
+      await onAvailabilityAdded(availability)
+    except CatchableError as e:
+      # we don't have any insight into types of exceptions that
+      # `onAvailabilityAdded` can raise because it is caller-defined
+      warn "Unknown error during 'onAvailabilityAdded' callback",
+        availabilityId = availability.id, error = e.msg
 
   return success()
 

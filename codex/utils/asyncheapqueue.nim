@@ -225,6 +225,20 @@ proc update*[T](heap: AsyncHeapQueue[T], item: T): bool =
     heap.siftup(0)
     return true
 
+proc update*[T](heap: AsyncHeapQueue[T], index: int, item: T) =
+  ## Overwrites an entry in the heap at index. The heap is then reshuffled to
+  ## maintain the heap invariant. This is like doing an update without the find,
+  ## and can be useful in situations where iterating the entire heap (to find
+  ## the item) could cause issues with new items being added to the heap while
+  ## iterating
+
+  # replace item with new one in case it's a copy
+  heap.queue[index] = item
+  # re-establish heap order
+  # TODO: don't start at 0 to avoid reshuffling
+  # entire heap
+  heap.siftup(0)
+
 proc pushOrUpdateNoWait*[T](heap: AsyncHeapQueue[T], item: T): Result[void, AsyncHQErrors] =
   ## Update an item if it exists or push a new one
   ##

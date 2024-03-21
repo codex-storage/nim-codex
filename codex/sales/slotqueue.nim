@@ -49,6 +49,7 @@ type
     running: bool
     workers: AsyncQueue[SlotQueueWorker]
     trackedFutures: TrackedFutures
+    unpaused: AsyncEvent
 
   SlotQueueError = object of CodexError
   SlotQueueItemExistsError* = object of SlotQueueError
@@ -197,6 +198,8 @@ proc len*(self: SlotQueue): int = self.queue.len
 
 proc size*(self: SlotQueue): int = self.queue.size - 1
 
+proc paused*(self: SlotQueue): bool = not self.unpaused.isSet
+
 proc `$`*(self: SlotQueue): string = $self.queue
 
 proc `onProcessSlot=`*(self: SlotQueue, onProcessSlot: OnProcessSlot) =
@@ -210,6 +213,14 @@ proc activeWorkers*(self: SlotQueue): int =
 
 proc contains*(self: SlotQueue, item: SlotQueueItem): bool =
   self.queue.contains(item)
+
+proc pause*(self: SlotQueue) =
+  # set unpaused flag to false -- unblocks coroutines waiting on unpaused.wait()
+  self.unpaused.clear()
+
+proc unpause*(self: SlotQueue) =
+  # set unpaused flag to true -- blocks coroutines waiting on unpaused.wait()
+  self.unpaused.fire()
 
 proc populateItem*(self: SlotQueue,
                    requestId: RequestId,
@@ -251,6 +262,13 @@ proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
     self.queue.del(self.queue.size - 1)
 
   doAssert self.queue.len <= self.queue.size - 1
+
+  # when slots are pushed to the queue, the queue should be unpaused if it was
+  # paused
+  if self.paused:
+    trace "unpausing queue after new slots pushed"
+  self.unpause()
+
   return success()
 
 proc push*(self: SlotQueue, items: seq[SlotQueueItem]): ?!void =
@@ -338,6 +356,17 @@ proc dispatch(self: SlotQueue,
       # throw because it is caller-defined
       warn "Unknown error processing slot in worker", error = e.msg
 
+proc clearSeenFlags*(self: SlotQueue) =
+  # To avoid issues with new queue items being pushed to the queue while all
+  # items are being iterated (eg if a new storage request comes in and pushes
+  # new slots to the queue), first pop all items in the queue off and
+  for i in 0..<self.len:
+    var item = self[i]
+    item.seen = false
+    self.queue.update(i, item)
+
+  trace "all 'seen' flags cleared"
+
 proc start*(self: SlotQueue) {.async.} =
   if self.running:
     return
@@ -363,6 +392,16 @@ proc start*(self: SlotQueue) {.async.} =
       if not self.running: # may have changed after waiting for pop
         trace "not running, exiting"
         break
+
+      # If, upon processing a slot, the slot item already has a `seen` flag set,
+      # the queue should be paused.
+      if item.seen:
+        self.pause()
+
+      # block until unpaused is true/cleared, ie wait for queue to be unpaused
+      if self.paused:
+        trace "Queue is paused, waiting for new slots or availabilities to be modified/added"
+      await self.unpaused.wait()
 
       self.dispatch(worker, item)
         .track(self)

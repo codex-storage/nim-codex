@@ -158,7 +158,8 @@ proc cleanUp(sales: Sales,
                                       request.expiry,
                                       seen = true)
     if err =? queue.push(seenItem).errorOption:
-      error "failed to readd slot to queue", error = err.msg
+      error "failed to readd slot to queue",
+        errorType = type err, error = err.msg
 
   # signal back to the slot queue to cycle a worker
   if not processing.isNil and not processing.finished():
@@ -268,51 +269,14 @@ proc load*(sales: Sales) {.async.} =
     sales.agents.add agent
 
 proc onAvailabilityAdded(sales: Sales, availability: Availability) {.async.} =
-  ## Query last 256 blocks for new requests, adding them to the queue. `push`
-  ## checks for availability before adding to the queue. If processed, the
-  ## sales agent will check if the slot is free.
-  let context = sales.context
-  let market = context.market
-  let queue = context.slotQueue
+  ## When availabilities are modified or added, the queue should be unpaused if
+  ## it was paused and any slots in the queue should have their `seen` flag
+  ## cleared.
+  let queue = sales.context.slotQueue
 
-  logScope:
-    topics = "marketplace sales onAvailabilityAdded callback"
-
-  trace "availability added, querying past storage requests to add to queue"
-
-  try:
-    let events = await market.queryPastStorageRequests(256)
-
-    if events.len == 0:
-      trace "no storage request events found in recent past"
-      return
-
-    let requests = events.map(event =>
-      SlotQueueItem.init(event.requestId, event.ask, event.expiry)
-    )
-
-    trace "found past storage requested events to add to queue",
-      events = events.len
-
-    for slots in requests:
-      for slot in slots:
-        if err =? queue.push(slot).errorOption:
-          # continue on error
-          if err of QueueNotRunningError:
-            warn "cannot push items to queue, queue is not running"
-          elif err of NoMatchingAvailabilityError:
-            info "slot in queue had no matching availabilities, ignoring"
-          elif err of SlotsOutOfRangeError:
-            warn "Too many slots, cannot add to queue"
-          elif err of SlotQueueItemExistsError:
-            trace "item already exists, ignoring"
-            discard
-          else: raise err
-  except CancelledError as error:
-    raise error
-  except CatchableError as e:
-    warn "Error adding request to SlotQueue", error = e.msg
-    discard
+  queue.clearSeenFlags()
+  if queue.paused:
+    queue.unpause()
 
 proc onStorageRequested(sales: Sales,
                         requestId: RequestId,
