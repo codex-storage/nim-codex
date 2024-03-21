@@ -41,7 +41,7 @@ marketplacesuite "Marketplace payouts":
     discard providerApi.postAvailability(
       # make availability size small enough that we can't fill all the slots,
       # thus causing a cancellation
-      size=(data.len div 2).u256,
+      totalSize=(data.len div 2).u256,
       duration=duration.u256,
       minPrice=reward,
       maxCollateral=collateral)

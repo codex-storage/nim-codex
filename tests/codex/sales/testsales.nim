@@ -127,7 +127,8 @@ asyncchecksuite "Sales":
 
   setup:
     availability = Availability(
-      size: 100.u256,
+      totalSize: 100.u256,
+      freeSize: 100.u256,
       duration: 60.u256,
       minPrice: 600.u256,
       maxCollateral: 400.u256
@@ -189,7 +190,7 @@ asyncchecksuite "Sales":
 
   proc createAvailability() =
     let a = waitFor reservations.createAvailability(
-      availability.size,
+      availability.totalSize,
       availability.duration,
       availability.minPrice,
       availability.maxCollateral
@@ -224,7 +225,7 @@ asyncchecksuite "Sales":
   proc wasIgnored(): bool =
     let run = proc(): Future[bool] {.async.} =
       always (
-        getAvailability().size == availability.size and
+        getAvailability().freeSize == availability.freeSize and
         (waitFor reservations.all(Reservation)).get.len == 0
       )
     waitFor run()
@@ -300,7 +301,7 @@ asyncchecksuite "Sales":
 
     createAvailability()
     await market.requestStorage(request)
-    check eventually getAvailability().size == availability.size - request.ask.slotSize
+    check eventually getAvailability().freeSize == availability.freeSize - request.ask.slotSize
 
   test "non-downloaded bytes are returned to availability once finished":
     var slotIndex = 0.u256
@@ -316,7 +317,7 @@ asyncchecksuite "Sales":
       sold.complete()
 
     createAvailability()
-    let origSize = availability.size
+    let origSize = availability.freeSize
     await market.requestStorage(request)
     await allowRequestToStart()
     await sold
@@ -325,7 +326,7 @@ asyncchecksuite "Sales":
     market.slotState[request.slotId(slotIndex)] = SlotState.Finished
     clock.advance(request.ask.duration.truncate(int64))
 
-    check eventually getAvailability().size == origSize - 1
+    check eventually getAvailability().freeSize == origSize - 1
 
   test "ignores download when duration not long enough":
     availability.duration = request.ask.duration - 1
@@ -334,7 +335,7 @@ asyncchecksuite "Sales":
     check wasIgnored()
 
   test "ignores request when slot size is too small":
-    availability.size = request.ask.slotSize - 1
+    availability.totalSize = request.ask.slotSize - 1
     createAvailability()
     await market.requestStorage(request)
     check wasIgnored()
@@ -399,7 +400,7 @@ asyncchecksuite "Sales":
       return failure(error)
     createAvailability()
     await market.requestStorage(request)
-    check getAvailability().size == availability.size
+    check getAvailability().freeSize == availability.freeSize
 
   test "generates proof of storage":
     var provingRequest: StorageRequest
@@ -472,7 +473,7 @@ asyncchecksuite "Sales":
     check eventually (await reservations.all(Availability)).get == @[availability]
 
   test "makes storage available again when request expires":
-    let origSize = availability.size
+    let origSize = availability.freeSize
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
                          onBatch: BatchProc): Future[?!void] {.async.} =
@@ -487,10 +488,10 @@ asyncchecksuite "Sales":
     market.requestState[request.id]=RequestState.Cancelled
     clock.set(request.expiry.truncate(int64)+1)
     check eventually (await reservations.all(Availability)).get == @[availability]
-    check getAvailability().size == origSize
+    check getAvailability().freeSize == origSize
 
   test "verifies that request is indeed expired from onchain before firing onCancelled":
-    let origSize = availability.size
+    let origSize = availability.freeSize
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
                          onBatch: BatchProc): Future[?!void] {.async.} =
@@ -504,10 +505,10 @@ asyncchecksuite "Sales":
     # would otherwise not set the timeout early enough as it uses `clock.now` in the deadline calculation.
     await sleepAsync(chronos.milliseconds(100))
     clock.set(request.expiry.truncate(int64)+1)
-    check getAvailability().size == 0
+    check getAvailability().freeSize == 0
 
     market.requestState[request.id]=RequestState.Cancelled # Now "on-chain" is also expired
-    check eventually getAvailability().size == origSize
+    check eventually getAvailability().freeSize == origSize
 
   test "loads active slots from market":
     let me = await market.getSigner()
@@ -556,4 +557,4 @@ asyncchecksuite "Sales":
     check (await reservations.all(Reservation)).get.len == 1
     await sales.load()
     check (await reservations.all(Reservation)).get.len == 0
-    check getAvailability().size == availability.size # was restored
+    check getAvailability().freeSize == availability.freeSize # was restored

@@ -27,10 +27,11 @@ type
     error* {.serialize.}: ?string
 
   RestAvailability* = object
-    size* {.serialize.}: UInt256
+    totalSize* {.serialize.}: UInt256
     duration* {.serialize.}: UInt256
     minPrice* {.serialize.}: UInt256
     maxCollateral* {.serialize.}: UInt256
+    freeSize* {.serialize.}: ?UInt256
 
   RestSalesAgent* = object
     state* {.serialize.}: string

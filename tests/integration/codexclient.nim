@@ -133,26 +133,69 @@ proc getSlots*(client: CodexClient): ?!seq[Slot] =
 
 proc postAvailability*(
     client: CodexClient,
-    size, duration, minPrice, maxCollateral: UInt256
+    totalSize, duration, minPrice, maxCollateral: UInt256
 ): ?!Availability =
   ## Post sales availability endpoint
   ##
   let url = client.baseurl & "/sales/availability"
   let json = %*{
-    "size": size,
+    "totalSize": totalSize,
     "duration": duration,
     "minPrice": minPrice,
     "maxCollateral": maxCollateral,
   }
   let response = client.http.post(url, $json)
-  doAssert response.status == "200 OK", "expected 200 OK, got " & response.status & ", body: " & response.body
+  doAssert response.status == "201 Created", "expected 201 Created, got " & response.status & ", body: " & response.body
   Availability.fromJson(response.body)
+
+proc patchAvailabilityRaw*(
+    client: CodexClient,
+    availabilityId: AvailabilityId,
+    totalSize, freeSize, duration, minPrice, maxCollateral: ?UInt256 = UInt256.none
+): Response =
+  ## Updates availability
+  ##
+  let url = client.baseurl & "/sales/availability/" & $availabilityId
+
+  # TODO: Optionalize macro does not keep `serialize` pragmas so we can't use `Optionalize(RestAvailability)` here.
+  var json = %*{}
+
+  if totalSize =? totalSize:
+    json["totalSize"] = %totalSize
+
+  if freeSize =? freeSize:
+    json["freeSize"] = %freeSize
+
+  if duration =? duration:
+    json["duration"] = %duration
+
+  if minPrice =? minPrice:
+    json["minPrice"] = %minPrice
+
+  if maxCollateral =? maxCollateral:
+    json["maxCollateral"] = %maxCollateral
+
+  client.http.patch(url, $json)
+
+proc patchAvailability*(
+    client: CodexClient,
+    availabilityId: AvailabilityId,
+    totalSize, duration, minPrice, maxCollateral: ?UInt256 = UInt256.none
+): void =
+  let response = client.patchAvailabilityRaw(availabilityId, totalSize=totalSize, duration=duration, minPrice=minPrice, maxCollateral=maxCollateral)
+  doAssert response.status == "200 OK", "expected 200 OK, got " & response.status
 
 proc getAvailabilities*(client: CodexClient): ?!seq[Availability] =
   ## Call sales availability REST endpoint
   let url = client.baseurl & "/sales/availability"
   let body = client.http.getContent(url)
   seq[Availability].fromJson(body)
+
+proc getAvailabilityReservations*(client: CodexClient, availabilityId: AvailabilityId): ?!seq[Reservation] =
+  ## Retrieves Availability's Reservations
+  let url = client.baseurl & "/sales/availability/" & $availabilityId & "/reservations"
+  let body = client.http.getContent(url)
+  seq[Reservation].fromJson(body)
 
 proc close*(client: CodexClient) =
   client.http.close()
