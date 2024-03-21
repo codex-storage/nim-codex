@@ -283,21 +283,10 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check "Expiry has to be before the request's end (now + duration)" in responseBefore.body
 
   test "updating non-existing availability":
-    let availability = client1.postAvailability(totalSize=140000.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
-
-    client1.patchAvailability(availability.id, duration=100.u256.some, minPrice=200.u256.some, maxCollateral=200.u256.some)
-
-    let updatedAvailability = (client1.getAvailabilities().get).findItem(availability).get
-    check updatedAvailability.duration == 100
-    check updatedAvailability.minPrice == 200
-    check updatedAvailability.maxCollateral == 200
-    check updatedAvailability.totalSize == 140000
-    check updatedAvailability.freeSize == 140000
-
     let nonExistingResponse = client1.patchAvailabilityRaw(AvailabilityId.example, duration=100.u256.some, minPrice=200.u256.some, maxCollateral=200.u256.some)
     check nonExistingResponse.status == "404 Not Found"
 
-  test "updating availability - freeSize is not allowed to be changed":
+  test "updating availability":
     let availability = client1.postAvailability(totalSize=140000.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
 
     client1.patchAvailability(availability.id, duration=100.u256.some, minPrice=200.u256.some, maxCollateral=200.u256.some)
@@ -309,25 +298,16 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check updatedAvailability.totalSize == 140000
     check updatedAvailability.freeSize == 140000
 
+  test "updating availability - freeSize is not allowed to be changed":
+    let availability = client1.postAvailability(totalSize=140000.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
     let freeSizeResponse = client1.patchAvailabilityRaw(availability.id, freeSize=110000.u256.some)
     check freeSizeResponse.status == "400 Bad Request"
     check "not allowed" in  freeSizeResponse.body
 
-
   test "updating availability - updating totalSize":
     let availability = client1.postAvailability(totalSize=140000.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
-
-    client1.patchAvailability(availability.id, duration=100.u256.some, minPrice=200.u256.some, maxCollateral=200.u256.some)
-
-    var updatedAvailability = (client1.getAvailabilities().get).findItem(availability).get
-    check updatedAvailability.duration == 100
-    check updatedAvailability.minPrice == 200
-    check updatedAvailability.maxCollateral == 200
-    check updatedAvailability.totalSize == 140000
-    check updatedAvailability.freeSize == 140000
-
     client1.patchAvailability(availability.id, totalSize=100000.u256.some)
-    updatedAvailability = (client1.getAvailabilities().get).findItem(availability).get
+    let updatedAvailability = (client1.getAvailabilities().get).findItem(availability).get
     check updatedAvailability.totalSize == 100000
     check updatedAvailability.freeSize == 100000
 

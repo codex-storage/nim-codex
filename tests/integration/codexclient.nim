@@ -9,7 +9,6 @@ import pkg/codex/rest/json
 import pkg/codex/purchasing
 import pkg/codex/errors
 import pkg/codex/sales/reservations
-import pkg/codex/utils/options
 
 export purchasing
 
@@ -157,9 +156,26 @@ proc patchAvailabilityRaw*(
   ## Updates availability
   ##
   let url = client.baseurl & "/sales/availability/" & $availabilityId
-  type OptRestAvailability = Optionalize(RestAvailability)
-  let availability = OptRestAvailability(totalSize: totalSize, freeSize: freeSize, duration: duration, minPrice: minPrice, maxCollateral: maxCollateral)
-  client.http.patch(url, availability.toJson)
+
+  # TODO: Optionalize macro does not keep `serialize` pragmas so we can't use `Optionalize(RestAvailability)` here.
+  var json = %*{}
+
+  if totalSize =? totalSize:
+    json["totalSize"] = %totalSize
+
+  if freeSize =? freeSize:
+    json["freeSize"] = %freeSize
+
+  if duration =? duration:
+    json["duration"] = %duration
+
+  if minPrice =? minPrice:
+    json["minPrice"] = %minPrice
+
+  if maxCollateral =? maxCollateral:
+    json["maxCollateral"] = %maxCollateral
+
+  client.http.patch(url, $json)
 
 proc patchAvailability*(
     client: CodexClient,
@@ -179,7 +195,7 @@ proc getAvailabilityReservations*(client: CodexClient, availabilityId: Availabil
   ## Retrieves Availability's Reservations
   let url = client.baseurl & "/sales/availability/" & $availabilityId & "/reservations"
   let body = client.http.getContent(url)
-  seq[Reservation].fromJson(parseJson(body))
+  seq[Reservation].fromJson(body)
 
 proc close*(client: CodexClient) =
   client.http.close()
