@@ -28,6 +28,8 @@
 import pkg/upraises
 push: {.upraises: [].}
 
+import std/sequtils
+import std/sugar
 import std/typetraits
 import std/sequtils
 import pkg/chronos
@@ -37,6 +39,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
 import pkg/stew/byteutils
+import ../codextypes
 import ../logutils
 import ../clock
 import ../stores
@@ -71,8 +74,10 @@ type
   Reservations* = ref object
     repo: RepoStore
     onAvailabilityAdded: ?OnAvailabilityAdded
+    onAvailabilitiesEmptied: ?OnAvailabilitiesEmptied
   GetNext* = proc(): Future[?seq[byte]] {.upraises: [], gcsafe, closure.}
   OnAvailabilityAdded* = proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
+  OnAvailabilitiesEmptied* = proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
   StorableIter* = ref object
     finished*: bool
     next*: GetNext
@@ -89,6 +94,8 @@ type
 const
   SalesKey = (CodexMetaKey / "sales").tryGet # TODO: move to sales module
   ReservationsKey = (SalesKey / "reservations").tryGet
+
+proc all*(self: Reservations, T: type SomeStorableObject): Future[?!seq[T]] {.async.}
 
 proc new*(T: type Reservations,
           repo: RepoStore): Reservations =
@@ -144,6 +151,12 @@ logutils.formatIt(LogFormat.json, SomeStorableId): it.to0xHexLog
 proc `onAvailabilityAdded=`*(self: Reservations,
                             onAvailabilityAdded: OnAvailabilityAdded) =
   self.onAvailabilityAdded = some onAvailabilityAdded
+
+proc `onAvailabilitiesEmptied=`*(
+  self: Reservations,
+  onAvailabilitiesEmptied: OnAvailabilitiesEmptied) =
+
+  self.onAvailabilitiesEmptied = some onAvailabilitiesEmptied
 
 func key*(id: AvailabilityId): ?!Key =
   ## sales / reservations / <availabilityId>
@@ -298,6 +311,9 @@ proc deleteReservation*(
     # inform subscribers that Availability has been modified (with increased
     # size)
     if onAvailabilityAdded =? self.onAvailabilityAdded:
+      # when chronos v4 is implemented, and OnAvailabilityAdded is annotated
+      # with async:(raises:[]), we can remove this try/catch as we know, with
+      # certainty, that nothing will be raised
       try:
         await onAvailabilityAdded(availability)
       except CatchableError as e:
@@ -351,6 +367,16 @@ proc createAvailability*(
 
   return success(availability)
 
+# TODO: add support for deleting availabilities To delete, must not have any
+# active sales. On delete, re-check if all availabilites are "empty" and trigger
+# onAvailabilitiesEmptied
+
+proc empty*(availability: Availability): bool =
+  # TODO: does this need to be size == 0? There may many very small
+  # availabilities that are not considered empty but are not big enough to fill
+  # a request's slot
+  availability.size < DefaultBlockSize.int.u256
+
 proc createReservation*(
   self: Reservations,
   availabilityId: AvailabilityId,
@@ -397,6 +423,19 @@ proc createReservation*(
       return failure(rollbackErr)
 
     return failure(updateErr)
+
+  # if the size of all availabilities drops below the smallest possible block
+  # size, all availabilities can be considered unusable or removed from use, and
+  # the onAvailabilityRemoved callback should be triggered.
+  if availability.empty and # prevent lookup if we know this one is already not empty
+    availabilities =? (await self.all(Availability)) and
+    availabilities.all(avRes => av =? avRes and av.empty) and
+    onAvailabilitiesEmptied =? self.onAvailabilitiesEmptied:
+      try:
+        onAvailabilitiesEmptied(availability)
+      except CatchableError as e:
+        warn "Unknown error during 'onAvailabilityRemoved' callback",
+          availabilityId = availability.id, error = e.msg
 
   return success(reservation)
 

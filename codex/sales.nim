@@ -159,7 +159,7 @@ proc cleanUp(sales: Sales,
                                       seen = true)
     if err =? queue.push(seenItem).errorOption:
       error "failed to readd slot to queue",
-        errorType = type err, error = err.msg
+        errorType = $(type err), error = err.msg
 
   # signal back to the slot queue to cycle a worker
   if not processing.isNil and not processing.finished():
@@ -267,6 +267,12 @@ proc load*(sales: Sales) {.async.} =
 
     agent.start(SaleUnknown())
     sales.agents.add agent
+
+proc onAvailabilitiesEmptied(sales: Sales, availability: Availability) {.async.} =
+  ## When there are no availabilities remaining, the queue should be paused
+  let queue = sales.context.slotQueue
+
+  queue.pause()
 
 proc onAvailabilityAdded(sales: Sales, availability: Availability) {.async.} =
   ## When availabilities are modified or added, the queue should be unpaused if
@@ -474,7 +480,11 @@ proc startSlotQueue(sales: Sales) {.async.} =
   proc onAvailabilityAdded(availability: Availability) {.async.} =
     await sales.onAvailabilityAdded(availability)
 
+  proc onAvailabilitiesEmptied(availability: Availability) {.async.} =
+    await sales.onAvailabilitiesEmptied(availability)
+
   reservations.onAvailabilityAdded = onAvailabilityAdded
+  reservations.onAvailabilitiesEmptied = onAvailabilitiesEmptied
 
 proc subscribe(sales: Sales) {.async.} =
   await sales.subscribeRequested()
