@@ -7,6 +7,7 @@ import ../sales
 import ../purchasing
 import ../utils/json
 import ../manifest
+import ../units
 
 export json
 
@@ -61,10 +62,10 @@ type
     id*: NodeId
 
   RestRepoStore* = object
-    totalBlocks* {.serialize.}: uint
-    quotaMaxBytes* {.serialize.}: uint
-    quotaUsedBytes* {.serialize.}: uint
-    quotaReservedBytes* {.serialize.}: uint
+    totalBlocks* {.serialize.}: Natural
+    quotaMaxBytes* {.serialize.}: NBytes
+    quotaUsedBytes* {.serialize.}: NBytes
+    quotaReservedBytes* {.serialize.}: NBytes
 
 proc init*(_: type RestContent, cid: Cid, manifest: Manifest): RestContent =
   RestContent(

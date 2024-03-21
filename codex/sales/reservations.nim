@@ -38,6 +38,7 @@ import ../logutils
 import ../stores
 import ../contracts/requests
 import ../utils/json
+import ../units
 
 export requests
 export logutils
@@ -160,10 +161,10 @@ func key*(availability: Availability): ?!Key =
 func key*(reservation: Reservation): ?!Key =
   return key(reservation.id, reservation.availabilityId)
 
-func available*(self: Reservations): uint = self.repo.available
+func available*(self: Reservations): uint = self.repo.available.uint
 
 func hasAvailable*(self: Reservations, bytes: uint): bool =
-  self.repo.available(bytes)
+  self.repo.available(bytes.NBytes)
 
 proc exists*(
   self: Reservations,
@@ -282,14 +283,14 @@ proc createAvailability*(
   )
   let bytes = availability.size.truncate(uint)
 
-  if reserveErr =? (await self.repo.reserve(bytes)).errorOption:
+  if reserveErr =? (await self.repo.reserve(bytes.NBytes)).errorOption:
     return failure(reserveErr.toErr(ReserveFailedError))
 
   if updateErr =? (await self.update(availability)).errorOption:
 
     # rollback the reserve
     trace "rolling back reserve"
-    if rollbackErr =? (await self.repo.release(bytes)).errorOption:
+    if rollbackErr =? (await self.repo.release(bytes.NBytes)).errorOption:
       rollbackErr.parent = updateErr
       return failure(rollbackErr)
 
@@ -384,7 +385,7 @@ proc returnBytesToAvailability*(
 
   # First lets see if we can re-reserve the bytes, if the Repo's quota
   # is depleted then we will fail-fast as there is nothing to be done atm.
-  if reserveErr =? (await self.repo.reserve(bytesToBeReturned.truncate(uint))).errorOption:
+  if reserveErr =? (await self.repo.reserve(bytesToBeReturned.truncate(uint).NBytes)).errorOption:
     return failure(reserveErr.toErr(ReserveFailedError))
 
   without availabilityKey =? availabilityId.key, error:
@@ -399,7 +400,7 @@ proc returnBytesToAvailability*(
   if updateErr =? (await self.update(availability)).errorOption:
 
     trace "Rolling back returning bytes"
-    if rollbackErr =? (await self.repo.release(bytesToBeReturned.truncate(uint))).errorOption:
+    if rollbackErr =? (await self.repo.release(bytesToBeReturned.truncate(uint).NBytes)).errorOption:
       rollbackErr.parent = updateErr
       return failure(rollbackErr)
 
@@ -433,7 +434,7 @@ proc release*(
       "trying to release an amount of bytes that is greater than the total size of the Reservation")
     return failure(error)
 
-  if releaseErr =? (await self.repo.release(bytes)).errorOption:
+  if releaseErr =? (await self.repo.release(bytes.NBytes)).errorOption:
     return failure(releaseErr.toErr(ReleaseFailedError))
 
   reservation.size -= bytes.u256
@@ -443,7 +444,7 @@ proc release*(
 
     # rollback release if an update error encountered
     trace "rolling back release"
-    if rollbackErr =? (await self.repo.reserve(bytes)).errorOption:
+    if rollbackErr =? (await self.repo.reserve(bytes.NBytes)).errorOption:
       rollbackErr.parent = err
       return failure(rollbackErr)
     return failure(err)

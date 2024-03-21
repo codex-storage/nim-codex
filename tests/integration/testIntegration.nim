@@ -8,6 +8,7 @@ import pkg/codex/rng
 import pkg/stew/byteutils
 import pkg/ethers/erc20
 import pkg/codex/contracts
+import pkg/codex/units
 import ../contracts/time
 import ../contracts/deployment
 import ../codex/helpers
@@ -41,10 +42,10 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     discard client1.postAvailability(size=12.u256, duration=2.u256, minPrice=3.u256, maxCollateral=4.u256).get
     let space = client1.space().tryGet()
     check:
-      space.totalBlocks == 2.uint
-      space.quotaMaxBytes == 8589934592.uint
-      space.quotaUsedBytes == 65592.uint
-      space.quotaReservedBytes == 12.uint
+      space.totalBlocks == 2
+      space.quotaMaxBytes == 8589934592.NBytes
+      space.quotaUsedBytes == 65592.NBytes
+      space.quotaReservedBytes == 12.NBytes
 
   test "node allows local file downloads":
     let content1 = "some file contents"
