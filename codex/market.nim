@@ -5,6 +5,7 @@ import pkg/ethers/erc20
 import ./contracts/requests
 import ./contracts/proofs
 import ./clock
+import ./errors
 import ./periods
 
 export chronos
@@ -16,6 +17,7 @@ export periods
 
 type
   Market* = ref object of RootObj
+  MarketError* = object of CodexError
   Subscription* = ref object of RootObj
   OnRequest* = proc(id: RequestId,
                     ask: StorageAsk,
