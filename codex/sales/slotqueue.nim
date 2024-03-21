@@ -55,7 +55,6 @@ type
   SlotQueueItemExistsError* = object of SlotQueueError
   SlotQueueItemNotExistsError* = object of SlotQueueError
   SlotsOutOfRangeError* = object of SlotQueueError
-  NoMatchingAvailabilityError* = object of SlotQueueError
   QueueNotRunningError* = object of SlotQueueError
 
 # Number of concurrent workers used for processing SlotQueueItems
