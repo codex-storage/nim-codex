@@ -226,24 +226,21 @@ proc update*(
   without key =? obj.key, error:
     return failure(error)
 
-  let getResult = await self.get(key, Availability)
-
-  if getResult.isOk:
-    let oldAvailability = !getResult
-
-    # Sizing of the availability changed, we need to adjust the repo reservation accordingly
-    if oldAvailability.totalSize != obj.totalSize:
-      if oldAvailability.totalSize < obj.totalSize: # storage added
-        if reserveErr =? (await self.repo.reserve((obj.totalSize - oldAvailability.totalSize).truncate(uint))).errorOption:
-          return failure(reserveErr.toErr(ReserveFailedError))
-
-      elif oldAvailability.totalSize > obj.totalSize: # storage removed
-        if reserveErr =? (await self.repo.release((oldAvailability.totalSize - obj.totalSize).truncate(uint))).errorOption:
-          return failure(reserveErr.toErr(ReleaseFailedError))
-  else:
-    let err = getResult.error()
-    if not (err of NotExistsError):
+  without oldAvailability =? await self.get(key, Availability), err:
+    if err of NotExistsError:
+      return await self.updateImpl(obj)
+    else:
       return failure(err)
+
+  # Sizing of the availability changed, we need to adjust the repo reservation accordingly
+  if oldAvailability.totalSize != obj.totalSize:
+    if oldAvailability.totalSize < obj.totalSize: # storage added
+      if reserveErr =? (await self.repo.reserve((obj.totalSize - oldAvailability.totalSize).truncate(uint))).errorOption:
+        return failure(reserveErr.toErr(ReserveFailedError))
+
+    elif oldAvailability.totalSize > obj.totalSize: # storage removed
+      if reserveErr =? (await self.repo.release((oldAvailability.totalSize - obj.totalSize).truncate(uint))).errorOption:
+        return failure(reserveErr.toErr(ReleaseFailedError))
 
   return await self.updateImpl(obj)
 
