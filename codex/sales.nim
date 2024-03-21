@@ -303,9 +303,7 @@ proc onStorageRequested(sales: Sales,
   for item in items:
     # continue on failure
     if err =? slotQueue.push(item).errorOption:
-      if err of NoMatchingAvailabilityError:
-        info "slot in queue had no matching availabilities, ignoring"
-      elif err of SlotQueueItemExistsError:
+      if err of SlotQueueItemExistsError:
         error "Failed to push item to queue becaue it already exists"
       elif err of QueueNotRunningError:
         warn "Failed to push item to queue becaue queue is not running"
@@ -346,9 +344,7 @@ proc onSlotFreed(sales: Sales,
   addSlotToQueue()
     .track(sales)
     .catch(proc(err: ref CatchableError) =
-      if err of NoMatchingAvailabilityError:
-        info "slot in queue had no matching availabilities, ignoring"
-      elif err of SlotQueueItemExistsError:
+      if err of SlotQueueItemExistsError:
         error "Failed to push item to queue becaue it already exists"
       elif err of QueueNotRunningError:
         warn "Failed to push item to queue becaue queue is not running"
