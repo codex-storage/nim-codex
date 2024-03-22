@@ -9,24 +9,27 @@
 ##
 ##                                                       +--------------------------------------+
 ##                                                       |            RESERVATION               |
-## +--------------------------------------+              |--------------------------------------|
-## |            AVAILABILITY              |              | ReservationId  | id             | PK |
-## |--------------------------------------|              |--------------------------------------|
-## | AvailabilityId | id            | PK  |<-||-------o<-| AvailabilityId | availabilityId | FK |
-## |--------------------------------------|              |--------------------------------------|
-## | UInt256        | size          |     |              | UInt256        | size           |    |
-## |--------------------------------------|              |--------------------------------------|
-## | UInt256        | duration      |     |              | SlotId         | slotId         |    |
-## |--------------------------------------|              +--------------------------------------+
-## | UInt256        | minPrice      |     |
-## |--------------------------------------|
-## | UInt256        | maxCollateral |     |
-## +--------------------------------------+
+## +----------------------------------------+              |--------------------------------------|
+## |            AVAILABILITY                |              | ReservationId  | id             | PK |
+## |----------------------------------------|              |--------------------------------------|
+## | AvailabilityId   | id            | PK  |<-||-------o<-| AvailabilityId | availabilityId | FK |
+## |----------------------------------------|              |--------------------------------------|
+## | UInt256          | totalSize     |     |              | UInt256        | size           |    |
+## |----------------------------------------|              |--------------------------------------|
+## | UInt256          | freeSize      |     |              | SlotId         | slotId         |    |
+## |----------------------------------------|              +--------------------------------------+
+## | UInt256          | duration      |     |
+## |----------------------------------------|
+## | UInt256          | minPrice      |     |
+## |----------------------------------------|
+## | UInt256          | maxCollateral |     |
+## +----------------------------------------+
 
 import pkg/upraises
 push: {.upraises: [].}
 
 import std/typetraits
+import std/sequtils
 import pkg/chronos
 import pkg/datastore
 import pkg/nimcrypto
@@ -35,7 +38,9 @@ import pkg/questionable/results
 import pkg/stint
 import pkg/stew/byteutils
 import ../logutils
+import ../clock
 import ../stores
+import ../market
 import ../contracts/requests
 import ../utils/json
 
@@ -52,7 +57,8 @@ type
   SomeStorableId = AvailabilityId | ReservationId
   Availability* = ref object
     id* {.serialize.}: AvailabilityId
-    size* {.serialize.}: UInt256
+    totalSize* {.serialize.}: UInt256
+    freeSize* {.serialize.}: UInt256
     duration* {.serialize.}: UInt256
     minPrice* {.serialize.}: UInt256
     maxCollateral* {.serialize.}: UInt256
@@ -91,14 +97,15 @@ proc new*(T: type Reservations,
 
 proc init*(
   _: type Availability,
-  size: UInt256,
+  totalSize: UInt256,
+  freeSize: UInt256,
   duration: UInt256,
   minPrice: UInt256,
   maxCollateral: UInt256): Availability =
 
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
-  Availability(id: AvailabilityId(id), size: size, duration: duration, minPrice: minPrice, maxCollateral: maxCollateral)
+  Availability(id: AvailabilityId(id), totalSize:totalSize, freeSize: freeSize, duration: duration, minPrice: minPrice, maxCollateral: maxCollateral)
 
 proc init*(
   _: type Reservation,
@@ -118,17 +125,9 @@ func toArray(id: SomeStorableId): array[32, byte] =
 proc `==`*(x, y: AvailabilityId): bool {.borrow.}
 proc `==`*(x, y: ReservationId): bool {.borrow.}
 proc `==`*(x, y: Reservation): bool =
-  x.id == y.id and
-  x.availabilityId == y.availabilityId and
-  x.size == y.size and
-  x.requestId == y.requestId and
-  x.slotIndex == y.slotIndex
+  x.id == y.id
 proc `==`*(x, y: Availability): bool =
-  x.id == y.id and
-  x.size == y.size and
-  x.duration == y.duration and
-  x.maxCollateral == y.maxCollateral and
-  x.minPrice == y.minPrice
+  x.id == y.id
 
 proc `$`*(id: SomeStorableId): string = id.toArray.toHex
 
@@ -198,11 +197,11 @@ proc get*(
 
   return success obj
 
-proc update(
+proc updateImpl(
   self: Reservations,
   obj: SomeStorableObject): Future[?!void] {.async.} =
 
-  trace "updating " & $(obj.type), id = obj.id, size = obj.size
+  trace "updating " & $(obj.type), id = obj.id
 
   without key =? obj.key, error:
     return failure(error)
@@ -214,6 +213,39 @@ proc update(
     return failure(err.toErr(UpdateFailedError))
 
   return success()
+
+proc update*(
+  self: Reservations,
+  obj: Reservation): Future[?!void] {.async.} =
+  return await self.updateImpl(obj)
+
+proc update*(
+  self: Reservations,
+  obj: Availability): Future[?!void] {.async.} =
+
+  without key =? obj.key, error:
+    return failure(error)
+
+  let getResult = await self.get(key, Availability)
+
+  if getResult.isOk:
+    let oldAvailability = !getResult
+
+    # Sizing of the availability changed, we need to adjust the repo reservation accordingly
+    if oldAvailability.totalSize != obj.totalSize:
+      if oldAvailability.totalSize < obj.totalSize: # storage added
+        if reserveErr =? (await self.repo.reserve((obj.totalSize - oldAvailability.totalSize).truncate(uint))).errorOption:
+          return failure(reserveErr.toErr(ReserveFailedError))
+
+      elif oldAvailability.totalSize > obj.totalSize: # storage removed
+        if reserveErr =? (await self.repo.release((oldAvailability.totalSize - obj.totalSize).truncate(uint))).errorOption:
+          return failure(reserveErr.toErr(ReleaseFailedError))
+  else:
+    let err = getResult.error()
+    if not (err of NotExistsError):
+      return failure(err)
+
+  return await self.updateImpl(obj)
 
 proc delete(
   self: Reservations,
@@ -258,7 +290,7 @@ proc deleteReservation*(
     without var availability =? await self.get(availabilityKey, Availability), error:
       return failure(error)
 
-    availability.size += reservation.size
+    availability.freeSize += reservation.size
 
     if updateErr =? (await self.update(availability)).errorOption:
       return failure(updateErr)
@@ -278,9 +310,9 @@ proc createAvailability*(
   trace "creating availability", size, duration, minPrice, maxCollateral
 
   let availability = Availability.init(
-    size, duration, minPrice, maxCollateral
+    size, size, duration, minPrice, maxCollateral
   )
-  let bytes = availability.size.truncate(uint)
+  let bytes = availability.freeSize.truncate(uint)
 
   if reserveErr =? (await self.repo.reserve(bytes)).errorOption:
     return failure(reserveErr.toErr(ReserveFailedError))
@@ -324,7 +356,7 @@ proc createReservation*(
   without var availability =? await self.get(availabilityKey, Availability), error:
     return failure(error)
 
-  if availability.size < slotSize:
+  if availability.freeSize < slotSize:
     let error = newException(
       BytesOutOfBoundsError,
       "trying to reserve an amount of bytes that is greater than the total size of the Availability")
@@ -333,9 +365,9 @@ proc createReservation*(
   if createResErr =? (await self.update(reservation)).errorOption:
     return failure(createResErr)
 
-  # reduce availability size by the slot size, which is now accounted for in
+  # reduce availability freeSize by the slot size, which is now accounted for in
   # the newly created Reservation
-  availability.size -= slotSize
+  availability.freeSize -= slotSize
 
   # update availability with reduced size
   if updateErr =? (await self.update(availability)).errorOption:
@@ -393,7 +425,7 @@ proc returnBytesToAvailability*(
   without var availability =? await self.get(availabilityKey, Availability), error:
     return failure(error)
 
-  availability.size += bytesToBeReturned
+  availability.freeSize += bytesToBeReturned
 
   # Update availability with returned size
   if updateErr =? (await self.update(availability)).errorOption:
@@ -456,11 +488,12 @@ iterator items(self: StorableIter): Future[?seq[byte]] =
 
 proc storables(
   self: Reservations,
-  T: type SomeStorableObject
+  T: type SomeStorableObject,
+  queryKey: Key = ReservationsKey
 ): Future[?!StorableIter] {.async.} =
 
   var iter = StorableIter()
-  let query = Query.init(ReservationsKey)
+  let query = Query.init(queryKey)
   when T is Availability:
     # should indicate key length of 4, but let the .key logic determine it
     without defaultKey =? AvailabilityId.default.key, error:
@@ -475,6 +508,7 @@ proc storables(
   without results =? await self.repo.metaDs.query(query), error:
     return failure(error)
 
+  # /sales/reservations
   proc next(): Future[?seq[byte]] {.async.} =
     await idleAsync()
     iter.finished = results.finished
@@ -491,14 +525,15 @@ proc storables(
   iter.next = next
   return success iter
 
-proc all*(
+proc allImpl(
   self: Reservations,
-  T: type SomeStorableObject
+  T: type SomeStorableObject,
+  queryKey: Key = ReservationsKey
 ): Future[?!seq[T]] {.async.} =
 
   var ret: seq[T] = @[]
 
-  without storables =? (await self.storables(T)), error:
+  without storables =? (await self.storables(T, queryKey)), error:
     return failure(error)
 
   for storable in storables.items:
@@ -515,6 +550,22 @@ proc all*(
 
   return success(ret)
 
+proc all*(
+  self: Reservations,
+  T: type SomeStorableObject
+): Future[?!seq[T]] {.async.} =
+  return await self.allImpl(T)
+
+proc all*(
+  self: Reservations,
+  T: type SomeStorableObject,
+  availabilityId: AvailabilityId
+): Future[?!seq[T]] {.async.} =
+  without key =? (ReservationsKey / $availabilityId):
+    return failure("no key")
+
+  return await self.allImpl(T, key)
+
 proc findAvailability*(
   self: Reservations,
   size, duration, minPrice, collateral: UInt256
@@ -528,13 +579,13 @@ proc findAvailability*(
     if bytes =? (await item) and
       availability =? Availability.fromJson(bytes):
 
-      if size <= availability.size and
+      if size <= availability.freeSize and
         duration <= availability.duration and
         collateral <= availability.maxCollateral and
         minPrice >= availability.minPrice:
 
         trace "availability matched",
-          size, availsize = availability.size,
+          size, availFreeSize = availability.freeSize,
           duration, availDuration = availability.duration,
           minPrice, availMinPrice = availability.minPrice,
           collateral, availMaxCollateral = availability.maxCollateral
@@ -542,7 +593,7 @@ proc findAvailability*(
         return some availability
 
       trace "availability did not match",
-        size, availsize = availability.size,
+        size, availFreeSize = availability.freeSize,
         duration, availDuration = availability.duration,
         minPrice, availMinPrice = availability.minPrice,
         collateral, availMaxCollateral = availability.maxCollateral
