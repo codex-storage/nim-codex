@@ -30,6 +30,7 @@ ARG NAT_IP_AUTO
 WORKDIR ${APP_HOME}
 COPY --from=builder ${BUILD_HOME}/build/codex /usr/local/bin
 COPY --chmod=0755 docker/docker-entrypoint.sh /
+COPY ./openapi.yaml .
 RUN apt-get update && apt-get install -y libgomp1 bash curl jq && rm -rf /var/lib/apt/lists/*
 ENV NAT_IP_AUTO=${NAT_IP_AUTO}
 ENTRYPOINT ["/docker-entrypoint.sh"]
