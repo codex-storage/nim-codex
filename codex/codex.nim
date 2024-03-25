@@ -11,6 +11,7 @@ import std/sequtils
 import std/strutils
 import std/os
 import std/tables
+import std/cpuinfo
 
 import pkg/chronos
 import pkg/presto
@@ -24,6 +25,7 @@ import pkg/datastore
 import pkg/ethers except Rng
 import pkg/stew/io2
 import pkg/questionable
+import pkg/taskpools
 
 import ./node
 import ./conf
@@ -54,6 +56,7 @@ type
     codexNode: CodexNodeRef
     repoStore: RepoStore
     maintenance: BlockMaintainer
+    taskpool: Taskpool
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
   EthWallet = ethers.Wallet
@@ -188,6 +191,10 @@ proc start*(s: CodexServer) {.async.} =
 proc stop*(s: CodexServer) {.async.} =
   notice "Stopping codex node"
 
+
+  s.taskpool.syncAll()
+  s.taskpool.shutdown()
+
   await allFuturesThrowing(
     s.restServer.stop(),
     s.codexNode.switch.stop(),
@@ -275,12 +282,15 @@ proc new*(
     else:
       none Prover
 
+    taskpool = Taskpool.new(num_threads = countProcessors())
+
     codexNode = CodexNodeRef.new(
       switch = switch,
       networkStore = store,
       engine = engine,
       prover = prover,
-      discovery = discovery)
+      discovery = discovery,
+      taskpool = taskpool)
 
     restServer = RestServerRef.new(
       codexNode.initRestApi(config, repoStore),
@@ -296,4 +306,5 @@ proc new*(
     codexNode: codexNode,
     restServer: restServer,
     repoStore: repoStore,
-    maintenance: maintenance)
+    maintenance: maintenance,
+    taskpool: taskpool)

@@ -13,6 +13,7 @@ import std/options
 import std/sequtils
 import std/strformat
 import std/sugar
+import std/cpuinfo
 
 import pkg/questionable
 import pkg/questionable/results
@@ -25,6 +26,7 @@ import pkg/libp2p/stream/bufferstream
 # TODO: remove once exported by libp2p
 import pkg/libp2p/routing_record
 import pkg/libp2p/signed_envelope
+import pkg/taskpools
 
 import ./chunker
 import ./slots
@@ -69,6 +71,7 @@ type
     contracts*: Contracts
     clock*: Clock
     storage*: Contracts
+    taskpool*: Taskpool
 
   CodexNodeRef* = ref CodexNode
 
@@ -253,7 +256,8 @@ proc streamEntireDataset(
           erasure = Erasure.new(
             self.networkStore,
             leoEncoderProvider,
-            leoDecoderProvider)
+            leoDecoderProvider,
+            self.taskpool)
         without _ =? (await erasure.decode(manifest)), error:
           trace "Unable to erasure decode manifest", manifestCid, exc = error.msg
       except CatchableError as exc:
@@ -420,7 +424,8 @@ proc setupRequest(
     erasure = Erasure.new(
       self.networkStore.localStore,
       leoEncoderProvider,
-      leoDecoderProvider)
+      leoDecoderProvider,
+      self.taskpool)
 
   without encoded =? (await erasure.encode(manifest, ecK, ecM)), error:
     trace "Unable to erasure code dataset"
@@ -748,7 +753,8 @@ proc new*(
   engine: BlockExcEngine,
   discovery: Discovery,
   prover = Prover.none,
-  contracts = Contracts.default): CodexNodeRef =
+  contracts = Contracts.default,
+  taskpool = Taskpool.new(num_threads = countProcessors())): CodexNodeRef =
   ## Create new instance of a Codex self, call `start` to run it
   ##
 
@@ -758,4 +764,5 @@ proc new*(
     engine: engine,
     prover: prover,
     discovery: discovery,
-    contracts: contracts)
+    contracts: contracts,
+    taskpool: taskpool)
