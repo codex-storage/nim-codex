@@ -357,9 +357,8 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/DataList"
+                $ref: "#/components/schemas/DataList"
+
         "400":
           description: Invalid CID is specified
         "404":
