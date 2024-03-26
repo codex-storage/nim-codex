@@ -283,6 +283,7 @@ proc onAvailabilityAdded(sales: Sales, availability: Availability) {.async.} =
 
   queue.clearSeenFlags()
   if queue.paused:
+    trace "unpausing queue after new availability added"
     queue.unpause()
 
 proc onStorageRequested(sales: Sales,
