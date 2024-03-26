@@ -38,12 +38,12 @@ type
     requestId* {.serialize.}: RequestId
     slotIndex* {.serialize.}: UInt256
 
-  RestContentEntry* = object
+  RestContent* = object
     cid* {.serialize.}: Cid
     manifest* {.serialize.}: Manifest
 
-  RestContent* = object
-    content* {.serialize.}: seq[RestContentEntry]
+  RestContentList* = object
+    content* {.serialize.}: seq[RestContent]
 
   RestNode* = object
     nodeId* {.serialize.}: RestNodeId
@@ -70,13 +70,13 @@ type
     quotaUsedBytes* {.serialize.}: uint
     quotaReservedBytes* {.serialize.}: uint
 
-proc init*(_: type RestContent, content: seq[RestContentEntry]): RestContent =
-  RestContent(
+proc init*(_: type RestContentList, content: seq[RestContent]): RestContentList =
+  RestContentList(
     content: content
   )
 
-proc init*(_: type RestContentEntry, cid: Cid, manifest: Manifest): RestContentEntry =
-  RestContentEntry(
+proc init*(_: type RestContent, cid: Cid, manifest: Manifest): RestContent =
+  RestContent(
     cid: cid,
     manifest: manifest
   )
