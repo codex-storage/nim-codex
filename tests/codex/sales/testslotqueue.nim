@@ -517,3 +517,65 @@ suite "Slot queue":
         (item3.requestId, item3.slotIndex),
       ]
     )
+
+  test "processing a 'seen' item pauses the queue":
+    newSlotQueue(maxSize = 4, maxWorkers = 4)
+    let request = StorageRequest.example
+    let item = SlotQueueItem.init(request.id, 0'u16,
+                                  request.ask,
+                                  request.expiry,
+                                  seen = true)
+    queue.push(item)
+    check eventually queue.paused
+    check onProcessSlotCalledWith.len == 0
+
+  test "pushing items to queue unpauses queue":
+    newSlotQueue(maxSize = 4, maxWorkers = 4)
+    queue.pause
+
+    let request = StorageRequest.example
+    var items = SlotQueueItem.init(request)
+    queue.push(items)
+    # check all items processed
+    check eventually queue.len == 0
+
+  test "paused queue waits for unpause before continuing processing":
+    newSlotQueue(maxSize = 4, maxWorkers = 4)
+    let request = StorageRequest.example
+    let item0 = SlotQueueItem.init(request.id, 0'u16,
+                                  request.ask,
+                                  request.expiry,
+                                  seen = true)
+    let item1 = SlotQueueItem.init(request.id, 0'u16,
+                                  request.ask,
+                                  request.expiry,
+                                  seen = false)
+    queue.push(item0)
+    check eventually queue.paused
+    # push causes unpause
+    queue.push(item1)
+    # check all items processed
+    check eventually onProcessSlotCalledWith == @[
+      (item0.requestId, item0.slotIndex),
+      (item1.requestId, item1.slotIndex),
+    ]
+    check eventually queue.len == 0
+
+  test "item 'seen' flags can be cleared":
+    newSlotQueue(maxSize = 4, maxWorkers = 1)
+    let request = StorageRequest.example
+    let item0 = SlotQueueItem.init(request.id, 0'u16,
+                                  request.ask,
+                                  request.expiry,
+                                  seen = true)
+    let item1 = SlotQueueItem.init(request.id, 1'u16,
+                                  request.ask,
+                                  request.expiry,
+                                  seen = true)
+    queue.push(item0)
+    queue.push(item1)
+    check eventually queue.paused
+    check queue[0].seen
+
+    queue.clearSeenFlags()
+    check queue[0].seen == false
