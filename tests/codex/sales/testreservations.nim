@@ -258,7 +258,7 @@ asyncchecksuite "Reservations module":
     check updated.isErr
     check updated.error of NotExistsError
 
-  test "onAvailabilityAdded called when availability is reserved":
+  test "onAvailabilityAdded called when availability is created":
     var added: Availability
     reservations.onAvailabilityAdded = proc(a: Availability) {.async.} =
       added = a
@@ -266,6 +266,50 @@ asyncchecksuite "Reservations module":
     let availability = createAvailability()
 
     check added == availability
+
+  test "onAvailabilityAdded called when availability size is increased":
+    var availability = createAvailability()
+    var added: Availability
+    reservations.onAvailabilityAdded = proc(a: Availability) {.async.} =
+      added = a
+    availability.freeSize += 1.u256
+    discard await reservations.update(availability)
+
+    check added == availability
+
+  test "onAvailabilityAdded is not called when availability size is decreased":
+    var availability = createAvailability()
+    var called = false
+    reservations.onAvailabilityAdded = proc(a: Availability) {.async.} =
+      called = true
+    availability.freeSize -= 1.u256
+    discard await reservations.update(availability)
+
+    check not called
+
+  test "availability considered empty when freeSize drops below DefaultBlockSize":
+    var availability = createAvailability()
+    availability.freeSize = (DefaultBlockSize - 1).int.u256
+    check availability.empty
+
+  test "availability considered empty when freeSize drops below DefaultBlockSize":
+    let example = Availability.example
+    var availability = Availability.init(
+                        example.totalSize,
+                        freeSize = (DefaultBlockSize - 1).int.u256,
+                        example.duration,
+                        example.minPrice,
+                        example.maxCollateral)
+    check availability.empty
+
+  test "onAvailabilitiesEmptied called when all availabilities are 'empty'":
+    var availability = createAvailability()
+    var called = false
+    reservations.onAvailabilitiesEmptied = proc {.async.} =
+      called = true
+    availability.freeSize = (DefaultBlockSize - 1).int.u256
+    discard await reservations.update(availability)
+    check called
 
   test "availabilities can be found":
     let availability = createAvailability()
