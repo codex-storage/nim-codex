@@ -121,7 +121,8 @@ proc new*(_: type SlotQueue,
     # temporarily. After push (and sort), the bottom-most item will be deleted
     queue: newAsyncHeapQueue[SlotQueueItem](maxSize.int + 1),
     running: false,
-    trackedFutures: TrackedFutures.new()
+    trackedFutures: TrackedFutures.new(),
+    unpaused: newAsyncEvent()
   )
   # avoid instantiating `workers` in constructor to avoid side effects in
   # `newAsyncQueue` procedure
@@ -190,6 +191,7 @@ proc slotSize*(self: SlotQueueItem): UInt256 = self.slotSize
 proc duration*(self: SlotQueueItem): UInt256 = self.duration
 proc reward*(self: SlotQueueItem): UInt256 = self.reward
 proc collateral*(self: SlotQueueItem): UInt256 = self.collateral
+proc seen*(self: SlotQueueItem): bool = self.seen
 
 proc running*(self: SlotQueue): bool = self.running
 
@@ -395,6 +397,8 @@ proc start*(self: SlotQueue) {.async.} =
       # If, upon processing a slot, the slot item already has a `seen` flag set,
       # the queue should be paused.
       if item.seen:
+        trace "processing already seen item, pausing queue",
+          reqId = item.requestId, slotIdx = item.slotIndex
         self.pause()
 
       # block until unpaused is true/cleared, ie wait for queue to be unpaused
