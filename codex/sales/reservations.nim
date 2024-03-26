@@ -184,6 +184,21 @@ proc exists*(
   let exists = await self.repo.metaDs.contains(key)
   return exists
 
+proc empty*(availability: Availability): bool =
+  # TODO: does this need to be size == 0? There may many very small
+  # availabilities that are not considered empty but are not big enough to fill
+  # a request's slot
+  availability.freeSize < DefaultBlockSize.int.u256
+
+proc empty*(reservation: Reservation): bool =
+  reservation.size == 0
+
+proc allEmpty(self: Reservations, T: type SomeStorableObject): Future[?!bool] {.async.} =
+  without objs =? (await self.all(T)), error:
+    return failure(error)
+
+  return success objs.all(obj => obj.empty)
+
 proc getImpl(
   self: Reservations,
   key: Key): Future[?!seq[byte]] {.async.} =
@@ -239,26 +254,72 @@ proc update*(
   without key =? obj.key, error:
     return failure(error)
 
-  let getResult = await self.get(key, Availability)
-
-  if getResult.isOk:
-    let oldAvailability = !getResult
-
-    # Sizing of the availability changed, we need to adjust the repo reservation accordingly
-    if oldAvailability.totalSize != obj.totalSize:
-      if oldAvailability.totalSize < obj.totalSize: # storage added
-        if reserveErr =? (await self.repo.reserve((obj.totalSize - oldAvailability.totalSize).truncate(uint))).errorOption:
-          return failure(reserveErr.toErr(ReserveFailedError))
-
-      elif oldAvailability.totalSize > obj.totalSize: # storage removed
-        if reserveErr =? (await self.repo.release((oldAvailability.totalSize - obj.totalSize).truncate(uint))).errorOption:
-          return failure(reserveErr.toErr(ReleaseFailedError))
-  else:
-    let err = getResult.error()
-    if not (err of NotExistsError):
+  without oldAvailability =? await self.get(key, Availability), err:
+    if err of NotExistsError:
+      let res = await self.updateImpl(obj)
+      # inform subscribers that Availability has been added
+      if onAvailabilityAdded =? self.onAvailabilityAdded:
+        # when chronos v4 is implemented, and OnAvailabilityAdded is annotated
+        # with async:(raises:[]), we can remove this try/catch as we know, with
+        # certainty, that nothing will be raised
+        try:
+          await onAvailabilityAdded(obj)
+        except CancelledError as e:
+          raise e
+        except CatchableError as e:
+          # we don't have any insight into types of exceptions that
+          # `onAvailabilityAdded` can raise because it is caller-defined
+          warn "Unknown error during 'onAvailabilityAdded' callback",
+            availabilityId = obj.id, error = e.msg
+      return res
+    else:
       return failure(err)
 
-  return await self.updateImpl(obj)
+  # Sizing of the availability changed, we need to adjust the repo reservation accordingly
+  if oldAvailability.totalSize != obj.totalSize:
+    if oldAvailability.totalSize < obj.totalSize: # storage added
+      if reserveErr =? (await self.repo.reserve((obj.totalSize - oldAvailability.totalSize).truncate(uint))).errorOption:
+        return failure(reserveErr.toErr(ReserveFailedError))
+
+    elif oldAvailability.totalSize > obj.totalSize: # storage removed
+      if reserveErr =? (await self.repo.release((oldAvailability.totalSize - obj.totalSize).truncate(uint))).errorOption:
+        return failure(reserveErr.toErr(ReleaseFailedError))
+
+  let res = await self.updateImpl(obj)
+
+  if oldAvailability.freeSize < obj.freeSize: # availability added
+    # inform subscribers that Availability has been modified (with increased
+    # size)
+    if onAvailabilityAdded =? self.onAvailabilityAdded:
+      # when chronos v4 is implemented, and OnAvailabilityAdded is annotated
+      # with async:(raises:[]), we can remove this try/catch as we know, with
+      # certainty, that nothing will be raised
+      try:
+        await onAvailabilityAdded(obj)
+      except CancelledError as e:
+        raise e
+      except CatchableError as e:
+        # we don't have any insight into types of exceptions that
+        # `onAvailabilityAdded` can raise because it is caller-defined
+        warn "Unknown error during 'onAvailabilityAdded' callback",
+          availabilityId = obj.id, error = e.msg
+
+  elif oldAvailability.freeSize > obj.freeSize: # availability removed
+    # if the size of all availabilities drops below the smallest possible block
+    # size, all availabilities can be considered unusable or removed from use, and
+    # the onAvailabilityRemoved callback should be triggered.
+    if obj.empty and # prevent lookup if we know this one is already not empty
+      allEmpty =? (await self.allEmpty(Availability)) and allEmpty and
+      onAvailabilitiesEmptied =? self.onAvailabilitiesEmptied:
+        try:
+          onAvailabilitiesEmptied()
+        except CancelledError as e:
+          raise e
+        except CatchableError as e:
+          warn "Unknown error during 'onAvailabilitiesEmptied' callback",
+            availabilityId = obj.id, error = e.msg
+
+  return res
 
 proc delete(
   self: Reservations,
@@ -308,24 +369,14 @@ proc deleteReservation*(
     if updateErr =? (await self.update(availability)).errorOption:
       return failure(updateErr)
 
-    # inform subscribers that Availability has been modified (with increased
-    # size)
-    if onAvailabilityAdded =? self.onAvailabilityAdded:
-      # when chronos v4 is implemented, and OnAvailabilityAdded is annotated
-      # with async:(raises:[]), we can remove this try/catch as we know, with
-      # certainty, that nothing will be raised
-      try:
-        await onAvailabilityAdded(availability)
-      except CatchableError as e:
-        # we don't have any insight into types of exceptions that
-        # `onAvailabilityAdded` can raise because it is caller-defined
-        warn "Unknown error during 'onAvailabilityAdded' callback",
-          availabilityId = availability.id, error = e.msg
-
   if err =? (await self.repo.metaDs.delete(key)).errorOption:
     return failure(err.toErr(DeleteFailedError))
 
   return success()
+
+# TODO: add support for deleting availabilities To delete, must not have any
+# active sales. On delete, re-check if all availabilites are "empty" and trigger
+# onAvailabilitiesEmptied
 
 proc createAvailability*(
   self: Reservations,
@@ -354,28 +405,7 @@ proc createAvailability*(
 
     return failure(updateErr)
 
-  if onAvailabilityAdded =? self.onAvailabilityAdded:
-    try:
-      await onAvailabilityAdded(availability)
-    except CancelledError as error:
-      raise error
-    except CatchableError as e:
-      # we don't have any insight into types of exceptions that
-      # `onAvailabilityAdded` can raise because it is caller-defined
-      warn "Unknown error during 'onAvailabilityAdded' callback",
-        availabilityId = availability.id, error = e.msg
-
   return success(availability)
-
-# TODO: add support for deleting availabilities To delete, must not have any
-# active sales. On delete, re-check if all availabilites are "empty" and trigger
-# onAvailabilitiesEmptied
-
-proc empty*(availability: Availability): bool =
-  # TODO: does this need to be size == 0? There may many very small
-  # availabilities that are not considered empty but are not big enough to fill
-  # a request's slot
-  availability.size < DefaultBlockSize.int.u256
 
 proc createReservation*(
   self: Reservations,
@@ -423,19 +453,6 @@ proc createReservation*(
       return failure(rollbackErr)
 
     return failure(updateErr)
-
-  # if the size of all availabilities drops below the smallest possible block
-  # size, all availabilities can be considered unusable or removed from use, and
-  # the onAvailabilityRemoved callback should be triggered.
-  if availability.empty and # prevent lookup if we know this one is already not empty
-    availabilities =? (await self.all(Availability)) and
-    availabilities.all(avRes => av =? avRes and av.empty) and
-    onAvailabilitiesEmptied =? self.onAvailabilitiesEmptied:
-      try:
-        onAvailabilitiesEmptied(availability)
-      except CatchableError as e:
-        warn "Unknown error during 'onAvailabilityRemoved' callback",
-          availabilityId = availability.id, error = e.msg
 
   return success(reservation)
 
@@ -488,17 +505,6 @@ proc returnBytesToAvailability*(
       return failure(rollbackErr)
 
     return failure(updateErr)
-
-  # inform subscribers that Availability has been modified (with increased
-  # size)
-  if onAvailabilityAdded =? self.onAvailabilityAdded:
-    try:
-      await onAvailabilityAdded(availability)
-    except CatchableError as e:
-      # we don't have any insight into types of exceptions that
-      # `onAvailabilityAdded` can raise because it is caller-defined
-      warn "Unknown error during 'onAvailabilityAdded' callback",
-        availabilityId = availability.id, error = e.msg
 
   return success()
 
