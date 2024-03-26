@@ -45,14 +45,14 @@ proc download*(client: CodexClient, cid: Cid, local = false): ?!string =
 
   success response.body
 
-proc list*(client: CodexClient): ?!seq[RestContent] =
+proc list*(client: CodexClient): ?!RestContent =
   let url = client.baseurl & "/data"
   let response = client.http.get(url)
 
   if response.status != "200 OK":
     return failure(response.status)
 
-  seq[RestContent].fromJson(response.body)
+  RestContent.fromJson(response.body)
 
 proc space*(client: CodexClient): ?!RestRepoStore =
   let url = client.baseurl & "/space"

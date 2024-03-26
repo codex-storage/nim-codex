@@ -100,7 +100,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     let list = client1.list().get
 
     check:
-      [cid1, cid2].allIt(it in list.mapIt(it.cid))
+      [cid1, cid2].allIt(it in list.content.mapIt(it.cid))
 
   test "node handles new storage availability":
     let availability1 = client1.postAvailability(totalSize=1.u256, duration=2.u256, minPrice=3.u256, maxCollateral=4.u256).get

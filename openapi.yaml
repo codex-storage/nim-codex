@@ -632,6 +632,10 @@ paths:
       responses:
         "200":
           description: Returns the Request ID as decimal string
+          content:
+            text/plain:
+              schema:
+                type: string
         "400":
           description: Invalid or missing Request ID
         "404":

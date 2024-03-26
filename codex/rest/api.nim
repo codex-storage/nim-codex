@@ -53,16 +53,14 @@ proc validate(
   0
 
 proc formatManifestBlocks(node: CodexNodeRef): Future[JsonNode] {.async.} =
-  var content: seq[RestContent]
+  var content: seq[RestContentEntry]
 
   proc formatManifest(cid: Cid, manifest: Manifest) =
-    let restContent = RestContent.init(cid, manifest)
+    let restContent = RestContentEntry.init(cid, manifest)
     content.add(restContent)
 
   await node.iterateManifests(formatManifest)
-  return %*{
-    "content": %content
-  }
+  return %RestContent.init(content)
 
 proc retrieveCid(
   node: CodexNodeRef,
