@@ -272,24 +272,19 @@ asyncchecksuite "Sales":
     let expected = SlotQueueItem.init(request, 2.uint16)
     check eventually itemsProcessed.contains(expected)
 
-  test "adds past requests to queue once availability added":
-    var itemsProcessed: seq[SlotQueueItem] = @[]
-
-    # ignore all
-    queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-      done.complete()
-
+  test "items in queue are readded once ignored":
     await market.requestStorage(request)
     await sleepAsync(10.millis)
-
-    # check how many slots were processed by the queue
-    queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-      itemsProcessed.add item
-      done.complete()
-
-    # now add matching availability
-    createAvailability()
-    check eventually itemsProcessed.len == request.ask.slots.int
+    let items = SlotQueueItem.init(request)
+    check eventually queue.paused
+    # The first processed item will be will have been re-pushed with `seen =
+    # true`. Then, once this item is processed by the queue, its 'seen' flag
+    # will be checked, at which point the queue will be paused. So that item
+    # will no longer be in the queue. This test could check item existence in
+    # the queue, but that would require inspecting onProcessSlot to see which
+    # item was first, and overridding onProcessSlot will preven the queue
+    # working as expected in the Sales module.
+    check queue.len == 3
 
   test "availability size is reduced by request slot size when fully downloaded":
     sales.onStore = proc(request: StorageRequest,
