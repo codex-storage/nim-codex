@@ -77,7 +77,7 @@ type
     onAvailabilitiesEmptied: ?OnAvailabilitiesEmptied
   GetNext* = proc(): Future[?seq[byte]] {.upraises: [], gcsafe, closure.}
   OnAvailabilityAdded* = proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
-  OnAvailabilitiesEmptied* = proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
+  OnAvailabilitiesEmptied* = proc: Future[void] {.upraises: [], gcsafe.}
   StorableIter* = ref object
     finished*: bool
     next*: GetNext
