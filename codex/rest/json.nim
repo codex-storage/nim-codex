@@ -42,6 +42,9 @@ type
     cid* {.serialize.}: Cid
     manifest* {.serialize.}: Manifest
 
+  RestContentList* = object
+    content* {.serialize.}: seq[RestContent]
+
   RestNode* = object
     nodeId* {.serialize.}: RestNodeId
     peerId* {.serialize.}: PeerId
@@ -66,6 +69,11 @@ type
     quotaMaxBytes* {.serialize.}: uint
     quotaUsedBytes* {.serialize.}: uint
     quotaReservedBytes* {.serialize.}: uint
+
+proc init*(_: type RestContentList, content: seq[RestContent]): RestContentList =
+  RestContentList(
+    content: content
+  )
 
 proc init*(_: type RestContent, cid: Cid, manifest: Manifest): RestContent =
   RestContent(

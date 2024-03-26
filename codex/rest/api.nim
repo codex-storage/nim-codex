@@ -60,7 +60,7 @@ proc formatManifestBlocks(node: CodexNodeRef): Future[JsonNode] {.async.} =
     content.add(restContent)
 
   await node.iterateManifests(formatManifest)
-  return %content
+  return %RestContentList.init(content)
 
 proc retrieveCid(
   node: CodexNodeRef,
