@@ -78,13 +78,13 @@ proc onProve*(sales: Sales): ?OnProve = sales.context.onProve
 
 proc onExpiryUpdate*(sales: Sales): ?OnExpiryUpdate = sales.context.onExpiryUpdate
 
-func new*(_: type Sales,
+proc new*(_: type Sales,
           market: Market,
           clock: Clock,
           repo: RepoStore): Sales =
   Sales.new(market, clock, repo, 0)
 
-func new*(_: type Sales,
+proc new*(_: type Sales,
           market: Market,
           clock: Clock,
           repo: RepoStore,
@@ -146,8 +146,6 @@ proc cleanUp(sales: Sales,
                   )).errorOption:
       error "failure deleting reservation", error = deleteErr.msg
 
-  await sales.remove(agent)
-
   # Re-add items back into the queue to prevent small availabilities from
   # draining the queue. Seen items will be ordered last.
   if reprocessSlot and request =? data.request:
@@ -157,9 +155,12 @@ proc cleanUp(sales: Sales,
                                       data.ask,
                                       request.expiry,
                                       seen = true)
+    trace "pushing ignored item to queue, marked as seen"
     if err =? queue.push(seenItem).errorOption:
       error "failed to readd slot to queue",
         errorType = $(type err), error = err.msg
+
+  await sales.remove(agent)
 
   # signal back to the slot queue to cycle a worker
   if not processing.isNil and not processing.finished():
@@ -473,6 +474,7 @@ proc startSlotQueue(sales: Sales) {.async.} =
 
   slotQueue.onProcessSlot =
     proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+      trace "processing slot queue item", reqId = item.requestId, slotIdx = item.slotIndex
       sales.processSlot(item, done)
 
   asyncSpawn slotQueue.start()
