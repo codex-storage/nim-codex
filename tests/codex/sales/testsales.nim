@@ -499,6 +499,10 @@ asyncchecksuite "Sales":
       await sleepAsync(chronos.hours(1))
       return success()
     createAvailability()
+    # ensure only one slot, otherwise once bytes are returned to the
+    # availability, the queue will be unpaused and availability will be consumed
+    # by other slots
+    request.ask.slots = 1.uint64
     await market.requestStorage(request)
     market.requestState[request.id]=RequestState.New # "On-chain" is the request still ongoing even after local expiration
 
