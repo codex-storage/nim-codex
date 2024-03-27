@@ -503,7 +503,7 @@ proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
           let spr = node.discovery.dhtRecord.get.toURI
           return RestApiResponse.response(spr, contentType="application/text")
         else:
-          return RestApiResponse.response("", status=Http204 contentType="application/text")
+          return RestApiResponse.response("", status=Http204, contentType="application/text")
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
