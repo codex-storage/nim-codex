@@ -492,6 +492,78 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
 
+proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
+  ## various node management api's
+  ## 
+  router.api(
+    MethodGet,
+    "/api/codex/v1/spr") do () -> RestApiResponse:
+      ## Returns node SPR in requested format, json or text.
+      ##
+      try:
+        without spr =? node.discovery.dhtRecord:
+          return RestApiResponse.response("", status=Http503, contentType="application/json")
+
+        if $preferredContentType().get() == "text/plain":
+            return RestApiResponse.response(spr.toURI, contentType="text/plain")
+        else:
+            return RestApiResponse.response($ %* {"spr": spr.toURI}, contentType="application/json")
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/peerid") do () -> RestApiResponse:
+      ## Returns node's peerId in requested format, json or text.
+      ##
+      try:
+        let id = $node.switch.peerInfo.peerId
+
+        if $preferredContentType().get() == "text/plain":
+            return RestApiResponse.response(id, contentType="text/plain")
+        else:
+            return RestApiResponse.response($ %* {"id": id}, contentType="application/json")
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/connect/{peerId}") do (
+      peerId: PeerId,
+      addrs: seq[MultiAddress]) -> RestApiResponse:
+      ## Connect to a peer
+      ##
+      ## If `addrs` param is supplied, it will be used to
+      ## dial the peer, otherwise the `peerId` is used
+      ## to invoke peer discovery, if it succeeds
+      ## the returned addresses will be used to dial
+      ##
+      ## `addrs` the listening addresses of the peers to dial, eg the one specified with `--listen-addrs`
+      ##
+
+      if peerId.isErr:
+        return RestApiResponse.error(
+          Http400,
+          $peerId.error())
+
+      let addresses = if addrs.isOk and addrs.get().len > 0:
+            addrs.get()
+          else:
+            without peerRecord =? (await node.findPeer(peerId.get())):
+              return RestApiResponse.error(
+                Http400,
+                "Unable to find Peer!")
+            peerRecord.addresses.mapIt(it.address)
+      try:
+        await node.connect(peerId.get(), addresses)
+        return RestApiResponse.response("Successfully connected to peer")
+      except DialFailedError:
+        return RestApiResponse.error(Http400, "Unable to dial peer")
+      except CatchableError:
+        return RestApiResponse.error(Http500, "Unknown error dialling peer")
+
 proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
   router.api(
     MethodGet,
@@ -520,7 +592,8 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
             }
           }
 
-        return RestApiResponse.response($json, contentType="application/json")
+        # return pretty json for human readability
+        return RestApiResponse.response(json.pretty(), contentType="application/json")
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
@@ -577,42 +650,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf, repoStore: RepoStore): Re
   initDataApi(node, repoStore, router)
   initSalesApi(node, router)
   initPurchasingApi(node, router)
+  initNodeApi(node, conf, router)
   initDebugApi(node, conf, router)
-
-  router.api(
-    MethodGet,
-    "/api/codex/v1/connect/{peerId}") do (
-      peerId: PeerId,
-      addrs: seq[MultiAddress]) -> RestApiResponse:
-      ## Connect to a peer
-      ##
-      ## If `addrs` param is supplied, it will be used to
-      ## dial the peer, otherwise the `peerId` is used
-      ## to invoke peer discovery, if it succeeds
-      ## the returned addresses will be used to dial
-      ##
-      ## `addrs` the listening addresses of the peers to dial, eg the one specified with `--listen-addrs`
-      ##
-
-      if peerId.isErr:
-        return RestApiResponse.error(
-          Http400,
-          $peerId.error())
-
-      let addresses = if addrs.isOk and addrs.get().len > 0:
-            addrs.get()
-          else:
-            without peerRecord =? (await node.findPeer(peerId.get())):
-              return RestApiResponse.error(
-                Http400,
-                "Unable to find Peer!")
-            peerRecord.addresses.mapIt(it.address)
-      try:
-        await node.connect(peerId.get(), addresses)
-        return RestApiResponse.response("Successfully connected to peer")
-      except DialFailedError:
-        return RestApiResponse.error(Http400, "Unable to dial peer")
-      except CatchableError:
-        return RestApiResponse.error(Http500, "Unknown error dialling peer")
 
   return router
