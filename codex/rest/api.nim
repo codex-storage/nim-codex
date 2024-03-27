@@ -493,6 +493,8 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
         return RestApiResponse.error(Http500)
 
 proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
+  ## various node management api's
+  ## 
   router.api(
     MethodGet,
     "/api/codex/v1/spr") do () -> RestApiResponse:
