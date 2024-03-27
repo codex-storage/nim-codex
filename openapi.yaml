@@ -692,7 +692,7 @@ paths:
   "/spr":
     get:
       summary: "Get Node's SPR"
-      operationId: getDebugInfo
+      operationId: getSPR
       tags: [ Node ]
       responses:
         "200":
