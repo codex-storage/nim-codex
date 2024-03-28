@@ -40,6 +40,10 @@ asyncchecksuite "sales state 'errored'":
     state = SaleErrored(error: newException(ValueError, "oh no!"))
 
   test "calls onCleanUp with returnBytes = false and reprocessSlot = true":
+    state = SaleErrored(
+      error: newException(ValueError, "oh no!"),
+      reprocessSlot: true
+    )
     discard await state.run(agent)
     check eventually returnBytesWas == true
     check eventually reprocessSlotWas == true

@@ -1,8 +1,9 @@
 import std/unittest
 import pkg/questionable
 import pkg/codex/contracts/requests
-import pkg/codex/sales/states/downloading
 import pkg/codex/sales/states/cancelled
+import pkg/codex/sales/states/downloading
+import pkg/codex/sales/states/errored
 import pkg/codex/sales/states/failed
 import pkg/codex/sales/states/filled
 import ../../examples
@@ -27,3 +28,8 @@ checksuite "sales state 'downloading'":
   test "switches to filled state when slot is filled":
     let next = state.onSlotFilled(request.id, slotIndex)
     check !next of SaleFilled
+
+  test "switches to errored state with `reprocessSlot = true` when onError called":
+    let next = state.onError(newException(ValueError, "oh no!"))
+    check !next of SaleErrored
+    check SaleErrored(!next).reprocessSlot == true
