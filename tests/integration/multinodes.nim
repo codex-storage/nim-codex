@@ -269,8 +269,6 @@ template multinodesuite*(name: string, body: untyped) =
         # reverted in the test teardown
         if nodeConfigs.hardhat.isNone:
           snapshot = await send(ethProvider, "evm_snapshot")
-        # ensure that we have a recent block with a fresh timestamp
-        discard await send(ethProvider, "evm_mine")
         accounts = await ethProvider.listAccounts()
       except CatchableError as e:
         echo "Hardhat not running. Run hardhat manually " &
@@ -311,6 +309,9 @@ template multinodesuite*(name: string, body: untyped) =
                           role: Role.Validator,
                           node: node
                         )
+
+      # ensure that we have a recent block with a fresh timestamp
+      discard await send(ethProvider, "evm_mine")
 
     teardown:
       await teardownImpl()
