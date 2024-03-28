@@ -31,6 +31,11 @@ method onSlotFilled*(state: SaleDownloading, requestId: RequestId,
                      slotIndex: UInt256): ?State =
   return some State(SaleFilled())
 
+# override onError so that the slot is reprocess in the case of an unhandled
+# exception
+method onError*(state: SaleDownloading, error: ref CatchableError): ?State =
+  return some State(SaleErrored(error: error, reprocessSlot: true))
+
 method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
   let data = agent.data
@@ -69,7 +74,7 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
   if err =? (await onStore(request,
                            data.slotIndex,
                            onBlocks)).errorOption:
-    return some State(SaleErrored(error: err))
+    return some State(SaleErrored(error: err, reprocessSlot: true))
 
   trace "Download complete"
   return some State(SaleInitialProving())
