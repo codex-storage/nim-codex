@@ -272,19 +272,39 @@ asyncchecksuite "Sales":
     let expected = SlotQueueItem.init(request, 2.uint16)
     check eventually itemsProcessed.contains(expected)
 
-  test "items in queue are readded once ignored":
+  test "items in queue are readded (and marked seen) once ignored":
     await market.requestStorage(request)
-    await sleepAsync(10.millis)
+    # await sleepAsync(10.millis)
     let items = SlotQueueItem.init(request)
     check eventually queue.paused
     # The first processed item will be will have been re-pushed with `seen =
     # true`. Then, once this item is processed by the queue, its 'seen' flag
     # will be checked, at which point the queue will be paused. So that item
-    # will no longer be in the queue. This test could check item existence in
-    # the queue, but that would require inspecting onProcessSlot to see which
-    # item was first, and overridding onProcessSlot will preven the queue
-    # working as expected in the Sales module.
+    # will no longer be in the queue, leaving the queue with 4 - 1 = 3 items.
+    # This test could check item existence in the queue, but that would require
+    # inspecting onProcessSlot to see which item was first, and overridding
+    # onProcessSlot will prevent the queue working as expected in the Sales
+    # module.
     check queue.len == 3
+    for i in 0..<queue.len:
+      check queue[i].seen
+
+  test "queue is paused once availability is insufficient to service slots in queue":
+    createAvailability() # enough to fill a single slot
+    await market.requestStorage(request)
+    # await sleepAsync(10.millis)
+    let items = SlotQueueItem.init(request)
+    check eventually queue.paused
+    # The first processed item/slot will be filled (eventually). Subsequent
+    # items will have been re-pushed with `seen = true`. Then, once a "seen"
+    # item is processed by (popped off) the queue, the queue is paused. So that
+    # item will no longer be in the queue. Therefore of the 4 original slots in
+    # the request, one will not be reprocssed as it was filled, and one will be
+    # popped off the queue before its "seen" flag is checked, leaving the queue
+    # with 2 items.
+    check queue.len == 2
+    for i in 0..<queue.len:
+      check queue[i].seen
 
   test "availability size is reduced by request slot size when fully downloaded":
     sales.onStore = proc(request: StorageRequest,

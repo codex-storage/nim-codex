@@ -74,10 +74,8 @@ type
   Reservations* = ref object
     repo: RepoStore
     onAvailabilityAdded: ?OnAvailabilityAdded
-    onAvailabilitiesEmptied: ?OnAvailabilitiesEmptied
   GetNext* = proc(): Future[?seq[byte]] {.upraises: [], gcsafe, closure.}
   OnAvailabilityAdded* = proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
-  OnAvailabilitiesEmptied* = proc: Future[void] {.upraises: [], gcsafe.}
   StorableIter* = ref object
     finished*: bool
     next*: GetNext
@@ -152,12 +150,6 @@ proc `onAvailabilityAdded=`*(self: Reservations,
                             onAvailabilityAdded: OnAvailabilityAdded) =
   self.onAvailabilityAdded = some onAvailabilityAdded
 
-proc `onAvailabilitiesEmptied=`*(
-  self: Reservations,
-  onAvailabilitiesEmptied: OnAvailabilitiesEmptied) =
-
-  self.onAvailabilitiesEmptied = some onAvailabilitiesEmptied
-
 func key*(id: AvailabilityId): ?!Key =
   ## sales / reservations / <availabilityId>
   (ReservationsKey / $id)
@@ -183,21 +175,6 @@ proc exists*(
 
   let exists = await self.repo.metaDs.contains(key)
   return exists
-
-proc empty*(availability: Availability): bool =
-  # TODO: does this need to be size == 0? There may many very small
-  # availabilities that are not considered empty but are not big enough to fill
-  # a request's slot
-  availability.freeSize < DefaultBlockSize.int.u256
-
-proc empty*(reservation: Reservation): bool =
-  reservation.size == 0
-
-proc allEmpty(self: Reservations, T: type SomeStorableObject): Future[?!bool] {.async.} =
-  without objs =? (await self.all(T)), error:
-    return failure(error)
-
-  return success objs.all(obj => obj.empty)
 
 proc getImpl(
   self: Reservations,
@@ -304,21 +281,6 @@ proc update*(
         warn "Unknown error during 'onAvailabilityAdded' callback",
           availabilityId = obj.id, error = e.msg
 
-  elif oldAvailability.freeSize > obj.freeSize: # availability removed
-    # if the size of all availabilities drops below the smallest possible block
-    # size, all availabilities can be considered unusable or removed from use, and
-    # the onAvailabilityRemoved callback should be triggered.
-    if obj.empty and # prevent lookup if we know this one is already not empty
-      allEmpty =? (await self.allEmpty(Availability)) and allEmpty and
-      onAvailabilitiesEmptied =? self.onAvailabilitiesEmptied:
-        try:
-          onAvailabilitiesEmptied()
-        except CancelledError as e:
-          raise e
-        except CatchableError as e:
-          warn "Unknown error during 'onAvailabilitiesEmptied' callback",
-            availabilityId = obj.id, error = e.msg
-
   return res
 
 proc delete(
@@ -374,9 +336,8 @@ proc deleteReservation*(
 
   return success()
 
-# TODO: add support for deleting availabilities To delete, must not have any
-# active sales. On delete, re-check if all availabilites are "empty" and trigger
-# onAvailabilitiesEmptied
+# TODO: add support for deleting availabilities
+# To delete, must not have any active sales.
 
 proc createAvailability*(
   self: Reservations,

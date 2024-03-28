@@ -287,30 +287,6 @@ asyncchecksuite "Reservations module":
 
     check not called
 
-  test "availability considered empty when freeSize drops below DefaultBlockSize":
-    var availability = createAvailability()
-    availability.freeSize = (DefaultBlockSize - 1).int.u256
-    check availability.empty
-
-  test "availability considered empty when freeSize drops below DefaultBlockSize":
-    let example = Availability.example
-    var availability = Availability.init(
-                        example.totalSize,
-                        freeSize = (DefaultBlockSize - 1).int.u256,
-                        example.duration,
-                        example.minPrice,
-                        example.maxCollateral)
-    check availability.empty
-
-  test "onAvailabilitiesEmptied called when all availabilities are 'empty'":
-    var availability = createAvailability()
-    var called = false
-    reservations.onAvailabilitiesEmptied = proc {.async.} =
-      called = true
-    availability.freeSize = (DefaultBlockSize - 1).int.u256
-    discard await reservations.update(availability)
-    check called
-
   test "availabilities can be found":
     let availability = createAvailability()
 

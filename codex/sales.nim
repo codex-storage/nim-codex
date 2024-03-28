@@ -269,12 +269,6 @@ proc load*(sales: Sales) {.async.} =
     agent.start(SaleUnknown())
     sales.agents.add agent
 
-proc onAvailabilitiesEmptied(sales: Sales) {.async.} =
-  ## When there are no availabilities remaining, the queue should be paused
-  let queue = sales.context.slotQueue
-
-  queue.pause()
-
 proc onAvailabilityAdded(sales: Sales, availability: Availability) {.async.} =
   ## When availabilities are modified or added, the queue should be unpaused if
   ## it was paused and any slots in the queue should have their `seen` flag
@@ -483,11 +477,7 @@ proc startSlotQueue(sales: Sales) {.async.} =
   proc onAvailabilityAdded(availability: Availability) {.async.} =
     await sales.onAvailabilityAdded(availability)
 
-  proc onAvailabilitiesEmptied() {.async.} =
-    await sales.onAvailabilitiesEmptied()
-
   reservations.onAvailabilityAdded = onAvailabilityAdded
-  reservations.onAvailabilitiesEmptied = onAvailabilitiesEmptied
 
 proc subscribe(sales: Sales) {.async.} =
   await sales.subscribeRequested()
