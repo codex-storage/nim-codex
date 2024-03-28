@@ -65,6 +65,16 @@ components:
       description: A timestamp as seconds since unix epoch at which this request expires if the Request does not find requested amount of nodes to host the data.
       default: 10 minutes
 
+    SPR:
+      type: string
+      description: Signed Peer Record (libp2p)
+
+    SPRRead:
+      type: object
+      properties:
+        spr:
+          $ref: "#/components/schemas/SPR"
+
     ErasureParameters:
       type: object
       properties:
@@ -106,8 +116,7 @@ components:
           type: string
           description: Path of the data repository where all nodes data are stored
         spr:
-          type: string
-          description: Signed Peer Record to advertise DHT connection information
+          $ref: "#/components/schemas/SPR"
 
     SalesAvailability:
       type: object
@@ -684,6 +693,24 @@ paths:
           description: Purchase not found
         "503":
           description: Purchasing is unavailable
+
+  "/spr":
+    get:
+      summary: "Get Node's SPR"
+      operationId: getSPR
+      tags: [ Node ]
+      responses:
+        "200":
+          description: Node's SPR
+          content:
+            plain/text:
+              schema:
+                $ref: "#/components/schemas/SPR"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SPRRead"
+        "503":
+          description: Node SPR not ready, try again later
 
   "/debug/chronicles/loglevel":
     post:
