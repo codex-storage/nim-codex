@@ -69,10 +69,6 @@ components:
       type: string
       description: Signed Peer Record (libp2p)
 
-    SPR:
-      type: string
-      description: Signed Peer Record (libp2p)
-
     SPRRead:
       type: object
       properties:
