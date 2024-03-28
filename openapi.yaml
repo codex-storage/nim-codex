@@ -69,6 +69,16 @@ components:
       type: string
       description: Signed Peer Record (libp2p)
 
+    SPR:
+      type: string
+      description: Signed Peer Record (libp2p)
+
+    SPRRead:
+      type: object
+      properties:
+        spr:
+          $ref: "#/components/schemas/SPR"
+
     ErasureParameters:
       type: object
       properties:
@@ -110,8 +120,7 @@ components:
           type: string
           description: Path of the data repository where all nodes data are stored
         spr:
-          type: string
-          description: Signed Peer Record to advertise DHT connection information
+          $ref: "#/components/schemas/SPR"
 
     SalesAvailability:
       type: object
@@ -698,15 +707,14 @@ paths:
         "200":
           description: Node's SPR
           content:
-            application/text:
+            plain/text:
               schema:
                 $ref: "#/components/schemas/SPR"
-        "204":
-          description: Node missing SPR
-          content:
-            application/text:
+            application/json:
               schema:
-                $ref: "#/components/schemas/SPR"
+                $ref: "#/components/schemas/SPRRead"
+        "503":
+          description: Node SPR not ready, try again later
 
   "/debug/chronicles/loglevel":
     post:
