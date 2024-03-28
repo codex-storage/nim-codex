@@ -498,14 +498,16 @@ proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
   router.api(
     MethodGet,
     "/api/codex/v1/spr") do () -> RestApiResponse:
-      ## Print node SPR
+      ## Returns node SPR in requested format, json or text.
       ##
       try:
-        if node.discovery.dhtRecord.isSome:
-          let spr = node.discovery.dhtRecord.get.toURI
-          return RestApiResponse.response(spr, contentType="application/text")
+        without spr =? node.discovery.dhtRecord:
+          return RestApiResponse.response("", status=Http503, contentType="application/json")
+
+        if request.headers.getLastString("Content-Type") == "text/plain":
+            return RestApiResponse.response(spr.toURI, contentType="text/plain")
         else:
-          return RestApiResponse.response("", status=Http204, contentType="application/text")
+            return RestApiResponse.response($ %* {"spr": spr.toURI}, contentType="application/json")
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
