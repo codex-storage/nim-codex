@@ -268,7 +268,7 @@ proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
   # paused
   if self.paused:
     trace "unpausing queue after new slots pushed"
-  self.unpause()
+    self.unpause()
 
   return success()
 
@@ -360,7 +360,8 @@ proc dispatch(self: SlotQueue,
 proc clearSeenFlags*(self: SlotQueue) =
   # To avoid issues with new queue items being pushed to the queue while all
   # items are being iterated (eg if a new storage request comes in and pushes
-  # new slots to the queue), first pop all items in the queue off and
+  # new slots to the queue), enumerate the items in the queue using random
+  # access, overwriting each item with `seen = true`
   for i in 0..<self.len:
     var item = self[i]
     item.seen = false
