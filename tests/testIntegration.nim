@@ -1,4 +1,5 @@
 import ./integration/testcli
+import ./integration/testrestapi
 import ./integration/testIntegration
 import ./integration/testblockexpiration
 import ./integration/testmarketplace
