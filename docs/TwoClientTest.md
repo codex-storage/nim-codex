@@ -131,44 +131,6 @@ Notice we are connecting to the second node in order to download the file. The C
 
 If your file is downloaded and identical to the file you uploaded, then this manual test has passed. Rejoice! If on the other hand that didn't happen or you were unable to complete any of these steps, please leave us a message detailing your troubles.
 
-### 8. Offer your storage for sale (optional)
-
-```bash
-curl --location 'http://localhost:8081/api/codex/v1/sales/availability' \
---header 'Content-Type: application/json' \
---data '{
-    "size": "1000000",
-    "duration": "3600",
-    "minPrice": "1000",
-    "maxCollateral": "1"
-}'
-```
-
-This informs your node that you are available to store 1MB of data for a duration of one hour (3600 seconds) at a minimum price of 1,000 tokens, automatically matching any storage requests announced on the network.
-
-### 9. Create storage Request (optional)
-
-```bash
-curl --location 'http://localhost:8080/api/codex/v1/storage/request/<CID>' \
---header 'Content-Type: application/json' \
---data '{
-    "reward": "1024",
-    "duration": "120",
-    "proofProbability": "8"
-    "collateral": "1"
-}'
-```
-
-This creates a storage Request for `<CID>` (that you have to fill in) for
-duration of 2 minutes and with reward of 1024 tokens. It expects hosts to
-provide a storage proof once every 8 periods on average.
-
-It returns Request ID which you can then use to query for the Request's state as follows:
-
-```bash
-curl --location 'http://localhost:8080/api/codex/v1/storage/purchases/<RequestID>'
-```
-
 ## Notes
 
 When using the Ganache blockchain, there are some deviations from the expected behavior, mainly linked to how blocks are mined, which affects certain functionalities in the Sales module.
