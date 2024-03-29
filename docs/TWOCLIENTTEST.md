@@ -12,10 +12,10 @@ Make sure you have built the client, and can run it as explained in the [README]
 
 You need to have installed NodeJS and npm in order to spinup a local blockchain node.
 
-Go to directory `vendor/codex-contracts-eth` and run these commands:
+Go to directory `vendor/codex-contracts-eth` and run these two commands:
 ```
-$ npm ci
-$ npm start
+npm ci
+npm start
 ```
 
 This will launch a local Ganache blockchain.
@@ -54,7 +54,7 @@ Run the command :
 curl -X GET http://127.0.0.1:8080/api/codex/v1/debug/info
 ```
 
-This GET request will return the node's debug information. The response JSON should look like:
+This GET request will return the node's debug information. The response will be in JSON and should look like:
 
 ```json
 {
@@ -96,21 +96,21 @@ This GET request will return the node's debug information. The response JSON sho
 
 ### 3. Launch Node #2
 
-Retreive the SPR:
+Retreive the SPR by running:
 ```bash
-curl -H 'Accept: text/plain'  http://127.0.0.1:8080/api/codex/v1/spr
+curl -H "Accept: text/plain" http://127.0.0.1:8080/api/codex/v1/spr
 ```
 
-Replace `<SPR HERE>` in the next command the value returned by the SPR value. Note it include the `spr:` at the beginning.
+Next replace `<SPR HERE>` in the following command with the SPR returned from the previous command. (Note that it should include the `spr:` at the beginning.)
 
 Open a new terminal and run:
 - Mac/Linux: `"build/codex" --data-dir="$(pwd)/Data2" --listen-addrs=/ip4/127.0.0.1/tcp/8071 --api-port=8081 --disc-port=8091 --bootstrap-node=<SPR HERE>`
 - Windows: `"build/codex.exe" --data-dir="Data2" --listen-addrs=/ip4/127.0.0.1/tcp/8071 --api-port=8081 --disc-port=8091 --bootstrap-node=<SPR HERE>`
 
-On Mac, Linux, or MSYS2 you can run it in one command like:
+Alternatively on Mac, Linux, or MSYS2 you can run it in one command like:
 
 ```sh
-"build/codex" --data-dir="$(pwd)/Data2" --listen-addrs=/ip4/127.0.0.1/tcp/8071 --api-port=8081 --disc-port=8091 --bootstrap-node=$(curl -H 'Accept: text/plain'  http://127.0.0.1:8080/api/codex/v1/spr)
+"build/codex" --data-dir="$(pwd)/Data2" --listen-addrs=/ip4/127.0.0.1/tcp/8071 --api-port=8081 --disc-port=8091 --bootstrap-node=$(curl -H "Accept: text/plain" http://127.0.0.1:8080/api/codex/v1/spr)
 ```
 
 Notice we're using a new data-dir, and we've increased each port number by one. This is needed so that the new node won't try to open ports already in use by the first node.
@@ -119,22 +119,24 @@ We're now also including the `bootstrap-node` argument. This allows us to link t
 
 ### 4. Connect The Two
 
-Normally the two will automatically connect. If not you can use the command we've used in step 2 to retrieve the debug information from node 2 and tell it to connect to the first node:
+Normally the two nodes will automatically connect. If they do not automatically connect or you want to manually connect nodes you can use the peerId to connect nodes.
+
+You can get the first node's peer id by running:
 
 ```bash
-curl -X GET -H 'Accept: text/plain' http://127.0.0.1:8081/api/codex/v1/peerid
+curl -X GET -H "Accept: text/plain" http://127.0.0.1:8081/api/codex/v1/peerid
 ```
 
-Use the response to replace `<PEER ID HERE>` in the following command:
+Next replace `<PEER ID HERE>` in the following command with the peerId returned from the previous command:
 
 ```bash
 curl -X GET http://127.0.0.1:8080/api/codex/v1/connect/<PEER ID HERE>?addrs=/ip4/127.0.0.1/tcp/8071
 ```
 
-On Mac, Linux, or MSYS2 you can run it in one command like:
+Alternatively on Mac, Linux, or MSYS2 you can run it in one command like:
 
 ```bash
-curl -X GET http://127.0.0.1:8080/api/codex/v1/connect/$(curl -X GET -H 'Accept: text/plain' http://127.0.0.1:8081/api/codex/v1/peerid)\?addrs=/ip4/127.0.0.1/tcp/8071
+curl -X GET http://127.0.0.1:8080/api/codex/v1/connect/$(curl -X GET -H "Accept: text/plain" http://127.0.0.1:8081/api/codex/v1/peerid)\?addrs=/ip4/127.0.0.1/tcp/8071
 ```
 
 Notice that we are sending the peerId and the multiaddress of node 2 to the `/connect` endpoint of node 1. This provides node 1 all the information it needs to communicate with node 2. The response to this request should be `Successfully connected to peer`.
@@ -143,7 +145,7 @@ Notice that we are sending the peerId and the multiaddress of node 2 to the `/co
 
 We're now ready to upload a file to the network. In this example we'll use node 1 for uploading and node 2 for downloading. But the reverse also works.
 
-Replace `<FILE PATH>` with the path to the file you want to upload in the following command:
+Next replace `<FILE PATH>` with the path to the file you want to upload in the following command:
 
 ```bash
  curl -H "Content-Type: application/octet-stream" -H "Expect: 100-continue" -T "<FILE PATH>" 127.0.0.1:8080/api/codex/v1/data -X POST
