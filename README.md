@@ -96,17 +96,35 @@ The following options are available:
      --block-mn             Number of blocks to check every maintenance cycle [=1000].
  -c, --cache-size           The size of the block cache, 0 disables the cache - might help on slow hardrives
                             [=0].
-     --persistence          Enables persistence mechanism, requires an Ethereum node [=false].
+
+Available sub-commands:
+
+codex persistence [OPTIONS]... command
+
+The following options are available:
+
      --eth-provider         The URL of the JSON-RPC API of the Ethereum node [=ws://localhost:8545].
-     --eth-account          The Ethereum account that is used for storage contracts [=EthAddress.none].
-     --eth-private-key      File containing Ethereum private key for storage contracts [=string.none].
-     --marketplace-address  Address of deployed Marketplace contract [=EthAddress.none].
+     --eth-account          The Ethereum account that is used for storage contracts.
+     --eth-private-key      File containing Ethereum private key for storage contracts.
+     --marketplace-address  Address of deployed Marketplace contract.
      --validator            Enables validator, requires an Ethereum node [=false].
      --validator-max-slots  Maximum number of slots that the validator monitors [=1000].
 
 Available sub-commands:
 
-codex initNode
+codex persistence prover [OPTIONS]...
+
+The following options are available:
+
+     --circom-r1cs          The r1cs file for the storage circuit.
+     --circom-wasm          The wasm file for the storage circuit.
+     --circom-zkey          The zkey file for the storage circuit.
+     --circom-no-zkey       Ignore the zkey file - use only for testing! [=false].
+     --proof-samples        Number of samples to prove [=5].
+     --max-slot-depth       The maximum depth of the slot tree [=32].
+     --max-dataset-depth    The maximum depth of the dataset tree [=8].
+     --max-block-depth      The maximum depth of the network block merkle tree [=5].
+     --max-cell-elements    The maximum number of elements in a cell [=67].
 ```
 
 #### Logging
