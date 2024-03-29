@@ -63,13 +63,13 @@ method unzipFile*(
 suite "Test BackendFactory":
   let
     utilsMock = BackendUtilsMock()
-    datadir = "testdatadir"
+    circuitDir = "testecircuitdir"
 
   setup:
-    createDir(datadir)
+    createDir(circuitDir)
 
   teardown:
-    removeDir(datadir)
+    removeDir(circuitDir)
 
   test "Should create backend from cli config":
     let
@@ -105,18 +105,18 @@ suite "Test BackendFactory":
         metricsAddress: ValidIpAddress.init("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
 
-        # Set the datadir such that the tests/circuits/fixtures/ files
+        # Set the circuitDir such that the tests/circuits/fixtures/ files
         # will be picked up as local files:
-        dataDir: OutDir("tests/circuits/fixtures")
+        circuitDir: OutDir("tests/circuits/fixtures")
       )
       ceremonyHash = string.none
       backend = (await initializeBackend(config, ceremonyHash, utilsMock)).tryGet
 
     check:
       backend.vkp != nil
-      utilsMock.argR1csFile == config.dataDir / "proof_main.r1cs"
-      utilsMock.argWasmFile == config.dataDir / "proof_main.wasm"
-      utilsMock.argZKeyFile == config.dataDir / "proof_main.zkey"
+      utilsMock.argR1csFile == config.circuitDir / "proof_main.r1cs"
+      utilsMock.argWasmFile == config.circuitDir / "proof_main.wasm"
+      utilsMock.argZKeyFile == config.circuitDir / "proof_main.zkey"
       isEmptyOrWhitespace(utilsMock.argUrl)
       isEmptyOrWhitespace(utilsMock.argFilepath)
       isEmptyOrWhitespace(utilsMock.argZipFile)
@@ -125,7 +125,7 @@ suite "Test BackendFactory":
   test "Should download and unzip ceremony file if not available":
     let
       ceremonyHash = some "12345"
-      expectedZip = datadir / "circuit.zip"
+      expectedZip = circuitDir / "circuit.zip"
       expectedUrl = "https://circuit.codex.storage/proving-key/" & !ceremonyHash
       config = CodexConf(
         cmd: StartUpCmd.persistence,
@@ -133,17 +133,17 @@ suite "Test BackendFactory":
         discoveryIp: ValidIpAddress.init(IPv4_any()),
         metricsAddress: ValidIpAddress.init("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
-        dataDir: OutDir(datadir)
+        circuitDir: OutDir(circuitDir)
       )
 
       backend = (await initializeBackend(config, ceremonyHash, utilsMock)).tryGet
 
     check:
       backend.vkp != nil
-      utilsMock.argR1csFile == config.dataDir / "proof_main.r1cs"
-      utilsMock.argWasmFile == config.dataDir / "proof_main.wasm"
-      utilsMock.argZKeyFile == config.dataDir / "proof_main.zkey"
+      utilsMock.argR1csFile == config.circuitDir / "proof_main.r1cs"
+      utilsMock.argWasmFile == config.circuitDir / "proof_main.wasm"
+      utilsMock.argZKeyFile == config.circuitDir / "proof_main.zkey"
       utilsMock.argUrl == expectedUrl
       utilsMock.argFilepath == expectedZip
       utilsMock.argZipFile == expectedZip
-      utilsMock.argOutputDir == datadir
+      utilsMock.argOutputDir == circuitDir

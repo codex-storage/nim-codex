@@ -62,6 +62,7 @@ const
   codex_enable_log_counter* {.booldefine.} = false
 
   DefaultDataDir* = defaultDataDir()
+  DefaultCircuitDir* = defaultDataDir() / "circuits"
 
 type
   StartUpCmd* {.pure.} = enum
@@ -124,6 +125,13 @@ type
       defaultValueDesc: $DefaultDataDir
       abbr: "d"
       name: "data-dir" }: OutDir
+
+    circuitDir* {.
+      desc: "Directory where Codex will store proof circuit data"
+      defaultValue: DefaultCircuitDir
+      defaultValueDesc: $DefaultCircuitDir
+      abbr: "cd"
+      name: "circuit-dir" }: OutDir
 
     listenAddrs* {.
       desc: "Multi Addresses to listen on"

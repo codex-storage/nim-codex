@@ -31,16 +31,16 @@ proc initializeFromConfig(
     $config.circomZkey))
 
 proc r1csFilePath(config: CodexConf): string =
-  config.dataDir / "proof_main.r1cs"
+  config.circuitDir / "proof_main.r1cs"
 
 proc wasmFilePath(config: CodexConf): string =
-  config.dataDir / "proof_main.wasm"
+  config.circuitDir / "proof_main.wasm"
 
 proc zkeyFilePath(config: CodexConf): string =
-  config.dataDir / "proof_main.zkey"
+  config.circuitDir / "proof_main.zkey"
 
 proc zipFilePath(config: CodexConf): string =
-  config.dataDir / "circuit.zip"
+  config.circuitDir / "circuit.zip"
 
 proc initializeFromCeremonyFiles(
   config: CodexConf,
@@ -73,7 +73,7 @@ proc unzipCeremonyFile(
   config: CodexConf,
   utils: BackendUtils): ?!void =
   trace "Unzipping..."
-  return utils.unzipFile(config.zipFilePath, $config.dataDir)
+  return utils.unzipFile(config.zipFilePath, $config.circuitDir)
 
 proc initializeFromCeremonyHash(
   config: CodexConf,
