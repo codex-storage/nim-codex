@@ -62,11 +62,13 @@ type
 
 proc waitForSync(provider: Provider): Future[void] {.async.} =
   var sleepTime = 1
+  trace "Checking sync state of Ethereum provider..."
   while await provider.isSyncing:
     notice "Waiting for Ethereum provider to sync..."
     await sleepAsync(sleepTime.seconds)
     if sleepTime < 10:
       inc sleepTime
+  trace "Ethereum provider is synced."
 
 proc bootstrapInteractions(
   s: CodexServer): Future[void] {.async.} =
