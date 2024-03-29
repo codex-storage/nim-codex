@@ -69,7 +69,7 @@ components:
       type: object
       properties:
         totalChunks:
-          type: number
+          type: integer
 
     PoRParameters:
       description: Parameters for Proof of Retrievability
@@ -186,12 +186,12 @@ components:
         proofProbability:
           $ref: "#/components/schemas/ProofProbability"
         nodes:
-          type: number
           description: Minimal number of nodes the content should be stored on
+          type: integer
           default: 1
         tolerance:
-          type: number
           description: Additional number of nodes on top of the `nodes` property that can be lost before pronouncing the content lost
+          type: integer
           default: 0
         collateral:
           type: string
@@ -206,8 +206,8 @@ components:
         - reward
       properties:
         slots:
-          type: number
           description: Number of slots (eq. hosts) that the Request want to have the content spread over
+          type: integer
         slotSize:
           type: string
           description: Amount of storage per slot (in bytes) as decimal string
@@ -218,7 +218,7 @@ components:
         reward:
           $ref: "#/components/schemas/Reward"
         maxSlotLoss:
-          type: number
+          type: integer
           description: Max slots that can be lost without data considered to be lost
 
     StorageRequest:
@@ -274,10 +274,10 @@ components:
           $ref: "#/components/schemas/Cid"
           description: "Root hash of the content"
         originalBytes:
-          type: number
+          type: integer
           description: "Length of original content in bytes"
         blockSize:
-          type: number
+          type: integer
           description: "Size of blocks"
         protected:
           type: boolean
@@ -287,16 +287,16 @@ components:
       type: object
       properties:
         totalBlocks:
-          type: number
           description: "Number of blocks stored by the node"
+          type: integer
         quotaMaxBytes:
-          type: number
+          type: integer
           description: "Maximum storage space used by the node"
         quotaUsedBytes:
-          type: number
+          type: integer
           description: "Amount of storage space currently in use"
         quotaReservedBytes:
-          type: number
+          type: integer
           description: "Amount of storage space reserved"
 
 servers:
