@@ -166,6 +166,10 @@ type
       abbr: "b"
       name: "bootstrap-node" }: seq[SignedPeerRecord]
 
+    lpRelay* {.
+      desc: "Should this node be a circuit relay"
+      name: "libp2p-relay" }: bool
+
     maxPeers* {.
       desc: "The maximum number of peers to connect to"
       defaultValue: 160
