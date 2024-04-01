@@ -262,7 +262,7 @@ Any storage negotiation has two sides: a buyer and a seller. Before we can actua
 
 ### 4.1 Sell Storage
 
-The following request will cause it to put out $50\text{MB}$ of storage for sale for $1$ hour, at a price of $1$ Codex token per byte per second, while expressing that it's willing to take at most a $1000$ Codex token penalty for missing a storage proof.
+The following request will cause the storage node to put out $50\text{MB}$ of storage for sale for $1$ hour, at a price of $1$ Codex token per byte per second, while expressing that it's willing to take at most a $1000$ Codex token penalty for missing a storage proof.
 
 ```bash
 curl 'http://localhost:8000/api/codex/v1/sales/availability' \
@@ -281,7 +281,7 @@ this should return a response with an id a string (e.g. `"id": "0x552ef12a2ee64c
 curl 'http://localhost:8000/api/codex/v1/sales/availability'
 ```
 
-this should print a list of offers, with the one you just posted figuring among them.
+this should print a list of offers, with the one you just created figuring among them.
 
 ## 4.2. Buy Storage
 
@@ -313,19 +313,24 @@ curl "http://localhost:8081/api/codex/v1/storage/request/<upload CID>"
 }'
 ```
 
-the parameters under `--data` say we want to purchase storage for $20$ minutes (`"duration": "1200"`), and that we are willing to pay up to $1$ token per byte, per second (`"reward": "1"`). We also say we will demand `1000` tokens in collateral for this storage request -- without getting into too much detail, this means we will be compensated with `1000` tokens for each partition in our file that storage nodes fail to provide timely proofs for. `"nodes": 3` and `"tolerance": 1` tells us that the file will be split in three, and that we can still rebuild the file even if $1$ of those partitions are lost.
+The parameters under `--data` say that:
 
-Finally, the `expiry` puts a cap on the `blockTime` at which our request expires. This has to be at most `current block time + duration`, which means this request can fail. If you see a failure like:
+1. we want to purchase storage for our file for $20$ minutes (`"duration": "1200"`);
+2. we are willing to pay up to $1$ token per byte, per second (`"reward": "1"`);
+3. we demand `1000` tokens in collateral for this storage request. Without getting into too much detail, this means we will be compensated with `1000` tokens for each partition in our file that storage nodes fail to provide timely proofs for;
+4. our file will be split into three pieces, with  `"nodes": 3` and `"tolerance": 1` tells us that the file will be split in four, and that we can still rebuild the file even as long as no more than $1$ of these nodes are lost or otherwise stop storing or data.
+
+Finally, the `expiry` puts a cap on the `blockTime` at which our request expires. This has to be at most `current block time + duration`, which means this request can fail if you input the wrong number, which you likely will if you do not know what the current block time is. Fear not, however, as you can try an an arbitrary number (e.g. `1000`), and look at the failure message:
 
    `Expiry needs to be in future. Now: 1711995463`
 
-then take the number and add the duration; i.e., `1711995463 + 1200 = 1711996663`, and use the resulting number (`1711996663`) as expiry and things should work. The request should return a purchase ID (e.g. `1d0ec5261e3364f8b9d1cf70324d70af21a9b5dccba380b24eb68b4762249185`), which you can use track the completion of your request in the marketplace.
+to compute a valid one. Just take the number in the error message and add the duration; i.e., `1711995463 + 1200 = 1711996663`, then use the resulting number (`1711996663`) as expiry and things should work. The request should return a purchase ID (e.g. `1d0ec5261e3364f8b9d1cf70324d70af21a9b5dccba380b24eb68b4762249185`), which you can use track the completion of your request in the marketplace.
 
 ## 4.3. Track your Storage Requests
 
 POSTing a storage request will make it available in the storage market, and a storage node will eventually pick it up. You can poll the status of your request by means of the `http://localhost:8081/api/codex/v1/storage/purchases/<purchase ID>` endpoint. For instance:
 
-```json
+```bash
 > curl 'http://localhost:8081/api/codex/v1/storage/purchases/6c698cd0ad71c41982f83097d6fa75beb582924e08a658357a1cd4d7a2a6766d'
 {
 	"requestId": "0x6c698cd0ad71c41982f83097d6fa75beb582924e08a658357a1cd4d7a2a6766d",
@@ -352,4 +357,4 @@ POSTing a storage request will make it available in the storage market, and a st
 }
 ```
 
-Your request was successful once `"state"` shows `"started"`. Anything other than that means the request has not been processed yet, and an `"error"` state other than `null` means it failed.
+shows that a request has been submitted but has not yet been filled. Your request will be successful once `"state"` shows `"started"`. Anything other than that means the request has not been completely processed yet, and an `"error"` state other than `null` means it failed.
