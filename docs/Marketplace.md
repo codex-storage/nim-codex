@@ -186,12 +186,12 @@ With accounts and geth in place, we can now start the Codex nodes.
 
 The storage node will be the one storing data and submitting the proofs of storage to the chain. To do that, it needs access to:
 
-1. the address of the Marketplace contract that has been deploy to the local geth node;
+1. the address of the Marketplace contract that has been deployed to the local geth node in [Step 2.1](#21-deploy-the-codex-marketplace-contracts);
 2. the sample ceremony files which are shipped in the Codex contracts repo.
 
 Recall you have clone the `codex-contracts-eth` repository in Step 2.1. All of the required files are in there.
 
-**Contract Address.** The contract address can be found inside of the file `codex-contracts-eth/deployments/codexdisttestnetwork/Marketplace.json`:
+**Address of the Marketplace Contract.** The contract address can be found inside of the file `codex-contracts-eth/deployments/codexdisttestnetwork/Marketplace.json`:
 
 ```bash
 > grep '"address":' Marketplace.json
@@ -202,9 +202,9 @@ Recall you have clone the `codex-contracts-eth` repository in Step 2.1. All of t
 
 **Starting the storage node.** Let:
 
-* `PROVER_ASSETS` contain the directory where the prover ceremony file are located;
+* `PROVER_ASSETS` contain the directory where the prover ceremony files are located. **This must be an absolute path**;
 * `CODEX_BINARY` contain the location of your Codex binary;
-* `MARKETPLACE_ADDRESS` contain the address of the Marketplace contract.
+* `MARKETPLACE_ADDRESS` contain the address of the Marketplace contract (obtained above).
 
 To launch the storage node, run:
 
