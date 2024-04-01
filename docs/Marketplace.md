@@ -102,7 +102,6 @@ geth\
   --datadir geth-data\
   --networkid 12345\
   --unlock <signer-account-address>\
-  --password <your-accounts-password>\
   --nat extip:127.0.0.1\
   --netrestrict 127.0.0.0/24\
   --mine\
@@ -111,11 +110,11 @@ geth\
   --allow-insecure-unlock
 ```
 
-Note that, once again, the signer account created in Step 1.1 appears both in `--unlock` and `--allow-insecure-unlock`. Do not forget to insert it there.
+Note that, once again, the signer account created in Step 1.1 appears both in `--unlock` and `--allow-insecure-unlock`: do not forget to insert it there. Geth will prompt you to insert the account's password as it starts up. Once you do that, it should be able to start up and begin "mining" blocks.
 
 ## 2. Set Up The Marketplace
 
-Setting up the marketplace entails deploying the Codex Marketplace contracts and providing tokens to the accounts we wish to use later for buying and selling storage.
+Setting up the marketplace entails: _i)_ deploying the Codex Marketplace contracts to our private blockchain, and _ii)_ provisioning accounts we will later use to buying and selling storage in the marketplace with the required token balances.
 
 ### 2.1. Deploy the Codex Marketplace Contracts
 
@@ -156,7 +155,7 @@ address: 0x9F0C62Fe60b22301751d6cDe1175526b9280b965
 private key: 0x5538ec03c956cb9d0bee02a25b600b0225f1347da4071d0fd70c521fdc63c2fc
 ```
 
-### 2.3. Provision Your Accounts with Tokens
+### 2.3. Provision Accounts with Tokens
 
 We now need to transfer some ETH to each of the accounts, as well as provide them with some Codex tokens for the storage node to use as collateral and for the client node to buy actual storage.
 
