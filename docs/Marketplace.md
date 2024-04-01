@@ -318,9 +318,9 @@ The parameters under `--data` say that:
 1. we want to purchase storage for our file for $20$ minutes (`"duration": "1200"`);
 2. we are willing to pay up to $1$ token per byte, per second (`"reward": "1"`);
 3. we demand `1000` tokens in collateral for this storage request. Without getting into too much detail, this means we will be compensated with `1000` tokens for each partition in our file that storage nodes fail to provide timely proofs for;
-4. our file will be split into three pieces, with  `"nodes": 3` and `"tolerance": 1` tells us that the file will be split in four, and that we can still rebuild the file even as long as no more than $1$ of these nodes are lost or otherwise stop storing or data.
+4. our file will be split into four pieces (`"nodes": 3` and `"tolerance": 1`), so that we only need three pieces to rebuild the file; i.e., we can tolerate that at most one node stops storing our data; either due to failure or other reasons.
 
-Finally, the `expiry` puts a cap on the `blockTime` at which our request expires. This has to be at most `current block time + duration`, which means this request can fail if you input the wrong number, which you likely will if you do not know what the current block time is. Fear not, however, as you can try an an arbitrary number (e.g. `1000`), and look at the failure message:
+Finally, the `expiry` puts a cap on the block time at which our request expires. This has to be at most `current block time + duration`, which means this request can fail if you input the wrong number, which you likely will if you do not know what the current block time is. Fear not, however, as you can try an an arbitrary number (e.g. `1000`), and look at the failure message:
 
    `Expiry needs to be in future. Now: 1711995463`
 
