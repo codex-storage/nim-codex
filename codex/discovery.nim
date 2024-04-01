@@ -212,6 +212,7 @@ proc new*(
     record = self.providerRecord.get,
     bootstrapRecords = bootstrapNodes,
     rng = Rng.instance(),
-    providers = ProvidersManager.new(store))
+    providers = ProvidersManager.new(store),
+    config = discoveryConfig)
 
   self
