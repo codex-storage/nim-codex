@@ -1,6 +1,6 @@
 # Running a Local Codex Network with Marketplace Support
 
-This tutorial will provide you with information on how to run a small Codex network with the _storage marketplace_ enabled; i.e., the functionality in Codex which allows participants to offer and buy storage in a market, ensuring that storage providers honor their part of the deal by means of cryptographic proofs.
+This tutorial will teach you how to run a small Codex network with the _storage marketplace_ enabled; i.e., the functionality in Codex which allows participants to offer and buy storage in a market, ensuring that storage providers honor their part of the deal by means of cryptographic proofs.
 
 To complete this tutorial, you will need:
 
