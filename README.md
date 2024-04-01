@@ -136,11 +136,11 @@ Using the `log-level` parameter, you can set the top-level log level like `--log
 you can set log levels for specific topics like `--log-level="info; trace: marketplace,node; error: blockexchange"`,
 which sets the top-level log level to `info` and then for topics `marketplace` and `node` sets the level to `trace` and so on.
 
-### Guides:
+### Guides
 
 To get acquainted with Codex, consider:
-* running the simple two-client test [described here](docs/TwoClientTest.md), or;
-* if you are feeling more adventurous, try [running Codex and with Marketplace support on a local blockchain](docs/Marketplace.md).
+* running the simple [Codex Two-Client Test](docs/TwoClientTest.md) for a start, and;
+* if you are feeling more adventurous, try [Running a Local Codex Network with Marketplace Support](docs/Marketplace.md) using a local blockchain as well.
 
 ## API
 
