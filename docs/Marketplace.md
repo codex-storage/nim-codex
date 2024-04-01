@@ -2,23 +2,23 @@
 
 This tutorial will provide you with information on how to run a small Codex network with the _storage marketplace_ enabled; i.e., the functionality in Codex which allows participants to offer and buy storage in a market, ensuring that storage providers honor their part of the deal by means of cryptographic proofs.
 
-To complete this guide, you will need:
+To complete this tutorial, you will need:
 
 * the [geth](https://github.com/ethereum/go-ethereum) Ethereum client;
 * a Codex binary, which [you can compile from source](https://github.com/codex-storage/nim-codex?tab=readme-ov-file#build-and-run).
 
 We will also be using [bash](https://en.wikipedia.org/wiki/Bash_(Unix_shell)) syntax throughout. If you use a different shell, you may need to adapt things to your platform.
 
-This guide has four major steps:
+In this tutorial, you will:
 
-1. [Setting Up a Geth PoA network](#1-setting-up-a-geth-poa-network);
-2. [Setting up The Marketplace](#2-setting-up-the-marketplace);
-3. [Running Codex](#3-running-codex);
-4. [Buying and Selling Storage in the Marketplace](#4-buying-and-selling-storage-on-the-marketplace).
+1. [Set Up a Geth PoA network](#1-set-up-a-geth-poa-network);
+2. [Set up The Marketplace](#2-set-up-the-marketplace);
+3. [Run Codex](#3-run-codex);
+4. [Buy and Sell Storage in the Marketplace](#4-buy-and-sell-storage-on-the-marketplace).
 
-We suggest you create a folder (e.g. `marketplace-tutorial`) and switch into it before beginning.
+We strongly suggest you to create a folder (e.g. `marketplace-tutorial`), and switch into it before beginning.
 
-## 1. Setting Up a Geth PoA Network
+## 1. Set Up a Geth PoA Network
 
 For this tutorial, we will use a simple [Proof-of-Authority](https://github.com/ethereum/EIPs/issues/225) network with geth. The first step is creating a _signer account_: an account which will be used by geth to sign the blocks in the network. Any block signed by a signer is accepted as valid.
 
@@ -113,7 +113,7 @@ geth\
 
 Note that, once again, the signer account created in Step 1.1 appears both in `--unlock` and `--allow-insecure-unlock`. Do not forget to insert it there.
 
-## 2. Setting Up The Marketplace
+## 2. Set Up The Marketplace
 
 Setting up the marketplace entails deploying the Codex Marketplace contracts and providing tokens to the accounts we wish to use later for buying and selling storage.
 
@@ -141,7 +141,7 @@ npx hardhat --network codexdisttestnetwork deploy
 
 If the command completes successfully, you are ready to prepare the accounts.
 
-### 2.2. Generating the Accounts
+### 2.2. Generate the Required Accounts
 
 We will run $2$ Codex nodes: a **storage provider**, which will sell storage on the network, and a **client**, which will buy and use such storage; we therefore need two valid Ethereum accounts. We could create random accounts by using one of the many  tools available to that end but, since this is a tutorial running on a local private network, we will simply provide you with two pre-made accounts along with their private keys which you can copy and paste instead:
 
@@ -156,7 +156,7 @@ address: 0x9F0C62Fe60b22301751d6cDe1175526b9280b965
 private key: 0x5538ec03c956cb9d0bee02a25b600b0225f1347da4071d0fd70c521fdc63c2fc
 ```
 
-### 2.3. Providing the Accounts with Tokens
+### 2.3. Provision Your Accounts with Tokens
 
 We now need to transfer some ETH to each of the accounts, as well as provide them with some Codex tokens for the storage node to use as collateral and for the client node to buy actual storage.
 
@@ -179,7 +179,7 @@ node ./mint-tokens.js <signer account address> 0x9F0C62Fe60b22301751d6cDe1175526
 
 Don't forget to replace `<signer account address>` with the address of the signer account you created in Step 1.1.
 
-## 3. Running Codex
+## 3. Run Codex
 
 With accounts and geth in place, we can now start the Codex nodes.
 
@@ -257,7 +257,7 @@ ${CODEX_BINARY}\
   --marketplace-address=${MARKETPLACE_ADDRESS}
 ```
 
-## 4. Buying and Selling Storage on the Marketplace
+## 4. Buy and Sell Storage on the Marketplace
 
 Any storage negotiation has two sides: a buyer and a seller. Before we can actually request storage, therefore, we must first put some of it for sale.
 
@@ -284,7 +284,7 @@ curl 'http://localhost:8000/api/codex/v1/sales/availability'
 
 this should print a list of offers, with the one you just posted figuring among them.
 
-## 4.2. Purchase Storage
+## 4.2. Buy Storage
 
 Before we can buy storage, we must have some actual data to request storage for. Start by uploading a small file to your client node. On Linux you could, for instance, use `dd` to generate a $100KB$ file:
 
@@ -322,7 +322,7 @@ Finally, the `expiry` puts a cap on the `blockTime` at which our request expires
 
 then take the number and add the duration; i.e., `1711995463 + 1200 = 1711996663`, and use the resulting number (`1711996663`) as expiry and things should work. The request should return a purchase ID (e.g. `1d0ec5261e3364f8b9d1cf70324d70af21a9b5dccba380b24eb68b4762249185`), which you can use track the completion of your request in the marketplace.
 
-## 4.3. Track your Storage Request
+## 4.3. Track your Storage Requests
 
 POSTing a storage request will make it available in the storage market, and a storage node will eventually pick it up. You can poll the status of your request by means of the `http://localhost:8081/api/codex/v1/storage/purchases/<purchase ID>` endpoint. For instance:
 
