@@ -1,4 +1,4 @@
-# Running Codex with Marketplace
+# Running a Local Codex Network with Marketplace Support
 
 This tutorial will provide you with information on how to run a small Codex network with the _storage marketplace_ enabled; i.e., the functionality in Codex which allows participants to offer and buy storage in a market, ensuring that storage providers honor their part of the deal by means of cryptographic proofs.
 
@@ -14,7 +14,7 @@ This guide has four major steps:
 1. [Setting Up a Geth PoA network](#1-setting-up-a-geth-poa-network);
 2. [Setting up The Marketplace](#2-setting-up-the-marketplace);
 3. [Running Codex](#3-running-codex);
-4. [Buying and Selling Storage]()
+4. [Buying and Selling Storage in the Marketplace](#4-buying-and-selling-storage-on-the-marketplace).
 
 We suggest you create a folder (e.g. `marketplace-tutorial`) and switch into it before beginning.
 
@@ -257,4 +257,100 @@ ${CODEX_BINARY}\
   --marketplace-address=${MARKETPLACE_ADDRESS}
 ```
 
-## 4. Buying and Selling Storage
+## 4. Buying and Selling Storage on the Marketplace
+
+Any storage negotiation has two sides: a buyer and a seller. Before we can actually request storage, therefore, we must first put some of it for sale.
+
+### 4.1 Sell Storage
+
+The following request will cause it to put out $50\text{MB}$ of storage for sale for $1$ hour, at a price of $1$ Codex token per byte per second, while expressing that it's willing to take at most a $1000$ Codex token penalty for missing a storage proof.
+
+```bash
+curl 'http://localhost:8000/api/codex/v1/sales/availability' \
+  --header 'Content-Type: application/json' \
+  --data '{
+  "totalSize": "50000000",
+  "duration": "3600",
+  "minPrice": "1",
+  "maxCollateral": "1000"
+}'
+```
+
+this should return a response with an id a string (e.g. `"id": "0x552ef12a2ee64ca22b237335c7e1df884df36d22bfd6506b356936bc718565d4"`) which identifies this storage offer. To check the current storage offers for this node, you can issue:
+
+```bash
+curl 'http://localhost:8000/api/codex/v1/sales/availability'
+```
+
+this should print a list of offers, with the one you just posted figuring among them.
+
+## 4.2. Purchase Storage
+
+Before we can buy storage, we must have some actual data to request storage for. Start by uploading a small file to your client node. On Linux you could, for instance, use `dd` to generate a $100KB$ file:
+
+```bash
+dd if=/dev/urandom of=./data.bin bs=100K count=1
+```
+
+but any small file will do. Assuming your file is named `data.bin`, you can upload it with:
+
+```bash
+curl "http://localhost:8001/api/codex/v1/data" --data-bin @data1.bin
+```
+
+Once the upload completes, you should see a CID (e.g. `zDvZRwzm2mK7tvDzKScRLapqGdgNTLyyEBvx1TQY37J2CdWdS6Sj`) for the file printed to the terminal. Use that CID in the purchase request:
+
+```bash
+curl "http://localhost:8081/api/codex/v1/storage/request/<upload CID>"
+  --header 'Content-Type: application/json' \
+  --data '{
+	"duration": "1200",
+	"reward": "1",
+	"proofProbability": "3",
+	"expiry": "1711992852",
+	"nodes": 3,
+	"tolerance": 1,
+	"collateral": "1000"
+}'
+```
+
+the parameters under `--data` say we want to purchase storage for $20$ minutes (`"duration": "1200"`), and that we are willing to pay up to $1$ token per byte, per second (`"reward": "1"`). We also say we will demand `1000` tokens in collateral for this storage request -- without getting into too much detail, this means we will be compensated with `1000` tokens for each partition in our file that storage nodes fail to provide timely proofs for. `"nodes": 3` and `"tolerance": 1` tells us that the file will be split in three, and that we can still rebuild the file even if $1$ of those partitions are lost.
+
+Finally, the `expiry` puts a cap on the `blockTime` at which our request expires. This has to be at most `current block time + duration`, which means this request can fail. If you see a failure like:
+
+   `Expiry needs to be in future. Now: 1711995463`
+
+then take the number and add the duration; i.e., `1711995463 + 1200 = 1711996663`, and use the resulting number (`1711996663`) as expiry and things should work. The request should return a purchase ID (e.g. `1d0ec5261e3364f8b9d1cf70324d70af21a9b5dccba380b24eb68b4762249185`), which you can use track the completion of your request in the marketplace.
+
+## 4.3. Track your Storage Request
+
+POSTing a storage request will make it available in the storage market, and a storage node will eventually pick it up. You can poll the status of your request by means of the `http://localhost:8081/api/codex/v1/storage/purchases/<purchase ID>` endpoint. For instance:
+
+```json
+> curl 'http://localhost:8081/api/codex/v1/storage/purchases/6c698cd0ad71c41982f83097d6fa75beb582924e08a658357a1cd4d7a2a6766d'
+{
+	"requestId": "0x6c698cd0ad71c41982f83097d6fa75beb582924e08a658357a1cd4d7a2a6766d",
+	"request": {
+		"client": "0xed6c3c20358f0217919a30c98d72e29ceffedc33",
+		"ask": {
+			"slots": 3,
+			"slotSize": "262144",
+			"duration": "1000",
+			"proofProbability": "3",
+			"reward": "1",
+			"collateral": "1",
+			"maxSlotLoss": 1
+		},
+		"content": {
+			"cid": "zDvZRwzm3nnkekFLCACmWyKdkYixsX3j9gJhkvFtfYA5K9bpXQnC"
+		},
+		"expiry": "1711992852",
+		"nonce": "0x9f5e651ecd3bf73c914f8ed0b1088869c64095c0d7bd50a38fc92ebf66ff5915",
+		"id": "0x6c698cd0ad71c41982f83097d6fa75beb582924e08a658357a1cd4d7a2a6766d"
+	},
+	"state": "submitted",
+  "error": null
+}
+```
+
+Your request was successful once `"state"` shows `"started"`. Anything other than that means the request has not been processed yet, and an `"error"` state other than `null` means it failed.
