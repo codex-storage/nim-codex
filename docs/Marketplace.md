@@ -51,6 +51,7 @@ Next set an environment variable for later usage:
 
 ```sh
 export GETH_SIGNER_ADDR=0x93976895c4939d99837C8e0E1779787718EF8368
+echo ${GETH_SIGNER_ADDR} > geth_signer_address.txt
 ```
 
 ### 1.2. Configure The Network and Create the Genesis Block
@@ -191,6 +192,7 @@ To use the script, just download it into a local file named `mint-tokens.js`, fo
 ```bash
 # set the contract file location
 export CONTRACT_DEPLOY_FULL="codex-contracts-eth/deployments/codexdisttestnetwork"
+export GETH_SIGNER_ADDR=$(cat geth_signer_address.txt)
 # download script
 curl https://raw.githubusercontent.com/gmega/codex-local-bare/main/scripts/mint-tokens.js -o mint-tokens.js
 ```
