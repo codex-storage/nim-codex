@@ -45,7 +45,13 @@ Public address of the key:   0x93976895c4939d99837C8e0E1779787718EF8368
 ...
 ```
 
-In this example, the public address of the signer account is `0x93976895c4939d99837C8e0E1779787718EF8368`. Yours will print a different address; write it down.
+In this example, the public address of the signer account is `0x93976895c4939d99837C8e0E1779787718EF8368`. Yours will print a different address. Save it for later usage.
+
+Next set an environment variable for later usage:
+
+```sh
+export GETH_SIGNER_ADDR=0x93976895c4939d99837C8e0E1779787718EF8368
+```
 
 ### 1.2. Configure The Network and Create the Genesis Block
 
@@ -114,7 +120,12 @@ Note that, once again, the signer account created in Step 1.1 appears both in `-
 
 ## 2. Set Up The Marketplace
 
-Setting up the marketplace entails: _i)_ deploying the Codex Marketplace contracts to our private blockchain, and _ii)_ provisioning accounts we will later use to buying and selling storage in the marketplace with the required token balances.
+Setting up the Codex marketplace entails:
+
+1. Deploying the Codex Marketplace contracts to our private blockchain
+2. Setup Ethereum accounts we will use to buy and sell storage in the Codex marketplace 
+3. Provisioning those accounts with the required token balances
+
 
 ### 2.1. Deploy the Codex Marketplace Contracts
 
@@ -145,14 +156,17 @@ If the command completes successfully, you are ready to prepare the accounts.
 We will run $2$ Codex nodes: a **storage provider**, which will sell storage on the network, and a **client**, which will buy and use such storage; we therefore need two valid Ethereum accounts. We could create random accounts by using one of the many  tools available to that end but, since this is a tutorial running on a local private network, we will simply provide you with two pre-made accounts along with their private keys which you can copy and paste instead:
 
 **Storage:**
-```text
-address: 0x45BC5ca0fbdD9F920Edd12B90908448C30F32a37
-private key: 0x06c7ac11d4ee1d0ccb53811b71802fa92d40a5a174afad9f2cb44f93498322c3
+```sh
+export ETH_STORAGE_ADDR=0x45BC5ca0fbdD9F920Edd12B90908448C30F32a37
+export ETH_STORAGE_PK=0x06c7ac11d4ee1d0ccb53811b71802fa92d40a5a174afad9f2cb44f93498322c3
+echo $ETH_STORAGE_PK > storage.pkey && chmod 0600 storage.pkey
 ```
+
 **Client:**
-```text
-address: 0x9F0C62Fe60b22301751d6cDe1175526b9280b965
-private key: 0x5538ec03c956cb9d0bee02a25b600b0225f1347da4071d0fd70c521fdc63c2fc
+```sh
+export ETH_CLIENT_ADDR=0x9F0C62Fe60b22301751d6cDe1175526b9280b965
+export ETH_CLIENT_PK=0x5538ec03c956cb9d0bee02a25b600b0225f1347da4071d0fd70c521fdc63c2fc
+echo $ETH_CLIENT_PK > client.pkey && chmod 0600 client.pkey
 ```
 
 ### 2.3. Provision Accounts with Tokens
@@ -168,15 +182,18 @@ Although the process is not particularly complicated, I suggest you use [the scr
 To use the script, just copy it locally into a file named `mint-tokens.js`, and run:
 
 ```bash
+# set the contract file location
+export CONTRACT_DEPLOY_FULL="codex-contracts-eth/deployments/codexdisttestnetwork"
+
 # Installs Web3-js
 npm install web3
 # Provides tokens to the storage account.
-node ./mint-tokens.js <signer account address> 0x45BC5ca0fbdD9F920Edd12B90908448C30F32a37 10000000000
+node ./mint-tokens.js $CONTRACT_DEPLOY_FULL/TestToken.json $GETH_SIGNER_ADDR 0x45BC5ca0fbdD9F920Edd12B90908448C30F32a37 10000000000
 # Provides tokens to the client account.
-node ./mint-tokens.js <signer account address> 0x9F0C62Fe60b22301751d6cDe1175526b9280b965 10000000000
+node ./mint-tokens.js $CONTRACT_DEPLOY_FULL/TestToken.json $GETH_SIGNER_ADDR 0x9F0C62Fe60b22301751d6cDe1175526b9280b965 10000000000
 ```
 
-Don't forget to replace `<signer account address>` with the address of the signer account you created in Step 1.1.
+If you get a message like `Usage: mint-tokens.js <token-hardhat-deploy-json> <signer-account> <receiver-account> <token-ammount>` then you need to ensure you have 
 
 ## 3. Run Codex
 
@@ -198,6 +215,11 @@ Recall you have clone the `codex-contracts-eth` repository in Step 2.1. All of t
   "address": "0x8891732D890f5A7B7181fBc70F7482DE28a7B60f",
 ```
 
+Then run the following with the correct market place address:
+```sh
+export MARKETPLACE_ADDRESS=0x0000000000000000000000000000000000000000
+```
+
 **Prover ceremony files.** The ceremony files are under the `codex-contracts-eth/verifier/networks/codexdisttestnetwork` subdirectory. There are three of them: `proof_main.r1cs`, `proof_main.zkey`, and `prooof_main.wasm`. We will need all of them to start the Codex storage node.
 
 **Starting the storage node.** Let:
@@ -205,6 +227,15 @@ Recall you have clone the `codex-contracts-eth` repository in Step 2.1. All of t
 * `PROVER_ASSETS` contain the directory where the prover ceremony files are located. **This must be an absolute path**;
 * `CODEX_BINARY` contain the location of your Codex binary;
 * `MARKETPLACE_ADDRESS` contain the address of the Marketplace contract (obtained above).
+
+
+Set these paths into environment variables:
+
+```sh
+export CONTRACT_DEPLOY_FULL=$(realpath "codex-contracts-eth/deployments/codexdisttestnetwork")
+export PROVER_ASSETS=$(realpath "codex-contracts-eth/verifier/networks/codexdisttestnetwork/")
+export CODEX_BINARY=$(realpath "../build/codex")
+```
 
 To launch the storage node, run:
 
@@ -216,7 +247,7 @@ ${CODEX_BINARY}\
   --disc-port=8090\
   persistence\
   --eth-provider=http://localhost:8545\
-  --eth-private-key=<(echo -n "0x06c7ac11d4ee1d0ccb53811b71802fa92d40a5a174afad9f2cb44f93498322c3")\
+  --eth-private-key=./storage.pkey\
   --marketplace-address=${MARKETPLACE_ADDRESS}\
   --validator\
   --validator-max-slots=1000\
@@ -252,7 +283,7 @@ ${CODEX_BINARY}\
   --bootstrap-node=<storage-node-spr>
   persistence\
   --eth-provider=http://localhost:8545\
-  --eth-private-key=<(echo -n "0x5538ec03c956cb9d0bee02a25b600b0225f1347da4071d0fd70c521fdc63c2fc")\
+  --eth-private-key=./client.pkey\
   --marketplace-address=${MARKETPLACE_ADDRESS}
 ```
 
