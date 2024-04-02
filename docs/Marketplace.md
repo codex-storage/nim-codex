@@ -89,15 +89,16 @@ The next step is telling geth what kind of network you want to run. We will be r
 }
 ```
 
-Or you can run the command after setting GETH_SIGNER_ADDR:
+Note that the signer account address is embedded in two different places:
+* inside of the `"extradata"` string, surrounded by zeroes and stripped of its `0x` prefix;
+* as an entry key in the `alloc` session.
+
+Alternatively you can run the command after setting GETH_SIGNER_ADDR which will be used to set the values properly:
 
 ```sh
 echo  "{\"config\": { \"chainId\": 12345, \"homesteadBlock\": 0, \"eip150Block\": 0, \"eip155Block\": 0, \"eip158Block\": 0, \"byzantiumBlock\": 0, \"constantinopleBlock\": 0, \"petersburgBlock\": 0, \"istanbulBlock\": 0, \"berlinBlock\": 0, \"londonBlock\": 0, \"arrowGlacierBlock\": 0, \"grayGlacierBlock\": 0, \"clique\": { \"period\": 1, \"epoch\": 30000 } }, \"difficulty\": \"1\", \"gasLimit\": \"8000000\", \"extradata\": \"0x0000000000000000000000000000000000000000000000000000000000000000${GETH_SIGNER_ADDR:2:-1}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\", \"alloc\": { \"${GETH_SIGNER_ADDR}\": { \"balance\": \"10000000000000000000000\"}}}" > network.json
 ```
 
-Note that the signer account address is embedded in two different places:
-* inside of the `"extradata"` string, surrounded by zeroes and stripped of its `0x` prefix;
-* as an entry key in the `alloc` session.
 
 Make sure to replace that ID with the account ID that you wrote down in Step 1.1. Once that is done, you can initialize the network with:
 
