@@ -349,7 +349,7 @@ export CID=zDvZRwzm2mK7tvDzKScRLapqGdgNTLyyEBvx1TQY37J2CdWdS6Sj
 ```
 
 ```bash
-curl "http://localhost:8001/api/codex/v1/storage/request/${CID}"
+curl "http://localhost:8001/api/codex/v1/storage/request/${CID}" \
   --header 'Content-Type: application/json' \
   --data '{
     "duration": "1200",
@@ -377,10 +377,17 @@ to compute a valid one. Just take the number in the error message and add the du
 
 ## 4.3. Track your Storage Requests
 
-POSTing a storage request will make it available in the storage market, and a storage node will eventually pick it up. You can poll the status of your request by means of the `http://localhost:8081/api/codex/v1/storage/purchases/<purchase ID>` endpoint. For instance:
+POSTing a storage request will make it available in the storage market, and a storage node will eventually pick it up. You can poll the status of your request by means of the `http://localhost:8081/api/codex/v1/storage/purchases/<purchase ID>` endpoint.
+
+For instance:
 
 ```bash
-> curl 'http://localhost:8081/api/codex/v1/storage/purchases/6c698cd0ad71c41982f83097d6fa75beb582924e08a658357a1cd4d7a2a6766d'
+curl 'http://localhost:8081/api/codex/v1/storage/purchases/6c698cd0ad71c41982f83097d6fa75beb582924e08a658357a1cd4d7a2a6766d'
+```
+
+This returns a result like:
+
+```json
 {
 	"requestId": "0x6c698cd0ad71c41982f83097d6fa75beb582924e08a658357a1cd4d7a2a6766d",
 	"request": {
@@ -406,4 +413,4 @@ POSTing a storage request will make it available in the storage market, and a st
 }
 ```
 
-shows that a request has been submitted but has not yet been filled. Your request will be successful once `"state"` shows `"started"`. Anything other than that means the request has not been completely processed yet, and an `"error"` state other than `null` means it failed.
+Shows that a request has been submitted but has not yet been filled. Your request will be successful once `"state"` shows `"started"`. Anything other than that means the request has not been completely processed yet, and an `"error"` state other than `null` means it failed.
