@@ -165,10 +165,10 @@ Although the process is not particularly complicated, I suggest you use [the scr
 2. transfers $1$ ETH from the signer account to a target account if the target account has no ETH balance;
 3. mints $n$ Codex tokens and adds it into the target account's balance.
 
-To use the script, just copy it locally into a file named `mint-tokens.js`, and run:
+To use the script, just download it into a local file named `mint-tokens.js`, for instance using curl:
 
 ```bash
-# Installs Web3-js
+curl https://raw.githubusercontent.com/gmega/codex-local-bare/main/scripts/mint-tokens.js -o mint-tokens.js
 npm install web3
 # Provides tokens to the storage account.
 node ./mint-tokens.js <signer account address> 0x45BC5ca0fbdD9F920Edd12B90908448C30F32a37 10000000000
