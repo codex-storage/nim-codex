@@ -179,12 +179,16 @@ Although the process is not particularly complicated, I suggest you use [the scr
 2. transfers $1$ ETH from the signer account to a target account if the target account has no ETH balance;
 3. mints $n$ Codex tokens and adds it into the target account's balance.
 
-To use the script, just copy it locally into a file named `mint-tokens.js`, and run:
+To use the script, just download it into a local file named `mint-tokens.js`, for instance using curl:
 
 ```bash
 # set the contract file location
 export CONTRACT_DEPLOY_FULL="codex-contracts-eth/deployments/codexdisttestnetwork"
+# download script
+curl https://raw.githubusercontent.com/gmega/codex-local-bare/main/scripts/mint-tokens.js -o mint-tokens.js
+```
 
+```bash
 # Installs Web3-js
 npm install web3
 # Provides tokens to the storage account.
@@ -259,7 +263,7 @@ ${CODEX_BINARY}\
 replacing each `${VALUE}` variable by their respective contents. We then extract the Signed Peer Record (SPR) of the storage node so we can bootstrap the client node with it. To get the SPR, issue the following call:
 
 ```bash
-curl 'http://localhost:8080/api/codex/v1/debug/info'
+curl 'http://localhost:8000/api/codex/v1/debug/info'
 ```
 
 This will print a long JSON string:
@@ -331,7 +335,7 @@ curl "http://localhost:8001/api/codex/v1/data" --data-bin @data1.bin
 Once the upload completes, you should see a CID (e.g. `zDvZRwzm2mK7tvDzKScRLapqGdgNTLyyEBvx1TQY37J2CdWdS6Sj`) for the file printed to the terminal. Use that CID in the purchase request:
 
 ```bash
-curl "http://localhost:8081/api/codex/v1/storage/request/<upload CID>"
+curl "http://localhost:8001/api/codex/v1/storage/request/<upload CID>"
   --header 'Content-Type: application/json' \
   --data '{
 	"duration": "1200",
