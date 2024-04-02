@@ -305,7 +305,7 @@ curl "http://localhost:8001/api/codex/v1/data" --data-bin @data1.bin
 Once the upload completes, you should see a CID (e.g. `zDvZRwzm2mK7tvDzKScRLapqGdgNTLyyEBvx1TQY37J2CdWdS6Sj`) for the file printed to the terminal. Use that CID in the purchase request:
 
 ```bash
-curl "http://localhost:8081/api/codex/v1/storage/request/<upload CID>"
+curl "http://localhost:8001/api/codex/v1/storage/request/<upload CID>"
   --header 'Content-Type: application/json' \
   --data '{
 	"duration": "1200",
