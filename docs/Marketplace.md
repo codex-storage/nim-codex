@@ -233,7 +233,7 @@ ${CODEX_BINARY}\
 replacing each `${VALUE}` variable by their respective contents. We then extract the Signed Peer Record (SPR) of the storage node so we can bootstrap the client node with it. To get the SPR, issue the following call:
 
 ```bash
-curl 'http://localhost:8080/api/codex/v1/debug/info'
+curl 'http://localhost:8000/api/codex/v1/debug/info'
 ```
 
 This will print a long JSON string:
