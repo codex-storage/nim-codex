@@ -118,7 +118,7 @@ geth\
   --nat extip:127.0.0.1\
   --netrestrict 127.0.0.0/24\
   --mine\
-  --miner.etherbase <signer-account-address>\
+  --miner.etherbase ${GETH_SIGNER_ADDR}\
   --http\
   --allow-insecure-unlock
 ```
