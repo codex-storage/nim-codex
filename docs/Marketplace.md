@@ -114,7 +114,12 @@ Note that, once again, the signer account created in Step 1.1 appears both in `-
 
 ## 2. Set Up The Marketplace
 
-Setting up the marketplace entails: _i)_ deploying the Codex Marketplace contracts to our private blockchain, and _ii)_ provisioning accounts we will later use to buying and selling storage in the marketplace with the required token balances.
+Setting up the Codex marketplace entails:
+
+1. Deploying the Codex Marketplace contracts to our private blockchain
+2. Setup Ethereum accounts we will use to buy and sell storage in the Codex marketplace 
+3. Provisioning those accounts with the required token balances
+
 
 ### 2.1. Deploy the Codex Marketplace Contracts
 
