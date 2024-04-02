@@ -222,6 +222,7 @@ Recall you have clone the `codex-contracts-eth` repository in Step 2.1. All of t
 Then run the following with the correct market place address:
 ```sh
 export MARKETPLACE_ADDRESS=0x0000000000000000000000000000000000000000
+echo ${MARKETPLACE_ADDRESS} > marketplace_address.txt
 ```
 
 **Prover ceremony files.** The ceremony files are under the `codex-contracts-eth/verifier/networks/codexdisttestnetwork` subdirectory. There are three of them: `proof_main.r1cs`, `proof_main.zkey`, and `prooof_main.wasm`. We will need all of them to start the Codex storage node.
@@ -239,6 +240,7 @@ Set these paths into environment variables:
 export CONTRACT_DEPLOY_FULL=$(realpath "codex-contracts-eth/deployments/codexdisttestnetwork")
 export PROVER_ASSETS=$(realpath "codex-contracts-eth/verifier/networks/codexdisttestnetwork/")
 export CODEX_BINARY=$(realpath "../build/codex")
+export MARKETPLACE_ADDRESS=$(cat marketplace_address.txt)
 ```
 
 To launch the storage node, run:
@@ -260,25 +262,31 @@ ${CODEX_BINARY}\
   --circom-wasm=${PROVER_ASSETS}/proof_main.wasm\
   --circom-zkey=${PROVER_ASSETS}/proof_main.zkey
 ```
-replacing each `${VALUE}` variable by their respective contents. We then extract the Signed Peer Record (SPR) of the storage node so we can bootstrap the client node with it. To get the SPR, issue the following call:
 
-```bash
-curl -H 'Accept: text/plain' 'http://localhost:8000/api/codex/v1/spr'
-# set the SPR for the storage node
-export STORAGE_NODE_SPR=$(curl -H 'Accept: text/plain' 'http://localhost:8000/api/codex/v1/spr')
-```
+**Starting the client node.**
 
-This will print a long JSON string:
-
-```json
-{"id":"16Uiu2HAm4yoghEaNy1VPLumvXwrFSEenzG1zSy3EcTFYLE2mynjp","addrs":["/ip4/0.0.0.0/tcp/8070"],"repo":"/data","spr":"spr:CiUIAhIhAo30ewLoBnzU5COMicomRT6UAfdmDJbdwQRnba0cvHnnEgIDARo8CicAJQgCEiECjfR7AugGfNTkI4yJyiZFPpQB92YMlt3BBGdtrRy8eecQqrWcsAYaCwoJBLNdyciRAh-aKkYwRAIgFnH5tSmOlxrSnOwyOHjnjBVSrEXZOeosH1i9gzoDI6UCIEnCI82Bb4iATMKKuaZCfVNlEOmwnfAG-6z0RuJJc-8s",...
-```
-The part we care about is the SPR (the string after `"spr":`). Write that string down.
-
-**Starting the client node.** The client node is started similarly except that:
+The client node is started similarly except that:
 
 * we need to pass the SPR of the storage node so it can form a network with it;
 * since it does not run any proofs, it does not require any ceremony files.
+
+We get the Signed Peer Record (SPR) of the storage node so we can bootstrap the client node with it. To get the SPR, issue the following call:
+
+```bash
+curl -H 'Accept: text/plain' 'http://localhost:8000/api/codex/v1/spr'
+```
+
+Set these paths into environment variables:
+
+```bash
+# set the SPR for the storage node
+export STORAGE_NODE_SPR=$(curl -H 'Accept: text/plain' 'http://localhost:8000/api/codex/v1/spr')
+# basic vars
+export CONTRACT_DEPLOY_FULL=$(realpath "codex-contracts-eth/deployments/codexdisttestnetwork")
+export PROVER_ASSETS=$(realpath "codex-contracts-eth/verifier/networks/codexdisttestnetwork/")
+export CODEX_BINARY=$(realpath "../build/codex")
+export MARKETPLACE_ADDRESS=$(cat marketplace_address.txt)
+```
 
 ```bash
 ${CODEX_BINARY}\
@@ -312,13 +320,13 @@ curl 'http://localhost:8000/api/codex/v1/sales/availability' \
 }'
 ```
 
-this should return a response with an id a string (e.g. `"id": "0x552ef12a2ee64ca22b237335c7e1df884df36d22bfd6506b356936bc718565d4"`) which identifies this storage offer. To check the current storage offers for this node, you can issue:
+This should return a response with an id a string (e.g. `"id": "0x552ef12a2ee64ca22b237335c7e1df884df36d22bfd6506b356936bc718565d4"`) which identifies this storage offer. To check the current storage offers for this node, you can issue:
 
 ```bash
 curl 'http://localhost:8000/api/codex/v1/sales/availability'
 ```
 
-this should print a list of offers, with the one you just created figuring among them.
+This should print a list of offers, with the one you just created figuring among them.
 
 ## 4.2. Buy Storage
 
@@ -331,23 +339,27 @@ dd if=/dev/urandom of=./data.bin bs=100K count=1
 but any small file will do. Assuming your file is named `data.bin`, you can upload it with:
 
 ```bash
-curl "http://localhost:8001/api/codex/v1/data" --data-bin @data1.bin
+curl "http://localhost:8001/api/codex/v1/data" --data-bin ./data1.bin
 ```
 
 Once the upload completes, you should see a CID (e.g. `zDvZRwzm2mK7tvDzKScRLapqGdgNTLyyEBvx1TQY37J2CdWdS6Sj`) for the file printed to the terminal. Use that CID in the purchase request:
 
 ```bash
-curl "http://localhost:8001/api/codex/v1/storage/request/<upload CID>"
+export CID=zDvZRwzm2mK7tvDzKScRLapqGdgNTLyyEBvx1TQY37J2CdWdS6Sj
+```
+
+```bash
+curl "http://localhost:8001/api/codex/v1/storage/request/${CID}"
   --header 'Content-Type: application/json' \
   --data '{
-	"duration": "1200",
-	"reward": "1",
-	"proofProbability": "3",
-	"expiry": "1711992852",
-	"nodes": 3,
-	"tolerance": 1,
-	"collateral": "1000"
-}'
+    "duration": "1200",
+    "reward": "1",
+    "proofProbability": "3",
+    "expiry": "1711992852",
+    "nodes": 3,
+    "tolerance": 1,
+    "collateral": "1000"
+  }'
 ```
 
 The parameters under `--data` say that:
