@@ -364,6 +364,7 @@ Once the upload completes, you should see a CID (e.g. `zDvZRwzm2mK7tvDzKScRLapqG
 
 ```bash
 export CID=zDvZRwzm2mK7tvDzKScRLapqGdgNTLyyEBvx1TQY37J2CdWdS6Sj
+export EXPIRY_TIME=$((1000 + $(date +%s))) # current time + 1000 seconds; adjust as needed
 ```
 
 ```bash
@@ -373,7 +374,7 @@ curl "http://localhost:8001/api/codex/v1/storage/request/${CID}" \
     \"duration\": \"1200\",
     \"reward\": \"1\",
     \"proofProbability\": \"3\",
-    \"expiry\": \"$((1000 + $(date +%s)))\",
+    \"expiry\": \"${EXPIRY_TIME}\",
     \"nodes\": 3,
     \"tolerance\": 1,
     \"collateral\": \"1000\"
