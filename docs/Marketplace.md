@@ -397,12 +397,18 @@ to compute a valid one. Just take the number in the error message and add the du
 
 ## 4.3. Track your Storage Requests
 
-POSTing a storage request will make it available in the storage market, and a storage node will eventually pick it up. You can poll the status of your request by means of the `http://localhost:8081/api/codex/v1/storage/purchases/<purchase ID>` endpoint.
+POSTing a storage request will make it available in the storage market, and a storage node will eventually pick it up.
+
+You can poll the status of your request by means of:
+```bash
+export STORAGE_PURCHASE_ID="1d0ec5261e3364f8b9d1cf70324d70af21a9b5dccba380b24eb68b4762249185"
+curl "http://localhost:8001/api/codex/v1/storage/purchases/${STORAGE_PURCHASE_ID}"
+```
 
 For instance:
 
 ```bash
-curl 'http://localhost:8081/api/codex/v1/storage/purchases/6c698cd0ad71c41982f83097d6fa75beb582924e08a658357a1cd4d7a2a6766d'
+curl 'http://localhost:8001/api/codex/v1/storage/purchases/6c698cd0ad71c41982f83097d6fa75beb582924e08a658357a1cd4d7a2a6766d'
 ```
 
 This returns a result like:
