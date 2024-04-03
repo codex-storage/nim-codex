@@ -16,7 +16,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/shims/net
 import pkg/contractabi/address as ca
-import pkg/codexdht/discv5/protocol as discv5
+import pkg/codexdht/discv5/[routing_table, protocol as discv5]
 
 import ./rng
 import ./errors
@@ -193,6 +193,18 @@ proc new*(
 
   self.updateAnnounceRecord(announceAddrs)
 
+  # --------------------------------------------------------------------------
+  # FIXME disable IP limits temporarily so we can run our workshop. Re-enable
+  #   and figure out proper solution.
+  let discoveryConfig = DiscoveryConfig(
+    tableIpLimits: TableIpLimits(
+      tableIpLimit: high(uint),
+      bucketIpLimit:high(uint)
+    ),
+    bitsPerHop: DefaultBitsPerHop
+  )
+  # --------------------------------------------------------------------------
+
   self.protocol = newProtocol(
     key,
     bindIp = bindIp.toNormalIp,
@@ -200,6 +212,7 @@ proc new*(
     record = self.providerRecord.get,
     bootstrapRecords = bootstrapNodes,
     rng = Rng.instance(),
-    providers = ProvidersManager.new(store))
+    providers = ProvidersManager.new(store),
+    config = discoveryConfig)
 
   self
