@@ -133,12 +133,11 @@ Geth will prompt you to insert the account's password as it starts up. Once you 
 
 ## 2. Set Up The Marketplace
 
-Setting up the Codex marketplace entails:
+You will need to open new terminal for this section and geth needs to be running already. Setting up the Codex marketplace entails:
 
 1. Deploying the Codex Marketplace contracts to our private blockchain
 2. Setup Ethereum accounts we will use to buy and sell storage in the Codex marketplace 
 3. Provisioning those accounts with the required token balances
-
 
 ### 2.1. Deploy the Codex Marketplace Contracts
 
