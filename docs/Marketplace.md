@@ -127,7 +127,9 @@ geth\
   --allow-insecure-unlock
 ```
 
-Note that, once again, the signer account created in Step 1.1 appears both in `--unlock` and `--allow-insecure-unlock`: do not forget to insert it there. Geth will prompt you to insert the account's password as it starts up. Once you do that, it should be able to start up and begin "mining" blocks.
+Note that, once again, the signer account created in Step 1.1 appears both in `--unlock` and `--allow-insecure-unlock`. Make sure you have the `GETH_SIGNER_ADDR` set.
+
+Geth will prompt you to insert the account's password as it starts up. Once you do that, it should be able to start up and begin "mining" blocks.
 
 ## 2. Set Up The Marketplace
 
