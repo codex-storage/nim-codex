@@ -294,7 +294,7 @@ We get the Signed Peer Record (SPR) of the storage node so we can bootstrap the 
 curl -H 'Accept: text/plain' 'http://localhost:8000/api/codex/v1/spr'
 ```
 
-Set these paths into environment variables:
+You should get the SPR back starting with `spr:`. Next set these paths into environment variables:
 
 ```bash
 # set the SPR for the storage node
@@ -369,15 +369,15 @@ export CID=zDvZRwzm2mK7tvDzKScRLapqGdgNTLyyEBvx1TQY37J2CdWdS6Sj
 ```bash
 curl "http://localhost:8001/api/codex/v1/storage/request/${CID}" \
   --header 'Content-Type: application/json' \
-  --data '{
-    "duration": "1200",
-    "reward": "1",
-    "proofProbability": "3",
-    "expiry": "1711992852",
-    "nodes": 3,
-    "tolerance": 1,
-    "collateral": "1000"
-  }'
+  --data "{
+    \"duration\": \"1200\",
+    \"reward\": \"1\",
+    \"proofProbability\": \"3\",
+    \"expiry\": \"$((1000 + $(date +%s)))\",
+    \"nodes\": 3,
+    \"tolerance\": 1,
+    \"collateral\": \"1000\"
+  }"
 ```
 
 The parameters under `--data` say that:
