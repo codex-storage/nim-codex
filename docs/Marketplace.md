@@ -408,7 +408,7 @@ curl "http://localhost:8001/api/codex/v1/storage/purchases/${STORAGE_PURCHASE_ID
 For instance:
 
 ```bash
-curl 'http://localhost:8001/api/codex/v1/storage/purchases/6c698cd0ad71c41982f83097d6fa75beb582924e08a658357a1cd4d7a2a6766d'
+> curl 'http://localhost:8001/api/codex/v1/storage/purchases/6c698cd0ad71c41982f83097d6fa75beb582924e08a658357a1cd4d7a2a6766d'
 ```
 
 This returns a result like:
