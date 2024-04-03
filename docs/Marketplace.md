@@ -151,14 +151,14 @@ npm install
 You now must **wait until $256$ blocks are mined in your PoA network**, or deploy will fail. This should take about $4$ minutes and $30$ seconds. You can check which block height you are currently at by running:
 
 ```bash
-geth attach --exec web3.eth.blockNumber ./geth-data/geth.ipc
+geth attach --exec web3.eth.blockNumber ../geth-data/geth.ipc
 ```
 
 once that gets past $256$, you are ready to go. To deploy contracts, run:
 
 ```bash
 export DISTTEST_NETWORK_URL=http://localhost:8545 # bootstrap node
-npx hardhat --network codexdisttestnetwork deploy
+npx hardhat --network codexdisttestnetwork deploy && cd ../
 ```
 
 If the command completes successfully, you are ready to prepare the accounts.
@@ -166,6 +166,8 @@ If the command completes successfully, you are ready to prepare the accounts.
 ### 2.2. Generate the Required Accounts
 
 We will run $2$ Codex nodes: a **storage provider**, which will sell storage on the network, and a **client**, which will buy and use such storage; we therefore need two valid Ethereum accounts. We could create random accounts by using one of the many  tools available to that end but, since this is a tutorial running on a local private network, we will simply provide you with two pre-made accounts along with their private keys which you can copy and paste instead:
+
+First make sure you're back in the `marketplace-tutorial` folder and not the `codex-contracts-eth` subfolder. Then set these variables:
 
 **Storage:**
 ```sh
