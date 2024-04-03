@@ -50,7 +50,7 @@ In this example, the public address of the signer account is `0x93976895c4939d99
 Next set an environment variable for later usage:
 
 ```sh
-export GETH_SIGNER_ADDR=0x93976895c4939d99837C8e0E1779787718EF8368
+export GETH_SIGNER_ADDR=0x0000000000000000000000000000000000000000
 echo ${GETH_SIGNER_ADDR} > geth_signer_address.txt
 ```
 
