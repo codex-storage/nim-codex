@@ -230,7 +230,11 @@ Recall you have clone the `codex-contracts-eth` repository in Step 2.1. All of t
 **Address of the Marketplace Contract.** The contract address can be found inside of the file `codex-contracts-eth/deployments/codexdisttestnetwork/Marketplace.json`:
 
 ```bash
-> grep '"address":' Marketplace.json
+grep '"address":' ${CONTRACT_DEPLOY_FULL}/Marketplace.json
+```
+
+which should print something like:
+```sh
   "address": "0x8891732D890f5A7B7181fBc70F7482DE28a7B60f",
 ```
 
@@ -248,8 +252,7 @@ echo ${MARKETPLACE_ADDRESS} > marketplace_address.txt
 * `CODEX_BINARY` contain the location of your Codex binary;
 * `MARKETPLACE_ADDRESS` contain the address of the Marketplace contract (obtained above).
 
-
-Set these paths into environment variables:
+Set these paths into environment variables (modify it with the correct paths if you changed them above):
 
 ```sh
 export CONTRACT_DEPLOY_FULL=$(realpath "codex-contracts-eth/deployments/codexdisttestnetwork")
