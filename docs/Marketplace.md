@@ -364,7 +364,8 @@ Once the upload completes, you should see a CID (e.g. `zDvZRwzm2mK7tvDzKScRLapqG
 
 ```bash
 export CID=zDvZRwzm2mK7tvDzKScRLapqGdgNTLyyEBvx1TQY37J2CdWdS6Sj
-export EXPIRY_TIME=$((1000 + $(date +%s))) # current time + 1000 seconds; adjust as needed
+export EXPIRY_TIME=$((1000 + $(date +%s))) # current time + 1000 seconds
+                                           # adjust expiry_time as desired, see below
 ```
 
 ```bash
