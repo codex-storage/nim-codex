@@ -375,8 +375,8 @@ curl "http://localhost:8001/api/codex/v1/storage/request/${CID}" \
     \"reward\": \"1\",
     \"proofProbability\": \"3\",
     \"expiry\": \"${EXPIRY_TIME}\",
-    \"nodes\": 3,
-    \"tolerance\": 1,
+    \"nodes\": 1,
+    \"tolerance\": 0,
     \"collateral\": \"1000\"
   }"
 ```
