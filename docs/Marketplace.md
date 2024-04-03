@@ -357,7 +357,7 @@ dd if=/dev/urandom of=./data.bin bs=100K count=1
 but any small file will do. Assuming your file is named `data.bin`, you can upload it with:
 
 ```bash
-curl "http://localhost:8001/api/codex/v1/data" --data-bin ./data1.bin
+curl "http://localhost:8001/api/codex/v1/data" --data-bin @data.bin
 ```
 
 Once the upload completes, you should see a CID (e.g. `zDvZRwzm2mK7tvDzKScRLapqGdgNTLyyEBvx1TQY37J2CdWdS6Sj`) for the file printed to the terminal. Use that CID in the purchase request:
