@@ -118,7 +118,7 @@ We are now ready to start our $1$-node, private blockchain. To launch the signer
 geth\
   --datadir geth-data\
   --networkid 12345\
-  --unlock <signer-account-address>\
+  --unlock ${GETH_SIGNER_ADDR}\
   --nat extip:127.0.0.1\
   --netrestrict 127.0.0.0/24\
   --mine\
