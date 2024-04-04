@@ -358,14 +358,19 @@ proc dispatch(self: SlotQueue,
       warn "Unknown error processing slot in worker", error = e.msg
 
 proc clearSeenFlags*(self: SlotQueue) =
+  # Enumerate all items in the queue, overwriting each item with `seen = true`.
   # To avoid issues with new queue items being pushed to the queue while all
   # items are being iterated (eg if a new storage request comes in and pushes
-  # new slots to the queue), enumerate the items in the queue using random
-  # access, overwriting each item with `seen = true`
-  for i in 0..<self.len:
-    var item = self[i]
-    item.seen = false
-    self.queue.update(i, item)
+  # new slots to the queue), this routine must remain synchronous.
+
+  if self.queue.empty:
+    return
+
+  for item in self.queue.mitems:
+    item.seen = false # does not maintain the heap invariant
+
+  # force heap reshuffling to maintain the heap invariant
+  doAssert self.queue.update(self.queue[0]), "slot queue failed to reshuffle"
 
   trace "all 'seen' flags cleared"
 
