@@ -96,18 +96,15 @@ This GET request will return the node's debug information. The response will be 
 
 ### 3. Launch Node #2
 
-Retreive the SPR by running:
-```bash
-curl -H "Accept: text/plain" http://127.0.0.1:8080/api/codex/v1/spr
-```
+We will need the signed peer record (SPR) from the first node that you got in the previous step.
 
-Next replace `<SPR HERE>` in the following command with the SPR returned from the previous command. (Note that it should include the `spr:` at the beginning.)
+Replace `<SPR HERE>` in the following command with the SPR returned from the previous command. (Note that it should include the `spr:` at the beginning.)
 
 Open a new terminal and run:
 - Mac/Linux: `"build/codex" --data-dir="$(pwd)/Data2" --listen-addrs=/ip4/127.0.0.1/tcp/8071 --api-port=8081 --disc-port=8091 --bootstrap-node=<SPR HERE>`
 - Windows: `"build/codex.exe" --data-dir="Data2" --listen-addrs=/ip4/127.0.0.1/tcp/8071 --api-port=8081 --disc-port=8091 --bootstrap-node=<SPR HERE>`
 
-Alternatively on Mac, Linux, or MSYS2 you can run it in one command like:
+Alternatively on Mac, Linux, or MSYS2 and a recent Codex binary you can run it in one command like:
 
 ```sh
 "build/codex" --data-dir="$(pwd)/Data2" --listen-addrs=/ip4/127.0.0.1/tcp/8071 --api-port=8081 --disc-port=8091 --bootstrap-node=$(curl -H "Accept: text/plain" http://127.0.0.1:8080/api/codex/v1/spr)
@@ -121,10 +118,10 @@ We're now also including the `bootstrap-node` argument. This allows us to link t
 
 Normally the two nodes will automatically connect. If they do not automatically connect or you want to manually connect nodes you can use the peerId to connect nodes.
 
-You can get the first node's peer id by running:
+You can get the first node's peer id by running the following command and finding the `"peerId"` in the results:
 
 ```bash
-curl -X GET -H "Accept: text/plain" http://127.0.0.1:8081/api/codex/v1/peerid
+curl -X GET -H "Accept: text/plain" http://127.0.0.1:8081/api/codex/v1/debug/info
 ```
 
 Next replace `<PEER ID HERE>` in the following command with the peerId returned from the previous command:
@@ -133,7 +130,7 @@ Next replace `<PEER ID HERE>` in the following command with the peerId returned 
 curl -X GET http://127.0.0.1:8080/api/codex/v1/connect/<PEER ID HERE>?addrs=/ip4/127.0.0.1/tcp/8071
 ```
 
-Alternatively on Mac, Linux, or MSYS2 you can run it in one command like:
+Alternatively on Mac, Linux, or MSYS2 and a recent Codex binary you can run it in one command like:
 
 ```bash
 curl -X GET http://127.0.0.1:8080/api/codex/v1/connect/$(curl -X GET -H "Accept: text/plain" http://127.0.0.1:8081/api/codex/v1/peerid)\?addrs=/ip4/127.0.0.1/tcp/8071
