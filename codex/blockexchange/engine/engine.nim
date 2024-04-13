@@ -17,12 +17,14 @@ import pkg/chronos
 import pkg/libp2p/[cid, switch, multihash, multicodec]
 import pkg/metrics
 import pkg/stint
+import pkg/questionable
 
 import ../../stores/blockstore
 import ../../blocktype
 import ../../utils
 import ../../merkletree
 import ../../logutils
+import ../../manifest
 
 import ../protobuf/blockexc
 import ../protobuf/presence
@@ -298,14 +300,20 @@ proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.asy
 
   b.pendingBlocks.resolve(blocksDelivery)
   await b.scheduleTasks(blocksDelivery)
-  var cids = initHashSet[Cid]()
+  var manifestOrTreeCids = initHashSet[Cid]()
   for bd in blocksDelivery:
-    cids.incl(bd.blk.cid)
     if bd.address.leaf:
-      cids.incl(bd.address.treeCid)
+      if bd.address.treeCid notin manifestOrTreeCids:
+        manifestOrTreeCids.incl(bd.address.treeCid)
+    else:
+      without isM =? bd.address.cid.isManifest, err:
+        continue
+      if isM:
+        manifestOrTreeCids.incl(bd.address.cid)
 
   await b.cancelBlocks(blocksDelivery.mapIt(it.address))
-  b.discovery.queueProvideBlocksReq(cids.toSeq)
+
+  b.discovery.queueProvideBlocksReq(manifestOrTreeCids.toSeq)
 
 proc resolveBlocks*(b: BlockExcEngine, blocks: seq[Block]) {.async.} =
   await b.resolveBlocks(
