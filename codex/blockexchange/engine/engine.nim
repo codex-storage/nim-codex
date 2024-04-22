@@ -297,18 +297,18 @@ proc cancelBlocks(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
 
 proc getAnnouceCids(blocksDelivery: seq[BlockDelivery]): seq[Cid] = 
   var cids = initHashSet[Cid]()
-  # for bd in blocksDelivery:
-  #   if bd.address.leaf:
-  #     # Announce tree CIDs
-  #     if bd.address.treeCid notin cids:
-  #       cids.incl(bd.address.treeCid)
-  #   else:
-  #     # Announce manifest CIDs
-  #     without isM =? bd.address.cid.isManifest, err:
-  #       warn "Unable to determine if cid is manifest"
-  #       continue
-  #     if isM:
-  #       cids.incl(bd.address.cid)
+  for bd in blocksDelivery:
+    if bd.address.leaf:
+      # Announce tree CIDs
+      if bd.address.treeCid notin cids:
+        cids.incl(bd.address.treeCid)
+    else:
+      # Announce manifest CIDs
+      without isM =? bd.address.cid.isManifest, err:
+        warn "Unable to determine if cid is manifest"
+        continue
+      if isM:
+        cids.incl(bd.address.cid)
   return cids.toSeq
 
 proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
