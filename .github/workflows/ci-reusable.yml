@@ -78,6 +78,16 @@ jobs:
           path: tests/integration/logs/
           retention-days: 1
 
+      ## Part 4 - Binaries ##
+      - name: Build and store binaries
+        run: make -j${ncpu}
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-nim-codex
+          path: build
+          retention-days: 1
+
   status:
     if: always()
     needs: [build]
