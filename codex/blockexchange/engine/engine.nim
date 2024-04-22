@@ -295,25 +295,31 @@ proc cancelBlocks(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
   if failed.len > 0:
     trace "Failed to send block request cancellations to peers", peers = failed.len
 
+proc getAnnouceCids(blocksDelivery: seq[BlockDelivery]): seq[Cid] = 
+  var cids = initHashSet[Cid]()
+  # for bd in blocksDelivery:
+  #   if bd.address.leaf:
+  #     # Announce tree CIDs
+  #     if bd.address.treeCid notin cids:
+  #       cids.incl(bd.address.treeCid)
+  #   else:
+  #     # Announce manifest CIDs
+  #     without isM =? bd.address.cid.isManifest, err:
+  #       warn "Unable to determine if cid is manifest"
+  #       continue
+  #     if isM:
+  #       cids.incl(bd.address.cid)
+  return cids.toSeq
+
 proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
   trace "Resolving blocks", blocks = blocksDelivery.len
 
   b.pendingBlocks.resolve(blocksDelivery)
   await b.scheduleTasks(blocksDelivery)
-  var manifestOrTreeCids = initHashSet[Cid]()
-  for bd in blocksDelivery:
-    if bd.address.leaf:
-      if bd.address.treeCid notin manifestOrTreeCids:
-        manifestOrTreeCids.incl(bd.address.treeCid)
-    else:
-      without isM =? bd.address.cid.isManifest, err:
-        continue
-      if isM:
-        manifestOrTreeCids.incl(bd.address.cid)
-
+  let announceCids = getAnnouceCids(blocksDelivery)
   await b.cancelBlocks(blocksDelivery.mapIt(it.address))
 
-  b.discovery.queueProvideBlocksReq(manifestOrTreeCids.toSeq)
+  b.discovery.queueProvideBlocksReq(announceCids)
 
 proc resolveBlocks*(b: BlockExcEngine, blocks: seq[Block]) {.async.} =
   await b.resolveBlocks(

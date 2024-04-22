@@ -389,6 +389,21 @@ asyncchecksuite "NetworkStore engine handlers":
     discard await allFinished(pending)
     await allFuturesThrowing(cancellations.values().toSeq)
 
+# test "resolveBlocks should queue manifest CIDs for discovery":
+#   let
+#     manifest = Manifest.new(
+#       treeCid: Cid.example,
+#       blockSize: 123.NBytes,
+#       datasetSize: 234.NBytes
+#     )
+#   manifestBlk = Block.new(data = manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
+#   blks = @[manifestBlk]
+# await engine.resolveBlocks(blks) #seqblocks
+
+# test "resolveBlocks should queue tree CIDs for discovery":
+
+# test "resolveBlocks should not queue non-manifest non-tree CIDs for discovery":
+
 asyncchecksuite "Task Handler":
   var
     rng: Rng
@@ -570,3 +585,4 @@ asyncchecksuite "Task Handler":
     )
 
     await engine.taskHandler(peersCtx[0])
+
