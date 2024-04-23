@@ -1,4 +1,5 @@
 import std/sequtils
+import std/strutils
 import std/options
 import std/importutils
 
@@ -22,6 +23,18 @@ import pkg/constantine/math/io/io_fields
 
 import codex/slots/backends/helpers
 
+proc createCircuits() =
+  let cmds = """
+    ${NIMCLI_DIR}/cli $CLI_ARGS -v --circom=${CIRCUIT_MAIN}.circom --output=input.json
+    circom --r1cs --wasm --O2 -l${CIRCUIT_DIR} ${CIRCUIT_MAIN}.circom
+    NODE_OPTIONS="--max-old-space-size=8192" snarkjs groth16 setup ${CIRCUIT_MAIN}.r1cs $PTAU_PATH ${CIRCUIT_MAIN}_0000.zkey
+    echo "some_entropy_75289v3b7rcawcsyiur" | NODE_OPTIONS="--max-old-space-size=8192" snarkjs zkey contribute ${CIRCUIT_MAIN}_0000.zkey ${CIRCUIT_MAIN}_0001.zkey --name="1st Contributor Name"
+    """.splitLines()
+
+    # rm ${CIRCUIT_MAIN}_0000.zkey
+    # mv ${CIRCUIT_MAIN}_0001.zkey ${CIRCUIT_MAIN}.zkey
+
+
 proc setup() =
   let
     inputData = readFile("tests/circuits/fixtures/input.json")
@@ -30,26 +43,12 @@ proc setup() =
       Poseidon2Hash.jsonToProofInput(inputJson)
 
   let
-    blockCells = 32
-    cellIdxs = proofInput.entropy.cellIndices(proofInput.slotRoot, proofInput.nCellsPerSlot, 5)
+    datasetProof = Poseidon2Proof.init(
+                    proofInput.slotIndex,
+                    proofInput.nSlotsPerDataSet,
+                    proofInput.slotProof[0..<4]).tryGet
 
-  for i, cellIdx in cellIdxs:
-    let
-      sample = proofInput.samples[i]
-      cellIdx = cellIdxs[i]
+  let ver = datasetProof.verify(proofInput.slotRoot, proofInput.datasetRoot).tryGet
+  echo "ver: ", ver
 
-      cellProof = Poseidon2Proof.init(
-        cellIdx.toCellInBlk(blockCells),
-        proofInput.nCellsPerSlot,
-        sample.merklePaths[0..<5]).tryGet
-
-      slotProof = Poseidon2Proof.init(
-        cellIdx.toBlkInSlot(blockCells),
-        proofInput.nCellsPerSlot,
-        sample.merklePaths[5..<9]).tryGet
-
-      cellData = Poseidon2Hash.fromCircomData(sample.cellData)
-      cellLeaf = Poseidon2Hash.spongeDigest(cellData, rate = 2).tryGet
-      slotLeaf = cellProof.reconstructRoot(cellLeaf).tryGet
-
-    # check slotProof.verify(slotLeaf, proofInput.slotRoot).tryGet
+setup()
