@@ -299,11 +299,8 @@ proc getAnnouceCids(blocksDelivery: seq[BlockDelivery]): seq[Cid] =
   var cids = initHashSet[Cid]()
   for bd in blocksDelivery:
     if bd.address.leaf:
-      # Announce tree CIDs
-      if bd.address.treeCid notin cids:
-        cids.incl(bd.address.treeCid)
+      cids.incl(bd.address.treeCid)
     else:
-      # Announce manifest CIDs
       without isM =? bd.address.cid.isManifest, err:
         warn "Unable to determine if cid is manifest"
         continue
