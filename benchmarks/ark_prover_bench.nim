@@ -22,15 +22,12 @@ import pkg/constantine/math/io/io_fields
 
 import codex/slots/backends/helpers
 
-var
-  inputData: string
-  inputJson: JsonNode
-  proofInput: ProofInputs[Poseidon2Hash]
-
 proc setup() =
-  inputData = readFile("tests/circuits/fixtures/input.json")
-  inputJson = !JsonNode.parse(inputData)
-  proofInput = Poseidon2Hash.jsonToProofInput(inputJson)
+  let
+    inputData = readFile("tests/circuits/fixtures/input.json")
+    inputJson: JsonNode = !JsonNode.parse(inputData)
+    proofInput: ProofInputs[Poseidon2Hash] =
+      Poseidon2Hash.jsonToProofInput(inputJson)
 
   let
     blockCells = 32
