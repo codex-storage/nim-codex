@@ -4,6 +4,8 @@ import std/strformat
 import std/os
 import std/options
 import std/importutils
+import std/[times, os, strutils]
+
 
 import pkg/questionable
 import pkg/questionable/results
@@ -27,6 +29,15 @@ import codex/slots/backends/helpers
 
 import create_circuits
 
+template benchmark(benchmarkName: string, blk: untyped) =
+  for i in 1..3:
+    block:
+      let t0 = epochTime()
+      `blk`
+      let elapsed = epochTime() - t0
+      let elapsedStr = elapsed.formatFloat(format = ffDecimal, precision = 3)
+      echo "CPU Time [", benchmarkName, "] ", elapsedStr, "s"
+
 proc setup(
   circuitDir: string, name: string,
 ) =
@@ -42,23 +53,7 @@ proc setup(
   let ver = datasetProof.verify(proofInput.slotRoot, proofInput.datasetRoot).tryGet
   echo "ver: ", ver
 
-when isMainModule:
-  echo "Running benchmark"
-  # setup()
-  checkEnv()
-
-  let args = CircArgs(
-    depth: 32, # maximum depth of the slot tree 
-    maxslots: 256, # maximum number of slots  
-    cellsize: 2048, # cell size in bytes 
-    blocksize: 65536, # block size in bytes 
-    nsamples: 5, # number of samples to prove
-    entropy: 1234567, # external randomness
-    seed: 12345, # seed for creating fake data
-    nslots: 11, # number of slots in the dataset
-    index: 3, # which slot we prove (0..NSLOTS-1)
-    ncells: 512, # number of cells in this slot
-  )
+proc runBenchmark(args: CircArgs) =
 
   let env = createCircuit(args)
 
@@ -75,21 +70,43 @@ when isMainModule:
     inputJson = !JsonNode.parse(inputData)
     proofInputs = Poseidon2Hash.jsonToProofInput(inputJson)
     circom = CircomCompat.init(r1cs, wasm, zkey)
+  defer:
+    circom.release()  # this comes from the rust FFI
 
   echo "Sample proof loaded..."
   echo "Proving..."
 
-  let proof = circom.prove(proofInputs).tryGet
+  var proof: CircomProof
+  benchmark fmt"prover {$args}":
+    proof = circom.prove(proofInputs).tryGet
 
-  let verRes = circom.verify(proof, proofInputs).tryGet
+  var varRes: bool
+  benchmark fmt"verify {$args}":
+    verRes = circom.verify(proof, proofInputs).tryGet
   echo "verify result: ", verRes
 
-  block:
+  when false:
     proofInputs.slotIndex = 1 # change slot index
 
     let proof = circom.prove(proofInputs).tryGet
-
     echo "verify bad result: ", circom.verify(proof, proofInputs).tryGet
 
-  circom.release()  # this comes from the rust FFI
 
+when isMainModule:
+  echo "Running benchmark"
+  # setup()
+  checkEnv()
+  var args = CircArgs(
+    depth: 32, # maximum depth of the slot tree 
+    maxslots: 256, # maximum number of slots  
+    cellsize: 2048, # cell size in bytes 
+    blocksize: 65536, # block size in bytes 
+    nsamples: 5, # number of samples to prove
+    entropy: 1234567, # external randomness
+    seed: 12345, # seed for creating fake data
+    nslots: 11, # number of slots in the dataset
+    index: 3, # which slot we prove (0..NSLOTS-1)
+    ncells: 512, # number of cells in this slot
+  )
+
+  args.runBenchmark()
