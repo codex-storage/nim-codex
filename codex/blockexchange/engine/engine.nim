@@ -17,12 +17,14 @@ import pkg/chronos
 import pkg/libp2p/[cid, switch, multihash, multicodec]
 import pkg/metrics
 import pkg/stint
+import pkg/questionable
 
 import ../../stores/blockstore
 import ../../blocktype
 import ../../utils
 import ../../merkletree
 import ../../logutils
+import ../../manifest
 
 import ../protobuf/blockexc
 import ../protobuf/presence
@@ -293,19 +295,28 @@ proc cancelBlocks(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
   if failed.len > 0:
     trace "Failed to send block request cancellations to peers", peers = failed.len
 
+proc getAnnouceCids(blocksDelivery: seq[BlockDelivery]): seq[Cid] = 
+  var cids = initHashSet[Cid]()
+  for bd in blocksDelivery:
+    if bd.address.leaf:
+      cids.incl(bd.address.treeCid)
+    else:
+      without isM =? bd.address.cid.isManifest, err:
+        warn "Unable to determine if cid is manifest"
+        continue
+      if isM:
+        cids.incl(bd.address.cid)
+  return cids.toSeq
+
 proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
   trace "Resolving blocks", blocks = blocksDelivery.len
 
   b.pendingBlocks.resolve(blocksDelivery)
   await b.scheduleTasks(blocksDelivery)
-  var cids = initHashSet[Cid]()
-  for bd in blocksDelivery:
-    cids.incl(bd.blk.cid)
-    if bd.address.leaf:
-      cids.incl(bd.address.treeCid)
-
+  let announceCids = getAnnouceCids(blocksDelivery)
   await b.cancelBlocks(blocksDelivery.mapIt(it.address))
-  b.discovery.queueProvideBlocksReq(cids.toSeq)
+
+  b.discovery.queueProvideBlocksReq(announceCids)
 
 proc resolveBlocks*(b: BlockExcEngine, blocks: seq[Block]) {.async.} =
   await b.resolveBlocks(
