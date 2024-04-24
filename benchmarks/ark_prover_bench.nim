@@ -69,7 +69,13 @@ proc runBenchmark(args: CircArgs) =
     inputData = inputs.readFile()
     inputJson = !JsonNode.parse(inputData)
     proofInputs = Poseidon2Hash.jsonToProofInput(inputJson)
-    circom = CircomCompat.init(r1cs, wasm, zkey)
+    circom = CircomCompat.init(
+      r1cs,
+      wasm,
+      zkey,
+      slotDepth = args.depth,
+      numSamples = args.nsamples,
+    )
   defer:
     circom.release()  # this comes from the rust FFI
 

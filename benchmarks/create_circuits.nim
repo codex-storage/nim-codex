@@ -99,7 +99,10 @@ proc downloadPtau*(ptauPath, ptauUrl: string) =
       discard execShellCmd(fmt"curl -LOC - {ptauDefUrl}")
 
 proc getCircuitBenchPath*(args: CircArgs): string =
-  absolutePath("benchmarks/circuit_bench_" & $cast[uint](hash(args)))
+  var an = ""
+  for f, v in fieldPairs(args):
+    an &= "_" & f & $v
+  absolutePath("benchmarks/circuit_bench" & an)
 
 proc generateCircomAndSamples*(args: CircArgs, name: string) =
   ## run nim circuit and sample generator 
