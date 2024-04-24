@@ -125,6 +125,15 @@ method putCidAndProof*(
 
   await self.metaDs.put(key, value)
 
+  let event = ProofPutEvent(
+    treeCid: treeCid,
+    index: index,
+    blockCid: blockCid,
+    proof: proof
+  )
+
+  await self.onCidAndProofPutEvent.fire(event)
+
 method getCidAndProof*(
   self: RepoStore,
   treeCid: Cid,
@@ -359,6 +368,15 @@ method putBlock*(
   if isErr (await self.persistTotalBlocksCount()):
     trace "Unable to update block total metadata"
     return failure("Unable to update block total metadata")
+
+  let event = BlockPutEvent(
+    blk: blk,
+    address: BlockAddress(leaf: false, cid: blk.cid)
+  )
+
+  ? await self.onBlockPutEvent.fire(event)
+  # # todo propagate error message!
+  # return failure("Error during put-block event.")
 
   self.updateMetrics()
   return success()
