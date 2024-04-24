@@ -77,11 +77,11 @@ proc runBenchmark(args: CircArgs) =
   echo "Proving..."
 
   var proof: CircomProof
-  benchmark fmt"prover {$args}":
+  benchmark fmt"prover":
     proof = circom.prove(proofInputs).tryGet
 
   var verRes: bool
-  benchmark fmt"verify {$args}":
+  benchmark fmt"verify":
     verRes = circom.verify(proof, proofInputs).tryGet
   echo "verify result: ", verRes
 
@@ -109,4 +109,7 @@ when isMainModule:
     ncells: 512, # number of cells in this slot
   )
 
-  args.runBenchmark()
+  for i in 1..3:
+    args.nsamples = i
+    echo "\nbenchmarking args: ", args
+    args.runBenchmark()
