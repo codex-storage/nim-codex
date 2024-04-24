@@ -31,14 +31,15 @@ import create_circuits
 
 template benchmark(benchmarkName: string, blk: untyped) =
   var ts = 0.0
-  for i in 1..3:
+  let nn = 3
+  for i in 1..nn:
     block:
       let t0 = epochTime()
       `blk`
       let elapsed = epochTime() - t0
-      ts = elapsed / i.toFloat
+      ts += elapsed / i.toFloat
   let elapsedStr = ts.formatFloat(format = ffDecimal, precision = 3)
-  echo "CPU Time [", benchmarkName, "] ", elapsedStr, "s"
+  echo "CPU Time [", benchmarkName, "] ", "avg(", nn, "): ", elapsedStr, "s"
 
 proc setup(
   circuitDir: string, name: string,
