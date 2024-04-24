@@ -109,7 +109,7 @@ proc createCircuit*(
     ptauPath = ptauDefPath,
     ptauUrl = ptauDefUrl,
     someEntropy = "some_entropy_75289v3b7rcawcsyiur",
-) =
+): tuple[dir: string, name: string] =
   ## Generates all the files needed for to run a proof circuit. Downloads the PTAU file if needed.
   ## 
   let circdir = circBenchDir
@@ -170,6 +170,8 @@ proc createCircuit*(
       moveFile(fmt"{name}_0001.zkey", fmt"{name}.zkey")
       removeFile(fmt"{name}_0000.zkey")
 
+  return (circdir, name)
+
 when isMainModule:
   checkEnv()
 
@@ -185,4 +187,5 @@ when isMainModule:
     index: 3, # which slot we prove (0..NSLOTS-1)
     ncells: 512, # number of cells in this slot
   )
-  createCircuit(args)
+  let benchenv = createCircuit(args)
+  echo "\nBench dir:\n", benchenv 

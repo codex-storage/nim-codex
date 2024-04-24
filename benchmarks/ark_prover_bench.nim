@@ -58,6 +58,27 @@ when isMainModule:
     ncells: 512, # number of cells in this slot
   )
 
-  createCircuit(args)
+  let benchenv = createCircuit(args)
 
   ## TODO: copy over testcircomcompat proving
+  when false:
+    let
+      r1cs = "tests/circuits/fixtures/proof_main.r1cs"
+      wasm = "tests/circuits/fixtures/proof_main.wasm"
+      zkey = "tests/circuits/fixtures/proof_main.zkey"
+
+    var
+      circom: CircomCompat
+      proofInputs: ProofInputs[Poseidon2Hash]
+
+    let
+      inputData = readFile("tests/circuits/fixtures/input.json")
+      inputJson = !JsonNode.parse(inputData)
+      proofInputs = Poseidon2Hash.jsonToProofInput(inputJson)
+      circom = CircomCompat.init(r1cs, wasm, zkey)
+
+    let proof = circom.prove(proofInputs).tryGet
+
+    circom.verify(proof, proofInputs).tryGet
+    circom.release()  # this comes from the rust FFI
+
