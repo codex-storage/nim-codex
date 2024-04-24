@@ -101,6 +101,22 @@ proc downloadPtau*(ptauPath, ptauUrl: string) =
 proc getCircuitBenchPath*(args: CircArgs): string =
   absolutePath("benchmarks/circuit_bench_" & $cast[uint](hash(args)))
 
+proc generateCircomAndSamples*(args: CircArgs, name: string) =
+  ## run nim circuit and sample generator 
+  var cliCmd = nimCircuitCli
+  for f, v in fieldPairs(args):
+    cliCmd &= " --" & f & "=" & $v
+
+  if not "input.json".fileExists:
+    echo "Generating Circom Files..."
+    cliCmd &= fmt" -v --circom={name}.circom --output=input.json"
+    echo "CWD: ", getCurrentDir()
+    echo "CLI_CMD: ", cliCmd
+
+    let cliRes = execShellCmd(cliCmd)
+    echo "RES: ", cliRes
+    assert cliRes == 0
+
 proc createCircuit*(
     args: CircArgs,
     name = "proof_main",
@@ -125,19 +141,7 @@ proc createCircuit*(
       wasm = circdir / fmt"{name}.wasm"
       r1cs = circdir / fmt"{name}.r1cs"
 
-    var cliCmd = nimCircuitCli
-    for f, v in fieldPairs(args):
-      cliCmd &= " --" & f & "=" & $v
-
-    if not "input.json".fileExists:
-      echo "Generating Circom Files..."
-      cliCmd &= fmt" -v --circom={name}.circom --output=input.json"
-      echo "CWD: ", getCurrentDir()
-      echo "CLI_CMD: ", cliCmd
-
-      let cliRes = execShellCmd(cliCmd)
-      echo "RES: ", cliRes
-      assert cliRes == 0
+    generateCircomAndSamples(args, name)
 
     if not wasm.fileExists or not r1cs.fileExists:
       let cmd = fmt"circom --r1cs --wasm --O2 -l{circuitDirIncludes} {name}.circom"
