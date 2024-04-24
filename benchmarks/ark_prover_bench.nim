@@ -82,7 +82,14 @@ when isMainModule:
   let proof = circom.prove(proofInputs).tryGet
 
   let verRes = circom.verify(proof, proofInputs).tryGet
-  echo "verify: ", verRes
+  echo "verify result: ", verRes
+
+  block:
+    proofInputs.slotIndex = 1 # change slot index
+
+    let proof = circom.prove(proofInputs).tryGet
+
+    echo "verify bad result: ", circom.verify(proof, proofInputs).tryGet
 
   circom.release()  # this comes from the rust FFI
 
