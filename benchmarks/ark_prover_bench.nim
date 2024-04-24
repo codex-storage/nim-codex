@@ -1,5 +1,7 @@
 import std/sequtils
 import std/strutils
+import std/strformat
+import std/os
 import std/options
 import std/importutils
 
@@ -58,27 +60,25 @@ when isMainModule:
     ncells: 512, # number of cells in this slot
   )
 
-  let benchenv = createCircuit(args)
+  let env = createCircuit(args)
 
   ## TODO: copy over testcircomcompat proving
-  when false:
-    let
-      r1cs = "tests/circuits/fixtures/proof_main.r1cs"
-      wasm = "tests/circuits/fixtures/proof_main.wasm"
-      zkey = "tests/circuits/fixtures/proof_main.zkey"
+  let
+    r1cs = env.dir / fmt"{env.name}.r1cs"
+    wasm = env.dir / fmt"{env.name}.wasm"
+    zkey = env.dir / fmt"{env.name}.zkey"
+    inputs = env.dir / fmt"inputs.json"
 
-    var
-      circom: CircomCompat
-      proofInputs: ProofInputs[Poseidon2Hash]
+  var
+    inputData = inputs.readFile()
+    inputJson = !JsonNode.parse(inputData)
+    proofInputs = Poseidon2Hash.jsonToProofInput(inputJson)
+    circom = CircomCompat.init(r1cs, wasm, zkey)
 
-    let
-      inputData = readFile("tests/circuits/fixtures/input.json")
-      inputJson = !JsonNode.parse(inputData)
-      proofInputs = Poseidon2Hash.jsonToProofInput(inputJson)
-      circom = CircomCompat.init(r1cs, wasm, zkey)
+  let proof = circom.prove(proofInputs).tryGet
 
-    let proof = circom.prove(proofInputs).tryGet
+  let verRes = circom.verify(proof, proofInputs).tryGet
+  echo "verify: ", verRes
 
-    circom.verify(proof, proofInputs).tryGet
-    circom.release()  # this comes from the rust FFI
+  circom.release()  # this comes from the rust FFI
 

@@ -129,10 +129,9 @@ proc createCircuit*(
     for f, v in fieldPairs(args):
       cliCmd &= " --" & f & "=" & $v
 
-    if not "input.json".fileExists:
+    if not "inputs.json".fileExists:
       echo "Generating Circom Files..."
-      # ${NIMCLI_DIR}/cli $CLI_ARGS -v --circom=${CIRCUIT_MAIN}.circom --output=input.json
-      cliCmd &= fmt" -v --circom={name}.circom --output=input.json"
+      cliCmd &= fmt" -v --circom={name}.circom --output=inputs.json"
       echo "CWD: ", getCurrentDir()
       echo "CLI_CMD: ", cliCmd
 
