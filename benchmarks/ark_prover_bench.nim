@@ -80,7 +80,7 @@ proc runBenchmark(args: CircArgs) =
   benchmark fmt"prover {$args}":
     proof = circom.prove(proofInputs).tryGet
 
-  var varRes: bool
+  var verRes: bool
   benchmark fmt"verify {$args}":
     verRes = circom.verify(proof, proofInputs).tryGet
   echo "verify result: ", verRes
