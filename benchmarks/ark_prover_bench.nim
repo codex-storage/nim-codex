@@ -23,18 +23,6 @@ import pkg/constantine/math/io/io_fields
 
 import codex/slots/backends/helpers
 
-proc createCircuits() =
-  let cmds = """
-    ${NIMCLI_DIR}/cli $CLI_ARGS -v --circom=${CIRCUIT_MAIN}.circom --output=input.json
-    circom --r1cs --wasm --O2 -l${CIRCUIT_DIR} ${CIRCUIT_MAIN}.circom
-    NODE_OPTIONS="--max-old-space-size=8192" snarkjs groth16 setup ${CIRCUIT_MAIN}.r1cs $PTAU_PATH ${CIRCUIT_MAIN}_0000.zkey
-    echo "some_entropy_75289v3b7rcawcsyiur" | NODE_OPTIONS="--max-old-space-size=8192" snarkjs zkey contribute ${CIRCUIT_MAIN}_0000.zkey ${CIRCUIT_MAIN}_0001.zkey --name="1st Contributor Name"
-    """.splitLines()
-
-    # rm ${CIRCUIT_MAIN}_0000.zkey
-    # mv ${CIRCUIT_MAIN}_0001.zkey ${CIRCUIT_MAIN}.zkey
-
-
 proc setup() =
   let
     inputData = readFile("tests/circuits/fixtures/input.json")
