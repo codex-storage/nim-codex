@@ -67,7 +67,7 @@ when isMainModule:
     r1cs = env.dir / fmt"{env.name}.r1cs"
     wasm = env.dir / fmt"{env.name}.wasm"
     zkey = env.dir / fmt"{env.name}.zkey"
-    inputs = env.dir / fmt"inputs.json"
+    inputs = env.dir / fmt"input.json"
 
   var
     inputData = inputs.readFile()
