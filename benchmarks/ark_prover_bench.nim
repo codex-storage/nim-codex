@@ -69,11 +69,15 @@ when isMainModule:
     zkey = env.dir / fmt"{env.name}.zkey"
     inputs = env.dir / fmt"input.json"
 
+  echo "Loading sample proof..."
   var
     inputData = inputs.readFile()
     inputJson = !JsonNode.parse(inputData)
     proofInputs = Poseidon2Hash.jsonToProofInput(inputJson)
     circom = CircomCompat.init(r1cs, wasm, zkey)
+
+  echo "Sample proof loaded..."
+  echo "Proving..."
 
   let proof = circom.prove(proofInputs).tryGet
 
