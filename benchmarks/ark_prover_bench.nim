@@ -23,20 +23,41 @@ import pkg/constantine/math/io/io_fields
 
 import codex/slots/backends/helpers
 
-proc setup() =
+import create_circuits
+
+proc setup(
+  circuitDir: string, name: string,
+) =
   let
     inputData = readFile("tests/circuits/fixtures/input.json")
     inputJson: JsonNode = !JsonNode.parse(inputData)
-    proofInput: ProofInputs[Poseidon2Hash] =
-      Poseidon2Hash.jsonToProofInput(inputJson)
+    proofInput: ProofInputs[Poseidon2Hash] = Poseidon2Hash.jsonToProofInput(inputJson)
 
-  let
-    datasetProof = Poseidon2Proof.init(
-                    proofInput.slotIndex,
-                    proofInput.nSlotsPerDataSet,
-                    proofInput.slotProof[0..<4]).tryGet
+  let datasetProof = Poseidon2Proof.init(
+    proofInput.slotIndex, proofInput.nSlotsPerDataSet, proofInput.slotProof[0 ..< 4]
+  ).tryGet
 
   let ver = datasetProof.verify(proofInput.slotRoot, proofInput.datasetRoot).tryGet
   echo "ver: ", ver
 
-setup()
+when isMainModule:
+  echo "Running benchmark"
+  # setup()
+  checkEnv()
+
+  let args = CircArgs(
+    depth: 32, # maximum depth of the slot tree 
+    maxslots: 256, # maximum number of slots  
+    cellsize: 2048, # cell size in bytes 
+    blocksize: 65536, # block size in bytes 
+    nsamples: 5, # number of samples to prove
+    entropy: 1234567, # external randomness
+    seed: 12345, # seed for creating fake data
+    nslots: 11, # number of slots in the dataset
+    index: 3, # which slot we prove (0..NSLOTS-1)
+    ncells: 512, # number of cells in this slot
+  )
+
+  createCircuit(args)
+
+  ## TODO: copy over testcircomcompat proving
