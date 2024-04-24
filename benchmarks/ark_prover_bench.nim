@@ -30,13 +30,15 @@ import codex/slots/backends/helpers
 import create_circuits
 
 template benchmark(benchmarkName: string, blk: untyped) =
+  var ts = 0.0
   for i in 1..3:
     block:
       let t0 = epochTime()
       `blk`
       let elapsed = epochTime() - t0
-      let elapsedStr = elapsed.formatFloat(format = ffDecimal, precision = 3)
-      echo "CPU Time [", benchmarkName, "] ", elapsedStr, "s"
+      ts = elapsed / i.toFloat
+  let elapsedStr = ts.formatFloat(format = ffDecimal, precision = 3)
+  echo "CPU Time [", benchmarkName, "] ", elapsedStr, "s"
 
 proc setup(
   circuitDir: string, name: string,
