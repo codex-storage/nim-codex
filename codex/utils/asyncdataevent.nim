@@ -1,7 +1,6 @@
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronos
-import pkg/chronicles
 
 type
   AsyncDataEventSubscription* = ref object

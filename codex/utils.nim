@@ -17,8 +17,9 @@ import pkg/chronos
 import ./utils/asyncheapqueue
 import ./utils/fileutils
 import ./utils/asynciter
+import ./utils/asyncdataevent
 
-export asyncheapqueue, fileutils, asynciter, chronos
+export asyncheapqueue, fileutils, asynciter, chronos, asyncdataevent
 
 
 func divUp*[T: SomeInteger](a, b : T): T =

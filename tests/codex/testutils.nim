@@ -4,5 +4,6 @@ import ./utils/testasyncstatemachine
 import ./utils/testtimer
 import ./utils/testthen
 import ./utils/testtrackedfutures
+import ./utils/testasyncdataevent
 
 {.warning[UnusedImport]: off.}
