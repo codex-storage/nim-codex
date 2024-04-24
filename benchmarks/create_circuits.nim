@@ -12,9 +12,9 @@ proc createCircuits() =
     # rm ${CIRCUIT_MAIN}_0000.zkey
     # mv ${CIRCUIT_MAIN}_0001.zkey ${CIRCUIT_MAIN}.zkey
 
-let nimCircuitRef = "vendor/codex-storage-proofs-circuits/reference/nim/proof_input/cli"
+let nimCircuitRefFl = "vendor"/"codex-storage-proofs-circuits"/"reference"/"nim"/"proof_input"/"cli"
 
-proc setProjDir(prev = getCurrentDir()) =
+proc setProjDir(prev = getCurrentDir()): string =
   if not "codex.nimble".fileExists():
     setCurrentDir("..")
     if prev == getCurrentDir():
@@ -22,11 +22,17 @@ proc setProjDir(prev = getCurrentDir()) =
       echo "\nBenchmark must be run from within the Codex project folder"
       quit 1
     setProjDir()
+  else:
+    getCurrentDir()
 
-setProjDir()
+let codexProjDir = setProjDir()
+echo "\n\nFound project dir: ", codexProjDir
 
-if not nimCircuitRef.fileExists:
-  echo "Nim Circuit ref exe not found"
+if not nimCircuitRefFl.fileExists:
+  echo "Nim Circuit reference cli not found: ", nimCircuitRefFl
+  echo "Building Circuit reference cli..."
+  setCurrentDir(nimCircuitRefFl.parentDir)
+  let res = execShellCmd("nimble build -d:release --styleCheck:off cli")
 
 
 echo "huzzah"
