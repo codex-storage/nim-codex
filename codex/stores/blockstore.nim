@@ -29,19 +29,7 @@ type
   BlockType* {.pure.} = enum
     Manifest, Block, Both
 
-  BlockPutEvent* = object
-    blk*: Block
-    address*: BlockAddress
-
-  ProofPutEvent* = object
-    treeCid*: Cid
-    index*: Natural
-    blockCid*: Cid
-    proof*: CodexProof
-
   BlockStore* = ref object of RootObj
-    onBlockPutEvent*: AsyncDataEvent[BlockPutEvent]
-    onCidAndProofPutEvent*: AsyncDataEvent[ProofPutEvent]
 
 method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
   ## Get a block from the blockstore

@@ -308,7 +308,7 @@ proc getAnnouceCids(blocksDelivery: seq[BlockDelivery]): seq[Cid] =
         cids.incl(bd.address.cid)
   return cids.toSeq
 
-proc resolveBlocks(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
+proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
   trace "Resolving blocks", blocks = blocksDelivery.len
 
   b.pendingBlocks.resolve(blocksDelivery)
@@ -318,7 +318,7 @@ proc resolveBlocks(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.asyn
 
   b.discovery.queueProvideBlocksReq(announceCids)
 
-proc resolveBlocks(b: BlockExcEngine, blocks: seq[Block]) {.async.} =
+proc resolveBlocks*(b: BlockExcEngine, blocks: seq[Block]) {.async.} =
   await b.resolveBlocks(
     blocks.mapIt(
       BlockDelivery(blk: it, address: BlockAddress(leaf: false, cid: it.cid)
@@ -400,7 +400,7 @@ proc blocksDeliveryHandler*(
 
     validatedBlocksDelivery.add(bd)
 
-  # await b.resolveBlocks(validatedBlocksDelivery)
+  await b.resolveBlocks(validatedBlocksDelivery)
   codex_block_exchange_blocks_received.inc(validatedBlocksDelivery.len.int64)
 
   let
@@ -678,26 +678,6 @@ proc new*(
 
   proc paymentHandler(peer: PeerId, payment: SignedState): Future[void] {.gcsafe.} =
     engine.paymentHandler(peer, payment)
-
-  proc onBlockPutHandler(event: BlockPutEvent): Future[?!void] {.async.} =
-    let delivery = BlockDelivery(
-      address: event.address,
-      proof: CodexProof.none
-    )
-    engine.resolveBlocks(@[delivery])
-    success()
-
-  proc onCidAndProofHandler(event: ProofPutEvent): Future[?!void] {.async.} =
-    let delivery = BlockDelivery(
-      address: BlockAddress(leaf: true, cid: event.blockCid),
-      proof: event.proof.some
-    )
-
-    engine.resolveBlocks(@[delivery])
-    success()
-
-  localStore.onBlockPutEvent.subscribe(onBlockPutHandler)
-  localStore.onCidAndProofPutEvent.subscribe(onCidAndProofHandler)
 
   network.handlers = BlockExcHandlers(
     onWantList: blockWantListHandler,

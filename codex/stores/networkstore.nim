@@ -76,7 +76,7 @@ method putBlock*(
   if res.isErr:
     return res
 
-  # await self.engine.resolveBlocks(@[blk])
+  await self.engine.resolveBlocks(@[blk])
   return success()
 
 method putCidAndProof*(
