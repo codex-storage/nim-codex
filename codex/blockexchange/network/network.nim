@@ -126,7 +126,6 @@ proc sendWantList*(
   ## Send a want message to peer
   ##
 
-  trace "Sending want list to peer", peer = id, `type` = $wantType, items = addresses.len
   let msg = WantList(
     entries: addresses.mapIt(
       WantListEntry(
