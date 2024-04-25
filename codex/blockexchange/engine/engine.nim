@@ -125,7 +125,7 @@ proc stop*(b: BlockExcEngine) {.async.} =
 
 proc sendWantHave(
   b: BlockExcEngine,
-  address: BlockAddress,
+  address: BlockAddress, # pluralize this entire call chain, please
   excluded: seq[BlockExcPeerCtx],
   peers: seq[BlockExcPeerCtx]): Future[void] {.async.} =
   trace "Sending wantHave request to peers", address
@@ -139,7 +139,7 @@ proc sendWantHave(
 
 proc sendWantBlock(
   b: BlockExcEngine,
-  address: BlockAddress,
+  address: BlockAddress, # pluralize this entire call chain, please
   blockPeer: BlockExcPeerCtx): Future[void] {.async.} =
   trace "Sending wantBlock request to", peer = blockPeer.id, address
   await b.network.request.sendWantList(
@@ -154,13 +154,11 @@ proc monitorBlockHandle(
   peerId: PeerId) {.async.} =
 
   try:
-    trace "Monitoring block handle", address, peerId
     discard await handle
-    trace "Block handle success", address, peerId
   except CancelledError as exc:
     trace "Block handle cancelled", address, peerId
   except CatchableError as exc:
-    trace "Error block handle, disconnecting peer", address, exc = exc.msg, peerId
+    warn "Error block handle, disconnecting peer", address, exc = exc.msg, peerId
 
     # TODO: really, this is just a quick and dirty way of
     # preventing hitting the same "bad" peer every time, however,
@@ -217,7 +215,6 @@ proc blockPresenceHandler*(
   b: BlockExcEngine,
   peer: PeerId,
   blocks: seq[BlockPresence]) {.async.} =
-  trace "Received presence update for peer", peer, blocks = blocks.len
   let
     peerCtx = b.peers.get(peer)
     wantList = toSeq(b.pendingBlocks.wantList)
@@ -227,12 +224,6 @@ proc blockPresenceHandler*(
 
   for blk in blocks:
     if presence =? Presence.init(blk):
-      logScope:
-        address   = $presence.address
-        have      = presence.have
-        price     = presence.price
-
-      trace "Updating presence"
       peerCtx.setPresence(presence)
 
   let
@@ -323,14 +314,12 @@ proc resolveBlocks*(b: BlockExcEngine, blocks: seq[Block]) {.async.} =
 proc payForBlocks(engine: BlockExcEngine,
                   peer: BlockExcPeerCtx,
                   blocksDelivery: seq[BlockDelivery]) {.async.} =
-  trace "Paying for blocks", len = blocksDelivery.len
-
   let
     sendPayment = engine.network.request.sendPayment
     price = peer.price(blocksDelivery.mapIt(it.address))
 
   if payment =? engine.wallet.pay(peer, price):
-    trace "Sending payment for blocks", price
+    trace "Sending payment for blocks", price, len = blocksDelivery.len
     await sendPayment(peer.id, payment)
 
 proc validateBlockDelivery(
@@ -365,7 +354,7 @@ proc blocksDeliveryHandler*(
   b: BlockExcEngine,
   peer: PeerId,
   blocksDelivery: seq[BlockDelivery]) {.async.} =
-  trace "Got blocks from peer", peer, len = blocksDelivery.len
+  trace "Received blocks from peer", peer, blocks = (blocksDelivery.mapIt($it.address)).join(",")
 
   var validatedBlocksDelivery: seq[BlockDelivery]
   for bd in blocksDelivery:

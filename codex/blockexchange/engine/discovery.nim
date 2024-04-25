@@ -128,15 +128,12 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
         cid = await b.discoveryQueue.get()
 
       if cid in b.inFlightDiscReqs:
-        trace "Discovery request already in progress", cid
         continue
 
       let
         haves = b.peers.peersHave(cid)
 
-      trace "Current number of peers for block", cid, peers = haves.len
       if haves.len < b.minPeersPerBlock:
-        trace "Discovering block", cid
         try:
           let
             request = b.discovery
@@ -148,7 +145,6 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
           let
             peers = await request
 
-          trace "Discovered peers for block", peers = peers.len, cid
           let
             dialed = await allFinished(
               peers.mapIt( b.network.dialPeer(it.data) ))
@@ -169,10 +165,9 @@ proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
   for cid in cids:
     if cid notin b.discoveryQueue:
       try:
-        trace "Queueing find block", cid, queue = b.discoveryQueue.len
         b.discoveryQueue.putNoWait(cid)
       except CatchableError as exc:
-        trace "Exception queueing discovery request", exc = exc.msg
+        warn "Exception queueing discovery request", exc = exc.msg
 
 proc queueProvideBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
   for cid in cids:

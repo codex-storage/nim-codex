@@ -155,7 +155,6 @@ proc handleBlocksDelivery(
   ##
 
   if not b.handlers.onBlocksDelivery.isNil:
-    trace "Handling blocks for peer", peer = peer.id, items = blocksDelivery.len
     await b.handlers.onBlocksDelivery(peer.id, blocksDelivery)
 
 
@@ -176,7 +175,6 @@ proc handleBlockPresence(
   ##
 
   if not b.handlers.onPresence.isNil:
-    trace "Handling block presence for peer", peer = peer.id, items = presence.len
     await b.handlers.onPresence(peer.id, presence)
 
 proc sendBlockPresence*(

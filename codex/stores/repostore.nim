@@ -153,7 +153,8 @@ method getCid*(
 
   without value =? await self.metaDs.get(key), err:
     if err of DatastoreKeyNotFound:
-      error "Cid not found", treeCid, index
+      # This failure is expected to happen frequently:
+      # NetworkStore.getBlock will call RepoStore.getBlock before starting the block exchange engine.
       return failure(newException(BlockNotFoundError, err.msg))
     else:
       error "Error getting cid from datastore", err = err.msg, key
