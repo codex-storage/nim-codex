@@ -119,8 +119,6 @@ method putCidAndProof*(
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
-  trace "Storing block cid and proof", blockCid, key
-
   let value = (blockCid, proof).encode()
 
   await self.metaDs.put(key, value)
