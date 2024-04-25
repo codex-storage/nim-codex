@@ -5,6 +5,7 @@ import std/os
 import std/options
 import std/importutils
 import std/[times, os, strutils]
+import std/terminal
 
 
 import pkg/questionable
@@ -30,16 +31,19 @@ import codex/slots/backends/helpers
 import create_circuits
 
 template benchmark(benchmarkName: string, blk: untyped) =
-  var ts = 0.0
-  let nn = 3
+  let nn = 5
+  var vals = newSeqOfCap[float](nn)
   for i in 1..nn:
     block:
       let t0 = epochTime()
       `blk`
       let elapsed = epochTime() - t0
-      ts += elapsed / i.toFloat
-  let elapsedStr = ts.formatFloat(format = ffDecimal, precision = 3)
-  echo "CPU Time [", benchmarkName, "] ", "avg(", nn, "): ", elapsedStr, "s"
+      vals.add elapsed
+  
+  var elapsedStr = ""
+  for v in vals:
+    elapsedStr &= ", " & v.formatFloat(format = ffDecimal, precision = 3)
+  stdout.styledWriteLine(fgGreen, "CPU Time [", benchmarkName, "] ", "avg(", $nn, "): ", elapsedStr, " s")
 
 proc setup(
   circuitDir: string, name: string,
@@ -118,7 +122,7 @@ when isMainModule:
     ncells: 512, # number of cells in this slot
   )
 
-  for i in 1..3:
+  for i in 1..10:
     args.nsamples = i
     echo "\nbenchmarking args: ", args
     args.runBenchmark()
