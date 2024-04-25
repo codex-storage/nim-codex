@@ -67,6 +67,9 @@ type
 # Encoding Message into seq[byte] in Protobuf format
 #
 
+proc `$`*(b: BlockPresence): string =
+  "[" & $b.address & ", type: " & $b.`type` & "]"
+
 proc write*(pb: var ProtoBuffer, field: int, value: BlockAddress) =
   var ipb = initProtoBuffer()
   ipb.write(1, value.leaf.uint)

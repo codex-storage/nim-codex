@@ -411,7 +411,6 @@ proc wantListHandler*(
   b: BlockExcEngine,
   peer: PeerId,
   wantList: WantList) {.async.} =
-  trace "Got wantList for peer", peer, items = wantList.entries.len
   let
     peerCtx = b.peers.get(peer)
   if isNil(peerCtx):
@@ -430,8 +429,6 @@ proc wantListHandler*(
       wantType  = $e.wantType
 
     if idx < 0: # updating entry
-      trace "Processing new want list entry"
-
       let
         have = await e.address in b.localStore
         price = @(
@@ -442,41 +439,35 @@ proc wantListHandler*(
         codex_block_exchange_want_have_lists_received.inc()
 
       if not have and e.sendDontHave:
-        trace "Adding dont have entry to presence response"
         presence.add(
           BlockPresence(
           address: e.address,
           `type`: BlockPresenceType.DontHave,
           price: price))
       elif have and e.wantType == WantType.WantHave:
-        trace "Adding have entry to presence response"
         presence.add(
           BlockPresence(
           address: e.address,
           `type`: BlockPresenceType.Have,
           price: price))
       elif e.wantType == WantType.WantBlock:
-        trace "Added entry to peer's want blocks list"
         peerCtx.peerWants.add(e)
         codex_block_exchange_want_block_lists_received.inc()
     else:
       # peer doesn't want this block anymore
       if e.cancel:
-        trace "Removing entry from peer want list"
         peerCtx.peerWants.del(idx)
       else:
-        trace "Updating entry in peer want list"
         # peer might want to ask for the same cid with
         # different want params
         peerCtx.peerWants[idx] = e # update entry
 
   if presence.len > 0:
-    trace "Sending presence to remote", items = presence.len
+    trace "Sending presence to remote", items = presence.mapIt($it).join(",")
     await b.network.request.sendPresence(peer, presence)
 
-  trace "Scheduling a task to check want-list", peer
   if not b.scheduleTask(peerCtx):
-    trace "Unable to schedule task for peer", peer
+    warn "Unable to schedule task for peer", peer
 
 proc accountHandler*(
   engine: BlockExcEngine,
@@ -541,8 +532,6 @@ proc dropPeer*(b: BlockExcEngine, peer: PeerId) =
   b.peers.remove(peer)
 
 proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
-  trace "Handling task for peer", peer = task.id
-
   # Send to the peer blocks he wants to get,
   # if they present in our local store
 
@@ -559,7 +548,6 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       if peerWant.address in addresses:
         peerWant.inFlight = inFlight
 
-  trace "wantsBlocks", peer = task.id, n = wantsBlocks.len
   if wantsBlocks.len > 0:
     # Mark wants as in-flight.
     let wantAddresses = wantsBlocks.mapIt(it.address)
@@ -567,7 +555,6 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
     wantsBlocks.sort(SortOrder.Descending)
 
     proc localLookup(e: WantListEntry): Future[?!BlockDelivery] {.async.} =
-      trace "Handling lookup for entry", address = e.address
       if e.address.leaf:
         (await b.localStore.getBlockAndProof(e.address.treeCid, e.address.index)).map(
           (blkAndProof: (Block, CodexProof)) =>
@@ -591,7 +578,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
     updateInFlight(failedAddresses, false)
 
     if blocksDelivery.len > 0:
-      trace "Sending blocks to peer", peer = task.id, blocks = blocksDelivery.len
+      trace "Sending blocks to peer", peer = task.id, blocks = (blocksDelivery.mapIt($it.address)).join(",")
       await b.network.request.sendBlocksDelivery(
         task.id,
         blocksDelivery
@@ -600,7 +587,6 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       codex_block_exchange_blocks_sent.inc(blocksDelivery.len.int64)
 
       task.peerWants.keepItIf(it.address notin successAddresses)
-      trace "Removed entries from peerWants", peerWants = task.peerWants.len
 
 proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
   ## process tasks
@@ -611,7 +597,6 @@ proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
     let
       peerCtx = await b.taskQueue.pop()
 
-    trace "Got new task from queue", peerId = peerCtx.id
     await b.taskHandler(peerCtx)
 
   info "Exiting blockexc task runner"

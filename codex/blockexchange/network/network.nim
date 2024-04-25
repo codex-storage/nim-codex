@@ -96,7 +96,6 @@ proc send*(b: BlockExcNetwork, id: PeerId, msg: pb.Message) {.async.} =
   b.peers.withValue(id, peer):
     try:
       await b.inflightSema.acquire()
-      trace "Sending message to peer", peer = id
       await peer[].send(msg)
     except CatchableError as err:
       error "Error sending message", peer = id, msg = err.msg
@@ -113,7 +112,6 @@ proc handleWantList(
   ##
 
   if not b.handlers.onWantList.isNil:
-    trace "Handling want list for peer", peer = peer.id, items = list.entries.len
     await b.handlers.onWantList(peer.id, list)
 
 proc sendWantList*(
