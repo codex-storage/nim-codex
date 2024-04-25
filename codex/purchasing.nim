@@ -53,7 +53,7 @@ proc populate*(purchasing: Purchasing,
   if result.ask.proofProbability == 0.u256:
     result.ask.proofProbability = purchasing.proofProbability
   if result.expiry == 0.u256:
-    result.expiry = (purchasing.clock.now().u256 + purchasing.requestExpiryInterval)
+    result.expiry = purchasing.requestExpiryInterval
   if result.nonce == Nonce.default:
     var id = result.nonce.toArray
     doAssert randomBytes(id) == 32

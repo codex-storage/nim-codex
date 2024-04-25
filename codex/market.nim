@@ -84,6 +84,10 @@ method getRequestEnd*(market: Market,
                       id: RequestId): Future[SecondsSince1970] {.base, async.} =
   raiseAssert("not implemented")
 
+method getRequestExpiry*(market: Market,
+                      id: RequestId): Future[SecondsSince1970] {.base, async.} =
+  raiseAssert("not implemented")
+
 method getHost*(market: Market,
                 requestId: RequestId,
                 slotIndex: UInt256): Future[?Address] {.base, async.} =
