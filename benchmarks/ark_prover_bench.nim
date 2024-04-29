@@ -36,7 +36,7 @@ template benchmark(benchmarkName: string, blk: untyped) =
   for i in 1..nn:
     block:
       let t0 = epochTime()
-      # `blk`
+      `blk`
       let elapsed = epochTime() - t0
       vals.add elapsed
   
