@@ -98,7 +98,9 @@ proc downloadPtau*(ptauPath, ptauUrl: string) =
     echo "PTAU url: ", ptauUrl
     createDir(ptauPath.parentDir)
     withDir(ptauPath.parentDir):
-      let res = execShellCmd(fmt"curl {ptauDefUrl} -o {ptauPath}")
+      let cmd = fmt"curl --output '{ptauPath}' '{ptauUrl}'"
+      echo "curl cmd: ", cmd
+      let res = execShellCmd(cmd)
       assert res == 0
   else:
     echo "Found PTAU file at: ", ptauPath
