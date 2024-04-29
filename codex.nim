@@ -67,6 +67,9 @@ when isMainModule:
     # permissions are insecure.
     quit QuitFailure
 
+  if not(checkAndCreateDataDir((config.metaDir).string)):
+    quit QuitFailure
+
   trace "Data dir initialized", dir = $config.dataDir
 
   if not(checkAndCreateDataDir((config.dataDir / "repo"))):

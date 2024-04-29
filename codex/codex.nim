@@ -252,10 +252,12 @@ proc new*(
                 of repoSQLite: Datastore(SQLiteDatastore.new($config.dataDir)
                   .expect("Should create repo SQLite data store!"))
 
+    metadataStore = Datastore(FSDatastore.new($config.metaDir, depth = 5)
+      .expect("Should create repo metadata store!"))
+
     repoStore = RepoStore.new(
       repoDs = repoData,
-      metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
-        .expect("Should create meta data store!"),
+      metaDs = metadataStore,
       quotaMaxBytes = config.storageQuota.uint,
       blockTtl = config.blockTtl)
 
