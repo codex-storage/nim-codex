@@ -94,10 +94,14 @@ type CircArgs* = object
 proc downloadPtau*(ptauPath, ptauUrl: string) =
   if not ptauPath.fileExists:
     echo "Ceremony file not found, downloading..."
+    echo "PTAU file: ", ptauPath
     echo "PTAU url: ", ptauUrl
     createDir(ptauPath.parentDir)
     withDir(ptauPath.parentDir):
-      discard execShellCmd(fmt"curl -LOC - {ptauDefUrl}")
+      let res = execShellCmd(fmt"curl {ptauDefUrl} -o {ptauPath}")
+      assert res == 0
+  else:
+    echo "Found PTAU file at: ", ptauPath
 
 proc getCircuitBenchPath*(args: CircArgs): string =
   var an = ""
@@ -127,7 +131,7 @@ proc createCircuit*(
     circBenchDir = getCircuitBenchPath(args),
     circuitDirIncludes = circuitDirIncludes,
     ptauPath = ptauDefPath,
-    ptauUrl = ptauDefUrl & "/" & ptauDefPath.splitPath.tail,
+    ptauUrl = ptauDefUrl & ptauPath.splitPath.tail,
     someEntropy = "some_entropy_75289v3b7rcawcsyiur",
 ): tuple[dir: string, name: string] =
   ## Generates all the files needed for to run a proof circuit. Downloads the PTAU file if needed.
