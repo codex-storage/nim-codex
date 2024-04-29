@@ -29,10 +29,10 @@ var
     "vendor" / "codex-storage-proofs-circuits" / "reference" / "nim" / "proof_input" /
     "cli"
   circuitDirIncludes = "vendor" / "codex-storage-proofs-circuits" / "circuit"
-  ptauDefPath = "benchmarks" / "ceremony" / "powersOfTau28_hez_final_21.ptau"
+  ptauDefPath = "benchmarks" / "ceremony" / "powersOfTau28_hez_final_23.ptau"
   ptauDefUrl =
     # "https://storage.googleapis.com/zkevm/ptau/powersOfTau28_hez_final_21.ptau"
-    "https://storage.googleapis.com/zkevm/ptau/powersOfTau28_hez_final_23.ptau"
+    "https://storage.googleapis.com/zkevm/ptau/"
   codexProjDir = ""
 
 proc checkEnv*() =
@@ -127,7 +127,7 @@ proc createCircuit*(
     circBenchDir = getCircuitBenchPath(args),
     circuitDirIncludes = circuitDirIncludes,
     ptauPath = ptauDefPath,
-    ptauUrl = ptauDefUrl,
+    ptauUrl = ptauDefUrl & "/" & ptauDefPath.splitPath.tail,
     someEntropy = "some_entropy_75289v3b7rcawcsyiur",
 ): tuple[dir: string, name: string] =
   ## Generates all the files needed for to run a proof circuit. Downloads the PTAU file if needed.
