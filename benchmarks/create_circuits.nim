@@ -31,7 +31,8 @@ var
   circuitDirIncludes = "vendor" / "codex-storage-proofs-circuits" / "circuit"
   ptauDefPath = "benchmarks" / "ceremony" / "powersOfTau28_hez_final_21.ptau"
   ptauDefUrl =
-    "https://storage.googleapis.com/zkevm/ptau/powersOfTau28_hez_final_21.ptau"
+    # "https://storage.googleapis.com/zkevm/ptau/powersOfTau28_hez_final_21.ptau"
+    "https://storage.googleapis.com/zkevm/ptau/powersOfTau28_hez_final_23.ptau"
   codexProjDir = ""
 
 proc checkEnv*() =

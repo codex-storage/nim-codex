@@ -114,7 +114,7 @@ when isMainModule:
     maxslots: 256, # maximum number of slots  
     cellsize: 2048, # cell size in bytes 
     blocksize: 65536, # block size in bytes 
-    nsamples: 5, # number of samples to prove
+    nsamples: 1, # number of samples to prove
     entropy: 1234567, # external randomness
     seed: 12345, # seed for creating fake data
     nslots: 11, # number of slots in the dataset
@@ -122,7 +122,12 @@ when isMainModule:
     ncells: 512, # number of cells in this slot
   )
 
-  for i in 1..10:
+  for i in 1..9:
     args.nsamples = i
-    echo "\nbenchmarking args: ", args
+    stdout.styledWriteLine(fgYellow, "\nbenchmarking args: ", $args)
+    args.runBenchmark()
+
+  for i in 1..16:
+    args.nsamples = 10*i
+    stdout.styledWriteLine(fgYellow, "\nbenchmarking args: ", $args)
     args.runBenchmark()
