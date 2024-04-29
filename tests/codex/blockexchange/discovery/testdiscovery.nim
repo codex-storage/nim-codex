@@ -99,50 +99,33 @@ asyncchecksuite "Block Advertising and Discovery":
 
     await engine.stop()
 
-  test "Should advertise both manifests and blocks":
+  test "Should advertise both manifests and trees":
     let
+      cids = @[manifest.cid.tryGet, manifest.treeCid]
       advertised = initTable.collect:
-        for b in (blocks & manifestBlock): {b.cid: newFuture[void]()}
+        for cid in cids: {cid: newFuture[void]()}
 
     blockDiscovery
       .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid) {.async.} =
         if cid in advertised and not advertised[cid].finished():
           advertised[cid].complete()
 
-    discovery.advertiseType = BlockType.Both
-    await engine.start() # fire up advertise loop
+    await engine.start()
     await allFuturesThrowing(
       allFinished(toSeq(advertised.values)))
     await engine.stop()
 
-  test "Should advertise local manifests":
+  test "Should not advertise local blocks":
     let
-      advertised = newFuture[Cid]()
+      blockCids = blocks.mapIt(it.cid)
 
     blockDiscovery
       .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid) {.async.} =
-        check manifestBlock.cid == cid
-        advertised.complete(cid)
+        check:
+          cid notin blockCids
 
-    discovery.advertiseType = BlockType.Manifest
-    await engine.start() # fire up advertise loop
-    check (await advertised.wait(10.millis)) == manifestBlock.cid
-    await engine.stop()
-
-  test "Should advertise local blocks":
-    let
-      advertised = initTable.collect:
-        for b in blocks: {b.cid: newFuture[void]()}
-
-    blockDiscovery
-      .publishBlockProvideHandler = proc(d: MockDiscovery, cid: Cid) {.async.} =
-        if cid in advertised and not advertised[cid].finished():
-          advertised[cid].complete()
-
-    discovery.advertiseType = BlockType.Block
-    await engine.start() # fire up advertise loop
-    await allFuturesThrowing(
-      allFinished(toSeq(advertised.values)))
+    await engine.start()
+    await sleepAsync(3.seconds)
     await engine.stop()
 
   test "Should not launch discovery if remote peer has block":
