@@ -294,7 +294,7 @@ proc store*(
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
   ##
-  trace "Storing data"
+  info "Storing data"
 
   let
     hcodec = Sha256HashCodec
@@ -308,8 +308,6 @@ proc store*(
       let chunk = await chunker.getBytes();
       chunk.len > 0):
 
-      trace "Got data from stream", len = chunk.len
-
       without mhash =? MultiHash.digest($hcodec, chunk).mapFailure, err:
         return failure(err)
 
@@ -322,7 +320,7 @@ proc store*(
       cids.add(cid)
 
       if err =? (await self.networkStore.putBlock(blk)).errorOption:
-        trace "Unable to store block", cid = blk.cid, err = err.msg
+        error "Unable to store block", cid = blk.cid, err = err.msg
         return failure(&"Unable to store block {blk.cid}")
   except CancelledError as exc:
     raise exc
@@ -353,7 +351,7 @@ proc store*(
     codec = dataCodec)
 
   without manifestBlk =? await self.storeManifest(manifest), err:
-    trace "Unable to store manifest"
+    error "Unable to store manifest"
     return failure(err)
 
   info "Stored data", manifestCid = manifestBlk.cid,
@@ -361,7 +359,6 @@ proc store*(
                       blocks = manifest.blocksCount,
                       datasetSize = manifest.datasetSize
 
-  # Announce manifest
   await self.discovery.provide(manifestBlk.cid)
   await self.discovery.provide(treeCid)
 
