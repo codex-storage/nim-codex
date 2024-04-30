@@ -1,0 +1,38 @@
+dist: bionic
+sudo: false
+
+language: c
+
+cache:
+  directories:
+    - "$HOME/.nimble"
+    - "$HOME/.choosenim"
+
+addons:
+  apt:
+    packages:
+      - libsnappy1v5
+
+matrix:
+  fast_finish: true
+  include:
+    - os: linux
+      env: CHANNEL=stable
+    - os: linux
+      env: CHANNEL=1.4.0
+
+install:
+  - |
+      wget http://ftp.us.debian.org/debian/pool/main/l/leveldb/libleveldb1d_1.22-3_amd64.deb
+      wget http://ftp.us.debian.org/debian/pool/main/l/leveldb/libleveldb-dev_1.22-3_amd64.deb
+      sudo dpkg -i *.deb
+  - |
+      curl https://nim-lang.org/choosenim/init.sh -sSf > init.sh
+      sh init.sh -y
+  - export CHOOSENIM_NO_ANALYTICS=1
+  - export PATH=$HOME/.nimble/bin:$PATH
+  - echo "export PATH=~/.nimble/bin:$PATH" >> ~/.profile
+  - yes | choosenim $CHANNEL
+
+script:
+  - nimble test
