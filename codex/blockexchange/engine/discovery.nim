@@ -128,6 +128,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
         cid = await b.discoveryQueue.get()
 
       if cid in b.inFlightDiscReqs:
+        trace "Discovery request already in progress", cid
         continue
 
       let
