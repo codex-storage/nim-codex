@@ -1,24 +1,5 @@
 import std/[hashes, json, strutils, strformat, os, osproc]
 
-template withDir(dir: string, blk: untyped) =
-  let prev = getCurrentDir()
-  try:
-    setCurrentDir(dir)
-    `blk`
-  finally:
-    setCurrentDir(prev)
-
-proc setProjDir(prev = getCurrentDir()): string =
-  if not "codex.nimble".fileExists():
-    setCurrentDir("..")
-    if prev == getCurrentDir():
-      echo "\nERROR: Codex project folder not found (could not find codex.nimble)"
-      echo "\nBenchmark must be run from within the Codex project folder"
-      quit 1
-    setProjDir()
-  else:
-    getCurrentDir()
-
 type
   CircuitEnv* = object
     nimCircuitCli =
@@ -41,8 +22,29 @@ type
     ncells*: int
     index*: int
 
-proc checkEnv*() =
-  codexProjDir = setProjDir()
+template withDir(dir: string, blk: untyped) =
+  let prev = getCurrentDir()
+  try:
+    setCurrentDir(dir)
+    `blk`
+  finally:
+    setCurrentDir(prev)
+
+proc findCodexProjectDir(prev = getCurrentDir()): string =
+  ## check that the CWD of script is in the codex parent
+  if not "codex.nimble".fileExists():
+    setCurrentDir("..")
+    if prev == getCurrentDir():
+      echo "\nERROR: Codex project folder not found (could not find codex.nimble)"
+      echo "\nBenchmark must be run from within the Codex project folder"
+      quit 1
+    setProjDir()
+  else:
+    getCurrentDir()
+
+proc checkEnv*(env: CircuitEnv) =
+  ## check that the CWD of script is in the codex parent
+  codexProjDir = findCodexProjectDir()
   echo "\n\nFound project dir: ", codexProjDir
 
   let snarkjs = findExe("snarkjs")
@@ -187,6 +189,7 @@ proc createCircuit*(
   return (circdir, name)
 
 when isMainModule:
+  ## test run creating a circuit
   checkEnv()
 
   let args = CircArgs(
