@@ -62,12 +62,6 @@ proc runArkCircom(args: CircArgs, files: CircuitFiles) =
     verRes = circom.verify(proof, proofInputs).tryGet
   echo "verify result: ", verRes
 
-  when false:
-    proofInputs.slotIndex = 1 # change slot index
-
-    let proof = circom.prove(proofInputs).tryGet
-    echo "verify bad result: ", circom.verify(proof, proofInputs).tryGet
-
 proc runRapidSnark(args: CircArgs, files: CircuitFiles) =
   # time rapidsnark ${CIRCUIT_MAIN}.zkey witness.wtns proof.json public.json
 
