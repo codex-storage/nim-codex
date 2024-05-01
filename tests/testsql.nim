@@ -12,6 +12,7 @@ import pkg/codex/chunker
 import pkg/codex/blocktype as bt
 
 import ../leveldb/leveldbds
+import ../rocksdb/rocksdbds
 
 import ./asynctest
 import ./checktest
@@ -79,3 +80,5 @@ asyncchecksuite "SQL":
     let ldb = LevelDbDatastore.new("leveldb").tryGet()
     await doTest("leveldb", ldb)
 
+    let rdb = RocksDbDatastore.new("rocksdb").tryGet()
+    await doTest("rocksdb", rdb)
