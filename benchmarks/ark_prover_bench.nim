@@ -9,7 +9,7 @@ import pkg/codex/utils/[json, poseidon2digest]
 import pkg/codex/slots/[builder, sampler/utils, backends/helpers]
 import pkg/constantine/math/[arithmetic, io/io_bigints, io/io_fields]
 
-import create_circuits
+import ./create_circuits
 
 type CircuitFiles* = object
   r1cs*: string
