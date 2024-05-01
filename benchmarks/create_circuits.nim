@@ -30,6 +30,12 @@ template withDir(dir: string, blk: untyped) =
   finally:
     setCurrentDir(prev)
 
+template runit(cmd: string) =
+  echo "RUNNING: ", cmd
+  let cmdRes = execShellCmd(cmd)
+  echo "STATUS: ", cmdRes
+  assert cmdRes == 0
+
 proc findCodexProjectDir(prev = getCurrentDir()): string =
   ## check that the CWD of script is in the codex parent
   if not "codex.nimble".fileExists():
@@ -74,7 +80,7 @@ proc checkEnv*(env: CircuitEnv) =
     echo "Nim Circuit reference cli not found: ", nimCircuitCli
     echo "Building Circuit reference cli...\n"
     withDir(nimCircuitCli.parentDir):
-      discard execShellCmd("nimble build -d:release --styleCheck:off cli")
+      runit "nimble build -d:release --styleCheck:off cli"
     echo "CWD: ", getCurrentDir()
     assert nimCircuitCli.fileExists()
 
@@ -93,10 +99,7 @@ proc downloadPtau*(ptauPath, ptauUrl: string) =
     echo "Ceremony file not found, downloading..."
     createDir(ptauPath.parentDir)
     withDir(ptauPath.parentDir):
-      let cmd = fmt"curl --output '{ptauPath}' '{ptauUrl}'"
-      echo "curl cmd: ", cmd
-      let res = execShellCmd(cmd)
-      assert res == 0
+      runit fmt"curl --output '{ptauPath}' '{ptauUrl}'"
   else:
     echo "Found PTAU file at: ", ptauPath
 
@@ -114,13 +117,7 @@ proc generateCircomAndSamples*(args: CircArgs, name: string) =
 
   if not "input.json".fileExists:
     echo "Generating Circom Files..."
-    cliCmd &= fmt" -v --circom={name}.circom --output=input.json"
-    echo "CWD: ", getCurrentDir()
-    echo "CLI_CMD: ", cliCmd
-
-    let cliRes = execShellCmd(cliCmd)
-    echo "RES: ", cliRes
-    assert cliRes == 0
+    runit fmt"{cliCmd} -v --circom={name}.circom --output=input.json"
 
 proc createCircuit*(
     args: CircArgs,
@@ -152,11 +149,7 @@ proc createCircuit*(
     generateCircomAndSamples(args, name)
 
     if not wasm.fileExists or not r1cs.fileExists:
-      let cmd = fmt"circom --r1cs --wasm --O2 -l{circuitDirIncludes} {name}.circom"
-      echo "CMD: ", cmd
-      let cmdRes = execShellCmd(cmd)
-      echo "RES: ", cmdRes
-      assert cmdRes == 0
+      runit fmt"circom --r1cs --wasm --O2 -l{circuitDirIncludes} {name}.circom"
       moveFile(fmt"{name}_js" / fmt"{name}.wasm", fmt"{name}.wasm")
     echo "Found wasm: ", wasm
     echo "Found r1cs: ", r1cs
@@ -164,12 +157,8 @@ proc createCircuit*(
     if not zkey.fileExists:
       echo "Zkey not found, generating..."
       putEnv("NODE_OPTIONS", "--max-old-space-size=8192")
-      discard execShellCmd("echo $NODE_OPTIONS")
       if not fmt"{name}_0000.zkey".fileExists:
-        let cmd = fmt"snarkjs groth16 setup {r1cs} {ptauPath} {name}_0000.zkey"
-        echo "CMD: ", cmd
-        let cmdRes = execShellCmd(cmd)
-        assert cmdRes == 0
+        runit fmt"snarkjs groth16 setup {r1cs} {ptauPath} {name}_0000.zkey"
         echo fmt"Generated {name}_0000.zkey"
 
       let cmd =
@@ -182,8 +171,7 @@ proc createCircuit*(
       removeFile(fmt"{name}_0000.zkey")
 
     if not wtns.fileExists and doGenerateWitness:
-      let cmd = fmt"node generate_witness.js {wtns} ../input.json ../witness.wtns"
-      execShellCmd(cmd)
+      runit fmt"node generate_witness.js {wtns} ../input.json ../witness.wtns"
 
   return (circdir, name)
 
