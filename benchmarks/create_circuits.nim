@@ -181,7 +181,7 @@ when isMainModule:
 
   let args = CircArgs(
     depth: 32, # maximum depth of the slot tree 
-    maxslots: 256, # maximum number of slots  
+    maxslots: 256, # maximum number of slots
     cellsize: 2048, # cell size in bytes 
     blocksize: 65536, # block size in bytes 
     nsamples: 5, # number of samples to prove
