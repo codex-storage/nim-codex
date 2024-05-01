@@ -7,7 +7,6 @@ import std/importutils
 import std/[times, os, strutils]
 import std/terminal
 
-
 import pkg/questionable
 import pkg/questionable/results
 import pkg/datastore
@@ -30,24 +29,30 @@ import codex/slots/backends/helpers
 
 import create_circuits
 
+type CircuitFiles* = object
+  r1cs*: string
+  wasm*: string
+  zkey*: string
+  inputs*: string
+
 template benchmark(benchmarkName: string, blk: untyped) =
   let nn = 5
   var vals = newSeqOfCap[float](nn)
-  for i in 1..nn:
+  for i in 1 .. nn:
     block:
       let t0 = epochTime()
       `blk`
       let elapsed = epochTime() - t0
       vals.add elapsed
-  
+
   var elapsedStr = ""
   for v in vals:
     elapsedStr &= ", " & v.formatFloat(format = ffDecimal, precision = 3)
-  stdout.styledWriteLine(fgGreen, "CPU Time [", benchmarkName, "] ", "avg(", $nn, "): ", elapsedStr, " s")
+  stdout.styledWriteLine(
+    fgGreen, "CPU Time [", benchmarkName, "] ", "avg(", $nn, "): ", elapsedStr, " s"
+  )
 
-proc setup(
-  circuitDir: string, name: string,
-) =
+proc setup(circuitDir: string, name: string) =
   let
     inputData = readFile("tests/circuits/fixtures/input.json")
     inputJson: JsonNode = !JsonNode.parse(inputData)
@@ -60,31 +65,21 @@ proc setup(
   let ver = datasetProof.verify(proofInput.slotRoot, proofInput.datasetRoot).tryGet
   echo "ver: ", ver
 
-proc runBenchmark(args: CircArgs) =
-
-  let env = createCircuit(args)
-
-  ## TODO: copy over testcircomcompat proving
-  let
-    r1cs = env.dir / fmt"{env.name}.r1cs"
-    wasm = env.dir / fmt"{env.name}.wasm"
-    zkey = env.dir / fmt"{env.name}.zkey"
-    inputs = env.dir / fmt"input.json"
-
+proc runArkCircom(args: CircArgs, files: CircuitFiles) =
   echo "Loading sample proof..."
   var
-    inputData = inputs.readFile()
+    inputData = files.inputs.readFile()
     inputJson = !JsonNode.parse(inputData)
     proofInputs = Poseidon2Hash.jsonToProofInput(inputJson)
     circom = CircomCompat.init(
-      r1cs,
-      wasm,
-      zkey,
+      files.r1cs,
+      files.wasm,
+      files.zkey,
       slotDepth = args.depth,
       numSamples = args.nsamples,
     )
   defer:
-    circom.release()  # this comes from the rust FFI
+    circom.release() # this comes from the rust FFI
 
   echo "Sample proof loaded..."
   echo "Proving..."
@@ -104,8 +99,29 @@ proc runBenchmark(args: CircArgs) =
     let proof = circom.prove(proofInputs).tryGet
     echo "verify bad result: ", circom.verify(proof, proofInputs).tryGet
 
+proc runRapidSnark(args: CircArgs, files: CircuitFiles) =
+  # time rapidsnark ${CIRCUIT_MAIN}.zkey witness.wtns proof.json public.json
 
-when isMainModule:
+  echo "generating the witness..."
+
+proc runBenchmark(args: CircArgs) =
+  ## execute benchmarks given a set of args
+  ## will create a folder in `benchmarks/circuit_bench_$(args)`
+  ## 
+
+  let env = createCircuit(args)
+
+  ## TODO: copy over testcircomcompat proving
+  let files = CircuitFiles(
+    r1cs: env.dir / fmt"{env.name}.r1cs",
+    wasm: env.dir / fmt"{env.name}.wasm",
+    zkey: env.dir / fmt"{env.name}.zkey",
+    inputs: env.dir / fmt"input.json",
+  )
+
+  runArkCircom(args, files)
+
+proc startBenchmarks*() =
   echo "Running benchmark"
   # setup()
   checkEnv()
@@ -122,12 +138,15 @@ when isMainModule:
     ncells: 512, # number of cells in this slot
   )
 
-  for i in 1..9:
+  for i in 1 .. 9:
     args.nsamples = i
     stdout.styledWriteLine(fgYellow, "\nbenchmarking args: ", $args)
     args.runBenchmark()
 
-  for i in 1..16:
-    args.nsamples = 10*i
-    stdout.styledWriteLine(fgYellow, "\nbenchmarking args: ", $args)
-    args.runBenchmark()
+  # for i in 1..16:
+  #   args.nsamples = 10*i
+  #   stdout.styledWriteLine(fgYellow, "\nbenchmarking args: ", $args)
+  #   args.runBenchmark()
+
+when isMainModule:
+  startBenchmarks()

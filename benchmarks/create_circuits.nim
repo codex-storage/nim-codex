@@ -1,9 +1,4 @@
-import std/hashes
-import std/json
-import std/strutils
-import std/strformat
-import std/os
-import std/osproc
+import std/[hashes, json, strutils, strformat, os, osproc]
 
 template withDir(dir: string, blk: untyped) =
   let prev = getCurrentDir()
@@ -24,16 +19,27 @@ proc setProjDir(prev = getCurrentDir()): string =
   else:
     getCurrentDir()
 
-var
-  nimCircuitCli =
-    "vendor" / "codex-storage-proofs-circuits" / "reference" / "nim" / "proof_input" /
-    "cli"
-  circuitDirIncludes = "vendor" / "codex-storage-proofs-circuits" / "circuit"
-  ptauDefPath = "benchmarks" / "ceremony" / "powersOfTau28_hez_final_23.ptau"
-  ptauDefUrl =
-    # "https://storage.googleapis.com/zkevm/ptau/powersOfTau28_hez_final_21.ptau"
-    "https://storage.googleapis.com/zkevm/ptau/"
-  codexProjDir = ""
+type
+  CircuitEnv* = object
+    nimCircuitCli =
+      "vendor" / "codex-storage-proofs-circuits" / "reference" / "nim" / "proof_input" /
+      "cli"
+    circuitDirIncludes = "vendor" / "codex-storage-proofs-circuits" / "circuit"
+    ptauDefPath = "benchmarks" / "ceremony" / "powersOfTau28_hez_final_23.ptau"
+    ptauDefUrl = "https://storage.googleapis.com/zkevm/ptau/"
+    codexProjDir = ""
+
+  CircArgs* = object
+    depth*: int
+    maxslots*: int
+    cellsize*: int
+    blocksize*: int
+    nsamples*: int
+    entropy*: int
+    seed*: int
+    nslots*: int
+    ncells*: int
+    index*: int
 
 proc checkEnv*() =
   codexProjDir = setProjDir()
@@ -79,18 +85,6 @@ proc checkEnv*() =
   ptauDefPath = ptauDefPath.absolutePath
   echo "Found PTAU file: ", ptauDefPath
 
-type CircArgs* = object
-  depth*: int
-  maxslots*: int
-  cellsize*: int
-  blocksize*: int
-  nsamples*: int
-  entropy*: int
-  seed*: int
-  nslots*: int
-  ncells*: int
-  index*: int
-
 proc downloadPtau*(ptauPath, ptauUrl: string) =
   if not ptauPath.fileExists:
     echo "Ceremony file not found, downloading..."
@@ -135,6 +129,7 @@ proc createCircuit*(
     ptauPath = ptauDefPath,
     ptauUrl = ptauDefUrl & ptauPath.splitPath.tail,
     someEntropy = "some_entropy_75289v3b7rcawcsyiur",
+    doGenerateWitness = false,
 ): tuple[dir: string, name: string] =
   ## Generates all the files needed for to run a proof circuit. Downloads the PTAU file if needed.
   ## 
@@ -147,9 +142,11 @@ proc createCircuit*(
   withDir circdir:
     writeFile("circuit_params.json", pretty(%*args))
     let
+      inputs = circdir / "input.json"
       zkey = circdir / fmt"{name}.zkey"
       wasm = circdir / fmt"{name}.wasm"
       r1cs = circdir / fmt"{name}.r1cs"
+      wtns = circdir / fmt"{name}.wtns"
 
     generateCircomAndSamples(args, name)
 
@@ -183,6 +180,10 @@ proc createCircuit*(
       moveFile(fmt"{name}_0001.zkey", fmt"{name}.zkey")
       removeFile(fmt"{name}_0000.zkey")
 
+    if not wtns.fileExists and doGenerateWitness:
+      let cmd = fmt"node generate_witness.js {wtns} ../input.json ../witness.wtns"
+      execShellCmd(cmd)
+
   return (circdir, name)
 
 when isMainModule:
@@ -201,4 +202,4 @@ when isMainModule:
     ncells: 512, # number of cells in this slot
   )
   let benchenv = createCircuit(args)
-  echo "\nBench dir:\n", benchenv 
+  echo "\nBench dir:\n", benchenv
