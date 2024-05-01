@@ -39,7 +39,7 @@ template runit(cmd: string) =
 proc findCodexProjectDir(prev = getCurrentDir()): string =
   ## check that the CWD of script is in the codex parent
   if not "codex.nimble".fileExists():
-    setCurrentDir("..")
+    setCurrentDir(".."
     if prev == getCurrentDir():
       echo "\nERROR: Codex project folder not found (could not find codex.nimble)"
       echo "\nBenchmark must be run from within the Codex project folder"
@@ -79,7 +79,7 @@ proc checkEnv*(env: CircuitEnv) =
   if not nimCircuitCli.fileExists:
     echo "Nim Circuit reference cli not found: ", nimCircuitCli
     echo "Building Circuit reference cli...\n"
-    withDir(nimCircuitCli.parentDir):
+    withDir nimCircuitCli.parentDir:
       runit "nimble build -d:release --styleCheck:off cli"
     echo "CWD: ", getCurrentDir()
     assert nimCircuitCli.fileExists()
@@ -97,8 +97,8 @@ proc downloadPtau*(ptauPath, ptauUrl: string) =
   ## download ptau file using curl if needed
   if not ptauPath.fileExists:
     echo "Ceremony file not found, downloading..."
-    createDir(ptauPath.parentDir)
-    withDir(ptauPath.parentDir):
+    createDir ptauPath.parentDir
+    withDir ptauPath.parentDir:
       runit fmt"curl --output '{ptauPath}' '{ptauUrl}'"
   else:
     echo "Found PTAU file at: ", ptauPath
@@ -133,10 +133,10 @@ proc createCircuit*(
   ## 
   let circdir = circBenchDir
 
-  downloadPtau(ptauPath, ptauUrl)
+  downloadPtau ptauPath, ptauUrl
 
   echo "Creating circuit dir: ", circdir
-  createDir(circdir)
+  createDir circdir
   withDir circdir:
     writeFile("circuit_params.json", pretty(%*args))
     let
@@ -150,13 +150,13 @@ proc createCircuit*(
 
     if not wasm.fileExists or not r1cs.fileExists:
       runit fmt"circom --r1cs --wasm --O2 -l{circuitDirIncludes} {name}.circom"
-      moveFile(fmt"{name}_js" / fmt"{name}.wasm", fmt"{name}.wasm")
+      moveFile fmt"{name}_js" / fmt"{name}.wasm", fmt"{name}.wasm"
     echo "Found wasm: ", wasm
     echo "Found r1cs: ", r1cs
 
     if not zkey.fileExists:
       echo "Zkey not found, generating..."
-      putEnv("NODE_OPTIONS", "--max-old-space-size=8192")
+      putEnv "NODE_OPTIONS", "--max-old-space-size=8192"
       if not fmt"{name}_0000.zkey".fileExists:
         runit fmt"snarkjs groth16 setup {r1cs} {ptauPath} {name}_0000.zkey"
         echo fmt"Generated {name}_0000.zkey"
@@ -167,8 +167,8 @@ proc createCircuit*(
       let cmdRes = execCmdEx(cmd, options = {}, input = someEntropy & "\n")
       assert cmdRes.exitCode == 0
 
-      moveFile(fmt"{name}_0001.zkey", fmt"{name}.zkey")
-      removeFile(fmt"{name}_0000.zkey")
+      moveFile fmt"{name}_0001.zkey", fmt"{name}.zkey"
+      removeFile fmt"{name}_0000.zkey"
 
     if not wtns.fileExists and doGenerateWitness:
       runit fmt"node generate_witness.js {wtns} ../input.json ../witness.wtns"
