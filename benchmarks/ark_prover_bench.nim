@@ -1,11 +1,4 @@
-import std/sequtils
-import std/strutils
-import std/strformat
-import std/os
-import std/options
-import std/importutils
-import std/[times, os, strutils]
-import std/terminal
+import std/[sequtils, strutils, strformat, os, options, importutils, times, os, strutils, terminal]
 
 import pkg/questionable
 import pkg/questionable/results
@@ -51,19 +44,6 @@ template benchmark(benchmarkName: string, blk: untyped) =
   stdout.styledWriteLine(
     fgGreen, "CPU Time [", benchmarkName, "] ", "avg(", $nn, "): ", elapsedStr, " s"
   )
-
-proc setup(circuitDir: string, name: string) =
-  let
-    inputData = readFile("tests/circuits/fixtures/input.json")
-    inputJson: JsonNode = !JsonNode.parse(inputData)
-    proofInput: ProofInputs[Poseidon2Hash] = Poseidon2Hash.jsonToProofInput(inputJson)
-
-  let datasetProof = Poseidon2Proof.init(
-    proofInput.slotIndex, proofInput.nSlotsPerDataSet, proofInput.slotProof[0 ..< 4]
-  ).tryGet
-
-  let ver = datasetProof.verify(proofInput.slotRoot, proofInput.datasetRoot).tryGet
-  echo "ver: ", ver
 
 proc runArkCircom(args: CircArgs, files: CircuitFiles) =
   echo "Loading sample proof..."
