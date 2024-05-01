@@ -4,21 +4,10 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/datastore
 
-import pkg/codex/rng
-import pkg/codex/stores
-import pkg/codex/merkletree
-import pkg/codex/utils/json
-import pkg/codex/codextypes
-import pkg/codex/slots
-import pkg/codex/slots/builder
-import pkg/codex/utils/poseidon2digest
-import pkg/codex/slots/sampler/utils
-
-import pkg/constantine/math/arithmetic
-import pkg/constantine/math/io/io_bigints
-import pkg/constantine/math/io/io_fields
-
-import codex/slots/backends/helpers
+import pkg/codex/[rng, stores, merkletree, codextypes, slots]
+import pkg/codex/utils/[json, poseidon2digest]
+import pkg/codex/slots/[builder, sampler/utils, backends/helpers]
+import pkg/constantine/math/[arithmetic, io/io_bigints, io/io_fields]
 
 import create_circuits
 
