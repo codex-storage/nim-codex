@@ -88,10 +88,9 @@ proc checkEnv*(env: CircuitEnv) =
   echo "Found PTAU file: ", ptauDefPath
 
 proc downloadPtau*(ptauPath, ptauUrl: string) =
+  ## download ptau file using curl if needed
   if not ptauPath.fileExists:
     echo "Ceremony file not found, downloading..."
-    echo "PTAU file: ", ptauPath
-    echo "PTAU url: ", ptauUrl
     createDir(ptauPath.parentDir)
     withDir(ptauPath.parentDir):
       let cmd = fmt"curl --output '{ptauPath}' '{ptauUrl}'"
