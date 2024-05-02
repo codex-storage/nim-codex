@@ -28,9 +28,13 @@ proc findCodexProjectDir(): string =
 
 func default*(tp: typedesc[CircuitEnv]): CircuitEnv =
   let codexDir = findCodexProjectDir()
-  result.nimCircuitCli = codexDir / "vendor" / "codex-storage-proofs-circuits" / "reference" / "nim" / "proof_input" / "cli"
-  result.circuitDirIncludes = codexDir / "vendor" / "codex-storage-proofs-circuits" / "circuit"
-  result.ptauPath = codexDir / "benchmarks" / "ceremony" / "powersOfTau28_hez_final_23.ptau"
+  result.nimCircuitCli =
+    codexDir / "vendor" / "codex-storage-proofs-circuits" / "reference" / "nim" /
+    "proof_input" / "cli"
+  result.circuitDirIncludes =
+    codexDir / "vendor" / "codex-storage-proofs-circuits" / "circuit"
+  result.ptauPath =
+    codexDir / "benchmarks" / "ceremony" / "powersOfTau28_hez_final_23.ptau"
   result.ptauUrl = "https://storage.googleapis.com/zkevm/ptau/"
   result.codexProjDir = codexDir
 
@@ -87,7 +91,8 @@ proc downloadPtau*(ptauPath, ptauUrl: string) =
 proc getCircuitBenchPath*(args: CircuitArgs, env: CircuitEnv): string =
   ## generate folder name for unique circuit args
   var an = ""
-  for f, v in fieldPairs(args): an &= "_" & f & $v
+  for f, v in fieldPairs(args):
+    an &= "_" & f & $v
   env.codexProjDir / "benchmarks/circuit_bench" & an
 
 proc generateCircomAndSamples*(args: CircuitArgs, env: CircuitEnv, name: string) =
@@ -110,8 +115,8 @@ proc createCircuit*(
 ): tuple[dir: string, name: string] =
   ## Generates all the files needed for to run a proof circuit. Downloads the PTAU file if needed.
   ## 
-  ## All needed circuit files will be generated in `circBenchDir` which
-  ## defaults to a folder like:
+  ## All needed circuit files will be generated as needed. 
+  ## They will be located in `circBenchDir` which defaults to a folder like:
   ##    `nim-codex/benchmarks/circuit_bench_depth32_maxslots256_cellsize2048_blocksize65536_nsamples9_entropy1234567_seed12345_nslots11_ncells512_index3`
   ## with all the given CircuitArgs.
   ## 

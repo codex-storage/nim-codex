@@ -1,4 +1,8 @@
-import std/[sequtils, strutils, strformat, os, options, importutils, times, os, strutils, terminal]
+import
+  std/[
+    sequtils, strutils, strformat, os, options, importutils, times, os, strutils,
+    terminal
+  ]
 
 import pkg/questionable
 import pkg/questionable/results

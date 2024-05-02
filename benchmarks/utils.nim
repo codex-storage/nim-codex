@@ -1,4 +1,3 @@
-
 template withDir*(dir: string, blk: untyped) =
   ## set working dir for duration of blk
   let prev = getCurrentDir()
