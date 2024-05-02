@@ -1,5 +1,7 @@
 import std/[hashes, json, strutils, strformat, os, osproc]
 
+import ./utils
+
 type
   CircuitEnv* = object
     nimCircuitCli*: string
@@ -31,21 +33,6 @@ func default*(tp: typedesc[CircuitEnv]): CircuitEnv =
   result.ptauPath = codexDir / "benchmarks" / "ceremony" / "powersOfTau28_hez_final_23.ptau"
   result.ptauUrl = "https://storage.googleapis.com/zkevm/ptau/"
   result.codexProjDir = codexDir
-
-template withDir(dir: string, blk: untyped) =
-  ## set working dir for duration of blk
-  let prev = getCurrentDir()
-  try:
-    setCurrentDir(dir)
-    `blk`
-  finally:
-    setCurrentDir(prev)
-
-template runit(cmd: string) =
-  echo "RUNNING: ", cmd
-  let cmdRes = execShellCmd(cmd)
-  echo "STATUS: ", cmdRes
-  assert cmdRes == 0
 
 proc check*(env: var CircuitEnv) =
   ## check that the CWD of script is in the codex parent

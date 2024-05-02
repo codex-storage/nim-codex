@@ -9,6 +9,7 @@ import pkg/codex/utils/[json, poseidon2digest]
 import pkg/codex/slots/[builder, sampler/utils, backends/helpers]
 import pkg/constantine/math/[arithmetic, io/io_bigints, io/io_fields]
 
+import ./utils
 import ./create_circuits
 
 type CircuitFiles* = object
@@ -16,23 +17,6 @@ type CircuitFiles* = object
   wasm*: string
   zkey*: string
   inputs*: string
-
-template benchmark(benchmarkName: string, blk: untyped) =
-  let nn = 5
-  var vals = newSeqOfCap[float](nn)
-  for i in 1 .. nn:
-    block:
-      let t0 = epochTime()
-      `blk`
-      let elapsed = epochTime() - t0
-      vals.add elapsed
-
-  var elapsedStr = ""
-  for v in vals:
-    elapsedStr &= ", " & v.formatFloat(format = ffDecimal, precision = 3)
-  stdout.styledWriteLine(
-    fgGreen, "CPU Time [", benchmarkName, "] ", "avg(", $nn, "): ", elapsedStr, " s"
-  )
 
 proc runArkCircom(args: CircuitArgs, files: CircuitFiles) =
   echo "Loading sample proof..."
