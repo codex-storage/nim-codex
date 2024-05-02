@@ -46,7 +46,7 @@ proc runArkCircom(args: CircuitArgs, files: CircuitFiles, proofInputs: ProofInpu
 
 proc printHelp() =
   echo "usage:"
-  echo "  ./codex_ark_prover_cli [options] --output=proof_input.json --circom=proof_main.circom"
+  echo "  ./codex_ark_prover_cli [options] "
   echo ""
   echo "available options:"
   echo " -h, --help                         : print this help"
@@ -74,7 +74,8 @@ proc parseCliOptions(args: var CircuitArgs, files: var CircuitFiles) =
 
     # Positional arguments
     of cmdArgument:
-      printHelp()
+      echo "CMD ARG: ", key, " v: ", value
+      # printHelp()
 
     # Switches
     of cmdLongOption, cmdShortOption:
