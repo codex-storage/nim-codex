@@ -21,19 +21,15 @@ type CircuitFiles* = object
   dir*: string
   circName*: string
 
-proc runArkCircom(args: CircuitArgs, files: CircuitFiles, inputs: JsonNode) =
+proc runArkCircom(args: CircuitArgs, files: CircuitFiles, proofInputs: ProofInputs[Poseidon2Hash]) =
   echo "Loading sample proof..."
   var
-    proofInputs = Poseidon2Hash.jsonToProofInput(inputs)
     circom = CircomCompat.init(
       files.r1cs,
       files.wasm,
       files.zkey,
       slotDepth = args.depth,
       numSamples = args.nsamples,
-      # datasetDepth  : int     # max depth of dataset  tree
-      # blkDepth      : int     # depth of the block merkle tree (pow2 for now)
-      # cellElms      : int     # number of field elements per cell
     )
   defer:
     circom.release() # this comes from the rust FFI
@@ -97,7 +93,7 @@ proc parseCliOptions(args: var CircuitArgs, files: var CircuitFiles) =
       of "b", "blocksize" : args.blocksize     = checkPowerOfTwo(parseInt(value),"blockSize")
       of "n", "nsamples"  : args.nsamples      = parseInt(value)
       of "e", "entropy"   : args.entropy       = parseInt(value)
-      of "S", "seed"      : args.seed        = parseInt(value)
+      of "S", "seed"      : args.seed          = parseInt(value)
       of "s", "nslots"    : args.nslots        = parseInt(value)
       of "K", "ncells"    : args.ncells        = checkPowerOfTwo(parseInt(value),"nCells")
       of "i", "index"     : args.index         = parseInt(value)
@@ -138,18 +134,24 @@ proc run*() =
 
   var
     inputData = files.inputs.readFile()
-    inputs = !JsonNode.parse(inputData)
+    inputs: JsonNode = !JsonNode.parse(inputData)
 
   if args.depth == 0:     args.depth = codextypes.DefaultMaxSlotDepth # maximum depth of the slot tree
   if args.maxslots == 0:  args.maxslots = 256 # maximum number of slots
+
   if args.cellsize == 0:  args.cellsize = codextypes.DefaultCellSize.int # cell size in bytes
   if args.blocksize == 0: args.blocksize = codextypes.DefaultBlockSize.int # block size in bytes
   if args.nsamples == 0:  args.nsamples = 1 # number of samples to prove
-  if args.entropy == 0:   args.entropy = inputs.entropy # external randomness
-  if args.seed == 0:      args.seed = inputs.seed # seed for creating fake data
-  if args.nslots == 0:    args.nslots = inputs.nSlotsPerDataSet # number of slots in the dataset
-  if args.index == 0:     args.index = inputs.slotIndex # which slot we prove (0..NSLOTS-1)
-  if args.ncells == 0:    args.ncells = inputs.nCellsPerSlot # number of cells in this slot
+
+  if args.entropy == 0:   args.entropy = proofInputs.entropy.int # external randomness
+  if args.seed == 0:      args.seed = proofInputs.seed.int # seed for creating fake data
+
+  if args.nslots == 0:    args.nslots = proofInputs.nSlotsPerDataSet.int # number of slots in the dataset
+  if args.index == 0:     args.index = proofInputs.slotIndex.int # which slot we prove (0..NSLOTS-1)
+  if args.ncells == 0:    args.ncells = proofInputs.nCellsPerSlot.int # number of cells in this slot
+
+  var
+    proofInputs = Poseidon2Hash.jsonToProofInput(inputs)
 
   echo "Got args: ", args
   echo "Got files: ", files
