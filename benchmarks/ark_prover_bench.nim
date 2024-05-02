@@ -67,12 +67,12 @@ proc runRapidSnark(args: CircuitArgs, files: CircuitFiles) =
 
   echo "generating the witness..."
 
-proc runBenchmark(args: CircuitArgs) =
+proc runBenchmark(args: CircuitArgs, env: CircuitEnv) =
   ## execute benchmarks given a set of args
   ## will create a folder in `benchmarks/circuit_bench_$(args)`
   ## 
 
-  let env = createCircuit(args)
+  let env = createCircuit(args, env)
 
   ## TODO: copy over testcircomcompat proving
   let files = CircuitFiles(
@@ -87,7 +87,9 @@ proc runBenchmark(args: CircuitArgs) =
 proc startBenchmarks*() =
   echo "Running benchmark"
   # setup()
-  checkEnv()
+  var env = CircuitEnv.default()
+  env.check()
+
   var args = CircuitArgs(
     depth: 32, # maximum depth of the slot tree 
     maxslots: 256, # maximum number of slots  
@@ -101,7 +103,7 @@ proc startBenchmarks*() =
     ncells: 512, # number of cells in this slot
   )
 
-  for i in 1 .. 9:
+  for i in 1 .. 2:
     args.nsamples = i
     stdout.styledWriteLine(fgYellow, "\nbenchmarking args: ", $args)
     args.runBenchmark()

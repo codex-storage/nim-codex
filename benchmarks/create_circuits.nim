@@ -47,7 +47,7 @@ template runit(cmd: string) =
   echo "STATUS: ", cmdRes
   assert cmdRes == 0
 
-proc checkEnv*(env: var CircuitEnv) =
+proc check*(env: var CircuitEnv) =
   ## check that the CWD of script is in the codex parent
   let codexProjDir = findCodexProjectDir()
   echo "\n\nFound project dir: ", codexProjDir
@@ -171,7 +171,7 @@ when isMainModule:
   echo "findCodexProjectDir: ", findCodexProjectDir()
   ## test run creating a circuit
   var env = CircuitEnv.default()
-  checkEnv(env)
+  env.check()
 
   let args = CircuitArgs(
     depth: 32, # maximum depth of the slot tree 
