@@ -1,14 +1,13 @@
 import std/[hashes, json, strutils, strformat, os, osproc]
 
+
 type
   CircuitEnv* = object
-    nimCircuitCli =
-      "vendor" / "codex-storage-proofs-circuits" / "reference" / "nim" / "proof_input" /
-      "cli"
-    circuitDirIncludes = "vendor" / "codex-storage-proofs-circuits" / "circuit"
-    ptauDefPath = "benchmarks" / "ceremony" / "powersOfTau28_hez_final_23.ptau"
-    ptauDefUrl = "https://storage.googleapis.com/zkevm/ptau/"
-    codexProjDir = ""
+    nimCircuitCli*: string
+    circuitDirIncludes*: string
+    ptauPath*: string
+    ptauUrl*: string
+    codexProjDir*: string
 
   CircArgs* = object
     depth*: int
@@ -21,6 +20,13 @@ type
     nslots*: int
     ncells*: int
     index*: int
+
+func default*(tp: typedesc[CircuitEnv]): CircuitEnv =
+  result.nimCircuitCli = "vendor" / "codex-storage-proofs-circuits" / "reference" / "nim" / "proof_input" / "cli"
+  result.circuitDirIncludes = "vendor" / "codex-storage-proofs-circuits" / "circuit"
+  result.ptauPath = "benchmarks" / "ceremony" / "powersOfTau28_hez_final_23.ptau"
+  result.ptauUrl = "https://storage.googleapis.com/zkevm/ptau/"
+  result.codexProjDir = ""
 
 template withDir(dir: string, blk: untyped) =
   let prev = getCurrentDir()
@@ -36,21 +42,13 @@ template runit(cmd: string) =
   echo "STATUS: ", cmdRes
   assert cmdRes == 0
 
-proc findCodexProjectDir(prev = getCurrentDir()): string =
+proc findCodexProjectDir(): string =
   ## check that the CWD of script is in the codex parent
-  if not "codex.nimble".fileExists():
-    setCurrentDir(".."
-    if prev == getCurrentDir():
-      echo "\nERROR: Codex project folder not found (could not find codex.nimble)"
-      echo "\nBenchmark must be run from within the Codex project folder"
-      quit 1
-    setProjDir()
-  else:
-    getCurrentDir()
+  result = currentSourcePath.parentDir()
 
-proc checkEnv*(env: CircuitEnv) =
+proc checkEnv*(env: var CircuitEnv) =
   ## check that the CWD of script is in the codex parent
-  codexProjDir = findCodexProjectDir()
+  let codexProjDir = findCodexProjectDir()
   echo "\n\nFound project dir: ", codexProjDir
 
   let snarkjs = findExe("snarkjs")
@@ -76,22 +74,22 @@ proc checkEnv*(env: CircuitEnv) =
   echo "Found SnarkJS: ", snarkjs
   echo "Found Circom: ", circom
 
-  if not nimCircuitCli.fileExists:
-    echo "Nim Circuit reference cli not found: ", nimCircuitCli
+  if not env.nimCircuitCli.fileExists:
+    echo "Nim Circuit reference cli not found: ", env.nimCircuitCli
     echo "Building Circuit reference cli...\n"
-    withDir nimCircuitCli.parentDir:
+    withDir env.nimCircuitCli.parentDir:
       runit "nimble build -d:release --styleCheck:off cli"
     echo "CWD: ", getCurrentDir()
-    assert nimCircuitCli.fileExists()
+    assert env.nimCircuitCli.fileExists()
 
-  nimCircuitCli = nimCircuitCli.absolutePath()
-  echo "Found NimCircuitCli: ", nimCircuitCli
+  env.nimCircuitCli = env.nimCircuitCli.absolutePath()
+  echo "Found NimCircuitCli: ", env.nimCircuitCli
 
-  circuitDirIncludes = circuitDirIncludes.absolutePath
-  echo "Found Circuit Path: ", circuitDirIncludes
+  env.circuitDirIncludes = env.circuitDirIncludes.absolutePath
+  echo "Found Circuit Path: ", env.circuitDirIncludes
 
-  ptauDefPath = ptauDefPath.absolutePath
-  echo "Found PTAU file: ", ptauDefPath
+  env.ptauPath = env.ptauPath.absolutePath
+  echo "Found PTAU file: ", env.ptauPath
 
 proc downloadPtau*(ptauPath, ptauUrl: string) =
   ## download ptau file using curl if needed
@@ -109,9 +107,9 @@ proc getCircuitBenchPath*(args: CircArgs): string =
     an &= "_" & f & $v
   absolutePath("benchmarks/circuit_bench" & an)
 
-proc generateCircomAndSamples*(args: CircArgs, name: string) =
+proc generateCircomAndSamples*(args: CircArgs, env: CircuitEnv, name: string) =
   ## run nim circuit and sample generator 
-  var cliCmd = nimCircuitCli
+  var cliCmd = env.nimCircuitCli
   for f, v in fieldPairs(args):
     cliCmd &= " --" & f & "=" & $v
 
@@ -121,11 +119,9 @@ proc generateCircomAndSamples*(args: CircArgs, name: string) =
 
 proc createCircuit*(
     args: CircArgs,
+    env: CircuitEnv,
     name = "proof_main",
     circBenchDir = getCircuitBenchPath(args),
-    circuitDirIncludes = circuitDirIncludes,
-    ptauPath = ptauDefPath,
-    ptauUrl = ptauDefUrl & ptauPath.splitPath.tail,
     someEntropy = "some_entropy_75289v3b7rcawcsyiur",
     doGenerateWitness = false,
 ): tuple[dir: string, name: string] =
@@ -133,7 +129,7 @@ proc createCircuit*(
   ## 
   let circdir = circBenchDir
 
-  downloadPtau ptauPath, ptauUrl
+  downloadPtau env.ptauPath, env.ptauUrl
 
   echo "Creating circuit dir: ", circdir
   createDir circdir
@@ -146,10 +142,10 @@ proc createCircuit*(
       r1cs = circdir / fmt"{name}.r1cs"
       wtns = circdir / fmt"{name}.wtns"
 
-    generateCircomAndSamples(args, name)
+    generateCircomAndSamples(args, env, name)
 
     if not wasm.fileExists or not r1cs.fileExists:
-      runit fmt"circom --r1cs --wasm --O2 -l{circuitDirIncludes} {name}.circom"
+      runit fmt"circom --r1cs --wasm --O2 -l{env.circuitDirIncludes} {name}.circom"
       moveFile fmt"{name}_js" / fmt"{name}.wasm", fmt"{name}.wasm"
     echo "Found wasm: ", wasm
     echo "Found r1cs: ", r1cs
@@ -158,7 +154,7 @@ proc createCircuit*(
       echo "Zkey not found, generating..."
       putEnv "NODE_OPTIONS", "--max-old-space-size=8192"
       if not fmt"{name}_0000.zkey".fileExists:
-        runit fmt"snarkjs groth16 setup {r1cs} {ptauPath} {name}_0000.zkey"
+        runit fmt"snarkjs groth16 setup {r1cs} {env.ptauPath} {name}_0000.zkey"
         echo fmt"Generated {name}_0000.zkey"
 
       let cmd =
@@ -176,8 +172,10 @@ proc createCircuit*(
   return (circdir, name)
 
 when isMainModule:
+  echo "findCodexProjectDir: ", findCodexProjectDir()
   ## test run creating a circuit
-  checkEnv()
+  var env = CircuitEnv.default()
+  checkEnv(env)
 
   let args = CircArgs(
     depth: 32, # maximum depth of the slot tree 
@@ -191,5 +189,5 @@ when isMainModule:
     index: 3, # which slot we prove (0..NSLOTS-1)
     ncells: 512, # number of cells in this slot
   )
-  let benchenv = createCircuit(args)
+  let benchenv = createCircuit(args, env)
   echo "\nBench dir:\n", benchenv
