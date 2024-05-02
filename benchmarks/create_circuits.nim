@@ -1,6 +1,5 @@
 import std/[hashes, json, strutils, strformat, os, osproc]
 
-
 type
   CircuitEnv* = object
     nimCircuitCli*: string
@@ -21,14 +20,20 @@ type
     ncells*: int
     index*: int
 
+proc findCodexProjectDir(): string =
+  ## find codex proj dir -- assumes this script is in codex/benchmarks
+  result = currentSourcePath().parentDir.parentDir
+
 func default*(tp: typedesc[CircuitEnv]): CircuitEnv =
-  result.nimCircuitCli = "vendor" / "codex-storage-proofs-circuits" / "reference" / "nim" / "proof_input" / "cli"
-  result.circuitDirIncludes = "vendor" / "codex-storage-proofs-circuits" / "circuit"
-  result.ptauPath = "benchmarks" / "ceremony" / "powersOfTau28_hez_final_23.ptau"
+  let codexDir = findCodexProjectDir()
+  result.nimCircuitCli = codexDir / "vendor" / "codex-storage-proofs-circuits" / "reference" / "nim" / "proof_input" / "cli"
+  result.circuitDirIncludes = codexDir / "vendor" / "codex-storage-proofs-circuits" / "circuit"
+  result.ptauPath = codexDir / "benchmarks" / "ceremony" / "powersOfTau28_hez_final_23.ptau"
   result.ptauUrl = "https://storage.googleapis.com/zkevm/ptau/"
-  result.codexProjDir = ""
+  result.codexProjDir = codexDir
 
 template withDir(dir: string, blk: untyped) =
+  ## set working dir for duration of blk
   let prev = getCurrentDir()
   try:
     setCurrentDir(dir)
@@ -41,10 +46,6 @@ template runit(cmd: string) =
   let cmdRes = execShellCmd(cmd)
   echo "STATUS: ", cmdRes
   assert cmdRes == 0
-
-proc findCodexProjectDir(): string =
-  ## check that the CWD of script is in the codex parent
-  result = currentSourcePath.parentDir()
 
 proc checkEnv*(env: var CircuitEnv) =
   ## check that the CWD of script is in the codex parent
@@ -82,13 +83,8 @@ proc checkEnv*(env: var CircuitEnv) =
     echo "CWD: ", getCurrentDir()
     assert env.nimCircuitCli.fileExists()
 
-  env.nimCircuitCli = env.nimCircuitCli.absolutePath()
   echo "Found NimCircuitCli: ", env.nimCircuitCli
-
-  env.circuitDirIncludes = env.circuitDirIncludes.absolutePath
   echo "Found Circuit Path: ", env.circuitDirIncludes
-
-  env.ptauPath = env.ptauPath.absolutePath
   echo "Found PTAU file: ", env.ptauPath
 
 proc downloadPtau*(ptauPath, ptauUrl: string) =
