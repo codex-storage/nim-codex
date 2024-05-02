@@ -55,18 +55,14 @@ proc printHelp() =
   echo " -v, --verbose                      : verbose output (print the actual parameters)"
   echo " -d, --depth      = <maxdepth>      : maximum depth of the slot tree (eg. 32)"
   echo " -N, --maxslots   = <maxslots>      : maximum number of slots (eg. 256)"
-  echo " -c, --cellsize   = <cellSize>      : cell size in bytes (eg. 2048)"
-  echo " -b, --blocksize  = <blockSize>     : block size in bytes (eg. 65536)"
+  # echo " -c, --cellsize   = <cellSize>      : cell size in bytes (eg. 2048)"
+  # echo " -b, --blocksize  = <blockSize>     : block size in bytes (eg. 65536)"
   echo " -s, --nslots     = <nslots>        : number of slots in the dataset (eg. 13)"
   echo " -n, --nsamples   = <nsamples>      : number of samples we prove (eg. 100)"
   echo " -e, --entropy    = <entropy>       : external randomness (eg. 1234567)"
-  echo " -S, --seed       = <seed>          : seed to generate the fake data (eg. 12345)"
-  echo " -f, --file       = <datafile>      : slot data file, base name (eg. \"slotdata\" would mean \"slotdata5.dat\" for slot index = 5)"
+  # echo " -S, --seed       = <seed>          : seed to generate the fake data (eg. 12345)"
   echo " -i, --index      = <slotIndex>     : index of the slot (within the dataset) we prove"
-  echo " -k, --log2ncells = <log2(ncells)>  : log2 of the number of cells inside this slot (eg. 10)"
   echo " -K, --ncells     = <ncells>        : number of cells inside this slot (eg. 1024; must be a power of two)"
-  echo " -o, --output     = <input.json>    : the JSON file into which we write the proof input"
-  echo " -C, --circom     = <main.circom>   : the circom main component to create with these parameters"
   echo ""
 
   quit(1)
@@ -89,11 +85,11 @@ proc parseCliOptions(args: var CircuitArgs, files: var CircuitFiles) =
       of "h", "help"      : printHelp()
       of "d", "depth"     : args.depth         = parseInt(value) 
       of "N", "maxslots"  : args.maxslots      = parseInt(value)
-      of "c", "cellsize"  : args.cellsize      = checkPowerOfTwo(parseInt(value),"cellSize")
-      of "b", "blocksize" : args.blocksize     = checkPowerOfTwo(parseInt(value),"blockSize")
+      # of "c", "cellsize"  : args.cellsize      = checkPowerOfTwo(parseInt(value),"cellSize")
+      # of "b", "blocksize" : args.blocksize     = checkPowerOfTwo(parseInt(value),"blockSize")
       of "n", "nsamples"  : args.nsamples      = parseInt(value)
       of "e", "entropy"   : args.entropy       = parseInt(value)
-      of "S", "seed"      : args.seed          = parseInt(value)
+      # of "S", "seed"      : args.seed          = parseInt(value)
       of "s", "nslots"    : args.nslots        = parseInt(value)
       of "K", "ncells"    : args.ncells        = checkPowerOfTwo(parseInt(value),"nCells")
       of "i", "index"     : args.index         = parseInt(value)
@@ -139,16 +135,12 @@ proc run*() =
   if args.depth == 0:     args.depth = codextypes.DefaultMaxSlotDepth # maximum depth of the slot tree
   if args.maxslots == 0:  args.maxslots = 256 # maximum number of slots
 
-  if args.cellsize == 0:  args.cellsize = codextypes.DefaultCellSize.int # cell size in bytes
-  if args.blocksize == 0: args.blocksize = codextypes.DefaultBlockSize.int # block size in bytes
   if args.nsamples == 0:  args.nsamples = 1 # number of samples to prove
 
-  if args.entropy == 0:   args.entropy = proofInputs.entropy.int # external randomness
-  if args.seed == 0:      args.seed = proofInputs.seed.int # seed for creating fake data
-
-  if args.nslots == 0:    args.nslots = proofInputs.nSlotsPerDataSet.int # number of slots in the dataset
-  if args.index == 0:     args.index = proofInputs.slotIndex.int # which slot we prove (0..NSLOTS-1)
-  if args.ncells == 0:    args.ncells = proofInputs.nCellsPerSlot.int # number of cells in this slot
+  if args.entropy != 0:   inputs["entropy"] = %($args.entropy)
+  if args.nslots != 0:   inputs["nSlotsPerDataSet"] = % args.nslots
+  if args.index != 0:   inputs["slotIndex"] = % args.index
+  if args.ncells != 0:   inputs["nCellsPerSlot"] = % args.ncells
 
   var
     proofInputs = Poseidon2Hash.jsonToProofInput(inputs)
