@@ -128,6 +128,20 @@ proc run*() =
 
   if files.inputs == "": files.inputs = dir / fmt"input.json"
 
+  var fileErrors = false
+  template checkFile(file, name: untyped) =
+    if file == "" or not file.fileExists():
+      echo "\nERROR: must provide `" & name & "` file"
+      fileErrors = true
+
+  checkFile files.inputs, "inputs.json"
+  checkFile files.r1cs, "r1cs"
+  checkFile files.wasm, "wasm"
+  checkFile files.zkey, "zkey"
+
+  if fileErrors:
+      quit 1
+
   var
     inputData = files.inputs.readFile()
     inputs: JsonNode = !JsonNode.parse(inputData)
