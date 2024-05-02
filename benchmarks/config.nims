@@ -6,6 +6,8 @@
   on
 --tlsEmulation:
   off
+--d:
+  release
 
 # when not defined(chronicles_log_level):
 #   --define:"chronicles_log_level:NONE" # compile all log statements

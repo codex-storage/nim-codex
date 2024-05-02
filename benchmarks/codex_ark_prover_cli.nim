@@ -21,16 +21,17 @@ type CircuitFiles* = object
   dir*: string
   circName*: string
 
-proc runArkCircom(args: CircuitArgs, files: CircuitFiles, proofInputs: ProofInputs[Poseidon2Hash]) =
+proc runArkCircom(
+    args: CircuitArgs, files: CircuitFiles, proofInputs: ProofInputs[Poseidon2Hash]
+) =
   echo "Loading sample proof..."
-  var
-    circom = CircomCompat.init(
-      files.r1cs,
-      files.wasm,
-      files.zkey,
-      slotDepth = args.depth,
-      numSamples = args.nsamples,
-    )
+  var circom = CircomCompat.init(
+    files.r1cs,
+    files.wasm,
+    files.zkey,
+    slotDepth = args.depth,
+    numSamples = args.nsamples,
+  )
   defer:
     circom.release() # this comes from the rust FFI
 
@@ -71,7 +72,6 @@ proc printHelp() =
   quit(1)
 
 proc parseCliOptions(args: var CircuitArgs, files: var CircuitFiles) =
-
   var argCtr: int = 0
   template expectPath(val: string): string =
     if val == "":
@@ -90,33 +90,43 @@ proc parseCliOptions(args: var CircuitArgs, files: var CircuitFiles) =
     # Switches
     of cmdLongOption, cmdShortOption:
       case key
-
-      of "h", "help"      : printHelp()
-      of "d", "depth"     : args.depth         = parseInt(value) 
-      of "N", "maxslots"  : args.maxslots      = parseInt(value)
+      of "h", "help":
+        printHelp()
+      of "d", "depth":
+        args.depth = parseInt(value)
+      of "N", "maxslots":
+        args.maxslots = parseInt(value)
       # of "c", "cellsize"  : args.cellsize      = checkPowerOfTwo(parseInt(value),"cellSize")
       # of "b", "blocksize" : args.blocksize     = checkPowerOfTwo(parseInt(value),"blockSize")
-      of "n", "nsamples"  : args.nsamples      = parseInt(value)
-      of "e", "entropy"   : args.entropy       = parseInt(value)
+      of "n", "nsamples":
+        args.nsamples = parseInt(value)
+      of "e", "entropy":
+        args.entropy = parseInt(value)
       # of "S", "seed"      : args.seed          = parseInt(value)
-      of "s", "nslots"    : args.nslots        = parseInt(value)
-      of "K", "ncells"    : args.ncells        = checkPowerOfTwo(parseInt(value),"nCells")
-      of "i", "index"     : args.index         = parseInt(value)
-
-      of "r1cs"           : files.r1cs = value.expectPath()
-      of "wasm"           : files.wasm = value.expectPath()
-      of "zkey"           : files.zkey = value.expectPath()
-      of "inputs"         : files.inputs = value.expectPath()
-      of "dir"            : files.dir = value.expectPath()
-      of "name"           : files.circName = value
-
+      of "s", "nslots":
+        args.nslots = parseInt(value)
+      of "K", "ncells":
+        args.ncells = checkPowerOfTwo(parseInt(value), "nCells")
+      of "i", "index":
+        args.index = parseInt(value)
+      of "r1cs":
+        files.r1cs = value.expectPath()
+      of "wasm":
+        files.wasm = value.expectPath()
+      of "zkey":
+        files.zkey = value.expectPath()
+      of "inputs":
+        files.inputs = value.expectPath()
+      of "dir":
+        files.dir = value.expectPath()
+      of "name":
+        files.circName = value
       else:
         echo "Unknown option: ", key
         echo "use --help to get a list of options"
         quit()
-
     of cmdEnd:
-      discard  
+      discard
 
 proc run*() =
   ## Run Codex Ark/Circom based prover
@@ -131,13 +141,21 @@ proc run*() =
 
   parseCliOptions(args, files)
 
-  let dir = if files.dir != "": files.dir else: getCurrentDir()
+  let dir =
+    if files.dir != "":
+      files.dir
+    else:
+      getCurrentDir()
   if files.circName != "":
-    if files.r1cs == "": files.r1cs = dir / fmt"{files.circName}.r1cs"
-    if files.wasm == "": files.wasm = dir / fmt"{files.circName}.wasm"
-    if files.zkey == "": files.zkey = dir / fmt"{files.circName}.zkey"
+    if files.r1cs == "":
+      files.r1cs = dir / fmt"{files.circName}.r1cs"
+    if files.wasm == "":
+      files.wasm = dir / fmt"{files.circName}.wasm"
+    if files.zkey == "":
+      files.zkey = dir / fmt"{files.circName}.zkey"
 
-  if files.inputs == "": files.inputs = dir / fmt"input.json"
+  if files.inputs == "":
+    files.inputs = dir / fmt"input.json"
 
   echo "Got file args: ", files
 
@@ -161,20 +179,29 @@ proc run*() =
     inputs: JsonNode = !JsonNode.parse(inputData)
 
   # sets default values for these args
-  if args.depth == 0:     args.depth = codextypes.DefaultMaxSlotDepth # maximum depth of the slot tree
-  if args.maxslots == 0:  args.maxslots = 256 # maximum number of slots
+  if args.depth == 0:
+    args.depth = codextypes.DefaultMaxSlotDepth
+    # maximum depth of the slot tree
+  if args.maxslots == 0:
+    args.maxslots = 256
+    # maximum number of slots
 
   # sets number of samples to take
-  if args.nsamples == 0:  args.nsamples = 1 # number of samples to prove
+  if args.nsamples == 0:
+    args.nsamples = 1
+    # number of samples to prove
 
   # overrides the input.json params
-  if args.entropy != 0:   inputs["entropy"] = %($args.entropy)
-  if args.nslots != 0:   inputs["nSlotsPerDataSet"] = % args.nslots
-  if args.index != 0:   inputs["slotIndex"] = % args.index
-  if args.ncells != 0:   inputs["nCellsPerSlot"] = % args.ncells
+  if args.entropy != 0:
+    inputs["entropy"] = %($args.entropy)
+  if args.nslots != 0:
+    inputs["nSlotsPerDataSet"] = %args.nslots
+  if args.index != 0:
+    inputs["slotIndex"] = %args.index
+  if args.ncells != 0:
+    inputs["nCellsPerSlot"] = %args.ncells
 
-  var
-    proofInputs = Poseidon2Hash.jsonToProofInput(inputs)
+  var proofInputs = Poseidon2Hash.jsonToProofInput(inputs)
 
   echo "Got args: ", args
   runArkCircom(args, files, proofInputs)
