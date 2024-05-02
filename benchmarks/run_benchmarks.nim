@@ -50,6 +50,7 @@ proc runRapidSnark(args: CircuitArgs, files: CircuitFiles) =
   # time rapidsnark ${CIRCUIT_MAIN}.zkey witness.wtns proof.json public.json
 
   echo "generating the witness..."
+  ## TODO
 
 proc runBenchmark(args: CircuitArgs, env: CircuitEnv) =
   ## execute benchmarks given a set of args
