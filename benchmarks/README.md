@@ -12,6 +12,7 @@ nim c -r run_benchmarks
 By default all circuit files for each combinations of circuit args will be generated in a unique folder named like:
     nim-codex/benchmarks/circuit_bench_depth32_maxslots256_cellsize2048_blocksize65536_nsamples9_entropy1234567_seed12345_nslots11_ncells512_index3
 
+Generating the circuit files often takes longer than running benchmarks, so caching the results allows re-running the benchmark as needed.
 
 You can modify the `CircuitArgs` and `CircuitEnv` objects in `runAllBenchMarks` to suite your needs. See `create_circuits.nim` for their definition.
 
