@@ -37,14 +37,12 @@ proc runArkCircom(args: CircuitArgs, files: CircuitFiles, proofInputs: ProofInpu
   echo "Sample proof loaded..."
   echo "Proving..."
 
-  var proof: CircomProof
-  benchmark fmt"prover":
-    proof = circom.prove(proofInputs).tryGet
+  var proof: CircomProof = circom.prove(proofInputs).tryGet
 
-  var verRes: bool
-  benchmark fmt"verify":
-    verRes = circom.verify(proof, proofInputs).tryGet
-  echo "verify result: ", verRes
+  var verRes: bool = circom.verify(proof, proofInputs).tryGet
+  if not verRes:
+    echo "verification failed"
+    quit 100
 
 proc printHelp() =
   echo "usage:"
@@ -128,6 +126,8 @@ proc run*() =
 
   if files.inputs == "": files.inputs = dir / fmt"input.json"
 
+  echo "Got file args: ", files
+
   var fileErrors = false
   template checkFile(file, name: untyped) =
     if file == "" or not file.fileExists():
@@ -160,8 +160,7 @@ proc run*() =
     proofInputs = Poseidon2Hash.jsonToProofInput(inputs)
 
   echo "Got args: ", args
-  echo "Got files: ", files
-  # runArkCircom(args, files)
+  runArkCircom(args, files, proofInputs)
 
 when isMainModule:
   run()
