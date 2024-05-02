@@ -57,6 +57,16 @@ checksuite "Manifest":
     check:
       encodeDecode(manifest) == manifest
 
+  test "Should encode/decode large manifest":
+    let large = Manifest.new(
+      treeCid = Cid.example,
+      blockSize = (64 * 1024).NBytes,
+      datasetSize = (5 * 1024).MiBs
+    )
+
+    check:
+      encodeDecode(large) == large
+
   test "Should encode/decode to/from protected manifest":
     check:
       encodeDecode(protectedManifest) == protectedManifest
