@@ -20,14 +20,14 @@ By it runs all commands relative to the `nim-codex` repo. This simplifies findin
 
 ## Codex Ark Circom CLI
 
-**WIP**: untested
+Runs Codex's prover setup with Ark / Circom.
 
 Compile:
 ```sh
 nim c codex_ark_prover_cli.nim
 ```
 
-Run:
+Run to see usage:
 ```sh
 ./codex_ark_prover_cli.nim -h
 ```
