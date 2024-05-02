@@ -50,25 +50,110 @@ proc runArkCircom(args: CircuitArgs, files: CircuitFiles) =
     verRes = circom.verify(proof, proofInputs).tryGet
   echo "verify result: ", verRes
 
+proc printHelp() =
+  echo "usage:"
+  echo "  ./codex_ark_prover_cli [options] --output=proof_input.json --circom=proof_main.circom"
+  echo ""
+  echo "available options:"
+  echo " -h, --help                         : print this help"
+  echo " -v, --verbose                      : verbose output (print the actual parameters)"
+  echo " -d, --depth      = <maxdepth>      : maximum depth of the slot tree (eg. 32)"
+  echo " -N, --maxslots   = <maxslots>      : maximum number of slots (eg. 256)"
+  echo " -c, --cellsize   = <cellSize>      : cell size in bytes (eg. 2048)"
+  echo " -b, --blocksize  = <blockSize>     : block size in bytes (eg. 65536)"
+  echo " -s, --nslots     = <nslots>        : number of slots in the dataset (eg. 13)"
+  echo " -n, --nsamples   = <nsamples>      : number of samples we prove (eg. 100)"
+  echo " -e, --entropy    = <entropy>       : external randomness (eg. 1234567)"
+  echo " -S, --seed       = <seed>          : seed to generate the fake data (eg. 12345)"
+  echo " -f, --file       = <datafile>      : slot data file, base name (eg. \"slotdata\" would mean \"slotdata5.dat\" for slot index = 5)"
+  echo " -i, --index      = <slotIndex>     : index of the slot (within the dataset) we prove"
+  echo " -k, --log2ncells = <log2(ncells)>  : log2 of the number of cells inside this slot (eg. 10)"
+  echo " -K, --ncells     = <ncells>        : number of cells inside this slot (eg. 1024; must be a power of two)"
+  echo " -o, --output     = <input.json>    : the JSON file into which we write the proof input"
+  echo " -C, --circom     = <main.circom>   : the circom main component to create with these parameters"
+  echo ""
+
+  quit()
+
+#-------------------------------------------------------------------------------
+
+proc parseCliOptions(): FullConfig =
+
+  var argCtr: int = 0
+
+  var globCfg = defGlobCfg
+  var dsetCfg = defDSetCfg
+  var fullCfg = defFullCfg
+
+  for kind, key, value in getOpt():
+    case kind
+
+    # Positional arguments
+    of cmdArgument:
+      # echo ("arg #" & $argCtr & " = " & key)
+      argCtr += 1
+
+    # Switches
+    of cmdLongOption, cmdShortOption:
+      case key
+
+      of "h", "help"      : printHelp()
+      of "v", "verbose"   : fullCfg.verbose       = true
+      of "d", "depth"     : globCfg.maxDepth      = parseInt(value) 
+      of "N", "maxslots"  : globCfg.maxLog2NSlots = ceilingLog2(parseInt(value))
+      of "c", "cellsize"  : globCfg.cellSize      = checkPowerOfTwo(parseInt(value),"cellSize")
+      of "b", "blocksize" : globCfg.blockSize     = checkPowerOfTwo(parseInt(value),"blockSize")
+      of "s", "nslots"    : dsetCfg.nSlots        = parseInt(value)
+      of "n", "nsamples"  : dsetCfg.nsamples      = parseInt(value)
+      of "e", "entropy"   : fullCfg.entropy       = parseInt(value)
+      of "S", "seed"      : dsetCfg.dataSrc       = DataSource(kind: FakeData, seed: uint64(parseInt(value)))
+      of "f", "file"      : dsetCfg.dataSrc       = DataSource(kind: SlotFile, filename: value)
+      of "i", "index"     : fullCfg.slotIndex     = parseInt(value)
+      of "k", "log2ncells": dsetCfg.ncells        = pow2(parseInt(value))
+      of "K", "ncells"    : dsetCfg.ncells        = checkPowerOfTwo(parseInt(value),"nCells")
+      of "o", "output"    : fullCfg.outFile       = value
+      of "C", "circom"    : fullCfg.circomFile    = value
+      else:
+        echo "Unknown option: ", key
+        echo "use --help to get a list of options"
+        quit()
+
+    of cmdEnd:
+      discard  
+
+  fullCfg.globCfg = globCfg
+  fullCfg.dsetCfg = dsetCfg
+
+  return fullCfg
+
+
 proc run*() =
   echo "Running benchmark"
   # setup()
 
   var
-    inputData = files.inputs.readFile()
-    inputJson = !JsonNode.parse(inputData)
+    inputData = inputJson.readFile()
+    inputs = !JsonNode.parse(inputData)
+
+  # Proving defaults
+  echo DefaultMaxSlotDepth
+  echo DefaultMaxDatasetDepth
+  echo DefaultBlockDepth
+  echo DefaultCellElms
+  
+  # prove wasm ${CIRCUIT_MAIN}.zkey witness.wtns proof.json public.json
 
   var args = CircuitArgs(
-    depth: 32, # maximum depth of the slot tree 
-    maxslots: 256, # maximum number of slots  
-    cellsize: 2048, # cell size in bytes 
-    blocksize: 65536, # block size in bytes 
+    depth: DefaultMaxSlotDepth, # maximum depth of the slot tree
+    maxslots: 256, # maximum number of slots
+    cellsize: DefaultCellSize, # cell size in bytes
+    blocksize: DefaultBlockSize, # block size in bytes
     nsamples: 1, # number of samples to prove
     entropy: 1234567, # external randomness
     seed: 12345, # seed for creating fake data
-    nslots: 11, # number of slots in the dataset
-    index: 3, # which slot we prove (0..NSLOTS-1)
-    ncells: 512, # number of cells in this slot
+    nslots: inputs.nSlotsPerDataSet, # number of slots in the dataset
+    index: inputs.slotIndex, # which slot we prove (0..NSLOTS-1)
+    ncells: inputs.nCellsPerSlot, # number of cells in this slot
   )
 
   ## TODO: copy over testcircomcompat proving
