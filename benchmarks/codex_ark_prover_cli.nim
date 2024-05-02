@@ -1,5 +1,5 @@
 import std/[sequtils, strformat, os, options, importutils]
-import std/[times, os, strutils, terminal]
+import std/[times, os, strutils, terminal, parseopt]
 
 import pkg/questionable
 import pkg/questionable/results
@@ -18,11 +18,13 @@ type CircuitFiles* = object
   wasm*: string
   zkey*: string
   inputs*: string
+  dir*: string
+  circName*: string
 
-proc runArkCircom(args: CircuitArgs, files: CircuitFiles) =
+proc runArkCircom(args: CircuitArgs, files: CircuitFiles, inputs: JsonNode) =
   echo "Loading sample proof..."
   var
-    proofInputs = Poseidon2Hash.jsonToProofInput(inputJson)
+    proofInputs = Poseidon2Hash.jsonToProofInput(inputs)
     circom = CircomCompat.init(
       files.r1cs,
       files.wasm,
@@ -73,46 +75,42 @@ proc printHelp() =
   echo " -C, --circom     = <main.circom>   : the circom main component to create with these parameters"
   echo ""
 
-  quit()
+  quit(1)
 
-#-------------------------------------------------------------------------------
-
-proc parseCliOptions(): FullConfig =
+proc parseCliOptions(args: var CircuitArgs, files: var CircuitFiles) =
 
   var argCtr: int = 0
-
-  var globCfg = defGlobCfg
-  var dsetCfg = defDSetCfg
-  var fullCfg = defFullCfg
 
   for kind, key, value in getOpt():
     case kind
 
     # Positional arguments
     of cmdArgument:
-      # echo ("arg #" & $argCtr & " = " & key)
-      argCtr += 1
+      printHelp()
 
     # Switches
     of cmdLongOption, cmdShortOption:
       case key
 
       of "h", "help"      : printHelp()
-      of "v", "verbose"   : fullCfg.verbose       = true
-      of "d", "depth"     : globCfg.maxDepth      = parseInt(value) 
-      of "N", "maxslots"  : globCfg.maxLog2NSlots = ceilingLog2(parseInt(value))
-      of "c", "cellsize"  : globCfg.cellSize      = checkPowerOfTwo(parseInt(value),"cellSize")
-      of "b", "blocksize" : globCfg.blockSize     = checkPowerOfTwo(parseInt(value),"blockSize")
-      of "s", "nslots"    : dsetCfg.nSlots        = parseInt(value)
-      of "n", "nsamples"  : dsetCfg.nsamples      = parseInt(value)
-      of "e", "entropy"   : fullCfg.entropy       = parseInt(value)
-      of "S", "seed"      : dsetCfg.dataSrc       = DataSource(kind: FakeData, seed: uint64(parseInt(value)))
-      of "f", "file"      : dsetCfg.dataSrc       = DataSource(kind: SlotFile, filename: value)
-      of "i", "index"     : fullCfg.slotIndex     = parseInt(value)
-      of "k", "log2ncells": dsetCfg.ncells        = pow2(parseInt(value))
-      of "K", "ncells"    : dsetCfg.ncells        = checkPowerOfTwo(parseInt(value),"nCells")
-      of "o", "output"    : fullCfg.outFile       = value
-      of "C", "circom"    : fullCfg.circomFile    = value
+      of "d", "depth"     : args.depth         = parseInt(value) 
+      of "N", "maxslots"  : args.maxslots      = parseInt(value)
+      of "c", "cellsize"  : args.cellsize      = checkPowerOfTwo(parseInt(value),"cellSize")
+      of "b", "blocksize" : args.blocksize     = checkPowerOfTwo(parseInt(value),"blockSize")
+      of "n", "nsamples"  : args.nsamples      = parseInt(value)
+      of "e", "entropy"   : args.entropy       = parseInt(value)
+      of "S", "seed"      : args.seed        = parseInt(value)
+      of "s", "nslots"    : args.nslots        = parseInt(value)
+      of "K", "ncells"    : args.ncells        = checkPowerOfTwo(parseInt(value),"nCells")
+      of "i", "index"     : args.index         = parseInt(value)
+
+      of "r1cs"           : files.r1cs = value.absolutePath
+      of "wasm"           : files.wasm = value.absolutePath
+      of "zkey"           : files.zkey = value.absolutePath
+      of "inputs"         : files.inputs = value.absolutePath
+      of "dir"            : files.dir = value.absolutePath
+      of "name"           : files.circName = value
+
       else:
         echo "Unknown option: ", key
         echo "use --help to get a list of options"
@@ -121,50 +119,40 @@ proc parseCliOptions(): FullConfig =
     of cmdEnd:
       discard  
 
-  fullCfg.globCfg = globCfg
-  fullCfg.dsetCfg = dsetCfg
-
-  return fullCfg
-
-
 proc run*() =
   echo "Running benchmark"
-  # setup()
 
-  var
-    inputData = inputJson.readFile()
-    inputs = !JsonNode.parse(inputData)
-
-  # Proving defaults
-  echo DefaultMaxSlotDepth
-  echo DefaultMaxDatasetDepth
-  echo DefaultBlockDepth
-  echo DefaultCellElms
-  
   # prove wasm ${CIRCUIT_MAIN}.zkey witness.wtns proof.json public.json
 
-  var args = CircuitArgs(
-    depth: DefaultMaxSlotDepth, # maximum depth of the slot tree
-    maxslots: 256, # maximum number of slots
-    cellsize: DefaultCellSize, # cell size in bytes
-    blocksize: DefaultBlockSize, # block size in bytes
-    nsamples: 1, # number of samples to prove
-    entropy: 1234567, # external randomness
-    seed: 12345, # seed for creating fake data
-    nslots: inputs.nSlotsPerDataSet, # number of slots in the dataset
-    index: inputs.slotIndex, # which slot we prove (0..NSLOTS-1)
-    ncells: inputs.nCellsPerSlot, # number of cells in this slot
-  )
+  var
+    args = CircuitArgs()
+    files = CircuitFiles()
 
-  ## TODO: copy over testcircomcompat proving
-  let files = CircuitFiles(
-    r1cs: dir / fmt"{env.name}.r1cs",
-    wasm: dir / fmt"{env.name}.wasm",
-    zkey: dir / fmt"{env.name}.zkey",
-    inputs: dir / fmt"input.json",
-  )
+  parseCliOptions(args, files)
 
-  runArkCircom(args, files)
+  # r1cs: dir / fmt"{env.name}.r1cs",
+  # wasm: dir / fmt"{env.name}.wasm",
+  # zkey: dir / fmt"{env.name}.zkey",
+  # inputs: dir / fmt"input.json",
+
+  # depth: DefaultMaxSlotDepth, # maximum depth of the slot tree
+  # maxslots: 256, # maximum number of slots
+  # cellsize: DefaultCellSize, # cell size in bytes
+  # blocksize: DefaultBlockSize, # block size in bytes
+  # nsamples: 1, # number of samples to prove
+  # entropy: 1234567, # external randomness
+  # seed: 12345, # seed for creating fake data
+  # nslots: inputs.nSlotsPerDataSet, # number of slots in the dataset
+  # index: inputs.slotIndex, # which slot we prove (0..NSLOTS-1)
+  # ncells: inputs.nCellsPerSlot, # number of cells in this slot
+
+  var
+    inputData = files.inputs.readFile()
+    inputs = !JsonNode.parse(inputData)
+
+  echo "Got args: ", args
+  echo "Got files: ", files
+  # runArkCircom(args, files)
 
 when isMainModule:
   run()
