@@ -62,20 +62,30 @@ proc printHelp() =
   echo " -i, --index      = <slotIndex>     : index of the slot (within the dataset) we prove"
   echo " -K, --ncells     = <ncells>        : number of cells inside this slot (eg. 1024; must be a power of two)"
   echo ""
+  echo "Must provide files options. Use either:"
+  echo "  --dir:$CIRCUIT_DIR --name:$CIRCUIT_NAME"
+  echo "or:"
+  echo "  --r1cs:$R1CS --wasm:$WASM --zkey:$ZKEY"
+  echo ""
 
   quit(1)
 
 proc parseCliOptions(args: var CircuitArgs, files: var CircuitFiles) =
 
   var argCtr: int = 0
+  template expectPath(val: string): string =
+    if val == "":
+      echo "ERROR: expected path a but got empty for: ", key
+      printHelp()
+    val.absolutePath
 
   for kind, key, value in getOpt():
     case kind
 
     # Positional arguments
     of cmdArgument:
-      echo "CMD ARG: ", key, " v: ", value
-      # printHelp()
+      echo "\nERROR: got unexpected arg: ", key, "\n"
+      printHelp()
 
     # Switches
     of cmdLongOption, cmdShortOption:
@@ -93,11 +103,11 @@ proc parseCliOptions(args: var CircuitArgs, files: var CircuitFiles) =
       of "K", "ncells"    : args.ncells        = checkPowerOfTwo(parseInt(value),"nCells")
       of "i", "index"     : args.index         = parseInt(value)
 
-      of "r1cs"           : files.r1cs = value.absolutePath
-      of "wasm"           : files.wasm = value.absolutePath
-      of "zkey"           : files.zkey = value.absolutePath
-      of "inputs"         : files.inputs = value.absolutePath
-      of "dir"            : files.dir = value.absolutePath
+      of "r1cs"           : files.r1cs = value.expectPath()
+      of "wasm"           : files.wasm = value.expectPath()
+      of "zkey"           : files.zkey = value.expectPath()
+      of "inputs"         : files.inputs = value.expectPath()
+      of "dir"            : files.dir = value.expectPath()
       of "name"           : files.circName = value
 
       else:
@@ -141,7 +151,8 @@ proc run*() =
   checkFile files.zkey, "zkey"
 
   if fileErrors:
-      quit 1
+    echo "ERROR: couldn't find all files"
+    printHelp()
 
   var
     inputData = files.inputs.readFile()
