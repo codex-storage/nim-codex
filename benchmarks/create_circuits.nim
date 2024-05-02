@@ -8,7 +8,7 @@ type
     ptauUrl*: string
     codexProjDir*: string
 
-  CircArgs* = object
+  CircuitArgs* = object
     depth*: int
     maxslots*: int
     cellsize*: int
@@ -97,13 +97,13 @@ proc downloadPtau*(ptauPath, ptauUrl: string) =
   else:
     echo "Found PTAU file at: ", ptauPath
 
-proc getCircuitBenchPath*(args: CircArgs): string =
+proc getCircuitBenchPath*(args: CircuitArgs): string =
   var an = ""
   for f, v in fieldPairs(args):
     an &= "_" & f & $v
   absolutePath("benchmarks/circuit_bench" & an)
 
-proc generateCircomAndSamples*(args: CircArgs, env: CircuitEnv, name: string) =
+proc generateCircomAndSamples*(args: CircuitArgs, env: CircuitEnv, name: string) =
   ## run nim circuit and sample generator 
   var cliCmd = env.nimCircuitCli
   for f, v in fieldPairs(args):
@@ -114,7 +114,7 @@ proc generateCircomAndSamples*(args: CircArgs, env: CircuitEnv, name: string) =
     runit fmt"{cliCmd} -v --circom={name}.circom --output=input.json"
 
 proc createCircuit*(
-    args: CircArgs,
+    args: CircuitArgs,
     env: CircuitEnv,
     name = "proof_main",
     circBenchDir = getCircuitBenchPath(args),
@@ -173,7 +173,7 @@ when isMainModule:
   var env = CircuitEnv.default()
   checkEnv(env)
 
-  let args = CircArgs(
+  let args = CircuitArgs(
     depth: 32, # maximum depth of the slot tree 
     maxslots: 256, # maximum number of slots
     cellsize: 2048, # cell size in bytes 

@@ -34,7 +34,7 @@ template benchmark(benchmarkName: string, blk: untyped) =
     fgGreen, "CPU Time [", benchmarkName, "] ", "avg(", $nn, "): ", elapsedStr, " s"
   )
 
-proc runArkCircom(args: CircArgs, files: CircuitFiles) =
+proc runArkCircom(args: CircuitArgs, files: CircuitFiles) =
   echo "Loading sample proof..."
   var
     inputData = files.inputs.readFile()
@@ -62,12 +62,12 @@ proc runArkCircom(args: CircArgs, files: CircuitFiles) =
     verRes = circom.verify(proof, proofInputs).tryGet
   echo "verify result: ", verRes
 
-proc runRapidSnark(args: CircArgs, files: CircuitFiles) =
+proc runRapidSnark(args: CircuitArgs, files: CircuitFiles) =
   # time rapidsnark ${CIRCUIT_MAIN}.zkey witness.wtns proof.json public.json
 
   echo "generating the witness..."
 
-proc runBenchmark(args: CircArgs) =
+proc runBenchmark(args: CircuitArgs) =
   ## execute benchmarks given a set of args
   ## will create a folder in `benchmarks/circuit_bench_$(args)`
   ## 
@@ -88,7 +88,7 @@ proc startBenchmarks*() =
   echo "Running benchmark"
   # setup()
   checkEnv()
-  var args = CircArgs(
+  var args = CircuitArgs(
     depth: 32, # maximum depth of the slot tree 
     maxslots: 256, # maximum number of slots  
     cellsize: 2048, # cell size in bytes 
