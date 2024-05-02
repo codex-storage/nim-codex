@@ -69,7 +69,7 @@ proc runBenchmark(args: CircuitArgs, env: CircuitEnv) =
 
   runArkCircom(args, files)
 
-proc startBenchmarks*() =
+proc runAllBenchmarks*() =
   echo "Running benchmark"
   # setup()
   var env = CircuitEnv.default()
@@ -99,4 +99,4 @@ proc startBenchmarks*() =
   #   args.runBenchmark()
 
 when isMainModule:
-  startBenchmarks()
+  runAllBenchmarks()

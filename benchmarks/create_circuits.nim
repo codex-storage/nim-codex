@@ -84,11 +84,11 @@ proc downloadPtau*(ptauPath, ptauUrl: string) =
   else:
     echo "Found PTAU file at: ", ptauPath
 
-proc getCircuitBenchPath*(args: CircuitArgs): string =
+proc getCircuitBenchPath*(args: CircuitArgs, env: CircuitEnv): string =
+  ## generate folder name for unique circuit args
   var an = ""
-  for f, v in fieldPairs(args):
-    an &= "_" & f & $v
-  absolutePath("benchmarks/circuit_bench" & an)
+  for f, v in fieldPairs(args): an &= "_" & f & $v
+  env.codexProjDir / "benchmarks/circuit_bench" & an
 
 proc generateCircomAndSamples*(args: CircuitArgs, env: CircuitEnv, name: string) =
   ## run nim circuit and sample generator 
@@ -104,11 +104,16 @@ proc createCircuit*(
     args: CircuitArgs,
     env: CircuitEnv,
     name = "proof_main",
-    circBenchDir = getCircuitBenchPath(args),
+    circBenchDir = getCircuitBenchPath(args, env),
     someEntropy = "some_entropy_75289v3b7rcawcsyiur",
     doGenerateWitness = false,
 ): tuple[dir: string, name: string] =
   ## Generates all the files needed for to run a proof circuit. Downloads the PTAU file if needed.
+  ## 
+  ## All needed circuit files will be generated in `circBenchDir` which
+  ## defaults to a folder like:
+  ##    `nim-codex/benchmarks/circuit_bench_depth32_maxslots256_cellsize2048_blocksize65536_nsamples9_entropy1234567_seed12345_nslots11_ncells512_index3`
+  ## with all the given CircuitArgs.
   ## 
   let circdir = circBenchDir
 
