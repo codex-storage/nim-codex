@@ -139,7 +139,7 @@ proc createCircuit*(
     echo "Found r1cs: ", r1cs
 
     if not zkey.fileExists:
-      echo "Zkey not found, generating..."
+      echo "ZKey not found, generating..."
       putEnv "NODE_OPTIONS", "--max-old-space-size=8192"
       if not fmt"{name}_0000.zkey".fileExists:
         runit fmt"snarkjs groth16 setup {r1cs} {env.ptauPath} {name}_0000.zkey"
