@@ -106,7 +106,7 @@ proc startBenchmarks*() =
   for i in 1 .. 2:
     args.nsamples = i
     stdout.styledWriteLine(fgYellow, "\nbenchmarking args: ", $args)
-    args.runBenchmark()
+    runBenchmark(args, env)
 
   # for i in 1..16:
   #   args.nsamples = 10*i
