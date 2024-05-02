@@ -119,7 +119,9 @@ proc parseCliOptions(args: var CircuitArgs, files: var CircuitFiles) =
       discard  
 
 proc run*() =
-  echo "Running benchmark"
+  ## Run Codex Ark/Circom based prover
+  ## 
+  echo "Running prover"
 
   # prove wasm ${CIRCUIT_MAIN}.zkey witness.wtns proof.json public.json
 
@@ -158,11 +160,14 @@ proc run*() =
     inputData = files.inputs.readFile()
     inputs: JsonNode = !JsonNode.parse(inputData)
 
+  # sets default values for these args
   if args.depth == 0:     args.depth = codextypes.DefaultMaxSlotDepth # maximum depth of the slot tree
   if args.maxslots == 0:  args.maxslots = 256 # maximum number of slots
 
+  # sets number of samples to take
   if args.nsamples == 0:  args.nsamples = 1 # number of samples to prove
 
+  # overrides the input.json params
   if args.entropy != 0:   inputs["entropy"] = %($args.entropy)
   if args.nslots != 0:   inputs["nSlotsPerDataSet"] = % args.nslots
   if args.index != 0:   inputs["slotIndex"] = % args.index
