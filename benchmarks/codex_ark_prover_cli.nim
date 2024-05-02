@@ -31,11 +31,9 @@ proc runArkCircom(args: CircuitArgs, files: CircuitFiles, inputs: JsonNode) =
       files.zkey,
       slotDepth = args.depth,
       numSamples = args.nsamples,
-      # slotDepth     : int     # max depth of the slot tree
       # datasetDepth  : int     # max depth of dataset  tree
       # blkDepth      : int     # depth of the block merkle tree (pow2 for now)
       # cellElms      : int     # number of field elements per cell
-      # numSamples    : int     # number of samples per slot
     )
   defer:
     circom.release() # this comes from the rust FFI
@@ -130,25 +128,28 @@ proc run*() =
 
   parseCliOptions(args, files)
 
-  # r1cs: dir / fmt"{env.name}.r1cs",
-  # wasm: dir / fmt"{env.name}.wasm",
-  # zkey: dir / fmt"{env.name}.zkey",
-  # inputs: dir / fmt"input.json",
+  let dir = if files.dir != "": files.dir else: getCurrentDir()
+  if files.circName != "":
+    if files.r1cs == "": files.r1cs = dir / fmt"{files.circName}.r1cs"
+    if files.wasm == "": files.wasm = dir / fmt"{files.circName}.wasm"
+    if files.zkey == "": files.zkey = dir / fmt"{files.circName}.zkey"
 
-  # depth: DefaultMaxSlotDepth, # maximum depth of the slot tree
-  # maxslots: 256, # maximum number of slots
-  # cellsize: DefaultCellSize, # cell size in bytes
-  # blocksize: DefaultBlockSize, # block size in bytes
-  # nsamples: 1, # number of samples to prove
-  # entropy: 1234567, # external randomness
-  # seed: 12345, # seed for creating fake data
-  # nslots: inputs.nSlotsPerDataSet, # number of slots in the dataset
-  # index: inputs.slotIndex, # which slot we prove (0..NSLOTS-1)
-  # ncells: inputs.nCellsPerSlot, # number of cells in this slot
+  if files.inputs == "": files.inputs = dir / fmt"input.json"
 
   var
     inputData = files.inputs.readFile()
     inputs = !JsonNode.parse(inputData)
+
+  if args.depth == 0:     args.depth = codextypes.DefaultMaxSlotDepth # maximum depth of the slot tree
+  if args.maxslots == 0:  args.maxslots = 256 # maximum number of slots
+  if args.cellsize == 0:  args.cellsize = codextypes.DefaultCellSize.int # cell size in bytes
+  if args.blocksize == 0: args.blocksize = codextypes.DefaultBlockSize.int # block size in bytes
+  if args.nsamples == 0:  args.nsamples = 1 # number of samples to prove
+  if args.entropy == 0:   args.entropy = inputs.entropy # external randomness
+  if args.seed == 0:      args.seed = inputs.seed # seed for creating fake data
+  if args.nslots == 0:    args.nslots = inputs.nSlotsPerDataSet # number of slots in the dataset
+  if args.index == 0:     args.index = inputs.slotIndex # which slot we prove (0..NSLOTS-1)
+  if args.ncells == 0:    args.ncells = inputs.nCellsPerSlot # number of cells in this slot
 
   echo "Got args: ", args
   echo "Got files: ", files
