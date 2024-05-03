@@ -67,18 +67,27 @@ proc doTest(name: string, store: DataStore) {.async.} =
 
   echo name  & " = " & $(t1 - t0) & " / " & $(t2 - t1)
 
+proc ensuredir(dir: string) =
+  if not dirExists(dir):
+    createDir(dir)
+
+proc rmdir(dir: string) =
+  if dirExists(dir):
+    removeDir(dir)
+
 asyncchecksuite "SQL":
   test "should A":
     await doTest("defaultSQL", SQLiteDatastore.new("defaultSQL").tryGet())
 
     let dir = "defaultFS"
-    if not dirExists(dir):
-      createDir(dir)
+    ensuredir(dir)
     await doTest("defaultFS", FSDatastore.new(dir, depth = 5).tryGet())
-    removeDir(dir)
+    rmdir(dir)
 
+    rmdir("ldb")
     let ldb = LevelDbDatastore.new("ldb").tryGet()
     await doTest("leveldb", ldb)
 
+    rmdir("rdb")
     let rdb = RocksDbDatastore.new("rdb").tryGet()
     await doTest("rocksdb", rdb)
