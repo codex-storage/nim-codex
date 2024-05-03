@@ -19,7 +19,7 @@ import ./checktest
 import ./helpers
 import ./codex/helpers
 
-proc setGetTest(store: DataStore) {.async.} = 
+proc setGetTest(store: DataStore) {.async.} =
   let chunker = RandomChunker.new(Rng.instance(), size = 4096000, chunkSize = 256)
   var blocks: seq[bt.Block]
   while true:
@@ -35,7 +35,7 @@ proc setGetTest(store: DataStore) {.async.} =
     check:
       bytes == blk.data
 
-proc doTest(name: string, store: DataStore) {.async.} = 
+proc doTest(name: string, store: DataStore) {.async.} =
   let chunker = RandomChunker.new(Rng.instance(), size = 4096000, chunkSize = 256)
   var blocks: seq[bt.Block]
   while true:
@@ -77,8 +77,8 @@ asyncchecksuite "SQL":
     await doTest("defaultFS", FSDatastore.new(dir, depth = 5).tryGet())
     removeDir(dir)
 
-    let ldb = LevelDbDatastore.new("leveldb").tryGet()
+    let ldb = LevelDbDatastore.new("ldb").tryGet()
     await doTest("leveldb", ldb)
 
-    let rdb = RocksDbDatastore.new("rocksdb").tryGet()
+    let rdb = RocksDbDatastore.new("rdb").tryGet()
     await doTest("rocksdb", rdb)
