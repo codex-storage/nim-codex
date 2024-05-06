@@ -1,6 +1,7 @@
 import std/options
 import std/tables
 
+import pkg/chronicles
 import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
@@ -13,6 +14,9 @@ import pkg/datastore/defaultimpl
 import ./src/leveldb
 
 push: {.upraises: [].}
+
+logScope:
+  topics = "LevelDB"
 
 type
   LevelDbDatastore* = ref object of Datastore
@@ -49,16 +53,18 @@ method delete*(self: Datastore, keys: seq[Key]): Future[?!void] {.async, locks: 
   return success()
 
 method get*(self: LevelDbDatastore, key: Key): Future[?!seq[byte]] {.async, locks: "unknown".} =
+  trace "Get", key
   try:
     let str = self.db.get($key)
     if not str.isSome:
-      return failure("LevelDbDatastore.get: key not found " & $key)
+      return failure(newException(DatastoreKeyNotFound, "LevelDbDatastore.get: key not found " & $key))
     let bytes = toByteSeq(str.get())
     return success(bytes)
   except LevelDbException as e:
     return failure("LevelDbDatastore.get exception: " & $e.msg)
 
 method put*(self: LevelDbDatastore, key: Key, data: seq[byte]): Future[?!void] {.async, locks: "unknown".} =
+  trace "Put", key
   try:
     let str = toString(data)
     self.db.put($key, str)
@@ -174,6 +180,8 @@ method modify*(
 proc new*(
   T: type LevelDbDatastore, dbName: string): ?!T =
   try:
+    trace "Opening LevelDB", dbName
+
     let db = leveldb.open(dbName)
 
     success T(
@@ -181,4 +189,5 @@ proc new*(
       locks: newTable[Key, AsyncLock]()
     )
   except LevelDbException:
+    error "That didn't work"
     return failure("exception open")
