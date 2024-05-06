@@ -59,13 +59,15 @@ proc doTest(name: string, store: DataStore) {.async.} =
 
   let t2 = getMonoTime()
 
+  setGetTest(store)
+
+  let t3 = getMonoTime()
+
   for i in 0..<blocks.len:
     check:
       blocks[i].data == read[i]
 
-  setGetTest(store)
-
-  echo name  & " = " & $(t1 - t0) & " / " & $(t2 - t1)
+  echo name  & " = put:" & $(t1 - t0) & " / get:" & $(t2 - t1) & " / putget: " & $(t3 - t2)
 
 proc ensuredir(dir: string) =
   if not dirExists(dir):
