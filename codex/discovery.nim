@@ -84,16 +84,13 @@ method find*(
 method provide*(d: Discovery, cid: Cid) {.async, base.} =
   ## Provide a bock Cid
   ##
-
-  trace "Providing block", cid
   let
     nodes = await d.protocol.addProvider(
       cid.toNodeId(), d.providerRecord.get)
 
   if nodes.len <= 0:
-    trace "Couldn't provide to any nodes!"
+    warn "Couldn't provide to any nodes!"
 
-  trace "Provided to nodes", nodes = nodes.len
 
 method find*(
   d: Discovery,

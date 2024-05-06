@@ -147,9 +147,6 @@ proc sendWantCancellations*(
   addresses: seq[BlockAddress]): Future[void] {.async.} =
   ## Informs a remote peer that we're no longer interested in a set of blocks
   ##
-
-  trace "Sending block request cancellation to peer", addrs = addresses.len, peer = id
-
   await b.sendWantList(id = id, addresses = addresses, cancel = true)
 
 proc handleBlocksDelivery(
