@@ -73,7 +73,7 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
       return
 
     let market = agent.context.market
-    let expiry = await market.getRequestExpiry(data.requestId)
+    let expiry = await market.requestExpiresAt(data.requestId)
 
     while true:
       let deadline = max(clock.now, expiry) + 1

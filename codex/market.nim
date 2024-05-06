@@ -84,7 +84,7 @@ method getRequestEnd*(market: Market,
                       id: RequestId): Future[SecondsSince1970] {.base, async.} =
   raiseAssert("not implemented")
 
-method getRequestExpiry*(market: Market,
+method requestExpiresAt*(market: Market,
                       id: RequestId): Future[SecondsSince1970] {.base, async.} =
   raiseAssert("not implemented")
 

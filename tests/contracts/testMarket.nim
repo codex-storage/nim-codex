@@ -33,7 +33,7 @@ ethersuite "On-Chain Market":
     await ethProvider.advanceTimeTo(periodicity.periodEnd(currentPeriod) + 1)
 
   proc advanceToCancelledRequest(request: StorageRequest) {.async.} =
-    let expiry = (await market.getRequestExpiry(request.id)) + 1
+    let expiry = (await market.requestExpiresAt(request.id)) + 1
     await ethProvider.advanceTimeTo(expiry.u256)
 
   proc waitUntilProofRequired(slotId: SlotId) {.async.} =

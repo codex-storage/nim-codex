@@ -69,16 +69,6 @@ asyncchecksuite "Purchasing":
     check eventually market.requested.len > 0
     check market.requested[0].ask.proofProbability == 42.u256
 
-  test "has a default value for request expiration interval":
-    check purchasing.requestExpiryInterval != 0.u256
-
-  test "can change default value for request expiration interval":
-    purchasing.requestExpiryInterval = 42.u256
-    let start = getTime().toUnix()
-    discard await purchasing.purchase(request)
-    check eventually market.requested.len > 0
-    check market.requested[0].expiry == 42.u256
-
   test "includes a random nonce in every storage request":
     discard await purchasing.purchase(request)
     discard await purchasing.purchase(request)

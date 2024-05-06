@@ -126,7 +126,7 @@ method getRequestEnd*(market: OnChainMarket,
   convertEthersError:
     return await market.contract.requestEnd(id)
 
-method getRequestExpiry*(market: OnChainMarket,
+method requestExpiresAt*(market: OnChainMarket,
                       id: RequestId): Future[SecondsSince1970] {.async.} =
   convertEthersError:
     return await market.contract.requestExpiry(id)

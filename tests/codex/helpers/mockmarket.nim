@@ -166,7 +166,7 @@ method getRequestEnd*(market: MockMarket,
                       id: RequestId): Future[SecondsSince1970] {.async.} =
   return market.requestEnds[id]
 
-method getRequestExpiry*(market: MockMarket,
+method requestExpiresAt*(market: MockMarket,
                       id: RequestId): Future[SecondsSince1970] {.async.} =
   return market.requestExpiry[id]
 
