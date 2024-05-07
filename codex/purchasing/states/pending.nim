@@ -14,5 +14,5 @@ method run*(state: PurchasePending, machine: Machine): Future[?State] {.async.} 
   codex_purchases_pending.inc()
   let purchase = Purchase(machine)
   let request = !purchase.request
-  await purchase.market.requestStorage(request)
+  await purchase.market.requestStorage(request).confirm(1)
   return some State(PurchaseSubmitted())
