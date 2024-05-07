@@ -399,7 +399,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       ## duration         - the duration of the request in seconds
       ## proofProbability - how often storage proofs are required
       ## reward           - the maximum amount of tokens paid per second per slot to hosts the client is willing to pay
-      ## expiry           - timestamp, in seconds, when the request expires if the Request does not find requested amount of nodes to host the data
+      ## expiry           - specifies threshold in seconds from now when the request expires if the Request does not find requested amount of nodes to host the data
       ## nodes            - number of nodes the content should be stored on
       ## tolerance        - allowed number of nodes that can be lost before content is lost
       ## colateral        - requested collateral from hosts when they fill slot
@@ -425,15 +425,8 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
         without expiry =? params.expiry:
           return RestApiResponse.error(Http400, "Expiry required")
 
-        if node.clock.isNil:
-          return RestApiResponse.error(Http500)
-
-        if expiry <= node.clock.now.u256:
-          return RestApiResponse.error(Http400, "Expiry needs to be in future. Now: " & $node.clock.now)
-
-        let expiryLimit = node.clock.now.u256 + params.duration
-        if expiry > expiryLimit:
-          return RestApiResponse.error(Http400, "Expiry has to be before the request's end (now + duration). Limit: " & $expiryLimit)
+        if expiry <= 0 or expiry >= params.duration:
+          return RestApiResponse.error(Http400, "Expiry needs value bigger then zero and smaller then the request's duration")
 
         without purchaseId =? await node.requestStorage(
           cid,
@@ -494,7 +487,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
 
 proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
   ## various node management api's
-  ## 
+  ##
   router.api(
     MethodGet,
     "/api/codex/v1/spr") do () -> RestApiResponse:

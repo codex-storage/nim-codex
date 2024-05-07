@@ -20,6 +20,7 @@ type
     activeSlots*: Table[Address, seq[SlotId]]
     requested*: seq[StorageRequest]
     requestEnds*: Table[RequestId, SecondsSince1970]
+    requestExpiry*: Table[RequestId, SecondsSince1970]
     requestState*: Table[RequestId, RequestState]
     slotState*: Table[SlotId, SlotState]
     fulfilled*: seq[Fulfillment]
@@ -164,6 +165,10 @@ method slotState*(market: MockMarket,
 method getRequestEnd*(market: MockMarket,
                       id: RequestId): Future[SecondsSince1970] {.async.} =
   return market.requestEnds[id]
+
+method requestExpiresAt*(market: MockMarket,
+                      id: RequestId): Future[SecondsSince1970] {.async.} =
+  return market.requestExpiry[id]
 
 method getHost*(market: MockMarket,
                requestId: RequestId,

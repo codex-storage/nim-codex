@@ -126,6 +126,11 @@ method getRequestEnd*(market: OnChainMarket,
   convertEthersError:
     return await market.contract.requestEnd(id)
 
+method requestExpiresAt*(market: OnChainMarket,
+                      id: RequestId): Future[SecondsSince1970] {.async.} =
+  convertEthersError:
+    return await market.contract.requestExpiry(id)
+
 method getHost(market: OnChainMarket,
                requestId: RequestId,
                slotIndex: UInt256): Future[?Address] {.async.} =
