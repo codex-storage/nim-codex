@@ -213,8 +213,7 @@ components:
           description: Number as decimal string that represents how much collateral is asked from hosts that wants to fill a slots
         expiry:
           type: string
-          description: Number as decimal string that represents expiry time of the request (in unix timestamp)
-
+          description: Number as decimal string that represents expiry threshold in seconds from when the Request is submitted. When the threshold is reached and the Request does not find requested amount of nodes to host the data, the Request is voided. The number of seconds can not be higher then the Request's duration itself.
     StorageAsk:
       type: object
       required:

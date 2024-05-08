@@ -55,6 +55,7 @@ proc mySlots*(marketplace: Marketplace): seq[SlotId] {.contract, view.}
 proc requestState*(marketplace: Marketplace, requestId: RequestId): RequestState {.contract, view.}
 proc slotState*(marketplace: Marketplace, slotId: SlotId): SlotState {.contract, view.}
 proc requestEnd*(marketplace: Marketplace, requestId: RequestId): SecondsSince1970 {.contract, view.}
+proc requestExpiry*(marketplace: Marketplace, requestId: RequestId): SecondsSince1970 {.contract, view.}
 
 proc proofTimeout*(marketplace: Marketplace): UInt256 {.contract, view.}
 
