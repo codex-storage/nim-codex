@@ -13,7 +13,7 @@ ARG BUILD_HOME
 ARG MAKE_PARALLEL
 ARG NIMFLAGS
 
-RUN apt-get update && apt-get install -y git cmake curl make bash lcov build-essential rustc cargo
+RUN apt-get update && apt-get install -y git cmake curl make bash lcov build-essential rustc cargo libleveldb-dev
 
 WORKDIR ${BUILD_HOME}
 COPY . .
@@ -31,7 +31,7 @@ WORKDIR ${APP_HOME}
 COPY --from=builder ${BUILD_HOME}/build/codex /usr/local/bin
 COPY --chmod=0755 docker/docker-entrypoint.sh /
 COPY ./openapi.yaml .
-RUN apt-get update && apt-get install -y libgomp1 bash curl jq && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libgomp1 bash curl jq libleveldb-dev && rm -rf /var/lib/apt/lists/*
 ENV NAT_IP_AUTO=${NAT_IP_AUTO}
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["codex"]
