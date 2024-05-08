@@ -15,6 +15,7 @@ import pkg/codex/chunker
 import pkg/codex/discovery
 import pkg/codex/blocktype
 import pkg/codex/utils/asyncheapqueue
+import pkg/codex/manifest
 
 import ../../../asynctest
 import ../../helpers
@@ -142,6 +143,11 @@ asyncchecksuite "NetworkStore engine handlers":
     peerCtx: BlockExcPeerCtx
     localStore: BlockStore
     blocks: seq[Block]
+
+  const NopSendWantCancellationsProc = proc(
+    id: PeerId,
+    addresses: seq[BlockAddress]
+  ) {.gcsafe, async.} = discard
 
   setup:
     rng = Rng.instance()
@@ -285,6 +291,10 @@ asyncchecksuite "NetworkStore engine handlers":
 
     let blocksDelivery = blocks.mapIt(BlockDelivery(blk: it, address: it.address))
 
+    # Install NOP for want list cancellations so they don't cause a crash
+    engine.network = BlockExcNetwork(
+      request: BlockExcRequest(sendWantCancellations: NopSendWantCancellationsProc))
+
     await engine.blocksDeliveryHandler(peerId, blocksDelivery)
     let resolved = await allFinished(pending)
     check resolved.mapIt( it.read ) == blocks
@@ -319,10 +329,14 @@ asyncchecksuite "NetworkStore engine handlers":
 
           check receiver == peerId
           check balances[account.address.toDestination] == amount
-          done.complete()
+          done.complete(),
+
+        # Install NOP for want list cancellations so they don't cause a crash
+        sendWantCancellations: NopSendWantCancellationsProc
     ))
 
-    await engine.blocksDeliveryHandler(peerId, blocks.mapIt(BlockDelivery(blk: it, address: it.address)))
+    await engine.blocksDeliveryHandler(peerId, blocks.mapIt(
+      BlockDelivery(blk: it, address: it.address)))
     await done.wait(100.millis)
 
   test "Should handle block presence":
@@ -364,6 +378,75 @@ asyncchecksuite "NetworkStore engine handlers":
     for a in blocks.mapIt(it.address):
       check a in peerCtx.peerHave
       check peerCtx.blocks[a].price == price
+
+  test "Should send cancellations for received blocks":
+    let
+      pending = blocks.mapIt(engine.pendingBlocks.getWantHandle(it.cid))
+      blocksDelivery = blocks.mapIt(BlockDelivery(blk: it, address: it.address))
+      cancellations = newTable(
+        blocks.mapIt((it.address, newFuture[void]())).toSeq
+      )
+
+    proc sendWantCancellations(
+      id: PeerId,
+      addresses: seq[BlockAddress]
+    ) {.gcsafe, async.} =
+        for address in addresses:
+          cancellations[address].complete()
+
+    engine.network = BlockExcNetwork(
+      request: BlockExcRequest(
+        sendWantCancellations: sendWantCancellations
+    ))
+
+    await engine.blocksDeliveryHandler(peerId, blocksDelivery)
+    discard await allFinished(pending)
+    await allFuturesThrowing(cancellations.values().toSeq)
+
+  test "resolveBlocks should queue manifest CIDs for discovery":
+    engine.network = BlockExcNetwork(
+      request: BlockExcRequest(sendWantCancellations: NopSendWantCancellationsProc))
+
+    let
+      manifest = Manifest.new(
+        treeCid = Cid.example,
+        blockSize = 123.NBytes,
+        datasetSize = 234.NBytes
+      )
+
+    let manifestBlk = Block.new(data = manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
+    let blks = @[manifestBlk]
+
+    await engine.resolveBlocks(blks)
+
+    check:
+      manifestBlk.cid in engine.discovery.advertiseQueue
+
+  test "resolveBlocks should queue tree CIDs for discovery":
+    engine.network = BlockExcNetwork(
+      request: BlockExcRequest(sendWantCancellations: NopSendWantCancellationsProc))
+
+    let
+      tCid = Cid.example
+      delivery = BlockDelivery(blk: Block.example, address: BlockAddress(leaf: true, treeCid: tCid))
+      
+    await engine.resolveBlocks(@[delivery])
+
+    check:
+      tCid in engine.discovery.advertiseQueue
+
+  test "resolveBlocks should not queue non-manifest non-tree CIDs for discovery":
+    engine.network = BlockExcNetwork(
+      request: BlockExcRequest(sendWantCancellations: NopSendWantCancellationsProc))
+
+    let
+      blkCid = Cid.example
+      delivery = BlockDelivery(blk: Block.example, address: BlockAddress(leaf: false, cid: blkCid))
+      
+    await engine.resolveBlocks(@[delivery])
+
+    check:
+      blkCid notin engine.discovery.advertiseQueue
 
 asyncchecksuite "Task Handler":
   var
@@ -466,6 +549,39 @@ asyncchecksuite "Task Handler":
     )
 
     await engine.taskHandler(peersCtx[0])
+
+  test "Should set in-flight for outgoing blocks":
+    proc sendBlocksDelivery(
+      id: PeerId,
+      blocksDelivery: seq[BlockDelivery]) {.gcsafe, async.} =
+      check peersCtx[0].peerWants[0].inFlight
+
+    for blk in blocks:
+      (await engine.localStore.putBlock(blk)).tryGet()
+    engine.network.request.sendBlocksDelivery = sendBlocksDelivery
+
+    peersCtx[0].peerWants.add(WantListEntry(
+      address: blocks[0].address,
+      priority: 50,
+      cancel: false,
+      wantType: WantType.WantBlock,
+      sendDontHave: false,
+      inFlight: false)
+    )
+    await engine.taskHandler(peersCtx[0])
+
+  test "Should clear in-flight when local lookup fails":
+    peersCtx[0].peerWants.add(WantListEntry(
+      address: blocks[0].address,
+      priority: 50,
+      cancel: false,
+      wantType: WantType.WantBlock,
+      sendDontHave: false,
+      inFlight: false)
+    )
+    await engine.taskHandler(peersCtx[0])
+
+    check not peersCtx[0].peerWants[0].inFlight
 
   test "Should send presence":
     let present = blocks

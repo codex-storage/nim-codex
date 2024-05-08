@@ -72,8 +72,11 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
     without request =? data.request:
       return
 
+    let market = agent.context.market
+    let expiry = await market.requestExpiresAt(data.requestId)
+
     while true:
-      let deadline = max(clock.now, request.expiry.truncate(int64)) + 1
+      let deadline = max(clock.now, expiry) + 1
       trace "Waiting for request to be cancelled", now=clock.now, expiry=deadline
       await clock.waitUntil(deadline)
 
@@ -81,8 +84,13 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
         error "Uknown request", requestId = data.requestId
         return
 
-      if state == RequestState.Cancelled:
+      case state
+      of New:
+        discard
+      of RequestState.Cancelled:
         agent.schedule(cancelledEvent(request))
+        break
+      of RequestState.Started, RequestState.Finished, RequestState.Failed:
         break
 
       debug "The request is not yet canceled, even though it should be. Waiting for some more time.", currentState = state, now=clock.now

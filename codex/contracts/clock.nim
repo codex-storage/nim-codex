@@ -16,26 +16,39 @@ type
     provider: Provider
     subscription: Subscription
     offset: times.Duration
+    blockNumber: UInt256
     started: bool
     newBlock: AsyncEvent
-    lastBlockTime: UInt256
 
 proc new*(_: type OnChainClock, provider: Provider): OnChainClock =
   OnChainClock(provider: provider, newBlock: newAsyncEvent())
+
+proc update(clock: OnChainClock, blck: Block) =
+  if number =? blck.number and number > clock.blockNumber:
+    let blockTime = initTime(blck.timestamp.truncate(int64), 0)
+    let computerTime = getTime()
+    clock.offset = blockTime - computerTime
+    clock.blockNumber = number
+    trace "updated clock", blockTime=blck.timestamp, blockNumber=number, offset=clock.offset
+    clock.newBlock.fire()
+
+proc update(clock: OnChainClock) {.async.} =
+  try:
+    if latest =? (await clock.provider.getBlock(BlockTag.latest)):
+      clock.update(latest)
+  except CatchableError as error:
+    debug "error updating clock: ", error=error.msg
+    discard
 
 method start*(clock: OnChainClock) {.async.} =
   if clock.started:
     return
 
-  proc onBlock(blck: Block) =
-    let blockTime = initTime(blck.timestamp.truncate(int64), 0)
-    let computerTime = getTime()
-    clock.offset = blockTime - computerTime
-    clock.lastBlockTime = blck.timestamp
-    clock.newBlock.fire()
+  proc onBlock(_: Block) =
+    # ignore block parameter; hardhat may call this with pending blocks
+    asyncSpawn clock.update()
 
-  if latestBlock =? (await clock.provider.getBlock(BlockTag.latest)):
-    onBlock(latestBlock)
+  await clock.update()
 
   clock.subscription = await clock.provider.subscribe(onBlock)
   clock.started = true
@@ -48,22 +61,8 @@ method stop*(clock: OnChainClock) {.async.} =
   clock.started = false
 
 method now*(clock: OnChainClock): SecondsSince1970 {.raises: [].} =
-  when codex_use_hardhat:
-    # hardhat's latest block.timestamp is usually 1s behind the block timestamp
-    # in the newHeads event. When testing, always return the latest block.
-    try:
-      if queriedBlock =? (waitFor clock.provider.getBlock(BlockTag.latest)):
-        trace "using last block timestamp for clock.now",
-          lastBlockTimestamp = queriedBlock.timestamp.truncate(int64),
-          cachedBlockTimestamp = clock.lastBlockTime.truncate(int64)
-        return queriedBlock.timestamp.truncate(int64)
-    except CatchableError as e:
-      warn "failed to get latest block timestamp", error = e.msg
-      return clock.lastBlockTime.truncate(int64)
-
-  else:
-    doAssert clock.started, "clock should be started before calling now()"
-    return toUnix(getTime() + clock.offset)
+  doAssert clock.started, "clock should be started before calling now()"
+  return toUnix(getTime() + clock.offset)
 
 method waitUntil*(clock: OnChainClock, time: SecondsSince1970) {.async.} =
   while (let difference = time - clock.now(); difference > 0):

@@ -11,6 +11,7 @@ import std/sequtils
 import std/strutils
 import std/os
 import std/tables
+import std/cpuinfo
 
 import pkg/chronos
 import pkg/presto
@@ -22,12 +23,15 @@ import pkg/stew/io2
 import pkg/stew/shims/net as stewnet
 import pkg/datastore
 import pkg/ethers except Rng
+import pkg/stew/io2
+import pkg/taskpools
 
 import ./node
 import ./conf
 import ./rng
 import ./rest/api
 import ./stores
+import ./slots
 import ./blockexchange
 import ./utils/fileutils
 import ./erasure
@@ -46,15 +50,25 @@ logScope:
 
 type
   CodexServer* = ref object
-    runHandle: Future[void]
     config: CodexConf
     restServer: RestServerRef
     codexNode: CodexNodeRef
     repoStore: RepoStore
     maintenance: BlockMaintainer
+    taskpool: Taskpool
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
   EthWallet = ethers.Wallet
+
+proc waitForSync(provider: Provider): Future[void] {.async.} =
+  var sleepTime = 1
+  trace "Checking sync state of Ethereum provider..."
+  while await provider.isSyncing:
+    notice "Waiting for Ethereum provider to sync..."
+    await sleepAsync(sleepTime.seconds)
+    if sleepTime < 10:
+      inc sleepTime
+  trace "Ethereum provider is synced."
 
 proc bootstrapInteractions(
   s: CodexServer): Future[void] {.async.} =
@@ -65,77 +79,71 @@ proc bootstrapInteractions(
     config = s.config
     repo = s.repoStore
 
-
-  if not config.persistence and not config.validator:
-    if config.ethAccount.isSome or config.ethPrivateKey.isSome:
-      warn "Ethereum account was set, but neither persistence nor validator is enabled"
-    return
-
-  if not config.ethAccount.isSome and not config.ethPrivateKey.isSome:
-    if config.persistence:
-      error "Persistence enabled, but no Ethereum account was set"
-    if config.validator:
-      error "Validator enabled, but no Ethereum account was set"
-    quit QuitFailure
-
-  let provider = JsonRpcProvider.new(config.ethProvider)
-  var signer: Signer
-  if account =? config.ethAccount:
-    signer = provider.getSigner(account)
-  elif keyFile =? config.ethPrivateKey:
-    without isSecure =? checkSecureFile(keyFile):
-      error "Could not check file permissions: does Ethereum private key file exist?"
-      quit QuitFailure
-    if not isSecure:
-      error "Ethereum private key file does not have safe file permissions"
-      quit QuitFailure
-    without key =? keyFile.readAllChars():
-      error "Unable to read Ethereum private key file"
-      quit QuitFailure
-    without wallet =? EthWallet.new(key.strip(), provider):
-      error "Invalid Ethereum private key in file"
-      quit QuitFailure
-    signer = wallet
-
-  let deploy = Deployment.new(provider, config)
-  without marketplaceAddress =? await deploy.address(Marketplace):
-    error "No Marketplace address was specified or there is no known address for the current network"
-    quit QuitFailure
-
-  let marketplace = Marketplace.new(marketplaceAddress, signer)
-  let market = OnChainMarket.new(marketplace)
-  let clock = OnChainClock.new(provider)
-
-  var client: ?ClientInteractions
-  var host: ?HostInteractions
-  var validator: ?ValidatorInteractions
-
-  if config.validator or config.persistence:
-    s.codexNode.clock = clock
-  else:
-    s.codexNode.clock = SystemClock()
-
   if config.persistence:
-    # This is used for simulation purposes. Normal nodes won't be compiled with this flag
-    # and hence the proof failure will always be 0.
-    when codex_enable_proof_failures:
-      let proofFailures = config.simulateProofFailures
-      if proofFailures > 0:
-        warn "Enabling proof failure simulation!"
+    if not config.ethAccount.isSome and not config.ethPrivateKey.isSome:
+      error "Persistence enabled, but no Ethereum account was set"
+      quit QuitFailure
+
+    let provider = JsonRpcProvider.new(config.ethProvider)
+    await waitForSync(provider)
+    var signer: Signer
+    if account =? config.ethAccount:
+      signer = provider.getSigner(account)
+    elif keyFile =? config.ethPrivateKey:
+      without isSecure =? checkSecureFile(keyFile):
+        error "Could not check file permissions: does Ethereum private key file exist?"
+        quit QuitFailure
+      if not isSecure:
+        error "Ethereum private key file does not have safe file permissions"
+        quit QuitFailure
+      without key =? keyFile.readAllChars():
+        error "Unable to read Ethereum private key file"
+        quit QuitFailure
+      without wallet =? EthWallet.new(key.strip(), provider):
+        error "Invalid Ethereum private key in file"
+        quit QuitFailure
+      signer = wallet
+
+    let deploy = Deployment.new(provider, config)
+    without marketplaceAddress =? await deploy.address(Marketplace):
+      error "No Marketplace address was specified or there is no known address for the current network"
+      quit QuitFailure
+
+    let marketplace = Marketplace.new(marketplaceAddress, signer)
+    let market = OnChainMarket.new(marketplace)
+    let clock = OnChainClock.new(provider)
+
+    var client: ?ClientInteractions
+    var host: ?HostInteractions
+    var validator: ?ValidatorInteractions
+
+    if config.validator or config.persistence:
+      s.codexNode.clock = clock
     else:
-      let proofFailures = 0
-      if config.simulateProofFailures > 0:
-        warn "Proof failure simulation is not enabled for this build! Configuration ignored"
+      s.codexNode.clock = SystemClock()
 
-    let purchasing = Purchasing.new(market, clock)
-    let sales = Sales.new(market, clock, repo, proofFailures)
-    client = some ClientInteractions.new(clock, purchasing)
-    host = some HostInteractions.new(clock, sales)
-  if config.validator:
-    let validation = Validation.new(clock, market, config.validatorMaxSlots)
-    validator = some ValidatorInteractions.new(clock, validation)
+    if config.persistence:
+      # This is used for simulation purposes. Normal nodes won't be compiled with this flag
+      # and hence the proof failure will always be 0.
+      when codex_enable_proof_failures:
+        let proofFailures = config.simulateProofFailures
+        if proofFailures > 0:
+          warn "Enabling proof failure simulation!"
+      else:
+        let proofFailures = 0
+        if config.simulateProofFailures > 0:
+          warn "Proof failure simulation is not enabled for this build! Configuration ignored"
 
-  s.codexNode.contracts = (client, host, validator)
+      let purchasing = Purchasing.new(market, clock)
+      let sales = Sales.new(market, clock, repo, proofFailures)
+      client = some ClientInteractions.new(clock, purchasing)
+      host = some HostInteractions.new(clock, sales)
+
+    if config.validator:
+      let validation = Validation.new(clock, market, config.validatorMaxSlots)
+      validator = some ValidatorInteractions.new(clock, validation)
+
+    s.codexNode.contracts = (client, host, validator)
 
 proc start*(s: CodexServer) {.async.} =
   trace "Starting codex node", config = $s.config
@@ -174,11 +182,12 @@ proc start*(s: CodexServer) {.async.} =
   await s.codexNode.start()
   s.restServer.start()
 
-  s.runHandle = newFuture[void]("codex.runHandle")
-  await s.runHandle
-
 proc stop*(s: CodexServer) {.async.} =
   notice "Stopping codex node"
+
+
+  s.taskpool.syncAll()
+  s.taskpool.shutdown()
 
   await allFuturesThrowing(
     s.restServer.stop(),
@@ -186,8 +195,6 @@ proc stop*(s: CodexServer) {.async.} =
     s.codexNode.stop(),
     s.repoStore.stop(),
     s.maintenance.stop())
-
-  s.runHandle.complete()
 
 proc new*(
   T: type CodexServer,
@@ -262,12 +269,45 @@ proc new*(
     blockDiscovery = DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
     engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
+    prover = if config.prover:
+      if not fileAccessible($config.circomR1cs, {AccessFlags.Read}) and
+        endsWith($config.circomR1cs, ".r1cs"):
+        error "Circom R1CS file not accessible"
+        raise (ref Defect)(
+          msg: "r1cs file not readable, doesn't exist or wrong extension (.r1cs)")
+
+      if not fileAccessible($config.circomWasm, {AccessFlags.Read}) and
+        endsWith($config.circomWasm, ".wasm"):
+        error "Circom wasm file not accessible"
+        raise (ref Defect)(
+          msg: "wasm file not readable, doesn't exist or wrong extension (.wasm)")
+
+      let zkey = if not config.circomNoZkey:
+          if not fileAccessible($config.circomZkey, {AccessFlags.Read}) and
+            endsWith($config.circomZkey, ".zkey"):
+            error "Circom zkey file not accessible"
+            raise (ref Defect)(
+              msg: "zkey file not readable, doesn't exist or wrong extension (.zkey)")
+
+          $config.circomZkey
+        else: ""
+
+      some Prover.new(
+        store,
+        CircomCompat.init($config.circomR1cs, $config.circomWasm, zkey),
+        config.numProofSamples)
+    else:
+      none Prover
+
+    taskpool = Taskpool.new(num_threads = countProcessors())
 
     codexNode = CodexNodeRef.new(
       switch = switch,
       networkStore = store,
       engine = engine,
-      discovery = discovery)
+      prover = prover,
+      discovery = discovery,
+      taskpool = taskpool)
 
     restServer = RestServerRef.new(
       codexNode.initRestApi(config, repoStore),
@@ -283,4 +323,5 @@ proc new*(
     codexNode: codexNode,
     restServer: restServer,
     repoStore: repoStore,
-    maintenance: maintenance)
+    maintenance: maintenance,
+    taskpool: taskpool)

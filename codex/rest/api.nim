@@ -35,6 +35,7 @@ import ../contracts
 import ../manifest
 import ../streams/asyncstreamwrapper
 import ../stores
+import ../utils/options
 
 import ./coders
 import ./json
@@ -59,7 +60,7 @@ proc formatManifestBlocks(node: CodexNodeRef): Future[JsonNode] {.async.} =
     content.add(restContent)
 
   await node.iterateManifests(formatManifest)
-  return %content
+  return %RestContentList.init(content)
 
 proc retrieveCid(
   node: CodexNodeRef,
@@ -253,9 +254,10 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
   router.rawApi(
     MethodPost,
     "/api/codex/v1/sales/availability") do () -> RestApiResponse:
-      ## Add available storage to sell
+      ## Add available storage to sell.
+      ## Every time Availability's offer finishes, its capacity is returned to the availability.
       ##
-      ## size           - size of available storage in bytes
+      ## totalSize      - size of available storage in bytes
       ## duration       - maximum time the storage should be sold for (in seconds)
       ## minPrice       - minimum price to be paid (in amount of tokens)
       ## maxCollateral  - maximum collateral user is willing to pay per filled Slot (in amount of tokens)
@@ -271,12 +273,15 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
         let reservations = contracts.sales.context.reservations
 
-        if not reservations.hasAvailable(restAv.size.truncate(uint)):
+        if restAv.totalSize == 0:
+          return RestApiResponse.error(Http400, "Total size must be larger then zero")
+
+        if not reservations.hasAvailable(restAv.totalSize.truncate(uint)):
           return RestApiResponse.error(Http422, "Not enough storage quota")
 
         without availability =? (
           await reservations.createAvailability(
-            restAv.size,
+            restAv.totalSize,
             restAv.duration,
             restAv.minPrice,
             restAv.maxCollateral)
@@ -284,7 +289,102 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
           return RestApiResponse.error(Http500, error.msg)
 
         return RestApiResponse.response(availability.toJson,
+                                        Http201,
                                         contentType="application/json")
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
+
+  router.rawApi(
+    MethodPatch,
+    "/api/codex/v1/sales/availability/{id}") do (id: AvailabilityId) -> RestApiResponse:
+      ## Updates Availability.
+      ## The new parameters will be only considered for new requests.
+      ## Existing Requests linked to this Availability will continue as is.
+      ##
+      ## totalSize      - size of available storage in bytes. When decreasing the size, then lower limit is the currently `totalSize - freeSize`.
+      ## duration       - maximum time the storage should be sold for (in seconds)
+      ## minPrice       - minimum price to be paid (in amount of tokens)
+      ## maxCollateral  - maximum collateral user is willing to pay per filled Slot (in amount of tokens)
+
+      try:
+        without contracts =? node.contracts.host:
+          return RestApiResponse.error(Http503, "Sales unavailable")
+
+        without id =? id.tryGet.catch, error:
+          return RestApiResponse.error(Http400, error.msg)
+        without keyId =? id.key.tryGet.catch, error:
+          return RestApiResponse.error(Http400, error.msg)
+
+        let
+          body = await request.getBody()
+          reservations = contracts.sales.context.reservations
+
+        type OptRestAvailability = Optionalize(RestAvailability)
+        without restAv =? OptRestAvailability.fromJson(body), error:
+          return RestApiResponse.error(Http400, error.msg)
+
+        without availability =? (await reservations.get(keyId, Availability)), error:
+          if error of NotExistsError:
+            return RestApiResponse.error(Http404, "Availability not found")
+
+          return RestApiResponse.error(Http500, error.msg)
+
+        if isSome restAv.freeSize:
+          return RestApiResponse.error(Http400, "Updating freeSize is not allowed")
+
+        if size =? restAv.totalSize:
+          # we don't allow lowering the totalSize bellow currently utilized size
+          if size < (availability.totalSize - availability.freeSize):
+            return RestApiResponse.error(Http400, "New totalSize must be larger then current totalSize - freeSize, which is currently: " & $(availability.totalSize - availability.freeSize))
+
+          availability.freeSize += size - availability.totalSize
+          availability.totalSize = size
+
+        if duration =? restAv.duration:
+          availability.duration = duration
+
+        if minPrice =? restAv.minPrice:
+          availability.minPrice = minPrice
+
+        if maxCollateral =? restAv.maxCollateral:
+          availability.maxCollateral = maxCollateral
+
+        if err =? (await reservations.update(availability)).errorOption:
+          return RestApiResponse.error(Http500, err.msg)
+
+        return RestApiResponse.response(Http200)
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
+
+  router.rawApi(
+    MethodGet,
+    "/api/codex/v1/sales/availability/{id}/reservations") do (id: AvailabilityId) -> RestApiResponse:
+      ## Gets Availability's reservations.
+
+      try:
+        without contracts =? node.contracts.host:
+          return RestApiResponse.error(Http503, "Sales unavailable")
+
+        without id =? id.tryGet.catch, error:
+          return RestApiResponse.error(Http400, error.msg)
+        without keyId =? id.key.tryGet.catch, error:
+          return RestApiResponse.error(Http400, error.msg)
+
+        let reservations = contracts.sales.context.reservations
+
+        if error =? (await reservations.get(keyId, Availability)).errorOption:
+          if error of NotExistsError:
+            return RestApiResponse.error(Http404, "Availability not found")
+          else:
+            return RestApiResponse.error(Http500, error.msg)
+
+        without availabilitysReservations =? (await reservations.all(Reservation, id)), err:
+          return RestApiResponse.error(Http500, err.msg)
+
+        # TODO: Expand this structure with information about the linked StorageRequest not only RequestID
+        return RestApiResponse.response(availabilitysReservations.toJson, contentType="application/json")
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
@@ -299,7 +399,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       ## duration         - the duration of the request in seconds
       ## proofProbability - how often storage proofs are required
       ## reward           - the maximum amount of tokens paid per second per slot to hosts the client is willing to pay
-      ## expiry           - timestamp, in seconds, when the request expires if the Request does not find requested amount of nodes to host the data
+      ## expiry           - specifies threshold in seconds from now when the request expires if the Request does not find requested amount of nodes to host the data
       ## nodes            - number of nodes the content should be stored on
       ## tolerance        - allowed number of nodes that can be lost before content is lost
       ## colateral        - requested collateral from hosts when they fill slot
@@ -325,14 +425,8 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
         without expiry =? params.expiry:
           return RestApiResponse.error(Http400, "Expiry required")
 
-        if node.clock.isNil:
-          return RestApiResponse.error(Http500)
-
-        if expiry <= node.clock.now.u256:
-          return RestApiResponse.error(Http400, "Expiry needs to be in future")
-
-        if expiry > node.clock.now.u256 + params.duration:
-          return RestApiResponse.error(Http400, "Expiry has to be before the request's end (now + duration)")
+        if expiry <= 0 or expiry >= params.duration:
+          return RestApiResponse.error(Http400, "Expiry needs value bigger then zero and smaller then the request's duration")
 
         without purchaseId =? await node.requestStorage(
           cid,
@@ -391,6 +485,78 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
 
+proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
+  ## various node management api's
+  ##
+  router.api(
+    MethodGet,
+    "/api/codex/v1/spr") do () -> RestApiResponse:
+      ## Returns node SPR in requested format, json or text.
+      ##
+      try:
+        without spr =? node.discovery.dhtRecord:
+          return RestApiResponse.response("", status=Http503, contentType="application/json")
+
+        if $preferredContentType().get() == "text/plain":
+            return RestApiResponse.response(spr.toURI, contentType="text/plain")
+        else:
+            return RestApiResponse.response($ %* {"spr": spr.toURI}, contentType="application/json")
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/peerid") do () -> RestApiResponse:
+      ## Returns node's peerId in requested format, json or text.
+      ##
+      try:
+        let id = $node.switch.peerInfo.peerId
+
+        if $preferredContentType().get() == "text/plain":
+            return RestApiResponse.response(id, contentType="text/plain")
+        else:
+            return RestApiResponse.response($ %* {"id": id}, contentType="application/json")
+      except CatchableError as exc:
+        trace "Excepting processing request", exc = exc.msg
+        return RestApiResponse.error(Http500)
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/connect/{peerId}") do (
+      peerId: PeerId,
+      addrs: seq[MultiAddress]) -> RestApiResponse:
+      ## Connect to a peer
+      ##
+      ## If `addrs` param is supplied, it will be used to
+      ## dial the peer, otherwise the `peerId` is used
+      ## to invoke peer discovery, if it succeeds
+      ## the returned addresses will be used to dial
+      ##
+      ## `addrs` the listening addresses of the peers to dial, eg the one specified with `--listen-addrs`
+      ##
+
+      if peerId.isErr:
+        return RestApiResponse.error(
+          Http400,
+          $peerId.error())
+
+      let addresses = if addrs.isOk and addrs.get().len > 0:
+            addrs.get()
+          else:
+            without peerRecord =? (await node.findPeer(peerId.get())):
+              return RestApiResponse.error(
+                Http400,
+                "Unable to find Peer!")
+            peerRecord.addresses.mapIt(it.address)
+      try:
+        await node.connect(peerId.get(), addresses)
+        return RestApiResponse.response("Successfully connected to peer")
+      except DialFailedError:
+        return RestApiResponse.error(Http400, "Unable to dial peer")
+      except CatchableError:
+        return RestApiResponse.error(Http500, "Unknown error dialling peer")
+
 proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
   router.api(
     MethodGet,
@@ -419,7 +585,8 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
             }
           }
 
-        return RestApiResponse.response($json, contentType="application/json")
+        # return pretty json for human readability
+        return RestApiResponse.response(json.pretty(), contentType="application/json")
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
@@ -476,42 +643,7 @@ proc initRestApi*(node: CodexNodeRef, conf: CodexConf, repoStore: RepoStore): Re
   initDataApi(node, repoStore, router)
   initSalesApi(node, router)
   initPurchasingApi(node, router)
+  initNodeApi(node, conf, router)
   initDebugApi(node, conf, router)
-
-  router.api(
-    MethodGet,
-    "/api/codex/v1/connect/{peerId}") do (
-      peerId: PeerId,
-      addrs: seq[MultiAddress]) -> RestApiResponse:
-      ## Connect to a peer
-      ##
-      ## If `addrs` param is supplied, it will be used to
-      ## dial the peer, otherwise the `peerId` is used
-      ## to invoke peer discovery, if it succeeds
-      ## the returned addresses will be used to dial
-      ##
-      ## `addrs` the listening addresses of the peers to dial, eg the one specified with `--listen-addrs`
-      ##
-
-      if peerId.isErr:
-        return RestApiResponse.error(
-          Http400,
-          $peerId.error())
-
-      let addresses = if addrs.isOk and addrs.get().len > 0:
-            addrs.get()
-          else:
-            without peerRecord =? (await node.findPeer(peerId.get())):
-              return RestApiResponse.error(
-                Http400,
-                "Unable to find Peer!")
-            peerRecord.addresses.mapIt(it.address)
-      try:
-        await node.connect(peerId.get(), addresses)
-        return RestApiResponse.response("Successfully connected to peer")
-      except DialFailedError:
-        return RestApiResponse.error(Http400, "Unable to dial peer")
-      except CatchableError:
-        return RestApiResponse.error(Http500, "Unknown error dialling peer")
 
   return router

@@ -1,5 +1,4 @@
-import ./utils/testjson
-import ./utils/testoptionalcast
+import ./utils/testoptions
 import ./utils/testkeyutils
 import ./utils/testasyncstatemachine
 import ./utils/testtimer

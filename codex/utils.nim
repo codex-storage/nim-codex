@@ -8,6 +8,7 @@
 ## those terms.
 ##
 
+import std/enumerate
 import std/parseutils
 import std/options
 
@@ -17,7 +18,7 @@ import ./utils/asyncheapqueue
 import ./utils/fileutils
 import ./utils/asynciter
 
-export asyncheapqueue, fileutils, asynciter
+export asyncheapqueue, fileutils, asynciter, chronos
 
 
 func divUp*[T: SomeInteger](a, b : T): T =
@@ -34,6 +35,24 @@ proc orElse*[A](a, b: Option[A]): Option[A] =
     a
   else:
     b
+
+template findIt*(s, pred: untyped): untyped =
+  ## Returns the index of the first object matching a predicate, or -1 if no
+  ## object matches it.
+  runnableExamples:
+    type MyType = object
+      att: int
+
+    var s = @[MyType(att: 1), MyType(att: 2), MyType(att: 3)]
+    doAssert s.findIt(it.att == 2) == 1
+    doAssert s.findIt(it.att == 4) == -1
+
+  var index = -1
+  for i, it {.inject.} in enumerate(items(s)):
+    if pred:
+      index = i
+      break
+  index
 
 when not declared(parseDuration): # Odd code formatting to minimize diff v. mainLine
  const Whitespace = {' ', '\t', '\v', '\r', '\l', '\f'}
@@ -75,18 +94,3 @@ when not declared(parseDuration): # Odd code formatting to minimize diff v. main
       result = start                    #..is no unit to the end of `s`.
     var sizeF = number * scale + 0.5    # Saturate to int64.high when too big
     size = seconds(int(sizeF))
-
-when isMainModule:
-  import unittest2
-
-  suite "time parse":
-    test "parseDuration":
-      var res: Duration  # caller must still know if 'b' refers to bytes|bits
-      check parseDuration("10Hr", res) == 3
-      check res == hours(10)
-      check parseDuration("64min", res) == 3
-      check res == minutes(64)
-      check parseDuration("7m/block", res) == 2 # '/' stops parse
-      check res == minutes(7)  # 1 shl 30, forced binary metric
-      check parseDuration("3d", res) == 2 # '/' stops parse
-      check res == days(3)  # 1 shl 30, forced binary metric

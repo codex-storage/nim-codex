@@ -31,7 +31,7 @@ func `==`*(a, b: Block): bool =
 proc calcEcBlocksCount*(blocksCount: int, ecK, ecM: int): int =
   let
     rounded = roundUp(blocksCount, ecK)
-    steps = divUp(blocksCount, ecK)
+    steps = divUp(rounded, ecK)
 
   rounded + (steps * ecM)
 
@@ -105,6 +105,19 @@ proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest
     (await store.putCidAndProof(treeCid, i, cids[i], proof)).tryGet()
 
   return manifest
+
+proc makeRandomBlocks*(
+  datasetSize: int, blockSize: NBytes): Future[seq[Block]] {.async.} =
+
+  var chunker = RandomChunker.new(Rng.instance(), size = datasetSize,
+    chunkSize = blockSize)
+
+  while true:
+    let chunk = await chunker.getBytes()
+    if chunk.len <= 0:
+      break
+
+    result.add(Block.new(chunk).tryGet())
 
 proc corruptBlocks*(
   store: BlockStore,

@@ -1,4 +1,3 @@
-import std/math
 from std/times import inMilliseconds
 import pkg/codex/logutils
 import pkg/stew/byteutils
@@ -7,8 +6,9 @@ import ../contracts/deployment
 import ../codex/helpers
 import ../examples
 import ./marketplacesuite
+import ./nodeconfigs
 
-export chronicles
+export logutils
 
 logScope:
   topics = "integration test proofs"
@@ -18,36 +18,40 @@ marketplacesuite "Hosts submit regular proofs":
 
   test "hosts submit periodic proofs for slots they fill", NodeConfigs(
     # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
-    # hardhat: HardhatConfig().withLogFile(),
+    hardhat:
+      HardhatConfig.none,
 
     clients:
-      CodexConfig()
-        .nodes(1)
+      CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("node"),
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("node, marketplace")
+        .some,
 
     providers:
-      CodexConfig()
-        .nodes(1)
+      CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node"),
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("marketplace", "sales", "reservations", "node", "clock")
+        .some,
   ):
     let client0 = clients()[0].client
-    let totalPeriods = 50
-    let datasetSizeInBlocks = 2
+    let expiry = 5.periods
+    let duration = expiry + 5.periods
 
-    let data = await RandomChunker.example(blocks=1)
-    createAvailabilities(data.len, totalPeriods.periods)
+    let data = await RandomChunker.example(blocks=8)
+    createAvailabilities(data.len * 2, duration) # TODO: better value for data.len
 
     let cid = client0.upload(data).get
 
     let purchaseId = await client0.requestStorage(
       cid,
-      duration=totalPeriods.periods,
-      origDatasetSizeInBlocks = datasetSizeInBlocks)
-    check eventually client0.purchaseStateIs(purchaseId, "started")
+      expiry=expiry,
+      duration=duration,
+      nodes=3,
+      tolerance=1
+    )
+    check eventually(client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000)
 
     var proofWasSubmitted = false
     proc onProofSubmitted(event: ProofSubmitted) =
@@ -55,8 +59,7 @@ marketplacesuite "Hosts submit regular proofs":
 
     let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
 
-    let currentPeriod = await getCurrentPeriod()
-    check eventuallyP(proofWasSubmitted, currentPeriod + totalPeriods.u256 + 1)
+    check eventually(proofWasSubmitted, timeout=(duration - expiry).int * 1000)
 
     await subscription.unsubscribe()
 
@@ -70,114 +73,121 @@ marketplacesuite "Simulate invalid proofs":
 
   test "slot is freed after too many invalid proofs submitted", NodeConfigs(
     # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
-    # hardhat: HardhatConfig().withLogFile(),
+    hardhat:
+      HardhatConfig.none,
 
     clients:
-      CodexConfig()
-        .nodes(1)
+      CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("node"),
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("node", "marketplace", "clock")
+        .some,
 
     providers:
-      CodexConfig()
-        .nodes(1)
-        .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=1)
+      CodexConfigs.init(nodes=1)
+        .withSimulateProofFailures(idx=0, failEveryNProofs=1)
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node"),
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("marketplace", "sales", "reservations", "node", "clock", "slotsbuilder")
+        .some,
 
     validators:
-      CodexConfig()
-        .nodes(1)
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+      CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
-        .withLogTopics("validator", "onchain", "ethers")
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("validator", "onchain", "ethers", "clock")
+        .some
   ):
     let client0 = clients()[0].client
-    let totalPeriods = 50
+    let expiry = 5.periods
+    let duration = expiry + 10.periods
 
-    let datasetSizeInBlocks = 2
-    let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
-    createAvailabilities(data.len, totalPeriods.periods)
+    let data = await RandomChunker.example(blocks=8)
+    createAvailabilities(data.len * 2, duration) # TODO: better value for data.len
 
     let cid = client0.upload(data).get
 
     let purchaseId = await client0.requestStorage(
       cid,
-      duration=totalPeriods.periods,
-      origDatasetSizeInBlocks=datasetSizeInBlocks)
+      expiry=expiry,
+      duration=duration,
+      nodes=3,
+      tolerance=1,
+      proofProbability=1
+    )
     let requestId = client0.requestId(purchaseId).get
 
-    check eventually client0.purchaseStateIs(purchaseId, "started")
+    check eventually(client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000)
 
     var slotWasFreed = false
     proc onSlotFreed(event: SlotFreed) =
-      if event.requestId == requestId and
-        event.slotIndex == 0.u256: # assume only one slot, so index 0
+      if event.requestId == requestId:
         slotWasFreed = true
 
     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
-    let currentPeriod = await getCurrentPeriod()
-    check eventuallyP(slotWasFreed, currentPeriod + totalPeriods.u256 + 1)
+    check eventually(slotWasFreed, timeout=(duration - expiry).int * 1000)
 
     await subscription.unsubscribe()
 
   test "slot is not freed when not enough invalid proofs submitted", NodeConfigs(
     # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
-    # hardhat: HardhatConfig().withLogFile(),
+    hardhat: HardhatConfig.none,
 
     clients:
-      CodexConfig()
-        .nodes(1)
+      CodexConfigs.init(nodes=1)
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("node"),
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("marketplace", "sales", "reservations", "node", "clock")
+        .some,
 
     providers:
-      CodexConfig()
-        .nodes(1)
-        .simulateProofFailuresFor(providerIdx=0, failEveryNProofs=3)
+      CodexConfigs.init(nodes=1)
+        .withSimulateProofFailures(idx=0, failEveryNProofs=1)
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("marketplace", "sales", "reservations", "node"),
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("marketplace", "sales", "reservations", "node")
+        .some,
 
     validators:
-      CodexConfig()
-        .nodes(1)
+      CodexConfigs.init(nodes=1)
         # .debug()
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("validator", "onchain", "ethers")
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("validator", "onchain", "ethers", "clock")
+        .some
   ):
     let client0 = clients()[0].client
-    let totalPeriods = 25
+    let expiry = 5.periods
+    # In 2 periods you cannot have enough invalid proofs submitted:
+    let duration = expiry + 2.periods
 
-    let datasetSizeInBlocks = 2
-    let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
-    createAvailabilities(data.len, totalPeriods.periods)
+    let data = await RandomChunker.example(blocks=8)
+    createAvailabilities(data.len * 2, duration) # TODO: better value for data.len
 
     let cid = client0.upload(data).get
 
     let purchaseId = await client0.requestStorage(
       cid,
-      duration=totalPeriods.periods,
-      origDatasetSizeInBlocks=datasetSizeInBlocks)
+      expiry=expiry,
+      duration=duration,
+      nodes=3,
+      tolerance=1,
+      proofProbability=1
+    )
     let requestId = client0.requestId(purchaseId).get
 
-    check eventually client0.purchaseStateIs(purchaseId, "started")
+    check eventually(client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000)
 
     var slotWasFreed = false
     proc onSlotFreed(event: SlotFreed) =
-      if event.requestId == requestId and
-          event.slotIndex == 0.u256:
+      if event.requestId == requestId:
         slotWasFreed = true
 
     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
     # check not freed
-    let currentPeriod = await getCurrentPeriod()
-    check not eventuallyP(slotWasFreed, currentPeriod + totalPeriods.u256 + 1)
+    await sleepAsync((duration - expiry).int.seconds)
+    check not slotWasFreed
 
     await subscription.unsubscribe()
 
@@ -220,7 +230,7 @@ marketplacesuite "Simulate invalid proofs":
   #   let slotSize = (DefaultBlockSize * 4.NBytes).Natural.u256
 
   #   discard provider0.client.postAvailability(
-  #     size=slotSize, # should match 1 slot only
+  #     totalSize=slotSize, # should match 1 slot only
   #     duration=totalPeriods.periods.u256,
   #     minPrice=300.u256,
   #     maxCollateral=200.u256
@@ -253,7 +263,7 @@ marketplacesuite "Simulate invalid proofs":
   #   # now add availability for providers 1 and 2, which should allow them to to
   #   # put the remaining slots in their queues
   #   discard provider1.client.postAvailability(
-  #     size=slotSize, # should match 1 slot only
+  #     totalSize=slotSize, # should match 1 slot only
   #     duration=totalPeriods.periods.u256,
   #     minPrice=300.u256,
   #     maxCollateral=200.u256
@@ -262,7 +272,7 @@ marketplacesuite "Simulate invalid proofs":
   #   check eventually filledSlotIds.len > 1
 
   #   discard provider2.client.postAvailability(
-  #     size=slotSize, # should match 1 slot only
+  #     totalSize=slotSize, # should match 1 slot only
   #     duration=totalPeriods.periods.u256,
   #     minPrice=300.u256,
   #     maxCollateral=200.u256

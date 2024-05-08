@@ -1,13 +1,31 @@
-
+import std/tables
 import std/times
+import std/cpuinfo
 
 import pkg/libp2p
 import pkg/chronos
+import pkg/taskpools
 
 import pkg/codex/codextypes
 import pkg/codex/chunker
+import pkg/codex/stores
+import pkg/codex/slots
 
 import ../../asynctest
+
+type CountingStore* = ref object of NetworkStore
+  lookups*: Table[Cid, int]
+
+proc new*(T: type CountingStore,
+  engine: BlockExcEngine, localStore: BlockStore): CountingStore =
+  # XXX this works cause NetworkStore.new is trivial
+  result = CountingStore(engine: engine, localStore: localStore)
+
+method getBlock*(self: CountingStore,
+  address: BlockAddress): Future[?!Block] {.async.} =
+
+  self.lookups.mgetOrPut(address.cid, 0).inc
+  await procCall getBlock(NetworkStore(self), address)
 
 proc toTimesDuration*(d: chronos.Duration): times.Duration =
   initDuration(seconds = d.seconds)
@@ -68,6 +86,7 @@ template setupAndTearDown*() {.dirty.} =
     peerStore: PeerCtxStore
     pendingBlocks: PendingBlocksManager
     discovery: DiscoveryEngine
+    taskpool: Taskpool
 
   let
     path = currentSourcePath().parentDir
@@ -94,7 +113,14 @@ template setupAndTearDown*() {.dirty.} =
     discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
     engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
-    node = CodexNodeRef.new(switch, store, engine, blockDiscovery)
+    taskpool = Taskpool.new(num_threads = countProcessors())
+    node = CodexNodeRef.new(
+      switch = switch,
+      networkStore = store,
+      engine = engine,
+      prover = Prover.none,
+      discovery = blockDiscovery,
+      taskpool = taskpool)
 
     await node.start()
 

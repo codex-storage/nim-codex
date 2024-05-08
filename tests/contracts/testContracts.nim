@@ -85,7 +85,8 @@ ethersuite "Marketplace contracts":
     check endBalance == (startBalance + request.ask.duration * request.ask.reward + request.ask.collateral)
 
   test "cannot mark proofs missing for cancelled request":
-    await ethProvider.advanceTimeTo(request.expiry + 1)
+    let expiry = await marketplace.requestExpiry(request.id)
+    await ethProvider.advanceTimeTo((expiry + 1).u256)
     switchAccount(client)
     let missingPeriod = periodicity.periodOf(await ethProvider.currentTime())
     await ethProvider.advanceTime(periodicity.seconds)

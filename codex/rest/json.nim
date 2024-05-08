@@ -27,10 +27,11 @@ type
     error* {.serialize.}: ?string
 
   RestAvailability* = object
-    size* {.serialize.}: UInt256
+    totalSize* {.serialize.}: UInt256
     duration* {.serialize.}: UInt256
     minPrice* {.serialize.}: UInt256
     maxCollateral* {.serialize.}: UInt256
+    freeSize* {.serialize.}: ?UInt256
 
   RestSalesAgent* = object
     state* {.serialize.}: string
@@ -40,6 +41,9 @@ type
   RestContent* = object
     cid* {.serialize.}: Cid
     manifest* {.serialize.}: Manifest
+
+  RestContentList* = object
+    content* {.serialize.}: seq[RestContent]
 
   RestNode* = object
     nodeId* {.serialize.}: RestNodeId
@@ -65,6 +69,11 @@ type
     quotaMaxBytes* {.serialize.}: uint
     quotaUsedBytes* {.serialize.}: uint
     quotaReservedBytes* {.serialize.}: uint
+
+proc init*(_: type RestContentList, content: seq[RestContent]): RestContentList =
+  RestContentList(
+    content: content
+  )
 
 proc init*(_: type RestContent, cid: Cid, manifest: Manifest): RestContent =
   RestContent(
@@ -104,11 +113,11 @@ proc init*(_: type RestNodeId, id: NodeId): RestNodeId =
     id: id
   )
 
-func `%`*(obj: StorageRequest | Slot): JsonNode =
+proc `%`*(obj: StorageRequest | Slot): JsonNode =
   let jsonObj = newJObject()
   for k, v in obj.fieldPairs: jsonObj[k] = %v
   jsonObj["id"] = %(obj.id)
 
   return jsonObj
 
-func `%`*(obj: RestNodeId): JsonNode = % $obj.id
+proc `%`*(obj: RestNodeId): JsonNode = % $obj.id

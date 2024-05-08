@@ -8,8 +8,7 @@
 ## those terms.
 
 
-import pkg/upraises
-push: {.upraises: [].}
+{.push raises: [].}
 
 import pkg/chronos
 import pkg/libp2p
@@ -37,13 +36,16 @@ type
 method getBlock*(self: NetworkStore, address: BlockAddress): Future[?!Block] {.async.} =
   trace "Getting block from local store or network", address
 
-  without blk =? await self.localStore.getBlock(address), error:
-    if not (error of BlockNotFoundError): return failure error
-    trace "Block not in local store", address
+  without blk =? (await self.localStore.getBlock(address)), err:
+    if not (err of BlockNotFoundError):
+      trace "Error getting block from local store", address, err = err.msg
+      return failure err
 
-    without newBlock =? (await self.engine.requestBlock(address)).catch, error:
-      trace "Unable to get block from exchange engine", address
-      return failure error
+    trace "Block not in local store", address, err = err.msg
+
+    without newBlock =? (await self.engine.requestBlock(address)), err:
+      trace "Unable to get block from exchange engine", address, err = err.msg
+      return failure err
 
     return success newBlock
 
@@ -67,9 +69,6 @@ method putBlock*(
   ttl = Duration.none): Future[?!void] {.async.} =
   ## Store block locally and notify the network
   ##
-
-  trace "Putting block into network store", cid = blk.cid
-
   let res = await self.localStore.putBlock(blk, ttl)
   if res.isErr:
     return res
@@ -166,6 +165,4 @@ proc new*(
 ): NetworkStore =
   ## Create new instance of a NetworkStore
   ##
-  NetworkStore(
-      localStore: localStore,
-      engine: engine)
+  NetworkStore(localStore: localStore, engine: engine)

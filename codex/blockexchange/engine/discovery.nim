@@ -68,13 +68,12 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
       try:
         await b.discoveryQueue.put(cid)
       except CatchableError as exc:
-        trace "Exception in discovery loop", exc = exc.msg
+        warn "Exception in discovery loop", exc = exc.msg
 
     logScope:
       sleep = b.discoveryLoopSleep
       wanted = b.pendingBlocks.len
 
-    trace "About to sleep discovery loop"
     await sleepAsync(b.discoveryLoopSleep)
 
 proc advertiseQueueLoop(b: DiscoveryEngine) {.async.} =
@@ -87,10 +86,9 @@ proc advertiseQueueLoop(b: DiscoveryEngine) {.async.} =
           await sleepAsync(50.millis)
       trace "Iterating blocks finished."
 
-    trace "About to sleep advertise loop", sleep = b.advertiseLoopSleep
     await sleepAsync(b.advertiseLoopSleep)
 
-  trace "Exiting advertise task loop"
+  info "Exiting advertise task loop"
 
 proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
   ## Run advertise tasks
@@ -102,7 +100,6 @@ proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
         cid = await b.advertiseQueue.get()
 
       if cid in b.inFlightAdvReqs:
-        trace "Advertise request already in progress", cid
         continue
 
       try:
@@ -111,17 +108,15 @@ proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
 
         b.inFlightAdvReqs[cid] = request
         codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
-        trace "Advertising block", cid, inflight = b.inFlightAdvReqs.len
         await request
 
       finally:
         b.inFlightAdvReqs.del(cid)
         codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
-        trace "Advertised block", cid, inflight = b.inFlightAdvReqs.len
     except CatchableError as exc:
-      trace "Exception in advertise task runner", exc = exc.msg
+      warn "Exception in advertise task runner", exc = exc.msg
 
-  trace "Exiting advertise task runner"
+  info "Exiting advertise task runner"
 
 proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
   ## Run discovery tasks
@@ -166,9 +161,9 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
           b.inFlightDiscReqs.del(cid)
           codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
     except CatchableError as exc:
-      trace "Exception in discovery task runner", exc = exc.msg
+      warn "Exception in discovery task runner", exc = exc.msg
 
-  trace "Exiting discovery task runner"
+  info "Exiting discovery task runner"
 
 proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
   for cid in cids:
@@ -183,10 +178,9 @@ proc queueProvideBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
   for cid in cids:
     if cid notin b.advertiseQueue:
       try:
-        trace "Queueing provide block", cid, queue = b.discoveryQueue.len
         b.advertiseQueue.putNoWait(cid)
       except CatchableError as exc:
-        trace "Exception queueing discovery request", exc = exc.msg
+        warn "Exception queueing discovery request", exc = exc.msg
 
 proc start*(b: DiscoveryEngine) {.async.} =
   ## Start the discengine task

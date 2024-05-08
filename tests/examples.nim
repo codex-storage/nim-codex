@@ -59,7 +59,7 @@ proc example*(_: type StorageRequest): StorageRequest =
       cid: "zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob",
       merkleRoot: array[32, byte].example
     ),
-    expiry: (getTime() + 1.hours).toUnix.u256,
+    expiry:(60 * 60).u256, # 1 hour ,
     nonce: Nonce.example
   )
 
@@ -78,8 +78,8 @@ proc example(_: type G1Point): G1Point =
 
 proc example(_: type G2Point): G2Point =
   G2Point(
-    x: [UInt256.example, UInt256.example],
-    y: [UInt256.example, UInt256.example]
+    x: Fp2Element(real: UInt256.example, imag: UInt256.example),
+    y: Fp2Element(real: UInt256.example, imag: UInt256.example)
   )
 
 proc example*(_: type Groth16Proof): Groth16Proof =

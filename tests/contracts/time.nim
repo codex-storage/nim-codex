@@ -1,7 +1,7 @@
 import pkg/ethers
 
 proc currentTime*(provider: Provider): Future[UInt256] {.async.} =
-  return (!await provider.getBlock(BlockTag.latest)).timestamp
+  return (!await provider.getBlock(BlockTag.pending)).timestamp
 
 proc advanceTime*(provider: JsonRpcProvider, seconds: UInt256) {.async.} =
   discard await provider.send("evm_increaseTime", @[%("0x" & seconds.toHex)])

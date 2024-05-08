@@ -9,12 +9,12 @@
 
 import std/sugar
 
-import pkg/chronicles
 import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/arrayops
 
+import ../../logutils
 import ../../market
 import ../../blocktype as bt
 import ../../merkletree

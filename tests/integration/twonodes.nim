@@ -38,7 +38,11 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         "--disc-ip=127.0.0.1",
         "--disc-port=8090",
         "--listen-addrs=/ip4/127.0.0.1/tcp/0",
-        "--persistence",
+        "persistence",
+        "prover",
+        "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
+        "--circom-wasm=tests/circuits/fixtures/proof_main.wasm",
+        "--circom-zkey=tests/circuits/fixtures/proof_main.zkey",
         "--eth-account=" & $account1
       ]
 
@@ -48,7 +52,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
       node1 = startNode(node1Args, debug = debug1)
       node1.waitUntilStarted()
 
-      let bootstrap = client1.info()["spr"].getStr()
+      let bootstrap = (!client1.info()["spr"]).getStr()
 
       var node2Args = @[
         "--api-port=8081",
@@ -58,7 +62,11 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         "--disc-port=8091",
         "--listen-addrs=/ip4/127.0.0.1/tcp/0",
         "--bootstrap-node=" & bootstrap,
-        "--persistence",
+        "persistence",
+        "prover",
+        "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
+        "--circom-wasm=tests/circuits/fixtures/proof_main.wasm",
+        "--circom-zkey=tests/circuits/fixtures/proof_main.zkey",
         "--eth-account=" & $account2
       ]
 

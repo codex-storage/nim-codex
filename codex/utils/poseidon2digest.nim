@@ -12,10 +12,6 @@ import pkg/questionable/results
 import pkg/libp2p/multihash
 import pkg/stew/byteutils
 
-import pkg/constantine/math/arithmetic
-import pkg/constantine/math/io/io_bigints
-import pkg/constantine/math/io/io_fields
-
 import ../merkletree
 
 func spongeDigest*(

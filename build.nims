@@ -25,13 +25,13 @@ task codex, "build codex binary":
   buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
 task testCodex, "Build & run Codex tests":
-  test "testCodex", params = "-d:codex_enable_proof_failures=true -d:codex_use_hardhat=true"
+  test "testCodex", params = "-d:codex_enable_proof_failures=true"
 
 task testContracts, "Build & run Codex Contract tests":
   test "testContracts"
 
 task testIntegration, "Run integration tests":
-  buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_enable_proof_failures=true -d:codex_use_hardhat=true"
+  buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_enable_proof_failures=true"
   test "testIntegration"
 
 task build, "build codex binary":
@@ -75,7 +75,7 @@ task coverage, "generates code coverage report":
     if f.endswith(".nim"): nimSrcs.add " " & f.absolutePath.quoteShell()
 
   echo "======== Running Tests ======== "
-  test "coverage", srcDir = "tests/", params = " --nimcache:nimcache/coverage -d:release -d:codex_enable_proof_failures=true -d:codex_use_hardhat=true"
+  test "coverage", srcDir = "tests/", params = " --nimcache:nimcache/coverage -d:release -d:codex_enable_proof_failures=true"
   exec("rm nimcache/coverage/*.c")
   rmDir("coverage"); mkDir("coverage")
   echo " ======== Running LCOV ======== "
