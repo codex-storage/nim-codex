@@ -136,7 +136,7 @@ Geth will prompt you to insert the account's password as it starts up. Once you 
 You will need to open new terminal for this section and geth needs to be running already. Setting up the Codex marketplace entails:
 
 1. Deploying the Codex Marketplace contracts to our private blockchain
-2. Setup Ethereum accounts we will use to buy and sell storage in the Codex marketplace 
+2. Setup Ethereum accounts we will use to buy and sell storage in the Codex marketplace
 3. Provisioning those accounts with the required token balances
 
 ### 2.1. Deploy the Codex Marketplace Contracts
@@ -212,7 +212,7 @@ node ./mint-tokens.js $CONTRACT_DEPLOY_FULL/TestToken.json $GETH_SIGNER_ADDR 0x4
 node ./mint-tokens.js $CONTRACT_DEPLOY_FULL/TestToken.json $GETH_SIGNER_ADDR 0x9F0C62Fe60b22301751d6cDe1175526b9280b965 10000000000
 ```
 
-If you get a message like `Usage: mint-tokens.js <token-hardhat-deploy-json> <signer-account> <receiver-account> <token-ammount>` then you need to ensure you have 
+If you get a message like `Usage: mint-tokens.js <token-hardhat-deploy-json> <signer-account> <receiver-account> <token-ammount>` then you need to ensure you have
 
 ## 3. Run Codex
 
@@ -325,7 +325,7 @@ Any storage negotiation has two sides: a buyer and a seller. Before we can actua
 
 ### 4.1 Sell Storage
 
-The following request will cause the storage node to put out $50\text{MB}$ of storage for sale for $1$ hour, at a price of $1$ Codex token per byte per second, while expressing that it's willing to take at most a $1000$ Codex token penalty for missing a storage proof.
+The following request will cause the storage node to put out $50\text{MB}$ of storage for sale for $1$ hour, at a price of $1$ Codex token per byte per second, while expressing that it's willing to take at most a $1000$ Codex token penalty for not fulfilling its part of the contract.[^1]
 
 ```bash
 curl 'http://localhost:8000/api/codex/v1/sales/availability' \
@@ -440,3 +440,5 @@ This returns a result like:
 ```
 
 Shows that a request has been submitted but has not yet been filled. Your request will be successful once `"state"` shows `"started"`. Anything other than that means the request has not been completely processed yet, and an `"error"` state other than `null` means it failed.
+
+[^1]: Codex files get partitioned into pieces called "slots" and distributed to various storage providers. The collateral refers to one such slot, and will be slowly eaten away as the storage provider fails to deliver timely proofs, but the actual logic is [more involved than that](https://github.com/codex-storage/codex-contracts-eth/blob/6c9f797f408608958714024b9055fcc330e3842f/contracts/Marketplace.sol#L209).
