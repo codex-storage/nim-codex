@@ -274,7 +274,6 @@ asyncchecksuite "Sales":
 
   test "items in queue are readded (and marked seen) once ignored":
     await market.requestStorage(request)
-    # await sleepAsync(10.millis)
     let items = SlotQueueItem.init(request)
     check eventually queue.paused
     # The first processed item will be will have been re-pushed with `seen =
@@ -292,7 +291,6 @@ asyncchecksuite "Sales":
   test "queue is paused once availability is insufficient to service slots in queue":
     createAvailability() # enough to fill a single slot
     await market.requestStorage(request)
-    # await sleepAsync(10.millis)
     let items = SlotQueueItem.init(request)
     check eventually queue.paused
     # The first processed item/slot will be filled (eventually). Subsequent
@@ -510,6 +508,10 @@ asyncchecksuite "Sales":
 
   test "verifies that request is indeed expired from onchain before firing onCancelled":
     let expiry = getTime().toUnix() + 10
+    # ensure only one slot, otherwise once bytes are returned to the
+    # availability, the queue will be unpaused and availability will be consumed
+    # by other slots
+    request.ask.slots = 1.uint64
     market.requestExpiry[request.id] = expiry
 
     let origSize = availability.freeSize
@@ -519,10 +521,6 @@ asyncchecksuite "Sales":
       await sleepAsync(chronos.hours(1))
       return success()
     createAvailability()
-    # ensure only one slot, otherwise once bytes are returned to the
-    # availability, the queue will be unpaused and availability will be consumed
-    # by other slots
-    request.ask.slots = 1.uint64
     await market.requestStorage(request)
     market.requestState[request.id]=RequestState.New # "On-chain" is the request still ongoing even after local expiration
 
