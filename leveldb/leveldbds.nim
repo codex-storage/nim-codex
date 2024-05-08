@@ -111,9 +111,10 @@ proc iterateKeyPrefixToQueue(self: LevelDbDatastore, query: Query, queue: AsyncQ
       dec skip
     else:
       await queue.put((keyStr, valueStr))
-      dec itemsLeft
-      if itemsLeft < 1:
-        break
+      if query.offset > 0:
+        dec itemsLeft
+        if itemsLeft < 1:
+          break
   
   # Signal to the iterator loop that we're finished.
   await queue.put(("", ""))
