@@ -220,7 +220,7 @@ proc pause*(self: SlotQueue) =
   self.unpaused.clear()
 
 proc unpause*(self: SlotQueue) =
-  # set unpaused flag to true -- blocks coroutines waiting on unpaused.wait()
+  # set unpaused flag to true -- coroutines will block on unpaused.wait()
   self.unpaused.fire()
 
 proc populateItem*(self: SlotQueue,
@@ -407,7 +407,7 @@ proc start*(self: SlotQueue) {.async.} =
           reqId = item.requestId, slotIdx = item.slotIndex
         self.pause()
 
-      # block until unpaused is true/cleared, ie wait for queue to be unpaused
+      # block until unpaused is false/cleared, ie wait for queue to be unpaused
       if self.paused:
         trace "Queue is paused, waiting for new slots or availabilities to be modified/added"
       await self.unpaused.wait()

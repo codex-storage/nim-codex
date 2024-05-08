@@ -275,6 +275,7 @@ asyncchecksuite "Sales":
   test "items in queue are readded (and marked seen) once ignored":
     await market.requestStorage(request)
     let items = SlotQueueItem.init(request)
+    await sleepAsync(10.millis) # queue starts paused, allow items to be added to the queue
     check eventually queue.paused
     # The first processed item will be will have been re-pushed with `seen =
     # true`. Then, once this item is processed by the queue, its 'seen' flag
@@ -292,6 +293,7 @@ asyncchecksuite "Sales":
     createAvailability() # enough to fill a single slot
     await market.requestStorage(request)
     let items = SlotQueueItem.init(request)
+    await sleepAsync(10.millis) # queue starts paused, allow items to be added to the queue
     check eventually queue.paused
     # The first processed item/slot will be filled (eventually). Subsequent
     # items will have been re-pushed with `seen = true`. Then, once a "seen"
