@@ -257,13 +257,13 @@ proc load*(sales: Sales) {.async.} =
     agent.onCleanUp = proc(returnBytes = false, reprocessSlot = false) {.async.} =
       # since workers are not being dispatched, this future has not been created
       # by a worker. Create a dummy one here so we can call sales.cleanUp
-      let done = newFuture[void]("onCleanUp_Dummy")
+      let done: Future[void] = nil
       await sales.cleanUp(agent, returnBytes, reprocessSlot, done)
 
     # TODO: this seemed to be missing during load, but unknown if it was
     # intentionally left out for some unknown reason?
     agent.onFilled = some proc(request: StorageRequest, slotIndex: UInt256) =
-      let done = newFuture[void]("onFilled_Dummy")
+      let done: Future[void] = nil
       sales.filled(request, slotIndex, done)
 
     agent.start(SaleUnknown())
