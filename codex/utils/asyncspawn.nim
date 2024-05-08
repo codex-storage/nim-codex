@@ -7,8 +7,3 @@ proc asyncSpawn*(future: Future[void], ignore: type CatchableError) =
     except ignore:
       discard
   asyncSpawn ignoringError()
-
-proc asyncSpawn*[T](future: Future[T]): void =
-  proc task() {.async.} = discard await future
-  asyncSpawn task()
-
