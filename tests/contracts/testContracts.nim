@@ -39,7 +39,7 @@ ethersuite "Marketplace contracts":
 
     switchAccount(client)
     discard await token.approve(marketplace.address, request.price)
-    await marketplace.requestStorage(request)
+    discard await marketplace.requestStorage(request)
     switchAccount(host)
     discard await token.approve(marketplace.address, request.ask.collateral)
     await marketplace.fillSlot(request.id, 0.u256, proof)
