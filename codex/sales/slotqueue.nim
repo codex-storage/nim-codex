@@ -266,7 +266,7 @@ proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
 
   # when slots are pushed to the queue, the queue should be unpaused if it was
   # paused
-  if self.paused:
+  if self.paused and not item.seen:
     trace "unpausing queue after new slots pushed"
     self.unpause()
 
