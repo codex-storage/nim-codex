@@ -429,7 +429,7 @@ asyncchecksuite "NetworkStore engine handlers":
     let
       tCid = Cid.example
       delivery = BlockDelivery(blk: Block.example, address: BlockAddress(leaf: true, treeCid: tCid))
-      
+
     await engine.resolveBlocks(@[delivery])
 
     check:
@@ -442,7 +442,7 @@ asyncchecksuite "NetworkStore engine handlers":
     let
       blkCid = Cid.example
       delivery = BlockDelivery(blk: Block.example, address: BlockAddress(leaf: false, cid: blkCid))
-      
+
     await engine.resolveBlocks(@[delivery])
 
     check:
@@ -553,7 +553,7 @@ asyncchecksuite "Task Handler":
   test "Should set in-flight for outgoing blocks":
     proc sendBlocksDelivery(
       id: PeerId,
-      blocksDelivery: seq[BlockDelivery]) {.gcsafe, async.} =
+      blocksDelivery: seq[BlockDelivery]) {.gcsafe, async: (handleException: true).} =
       check peersCtx[0].peerWants[0].inFlight
 
     for blk in blocks:
