@@ -185,9 +185,13 @@ proc start*(s: CodexServer) {.async.} =
 proc stop*(s: CodexServer) {.async.} =
   notice "Stopping codex node"
 
-
-  s.taskpool.syncAll()
-  s.taskpool.shutdown()
+  try:
+    s.taskpool.syncAll()
+    s.taskpool.shutdown()
+  except Exception as exc:
+    # Log and swallow as we're shutting down.
+    error "Error shutting down taskpool. Attempting to shut " &
+      "down the remaining services anyway.", error = exc.msg
 
   await allFuturesThrowing(
     s.restServer.stop(),
