@@ -119,7 +119,6 @@ suite "Slot queue":
     queue = SlotQueue.new(maxWorkers, maxSize.uint16)
     queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
       await sleepAsync(processSlotDelay)
-      trace "processing item", requestId = item.requestId, slotIndex = item.slotIndex
       onProcessSlotCalled = true
       onProcessSlotCalledWith.add (item.requestId, item.slotIndex)
       done.complete()
@@ -539,25 +538,30 @@ suite "Slot queue":
     # check all items processed
     check eventually queue.len == 0
 
-  test "paused queue waits for unpause before continuing processing":
+  test "pushing seen item does not unpause queue":
     newSlotQueue(maxSize = 4, maxWorkers = 4)
     let request = StorageRequest.example
     let item0 = SlotQueueItem.init(request.id, 0'u16,
                                   request.ask,
                                   request.expiry,
                                   seen = true)
-    let item1 = SlotQueueItem.init(request.id, 0'u16,
+    check queue.paused
+    queue.push(item0)
+    check queue.paused
+
+  test "paused queue waits for unpause before continuing processing":
+    newSlotQueue(maxSize = 4, maxWorkers = 4)
+    let request = StorageRequest.example
+    let item = SlotQueueItem.init(request.id, 1'u16,
                                   request.ask,
                                   request.expiry,
                                   seen = false)
-    queue.push(item0)
-    check eventually queue.paused
+    check queue.paused
     # push causes unpause
-    queue.push(item1)
+    queue.push(item)
     # check all items processed
     check eventually onProcessSlotCalledWith == @[
-      (item0.requestId, item0.slotIndex),
-      (item1.requestId, item1.slotIndex),
+      (item.requestId, item.slotIndex),
     ]
     check eventually queue.len == 0
 
@@ -574,8 +578,9 @@ suite "Slot queue":
                                   seen = true)
     queue.push(item0)
     queue.push(item1)
-    check eventually queue.paused
     check queue[0].seen
+    check queue[1].seen
 
     queue.clearSeenFlags()
     check queue[0].seen == false
+    check queue[1].seen == false

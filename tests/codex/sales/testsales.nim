@@ -279,13 +279,15 @@ asyncchecksuite "Sales":
     check eventually queue.paused
     # The first processed item will be will have been re-pushed with `seen =
     # true`. Then, once this item is processed by the queue, its 'seen' flag
-    # will be checked, at which point the queue will be paused. So that item
-    # will no longer be in the queue, leaving the queue with 4 - 1 = 3 items.
-    # This test could check item existence in the queue, but that would require
-    # inspecting onProcessSlot to see which item was first, and overridding
-    # onProcessSlot will prevent the queue working as expected in the Sales
-    # module.
-    check queue.len == 3
+    # will be checked, at which point the queue will be paused. This test could
+    # check item existence in the queue, but that would require inspecting
+    # onProcessSlot to see which item was first, and overridding onProcessSlot
+    # will prevent the queue working as expected in the Sales module.
+    check eventually queue.len == 4
+
+    for item in items:
+      check queue.contains(item)
+
     for i in 0..<queue.len:
       check queue[i].seen
 
@@ -296,13 +298,13 @@ asyncchecksuite "Sales":
     await sleepAsync(10.millis) # queue starts paused, allow items to be added to the queue
     check eventually queue.paused
     # The first processed item/slot will be filled (eventually). Subsequent
-    # items will have been re-pushed with `seen = true`. Then, once a "seen"
-    # item is processed by (popped off) the queue, the queue is paused. So that
-    # item will no longer be in the queue. Therefore of the 4 original slots in
-    # the request, one will not be reprocssed as it was filled, and one will be
-    # popped off the queue before its "seen" flag is checked, leaving the queue
-    # with 2 items.
-    check queue.len == 2
+    # items will be processed and eventually re-pushed with `seen = true`. Once
+    # a "seen" item is processed by the queue, the queue is paused. In the
+    # meantime, the other items that are process, marked as seen, and re-added
+    # to the queue may be processed simultaneously as the queue pausing.
+    # Therefore, there should eventually be 3 items remaining in the queue, all
+    # seen.
+    check eventually queue.len == 3
     for i in 0..<queue.len:
       check queue[i].seen
 

@@ -244,8 +244,12 @@ proc populateItem*(self: SlotQueue,
 
 proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
 
-  trace "pushing item to queue",
-    requestId = item.requestId, slotIndex = item.slotIndex
+  logScope:
+    requestId = item.requestId
+    slotIndex = item.slotIndex
+    seen = item.seen
+
+  trace "pushing item to queue"
 
   if not self.running:
     let err = newException(QueueNotRunningError, "queue not running")
@@ -267,7 +271,7 @@ proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
   # when slots are pushed to the queue, the queue should be unpaused if it was
   # paused
   if self.paused and not item.seen:
-    trace "unpausing queue after new slots pushed"
+    trace "unpausing queue after new slot pushed"
     self.unpause()
 
   return success()
@@ -320,6 +324,7 @@ proc addWorker(self: SlotQueue): ?!void =
 
   let worker = SlotQueueWorker.init()
   try:
+    discard worker.doneProcessing.track(self)
     self.workers.addLastNoWait(worker)
   except AsyncQueueFullError:
     return failure("failed to add worker, worker queue full")
@@ -339,6 +344,7 @@ proc dispatch(self: SlotQueue,
 
   if onProcessSlot =? self.onProcessSlot:
     try:
+      discard worker.doneProcessing.track(self)
       await onProcessSlot(item, worker.doneProcessing)
       await worker.doneProcessing
 
@@ -393,8 +399,19 @@ proc start*(self: SlotQueue) {.async.} =
 
   while self.running:
     try:
+      if self.paused:
+        trace "Queue is paused, waiting for new slots or availabilities to be modified/added"
+
+      # block until unpaused is false/cleared, ie wait for queue to be unpaused
+      await self.unpaused.wait()
+
       let worker = await self.workers.popFirst().track(self) # if workers saturated, wait here for new workers
       let item = await self.queue.pop().track(self) # if queue empty, wait here for new items
+
+      logScope:
+        reqId = item.requestId
+        slotIdx = item.slotIndex
+        seen = item.seen
 
       if not self.running: # may have changed after waiting for pop
         trace "not running, exiting"
@@ -406,19 +423,22 @@ proc start*(self: SlotQueue) {.async.} =
         trace "processing already seen item, pausing queue",
           reqId = item.requestId, slotIdx = item.slotIndex
         self.pause()
+        # put item back in queue so that if other items are pushed while paused,
+        # it will be sorted accordingly. Otherwise, this item would be processed
+        # immediately (with priority over other items) once unpaused
+        trace "readding seen item back into the queue"
+        discard self.push(item) # on error, drop the item and continue
+        worker.doneProcessing.complete()
+        await sleepAsync(1.millis) # poll
+        continue
 
-      # block until unpaused is false/cleared, ie wait for queue to be unpaused
-      if self.paused:
-        trace "Queue is paused, waiting for new slots or availabilities to be modified/added"
-      await self.unpaused.wait()
+      trace "processing item"
 
       self.dispatch(worker, item)
         .track(self)
         .catch(proc (e: ref CatchableError) =
           error "Unknown error dispatching worker", error = e.msg
         )
-
-      discard worker.doneProcessing.track(self)
 
       await sleepAsync(1.millis) # poll
     except CancelledError:
