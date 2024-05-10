@@ -42,7 +42,7 @@ proc slashMisses*(marketplace: Marketplace): UInt256 {.contract, view.}
 proc slashPercentage*(marketplace: Marketplace): UInt256 {.contract, view.}
 proc minCollateralThreshold*(marketplace: Marketplace): UInt256 {.contract, view.}
 
-proc requestStorage*(marketplace: Marketplace, request: StorageRequest) {.contract.}
+proc requestStorage*(marketplace: Marketplace, request: StorageRequest): ?TransactionResponse {.contract.}
 proc fillSlot*(marketplace: Marketplace, requestId: RequestId, slotIndex: UInt256, proof: Groth16Proof) {.contract.}
 proc withdrawFunds*(marketplace: Marketplace, requestId: RequestId) {.contract.}
 proc freeSlot*(marketplace: Marketplace, id: SlotId) {.contract.}

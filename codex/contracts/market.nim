@@ -92,7 +92,7 @@ method requestStorage(market: OnChainMarket, request: StorageRequest){.async.} =
   convertEthersError:
     debug "Requesting storage"
     await market.approveFunds(request.price())
-    await market.contract.requestStorage(request)
+    discard await market.contract.requestStorage(request).confirm(1)
 
 method getRequest(market: OnChainMarket,
                   id: RequestId): Future[?StorageRequest] {.async.} =
