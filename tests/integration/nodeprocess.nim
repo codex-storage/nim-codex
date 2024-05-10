@@ -2,6 +2,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/confutils
 import pkg/chronicles
+import pkg/chronos/asyncproc
 import pkg/libp2p
 import std/os
 import std/strutils
@@ -43,7 +44,7 @@ method outputLineEndings(node: NodeProcess): string {.base.} =
 method onOutputLineCaptured(node: NodeProcess, line: string) {.base.} =
   raiseAssert "not implemented"
 
-method start*(node: NodeProcess) {.base, async.} =
+method start*(node: NodeProcess) {.base, async: (handleException: true).} =
   logScope:
     nodeName = node.name
 
@@ -71,7 +72,7 @@ proc captureOutput(
   node: NodeProcess,
   output: string,
   started: Future[void]
-) {.async.} =
+) {.async: (handleException: true).} =
 
   logScope:
     nodeName = node.name
@@ -143,7 +144,7 @@ method stop*(node: NodeProcess) {.base, async.} =
 
     trace "node stopped"
 
-proc waitUntilStarted*(node: NodeProcess) {.async.} =
+proc waitUntilStarted*(node: NodeProcess) {.async: (handleException: true).} =
   logScope:
     nodeName = node.name
 

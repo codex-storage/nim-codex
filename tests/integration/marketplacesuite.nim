@@ -67,7 +67,7 @@ template marketplacesuite*(name: string, body: untyped) =
                         collateral = 100.u256,
                         expiry: uint64 = 4.periods,
                         nodes = providers().len,
-                        tolerance = 0): Future[PurchaseId] {.async.} =
+                        tolerance = 0): Future[PurchaseId] {.async: (handleException: true).} =
       let id = client.requestStorage(
         cid,
         expiry=expiry.uint,

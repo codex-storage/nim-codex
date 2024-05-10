@@ -222,7 +222,7 @@ template multinodesuite*(name: string, body: untyped) =
 
       return await newCodexProcess(validatorIdx, config, Role.Validator)
 
-    proc teardownImpl() {.async.} =
+    proc teardownImpl() {.async: (handleException: true).} =
       for nodes in @[validators(), clients(), providers()]:
         for node in nodes:
           await node.stop() # also stops rest client

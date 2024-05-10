@@ -3,6 +3,7 @@ import pkg/questionable/results
 import pkg/confutils
 import pkg/chronicles
 import pkg/chronos
+import pkg/chronos/asyncproc
 import pkg/stew/io2
 import std/os
 import std/sets
@@ -54,7 +55,7 @@ proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
 
   return fileHandle
 
-method start*(node: HardhatProcess) {.async.} =
+method start*(node: HardhatProcess) {.async: (handleException: true).} =
 
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
   trace "starting node",
@@ -116,7 +117,7 @@ method onOutputLineCaptured(node: HardhatProcess, line: string) =
     discard logFile.closeFile()
     node.logFile = none IoHandle
 
-method stop*(node: HardhatProcess) {.async.} =
+method stop*(node: HardhatProcess) {.async: (handleException: true).} =
   # terminate the process
   await procCall NodeProcess(node).stop()
 
