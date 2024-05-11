@@ -37,24 +37,6 @@ proc prove*[H](self: CircomCompat, input: ProofInputs[H]): ?!CircomProof =
   ## Encode buffers using a ctx
   ##
 
-  # NOTE: All inputs are statically sized per circuit
-  # and adjusted accordingly right before being passed
-  # to the circom ffi - `setLen` is used to adjust the
-  # sequence length to the correct size which also 0 pads
-  # to the correct length
-  doAssert input.samples.len == self.numSamples, "Number of samples does not match"
-
-  doAssert input.slotProof.len <= self.datasetDepth,
-    "Number of slot proofs does not match"
-
-  doAssert input.samples.allIt(
-    block:
-      (
-        it.merklePaths.len <= self.slotDepth + self.blkDepth and
-        it.cellData.len <= self.cellElms * 32
-      )
-  ), "Merkle paths length does not match"
-
   # TODO: All parameters should match circom's static parametter
   var ctx: ptr CircomCompatCtx
 
@@ -65,33 +47,12 @@ proc prove*[H](self: CircomCompat, input: ProofInputs[H]): ?!CircomProof =
   if initCircomCompat(self.backendCfg, addr ctx) != ERR_OK or ctx == nil:
     raiseAssert("failed to initialize CircomCompat ctx")
 
-  var
-    entropy = input.entropy.toBytes
-    dataSetRoot = input.datasetRoot.toBytes
-    slotRoot = input.slotRoot.toBytes
+  # if ctx.pushInputU256Array("entropy".cstring, entropy[0].addr, entropy.len.uint32) !=
+  #     ERR_OK:
+  #   return failure("Failed to push entropy")
 
-  if ctx.pushInputU256Array("entropy".cstring, entropy[0].addr, entropy.len.uint32) !=
-      ERR_OK:
-    return failure("Failed to push entropy")
-
-  if ctx.pushInputU256Array(
-    "dataSetRoot".cstring, dataSetRoot[0].addr, dataSetRoot.len.uint32
-  ) != ERR_OK:
-    return failure("Failed to push data set root")
-
-  if ctx.pushInputU256Array("slotRoot".cstring, slotRoot[0].addr, slotRoot.len.uint32) !=
-      ERR_OK:
-    return failure("Failed to push data set root")
-
-  if ctx.pushInputU32("nCellsPerSlot".cstring, input.nCellsPerSlot.uint32) != ERR_OK:
-    return failure("Failed to push nCellsPerSlot")
-
-  if ctx.pushInputU32("nSlotsPerDataSet".cstring, input.nSlotsPerDataSet.uint32) !=
-      ERR_OK:
-    return failure("Failed to push nSlotsPerDataSet")
-
-  if ctx.pushInputU32("slotIndex".cstring, input.slotIndex.uint32) != ERR_OK:
-    return failure("Failed to push slotIndex")
+  # if ctx.pushInputU32("slotIndex".cstring, input.slotIndex.uint32) != ERR_OK:
+  #   return failure("Failed to push slotIndex")
 
   var slotProof = input.slotProof.mapIt(it.toBytes).concat
 
