@@ -159,16 +159,16 @@ method fillSlot(market: OnChainMarket,
                 collateral: UInt256) {.async.} =
   convertEthersError:
     await market.approveFunds(collateral)
-    await market.contract.fillSlot(requestId, slotIndex, proof)
+    discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(1)
 
 method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
   convertEthersError:
-    await market.contract.freeSlot(slotId)
+    discard await market.contract.freeSlot(slotId).confirm(1)
 
 method withdrawFunds(market: OnChainMarket,
                      requestId: RequestId) {.async.} =
   convertEthersError:
-    await market.contract.withdrawFunds(requestId)
+    discard await market.contract.withdrawFunds(requestId).confirm(1)
 
 method isProofRequired*(market: OnChainMarket,
                         id: SlotId): Future[bool] {.async.} =
@@ -201,13 +201,13 @@ method submitProof*(market: OnChainMarket,
                     id: SlotId,
                     proof: Groth16Proof) {.async.} =
   convertEthersError:
-    await market.contract.submitProof(id, proof)
+    discard await market.contract.submitProof(id, proof).confirm(1)
 
 method markProofAsMissing*(market: OnChainMarket,
                            id: SlotId,
                            period: Period) {.async.} =
   convertEthersError:
-    await market.contract.markProofAsMissing(id, period)
+    discard await market.contract.markProofAsMissing(id, period).confirm(1)
 
 method canProofBeMarkedAsMissing*(
     market: OnChainMarket,
@@ -218,7 +218,7 @@ method canProofBeMarkedAsMissing*(
   let contractWithoutSigner = market.contract.connect(provider)
   let overrides = CallOverrides(blockTag: some BlockTag.pending)
   try:
-    await contractWithoutSigner.markProofAsMissing(id, period, overrides)
+    discard await contractWithoutSigner.markProofAsMissing(id, period, overrides)
     return true
   except EthersError as e:
     trace "Proof cannot be marked as missing", msg = e.msg
