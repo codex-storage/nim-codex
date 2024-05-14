@@ -251,7 +251,7 @@ proc new*(
                   .expect("Should create repo file data store!"))
                 of repoSQLite: Datastore(SQLiteDatastore.new($config.dataDir)
                   .expect("Should create repo SQLite data store!"))
-                if repoLevelDb: Datastore(LevelDbDatastore.new($config.dataDir))
+                of repoLevelDb: Datastore(LevelDbDatastore.new($config.dataDir)
                   .expect("Should create repo LevelDB data store!"))
 
     repoStore = RepoStore.new(
