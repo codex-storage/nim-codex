@@ -637,6 +637,35 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
 
+  when codex_enable_api_debug_delete:
+    type
+      DebugDeleteParams = object
+        nBlocks* {.serialize.}: int
+
+    router.rawApi(
+      MethodPost,
+      "/api/codex/v1/debug/delete/{cid}") do (cid: Cid) -> RestApiResponse:
+        try:
+          without cid =? cid.tryGet.catch, error:
+            return RestApiResponse.error(Http400, error.msg)
+
+          let body = await request.getBody()
+          without params =? DebugDeleteParams.fromJson(body), error:
+            return RestApiResponse.error(Http400, error.msg)
+
+          warn "debug/delete is deleting blocks", cid = $cid, nBlocks = params.nBlocks
+
+          without deleted =? (await node.debugDelete(cid, params.nBlocks)), err:
+            return RestApiResponse.error(Http500, err.msg)
+
+          warn "debug/delete has deleted blocks", cid = $cid, nBlocks = params.nBlocks, deleted
+
+          return RestApiResponse.response($deleted)
+        except CatchableError as exc:
+          trace "Excepting processing request", exc = exc.msg
+          return RestApiResponse.error(Http500)
+
+
 proc initRestApi*(node: CodexNodeRef, conf: CodexConf, repoStore: RepoStore): RestRouter =
   var router = RestRouter.init(validate)
 
