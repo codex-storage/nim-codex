@@ -64,6 +64,12 @@ proc newAsyncIter*[T](genNext: GenNext[Future[T]], isFinished: IsFinished, finis
   iter.next = next
   return iter
 
+proc new*[T](_: type AsyncIter, genNext: GenNext[Future[T]], isFinished: IsFinished, finishOnErr: bool = true): AsyncIter[T] =
+  newAsyncIter[T](
+    genNext,
+    isFinished
+  )
+
 proc emptyAsyncIter*[T](): AsyncIter[T] =
   ## Creates an empty AsyncIter
   ##

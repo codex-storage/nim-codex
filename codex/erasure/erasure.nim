@@ -120,7 +120,8 @@ proc getPendingBlocks(
         CatchableError,
         "Future for block id not found, tree cid: " & $manifest.treeCid & ", index: " & $index)
 
-  newAsyncIter[(?!bt.Block, int)](genNext, isFinished)
+  # newAsyncIter[(?!bt.Block, int)](genNext, isFinished)
+  asynciter.AsyncIter.new[(?!bt.Block, int)](genNext, isFinished)
 
 proc prepareEncodingData(
   self: Erasure,
