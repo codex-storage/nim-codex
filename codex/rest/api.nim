@@ -640,7 +640,7 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
   when codex_enable_api_debug_delete:
     type
       DebugDeleteParams = object
-        nBlocks* {.serialize.}: int
+        blockIndices* {.serialize.}: seq[int]
 
     router.rawApi(
       MethodPost,
@@ -653,12 +653,12 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
           without params =? DebugDeleteParams.fromJson(body), error:
             return RestApiResponse.error(Http400, error.msg)
 
-          warn "debug/delete is deleting blocks", cid = $cid, nBlocks = params.nBlocks
+          warn "debug/delete is deleting blocks", cid = $cid, nBlocks = params.blockIndices.len
 
-          without deleted =? (await node.debugDelete(cid, params.nBlocks)), err:
+          without deleted =? (await node.debugDelete(cid, params.blockIndices)), err:
             return RestApiResponse.error(Http500, err.msg)
 
-          warn "debug/delete has deleted blocks", cid = $cid, nBlocks = params.nBlocks, deleted
+          warn "debug/delete has deleted blocks", cid = $cid, deleted
 
           return RestApiResponse.response($deleted)
         except CatchableError as exc:
