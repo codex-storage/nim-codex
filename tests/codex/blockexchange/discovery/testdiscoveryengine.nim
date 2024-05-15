@@ -10,17 +10,26 @@ import pkg/codex/blockexchange
 import pkg/codex/chunker
 import pkg/codex/blocktype as bt
 import pkg/codex/blockexchange/engine
+import pkg/codex/manifest
+import pkg/codex/merkletree
 
 import ../../../asynctest
 import ../../helpers
 import ../../helpers/mockdiscovery
 import ../../examples
 
+proc asBlock(m: Manifest): bt.Block =
+  let mdata = m.encode().tryGet()
+  bt.Block.new(data = mdata, codec = ManifestCodec).tryGet()
+
 asyncchecksuite "Test Discovery Engine":
   let chunker = RandomChunker.new(Rng.instance(), size = 4096, chunkSize = 256)
 
   var
     blocks: seq[bt.Block]
+    manifest: Manifest
+    tree: CodexTree
+    manifestBlock: bt.Block
     switch: Switch
     peerStore: PeerCtxStore
     blockDiscovery: MockDiscovery
@@ -34,6 +43,10 @@ asyncchecksuite "Test Discovery Engine":
         break
 
       blocks.add(bt.Block.new(chunk).tryGet())
+
+    (manifest, tree) = makeManifestAndTree(blocks).tryGet()
+    manifestBlock = manifest.asBlock()
+    blocks.add(manifestBlock)
 
     switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
     network = BlockExcNetwork.new(switch)
@@ -51,11 +64,11 @@ asyncchecksuite "Test Discovery Engine":
         blockDiscovery,
         pendingBlocks,
         discoveryLoopSleep = 100.millis)
-      wants = blocks.mapIt( pendingBlocks.getWantHandle(it.cid) )
+      wants = blocks.mapIt(pendingBlocks.getWantHandle(it.cid) )
 
     blockDiscovery.findBlockProvidersHandler =
       proc(d: MockDiscovery, cid: Cid): Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
-        pendingBlocks.resolve(blocks.filterIt( it.cid == cid).mapIt(BlockDelivery(blk: it, address: it.address)))
+        pendingBlocks.resolve(blocks.filterIt(it.cid == cid).mapIt(BlockDelivery(blk: it, address: it.address)))
 
     await discoveryEngine.start()
     await allFuturesThrowing(allFinished(wants)).wait(1.seconds)
@@ -63,7 +76,7 @@ asyncchecksuite "Test Discovery Engine":
 
   test "Should Advertise Haves":
     var
-      localStore = CacheStore.new(blocks.mapIt( it ))
+      localStore = CacheStore.new(blocks.mapIt(it))
       discoveryEngine = DiscoveryEngine.new(
         localStore,
         peerStore,
@@ -72,8 +85,8 @@ asyncchecksuite "Test Discovery Engine":
         pendingBlocks,
         discoveryLoopSleep = 100.millis)
       haves = collect(initTable):
-        for b in blocks:
-          { b.cid: newFuture[void]() }
+        for cid in @[manifestBlock.cid, manifest.treeCid]:
+          { cid: newFuture[void]() }
 
     blockDiscovery.publishBlockProvideHandler =
       proc(d: MockDiscovery, cid: Cid) {.async, gcsafe.} =
@@ -106,28 +119,6 @@ asyncchecksuite "Test Discovery Engine":
     await discoveryEngine.start()
     discoveryEngine.queueFindBlocksReq(@[blocks[0].cid])
     await want.wait(1.seconds)
-    await discoveryEngine.stop()
-
-  test "Should queue advertise request":
-    var
-      localStore = CacheStore.new(@[blocks[0]])
-      discoveryEngine = DiscoveryEngine.new(
-        localStore,
-        peerStore,
-        network,
-        blockDiscovery,
-        pendingBlocks,
-        discoveryLoopSleep = 100.millis)
-      have = newFuture[void]()
-
-    blockDiscovery.publishBlockProvideHandler =
-      proc(d: MockDiscovery, cid: Cid) {.async, gcsafe.} =
-        check cid == blocks[0].cid
-        if not have.finished:
-          have.complete()
-
-    await discoveryEngine.start()
-    await have.wait(1.seconds)
     await discoveryEngine.stop()
 
   test "Should not request more than minPeersPerBlock":
