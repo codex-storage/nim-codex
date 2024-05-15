@@ -120,7 +120,7 @@ proc getPendingBlocks(
         CatchableError,
         "Future for block id not found, tree cid: " & $manifest.treeCid & ", index: " & $index)
 
-  Iter.new(genNext, isFinished)
+  newAsyncIter[(?!bt.Block, int)](genNext, isFinished)
 
 proc prepareEncodingData(
   self: Erasure,
@@ -440,8 +440,7 @@ proc decode*(
   if treeCid != encoded.originalTreeCid:
     return failure("Original tree root differs from the tree root computed out of recovered data")
 
-  let idxIter = Iter
-    .fromItems(recoveredIndices)
+  let idxIter = newIter(recoveredIndices)
     .filter((i: Natural) => i < tree.leavesCount)
 
   if err =? (await self.store.putSomeProofs(tree, idxIter)).errorOption:

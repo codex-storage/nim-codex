@@ -39,22 +39,11 @@ func checkIteration(self: IndexingStrategy, iteration: int): void {.raises: [Ind
       IndexingError,
       "Indexing iteration can't be greater than or equal to iterations.")
 
-proc getIter(first, last, step: int): Iter[int] =
-  var
-    finish = false
-    cur = first
+proc getIterSE(first, last, step: int): Iter[int] =
+  newIter(first, last, step)
 
-  func get(): int =
-    result = cur
-    cur += step
-
-    if cur > last:
-      finish = true
-
-  func isFinished(): bool =
-    finish
-
-  Iter.new(get, isFinished)
+func getIter(first, last, step: int): Iter[int] =
+  (cast[proc (f, l, s: int): Iter[int] {.nimcall, noSideEffect.}](getIterSE)(first, last, step))
 
 func getLinearIndicies(
   self: IndexingStrategy,
