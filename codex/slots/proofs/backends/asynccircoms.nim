@@ -52,8 +52,10 @@ proc prove*[H](
   without signal =? ThreadSignalPtr.new().mapFailure, err:
     return failure(err)
 
-  let args = ProveTaskArgs(signal, self.params)
+  let args = ProveTaskArgs(signal: signal, params: self.params)
   self.tp.spawn proveTask(args, input)
+
+  await wait(signal)
 
 proc verify*[H](
     self: AsyncCircomCompat, proof: CircomProof, inputs: ProofInputs[H]
