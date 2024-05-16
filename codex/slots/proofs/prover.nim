@@ -99,7 +99,6 @@ proc new*(
   backend: AnyBackend,
   nSamples: int
 ): Prover =
-
   Prover(
     backend: backend,
     store: store,

@@ -1,4 +1,4 @@
-import std/sequtils
+import std/options
 
 import pkg/taskpools
 import pkg/taskpools/flowvars
@@ -26,14 +26,17 @@ type
     signal: ThreadSignalPtr
     params: CircomCompatParams
 
-var circomBackend {.threadvar.}: CircomCompat 
+var circomBackend {.threadvar.}: Option[CircomCompat]
 
 proc proveTask[H](
     args: ProveTaskArgs, data: ProofInputs[H]
 ): Result[CircomProof, string] =
 
   try:
-    let res = circomBackend.prove(data)
+    if circomBackend.isNone:
+      circomBackend = some CircomCompat.init(args.params)
+
+    let res = circomBackend.get().prove(data)
     if res.isOk:
       return ok(res.get())
     else:
