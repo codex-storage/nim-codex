@@ -60,7 +60,8 @@ suite "Test Prover":
       r1cs = "tests/circuits/fixtures/proof_main.r1cs"
       wasm = "tests/circuits/fixtures/proof_main.wasm"
 
-      circomBackend = CircomCompat.init(r1cs, wasm)
+      params = CircomCompatParams.init(r1cs, wasm)
+      circomBackend = CircomCompat.init(params)
       prover = Prover.new(store, circomBackend, samples)
       challenge = 1234567.toF.toBytes.toArray32
       (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
