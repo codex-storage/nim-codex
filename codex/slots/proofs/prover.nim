@@ -34,7 +34,7 @@ logScope:
   topics = "codex prover"
 
 type
-  AnyBackend* = CircomCompat
+  AnyBackend* = AsyncCircomCompat
   AnyProof* = CircomProof
 
   AnySampler* = Poseidon2Sampler
@@ -75,7 +75,7 @@ proc prove*(
     return failure(err)
 
   # prove slot
-  without proof =? self.backend.prove(proofInput), err:
+  without proof =? await self.backend.prove(proofInput), err:
     error "Unable to prove slot", err = err.msg
     return failure(err)
 
@@ -89,7 +89,7 @@ proc verify*(
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
 
-  self.backend.verify(proof, inputs)
+  await self.backend.verify(proof, inputs)
 
 proc new*(
   _: type Prover,

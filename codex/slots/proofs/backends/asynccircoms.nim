@@ -7,6 +7,7 @@ import pkg/chronos
 import pkg/chronos/threadsync
 import pkg/questionable/results
 
+import ./circomcompat
 
 const
   CompletitionTimeout = 1.seconds # Maximum await time for completition after receiving a signal
@@ -17,12 +18,23 @@ type
     params*: CircomCompatParams
 
   # Args objects are missing seq[seq[byte]] field, to avoid unnecessary data copy
-  EncodeTaskArgs = object
+  ProveTaskArgs = object
     signal: ThreadSignalPtr
-    backend: EncoderBackendPtr
-    blockSize: int
-    ecM: int
+    params: CircomCompatParams
 
 proc prove*[H](
-  self: CircomCompat,
-  input: ProofInputs[H]): ?!CircomProof =
+  self: AsyncCircomCompat,
+  input: ProofInputs[H]
+): Future[?!CircomProof] {.async.} =
+  ## Generates proof using circom-compat asynchronously
+  ##
+  discard
+
+proc verify*[H](
+  self: AsyncCircomCompat,
+  proof: CircomProof,
+  inputs: ProofInputs[H]
+): Future[?!bool] {.async.} =
+  ## Verify a proof using a ctx
+  ##
+  discard
