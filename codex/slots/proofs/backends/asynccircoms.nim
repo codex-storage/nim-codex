@@ -7,6 +7,7 @@ import pkg/chronos/threadsync
 import pkg/questionable/results
 
 import ../../types
+import ../../../utils/asyncthreads
 
 import ./circomcompat
 
@@ -21,7 +22,7 @@ type
     tp*: Taskpool
 
   # Args objects are missing seq[seq[byte]] field, to avoid unnecessary data copy
-  ProveTaskArgs = object
+  ProveTaskArgs* = object
     signal: ThreadSignalPtr
     params: CircomCompatParams
 
@@ -29,16 +30,16 @@ var circomBackend {.threadvar.}: CircomCompat
 
 proc proveTask[H](
     args: ProveTaskArgs, data: ProofInputs[H]
-): Result[CircomProof, cstring] =
+): Result[CircomProof, string] =
 
   try:
     let res = circomBackend.prove(data)
     if res.isOk:
       return ok(res.get())
     else:
-      return err(res.error)
+      return err(res.error().msg)
   except CatchableError as exception:
-    return err(exception.msg.cstring)
+    return err(exception.msg)
   finally:
     if err =? args.signal.fireSync().mapFailure.errorOption():
       error "Error firing signal in proveTask ", msg = err.msg
@@ -53,9 +54,10 @@ proc prove*[H](
     return failure(err)
 
   let args = ProveTaskArgs(signal: signal, params: self.params)
-  self.tp.spawn proveTask(args, input)
+  let flowvar = self.tp.spawn proveTask(args, input)
 
-  await wait(signal)
+  without res =? await awaitThreadResult(signal, flowvar), err:
+    return failure(err)
 
 proc verify*[H](
     self: AsyncCircomCompat, proof: CircomProof, inputs: ProofInputs[H]

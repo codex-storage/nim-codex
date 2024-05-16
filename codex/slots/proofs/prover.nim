@@ -13,6 +13,7 @@ import pkg/chronicles
 import pkg/circomcompat
 import pkg/poseidon2
 import pkg/questionable/results
+import pkg/taskpools
 
 import pkg/libp2p/cid
 
