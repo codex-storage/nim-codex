@@ -24,10 +24,11 @@ type
     signal: ThreadSignalPtr
     params: CircomCompatParams
 
-  ProveTaskResult = object
-    AnyProofInputs, AnyProof
+  ProveTaskResult[ProofInputs, Proof] = object
+    input*: ProofInputs
+    proof*: Proof
 
-proc proveTask[H](args: ProveTaskArgs, data: ProofInputs[H]): EncodeTaskResult =
+proc proveTask[H](args: ProveTaskArgs, data: ProofInputs[H]): ProveTaskResult =
   discard
 
 proc prove*[H](
