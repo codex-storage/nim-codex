@@ -73,16 +73,14 @@ method find*(
   cid: Cid): Future[seq[SignedPeerRecord]] {.async, base.} =
   ## Find block providers
   ##
-
-  trace "Finding providers for block", cid
   without providers =?
     (await d.protocol.getProviders(cid.toNodeId())).mapFailure, error:
-    trace "Error finding providers for block", cid, error = error.msg
+    warn "Error finding providers for block", cid, error = error.msg
 
   return providers.filterIt( not (it.data.peerId == d.peerId) )
 
 method provide*(d: Discovery, cid: Cid) {.async, base.} =
-  ## Provide a bock Cid
+  ## Provide a block Cid
   ##
   let
     nodes = await d.protocol.addProvider(
