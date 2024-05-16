@@ -64,10 +64,6 @@ proc prove*[H](
     let res: ?!CircomProof = failure(err)
     return res
 
-  let sigRes = signal.close()
-  if sigRes.isErr:
-    return failure(sigRes.error())
-
   let pf: CircomProof = proof
   success(pf)
 
