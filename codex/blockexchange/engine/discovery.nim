@@ -11,6 +11,7 @@ import std/sequtils
 
 import pkg/chronos
 import pkg/libp2p/cid
+import pkg/libp2p/multicodec
 import pkg/metrics
 import pkg/questionable
 import pkg/questionable/results
@@ -25,6 +26,7 @@ import ../../utils
 import ../../discovery
 import ../../stores/blockstore
 import ../../logutils
+import ../../manifest
 
 logScope:
   topics = "codex discoveryengine"
@@ -76,14 +78,32 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
 
     await sleepAsync(b.discoveryLoopSleep)
 
+proc advertiseBlock(b: DiscoveryEngine, cid: Cid) {.async.} =
+  without isM =? cid.isManifest, err:
+    warn "Unable to determine if cid is manifest"
+    return
+
+  if isM:
+    without blk =? await b.localStore.getBlock(cid), err:
+      error "Error retrieving manifest block", cid, err = err.msg
+      return
+
+    without manifest =? Manifest.decode(blk), err:
+      error "Unable to decode as manifest", err = err.msg
+      return
+
+    # announce manifest cid and tree cid
+    await b.advertiseQueue.put(cid)
+    await b.advertiseQueue.put(manifest.treeCid)
+
 proc advertiseQueueLoop(b: DiscoveryEngine) {.async.} =
   while b.discEngineRunning:
     if cids =? await b.localStore.listBlocks(blockType = b.advertiseType):
       trace "Begin iterating blocks..."
       for c in cids:
         if cid =? await c:
-          await b.advertiseQueue.put(cid)
-          await sleepAsync(50.millis)
+          b.advertiseBlock(cid)
+          await sleepAsync(100.millis)
       trace "Iterating blocks finished."
 
     await sleepAsync(b.advertiseLoopSleep)
@@ -248,7 +268,7 @@ proc new*(
     discoveryLoopSleep = DefaultDiscoveryLoopSleep,
     advertiseLoopSleep = DefaultAdvertiseLoopSleep,
     minPeersPerBlock = DefaultMinPeersPerBlock,
-    advertiseType = BlockType.Both
+    advertiseType = BlockType.Manifest
 ): DiscoveryEngine =
   ## Create a discovery engine instance for advertising services
   ##
