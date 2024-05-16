@@ -11,11 +11,6 @@ import ../../../utils/asyncthreads
 
 import ./circomcompat
 
-const
-  CompletionTimeout = 1.seconds
-    # Maximum await time for completition after receiving a signal
-  CompletionRetryDelay = 10.millis
-
 type
   AsyncCircomCompat* = object
     params*: CircomCompatParams
@@ -35,6 +30,8 @@ proc proveTask[H](
   try:
     if circomBackend.isNone:
       circomBackend = some CircomCompat.init(args.params)
+    else:
+      assert circomBackend.get().params == args.params
 
     let res = circomBackend.get().prove(data)
     if res.isOk:
