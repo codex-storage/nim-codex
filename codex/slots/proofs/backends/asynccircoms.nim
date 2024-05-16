@@ -7,6 +7,8 @@ import pkg/chronos
 import pkg/chronos/threadsync
 import pkg/questionable/results
 
+import ../../types
+
 import ./circomcompat
 
 const
