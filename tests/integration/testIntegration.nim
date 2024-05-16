@@ -112,10 +112,9 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check availability in client1.getAvailabilities().get
 
   test "node handles storage request":
-    let expiry = (await ethProvider.currentTime()) + 10
     let cid = client1.upload("some file contents").get
-    let id1 = client1.requestStorage(cid, duration=100.u256, reward=2.u256, proofProbability=3.u256, expiry=expiry, collateral=200.u256).get
-    let id2 = client1.requestStorage(cid, duration=400.u256, reward=5.u256, proofProbability=6.u256, expiry=expiry, collateral=201.u256).get
+    let id1 = client1.requestStorage(cid, duration=100.u256, reward=2.u256, proofProbability=3.u256, expiry=10, collateral=200.u256).get
+    let id2 = client1.requestStorage(cid, duration=400.u256, reward=5.u256, proofProbability=6.u256, expiry=10, collateral=201.u256).get
     check id1 != id2
 
   test "node retrieves purchase status":
@@ -124,13 +123,12 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     let chunker = RandomChunker.new(rng, size = DefaultBlockSize * 2, chunkSize = DefaultBlockSize * 2)
     let data = await chunker.getBytes()
     let cid = client1.upload(byteutils.toHex(data)).get
-    let expiry = (await ethProvider.currentTime()) + 30
     let id = client1.requestStorage(
       cid,
       duration=100.u256,
       reward=2.u256,
       proofProbability=3.u256,
-      expiry=expiry,
+      expiry=30,
       collateral=200.u256,
       nodes=2,
       tolerance=1).get
@@ -139,16 +137,15 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check request.ask.duration == 100.u256
     check request.ask.reward == 2.u256
     check request.ask.proofProbability == 3.u256
-    check request.expiry == expiry
+    check request.expiry == 30
     check request.ask.collateral == 200.u256
     check request.ask.slots == 2'u64
     check request.ask.maxSlotLoss == 1'u64
 
   # TODO: We currently do not support encoding single chunks
   # test "node retrieves purchase status with 1 chunk":
-  #   let expiry = (await ethProvider.currentTime()) + 30
   #   let cid = client1.upload("some file contents").get
-  #   let id = client1.requestStorage(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, expiry=expiry, collateral=200.u256, nodes=2, tolerance=1).get
+  #   let id = client1.requestStorage(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, expiry=30, collateral=200.u256, nodes=2, tolerance=1).get
   #   let request = client1.getPurchase(id).get.request.get
   #   check request.ask.duration == 1.u256
   #   check request.ask.reward == 2.u256
@@ -159,13 +156,12 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
   #   check request.ask.maxSlotLoss == 1'u64
 
   test "node remembers purchase status after restart":
-    let expiry = (await ethProvider.currentTime()) + 30
     let cid = client1.upload("some file contents").get
     let id = client1.requestStorage(cid,
                                     duration=100.u256,
                                     reward=2.u256,
                                     proofProbability=3.u256,
-                                    expiry=expiry,
+                                    expiry=30,
                                     collateral=200.u256).get
     check eventually client1.purchaseStateIs(id, "submitted")
 
@@ -177,7 +173,7 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check request.ask.duration == 100.u256
     check request.ask.reward == 2.u256
     check request.ask.proofProbability == 3.u256
-    check request.expiry == expiry
+    check request.expiry == 30
     check request.ask.collateral == 200.u256
     check request.ask.slots == 1'u64
     check request.ask.maxSlotLoss == 0'u64
@@ -189,14 +185,13 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     let availability = client2.postAvailability(totalSize=size, duration=20*60.u256, minPrice=300.u256, maxCollateral=300.u256).get
 
     # client 1 requests storage
-    let expiry = (await ethProvider.currentTime()) + 5*60
     let cid = client1.upload(data).get
     let id = client1.requestStorage(
       cid,
       duration=10*60.u256,
       reward=400.u256,
       proofProbability=3.u256,
-      expiry=expiry,
+      expiry=5*60,
       collateral=200.u256,
       nodes = 5,
       tolerance = 2).get
@@ -228,14 +223,13 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     discard client2.postAvailability(totalSize=size, duration=20*60.u256, minPrice=300.u256, maxCollateral=300.u256).get
 
     # client 1 requests storage
-    let expiry = (await ethProvider.currentTime()) + 5*60
     let cid = client1.upload(data).get
     let id = client1.requestStorage(
       cid,
       duration=duration,
       reward=reward,
       proofProbability=3.u256,
-      expiry=expiry,
+      expiry=5*60,
       collateral=200.u256,
       nodes = nodes,
       tolerance = 2).get
@@ -253,12 +247,11 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
 
   test "request storage fails if nodes and tolerance aren't correct":
     let cid = client1.upload("some file contents").get
-    let expiry = (await ethProvider.currentTime()) + 30
     let responseBefore = client1.requestStorageRaw(cid,
       duration=100.u256,
       reward=2.u256,
       proofProbability=3.u256,
-      expiry=expiry,
+      expiry=30,
       collateral=200.u256,
       nodes=1,
       tolerance=1)
@@ -267,20 +260,15 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     check responseBefore.body == "Tolerance cannot be greater or equal than nodes (nodes - tolerance)"
 
   test "node requires expiry and its value to be in future":
-    let currentTime = await ethProvider.currentTime()
     let cid = client1.upload("some file contents").get
 
     let responseMissing = client1.requestStorageRaw(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256)
     check responseMissing.status == "400 Bad Request"
     check responseMissing.body == "Expiry required"
 
-    let responsePast = client1.requestStorageRaw(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256, expiry=currentTime-10)
-    check responsePast.status == "400 Bad Request"
-    check "Expiry needs to be in future" in responsePast.body
-
-    let responseBefore = client1.requestStorageRaw(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256, expiry=currentTime+10)
+    let responseBefore = client1.requestStorageRaw(cid, duration=10.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256, expiry=10)
     check responseBefore.status == "400 Bad Request"
-    check "Expiry has to be before the request's end (now + duration)" in responseBefore.body
+    check "Expiry needs value bigger then zero and smaller then the request's duration" in responseBefore.body
 
   test "updating non-existing availability":
     let nonExistingResponse = client1.patchAvailabilityRaw(AvailabilityId.example, duration=100.u256.some, minPrice=200.u256.some, maxCollateral=200.u256.some)
@@ -317,14 +305,13 @@ twonodessuite "Integration tests", debug1 = false, debug2 = false:
     let availability = client1.postAvailability(totalSize=originalSize, duration=20*60.u256, minPrice=300.u256, maxCollateral=300.u256).get
 
     # Lets create storage request that will utilize some of the availability's space
-    let expiry = (await ethProvider.currentTime()) + 5*60
     let cid = client2.upload(data).get
     let id = client2.requestStorage(
       cid,
       duration=10*60.u256,
       reward=400.u256,
       proofProbability=3.u256,
-      expiry=expiry,
+      expiry=5*60,
       collateral=200.u256,
       nodes = 5,
       tolerance = 2).get

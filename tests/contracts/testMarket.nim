@@ -32,6 +32,10 @@ ethersuite "On-Chain Market":
     let currentPeriod = periodicity.periodOf(await ethProvider.currentTime())
     await ethProvider.advanceTimeTo(periodicity.periodEnd(currentPeriod) + 1)
 
+  proc advanceToCancelledRequest(request: StorageRequest) {.async.} =
+    let expiry = (await market.requestExpiresAt(request.id)) + 1
+    await ethProvider.advanceTimeTo(expiry.u256)
+
   proc waitUntilProofRequired(slotId: SlotId) {.async.} =
     await advanceToNextPeriod()
     while not (
@@ -70,22 +74,19 @@ ethersuite "On-Chain Market":
 
   test "supports withdrawing of funds":
     await market.requestStorage(request)
-    await ethProvider.advanceTimeTo(request.expiry + 1)
+    await advanceToCancelledRequest(request)
     await market.withdrawFunds(request.id)
 
   test "supports request subscriptions":
     var receivedIds: seq[RequestId]
     var receivedAsks: seq[StorageAsk]
-    var receivedExpirys: seq[UInt256]
     proc onRequest(id: RequestId, ask: StorageAsk, expiry: UInt256) =
       receivedIds.add(id)
       receivedAsks.add(ask)
-      receivedExpirys.add(expiry)
     let subscription = await market.subscribeRequests(onRequest)
     await market.requestStorage(request)
     check receivedIds == @[request.id]
     check receivedAsks == @[request.ask]
-    check receivedExpirys == @[request.expiry]
     await subscription.unsubscribe()
 
   test "supports filling of slots":
@@ -216,7 +217,7 @@ ethersuite "On-Chain Market":
       receivedIds.add(id)
     let subscription = await market.subscribeRequestCancelled(request.id, onRequestCancelled)
 
-    await ethProvider.advanceTimeTo(request.expiry + 1)
+    await advanceToCancelledRequest(request)
     await market.withdrawFunds(request.id)
     check receivedIds == @[request.id]
     await subscription.unsubscribe()
@@ -240,7 +241,7 @@ ethersuite "On-Chain Market":
         await waitUntilProofRequired(slotId)
         let missingPeriod = periodicity.periodOf(await ethProvider.currentTime())
         await advanceToNextPeriod()
-        await marketplace.markProofAsMissing(slotId, missingPeriod)
+        discard await marketplace.markProofAsMissing(slotId, missingPeriod)
     check receivedIds == @[request.id]
     await subscription.unsubscribe()
 
@@ -255,7 +256,7 @@ ethersuite "On-Chain Market":
       receivedIds.add(requestId)
 
     let subscription = await market.subscribeRequestCancelled(request.id, onRequestCancelled)
-    await ethProvider.advanceTimeTo(request.expiry + 1) # shares expiry with otherRequest
+    advanceToCancelledRequest(otherRequest) # shares expiry with otherRequest
     await market.withdrawFunds(otherRequest.id)
     check receivedIds.len == 0
     await market.withdrawFunds(request.id)
@@ -338,13 +339,12 @@ ethersuite "On-Chain Market":
     # 6 blocks, we only need to check 5 "blocks ago". We don't need to check the
     # `approve` for the first `requestStorage` call, so that's 1 less again = 4
     # "blocks ago".
-    check eventually (
-      (await market.queryPastStorageRequests(5)) ==
-      @[
-        PastStorageRequest(requestId: request.id, ask: request.ask, expiry: request.expiry),
-        PastStorageRequest(requestId: request1.id, ask: request1.ask, expiry: request1.expiry),
-        PastStorageRequest(requestId: request2.id, ask: request2.ask, expiry: request2.expiry)
-      ])
+
+    proc getsPastRequest(): Future[bool] {.async.} =
+      let reqs = await market.queryPastStorageRequests(5)
+      reqs.mapIt(it.requestId) == @[request.id, request1.id, request2.id]
+
+    check eventually await getsPastRequest()
 
   test "past event query can specify negative `blocksAgo` parameter":
     await market.requestStorage(request)

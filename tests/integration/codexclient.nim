@@ -70,7 +70,7 @@ proc requestStorageRaw*(
     reward: UInt256,
     proofProbability: UInt256,
     collateral: UInt256,
-    expiry: UInt256 = 0.u256,
+    expiry: uint = 0,
     nodes: uint = 1,
     tolerance: uint = 0
 ): Response =
@@ -88,7 +88,7 @@ proc requestStorageRaw*(
     }
 
   if expiry != 0:
-    json["expiry"] = %expiry
+    json["expiry"] = %($expiry)
 
   return client.http.post(url, $json)
 
@@ -98,7 +98,7 @@ proc requestStorage*(
     duration: UInt256,
     reward: UInt256,
     proofProbability: UInt256,
-    expiry: UInt256,
+    expiry: uint,
     collateral: UInt256,
     nodes: uint = 1,
     tolerance: uint = 0

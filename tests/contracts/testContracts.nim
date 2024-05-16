@@ -39,10 +39,10 @@ ethersuite "Marketplace contracts":
 
     switchAccount(client)
     discard await token.approve(marketplace.address, request.price)
-    await marketplace.requestStorage(request)
+    discard await marketplace.requestStorage(request)
     switchAccount(host)
     discard await token.approve(marketplace.address, request.ask.collateral)
-    await marketplace.fillSlot(request.id, 0.u256, proof)
+    discard await marketplace.fillSlot(request.id, 0.u256, proof)
     slotId = request.slotId(0.u256)
 
   proc waitUntilProofRequired(slotId: SlotId) {.async.} =
@@ -57,12 +57,12 @@ ethersuite "Marketplace contracts":
   proc startContract() {.async.} =
     for slotIndex in 1..<request.ask.slots:
       discard await token.approve(marketplace.address, request.ask.collateral)
-      await marketplace.fillSlot(request.id, slotIndex.u256, proof)
+      discard await marketplace.fillSlot(request.id, slotIndex.u256, proof)
 
   test "accept marketplace proofs":
     switchAccount(host)
     await waitUntilProofRequired(slotId)
-    await marketplace.submitProof(slotId, proof)
+    discard await marketplace.submitProof(slotId, proof)
 
   test "can mark missing proofs":
     switchAccount(host)
@@ -71,7 +71,7 @@ ethersuite "Marketplace contracts":
     let endOfPeriod = periodicity.periodEnd(missingPeriod)
     await ethProvider.advanceTimeTo(endOfPeriod + 1)
     switchAccount(client)
-    await marketplace.markProofAsMissing(slotId, missingPeriod)
+    discard await marketplace.markProofAsMissing(slotId, missingPeriod)
 
   test "can be paid out at the end":
     switchAccount(host)
@@ -80,12 +80,13 @@ ethersuite "Marketplace contracts":
     let requestEnd = await marketplace.requestEnd(request.id)
     await ethProvider.advanceTimeTo(requestEnd.u256 + 1)
     let startBalance = await token.balanceOf(address)
-    await marketplace.freeSlot(slotId)
+    discard await marketplace.freeSlot(slotId)
     let endBalance = await token.balanceOf(address)
     check endBalance == (startBalance + request.ask.duration * request.ask.reward + request.ask.collateral)
 
   test "cannot mark proofs missing for cancelled request":
-    await ethProvider.advanceTimeTo(request.expiry + 1)
+    let expiry = await marketplace.requestExpiry(request.id)
+    await ethProvider.advanceTimeTo((expiry + 1).u256)
     switchAccount(client)
     let missingPeriod = periodicity.periodOf(await ethProvider.currentTime())
     await ethProvider.advanceTime(periodicity.seconds)
