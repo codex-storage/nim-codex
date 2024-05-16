@@ -1,4 +1,3 @@
-
 import std/sequtils
 
 import pkg/taskpools
@@ -12,7 +11,8 @@ import ../../types
 import ./circomcompat
 
 const
-  CompletionTimeout = 1.seconds # Maximum await time for completition after receiving a signal
+  CompletionTimeout = 1.seconds
+    # Maximum await time for completition after receiving a signal
   CompletionRetryDelay = 10.millis
 
 type
@@ -24,27 +24,24 @@ type
     signal: ThreadSignalPtr
     params: CircomCompatParams
 
+proc proveTask[H](args: ProveTaskArgs, data: ProofInputs[H]): EncodeTaskResult =
+  discard
+
 proc prove*[H](
-  self: AsyncCircomCompat,
-  input: ProofInputs[H]
+    self: AsyncCircomCompat, input: ProofInputs[H]
 ): Future[?!CircomProof] {.async.} =
   ## Generates proof using circom-compat asynchronously
   ##
   discard
 
 proc verify*[H](
-  self: AsyncCircomCompat,
-  proof: CircomProof,
-  inputs: ProofInputs[H]
+    self: AsyncCircomCompat, proof: CircomProof, inputs: ProofInputs[H]
 ): Future[?!bool] {.async.} =
   ## Verify a proof using a ctx
   ##
   discard
 
-proc init*(
-  _: type AsyncCircomCompat,
-  params: CircomCompatParams
-): AsyncCircomCompat =
+proc init*(_: type AsyncCircomCompat, params: CircomCompatParams): AsyncCircomCompat =
   ## Create a new async circom
   ##
   AsyncCircomCompat(params)
