@@ -12,8 +12,8 @@ import ../../types
 import ./circomcompat
 
 const
-  CompletitionTimeout = 1.seconds # Maximum await time for completition after receiving a signal
-  CompletitionRetryDelay = 10.millis
+  CompletionTimeout = 1.seconds # Maximum await time for completition after receiving a signal
+  CompletionRetryDelay = 10.millis
 
 type
   AsyncCircomCompat* = object
@@ -40,3 +40,11 @@ proc verify*[H](
   ## Verify a proof using a ctx
   ##
   discard
+
+proc init*(
+  _: type AsyncCircomCompat,
+  params: CircomCompatParams
+): AsyncCircomCompat =
+  ## Create a new async circom
+  ##
+  AsyncCircomCompat(params)

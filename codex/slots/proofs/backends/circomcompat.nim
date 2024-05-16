@@ -54,7 +54,8 @@ proc release*(self: CircomCompat) =
 
 proc prove*[H](
   self: CircomCompat,
-  input: ProofInputs[H]): ?!CircomProof =
+  input: ProofInputs[H]
+): ?!CircomProof =
   ## Encode buffers using a ctx
   ##
 
@@ -168,7 +169,8 @@ proc prove*[H](
 proc verify*[H](
   self: CircomCompat,
   proof: CircomProof,
-  inputs: ProofInputs[H]): ?!bool =
+  inputs: ProofInputs[H]
+): ?!bool =
   ## Verify a proof using a ctx
   ##
 
