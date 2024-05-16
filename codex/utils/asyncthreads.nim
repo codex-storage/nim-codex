@@ -15,11 +15,12 @@ proc awaitThreadResult*[T](signal: ThreadSignalPtr, handle: Flowvar[T]): Future[
   var
     res: T
     awaitTotal: Duration
+
   while awaitTotal < CompletionTimeout:
-      if handle.tryComplete(res):
-        return success(res)
-      else:
-        awaitTotal += CompletionRetryDelay
-        await sleepAsync(CompletionRetryDelay)
+    if handle.tryComplete(res):
+      return success(res)
+    else:
+      awaitTotal += CompletionRetryDelay
+      await sleepAsync(CompletionRetryDelay)
 
   return failure("Task signaled finish but didn't return any result within " & $CompletionRetryDelay)
