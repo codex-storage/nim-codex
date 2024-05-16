@@ -41,6 +41,7 @@ type
   AnyBuilder* = Poseidon2Builder
 
   AnyProofInputs* = ProofInputs[Poseidon2Hash]
+
   Prover* = ref object of RootObj
     backend: AnyBackend
     store: BlockStore

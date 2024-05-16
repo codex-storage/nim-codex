@@ -24,6 +24,9 @@ type
     signal: ThreadSignalPtr
     params: CircomCompatParams
 
+  ProveTaskResult = object
+    AnyProofInputs, AnyProof
+
 proc proveTask[H](args: ProveTaskArgs, data: ProofInputs[H]): EncodeTaskResult =
   discard
 
