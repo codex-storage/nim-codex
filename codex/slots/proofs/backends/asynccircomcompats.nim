@@ -13,7 +13,8 @@ const
   CompletitionRetryDelay = 10.millis
 
 type
-  EncoderBackendPtr = ptr EncoderBackend
+  AsyncCircomCompat* = object
+    params*: CircomCompatParams
 
   # Args objects are missing seq[seq[byte]] field, to avoid unnecessary data copy
   EncodeTaskArgs = object
@@ -21,3 +22,7 @@ type
     backend: EncoderBackendPtr
     blockSize: int
     ecM: int
+
+proc prove*[H](
+  self: CircomCompat,
+  input: ProofInputs[H]): ?!CircomProof =

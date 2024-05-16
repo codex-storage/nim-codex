@@ -294,7 +294,7 @@ proc new*(
 
       some Prover.new(
         store,
-        CircomCompatParams.init($config.circomR1cs, $config.circomWasm, zkey),
+        AsyncCircomCompat.init($config.circomR1cs, $config.circomWasm, zkey),
         config.numProofSamples)
     else:
       none Prover
