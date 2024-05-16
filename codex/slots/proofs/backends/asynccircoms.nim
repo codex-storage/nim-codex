@@ -54,7 +54,9 @@ proc prove*[H](
     return failure(err)
 
   let args = ProveTaskArgs(signal: signal, params: self.params)
-  let flowvar = self.tp.spawn proveTask(args, input)
+  proc spawnTask(): Flowvar[Result[CircomProof, string]] =
+    self.tp.spawn proveTask(args, input)
+  let flowvar = spawnTask()
 
   without taskRes =? await awaitThreadResult(signal, flowvar),  err:
     let res: ?!CircomProof = failure(err)
