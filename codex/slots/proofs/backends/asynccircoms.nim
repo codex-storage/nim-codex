@@ -18,25 +18,42 @@ const
 type
   AsyncCircomCompat* = object
     params*: CircomCompatParams
+    tp*: Taskpool
 
   # Args objects are missing seq[seq[byte]] field, to avoid unnecessary data copy
   ProveTaskArgs = object
     signal: ThreadSignalPtr
     params: CircomCompatParams
 
-  ProveTaskResult[ProofInputs, Proof] = object
-    input*: ProofInputs
-    proof*: Proof
+var circomBackend {.threadvar.}: CircomCompat 
 
-proc proveTask[H](args: ProveTaskArgs, data: ProofInputs[H]): ProveTaskResult =
-  discard
+proc proveTask[H](
+    args: ProveTaskArgs, data: ProofInputs[H]
+): Result[CircomProof, cstring] =
+
+  try:
+    let res = circomBackend.prove(data)
+    if res.isOk:
+      return ok(res.get())
+    else:
+      return err(res.error)
+  except CatchableError as exception:
+    return err(exception.msg.cstring)
+  finally:
+    if err =? args.signal.fireSync().mapFailure.errorOption():
+      error "Error firing signal in proveTask ", msg = err.msg
 
 proc prove*[H](
     self: AsyncCircomCompat, input: ProofInputs[H]
 ): Future[?!CircomProof] {.async.} =
   ## Generates proof using circom-compat asynchronously
   ##
-  discard
+
+  without signal =? ThreadSignalPtr.new().mapFailure, err:
+    return failure(err)
+
+  let args = ProveTaskArgs(signal, self.params)
+  self.tp.spawn proveTask(args, input)
 
 proc verify*[H](
     self: AsyncCircomCompat, proof: CircomProof, inputs: ProofInputs[H]
