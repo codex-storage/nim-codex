@@ -15,7 +15,7 @@ proc awaitThreadResult*[T](signal: ThreadSignalPtr, handle: Flowvar[T]): Future[
   template closeSig() =
     let sigRes = signal.close()
     if sigRes.isErr:
-      return failure(sigRes.error())
+      raise (ref Defect)(msg: sigRes.error())
 
   var
     res: T
