@@ -12,7 +12,7 @@ const
 proc awaitThreadResult*[T](signal: ThreadSignalPtr, handle: Flowvar[T]): Future[?!T] {.async.} =
   await wait(signal)
 
-  proc closeSig() =
+  template closeSig() =
     let sigRes = signal.close()
     if sigRes.isErr:
       return failure(sigRes.error())
