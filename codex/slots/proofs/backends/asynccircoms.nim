@@ -52,6 +52,10 @@ proc prove*[H](
 
   without signal =? ThreadSignalPtr.new().mapFailure, err:
     return failure(err)
+  defer:
+    let sigRes = signal.close()
+    if sigRes.isErr:
+      raise (ref Defect)(msg: sigRes.error())
 
   let args = ProveTaskArgs(signal: signal, params: self.params)
   proc spawnTask(): Flowvar[Result[CircomProof, string]] =
@@ -59,8 +63,7 @@ proc prove*[H](
   let flowvar = spawnTask()
 
   without taskRes =? await awaitThreadResult(signal, flowvar),  err:
-    let res: ?!CircomProof = failure(err)
-    return res
+    return failure(err)
 
   without proof =? taskRes.mapFailure, err:
     let res: ?!CircomProof = failure(err)
@@ -68,6 +71,7 @@ proc prove*[H](
 
   let pf: CircomProof = proof
   success(pf)
+
 
 proc verify*[H](
     self: AsyncCircomCompat, proof: CircomProof, inputs: ProofInputs[H]
