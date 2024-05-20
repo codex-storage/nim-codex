@@ -45,8 +45,8 @@ proc prove*[H](
     error "Error releasing proof queue ", msg = res.error().msg
   without proofRes =? taskRes, exc:
     return failure(exc)
-  without proof =? proofRes, err:
-    return failure(err)
+  without proof =? proofRes, exc:
+    return failure(exc)
 
   success(proof)
 
@@ -77,10 +77,10 @@ proc verify*[H](
   let taskRes = await queue.recvAsync()
   if (let res = queue.release(); res.isErr):
     error "Error releasing proof queue ", msg = res.error().msg
-  without verifyRes =? taskRes, err:
-    return failure(err)
-  without verified =? verifyRes, err:
-    return failure(err)
+  without verifyRes =? taskRes, exc:
+    return failure(exc)
+  without verified =? verifyRes, exc:
+    return failure(exc)
 
   success(verified)
 
