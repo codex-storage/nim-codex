@@ -36,7 +36,7 @@ proc release*[T](queue: SignalQueuePtr[T]): ?!void =
   ## Call to properly dispose of a SignalQueue.
   queue[].chan.close()
   if err =? queue[].signal.close().mapFailure.errorOption():
-    return failure(err.msg)
+    result = failure(err.msg)
   deallocShared(queue)
 
 proc newSignalQueue*[T](
@@ -50,7 +50,7 @@ proc newSignalQueue*[T](
   result[].chan.open(maxItems)
 
 proc send*[T](queue: SignalQueuePtr[T], msg: T): ?!void {.raises: [].} =
-  ## Sends a message to a thread. `msg` is copied.
+  ## Sends a message to a thread. `msg` is deep copied.
   ## Note: may be blocking.
   ##
   try:

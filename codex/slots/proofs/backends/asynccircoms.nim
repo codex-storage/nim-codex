@@ -41,6 +41,9 @@ proc prove*[H](
 
   without queue =? newSignalQueue[Result[CircomProof, string]](), err:
     return failure(err)
+  defer:
+    if (let res = queue.release(); res.isErr):
+      error "Error releasing proof queue ", msg = res.error().msg
 
   proc spawnTask() =
     self.tp.spawn proveTask(self.circom, input, queue)
@@ -49,9 +52,6 @@ proc prove*[H](
 
   without taskRes =? await queue.recvAsync(), err:
     return failure(err)
-
-  if (let res = queue.release(); res.isErr):
-    return failure "Error releasing proof queue " & res.error().msg
 
   without proof =? taskRes.mapFailure, err:
     return failure(err)
