@@ -95,15 +95,14 @@ proc retrieveCid(
         break
 
       bytes += buff.len
-      trace "Sending chunk", size = buff.len
       await resp.sendChunk(addr buff[0], buff.len)
     await resp.finish()
     codex_api_downloads.inc()
   except CatchableError as exc:
-    trace "Excepting streaming blocks", exc = exc.msg
+    warn "Excepting streaming blocks", exc = exc.msg
     return RestApiResponse.error(Http500)
   finally:
-    trace "Sent bytes", cid = cid, bytes
+    info "Sent bytes", cid = cid, bytes
     if not stream.isNil:
       await stream.close()
 
