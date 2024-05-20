@@ -80,8 +80,8 @@ proc verify*[H](
 
   success(verified)
 
-proc init*(_: type AsyncCircomCompat, params: CircomCompatParams): AsyncCircomCompat =
+proc init*(_: type AsyncCircomCompat, params: CircomCompatParams, tp: Taskpool): AsyncCircomCompat =
   ## Create a new async circom
   ##
   let circom = CircomCompat.init(params)
-  AsyncCircomCompat(circom)
+  AsyncCircomCompat(circom, tp)
