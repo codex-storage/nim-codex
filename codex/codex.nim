@@ -292,9 +292,10 @@ proc new*(
           $config.circomZkey
         else: ""
 
+      let params = CircomCompatParams.init($config.circomR1cs, $config.circomWasm, zkey)
       some Prover.new(
         store,
-        AsyncCircomCompat.init($config.circomR1cs, $config.circomWasm, zkey),
+        AsyncCircomCompat.init(params),
         config.numProofSamples)
     else:
       none Prover

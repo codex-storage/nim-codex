@@ -22,25 +22,16 @@ proc proveTask[H](
     data: ProofInputs[H],
     results: SignalQueuePtr[Result[CircomProof, string]],
 ) =
-  try:
-    if circomBackend.isNone:
-      circomBackend = some CircomCompat.init(params)
-    else:
-      assert circomBackend.get().params == params
+  var val: Result[CircomProof, string]
 
-    let proof = circomBackend.get().prove(data)
-    var val: Result[CircomProof, string]
-    if proof.isOk():
-      val.ok(proof.get())
-    else:
-      val.err(proof.error().msg)
+  let proof = circomBackend.get().prove(data)
+  if proof.isOk():
+    val.ok(proof.get())
+  else:
+    val.err(proof.error().msg)
 
-    if (let sent = results.send(val); sent.isErr()):
-      error "Error sending proof results", msg = sent.error().msg
-  except CatchableError as exception:
-    var err = Result[CircomProof, string].err(exception.msg)
-    if (let res = results.send(err); res.isErr()):
-      error "Error sending proof results", msg = res.error().msg
+  if (let sent = results.send(val); sent.isErr()):
+    error "Error sending proof results", msg = sent.error().msg
 
 proc prove*[H](
     self: AsyncCircomCompat, input: ProofInputs[H]
@@ -77,4 +68,5 @@ proc verify*[H](
 proc init*(_: type AsyncCircomCompat, params: CircomCompatParams): AsyncCircomCompat =
   ## Create a new async circom
   ##
-  AsyncCircomCompat(params)
+  let circom = CircomCompat.init(params)
+  AsyncCircomCompat(circom)
