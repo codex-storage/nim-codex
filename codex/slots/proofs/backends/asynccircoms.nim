@@ -15,16 +15,13 @@ type AsyncCircomCompat* = object
   circom*: CircomCompat
   tp*: Taskpool
 
-var circomBackend {.threadvar.}: Option[CircomCompat]
-
 proc proveTask[H](
-    params: CircomCompat,
+    circom: CircomCompat,
     data: ProofInputs[H],
     results: SignalQueuePtr[Result[CircomProof, string]],
 ) =
   var val: Result[CircomProof, string]
-
-  let proof = circomBackend.get().prove(data)
+  let proof = circom.prove(data)
   if proof.isOk():
     val.ok(proof.get())
   else:
