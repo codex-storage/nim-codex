@@ -31,8 +31,7 @@ proc prove*[H](
 ): Future[?!CircomProof] {.async.} =
   ## Generates proof using circom-compat asynchronously
   ##
-  let queueRes: ?!SignalQueuePtr[?!CircomProof] = newSignalQueue[?!CircomProof](maxItems = 1)
-  without queue =? queueRes, err:
+  without queue =? newSignalQueue[?!CircomProof](maxItems = 1), err:
     return failure(err)
 
   proc spawnTask() =
