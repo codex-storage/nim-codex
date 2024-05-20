@@ -10,7 +10,6 @@ const
   CompletionTimeout* = 1.seconds
     # Maximum await time for completition after receiving a signal
 
-
 type
   SignalQueue[T] = object
     signal: ThreadSignalPtr

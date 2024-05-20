@@ -4,6 +4,7 @@ import std/math
 
 import ../../asynctest
 
+import pkg/taskpools
 import pkg/chronos
 import pkg/libp2p/cid
 import pkg/datastore
@@ -60,8 +61,9 @@ suite "Test Prover":
       r1cs = "tests/circuits/fixtures/proof_main.r1cs"
       wasm = "tests/circuits/fixtures/proof_main.wasm"
 
+      taskpool = Taskpool.new(num_threads = 2)
       params = CircomCompatParams.init(r1cs, wasm)
-      circomBackend = CircomCompat.init(params)
+      circomBackend = AsyncCircomCompat.init(params, taskpool)
       prover = Prover.new(store, circomBackend, samples)
       challenge = 1234567.toF.toBytes.toArray32
       (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet

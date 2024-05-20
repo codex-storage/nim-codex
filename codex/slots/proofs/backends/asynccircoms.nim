@@ -1,7 +1,6 @@
 import std/options
 
 import pkg/taskpools
-import pkg/taskpools/flowvars
 import pkg/chronos
 import pkg/chronos/threadsync
 import pkg/questionable/results
@@ -31,7 +30,7 @@ proc prove*[H](
   without queue =? newSignalQueue[?!CircomProof](maxItems = 1), err:
     return failure(err)
 
-  template spawnTask() =
+  proc spawnTask() =
     self.tp.spawn proveTask(self.circom, input, queue)
 
   spawnTask()
@@ -65,7 +64,7 @@ proc verify*[H](
   without queue =? newSignalQueue[?!bool](maxItems = 1), err:
     return failure(err)
 
-  template spawnTask() =
+  proc spawnTask() =
     self.tp.spawn verifyTask(self.circom, proof, inputs, queue)
 
   spawnTask()
@@ -84,4 +83,4 @@ proc init*(_: type AsyncCircomCompat, params: CircomCompatParams, tp: Taskpool):
   ## Create a new async circom
   ##
   let circom = CircomCompat.init(params)
-  AsyncCircomCompat(circom, tp)
+  AsyncCircomCompat(circom: circom, tp: tp)
