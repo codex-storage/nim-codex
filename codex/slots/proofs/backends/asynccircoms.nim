@@ -11,38 +11,36 @@ import ../../../utils/asyncthreads
 
 import ./circomcompat
 
-type
-  AsyncCircomCompat* = object
-    params*: CircomCompatParams
-    tp*: Taskpool
-
-  # Args objects are missing seq[seq[byte]] field, to avoid unnecessary data copy
-  ProveTaskArgs* = object
-    signal: ThreadSignalPtr
-    params: CircomCompatParams
+type AsyncCircomCompat* = object
+  params*: CircomCompatParams
+  tp*: Taskpool
 
 var circomBackend {.threadvar.}: Option[CircomCompat]
 
 proc proveTask[H](
-    args: ProveTaskArgs, data: ProofInputs[H]
-): Result[CircomProof, string] =
-
+    params: CircomCompatParams,
+    data: ProofInputs[H],
+    results: SignalQueuePtr[Result[CircomProof, string]],
+) =
   try:
     if circomBackend.isNone:
-      circomBackend = some CircomCompat.init(args.params)
+      circomBackend = some CircomCompat.init(params)
     else:
-      assert circomBackend.get().params == args.params
+      assert circomBackend.get().params == params
 
-    let res = circomBackend.get().prove(data)
-    if res.isOk:
-      return ok(res.get())
+    let proof = circomBackend.get().prove(data)
+    var val: Result[CircomProof, string]
+    if proof.isOk():
+      val.ok(proof.get())
     else:
-      return err(res.error().msg)
+      val.err(proof.error().msg)
+
+    if (let sent = results.send(val); sent.isErr()):
+      error "Error sending proof results", msg = sent.error().msg
   except CatchableError as exception:
-    return err(exception.msg)
-  finally:
-    if err =? args.signal.fireSync().mapFailure.errorOption():
-      error "Error firing signal in proveTask ", msg = err.msg
+    var err = Result[CircomProof, string].err(exception.msg)
+    if (let res = results.send(err); res.isErr()):
+      error "Error sending proof results", msg = res.error().msg
 
 proc prove*[H](
     self: AsyncCircomCompat, input: ProofInputs[H]
@@ -50,27 +48,24 @@ proc prove*[H](
   ## Generates proof using circom-compat asynchronously
   ##
 
-  without signal =? ThreadSignalPtr.new().mapFailure, err:
+  without queue =? newSignalQueue[Result[CircomProof, string]](), err:
     return failure(err)
-  defer:
-    if err =? signal.close().mapFailure.errorOption():
-      error "Error closing signal", msg = $err.msg
 
-  let args = ProveTaskArgs(signal: signal, params: self.params)
-  proc spawnTask(): Flowvar[Result[CircomProof, string]] =
-    self.tp.spawn proveTask(args, input)
-  let flowvar = spawnTask()
+  proc spawnTask() =
+    self.tp.spawn proveTask(self.params, input, queue)
 
-  without taskRes =? await awaitThreadResult(signal, flowvar),  err:
+  spawnTask()
+
+  without taskRes =? await queue.recvAsync(), err:
     return failure(err)
+
+  if (let res = queue.release(); res.isErr):
+    return failure "Error releasing proof queue " & res.error().msg
 
   without proof =? taskRes.mapFailure, err:
-    let res: ?!CircomProof = failure(err)
-    return res
+    return failure(err)
 
-  let pf: CircomProof = proof
-  success(pf)
-
+  success(proof)
 
 proc verify*[H](
     self: AsyncCircomCompat, proof: CircomProof, inputs: ProofInputs[H]
