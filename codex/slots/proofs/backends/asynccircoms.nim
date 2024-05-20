@@ -75,11 +75,10 @@ proc verify*[H](
     error "Error releasing proof queue ", msg = res.error().msg
   without verifyRes =? taskRes, err:
     return failure(err)
-  without verified =? verifyRes , err:
+  without verified =? verifyRes, err:
     return failure(err)
 
   success(verified)
-
 
 proc init*(_: type AsyncCircomCompat, params: CircomCompatParams): AsyncCircomCompat =
   ## Create a new async circom
