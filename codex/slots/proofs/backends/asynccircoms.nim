@@ -16,9 +16,7 @@ type AsyncCircomCompat* = object
   tp*: Taskpool
 
 proc proveTask[H](
-    circom: CircomCompat,
-    data: ProofInputs[H],
-    results: SignalQueuePtr[?!CircomProof],
+    circom: CircomCompat, data: ProofInputs[H], results: SignalQueuePtr[?!CircomProof]
 ) =
   let proof = circom.prove(data)
 
@@ -35,6 +33,7 @@ proc prove*[H](
 
   template spawnTask() =
     self.tp.spawn proveTask(self.circom, input, queue)
+
   spawnTask()
 
   let taskRes = await queue.recvAsync()

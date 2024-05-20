@@ -7,9 +7,12 @@ import pkg/questionable/results
 
 const
   CompletionRetryDelay* = 10.millis
-  CompletionTimeout* = 1.seconds # Maximum await time for completition after receiving a signal
+  CompletionTimeout* = 1.seconds
+    # Maximum await time for completition after receiving a signal
 
-proc awaitThreadResult*[T](signal: ThreadSignalPtr, handle: Flowvar[T]): Future[?!T] {.async.} =
+proc awaitThreadResult*[T](
+    signal: ThreadSignalPtr, handle: Flowvar[T]
+): Future[?!T] {.async.} =
   await wait(signal)
 
   var
@@ -23,7 +26,9 @@ proc awaitThreadResult*[T](signal: ThreadSignalPtr, handle: Flowvar[T]): Future[
       awaitTotal += CompletionRetryDelay
       await sleepAsync(CompletionRetryDelay)
 
-  return failure("Task signaled finish but didn't return any result within " & $CompletionRetryDelay)
+  return failure(
+    "Task signaled finish but didn't return any result within " & $CompletionRetryDelay
+  )
 
 type
   SignalQueue[T] = object
@@ -40,9 +45,7 @@ proc release*[T](queue: SignalQueuePtr[T]): ?!void =
     result = failure(err.msg)
   deallocShared(queue)
 
-proc newSignalQueue*[T](
-    maxItems: int = 0
-): ?!SignalQueuePtr[T] =
+proc newSignalQueue*[T](maxItems: int = 0): ?!SignalQueuePtr[T] =
   ## Create a signal queue compatible with Chronos async.
   result = success cast[ptr SignalQueue[T]](allocShared0(sizeof(SignalQueue[T])))
   without signal =? ThreadSignalPtr.new().mapFailure, err:
@@ -59,9 +62,10 @@ proc send*[T](queue: SignalQueuePtr[T], msg: T): ?!void {.raises: [].} =
   except Exception as exc:
     return failure(exc.msg)
 
-  let res = queue[].signal.fireSync()
-  if res.isErr():
-    return failure(res.error())
+  without wasSent =? queue[].signal.fireSync(InfiniteDuration).mapFailure, err:
+    return failure(err)
+  if not wasSent:
+    return failure("ThreadSignalPtr not signalled in time")
   result = ok()
 
 proc recvAsync*[T](queue: SignalQueuePtr[T]): Future[?!T] {.async.} =
