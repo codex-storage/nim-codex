@@ -10,25 +10,6 @@ const
   CompletionTimeout* = 1.seconds
     # Maximum await time for completition after receiving a signal
 
-proc awaitThreadResult*[T](
-    signal: ThreadSignalPtr, handle: Flowvar[T]
-): Future[?!T] {.async.} =
-  await wait(signal)
-
-  var
-    res: T
-    awaitTotal: Duration
-
-  while awaitTotal < CompletionTimeout:
-    if handle.tryComplete(res): ## TODO: pretty sure this leaks currently
-      return success(res)
-    else:
-      awaitTotal += CompletionRetryDelay
-      await sleepAsync(CompletionRetryDelay)
-
-  return failure(
-    "Task signaled finish but didn't return any result within " & $CompletionRetryDelay
-  )
 
 type
   SignalQueue[T] = object
