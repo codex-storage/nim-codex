@@ -48,9 +48,10 @@ proc send*[T](queue: SignalQueuePtr[T], msg: T): ?!void {.raises: [].} =
   except Exception as exc:
     return failure(exc.msg)
 
-  without wasSent =? queue[].signal.fireSync(InfiniteDuration).mapFailure, err:
-    return failure(err)
-  if wasSent:
+  let res = queue[].signal.fireSync(InfiniteDuration).mapFailure()
+  if res.isErr:
+    return failure(res.error())
+  if res.get():
     return ok()
   else:
     return failure("ThreadSignalPtr not signalled in time")
