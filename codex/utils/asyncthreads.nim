@@ -31,10 +31,10 @@ proc release*[T](queue: SignalQueuePtr[T]): ?!void =
 proc newSignalQueue*[T](maxItems: int = 0): ?!SignalQueuePtr[T] =
   ## Create a signal queue compatible with Chronos async.
   result = success cast[ptr SignalQueue[T]](allocShared0(sizeof(SignalQueue[T])))
-  let signalRes = ThreadSignalPtr.new().mapFailure
-  without signal =? signalRes, err:
-    return failure(err)
-  result[].signal = signal
+  let sigRes = ThreadSignalPtr.new()
+  if sigRes.isErr():
+    return failure(sigRes.error())
+  result[].signal = sigRes.get()
   result[].chan.open(maxItems)
 
 proc send*[T](queue: SignalQueuePtr[T], msg: T): ?!void {.raises: [].} =
