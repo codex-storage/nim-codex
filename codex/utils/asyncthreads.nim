@@ -63,13 +63,6 @@ proc send*[T](queue: SignalQueuePtr[T], msg: T): ?!void {.raises: [].} =
     return failure(res.error())
   result = ok()
 
-proc recv*[T](queue: SignalQueue[T]): ?!T =
-  ## Receive item from queue, blocking.
-  try:
-    ok(queue.chan[].recv())
-  except Exception as exc:
-    failure(exc.msg)
-
 proc recvAsync*[T](queue: SignalQueuePtr[T]): Future[?!T] {.async.} =
   ## Async compatible receive from queue. Pauses async execution until
   ## an item is received from the queue
