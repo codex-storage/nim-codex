@@ -66,8 +66,8 @@ proc verify*[H](
 ): Future[?!bool] {.async.} =
   ## Verify a proof using a ctx
   ## 
-  without queue =? newSignalQueue[?!bool](maxItems = 1), err:
-    return failure(err)
+  without queue =? newSignalQueue[?!bool](maxItems = 1), exc:
+    return failure(exc)
 
   proc spawnTask() =
     self.tp.spawn verifyTask(self.circom, proof, inputs, queue)
