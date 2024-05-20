@@ -35,8 +35,7 @@ proc newSignalQueue*[T](
   let queue = cast[ptr SignalQueue[T]](allocShared0(sizeof(SignalQueue[T])))
   let sigRes = ThreadSignalPtr.new()
   if sigRes.isErr():
-    let msg: string = sigRes.error()
-    return failure((ref CatchableError)(msg: msg))
+    return failure((ref CatchableError)(msg: sigRes.error()))
   else:
     queue[].signal = sigRes.get()
     queue[].chan.open(maxItems)

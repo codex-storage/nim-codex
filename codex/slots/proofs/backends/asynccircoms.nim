@@ -30,9 +30,10 @@ proc prove*[H](
     self: AsyncCircomCompat, input: ProofInputs[H]
 ): Future[?!CircomProof] {.async.} =
   ## Generates proof using circom-compat asynchronously
-  ##
-  without queue =? newSignalQueue[?!CircomProof](maxItems = 1), err:
-    return (?!CircomProof).err(err)
+  let queueRes = newSignalQueue[?!CircomProof](maxItems = 1)
+  if queueRes.isErr:
+    return failure queueRes.error()
+  let queue = queueRes.get()
 
   proc spawnTask() =
     self.tp.spawn proveTask(self.circom, input, queue)
@@ -83,7 +84,9 @@ proc verify*[H](
 
   success(verified)
 
-proc init*(_: type AsyncCircomCompat, params: CircomCompatParams, tp: Taskpool): AsyncCircomCompat =
+proc init*(
+    _: type AsyncCircomCompat, params: CircomCompatParams, tp: Taskpool
+): AsyncCircomCompat =
   ## Create a new async circom
   ##
   let circom = CircomCompat.init(params)
