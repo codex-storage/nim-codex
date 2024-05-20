@@ -97,6 +97,8 @@ proc send*(b: BlockExcNetwork, id: PeerId, msg: pb.Message) {.async.} =
     try:
       await b.inflightSema.acquire()
       await peer[].send(msg)
+    except CancelledError as error:
+      raise error
     except CatchableError as err:
       error "Error sending message", peer = id, msg = err.msg
     finally:
@@ -244,7 +246,8 @@ proc rpcHandler(
 
     if payment =? SignedState.init(msg.payment):
       asyncSpawn b.handlePayment(peer, payment)
-
+  except CancelledError as error:
+    raise error
   except CatchableError as exc:
     trace "Exception in blockexc rpc handler", exc = exc.msg
 
@@ -258,6 +261,8 @@ proc getOrCreatePeer(b: BlockExcNetwork, peer: PeerId): NetworkPeer =
   var getConn: ConnProvider = proc(): Future[Connection] {.async, gcsafe, closure.} =
     try:
       return await b.switch.dial(peer, Codec)
+    except CancelledError as error:
+      raise error
     except CatchableError as exc:
       trace "Unable to connect to blockexc peer", exc = exc.msg
 
