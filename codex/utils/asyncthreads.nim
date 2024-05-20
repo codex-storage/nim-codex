@@ -22,8 +22,11 @@ proc release*[T](queue: SignalQueuePtr[T]): ?!void =
   queue[].chan.close()
   if err =? queue[].signal.close().mapFailure.errorOption():
     queue[].signal = nil
-    result = failure(err.msg)
-  deallocShared(queue)
+    deallocShared(queue)
+    return failure(err.msg)
+  else:
+    deallocShared(queue)
+    return success()
 
 proc newSignalQueue*[T](maxItems: int = 0): ?!SignalQueuePtr[T] =
   ## Create a signal queue compatible with Chronos async.

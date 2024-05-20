@@ -1,6 +1,7 @@
 import std/options
 
 import pkg/taskpools
+import pkg/chronicles
 import pkg/chronos
 import pkg/chronos/threadsync
 import pkg/questionable/results
@@ -9,6 +10,9 @@ import ../../types
 import ../../../utils/asyncthreads
 
 import ./circomcompat
+
+logScope:
+  topics = "codex asyncprover"
 
 type AsyncCircomCompat* = object
   circom*: CircomCompat
