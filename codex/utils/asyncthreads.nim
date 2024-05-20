@@ -54,9 +54,7 @@ proc newSignalQueue*[T](maxItems: int = 0): ?!SignalQueuePtr[T] =
   result[].chan.open(maxItems)
 
 proc send*[T](queue: SignalQueuePtr[T], msg: T): ?!void {.raises: [].} =
-  ## Sends a message from a regular thread. `msg` is deep copied.
-  ## Note: may be blocking.
-  ##
+  ## Sends a message from a regular thread. `msg` is deep copied. May block
   try:
     queue[].chan.send(msg)
   except Exception as exc:
@@ -64,9 +62,10 @@ proc send*[T](queue: SignalQueuePtr[T], msg: T): ?!void {.raises: [].} =
 
   without wasSent =? queue[].signal.fireSync(InfiniteDuration).mapFailure, err:
     return failure(err)
-  if not wasSent:
+  if wasSent:
+    return ok()
+  else:
     return failure("ThreadSignalPtr not signalled in time")
-  result = ok()
 
 proc recvAsync*[T](queue: SignalQueuePtr[T]): Future[?!T] {.async.} =
   ## Async compatible receive from queue. Pauses async execution until

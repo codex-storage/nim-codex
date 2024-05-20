@@ -28,7 +28,7 @@ proc prove*[H](
 ): Future[?!CircomProof] {.async.} =
   ## Generates proof using circom-compat asynchronously
   ##
-  without queue =? newSignalQueue[?!CircomProof](), err:
+  without queue =? newSignalQueue[?!CircomProof](maxItems=1), err:
     return failure(err)
 
   template spawnTask() =
