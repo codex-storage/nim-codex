@@ -30,10 +30,9 @@ proc prove*[H](
     self: AsyncCircomCompat, input: ProofInputs[H]
 ): Future[?!CircomProof] {.async.} =
   ## Generates proof using circom-compat asynchronously
-  let queueRes = newSignalQueue[?!CircomProof](maxItems = 1)
-  if queueRes.isErr:
-    return failure queueRes.error()
-  let queue = queueRes.get()
+  ##
+  without queue =? newSignalQueue[?!CircomProof](maxItems = 1), qerr:
+    return failure(qerr)
 
   proc spawnTask() =
     self.tp.spawn proveTask(self.circom, input, queue)
@@ -43,10 +42,10 @@ proc prove*[H](
   let taskRes = await queue.recvAsync()
   if (let res = queue.release(); res.isErr):
     error "Error releasing proof queue ", msg = res.error().msg
-  without proofRes =? taskRes, exc:
-    return failure(exc)
-  without proof =? proofRes, exc:
-    return failure(exc)
+  without proofRes =? taskRes, perr:
+    return failure(perr)
+  without proof =? proofRes, perr:
+    return failure(perr)
 
   success(proof)
 
@@ -66,8 +65,8 @@ proc verify*[H](
 ): Future[?!bool] {.async.} =
   ## Verify a proof using a ctx
   ## 
-  without queue =? newSignalQueue[?!bool](maxItems = 1), exc:
-    return failure(exc)
+  without queue =? newSignalQueue[?!bool](maxItems = 1), qerr:
+    return failure(qerr)
 
   proc spawnTask() =
     self.tp.spawn verifyTask(self.circom, proof, inputs, queue)
@@ -77,16 +76,14 @@ proc verify*[H](
   let taskRes = await queue.recvAsync()
   if (let res = queue.release(); res.isErr):
     error "Error releasing proof queue ", msg = res.error().msg
-  without verifyRes =? taskRes, exc:
-    return failure(exc)
-  without verified =? verifyRes, exc:
-    return failure(exc)
+  without verifyRes =? taskRes, verr:
+    return failure(verr)
+  without verified =? verifyRes, verr:
+    return failure(verr)
 
   success(verified)
 
-proc init*(
-    _: type AsyncCircomCompat, params: CircomCompatParams, tp: Taskpool
-): AsyncCircomCompat =
+proc init*(_: type AsyncCircomCompat, params: CircomCompatParams, tp: Taskpool): AsyncCircomCompat =
   ## Create a new async circom
   ##
   let circom = CircomCompat.init(params)

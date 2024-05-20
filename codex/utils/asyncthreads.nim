@@ -28,18 +28,13 @@ proc release*[T](queue: SignalQueuePtr[T]): ?!void =
     deallocShared(queue)
     return success()
 
-proc newSignalQueue*[T](
-    maxItems: int = 0
-): Result[SignalQueuePtr[T], ref CatchableError] =
+proc newSignalQueue*[T](maxItems: int = 0): ?!SignalQueuePtr[T] =
   ## Create a signal queue compatible with Chronos async.
-  let queue = cast[ptr SignalQueue[T]](allocShared0(sizeof(SignalQueue[T])))
-  let sigRes = ThreadSignalPtr.new()
-  if sigRes.isErr():
-    return failure((ref CatchableError)(msg: sigRes.error()))
-  else:
-    queue[].signal = sigRes.get()
-    queue[].chan.open(maxItems)
-    return success(queue)
+  result = success cast[ptr SignalQueue[T]](allocShared0(sizeof(SignalQueue[T])))
+  without signal =? ThreadSignalPtr.new().mapFailure, sigErr:
+    return failure(sigErr)
+  result[].signal = signal
+  result[].chan.open(maxItems)
 
 proc send*[T](queue: SignalQueuePtr[T], msg: T): ?!void {.raises: [].} =
   ## Sends a message from a regular thread. `msg` is deep copied. May block
@@ -48,10 +43,9 @@ proc send*[T](queue: SignalQueuePtr[T], msg: T): ?!void {.raises: [].} =
   except Exception as exc:
     return failure(exc.msg)
 
-  let res = queue[].signal.fireSync(InfiniteDuration).mapFailure()
-  if res.isErr:
-    return failure(res.error())
-  if res.get():
+  without wasSent =? queue[].signal.fireSync(InfiniteDuration).mapFailure, sigErr:
+    return failure(sigErr)
+  if wasSent:
     return ok()
   else:
     return failure("ThreadSignalPtr not signalled in time")
