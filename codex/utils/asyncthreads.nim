@@ -50,7 +50,7 @@ proc newSignalQueue*[T](
   result[].chan.open(maxItems)
 
 proc send*[T](queue: SignalQueuePtr[T], msg: T): ?!void {.raises: [].} =
-  ## Sends a message to a thread. `msg` is deep copied.
+  ## Sends a message from a regular thread. `msg` is deep copied.
   ## Note: may be blocking.
   ##
   try:
