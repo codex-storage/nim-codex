@@ -36,6 +36,7 @@ proc release*[T](queue: SignalQueuePtr[T]): ?!void =
   ## Call to properly dispose of a SignalQueue.
   queue[].chan.close()
   if err =? queue[].signal.close().mapFailure.errorOption():
+    queue[].signal = nil
     result = failure(err.msg)
   deallocShared(queue)
 

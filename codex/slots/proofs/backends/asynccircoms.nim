@@ -30,22 +30,19 @@ proc prove*[H](
 ): Future[?!CircomProof] {.async.} =
   ## Generates proof using circom-compat asynchronously
   ##
-
   without queue =? newSignalQueue[?!CircomProof](), err:
     return failure(err)
-  defer:
-    if (let res = queue.release(); res.isErr):
-      error "Error releasing proof queue ", msg = res.error().msg
 
   template spawnTask() =
     self.tp.spawn proveTask(self.circom, input, queue)
-
   spawnTask()
 
-  without taskRes =? await queue.recvAsync(), err:
+  let taskRes = await queue.recvAsync()
+  if (let res = queue.release(); res.isErr):
+    error "Error releasing proof queue ", msg = res.error().msg
+  without proofRes =? taskRes, err:
     return failure(err)
-
-  without proof =? taskRes, err:
+  without proof =? proofRes, err:
     return failure(err)
 
   success(proof)
