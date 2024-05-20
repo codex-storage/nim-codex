@@ -12,13 +12,13 @@ import ../../../utils/asyncthreads
 import ./circomcompat
 
 type AsyncCircomCompat* = object
-  params*: CircomCompatParams
+  circom*: CircomCompat
   tp*: Taskpool
 
 var circomBackend {.threadvar.}: Option[CircomCompat]
 
 proc proveTask[H](
-    params: CircomCompatParams,
+    params: CircomCompat,
     data: ProofInputs[H],
     results: SignalQueuePtr[Result[CircomProof, string]],
 ) =
@@ -43,7 +43,7 @@ proc prove*[H](
     return failure(err)
 
   proc spawnTask() =
-    self.tp.spawn proveTask(self.params, input, queue)
+    self.tp.spawn proveTask(self.circom, input, queue)
 
   spawnTask()
 
