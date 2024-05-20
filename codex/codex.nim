@@ -264,11 +264,14 @@ proc new*(
       interval = config.blockMaintenanceInterval,
       numberOfBlocksPerInterval = config.blockMaintenanceNumberOfBlocks)
 
+    taskpool = Taskpool.new(num_threads = countProcessors())
+
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
     blockDiscovery = DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
     engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
+
     prover = if config.prover:
       if not fileAccessible($config.circomR1cs, {AccessFlags.Read}) and
         endsWith($config.circomR1cs, ".r1cs"):
@@ -294,12 +297,10 @@ proc new*(
 
       let params = CircomCompatParams.init($config.circomR1cs, $config.circomWasm, zkey)
       some Prover.new(
-        store, AsyncCircomCompat.init(params),
+        store, AsyncCircomCompat.init(params, taskpool),
         config.numProofSamples)
     else:
       none Prover
-
-    taskpool = Taskpool.new(num_threads = countProcessors())
 
     codexNode = CodexNodeRef.new(
       switch = switch,
