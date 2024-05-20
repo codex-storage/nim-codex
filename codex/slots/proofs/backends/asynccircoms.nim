@@ -53,9 +53,8 @@ proc prove*[H](
   without signal =? ThreadSignalPtr.new().mapFailure, err:
     return failure(err)
   defer:
-    let sigRes = signal.close()
-    if sigRes.isErr:
-      raise (ref Defect)(msg: sigRes.error())
+    if err =? signal.close().mapFailure.errorOption():
+      error "Error closing signal", msg = $err.msg
 
   let args = ProveTaskArgs(signal: signal, params: self.params)
   proc spawnTask(): Flowvar[Result[CircomProof, string]] =
