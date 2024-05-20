@@ -153,9 +153,8 @@ marketplacesuite "Marketplace payouts":
 
     check eventually (
       let endBalanceProvider = (await token.balanceOf(provider.ethAccount));
-      let difference = endBalanceProvider - startBalanceProvider;
-      difference > 0 and
-      difference < expiry.u256*reward
+      endBalanceProvider > startBalanceProvider and
+      endBalanceProvider < startBalanceProvider + expiry.u256*reward
     )
     check eventually (
       let endBalanceClient = (await token.balanceOf(client.ethAccount));
