@@ -32,13 +32,15 @@ proc newSignalQueue*[T](
     maxItems: int = 0
 ): Result[SignalQueuePtr[T], ref CatchableError] =
   ## Create a signal queue compatible with Chronos async.
-  result = success cast[ptr SignalQueue[T]](allocShared0(sizeof(SignalQueue[T])))
+  let queue = cast[ptr SignalQueue[T]](allocShared0(sizeof(SignalQueue[T])))
   let sigRes = ThreadSignalPtr.new()
   if sigRes.isErr():
     let msg: string = sigRes.error()
     return failure((ref CatchableError)(msg: msg))
-  result[].signal = sigRes.get()
-  result[].chan.open(maxItems)
+  else:
+    queue[].signal = sigRes.get()
+    queue[].chan.open(maxItems)
+    return success(queue)
 
 proc send*[T](queue: SignalQueuePtr[T], msg: T): ?!void {.raises: [].} =
   ## Sends a message from a regular thread. `msg` is deep copied. May block
