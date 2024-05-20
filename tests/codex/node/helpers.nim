@@ -87,6 +87,8 @@ template setupAndTearDown*() {.dirty.} =
 
   let
     path = currentSourcePath().parentDir
+    repoTmp = TempLevelDb.new()
+    metaTmp = TempLevelDb.new()
 
   setup:
     file = open(path /../ "" /../ "fixtures" / "test.jpg")
@@ -96,8 +98,8 @@ template setupAndTearDown*() {.dirty.} =
     network = BlockExcNetwork.new(switch)
 
     clock = SystemClock.new()
-    localStoreMetaDs = SQLiteDatastore.new(Memory).tryGet()
-    localStoreRepoDs = SQLiteDatastore.new(Memory).tryGet()
+    localStoreMetaDs = metaTmp.newDb()
+    localStoreRepoDs = repoTmp.newDb()
     localStore = RepoStore.new(localStoreRepoDs, localStoreMetaDs, clock = clock)
     await localStore.start()
 
@@ -124,3 +126,5 @@ template setupAndTearDown*() {.dirty.} =
   teardown:
     close(file)
     await node.stop()
+    await metaTmp.destroyDb()
+    await repoTmp.destroyDb()

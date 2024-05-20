@@ -84,6 +84,8 @@ suite "Test Sampler":
     entropy       = 1234567.toF
     blockSize     = DefaultBlockSize
     cellSize      = DefaultCellSize
+    repoTmp = TempLevelDb.new()
+    metaTmp = TempLevelDb.new()
 
   var
     store: RepoStore
@@ -94,8 +96,8 @@ suite "Test Sampler":
 
   setup:
     let
-      repoDs = SQLiteDatastore.new(Memory).tryGet()
-      metaDs = SQLiteDatastore.new(Memory).tryGet()
+      repoDs = repoTmp.newDb()
+      metaDs = metaTmp.newDb()
 
     store = RepoStore.new(repoDs, metaDs)
 
@@ -112,6 +114,8 @@ suite "Test Sampler":
 
   teardown:
     await store.close()
+    await repoTmp.destroyDb()
+    await metaTmp.destroyDb()
 
   test "Should fail instantiating for invalid slot index":
     let

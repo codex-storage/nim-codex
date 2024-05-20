@@ -17,15 +17,22 @@ asyncchecksuite "Reservations module":
   var
     repo: RepoStore
     repoDs: Datastore
-    metaDs: SQLiteDatastore
+    metaDs: Datastore
     reservations: Reservations
+  let
+    repoTmp = TempLevelDb.new()
+    metaTmp = TempLevelDb.new()
 
   setup:
     randomize(1.int64) # create reproducible results
-    repoDs = SQLiteDatastore.new(Memory).tryGet()
-    metaDs = SQLiteDatastore.new(Memory).tryGet()
+    repoDs = repoTmp.newDb()
+    metaDs = metaTmp.newDb()
     repo = RepoStore.new(repoDs, metaDs)
     reservations = Reservations.new(repo)
+
+  teardown:
+    await repoTmp.destroyDb()
+    await metaTmp.destroyDb()
 
   proc createAvailability(): Availability =
     let example = Availability.example

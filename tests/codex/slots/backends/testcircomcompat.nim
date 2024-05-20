@@ -1,4 +1,3 @@
-
 import std/sequtils
 import std/sugar
 import std/options
@@ -19,6 +18,7 @@ import pkg/codex/stores
 
 import ./helpers
 import ../helpers
+import ../../helpers
 
 suite "Test Circom Compat Backend - control inputs":
   let
@@ -69,6 +69,9 @@ suite "Test Circom Compat Backend":
     wasm = "tests/circuits/fixtures/proof_main.wasm"
     zkey = "tests/circuits/fixtures/proof_main.zkey"
 
+    repoTmp = TempLevelDb.new()
+    metaTmp = TempLevelDb.new()
+
   var
     store: BlockStore
     manifest: Manifest
@@ -82,8 +85,8 @@ suite "Test Circom Compat Backend":
 
   setup:
     let
-      repoDs = SQLiteDatastore.new(Memory).tryGet()
-      metaDs = SQLiteDatastore.new(Memory).tryGet()
+      repoDs = repoTmp.newDb()
+      metaDs = metaTmp.newDb()
 
     store = RepoStore.new(repoDs, metaDs)
 
@@ -105,6 +108,9 @@ suite "Test Circom Compat Backend":
 
   teardown:
     circom.release()  # this comes from the rust FFI
+    await repoTmp.destroyDb()
+    await metaTmp.destroyDb()
+
 
   test "Should verify with correct input":
     var

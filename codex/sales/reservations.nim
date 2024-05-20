@@ -72,10 +72,12 @@ type
     repo: RepoStore
     onAvailabilityAdded: ?OnAvailabilityAdded
   GetNext* = proc(): Future[?seq[byte]] {.upraises: [], gcsafe, closure.}
+  IterDispose* = proc(): Future[?!void] {.gcsafe, closure.}
   OnAvailabilityAdded* = proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
   StorableIter* = ref object
     finished*: bool
     next*: GetNext
+    dispose*: IterDispose
   ReservationsError* = object of CodexError
   ReserveFailedError* = object of ReservationsError
   ReleaseFailedError* = object of ReservationsError
@@ -522,7 +524,11 @@ proc storables(
 
     return none seq[byte]
 
+  proc dispose(): Future[?!void] {.async.} =
+    return await results.dispose()
+
   iter.next = next
+  iter.dispose = dispose
   return success iter
 
 proc allImpl(
@@ -590,6 +596,12 @@ proc findAvailability*(
           minPrice, availMinPrice = availability.minPrice,
           collateral, availMaxCollateral = availability.maxCollateral
 
+        # TODO: As soon as we're on ARC-ORC, we can use destructors
+        # to automatically dispose our iterators when they fall out of scope.
+        # For now:
+        if err =? (await storables.dispose()).errorOption:
+          error "failed to dispose storables iter", error = err.msg
+          return none Availability
         return some availability
 
       trace "availability did not match",
@@ -597,3 +609,4 @@ proc findAvailability*(
         duration, availDuration = availability.duration,
         minPrice, availMinPrice = availability.minPrice,
         collateral, availMaxCollateral = availability.maxCollateral
+
