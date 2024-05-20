@@ -28,7 +28,9 @@ proc release*[T](queue: SignalQueuePtr[T]): ?!void =
     deallocShared(queue)
     return success()
 
-proc newSignalQueue*[T](maxItems: int = 0): ?!SignalQueuePtr[T] =
+proc newSignalQueue*[T](
+    maxItems: int = 0
+): Result[SignalQueuePtr[T], ref CatchableError] =
   ## Create a signal queue compatible with Chronos async.
   result = success cast[ptr SignalQueue[T]](allocShared0(sizeof(SignalQueue[T])))
   let sigRes = ThreadSignalPtr.new()
