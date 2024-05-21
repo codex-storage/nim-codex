@@ -102,7 +102,7 @@ proc advertiseQueueLoop(b: DiscoveryEngine) {.async.} =
       trace "Begin iterating blocks..."
       for c in cids:
         if cid =? await c:
-          b.advertiseBlock(cid)
+          asyncSpawn b.advertiseBlock(cid)
           await sleepAsync(100.millis)
       trace "Iterating blocks finished."
 

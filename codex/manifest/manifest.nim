@@ -29,7 +29,7 @@ import ../logutils
 # TODO: Manifest should be reworked to more concrete types,
 # perhaps using inheritance
 type
-  Manifest* = object of RootObj
+  Manifest* = ref object of RootObj
     treeCid {.serialize.}: Cid              # Root of the merkle tree
     datasetSize {.serialize.}: NBytes       # Total size of all blocks
     blockSize {.serialize.}: NBytes         # Size of each contained block (might not be needed if blocks are len-prefixed)
