@@ -87,6 +87,7 @@ checksuite "KeyUtils":
     let namespaces = key.namespaces
 
     check:
-      namespaces.len == 2
+      namespaces.len == 3
       namespaces[0].value == CodexMetaNamespace
       namespaces[1].value == "ttl"
+      namespaces[2].value == "*"
