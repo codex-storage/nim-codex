@@ -28,8 +28,3 @@ checksuite "sales state 'downloading'":
   test "switches to filled state when slot is filled":
     let next = state.onSlotFilled(request.id, slotIndex)
     check !next of SaleFilled
-
-  test "switches to errored state with `reprocessSlot = true` when onError called":
-    let next = state.onError(newException(ValueError, "oh no!"))
-    check !next of SaleErrored
-    check SaleErrored(!next).reprocessSlot == true

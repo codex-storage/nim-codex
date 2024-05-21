@@ -216,11 +216,11 @@ proc contains*(self: SlotQueue, item: SlotQueueItem): bool =
   self.queue.contains(item)
 
 proc pause*(self: SlotQueue) =
-  # set unpaused flag to false -- unblocks coroutines waiting on unpaused.wait()
+  # set unpaused flag to false -- coroutines will block on unpaused.wait()
   self.unpaused.clear()
 
 proc unpause*(self: SlotQueue) =
-  # set unpaused flag to true -- coroutines will block on unpaused.wait()
+  # set unpaused flag to true -- unblocks coroutines waiting on unpaused.wait()
   self.unpaused.fire()
 
 proc populateItem*(self: SlotQueue,
@@ -364,7 +364,7 @@ proc dispatch(self: SlotQueue,
       warn "Unknown error processing slot in worker", error = e.msg
 
 proc clearSeenFlags*(self: SlotQueue) =
-  # Enumerate all items in the queue, overwriting each item with `seen = true`.
+  # Enumerate all items in the queue, overwriting each item with `seen = false`.
   # To avoid issues with new queue items being pushed to the queue while all
   # items are being iterated (eg if a new storage request comes in and pushes
   # new slots to the queue), this routine must remain synchronous.
@@ -402,7 +402,7 @@ proc start*(self: SlotQueue) {.async.} =
       if self.paused:
         trace "Queue is paused, waiting for new slots or availabilities to be modified/added"
 
-      # block until unpaused is false/cleared, ie wait for queue to be unpaused
+      # block until unpaused is true/fired, ie wait for queue to be unpaused
       await self.unpaused.wait()
 
       let worker = await self.workers.popFirst().track(self) # if workers saturated, wait here for new workers

@@ -260,11 +260,9 @@ proc load*(sales: Sales) {.async.} =
       let done: Future[void] = nil
       await sales.cleanUp(agent, returnBytes, reprocessSlot, done)
 
-    # TODO: this seemed to be missing during load, but unknown if it was
-    # intentionally left out for some unknown reason?
-    agent.onFilled = some proc(request: StorageRequest, slotIndex: UInt256) =
-      let done: Future[void] = nil
-      sales.filled(request, slotIndex, done)
+    # There is no need to assign agent.onFilled as slots loaded from `mySlots`
+    # are inherently already filled and so assigning agent.onFilled would be
+    # superfluous.
 
     agent.start(SaleUnknown())
     sales.agents.add agent
