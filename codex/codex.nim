@@ -264,7 +264,7 @@ proc new*(
       interval = config.blockMaintenanceInterval,
       numberOfBlocksPerInterval = config.blockMaintenanceNumberOfBlocks)
 
-    taskpool = Taskpool.new(num_threads = countProcessors())
+    taskpool = Taskpool.new(num_threads = countProcessors().max(2))
 
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
