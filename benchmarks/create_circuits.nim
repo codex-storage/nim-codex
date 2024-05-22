@@ -88,12 +88,14 @@ proc downloadPtau*(ptauPath, ptauUrl: string) =
   else:
     echo "Found PTAU file at: ", ptauPath
 
-proc getCircuitBenchPath*(args: CircuitArgs, env: CircuitEnv): string =
-  ## generate folder name for unique circuit args
+proc getCircuitBenchStr*(args: CircuitArgs): string =
   var an = ""
   for f, v in fieldPairs(args):
     an &= "_" & f & $v
-  env.codexProjDir / "benchmarks/circuit_bench" & an
+
+proc getCircuitBenchPath*(args: CircuitArgs, env: CircuitEnv): string =
+  ## generate folder name for unique circuit args
+  env.codexProjDir / "benchmarks/circuit_bench" & getCircuitBenchStr(args)
 
 proc generateCircomAndSamples*(args: CircuitArgs, env: CircuitEnv, name: string) =
   ## run nim circuit and sample generator 

@@ -38,12 +38,13 @@ proc runArkCircom(args: CircuitArgs, files: CircuitFiles, benchmarkLoops: int) =
   echo "Sample proof loaded..."
   echo "Proving..."
 
+  let nameArgs = getCircuitBenchStr(args)
   var proof: CircomProof
-  benchmark fmt"prover", benchmarkLoops:
+  benchmark fmt"prover-{nameArgs}", benchmarkLoops:
     proof = circom.prove(proofInputs).tryGet
 
   var verRes: bool
-  benchmark fmt"verify", benchmarkLoops:
+  benchmark fmt"verify-{nameArgs}", benchmarkLoops:
     verRes = circom.verify(proof, proofInputs).tryGet
   echo "verify result: ", verRes
 
@@ -98,6 +99,7 @@ proc runAllBenchmarks*() =
     stdout.styledWriteLine(fgYellow, "\nbenchmarking args: ", $args)
     runBenchmark(args, env, benchmarkLoops)
 
+  printBenchMarkSummaries()
 
 when isMainModule:
   runAllBenchmarks()
