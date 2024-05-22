@@ -1,4 +1,4 @@
-import std/[hashes, json, strutils, strformat, os, osproc]
+import std/[hashes, json, strutils, strformat, os, osproc, uri]
 
 import ./utils
 
@@ -7,7 +7,7 @@ type
     nimCircuitCli*: string
     circuitDirIncludes*: string
     ptauPath*: string
-    ptauUrl*: string
+    ptauUrl*: Uri
     codexProjDir*: string
 
   CircuitArgs* = object
@@ -35,7 +35,7 @@ func default*(tp: typedesc[CircuitEnv]): CircuitEnv =
     codexDir / "vendor" / "codex-storage-proofs-circuits" / "circuit"
   result.ptauPath =
     codexDir / "benchmarks" / "ceremony" / "powersOfTau28_hez_final_23.ptau"
-  result.ptauUrl = "https://storage.googleapis.com/zkevm/ptau/"
+  result.ptauUrl = "https://storage.googleapis.com/zkevm/ptau".parseUri
   result.codexProjDir = codexDir
 
 proc check*(env: var CircuitEnv) =
@@ -78,13 +78,13 @@ proc check*(env: var CircuitEnv) =
   echo "Found Circuit Path: ", env.circuitDirIncludes
   echo "Found PTAU file: ", env.ptauPath
 
-proc downloadPtau*(ptauPath, ptauUrl: string) =
+proc downloadPtau*(ptauPath: string, ptauUrl: Uri) =
   ## download ptau file using curl if needed
   if not ptauPath.fileExists:
     echo "Ceremony file not found, downloading..."
     createDir ptauPath.parentDir
     withDir ptauPath.parentDir:
-      runit fmt"curl --output '{ptauPath}' '{ptauUrl}'"
+      runit fmt"curl --output '{ptauPath}' '{$ptauUrl}/{ptauPath.splitPath().tail}'"
   else:
     echo "Found PTAU file at: ", ptauPath
 
