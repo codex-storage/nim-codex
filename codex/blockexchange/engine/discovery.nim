@@ -11,6 +11,7 @@ import std/sequtils
 
 import pkg/chronos
 import pkg/libp2p/cid
+import pkg/libp2p/multicodec
 import pkg/metrics
 import pkg/questionable
 import pkg/questionable/results
@@ -25,6 +26,7 @@ import ../../utils
 import ../../discovery
 import ../../stores/blockstore
 import ../../logutils
+import ../../manifest
 
 logScope:
   topics = "codex discoveryengine"
@@ -76,14 +78,32 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
 
     await sleepAsync(b.discoveryLoopSleep)
 
+proc advertiseBlock(b: DiscoveryEngine, cid: Cid) {.async.} =
+  without isM =? cid.isManifest, err:
+    warn "Unable to determine if cid is manifest"
+    return
+
+  if isM:
+    without blk =? await b.localStore.getBlock(cid), err:
+      error "Error retrieving manifest block", cid, err = err.msg
+      return
+
+    without manifest =? Manifest.decode(blk), err:
+      error "Unable to decode as manifest", err = err.msg
+      return
+
+    # announce manifest cid and tree cid
+    await b.advertiseQueue.put(cid)
+    await b.advertiseQueue.put(manifest.treeCid)
+
 proc advertiseQueueLoop(b: DiscoveryEngine) {.async.} =
   while b.discEngineRunning:
     if cids =? await b.localStore.listBlocks(blockType = b.advertiseType):
       trace "Begin iterating blocks..."
       for c in cids:
         if cid =? await c:
-          await b.advertiseQueue.put(cid)
-          await sleepAsync(50.millis)
+          b.advertiseBlock(cid)
+          await sleepAsync(100.millis)
       trace "Iterating blocks finished."
 
     await sleepAsync(b.advertiseLoopSleep)
@@ -134,9 +154,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
       let
         haves = b.peers.peersHave(cid)
 
-      trace "Current number of peers for block", cid, peers = haves.len
       if haves.len < b.minPeersPerBlock:
-        trace "Discovering block", cid
         try:
           let
             request = b.discovery
@@ -148,7 +166,6 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
           let
             peers = await request
 
-          trace "Discovered peers for block", peers = peers.len, cid
           let
             dialed = await allFinished(
               peers.mapIt( b.network.dialPeer(it.data) ))
@@ -169,10 +186,9 @@ proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
   for cid in cids:
     if cid notin b.discoveryQueue:
       try:
-        trace "Queueing find block", cid, queue = b.discoveryQueue.len
         b.discoveryQueue.putNoWait(cid)
       except CatchableError as exc:
-        trace "Exception queueing discovery request", exc = exc.msg
+        warn "Exception queueing discovery request", exc = exc.msg
 
 proc queueProvideBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
   for cid in cids:
@@ -248,7 +264,7 @@ proc new*(
     discoveryLoopSleep = DefaultDiscoveryLoopSleep,
     advertiseLoopSleep = DefaultAdvertiseLoopSleep,
     minPeersPerBlock = DefaultMinPeersPerBlock,
-    advertiseType = BlockType.Both
+    advertiseType = BlockType.Manifest
 ): DiscoveryEngine =
   ## Create a discovery engine instance for advertising services
   ##
