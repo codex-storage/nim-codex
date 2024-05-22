@@ -139,10 +139,9 @@ method getCidAndProof*(
       return failure(err)
 
   without (cid, proof) =? (Cid, CodexProof).decode(value), err:
-    trace "Unable to decode cid and proof", err = err.msg
+    error "Unable to decode cid and proof", err = err.msg
     return failure(err)
 
-  trace "Got cid and proof for block", cid, proof = $proof
   return success (cid, proof)
 
 method getCid*(
@@ -154,10 +153,11 @@ method getCid*(
 
   without value =? await self.metaDs.get(key), err:
     if err of DatastoreKeyNotFound:
-      trace "Cid not found", treeCid, index
+      # This failure is expected to happen frequently:
+      # NetworkStore.getBlock will call RepoStore.getBlock before starting the block exchange engine.
       return failure(newException(BlockNotFoundError, err.msg))
     else:
-      trace "Error getting cid from datastore", err = err.msg, key
+      error "Error getting cid from datastore", err = err.msg, key
       return failure(err)
 
   return (Cid, CodexProof).decodeCid(value)
@@ -170,21 +170,19 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
     cid = cid
 
   if cid.isEmpty:
-    trace "Empty block, ignoring"
     return cid.emptyBlock
 
   without key =? makePrefixKey(self.postFixLen, cid), err:
-    trace "Error getting key from provider", err = err.msg
+    error "Error getting key from provider", err = err.msg
     return failure(err)
 
   without data =? await self.repoDs.get(key), err:
     if not (err of DatastoreKeyNotFound):
-      trace "Error getting block from datastore", err = err.msg, key
+      error "Error getting block from datastore", err = err.msg, key
       return failure(err)
 
     return failure(newException(BlockNotFoundError, err.msg))
 
-  trace "Got block for cid", cid
   return Block.new(cid, data, verify = true)
 
 
