@@ -16,7 +16,7 @@ template runit*(cmd: string) =
 
 template benchmark*(benchmarkName: string, count: int, blk: untyped) =
   ## simple benchmarking of a block of code
-  var vals = newSeqOfCap[float](nn)
+  var vals = newSeqOfCap[float](count)
   for i in 1 .. count:
     block:
       let t0 = epochTime()
@@ -28,7 +28,7 @@ template benchmark*(benchmarkName: string, count: int, blk: untyped) =
   for v in vals:
     elapsedStr &= ", " & v.formatFloat(format = ffDecimal, precision = 3)
   stdout.styledWriteLine(
-    fgGreen, "CPU Time [", benchmarkName, "] ", "avg(", $nn, "): ", elapsedStr, " s"
+    fgGreen, "CPU Time [", benchmarkName, "] ", "avg(", $count, "): ", elapsedStr, " s"
   )
 
 import std/math
