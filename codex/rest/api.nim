@@ -655,7 +655,7 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
           warn "debug/delete is deleting blocks", cid = $cid, nBlocks = params.blockIndices.len
 
           without deleted =? (await node.debugDelete(cid, params.blockIndices)), err:
-            return RestApiResponse.error(Http500, err.msg)
+            return RestApiResponse.error(Http400, err.msg)
 
           warn "debug/delete has deleted blocks", cid = $cid, deleted
 
