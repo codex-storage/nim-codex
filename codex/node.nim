@@ -523,9 +523,6 @@ proc debugDelete*(self: CodexNodeRef, cid: Cid, blockIndices: seq[int]): Future[
     totalBlocks = manifest.blocksCount
     treeCid = manifest.treeCid
 
-  var
-    deleted = 0
-
   for index in blockIndices:
     if index >= totalBlocks:
       return failure("Index out of range. Index: " & $index & " totalBlocks: " & $totalBlocks)
@@ -533,10 +530,12 @@ proc debugDelete*(self: CodexNodeRef, cid: Cid, blockIndices: seq[int]): Future[
       return failure(err)
     if not hasBlock:
       return failure("Tree does not have this index: " & $index & " totalBlocks: " & $totalBlocks)
-    else:
-      if err =? (await self.networkStore.delBlock(treeCid, index)).errorOption:
-        return failure(err)
-      inc deleted
+
+  var deleted = 0
+  for index in blockIndices:
+    if err =? (await self.networkStore.delBlock(treeCid, index)).errorOption:
+      return failure(err)
+    inc deleted
 
   return success(deleted)
 
