@@ -41,7 +41,7 @@ template benchmark*(name: untyped, count: int, blk: untyped) =
   )
   benchRuns[benchmarkName] = (runs.avg(), count)
 
-template printBenchMarkSummaries(printRegular=true, printTsv=true) =
+template printBenchMarkSummaries*(printRegular=true, printTsv=true) =
   if printRegular:
     echo ""
     for k, v in benchRuns:
