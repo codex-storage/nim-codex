@@ -14,11 +14,10 @@ template runit*(cmd: string) =
   echo "STATUS: ", cmdRes
   assert cmdRes == 0
 
-template benchmark*(benchmarkName: string, blk: untyped) =
+template benchmark*(benchmarkName: string, count: int, blk: untyped) =
   ## simple benchmarking of a block of code
-  let nn = 5
   var vals = newSeqOfCap[float](nn)
-  for i in 1 .. nn:
+  for i in 1 .. count:
     block:
       let t0 = epochTime()
       `blk`
