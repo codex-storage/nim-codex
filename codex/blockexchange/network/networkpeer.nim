@@ -74,8 +74,6 @@ proc broadcast*(b: NetworkPeer, msg: Message) =
   proc sendAwaiter() {.async.} =
     try:
       await b.send(msg)
-    except CancelledError as error:
-      raise error
     except CatchableError as exc:
       warn "Exception broadcasting message to peer", peer = b.id, exc = exc.msg
 
