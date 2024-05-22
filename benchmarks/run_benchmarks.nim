@@ -94,7 +94,7 @@ proc runAllBenchmarks*() =
     numberSamples = 3
     benchmarkLoops = 5
 
-  for i in 1 .. 2:
+  for i in 1 .. numberSamples:
     args.nsamples = i
     stdout.styledWriteLine(fgYellow, "\nbenchmarking args: ", $args)
     runBenchmark(args, env, benchmarkLoops)
