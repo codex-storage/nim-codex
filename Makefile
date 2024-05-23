@@ -5,6 +5,10 @@
 # at your option. This file may not be copied, modified, or distributed except
 # according to those terms.
 
+# Pins the Nim version so it's consistent across the board
+NIM_COMMIT := upstream/version-1-6
+export NIM_COMMIT
+
 SHELL := bash # the shell used internally by Make
 
 # used inside the included makefiles
