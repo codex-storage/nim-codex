@@ -46,6 +46,8 @@ proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
         data = await conn.readLp(MaxMessageSize.int)
         msg = Message.protobufDecode(data).mapFailure().tryGet()
       await b.handler(b, msg)
+  except CancelledError:
+    trace "Read loop cancelled"
   except CatchableError as err:
     warn "Exception in blockexc read loop", msg = err.msg
   finally:

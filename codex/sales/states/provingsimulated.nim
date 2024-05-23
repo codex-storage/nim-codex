@@ -36,6 +36,8 @@ when codex_enable_proof_failures:
       except MarketError as e:
         if not e.msg.contains("Invalid proof"):
           onSubmitProofError(e, currentPeriod, slot.id)
+      except CancelledError as error:
+        raise error
       except CatchableError as e:
         onSubmitProofError(e, currentPeriod, slot.id)
     else:

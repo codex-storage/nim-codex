@@ -71,6 +71,8 @@ method start*(node: HardhatProcess) {.async.} =
       options = poptions,
       stdoutHandle = AsyncProcess.Pipe
     )
+  except CancelledError as error:
+    raise error
   except CatchableError as e:
     error "failed to start hardhat process", error = e.msg
 

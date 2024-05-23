@@ -368,7 +368,8 @@ proc start*(self: SlotQueue) {.async.} =
 
       await sleepAsync(1.millis) # poll
     except CancelledError:
-      discard
+      trace "slot queue cancelled"
+      return
     except CatchableError as e: # raised from self.queue.pop() or self.workers.pop()
       warn "slot queue error encountered during processing", error = e.msg
 
