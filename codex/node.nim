@@ -516,7 +516,7 @@ proc requestStorage*(
 
 proc debugDelete*(self: CodexNodeRef, cid: Cid, blockIndices: seq[int]): Future[?!int] {.async.} =
   without manifest =? (await self.fetchManifest(cid)), err:
-    trace "Unable to fetch manifest for cid", cid, err = err.msg
+    error "Unable to fetch manifest for cid", cid, err = err.msg
     return failure(err)
 
   let
@@ -534,6 +534,7 @@ proc debugDelete*(self: CodexNodeRef, cid: Cid, blockIndices: seq[int]): Future[
   var deleted = 0
   for index in blockIndices:
     if err =? (await self.networkStore.delBlock(treeCid, index)).errorOption:
+      error "Failed to delete block", treeCid, index, err = err.msg
       return failure(err)
     inc deleted
 
