@@ -41,7 +41,7 @@ proc prove*[H](self: CircomCircuit, input: JsonNode): ?!Proof =
     if ctx != nil:
       ctx.addr.releaseCircomCircuit()
 
-  if init_circom_circuit(self.backendCfg, addr ctx) != ERR_OK or ctx == nil:
+  if initCircomCompat(self.backendCfg, addr ctx) != ERR_OK or ctx == nil:
     raiseAssert("failed to initialize CircomCircuit ctx")
 
   # if ctx.pushInputU256Array("entropy".cstring, entropy[0].addr, entropy.len.uint32) !=
