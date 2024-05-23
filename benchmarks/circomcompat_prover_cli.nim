@@ -1,39 +1,36 @@
 import std/[sequtils, strformat, os, options, importutils]
-import std/[times, os, strutils, terminal, parseopt]
+import std/[times, os, strutils, terminal, parseopt, json]
 
 import pkg/questionable
 import pkg/questionable/results
-import pkg/datastore
 
-import pkg/codex/[rng, stores, merkletree, codextypes, slots]
-import pkg/codex/utils/[json, poseidon2digest]
-import pkg/codex/slots/[builder, sampler/utils, backends/helpers]
-import pkg/constantine/math/[arithmetic, io/io_bigints, io/io_fields]
+import pkg/circomcompat
+import pkg/poseidon2/io
 
 import ./utils
 import ./create_circuits
 
-type CircomCircuit* = object
-  r1cs*: string
-  wasm*: string
-  zkey*: string
-  inputs*: string
-  dir*: string
-  circName*: string
-  backendCfg: ptr CircomBn254Cfg
-  vkp*: ptr VerifyingKey
+type
 
-proc release*(self: CircomCompat) =
+  CircomCircuit* = object
+    r1csPath*: string
+    wasmPath*: string
+    zkeyPath*: string
+    inputsPath*: string
+    dir*: string
+    circName*: string
+    backendCfg: ptr CircomBn254Cfg
+    vkp*: ptr VerifyingKey
+
+proc release*(self: CircomCircuit) =
   ## Release the ctx
   ##
-
   if not isNil(self.backendCfg):
     self.backendCfg.unsafeAddr.releaseCfg()
-
   if not isNil(self.vkp):
     self.vkp.unsafeAddr.release_key()
 
-proc prove*[H](self: CircomCompat, input: ProofInputs[H]): ?!CircomProof =
+proc prove*[H](self: CircomCircuit, input: JsonNode): ?!Proof =
   ## Encode buffers using a ctx
   ##
 
@@ -42,10 +39,10 @@ proc prove*[H](self: CircomCompat, input: ProofInputs[H]): ?!CircomProof =
 
   defer:
     if ctx != nil:
-      ctx.addr.releaseCircomCompat()
+      ctx.addr.releaseCircomCircuit()
 
-  if initCircomCompat(self.backendCfg, addr ctx) != ERR_OK or ctx == nil:
-    raiseAssert("failed to initialize CircomCompat ctx")
+  if init_circom_circuit(self.backendCfg, addr ctx) != ERR_OK or ctx == nil:
+    raiseAssert("failed to initialize CircomCircuit ctx")
 
   # if ctx.pushInputU256Array("entropy".cstring, entropy[0].addr, entropy.len.uint32) !=
   #     ERR_OK:
@@ -109,7 +106,7 @@ proc toCircomInputs*(inputs: ProofInputs[Poseidon2Hash]): Inputs =
 
   CircomInputs(elms: cast[ptr array[32, byte]](inputsPtr), len: elms.len.uint)
 
-proc verify*(self: CircomCompat, proof: CircomProof, inputs: ProofInputs[H]): ?!bool =
+proc verify*[H](self: CircomCircuit, proof: CircomProof, inputs: ProofInputs[H]): ?!bool =
   ## Verify a proof using a ctx
   ##
 
@@ -129,16 +126,11 @@ proc verify*(self: CircomCompat, proof: CircomProof, inputs: ProofInputs[H]): ?!
     inputs.releaseCircomInputs()
 
 proc init*(
-    _: type CircomCompat,
+    _: type CircomCircuit,
     r1csPath: string,
     wasmPath: string,
     zkeyPath: string = "",
-    slotDepth = DefaultMaxSlotDepth,
-    datasetDepth = DefaultMaxDatasetDepth,
-    blkDepth = DefaultBlockDepth,
-    cellElms = DefaultCellElms,
-    numSamples = DefaultSamplesNum,
-): CircomCompat =
+): CircomCircuit =
   ## Create a new ctx
   ##
 
@@ -158,29 +150,22 @@ proc init*(
       vkpPtr.addr.releaseKey()
     raiseAssert("Failed to get verifying key")
 
-  CircomCompat(
+  CircomCircuit(
     r1csPath: r1csPath,
     wasmPath: wasmPath,
     zkeyPath: zkeyPath,
-    slotDepth: slotDepth,
-    datasetDepth: datasetDepth,
-    blkDepth: blkDepth,
-    cellElms: cellElms,
-    numSamples: numSamples,
     backendCfg: cfg,
     vkp: vkpPtr,
   )
 
 proc runArkCircom(
-    args: CircuitArgs, files: CircomCircuit, proofInputs: ProofInputs[Poseidon2Hash]
+    args: CircuitArgs, self: CircomCircuit, proofInputs: ProofInputs[Poseidon2Hash]
 ) =
   echo "Loading sample proof..."
-  var circom = CircomCompat.init(
-    files.r1cs,
-    files.wasm,
-    files.zkey,
-    slotDepth = args.depth,
-    numSamples = args.nsamples,
+  var circom = CircomCircuit.init(
+    self.r1csPath,
+    self.wasmPath,
+    self.zkeyPath,
   )
   defer:
     circom.release() # this comes from the rust FFI
