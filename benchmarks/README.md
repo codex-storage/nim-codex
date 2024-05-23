@@ -16,7 +16,7 @@ Generating the circuit files often takes longer than running benchmarks, so cach
 
 You can modify the `CircuitArgs` and `CircuitEnv` objects in `runAllBenchMarks` to suite your needs. See `create_circuits.nim` for their definition.
 
-By it runs all commands relative to the `nim-codex` repo. This simplifies finding the correct circuit includes paths, etc. `CircuitEnv` sets all of this.
+The runner executes all commands relative to the `nim-codex` repo. This simplifies finding the correct circuit includes paths, etc. `CircuitEnv` sets all of this.
 
 ## Codex Ark Circom CLI
 
