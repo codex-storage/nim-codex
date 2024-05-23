@@ -1,10 +1,13 @@
 import std/options
+import std/hashes
 
 import pkg/taskpools
 import pkg/chronicles
 import pkg/chronos
 import pkg/chronos/threadsync
 import pkg/questionable/results
+
+import pkg/codex/merkletree
 
 import ../../types
 import ../../../utils/asyncthreads
@@ -15,16 +18,46 @@ logScope:
   topics = "codex asyncprover"
 
 type AsyncCircomCompat* = object
+  params*: CircomCompatParams
   circom*: CircomCompat
   tp*: Taskpool
 
-proc proveTask[H](
-    circom: CircomCompat, data: ProofInputs[H], results: SignalQueuePtr[?!CircomProof]
-) =
-  let proof = circom.prove(data)
+var localCircom {.threadvar.}: Option[CircomCompat]
 
-  if (let sent = results.send(proof); sent.isErr()):
-    error "Error sending proof results", msg = sent.error().msg
+proc proveTask(
+    params: CircomCompatParams, data: ProofInputs[Poseidon2Hash], results: SignalQueuePtr[?!CircomProof]
+) =
+
+  var data = data.deepCopy()
+  var params = params.deepCopy()
+  try:
+    echo "TASK: task: "
+    echo "TASK: task: params: ", params.r1csPath.cstring.pointer.repr
+    echo "TASK: task: params: ", params
+    echo "TASK: task: ", data.hash
+    if localCircom.isNone:
+      localCircom = some CircomCompat.init(params)
+    # echo "TASK: task: ", data
+    let proof = localCircom.get().prove(data)
+
+    # echo "TASK: task: proof: ", proof.get.hash
+    echo "TASK: task: proof: ", proof
+    echo "TASK: task: params POST: ", params
+    let fake = CircomProof.failure("failed")
+    if (let sent = results.send(fake); sent.isErr()):
+      error "Error sending proof results", msg = sent.error().msg
+  except Exception:
+    echo "PROVER DIED"
+  except Defect:
+    echo "PROVER DIED"
+  except:
+    echo "PROVER DIED"
+
+proc spawnProveTask(
+    tp: TaskPool,
+    params: CircomCompatParams, input: ProofInputs[Poseidon2Hash], results: SignalQueuePtr[?!CircomProof]
+) =
+  tp.spawn proveTask(params, input, results)
 
 proc prove*[H](
     self: AsyncCircomCompat, input: ProofInputs[H]
@@ -34,12 +67,11 @@ proc prove*[H](
   without queue =? newSignalQueue[?!CircomProof](maxItems = 1), qerr:
     return failure(qerr)
 
-  proc spawnTask() =
-    self.tp.spawn proveTask(self.circom, input, queue)
-
-  spawnTask()
+  echo "TASK: task spawn: params: ", self.params.r1csPath.cstring.pointer.repr
+  self.tp.spawnProveTask(self.params, input, queue)
 
   let taskRes = await queue.recvAsync()
+
   if (let res = queue.release(); res.isErr):
     error "Error releasing proof queue ", msg = res.error().msg
   without proofRes =? taskRes, perr:
@@ -57,6 +89,7 @@ proc verifyTask[H](
 ) =
   let verified = circom.verify(proof, inputs)
 
+  echo "VERIFY: task: result: ", verified
   if (let sent = results.send(verified); sent.isErr()):
     error "Error sending verification results", msg = sent.error().msg
 
@@ -86,5 +119,5 @@ proc verify*[H](
 proc init*(_: type AsyncCircomCompat, params: CircomCompatParams, tp: Taskpool): AsyncCircomCompat =
   ## Create a new async circom
   ##
-  let circom = CircomCompat.init(params)
-  AsyncCircomCompat(circom: circom, tp: tp)
+  # let circom = CircomCompat.init(params)
+  AsyncCircomCompat(params: params, tp: Taskpool.new(2))

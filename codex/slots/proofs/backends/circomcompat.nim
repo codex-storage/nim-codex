@@ -49,8 +49,8 @@ proc release*(self: CircomCompat) =
   if not isNil(self.backendCfg):
     self.backendCfg.unsafeAddr.releaseCfg()
 
-  if not isNil(self.vkp):
-    self.vkp.unsafeAddr.release_key()
+  # if not isNil(self.vkp):
+  #   self.vkp.unsafeAddr.release_key()
 
 proc prove*[H](
   self: CircomCompat,
@@ -147,6 +147,7 @@ proc prove*[H](
       data[0].addr,
       data.len.uint) != ERR_OK:
         return failure("Failed to push cell data")
+
 
   var
     proofPtr: ptr Proof = nil

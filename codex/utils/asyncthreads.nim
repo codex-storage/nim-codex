@@ -5,6 +5,8 @@ import pkg/chronos
 import pkg/chronos/threadsync
 import pkg/questionable/results
 
+import ../errors
+
 const
   CompletionRetryDelay* = 10.millis
   CompletionTimeout* = 1.seconds
@@ -43,7 +45,7 @@ proc send*[T](queue: SignalQueuePtr[T], msg: T): ?!void {.raises: [].} =
   except Exception as exc:
     return failure(exc.msg)
 
-  without wasSent =? queue[].signal.fireSync(InfiniteDuration).mapFailure, sigErr:
+  without wasSent =? queue[].signal.fireSync(InfiniteDuration).mapFailure(), sigErr:
     return failure(sigErr)
   if wasSent:
     return ok()
