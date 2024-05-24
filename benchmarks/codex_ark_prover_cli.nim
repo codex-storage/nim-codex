@@ -4,7 +4,6 @@ import std/[times, os, strutils, terminal, parseopt]
 import pkg/questionable
 import pkg/questionable/results
 import pkg/datastore
-import pkg/serde/json
 
 import pkg/codex/[rng, stores, merkletree, codextypes, slots]
 import pkg/codex/utils/[json, poseidon2digest]

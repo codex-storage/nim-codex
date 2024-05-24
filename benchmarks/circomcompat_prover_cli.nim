@@ -3,6 +3,7 @@ import std/[times, os, strutils, terminal, parseopt, json]
 
 import pkg/questionable
 import pkg/questionable/results
+import pkg/serde/json
 
 import pkg/circomcompat
 import pkg/poseidon2/io
@@ -29,6 +30,39 @@ proc release*(self: CircomCircuit) =
     self.backendCfg.unsafeAddr.releaseCfg()
   if not isNil(self.vkp):
     self.vkp.unsafeAddr.release_key()
+
+proc init*(
+    _: type CircomCircuit,
+    r1csPath: string,
+    wasmPath: string,
+    zkeyPath: string = "",
+): CircomCircuit =
+  ## Create a new ctx
+  ##
+
+  var cfg: ptr CircomBn254Cfg
+  var zkey = if zkeyPath.len > 0: zkeyPath.cstring else: nil
+
+  if initCircomConfig(r1csPath.cstring, wasmPath.cstring, zkey, cfg.addr) != ERR_OK or
+      cfg == nil:
+    if cfg != nil:
+      cfg.addr.releaseCfg()
+    raiseAssert("failed to initialize circom compat config")
+
+  var vkpPtr: ptr VerifyingKey = nil
+
+  if cfg.getVerifyingKey(vkpPtr.addr) != ERR_OK or vkpPtr == nil:
+    if vkpPtr != nil:
+      vkpPtr.addr.releaseKey()
+    raiseAssert("Failed to get verifying key")
+
+  CircomCircuit(
+    r1csPath: r1csPath,
+    wasmPath: wasmPath,
+    zkeyPath: zkeyPath,
+    backendCfg: cfg,
+    vkp: vkpPtr,
+  )
 
 proc prove*[H](self: CircomCircuit, input: JsonNode): ?!Proof =
   ## Encode buffers using a ctx
@@ -93,66 +127,6 @@ proc prove*[H](self: CircomCircuit, input: JsonNode): ?!Proof =
 
   success proof
 
-# proc toCircomInputs*(inputs: ProofInputs[Poseidon2Hash]): Inputs =
-#   var
-#     slotIndex = inputs.slotIndex.toF.toBytes.toArray32
-#     datasetRoot = inputs.datasetRoot.toBytes.toArray32
-#     entropy = inputs.entropy.toBytes.toArray32
-#     elms = [entropy, datasetRoot, slotIndex]
-#   let inputsPtr = allocShared0(32 * elms.len)
-#   copyMem(inputsPtr, addr elms[0], elms.len * 32)
-#   CircomInputs(elms: cast[ptr array[32, byte]](inputsPtr), len: elms.len.uint)
-
-# proc verify*[H](self: CircomCircuit, proof: CircomProof, inputs: ProofInputs[H]): ?!bool =
-#   ## Verify a proof using a ctx
-#   ##
-#   var
-#     proofPtr = unsafeAddr proof
-#     inputs = inputs.toCircomInputs()
-#   try:
-#     let res = verifyCircuit(proofPtr, inputs.addr, self.vkp)
-#     if res == ERR_OK:
-#       success true
-#     elif res == ERR_FAILED_TO_VERIFY_PROOF:
-#       success false
-#     else:
-#       failure("Failed to verify proof - err code: " & $res)
-#   finally:
-#     inputs.releaseCircomInputs()
-
-proc init*(
-    _: type CircomCircuit,
-    r1csPath: string,
-    wasmPath: string,
-    zkeyPath: string = "",
-): CircomCircuit =
-  ## Create a new ctx
-  ##
-
-  var cfg: ptr CircomBn254Cfg
-  var zkey = if zkeyPath.len > 0: zkeyPath.cstring else: nil
-
-  if initCircomConfig(r1csPath.cstring, wasmPath.cstring, zkey, cfg.addr) != ERR_OK or
-      cfg == nil:
-    if cfg != nil:
-      cfg.addr.releaseCfg()
-    raiseAssert("failed to initialize circom compat config")
-
-  var vkpPtr: ptr VerifyingKey = nil
-
-  if cfg.getVerifyingKey(vkpPtr.addr) != ERR_OK or vkpPtr == nil:
-    if vkpPtr != nil:
-      vkpPtr.addr.releaseKey()
-    raiseAssert("Failed to get verifying key")
-
-  CircomCircuit(
-    r1csPath: r1csPath,
-    wasmPath: wasmPath,
-    zkeyPath: zkeyPath,
-    backendCfg: cfg,
-    vkp: vkpPtr,
-  )
-
 proc printHelp() =
   echo "usage:"
   echo "  ./circom_ark_prover_cli [options] "
@@ -160,6 +134,10 @@ proc printHelp() =
   echo "available options:"
   echo " -h, --help                         : print this help"
   echo " -v, --verbose                      : verbose output (print the actual parameters)"
+  echo "     --r1cs:$FILE                   : r1cs file path"
+  echo "     --wasm:$FILE                   : wasm file path"
+  echo "     --zkey:$FILE                   : zkey file path"
+  echo "     --inputs:$FILE                 : inputs.json file path"
   echo ""
   echo "Must provide files options. Use either:"
   echo "  --dir:$CIRCUIT_DIR --name:$CIRCUIT_NAME"
@@ -260,7 +238,6 @@ proc run*() =
     inputs: JsonNode = !JsonNode.parse(inputData)
 
   echo "Got args: ", args
-  runArkCircom(args, self)
 
 when isMainModule:
   run()
