@@ -46,7 +46,7 @@ proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
   convertEthersError:
     let tokenAddress = await market.contract.token()
     let token = Erc20Token.new(tokenAddress, market.signer)
-    discard await token.increaseAllowance(market.contract.address(), amount).confirm(1)
+    discard await token.increaseAllowance(market.contract.address(), amount).confirm(0)
 
 method getZkeyHash*(market: OnChainMarket): Future[?string] {.async.} =
   let config = await market.contract.config()
@@ -92,7 +92,7 @@ method requestStorage(market: OnChainMarket, request: StorageRequest){.async.} =
   convertEthersError:
     debug "Requesting storage"
     await market.approveFunds(request.price())
-    await market.contract.requestStorage(request)
+    discard await market.contract.requestStorage(request).confirm(0)
 
 method getRequest(market: OnChainMarket,
                   id: RequestId): Future[?StorageRequest] {.async.} =
@@ -159,16 +159,16 @@ method fillSlot(market: OnChainMarket,
                 collateral: UInt256) {.async.} =
   convertEthersError:
     await market.approveFunds(collateral)
-    await market.contract.fillSlot(requestId, slotIndex, proof)
+    discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(0)
 
 method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
   convertEthersError:
-    await market.contract.freeSlot(slotId)
+    discard await market.contract.freeSlot(slotId).confirm(0)
 
 method withdrawFunds(market: OnChainMarket,
                      requestId: RequestId) {.async.} =
   convertEthersError:
-    await market.contract.withdrawFunds(requestId)
+    discard await market.contract.withdrawFunds(requestId).confirm(0)
 
 method isProofRequired*(market: OnChainMarket,
                         id: SlotId): Future[bool] {.async.} =
@@ -201,13 +201,13 @@ method submitProof*(market: OnChainMarket,
                     id: SlotId,
                     proof: Groth16Proof) {.async.} =
   convertEthersError:
-    await market.contract.submitProof(id, proof)
+    discard await market.contract.submitProof(id, proof).confirm(0)
 
 method markProofAsMissing*(market: OnChainMarket,
                            id: SlotId,
                            period: Period) {.async.} =
   convertEthersError:
-    await market.contract.markProofAsMissing(id, period)
+    discard await market.contract.markProofAsMissing(id, period).confirm(0)
 
 method canProofBeMarkedAsMissing*(
     market: OnChainMarket,
@@ -218,7 +218,7 @@ method canProofBeMarkedAsMissing*(
   let contractWithoutSigner = market.contract.connect(provider)
   let overrides = CallOverrides(blockTag: some BlockTag.pending)
   try:
-    await contractWithoutSigner.markProofAsMissing(id, period, overrides)
+    discard await contractWithoutSigner.markProofAsMissing(id, period, overrides)
     return true
   except EthersError as e:
     trace "Proof cannot be marked as missing", msg = e.msg

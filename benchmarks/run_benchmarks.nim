@@ -19,7 +19,7 @@ type CircuitFiles* = object
   zkey*: string
   inputs*: string
 
-proc runArkCircom(args: CircuitArgs, files: CircuitFiles) =
+proc runArkCircom(args: CircuitArgs, files: CircuitFiles, benchmarkLoops: int) =
   echo "Loading sample proof..."
   var
     inputData = files.inputs.readFile()
@@ -38,22 +38,23 @@ proc runArkCircom(args: CircuitArgs, files: CircuitFiles) =
   echo "Sample proof loaded..."
   echo "Proving..."
 
+  let nameArgs = getCircuitBenchStr(args)
   var proof: CircomProof
-  benchmark fmt"prover":
+  benchmark fmt"prover-{nameArgs}", benchmarkLoops:
     proof = circom.prove(proofInputs).tryGet
 
   var verRes: bool
-  benchmark fmt"verify":
+  benchmark fmt"verify-{nameArgs}", benchmarkLoops:
     verRes = circom.verify(proof, proofInputs).tryGet
   echo "verify result: ", verRes
 
-proc runRapidSnark(args: CircuitArgs, files: CircuitFiles) =
+proc runRapidSnark(args: CircuitArgs, files: CircuitFiles, benchmarkLoops: int) =
   # time rapidsnark ${CIRCUIT_MAIN}.zkey witness.wtns proof.json public.json
 
   echo "generating the witness..."
   ## TODO
 
-proc runBenchmark(args: CircuitArgs, env: CircuitEnv) =
+proc runBenchmark(args: CircuitArgs, env: CircuitEnv, benchmarkLoops: int) =
   ## execute benchmarks given a set of args
   ## will create a folder in `benchmarks/circuit_bench_$(args)`
   ## 
@@ -68,7 +69,7 @@ proc runBenchmark(args: CircuitArgs, env: CircuitEnv) =
     inputs: env.dir / fmt"input.json",
   )
 
-  runArkCircom(args, files)
+  runArkCircom(args, files, benchmarkLoops)
 
 proc runAllBenchmarks*() =
   echo "Running benchmark"
@@ -89,15 +90,16 @@ proc runAllBenchmarks*() =
     ncells: 512, # number of cells in this slot
   )
 
-  for i in 1 .. 2:
+  let
+    numberSamples = 3
+    benchmarkLoops = 5
+
+  for i in 1 .. numberSamples:
     args.nsamples = i
     stdout.styledWriteLine(fgYellow, "\nbenchmarking args: ", $args)
-    runBenchmark(args, env)
+    runBenchmark(args, env, benchmarkLoops)
 
-  # for i in 1..16:
-  #   args.nsamples = 10*i
-  #   stdout.styledWriteLine(fgYellow, "\nbenchmarking args: ", $args)
-  #   args.runBenchmark()
+  printBenchMarkSummaries()
 
 when isMainModule:
   runAllBenchmarks()

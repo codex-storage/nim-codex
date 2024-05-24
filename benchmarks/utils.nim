@@ -1,3 +1,5 @@
+import std/tables
+
 template withDir*(dir: string, blk: untyped) =
   ## set working dir for duration of blk
   let prev = getCurrentDir()
@@ -14,23 +16,43 @@ template runit*(cmd: string) =
   echo "STATUS: ", cmdRes
   assert cmdRes == 0
 
-template benchmark*(benchmarkName: string, blk: untyped) =
+var benchRuns* = newTable[string, tuple[avgTimeSec: float, count: int]]()
+
+func avg(vals: openArray[float]): float =
+  for v in vals:
+    result += v / vals.len().toFloat()
+
+template benchmark*(name: untyped, count: int, blk: untyped) =
+  let benchmarkName: string = name
   ## simple benchmarking of a block of code
-  let nn = 5
-  var vals = newSeqOfCap[float](nn)
-  for i in 1 .. nn:
+  var runs = newSeqOfCap[float](count)
+  for i in 1 .. count:
     block:
       let t0 = epochTime()
       `blk`
       let elapsed = epochTime() - t0
-      vals.add elapsed
+      runs.add elapsed
 
   var elapsedStr = ""
-  for v in vals:
+  for v in runs:
     elapsedStr &= ", " & v.formatFloat(format = ffDecimal, precision = 3)
   stdout.styledWriteLine(
-    fgGreen, "CPU Time [", benchmarkName, "] ", "avg(", $nn, "): ", elapsedStr, " s"
+    fgGreen, "CPU Time [", benchmarkName, "] ", "avg(", $count, "): ", elapsedStr, " s"
   )
+  benchRuns[benchmarkName] = (runs.avg(), count)
+
+template printBenchMarkSummaries*(printRegular=true, printTsv=true) =
+  if printRegular:
+    echo ""
+    for k, v in benchRuns:
+      echo "Benchmark average run ", v.avgTimeSec, " for ", v.count, " runs ", "for ", k
+    
+  if printTsv:
+    echo ""
+    echo "name", "\t", "avgTimeSec", "\t", "count"
+    for k, v in benchRuns:
+      echo k, "\t", v.avgTimeSec, "\t", v.count
+
 
 import std/math
 

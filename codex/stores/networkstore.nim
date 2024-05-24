@@ -34,17 +34,13 @@ type
     localStore*: BlockStore # local block store
 
 method getBlock*(self: NetworkStore, address: BlockAddress): Future[?!Block] {.async.} =
-  trace "Getting block from local store or network", address
-
   without blk =? (await self.localStore.getBlock(address)), err:
     if not (err of BlockNotFoundError):
-      trace "Error getting block from local store", address, err = err.msg
+      error "Error getting block from local store", address, err = err.msg
       return failure err
 
-    trace "Block not in local store", address, err = err.msg
-
     without newBlock =? (await self.engine.requestBlock(address)), err:
-      trace "Unable to get block from exchange engine", address, err = err.msg
+      error "Unable to get block from exchange engine", address, err = err.msg
       return failure err
 
     return success newBlock

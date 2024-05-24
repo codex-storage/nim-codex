@@ -241,7 +241,7 @@ ethersuite "On-Chain Market":
         await waitUntilProofRequired(slotId)
         let missingPeriod = periodicity.periodOf(await ethProvider.currentTime())
         await advanceToNextPeriod()
-        await marketplace.markProofAsMissing(slotId, missingPeriod)
+        discard await marketplace.markProofAsMissing(slotId, missingPeriod)
     check receivedIds == @[request.id]
     await subscription.unsubscribe()
 

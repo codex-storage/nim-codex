@@ -61,6 +61,8 @@ method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
 
   try:
     return success self.cache[cid]
+  except CancelledError as error:
+    raise error
   except CatchableError as exc:
     trace "Error requesting block from cache", cid, error = exc.msg
     return failure exc

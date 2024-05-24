@@ -69,6 +69,9 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
     for cid in toSeq(b.pendingBlocks.wantListBlockCids):
       try:
         await b.discoveryQueue.put(cid)
+      except CancelledError:
+        trace "Discovery loop cancelled"
+        return
       except CatchableError as exc:
         warn "Exception in discovery loop", exc = exc.msg
 
@@ -133,6 +136,9 @@ proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
       finally:
         b.inFlightAdvReqs.del(cid)
         codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
+    except CancelledError:
+      trace "Advertise task cancelled"
+      return
     except CatchableError as exc:
       warn "Exception in advertise task runner", exc = exc.msg
 
@@ -154,9 +160,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
       let
         haves = b.peers.peersHave(cid)
 
-      trace "Current number of peers for block", cid, peers = haves.len
       if haves.len < b.minPeersPerBlock:
-        trace "Discovering block", cid
         try:
           let
             request = b.discovery
@@ -168,7 +172,6 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
           let
             peers = await request
 
-          trace "Discovered peers for block", peers = peers.len, cid
           let
             dialed = await allFinished(
               peers.mapIt( b.network.dialPeer(it.data) ))
@@ -180,6 +183,9 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
         finally:
           b.inFlightDiscReqs.del(cid)
           codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
+    except CancelledError:
+      trace "Discovery task cancelled"
+      return
     except CatchableError as exc:
       warn "Exception in discovery task runner", exc = exc.msg
 
@@ -189,10 +195,9 @@ proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
   for cid in cids:
     if cid notin b.discoveryQueue:
       try:
-        trace "Queueing find block", cid, queue = b.discoveryQueue.len
         b.discoveryQueue.putNoWait(cid)
       except CatchableError as exc:
-        trace "Exception queueing discovery request", exc = exc.msg
+        warn "Exception queueing discovery request", exc = exc.msg
 
 proc queueProvideBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
   for cid in cids:
