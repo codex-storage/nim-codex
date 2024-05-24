@@ -93,37 +93,32 @@ proc prove*[H](self: CircomCircuit, input: JsonNode): ?!Proof =
 
   success proof
 
-proc toCircomInputs*(inputs: ProofInputs[Poseidon2Hash]): Inputs =
-  var
-    slotIndex = inputs.slotIndex.toF.toBytes.toArray32
-    datasetRoot = inputs.datasetRoot.toBytes.toArray32
-    entropy = inputs.entropy.toBytes.toArray32
+# proc toCircomInputs*(inputs: ProofInputs[Poseidon2Hash]): Inputs =
+#   var
+#     slotIndex = inputs.slotIndex.toF.toBytes.toArray32
+#     datasetRoot = inputs.datasetRoot.toBytes.toArray32
+#     entropy = inputs.entropy.toBytes.toArray32
+#     elms = [entropy, datasetRoot, slotIndex]
+#   let inputsPtr = allocShared0(32 * elms.len)
+#   copyMem(inputsPtr, addr elms[0], elms.len * 32)
+#   CircomInputs(elms: cast[ptr array[32, byte]](inputsPtr), len: elms.len.uint)
 
-    elms = [entropy, datasetRoot, slotIndex]
-
-  let inputsPtr = allocShared0(32 * elms.len)
-  copyMem(inputsPtr, addr elms[0], elms.len * 32)
-
-  CircomInputs(elms: cast[ptr array[32, byte]](inputsPtr), len: elms.len.uint)
-
-proc verify*[H](self: CircomCircuit, proof: CircomProof, inputs: ProofInputs[H]): ?!bool =
-  ## Verify a proof using a ctx
-  ##
-
-  var
-    proofPtr = unsafeAddr proof
-    inputs = inputs.toCircomInputs()
-
-  try:
-    let res = verifyCircuit(proofPtr, inputs.addr, self.vkp)
-    if res == ERR_OK:
-      success true
-    elif res == ERR_FAILED_TO_VERIFY_PROOF:
-      success false
-    else:
-      failure("Failed to verify proof - err code: " & $res)
-  finally:
-    inputs.releaseCircomInputs()
+# proc verify*[H](self: CircomCircuit, proof: CircomProof, inputs: ProofInputs[H]): ?!bool =
+#   ## Verify a proof using a ctx
+#   ##
+#   var
+#     proofPtr = unsafeAddr proof
+#     inputs = inputs.toCircomInputs()
+#   try:
+#     let res = verifyCircuit(proofPtr, inputs.addr, self.vkp)
+#     if res == ERR_OK:
+#       success true
+#     elif res == ERR_FAILED_TO_VERIFY_PROOF:
+#       success false
+#     else:
+#       failure("Failed to verify proof - err code: " & $res)
+#   finally:
+#     inputs.releaseCircomInputs()
 
 proc init*(
     _: type CircomCircuit,
@@ -158,28 +153,6 @@ proc init*(
     vkp: vkpPtr,
   )
 
-proc runArkCircom(
-    args: CircuitArgs, self: CircomCircuit, proofInputs: ProofInputs[Poseidon2Hash]
-) =
-  echo "Loading sample proof..."
-  var circom = CircomCircuit.init(
-    self.r1csPath,
-    self.wasmPath,
-    self.zkeyPath,
-  )
-  defer:
-    circom.release() # this comes from the rust FFI
-
-  echo "Sample proof loaded..."
-  echo "Proving..."
-
-  var proof: CircomProof = circom.prove(proofInputs).tryGet
-
-  var verRes: bool = circom.verify(proof, proofInputs).tryGet
-  if not verRes:
-    echo "verification failed"
-    quit 100
-
 proc printHelp() =
   echo "usage:"
   echo "  ./circom_ark_prover_cli [options] "
@@ -196,7 +169,7 @@ proc printHelp() =
 
   quit(1)
 
-proc parseCliOptions(args: var CircuitArgs, files: var CircomCircuit) =
+proc parseCliOptions(args: var CircuitArgs, self: var CircomCircuit) =
   var argCtr: int = 0
   template expectPath(val: string): string =
     if val == "":
@@ -218,17 +191,17 @@ proc parseCliOptions(args: var CircuitArgs, files: var CircomCircuit) =
       of "h", "help":
         printHelp()
       of "r1cs":
-        files.r1cs = value.expectPath()
+        self.r1csPath = value.expectPath()
       of "wasm":
-        files.wasm = value.expectPath()
+        self.wasmPath = value.expectPath()
       of "zkey":
-        files.zkey = value.expectPath()
+        self.zkeyPath = value.expectPath()
       of "inputs":
-        files.inputs = value.expectPath()
+        self.inputsPath = value.expectPath()
       of "dir":
-        files.dir = value.expectPath()
+        self.dir = value.expectPath()
       of "name":
-        files.circName = value
+        self.circName = value
       else:
         echo "Unknown option: ", key
         echo "use --help to get a list of options"
@@ -245,27 +218,27 @@ proc run*() =
 
   var
     args = CircuitArgs()
-    files = CircomCircuit()
+    self = CircomCircuit()
 
-  parseCliOptions(args, files)
+  parseCliOptions(args, self)
 
   let dir =
-    if files.dir != "":
-      files.dir
+    if self.dir != "":
+      self.dir
     else:
       getCurrentDir()
-  if files.circName != "":
-    if files.r1cs == "":
-      files.r1cs = dir / fmt"{files.circName}.r1cs"
-    if files.wasm == "":
-      files.wasm = dir / fmt"{files.circName}.wasm"
-    if files.zkey == "":
-      files.zkey = dir / fmt"{files.circName}.zkey"
+  if self.circName != "":
+    if self.r1csPath == "":
+      self.r1csPath = dir / fmt"{self.circName}.r1cs"
+    if self.wasmPath == "":
+      self.wasmPath = dir / fmt"{self.circName}.wasm"
+    if self.zkeyPath == "":
+      self.zkeyPath = dir / fmt"{self.circName}.zkey"
 
-  if files.inputs == "":
-    files.inputs = dir / fmt"input.json"
+  if self.inputsPath == "":
+    self.inputsPath = dir / fmt"input.json"
 
-  echo "Got file args: ", files
+  echo "Got file args: ", self
 
   var fileErrors = false
   template checkFile(file, name: untyped) =
@@ -273,46 +246,21 @@ proc run*() =
       echo "\nERROR: must provide `" & name & "` file"
       fileErrors = true
 
-  checkFile files.inputs, "inputs.json"
-  checkFile files.r1cs, "r1cs"
-  checkFile files.wasm, "wasm"
-  checkFile files.zkey, "zkey"
+  checkFile self.inputsPath, "inputs.json"
+  checkFile self.r1csPath, "r1cs"
+  checkFile self.wasmPath, "wasm"
+  checkFile self.zkeyPath, "zkey"
 
   if fileErrors:
     echo "ERROR: couldn't find all files"
     printHelp()
 
   var
-    inputData = files.inputs.readFile()
+    inputData = self.inputsPath.readFile()
     inputs: JsonNode = !JsonNode.parse(inputData)
 
-  # sets default values for these args
-  if args.depth == 0:
-    args.depth = codextypes.DefaultMaxSlotDepth
-    # maximum depth of the slot tree
-  if args.maxslots == 0:
-    args.maxslots = 256
-    # maximum number of slots
-
-  # sets number of samples to take
-  if args.nsamples == 0:
-    args.nsamples = 1
-    # number of samples to prove
-
-  # overrides the input.json params
-  if args.entropy != 0:
-    inputs["entropy"] = %($args.entropy)
-  if args.nslots != 0:
-    inputs["nSlotsPerDataSet"] = %args.nslots
-  if args.index != 0:
-    inputs["slotIndex"] = %args.index
-  if args.ncells != 0:
-    inputs["nCellsPerSlot"] = %args.ncells
-
-  var proofInputs = Poseidon2Hash.jsonToProofInput(inputs)
-
   echo "Got args: ", args
-  runArkCircom(args, files, proofInputs)
+  runArkCircom(args, self)
 
 when isMainModule:
   run()
