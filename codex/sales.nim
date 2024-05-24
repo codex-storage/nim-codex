@@ -290,7 +290,8 @@ proc onAvailabilityAdded(sales: Sales, availability: Availability) {.async.} =
             trace "item already exists, ignoring"
             discard
           else: raise err
-
+  except CancelledError as error:
+    raise error
   except CatchableError as e:
     warn "Error adding request to SlotQueue", error = e.msg
     discard
@@ -385,6 +386,8 @@ proc subscribeRequested(sales: Sales) {.async.} =
   try:
     let sub = await market.subscribeRequests(onStorageRequested)
     sales.subscriptions.add(sub)
+  except CancelledError as error:
+    raise error
   except CatchableError as e:
     error "Unable to subscribe to storage request events", msg = e.msg
 
@@ -400,6 +403,8 @@ proc subscribeCancellation(sales: Sales) {.async.} =
   try:
     let sub = await market.subscribeRequestCancelled(onCancelled)
     sales.subscriptions.add(sub)
+  except CancelledError as error:
+    raise error
   except CatchableError as e:
     error "Unable to subscribe to cancellation events", msg = e.msg
 
@@ -418,6 +423,8 @@ proc subscribeFulfilled*(sales: Sales) {.async.} =
   try:
     let sub = await market.subscribeFulfillment(onFulfilled)
     sales.subscriptions.add(sub)
+  except CancelledError as error:
+    raise error
   except CatchableError as e:
     error "Unable to subscribe to storage fulfilled events", msg = e.msg
 
@@ -436,6 +443,8 @@ proc subscribeFailure(sales: Sales) {.async.} =
   try:
     let sub = await market.subscribeRequestFailed(onFailed)
     sales.subscriptions.add(sub)
+  except CancelledError as error:
+    raise error
   except CatchableError as e:
     error "Unable to subscribe to storage failure events", msg = e.msg
 
@@ -454,6 +463,8 @@ proc subscribeSlotFilled(sales: Sales) {.async.} =
   try:
     let sub = await market.subscribeSlotFilled(onSlotFilled)
     sales.subscriptions.add(sub)
+  except CancelledError as error:
+    raise error
   except CatchableError as e:
     error "Unable to subscribe to slot filled events", msg = e.msg
 
@@ -467,6 +478,8 @@ proc subscribeSlotFreed(sales: Sales) {.async.} =
   try:
     let sub = await market.subscribeSlotFreed(onSlotFreed)
     sales.subscriptions.add(sub)
+  except CancelledError as error:
+    raise error
   except CatchableError as e:
     error "Unable to subscribe to slot freed events", msg = e.msg
 
@@ -497,6 +510,8 @@ proc unsubscribe(sales: Sales) {.async.} =
   for sub in sales.subscriptions:
     try:
       await sub.unsubscribe()
+    except CancelledError as error:
+      raise error
     except CatchableError as e:
       error "Unable to unsubscribe from subscription", error = e.msg
 

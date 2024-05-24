@@ -76,6 +76,9 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
       node2 = startNode(node2Args, debug = debug2)
       node2.waitUntilStarted()
 
+      # ensure that we have a recent block with a fresh timestamp
+      discard await send(ethProvider, "evm_mine")
+
     teardown:
       client1.close()
       client2.close()

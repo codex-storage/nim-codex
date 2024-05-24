@@ -332,6 +332,8 @@ proc createAvailability*(
   if onAvailabilityAdded =? self.onAvailabilityAdded:
     try:
       await onAvailabilityAdded(availability)
+    except CancelledError as error:
+      raise error
     except CatchableError as e:
       # we don't have any insight into types of errors that `onProcessSlot` can
       # throw because it is caller-defined
