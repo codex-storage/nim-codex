@@ -53,16 +53,11 @@ proc printHelp() =
   echo "available options:"
   echo " -h, --help                         : print this help"
   echo " -v, --verbose                      : verbose output (print the actual parameters)"
-  echo " -d, --depth      = <maxdepth>      : maximum depth of the slot tree (eg. 32)"
-  echo " -N, --maxslots   = <maxslots>      : maximum number of slots (eg. 256)"
-  # echo " -c, --cellsize   = <cellSize>      : cell size in bytes (eg. 2048)"
-  # echo " -b, --blocksize  = <blockSize>     : block size in bytes (eg. 65536)"
-  echo " -s, --nslots     = <nslots>        : number of slots in the dataset (eg. 13)"
-  echo " -n, --nsamples   = <nsamples>      : number of samples we prove (eg. 100)"
-  echo " -e, --entropy    = <entropy>       : external randomness (eg. 1234567)"
+  echo "     --r1cs:$FILE                   : r1cs file path"
+  echo "     --wasm:$FILE                   : wasm file path"
+  echo "     --zkey:$FILE                   : zkey file path"
+  echo "     --inputs:$FILE                 : inputs.json file path"
   # echo " -S, --seed       = <seed>          : seed to generate the fake data (eg. 12345)"
-  echo " -i, --index      = <slotIndex>     : index of the slot (within the dataset) we prove"
-  echo " -K, --ncells     = <ncells>        : number of cells inside this slot (eg. 1024; must be a power of two)"
   echo ""
   echo "Must provide files options. Use either:"
   echo "  --dir:$CIRCUIT_DIR --name:$CIRCUIT_NAME"
@@ -95,21 +90,6 @@ proc parseCliOptions(args: var CircuitArgs, files: var CircuitFiles) =
         printHelp()
       of "d", "depth":
         args.depth = parseInt(value)
-      of "N", "maxslots":
-        args.maxslots = parseInt(value)
-      # of "c", "cellsize"  : args.cellsize      = checkPowerOfTwo(parseInt(value),"cellSize")
-      # of "b", "blocksize" : args.blocksize     = checkPowerOfTwo(parseInt(value),"blockSize")
-      of "n", "nsamples":
-        args.nsamples = parseInt(value)
-      of "e", "entropy":
-        args.entropy = parseInt(value)
-      # of "S", "seed"      : args.seed          = parseInt(value)
-      of "s", "nslots":
-        args.nslots = parseInt(value)
-      of "K", "ncells":
-        args.ncells = checkPowerOfTwo(parseInt(value), "nCells")
-      of "i", "index":
-        args.index = parseInt(value)
       of "r1cs":
         files.r1cs = value.expectPath()
       of "wasm":
