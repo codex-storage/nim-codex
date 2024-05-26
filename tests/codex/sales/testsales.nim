@@ -272,24 +272,41 @@ asyncchecksuite "Sales":
     let expected = SlotQueueItem.init(request, 2.uint16)
     check eventually itemsProcessed.contains(expected)
 
-  test "adds past requests to queue once availability added":
-    var itemsProcessed: seq[SlotQueueItem] = @[]
-
-    # ignore all
-    queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-      done.complete()
-
+  test "items in queue are readded (and marked seen) once ignored":
     await market.requestStorage(request)
-    await sleepAsync(10.millis)
+    let items = SlotQueueItem.init(request)
+    await sleepAsync(10.millis) # queue starts paused, allow items to be added to the queue
+    check eventually queue.paused
+    # The first processed item will be will have been re-pushed with `seen =
+    # true`. Then, once this item is processed by the queue, its 'seen' flag
+    # will be checked, at which point the queue will be paused. This test could
+    # check item existence in the queue, but that would require inspecting
+    # onProcessSlot to see which item was first, and overridding onProcessSlot
+    # will prevent the queue working as expected in the Sales module.
+    check eventually queue.len == 4
 
-    # check how many slots were processed by the queue
-    queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-      itemsProcessed.add item
-      done.complete()
+    for item in items:
+      check queue.contains(item)
 
-    # now add matching availability
-    createAvailability()
-    check eventually itemsProcessed.len == request.ask.slots.int
+    for i in 0..<queue.len:
+      check queue[i].seen
+
+  test "queue is paused once availability is insufficient to service slots in queue":
+    createAvailability() # enough to fill a single slot
+    await market.requestStorage(request)
+    let items = SlotQueueItem.init(request)
+    await sleepAsync(10.millis) # queue starts paused, allow items to be added to the queue
+    check eventually queue.paused
+    # The first processed item/slot will be filled (eventually). Subsequent
+    # items will be processed and eventually re-pushed with `seen = true`. Once
+    # a "seen" item is processed by the queue, the queue is paused. In the
+    # meantime, the other items that are process, marked as seen, and re-added
+    # to the queue may be processed simultaneously as the queue pausing.
+    # Therefore, there should eventually be 3 items remaining in the queue, all
+    # seen.
+    check eventually queue.len == 3
+    for i in 0..<queue.len:
+      check queue[i].seen
 
   test "availability size is reduced by request slot size when fully downloaded":
     sales.onStore = proc(request: StorageRequest,
@@ -495,6 +512,10 @@ asyncchecksuite "Sales":
 
   test "verifies that request is indeed expired from onchain before firing onCancelled":
     let expiry = getTime().toUnix() + 10
+    # ensure only one slot, otherwise once bytes are returned to the
+    # availability, the queue will be unpaused and availability will be consumed
+    # by other slots
+    request.ask.slots = 1.uint64
     market.requestExpiry[request.id] = expiry
 
     let origSize = availability.freeSize
