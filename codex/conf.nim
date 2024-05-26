@@ -62,6 +62,7 @@ const
   codex_enable_log_counter* {.booldefine.} = false
 
   DefaultDataDir* = defaultDataDir()
+  DefaultMetaDataDir* = defaultDataDir() / "metadata"
 
 type
   StartUpCmd* {.pure.} = enum
@@ -124,6 +125,13 @@ type
       defaultValueDesc: $DefaultDataDir
       abbr: "d"
       name: "data-dir" }: OutDir
+
+    metaDir* {.
+      desc: "The directory where codex will store metadata"
+      defaultValue: DefaultMetaDataDir
+      defaultValueDesc: $DefaultMetaDataDir
+      abbr: "md"
+      name: "meta-dir" }: OutDir
 
     listenAddrs* {.
       desc: "Multi Addresses to listen on"

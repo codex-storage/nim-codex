@@ -23,7 +23,9 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
     var account2 {.inject, used.}: Address
 
     let dataDir1 = getTempDir() / "Codex1"
+    let metaDir1 = getTempDir() / "Codex1Meta"
     let dataDir2 = getTempDir() / "Codex2"
+    let metaDir2 = getTempDir() / "Codex2Meta"
 
     setup:
       client1 = CodexClient.new("http://localhost:8080/api/codex/v1")
@@ -34,6 +36,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
       var node1Args = @[
         "--api-port=8080",
         "--data-dir=" & dataDir1,
+        "--meta-dir=" & metaDir1,
         "--nat=127.0.0.1",
         "--disc-ip=127.0.0.1",
         "--disc-port=8090",
@@ -57,6 +60,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
       var node2Args = @[
         "--api-port=8081",
         "--data-dir=" & dataDir2,
+        "--meta-dir=" & metaDir2,
         "--nat=127.0.0.1",
         "--disc-ip=127.0.0.1",
         "--disc-port=8091",
@@ -88,5 +92,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
 
       removeDir(dataDir1)
       removeDir(dataDir2)
+      removeDir(metaDir1)
+      removeDir(metaDir2)
 
     body

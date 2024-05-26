@@ -63,15 +63,17 @@ when isMainModule:
     warn "`--nat` is set to loopback, your node wont properly announce over the DHT"
 
   if not(checkAndCreateDataDir((config.dataDir).string)):
-    # We are unable to access/create data folder or data folder's
-    # permissions are insecure.
+    error "Unable to create data dir", dir = $config.dataDir
+    quit QuitFailure
+
+  if not(checkAndCreateDataDir((config.metaDir).string)):
+    error "Unable to create metadata dir", dir = $config.metaDir
     quit QuitFailure
 
   trace "Data dir initialized", dir = $config.dataDir
 
   if not(checkAndCreateDataDir((config.dataDir / "repo"))):
-    # We are unable to access/create data folder or data folder's
-    # permissions are insecure.
+    error "Unable to create repository data dir", dir = $(config.dataDir / "repo")
     quit QuitFailure
 
   trace "Repo dir initialized", dir = config.dataDir / "repo"

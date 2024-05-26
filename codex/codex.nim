@@ -44,6 +44,7 @@ import ./utils/addrutils
 import ./namespaces
 import ./codextypes
 import ./logutils
+import ../leveldb/leveldbds
 
 logScope:
   topics = "codex node"
@@ -232,7 +233,7 @@ proc new*(
 
   let
     discoveryStore = Datastore(
-      SQLiteDatastore.new(config.dataDir / CodexDhtProvidersNamespace)
+      LevelDbDatastore.new(config.dataDir / CodexDhtProvidersNamespace)
       .expect("Should create discovery datastore!"))
 
     discovery = Discovery.new(
@@ -249,13 +250,14 @@ proc new*(
     repoData = case config.repoKind
                 of repoFS: Datastore(FSDatastore.new($config.dataDir, depth = 5)
                   .expect("Should create repo file data store!"))
-                of repoSQLite: Datastore(SQLiteDatastore.new($config.dataDir)
+                of repoSQLite: Datastore(LevelDbDatastore.new($config.dataDir)
                   .expect("Should create repo SQLite data store!"))
+
+    metadataStore = Datastore(LevelDbDatastore.new($(config.metaDir / "leveldb.ds")).expect("Should create metadata store!"))
 
     repoStore = RepoStore.new(
       repoDs = repoData,
-      metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
-        .expect("Should create meta data store!"),
+      metaDs = metadataStore,
       quotaMaxBytes = config.storageQuota.uint,
       blockTtl = config.blockTtl)
 

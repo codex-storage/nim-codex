@@ -42,7 +42,7 @@ proc createBlockExpirationMetadataKey*(cid: Cid): ?!Key =
   BlocksTtlKey / $cid
 
 proc createBlockExpirationMetadataQueryKey*(): ?!Key =
-  let queryString = ? (BlocksTtlKey / "*")
+  let queryString = $(BlocksTtlKey)
   Key.init(queryString)
 
 proc createBlockCidAndProofMetadataKey*(treeCid: Cid, index: Natural): ?!Key =

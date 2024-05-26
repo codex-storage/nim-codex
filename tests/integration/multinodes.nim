@@ -137,6 +137,9 @@ template multinodesuite*(name: string, body: untyped) =
         sanitize($starttime) /
         sanitize($role & "_" & $roleIdx)
 
+      let metadir = getTempDir() / "CodexMeta" /
+        sanitize($starttime) /
+        sanitize($role & "_" & $roleIdx)
       try:
         if config.logFile.isSome:
           let updatedLogFile = getLogFile(role, some roleIdx)
@@ -144,6 +147,7 @@ template multinodesuite*(name: string, body: untyped) =
 
         config.addCliOption("--api-port", $ await nextFreePort(8080 + nodeIdx))
         config.addCliOption("--data-dir", datadir)
+        config.addCliOption("--meta-dir", metadir)
         config.addCliOption("--nat", "127.0.0.1")
         config.addCliOption("--listen-addrs", "/ip4/127.0.0.1/tcp/0")
         config.addCliOption("--disc-ip", "127.0.0.1")
