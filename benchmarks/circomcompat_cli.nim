@@ -147,7 +147,7 @@ proc printHelp() =
 
   quit(1)
 
-proc parseCliOptions(args: var CircuitArgs, self: var CircomCircuit) =
+proc parseCliOptions(self: var CircomCircuit) =
   var argCtr: int = 0
   template expectPath(val: string): string =
     if val == "":
@@ -155,7 +155,12 @@ proc parseCliOptions(args: var CircuitArgs, self: var CircomCircuit) =
       printHelp()
     val.absolutePath
 
-  for kind, key, value in getOpt():
+  let params = @[
+    "--dir:benchmarks/circuit_bench_depth32_maxslots256_cellsize2048_blocksize65536_nsamples1_entropy1234567_seed12345_nslots11_ncells512_index3/",
+    "--name:proof_main",
+  ]
+
+  for kind, key, value in getOpt(params):
     case kind
 
     # Positional arguments
@@ -195,10 +200,9 @@ proc run*() =
   # prove wasm ${CIRCUIT_MAIN}.zkey witness.wtns proof.json public.json
 
   var
-    args = CircuitArgs()
     self = CircomCircuit()
 
-  parseCliOptions(args, self)
+  parseCliOptions(self)
 
   let dir =
     if self.dir != "":
@@ -236,8 +240,6 @@ proc run*() =
   var
     inputData = self.inputsPath.readFile()
     inputs: JsonNode = !JsonNode.parse(inputData)
-
-  echo "Got args: ", args
 
 when isMainModule:
   run()
