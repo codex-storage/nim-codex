@@ -54,6 +54,28 @@ proc initialize*(self: var CircomCircuit) =
   self.backendCfg = cfg
   self.vkp = vkpPtr
 
+proc parseJsons(
+  ctx: var ptr CircomCompatCtx,
+  key: string,
+  value: JsonNode
+) =
+    if value.kind == JString:
+      var num = value.parseBigInt()
+      echo "Big NUM: ", num
+      if ctx.pushInputU256Array(key.cstring, num.addr, 1) != ERR_OK:
+        raise newException(ValueError, "Failed to push BigInt from dec string")
+    elif value.kind == JInt:
+      var num = value.getInt().uint64
+      echo "NUM: ", num
+      if ctx.pushInputU64(key.cstring, num) != ERR_OK:
+        raise newException(ValueError, "Failed to push JInt")
+    elif value.kind == JArray:
+      for item in value:
+        ctx.parseJsons(key, item)
+    else:
+      echo "unhandled val: " & $value
+      raise newException(ValueError, "Failed to push Json of " & $value.kind)
+
 proc prove*(self: CircomCircuit, input: JsonNode) =
   ## Encode buffers using a ctx
   ##
@@ -68,9 +90,9 @@ proc prove*(self: CircomCircuit, input: JsonNode) =
   if initCircomCompat(self.backendCfg, addr ctx) != ERR_OK or ctx == nil:
     raiseAssert("failed to initialize CircomCircuit ctx")
 
-  # if ctx.pushInputU256Array("entropy".cstring, entropy[0].addr, entropy.len.uint32) !=
-  #     ERR_OK:
-  #   return failure("Failed to push entropy")
+  for key, value in input:
+    echo "KEY: ", key, " VAL: ", value.kind
+    ctx.parseJsons(key, value)
 
   # if ctx.pushInputU32("slotIndex".cstring, input.slotIndex.uint32) != ERR_OK:
   #   return failure("Failed to push slotIndex")
@@ -115,8 +137,8 @@ proc prove*(self: CircomCircuit, input: JsonNode) =
       if proofPtr != nil:
         proofPtr.addr.releaseProof()
 
-  echo "Proof:"
-  echo proof
+  # echo "Proof:"
+  # echo proof
   echo "\nProof:json:"
   let g16proof: Groth16Proof = proof.toGroth16Proof()
   echo pretty(%*(g16proof))

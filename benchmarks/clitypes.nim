@@ -53,3 +53,6 @@ func toGroth16Proof*(proof: CircomProof): Groth16Proof =
     a: proof.a.toG1,
     b: proof.b.toG2,
     c: proof.c.toG1)
+
+proc parseBigInt*(input: JsonNode): UInt256 = 
+  parse( input.str, UInt256 )
