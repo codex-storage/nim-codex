@@ -3,13 +3,14 @@ import std/[times, os, strutils, terminal, parseopt, json]
 
 import pkg/questionable
 import pkg/questionable/results
-import pkg/serde/json
+import pkg/serde/json except `%*`, `%`
 
 import pkg/circomcompat
 import pkg/poseidon2/io
 
 import ./utils
 import ./create_circuits
+import ./clitypes
 
 type CircomCircuit* = object
   r1csPath*: string
@@ -103,7 +104,7 @@ proc prove*(self: CircomCircuit, input: JsonNode) =
 
   var proofPtr: ptr Proof = nil
 
-  let proof =
+  let proof: Proof =
     try:
       if (let res = self.backendCfg.proveCircuit(ctx, proofPtr.addr); res != ERR_OK) or
           proofPtr == nil:
@@ -114,7 +115,11 @@ proc prove*(self: CircomCircuit, input: JsonNode) =
       if proofPtr != nil:
         proofPtr.addr.releaseProof()
 
+  echo "Proof:"
   echo proof
+  echo "\nProof:json:"
+  let g16proof: Groth16Proof = proof.toGroth16Proof()
+  echo pretty(%*(g16proof))
 
 proc printHelp() =
   echo "usage:"
