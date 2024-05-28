@@ -65,14 +65,15 @@ proc parseJsons(
       if ctx.pushInputU256Array(key.cstring, num.addr, 1) != ERR_OK:
         raise newException(ValueError, "Failed to push BigInt from dec string")
     elif value.kind == JInt:
-      var num = value.getInt().uint64
+      var num = value.getInt().uint32
       echo "NUM: ", num, " orig: ", value.getInt()
-      if ctx.pushInputU64(key.cstring, num) != ERR_OK:
+      if ctx.pushInputU32(key.cstring, num) != ERR_OK:
         raise newException(ValueError, "Failed to push JInt")
     elif value.kind == JArray:
       var inputs = newSeq[UInt256]()
       for item in value:
         if item.kind == JString:
+          doAssert item.kind == JString
           inputs.add item.parseBigInt()
         elif item.kind == JArray:
           for subitem in item:
