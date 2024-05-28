@@ -127,30 +127,24 @@ proc prove*(
 
 proc verify*(
   self: CircomCircuit,
-  ctx: ptr CircomCompatCtx,
+  inputs: ptr Inputs,
   proof: CircomProof,
 ): bool =
   ## Verify a proof using a ctx
 
-  var inputs: ptr Inputs
-
-  doAssert ctx.get_pub_inputs(inputs.addr) == ERR_OK
 
   echo "inputs val: ", inputs.repr
 
-  try:
-    let res = verifyCircuit(proof.unsafeAddr, inputs, self.vkp)
+  let res = verifyCircuit(proof.unsafeAddr, inputs, self.vkp)
 
-    if res == ERR_OK:
-      result = true
-    elif res == ERR_FAILED_TO_VERIFY_PROOF:
-      result = false
-    else:
-      raise newException(ValueError, "Failed to verify proof - err code: " & $res)
+  if res == ERR_OK:
+    result = true
+  elif res == ERR_FAILED_TO_VERIFY_PROOF:
+    result = false
+  else:
+    raise newException(ValueError, "Failed to verify proof - err code: " & $res)
 
-    echo "proof verification result: ", result
-  finally:
-    release_inputs(inputs.addr)
+  echo "proof verification result: ", result
 
 
 proc printHelp() =
@@ -274,8 +268,13 @@ proc run*() =
     if ctx != nil:
       ctx.addr.releaseCircomCompat()
 
+  var pubInputs: ptr Inputs
+  doAssert ctx.get_pub_inputs(pubInputs.addr) == ERR_OK
+  defer:
+    release_inputs(pubInputs.addr)
+
   let proof = prove(self, ctx)
-  let verified = verify(self, ctx, proof)
+  let verified = verify(self, pubInputs, proof)
 
 when isMainModule:
   run()
