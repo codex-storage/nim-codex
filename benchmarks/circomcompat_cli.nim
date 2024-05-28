@@ -136,6 +136,8 @@ proc verify*(
 
   doAssert ctx.get_pub_inputs(inputs.addr) == ERR_OK
 
+  echo "inputs val: ", inputs.repr
+
   try:
     let res = verifyCircuit(proof.unsafeAddr, inputs, self.vkp)
 
