@@ -95,15 +95,10 @@ proc initCircomCtx*(
   return ctx
 
 proc prove*(
-  self: CircomCircuit, input: JsonNode
+  self: CircomCircuit, ctx: ptr CircomCompatCtx
 ): CircomProof =
   ## Encode buffers using a ctx
   ##
-
-  var ctx = initCircomCtx(self, input)
-  defer:
-    if ctx != nil:
-      ctx.addr.releaseCircomCompat()
 
   var proofPtr: ptr Proof = nil
 
@@ -127,15 +122,10 @@ proc prove*(
 
 proc verify*(
   self: CircomCircuit,
-  jsonInput: JsonNode,
+  ctx: ptr CircomCompatCtx,
   proof: CircomProof,
 ): bool =
   ## Verify a proof using a ctx
-
-  var ctx = initCircomCtx(self, jsonInput)
-  defer:
-    if ctx != nil:
-      ctx.addr.releaseCircomCompat()
 
   var inputs: ptr Inputs
 
@@ -272,8 +262,13 @@ proc run*() =
     inputData = self.inputsPath.readFile()
     inputs: JsonNode = !JsonNode.parse(inputData)
 
-  let proof = prove(self, inputs)
-  let verified = verify(self, inputs, proof)
+  var ctx = initCircomCtx(self, inputs)
+  defer:
+    if ctx != nil:
+      ctx.addr.releaseCircomCompat()
+
+  let proof = prove(self, ctx)
+  let verified = verify(self, ctx, proof)
 
 when isMainModule:
   run()
