@@ -30,7 +30,7 @@ type
     y*: Fp2Element
 
 func `%`*(integer: UInt256): JsonNode =
-  %("0x" & toHex(integer))
+  %($(integer))
 
 func toG1*(g: CircomG1): G1Point =
   G1Point(
