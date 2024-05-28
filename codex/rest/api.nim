@@ -66,7 +66,8 @@ proc retrieveCid(
   node: CodexNodeRef,
   cid: Cid,
   local: bool = true,
-  resp: HttpResponseRef): Future[RestApiResponse] {.async.} =
+  resp: HttpResponseRef,
+  allowedOrigin: ?string = string.none): Future[RestApiResponse] {.async.} =
   ## Download a file from the node in a streaming
   ## manner
   ##
@@ -83,6 +84,8 @@ proc retrieveCid(
         return RestApiResponse.error(Http500, error.msg)
 
     resp.addHeader("Content-Type", "application/octet-stream")
+    if corsOrigin =? allowedOrigin:
+      resp.addHeader("Access-Control-Allow-Origin", corsOrigin)
     await resp.prepareChunked()
 
     while not stream.atEof:
@@ -107,6 +110,7 @@ proc retrieveCid(
       await stream.close()
 
 proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
+  let allowedOrigin = router.allowedOrigin
   router.rawApi(
     MethodPost,
     "/api/codex/v1/data") do (
@@ -166,7 +170,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
           Http400,
           $cid.error())
 
-      await node.retrieveCid(cid.get(), local = true, resp=resp)
+      await node.retrieveCid(cid.get(), local = true, resp=resp, allowedOrigin)
 
   router.api(
     MethodGet,
@@ -181,7 +185,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
           Http400,
           $cid.error())
 
-      await node.retrieveCid(cid.get(), local = false, resp=resp)
+      await node.retrieveCid(cid.get(), local = false, resp=resp, allowedOrigin)
 
   router.api(
     MethodGet,
@@ -637,7 +641,7 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
         return RestApiResponse.error(Http500)
 
 proc initRestApi*(node: CodexNodeRef, conf: CodexConf, repoStore: RepoStore): RestRouter =
-  var router = RestRouter.init(validate)
+  var router = RestRouter.init(validate, "*".some)
 
   initDataApi(node, repoStore, router)
   initSalesApi(node, router)
