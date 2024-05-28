@@ -70,8 +70,16 @@ proc parseJsons(
       if ctx.pushInputU64(key.cstring, num) != ERR_OK:
         raise newException(ValueError, "Failed to push JInt")
     elif value.kind == JArray:
+      var inputs = newSeq[UInt256]()
       for item in value:
-        ctx.parseJsons(key, item)
+        if item.kind == JString:
+          inputs.add item.parseBigInt()
+        elif item.kind == JArray:
+          for subitem in item:
+            doAssert subitem.kind == JString
+            inputs.add subitem.parseBigInt()
+      if ctx.pushInputU256Array(key.cstring, inputs[0].addr, inputs.len.uint) != ERR_OK:
+        raise newException(ValueError, "Failed to push BigInt from dec string")
     else:
       echo "unhandled val: " & $value
       raise newException(ValueError, "Failed to push Json of " & $value.kind)
