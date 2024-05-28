@@ -65,9 +65,6 @@ proc parseJsons(
       if ctx.pushInputU256Array(key.cstring, num.addr, 1) != ERR_OK:
         raise newException(ValueError, "Failed to push BigInt from dec string")
     elif value.kind == JInt:
-      # var num = value.getInt().int32
-      # if ctx.pushInputI32(key.cstring, num) != ERR_OK:
-      #   raise newException(ValueError, "Failed to push JInt")
       var num = value.getInt().uint64
       echo "NUM: ", num, " orig: ", value.getInt()
       if ctx.pushInputU64(key.cstring, num) != ERR_OK:
