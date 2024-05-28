@@ -11,17 +11,15 @@ import pkg/poseidon2/io
 import ./utils
 import ./create_circuits
 
-type
-
-  CircomCircuit* = object
-    r1csPath*: string
-    wasmPath*: string
-    zkeyPath*: string
-    inputsPath*: string
-    dir*: string
-    circName*: string
-    backendCfg: ptr CircomBn254Cfg
-    vkp*: ptr VerifyingKey
+type CircomCircuit* = object
+  r1csPath*: string
+  wasmPath*: string
+  zkeyPath*: string
+  inputsPath*: string
+  dir*: string
+  circName*: string
+  backendCfg: ptr CircomBn254Cfg
+  vkp*: ptr VerifyingKey
 
 proc release*(self: CircomCircuit) =
   ## Release the ctx
@@ -31,20 +29,16 @@ proc release*(self: CircomCircuit) =
   if not isNil(self.vkp):
     self.vkp.unsafeAddr.release_key()
 
-proc init*(
-    _: type CircomCircuit,
-    r1csPath: string,
-    wasmPath: string,
-    zkeyPath: string = "",
-): CircomCircuit =
+proc initialize*(self: var CircomCircuit) =
   ## Create a new ctx
   ##
 
   var cfg: ptr CircomBn254Cfg
-  var zkey = if zkeyPath.len > 0: zkeyPath.cstring else: nil
+  var zkey = if self.zkeyPath.len > 0: self.zkeyPath.cstring else: nil
 
-  if initCircomConfig(r1csPath.cstring, wasmPath.cstring, zkey, cfg.addr) != ERR_OK or
-      cfg == nil:
+  if initCircomConfig(
+    self.r1csPath.cstring, self.wasmPath.cstring, self.zkeyPath.cstring, cfg.addr
+  ) != ERR_OK or cfg == nil:
     if cfg != nil:
       cfg.addr.releaseCfg()
     raiseAssert("failed to initialize circom compat config")
@@ -56,13 +50,8 @@ proc init*(
       vkpPtr.addr.releaseKey()
     raiseAssert("Failed to get verifying key")
 
-  CircomCircuit(
-    r1csPath: r1csPath,
-    wasmPath: wasmPath,
-    zkeyPath: zkeyPath,
-    backendCfg: cfg,
-    vkp: vkpPtr,
-  )
+  self.backendCfg = cfg
+  self.vkp = vkpPtr
 
 proc prove*(self: CircomCircuit, input: JsonNode) =
   ## Encode buffers using a ctx
@@ -155,10 +144,11 @@ proc parseCliOptions(self: var CircomCircuit) =
       printHelp()
     val.absolutePath
 
-  let params = @[
-    "--dir:benchmarks/circuit_bench_depth32_maxslots256_cellsize2048_blocksize65536_nsamples1_entropy1234567_seed12345_nslots11_ncells512_index3/",
-    "--name:proof_main",
-  ]
+  let params =
+    @[
+      "--dir:benchmarks/circuit_bench_depth32_maxslots256_cellsize2048_blocksize65536_nsamples1_entropy1234567_seed12345_nslots11_ncells512_index3/",
+      "--name:proof_main"
+    ]
 
   for kind, key, value in getOpt(params):
     case kind
@@ -199,8 +189,7 @@ proc run*() =
 
   # prove wasm ${CIRCUIT_MAIN}.zkey witness.wtns proof.json public.json
 
-  var
-    self = CircomCircuit()
+  var self = CircomCircuit()
 
   parseCliOptions(self)
 
@@ -237,10 +226,12 @@ proc run*() =
     echo "ERROR: couldn't find all files"
     printHelp()
 
+  self.initialize()
+
   var
     inputData = self.inputsPath.readFile()
     inputs: JsonNode = !JsonNode.parse(inputData)
-  
+
   prove(self, inputs)
 
 when isMainModule:
