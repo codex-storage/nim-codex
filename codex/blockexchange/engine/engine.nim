@@ -262,8 +262,6 @@ proc blockPresenceHandler*(
       not b.peers.anyIt( cid in it.peerHaveCids ))
 
 proc scheduleTasks(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
-  trace "Schedule a task for new blocks", items = blocksDelivery.len
-
   let
     cids = blocksDelivery.mapIt( it.blk.cid )
 
@@ -277,7 +275,7 @@ proc scheduleTasks(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.asyn
           if b.scheduleTask(p):
             trace "Task scheduled for peer", peer = p.id
           else:
-            trace "Unable to schedule task for peer", peer = p.id
+            warn "Unable to schedule task for peer", peer = p.id
 
           break # do next peer
 
@@ -293,7 +291,7 @@ proc cancelBlocks(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
     .filterIt(it.failed)
 
   if failed.len > 0:
-    trace "Failed to send block request cancellations to peers", peers = failed.len
+    warn "Failed to send block request cancellations to peers", peers = failed.len
 
 proc getAnnouceCids(blocksDelivery: seq[BlockDelivery]): seq[Cid] = 
   var cids = initHashSet[Cid]()
@@ -309,8 +307,6 @@ proc getAnnouceCids(blocksDelivery: seq[BlockDelivery]): seq[Cid] =
   return cids.toSeq
 
 proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
-  trace "Resolving blocks", blocks = blocksDelivery.len
-
   b.pendingBlocks.resolve(blocksDelivery)
   await b.scheduleTasks(blocksDelivery)
   let announceCids = getAnnouceCids(blocksDelivery)
@@ -618,7 +614,7 @@ proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
     trace "Got new task from queue", peerId = peerCtx.id
     await b.taskHandler(peerCtx)
 
-  trace "Exiting blockexc task runner"
+  info "Exiting blockexc task runner"
 
 proc new*(
     T: type BlockExcEngine,

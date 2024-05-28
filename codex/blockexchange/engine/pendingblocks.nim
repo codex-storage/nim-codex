@@ -102,8 +102,6 @@ proc resolve*(
         trace "Block retrieval time", retrievalDurationUs, address = bd.address
       else:
         trace "Block handle already finished", address = bd.address
-    do:
-      warn "Attempting to resolve block that's not currently a pending block", address = bd.address
 
 proc setInFlight*(
   p: PendingBlocksManager,

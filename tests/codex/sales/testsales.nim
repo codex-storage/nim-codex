@@ -473,6 +473,9 @@ asyncchecksuite "Sales":
     check eventually (await reservations.all(Availability)).get == @[availability]
 
   test "makes storage available again when request expires":
+    let expiry = getTime().toUnix() + 10
+    market.requestExpiry[request.id] = expiry
+
     let origSize = availability.freeSize
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
@@ -486,11 +489,14 @@ asyncchecksuite "Sales":
     # would otherwise not set the timeout early enough as it uses `clock.now` in the deadline calculation.
     await sleepAsync(chronos.milliseconds(100))
     market.requestState[request.id]=RequestState.Cancelled
-    clock.set(request.expiry.truncate(int64)+1)
+    clock.set(expiry + 1)
     check eventually (await reservations.all(Availability)).get == @[availability]
     check getAvailability().freeSize == origSize
 
   test "verifies that request is indeed expired from onchain before firing onCancelled":
+    let expiry = getTime().toUnix() + 10
+    market.requestExpiry[request.id] = expiry
+
     let origSize = availability.freeSize
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
@@ -504,7 +510,7 @@ asyncchecksuite "Sales":
     # If we would not await, then the `clock.set` would run "too fast" as the `subscribeCancellation()`
     # would otherwise not set the timeout early enough as it uses `clock.now` in the deadline calculation.
     await sleepAsync(chronos.milliseconds(100))
-    clock.set(request.expiry.truncate(int64)+1)
+    clock.set(expiry + 1)
     check getAvailability().freeSize == 0
 
     market.requestState[request.id]=RequestState.Cancelled # Now "on-chain" is also expired

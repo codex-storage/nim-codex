@@ -119,7 +119,7 @@ method putCidAndProof*(
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
-  trace "Storing block cid and proof with key", key
+  trace "Storing block cid and proof", blockCid, key
 
   let value = (blockCid, proof).encode()
 
@@ -313,7 +313,7 @@ method putBlock*(
     return success()
 
   without key =? makePrefixKey(self.postFixLen, blk.cid), err:
-    trace "Error getting key from provider", err = err.msg
+    warn "Error getting key from provider", err = err.msg
     return failure(err)
 
   if await key in self.repoDs:
@@ -325,8 +325,6 @@ method putBlock*(
     return failure(
       newException(QuotaUsedError, "Cannot store block, quota used!"))
 
-  trace "Storing block with key", key
-
   var
     batch: seq[BatchEntry]
 
@@ -334,22 +332,21 @@ method putBlock*(
     used = self.quotaUsedBytes + blk.data.len.uint
 
   if err =? (await self.repoDs.put(key, blk.data)).errorOption:
-    trace "Error storing block", err = err.msg
+    error "Error storing block", err = err.msg
     return failure(err)
 
-  trace "Updating quota", used
   batch.add((QuotaUsedKey, @(used.uint64.toBytesBE)))
 
   without blockExpEntry =? self.getBlockExpirationEntry(blk.cid, ttl), err:
-    trace "Unable to create block expiration metadata key", err = err.msg
+    warn "Unable to create block expiration metadata key", err = err.msg
     return failure(err)
   batch.add(blockExpEntry)
 
   if err =? (await self.metaDs.put(batch)).errorOption:
-    trace "Error updating quota bytes", err = err.msg
+    error "Error updating quota bytes", err = err.msg
 
     if err =? (await self.repoDs.delete(key)).errorOption:
-      trace "Error deleting block after failed quota update", err = err.msg
+      error "Error deleting block after failed quota update", err = err.msg
       return failure(err)
 
     return failure(err)
@@ -357,7 +354,7 @@ method putBlock*(
   self.quotaUsedBytes = used
   inc self.totalBlocks
   if isErr (await self.persistTotalBlocksCount()):
-    trace "Unable to update block total metadata"
+    warn "Unable to update block total metadata"
     return failure("Unable to update block total metadata")
 
   self.updateMetrics()

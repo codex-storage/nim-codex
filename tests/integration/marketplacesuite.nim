@@ -68,11 +68,9 @@ template marketplacesuite*(name: string, body: untyped) =
                         expiry: uint64 = 4.periods,
                         nodes = providers().len,
                         tolerance = 0): Future[PurchaseId] {.async.} =
-      let expiry = (await ethProvider.currentTime()) + expiry.u256
-
       let id = client.requestStorage(
         cid,
-        expiry=expiry,
+        expiry=expiry.uint,
         duration=duration.u256,
         proofProbability=proofProbability.u256,
         collateral=collateral,
