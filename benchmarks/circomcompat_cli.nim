@@ -64,7 +64,7 @@ proc init*(
     vkp: vkpPtr,
   )
 
-proc prove*[H](self: CircomCircuit, input: JsonNode): ?!Proof =
+proc prove*(self: CircomCircuit, input: JsonNode) =
   ## Encode buffers using a ctx
   ##
 
@@ -73,7 +73,7 @@ proc prove*[H](self: CircomCircuit, input: JsonNode): ?!Proof =
 
   defer:
     if ctx != nil:
-      ctx.addr.releaseCircomCircuit()
+      ctx.addr.releaseCircomCompat()
 
   if initCircomCompat(self.backendCfg, addr ctx) != ERR_OK or ctx == nil:
     raiseAssert("failed to initialize CircomCircuit ctx")
@@ -85,32 +85,32 @@ proc prove*[H](self: CircomCircuit, input: JsonNode): ?!Proof =
   # if ctx.pushInputU32("slotIndex".cstring, input.slotIndex.uint32) != ERR_OK:
   #   return failure("Failed to push slotIndex")
 
-  var slotProof = input.slotProof.mapIt(it.toBytes).concat
+  # var slotProof = input.slotProof.mapIt(it.toBytes).concat
 
-  slotProof.setLen(self.datasetDepth) # zero pad inputs to correct size
+  # slotProof.setLen(self.datasetDepth) # zero pad inputs to correct size
 
   # arrays are always flattened
-  if ctx.pushInputU256Array(
-    "slotProof".cstring, slotProof[0].addr, uint (slotProof[0].len * slotProof.len)
-  ) != ERR_OK:
-    return failure("Failed to push slot proof")
+  # if ctx.pushInputU256Array(
+  #   "slotProof".cstring, slotProof[0].addr, uint (slotProof[0].len * slotProof.len)
+  # ) != ERR_OK:
+  #   return failure("Failed to push slot proof")
 
-  for s in input.samples:
-    var
-      merklePaths = s.merklePaths.mapIt(it.toBytes)
-      data = s.cellData
+  # for s in input.samples:
+  #   var
+  #     merklePaths = s.merklePaths.mapIt(it.toBytes)
+  #     data = s.cellData
 
-    merklePaths.setLen(self.slotDepth) # zero pad inputs to correct size
-    if ctx.pushInputU256Array(
-      "merklePaths".cstring,
-      merklePaths[0].addr,
-      uint (merklePaths[0].len * merklePaths.len),
-    ) != ERR_OK:
-      return failure("Failed to push merkle paths")
+  #   merklePaths.setLen(self.slotDepth) # zero pad inputs to correct size
+  #   if ctx.pushInputU256Array(
+  #     "merklePaths".cstring,
+  #     merklePaths[0].addr,
+  #     uint (merklePaths[0].len * merklePaths.len),
+  #   ) != ERR_OK:
+  #     return failure("Failed to push merkle paths")
 
-    data.setLen(self.cellElms * 32) # zero pad inputs to correct size
-    if ctx.pushInputU256Array("cellData".cstring, data[0].addr, data.len.uint) != ERR_OK:
-      return failure("Failed to push cell data")
+  #   data.setLen(self.cellElms * 32) # zero pad inputs to correct size
+  #   if ctx.pushInputU256Array("cellData".cstring, data[0].addr, data.len.uint) != ERR_OK:
+  #     return failure("Failed to push cell data")
 
   var proofPtr: ptr Proof = nil
 
@@ -118,14 +118,14 @@ proc prove*[H](self: CircomCircuit, input: JsonNode): ?!Proof =
     try:
       if (let res = self.backendCfg.proveCircuit(ctx, proofPtr.addr); res != ERR_OK) or
           proofPtr == nil:
-        return failure("Failed to prove - err code: " & $res)
+        echo "Failed to prove - err code: " & $res
 
       proofPtr[]
     finally:
       if proofPtr != nil:
         proofPtr.addr.releaseProof()
 
-  success proof
+  echo proof
 
 proc printHelp() =
   echo "usage:"
@@ -240,6 +240,8 @@ proc run*() =
   var
     inputData = self.inputsPath.readFile()
     inputs: JsonNode = !JsonNode.parse(inputData)
+  
+  prove(self, inputs)
 
 when isMainModule:
   run()
