@@ -5,6 +5,9 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/serde/json except `%*`, `%`
 
+import pkg/constantine/math/io/io_bigints
+import pkg/constantine/math/io/io_fields
+
 import pkg/circomcompat
 import pkg/poseidon2/io
 
@@ -59,31 +62,54 @@ proc parseJsons(
   key: string,
   value: JsonNode
 ) =
-    if value.kind == JString:
-      var num = value.parseBigInt()
-      echo "Big NUM: ", num
-      if ctx.pushInputU256Array(key.cstring, num.addr, 1) != ERR_OK:
-        raise newException(ValueError, "Failed to push BigInt from dec string")
-    elif value.kind == JInt:
-      var num = value.getInt().uint32
-      echo "NUM: ", num, " orig: ", value.getInt()
-      if ctx.pushInputU32(key.cstring, num) != ERR_OK:
-        raise newException(ValueError, "Failed to push JInt")
-    elif value.kind == JArray:
+  if key == "cellData":
+    # is this needed?
+    echo "SAMPLES: cellData"
+    for item in value:
+      var inputs = newSeq[byte]()
+      for subitem in item:
+        doAssert subitem.kind == JString
+        var
+          big: BigInt[256]
+          data = newSeq[byte](big.bits div 8)
+        assert bool(big.fromDecimal( subitem.str ))
+        data.marshal(big, littleEndian)
+        inputs.add data
+      if (let res = ctx.pushInputU256Array(key.cstring, inputs[0].addr, (item.len()).uint); res != ERR_OK):
+        raise newException(ValueError, "Failed to push cellData from string array " & $res)
+    return
+
+  if value.kind == JString:
+    var num = value.parseBigInt()
+    echo "Big NUM: ", num
+    if (let res = ctx.pushInputU256Array(key.cstring, num.addr, 1); res != ERR_OK):
+      raise newException(ValueError, "Failed to push BigInt from dec string " & $res)
+  elif value.kind == JInt:
+    var num = value.getInt().uint32
+    echo "NUM: ", num, " orig: ", value.getInt()
+    if ctx.pushInputU32(key.cstring, num) != ERR_OK:
+      raise newException(ValueError, "Failed to push JInt")
+  elif value.kind == JArray:
+    if value.len() == 0:
+      discard
+    elif value[0].kind == JString:
       var inputs = newSeq[UInt256]()
       for item in value:
-        if item.kind == JString:
-          doAssert item.kind == JString
-          inputs.add item.parseBigInt()
-        elif item.kind == JArray:
-          for subitem in item:
-            doAssert subitem.kind == JString
-            inputs.add subitem.parseBigInt()
-      if ctx.pushInputU256Array(key.cstring, inputs[0].addr, inputs.len.uint) != ERR_OK:
-        raise newException(ValueError, "Failed to push BigInt from dec string")
-    else:
-      echo "unhandled val: " & $value
-      raise newException(ValueError, "Failed to push Json of " & $value.kind)
+        doAssert item.kind == JString
+        inputs.add item.parseBigInt()
+      if (let res = ctx.pushInputU256Array(key.cstring, inputs[0].addr, inputs.len.uint); res != ERR_OK):
+        raise newException(ValueError, "Failed to push from sub array " & $res)
+    elif value[0].kind == JArray:
+      for item in value:
+        var inputs = newSeq[UInt256]()
+        for subitem in item:
+          doAssert subitem.kind == JString
+          inputs.add subitem.parseBigInt()
+        if (let res = ctx.pushInputU256Array(key.cstring, inputs[0].addr, inputs.len.uint); res != ERR_OK):
+          raise newException(ValueError, "Failed to push BigInt from sub sub array " & $res)
+  else:
+    echo "unhandled val: " & $value
+    raise newException(ValueError, "Failed to push Json of " & $value.kind)
 
 proc initCircomCtx*(
   self: CircomCircuit, input: JsonNode
