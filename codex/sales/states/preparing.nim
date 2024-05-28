@@ -15,6 +15,8 @@ import ./errored
 
 type
   SalePreparing* = ref object of ErrorHandlingState
+    # I really don't want to keep this. Someone, please help.
+    doThing*: proc(): Future[void] {.async, gcsafe.}
 
 logScope:
   topics = "marketplace sales preparing"
@@ -31,7 +33,7 @@ method onSlotFilled*(state: SalePreparing, requestId: RequestId,
                      slotIndex: UInt256): ?State =
   return some State(SaleFilled())
 
-method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
+method run*(prepareState: SalePreparing, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
   let data = agent.data
   let context = agent.context
@@ -67,10 +69,13 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
       request.ask.pricePerSlot,
       request.ask.collateral):
     debug "no availability found for request, ignoring"
-
     return some State(SaleIgnored())
 
   info "availability found for request, creating reservation"
+
+  # I need a hook to mess with the reservations AFTER the availability is found.
+  if not isNil(prepareState.doThing):
+    await prepareState.doThing()
 
   without reservation =? await reservations.createReservation(
     availability.id,
@@ -78,6 +83,11 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
     request.id,
     data.slotIndex
   ), error:
+    # Race condition:
+    # reservations.findAvailability (line 65) is no guarantee. You can never know for certain that the reservation can be created until after you have it.
+    # Should createReservation fail because there's no space, we proceed to SaleIgnored.
+    if error of BytesOutOfBoundsError:
+      return some State(SaleIgnored())
     return some State(SaleErrored(error: error))
 
   data.reservation = some reservation
