@@ -65,8 +65,11 @@ proc parseJsons(
       if ctx.pushInputU256Array(key.cstring, num.addr, 1) != ERR_OK:
         raise newException(ValueError, "Failed to push BigInt from dec string")
     elif value.kind == JInt:
+      # var num = value.getInt().int32
+      # if ctx.pushInputI32(key.cstring, num) != ERR_OK:
+      #   raise newException(ValueError, "Failed to push JInt")
       var num = value.getInt().uint64
-      echo "NUM: ", num
+      echo "NUM: ", num, " orig: ", value.getInt()
       if ctx.pushInputU64(key.cstring, num) != ERR_OK:
         raise newException(ValueError, "Failed to push JInt")
     elif value.kind == JArray:
@@ -76,16 +79,11 @@ proc parseJsons(
       echo "unhandled val: " & $value
       raise newException(ValueError, "Failed to push Json of " & $value.kind)
 
-proc prove*(self: CircomCircuit, input: JsonNode) =
-  ## Encode buffers using a ctx
-  ##
-
+proc initCircomCtx*(
+  self: CircomCircuit, input: JsonNode
+): ptr CircomCompatCtx =
   # TODO: All parameters should match circom's static parametter
   var ctx: ptr CircomCompatCtx
-
-  defer:
-    if ctx != nil:
-      ctx.addr.releaseCircomCompat()
 
   if initCircomCompat(self.backendCfg, addr ctx) != ERR_OK or ctx == nil:
     raiseAssert("failed to initialize CircomCircuit ctx")
@@ -93,36 +91,19 @@ proc prove*(self: CircomCircuit, input: JsonNode) =
   for key, value in input:
     echo "KEY: ", key, " VAL: ", value.kind
     ctx.parseJsons(key, value)
+  
+  return ctx
 
-  # if ctx.pushInputU32("slotIndex".cstring, input.slotIndex.uint32) != ERR_OK:
-  #   return failure("Failed to push slotIndex")
+proc prove*(
+  self: CircomCircuit, input: JsonNode
+): CircomProof =
+  ## Encode buffers using a ctx
+  ##
 
-  # var slotProof = input.slotProof.mapIt(it.toBytes).concat
-
-  # slotProof.setLen(self.datasetDepth) # zero pad inputs to correct size
-
-  # arrays are always flattened
-  # if ctx.pushInputU256Array(
-  #   "slotProof".cstring, slotProof[0].addr, uint (slotProof[0].len * slotProof.len)
-  # ) != ERR_OK:
-  #   return failure("Failed to push slot proof")
-
-  # for s in input.samples:
-  #   var
-  #     merklePaths = s.merklePaths.mapIt(it.toBytes)
-  #     data = s.cellData
-
-  #   merklePaths.setLen(self.slotDepth) # zero pad inputs to correct size
-  #   if ctx.pushInputU256Array(
-  #     "merklePaths".cstring,
-  #     merklePaths[0].addr,
-  #     uint (merklePaths[0].len * merklePaths.len),
-  #   ) != ERR_OK:
-  #     return failure("Failed to push merkle paths")
-
-  #   data.setLen(self.cellElms * 32) # zero pad inputs to correct size
-  #   if ctx.pushInputU256Array("cellData".cstring, data[0].addr, data.len.uint) != ERR_OK:
-  #     return failure("Failed to push cell data")
+  var ctx = initCircomCtx(self, input)
+  defer:
+    if ctx != nil:
+      ctx.addr.releaseCircomCompat()
 
   var proofPtr: ptr Proof = nil
 
@@ -139,9 +120,41 @@ proc prove*(self: CircomCircuit, input: JsonNode) =
 
   # echo "Proof:"
   # echo proof
-  echo "\nProof:json:"
+  echo "\nProof:json: "
   let g16proof: Groth16Proof = proof.toGroth16Proof()
   echo pretty(%*(g16proof))
+  return proof
+
+proc verify*(
+  self: CircomCircuit,
+  jsonInput: JsonNode,
+  proof: CircomProof,
+): bool =
+  ## Verify a proof using a ctx
+
+  var ctx = initCircomCtx(self, jsonInput)
+  defer:
+    if ctx != nil:
+      ctx.addr.releaseCircomCompat()
+
+  var inputs: ptr Inputs
+
+  doAssert ctx.get_pub_inputs(inputs.addr) == ERR_OK
+
+  try:
+    let res = verifyCircuit(proof.unsafeAddr, inputs, self.vkp)
+
+    if res == ERR_OK:
+      result = true
+    elif res == ERR_FAILED_TO_VERIFY_PROOF:
+      result = false
+    else:
+      raise newException(ValueError, "Failed to verify proof - err code: " & $res)
+
+    echo "proof verification result: ", result
+  finally:
+    release_inputs(inputs.addr)
+
 
 proc printHelp() =
   echo "usage:"
@@ -259,7 +272,8 @@ proc run*() =
     inputData = self.inputsPath.readFile()
     inputs: JsonNode = !JsonNode.parse(inputData)
 
-  prove(self, inputs)
+  let proof = prove(self, inputs)
+  let verified = verify(self, inputs, proof)
 
 when isMainModule:
   run()
