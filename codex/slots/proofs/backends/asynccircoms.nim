@@ -7,10 +7,9 @@ import pkg/chronos
 import pkg/chronos/threadsync
 import pkg/questionable/results
 
-import pkg/codex/merkletree
-
 import ../../types
 import ../../../utils/asyncthreads
+import ../../../merkletree
 
 import ./circomcompat
 
