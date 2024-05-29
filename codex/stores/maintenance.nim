@@ -90,6 +90,8 @@ proc start*(self: BlockMaintainer) =
   proc onTimer(): Future[void] {.async.} =
     try:
       await self.runBlockCheck()
+    except CancelledError as error:
+      raise error
     except CatchableError as exc:
       error "Unexpected exception in BlockMaintainer.onTimer(): ", msg=exc.msg
 
