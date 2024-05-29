@@ -1,5 +1,5 @@
 import std/[sequtils, strformat, os, options, importutils]
-import std/[times, os, strutils, terminal, parseopt, json]
+import std/[times, os, strutils, terminal, parseopt, json, sets]
 
 import pkg/questionable
 import pkg/questionable/results
@@ -21,6 +21,7 @@ type CircomCircuit* = object
   circName*: string
   backendCfg: ptr CircomBn254Cfg
   vkp*: ptr VerifyingKey
+  cmds*: HashSet[string]
 
 proc release*(self: CircomCircuit) =
   ## Release the ctx
@@ -61,12 +62,12 @@ proc parseJsons(
 ) =
   if value.kind == JString:
     var num = value.parseBigInt()
-    echo "Big NUM: ", num
+    # echo "Big NUM: ", num
     if (let res = ctx.pushInputU256Array(key.cstring, num.addr, 1); res != ERR_OK):
       raise newException(ValueError, "Failed to push BigInt from dec string " & $res)
   elif value.kind == JInt:
     var num = value.getInt().uint32
-    echo "NUM: ", num, " orig: ", value.getInt()
+    # echo "NUM: ", num, " orig: ", value.getInt()
     if ctx.pushInputU32(key.cstring, num) != ERR_OK:
       raise newException(ValueError, "Failed to push JInt")
   elif value.kind == JArray:
@@ -95,7 +96,7 @@ proc initCircomCtx*(
     raiseAssert("failed to initialize CircomCircuit ctx")
 
   for key, value in input:
-    echo "KEY: ", key, " VAL: ", value.kind
+    # echo "KEY: ", key, " VAL: ", value.kind
     ctx.parseJsons(key, value)
   
   return ctx
@@ -176,20 +177,17 @@ proc parseCliOptions(self: var CircomCircuit) =
       printHelp()
     val.absolutePath
 
-  let params =
-    @[
-      "--dir:benchmarks/circuit_bench_depth32_maxslots256_cellsize2048_blocksize65536_nsamples1_entropy1234567_seed12345_nslots11_ncells512_index3/",
-      "--name:proof_main"
-    ]
-
   # for kind, key, value in getOpt(params):
   for kind, key, value in getOpt():
     case kind
 
     # Positional arguments
     of cmdArgument:
-      echo "\nERROR: got unexpected arg: ", key, "\n"
-      printHelp()
+      if key in ["prove", "verify"]:
+        self.cmds.incl key
+      else:
+        echo "\nERROR: got unexpected arg: ", key, "\n"
+        printHelp()
 
     # Switches
     of cmdLongOption, cmdShortOption:
@@ -271,9 +269,10 @@ proc run*() =
       ctx.addr.releaseCircomCompat()
 
   var pubInputs: ptr Inputs
-  doAssert ctx.get_pub_inputs(pubInputs.addr) == ERR_OK
   defer:
-    release_inputs(pubInputs.addr)
+    if pubInputs != nil:
+      release_inputs(pubInputs.addr)
+  doAssert ctx.get_pub_inputs(pubInputs.addr) == ERR_OK
 
   let proof = prove(self, ctx)
   let verified = verify(self, pubInputs, proof)
