@@ -182,7 +182,8 @@ proc parseCliOptions(self: var CircomCircuit) =
       "--name:proof_main"
     ]
 
-  for kind, key, value in getOpt(params):
+  # for kind, key, value in getOpt(params):
+  for kind, key, value in getOpt():
     case kind
 
     # Positional arguments
@@ -239,7 +240,7 @@ proc run*() =
       self.zkeyPath = dir / fmt"{self.circName}.zkey"
 
   if self.inputsPath == "":
-    self.inputsPath = dir / fmt"input.json"
+    self.inputsPath = dir / fmt"inputs.json"
 
   echo "Got file args: ", self
 
@@ -249,7 +250,7 @@ proc run*() =
       echo "\nERROR: must provide `" & name & "` file"
       fileErrors = true
 
-  checkFile self.inputsPath, "inputs.json"
+  checkFile self.inputsPath, "input json"
   checkFile self.r1csPath, "r1cs"
   checkFile self.wasmPath, "wasm"
   checkFile self.zkeyPath, "zkey"
