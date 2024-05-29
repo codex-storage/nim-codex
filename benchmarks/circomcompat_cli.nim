@@ -122,9 +122,10 @@ proc prove*(
 
   # echo "Proof:"
   # echo proof
-  echo "\nProof:json: "
+  # echo "\nProof:json: "
   let g16proof: Groth16Proof = proof.toGroth16Proof()
-  echo pretty(%*(g16proof))
+  let proofStr = pretty(%*(g16proof))
+  writeFile(self.dir / "proof.json", proofStr)
   return proof
 
 proc verify*(
@@ -133,7 +134,6 @@ proc verify*(
   proof: CircomProof,
 ): bool =
   ## Verify a proof using a ctx
-
 
   echo "inputs val: ", inputs.repr
 
@@ -268,14 +268,17 @@ proc run*() =
     if ctx != nil:
       ctx.addr.releaseCircomCompat()
 
-  var pubInputs: ptr Inputs
-  defer:
-    if pubInputs != nil:
-      release_inputs(pubInputs.addr)
-  doAssert ctx.get_pub_inputs(pubInputs.addr) == ERR_OK
+  if "prove" in self.cmds or "verify" in self.cmds:
+    let proof = prove(self, ctx)
 
-  let proof = prove(self, ctx)
-  let verified = verify(self, pubInputs, proof)
+    var pubInputs: ptr Inputs
+    defer:
+      if pubInputs != nil:
+        release_inputs(pubInputs.addr)
+    doAssert ctx.get_pub_inputs(pubInputs.addr) == ERR_OK
+
+    if "verify" in self.cmds:
+      let verified = verify(self, pubInputs, proof)
 
 when isMainModule:
   run()
