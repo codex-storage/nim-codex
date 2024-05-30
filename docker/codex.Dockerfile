@@ -1,6 +1,6 @@
 # Variables
-ARG BUILDER=ubuntu:22.04
-ARG IMAGE=${BUILDER}
+ARG BUILDER=codexstorage/nim-codexbuilder:latest
+ARG IMAGE=ubuntu:22.04
 ARG BUILD_HOME=/src
 ARG MAKE_PARALLEL=${MAKE_PARALLEL:-4}
 ARG NIMFLAGS="${NIMFLAGS:-"-d:disableMarchNative"}"
@@ -12,10 +12,6 @@ FROM ${BUILDER} AS builder
 ARG BUILD_HOME
 ARG MAKE_PARALLEL
 ARG NIMFLAGS
-
-RUN apt-get update && apt-get install -y git cmake curl make bash lcov build-essential
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="$PATH:/root/.cargo/bin"
 
 WORKDIR ${BUILD_HOME}
 COPY . .
