@@ -13,7 +13,9 @@ ARG BUILD_HOME
 ARG MAKE_PARALLEL
 ARG NIMFLAGS
 
-RUN apt-get update && apt-get install -y git cmake curl make bash lcov build-essential rustc cargo
+RUN apt-get update && apt-get install -y git cmake curl make bash lcov build-essential
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="$PATH:/root/.cargo/bin"
 
 WORKDIR ${BUILD_HOME}
 COPY . .
