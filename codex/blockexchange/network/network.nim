@@ -97,6 +97,8 @@ proc send*(b: BlockExcNetwork, id: PeerId, msg: pb.Message) {.async.} =
     try:
       await b.inflightSema.acquire()
       await peer[].send(msg)
+    except CancelledError as error:
+      raise error
     except CatchableError as err:
       error "Error sending message", peer = id, msg = err.msg
     finally:
@@ -226,27 +228,23 @@ proc handlePayment(
 proc rpcHandler(
   b: BlockExcNetwork,
   peer: NetworkPeer,
-  msg: Message) {.async.} =
+  msg: Message) {.raises: [].} =
   ## handle rpc messages
   ##
-  try:
-    if msg.wantList.entries.len > 0:
-      asyncSpawn b.handleWantList(peer, msg.wantList)
+  if msg.wantList.entries.len > 0:
+    asyncSpawn b.handleWantList(peer, msg.wantList)
 
-    if msg.payload.len > 0:
-      asyncSpawn b.handleBlocksDelivery(peer, msg.payload)
+  if msg.payload.len > 0:
+    asyncSpawn b.handleBlocksDelivery(peer, msg.payload)
 
-    if msg.blockPresences.len > 0:
-      asyncSpawn b.handleBlockPresence(peer, msg.blockPresences)
+  if msg.blockPresences.len > 0:
+    asyncSpawn b.handleBlockPresence(peer, msg.blockPresences)
 
-    if account =? Account.init(msg.account):
-      asyncSpawn b.handleAccount(peer, account)
+  if account =? Account.init(msg.account):
+    asyncSpawn b.handleAccount(peer, account)
 
-    if payment =? SignedState.init(msg.payment):
-      asyncSpawn b.handlePayment(peer, payment)
-
-  except CatchableError as exc:
-    trace "Exception in blockexc rpc handler", exc = exc.msg
+  if payment =? SignedState.init(msg.payment):
+    asyncSpawn b.handlePayment(peer, payment)
 
 proc getOrCreatePeer(b: BlockExcNetwork, peer: PeerId): NetworkPeer =
   ## Creates or retrieves a BlockExcNetwork Peer
@@ -258,13 +256,15 @@ proc getOrCreatePeer(b: BlockExcNetwork, peer: PeerId): NetworkPeer =
   var getConn: ConnProvider = proc(): Future[Connection] {.async, gcsafe, closure.} =
     try:
       return await b.switch.dial(peer, Codec)
+    except CancelledError as error:
+      raise error
     except CatchableError as exc:
       trace "Unable to connect to blockexc peer", exc = exc.msg
 
   if not isNil(b.getConn):
     getConn = b.getConn
 
-  let rpcHandler = proc (p: NetworkPeer, msg: Message): Future[void] =
+  let rpcHandler = proc (p: NetworkPeer, msg: Message) {.async.} =
     b.rpcHandler(p, msg)
 
   # create new pubsub peer

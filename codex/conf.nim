@@ -83,6 +83,7 @@ type
   RepoKind* = enum
     repoFS = "fs"
     repoSQLite = "sqlite"
+    repoLevelDb = "leveldb"
 
   CodexConf* = object
     configFile* {.
@@ -191,7 +192,7 @@ type
       abbr: "p" }: Port
 
     repoKind* {.
-      desc: "Backend for main repo store (fs, sqlite)"
+      desc: "Backend for main repo store (fs, sqlite, leveldb)"
       defaultValueDesc: "fs"
       defaultValue: repoFS
       name: "repo-kind" }: RepoKind

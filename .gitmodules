@@ -212,3 +212,6 @@
 [submodule "vendor/nim-serde"]
 	path = vendor/nim-serde
 	url = https://github.com/codex-storage/nim-serde.git
+[submodule "vendor/nim-leveldbstatic"]
+	path = vendor/nim-leveldbstatic
+	url = https://github.com/codex-storage/nim-leveldb.git
