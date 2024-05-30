@@ -22,7 +22,10 @@ import ../examples
 import ./helpers/periods
 
 asyncchecksuite "Sales - start":
-  let proof = Groth16Proof.example
+  let
+    proof = Groth16Proof.example
+    repoTmp = TempLevelDb.new()
+    metaTmp = TempLevelDb.new()
 
   var request: StorageRequest
   var sales: Sales
@@ -50,8 +53,8 @@ asyncchecksuite "Sales - start":
 
     market = MockMarket.new()
     clock = MockClock.new()
-    let repoDs = SQLiteDatastore.new(Memory).tryGet()
-    let metaDs = SQLiteDatastore.new(Memory).tryGet()
+    let repoDs = repoTmp.newDb()
+    let metaDs = metaTmp.newDb()
     repo = RepoStore.new(repoDs, metaDs)
     await repo.start()
     sales = Sales.new(market, clock, repo)
@@ -73,6 +76,8 @@ asyncchecksuite "Sales - start":
   teardown:
     await sales.stop()
     await repo.stop()
+    await repoTmp.destroyDb()
+    await metaTmp.destroyDb()
 
   proc fillSlot(slotIdx: UInt256 = 0.u256) {.async.} =
     let address = await market.getSigner()
@@ -113,7 +118,10 @@ asyncchecksuite "Sales - start":
     check sales.agents.any(agent => agent.data.requestId == request.id and agent.data.slotIndex == 1.u256)
 
 asyncchecksuite "Sales":
-  let proof = Groth16Proof.example
+  let
+    proof = Groth16Proof.example
+    repoTmp = TempLevelDb.new()
+    metaTmp = TempLevelDb.new()
 
   var availability: Availability
   var request: StorageRequest
@@ -154,8 +162,8 @@ asyncchecksuite "Sales":
     market.requestEnds[request.id] = request.expiry.toSecondsSince1970
 
     clock = MockClock.new()
-    let repoDs = SQLiteDatastore.new(Memory).tryGet()
-    let metaDs = SQLiteDatastore.new(Memory).tryGet()
+    let repoDs = repoTmp.newDb()
+    let metaDs = metaTmp.newDb()
     repo = RepoStore.new(repoDs, metaDs)
     await repo.start()
     sales = Sales.new(market, clock, repo)
@@ -177,6 +185,8 @@ asyncchecksuite "Sales":
   teardown:
     await sales.stop()
     await repo.stop()
+    await repoTmp.destroyDb()
+    await metaTmp.destroyDb()
 
   proc allowRequestToStart {.async.} =
     # wait until we're in initialproving state
