@@ -1,6 +1,6 @@
 # Variables
 ARG BUILDER=codexstorage/nim-codexbuilder:latest
-ARG IMAGE=ubuntu:22.04
+ARG IMAGE=ubuntu:24.04
 ARG BUILD_HOME=/src
 ARG MAKE_PARALLEL=${MAKE_PARALLEL:-4}
 ARG NIMFLAGS="${NIMFLAGS:-"-d:disableMarchNative"}"
