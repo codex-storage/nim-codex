@@ -21,6 +21,11 @@ import ../helpers/always
 import ../examples
 import ./helpers/periods
 
+# TODO:
+# This test file is disabled while the race-condition in
+# preparing.nim is being solved.
+# https://github.com/codex-storage/nim-codex/pull/816
+
 asyncchecksuite "Sales - start":
   let
     proof = Groth16Proof.example
