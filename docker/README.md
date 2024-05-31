@@ -46,16 +46,6 @@
  ```
 
 
-## Build flow
-The docker build flow for Codex uses 3 different images. They are explained here.
-### codexbuilder
-This ubuntu image is built from `builder.Dockerfile`. It is used to install all tools and dependencies for the Codex build process. This image is only re-built when these tools or dependencies change.
-### builder
-Using the codexbuilder image, the `codex.Dockerfile` imports the Codex sources and performs the build. This results in an intermediate image that is not persisted.
-### runner
-From the builder image, we copy the Codex build artifacts to a clean ubuntu image. Only dependencies essential for the running of Codex are installed here. This image is pushed to docker-hub as the main Codex image, and is re-built every time changes are commited to Codex master.
-
-
 ## Slim
  1. Build the image using `docker build -t codexstorage/codexsetup:latest -f codex.Dockerfile ..`
  2. The docker image can then be minified using [slim](https://github.com/slimtoolkit/slim). Install slim on your path and then run:
