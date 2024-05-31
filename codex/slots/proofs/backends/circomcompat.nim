@@ -176,11 +176,11 @@ proc verify*[H](
   ##
 
   var
-    proofPtr = unsafeAddr proof
+    proof = proof
     inputs = inputs.toCircomInputs()
 
   try:
-    let res = verifyCircuit(proofPtr, inputs.addr, self.vkp)
+    let res = verifyCircuit(proof.addr, inputs.addr, self.vkp)
     if res == ERR_OK:
       success true
     elif res == ERR_FAILED_TO_VERIFY_PROOF:

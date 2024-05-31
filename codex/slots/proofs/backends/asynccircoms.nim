@@ -27,8 +27,8 @@ proc proveTask(
     params: CircomCompatParams, data: ProofInputs[Poseidon2Hash], results: SignalQueuePtr[?!CircomProof]
 ) =
 
-  var data = data.deepCopy()
-  var params = params.deepCopy()
+  var data = data
+  var params = params
   try:
     echo "TASK: task: "
     echo "TASK: task: params: ", params.r1csPath.cstring.pointer.repr
@@ -42,8 +42,8 @@ proc proveTask(
     # echo "TASK: task: proof: ", proof.get.hash
     echo "TASK: task: proof: ", proof
     echo "TASK: task: params POST: ", params
-    let fake = CircomProof.failure("failed")
-    if (let sent = results.send(fake); sent.isErr()):
+    # let fake = CircomProof.failure("failed")
+    if (let sent = results.send(proof); sent.isErr()):
       error "Error sending proof results", msg = sent.error().msg
   except Exception:
     echo "PROVER DIED"
@@ -81,12 +81,18 @@ proc prove*[H](
   success(proof)
 
 proc verifyTask[H](
-    circom: CircomCompat,
+    params: CircomCompatParams,
     proof: CircomProof,
     inputs: ProofInputs[H],
     results: SignalQueuePtr[?!bool],
 ) =
-  let verified = circom.verify(proof, inputs)
+  echo "VERIFY: task: proof: ", proof
+
+  var params = params
+  if localCircom.isNone:
+    localCircom = some CircomCompat.init(params)
+
+  let verified = localCircom.get().verify(proof, inputs)
 
   echo "VERIFY: task: result: ", verified
   if (let sent = results.send(verified); sent.isErr()):
@@ -101,7 +107,7 @@ proc verify*[H](
     return failure(qerr)
 
   proc spawnTask() =
-    self.tp.spawn verifyTask(self.circom, proof, inputs, queue)
+    self.tp.spawn verifyTask(self.params, proof, inputs, queue)
 
   spawnTask()
 

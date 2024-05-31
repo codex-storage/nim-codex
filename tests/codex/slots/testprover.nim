@@ -67,10 +67,11 @@ suite "Test Prover":
       prover = Prover.new(store, circomBackend, samples)
       challenge = 1234567.toF.toBytes.toArray32
       (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
-
+      # res = (await prover.prove(1, verifiable, challenge))
+    echo "TEST PROOF: result: ", proof
     echo "TEST PROOF: state: ", params
-    # check:
-    #   (await prover.verify(proof, inputs)).tryGet == true
+    check:
+      (await prover.verify(proof, inputs)).tryGet == true
 
   test "Should sample and prove many slot":
     let
@@ -84,7 +85,7 @@ suite "Test Prover":
       prover = Prover.new(store, circomBackend, samples)
 
     var proofs = newSeq[Future[?!(AnyProofInputs, AnyProof)]]()
-    for i in 1..50:
+    for i in 1..20:
       echo "PROVE: ", i
       let
         challenge = (1234567).toF.toBytes.toArray32
@@ -94,9 +95,8 @@ suite "Test Prover":
     await allFutures(proofs)
     echo "done"
 
-
-    # for pf in proofs:
-    #   let (inputs, proof) = (await pf).tryGet
-    #   check:
-    #       (await prover.verify(proof, inputs)).tryGet == true
+    for pf in proofs:
+      let (inputs, proof) = (await pf).tryGet
+      check:
+          (await prover.verify(proof, inputs)).tryGet == true
     echo "done done"
