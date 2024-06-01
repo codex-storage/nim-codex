@@ -85,12 +85,13 @@ suite "Test Prover":
       prover = Prover.new(store, circomBackend, samples)
 
     var proofs = newSeq[Future[?!(AnyProofInputs, AnyProof)]]()
-    for i in 1..20:
+    for i in 1..50:
       echo "PROVE: ", i
       let
         challenge = (1234567).toF.toBytes.toArray32
 
       proofs.add(prover.prove(1, verifiable, challenge))
+      GC_fullCollect()
 
     await allFutures(proofs)
     echo "done"

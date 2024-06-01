@@ -16,19 +16,26 @@ import ./circomcompat
 logScope:
   topics = "codex asyncprover"
 
-type AsyncCircomCompat* = object
-  params*: CircomCompatParams
-  circom*: CircomCompat
-  tp*: Taskpool
+type
+  AsyncCircomCompat* = object
+    params*: CircomCompatParams
+    circom*: CircomCompat
+    tp*: Taskpool
+
+  AsyncCircomTask* = object
+    params*: CircomCompatParams
+    data*: ProofInputs[Poseidon2Hash]
 
 var localCircom {.threadvar.}: Option[CircomCompat]
 
 proc proveTask(
-    params: CircomCompatParams, data: ProofInputs[Poseidon2Hash], results: SignalQueuePtr[?!CircomProof]
+    # params: CircomCompatParams, data: ProofInputs[Poseidon2Hash], results: SignalQueuePtr[?!CircomProof]
+    args: ptr AsyncCircomTask,
+    results: SignalQueuePtr[?!CircomProof]
 ) =
 
-  var data = data
-  var params = params
+  var data = args[].data
+  var params = args[].params
   try:
     echo "TASK: task: "
     echo "TASK: task: params: ", params.r1csPath.cstring.pointer.repr
@@ -39,6 +46,7 @@ proc proveTask(
     # echo "TASK: task: ", data
     let proof = localCircom.get().prove(data)
 
+    GC_fullCollect()
     # echo "TASK: task: proof: ", proof.get.hash
     echo "TASK: task: proof: ", proof
     echo "TASK: task: params POST: ", params
@@ -54,9 +62,11 @@ proc proveTask(
 
 proc spawnProveTask(
     tp: TaskPool,
-    params: CircomCompatParams, input: ProofInputs[Poseidon2Hash], results: SignalQueuePtr[?!CircomProof]
+    # params: CircomCompatParams, input: ProofInputs[Poseidon2Hash],
+    args: ptr AsyncCircomTask,
+    results: SignalQueuePtr[?!CircomProof]
 ) =
-  tp.spawn proveTask(params, input, results)
+  tp.spawn proveTask(args, results)
 
 proc prove*[H](
     self: AsyncCircomCompat, input: ProofInputs[H]
@@ -67,7 +77,9 @@ proc prove*[H](
     return failure(qerr)
 
   echo "TASK: task spawn: params: ", self.params.r1csPath.cstring.pointer.repr
-  self.tp.spawnProveTask(self.params, input, queue)
+  var args = (ref AsyncCircomTask)(params: self.params, data: input)
+  GC_ref(args)
+  self.tp.spawnProveTask(args[].addr, queue)
 
   let taskRes = await queue.recvAsync()
 
@@ -78,6 +90,7 @@ proc prove*[H](
   without proof =? proofRes, perr:
     return failure(perr)
 
+  GC_unref(args)
   success(proof)
 
 proc verifyTask[H](
