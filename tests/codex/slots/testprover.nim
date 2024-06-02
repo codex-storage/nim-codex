@@ -33,6 +33,8 @@ suite "Test Prover":
     numDatasetBlocks = 8
     blockSize = DefaultBlockSize
     cellSize = DefaultCellSize
+    repoTmp = TempLevelDb.new()
+    metaTmp = TempLevelDb.new()
 
   var
     datasetBlocks: seq[bt.Block]
@@ -44,8 +46,8 @@ suite "Test Prover":
 
   setup:
     let
-      repoDs = SQLiteDatastore.new(Memory).tryGet()
-      metaDs = SQLiteDatastore.new(Memory).tryGet()
+      repoDs = repoTmp.newDb()
+      metaDs = metaTmp.newDb()
 
     store = RepoStore.new(repoDs, metaDs)
 
@@ -56,6 +58,10 @@ suite "Test Prover":
           ecK, ecM,
           blockSize,
           cellSize)
+
+  teardown:
+    await repoTmp.destroyDb()
+    await metaTmp.destroyDb()
 
   test "Should sample and prove a slot":
     let

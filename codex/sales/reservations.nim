@@ -28,6 +28,8 @@
 import pkg/upraises
 push: {.upraises: [].}
 
+import std/sequtils
+import std/sugar
 import std/typetraits
 import std/sequtils
 import pkg/chronos
@@ -37,6 +39,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
 import pkg/stew/byteutils
+import ../codextypes
 import ../logutils
 import ../clock
 import ../stores
@@ -72,10 +75,12 @@ type
     repo: RepoStore
     onAvailabilityAdded: ?OnAvailabilityAdded
   GetNext* = proc(): Future[?seq[byte]] {.upraises: [], gcsafe, closure.}
+  IterDispose* = proc(): Future[?!void] {.gcsafe, closure.}
   OnAvailabilityAdded* = proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
   StorableIter* = ref object
     finished*: bool
     next*: GetNext
+    dispose*: IterDispose
   ReservationsError* = object of CodexError
   ReserveFailedError* = object of ReservationsError
   ReleaseFailedError* = object of ReservationsError
@@ -89,6 +94,8 @@ type
 const
   SalesKey = (CodexMetaKey / "sales").tryGet # TODO: move to sales module
   ReservationsKey = (SalesKey / "reservations").tryGet
+
+proc all*(self: Reservations, T: type SomeStorableObject): Future[?!seq[T]] {.async.}
 
 proc new*(T: type Reservations,
           repo: RepoStore): Reservations =
@@ -226,26 +233,57 @@ proc update*(
   without key =? obj.key, error:
     return failure(error)
 
-  let getResult = await self.get(key, Availability)
-
-  if getResult.isOk:
-    let oldAvailability = !getResult
-
-    # Sizing of the availability changed, we need to adjust the repo reservation accordingly
-    if oldAvailability.totalSize != obj.totalSize:
-      if oldAvailability.totalSize < obj.totalSize: # storage added
-        if reserveErr =? (await self.repo.reserve((obj.totalSize - oldAvailability.totalSize).truncate(uint))).errorOption:
-          return failure(reserveErr.toErr(ReserveFailedError))
-
-      elif oldAvailability.totalSize > obj.totalSize: # storage removed
-        if reserveErr =? (await self.repo.release((oldAvailability.totalSize - obj.totalSize).truncate(uint))).errorOption:
-          return failure(reserveErr.toErr(ReleaseFailedError))
-  else:
-    let err = getResult.error()
-    if not (err of NotExistsError):
+  without oldAvailability =? await self.get(key, Availability), err:
+    if err of NotExistsError:
+      let res = await self.updateImpl(obj)
+      # inform subscribers that Availability has been added
+      if onAvailabilityAdded =? self.onAvailabilityAdded:
+        # when chronos v4 is implemented, and OnAvailabilityAdded is annotated
+        # with async:(raises:[]), we can remove this try/catch as we know, with
+        # certainty, that nothing will be raised
+        try:
+          await onAvailabilityAdded(obj)
+        except CancelledError as e:
+          raise e
+        except CatchableError as e:
+          # we don't have any insight into types of exceptions that
+          # `onAvailabilityAdded` can raise because it is caller-defined
+          warn "Unknown error during 'onAvailabilityAdded' callback",
+            availabilityId = obj.id, error = e.msg
+      return res
+    else:
       return failure(err)
 
-  return await self.updateImpl(obj)
+  # Sizing of the availability changed, we need to adjust the repo reservation accordingly
+  if oldAvailability.totalSize != obj.totalSize:
+    if oldAvailability.totalSize < obj.totalSize: # storage added
+      if reserveErr =? (await self.repo.reserve((obj.totalSize - oldAvailability.totalSize).truncate(uint))).errorOption:
+        return failure(reserveErr.toErr(ReserveFailedError))
+
+    elif oldAvailability.totalSize > obj.totalSize: # storage removed
+      if reserveErr =? (await self.repo.release((oldAvailability.totalSize - obj.totalSize).truncate(uint))).errorOption:
+        return failure(reserveErr.toErr(ReleaseFailedError))
+
+  let res = await self.updateImpl(obj)
+
+  if oldAvailability.freeSize < obj.freeSize: # availability added
+    # inform subscribers that Availability has been modified (with increased
+    # size)
+    if onAvailabilityAdded =? self.onAvailabilityAdded:
+      # when chronos v4 is implemented, and OnAvailabilityAdded is annotated
+      # with async:(raises:[]), we can remove this try/catch as we know, with
+      # certainty, that nothing will be raised
+      try:
+        await onAvailabilityAdded(obj)
+      except CancelledError as e:
+        raise e
+      except CatchableError as e:
+        # we don't have any insight into types of exceptions that
+        # `onAvailabilityAdded` can raise because it is caller-defined
+        warn "Unknown error during 'onAvailabilityAdded' callback",
+          availabilityId = obj.id, error = e.msg
+
+  return res
 
 proc delete(
   self: Reservations,
@@ -300,6 +338,9 @@ proc deleteReservation*(
 
   return success()
 
+# TODO: add support for deleting availabilities
+# To delete, must not have any active sales.
+
 proc createAvailability*(
   self: Reservations,
   size: UInt256,
@@ -326,15 +367,6 @@ proc createAvailability*(
       return failure(rollbackErr)
 
     return failure(updateErr)
-
-  if onAvailabilityAdded =? self.onAvailabilityAdded:
-    try:
-      await onAvailabilityAdded(availability)
-    except CatchableError as e:
-      # we don't have any insight into types of errors that `onProcessSlot` can
-      # throw because it is caller-defined
-      warn "Unknown error during 'onAvailabilityAdded' callback",
-        availabilityId = availability.id, error = e.msg
 
   return success(availability)
 
@@ -522,7 +554,11 @@ proc storables(
 
     return none seq[byte]
 
+  proc dispose(): Future[?!void] {.async.} =
+    return await results.dispose()
+
   iter.next = next
+  iter.dispose = dispose
   return success iter
 
 proc allImpl(
@@ -590,6 +626,12 @@ proc findAvailability*(
           minPrice, availMinPrice = availability.minPrice,
           collateral, availMaxCollateral = availability.maxCollateral
 
+        # TODO: As soon as we're on ARC-ORC, we can use destructors
+        # to automatically dispose our iterators when they fall out of scope.
+        # For now:
+        if err =? (await storables.dispose()).errorOption:
+          error "failed to dispose storables iter", error = err.msg
+          return none Availability
         return some availability
 
       trace "availability did not match",
@@ -597,3 +639,4 @@ proc findAvailability*(
         duration, availDuration = availability.duration,
         minPrice, availMinPrice = availability.minPrice,
         collateral, availMaxCollateral = availability.maxCollateral
+

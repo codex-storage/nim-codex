@@ -240,7 +240,7 @@ proc new*(
 
   let
     discoveryStore = Datastore(
-      SQLiteDatastore.new(config.dataDir / CodexDhtProvidersNamespace)
+      LevelDbDatastore.new(config.dataDir / CodexDhtProvidersNamespace)
       .expect("Should create discovery datastore!"))
 
     discovery = Discovery.new(
@@ -259,11 +259,13 @@ proc new*(
                   .expect("Should create repo file data store!"))
                 of repoSQLite: Datastore(SQLiteDatastore.new($config.dataDir)
                   .expect("Should create repo SQLite data store!"))
+                of repoLevelDb: Datastore(LevelDbDatastore.new($config.dataDir)
+                  .expect("Should create repo LevelDB data store!"))
 
     repoStore = RepoStore.new(
       repoDs = repoData,
-      metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
-        .expect("Should create meta data store!"),
+      metaDs = LevelDbDatastore.new(config.dataDir / CodexMetaNamespace)
+        .expect("Should create metadata store!"),
       quotaMaxBytes = config.storageQuota.uint,
       blockTtl = config.blockTtl)
 
