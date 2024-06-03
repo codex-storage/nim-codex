@@ -114,3 +114,11 @@ proc init*(
   ##
   let circom = CircomCompat.init(params)
   AsyncCircomCompat(circom: circom, tp: tp)
+
+proc duplicate*(
+    self: AsyncCircomCompat, tp: Taskpool
+): AsyncCircomCompat =
+  ## Create a new async circom
+  ##
+  let circom = self.circom.duplicate()
+  AsyncCircomCompat(circom: circom, tp: tp)

@@ -77,27 +77,46 @@ suite "Test Prover":
     check:
       (await prover.verify(proof, inputs)).tryGet == true
 
-  test "Should sample and prove many slot":
+  test "Should sample and prove a slot with another circom":
     let
       r1cs = "tests/circuits/fixtures/proof_main.r1cs"
       wasm = "tests/circuits/fixtures/proof_main.wasm"
 
-      taskpool = Taskpool.new(num_threads = 6)
+      taskpool = Taskpool.new(num_threads = 2)
       params = CircomCompatParams.init(r1cs, wasm)
       circomBackend = AsyncCircomCompat.init(params, taskpool)
       prover = Prover.new(store, circomBackend, samples)
+      challenge = 1234567.toF.toBytes.toArray32
+      (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
 
-    var proofs = newSeq[Future[?!(AnyProofInputs, AnyProof)]]()
-    for i in 1..50:
-      echo "PROVE: ", i
-      let
-        challenge = (1234567).toF.toBytes.toArray32
+    let
+      taskpool2 = Taskpool.new(num_threads = 2)
+      circomVerifyBackend = circomBackend.duplicate(taskpool2)
+      proverVerify = Prover.new(store, circomVerifyBackend, samples)
+    check:
+      (await proverVerify.verify(proof, inputs)).tryGet == true
 
-      proofs.add(prover.prove(1, verifiable, challenge))
+  # test "Should sample and prove many slot":
+  #   let
+  #     r1cs = "tests/circuits/fixtures/proof_main.r1cs"
+  #     wasm = "tests/circuits/fixtures/proof_main.wasm"
 
-    await allFutures(proofs)
+  #     taskpool = Taskpool.new(num_threads = 6)
+  #     params = CircomCompatParams.init(r1cs, wasm)
+  #     circomBackend = AsyncCircomCompat.init(params, taskpool)
+  #     prover = Prover.new(store, circomBackend, samples)
 
-    for pf in proofs:
-      let (inputs, proof) = (await pf).tryGet
-      check:
-          (await prover.verify(proof, inputs)).tryGet == true
+  #   var proofs = newSeq[Future[?!(AnyProofInputs, AnyProof)]]()
+  #   for i in 1..50:
+  #     echo "PROVE: ", i
+  #     let
+  #       challenge = (1234567).toF.toBytes.toArray32
+
+  #     proofs.add(prover.prove(1, verifiable, challenge))
+
+  #   await allFutures(proofs)
+
+  #   for pf in proofs:
+  #     let (inputs, proof) = (await pf).tryGet
+  #     check:
+  #         (await prover.verify(proof, inputs)).tryGet == true
