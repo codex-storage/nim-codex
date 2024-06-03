@@ -34,7 +34,10 @@ proc proveTask[H](args: ptr ProverArgs[H], results: SignalQueuePtr[?!CircomProof
 
   let proof = circom.prove(data)
 
-  echo "PROVE TASK: ", proof
+  echo "PROVE TASK: proof: ", proof
+
+  let verified = circom.verify(proof.get(), data)
+  echo "PROVE TASK: verify: ", verified
 
   if (let sent = results.send(proof); sent.isErr()):
     error "Error sending proof results", msg = sent.error().msg
