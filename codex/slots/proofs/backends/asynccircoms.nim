@@ -28,15 +28,20 @@ type
     proof: CircomProof
     inputs: ProofInputs[H]
 
-proc proveTask[H](args: ptr ProverArgs[H], results: SignalQueuePtr[?!CircomProof]) =
-  let circom = args[].circom
-  let data = args[].data
+var
+  localCircom {.threadvar.}: Option[CircomCompat]
 
-  let proof = circom.prove(data)
+proc proveTask[H](args: ptr ProverArgs[H], results: SignalQueuePtr[?!CircomProof]) =
+
+  if localCircom.isNone:
+    localCircom = some args.circom.duplicate()
+
+  var data = args[].data
+  let proof = localCircom.get().prove(data)
 
   echo "PROVE TASK: proof: ", proof
 
-  let verified = circom.verify(proof.get(), data)
+  let verified = localCircom.get().verify(proof.get(), data)
   echo "PROVE TASK: verify: ", verified
 
   if (let sent = results.send(proof); sent.isErr()):
@@ -50,7 +55,7 @@ proc prove*[H](
   without queue =? newSignalQueue[?!CircomProof](maxItems = 1), qerr:
     return failure(qerr)
 
-  var args = (ref ProverArgs[H])(circom: self.circom.duplicate(), data: input)
+  var args = (ref ProverArgs[H])(circom: self.circom, data: input)
   GC_ref(args)
 
   proc spawnTask() =
@@ -71,10 +76,13 @@ proc prove*[H](
   success(proof)
 
 proc verifyTask[H](args: ptr VerifierArgs[H], results: SignalQueuePtr[?!bool]) =
-  let circom = args.circom
-  let proof = args.proof
-  let inputs = args.inputs
-  let verified = circom.verify(proof, inputs)
+
+  if localCircom.isNone:
+    localCircom = some args.circom.duplicate()
+
+  var proof = args[].proof
+  var inputs = args[].inputs
+  let verified = localCircom.get().verify(proof, inputs)
 
   if (let sent = results.send(verified); sent.isErr()):
     error "Error sending verification results", msg = sent.error().msg
@@ -87,7 +95,7 @@ proc verify*[H](
   without queue =? newSignalQueue[?!bool](maxItems = 1), qerr:
     return failure(qerr)
 
-  var args = (ref VerifierArgs[H])(circom: self.circom.duplicate(), proof: proof, inputs: inputs)
+  var args = (ref VerifierArgs[H])(circom: self.circom, proof: proof, inputs: inputs)
   GC_ref(args)
 
   proc spawnTask() =

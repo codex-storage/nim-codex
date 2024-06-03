@@ -245,4 +245,12 @@ proc duplicate*(
     if cfg != nil:
       cfg.addr.releaseCfg()
     raiseAssert("failed to initialize circom compat config")
-  CircomCompat(params: self.params, backendCfg: cfg, vkp: self.vkp)
+
+  var
+    vkpPtr: ptr VerifyingKey = nil
+
+  if cfg.getVerifyingKey(vkpPtr.addr) != ERR_OK or vkpPtr == nil:
+    if vkpPtr != nil: vkpPtr.addr.releaseKey()
+    raiseAssert("Failed to get verifying key")
+
+  CircomCompat(params: self.params, backendCfg: cfg, vkp: vkpPtr)
