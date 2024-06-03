@@ -23,15 +23,18 @@ type
     circom: CircomCompat
     data: ProofInputs[H]
 
+  VerifierArgs[H] = object
+    circom: CircomCompat
+    proof: CircomProof
+    inputs: ProofInputs[H]
 
-proc proveTask[H](
-    args: ptr ProverArgs[H], results: SignalQueuePtr[?!CircomProof]
-) =
-
+proc proveTask[H](args: ptr ProverArgs[H], results: SignalQueuePtr[?!CircomProof]) =
   let circom = args[].circom
   let data = args[].data
 
   let proof = circom.prove(data)
+
+  echo "PROVE TASK: ", proof
 
   if (let sent = results.send(proof); sent.isErr()):
     error "Error sending proof results", msg = sent.error().msg
@@ -53,8 +56,8 @@ proc prove*[H](
   spawnTask()
 
   let taskRes = await queue.recvAsync()
-  GC_unref(args)
 
+  GC_unref(args)
   if (let res = queue.release(); res.isErr):
     error "Error releasing proof queue ", msg = res.error().msg
   without proofRes =? taskRes, perr:
@@ -64,13 +67,8 @@ proc prove*[H](
 
   success(proof)
 
-proc verifyTask[H](
-    circom: CircomCompat,
-    proof: CircomProof,
-    inputs: ProofInputs[H],
-    results: SignalQueuePtr[?!bool],
-) =
-  let verified = circom.verify(proof, inputs)
+proc verifyTask[H](args: ptr VerifierArgs[H], results: SignalQueuePtr[?!bool]) =
+  let verified = args.circom.verify(args.proof, args.inputs)
 
   if (let sent = results.send(verified); sent.isErr()):
     error "Error sending verification results", msg = sent.error().msg
@@ -83,12 +81,17 @@ proc verify*[H](
   without queue =? newSignalQueue[?!bool](maxItems = 1), qerr:
     return failure(qerr)
 
+  var args = (ref VerifierArgs[H])(circom: self.circom, inputs: inputs)
+  GC_ref(args)
+
   proc spawnTask() =
-    self.tp.spawn verifyTask(self.circom, proof, inputs, queue)
+    self.tp.spawn verifyTask(args[].addr, inputs, queue)
 
   spawnTask()
 
   let taskRes = await queue.recvAsync()
+
+  GC_unref(args)
   if (let res = queue.release(); res.isErr):
     error "Error releasing proof queue ", msg = res.error().msg
   without verifyRes =? taskRes, verr:
@@ -98,7 +101,9 @@ proc verify*[H](
 
   success(verified)
 
-proc init*(_: type AsyncCircomCompat, params: CircomCompatParams, tp: Taskpool): AsyncCircomCompat =
+proc init*(
+    _: type AsyncCircomCompat, params: CircomCompatParams, tp: Taskpool
+): AsyncCircomCompat =
   ## Create a new async circom
   ##
   let circom = CircomCompat.init(params)
