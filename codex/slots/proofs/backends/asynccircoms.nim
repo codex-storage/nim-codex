@@ -50,7 +50,7 @@ proc prove*[H](
   without queue =? newSignalQueue[?!CircomProof](maxItems = 1), qerr:
     return failure(qerr)
 
-  var args = (ref ProverArgs[H])(circom: self.circom, data: input)
+  var args = (ref ProverArgs[H])(circom: self.circom.duplicate(), data: input)
   GC_ref(args)
 
   proc spawnTask() =
@@ -87,7 +87,7 @@ proc verify*[H](
   without queue =? newSignalQueue[?!bool](maxItems = 1), qerr:
     return failure(qerr)
 
-  var args = (ref VerifierArgs[H])(circom: self.circom, proof: proof, inputs: inputs)
+  var args = (ref VerifierArgs[H])(circom: self.circom.duplicate(), proof: proof, inputs: inputs)
   GC_ref(args)
 
   proc spawnTask() =
@@ -116,9 +116,9 @@ proc init*(
   AsyncCircomCompat(circom: circom, tp: tp)
 
 proc duplicate*(
-    self: AsyncCircomCompat, tp: Taskpool
+    self: AsyncCircomCompat
 ): AsyncCircomCompat =
   ## Create a new async circom
   ##
   let circom = self.circom.duplicate()
-  AsyncCircomCompat(circom: circom, tp: tp)
+  AsyncCircomCompat(circom: circom, tp: self.tp)

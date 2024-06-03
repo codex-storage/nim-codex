@@ -242,6 +242,7 @@ proc duplicate*(
   ## Create a new ctx
   var cfg: ptr CircomBn254Cfg
   if duplicateCircomConfig(self.backendCfg, cfg.addr) != ERR_OK or cfg == nil:
-      if cfg != nil: cfg.addr.releaseCfg()
-      raiseAssert("failed to initialize circom compat config")
+    if cfg != nil:
+      cfg.addr.releaseCfg()
+    raiseAssert("failed to initialize circom compat config")
   CircomCompat(params: self.params, backendCfg: cfg, vkp: self.vkp)
