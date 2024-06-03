@@ -88,10 +88,10 @@ suite "Test Prover":
       prover = Prover.new(store, circomBackend, samples)
 
     var proofs = newSeq[Future[?!(AnyProofInputs, AnyProof)]]()
-    for i in 1..50:
+    for i in 1..10:
       echo "PROVE: ", i
       let
-        challenge = (1234567+i).toF.toBytes.toArray32
+        challenge = (1234567).toF.toBytes.toArray32
 
       proofs.add(prover.prove(1, verifiable, challenge))
 

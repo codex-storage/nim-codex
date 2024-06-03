@@ -68,7 +68,10 @@ proc prove*[H](
   success(proof)
 
 proc verifyTask[H](args: ptr VerifierArgs[H], results: SignalQueuePtr[?!bool]) =
-  let verified = args.circom.verify(args.proof, args.inputs)
+  let circom = args.circom
+  let proof = args.proof
+  let inputs = args.inputs
+  let verified = circom.verify(proof, inputs)
 
   if (let sent = results.send(verified); sent.isErr()):
     error "Error sending verification results", msg = sent.error().msg
@@ -85,7 +88,7 @@ proc verify*[H](
   GC_ref(args)
 
   proc spawnTask() =
-    self.tp.spawn verifyTask(args[].addr, inputs, queue)
+    self.tp.spawn verifyTask(args[].addr, queue)
 
   spawnTask()
 
