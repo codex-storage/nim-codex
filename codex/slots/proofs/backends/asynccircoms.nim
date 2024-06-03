@@ -14,13 +14,23 @@ import ./circomcompat
 logScope:
   topics = "codex asyncprover"
 
-type AsyncCircomCompat* = object
-  circom*: CircomCompat
-  tp*: Taskpool
+type
+  AsyncCircomCompat* = object
+    circom*: CircomCompat
+    tp*: Taskpool
+
+  ProverArgs[H] = object
+    circom: CircomCompat
+    data: ProofInputs[H]
+
 
 proc proveTask[H](
-    circom: CircomCompat, data: ProofInputs[H], results: SignalQueuePtr[?!CircomProof]
+    args: ptr ProverArgs[H], results: SignalQueuePtr[?!CircomProof]
 ) =
+
+  let circom = args[].circom
+  let data = args[].data
+
   let proof = circom.prove(data)
 
   if (let sent = results.send(proof); sent.isErr()):
@@ -34,12 +44,17 @@ proc prove*[H](
   without queue =? newSignalQueue[?!CircomProof](maxItems = 1), qerr:
     return failure(qerr)
 
+  var args = (ref ProverArgs[H])(circom: self.circom, data: input)
+  GC_ref(args)
+
   proc spawnTask() =
-    self.tp.spawn proveTask(self.circom, input, queue)
+    self.tp.spawn proveTask(args[].addr, queue)
 
   spawnTask()
 
   let taskRes = await queue.recvAsync()
+  GC_unref(args)
+
   if (let res = queue.release(); res.isErr):
     error "Error releasing proof queue ", msg = res.error().msg
   without proofRes =? taskRes, perr:
