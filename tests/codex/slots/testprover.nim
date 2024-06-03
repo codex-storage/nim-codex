@@ -67,7 +67,7 @@ suite "Test Prover":
       r1cs = "tests/circuits/fixtures/proof_main.r1cs"
       wasm = "tests/circuits/fixtures/proof_main.wasm"
 
-      taskpool = Taskpool.new(num_threads = 2)
+      taskpool = Taskpool.new(num_threads = 6)
       params = CircomCompatParams.init(r1cs, wasm)
       circomBackend = AsyncCircomCompat.init(params, taskpool)
       prover = Prover.new(store, circomBackend, samples)
