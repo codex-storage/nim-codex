@@ -35,6 +35,7 @@ import std/sequtils
 import pkg/chronos
 import pkg/datastore
 import pkg/nimcrypto
+import pkg/metrics
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
@@ -52,6 +53,8 @@ export logutils
 
 logScope:
   topics = "sales reservations"
+
+declareCounter(codex_reservations_availability_missmatch, "codex reservations availability_missmatch")
 
 type
   AvailabilityId* = distinct array[32, byte]
@@ -71,7 +74,8 @@ type
     size* {.serialize.}: UInt256
     requestId* {.serialize.}: RequestId
     slotIndex* {.serialize.}: UInt256
-  Reservations* = ref object
+  Reservations* = ref object of RootObj
+    locks: Table[AvailabilityId, AsyncLock]
     repo: RepoStore
     onAvailabilityAdded: ?OnAvailabilityAdded
   GetNext* = proc(): Future[?seq[byte]] {.upraises: [], gcsafe, closure.}
@@ -95,6 +99,7 @@ const
   SalesKey = (CodexMetaKey / "sales").tryGet # TODO: move to sales module
   ReservationsKey = (SalesKey / "reservations").tryGet
 
+proc hash*(x: AvailabilityId): Hash {.borrow.}
 proc all*(self: Reservations, T: type SomeStorableObject): Future[?!seq[T]] {.async.}
 
 proc new*(T: type Reservations,
@@ -370,54 +375,68 @@ proc createAvailability*(
 
   return success(availability)
 
-proc createReservation*(
+method createReservation*(
   self: Reservations,
   availabilityId: AvailabilityId,
   slotSize: UInt256,
   requestId: RequestId,
   slotIndex: UInt256
-): Future[?!Reservation] {.async.} =
+): Future[?!Reservation] {.async, base.} =
 
-  trace "creating reservation", availabilityId, slotSize, requestId, slotIndex
+  let lock = self.locks.mgetOrPut(availabilityId, newAsyncLock())
+  try:
+    trace "acquiring lock for availibility", availabilityId
+    await lock.acquire()
+    trace "got lock for availibility", availabilityId
 
-  let reservation = Reservation.init(availabilityId, slotSize, requestId, slotIndex)
+    without availabilityKey =? availabilityId.key, error:
+      return failure(error)
 
-  without availabilityKey =? availabilityId.key, error:
-    return failure(error)
+    without availability =? await self.get(availabilityKey, Availability), error:
+      return failure(error)
 
-  without var availability =? await self.get(availabilityKey, Availability), error:
-    return failure(error)
+    # We recheck that the found availability is still matching after we have lock acquired
+    if availability.freeSize < slotSize:
+       # Lets monitor how often this happen and if it is often we can do it more inteligent to handle it
+      codex_reservations_availability_missmatch.inc()
+      warn "we matched availability but then it changed and now it does not match anymore", id = availability.id
 
-  if availability.freeSize < slotSize:
-    let error = newException(
-      BytesOutOfBoundsError,
-      "trying to reserve an amount of bytes that is greater than the total size of the Availability")
-    return failure(error)
+      let error = newException(
+        BytesOutOfBoundsError,
+        "trying to reserve an amount of bytes that is greater than the total size of the Availability")
+      return failure(error)
 
-  if createResErr =? (await self.update(reservation)).errorOption:
-    return failure(createResErr)
+    trace "creating reservation", availabilityId, slotSize, requestId, slotIndex
 
-  # reduce availability freeSize by the slot size, which is now accounted for in
-  # the newly created Reservation
-  availability.freeSize -= slotSize
+    let reservation = Reservation.init(availabilityId, slotSize, requestId, slotIndex)
 
-  # update availability with reduced size
-  if updateErr =? (await self.update(availability)).errorOption:
+    if createResErr =? (await self.update(reservation)).errorOption:
+      return failure(createResErr)
 
-    trace "rolling back reservation creation"
+    # reduce availability freeSize by the slot size, which is now accounted for in
+    # the newly created Reservation
+    availability.freeSize -= slotSize
 
-    without key =? reservation.key, keyError:
-      keyError.parent = updateErr
-      return failure(keyError)
+    # update availability with reduced size
+    if updateErr =? (await self.update(availability)).errorOption:
 
-    # rollback the reservation creation
-    if rollbackErr =? (await self.delete(key)).errorOption:
-      rollbackErr.parent = updateErr
-      return failure(rollbackErr)
+      trace "rolling back reservation creation"
 
-    return failure(updateErr)
+      without key =? reservation.key, keyError:
+        keyError.parent = updateErr
+        return failure(keyError)
 
-  return success(reservation)
+      # rollback the reservation creation
+      if rollbackErr =? (await self.delete(key)).errorOption:
+        rollbackErr.parent = updateErr
+        return failure(rollbackErr)
+
+      return failure(updateErr)
+
+    return success(reservation)
+  finally:
+    if lock.locked():
+      lock.release()
 
 proc returnBytesToAvailability*(
   self: Reservations,
@@ -621,6 +640,7 @@ proc findAvailability*(
         minPrice >= availability.minPrice:
 
         trace "availability matched",
+          id = availability.id,
           size, availFreeSize = availability.freeSize,
           duration, availDuration = availability.duration,
           minPrice, availMinPrice = availability.minPrice,
@@ -635,6 +655,7 @@ proc findAvailability*(
         return some availability
 
       trace "availability did not match",
+        id = availability.id,
         size, availFreeSize = availability.freeSize,
         duration, availDuration = availability.duration,
         minPrice, availMinPrice = availability.minPrice,

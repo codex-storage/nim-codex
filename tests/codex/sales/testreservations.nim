@@ -254,6 +254,17 @@ asyncchecksuite "Reservations module":
     check updated.isErr
     check updated.error of BytesOutOfBoundsError
 
+  test "cannot release more bytes than size of reservation - concurrency test":
+    let availability = createAvailability()
+    let reservation = createReservation(availability)
+    let updated = await reservations.release(
+      reservation.id,
+      reservation.availabilityId,
+      (reservation.size + 1).truncate(uint)
+    )
+    check updated.isErr
+    check updated.error of BytesOutOfBoundsError
+
   test "cannot release bytes from non-existant reservation":
     let availability = createAvailability()
     let reservation = createReservation(availability)

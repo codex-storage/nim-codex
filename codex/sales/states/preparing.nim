@@ -78,6 +78,12 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
     request.id,
     data.slotIndex
   ), error:
+    # Race condition:
+    # reservations.findAvailability (line 64) is no guarantee. You can never know for certain that the reservation can be created until after you have it.
+    # Should createReservation fail because there's no space, we proceed to SaleIgnored.
+    if error of BytesOutOfBoundsError:
+      return some State(SaleIgnored())
+
     return some State(SaleErrored(error: error))
 
   data.reservation = some reservation
