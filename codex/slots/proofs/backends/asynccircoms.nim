@@ -87,7 +87,7 @@ proc verify*[H](
   without queue =? newSignalQueue[?!bool](maxItems = 1), qerr:
     return failure(qerr)
 
-  var args = (ref VerifierArgs[H])(circom: self.circom, inputs: inputs)
+  var args = (ref VerifierArgs[H])(circom: self.circom, proof: proof, inputs: inputs)
   GC_ref(args)
 
   proc spawnTask() =
