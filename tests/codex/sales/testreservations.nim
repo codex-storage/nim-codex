@@ -17,15 +17,22 @@ asyncchecksuite "Reservations module":
   var
     repo: RepoStore
     repoDs: Datastore
-    metaDs: SQLiteDatastore
+    metaDs: Datastore
     reservations: Reservations
+  let
+    repoTmp = TempLevelDb.new()
+    metaTmp = TempLevelDb.new()
 
   setup:
     randomize(1.int64) # create reproducible results
-    repoDs = SQLiteDatastore.new(Memory).tryGet()
-    metaDs = SQLiteDatastore.new(Memory).tryGet()
+    repoDs = repoTmp.newDb()
+    metaDs = metaTmp.newDb()
     repo = RepoStore.new(repoDs, metaDs)
     reservations = Reservations.new(repo)
+
+  teardown:
+    await repoTmp.destroyDb()
+    await metaTmp.destroyDb()
 
   proc createAvailability(): Availability =
     let example = Availability.example
@@ -258,7 +265,7 @@ asyncchecksuite "Reservations module":
     check updated.isErr
     check updated.error of NotExistsError
 
-  test "onAvailabilityAdded called when availability is reserved":
+  test "onAvailabilityAdded called when availability is created":
     var added: Availability
     reservations.onAvailabilityAdded = proc(a: Availability) {.async.} =
       added = a
@@ -266,6 +273,26 @@ asyncchecksuite "Reservations module":
     let availability = createAvailability()
 
     check added == availability
+
+  test "onAvailabilityAdded called when availability size is increased":
+    var availability = createAvailability()
+    var added: Availability
+    reservations.onAvailabilityAdded = proc(a: Availability) {.async.} =
+      added = a
+    availability.freeSize += 1.u256
+    discard await reservations.update(availability)
+
+    check added == availability
+
+  test "onAvailabilityAdded is not called when availability size is decreased":
+    var availability = createAvailability()
+    var called = false
+    reservations.onAvailabilityAdded = proc(a: Availability) {.async.} =
+      called = true
+    availability.freeSize -= 1.u256
+    discard await reservations.update(availability)
+
+    check not called
 
   test "availabilities can be found":
     let availability = createAvailability()

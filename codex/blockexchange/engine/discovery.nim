@@ -69,6 +69,9 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
     for cid in toSeq(b.pendingBlocks.wantListBlockCids):
       try:
         await b.discoveryQueue.put(cid)
+      except CancelledError:
+        trace "Discovery loop cancelled"
+        return
       except CatchableError as exc:
         warn "Exception in discovery loop", exc = exc.msg
 
@@ -133,6 +136,9 @@ proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
       finally:
         b.inFlightAdvReqs.del(cid)
         codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
+    except CancelledError:
+      trace "Advertise task cancelled"
+      return
     except CatchableError as exc:
       warn "Exception in advertise task runner", exc = exc.msg
 
@@ -177,6 +183,9 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
         finally:
           b.inFlightDiscReqs.del(cid)
           codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
+    except CancelledError:
+      trace "Discovery task cancelled"
+      return
     except CatchableError as exc:
       warn "Exception in discovery task runner", exc = exc.msg
 
