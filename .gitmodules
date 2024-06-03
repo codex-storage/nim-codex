@@ -215,3 +215,6 @@
 [submodule "vendor/nim-leveldbstatic"]
 	path = vendor/nim-leveldbstatic
 	url = https://github.com/codex-storage/nim-leveldb.git
+[submodule "vendor/zip"]
+	path = vendor/zip
+	url = https://github.com/nim-lang/zip.git
