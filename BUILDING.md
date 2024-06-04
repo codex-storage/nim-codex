@@ -24,7 +24,7 @@ Other approaches may be viable. On macOS, some users may prefer [MacPorts](https
 
 ### Rust
 
-The current implementation of Codex's zero-knowledge proving circuit requires the installation of rust v1.74.0 or greater. Be sure to install it for your OS and add it to your terminal's path such that the command `cargo --version` gives a compatible version.
+The current implementation of Codex's zero-knowledge proving circuit requires the installation of rust v1.76.0 or greater. Be sure to install it for your OS and add it to your terminal's path such that the command `cargo --version` gives a compatible version.
 
 ### Linux
 
@@ -34,6 +34,9 @@ On a bare bones installation of Debian (or a distribution derived from Debian, s
 
 ```shell
 apt-get update && apt-get install build-essential cmake curl git rustc cargo
+
+# curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs/ | sh -s -- --default-toolchain=1.76.0 -y
+# . "$HOME/.cargo/env"
 ```
 
 Non-Debian distributions have different package managers: `apk`, `dnf`, `pacman`, `rpm`, `yum`, etc.
