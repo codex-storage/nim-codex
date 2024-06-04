@@ -25,7 +25,7 @@ runs:
       if: inputs.os == 'linux'
       shell: ${{ inputs.shell }} {0}
       run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs/ | sh -s -- --default-toolchain=${rust_version} -y
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs/ | sh -s -- --default-toolchain=${{ inputs.rust_version }} -y
 
     - name: APT (Linux amd64/arm64)
       if: inputs.os == 'linux' && (inputs.cpu == 'amd64' || inputs.cpu == 'arm64')
