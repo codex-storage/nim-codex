@@ -75,3 +75,20 @@ asyncchecksuite "Test AsyncIter":
 
     check:
       items == @["1", "3"]
+
+  test "Should finish on error":
+    let
+      iter1 = newIter(0..<5)
+      iter2 = mapAsync[int, int](iter1,
+          proc (i: int): Future[int] {.async.} =
+            raise newException(CatchableError, "Some error")
+        )
+
+    check:
+      not iter2.finished()
+
+    expect CatchableError:
+      discard (await iter2.next())
+
+    check:
+      iter2.finished()

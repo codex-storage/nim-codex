@@ -64,3 +64,20 @@ checksuite "Test Iter":
 
     check:
       iter2.toSeq() == @["1", "3"]
+
+  test "Should finish on error":
+    let
+      iter = newIter(0..<5)
+        .map(
+          proc (i: int): int =
+            raise newException(CatchableError, "Some error")
+        )
+
+    check:
+      not iter.finished()
+
+    expect CatchableError:
+      discard iter.next()
+
+    check:
+      iter.finished()
