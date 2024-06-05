@@ -28,7 +28,6 @@ checksuite "Test coders":
 
   proc rand(T: type BlockMetadata): T =
     BlockMetadata(
-      expiry: rand(SecondsSince1970),
       size: rand(NBytes),
       refCount: rand(Natural)
     )

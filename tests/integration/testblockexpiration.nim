@@ -22,7 +22,7 @@ ethersuite "Node block expiration tests":
 
     dataDir.removeDir()
 
-  proc startTestNode(blockTtlSeconds: int) =
+  proc startTestNode(ttlSeconds: int) =
     node = startNode([
       "--api-port=8080",
       "--data-dir=" & dataDir,
@@ -30,9 +30,8 @@ ethersuite "Node block expiration tests":
       "--listen-addrs=/ip4/127.0.0.1/tcp/0",
       "--disc-ip=127.0.0.1",
       "--disc-port=8090",
-      "--block-ttl=" & $blockTtlSeconds,
-      "--block-mi=1",
-      "--block-mn=10"
+      "--default-ttl=" & $ttlSeconds,
+      "--maintenance-interval=1"
     ], debug = false)
     node.waitUntilStarted()
 
@@ -61,7 +60,7 @@ ethersuite "Node block expiration tests":
     content.code == Http200
 
   test "node retains not-expired file":
-    startTestNode(blockTtlSeconds = 10)
+    startTestNode(ttlSeconds = 10)
 
     let contentId = uploadTestFile()
 
@@ -74,9 +73,14 @@ ethersuite "Node block expiration tests":
       response.body == content
 
   test "node deletes expired file":
-    startTestNode(blockTtlSeconds = 1)
+    startTestNode(ttlSeconds = 2)
 
     let contentId = uploadTestFile()
+
+    await sleepAsync(1.seconds)
+
+    # check:
+    #   hasFile(contentId)
 
     await sleepAsync(3.seconds)
 
