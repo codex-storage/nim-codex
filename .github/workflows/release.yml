@@ -11,7 +11,7 @@ env:
   nim_version: v1.6.14
   rust_version: 1.78.0
   binary_base: codex
-  upload_to_codex: true
+  upload_to_codex: false
 
 jobs:
   # Matrix
