@@ -34,9 +34,6 @@ On a bare bones installation of Debian (or a distribution derived from Debian, s
 
 ```shell
 apt-get update && apt-get install build-essential cmake curl git rustc cargo
-
-# curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs/ | sh -s -- --default-toolchain=1.76.0 -y
-# . "$HOME/.cargo/env"
 ```
 
 Non-Debian distributions have different package managers: `apk`, `dnf`, `pacman`, `rpm`, `yum`, etc.
@@ -45,6 +42,13 @@ For example, on a bare bones installation of Fedora, run
 
 ```shell
 dnf install @development-tools cmake gcc-c++ rust cargo
+```
+
+In case your distribution does not provide required Rust version, we may install it using [rustup](https://www.rust-lang.org/tools/install)
+```shell
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs/ | sh -s -- --default-toolchain=1.76.0 -y
+
+. "$HOME/.cargo/env"
 ```
 
 ### macOS
