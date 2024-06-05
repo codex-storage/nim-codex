@@ -25,6 +25,7 @@ const
   CodexManifestKey* = Key.init(CodexManifestNamespace).tryGet
   BlocksTtlKey* = Key.init(CodexBlocksTtlNamespace).tryGet
   BlockProofKey* = Key.init(CodexBlockProofNamespace).tryGet
+  DatasetMetadataKey* = Key.init(CodexDatasetMetadataNamespace).tryGet
   QuotaKey* = Key.init(CodexQuotaNamespace).tryGet
   QuotaUsedKey* = (QuotaKey / "used").tryGet
   QuotaReservedKey* = (QuotaKey / "reserved").tryGet
@@ -47,3 +48,10 @@ proc createBlockExpirationMetadataQueryKey*(): ?!Key =
 
 proc createBlockCidAndProofMetadataKey*(treeCid: Cid, index: Natural): ?!Key =
   (BlockProofKey / $treeCid).flatMap((k: Key) => k / $index)
+
+proc createDatasetMetadataKey*(treeCid: Cid): ?!Key =
+  DatasetMetadataKey / $treeCid
+
+proc createDatasetMetadataQueryKey*(): ?!Key =
+  let queryString = ? (DatasetMetadataKey / "*")
+  Key.init(queryString)

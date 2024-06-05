@@ -61,9 +61,9 @@ method getBlockAndProof*(self: BlockStore, treeCid: Cid, index: Natural): Future
   raiseAssert("getBlockAndProof not implemented!")
 
 method putBlock*(
-  self: BlockStore,
-  blk: Block,
-  ttl = Duration.none): Future[?!void] {.base.} =
+    self: BlockStore,
+    blk: Block
+): Future[?!void] {.base.} =
   ## Put a block to the blockstore
   ##
 
@@ -89,27 +89,6 @@ method getCidAndProof*(
 
   raiseAssert("getCidAndProof not implemented!")
 
-method ensureExpiry*(
-  self: BlockStore,
-  cid: Cid,
-  expiry: SecondsSince1970): Future[?!void] {.base.} =
-  ## Ensure that block's assosicated expiry is at least given timestamp
-  ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
-  ##
-
-  raiseAssert("Not implemented!")
-
-method ensureExpiry*(
-  self: BlockStore,
-  treeCid: Cid,
-  index: Natural,
-  expiry: SecondsSince1970): Future[?!void] {.base.} =
-  ## Ensure that block's associated expiry is at least given timestamp
-  ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
-  ##
-
-  raiseAssert("Not implemented!")
-
 method delBlock*(self: BlockStore, cid: Cid): Future[?!void] {.base.} =
   ## Delete a block from the blockstore
   ##
@@ -130,6 +109,15 @@ method hasBlock*(self: BlockStore, cid: Cid): Future[?!bool] {.base.} =
 
 method hasBlock*(self: BlockStore, tree: Cid, index: Natural): Future[?!bool] {.base.} =
   ## Check if the block exists in the blockstore
+  ##
+
+  raiseAssert("hasBlock not implemented!")
+
+method hasCidAndProof*(
+  self: BlockStore,
+  treeCid: Cid,
+  index: Natural): Future[?!bool] {.base.} =
+  ## Check if block cid and proof exists in the blockstore
   ##
 
   raiseAssert("hasBlock not implemented!")

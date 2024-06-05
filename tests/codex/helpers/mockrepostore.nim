@@ -23,7 +23,6 @@ type
     getBeMaxNumber*: int
     getBeOffset*: int
 
-    testBlockExpirations*: seq[BlockExpiration]
     getBlockExpirationsThrows*: bool
 
 method delBlock*(self: MockRepoStore, cid: Cid): Future[?!void] {.async.} =
