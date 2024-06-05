@@ -10,6 +10,7 @@ import pkg/codex/merkletree
 import pkg/codex/blockexchange
 import pkg/codex/rng
 import pkg/codex/utils
+import pkg/codex/units
 
 import ./helpers/nodeutils
 import ./helpers/randomchunker
@@ -105,6 +106,10 @@ proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest
     (await store.putCidAndProof(treeCid, i, cids[i], proof)).tryGet()
 
   return manifest
+
+proc storeDataGetManifest*(store: BlockStore, blocksCount = 10): Future[Manifest] {.async.} =
+  let chunker = RandomChunker.new(rng = Rng.instance(), size = blocksCount.KiBs, chunkSize = 1.KiBs)
+  await storeDataGetManifest(store, chunker)
 
 proc makeRandomBlocks*(
   datasetSize: int, blockSize: NBytes): Future[seq[Block]] {.async.} =

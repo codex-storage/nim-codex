@@ -75,6 +75,7 @@ template setupAndTearDown*() {.dirty.} =
     localStore: RepoStore
     localStoreRepoDs: DataStore
     localStoreMetaDs: DataStore
+    maintenance: DatasetMaintainer
     engine: BlockExcEngine
     store: NetworkStore
     node: CodexNodeRef
@@ -99,8 +100,9 @@ template setupAndTearDown*() {.dirty.} =
     clock = SystemClock.new()
     localStoreMetaDs = metaTmp.newDb()
     localStoreRepoDs = repoTmp.newDb()
-    localStore = RepoStore.new(localStoreRepoDs, localStoreMetaDs, clock = clock)
+    localStore = RepoStore.new(localStoreRepoDs, localStoreMetaDs)
     await localStore.start()
+    maintenance = DatasetMaintainer.new(localStore, localStoreMetaDs)
 
     blockDiscovery = Discovery.new(
       switch.peerInfo.privateKey,
@@ -115,6 +117,7 @@ template setupAndTearDown*() {.dirty.} =
     node = CodexNodeRef.new(
       switch = switch,
       networkStore = store,
+      maintenance = maintenance,
       engine = engine,
       prover = Prover.none,
       discovery = blockDiscovery,
