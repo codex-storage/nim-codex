@@ -86,12 +86,7 @@ runs:
           printf "'%s'" "$quoted"
         }
 
-        case '${{ inputs.cpu }}' in
-          'amd64') PLATFORM=x64 ;;
-          'arm64') PLATFORM=x64 ;;
-          'i386')  PLATFORM=x86 ;;
-        esac
-        echo "PLATFORM=${PLATFORM}" >> ${GITHUB_ENV}
+        [[ '${{ inputs.cpu }}' == 'i386' ]] && echo "ARCH_OVERRIDE=ARCH_OVERRIDE=x86" >> ${GITHUB_ENV}
 
         # Stack usage on Linux amd64/arm64
         if [[ '${{ inputs.os }}' == 'linux' && ('${{ inputs.cpu }}' == 'amd64' || '${{ inputs.cpu }}' == 'arm64')]]; then
@@ -170,6 +165,6 @@ runs:
     - name: Build Nim and Codex dependencies
       shell: ${{ inputs.shell }} {0}
       run: |
-        make -j${ncpu} CI_CACHE=NimBinaries ARCH_OVERRIDE=${PLATFORM} QUICK_AND_DIRTY_COMPILER=1 update
+        make -j${ncpu} CI_CACHE=NimBinaries ${ARCH_OVERRIDE} QUICK_AND_DIRTY_COMPILER=1 update
         echo
         ./env.sh nim --version
