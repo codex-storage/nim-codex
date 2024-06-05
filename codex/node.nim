@@ -65,6 +65,7 @@ type
     switch: Switch
     networkId: PeerId
     networkStore: NetworkStore
+    maintenance: DatasetMaintainer
     engine: BlockExcEngine
     prover: ?Prover
     discovery: Discovery
@@ -155,17 +156,8 @@ proc updateExpiry*(
     trace "Unable to fetch manifest for cid", manifestCid
     return failure(error)
 
-  try:
-    let
-      ensuringFutures = Iter[int].new(0..<manifest.blocksCount)
-        .mapIt(self.networkStore.localStore.ensureExpiry( manifest.treeCid, it, expiry ))
-    await allFuturesThrowing(ensuringFutures)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    return failure(exc.msg)
+  await self.maintenance.ensureExpiry(manifest.treeCid, expiry)
 
-  return success()
 
 proc fetchBatched*(
   self: CodexNodeRef,
@@ -240,7 +232,7 @@ proc streamEntireDataset(
   self: CodexNodeRef,
   manifest: Manifest,
   manifestCid: Cid,
-): ?!LPStream =
+): Future[?!LPStream] {.async.} =
   ## Streams the contents of the entire dataset described by the manifest.
   ##
   trace "Retrieving blocks from manifest", manifestCid
@@ -265,6 +257,13 @@ proc streamEntireDataset(
 
   # Retrieve all blocks of the dataset sequentially from the local store or network
   trace "Creating store stream for manifest", manifestCid
+
+  if err =? (await self.maintenance.trackExpiry(
+      manifest.treeCid,
+      manifest.blocksCount,
+      manifestsCids = @[manifestCid])).errorOption:
+    return failure(err)
+
   LPStream(StoreStream.new(self.networkStore, manifest, pad = false)).success
 
 proc retrieve*(
@@ -283,7 +282,7 @@ proc retrieve*(
 
     return await self.streamSingleBlock(cid)
 
-  self.streamEntireDataset(manifest, cid)
+  await self.streamEntireDataset(manifest, cid)
 
 proc store*(
   self: CodexNodeRef,
@@ -350,6 +349,12 @@ proc store*(
 
   without manifestBlk =? await self.storeManifest(manifest), err:
     error "Unable to store manifest"
+    return failure(err)
+
+  if err =? (await self.maintenance.trackExpiry(
+      treeCid,
+      manifest.blocksCount,
+      manifestsCids = @[manifestBlk.cid])).errorOption:
     return failure(err)
 
   info "Stored data", manifestCid = manifestBlk.cid,
@@ -546,18 +551,17 @@ proc onStore(
     trace "Slot index not in manifest", slotIdx
     return failure(newException(CodexError, "Slot index not in manifest"))
 
-  proc updateExpiry(blocks: seq[bt.Block]): Future[?!void] {.async.} =
-    trace "Updating expiry for blocks", blocks = blocks.len
+  proc onBatch(blocks: seq[bt.Block]): Future[?!void] {.async.} =
+    if not blocksCb.isNil:
+      await blocksCb(blocks)
+    else:
+      success()
 
-    let ensureExpiryFutures = blocks.mapIt(self.networkStore.ensureExpiry(it.cid, expiry))
-    if updateExpiryErr =? (await allFutureResult(ensureExpiryFutures)).errorOption:
-      return failure(updateExpiryErr)
-
-    if not blocksCb.isNil and err =? (await blocksCb(blocks)).errorOption:
-      trace "Unable to process blocks", err = err.msg
-      return failure(err)
-
-    return success()
+  if err =? (await self.maintenance.trackExpiry(
+      manifest.treeCid,
+      manifest.blocksCount,
+      manifestsCids = @[cid])).errorOption:
+    return failure(err)
 
   without indexer =? manifest.protectedStrategy.init(
     0, manifest.numSlotBlocks() - 1, manifest.numSlots).catch, err:
@@ -571,7 +575,7 @@ proc onStore(
   if err =? (await self.fetchBatched(
       manifest.treeCid,
       blksIter,
-      onBatch = updateExpiry)).errorOption:
+      onBatch = onBatch)).errorOption:
     trace "Unable to fetch blocks", err = err.msg
     return failure(err)
 
@@ -586,6 +590,11 @@ proc onStore(
     return failure(newException(CodexError, "Slot root mismatch"))
 
   trace "Slot successfully retrieved and reconstructed"
+
+  if err =? (await self.maintenance.ensureExpiry(
+      manifest.treeCid,
+      expiry)).errorOption:
+    return failure(err)
 
   return success()
 
@@ -751,6 +760,7 @@ proc new*(
   T: type CodexNodeRef,
   switch: Switch,
   networkStore: NetworkStore,
+  maintenance: DatasetMaintainer,
   engine: BlockExcEngine,
   discovery: Discovery,
   prover = Prover.none,
@@ -762,6 +772,7 @@ proc new*(
   CodexNodeRef(
     switch: switch,
     networkStore: networkStore,
+    maintenance: maintenance,
     engine: engine,
     prover: prover,
     discovery: discovery,

@@ -109,8 +109,7 @@ proc updateBlockMetadata*(
   self: RepoStore,
   cid: Cid,
   plusRefCount: Natural = 0,
-  minusRefCount: Natural = 0,
-  minExpiry: SecondsSince1970 = 0
+  minusRefCount: Natural = 0
 ): Future[?!void] {.async.} =
   if cid.isEmpty:
     return success()
@@ -123,14 +122,13 @@ proc updateBlockMetadata*(
       if currBlockMd =? maybeCurrBlockMd:
         BlockMetadata(
           size: currBlockMd.size,
-          expiry: max(currBlockMd.expiry, minExpiry),
           refCount: currBlockMd.refCount + plusRefCount - minusRefCount
         ).some
       else:
         raise newException(BlockNotFoundError, "Metadata for block with cid " & $cid & " not found")
   )
 
-proc storeBlock*(self: RepoStore, blk: Block, minExpiry: SecondsSince1970): Future[?!StoreResult] {.async.} =
+proc storeBlock*(self: RepoStore, blk: Block): Future[?!StoreResult] {.async.} =
   if blk.isEmpty:
     return success(StoreResult(kind: AlreadyInStore))
 
@@ -148,7 +146,7 @@ proc storeBlock*(self: RepoStore, blk: Block, minExpiry: SecondsSince1970): Futu
 
       if currMd =? maybeCurrMd:
         if currMd.size == blk.data.len.NBytes:
-          md = BlockMetadata(size: currMd.size, expiry: max(currMd.expiry, minExpiry), refCount: currMd.refCount)
+          md = BlockMetadata(size: currMd.size, refCount: currMd.refCount)
           res = StoreResult(kind: AlreadyInStore)
 
           # making sure that the block acutally is stored in the repoDs
@@ -162,7 +160,7 @@ proc storeBlock*(self: RepoStore, blk: Block, minExpiry: SecondsSince1970): Futu
         else:
           raise newException(CatchableError, "Repo already stores a block with the same cid but with a different size, cid: " & $blk.cid)
       else:
-        md = BlockMetadata(size: blk.data.len.NBytes, expiry: minExpiry, refCount: 0)
+        md = BlockMetadata(size: blk.data.len.NBytes, refCount: 0)
         res = StoreResult(kind: Stored, used: blk.data.len.NBytes)
         if err =? (await self.repoDs.put(blkKey, blk.data)).errorOption:
           raise err
@@ -170,7 +168,7 @@ proc storeBlock*(self: RepoStore, blk: Block, minExpiry: SecondsSince1970): Futu
       (md.some, res)
   )
 
-proc tryDeleteBlock*(self: RepoStore, cid: Cid, expiryLimit = SecondsSince1970.low): Future[?!DeleteResult] {.async.} =
+proc tryDeleteBlock*(self: RepoStore, cid: Cid): Future[?!DeleteResult] {.async.} =
   if cid.isEmpty:
     return success(DeleteResult(kind: InUse))
 
@@ -187,7 +185,7 @@ proc tryDeleteBlock*(self: RepoStore, cid: Cid, expiryLimit = SecondsSince1970.l
         res: DeleteResult
 
       if currMd =? maybeCurrMd:
-        if currMd.refCount == 0 or currMd.expiry < expiryLimit:
+        if currMd.refCount == 0:
           maybeMeta = BlockMetadata.none
           res = DeleteResult(kind: Deleted, released: currMd.size)
 

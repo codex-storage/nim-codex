@@ -54,7 +54,7 @@ type
     restServer: RestServerRef
     codexNode: CodexNodeRef
     repoStore: RepoStore
-    maintenance: BlockMaintainer
+    maintenance: DatasetMaintainer
     taskpool: Taskpool
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
@@ -246,6 +246,9 @@ proc new*(
     wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
 
+    metaDs = SQLiteDatastore.new(config.dataDir / CodexMetaNamespace)
+        .expect("Should create meta data store!")
+
     repoData = case config.repoKind
                 of repoFS: Datastore(FSDatastore.new($config.dataDir, depth = 5)
                   .expect("Should create repo file data store!"))
@@ -258,19 +261,20 @@ proc new*(
       repoDs = repoData,
       metaDs = LevelDbDatastore.new(config.dataDir / CodexMetaNamespace)
         .expect("Should create metadata store!"),
-      quotaMaxBytes = config.storageQuota,
-      blockTtl = config.blockTtl)
+      quotaMaxBytes = config.storageQuota)
 
-    maintenance = BlockMaintainer.new(
+    maintenance = DatasetMaintainer.new(
       repoStore,
-      interval = config.blockMaintenanceInterval,
-      numberOfBlocksPerInterval = config.blockMaintenanceNumberOfBlocks)
+      metaDs,
+      defaultExpiry = config.defaultExpiry,
+      interval = config.maintenanceInterval)
 
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
     blockDiscovery = DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
     engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
+
     prover = if config.prover:
       if not fileAccessible($config.circomR1cs, {AccessFlags.Read}) and
         endsWith($config.circomR1cs, ".r1cs"):
@@ -306,6 +310,7 @@ proc new*(
     codexNode = CodexNodeRef.new(
       switch = switch,
       networkStore = store,
+      maintenance = maintenance,
       engine = engine,
       prover = prover,
       discovery = discovery,
