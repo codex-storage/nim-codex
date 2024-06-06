@@ -289,6 +289,7 @@ components:
           description: "Root hash of the content"
         originalBytes:
           type: integer
+          format: uint64
           description: "Length of original content in bytes"
         blockSize:
           type: integer
@@ -303,14 +304,18 @@ components:
         totalBlocks:
           description: "Number of blocks stored by the node"
           type: integer
+          format: uint64
         quotaMaxBytes:
           type: integer
+          format: uint64
           description: "Maximum storage space used by the node"
         quotaUsedBytes:
           type: integer
+          format: uint64
           description: "Amount of storage space currently in use"
         quotaReservedBytes:
           type: integer
+          format: uint64
           description: "Amount of storage space reserved"
 
 servers:

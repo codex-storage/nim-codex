@@ -1,0 +1,145 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+env:
+  cache_nonce: 0 # Allows for easily busting actions/cache caches
+  nim_version: v1.6.14
+  rust_version: 1.78.0
+  binary_base: codex
+  upload_to_codex: false
+
+jobs:
+  # Matrix
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+    - name: Compute matrix
+      id: matrix
+      uses: fabiocaccamo/create-matrix-action@v4
+      with:
+        matrix: |
+          os {linux},   cpu {amd64}, builder {ubuntu-22.04},                   nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {linux},   cpu {arm64}, builder {buildjet-4vcpu-ubuntu-2204-arm}, nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {macos},   cpu {amd64}, builder {macos-13},                       nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {macos},   cpu {arm64}, builder {macos-14},                       nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {windows}, cpu {amd64}, builder {windows-latest},                 nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {msys2}
+
+  # Build
+  build:
+    needs: matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{fromJson(needs.matrix.outputs.matrix)}}
+
+    defaults:
+      run:
+        shell: ${{ matrix.shell }} {0}
+
+    name: ${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}
+    runs-on: ${{ matrix.builder }}
+    timeout-minutes: 80
+    steps:
+      - name: Release - Checkout sources
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Release - Setup Nimbus Build System
+        uses: ./.github/actions/nimbus-build-system
+        with:
+          os: ${{ matrix.os }}
+          cpu: ${{ matrix.cpu }}
+          shell: ${{ matrix.shell }}
+          nim_version: ${{ matrix.nim_version }}
+          rust_version: ${{ matrix.rust_version }}
+
+      - name: Release - Compute binary name
+        run: |
+          case ${{ matrix.os }} in
+            linux*)   os_name="linux"   ;;
+            macos*)   os_name="darwin"  ;;
+            windows*) os_name="windows" ;;
+          esac
+          binary="${{ env.binary_base }}-${{ github.ref_name }}-${os_name}-${{ matrix.cpu }}"
+          [[ ${os_name} == "windows" ]] && binary="${binary}.exe"
+          echo "binary=${binary}" >>$GITHUB_ENV
+
+      - name: Release - Build
+        run: |
+          make NIMFLAGS="--out:${{ env.binary }}"
+          
+      - name: Release - Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ env.binary }}
+          path: ${{ env.binary }}
+          retention-days: 1
+
+  # Release
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    if: success() || failure()
+    steps:
+      - name: Release - Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release*
+          merge-multiple: true
+          path: /tmp/release
+
+      - name: Release - Compress and checksum
+        run: |
+          cd /tmp/release
+          prepare() {
+            # Checksum
+            arc="${1}"
+            sha256sum "${arc}" >"${arc}.sha256"
+
+            # Upload to Codex
+            if [[ "${{ env.upload_to_codex }}" == "true" ]]; then
+              codex_endpoints="${{ secrets.CODEX_ENDPOINTS }}"
+              codex_username="${{ secrets.CODEX_USERNAME }}"
+              codex_password="${{ secrets.CODEX_PASSWORD }}"
+
+              for endpoint in ${codex_endpoints}; do
+                echo "::add-mask::${endpoint}"
+                cid=$(curl -X POST \
+                  "${endpoint}/api/codex/v1/data" \
+                  -u "${codex_username}":"${codex_password}" \
+                  -H "content-type: application/octet-stream" \
+                  -T "${arc}")
+
+                echo "${cid}" >"${arc}.cid"
+              done
+            fi
+          }
+          # Compress and prepare
+          for file in *; do
+            if [[ "${file}" == *".exe"* ]]; then
+              arc="${file%.*}.zip"
+              zip "${arc}" "${file}"
+              rm -f "${file}"
+              prepare "${arc}"
+            else
+              arc="${file}.tar.gz"
+              tar cfz "${arc}" "${file}"
+              rm -f "${file}"
+              prepare "${arc}"
+            fi
+          done
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            /tmp/release/*
+          make_latest: true
