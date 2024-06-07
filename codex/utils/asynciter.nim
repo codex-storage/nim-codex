@@ -64,6 +64,26 @@ proc newAsyncIter*[T](genNext: GenNext[Future[T]], isFinished: IsFinished, finis
   iter.next = next
   return iter
 
+proc mapAsync*[T, U](iter: Iter[T], fn: Function[T, Future[U]]): AsyncIter[U] =
+  newAsyncIter[T](
+    genNext = () => fn(iter.next()),
+    isFinished = () => iter.finished()
+  )
+
+proc newAsyncIter*[U, V: Ordinal](slice: HSlice[U, V]): AsyncIter[U] =
+  let iter = newIter(slice)
+  mapAsync[U, U](iter,
+    proc (i: U): Future[U] {.async.} =
+      i
+  )
+
+proc newAsyncIter*[U, V, S: Ordinal](a: U, b: V, step: S = 1): AsyncIter[U] =
+  let iter = newIter(a, b, step)
+  mapAsync[U, U](iter,
+    proc (i: U): Future[U] {.async.} =
+      i
+  )
+
 proc emptyAsyncIter*[T](): AsyncIter[T] =
   ## Creates an empty AsyncIter
   ##
@@ -119,8 +139,12 @@ proc filter*[T](iter: AsyncIter[T], predicate: Function[T, Future[bool]]): Futur
 
   await mapFilter[T, T](iter, wrappedPredicate)
 
-proc mapAsync*[T, U](iter: Iter[T], fn: Function[T, Future[U]]): AsyncIter[U] =
-  newAsyncIter[T](
-    genNext = () => fn(iter.next()),
-    isFinished = () => iter.finished()
+proc delayBy*[T](iter: AsyncIter[T], d: Duration): AsyncIter[T] =
+  ## Delays emitting each item by given duration
+  ##
+
+  map[T, T](iter,
+    proc (t: T): Future[T] {.async.} =
+      await sleepAsync(d)
+      t
   )

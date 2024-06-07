@@ -1,6 +1,7 @@
 import std/sugar
 
 import pkg/questionable
+import pkg/questionable/results
 
 type
   Function*[T, U] = proc(fut: T): U {.raises: [CatchableError], gcsafe, closure.}
@@ -85,7 +86,7 @@ proc emptyIter*[T](): Iter[T] =
   ## Creates an empty Iter
   ##
 
-  proc genNext(): T {.upraises: [CatchableError].} =
+  proc genNext(): T {.raises: [CatchableError].} =
     raise newException(CatchableError, "Next item requested from an empty Iter")
   proc isFinished(): bool = true
 
@@ -98,23 +99,29 @@ proc map*[T, U](iter: Iter[T], fn: Function[T, U]): Iter[U] =
   )
 
 proc mapFilter*[T, U](iter: Iter[T], mapPredicate: Function[T, Option[U]]): Iter[U] =
-  var nextU: Option[U]
+  var nextUOrErr: Option[Result[U, ref CatchableError]]
 
   proc tryFetch(): void =
-    nextU = U.none
+    nextUOrErr = Result[U, ref CatchableError].none
     while not iter.finished:
-      let t = iter.next()
-      if u =? mapPredicate(t):
-        nextU = some(u)
-        break
+      try:
+        let t = iter.next()
+        if u =? mapPredicate(t):
+          nextUOrErr = some(success(u))
+          break
+      except CatchableError as err:
+        nextUOrErr = some(U.failure(err))
 
-  proc genNext(): U =
-    let u = nextU.unsafeGet
+  proc genNext(): U {.raises: [CatchableError].} =
+    # at this point nextUOrErr should always be some(..)
+    without u =? nextUOrErr.unsafeGet, err:
+      raise err
+
     tryFetch()
     return u
 
   proc isFinished(): bool =
-    nextU.isNone
+    nextUOrErr.isNone
 
   tryFetch()
   newIter(genNext, isFinished)

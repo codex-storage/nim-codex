@@ -15,52 +15,42 @@ asyncchecksuite "Test AsyncIter":
     check:
       iter.finished == true
 
-  test "Should multiply each item by 2 using `map`":
+  test "Should map each item using `map`":
     let
-      iter1 = newIter(1..<5)
-      iter2 = mapAsync[int, int](iter1,
-        proc (i: int): Future[int] {.async.} =
-          i * 2
+      iter1 = newAsyncIter(0..<5).delayBy(10.millis)
+      iter2 = map[int, string](iter1,
+        proc (i: int): Future[string] {.async.} =
+          $i
       )
 
-    var items: seq[int]
+    var collected: seq[string]
 
     for fut in iter2:
-      items.add(await fut)
+      collected.add(await fut)
 
     check:
-      items == @[2, 4, 6, 8]
+      collected == @["0", "1", "2", "3", "4"]
 
   test "Should leave only odd items using `filter`":
     let
-      iter1 = newIter(0..<5)
-      iter2 = mapAsync[int, int](iter1,
-        proc (i: int): Future[int] {.async.} =
-          await sleepAsync((i * 10).millis)
-          i
-      )
-      iter3 = await filter[int](iter2,
+      iter1 = newAsyncIter(0..<5).delayBy(10.millis)
+      iter2 = await filter[int](iter1,
         proc (i: int): Future[bool] {.async.} =
           (i mod 2) == 1
       )
 
-    var items: seq[int]
+    var collected: seq[int]
 
-    for fut in iter3:
-      items.add(await fut)
+    for fut in iter2:
+      collected.add(await fut)
 
     check:
-      items == @[1, 3]
+      collected == @[1, 3]
 
   test "Should leave only odd items using `mapFilter`":
     let
-      iter1 = newIter(0..<5)
-      iter2 = mapAsync[int, int](iter1,
-        proc (i: int): Future[int] {.async.} =
-          await sleepAsync((i * 10).millis)
-          i
-      )
-      iter3 = await mapFilter[int, string](iter2,
+      iter1 = newAsyncIter(0..<5).delayBy(10.millis)
+      iter2 = await mapFilter[int, string](iter1,
         proc (i: int): Future[?string] {.async.} =
           if (i mod 2) == 1:
             some($i)
@@ -68,27 +58,73 @@ asyncchecksuite "Test AsyncIter":
             string.none
       )
 
-    var items: seq[string]
+    var collected: seq[string]
 
-    for fut in iter3:
-      items.add(await fut)
+    for fut in iter2:
+      collected.add(await fut)
 
     check:
-      items == @["1", "3"]
+      collected == @["1", "3"]
 
-  test "Should finish on error":
+  test "Should yield all items before err using `map`":
     let
-      iter1 = newIter(0..<5)
-      iter2 = mapAsync[int, int](iter1,
-          proc (i: int): Future[int] {.async.} =
-            raise newException(CatchableError, "Some error")
+      iter1 = newAsyncIter(0..<5).delayBy(10.millis)
+      iter2 = map[int, string](iter1,
+          proc (i: int): Future[string] {.async.} =
+            if i < 3:
+              return $i
+            else:
+              raise newException(CatchableError, "Some error")
         )
 
-    check:
-      not iter2.finished()
+    var collected: seq[string]
 
     expect CatchableError:
-      discard (await iter2.next())
+      for fut in iter2:
+        collected.add(await fut)
 
     check:
-      iter2.finished()
+      collected == @["0", "1", "2"]
+      iter2.finished
+
+  test "Should yield all items before err using `filter`":
+    let
+      iter1 = newAsyncIter(0..<5).delayBy(10.millis)
+      iter2 = await filter[int](iter1,
+          proc (i: int): Future[bool] {.async.} =
+            if i < 3:
+              return true
+            else:
+              raise newException(CatchableError, "Some error")
+        )
+
+    var collected: seq[int]
+
+    expect CatchableError:
+      for fut in iter2:
+        collected.add(await fut)
+
+    check:
+      collected == @[0, 1, 2]
+      iter2.finished
+
+  test "Should yield all items before err using `mapFilter`":
+    let
+      iter1 = newAsyncIter(0..<5).delayBy(10.millis)
+      iter2 = await mapFilter[int, string](iter1,
+          proc (i: int): Future[?string] {.async.} =
+            if i < 3:
+              return some($i)
+            else:
+              raise newException(CatchableError, "Some error")
+        )
+
+    var collected: seq[string]
+
+    expect CatchableError:
+      for fut in iter2:
+        collected.add(await fut)
+
+    check:
+      collected == @["0", "1", "2"]
+      iter2.finished
