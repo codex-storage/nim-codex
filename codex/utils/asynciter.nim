@@ -47,6 +47,9 @@ proc new*[T](_: type AsyncIter[T], genNext: GenNext[Future[T]], isFinished: IsFi
       var item: T
       try:
         item = await genNext()
+      except CancelledError as err:
+        iter.finish
+        raise err
       except CatchableError as err:
         if finishOnErr or isFinished():
           iter.finish
@@ -113,6 +116,8 @@ proc mapFilter*[T, U](iter: AsyncIter[T], mapPredicate: Function[T, Future[Optio
           futU.complete(u)
           nextFutU = some(futU)
           break
+      except CancelledError as err:
+        raise err
       except CatchableError as err:
         let errFut = newFuture[U]("AsyncIter.mapFilterAsync")
         errFut.fail(err)
