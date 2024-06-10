@@ -28,6 +28,10 @@ iterator pairs*[T](self: Iter[T]): tuple[key: int, val: T] {.inline.} =
     inc(i)
 
 proc new*[T](_: type Iter[T], genNext: GenNext[T], isFinished: IsFinished, finishOnErr: bool = true): Iter[T] =
+  ## Creates a new Iter using elements returned by supplier function `genNext`.
+  ## Iter is finished whenever `isFinished` returns true.
+  ##
+
   var iter = Iter[T]()
 
   proc next(): T {.raises: [CatchableError].} =
@@ -53,7 +57,7 @@ proc new*[T](_: type Iter[T], genNext: GenNext[T], isFinished: IsFinished, finis
   return iter
 
 proc new*[U, V, S: Ordinal](_: type Iter[U], a: U, b: V, step: S = 1): Iter[U] =
-  ## Creates new Iter in range a..b with specified step (default 1)
+  ## Creates a new Iter in range a..b with specified step (default 1)
   ##
 
   var i = a
@@ -70,13 +74,13 @@ proc new*[U, V, S: Ordinal](_: type Iter[U], a: U, b: V, step: S = 1): Iter[U] =
   Iter[U].new(genNext, isFinished)
 
 proc new*[U, V: Ordinal](_: type Iter[U], slice: HSlice[U, V]): Iter[U] =
-  ## Creates new Iter from slice
+  ## Creates a new Iter from a slice
   ##
 
   Iter[U].new(slice.a.int, slice.b.int, 1)
 
 proc new*[T](_: type Iter[T], items: seq[T]): Iter[T] =
-  ## Creates new Iter from items
+  ## Creates a new Iter from a sequence
   ##
 
   Iter[int].new(0..<items.len)

@@ -40,6 +40,10 @@ proc flatMap*[T, U](fut: Future[T], fn: Function[T, Future[U]]): Future[U] {.asy
   await fn(t)
 
 proc new*[T](_: type AsyncIter[T], genNext: GenNext[Future[T]], isFinished: IsFinished, finishOnErr: bool = true): AsyncIter[T] =
+  ## Creates a new Iter using elements returned by supplier function `genNext`.
+  ## Iter is finished whenever `isFinished` returns true.
+  ##
+
   var iter = AsyncIter[T]()
 
   proc next(): Future[T] {.async.} =
@@ -74,6 +78,9 @@ proc mapAsync*[T, U](iter: Iter[T], fn: Function[T, Future[U]]): AsyncIter[U] =
   )
 
 proc new*[U, V: Ordinal](_: type AsyncIter[U], slice: HSlice[U, V]): AsyncIter[U] =
+  ## Creates new Iter from a slice
+  ##
+
   let iter = Iter[U].new(slice)
   mapAsync[U, U](iter,
     proc (i: U): Future[U] {.async.} =
@@ -81,6 +88,9 @@ proc new*[U, V: Ordinal](_: type AsyncIter[U], slice: HSlice[U, V]): AsyncIter[U
   )
 
 proc new*[U, V, S: Ordinal](_: type AsyncIter[U], a: U, b: V, step: S = 1): AsyncIter[U] =
+  ## Creates new Iter in range a..b with specified step (default 1)
+  ##
+
   let iter = Iter[U].new(a, b, step)
   mapAsync[U, U](iter,
     proc (i: U): Future[U] {.async.} =
