@@ -10,14 +10,14 @@ import ../helpers
 asyncchecksuite "Test AsyncIter":
 
   test "Should be finished":
-    let iter = emptyAsyncIter[int]()
+    let iter = AsyncIter[int].empty()
 
     check:
       iter.finished == true
 
   test "Should map each item using `map`":
     let
-      iter1 = newAsyncIter(0..<5).delayBy(10.millis)
+      iter1 = AsyncIter[int].new(0..<5).delayBy(10.millis)
       iter2 = map[int, string](iter1,
         proc (i: int): Future[string] {.async.} =
           $i
@@ -33,7 +33,7 @@ asyncchecksuite "Test AsyncIter":
 
   test "Should leave only odd items using `filter`":
     let
-      iter1 = newAsyncIter(0..<5).delayBy(10.millis)
+      iter1 = AsyncIter[int].new(0..<5).delayBy(10.millis)
       iter2 = await filter[int](iter1,
         proc (i: int): Future[bool] {.async.} =
           (i mod 2) == 1
@@ -49,7 +49,7 @@ asyncchecksuite "Test AsyncIter":
 
   test "Should leave only odd items using `mapFilter`":
     let
-      iter1 = newAsyncIter(0..<5).delayBy(10.millis)
+      iter1 = AsyncIter[int].new(0..<5).delayBy(10.millis)
       iter2 = await mapFilter[int, string](iter1,
         proc (i: int): Future[?string] {.async.} =
           if (i mod 2) == 1:
@@ -68,7 +68,7 @@ asyncchecksuite "Test AsyncIter":
 
   test "Should yield all items before err using `map`":
     let
-      iter1 = newAsyncIter(0..<5).delayBy(10.millis)
+      iter1 = AsyncIter[int].new(0..<5).delayBy(10.millis)
       iter2 = map[int, string](iter1,
           proc (i: int): Future[string] {.async.} =
             if i < 3:
@@ -89,7 +89,7 @@ asyncchecksuite "Test AsyncIter":
 
   test "Should yield all items before err using `filter`":
     let
-      iter1 = newAsyncIter(0..<5).delayBy(10.millis)
+      iter1 = AsyncIter[int].new(0..<5).delayBy(10.millis)
       iter2 = await filter[int](iter1,
           proc (i: int): Future[bool] {.async.} =
             if i < 3:
@@ -110,7 +110,7 @@ asyncchecksuite "Test AsyncIter":
 
   test "Should yield all items before err using `mapFilter`":
     let
-      iter1 = newAsyncIter(0..<5).delayBy(10.millis)
+      iter1 = AsyncIter[int].new(0..<5).delayBy(10.millis)
       iter2 = await mapFilter[int, string](iter1,
           proc (i: int): Future[?string] {.async.} =
             if i < 3:

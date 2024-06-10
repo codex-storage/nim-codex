@@ -21,7 +21,7 @@ proc toAsyncIter*[T](
     trace "Disposing iterator"
     if error =? (await queryIter.dispose()).errorOption:
       return failure(error)
-    return success(emptyAsyncIter[?!QueryResponse[T]]())
+    return success(AsyncIter[?!QueryResponse[T]].empty())
 
   var errOccurred = false
 
@@ -41,7 +41,7 @@ proc toAsyncIter*[T](
   proc isFinished(): bool =
     queryIter.finished or (errOccurred and finishOnErr)
 
-  newAsyncIter[?!QueryResponse[T]](genNext, isFinished).success
+  AsyncIter[?!QueryResponse[T]].new(genNext, isFinished).success
 
 proc filterSuccess*[T](
   iter: AsyncIter[?!QueryResponse[T]]

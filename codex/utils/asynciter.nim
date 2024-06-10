@@ -39,7 +39,7 @@ proc flatMap*[T, U](fut: Future[T], fn: Function[T, Future[U]]): Future[U] {.asy
   let t = await fut
   await fn(t)
 
-proc newAsyncIter*[T](genNext: GenNext[Future[T]], isFinished: IsFinished, finishOnErr: bool = true): AsyncIter[T] =
+proc new*[T](_: type AsyncIter[T], genNext: GenNext[Future[T]], isFinished: IsFinished, finishOnErr: bool = true): AsyncIter[T] =
   var iter = AsyncIter[T]()
 
   proc next(): Future[T] {.async.} =
@@ -65,26 +65,26 @@ proc newAsyncIter*[T](genNext: GenNext[Future[T]], isFinished: IsFinished, finis
   return iter
 
 proc mapAsync*[T, U](iter: Iter[T], fn: Function[T, Future[U]]): AsyncIter[U] =
-  newAsyncIter[T](
+  AsyncIter[U].new(
     genNext = () => fn(iter.next()),
     isFinished = () => iter.finished()
   )
 
-proc newAsyncIter*[U, V: Ordinal](slice: HSlice[U, V]): AsyncIter[U] =
-  let iter = newIter(slice)
+proc new*[U, V: Ordinal](_: type AsyncIter[U], slice: HSlice[U, V]): AsyncIter[U] =
+  let iter = Iter[U].new(slice)
   mapAsync[U, U](iter,
     proc (i: U): Future[U] {.async.} =
       i
   )
 
-proc newAsyncIter*[U, V, S: Ordinal](a: U, b: V, step: S = 1): AsyncIter[U] =
-  let iter = newIter(a, b, step)
+proc new*[U, V, S: Ordinal](_: type AsyncIter[U], a: U, b: V, step: S = 1): AsyncIter[U] =
+  let iter = Iter[U].new(a, b, step)
   mapAsync[U, U](iter,
     proc (i: U): Future[U] {.async.} =
       i
   )
 
-proc emptyAsyncIter*[T](): AsyncIter[T] =
+proc empty*[T](_: type AsyncIter[T]): AsyncIter[T] =
   ## Creates an empty AsyncIter
   ##
 
@@ -92,10 +92,10 @@ proc emptyAsyncIter*[T](): AsyncIter[T] =
     raise newException(CatchableError, "Next item requested from an empty AsyncIter")
   proc isFinished(): bool = true
 
-  newAsyncIter[T](genNext, isFinished)
+  AsyncIter[T].new(genNext, isFinished)
 
 proc map*[T, U](iter: AsyncIter[T], fn: Function[T, Future[U]]): AsyncIter[U] =
-  newAsyncIter[U](
+  AsyncIter[U].new(
     genNext    = () => iter.next().flatMap(fn),
     isFinished = () => iter.finished
   )
@@ -128,7 +128,7 @@ proc mapFilter*[T, U](iter: AsyncIter[T], mapPredicate: Function[T, Future[Optio
     nextFutU.isNone
 
   await tryFetch()
-  newAsyncIter[U](genNext, isFinished)
+  AsyncIter[U].new(genNext, isFinished)
 
 proc filter*[T](iter: AsyncIter[T], predicate: Function[T, Future[bool]]): Future[AsyncIter[T]] {.async.} =
   proc wrappedPredicate(t: T): Future[Option[T]] {.async.} =

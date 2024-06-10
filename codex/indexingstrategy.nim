@@ -41,7 +41,7 @@ func checkIteration(self: IndexingStrategy, iteration: int): void {.raises: [Ind
 
 func getIter(first, last, step: int): Iter[int] =
   {.cast(noSideEffect).}:
-    newIter(first, last, step)
+    Iter[int].new(first, last, step)
 
 func getLinearIndicies(
   self: IndexingStrategy,

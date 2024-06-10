@@ -141,7 +141,7 @@ method listBlocks*(
   proc genNext(): Future[Cid] {.async.} =
     cids()
 
-  let iter = await (newAsyncIter[Cid](genNext, isFinished)
+  let iter = await (AsyncIter[Cid].new(genNext, isFinished)
     .filter(
       proc (cid: Cid): Future[bool] {.async.} =
         without isManifest =? cid.isManifest, err:

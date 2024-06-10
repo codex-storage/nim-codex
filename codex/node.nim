@@ -157,7 +157,7 @@ proc updateExpiry*(
 
   try:
     let
-      ensuringFutures = newIter(0..<manifest.blocksCount)
+      ensuringFutures = Iter[int].new(0..<manifest.blocksCount)
         .mapIt(self.networkStore.localStore.ensureExpiry( manifest.treeCid, it, expiry ))
     await allFuturesThrowing(ensuringFutures)
   except CancelledError as exc:
@@ -207,7 +207,7 @@ proc fetchBatched*(
 
   trace "Fetching blocks in batches of", size = batchSize
 
-  let iter = newIter(0..<manifest.blocksCount)
+  let iter = Iter[int].new(0..<manifest.blocksCount)
   self.fetchBatched(manifest.treeCid, iter, batchSize, onBatch)
 
 proc streamSingleBlock(

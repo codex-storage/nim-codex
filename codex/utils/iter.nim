@@ -27,7 +27,7 @@ iterator pairs*[T](self: Iter[T]): tuple[key: int, val: T] {.inline.} =
     yield (i, self.next())
     inc(i)
 
-proc newIter*[T](genNext: GenNext[T], isFinished: IsFinished, finishOnErr: bool = true): Iter[T] =
+proc new*[T](_: type Iter[T], genNext: GenNext[T], isFinished: IsFinished, finishOnErr: bool = true): Iter[T] =
   var iter = Iter[T]()
 
   proc next(): T {.raises: [CatchableError].} =
@@ -52,7 +52,7 @@ proc newIter*[T](genNext: GenNext[T], isFinished: IsFinished, finishOnErr: bool 
   iter.next = next
   return iter
 
-proc newIter*[U, V, S: Ordinal](a: U, b: V, step: S = 1): Iter[U] =
+proc new*[U, V, S: Ordinal](_: type Iter[U], a: U, b: V, step: S = 1): Iter[U] =
   ## Creates new Iter in range a..b with specified step (default 1)
   ##
 
@@ -67,22 +67,22 @@ proc newIter*[U, V, S: Ordinal](a: U, b: V, step: S = 1): Iter[U] =
     (step > 0 and i > b) or
       (step < 0 and i < b)
 
-  newIter(genNext, isFinished)
+  Iter[U].new(genNext, isFinished)
 
-proc newIter*[U, V: Ordinal](slice: HSlice[U, V]): Iter[U] =
+proc new*[U, V: Ordinal](_: type Iter[U], slice: HSlice[U, V]): Iter[U] =
   ## Creates new Iter from slice
   ##
 
-  newIter(slice.a.int, slice.b.int, 1)
+  Iter[U].new(slice.a.int, slice.b.int, 1)
 
-proc newIter*[T](items: seq[T]): Iter[T] =
+proc new*[T](_: type Iter[T], items: seq[T]): Iter[T] =
   ## Creates new Iter from items
   ##
 
-  newIter(0..<items.len)
+  Iter[int].new(0..<items.len)
     .map((i: int) => items[i])
 
-proc emptyIter*[T](): Iter[T] =
+proc empty*[T](_: type Iter[T]): Iter[T] =
   ## Creates an empty Iter
   ##
 
@@ -90,10 +90,10 @@ proc emptyIter*[T](): Iter[T] =
     raise newException(CatchableError, "Next item requested from an empty Iter")
   proc isFinished(): bool = true
 
-  newIter(genNext, isFinished)
+  Iter[T].new(genNext, isFinished)
 
 proc map*[T, U](iter: Iter[T], fn: Function[T, U]): Iter[U] =
-  newIter(
+  Iter[U].new(
     genNext    = () => fn(iter.next()),
     isFinished = () => iter.finished
   )
@@ -124,7 +124,7 @@ proc mapFilter*[T, U](iter: Iter[T], mapPredicate: Function[T, Option[U]]): Iter
     nextUOrErr.isNone
 
   tryFetch()
-  newIter(genNext, isFinished)
+  Iter[U].new(genNext, isFinished)
 
 proc filter*[T](iter: Iter[T], predicate: Function[T, bool]): Iter[T] =
   proc wrappedPredicate(t: T): Option[T] =

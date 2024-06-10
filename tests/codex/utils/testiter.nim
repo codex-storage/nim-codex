@@ -10,13 +10,13 @@ import ../helpers
 checksuite "Test Iter":
 
   test "Should be finished":
-    let iter = emptyIter[int]()
+    let iter = Iter[int].empty()
 
     check:
       iter.finished == true
 
   test "Should be iterable with `items`":
-    let iter = newIter(0..<5)
+    let iter = Iter.new(0..<5)
 
     let items =
       collect:
@@ -27,7 +27,7 @@ checksuite "Test Iter":
       items == @[0, 1, 2, 3, 4]
 
   test "Should be iterable with `pairs`":
-    let iter = newIter(0..<5)
+    let iter = Iter.new(0..<5)
 
     let pairs =
       collect:
@@ -38,14 +38,14 @@ checksuite "Test Iter":
       pairs == @[(0, 0), (1, 1), (2, 2), (3, 3), (4, 4)]
 
   test "Should map each item using `map`":
-    let iter = newIter(0..<5)
+    let iter = Iter.new(0..<5)
       .map((i: int) => $i)
 
     check:
       iter.toSeq() == @["0", "1", "2", "3", "4"]
 
   test "Should leave only odd items using `filter`":
-    let iter = newIter(0..<5)
+    let iter = Iter.new(0..<5)
       .filter((i: int) => (i mod 2) == 1)
 
     check:
@@ -53,7 +53,7 @@ checksuite "Test Iter":
 
   test "Should leave only odd items using `mapFilter`":
     let
-      iter1 = newIter(0..<5)
+      iter1 = Iter.new(0..<5)
       iter2 = mapFilter[int, string](iter1,
         proc(i: int): ?string =
           if (i mod 2) == 1:
@@ -67,7 +67,7 @@ checksuite "Test Iter":
 
   test "Should yield all items before err using `map`":
     let
-      iter = newIter(0..<5)
+      iter = Iter.new(0..<5)
        .map(
           proc (i: int): string =
             if i < 3:
@@ -88,7 +88,7 @@ checksuite "Test Iter":
 
   test "Should yield all items before err using `filter`":
     let
-      iter = newIter(0..<5)
+      iter = Iter.new(0..<5)
        .filter(
           proc (i: int): bool =
             if i < 3:
@@ -109,7 +109,7 @@ checksuite "Test Iter":
 
   test "Should yield all items before err using `mapFilter`":
     let
-      iter1 = newIter(0..<5)
+      iter1 = Iter.new(0..<5)
       iter2 = mapFilter[int, string](iter1,
           proc (i: int): ?string =
             if i < 3:
