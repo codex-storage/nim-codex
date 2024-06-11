@@ -238,10 +238,44 @@ proc update*(
   without key =? obj.key, error:
     return failure(error)
 
-  without oldAvailability =? await self.get(key, Availability), err:
-    if err of NotExistsError:
-      let res = await self.updateImpl(obj)
-      # inform subscribers that Availability has been added
+  let lock = self.locks.mgetOrPut(obj.id, newAsyncLock())
+  try:
+    without oldAvailability =? await self.get(key, Availability), err:
+      if err of NotExistsError:
+        let res = await self.updateImpl(obj)
+        # inform subscribers that Availability has been added
+        if onAvailabilityAdded =? self.onAvailabilityAdded:
+          # when chronos v4 is implemented, and OnAvailabilityAdded is annotated
+          # with async:(raises:[]), we can remove this try/catch as we know, with
+          # certainty, that nothing will be raised
+          try:
+            await onAvailabilityAdded(obj)
+          except CancelledError as e:
+            raise e
+          except CatchableError as e:
+            # we don't have any insight into types of exceptions that
+            # `onAvailabilityAdded` can raise because it is caller-defined
+            warn "Unknown error during 'onAvailabilityAdded' callback",
+              availabilityId = obj.id, error = e.msg
+        return res
+      else:
+        return failure(err)
+
+    # Sizing of the availability changed, we need to adjust the repo reservation accordingly
+    if oldAvailability.totalSize != obj.totalSize:
+      if oldAvailability.totalSize < obj.totalSize: # storage added
+        if reserveErr =? (await self.repo.reserve((obj.totalSize - oldAvailability.totalSize).truncate(uint))).errorOption:
+          return failure(reserveErr.toErr(ReserveFailedError))
+
+      elif oldAvailability.totalSize > obj.totalSize: # storage removed
+        if reserveErr =? (await self.repo.release((oldAvailability.totalSize - obj.totalSize).truncate(uint))).errorOption:
+          return failure(reserveErr.toErr(ReleaseFailedError))
+
+    let res = await self.updateImpl(obj)
+
+    if oldAvailability.freeSize < obj.freeSize: # availability added
+      # inform subscribers that Availability has been modified (with increased
+      # size)
       if onAvailabilityAdded =? self.onAvailabilityAdded:
         # when chronos v4 is implemented, and OnAvailabilityAdded is annotated
         # with async:(raises:[]), we can remove this try/catch as we know, with
@@ -255,40 +289,11 @@ proc update*(
           # `onAvailabilityAdded` can raise because it is caller-defined
           warn "Unknown error during 'onAvailabilityAdded' callback",
             availabilityId = obj.id, error = e.msg
-      return res
-    else:
-      return failure(err)
 
-  # Sizing of the availability changed, we need to adjust the repo reservation accordingly
-  if oldAvailability.totalSize != obj.totalSize:
-    if oldAvailability.totalSize < obj.totalSize: # storage added
-      if reserveErr =? (await self.repo.reserve((obj.totalSize - oldAvailability.totalSize).truncate(uint))).errorOption:
-        return failure(reserveErr.toErr(ReserveFailedError))
-
-    elif oldAvailability.totalSize > obj.totalSize: # storage removed
-      if reserveErr =? (await self.repo.release((oldAvailability.totalSize - obj.totalSize).truncate(uint))).errorOption:
-        return failure(reserveErr.toErr(ReleaseFailedError))
-
-  let res = await self.updateImpl(obj)
-
-  if oldAvailability.freeSize < obj.freeSize: # availability added
-    # inform subscribers that Availability has been modified (with increased
-    # size)
-    if onAvailabilityAdded =? self.onAvailabilityAdded:
-      # when chronos v4 is implemented, and OnAvailabilityAdded is annotated
-      # with async:(raises:[]), we can remove this try/catch as we know, with
-      # certainty, that nothing will be raised
-      try:
-        await onAvailabilityAdded(obj)
-      except CancelledError as e:
-        raise e
-      except CatchableError as e:
-        # we don't have any insight into types of exceptions that
-        # `onAvailabilityAdded` can raise because it is caller-defined
-        warn "Unknown error during 'onAvailabilityAdded' callback",
-          availabilityId = obj.id, error = e.msg
-
-  return res
+    return res
+  finally:
+    if lock.locked():
+      lock.release()
 
 proc delete(
   self: Reservations,
@@ -317,31 +322,36 @@ proc deleteReservation*(
   without key =? key(reservationId, availabilityId), error:
     return failure(error)
 
-  without reservation =? (await self.get(key, Reservation)), error:
-    if error of NotExistsError:
-      return success()
-    else:
-      return failure(error)
+  let lock = self.locks.mgetOrPut(availabilityId, newAsyncLock())
+  try:
+    without reservation =? (await self.get(key, Reservation)), error:
+      if error of NotExistsError:
+        return success()
+      else:
+        return failure(error)
 
-  if reservation.size > 0.u256:
-    trace "returning remaining reservation bytes to availability",
-      size = reservation.size
+    if reservation.size > 0.u256:
+      trace "returning remaining reservation bytes to availability",
+        size = reservation.size
 
-    without availabilityKey =? availabilityId.key, error:
-      return failure(error)
+      without availabilityKey =? availabilityId.key, error:
+        return failure(error)
 
-    without var availability =? await self.get(availabilityKey, Availability), error:
-      return failure(error)
+      without var availability =? await self.get(availabilityKey, Availability), error:
+        return failure(error)
 
-    availability.freeSize += reservation.size
+      availability.freeSize += reservation.size
 
-    if updateErr =? (await self.update(availability)).errorOption:
-      return failure(updateErr)
+      if updateErr =? (await self.update(availability)).errorOption:
+        return failure(updateErr)
 
-  if err =? (await self.repo.metaDs.delete(key)).errorOption:
-    return failure(err.toErr(DeleteFailedError))
+    if err =? (await self.repo.metaDs.delete(key)).errorOption:
+      return failure(err.toErr(DeleteFailedError))
 
-  return success()
+    return success()
+  finally:
+    if lock.locked():
+      lock.release()
 
 # TODO: add support for deleting availabilities
 # To delete, must not have any active sales.
@@ -448,47 +458,51 @@ proc returnBytesToAvailability*(
     reservationId
     availabilityId
 
+  let lock = self.locks.mgetOrPut(availabilityId, newAsyncLock())
+  try:
+    without key =? key(reservationId, availabilityId), error:
+      return failure(error)
 
-  without key =? key(reservationId, availabilityId), error:
-    return failure(error)
+    without var reservation =? (await self.get(key, Reservation)), error:
+      return failure(error)
 
-  without var reservation =? (await self.get(key, Reservation)), error:
-    return failure(error)
+    # We are ignoring bytes that are still present in the Reservation because
+    # they will be returned to Availability through `deleteReservation`.
+    let bytesToBeReturned = bytes - reservation.size
 
-  # We are ignoring bytes that are still present in the Reservation because
-  # they will be returned to Availability through `deleteReservation`.
-  let bytesToBeReturned = bytes - reservation.size
+    if bytesToBeReturned == 0:
+      trace "No bytes are returned", requestSizeBytes = bytes, returningBytes = bytesToBeReturned
+      return success()
 
-  if bytesToBeReturned == 0:
-    trace "No bytes are returned", requestSizeBytes = bytes, returningBytes = bytesToBeReturned
+    trace "Returning bytes", requestSizeBytes = bytes, returningBytes = bytesToBeReturned
+
+    # First lets see if we can re-reserve the bytes, if the Repo's quota
+    # is depleted then we will fail-fast as there is nothing to be done atm.
+    if reserveErr =? (await self.repo.reserve(bytesToBeReturned.truncate(uint))).errorOption:
+      return failure(reserveErr.toErr(ReserveFailedError))
+
+    without availabilityKey =? availabilityId.key, error:
+      return failure(error)
+
+    without var availability =? await self.get(availabilityKey, Availability), error:
+      return failure(error)
+
+    availability.freeSize += bytesToBeReturned
+
+    # Update availability with returned size
+    if updateErr =? (await self.update(availability)).errorOption:
+
+      trace "Rolling back returning bytes"
+      if rollbackErr =? (await self.repo.release(bytesToBeReturned.truncate(uint))).errorOption:
+        rollbackErr.parent = updateErr
+        return failure(rollbackErr)
+
+      return failure(updateErr)
+
     return success()
-
-  trace "Returning bytes", requestSizeBytes = bytes, returningBytes = bytesToBeReturned
-
-  # First lets see if we can re-reserve the bytes, if the Repo's quota
-  # is depleted then we will fail-fast as there is nothing to be done atm.
-  if reserveErr =? (await self.repo.reserve(bytesToBeReturned.truncate(uint))).errorOption:
-    return failure(reserveErr.toErr(ReserveFailedError))
-
-  without availabilityKey =? availabilityId.key, error:
-    return failure(error)
-
-  without var availability =? await self.get(availabilityKey, Availability), error:
-    return failure(error)
-
-  availability.freeSize += bytesToBeReturned
-
-  # Update availability with returned size
-  if updateErr =? (await self.update(availability)).errorOption:
-
-    trace "Rolling back returning bytes"
-    if rollbackErr =? (await self.repo.release(bytesToBeReturned.truncate(uint))).errorOption:
-      rollbackErr.parent = updateErr
-      return failure(rollbackErr)
-
-    return failure(updateErr)
-
-  return success()
+  finally:
+    if lock.locked():
+      lock.release()
 
 proc release*(
   self: Reservations,
