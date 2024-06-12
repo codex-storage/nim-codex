@@ -6,7 +6,11 @@
 # according to those terms.
 
 # Pins the Nim version so it's consistent across the board
-NIM_COMMIT := upstream/version-1-6
+# TODO: right now, if we use version-1-6 it'll pick up the stale branch from status-im.
+#   Once https://github.com/status-im/nimbus-build-system/pull/76 gets merged
+#   (or 1.6.22 is released) we can use the right branch/version instead of a raw
+#   commit hash.
+NIM_COMMIT := 38640664088251bbc88917b4bacfd86ec53014b8
 export NIM_COMMIT
 
 SHELL := bash # the shell used internally by Make
