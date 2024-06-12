@@ -157,10 +157,8 @@ proc updateExpiry*(
 
   try:
     let
-      ensuringFutures = Iter
-        .fromSlice(0..<manifest.blocksCount)
-        .mapIt(
-          self.networkStore.localStore.ensureExpiry( manifest.treeCid, it, expiry ))
+      ensuringFutures = Iter[int].new(0..<manifest.blocksCount)
+        .mapIt(self.networkStore.localStore.ensureExpiry( manifest.treeCid, it, expiry ))
     await allFuturesThrowing(ensuringFutures)
   except CancelledError as exc:
     raise exc
@@ -209,7 +207,7 @@ proc fetchBatched*(
 
   trace "Fetching blocks in batches of", size = batchSize
 
-  let iter = Iter.fromSlice(0..<manifest.blocksCount)
+  let iter = Iter[int].new(0..<manifest.blocksCount)
   self.fetchBatched(manifest.treeCid, iter, batchSize, onBatch)
 
 proc streamSingleBlock(
@@ -698,6 +696,8 @@ proc start*(self: CodexNodeRef) {.async.} =
 
     try:
       await hostContracts.start()
+    except CancelledError as error:
+      raise error
     except CatchableError as error:
       error "Unable to start host contract interactions", error=error.msg
       self.contracts.host = HostInteractions.none
@@ -705,6 +705,8 @@ proc start*(self: CodexNodeRef) {.async.} =
   if clientContracts =? self.contracts.client:
     try:
       await clientContracts.start()
+    except CancelledError as error:
+      raise error
     except CatchableError as error:
       error "Unable to start client contract interactions: ", error=error.msg
       self.contracts.client = ClientInteractions.none
@@ -712,6 +714,8 @@ proc start*(self: CodexNodeRef) {.async.} =
   if validatorContracts =? self.contracts.validator:
     try:
       await validatorContracts.start()
+    except CancelledError as error:
+      raise error
     except CatchableError as error:
       error "Unable to start validator contract interactions: ", error=error.msg
       self.contracts.validator = ValidatorInteractions.none

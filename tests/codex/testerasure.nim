@@ -28,17 +28,23 @@ suite "Erasure encode/decode":
   var store: BlockStore
   var erasure: Erasure
   var taskpool: Taskpool
+  let repoTmp = TempLevelDb.new()
+  let metaTmp = TempLevelDb.new()
 
   setup:
     let
-      repoDs = SQLiteDatastore.new(Memory).tryGet()
-      metaDs = SQLiteDatastore.new(Memory).tryGet()
+      repoDs = repoTmp.newDb()
+      metaDs = metaTmp.newDb()
     rng = Rng.instance()
     chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = BlockSize)
     store = RepoStore.new(repoDs, metaDs)
     taskpool = Taskpool.new(num_threads = countProcessors())
     erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
     manifest = await storeDataGetManifest(store, chunker)
+
+  teardown:
+    await repoTmp.destroyDb()
+    await metaTmp.destroyDb()
 
   proc encode(buffers, parity: int): Future[Manifest] {.async.} =
     let

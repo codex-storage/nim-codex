@@ -34,12 +34,6 @@ proc new*(
 proc slots*(validation: Validation): seq[SlotId] =
   validation.slots.toSeq
 
-proc iterateSlots(validation: Validation, action: proc(s: SlotId): Future[void] {.async.}) {.async.} =
-  # Copy of hashSet, for iteration.
-  let slots = validation.slots
-  for slotId in slots:
-    await action(slotId)
-
 proc getCurrentPeriod(validation: Validation): UInt256 =
   return validation.periodicity.periodOf(validation.clock.now().u256)
 
@@ -61,12 +55,12 @@ proc subscribeSlotFilled(validation: Validation) {.async.} =
 
 proc removeSlotsThatHaveEnded(validation: Validation) {.async.} =
   var ended: HashSet[SlotId]
-  proc onSlot(slotId: SlotId) {.async.} =
+  let slots = validation.slots
+  for slotId in slots:
     let state = await validation.market.slotState(slotId)
     if state != SlotState.Filled:
       trace "Removing slot", slotId
       ended.incl(slotId)
-  await validation.iterateSlots(onSlot)
   validation.slots.excl(ended)
 
 proc markProofAsMissing(validation: Validation,
@@ -88,10 +82,10 @@ proc markProofAsMissing(validation: Validation,
     error "Marking proof as missing failed", msg = e.msg
 
 proc markProofsAsMissing(validation: Validation) {.async.} =
-  proc onSlot(slotId: SlotId) {.async.} =
+  let slots = validation.slots
+  for slotId in slots:
     let previousPeriod = validation.getCurrentPeriod() - 1
     await validation.markProofAsMissing(slotId, previousPeriod)
-  await validation.iterateSlots(onSlot)
 
 proc run(validation: Validation) {.async.} =
   trace "Validation started"

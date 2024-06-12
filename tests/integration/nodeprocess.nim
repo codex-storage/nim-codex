@@ -65,6 +65,8 @@ method start*(node: NodeProcess) {.base, async.} =
       options = poptions,
       stdoutHandle = AsyncProcess.Pipe
     )
+  except CancelledError as error:
+    raise error
   except CatchableError as e:
     error "failed to start node process", error = e.msg
 
@@ -135,7 +137,8 @@ method stop*(node: NodeProcess) {.base, async.} =
 
       trace "closing node process' streams"
       await node.process.closeWait()
-
+    except CancelledError as error:
+      raise error
     except CatchableError as e:
       error "error stopping node process", error = e.msg
 
