@@ -240,6 +240,9 @@ proc update*(
 
   let lock = self.locks.mgetOrPut(obj.id, newAsyncLock())
   try:
+    trace "acquiring lock for availibility", availabilityId=obj.id
+    await lock.acquire()
+    trace "got lock for availibility", availabilityId=obj.id
     without oldAvailability =? await self.get(key, Availability), err:
       if err of NotExistsError:
         let res = await self.updateImpl(obj)
@@ -324,6 +327,9 @@ proc deleteReservation*(
 
   let lock = self.locks.mgetOrPut(availabilityId, newAsyncLock())
   try:
+    trace "acquiring lock for availibility", availabilityId
+    await lock.acquire()
+    trace "got lock for availibility", availabilityId
     without reservation =? (await self.get(key, Reservation)), error:
       if error of NotExistsError:
         return success()
@@ -460,6 +466,9 @@ proc returnBytesToAvailability*(
 
   let lock = self.locks.mgetOrPut(availabilityId, newAsyncLock())
   try:
+    trace "acquiring lock for availibility", availabilityId
+    await lock.acquire()
+    trace "got lock for availibility", availabilityId
     without key =? key(reservationId, availabilityId), error:
       return failure(error)
 
