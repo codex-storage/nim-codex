@@ -17,6 +17,7 @@ import pkg/taskpools
 
 import ../asynctest
 import ./helpers
+import ./examples
 
 suite "Erasure encode/decode":
   const BlockSize = 1024'nb
@@ -232,3 +233,26 @@ suite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     discard (await erasure.decode(encoded)).tryGet()
+
+  test "Verifiable manifest":
+    const
+      buffers = 20
+      parity = 10
+
+    let
+      encoded = await encode(buffers, parity)
+      slotCids = collect(newSeq):
+        for i in 0..<encoded.numSlots: Cid.example
+
+      verifyable = Manifest.new(encoded, Cid.example, slotCids).tryGet()
+
+      # Successful:
+      # decoded = (await erasure.decode(encoded)).tryGet()
+
+      # Fails:
+      decoded = (await erasure.decode(verifyable)).tryGet()
+
+    check:
+      decoded.treeCid == manifest.treeCid
+      decoded.treeCid == encoded.originalTreeCid
+      decoded.blocksCount == encoded.originalBlocksCount
