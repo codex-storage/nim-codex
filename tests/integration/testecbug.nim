@@ -58,8 +58,8 @@ marketplacesuite "EC bug":
 
     let request = await marketplace.getRequest(requestId.get)
     let cidFromRequest = Cid.init(request.content.cid).get()
-    let downloaded = clientApi.download(cidFromRequest, local = true)
+    let downloaded = await clientApi.downloadBytes(cidFromRequest, local = true)
     check downloaded.isOk
-    check downloaded.get == data
+    check downloaded.get.toHex == data
 
     await subscription.unsubscribe()
