@@ -209,6 +209,9 @@ proc prepareDecodingData(
     let
       pos = indexToPos(encoded.steps, idx, step)
 
+    if encoded.ecK > pos:
+      continue
+
     logScope:
       cid   = blk.cid
       idx   = idx
@@ -217,7 +220,7 @@ proc prepareDecodingData(
       empty = blk.isEmpty
 
     cids[idx] = blk.cid
-    if idx >= encoded.rounded and pos >= encoded.ecK:
+    if idx >= encoded.rounded:
       trace "Retrieved parity block"
       shallowCopy(parityData[pos - encoded.ecK], if blk.isEmpty: emptyBlock else: blk.data)
       parityPieces.inc

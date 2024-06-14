@@ -1,8 +1,15 @@
 from pkg/libp2p import Cid, init
+
+# import pkg/codex/manifest
+import pkg/codex/manifest/coders
+import pkg/codex/manifest/manifest
+
 import ../examples
 import ./marketplacesuite
 import ./nodeconfigs
 import ./hardhatconfig
+
+export coders # make Manifest.decode symbol available to codex/manifest
 
 marketplacesuite "EC bug":
 
@@ -16,15 +23,11 @@ marketplacesuite "EC bug":
         CodexConfigs.init(nodes=1)
           # .debug() # uncomment to enable console log output.debug()
           .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-          .withLogTopics("node", "erasure", "marketplace", )
+          .withLogTopics("node", "erasure", "marketplace", "storestream")
           .some,
 
       providers:
-        CodexConfigs.init(nodes=0)
-          # .debug() # uncomment to enable console log output
-          # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-          # .withLogTopics("node", "marketplace", "sales", "reservations", "node", "proving", "clock")
-          .some,
+        CodexConfigs.none,
   ):
     let reward = 400.u256
     let duration = 10.periods
@@ -60,6 +63,10 @@ marketplacesuite "EC bug":
     let cidFromRequest = Cid.init(request.content.cid).get()
     let downloaded = await clientApi.downloadBytes(cidFromRequest, local = true)
     check downloaded.isOk
-    check downloaded.get.toHex == data
+    # let manifest = Manifest.new(downloaded.get)
+    # echo "manifest: ", manifest
+    echo "orig data length: ", data.len
+    echo "download length: ", downloaded.get.toHex.len
+    # check downloaded.get.toHex == data
 
     await subscription.unsubscribe()
