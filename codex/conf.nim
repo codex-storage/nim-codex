@@ -190,6 +190,12 @@ type
       name: "api-port"
       abbr: "p" }: Port
 
+    apiCorsAllowedOrigin* {.
+      desc: "The REST Api CORS allowed origin for downloading data. '*' will allow all origins, '' will allow none.",
+      defaultValue: string.none
+      defaultValueDesc: "Disallow all cross origin requests to download data"
+      name: "api-cors-origin" }: Option[string]
+
     repoKind* {.
       desc: "Backend for main repo store (fs, sqlite, leveldb)"
       defaultValueDesc: "fs"
