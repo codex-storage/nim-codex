@@ -323,8 +323,7 @@ asyncchecksuite "Sales":
                          slot: UInt256,
                          onBatch: BatchProc): Future[?!void] {.async.} =
       let blk = bt.Block.new( @[1.byte] ).get
-      onBatch( blk.repeat(request.ask.slotSize.truncate(int)) )
-      return success()
+      await onBatch( blk.repeat(request.ask.slotSize.truncate(int)) )
 
     createAvailability()
     await market.requestStorage(request)
@@ -337,8 +336,8 @@ asyncchecksuite "Sales":
                          onBatch: BatchProc): Future[?!void] {.async.} =
       slotIndex = slot
       let blk = bt.Block.new( @[1.byte] ).get
-      onBatch(@[ blk ])
-      return success()
+      await onBatch(@[ blk ])
+
     let sold = newFuture[void]()
     sales.onSale = proc(request: StorageRequest, slotIndex: UInt256) =
       sold.complete()

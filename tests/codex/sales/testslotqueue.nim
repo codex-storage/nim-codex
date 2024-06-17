@@ -524,7 +524,7 @@ suite "Slot queue":
                                   request.ask,
                                   request.expiry,
                                   seen = true)
-    queue.push(item)
+    check queue.push(item).isOk
     check eventually queue.paused
     check onProcessSlotCalledWith.len == 0
 
@@ -534,7 +534,7 @@ suite "Slot queue":
 
     let request = StorageRequest.example
     var items = SlotQueueItem.init(request)
-    queue.push(items)
+    check queue.push(items).isOk
     # check all items processed
     check eventually queue.len == 0
 
@@ -546,7 +546,7 @@ suite "Slot queue":
                                   request.expiry,
                                   seen = true)
     check queue.paused
-    queue.push(item0)
+    check queue.push(item0).isOk
     check queue.paused
 
   test "paused queue waits for unpause before continuing processing":
@@ -558,7 +558,7 @@ suite "Slot queue":
                                   seen = false)
     check queue.paused
     # push causes unpause
-    queue.push(item)
+    check queue.push(item).isOk
     # check all items processed
     check eventually onProcessSlotCalledWith == @[
       (item.requestId, item.slotIndex),
@@ -576,8 +576,8 @@ suite "Slot queue":
                                   request.ask,
                                   request.expiry,
                                   seen = true)
-    queue.push(item0)
-    queue.push(item1)
+    check queue.push(item0).isOk
+    check queue.push(item1).isOk
     check queue[0].seen
     check queue[1].seen
 
