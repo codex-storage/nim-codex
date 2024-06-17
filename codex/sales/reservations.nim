@@ -54,7 +54,7 @@ export logutils
 logScope:
   topics = "sales reservations"
 
-declareCounter(codex_reservations_availability_missmatch, "codex reservations availability_missmatch")
+declareCounter(codex_reservations_availability_mismatch, "codex reservations availability_mismatch")
 
 type
   AvailabilityId* = distinct array[32, byte]
@@ -414,7 +414,7 @@ method createReservation*(
     # We recheck that the found availability is still matching after we have lock acquired
     if availability.freeSize < slotSize:
        # Lets monitor how often this happen and if it is often we can do it more inteligent to handle it
-      codex_reservations_availability_missmatch.inc()
+      codex_reservations_availability_mismatch.inc()
       warn "we matched availability but then it changed and now it does not match anymore", id = availability.id
 
       let error = newException(
