@@ -107,6 +107,8 @@ proc retrieveCid(
       await stream.close()
 
 proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
+  let allowedOrigin = router.allowedOrigin # prevents capture inside of api defintion
+
   router.rawApi(
     MethodPost,
     "/api/codex/v1/data") do (
@@ -166,6 +168,12 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
           Http400,
           $cid.error())
 
+      if corsOrigin =? allowedOrigin:
+        resp.setHeader("Access-Control-Allow-Origin", corsOrigin)
+        resp.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
+        resp.setHeader("Access-Control-Headers", "X-Requested-With")
+        resp.setHeader("Access-Control-Max-Age", "86400")
+
       await node.retrieveCid(cid.get(), local = true, resp=resp)
 
   router.api(
@@ -180,6 +188,12 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
         return RestApiResponse.error(
           Http400,
           $cid.error())
+
+      if corsOrigin =? allowedOrigin:
+        resp.setHeader("Access-Control-Allow-Origin", corsOrigin)
+        resp.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
+        resp.setHeader("Access-Control-Headers", "X-Requested-With")
+        resp.setHeader("Access-Control-Max-Age", "86400")
 
       await node.retrieveCid(cid.get(), local = false, resp=resp)
 
@@ -636,8 +650,13 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
 
-proc initRestApi*(node: CodexNodeRef, conf: CodexConf, repoStore: RepoStore): RestRouter =
-  var router = RestRouter.init(validate)
+proc initRestApi*(
+  node: CodexNodeRef,
+  conf: CodexConf,
+  repoStore: RepoStore,
+  corsAllowedOrigin: ?string): RestRouter =
+
+  var router = RestRouter.init(validate, corsAllowedOrigin)
 
   initDataApi(node, repoStore, router)
   initSalesApi(node, router)

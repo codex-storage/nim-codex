@@ -5,6 +5,30 @@
 # at your option. This file may not be copied, modified, or distributed except
 # according to those terms.
 
+# This is the Nim version used locally and in regular CI builds.
+# Can be a specific version tag, a branch name, or a commit hash.
+# Can be overridden by setting the NIM_COMMIT environment variable
+# before calling make.
+#
+# For readability in CI, if NIM_COMMIT is set to "pinned",
+# this will also default to the version pinned here.
+#
+# If NIM_COMMIT is set to "nimbusbuild", this will use the
+# version pinned by nimbus-build-system.
+PINNED_NIM_VERSION := v1.6.14
+
+ifeq ($(NIM_COMMIT),)
+NIM_COMMIT := $(PINNED_NIM_VERSION)
+else ifeq ($(NIM_COMMIT),pinned)
+NIM_COMMIT := $(PINNED_NIM_VERSION)
+endif
+
+ifeq ($(NIM_COMMIT),nimbusbuild)
+undefine NIM_COMMIT
+else
+export NIM_COMMIT
+endif
+
 SHELL := bash # the shell used internally by Make
 
 # used inside the included makefiles
