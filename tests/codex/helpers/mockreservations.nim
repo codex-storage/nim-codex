@@ -7,13 +7,12 @@ type
   MockReservations* = ref object of Reservations
     createReservationThrowBytesOutOfBoundsError: bool
 
-func new*(
+proc new*(
     T: type MockReservations,
     repo: RepoStore
 ): MockReservations =
   ## Create a mock clock instance
-  {.cast(noSideEffect).}:
-    MockReservations(availabilityLock: newAsyncLock(), repo: repo)
+  MockReservations(availabilityLock: newAsyncLock(), repo: repo)
 
 proc setCreateReservationThrowBytesOutOfBoundsError*(self: MockReservations, flag: bool) =
   self.createReservationThrowBytesOutOfBoundsError = flag
