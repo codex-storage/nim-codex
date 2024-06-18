@@ -78,6 +78,7 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
     request.id,
     data.slotIndex
   ), error:
+    trace "Creation of reservation failed"
     # Race condition:
     # reservations.findAvailability (line 64) is no guarantee. You can never know for certain that the reservation can be created until after you have it.
     # Should createReservation fail because there's no space, we proceed to SaleIgnored.
@@ -85,6 +86,8 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
       return some State(SaleIgnored())
 
     return some State(SaleErrored(error: error))
+
+  trace "Reservation created succesfully"
 
   data.reservation = some reservation
   return some State(SaleDownloading())

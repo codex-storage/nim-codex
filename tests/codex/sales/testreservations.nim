@@ -1,4 +1,5 @@
 import std/random
+import std/sequtils
 
 import pkg/questionable
 import pkg/questionable/results
@@ -6,12 +7,15 @@ import pkg/chronos
 import pkg/datastore
 
 import pkg/codex/stores
+import pkg/codex/errors
 import pkg/codex/sales
 import pkg/codex/utils/json
 
 import ../../asynctest
 import ../examples
 import ../helpers
+
+const CONCURRENCY_TESTS_COUNT = 1000
 
 asyncchecksuite "Reservations module":
   var
@@ -148,6 +152,39 @@ asyncchecksuite "Reservations module":
     check created.isErr
     check created.error of BytesOutOfBoundsError
 
+  test "cannot create reservation larger than availability size - concurrency test":
+    proc concurrencyTest(): Future[void] {.async.} =
+      let availability = createAvailability()
+      let one = reservations.createReservation(
+        availability.id,
+        availability.totalSize - 1,
+        RequestId.example,
+        UInt256.example
+      )
+
+      let two = reservations.createReservation(
+        availability.id,
+        availability.totalSize,
+        RequestId.example,
+        UInt256.example
+      )
+
+      let oneResult = await one
+      let twoResult = await two
+
+      check oneResult.isErr or twoResult.isErr
+      if oneResult.isErr:
+        check oneResult.error of BytesOutOfBoundsError
+      if twoResult.isErr:
+        check twoResult.error of BytesOutOfBoundsError
+
+    var futures: seq[Future[void]]
+    for _ in 1..CONCURRENCY_TESTS_COUNT:
+      futures.add(concurrencyTest())
+
+    await allFuturesThrowing(futures)
+
+
   test "creating reservation reduces availability size":
     let availability = createAvailability()
     let orig = availability.freeSize
@@ -244,17 +281,6 @@ asyncchecksuite "Reservations module":
     check updated.size == reservation.size - 1
 
   test "cannot release more bytes than size of reservation":
-    let availability = createAvailability()
-    let reservation = createReservation(availability)
-    let updated = await reservations.release(
-      reservation.id,
-      reservation.availabilityId,
-      (reservation.size + 1).truncate(uint)
-    )
-    check updated.isErr
-    check updated.error of BytesOutOfBoundsError
-
-  test "cannot release more bytes than size of reservation - concurrency test":
     let availability = createAvailability()
     let reservation = createReservation(availability)
     let updated = await reservations.release(

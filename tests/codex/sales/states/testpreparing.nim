@@ -74,8 +74,8 @@ asyncchecksuite "sales state 'preparing'":
     let next = state.onSlotFilled(request.id, slotIndex)
     check !next of SaleFilled
 
-  proc createAvailability() =
-    let a = waitFor reservations.createAvailability(
+  proc createAvailability() {.async.} =
+    let a = await reservations.createAvailability(
       availability.totalSize,
       availability.duration,
       availability.minPrice,
@@ -88,12 +88,12 @@ asyncchecksuite "sales state 'preparing'":
     check !next of SaleIgnored
 
   test "run switches to downloading when reserved":
-    createAvailability()
+    await createAvailability()
     let next = await state.run(agent)
     check !next of SaleDownloading
 
   test "run switches to ignored when reserve fails with BytesOutOfBounds":
-    createAvailability()
+    await createAvailability()
     reservations.setCreateReservationThrowBytesOutOfBoundsError(true)
 
     let next = await state.run(agent)

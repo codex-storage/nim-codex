@@ -8,11 +8,12 @@ type
     createReservationThrowBytesOutOfBoundsError: bool
 
 func new*(
-    _: type MockReservations,
+    T: type MockReservations,
     repo: RepoStore
 ): MockReservations =
   ## Create a mock clock instance
-  MockReservations(repo: repo)
+  {.cast(noSideEffect).}:
+    MockReservations(availabilityLock: newAsyncLock(), repo: repo)
 
 proc setCreateReservationThrowBytesOutOfBoundsError*(self: MockReservations, flag: bool) =
   self.createReservationThrowBytesOutOfBoundsError = flag
