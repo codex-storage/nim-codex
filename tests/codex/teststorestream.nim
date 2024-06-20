@@ -1,10 +1,12 @@
 import pkg/chronos
 import pkg/questionable/results
 
-import pkg/codex/streams
-import pkg/codex/stores
-import pkg/codex/manifest
-import pkg/codex/blocktype as bt
+import pkg/codex/[
+  streams,
+  stores,
+  indexingstrategy,
+  manifest,
+  blocktype as bt]
 
 import ../asynctest
 import ./helpers
@@ -99,3 +101,42 @@ asyncchecksuite "StoreStream":
 
     await stream.readExactly(addr buf[0], 15)
     check sequentialBytes(buf,15,0)
+
+suite "StoreStream - Size Tests":
+
+  var stream: StoreStream
+
+  teardown:
+    await stream.close()
+
+  test "Should return dataset size as stream size":
+    let manifest = Manifest.new(
+      treeCid = emptyCid(CIDv1, Sha256HashCodec, BlockCodec).get,
+      datasetSize = 80.NBytes,
+      blockSize = 10.NBytes
+    )
+
+    stream = StoreStream.new(CacheStore.new(), manifest)
+
+    check stream.size == 80
+
+  test "Should not count parity/padding bytes as part of stream size":
+    let mockCid = emptyCid(CIDv1, Sha256HashCodec, BlockCodec).get
+
+    let protectedManifest = Manifest.new(
+      treeCid = mockCid,
+      datasetSize = 120.NBytes, # size including parity bytes
+      blockSize = 10.NBytes,
+      version = CIDv1,
+      hcodec = Sha256HashCodec,
+      codec = BlockCodec,
+      ecK = 2,
+      ecM = 1,
+      originalTreeCid = mockCid,
+      originalDatasetSize = 80.NBytes, # size without parity bytes
+      strategy = StrategyType.SteppedStrategy
+    )
+
+    stream = StoreStream.new(CacheStore.new(), protectedManifest)
+
+    check stream.size == 80

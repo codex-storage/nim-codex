@@ -38,7 +38,6 @@ type
   StoreStream* = ref object of SeekableStream
     store*: BlockStore          # Store where to lookup block contents
     manifest*: Manifest         # List of block CIDs
-    pad*: bool                  # Pad last block to manifest.blockSize?
 
 method initStream*(s: StoreStream) =
   if s.objName.len == 0:
@@ -57,13 +56,15 @@ proc new*(
   result = StoreStream(
     store: store,
     manifest: manifest,
-    pad: pad,
     offset: 0)
 
   result.initStream()
 
 method `size`*(self: StoreStream): int =
-  bytes(self.manifest, self.pad).int
+  ## The size of a StoreStream is the size of the original dataset, without
+  ## padding or parity blocks.
+  let m = self.manifest
+  (if m.protected: m.originalDatasetSize else: m.datasetSize).int
 
 proc `size=`*(self: StoreStream, size: int)
   {.error: "Setting the size is forbidden".} =
