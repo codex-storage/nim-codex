@@ -1,5 +1,6 @@
 import pkg/questionable
 import pkg/questionable/results
+import pkg/metrics
 
 import ../../logutils
 import ../../market
@@ -12,6 +13,8 @@ import ./filled
 import ./ignored
 import ./downloading
 import ./errored
+
+declareCounter(codex_reservations_availability_mismatch, "codex reservations availability_mismatch")
 
 type
   SalePreparing* = ref object of ErrorHandlingState
@@ -83,6 +86,8 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
     # reservations.findAvailability (line 64) is no guarantee. You can never know for certain that the reservation can be created until after you have it.
     # Should createReservation fail because there's no space, we proceed to SaleIgnored.
     if error of BytesOutOfBoundsError:
+       # Lets monitor how often this happen and if it is often we can make it more inteligent to handle it
+      codex_reservations_availability_mismatch.inc()
       return some State(SaleIgnored())
 
     return some State(SaleErrored(error: error))

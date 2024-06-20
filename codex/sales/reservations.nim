@@ -35,7 +35,6 @@ import std/sequtils
 import pkg/chronos
 import pkg/datastore
 import pkg/nimcrypto
-import pkg/metrics
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
@@ -54,7 +53,6 @@ export logutils
 logScope:
   topics = "sales reservations"
 
-declareCounter(codex_reservations_availability_mismatch, "codex reservations availability_mismatch")
 
 type
   AvailabilityId* = distinct array[32, byte]
@@ -104,15 +102,11 @@ proc all*(self: Reservations, T: type SomeStorableObject): Future[?!seq[T]] {.as
 
 template withLock(lock, body) =
   try:
-    trace "Acquiring lock"
     await lock.acquire()
-    trace "Lock acquired"
     body
   finally:
     if lock.locked:
-      trace "Releasing lock"
       lock.release()
-      trace "Lock released"
 
 
 proc new*(T: type Reservations,
@@ -415,10 +409,6 @@ method createReservation*(
 
     # Check that the found availability has enough free space after the lock has been acquired, to prevent asynchronous Availiability modifications
     if availability.freeSize < slotSize:
-       # Lets monitor how often this happen and if it is often we can make it more inteligent to handle it
-      codex_reservations_availability_mismatch.inc()
-      warn "we matched availability but then it changed and now it does not match anymore", id = availability.id
-
       let error = newException(
         BytesOutOfBoundsError,
         "trying to reserve an amount of bytes that is greater than the total size of the Availability")
