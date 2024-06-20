@@ -74,3 +74,28 @@ checksuite "Manifest":
   test "Should encode/decode to/from verifiable manifest":
     check:
       encodeDecode(verifiableManifest) == verifiableManifest
+
+
+suite "Manifest - Attribute Inheritance":
+  let
+    base = Manifest.new(
+      treeCid = Cid.example,
+      blockSize = 1.MiBs,
+      datasetSize = 100.MiBs
+    )
+    protected = Manifest.new(
+      manifest = base,
+      treeCid = Cid.example,
+      datasetSize = 200.MiBs,
+      ecK = 1,
+      ecM = 1,
+      strategy = SteppedStrategy
+    )
+    verifiable = Manifest.new(
+      manifest = protected,
+      verifyRoot = Cid.example,
+      slotRoots = @[Cid.example, Cid.example]
+    ).tryGet()
+
+  test "Should preserve interleaving strategy for protected manifest in verifiable manifest":
+    check verifiable.protectedStrategy == SteppedStrategy

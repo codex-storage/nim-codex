@@ -324,6 +324,7 @@ func new*(
     ecM: manifest.ecM,
     originalTreeCid: manifest.treeCid,
     originalDatasetSize: manifest.originalDatasetSize,
+    protectedStrategy: manifest.protectedStrategy,
     verifiable: true,
     verifyRoot: verifyRoot,
     slotRoots: @slotRoots,
