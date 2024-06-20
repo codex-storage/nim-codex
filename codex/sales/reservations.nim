@@ -413,7 +413,7 @@ method createReservation*(
     without availability =? await self.get(availabilityKey, Availability), error:
       return failure(error)
 
-    # We recheck that the found availability is still matching after we have lock acquired
+    # Check that the found availability has enough free space after the lock has been acquired, to prevent asynchronous Availiability modifications
     if availability.freeSize < slotSize:
        # Lets monitor how often this happen and if it is often we can make it more inteligent to handle it
       codex_reservations_availability_mismatch.inc()
