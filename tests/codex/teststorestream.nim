@@ -9,6 +9,7 @@ import pkg/codex/[
   blocktype as bt]
 
 import ../asynctest
+import ./examples
 import ./helpers
 
 asyncchecksuite "StoreStream":
@@ -111,7 +112,7 @@ suite "StoreStream - Size Tests":
 
   test "Should return dataset size as stream size":
     let manifest = Manifest.new(
-      treeCid = emptyCid(CIDv1, Sha256HashCodec, BlockCodec).get,
+      treeCid = Cid.example,
       datasetSize = 80.NBytes,
       blockSize = 10.NBytes
     )
@@ -121,10 +122,8 @@ suite "StoreStream - Size Tests":
     check stream.size == 80
 
   test "Should not count parity/padding bytes as part of stream size":
-    let mockCid = emptyCid(CIDv1, Sha256HashCodec, BlockCodec).get
-
     let protectedManifest = Manifest.new(
-      treeCid = mockCid,
+      treeCid = Cid.example,
       datasetSize = 120.NBytes, # size including parity bytes
       blockSize = 10.NBytes,
       version = CIDv1,
@@ -132,7 +131,7 @@ suite "StoreStream - Size Tests":
       codec = BlockCodec,
       ecK = 2,
       ecM = 1,
-      originalTreeCid = mockCid,
+      originalTreeCid = Cid.example,
       originalDatasetSize = 80.NBytes, # size without parity bytes
       strategy = StrategyType.SteppedStrategy
     )
