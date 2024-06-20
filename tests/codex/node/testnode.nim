@@ -9,6 +9,7 @@ import std/cpuinfo
 import pkg/chronos
 import pkg/stew/byteutils
 import pkg/datastore
+import pkg/datastore/typedds
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
