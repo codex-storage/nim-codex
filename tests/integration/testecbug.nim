@@ -66,7 +66,8 @@ marketplacesuite "EC bug":
     # let manifest = Manifest.new(downloaded.get)
     # echo "manifest: ", manifest
     echo "orig data length: ", data.len
-    echo "download length: ", downloaded.get.toHex.len
-    # check downloaded.get.toHex == data
+    echo "download length: ", downloaded.get.len
+
+    check downloaded.get.toHex == data.toHex
 
     await subscription.unsubscribe()
