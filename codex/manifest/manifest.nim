@@ -135,13 +135,6 @@ func isManifest*(mc: MultiCodec): ?!bool =
 # Various sizes and verification
 ############################################################
 
-func bytes*(self: Manifest, pad = true): NBytes =
-  ## Compute how many bytes corresponding StoreStream(Manifest, pad) will return
-  if pad or self.protected:
-    self.blocksCount.NBytes * self.blockSize
-  else:
-    self.datasetSize
-
 func rounded*(self: Manifest): int =
   ## Number of data blocks in *protected* manifest including padding at the end
   roundUp(self.originalBlocksCount, self.ecK)
