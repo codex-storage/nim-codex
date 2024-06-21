@@ -231,7 +231,7 @@ func new*(
   treeCid: Cid,
   datasetSize: NBytes,
   ecK, ecM: int,
-  strategy: StrategyType): Manifest =
+  strategy = SteppedStrategy): Manifest =
   ## Create an erasure protected dataset from an
   ## unprotected one
   ##
@@ -277,7 +277,7 @@ func new*(
   ecM: int,
   originalTreeCid: Cid,
   originalDatasetSize: NBytes,
-  strategy: StrategyType): Manifest =
+  strategy = SteppedStrategy): Manifest =
 
   Manifest(
     treeCid: treeCid,
@@ -299,7 +299,7 @@ func new*(
   verifyRoot: Cid,
   slotRoots: openArray[Cid],
   cellSize = DefaultCellSize,
-  strategy = SteppedStrategy): ?!Manifest =
+  strategy = LinearStrategy): ?!Manifest =
   ## Create a verifiable dataset from an
   ## protected one
   ##
@@ -324,6 +324,7 @@ func new*(
     ecM: manifest.ecM,
     originalTreeCid: manifest.treeCid,
     originalDatasetSize: manifest.originalDatasetSize,
+    protectedStrategy: manifest.protectedStrategy,
     verifiable: true,
     verifyRoot: verifyRoot,
     slotRoots: @slotRoots,
