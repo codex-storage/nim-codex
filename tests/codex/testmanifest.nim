@@ -77,25 +77,33 @@ checksuite "Manifest":
 
 
 suite "Manifest - Attribute Inheritance":
-  let
-    base = Manifest.new(
-      treeCid = Cid.example,
-      blockSize = 1.MiBs,
-      datasetSize = 100.MiBs
-    )
-    protected = Manifest.new(
-      manifest = base,
+  proc makeProtectedManifest(strategy: StrategyType): Manifest =
+    Manifest.new(
+      manifest = Manifest.new(
+        treeCid = Cid.example,
+        blockSize = 1.MiBs,
+        datasetSize = 100.MiBs,
+      ),
       treeCid = Cid.example,
       datasetSize = 200.MiBs,
       ecK = 1,
       ecM = 1,
-      strategy = SteppedStrategy
+      strategy = strategy
     )
-    verifiable = Manifest.new(
-      manifest = protected,
+
+  test "Should preserve interleaving strategy for protected manifest in verifiable manifest":
+    var verifiable = Manifest.new(
+      manifest = makeProtectedManifest(SteppedStrategy),
       verifyRoot = Cid.example,
       slotRoots = @[Cid.example, Cid.example]
     ).tryGet()
 
-  test "Should preserve interleaving strategy for protected manifest in verifiable manifest":
     check verifiable.protectedStrategy == SteppedStrategy
+
+    verifiable = Manifest.new(
+      manifest = makeProtectedManifest(LinearStrategy),
+      verifyRoot = Cid.example,
+      slotRoots = @[Cid.example, Cid.example]
+    ).tryGet()
+
+    check verifiable.protectedStrategy == LinearStrategy
