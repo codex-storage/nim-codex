@@ -46,6 +46,7 @@ import ../stores
 import ../market
 import ../contracts/requests
 import ../utils/json
+import ../units
 
 export requests
 export logutils
@@ -178,16 +179,16 @@ func key*(availability: Availability): ?!Key =
 func key*(reservation: Reservation): ?!Key =
   return key(reservation.id, reservation.availabilityId)
 
-func available*(self: Reservations): uint = self.repo.available
+func available*(self: Reservations): uint = self.repo.available.uint
 
 func hasAvailable*(self: Reservations, bytes: uint): bool =
-  self.repo.available(bytes)
+  self.repo.available(bytes.NBytes)
 
 proc exists*(
   self: Reservations,
   key: Key): Future[bool] {.async.} =
 
-  let exists = await self.repo.metaDs.contains(key)
+  let exists = await self.repo.metaDs.ds.contains(key)
   return exists
 
 proc getImpl(
@@ -198,7 +199,7 @@ proc getImpl(
     let err = newException(NotExistsError, "object with key " & $key & " does not exist")
     return failure(err)
 
-  without serialized =? await self.repo.metaDs.get(key), error:
+  without serialized =? await self.repo.metaDs.ds.get(key), error:
     return failure(error.toErr(GetFailedError))
 
   return success serialized
@@ -225,7 +226,7 @@ proc updateImpl(
   without key =? obj.key, error:
     return failure(error)
 
-  if err =? (await self.repo.metaDs.put(
+  if err =? (await self.repo.metaDs.ds.put(
     key,
     @(obj.toJson.toBytes)
   )).errorOption:
@@ -268,11 +269,11 @@ proc updateAvailability(
   if oldAvailability.totalSize != obj.totalSize:
     trace "totalSize changed, updating repo reservation"
     if oldAvailability.totalSize < obj.totalSize: # storage added
-      if reserveErr =? (await self.repo.reserve((obj.totalSize - oldAvailability.totalSize).truncate(uint))).errorOption:
+      if reserveErr =? (await self.repo.reserve((obj.totalSize - oldAvailability.totalSize).truncate(uint).NBytes)).errorOption:
         return failure(reserveErr.toErr(ReserveFailedError))
 
     elif oldAvailability.totalSize > obj.totalSize: # storage removed
-      if reserveErr =? (await self.repo.release((oldAvailability.totalSize - obj.totalSize).truncate(uint))).errorOption:
+      if reserveErr =? (await self.repo.release((oldAvailability.totalSize - obj.totalSize).truncate(uint).NBytes)).errorOption:
         return failure(reserveErr.toErr(ReleaseFailedError))
 
   let res = await self.updateImpl(obj)
@@ -315,7 +316,7 @@ proc delete(
   if not await self.exists(key):
     return success()
 
-  if err =? (await self.repo.metaDs.delete(key)).errorOption:
+  if err =? (await self.repo.metaDs.ds.delete(key)).errorOption:
     return failure(err.toErr(DeleteFailedError))
 
   return success()
@@ -355,7 +356,7 @@ proc deleteReservation*(
       if updateErr =? (await self.updateAvailability(availability)).errorOption:
         return failure(updateErr)
 
-    if err =? (await self.repo.metaDs.delete(key)).errorOption:
+    if err =? (await self.repo.metaDs.ds.delete(key)).errorOption:
       return failure(err.toErr(DeleteFailedError))
 
     return success()
@@ -377,14 +378,14 @@ proc createAvailability*(
   )
   let bytes = availability.freeSize.truncate(uint)
 
-  if reserveErr =? (await self.repo.reserve(bytes)).errorOption:
+  if reserveErr =? (await self.repo.reserve(bytes.NBytes)).errorOption:
     return failure(reserveErr.toErr(ReserveFailedError))
 
   if updateErr =? (await self.update(availability)).errorOption:
 
     # rollback the reserve
     trace "rolling back reserve"
-    if rollbackErr =? (await self.repo.release(bytes)).errorOption:
+    if rollbackErr =? (await self.repo.release(bytes.NBytes)).errorOption:
       rollbackErr.parent = updateErr
       return failure(rollbackErr)
 
@@ -473,7 +474,7 @@ proc returnBytesToAvailability*(
 
     # First lets see if we can re-reserve the bytes, if the Repo's quota
     # is depleted then we will fail-fast as there is nothing to be done atm.
-    if reserveErr =? (await self.repo.reserve(bytesToBeReturned.truncate(uint))).errorOption:
+    if reserveErr =? (await self.repo.reserve(bytesToBeReturned.truncate(uint).NBytes)).errorOption:
       return failure(reserveErr.toErr(ReserveFailedError))
 
     without availabilityKey =? availabilityId.key, error:
@@ -488,7 +489,7 @@ proc returnBytesToAvailability*(
     if updateErr =? (await self.updateAvailability(availability)).errorOption:
 
       trace "Rolling back returning bytes"
-      if rollbackErr =? (await self.repo.release(bytesToBeReturned.truncate(uint))).errorOption:
+      if rollbackErr =? (await self.repo.release(bytesToBeReturned.truncate(uint).NBytes)).errorOption:
         rollbackErr.parent = updateErr
         return failure(rollbackErr)
 
@@ -522,7 +523,7 @@ proc release*(
       "trying to release an amount of bytes that is greater than the total size of the Reservation")
     return failure(error)
 
-  if releaseErr =? (await self.repo.release(bytes)).errorOption:
+  if releaseErr =? (await self.repo.release(bytes.NBytes)).errorOption:
     return failure(releaseErr.toErr(ReleaseFailedError))
 
   reservation.size -= bytes.u256
@@ -532,7 +533,7 @@ proc release*(
 
     # rollback release if an update error encountered
     trace "rolling back release"
-    if rollbackErr =? (await self.repo.reserve(bytes)).errorOption:
+    if rollbackErr =? (await self.repo.reserve(bytes.NBytes)).errorOption:
       rollbackErr.parent = err
       return failure(rollbackErr)
     return failure(err)
@@ -562,7 +563,7 @@ proc storables(
   else:
     raiseAssert "unknown type"
 
-  without results =? await self.repo.metaDs.query(query), error:
+  without results =? await self.repo.metaDs.ds.query(query), error:
     return failure(error)
 
   # /sales/reservations
@@ -666,4 +667,3 @@ proc findAvailability*(
         duration, availDuration = availability.duration,
         minPrice, availMinPrice = availability.minPrice,
         collateral, availMaxCollateral = availability.maxCollateral
-

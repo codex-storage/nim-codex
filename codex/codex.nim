@@ -266,7 +266,7 @@ proc new*(
       repoDs = repoData,
       metaDs = LevelDbDatastore.new(config.dataDir / CodexMetaNamespace)
         .expect("Should create metadata store!"),
-      quotaMaxBytes = config.storageQuota.uint,
+      quotaMaxBytes = config.storageQuota,
       blockTtl = config.blockTtl)
 
     maintenance = BlockMaintainer.new(
