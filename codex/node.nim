@@ -560,7 +560,9 @@ proc onStore(
     trace "Unable to fetch manifest for cid", cid, err = err.msg
     return failure(err)
 
-  without builder =? Poseidon2Builder.new(self.networkStore, manifest), err:
+  without builder =? Poseidon2Builder.new(
+    self.networkStore, manifest, manifest.verifiableStrategy
+  ), err:
     trace "Unable to create slots builder", err = err.msg
     return failure(err)
 
@@ -585,8 +587,8 @@ proc onStore(
 
     return success()
 
-  without indexer =? manifest.protectedStrategy.init(
-    0, manifest.numSlotBlocks() - 1, manifest.numSlots).catch, err:
+  without indexer =? manifest.verifiableStrategy.init(
+    0, manifest.blocksCount - 1, manifest.numSlots).catch, err:
     trace "Unable to create indexing strategy from protected manifest", err = err.msg
     return failure(err)
 

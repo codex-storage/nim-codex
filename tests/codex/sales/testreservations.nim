@@ -1,4 +1,5 @@
 import std/random
+import std/sequtils
 
 import pkg/questionable
 import pkg/questionable/results
@@ -6,12 +7,15 @@ import pkg/chronos
 import pkg/datastore
 
 import pkg/codex/stores
+import pkg/codex/errors
 import pkg/codex/sales
 import pkg/codex/utils/json
 
 import ../../asynctest
 import ../examples
 import ../helpers
+
+const CONCURRENCY_TESTS_COUNT = 1000
 
 asyncchecksuite "Reservations module":
   var
@@ -73,9 +77,9 @@ asyncchecksuite "Reservations module":
     check availability.id != AvailabilityId.default
 
   test "creating availability reserves bytes in repo":
-    let orig = repo.available
+    let orig = repo.available.uint
     let availability = createAvailability()
-    check repo.available == (orig.u256 - availability.freeSize).truncate(uint)
+    check repo.available.uint == (orig.u256 - availability.freeSize).truncate(uint)
 
   test "can get all availabilities":
     let availability1 = createAvailability()
@@ -148,6 +152,39 @@ asyncchecksuite "Reservations module":
     check created.isErr
     check created.error of BytesOutOfBoundsError
 
+  test "cannot create reservation larger than availability size - concurrency test":
+    proc concurrencyTest(): Future[void] {.async.} =
+      let availability = createAvailability()
+      let one = reservations.createReservation(
+        availability.id,
+        availability.totalSize - 1,
+        RequestId.example,
+        UInt256.example
+      )
+
+      let two = reservations.createReservation(
+        availability.id,
+        availability.totalSize,
+        RequestId.example,
+        UInt256.example
+      )
+
+      let oneResult = await one
+      let twoResult = await two
+
+      check oneResult.isErr or twoResult.isErr
+      if oneResult.isErr:
+        check oneResult.error of BytesOutOfBoundsError
+      if twoResult.isErr:
+        check twoResult.error of BytesOutOfBoundsError
+
+    var futures: seq[Future[void]]
+    for _ in 1..CONCURRENCY_TESTS_COUNT:
+      futures.add(concurrencyTest())
+
+    await allFuturesThrowing(futures)
+
+
   test "creating reservation reduces availability size":
     let availability = createAvailability()
     let orig = availability.freeSize
@@ -211,7 +248,7 @@ asyncchecksuite "Reservations module":
 
     check updated.freeSize > orig
     check (updated.freeSize - orig) == 200.u256
-    check (repo.quotaReservedBytes - origQuota) == 200
+    check (repo.quotaReservedBytes - origQuota) == 200.NBytes
 
   test "update releases quota when lowering size":
     let
@@ -220,7 +257,7 @@ asyncchecksuite "Reservations module":
     availability.totalSize = availability.totalSize - 100
 
     check isOk await reservations.update(availability)
-    check (origQuota - repo.quotaReservedBytes) == 100
+    check (origQuota - repo.quotaReservedBytes) == 100.NBytes
 
   test "update reserves quota when growing size":
     let
@@ -229,7 +266,7 @@ asyncchecksuite "Reservations module":
     availability.totalSize = availability.totalSize + 100
 
     check isOk await reservations.update(availability)
-    check (repo.quotaReservedBytes - origQuota) == 100
+    check (repo.quotaReservedBytes - origQuota) == 100.NBytes
 
   test "reservation can be partially released":
     let availability = createAvailability()
@@ -333,17 +370,17 @@ asyncchecksuite "Reservations module":
     check got.error of NotExistsError
 
   test "can get available bytes in repo":
-    check reservations.available == DefaultQuotaBytes
+    check reservations.available == DefaultQuotaBytes.uint
 
   test "reports quota available to be reserved":
-    check reservations.hasAvailable(DefaultQuotaBytes - 1)
+    check reservations.hasAvailable(DefaultQuotaBytes.uint - 1)
 
   test "reports quota not available to be reserved":
-    check not reservations.hasAvailable(DefaultQuotaBytes + 1)
+    check not reservations.hasAvailable(DefaultQuotaBytes.uint + 1)
 
   test "fails to create availability with size that is larger than available quota":
     let created = await reservations.createAvailability(
-      (DefaultQuotaBytes + 1).u256,
+      (DefaultQuotaBytes.uint + 1).u256,
       UInt256.example,
       UInt256.example,
       UInt256.example
