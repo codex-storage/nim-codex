@@ -27,17 +27,20 @@ import ./converters
 export circomcompat, converters
 
 type
+  CircomCompatParams* = object
+    slotDepth*     : int     # max depth of the slot tree
+    datasetDepth*  : int     # max depth of dataset  tree
+    blkDepth*      : int     # depth of the block merkle tree (pow2 for now)
+    cellElms*      : int     # number of field elements per cell
+    numSamples*    : int     # number of samples per slot
+    r1csPath*      : string  # path to the r1cs file
+    wasmPath*      : string  # path to the wasm file
+    zkeyPath*      : string  # path to the zkey file
+
   CircomCompat* = object
-    slotDepth     : int     # max depth of the slot tree
-    datasetDepth  : int     # max depth of dataset  tree
-    blkDepth      : int     # depth of the block merkle tree (pow2 for now)
-    cellElms      : int     # number of field elements per cell
-    numSamples    : int     # number of samples per slot
-    r1csPath      : string  # path to the r1cs file
-    wasmPath      : string  # path to the wasm file
-    zkeyPath      : string  # path to the zkey file
-    backendCfg    : ptr CircomBn254Cfg
-    vkp*          : ptr CircomKey
+    params*: CircomCompatParams
+    backendCfg*: ptr CircomBn254Cfg
+    vkp*: ptr CircomKey
 
 proc release*(self: CircomCompat) =
   ## Release the ctx
@@ -51,7 +54,8 @@ proc release*(self: CircomCompat) =
 
 proc prove*[H](
   self: CircomCompat,
-  input: ProofInputs[H]): ?!CircomProof =
+  input: ProofInputs[H]
+): ?!CircomProof =
   ## Encode buffers using a ctx
   ##
 
@@ -60,16 +64,16 @@ proc prove*[H](
   # to the circom ffi - `setLen` is used to adjust the
   # sequence length to the correct size which also 0 pads
   # to the correct length
-  doAssert input.samples.len == self.numSamples,
+  doAssert input.samples.len == self.params.numSamples,
     "Number of samples does not match"
 
-  doAssert input.slotProof.len <= self.datasetDepth,
+  doAssert input.slotProof.len <= self.params.datasetDepth,
     "Number of slot proofs does not match"
 
   doAssert input.samples.allIt(
     block:
-      (it.merklePaths.len <= self.slotDepth + self.blkDepth and
-      it.cellData.len <= self.cellElms * 32)), "Merkle paths length does not match"
+      (it.merklePaths.len <= self.params.slotDepth + self.params.blkDepth and
+      it.cellData.len <= self.params.cellElms * 32)), "Merkle paths length does not match"
 
   # TODO: All parameters should match circom's static parametter
   var
@@ -116,7 +120,7 @@ proc prove*[H](
   var
     slotProof = input.slotProof.mapIt( it.toBytes ).concat
 
-  slotProof.setLen(self.datasetDepth) # zero pad inputs to correct size
+  slotProof.setLen(self.params.datasetDepth) # zero pad inputs to correct size
 
   # arrays are always flattened
   if ctx.pushInputU256Array(
@@ -130,14 +134,14 @@ proc prove*[H](
       merklePaths = s.merklePaths.mapIt( it.toBytes )
       data = s.cellData
 
-    merklePaths.setLen(self.slotDepth) # zero pad inputs to correct size
+    merklePaths.setLen(self.params.slotDepth) # zero pad inputs to correct size
     if ctx.pushInputU256Array(
       "merklePaths".cstring,
       merklePaths[0].addr,
       uint (merklePaths[0].len * merklePaths.len)) != ERR_OK:
         return failure("Failed to push merkle paths")
 
-    data.setLen(self.cellElms * 32) # zero pad inputs to correct size
+    data.setLen(self.params.cellElms * 32) # zero pad inputs to correct size
     if ctx.pushInputU256Array(
       "cellData".cstring,
       data[0].addr,
@@ -165,7 +169,8 @@ proc prove*[H](
 proc verify*[H](
   self: CircomCompat,
   proof: CircomProof,
-  inputs: ProofInputs[H]): ?!bool =
+  inputs: ProofInputs[H]
+): ?!bool =
   ## Verify a proof using a ctx
   ##
 
@@ -185,7 +190,7 @@ proc verify*[H](
     inputs.releaseCircomInputs()
 
 proc init*(
-  _: type CircomCompat,
+  _: type CircomCompatParams,
   r1csPath      : string,
   wasmPath      : string,
   zkeyPath      : string = "",
@@ -193,16 +198,31 @@ proc init*(
   datasetDepth  = DefaultMaxDatasetDepth,
   blkDepth      = DefaultBlockDepth,
   cellElms      = DefaultCellElms,
-  numSamples    = DefaultSamplesNum): CircomCompat =
+  numSamples    = DefaultSamplesNum
+): CircomCompatParams =
+  CircomCompatParams(
+    r1csPath    : r1csPath,
+    wasmPath    : wasmPath,
+    zkeyPath    : zkeyPath,
+    slotDepth   : slotDepth,
+    datasetDepth: datasetDepth,
+    blkDepth    : blkDepth,
+    cellElms    : cellElms,
+    numSamples  : numSamples)
+
+proc init*(
+  _: type CircomCompat,
+  params: CircomCompatParams
+): CircomCompat =
   ## Create a new ctx
   ##
 
   var cfg: ptr CircomBn254Cfg
-  var zkey = if zkeyPath.len > 0: zkeyPath.cstring else: nil
+  var zkey = if params.zkeyPath.len > 0: params.zkeyPath.cstring else: nil
 
   if initCircomConfig(
-    r1csPath.cstring,
-    wasmPath.cstring,
+    params.r1csPath.cstring,
+    params.wasmPath.cstring,
     zkey, cfg.addr) != ERR_OK or cfg == nil:
       if cfg != nil: cfg.addr.releaseCfg()
       raiseAssert("failed to initialize circom compat config")
@@ -214,14 +234,15 @@ proc init*(
     if vkpPtr != nil: vkpPtr.addr.releaseKey()
     raiseAssert("Failed to get verifying key")
 
-  CircomCompat(
-    r1csPath    : r1csPath,
-    wasmPath    : wasmPath,
-    zkeyPath    : zkeyPath,
-    slotDepth   : slotDepth,
-    datasetDepth: datasetDepth,
-    blkDepth    : blkDepth,
-    cellElms    : cellElms,
-    numSamples  : numSamples,
-    backendCfg  : cfg,
-    vkp         : vkpPtr)
+  CircomCompat(params: params, backendCfg: cfg, vkp: vkpPtr)
+
+proc duplicate*(
+  self: CircomCompat,
+): CircomCompat =
+  ## Create a new ctx
+  var cfg: ptr CircomBn254Cfg
+  if duplicateCircomConfig(self.backendCfg, cfg.addr) != ERR_OK or cfg == nil:
+    if cfg != nil:
+      cfg.addr.releaseCfg()
+    raiseAssert("failed to initialize circom compat config")
+  CircomCompat(params: self.params, backendCfg: cfg, vkp: self.vkp)

@@ -13,6 +13,7 @@ import pkg/chronicles
 import pkg/circomcompat
 import pkg/poseidon2
 import pkg/questionable/results
+import pkg/taskpools
 
 import pkg/libp2p/cid
 
@@ -34,13 +35,14 @@ logScope:
   topics = "codex prover"
 
 type
-  AnyBackend* = CircomCompat
+  AnyBackend* = AsyncCircomCompat
   AnyProof* = CircomProof
 
   AnySampler* = Poseidon2Sampler
   AnyBuilder* = Poseidon2Builder
 
   AnyProofInputs* = ProofInputs[Poseidon2Hash]
+
   Prover* = ref object of RootObj
     backend: AnyBackend
     store: BlockStore
@@ -50,7 +52,8 @@ proc prove*(
   self: Prover,
   slotIdx: int,
   manifest: Manifest,
-  challenge: ProofChallenge): Future[?!(AnyProofInputs, AnyProof)] {.async.} =
+  challenge: ProofChallenge
+): Future[?!(AnyProofInputs, AnyProof)] {.async.} =
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
 
@@ -74,7 +77,7 @@ proc prove*(
     return failure(err)
 
   # prove slot
-  without proof =? self.backend.prove(proofInput), err:
+  without proof =? await self.backend.prove(proofInput), err:
     error "Unable to prove slot", err = err.msg
     return failure(err)
 
@@ -83,18 +86,19 @@ proc prove*(
 proc verify*(
   self: Prover,
   proof: AnyProof,
-  inputs: AnyProofInputs): Future[?!bool] {.async.} =
+  inputs: AnyProofInputs
+): Future[?!bool] {.async.} =
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
 
-  self.backend.verify(proof, inputs)
+  await self.backend.verify(proof, inputs)
 
 proc new*(
   _: type Prover,
   store: BlockStore,
   backend: AnyBackend,
-  nSamples: int): Prover =
-
+  nSamples: int
+): Prover =
   Prover(
     backend: backend,
     store: store,
