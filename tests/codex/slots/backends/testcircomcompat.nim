@@ -34,9 +34,10 @@ suite "Test Circom Compat Backend - control inputs":
     let
       inputData = readFile("tests/circuits/fixtures/input.json")
       inputJson = !JsonNode.parse(inputData)
+      params = CircomCompatParams.init(r1cs, wasm, zkey)
 
     proofInputs = Poseidon2Hash.jsonToProofInput(inputJson)
-    circom = CircomCompat.init(r1cs, wasm, zkey)
+    circom = CircomCompat.init(params)
 
   teardown:
     circom.release()  # this comes from the rust FFI
@@ -101,7 +102,8 @@ suite "Test Circom Compat Backend":
     builder = Poseidon2Builder.new(store, verifiable).tryGet
     sampler = Poseidon2Sampler.new(slotId, store, builder).tryGet
 
-    circom = CircomCompat.init(r1cs, wasm, zkey)
+    let params = CircomCompatParams.init(r1cs, wasm, zkey)
+    circom = CircomCompat.init(params)
     challenge = 1234567.toF.toBytes.toArray32
 
     proofInputs = (await sampler.getProofInput(challenge, samples)).tryGet

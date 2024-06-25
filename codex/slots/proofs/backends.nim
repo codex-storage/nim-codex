@@ -1,3 +1,4 @@
 import ./backends/circomcompat
+import ./backends/asynccircoms
 
-export circomcompat
+export circomcompat, asynccircoms
