@@ -60,6 +60,7 @@ const
   codex_enable_api_debug_peers* {.booldefine.} = false
   codex_enable_proof_failures* {.booldefine.} = false
   codex_enable_log_counter* {.booldefine.} = false
+  codex_enable_api_debug_delete* {.booldefine.} = false
 
   DefaultDataDir* = defaultDataDir()
 
