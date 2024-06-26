@@ -17,6 +17,7 @@ import pkg/taskpools
 
 import ../asynctest
 import ./helpers
+import ./examples
 
 suite "Erasure encode/decode":
   const BlockSize = 1024'nb
