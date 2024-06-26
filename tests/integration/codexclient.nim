@@ -4,6 +4,7 @@ import std/strutils
 from pkg/libp2p import Cid, `$`, init
 import pkg/stint
 import pkg/questionable/results
+import pkg/chronos/apps/http/[httpserver, shttpserver, httpclient]
 import pkg/codex/logutils
 import pkg/codex/rest/json
 import pkg/codex/purchasing
@@ -15,9 +16,16 @@ export purchasing
 type CodexClient* = ref object
   http: HttpClient
   baseurl: string
+  session: HttpSessionRef
+
+type CodexClientError* = object of CatchableError
 
 proc new*(_: type CodexClient, baseurl: string): CodexClient =
-  CodexClient(http: newHttpClient(), baseurl: baseurl)
+  CodexClient(
+    http: newHttpClient(),
+    baseurl: baseurl,
+    session: HttpSessionRef.new({HttpClientFlag.Http11Pipeline})
+  )
 
 proc info*(client: CodexClient): ?!JsonNode =
   let url = client.baseurl & "/debug/info"
@@ -44,6 +52,23 @@ proc download*(client: CodexClient, cid: Cid, local = false): ?!string =
     return failure(response.status)
 
   success response.body
+
+proc downloadBytes*(
+  client: CodexClient,
+  cid: Cid,
+  local = false): Future[?!seq[byte]] {.async.} =
+
+  let uri = parseUri(
+    client.baseurl & "/data/" & $cid &
+    (if local: "" else: "/network")
+  )
+
+  let (status, bytes) = await client.session.fetch(uri)
+
+  if status != 200:
+    return failure("fetch failed with status " & $status)
+
+  success bytes
 
 proc list*(client: CodexClient): ?!RestContentList =
   let url = client.baseurl & "/data"
