@@ -240,14 +240,14 @@ proc streamEntireDataset(
   self: CodexNodeRef,
   manifest: Manifest,
   manifestCid: Cid,
-): ?!LPStream =
+): Future[?!LPStream] {.async.} =
   ## Streams the contents of the entire dataset described by the manifest.
   ##
   trace "Retrieving blocks from manifest", manifestCid
 
   if manifest.protected:
     # Retrieve, decode and save to the local store all EС groups
-    proc erasureJob(): Future[void] {.async.} =
+    proc erasureJob(): Future[?!void] {.async.} =
       try:
         # Spawn an erasure decoding job
         let
@@ -258,10 +258,16 @@ proc streamEntireDataset(
             self.taskpool)
         without _ =? (await erasure.decode(manifest)), error:
           trace "Unable to erasure decode manifest", manifestCid, exc = error.msg
-      except CatchableError as exc:
+      # --------------------------------------------------------------------------
+      # FIXME this is a HACK so that the node does not crash during the workshop.
+      #   We should NOT catch Defect.
+      except Exception as exc:
         trace "Exception decoding manifest", manifestCid, exc = exc.msg
+        return failure(exc.msg)
+      # --------------------------------------------------------------------------
 
-    asyncSpawn erasureJob()
+    if err =? (await erasureJob()).errorOption:
+      return failure(err)
 
   # Retrieve all blocks of the dataset sequentially from the local store or network
   trace "Creating store stream for manifest", manifestCid
@@ -283,7 +289,7 @@ proc retrieve*(
 
     return await self.streamSingleBlock(cid)
 
-  self.streamEntireDataset(manifest, cid)
+  await self.streamEntireDataset(manifest, cid)
 
 proc store*(
   self: CodexNodeRef,
@@ -534,7 +540,9 @@ proc onStore(
     trace "Unable to fetch manifest for cid", cid, err = err.msg
     return failure(err)
 
-  without builder =? Poseidon2Builder.new(self.networkStore, manifest), err:
+  without builder =? Poseidon2Builder.new(
+    self.networkStore, manifest, manifest.verifiableStrategy
+  ), err:
     trace "Unable to create slots builder", err = err.msg
     return failure(err)
 
@@ -559,8 +567,8 @@ proc onStore(
 
     return success()
 
-  without indexer =? manifest.protectedStrategy.init(
-    0, manifest.numSlotBlocks() - 1, manifest.numSlots).catch, err:
+  without indexer =? manifest.verifiableStrategy.init(
+    0, manifest.blocksCount - 1, manifest.numSlots).catch, err:
     trace "Unable to create indexing strategy from protected manifest", err = err.msg
     return failure(err)
 

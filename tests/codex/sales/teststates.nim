@@ -6,5 +6,9 @@ import ./states/testinitialproving
 import ./states/testfilled
 import ./states/testproving
 import ./states/testsimulatedproving
+import ./states/testcancelled
+import ./states/testerrored
+import ./states/testignored
+import ./states/testpreparing
 
 {.warning[UnusedImport]: off.}
