@@ -11,6 +11,7 @@ env:
   nim_version: v1.6.14
   rust_version: 1.78.0
   binary_base: codex
+  nim_flags: '-d:verify_circuit=true'
   upload_to_codex: false
 
 jobs:
@@ -74,7 +75,7 @@ jobs:
 
       - name: Release - Build
         run: |
-          make NIMFLAGS="--out:${{ env.binary }}"
+          make NIMFLAGS="--out:${{ env.binary }} ${{ env.nim_flags }}"
           
       - name: Release - Upload binaries
         uses: actions/upload-artifact@v4
