@@ -234,7 +234,7 @@ suite "Erasure encode/decode":
 
     discard (await erasure.decode(encoded)).tryGet()
 
-  test "Verifiable manifest":
+  test "Should handle verifiable manifests":
     const
       buffers = 20
       parity = 10
@@ -244,15 +244,11 @@ suite "Erasure encode/decode":
       slotCids = collect(newSeq):
         for i in 0..<encoded.numSlots: Cid.example
 
-      verifyable = Manifest.new(encoded, Cid.example, slotCids).tryGet()
+      verifiable = Manifest.new(encoded, Cid.example, slotCids).tryGet()
 
-      # Successful:
-      # decoded = (await erasure.decode(encoded)).tryGet()
-
-      # Fails:
-      decoded = (await erasure.decode(verifyable)).tryGet()
+      decoded = (await erasure.decode(verifiable)).tryGet()
 
     check:
       decoded.treeCid == manifest.treeCid
-      decoded.treeCid == encoded.originalTreeCid
-      decoded.blocksCount == encoded.originalBlocksCount
+      decoded.treeCid == verifiable.originalTreeCid
+      decoded.blocksCount == verifiable.originalBlocksCount
