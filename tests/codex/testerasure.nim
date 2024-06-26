@@ -232,3 +232,22 @@ suite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     discard (await erasure.decode(encoded)).tryGet()
+
+  test "Should handle verifiable manifests":
+    const
+      buffers = 20
+      parity = 10
+
+    let
+      encoded = await encode(buffers, parity)
+      slotCids = collect(newSeq):
+        for i in 0..<encoded.numSlots: Cid.example
+
+      verifiable = Manifest.new(encoded, Cid.example, slotCids).tryGet()
+
+      decoded = (await erasure.decode(verifiable)).tryGet()
+
+    check:
+      decoded.treeCid == manifest.treeCid
+      decoded.treeCid == verifiable.originalTreeCid
+      decoded.blocksCount == verifiable.originalBlocksCount
