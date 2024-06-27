@@ -461,7 +461,9 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
           expiry), error:
 
           if error of InsufficientBlocksError:
-            return RestApiResponse.error(Http400, "Insufficient blocks, increased dataset size required")
+            return RestApiResponse.error(Http400,
+            "Dataset too small for erasure parameters, need at least " &
+              $(ref InsufficientBlocksError)(error).minSize.int & " bytes")
 
           return RestApiResponse.error(Http500, error.msg)
 

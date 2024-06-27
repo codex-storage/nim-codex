@@ -85,6 +85,10 @@ type
 
   ErasureError* = object of CodexError
   InsufficientBlocksError* = object of ErasureError
+    # Minimum size, in bytes, that the dataset must have had
+    # for the encoding request to have succeeded with the parameters
+    # provided.
+    minSize*: NBytes
 
 func indexToPos(steps, idx, step: int): int {.inline.} =
   ## Convert an index to a position in the encoded
@@ -240,11 +244,12 @@ proc init*(
   ecK: Natural, ecM: Natural,
   strategy: StrategyType): ?!EncodingParams =
   if ecK > manifest.blocksCount:
-    let exc = newException(InsufficientBlocksError,
-      "Unable to encode manifest, not enough blocks, ecK = " &
+    let exc = (ref InsufficientBlocksError)(
+      msg: "Unable to encode manifest, not enough blocks, ecK = " &
       $ecK &
       ", blocksCount = " &
-      $manifest.blocksCount)
+      $manifest.blocksCount,
+      minSize: ecK.NBytes * manifest.blockSize)
     return failure(exc)
 
   let
