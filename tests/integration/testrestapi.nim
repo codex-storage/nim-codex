@@ -78,7 +78,7 @@ twonodessuite "REST API", debug1 = false, debug2 = false:
         tolerance.uint)
 
       check responseBefore.status == "400 Bad Request"
-      check responseBefore.body == "Invalid erasure coding parameters. Parameters must satify `1 < (nodes - tolerance) ≥ tolerance`"
+      check responseBefore.body == "Invalid parameters: parameters must satify `1 < (nodes - tolerance) ≥ tolerance`"
 
   test "request storage fails if tolerance > nodes (underflow protection)":
     let data = await RandomChunker.example(blocks=2)
@@ -103,7 +103,7 @@ twonodessuite "REST API", debug1 = false, debug2 = false:
         tolerance.uint)
 
       check responseBefore.status == "400 Bad Request"
-      check responseBefore.body == "Tolerance cannot be greater than nodes"
+      check responseBefore.body == "Invalid parameters: `tolerance` cannot be greater than `nodes`"
 
   test "request storage succeeds if nodes and tolerance within range":
     let data = await RandomChunker.example(blocks=2)

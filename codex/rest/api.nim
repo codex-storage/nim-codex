@@ -435,17 +435,14 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
 
         # prevent underflow
         if tolerance > nodes:
-          return RestApiResponse.error(Http400, "Tolerance cannot be greater than nodes")
+          return RestApiResponse.error(Http400, "Invalid parameters: `tolerance` cannot be greater than `nodes`")
 
         let ecK = nodes - tolerance
         let ecM = tolerance # for readability
-        echo "ecK: ", ecK
-        echo "ecM: ", ecM
-        echo "ecK <= 1 or ecK < ecM: ", ecK <= 1 or ecK < ecM
 
         # ensure leopard constrainst of 1 < K ≥ M
         if ecK <= 1 or ecK < ecM:
-          return RestApiResponse.error(Http400, "Invalid erasure coding parameters. Parameters must satify `1 < (nodes - tolerance) ≥ tolerance`")
+          return RestApiResponse.error(Http400, "Invalid parameters: parameters must satify `1 < (nodes - tolerance) ≥ tolerance`")
 
         without expiry =? params.expiry:
           return RestApiResponse.error(Http400, "Expiry required")
