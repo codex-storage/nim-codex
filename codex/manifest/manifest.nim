@@ -322,7 +322,7 @@ func new*(
     protected: true,
     ecK: manifest.ecK,
     ecM: manifest.ecM,
-    originalTreeCid: manifest.treeCid,
+    originalTreeCid: manifest.originalTreeCid,
     originalDatasetSize: manifest.originalDatasetSize,
     protectedStrategy: manifest.protectedStrategy,
     verifiable: true,
