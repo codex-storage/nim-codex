@@ -79,6 +79,16 @@ proc encodeTask(args: EncodeTaskArgs, data: seq[seq[byte]]): EncodeTaskResult =
     if err =? args.signal.fireSync().mapFailure.errorOption():
       error "Error firing signal", msg = err.msg
 
+proc syncDecode*(backend: DecoderBackend, data: ref seq[seq[byte]], parity: ref seq[seq[byte]], blockSize: int): ?!seq[seq[byte]] =
+  let ecK = data[].len
+  var recovered = newSeqWith[seq[byte]](ecK, newSeq[byte](blockSize))
+
+  let res = backend.decode(data[], parity[], recovered)
+  if res.isOk:
+    return success(recovered)
+  else:
+    return failure($res.error)
+
 proc decodeTask(args: DecodeTaskArgs, data: seq[seq[byte]], parity: seq[seq[byte]]): DecodeTaskResult =
   var
     data = data.unsafeAddr

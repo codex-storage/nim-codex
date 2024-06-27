@@ -404,7 +404,8 @@ proc decode*(
 
       trace "Erasure decoding data"
 
-      without recovered =? await asyncDecode(self.taskpool, decoder, data, parity, encoded.blockSize.int), err:
+      #without recovered =? await asyncDecode(self.taskpool, decoder, data, parity, encoded.blockSize.int), err:
+      without recovered =? syncDecode(decoder, data, parity, encoded.blockSize.int), err:
         trace "Error decoding data", err = err.msg
         return failure(err)
 
@@ -440,8 +441,8 @@ proc decode*(
   if treeCid != encoded.originalTreeCid:
     return failure("Original tree root differs from the tree root computed out of recovered data")
 
-  let idxIter = Iter[Natural].new(recoveredIndices)
-    .filter((i: Natural) => i < tree.leavesCount)
+  let idxIter = Iter[int].new(recoveredIndices.map((i: Natural) => i.int))
+    .filter((i: int) => i < tree.leavesCount)
 
   if err =? (await self.store.putSomeProofs(tree, idxIter)).errorOption:
       return failure(err)

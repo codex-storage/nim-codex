@@ -246,31 +246,27 @@ proc streamEntireDataset(
   trace "Retrieving blocks from manifest", manifestCid
 
   if manifest.protected:
-    # Retrieve, decode and save to the local store all EС groups
-    proc erasureJob(): Future[?!void] {.async.} =
-      try:
-        # Spawn an erasure decoding job
-        let
-          erasure = Erasure.new(
-            self.networkStore,
-            leoEncoderProvider,
-            leoDecoderProvider,
-            self.taskpool)
-        without _ =? (await erasure.decode(manifest)), error:
-          error "Unable to erasure decode manifest", manifestCid, exc = error.msg
-          return failure(error)
+    try:
+      let erasure = Erasure.new(
+        self.networkStore,
+        leoEncoderProvider,
+        leoDecoderProvider,
+        self.taskpool
+      )
 
-        return success()
-      # --------------------------------------------------------------------------
-      # FIXME this is a HACK so that the node does not crash during the workshop.
-      #   We should NOT catch Defect.
-      except Exception as exc:
-        trace "Exception decoding manifest", manifestCid, exc = exc.msg
-        return failure(exc.msg)
-      # --------------------------------------------------------------------------
+      without _ =? (await erasure.decode(manifest)), error:
+        error "Unable to erasure decode manifest", manifestCid, exc = error.msg
+        return failure(error)
+    # --------------------------------------------------------------------------
+    # FIXME this is a HACK so that the node does not crash during the workshop.
+    #   We should NOT catch Defect.
+    except Exception as exc:
+      trace "Exception decoding manifest", manifestCid, exc = exc.msg
+      return failure(exc.msg)
+    # --------------------------------------------------------------------------
 
-    if err =? (await erasureJob()).errorOption:
-      return failure(err)
+  GC_fullCollect()
+  echo "Collect 6"
 
   # Retrieve all blocks of the dataset sequentially from the local store or network
   trace "Creating store stream for manifest", manifestCid
