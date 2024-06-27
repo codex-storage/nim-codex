@@ -103,29 +103,33 @@ proc map*[T, U](iter: Iter[T], fn: Function[T, U]): Iter[U] =
   )
 
 proc mapFilter*[T, U](iter: Iter[T], mapPredicate: Function[T, Option[U]]): Iter[U] =
-  var nextUOrErr: Option[Result[U, ref CatchableError]]
+  var
+    hasNext = false
+    nextUOrErr: Result[U, ref CatchableError]
 
   proc tryFetch(): void =
-    nextUOrErr = Result[U, ref CatchableError].none
+    hasNext = false
     while not iter.finished:
       try:
         let t = iter.next()
         if u =? mapPredicate(t):
-          nextUOrErr = some(success(u))
+          hasNext = true
+          nextUOrErr = success(u)
           break
       except CatchableError as err:
-        nextUOrErr = some(U.failure(err))
+        hasNext = true
+        nextUOrErr = U.failure(err)
 
   proc genNext(): U {.raises: [CatchableError].} =
-    # at this point nextUOrErr should always be some(..)
-    without u =? nextUOrErr.unsafeGet, err:
+    # at this point hasNext is always true
+    without u =? nextUOrErr, err:
       raise err
 
     tryFetch()
     return u
 
   proc isFinished(): bool =
-    nextUOrErr.isNone
+    not hasNext
 
   tryFetch()
   Iter[U].new(genNext, isFinished)

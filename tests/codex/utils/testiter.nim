@@ -127,3 +127,13 @@ checksuite "Test Iter":
     check:
       collected == @["0", "1", "2"]
       iter2.finished
+
+  test "Should not crash with range type":
+    let
+      iter = Iter.new(0.Natural..<5.Natural)
+        .filter((i: Natural) => (i mod 2) == 1)
+
+    check:
+      iter.toSeq() == @[Natural 1, 3]
+
+    GC_fullCollect()

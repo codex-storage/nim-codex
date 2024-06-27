@@ -158,3 +158,21 @@ asyncchecksuite "Test AsyncIter":
     check:
       collected == @["0", "1"]
       iter2.finished
+
+  test "Should not crash with range type":
+    let
+      iter1 = AsyncIter[Natural].new(0.Natural..<5.Natural).delayBy(10.millis)
+      iter2 = await filter[Natural](iter1,
+        proc (i: Natural): Future[bool] {.async.} =
+          (i mod 2) == 1
+      )
+
+    var collected: seq[Natural]
+
+    for fut in iter2:
+      collected.add(await fut)
+
+    check:
+      collected == @[Natural 1, 3]
+
+    GC_fullCollect()
