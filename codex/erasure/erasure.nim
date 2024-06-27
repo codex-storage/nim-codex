@@ -379,7 +379,7 @@ proc decode*(
 
   var
     cids = seq[Cid].new()
-    recoveredIndices = newSeq[Natural]()
+    recoveredIndices = newSeq[int]()
     decoder = self.decoderProvider(encoded.blockSize.int, encoded.ecK, encoded.ecM)
     emptyBlock = newSeq[byte](encoded.blockSize.int)
 
@@ -441,7 +441,7 @@ proc decode*(
   if treeCid != encoded.originalTreeCid:
     return failure("Original tree root differs from the tree root computed out of recovered data")
 
-  let idxIter = Iter[int].new(recoveredIndices.map((i: Natural) => i.int))
+  let idxIter = Iter[int].new(recoveredIndices)
     .filter((i: int) => i < tree.leavesCount)
 
   if err =? (await self.store.putSomeProofs(tree, idxIter)).errorOption:
