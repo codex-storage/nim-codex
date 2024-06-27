@@ -257,7 +257,10 @@ proc streamEntireDataset(
             leoDecoderProvider,
             self.taskpool)
         without _ =? (await erasure.decode(manifest)), error:
-          trace "Unable to erasure decode manifest", manifestCid, exc = error.msg
+          error "Unable to erasure decode manifest", manifestCid, exc = error.msg
+          return failure(error)
+
+        return success()
       # --------------------------------------------------------------------------
       # FIXME this is a HACK so that the node does not crash during the workshop.
       #   We should NOT catch Defect.
