@@ -265,9 +265,6 @@ proc streamEntireDataset(
       return failure(exc.msg)
     # --------------------------------------------------------------------------
 
-  GC_fullCollect()
-  echo "Collect 6"
-
   # Retrieve all blocks of the dataset sequentially from the local store or network
   trace "Creating store stream for manifest", manifestCid
   LPStream(StoreStream.new(self.networkStore, manifest, pad = false)).success

@@ -1,7 +1,9 @@
+import std/httpclient
 import std/sequtils
 from pkg/libp2p import `==`
 import pkg/codex/units
 import ./twonodes
+import ../examples
 
 twonodessuite "REST API", debug1 = false, debug2 = false:
 
@@ -36,3 +38,93 @@ twonodessuite "REST API", debug1 = false, debug2 = false:
 
     check:
       [cid1, cid2].allIt(it in list.content.mapIt(it.cid))
+
+  test "request storage fails for datasets that are too small":
+    let cid = client1.upload("some file contents").get
+    let response = client1.requestStorageRaw(cid, duration=10.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256, expiry=9)
+
+    check:
+      response.status == "400 Bad Request"
+      response.body == "Insufficient blocks, increased dataset size required"
+
+  test "request storage succeeds for sufficiently sized datasets":
+    let data = await RandomChunker.example(blocks=2)
+    let cid = client1.upload(data).get
+    let response = client1.requestStorageRaw(cid, duration=10.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256, expiry=9)
+
+    check:
+      response.status == "200 OK"
+
+  test "request storage fails if nodes and tolerance aren't correct":
+    let data = await RandomChunker.example(blocks=2)
+    let cid = client1.upload(data).get
+    let duration = 100.u256
+    let reward = 2.u256
+    let proofProbability = 3.u256
+    let expiry = 30.uint
+    let collateral = 200.u256
+    let ecParams = @[(1, 0), (1, 1), (2, 1), (3, 2), (3, 3)]
+
+    for ecParam in ecParams:
+      let (nodes, tolerance) = ecParam
+
+      var responseBefore = client1.requestStorageRaw(cid,
+        duration,
+        reward,
+        proofProbability,
+        collateral,
+        expiry,
+        nodes.uint,
+        tolerance.uint)
+
+      check responseBefore.status == "400 Bad Request"
+      check responseBefore.body == "Invalid parameters: parameters must satify `1 < (nodes - tolerance) ≥ tolerance`"
+
+  test "request storage fails if tolerance > nodes (underflow protection)":
+    let data = await RandomChunker.example(blocks=2)
+    let cid = client1.upload(data).get
+    let duration = 100.u256
+    let reward = 2.u256
+    let proofProbability = 3.u256
+    let expiry = 30.uint
+    let collateral = 200.u256
+    let ecParams = @[(0, 1), (1, 2), (2, 3)]
+
+    for ecParam in ecParams:
+      let (nodes, tolerance) = ecParam
+
+      var responseBefore = client1.requestStorageRaw(cid,
+        duration,
+        reward,
+        proofProbability,
+        collateral,
+        expiry,
+        nodes.uint,
+        tolerance.uint)
+
+      check responseBefore.status == "400 Bad Request"
+      check responseBefore.body == "Invalid parameters: `tolerance` cannot be greater than `nodes`"
+
+  test "request storage succeeds if nodes and tolerance within range":
+    let data = await RandomChunker.example(blocks=2)
+    let cid = client1.upload(data).get
+    let duration = 100.u256
+    let reward = 2.u256
+    let proofProbability = 3.u256
+    let expiry = 30.uint
+    let collateral = 200.u256
+    let ecParams = @[(2, 0), (3, 1), (5, 2)]
+
+    for ecParam in ecParams:
+      let (nodes, tolerance) = ecParam
+
+      var responseBefore = client1.requestStorageRaw(cid,
+        duration,
+        reward,
+        proofProbability,
+        collateral,
+        expiry,
+        nodes.uint,
+        tolerance.uint)
+
+      check responseBefore.status == "200 OK"

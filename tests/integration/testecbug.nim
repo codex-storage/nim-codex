@@ -4,14 +4,10 @@ import ./marketplacesuite
 import ./nodeconfigs
 import ./hardhatconfig
 
-marketplacesuite "EC bug":
+marketplacesuite "Bug #821 - node crashes during erasure coding":
 
   test "should be able to create storage request and download dataset",
     NodeConfigs(
-      # Uncomment to start Hardhat automatically, typically so logs can be
-      # inspected locally
-      hardhat: HardhatConfig().withLogFile().some,
-
       clients:
         CodexConfigs.init(nodes=1)
           # .debug() # uncomment to enable console log output.debug()
@@ -38,7 +34,6 @@ marketplacesuite "EC bug":
 
     var requestId = none RequestId
     proc onStorageRequested(event: StorageRequested) {.raises:[].} =
-      echo "storage requested event"
       requestId = event.requestId.some
 
     let subscription = await marketplace.subscribe(StorageRequested, onStorageRequested)
