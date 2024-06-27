@@ -30,11 +30,9 @@ type
     postFixLen*: int
     repoDs*: Datastore
     metaDs*: TypedDatastore
-    clock*: Clock
     quotaMaxBytes*: NBytes
     quotaUsage*: QuotaUsage
     totalBlocks*: Natural
-    blockTtl*: Duration
     started*: bool
 
   QuotaUsage* {.serialize.} = object
@@ -42,7 +40,6 @@ type
     reserved*: NBytes
 
   BlockMetadata* {.serialize.} = object
-    expiry*: SecondsSince1970
     size*: NBytes
     refCount*: Natural
 
@@ -50,13 +47,9 @@ type
     blkCid*: Cid
     proof*: CodexProof
 
-  BlockExpiration* {.serialize.} = object
-    cid*: Cid
-    expiry*: SecondsSince1970
-
   DeleteResultKind* {.serialize.} = enum
     Deleted = 0,    # block removed from store
-    InUse = 1,      # block not removed, refCount > 0 and not expired
+    InUse = 1,      # block not removed, refCount > 0
     NotFound = 2    # block not found in store
 
   DeleteResult* {.serialize.} = object
@@ -90,18 +83,14 @@ func new*(
     T: type RepoStore,
     repoDs: Datastore,
     metaDs: Datastore,
-    clock: Clock = SystemClock.new(),
     postFixLen = 2,
-    quotaMaxBytes = DefaultQuotaBytes,
-    blockTtl = DefaultBlockTtl
+    quotaMaxBytes = DefaultQuotaBytes
 ): RepoStore =
   ## Create new instance of a RepoStore
   ##
   RepoStore(
     repoDs: repoDs,
     metaDs: TypedDatastore.init(metaDs),
-    clock: clock,
     postFixLen: postFixLen,
-    quotaMaxBytes: quotaMaxBytes,
-    blockTtl: blockTtl
+    quotaMaxBytes: quotaMaxBytes
   )
