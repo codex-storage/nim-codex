@@ -17,10 +17,9 @@ import pkg/libp2p
 import pkg/stew/shims/net
 
 func remapAddr*(
-    address: MultiAddress,
-    ip: Option[ValidIpAddress] = ValidIpAddress.none,
-    port: Option[Port] = Port.none
-): MultiAddress =
+  address: MultiAddress,
+  ip: Option[ValidIpAddress] = ValidIpAddress.none,
+  port: Option[Port] = Port.none): MultiAddress =
   ## Remap addresses to new IP and/or Port
   ##
 
