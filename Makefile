@@ -15,7 +15,7 @@
 #
 # If NIM_COMMIT is set to "nimbusbuild", this will use the
 # version pinned by nimbus-build-system.
-PINNED_NIM_VERSION := v1.6.20
+PINNED_NIM_VERSION := 38640664088251bbc88917b4bacfd86ec53014b8
 
 ifeq ($(NIM_COMMIT),)
 NIM_COMMIT := $(PINNED_NIM_VERSION)
