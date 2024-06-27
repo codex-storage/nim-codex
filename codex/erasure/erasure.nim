@@ -27,6 +27,7 @@ import ../blocktype as bt
 import ../utils
 import ../utils/asynciter
 import ../indexingstrategy
+import ../errors
 
 import pkg/stew/byteutils
 
@@ -81,6 +82,9 @@ type
     steps: Natural
     blocksCount: Natural
     strategy: StrategyType
+
+  ErasureError* = object of CodexError
+  InsufficientBlocksError* = object of ErasureError
 
 func indexToPos(steps, idx, step: int): int {.inline.} =
   ## Convert an index to a position in the encoded
@@ -236,11 +240,12 @@ proc init*(
   ecK: Natural, ecM: Natural,
   strategy: StrategyType): ?!EncodingParams =
   if ecK > manifest.blocksCount:
-    return failure(
+    let exc = newException(InsufficientBlocksError,
       "Unable to encode manifest, not enough blocks, ecK = " &
       $ecK &
       ", blocksCount = " &
       $manifest.blocksCount)
+    return failure(exc)
 
   let
     rounded = roundUp(manifest.blocksCount, ecK)

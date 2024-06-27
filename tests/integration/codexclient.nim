@@ -96,7 +96,7 @@ proc requestStorageRaw*(
     proofProbability: UInt256,
     collateral: UInt256,
     expiry: uint = 0,
-    nodes: uint = 1,
+    nodes: uint = 2,
     tolerance: uint = 0
 ): Response =
 
@@ -125,7 +125,7 @@ proc requestStorage*(
     proofProbability: UInt256,
     expiry: uint,
     collateral: UInt256,
-    nodes: uint = 1,
+    nodes: uint = 2,
     tolerance: uint = 0
 ): ?!PurchaseId =
   ## Call request storage REST endpoint

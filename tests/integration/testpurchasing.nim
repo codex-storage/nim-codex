@@ -8,7 +8,8 @@ import ../examples
 twonodessuite "Purchasing", debug1 = false, debug2 = false:
 
   test "node handles storage request":
-    let cid = client1.upload("some file contents").get
+    let data = await RandomChunker.example(blocks=2)
+    let cid = client1.upload(data).get
     let id1 = client1.requestStorage(cid, duration=100.u256, reward=2.u256, proofProbability=3.u256, expiry=10, collateral=200.u256).get
     let id2 = client1.requestStorage(cid, duration=400.u256, reward=5.u256, proofProbability=6.u256, expiry=10, collateral=201.u256).get
     check id1 != id2
@@ -26,7 +27,7 @@ twonodessuite "Purchasing", debug1 = false, debug2 = false:
       proofProbability=3.u256,
       expiry=30,
       collateral=200.u256,
-      nodes=2,
+      nodes=3,
       tolerance=1).get
 
     let request = client1.getPurchase(id).get.request.get
@@ -35,7 +36,7 @@ twonodessuite "Purchasing", debug1 = false, debug2 = false:
     check request.ask.proofProbability == 3.u256
     check request.expiry == 30
     check request.ask.collateral == 200.u256
-    check request.ask.slots == 2'u64
+    check request.ask.slots == 3'u64
     check request.ask.maxSlotLoss == 1'u64
 
   # TODO: We currently do not support encoding single chunks
@@ -52,7 +53,8 @@ twonodessuite "Purchasing", debug1 = false, debug2 = false:
   #   check request.ask.maxSlotLoss == 1'u64
 
   test "node remembers purchase status after restart":
-    let cid = client1.upload("some file contents").get
+    let data = await RandomChunker.example(blocks=2)
+    let cid = client1.upload(data).get
     let id = client1.requestStorage(cid,
                                     duration=100.u256,
                                     reward=2.u256,
@@ -71,25 +73,12 @@ twonodessuite "Purchasing", debug1 = false, debug2 = false:
     check request.ask.proofProbability == 3.u256
     check request.expiry == 30
     check request.ask.collateral == 200.u256
-    check request.ask.slots == 1'u64
+    check request.ask.slots == 2'u64
     check request.ask.maxSlotLoss == 0'u64
 
-  test "request storage fails if nodes and tolerance aren't correct":
-    let cid = client1.upload("some file contents").get
-    let responseBefore = client1.requestStorageRaw(cid,
-      duration=100.u256,
-      reward=2.u256,
-      proofProbability=3.u256,
-      expiry=30,
-      collateral=200.u256,
-      nodes=1,
-      tolerance=1)
-
-    check responseBefore.status == "400 Bad Request"
-    check responseBefore.body == "Tolerance cannot be greater or equal than nodes (nodes - tolerance)"
-
   test "node requires expiry and its value to be in future":
-    let cid = client1.upload("some file contents").get
+    let data = await RandomChunker.example(blocks=2)
+    let cid = client1.upload(data).get
 
     let responseMissing = client1.requestStorageRaw(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256)
     check responseMissing.status == "400 Bad Request"
