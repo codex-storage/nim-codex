@@ -41,11 +41,11 @@ twonodessuite "REST API", debug1 = false, debug2 = false:
 
   test "request storage fails for datasets that are too small":
     let cid = client1.upload("some file contents").get
-    let response = client1.requestStorageRaw(cid, duration=10.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256, expiry=9)
+    let response = client1.requestStorageRaw(cid, duration=10.u256, reward=2.u256, proofProbability=3.u256, nodes=2, collateral=200.u256, expiry=9)
 
     check:
       response.status == "400 Bad Request"
-      response.body == "Insufficient blocks, increased dataset size required"
+      response.body == "Dataset too small for erasure parameters, need at least "  & $(2*DefaultBlockSize.int) & " bytes"
 
   test "request storage succeeds for sufficiently sized datasets":
     let data = await RandomChunker.example(blocks=2)
