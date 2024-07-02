@@ -423,6 +423,15 @@ proc setupRequest(
     trace "Unable to fetch manifest for cid"
     return failure error
 
+  # ----------------------------------------------------------------------------
+  # FIXME this is a BAND-AID to address
+  #   https://github.com/codex-storage/nim-codex/issues/852 temporarily for the
+  #   workshop. Remove this once we get that fixed.
+  if manifest.blocksCount.uint == ecK:
+    return failure("Cannot setup slots for a dataset with ecK == numBlocks. Please use a larger file.")
+  # ----------------------------------------------------------------------------
+
+
   # Erasure code the dataset according to provided parameters
   let
     erasure = Erasure.new(
