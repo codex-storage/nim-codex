@@ -252,3 +252,22 @@ suite "Erasure encode/decode":
       decoded.treeCid == manifest.treeCid
       decoded.treeCid == verifiable.originalTreeCid
       decoded.blocksCount == verifiable.originalBlocksCount
+
+  for i in 1..5:
+    test "Should encode/decode using various parameters " & $i & "/5":
+      let
+        blockSize   = rng.sample(@[1, 2, 4, 8, 16, 32, 64].mapIt(it.KiBs))
+        datasetSize = 1.MiBs
+        ecK         = 10.Natural
+        ecM         = 10.Natural
+
+      let
+        chunker = RandomChunker.new(rng, size = datasetSize, chunkSize = blockSize)
+        manifest = await storeDataGetManifest(store, chunker)
+        encoded = (await erasure.encode(manifest, ecK, ecM)).tryGet()
+        decoded = (await erasure.decode(encoded)).tryGet()
+
+      check:
+        decoded.treeCid == manifest.treeCid
+        decoded.treeCid == encoded.originalTreeCid
+        decoded.blocksCount == encoded.originalBlocksCount
