@@ -428,7 +428,7 @@ proc setupRequest(
   #   https://github.com/codex-storage/nim-codex/issues/852 temporarily for the
   #   workshop. Remove this once we get that fixed.
   if manifest.blocksCount.uint == ecK:
-    return failure("Cannot setup slots for a dataset with ecK == numBlocks. Please use a larger file.")
+    return failure("Cannot setup slots for a dataset with ecK == numBlocks. Please use a larger file or a different combination of `nodes` and `tolerance`.")
   # ----------------------------------------------------------------------------
 
 
