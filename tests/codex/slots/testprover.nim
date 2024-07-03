@@ -49,25 +49,48 @@ suite "Test Prover":
 
     store = RepoStore.new(repoDs, metaDs)
 
-    (manifest, protected, verifiable) =
-        await createVerifiableManifest(
-          store,
-          numDatasetBlocks,
-          ecK, ecM,
-          blockSize,
-          cellSize)
+    # (manifest, protected, verifiable) =
+    #     await createVerifiableManifest(
+    #       store,
+    #       numDatasetBlocks,
+    #       ecK, ecM,
+    #       blockSize,
+    #       cellSize)
 
   teardown:
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
 
-  test "Should sample and prove a slot":
+  # test "Should sample and prove a slot":
+  #   let
+  #     r1cs = "tests/circuits/fixtures/proof_main.r1cs"
+  #     wasm = "tests/circuits/fixtures/proof_main.wasm"
+
+  #     circomBackend = CircomCompat.init(r1cs, wasm)
+  #     prover = Prover.new(store, circomBackend, samples)
+  #     challenge = 1234567.toF.toBytes.toArray32
+  #     (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
+
+  #   check:
+  #     (await prover.verify(proof, inputs)).tryGet == true
+  test "Should generate valid proofs when k = ecK":
+    echo "---- CREATE MANIFEST ---- "
+    let
+      (_, _, verifiable) =
+        await createVerifiableManifest(
+          store,
+          2,
+          2, 1,
+          DefaultBlockSize,
+          DefaultCellSize)
+
+    echo "---- RUN PROVER ---- "
+
     let
       r1cs = "tests/circuits/fixtures/proof_main.r1cs"
       wasm = "tests/circuits/fixtures/proof_main.wasm"
-
       circomBackend = CircomCompat.init(r1cs, wasm)
-      prover = Prover.new(store, circomBackend, samples)
+      prover = Prover.new(store, circomBackend, 5)
       challenge = 1234567.toF.toBytes.toArray32
       (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
 

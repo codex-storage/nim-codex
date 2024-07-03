@@ -363,6 +363,14 @@ proc new*[T, H](
     numSlotBlocksTotal  = numSlotBlocksTotal
     strategy            = strategy.strategyType
 
+  echo " ---> Slot builder"
+  echo "Cells per block (numBlockCells): ", numBlockCells
+  echo "Blocks per slot (numSlotBlocks): ", numSlotBlocks
+  echo "Cells per slot (numSlotCells): ", numSlotCells
+  echo "Cells per slot rounded to power of 2 (pow2SlotCells): ", pow2SlotCells
+  echo "Number of padding blocks per slot: ", numPadSlotBlocks
+  echo " "
+
   trace "Creating slots builder"
 
   var
