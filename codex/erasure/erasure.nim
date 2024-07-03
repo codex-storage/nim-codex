@@ -31,6 +31,8 @@ import ../errors
 
 import pkg/stew/byteutils
 
+import pkg/stew/io2
+
 import ./backend
 import ./asyncbackend
 
@@ -101,6 +103,50 @@ func indexToPos(steps, idx, step: int): int {.inline.} =
   (idx - step) div steps
 
 proc getPendingBlocks(
+  self: Erasure,
+  manifest: Manifest,
+  indicies: seq[int]): AsyncIter[(?!bt.Block, int)] =
+  ## Get pending blocks iterator
+  ##
+
+  var
+    indiciesIter = Iter[int].new(indicies)
+    
+    pendingBlocks = mapAsync[int, (?!bt.Block, int)](indiciesIter, (i: int) =>
+      self.store.getBlock(
+        BlockAddress.init(manifest.treeCid, i)
+      ).map((r: ?!bt.Block) => (r, i)) # Get the data blocks (first K)
+    )
+
+
+  pendingBlocks
+
+proc getPendingBlocks2(
+  self: Erasure,
+  manifest: Manifest,
+  indicies: seq[int]): AsyncIter[(?!bt.Block, int)] =
+  ## Get pending blocks iterator
+  ##
+
+  let shift = indicies[0]
+
+  let newIndicies = @[0, 203, 196, 189, 182, 175, 168, 161, 154, 147, 140, 133, 126, 119, 112, 105, 98, 91, 84, 77].mapIt(it + shift)
+
+  var
+    indiciesIter = Iter[int].new(newIndicies)
+    # indiciesIter = Iter[int].new(indicies.filterIt((it mod 3) != 2))
+    # indiciesIter = Iter[int].new(@(@[indicies[29]] & indicies[5..<25]))
+
+    
+    pendingBlocks = mapAsync[int, (?!bt.Block, int)](indiciesIter, (i: int) =>
+      self.store.getBlock(
+        BlockAddress.init(manifest.treeCid, i)
+      ).map((r: ?!bt.Block) => (r, i)) # Get the data blocks (first K)
+    )
+
+  pendingBlocks
+
+proc getPendingBlocks3(
   self: Erasure,
   manifest: Manifest,
   indicies: seq[int]): AsyncIter[(?!bt.Block, int)] =
@@ -190,6 +236,8 @@ proc prepareDecodingData(
   ## `emptyBlock` - the empty block to be used for padding
   ##
 
+  var recIndicies = newSeq[int]()
+
   let
     strategy = encoded.protectedStrategy.init(
       firstIndex = 0,
@@ -197,7 +245,7 @@ proc prepareDecodingData(
       iterations = encoded.steps
     )
     indicies = toSeq(strategy.getIndicies(step))
-    pendingBlocksIter = self.getPendingBlocks(encoded, indicies)
+    pendingBlocksIter = self.getPendingBlocks2(encoded, indicies)
 
   var
     dataPieces = 0
@@ -213,6 +261,8 @@ proc prepareDecodingData(
     without blk =? blkOrErr, err:
       trace "Failed retreiving a block", idx, treeCid = encoded.treeCid, msg = err.msg
       continue
+
+    recIndicies.add(idx)
 
     let
       pos = indexToPos(encoded.steps, idx, step)
@@ -235,6 +285,13 @@ proc prepareDecodingData(
       dataPieces.inc
 
     resolved.inc
+
+  let recCids = collect:
+    for i in recIndicies:
+      cids[i]
+
+  without recTree =? CodexTree.init(recCids), err:
+    return failure(err)
 
   return success (dataPieces.Natural, parityPieces.Natural)
 
@@ -317,6 +374,7 @@ proc encodeData(
 
         trace "Adding parity block", cid = blk.cid, idx
         cids[idx] = blk.cid
+        io2.writeFile("parity_" & $idx, blk.data).get()
         if isErr (await self.store.putBlock(blk)):
           trace "Unable to store block!", cid = blk.cid
           return failure("Unable to store block!")
@@ -372,6 +430,47 @@ proc encode*(
 
   return success encodedManifest
 
+proc hashOf(bytes: ref seq[seq[byte]]): string =
+  var totalLen = 0
+  for i in 0..<len(bytes[]):
+    totalLen = totalLen + bytes[i].len
+
+  var buf = newSeq[byte]()
+
+  buf.setLen(totalLen)
+
+  var offset = 0
+  for i in 0..<len(bytes[]):
+    if bytes[i].len > 0:
+      copyMem(addr buf[offset], addr bytes[i][0], bytes[i].len)
+      offset = offset + bytes[i].len
+
+  let mhash = MultiHash.digest("sha2-256", buf).mapFailure()
+
+  return mhash.get().hex
+  # without mh =? mhash, err:
+  #   return "error " & err.msg
+
+  # return mh.hex
+
+# proc unsafeHashOf(bytes: seq[pointer], lens: seq[int]): string =
+#   var totalLen = 0
+#   for l in lens:
+#     totalLen = totalLen + l
+
+#   var buf = newSeq[byte]()
+
+#   buf.setLen(totalLen)
+
+#   var offset = 0
+#   for l in lens:
+#     if l > 0:
+#       copyMem(addr buf[offset], bytes[i], l)
+#       offset = offset + l
+
+#   let mhash = MultiHash.digest("sha2-256", buf)
+#   return $mhash
+
 proc decode*(
   self: Erasure,
   encoded: Manifest): Future[?!Manifest] {.async.} =
@@ -417,6 +516,10 @@ proc decode*(
       without recovered =? await asyncDecode(self.taskpool, decoder, data, parity, encoded.blockSize.int), err:
         trace "Error decoding data", err = err.msg
         return failure(err)
+
+      echo "hash of recovered " & hashOf(recovered)
+
+      # GC_fullCollect()
 
       for i in 0..<encoded.ecK:
         let idx = i * encoded.steps + step

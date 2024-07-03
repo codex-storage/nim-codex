@@ -8,12 +8,16 @@
 ## those terms.
 
 import std/sequtils
+import std/sugar
 
 import pkg/taskpools
 import pkg/taskpools/flowvars
 import pkg/chronos
 import pkg/chronos/threadsync
 import pkg/questionable/results
+
+import pkg/libp2p/[cid, multicodec, multihash]
+import pkg/stew/io2
 
 import ./backend
 import ../errors
@@ -50,6 +54,49 @@ type
   EncodeTaskResult = Result[SharedArrayHolder[byte], cstring]
   DecodeTaskResult = Result[SharedArrayHolder[byte], cstring]
 
+proc dumpOf(prefix: string, bytes: seq[seq[byte]]): void = 
+  for i in 0..<bytes.len:
+    if bytes[i].len > 0:
+      io2.writeFile(prefix & $i, bytes[i]).tryGet()
+
+proc hashOf(bytes: ref seq[seq[byte]]): string =
+  var totalLen = 0
+  for i in 0..<len(bytes[]):
+    totalLen = totalLen + bytes[i].len
+
+  var buf = newSeq[byte]()
+
+  buf.setLen(totalLen)
+
+  var offset = 0
+  for i in 0..<len(bytes[]):
+    if bytes[i].len > 0:
+      copyMem(addr buf[offset], addr bytes[i][0], bytes[i].len)
+      offset = offset + bytes[i].len
+
+  let mhash = MultiHash.digest("sha2-256", buf)
+  return mhash.get().hex
+
+proc unsafeHashOf(bytes: seq[pointer], lens: seq[int]): string =
+  var totalLen = 0
+  for l in lens:
+    totalLen = totalLen + l
+
+  var buf = newSeq[byte]()
+
+  buf.setLen(totalLen)
+
+  var offset = 0
+  for i in 0..<lens.len:
+    echo "pointer " & $i & " " & bytes[i].repr
+    let l = lens[i]
+    if l > 0:
+      copyMem(addr buf[offset], bytes[i], l)
+      offset = offset + l
+
+  let mhash = MultiHash.digest("sha2-256", buf)
+  return mhash.get().hex
+
 proc encodeTask(args: EncodeTaskArgs, data: seq[seq[byte]]): EncodeTaskResult =
   var
     data = data.unsafeAddr
@@ -79,11 +126,41 @@ proc encodeTask(args: EncodeTaskArgs, data: seq[seq[byte]]): EncodeTaskResult =
     if err =? args.signal.fireSync().mapFailure.errorOption():
       error "Error firing signal", msg = err.msg
 
-proc decodeTask(args: DecodeTaskArgs, data: seq[seq[byte]], parity: seq[seq[byte]]): DecodeTaskResult =
+proc decodeTask(args: DecodeTaskArgs, odata: seq[seq[byte]], oparity: seq[seq[byte]], debug: bool): DecodeTaskResult =
+
+  if debug:
+    dumpOf("thread_data_", odata)
+    dumpOf("thread_parity", oparity)
+  # if debugFlag:
+    # io2.writeFile("original_block_" & $idx, blk.data).tryGet()
+
+  var ptrsData: seq[pointer]
+  for i in 0..<odata.len:
+    if odata[i].len > 0:
+      ptrsData.add(unsafeAddr odata[i][0])
+    else:
+      ptrsData.add(unsafeAddr odata)
+
+  var ptrsParity: seq[pointer]
+  for i in 0..<oparity.len:
+    if oparity[i].len > 0:
+      ptrsParity.add(unsafeAddr oparity[i][0])
+    else:
+      ptrsParity.add(unsafeAddr oparity)
+
+  echo "bef unsafe hash of data " & unsafeHashOf(ptrsData, odata.mapIt(it.len))
+  echo "bef unsafe hash of parity " & unsafeHashOf(ptrsParity, oparity.mapIt(it.len))
+
   var
-    data = data.unsafeAddr
-    parity = parity.unsafeAddr
+    data = odata.unsafeAddr
+    parity = oparity.unsafeAddr
+
+  var
     recovered = newSeqWith[seq[byte]](args.ecK, newSeq[byte](args.blockSize))
+
+  var ptrs: seq[pointer]
+  for i in 0..<recovered.len:
+    ptrs.add(unsafeAddr recovered[i][0])
 
   try:
     let res = args.backend[].decode(data[], parity[], recovered)
@@ -122,7 +199,17 @@ proc proxySpawnDecodeTask(
   data: ref seq[seq[byte]],
   parity: ref seq[seq[byte]]
 ): Flowvar[DecodeTaskResult] =
-  tp.spawn decodeTask(args, data[], parity[])
+  let h = hashOf(data)
+  echo "proxy hash of data " & h
+
+  let debug = h == "12209C9675C6D0F65E90554E4251EAA8B4F1DE46E8178FD885B98A607F127C64C5C3"
+
+  tp.spawn decodeTask(args, data[], parity[], debug)
+  # let res = DecodeTaskResult.newFlowVar
+
+  # res.readyWith(decodeTask(args, data[], parity[], debug))
+  # return res
+  
 
 proc awaitResult[T](signal: ThreadSignalPtr, handle: Flowvar[T]): Future[?!T] {.async.} =
   await wait(signal)
@@ -184,11 +271,16 @@ proc asyncDecode*(
   without signal =? ThreadSignalPtr.new().mapFailure, err:
     return failure(err)
 
+  echo "orig hash of data " & hashOf(data)
+  # echo "hash of parity " & hashOf(parity)
+
   try:
     let
       ecK = data[].len
       args = DecodeTaskArgs(signal: signal, backend: unsafeAddr backend, blockSize: blockSize, ecK: ecK)
       handle = proxySpawnDecodeTask(tp, args, data, parity)
+
+    # GC_fullCollect()
 
     without res =? await awaitResult(signal, handle), err:
       return failure(err)
@@ -201,6 +293,18 @@ proc asyncDecode*(
         recovered[i] = newSeq[byte](blockSize)
         copyMem(addr recovered[i][0], addr res.value.data[i * blockSize], blockSize)
 
+      # echo "orig hash of recovered " & hashOf(recovered)
+
+      var ptrs: seq[pointer]
+
+      for i in 0..<recovered[].len:
+        ptrs.add(unsafeAddr recovered[i][0])
+
+
+      # echo "unsafe hash of recovered" & unsafeHashOf(ptrs, recovered[].mapIt(it.len))
+
+      # echo "orig hash of parity " & hashOf(parity)
+
       deallocShared(res.value.data)
 
       return success(recovered)
@@ -209,3 +313,56 @@ proc asyncDecode*(
   finally:
     if err =? signal.close().mapFailure.errorOption():
       error "Error closing signal", msg = $err.msg
+
+proc syncDecode*(
+  tp: Taskpool,
+  backend: DecoderBackend,
+  data, parity: ref seq[seq[byte]],
+  blockSize: int
+): Future[?!ref seq[seq[byte]]] {.async.} =
+
+  let
+    ecK = data[].len
+  
+  var recovered = newSeqWith[seq[byte]](ecK, newSeq[byte](blockSize))
+
+  backend.decode(data[], parity[], recovered)
+
+  var recoveredRet = seq[seq[byte]].new()
+  recoveredRet[].setLen(ecK)
+
+  for i in 0..<recoveredRet[].len:
+    recoveredRet[i] = newSeq[byte](blockSize)
+    copyMem(addr recoveredRet[i][0], addr recovered[i][0], blockSize)
+
+  return success(recoveredRet)
+
+
+  # without signal =? ThreadSignalPtr.new().mapFailure, err:
+  #   return failure(err)
+
+  # try:
+  #   let
+  #     ecK = data[].len
+  #     args = DecodeTaskArgs(signal: signal, backend: unsafeAddr backend, blockSize: blockSize, ecK: ecK)
+  #     handle = proxySpawnDecodeTask(tp, args, data, parity)
+
+  #   without res =? await awaitResult(signal, handle), err:
+  #     return failure(err)
+
+  #   if res.isOk:
+  #     var recovered = seq[seq[byte]].new()
+  #     recovered[].setLen(ecK)
+
+  #     for i in 0..<recovered[].len:
+  #       recovered[i] = newSeq[byte](blockSize)
+  #       copyMem(addr recovered[i][0], addr res.value.data[i * blockSize], blockSize)
+
+  #     deallocShared(res.value.data)
+
+  #     return success(recovered)
+  #   else:
+  #     return failure($res.error)
+  # finally:
+  #   if err =? signal.close().mapFailure.errorOption():
+  #     error "Error closing signal", msg = $err.msg

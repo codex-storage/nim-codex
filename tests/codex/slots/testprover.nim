@@ -69,7 +69,24 @@ suite "Test Prover":
       circomBackend = CircomCompat.init(r1cs, wasm)
       prover = Prover.new(store, circomBackend, samples)
       challenge = 1234567.toF.toBytes.toArray32
-      (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
+
+    proc someFut(): Future[void] {.async.} =
+      echo "before 100 millis"
+      await sleepAsync(100.millis)
+      echo "after 100 millis"
+
+    asyncSpawn(someFut())
+
+    echo "started proving"
+    let  (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
+    echo "finished proving"
+
+    await sleepAsync(10.millis)
+    echo "after additional 10 millis"
+    await sleepAsync(300.millis)
+    echo "after additional 300 millis"
 
     check:
       (await prover.verify(proof, inputs)).tryGet == true
+
+    

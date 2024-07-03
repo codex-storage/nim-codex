@@ -11,6 +11,8 @@ import pkg/codex/blockexchange
 import pkg/codex/rng
 import pkg/codex/utils
 
+import pkg/stew/io2
+
 import ./helpers/nodeutils
 import ./helpers/randomchunker
 import ./helpers/mockchunker
@@ -84,6 +86,8 @@ proc makeWantList*(
 proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest] {.async.} =
   var cids = newSeq[Cid]()
 
+  var i = 0
+
   while (
     let chunk = await chunker.getBytes();
     chunk.len > 0):
@@ -91,6 +95,10 @@ proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest
     let blk = Block.new(chunk).tryGet()
     cids.add(blk.cid)
     (await store.putBlock(blk)).tryGet()
+
+    io2.writeFile("block_" & $i, blk.data)
+
+    i.inc
 
   let
     tree = CodexTree.init(cids).tryGet()
