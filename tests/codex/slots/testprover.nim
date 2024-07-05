@@ -74,7 +74,6 @@ suite "Test Prover":
   #   check:
   #     (await prover.verify(proof, inputs)).tryGet == true
   test "Should generate valid proofs when k = ecK":
-    echo "---- CREATE MANIFEST ---- "
     let
       (_, _, verifiable) =
         await createVerifiableManifest(
@@ -84,12 +83,10 @@ suite "Test Prover":
           DefaultBlockSize,
           DefaultCellSize)
 
-    echo "---- RUN PROVER ---- "
-
     let
       r1cs = "tests/circuits/fixtures/proof_main.r1cs"
       wasm = "tests/circuits/fixtures/proof_main.wasm"
-      circomBackend = CircomCompat.init(r1cs, wasm)
+      circomBackend = CircomCompat.init(r1cs, wasm, numSamples = 5)
       prover = Prover.new(store, circomBackend, 5)
       challenge = 1234567.toF.toBytes.toArray32
       (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet

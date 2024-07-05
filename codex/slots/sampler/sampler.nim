@@ -84,6 +84,18 @@ proc getSample*[T, H](
     cellProof = blkTree.getProof(blkCellIdx).valueOr:
       return failure("Failed to get proof from block tree")
 
+  # Checks that the cell proof can be used to get to the block root
+  if not cellProof.verify(blkTree.leaves[blkCellIdx], blkTree.root.tryGet).tryGet:
+    echo "FAIL: cell into block subtree proof"
+  else:
+    echo "SUCCESS: cell into block subtree proof"
+
+  # Checks that the block root proof can be used to get to the slot root
+  if not slotProof.verify(blkTree.root.tryGet, slotRoot).tryGet:
+    echo "FAIL: cell root into slot proof"
+  else:
+    echo "SUCCESS: cell root into slot proof"
+
   success Sample[H](
     cellData: cellData,
     merklePaths: (cellProof.path & slotProof.path))
@@ -114,6 +126,12 @@ proc getProofInput*[T, H](
       slotRoot,
       self.builder.numSlotCells,
       nSamples)
+
+  # Checks that the slot root proof can be used to get to the dataset root
+  if not slotProof.verify(slotRoot, datasetRoot).tryGet:
+    echo "FAIL: cell into block subtree proof"
+  else:
+    echo "SUCCESS: cell into block subtree proof"
 
   logScope:
     cells = cellIdxs
