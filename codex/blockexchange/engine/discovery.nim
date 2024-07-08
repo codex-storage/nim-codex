@@ -34,7 +34,7 @@ logScope:
 declareGauge(codexInflightDiscovery, "inflight discovery requests")
 
 const
-  DefaultConcurrentDiscRequests = 10
+  DefaultConcurrentDiscRequests = 60
   DefaultConcurrentAdvertRequests = 10
   DefaultDiscoveryTimeout = 1.minutes
   DefaultMinPeersPerBlock = 3
