@@ -8,11 +8,12 @@ on:
 
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
-  nim_version: v1.6.14
+  nim_version: pinned
   rust_version: 1.78.0
   binary_base: codex
+  build_dir: build
   nim_flags: '-d:verify_circuit=true'
-  upload_to_codex: false
+  windows_libs: 'libstdc++-6.dll libgomp-1.dll libgcc_s_seh-1.dll libwinpthread-1.dll'
 
 jobs:
   # Matrix
@@ -75,13 +76,21 @@ jobs:
 
       - name: Release - Build
         run: |
-          make NIMFLAGS="--out:${{ env.binary }} ${{ env.nim_flags }}"
-          
-      - name: Release - Upload binaries
+          make NIMFLAGS="--out:${{ env.build_dir }}/${{ env.binary }} ${{ env.nim_flags }}"
+
+      - name: Release - Libraries
+        run: |
+          if [[ "${{ matrix.os }}" == "windows" ]]; then
+            for lib in ${{ env.windows_libs }}; do
+              cp -v "${MINGW_PREFIX}/bin/${lib}" "${{ env.build_dir }}"
+            done
+          fi
+
+      - name: Release - Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-${{ env.binary }}
-          path: ${{ env.binary }}
+          path: ${{ env.build_dir }}/
           retention-days: 1
 
   # Release
@@ -100,46 +109,49 @@ jobs:
       - name: Release - Compress and checksum
         run: |
           cd /tmp/release
-          prepare() {
-            # Checksum
+          checksum() {
             arc="${1}"
             sha256sum "${arc}" >"${arc}.sha256"
-
-            # Upload to Codex
-            if [[ "${{ env.upload_to_codex }}" == "true" ]]; then
-              codex_endpoints="${{ secrets.CODEX_ENDPOINTS }}"
-              codex_username="${{ secrets.CODEX_USERNAME }}"
-              codex_password="${{ secrets.CODEX_PASSWORD }}"
-
-              for endpoint in ${codex_endpoints}; do
-                echo "::add-mask::${endpoint}"
-                cid=$(curl -X POST \
-                  "${endpoint}/api/codex/v1/data" \
-                  -u "${codex_username}":"${codex_password}" \
-                  -H "content-type: application/octet-stream" \
-                  -T "${arc}")
-
-                echo "${cid}" >"${arc}.cid"
-              done
-            fi
           }
+
           # Compress and prepare
           for file in *; do
-            if [[ "${file}" == *".exe"* ]]; then
-              arc="${file%.*}.zip"
-              zip "${arc}" "${file}"
-              rm -f "${file}"
-              prepare "${arc}"
-            else
-              arc="${file}.tar.gz"
-              tar cfz "${arc}" "${file}"
-              rm -f "${file}"
-              prepare "${arc}"
+            # Exclude libraries
+            if [[ "${file}" != *".dll"* ]]; then
+              if [[ "${file}" == *".exe"* ]]; then
+
+                # Windows - binary only
+                arc="${file%.*}.zip"
+                zip "${arc}" "${file}"
+                checksum "${arc}"
+
+                # Windows - binary and libs
+                arc="${file%.*}-libs.zip"
+                zip "${arc}" "${file}" ${{ env.windows_libs }}
+                rm -f "${file}" ${{ env.windows_libs }}
+                checksum "${arc}"
+              else
+
+                # Linux/macOS
+                arc="${file}.tar.gz"
+                chmod 755 "${file}"
+                tar cfz "${arc}" "${file}"
+                rm -f "${file}"
+                checksum "${arc}"
+              fi
             fi
           done
 
+      - name: Release - Upload compressed artifacts and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: archives-and-checksums
+          path: /tmp/release/
+          retention-days: 1
+
       - name: Release
         uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
             /tmp/release/*
