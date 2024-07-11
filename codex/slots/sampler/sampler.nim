@@ -38,7 +38,7 @@ type
 func getCell*[T, H](
   self: DataSampler[T, H],
   blkBytes: seq[byte],
-  blkCellIdx: Natural): seq[byte] =
+  blkCellIdx: Natural): seq[H] =
 
   let
     cellSize = self.builder.cellSize.uint64
@@ -47,7 +47,7 @@ func getCell*[T, H](
 
   doAssert (dataEnd - dataStart) == cellSize, "Invalid cell size"
 
-  toInputData[H](blkBytes[dataStart ..< dataEnd])
+  blkBytes[dataStart ..< dataEnd].elements(H).toSeq()
 
 proc getSample*[T, H](
   self: DataSampler[T, H],
@@ -83,18 +83,6 @@ proc getSample*[T, H](
     cellData = self.getCell(bytes, blkCellIdx)
     cellProof = blkTree.getProof(blkCellIdx).valueOr:
       return failure("Failed to get proof from block tree")
-
-  # Checks that the cell proof can be used to get to the block root
-  if not cellProof.verify(blkTree.leaves[blkCellIdx], blkTree.root.tryGet).tryGet:
-    echo "FAIL: cell into block subtree proof"
-  else:
-    echo "SUCCESS: cell into block subtree proof"
-
-  # Checks that the block root proof can be used to get to the slot root
-  if not slotProof.verify(blkTree.root.tryGet, slotRoot).tryGet:
-    echo "FAIL: cell root into slot proof"
-  else:
-    echo "SUCCESS: cell root into slot proof"
 
   success Sample[H](
     cellData: cellData,

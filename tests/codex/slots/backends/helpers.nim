@@ -78,12 +78,15 @@ func toJson*(input: ProofInputs[Poseidon2Hash]): JsonNode =
     "slotRoot": input.slotRoot.toDecimal,
     "slotProof": input.slotProof.mapIt( it.toBig.toJsonDecimal ),
     "cellData": input.samples.mapIt(
-      toSeq( it.cellData.elements(Poseidon2Hash) ).mapIt( it.toBig.toJsonDecimal )
+      it.cellData.mapIt( it.toBig.toJsonDecimal )
     ),
     "merklePaths": input.samples.mapIt(
       it.merklePaths.mapIt( it.toBig.toJsonDecimal )
     )
   }
+
+func toJson*(input: NormalizedProofInputs[Poseidon2Hash]): JsonNode =
+  toJson(ProofInputs[Poseidon2Hash](input))
 
 func jsonToProofInput*(_: type Poseidon2Hash, inputJson: JsonNode): ProofInputs[Poseidon2Hash] =
   let
