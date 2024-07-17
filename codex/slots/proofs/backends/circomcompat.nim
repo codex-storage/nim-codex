@@ -81,7 +81,7 @@ proc release*(self: CircomCompat) =
   if not isNil(self.vkp):
     self.vkp.unsafeAddr.release_key()
 
-proc prove*[H](
+proc prove[H](
   self: CircomCompat,
   input: NormalizedProofInputs[H]): ?!CircomProof =
 
