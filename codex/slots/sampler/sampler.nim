@@ -115,12 +115,6 @@ proc getProofInput*[T, H](
       self.builder.numSlotCells,
       nSamples)
 
-  # Checks that the slot root proof can be used to get to the dataset root
-  if not slotProof.verify(slotRoot, datasetRoot).tryGet:
-    echo "FAIL: cell into block subtree proof"
-  else:
-    echo "SUCCESS: cell into block subtree proof"
-
   logScope:
     cells = cellIdxs
 
