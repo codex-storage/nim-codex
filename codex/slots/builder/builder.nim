@@ -363,6 +363,8 @@ proc new*[T, H](
     numSlotBlocksTotal  = numSlotBlocksTotal
     strategy            = strategy.strategyType
 
+  trace "Creating slots builder"
+
   var
     self = SlotsBuilder[T, H](
       store: store,
