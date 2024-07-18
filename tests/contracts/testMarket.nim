@@ -256,7 +256,7 @@ ethersuite "On-Chain Market":
       receivedIds.add(requestId)
 
     let subscription = await market.subscribeRequestCancelled(request.id, onRequestCancelled)
-    advanceToCancelledRequest(otherRequest) # shares expiry with otherRequest
+    await advanceToCancelledRequest(otherRequest) # shares expiry with otherRequest
     await market.withdrawFunds(otherRequest.id)
     check receivedIds.len == 0
     await market.withdrawFunds(request.id)

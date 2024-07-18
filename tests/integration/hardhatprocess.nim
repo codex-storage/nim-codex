@@ -3,6 +3,7 @@ import pkg/questionable/results
 import pkg/confutils
 import pkg/chronicles
 import pkg/chronos
+import pkg/chronos/asyncproc
 import pkg/stew/io2
 import std/os
 import std/sets
