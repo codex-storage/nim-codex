@@ -49,8 +49,8 @@ func getLinearIndicies(
   self.checkIteration(iteration)
 
   let
-    first = self.firstIndex + iteration * (self.step + 1)
-    last = min(first + self.step, self.lastIndex)
+    first = self.firstIndex + iteration * self.step
+    last = min(first + self.step - 1, self.lastIndex)
 
   getIter(first, last, 1)
 
@@ -94,4 +94,4 @@ func init*(
     firstIndex: firstIndex,
     lastIndex: lastIndex,
     iterations: iterations,
-    step: divUp((lastIndex - firstIndex), iterations))
+    step: divUp((lastIndex - firstIndex + 1), iterations))

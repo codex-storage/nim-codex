@@ -2,7 +2,7 @@ import std/sequtils
 import std/sugar
 import std/times
 import pkg/chronos
-import pkg/datastore
+import pkg/datastore/typedds
 import pkg/questionable
 import pkg/questionable/results
 import pkg/codex/sales

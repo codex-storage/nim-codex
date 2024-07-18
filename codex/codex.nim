@@ -258,7 +258,7 @@ proc new*(
       repoDs = repoData,
       metaDs = LevelDbDatastore.new(config.dataDir / CodexMetaNamespace)
         .expect("Should create metadata store!"),
-      quotaMaxBytes = config.storageQuota.uint,
+      quotaMaxBytes = config.storageQuota,
       blockTtl = config.blockTtl)
 
     maintenance = BlockMaintainer.new(
@@ -312,7 +312,7 @@ proc new*(
       taskpool = taskpool)
 
     restServer = RestServerRef.new(
-      codexNode.initRestApi(config, repoStore),
+      codexNode.initRestApi(config, repoStore, config.apiCorsAllowedOrigin),
       initTAddress(config.apiBindAddress , config.apiPort),
       bufferSize = (1024 * 64),
       maxRequestBodySize = int.high)

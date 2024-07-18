@@ -5,13 +5,29 @@
 # at your option. This file may not be copied, modified, or distributed except
 # according to those terms.
 
-# Pins the Nim version so it's consistent across the board
-# TODO: right now, if we use version-1-6 it'll pick up the stale branch from status-im.
-#   Once https://github.com/status-im/nimbus-build-system/pull/76 gets merged
-#   (or 1.6.22 is released) we can use the right branch/version instead of a raw
-#   commit hash.
-NIM_COMMIT := 38640664088251bbc88917b4bacfd86ec53014b8
+# This is the Nim version used locally and in regular CI builds.
+# Can be a specific version tag, a branch name, or a commit hash.
+# Can be overridden by setting the NIM_COMMIT environment variable
+# before calling make.
+#
+# For readability in CI, if NIM_COMMIT is set to "pinned",
+# this will also default to the version pinned here.
+#
+# If NIM_COMMIT is set to "nimbusbuild", this will use the
+# version pinned by nimbus-build-system.
+PINNED_NIM_VERSION := 38640664088251bbc88917b4bacfd86ec53014b8 # 1.6.21
+
+ifeq ($(NIM_COMMIT),)
+NIM_COMMIT := $(PINNED_NIM_VERSION)
+else ifeq ($(NIM_COMMIT),pinned)
+NIM_COMMIT := $(PINNED_NIM_VERSION)
+endif
+
+ifeq ($(NIM_COMMIT),nimbusbuild)
+undefine NIM_COMMIT
+else
 export NIM_COMMIT
+endif
 
 SHELL := bash # the shell used internally by Make
 

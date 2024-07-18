@@ -32,6 +32,7 @@ import ../node
 import ../blocktype
 import ../conf
 import ../contracts
+import ../erasure/erasure
 import ../manifest
 import ../streams/asyncstreamwrapper
 import ../stores
@@ -107,6 +108,8 @@ proc retrieveCid(
       await stream.close()
 
 proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
+  let allowedOrigin = router.allowedOrigin # prevents capture inside of api defintion
+
   router.rawApi(
     MethodPost,
     "/api/codex/v1/data") do (
@@ -166,6 +169,12 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
           Http400,
           $cid.error())
 
+      if corsOrigin =? allowedOrigin:
+        resp.setHeader("Access-Control-Allow-Origin", corsOrigin)
+        resp.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
+        resp.setHeader("Access-Control-Headers", "X-Requested-With")
+        resp.setHeader("Access-Control-Max-Age", "86400")
+
       await node.retrieveCid(cid.get(), local = true, resp=resp)
 
   router.api(
@@ -180,6 +189,12 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
         return RestApiResponse.error(
           Http400,
           $cid.error())
+
+      if corsOrigin =? allowedOrigin:
+        resp.setHeader("Access-Control-Allow-Origin", corsOrigin)
+        resp.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
+        resp.setHeader("Access-Control-Headers", "X-Requested-With")
+        resp.setHeader("Access-Control-Max-Age", "86400")
 
       await node.retrieveCid(cid.get(), local = false, resp=resp)
 
@@ -418,8 +433,16 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
         let nodes = params.nodes |? 1
         let tolerance = params.tolerance |? 0
 
-        if (nodes - tolerance) < 1:
-          return RestApiResponse.error(Http400, "Tolerance cannot be greater or equal than nodes (nodes - tolerance)")
+        # prevent underflow
+        if tolerance > nodes:
+          return RestApiResponse.error(Http400, "Invalid parameters: `tolerance` cannot be greater than `nodes`")
+
+        let ecK = nodes - tolerance
+        let ecM = tolerance # for readability
+
+        # ensure leopard constrainst of 1 < K ≥ M
+        if ecK <= 1 or ecK < ecM:
+          return RestApiResponse.error(Http400, "Invalid parameters: parameters must satify `1 < (nodes - tolerance) ≥ tolerance`")
 
         without expiry =? params.expiry:
           return RestApiResponse.error(Http400, "Expiry required")
@@ -436,6 +459,11 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
           params.reward,
           params.collateral,
           expiry), error:
+
+          if error of InsufficientBlocksError:
+            return RestApiResponse.error(Http400,
+            "Dataset too small for erasure parameters, need at least " &
+              $(ref InsufficientBlocksError)(error).minSize.int & " bytes")
 
           return RestApiResponse.error(Http500, error.msg)
 
@@ -636,8 +664,13 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
 
-proc initRestApi*(node: CodexNodeRef, conf: CodexConf, repoStore: RepoStore): RestRouter =
-  var router = RestRouter.init(validate)
+proc initRestApi*(
+  node: CodexNodeRef,
+  conf: CodexConf,
+  repoStore: RepoStore,
+  corsAllowedOrigin: ?string): RestRouter =
+
+  var router = RestRouter.init(validate, corsAllowedOrigin)
 
   initDataApi(node, repoStore, router)
   initSalesApi(node, router)

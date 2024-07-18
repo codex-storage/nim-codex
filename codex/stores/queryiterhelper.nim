@@ -6,7 +6,7 @@ import pkg/datastore/typedds
 
 import ../utils/asynciter
 
-type KeyVal[T] = tuple[key: Key, value: T]
+type KeyVal*[T] = tuple[key: Key, value: T]
 
 proc toAsyncIter*[T](
   queryIter: QueryIter[T],
