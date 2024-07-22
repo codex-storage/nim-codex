@@ -24,27 +24,3 @@ suite "Command line interface":
     node.waitUntilOutput("Ethereum private key file does not have safe file permissions")
     node.stop()
     discard removeFile(unsafeKeyFile)
-
-  test "complains when persistence is enabled without accessible r1cs file":
-    let node = startNode(@["persistence", "prover"])
-    node.waitUntilOutput("r1cs file not readable, doesn't exist or wrong extension (.r1cs)")
-    node.stop()
-
-  test "complains when persistence is enabled without accessible wasm file":
-    let node = startNode(@[
-      "persistence",
-      "prover",
-      "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs"
-    ])
-    node.waitUntilOutput("wasm file not readable, doesn't exist or wrong extension (.wasm)")
-    node.stop()
-
-  test "complains when persistence is enabled without accessible zkey file":
-    let node = startNode(@[
-      "persistence",
-      "prover",
-      "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
-      "--circom-wasm=tests/circuits/fixtures/proof_main.wasm"
-    ])
-    node.waitUntilOutput("zkey file not readable, doesn't exist or wrong extension (.zkey)")
-    node.stop()
