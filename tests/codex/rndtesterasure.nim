@@ -41,6 +41,7 @@ suite "Erasure encode/decode":
     let blockSize = 16.KiBs
     # for blockSize in @(1..<8).mapIt(it * 1024):
     # echo $blockSize
+    
 
     let 
       file = open("test_file.bin")
