@@ -530,6 +530,32 @@ proc requestStorage*(
   let purchase = await contracts.purchasing.purchase(request)
   success purchase.id
 
+proc debugDelete*(self: CodexNodeRef, cid: Cid, blockIndices: seq[int]): Future[?!int] {.async.} =
+  without manifest =? (await self.fetchManifest(cid)), err:
+    error "Unable to fetch manifest for cid", cid, err = err.msg
+    return failure(err)
+
+  let
+    totalBlocks = manifest.blocksCount
+    treeCid = manifest.treeCid
+
+  for index in blockIndices:
+    if index >= totalBlocks:
+      return failure("Index out of range. Index: " & $index & " totalBlocks: " & $totalBlocks)
+    without hasBlock =? (await self.networkStore.hasBlock(treeCid, index)), err:
+      return failure(err)
+    if not hasBlock:
+      return failure("Tree does not have this index: " & $index & " totalBlocks: " & $totalBlocks)
+
+  var deleted = 0
+  for index in blockIndices:
+    if err =? (await self.networkStore.delBlock(treeCid, index)).errorOption:
+      error "Failed to delete block", treeCid, index, err = err.msg
+      return failure(err)
+    inc deleted
+
+  return success(deleted)
+
 proc onStore(
   self: CodexNodeRef,
   request: StorageRequest,
