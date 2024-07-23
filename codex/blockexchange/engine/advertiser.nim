@@ -7,16 +7,12 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/sequtils
-
 import pkg/chronos
 import pkg/libp2p/cid
 import pkg/libp2p/multicodec
 import pkg/metrics
 import pkg/questionable
 import pkg/questionable/results
-
-import ./pendingblocks
 
 import ../protobuf/presence
 import ../peers
@@ -29,6 +25,8 @@ import ../../manifest
 
 logScope:
   topics = "codex discoveryengine advertiser"
+
+declareGauge(codexInflightAdvertise, "inflight advertise requests")
 
 const
   DefaultConcurrentAdvertRequests = 10
@@ -98,12 +96,12 @@ proc advertiseTaskLoop(b: Advertiser) {.async.} =
           request = b.discovery.provide(cid)
 
         b.inFlightAdvReqs[cid] = request
-        codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
+        codexInflightAdvertise.set(b.inFlightAdvReqs.len.int64)
         await request
 
       finally:
         b.inFlightAdvReqs.del(cid)
-        codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
+        codexInflightAdvertise.set(b.inFlightAdvReqs.len.int64)
     except CancelledError:
       trace "Advertise task cancelled"
       return
@@ -111,6 +109,14 @@ proc advertiseTaskLoop(b: Advertiser) {.async.} =
       warn "Exception in advertise task runner", exc = exc.msg
 
   info "Exiting advertise task runner"
+
+proc queueAdvertiseBlocksReq*(b: Advertiser, cids: seq[Cid]) {.inline.} =
+  for cid in cids:
+    if cid notin b.advertiseQueue:
+      try:
+        b.advertiseQueue.putNoWait(cid)
+      except CatchableError as exc:
+        warn "Exception queueing discovery request", exc = exc.msg
 
 proc start*(b: Advertiser) {.async.} =
   ## Start the advertiser
@@ -154,9 +160,7 @@ proc stop*(b: Advertiser) {.async.} =
 proc new*(
     T: type Advertiser,
     localStore: BlockStore,
-    peers: PeerCtxStore,
     discovery: Discovery,
-    pendingBlocks: PendingBlocksManager,
     concurrentAdvReqs = DefaultConcurrentAdvertRequests,
     advertiseLoopSleep = DefaultAdvertiseLoopSleep,
     advertiseType = BlockType.Manifest
@@ -165,9 +169,7 @@ proc new*(
   ##
   Advertiser(
     localStore: localStore,
-    peers: peers,
     discovery: discovery,
-    pendingBlocks: pendingBlocks,
     concurrentAdvReqs: concurrentAdvReqs,
     advertiseQueue: newAsyncQueue[Cid](concurrentAdvReqs),
     inFlightAdvReqs: initTable[Cid, Future[void]](),

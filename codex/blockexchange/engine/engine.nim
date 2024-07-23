@@ -34,6 +34,7 @@ import ../peers
 
 import ./payments
 import ./discovery
+import ./advertiser
 import ./pendingblocks
 
 export peers, pendingblocks, payments, discovery
@@ -77,6 +78,7 @@ type
     pricing*: ?Pricing                            # Optional bandwidth pricing
     blockFetchTimeout*: Duration                  # Timeout for fetching blocks over the network
     discovery*: DiscoveryEngine
+    advertiser*: Advertiser
 
   Pricing* = object
     address*: EthAddress
@@ -93,6 +95,7 @@ proc start*(b: BlockExcEngine) {.async.} =
   ##
 
   await b.discovery.start()
+  await b.advertiser.start()
 
   trace "Blockexc starting with concurrent tasks", tasks = b.concurrentTasks
   if b.blockexcRunning:
@@ -108,6 +111,7 @@ proc stop*(b: BlockExcEngine) {.async.} =
   ##
 
   await b.discovery.stop()
+  await b.advertiser.stop()
 
   trace "NetworkStore stop"
   if not b.blockexcRunning:
@@ -303,7 +307,7 @@ proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.asy
   let announceCids = getAnnouceCids(blocksDelivery)
   await b.cancelBlocks(blocksDelivery.mapIt(it.address))
 
-  b.discovery.queueProvideBlocksReq(announceCids)
+  b.advertiser.queueAdvertiseBlocksReq(announceCids)
 
 proc resolveBlocks*(b: BlockExcEngine, blocks: seq[Block]) {.async.} =
   await b.resolveBlocks(
@@ -596,6 +600,7 @@ proc new*(
     wallet: WalletRef,
     network: BlockExcNetwork,
     discovery: DiscoveryEngine,
+    advertiser: Advertiser,
     peerStore: PeerCtxStore,
     pendingBlocks: PendingBlocksManager,
     concurrentTasks = DefaultConcurrentTasks,
@@ -616,6 +621,7 @@ proc new*(
       concurrentTasks: concurrentTasks,
       taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize),
       discovery: discovery,
+      advertiser: advertiser,
       blockFetchTimeout: blockFetchTimeout)
 
   proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =
