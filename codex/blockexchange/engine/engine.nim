@@ -288,23 +288,9 @@ proc cancelBlocks(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
   if failed.len > 0:
     warn "Failed to send block request cancellations to peers", peers = failed.len
 
-proc getAnnouceCids(blocksDelivery: seq[BlockDelivery]): seq[Cid] = 
-  var cids = initHashSet[Cid]()
-  for bd in blocksDelivery:
-    if bd.address.leaf:
-      cids.incl(bd.address.treeCid)
-    else:
-      without isM =? bd.address.cid.isManifest, err:
-        warn "Unable to determine if cid is manifest"
-        continue
-      if isM:
-        cids.incl(bd.address.cid)
-  return cids.toSeq
-
 proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
   b.pendingBlocks.resolve(blocksDelivery)
   await b.scheduleTasks(blocksDelivery)
-  let announceCids = getAnnouceCids(blocksDelivery)
   await b.cancelBlocks(blocksDelivery.mapIt(it.address))
 
 proc resolveBlocks*(b: BlockExcEngine, blocks: seq[Block]) {.async.} =

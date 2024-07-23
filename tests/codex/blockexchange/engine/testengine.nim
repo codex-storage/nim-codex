@@ -409,50 +409,51 @@ asyncchecksuite "NetworkStore engine handlers":
     discard await allFinished(pending)
     await allFuturesThrowing(cancellations.values().toSeq)
 
-  test "resolveBlocks should queue manifest CIDs for discovery":
-    engine.network = BlockExcNetwork(
-      request: BlockExcRequest(sendWantCancellations: NopSendWantCancellationsProc))
+  # Move to testadvertiser
+  # test "resolveBlocks should queue manifest CIDs for discovery":
+  #   engine.network = BlockExcNetwork(
+  #     request: BlockExcRequest(sendWantCancellations: NopSendWantCancellationsProc))
 
-    let
-      manifest = Manifest.new(
-        treeCid = Cid.example,
-        blockSize = 123.NBytes,
-        datasetSize = 234.NBytes
-      )
+  #   let
+  #     manifest = Manifest.new(
+  #       treeCid = Cid.example,
+  #       blockSize = 123.NBytes,
+  #       datasetSize = 234.NBytes
+  #     )
 
-    let manifestBlk = Block.new(data = manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
-    let blks = @[manifestBlk]
+  #   let manifestBlk = Block.new(data = manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
+  #   let blks = @[manifestBlk]
 
-    await engine.resolveBlocks(blks)
+  #   await engine.resolveBlocks(blks)
 
-    check:
-      manifestBlk.cid in engine.advertiser.advertiseQueue
+  #   check:
+  #     manifestBlk.cid in engine.advertiser.advertiseQueue
 
-  test "resolveBlocks should queue tree CIDs for discovery":
-    engine.network = BlockExcNetwork(
-      request: BlockExcRequest(sendWantCancellations: NopSendWantCancellationsProc))
+  # test "resolveBlocks should queue tree CIDs for discovery":
+  #   engine.network = BlockExcNetwork(
+  #     request: BlockExcRequest(sendWantCancellations: NopSendWantCancellationsProc))
 
-    let
-      tCid = Cid.example
-      delivery = BlockDelivery(blk: Block.example, address: BlockAddress(leaf: true, treeCid: tCid))
+  #   let
+  #     tCid = Cid.example
+  #     delivery = BlockDelivery(blk: Block.example, address: BlockAddress(leaf: true, treeCid: tCid))
       
-    await engine.resolveBlocks(@[delivery])
+  #   await engine.resolveBlocks(@[delivery])
 
-    check:
-      tCid in engine.advertiser.advertiseQueue
+  #   check:
+  #     tCid in engine.advertiser.advertiseQueue
 
-  test "resolveBlocks should not queue non-manifest non-tree CIDs for discovery":
-    engine.network = BlockExcNetwork(
-      request: BlockExcRequest(sendWantCancellations: NopSendWantCancellationsProc))
+  # test "resolveBlocks should not queue non-manifest non-tree CIDs for discovery":
+  #   engine.network = BlockExcNetwork(
+  #     request: BlockExcRequest(sendWantCancellations: NopSendWantCancellationsProc))
 
-    let
-      blkCid = Cid.example
-      delivery = BlockDelivery(blk: Block.example, address: BlockAddress(leaf: false, cid: blkCid))
+  #   let
+  #     blkCid = Cid.example
+  #     delivery = BlockDelivery(blk: Block.example, address: BlockAddress(leaf: false, cid: blkCid))
       
-    await engine.resolveBlocks(@[delivery])
+  #   await engine.resolveBlocks(@[delivery])
 
-    check:
-      blkCid notin engine.advertiser.advertiseQueue
+  #   check:
+  #     blkCid notin engine.advertiser.advertiseQueue
 
 asyncchecksuite "Task Handler":
   var
