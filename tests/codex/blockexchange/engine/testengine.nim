@@ -78,11 +78,17 @@ asyncchecksuite "NetworkStore engine basic":
         blockDiscovery,
         pendingBlocks)
 
+      advertiser = Advertiser.new(
+        localStore,
+        blockDiscovery
+      )
+
       engine = BlockExcEngine.new(
         localStore,
         wallet,
         network,
         discovery,
+        advertiser,
         peerStore,
         pendingBlocks)
 
@@ -113,11 +119,17 @@ asyncchecksuite "NetworkStore engine basic":
         blockDiscovery,
         pendingBlocks)
 
+      advertiser = Advertiser.new(
+        localStore,
+        blockDiscovery
+      )
+
       engine = BlockExcEngine.new(
         localStore,
         wallet,
         network,
         discovery,
+        advertiser,
         peerStore,
         pendingBlocks)
 
@@ -139,6 +151,7 @@ asyncchecksuite "NetworkStore engine handlers":
     network: BlockExcNetwork
     engine: BlockExcEngine
     discovery: DiscoveryEngine
+    advertiser: Advertiser
     peerCtx: BlockExcPeerCtx
     localStore: BlockStore
     blocks: seq[Block]
@@ -176,11 +189,17 @@ asyncchecksuite "NetworkStore engine handlers":
       blockDiscovery,
       pendingBlocks)
 
+    advertiser = Advertiser.new(
+      localStore,
+      blockDiscovery
+    )
+
     engine = BlockExcEngine.new(
       localStore,
       wallet,
       network,
       discovery,
+      advertiser,
       peerStore,
       pendingBlocks)
 
@@ -407,7 +426,7 @@ asyncchecksuite "NetworkStore engine handlers":
     await engine.resolveBlocks(blks)
 
     check:
-      manifestBlk.cid in engine.discovery.advertiseQueue
+      manifestBlk.cid in engine.advertiser.advertiseQueue
 
   test "resolveBlocks should queue tree CIDs for discovery":
     engine.network = BlockExcNetwork(
@@ -420,7 +439,7 @@ asyncchecksuite "NetworkStore engine handlers":
     await engine.resolveBlocks(@[delivery])
 
     check:
-      tCid in engine.discovery.advertiseQueue
+      tCid in engine.advertiser.advertiseQueue
 
   test "resolveBlocks should not queue non-manifest non-tree CIDs for discovery":
     engine.network = BlockExcNetwork(
@@ -433,7 +452,7 @@ asyncchecksuite "NetworkStore engine handlers":
     await engine.resolveBlocks(@[delivery])
 
     check:
-      blkCid notin engine.discovery.advertiseQueue
+      blkCid notin engine.advertiser.advertiseQueue
 
 asyncchecksuite "Task Handler":
   var
@@ -448,6 +467,7 @@ asyncchecksuite "Task Handler":
     network: BlockExcNetwork
     engine: BlockExcEngine
     discovery: DiscoveryEngine
+    advertiser: Advertiser
     localStore: BlockStore
 
     peersCtx: seq[BlockExcPeerCtx]
@@ -481,11 +501,17 @@ asyncchecksuite "Task Handler":
       blockDiscovery,
       pendingBlocks)
 
+    advertiser = Advertiser.new(
+      localStore,
+      blockDiscovery
+    )
+
     engine = BlockExcEngine.new(
       localStore,
       wallet,
       network,
       discovery,
+      advertiser,
       peerStore,
       pendingBlocks)
     peersCtx = @[]

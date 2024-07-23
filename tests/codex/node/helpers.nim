@@ -82,6 +82,7 @@ template setupAndTearDown*() {.dirty.} =
     peerStore: PeerCtxStore
     pendingBlocks: PendingBlocksManager
     discovery: DiscoveryEngine
+    advertiser: Advertiser
     taskpool: Taskpool
 
   let
@@ -109,7 +110,8 @@ template setupAndTearDown*() {.dirty.} =
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
     discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
-    engine = BlockExcEngine.new(localStore, wallet, network, discovery, peerStore, pendingBlocks)
+    advertiser = Advertiser.new(localStore, blockDiscovery)
+    engine = BlockExcEngine.new(localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
     taskpool = Taskpool.new(num_threads = countProcessors())
     node = CodexNodeRef.new(

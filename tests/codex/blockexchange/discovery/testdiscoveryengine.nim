@@ -192,35 +192,36 @@ asyncchecksuite "Test Discovery Engine":
     reqs.complete()
     await discoveryEngine.stop()
 
-  test "Should not request if there is already an inflight advertise request":
-    var
-      localStore = CacheStore.new()
-      discoveryEngine = DiscoveryEngine.new(
-        localStore,
-        peerStore,
-        network,
-        blockDiscovery,
-        pendingBlocks,
-        discoveryLoopSleep = 100.millis,
-        concurrentAdvReqs = 2)
-      reqs = newFuture[void]()
-      count = 0
+  # Move to testadvertiser
+  # test "Should not request if there is already an inflight advertise request":
+  #   var
+  #     localStore = CacheStore.new()
+  #     discoveryEngine = DiscoveryEngine.new(
+  #       localStore,
+  #       peerStore,
+  #       network,
+  #       blockDiscovery,
+  #       pendingBlocks,
+  #       discoveryLoopSleep = 100.millis,
+  #       concurrentAdvReqs = 2)
+  #     reqs = newFuture[void]()
+  #     count = 0
 
-    blockDiscovery.publishBlockProvideHandler =
-      proc(d: MockDiscovery, cid: Cid) {.async, gcsafe.} =
-        check cid == blocks[0].cid
-        if count > 0:
-          check false
-        count.inc
+  #   blockDiscovery.publishBlockProvideHandler =
+  #     proc(d: MockDiscovery, cid: Cid) {.async, gcsafe.} =
+  #       check cid == blocks[0].cid
+  #       if count > 0:
+  #         check false
+  #       count.inc
 
-        await reqs # queue the request
+  #       await reqs # queue the request
 
-    await discoveryEngine.start()
-    discoveryEngine.queueProvideBlocksReq(@[blocks[0].cid])
-    await sleepAsync(200.millis)
+  #   await discoveryEngine.start()
+  #   discoveryEngine.queueProvideBlocksReq(@[blocks[0].cid])
+  #   await sleepAsync(200.millis)
 
-    discoveryEngine.queueProvideBlocksReq(@[blocks[0].cid])
-    await sleepAsync(200.millis)
+  #   discoveryEngine.queueProvideBlocksReq(@[blocks[0].cid])
+  #   await sleepAsync(200.millis)
 
-    reqs.complete()
-    await discoveryEngine.stop()
+  #   reqs.complete()
+  #   await discoveryEngine.stop()
