@@ -307,8 +307,6 @@ proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.asy
   let announceCids = getAnnouceCids(blocksDelivery)
   await b.cancelBlocks(blocksDelivery.mapIt(it.address))
 
-  b.advertiser.queueAdvertiseBlocksReq(announceCids)
-
 proc resolveBlocks*(b: BlockExcEngine, blocks: seq[Block]) {.async.} =
   await b.resolveBlocks(
     blocks.mapIt(

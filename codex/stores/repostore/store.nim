@@ -189,6 +189,9 @@ method putBlock*(
 
     if err =? (await self.updateTotalBlocksCount(plusCount = 1)).errorOption:
       return failure(err)
+
+    if onBlock =? self.onBlockStored:
+      await onBlock(blk.cid)
   else:
     trace "Block already exists"
 
@@ -295,6 +298,9 @@ method listBlocks*(
 
   iter.next = next
   return success iter
+
+method setOnBlockStoredCallback*(self: RepoStore, callback: CidCallback): void =
+  self.onBlockStored = callback.some
 
 proc createBlockExpirationQuery(maxNumber: int, offset: int): ?!Query =
   let queryKey = ? createBlockExpirationMetadataQueryKey()

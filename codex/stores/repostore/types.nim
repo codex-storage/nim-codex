@@ -11,6 +11,7 @@ import pkg/chronos
 import pkg/datastore
 import pkg/datastore/typedds
 import pkg/libp2p/cid
+import pkg/questionable
 
 import ../blockstore
 import ../../clock
@@ -36,6 +37,7 @@ type
     totalBlocks*: Natural
     blockTtl*: Duration
     started*: bool
+    onBlockStored*: ?CidCallback
 
   QuotaUsage* {.serialize.} = object
     used*: NBytes
@@ -103,5 +105,6 @@ func new*(
     clock: clock,
     postFixLen: postFixLen,
     quotaMaxBytes: quotaMaxBytes,
-    blockTtl: blockTtl
+    blockTtl: blockTtl,
+    onBlockStored: CidCallback.none
   )

@@ -29,6 +29,7 @@ type
   BlockType* {.pure.} = enum
     Manifest, Block, Both
 
+  CidCallback* = proc(cid: Cid): Future[void] {.gcsafe, upraises:[].}
   BlockStore* = ref object of RootObj
 
 method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
@@ -141,6 +142,12 @@ method listBlocks*(
   ##
 
   raiseAssert("listBlocks not implemented!")
+
+method setOnBlockStoredCallback*(self: BlockStore, callback: CidCallback): void {.base.} =
+  ## Sets the callback that will be triggered whenever a block is stored.
+  ## 
+  
+  raiseAssert("setOnBlockStoredCallback not implemented!")
 
 method close*(self: BlockStore): Future[void] {.base.} =
   ## Close the blockstore, cleaning up resources managed by it.

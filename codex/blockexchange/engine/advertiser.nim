@@ -46,7 +46,6 @@ type
 
     advertiseLoopSleep: Duration                                 # Advertise loop sleep
     inFlightAdvReqs*: Table[Cid, Future[void]]                   # Inflight advertise requests
-    advertiseType*: BlockType                                    # Advertice blocks, manifests or both
 
 proc advertiseBlock(b: Advertiser, cid: Cid) {.async.} =
   without isM =? cid.isManifest, err:
@@ -65,15 +64,16 @@ proc advertiseBlock(b: Advertiser, cid: Cid) {.async.} =
     # announce manifest cid and tree cid
     await b.advertiseQueue.put(cid)
     await b.advertiseQueue.put(manifest.treeCid)
+    trace "Advertising", blkCid = cid, treeCid = manifest.treeCid
 
 proc advertiseQueueLoop(b: Advertiser) {.async.} =
   while b.advertiserRunning:
-    if cids =? await b.localStore.listBlocks(blockType = b.advertiseType):
-      trace "Begin iterating blocks..."
+    if cids =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
+      trace "Advertiser begins iterating blocks..."
       for c in cids:
         if cid =? await c:
           await b.advertiseBlock(cid)
-      trace "Iterating blocks finished."
+      trace "Advertiser iterating blocks finished."
 
     await sleepAsync(b.advertiseLoopSleep)
 
@@ -110,19 +110,16 @@ proc advertiseTaskLoop(b: Advertiser) {.async.} =
 
   info "Exiting advertise task runner"
 
-proc queueAdvertiseBlocksReq*(b: Advertiser, cids: seq[Cid]) {.inline.} =
-  for cid in cids:
-    if cid notin b.advertiseQueue:
-      try:
-        b.advertiseQueue.putNoWait(cid)
-      except CatchableError as exc:
-        warn "Exception queueing discovery request", exc = exc.msg
-
 proc start*(b: Advertiser) {.async.} =
   ## Start the advertiser
   ##
 
   trace "Advertiser start"
+
+  proc onBlock(cid: Cid) {.async.} = 
+    await b.advertiseBlock(cid)
+
+  b.localStore.setOnBlockStoredCallback(onBlock)
 
   if b.advertiserRunning:
     warn "Starting advertiser twice"
@@ -162,8 +159,7 @@ proc new*(
     localStore: BlockStore,
     discovery: Discovery,
     concurrentAdvReqs = DefaultConcurrentAdvertRequests,
-    advertiseLoopSleep = DefaultAdvertiseLoopSleep,
-    advertiseType = BlockType.Manifest
+    advertiseLoopSleep = DefaultAdvertiseLoopSleep
 ): Advertiser =
   ## Create a advertiser instance
   ##
@@ -173,5 +169,4 @@ proc new*(
     concurrentAdvReqs: concurrentAdvReqs,
     advertiseQueue: newAsyncQueue[Cid](concurrentAdvReqs),
     inFlightAdvReqs: initTable[Cid, Future[void]](),
-    advertiseLoopSleep: advertiseLoopSleep,
-    advertiseType: advertiseType)
+    advertiseLoopSleep: advertiseLoopSleep)
