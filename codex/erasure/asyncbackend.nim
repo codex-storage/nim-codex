@@ -114,7 +114,14 @@ proc proxySpawnEncodeTask(
   args: EncodeTaskArgs,
   data: ref seq[seq[byte]]
 ): Flowvar[EncodeTaskResult] =
-  tp.spawn encodeTask(args, data[])
+  # FIXME Uncomment the code below after addressing an issue:
+  # https://github.com/codex-storage/nim-codex/issues/854
+
+  # tp.spawn encodeTask(args, data[])
+
+  let fv = EncodeTaskResult.newFlowVar
+  fv.readyWith(encodeTask(args, data[]))
+  return fv
 
 proc proxySpawnDecodeTask(
   tp: Taskpool,
@@ -122,7 +129,14 @@ proc proxySpawnDecodeTask(
   data: ref seq[seq[byte]],
   parity: ref seq[seq[byte]]
 ): Flowvar[DecodeTaskResult] =
-  tp.spawn decodeTask(args, data[], parity[])
+  # FIXME Uncomment the code below after addressing an issue:
+  # https://github.com/codex-storage/nim-codex/issues/854
+  
+  # tp.spawn decodeTask(args, data[], parity[])
+
+  let fv = DecodeTaskResult.newFlowVar
+  fv.readyWith(decodeTask(args, data[], parity[]))
+  return fv
 
 proc awaitResult[T](signal: ThreadSignalPtr, handle: Flowvar[T]): Future[?!T] {.async.} =
   await wait(signal)

@@ -240,14 +240,14 @@ proc streamEntireDataset(
   self: CodexNodeRef,
   manifest: Manifest,
   manifestCid: Cid,
-): ?!LPStream =
+): Future[?!LPStream] {.async.} =
   ## Streams the contents of the entire dataset described by the manifest.
   ##
   trace "Retrieving blocks from manifest", manifestCid
 
   if manifest.protected:
     # Retrieve, decode and save to the local store all EС groups
-    proc erasureJob(): Future[void] {.async.} =
+    proc erasureJob(): Future[?!void] {.async.} =
       try:
         # Spawn an erasure decoding job
         let
@@ -257,11 +257,20 @@ proc streamEntireDataset(
             leoDecoderProvider,
             self.taskpool)
         without _ =? (await erasure.decode(manifest)), error:
-          trace "Unable to erasure decode manifest", manifestCid, exc = error.msg
-      except CatchableError as exc:
-        trace "Exception decoding manifest", manifestCid, exc = exc.msg
+          error "Unable to erasure decode manifest", manifestCid, exc = error.msg
+          return failure(error)
 
-    asyncSpawn erasureJob()
+        return success()
+      # --------------------------------------------------------------------------
+      # FIXME this is a HACK so that the node does not crash during the workshop.
+      #   We should NOT catch Defect.
+      except Exception as exc:
+        trace "Exception decoding manifest", manifestCid, exc = exc.msg
+        return failure(exc.msg)
+      # --------------------------------------------------------------------------
+
+    if err =? (await erasureJob()).errorOption:
+      return failure(err)
 
   # Retrieve all blocks of the dataset sequentially from the local store or network
   trace "Creating store stream for manifest", manifestCid
@@ -283,7 +292,7 @@ proc retrieve*(
 
     return await self.streamSingleBlock(cid)
 
-  self.streamEntireDataset(manifest, cid)
+  await self.streamEntireDataset(manifest, cid)
 
 proc store*(
   self: CodexNodeRef,
@@ -413,6 +422,15 @@ proc setupRequest(
   without manifest =? await self.fetchManifest(cid), error:
     trace "Unable to fetch manifest for cid"
     return failure error
+
+  # ----------------------------------------------------------------------------
+  # FIXME this is a BAND-AID to address
+  #   https://github.com/codex-storage/nim-codex/issues/852 temporarily for the
+  #   workshop. Remove this once we get that fixed.
+  if manifest.blocksCount.uint == ecK:
+    return failure("Cannot setup slots for a dataset with ecK == numBlocks. Please use a larger file or a different combination of `nodes` and `tolerance`.")
+  # ----------------------------------------------------------------------------
+
 
   # Erasure code the dataset according to provided parameters
   let
