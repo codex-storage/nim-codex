@@ -40,12 +40,17 @@ type
     advertiserRunning*: bool                                     # Indicates if discovery is running
     concurrentAdvReqs: int                                       # Concurrent advertise requests
 
-    advertiseLoop*: Future[void]                                 # Advertise loop task handle
+    advertiseLocalStoreLoop*: Future[void]                                 # Advertise loop task handle
     advertiseQueue*: AsyncQueue[Cid]                             # Advertise queue
     advertiseTasks*: seq[Future[void]]                           # Advertise tasks
 
-    advertiseLoopSleep: Duration                                 # Advertise loop sleep
+    advertiseLocalStoreLoopSleep: Duration                                 # Advertise loop sleep
     inFlightAdvReqs*: Table[Cid, Future[void]]                   # Inflight advertise requests
+
+proc addCidToQueue(b: Advertiser, cid: Cid) {.async.} =
+  if cid notin b.advertiseQueue:
+    await b.advertiseQueue.put(cid)
+    trace "Advertising", cid
 
 proc advertiseBlock(b: Advertiser, cid: Cid) {.async.} =
   without isM =? cid.isManifest, err:
@@ -62,11 +67,10 @@ proc advertiseBlock(b: Advertiser, cid: Cid) {.async.} =
       return
 
     # announce manifest cid and tree cid
-    await b.advertiseQueue.put(cid)
-    await b.advertiseQueue.put(manifest.treeCid)
-    trace "Advertising", blkCid = cid, treeCid = manifest.treeCid
+    await b.addCidToQueue(cid)
+    await b.addCidToQueue(manifest.treeCid)
 
-proc advertiseQueueLoop(b: Advertiser) {.async.} =
+proc advertiseLocalStoreLoop(b: Advertiser) {.async.} =
   while b.advertiserRunning:
     if cids =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
       trace "Advertiser begins iterating blocks..."
@@ -75,14 +79,11 @@ proc advertiseQueueLoop(b: Advertiser) {.async.} =
           await b.advertiseBlock(cid)
       trace "Advertiser iterating blocks finished."
 
-    await sleepAsync(b.advertiseLoopSleep)
+    await sleepAsync(b.advertiseLocalStoreLoopSleep)
 
   info "Exiting advertise task loop"
 
-proc advertiseTaskLoop(b: Advertiser) {.async.} =
-  ## Run advertise tasks
-  ##
-
+proc processQueueLoop(b: Advertiser) {.async.} =
   while b.advertiserRunning:
     try:
       let
@@ -127,9 +128,9 @@ proc start*(b: Advertiser) {.async.} =
 
   b.advertiserRunning = true
   for i in 0..<b.concurrentAdvReqs:
-    b.advertiseTasks.add(advertiseTaskLoop(b))
+    b.advertiseTasks.add(processQueueLoop(b))
 
-  b.advertiseLoop = advertiseQueueLoop(b)
+  b.advertiseLocalStoreLoop = advertiseLocalStoreLoop(b)
 
 proc stop*(b: Advertiser) {.async.} =
   ## Stop the advertiser
@@ -147,9 +148,9 @@ proc stop*(b: Advertiser) {.async.} =
       await task.cancelAndWait()
       trace "Advertise task stopped"
 
-  if not b.advertiseLoop.isNil and not b.advertiseLoop.finished:
+  if not b.advertiseLocalStoreLoop.isNil and not b.advertiseLocalStoreLoop.finished:
     trace "Awaiting advertise loop to stop"
-    await b.advertiseLoop.cancelAndWait()
+    await b.advertiseLocalStoreLoop.cancelAndWait()
     trace "Advertise loop stopped"
 
   trace "Advertiser stopped"
@@ -159,7 +160,7 @@ proc new*(
     localStore: BlockStore,
     discovery: Discovery,
     concurrentAdvReqs = DefaultConcurrentAdvertRequests,
-    advertiseLoopSleep = DefaultAdvertiseLoopSleep
+    advertiseLocalStoreLoopSleep = DefaultAdvertiseLoopSleep
 ): Advertiser =
   ## Create a advertiser instance
   ##
@@ -169,4 +170,4 @@ proc new*(
     concurrentAdvReqs: concurrentAdvReqs,
     advertiseQueue: newAsyncQueue[Cid](concurrentAdvReqs),
     inFlightAdvReqs: initTable[Cid, Future[void]](),
-    advertiseLoopSleep: advertiseLoopSleep)
+    advertiseLocalStoreLoopSleep: advertiseLocalStoreLoopSleep)

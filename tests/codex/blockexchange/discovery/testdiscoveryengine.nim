@@ -74,30 +74,6 @@ asyncchecksuite "Test Discovery Engine":
     await allFuturesThrowing(allFinished(wants)).wait(1.seconds)
     await discoveryEngine.stop()
 
-  test "Should Advertise Haves":
-    var
-      localStore = CacheStore.new(blocks.mapIt(it))
-      discoveryEngine = DiscoveryEngine.new(
-        localStore,
-        peerStore,
-        network,
-        blockDiscovery,
-        pendingBlocks,
-        discoveryLoopSleep = 100.millis)
-      haves = collect(initTable):
-        for cid in @[manifestBlock.cid, manifest.treeCid]:
-          { cid: newFuture[void]() }
-
-    blockDiscovery.publishBlockProvideHandler =
-      proc(d: MockDiscovery, cid: Cid) {.async, gcsafe.} =
-        if not haves[cid].finished:
-          haves[cid].complete
-
-    await discoveryEngine.start()
-    await allFuturesThrowing(
-      allFinished(toSeq(haves.values))).wait(5.seconds)
-    await discoveryEngine.stop()
-
   test "Should queue discovery request":
     var
       localStore = CacheStore.new()
