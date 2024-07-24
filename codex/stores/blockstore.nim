@@ -31,6 +31,7 @@ type
 
   CidCallback* = proc(cid: Cid): Future[void] {.gcsafe, upraises:[].}
   BlockStore* = ref object of RootObj
+    onBlockStored*: ?CidCallback
 
 method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base.} =
   ## Get a block from the blockstore
@@ -142,12 +143,6 @@ method listBlocks*(
   ##
 
   raiseAssert("listBlocks not implemented!")
-
-method setOnBlockStoredCallback*(self: BlockStore, callback: CidCallback): void {.base.} =
-  ## Sets the callback that will be triggered whenever a block is stored.
-  ## 
-  
-  raiseAssert("setOnBlockStoredCallback not implemented!")
 
 method close*(self: BlockStore): Future[void] {.base.} =
   ## Close the blockstore, cleaning up resources managed by it.

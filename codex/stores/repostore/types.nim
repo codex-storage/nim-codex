@@ -37,7 +37,6 @@ type
     totalBlocks*: Natural
     blockTtl*: Duration
     started*: bool
-    onBlockStored*: ?CidCallback
 
   QuotaUsage* {.serialize.} = object
     used*: NBytes

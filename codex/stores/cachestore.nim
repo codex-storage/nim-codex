@@ -40,7 +40,6 @@ type
     size*: NBytes
     cache: LruCache[Cid, Block]
     cidAndProofCache: LruCache[(Cid, Natural), (Cid, CodexProof)]
-    onBlockStored*: ?CidCallback
 
   InvalidBlockSize* = object of CodexError
 
@@ -162,9 +161,6 @@ method listBlocks*(
       proc (cid: Cid): Future[?Cid] {.async.} =
         some(cid)
   ))
-
-method setOnBlockStoredCallback*(self: CacheStore, callback: CidCallback): void =
-  self.onBlockStored = callback.some
 
 func putBlockSync(self: CacheStore, blk: Block): bool =
 

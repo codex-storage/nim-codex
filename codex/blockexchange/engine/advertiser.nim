@@ -120,7 +120,7 @@ proc start*(b: Advertiser) {.async.} =
   proc onBlock(cid: Cid) {.async.} = 
     await b.advertiseBlock(cid)
 
-  b.localStore.setOnBlockStoredCallback(onBlock)
+  b.localStore.onBlockStored = onBlock.some
 
   if b.advertiserRunning:
     warn "Starting advertiser twice"

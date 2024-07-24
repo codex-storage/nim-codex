@@ -131,9 +131,6 @@ method listBlocks*(
   blockType = BlockType.Manifest): Future[?!AsyncIter[?Cid]] =
   self.localStore.listBlocks(blockType)
 
-method setOnBlockStoredCallback*(self: NetworkStore, callback: CidCallback): void =
-  self.localStore.setOnBlockStoredCallback(callback)
-
 method delBlock*(self: NetworkStore, cid: Cid): Future[?!void] =
   ## Delete a block from the blockstore
   ##

@@ -299,9 +299,6 @@ method listBlocks*(
   iter.next = next
   return success iter
 
-method setOnBlockStoredCallback*(self: RepoStore, callback: CidCallback): void =
-  self.onBlockStored = callback.some
-
 proc createBlockExpirationQuery(maxNumber: int, offset: int): ?!Query =
   let queryKey = ? createBlockExpirationMetadataQueryKey()
   success Query.init(queryKey, offset = offset, limit = maxNumber)
