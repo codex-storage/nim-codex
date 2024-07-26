@@ -88,6 +88,13 @@ method mySlots*(market: OnChainMarket): Future[seq[SlotId]] {.async.} =
 
     return slots
 
+method myValidationSlots*(market: OnChainMarket, bucketIdx: uint16): Future[seq[SlotId]] {.async.} =
+  convertEthersError:
+    let slots = await market.contract.myValidationSlots(bucketIdx)
+    debug "Fetched my slots for validation", numSlots=len(slots)
+
+    return slots
+
 method requestStorage(market: OnChainMarket, request: StorageRequest){.async.} =
   convertEthersError:
     debug "Requesting storage"

@@ -293,6 +293,12 @@ type
         name: "validator-max-slots"
       .}: int
 
+      validatorBucket* {.
+        desc: "Range of SlotIds to validate. If not declared, all SlotIds will be validated, up to `validatorMaxSlots`"
+        defaultValue: uint16.none
+        name: "validator-bucket"
+      .}: Option[uint16]
+
       case persistenceCmd* {.
         defaultValue: noCmd
         command }: PersistenceCmd

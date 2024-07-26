@@ -140,7 +140,25 @@ proc bootstrapInteractions(
       host = some HostInteractions.new(clock, sales)
 
     if config.validator:
-      let validation = Validation.new(clock, market, config.validatorMaxSlots)
+      without marketplaceConfig =? (await marketplace.config()).catch:
+        warn "failed to get marketplace config, cannot validate --validator-bucket setting"
+
+      let totalBuckets = marketplaceConfig.validation.validators
+
+      if assignedBucket =? config.validatorBucket and
+         assignedBucket >= totalBuckets:
+        fatal "--validator-bucket parameter out of bounds",
+          lowerBound = 0,
+          upperBound = totalBuckets - 1
+        quit QuitFailure
+
+      let bucket = ValidationBucket.init(config.validatorBucket,
+                                         totalBuckets)
+
+      let validation = Validation.new(clock,
+                                      market,
+                                      config.validatorMaxSlots,
+                                      bucket)
       validator = some ValidatorInteractions.new(clock, validation)
 
     s.codexNode.contracts = (client, host, validator)

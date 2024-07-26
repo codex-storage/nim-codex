@@ -67,6 +67,9 @@ method myRequests*(market: Market): Future[seq[RequestId]] {.base, async.} =
 method mySlots*(market: Market): Future[seq[SlotId]] {.base, async.} =
   raiseAssert("not implemented")
 
+method myValidationSlots*(market: Market, bucketIdx: uint16): Future[seq[SlotId]] {.base, async.} =
+  raiseAssert("not implemented")
+
 method getRequest*(market: Market,
                    id: RequestId):
                   Future[?StorageRequest] {.base, async.} =

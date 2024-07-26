@@ -52,6 +52,7 @@ proc getActiveSlot*(marketplace: Marketplace, id: SlotId): Slot {.contract, view
 
 proc myRequests*(marketplace: Marketplace): seq[RequestId] {.contract, view.}
 proc mySlots*(marketplace: Marketplace): seq[SlotId] {.contract, view.}
+proc myValidationSlots*(marketplace: Marketplace, bucketIdx: uint16): seq[SlotId] {.contract, view.}
 proc requestState*(marketplace: Marketplace, requestId: RequestId): RequestState {.contract, view.}
 proc slotState*(marketplace: Marketplace, slotId: SlotId): SlotState {.contract, view.}
 proc requestEnd*(marketplace: Marketplace, requestId: RequestId): SecondsSince1970 {.contract, view.}

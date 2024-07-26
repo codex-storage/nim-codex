@@ -18,6 +18,10 @@ type
     running: Future[void]
     periodicity: Periodicity
     proofTimeout: UInt256
+    slotIdBucket: ValidationBucket
+  ValidationBucket* = object
+    assignedBucket: ?uint16
+    totalBuckets: uint16
 
 logScope:
   topics = "codex validator"
@@ -26,10 +30,18 @@ proc new*(
     _: type Validation,
     clock: Clock,
     market: Market,
-    maxSlots: int
+    maxSlots: int,
+    slotIdBucket: ValidationBucket
 ): Validation =
   ## Create a new Validation instance
   Validation(clock: clock, market: market, maxSlots: maxSlots)
+
+proc init*(
+  _: type ValidationBucket,
+  assignedBucket: ?uint16,
+  totalBuckets: uint16): ValidationBucket =
+
+  ValidationBucket(assignedBucket: assignedBucket, totalBuckets: totalBuckets)
 
 proc slots*(validation: Validation): seq[SlotId] =
   validation.slots.toSeq
@@ -42,6 +54,22 @@ proc waitUntilNextPeriod(validation: Validation) {.async.} =
   let periodEnd = validation.periodicity.periodEnd(period)
   trace "Waiting until next period", currentPeriod = period
   await validation.clock.waitUntil(periodEnd.truncate(int64) + 1)
+
+proc fetchActiveSlots(validation: Validation): Future[seq[SlotId]] {.async.} =
+  var slots: seq[SlotId]
+
+  if assignedBucket =? validation.slotIdBucket.assignedBucket:
+    slots = await validation.market.myValidationSlots(assignedBucket)
+  else:
+    # no --validator-bucket was set, validate all slots
+    for bucketIdx in 0'u16..validation.slotIdBucket.totalBuckets:
+      slots.add (await validation.market.myValidationSlots(bucketIdx))
+
+  return slots
+
+proc loadActiveSlots(validation: Validation) {.async.} =
+  let slots = await validation.fetchActiveSlots()
+  validation.slots.incl(slots.toHashSet)
 
 proc subscribeSlotFilled(validation: Validation) {.async.} =
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
@@ -59,7 +87,7 @@ proc removeSlotsThatHaveEnded(validation: Validation) {.async.} =
   for slotId in slots:
     let state = await validation.market.slotState(slotId)
     if state != SlotState.Filled:
-      trace "Removing slot", slotId
+      trace "Slot no longer in filled state, removing", slotId
       ended.incl(slotId)
   validation.slots.excl(ended)
 
@@ -103,6 +131,7 @@ proc run(validation: Validation) {.async.} =
 proc start*(validation: Validation) {.async.} =
   validation.periodicity = await validation.market.periodicity()
   validation.proofTimeout = await validation.market.proofTimeout()
+  await validation.loadActiveSlots()
   await validation.subscribeSlotFilled()
   validation.running = validation.run()
 
