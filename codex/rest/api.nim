@@ -209,6 +209,33 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       )
       return RestApiResponse.response($json, contentType="application/json")
 
+  router.api(
+    MethodPut,
+    "api/codex/v1/pin/{cid}") do (
+      cid: Cid, resp: HttpResponseRef) -> RestApiResponse:
+      ## Pins a file to the node. Node will keep the file in local storage while pinned.
+      ##
+      if cid.isErr:
+        return RestApiResponse.error(
+          Http400,
+          $cid.error())
+
+      await node.pinCid(cid.get(), resp=resp)
+
+  router.api(
+    MethodDelete,
+    "api/codex/v1/pin/{cid}") do (
+      cid: Cid, resp: HttpResponseRef) -> RestApiResponse:
+      ## Remove a pinned file from the node. Node will delete the local copy of the file.
+      ##
+      if cid.isErr:
+        return RestApiResponse.error(
+          Http400,
+          $cid.error())
+
+      await node.unpinCid(cid.get(), resp=resp)
+
+
 proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
   router.api(
     MethodGet,
