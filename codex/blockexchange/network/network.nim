@@ -290,6 +290,7 @@ proc dialPeer*(b: BlockExcNetwork, peer: PeerRecord) {.async.} =
     trace "Skipping dialing self", peer = peer.peerId
     return
 
+  trace "Dialing peer...", peer = peer.peerId
   await b.switch.connect(peer.peerId, peer.addresses.mapIt(it.address))
 
 proc dropPeer*(b: BlockExcNetwork, peer: PeerId) =
