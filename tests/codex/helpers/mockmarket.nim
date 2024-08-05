@@ -101,7 +101,8 @@ proc new*(_: type MockMarket): MockMarket =
     proofs: ProofConfig(
       period: 10.u256,
       timeout: 5.u256,
-      downtime: 64.uint8
+      downtime: 64.uint8,
+      downtimeProduct: 67.uint8
     )
   )
   MockMarket(signer: Address.example, config: config)
