@@ -78,11 +78,17 @@ asyncchecksuite "NetworkStore engine basic":
         blockDiscovery,
         pendingBlocks)
 
+      advertiser = Advertiser.new(
+        localStore,
+        blockDiscovery
+      )
+
       engine = BlockExcEngine.new(
         localStore,
         wallet,
         network,
         discovery,
+        advertiser,
         peerStore,
         pendingBlocks)
 
@@ -113,11 +119,17 @@ asyncchecksuite "NetworkStore engine basic":
         blockDiscovery,
         pendingBlocks)
 
+      advertiser = Advertiser.new(
+        localStore,
+        blockDiscovery
+      )
+
       engine = BlockExcEngine.new(
         localStore,
         wallet,
         network,
         discovery,
+        advertiser,
         peerStore,
         pendingBlocks)
 
@@ -139,6 +151,7 @@ asyncchecksuite "NetworkStore engine handlers":
     network: BlockExcNetwork
     engine: BlockExcEngine
     discovery: DiscoveryEngine
+    advertiser: Advertiser
     peerCtx: BlockExcPeerCtx
     localStore: BlockStore
     blocks: seq[Block]
@@ -176,11 +189,17 @@ asyncchecksuite "NetworkStore engine handlers":
       blockDiscovery,
       pendingBlocks)
 
+    advertiser = Advertiser.new(
+      localStore,
+      blockDiscovery
+    )
+
     engine = BlockExcEngine.new(
       localStore,
       wallet,
       network,
       discovery,
+      advertiser,
       peerStore,
       pendingBlocks)
 
@@ -390,51 +409,6 @@ asyncchecksuite "NetworkStore engine handlers":
     discard await allFinished(pending)
     await allFuturesThrowing(cancellations.values().toSeq)
 
-  test "resolveBlocks should queue manifest CIDs for discovery":
-    engine.network = BlockExcNetwork(
-      request: BlockExcRequest(sendWantCancellations: NopSendWantCancellationsProc))
-
-    let
-      manifest = Manifest.new(
-        treeCid = Cid.example,
-        blockSize = 123.NBytes,
-        datasetSize = 234.NBytes
-      )
-
-    let manifestBlk = Block.new(data = manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
-    let blks = @[manifestBlk]
-
-    await engine.resolveBlocks(blks)
-
-    check:
-      manifestBlk.cid in engine.discovery.advertiseQueue
-
-  test "resolveBlocks should queue tree CIDs for discovery":
-    engine.network = BlockExcNetwork(
-      request: BlockExcRequest(sendWantCancellations: NopSendWantCancellationsProc))
-
-    let
-      tCid = Cid.example
-      delivery = BlockDelivery(blk: Block.example, address: BlockAddress(leaf: true, treeCid: tCid))
-      
-    await engine.resolveBlocks(@[delivery])
-
-    check:
-      tCid in engine.discovery.advertiseQueue
-
-  test "resolveBlocks should not queue non-manifest non-tree CIDs for discovery":
-    engine.network = BlockExcNetwork(
-      request: BlockExcRequest(sendWantCancellations: NopSendWantCancellationsProc))
-
-    let
-      blkCid = Cid.example
-      delivery = BlockDelivery(blk: Block.example, address: BlockAddress(leaf: false, cid: blkCid))
-      
-    await engine.resolveBlocks(@[delivery])
-
-    check:
-      blkCid notin engine.discovery.advertiseQueue
-
 asyncchecksuite "Task Handler":
   var
     rng: Rng
@@ -448,6 +422,7 @@ asyncchecksuite "Task Handler":
     network: BlockExcNetwork
     engine: BlockExcEngine
     discovery: DiscoveryEngine
+    advertiser: Advertiser
     localStore: BlockStore
 
     peersCtx: seq[BlockExcPeerCtx]
@@ -481,11 +456,17 @@ asyncchecksuite "Task Handler":
       blockDiscovery,
       pendingBlocks)
 
+    advertiser = Advertiser.new(
+      localStore,
+      blockDiscovery
+    )
+
     engine = BlockExcEngine.new(
       localStore,
       wallet,
       network,
       discovery,
+      advertiser,
       peerStore,
       pendingBlocks)
     peersCtx = @[]

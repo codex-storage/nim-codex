@@ -197,6 +197,9 @@ method putBlock*(
     return success()
 
   discard self.putBlockSync(blk)
+  if onBlock =? self.onBlockStored:
+    await onBlock(blk.cid)
+    
   return success()
 
 method putCidAndProof*(
@@ -282,7 +285,8 @@ proc new*(
       cache: cache,
       cidAndProofCache: cidAndProofCache,
       currentSize: currentSize,
-      size: cacheSize)
+      size: cacheSize,
+      onBlockStored: CidCallback.none)
 
   for blk in blocks:
     discard store.putBlockSync(blk)

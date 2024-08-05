@@ -366,9 +366,6 @@ proc store*(
                       blocks = manifest.blocksCount,
                       datasetSize = manifest.datasetSize
 
-  await self.discovery.provide(manifestBlk.cid)
-  await self.discovery.provide(treeCid)
-
   return manifestBlk.cid.success
 
 proc iterateManifests*(self: CodexNodeRef, onManifest: OnManifest) {.async.} =

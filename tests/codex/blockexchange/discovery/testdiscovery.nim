@@ -32,6 +32,7 @@ asyncchecksuite "Block Advertising and Discovery":
     peerStore: PeerCtxStore
     blockDiscovery: MockDiscovery
     discovery: DiscoveryEngine
+    advertiser: Advertiser
     wallet: WalletRef
     network: BlockExcNetwork
     localStore: CacheStore
@@ -68,11 +69,17 @@ asyncchecksuite "Block Advertising and Discovery":
       pendingBlocks,
       minPeersPerBlock = 1)
 
+    advertiser = Advertiser.new(
+      localStore,
+      blockDiscovery
+    )
+
     engine = BlockExcEngine.new(
       localStore,
       wallet,
       network,
       discovery,
+      advertiser,
       peerStore,
       pendingBlocks)
 
@@ -200,11 +207,17 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
           pendingBlocks,
           minPeersPerBlock = 1)
 
+        advertiser = Advertiser.new(
+          localStore,
+          blockDiscovery
+        )
+
         engine = BlockExcEngine.new(
           localStore,
           wallet,
           network,
           discovery,
+          advertiser,
           peerStore,
           pendingBlocks)
         networkStore = NetworkStore.new(engine, localStore)

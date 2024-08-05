@@ -268,8 +268,9 @@ proc new*(
 
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
+    advertiser = Advertiser.new(repoStore, discovery)
     blockDiscovery = DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
-    engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
+    engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, advertiser, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
     prover = if config.prover:
       if not fileAccessible($config.circomR1cs, {AccessFlags.Read}) and

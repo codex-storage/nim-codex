@@ -49,6 +49,9 @@ privateAccess(CodexNodeRef) # enable access to private fields
 asyncchecksuite "Test Node - Basic":
   setupAndTearDown()
 
+  setup:
+    await node.start()
+
   test "Fetch Manifest":
     let
       manifest = await storeDataGetManifest(localStore, chunker)

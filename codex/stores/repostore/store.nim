@@ -189,6 +189,9 @@ method putBlock*(
 
     if err =? (await self.updateTotalBlocksCount(plusCount = 1)).errorOption:
       return failure(err)
+
+    if onBlock =? self.onBlockStored:
+      await onBlock(blk.cid)
   else:
     trace "Block already exists"
 
