@@ -120,6 +120,7 @@ proc start*(b: Advertiser) {.async.} =
   proc onBlock(cid: Cid) {.async.} = 
     await b.advertiseBlock(cid)
 
+  doAssert(b.localStore.onBlockStored.isNone())
   b.localStore.onBlockStored = onBlock.some
 
   if b.advertiserRunning:
@@ -142,6 +143,7 @@ proc stop*(b: Advertiser) {.async.} =
     return
 
   b.advertiserRunning = false
+  b.localStore.onBlockStored = CidCallback.none
   for task in b.advertiseTasks:
     if not task.finished:
       trace "Awaiting advertise task to stop"

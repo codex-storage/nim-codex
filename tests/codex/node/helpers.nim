@@ -122,8 +122,6 @@ template setupAndTearDown*() {.dirty.} =
       discovery = blockDiscovery,
       taskpool = taskpool)
 
-    await node.start()
-
   teardown:
     close(file)
     await node.stop()

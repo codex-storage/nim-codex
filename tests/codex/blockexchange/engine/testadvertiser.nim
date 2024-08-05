@@ -102,3 +102,9 @@ asyncchecksuite "Advertiser":
 
     check eventually manifestBlk.cid in advertiser.advertiseQueue
     check eventually manifest.treeCid in advertiser.advertiseQueue
+
+  test "Stop should clear onBlockStored callback":
+    await advertiser.stop()
+
+    check:
+      localStore.onBlockStored.isNone()

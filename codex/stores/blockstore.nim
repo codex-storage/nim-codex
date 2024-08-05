@@ -29,7 +29,7 @@ type
   BlockType* {.pure.} = enum
     Manifest, Block, Both
 
-  CidCallback* = proc(cid: Cid): Future[void] {.gcsafe, upraises:[].}
+  CidCallback* = proc(cid: Cid): Future[void] {.gcsafe, raises:[].}
   BlockStore* = ref object of RootObj
     onBlockStored*: ?CidCallback
 
