@@ -118,8 +118,8 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       if corsOrigin =? allowedOrigin:
         resp.setHeader("Access-Control-Allow-Origin", corsOrigin)
         resp.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
-        resp.setHeader("Access-Control-Headers", "X-Requested-With")
         resp.setHeader("Access-Control-Allow-Headers", "content-type")
+        resp.setHeader("Access-Control-Max-Age", "86400")
 
       resp.status = Http204
       await resp.sendBody("")
