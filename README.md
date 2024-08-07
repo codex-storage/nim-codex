@@ -88,12 +88,9 @@ The following options are available:
      --api-bindaddr         The REST API bind address [=127.0.0.1].
  -p, --api-port             The REST Api port [=8080].
      --repo-kind            Backend for main repo store (fs, sqlite) [=fs].
- -q, --storage-quota        The size of the total storage quota dedicated to the node [=8589934592].
- -t, --block-ttl            Default block timeout in seconds - 0 disables the ttl [=$DefaultBlockTtl].
-     --block-mi             Time interval in seconds - determines frequency of block maintenance cycle: how
-                            often blocks are checked for expiration and cleanup
-                            [=$DefaultBlockMaintenanceInterval].
-     --block-mn             Number of blocks to check every maintenance cycle [=1000].
+ -q, --storage-quota        The size in bytes of the total storage quota dedicated to the node [=8589934592].
+ -t, --default-ttl          Default dataset expiry [=1d].
+     --maintenance-interval Determines how frequently datasets are checked for expiration and cleanup [=5m].
  -c, --cache-size           The size of the block cache, 0 disables the cache - might help on slow hardrives
                             [=0].
 

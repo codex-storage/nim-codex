@@ -42,9 +42,8 @@ export units, net, codextypes, logutils
 
 export
   DefaultQuotaBytes,
-  DefaultBlockTtl,
-  DefaultBlockMaintenanceInterval,
-  DefaultNumberOfBlocksToMaintainPerInterval
+  DefaultDefaultExpiry,
+  DefaultMaintenanceInterval
 
 proc defaultDataDir*(): string =
   let dataDir = when defined(windows):
@@ -209,24 +208,18 @@ type
       name: "storage-quota"
       abbr: "q" }: NBytes
 
-    blockTtl* {.
-      desc: "Default block timeout in seconds - 0 disables the ttl"
-      defaultValue: DefaultBlockTtl
-      defaultValueDesc: $DefaultBlockTtl
-      name: "block-ttl"
+    defaultExpiry* {.
+      desc: "Default dataset expiry in seconds"
+      defaultValue: DefaultDefaultExpiry
+      defaultValueDesc: $DefaultDefaultExpiry
+      name: "default-ttl"
       abbr: "t" }: Duration
 
-    blockMaintenanceInterval* {.
-      desc: "Time interval in seconds - determines frequency of block maintenance cycle: how often blocks are checked for expiration and cleanup"
-      defaultValue: DefaultBlockMaintenanceInterval
-      defaultValueDesc: $DefaultBlockMaintenanceInterval
-      name: "block-mi" }: Duration
-
-    blockMaintenanceNumberOfBlocks* {.
-      desc: "Number of blocks to check every maintenance cycle"
-      defaultValue: DefaultNumberOfBlocksToMaintainPerInterval
-      defaultValueDesc: $DefaultNumberOfBlocksToMaintainPerInterval
-      name: "block-mn" }: int
+    maintenanceInterval* {.
+      desc: "Determines how frequently datasets are checked for expiration and cleanup"
+      defaultValue: DefaultMaintenanceInterval
+      defaultValueDesc: $DefaultMaintenanceInterval
+      name: "maintenance-interval" }: Duration
 
     cacheSize* {.
       desc: "The size of the block cache, 0 disables the cache - might help on slow hardrives"
