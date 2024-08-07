@@ -19,17 +19,24 @@ type
   OnChainMarket* = ref object of Market
     contract: Marketplace
     signer: Signer
+    payoutAddress: ?Address
   MarketSubscription = market.Subscription
   EventSubscription = ethers.Subscription
   OnChainMarketSubscription = ref object of MarketSubscription
     eventSubscription: EventSubscription
 
-func new*(_: type OnChainMarket, contract: Marketplace): OnChainMarket =
+func new*(
+  _: type OnChainMarket,
+  contract: Marketplace,
+  payoutAddress = Address.none): OnChainMarket =
+
   without signer =? contract.signer:
     raiseAssert("Marketplace contract should have a signer")
+
   OnChainMarket(
     contract: contract,
     signer: signer,
+    payoutAddress: payoutAddress
   )
 
 proc raiseMarketError(message: string) {.raises: [MarketError].} =
@@ -159,7 +166,13 @@ method fillSlot(market: OnChainMarket,
                 collateral: UInt256) {.async.} =
   convertEthersError:
     await market.approveFunds(collateral)
-    discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(0)
+
+    var fillSlot: Future[?TransactionResponse]
+    if payoutAddress =? market.payoutAddress:
+      fillSlot = market.contract.fillSlot(requestId, slotIndex, proof, payoutAddress)
+    else:
+      fillSlot = market.contract.fillSlot(requestId, slotIndex, proof)
+    discard await fillSlot.confirm(0)
 
 method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
   convertEthersError:
