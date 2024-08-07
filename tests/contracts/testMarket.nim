@@ -1,5 +1,6 @@
 import std/options
 import pkg/chronos
+import pkg/ethers/erc20
 import codex/contracts
 import ../ethertest
 import ./examples
@@ -11,9 +12,11 @@ ethersuite "On-Chain Market":
 
   var market: OnChainMarket
   var marketplace: Marketplace
+  var token: Erc20Token
   var request: StorageRequest
   var slotIndex: UInt256
   var periodicity: Periodicity
+  var host: Signer
 
   setup:
     let address = Marketplace.address(dummyVerifier = true)
@@ -21,6 +24,9 @@ ethersuite "On-Chain Market":
     let config = await marketplace.config()
 
     market = OnChainMarket.new(marketplace)
+    let tokenAddress = await marketplace.token()
+    token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
+
     periodicity = Periodicity(seconds: config.proofs.period)
 
     request = StorageRequest.example
@@ -370,3 +376,48 @@ ethersuite "On-Chain Market":
       (await market.queryPastEvents(StorageRequested, blocksAgo = -2)) ==
       (await market.queryPastEvents(StorageRequested, blocksAgo = 2))
     )
+
+  test "pays out to host address, including collateral":
+    let address = request.client
+    await market.requestStorage(request)
+
+    for slotIndex in 0..<request.ask.slots:
+      await market.fillSlot(request.id, slotIndex.u256, proof, request.ask.collateral)
+
+    let requestEnd = await market.getRequestEnd(request.id)
+    await ethProvider.advanceTimeTo(requestEnd.u256 + 1)
+
+    let startBalance = await token.balanceOf(address)
+
+    await market.freeSlot(request.slotId(0.u256))
+
+    let endBalance = await token.balanceOf(address)
+    check endBalance == (startBalance +
+                        request.ask.duration * request.ask.reward +
+                        request.ask.collateral)
+
+  test "pays out to payout address, collateral paid to host address":
+    let hostAddress = request.client
+    let hostPayoutAddress = accounts[2]
+
+    market = OnChainMarket.new(marketplace, hostPayoutAddress.some)
+    await market.requestStorage(request)
+
+    for slotIndex in 0..<request.ask.slots:
+      await market.fillSlot(request.id, slotIndex.u256, proof, request.ask.collateral)
+
+    let requestEnd = await market.getRequestEnd(request.id)
+    await ethProvider.advanceTimeTo(requestEnd.u256 + 1)
+
+    let startBalanceHost = await token.balanceOf(hostAddress)
+    let startBalanceHostPayout = await token.balanceOf(hostPayoutAddress)
+
+    await market.freeSlot(request.slotId(0.u256))
+
+    let endBalanceHost = await token.balanceOf(hostAddress)
+    let endBalanceHostPayout = await token.balanceOf(hostPayoutAddress)
+
+    check endBalanceHostPayout == (startBalanceHostPayout +
+                                  request.ask.duration * request.ask.reward)
+    check endBalanceHost == (startBalanceHost +
+                            request.ask.collateral)
