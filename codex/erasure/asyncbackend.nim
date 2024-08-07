@@ -10,6 +10,7 @@
 import std/sequtils
 import std/sugar
 import std/macros
+import std/importutils
 
 import pkg/taskpools
 import pkg/taskpools/flowvars
@@ -38,12 +39,13 @@ import
   pkg/taskpools/flowvars,
   pkg/taskpools/ast_utils
 
-
 when (NimMajor,NimMinor,NimPatch) >= (1,6,0):
   import std/[isolation, tasks]
   export isolation
 else:
   import pkg/taskpools/shims_pre_1_6/tasks
+
+privateAccess Task
 
 import
   std/[cpuinfo, atomics, macros]
@@ -212,14 +214,14 @@ proc decodeTask(args: DecodeTaskArgs, odata: seq[seq[byte]], oparity: seq[seq[by
 
   var ptrsParity: seq[pointer]
   for i in 0..<oparity.len:
-    # if (unsafeAddr oparity[i]).isNil:
-    #   echo "oparity is Nil " & $i
-    #   ptrsParity.add(unsafeAddr oparity)
-    # else:
-    if oparity[i].len > 0:
-      ptrsParity.add(unsafeAddr oparity[i][0])
-    else:
+    if (unsafeAddr oparity[i]).isNil:
+      # echo "oparity is Nil " & $i
       ptrsParity.add(unsafeAddr oparity)
+    else:
+      if oparity[i].len > 0:
+        ptrsParity.add(unsafeAddr oparity[i][0])
+      else:
+        ptrsParity.add(unsafeAddr oparity)
 
   echo "bef unsafe hash of data " & unsafeHashOf(ptrsData, odata.mapIt(it.len))
   echo "bef unsafe hash of parity " & unsafeHashOf(ptrsParity, oparity.mapIt(it.len))

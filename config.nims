@@ -65,7 +65,7 @@ else:
 
 --tlsEmulation:off
 --threads:on
---opt:speed
+--opt:none
 --excessiveStackTrace:on
 # enable metric collection
 --define:metrics
