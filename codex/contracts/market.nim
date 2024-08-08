@@ -357,13 +357,6 @@ method queryPastStorageRequests*(market: OnChainMarket,
     let head = await provider.getBlockNumber()
     let fromBlock = BlockTag.init(head - blocksAgo.abs.u256)
 
-    let events = await contract.queryFilter(StorageRequested,
-                                            fromBlock,
-                                            BlockTag.latest)
-    return events.map(event =>
-      StorageRequested(
-        requestId: event.requestId,
-        ask: event.ask,
-        expiry: event.expiry
-      )
-    )
+    return await contract.queryFilter(StorageRequested,
+                                      fromBlock,
+                                      BlockTag.latest)
