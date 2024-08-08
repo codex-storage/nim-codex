@@ -28,11 +28,27 @@ type
   OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnProofSubmitted* = proc(id: SlotId) {.gcsafe, upraises:[].}
-  PastStorageRequest* = object
+  ProofChallenge* = array[32, byte]
+
+  # Marketplace events -- located here due to the Market abstraction
+  StorageRequested* = object of Event
     requestId*: RequestId
     ask*: StorageAsk
     expiry*: UInt256
-  ProofChallenge* = array[32, byte]
+  SlotFilled* = object of Event
+    requestId* {.indexed.}: RequestId
+    slotIndex*: UInt256
+  SlotFreed* = object of Event
+    requestId* {.indexed.}: RequestId
+    slotIndex*: UInt256
+  RequestFulfilled* = object of Event
+    requestId* {.indexed.}: RequestId
+  RequestCancelled* = object of Event
+    requestId* {.indexed.}: RequestId
+  RequestFailed* = object of Event
+    requestId* {.indexed.}: RequestId
+  ProofSubmitted* = object of Event
+    id*: SlotId
 
 method getZkeyHash*(market: Market): Future[?string] {.base, async.} =
   raiseAssert("not implemented")
@@ -204,5 +220,5 @@ method unsubscribe*(subscription: Subscription) {.base, async, upraises:[].} =
 
 method queryPastStorageRequests*(market: Market,
                                  blocksAgo: int):
-                                Future[seq[PastStorageRequest]] {.base, async.} =
+                                Future[seq[StorageRequested]] {.base, async.} =
   raiseAssert("not implemented")

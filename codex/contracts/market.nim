@@ -349,7 +349,7 @@ method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =
 
 method queryPastStorageRequests*(market: OnChainMarket,
                                  blocksAgo: int):
-                                Future[seq[PastStorageRequest]] {.async.} =
+                                Future[seq[StorageRequested]] {.async.} =
   convertEthersError:
     let contract = market.contract
     let provider = contract.provider
@@ -361,7 +361,7 @@ method queryPastStorageRequests*(market: OnChainMarket,
                                             fromBlock,
                                             BlockTag.latest)
     return events.map(event =>
-      PastStorageRequest(
+      StorageRequested(
         requestId: event.requestId,
         ask: event.ask,
         expiry: event.expiry

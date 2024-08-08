@@ -422,11 +422,11 @@ method subscribeProofSubmission*(mock: MockMarket,
 
 method queryPastStorageRequests*(market: MockMarket,
                                  blocksAgo: int):
-                                Future[seq[PastStorageRequest]] {.async.} =
+                                Future[seq[StorageRequested]] {.async.} =
   # MockMarket does not have the concept of blocks, so simply return all
   # previous events
   return market.requested.map(request =>
-    PastStorageRequest(requestId: request.id,
+    StorageRequested(requestId: request.id,
                        ask: request.ask,
                        expiry: request.expiry)
   )
