@@ -32,23 +32,23 @@ type
 
   # Marketplace events -- located here due to the Market abstraction
   MarketplaceEvent* = Event
-  StorageRequested* = object of Event
+  StorageRequested* = object of MarketplaceEvent
     requestId*: RequestId
     ask*: StorageAsk
     expiry*: UInt256
-  SlotFilled* = object of Event
+  SlotFilled* = object of MarketplaceEvent
     requestId* {.indexed.}: RequestId
     slotIndex*: UInt256
-  SlotFreed* = object of Event
+  SlotFreed* = object of MarketplaceEvent
     requestId* {.indexed.}: RequestId
     slotIndex*: UInt256
-  RequestFulfilled* = object of Event
+  RequestFulfilled* = object of MarketplaceEvent
     requestId* {.indexed.}: RequestId
-  RequestCancelled* = object of Event
+  RequestCancelled* = object of MarketplaceEvent
     requestId* {.indexed.}: RequestId
-  RequestFailed* = object of Event
+  RequestFailed* = object of MarketplaceEvent
     requestId* {.indexed.}: RequestId
-  ProofSubmitted* = object of Event
+  ProofSubmitted* = object of MarketplaceEvent
     id*: SlotId
 
 method getZkeyHash*(market: Market): Future[?string] {.base, async.} =
