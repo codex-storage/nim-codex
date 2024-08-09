@@ -324,7 +324,7 @@ ethersuite "On-Chain Market":
     let slotId = request.slotId(slotIndex)
     check (await market.slotState(slotId)) == SlotState.Filled
 
-  test "can query past events":
+  test "can query past StorageRequested events":
     var request1 = StorageRequest.example
     var request2 = StorageRequest.example
     request1.client = accounts[0]
@@ -335,21 +335,38 @@ ethersuite "On-Chain Market":
 
     # `market.requestStorage` executes an `approve` tx before the
     # `requestStorage` tx, so that's two PoA blocks per `requestStorage` call (6
-    # blocks for 3 calls). `fromBlock` and `toBlock` are inclusive, so to check
-    # 6 blocks, we only need to check 5 "blocks ago". We don't need to check the
-    # `approve` for the first `requestStorage` call, so that's 1 less again = 4
-    # "blocks ago".
+    # blocks for 3 calls). We don't need to check the `approve` for the first
+    # `requestStorage` call, so we only need to check 5 "blocks ago". "blocks
+    # ago".
 
     proc getsPastRequest(): Future[bool] {.async.} =
-      let reqs = await market.queryPastStorageRequests(5)
+      let reqs = await market.queryPastEvents(StorageRequested, 5)
       reqs.mapIt(it.requestId) == @[request.id, request1.id, request2.id]
 
     check eventually await getsPastRequest()
+
+  test "can query past SlotFilled events":
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
+    await market.fillSlot(request.id, 1.u256, proof, request.ask.collateral)
+    await market.fillSlot(request.id, 2.u256, proof, request.ask.collateral)
+    let slotId = request.slotId(slotIndex)
+
+    # `market.fill` executes an `approve` tx before the `fillSlot` tx, so that's
+    # two PoA blocks per `fillSlot` call (6 blocks for 3 calls). We don't need
+    # to check the `approve` for the first `fillSlot` call, so we only need to
+    # check 5 "blocks ago".
+    let events = await market.queryPastEvents(SlotFilled, 5)
+    check events == @[
+      SlotFilled(requestId: request.id, slotIndex: 0.u256),
+      SlotFilled(requestId: request.id, slotIndex: 1.u256),
+      SlotFilled(requestId: request.id, slotIndex: 2.u256),
+    ]
 
   test "past event query can specify negative `blocksAgo` parameter":
     await market.requestStorage(request)
 
     check eventually (
-      (await market.queryPastStorageRequests(blocksAgo = -2)) ==
-      (await market.queryPastStorageRequests(blocksAgo = 2))
+      (await market.queryPastEvents(StorageRequested, blocksAgo = -2)) ==
+      (await market.queryPastEvents(StorageRequested, blocksAgo = 2))
     )

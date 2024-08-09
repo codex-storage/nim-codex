@@ -16,25 +16,6 @@ export requests
 
 type
   Marketplace* = ref object of Contract
-  StorageRequested* = object of Event
-    requestId*: RequestId
-    ask*: StorageAsk
-    expiry*: UInt256
-  SlotFilled* = object of Event
-    requestId* {.indexed.}: RequestId
-    slotIndex*: UInt256
-  SlotFreed* = object of Event
-    requestId* {.indexed.}: RequestId
-    slotIndex*: UInt256
-  RequestFulfilled* = object of Event
-    requestId* {.indexed.}: RequestId
-  RequestCancelled* = object of Event
-    requestId* {.indexed.}: RequestId
-  RequestFailed* = object of Event
-    requestId* {.indexed.}: RequestId
-  ProofSubmitted* = object of Event
-    id*: SlotId
-
 
 proc config*(marketplace: Marketplace): MarketplaceConfig {.contract, view.}
 proc token*(marketplace: Marketplace): Address {.contract, view.}
