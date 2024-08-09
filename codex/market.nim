@@ -31,6 +31,7 @@ type
   ProofChallenge* = array[32, byte]
 
   # Marketplace events -- located here due to the Market abstraction
+  MarketplaceEvent* = Event
   StorageRequested* = object of Event
     requestId*: RequestId
     ask*: StorageAsk
@@ -218,7 +219,8 @@ method subscribeProofSubmission*(market: Market,
 method unsubscribe*(subscription: Subscription) {.base, async, upraises:[].} =
   raiseAssert("not implemented")
 
-method queryPastStorageRequests*(market: Market,
-                                 blocksAgo: int):
-                                Future[seq[StorageRequested]] {.base, async.} =
+method queryPastEvents*[T: MarketplaceEvent](
+  market: Market,
+  _: type T,
+  blocksAgo: int): Future[seq[T]] {.base, async.} =
   raiseAssert("not implemented")
