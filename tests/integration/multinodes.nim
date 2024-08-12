@@ -204,6 +204,7 @@ template multinodesuite*(name: string, body: untyped) =
       var config = conf
       config.addCliOption("--bootstrap-node", bootstrap)
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
+      config.addCliOption(StartUpCmd.persistence, "--payout-address", $accounts[running.len])
       config.addCliOption(PersistenceCmd.prover, "--circom-r1cs",
         "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs")
       config.addCliOption(PersistenceCmd.prover, "--circom-wasm",
