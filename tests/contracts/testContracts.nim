@@ -11,6 +11,7 @@ ethersuite "Marketplace contracts":
   let proof = Groth16Proof.example
 
   var client, host: Signer
+  var payoutAddress: Address
   var marketplace: Marketplace
   var token: Erc20Token
   var periodicity: Periodicity
@@ -24,6 +25,7 @@ ethersuite "Marketplace contracts":
   setup:
     client = ethProvider.getSigner(accounts[0])
     host = ethProvider.getSigner(accounts[1])
+    payoutAddress = accounts[2]
 
     let address = Marketplace.address(dummyVerifier = true)
     marketplace = Marketplace.new(address, ethProvider.getSigner())
@@ -42,7 +44,7 @@ ethersuite "Marketplace contracts":
     discard await marketplace.requestStorage(request)
     switchAccount(host)
     discard await token.approve(marketplace.address, request.ask.collateral)
-    discard await marketplace.fillSlot(request.id, 0.u256, proof)
+    discard await marketplace.fillSlot(request.id, 0.u256, proof, payoutAddress)
     slotId = request.slotId(0.u256)
 
   proc waitUntilProofRequired(slotId: SlotId) {.async.} =
@@ -57,7 +59,7 @@ ethersuite "Marketplace contracts":
   proc startContract() {.async.} =
     for slotIndex in 1..<request.ask.slots:
       discard await token.approve(marketplace.address, request.ask.collateral)
-      discard await marketplace.fillSlot(request.id, slotIndex.u256, proof)
+      discard await marketplace.fillSlot(request.id, slotIndex.u256, proof, payoutAddress)
 
   test "accept marketplace proofs":
     switchAccount(host)
@@ -75,14 +77,18 @@ ethersuite "Marketplace contracts":
 
   test "can be paid out at the end":
     switchAccount(host)
-    let address = await host.getAddress()
+    let hostAddress = await host.getAddress()
     await startContract()
     let requestEnd = await marketplace.requestEnd(request.id)
     await ethProvider.advanceTimeTo(requestEnd.u256 + 1)
-    let startBalance = await token.balanceOf(address)
+    let startBalanceHost = await token.balanceOf(hostAddress)
+    let startBalancePayout = await token.balanceOf(payoutAddress)
     discard await marketplace.freeSlot(slotId)
-    let endBalance = await token.balanceOf(address)
-    check endBalance == (startBalance + request.ask.duration * request.ask.reward + request.ask.collateral)
+    let endBalanceHost = await token.balanceOf(hostAddress)
+    let endBalancePayout = await token.balanceOf(payoutAddress)
+
+    check endBalanceHost == (startBalanceHost + request.ask.collateral)
+    check endBalancePayout == (startBalancePayout + request.ask.duration * request.ask.reward)
 
   test "cannot mark proofs missing for cancelled request":
     let expiry = await marketplace.requestExpiry(request.id)

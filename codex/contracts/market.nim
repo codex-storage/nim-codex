@@ -19,7 +19,7 @@ type
   OnChainMarket* = ref object of Market
     contract: Marketplace
     signer: Signer
-    payoutAddress: ?Address
+    payoutAddress: Address
   MarketSubscription = market.Subscription
   EventSubscription = ethers.Subscription
   OnChainMarketSubscription = ref object of MarketSubscription
@@ -28,7 +28,7 @@ type
 func new*(
   _: type OnChainMarket,
   contract: Marketplace,
-  payoutAddress = Address.none): OnChainMarket =
+  payoutAddress: Address): OnChainMarket =
 
   without signer =? contract.signer:
     raiseAssert("Marketplace contract should have a signer")
@@ -167,12 +167,9 @@ method fillSlot(market: OnChainMarket,
   convertEthersError:
     await market.approveFunds(collateral)
 
-    var fillSlot: Future[?TransactionResponse]
-    if payoutAddress =? market.payoutAddress:
-      fillSlot = market.contract.fillSlot(requestId, slotIndex, proof, payoutAddress)
-    else:
-      fillSlot = market.contract.fillSlot(requestId, slotIndex, proof)
-    discard await fillSlot.confirm(0)
+    discard await market.contract.fillSlot(
+      requestId, slotIndex, proof, market.payoutAddress
+    ).confirm(0)
 
 method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
   convertEthersError:

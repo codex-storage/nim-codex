@@ -295,10 +295,8 @@ type
 
       payoutAddress* {.
         desc: "Address to send reward payouts to"
-        defaultValue: EthAddress.none
-        defaultValueDesc: "Rewards will be sent to the SP's address (derived from --eth-private-key)"
         name: "payout-address"
-      .}: Option[EthAddress]
+      .}: EthAddress
 
       case persistenceCmd* {.
         defaultValue: noCmd
