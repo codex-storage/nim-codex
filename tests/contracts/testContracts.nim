@@ -44,7 +44,7 @@ ethersuite "Marketplace contracts":
     discard await marketplace.requestStorage(request)
     switchAccount(host)
     discard await token.approve(marketplace.address, request.ask.collateral)
-    discard await marketplace.fillSlot(request.id, 0.u256, proof, payoutAddress)
+    discard await marketplace.fillSlot(request.id, 0.u256, proof)
     slotId = request.slotId(0.u256)
 
   proc waitUntilProofRequired(slotId: SlotId) {.async.} =
@@ -59,7 +59,7 @@ ethersuite "Marketplace contracts":
   proc startContract() {.async.} =
     for slotIndex in 1..<request.ask.slots:
       discard await token.approve(marketplace.address, request.ask.collateral)
-      discard await marketplace.fillSlot(request.id, slotIndex.u256, proof, payoutAddress)
+      discard await marketplace.fillSlot(request.id, slotIndex.u256, proof)
 
   test "accept marketplace proofs":
     switchAccount(host)
@@ -83,7 +83,7 @@ ethersuite "Marketplace contracts":
     await ethProvider.advanceTimeTo(requestEnd.u256 + 1)
     let startBalanceHost = await token.balanceOf(hostAddress)
     let startBalancePayout = await token.balanceOf(payoutAddress)
-    discard await marketplace.freeSlot(slotId)
+    discard await marketplace.freeSlot(slotId, payoutAddress)
     let endBalanceHost = await token.balanceOf(hostAddress)
     let endBalancePayout = await token.balanceOf(payoutAddress)
 

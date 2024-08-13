@@ -166,14 +166,11 @@ method fillSlot(market: OnChainMarket,
                 collateral: UInt256) {.async.} =
   convertEthersError:
     await market.approveFunds(collateral)
-
-    discard await market.contract.fillSlot(
-      requestId, slotIndex, proof, market.payoutAddress
-    ).confirm(0)
+    discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(0)
 
 method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
   convertEthersError:
-    discard await market.contract.freeSlot(slotId).confirm(0)
+    discard await market.contract.freeSlot(slotId, market.payoutAddress).confirm(0)
 
 method withdrawFunds(market: OnChainMarket,
                      requestId: RequestId) {.async.} =
