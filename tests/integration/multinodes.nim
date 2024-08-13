@@ -150,7 +150,7 @@ template multinodesuite*(name: string, body: untyped) =
         config.addCliOption("--disc-port", $ await nextFreePort(8090 + nodeIdx))
 
       except CodexConfigError as e:
-        raiseMultiNodeSuiteError "invalid cli option, error: " & e.msg
+        raiseMultiNodeSuiteError e.msg
 
       let node = await CodexProcess.startNode(
         config.cliArgs,
@@ -197,6 +197,7 @@ template multinodesuite*(name: string, body: untyped) =
       let clientIdx = clients().len
       var config = conf
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
+      config.addCliOption(StartUpCmd.persistence, "--payout-address", $accounts[running.len])
       return await newCodexProcess(clientIdx, config, Role.Client)
 
     proc startProviderNode(conf: CodexConfig): Future[NodeProcess] {.async.} =

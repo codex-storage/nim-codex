@@ -62,7 +62,7 @@ method start*(node: HardhatProcess) {.async.} =
     args = node.arguments,
     executable = node.executable,
     workingDir = node.workingDir,
-    processOptions = poptions
+    processOptions = $poptions
 
   try:
     node.process = await startProcess(
@@ -115,7 +115,7 @@ method onOutputLineCaptured(node: HardhatProcess, line: string) =
     return
 
   if error =? logFile.writeFile(line & "\n").errorOption:
-    error "failed to write to hardhat file", errorCode = error
+    error "failed to write to hardhat file", errorCode = $error
     discard logFile.closeFile()
     node.logFile = none IoHandle
 

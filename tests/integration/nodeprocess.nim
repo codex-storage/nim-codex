@@ -53,7 +53,7 @@ method start*(node: NodeProcess) {.base, async.} =
     args = node.arguments,
     executable = node.executable,
     workingDir = node.workingDir,
-    processOptions = poptions
+    processOptions = $poptions
 
   try:
     if node.debug:
@@ -128,7 +128,7 @@ method stop*(node: NodeProcess) {.base, async.} =
     try:
       trace "terminating node process..."
       if errCode =? node.process.terminate().errorOption:
-        error "failed to terminate process", errCode
+        error "failed to terminate process", errCode = $errCode
 
       trace "waiting for node process to exit"
       let exitCode = await node.process.waitForExit(3.seconds)

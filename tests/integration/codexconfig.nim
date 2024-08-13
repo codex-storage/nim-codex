@@ -25,7 +25,7 @@ type
     debugEnabled*: bool
   CodexConfigError* = object of CatchableError
 
-proc cliArgs*(config: CodexConfig): seq[string] {.gcsafe, raises: [CodexConfigError].}
+proc cliArgsRaw(config: CodexConfig): seq[string] {.gcsafe, raises: [CodexConfigError].}
 
 proc raiseCodexConfigError(msg: string) {.raises: [CodexConfigError].} =
   raise newException(CodexConfigError, msg)
@@ -48,7 +48,7 @@ proc checkBounds(self: CodexConfigs, idx: int) {.raises: [CodexConfigError].} =
 
 proc buildConfig(
   config: CodexConfig,
-  msg: string): CodexConf {.raises: [CodexConfigError].} =
+  msg = "Invalid codex config cli params"): CodexConf {.raises: [CodexConfigError].} =
 
   proc postFix(msg: string): string =
     if msg.len > 0:
@@ -56,9 +56,10 @@ proc buildConfig(
     else: ""
 
   try:
-    return CodexConf.load(cmdLine = config.cliArgs, quitOnFailure = false)
+    return CodexConf.load(cmdLine = config.cliArgsRaw, quitOnFailure = false)
   except ConfigurationError as e:
-    raiseCodexConfigError msg & e.msg.postFix
+    let args = config.cliArgsRaw.join(" ")
+    raiseCodexConfigError msg & " (" & args & ")" & e.msg.postFix
   except Exception as e:
     ## TODO: remove once proper exception handling added to nim-confutils
     raiseCodexConfigError msg & e.msg.postFix
@@ -71,7 +72,6 @@ proc addCliOption*(
   var options = config.cliPersistenceOptions.getOrDefault(group)
   options[cliOption.key] = cliOption # overwrite if already exists
   config.cliPersistenceOptions[group] = options
-  discard config.buildConfig("Invalid cli arg " & $cliOption)
 
 proc addCliOption*(
   config: var CodexConfig,
@@ -88,7 +88,6 @@ proc addCliOption*(
   var options = config.cliOptions.getOrDefault(group)
   options[cliOption.key] = cliOption # overwrite if already exists
   config.cliOptions[group] = options
-  discard config.buildConfig("Invalid cli arg " & $cliOption)
 
 proc addCliOption*(
   config: var CodexConfig,
@@ -109,7 +108,7 @@ proc addCliOption*(
 
   config.addCliOption(StartUpCmd.noCmd, CliOption(key: key, value: value))
 
-proc cliArgs*(
+proc cliArgsRaw(
   config: CodexConfig): seq[string] {.gcsafe, raises: [CodexConfigError].} =
   ## converts CodexConfig cli options and command groups in a sequence of args
   ## and filters out cli options by node index if provided in the CliOption
@@ -132,13 +131,19 @@ proc cliArgs*(
 
     return args
 
+proc cliArgs*(
+  config: CodexConfig): seq[string] {.gcsafe, raises: [CodexConfigError].} =
+
+  discard config.buildConfig("Invalid cli args: " & $config.cliArgsRaw)
+  return config.cliArgsRaw
+
 proc logFile*(config: CodexConfig): ?string {.raises: [CodexConfigError].} =
-  let built = config.buildConfig("Invalid codex config cli params")
+  let built = config.buildConfig()
   built.logFile
 
 proc logLevel*(config: CodexConfig): LogLevel {.raises: [CodexConfigError].} =
   convertError:
-    let built = config.buildConfig("Invalid codex config cli params")
+    let built = config.buildConfig()
     return parseEnum[LogLevel](built.logLevel.toUpperAscii)
 
 proc debug*(
@@ -245,7 +250,7 @@ proc logLevelWithTopics(
 
   convertError:
     var logLevel = LogLevel.INFO
-    let built = config.buildConfig("Invalid codex config cli params")
+    let built = config.buildConfig()
     logLevel = parseEnum[LogLevel](built.logLevel.toUpperAscii)
     let level = $logLevel & ";TRACE: " & topics.join(",")
     return level
