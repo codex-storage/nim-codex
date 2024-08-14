@@ -110,6 +110,20 @@ proc retrieveCid(
 proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin # prevents capture inside of api defintion
 
+  router.api(
+    MethodOptions,
+    "/api/codex/v1/data") do (
+       resp: HttpResponseRef) -> RestApiResponse:
+
+      if corsOrigin =? allowedOrigin:
+        resp.setHeader("Access-Control-Allow-Origin", corsOrigin)
+        resp.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
+        resp.setHeader("Access-Control-Headers", "X-Requested-With")
+        resp.setHeader("Access-Control-Allow-Headers", "content-type")
+
+      resp.status = Http204
+      await resp.sendBody("")
+
   router.rawApi(
     MethodPost,
     "/api/codex/v1/data") do (
