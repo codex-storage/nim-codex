@@ -294,7 +294,7 @@ type
       .}: int
 
       payoutAddress* {.
-        desc: "Address to send reward payouts to"
+        desc: "Address to send payouts to (eg rewards and refunds)"
         name: "payout-address"
       .}: EthAddress
 

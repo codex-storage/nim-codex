@@ -17,20 +17,22 @@ ethersuite "On-Chain Market":
   var slotIndex: UInt256
   var periodicity: Periodicity
   var host: Signer
-  var payoutAddress: Address
+  var hostPayoutAddress: Address
+  var clientPayoutAddress: Address
 
   proc switchAccount(account: Signer) =
     marketplace = marketplace.connect(account)
     token = token.connect(account)
-    market = OnChainMarket.new(marketplace, payoutAddress)
+    market = OnChainMarket.new(marketplace, hostPayoutAddress)
 
   setup:
     let address = Marketplace.address(dummyVerifier = true)
     marketplace = Marketplace.new(address, ethProvider.getSigner())
     let config = await marketplace.config()
-    payoutAddress = accounts[2]
+    hostPayoutAddress = accounts[2]
+    clientPayoutAddress = hostPayoutAddress
 
-    market = OnChainMarket.new(marketplace, payoutAddress)
+    market = OnChainMarket.new(marketplace, hostPayoutAddress)
     let tokenAddress = await marketplace.token()
     token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
 
@@ -61,7 +63,7 @@ ethersuite "On-Chain Market":
   test "fails to instantiate when contract does not have a signer":
     let storageWithoutSigner = marketplace.connect(ethProvider)
     expect AssertionDefect:
-      discard OnChainMarket.new(storageWithoutSigner, payoutAddress)
+      discard OnChainMarket.new(storageWithoutSigner, hostPayoutAddress)
 
   test "knows signer address":
     check (await market.getSigner()) == (await ethProvider.getSigner().getAddress())
@@ -86,10 +88,20 @@ ethersuite "On-Chain Market":
     let r = await market.getRequest(request.id)
     check (r) == some request
 
-  test "supports withdrawing of funds":
+  test "withdraws funds to client payout address":
+    let clientAddress = request.client
+
     await market.requestStorage(request)
     await advanceToCancelledRequest(request)
+    let startBalanceClient = await token.balanceOf(clientAddress)
+    let startBalancePayout = await token.balanceOf(clientPayoutAddress)
     await market.withdrawFunds(request.id)
+
+    let endBalanceClient = await token.balanceOf(clientAddress)
+    let endBalancePayout = await token.balanceOf(clientPayoutAddress)
+
+    check startBalanceClient == endBalanceClient
+    check endBalancePayout == (startBalancePayout + request.price)
 
   test "supports request subscriptions":
     var receivedIds: seq[RequestId]
@@ -398,12 +410,12 @@ ethersuite "On-Chain Market":
     await ethProvider.advanceTimeTo(requestEnd.u256 + 1)
 
     let startBalanceHost = await token.balanceOf(hostAddress)
-    let startBalancePayout = await token.balanceOf(payoutAddress)
+    let startBalancePayout = await token.balanceOf(hostPayoutAddress)
 
     await market.freeSlot(request.slotId(0.u256))
 
     let endBalanceHost = await token.balanceOf(hostAddress)
-    let endBalancePayout = await token.balanceOf(payoutAddress)
+    let endBalancePayout = await token.balanceOf(hostPayoutAddress)
 
     check endBalanceHost == (startBalanceHost + request.ask.collateral)
     check endBalancePayout == (startBalancePayout +

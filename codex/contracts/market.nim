@@ -175,7 +175,7 @@ method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
 method withdrawFunds(market: OnChainMarket,
                      requestId: RequestId) {.async.} =
   convertEthersError:
-    discard await market.contract.withdrawFunds(requestId).confirm(0)
+    discard await market.contract.withdrawFunds(requestId, market.payoutAddress).confirm(0)
 
 method isProofRequired*(market: OnChainMarket,
                         id: SlotId): Future[bool] {.async.} =
