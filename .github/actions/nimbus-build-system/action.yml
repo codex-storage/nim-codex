@@ -78,6 +78,12 @@ runs:
           mingw-w64-i686-ntldd-git
           mingw-w64-i686-rust
 
+    - name: MSYS2 (Windows All) - Downgrade to gcc 13
+      if: inputs.os == 'windows'
+      shell: ${{ inputs.shell }} {0}
+      run: |
+        pacman -U --noconfirm https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gcc-13.2.0-6-any.pkg.tar.zst https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gcc-libs-13.2.0-6-any.pkg.tar.zst
+
     - name: Derive environment variables
       shell: ${{ inputs.shell }} {0}
       run: |
