@@ -404,6 +404,8 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
         return RestApiResponse.error(Http500)
 
 proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
+  let allowedOrigin = router.allowedOrigin
+
   router.rawApi(
     MethodPost,
     "/api/codex/v1/storage/request/{cid}") do (cid: Cid) -> RestApiResponse:
@@ -417,13 +419,13 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       ## nodes            - number of nodes the content should be stored on
       ## tolerance        - allowed number of nodes that can be lost before content is lost
       ## colateral        - requested collateral from hosts when they fill slot
-      
-      let headers = [
-        ("Access-Control-Allow-Origin", "*"), 
-        ("Access-Control-Allow-Methods", "POST, OPTIONS"),
-        ("Access-Control-Allow-Headers", "content-type"),
-        ("Access-Control-Max-Age", "86400")
-      ]
+
+      var headers = newSeq[(string,string)]()
+
+      if corsOrigin =? allowedOrigin:
+        headers.add(("Access-Control-Allow-Origin", corsOrigin))
+        headers.add(("Access-Control-Allow-Methods", "POST, OPTIONS"))
+        headers.add(("Access-Control-Max-Age", "86400"))
       
       try:
         without contracts =? node.contracts.client:
