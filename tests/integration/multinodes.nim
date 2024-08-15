@@ -220,6 +220,7 @@ template multinodesuite*(name: string, body: untyped) =
       var config = conf
       config.addCliOption("--bootstrap-node", bootstrap)
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
+      config.addCliOption(StartUpCmd.persistence, "--payout-address", $accounts[running.len])
       config.addCliOption(StartUpCmd.persistence, "--validator")
 
       return await newCodexProcess(validatorIdx, config, Role.Validator)
