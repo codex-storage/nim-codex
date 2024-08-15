@@ -143,17 +143,19 @@ proc stop*(b: Advertiser) {.async.} =
     return
 
   b.advertiserRunning = false
+  # Stop incoming tasks from callback and localStore loop
   b.localStore.onBlockStored = CidCallback.none
+  if not b.advertiseLocalStoreLoop.isNil and not b.advertiseLocalStoreLoop.finished:
+    trace "Awaiting advertise loop to stop"
+    await b.advertiseLocalStoreLoop.cancelAndWait()
+    trace "Advertise loop stopped"
+
+  # Clear up remaining tasks
   for task in b.advertiseTasks:
     if not task.finished:
       trace "Awaiting advertise task to stop"
       await task.cancelAndWait()
       trace "Advertise task stopped"
-
-  if not b.advertiseLocalStoreLoop.isNil and not b.advertiseLocalStoreLoop.finished:
-    trace "Awaiting advertise loop to stop"
-    await b.advertiseLocalStoreLoop.cancelAndWait()
-    trace "Advertise loop stopped"
 
   trace "Advertiser stopped"
 
