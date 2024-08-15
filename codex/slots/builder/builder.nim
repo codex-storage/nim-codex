@@ -246,8 +246,8 @@ proc buildSlot*[T, H](
 
     if err =? (await self.store.putCidAndProof(
       treeCid, i, cellCid, encodableProof)).errorOption:
-      error "Failed to store slot tree", error = error.msg
-      return failure(error)
+      error "Failed to store slot tree", error = err.msg
+      return failure(err)
 
   tree.root()
 
@@ -286,8 +286,8 @@ proc buildSlots*[T, H](self: SlotsBuilder[T, H]): Future[?!void] {.async.} =
 
 proc buildManifest*[T, H](self: SlotsBuilder[T, H]): Future[?!Manifest] {.async.} =
   if err =? (await self.buildSlots()).errorOption:
-    error "Failed to build slot roots", error = error.msg
-    return failure(error)
+    error "Failed to build slot roots", error = err.msg
+    return failure(err)
 
   without rootCids =? self.slotRoots.toSlotCids(), error:
     error "Failed to map slot roots to CIDs", error = error.msg
