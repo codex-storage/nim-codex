@@ -8,21 +8,19 @@
 ## those terms.
 
 import std/algorithm
+import std/sequtils
 
 import pkg/chronos
-import pkg/chronicles
-import pkg/libp2p
-import pkg/libp2p/routing_record
-import pkg/libp2p/signed_envelope
+import pkg/libp2p/[cid, multicodec, routing_record, signed_envelope]
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/shims/net
 import pkg/contractabi/address as ca
-import pkg/libp2pdht/discv5/protocol as discv5
+import pkg/codexdht/discv5/[routing_table, protocol as discv5]
 
 import ./rng
 import ./errors
-import ./formats
+import ./logutils
 
 export discv5
 
@@ -35,10 +33,10 @@ logScope:
 
 type
   Discovery* = ref object of RootObj
-    protocol: discv5.Protocol           # dht protocol
+    protocol*: discv5.Protocol          # dht protocol
     key: PrivateKey                     # private key
     peerId: PeerId                      # the peer id of the local node
-    announceAddrs: seq[MultiAddress]    # addresses announced as part of the provider records
+    announceAddrs*: seq[MultiAddress]   # addresses announced as part of the provider records
     providerRecord*: ?SignedPeerRecord  # record to advertice node connection information, this carry any
                                         # address that the node can be connected on
     dhtRecord*: ?SignedPeerRecord       # record to advertice DHT connection information
@@ -57,7 +55,10 @@ proc toNodeId*(host: ca.Address): NodeId =
 
 proc findPeer*(
   d: Discovery,
-  peerId: PeerID): Future[?PeerRecord] {.async.} =
+  peerId: PeerId): Future[?PeerRecord] {.async.} =
+  trace "protocol.resolve..."
+  ## Find peer using the given Discovery object
+  ##
   let
     node = await d.protocol.resolve(toNodeId(peerId))
 
@@ -72,27 +73,22 @@ method find*(
   cid: Cid): Future[seq[SignedPeerRecord]] {.async, base.} =
   ## Find block providers
   ##
-
-  trace "Finding providers for block", cid
   without providers =?
     (await d.protocol.getProviders(cid.toNodeId())).mapFailure, error:
-    trace "Error finding providers for block", cid, error = error.msg
+    warn "Error finding providers for block", cid, error = error.msg
 
-  return providers
+  return providers.filterIt( not (it.data.peerId == d.peerId) )
 
 method provide*(d: Discovery, cid: Cid) {.async, base.} =
-  ## Provide a bock Cid
+  ## Provide a block Cid
   ##
-
-  trace "Providing block", cid
   let
     nodes = await d.protocol.addProvider(
       cid.toNodeId(), d.providerRecord.get)
 
   if nodes.len <= 0:
-    trace "Couldn't provide to any nodes!"
+    warn "Couldn't provide to any nodes!"
 
-  trace "Provided to nodes", nodes = nodes.len
 
 method find*(
   d: Discovery,
@@ -126,7 +122,9 @@ method provide*(d: Discovery, host: ca.Address) {.async, base.} =
   if nodes.len > 0:
     trace "Provided to nodes", nodes = nodes.len
 
-method removeProvider*(d: Discovery, peerId: PeerId): Future[void] {.base.} =
+method removeProvider*(
+  d: Discovery,
+  peerId: PeerId): Future[void] {.base.} =
   ## Remove provider from providers table
   ##
 
@@ -160,6 +158,10 @@ proc updateDhtRecord*(d: Discovery, ip: ValidIpAddress, port: Port) =
         IpTransportProtocol.udpProtocol,
         port)])).expect("Should construct signed record").some
 
+  if not d.protocol.isNil:
+    d.protocol.updateRecord(d.dhtRecord)
+      .expect("Should update SPR")
+
 proc start*(d: Discovery) {.async.} =
   d.protocol.open()
   await d.protocol.start()
@@ -168,21 +170,35 @@ proc stop*(d: Discovery) {.async.} =
   await d.protocol.closeWait()
 
 proc new*(
-  T: type Discovery,
-  key: PrivateKey,
-  bindIp = ValidIpAddress.init(IPv4_any()),
-  bindPort = 0.Port,
-  announceAddrs: openArray[MultiAddress],
-  bootstrapNodes: openArray[SignedPeerRecord] = [],
-  store: Datastore = SQLiteDatastore.new(Memory)
-    .expect("Should not fail!")): T =
+    T: type Discovery,
+    key: PrivateKey,
+    bindIp = ValidIpAddress.init(IPv4_any()),
+    bindPort = 0.Port,
+    announceAddrs: openArray[MultiAddress],
+    bootstrapNodes: openArray[SignedPeerRecord] = [],
+    store: Datastore = SQLiteDatastore.new(Memory).expect("Should not fail!")
+): Discovery =
+  ## Create a new Discovery node instance for the given key and datastore
+  ##
 
   var
-    self = T(
+    self = Discovery(
       key: key,
       peerId: PeerId.init(key).expect("Should construct PeerId"))
 
   self.updateAnnounceRecord(announceAddrs)
+
+  # --------------------------------------------------------------------------
+  # FIXME disable IP limits temporarily so we can run our workshop. Re-enable
+  #   and figure out proper solution.
+  let discoveryConfig = DiscoveryConfig(
+    tableIpLimits: TableIpLimits(
+      tableIpLimit: high(uint),
+      bucketIpLimit:high(uint)
+    ),
+    bitsPerHop: DefaultBitsPerHop
+  )
+  # --------------------------------------------------------------------------
 
   self.protocol = newProtocol(
     key,
@@ -191,6 +207,7 @@ proc new*(
     record = self.providerRecord.get,
     bootstrapRecords = bootstrapNodes,
     rng = Rng.instance(),
-    providers = ProvidersManager.new(store))
+    providers = ProvidersManager.new(store),
+    config = discoveryConfig)
 
   self

@@ -5,6 +5,30 @@
 # at your option. This file may not be copied, modified, or distributed except
 # according to those terms.
 
+# This is the Nim version used locally and in regular CI builds.
+# Can be a specific version tag, a branch name, or a commit hash.
+# Can be overridden by setting the NIM_COMMIT environment variable
+# before calling make.
+#
+# For readability in CI, if NIM_COMMIT is set to "pinned",
+# this will also default to the version pinned here.
+#
+# If NIM_COMMIT is set to "nimbusbuild", this will use the
+# version pinned by nimbus-build-system.
+PINNED_NIM_VERSION := 38640664088251bbc88917b4bacfd86ec53014b8 # 1.6.21
+
+ifeq ($(NIM_COMMIT),)
+NIM_COMMIT := $(PINNED_NIM_VERSION)
+else ifeq ($(NIM_COMMIT),pinned)
+NIM_COMMIT := $(PINNED_NIM_VERSION)
+endif
+
+ifeq ($(NIM_COMMIT),nimbusbuild)
+undefine NIM_COMMIT
+else
+export NIM_COMMIT
+endif
+
 SHELL := bash # the shell used internally by Make
 
 # used inside the included makefiles
@@ -44,7 +68,11 @@ GIT_SUBMODULE_UPDATE := git submodule update --init --recursive
 else # "variables.mk" was included. Business as usual until the end of this file.
 
 # default target, because it's the first one that doesn't start with '.'
-all: | test
+
+# Builds the codex binary
+all: | build deps
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim codex $(NIM_PARAMS) build.nims
 
 # must be included after the default target
 -include $(BUILD_SYSTEM_DIR)/makefiles/targets.mk
@@ -56,15 +84,12 @@ else
 NIM_PARAMS := $(NIM_PARAMS) -d:release
 endif
 
-deps: | deps-common nat-libs codex.nims
+deps: | deps-common nat-libs
 ifneq ($(USE_LIBBACKTRACE), 0)
 deps: | libbacktrace
 endif
 
-#- deletes and recreates "codex.nims" which on Windows is a copy instead of a proper symlink
 update: | update-common
-	rm -rf codex.nims && \
-		$(MAKE) codex.nims $(HANDLE_OUTPUT)
 
 # detecting the os
 ifeq ($(OS),Windows_NT) # is Windows_NT on XP, 2000, 7, Vista, 10...
@@ -79,31 +104,27 @@ endif
 # Builds and run a part of the test suite
 test: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim test $(NIM_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim test $(NIM_PARAMS) build.nims
 
 # Builds and runs the smart contract tests
 testContracts: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testContracts $(NIM_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim testContracts $(NIM_PARAMS) build.nims
 
 # Builds and runs the integration tests
 testIntegration: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testIntegration $(NIM_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim testIntegration $(NIM_PARAMS) build.nims
 
-# Builds and runs all tests
+# Builds and runs all tests (except for Taiko L2 tests)
 testAll: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) build.nims
 
-# Builds the codex binary
-exec: | build deps
+# Builds and runs Taiko L2 tests
+testTaiko: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim codex $(NIM_PARAMS) codex.nims
-
-# symlink
-codex.nims:
-	ln -s codex.nimble $@
+		$(ENV_SCRIPT) nim testTaiko $(NIM_PARAMS) codex.nims
 
 # nim-libbacktrace
 LIBBACKTRACE_MAKE_FLAGS := -C vendor/nim-libbacktrace --no-print-directory BUILD_CXX_LIB=0
@@ -128,7 +149,14 @@ coverage:
 	shopt -s globstar && lcov --extract coverage/coverage.info $$(pwd)/codex/{*,**/*}.nim --output-file coverage/coverage.f.info
 	echo -e $(BUILD_MSG) "coverage/report/index.html"
 	genhtml coverage/coverage.f.info --output-directory coverage/report
+
+show-coverage:
 	if which open >/dev/null; then (echo -e "\e[92mOpening\e[39m HTML coverage report in browser..." && open coverage/report/index.html) || true; fi
+
+coverage-script: build deps
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim coverage $(NIM_PARAMS) build.nims
+	echo "Run `make show-coverage` to view coverage results"
 
 # usual cleaning
 clean: | clean-common

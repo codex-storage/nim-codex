@@ -7,9 +7,11 @@
 [![License: Apache](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Stability: experimental](https://img.shields.io/badge/stability-experimental-orange.svg)](#stability)
-[![CI](https://github.com/status-im/nim-codex/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/status-im/nim-codex/actions?query=workflow%3ACI+branch%3Amain)
-[![Codecov](https://codecov.io/gh/status-im/nim-codex/branch/main/graph/badge.svg?token=XFmCyPSNzW)](https://codecov.io/gh/status-im/nim-codex)
+[![CI](https://github.com/codex-storage/nim-codex/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/codex-storage/nim-codex/actions/workflows/ci.yml?query=branch%3Amaster)
+[![Docker](https://github.com/codex-storage/nim-codex/actions/workflows/docker.yml/badge.svg?branch=master)](https://github.com/codex-storage/nim-codex/actions/workflows/docker.yml?query=branch%3Amaster)
+[![Codecov](https://codecov.io/gh/codex-storage/nim-codex/branch/master/graph/badge.svg?token=XFmCyPSNzW)](https://codecov.io/gh/codex-storage/nim-codex)
 [![Discord](https://img.shields.io/discord/895609329053474826)](https://discord.gg/CaJTh24ddQ)
+![Docker Pulls](https://img.shields.io/docker/pulls/codexstorage/nim-codex)
 
 
 ## Build and Run
@@ -19,7 +21,7 @@ For detailed instructions on preparing to build nim-codex see [*Building Codex*]
 To build the project, clone it and run:
 
 ```bash
-make update && make exec
+make update && make
 ```
 
 The executable will be placed under the `build` directory under the project root.
@@ -29,6 +31,35 @@ Run the client with:
 ```bash
 build/codex
 ```
+## Configuration
+
+It is possible to configure a Codex node in several ways:
+ 1. CLI options
+ 2. Env. variable
+ 3. Config
+
+The order of priority is the same as above: Cli arguments > Env variables > Config file values.
+
+### Environment variables
+
+In order to set a configuration option using environment variables, first find the desired CLI option
+and then transform it in the following way:
+
+ 1. prepend it with `CODEX_`
+ 2. make it uppercase
+ 3. replace `-` with `_`
+
+For example, to configure `--log-level`, use `CODEX_LOG_LEVEL` as the environment variable name.
+
+### Configuration file
+
+A [TOML](https://toml.io/en/) configuration file can also be used to set configuration values. Configuration option names and corresponding values are placed in the file, separated by `=`. Configuration option names can be obtained from the `codex --help` command, and should not include the `--` prefix. For example, a node's log level (`--log-level`) can be configured using TOML as follows:
+
+```toml
+log-level = "trace"
+```
+
+The Codex node can then read the configuration from this file using the `--config-file` CLI parameter, like `codex --config-file=/path/to/your/config.toml`.
 
 ### CLI Options
 
@@ -40,104 +71,77 @@ codex [OPTIONS]... command
 
 The following options are available:
 
-     --log-level            Sets the log level [=LogLevel.INFO].
+     --config-file          Loads the configuration from a TOML file [=none].
+     --log-level            Sets the log level [=info].
      --metrics              Enable the metrics server [=false].
      --metrics-address      Listening address of the metrics server [=127.0.0.1].
      --metrics-port         Listening HTTP port of the metrics server [=8008].
- -d, --data-dir             The directory where codex will store configuration and data..
- -l, --listen-port          Specifies one or more listening ports for the node to listen on. [=0].
- -i, --listen-ip            The public IP [=0.0.0.0].
-     --udp-port             Specify the discovery (UDP) port [=8090].
-     --net-privkey          Source of network (secp256k1) private key file (random|<path>) [=random].
- -b, --bootstrap-node       Specifies one or more bootstrap nodes to use when connecting to the network..
+ -d, --data-dir             The directory where codex will store configuration and data.
+ -i, --listen-addrs         Multi Addresses to listen on [=/ip4/0.0.0.0/tcp/0].
+ -a, --nat                  IP Addresses to announce behind a NAT [=127.0.0.1].
+ -e, --disc-ip              Discovery listen address [=0.0.0.0].
+ -u, --disc-port            Discovery (UDP) port [=8090].
+     --net-privkey          Source of network (secp256k1) private key file path or name [=key].
+ -b, --bootstrap-node       Specifies one or more bootstrap nodes to use when connecting to the network.
      --max-peers            The maximum number of peers to connect to [=160].
      --agent-string         Node agent string which is used as identifier in network [=Codex].
+     --api-bindaddr         The REST API bind address [=127.0.0.1].
  -p, --api-port             The REST Api port [=8080].
- -c, --cache-size           The size in MiB of the block cache, 0 disables the cache [=100].
-     --persistence          Enables persistence mechanism, requires an Ethereum node [=false].
-     --eth-provider         The URL of the JSON-RPC API of the Ethereum node [=ws://localhost:8545].
-     --eth-account          The Ethereum account that is used for storage contracts [=EthAddress.none].
-     --eth-deployment       The json file describing the contract deployment [=string.none].
+     --repo-kind            Backend for main repo store (fs, sqlite) [=fs].
+ -q, --storage-quota        The size of the total storage quota dedicated to the node [=8589934592].
+ -t, --block-ttl            Default block timeout in seconds - 0 disables the ttl [=$DefaultBlockTtl].
+     --block-mi             Time interval in seconds - determines frequency of block maintenance cycle: how
+                            often blocks are checked for expiration and cleanup
+                            [=$DefaultBlockMaintenanceInterval].
+     --block-mn             Number of blocks to check every maintenance cycle [=1000].
+ -c, --cache-size           The size of the block cache, 0 disables the cache - might help on slow hardrives
+                            [=0].
 
 Available sub-commands:
 
-codex initNode
+codex persistence [OPTIONS]... command
+
+The following options are available:
+
+     --eth-provider         The URL of the JSON-RPC API of the Ethereum node [=ws://localhost:8545].
+     --eth-account          The Ethereum account that is used for storage contracts.
+     --eth-private-key      File containing Ethereum private key for storage contracts.
+     --marketplace-address  Address of deployed Marketplace contract.
+     --validator            Enables validator, requires an Ethereum node [=false].
+     --validator-max-slots  Maximum number of slots that the validator monitors [=1000].
+
+Available sub-commands:
+
+codex persistence prover [OPTIONS]...
+
+The following options are available:
+
+     --circom-r1cs          The r1cs file for the storage circuit.
+     --circom-wasm          The wasm file for the storage circuit.
+     --circom-zkey          The zkey file for the storage circuit.
+     --circom-no-zkey       Ignore the zkey file - use only for testing! [=false].
+     --proof-samples        Number of samples to prove [=5].
+     --max-slot-depth       The maximum depth of the slot tree [=32].
+     --max-dataset-depth    The maximum depth of the dataset tree [=8].
+     --max-block-depth      The maximum depth of the network block merkle tree [=5].
+     --max-cell-elements    The maximum number of elements in a cell [=67].
 ```
 
-### Example: running two Codex clients
+#### Logging
 
-```bash
-build/codex --data-dir="$(pwd)/Codex1" -i=127.0.0.1
-```
+Codex uses [Chronicles](https://github.com/status-im/nim-chronicles) logging library, which allows great flexibility in working with logs.
+Chronicles has the concept of topics, which categorize log entries into semantic groups.
 
-This will start codex with a data directory pointing to `Codex1` under the current execution directory and announce itself on the DHT under `127.0.0.1`.
+Using the `log-level` parameter, you can set the top-level log level like `--log-level="trace"`, but more importantly,
+you can set log levels for specific topics like `--log-level="info; trace: marketplace,node; error: blockexchange"`,
+which sets the top-level log level to `info` and then for topics `marketplace` and `node` sets the level to `trace` and so on.
 
-To run a second client that automatically discovers nodes on the network, we need to get the Signed Peer Record (SPR) of first client, Client1. We can do this by querying the `/info` endpoint of the node's REST API.
+### Guides
 
-`curl http://127.0.0.1:8080/api/codex/v1/info`
+To get acquainted with Codex, consider:
+* running the simple [Codex Two-Client Test](docs/TwoClientTest.md) for a start, and;
+* if you are feeling more adventurous, try [Running a Local Codex Network with Marketplace Support](docs/Marketplace.md) using a local blockchain as well.
 
-This should output information about Client1, including its PeerID, TCP/UDP addresses, data directory, and SPR:
+## API
 
-```json
-{
-  "id": "16Uiu2HAm92LGXYTuhtLaZzkFnsCx6FFJsNmswK6o9oPXFbSKHQEa",
-  "addrs": [
-    "/ip4/0.0.0.0/udp/8090",
-    "/ip4/0.0.0.0/tcp/49336"
-  ],
-  "repo": "/repos/status-im/nim-codex/Codex1",
-  "spr": "spr:CiUIAhIhAmqg5fVU2yxPStLdUOWgwrkWZMHW2MHf6i6l8IjA4tssEgIDARpICicAJQgCEiECaqDl9VTbLE9K0t1Q5aDCuRZkwdbYwd_qLqXwiMDi2ywQ5v2VlAYaCwoJBH8AAAGRAh-aGgoKCAR_AAABBts3KkcwRQIhAPOKl38CviplVbMVnA_9q3N1K_nk5oGuNp7DWeOqiJzzAiATQ2acPyQvPxLU9YS-TiVo4RUXndRcwMFMX2Yjhw8k3A"
-}
-```
-
-Now, let's start a second client, Client2. Because we're already using the default ports TCP (:8080) and UDP (:8090) for the first client, we have to specify new ports to avoid a collision. Additionally, we can specify the SPR from Client1 as the bootstrap node for discovery purposes, allowing Client2 to determine where content is located in the network.
-
-```bash
-build/codex --data-dir="$(pwd)/Codex2" -i=127.0.0.1 --api-port=8081 --udp-port=8091 --bootstrap-node=spr:CiUIAhIhAmqg5fVU2yxPStLdUOWgwrkWZMHW2MHf6i6l8IjA4tssEgIDARpICicAJQgCEiECaqDl9VTbLE9K0t1Q5aDCuRZkwdbYwd_qLqXwiMDi2ywQ5v2VlAYaCwoJBH8AAAGRAh-aGgoKCAR_AAABBts3KkcwRQIhAPOKl38CviplVbMVnA_9q3N1K_nk5oGuNp7DWeOqiJzzAiATQ2acPyQvPxLU9YS-TiVo4RUXndRcwMFMX2Yjhw8k3A
-```
-
-There are now two clients running. We could upload a file to Client1 and download that file (given its CID) using Client2, by using the clients' REST API.
-
-## Interacting with the client
-
-The client exposes a REST API that can be used to interact with the clients. These commands could be invoked with any HTTP client, however the following endpoints assume the use of the `curl` command.
-
-### `/api/codex/v1/connect/{peerId}`
-
-Connect to a peer identified by its peer id. Takes an optional `addrs` parameter with a list of valid [multiaddresses](https://multiformats.io/multiaddr/). If `addrs` is absent, the peer will be discovered over the DHT.
-
-Example:
-
-```bash
-curl "127.0.0.1:8080/api/codex/v1/connect/<peer id>?addrs=<multiaddress>"
-```
-
-### `/api/codex/v1/download/{id}`
-
-Download data identified by a `Cid`.
-
-Example:
-
-```bash
- curl -vvv "127.0.0.1:8080/api/codex/v1/download/<Cid of the content>" --output <name of output file>
- ```
-
-### `/api/codex/v1/upload`
-
-Upload a file, upon success returns the `Cid` of the uploaded file.
-
-Example:
-
-```bash
-curl -vvv -H "content-type: application/octet-stream" -H Expect: -T "<path to file>" "127.0.0.1:8080/api/codex/v1/upload" -X POST
-```
-
-### `/api/codex/v1/info`
-
-Get useful node info such as its peer id, address and SPR.
-
-Example:
-
-```bash
-curl -vvv "127.0.0.1:8080/api/codex/v1/info"
-```
+The client exposes a REST API that can be used to interact with the clients. Overview of the API can be found on [api.codex.storage](https://api.codex.storage).

@@ -1,68 +1,43 @@
-import std/strutils
-import pkg/ethers
-import pkg/ethers/testing
-import ../storageproofs/timing/proofs
-import ./storage
-
-export proofs
+import pkg/stint
+import pkg/contractabi
+import pkg/ethers/fields
 
 type
-  OnChainProofs* = ref object of Proofs
-    storage: Storage
-    pollInterval*: Duration
-  ProofsSubscription = proofs.Subscription
-  EventSubscription = ethers.Subscription
-  OnChainProofsSubscription = ref object of ProofsSubscription
-    eventSubscription: EventSubscription
+  Groth16Proof* = object
+    a*: G1Point
+    b*: G2Point
+    c*: G1Point
+  G1Point* = object
+    x*: UInt256
+    y*: UInt256
+  # A field element F_{p^2} encoded as `real + i * imag`
+  Fp2Element* = object
+    real*: UInt256
+    imag*: UInt256
+  G2Point* = object
+    x*: Fp2Element
+    y*: Fp2Element
 
-const DefaultPollInterval = 3.seconds
+func solidityType*(_: type G1Point): string =
+  solidityType(G1Point.fieldTypes)
 
-proc new*(_: type OnChainProofs, storage: Storage): OnChainProofs =
-  OnChainProofs(storage: storage, pollInterval: DefaultPollInterval)
+func solidityType*(_: type Fp2Element): string =
+  solidityType(Fp2Element.fieldTypes)
 
-method periodicity*(proofs: OnChainProofs): Future[Periodicity] {.async.} =
-  let period = await proofs.storage.proofPeriod()
-  return Periodicity(seconds: period)
+func solidityType*(_: type G2Point): string =
+  solidityType(G2Point.fieldTypes)
 
-method isProofRequired*(proofs: OnChainProofs,
-                        id: SlotId): Future[bool] {.async.} =
-  try:
-    return await proofs.storage.isProofRequired(id)
-  except ProviderError as e:
-    if e.revertReason.contains("Slot empty"):
-      return false
-    raise e
+func solidityType*(_: type Groth16Proof): string =
+  solidityType(Groth16Proof.fieldTypes)
 
-method willProofBeRequired*(proofs: OnChainProofs,
-                            id: SlotId): Future[bool] {.async.} =
-  try:
-    return await proofs.storage.willProofBeRequired(id)
-  except ProviderError as e:
-    if e.revertReason.contains("Slot empty"):
-      return false
-    raise e
+func encode*(encoder: var AbiEncoder, point: G1Point) =
+  encoder.write(point.fieldValues)
 
-method getProofEnd*(proofs: OnChainProofs,
-                    id: SlotId): Future[UInt256] {.async.} =
-  try:
-    return await proofs.storage.proofEnd(id)
-  except ProviderError as e:
-    if e.revertReason.contains("Slot empty"):
-      return 0.u256
-    raise e
+func encode*(encoder: var AbiEncoder, element: Fp2Element) =
+  encoder.write(element.fieldValues)
 
-method submitProof*(proofs: OnChainProofs,
-                    id: SlotId,
-                    proof: seq[byte]) {.async.} =
-  await proofs.storage.submitProof(id, proof)
+func encode*(encoder: var AbiEncoder, point: G2Point) =
+  encoder.write(point.fieldValues)
 
-method subscribeProofSubmission*(proofs: OnChainProofs,
-                                 callback: OnProofSubmitted):
-                                Future[ProofsSubscription] {.async.} =
-  proc onEvent(event: ProofSubmitted) {.upraises: [].} =
-    callback(event.id, event.proof)
-  let subscription = await proofs.storage.subscribe(ProofSubmitted, onEvent)
-  return OnChainProofsSubscription(eventSubscription: subscription)
-
-method unsubscribe*(subscription: OnChainProofsSubscription) {.async, upraises:[].} =
-  await subscription.eventSubscription.unsubscribe()
+func encode*(encoder: var AbiEncoder, proof: Groth16Proof) =
+  encoder.write(proof.fieldValues)

@@ -1,26 +1,43 @@
-import std/json
 import std/os
+import std/tables
 import pkg/ethers
 import pkg/questionable
 
-type Deployment* = object
-  json: JsonNode
+import ../conf
+import ../logutils
+import ./marketplace
 
-const defaultFile = "vendor" / "dagger-contracts" / "deployment-localhost.json"
+type Deployment* = ref object
+  provider: Provider
+  config: CodexConf
 
-## Reads deployment information from a json file. It expects a file that has
-## been exported with Hardhat deploy.
-## See also:
-## https://github.com/wighawag/hardhat-deploy/tree/master#6-hardhat-export
-proc deployment*(file = defaultFile): Deployment =
-  Deployment(json: parseFile(file))
+const knownAddresses = {
+ # Hardhat localhost network
+ "31337": {
+  "Marketplace": Address.init("0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44"),
+ }.toTable,
+ # Taiko Alpha-3 Testnet
+ "167005": {
+  "Marketplace": Address.init("0x948CF9291b77Bd7ad84781b9047129Addf1b894F")
+ }.toTable
+}.toTable
 
-proc address*(deployment: Deployment, Contract: typedesc): ?Address =
-  if deployment.json == nil:
+proc getKnownAddress(T: type, chainId: UInt256): ?Address =
+  let id = chainId.toString(10)
+  notice "Looking for well-known contract address with ChainID ", chainId=id
+
+  if not (id in knownAddresses):
     return none Address
 
-  try:
-    let address = deployment.json["contracts"][$Contract]["address"].getStr()
-    Address.init(address)
-  except KeyError:
-    none Address
+  return knownAddresses[id].getOrDefault($T, Address.none)
+
+proc new*(_: type Deployment, provider: Provider, config: CodexConf): Deployment =
+  Deployment(provider: provider, config: config)
+
+proc address*(deployment: Deployment, contract: type): Future[?Address] {.async.} =
+  when contract is Marketplace:
+    if address =? deployment.config.marketplaceAddress:
+      return some address
+
+  let chainId = await deployment.provider.getChainId()
+  return contract.getKnownAddress(chainId)

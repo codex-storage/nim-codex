@@ -5,7 +5,7 @@
 	branch = master
 [submodule "vendor/nim-libp2p"]
 	path = vendor/nim-libp2p
-	url = https://github.com/status-im/nim-libp2p.git
+	url = https://github.com/vacp2p/nim-libp2p.git
 	ignore = untracked
 	branch = master
 [submodule "vendor/nimcrypto"]
@@ -133,10 +133,6 @@
 	url = https://github.com/status-im/nim-websock.git
 	ignore = untracked
 	branch = master
-[submodule "vendor/dagger-contracts"]
-	path = vendor/dagger-contracts
-	url = https://github.com/status-im/dagger-contracts
-	ignore = dirty
 [submodule "vendor/nim-contract-abi"]
 	path = vendor/nim-contract-abi
 	url = https://github.com/status-im/nim-contract-abi
@@ -168,9 +164,9 @@
 [submodule "vendor/nim-leopard"]
 	path = vendor/nim-leopard
 	url = https://github.com/status-im/nim-leopard.git
-[submodule "vendor/nim-libp2p-dht"]
-	path = vendor/nim-libp2p-dht
-	url = https://github.com/status-im/nim-libp2p-dht.git
+[submodule "vendor/nim-codex-dht"]
+	path = vendor/nim-codex-dht
+	url = https://github.com/codex-storage/nim-codex-dht.git
 	ignore = untracked
 	branch = master
 [submodule "vendor/nim-datastore"]
@@ -182,3 +178,40 @@
 [submodule "vendor/nim-eth"]
 	path = vendor/nim-eth
 	url = https://github.com/status-im/nim-eth
+[submodule "vendor/codex-contracts-eth"]
+	path = vendor/codex-contracts-eth
+	url = https://github.com/status-im/codex-contracts-eth
+[submodule "vendor/nim-protobuf-serialization"]
+	path = vendor/nim-protobuf-serialization
+	url = https://github.com/status-im/nim-protobuf-serialization
+[submodule "vendor/nim-results"]
+	path = vendor/nim-results
+	url = https://github.com/arnetheduck/nim-results
+[submodule "vendor/nim-testutils"]
+	path = vendor/nim-testutils
+	url = https://github.com/status-im/nim-testutils
+[submodule "vendor/npeg"]
+	path = vendor/npeg
+	url = https://github.com/zevv/npeg
+[submodule "vendor/nim-poseidon2"]
+	path = vendor/nim-poseidon2
+	url = https://github.com/codex-storage/nim-poseidon2.git
+[submodule "vendor/constantine"]
+	path = vendor/constantine
+	url = https://github.com/mratsim/constantine.git
+[submodule "vendor/nim-circom-compat"]
+	path = vendor/nim-circom-compat
+	url = https://github.com/codex-storage/nim-circom-compat.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/codex-storage-proofs-circuits"]
+	path = vendor/codex-storage-proofs-circuits
+	url = https://github.com/codex-storage/codex-storage-proofs-circuits.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-serde"]
+	path = vendor/nim-serde
+	url = https://github.com/codex-storage/nim-serde.git
+[submodule "vendor/nim-leveldbstatic"]
+	path = vendor/nim-leveldbstatic
+	url = https://github.com/codex-storage/nim-leveldb.git

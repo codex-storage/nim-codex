@@ -1,0 +1,773 @@
+openapi: 3.0.3
+
+info:
+  version: 0.0.1
+  title: Codex API
+  description: "List of endpoints and interfaces available to Codex API users"
+
+security:
+  - { }
+
+components:
+  schemas:
+    MultiAddress:
+      type: string
+      description: Address of node as specified by the multi-address specification https://multiformats.io/multiaddr/
+      example: /ip4/127.0.0.1/tcp/8080
+
+    PeerId:
+      type: string
+      description: Peer Identity reference as specified at https://docs.libp2p.io/concepts/fundamentals/peers/
+      example: QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N
+
+    Id:
+      type: string
+      description: 32bits identifier encoded in hex-decimal string.
+      example: 0x...
+
+    BigInt:
+      type: string
+      description: Integer represented as decimal string
+
+    Cid:
+      type: string
+      description: Content Identifier as specified at https://github.com/multiformats/cid
+      example: QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N
+
+    SlotId:
+      type: string
+      description: Keccak hash of the abi encoded tuple (RequestId, slot index)
+      example: 268a781e0db3f7cf36b18e5f4fdb7f586ec9edd08e5500b17c0e518a769f114a
+
+    LogLevel:
+      type: string
+      description: "One of the log levels: TRACE, DEBUG, INFO, NOTICE, WARN, ERROR or FATAL"
+      example: DEBUG
+
+    EthereumAddress:
+      type: string
+      description: Address of Ethereum address
+
+    Reward:
+      type: string
+      description: The maximum amount of tokens paid per second per slot to hosts the client is willing to pay
+
+    Duration:
+      type: string
+      description: The duration of the request in seconds as decimal string
+
+    ProofProbability:
+      type: string
+      description: How often storage proofs are required as decimal string
+
+    Expiry:
+      type: string
+      description: A timestamp as seconds since unix epoch at which this request expires if the Request does not find requested amount of nodes to host the data.
+      default: 10 minutes
+
+    SPR:
+      type: string
+      description: Signed Peer Record (libp2p)
+
+    SPRRead:
+      type: object
+      properties:
+        spr:
+          $ref: "#/components/schemas/SPR"
+
+    PeerIdRead:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/PeerId"
+
+    ErasureParameters:
+      type: object
+      properties:
+        totalChunks:
+          type: integer
+
+    PoRParameters:
+      description: Parameters for Proof of Retrievability
+      type: object
+      properties:
+        u:
+          type: string
+        publicKey:
+          type: string
+        name:
+          type: string
+
+    Content:
+      type: object
+      description: Parameters specifying the content
+      properties:
+        cid:
+          $ref: "#/components/schemas/Cid"
+        erasure:
+          $ref: "#/components/schemas/ErasureParameters"
+        por:
+          $ref: "#/components/schemas/PoRParameters"
+
+    DebugInfo:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/PeerId"
+        addrs:
+          type: array
+          items:
+            $ref: "#/components/schemas/MultiAddress"
+        repo:
+          type: string
+          description: Path of the data repository where all nodes data are stored
+        spr:
+          $ref: "#/components/schemas/SPR"
+
+    SalesAvailability:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/Id"
+        totalSize:
+          type: string
+          description: Total size of availability's storage in bytes as decimal string
+        duration:
+          $ref: "#/components/schemas/Duration"
+        minPrice:
+          type: string
+          description: Minimum price to be paid (in amount of tokens) as decimal string
+        maxCollateral:
+          type: string
+          description: Maximum collateral user is willing to pay per filled Slot (in amount of tokens) as decimal string
+
+    SalesAvailabilityREAD:
+      allOf:
+        - $ref: "#/components/schemas/SalesAvailability"
+        - type: object
+          properties:
+            freeSize:
+              type: string
+              description: Unused size of availability's storage in bytes as decimal string
+
+    SalesAvailabilityCREATE:
+      allOf:
+        - $ref: "#/components/schemas/SalesAvailability"
+        - required:
+            - totalSize
+            - minPrice
+            - maxCollateral
+            - duration
+
+    Slot:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/SlotId"
+        request:
+          $ref: "#/components/schemas/StorageRequest"
+        slotIndex:
+          type: string
+          description: Slot Index as hexadecimal string
+
+    Reservation:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/Id"
+        availabilityId:
+          $ref: "#/components/schemas/Id"
+        size:
+          $ref: "#/components/schemas/BigInt"
+        requestId:
+          $ref: "#/components/schemas/Id"
+        slotIndex:
+          type: string
+          description: Slot Index as hexadecimal string
+
+    StorageRequestCreation:
+      type: object
+      required:
+        - reward
+        - duration
+        - proofProbability
+        - collateral
+        - expiry
+      properties:
+        duration:
+          $ref: "#/components/schemas/Duration"
+        reward:
+          $ref: "#/components/schemas/Reward"
+        proofProbability:
+          $ref: "#/components/schemas/ProofProbability"
+        nodes:
+          description: Minimal number of nodes the content should be stored on
+          type: integer
+          default: 1
+        tolerance:
+          description: Additional number of nodes on top of the `nodes` property that can be lost before pronouncing the content lost
+          type: integer
+          default: 0
+        collateral:
+          type: string
+          description: Number as decimal string that represents how much collateral is asked from hosts that wants to fill a slots
+        expiry:
+          type: string
+          description: Number as decimal string that represents expiry threshold in seconds from when the Request is submitted. When the threshold is reached and the Request does not find requested amount of nodes to host the data, the Request is voided. The number of seconds can not be higher then the Request's duration itself.
+    StorageAsk:
+      type: object
+      required:
+        - reward
+      properties:
+        slots:
+          description: Number of slots (eq. hosts) that the Request want to have the content spread over
+          type: integer
+        slotSize:
+          type: string
+          description: Amount of storage per slot (in bytes) as decimal string
+        duration:
+          $ref: "#/components/schemas/Duration"
+        proofProbability:
+          $ref: "#/components/schemas/ProofProbability"
+        reward:
+          $ref: "#/components/schemas/Reward"
+        maxSlotLoss:
+          type: integer
+          description: Max slots that can be lost without data considered to be lost
+
+    StorageRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Request ID
+        client:
+          $ref: "#/components/schemas/EthereumAddress"
+        ask:
+          $ref: "#/components/schemas/StorageAsk"
+        content:
+          $ref: "#/components/schemas/Content"
+        expiry:
+          $ref: "#/components/schemas/Expiry"
+        nonce:
+          type: string
+          description: Random data
+
+    Purchase:
+      type: object
+      properties:
+        state:
+          type: string
+          description: Description of the Request's state
+        error:
+          type: string
+          description: If Request failed, then here is presented the error message
+        request:
+          $ref: "#/components/schemas/StorageRequest"
+
+    DataList:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/DataItem"
+
+    DataItem:
+      type: object
+      properties:
+        cid:
+          $ref: "#/components/schemas/Cid"
+        manifest:
+          $ref: "#/components/schemas/ManifestItem"
+
+    ManifestItem:
+      type: object
+      properties:
+        rootHash:
+          $ref: "#/components/schemas/Cid"
+          description: "Root hash of the content"
+        originalBytes:
+          type: integer
+          format: int64
+          description: "Length of original content in bytes"
+        blockSize:
+          type: integer
+          description: "Size of blocks"
+        protected:
+          type: boolean
+          description: "Indicates if content is protected by erasure-coding"
+
+    Space:
+      type: object
+      properties:
+        totalBlocks:
+          description: "Number of blocks stored by the node"
+          type: integer
+          format: int64
+        quotaMaxBytes:
+          type: integer
+          format: int64
+          description: "Maximum storage space used by the node"
+        quotaUsedBytes:
+          type: integer
+          format: int64
+          description: "Amount of storage space currently in use"
+        quotaReservedBytes:
+          type: integer
+          format: int64
+          description: "Amount of storage space reserved"
+
+servers:
+  - url: "http://localhost:8080/api/codex/v1"
+
+tags:
+  - name: Marketplace
+    description: Marketplace information and operations
+  - name: Data
+    description: Data operations
+  - name: Node
+    description: Node management
+  - name: Debug
+    description: Debugging configuration
+
+paths:
+  "/connect/{peerId}":
+    get:
+      summary: "Connect to a peer"
+      description: |
+        If `addrs` param is supplied, it will be used to dial the peer, otherwise the `peerId` is used
+        to invoke peer discovery, if it succeeds the returned addresses will be used to dial.
+      tags: [ Node ]
+      operationId: connectPeer
+      parameters:
+        - in: path
+          name: peerId
+          required: true
+          schema:
+              $ref: "#/components/schemas/PeerId"
+          description: Peer that should be dialed.
+        - in: query
+          name: addrs
+          schema:
+            type: array
+            nullable: true
+            items:
+              $ref: "#/components/schemas/MultiAddress"
+          description: |
+            If supplied, it will be used to dial the peer.
+            The address has to target the listening address of the peer,
+            which is specified with the `--listen-addrs` CLI flag.
+
+      responses:
+        "200":
+          description: Successfully connected to peer
+        "400":
+          description: Peer either not found or was not possible to dial
+
+  "/data":
+    get:
+      summary: "Lists manifest CIDs stored locally in node."
+      tags: [ Data ]
+      operationId: listData
+      responses:
+        "200":
+          description: Retrieved list of content CIDs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataList"
+
+        "400":
+          description: Invalid CID is specified
+        "404":
+          description: Content specified by the CID is not found
+        "500":
+          description: Well it was bad-bad
+    post:
+      summary: "Upload a file in a streaming manner. Once finished, the file is stored in the node and can be retrieved by any node in the network using the returned CID."
+      tags: [ Data ]
+      operationId: upload
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: CID of uploaded file
+          content:
+            text/plain:
+              schema:
+                type: string
+        "500":
+          description: Well it was bad-bad and the upload did not work out
+
+  "/data/{cid}":
+    get:
+      summary: "Download a file from the local node in a streaming manner. If the file is not available locally, a 404 is returned."
+      tags: [ Data ]
+      operationId: downloadLocal
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+              $ref: "#/components/schemas/Cid"
+          description: File to be downloaded.
+
+      responses:
+        "200":
+          description: Retrieved content specified by CID
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid CID is specified
+        "404":
+          description: Content specified by the CID is unavailable locally
+        "500":
+          description: Well it was bad-bad
+
+  "/data/{cid}/network":
+    get:
+      summary: "Download a file from the network in a streaming manner. If the file is not available locally, it will be retrieved from other nodes in the network if able."
+      tags: [ Data ]
+      operationId: downloadNetwork
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+              $ref: "#/components/schemas/Cid"
+          description: "File to be downloaded."
+      responses:
+        "200":
+          description: Retrieved content specified by CID
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid CID is specified
+        "404":
+          description: Content specified by the CID is not found
+        "500":
+          description: Well it was bad-bad
+
+  "/space":
+    get:
+      summary: "Gets a summary of the storage space allocation of the node."
+      tags: [ Data ]
+      operationId: space
+      responses:
+        "200":
+          description: "Summary of storage allocation"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Space"
+
+        "500":
+          description: "It's not working as planned"
+
+  "/sales/slots":
+    get:
+      summary: "Returns active slots"
+      tags: [ Marketplace ]
+      operationId: getActiveSlots
+      responses:
+        "200":
+          description: Retrieved active slots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Slot"
+
+        "503":
+          description: Sales are unavailable
+
+  "/sales/slots/{slotId}":
+    get:
+      summary: "Returns active slot with id {slotId} for the host"
+      tags: [ Marketplace ]
+      operationId: getActiveSlotById
+      parameters:
+        - in: path
+          name: slotId
+          required: true
+          schema:
+            $ref: "#/components/schemas/Cid"
+          description: File to be downloaded.
+      responses:
+        "200":
+          description: Retrieved active slot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Slot"
+
+        "400":
+          description: Invalid or missing SlotId
+
+        "404":
+          description: Host is not in an active sale for the slot
+
+        "503":
+          description: Sales are unavailable
+
+  "/sales/availability":
+    get:
+      summary: "Returns storage that is for sale"
+      tags: [ Marketplace ]
+      operationId: getOfferedStorage
+      responses:
+        "200":
+          description: Retrieved storage availabilities of the node
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SalesAvailability"
+        "500":
+          description: Error getting unused availabilities
+        "503":
+          description: Sales are unavailable
+
+    post:
+      summary: "Offers storage for sale"
+      operationId: offerStorage
+      tags: [ Marketplace ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SalesAvailabilityCREATE"
+      responses:
+        "201":
+          description: Created storage availability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalesAvailabilityREAD"
+        "400":
+          description: Invalid data input
+        "422":
+          description: Not enough node's storage quota available
+        "500":
+          description: Error reserving availability
+        "503":
+          description: Sales are unavailable
+  "/sales/availability/{id}":
+    patch:
+      summary: "Updates availability"
+      description: |
+        The new parameters will be only considered for new requests.
+        Existing Requests linked to this Availability will continue as is.
+      operationId: updateOfferedStorage
+      tags: [ Marketplace ]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: ID of Availability
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SalesAvailability"
+      responses:
+        "204":
+          description: Availability successfully updated
+        "400":
+          description: Invalid data input
+        "404":
+          description: Availability not found
+        "422":
+          description: Not enough node's storage quota available
+        "500":
+          description: Error reserving availability
+        "503":
+          description: Sales are unavailable
+
+  "/sales/availability/{id}/reservations":
+    patch:
+      summary: "Get availability's reservations"
+      description: Return's list of Reservations for ongoing Storage Requests that the node hosts.
+      operationId: getReservations
+      tags: [ Marketplace ]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: ID of Availability
+      responses:
+        "200":
+          description: Retrieved storage availabilities of the node
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reservation"
+        "400":
+          description: Invalid Availability ID
+        "404":
+          description: Availability not found
+        "500":
+          description: Error getting reservations
+        "503":
+          description: Sales are unavailable
+
+  "/storage/request/{cid}":
+    post:
+      summary: "Creates a new Request for storage"
+      tags: [ Marketplace ]
+      operationId: createStorageRequest
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+            $ref: "#/components/schemas/Cid"
+          description: CID of the uploaded data that should be stored
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StorageRequestCreation"
+      responses:
+        "200":
+          description: Returns the Request ID as decimal string
+          content:
+            text/plain:
+              schema:
+                type: string
+        "400":
+          description: Invalid or missing Request ID
+        "404":
+          description: Request ID not found
+        "503":
+          description: Purchasing is unavailable
+
+  "/storage/purchases":
+    get:
+      summary: "Returns list of purchase IDs"
+      tags: [ Marketplace ]
+      operationId: getPurchases
+      responses:
+        "200":
+          description: Gets all purchase IDs stored in node
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "503":
+          description: Purchasing is unavailable
+
+  "/storage/purchases/{id}":
+    get:
+      summary: "Returns purchase details"
+      tags: [ Marketplace ]
+      operationId: getPurchase
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Hexadecimal ID of a Purchase
+      responses:
+        "200":
+          description: Purchase details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Purchase"
+        "400":
+          description: Invalid or missing Purchase ID
+        "404":
+          description: Purchase not found
+        "503":
+          description: Purchasing is unavailable
+
+  "/node/spr":
+    get:
+      summary: "Get Node's SPR"
+      operationId: getSPR
+      tags: [ Node ]
+      responses:
+        "200":
+          description: Node's SPR
+          content:
+            plain/text:
+              schema:
+                $ref: "#/components/schemas/SPR"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SPRRead"
+        "503":
+          description: Node SPR not ready, try again later
+
+  "/node/peerid":
+    get:
+      summary: "Get Node's PeerID"
+      operationId: getPeerId
+      tags: [ Node ]
+      responses:
+        "200":
+          description: Node's Peer ID
+          content:
+            plain/text:
+              schema:
+                $ref: "#/components/schemas/PeerId"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeerIdRead"
+
+  "/debug/chronicles/loglevel":
+    post:
+      summary: "Set log level at run time"
+      tags: [ Debug ]
+      operationId: setDebugLogLevel
+
+      parameters:
+        - in: query
+          name: level
+          required: true
+          schema:
+            $ref: "#/components/schemas/LogLevel"
+
+      responses:
+        "200":
+          description: Successfully log level set
+        "400":
+          description: Invalid or missing log level
+        "500":
+          description: Well it was bad-bad
+
+  "/debug/info":
+    get:
+      summary: "Gets node information"
+      operationId: getDebugInfo
+      tags: [ Debug ]
+      responses:
+        "200":
+          description: Node's information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DebugInfo"

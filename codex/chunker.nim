@@ -13,18 +13,18 @@ import pkg/upraises
 
 push: {.upraises: [].}
 
-import pkg/chronicles
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronos
 import pkg/libp2p except shuffle
 
 import ./blocktype
+import ./logutils
 
 export blocktype
 
 const
-  DefaultChunkSize* = BlockSize
+  DefaultChunkSize* = DefaultBlockSize
 
 type
   # default reader type
@@ -35,7 +35,7 @@ type
   Chunker* = ref object
     reader*: Reader             # Procedure called to actually read the data
     offset*: int                # Bytes read so far (position in the stream)
-    chunkSize*: Natural         # Size of each chunk
+    chunkSize*: NBytes          # Size of each chunk
     pad*: bool                  # Pad last chunk to chunkSize?
 
   FileChunker* = Chunker
@@ -46,7 +46,7 @@ proc getBytes*(c: Chunker): Future[seq[byte]] {.async.} =
   ## the instantiated chunker
   ##
 
-  var buff = newSeq[byte](c.chunkSize)
+  var buff = newSeq[byte](c.chunkSize.int)
   let read = await c.reader(cast[ChunkBuffer](addr buff[0]), buff.len)
 
   if read <= 0:
@@ -59,22 +59,26 @@ proc getBytes*(c: Chunker): Future[seq[byte]] {.async.} =
 
   return move buff
 
-func new*(
-  T: type Chunker,
-  reader: Reader,
-  chunkSize = DefaultChunkSize,
-  pad = true): T =
-
-  T(reader: reader,
+proc new*(
+    T: type Chunker,
+    reader: Reader,
+    chunkSize = DefaultChunkSize,
+    pad = true
+): Chunker =
+  ## create a new Chunker instance
+  ##
+  Chunker(
+    reader: reader,
     offset: 0,
     chunkSize: chunkSize,
     pad: pad)
 
 proc new*(
-  T: type LPStreamChunker,
-  stream: LPStream,
-  chunkSize = DefaultChunkSize,
-  pad = true): T =
+    T: type LPStreamChunker,
+    stream: LPStream,
+    chunkSize = DefaultChunkSize,
+    pad = true
+): LPStreamChunker =
   ## create the default File chunker
   ##
 
@@ -86,22 +90,25 @@ proc new*(
         res += await stream.readOnce(addr data[res], len - res)
     except LPStreamEOFError as exc:
       trace "LPStreamChunker stream Eof", exc = exc.msg
+    except CancelledError as error:
+      raise error
     except CatchableError as exc:
       trace "CatchableError exception", exc = exc.msg
       raise newException(Defect, exc.msg)
 
     return res
 
-  T.new(
+  LPStreamChunker.new(
     reader = reader,
     chunkSize = chunkSize,
     pad = pad)
 
 proc new*(
-  T: type FileChunker,
-  file: File,
-  chunkSize = DefaultChunkSize,
-  pad = true): T =
+    T: type FileChunker,
+    file: File,
+    chunkSize = DefaultChunkSize,
+    pad = true
+): FileChunker =
   ## create the default File chunker
   ##
 
@@ -117,13 +124,15 @@ proc new*(
         total += res
     except IOError as exc:
       trace "Exception reading file", exc = exc.msg
+    except CancelledError as error:
+      raise error
     except CatchableError as exc:
       trace "CatchableError exception", exc = exc.msg
       raise newException(Defect, exc.msg)
 
     return total
 
-  T.new(
+  FileChunker.new(
     reader = reader,
     chunkSize = chunkSize,
     pad = pad)

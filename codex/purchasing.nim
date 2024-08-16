@@ -18,18 +18,15 @@ type
     clock: Clock
     purchases: Table[PurchaseId, Purchase]
     proofProbability*: UInt256
-    requestExpiryInterval*: UInt256
   PurchaseTimeout* = Timeout
 
 const DefaultProofProbability = 100.u256
-const DefaultRequestExpiryInterval = (10 * 60).u256
 
 proc new*(_: type Purchasing, market: Market, clock: Clock): Purchasing =
   Purchasing(
     market: market,
     clock: clock,
     proofProbability: DefaultProofProbability,
-    requestExpiryInterval: DefaultRequestExpiryInterval,
   )
 
 proc load*(purchasing: Purchasing) {.async.} =
@@ -47,12 +44,11 @@ proc stop*(purchasing: Purchasing) {.async.} =
   discard
 
 proc populate*(purchasing: Purchasing,
-               request: StorageRequest): Future[StorageRequest] {.async.} =
+               request: StorageRequest
+              ): Future[StorageRequest] {.async.} =
   result = request
   if result.ask.proofProbability == 0.u256:
     result.ask.proofProbability = purchasing.proofProbability
-  if result.expiry == 0.u256:
-    result.expiry = (purchasing.clock.now().u256 + purchasing.requestExpiryInterval)
   if result.nonce == Nonce.default:
     var id = result.nonce.toArray
     doAssert randomBytes(id) == 32
@@ -60,7 +56,8 @@ proc populate*(purchasing: Purchasing,
   result.client = await purchasing.market.getSigner()
 
 proc purchase*(purchasing: Purchasing,
-               request: StorageRequest): Future[Purchase] {.async.} =
+               request: StorageRequest
+              ): Future[Purchase] {.async.} =
   let request = await purchasing.populate(request)
   let purchase = Purchase.new(request, purchasing.market, purchasing.clock)
   purchase.start()
@@ -72,3 +69,10 @@ func getPurchase*(purchasing: Purchasing, id: PurchaseId): ?Purchase =
     some purchasing.purchases[id]
   else:
     none Purchase
+
+func getPurchaseIds*(purchasing: Purchasing): seq[PurchaseId] =
+  var pIds: seq[PurchaseId] = @[]
+  for key in purchasing.purchases.keys:
+    pIds.add(key)
+  return pIds
+

@@ -1,20 +1,25 @@
+import pkg/metrics
+
+import ../../logutils
 import ../statemachine
-import ./error
+import ./errorhandling
 
-type PurchaseCancelled* = ref object of PurchaseState
+declareCounter(codex_purchases_cancelled, "codex purchases cancelled")
 
-method enterAsync*(state: PurchaseCancelled) {.async.} =
-  without purchase =? (state.context as Purchase):
-    raiseAssert "invalid state"
+logScope:
+  topics = "marketplace purchases cancelled"
 
-  try:
-    await purchase.market.withdrawFunds(purchase.requestId)
-  except CatchableError as error:
-    state.switch(PurchaseErrored(error: error))
-    return
+type PurchaseCancelled* = ref object of ErrorHandlingState
+
+method `$`*(state: PurchaseCancelled): string =
+  "cancelled"
+
+method run*(state: PurchaseCancelled, machine: Machine): Future[?State] {.async.} =
+  codex_purchases_cancelled.inc()
+  let purchase = Purchase(machine)
+
+  warn "Request cancelled, withdrawing remaining funds",  requestId = purchase.requestId
+  await purchase.market.withdrawFunds(purchase.requestId)
 
   let error = newException(Timeout, "Purchase cancelled due to timeout")
-  state.switch(PurchaseErrored(error: error))
-
-method description*(state: PurchaseCancelled): string =
-  "cancelled"
+  purchase.future.fail(error)

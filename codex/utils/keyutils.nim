@@ -1,4 +1,3 @@
-
 ## Nim-Codex
 ## Copyright (c) 2022 Status Research & Development GmbH
 ## Licensed under either of
@@ -11,19 +10,15 @@
 import pkg/upraises
 push: {.upraises: [].}
 
-import std/os
-
-import pkg/chronicles
 import pkg/questionable/results
-import pkg/libp2p
+import pkg/libp2p/crypto/crypto
 
 import ./fileutils
-import ../conf
 import ../errors
+import ../logutils
 import ../rng
 
-const
-  SafePermissions = {UserRead, UserWrite}
+export crypto
 
 type
   CodexKeyError = object of CodexError
@@ -45,6 +40,5 @@ proc setupKey*(path: string): ?!PrivateKey =
     return failure newException(
       CodexKeyUnsafeError, "The network private key file is not safe")
 
-  return PrivateKey.init(
-    ? path.readAllBytes().mapFailure(CodexKeyError))
-    .mapFailure(CodexKeyError)
+  let kb = ? path.readAllBytes().mapFailure(CodexKeyError)
+  return PrivateKey.init(kb).mapFailure(CodexKeyError)

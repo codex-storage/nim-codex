@@ -2,6 +2,7 @@ import std/sequtils
 
 import pkg/chronos
 import pkg/libp2p
+import pkg/libp2p/errors
 
 import pkg/codex/discovery
 import pkg/codex/stores
@@ -24,8 +25,9 @@ type
     networkStore: NetworkStore]
 
 proc generateNodes*(
-  num: Natural,
-  blocks: openArray[bt.Block] = []): seq[NodesComponents] =
+    num: Natural,
+    blocks: openArray[bt.Block] = []
+): seq[NodesComponents] =
   for i in 0..<num:
     let
       switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
@@ -60,3 +62,6 @@ proc connectNodes*(nodes: seq[Switch]) {.async.} =
     for node in nodes:
       if dialer.peerInfo.peerId != node.peerInfo.peerId:
         await dialer.connect(node.peerInfo.peerId, node.peerInfo.addrs)
+
+proc connectNodes*(nodes: seq[NodesComponents]) {.async.} =
+  await connectNodes(nodes.mapIt( it.switch ))

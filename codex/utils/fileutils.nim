@@ -9,15 +9,17 @@
 
 ## Partially taken from nim beacon chain
 
-import std/strutils
 import pkg/upraises
 
 push: {.upraises: [].}
 
-import pkg/chronicles
-import stew/io2
+import std/strutils
+import pkg/stew/io2
+
+import ../logutils
 
 export io2
+export logutils
 
 when defined(windows):
   import stew/[windows/acl]
@@ -49,7 +51,7 @@ proc secureWriteFile*[T: byte|char](path: string,
   else:
     writeFile(path, data, 0o600)
 
-proc checkSecureFile*(path: string): IOResult[bool] =
+proc checkSecureFile*(path: string): IoResult[bool] =
   when defined(windows):
     checkCurrentUserOnlyACL(path)
   else:

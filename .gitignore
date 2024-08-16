@@ -3,6 +3,7 @@
 !*.*
 *.exe
 
+!LICENSE*
 !Makefile
 
 nimcache/
@@ -15,6 +16,8 @@ coverage/
 
 # Nimble packages
 /vendor/.nimble
+/vendor/packages/
+# /vendor/*/
 
 # Nimble user files
 nimble.develop
@@ -23,6 +26,9 @@ nimble.paths
 # vscode
 .vscode
 
+# JetBrain's IDEs
+.idea
+
 # Each developer can create a personal .env file with
 # local settings overrides (e.g. WEB3_URL)
 .env
@@ -30,3 +36,8 @@ nimble.paths
 .update.timestamp
 codex.nims
 nimbus-build-system.paths
+docker/hostdatadir
+docker/prometheus-data
+.DS_Store
+nim.cfg
+tests/integration/logs

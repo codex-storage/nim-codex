@@ -1,56 +1,124 @@
-import std/json
-import std/strutils
+import pkg/questionable
 import pkg/stew/byteutils
-import pkg/questionable/results
+import pkg/libp2p
+import pkg/codexdht/discv5/node as dn
+import pkg/codexdht/discv5/routing_table as rt
 import ../sales
 import ../purchasing
+import ../utils/json
+import ../manifest
+import ../units
+
+export json
 
 type
   StorageRequestParams* = object
-    duration*: UInt256
-    reward*: UInt256
-    expiry*: ?UInt256
-    nodes*: ?uint
-    tolerance*: ?uint
+    duration* {.serialize.}: UInt256
+    proofProbability* {.serialize.}: UInt256
+    reward* {.serialize.}: UInt256
+    collateral* {.serialize.}: UInt256
+    expiry* {.serialize.}: ?UInt256
+    nodes* {.serialize.}: ?uint
+    tolerance* {.serialize.}: ?uint
 
-proc fromJson*(_: type Availability, bytes: seq[byte]): ?!Availability =
-  let json = ?catch parseJson(string.fromBytes(bytes))
-  let size = ?catch UInt256.fromHex(json["size"].getStr)
-  let duration = ?catch UInt256.fromHex(json["duration"].getStr)
-  let minPrice = ?catch UInt256.fromHex(json["minPrice"].getStr)
-  success Availability.init(size, duration, minPrice)
+  RestPurchase* = object
+    requestId* {.serialize.}: RequestId
+    request* {.serialize.}: ?StorageRequest
+    state* {.serialize.}: string
+    error* {.serialize.}: ?string
 
-proc fromJson*(_: type StorageRequestParams,
-               bytes: seq[byte]): ?! StorageRequestParams =
-  let json = ?catch parseJson(string.fromBytes(bytes))
-  let duration = ?catch UInt256.fromHex(json["duration"].getStr)
-  let reward = ?catch UInt256.fromHex(json["reward"].getStr)
-  let expiry = UInt256.fromHex(json["expiry"].getStr).catch.option
-  let nodes = strutils.fromHex[uint](json["nodes"].getStr).catch.option
-  let tolerance = strutils.fromHex[uint](json["tolerance"].getStr).catch.option
-  success StorageRequestParams(
-    duration: duration,
-    reward: reward,
-    expiry: expiry,
-    nodes: nodes,
-    tolerance: tolerance
+  RestAvailability* = object
+    totalSize* {.serialize.}: UInt256
+    duration* {.serialize.}: UInt256
+    minPrice* {.serialize.}: UInt256
+    maxCollateral* {.serialize.}: UInt256
+    freeSize* {.serialize.}: ?UInt256
+
+  RestSalesAgent* = object
+    state* {.serialize.}: string
+    requestId* {.serialize.}: RequestId
+    slotIndex* {.serialize.}: UInt256
+
+  RestContent* = object
+    cid* {.serialize.}: Cid
+    manifest* {.serialize.}: Manifest
+
+  RestContentList* = object
+    content* {.serialize.}: seq[RestContent]
+
+  RestNode* = object
+    nodeId* {.serialize.}: RestNodeId
+    peerId* {.serialize.}: PeerId
+    record* {.serialize.}: SignedPeerRecord
+    address* {.serialize.}: Option[dn.Address]
+    seen* {.serialize.}: bool
+
+  RestRoutingTable* = object
+    localNode* {.serialize.}: RestNode
+    nodes* {.serialize.}: seq[RestNode]
+
+  RestPeerRecord* = object
+    peerId* {.serialize.}: PeerId
+    seqNo* {.serialize.}: uint64
+    addresses* {.serialize.}: seq[AddressInfo]
+
+  RestNodeId* = object
+    id*: NodeId
+
+  RestRepoStore* = object
+    totalBlocks* {.serialize.}: Natural
+    quotaMaxBytes* {.serialize.}: NBytes
+    quotaUsedBytes* {.serialize.}: NBytes
+    quotaReservedBytes* {.serialize.}: NBytes
+
+proc init*(_: type RestContentList, content: seq[RestContent]): RestContentList =
+  RestContentList(
+    content: content
   )
 
-func `%`*(address: Address): JsonNode =
-  % $address
+proc init*(_: type RestContent, cid: Cid, manifest: Manifest): RestContent =
+  RestContent(
+    cid: cid,
+    manifest: manifest
+  )
 
-func `%`*(stint: StInt|StUInt): JsonNode =
-  %("0x" & stint.toHex)
+proc init*(_: type RestNode, node: dn.Node): RestNode =
+  RestNode(
+    nodeId: RestNodeId.init(node.id),
+    peerId: node.record.data.peerId,
+    record: node.record,
+    address: node.address,
+    seen: node.seen
+  )
 
-func `%`*(arr: openArray[byte]): JsonNode =
-  %("0x" & arr.toHex)
+proc init*(_: type RestRoutingTable, routingTable: rt.RoutingTable): RestRoutingTable =
+  var nodes: seq[RestNode] = @[]
+  for bucket in routingTable.buckets:
+    for node in bucket.nodes:
+      nodes.add(RestNode.init(node))
 
-func `%`*(id: RequestId | SlotId | Nonce): JsonNode =
-  % id.toArray
+  RestRoutingTable(
+    localNode: RestNode.init(routingTable.localNode),
+    nodes: nodes
+  )
 
-func `%`*(purchase: Purchase): JsonNode =
-  %*{
-    "state": (purchase.state as PurchaseState).?description |? "none",
-    "error": purchase.error.?msg,
-    "request": purchase.request,
-  }
+proc init*(_: type RestPeerRecord, peerRecord: PeerRecord): RestPeerRecord =
+  RestPeerRecord(
+    peerId: peerRecord.peerId,
+    seqNo: peerRecord.seqNo,
+    addresses: peerRecord.addresses
+  )
+
+proc init*(_: type RestNodeId, id: NodeId): RestNodeId =
+  RestNodeId(
+    id: id
+  )
+
+proc `%`*(obj: StorageRequest | Slot): JsonNode =
+  let jsonObj = newJObject()
+  for k, v in obj.fieldPairs: jsonObj[k] = %v
+  jsonObj["id"] = %(obj.id)
+
+  return jsonObj
+
+proc `%`*(obj: RestNodeId): JsonNode = % $obj.id

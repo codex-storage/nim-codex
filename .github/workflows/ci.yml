@@ -1,106 +1,74 @@
 name: CI
+
 on:
   push:
     branches:
-      - main
+      - master
   pull_request:
   workflow_dispatch:
+
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
+  nim_version: pinned
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    strategy:
-      matrix:
-        os: [linux, macos, windows]
-        include:
-          - os: linux
-            builder: ubuntu-latest
-            shell: bash --noprofile --norc -e -o pipefail
-          - os: macos
-            builder: macos-latest
-            shell: bash --noprofile --norc -e -o pipefail
-          - os: windows
-            builder: windows-latest
-            shell: msys2
-
-    defaults:
-      run:
-        shell: ${{ matrix.shell }} {0}
-
-    name: '${{ matrix.os }}'
-    runs-on: ${{ matrix.builder }}
-    timeout-minutes: 80
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      cache_nonce: ${{ env.cache_nonce }}
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
+    - name: Compute matrix
+      id: matrix
+      uses: fabiocaccamo/create-matrix-action@v4
+      with:
+        matrix: |
+          os {linux},   cpu {amd64}, builder {ubuntu-latest},  tests {all},         nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {macos},   cpu {amd64}, builder {macos-13},       tests {all},         nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {windows}, cpu {amd64}, builder {windows-latest}, tests {unittest},    nim_version {${{ env.nim_version }}}, shell {msys2}
+          os {windows}, cpu {amd64}, builder {windows-latest}, tests {contract},    nim_version {${{ env.nim_version }}}, shell {msys2}
+          os {windows}, cpu {amd64}, builder {windows-latest}, tests {integration}, nim_version {${{ env.nim_version }}}, shell {msys2}
 
-      - name: Setup Nimbus Build System
-        uses: ./.github/actions/nimbus-build-system
-        with:
-          os: ${{ matrix.os }}
-          shell: ${{ matrix.shell }}
-
-      - name: Unit tests
-        run: make -j${ncpu} test
-
-      - name: Start Ethereum node with Codex contracts
-        working-directory: vendor/dagger-contracts
-        run: |
-          if [[ '${{ matrix.os }}' == 'windows' ]]; then
-            export PATH="${PATH}:/c/program files/nodejs"
-          fi
-          npm install
-          npm start &
-
-      - name: Contract tests
-        run: make -j${ncpu} testContracts
-
-      - name: Integration tests
-        run: make -j${ncpu} testIntegration
+  build:
+    needs: matrix
+    uses: ./.github/workflows/ci-reusable.yml
+    with:
+      matrix: ${{ needs.matrix.outputs.matrix }}
+      cache_nonce: ${{ needs.matrix.outputs.cache_nonce }}
 
   coverage:
-    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup Nimbus Build System
         uses: ./.github/actions/nimbus-build-system
         with:
           os: linux
+          nim_version: ${{ env.nim_version }}
 
       - name: Generate coverage data
-        run: make -j${ncpu} coverage
+        run: |
+          # make -j${ncpu} coverage
+          make -j${ncpu} coverage-script
         shell: bash
 
       - name: Upload coverage data to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           directory: ./coverage/
           fail_ci_if_error: true
           files: ./coverage/coverage.f.info
           flags: unittests
           name: codecov-umbrella
+          token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
-
-  nim_1_2:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
-      - name: Setup Nimbus Build System
-        uses: ./.github/actions/nimbus-build-system
-        with:
-          os: linux
-          nim_branch: version-1-2
-
-      - name: Unit tests
-        run: make -j${ncpu} test

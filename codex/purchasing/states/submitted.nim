@@ -1,17 +1,29 @@
+import pkg/metrics
+
+import ../../logutils
 import ../statemachine
-import ./error
+import ./errorhandling
 import ./started
 import ./cancelled
 
-type PurchaseSubmitted* = ref object of PurchaseState
+logScope:
+  topics = "marketplace purchases submitted"
 
-method enterAsync(state: PurchaseSubmitted) {.async.} =
-  without purchase =? (state.context as Purchase) and
-          request =? purchase.request:
-    raiseAssert "invalid state"
+declareCounter(codex_purchases_submitted, "codex purchases submitted")
 
+type PurchaseSubmitted* = ref object of ErrorHandlingState
+
+method `$`*(state: PurchaseSubmitted): string =
+  "submitted"
+
+method run*(state: PurchaseSubmitted, machine: Machine): Future[?State] {.async.} =
+  codex_purchases_submitted.inc()
+  let purchase = Purchase(machine)
+  let request = !purchase.request
   let market = purchase.market
   let clock = purchase.clock
+
+  info "Request submitted, waiting for slots to be filled", requestId = purchase.requestId
 
   proc wait {.async.} =
     let done = newFuture[void]()
@@ -22,19 +34,13 @@ method enterAsync(state: PurchaseSubmitted) {.async.} =
     await subscription.unsubscribe()
 
   proc withTimeout(future: Future[void]) {.async.} =
-    let expiry = request.expiry.truncate(int64)
+    let expiry = (await market.requestExpiresAt(request.id)) + 1
+    trace "waiting for request fulfillment or expiry", expiry
     await future.withTimeout(clock, expiry)
 
   try:
     await wait().withTimeout()
   except Timeout:
-    state.switch(PurchaseCancelled())
-    return
-  except CatchableError as error:
-    state.switch(PurchaseErrored(error: error))
-    return
+    return some State(PurchaseCancelled())
 
-  state.switch(PurchaseStarted())
-
-method description*(state: PurchaseSubmitted): string =
-  "submitted"
+  return some State(PurchaseStarted())

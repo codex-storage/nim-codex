@@ -11,15 +11,19 @@ type
   RandomChunker* = Chunker
 
 proc new*(
-  T: type RandomChunker,
-  rng: Rng,
-  chunkSize = DefaultChunkSize,
-  size: int,
-  pad = false): T =
-  ## create a chunker that produces
-  ## random data
+    T: type RandomChunker,
+    rng: Rng,
+    chunkSize: int | NBytes,
+    size: int | NBytes,
+    pad = false
+): RandomChunker =
+  ## Create a chunker that produces random data
   ##
 
+  let
+    size = size.int
+    chunkSize = chunkSize.NBytes
+  
   var consumed = 0
   proc reader(data: ChunkBuffer, len: int): Future[int]
     {.async, gcsafe, raises: [Defect].} =

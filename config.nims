@@ -1,11 +1,23 @@
-import std/os
 
-if defined(release):
+include "build.nims"
+
+import std/os
+const currentDir = currentSourcePath()[0 .. ^(len("config.nims") + 1)]
+
+when getEnv("NIMBUS_BUILD_SYSTEM") == "yes" and
+   # BEWARE
+   # In Nim 1.6, config files are evaluated with a working directory
+   # matching where the Nim command was invocated. This means that we
+   # must do all file existence checks with full absolute paths:
+   system.fileExists(currentDir & "nimbus-build-system.paths"):
+  include "nimbus-build-system.paths"
+
+when defined(release):
   switch("nimcache", joinPath(currentSourcePath.parentDir, "nimcache/release/$projectName"))
 else:
   switch("nimcache", joinPath(currentSourcePath.parentDir, "nimcache/debug/$projectName"))
 
-if defined(limitStackUsage):
+when defined(limitStackUsage):
   # This limits stack usage of each individual function to 1MB - the option is
   # available on some GCC versions but not all - run with `-d:limitStackUsage`
   # and look for .su files in "./build/", "./nimcache/" or $TMPDIR that list the
@@ -13,7 +25,7 @@ if defined(limitStackUsage):
   switch("passC", "-fstack-usage -Werror=stack-usage=1048576")
   switch("passL", "-fstack-usage -Werror=stack-usage=1048576")
 
-if defined(windows):
+when defined(windows):
   # https://github.com/nim-lang/Nim/pull/19891
   switch("define", "nimRawSetjmp")
 
@@ -37,8 +49,8 @@ if defined(windows):
 # engineering a more portable binary release, this should be tweaked but still
 # use at least -msse2 or -msse3.
 
-if defined(disableMarchNative):
-  if defined(i386) or defined(amd64):
+when defined(disableMarchNative):
+  when defined(i386) or defined(amd64):
     switch("passC", "-mssse3")
 elif defined(macosx) and defined(arm64):
   # Apple's Clang can't handle "-march=native" on M1: https://github.com/status-im/nimbus-eth2/issues/2758
@@ -59,6 +71,20 @@ else:
 --define:metrics
 # for heap-usage-by-instance-type metrics and object base-type strings
 --define:nimTypeNames
+--styleCheck:usages
+--styleCheck:error
+--maxLoopIterationsVM:1000000000
+--fieldChecks:on
+--warningAsError:"ProveField:on"
+
+when (NimMajor, NimMinor) >= (1, 4):
+  --warning:"ObservableStores:off"
+  --warning:"LockLevel:off"
+  --hint:"XCannotRaiseY:off"
+when (NimMajor, NimMinor) >= (1, 6):
+  --warning:"DotLikeOps:off"
+when (NimMajor, NimMinor, NimPatch) >= (1, 6, 11):
+  --warning:"BareExcept:off"
 
 switch("define", "withoutPCRE")
 
@@ -71,8 +97,6 @@ if not defined(macosx):
     # light-weight stack traces using libbacktrace and libunwind
     --define:nimStackTraceOverride
     switch("import", "libbacktrace")
-
---define:nimOldCaseObjects # https://github.com/status-im/nim-confutils/issues/9
 
 # `switch("warning[CaseTransition]", "off")` fails with "Error: invalid command line option: '--warning[CaseTransition]'"
 switch("warning", "CaseTransition:off")
@@ -88,7 +112,17 @@ switch("define", "libp2p_pki_schemes=secp256k1")
 #TODO this infects everything in this folder, ideally it would only
 # apply to codex.nim, but since codex.nims is used for other purpose
 # we can't use it. And codex.cfg doesn't work
-switch("define", "chronicles_sinks=textlines[dynamic],json[dynamic]")
+switch("define", "chronicles_sinks=textlines[dynamic],json[dynamic],textlines[dynamic]")
+
+# Workaround for assembler incompatibility between constantine and secp256k1
+switch("define", "use_asm_syntax_intel=false")
+switch("define", "ctt_asm=false")
+
+# Allow the use of old-style case objects for nim config compatibility
+switch("define", "nimOldCaseObjects")
+
+# Enable compat mode for Chronos V4
+switch("define", "chronosHandleException")
 
 # begin Nimble config (version 1)
 when system.fileExists("nimble.paths"):

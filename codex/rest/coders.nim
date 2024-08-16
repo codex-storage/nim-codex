@@ -19,6 +19,7 @@ import pkg/stint
 
 import ../sales
 import ../purchasing
+import ../utils/stintutils
 
 proc encodeString*(cid: type Cid): Result[string, cstring] =
   ok($cid)
@@ -37,7 +38,7 @@ proc encodeString*(peerId: PeerId): Result[string, cstring] =
   ok($peerId)
 
 proc decodeString*(T: type PeerId, value: string): Result[PeerId, cstring] =
-  PeerID.init(value)
+  PeerId.init(value)
 
 proc encodeString*(address: MultiAddress): Result[string, cstring] =
   ok($address)
@@ -72,7 +73,7 @@ proc encodeString*(value: bool): Result[string, cstring] =
 
 proc decodeString*(_: type UInt256, value: string): Result[UInt256, cstring] =
   try:
-    ok UInt256.fromHex(value)
+    ok UInt256.fromDecimal(value)
   except ValueError as e:
     err e.msg.cstring
 
@@ -83,7 +84,7 @@ proc decodeString*(_: type array[32, byte],
   except ValueError as e:
     err e.msg.cstring
 
-proc decodeString*[T: PurchaseId | RequestId | Nonce](_: type T,
+proc decodeString*[T: PurchaseId | RequestId | Nonce | SlotId | AvailabilityId](_: type T,
                   value: string): Result[T, cstring] =
   array[32, byte].decodeString(value).map(id => T(id))
 

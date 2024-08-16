@@ -1,12 +1,8 @@
 import std/sequtils
 import std/algorithm
 
-import pkg/asynctest
 import pkg/chronos
 import pkg/stew/byteutils
-
-import pkg/libp2p
-import pkg/libp2p/errors
 
 import pkg/codex/rng
 import pkg/codex/stores
@@ -15,14 +11,11 @@ import pkg/codex/chunker
 import pkg/codex/discovery
 import pkg/codex/blocktype as bt
 
+import ../../../asynctest
 import ../../examples
 import ../../helpers
 
-suite "NetworkStore engine - 2 nodes":
-  let
-    chunker1 = RandomChunker.new(Rng.instance(), size = 2048, chunkSize = 256)
-    chunker2 = RandomChunker.new(Rng.instance(), size = 2048, chunkSize = 256)
-
+asyncchecksuite "NetworkStore engine - 2 nodes":
   var
     nodeCmps1, nodeCmps2: NodesComponents
     peerCtx1, peerCtx2: BlockExcPeerCtx
@@ -31,20 +24,8 @@ suite "NetworkStore engine - 2 nodes":
     pendingBlocks1, pendingBlocks2: seq[Future[bt.Block]]
 
   setup:
-    while true:
-      let chunk = await chunker1.getBytes()
-      if chunk.len <= 0:
-        break
-
-      blocks1.add(bt.Block.new(chunk).tryGet())
-
-    while true:
-      let chunk = await chunker2.getBytes()
-      if chunk.len <= 0:
-        break
-
-      blocks2.add(bt.Block.new(chunk).tryGet())
-
+    blocks1 = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
+    blocks2 = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
     nodeCmps1 = generateNodes(1, blocks1)[0]
     nodeCmps2 = generateNodes(1, blocks2)[0]
 
@@ -123,10 +104,11 @@ suite "NetworkStore engine - 2 nodes":
 
   test "Should send want-have for block":
     let blk = bt.Block.new("Block 1".toBytes).tryGet()
+    let blkFut = nodeCmps1.pendingBlocks.getWantHandle( blk.cid )
     (await nodeCmps2.localStore.putBlock(blk)).tryGet()
 
-    let entry = Entry(
-      `block`: blk.cid.data.buffer,
+    let entry = WantListEntry(
+      address: blk.address,
       priority: 1,
       cancel: false,
       wantType: WantType.WantBlock,
@@ -139,6 +121,7 @@ suite "NetworkStore engine - 2 nodes":
       .pushOrUpdateNoWait(peerCtx1).isOk
 
     check eventually (await nodeCmps1.localStore.hasBlock(blk.cid)).tryGet()
+    check eventually (await blkFut) == blk
 
   test "Should get blocks from remote":
     let
@@ -169,13 +152,10 @@ suite "NetworkStore engine - 2 nodes":
         nodeCmps2.networkStore.putBlock(it)
     ))
 
-    let
-      blocks = await allFinished(
-        blocks2[4..7].mapIt(
-          nodeCmps1.networkStore.getBlock(it.cid)
-      ))
-
-    # await sleepAsync(10.seconds)
+    discard await allFinished(
+      blocks2[4..7].mapIt(
+        nodeCmps1.networkStore.getBlock(it.cid)
+    ))
 
     let
       channel = !peerCtx1.paymentChannel
@@ -183,43 +163,31 @@ suite "NetworkStore engine - 2 nodes":
 
     check eventually wallet.balance(channel, Asset) > 0
 
-suite "NetworkStore - multiple nodes":
-  let
-    chunker = RandomChunker.new(Rng.instance(), size = 4096, chunkSize = 256)
-
+asyncchecksuite "NetworkStore - multiple nodes":
   var
-    switch: seq[Switch]
-    networkStore: seq[NetworkStore]
+    nodes: seq[NodesComponents]
     blocks: seq[bt.Block]
 
   setup:
-    while true:
-      let chunk = await chunker.getBytes()
-      if chunk.len <= 0:
-        break
-
-      blocks.add(bt.Block.new(chunk).tryGet())
-
-    for e in generateNodes(5):
-      switch.add(e.switch)
-      networkStore.add(e.networkStore)
+    blocks = await makeRandomBlocks(datasetSize = 4096, blockSize = 256'nb)
+    nodes = generateNodes(5)
+    for e in nodes:
       await e.engine.start()
 
     await allFuturesThrowing(
-      switch.mapIt( it.start() )
+      nodes.mapIt( it.switch.start() )
     )
 
   teardown:
     await allFuturesThrowing(
-      switch.mapIt( it.stop() )
+      nodes.mapIt( it.switch.stop() )
     )
 
-    switch = @[]
-    networkStore = @[]
+    nodes = @[]
 
   test "Should receive blocks for own want list":
     let
-      downloader = networkStore[4]
+      downloader = nodes[4].networkStore
       engine = downloader.engine
 
     # Add blocks from 1st peer to want list
@@ -237,9 +205,9 @@ suite "NetworkStore - multiple nodes":
       )
 
     for i in 0..15:
-      (await networkStore[i div 4].engine.localStore.putBlock(blocks[i])).tryGet()
+      (await nodes[i div 4].networkStore.engine.localStore.putBlock(blocks[i])).tryGet()
 
-    await connectNodes(switch)
+    await connectNodes(nodes)
     await sleepAsync(1.seconds)
 
     await allFuturesThrowing(
@@ -255,7 +223,7 @@ suite "NetworkStore - multiple nodes":
 
   test "Should exchange blocks with multiple nodes":
     let
-      downloader = networkStore[4]
+      downloader = nodes[4].networkStore
       engine = downloader.engine
 
     # Add blocks from 1st peer to want list
@@ -268,9 +236,9 @@ suite "NetworkStore - multiple nodes":
       )
 
     for i in 0..15:
-      (await networkStore[i div 4].engine.localStore.putBlock(blocks[i])).tryGet()
+      (await nodes[i div 4].networkStore.engine.localStore.putBlock(blocks[i])).tryGet()
 
-    await connectNodes(switch)
+    await connectNodes(nodes)
     await sleepAsync(1.seconds)
 
     await allFuturesThrowing(
@@ -279,3 +247,47 @@ suite "NetworkStore - multiple nodes":
 
     check pendingBlocks1.mapIt( it.read ) == blocks[0..3]
     check pendingBlocks2.mapIt( it.read ) == blocks[12..15]
+
+  test "Should actively cancel want-haves if block received from elsewhere":
+    let
+      # Peer wanting to download blocks
+      downloader = nodes[4]
+      # Bystander peer - gets block request but can't satisfy them
+      bystander = nodes[3]
+      # Holder of actual blocks
+      blockHolder = nodes[1]
+
+    let aBlock = blocks[0]
+    (await blockHolder.engine.localStore.putBlock(aBlock)).tryGet()
+
+    await connectNodes(@[downloader, bystander])
+    # Downloader asks for block...
+    let blockRequest = downloader.engine.requestBlock(aBlock.cid)
+
+    # ... and bystander learns that downloader wants it, but can't provide it.
+    check eventually(
+      bystander
+        .engine
+        .peers
+        .get(downloader.switch.peerInfo.peerId)
+        .peerWants
+        .filterIt( it.address == aBlock.address )
+        .len == 1
+    )
+
+    # As soon as we connect the downloader to the blockHolder, the block should
+    # propagate to the downloader...
+    await connectNodes(@[downloader, blockHolder])
+    check (await blockRequest).tryGet().cid == aBlock.cid
+    check (await downloader.engine.localStore.hasBlock(aBlock.cid)).tryGet()
+
+    # ... and the bystander should have cancelled the want-have
+    check eventually(
+      bystander
+        .engine
+        .peers
+        .get(downloader.switch.peerInfo.peerId)
+        .peerWants
+        .filterIt( it.address == aBlock.address )
+        .len == 0
+    )

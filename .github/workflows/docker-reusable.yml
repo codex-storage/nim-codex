@@ -1,0 +1,267 @@
+name: Reusable - Docker
+
+
+on:
+  workflow_call:
+    inputs:
+      docker_file:
+        default: docker/codex.Dockerfile
+        description: Dockerfile
+        required: false
+        type: string
+      docker_repo:
+        default: codexstorage/nim-codex
+        description: DockerHub repository
+        required: false
+        type: string
+      make_parallel:
+        default: 4
+        description: Make parallel
+        required: false
+        type: number
+      nimflags:
+        default: '-d:disableMarchNative'
+        description: Nim flags for builds
+        required: false
+        type: string
+      nat_ip_auto:
+        default: false
+        description: Enable NAT IP auto
+        required: false
+        type: boolean
+      tag_latest:
+        default: true
+        description: Set latest tag for Docker images
+        required: false
+        type: boolean
+      tag_sha:
+        default: true
+        description: Set Git short commit as Docker tag
+        required: false
+        type: boolean
+      tag_suffix:
+        default: ''
+        description: Suffix for Docker images tag
+        required: false
+        type: string
+      continuous_tests_list:
+        default: ''
+        description: Continuous Tests list
+        required: false
+        type: string
+      continuous_tests_duration:
+        default: 48h
+        description: Continuous Tests duration
+        required: false
+        type: string
+
+
+env:
+  # Build
+  DOCKER_FILE: ${{ inputs.docker_file }}
+  DOCKER_REPO: ${{ inputs.docker_repo }}
+  MAKE_PARALLEL: ${{ inputs.make_parallel }}
+  NIMFLAGS: ${{ inputs.nimflags }}
+  NAT_IP_AUTO: ${{ inputs.nat_ip_auto }}
+  TAG_LATEST: ${{ inputs.tag_latest }}
+  TAG_SHA: ${{ inputs.tag_sha }}
+  TAG_SUFFIX: ${{ inputs.tag_suffix }}
+  # Tests
+  CONTINUOUS_TESTS_SOURCE: codex-storage/cs-codex-dist-tests
+  CONTINUOUS_TESTS_BRANCH: master
+  CONTINUOUS_TESTS_LIST: ${{ inputs.continuous_tests_list }}
+  CONTINUOUS_TESTS_DURATION: ${{ inputs.continuous_tests_duration }}
+  CONTINUOUS_TESTS_NAMEPREFIX: c-tests-ci
+
+
+jobs:
+  # Build platform specific image
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        target:
+          - os: linux
+            arch: amd64
+          - os: linux
+            arch: arm64
+        include:
+          - target:
+              os: linux
+              arch: amd64
+            builder: ubuntu-22.04
+          - target:
+              os: linux
+              arch: arm64
+            builder: buildjet-4vcpu-ubuntu-2204-arm
+
+    name: Build ${{ matrix.target.os }}/${{ matrix.target.arch }}
+    runs-on: ${{ matrix.builder }}
+    env:
+      PLATFORM: ${{ format('{0}/{1}', 'linux', matrix.target.arch) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Docker - Meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_REPO }}
+
+      - name: Docker - Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker - Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Docker - Build and Push by digest
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ env.DOCKER_FILE }}
+          platforms: ${{ env.PLATFORM }}
+          push: true
+          build-args: |
+            MAKE_PARALLEL=${{ env.MAKE_PARALLEL }}
+            NIMFLAGS=${{ env.NIMFLAGS }}
+            NAT_IP_AUTO=${{ env.NAT_IP_AUTO }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.DOCKER_REPO }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Docker - Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Docker - Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.target.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+
+  # Publish multi-platform image
+  publish:
+    name: Publish multi-platform image
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    needs: build
+    steps:
+      - name: Docker - Variables
+        run: |
+          # Adjust custom suffix when set and
+          if [[ -n "${{ env.TAG_SUFFIX }}" ]]; then
+            echo "TAG_SUFFIX=-${{ env.TAG_SUFFIX }}" >>$GITHUB_ENV
+          fi
+          # Disable SHA tags on tagged release
+          if [[ ${{ startsWith(github.ref, 'refs/tags/') }} == "true" ]]; then
+            echo "TAG_SHA=false" >>$GITHUB_ENV
+          fi
+          # Handle latest and latest-custom using raw
+          if [[ ${{ env.TAG_SHA }} == "false" ]]; then
+            echo "TAG_LATEST=false" >>$GITHUB_ENV
+            echo "TAG_RAW=true" >>$GITHUB_ENV
+            if [[ -z "${{ env.TAG_SUFFIX }}" ]]; then
+              echo "TAG_RAW_VALUE=latest" >>$GITHUB_ENV
+            else
+              echo "TAG_RAW_VALUE=latest-{{ env.TAG_SUFFIX }}" >>$GITHUB_ENV
+            fi
+          else
+            echo "TAG_RAW=false" >>$GITHUB_ENV
+          fi
+
+      - name: Docker - Download digests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: digests-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Docker - Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker - Meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_REPO }}
+          flavor: |
+            latest=${{ env.TAG_LATEST }}
+            suffix=${{ env.TAG_SUFFIX }},onlatest=true
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,enable=${{ env.TAG_RAW }},value=latest
+            type=sha,enable=${{ env.TAG_SHA }}
+
+      - name: Docker - Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Docker - Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.DOCKER_REPO }}@sha256:%s ' *)
+
+      - name: Docker - Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.DOCKER_REPO }}:${{ steps.meta.outputs.version }}
+
+
+  # Compute Continuous Tests inputs
+  compute-tests-inputs:
+    name: Compute Continuous Tests list
+    if: ${{ inputs.continuous_tests_list != '' && github.ref_name == github.event.repository.default_branch }}
+    runs-on: ubuntu-latest
+    needs: publish
+    outputs:
+      source: ${{ steps.compute.outputs.source }}
+      branch: ${{ steps.compute.outputs.branch }}
+      codexdockerimage: ${{ steps.compute.outputs.codexdockerimage }}
+      nameprefix: ${{ steps.compute.outputs.nameprefix }}
+      continuous_tests_list: ${{ steps.compute.outputs.continuous_tests_list }}
+      continuous_tests_duration: ${{ steps.compute.outputs.continuous_tests_duration }}
+      continuous_tests_workflow: ${{ steps.compute.outputs.continuous_tests_workflow }}
+      workflow_source: ${{ steps.compute.outputs.workflow_source }}
+    steps:
+      - name: Compute Continuous Tests list
+        id: compute
+        run: |
+          echo "source=${{ format('{0}/{1}', github.server_url, env.CONTINUOUS_TESTS_SOURCE) }}" >> "$GITHUB_OUTPUT"
+          echo "branch=${{ env.CONTINUOUS_TESTS_BRANCH }}" >> "$GITHUB_OUTPUT"
+          echo "codexdockerimage=${{ inputs.docker_repo }}:${{ needs.publish.outputs.version }}" >> "$GITHUB_OUTPUT"
+          echo "nameprefix=$(awk '{ print tolower($0) }' <<< ${{ env.CONTINUOUS_TESTS_NAMEPREFIX }})" >> "$GITHUB_OUTPUT"
+          echo "continuous_tests_list=$(jq -cR 'split(" ")' <<< '${{ env.CONTINUOUS_TESTS_LIST }}')" >> "$GITHUB_OUTPUT"
+          echo "continuous_tests_duration=${{ env.CONTINUOUS_TESTS_DURATION }}" >> "$GITHUB_OUTPUT"
+          echo "workflow_source=${{ env.CONTINUOUS_TESTS_SOURCE }}" >> "$GITHUB_OUTPUT"
+
+
+  # Run Continuous Tests
+  run-tests:
+    name: Run Continuous Tests
+    needs: [publish, compute-tests-inputs]
+    strategy:
+      max-parallel: 1
+      matrix:
+        tests: ${{ fromJSON(needs.compute-tests-inputs.outputs.continuous_tests_list) }}
+    uses: codex-storage/cs-codex-dist-tests/.github/workflows/run-continuous-tests.yaml@master
+    with:
+      source: ${{ needs.compute-tests-inputs.outputs.source }}
+      branch: ${{ needs.compute-tests-inputs.outputs.branch }}
+      codexdockerimage: ${{ needs.compute-tests-inputs.outputs.codexdockerimage }}
+      nameprefix: ${{ needs.compute-tests-inputs.outputs.nameprefix }}-${{ matrix.tests }}-${{ needs.compute-tests-inputs.outputs.continuous_tests_duration }}
+      tests_filter: ${{ matrix.tests }}
+      tests_target_duration: ${{ needs.compute-tests-inputs.outputs.continuous_tests_duration }}
+      workflow_source: ${{ needs.compute-tests-inputs.outputs.workflow_source }}
+    secrets: inherit

@@ -7,13 +7,18 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/os
-
 const
-  CodexRepoNamespace* =  "/repo"                              # repository namespace, blocks and manifests are subkeys
-  CodexBlocksNamespace* = CodexRepoNamespace / "blocks"       # blocks namespace
-  CodexManifestNamespace* = CodexRepoNamespace / "manifests"  # manifest namespace
-  CodexBlocksPersistNamespace* =                              # Cid's of persisted blocks goes here
-    CodexMetaNamespace / "blocks" / "persist"
+  # Namespaces
+  CodexMetaNamespace* = "meta"                                # meta info stored here
+  CodexRepoNamespace* =  "repo"                               # repository namespace, blocks and manifests are subkeys
+  CodexBlockTotalNamespace* = CodexMetaNamespace & "/total"   # number of blocks in the repo
+  CodexBlocksNamespace* = CodexRepoNamespace & "/blocks"      # blocks namespace
+  CodexManifestNamespace* = CodexRepoNamespace & "/manifests" # manifest namespace
   CodexBlocksTtlNamespace* =                                  # Cid TTL
-    CodexMetaNamespace / "blocks" / "ttl"
+    CodexMetaNamespace & "/ttl"
+  CodexBlockProofNamespace* =                                  # Cid and Proof
+    CodexMetaNamespace & "/proof"
+  CodexDhtNamespace* = "dht"                                  # Dht namespace
+  CodexDhtProvidersNamespace* =                               # Dht providers namespace
+    CodexDhtNamespace & "/providers"
+  CodexQuotaNamespace* = CodexMetaNamespace & "/quota"        # quota's namespace

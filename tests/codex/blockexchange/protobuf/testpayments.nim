@@ -1,10 +1,13 @@
-import pkg/asynctest
 import pkg/chronos
 import pkg/stew/byteutils
-import ../../examples
 import pkg/codex/stores
 
-suite "account protobuf messages":
+import ../../../asynctest
+import ../../examples
+import ../../helpers
+
+
+checksuite "account protobuf messages":
 
   let account = Account(address: EthAddress.example)
   let message = AccountMessage.init(account)
@@ -20,7 +23,7 @@ suite "account protobuf messages":
     incorrect.address.del(0)
     check Account.init(incorrect).isNone
 
-suite "channel update messages":
+checksuite "channel update messages":
 
   let state = SignedState.example
   let update = StateChannelUpdate.init(state)

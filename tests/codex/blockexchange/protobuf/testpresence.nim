@@ -1,19 +1,19 @@
-import pkg/asynctest
 import pkg/chronos
-import pkg/libp2p
 
 import pkg/codex/blockexchange/protobuf/presence
+
+import ../../../asynctest
 import ../../examples
+import ../../helpers
 
-suite "block presence protobuf messages":
+checksuite "block presence protobuf messages":
 
-  let cid = Cid.example
-  let price = UInt256.example
-  let presence = Presence(cid: cid, have: true, price: price)
-  let message = PresenceMessage.init(presence)
-
-  test "encodes CID":
-    check message.cid == cid.data.buffer
+  let
+    cid = Cid.example
+    address = BlockAddress(leaf: false, cid: cid)
+    price = UInt256.example
+    presence = Presence(address: address, have: true, price: price)
+    message = PresenceMessage.init(presence)
 
   test "encodes have/donthave":
     var presence = presence
@@ -26,12 +26,7 @@ suite "block presence protobuf messages":
     check message.price == @(price.toBytesBE)
 
   test "decodes CID":
-    check Presence.init(message).?cid == cid.some
-
-  test "fails to decode when CID is invalid":
-    var incorrect = message
-    incorrect.cid.del(0)
-    check Presence.init(incorrect).isNone
+    check Presence.init(message).?address == address.some
 
   test "decodes have/donthave":
     var message = message

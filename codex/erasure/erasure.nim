@@ -12,16 +12,27 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import std/sequtils
+import std/sugar
 
 import pkg/chronos
-import pkg/chronicles
+import pkg/libp2p/[multicodec, cid, multihash]
+import pkg/libp2p/protobuf/minprotobuf
+import pkg/taskpools
 
+import ../logutils
 import ../manifest
+import ../merkletree
 import ../stores
-import ../errors
 import ../blocktype as bt
+import ../utils
+import ../utils/asynciter
+import ../indexingstrategy
+import ../errors
+
+import pkg/stew/byteutils
 
 import ./backend
+import ./asyncbackend
 
 export backend
 
@@ -62,86 +73,275 @@ type
     encoderProvider*: EncoderProvider
     decoderProvider*: DecoderProvider
     store*: BlockStore
+    taskpool: Taskpool
 
-proc encode*(
+  EncodingParams = object
+    ecK: Natural
+    ecM: Natural
+    rounded: Natural
+    steps: Natural
+    blocksCount: Natural
+    strategy: StrategyType
+
+  ErasureError* = object of CodexError
+  InsufficientBlocksError* = object of ErasureError
+    # Minimum size, in bytes, that the dataset must have had
+    # for the encoding request to have succeeded with the parameters
+    # provided.
+    minSize*: NBytes
+
+func indexToPos(steps, idx, step: int): int {.inline.} =
+  ## Convert an index to a position in the encoded
+  ##  dataset
+  ## `idx`  - the index to convert
+  ## `step` - the current step
+  ## `pos`  - the position in the encoded dataset
+  ##
+
+  (idx - step) div steps
+
+proc getPendingBlocks(
   self: Erasure,
   manifest: Manifest,
-  blocks: int,
-  parity: int): Future[?!Manifest] {.async.} =
-  ## Encode a manifest into one that is erasure protected.
+  indicies: seq[int]): AsyncIter[(?!bt.Block, int)] =
+  ## Get pending blocks iterator
   ##
-  ## `manifest`   - the original manifest to be encoded
-  ## `blocks`     - the number of blocks to be encoded - K
-  ## `parity`     - the number of parity blocks to generate - M
-  ##
-
-  logScope:
-    original_cid = manifest.cid.get()
-    original_len = manifest.len
-    blocks       = blocks
-    parity       = parity
-
-  trace "Erasure coding manifest", blocks, parity
-  without var encoded =? Manifest.new(manifest, blocks, parity), error:
-    trace "Unable to create manifest", msg = error.msg
-    return error.failure
-
-  logScope:
-    steps           = encoded.steps
-    rounded_blocks  = encoded.rounded
-    new_manifest    = encoded.len
 
   var
-    encoder = self.encoderProvider(manifest.blockSize, blocks, parity)
+    # request blocks from the store
+    pendingBlocks = indicies.map( (i: int) =>
+      self.store.getBlock(
+        BlockAddress.init(manifest.treeCid, i)
+      ).map((r: ?!bt.Block) => (r, i)) # Get the data blocks (first K)
+    )
+
+  proc isFinished(): bool = pendingBlocks.len == 0
+
+  proc genNext(): Future[(?!bt.Block, int)] {.async.} =
+    let completedFut = await one(pendingBlocks)
+    if (let i = pendingBlocks.find(completedFut); i >= 0):
+      pendingBlocks.del(i)
+      return await completedFut
+    else:
+      let (_, index) = await completedFut
+      raise newException(
+        CatchableError,
+        "Future for block id not found, tree cid: " & $manifest.treeCid & ", index: " & $index)
+
+  AsyncIter[(?!bt.Block, int)].new(genNext, isFinished)
+
+proc prepareEncodingData(
+  self: Erasure,
+  manifest: Manifest,
+  params: EncodingParams,
+  step: Natural,
+  data: ref seq[seq[byte]],
+  cids: ref seq[Cid],
+  emptyBlock: seq[byte]): Future[?!Natural] {.async.} =
+  ## Prepare data for encoding
+  ##
+
+  let
+    strategy = params.strategy.init(
+      firstIndex = 0,
+      lastIndex = params.rounded - 1,
+      iterations = params.steps
+    )
+    indicies = toSeq(strategy.getIndicies(step))
+    pendingBlocksIter = self.getPendingBlocks(manifest, indicies.filterIt(it < manifest.blocksCount))
+
+  var resolved = 0
+  for fut in pendingBlocksIter:
+    let (blkOrErr, idx) = await fut
+    without blk =? blkOrErr, err:
+      warn "Failed retreiving a block", treeCid = manifest.treeCid, idx, msg = err.msg
+      continue
+
+    let pos = indexToPos(params.steps, idx, step)
+    shallowCopy(data[pos], if blk.isEmpty: emptyBlock else: blk.data)
+    cids[idx] = blk.cid
+
+    resolved.inc()
+
+  for idx in indicies.filterIt(it >= manifest.blocksCount):
+    let pos = indexToPos(params.steps, idx, step)
+    trace "Padding with empty block", idx
+    shallowCopy(data[pos], emptyBlock)
+    without emptyBlockCid =? emptyCid(manifest.version, manifest.hcodec, manifest.codec), err:
+      return failure(err)
+    cids[idx] = emptyBlockCid
+
+  success(resolved.Natural)
+
+proc prepareDecodingData(
+  self: Erasure,
+  encoded: Manifest,
+  step: Natural,
+  data: ref seq[seq[byte]],
+  parityData: ref seq[seq[byte]],
+  cids: ref seq[Cid],
+  emptyBlock: seq[byte]): Future[?!(Natural, Natural)] {.async.} =
+  ## Prepare data for decoding
+  ## `encoded`    - the encoded manifest
+  ## `step`       - the current step
+  ## `data`       - the data to be prepared
+  ## `parityData` - the parityData to be prepared
+  ## `cids`       - cids of prepared data
+  ## `emptyBlock` - the empty block to be used for padding
+  ##
+
+  let
+    strategy = encoded.protectedStrategy.init(
+      firstIndex = 0,
+      lastIndex = encoded.blocksCount - 1,
+      iterations = encoded.steps
+    )
+    indicies = toSeq(strategy.getIndicies(step))
+    pendingBlocksIter = self.getPendingBlocks(encoded, indicies)
+
+  var
+    dataPieces = 0
+    parityPieces = 0
+    resolved = 0
+  for fut in pendingBlocksIter:
+    # Continue to receive blocks until we have just enough for decoding
+    # or no more blocks can arrive
+    if resolved >= encoded.ecK:
+      break
+
+    let (blkOrErr, idx) = await fut
+    without blk =? blkOrErr, err:
+      trace "Failed retreiving a block", idx, treeCid = encoded.treeCid, msg = err.msg
+      continue
+
+    let
+      pos = indexToPos(encoded.steps, idx, step)
+
+    logScope:
+      cid   = blk.cid
+      idx   = idx
+      pos   = pos
+      step  = step
+      empty = blk.isEmpty
+
+    cids[idx] = blk.cid
+    if idx >= encoded.rounded:
+      trace "Retrieved parity block"
+      shallowCopy(parityData[pos - encoded.ecK], if blk.isEmpty: emptyBlock else: blk.data)
+      parityPieces.inc
+    else:
+      trace "Retrieved data block"
+      shallowCopy(data[pos], if blk.isEmpty: emptyBlock else: blk.data)
+      dataPieces.inc
+
+    resolved.inc
+
+  return success (dataPieces.Natural, parityPieces.Natural)
+
+proc init*(
+  _: type EncodingParams,
+  manifest: Manifest,
+  ecK: Natural, ecM: Natural,
+  strategy: StrategyType): ?!EncodingParams =
+  if ecK > manifest.blocksCount:
+    let exc = (ref InsufficientBlocksError)(
+      msg: "Unable to encode manifest, not enough blocks, ecK = " &
+      $ecK &
+      ", blocksCount = " &
+      $manifest.blocksCount,
+      minSize: ecK.NBytes * manifest.blockSize)
+    return failure(exc)
+
+  let
+    rounded = roundUp(manifest.blocksCount, ecK)
+    steps = divUp(rounded, ecK)
+    blocksCount = rounded + (steps * ecM)
+
+  success EncodingParams(
+    ecK: ecK,
+    ecM: ecM,
+    rounded: rounded,
+    steps: steps,
+    blocksCount: blocksCount,
+    strategy: strategy
+  )
+
+proc encodeData(
+  self: Erasure,
+  manifest: Manifest,
+  params: EncodingParams
+  ): Future[?!Manifest] {.async.} =
+  ## Encode blocks pointed to by the protected manifest
+  ##
+  ## `manifest` - the manifest to encode
+  ##
+
+  logScope:
+    steps           = params.steps
+    rounded_blocks  = params.rounded
+    blocks_count    = params.blocksCount
+    ecK             = params.ecK
+    ecM             = params.ecM
+
+  var
+    cids = seq[Cid].new()
+    encoder = self.encoderProvider(manifest.blockSize.int, params.ecK, params.ecM)
+    emptyBlock = newSeq[byte](manifest.blockSize.int)
+
+  cids[].setLen(params.blocksCount)
 
   try:
-    for i in 0..<encoded.steps:
+    for step in 0..<params.steps:
       # TODO: Don't allocate a new seq every time, allocate once and zero out
       var
-        data = newSeq[seq[byte]](blocks) # number of blocks to encode
-        parityData = newSeqWith[seq[byte]](parity, newSeq[byte](manifest.blockSize))
-        # calculate block indexes to retrieve
-        blockIdx = toSeq(countup(i, encoded.rounded - 1, encoded.steps))
-        # request all blocks from the store
-        dataBlocks = await allFinished(
-          blockIdx.mapIt( self.store.getBlock(encoded[it]) ))
+        data = seq[seq[byte]].new() # number of blocks to encode
 
-      # TODO: this is a tight blocking loop so we sleep here to allow
-      # other events to be processed, this should be addressed
-      # by threading
-      await sleepAsync(10.millis)
+      data[].setLen(params.ecK)
 
-      for j in 0..<blocks:
-        let idx = blockIdx[j]
-        if idx < manifest.len:
-          without blk =? (await dataBlocks[j]), error:
-            trace "Unable to retrieve block", error = error.msg
-            return failure error
+      without resolved =?
+        (await self.prepareEncodingData(manifest, params, step, data, cids, emptyBlock)), err:
+          trace "Unable to prepare data", error = err.msg
+          return failure(err)
 
-          trace "Encoding block", cid = blk.cid, pos = idx
-          shallowCopy(data[j], blk.data)
-        else:
-          trace "Padding with empty block", pos = idx
-          data[j] = newSeq[byte](manifest.blockSize)
+      trace "Erasure coding data", data = data[].len, parity = params.ecM
 
-      trace "Erasure coding data", data = data.len, parity = parityData.len
+      without parity =? await asyncEncode(self.taskpool, encoder, data, manifest.blockSize.int, params.ecM), err:
+        trace "Error encoding data", err = err.msg
+        return failure(err)
 
-      let res = encoder.encode(data, parityData);
-      if res.isErr:
-        trace "Unable to encode manifest!", error = $res.error
-        return failure($res.error)
-
-      for j in 0..<parity:
-        let idx = encoded.rounded + blockIdx[j]
-        without blk =? bt.Block.new(parityData[j]), error:
+      var idx = params.rounded + step
+      for j in 0..<params.ecM:
+        without blk =? bt.Block.new(parity[j]), error:
           trace "Unable to create parity block", err = error.msg
           return failure(error)
 
-        trace "Adding parity block", cid = blk.cid, pos = idx
-        encoded[idx] = blk.cid
+        trace "Adding parity block", cid = blk.cid, idx
+        cids[idx] = blk.cid
         if isErr (await self.store.putBlock(blk)):
           trace "Unable to store block!", cid = blk.cid
           return failure("Unable to store block!")
+        idx.inc(params.steps)
+
+    without tree =? CodexTree.init(cids[]), err:
+      return failure(err)
+
+    without treeCid =? tree.rootCid, err:
+      return failure(err)
+
+    if err =? (await self.store.putAllProofs(tree)).errorOption:
+      return failure(err)
+
+    let encodedManifest = Manifest.new(
+      manifest = manifest,
+      treeCid = treeCid,
+      datasetSize = (manifest.blockSize.int * params.blocksCount).NBytes,
+      ecK = params.ecK,
+      ecM = params.ecM,
+      strategy = params.strategy
+    )
+
+    trace "Encoded data successfully", treeCid, blocksCount = params.blocksCount
+    success encodedManifest
   except CancelledError as exc:
     trace "Erasure coding encoding cancelled"
     raise exc # cancellation needs to be propagated
@@ -151,7 +351,26 @@ proc encode*(
   finally:
     encoder.release()
 
-  return encoded.success
+proc encode*(
+  self: Erasure,
+  manifest: Manifest,
+  blocks: Natural,
+  parity: Natural,
+  strategy = SteppedStrategy): Future[?!Manifest] {.async.} =
+  ## Encode a manifest into one that is erasure protected.
+  ##
+  ## `manifest`   - the original manifest to be encoded
+  ## `blocks`     - the number of blocks to be encoded - K
+  ## `parity`     - the number of parity blocks to generate - M
+  ##
+
+  without params =? EncodingParams.init(manifest, blocks.int, parity.int, strategy), err:
+    return failure(err)
+
+  without encodedManifest =? await self.encodeData(manifest, params), err:
+    return failure(err)
+
+  return success encodedManifest
 
 proc decode*(
   self: Erasure,
@@ -166,85 +385,53 @@ proc decode*(
   logScope:
     steps           = encoded.steps
     rounded_blocks  = encoded.rounded
-    new_manifest    = encoded.len
+    new_manifest    = encoded.blocksCount
 
   var
-    decoder = self.decoderProvider(encoded.blockSize, encoded.K, encoded.M)
+    cids = seq[Cid].new()
+    recoveredIndices = newSeq[Natural]()
+    decoder = self.decoderProvider(encoded.blockSize.int, encoded.ecK, encoded.ecM)
+    emptyBlock = newSeq[byte](encoded.blockSize.int)
 
+  cids[].setLen(encoded.blocksCount)
   try:
-    for i in 0..<encoded.steps:
-      # TODO: Don't allocate a new seq every time, allocate once and zero out
-      let
-        # calculate block indexes to retrieve
-        blockIdx = toSeq(countup(i, encoded.len - 1, encoded.steps))
-        # request all blocks from the store
-        pendingBlocks = blockIdx.mapIt(
-            self.store.getBlock(encoded[it]) # Get the data blocks (first K)
-        )
-
-      # TODO: this is a tight blocking loop so we sleep here to allow
-      # other events to be processed, this should be addressed
-      # by threading
-      await sleepAsync(10.millis)
-
+    for step in 0..<encoded.steps:
       var
-        data = newSeq[seq[byte]](encoded.K) # number of blocks to encode
-        parityData = newSeq[seq[byte]](encoded.M)
-        recovered = newSeqWith[seq[byte]](encoded.K, newSeq[byte](encoded.blockSize))
-        idxPendingBlocks = pendingBlocks # copy futures to make using with `one` easier
-        emptyBlock = newSeq[byte](encoded.blockSize)
-        resolved = 0
+        data = seq[seq[byte]].new()
+        parity = seq[seq[byte]].new()
 
-      while true:
-        # Continue to receive blocks until we have just enough for decoding
-        # or no more blocks can arrive
-        if (resolved >= encoded.K) or (idxPendingBlocks.len == 0):
-          break
+      data[].setLen(encoded.ecK)    # set len to K
+      parity[].setLen(encoded.ecM)  # set len to M
 
-        let
-          done = await one(idxPendingBlocks)
-          idx = pendingBlocks.find(done)
+      without (dataPieces, _) =?
+        (await self.prepareDecodingData(encoded, step, data, parity, cids, emptyBlock)), err:
+        trace "Unable to prepare data", error = err.msg
+        return failure(err)
 
-        idxPendingBlocks.del(idxPendingBlocks.find(done))
-
-        without blk =? (await done), error:
-          trace "Failed retrieving block", error = error.msg
-          continue
-
-        if idx >= encoded.K:
-          trace "Retrieved parity block", cid = blk.cid, idx
-          shallowCopy(parityData[idx - encoded.K], if blk.isEmpty: emptyBlock else: blk.data)
-        else:
-          trace "Retrieved data block", cid = blk.cid, idx
-          shallowCopy(data[idx], if blk.isEmpty: emptyBlock else: blk.data)
-
-        resolved.inc
-
-      let
-        dataPieces = data.filterIt( it.len > 0 ).len
-        parityPieces = parityData.filterIt( it.len > 0 ).len
-
-      if dataPieces >= encoded.K:
-        trace "Retrieved all the required data blocks", data = dataPieces, parity = parityPieces
+      if dataPieces >= encoded.ecK:
+        trace "Retrieved all the required data blocks"
         continue
 
-      trace "Erasure decoding data", data = dataPieces, parity = parityPieces
-      if (
-        let err = decoder.decode(data, parityData, recovered);
-        err.isErr):
-        trace "Unable to decode manifest!", err = $err.error
-        return failure($err.error)
+      trace "Erasure decoding data"
 
-      for i in 0..<encoded.K:
-        if data[i].len <= 0:
+      without recovered =? await asyncDecode(self.taskpool, decoder, data, parity, encoded.blockSize.int), err:
+        trace "Error decoding data", err = err.msg
+        return failure(err)
+
+      for i in 0..<encoded.ecK:
+        let idx = i * encoded.steps + step
+        if data[i].len <= 0 and not cids[idx].isEmpty:
           without blk =? bt.Block.new(recovered[i]), error:
             trace "Unable to create block!", exc = error.msg
             return failure(error)
 
-          trace "Recovered block", cid = blk.cid
+          trace "Recovered block", cid = blk.cid, index = i
           if isErr (await self.store.putBlock(blk)):
             trace "Unable to store block!", cid = blk.cid
             return failure("Unable to store block!")
+
+          cids[idx] = blk.cid
+          recoveredIndices.add(idx)
   except CancelledError as exc:
     trace "Erasure coding decoding cancelled"
     raise exc # cancellation needs to be propagated
@@ -254,8 +441,22 @@ proc decode*(
   finally:
     decoder.release()
 
-  without decoded =? Manifest.new(blocks = encoded.blocks[0..<encoded.originalLen]), error:
-    return error.failure
+  without tree =? CodexTree.init(cids[0..<encoded.originalBlocksCount]), err:
+    return failure(err)
+
+  without treeCid =? tree.rootCid, err:
+    return failure(err)
+
+  if treeCid != encoded.originalTreeCid:
+    return failure("Original tree root differs from the tree root computed out of recovered data")
+
+  let idxIter = Iter[Natural].new(recoveredIndices)
+    .filter((i: Natural) => i < tree.leavesCount)
+
+  if err =? (await self.store.putSomeProofs(tree, idxIter)).errorOption:
+      return failure(err)
+
+  let decoded = Manifest.new(encoded)
 
   return decoded.success
 
@@ -269,9 +470,13 @@ proc new*(
   T: type Erasure,
   store: BlockStore,
   encoderProvider: EncoderProvider,
-  decoderProvider: DecoderProvider): Erasure =
+  decoderProvider: DecoderProvider,
+  taskpool: Taskpool): Erasure =
+  ## Create a new Erasure instance for encoding and decoding manifests
+  ##
 
   Erasure(
     store: store,
     encoderProvider: encoderProvider,
-    decoderProvider: decoderProvider)
+    decoderProvider: decoderProvider,
+    taskpool: taskpool)

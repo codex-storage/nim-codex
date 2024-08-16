@@ -34,8 +34,9 @@ type
     Empty, Full
 
 proc newAsyncHeapQueue*[T](
-  maxsize: int = 0,
-  queueType: QueueType = QueueType.Min): AsyncHeapQueue[T] =
+    maxsize: int = 0,
+    queueType: QueueType = QueueType.Min
+): AsyncHeapQueue[T] =
   ## Creates a new asynchronous queue ``AsyncHeapQueue``.
   ##
 
@@ -58,7 +59,7 @@ proc wakeupNext(waiters: var seq[Future[void]]) {.inline.} =
       break
 
   if i > 0:
-    waiters.delete(0, i - 1)
+    waiters.delete(0..(i-1))
 
 proc heapCmp[T](x, y: T, max: bool = false): bool {.inline.} =
   if max:
@@ -282,7 +283,7 @@ proc len*[T](heap: AsyncHeapQueue[T]): int {.inline.} =
 
 proc size*[T](heap: AsyncHeapQueue[T]): int {.inline.} =
   ## Return the maximum number of elements in ``heap``.
-  len(heap.maxsize)
+  heap.maxsize
 
 proc `[]`*[T](heap: AsyncHeapQueue[T], i: Natural) : T {.inline.} =
   ## Access the i-th element of ``heap`` by order from first to last.

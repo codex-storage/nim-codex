@@ -1,37 +1,35 @@
+import pkg/metrics
 import ../statemachine
+import ./errorhandling
 import ./submitted
 import ./started
 import ./cancelled
 import ./finished
 import ./failed
-import ./error
 
-type PurchaseUnknown* = ref object of PurchaseState
+declareCounter(codex_purchases_unknown, "codex purchases unknown")
 
-method enterAsync(state: PurchaseUnknown) {.async.} =
-  without purchase =? (state.context as Purchase):
-    raiseAssert "invalid state"
+type PurchaseUnknown* = ref object of ErrorHandlingState
 
-  try:
-    if (request =? await purchase.market.getRequest(purchase.requestId)) and
-       (requestState =? await purchase.market.getState(purchase.requestId)):
-
-      purchase.request = some request
-
-      case requestState
-      of RequestState.New:
-        state.switch(PurchaseSubmitted())
-      of RequestState.Started:
-        state.switch(PurchaseStarted())
-      of RequestState.Cancelled:
-        state.switch(PurchaseCancelled())
-      of RequestState.Finished:
-        state.switch(PurchaseFinished())
-      of RequestState.Failed:
-        state.switch(PurchaseFailed())
-
-  except CatchableError as error:
-    state.switch(PurchaseErrored(error: error))
-
-method description*(state: PurchaseUnknown): string =
+method `$`*(state: PurchaseUnknown): string =
   "unknown"
+
+method run*(state: PurchaseUnknown, machine: Machine): Future[?State] {.async.} =
+  codex_purchases_unknown.inc()
+  let purchase = Purchase(machine)
+  if (request =? await purchase.market.getRequest(purchase.requestId)) and
+      (requestState =? await purchase.market.requestState(purchase.requestId)):
+
+    purchase.request = some request
+
+    case requestState
+    of RequestState.New:
+      return some State(PurchaseSubmitted())
+    of RequestState.Started:
+      return some State(PurchaseStarted())
+    of RequestState.Cancelled:
+      return some State(PurchaseCancelled())
+    of RequestState.Finished:
+      return some State(PurchaseFinished())
+    of RequestState.Failed:
+      return some State(PurchaseFailed())

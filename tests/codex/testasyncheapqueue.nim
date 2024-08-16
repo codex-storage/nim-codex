@@ -1,9 +1,11 @@
 import pkg/chronos
-import pkg/asynctest
 import pkg/stew/results
 
 import pkg/codex/utils/asyncheapqueue
 import pkg/codex/rng
+
+import ../asynctest
+import ./helpers
 
 type
   Task* = tuple[name: string, priority: int]
@@ -21,7 +23,7 @@ proc toSortedSeq[T](h: AsyncHeapQueue[T], queueType = QueueType.Min): seq[T] =
   while tmp.len > 0:
     result.add(popNoWait(tmp).tryGet())
 
-suite "Synchronous tests":
+checksuite "Synchronous tests":
   test "Test pushNoWait - Min":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
@@ -127,8 +129,7 @@ suite "Synchronous tests":
     heap.clear()
     check heap.len == 0
 
-suite "Asynchronous Tests":
-
+asyncchecksuite "Asynchronous Tests":
   test "Test push":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]

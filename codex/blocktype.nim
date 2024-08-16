@@ -8,120 +8,78 @@
 ## those terms.
 
 import std/tables
+import std/sugar
+
 export tables
 
 import pkg/upraises
 
 push: {.upraises: [].}
 
-import pkg/libp2p
+import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/stew/byteutils
 import pkg/questionable
 import pkg/questionable/results
-import pkg/chronicles
 
-import ./formats
+import ./units
+import ./utils
 import ./errors
+import ./logutils
+import ./utils/json
+import ./codextypes
 
-export errors, formats
-
-const
-  # Size of blocks for storage / network exchange,
-  # should be divisible by 31 for PoR and by 64 for Leopard ECC
-  BlockSize* = 31 * 64 * 33
+export errors, logutils, units, codextypes
 
 type
   Block* = ref object of RootObj
     cid*: Cid
     data*: seq[byte]
 
-  BlockNotFoundError* = object of CodexError
+  BlockAddress* = object
+    case leaf*: bool
+    of true:
+      treeCid* {.serialize.}: Cid
+      index* {.serialize.}: Natural
+    else:
+      cid* {.serialize.}: Cid
 
-template EmptyCid*: untyped =
-  var
-    emptyCid {.global, threadvar.}:
-      array[CIDv0..CIDv1, Table[MultiCodec, Cid]]
+logutils.formatIt(LogFormat.textLines, BlockAddress):
+  if it.leaf:
+    "treeCid: " & shortLog($it.treeCid) & ", index: " & $it.index
+  else:
+    "cid: " & shortLog($it.cid)
 
-  once:
-    emptyCid = [
-      CIDv0: {
-        multiCodec("sha2-256"): Cid
-        .init("QmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n")
-        .get()
-      }.toTable,
-      CIDv1: {
-        multiCodec("sha2-256"): Cid
-        .init("bafybeihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku")
-        .get()
-      }.toTable,
-    ]
+logutils.formatIt(LogFormat.json, BlockAddress): %it
 
-  emptyCid
+proc `==`*(a, b: BlockAddress): bool =
+  a.leaf == b.leaf and
+    (
+      if a.leaf:
+        a.treeCid == b.treeCid and a.index == b.index
+      else:
+        a.cid == b.cid
+    )
 
-template EmptyDigests*: untyped =
-  var
-    emptyDigests {.global, threadvar.}:
-      array[CIDv0..CIDv1, Table[MultiCodec, MultiHash]]
+proc `$`*(a: BlockAddress): string =
+  if a.leaf:
+    "treeCid: " & $a.treeCid & ", index: " & $a.index
+  else:
+    "cid: " & $a.cid
 
-  once:
-    emptyDigests = [
-      CIDv0: {
-        multiCodec("sha2-256"): EmptyCid[CIDv0]
-        .catch
-        .get()[multiCodec("sha2-256")]
-        .catch
-        .get()
-        .mhash
-        .get()
-      }.toTable,
-      CIDv1: {
-        multiCodec("sha2-256"): EmptyCid[CIDv1]
-        .catch
-        .get()[multiCodec("sha2-256")]
-        .catch
-        .get()
-        .mhash
-        .get()
-      }.toTable,
-    ]
+proc cidOrTreeCid*(a: BlockAddress): Cid =
+  if a.leaf:
+    a.treeCid
+  else:
+    a.cid
 
-  emptyDigests
+proc address*(b: Block): BlockAddress =
+  BlockAddress(leaf: false, cid: b.cid)
 
-template EmptyBlock*: untyped =
-  var
-    emptyBlock {.global, threadvar.}:
-      array[CIDv0..CIDv1, Table[MultiCodec, Block]]
+proc init*(_: type BlockAddress, cid: Cid): BlockAddress =
+  BlockAddress(leaf: false, cid: cid)
 
-  once:
-    emptyBlock = [
-      CIDv0: {
-        multiCodec("sha2-256"): Block(
-          cid: EmptyCid[CIDv0][multiCodec("sha2-256")])
-      }.toTable,
-      CIDv1: {
-        multiCodec("sha2-256"): Block(
-          cid: EmptyCid[CIDv1][multiCodec("sha2-256")])
-      }.toTable,
-    ]
-
-  emptyBlock
-
-proc isEmpty*(cid: Cid): bool =
-  cid == EmptyCid[cid.cidver]
-  .catch
-  .get()[cid.mhash.get().mcodec]
-  .catch
-  .get()
-
-proc isEmpty*(blk: Block): bool =
-  blk.cid.isEmpty
-
-proc emptyBlock*(cid: Cid): Block =
-  EmptyBlock[cid.cidver]
-  .catch
-  .get()[cid.mhash.get().mcodec]
-  .catch
-  .get()
+proc init*(_: type BlockAddress, treeCid: Cid, index: Natural): BlockAddress =
+  BlockAddress(leaf: true, treeCid: treeCid, index: index)
 
 proc `$`*(b: Block): string =
   result &= "cid: " & $b.cid
@@ -131,8 +89,10 @@ func new*(
   T: type Block,
   data: openArray[byte] = [],
   version = CIDv1,
-  mcodec = multiCodec("sha2-256"),
-  codec = multiCodec("raw")): ?!T =
+  mcodec = Sha256HashCodec,
+  codec = BlockCodec): ?!Block =
+  ## creates a new block for both storage and network IO
+  ##
 
   let
     hash = ? MultiHash.digest($mcodec, data).mapFailure
@@ -144,21 +104,39 @@ func new*(
     cid: cid,
     data: @data).success
 
-func new*(
-  T: type Block,
-  cid: Cid,
-  data: openArray[byte],
-  verify: bool = true): ?!T =
+proc new*(
+    T: type Block,
+    cid: Cid,
+    data: openArray[byte],
+    verify: bool = true
+): ?!Block =
+  ## creates a new block for both storage and network IO
+  ##
 
-  let
-    mhash = ? cid.mhash.mapFailure
-    b = ? Block.new(
-      data = @data,
-      version = cid.cidver,
-      codec = cid.mcodec,
-      mcodec = mhash.mcodec)
+  if verify:
+    let
+      mhash = ? cid.mhash.mapFailure
+      computedMhash = ? MultiHash.digest($mhash.mcodec, data).mapFailure
+      computedCid = ? Cid.init(cid.cidver, cid.mcodec, computedMhash).mapFailure
+    if computedCid != cid:
+      return "Cid doesn't match the data".failure
 
-  if verify and cid != b.cid:
-    return "Cid and content don't match!".failure
+  return Block(
+    cid: cid,
+    data: @data
+  ).success
 
-  success b
+proc emptyBlock*(version: CidVersion, hcodec: MultiCodec): ?!Block =
+  emptyCid(version, hcodec, BlockCodec)
+    .flatMap((cid: Cid) => Block.new(cid = cid, data = @[]))
+
+proc emptyBlock*(cid: Cid): ?!Block =
+  cid.mhash.mapFailure.flatMap((mhash: MultiHash) =>
+      emptyBlock(cid.cidver, mhash.mcodec))
+
+proc isEmpty*(cid: Cid): bool =
+  success(cid) == cid.mhash.mapFailure.flatMap((mhash: MultiHash) =>
+      emptyCid(cid.cidver, mhash.mcodec, cid.mcodec))
+
+proc isEmpty*(blk: Block): bool =
+  blk.cid.isEmpty

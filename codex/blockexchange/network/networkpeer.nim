@@ -11,17 +11,15 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronos
-import pkg/chronicles
 import pkg/libp2p
 
 import ../protobuf/blockexc
+import ../protobuf/message
 import ../../errors
+import ../../logutils
 
 logScope:
   topics = "codex blockexcnetworkpeer"
-
-const
-  MaxMessageSize = 100 * 1 shl 20 # manifest files can be big
 
 type
   ConnProvider* = proc(): Future[Connection] {.gcsafe, closure.}
@@ -45,12 +43,13 @@ proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
   try:
     while not conn.atEof or not conn.closed:
       let
-        data = await conn.readLp(MaxMessageSize)
-        msg = Message.ProtobufDecode(data).mapFailure().tryGet()
-      trace "Got message for peer", peer = b.id
+        data = await conn.readLp(MaxMessageSize.int)
+        msg = Message.protobufDecode(data).mapFailure().tryGet()
       await b.handler(b, msg)
-  except CatchableError as exc:
-    trace "Exception in blockexc read loop", exc = exc.msg
+  except CancelledError:
+    trace "Read loop cancelled"
+  except CatchableError as err:
+    warn "Exception in blockexc read loop", msg = err.msg
   finally:
     await conn.close()
 
@@ -66,18 +65,17 @@ proc send*(b: NetworkPeer, msg: Message) {.async.} =
   let conn = await b.connect()
 
   if isNil(conn):
-    trace "Unable to get send connection for peer message not sent", peer = b.id
+    warn "Unable to get send connection for peer message not sent", peer = b.id
     return
 
-  trace "Sending message to remote", peer = b.id
-  await conn.writeLp(ProtobufEncode(msg))
+  await conn.writeLp(protobufEncode(msg))
 
 proc broadcast*(b: NetworkPeer, msg: Message) =
   proc sendAwaiter() {.async.} =
     try:
       await b.send(msg)
     except CatchableError as exc:
-      trace "Exception broadcasting message to peer", peer = b.id, exc = exc.msg
+      warn "Exception broadcasting message to peer", peer = b.id, exc = exc.msg
 
   asyncSpawn sendAwaiter()
 
@@ -85,7 +83,7 @@ func new*(
   T: type NetworkPeer,
   peer: PeerId,
   connProvider: ConnProvider,
-  rpcHandler: RPCHandler): T =
+  rpcHandler: RPCHandler): NetworkPeer =
 
   doAssert(not isNil(connProvider),
     "should supply connection provider")

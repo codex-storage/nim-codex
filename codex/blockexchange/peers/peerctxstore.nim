@@ -16,10 +16,12 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronos
-import pkg/chronicles
 import pkg/libp2p
 
 import ../protobuf/blockexc
+import ../../blocktype
+import ../../logutils
+
 
 import ./peercontext
 export peercontext
@@ -29,56 +31,59 @@ logScope:
 
 type
   PeerCtxStore* = ref object of RootObj
-    peers*: OrderedTable[PeerID, BlockExcPeerCtx]
+    peers*: OrderedTable[PeerId, BlockExcPeerCtx]
 
 iterator items*(self: PeerCtxStore): BlockExcPeerCtx =
   for p in self.peers.values:
     yield p
 
-proc contains*(a: openArray[BlockExcPeerCtx], b: PeerID): bool =
+proc contains*(a: openArray[BlockExcPeerCtx], b: PeerId): bool =
   ## Convenience method to check for peer precense
   ##
 
   a.anyIt( it.id == b )
 
-func contains*(self: PeerCtxStore, peerId: PeerID): bool =
+func contains*(self: PeerCtxStore, peerId: PeerId): bool =
   peerId in self.peers
 
 func add*(self: PeerCtxStore, peer: BlockExcPeerCtx) =
-  trace "Adding peer to peer context store", peer = peer.id
   self.peers[peer.id] = peer
 
-func remove*(self: PeerCtxStore, peerId: PeerID) =
-  trace "Removing peer from peer context store", peer = peerId
+func remove*(self: PeerCtxStore, peerId: PeerId) =
   self.peers.del(peerId)
 
-func get*(self: PeerCtxStore, peerId: PeerID): BlockExcPeerCtx =
-  trace "Retrieving peer from peer context store", peer = peerId
+func get*(self: PeerCtxStore, peerId: PeerId): BlockExcPeerCtx =
   self.peers.getOrDefault(peerId, nil)
 
 func len*(self: PeerCtxStore): int =
   self.peers.len
 
+func peersHave*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
+  toSeq(self.peers.values).filterIt( it.peerHave.anyIt( it == address ) )
+
 func peersHave*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt( it.peerHave.anyIt( it == cid ) )
+  toSeq(self.peers.values).filterIt( it.peerHave.anyIt( it.cidOrTreeCid == cid ) )
+
+func peersWant*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
+  toSeq(self.peers.values).filterIt( it.peerWants.anyIt( it == address ) )
 
 func peersWant*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt( it.peerWants.anyIt( it.cid == cid ) )
+  toSeq(self.peers.values).filterIt( it.peerWants.anyIt( it.address.cidOrTreeCid == cid ) )
 
-func selectCheapest*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
-  var
-    peers = self.peersHave(cid)
+func selectCheapest*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
+  # assume that the price for all leaves in a tree is the same
+  let rootAddress = BlockAddress(leaf: false, cid: address.cidOrTreeCid)
+  var peers = self.peersHave(rootAddress)
 
-  trace "Selecting cheapest peers", peers = peers.len
   func cmp(a, b: BlockExcPeerCtx): int =
     var
       priceA = 0.u256
       priceB = 0.u256
 
-    a.blocks.withValue(cid, precense):
+    a.blocks.withValue(rootAddress, precense):
       priceA = precense[].price
 
-    b.blocks.withValue(cid, precense):
+    b.blocks.withValue(rootAddress, precense):
       priceB = precense[].price
 
     if priceA == priceB:
@@ -93,5 +98,5 @@ func selectCheapest*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
   return peers
 
 proc new*(T: type PeerCtxStore): PeerCtxStore =
-  T(
-    peers: initOrderedTable[PeerID, BlockExcPeerCtx]())
+  ## create new instance of a peer context store
+  PeerCtxStore(peers: initOrderedTable[PeerId, BlockExcPeerCtx]())

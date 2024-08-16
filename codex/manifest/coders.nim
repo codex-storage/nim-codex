@@ -14,19 +14,20 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import std/tables
+import std/sequtils
 
 import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
-import pkg/chronicles
 import pkg/chronos
 
 import ./manifest
 import ../errors
 import ../blocktype
-import ./types
+import ../logutils
+import ../indexingstrategy
 
-func encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
+proc encode*(manifest: Manifest): ?!seq[byte] =
   ## Encode the manifest into a ``ManifestCodec``
   ## multicodec container (Dag-pb) for now
   ##
@@ -34,54 +35,67 @@ func encode*(_: DagPBCoder, manifest: Manifest): ?!seq[byte] =
   ? manifest.verify()
   var pbNode = initProtoBuffer()
 
-  for c in manifest.blocks:
-    var pbLink = initProtoBuffer()
-    pbLink.write(1, c.data.buffer) # write Cid links
-    pbLink.finish()
-    pbNode.write(2, pbLink)
-
   # NOTE: The `Data` field in the the `dag-pb`
   # contains the following protobuf `Message`
   #
   # ```protobuf
-  #   Message ErasureInfo {
-  #     optional uint32 K = 1;          # number of encoded blocks
-  #     optional uint32 M = 2;          # number of parity blocks
-  #     optional bytes cid = 3;         # cid of the original dataset
-  #     optional uint32 original = 4;   # number of original blocks
+  #   Message VerificationInfo {
+  #     bytes verifyRoot = 1;             # Decimal encoded field-element
+  #     repeated bytes slotRoots = 2;     # Decimal encoded field-elements
   #   }
+  #   Message ErasureInfo {
+  #     optional uint32 ecK = 1;                            # number of encoded blocks
+  #     optional uint32 ecM = 2;                            # number of parity blocks
+  #     optional bytes originalTreeCid = 3;                 # cid of the original dataset
+  #     optional uint32 originalDatasetSize = 4;            # size of the original dataset
+  #     optional VerificationInformation verification = 5;  # verification information
+  #   }
+  #
   #   Message Header {
-  #     optional bytes rootHash = 1;      # the root (tree) hash
+  #     optional bytes treeCid = 1;       # cid (root) of the tree
   #     optional uint32 blockSize = 2;    # size of a single block
-  #     optional uint32 blocksLen = 3;    # total amount of blocks
-  #     optional ErasureInfo erasure = 4; # erasure coding info
-  #     optional uint64 originalBytes = 5;# exact file size
+  #     optional uint64 datasetSize = 3;  # size of the dataset
+  #     optional codec: MultiCodec = 4;   # Dataset codec
+  #     optional hcodec: MultiCodec = 5   # Multihash codec
+  #     optional version: CidVersion = 6; # Cid version
+  #     optional ErasureInfo erasure = 7; # erasure coding info
   #   }
   # ```
   #
-
-  let cid = !manifest.rootHash
+  # var treeRootVBuf = initVBuffer()
   var header = initProtoBuffer()
-  header.write(1, cid.data.buffer)
+  header.write(1, manifest.treeCid.data.buffer)
   header.write(2, manifest.blockSize.uint32)
-  header.write(3, manifest.len.uint32)
-  header.write(5, manifest.originalBytes.uint64)
+  header.write(3, manifest.datasetSize.uint64)
+  header.write(4, manifest.codec.uint32)
+  header.write(5, manifest.hcodec.uint32)
+  header.write(6, manifest.version.uint32)
   if manifest.protected:
     var erasureInfo = initProtoBuffer()
-    erasureInfo.write(1, manifest.K.uint32)
-    erasureInfo.write(2, manifest.M.uint32)
-    erasureInfo.write(3, manifest.originalCid.data.buffer)
-    erasureInfo.write(4, manifest.originalLen.uint32)
+    erasureInfo.write(1, manifest.ecK.uint32)
+    erasureInfo.write(2, manifest.ecM.uint32)
+    erasureInfo.write(3, manifest.originalTreeCid.data.buffer)
+    erasureInfo.write(4, manifest.originalDatasetSize.uint64)
+    erasureInfo.write(5, manifest.protectedStrategy.uint32)
+
+    if manifest.verifiable:
+      var verificationInfo = initProtoBuffer()
+      verificationInfo.write(1, manifest.verifyRoot.data.buffer)
+      for slotRoot in manifest.slotRoots:
+        verificationInfo.write(2, slotRoot.data.buffer)
+      verificationInfo.write(3, manifest.cellSize.uint32)
+      verificationInfo.write(4, manifest.verifiableStrategy.uint32)
+      erasureInfo.write(6, verificationInfo)
+
     erasureInfo.finish()
+    header.write(7, erasureInfo)
 
-    header.write(4, erasureInfo)
-
-  pbNode.write(1, header) # set the rootHash Cid as the data field
+  pbNode.write(1, header) # set the treeCid as the data field
   pbNode.finish()
 
   return pbNode.buffer.success
 
-func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
+proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
   ## Decode a manifest from a data blob
   ##
 
@@ -89,105 +103,131 @@ func decode*(_: DagPBCoder, data: openArray[byte]): ?!Manifest =
     pbNode = initProtoBuffer(data)
     pbHeader: ProtoBuffer
     pbErasureInfo: ProtoBuffer
-    rootHash: seq[byte]
-    originalCid: seq[byte]
-    originalBytes: uint64
+    pbVerificationInfo: ProtoBuffer
+    treeCidBuf: seq[byte]
+    originalTreeCid: seq[byte]
+    datasetSize: uint64
+    codec: uint32
+    hcodec: uint32
+    version: uint32
     blockSize: uint32
-    blocksLen: uint32
-    originalLen: uint32
-    K, M: uint32
-    blocks: seq[Cid]
+    originalDatasetSize: uint64
+    ecK, ecM: uint32
+    protectedStrategy: uint32
+    verifyRoot: seq[byte]
+    slotRoots: seq[seq[byte]]
+    cellSize: uint32
+    verifiableStrategy: uint32
 
   # Decode `Header` message
   if pbNode.getField(1, pbHeader).isErr:
     return failure("Unable to decode `Header` from dag-pb manifest!")
 
   # Decode `Header` contents
-  if pbHeader.getField(1, rootHash).isErr:
-    return failure("Unable to decode `rootHash` from manifest!")
+  if pbHeader.getField(1, treeCidBuf).isErr:
+    return failure("Unable to decode `treeCid` from manifest!")
 
   if pbHeader.getField(2, blockSize).isErr:
     return failure("Unable to decode `blockSize` from manifest!")
 
-  if pbHeader.getField(3, blocksLen).isErr:
-    return failure("Unable to decode `blocksLen` from manifest!")
+  if pbHeader.getField(3, datasetSize).isErr:
+    return failure("Unable to decode `datasetSize` from manifest!")
 
-  if pbHeader.getField(5, originalBytes).isErr:
-    return failure("Unable to decode `originalBytes` from manifest!")
+  if pbHeader.getField(4, codec).isErr:
+    return failure("Unable to decode `codec` from manifest!")
 
-  if pbHeader.getField(4, pbErasureInfo).isErr:
+  if pbHeader.getField(5, hcodec).isErr:
+    return failure("Unable to decode `hcodec` from manifest!")
+
+  if pbHeader.getField(6, version).isErr:
+    return failure("Unable to decode `version` from manifest!")
+
+  if pbHeader.getField(7, pbErasureInfo).isErr:
     return failure("Unable to decode `erasureInfo` from manifest!")
 
-  if pbErasureInfo.buffer.len > 0:
-    if pbErasureInfo.getField(1, K).isErr:
+  let protected = pbErasureInfo.buffer.len > 0
+  var verifiable = false
+  if protected:
+    if pbErasureInfo.getField(1, ecK).isErr:
       return failure("Unable to decode `K` from manifest!")
 
-    if pbErasureInfo.getField(2, M).isErr:
+    if pbErasureInfo.getField(2, ecM).isErr:
       return failure("Unable to decode `M` from manifest!")
 
-    if pbErasureInfo.getField(3, originalCid).isErr:
-      return failure("Unable to decode `originalCid` from manifest!")
+    if pbErasureInfo.getField(3, originalTreeCid).isErr:
+      return failure("Unable to decode `originalTreeCid` from manifest!")
 
-    if pbErasureInfo.getField(4, originalLen).isErr:
-      return failure("Unable to decode `originalLen` from manifest!")
+    if pbErasureInfo.getField(4, originalDatasetSize).isErr:
+      return failure("Unable to decode `originalDatasetSize` from manifest!")
 
-  let rootHashCid = ? Cid.init(rootHash).mapFailure
-  var linksBuf: seq[seq[byte]]
-  if pbNode.getRepeatedField(2, linksBuf).isOk:
-    for pbLinkBuf in linksBuf:
-      var
-        blocksBuf: seq[seq[byte]]
-        blockBuf: seq[byte]
-        pbLink = initProtoBuffer(pbLinkBuf)
+    if pbErasureInfo.getField(5, protectedStrategy).isErr:
+      return failure("Unable to decode `protectedStrategy` from manifest!")
 
-      if pbLink.getField(1, blockBuf).isOk:
-        blocks.add(? Cid.init(blockBuf).mapFailure)
+    if pbErasureInfo.getField(6, pbVerificationInfo).isErr:
+      return failure("Unable to decode `verificationInfo` from manifest!")
 
-  if blocksLen.int != blocks.len:
-    return failure("Total blocks and length of blocks in header don't match!")
+    verifiable = pbVerificationInfo.buffer.len > 0
+    if verifiable:
+      if pbVerificationInfo.getField(1, verifyRoot).isErr:
+        return failure("Unable to decode `verifyRoot` from manifest!")
 
-  var
-    self = Manifest(
-      rootHash: rootHashCid.some,
-      originalBytes: originalBytes.int,
-      blockSize: blockSize.int,
-      blocks: blocks,
-      hcodec: (? rootHashCid.mhash.mapFailure).mcodec,
-      codec: rootHashCid.mcodec,
-      version: rootHashCid.cidver,
-      protected: pbErasureInfo.buffer.len > 0)
+      if pbVerificationInfo.getRequiredRepeatedField(2, slotRoots).isErr:
+        return failure("Unable to decode `slotRoots` from manifest!")
 
-  if self.protected:
-    self.K = K.int
-    self.M = M.int
-    self.originalCid = ? Cid.init(originalCid).mapFailure
-    self.originalLen = originalLen.int
+      if pbVerificationInfo.getField(3, cellSize).isErr:
+        return failure("Unable to decode `cellSize` from manifest!")
+
+      if pbVerificationInfo.getField(4, verifiableStrategy).isErr:
+        return failure("Unable to decode `verifiableStrategy` from manifest!")
+
+  let
+    treeCid = ? Cid.init(treeCidBuf).mapFailure
+
+  let
+    self = if protected:
+      Manifest.new(
+        treeCid = treeCid,
+        datasetSize = datasetSize.NBytes,
+        blockSize = blockSize.NBytes,
+        version = CidVersion(version),
+        hcodec = hcodec.MultiCodec,
+        codec = codec.MultiCodec,
+        ecK = ecK.int,
+        ecM = ecM.int,
+        originalTreeCid = ? Cid.init(originalTreeCid).mapFailure,
+        originalDatasetSize = originalDatasetSize.NBytes,
+        strategy = StrategyType(protectedStrategy))
+      else:
+        Manifest.new(
+          treeCid = treeCid,
+          datasetSize = datasetSize.NBytes,
+          blockSize = blockSize.NBytes,
+          version = CidVersion(version),
+          hcodec = hcodec.MultiCodec,
+          codec = codec.MultiCodec)
 
   ? self.verify()
+
+  if verifiable:
+    let
+      verifyRootCid = ? Cid.init(verifyRoot).mapFailure
+      slotRootCids = slotRoots.mapIt(? Cid.init(it).mapFailure)
+
+    return Manifest.new(
+      manifest = self,
+      verifyRoot = verifyRootCid,
+      slotRoots = slotRootCids,
+      cellSize = cellSize.NBytes,
+      strategy = StrategyType(verifiableStrategy)
+    )
+
   self.success
 
-proc encode*(
-  self: Manifest,
-  encoder = ManifestContainers[$DagPBCodec]): ?!seq[byte] =
-  ## Encode a manifest using `encoder`
-  ##
-
-  if self.rootHash.isNone:
-    ? self.makeRoot()
-
-  encoder.encode(self)
-
-func decode*(
-  _: type Manifest,
-  data: openArray[byte],
-  decoder = ManifestContainers[$DagPBCodec]): ?!Manifest =
+func decode*(_: type Manifest, blk: Block): ?!Manifest =
   ## Decode a manifest using `decoder`
   ##
 
-  decoder.decode(data)
+  if not ? blk.cid.isManifest:
+    return failure "Cid not a manifest codec"
 
-func decode*(_: type Manifest, blk: Block): ?!Manifest =
-  without contentType =? blk.cid.contentType() and
-          containerType =? ManifestContainers.?[$contentType]:
-    return failure "CID has invalid content type for manifest"
-  Manifest.decode(blk.data, containerType)
+  Manifest.decode(blk.data)

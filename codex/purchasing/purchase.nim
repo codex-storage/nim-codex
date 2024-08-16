@@ -24,30 +24,39 @@ export Purchase
 export purchaseid
 export statemachine
 
-func new*(_: type Purchase,
-          requestId: RequestId,
-          market: Market,
-          clock: Clock): Purchase =
-  Purchase(
-    future: Future[void].new(),
-    requestId: requestId,
-    market: market,
-    clock: clock
-  )
+func new*(
+    _: type Purchase,
+    requestId: RequestId,
+    market: Market,
+    clock: Clock
+): Purchase =
+  ## create a new instance of a Purchase
+  ##
+  var purchase = Purchase.new()
+  {.cast(noSideEffect).}:
+    purchase.future = newFuture[void]()
+  purchase.requestId = requestId
+  purchase.market = market
+  purchase.clock = clock
 
-func new*(_: type Purchase,
-          request: StorageRequest,
-          market: Market,
-          clock: Clock): Purchase =
+  return purchase
+
+func new*(
+    _: type Purchase,
+    request: StorageRequest,
+    market: Market,
+    clock: Clock
+): Purchase =
+  ## Create a new purchase using the given market and clock
   let purchase = Purchase.new(request.id, market, clock)
   purchase.request = some request
   return purchase
 
 proc start*(purchase: Purchase) =
-  purchase.switch(PurchasePending())
+  purchase.start(PurchasePending())
 
 proc load*(purchase: Purchase) =
-  purchase.switch(PurchaseUnknown())
+  purchase.start(PurchaseUnknown())
 
 proc wait*(purchase: Purchase) {.async.} =
   await purchase.future
@@ -63,3 +72,8 @@ func error*(purchase: Purchase): ?(ref CatchableError) =
     some purchase.future.error
   else:
     none (ref CatchableError)
+
+func state*(purchase: Purchase): ?string =
+  proc description(state: State): string =
+    $state
+  purchase.query(description)

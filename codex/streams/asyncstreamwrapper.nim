@@ -11,8 +11,9 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/chronos
-import pkg/chronicles
 import pkg/libp2p
+
+import ../logutils
 
 logScope:
   topics = "libp2p asyncstreamwrapper"
@@ -32,9 +33,12 @@ method initStream*(self: AsyncStreamWrapper) =
   procCall LPStream(self).initStream()
 
 proc new*(
-  C: type AsyncStreamWrapper,
-  reader: AsyncStreamReader = nil,
-  writer: AsyncStreamWriter = nil): AsyncStreamWrapper =
+    C: type AsyncStreamWrapper,
+    reader: AsyncStreamReader = nil,
+    writer: AsyncStreamWriter = nil
+): AsyncStreamWrapper =
+  ## Create new instance of an asynchronous stream wrapper
+  ##
   let
     stream = C(reader: reader, writer: writer)
 
@@ -57,9 +61,10 @@ template withExceptions(body: untyped) =
     raise newException(LPStreamError, exc.msg)
 
 method readOnce*(
-  self: AsyncStreamWrapper,
-  pbytes: pointer,
-  nbytes: int): Future[int] {.async.} =
+    self: AsyncStreamWrapper,
+    pbytes: pointer,
+    nbytes: int
+): Future[int] {.async.} =
 
   trace "Reading bytes from reader", bytes = nbytes
   if isNil(self.reader):
@@ -75,7 +80,8 @@ method readOnce*(
 proc completeWrite(
     self: AsyncStreamWrapper,
     fut: Future[void],
-    msgLen: int): Future[void] {.async.} =
+    msgLen: int
+): Future[void] {.async.} =
 
   withExceptions:
     await fut

@@ -7,19 +7,21 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/upraises
 
-push: {.upraises: [].}
+{.push raises: [].}
 
-import pkg/chronicles
 import pkg/chronos
 import pkg/libp2p
+import pkg/questionable/results
 
-import ../blocktype as bt
-import ../utils/asyncheapqueue
-
-import ./blockstore
+import ../clock
+import ../blocktype
 import ../blockexchange
+import ../logutils
+import ../merkletree
+import ../utils/asyncheapqueue
+import ../utils/asynciter
+import ./blockstore
 
 export blockstore, blockexchange, asyncheapqueue
 
@@ -31,33 +33,103 @@ type
     engine*: BlockExcEngine # blockexc decision engine
     localStore*: BlockStore # local block store
 
-method getBlock*(self: NetworkStore, cid: Cid): Future[?!bt.Block] {.async.} =
-  ## Get a block from a remote peer
-  ##
+method getBlock*(self: NetworkStore, address: BlockAddress): Future[?!Block] {.async.} =
+  without blk =? (await self.localStore.getBlock(address)), err:
+    if not (err of BlockNotFoundError):
+      error "Error getting block from local store", address, err = err.msg
+      return failure err
 
-  trace "Getting block from local store or network", cid
+    without newBlock =? (await self.engine.requestBlock(address)), err:
+      error "Unable to get block from exchange engine", address, err = err.msg
+      return failure err
 
-  without blk =? await self.localStore.getBlock(cid), error:
-    if not (error of BlockNotFoundError): return failure error
-    trace "Block not in local store", cid
-    # TODO: What if block isn't available in the engine too?
-    # TODO: add retrieved block to the local store
-    return (await self.engine.requestBlock(cid)).catch
+    return success newBlock
 
   return success blk
 
-method putBlock*(self: NetworkStore, blk: bt.Block): Future[?!void] {.async.} =
-  ## Store block locally and notify the network
+method getBlock*(self: NetworkStore, cid: Cid): Future[?!Block] =
+  ## Get a block from the blockstore
   ##
 
-  trace "Puting block into network store", cid = blk.cid
+  self.getBlock(BlockAddress.init(cid))
 
-  let res = await self.localStore.putBlock(blk)
+method getBlock*(self: NetworkStore, treeCid: Cid, index: Natural): Future[?!Block] =
+  ## Get a block from the blockstore
+  ##
+
+  self.getBlock(BlockAddress.init(treeCid, index))
+
+method putBlock*(
+  self: NetworkStore,
+  blk: Block,
+  ttl = Duration.none): Future[?!void] {.async.} =
+  ## Store block locally and notify the network
+  ##
+  let res = await self.localStore.putBlock(blk, ttl)
   if res.isErr:
     return res
 
   await self.engine.resolveBlocks(@[blk])
   return success()
+
+method putCidAndProof*(
+  self: NetworkStore,
+  treeCid: Cid,
+  index: Natural,
+  blockCid: Cid,
+  proof: CodexProof): Future[?!void] =
+  self.localStore.putCidAndProof(treeCid, index, blockCid, proof)
+
+method getCidAndProof*(
+  self: NetworkStore,
+  treeCid: Cid,
+  index: Natural): Future[?!(Cid, CodexProof)] =
+  ## Get a block proof from the blockstore
+  ##
+
+  self.localStore.getCidAndProof(treeCid, index)
+
+method ensureExpiry*(
+  self: NetworkStore,
+  cid: Cid,
+  expiry: SecondsSince1970): Future[?!void] {.async.} =
+  ## Ensure that block's assosicated expiry is at least given timestamp
+  ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
+  ##
+
+  without blockCheck =? await self.localStore.hasBlock(cid), err:
+    return failure(err)
+
+  if blockCheck:
+    return await self.localStore.ensureExpiry(cid, expiry)
+  else:
+    trace "Updating expiry - block not in local store", cid
+
+  return success()
+
+method ensureExpiry*(
+  self: NetworkStore,
+  treeCid: Cid,
+  index: Natural,
+  expiry: SecondsSince1970): Future[?!void] {.async.} =
+  ## Ensure that block's associated expiry is at least given timestamp
+  ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
+  ##
+
+  without blockCheck =? await self.localStore.hasBlock(treeCid, index), err:
+    return failure(err)
+
+  if blockCheck:
+    return await self.localStore.ensureExpiry(treeCid, index, expiry)
+  else:
+    trace "Updating expiry - block not in local store", treeCid, index
+
+  return success()
+
+method listBlocks*(
+  self: NetworkStore,
+  blockType = BlockType.Manifest): Future[?!AsyncIter[?Cid]] =
+  self.localStore.listBlocks(blockType)
 
 method delBlock*(self: NetworkStore, cid: Cid): Future[?!void] =
   ## Delete a block from the blockstore
@@ -79,15 +151,14 @@ method close*(self: NetworkStore): Future[void] {.async.} =
   ## Close the underlying local blockstore
   ##
 
-  if not self.localStore.isNil: await self.localStore.close
+  if not self.localStore.isNil:
+    await self.localStore.close
 
 proc new*(
   T: type NetworkStore,
   engine: BlockExcEngine,
-  localStore: BlockStore): T =
-
-  let b = NetworkStore(
-    localStore: localStore,
-    engine: engine)
-
-  return b
+  localStore: BlockStore
+): NetworkStore =
+  ## Create new instance of a NetworkStore
+  ##
+  NetworkStore(localStore: localStore, engine: engine)

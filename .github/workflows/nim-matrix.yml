@@ -1,0 +1,30 @@
+name: Nim matrix
+
+on:
+  merge_group:
+  workflow_dispatch:
+
+env:
+  cache_nonce: 0 # Allows for easily busting actions/cache caches
+  nim_version: pinned
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      cache_nonce: ${{ env.cache_nonce }}
+    steps:
+    - name: Compute matrix
+      id: matrix
+      uses: fabiocaccamo/create-matrix-action@v4
+      with:
+        matrix: |
+          os {linux}, cpu {amd64}, builder {ubuntu-latest}, tests {all}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+
+  build:
+    needs: matrix
+    uses: ./.github/workflows/ci-reusable.yml
+    with:
+      matrix: ${{ needs.matrix.outputs.matrix }}
+      cache_nonce: ${{ needs.matrix.outputs.cache_nonce }}

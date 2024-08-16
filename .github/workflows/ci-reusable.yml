@@ -1,0 +1,88 @@
+name: Reusable -  CI
+
+on:
+  workflow_call:
+    inputs:
+      matrix:
+        type: string
+      cache_nonce:
+        default: '0'
+        description: Allows for easily busting actions/cache caches
+        required: false
+        type: string
+
+env:
+  cache_nonce: ${{ inputs.cache_nonce }}
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include: ${{ fromJson(inputs.matrix) }}
+
+    defaults:
+      run:
+        shell: ${{ matrix.shell }} {0}
+
+    name: '${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-${{ matrix.tests }}'
+    runs-on: ${{ matrix.builder }}
+    timeout-minutes: 90
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Nimbus Build System
+        uses: ./.github/actions/nimbus-build-system
+        with:
+          os: ${{ matrix.os }}
+          shell: ${{ matrix.shell }}
+          nim_version: ${{ matrix.nim_version }}
+
+      ## Part 1 Tests ##
+      - name: Unit tests
+        if: matrix.tests == 'unittest' || matrix.tests == 'all'
+        run: make -j${ncpu} test
+
+      # workaround for https://github.com/NomicFoundation/hardhat/issues/3877
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.15
+
+      - name: Start Ethereum node with Codex contracts
+        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'all'
+        working-directory: vendor/codex-contracts-eth
+        env:
+          MSYS2_PATH_TYPE: inherit
+        run: |
+          npm install
+          npm start &
+
+      ## Part 2 Tests ##
+      - name: Contract tests
+        if: matrix.tests == 'contract' || matrix.tests == 'all'
+        run: make -j${ncpu} testContracts
+
+      ## Part 3 Tests ##
+      - name: Integration tests
+        if: matrix.tests == 'integration' || matrix.tests == 'all'
+        run: make -j${ncpu} testIntegration
+
+      - name: Upload integration tests log files
+        uses: actions/upload-artifact@v4
+        if: (matrix.tests == 'integration' || matrix.tests == 'all') && always()
+        with:
+          name: ${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-integration-tests-logs
+          path: tests/integration/logs/
+          retention-days: 1
+
+  status:
+    if: always()
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')  || contains(needs.*.result, 'skipped') }}
+        run: exit 1

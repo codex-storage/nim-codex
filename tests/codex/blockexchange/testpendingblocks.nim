@@ -2,23 +2,23 @@ import std/sequtils
 import std/algorithm
 
 import pkg/chronos
-import pkg/asynctest
-import pkg/libp2p
 import pkg/stew/byteutils
 
 import pkg/codex/blocktype as bt
 import pkg/codex/blockexchange
 
-import ../examples
+import ../helpers
+import ../../asynctest
 
-suite "Pending Blocks":
+checksuite "Pending Blocks":
   test "Should add want handle":
     let
       pendingBlocks = PendingBlocksManager.new()
       blk = bt.Block.new("Hello".toBytes).tryGet
-      handle = pendingBlocks.getWantHandle(blk.cid)
 
-    check pendingBlocks.pending(blk.cid)
+    discard pendingBlocks.getWantHandle(blk.cid)
+
+    check blk.cid in pendingBlocks
 
   test "Should resolve want handle":
     let
@@ -27,7 +27,7 @@ suite "Pending Blocks":
       handle = pendingBlocks.getWantHandle(blk.cid)
 
     check blk.cid in pendingBlocks
-    pendingBlocks.resolve(@[blk])
+    pendingBlocks.resolve(@[blk].mapIt(BlockDelivery(blk: it, address: it.address)))
     check (await handle) == blk
     check blk.cid notin pendingBlocks
 
@@ -59,11 +59,12 @@ suite "Pending Blocks":
     let
       pendingBlocks = PendingBlocksManager.new()
       blks = (0..9).mapIt( bt.Block.new(("Hello " & $it).toBytes).tryGet )
-      handles = blks.mapIt( pendingBlocks.getWantHandle( it.cid ) )
+
+    discard blks.mapIt( pendingBlocks.getWantHandle( it.cid ) )
 
     check:
       blks.mapIt( $it.cid ).sorted(cmp[string]) ==
-      toSeq(pendingBlocks.wantList).mapIt( $it ).sorted(cmp[string])
+      toSeq(pendingBlocks.wantListBlockCids).mapIt( $it ).sorted(cmp[string])
 
   test "Should get want handles list":
     let
@@ -73,7 +74,7 @@ suite "Pending Blocks":
       wantHandles = toSeq(pendingBlocks.wantHandles)
 
     check wantHandles.len == handles.len
-    pendingBlocks.resolve(blks)
+    pendingBlocks.resolve(blks.mapIt(BlockDelivery(blk: it, address: it.address)))
 
     check:
       (await allFinished(wantHandles)).mapIt( $it.read.cid ).sorted(cmp[string]) ==

@@ -10,8 +10,6 @@
 import pkg/chronos
 import pkg/libp2p
 import pkg/questionable
-import pkg/questionable/results
-import pkg/stew/shims/net
 import pkg/codex/discovery
 import pkg/contractabi/address as ca
 
@@ -26,17 +24,21 @@ type
     publishHostProvideHandler*: proc(d: MockDiscovery, host: ca.Address):
       Future[void] {.gcsafe.}
 
-proc new*(T: type MockDiscovery): T =
-  T()
+proc new*(T: type MockDiscovery): MockDiscovery =
+  MockDiscovery()
 
 proc findPeer*(
-  d: Discovery,
-  peerId: PeerID): Future[?PeerRecord] {.async.} =
+    d: Discovery,
+    peerId: PeerId
+): Future[?PeerRecord] {.async.} =
+  ## mock find a peer - always return none
+  ## 
   return none(PeerRecord)
 
 method find*(
-  d: MockDiscovery,
-  cid: Cid): Future[seq[SignedPeerRecord]] {.async.} =
+    d: MockDiscovery,
+    cid: Cid
+): Future[seq[SignedPeerRecord]] {.async.} =
   if isNil(d.findBlockProvidersHandler):
     return
 
@@ -49,8 +51,9 @@ method provide*(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
   await d.publishBlockProvideHandler(d, cid)
 
 method find*(
-  d: MockDiscovery,
-  host: ca.Address): Future[seq[SignedPeerRecord]] {.async.} =
+    d: MockDiscovery,
+    host: ca.Address
+): Future[seq[SignedPeerRecord]] {.async.} =
   if isNil(d.findHostProvidersHandler):
     return
 

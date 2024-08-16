@@ -14,209 +14,327 @@ import pkg/upraises
 push: {.upraises: [].}
 
 import pkg/libp2p/protobuf/minprotobuf
-import pkg/libp2p
-import pkg/questionable
+import pkg/libp2p/[cid, multihash, multicodec]
 import pkg/questionable/results
-import pkg/chronicles
 
 import ../errors
 import ../utils
+import ../utils/json
+import ../units
 import ../blocktype
-import ./types
-import ./coders
+import ../indexingstrategy
+import ../logutils
+
+
+# TODO: Manifest should be reworked to more concrete types,
+# perhaps using inheritance
+type
+  Manifest* = ref object of RootObj
+    treeCid {.serialize.}: Cid              # Root of the merkle tree
+    datasetSize {.serialize.}: NBytes       # Total size of all blocks
+    blockSize {.serialize.}: NBytes         # Size of each contained block (might not be needed if blocks are len-prefixed)
+    codec: MultiCodec                       # Dataset codec
+    hcodec: MultiCodec                      # Multihash codec
+    version: CidVersion                     # Cid version
+    case protected {.serialize.}: bool      # Protected datasets have erasure coded info
+    of true:
+      ecK: int                              # Number of blocks to encode
+      ecM: int                              # Number of resulting parity blocks
+      originalTreeCid: Cid                  # The original root of the dataset being erasure coded
+      originalDatasetSize: NBytes
+      protectedStrategy: StrategyType       # Indexing strategy used to build the slot roots
+      case verifiable {.serialize.}: bool   # Verifiable datasets can be used to generate storage proofs
+      of true:
+        verifyRoot: Cid                     # Root of the top level merkle tree built from slot roots
+        slotRoots: seq[Cid]                 # Individual slot root built from the original dataset blocks
+        cellSize: NBytes                    # Size of each slot cell
+        verifiableStrategy: StrategyType    # Indexing strategy used to build the slot roots
+      else:
+        discard
+    else:
+      discard
+
+############################################################
+# Accessors
+############################################################
+
+func blockSize*(self: Manifest): NBytes =
+  self.blockSize
+
+func datasetSize*(self: Manifest): NBytes =
+  self.datasetSize
+
+func version*(self: Manifest): CidVersion =
+  self.version
+
+func hcodec*(self: Manifest): MultiCodec =
+  self.hcodec
+
+func codec*(self: Manifest): MultiCodec =
+  self.codec
+
+func protected*(self: Manifest): bool =
+  self.protected
+
+func ecK*(self: Manifest): int =
+  self.ecK
+
+func ecM*(self: Manifest): int =
+  self.ecM
+
+func originalTreeCid*(self: Manifest): Cid =
+  self.originalTreeCid
+
+func originalBlocksCount*(self: Manifest): int =
+  divUp(self.originalDatasetSize.int, self.blockSize.int)
+
+func originalDatasetSize*(self: Manifest): NBytes =
+  self.originalDatasetSize
+
+func treeCid*(self: Manifest): Cid =
+  self.treeCid
+
+func blocksCount*(self: Manifest): int =
+  divUp(self.datasetSize.int, self.blockSize.int)
+
+func verifiable*(self: Manifest): bool =
+  bool (self.protected and self.verifiable)
+
+func verifyRoot*(self: Manifest): Cid =
+  self.verifyRoot
+
+func slotRoots*(self: Manifest): seq[Cid] =
+  self.slotRoots
+
+func numSlots*(self: Manifest): int =
+  self.ecK + self.ecM
+
+func cellSize*(self: Manifest): NBytes =
+  self.cellSize
+
+func protectedStrategy*(self: Manifest): StrategyType =
+  self.protectedStrategy
+
+func verifiableStrategy*(self: Manifest): StrategyType =
+  self.verifiableStrategy
+
+func numSlotBlocks*(self: Manifest): int =
+  divUp(self.blocksCount, self.numSlots)
 
 ############################################################
 # Operations on block list
 ############################################################
 
-func len*(self: Manifest): int =
-  self.blocks.len
+func isManifest*(cid: Cid): ?!bool =
+  success (ManifestCodec == ? cid.contentType().mapFailure(CodexError))
 
-func `[]`*(self: Manifest, i: Natural): Cid =
-  self.blocks[i]
-
-func `[]=`*(self: var Manifest, i: Natural, item: Cid) =
-  self.rootHash = Cid.none
-  self.blocks[i] = item
-
-func `[]`*(self: Manifest, i: BackwardsIndex): Cid =
-  self.blocks[self.len - i.int]
-
-func `[]=`*(self: Manifest, i: BackwardsIndex, item: Cid) =
-  self.rootHash = Cid.none
-  self.blocks[self.len - i.int] = item
-
-proc add*(self: Manifest, cid: Cid) =
-  assert not self.protected  # we expect that protected manifests are created with properly-sized self.blocks
-  self.rootHash = Cid.none
-  trace "Adding cid to manifest", cid
-  self.blocks.add(cid)
-  self.originalBytes = self.blocks.len * self.blockSize
-
-iterator items*(self: Manifest): Cid =
-  for b in self.blocks:
-    yield b
-
-iterator pairs*(self: Manifest): tuple[key: int, val: Cid] =
-  for pair in self.blocks.pairs():
-    yield pair
-
-func contains*(self: Manifest, cid: Cid): bool =
-  cid in self.blocks
-
+func isManifest*(mc: MultiCodec): ?!bool =
+  success mc == ManifestCodec
 
 ############################################################
 # Various sizes and verification
 ############################################################
 
-func bytes*(self: Manifest, pad = true): int =
-  ## Compute how many bytes corresponding StoreStream(Manifest, pad) will return
-  if pad or self.protected:
-    self.len * self.blockSize
-  else:
-    self.originalBytes
-
 func rounded*(self: Manifest): int =
   ## Number of data blocks in *protected* manifest including padding at the end
-  roundUp(self.originalLen, self.K)
+  roundUp(self.originalBlocksCount, self.ecK)
 
 func steps*(self: Manifest): int =
   ## Number of EC groups in *protected* manifest
-  divUp(self.originalLen, self.K)
+  divUp(self.rounded, self.ecK)
 
 func verify*(self: Manifest): ?!void =
   ## Check manifest correctness
   ##
-  let originalLen = (if self.protected: self.originalLen else: self.len)
 
-  if divUp(self.originalBytes, self.blockSize) != originalLen:
-    return failure newException(CodexError, "Broken manifest: wrong originalBytes")
-
-  if self.protected and (self.len != self.steps * (self.K + self.M)):
-    return failure newException(CodexError, "Broken manifest: wrong originalLen")
+  if self.protected and (self.blocksCount != self.steps * (self.ecK + self.ecM)):
+    return failure newException(CodexError, "Broken manifest: wrong originalBlocksCount")
 
   return success()
 
+func cid*(self: Manifest): ?!Cid {.deprecated: "use treeCid instead".} =
+  self.treeCid.success
 
-############################################################
-# Cid computation
-############################################################
+func `==`*(a, b: Manifest): bool =
+  (a.treeCid == b.treeCid) and
+  (a.datasetSize == b.datasetSize) and
+  (a.blockSize == b.blockSize) and
+  (a.version == b.version) and
+  (a.hcodec == b.hcodec) and
+  (a.codec == b.codec) and
+  (a.protected == b.protected) and
+    (if a.protected:
+      (a.ecK == b.ecK) and
+      (a.ecM == b.ecM) and
+      (a.originalTreeCid == b.originalTreeCid) and
+      (a.originalDatasetSize == b.originalDatasetSize) and
+      (a.protectedStrategy == b.protectedStrategy) and
+      (a.verifiable == b.verifiable) and
+        (if a.verifiable:
+          (a.verifyRoot == b.verifyRoot) and
+          (a.slotRoots == b.slotRoots) and
+          (a.cellSize == b.cellSize) and
+          (a.verifiableStrategy == b.verifiableStrategy)
+        else:
+          true)
+    else:
+      true)
 
-template hashBytes(mh: MultiHash): seq[byte] =
-  ## get the hash bytes of a multihash object
-  ##
-
-  mh.data.buffer[mh.dpos..(mh.dpos + mh.size - 1)]
-
-proc makeRoot*(self: Manifest): ?!void =
-  ## Create a tree hash root of the contained
-  ## block hashes
-  ##
-
-  var
-    stack: seq[MultiHash]
-
-  for cid in self:
-    stack.add(? cid.mhash.mapFailure)
-
-    while stack.len > 1:
-      let
-        (b1, b2) = (stack.pop(), stack.pop())
-        mh = ? MultiHash.digest(
-          $self.hcodec,
-          (b1.hashBytes() & b2.hashBytes()))
-          .mapFailure
-      stack.add(mh)
-
-  if stack.len == 1:
-    let cid = ? Cid.init(
-      self.version,
-      self.codec,
-      (? EmptyDigests[self.version][self.hcodec].catch))
-      .mapFailure
-
-    self.rootHash = cid.some
-
-  success()
-
-proc cid*(self: Manifest): ?!Cid =
-  ## Generate a root hash using the treehash algorithm
-  ##
-
-  if self.rootHash.isNone:
-    ? self.makeRoot()
-
-  (!self.rootHash).success
-
+func `$`*(self: Manifest): string =
+  "treeCid: " & $self.treeCid &
+    ", datasetSize: " & $self.datasetSize &
+    ", blockSize: " & $self.blockSize &
+    ", version: " & $self.version &
+    ", hcodec: " & $self.hcodec &
+    ", codec: " & $self.codec &
+    ", protected: " & $self.protected &
+    (if self.protected:
+      ", ecK: " & $self.ecK &
+      ", ecM: " & $self.ecM &
+      ", originalTreeCid: " & $self.originalTreeCid &
+      ", originalDatasetSize: " & $self.originalDatasetSize &
+      ", verifiable: " & $self.verifiable &
+      (if self.verifiable:
+        ", verifyRoot: " & $self.verifyRoot &
+        ", slotRoots: " & $self.slotRoots
+      else:
+        "")
+    else:
+      "")
 
 ############################################################
 # Constructors
 ############################################################
 
-proc new*(
+func new*(
   T: type Manifest,
-  blocks: openArray[Cid] = [],
-  protected = false,
-  version = CIDv1,
-  hcodec = multiCodec("sha2-256"),
-  codec = multiCodec("raw"),
-  blockSize = BlockSize): ?!T =
-  ## Create a manifest using array of `Cid`s
-  ##
-
-  if hcodec notin EmptyDigests[version]:
-    return failure("Unsupported manifest hash codec!")
+  treeCid: Cid,
+  blockSize: NBytes,
+  datasetSize: NBytes,
+  version: CidVersion = CIDv1,
+  hcodec = Sha256HashCodec,
+  codec = BlockCodec,
+  protected = false): Manifest =
 
   T(
-    blocks: @blocks,
+    treeCid: treeCid,
+    blockSize: blockSize,
+    datasetSize: datasetSize,
     version: version,
     codec: codec,
     hcodec: hcodec,
-    blockSize: blockSize,
-    originalBytes: blocks.len * blockSize,
-    protected: protected).success
+    protected: protected)
 
-proc new*(
+func new*(
   T: type Manifest,
   manifest: Manifest,
-  K, M: int): ?!Manifest =
+  treeCid: Cid,
+  datasetSize: NBytes,
+  ecK, ecM: int,
+  strategy = SteppedStrategy): Manifest =
   ## Create an erasure protected dataset from an
-  ## un-protected one
+  ## unprotected one
   ##
 
-  var
-    self = Manifest(
-      version: manifest.version,
-      codec: manifest.codec,
-      hcodec: manifest.hcodec,
-      originalBytes: manifest.originalBytes,
-      blockSize: manifest.blockSize,
-      protected: true,
-      K: K, M: M,
-      originalCid: ? manifest.cid,
-      originalLen: manifest.len)
+  Manifest(
+    treeCid: treeCid,
+    datasetSize: datasetSize,
+    version: manifest.version,
+    codec: manifest.codec,
+    hcodec: manifest.hcodec,
+    blockSize: manifest.blockSize,
+    protected: true,
+    ecK: ecK, ecM: ecM,
+    originalTreeCid: manifest.treeCid,
+    originalDatasetSize: manifest.datasetSize,
+    protectedStrategy: strategy)
 
-  let
-    encodedLen = self.rounded + (self.steps * M)
-
-  self.blocks = newSeq[Cid](encodedLen)
-
-  # copy original manifest blocks
-  for i in 0..<self.rounded:
-    if i < manifest.len:
-      self.blocks[i] = manifest[i]
-    else:
-      self.blocks[i] = EmptyCid[manifest.version]
-      .catch
-      .get()[manifest.hcodec]
-      .catch
-      .get()
-
-  ? self.verify()
-  self.success
-
-proc new*(
+func new*(
   T: type Manifest,
-  data: openArray[byte],
-  decoder = ManifestContainers[$DagPBCodec]): ?!T =
-  Manifest.decode(data, decoder)
+  manifest: Manifest): Manifest =
+  ## Create an unprotected dataset from an
+  ## erasure protected one
+  ##
+
+  Manifest(
+    treeCid: manifest.originalTreeCid,
+    datasetSize: manifest.originalDatasetSize,
+    version: manifest.version,
+    codec: manifest.codec,
+    hcodec: manifest.hcodec,
+    blockSize: manifest.blockSize,
+    protected: false)
+
+func new*(
+  T: type Manifest,
+  treeCid: Cid,
+  datasetSize: NBytes,
+  blockSize: NBytes,
+  version: CidVersion,
+  hcodec: MultiCodec,
+  codec: MultiCodec,
+  ecK: int,
+  ecM: int,
+  originalTreeCid: Cid,
+  originalDatasetSize: NBytes,
+  strategy = SteppedStrategy): Manifest =
+
+  Manifest(
+    treeCid: treeCid,
+    datasetSize: datasetSize,
+    blockSize: blockSize,
+    version: version,
+    hcodec: hcodec,
+    codec: codec,
+    protected: true,
+    ecK: ecK,
+    ecM: ecM,
+    originalTreeCid: originalTreeCid,
+    originalDatasetSize: originalDatasetSize,
+    protectedStrategy: strategy)
+
+func new*(
+  T: type Manifest,
+  manifest: Manifest,
+  verifyRoot: Cid,
+  slotRoots: openArray[Cid],
+  cellSize = DefaultCellSize,
+  strategy = LinearStrategy): ?!Manifest =
+  ## Create a verifiable dataset from an
+  ## protected one
+  ##
+
+  if not manifest.protected:
+    return failure newException(
+      CodexError, "Can create verifiable manifest only from protected manifest.")
+
+  if slotRoots.len != manifest.numSlots:
+    return failure newException(
+      CodexError, "Wrong number of slot roots.")
+
+  success Manifest(
+    treeCid: manifest.treeCid,
+    datasetSize: manifest.datasetSize,
+    version: manifest.version,
+    codec: manifest.codec,
+    hcodec: manifest.hcodec,
+    blockSize: manifest.blockSize,
+    protected: true,
+    ecK: manifest.ecK,
+    ecM: manifest.ecM,
+    originalTreeCid: manifest.originalTreeCid,
+    originalDatasetSize: manifest.originalDatasetSize,
+    protectedStrategy: manifest.protectedStrategy,
+    verifiable: true,
+    verifyRoot: verifyRoot,
+    slotRoots: @slotRoots,
+    cellSize: cellSize,
+    verifiableStrategy: strategy)
+
+func new*(
+  T: type Manifest,
+  data: openArray[byte]): ?!Manifest =
+  ## Create a manifest instance from given data
+  ##
+
+  Manifest.decode(data)
