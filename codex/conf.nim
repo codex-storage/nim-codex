@@ -293,10 +293,10 @@ type
         name: "validator-max-slots"
       .}: int
 
-      payoutAddress* {.
+      rewardRecipient* {.
         desc: "Address to send payouts to (eg rewards and refunds)"
-        name: "payout-address"
-      .}: EthAddress
+        name: "reward-recipient"
+      .}: Option[EthAddress]
 
       case persistenceCmd* {.
         defaultValue: noCmd

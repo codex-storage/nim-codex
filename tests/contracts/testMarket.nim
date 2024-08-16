@@ -1,4 +1,5 @@
 import std/options
+import std/importutils
 import pkg/chronos
 import pkg/ethers/erc20
 import codex/contracts
@@ -6,6 +7,8 @@ import ../ethertest
 import ./examples
 import ./time
 import ./deployment
+
+privateAccess(OnChainMarket) # enable access to private fields
 
 ethersuite "On-Chain Market":
   let proof = Groth16Proof.example
@@ -17,22 +20,22 @@ ethersuite "On-Chain Market":
   var slotIndex: UInt256
   var periodicity: Periodicity
   var host: Signer
-  var hostPayoutAddress: Address
-  var clientPayoutAddress: Address
+  var hostRewardRecipient: Address
+  var clientWithdrawRecipient: Address
 
   proc switchAccount(account: Signer) =
     marketplace = marketplace.connect(account)
     token = token.connect(account)
-    market = OnChainMarket.new(marketplace, hostPayoutAddress)
+    market = OnChainMarket.new(marketplace, market.rewardRecipient)
 
   setup:
     let address = Marketplace.address(dummyVerifier = true)
     marketplace = Marketplace.new(address, ethProvider.getSigner())
     let config = await marketplace.config()
-    hostPayoutAddress = accounts[2]
-    clientPayoutAddress = hostPayoutAddress
+    hostRewardRecipient = accounts[2]
+    clientWithdrawRecipient = hostRewardRecipient
 
-    market = OnChainMarket.new(marketplace, hostPayoutAddress)
+    market = OnChainMarket.new(marketplace)
     let tokenAddress = await marketplace.token()
     token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
 
@@ -63,7 +66,7 @@ ethersuite "On-Chain Market":
   test "fails to instantiate when contract does not have a signer":
     let storageWithoutSigner = marketplace.connect(ethProvider)
     expect AssertionDefect:
-      discard OnChainMarket.new(storageWithoutSigner, hostPayoutAddress)
+      discard OnChainMarket.new(storageWithoutSigner)
 
   test "knows signer address":
     check (await market.getSigner()) == (await ethProvider.getSigner().getAddress())
@@ -88,20 +91,17 @@ ethersuite "On-Chain Market":
     let r = await market.getRequest(request.id)
     check (r) == some request
 
-  test "withdraws funds to client payout address":
+  test "withdraws funds to client":
     let clientAddress = request.client
 
     await market.requestStorage(request)
     await advanceToCancelledRequest(request)
     let startBalanceClient = await token.balanceOf(clientAddress)
-    let startBalancePayout = await token.balanceOf(clientPayoutAddress)
     await market.withdrawFunds(request.id)
 
     let endBalanceClient = await token.balanceOf(clientAddress)
-    let endBalancePayout = await token.balanceOf(clientPayoutAddress)
 
-    check startBalanceClient == endBalanceClient
-    check endBalancePayout == (startBalancePayout + request.price)
+    check endBalanceClient == (startBalanceClient + request.price)
 
   test "supports request subscriptions":
     var receivedIds: seq[RequestId]
@@ -397,7 +397,29 @@ ethersuite "On-Chain Market":
       (await market.queryPastEvents(StorageRequested, blocksAgo = 2))
     )
 
-  test "pays out to payout address, collateral paid to host address":
+  test "pays rewards and collateral to host":
+    await market.requestStorage(request)
+
+    let address = await host.getAddress()
+    switchAccount(host)
+
+    for slotIndex in 0..<request.ask.slots:
+      await market.fillSlot(request.id, slotIndex.u256, proof, request.ask.collateral)
+
+    let requestEnd = await market.getRequestEnd(request.id)
+    await ethProvider.advanceTimeTo(requestEnd.u256 + 1)
+
+    let startBalance = await token.balanceOf(address)
+
+    await market.freeSlot(request.slotId(0.u256))
+
+    let endBalance = await token.balanceOf(address)
+    check endBalance == (startBalance +
+                        request.ask.duration * request.ask.reward +
+                        request.ask.collateral)
+
+  test "pays rewards to reward recipient, collateral to host":
+    market = OnChainMarket.new(marketplace, hostRewardRecipient.some)
     let hostAddress = await host.getAddress()
 
     await market.requestStorage(request)
@@ -410,13 +432,13 @@ ethersuite "On-Chain Market":
     await ethProvider.advanceTimeTo(requestEnd.u256 + 1)
 
     let startBalanceHost = await token.balanceOf(hostAddress)
-    let startBalancePayout = await token.balanceOf(hostPayoutAddress)
+    let startBalanceReward = await token.balanceOf(hostRewardRecipient)
 
     await market.freeSlot(request.slotId(0.u256))
 
     let endBalanceHost = await token.balanceOf(hostAddress)
-    let endBalancePayout = await token.balanceOf(hostPayoutAddress)
+    let endBalanceReward = await token.balanceOf(hostRewardRecipient)
 
     check endBalanceHost == (startBalanceHost + request.ask.collateral)
-    check endBalancePayout == (startBalancePayout +
+    check endBalanceReward == (startBalanceReward +
                                request.ask.duration * request.ask.reward)
