@@ -347,9 +347,11 @@ method subscribeProofSubmission*(market: OnChainMarket,
 method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =
   await subscription.eventSubscription.unsubscribe()
 
-method queryPastStorageRequests*(market: OnChainMarket,
-                                 blocksAgo: int):
-                                Future[seq[PastStorageRequest]] {.async.} =
+method queryPastEvents*[T: MarketplaceEvent](
+  market: OnChainMarket,
+  _: type T,
+  blocksAgo: int): Future[seq[T]] {.async.} =
+
   convertEthersError:
     let contract = market.contract
     let provider = contract.provider
@@ -357,13 +359,6 @@ method queryPastStorageRequests*(market: OnChainMarket,
     let head = await provider.getBlockNumber()
     let fromBlock = BlockTag.init(head - blocksAgo.abs.u256)
 
-    let events = await contract.queryFilter(StorageRequested,
-                                            fromBlock,
-                                            BlockTag.latest)
-    return events.map(event =>
-      PastStorageRequest(
-        requestId: event.requestId,
-        ask: event.ask,
-        expiry: event.expiry
-      )
-    )
+    return await contract.queryFilter(T,
+                                      fromBlock,
+                                      BlockTag.latest)
