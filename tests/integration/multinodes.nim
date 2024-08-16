@@ -150,7 +150,7 @@ template multinodesuite*(name: string, body: untyped) =
         config.addCliOption("--disc-port", $ await nextFreePort(8090 + nodeIdx))
 
       except CodexConfigError as e:
-        raiseMultiNodeSuiteError e.msg
+        raiseMultiNodeSuiteError "invalid cli option, error: " & e.msg
 
       let node = await CodexProcess.startNode(
         config.cliArgs,
@@ -197,7 +197,6 @@ template multinodesuite*(name: string, body: untyped) =
       let clientIdx = clients().len
       var config = conf
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
-      config.addCliOption(StartUpCmd.persistence, "--payout-address", $accounts[running.len])
       return await newCodexProcess(clientIdx, config, Role.Client)
 
     proc startProviderNode(conf: CodexConfig): Future[NodeProcess] {.async.} =
@@ -205,7 +204,6 @@ template multinodesuite*(name: string, body: untyped) =
       var config = conf
       config.addCliOption("--bootstrap-node", bootstrap)
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
-      config.addCliOption(StartUpCmd.persistence, "--payout-address", $accounts[running.len])
       config.addCliOption(PersistenceCmd.prover, "--circom-r1cs",
         "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs")
       config.addCliOption(PersistenceCmd.prover, "--circom-wasm",
@@ -220,7 +218,6 @@ template multinodesuite*(name: string, body: untyped) =
       var config = conf
       config.addCliOption("--bootstrap-node", bootstrap)
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
-      config.addCliOption(StartUpCmd.persistence, "--payout-address", $accounts[running.len])
       config.addCliOption(StartUpCmd.persistence, "--validator")
 
       return await newCodexProcess(validatorIdx, config, Role.Validator)
