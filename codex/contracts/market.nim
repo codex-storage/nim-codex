@@ -172,13 +172,17 @@ method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
   convertEthersError:
     var freeSlot: Future[?TransactionResponse]
     if rewardRecipient =? market.rewardRecipient:
+      # If --reward-recipient specified, use it as the reward recipient, and use
+      # the SP's address as the collateral recipient
       let collateralRecipient = await market.getSigner()
       freeSlot = market.contract.freeSlot(
         slotId,
-        rewardRecipient,
-        collateralRecipient)
+        rewardRecipient,      # --reward-recipient
+        collateralRecipient)  # SP's address
 
     else:
+      # Otherwise, use the SP's address as both the reward and collateral
+      # recipient (the contract will use msg.sender for both)
       freeSlot = market.contract.freeSlot(slotId)
 
     discard await freeSlot.confirm(0)

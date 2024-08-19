@@ -21,7 +21,6 @@ ethersuite "On-Chain Market":
   var periodicity: Periodicity
   var host: Signer
   var hostRewardRecipient: Address
-  var clientWithdrawRecipient: Address
 
   proc switchAccount(account: Signer) =
     marketplace = marketplace.connect(account)
@@ -33,7 +32,6 @@ ethersuite "On-Chain Market":
     marketplace = Marketplace.new(address, ethProvider.getSigner())
     let config = await marketplace.config()
     hostRewardRecipient = accounts[2]
-    clientWithdrawRecipient = hostRewardRecipient
 
     market = OnChainMarket.new(marketplace)
     let tokenAddress = await marketplace.token()
