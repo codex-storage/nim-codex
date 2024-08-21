@@ -20,7 +20,11 @@ ethersuite "On-Chain Market":
   var slotIndex: UInt256
   var periodicity: Periodicity
   var host: Signer
+  var otherHost: Signer
   var hostRewardRecipient: Address
+
+  proc expectedPayout(r: StorageRequest, startTimestamp: UInt256, endTimestamp: UInt256): UInt256 =
+    return (endTimestamp - startTimestamp) * r.ask.reward
 
   proc switchAccount(account: Signer) =
     marketplace = marketplace.connect(account)
@@ -42,6 +46,7 @@ ethersuite "On-Chain Market":
     request = StorageRequest.example
     request.client = accounts[0]
     host = ethProvider.getSigner(accounts[1])
+    otherHost = ethProvider.getSigner(accounts[3])
 
     slotIndex = (request.ask.slots div 2).u256
 
@@ -447,8 +452,10 @@ ethersuite "On-Chain Market":
 
     let address = await host.getAddress()
     switchAccount(host)
+    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
+    let filledAt = (await ethProvider.currentTime()) - 1.u256
 
-    for slotIndex in 0..<request.ask.slots:
+    for slotIndex in 1..<request.ask.slots:
       await market.reserveSlot(request.id, slotIndex.u256)
       await market.fillSlot(request.id, slotIndex.u256, proof, request.ask.collateral)
 
@@ -456,13 +463,11 @@ ethersuite "On-Chain Market":
     await ethProvider.advanceTimeTo(requestEnd.u256 + 1)
 
     let startBalance = await token.balanceOf(address)
-
     await market.freeSlot(request.slotId(0.u256))
-
     let endBalance = await token.balanceOf(address)
-    check endBalance == (startBalance +
-                        request.ask.duration * request.ask.reward +
-                        request.ask.collateral)
+
+    let expectedPayout = request.expectedPayout(filledAt, requestEnd.u256)
+    check endBalance == (startBalance + expectedPayout + request.ask.collateral)
 
   test "pays rewards to reward recipient, collateral to host":
     market = OnChainMarket.new(marketplace, hostRewardRecipient.some)
@@ -471,7 +476,11 @@ ethersuite "On-Chain Market":
     await market.requestStorage(request)
 
     switchAccount(host)
-    for slotIndex in 0..<request.ask.slots:
+    await market.reserveSlot(request.id, 0.u256)
+    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
+    let filledAt = (await ethProvider.currentTime()) - 1.u256
+
+    for slotIndex in 1..<request.ask.slots:
       await market.reserveSlot(request.id, slotIndex.u256)
       await market.fillSlot(request.id, slotIndex.u256, proof, request.ask.collateral)
 
@@ -486,6 +495,6 @@ ethersuite "On-Chain Market":
     let endBalanceHost = await token.balanceOf(hostAddress)
     let endBalanceReward = await token.balanceOf(hostRewardRecipient)
 
+    let expectedPayout = request.expectedPayout(filledAt, requestEnd.u256)
     check endBalanceHost == (startBalanceHost + request.ask.collateral)
-    check endBalanceReward == (startBalanceReward +
-                               request.ask.duration * request.ask.reward)
+    check endBalanceReward == (startBalanceReward + expectedPayout)
