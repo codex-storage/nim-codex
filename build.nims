@@ -52,6 +52,10 @@ task testTaiko, "Run Taiko L2 tests":
   codexTask()
   test "testTaiko"
 
+task testTools, "Run Tools tests":
+  toolsCirdlTask()
+  test "testTools"
+
 import strutils
 import os
 

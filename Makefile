@@ -129,7 +129,12 @@ testAll: | build deps
 # Builds and runs Taiko L2 tests
 testTaiko: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testTaiko $(NIM_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim testTaiko $(NIM_PARAMS) build.nims
+
+# Builds and runs tool tests
+testTools: | cirdl
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim testTools $(NIM_PARAMS) build.nims
 
 # nim-libbacktrace
 LIBBACKTRACE_MAKE_FLAGS := -C vendor/nim-libbacktrace --no-print-directory BUILD_CXX_LIB=0
