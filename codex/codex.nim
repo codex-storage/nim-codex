@@ -24,7 +24,6 @@ import pkg/stew/shims/net as stewnet
 import pkg/datastore
 import pkg/ethers except Rng
 import pkg/stew/io2
-import pkg/questionable
 import pkg/taskpools
 
 import ./node
@@ -72,7 +71,7 @@ proc waitForSync(provider: Provider): Future[void] {.async.} =
   trace "Ethereum provider is synced."
 
 proc bootstrapInteractions(
-  s: CodexServer): Future[?string] {.async.} =
+  s: CodexServer): Future[void] {.async.} =
   ## bootstrap interactions and return contracts
   ## using clients, hosts, validators pairings
   ##
@@ -145,7 +144,6 @@ proc bootstrapInteractions(
       validator = some ValidatorInteractions.new(clock, validation)
 
     s.codexNode.contracts = (client, host, validator)
-    return await market.getZkeyHash()
 
 proc start*(s: CodexServer) {.async.} =
   trace "Starting codex node", config = $s.config
@@ -180,10 +178,10 @@ proc start*(s: CodexServer) {.async.} =
   s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
   s.codexNode.discovery.updateDhtRecord(s.config.nat, s.config.discoveryPort)
 
-  let proofCeremonyUrl = await s.bootstrapInteractions()
+  await s.bootstrapInteractions()
 
   if prover =? s.codexNode.prover:
-    if err =? (await prover.start(s.config, proofCeremonyUrl)).errorOption:
+    if err =? (await prover.start(s.config)).errorOption:
       error "Failed to start prover", msg = err.msg
       return # should we abort start-up this way?
 

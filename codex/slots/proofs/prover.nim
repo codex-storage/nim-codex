@@ -98,10 +98,9 @@ proc verify*(
 
 proc start*(
   self: Prover,
-  config: CodexConf,
-  ceremonyHash: ?string): Future[?!void] {.async.} =
+  config: CodexConf): Future[?!void] {.async.} =
 
-  without backend =? (await initializeBackend(config, ceremonyHash)), err:
+  without backend =? (await initializeBackend(config)), err:
     error "Failed to initialize backend", msg = err.msg
     return failure(err)
 
