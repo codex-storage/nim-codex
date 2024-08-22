@@ -101,7 +101,8 @@ proc new*(_: type MockMarket): MockMarket =
     proofs: ProofConfig(
       period: 10.u256,
       timeout: 5.u256,
-      downtime: 64.uint8
+      downtime: 64.uint8,
+      downtimeProduct: 67.uint8
     )
   )
   MockMarket(signer: Address.example, config: config)
@@ -419,16 +420,21 @@ method subscribeProofSubmission*(mock: MockMarket,
   mock.subscriptions.onProofSubmitted.add(subscription)
   return subscription
 
-method queryPastStorageRequests*(market: MockMarket,
-                                 blocksAgo: int):
-                                Future[seq[PastStorageRequest]] {.async.} =
-  # MockMarket does not have the concept of blocks, so simply return all
-  # previous events
-  return market.requested.map(request =>
-    PastStorageRequest(requestId: request.id,
+method queryPastEvents*[T: MarketplaceEvent](
+  market: MockMarket,
+  _: type T,
+  blocksAgo: int): Future[seq[T]] {.async.} =
+
+  if T of StorageRequested:
+    return market.requested.map(request =>
+      StorageRequested(requestId: request.id,
                        ask: request.ask,
                        expiry: request.expiry)
-  )
+    )
+  elif T of SlotFilled:
+    return market.filled.map(slot =>
+      SlotFilled(requestId: slot.requestId, slotIndex: slot.slotIndex)
+    )
 
 method unsubscribe*(subscription: RequestSubscription) {.async.} =
   subscription.market.subscriptions.onRequest.keepItIf(it != subscription)
