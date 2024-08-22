@@ -33,7 +33,7 @@ The current implementation of Codex's zero-knowledge proving circuit requires th
 On a bare bones installation of Debian (or a distribution derived from Debian, such as Ubuntu), run
 
 ```shell
-$ apt-get update && apt-get install build-essential cmake curl git rustc cargo libzip-dev
+$ apt-get update && apt-get install build-essential cmake curl git rustc cargo
 ```
 
 Non-Debian distributions have different package managers: `apk`, `dnf`, `pacman`, `rpm`, `yum`, etc.
@@ -41,7 +41,7 @@ Non-Debian distributions have different package managers: `apk`, `dnf`, `pacman`
 For example, on a bare bones installation of Fedora, run
 
 ```shell
-dnf install @development-tools cmake gcc-c++ libzip rust cargo
+dnf install @development-tools cmake gcc-c++ rust cargo
 ```
 
 In case your distribution does not provide required Rust version, we may install it using [rustup](https://www.rust-lang.org/tools/install)
@@ -60,7 +60,7 @@ xcode-select --install
 
 Install [Homebrew (`brew`)](https://brew.sh/) and in a new terminal run
 ```shell
-brew install bash cmake rust libzip
+brew install bash cmake rust
 ```
 
 Check that `PATH` is setup correctly
@@ -155,6 +155,22 @@ See the [instructions](README.md#cli-options) in the main readme.
 In Bash run
 ```shell
 make test
+```
+
+### Tools
+
+#### Circuit download tool
+
+To build the circuit download tool located in `tools/cirdl` you may need to install the following packages for your operating system.
+
+Unix
+```shell
+$ apt-get update && apt-get install libzip-dev
+```
+
+MacOS
+```shell
+brew install libzip
 ```
 
 ### testAll
