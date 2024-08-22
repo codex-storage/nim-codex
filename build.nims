@@ -24,6 +24,9 @@ proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
 task codex, "build codex binary":
   buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
+task toolsCirdl, "build tools/cirdl binary":
+  buildBinary "tools/cirdl/cirdl", params = ""
+
 task testCodex, "Build & run Codex tests":
   test "testCodex", params = "-d:codex_enable_proof_failures=true"
 

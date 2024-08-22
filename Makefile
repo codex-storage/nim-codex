@@ -74,6 +74,11 @@ all: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim codex $(NIM_PARAMS) build.nims
 
+# Build tools/cirdl
+cirdl:
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim toolsCirdl $(NIM_PARAMS) build.nims
+
 # must be included after the default target
 -include $(BUILD_SYSTEM_DIR)/makefiles/targets.mk
 
