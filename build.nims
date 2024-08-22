@@ -43,18 +43,19 @@ task build, "build codex binary":
 task test, "Run tests":
   testCodexTask()
 
+task testTools, "Run Tools tests":
+  toolsCirdlTask()
+  test "testTools"
+
 task testAll, "Run all tests (except for Taiko L2 tests)":
   testCodexTask()
   testContractsTask()
   testIntegrationTask()
+  testToolsTask()
 
 task testTaiko, "Run Taiko L2 tests":
   codexTask()
   test "testTaiko"
-
-task testTools, "Run Tools tests":
-  toolsCirdlTask()
-  test "testTools"
 
 import strutils
 import os
