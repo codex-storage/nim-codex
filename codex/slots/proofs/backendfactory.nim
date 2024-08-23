@@ -1,4 +1,5 @@
 import os
+import strutils
 import pkg/chronos
 import pkg/chronicles
 import pkg/questionable
@@ -53,10 +54,19 @@ proc initializeFromCircuitDirFiles(
 
   failure("Ceremony files not found")
 
-proc suggestDownloadTool() =
-  error "TODO: We need to tell the user how to run the download tool. " &
-    "So probably say './cirdl [circuitDir] [rpcEndpoint] [marketplaceAddress]' " &
-    "but with the correct values already filled in."
+proc suggestDownloadTool(config: CodexConf) =
+  without address =? config.marketplaceAddress:
+    raise (ref Defect)(msg: "Proving backend initializing while marketplace address not set.")
+
+  let tokens = [
+    "cirdl",
+    $config.circuitDir,
+    config.ethProvider,
+    $address
+  ]
+
+  error "Proving circuit files are not found. Please run the following to download them:" &
+    "'./" & tokens.join(" ") & "'"
 
 proc initializeBackend*(
   config: CodexConf,
@@ -66,7 +76,7 @@ proc initializeBackend*(
     info "Could not initialize prover backend from CLI options...", msg = cliErr.msg
     without backend =? initializeFromCircuitDirFiles(config, utils), localErr:
       info "Could not initialize prover backend from circuit dir files...", msg = localErr.msg
-      suggestDownloadTool()
+      suggestDownloadTool(config)
       return failure("CircuitFilesNotFound")
     # Unexpected: value of backend does not survive leaving each scope. (definition does though...)
     return success(backend)
