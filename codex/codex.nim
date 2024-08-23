@@ -179,12 +179,6 @@ proc start*(s: CodexServer) {.async.} =
   s.codexNode.discovery.updateDhtRecord(s.config.nat, s.config.discoveryPort)
 
   await s.bootstrapInteractions()
-
-  if prover =? s.codexNode.prover:
-    if err =? (await prover.start(s.config)).errorOption:
-      error "Failed to start prover", msg = err.msg
-      return # should we abort start-up this way?
-
   await s.codexNode.start()
   s.restServer.start()
 

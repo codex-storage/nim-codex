@@ -66,7 +66,7 @@ type
     networkId: PeerId
     networkStore: NetworkStore
     engine: BlockExcEngine
-    prover*: ?Prover
+    prover: ?Prover
     discovery: Discovery
     contracts*: Contracts
     clock*: Clock
@@ -739,6 +739,11 @@ proc start*(self: CodexNodeRef) {.async.} =
     except CatchableError as error:
       error "Unable to start validator contract interactions: ", error=error.msg
       self.contracts.validator = ValidatorInteractions.none
+
+  if prover =? s.codexNode.prover:
+    if err =? (await prover.start(s.config)).errorOption:
+      error "Failed to start prover", msg = err.msg
+      raise err
 
   self.networkId = self.switch.peerInfo.peerId
   notice "Started codex node", id = self.networkId, addrs = self.switch.peerInfo.addrs
