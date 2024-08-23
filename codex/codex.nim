@@ -272,9 +272,7 @@ proc new*(
     engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
     prover = if config.prover:
-      some Prover.new(
-        store,
-        config.numProofSamples)
+      some Prover.new(store, config).expect("Unable to create prover.")
     else:
       none Prover
 

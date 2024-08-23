@@ -5,6 +5,7 @@ import pkg/chronicles
 import pkg/questionable
 import pkg/confutils/defs
 import pkg/stew/io2
+import pkg/ethers
 
 import ../../conf
 import ./backends
@@ -65,12 +66,12 @@ proc suggestDownloadTool(config: CodexConf) =
     $address
   ]
 
-  error "Proving circuit files are not found. Please run the following to download them:" &
-    "'./" & tokens.join(" ") & "'"
+  echo "Proving circuit files are not found. Please run the following to download them:"
+  echo "'./" & tokens.join(" ") & "'"
 
 proc initializeBackend*(
   config: CodexConf,
-  utils: BackendUtils = BackendUtils()): Future[?!AnyBackend] {.async.} =
+  utils: BackendUtils = BackendUtils()): ?!AnyBackend =
 
   without backend =? initializeFromConfig(config, utils), cliErr:
     info "Could not initialize prover backend from CLI options...", msg = cliErr.msg

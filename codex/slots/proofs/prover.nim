@@ -43,7 +43,7 @@ type
 
   AnyProofInputs* = ProofInputs[Poseidon2Hash]
   Prover* = ref object of RootObj
-    backend: ?AnyBackend
+    backend: AnyBackend
     store: BlockStore
     nSamples: int
 
@@ -62,27 +62,24 @@ proc prove*(
 
   trace "Received proof challenge"
 
-  if backend =? self.backend:
-    without builder =? AnyBuilder.new(self.store, manifest), err:
-      error "Unable to create slots builder", err = err.msg
-      return failure(err)
+  without builder =? AnyBuilder.new(self.store, manifest), err:
+    error "Unable to create slots builder", err = err.msg
+    return failure(err)
 
-    without sampler =? AnySampler.new(slotIdx, self.store, builder), err:
-      error "Unable to create data sampler", err = err.msg
-      return failure(err)
+  without sampler =? AnySampler.new(slotIdx, self.store, builder), err:
+    error "Unable to create data sampler", err = err.msg
+    return failure(err)
 
-    without proofInput =? await sampler.getProofInput(challenge, self.nSamples), err:
-      error "Unable to get proof input for slot", err = err.msg
-      return failure(err)
+  without proofInput =? await sampler.getProofInput(challenge, self.nSamples), err:
+    error "Unable to get proof input for slot", err = err.msg
+    return failure(err)
 
-    # prove slot
-    without proof =? backend.prove(proofInput), err:
-      error "Unable to prove slot", err = err.msg
-      return failure(err)
+  # prove slot
+  without proof =? self.backend.prove(proofInput), err:
+    error "Unable to prove slot", err = err.msg
+    return failure(err)
 
-    success (proofInput, proof)
-  else:
-    return failure("Prover was not started")
+  success (proofInput, proof)
 
 proc verify*(
   self: Prover,
@@ -90,29 +87,18 @@ proc verify*(
   inputs: AnyProofInputs): Future[?!bool] {.async.} =
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
-
-  if backend =? self.backend:
-    return backend.verify(proof, inputs)
-  else:
-    return failure("Prover was not started")
-
-proc start*(
-  self: Prover,
-  config: CodexConf): Future[?!void] {.async.} =
-
-  without backend =? (await initializeBackend(config)), err:
-    error "Failed to initialize backend", msg = err.msg
-    return failure(err)
-
-  self.backend = some backend
-  return success()
+  self.backend.verify(proof, inputs)
 
 proc new*(
   _: type Prover,
   store: BlockStore,
-  nSamples: int): Prover =
+  config: CodexConf): ?!Prover =
 
-  Prover(
+  without backend =? initializeBackend(config), err:
+    error "Failed to initialize backend", msg = err.msg
+    return failure(err)
+
+  success Prover(
     store: store,
-    backend: none AnyBackend,
-    nSamples: nSamples)
+    backend: backend,
+    nSamples: config.numProofSamples)
