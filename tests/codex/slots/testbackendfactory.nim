@@ -9,6 +9,7 @@ import pkg/codex/slots/proofs/backendfactory
 import pkg/codex/slots/proofs/backendutils
 
 import ../helpers
+import ../examples
 
 type
   BackendUtilsMock = ref object of BackendUtils
@@ -26,7 +27,7 @@ method initializeCircomBackend*(
   self.argWasmFile = wasmFile
   self.argZKeyFile = zKeyFile
   # We return a backend with *something* that's not nil that we can check for.
-  var 
+  var
     key = VerifyingKey(icLen: 123)
     vkpPtr: ptr VerifyingKey = key.addr
   return CircomCompat(vkp: vkpPtr)
@@ -50,11 +51,12 @@ suite "Test BackendFactory":
         discoveryIp: ValidIpAddress.init(IPv4_any()),
         metricsAddress: ValidIpAddress.init("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
+        marketplaceAddress: EthAddress.example.some,
         circomR1cs: InputFile("tests/circuits/fixtures/proof_main.r1cs"),
         circomWasm: InputFile("tests/circuits/fixtures/proof_main.wasm"),
         circomZkey: InputFile("tests/circuits/fixtures/proof_main.zkey")
       )
-      backend = (await initializeBackend(config, utilsMock)).tryGet
+      backend = initializeBackend(config, utilsMock).tryGet
 
     check:
       backend.vkp != nil
@@ -70,12 +72,13 @@ suite "Test BackendFactory":
         discoveryIp: ValidIpAddress.init(IPv4_any()),
         metricsAddress: ValidIpAddress.init("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
+        marketplaceAddress: EthAddress.example.some,
 
         # Set the circuitDir such that the tests/circuits/fixtures/ files
         # will be picked up as local files:
         circuitDir: OutDir("tests/circuits/fixtures")
       )
-      backend = (await initializeBackend(config, utilsMock)).tryGet
+      backend = initializeBackend(config, utilsMock).tryGet
 
     check:
       backend.vkp != nil
@@ -91,10 +94,11 @@ suite "Test BackendFactory":
         discoveryIp: ValidIpAddress.init(IPv4_any()),
         metricsAddress: ValidIpAddress.init("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
+        marketplaceAddress: EthAddress.example.some,
         circuitDir: OutDir(circuitDir)
       )
 
-      backendResult = (await initializeBackend(config, utilsMock))
+      backendResult = initializeBackend(config, utilsMock)
 
     check:
       backendResult.isErr
