@@ -92,13 +92,10 @@ proc verify*(
 proc new*(
   _: type Prover,
   store: BlockStore,
-  config: CodexConf): ?!Prover =
+  backend: AnyBackend,
+  config: CodexConf): Prover =
 
-  without backend =? initializeBackend(config), err:
-    error "Failed to initialize backend", msg = err.msg
-    return failure(err)
-
-  success Prover(
+  Prover(
     store: store,
     backend: backend,
     nSamples: config.numProofSamples)

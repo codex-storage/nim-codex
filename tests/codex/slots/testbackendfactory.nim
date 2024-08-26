@@ -36,6 +36,7 @@ suite "Test BackendFactory":
   let
     utilsMock = BackendUtilsMock()
     circuitDir = "testecircuitdir"
+    factory = BackendFactory()
 
   setup:
     createDir(circuitDir)
@@ -56,7 +57,7 @@ suite "Test BackendFactory":
         circomWasm: InputFile("tests/circuits/fixtures/proof_main.wasm"),
         circomZkey: InputFile("tests/circuits/fixtures/proof_main.zkey")
       )
-      backend = initializeBackend(config, utilsMock).tryGet
+      backend = factory.initializeBackend(config, utilsMock).tryGet
 
     check:
       backend.vkp != nil
@@ -78,7 +79,7 @@ suite "Test BackendFactory":
         # will be picked up as local files:
         circuitDir: OutDir("tests/circuits/fixtures")
       )
-      backend = initializeBackend(config, utilsMock).tryGet
+      backend = factory.initializeBackend(config, utilsMock).tryGet
 
     check:
       backend.vkp != nil
@@ -97,8 +98,7 @@ suite "Test BackendFactory":
         marketplaceAddress: EthAddress.example.some,
         circuitDir: OutDir(circuitDir)
       )
-
-      backendResult = initializeBackend(config, utilsMock)
+      backendResult = factory.initializeBackend(config, utilsMock)
 
     check:
       backendResult.isErr

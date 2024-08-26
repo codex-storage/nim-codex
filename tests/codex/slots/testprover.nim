@@ -53,8 +53,12 @@ suite "Test Prover":
         numProofSamples: samples
       )
 
+    let
+      backendFactory = BackendFactory()
+      backend = backendFactory.initializeBackend(config).tryGet()
+
     store = RepoStore.new(repoDs, metaDs)
-    prover = Prover.new(store, config).tryGet()
+    prover = Prover.new(store, backend, config)
 
   teardown:
     await repoTmp.destroyDb()
