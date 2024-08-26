@@ -72,8 +72,7 @@ asyncchecksuite "Advertiser":
     blockDiscovery.publishBlockProvideHandler =
       proc(d: MockDiscovery, cid: Cid) {.async, gcsafe.} =
         if cid == manifestBlk.cid:
-          if manifestCount > 0:
-            check false
+          check manifestCount > 0
           inc manifestCount
         if cid == manifest.treeCid:
           if treeCount > 0:
