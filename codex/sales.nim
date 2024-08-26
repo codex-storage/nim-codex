@@ -180,7 +180,7 @@ proc filled(
     processing.complete()
 
 proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
-  debug "processing slot from queue", requestId = item.requestId,
+  debug "Processing slot from queue", requestId = item.requestId,
     slot = item.slotIndex
 
   let agent = newSalesAgent(
@@ -202,13 +202,17 @@ proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
 proc deleteInactiveReservations(sales: Sales, activeSlots: seq[Slot]) {.async.} =
   let reservations = sales.context.reservations
   without reservs =? await reservations.all(Reservation):
-    info "no unused reservations found for deletion"
+    return
 
   let unused = reservs.filter(r => (
     let slotId = slotId(r.requestId, r.slotIndex)
     not activeSlots.any(slot => slot.id == slotId)
   ))
-  info "found unused reservations for deletion", unused = unused.len
+
+  if unused.len == 0:
+    return
+
+  info "Found unused reservations for deletion", unused = unused.len
 
   for reservation in unused:
 
@@ -219,9 +223,9 @@ proc deleteInactiveReservations(sales: Sales, activeSlots: seq[Slot]) {.async.} 
     if err =? (await reservations.deleteReservation(
       reservation.id, reservation.availabilityId
     )).errorOption:
-      error "failed to delete unused reservation", error = err.msg
+      error "Failed to delete unused reservation", error = err.msg
     else:
-      trace "deleted unused reservation"
+      trace "Deleted unused reservation"
 
 proc mySlots*(sales: Sales): Future[seq[Slot]] {.async.} =
   let market = sales.context.market

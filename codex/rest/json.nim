@@ -38,6 +38,8 @@ type
     state* {.serialize.}: string
     requestId* {.serialize.}: RequestId
     slotIndex* {.serialize.}: UInt256
+    request* {.serialize.}: ?StorageRequest
+    reservation* {.serialize.}: ?Reservation
 
   RestContent* = object
     cid* {.serialize.}: Cid
