@@ -2,9 +2,11 @@
 
 This tutorial will teach you how to run a small Codex network with the _storage marketplace_ enabled; i.e., the functionality in Codex which allows participants to offer and buy storage in a market, ensuring that storage providers honor their part of the deal by means of cryptographic proofs.
 
+## Prerequisites
+
 To complete this tutorial, you will need:
 
-* the [geth](https://github.com/ethereum/go-ethereum) Ethereum client;
+* the [geth](https://github.com/ethereum/go-ethereum) Ethereum client; You must version `1.13.x` of geth as newer versions no longer support Proof of Authority (PoA). This tutorial was tested using geth version `1.13.15`.
 * a Codex binary, which [you can compile from source](https://github.com/codex-storage/nim-codex?tab=readme-ov-file#build-and-run).
 
 We will also be using [bash](https://en.wikipedia.org/wiki/Bash_(Unix_shell)) syntax throughout. If you use a different shell, you may need to adapt things to your platform.
@@ -16,7 +18,24 @@ In this tutorial, you will:
 3. [Run Codex](#3-run-codex);
 4. [Buy and Sell Storage in the Marketplace](#4-buy-and-sell-storage-on-the-marketplace).
 
-We strongly suggest you to create a folder (e.g. `marketplace-tutorial`), and switch into it before beginning.
+To get things running smoothly, we recommend the following directory structure:
+
+```
+|
+|-- nim-codex (this is the current repo)
+|-- codex-contracts-eth
+└-- marketplace-tutorial
+```
+
+We will clone the `codex-contracts-eth` repository at a later stage, for now just create the `marketplace-tutorial` directory:
+
+```bash
+mkdir marketplace-tutorial
+```
+
+This way we will be able to keep the original `nim-codex` and `codex-contracts-eth` repositories clean.
+
+Now, enter the `marketplace-tutorial` directory we created above.
 
 ## 1. Set Up a Geth PoA Network
 
@@ -54,11 +73,13 @@ export GETH_SIGNER_ADDR="0x0000000000000000000000000000000000000000"
 echo ${GETH_SIGNER_ADDR} > geth_signer_address.txt
 ```
 
+> Here make sure you replace `0x0000000000000000000000000000000000000000` with your public address of the signer account (`0x93976895c4939d99837C8e0E1779787718EF8368` in our example).
+
 ### 1.2. Configure The Network and Create the Genesis Block
 
 The next step is telling geth what kind of network you want to run. We will be running a [pre-merge](https://ethereum.org/en/roadmap/merge/) network with Proof-of-Authority consensus. To get that working, create a `network.json` file.
 
-If you set the GETH_SIGNER_ADDR variable above you can run to create the `network.json` file:
+If you set the GETH_SIGNER_ADDR variable above you can run the following command to create the `network.json` file:
 
 ```sh
 echo  "{\"config\": { \"chainId\": 12345, \"homesteadBlock\": 0, \"eip150Block\": 0, \"eip155Block\": 0, \"eip158Block\": 0, \"byzantiumBlock\": 0, \"constantinopleBlock\": 0, \"petersburgBlock\": 0, \"istanbulBlock\": 0, \"berlinBlock\": 0, \"londonBlock\": 0, \"arrowGlacierBlock\": 0, \"grayGlacierBlock\": 0, \"clique\": { \"period\": 1, \"epoch\": 30000 } }, \"difficulty\": \"1\", \"gasLimit\": \"8000000\", \"extradata\": \"0x0000000000000000000000000000000000000000000000000000000000000000${GETH_SIGNER_ADDR:2}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\", \"alloc\": { \"${GETH_SIGNER_ADDR}\": { \"balance\": \"10000000000000000000000\"}}}" > network.json
@@ -110,6 +131,24 @@ Once `network.json` is created, you can initialize the network with:
 geth init --datadir geth-data network.json
 ```
 
+The output of the above command you may include some warnings, like:
+
+```bash
+WARN [08-21|14:48:12.305] Unknown config environment variable      envvar=GETH_SIGNER_ADDR
+```
+
+or even errors when running the command for the first time:
+
+```bash
+ERROR[08-21|14:48:12.399] Head block is not reachable
+```
+
+The important part is that at the end you should see something similar to:
+
+```bash
+INFO [08-21|14:48:12.639] Successfully wrote genesis state         database=lightchaindata hash=768bf1..42d06a
+```
+
 ### 1.3. Start your PoA Node
 
 We are now ready to start our $1$-node, private blockchain. To launch the signer node, open a separate terminal on the same working directory and run:
@@ -131,6 +170,25 @@ Note that, once again, the signer account created in Step 1.1 appears both in `-
 
 Geth will prompt you to insert the account's password as it starts up. Once you do that, it should be able to start up and begin "mining" blocks.
 
+Also here, you may encounter errors like:
+
+```bash
+ERROR[08-21|15:00:27.625] Bootstrap node filtered by netrestrict   id=c845e51a5e470e44 ip=18.138.108.67
+ERROR[08-21|15:00:27.625] Bootstrap node filtered by netrestrict   id=f23ac6da7c02f84a ip=3.209.45.79
+ERROR[08-21|15:00:27.625] Bootstrap node filtered by netrestrict   id=ef2d7ab886910dc8 ip=65.108.70.101
+ERROR[08-21|15:00:27.625] Bootstrap node filtered by netrestrict   id=6b36f791352f15eb ip=157.90.35.166
+```
+
+You can safely ignore them.
+
+If the command above fails with:
+
+```bash
+Fatal: Failed to register the Ethereum service: only PoS networks are supported, please transition old ones with Geth v1.13.x
+```
+
+make sure, you are running the correct Geth version (see Section [Prerequisites](#prerequisites))
+
 ## 2. Set Up The Marketplace
 
 You will need to open new terminal for this section and geth needs to be running already. Setting up the Codex marketplace entails:
@@ -141,27 +199,36 @@ You will need to open new terminal for this section and geth needs to be running
 
 ### 2.1. Deploy the Codex Marketplace Contracts
 
-To deploy the contracts, start by cloning the Codex contracts repository locally and installing its dependencies:
+To deploy the contracts, start by cloning the Codex contracts repository locally and installing its dependencies.
+First, enter the `codex-contracts-eth` directory and run:
 
 ```bash
-git clone https://github.com/codex-storage/codex-contracts-eth
+git clone https://github.com/codex-storage/codex-contracts-eth .
 cd codex-contracts-eth
 npm install
 ```
-You now must **wait until $256$ blocks are mined in your PoA network**, or deploy will fail. This should take about $4$ minutes and $30$ seconds. You can check which block height you are currently at by running:
+You now must **wait until $256$ blocks are mined in your PoA network**, or deploy will fail. This should take about $4$ minutes and $30$ seconds. You can check which block height you are currently at by running the following command (make sure you are in the `marketplace-tutorial` folder and not in `codex-contracts-eth` when running this command): 
 
 ```bash
-geth attach --exec web3.eth.blockNumber ../geth-data/geth.ipc
+geth attach --exec web3.eth.blockNumber ./geth-data/geth.ipc
 ```
 
-once that gets past $256$, you are ready to go. To deploy contracts, run:
+once that gets past $256$, you are ready to go. To deploy contracts, switch to the `codex-contracts-eth` directory and run:
 
 ```bash
 export DISTTEST_NETWORK_URL=http://localhost:8545 # bootstrap node
-npx hardhat --network codexdisttestnetwork deploy && cd ../
+npx hardhat --network codexdisttestnetwork deploy
 ```
 
-If the command completes successfully, you are ready to prepare the accounts.
+If the command completes successfully, you will see the output similar to this one:
+
+```bash
+Deployed Marketplace with Groth16 Verifier at:
+0x4bc72d6A4FfD2151A374f5F200016e69861b94b7
+```
+> of course your address will be different.
+
+You are now ready to prepare the accounts.
 
 ### 2.2. Generate the Required Accounts
 
@@ -193,17 +260,19 @@ Although the process is not particularly complicated, I suggest you use [the scr
 2. transfers $1$ ETH from the signer account to a target account if the target account has no ETH balance;
 3. mints $n$ Codex tokens and adds it into the target account's balance.
 
-To use the script, just download it into a local file named `mint-tokens.js`, for instance using curl:
+To use the script, just download it into a local file named `mint-tokens.js`, for instance using curl (make sure you are in the `marketplace-tutorial` directory):
 
 ```bash
-# set the contract file location
-export CONTRACT_DEPLOY_FULL="codex-contracts-eth/deployments/codexdisttestnetwork"
-export GETH_SIGNER_ADDR=$(cat geth_signer_address.txt)
 # download script
 curl https://raw.githubusercontent.com/gmega/codex-local-bare/main/scripts/mint-tokens.js -o mint-tokens.js
 ```
 
+Then run:
+
 ```bash
+# set the contract file location (we assume you are in the marketplace-tutorial directory)
+export CONTRACT_DEPLOY_FULL="../codex-contracts-eth/deployments/codexdisttestnetwork"
+export GETH_SIGNER_ADDR=$(cat geth_signer_address.txt)
 # Installs Web3-js
 npm install web3
 # Provides tokens to the storage account.
@@ -212,7 +281,7 @@ node ./mint-tokens.js $CONTRACT_DEPLOY_FULL/TestToken.json $GETH_SIGNER_ADDR 0x4
 node ./mint-tokens.js $CONTRACT_DEPLOY_FULL/TestToken.json $GETH_SIGNER_ADDR 0x9F0C62Fe60b22301751d6cDe1175526b9280b965 10000000000
 ```
 
-If you get a message like `Usage: mint-tokens.js <token-hardhat-deploy-json> <signer-account> <receiver-account> <token-ammount>` then you need to ensure you have
+If you get a message like `Usage: mint-tokens.js <token-hardhat-deploy-json> <signer-account> <receiver-account> <token-ammount>` then you need to ensure you provided all the required arguments. In particular you need to ensure that the `GETH_SIGNER_ADDR` env variable holds the signer address (we used `export GETH_SIGNER_ADDR=$(cat geth_signer_address.txt)` above to make sure it is set).
 
 ## 3. Run Codex
 
@@ -225,7 +294,7 @@ The storage node will be the one storing data and submitting the proofs of stora
 1. the address of the Marketplace contract that has been deployed to the local geth node in [Step 2.1](#21-deploy-the-codex-marketplace-contracts);
 2. the sample ceremony files which are shipped in the Codex contracts repo.
 
-Recall you have clone the `codex-contracts-eth` repository in Step 2.1. All of the required files are in there.
+Recall you have cloned the `codex-contracts-eth` repository in Step 2.1. All of the required files are in there.
 
 **Address of the Marketplace Contract.** The contract address can be found inside of the file `codex-contracts-eth/deployments/codexdisttestnetwork/Marketplace.json`:
 
@@ -244,20 +313,22 @@ export MARKETPLACE_ADDRESS="0x0000000000000000000000000000000000000000"
 echo ${MARKETPLACE_ADDRESS} > marketplace_address.txt
 ```
 
+where you replace `0x0000000000000000000000000000000000000000` with the Marketplace contract above.
+
 **Prover ceremony files.** The ceremony files are under the `codex-contracts-eth/verifier/networks/codexdisttestnetwork` subdirectory. There are three of them: `proof_main.r1cs`, `proof_main.zkey`, and `prooof_main.wasm`. We will need all of them to start the Codex storage node.
 
 **Starting the storage node.** Let:
 
 * `PROVER_ASSETS` contain the directory where the prover ceremony files are located. **This must be an absolute path**;
 * `CODEX_BINARY` contain the location of your Codex binary;
-* `MARKETPLACE_ADDRESS` contain the address of the Marketplace contract (obtained above).
+* `MARKETPLACE_ADDRESS` contain the address of the Marketplace contract (we have already set it above).
 
-Set these paths into environment variables (modify it with the correct paths if you changed them above):
+Set these paths into environment variables (make sure you are in the `marketplace-tutorial` directory before running the commands below):
 
-```sh
-export CONTRACT_DEPLOY_FULL=$(realpath "codex-contracts-eth/deployments/codexdisttestnetwork")
-export PROVER_ASSETS=$(realpath "codex-contracts-eth/verifier/networks/codexdisttestnetwork/")
-export CODEX_BINARY=$(realpath "../build/codex")
+```bash
+export CONTRACT_DEPLOY_FULL=$(realpath "../codex-contracts-eth/deployments/codexdisttestnetwork")
+export PROVER_ASSETS=$(realpath "../codex-contracts-eth/verifier/networks/codexdisttestnetwork/")
+export CODEX_BINARY=$(realpath "../nim-codex/build/codex")
 export MARKETPLACE_ADDRESS=$(cat marketplace_address.txt)
 ```
 
@@ -294,15 +365,18 @@ We get the Signed Peer Record (SPR) of the storage node so we can bootstrap the 
 curl -H 'Accept: text/plain' 'http://localhost:8000/api/codex/v1/spr'
 ```
 
-You should get the SPR back starting with `spr:`. Next set these paths into environment variables:
+You should get the SPR back starting with `spr:`.
+
+Before you proceed, open new terminal, and enter `marketplace-tutorial` directory.
+
+Next set these paths into environment variables:
 
 ```bash
 # set the SPR for the storage node
 export STORAGE_NODE_SPR=$(curl -H 'Accept: text/plain' 'http://localhost:8000/api/codex/v1/spr')
 # basic vars
-export CONTRACT_DEPLOY_FULL=$(realpath "codex-contracts-eth/deployments/codexdisttestnetwork")
-export PROVER_ASSETS=$(realpath "codex-contracts-eth/verifier/networks/codexdisttestnetwork/")
-export CODEX_BINARY=$(realpath "../build/codex")
+export CONTRACT_DEPLOY_FULL=$(realpath "../codex-contracts-eth/deployments/codexdisttestnetwork")
+export CODEX_BINARY=$(realpath "../nim-codex/build/codex")
 export MARKETPLACE_ADDRESS=$(cat marketplace_address.txt)
 ```
 
@@ -321,7 +395,7 @@ ${CODEX_BINARY}\
 
 ## 4. Buy and Sell Storage on the Marketplace
 
-Any storage negotiation has two sides: a buyer and a seller. Before we can actually request storage, therefore, we must first put some of it for sale.
+Any storage negotiation has two sides: a buyer and a seller. Therefore, before we can actually request storage, we must first offer some of it for sale.
 
 ### 4.1 Sell Storage
 
@@ -338,62 +412,62 @@ curl 'http://localhost:8000/api/codex/v1/sales/availability' \
 }'
 ```
 
-This should return a response with an id a string (e.g. `"id": "0x552ef12a2ee64ca22b237335c7e1df884df36d22bfd6506b356936bc718565d4"`) which identifies this storage offer. To check the current storage offers for this node, you can issue:
+This should return a JSON response containing an `id` (e.g. `"id": "0x552ef12a2ee64ca22b237335c7e1df884df36d22bfd6506b356936bc718565d4"`) which identifies this storage offer. To check the current storage offers for this node, you can issue:
 
 ```bash
-curl 'http://localhost:8000/api/codex/v1/sales/availability'
+curl 'http://localhost:8000/api/codex/v1/sales/availability'  | jq
 ```
 
-This should print a list of offers, with the one you just created figuring among them.
+> `jq` is a handy formatting utility that will make reading the JSON response easier. On macOS you can install with `brew install jq`.
+
+This should print a list of offers, with the one you just created figuring among them (for our tutorial, there will be only one offer returned at this time).
 
 ## 4.2. Buy Storage
 
-Before we can buy storage, we must have some actual data to request storage for. Start by uploading a small file to your client node. On Linux you could, for instance, use `dd` to generate a $100KB$ file:
+Before we can buy storage, we must have some actual data to request storage for. Start by uploading a small file to your client node. On Linux (or macOS) you could, for instance, use `dd` to generate a $1M$ file:
 
 ```bash
-dd if=/dev/urandom of=./data.bin bs=100K count=1
+dd if=/dev/urandom of=./data.bin bs=1M count=1
 ```
 
-but any small file will do. Assuming your file is named `data.bin`, you can upload it with:
+~but any small file will do.~
+
+> @MC: I am not sure if any small file will do, still do not understand the exact logic behind, but when using a small file (say `100KB`), I was getting the following error: _Cannot setup slots for a dataset with ecK == numBlocks. Please use a larger file or a different combination of `nodes` and `tolerance`._ When I changed the file size to something slightly bigger (like `1MB`), I was way more consistently successful.
+
+Assuming your file is named `data.bin`, you can upload it with:
 
 ```bash
-curl "http://localhost:8001/api/codex/v1/data" --data-bin @data.bin
+curl "http://localhost:8001/api/codex/v1/data" --data @data.bin
 ```
 
-Once the upload completes, you should see a CID (e.g. `zDvZRwzm2mK7tvDzKScRLapqGdgNTLyyEBvx1TQY37J2CdWdS6Sj`) for the file printed to the terminal. Use that CID in the purchase request:
+Once the upload completes, you should see a _Content Identifier_, or _CID_ (e.g. `zDvZRwzm2mK7tvDzKScRLapqGdgNTLyyEBvx1TQY37J2CdWdS6Sj`) for the uploaded file printed to the terminal. Use that CID in the purchase request:
 
 ```bash
+# make sure to replace the CID before with the CID you got in the previous step
 export CID=zDvZRwzm2mK7tvDzKScRLapqGdgNTLyyEBvx1TQY37J2CdWdS6Sj
-export EXPIRY_TIME=$((1000 + $(date +%s))) # current time + 1000 seconds
-                                           # adjust expiry_time as desired, see below
 ```
 
 ```bash
 curl "http://localhost:8001/api/codex/v1/storage/request/${CID}" \
   --header 'Content-Type: application/json' \
   --data "{
-    \"duration\": \"1200\",
+    \"duration\": \"600\",
     \"reward\": \"1\",
     \"proofProbability\": \"3\",
-    \"expiry\": \"${EXPIRY_TIME}\",
-    \"nodes\": 1,
-    \"tolerance\": 0,
+    \"expiry\": \"500\",
+    \"nodes\": 3,
+    \"tolerance\": 1,
     \"collateral\": \"1000\"
   }"
 ```
 
 The parameters under `--data` say that:
 
-1. we want to purchase storage for our file for $20$ minutes (`"duration": "1200"`);
-2. we are willing to pay up to $1$ token per byte, per second (`"reward": "1"`);
-3. our file will be split into four pieces (`"nodes": 3` and `"tolerance": 1`), so that we only need three pieces to rebuild the file; i.e., we can tolerate that at most one node stops storing our data; either due to failure or other reasons;
-4. we demand `1000` tokens in collateral from storage providers for each piece. Since there are $4$ such pieces, there will be `4000` in total collateral committed by all of the storage providers taken together once our request is fulfilled.
-
-Finally, the `expiry` puts a cap on the block time at which our request expires. This has to be at most `current block time + duration`, which means this request can fail if you input the wrong number, which you likely will if you do not know what the current block time is. Fear not, however, as you can try an an arbitrary number (e.g. `1000`), and look at the failure message:
-
-   `Expiry needs to be in future. Now: 1711995463`
-
-to compute a valid one. Just take the number in the error message and add the duration; i.e., `1711995463 + 1200 = 1711996663`, then use the resulting number (`1711996663`) as expiry and things should work. The request should return a purchase ID (e.g. `1d0ec5261e3364f8b9d1cf70324d70af21a9b5dccba380b24eb68b4762249185`), which you can use track the completion of your request in the marketplace.
+1. we want to purchase storage for our file for $10$ minutes (`"duration": "1200"`);
+2. we are willing to pay up to $1$ token per slot per second (`"reward": "1"`) (**MC:** I think `per second per byte` is still not implemented - this my first assignment, right?");
+3. our file will be split into three pieces (`"nodes": 3`). Because we set `"tolerance": 1` we only need two (`nodes - tolerance`) pieces to rebuild the file; i.e., we can tolerate that at most one node stops storing our data; either due to failure or other reasons;
+4. we demand `1000` tokens in collateral from storage providers for each piece. Since there are $3$ such pieces, there will be `3000` in total collateral committed by the storage provider(s) once our request is started.
+5. finally, the `expiry` puts a time limit for filling all the slots by the storage provider(s). If slot are not filled by the `expire` interval, the request will timeout and fail. 
 
 ## 4.3. Track your Storage Requests
 
@@ -402,13 +476,13 @@ POSTing a storage request will make it available in the storage market, and a st
 You can poll the status of your request by means of:
 ```bash
 export STORAGE_PURCHASE_ID="1d0ec5261e3364f8b9d1cf70324d70af21a9b5dccba380b24eb68b4762249185"
-curl "http://localhost:8001/api/codex/v1/storage/purchases/${STORAGE_PURCHASE_ID}"
+curl "http://localhost:8001/api/codex/v1/storage/purchases/${STORAGE_PURCHASE_ID}" | jq
 ```
 
 For instance:
 
 ```bash
-> curl 'http://localhost:8001/api/codex/v1/storage/purchases/6c698cd0ad71c41982f83097d6fa75beb582924e08a658357a1cd4d7a2a6766d'
+> curl 'http://localhost:8001/api/codex/v1/storage/purchases/6c698cd0ad71c41982f83097d6fa75beb582924e08a658357a1cd4d7a2a6766d' | jq
 ```
 
 This returns a result like:
