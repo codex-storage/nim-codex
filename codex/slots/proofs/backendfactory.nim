@@ -64,7 +64,7 @@ proc suggestDownloadTool(config: CodexConf) =
 
   let tokens = [
     "cirdl",
-    $config.circuitDir,
+    "\"" & $config.circuitDir & "\"",
     config.ethProvider,
     $address
   ]
