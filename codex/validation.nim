@@ -12,6 +12,8 @@ type
   Validation* = ref object
     slots: HashSet[SlotId]
     maxSlots: int
+    partitionSize: int
+    partitionIndex: int
     clock: Clock
     market: Market
     subscriptions: seq[Subscription]
@@ -26,10 +28,12 @@ proc new*(
     _: type Validation,
     clock: Clock,
     market: Market,
-    maxSlots: int
+    maxSlots: int,
+    partitionSize: int,
+    partitionIndex: int
 ): Validation =
   ## Create a new Validation instance
-  Validation(clock: clock, market: market, maxSlots: maxSlots)
+  Validation(clock: clock, market: market, maxSlots: maxSlots, partitionSize: partitionSize, partitionIndex: partitionIndex)
 
 proc slots*(validation: Validation): seq[SlotId] =
   validation.slots.toSeq

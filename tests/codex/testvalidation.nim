@@ -13,6 +13,8 @@ asyncchecksuite "validation":
   let period = 10
   let timeout = 5
   let maxSlots = 100
+  let partitionSize = 8
+  let partitionIndex = 1
   let slot = Slot.example
   let proof = Groth16Proof.example
   let collateral = slot.request.ask.collateral
@@ -24,7 +26,7 @@ asyncchecksuite "validation":
   setup:
     market = MockMarket.new()
     clock = MockClock.new()
-    validation = Validation.new(clock, market, maxSlots)
+    validation = Validation.new(clock, market, maxSlots, partitionSize, partitionIndex)
     market.config.proofs.period = period.u256
     market.config.proofs.timeout = timeout.u256
     await validation.start()

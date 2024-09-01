@@ -140,7 +140,7 @@ proc bootstrapInteractions(
       host = some HostInteractions.new(clock, sales)
 
     if config.validator:
-      let validation = Validation.new(clock, market, config.validatorMaxSlots)
+      let validation = Validation.new(clock, market, config.validatorMaxSlots, config.validatorPartitionSize, config.validatorPartitionIndex)
       validator = some ValidatorInteractions.new(clock, validation)
 
     s.codexNode.contracts = (client, host, validator)
