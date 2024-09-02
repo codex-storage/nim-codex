@@ -138,7 +138,7 @@ components:
           $ref: "#/components/schemas/Duration"
         minPrice:
           type: string
-          description: Minimum price to be paid (in amount of tokens) as decimal string
+          description: Minimal price paid (in amount of tokens) for the whole hosted request's slot for the request's duration as decimal string
         maxCollateral:
           type: string
           description: Maximum collateral user is willing to pay per filled Slot (in amount of tokens) as decimal string

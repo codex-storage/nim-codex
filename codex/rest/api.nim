@@ -291,7 +291,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       ##
       ## totalSize      - size of available storage in bytes
       ## duration       - maximum time the storage should be sold for (in seconds)
-      ## minPrice       - minimum price to be paid (in amount of tokens)
+      ## minPrice       - minimal price paid (in amount of tokens) for the whole hosted request's slot for the request's duration
       ## maxCollateral  - maximum collateral user is willing to pay per filled Slot (in amount of tokens)
 
       var headers = newSeq[(string,string)]()
