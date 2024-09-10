@@ -9,11 +9,18 @@ import pkg/zip/zipfiles
 import pkg/chronos/apps/http/httpclient
 import ../../codex/contracts/marketplace
 
-## TODO: chronicles is still "Log message not delivered: [Chronicles] A writer was not configured for a dynamic log output device"
-## And I am mildly annoyed by this.
-defaultChroniclesStream.outputs[0].writer =
-  proc (logLevel: LogLevel, msg: LogOutputStr) {.gcsafe.} =
-    echo msg
+proc consoleLog(logLevel: LogLevel, msg: LogOutputStr) {.gcsafe.} =
+  try:
+    stdout.write(msg)
+    stdout.flushFile()
+  except IOError as err:
+    logLoggingFailure(cstring(msg), err)
+
+proc noOutput(logLevel: LogLevel, msg: LogOutputStr) = discard
+
+defaultChroniclesStream.outputs[0].writer = consoleLog
+defaultChroniclesStream.outputs[1].writer = noOutput
+defaultChroniclesStream.outputs[2].writer = noOutput
 
 proc printHelp() =
   info "Usage: ./cirdl [circuitPath] [rpcEndpoint] [marketplaceAddress]"
