@@ -50,6 +50,24 @@ if [ -n "${PRIV_KEY}" ]; then
   echo "Private key set"
 fi
 
+# Circuit downloader
+# cirdl [circuitPath] [rpcEndpoint] [marketplaceAddress]
+if [[ "$@" == *"prover"* ]]; then
+  echo "Run Circuit downloader"
+  # Set circuits dir from CODEX_CIRCOM_* variables if set
+  CIRCUIT_DIR=$(dirname "${CODEX_CIRCOM_R1CS}")
+  if [[ "${CIRCUIT_DIR}" == "." ]]; then
+    CIRCUIT_DIR="${CODEX_DATA_DIR}/circuits"
+    export CODEX_CIRCOM_R1CS="${CIRCUIT_DIR}/proof_main.r1cs"
+    export CODEX_CIRCOM_WASM="${CIRCUIT_DIR}/proof_main.wasm"
+    export CODEX_CIRCOM_ZKEY="${CIRCUIT_DIR}/proof_main.zkey"
+  fi
+  # Download circuits
+  mkdir -p "${CIRCUIT_DIR}"
+  cirdl "${CIRCUIT_DIR}" "${CODEX_ETH_PROVIDER}" "${CODEX_MARKETPLACE_ADDRESS}"
+  [[ $? -ne 0 ]] && { echo "Failed to download circuit files"; exit 1; }
+fi
+
 # Run
 echo "Run Codex node"
 exec "$@"
