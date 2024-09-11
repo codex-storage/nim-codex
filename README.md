@@ -16,7 +16,7 @@
 
 ## Build and Run
 
-For detailed instructions on preparing to build nim-codex see [*Building Codex*](BUILDING.md).
+For detailed instructions on preparing to build nim-codex see [*Build Codex*](https://docs.codex.storage/learn/build).
 
 To build the project, clone it and run:
 
