@@ -1,4 +1,5 @@
 import pkg/chronos
+import std/strformat
 
 import codex/validation
 import codex/periods
@@ -52,6 +53,14 @@ asyncchecksuite "validation":
   test "when a slot is filled on chain, it is added to the list":
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
     check validation.slots == @[slot.id]
+  
+  for partitionSize in [0, 1]:
+    test fmt"the value of partitionIndex is ignored when {partitionSize = }":
+      var validation = Validation.new(clock, market, maxSlots, partitionSize = partitionSize, partitionIndex + 1)
+      await validation.start()
+      await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+      await validation.stop()
+      check validation.slots == @[slot.id]
 
   for state in [SlotState.Finished, SlotState.Failed]:
     test "when slot state changes, it is removed from the list":

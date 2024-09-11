@@ -33,7 +33,7 @@ proc new*(
     partitionIndex: int
 ): Validation =
   ## Create a new Validation instance
-  Validation(clock: clock, market: market, maxSlots: maxSlots, partitionSize: partitionSize, partitionIndex: partitionIndex)
+  Validation(clock: clock, market: market, maxSlots: maxSlots, partitionSize: partitionSize, partitionIndex: if [0, 1].anyIt(it == partitionSize): 0 else: partitionIndex)
 
 proc slots*(validation: Validation): seq[SlotId] =
   validation.slots.toSeq
@@ -48,8 +48,11 @@ proc waitUntilNextPeriod(validation: Validation) {.async.} =
   await validation.clock.waitUntil(periodEnd.truncate(int64) + 1)
 
 func partitionIndexForSlotId(validation: Validation, slotId: SlotId): int =
-  let slotIdUInt256 = UInt256.fromBytesBE(slotId.toArray)
-  return (slotIdUInt256 mod validation.partitionSize.u256).truncate(int)
+  if (validation.partitionSize == 0):
+    0
+  else:
+    let slotIdUInt256 = UInt256.fromBytesBE(slotId.toArray)
+    (slotIdUInt256 mod validation.partitionSize.u256).truncate(int)
 
 func shouldValidateSlot(validation: Validation, slotId: SlotId): bool =
   return (
