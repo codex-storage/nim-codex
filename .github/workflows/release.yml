@@ -13,7 +13,7 @@ env:
   codex_binary_base: codex
   cirdl_binary_base: cirdl
   build_dir: build
-  nim_flags: '-d:verify_circuit=true'
+  nim_flags: ''
   windows_libs: 'libstdc++-6.dll libgomp-1.dll libgcc_s_seh-1.dll libwinpthread-1.dll'
 
 jobs:
