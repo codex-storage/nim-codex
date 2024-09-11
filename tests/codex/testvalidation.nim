@@ -14,7 +14,6 @@ asyncchecksuite "validation":
   let timeout = 5
   let maxSlots = 100
   let partitionSize = 8
-  let partitionIndex = 1
   let slot = Slot.example
   let proof = Groth16Proof.example
   let collateral = slot.request.ask.collateral
@@ -22,8 +21,15 @@ asyncchecksuite "validation":
   var validation: Validation
   var market: MockMarket
   var clock: MockClock
+  var partitionIndex: int
+
+  func partitionIndexForPartitionSize(slot: Slot, partitionSize: int): int =
+    let slotId = slot.id
+    let slotIdUInt256 = UInt256.fromBytesBE(slotId.toArray)
+    (slotIdUInt256 mod partitionSize.u256).truncate(int)
 
   setup:
+    partitionIndex = slot.partitionIndexForPartitionSize(partitionSize)
     market = MockMarket.new()
     clock = MockClock.new()
     validation = Validation.new(clock, market, maxSlots, partitionSize, partitionIndex)
@@ -69,7 +75,12 @@ asyncchecksuite "validation":
     check market.markedAsMissingProofs.len == 0
 
   test "it does not monitor more than the maximum number of slots":
+    let partitionSize = 1
+    let partitionIndex = 0
+    let validation = Validation.new(clock, market, maxSlots, partitionSize, partitionIndex)
+    await validation.start()
     for _ in 0..<maxSlots + 1:
       let slot = Slot.example
       await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+    await validation.stop()
     check validation.slots.len == maxSlots

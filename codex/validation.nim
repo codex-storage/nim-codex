@@ -47,13 +47,23 @@ proc waitUntilNextPeriod(validation: Validation) {.async.} =
   trace "Waiting until next period", currentPeriod = period
   await validation.clock.waitUntil(periodEnd.truncate(int64) + 1)
 
+func partitionIndexForSlotId(validation: Validation, slotId: SlotId): int =
+  let slotIdUInt256 = UInt256.fromBytesBE(slotId.toArray)
+  return (slotIdUInt256 mod validation.partitionSize.u256).truncate(int)
+
+func shouldValidateSlot(validation: Validation, slotId: SlotId): bool =
+  return (
+    validation.partitionIndexForSlotId(slotId) == validation.partitionIndex and
+    slotId notin validation.slots and
+    validation.slots.len < validation.maxSlots
+  )
+
 proc subscribeSlotFilled(validation: Validation) {.async.} =
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
     let slotId = slotId(requestId, slotIndex)
-    if slotId notin validation.slots:
-      if validation.slots.len < validation.maxSlots:
-        trace "Adding slot", slotId
-        validation.slots.incl(slotId)
+    if validation.shouldValidateSlot(slotId):
+      trace "Adding slot", slotId
+      validation.slots.incl(slotId)
   let subscription = await validation.market.subscribeSlotFilled(onSlotFilled)
   validation.subscriptions.add(subscription)
 
