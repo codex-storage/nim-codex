@@ -301,8 +301,8 @@ type
       validatorPartitionSize* {.
         desc: "Slot validaton partition index."
         longDesc: "A number indicating total number of partitions into which the whole slot id space will be divided. " &
-          "If the provided value is 0 or 1, the validator will be observing the whole slot id space"
-        defaultValue: 8
+          "If the provided value is 0 (default) or 1, the validator will be observing the whole slot id space"
+        defaultValue: 0
         name: "validator-partition-size"
       .}: int
       
