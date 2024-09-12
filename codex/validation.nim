@@ -33,7 +33,7 @@ proc new*(
     partitionIndex: int
 ): Validation =
   ## Create a new Validation instance
-  Validation(clock: clock, market: market, maxSlots: maxSlots, partitionSize: partitionSize, partitionIndex: if [0, 1].anyIt(it == partitionSize): 0 else: partitionIndex mod partitionSize)
+  Validation(clock: clock, market: market, maxSlots: maxSlots, partitionSize: partitionSize, partitionIndex: if [0, 1].anyIt(it == partitionSize): 0 else: abs(partitionIndex mod partitionSize))
 
 proc slots*(validation: Validation): seq[SlotId] =
   validation.slots.toSeq

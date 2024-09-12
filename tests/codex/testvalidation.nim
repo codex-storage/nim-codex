@@ -69,12 +69,13 @@ asyncchecksuite "validation":
       await validation.stop()
       check validation.slots == @[slot.id]
   
-  test "clips the partition index to `partitionIndex mod partitionSize`":
-    var validation = Validation.new(clock, market, maxSlots, partitionSize, partitionIndex + partitionSize)
-    await validation.start()
-    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    await validation.stop()
-    check validation.slots == @[slot.id]
+  for outOfRangePartitionIndex in [partitionIndex + partitionSize, (-1)*partitionIndex]:
+    test fmt"clips out of range partition indices to `partitionIndex mod partitionSize` (testing for partitionIndex = {outOfRangePartitionIndex}, {partitionSize = })":
+      var validation = Validation.new(clock, market, maxSlots, partitionSize, partitionIndex = outOfRangePartitionIndex)
+      await validation.start()
+      await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+      await validation.stop()
+      check validation.slots == @[slot.id]
 
   for state in [SlotState.Finished, SlotState.Failed]:
     test fmt"when slot state changes to {state}, it is removed from the list":
