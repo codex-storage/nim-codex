@@ -299,17 +299,18 @@ type
         name: "reward-recipient"
       .}: Option[EthAddress]
       validatorPartitionSize* {.
-        desc: "A number indicating total number of partitions into which the whole slot id space will be divided. " &
-          "If the provided value is 0 or 1, the validator will be observing the whole slot id space."
+        desc: "Slot validaton partition index."
+        longDesc: "A number indicating total number of partitions into which the whole slot id space will be divided. " &
+          "If the provided value is 0 or 1, the validator will be observing the whole slot id space"
         defaultValue: 8
         name: "validator-partition-size"
       .}: int
       
       validatorPartitionIndex* {.
-        desc: "Indicates the partition index. " &
-          "The value provided must be in the range [0, partitionSize). " &
-          "If omitted or value outside of this range is provided, 0 will be used as default value. " &
-          "Only slot ids from the resulting partition will be observed by the validator."
+        desc: "Slot validaton partition index."
+        longDesc: "The value provided must be in the range [0, partitionSize). " &
+          "If a value outside of this range is provided, abs(partitionIndex mod partitionSize) will be used. " &
+          "Only slot ids from the resulting partition will be observed by the validator"
         defaultValue: 0
         name: "validator-partition-index"
       .}: int
