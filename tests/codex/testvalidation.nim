@@ -54,16 +54,30 @@ asyncchecksuite "validation":
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
     check validation.slots == @[slot.id]
   
+  test "slot is not observed if it is not in the partition":
+    var validation = Validation.new(clock, market, maxSlots, partitionSize, partitionIndex + 1)
+    await validation.start()
+    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+    await validation.stop()
+    check validation.slots.len == 0
+  
   for partitionSize in [0, 1]:
     test fmt"the value of partitionIndex is ignored when {partitionSize = }":
-      var validation = Validation.new(clock, market, maxSlots, partitionSize = partitionSize, partitionIndex + 1)
+      var validation = Validation.new(clock, market, maxSlots, partitionSize, partitionIndex + 1)
       await validation.start()
       await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
       await validation.stop()
       check validation.slots == @[slot.id]
+  
+  test "clips the partition index to `partitionIndex mod partitionSize`":
+    var validation = Validation.new(clock, market, maxSlots, partitionSize, partitionIndex + partitionSize)
+    await validation.start()
+    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+    await validation.stop()
+    check validation.slots == @[slot.id]
 
   for state in [SlotState.Finished, SlotState.Failed]:
-    test "when slot state changes, it is removed from the list":
+    test fmt"when slot state changes to {state}, it is removed from the list":
       await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
       market.slotState[slot.id] = state
       advanceToNextPeriod()
