@@ -87,8 +87,11 @@ The following options are available:
      --agent-string         Node agent string which is used as identifier in network [=Codex].
      --api-bindaddr         The REST API bind address [=127.0.0.1].
  -p, --api-port             The REST Api port [=8080].
-     --repo-kind            Backend for main repo store (fs, sqlite) [=fs].
- -q, --storage-quota        The size of the total storage quota dedicated to the node [=8589934592].
+     --api-cors-origin      The REST Api CORS allowed origin for downloading data. '*' will allow all
+                            origins, '' will allow none. [=Disallow all cross origin requests to download
+                            data].
+     --repo-kind            Backend for main repo store (fs, sqlite, leveldb) [=fs].
+ -q, --storage-quota        The size of the total storage quota dedicated to the node [=$DefaultQuotaBytes].
  -t, --block-ttl            Default block timeout in seconds - 0 disables the ttl [=$DefaultBlockTtl].
      --block-mi             Time interval in seconds - determines frequency of block maintenance cycle: how
                             often blocks are checked for expiration and cleanup
@@ -109,6 +112,13 @@ The following options are available:
      --marketplace-address  Address of deployed Marketplace contract.
      --validator            Enables validator, requires an Ethereum node [=false].
      --validator-max-slots  Maximum number of slots that the validator monitors [=1000].
+     --validator-partition-size  Slot validation partition size [=1].
+                            A number indicating total number of partitions into which the whole slot id
+                            space will be divided. The value must be greater than 0.
+     --validator-partition-index  Slot validation partition index [=0].
+                            The value provided must be in the range [0, partitionSize). Only slot ids
+                            satisfying condition [(slotId mod partitionSize) == partitionIndex] will be
+                            observed by the validator.
 
 Available sub-commands:
 
