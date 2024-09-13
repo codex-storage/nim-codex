@@ -1,39 +1,38 @@
 import std/sets
 import std/sequtils
 import pkg/chronos
+import pkg/questionable/results
+
+import ./contracts/validation
 import ./market
 import ./clock
 import ./logutils
 
 export market
 export sets
+export validation
 
 type
   Validation* = ref object
     slots: HashSet[SlotId]
-    maxSlots: int
-    partitionSize: int
-    partitionIndex: int
     clock: Clock
     market: Market
     subscriptions: seq[Subscription]
     running: Future[void]
     periodicity: Periodicity
     proofTimeout: UInt256
+    validationParams: ValidationParams
 
 logScope:
   topics = "codex validator"
 
 proc new*(
-    _: type Validation,
-    clock: Clock,
-    market: Market,
-    maxSlots: int,
-    partitionSize: int,
-    partitionIndex: int
+  _: type Validation,
+  clock: Clock,
+  market: Market,
+  validationParams: ValidationParams
 ): Validation =
-  ## Create a new Validation instance
-  Validation(clock: clock, market: market, maxSlots: maxSlots, partitionSize: partitionSize, partitionIndex: if [0, 1].anyIt(it == partitionSize): 0 else: abs(partitionIndex mod partitionSize))
+  Validation(clock: clock, market: market, validationParams: validationParams)
 
 proc slots*(validation: Validation): seq[SlotId] =
   validation.slots.toSeq
@@ -48,17 +47,17 @@ proc waitUntilNextPeriod(validation: Validation) {.async.} =
   await validation.clock.waitUntil(periodEnd.truncate(int64) + 1)
 
 func partitionIndexForSlotId(validation: Validation, slotId: SlotId): int =
-  if (validation.partitionSize == 0):
+  if (validation.validationParams.partitionSize == 1):
     0
   else:
     let slotIdUInt256 = UInt256.fromBytesBE(slotId.toArray)
-    (slotIdUInt256 mod validation.partitionSize.u256).truncate(int)
+    (slotIdUInt256 mod validation.validationParams.partitionSize.u256).truncate(int)
 
 func shouldValidateSlot(validation: Validation, slotId: SlotId): bool =
   return (
-    validation.partitionIndexForSlotId(slotId) == validation.partitionIndex and
+    validation.partitionIndexForSlotId(slotId) == validation.validationParams.partitionIndex and
     slotId notin validation.slots and
-    validation.slots.len < validation.maxSlots
+    validation.slots.len < validation.validationParams.maxSlots
   )
 
 proc subscribeSlotFilled(validation: Validation) {.async.} =

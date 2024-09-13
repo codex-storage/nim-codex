@@ -140,7 +140,13 @@ proc bootstrapInteractions(
       host = some HostInteractions.new(clock, sales)
 
     if config.validator:
-      let validation = Validation.new(clock, market, config.validatorMaxSlots, config.validatorPartitionSize, config.validatorPartitionIndex)
+      without validationParams =? ValidationParams.init(
+        config.validatorMaxSlots,
+        config.validatorPartitionSize,
+        config.validatorPartitionIndex), err:
+          error "Invalid validation parameters", err = err.msg
+          quit QuitFailure
+      let validation = Validation.new(clock, market, validationParams)
       validator = some ValidatorInteractions.new(clock, validation)
 
     s.codexNode.contracts = (client, host, validator)
