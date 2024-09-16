@@ -11,9 +11,6 @@ import ../../conf
 import ./backends
 import ./backendutils
 
-type
-  BackendFactory* = object of RootObj
-
 proc initializeFromConfig(
   config: CodexConf,
   utils: BackendUtils): ?!AnyBackend =
@@ -73,7 +70,6 @@ proc suggestDownloadTool(config: CodexConf) =
   echo "'./" & tokens.join(" ") & "'"
 
 proc initializeBackend*(
-  self: BackendFactory,
   config: CodexConf,
   utils: BackendUtils = BackendUtils()): ?!AnyBackend =
 

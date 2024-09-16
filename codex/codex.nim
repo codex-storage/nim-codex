@@ -273,9 +273,7 @@ proc new*(
     engine = BlockExcEngine.new(repoStore, wallet, network, blockDiscovery, advertiser, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, repoStore)
     prover = if config.prover:
-      let
-        backendFactory = BackendFactory()
-        backend = backendFactory.initializeBackend(config).expect("Unable to create prover backend.")
+      let backend = config.initializeBackend().expect("Unable to create prover backend.")
       some Prover.new(store, backend, config)
     else:
       none Prover

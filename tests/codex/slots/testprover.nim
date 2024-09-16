@@ -52,10 +52,7 @@ suite "Test Prover":
         circomZkey: InputFile("tests/circuits/fixtures/proof_main.zkey"),
         numProofSamples: samples
       )
-
-    let
-      backendFactory = BackendFactory()
-      backend = backendFactory.initializeBackend(config).tryGet()
+      backend = config.initializeBackend().tryGet()
 
     store = RepoStore.new(repoDs, metaDs)
     prover = Prover.new(store, backend, config)
