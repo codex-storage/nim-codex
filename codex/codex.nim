@@ -110,7 +110,7 @@ proc bootstrapInteractions(
       quit QuitFailure
 
     let marketplace = Marketplace.new(marketplaceAddress, signer)
-    let market = OnChainMarket.new(marketplace)
+    let market = OnChainMarket.new(marketplace, config.rewardRecipient)
     let clock = OnChainClock.new(provider)
 
     var client: ?ClientInteractions
