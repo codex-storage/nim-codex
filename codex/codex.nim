@@ -141,8 +141,8 @@ proc bootstrapInteractions(
     if config.validator:
       without validationParams =? ValidationParams.init(
         config.validatorMaxSlots,
-        config.validatorPartitionSize,
-        config.validatorPartitionIndex), err:
+        config.validatorGroups,
+        config.validatorGroupIndex), err:
           error "Invalid validation parameters", err = err.msg
           quit QuitFailure
       let validation = Validation.new(clock, market, validationParams)

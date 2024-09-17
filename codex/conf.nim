@@ -37,8 +37,10 @@ import ./logutils
 import ./stores
 import ./units
 import ./utils
+from ./contracts/validation import MaxSlots, ValidationGroups
 
 export units, net, codextypes, logutils
+export ValidationGroups, MaxSlots
 
 export
   DefaultQuotaBytes,
@@ -292,27 +294,28 @@ type
         desc: "Maximum number of slots that the validator monitors"
         defaultValue: 1000
         name: "validator-max-slots"
-      .}: int
+      .}: MaxSlots
+
+      validatorGroups* {.
+        desc: "Slot validation partition size"
+        longDesc: "A number indicating total number of groups into which the whole slot id space will be divided. " &
+          "The value must be greater than 0. Powers of twos are advised for even distribution."
+        defaultValue: ValidationGroups.none
+        name: "validator-groups"
+      .}: Option[ValidationGroups]
+      
+      validatorGroupIndex* {.
+        desc: "Slot validation partition index"
+        longDesc: "The value provided must be in the range [0, partitionSize). " &
+          "Only slot ids satisfying condition [(slotId mod partitionSize) == partitionIndex] will be observed by the validator"
+        defaultValue: 0
+        name: "validator-group-index"
+      .}: uint16
 
       rewardRecipient* {.
         desc: "Address to send payouts to (eg rewards and refunds)"
         name: "reward-recipient"
       .}: Option[EthAddress]
-      validatorPartitionSize* {.
-        desc: "Slot validation partition size"
-        longDesc: "A number indicating total number of partitions into which the whole slot id space will be divided. " &
-          "The value must be greater than 0"
-        defaultValue: 1
-        name: "validator-partition-size"
-      .}: int
-      
-      validatorPartitionIndex* {.
-        desc: "Slot validation partition index"
-        longDesc: "The value provided must be in the range [0, partitionSize). " &
-          "Only slot ids satisfying condition [(slotId mod partitionSize) == partitionIndex] will be observed by the validator"
-        defaultValue: 0
-        name: "validator-partition-index"
-      .}: int
 
       case persistenceCmd* {.
         defaultValue: noCmd

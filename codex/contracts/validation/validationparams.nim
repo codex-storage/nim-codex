@@ -3,32 +3,29 @@ import pkg/questionable
 import pkg/questionable/results
 
 type
+  ValidationGroups* = range[2..65535]
+  MaxSlots* = Positive
   ValidationParams* = object
-    maxSlots: int
-    partitionSize: int
-    partitionIndex: int
+    maxSlots: MaxSlots
+    groups: ?ValidationGroups
+    groupIndex: uint16
 
 func init*(
   _: type ValidationParams, 
-  maxSlots: int,
-  partitionSize: int,
-  partitionIndex: int
+  maxSlots: MaxSlots,
+  groups: ?ValidationGroups,
+  groupIndex: uint16
 ): ?!ValidationParams =
-  if partitionSize <= 0:
-    return failure fmt"Partition size must be greater than 0! (got: {partitionSize = })"
-  if partitionIndex < 0:
-    return failure fmt"Partition index must be greater than or equal to 0! (got: {partitionIndex = })"
-  if partitionIndex >= partitionSize:
-    return failure fmt"The value of the partition index must be less than partition size! (got: {partitionIndex = }, {partitionSize = })"
-  if maxSlots <= 0:
-    return failure fmt"maxSlots must be greater than 0! (got: {maxSlots = })"
-  success ValidationParams(maxSlots: maxSlots, partitionSize: partitionSize, partitionIndex: partitionIndex)
+  if validationGroups =? groups and groupIndex >= uint16(validationGroups):
+    return failure fmt"The value of the group index must be less than validation groups! (got: {groupIndex = }, groups = {validationGroups})"
+  
+  success ValidationParams(maxSlots: maxSlots, groups: groups, groupIndex: groupIndex)
 
-func maxSlots*(validationParams: ValidationParams): int =
+func maxSlots*(validationParams: ValidationParams): MaxSlots =
   validationParams.maxSlots
 
-func partitionSize*(validationParams: ValidationParams): int =
-  validationParams.partitionSize
+func groups*(validationParams: ValidationParams): ?ValidationGroups =
+  validationParams.groups
 
-func partitionIndex*(validationParams: ValidationParams): int =
-  validationParams.partitionIndex
+func groupIndex*(validationParams: ValidationParams): uint16 =
+  validationParams.groupIndex

@@ -46,19 +46,16 @@ proc waitUntilNextPeriod(validation: Validation) {.async.} =
   trace "Waiting until next period", currentPeriod = period
   await validation.clock.waitUntil(periodEnd.truncate(int64) + 1)
 
-func partitionIndexForSlotId(validation: Validation, slotId: SlotId): int =
-  if (validation.validationParams.partitionSize == 1):
-    0
-  else:
-    let slotIdUInt256 = UInt256.fromBytesBE(slotId.toArray)
-    (slotIdUInt256 mod validation.validationParams.partitionSize.u256).truncate(int)
+func groupIndexForSlotId*(slotId: SlotId, validationGroups: ValidationGroups): uint16 =
+  let slotIdUInt256 = UInt256.fromBytesBE(slotId.toArray)
+  (slotIdUInt256 mod validationGroups.u256).truncate(uint16)
 
-func shouldValidateSlot(validation: Validation, slotId: SlotId): bool =
-  return (
-    validation.partitionIndexForSlotId(slotId) == validation.validationParams.partitionIndex and
-    slotId notin validation.slots and
+func shouldValidateSlot*(validation: Validation, slotId: SlotId): bool =
+  if (validationGroups =? validation.validationParams.groups):
+    groupIndexForSlotId(slotId, validationGroups) == validation.validationParams.groupIndex and
     validation.slots.len < validation.validationParams.maxSlots
-  )
+  else:
+    validation.slots.len < validation.validationParams.maxSlots
 
 proc subscribeSlotFilled(validation: Validation) {.async.} =
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =

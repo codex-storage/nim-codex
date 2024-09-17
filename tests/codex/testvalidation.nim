@@ -1,5 +1,6 @@
 import pkg/chronos
 import std/strformat
+import std/random
 
 import codex/validation
 import codex/periods
@@ -13,8 +14,8 @@ import ./helpers
 asyncchecksuite "validation":
   let period = 10
   let timeout = 5
-  let maxSlots = 100
-  let partitionSize = 8
+  let maxSlots = MaxSlots(100)
+  let validationGroups = ValidationGroups(8).some
   let slot = Slot.example
   let proof = Groth16Proof.example
   let collateral = slot.request.ask.collateral
@@ -22,10 +23,10 @@ asyncchecksuite "validation":
   var validation: Validation
   var market: MockMarket
   var clock: MockClock
-  var partitionIndex: int
+  var groupIndex: uint16
 
-  proc initValidationParams(maxSlots: int, partitionSize: int, partitionIndex: int): ValidationParams =
-    without validationParams =? ValidationParams.init(maxSlots, partitionSize, partitionIndex), error:
+  proc initValidationParams(maxSlots: MaxSlots, validationGroups: ?ValidationGroups, groupIndex: uint16): ValidationParams =
+    without validationParams =? ValidationParams.init(maxSlots, groups=validationGroups, groupIndex), error:
       raiseAssert fmt"Creating ValidationParams failed! Error msg: {error.msg}"
     validationParams
   
@@ -34,16 +35,11 @@ asyncchecksuite "validation":
       raiseAssert fmt"Creating Validation failed! Error msg: {error.msg}"
     validation
 
-  func partitionIndexForPartitionSize(slot: Slot, partitionSize: int): int =
-    let slotId = slot.id
-    let slotIdUInt256 = UInt256.fromBytesBE(slotId.toArray)
-    (slotIdUInt256 mod partitionSize.u256).truncate(int)
-
   setup:
-    partitionIndex = slot.partitionIndexForPartitionSize(partitionSize)
+    groupIndex = groupIndexForSlotId(slot.id, !validationGroups)
     market = MockMarket.new()
     clock = MockClock.new()
-    let validationParams = initValidationParams(maxSlots, partitionSize, partitionIndex)
+    let validationParams = initValidationParams(maxSlots, validationGroups, groupIndex)
     validation = createValidation(clock, market, validationParams)
     market.config.proofs.period = period.u256
     market.config.proofs.timeout = timeout.u256
@@ -60,42 +56,47 @@ asyncchecksuite "validation":
 
   test "the list of slots that it's monitoring is empty initially":
     check validation.slots.len == 0
-  
-  test "maxSlots in ValidationParams must be greater than 0":
-    let maxSlots = 0
-    let validationParams: ?!ValidationParams = ValidationParams.init(maxSlots = maxSlots, partitionSize = 1, partitionIndex = 0)
-    check validationParams.isFailure == true
-    check validationParams.error.msg == fmt"maxSlots must be greater than 0! (got: {maxSlots = })"
 
-  for partitionSize in [-100, -1, 0]:
-    test fmt"initializing ValidationParams fails when partitionSize has value our of range (testing for {partitionSize = })":
-      let validationParams: ?!ValidationParams = ValidationParams.init(maxSlots, partitionSize = partitionSize, partitionIndex = 0)
+  for (validationGroups, groupIndex) in [(100, 100'u16), (100, 101'u16)]:
+    test fmt"initializing ValidationParams fails when groupIndex is greater than or equal to validationGroups (testing for {groupIndex = }, {validationGroups = })":
+      let groups = ValidationGroups(validationGroups).some
+      let validationParams: ?!ValidationParams = ValidationParams.init(maxSlots, groups = groups, groupIndex = groupIndex)
       check validationParams.isFailure == true
-      check validationParams.error.msg == fmt"Partition size must be greater than 0! (got: {partitionSize = })"
+      check validationParams.error.msg == fmt"The value of the group index must be less than validation groups! (got: {groupIndex = }, groups = {!groups})"
   
-  test fmt"initializing ValidationParams fails when partitionIndex is negative":
-    let partitionIndex = -1
-    let validationParams: ?!ValidationParams = ValidationParams.init(maxSlots, partitionSize = 1, partitionIndex = partitionIndex)
-    check validationParams.isFailure == true
-    check validationParams.error.msg == fmt"Partition index must be greater than or equal to 0! (got: {partitionIndex = })"
-
-  for (partitionSize, partitionIndex) in [(100, 100), (100, 101)]:
-    test fmt"initializing ValidationParams fails when partitionIndex is greater than or equal to partitionSize  (testing for {partitionIndex = }, {partitionSize = })":
-      let validationParams: ?!ValidationParams = ValidationParams.init(maxSlots, partitionSize = partitionSize, partitionIndex = partitionIndex)
-      check validationParams.isFailure == true
-      check validationParams.error.msg == fmt"The value of the partition index must be less than partition size! (got: {partitionIndex = }, {partitionSize = })"
-
-  test "when a slot is filled on chain, it is added to the list":
-    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    check validation.slots == @[slot.id]
+  test "group index is irrelevant if validation groups are not set":
+    randomize()
+    for _ in 0..<100:
+      let groupIndex = rand(1000).uint16
+      let validationParams = ValidationParams.init(maxSlots, groups=ValidationGroups.none, groupIndex)
+      check validationParams.isSuccess
   
-  test "slot is not observed if it is not in the partition":
-    let validationParams = initValidationParams(maxSlots, partitionSize, partitionIndex + 1)
+  test "slot should be observed if it is in the validation group":
+    let validationParams = initValidationParams(maxSlots, validationGroups, groupIndex)
+    let validation = createValidation(clock, market, validationParams)
+    check validation.shouldValidateSlot(slot.id) == true
+  
+  test "slot should be observed if validation group is not set":
+    let validationParams = initValidationParams(maxSlots, ValidationGroups.none, groupIndex)
+    let validation = createValidation(clock, market, validationParams)
+    check validation.shouldValidateSlot(slot.id) == true
+  
+  test "slot should not be observed if it is not in the validation group":
+    let validationParams = initValidationParams(maxSlots, validationGroups, (groupIndex + 1) mod uint16(!validationGroups))
+    let validation = createValidation(clock, market, validationParams)
+    check validation.shouldValidateSlot(slot.id) == false
+  
+  test "slot is not observed if it is not in the validation group":
+    let validationParams = initValidationParams(maxSlots, validationGroups, (groupIndex + 1) mod uint16(!validationGroups))
     let validation = createValidation(clock, market, validationParams)
     await validation.start()
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
     await validation.stop()
     check validation.slots.len == 0
+
+  test "when a slot is filled on chain, it is added to the list":
+    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+    check validation.slots == @[slot.id]
 
   for state in [SlotState.Finished, SlotState.Failed]:
     test fmt"when slot state changes to {state}, it is removed from the list":
@@ -119,7 +120,8 @@ asyncchecksuite "validation":
     check market.markedAsMissingProofs.len == 0
 
   test "it does not monitor more than the maximum number of slots":
-    let validationParams = initValidationParams(maxSlots, partitionSize = 1, partitionIndex = 0)
+    let validationGroups = ValidationGroups.none
+    let validationParams = initValidationParams(maxSlots, validationGroups, groupIndex = 0'u16)
     let validation = createValidation(clock, market, validationParams)
     await validation.start()
     for _ in 0..<maxSlots + 1:
