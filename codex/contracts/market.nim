@@ -19,17 +19,24 @@ type
   OnChainMarket* = ref object of Market
     contract: Marketplace
     signer: Signer
+    rewardRecipient: ?Address
   MarketSubscription = market.Subscription
   EventSubscription = ethers.Subscription
   OnChainMarketSubscription = ref object of MarketSubscription
     eventSubscription: EventSubscription
 
-func new*(_: type OnChainMarket, contract: Marketplace): OnChainMarket =
+func new*(
+  _: type OnChainMarket,
+  contract: Marketplace,
+  rewardRecipient = Address.none): OnChainMarket =
+
   without signer =? contract.signer:
     raiseAssert("Marketplace contract should have a signer")
+
   OnChainMarket(
     contract: contract,
     signer: signer,
+    rewardRecipient: rewardRecipient
   )
 
 proc raiseMarketError(message: string) {.raises: [MarketError].} =
@@ -163,7 +170,23 @@ method fillSlot(market: OnChainMarket,
 
 method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
   convertEthersError:
-    discard await market.contract.freeSlot(slotId).confirm(0)
+    var freeSlot: Future[?TransactionResponse]
+    if rewardRecipient =? market.rewardRecipient:
+      # If --reward-recipient specified, use it as the reward recipient, and use
+      # the SP's address as the collateral recipient
+      let collateralRecipient = await market.getSigner()
+      freeSlot = market.contract.freeSlot(
+        slotId,
+        rewardRecipient,      # --reward-recipient
+        collateralRecipient)  # SP's address
+
+    else:
+      # Otherwise, use the SP's address as both the reward and collateral
+      # recipient (the contract will use msg.sender for both)
+      freeSlot = market.contract.freeSlot(slotId)
+
+    discard await freeSlot.confirm(0)
+
 
 method withdrawFunds(market: OnChainMarket,
                      requestId: RequestId) {.async.} =
