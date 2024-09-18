@@ -17,8 +17,7 @@ proc configFactory(): CodexConf =
     cmd: StartUpCmd.persistence,
     nat: ValidIpAddress.init("127.0.0.1"),
     discoveryIp: ValidIpAddress.init(IPv4_any()),
-    metricsAddress: ValidIpAddress.init("127.0.0.1"),
-    validatorMaxSlots: 1000)
+    metricsAddress: ValidIpAddress.init("127.0.0.1"))
 
 proc configFactory(marketplace: Option[EthAddress]): CodexConf =
   CodexConf(
@@ -26,8 +25,7 @@ proc configFactory(marketplace: Option[EthAddress]): CodexConf =
     nat: ValidIpAddress.init("127.0.0.1"),
     discoveryIp: ValidIpAddress.init(IPv4_any()),
     metricsAddress: ValidIpAddress.init("127.0.0.1"),
-    marketplaceAddress: marketplace,
-    validatorMaxSlots: 1000)
+    marketplaceAddress: marketplace)
 
 asyncchecksuite "Deployment":
   let provider = MockProvider()

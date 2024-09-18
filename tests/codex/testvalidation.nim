@@ -27,7 +27,7 @@ asyncchecksuite "validation":
 
   proc initValidationConfig(maxSlots: MaxSlots,
                             validationGroups: ?ValidationGroups,
-                            groupIndex: uint16): ValidationConfig =
+                            groupIndex: uint16 = 0): ValidationConfig =
     without validationConfig =? ValidationConfig.init(
       maxSlots, groups=validationGroups, groupIndex), error:
       raiseAssert fmt"Creating ValidationConfig failed! Error msg: {error.msg}"
@@ -75,6 +75,23 @@ asyncchecksuite "validation":
           "must be less than validation groups! " &
           fmt"(got: {groupIndex = }, groups = {!groups})"
   
+  test "initializing ValidationConfig fails when maxSlots is negative":
+    let maxSlots = -1
+    let validationConfig = ValidationConfig.init(
+        maxSlots = maxSlots, groups = ValidationGroups.none)
+    check validationConfig.isFailure == true
+    check validationConfig.error.msg == "The value of maxSlots must " &
+        fmt"be greater than or equal to 0! (got: {maxSlots})"
+  
+  test "initializing ValidationConfig fails when maxSlots is negative " &
+      "(validationGroups set)":
+    let maxSlots = -1
+    let validationConfig = ValidationConfig.init(
+        maxSlots = maxSlots, groups = validationGroups, groupIndex)
+    check validationConfig.isFailure == true
+    check validationConfig.error.msg == "The value of maxSlots must " &
+        fmt"be greater than or equal to 0! (got: {maxSlots})"
+
   test "group index is irrelevant if validation groups are not set":
     randomize()
     for _ in 0..<100:
@@ -91,9 +108,15 @@ asyncchecksuite "validation":
   
   test "slot should be observed if validation group is not set":
     let validationConfig = initValidationConfig(
-        maxSlots, ValidationGroups.none, groupIndex)
+        maxSlots, ValidationGroups.none)
     let validation = newValidation(clock, market, validationConfig)
     check validation.shouldValidateSlot(slot.id) == true
+  
+  test "slot should be observed if maxSlots is set to 0":
+    let validationConfig = initValidationConfig(
+        maxSlots = 0, ValidationGroups.none)
+    let validation = newValidation(clock, market, validationConfig)
+    check validation.maxSlotsConstraintRespected
   
   test "slot should not be observed if it is not in the validation group":
     let validationConfig = initValidationConfig(maxSlots, validationGroups,
@@ -138,7 +161,7 @@ asyncchecksuite "validation":
   test "it does not monitor more than the maximum number of slots":
     let validationGroups = ValidationGroups.none
     let validationConfig = initValidationConfig(
-        maxSlots, validationGroups, groupIndex = 0'u16)
+        maxSlots, validationGroups)
     let validation = newValidation(clock, market, validationConfig)
     await validation.start()
     for _ in 0..<maxSlots + 1:
