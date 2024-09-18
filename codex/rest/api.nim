@@ -224,6 +224,8 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       return RestApiResponse.response($json, contentType="application/json")
 
 proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
+  let allowedOrigin = router.allowedOrigin
+
   router.api(
     MethodGet,
     "/api/codex/v1/sales/slots") do () -> RestApiResponse:
@@ -290,22 +292,29 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       ## minPrice       - minimum price to be paid (in amount of tokens)
       ## maxCollateral  - maximum collateral user is willing to pay per filled Slot (in amount of tokens)
 
+      var headers = newSeq[(string,string)]()
+
+      if corsOrigin =? allowedOrigin:
+        headers.add(("Access-Control-Allow-Origin", corsOrigin))
+        headers.add(("Access-Control-Allow-Methods", "POST, OPTIONS"))
+        headers.add(("Access-Control-Max-Age", "86400"))
+
       try:
         without contracts =? node.contracts.host:
-          return RestApiResponse.error(Http503, "Sales unavailable")
+          return RestApiResponse.error(Http503, "Sales unavailable", headers = headers)
 
         let body = await request.getBody()
 
         without restAv =? RestAvailability.fromJson(body), error:
-          return RestApiResponse.error(Http400, error.msg)
+          return RestApiResponse.error(Http400, error.msg, headers = headers)
 
         let reservations = contracts.sales.context.reservations
 
         if restAv.totalSize == 0:
-          return RestApiResponse.error(Http400, "Total size must be larger then zero")
+          return RestApiResponse.error(Http400, "Total size must be larger then zero", headers = headers)
 
         if not reservations.hasAvailable(restAv.totalSize.truncate(uint)):
-          return RestApiResponse.error(Http422, "Not enough storage quota")
+          return RestApiResponse.error(Http422, "Not enough storage quota", headers = headers)
 
         without availability =? (
           await reservations.createAvailability(
@@ -314,14 +323,27 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
             restAv.minPrice,
             restAv.maxCollateral)
           ), error:
-          return RestApiResponse.error(Http500, error.msg)
+          return RestApiResponse.error(Http500, error.msg, headers = headers)
 
         return RestApiResponse.response(availability.toJson,
                                         Http201,
-                                        contentType="application/json")
+                                        contentType="application/json", 
+                                        headers = headers)
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
-        return RestApiResponse.error(Http500)
+        return RestApiResponse.error(Http500, headers = headers)
+
+  router.api(
+    MethodOptions,
+    "/api/codex/v1/sales/availability/{id}") do (id: AvailabilityId, resp: HttpResponseRef) -> RestApiResponse:
+
+      if corsOrigin =? allowedOrigin:
+        resp.setHeader("Access-Control-Allow-Origin", corsOrigin)
+        resp.setHeader("Access-Control-Allow-Methods", "PATCH, OPTIONS")
+        resp.setHeader("Access-Control-Max-Age", "86400")
+
+      resp.status = Http204
+      await resp.sendBody("")
 
   router.rawApi(
     MethodPatch,
