@@ -101,7 +101,8 @@ type
 
     logFormat* {.
       hidden
-      desc: "Specifies what kind of logs should be written to stdout (auto, colors, nocolors, json)"
+      desc: "Specifies what kind of logs should be written to stdout (auto, " &
+        "colors, nocolors, json)"
       defaultValueDesc: "auto"
       defaultValue: LogKind.Auto
       name: "log-format" }: LogKind
@@ -166,7 +167,8 @@ type
       name: "net-privkey" }: string
 
     bootstrapNodes* {.
-      desc: "Specifies one or more bootstrap nodes to use when connecting to the network"
+      desc: "Specifies one or more bootstrap nodes to use when " &
+        "connecting to the network"
       abbr: "b"
       name: "bootstrap-node" }: seq[SignedPeerRecord]
 
@@ -194,7 +196,8 @@ type
       abbr: "p" }: Port
 
     apiCorsAllowedOrigin* {.
-      desc: "The REST Api CORS allowed origin for downloading data. '*' will allow all origins, '' will allow none.",
+      desc: "The REST Api CORS allowed origin for downloading data. " &
+        "'*' will allow all origins, '' will allow none.",
       defaultValue: string.none
       defaultValueDesc: "Disallow all cross origin requests to download data"
       name: "api-cors-origin" }: Option[string]
@@ -220,7 +223,9 @@ type
       abbr: "t" }: Duration
 
     blockMaintenanceInterval* {.
-      desc: "Time interval in seconds - determines frequency of block maintenance cycle: how often blocks are checked for expiration and cleanup"
+      desc: "Time interval in seconds - determines frequency of block " &
+        "maintenance cycle: how often blocks are checked " &
+        "for expiration and cleanup"
       defaultValue: DefaultBlockMaintenanceInterval
       defaultValueDesc: $DefaultBlockMaintenanceInterval
       name: "block-mi" }: Duration
@@ -232,7 +237,8 @@ type
       name: "block-mn" }: int
 
     cacheSize* {.
-      desc: "The size of the block cache, 0 disables the cache - might help on slow hardrives"
+      desc: "The size of the block cache, 0 disables the cache - " &
+        "might help on slow hardrives"
       defaultValue: 0
       defaultValueDesc: "0"
       name: "cache-size"
@@ -292,22 +298,32 @@ type
 
       validatorMaxSlots* {.
         desc: "Maximum number of slots that the validator monitors"
+        longDesc: "If set to 0, the validator will not limit " &
+          "the maximum number of slots it monitors"
         defaultValue: 1000
         name: "validator-max-slots"
       .}: MaxSlots
 
       validatorGroups* {.
-        desc: "Slot validation partition size"
-        longDesc: "A number indicating total number of groups into which the whole slot id space will be divided. " &
-          "The value must be greater than 0. Powers of twos are advised for even distribution."
+        desc: "Slot validation groups"
+        longDesc: "A number indicating total number of groups into " &
+          "which the whole slot id space will be divided. " &
+          "The value must be in the range [2, 65535]. " &
+          "If not provided, the validator will observe " &
+          "the whole slot id space and the value of " &
+          "the --validator-group-index parameter will be ignored. " &
+          "Powers of twos are advised for even distribution"
         defaultValue: ValidationGroups.none
         name: "validator-groups"
       .}: Option[ValidationGroups]
       
       validatorGroupIndex* {.
-        desc: "Slot validation partition index"
-        longDesc: "The value provided must be in the range [0, partitionSize). " &
-          "Only slot ids satisfying condition [(slotId mod partitionSize) == partitionIndex] will be observed by the validator"
+        desc: "Slot validation group index"
+        longDesc: "The value provided must be in the range " &
+          "[0, validatorGroups). Ignored when --validator-groups" &
+          "is not provided. Only slot ids satisfying condition " &
+          "[(slotId mod validationGroups) == groupIndex] will be " &
+          "observed by the validator"
         defaultValue: 0
         name: "validator-group-index"
       .}: uint16
@@ -564,7 +580,10 @@ proc updateLogLevel*(logLevel: string) {.upraises: [ValueError].} =
   try:
     setLogLevel(parseEnum[LogLevel](directives[0].toUpperAscii))
   except ValueError:
-    raise (ref ValueError)(msg: "Please specify one of: trace, debug, info, notice, warn, error or fatal")
+    raise (ref ValueError)(
+      msg: "Please specify one of: trace, debug, " &
+        "info, notice, warn, error or fatal"
+    )
 
   if directives.len > 1:
     for topicName, settings in parseTopicDirectives(directives[1..^1]):

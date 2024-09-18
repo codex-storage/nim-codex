@@ -1,6 +1,8 @@
 # Codex Decentralized Durability Engine
 
-> The Codex project aims to create a decentralized durability engine that allows persisting data in p2p networks. In other words, it allows storing files and data with predictable durability guarantees for later retrieval.
+> The Codex project aims to create a decentralized durability engine that
+> allows persisting data in p2p networks. In other words, it allows storing 
+> files and data with predictable durability guarantees for later retrieval.
 
 > WARNING: This project is under active development and is considered pre-alpha.
 
@@ -24,7 +26,8 @@ To build the project, clone it and run:
 make update && make
 ```
 
-The executable will be placed under the `build` directory under the project root.
+The executable will be placed under the `build` directory under the project
+root.
 
 Run the client with:
 
@@ -38,33 +41,42 @@ It is possible to configure a Codex node in several ways:
  2. Env. variable
  3. Config
 
-The order of priority is the same as above: Cli arguments > Env variables > Config file values.
+The order of priority is the same as above:
+Cli arguments > Env variables > Config file values.
 
 ### Environment variables
 
-In order to set a configuration option using environment variables, first find the desired CLI option
-and then transform it in the following way:
+In order to set a configuration option using environment variables,
+first find the desired CLI option and then transform it in the following way:
 
  1. prepend it with `CODEX_`
  2. make it uppercase
  3. replace `-` with `_`
 
-For example, to configure `--log-level`, use `CODEX_LOG_LEVEL` as the environment variable name.
+For example, to configure `--log-level`, use `CODEX_LOG_LEVEL` as the
+environment variable name.
 
 ### Configuration file
 
-A [TOML](https://toml.io/en/) configuration file can also be used to set configuration values. Configuration option names and corresponding values are placed in the file, separated by `=`. Configuration option names can be obtained from the `codex --help` command, and should not include the `--` prefix. For example, a node's log level (`--log-level`) can be configured using TOML as follows:
+A [TOML](https://toml.io/en/) configuration file can also be used to set
+configuration values. Configuration option names and corresponding values are
+placed in the file, separated by `=`. Configuration option names can be
+obtained from the `codex --help` command, and should not include
+the `--` prefix. For example, a node's log level (`--log-level`) can be
+configured using TOML as follows:
 
 ```toml
 log-level = "trace"
 ```
 
-The Codex node can then read the configuration from this file using the `--config-file` CLI parameter, like `codex --config-file=/path/to/your/config.toml`.
+The Codex node can then read the configuration from this file using
+the `--config-file` CLI parameter, like
+`codex --config-file=/path/to/your/config.toml`.
 
 ### CLI Options
 
 ```
-build/codex --help
+$ build/codex --help
 Usage:
 
 codex [OPTIONS]... command
@@ -112,13 +124,18 @@ The following options are available:
      --marketplace-address  Address of deployed Marketplace contract.
      --validator            Enables validator, requires an Ethereum node [=false].
      --validator-max-slots  Maximum number of slots that the validator monitors [=1000].
-     --validator-partition-size  Slot validation partition size [=1].
-                            A number indicating total number of partitions into which the whole slot id
-                            space will be divided. The value must be greater than 0.
-     --validator-partition-index  Slot validation partition index [=0].
-                            The value provided must be in the range [0, partitionSize). Only slot ids
-                            satisfying condition [(slotId mod partitionSize) == partitionIndex] will be
-                            observed by the validator.
+                            If set to 0, the validator will not limit the maximum number of slots it
+                            monitors.
+     --validator-groups     Slot validation groups [=ValidationGroups.none].
+                            A number indicating total number of groups into which the whole slot id space
+                            will be divided. The value must be in the range [2, 65535]. If not provided, the
+                            validator will observe the whole slot id space and the value of the
+                            --validator-group-index parameter will be ignored. Powers of twos are advised
+                            for even distribution.
+     --validator-group-index  Slot validation group index [=0].
+                            The value provided must be in the range [0, validatorGroups). Ignored when
+                            --validator-groupsis not provided. Only slot ids satisfying condition [(slotId
+                            mod validationGroups) == groupIndex] will be observed by the validator.
 
 Available sub-commands:
 
@@ -139,19 +156,27 @@ The following options are available:
 
 #### Logging
 
-Codex uses [Chronicles](https://github.com/status-im/nim-chronicles) logging library, which allows great flexibility in working with logs.
-Chronicles has the concept of topics, which categorize log entries into semantic groups.
+Codex uses [Chronicles](https://github.com/status-im/nim-chronicles) logging
+library, which allows great flexibility in working with logs.
+Chronicles has the concept of topics, which categorize log entries into
+semantic groups.
 
-Using the `log-level` parameter, you can set the top-level log level like `--log-level="trace"`, but more importantly,
-you can set log levels for specific topics like `--log-level="info; trace: marketplace,node; error: blockexchange"`,
-which sets the top-level log level to `info` and then for topics `marketplace` and `node` sets the level to `trace` and so on.
+Using the `log-level` parameter, you can set the top-level log level like
+`--log-level="trace"`, but more importantly, you can set log levels for
+specific topics like `--log-level="info; trace: marketplace,node; error: blockexchange"`,
+which sets the top-level log level to `info` and then for topics
+`marketplace` and `node` sets the level to `trace` and so on.
 
 ### Guides
 
 To get acquainted with Codex, consider:
-* running the simple [Codex Two-Client Test](docs/TwoClientTest.md) for a start, and;
-* if you are feeling more adventurous, try [Running a Local Codex Network with Marketplace Support](docs/Marketplace.md) using a local blockchain as well.
+* running the simple [Codex Two-Client Test](docs/TwoClientTest.md) for
+  a start, and;
+* if you are feeling more adventurous, try
+  [Running a Local Codex Network with Marketplace Support](docs/Marketplace.md)
+  using a local blockchain as well.
 
 ## API
 
-The client exposes a REST API that can be used to interact with the clients. Overview of the API can be found on [api.codex.storage](https://api.codex.storage).
+The client exposes a REST API that can be used to interact with the clients.
+Overview of the API can be found on [api.codex.storage](https://api.codex.storage).
