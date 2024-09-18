@@ -21,7 +21,7 @@ type
     running: Future[void]
     periodicity: Periodicity
     proofTimeout: UInt256
-    validationParams: ValidationParams
+    config: ValidationConfig
 
 logScope:
   topics = "codex validator"
@@ -30,9 +30,9 @@ proc new*(
   _: type Validation,
   clock: Clock,
   market: Market,
-  validationParams: ValidationParams
+  config: ValidationConfig
 ): Validation =
-  Validation(clock: clock, market: market, validationParams: validationParams)
+  Validation(clock: clock, market: market, config: config)
 
 proc slots*(validation: Validation): seq[SlotId] =
   validation.slots.toSeq
@@ -46,16 +46,18 @@ proc waitUntilNextPeriod(validation: Validation) {.async.} =
   trace "Waiting until next period", currentPeriod = period
   await validation.clock.waitUntil(periodEnd.truncate(int64) + 1)
 
-func groupIndexForSlotId*(slotId: SlotId, validationGroups: ValidationGroups): uint16 =
+func groupIndexForSlotId*(slotId: SlotId,
+                          validationGroups: ValidationGroups): uint16 =
   let slotIdUInt256 = UInt256.fromBytesBE(slotId.toArray)
   (slotIdUInt256 mod validationGroups.u256).truncate(uint16)
 
 func shouldValidateSlot*(validation: Validation, slotId: SlotId): bool =
-  if (validationGroups =? validation.validationParams.groups):
-    groupIndexForSlotId(slotId, validationGroups) == validation.validationParams.groupIndex and
-    validation.slots.len < validation.validationParams.maxSlots
+  if (validationGroups =? validation.config.groups):
+    groupIndexForSlotId(slotId, validationGroups) ==
+    validation.config.groupIndex and
+    validation.slots.len < validation.config.maxSlots
   else:
-    validation.slots.len < validation.validationParams.maxSlots
+    validation.slots.len < validation.config.maxSlots
 
 proc subscribeSlotFilled(validation: Validation) {.async.} =
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =

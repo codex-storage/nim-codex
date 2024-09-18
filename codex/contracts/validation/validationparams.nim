@@ -5,27 +5,29 @@ import pkg/questionable/results
 type
   ValidationGroups* = range[2..65535]
   MaxSlots* = Positive
-  ValidationParams* = object
+  ValidationConfig* = object
     maxSlots: MaxSlots
     groups: ?ValidationGroups
     groupIndex: uint16
 
 func init*(
-  _: type ValidationParams, 
-  maxSlots: MaxSlots,
-  groups: ?ValidationGroups,
-  groupIndex: uint16
-): ?!ValidationParams =
+    _: type ValidationConfig,
+    maxSlots: MaxSlots,
+    groups: ?ValidationGroups,
+    groupIndex: uint16): ?!ValidationConfig =
   if validationGroups =? groups and groupIndex >= uint16(validationGroups):
-    return failure fmt"The value of the group index must be less than validation groups! (got: {groupIndex = }, groups = {validationGroups})"
+    return failure "The value of the group index must be less than " &
+        fmt"validation groups! (got: {groupIndex = }, " &
+        fmt"groups = {validationGroups})"
   
-  success ValidationParams(maxSlots: maxSlots, groups: groups, groupIndex: groupIndex)
+  success ValidationConfig(
+      maxSlots: maxSlots, groups: groups, groupIndex: groupIndex)
 
-func maxSlots*(validationParams: ValidationParams): MaxSlots =
-  validationParams.maxSlots
+func maxSlots*(config: ValidationConfig): MaxSlots =
+  config.maxSlots
 
-func groups*(validationParams: ValidationParams): ?ValidationGroups =
-  validationParams.groups
+func groups*(config: ValidationConfig): ?ValidationGroups =
+  config.groups
 
-func groupIndex*(validationParams: ValidationParams): uint16 =
-  validationParams.groupIndex
+func groupIndex*(config: ValidationConfig): uint16 =
+  config.groupIndex

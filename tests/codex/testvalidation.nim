@@ -25,13 +25,18 @@ asyncchecksuite "validation":
   var clock: MockClock
   var groupIndex: uint16
 
-  proc initValidationParams(maxSlots: MaxSlots, validationGroups: ?ValidationGroups, groupIndex: uint16): ValidationParams =
-    without validationParams =? ValidationParams.init(maxSlots, groups=validationGroups, groupIndex), error:
-      raiseAssert fmt"Creating ValidationParams failed! Error msg: {error.msg}"
-    validationParams
+  proc initValidationConfig(maxSlots: MaxSlots,
+                            validationGroups: ?ValidationGroups,
+                            groupIndex: uint16): ValidationConfig =
+    without validationConfig =? ValidationConfig.init(
+      maxSlots, groups=validationGroups, groupIndex), error:
+      raiseAssert fmt"Creating ValidationConfig failed! Error msg: {error.msg}"
+    validationConfig
   
-  func createValidation(clock: Clock, market: Market, validationParams: ValidationParams): Validation =
-    without validation =? Validation.new(clock, market, validationParams), error:
+  func newValidation(
+      clock: Clock, market: Market, validationConfig: ValidationConfig
+  ): Validation =
+    without validation =? Validation.new(clock, market, validationConfig), error:
       raiseAssert fmt"Creating Validation failed! Error msg: {error.msg}"
     validation
 
@@ -39,8 +44,9 @@ asyncchecksuite "validation":
     groupIndex = groupIndexForSlotId(slot.id, !validationGroups)
     market = MockMarket.new()
     clock = MockClock.new()
-    let validationParams = initValidationParams(maxSlots, validationGroups, groupIndex)
-    validation = createValidation(clock, market, validationParams)
+    let validationConfig = initValidationConfig(
+        maxSlots, validationGroups, groupIndex)
+    validation = newValidation(clock, market, validationConfig)
     market.config.proofs.period = period.u256
     market.config.proofs.timeout = timeout.u256
     await validation.start()
@@ -58,37 +64,47 @@ asyncchecksuite "validation":
     check validation.slots.len == 0
 
   for (validationGroups, groupIndex) in [(100, 100'u16), (100, 101'u16)]:
-    test fmt"initializing ValidationParams fails when groupIndex is greater than or equal to validationGroups (testing for {groupIndex = }, {validationGroups = })":
+    test "initializing ValidationConfig fails when groupIndex is " &
+        "greater than or equal to validationGroups " &
+        fmt"(testing for {groupIndex = }, {validationGroups = })":
       let groups = ValidationGroups(validationGroups).some
-      let validationParams: ?!ValidationParams = ValidationParams.init(maxSlots, groups = groups, groupIndex = groupIndex)
-      check validationParams.isFailure == true
-      check validationParams.error.msg == fmt"The value of the group index must be less than validation groups! (got: {groupIndex = }, groups = {!groups})"
+      let validationConfig = ValidationConfig.init(
+          maxSlots, groups = groups, groupIndex = groupIndex)
+      check validationConfig.isFailure == true
+      check validationConfig.error.msg == "The value of the group index " &
+          "must be less than validation groups! " &
+          fmt"(got: {groupIndex = }, groups = {!groups})"
   
   test "group index is irrelevant if validation groups are not set":
     randomize()
     for _ in 0..<100:
       let groupIndex = rand(1000).uint16
-      let validationParams = ValidationParams.init(maxSlots, groups=ValidationGroups.none, groupIndex)
-      check validationParams.isSuccess
+      let validationConfig = ValidationConfig.init(
+          maxSlots, groups=ValidationGroups.none, groupIndex)
+      check validationConfig.isSuccess
   
   test "slot should be observed if it is in the validation group":
-    let validationParams = initValidationParams(maxSlots, validationGroups, groupIndex)
-    let validation = createValidation(clock, market, validationParams)
+    let validationConfig = initValidationConfig(
+        maxSlots, validationGroups, groupIndex)
+    let validation = newValidation(clock, market, validationConfig)
     check validation.shouldValidateSlot(slot.id) == true
   
   test "slot should be observed if validation group is not set":
-    let validationParams = initValidationParams(maxSlots, ValidationGroups.none, groupIndex)
-    let validation = createValidation(clock, market, validationParams)
+    let validationConfig = initValidationConfig(
+        maxSlots, ValidationGroups.none, groupIndex)
+    let validation = newValidation(clock, market, validationConfig)
     check validation.shouldValidateSlot(slot.id) == true
   
   test "slot should not be observed if it is not in the validation group":
-    let validationParams = initValidationParams(maxSlots, validationGroups, (groupIndex + 1) mod uint16(!validationGroups))
-    let validation = createValidation(clock, market, validationParams)
+    let validationConfig = initValidationConfig(maxSlots, validationGroups,
+        (groupIndex + 1) mod uint16(!validationGroups))
+    let validation = newValidation(clock, market, validationConfig)
     check validation.shouldValidateSlot(slot.id) == false
   
   test "slot is not observed if it is not in the validation group":
-    let validationParams = initValidationParams(maxSlots, validationGroups, (groupIndex + 1) mod uint16(!validationGroups))
-    let validation = createValidation(clock, market, validationParams)
+    let validationConfig = initValidationConfig(maxSlots, validationGroups,
+        (groupIndex + 1) mod uint16(!validationGroups))
+    let validation = newValidation(clock, market, validationConfig)
     await validation.start()
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
     await validation.stop()
@@ -121,8 +137,9 @@ asyncchecksuite "validation":
 
   test "it does not monitor more than the maximum number of slots":
     let validationGroups = ValidationGroups.none
-    let validationParams = initValidationParams(maxSlots, validationGroups, groupIndex = 0'u16)
-    let validation = createValidation(clock, market, validationParams)
+    let validationConfig = initValidationConfig(
+        maxSlots, validationGroups, groupIndex = 0'u16)
+    let validation = newValidation(clock, market, validationConfig)
     await validation.start()
     for _ in 0..<maxSlots + 1:
       let slot = Slot.example
