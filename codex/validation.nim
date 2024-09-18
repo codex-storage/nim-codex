@@ -3,14 +3,14 @@ import std/sequtils
 import pkg/chronos
 import pkg/questionable/results
 
-import ./contracts/validation
+import ./validationconfig
 import ./market
 import ./clock
 import ./logutils
 
 export market
 export sets
-export validation
+export validationconfig
 
 type
   Validation* = ref object

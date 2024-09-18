@@ -37,7 +37,7 @@ import ./logutils
 import ./stores
 import ./units
 import ./utils
-from ./contracts/validation import MaxSlots, ValidationGroups
+from ./validationconfig import MaxSlots, ValidationGroups
 
 export units, net, codextypes, logutils
 export ValidationGroups, MaxSlots
