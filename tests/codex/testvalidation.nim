@@ -32,13 +32,6 @@ asyncchecksuite "validation":
       maxSlots, groups=validationGroups, groupIndex), error:
       raiseAssert fmt"Creating ValidationConfig failed! Error msg: {error.msg}"
     validationConfig
-  
-  func newValidation(
-      clock: Clock, market: Market, validationConfig: ValidationConfig
-  ): Validation =
-    without validation =? Validation.new(clock, market, validationConfig), error:
-      raiseAssert fmt"Creating Validation failed! Error msg: {error.msg}"
-    validation
 
   setup:
     groupIndex = groupIndexForSlotId(slot.id, !validationGroups)
@@ -46,7 +39,7 @@ asyncchecksuite "validation":
     clock = MockClock.new()
     let validationConfig = initValidationConfig(
         maxSlots, validationGroups, groupIndex)
-    validation = newValidation(clock, market, validationConfig)
+    validation = Validation.new(clock, market, validationConfig)
     market.config.proofs.period = period.u256
     market.config.proofs.timeout = timeout.u256
     await validation.start()
@@ -103,31 +96,119 @@ asyncchecksuite "validation":
   test "slot should be observed if it is in the validation group":
     let validationConfig = initValidationConfig(
         maxSlots, validationGroups, groupIndex)
-    let validation = newValidation(clock, market, validationConfig)
+    let validation = Validation.new(clock, market, validationConfig)
     check validation.shouldValidateSlot(slot.id) == true
   
   test "slot should be observed if validation group is not set":
     let validationConfig = initValidationConfig(
         maxSlots, ValidationGroups.none)
-    let validation = newValidation(clock, market, validationConfig)
+    let validation = Validation.new(clock, market, validationConfig)
     check validation.shouldValidateSlot(slot.id) == true
   
   test "slot should be observed if maxSlots is set to 0":
     let validationConfig = initValidationConfig(
         maxSlots = 0, ValidationGroups.none)
-    let validation = newValidation(clock, market, validationConfig)
+    let validation = Validation.new(clock, market, validationConfig)
     check validation.maxSlotsConstraintRespected
   
   test "slot should not be observed if it is not in the validation group":
     let validationConfig = initValidationConfig(maxSlots, validationGroups,
         (groupIndex + 1) mod uint16(!validationGroups))
-    let validation = newValidation(clock, market, validationConfig)
+    let validation = Validation.new(clock, market, validationConfig)
     check validation.shouldValidateSlot(slot.id) == false
+
+  # Below we get a bit more "end-to-end" test that provides a more
+  # realistic testing scenario (the tests above largely focus on testing
+  # the internals). As the test was quite big, some methods were
+  # extracted from it for better maintainability.
+  proc setupAndStartValidation(maxSlots: MaxSlots,
+                               validationGroups: ?ValidationGroups,
+                               groupIndex: uint16
+                              ): Future[Validation] {.async.} =
+    let validationConfig = initValidationConfig(
+      maxSlots, validationGroups, groupIndex)
+    let validation = Validation.new(clock, market, validationConfig)
+    await validation.start()
+    validation
+
+  proc setupValidationGroup(slotId: SlotId,
+                            maxSlots: MaxSlots,
+                            groups: ?ValidationGroups,
+                            groupIndex: uint16,
+                            slotsInSelectedGroup: var int,
+                            slots: var HashSet) =
+    if validationGroups =? groups:
+      if groupIndexForSlotId(slotId, validationGroups) == groupIndex:
+        slotsInSelectedGroup += 1
+        if maxSlots == 0:
+          slots.incl(slotId)
+        elif slotsInSelectedGroup <= maxSlots:
+          slots.incl(slotId)
+    else:
+      if maxSlots == 0:
+        slots.incl(slotId)
+      elif slots.len < maxSlots:
+        slots.incl(slotId)
+
+  func calculateExpectedSlots(maxSlots: MaxSlots,
+                              groups: ?ValidationGroups,
+                              slots: HashSet): int =
+    if validationGroups.isNone:
+      return if maxSlots == 0: 100 else: maxSlots
+    
+    if maxSlots == 0 or slots.len < maxSlots:
+      return slots.len
+    else:
+      return maxSlots
   
+  proc printExtraTestInfo(maxSlots: MaxSlots,
+                          validationGroups: ?ValidationGroups,
+                          groupIndex: uint16,
+                          slotsInSelectedGroup: int,
+                          expectedSlots: int) =
+    echo "---------------------------------------------------------" &
+            "---------------------------------------------------------"
+    if validationGroups.isNone:
+      echo fmt"       ⬇︎ {maxSlots=}, {validationGroups=}, " &
+          fmt"{groupIndex=}: {expectedSlots=} ⬇︎"
+    else:
+      echo fmt"       ⬇︎ {maxSlots=}, {validationGroups=}, " &
+          fmt"{groupIndex=}: {slotsInSelectedGroup=}, {expectedSlots=} ⬇︎"
+      
+
+  for (maxSlots, validationGroups, groupIndex) in [
+                                       (0, ValidationGroups.none, 0),
+                                       (0, ValidationGroups.none, 1),
+                                       (0, ValidationGroups(2).some, 0),
+                                       (0, ValidationGroups(2).some, 1),
+                                       (10, ValidationGroups.none, 0),
+                                       (10, ValidationGroups.none, 1),
+                                       (10, ValidationGroups(2).some, 0),
+                                       (10, ValidationGroups(2).some, 1)]:
+    test fmt"slots should be observed ({maxSlots=}, {validationGroups=}, " &
+        fmt"{groupIndex=})":
+      let validation = await setupAndStartValidation(
+        maxSlots, validationGroups, groupIndex.uint16)
+      var slotsInSelectedGroup = 0
+      var slots = initHashSet[SlotId]()
+      for i in 0..<100:
+        let slot = Slot.example
+        setupValidationGroup(slot.id, maxSlots, validationGroups,
+          groupIndex.uint16, slotsInSelectedGroup, slots)
+        await market.fillSlot(slot.request.id, slot.slotIndex,
+          proof, collateral)
+      await validation.stop()
+      let expectedSlots = calculateExpectedSlots(
+        maxSlots, validationGroups, slots)
+      printExtraTestInfo(maxSlots, validationGroups, groupIndex.uint16,
+                         slotsInSelectedGroup, expectedSlots)
+      check validation.slots.len == expectedSlots
+      check slots == toHashSet(validation.slots)
+
   test "slot is not observed if it is not in the validation group":
     let validationConfig = initValidationConfig(maxSlots, validationGroups,
         (groupIndex + 1) mod uint16(!validationGroups))
-    let validation = newValidation(clock, market, validationConfig)
+    let validation = Validation.new(clock, market, validationConfig)
     await validation.start()
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
     await validation.stop()
@@ -162,7 +243,7 @@ asyncchecksuite "validation":
     let validationGroups = ValidationGroups.none
     let validationConfig = initValidationConfig(
         maxSlots, validationGroups)
-    let validation = newValidation(clock, market, validationConfig)
+    let validation = Validation.new(clock, market, validationConfig)
     await validation.start()
     for _ in 0..<maxSlots + 1:
       let slot = Slot.example
