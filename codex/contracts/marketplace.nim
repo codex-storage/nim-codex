@@ -51,3 +51,6 @@ proc getPointer*(marketplace: Marketplace, id: SlotId): uint8 {.contract, view.}
 
 proc submitProof*(marketplace: Marketplace, id: SlotId, proof: Groth16Proof): ?TransactionResponse {.contract.}
 proc markProofAsMissing*(marketplace: Marketplace, id: SlotId, period: UInt256): ?TransactionResponse {.contract.}
+
+proc reserveSlot*(marketplace: Marketplace, id: SlotId): bool {.contract.}
+proc canReserveSlot*(marketplace: Marketplace, id: SlotId): bool {.contract, view.}
