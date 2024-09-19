@@ -5,7 +5,7 @@ import pkg/chronos
 import pkg/ethers
 import pkg/questionable
 import pkg/questionable/results
-import pkg/zippy/ziparchives
+import pkg/zippy/tarballs
 import pkg/chronos/apps/http/httpclient
 import ../../codex/contracts/marketplace
 
@@ -85,7 +85,7 @@ proc main() {.async.} =
     circuitPath = args[0]
     rpcEndpoint = args[1]
     marketplaceAddress = args[2]
-    zipfile = "circuit.zip"
+    zipfile = "circuit.tar.gz"
     unpackFolder = "." / "tempunpackfolder"
 
   debug "Starting", circuitPath, rpcEndpoint, marketplaceAddress
