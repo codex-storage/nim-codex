@@ -247,11 +247,14 @@ method canProofBeMarkedAsMissing*(
     trace "Proof cannot be marked as missing", msg = e.msg
     return false
 
-method reserveSlot*(id: SlotId): Future[bool] {.async.} =
+method reserveSlot*(market: OnChainMarket, id: SlotId) {.async.} =
   discard await market.contract.reserveSlot(id).confirm(0)
 
-method canReserveSlot*(id: SlotId): Future[bool] {.async.} =
-  discard await market.contract.canReserveSlot(id).confirm(0)
+method canReserveSlot*(
+  market: OnChainMarket,
+  id: SlotId): Future[bool] {.async.} =
+
+  await market.contract.canReserveSlot(id)
 
 method subscribeRequests*(market: OnChainMarket,
                          callback: OnRequest):
