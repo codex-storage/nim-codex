@@ -161,10 +161,16 @@ method canProofBeMarkedAsMissing*(market: Market,
                                   period: Period): Future[bool] {.base, async.} =
   raiseAssert("not implemented")
 
-method reserveSlot*(id: SlotId): Future[bool] {.base, async.} =
+method reserveSlot*(
+  market: Market,
+  id: SlotId) {.base, async.} =
+
   raiseAssert("not implemented")
 
-method canReserveSlot*(id: SlotId): Future[bool] {.base, async.} =
+method canReserveSlot*(
+  market: Market,
+  id: SlotId): Future[bool] {.base, async.} =
+
   raiseAssert("not implemented")
 
 method subscribeFulfillment*(market: Market,
