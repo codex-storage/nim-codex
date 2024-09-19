@@ -12,9 +12,11 @@ marketplacesuite "tools/cirdl":
 
   test "circuit download tool":
     let
-      circuitPath = "." / "testcircuitpath"
+      circuitPath = "testcircuitpath"
       rpcEndpoint = "ws://localhost:8545"
       marketplaceAddress = $marketplace.address
+
+    discard existsOrCreateDir(circuitPath)
 
     let args = [circuitPath, rpcEndpoint, marketplaceAddress]
 

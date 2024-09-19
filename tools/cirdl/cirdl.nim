@@ -59,9 +59,17 @@ proc downloadZipfile(url: string, filepath: string): Future[?!void] {.async.} =
     return failure(exc.msg)
   success()
 
-proc unzip(zipfile:string, targetPath: string): ?!void =
+proc unzip(zipfile: string, targetPath: string): ?!void =
   try:
     extractAll(zipfile, targetPath)
+  except Exception as exc:
+    return failure(exc.msg)
+  success()
+
+proc copyFiles(unpackDir: string, circuitPath: string): ?!void =
+  try:
+    for file in walkDir(unpackDir):
+      copyFileToDir(file.path, circuitPath)
   except Exception as exc:
     return failure(exc.msg)
   success()
@@ -78,12 +86,12 @@ proc main() {.async.} =
     rpcEndpoint = args[1]
     marketplaceAddress = args[2]
     zipfile = "circuit.zip"
+    unpackFolder = "." / "tempunpackfolder"
 
   debug "Starting", circuitPath, rpcEndpoint, marketplaceAddress
 
-  if (dirExists(circuitPath)):
-    info "Removing previous circuit path"
-    removeDir(circuitPath)
+  if (dirExists(unpackFolder)):
+    removeDir(unpackFolder)
 
   without circuitHash =? (await getCircuitHash(rpcEndpoint, marketplaceAddress)), err:
     error "Failed to get circuit hash", msg = err.msg
@@ -96,12 +104,24 @@ proc main() {.async.} =
     return
   debug "Download completed"
 
-  if err =? unzip(zipfile, circuitPath).errorOption:
+  if err =? unzip(zipfile, unpackFolder).errorOption:
     error "Failed to unzip file", msg = err.msg
     return
   debug "Unzip completed"
 
+  # Unpack library cannot unpack into existing directory. We also cannot
+  # delete the targer directory and have the library recreate it because
+  # Codex has likely created it and set correct permissions.
+  # So, we unpack to a temp folder and move the files.
+  if err =? copyFiles(unpackFolder, circuitPath).errorOption:
+    error "Failed to copy files", msg = err.msg
+    return
+  debug "Files copied"
+
   removeFile(zipfile)
+  removeDir(unpackFolder)
+
+  debug "file and unpack folder removed"
 
 when isMainModule:
   waitFor main()

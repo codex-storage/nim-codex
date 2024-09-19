@@ -53,21 +53,22 @@ proc initializeFromCircuitDirFiles(
       config.wasmFilePath,
       config.zkeyFilePath))
 
-  failure("Ceremony files not found")
+  failure("Circuit files not found")
 
 proc suggestDownloadTool(config: CodexConf) =
   without address =? config.marketplaceAddress:
     raise (ref Defect)(msg: "Proving backend initializing while marketplace address not set.")
 
-  let tokens = [
-    "cirdl",
-    "\"" & $config.circuitDir & "\"",
-    config.ethProvider,
-    $address
-  ]
+  let
+    tokens = [
+      "cirdl",
+      "\"" & $config.circuitDir & "\"",
+      config.ethProvider,
+      $address
+    ]
+    instructions = "'./" & tokens.join(" ") & "'"
 
-  echo "Proving circuit files are not found. Please run the following to download them:"
-  echo "'./" & tokens.join(" ") & "'"
+  warn "Proving circuit files are not found. Please run the following to download them:", instructions
 
 proc initializeBackend*(
   config: CodexConf,
