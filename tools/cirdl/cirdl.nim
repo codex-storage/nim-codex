@@ -5,7 +5,7 @@ import pkg/chronos
 import pkg/ethers
 import pkg/questionable
 import pkg/questionable/results
-import pkg/zip/zipfiles
+# import pkg/zippy/ziparchives
 import pkg/chronos/apps/http/httpclient
 import ../../codex/contracts/marketplace
 
@@ -60,11 +60,10 @@ proc downloadZipfile(url: string, filepath: string): Future[?!void] {.async.} =
   success()
 
 proc unzip(zipfile:string, targetPath: string): ?!void =
-  var z: ZipArchive
-  if not z.open(zipfile):
-    return failure("Unable to open zip file: " & zipfile)
-  z.extractAll(targetPath)
-  z.close()
+  # try:
+  #   extractAll(zipfile, targetPath)
+  # except Exception as exc:
+  #   return failure(exc.msg)
   success()
 
 proc main() {.async.} =
