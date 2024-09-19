@@ -5,7 +5,7 @@ import pkg/chronos
 import pkg/ethers
 import pkg/questionable
 import pkg/questionable/results
-# import pkg/zippy/ziparchives
+import pkg/zippy/ziparchives
 import pkg/chronos/apps/http/httpclient
 import ../../codex/contracts/marketplace
 
@@ -60,10 +60,10 @@ proc downloadZipfile(url: string, filepath: string): Future[?!void] {.async.} =
   success()
 
 proc unzip(zipfile:string, targetPath: string): ?!void =
-  # try:
-  #   extractAll(zipfile, targetPath)
-  # except Exception as exc:
-  #   return failure(exc.msg)
+  try:
+    extractAll(zipfile, targetPath)
+  except Exception as exc:
+    return failure(exc.msg)
   success()
 
 proc main() {.async.} =
@@ -77,11 +77,13 @@ proc main() {.async.} =
     circuitPath = args[0]
     rpcEndpoint = args[1]
     marketplaceAddress = args[2]
-    zipfile = circuitPath / "circuit.zip"
+    zipfile = "circuit.zip"
 
   debug "Starting", circuitPath, rpcEndpoint, marketplaceAddress
 
-  discard existsOrCreateDir(circuitPath)
+  if (dirExists(circuitPath)):
+    info "Removing previous circuit path"
+    removeDir(circuitPath)
 
   without circuitHash =? (await getCircuitHash(rpcEndpoint, marketplaceAddress)), err:
     error "Failed to get circuit hash", msg = err.msg

@@ -7,12 +7,12 @@ import ../../integration/marketplacesuite
 
 marketplacesuite "tools/cirdl":
   const
-    cirdl = "tools/cirdl/cirdl"
+    cirdl = "build" / "cirdl"
     workdir = "."
 
   test "circuit download tool":
     let
-      circuitPath = "testcircuitpath"
+      circuitPath = "." / "testcircuitpath"
       rpcEndpoint = "ws://localhost:8545"
       marketplaceAddress = $marketplace.address
 
@@ -21,7 +21,8 @@ marketplacesuite "tools/cirdl":
     let process = osproc.startProcess(
       cirdl,
       workdir,
-      args
+      args,
+      options={poParentStreams}
     )
 
     let returnCode = process.waitForExit()
