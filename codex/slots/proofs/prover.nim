@@ -93,9 +93,9 @@ proc new*(
   _: type Prover,
   store: BlockStore,
   backend: AnyBackend,
-  config: CodexConf): Prover =
+  nSamples: int): Prover =
 
   Prover(
     store: store,
     backend: backend,
-    nSamples: config.numProofSamples)
+    nSamples: nSamples)

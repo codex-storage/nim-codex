@@ -55,7 +55,7 @@ suite "Test Prover":
       backend = config.initializeBackend().tryGet()
 
     store = RepoStore.new(repoDs, metaDs)
-    prover = Prover.new(store, backend, config)
+    prover = Prover.new(store, backend, config.numProofSamples)
 
   teardown:
     await repoTmp.destroyDb()

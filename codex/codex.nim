@@ -274,7 +274,7 @@ proc new*(
     store = NetworkStore.new(engine, repoStore)
     prover = if config.prover:
       let backend = config.initializeBackend().expect("Unable to create prover backend.")
-      some Prover.new(store, backend, config)
+      some Prover.new(store, backend, config.numProofSamples)
     else:
       none Prover
 
