@@ -600,7 +600,7 @@ paths:
           description: Sales are unavailable
 
   "/sales/availability/{id}/reservations":
-    patch:
+    get:
       summary: "Get availability's reservations"
       description: Return's list of Reservations for ongoing Storage Requests that the node hosts.
       operationId: getReservations
