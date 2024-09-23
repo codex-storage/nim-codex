@@ -62,6 +62,7 @@ const
   codex_enable_log_counter* {.booldefine.} = false
 
   DefaultDataDir* = defaultDataDir()
+  DefaultCircuitDir* = defaultDataDir() / "circuits"
 
 type
   StartUpCmd* {.pure.} = enum
@@ -303,23 +304,30 @@ type
         command }: PersistenceCmd
 
       of PersistenceCmd.prover:
+        circuitDir* {.
+          desc: "Directory where Codex will store proof circuit data"
+          defaultValue: DefaultCircuitDir
+          defaultValueDesc: $DefaultCircuitDir
+          abbr: "cd"
+          name: "circuit-dir" }: OutDir
+
         circomR1cs* {.
           desc: "The r1cs file for the storage circuit"
-          defaultValue: $DefaultDataDir / "circuits" / "proof_main.r1cs"
-          defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.r1cs"
+          defaultValue: $DefaultCircuitDir / "proof_main.r1cs"
+          defaultValueDesc: $DefaultCircuitDir & "/proof_main.r1cs"
           name: "circom-r1cs"
         .}: InputFile
 
         circomWasm* {.
           desc: "The wasm file for the storage circuit"
-          defaultValue: $DefaultDataDir / "circuits" / "proof_main.wasm"
+          defaultValue: $DefaultCircuitDir / "proof_main.wasm"
           defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.wasm"
           name: "circom-wasm"
         .}: InputFile
 
         circomZkey* {.
           desc: "The zkey file for the storage circuit"
-          defaultValue: $DefaultDataDir / "circuits" / "proof_main.zkey"
+          defaultValue: $DefaultCircuitDir / "proof_main.zkey"
           defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.zkey"
           name: "circom-zkey"
         .}: InputFile

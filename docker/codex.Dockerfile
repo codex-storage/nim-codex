@@ -24,9 +24,9 @@ RUN echo "export PATH=$PATH:$HOME/.cargo/bin" >> $BASH_ENV
 
 WORKDIR ${BUILD_HOME}
 COPY . .
-RUN make clean
 RUN make -j ${MAKE_PARALLEL} update
 RUN make -j ${MAKE_PARALLEL}
+RUN make -j ${MAKE_PARALLEL} cirdl
 
 # Create
 FROM ${IMAGE}
@@ -35,10 +35,10 @@ ARG APP_HOME
 ARG NAT_IP_AUTO
 
 WORKDIR ${APP_HOME}
-COPY --from=builder ${BUILD_HOME}/build/codex /usr/local/bin
+COPY --from=builder ${BUILD_HOME}/build/* /usr/local/bin
 COPY --from=builder ${BUILD_HOME}/openapi.yaml .
 COPY --from=builder --chmod=0755 ${BUILD_HOME}/docker/docker-entrypoint.sh /
-RUN apt-get update && apt-get install -y libgomp1 bash curl jq && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libgomp1 curl jq && rm -rf /var/lib/apt/lists/*
 ENV NAT_IP_AUTO=${NAT_IP_AUTO}
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["codex"]

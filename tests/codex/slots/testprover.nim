@@ -15,6 +15,8 @@ import pkg/codex/chunker
 import pkg/codex/blocktype as bt
 import pkg/codex/slots
 import pkg/codex/stores
+import pkg/codex/conf
+import pkg/confutils/defs
 import pkg/poseidon2/io
 import pkg/codex/utils/poseidon2digest
 
@@ -29,9 +31,6 @@ suite "Test Prover":
     cellSize = DefaultCellSize
     repoTmp = TempLevelDb.new()
     metaTmp = TempLevelDb.new()
-    r1cs = "tests/circuits/fixtures/proof_main.r1cs"
-    wasm = "tests/circuits/fixtures/proof_main.wasm"
-    circomBackend = CircomCompat.init(r1cs, wasm)
     challenge = 1234567.toF.toBytes.toArray32
 
   var
@@ -42,9 +41,21 @@ suite "Test Prover":
     let
       repoDs = repoTmp.newDb()
       metaDs = metaTmp.newDb()
+      config = CodexConf(
+        cmd: StartUpCmd.persistence,
+        nat: ValidIpAddress.init("127.0.0.1"),
+        discoveryIp: ValidIpAddress.init(IPv4_any()),
+        metricsAddress: ValidIpAddress.init("127.0.0.1"),
+        persistenceCmd: PersistenceCmd.prover,
+        circomR1cs: InputFile("tests/circuits/fixtures/proof_main.r1cs"),
+        circomWasm: InputFile("tests/circuits/fixtures/proof_main.wasm"),
+        circomZkey: InputFile("tests/circuits/fixtures/proof_main.zkey"),
+        numProofSamples: samples
+      )
+      backend = config.initializeBackend().tryGet()
 
     store = RepoStore.new(repoDs, metaDs)
-    prover = Prover.new(store, circomBackend, samples)
+    prover = Prover.new(store, backend, config.numProofSamples)
 
   teardown:
     await repoTmp.destroyDb()
