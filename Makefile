@@ -75,7 +75,7 @@ all: | build deps
 		$(ENV_SCRIPT) nim codex $(NIM_PARAMS) build.nims
 
 # Build tools/cirdl
-cirdl:
+cirdl: | deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim toolsCirdl $(NIM_PARAMS) build.nims
 
