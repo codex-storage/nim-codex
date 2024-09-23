@@ -105,6 +105,25 @@ twonodessuite "REST API", debug1 = false, debug2 = false:
       check responseBefore.status == "400 Bad Request"
       check responseBefore.body == "Invalid parameters: `tolerance` cannot be greater than `nodes`"
 
+
+  test "request storage fails when expansionRate is too large":
+    let data = await RandomChunker.example(blocks=2)
+    let cid = client1.upload(data).get
+    let response = client1.requestStorageRaw(
+      cid,
+      duration=10.u256,
+      reward=2.u256,
+      proofProbability=3.u256,
+      nodes=2,
+      tolerance=0,
+      collateral=200.u256,
+      expiry=9,
+      expansionRate=101)
+
+    check:
+      response.status == "400 Bad Request"
+      response.body == "Expansion rate must be between 0 and 100 (inclusive)"
+
   test "request storage succeeds if nodes and tolerance within range":
     let data = await RandomChunker.example(blocks=2)
     let cid = client1.upload(data).get

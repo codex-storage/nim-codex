@@ -60,6 +60,7 @@ proc example*(_: type StorageRequest): StorageRequest =
       merkleRoot: array[32, byte].example
     ),
     expiry:(60 * 60).u256, # 1 hour ,
+    expansionRate: 100'u8,
     nonce: Nonce.example
   )
 

@@ -97,7 +97,8 @@ proc requestStorageRaw*(
     collateral: UInt256,
     expiry: uint = 0,
     nodes: uint = 2,
-    tolerance: uint = 0
+    tolerance: uint = 0,
+    expansionRate: uint8 = 100
 ): Response =
 
   ## Call request storage REST endpoint
@@ -109,7 +110,8 @@ proc requestStorageRaw*(
       "proofProbability": proofProbability,
       "collateral": collateral,
       "nodes": nodes,
-      "tolerance": tolerance
+      "tolerance": tolerance,
+      "expansionRate": expansionRate
     }
 
   if expiry != 0:
@@ -126,11 +128,12 @@ proc requestStorage*(
     expiry: uint,
     collateral: UInt256,
     nodes: uint = 2,
-    tolerance: uint = 0
+    tolerance: uint = 0,
+    expansionRate: uint8 = 100
 ): ?!PurchaseId =
   ## Call request storage REST endpoint
   ##
-  let response = client.requestStorageRaw(cid, duration, reward, proofProbability, collateral, expiry, nodes, tolerance)
+  let response = client.requestStorageRaw(cid, duration, reward, proofProbability, collateral, expiry, nodes, tolerance, expansionRate)
   if response.status != "200 OK":
     doAssert(false, response.body)
   PurchaseId.fromHex(response.body).catch

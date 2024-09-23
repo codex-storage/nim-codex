@@ -19,6 +19,7 @@ type
     content* {.serialize.}: StorageContent
     expiry* {.serialize.}: UInt256
     nonce*: Nonce
+    expansionRate* {.serialize.}: uint8
   StorageAsk* = object
     slots* {.serialize.}: uint64
     slotSize* {.serialize.}: UInt256
@@ -93,7 +94,8 @@ func fromTuple(_: type StorageRequest, tupl: tuple): StorageRequest =
     ask: tupl[1],
     content: tupl[2],
     expiry: tupl[3],
-    nonce: tupl[4]
+    nonce: tupl[4],
+    expansionRate: tupl[5],
   )
 
 func fromTuple(_: type Slot, tupl: tuple): Slot =

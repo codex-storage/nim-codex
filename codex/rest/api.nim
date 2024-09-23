@@ -455,6 +455,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
 
         let nodes = params.nodes |? 1
         let tolerance = params.tolerance |? 0
+        let expansionRate = params.expansionRate |? 60'u8
 
         # prevent underflow
         if tolerance > nodes:
@@ -473,6 +474,9 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
         if expiry <= 0 or expiry >= params.duration:
           return RestApiResponse.error(Http400, "Expiry needs value bigger then zero and smaller then the request's duration", headers = headers)
 
+        if expansionRate > 100'u8:
+          return RestApiResponse.error(Http400, "Expansion rate must be between 0 and 100 (inclusive)", headers = headers)
+
         without purchaseId =? await node.requestStorage(
           cid,
           params.duration,
@@ -481,7 +485,8 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
           tolerance,
           params.reward,
           params.collateral,
-          expiry), error:
+          expiry,
+          expansionRate), error:
 
           if error of InsufficientBlocksError:
             return RestApiResponse.error(Http400,

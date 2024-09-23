@@ -394,7 +394,8 @@ proc setupRequest(
   tolerance: uint,
   reward: UInt256,
   collateral: UInt256,
-  expiry:  UInt256): Future[?!StorageRequest] {.async.} =
+  expiry:  UInt256,
+  expansionRate: uint8): Future[?!StorageRequest] {.async.} =
   ## Setup slots for a given dataset
   ##
 
@@ -411,6 +412,7 @@ proc setupRequest(
     proofProbability  = proofProbability
     collateral        = collateral
     expiry            = expiry
+    expansionRate     = expansionRate
     ecK               = ecK
     ecM               = ecM
 
@@ -474,7 +476,8 @@ proc setupRequest(
         cid: $manifestBlk.cid, # TODO: why string?
         merkleRoot: verifyRoot
       ),
-      expiry: expiry
+      expiry: expiry,
+      expansionRate: expansionRate
     )
 
   trace "Request created", request = $request
@@ -489,7 +492,8 @@ proc requestStorage*(
   tolerance: uint,
   reward: UInt256,
   collateral: UInt256,
-  expiry:  UInt256): Future[?!PurchaseId] {.async.} =
+  expiry:  UInt256,
+  expansionRate: uint8): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
   ##
@@ -503,6 +507,7 @@ proc requestStorage*(
     proofProbability  = proofProbability
     collateral        = collateral
     expiry            = expiry.truncate(int64)
+    expansionRate     = expansionRate
     now               = self.clock.now
 
   trace "Received a request for storage!"
@@ -520,7 +525,8 @@ proc requestStorage*(
       tolerance,
       reward,
       collateral,
-      expiry)), err:
+      expiry,
+      expansionRate)), err:
     trace "Unable to setup request"
     return failure err
 

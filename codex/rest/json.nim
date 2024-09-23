@@ -20,6 +20,7 @@ type
     expiry* {.serialize.}: ?UInt256
     nodes* {.serialize.}: ?uint
     tolerance* {.serialize.}: ?uint
+    expansionRate* {.serialize.}: ?uint8
 
   RestPurchase* = object
     requestId* {.serialize.}: RequestId
