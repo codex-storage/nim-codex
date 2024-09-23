@@ -134,7 +134,7 @@ The following options are available:
                             for even distribution.
      --validator-group-index  Slot validation group index [=0].
                             The value provided must be in the range [0, validatorGroups). Ignored when
-                            --validator-groupsis not provided. Only slot ids satisfying condition [(slotId
+                            --validator-groups is not provided. Only slot ids satisfying condition [(slotId
                             mod validationGroups) == groupIndex] will be observed by the validator.
 
 Available sub-commands:

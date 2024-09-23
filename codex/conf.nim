@@ -320,7 +320,7 @@ type
       validatorGroupIndex* {.
         desc: "Slot validation group index"
         longDesc: "The value provided must be in the range " &
-          "[0, validatorGroups). Ignored when --validator-groups" &
+          "[0, validatorGroups). Ignored when --validator-groups " &
           "is not provided. Only slot ids satisfying condition " &
           "[(slotId mod validationGroups) == groupIndex] will be " &
           "observed by the validator"
