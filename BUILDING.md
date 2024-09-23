@@ -161,16 +161,10 @@ make test
 
 #### Circuit download tool
 
-To build the circuit download tool located in `tools/cirdl` you may need to install the following packages for your operating system.
+To build the circuit download tool located in `tools/cirdl` run:
 
-Unix
 ```shell
-$ apt-get update && apt-get install libzip-dev
-```
-
-MacOS
-```shell
-brew install libzip
+make cirdl
 ```
 
 ### testAll
