@@ -43,6 +43,17 @@ when defined(windows):
   # because these require direct manipulations of the stdout File object.
   switch("define", "chronicles_colors=off")
 
+# Fix problems linking <file:vendor/nim-circom-compat/> under FreeBSD
+#
+# Symptom:  codex executable fails to start due to undefined symbol `kinfo_getvmmap`
+#
+# Under FreeBSD the `kinfo_*` symbols are found in /usr/lib/libutil.a,
+# so this is presumably a problem with the circom-compat-ffi Rust
+# crate, and fixing things there would be a preferred solution, but
+# adding this change allows codex to run without updating Rust dependencies.
+when defined(freebsd):
+  switch("passL", "-lutil")
+
 # This helps especially for 32-bit x86, which sans SSE2 and newer instructions
 # requires quite roundabout code generation for cryptography, and other 64-bit
 # and larger arithmetic use cases, along with register starvation issues. When

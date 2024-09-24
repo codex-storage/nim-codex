@@ -118,6 +118,51 @@ File: `C:/Users/<username>/AppData/Roaming/Code/User/settings.json`
 
 It is possible that nim-codex can be built and run on other platforms supported by the [Nim](https://nim-lang.org/) language: BSD family, older versions of Windows, etc. There has not been sufficient experimentation with nim-codex on such platforms, so instructions are not provided. Community contributions to these docs and our build system are welcome!
 
+
+#### FreeBSD
+
+1.  Ensure that the following system packages are installed:
+
+```shell
+pkg install bash git gmake gcc cmake rust 
+```
+
+2.  Run the normal build
+
+```shell
+gmake update
+gmake 
+```
+
+3.  The build will fail in compiling the wasmer-vm-2.3.0 crate with messages looking something like:
+
+```
+/home/evenson/work/nim-codex/vendor/nim-circom-compat/circomcompat.nim(20, 9) Warning: rust error> error: Unsupported platform [User]
+/home/evenson/work/nim-codex/vendor/nim-circom-compat/circomcompat.nim(20, 9) Warning: rust error>    --> /home/evenson/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wasmer-vm-2.3.0/src/trap/traphandlers.rs:305:21 [User]
+/home/evenson/work/nim-codex/vendor/nim-circom-compat/circomcompat.nim(20, 9) Warning: rust error>     | [User]
+/home/evenson/work/nim-codex/vendor/nim-circom-compat/circomcompat.nim(20, 9) Warning: rust error> 305 |                     compile_error!("Unsupported platform"); [User]
+/home/evenson/work/nim-codex/vendor/nim-circom-compat/circomcompat.nim(20, 9) Warning: rust error>     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ [User]
+/home/evenson/work/nim-codex/vendor/nim-circom-compat/circomcompat.nim(20, 9) Warning: rust error>  [User]
+/home/evenson/work/nim-codex/vendor/nim-circom-compat/circomcompat.nim(20, 9) Warning: rust error> error: could not compile `wasmer-vm` (lib) due to 1 previous error [User]
+/home/evenson/work/nim-codex/vendor/nim-circom-compat/circomcompat.nim(20, 9) Warning: rust error> warning: build failed, waiting for other jobs to finish... [User]
+``` 
+
+After the build fails, patch the Rust target under <file:.cargo/> with
+
+```shell
+patch -p1 < $NIM_CODEX_ROOT/docs/notes/wasmer-vm-2.3.0-freebsd-amd64.patch 
+```
+
+where NIM_CODEX_ROOT is set to the local location of the nim-codex repository.
+
+4.  Restart the build with
+
+```shell
+gmake 
+```
+
+Voila!  A Codex binary for FreeBSD!
+
 ## Repository
 
 In Bash run
