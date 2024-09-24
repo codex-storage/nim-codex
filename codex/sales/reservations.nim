@@ -16,7 +16,7 @@
 ## |----------------------------------------|              |--------------------------------------|
 ## | UInt256          | totalSize     |     |              | UInt256        | size           |    |
 ## |----------------------------------------|              |--------------------------------------|
-## | UInt256          | freeSize      |     |              | SlotId         | slotId         |    |
+## | UInt256          | freeSize      |     |              | UInt256        | slotIndex      |    |
 ## |----------------------------------------|              +--------------------------------------+
 ## | UInt256          | duration      |     |
 ## |----------------------------------------|
@@ -65,7 +65,7 @@ type
     totalSize* {.serialize.}: UInt256
     freeSize* {.serialize.}: UInt256
     duration* {.serialize.}: UInt256
-    minPrice* {.serialize.}: UInt256
+    minPrice* {.serialize.}: UInt256 # minimal price paid for the whole hosted slot for the request's duration
     maxCollateral* {.serialize.}: UInt256
   Reservation* = ref object
     id* {.serialize.}: ReservationId

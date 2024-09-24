@@ -232,7 +232,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       ## Returns active slots for the host
       try:
         without contracts =? node.contracts.host:
-          return RestApiResponse.error(Http503, "Sales unavailable")
+          return RestApiResponse.error(Http503, "Persistence is not enabled")
 
         let json = %(await contracts.sales.mySlots())
         return RestApiResponse.response($json, contentType="application/json")
@@ -247,7 +247,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       ## slot is not active for the host.
 
       without contracts =? node.contracts.host:
-        return RestApiResponse.error(Http503, "Sales unavailable")
+        return RestApiResponse.error(Http503, "Persistence is not enabled")
 
       without slotId =? slotId.tryGet.catch, error:
         return RestApiResponse.error(Http400, error.msg)
@@ -258,7 +258,9 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       let restAgent = RestSalesAgent(
         state: agent.state() |? "none",
         slotIndex: agent.data.slotIndex,
-        requestId: agent.data.requestId
+        requestId: agent.data.requestId,
+        request: agent.data.request,
+        reservation: agent.data.reservation,
       )
 
       return RestApiResponse.response(restAgent.toJson, contentType="application/json")
@@ -270,7 +272,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
       try:
         without contracts =? node.contracts.host:
-          return RestApiResponse.error(Http503, "Sales unavailable")
+          return RestApiResponse.error(Http503, "Persistence is not enabled")
 
         without avails =? (await contracts.sales.context.reservations.all(Availability)), err:
           return RestApiResponse.error(Http500, err.msg)
@@ -289,7 +291,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       ##
       ## totalSize      - size of available storage in bytes
       ## duration       - maximum time the storage should be sold for (in seconds)
-      ## minPrice       - minimum price to be paid (in amount of tokens)
+      ## minPrice       - minimal price paid (in amount of tokens) for the whole hosted request's slot for the request's duration
       ## maxCollateral  - maximum collateral user is willing to pay per filled Slot (in amount of tokens)
 
       var headers = newSeq[(string,string)]()
@@ -301,7 +303,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
       try:
         without contracts =? node.contracts.host:
-          return RestApiResponse.error(Http503, "Sales unavailable", headers = headers)
+          return RestApiResponse.error(Http503, "Persistence is not enabled", headers = headers)
 
         let body = await request.getBody()
 
@@ -359,7 +361,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
       try:
         without contracts =? node.contracts.host:
-          return RestApiResponse.error(Http503, "Sales unavailable")
+          return RestApiResponse.error(Http503, "Persistence is not enabled")
 
         without id =? id.tryGet.catch, error:
           return RestApiResponse.error(Http400, error.msg)
@@ -415,7 +417,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
       try:
         without contracts =? node.contracts.host:
-          return RestApiResponse.error(Http503, "Sales unavailable")
+          return RestApiResponse.error(Http503, "Persistence is not enabled")
 
         without id =? id.tryGet.catch, error:
           return RestApiResponse.error(Http400, error.msg)
@@ -423,6 +425,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
           return RestApiResponse.error(Http400, error.msg)
 
         let reservations = contracts.sales.context.reservations
+        let market = contracts.sales.context.market
 
         if error =? (await reservations.get(keyId, Availability)).errorOption:
           if error of NotExistsError:
@@ -462,10 +465,10 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
         headers.add(("Access-Control-Allow-Origin", corsOrigin))
         headers.add(("Access-Control-Allow-Methods", "POST, OPTIONS"))
         headers.add(("Access-Control-Max-Age", "86400"))
-      
+
       try:
         without contracts =? node.contracts.client:
-          return RestApiResponse.error(Http503, "Purchasing unavailable", headers = headers)
+          return RestApiResponse.error(Http503, "Persistence is not enabled", headers = headers)
 
         without cid =? cid.tryGet.catch, error:
           return RestApiResponse.error(Http400, error.msg, headers = headers)
@@ -475,8 +478,11 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
         without params =? StorageRequestParams.fromJson(body), error:
           return RestApiResponse.error(Http400, error.msg, headers = headers)
 
-        let nodes = params.nodes |? 1
-        let tolerance = params.tolerance |? 0
+        let nodes = params.nodes |? 3
+        let tolerance = params.tolerance |? 1
+
+        if tolerance == 0:
+          return RestApiResponse.error(Http400, "Tolerance needs to be bigger then zero", headers = headers)
 
         # prevent underflow
         if tolerance > nodes:
@@ -524,7 +530,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
 
       try:
         without contracts =? node.contracts.client:
-          return RestApiResponse.error(Http503, "Purchasing unavailable")
+          return RestApiResponse.error(Http503, "Persistence is not enabled")
 
         without id =? id.tryGet.catch, error:
           return RestApiResponse.error(Http400, error.msg)
@@ -549,7 +555,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
     "/api/codex/v1/storage/purchases") do () -> RestApiResponse:
       try:
         without contracts =? node.contracts.client:
-          return RestApiResponse.error(Http503, "Purchasing unavailable")
+          return RestApiResponse.error(Http503, "Persistence is not enabled")
 
         let purchaseIds = contracts.purchasing.getPurchaseIds()
         return RestApiResponse.response($ %purchaseIds, contentType="application/json")

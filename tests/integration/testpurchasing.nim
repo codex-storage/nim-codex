@@ -60,7 +60,9 @@ twonodessuite "Purchasing", debug1 = false, debug2 = false:
                                     reward=2.u256,
                                     proofProbability=3.u256,
                                     expiry=30,
-                                    collateral=200.u256).get
+                                    collateral=200.u256,
+                                    nodes=3.uint,
+                                    tolerance=1.uint).get
     check eventually client1.purchaseStateIs(id, "submitted")
 
     node1.restart()
@@ -73,8 +75,8 @@ twonodessuite "Purchasing", debug1 = false, debug2 = false:
     check request.ask.proofProbability == 3.u256
     check request.expiry == 30
     check request.ask.collateral == 200.u256
-    check request.ask.slots == 2'u64
-    check request.ask.maxSlotLoss == 0'u64
+    check request.ask.slots == 3'u64
+    check request.ask.maxSlotLoss == 1'u64
 
   test "node requires expiry and its value to be in future":
     let data = await RandomChunker.example(blocks=2)

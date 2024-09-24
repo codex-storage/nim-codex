@@ -23,6 +23,8 @@ components:
     Id:
       type: string
       description: 32bits identifier encoded in hex-decimal string.
+      minLength: 66
+      maxLength: 66
       example: 0x...
 
     BigInt:
@@ -136,7 +138,7 @@ components:
           $ref: "#/components/schemas/Duration"
         minPrice:
           type: string
-          description: Minimum price to be paid (in amount of tokens) as decimal string
+          description: Minimal price paid (in amount of tokens) for the whole hosted request's slot for the request's duration as decimal string
         maxCollateral:
           type: string
           description: Maximum collateral user is willing to pay per filled Slot (in amount of tokens) as decimal string
@@ -168,7 +170,39 @@ components:
           $ref: "#/components/schemas/StorageRequest"
         slotIndex:
           type: string
-          description: Slot Index as hexadecimal string
+          description: Slot Index as decimal string
+
+    SlotAgent:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/SlotId"
+        slotIndex:
+          type: string
+          description: Slot Index as decimal string
+        requestId:
+          $ref: "#/components/schemas/Id"
+        request:
+          $ref: "#/components/schemas/StorageRequest"
+        reservation:
+          $ref: "#/components/schemas/Reservation"
+        state:
+          type: string
+          description: Description of the slot's
+          enum:
+            - SaleCancelled
+            - SaleDownloading
+            - SaleErrored
+            - SaleFailed
+            - SaleFilled
+            - SaleFilling
+            - SaleFinished
+            - SaleIgnored
+            - SaleInitialProving
+            - SalePayout
+            - SalePreparing
+            - SaleProving
+            - SaleUnknown
 
     Reservation:
       type: object
@@ -183,7 +217,7 @@ components:
           $ref: "#/components/schemas/Id"
         slotIndex:
           type: string
-          description: Slot Index as hexadecimal string
+          description: Slot Index as decimal string
 
     StorageRequestCreation:
       type: object
@@ -259,6 +293,15 @@ components:
         state:
           type: string
           description: Description of the Request's state
+          enum:
+            - cancelled
+            - error
+            - failed
+            - finished
+            - pending
+            - started
+            - submitted
+            - unknown
         error:
           type: string
           description: If Request failed, then here is presented the error message
@@ -491,7 +534,7 @@ paths:
                   $ref: "#/components/schemas/Slot"
 
         "503":
-          description: Sales are unavailable
+          description: Persistence is not enabled
 
   "/sales/slots/{slotId}":
     get:
@@ -511,7 +554,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Slot"
+                $ref: "#/components/schemas/SlotAgent"
 
         "400":
           description: Invalid or missing SlotId
@@ -520,13 +563,13 @@ paths:
           description: Host is not in an active sale for the slot
 
         "503":
-          description: Sales are unavailable
+          description: Persistence is not enabled
 
   "/sales/availability":
     get:
       summary: "Returns storage that is for sale"
       tags: [ Marketplace ]
-      operationId: getOfferedStorage
+      operationId: getAvailabilities
       responses:
         "200":
           description: Retrieved storage availabilities of the node
@@ -535,11 +578,11 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/SalesAvailability"
+                  $ref: "#/components/schemas/SalesAvailabilityREAD"
         "500":
           description: Error getting unused availabilities
         "503":
-          description: Sales are unavailable
+          description: Persistence is not enabled
 
     post:
       summary: "Offers storage for sale"
@@ -564,7 +607,7 @@ paths:
         "500":
           description: Error reserving availability
         "503":
-          description: Sales are unavailable
+          description: Persistence is not enabled
   "/sales/availability/{id}":
     patch:
       summary: "Updates availability"
@@ -597,10 +640,10 @@ paths:
         "500":
           description: Error reserving availability
         "503":
-          description: Sales are unavailable
+          description: Persistence is not enabled
 
   "/sales/availability/{id}/reservations":
-    patch:
+    get:
       summary: "Get availability's reservations"
       description: Return's list of Reservations for ongoing Storage Requests that the node hosts.
       operationId: getReservations
@@ -628,7 +671,7 @@ paths:
         "500":
           description: Error getting reservations
         "503":
-          description: Sales are unavailable
+          description: Persistence is not enabled
 
   "/storage/request/{cid}":
     post:
@@ -659,7 +702,7 @@ paths:
         "404":
           description: Request ID not found
         "503":
-          description: Purchasing is unavailable
+          description: Persistence is not enabled
 
   "/storage/purchases":
     get:
@@ -676,7 +719,7 @@ paths:
                 items:
                   type: string
         "503":
-          description: Purchasing is unavailable
+          description: Persistence is not enabled
 
   "/storage/purchases/{id}":
     get:
@@ -702,7 +745,7 @@ paths:
         "404":
           description: Purchase not found
         "503":
-          description: Purchasing is unavailable
+          description: Persistence is not enabled
 
   "/node/spr":
     get:
