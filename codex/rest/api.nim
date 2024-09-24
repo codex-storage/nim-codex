@@ -110,6 +110,20 @@ proc retrieveCid(
 proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin # prevents capture inside of api defintion
 
+  router.api(
+    MethodOptions,
+    "/api/codex/v1/data") do (
+       resp: HttpResponseRef) -> RestApiResponse:
+
+      if corsOrigin =? allowedOrigin:
+        resp.setHeader("Access-Control-Allow-Origin", corsOrigin)
+        resp.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
+        resp.setHeader("Access-Control-Allow-Headers", "content-type")
+        resp.setHeader("Access-Control-Max-Age", "86400")
+
+      resp.status = Http204
+      await resp.sendBody("")
+
   router.rawApi(
     MethodPost,
     "/api/codex/v1/data") do (
@@ -210,13 +224,15 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       return RestApiResponse.response($json, contentType="application/json")
 
 proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
+  let allowedOrigin = router.allowedOrigin
+
   router.api(
     MethodGet,
     "/api/codex/v1/sales/slots") do () -> RestApiResponse:
       ## Returns active slots for the host
       try:
         without contracts =? node.contracts.host:
-          return RestApiResponse.error(Http503, "Sales unavailable")
+          return RestApiResponse.error(Http503, "Persistence is not enabled")
 
         let json = %(await contracts.sales.mySlots())
         return RestApiResponse.response($json, contentType="application/json")
@@ -231,7 +247,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       ## slot is not active for the host.
 
       without contracts =? node.contracts.host:
-        return RestApiResponse.error(Http503, "Sales unavailable")
+        return RestApiResponse.error(Http503, "Persistence is not enabled")
 
       without slotId =? slotId.tryGet.catch, error:
         return RestApiResponse.error(Http400, error.msg)
@@ -242,7 +258,9 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       let restAgent = RestSalesAgent(
         state: agent.state() |? "none",
         slotIndex: agent.data.slotIndex,
-        requestId: agent.data.requestId
+        requestId: agent.data.requestId,
+        request: agent.data.request,
+        reservation: agent.data.reservation,
       )
 
       return RestApiResponse.response(restAgent.toJson, contentType="application/json")
@@ -254,7 +272,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
       try:
         without contracts =? node.contracts.host:
-          return RestApiResponse.error(Http503, "Sales unavailable")
+          return RestApiResponse.error(Http503, "Persistence is not enabled")
 
         without avails =? (await contracts.sales.context.reservations.all(Availability)), err:
           return RestApiResponse.error(Http500, err.msg)
@@ -273,25 +291,32 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       ##
       ## totalSize      - size of available storage in bytes
       ## duration       - maximum time the storage should be sold for (in seconds)
-      ## minPrice       - minimum price to be paid (in amount of tokens)
+      ## minPrice       - minimal price paid (in amount of tokens) for the whole hosted request's slot for the request's duration
       ## maxCollateral  - maximum collateral user is willing to pay per filled Slot (in amount of tokens)
+
+      var headers = newSeq[(string,string)]()
+
+      if corsOrigin =? allowedOrigin:
+        headers.add(("Access-Control-Allow-Origin", corsOrigin))
+        headers.add(("Access-Control-Allow-Methods", "POST, OPTIONS"))
+        headers.add(("Access-Control-Max-Age", "86400"))
 
       try:
         without contracts =? node.contracts.host:
-          return RestApiResponse.error(Http503, "Sales unavailable")
+          return RestApiResponse.error(Http503, "Persistence is not enabled", headers = headers)
 
         let body = await request.getBody()
 
         without restAv =? RestAvailability.fromJson(body), error:
-          return RestApiResponse.error(Http400, error.msg)
+          return RestApiResponse.error(Http400, error.msg, headers = headers)
 
         let reservations = contracts.sales.context.reservations
 
         if restAv.totalSize == 0:
-          return RestApiResponse.error(Http400, "Total size must be larger then zero")
+          return RestApiResponse.error(Http400, "Total size must be larger then zero", headers = headers)
 
         if not reservations.hasAvailable(restAv.totalSize.truncate(uint)):
-          return RestApiResponse.error(Http422, "Not enough storage quota")
+          return RestApiResponse.error(Http422, "Not enough storage quota", headers = headers)
 
         without availability =? (
           await reservations.createAvailability(
@@ -300,14 +325,27 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
             restAv.minPrice,
             restAv.maxCollateral)
           ), error:
-          return RestApiResponse.error(Http500, error.msg)
+          return RestApiResponse.error(Http500, error.msg, headers = headers)
 
         return RestApiResponse.response(availability.toJson,
                                         Http201,
-                                        contentType="application/json")
+                                        contentType="application/json", 
+                                        headers = headers)
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
-        return RestApiResponse.error(Http500)
+        return RestApiResponse.error(Http500, headers = headers)
+
+  router.api(
+    MethodOptions,
+    "/api/codex/v1/sales/availability/{id}") do (id: AvailabilityId, resp: HttpResponseRef) -> RestApiResponse:
+
+      if corsOrigin =? allowedOrigin:
+        resp.setHeader("Access-Control-Allow-Origin", corsOrigin)
+        resp.setHeader("Access-Control-Allow-Methods", "PATCH, OPTIONS")
+        resp.setHeader("Access-Control-Max-Age", "86400")
+
+      resp.status = Http204
+      await resp.sendBody("")
 
   router.rawApi(
     MethodPatch,
@@ -323,7 +361,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
       try:
         without contracts =? node.contracts.host:
-          return RestApiResponse.error(Http503, "Sales unavailable")
+          return RestApiResponse.error(Http503, "Persistence is not enabled")
 
         without id =? id.tryGet.catch, error:
           return RestApiResponse.error(Http400, error.msg)
@@ -379,7 +417,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
       try:
         without contracts =? node.contracts.host:
-          return RestApiResponse.error(Http503, "Sales unavailable")
+          return RestApiResponse.error(Http503, "Persistence is not enabled")
 
         without id =? id.tryGet.catch, error:
           return RestApiResponse.error(Http400, error.msg)
@@ -387,6 +425,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
           return RestApiResponse.error(Http400, error.msg)
 
         let reservations = contracts.sales.context.reservations
+        let market = contracts.sales.context.market
 
         if error =? (await reservations.get(keyId, Availability)).errorOption:
           if error of NotExistsError:
@@ -404,6 +443,8 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
         return RestApiResponse.error(Http500)
 
 proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
+  let allowedOrigin = router.allowedOrigin
+
   router.rawApi(
     MethodPost,
     "/api/codex/v1/storage/request/{cid}") do (cid: Cid) -> RestApiResponse:
@@ -418,37 +459,47 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       ## tolerance        - allowed number of nodes that can be lost before content is lost
       ## colateral        - requested collateral from hosts when they fill slot
 
+      var headers = newSeq[(string,string)]()
+
+      if corsOrigin =? allowedOrigin:
+        headers.add(("Access-Control-Allow-Origin", corsOrigin))
+        headers.add(("Access-Control-Allow-Methods", "POST, OPTIONS"))
+        headers.add(("Access-Control-Max-Age", "86400"))
+
       try:
         without contracts =? node.contracts.client:
-          return RestApiResponse.error(Http503, "Purchasing unavailable")
+          return RestApiResponse.error(Http503, "Persistence is not enabled", headers = headers)
 
         without cid =? cid.tryGet.catch, error:
-          return RestApiResponse.error(Http400, error.msg)
+          return RestApiResponse.error(Http400, error.msg, headers = headers)
 
         let body = await request.getBody()
 
         without params =? StorageRequestParams.fromJson(body), error:
-          return RestApiResponse.error(Http400, error.msg)
+          return RestApiResponse.error(Http400, error.msg, headers = headers)
 
-        let nodes = params.nodes |? 1
-        let tolerance = params.tolerance |? 0
+        let nodes = params.nodes |? 3
+        let tolerance = params.tolerance |? 1
+
+        if tolerance == 0:
+          return RestApiResponse.error(Http400, "Tolerance needs to be bigger then zero", headers = headers)
 
         # prevent underflow
         if tolerance > nodes:
-          return RestApiResponse.error(Http400, "Invalid parameters: `tolerance` cannot be greater than `nodes`")
+          return RestApiResponse.error(Http400, "Invalid parameters: `tolerance` cannot be greater than `nodes`", headers = headers)
 
         let ecK = nodes - tolerance
         let ecM = tolerance # for readability
 
         # ensure leopard constrainst of 1 < K ≥ M
         if ecK <= 1 or ecK < ecM:
-          return RestApiResponse.error(Http400, "Invalid parameters: parameters must satify `1 < (nodes - tolerance) ≥ tolerance`")
+          return RestApiResponse.error(Http400, "Invalid parameters: parameters must satify `1 < (nodes - tolerance) ≥ tolerance`", headers = headers)
 
         without expiry =? params.expiry:
-          return RestApiResponse.error(Http400, "Expiry required")
+          return RestApiResponse.error(Http400, "Expiry required", headers = headers)
 
         if expiry <= 0 or expiry >= params.duration:
-          return RestApiResponse.error(Http400, "Expiry needs value bigger then zero and smaller then the request's duration")
+          return RestApiResponse.error(Http400, "Expiry needs value bigger then zero and smaller then the request's duration", headers = headers)
 
         without purchaseId =? await node.requestStorage(
           cid,
@@ -463,14 +514,14 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
           if error of InsufficientBlocksError:
             return RestApiResponse.error(Http400,
             "Dataset too small for erasure parameters, need at least " &
-              $(ref InsufficientBlocksError)(error).minSize.int & " bytes")
+              $(ref InsufficientBlocksError)(error).minSize.int & " bytes", headers = headers)
 
-          return RestApiResponse.error(Http500, error.msg)
+          return RestApiResponse.error(Http500, error.msg, headers = headers)
 
         return RestApiResponse.response(purchaseId.toHex)
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
-        return RestApiResponse.error(Http500)
+        return RestApiResponse.error(Http500, headers = headers)
 
   router.api(
     MethodGet,
@@ -479,7 +530,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
 
       try:
         without contracts =? node.contracts.client:
-          return RestApiResponse.error(Http503, "Purchasing unavailable")
+          return RestApiResponse.error(Http503, "Persistence is not enabled")
 
         without id =? id.tryGet.catch, error:
           return RestApiResponse.error(Http400, error.msg)
@@ -504,7 +555,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
     "/api/codex/v1/storage/purchases") do () -> RestApiResponse:
       try:
         without contracts =? node.contracts.client:
-          return RestApiResponse.error(Http503, "Purchasing unavailable")
+          return RestApiResponse.error(Http503, "Persistence is not enabled")
 
         let purchaseIds = contracts.purchasing.getPurchaseIds()
         return RestApiResponse.response($ %purchaseIds, contentType="application/json")

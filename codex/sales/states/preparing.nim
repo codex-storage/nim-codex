@@ -69,11 +69,11 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
       request.ask.duration,
       request.ask.pricePerSlot,
       request.ask.collateral):
-    debug "no availability found for request, ignoring"
+    debug "No availability found for request, ignoring"
 
     return some State(SaleIgnored())
 
-  info "availability found for request, creating reservation"
+  info "Availability found for request, creating reservation"
 
   without reservation =? await reservations.createReservation(
     availability.id,

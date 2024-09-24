@@ -8,11 +8,13 @@ on:
 
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
-  nim_version: v1.6.14
+  nim_version: pinned
   rust_version: 1.78.0
-  binary_base: codex
-  nim_flags: '-d:verify_circuit=true'
-  upload_to_codex: false
+  codex_binary_base: codex
+  cirdl_binary_base: cirdl
+  build_dir: build
+  nim_flags: ''
+  windows_libs: 'libstdc++-6.dll libgomp-1.dll libgcc_s_seh-1.dll libwinpthread-1.dll'
 
 jobs:
   # Matrix
@@ -69,19 +71,48 @@ jobs:
             macos*)   os_name="darwin"  ;;
             windows*) os_name="windows" ;;
           esac
-          binary="${{ env.binary_base }}-${{ github.ref_name }}-${os_name}-${{ matrix.cpu }}"
-          [[ ${os_name} == "windows" ]] && binary="${binary}.exe"
-          echo "binary=${binary}" >>$GITHUB_ENV
+          codex_binary="${{ env.codex_binary_base }}-${{ github.ref_name }}-${os_name}-${{ matrix.cpu }}"
+          cirdl_binary="${{ env.cirdl_binary_base }}-${{ github.ref_name }}-${os_name}-${{ matrix.cpu }}"
+          if [[ ${os_name} == "windows" ]]; then
+            codex_binary="${codex_binary}.exe"
+            cirdl_binary="${cirdl_binary}.exe"
+          fi
+          echo "codex_binary=${codex_binary}" >>$GITHUB_ENV
+          echo "cirdl_binary=${cirdl_binary}" >>$GITHUB_ENV
 
       - name: Release - Build
         run: |
-          make NIMFLAGS="--out:${{ env.binary }} ${{ env.nim_flags }}"
-          
-      - name: Release - Upload binaries
+          make NIMFLAGS="--out:${{ env.build_dir }}/${{ env.codex_binary }} ${{ env.nim_flags }}"
+          make cirdl NIMFLAGS="--out:${{ env.build_dir }}/${{ env.cirdl_binary }} ${{ env.nim_flags }}"
+
+      - name: Release - Libraries
+        run: |
+          if [[ "${{ matrix.os }}" == "windows" ]]; then
+            for lib in ${{ env.windows_libs }}; do
+              cp -v "${MINGW_PREFIX}/bin/${lib}" "${{ env.build_dir }}"
+            done
+          fi
+
+      - name: Release - Upload codex build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ env.binary }}
-          path: ${{ env.binary }}
+          name: release-${{ env.codex_binary }}
+          path: ${{ env.build_dir }}/${{ env.codex_binary_base }}*
+          retention-days: 1
+
+      - name: Release - Upload cirdl build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ env.cirdl_binary }}
+          path: ${{ env.build_dir }}/${{ env.cirdl_binary_base }}*
+          retention-days: 1
+
+      - name: Release - Upload windows libs
+        if: matrix.os == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os }}-libs
+          path: ${{ env.build_dir }}/*.dll
           retention-days: 1
 
   # Release
@@ -100,46 +131,47 @@ jobs:
       - name: Release - Compress and checksum
         run: |
           cd /tmp/release
-          prepare() {
-            # Checksum
+          checksum() {
             arc="${1}"
             sha256sum "${arc}" >"${arc}.sha256"
-
-            # Upload to Codex
-            if [[ "${{ env.upload_to_codex }}" == "true" ]]; then
-              codex_endpoints="${{ secrets.CODEX_ENDPOINTS }}"
-              codex_username="${{ secrets.CODEX_USERNAME }}"
-              codex_password="${{ secrets.CODEX_PASSWORD }}"
-
-              for endpoint in ${codex_endpoints}; do
-                echo "::add-mask::${endpoint}"
-                cid=$(curl -X POST \
-                  "${endpoint}/api/codex/v1/data" \
-                  -u "${codex_username}":"${codex_password}" \
-                  -H "content-type: application/octet-stream" \
-                  -T "${arc}")
-
-                echo "${cid}" >"${arc}.cid"
-              done
-            fi
           }
+
           # Compress and prepare
-          for file in *; do
+          for file in ${{ env.codex_binary_base }}* ${{ env.cirdl_binary_base }}*; do
             if [[ "${file}" == *".exe"* ]]; then
+
+              # Windows - binary only
               arc="${file%.*}.zip"
               zip "${arc}" "${file}"
+              checksum "${arc}"
+
+              # Windows - binary and libs
+              arc="${file%.*}-libs.zip"
+              zip "${arc}" "${file}" ${{ env.windows_libs }}
               rm -f "${file}"
-              prepare "${arc}"
+              checksum "${arc}"
             else
+
+              # Linux/macOS
               arc="${file}.tar.gz"
+              chmod 755 "${file}"
               tar cfz "${arc}" "${file}"
               rm -f "${file}"
-              prepare "${arc}"
+              checksum "${arc}"
             fi
           done
+          rm -f ${{ env.windows_libs }}
+
+      - name: Release - Upload compressed artifacts and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: archives-and-checksums
+          path: /tmp/release/
+          retention-days: 1
 
       - name: Release
         uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
             /tmp/release/*

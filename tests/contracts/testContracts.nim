@@ -11,6 +11,7 @@ ethersuite "Marketplace contracts":
   let proof = Groth16Proof.example
 
   var client, host: Signer
+  var rewardRecipient, collateralRecipient: Address
   var marketplace: Marketplace
   var token: Erc20Token
   var periodicity: Periodicity
@@ -24,6 +25,8 @@ ethersuite "Marketplace contracts":
   setup:
     client = ethProvider.getSigner(accounts[0])
     host = ethProvider.getSigner(accounts[1])
+    rewardRecipient = accounts[2]
+    collateralRecipient = accounts[3]
 
     let address = Marketplace.address(dummyVerifier = true)
     marketplace = Marketplace.new(address, ethProvider.getSigner())
@@ -82,7 +85,26 @@ ethersuite "Marketplace contracts":
     let startBalance = await token.balanceOf(address)
     discard await marketplace.freeSlot(slotId)
     let endBalance = await token.balanceOf(address)
+
     check endBalance == (startBalance + request.ask.duration * request.ask.reward + request.ask.collateral)
+
+  test "can be paid out at the end, specifying reward and collateral recipient":
+    switchAccount(host)
+    let hostAddress = await host.getAddress()
+    await startContract()
+    let requestEnd = await marketplace.requestEnd(request.id)
+    await ethProvider.advanceTimeTo(requestEnd.u256 + 1)
+    let startBalanceHost = await token.balanceOf(hostAddress)
+    let startBalanceReward = await token.balanceOf(rewardRecipient)
+    let startBalanceCollateral = await token.balanceOf(collateralRecipient)
+    discard await marketplace.freeSlot(slotId, rewardRecipient, collateralRecipient)
+    let endBalanceHost = await token.balanceOf(hostAddress)
+    let endBalanceReward = await token.balanceOf(rewardRecipient)
+    let endBalanceCollateral = await token.balanceOf(collateralRecipient)
+
+    check endBalanceHost == startBalanceHost
+    check endBalanceReward == (startBalanceReward + request.ask.duration * request.ask.reward)
+    check endBalanceCollateral == (startBalanceCollateral + request.ask.collateral)
 
   test "cannot mark proofs missing for cancelled request":
     let expiry = await marketplace.requestExpiry(request.id)

@@ -50,6 +50,21 @@ if [ -n "${PRIV_KEY}" ]; then
   echo "Private key set"
 fi
 
+# Circuit downloader
+# cirdl [circuitPath] [rpcEndpoint] [marketplaceAddress]
+if [[ "$@" == *"prover"* ]]; then
+  echo "Run Circuit downloader"
+  # Set circuits dir from CODEX_CIRCUIT_DIR variables if set
+  if [[ -z "${CODEX_CIRCUIT_DIR}" ]]; then
+    export CODEX_CIRCUIT_DIR="${CODEX_DATA_DIR}/circuits"
+  fi
+  # Download circuits
+  mkdir -p "${CODEX_CIRCUIT_DIR}"
+  chmod 700 "${CODEX_CIRCUIT_DIR}"
+  cirdl "${CODEX_CIRCUIT_DIR}" "${CODEX_ETH_PROVIDER}" "${CODEX_MARKETPLACE_ADDRESS}"
+  [[ $? -ne 0 ]] && { echo "Failed to download circuit files"; exit 1; }
+fi
+
 # Run
 echo "Run Codex node"
 exec "$@"

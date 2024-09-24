@@ -33,7 +33,7 @@ The current implementation of Codex's zero-knowledge proving circuit requires th
 On a bare bones installation of Debian (or a distribution derived from Debian, such as Ubuntu), run
 
 ```shell
-apt-get update && apt-get install build-essential cmake curl git rustc cargo
+$ apt-get update && apt-get install build-essential cmake curl git rustc cargo
 ```
 
 Non-Debian distributions have different package managers: `apk`, `dnf`, `pacman`, `rpm`, `yum`, etc.
@@ -155,6 +155,16 @@ See the [instructions](README.md#cli-options) in the main readme.
 In Bash run
 ```shell
 make test
+```
+
+### Tools
+
+#### Circuit download tool
+
+To build the circuit download tool located in `tools/cirdl` run:
+
+```shell
+make cirdl
 ```
 
 ### testAll

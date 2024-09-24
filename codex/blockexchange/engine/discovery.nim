@@ -35,11 +35,9 @@ declareGauge(codexInflightDiscovery, "inflight discovery requests")
 
 const
   DefaultConcurrentDiscRequests = 10
-  DefaultConcurrentAdvertRequests = 10
   DefaultDiscoveryTimeout = 1.minutes
   DefaultMinPeersPerBlock = 3
   DefaultDiscoveryLoopSleep = 3.seconds
-  DefaultAdvertiseLoopSleep = 30.minutes
 
 type
   DiscoveryEngine* = ref object of RootObj
@@ -49,20 +47,13 @@ type
     discovery*: Discovery                                        # Discovery interface
     pendingBlocks*: PendingBlocksManager                         # Blocks we're awaiting to be resolved
     discEngineRunning*: bool                                     # Indicates if discovery is running
-    concurrentAdvReqs: int                                       # Concurrent advertise requests
     concurrentDiscReqs: int                                      # Concurrent discovery requests
-    advertiseLoop*: Future[void]                                 # Advertise loop task handle
-    advertiseQueue*: AsyncQueue[Cid]                             # Advertise queue
-    advertiseTasks*: seq[Future[void]]                           # Advertise tasks
     discoveryLoop*: Future[void]                                 # Discovery loop task handle
     discoveryQueue*: AsyncQueue[Cid]                             # Discovery queue
     discoveryTasks*: seq[Future[void]]                           # Discovery tasks
     minPeersPerBlock*: int                                       # Max number of peers with block
     discoveryLoopSleep: Duration                                 # Discovery loop sleep
-    advertiseLoopSleep: Duration                                 # Advertise loop sleep
     inFlightDiscReqs*: Table[Cid, Future[seq[SignedPeerRecord]]] # Inflight discovery requests
-    inFlightAdvReqs*: Table[Cid, Future[void]]                   # Inflight advertise requests
-    advertiseType*: BlockType                                    # Advertice blocks, manifests or both
 
 proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
   while b.discEngineRunning:
@@ -80,69 +71,6 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
       wanted = b.pendingBlocks.len
 
     await sleepAsync(b.discoveryLoopSleep)
-
-proc advertiseBlock(b: DiscoveryEngine, cid: Cid) {.async.} =
-  without isM =? cid.isManifest, err:
-    warn "Unable to determine if cid is manifest"
-    return
-
-  if isM:
-    without blk =? await b.localStore.getBlock(cid), err:
-      error "Error retrieving manifest block", cid, err = err.msg
-      return
-
-    without manifest =? Manifest.decode(blk), err:
-      error "Unable to decode as manifest", err = err.msg
-      return
-
-    # announce manifest cid and tree cid
-    await b.advertiseQueue.put(cid)
-    await b.advertiseQueue.put(manifest.treeCid)
-
-proc advertiseQueueLoop(b: DiscoveryEngine) {.async.} =
-  while b.discEngineRunning:
-    if cids =? await b.localStore.listBlocks(blockType = b.advertiseType):
-      trace "Begin iterating blocks..."
-      for c in cids:
-        if cid =? await c:
-          b.advertiseBlock(cid)
-          await sleepAsync(100.millis)
-      trace "Iterating blocks finished."
-
-    await sleepAsync(b.advertiseLoopSleep)
-
-  info "Exiting advertise task loop"
-
-proc advertiseTaskLoop(b: DiscoveryEngine) {.async.} =
-  ## Run advertise tasks
-  ##
-
-  while b.discEngineRunning:
-    try:
-      let
-        cid = await b.advertiseQueue.get()
-
-      if cid in b.inFlightAdvReqs:
-        continue
-
-      try:
-        let
-          request = b.discovery.provide(cid)
-
-        b.inFlightAdvReqs[cid] = request
-        codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
-        await request
-
-      finally:
-        b.inFlightAdvReqs.del(cid)
-        codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
-    except CancelledError:
-      trace "Advertise task cancelled"
-      return
-    except CatchableError as exc:
-      warn "Exception in advertise task runner", exc = exc.msg
-
-  info "Exiting advertise task runner"
 
 proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
   ## Run discovery tasks
@@ -168,7 +96,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
               .wait(DefaultDiscoveryTimeout)
 
           b.inFlightDiscReqs[cid] = request
-          codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
+          codexInflightDiscovery.set(b.inFlightDiscReqs.len.int64)
           let
             peers = await request
 
@@ -182,7 +110,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
 
         finally:
           b.inFlightDiscReqs.del(cid)
-          codexInflightDiscovery.set(b.inFlightAdvReqs.len.int64)
+          codexInflightDiscovery.set(b.inFlightDiscReqs.len.int64)
     except CancelledError:
       trace "Discovery task cancelled"
       return
@@ -199,14 +127,6 @@ proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
       except CatchableError as exc:
         warn "Exception queueing discovery request", exc = exc.msg
 
-proc queueProvideBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
-  for cid in cids:
-    if cid notin b.advertiseQueue:
-      try:
-        b.advertiseQueue.putNoWait(cid)
-      except CatchableError as exc:
-        warn "Exception queueing discovery request", exc = exc.msg
-
 proc start*(b: DiscoveryEngine) {.async.} =
   ## Start the discengine task
   ##
@@ -218,13 +138,9 @@ proc start*(b: DiscoveryEngine) {.async.} =
     return
 
   b.discEngineRunning = true
-  for i in 0..<b.concurrentAdvReqs:
-    b.advertiseTasks.add(advertiseTaskLoop(b))
-
   for i in 0..<b.concurrentDiscReqs:
     b.discoveryTasks.add(discoveryTaskLoop(b))
 
-  b.advertiseLoop = advertiseQueueLoop(b)
   b.discoveryLoop = discoveryQueueLoop(b)
 
 proc stop*(b: DiscoveryEngine) {.async.} =
@@ -237,22 +153,11 @@ proc stop*(b: DiscoveryEngine) {.async.} =
     return
 
   b.discEngineRunning = false
-  for task in b.advertiseTasks:
-    if not task.finished:
-      trace "Awaiting advertise task to stop"
-      await task.cancelAndWait()
-      trace "Advertise task stopped"
-
   for task in b.discoveryTasks:
     if not task.finished:
       trace "Awaiting discovery task to stop"
       await task.cancelAndWait()
       trace "Discovery task stopped"
-
-  if not b.advertiseLoop.isNil and not b.advertiseLoop.finished:
-    trace "Awaiting advertise loop to stop"
-    await b.advertiseLoop.cancelAndWait()
-    trace "Advertise loop stopped"
 
   if not b.discoveryLoop.isNil and not b.discoveryLoop.finished:
     trace "Awaiting discovery loop to stop"
@@ -268,12 +173,9 @@ proc new*(
     network: BlockExcNetwork,
     discovery: Discovery,
     pendingBlocks: PendingBlocksManager,
-    concurrentAdvReqs = DefaultConcurrentAdvertRequests,
     concurrentDiscReqs = DefaultConcurrentDiscRequests,
     discoveryLoopSleep = DefaultDiscoveryLoopSleep,
-    advertiseLoopSleep = DefaultAdvertiseLoopSleep,
-    minPeersPerBlock = DefaultMinPeersPerBlock,
-    advertiseType = BlockType.Manifest
+    minPeersPerBlock = DefaultMinPeersPerBlock
 ): DiscoveryEngine =
   ## Create a discovery engine instance for advertising services
   ##
@@ -283,13 +185,8 @@ proc new*(
     network: network,
     discovery: discovery,
     pendingBlocks: pendingBlocks,
-    concurrentAdvReqs: concurrentAdvReqs,
     concurrentDiscReqs: concurrentDiscReqs,
-    advertiseQueue: newAsyncQueue[Cid](concurrentAdvReqs),
     discoveryQueue: newAsyncQueue[Cid](concurrentDiscReqs),
     inFlightDiscReqs: initTable[Cid, Future[seq[SignedPeerRecord]]](),
-    inFlightAdvReqs: initTable[Cid, Future[void]](),
     discoveryLoopSleep: discoveryLoopSleep,
-    advertiseLoopSleep: advertiseLoopSleep,
-    minPeersPerBlock: minPeersPerBlock,
-    advertiseType: advertiseType)
+    minPeersPerBlock: minPeersPerBlock)

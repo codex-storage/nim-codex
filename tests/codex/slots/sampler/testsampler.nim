@@ -58,7 +58,7 @@ suite "Test Sampler - control samples":
           proofInput.nCellsPerSlot,
           sample.merklePaths[5..<9]).tryGet
 
-        cellData = Poseidon2Hash.fromCircomData(sample.cellData)
+        cellData = sample.cellData
         cellLeaf = Poseidon2Hash.spongeDigest(cellData, rate = 2).tryGet
         slotLeaf = cellProof.reconstructRoot(cellLeaf).tryGet
 
@@ -158,7 +158,7 @@ suite "Test Sampler":
           nSlotCells,
           sample.merklePaths[5..<sample.merklePaths.len]).tryGet
 
-        cellData = Poseidon2Hash.fromCircomData(sample.cellData)
+        cellData = sample.cellData
         cellLeaf = Poseidon2Hash.spongeDigest(cellData, rate = 2).tryGet
         slotLeaf = cellProof.reconstructRoot(cellLeaf).tryGet
 
