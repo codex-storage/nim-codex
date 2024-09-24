@@ -41,7 +41,7 @@ twonodessuite "REST API", debug1 = false, debug2 = false:
 
   test "request storage fails for datasets that are too small":
     let cid = client1.upload("some file contents").get
-    let response = client1.requestStorageRaw(cid, duration=10.u256, reward=2.u256, proofProbability=3.u256, nodes=2, collateral=200.u256, expiry=9)
+    let response = client1.requestStorageRaw(cid, duration=10.u256, reward=2.u256, proofProbability=3.u256, collateral=200.u256, expiry=9)
 
     check:
       response.status == "400 Bad Request"
@@ -55,6 +55,29 @@ twonodessuite "REST API", debug1 = false, debug2 = false:
     check:
       response.status == "200 OK"
 
+  test "request storage fails if tolerance is zero":
+    let data = await RandomChunker.example(blocks=2)
+    let cid = client1.upload(data).get
+    let duration = 100.u256
+    let reward = 2.u256
+    let proofProbability = 3.u256
+    let expiry = 30.uint
+    let collateral = 200.u256
+    let nodes = 3
+    let tolerance = 0
+
+    var responseBefore = client1.requestStorageRaw(cid,
+      duration,
+      reward,
+      proofProbability,
+      collateral,
+      expiry,
+      nodes.uint,
+      tolerance.uint)
+
+    check responseBefore.status == "400 Bad Request"
+    check responseBefore.body == "Tolerance needs to be bigger then zero"
+
   test "request storage fails if nodes and tolerance aren't correct":
     let data = await RandomChunker.example(blocks=2)
     let cid = client1.upload(data).get
@@ -63,7 +86,7 @@ twonodessuite "REST API", debug1 = false, debug2 = false:
     let proofProbability = 3.u256
     let expiry = 30.uint
     let collateral = 200.u256
-    let ecParams = @[(1, 0), (1, 1), (2, 1), (3, 2), (3, 3)]
+    let ecParams = @[(1, 1), (2, 1), (3, 2), (3, 3)]
 
     for ecParam in ecParams:
       let (nodes, tolerance) = ecParam
@@ -113,7 +136,7 @@ twonodessuite "REST API", debug1 = false, debug2 = false:
     let proofProbability = 3.u256
     let expiry = 30.uint
     let collateral = 200.u256
-    let ecParams = @[(2, 0), (3, 1), (5, 2)]
+    let ecParams = @[(3, 1), (5, 2)]
 
     for ecParam in ecParams:
       let (nodes, tolerance) = ecParam

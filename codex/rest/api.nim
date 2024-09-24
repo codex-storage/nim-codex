@@ -478,7 +478,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
         without params =? StorageRequestParams.fromJson(body), error:
           return RestApiResponse.error(Http400, error.msg, headers = headers)
 
-        let nodes = params.nodes |? 2
+        let nodes = params.nodes |? 3
         let tolerance = params.tolerance |? 1
 
         if tolerance == 0:
