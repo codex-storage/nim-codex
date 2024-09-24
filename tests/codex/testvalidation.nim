@@ -87,40 +87,76 @@ asyncchecksuite "validation":
 
   test "group index is irrelevant if validation groups are not set":
     randomize()
-    for _ in 0..<100:
-      let groupIndex = rand(1000).uint16
-      let validationConfig = ValidationConfig.init(
-          maxSlots, groups=ValidationGroups.none, groupIndex)
-      check validationConfig.isSuccess
-  
-  test "slot should be observed if it is in the validation group":
-    let validationConfig = initValidationConfig(
-        maxSlots, validationGroups, groupIndex)
+    let groupIndex = rand(uint16.high.int).uint16
+    let validationConfig = ValidationConfig.init(
+        maxSlots, groups=ValidationGroups.none, groupIndex)
+    check validationConfig.isSuccess
+
+  test "slot is not observed if it is not in the validation group":
+    let validationConfig = initValidationConfig(maxSlots, validationGroups,
+        (groupIndex + 1) mod uint16(!validationGroups))
     let validation = Validation.new(clock, market, validationConfig)
-    check validation.shouldValidateSlot(slot.id) == true
-  
-  test "slot should be observed if validation group is not set":
-    let validationConfig = initValidationConfig(
-        maxSlots, ValidationGroups.none)
-    let validation = Validation.new(clock, market, validationConfig)
-    check validation.shouldValidateSlot(slot.id) == true
+    await validation.start()
+    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+    await validation.stop()
+    check validation.slots.len == 0
+
+  test "when a slot is filled on chain, it is added to the list":
+    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+    check validation.slots == @[slot.id]
   
   test "slot should be observed if maxSlots is set to 0":
     let validationConfig = initValidationConfig(
         maxSlots = 0, ValidationGroups.none)
     let validation = Validation.new(clock, market, validationConfig)
-    check validation.maxSlotsConstraintRespected
-  
-  test "slot should not be observed if it is not in the validation group":
-    let validationConfig = initValidationConfig(maxSlots, validationGroups,
-        (groupIndex + 1) mod uint16(!validationGroups))
-    let validation = Validation.new(clock, market, validationConfig)
-    check validation.shouldValidateSlot(slot.id) == false
+    await validation.start()
+    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+    await validation.stop()
+    check validation.slots == @[slot.id]
 
-  # Below we get a bit more "end-to-end" test that provides a more
-  # realistic testing scenario (the tests above largely focus on testing
-  # the internals). As the test was quite big, some methods were
-  # extracted from it for better maintainability.
+  test "slot should be observed if validation group is not set (and " &
+      "maxSlots is not 0)":
+    let validationConfig = initValidationConfig(
+        maxSlots, ValidationGroups.none)
+    let validation = Validation.new(clock, market, validationConfig)
+    await validation.start()
+    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+    await validation.stop()
+    check validation.slots == @[slot.id]
+
+  for state in [SlotState.Finished, SlotState.Failed]:
+    test fmt"when slot state changes to {state}, it is removed from the list":
+      await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+      market.slotState[slot.id] = state
+      advanceToNextPeriod()
+      check eventually validation.slots.len == 0
+
+  test "when a proof is missed, it is marked as missing":
+    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+    market.setCanProofBeMarkedAsMissing(slot.id, true)
+    advanceToNextPeriod()
+    await sleepAsync(1.millis)
+    check market.markedAsMissingProofs.contains(slot.id)
+
+  test "when a proof can not be marked as missing, it will not be marked":
+    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+    market.setCanProofBeMarkedAsMissing(slot.id, false)
+    advanceToNextPeriod()
+    await sleepAsync(1.millis)
+    check market.markedAsMissingProofs.len == 0
+
+  test "it does not monitor more than the maximum number of slots":
+    let validationGroups = ValidationGroups.none
+    let validationConfig = initValidationConfig(
+        maxSlots, validationGroups)
+    let validation = Validation.new(clock, market, validationConfig)
+    await validation.start()
+    for _ in 0..<maxSlots + 1:
+      let slot = Slot.example
+      await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+    await validation.stop()
+    check validation.slots.len == maxSlots
+  
   proc setupAndStartValidation(maxSlots: MaxSlots,
                                validationGroups: ?ValidationGroups,
                                groupIndex: uint16
@@ -175,7 +211,21 @@ asyncchecksuite "validation":
       echo fmt"       ⬇︎ {maxSlots=}, {validationGroups=}, " &
           fmt"{groupIndex=}: {slotsInSelectedGroup=}, {expectedSlots=} ⬇︎"
       
-
+  # This test is a bit more complex, but it allows us to test the
+  # assignment of slots to different validation groups in combination with
+  # the maxSlots constraint.
+  # It is not pragmatic to generate a slot with id that will go to the
+  # intended group. In other tests, after creating an example slot, we
+  # compute the group id it is expected to be in, and dependeing on if 
+  # we want to test that it is observed or not, we create validation params
+  # with the computed expected groupIndex or with groupIndex+1 respectively.
+  # In those tests we test only one slot and one groupIndex. In this test
+  # we can test multiple slots going to specific group in one test.
+  # Moreover for the selected group we can also test that maxSlots
+  # constraint is respected also when groups are enabled (the other test we
+  # have defined earlier, tests that the maxSlots constraint only for
+  # the case when groups are not enabled). Finally, this tests should also
+  # allow us to document better what happens when maxSlots is set to 0.
   for (maxSlots, validationGroups, groupIndex) in [
                                        (0, ValidationGroups.none, 0),
                                        (0, ValidationGroups.none, 1),
@@ -191,6 +241,10 @@ asyncchecksuite "validation":
         maxSlots, validationGroups, groupIndex.uint16)
       var slotsInSelectedGroup = 0
       var slots = initHashSet[SlotId]()
+      # The number of slots should be big enough so that we are
+      # sure that at least some of them endup in the intended group.
+      # By probability, it is expected that they will distribute
+      # evenly between the groups.
       for i in 0..<100:
         let slot = Slot.example
         setupValidationGroup(slot.id, maxSlots, validationGroups,
@@ -204,49 +258,3 @@ asyncchecksuite "validation":
                          slotsInSelectedGroup, expectedSlots)
       check validation.slots.len == expectedSlots
       check slots == toHashSet(validation.slots)
-
-  test "slot is not observed if it is not in the validation group":
-    let validationConfig = initValidationConfig(maxSlots, validationGroups,
-        (groupIndex + 1) mod uint16(!validationGroups))
-    let validation = Validation.new(clock, market, validationConfig)
-    await validation.start()
-    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    await validation.stop()
-    check validation.slots.len == 0
-
-  test "when a slot is filled on chain, it is added to the list":
-    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    check validation.slots == @[slot.id]
-
-  for state in [SlotState.Finished, SlotState.Failed]:
-    test fmt"when slot state changes to {state}, it is removed from the list":
-      await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-      market.slotState[slot.id] = state
-      advanceToNextPeriod()
-      check eventually validation.slots.len == 0
-
-  test "when a proof is missed, it is marked as missing":
-    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    market.setCanProofBeMarkedAsMissing(slot.id, true)
-    advanceToNextPeriod()
-    await sleepAsync(1.millis)
-    check market.markedAsMissingProofs.contains(slot.id)
-
-  test "when a proof can not be marked as missing, it will not be marked":
-    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    market.setCanProofBeMarkedAsMissing(slot.id, false)
-    advanceToNextPeriod()
-    await sleepAsync(1.millis)
-    check market.markedAsMissingProofs.len == 0
-
-  test "it does not monitor more than the maximum number of slots":
-    let validationGroups = ValidationGroups.none
-    let validationConfig = initValidationConfig(
-        maxSlots, validationGroups)
-    let validation = Validation.new(clock, market, validationConfig)
-    await validation.start()
-    for _ in 0..<maxSlots + 1:
-      let slot = Slot.example
-      await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    await validation.stop()
-    check validation.slots.len == maxSlots

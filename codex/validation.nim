@@ -51,11 +51,11 @@ func groupIndexForSlotId*(slotId: SlotId,
   let slotIdUInt256 = UInt256.fromBytesBE(slotId.toArray)
   (slotIdUInt256 mod validationGroups.u256).truncate(uint16)
 
-func maxSlotsConstraintRespected*(validation: Validation): bool =
+func maxSlotsConstraintRespected(validation: Validation): bool =
   validation.config.maxSlots == 0 or
     validation.slots.len < validation.config.maxSlots
 
-func shouldValidateSlot*(validation: Validation, slotId: SlotId): bool =
+func shouldValidateSlot(validation: Validation, slotId: SlotId): bool =
   if (validationGroups =? validation.config.groups):
     (groupIndexForSlotId(slotId, validationGroups) ==
     validation.config.groupIndex) and
