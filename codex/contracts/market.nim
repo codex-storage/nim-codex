@@ -248,14 +248,14 @@ method canProofBeMarkedAsMissing*(
     return false
 
 method reserveSlot*(market: OnChainMarket, id: SlotId) {.async.} =
-  discard await market.contract.reserveSlot(id).confirm(0)
+  convertEthersError:
+    discard await market.contract.reserveSlot(id).confirm(0)
 
 method canReserveSlot*(
   market: OnChainMarket,
   id: SlotId): Future[bool] {.async.} =
 
-  convertEthersError:
-    return await market.contract.canReserveSlot(id)
+  await market.contract.canReserveSlot(id)
 
 method subscribeRequests*(market: OnChainMarket,
                          callback: OnRequest):
