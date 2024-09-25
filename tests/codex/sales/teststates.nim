@@ -10,5 +10,6 @@ import ./states/testcancelled
 import ./states/testerrored
 import ./states/testignored
 import ./states/testpreparing
+import ./states/testslotreserving
 
 {.warning[UnusedImport]: off.}
