@@ -1,0 +1,12 @@
+--- a/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wasmer-vm-2.3.0/src/trap/traphandlers.rs.orig	1973-11-29 21:33:09.000000000 +0000
++++ b/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wasmer-vm-2.3.0/src/trap/traphandlers.rs	2024-09-24 06:35:50.966457000 +0000
+@@ -274,6 +274,9 @@
+                 } else if #[cfg(all(target_os = "freebsd", target_arch = "x86"))] {
+                     pc = context.uc_mcontext.mc_rip as usize;
+                     sp = context.uc_mcontext.mc_rsp as usize;
++                } else if #[cfg(all(target_os = "freebsd", target_arch = "x86_64"))] {
++                    pc = context.uc_mcontext.mc_rip as usize;
++                    sp = context.uc_mcontext.mc_rsp as usize;
+                 } else if #[cfg(all(target_vendor = "apple", target_arch = "x86_64"))] {
+                     pc = (*context.uc_mcontext).__ss.__rip as usize;
+                     sp = (*context.uc_mcontext).__ss.__rsp as usize;
