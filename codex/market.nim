@@ -163,13 +163,15 @@ method canProofBeMarkedAsMissing*(market: Market,
 
 method reserveSlot*(
   market: Market,
-  id: SlotId) {.base, async.} =
+  requestId: RequestId,
+  slotIndex: UInt256) {.base, async.} =
 
   raiseAssert("not implemented")
 
 method canReserveSlot*(
   market: Market,
-  id: SlotId): Future[bool] {.base, async.} =
+  requestId: RequestId,
+  slotIndex: UInt256): Future[bool] {.base, async.} =
 
   raiseAssert("not implemented")
 
