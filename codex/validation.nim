@@ -1,3 +1,4 @@
+import std/times
 import std/sets
 import std/sequtils
 import pkg/chronos
@@ -22,6 +23,9 @@ type
     periodicity: Periodicity
     proofTimeout: UInt256
     config: ValidationConfig
+
+const
+  MaxStorageRequestDuration: times.Duration = initDuration(days = 30)
 
 logScope:
   topics = "codex validator"
@@ -119,10 +123,26 @@ proc run(validation: Validation) {.async.} =
   except CatchableError as e:
     error "Validation failed", msg = e.msg
 
+proc epochForDurationBackFromNow(duration: times.Duration): int64 =
+  let now = getTime().toUnix
+  return now - duration.inSeconds
+
+proc restoreHistoricalState(validation: Validation) {.async} =
+  let startTimeEpoch = epochForDurationBackFromNow(MaxStorageRequestDuration)
+  let slotFilledEvents = await validation.market.queryPastEvents(SlotFilled,
+    fromTime = startTimeEpoch)
+  for event in slotFilledEvents:
+    let slotId = slotId(event.requestId, event.slotIndex)
+    if validation.shouldValidateSlot(slotId):
+      trace "Adding slot", slotId
+      validation.slots.incl(slotId)
+  await removeSlotsThatHaveEnded(validation)
+
 proc start*(validation: Validation) {.async.} =
   validation.periodicity = await validation.market.periodicity()
   validation.proofTimeout = await validation.market.proofTimeout()
   await validation.subscribeSlotFilled()
+  await validation.restoreHistoricalState()
   validation.running = validation.run()
 
 proc stop*(validation: Validation) {.async.} =
