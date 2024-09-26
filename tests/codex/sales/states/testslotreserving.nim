@@ -1,7 +1,5 @@
 import pkg/chronos
 import pkg/questionable
-import pkg/datastore
-import pkg/stew/byteutils
 import pkg/codex/contracts/requests
 import pkg/codex/sales/states/slotreserving
 import pkg/codex/sales/states/downloading
@@ -21,7 +19,7 @@ import ../../helpers/mockmarket
 import ../../helpers/mockreservations
 import ../../helpers/mockclock
 
-asyncchecksuite "sales state 'preparing'":
+asyncchecksuite "sales state 'SlotReserving'":
   let request = StorageRequest.example
   let slotIndex = (request.ask.slots div 2).u256
   var market: MockMarket

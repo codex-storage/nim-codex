@@ -37,17 +37,16 @@ method run*(state: SaleSlotReserving, machine: Machine): Future[?State] {.async.
   let data = agent.data
   let context = agent.context
   let market = context.market
-  let slotId = slotId(data.requestId, data.slotIndex)
 
   logScope:
+    requestId = data.requestId
     slotIndex = data.slotIndex
-    slotId
 
-  let canReserve = await market.canReserveSlot(slotId)
+  let canReserve = await market.canReserveSlot(data.requestId, data.slotIndex)
   if canReserve:
     try:
       trace "Reserving slot"
-      await market.reserveSlot(slotId)
+      await market.reserveSlot(data.requestId, data.slotIndex)
     except MarketError as e:
       return some State( SaleErrored(error: e) )
 
