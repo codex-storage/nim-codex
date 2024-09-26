@@ -330,15 +330,15 @@ components:
         quotaMaxBytes:
           type: integer
           format: int64
-          description: "Maximum storage space used by the node"
+          description: "Maximum storage space (in bytes) used by the node on the hard drive."
         quotaUsedBytes:
           type: integer
           format: int64
-          description: "Amount of storage space currently in use"
+          description: "Amount of storage space (in bytes) currently in use by availabilities for existing files."
         quotaReservedBytes:
           type: integer
           format: int64
-          description: "Amount of storage space reserved"
+          description: "Amount of storage allocated (in bytes) for the node by availabilities for future use when storage requests are fulfilled. This does not include the storage currently in use."
 
 servers:
   - url: "http://localhost:8080/api/codex/v1"
