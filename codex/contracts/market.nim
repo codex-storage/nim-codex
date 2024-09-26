@@ -1,6 +1,7 @@
-import std/sequtils
+# import std/sequtils
 import std/strutils
-import std/sugar
+import std/strformat
+# import std/sugar
 import pkg/ethers
 import pkg/upraises
 import pkg/questionable
@@ -478,6 +479,79 @@ method queryPastEvents*[T: MarketplaceEvent](
 
     let head = await provider.getBlockNumber()
     let fromBlock = BlockTag.init(head - blocksAgo.abs.u256)
+
+    return await contract.queryFilter(T,
+                                      fromBlock,
+                                      BlockTag.latest)
+
+proc blockNumberAndTimestamp(provider: Provider, blockTag: BlockTag):
+    Future[(UInt256, UInt256)] {.async.} =
+  without latestBlock =? await provider.getBlock(blockTag), error:
+    raise error
+
+  without latestBlockNumber =? latestBlock.number:
+    raise newException(EthersError, "Could not get latest block number")
+
+  (latestBlockNumber, latestBlock.timestamp)
+
+proc blockNumberForEpoch(epochTime: int64, provider: Provider): Future[UInt256] 
+    {.async.} =
+  let avgBlockTime = 13.u256
+  let epochTimeUInt256 = epochTime.u256
+  let (latestBlockNumber, latestBlockTimestamp) = 
+    await blockNumberAndTimestamp(provider, BlockTag.latest)
+
+  let timeDiff = latestBlockTimestamp - epochTimeUInt256
+  let blockDiff = timeDiff div avgBlockTime
+  let estimatedBlockNumber = latestBlockNumber - blockDiff
+
+  let (estimatedBlockTimestamp, _) = await blockNumberAndTimestamp(
+    provider, BlockTag.init(estimatedBlockNumber))
+
+  var low = 0.u256
+  var high = latestBlockNumber
+  if estimatedBlockTimestamp < epochTimeUInt256:
+    low = estimatedBlockNumber
+  else:
+    high = estimatedBlockNumber
+
+  while low <= high:
+    let mid = (low + high) div 2
+    let (midBlockTimestamp, midBlockNumber) = 
+      await blockNumberAndTimestamp(provider, BlockTag.init(mid))
+    
+    if midBlockTimestamp < epochTimeUInt256:
+      low = mid + 1
+    elif midBlockTimestamp > epochTimeUInt256:
+      high = mid - 1
+    else:
+      return midBlockNumber
+
+  let (_, lowTimestamp) = await blockNumberAndTimestamp(
+    provider, BlockTag.init(low))
+  let (_, highTimestamp) = await blockNumberAndTimestamp(
+    provider, BlockTag.init(high))
+  try:
+    if abs(lowTimestamp.stint(256) - epochTimeUInt256.stint(256)) <
+        abs(highTimestamp.stint(256) - epochTimeUInt256.stint(256)):
+      low
+    else:
+      high
+  except ValueError as e:
+    raise newException(EthersError, fmt"Conversion error: {e.msg}")
+
+method queryPastEvents*[T: MarketplaceEvent](
+  market: OnChainMarket,
+  _: type T,
+  fromTime: int64): Future[seq[T]] {.async.} =
+
+  convertEthersError:
+    let contract = market.contract
+    let provider = contract.provider
+
+    let blockNumberForEpoch = await blockNumberForEpoch(fromTime, provider)
+
+    let fromBlock = BlockTag.init(blockNumberForEpoch)
 
     return await contract.queryFilter(T,
                                       fromBlock,
