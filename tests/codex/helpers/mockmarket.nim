@@ -305,11 +305,19 @@ method canProofBeMarkedAsMissing*(market: MockMarket,
                                   period: Period): Future[bool] {.async.} =
   return market.canBeMarkedAsMissing.contains(id)
 
-method reserveSlot*(market: MockMarket, id: SlotId) {.async.} =
+method reserveSlot*(
+  market: MockMarket,
+  requestId: RequestId,
+  slotIndex: UInt256) {.async.} =
+
   if error =? market.reserveSlotThrowError:
     raise error
 
-method canReserveSlot*(market: MockMarket, id: SlotId): Future[bool] {.async.} =
+method canReserveSlot*(
+  market: MockMarket,
+  requestId: RequestId,
+  slotIndex: UInt256): Future[bool] {.async.} =
+
   return market.canReserveSlot
 
 func setCanReserveSlot*(market: MockMarket, canReserveSlot: bool) =
