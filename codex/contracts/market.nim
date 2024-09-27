@@ -540,11 +540,9 @@ proc blockNumberForEpoch(epochTime: int64, provider: Provider): Future[UInt256]
   except ValueError as e:
     raise newException(EthersError, fmt"Conversion error: {e.msg}")
 
-method queryPastEvents*[T: MarketplaceEvent](
+method queryPastSlotFilledEvents*(
   market: OnChainMarket,
-  _: type T,
-  fromTime: int64): Future[seq[T]] {.async.} =
-
+  fromTime: int64): Future[seq[SlotFilled]] {.async.} =
   convertEthersError:
     let contract = market.contract
     let provider = contract.provider
@@ -553,6 +551,6 @@ method queryPastEvents*[T: MarketplaceEvent](
 
     let fromBlock = BlockTag.init(blockNumberForEpoch)
 
-    return await contract.queryFilter(T,
+    return await contract.queryFilter(SlotFilled,
                                       fromBlock,
                                       BlockTag.latest)
