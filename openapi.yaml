@@ -334,7 +334,7 @@ components:
         quotaUsedBytes:
           type: integer
           format: int64
-          description: "Amount of storage space (in bytes) currently in use by availabilities for existing files."
+          description: "Amount of storage space (in bytes) currently used for storing files in Codex's local repository."
         quotaReservedBytes:
           type: integer
           format: int64
