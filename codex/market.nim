@@ -249,8 +249,7 @@ method queryPastEvents*[T: MarketplaceEvent](
   blocksAgo: int): Future[seq[T]] {.base, async.} =
   raiseAssert("not implemented")
 
-method queryPastEvents*[T: MarketplaceEvent](
+method queryPastSlotFilledEvents*(
   market: Market,
-  _: type T,
-  fromTime: int64): Future[seq[T]] {.base, async.} =
+  fromTime: int64): Future[seq[SlotFilled]] {.base, async.} =
   raiseAssert("not implemented")

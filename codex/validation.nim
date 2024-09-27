@@ -129,7 +129,7 @@ proc epochForDurationBackFromNow(duration: times.Duration): int64 =
 
 proc restoreHistoricalState(validation: Validation) {.async} =
   let startTimeEpoch = epochForDurationBackFromNow(MaxStorageRequestDuration)
-  let slotFilledEvents = await validation.market.queryPastEvents(SlotFilled,
+  let slotFilledEvents = await validation.market.queryPastSlotFilledEvents(
     fromTime = startTimeEpoch)
   for event in slotFilledEvents:
     let slotId = slotId(event.requestId, event.slotIndex)
