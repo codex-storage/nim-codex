@@ -485,6 +485,13 @@ method queryPastEvents*[T: MarketplaceEvent](
       SlotFilled(requestId: slot.requestId, slotIndex: slot.slotIndex)
     )
 
+method queryPastSlotFilledEvents*(
+    market: MockMarket,
+    fromTime: int64): Future[seq[SlotFilled]] {.async.} =
+  return market.filled.map(slot =>
+    SlotFilled(requestId: slot.requestId, slotIndex: slot.slotIndex)
+  )
+
 method unsubscribe*(subscription: RequestSubscription) {.async.} =
   subscription.market.subscriptions.onRequest.keepItIf(it != subscription)
 
