@@ -330,7 +330,7 @@ components:
         quotaMaxBytes:
           type: integer
           format: int64
-          description: "Maximum storage space (in bytes) used by the node on the hard drive."
+          description: "Maximum storage space (in bytes) available for the node in Codex's local repository."
         quotaUsedBytes:
           type: integer
           format: int64
