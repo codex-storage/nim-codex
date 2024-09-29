@@ -628,26 +628,26 @@ This returns a result like:
 
 ```json
 {
-	"requestId": "0x86501e4677a728c6a8031971d09b921c3baa268af06b9f17f1b745e7dba5d330",
-	"request": {
-		"client": "0x9f0c62fe60b22301751d6cde1175526b9280b965",
-		"ask": {
-			"slots": 3,
-			"slotSize": "262144",
-			"duration": "1000",
-			"proofProbability": "3",
-			"reward": "1",
-			"collateral": "1",
-			"maxSlotLoss": 1
-		},
-		"content": {
-			"cid": "zDvZRwzkyw1E7ABaUSmgtNEDjC7opzhUoHo99Vpvc98cDWeCs47u"
-		},
-		"expiry": "1711992852",
-		"nonce": "0x9f5e651ecd3bf73c914f8ed0b1088869c64095c0d7bd50a38fc92ebf66ff5915",
-		"id": "0x6c698cd0ad71c41982f83097d6fa75beb582924e08a658357a1cd4d7a2a6766d"
-	},
-	"state": "submitted",
+  "requestId": "0x86501e4677a728c6a8031971d09b921c3baa268af06b9f17f1b745e7dba5d330",
+  "request": {
+    "client": "0x9f0c62fe60b22301751d6cde1175526b9280b965",
+    "ask": {
+      "slots": 3,
+      "slotSize": "262144",
+      "duration": "1000",
+      "proofProbability": "3",
+      "reward": "1",
+      "collateral": "1",
+      "maxSlotLoss": 1
+    },
+    "content": {
+      "cid": "zDvZRwzkyw1E7ABaUSmgtNEDjC7opzhUoHo99Vpvc98cDWeCs47u"
+    },
+    "expiry": "1711992852",
+    "nonce": "0x9f5e651ecd3bf73c914f8ed0b1088869c64095c0d7bd50a38fc92ebf66ff5915",
+    "id": "0x6c698cd0ad71c41982f83097d6fa75beb582924e08a658357a1cd4d7a2a6766d"
+  },
+  "state": "submitted",
   "error": null
 }
 ```
