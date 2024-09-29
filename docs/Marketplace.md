@@ -5,6 +5,13 @@ _storage marketplace_ enabled; i.e., the functionality in Codex which
 allows participants to offer and buy storage in a market, ensuring that
 storage providers honor their part of the deal by means of cryptographic proofs.
 
+In this tutorial, you will:
+
+1. [Set Up a Geth PoA network](#1-set-up-a-geth-poa-network);
+2. [Set up The Marketplace](#2-set-up-the-marketplace);
+3. [Run Codex](#3-run-codex);
+4. [Buy and Sell Storage in the Marketplace](#4-buy-and-sell-storage-on-the-marketplace).
+
 ## Prerequisites
 
 To complete this tutorial, you will need:
@@ -17,13 +24,6 @@ To complete this tutorial, you will need:
 We will also be using [bash](https://en.wikipedia.org/wiki/Bash_(Unix_shell))
 syntax throughout. If you use a different shell, you may need to adapt
 things to your platform.
-
-In this tutorial, you will:
-
-1. [Set Up a Geth PoA network](#1-set-up-a-geth-poa-network);
-2. [Set up The Marketplace](#2-set-up-the-marketplace);
-3. [Run Codex](#3-run-codex);
-4. [Buy and Sell Storage in the Marketplace](#4-buy-and-sell-storage-on-the-marketplace).
 
 To get started, create a new folder where we will keep the tutorial-related
 files so that we can keep them separate from the codex repository.
@@ -88,7 +88,7 @@ We will be running a [pre-merge](https://ethereum.org/en/roadmap/merge/)
 network with Proof-of-Authority consensus.
 To get that working, create a `network.json` file.
 
-If you set the GETH_SIGNER_ADDR variable above you can run the following
+If you set the `GETH_SIGNER_ADDR` variable above you can run the following
 command to create the `network.json` file:
 
 ```bash
