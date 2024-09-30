@@ -25,6 +25,7 @@ import pkg/datastore
 import pkg/ethers except Rng
 import pkg/stew/io2
 import pkg/taskpools
+import pkg/metrics, pkg/metrics/chronos_httpserver
 
 import ./node
 import ./conf
@@ -147,6 +148,8 @@ proc bootstrapInteractions(
 
 proc start*(s: CodexServer) {.async.} =
   trace "Starting codex node", config = $s.config
+
+  startMetricsHttpServer()
 
   await s.repoStore.start()
   s.maintenance.start()
