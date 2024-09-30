@@ -54,6 +54,7 @@ type
     onFulfillment: seq[FulfillmentSubscription]
     onSlotFilled: seq[SlotFilledSubscription]
     onSlotFreed: seq[SlotFreedSubscription]
+    onSlotReservationsFull: seq[SlotReservationsFullSubscription]
     onRequestCancelled: seq[RequestCancelledSubscription]
     onRequestFailed: seq[RequestFailedSubscription]
     onProofSubmitted: seq[ProofSubmittedSubscription]
@@ -72,6 +73,9 @@ type
   SlotFreedSubscription* = ref object of Subscription
     market: MockMarket
     callback: OnSlotFreed
+  SlotReservationsFullSubscription* = ref object of Subscription
+    market: MockMarket
+    callback: OnSlotReservationsFull
   RequestCancelledSubscription* = ref object of Subscription
     market: MockMarket
     requestId: ?RequestId
@@ -199,6 +203,15 @@ proc emitSlotFreed*(market: MockMarket,
                     requestId: RequestId,
                     slotIndex: UInt256) =
   var subscriptions = market.subscriptions.onSlotFreed
+  for subscription in subscriptions:
+    subscription.callback(requestId, slotIndex)
+
+proc emitSlotReservationsFull*(
+  market: MockMarket,
+  requestId: RequestId,
+  slotIndex: UInt256) =
+
+  var subscriptions = market.subscriptions.onSlotReservationsFull
   for subscription in subscriptions:
     subscription.callback(requestId, slotIndex)
 
@@ -389,6 +402,15 @@ method subscribeSlotFreed*(market: MockMarket,
   market.subscriptions.onSlotFreed.add(subscription)
   return subscription
 
+method subscribeSlotReservationsFull*(
+  market: MockMarket,
+  callback: OnSlotReservationsFull): Future[Subscription] {.async.} =
+
+  let subscription =
+    SlotReservationsFullSubscription(market: market, callback: callback)
+  market.subscriptions.onSlotReservationsFull.add(subscription)
+  return subscription
+
 method subscribeRequestCancelled*(market: MockMarket,
                                   callback: OnRequestCancelled):
                                  Future[Subscription] {.async.} =
@@ -481,3 +503,6 @@ method unsubscribe*(subscription: RequestFailedSubscription) {.async.} =
 
 method unsubscribe*(subscription: ProofSubmittedSubscription) {.async.} =
   subscription.market.subscriptions.onProofSubmitted.keepItIf(it != subscription)
+
+method unsubscribe*(subscription: SlotReservationsFullSubscription) {.async.} =
+  subscription.market.subscriptions.onSlotReservationsFull.keepItIf(it != subscription)

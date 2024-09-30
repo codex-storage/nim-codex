@@ -465,6 +465,23 @@ proc subscribeSlotFreed(sales: Sales) {.async.} =
   except CatchableError as e:
     error "Unable to subscribe to slot freed events", msg = e.msg
 
+proc subscribeSlotReservationsFull(sales: Sales) {.async.} =
+  let context = sales.context
+  let market = context.market
+  let queue = context.slotQueue
+
+  proc onSlotReservationsFull(requestId: RequestId, slotIndex: UInt256) =
+    trace "reservations for slot full, removing from slot queue", requestId, slotIndex
+    queue.delete(requestId, slotIndex.truncate(uint16))
+
+  try:
+    let sub = await market.subscribeSlotReservationsFull(onSlotReservationsFull)
+    sales.subscriptions.add(sub)
+  except CancelledError as error:
+    raise error
+  except CatchableError as e:
+    error "Unable to subscribe to slot filled events", msg = e.msg
+
 proc startSlotQueue(sales: Sales) {.async.} =
   let slotQueue = sales.context.slotQueue
   let reservations = sales.context.reservations
@@ -488,6 +505,7 @@ proc subscribe(sales: Sales) {.async.} =
   await sales.subscribeSlotFilled()
   await sales.subscribeSlotFreed()
   await sales.subscribeCancellation()
+  await sales.subscribeSlotReservationsFull()
 
 proc unsubscribe(sales: Sales) {.async.} =
   for sub in sales.subscriptions:
