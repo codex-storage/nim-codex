@@ -107,6 +107,17 @@ proc retrieveCid(
     if not stream.isNil:
       await stream.close()
 
+proc retrieveManifest(
+    node: CodexNodeRef, cid: Cid, resp: HttpResponseRef
+): Future[RestApiResponse] {.async.} =
+  without manifest =? await node.fetchManifest(cid), error:
+    trace "Unable to fetch manifest for cid", cid
+    return RestApiResponse.error(Http500)
+
+  var json = %RestContent.init(cid, manifest)
+
+  RestApiResponse.response(json.pretty(), contentType = "application/json")
+
 proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin # prevents capture inside of api defintion
 
@@ -715,6 +726,27 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500)
 
+proc initManifestApi(node: CodexNodeRef, router: var RestRouter) =
+  let allowedOrigin = router.allowedOrigin
+
+  router.api(MethodGet, "/api/codex/v1/manifest/{cid}/network") do(
+    cid: Cid, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    ## Download a manifest from the network in a streaming
+    ## manner
+    ##
+
+    if cid.isErr:
+      return RestApiResponse.error(Http400, $cid.error())
+
+    if corsOrigin =? allowedOrigin:
+      resp.setHeader("Access-Control-Allow-Origin", corsOrigin)
+      resp.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
+      resp.setHeader("Access-Control-Headers", "X-Requested-With")
+      resp.setHeader("Access-Control-Max-Age", "86400")
+
+    await node.retrieveManifest(cid.get(), resp = resp)
+
 proc initRestApi*(
   node: CodexNodeRef,
   conf: CodexConf,
@@ -728,5 +760,6 @@ proc initRestApi*(
   initPurchasingApi(node, router)
   initNodeApi(node, conf, router)
   initDebugApi(node, conf, router)
+  initManifestApi(node, router)
 
   return router
