@@ -79,7 +79,7 @@ echo ${GETH_SIGNER_ADDR} > geth_signer_address.txt
 
 > Here make sure you replace `0x0000000000000000000000000000000000000000`
 > with your public address of the signer account
-> (`0x93976895c4939d99837C8e0E1779787718EF8368` in our example).
+> (`0x33A904Ad57D0E2CB8ffe347D3C0E83C2e875E7dB` in our example).
 
 ### 1.2. Configure The Network and Create the Genesis Block
 
