@@ -75,7 +75,6 @@ type
     handlers*: BlockExcHandlers
     request*: BlockExcRequest
     getConn: ConnProvider
-    inflightSema: AsyncSemaphore
 
 proc peerId*(b: BlockExcNetwork): PeerId =
   ## Return peer id
@@ -99,14 +98,11 @@ proc send*(b: BlockExcNetwork, id: PeerId, msg: pb.Message) {.async.} =
 
   let peer = b.peers[id]
   try:
-    await b.inflightSema.acquire()
     await peer.send(msg)
   except CancelledError as error:
     raise error
   except CatchableError as err:
     error "Error sending message", peer = id, msg = err.msg
-  finally:
-    b.inflightSema.release()
 
 proc handleWantList(
   b: BlockExcNetwork,
@@ -332,8 +328,7 @@ proc new*(
   let
     self = BlockExcNetwork(
       switch: switch,
-      getConn: connProvider,
-      inflightSema: newAsyncSemaphore(maxInflight))
+      getConn: connProvider)
 
   proc sendWantList(
     id: PeerId,
