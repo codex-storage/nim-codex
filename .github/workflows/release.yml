@@ -99,14 +99,14 @@ jobs:
         with:
           name: release-${{ env.codex_binary }}
           path: ${{ env.build_dir }}/${{ env.codex_binary_base }}*
-          retention-days: 1
+          retention-days: 30
 
       - name: Release - Upload cirdl build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-${{ env.cirdl_binary }}
           path: ${{ env.build_dir }}/${{ env.cirdl_binary_base }}*
-          retention-days: 1
+          retention-days: 30
 
       - name: Release - Upload windows libs
         if: matrix.os == 'windows'
@@ -114,7 +114,7 @@ jobs:
         with:
           name: release-${{ matrix.os }}-libs
           path: ${{ env.build_dir }}/*.dll
-          retention-days: 1
+          retention-days: 30
 
   # Release
   release:
@@ -168,7 +168,7 @@ jobs:
         with:
           name: archives-and-checksums
           path: /tmp/release/
-          retention-days: 1
+          retention-days: 30
 
       - name: Release
         uses: softprops/action-gh-release@v2
