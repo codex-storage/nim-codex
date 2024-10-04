@@ -11,7 +11,7 @@ import ./cancelled
 import ./failed
 import ./filled
 import ./ignored
-import ./downloading
+import ./slotreserving
 import ./errored
 
 declareCounter(codex_reservations_availability_mismatch, "codex reservations availability_mismatch")
@@ -50,7 +50,7 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
   let slotId = slotId(data.requestId, data.slotIndex)
   let state = await market.slotState(slotId)
   if state != SlotState.Free:
-    return some State(SaleIgnored())
+    return some State(SaleIgnored(reprocessSlot: false, returnBytes: false))
 
   # TODO: Once implemented, check to ensure the host is allowed to fill the slot,
   # due to the [sliding window mechanism](https://github.com/codex-storage/codex-research/blob/master/design/marketplace.md#dispersal)
@@ -71,7 +71,7 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
       request.ask.collateral):
     debug "No availability found for request, ignoring"
 
-    return some State(SaleIgnored())
+    return some State(SaleIgnored(reprocessSlot: true))
 
   info "Availability found for request, creating reservation"
 
@@ -88,11 +88,11 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
     if error of BytesOutOfBoundsError:
        # Lets monitor how often this happen and if it is often we can make it more inteligent to handle it
       codex_reservations_availability_mismatch.inc()
-      return some State(SaleIgnored())
+      return some State(SaleIgnored(reprocessSlot: true))
 
     return some State(SaleErrored(error: error))
 
   trace "Reservation created succesfully"
 
   data.reservation = some reservation
-  return some State(SaleDownloading())
+  return some State(SaleSlotReserving())

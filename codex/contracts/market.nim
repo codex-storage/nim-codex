@@ -247,6 +247,22 @@ method canProofBeMarkedAsMissing*(
     trace "Proof cannot be marked as missing", msg = e.msg
     return false
 
+method reserveSlot*(
+  market: OnChainMarket,
+  requestId: RequestId,
+  slotIndex: UInt256) {.async.} =
+
+  convertEthersError:
+    discard await market.contract.reserveSlot(requestId, slotIndex).confirm(0)
+
+method canReserveSlot*(
+  market: OnChainMarket,
+  requestId: RequestId,
+  slotIndex: UInt256): Future[bool] {.async.} =
+
+  convertEthersError:
+    return await market.contract.canReserveSlot(requestId, slotIndex)
+
 method subscribeRequests*(market: OnChainMarket,
                          callback: OnRequest):
                         Future[MarketSubscription] {.async.} =
