@@ -39,7 +39,8 @@ asyncchecksuite "sales state 'ignored'":
     agent.onCleanUp = onCleanUp
     state = SaleIgnored.new()
 
-  test "calls onCleanUp with returnBytes = false and reprocessSlot = true":
+  test "calls onCleanUp with values assigned to SaleIgnored":
+    state = SaleIgnored(reprocessSlot: true, returnBytes: true)
     discard await state.run(agent)
-    check eventually returnBytesWas == false
+    check eventually returnBytesWas == true
     check eventually reprocessSlotWas == true

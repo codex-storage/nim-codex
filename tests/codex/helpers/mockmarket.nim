@@ -38,6 +38,8 @@ type
     signer: Address
     subscriptions: Subscriptions
     config*: MarketplaceConfig
+    canReserveSlot*: bool
+    reserveSlotThrowError*: ?(ref MarketError)
   Fulfillment* = object
     requestId*: RequestId
     proof*: Groth16Proof
@@ -105,7 +107,7 @@ proc new*(_: type MockMarket): MockMarket =
       downtimeProduct: 67.uint8
     )
   )
-  MockMarket(signer: Address.example, config: config)
+  MockMarket(signer: Address.example, config: config, canReserveSlot: true)
 
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
@@ -302,6 +304,29 @@ method canProofBeMarkedAsMissing*(market: MockMarket,
                                   id: SlotId,
                                   period: Period): Future[bool] {.async.} =
   return market.canBeMarkedAsMissing.contains(id)
+
+method reserveSlot*(
+  market: MockMarket,
+  requestId: RequestId,
+  slotIndex: UInt256) {.async.} =
+
+  if error =? market.reserveSlotThrowError:
+    raise error
+
+method canReserveSlot*(
+  market: MockMarket,
+  requestId: RequestId,
+  slotIndex: UInt256): Future[bool] {.async.} =
+
+  return market.canReserveSlot
+
+func setCanReserveSlot*(market: MockMarket, canReserveSlot: bool) =
+  market.canReserveSlot = canReserveSlot
+
+func setReserveSlotThrowError*(
+  market: MockMarket, error: ?(ref MarketError)) =
+
+  market.reserveSlotThrowError = error
 
 method subscribeRequests*(market: MockMarket,
                           callback: OnRequest):
