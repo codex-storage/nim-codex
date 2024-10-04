@@ -71,8 +71,9 @@ jobs:
             macos*)   os_name="darwin"  ;;
             windows*) os_name="windows" ;;
           esac
-          codex_binary="${{ env.codex_binary_base }}-${{ github.ref_name }}-${os_name}-${{ matrix.cpu }}"
-          cirdl_binary="${{ env.cirdl_binary_base }}-${{ github.ref_name }}-${os_name}-${{ matrix.cpu }}"
+          github_ref_name="${GITHUB_REF_NAME/\//-}"
+          codex_binary="${{ env.codex_binary_base }}-${github_ref_name}-${os_name}-${{ matrix.cpu }}"
+          cirdl_binary="${{ env.cirdl_binary_base }}-${github_ref_name}-${os_name}-${{ matrix.cpu }}"
           if [[ ${os_name} == "windows" ]]; then
             codex_binary="${codex_binary}.exe"
             cirdl_binary="${cirdl_binary}.exe"
