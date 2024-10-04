@@ -260,7 +260,8 @@ method canReserveSlot*(
   requestId: RequestId,
   slotIndex: UInt256): Future[bool] {.async.} =
 
-  await market.contract.canReserveSlot(requestId, slotIndex)
+  convertEthersError:
+    return await market.contract.canReserveSlot(requestId, slotIndex)
 
 method subscribeRequests*(market: OnChainMarket,
                          callback: OnRequest):
