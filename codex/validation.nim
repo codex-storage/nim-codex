@@ -1,35 +1,38 @@
 import std/sets
 import std/sequtils
 import pkg/chronos
+import pkg/questionable/results
+
+import ./validationconfig
 import ./market
 import ./clock
 import ./logutils
 
 export market
 export sets
+export validationconfig
 
 type
   Validation* = ref object
     slots: HashSet[SlotId]
-    maxSlots: int
     clock: Clock
     market: Market
     subscriptions: seq[Subscription]
     running: Future[void]
     periodicity: Periodicity
     proofTimeout: UInt256
+    config: ValidationConfig
 
 logScope:
   topics = "codex validator"
 
 proc new*(
-    _: type Validation,
-    clock: Clock,
-    market: Market,
-    maxSlots: int
+  _: type Validation,
+  clock: Clock,
+  market: Market,
+  config: ValidationConfig
 ): Validation =
-  ## Create a new Validation instance
-  Validation(clock: clock, market: market, maxSlots: maxSlots)
+  Validation(clock: clock, market: market, config: config)
 
 proc slots*(validation: Validation): seq[SlotId] =
   validation.slots.toSeq
@@ -43,13 +46,29 @@ proc waitUntilNextPeriod(validation: Validation) {.async.} =
   trace "Waiting until next period", currentPeriod = period
   await validation.clock.waitUntil(periodEnd.truncate(int64) + 1)
 
+func groupIndexForSlotId*(slotId: SlotId,
+                          validationGroups: ValidationGroups): uint16 =
+  let slotIdUInt256 = UInt256.fromBytesBE(slotId.toArray)
+  (slotIdUInt256 mod validationGroups.u256).truncate(uint16)
+
+func maxSlotsConstraintRespected(validation: Validation): bool =
+  validation.config.maxSlots == 0 or
+    validation.slots.len < validation.config.maxSlots
+
+func shouldValidateSlot(validation: Validation, slotId: SlotId): bool =
+  if (validationGroups =? validation.config.groups):
+    (groupIndexForSlotId(slotId, validationGroups) ==
+    validation.config.groupIndex) and
+    validation.maxSlotsConstraintRespected
+  else:
+    validation.maxSlotsConstraintRespected
+
 proc subscribeSlotFilled(validation: Validation) {.async.} =
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
     let slotId = slotId(requestId, slotIndex)
-    if slotId notin validation.slots:
-      if validation.slots.len < validation.maxSlots:
-        trace "Adding slot", slotId
-        validation.slots.incl(slotId)
+    if validation.shouldValidateSlot(slotId):
+      trace "Adding slot", slotId
+      validation.slots.incl(slotId)
   let subscription = await validation.market.subscribeSlotFilled(onSlotFilled)
   validation.subscriptions.add(subscription)
 

@@ -8,8 +8,13 @@ import ./errorhandling
 logScope:
   topics = "marketplace sales ignored"
 
+# Ignored slots could mean there was no availability or that the slot could
+# not be reserved.
+
 type
   SaleIgnored* = ref object of ErrorHandlingState
+    reprocessSlot*: bool # readd slot to queue with `seen` flag
+    returnBytes*: bool # return unreleased bytes from Reservation to Availability
 
 method `$`*(state: SaleIgnored): string = "SaleIgnored"
 
@@ -17,7 +22,5 @@ method run*(state: SaleIgnored, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
 
   if onCleanUp =? agent.onCleanUp:
-    # Ignored slots mean there was no availability. In order to prevent small
-    # availabilities from draining the queue, mark this slot as seen and re-add
-    # back into the queue.
-    await onCleanUp(reprocessSlot = true)
+    await onCleanUp(reprocessSlot = state.reprocessSlot,
+                    returnBytes = state.returnBytes)

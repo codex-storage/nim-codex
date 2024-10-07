@@ -38,6 +38,8 @@ type
     signer: Address
     subscriptions: Subscriptions
     config*: MarketplaceConfig
+    canReserveSlot*: bool
+    reserveSlotThrowError*: ?(ref MarketError)
   Fulfillment* = object
     requestId*: RequestId
     proof*: Groth16Proof
@@ -52,6 +54,7 @@ type
     onFulfillment: seq[FulfillmentSubscription]
     onSlotFilled: seq[SlotFilledSubscription]
     onSlotFreed: seq[SlotFreedSubscription]
+    onSlotReservationsFull: seq[SlotReservationsFullSubscription]
     onRequestCancelled: seq[RequestCancelledSubscription]
     onRequestFailed: seq[RequestFailedSubscription]
     onProofSubmitted: seq[ProofSubmittedSubscription]
@@ -70,6 +73,9 @@ type
   SlotFreedSubscription* = ref object of Subscription
     market: MockMarket
     callback: OnSlotFreed
+  SlotReservationsFullSubscription* = ref object of Subscription
+    market: MockMarket
+    callback: OnSlotReservationsFull
   RequestCancelledSubscription* = ref object of Subscription
     market: MockMarket
     requestId: ?RequestId
@@ -105,7 +111,7 @@ proc new*(_: type MockMarket): MockMarket =
       downtimeProduct: 67.uint8
     )
   )
-  MockMarket(signer: Address.example, config: config)
+  MockMarket(signer: Address.example, config: config, canReserveSlot: true)
 
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
@@ -197,6 +203,15 @@ proc emitSlotFreed*(market: MockMarket,
                     requestId: RequestId,
                     slotIndex: UInt256) =
   var subscriptions = market.subscriptions.onSlotFreed
+  for subscription in subscriptions:
+    subscription.callback(requestId, slotIndex)
+
+proc emitSlotReservationsFull*(
+  market: MockMarket,
+  requestId: RequestId,
+  slotIndex: UInt256) =
+
+  var subscriptions = market.subscriptions.onSlotReservationsFull
   for subscription in subscriptions:
     subscription.callback(requestId, slotIndex)
 
@@ -303,6 +318,29 @@ method canProofBeMarkedAsMissing*(market: MockMarket,
                                   period: Period): Future[bool] {.async.} =
   return market.canBeMarkedAsMissing.contains(id)
 
+method reserveSlot*(
+  market: MockMarket,
+  requestId: RequestId,
+  slotIndex: UInt256) {.async.} =
+
+  if error =? market.reserveSlotThrowError:
+    raise error
+
+method canReserveSlot*(
+  market: MockMarket,
+  requestId: RequestId,
+  slotIndex: UInt256): Future[bool] {.async.} =
+
+  return market.canReserveSlot
+
+func setCanReserveSlot*(market: MockMarket, canReserveSlot: bool) =
+  market.canReserveSlot = canReserveSlot
+
+func setReserveSlotThrowError*(
+  market: MockMarket, error: ?(ref MarketError)) =
+
+  market.reserveSlotThrowError = error
+
 method subscribeRequests*(market: MockMarket,
                           callback: OnRequest):
                          Future[Subscription] {.async.} =
@@ -362,6 +400,15 @@ method subscribeSlotFreed*(market: MockMarket,
                           Future[Subscription] {.async.} =
   let subscription = SlotFreedSubscription(market: market, callback: callback)
   market.subscriptions.onSlotFreed.add(subscription)
+  return subscription
+
+method subscribeSlotReservationsFull*(
+  market: MockMarket,
+  callback: OnSlotReservationsFull): Future[Subscription] {.async.} =
+
+  let subscription =
+    SlotReservationsFullSubscription(market: market, callback: callback)
+  market.subscriptions.onSlotReservationsFull.add(subscription)
   return subscription
 
 method subscribeRequestCancelled*(market: MockMarket,
@@ -456,3 +503,6 @@ method unsubscribe*(subscription: RequestFailedSubscription) {.async.} =
 
 method unsubscribe*(subscription: ProofSubmittedSubscription) {.async.} =
   subscription.market.subscriptions.onProofSubmitted.keepItIf(it != subscription)
+
+method unsubscribe*(subscription: SlotReservationsFullSubscription) {.async.} =
+  subscription.market.subscriptions.onSlotReservationsFull.keepItIf(it != subscription)

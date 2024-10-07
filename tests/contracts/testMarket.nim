@@ -200,6 +200,30 @@ ethersuite "On-Chain Market":
     check receivedIdxs == @[slotIndex]
     await subscription.unsubscribe()
 
+  test "supports slot reservations full subscriptions":
+    let account2 = ethProvider.getSigner(accounts[2])
+    let account3 = ethProvider.getSigner(accounts[3])
+
+    await market.requestStorage(request)
+
+    var receivedRequestIds: seq[RequestId] = @[]
+    var receivedIdxs: seq[UInt256] = @[]
+    proc onSlotReservationsFull(requestId: RequestId, idx: UInt256) =
+      receivedRequestIds.add(requestId)
+      receivedIdxs.add(idx)
+    let subscription =
+      await market.subscribeSlotReservationsFull(onSlotReservationsFull)
+
+    await market.reserveSlot(request.id, slotIndex)
+    switchAccount(account2)
+    await market.reserveSlot(request.id, slotIndex)
+    switchAccount(account3)
+    await market.reserveSlot(request.id, slotIndex)
+
+    check receivedRequestIds == @[request.id]
+    check receivedIdxs == @[slotIndex]
+    await subscription.unsubscribe()
+
   test "support fulfillment subscriptions":
     await market.requestStorage(request)
     var receivedIds: seq[RequestId]

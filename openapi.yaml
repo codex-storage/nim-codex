@@ -83,33 +83,12 @@ components:
         id:
           $ref: "#/components/schemas/PeerId"
 
-    ErasureParameters:
-      type: object
-      properties:
-        totalChunks:
-          type: integer
-
-    PoRParameters:
-      description: Parameters for Proof of Retrievability
-      type: object
-      properties:
-        u:
-          type: string
-        publicKey:
-          type: string
-        name:
-          type: string
-
     Content:
       type: object
       description: Parameters specifying the content
       properties:
         cid:
           $ref: "#/components/schemas/Cid"
-        erasure:
-          $ref: "#/components/schemas/ErasureParameters"
-        por:
-          $ref: "#/components/schemas/PoRParameters"
 
     DebugInfo:
       type: object
