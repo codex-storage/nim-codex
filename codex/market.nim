@@ -243,13 +243,27 @@ method subscribeProofSubmission*(market: Market,
 method unsubscribe*(subscription: Subscription) {.base, async, upraises:[].} =
   raiseAssert("not implemented")
 
-method queryPastEvents*[T: MarketplaceEvent](
-  market: Market,
-  _: type T,
-  blocksAgo: int): Future[seq[T]] {.base, async.} =
+method queryPastSlotFilledEvents*(
+    market: Market,
+    fromBlock: BlockTag): Future[seq[SlotFilled]] {.base, async.} =
   raiseAssert("not implemented")
 
 method queryPastSlotFilledEvents*(
-  market: Market,
-  fromTime: int64): Future[seq[SlotFilled]] {.base, async.} =
+    market: Market,
+    blocksAgo: int): Future[seq[SlotFilled]] {.base, async.} =
+  raiseAssert("not implemented")
+
+method queryPastStorageRequestedEvents*(
+    market: Market,
+    fromBlock: BlockTag): Future[seq[StorageRequested]] {.base, async.} =
+  raiseAssert("not implemented")
+
+method queryPastStorageRequestedEvents*(
+    market: Market,
+    blocksAgo: int): Future[seq[StorageRequested]] {.base, async.} =
+  raiseAssert("not implemented")
+
+method queryPastSlotFilledEvents*(
+    market: Market,
+    fromTime: int64): Future[seq[SlotFilled]] {.base, async.} =
   raiseAssert("not implemented")
