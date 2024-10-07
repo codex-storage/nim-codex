@@ -307,6 +307,17 @@ method subscribeSlotFreed*(market: OnChainMarket,
     let subscription = await market.contract.subscribe(SlotFreed, onEvent)
     return OnChainMarketSubscription(eventSubscription: subscription)
 
+method subscribeSlotReservationsFull*(
+  market: OnChainMarket,
+  callback: OnSlotReservationsFull): Future[MarketSubscription] {.async.} =
+
+  proc onEvent(event: SlotReservationsFull) {.upraises:[].} =
+    callback(event.requestId, event.slotIndex)
+
+  convertEthersError:
+    let subscription = await market.contract.subscribe(SlotReservationsFull, onEvent)
+    return OnChainMarketSubscription(eventSubscription: subscription)
+
 method subscribeFulfillment(market: OnChainMarket,
                             callback: OnFulfillment):
                            Future[MarketSubscription] {.async.} =

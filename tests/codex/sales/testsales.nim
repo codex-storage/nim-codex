@@ -270,6 +270,12 @@ asyncchecksuite "Sales":
     let expected = SlotQueueItem.init(request1, 1'u16)
     check always (not itemsProcessed.contains(expected))
 
+  test "removes slot index from slot queue once SlotReservationsFull emitted":
+    let request1 = await addRequestToSaturatedQueue()
+    market.emitSlotReservationsFull(request1.id, 1.u256)
+    let expected = SlotQueueItem.init(request1, 1'u16)
+    check always (not itemsProcessed.contains(expected))
+
   test "adds slot index to slot queue once SlotFreed emitted":
     queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
       itemsProcessed.add item
