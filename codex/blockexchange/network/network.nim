@@ -93,18 +93,20 @@ proc send*(b: BlockExcNetwork, id: PeerId, msg: pb.Message) {.async.} =
   ## Send message to peer
   ##
 
-  b.peers.withValue(id, peer):
-    try:
-      await b.inflightSema.acquire()
-      await peer[].send(msg)
-    except CancelledError as error:
-      raise error
-    except CatchableError as err:
-      error "Error sending message", peer = id, msg = err.msg
-    finally:
-      b.inflightSema.release()
-  do:
+  if not (id in b.peers):
     trace "Unable to send, peer not found", peerId = id
+    return
+
+  let peer = b.peers[id]
+  try:
+    await b.inflightSema.acquire()
+    await peer.send(msg)
+  except CancelledError as error:
+    raise error
+  except CatchableError as err:
+    error "Error sending message", peer = id, msg = err.msg
+  finally:
+    b.inflightSema.release()
 
 proc handleWantList(
   b: BlockExcNetwork,
