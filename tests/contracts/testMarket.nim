@@ -407,7 +407,8 @@ ethersuite "On-Chain Market":
     # ago".
 
     proc getsPastRequest(): Future[bool] {.async.} =
-      let reqs = await market.queryPastEvents(StorageRequested, 5)
+      let reqs =
+        await market.queryPastStorageRequestedEvents(blocksAgo = 5)
       reqs.mapIt(it.requestId) == @[request.id, request1.id, request2.id]
 
     check eventually await getsPastRequest()
@@ -426,7 +427,8 @@ ethersuite "On-Chain Market":
     # two PoA blocks per `fillSlot` call (6 blocks for 3 calls). We don't need
     # to check the `approve` for the first `fillSlot` call, so we only need to
     # check 5 "blocks ago".
-    let events = await market.queryPastEvents(SlotFilled, 5)
+    let events =
+      await market.queryPastSlotFilledEvents(blocksAgo = 5)
     check events == @[
       SlotFilled(requestId: request.id, slotIndex: 0.u256),
       SlotFilled(requestId: request.id, slotIndex: 1.u256),
@@ -437,8 +439,8 @@ ethersuite "On-Chain Market":
     await market.requestStorage(request)
 
     check eventually (
-      (await market.queryPastEvents(StorageRequested, blocksAgo = -2)) ==
-      (await market.queryPastEvents(StorageRequested, blocksAgo = 2))
+      (await market.queryPastStorageRequestedEvents(blocksAgo = -2)) ==
+      (await market.queryPastStorageRequestedEvents(blocksAgo = 2))
     )
 
   test "pays rewards and collateral to host":
