@@ -333,6 +333,11 @@ type
         name: "reward-recipient"
       .}: Option[EthAddress]
 
+      rewardRecipient* {.
+        desc: "Address to send payouts to (eg rewards and refunds)"
+        name: "reward-recipient"
+      .}: Option[EthAddress]
+
       case persistenceCmd* {.
         defaultValue: noCmd
         command }: PersistenceCmd
