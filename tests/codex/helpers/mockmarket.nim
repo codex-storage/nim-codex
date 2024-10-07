@@ -8,6 +8,9 @@ import pkg/codex/market
 import pkg/codex/contracts/requests
 import pkg/codex/contracts/proofs
 import pkg/codex/contracts/config
+
+from pkg/ethers import BlockTag
+
 import ../examples
 
 export market
@@ -469,21 +472,37 @@ method subscribeProofSubmission*(mock: MockMarket,
   mock.subscriptions.onProofSubmitted.add(subscription)
   return subscription
 
-method queryPastEvents*[T: MarketplaceEvent](
-  market: MockMarket,
-  _: type T,
-  blocksAgo: int): Future[seq[T]] {.async.} =
+method queryPastStorageRequestedEvents*(
+    market: MockMarket,
+    fromBlock: BlockTag): Future[seq[StorageRequested]] {.async.} =
+  return market.requested.map(request =>
+    StorageRequested(requestId: request.id,
+                     ask: request.ask,
+                     expiry: request.expiry)
+  )
 
-  if T of StorageRequested:
-    return market.requested.map(request =>
-      StorageRequested(requestId: request.id,
-                       ask: request.ask,
-                       expiry: request.expiry)
-    )
-  elif T of SlotFilled:
-    return market.filled.map(slot =>
-      SlotFilled(requestId: slot.requestId, slotIndex: slot.slotIndex)
-    )
+method queryPastStorageRequestedEvents*(
+    market: MockMarket,
+    blocksAgo: int): Future[seq[StorageRequested]] {.async.} =
+  return market.requested.map(request =>
+    StorageRequested(requestId: request.id,
+                     ask: request.ask,
+                     expiry: request.expiry)
+  )
+
+method queryPastSlotFilledEvents*(
+    market: MockMarket,
+    fromBlock: BlockTag): Future[seq[SlotFilled]] {.async.} =
+  return market.filled.map(slot =>
+    SlotFilled(requestId: slot.requestId, slotIndex: slot.slotIndex)
+  )
+
+method queryPastSlotFilledEvents*(
+    market: MockMarket,
+    blocksAgo: int): Future[seq[SlotFilled]] {.async.} =
+  return market.filled.map(slot =>
+    SlotFilled(requestId: slot.requestId, slotIndex: slot.slotIndex)
+  )
 
 method queryPastSlotFilledEvents*(
     market: MockMarket,
