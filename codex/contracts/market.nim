@@ -468,21 +468,10 @@ method subscribeProofSubmission*(market: OnChainMarket,
 method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =
   await subscription.eventSubscription.unsubscribe()
 
-method queryPastEvents*[T: MarketplaceEvent](
-  market: OnChainMarket,
-  _: type T,
-  blocksAgo: int): Future[seq[T]] {.async.} =
-
-  convertEthersError:
-    let contract = market.contract
-    let provider = contract.provider
-
-    let head = await provider.getBlockNumber()
-    let fromBlock = BlockTag.init(head - blocksAgo.abs.u256)
-
-    return await contract.queryFilter(T,
-                                      fromBlock,
-                                      BlockTag.latest)
+proc blockNumberForBlocksEgo(provider: Provider,
+                             blocksAgo: int): Future[BlockTag] {.async.} =
+  let head = await provider.getBlockNumber()
+  return BlockTag.init(head - blocksAgo.abs.u256)
 
 proc blockNumberAndTimestamp(provider: Provider, blockTag: BlockTag):
     Future[(UInt256, UInt256)] {.async.} =
@@ -494,7 +483,7 @@ proc blockNumberAndTimestamp(provider: Provider, blockTag: BlockTag):
 
   (latestBlockNumber, latestBlock.timestamp)
 
-proc blockNumberForEpoch(epochTime: int64, provider: Provider): Future[UInt256] 
+proc blockNumberForEpoch(provider: Provider, epochTime: int64): Future[BlockTag] 
     {.async.} =
   let avgBlockTime = 13.u256
   let epochTimeUInt256 = epochTime.u256
@@ -525,7 +514,7 @@ proc blockNumberForEpoch(epochTime: int64, provider: Provider): Future[UInt256]
     elif midBlockTimestamp > epochTimeUInt256:
       high = mid - 1
     else:
-      return midBlockNumber
+      return BlockTag.init(midBlockNumber)
 
   let (_, lowTimestamp) = await blockNumberAndTimestamp(
     provider, BlockTag.init(low))
@@ -534,23 +523,56 @@ proc blockNumberForEpoch(epochTime: int64, provider: Provider): Future[UInt256]
   try:
     if abs(lowTimestamp.stint(256) - epochTimeUInt256.stint(256)) <
         abs(highTimestamp.stint(256) - epochTimeUInt256.stint(256)):
-      low
+      BlockTag.init(low)
     else:
-      high
+      BlockTag.init(high)
   except ValueError as e:
     raise newException(EthersError, fmt"Conversion error: {e.msg}")
 
 method queryPastSlotFilledEvents*(
   market: OnChainMarket,
-  fromTime: int64): Future[seq[SlotFilled]] {.async.} =
+  fromBlock: BlockTag): Future[seq[SlotFilled]] {.async.} =
+
   convertEthersError:
-    let contract = market.contract
-    let provider = contract.provider
+    return await market.contract.queryFilter(SlotFilled,
+                                             fromBlock,
+                                             BlockTag.latest)
 
-    let blockNumberForEpoch = await blockNumberForEpoch(fromTime, provider)
+method queryPastSlotFilledEvents*(
+  market: OnChainMarket,
+  blocksAgo: int): Future[seq[SlotFilled]] {.async.} =
 
-    let fromBlock = BlockTag.init(blockNumberForEpoch)
+  convertEthersError:
+    let fromBlock =
+      await blockNumberForBlocksEgo(market.contract.provider, blocksAgo)
 
-    return await contract.queryFilter(SlotFilled,
-                                      fromBlock,
-                                      BlockTag.latest)
+    return await market.queryPastSlotFilledEvents(fromBlock)
+
+method queryPastSlotFilledEvents*(
+  market: OnChainMarket,
+  fromTime: int64): Future[seq[SlotFilled]] {.async.} =
+
+  convertEthersError:
+    let fromBlock = await blockNumberForEpoch(market.contract.provider,
+                                              fromTime)
+
+    return await market.queryPastSlotFilledEvents(fromBlock)
+
+method queryPastStorageRequestedEvents*(
+  market: OnChainMarket,
+  fromBlock: BlockTag): Future[seq[StorageRequested]] {.async.} =
+
+  convertEthersError:
+    return await market.contract.queryFilter(StorageRequested,
+                                             fromBlock,
+                                             BlockTag.latest)
+
+method queryPastStorageRequestedEvents*(
+  market: OnChainMarket,
+  blocksAgo: int): Future[seq[StorageRequested]] {.async.} =
+
+  convertEthersError:
+    let fromBlock =
+      await blockNumberForBlocksEgo(market.contract.provider, blocksAgo)
+
+    return await market.queryPastStorageRequestedEvents(fromBlock)
