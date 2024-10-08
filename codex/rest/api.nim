@@ -134,7 +134,8 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
         resp.setCorsHeaders("POST", corsOrigin)
         resp.setHeader("Access-Control-Allow-Headers", "content-type")
 
-      return RestApiResponse.response("", Http204)
+      resp.status = Http204
+      await resp.sendBody("")
 
   router.rawApi(
     MethodPost,
@@ -355,7 +356,8 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       if corsOrigin =? allowedOrigin:
         resp.setCorsHeaders("PATCH", corsOrigin)
 
-      return RestApiResponse.response("", Http204)
+      resp.status = Http204
+      await resp.sendBody("")
 
   router.rawApi(
     MethodPatch,
