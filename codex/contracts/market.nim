@@ -483,51 +483,72 @@ proc blockNumberAndTimestamp(provider: Provider, blockTag: BlockTag):
 
   (latestBlockNumber, latestBlock.timestamp)
 
-proc blockNumberForEpoch(provider: Provider, epochTime: int64): Future[BlockTag] 
+proc estimateAverageBlockTime(provider: Provider): Future[UInt256] {.async.} =
+  let (latestBlockNumber, latestBlockTimestamp) =
+    await provider.blockNumberAndTimestamp(BlockTag.latest)
+  let (_, previousBlockTimestamp) =
+    await provider.blockNumberAndTimestamp(
+      BlockTag.init(latestBlockNumber - 1.u256))
+  trace "[estimateAverageBlockTime]:", latestBlockNumber = latestBlockNumber,
+    latestBlockTimestamp = latestBlockTimestamp,
+    previousBlockTimestamp = previousBlockTimestamp
+  return latestBlockTimestamp - previousBlockTimestamp
+
+proc binarySearchFindClosestBlock(provider: Provider,
+                                  epochTime: int,
+                                  low: BlockTag,
+                                  high: BlockTag): Future[BlockTag] {.async.} =
+  let (_, lowTimestamp) =
+    await provider.blockNumberAndTimestamp(low)
+  let (_, highTimestamp) =
+    await provider.blockNumberAndTimestamp(high)
+  if abs(lowTimestamp.truncate(int) - epochTime) <
+      abs(highTimestamp.truncate(int) - epochTime):
+    return low
+  else:
+    return high
+
+proc binarySearchBlockNumberForEpoch(provider: Provider,
+                                     epochTime: UInt256,
+                                     latestBlockNumber: UInt256):
+                                      Future[BlockTag] {.async.} =
+  var low = 0.u256
+  var high = latestBlockNumber
+
+  trace "[binarySearchBlockNumberForEpoch]:", low = low, high = high
+  while low <= high:
+    let mid = (low + high) div 2.u256
+    let (midBlockNumber, midBlockTimestamp) =
+      await provider.blockNumberAndTimestamp(BlockTag.init(mid))
+    
+    if midBlockTimestamp < epochTime:
+      low = mid + 1.u256
+    elif midBlockTimestamp > epochTime:
+      high = mid - 1.u256
+    else:
+      return BlockTag.init(midBlockNumber)
+  await provider.binarySearchFindClosestBlock(
+    epochTime.truncate(int), BlockTag.init(low), BlockTag.init(high))
+
+proc blockNumberForEpoch(provider: Provider, epochTime: int64): Future[BlockTag]
     {.async.} =
-  let avgBlockTime = 13.u256
+  let avgBlockTime = await provider.estimateAverageBlockTime()
+  trace "[blockNumberForEpoch]:", avgBlockTime = avgBlockTime
   let epochTimeUInt256 = epochTime.u256
   let (latestBlockNumber, latestBlockTimestamp) = 
-    await blockNumberAndTimestamp(provider, BlockTag.latest)
+    await provider.blockNumberAndTimestamp(BlockTag.latest)
+  
+  trace "[blockNumberForEpoch]:", latestBlockNumber = latestBlockNumber,
+    latestBlockTimestamp = latestBlockTimestamp
 
   let timeDiff = latestBlockTimestamp - epochTimeUInt256
   let blockDiff = timeDiff div avgBlockTime
-  let estimatedBlockNumber = latestBlockNumber - blockDiff
 
-  let (estimatedBlockTimestamp, _) = await blockNumberAndTimestamp(
-    provider, BlockTag.init(estimatedBlockNumber))
+  if blockDiff >= latestBlockNumber:
+    return BlockTag.earliest
 
-  var low = 0.u256
-  var high = latestBlockNumber
-  if estimatedBlockTimestamp < epochTimeUInt256:
-    low = estimatedBlockNumber
-  else:
-    high = estimatedBlockNumber
-
-  while low <= high:
-    let mid = (low + high) div 2
-    let (midBlockTimestamp, midBlockNumber) = 
-      await blockNumberAndTimestamp(provider, BlockTag.init(mid))
-    
-    if midBlockTimestamp < epochTimeUInt256:
-      low = mid + 1
-    elif midBlockTimestamp > epochTimeUInt256:
-      high = mid - 1
-    else:
-      return BlockTag.init(midBlockNumber)
-
-  let (_, lowTimestamp) = await blockNumberAndTimestamp(
-    provider, BlockTag.init(low))
-  let (_, highTimestamp) = await blockNumberAndTimestamp(
-    provider, BlockTag.init(high))
-  try:
-    if abs(lowTimestamp.stint(256) - epochTimeUInt256.stint(256)) <
-        abs(highTimestamp.stint(256) - epochTimeUInt256.stint(256)):
-      BlockTag.init(low)
-    else:
-      BlockTag.init(high)
-  except ValueError as e:
-    raise newException(EthersError, fmt"Conversion error: {e.msg}")
+  return await provider.binarySearchBlockNumberForEpoch(
+    epochTimeUInt256, latestBlockNumber)
 
 method queryPastSlotFilledEvents*(
   market: OnChainMarket,
@@ -553,9 +574,9 @@ method queryPastSlotFilledEvents*(
   fromTime: int64): Future[seq[SlotFilled]] {.async.} =
 
   convertEthersError:
-    let fromBlock = await blockNumberForEpoch(market.contract.provider,
-                                              fromTime)
-
+    let fromBlock = 
+      await market.contract.provider.blockNumberForEpoch(fromTime)
+    trace "queryPastSlotFilledEvents fromTime", fromTime=fromTime, fromBlock=fromBlock
     return await market.queryPastSlotFilledEvents(fromBlock)
 
 method queryPastStorageRequestedEvents*(
