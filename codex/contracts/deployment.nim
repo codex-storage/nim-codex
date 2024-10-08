@@ -20,9 +20,10 @@ const knownAddresses = {
  "167005": {
   "Marketplace": Address.init("0x948CF9291b77Bd7ad84781b9047129Addf1b894F")
  }.toTable,
- # Codex Testnet - Sept-2024
+
+ # Codex Testnet - Oct 08 2024 08:02:50 (+0 UTC)
  "789987": {
-  "Marketplace": Address.init("0xCDef8d6884557be4F68dC265b6bB2E3e52a6C9d6")
+  "Marketplace": Address.init("0xfE822Df439d987849a90B64a4C0e26a297DBD47F")
  }.toTable
 }.toTable
 
