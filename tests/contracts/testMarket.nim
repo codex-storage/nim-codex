@@ -506,17 +506,25 @@ ethersuite "On-Chain Market":
     check expected == simulatedBlockTime
     check actual == expected
   
-  test "blockNumberForEpoch returns the earliest block when block height " &
-       "is less than the given epoch time":
-    let (_, timestampEarliest) =
+  test "blockNumberForEpoch returns the earliest block when retained history " &
+       "is shorter than the given epoch time":
+    # create predictable conditions for computing average block time
+    let averageBlockTime = 10.u256
+    await ethProvider.mineNBlocks(1)
+    await ethProvider.advanceTime(averageBlockTime)
+    let (earliestBlockNumber, earliestTimestamp) =
       await ethProvider.blockNumberAndTimestamp(BlockTag.earliest)
     
-    let fromTime = timestampEarliest - 1
+    let fromTime = earliestTimestamp - 1
 
-    let expected = await ethProvider.blockNumberForEpoch(
+    let actual = await ethProvider.blockNumberForEpoch(
       fromTime.truncate(int64))
 
-    check expected == 0.u256
+    # Notice this could fail in a network where "earliest" block is
+    # not the genesis block - we run the tests agains local network
+    # so we know the earliest block is the same as genesis block
+    # earliestBlockNumber is 0.u256 in our case.
+    check actual == earliestBlockNumber
   
   test "blockNumberForEpoch finds closest blockNumber for given epoch time":
     proc createBlockHistory(n: int, blockTime: int):
