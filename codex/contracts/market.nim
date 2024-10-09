@@ -502,7 +502,7 @@ proc binarySearchFindClosestBlock*(provider: Provider,
     await provider.blockNumberAndTimestamp(BlockTag.init(low))
   let (_, highTimestamp) =
     await provider.blockNumberAndTimestamp(BlockTag.init(high))
-  trace "[binarySearchFindClosestBlock]:", epochTime = epochTime,
+  debug "[binarySearchFindClosestBlock]:", epochTime = epochTime,
     lowTimestamp = lowTimestamp, highTimestamp = highTimestamp, low = low, high = high
   if abs(lowTimestamp.truncate(int) - epochTime) <
       abs(highTimestamp.truncate(int) - epochTime):
@@ -512,9 +512,10 @@ proc binarySearchFindClosestBlock*(provider: Provider,
 
 proc binarySearchBlockNumberForEpoch*(provider: Provider,
                                      epochTime: UInt256,
-                                     latestBlockNumber: UInt256):
+                                     latestBlockNumber: UInt256,
+                                     earliestBlockNumber: UInt256):
                                       Future[UInt256] {.async.} =
-  var low = 0.u256
+  var low = earliestBlockNumber
   var high = latestBlockNumber
 
   debug "[binarySearchBlockNumberForEpoch]:", low = low, high = high
@@ -542,18 +543,22 @@ proc blockNumberForEpoch*(provider: Provider, epochTime: int64): Future[UInt256]
   let epochTimeUInt256 = epochTime.u256
   let (latestBlockNumber, latestBlockTimestamp) = 
     await provider.blockNumberAndTimestamp(BlockTag.latest)
+  let (earliestBlockNumber, earliestBlockTimestamp) = 
+    await provider.blockNumberAndTimestamp(BlockTag.earliest)
   
   debug "[blockNumberForEpoch]:", latestBlockNumber = latestBlockNumber,
     latestBlockTimestamp = latestBlockTimestamp
+  debug "[blockNumberForEpoch]:", earliestBlockNumber = earliestBlockNumber,
+    earliestBlockTimestamp = earliestBlockTimestamp
 
   let timeDiff = latestBlockTimestamp - epochTimeUInt256
   let blockDiff = timeDiff div avgBlockTime
 
-  if blockDiff >= latestBlockNumber:
-    return 0.u256
+  if blockDiff >= latestBlockNumber - earliestBlockNumber:
+    return earliestBlockNumber
 
   return await provider.binarySearchBlockNumberForEpoch(
-    epochTimeUInt256, latestBlockNumber)
+    epochTimeUInt256, latestBlockNumber, earliestBlockNumber)
 
 method queryPastSlotFilledEvents*(
   market: OnChainMarket,
