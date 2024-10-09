@@ -92,6 +92,9 @@ proc new*(
       trace "LPStreamChunker stream Eof", exc = exc.msg
     except CancelledError as error:
       raise error
+    except LPStreamError as error:
+      warn "LPStream error", err = error.msg
+      raise error
     except CatchableError as exc:
       trace "CatchableError exception", exc = exc.msg
       raise newException(Defect, exc.msg)
