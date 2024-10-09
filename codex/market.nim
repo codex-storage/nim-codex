@@ -25,6 +25,7 @@ type
   OnFulfillment* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
   OnSlotFilled* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises:[].}
   OnSlotFreed* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises: [].}
+  OnSlotReservationsFull* = proc(requestId: RequestId, slotIndex: UInt256) {.gcsafe, upraises: [].}
   OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises:[].}
   OnProofSubmitted* = proc(id: SlotId) {.gcsafe, upraises:[].}
@@ -40,6 +41,9 @@ type
     requestId* {.indexed.}: RequestId
     slotIndex*: UInt256
   SlotFreed* = object of MarketplaceEvent
+    requestId* {.indexed.}: RequestId
+    slotIndex*: UInt256
+  SlotReservationsFull* = object of MarketplaceEvent
     requestId* {.indexed.}: RequestId
     slotIndex*: UInt256
   RequestFulfilled* = object of MarketplaceEvent
@@ -161,6 +165,20 @@ method canProofBeMarkedAsMissing*(market: Market,
                                   period: Period): Future[bool] {.base, async.} =
   raiseAssert("not implemented")
 
+method reserveSlot*(
+  market: Market,
+  requestId: RequestId,
+  slotIndex: UInt256) {.base, async.} =
+
+  raiseAssert("not implemented")
+
+method canReserveSlot*(
+  market: Market,
+  requestId: RequestId,
+  slotIndex: UInt256): Future[bool] {.base, async.} =
+
+  raiseAssert("not implemented")
+
 method subscribeFulfillment*(market: Market,
                              callback: OnFulfillment):
                             Future[Subscription] {.base, async.} =
@@ -187,6 +205,12 @@ method subscribeSlotFilled*(market: Market,
 method subscribeSlotFreed*(market: Market,
                            callback: OnSlotFreed):
                           Future[Subscription] {.base, async.} =
+  raiseAssert("not implemented")
+
+method subscribeSlotReservationsFull*(
+  market: Market,
+  callback: OnSlotReservationsFull): Future[Subscription] {.base, async.} =
+
   raiseAssert("not implemented")
 
 method subscribeRequestCancelled*(market: Market,

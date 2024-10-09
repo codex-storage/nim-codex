@@ -330,15 +330,15 @@ components:
         quotaMaxBytes:
           type: integer
           format: int64
-          description: "Maximum storage space used by the node"
+          description: "Maximum storage space (in bytes) available for the node in Codex's local repository."
         quotaUsedBytes:
           type: integer
           format: int64
-          description: "Amount of storage space currently in use"
+          description: "Amount of storage space (in bytes) currently used for storing files in Codex's local repository."
         quotaReservedBytes:
           type: integer
           format: int64
-          description: "Amount of storage space reserved"
+          description: "Amount of storage reserved (in bytes) in the Codex's local repository for future use when storage requests will be picked up and hosted by the node using node's availabilities. This does not include the storage currently in use."
 
 servers:
   - url: "http://localhost:8080/api/codex/v1"

@@ -4,7 +4,7 @@ import pkg/datastore
 import pkg/stew/byteutils
 import pkg/codex/contracts/requests
 import pkg/codex/sales/states/preparing
-import pkg/codex/sales/states/downloading
+import pkg/codex/sales/states/slotreserving
 import pkg/codex/sales/states/cancelled
 import pkg/codex/sales/states/failed
 import pkg/codex/sales/states/filled
@@ -84,17 +84,33 @@ asyncchecksuite "sales state 'preparing'":
     availability = a.get
 
   test "run switches to ignored when no availability":
-    let next = await state.run(agent)
-    check !next of SaleIgnored
+    let next = !(await state.run(agent))
+    check next of SaleIgnored
+    let ignored = SaleIgnored(next)
+    check ignored.reprocessSlot
+    check ignored.returnBytes == false
 
-  test "run switches to downloading when reserved":
+  test "run switches to slot reserving state after reservation created":
     await createAvailability()
     let next = await state.run(agent)
-    check !next of SaleDownloading
+    check !next of SaleSlotReserving
 
   test "run switches to ignored when reserve fails with BytesOutOfBounds":
     await createAvailability()
     reservations.setCreateReservationThrowBytesOutOfBoundsError(true)
 
-    let next = await state.run(agent)
-    check !next of SaleIgnored
+    let next = !(await state.run(agent))
+    check next of SaleIgnored
+    let ignored = SaleIgnored(next)
+    check ignored.reprocessSlot
+    check ignored.returnBytes == false
+
+  test "run switches to errored when reserve fails with other error":
+    await createAvailability()
+    let error = newException(CatchableError, "some error")
+    reservations.setCreateReservationThrowError(some error)
+
+    let next = !(await state.run(agent))
+    check next of SaleErrored
+    let errored = SaleErrored(next)
+    check errored.error == error

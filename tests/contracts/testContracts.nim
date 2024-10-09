@@ -45,6 +45,7 @@ ethersuite "Marketplace contracts":
     discard await marketplace.requestStorage(request)
     switchAccount(host)
     discard await token.approve(marketplace.address, request.ask.collateral)
+    discard await marketplace.reserveSlot(request.id, 0.u256)
     discard await marketplace.fillSlot(request.id, 0.u256, proof)
     slotId = request.slotId(0.u256)
 
@@ -60,6 +61,7 @@ ethersuite "Marketplace contracts":
   proc startContract() {.async.} =
     for slotIndex in 1..<request.ask.slots:
       discard await token.approve(marketplace.address, request.ask.collateral)
+      discard await marketplace.reserveSlot(request.id, slotIndex.u256)
       discard await marketplace.fillSlot(request.id, slotIndex.u256, proof)
 
   test "accept marketplace proofs":

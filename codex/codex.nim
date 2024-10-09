@@ -122,25 +122,30 @@ proc bootstrapInteractions(
     else:
       s.codexNode.clock = SystemClock()
 
-    if config.persistence:
-      # This is used for simulation purposes. Normal nodes won't be compiled with this flag
-      # and hence the proof failure will always be 0.
-      when codex_enable_proof_failures:
-        let proofFailures = config.simulateProofFailures
-        if proofFailures > 0:
-          warn "Enabling proof failure simulation!"
-      else:
-        let proofFailures = 0
-        if config.simulateProofFailures > 0:
-          warn "Proof failure simulation is not enabled for this build! Configuration ignored"
+    # This is used for simulation purposes. Normal nodes won't be compiled with this flag
+    # and hence the proof failure will always be 0.
+    when codex_enable_proof_failures:
+      let proofFailures = config.simulateProofFailures
+      if proofFailures > 0:
+        warn "Enabling proof failure simulation!"
+    else:
+      let proofFailures = 0
+      if config.simulateProofFailures > 0:
+        warn "Proof failure simulation is not enabled for this build! Configuration ignored"
 
-      let purchasing = Purchasing.new(market, clock)
-      let sales = Sales.new(market, clock, repo, proofFailures)
-      client = some ClientInteractions.new(clock, purchasing)
-      host = some HostInteractions.new(clock, sales)
+    let purchasing = Purchasing.new(market, clock)
+    let sales = Sales.new(market, clock, repo, proofFailures)
+    client = some ClientInteractions.new(clock, purchasing)
+    host = some HostInteractions.new(clock, sales)
 
     if config.validator:
-      let validation = Validation.new(clock, market, config.validatorMaxSlots)
+      without validationConfig =? ValidationConfig.init(
+        config.validatorMaxSlots,
+        config.validatorGroups,
+        config.validatorGroupIndex), err:
+          error "Invalid validation parameters", err = err.msg
+          quit QuitFailure
+      let validation = Validation.new(clock, market, validationConfig)
       validator = some ValidatorInteractions.new(clock, validation)
 
     s.codexNode.contracts = (client, host, validator)
