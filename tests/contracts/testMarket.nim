@@ -10,6 +10,12 @@ import ./deployment
 
 privateAccess(OnChainMarket) # enable access to private fields
 
+# to see supportive information in the test output
+# use `-d:"chronicles_enabled_topics:testMarket:DEBUG` option
+# when compiling the test file
+logScope:
+  topics = "testMarket"
+
 ethersuite "On-Chain Market":
   let proof = Groth16Proof.example
 
@@ -57,6 +63,10 @@ ethersuite "On-Chain Market":
   proc advanceToCancelledRequest(request: StorageRequest) {.async.} =
     let expiry = (await market.requestExpiresAt(request.id)) + 1
     await ethProvider.advanceTimeTo(expiry.u256)
+  
+  proc mineNBlocks(provider: JsonRpcProvider, n: int) {.async.} =
+    for _ in 0..<n:
+      discard await provider.send("evm_mine")
 
   proc waitUntilProofRequired(slotId: SlotId) {.async.} =
     await advanceToNextPeriod()
@@ -434,6 +444,165 @@ ethersuite "On-Chain Market":
       SlotFilled(requestId: request.id, slotIndex: 1.u256),
       SlotFilled(requestId: request.id, slotIndex: 2.u256),
     ]
+  
+  test "can query past SlotFilled events since given timestamp":
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
+    
+    # The SlotFilled event will be included in the same block as
+    # the fillSlot transaction. If we want to ignore the SlotFilled event
+    # for this first slot, we need to jump to the next block and use the
+    # timestamp of that block as our "fromTime" parameter to the
+    # queryPastSlotFilledEvents function.
+    # await ethProvider.mineNBlocks(1)
+    await ethProvider.advanceTime(10.u256)
+
+    let (_, fromTime) =
+      await ethProvider.blockNumberAndTimestamp(BlockTag.latest)
+
+    await market.fillSlot(request.id, 1.u256, proof, request.ask.collateral)
+    await market.fillSlot(request.id, 2.u256, proof, request.ask.collateral)
+
+    let events = await market.queryPastSlotFilledEvents(
+      fromTime = fromTime.truncate(int64))
+    
+    check events == @[
+      SlotFilled(requestId: request.id, slotIndex: 1.u256),
+      SlotFilled(requestId: request.id, slotIndex: 2.u256)
+    ]
+  
+  test "queryPastSlotFilledEvents returns empty sequence of events when " &
+       "no SlotFilled events have occurred since given timestamp":
+    await market.requestStorage(request)
+    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
+    await market.fillSlot(request.id, 1.u256, proof, request.ask.collateral)
+    await market.fillSlot(request.id, 2.u256, proof, request.ask.collateral)
+    
+    await ethProvider.advanceTime(10.u256)
+
+    let (_, fromTime) =
+      await ethProvider.blockNumberAndTimestamp(BlockTag.latest)
+
+    let events = await market.queryPastSlotFilledEvents(
+      fromTime = fromTime.truncate(int64))
+    
+    check events.len == 0
+  
+  test "estimateAverageBlockTime correctly computes the time between " &
+       "two most recent blocks":
+    let simulatedBlockTime = 15.u256
+    await ethProvider.mineNBlocks(1)
+    let (_, timestampPrevious) =
+      await ethProvider.blockNumberAndTimestamp(BlockTag.latest)
+    
+    await ethProvider.advanceTime(simulatedBlockTime)
+
+    let (_, timestampLatest) =
+      await ethProvider.blockNumberAndTimestamp(BlockTag.latest)
+    
+    let expected = timestampLatest - timestampPrevious
+    let actual = await ethProvider.estimateAverageBlockTime()
+
+    check expected == simulatedBlockTime
+    check actual == expected
+  
+  test "blockNumberForEpoch returns the earliest block when block height " &
+       "is less than the given epoch time":
+    let (_, timestampEarliest) =
+      await ethProvider.blockNumberAndTimestamp(BlockTag.earliest)
+    
+    let fromTime = timestampEarliest - 1
+
+    let expected = await ethProvider.blockNumberForEpoch(
+      fromTime.truncate(int64))
+
+    check expected == 0.u256
+  
+  test "blockNumberForEpoch finds closest blockNumber for given epoch time":
+    proc createBlockHistory(n: int, blockTime: int):
+        Future[seq[(UInt256, UInt256)]] {.async.} =
+      var blocks: seq[(UInt256, UInt256)] = @[]
+      for _ in 0..<n:
+        await ethProvider.advanceTime(blockTime.u256)
+        let (blockNumber, blockTimestamp) =
+          await ethProvider.blockNumberAndTimestamp(BlockTag.latest)
+        # collect blocknumbers and timestamps
+        blocks.add((blockNumber, blockTimestamp))
+      blocks
+    
+    proc printBlockNumbersAndTimestamps(blocks: seq[(UInt256, UInt256)]) =
+      for (blockNumber, blockTimestamp) in blocks:
+        debug "Block", blockNumber = blockNumber, timestamp = blockTimestamp
+    
+    type Expectations = tuple
+      epochTime: UInt256
+      expectedBlockNumber: UInt256
+    
+    # We want to test that timestamps at the block boundaries, in the middle,
+    # and towards lower and upper part of the range are correctly mapped to
+    # the closest block number.
+    # For example: assume we have the following two blocks with
+    # the corresponding block numbers and timestamps:
+    # block1: (291, 1728436100)
+    # block2: (292, 1728436110)
+    # To test that binary search correctly finds the closest block number,
+    # we will test the following timestamps:
+    # 1728436100 => 291
+    # 1728436104 => 291
+    # 1728436105 => 292
+    # 1728436106 => 292
+    # 1728436110 => 292
+    proc generateExpectations(
+        blocks: seq[(UInt256, UInt256)]): seq[Expectations] =
+      var expectations: seq[Expectations] = @[]
+      for i in 0..<blocks.len - 1:
+        let (startNumber, startTimestamp) = blocks[i]
+        let (endNumber, endTimestamp) = blocks[i + 1]
+        let middleTimestamp = (startTimestamp + endTimestamp) div 2
+        let lowerExpectation = (middleTimestamp - 1, startNumber)
+        expectations.add((startTimestamp, startNumber))
+        expectations.add(lowerExpectation)
+        if middleTimestamp.truncate(int64) - startTimestamp.truncate(int64) <
+            endTimestamp.truncate(int64) - middleTimestamp.truncate(int64):
+          expectations.add((middleTimestamp, startNumber))
+        else:
+          expectations.add((middleTimestamp, endNumber))
+        let higherExpectation = (middleTimestamp + 1, endNumber)
+        expectations.add(higherExpectation)
+        if i == blocks.len - 2:
+          expectations.add((endTimestamp, endNumber))
+      expectations
+
+    proc printExpectations(expectations: seq[Expectations]) =
+      debug "Expectations", numberOfExpectations = expectations.len
+      for (epochTime, expectedBlockNumber) in expectations:
+        debug "Expectation", epochTime = epochTime,
+          expectedBlockNumber = expectedBlockNumber
+
+    # mark the beginning of the history for our test
+    await ethProvider.mineNBlocks(1)
+
+    # set average block time - 10s - we use larger block time
+    # then expected in Linea for more precise testing of the binary search
+    let averageBlockTime = 10
+
+    # create a history of N blocks
+    let N = 10
+    let blocks = await createBlockHistory(N, averageBlockTime)
+    
+    printBlockNumbersAndTimestamps(blocks)
+    
+    # generate expectations for block numbers
+    let expectations = generateExpectations(blocks)
+    printExpectations(expectations)
+    
+    # validate expectations
+    for (epochTime, expectedBlockNumber) in expectations:
+      debug "Validating", epochTime = epochTime,
+        expectedBlockNumber = expectedBlockNumber
+      let actualBlockNumber = await ethProvider.blockNumberForEpoch(
+        epochTime.truncate(int64))
+      check actualBlockNumber == expectedBlockNumber
 
   test "past event query can specify negative `blocksAgo` parameter":
     await market.requestStorage(request)
