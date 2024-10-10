@@ -268,5 +268,5 @@ method queryPastStorageRequestedEvents*(
 
 method queryPastSlotFilledEvents*(
     market: Market,
-    fromTime: int64): Future[seq[SlotFilled]] {.base, async.} =
+    fromTime: SecondsSince1970): Future[seq[SlotFilled]] {.base, async.} =
   raiseAssert("not implemented")

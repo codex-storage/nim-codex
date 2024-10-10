@@ -1,7 +1,4 @@
-# import std/sequtils
 import std/strutils
-import std/strformat
-# import std/sugar
 import pkg/ethers
 import pkg/upraises
 import pkg/questionable
@@ -520,14 +517,17 @@ proc binarySearchBlockNumberForEpoch*(provider: Provider,
 
   debug "[binarySearchBlockNumberForEpoch]:", low = low, high = high
   while low <= high:
-    let mid = (low + high) div 2.u256
+    if low == 0 and high == 0:
+      return low
+    let mid = (low + high) div 2
+    debug "[binarySearchBlockNumberForEpoch]:", low = low, mid = mid, high = high
     let (midBlockNumber, midBlockTimestamp) =
       await provider.blockNumberAndTimestamp(BlockTag.init(mid))
     
     if midBlockTimestamp < epochTime:
-      low = mid + 1.u256
+      low = mid + 1
     elif midBlockTimestamp > epochTime:
-      high = mid - 1.u256
+      high = mid - 1
     else:
       return midBlockNumber
   # NOTICE that by how the binaty search is implemented, when it finishes
@@ -536,10 +536,11 @@ proc binarySearchBlockNumberForEpoch*(provider: Provider,
   await provider.binarySearchFindClosestBlock(
     epochTime.truncate(int), low=high, high=low)
 
-proc blockNumberForEpoch*(provider: Provider, epochTime: int64): Future[UInt256]
-    {.async.} =
+proc blockNumberForEpoch*(provider: Provider,
+    epochTime: SecondsSince1970): Future[UInt256] {.async.} =
   let avgBlockTime = await provider.estimateAverageBlockTime()
   debug "[blockNumberForEpoch]:", avgBlockTime = avgBlockTime
+  debug "[blockNumberForEpoch]:", epochTime = epochTime
   let epochTimeUInt256 = epochTime.u256
   let (latestBlockNumber, latestBlockTimestamp) = 
     await provider.blockNumberAndTimestamp(BlockTag.latest)
@@ -553,6 +554,8 @@ proc blockNumberForEpoch*(provider: Provider, epochTime: int64): Future[UInt256]
 
   let timeDiff = latestBlockTimestamp - epochTimeUInt256
   let blockDiff = timeDiff div avgBlockTime
+
+  debug "[blockNumberForEpoch]:", timeDiff = timeDiff, blockDiff = blockDiff
 
   if blockDiff >= latestBlockNumber - earliestBlockNumber:
     return earliestBlockNumber
@@ -581,7 +584,7 @@ method queryPastSlotFilledEvents*(
 
 method queryPastSlotFilledEvents*(
   market: OnChainMarket,
-  fromTime: int64): Future[seq[SlotFilled]] {.async.} =
+  fromTime: SecondsSince1970): Future[seq[SlotFilled]] {.async.} =
 
   convertEthersError:
     let fromBlock = 
