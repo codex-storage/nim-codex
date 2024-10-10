@@ -269,7 +269,9 @@ method freeSlot*(market: MockMarket, slotId: SlotId) {.async.} =
 method withdrawFunds*(market: MockMarket,
                       requestId: RequestId) {.async.} =
   market.withdrawn.add(requestId)
-  market.emitRequestCancelled(requestId)
+
+  if state =? market.requestState.?[requestId] and state == RequestState.Cancelled:
+    market.emitRequestCancelled(requestId)
 
 proc setProofRequired*(mock: MockMarket, id: SlotId, required: bool) =
   if required:

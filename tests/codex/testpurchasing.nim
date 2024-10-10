@@ -230,3 +230,21 @@ checksuite "Purchasing state machine":
 
     let next = await future
     check !next of PurchaseFinished
+
+  test "withdraw funds in PurchaseFinished":
+    let request = StorageRequest.example
+    let purchase = Purchase.new(request, market, clock)
+    discard await PurchaseFinished().run(purchase)
+    check request.id in market.withdrawn
+
+  test "withdraw funds in PurchaseFailed":
+    let request = StorageRequest.example
+    let purchase = Purchase.new(request, market, clock)
+    discard await PurchaseFailed().run(purchase)
+    check request.id in market.withdrawn
+
+  test "withdraw funds in PurchaseCancelled":
+    let request = StorageRequest.example
+    let purchase = Purchase.new(request, market, clock)
+    discard await PurchaseCancelled().run(purchase)
+    check request.id in market.withdrawn
