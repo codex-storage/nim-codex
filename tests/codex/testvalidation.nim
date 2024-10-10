@@ -1,15 +1,19 @@
 import pkg/chronos
 import std/strformat
-import std/random
+import std/times
 
 import codex/validation
 import codex/periods
+import codex/clock
 
 import ../asynctest
 import ./helpers/mockmarket
 import ./helpers/mockclock
 import ./examples
 import ./helpers
+
+logScope:
+  topics = "testValidation"
 
 asyncchecksuite "validation":
   let period = 10
@@ -20,10 +24,10 @@ asyncchecksuite "validation":
   let proof = Groth16Proof.example
   let collateral = slot.request.ask.collateral
 
-  var validation: Validation
   var market: MockMarket
   var clock: MockClock
   var groupIndex: uint16
+  var validation: Validation
 
   proc initValidationConfig(maxSlots: MaxSlots,
                             validationGroups: ?ValidationGroups,
@@ -32,19 +36,27 @@ asyncchecksuite "validation":
       maxSlots, groups=validationGroups, groupIndex), error:
       raiseAssert fmt"Creating ValidationConfig failed! Error msg: {error.msg}"
     validationConfig
+  
+  proc newValidation(clock: Clock,
+                     market: Market,
+                     maxSlots: MaxSlots,
+                     validationGroups: ?ValidationGroups,
+                     groupIndex: uint16 = 0): Validation =
+    let validationConfig = initValidationConfig(
+        maxSlots, validationGroups, groupIndex)
+    Validation.new(clock, market, validationConfig)
 
   setup:
     groupIndex = groupIndexForSlotId(slot.id, !validationGroups)
-    market = MockMarket.new()
     clock = MockClock.new()
-    let validationConfig = initValidationConfig(
-        maxSlots, validationGroups, groupIndex)
-    validation = Validation.new(clock, market, validationConfig)
+    market = MockMarket.new(clock = Clock(clock).some)
     market.config.proofs.period = period.u256
     market.config.proofs.timeout = timeout.u256
-    await validation.start()
+    validation = newValidation(
+      clock, market, maxSlots, validationGroups, groupIndex)
 
   teardown:
+    # calling stop on validation that did not start is harmless
     await validation.stop()
 
   proc advanceToNextPeriod =
@@ -79,6 +91,7 @@ asyncchecksuite "validation":
   test "initializing ValidationConfig fails when maxSlots is negative " &
       "(validationGroups set)":
     let maxSlots = -1
+    let groupIndex = 0'u16
     let validationConfig = ValidationConfig.init(
         maxSlots = maxSlots, groups = validationGroups, groupIndex)
     check validationConfig.isFailure == true
@@ -86,45 +99,41 @@ asyncchecksuite "validation":
         fmt"be greater than or equal to 0! (got: {maxSlots})"
 
   test "slot is not observed if it is not in the validation group":
-    let validationConfig = initValidationConfig(maxSlots, validationGroups,
-        (groupIndex + 1) mod uint16(!validationGroups))
-    let validation = Validation.new(clock, market, validationConfig)
+    validation = newValidation(clock, market, maxSlots, validationGroups,
+      (groupIndex + 1) mod uint16(!validationGroups))
     await validation.start()
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    await validation.stop()
     check validation.slots.len == 0
 
   test "when a slot is filled on chain, it is added to the list":
+    await validation.start()
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
     check validation.slots == @[slot.id]
 
   test "slot should be observed if maxSlots is set to 0":
-    let validationConfig = initValidationConfig(
-        maxSlots = 0, ValidationGroups.none)
-    let validation = Validation.new(clock, market, validationConfig)
+    validation = newValidation(clock, market, maxSlots = 0, ValidationGroups.none)
     await validation.start()
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    await validation.stop()
     check validation.slots == @[slot.id]
 
   test "slot should be observed if validation group is not set (and " &
       "maxSlots is not 0)":
-    let validationConfig = initValidationConfig(
-        maxSlots, ValidationGroups.none)
-    let validation = Validation.new(clock, market, validationConfig)
+    validation = newValidation(clock, market, maxSlots, ValidationGroups.none)
     await validation.start()
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    await validation.stop()
     check validation.slots == @[slot.id]
 
   for state in [SlotState.Finished, SlotState.Failed]:
     test fmt"when slot state changes to {state}, it is removed from the list":
+      validation = newValidation(clock, market, maxSlots, validationGroups)
+      await validation.start()
       await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
       market.slotState[slot.id] = state
       advanceToNextPeriod()
       check eventually validation.slots.len == 0
 
   test "when a proof is missed, it is marked as missing":
+    await validation.start()
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
     market.setCanProofBeMarkedAsMissing(slot.id, true)
     advanceToNextPeriod()
@@ -132,6 +141,7 @@ asyncchecksuite "validation":
     check market.markedAsMissingProofs.contains(slot.id)
 
   test "when a proof can not be marked as missing, it will not be marked":
+    await validation.start()
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
     market.setCanProofBeMarkedAsMissing(slot.id, false)
     advanceToNextPeriod()
@@ -139,13 +149,75 @@ asyncchecksuite "validation":
     check market.markedAsMissingProofs.len == 0
 
   test "it does not monitor more than the maximum number of slots":
-    let validationGroups = ValidationGroups.none
-    let validationConfig = initValidationConfig(
-        maxSlots, validationGroups)
-    let validation = Validation.new(clock, market, validationConfig)
+    validation = newValidation(clock, market, maxSlots, ValidationGroups.none)
     await validation.start()
     for _ in 0..<maxSlots + 1:
       let slot = Slot.example
       await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    await validation.stop()
     check validation.slots.len == maxSlots
+  
+  test "[restoring historical state] it retrieves the historical state " &
+      "for max 30 days in the past":
+    let earlySlot = Slot.example
+    await market.fillSlot(earlySlot.request.id, earlySlot.slotIndex, proof, collateral)
+    let fromTime = clock.now()
+    clock.set(fromTime + 1)
+    let duration: times.Duration = initDuration(days = 30)
+    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+    
+    clock.set(fromTime + duration.inSeconds + 1)
+
+    validation = newValidation(clock, market, maxSlots = 0,
+      ValidationGroups.none)
+    await validation.start()
+    
+    check validation.slots == @[slot.id]
+
+  for state in [SlotState.Finished, SlotState.Failed]:
+    test "[restoring historical state] when restoring historical state, " &
+        fmt"it excludes slots in {state} state":
+      let slot1 = Slot.example
+      let slot2 = Slot.example
+      await market.fillSlot(slot1.request.id, slot1.slotIndex,
+        proof, collateral)
+      await market.fillSlot(slot2.request.id, slot2.slotIndex,
+        proof, collateral)
+      
+      market.slotState[slot1.id] = state
+
+      validation = newValidation(clock, market, maxSlots = 0,
+        ValidationGroups.none)
+      await validation.start()
+
+      check validation.slots == @[slot2.id]
+
+  test "[restoring historical state] it does not monitor more than the " &
+      "maximum number of slots ":
+    for _ in 0..<maxSlots + 1:
+      let slot = Slot.example
+      await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+    validation = newValidation(clock, market, maxSlots, ValidationGroups.none)
+    await validation.start()
+    check validation.slots.len == maxSlots
+
+  test "[restoring historical state] slot is not observed if it is not " &
+      "in the validation group":
+    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+    validation = newValidation(clock, market, maxSlots, validationGroups,
+      (groupIndex + 1) mod uint16(!validationGroups))
+    await validation.start()
+    check validation.slots.len == 0
+  
+  test "[restoring historical state] slot should be observed if maxSlots " &
+      "is set to 0":
+    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+    validation = newValidation(clock, market, maxSlots = 0, ValidationGroups.none)
+    await validation.start()
+    check validation.slots == @[slot.id]
+
+  test "[restoring historical state] slot should be observed if validation " &
+      "group is not set (and maxSlots is not 0)":
+    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+    validation = newValidation(clock, market, maxSlots, ValidationGroups.none)
+    await validation.start()
+    check validation.slots == @[slot.id]

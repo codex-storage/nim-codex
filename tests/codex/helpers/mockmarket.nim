@@ -10,11 +10,15 @@ import pkg/codex/contracts/proofs
 import pkg/codex/contracts/config
 
 from pkg/ethers import BlockTag
+import codex/clock
 
 import ../examples
 
 export market
 export tables
+
+logScope:
+  topics = "mockMarket"
 
 type
   MockMarket* = ref object of Market
@@ -43,6 +47,7 @@ type
     config*: MarketplaceConfig
     canReserveSlot*: bool
     reserveSlotThrowError*: ?(ref MarketError)
+    clock: ?Clock
   Fulfillment* = object
     requestId*: RequestId
     proof*: Groth16Proof
@@ -52,6 +57,7 @@ type
     host*: Address
     slotIndex*: UInt256
     proof*: Groth16Proof
+    timestamp: ?SecondsSince1970
   Subscriptions = object
     onRequest: seq[RequestSubscription]
     onFulfillment: seq[FulfillmentSubscription]
@@ -97,7 +103,7 @@ proc hash*(address: Address): Hash =
 proc hash*(requestId: RequestId): Hash =
   hash(requestId.toArray)
 
-proc new*(_: type MockMarket): MockMarket =
+proc new*(_: type MockMarket, clock: ?Clock = Clock.none): MockMarket =
   ## Create a new mocked Market instance
   ##
   let config = MarketplaceConfig(
@@ -114,7 +120,8 @@ proc new*(_: type MockMarket): MockMarket =
       downtimeProduct: 67.uint8
     )
   )
-  MockMarket(signer: Address.example, config: config, canReserveSlot: true)
+  MockMarket(signer: Address.example, config: config,
+    canReserveSlot: true, clock: clock)
 
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
@@ -248,7 +255,8 @@ proc fillSlot*(market: MockMarket,
     requestId: requestId,
     slotIndex: slotIndex,
     proof: proof,
-    host: host
+    host: host,
+    timestamp: market.clock.?now
   )
   market.filled.add(slot)
   market.slotState[slotId(slot.requestId, slot.slotIndex)] = SlotState.Filled
@@ -506,8 +514,19 @@ method queryPastSlotFilledEvents*(
 
 method queryPastSlotFilledEvents*(
     market: MockMarket,
-    fromTime: int64): Future[seq[SlotFilled]] {.async.} =
-  return market.filled.map(slot =>
+    fromTime: SecondsSince1970): Future[seq[SlotFilled]] {.async.} =
+  debug "queryPastSlotFilledEvents:market.filled",
+    numOfFilledSlots = market.filled.len
+  let filtered = market.filled.filter(
+    proc (slot: MockSlot): bool =
+      debug "queryPastSlotFilledEvents:fromTime", timestamp = slot.timestamp,
+        fromTime = fromTime
+      if timestamp =? slot.timestamp:
+        return timestamp >= fromTime
+      else:
+        true
+  )
+  return filtered.map(slot =>
     SlotFilled(requestId: slot.requestId, slotIndex: slot.slotIndex)
   )
 
