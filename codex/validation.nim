@@ -123,13 +123,13 @@ proc run(validation: Validation) {.async.} =
   except CatchableError as e:
     error "Validation failed", msg = e.msg
 
-proc epochForDurationBackFromNow(duration: times.Duration): int64 =
-  let now = getTime().toUnix
-  return now - duration.inSeconds
+proc epochForDurationBackFromNow(validation: Validation,
+    duration: times.Duration): SecondsSince1970 =
+  return validation.clock.now - duration.inSeconds
 
 proc restoreHistoricalState(validation: Validation) {.async} =
   trace "Restoring historical state..."
-  let startTimeEpoch = epochForDurationBackFromNow(MaxStorageRequestDuration)
+  let startTimeEpoch = validation.epochForDurationBackFromNow(MaxStorageRequestDuration)
   let slotFilledEvents = await validation.market.queryPastSlotFilledEvents(
     fromTime = startTimeEpoch)
   trace "Found slot filled events", numberOfSlots = slotFilledEvents.len
@@ -150,7 +150,8 @@ proc start*(validation: Validation) {.async.} =
   validation.running = validation.run()
 
 proc stop*(validation: Validation) {.async.} =
-  await validation.running.cancelAndWait()
+  if not isNil(validation.running):
+    await validation.running.cancelAndWait()
   while validation.subscriptions.len > 0:
     let subscription = validation.subscriptions.pop()
     await subscription.unsubscribe()
