@@ -107,19 +107,32 @@ proc retrieveCid(
     if not stream.isNil:
       await stream.close()
 
+proc buildCorsHeaders(httpMethod: string, allowedOrigin: Option[string]): seq[(string, string)] = 
+  var headers: seq[(string, string)] = newSeq[(string, string)]()
+
+  if corsOrigin =? allowedOrigin:
+    headers.add(("Access-Control-Allow-Origin", corsOrigin))
+    headers.add(("Access-Control-Allow-Methods", httpMethod & ", OPTIONS"))
+    headers.add(("Access-Control-Max-Age", "86400"))
+
+  return headers 
+
+proc setCorsHeaders(resp: HttpResponseRef, httpMethod: string, origin: string) = 
+  resp.setHeader("Access-Control-Allow-Origin", origin)
+  resp.setHeader("Access-Control-Allow-Methods", httpMethod & ", OPTIONS")
+  resp.setHeader("Access-Control-Max-Age", "86400")
+
 proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin # prevents capture inside of api defintion
-
+   
   router.api(
     MethodOptions,
     "/api/codex/v1/data") do (
        resp: HttpResponseRef) -> RestApiResponse:
-
+      
       if corsOrigin =? allowedOrigin:
-        resp.setHeader("Access-Control-Allow-Origin", corsOrigin)
-        resp.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
+        resp.setCorsHeaders("POST", corsOrigin)
         resp.setHeader("Access-Control-Allow-Headers", "content-type")
-        resp.setHeader("Access-Control-Max-Age", "86400")
 
       resp.status = Http204
       await resp.sendBody("")
@@ -176,18 +189,20 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     MethodGet,
     "/api/codex/v1/data/{cid}") do (
       cid: Cid, resp: HttpResponseRef) -> RestApiResponse:
+
+      var headers = buildCorsHeaders("GET", allowedOrigin)
+
       ## Download a file from the local node in a streaming
       ## manner
       if cid.isErr:
         return RestApiResponse.error(
           Http400,
-          $cid.error())
+          $cid.error(), 
+          headers = headers)
 
       if corsOrigin =? allowedOrigin:
-        resp.setHeader("Access-Control-Allow-Origin", corsOrigin)
-        resp.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
+        resp.setCorsHeaders("GET", corsOrigin)
         resp.setHeader("Access-Control-Headers", "X-Requested-With")
-        resp.setHeader("Access-Control-Max-Age", "86400")
 
       await node.retrieveCid(cid.get(), local = true, resp=resp)
 
@@ -199,16 +214,16 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       ## manner
       ##
 
+      var headers = buildCorsHeaders("GET", allowedOrigin)
+
       if cid.isErr:
         return RestApiResponse.error(
           Http400,
-          $cid.error())
+          $cid.error(), headers = headers)
 
       if corsOrigin =? allowedOrigin:
-        resp.setHeader("Access-Control-Allow-Origin", corsOrigin)
-        resp.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
+        resp.setCorsHeaders("GET", corsOrigin)
         resp.setHeader("Access-Control-Headers", "X-Requested-With")
-        resp.setHeader("Access-Control-Max-Age", "86400")
 
       await node.retrieveCid(cid.get(), local = false, resp=resp)
 
@@ -229,31 +244,34 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
   router.api(
     MethodGet,
     "/api/codex/v1/sales/slots") do () -> RestApiResponse:
+      var headers = buildCorsHeaders("GET", allowedOrigin)
+
       ## Returns active slots for the host
       try:
         without contracts =? node.contracts.host:
-          return RestApiResponse.error(Http503, "Persistence is not enabled")
+          return RestApiResponse.error(Http503, "Persistence is not enabled", headers = headers)
 
         let json = %(await contracts.sales.mySlots())
-        return RestApiResponse.response($json, contentType="application/json")
+        return RestApiResponse.response($json, contentType="application/json", headers = headers)
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
-        return RestApiResponse.error(Http500)
+        return RestApiResponse.error(Http500, headers = headers)
 
   router.api(
     MethodGet,
     "/api/codex/v1/sales/slots/{slotId}") do (slotId: SlotId) -> RestApiResponse:
       ## Returns active slot with id {slotId} for the host. Returns 404 if the
       ## slot is not active for the host.
+      var headers = buildCorsHeaders("GET", allowedOrigin)
 
       without contracts =? node.contracts.host:
-        return RestApiResponse.error(Http503, "Persistence is not enabled")
+        return RestApiResponse.error(Http503, "Persistence is not enabled", headers = headers)
 
       without slotId =? slotId.tryGet.catch, error:
-        return RestApiResponse.error(Http400, error.msg)
+        return RestApiResponse.error(Http400, error.msg, headers = headers)
 
       without agent =? await contracts.sales.activeSale(slotId):
-        return RestApiResponse.error(Http404, "Provider not filling slot")
+        return RestApiResponse.error(Http404, "Provider not filling slot", headers = headers)
 
       let restAgent = RestSalesAgent(
         state: agent.state() |? "none",
@@ -263,25 +281,26 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
         reservation: agent.data.reservation,
       )
 
-      return RestApiResponse.response(restAgent.toJson, contentType="application/json")
+      return RestApiResponse.response(restAgent.toJson, contentType="application/json", headers = headers)
 
   router.api(
     MethodGet,
     "/api/codex/v1/sales/availability") do () -> RestApiResponse:
       ## Returns storage that is for sale
+      var headers = buildCorsHeaders("GET", allowedOrigin)
 
       try:
         without contracts =? node.contracts.host:
-          return RestApiResponse.error(Http503, "Persistence is not enabled")
+          return RestApiResponse.error(Http503, "Persistence is not enabled", headers = headers)
 
         without avails =? (await contracts.sales.context.reservations.all(Availability)), err:
-          return RestApiResponse.error(Http500, err.msg)
+          return RestApiResponse.error(Http500, err.msg, headers = headers)
 
         let json = %avails
-        return RestApiResponse.response($json, contentType="application/json")
+        return RestApiResponse.response($json, contentType="application/json", headers = headers)
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
-        return RestApiResponse.error(Http500)
+        return RestApiResponse.error(Http500, headers = headers)
 
   router.rawApi(
     MethodPost,
@@ -294,12 +313,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       ## minPrice       - minimal price paid (in amount of tokens) for the whole hosted request's slot for the request's duration
       ## maxCollateral  - maximum collateral user is willing to pay per filled Slot (in amount of tokens)
 
-      var headers = newSeq[(string,string)]()
-
-      if corsOrigin =? allowedOrigin:
-        headers.add(("Access-Control-Allow-Origin", corsOrigin))
-        headers.add(("Access-Control-Allow-Methods", "POST, OPTIONS"))
-        headers.add(("Access-Control-Max-Age", "86400"))
+      var headers = buildCorsHeaders("POST", allowedOrigin)
 
       try:
         without contracts =? node.contracts.host:
@@ -340,9 +354,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
     "/api/codex/v1/sales/availability/{id}") do (id: AvailabilityId, resp: HttpResponseRef) -> RestApiResponse:
 
       if corsOrigin =? allowedOrigin:
-        resp.setHeader("Access-Control-Allow-Origin", corsOrigin)
-        resp.setHeader("Access-Control-Allow-Methods", "PATCH, OPTIONS")
-        resp.setHeader("Access-Control-Max-Age", "86400")
+        resp.setCorsHeaders("PATCH", corsOrigin)
 
       resp.status = Http204
       await resp.sendBody("")
@@ -358,7 +370,6 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       ## duration       - maximum time the storage should be sold for (in seconds)
       ## minPrice       - minimum price to be paid (in amount of tokens)
       ## maxCollateral  - maximum collateral user is willing to pay per filled Slot (in amount of tokens)
-
       try:
         without contracts =? node.contracts.host:
           return RestApiResponse.error(Http503, "Persistence is not enabled")
@@ -414,33 +425,34 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
     MethodGet,
     "/api/codex/v1/sales/availability/{id}/reservations") do (id: AvailabilityId) -> RestApiResponse:
       ## Gets Availability's reservations.
+      var headers = buildCorsHeaders("GET", allowedOrigin)
 
       try:
         without contracts =? node.contracts.host:
-          return RestApiResponse.error(Http503, "Persistence is not enabled")
+          return RestApiResponse.error(Http503, "Persistence is not enabled", headers = headers)
 
         without id =? id.tryGet.catch, error:
-          return RestApiResponse.error(Http400, error.msg)
+          return RestApiResponse.error(Http400, error.msg, headers = headers)
         without keyId =? id.key.tryGet.catch, error:
-          return RestApiResponse.error(Http400, error.msg)
+          return RestApiResponse.error(Http400, error.msg, headers = headers)
 
         let reservations = contracts.sales.context.reservations
         let market = contracts.sales.context.market
 
         if error =? (await reservations.get(keyId, Availability)).errorOption:
           if error of NotExistsError:
-            return RestApiResponse.error(Http404, "Availability not found")
+            return RestApiResponse.error(Http404, "Availability not found", headers = headers)
           else:
-            return RestApiResponse.error(Http500, error.msg)
+            return RestApiResponse.error(Http500, error.msg, headers = headers)
 
         without availabilitysReservations =? (await reservations.all(Reservation, id)), err:
-          return RestApiResponse.error(Http500, err.msg)
+          return RestApiResponse.error(Http500, err.msg, headers = headers)
 
         # TODO: Expand this structure with information about the linked StorageRequest not only RequestID
-        return RestApiResponse.response(availabilitysReservations.toJson, contentType="application/json")
+        return RestApiResponse.response(availabilitysReservations.toJson, contentType="application/json", headers = headers)
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
-        return RestApiResponse.error(Http500)
+        return RestApiResponse.error(Http500, headers = headers)
 
 proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin
@@ -448,6 +460,8 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
   router.rawApi(
     MethodPost,
     "/api/codex/v1/storage/request/{cid}") do (cid: Cid) -> RestApiResponse:
+      var headers = buildCorsHeaders("POST", allowedOrigin)
+
       ## Create a request for storage
       ##
       ## cid              - the cid of a previously uploaded dataset
@@ -458,14 +472,6 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       ## nodes            - number of nodes the content should be stored on
       ## tolerance        - allowed number of nodes that can be lost before content is lost
       ## colateral        - requested collateral from hosts when they fill slot
-
-      var headers = newSeq[(string,string)]()
-
-      if corsOrigin =? allowedOrigin:
-        headers.add(("Access-Control-Allow-Origin", corsOrigin))
-        headers.add(("Access-Control-Allow-Methods", "POST, OPTIONS"))
-        headers.add(("Access-Control-Max-Age", "86400"))
-
       try:
         without contracts =? node.contracts.client:
           return RestApiResponse.error(Http503, "Persistence is not enabled", headers = headers)
@@ -522,21 +528,22 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
         return RestApiResponse.error(Http500, headers = headers)
-
+    
   router.api(
     MethodGet,
     "/api/codex/v1/storage/purchases/{id}") do (
       id: PurchaseId) -> RestApiResponse:
+      var headers = buildCorsHeaders("GET", allowedOrigin)
 
       try:
         without contracts =? node.contracts.client:
-          return RestApiResponse.error(Http503, "Persistence is not enabled")
+          return RestApiResponse.error(Http503, "Persistence is not enabled", headers = headers)
 
         without id =? id.tryGet.catch, error:
-          return RestApiResponse.error(Http400, error.msg)
+          return RestApiResponse.error(Http400, error.msg, headers = headers)
 
         without purchase =? contracts.purchasing.getPurchase(id):
-          return RestApiResponse.error(Http404)
+          return RestApiResponse.error(Http404, headers = headers)
 
         let json = % RestPurchase(
           state: purchase.state |? "none",
@@ -545,25 +552,29 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
           requestId: purchase.requestId
         )
 
-        return RestApiResponse.response($json, contentType="application/json")
+        return RestApiResponse.response($json, contentType="application/json", headers = headers)
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
-        return RestApiResponse.error(Http500)
+        return RestApiResponse.error(Http500, headers = headers)
 
   router.api(
     MethodGet,
     "/api/codex/v1/storage/purchases") do () -> RestApiResponse:
+      var headers = buildCorsHeaders("GET", allowedOrigin)
+
       try:
         without contracts =? node.contracts.client:
-          return RestApiResponse.error(Http503, "Persistence is not enabled")
+          return RestApiResponse.error(Http503, "Persistence is not enabled", headers = headers)
 
         let purchaseIds = contracts.purchasing.getPurchaseIds()
-        return RestApiResponse.response($ %purchaseIds, contentType="application/json")
+        return RestApiResponse.response($ %purchaseIds, contentType="application/json", headers = headers)
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
-        return RestApiResponse.error(Http500)
+        return RestApiResponse.error(Http500, headers = headers)
 
 proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
+  let allowedOrigin = router.allowedOrigin
+
   ## various node management api's
   ##
   router.api(
@@ -571,33 +582,37 @@ proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
     "/api/codex/v1/spr") do () -> RestApiResponse:
       ## Returns node SPR in requested format, json or text.
       ##
+      var headers = buildCorsHeaders("GET", allowedOrigin)
+
       try:
         without spr =? node.discovery.dhtRecord:
-          return RestApiResponse.response("", status=Http503, contentType="application/json")
+          return RestApiResponse.response("", status=Http503, contentType="application/json", headers = headers)
 
         if $preferredContentType().get() == "text/plain":
-            return RestApiResponse.response(spr.toURI, contentType="text/plain")
+            return RestApiResponse.response(spr.toURI, contentType="text/plain", headers = headers)
         else:
-            return RestApiResponse.response($ %* {"spr": spr.toURI}, contentType="application/json")
+            return RestApiResponse.response($ %* {"spr": spr.toURI}, contentType="application/json", headers = headers)
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
-        return RestApiResponse.error(Http500)
+        return RestApiResponse.error(Http500, headers = headers)
 
   router.api(
     MethodGet,
     "/api/codex/v1/peerid") do () -> RestApiResponse:
       ## Returns node's peerId in requested format, json or text.
       ##
+      var headers = buildCorsHeaders("GET", allowedOrigin)
+
       try:
         let id = $node.switch.peerInfo.peerId
 
         if $preferredContentType().get() == "text/plain":
-            return RestApiResponse.response(id, contentType="text/plain")
+            return RestApiResponse.response(id, contentType="text/plain", headers = headers)
         else:
-            return RestApiResponse.response($ %* {"id": id}, contentType="application/json")
+            return RestApiResponse.response($ %* {"id": id}, contentType="application/json", headers = headers)
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
-        return RestApiResponse.error(Http500)
+        return RestApiResponse.error(Http500, headers = headers)
 
   router.api(
     MethodGet,
@@ -613,11 +628,13 @@ proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
       ##
       ## `addrs` the listening addresses of the peers to dial, eg the one specified with `--listen-addrs`
       ##
+      var headers = buildCorsHeaders("GET", allowedOrigin)
 
       if peerId.isErr:
         return RestApiResponse.error(
           Http400,
-          $peerId.error())
+          $peerId.error(), 
+          headers = headers)
 
       let addresses = if addrs.isOk and addrs.get().len > 0:
             addrs.get()
@@ -625,22 +642,26 @@ proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
             without peerRecord =? (await node.findPeer(peerId.get())):
               return RestApiResponse.error(
                 Http400,
-                "Unable to find Peer!")
+                "Unable to find Peer!", 
+                headers = headers)
             peerRecord.addresses.mapIt(it.address)
       try:
         await node.connect(peerId.get(), addresses)
-        return RestApiResponse.response("Successfully connected to peer")
+        return RestApiResponse.response("Successfully connected to peer", headers = headers)
       except DialFailedError:
-        return RestApiResponse.error(Http400, "Unable to dial peer")
+        return RestApiResponse.error(Http400, "Unable to dial peer", headers = headers)
       except CatchableError:
-        return RestApiResponse.error(Http500, "Unknown error dialling peer")
+        return RestApiResponse.error(Http500, "Unknown error dialling peer", headers = headers)
 
 proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
+  let allowedOrigin = router.allowedOrigin
+
   router.api(
     MethodGet,
     "/api/codex/v1/debug/info") do () -> RestApiResponse:
       ## Print rudimentary node information
       ##
+      var headers = buildCorsHeaders("GET", allowedOrigin)
 
       try:
         let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
@@ -664,10 +685,10 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
           }
 
         # return pretty json for human readability
-        return RestApiResponse.response(json.pretty(), contentType="application/json")
+        return RestApiResponse.response(json.pretty(), contentType="application/json", headers = headers)
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
-        return RestApiResponse.error(Http500)
+        return RestApiResponse.error(Http500, headers = headers)
 
   router.api(
     MethodPost,
@@ -679,26 +700,28 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
       ##
       ## `level` - chronicles log level
       ##
+      var headers = buildCorsHeaders("POST", allowedOrigin)
 
       try:
         without res =? level and level =? res:
-          return RestApiResponse.error(Http400, "Missing log level")
+          return RestApiResponse.error(Http400, "Missing log level", headers = headers)
 
         try:
           {.gcsafe.}:
             updateLogLevel(level)
         except CatchableError as exc:
-          return RestApiResponse.error(Http500, exc.msg)
+          return RestApiResponse.error(Http500, exc.msg, headers = headers)
 
         return RestApiResponse.response("")
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
-        return RestApiResponse.error(Http500)
+        return RestApiResponse.error(Http500, headers = headers)
 
   when codex_enable_api_debug_peers:
     router.api(
       MethodGet,
       "/api/codex/v1/debug/peer/{peerId}") do (peerId: PeerId) -> RestApiResponse:
+      var headers = buildCorsHeaders("GET", allowedOrigin)
 
       try:
         trace "debug/peer start"
@@ -706,14 +729,15 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
           trace "debug/peer peer not found!"
           return RestApiResponse.error(
             Http400,
-            "Unable to find Peer!")
+            "Unable to find Peer!",
+            headers = headers)
 
         let json = %RestPeerRecord.init(peerRecord)
         trace "debug/peer returning peer record"
-        return RestApiResponse.response($json)
+        return RestApiResponse.response($json, headers = headers)
       except CatchableError as exc:
         trace "Excepting processing request", exc = exc.msg
-        return RestApiResponse.error(Http500)
+        return RestApiResponse.error(Http500, headers = headers)
 
 proc initRestApi*(
   node: CodexNodeRef,
