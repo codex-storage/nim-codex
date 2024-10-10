@@ -464,7 +464,7 @@ ethersuite "On-Chain Market":
     await market.fillSlot(request.id, 2.u256, proof, request.ask.collateral)
 
     let events = await market.queryPastSlotFilledEvents(
-      fromTime = fromTime.truncate(int64))
+      fromTime = fromTime.truncate(SecondsSince1970))
     
     check events == @[
       SlotFilled(requestId: request.id, slotIndex: 1.u256),
@@ -484,7 +484,7 @@ ethersuite "On-Chain Market":
       await ethProvider.blockNumberAndTimestamp(BlockTag.latest)
 
     let events = await market.queryPastSlotFilledEvents(
-      fromTime = fromTime.truncate(int64))
+      fromTime = fromTime.truncate(SecondsSince1970))
     
     check events.len == 0
   
@@ -508,8 +508,10 @@ ethersuite "On-Chain Market":
   
   test "blockNumberForEpoch returns the earliest block when retained history " &
        "is shorter than the given epoch time":
-    # create predictable conditions for computing average block time
-    let averageBlockTime = 10.u256
+    # create predictable conditions
+    # we keep minimal resultion of 1s so that we are sure that
+    # we will land before the earliest (genesis in our case) block
+    let averageBlockTime = 1.u256
     await ethProvider.mineNBlocks(1)
     await ethProvider.advanceTime(averageBlockTime)
     let (earliestBlockNumber, earliestTimestamp) =
@@ -518,12 +520,8 @@ ethersuite "On-Chain Market":
     let fromTime = earliestTimestamp - 1
 
     let actual = await ethProvider.blockNumberForEpoch(
-      fromTime.truncate(int64))
+      fromTime.truncate(SecondsSince1970))
 
-    # Notice this could fail in a network where "earliest" block is
-    # not the genesis block - we run the tests agains local network
-    # so we know the earliest block is the same as genesis block
-    # earliestBlockNumber is 0.u256 in our case.
     check actual == earliestBlockNumber
   
   test "blockNumberForEpoch finds closest blockNumber for given epoch time":
@@ -609,7 +607,7 @@ ethersuite "On-Chain Market":
       debug "Validating", epochTime = epochTime,
         expectedBlockNumber = expectedBlockNumber
       let actualBlockNumber = await ethProvider.blockNumberForEpoch(
-        epochTime.truncate(int64))
+        epochTime.truncate(SecondsSince1970))
       check actualBlockNumber == expectedBlockNumber
 
   test "past event query can specify negative `blocksAgo` parameter":
