@@ -99,6 +99,7 @@ proc main() {.async.} =
   debug "Got circuithash", circuitHash
 
   let url = formatUrl(circuitHash)
+  info "Download URL", url
   if dlErr =? (await downloadZipfile(url, zipfile)).errorOption:
     error "Failed to download circuit file", msg = dlErr.msg
     return
