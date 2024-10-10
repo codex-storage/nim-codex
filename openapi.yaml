@@ -726,7 +726,7 @@ paths:
         "503":
           description: Persistence is not enabled
 
-  "/node/spr":
+  "/spr":
     get:
       summary: "Get Node's SPR"
       operationId: getSPR
@@ -744,7 +744,7 @@ paths:
         "503":
           description: Node SPR not ready, try again later
 
-  "/node/peerid":
+  "/peerid":
     get:
       summary: "Get Node's PeerID"
       operationId: getPeerId
