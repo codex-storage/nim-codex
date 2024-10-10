@@ -1,4 +1,3 @@
-
 import pkg/stew/byteutils
 import pkg/codex/chunker
 import pkg/codex/logutils
@@ -89,13 +88,30 @@ asyncchecksuite "Chunking":
       string.fromBytes(data) == readFile(path)
       fileChunker.offset == data.len
 
-  test "Should forward LPStreamError":
+  proc raiseStreamException(exc: ref CatchableError) {.async.} =
     let stream = CrashingStreamWrapper.new()
     let chunker = LPStreamChunker.new(
       stream = stream,
       chunkSize = 2'nb)
 
-    stream.toRaise = newException(LPStreamError, "test error")
+    stream.toRaise = exc
+    discard (await chunker.getBytes())
 
+  test "stream should forward LPStreamError":
     expect LPStreamError:
-      discard (await chunker.getBytes())
+      await raiseStreamException(newException(LPStreamError, "test error"))
+
+  test "stream should catch LPStreamEOFError":
+    await raiseStreamException(newException(LPStreamEOFError, "test error"))
+
+  test "stream should forward CancelledError":
+    expect CancelledError:
+      await raiseStreamException(newException(CancelledError, "test error"))
+
+  test "stream should forward LPStreamError":
+    expect LPStreamError:
+      await raiseStreamException(newException(LPStreamError, "test error"))
+
+  test "stream should convert other exceptions to defect":
+    expect Defect:
+      await raiseStreamException(newException(CatchableError, "test error"))
