@@ -452,6 +452,7 @@ ethersuite "On-Chain Market":
 
     let address = await host.getAddress()
     switchAccount(host)
+    await market.reserveSlot(request.id, 0.u256)
     await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
     let filledAt = (await ethProvider.currentTime()) - 1.u256
 
