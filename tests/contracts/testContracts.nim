@@ -49,8 +49,8 @@ ethersuite "Marketplace contracts":
     discard await marketplace.requestStorage(request)
     switchAccount(host)
     discard await token.approve(marketplace.address, request.ask.collateral)
-    filledAt = await ethProvider.currentTime()
     discard await marketplace.reserveSlot(request.id, 0.u256)
+    filledAt = await ethProvider.currentTime()
     discard await marketplace.fillSlot(request.id, 0.u256, proof)
     slotId = request.slotId(0.u256)
 
