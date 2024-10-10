@@ -1,3 +1,4 @@
+import std/times
 import std/sets
 import std/sequtils
 import pkg/chronos
@@ -22,6 +23,9 @@ type
     periodicity: Periodicity
     proofTimeout: UInt256
     config: ValidationConfig
+
+const
+  MaxStorageRequestDuration: times.Duration = initDuration(days = 30)
 
 logScope:
   topics = "codex validator"
@@ -119,14 +123,35 @@ proc run(validation: Validation) {.async.} =
   except CatchableError as e:
     error "Validation failed", msg = e.msg
 
+proc epochForDurationBackFromNow(validation: Validation,
+    duration: times.Duration): SecondsSince1970 =
+  return validation.clock.now - duration.inSeconds
+
+proc restoreHistoricalState(validation: Validation) {.async} =
+  trace "Restoring historical state..."
+  let startTimeEpoch = validation.epochForDurationBackFromNow(MaxStorageRequestDuration)
+  let slotFilledEvents = await validation.market.queryPastSlotFilledEvents(
+    fromTime = startTimeEpoch)
+  trace "Found slot filled events", numberOfSlots = slotFilledEvents.len
+  for event in slotFilledEvents:
+    let slotId = slotId(event.requestId, event.slotIndex)
+    if validation.shouldValidateSlot(slotId):
+      trace "Adding slot [historical]", slotId
+      validation.slots.incl(slotId)
+  trace "Removing slots that have ended..."
+  await removeSlotsThatHaveEnded(validation)
+  trace "Historical state restored", numberOfSlots = validation.slots.len
+
 proc start*(validation: Validation) {.async.} =
   validation.periodicity = await validation.market.periodicity()
   validation.proofTimeout = await validation.market.proofTimeout()
   await validation.subscribeSlotFilled()
+  await validation.restoreHistoricalState()
   validation.running = validation.run()
 
 proc stop*(validation: Validation) {.async.} =
-  await validation.running.cancelAndWait()
+  if not isNil(validation.running):
+    await validation.running.cancelAndWait()
   while validation.subscriptions.len > 0:
     let subscription = validation.subscriptions.pop()
     await subscription.unsubscribe()

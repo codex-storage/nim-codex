@@ -1,6 +1,4 @@
-import std/sequtils
 import std/strutils
-import std/sugar
 import pkg/ethers
 import pkg/upraises
 import pkg/questionable
@@ -397,18 +395,148 @@ method subscribeProofSubmission*(market: OnChainMarket,
 method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =
   await subscription.eventSubscription.unsubscribe()
 
-method queryPastEvents*[T: MarketplaceEvent](
+proc blockNumberForBlocksEgo*(provider: Provider,
+                             blocksAgo: int): Future[BlockTag] {.async.} =
+  let head = await provider.getBlockNumber()
+  return BlockTag.init(head - blocksAgo.abs.u256)
+
+proc blockNumberAndTimestamp*(provider: Provider, blockTag: BlockTag):
+    Future[(UInt256, UInt256)] {.async.} =
+  without latestBlock =? await provider.getBlock(blockTag), error:
+    raise error
+
+  without latestBlockNumber =? latestBlock.number:
+    raise newException(EthersError, "Could not get latest block number")
+
+  (latestBlockNumber, latestBlock.timestamp)
+
+proc estimateAverageBlockTime*(provider: Provider): Future[UInt256] {.async.} =
+  let (latestBlockNumber, latestBlockTimestamp) =
+    await provider.blockNumberAndTimestamp(BlockTag.latest)
+  let (_, previousBlockTimestamp) =
+    await provider.blockNumberAndTimestamp(
+      BlockTag.init(latestBlockNumber - 1.u256))
+  debug "[estimateAverageBlockTime]:", latestBlockNumber = latestBlockNumber,
+    latestBlockTimestamp = latestBlockTimestamp,
+    previousBlockTimestamp = previousBlockTimestamp
+  return latestBlockTimestamp - previousBlockTimestamp
+
+proc binarySearchFindClosestBlock*(provider: Provider,
+                                  epochTime: int,
+                                  low: UInt256,
+                                  high: UInt256): Future[UInt256] {.async.} =
+  let (_, lowTimestamp) =
+    await provider.blockNumberAndTimestamp(BlockTag.init(low))
+  let (_, highTimestamp) =
+    await provider.blockNumberAndTimestamp(BlockTag.init(high))
+  debug "[binarySearchFindClosestBlock]:", epochTime = epochTime,
+    lowTimestamp = lowTimestamp, highTimestamp = highTimestamp, low = low, high = high
+  if abs(lowTimestamp.truncate(int) - epochTime) <
+      abs(highTimestamp.truncate(int) - epochTime):
+    return low
+  else:
+    return high
+
+proc binarySearchBlockNumberForEpoch*(provider: Provider,
+                                     epochTime: UInt256,
+                                     latestBlockNumber: UInt256,
+                                     earliestBlockNumber: UInt256):
+                                      Future[UInt256] {.async.} =
+  var low = earliestBlockNumber
+  var high = latestBlockNumber
+
+  debug "[binarySearchBlockNumberForEpoch]:", low = low, high = high
+  while low <= high:
+    if low == 0 and high == 0:
+      return low
+    let mid = (low + high) div 2
+    debug "[binarySearchBlockNumberForEpoch]:", low = low, mid = mid, high = high
+    let (midBlockNumber, midBlockTimestamp) =
+      await provider.blockNumberAndTimestamp(BlockTag.init(mid))
+    
+    if midBlockTimestamp < epochTime:
+      low = mid + 1
+    elif midBlockTimestamp > epochTime:
+      high = mid - 1
+    else:
+      return midBlockNumber
+  # NOTICE that by how the binaty search is implemented, when it finishes
+  # low is always greater than high - this is why we return high, where
+  # intuitively we would return low.
+  await provider.binarySearchFindClosestBlock(
+    epochTime.truncate(int), low=high, high=low)
+
+proc blockNumberForEpoch*(provider: Provider,
+    epochTime: SecondsSince1970): Future[UInt256] {.async.} =
+  let avgBlockTime = await provider.estimateAverageBlockTime()
+  debug "[blockNumberForEpoch]:", avgBlockTime = avgBlockTime
+  debug "[blockNumberForEpoch]:", epochTime = epochTime
+  let epochTimeUInt256 = epochTime.u256
+  let (latestBlockNumber, latestBlockTimestamp) = 
+    await provider.blockNumberAndTimestamp(BlockTag.latest)
+  let (earliestBlockNumber, earliestBlockTimestamp) = 
+    await provider.blockNumberAndTimestamp(BlockTag.earliest)
+  
+  debug "[blockNumberForEpoch]:", latestBlockNumber = latestBlockNumber,
+    latestBlockTimestamp = latestBlockTimestamp
+  debug "[blockNumberForEpoch]:", earliestBlockNumber = earliestBlockNumber,
+    earliestBlockTimestamp = earliestBlockTimestamp
+
+  let timeDiff = latestBlockTimestamp - epochTimeUInt256
+  let blockDiff = timeDiff div avgBlockTime
+
+  debug "[blockNumberForEpoch]:", timeDiff = timeDiff, blockDiff = blockDiff
+
+  if blockDiff >= latestBlockNumber - earliestBlockNumber:
+    return earliestBlockNumber
+
+  return await provider.binarySearchBlockNumberForEpoch(
+    epochTimeUInt256, latestBlockNumber, earliestBlockNumber)
+
+method queryPastSlotFilledEvents*(
   market: OnChainMarket,
-  _: type T,
-  blocksAgo: int): Future[seq[T]] {.async.} =
+  fromBlock: BlockTag): Future[seq[SlotFilled]] {.async.} =
 
   convertEthersError:
-    let contract = market.contract
-    let provider = contract.provider
+    return await market.contract.queryFilter(SlotFilled,
+                                             fromBlock,
+                                             BlockTag.latest)
 
-    let head = await provider.getBlockNumber()
-    let fromBlock = BlockTag.init(head - blocksAgo.abs.u256)
+method queryPastSlotFilledEvents*(
+  market: OnChainMarket,
+  blocksAgo: int): Future[seq[SlotFilled]] {.async.} =
 
-    return await contract.queryFilter(T,
-                                      fromBlock,
-                                      BlockTag.latest)
+  convertEthersError:
+    let fromBlock =
+      await blockNumberForBlocksEgo(market.contract.provider, blocksAgo)
+
+    return await market.queryPastSlotFilledEvents(fromBlock)
+
+method queryPastSlotFilledEvents*(
+  market: OnChainMarket,
+  fromTime: SecondsSince1970): Future[seq[SlotFilled]] {.async.} =
+
+  convertEthersError:
+    let fromBlock = 
+      await market.contract.provider.blockNumberForEpoch(fromTime)
+    debug "[queryPastSlotFilledEvents]", fromTime=fromTime, fromBlock=parseHexInt($fromBlock)
+    return await market.queryPastSlotFilledEvents(BlockTag.init(fromBlock))
+
+method queryPastStorageRequestedEvents*(
+  market: OnChainMarket,
+  fromBlock: BlockTag): Future[seq[StorageRequested]] {.async.} =
+
+  convertEthersError:
+    return await market.contract.queryFilter(StorageRequested,
+                                             fromBlock,
+                                             BlockTag.latest)
+
+method queryPastStorageRequestedEvents*(
+  market: OnChainMarket,
+  blocksAgo: int): Future[seq[StorageRequested]] {.async.} =
+
+  convertEthersError:
+    let fromBlock =
+      await blockNumberForBlocksEgo(market.contract.provider, blocksAgo)
+
+    return await market.queryPastStorageRequestedEvents(fromBlock)
