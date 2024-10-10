@@ -7,6 +7,17 @@ import pkg/chronos
 import ../asynctest
 import ./helpers
 
+type
+  CrashingStreamWrapper* = ref object of LPStream
+    toRaise*: ref CatchableError
+
+method readOnce*(
+  self: CrashingStreamWrapper,
+  pbytes: pointer,
+  nbytes: int
+): Future[int] {.async.} =
+  raise self.toRaise
+
 asyncchecksuite "Chunking":
   test "should return proper size chunks":
     var offset = 0
@@ -78,3 +89,13 @@ asyncchecksuite "Chunking":
       string.fromBytes(data) == readFile(path)
       fileChunker.offset == data.len
 
+  test "Should forward LPStreamError":
+    let stream = CrashingStreamWrapper.new()
+    let chunker = LPStreamChunker.new(
+      stream = stream,
+      chunkSize = 2'nb)
+
+    stream.toRaise = newException(LPStreamError, "test error")
+
+    expect LPStreamError:
+      discard (await chunker.getBytes())
