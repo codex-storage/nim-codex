@@ -161,7 +161,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       try:
         without cid =? (
           await node.store(AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)))), error:
-          trace "Error uploading file", exc = error.msg
+          error "Error uploading file", exc = error.msg
           return RestApiResponse.error(Http500, error.msg)
 
         codex_api_uploads.inc()
