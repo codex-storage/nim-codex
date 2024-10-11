@@ -7,6 +7,7 @@ import ../ethertest
 import ./examples
 import ./time
 import ./deployment
+import ./helpers/mockProvider
 
 privateAccess(OnChainMarket) # enable access to private fields
 
@@ -488,41 +489,64 @@ ethersuite "On-Chain Market":
     
     check events.len == 0
   
-  test "estimateAverageBlockTime correctly computes the time between " &
-       "two most recent blocks":
-    let simulatedBlockTime = 15.u256
-    await ethProvider.mineNBlocks(1)
-    let (_, timestampPrevious) =
-      await ethProvider.blockNumberAndTimestamp(BlockTag.latest)
-    
-    await ethProvider.advanceTime(simulatedBlockTime)
+  test "blockNumberForEpoch returns the earliest block when its timestamp " &
+       "is greater than the given epoch time and the earliest block is not " &
+       "block number 0 (genesis block)":
+    let mockProvider = newMockProvider(
+      numberOfBlocks = 10,
+      earliestBlockNumber = 1,
+      earliestBlockTimestamp = 10,
+      timeIntervalBetweenBlocks = 10
+    )
 
-    let (_, timestampLatest) =
-      await ethProvider.blockNumberAndTimestamp(BlockTag.latest)
-    
-    let expected = timestampLatest - timestampPrevious
-    let actual = await ethProvider.estimateAverageBlockTime()
-
-    check expected == simulatedBlockTime
-    check actual == expected
-  
-  test "blockNumberForEpoch returns the earliest block when retained history " &
-       "is shorter than the given epoch time":
-    # create predictable conditions
-    # we keep minimal resultion of 1s so that we are sure that
-    # we will land before the earliest (genesis in our case) block
-    let averageBlockTime = 1.u256
-    await ethProvider.mineNBlocks(1)
-    await ethProvider.advanceTime(averageBlockTime)
     let (earliestBlockNumber, earliestTimestamp) =
-      await ethProvider.blockNumberAndTimestamp(BlockTag.earliest)
+      await mockProvider.blockNumberAndTimestamp(BlockTag.earliest)
     
-    let fromTime = earliestTimestamp - 1
+    let epochTime = earliestTimestamp - 1
 
-    let actual = await ethProvider.blockNumberForEpoch(
-      fromTime.truncate(SecondsSince1970))
+    let actual = await mockProvider.blockNumberForEpoch(
+      epochTime.truncate(SecondsSince1970))
 
     check actual == earliestBlockNumber
+  
+  test "blockNumberForEpoch returns the earliest block when its timestamp " &
+       "is equal to the given epoch time":
+    let mockProvider = newMockProvider(
+      numberOfBlocks = 10,
+      earliestBlockNumber = 0,
+      earliestBlockTimestamp = 10,
+      timeIntervalBetweenBlocks = 10
+    )
+
+    let (earliestBlockNumber, earliestTimestamp) =
+      await mockProvider.blockNumberAndTimestamp(BlockTag.earliest)
+    
+    let epochTime = earliestTimestamp
+
+    let actual = await mockProvider.blockNumberForEpoch(
+      epochTime.truncate(SecondsSince1970))
+
+    check earliestBlockNumber == 0.u256
+    check actual == earliestBlockNumber
+  
+  test "blockNumberForEpoch returns the latest block when its timestamp " &
+       "is equal to the given epoch time":
+    let mockProvider = newMockProvider(
+      numberOfBlocks = 10,
+      earliestBlockNumber = 0,
+      earliestBlockTimestamp = 10,
+      timeIntervalBetweenBlocks = 10
+    )
+
+    let (latestBlockNumber, latestTimestamp) =
+      await mockProvider.blockNumberAndTimestamp(BlockTag.latest)
+    
+    let epochTime = latestTimestamp
+
+    let actual = await mockProvider.blockNumberForEpoch(
+      epochTime.truncate(SecondsSince1970))
+
+    check actual == latestBlockNumber
   
   test "blockNumberForEpoch finds closest blockNumber for given epoch time":
     proc createBlockHistory(n: int, blockTime: int):
