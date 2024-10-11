@@ -448,6 +448,7 @@ ethersuite "On-Chain Market":
   
   test "can query past SlotFilled events since given timestamp":
     await market.requestStorage(request)
+    await market.reserveSlot(request.id, 0.u256)
     await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
     
     # The SlotFilled event will be included in the same block as
@@ -461,6 +462,8 @@ ethersuite "On-Chain Market":
     let (_, fromTime) =
       await ethProvider.blockNumberAndTimestamp(BlockTag.latest)
 
+    await market.reserveSlot(request.id, 1.u256)
+    await market.reserveSlot(request.id, 2.u256)
     await market.fillSlot(request.id, 1.u256, proof, request.ask.collateral)
     await market.fillSlot(request.id, 2.u256, proof, request.ask.collateral)
 
@@ -475,6 +478,9 @@ ethersuite "On-Chain Market":
   test "queryPastSlotFilledEvents returns empty sequence of events when " &
        "no SlotFilled events have occurred since given timestamp":
     await market.requestStorage(request)
+    await market.reserveSlot(request.id, 0.u256)
+    await market.reserveSlot(request.id, 1.u256)
+    await market.reserveSlot(request.id, 2.u256)
     await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
     await market.fillSlot(request.id, 1.u256, proof, request.ask.collateral)
     await market.fillSlot(request.id, 2.u256, proof, request.ask.collateral)
