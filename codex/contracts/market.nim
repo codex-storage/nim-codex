@@ -1,4 +1,5 @@
 import std/strutils
+import std/times
 import pkg/ethers
 import pkg/upraises
 import pkg/questionable
@@ -480,17 +481,6 @@ proc blockNumberAndTimestamp*(provider: Provider, blockTag: BlockTag):
 
   (latestBlockNumber, latestBlock.timestamp)
 
-proc estimateAverageBlockTime*(provider: Provider): Future[UInt256] {.async.} =
-  let (latestBlockNumber, latestBlockTimestamp) =
-    await provider.blockNumberAndTimestamp(BlockTag.latest)
-  let (_, previousBlockTimestamp) =
-    await provider.blockNumberAndTimestamp(
-      BlockTag.init(latestBlockNumber - 1.u256))
-  debug "[estimateAverageBlockTime]:", latestBlockNumber = latestBlockNumber,
-    latestBlockTimestamp = latestBlockTimestamp,
-    previousBlockTimestamp = previousBlockTimestamp
-  return latestBlockTimestamp - previousBlockTimestamp
-
 proc binarySearchFindClosestBlock*(provider: Provider,
                                   epochTime: int,
                                   low: UInt256,
@@ -538,8 +528,6 @@ proc binarySearchBlockNumberForEpoch*(provider: Provider,
 
 proc blockNumberForEpoch*(provider: Provider,
     epochTime: SecondsSince1970): Future[UInt256] {.async.} =
-  let avgBlockTime = await provider.estimateAverageBlockTime()
-  debug "[blockNumberForEpoch]:", avgBlockTime = avgBlockTime
   debug "[blockNumberForEpoch]:", epochTime = epochTime
   let epochTimeUInt256 = epochTime.u256
   let (latestBlockNumber, latestBlockTimestamp) = 
@@ -552,12 +540,45 @@ proc blockNumberForEpoch*(provider: Provider,
   debug "[blockNumberForEpoch]:", earliestBlockNumber = earliestBlockNumber,
     earliestBlockTimestamp = earliestBlockTimestamp
 
-  let timeDiff = latestBlockTimestamp - epochTimeUInt256
-  let blockDiff = timeDiff div avgBlockTime
+  # Initially we used the average block time to predict
+  # the number of blocks we need to look back in order to find
+  # the block number corresponding to the given epoch time. 
+  # This estimation can be highly inaccurate if block time
+  # was changing in the past or is fluctuating and therefore
+  # we used that information initially only to find out
+  # if the available history is long enough to perform effective search.
+  # It turns out we do not have to do that. There is an easier way.
+  #
+  # First we check if the given epoch time equals the timestamp of either
+  # the earliest or the latest block. If it does, we just return the
+  # block number of that block.
+  #
+  # Otherwise, if the earliest available block is not the genesis block, 
+  # we should check the timestamp of that earliest block and if it is greater
+  # than the epoch time, we should issue a warning and return
+  # that earliest block number.
+  # In all other cases, thus when the earliest block is not the genesis
+  # block but its timestamp is not greater than the requested epoch time, or
+  # if the earliest available block is the genesis block, 
+  # (which means we have the whole history available), we should proceed with
+  # the binary search.
+  #
+  # Additional benefit of this method is that we do not have to rely
+  # on the average block time, which not only makes the whole thing
+  # more reliable, but also easier to test.
 
-  debug "[blockNumberForEpoch]:", timeDiff = timeDiff, blockDiff = blockDiff
+  # Are lucky today?
+  if earliestBlockTimestamp == epochTimeUInt256:
+    return earliestBlockNumber
+  if latestBlockTimestamp == epochTimeUInt256:
+    return latestBlockNumber
 
-  if blockDiff >= latestBlockNumber - earliestBlockNumber:
+  if earliestBlockNumber > 0 and earliestBlockTimestamp > epochTimeUInt256:
+    let availableHistoryInDays = 
+        (latestBlockTimestamp - earliestBlockTimestamp) div
+          initDuration(days = 1).inSeconds.u256
+    warn "Short block history detected.", earliestBlockTimestamp =  
+      earliestBlockTimestamp, days = availableHistoryInDays
     return earliestBlockNumber
 
   return await provider.binarySearchBlockNumberForEpoch(
