@@ -239,6 +239,28 @@ proc withSimulateProofFailures*(
       StartUpCmd.persistence, "--simulate-proof-failures", $failEveryNProofs)
   return startConfig
 
+proc withValidationGroups*(
+  self: CodexConfigs,
+  groups: ValidationGroups): CodexConfigs {.raises: [CodexConfigError].} =
+
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption(
+    StartUpCmd.persistence, "--validator-groups", $(groups))
+  return startConfig
+
+proc withValidationGroupIndex*(
+  self: CodexConfigs,
+  idx: int,
+  groupIndex: uint16): CodexConfigs {.raises: [CodexConfigError].} =
+
+  self.checkBounds idx
+
+  var startConfig = self
+  startConfig.configs[idx].addCliOption(
+    StartUpCmd.persistence, "--validator-group-index", $groupIndex)
+  return startConfig
+
 proc logLevelWithTopics(
   config: CodexConfig,
   topics: varargs[string]): string {.raises: [CodexConfigError].} =
