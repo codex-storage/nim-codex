@@ -7,7 +7,7 @@ import ../ethertest
 import ./examples
 import ./time
 import ./deployment
-import ./helpers/mockProvider
+import ./helpers/mockprovider
 
 privateAccess(OnChainMarket) # enable access to private fields
 
