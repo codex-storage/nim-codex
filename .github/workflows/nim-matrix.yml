@@ -20,7 +20,7 @@ jobs:
       uses: fabiocaccamo/create-matrix-action@v4
       with:
         matrix: |
-          os {linux}, cpu {amd64}, builder {ubuntu-latest}, tests {all}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {linux}, cpu {amd64}, builder {ubuntu-20.04}, tests {all}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
 
   build:
     needs: matrix
