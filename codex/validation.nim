@@ -119,7 +119,9 @@ proc markProofsAsMissing(validation: Validation) {.async.} =
 
 proc run(validation: Validation) {.async.} =
   trace "Validation started", groups = validation.config.groups,
-    groupIndex = validation.config.groupIndex
+    groupIndex = validation.config.groupIndex,
+      currentTime = validation.clock.now,
+        currentTime = validation.clock.now.fromUnix
   try:
     while true:
       await validation.waitUntilNextPeriod()
