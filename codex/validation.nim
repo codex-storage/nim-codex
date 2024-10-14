@@ -85,7 +85,7 @@ proc removeSlotsThatHaveEnded(validation: Validation) {.async.} =
     let state = await validation.market.slotState(slotId)
     if state != SlotState.Filled:
       trace "Removing slot", slotId, groups = validation.config.groups,
-        groupIndex = validation.config.groupIndex
+        groupIndex = validation.config.groupIndex, slotState = state
       ended.incl(slotId)
   validation.slots.excl(ended)
 
