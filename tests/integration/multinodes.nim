@@ -62,7 +62,7 @@ template multinodesuite*(name: string, body: untyped) =
 
   asyncchecksuite name:
 
-    var running: seq[RunningNode]
+    var running {.inject, used.}: seq[RunningNode]
     var bootstrap: string
     let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
     var currentTestName = ""
