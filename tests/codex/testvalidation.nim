@@ -162,9 +162,9 @@ asyncchecksuite "validation":
     await market.fillSlot(earlySlot.request.id, earlySlot.slotIndex, proof, collateral)
     let fromTime = clock.now()
     clock.set(fromTime + 1)
-    let duration: times.Duration = initDuration(days = 30)
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
     
+    let duration: times.Duration = initDuration(days = 30)
     clock.set(fromTime + duration.inSeconds + 1)
 
     validation = newValidation(clock, market, maxSlots = 0,
