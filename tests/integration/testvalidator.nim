@@ -16,6 +16,7 @@ logScope:
 marketplacesuite "Validation":
   let nodes = 3
   let tolerance = 1
+  let proofProbability = 1
   var slotsFilled: seq[SlotId]
   var slotsFreed: seq[SlotId]
 
@@ -31,14 +32,14 @@ marketplacesuite "Validation":
     let subscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
     subscription
   
-  proc trackSlotsFreed(requestId: RequestId, marketplace: Marketplace):
+  proc trackSlotsFreed(marketplace: Marketplace, requestId: RequestId):
       Future[provider.Subscription] {.async.} =
     slotsFreed = newSeq[SlotId]()
     proc onSlotFreed(event: SlotFreed) =
       if event.requestId == requestId:
         let slotId = slotId(event.requestId, event.slotIndex)
         slotsFreed.add(slotId)
-        debug "onSlotFreed", requestId = requestId, slotIndex = event.slotIndex,
+        debug "SlotFreed", requestId = requestId, slotIndex = event.slotIndex,
           slotId = slotId, slotsFreed = slotsFreed.len
 
     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
@@ -85,7 +86,7 @@ marketplacesuite "Validation":
         .withValidationGroupIndex(idx = 1, groupIndex = 1)
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("validator")
+        # .withLogTopics("validator") # each topic as a separate string argument
         # .withLogTopics("validator", "integration", "ethers", "clock")
         .some
   ):
@@ -93,13 +94,16 @@ marketplacesuite "Validation":
     let expiry = 5.periods
     let duration = expiry + 10.periods
 
+    var currentTime = await ethProvider.currentTime()
+    let requestEndTime = currentTime.truncate(uint64) + duration
+
     let data = await RandomChunker.example(blocks=8)
     
     # TODO: better value for data.len below. This TODO is also present in
     # testproofs.nim - we may want to address it or remove the comment.
     createAvailabilities(data.len * 2, duration)
 
-    let slotFilledSubscription = await trackSlotsFilled(marketplace)
+    let slotFilledSubscription = await marketplace.trackSlotsFilled()
 
     let cid = client0.upload(data).get
 
@@ -109,23 +113,30 @@ marketplacesuite "Validation":
       duration=duration,
       nodes=nodes,
       tolerance=tolerance,
-      proofProbability=1
+      proofProbability=proofProbability
     )
     let requestId = client0.requestId(purchaseId).get
+
+    debug "validation suite", purchaseId = purchaseId.toHex, requestId = requestId
 
     check eventually(client0.purchaseStateIs(purchaseId, "started"),
       timeout = expiry.int * 1000)
     
-    let slotFreedSubscription = 
-      await trackSlotsFreed(requestId, marketplace)
+    currentTime = await ethProvider.currentTime()
+    let secondsTillRequestEnd = (requestEndTime - currentTime.truncate(uint64)).int
 
-    let expectedSlotsFreed = nodes - tolerance
-    check eventually((slotsFreed.len == expectedSlotsFreed),
-      timeout=(duration - expiry).int * 1000)
+    debug "validation suite", secondsTillRequestEnd = secondsTillRequestEnd.seconds
     
-    # Because of erasure coding, if e.g. 2 out of 3 nodes are freed, the last
-    # node will not be freed but marked as "Failed" because the whole request
-    # will fail. For this reason we need an extra check:
+    let slotFreedSubscription = 
+      await marketplace.trackSlotsFreed(requestId)
+
+    let expectedSlotsFreed = tolerance + 1
+    check eventually((slotsFreed.len == expectedSlotsFreed),
+      timeout=(secondsTillRequestEnd + 60) * 1000)
+    
+    # Because of erasure coding, after (tolerance + 1) slots are freed, the
+    # remaining nodes are be freed but marked as "Failed" as the whole
+    # request fails. To capture this we need an extra check:
     await checkSlotsFailed(slotsFilled, slotsFreed, marketplace)
     
     await slotFilledSubscription.unsubscribe()
@@ -155,13 +166,16 @@ marketplacesuite "Validation":
     let expiry = 5.periods
     let duration = expiry + 10.periods
 
+    var currentTime = await ethProvider.currentTime()
+    let requestEndTime = currentTime.truncate(uint64) + duration
+
     let data = await RandomChunker.example(blocks=8)
 
     # TODO: better value for data.len below. This TODO is also present in
     # testproofs.nim - we may want to address it or remove the comment.
     createAvailabilities(data.len * 2, duration)
 
-    let slotFilledSubscription = await trackSlotsFilled(marketplace)
+    let slotFilledSubscription = await marketplace.trackSlotsFilled()
 
     let cid = client0.upload(data).get
 
@@ -171,9 +185,11 @@ marketplacesuite "Validation":
       duration=duration,
       nodes=nodes,
       tolerance=tolerance,
-      proofProbability=1
+      proofProbability=proofProbability
     )
     let requestId = client0.requestId(purchaseId).get
+
+    debug "validation suite", purchaseId = purchaseId.toHex, requestId = requestId
 
     check eventually(client0.purchaseStateIs(purchaseId, "started"), 
       timeout = expiry.int * 1000)
@@ -199,16 +215,21 @@ marketplacesuite "Validation":
           node: node
         )
     
-    let slotFreedSubscription = 
-      await trackSlotsFreed(requestId, marketplace)
+    currentTime = await ethProvider.currentTime()
+    let secondsTillRequestEnd = (requestEndTime - currentTime.truncate(uint64)).int
 
-    let expectedSlotsFreed = nodes - tolerance
+    debug "validation suite", secondsTillRequestEnd = secondsTillRequestEnd.seconds
+
+    let slotFreedSubscription = 
+      await marketplace.trackSlotsFreed(requestId)
+
+    let expectedSlotsFreed = tolerance + 1
     check eventually((slotsFreed.len == expectedSlotsFreed),
-      timeout=(duration - expiry).int * 1000)
+      timeout=(secondsTillRequestEnd + 60) * 1000)
     
-    # Because of erasure coding, if e.g. 2 out of 3 nodes are freed, the last
-    # node will not be freed but marked as "Failed" because the whole request
-    # will fail. For this reason we need an extra check:
+    # Because of erasure coding, after (tolerance + 1) slots are freed, the
+    # remaining nodes are be freed but marked as "Failed" as the whole
+    # request fails. To capture this we need an extra check:
     await checkSlotsFailed(slotsFilled, slotsFreed, marketplace)
     
     await slotFilledSubscription.unsubscribe()
