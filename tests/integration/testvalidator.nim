@@ -13,7 +13,7 @@ export logutils
 logScope:
   topics = "integration test validation"
 
-marketplacesuite "Validaton":
+marketplacesuite "Validation":
   let nodes = 3
   let tolerance = 1
   var slotsFilled: seq[SlotId]
