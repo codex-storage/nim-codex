@@ -261,6 +261,29 @@ proc withValidationGroupIndex*(
     StartUpCmd.persistence, "--validator-group-index", $groupIndex)
   return startConfig
 
+proc withEthProvider*(
+  self: CodexConfigs,
+  idx: int,
+  ethProvider: string
+): CodexConfigs {.raises: [CodexConfigError].} =
+
+  self.checkBounds idx
+
+  var startConfig = self
+  startConfig.configs[idx].addCliOption(StartUpCmd.persistence,
+    "--eth-provider", ethProvider)
+  return startConfig
+
+proc withEthProvider*(
+  self: CodexConfigs,
+  ethProvider: string): CodexConfigs {.raises: [CodexConfigError].} =
+
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption(StartUpCmd.persistence,
+      "--eth-provider", ethProvider)
+  return startConfig
+
 proc logLevelWithTopics(
   config: CodexConfig,
   topics: varargs[string]): string {.raises: [CodexConfigError].} =
