@@ -17,6 +17,10 @@ ethersuite "Marketplace contracts":
   var periodicity: Periodicity
   var request: StorageRequest
   var slotId: SlotId
+  var filledAt: UInt256
+
+  proc expectedPayout(endTimestamp: UInt256): UInt256 =
+    return (endTimestamp - filledAt) * request.ask.reward
 
   proc switchAccount(account: Signer) =
     marketplace = marketplace.connect(account)
@@ -46,6 +50,7 @@ ethersuite "Marketplace contracts":
     switchAccount(host)
     discard await token.approve(marketplace.address, request.ask.collateral)
     discard await marketplace.reserveSlot(request.id, 0.u256)
+    filledAt = await ethProvider.currentTime()
     discard await marketplace.fillSlot(request.id, 0.u256, proof)
     slotId = request.slotId(0.u256)
 
@@ -87,8 +92,7 @@ ethersuite "Marketplace contracts":
     let startBalance = await token.balanceOf(address)
     discard await marketplace.freeSlot(slotId)
     let endBalance = await token.balanceOf(address)
-
-    check endBalance == (startBalance + request.ask.duration * request.ask.reward + request.ask.collateral)
+    check endBalance == (startBalance + expectedPayout(requestEnd.u256) + request.ask.collateral)
 
   test "can be paid out at the end, specifying reward and collateral recipient":
     switchAccount(host)
@@ -105,7 +109,7 @@ ethersuite "Marketplace contracts":
     let endBalanceCollateral = await token.balanceOf(collateralRecipient)
 
     check endBalanceHost == startBalanceHost
-    check endBalanceReward == (startBalanceReward + request.ask.duration * request.ask.reward)
+    check endBalanceReward == (startBalanceReward + expectedPayout(requestEnd.u256))
     check endBalanceCollateral == (startBalanceCollateral + request.ask.collateral)
 
   test "cannot mark proofs missing for cancelled request":

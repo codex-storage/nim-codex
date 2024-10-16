@@ -44,7 +44,7 @@ twonodessuite "Marketplace", debug1 = false, debug2 = false:
     check reservations.len == 5
     check reservations[0].requestId == purchase.requestId
 
-  test "node slots gets paid out":
+  test "node slots gets paid out and rest of tokens are returned to client":
     let size = 0xFFFFFF.u256
     let data = await RandomChunker.example(blocks = 8)
     let marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
@@ -55,7 +55,7 @@ twonodessuite "Marketplace", debug1 = false, debug2 = false:
     let nodes = 5'u
 
     # client 2 makes storage available
-    let startBalance = await token.balanceOf(account2)
+    let startBalanceHost = await token.balanceOf(account2)
     discard client2.postAvailability(totalSize=size, duration=20*60.u256, minPrice=300.u256, maxCollateral=300.u256).get
 
     # client 1 requests storage
@@ -74,12 +74,18 @@ twonodessuite "Marketplace", debug1 = false, debug2 = false:
     let purchase = client1.getPurchase(id).get
     check purchase.error == none string
 
+    let clientBalanceBeforeFinished = await token.balanceOf(account1)
+
     # Proving mechanism uses blockchain clock to do proving/collect/cleanup round
     # hence we must use `advanceTime` over `sleepAsync` as Hardhat does mine new blocks
     # only with new transaction
     await ethProvider.advanceTime(duration)
 
-    check eventually (await token.balanceOf(account2)) - startBalance == duration*reward*nodes.u256
+    # Checking that the hosting node received reward for at least the time between <expiry;end>
+    check eventually (await token.balanceOf(account2)) - startBalanceHost >= (duration-5*60)*reward*nodes.u256
+
+    # Checking that client node receives some funds back that were not used for the host nodes
+    check eventually (await token.balanceOf(account1)) - clientBalanceBeforeFinished > 0
 
 marketplacesuite "Marketplace payouts":
 
