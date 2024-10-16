@@ -456,9 +456,35 @@ paths:
 
   "/data/{cid}/network":
     get:
-      summary: "Download a file from the network in a streaming manner. If the file is not available locally, it will be retrieved from other nodes in the network if able."
+      summary: "Download a file from the network to the local node if it's not available locally. Note: Download is performed async. Call can return before download is completed."
       tags: [ Data ]
       operationId: downloadNetwork
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+              $ref: "#/components/schemas/Cid"
+          description: "File to be downloaded."
+      responses:
+        "200":
+          description: Manifest information for download that has been started.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataItem"
+        "400":
+          description: Invalid CID is specified
+        "404":
+          description: Failed to download dataset manifest
+        "500":
+          description: Well it was bad-bad
+
+  "/data/{cid}/network/stream":
+    get:
+      summary: "Download a file from the network in a streaming manner. If the file is not available locally, it will be retrieved from other nodes in the network if able."
+      tags: [ Data ]
+      operationId: downloadNetworkStream
       parameters:
         - in: path
           name: cid
@@ -478,6 +504,32 @@ paths:
           description: Invalid CID is specified
         "404":
           description: Content specified by the CID is not found
+        "500":
+          description: Well it was bad-bad
+
+  "/data/{cid}/network/manifest":
+    get:
+      summary: "Download only the dataset manifest from the network to the local node if it's not available locally."
+      tags: [ Data ]
+      operationId: downloadNetworkManifest
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+              $ref: "#/components/schemas/Cid"
+          description: "File for which the manifest is to be downloaded."
+      responses:
+        "200":
+          description: Manifest information.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataItem"
+        "400":
+          description: Invalid CID is specified
+        "404":
+          description: Failed to download dataset manifest
         "500":
           description: Well it was bad-bad
 

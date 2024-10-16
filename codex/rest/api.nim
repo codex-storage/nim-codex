@@ -210,7 +210,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
 
   router.api(
     MethodGet,
-    "/api/codex/v1/data/{cid}/network/") do (
+    "/api/codex/v1/data/{cid}/network") do (
       cid: Cid, resp: HttpResponseRef) -> RestApiResponse:
       ## Download a file from the network to the local node
       ##
@@ -229,7 +229,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       without manifest =? (await node.fetchManifest(cid.get())), err:
         error "Failed to fetch manifest", err = err.msg
         return RestApiResponse.error(
-          Http400,
+          Http404,
           err.msg, headers = headers)
 
       proc fetchDatasetAsync(): Future[void] {.async.} =
@@ -287,7 +287,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       without manifest =? (await node.fetchManifest(cid.get())), err:
         error "Failed to fetch manifest", err = err.msg
         return RestApiResponse.error(
-          Http400,
+          Http404,
           err.msg, headers = headers)
 
       let json = %formatManifest(cid.get(), manifest)
