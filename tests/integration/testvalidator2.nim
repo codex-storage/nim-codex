@@ -24,19 +24,18 @@ marketplacesuite "Validation":
 
     clients:
       CodexConfigs.init(nodes=1)
-        .withEthProvider("http://localhost:8545")
         # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("purchases", "onchain")
+        # .withLogTopics("node", "marketplace", "clock")
+        .withLogTopics("node", "purchases", "slotqueue", "market")
         .some,
 
     providers:
       CodexConfigs.init(nodes=1)
         .withSimulateProofFailures(idx=0, failEveryNProofs=1)
-        .withEthProvider("http://localhost:8545")
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("sales", "onchain")
+        # .withLogTopics("marketplace", "sales", "reservations", "node", "clock", "slotsbuilder")
         .some,
 
     validators:
@@ -101,19 +100,18 @@ marketplacesuite "Validation":
 
     clients:
       CodexConfigs.init(nodes=1)
-        .withEthProvider("http://localhost:8545")
         # .debug() # uncomment to enable console log output
-        .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("purchases", "onchain")
+        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("node", "marketplace", "clock")
+        # .withLogTopics("node", "purchases", "slotqueue", "market")
         .some,
 
     providers:
       CodexConfigs.init(nodes=1)
         .withSimulateProofFailures(idx=0, failEveryNProofs=1)
-        .withEthProvider("http://localhost:8545")
         # .debug() # uncomment to enable console log output
         # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("sales", "onchain")
+        # .withLogTopics("marketplace", "sales", "reservations", "node", "clock", "slotsbuilder")
         .some
   ):
     let client0 = clients()[0].client
@@ -155,7 +153,8 @@ marketplacesuite "Validation":
       .withValidationGroupIndex(idx = 0, groupIndex = 0)
       .withValidationGroupIndex(idx = 1, groupIndex = 1)
       # .debug() # uncomment to enable console log output
-      .withLogFile() # uncomment to output log file to: # tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+      .withLogFile() # uncomment to output log file to:
+      # tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
       .withLogTopics("validator") # each topic as a separate string argument
     
     failAndTeardownOnError "failed to start validator nodes":
