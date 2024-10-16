@@ -67,6 +67,10 @@ template multinodesuite*(name: string, body: untyped) =
     let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
     var currentTestName = ""
     var nodeConfigs: NodeConfigs
+    # Workaround for https://github.com/NomicFoundation/hardhat/issues/2053
+    # Do not use websockets, but use http and polling to stop subscriptions
+    # from being removed after 5 minutes
+    let defaultProviderUrl = "http://127.0.0.1:8545"
     var ethProvider {.inject, used.}: JsonRpcProvider
     var accounts {.inject, used.}: seq[Address]
     var snapshot: JsonNode
@@ -196,7 +200,7 @@ template multinodesuite*(name: string, body: untyped) =
     proc startClientNode(conf: CodexConfig): Future[NodeProcess] {.async.} =
       let clientIdx = clients().len
       var config = conf
-      config.addCliOption(StartUpCmd.persistence, "--eth-provider", "http://127.0.0.1:8545")
+      config.addCliOption(StartUpCmd.persistence, "--eth-provider", defaultProviderUrl)
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
       return await newCodexProcess(clientIdx, config, Role.Client)
 
@@ -204,7 +208,7 @@ template multinodesuite*(name: string, body: untyped) =
       let providerIdx = providers().len
       var config = conf
       config.addCliOption("--bootstrap-node", bootstrap)
-      config.addCliOption(StartUpCmd.persistence, "--eth-provider", "http://127.0.0.1:8545")
+      config.addCliOption(StartUpCmd.persistence, "--eth-provider", defaultProviderUrl)
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
       config.addCliOption(PersistenceCmd.prover, "--circom-r1cs",
         "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs")
@@ -219,7 +223,7 @@ template multinodesuite*(name: string, body: untyped) =
       let validatorIdx = validators().len
       var config = conf
       config.addCliOption("--bootstrap-node", bootstrap)
-      config.addCliOption(StartUpCmd.persistence, "--eth-provider", "http://127.0.0.1:8545")
+      config.addCliOption(StartUpCmd.persistence, "--eth-provider", defaultProviderUrl)
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
       config.addCliOption(StartUpCmd.persistence, "--validator")
 
@@ -268,7 +272,7 @@ template multinodesuite*(name: string, body: untyped) =
         # Do not use websockets, but use http and polling to stop subscriptions
         # from being removed after 5 minutes
         ethProvider = JsonRpcProvider.new(
-          "http://127.0.0.1:8545",
+          defaultProviderUrl,
           pollingInterval = chronos.milliseconds(100)
         )
         # if hardhat was NOT started by the test, take a snapshot so it can be
