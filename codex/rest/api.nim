@@ -209,7 +209,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       await node.retrieveCid(cid.get(), local = true, resp=resp)
 
   router.api(
-    MethodGet,
+    MethodPost,
     "/api/codex/v1/data/{cid}/network") do (
       cid: Cid, resp: HttpResponseRef) -> RestApiResponse:
       ## Download a file from the network to the local node

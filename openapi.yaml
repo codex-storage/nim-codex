@@ -455,7 +455,7 @@ paths:
           description: Well it was bad-bad
 
   "/data/{cid}/network":
-    get:
+    post:
       summary: "Download a file from the network to the local node if it's not available locally. Note: Download is performed async. Call can return before download is completed."
       tags: [ Data ]
       operationId: downloadNetwork
