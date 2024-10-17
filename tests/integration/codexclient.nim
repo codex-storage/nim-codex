@@ -65,7 +65,7 @@ proc downloadManifestOnly*(client: CodexClient, cid: Cid): ?!string =
 
 proc downloadNoStream*(client: CodexClient, cid: Cid): ?!string =
   let
-    response = client.http.get(
+    response = client.http.post(
       client.baseurl & "/data/" & $cid & "/network")
 
   if response.status != "200 OK":
