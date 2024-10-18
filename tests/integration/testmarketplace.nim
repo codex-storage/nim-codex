@@ -1,5 +1,3 @@
-import pkg/stew/byteutils
-import pkg/codex/units
 import ../examples
 import ../contracts/time
 import ../contracts/deployment
@@ -155,7 +153,9 @@ marketplacesuite "Marketplace payouts":
     without requestId =? clientApi.requestId(id):
       fail()
     let slotId = slotId(requestId, !slotIdxFilled)
-    check eventually(providerApi.saleStateIs(slotId, "SaleCancelled"), timeout=expiry.int * 1000)
+
+    check eventually(providerApi.saleStateIs(slotId, "SaleCancelled"),
+      timeout=expiry.int * 1000)
 
     check eventually (
       let endBalanceProvider = (await token.balanceOf(provider.ethAccount));
