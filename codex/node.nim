@@ -297,6 +297,8 @@ proc retrieve*(
 proc store*(
   self: CodexNodeRef,
   stream: LPStream,
+  filename = "",
+  mimetype = "",
   blockSize = DefaultBlockSize): Future[?!Cid] {.async.} =
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
@@ -355,7 +357,9 @@ proc store*(
     datasetSize = NBytes(chunker.offset),
     version = CIDv1,
     hcodec = hcodec,
-    codec = dataCodec)
+    codec = dataCodec,
+    filename = filename,
+    mimetype = mimetype)
 
   without manifestBlk =? await self.storeManifest(manifest), err:
     error "Unable to store manifest"
@@ -364,7 +368,9 @@ proc store*(
   info "Stored data", manifestCid = manifestBlk.cid,
                       treeCid = treeCid,
                       blocks = manifest.blocksCount,
-                      datasetSize = manifest.datasetSize
+                      datasetSize = manifest.datasetSize,
+                      filename = manifest.filename,
+                      mimetype = manifest.mimetype
 
   return manifestBlk.cid.success
 

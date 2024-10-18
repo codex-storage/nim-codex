@@ -10,6 +10,7 @@
 # This module defines all operations on Manifest
 
 import pkg/upraises
+import times
 
 push: {.upraises: [].}
 
@@ -36,6 +37,9 @@ type
     codec: MultiCodec                       # Dataset codec
     hcodec: MultiCodec                      # Multihash codec
     version: CidVersion                     # Cid version
+    filename {.serialize.}: string          # The filename of the content uploaded (optional)
+    mimetype {.serialize.}: string          # The mimetype of the content uploaded (optional)
+    createdAt {.serialize.}: int64          # The UTC creation timestamp in seconds
     case protected {.serialize.}: bool      # Protected datasets have erasure coded info
     of true:
       ecK: int                              # Number of blocks to encode
@@ -121,6 +125,14 @@ func verifiableStrategy*(self: Manifest): StrategyType =
 func numSlotBlocks*(self: Manifest): int =
   divUp(self.blocksCount, self.numSlots)
 
+func filename*(self: Manifest): string =
+  self.filename
+
+func mimetype*(self: Manifest): string =
+  self.mimetype
+
+func createdAt*(self: Manifest): int64 =
+  self.createdAt
 ############################################################
 # Operations on block list
 ############################################################
@@ -163,6 +175,9 @@ func `==`*(a, b: Manifest): bool =
   (a.hcodec == b.hcodec) and
   (a.codec == b.codec) and
   (a.protected == b.protected) and
+  (a.filename == b.filename) and
+  (a.mimetype == b.mimetype) and
+  (a.createdAt == b.createdAt) and
     (if a.protected:
       (a.ecK == b.ecK) and
       (a.ecM == b.ecM) and
@@ -188,6 +203,9 @@ func `$`*(self: Manifest): string =
     ", hcodec: " & $self.hcodec &
     ", codec: " & $self.codec &
     ", protected: " & $self.protected &
+    ", filename: " & $self.filename &
+    ", mimetype: " & $self.mimetype &
+    ", createdAt: " & $self.createdAt &
     (if self.protected:
       ", ecK: " & $self.ecK &
       ", ecM: " & $self.ecM &
@@ -214,7 +232,10 @@ func new*(
   version: CidVersion = CIDv1,
   hcodec = Sha256HashCodec,
   codec = BlockCodec,
-  protected = false): Manifest =
+  protected = false,
+  filename = "",
+  mimetype = "",
+  createdAt = now().utc.toTime.toUnix): Manifest =
 
   T(
     treeCid: treeCid,
@@ -223,7 +244,10 @@ func new*(
     version: version,
     codec: codec,
     hcodec: hcodec,
-    protected: protected)
+    protected: protected,
+    filename: filename,
+    mimetype: mimetype,
+    createdAt: createdAt)
 
 func new*(
   T: type Manifest,
@@ -247,7 +271,11 @@ func new*(
     ecK: ecK, ecM: ecM,
     originalTreeCid: manifest.treeCid,
     originalDatasetSize: manifest.datasetSize,
-    protectedStrategy: strategy)
+    protectedStrategy: strategy,
+    filename: manifest.filename,
+    mimetype: manifest.mimetype,
+    createdAt: manifest.createdAt
+    )
 
 func new*(
   T: type Manifest,
@@ -263,7 +291,10 @@ func new*(
     codec: manifest.codec,
     hcodec: manifest.hcodec,
     blockSize: manifest.blockSize,
-    protected: false)
+    protected: false,
+    filename: manifest.filename,
+    mimetype: manifest.mimetype,
+    createdAt: manifest.createdAt)
 
 func new*(
   T: type Manifest,
@@ -277,7 +308,10 @@ func new*(
   ecM: int,
   originalTreeCid: Cid,
   originalDatasetSize: NBytes,
-  strategy = SteppedStrategy): Manifest =
+  strategy = SteppedStrategy,
+  filename = "",
+  mimetype = "",
+  createdAt = now().utc.toTime.toUnix): Manifest =
 
   Manifest(
     treeCid: treeCid,
@@ -291,7 +325,10 @@ func new*(
     ecM: ecM,
     originalTreeCid: originalTreeCid,
     originalDatasetSize: originalDatasetSize,
-    protectedStrategy: strategy)
+    protectedStrategy: strategy,
+    filename: filename, 
+    mimetype: mimetype,
+    createdAt: createdAt)
 
 func new*(
   T: type Manifest,
@@ -329,7 +366,11 @@ func new*(
     verifyRoot: verifyRoot,
     slotRoots: @slotRoots,
     cellSize: cellSize,
-    verifiableStrategy: strategy)
+    verifiableStrategy: strategy,
+    filename: manifest.filename,
+    mimetype: manifest.mimetype,
+    createdAt: manifest.createdAt
+    )
 
 func new*(
   T: type Manifest,
