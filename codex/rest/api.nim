@@ -55,14 +55,16 @@ proc validate(
   {.gcsafe, raises: [Defect].} =
   0
 
+proc formatManifest(cid: Cid, manifest: Manifest): RestContent =
+  return RestContent.init(cid, manifest)
+
 proc formatManifestBlocks(node: CodexNodeRef): Future[JsonNode] {.async.} =
   var content: seq[RestContent]
 
-  proc formatManifest(cid: Cid, manifest: Manifest) =
-    let restContent = RestContent.init(cid, manifest)
-    content.add(restContent)
+  proc addManifest(cid: Cid, manifest: Manifest) =
+    content.add(formatManifest(cid, manifest))
+  await node.iterateManifests(addManifest)
 
-  await node.iterateManifests(formatManifest)
   return %RestContentList.init(content)
 
 proc retrieveCid(
@@ -238,8 +240,45 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       await node.retrieveCid(cid.get(), local = true, resp=resp)
 
   router.api(
-    MethodGet,
+    MethodPost,
     "/api/codex/v1/data/{cid}/network") do (
+      cid: Cid, resp: HttpResponseRef) -> RestApiResponse:
+      ## Download a file from the network to the local node
+      ##
+
+      var headers = buildCorsHeaders("GET", allowedOrigin)
+
+      if cid.isErr:
+        return RestApiResponse.error(
+          Http400,
+          $cid.error(), headers = headers)
+
+      if corsOrigin =? allowedOrigin:
+        resp.setCorsHeaders("GET", corsOrigin)
+        resp.setHeader("Access-Control-Headers", "X-Requested-With")
+
+      without manifest =? (await node.fetchManifest(cid.get())), err:
+        error "Failed to fetch manifest", err = err.msg
+        return RestApiResponse.error(
+          Http404,
+          err.msg, headers = headers)
+
+      proc fetchDatasetAsync(): Future[void] {.async.} =
+        try:
+          if err =? (await node.fetchBatched(manifest)).errorOption:
+            error "Unable to fetch dataset", cid = cid.get(), err = err.msg
+        except CatchableError as exc:
+          error "CatchableError when fetching dataset", cid = cid.get(), exc = exc.msg
+          discard
+
+      asyncSpawn fetchDatasetAsync()
+
+      let json = %formatManifest(cid.get(), manifest)
+      return RestApiResponse.response($json, contentType="application/json")
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/data/{cid}/network/stream") do (
       cid: Cid, resp: HttpResponseRef) -> RestApiResponse:
       ## Download a file from the network in a streaming
       ## manner
@@ -257,6 +296,33 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
         resp.setHeader("Access-Control-Headers", "X-Requested-With")
 
       await node.retrieveCid(cid.get(), local = false, resp=resp)
+
+  router.api(
+    MethodGet,
+    "/api/codex/v1/data/{cid}/network/manifest") do (
+      cid: Cid, resp: HttpResponseRef) -> RestApiResponse:
+      ## Download only the manifest.
+      ##
+
+      var headers = buildCorsHeaders("GET", allowedOrigin)
+
+      if cid.isErr:
+        return RestApiResponse.error(
+          Http400,
+          $cid.error(), headers = headers)
+
+      if corsOrigin =? allowedOrigin:
+        resp.setCorsHeaders("GET", corsOrigin)
+        resp.setHeader("Access-Control-Headers", "X-Requested-With")
+
+      without manifest =? (await node.fetchManifest(cid.get())), err:
+        error "Failed to fetch manifest", err = err.msg
+        return RestApiResponse.error(
+          Http404,
+          err.msg, headers = headers)
+
+      let json = %formatManifest(cid.get(), manifest)
+      return RestApiResponse.response($json, contentType="application/json")
 
   router.api(
     MethodGet,

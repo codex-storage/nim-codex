@@ -46,7 +46,27 @@ proc download*(client: CodexClient, cid: Cid, local = false): ?!string =
   let
     response = client.http.get(
       client.baseurl & "/data/" & $cid &
-      (if local: "" else: "/network"))
+      (if local: "" else: "/network/stream"))
+
+  if response.status != "200 OK":
+    return failure(response.status)
+
+  success response.body
+
+proc downloadManifestOnly*(client: CodexClient, cid: Cid): ?!string =
+  let
+    response = client.http.get(
+      client.baseurl & "/data/" & $cid & "/network/manifest")
+
+  if response.status != "200 OK":
+    return failure(response.status)
+
+  success response.body
+
+proc downloadNoStream*(client: CodexClient, cid: Cid): ?!string =
+  let
+    response = client.http.post(
+      client.baseurl & "/data/" & $cid & "/network")
 
   if response.status != "200 OK":
     return failure(response.status)
@@ -60,7 +80,7 @@ proc downloadBytes*(
 
   let uri = parseUri(
     client.baseurl & "/data/" & $cid &
-    (if local: "" else: "/network")
+    (if local: "" else: "/network/stream")
   )
 
   let (status, bytes) = await client.session.fetch(uri)
