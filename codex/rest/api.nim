@@ -13,6 +13,8 @@ push: {.upraises: [].}
 
 
 import std/sequtils
+import mimetypes
+import os
 
 import pkg/questionable
 import pkg/questionable/results
@@ -122,6 +124,18 @@ proc setCorsHeaders(resp: HttpResponseRef, httpMethod: string, origin: string) =
   resp.setHeader("Access-Control-Allow-Methods", httpMethod & ", OPTIONS")
   resp.setHeader("Access-Control-Max-Age", "86400")
 
+proc getFilenameFromContentDisposition(contentDisposition: string): string =
+  if not("filename=" in contentDisposition):
+    return ""
+
+  let parts = contentDisposition.split("filename=\"")
+
+  if parts.len < 2:
+    return ""
+
+  let filename = parts[1].strip()
+  return filename[0..^2]
+
 proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin # prevents capture inside of api defintion
    
@@ -132,7 +146,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       
       if corsOrigin =? allowedOrigin:
         resp.setCorsHeaders("POST", corsOrigin)
-        resp.setHeader("Access-Control-Allow-Headers", "content-type")
+        resp.setHeader("Access-Control-Allow-Headers", "content-type, content-disposition")
 
       resp.status = Http204
       await resp.sendBody("")
@@ -155,12 +169,29 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       #
       await request.handleExpect()
 
+      let mimetype: string = request.headers.getString(ContentTypeHeader)
+
+      if mimetype != "":
+        var m = newMimetypes()
+        let extension = m.getExt(mimetype, "")
+        if extension == "":
+            return RestApiResponse.error(Http422, "The MIME type is not valid.")
+
+      const ContentDispositionHeader = "Content-Disposition"
+      let contentDisposition = request.headers.getString(ContentDispositionHeader)
+      let filename = getFilenameFromContentDisposition(contentDisposition)
+
+      if filename != "" and not isValidFilename(filename):
+          return RestApiResponse.error(Http422, "The filename is not valid.")
+
+      # Here we could check if the extension matches the filename if needed
+
       let
         reader = bodyReader.get()
 
       try:
         without cid =? (
-          await node.store(AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)))), error:
+          await node.store(AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)), filename = filename, mimetype = mimetype)), error:
           error "Error uploading file", exc = error.msg
           return RestApiResponse.error(Http500, error.msg)
 

@@ -121,6 +121,11 @@ testIntegration: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testIntegration $(NIM_PARAMS) build.nims
 
+# Builds and runs the integration tests
+testRestApi: | build deps
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim testRestApi $(NIM_PARAMS) build.nims
+
 # Builds and runs all tests (except for Taiko L2 tests)
 testAll: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \

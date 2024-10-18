@@ -10,6 +10,7 @@
 # This module implements serialization and deserialization of Manifest
 
 import pkg/upraises
+import times
 
 push: {.upraises: [].}
 
@@ -59,6 +60,9 @@ proc encode*(manifest: Manifest): ?!seq[byte] =
   #     optional hcodec: MultiCodec = 5   # Multihash codec
   #     optional version: CidVersion = 6; # Cid version
   #     optional ErasureInfo erasure = 7; # erasure coding info
+  #     optional filename: string = 8;    # original filename
+  #     optional mimetype: string = 9;    # original mimetype
+  #     optional createdAt: string = 10;  # original createdAt
   #   }
   # ```
   #
@@ -70,6 +74,7 @@ proc encode*(manifest: Manifest): ?!seq[byte] =
   header.write(4, manifest.codec.uint32)
   header.write(5, manifest.hcodec.uint32)
   header.write(6, manifest.version.uint32)
+
   if manifest.protected:
     var erasureInfo = initProtoBuffer()
     erasureInfo.write(1, manifest.ecK.uint32)
@@ -89,6 +94,12 @@ proc encode*(manifest: Manifest): ?!seq[byte] =
 
     erasureInfo.finish()
     header.write(7, erasureInfo)
+
+  header.write(8, manifest.filename.string)
+  header.write(9, manifest.mimetype.string)
+
+  if manifest.createdAt > 0:
+    header.write(10, manifest.createdAt.uint64)
 
   pbNode.write(1, header) # set the treeCid as the data field
   pbNode.finish()
@@ -118,6 +129,9 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
     slotRoots: seq[seq[byte]]
     cellSize: uint32
     verifiableStrategy: uint32
+    filename: string
+    mimetype: string
+    createdAt: uint64
 
   # Decode `Header` message
   if pbNode.getField(1, pbHeader).isErr:
@@ -144,6 +158,18 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
 
   if pbHeader.getField(7, pbErasureInfo).isErr:
     return failure("Unable to decode `erasureInfo` from manifest!")
+
+  if pbHeader.getField(8, filename).isErr:
+     # The filename field is an optional data so we can ignore the error the decoding fails
+    discard
+
+  if pbHeader.getField(9, mimetype).isErr:
+    # The mimetype field is an optional data so we can ignore the error the decoding fails
+    discard
+
+  if pbHeader.getField(10, createdAt).isErr:
+    # The createdAt field is an optional data so we can ignore the error the decoding fails
+    discard
 
   let protected = pbErasureInfo.buffer.len > 0
   var verifiable = false
@@ -196,7 +222,10 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
         ecM = ecM.int,
         originalTreeCid = ? Cid.init(originalTreeCid).mapFailure,
         originalDatasetSize = originalDatasetSize.NBytes,
-        strategy = StrategyType(protectedStrategy))
+        strategy = StrategyType(protectedStrategy),
+        filename = filename.string,
+        mimetype = mimetype.string,
+        createdAt = createdAt.int64)
       else:
         Manifest.new(
           treeCid = treeCid,
@@ -204,7 +233,10 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
           blockSize = blockSize.NBytes,
           version = CidVersion(version),
           hcodec = hcodec.MultiCodec,
-          codec = codec.MultiCodec)
+          codec = codec.MultiCodec,
+          filename = filename.string,
+          mimetype = mimetype.string,
+          createdAt = createdAt.int64)
 
   ? self.verify()
 
