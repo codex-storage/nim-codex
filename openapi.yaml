@@ -328,7 +328,8 @@ components:
           description: "The original mimetype of the uploaded content (optional)"
           example: image/png
         createdAt:
-          type: int64
+          type: integer
+          format: int64
           description: "The UTC creation timestamp in seconds"
           example: 1729244192
 
@@ -404,6 +405,21 @@ paths:
       summary: "Lists manifest CIDs stored locally in node."
       tags: [ Data ]
       operationId: listData
+      parameters:
+        - name: content-type
+          in: header
+          required: false
+          description: The content type of the file. Must be valid.
+          schema:
+            type: string
+            example: "image/png"
+        - name: content-disposition
+          in: header
+          required: false
+          description: The content disposition used to send the filename.
+          schema:
+            type: string
+            example: "attachment; filename=\"codex.png\""
       responses:
         "200":
           description: Retrieved list of content CIDs
@@ -416,6 +432,8 @@ paths:
           description: Invalid CID is specified
         "404":
           description: Content specified by the CID is not found
+        "422":
+          description: The content type is not a valid content type or the filename is not valid
         "500":
           description: Well it was bad-bad
     post:
