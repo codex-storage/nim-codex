@@ -327,10 +327,10 @@ components:
           type: string
           description: "The original mimetype of the uploaded content (optional)"
           example: image/png
-        createdAt:
+        uploadedAt:
           type: integer
           format: int64
-          description: "The UTC creation timestamp in seconds"
+          description: "The UTC upload timestamp in seconds"
           example: 1729244192
 
     Space:

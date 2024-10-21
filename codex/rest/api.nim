@@ -126,17 +126,17 @@ proc setCorsHeaders(resp: HttpResponseRef, httpMethod: string, origin: string) =
   resp.setHeader("Access-Control-Allow-Methods", httpMethod & ", OPTIONS")
   resp.setHeader("Access-Control-Max-Age", "86400")
 
-proc getFilenameFromContentDisposition(contentDisposition: string): string =
+proc getFilenameFromContentDisposition(contentDisposition: string): ?string =
   if not("filename=" in contentDisposition):
-    return ""
+    return string.none
 
   let parts = contentDisposition.split("filename=\"")
 
   if parts.len < 2:
-    return ""
+    return string.none
 
   let filename = parts[1].strip()
-  return filename[0..^2]
+  return filename[0..^2].some
 
 proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin # prevents capture inside of api defintion
@@ -171,19 +171,21 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       #
       await request.handleExpect()
 
-      let mimetype: string = request.headers.getString(ContentTypeHeader)
+      var mimetype = request.headers.getString(ContentTypeHeader).some
 
-      if mimetype != "":
+      if mimetype.get() != "":
         var m = newMimetypes()
-        let extension = m.getExt(mimetype, "")
+        let extension = m.getExt(mimetype.get(), "")
         if extension == "":
             return RestApiResponse.error(Http422, "The MIME type is not valid.")
+      else:
+        mimetype = string.none
 
       const ContentDispositionHeader = "Content-Disposition"
       let contentDisposition = request.headers.getString(ContentDispositionHeader)
       let filename = getFilenameFromContentDisposition(contentDisposition)
 
-      if filename != "" and not isValidFilename(filename):
+      if filename.isSome and not isValidFilename(filename.get()):
           return RestApiResponse.error(Http422, "The filename is not valid.")
 
       # Here we could check if the extension matches the filename if needed

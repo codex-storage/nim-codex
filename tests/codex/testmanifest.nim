@@ -20,9 +20,7 @@ checksuite "Manifest":
     manifest = Manifest.new(
       treeCid = Cid.example,
       blockSize = 1.MiBs,
-      datasetSize = 100.MiBs,
-      filename = "codex.png",
-      mimetype = "image/png"
+      datasetSize = 100.MiBs
     )
 
     protectedManifest = Manifest.new(
@@ -63,9 +61,7 @@ checksuite "Manifest":
     let large = Manifest.new(
       treeCid = Cid.example,
       blockSize = (64 * 1024).NBytes,
-      datasetSize = (5 * 1024).MiBs,
-      filename = "codex.png",
-      mimetype = "image/png"
+      datasetSize = (5 * 1024).MiBs
     )
 
     check:
@@ -87,8 +83,8 @@ suite "Manifest - Attribute Inheritance":
         treeCid = Cid.example,
         blockSize = 1.MiBs,
         datasetSize = 100.MiBs,
-        filename = "codex.png",
-        mimetype = "image/png"
+        filename = "codex.png".some,
+        mimetype = "image/png".some
       ),
       treeCid = Cid.example,
       datasetSize = 200.MiBs,
@@ -121,5 +117,7 @@ suite "Manifest - Attribute Inheritance":
       slotRoots = @[Cid.example, Cid.example]
     ).tryGet()
 
-    check verifiable.filename == "codex.png"
-    check verifiable.mimetype == "image/png"
+    check verifiable.filename.isSome == true
+    check verifiable.filename.get() == "codex.png"
+    check verifiable.mimetype.isSome == true
+    check verifiable.mimetype.get() == "image/png"

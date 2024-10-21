@@ -16,6 +16,7 @@ twonodessuite "REST API", debug1 = false, debug2 = false:
   test "node accepts file uploads":
     let cid1 = client1.upload("some file contents").get
     let cid2 = client1.upload("some other contents").get
+
     check cid1 != cid2
 
   test "node shows used and available space":
@@ -25,7 +26,7 @@ twonodessuite "REST API", debug1 = false, debug2 = false:
     check:
       space.totalBlocks == 2
       space.quotaMaxBytes == 8589934592.NBytes
-      space.quotaUsedBytes == 65602.NBytes
+      space.quotaUsedBytes == 65598.NBytes
       space.quotaReservedBytes == 12.NBytes
 
   test "node lists local files":
@@ -207,5 +208,5 @@ twonodessuite "REST API", debug1 = false, debug2 = false:
     check manifest["filename"].getStr() == "example.txt"
     check manifest.hasKey("mimetype") == true
     check manifest["mimetype"].getStr() == "text/plain"
-    check manifest.hasKey("createdAt") == true
-    check manifest["createdAt"].getInt() > 0
+    check manifest.hasKey("uploadedAt") == true
+    check manifest["uploadedAt"].getInt() > 0

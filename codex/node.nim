@@ -14,6 +14,7 @@ import std/sequtils
 import std/strformat
 import std/sugar
 import std/cpuinfo
+import times
 
 import pkg/questionable
 import pkg/questionable/results
@@ -297,8 +298,8 @@ proc retrieve*(
 proc store*(
   self: CodexNodeRef,
   stream: LPStream,
-  filename = "",
-  mimetype = "",
+  filename: ?string = string.none,
+  mimetype: ?string = string.none,
   blockSize = DefaultBlockSize): Future[?!Cid] {.async.} =
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
@@ -359,7 +360,8 @@ proc store*(
     hcodec = hcodec,
     codec = dataCodec,
     filename = filename,
-    mimetype = mimetype)
+    mimetype = mimetype,
+    uploadedAt = now().utc.toTime.toUnix.some)
 
   without manifestBlk =? await self.storeManifest(manifest), err:
     error "Unable to store manifest"

@@ -10,6 +10,7 @@
 # This module implements serialization and deserialization of Manifest
 
 import pkg/upraises
+import times 
 
 push: {.upraises: [].}
 
@@ -59,9 +60,9 @@ proc encode*(manifest: Manifest): ?!seq[byte] =
   #     optional hcodec: MultiCodec = 5   # Multihash codec
   #     optional version: CidVersion = 6; # Cid version
   #     optional ErasureInfo erasure = 7; # erasure coding info
-  #     optional filename: string = 8;    # original filename
-  #     optional mimetype: string = 9;    # original mimetype
-  #     optional createdAt: string = 10;  # original createdAt
+  #     optional filename: ?string = 8;    # original filename
+  #     optional mimetype: ?string = 9;    # original mimetype
+  #     optional uploadedAt: ?int64 = 10;  # original uploadedAt
   #   }
   # ```
   #
@@ -94,11 +95,14 @@ proc encode*(manifest: Manifest): ?!seq[byte] =
     erasureInfo.finish()
     header.write(7, erasureInfo)
 
-  header.write(8, manifest.filename.string)
-  header.write(9, manifest.mimetype.string)
+  if manifest.filename.isSome:
+    header.write(8, manifest.filename.get())
 
-  if manifest.createdAt > 0:
-    header.write(10, manifest.createdAt.uint64)
+  if manifest.mimetype.isSome: 
+    header.write(9, manifest.mimetype.get())
+
+  if manifest.uploadedAt.isSome:
+    header.write(10, manifest.uploadedAt.get().uint64)
 
   pbNode.write(1, header) # set the treeCid as the data field
   pbNode.finish()
@@ -130,7 +134,7 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
     verifiableStrategy: uint32
     filename: string
     mimetype: string
-    createdAt: uint64
+    uploadedAt: uint64
 
   # Decode `Header` message
   if pbNode.getField(1, pbHeader).isErr:
@@ -166,8 +170,8 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
     # The mimetype field is an optional data so we can ignore the error the decoding fails
     discard
 
-  if pbHeader.getField(10, createdAt).isErr:
-    # The createdAt field is an optional data so we can ignore the error the decoding fails
+  if pbHeader.getField(10, uploadedAt).isErr:
+    # The uploadedAt field is an optional data so we can ignore the error the decoding fails
     discard
 
   let protected = pbErasureInfo.buffer.len > 0
@@ -208,6 +212,10 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
   let
     treeCid = ? Cid.init(treeCidBuf).mapFailure
 
+  var filenameOption = if filename.len == 0: string.none else: filename.some
+  var mimetypeOption = if mimetype.len == 0: string.none else: mimetype.some
+  var uploadedAtOption = if uploadedAt == 0: int64.none else: uploadedAt.int64.some
+
   let
     self = if protected:
       Manifest.new(
@@ -222,9 +230,9 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
         originalTreeCid = ? Cid.init(originalTreeCid).mapFailure,
         originalDatasetSize = originalDatasetSize.NBytes,
         strategy = StrategyType(protectedStrategy),
-        filename = filename.string,
-        mimetype = mimetype.string,
-        createdAt = createdAt.int64)
+        filename = filenameOption,
+        mimetype = mimetypeOption,
+        uploadedAt = uploadedAtOption)
       else:
         Manifest.new(
           treeCid = treeCid,
@@ -233,9 +241,9 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
           version = CidVersion(version),
           hcodec = hcodec.MultiCodec,
           codec = codec.MultiCodec,
-          filename = filename.string,
-          mimetype = mimetype.string,
-          createdAt = createdAt.int64)
+          filename = filenameOption,
+          mimetype = mimetypeOption,
+          uploadedAt = uploadedAtOption)
 
   ? self.verify()
 
