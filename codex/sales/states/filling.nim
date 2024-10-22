@@ -6,6 +6,8 @@ import ./errorhandling
 import ./filled
 import ./cancelled
 import ./failed
+import ./ignored
+import ./errored
 
 logScope:
   topics = "marketplace sales filling"
@@ -21,10 +23,6 @@ method onCancelled*(state: SaleFilling, request: StorageRequest): ?State =
 
 method onFailed*(state: SaleFilling, request: StorageRequest): ?State =
   return some State(SaleFailed())
-
-method onSlotFilled*(state: SaleFilling, requestId: RequestId,
-                     slotIndex: UInt256): ?State =
-  return some State(SaleFilled())
 
 method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data

@@ -28,10 +28,6 @@ method onCancelled*(state: SaleSlotReserving, request: StorageRequest): ?State =
 method onFailed*(state: SaleSlotReserving, request: StorageRequest): ?State =
   return some State(SaleFailed())
 
-method onSlotFilled*(state: SaleSlotReserving, requestId: RequestId,
-                     slotIndex: UInt256): ?State =
-  return some State(SaleFilled())
-
 method run*(state: SaleSlotReserving, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
   let data = agent.data
