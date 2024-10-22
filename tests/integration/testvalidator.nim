@@ -1,5 +1,4 @@
 from std/times import inMilliseconds, initDuration, inSeconds, fromUnix
-import std/strformat
 import std/sequtils
 import std/sugar
 import pkg/codex/logutils
@@ -25,7 +24,7 @@ template eventuallyS*(expression: untyped, timeout=10, step = 5,
     var i = 0
     while not expression:
       inc i
-      echo (i*step).seconds
+      # echo (i*step).seconds
       if endTime < Moment.now():
         return false
       if cancelExpression:
@@ -117,7 +116,7 @@ marketplacesuite "Validation":
 
     clients:
       CodexConfigs.init(nodes=1)
-        .debug() # uncomment to enable console log output
+        # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("purchases", "onchain")
         .some,
@@ -135,7 +134,7 @@ marketplacesuite "Validation":
         .withValidationGroups(groups = 2)
         .withValidationGroupIndex(idx = 0, groupIndex = 0)
         .withValidationGroupIndex(idx = 1, groupIndex = 1)
-        .debug() # uncomment to enable console log output
+        # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("validator") # each topic as a separate string argument
         .some
@@ -171,8 +170,6 @@ marketplacesuite "Validation":
 
     debug "validation suite", purchaseId = purchaseId.toHex, requestId = requestId
 
-    echo fmt"expiry = {(expiry + 60).int.seconds}"
-
     check eventuallyS(client0.purchaseStateIs(purchaseId, "started"),
       timeout = (expiry + 60).int, step = 5)
     
@@ -181,8 +178,7 @@ marketplacesuite "Validation":
       fail()
       return
     
-    debug "validation suite", purchaseState = purchaseState
-    echo fmt"{purchaseState = }"
+    debug "validation suite", purchaseState = purchaseState 
 
     if purchaseState != "started":
       fail()
@@ -214,7 +210,7 @@ marketplacesuite "Validation":
 
     clients:
       CodexConfigs.init(nodes=1)
-        .debug() # uncomment to enable console log output
+        # .debug() # uncomment to enable console log output
         .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("purchases", "onchain")
         .some,
@@ -258,8 +254,6 @@ marketplacesuite "Validation":
 
     debug "validation suite", purchaseId = purchaseId.toHex, requestId = requestId
 
-    echo fmt"expiry = {(expiry + 60).int.seconds}"    
-
     check eventuallyS(client0.purchaseStateIs(purchaseId, "started"), 
       timeout = (expiry + 60).int, step = 5)
 
@@ -269,7 +263,6 @@ marketplacesuite "Validation":
       return
     
     debug "validation suite", purchaseState = purchaseState
-    echo fmt"{purchaseState = }"
 
     if purchaseState != "started":
       fail()
@@ -283,7 +276,7 @@ marketplacesuite "Validation":
       .withValidationGroups(groups = 2)
       .withValidationGroupIndex(idx = 0, groupIndex = 0)
       .withValidationGroupIndex(idx = 1, groupIndex = 1)
-      .debug() # uncomment to enable console log output
+      # .debug() # uncomment to enable console log output
       .withLogFile() # uncomment to output log file to: # tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
       .withLogTopics("validator") # each topic as a separate string argument
     
