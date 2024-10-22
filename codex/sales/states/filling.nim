@@ -30,6 +30,19 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   without (collateral =? data.request.?ask.?collateral):
     raiseAssert "Request not set"
 
-  debug "Filling slot", requestId = data.requestId, slotIndex = data.slotIndex
-  await market.fillSlot(data.requestId, data.slotIndex, state.proof, collateral)
-  debug "Waiting for slot filled event...", requestId = $data.requestId, slotIndex = $data.slotIndex
+  logScope:
+    requestId = data.requestId
+    slotIndex = data.slotIndex
+
+  debug "Filling slot"
+  try:
+    await market.fillSlot(data.requestId, data.slotIndex, state.proof, collateral)
+  except MarketError as e:
+    if e.msg.contains "Slot is not free":
+      debug "Slot is already filled, ignoring slot"
+      return some State( SaleIgnored(reprocessSlot: false, returnBytes: true) )
+    else:
+      return some State( SaleErrored(error: e) )
+  # other CatchableErrors are handled "automatically" by the ErrorHandlingState
+
+  return some State(SaleFilled())

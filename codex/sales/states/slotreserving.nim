@@ -44,7 +44,12 @@ method run*(state: SaleSlotReserving, machine: Machine): Future[?State] {.async.
       trace "Reserving slot"
       await market.reserveSlot(data.requestId, data.slotIndex)
     except MarketError as e:
-      return some State( SaleErrored(error: e) )
+      if e.msg.contains "Reservation not allowed":
+        debug "Slot cannot be reserved, ignoring", error = e.msg
+        return some State( SaleIgnored(reprocessSlot: false, returnBytes: true) )
+      else:
+        return some State( SaleErrored(error: e) )
+    # other CatchableErrors are handled "automatically" by the ErrorHandlingState
 
     trace "Slot successfully reserved"
     return some State( SaleDownloading() )
