@@ -179,12 +179,14 @@ marketplacesuite "Validation":
     # if purchase state is not "started", it does not make sense to continue
     without purchaseState =? client0.getPurchase(purchaseId).?state:
       fail()
+      return
     
     debug "validation suite", purchaseState = purchaseState
     echo fmt"{purchaseState = }"
 
     if purchaseState != "started":
       fail()
+      return
 
     discard await ethProvider.send("evm_mine")
     currentTime = await ethProvider.currentTime()
@@ -264,12 +266,14 @@ marketplacesuite "Validation":
     # if purchase state is not "started", it does not make sense to continue
     without purchaseState =? client0.getPurchase(purchaseId).?state:
       fail()
+      return
     
     debug "validation suite", purchaseState = purchaseState
     echo fmt"{purchaseState = }"
 
     if purchaseState != "started":
       fail()
+      return
     
     # extra block just to make sure we have one that separates us
     # from the block containing the last (past) SlotFilled event
