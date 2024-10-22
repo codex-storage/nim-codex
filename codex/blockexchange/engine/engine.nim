@@ -136,20 +136,23 @@ proc sendWantHave(
   for p in peers:
     if p notin excluded:
       if address notin p.peerHave:
+        trace "Sending wantHave", address, peer = p.id
         await b.network.request.sendWantList(
           p.id,
           @[address],
           wantType = WantType.WantHave) # we only want to know if the peer has the block
+        codex_block_exchange_want_have_lists_sent.inc()
 
 proc sendWantBlock(
   b: BlockExcEngine,
   address: BlockAddress, # pluralize this entire call chain, please
   blockPeer: BlockExcPeerCtx): Future[void] {.async.} =
-  trace "Sending wantBlock request to", peer = blockPeer.id, address
+  trace "Sending wantBlock", address, peer = blockPeer.id
   await b.network.request.sendWantList(
     blockPeer.id,
     @[address],
     wantType = WantType.WantBlock) # we want this remote to send us a block
+  codex_block_exchange_want_block_lists_sent.inc()
 
 proc monitorBlockHandle(
   b: BlockExcEngine,
@@ -183,24 +186,17 @@ proc requestBlock*(
 
   if not b.pendingBlocks.isInFlight(address):
     let peers = b.peers.selectCheapest(address)
-    if peers.len == 0:
-      b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
-
-    let maybePeer =
-      if peers.len > 0:
-        peers[hash(address) mod peers.len].some
-      elif b.peers.len > 0:
-        toSeq(b.peers)[hash(address) mod b.peers.len].some
-      else:
-        BlockExcPeerCtx.none
-
-    if peer =? maybePeer:
+    if peers.len > 0:
+      let peer = peers[hash(address) mod peers.len]
+      trace "Existing peers found for address.", address, nPeers = peers.len, selectedPeer = peer.id
       asyncSpawn b.monitorBlockHandle(blockFuture, address, peer.id)
       b.pendingBlocks.setInFlight(address)
       await b.sendWantBlock(address, peer)
-      codex_block_exchange_want_block_lists_sent.inc()
       await b.sendWantHave(address, @[peer], toSeq(b.peers))
-      codex_block_exchange_want_have_lists_sent.inc()
+    else:
+      trace "No existing peers found for address.", address
+      b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
+      await b.sendWantHave(address, @[], toSeq(b.peers))
 
   # Don't let timeouts bubble up. We can't be too broad here or we break
   # cancellations.
@@ -494,7 +490,9 @@ proc setupPeer*(b: BlockExcEngine, peer: PeerId) {.async.} =
     trace "Sending our want list to a peer", peer
     let cids = toSeq(b.pendingBlocks.wantList)
     await b.network.request.sendWantList(
-      peer, cids, full = true)
+      peer, cids, full = true,
+      wantType = WantType.WantHave)
+    codex_block_exchange_want_have_lists_sent.inc()
 
   if address =? b.pricing.?address:
     await b.network.request.sendAccount(peer, Account(address: address))
