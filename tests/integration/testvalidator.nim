@@ -15,16 +15,21 @@ export logutils
 logScope:
   topics = "integration test validation"
 
-template eventuallyS*(expression: untyped, timeout=10, step = 5,
+template eventuallyS(expression: untyped, timeout=10, step = 5,
     cancelExpression: untyped = false): bool =
   bind Moment, now, seconds
 
   proc eventuallyS: Future[bool] {.async.} =
     let endTime = Moment.now() + timeout.seconds
     var i = 0
+    var secondsElapsed = 0
     while not expression:
       inc i
-      # echo (i*step).seconds
+      secondsElapsed = i*step
+      # echo secondsElapsed.seconds
+      if secondsElapsed mod 180 == 0:
+        await stopTrackingEvents()
+        await marketplace.startTrackingEvents()
       if endTime < Moment.now():
         return false
       if cancelExpression:
@@ -34,13 +39,11 @@ template eventuallyS*(expression: untyped, timeout=10, step = 5,
 
   await eventuallyS()
 
-marketplacesuite "Validation":
+marketplacesuiteWithProviderUrl "Validation", "ws://localhost:8545":
   let nodes = 3
   let tolerance = 1
   let proofProbability = 1
 
-  # var slotsAndRequests = initTable[string, seq[UInt256]]()
-  # var events = initTable[string, seq[ref MarketplaceEvent]]()
   var events = {
     $SlotFilled: newSeq[ref MarketplaceEvent](),
     $SlotFreed: newSeq[ref MarketplaceEvent](),
@@ -107,7 +110,7 @@ marketplacesuite "Validation":
         slotsFailed.incl(slotId)
     
     debug "slots failed", slotsFailed = slotsFailed, slotsNotFreed = slotsNotFreed
-    check slotsNotFreed == slotsFailed
+    check slotsNotFreed == slotsFailed  
   
   test "validator marks proofs as missing when using validation groups", NodeConfigs(
     # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
