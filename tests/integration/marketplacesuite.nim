@@ -11,9 +11,17 @@ import ../contracts/deployment
 export mp
 export multinodes
 
-template marketplacesuite*(name: string, body: untyped) =
+template marketplacesuite*(name: string,
+    body: untyped) =
+  marketplacesuiteWithProviderUrl name, "http://localhost:8545":
+    body
 
-  multinodesuite name:
+# we can't just overload the name and use marketplacesuite here
+# see: https://github.com/nim-lang/Nim/issues/14827
+template marketplacesuiteWithProviderUrl*(name: string,
+    jsonRpcProviderUrl: string, body: untyped) =
+
+  multinodesuiteWithProviderUrl name, jsonRpcProviderUrl:
 
     var marketplace {.inject, used.}: Marketplace
     var period: uint64
