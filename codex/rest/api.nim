@@ -83,11 +83,28 @@ proc retrieveCid(
   try:
     without stream =? (await node.retrieve(cid, local)), error:
       if error of BlockNotFoundError:
-        return RestApiResponse.error(Http404, error.msg)
+        resp.status = Http404
+        return await resp.sendBody("")
       else:
-        return RestApiResponse.error(Http500, error.msg)
+        resp.status = Http500
+        return await resp.sendBody(error.msg)
 
-    resp.addHeader("Content-Type", "application/octet-stream")
+    # It is ok to fetch again the manifest because it will hit the cache
+    without manifest =? (await node.fetchManifest(cid)), err:
+      error "Failed to fetch manifest", err = err.msg
+      resp.status = Http404
+      return await resp.sendBody(err.msg)
+
+    if manifest.mimetype.isSome:
+      resp.setHeader("Content-Type", manifest.mimetype.get())
+    else:
+      resp.addHeader("Content-Type", "application/octet-stream")
+
+    if manifest.filename.isSome:
+      resp.setHeader("Content-Disposition", "attachment; filename=\"" & manifest.filename.get() & "\"")
+
+    resp.setHeader("Content-Length", $manifest.datasetSize.int)
+
     await resp.prepareChunked()
 
     while not stream.atEof:
@@ -105,7 +122,8 @@ proc retrieveCid(
     codex_api_downloads.inc()
   except CatchableError as exc:
     warn "Excepting streaming blocks", exc = exc.msg
-    return RestApiResponse.error(Http500)
+    resp.status = Http500
+    return await resp.sendBody("")
   finally:
     info "Sent bytes", cid = cid, bytes
     if not stream.isNil:
