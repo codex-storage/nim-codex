@@ -263,3 +263,7 @@ proc uploadRaw*(client: CodexClient, contents: string, headers = newHttpHeaders(
 
 proc listRaw*(client: CodexClient): Response =
   return client.http.request(client.baseurl & "/data", httpMethod=HttpGet)
+
+proc downloadRaw*(client: CodexClient, cid: string, local = false): Response =
+  return client.http.request(client.baseurl & "/data/" & cid &
+      (if local: "" else: "/network/stream"), httpMethod=HttpGet)

@@ -210,3 +210,31 @@ twonodessuite "REST API", debug1 = false, debug2 = false:
     check manifest["mimetype"].getStr() == "text/plain"
     check manifest.hasKey("uploadedAt") == true
     check manifest["uploadedAt"].getInt() > 0
+
+  test "node set the headers when for download":
+    let headers = newHttpHeaders({
+      "Content-Disposition": "attachment; filename=\"example.txt\"",
+      "Content-Type": "text/plain"
+    })
+
+    let uploadResponse = client1.uploadRaw("some file contents", headers)
+    let cid = uploadResponse.body
+
+    check uploadResponse.status == "200 OK"
+
+    let response = client1.downloadRaw(cid)
+
+    check response.status == "200 OK"
+    check response.headers.hasKey("Content-Type") == true
+    check response.headers["Content-Type"] == "text/plain"
+    check response.headers.hasKey("Content-Disposition") == true
+    check response.headers["Content-Disposition"] == "attachment; filename=\"example.txt\""
+
+    let local = true
+    let localResponse = client1.downloadRaw(cid, local)
+
+    check localResponse.status == "200 OK"
+    check localResponse.headers.hasKey("Content-Type") == true
+    check localResponse.headers["Content-Type"] == "text/plain"
+    check localResponse.headers.hasKey("Content-Disposition") == true
+    check localResponse.headers["Content-Disposition"] == "attachment; filename=\"example.txt\""
