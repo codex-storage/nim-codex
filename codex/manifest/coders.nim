@@ -163,16 +163,13 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
     return failure("Unable to decode `erasureInfo` from manifest!")
 
   if pbHeader.getField(8, filename).isErr:
-     # The filename field is an optional data so we can ignore the error the decoding fails
-    discard
+    return failure("Unable to decode `filename` from manifest!")
 
   if pbHeader.getField(9, mimetype).isErr:
-    # The mimetype field is an optional data so we can ignore the error the decoding fails
-    discard
+    return failure("Unable to decode `mimetype` from manifest!")
 
   if pbHeader.getField(10, uploadedAt).isErr:
-    # The uploadedAt field is an optional data so we can ignore the error the decoding fails
-    discard
+    return failure("Unable to decode `uploadedAt` from manifest!")
 
   let protected = pbErasureInfo.buffer.len > 0
   var verifiable = false
