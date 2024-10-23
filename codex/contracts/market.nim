@@ -176,7 +176,7 @@ method fillSlot(market: OnChainMarket,
 
 method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
   convertEthersError:
-    var freeSlot: Future[?TransactionResponse]
+    var freeSlot: Future[Confirmable]
     if rewardRecipient =? market.rewardRecipient:
       # If --reward-recipient specified, use it as the reward recipient, and use
       # the SP's address as the collateral recipient
