@@ -117,8 +117,6 @@ proc retrieveCid(
 
       bytes += buff.len
 
-      resp.setHeader("Content-Length", $bytes)
-
       await resp.sendChunk(addr buff[0], buff.len)
     await resp.finish()
     codex_api_downloads.inc()
