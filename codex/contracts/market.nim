@@ -165,8 +165,14 @@ method fillSlot(market: OnChainMarket,
                 proof: Groth16Proof,
                 collateral: UInt256) {.async.} =
   convertEthersError:
+    logScope:
+      requestId
+      slotIndex
+
     await market.approveFunds(collateral)
+    trace "calling fillSlot on contract"
     discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(0)
+    trace "fillSlot transaction completed"
 
 method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
   convertEthersError:
@@ -253,7 +259,12 @@ method reserveSlot*(
   slotIndex: UInt256) {.async.} =
 
   convertEthersError:
-    discard await market.contract.reserveSlot(requestId, slotIndex).confirm(0)
+    discard await market.contract.reserveSlot(
+      requestId,
+      slotIndex,
+      # reserveSlot runs out of gas for unknown reason, but 100k gas covers it
+      TransactionOverrides(gasLimit: some 100000.u256)
+    ).confirm(0)
 
 method canReserveSlot*(
   market: OnChainMarket,
