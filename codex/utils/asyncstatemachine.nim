@@ -75,7 +75,7 @@ proc scheduler(machine: Machine) {.async.} =
           await running.cancelAndWait()
         let fromState = if machine.state.isNil: "<none>" else: $machine.state
         machine.state = next
-        debug "enter state", state = machine.state, fromState
+        debug "enter state", state = fromState & " => " & $machine.state
         running = machine.run(machine.state)
         running
           .track(machine)
