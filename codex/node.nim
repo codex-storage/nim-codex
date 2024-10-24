@@ -757,14 +757,14 @@ proc stop*(self: CodexNodeRef) {.async.} =
   if not self.discovery.isNil:
     await self.discovery.stop()
 
-  if not self.clock.isNil:
-    await self.clock.stop()
-
   if clientContracts =? self.contracts.client:
     await clientContracts.stop()
 
   if hostContracts =? self.contracts.host:
     await hostContracts.stop()
+
+  if not self.clock.isNil:
+    await self.clock.stop()
 
   if validatorContracts =? self.contracts.validator:
     await validatorContracts.stop()

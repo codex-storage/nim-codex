@@ -67,23 +67,21 @@ proc run(machine: Machine, state: State) {.async.} =
 
 proc scheduler(machine: Machine) {.async.} =
   var running: Future[void]
-  try:
-    while machine.started:
-      let event = await machine.scheduled.get().track(machine)
-      if next =? event(machine.state):
-        if not running.isNil and not running.finished:
-          await running.cancelAndWait()
-        let fromState = if machine.state.isNil: "<none>" else: $machine.state
-        machine.state = next
-        debug "enter state", state = fromState & " => " & $machine.state
-        running = machine.run(machine.state)
-        running
-          .track(machine)
-          .catch((err: ref CatchableError) =>
-            machine.schedule(machine.onError(err))
-          )
-  except CancelledError:
-    discard
+  while machine.started:
+    let event = await machine.scheduled.get().track(machine)
+    if next =? event(machine.state):
+      if not running.isNil and not running.finished:
+        trace "cancelling current state", state = $machine.state
+        await running.cancelAndWait()
+      let fromState = if machine.state.isNil: "<none>" else: $machine.state
+      machine.state = next
+      debug "enter state", state = fromState & " => " & $machine.state
+      try:
+        running = machine.run(machine.state).track(machine)
+      except CancelledError as e:
+        trace("run cancelled in state, swallowing", state = $machine.state)
+      except CatchableError as e:
+        machine.schedule(machine.onError(e))
 
 proc start*(machine: Machine, initialState: State) =
   if machine.started:
@@ -93,12 +91,13 @@ proc start*(machine: Machine, initialState: State) =
     machine.scheduled = newAsyncQueue[Event]()
 
   machine.started = true
-  machine.scheduler()
-    .track(machine)
-    .catch((err: ref CatchableError) =>
-      error("Error in scheduler", error = err.msg)
-    )
-  machine.schedule(Event.transition(machine.state, initialState))
+  try:
+    discard machine.scheduler().track(machine)
+    machine.schedule(Event.transition(machine.state, initialState))
+  except CancelledError as e:
+    discard
+  except CatchableError as e:
+    error("Error in scheduler", error = e.msg)
 
 proc stop*(machine: Machine) {.async.} =
   if not machine.started:
