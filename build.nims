@@ -42,10 +42,6 @@ task testIntegration, "Run integration tests":
   buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_enable_proof_failures=true"
   test "testIntegration"
 
-task testRestApi, "Run rest api tests":
-  buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_enable_proof_failures=true"
-  test "testRestApi"
-
 task build, "build codex binary":
   codexTask()
 
