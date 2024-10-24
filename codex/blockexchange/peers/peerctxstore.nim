@@ -71,19 +71,17 @@ func peersWant*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
   toSeq(self.peers.values).filterIt( it.peerWants.anyIt( it.address.cidOrTreeCid == cid ) )
 
 func selectCheapest*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
-  # assume that the price for all leaves in a tree is the same
-  let rootAddress = BlockAddress(leaf: false, cid: address.cidOrTreeCid)
-  var peers = self.peersHave(rootAddress)
+  var peers = self.peersHave(address)
 
   func cmp(a, b: BlockExcPeerCtx): int =
     var
       priceA = 0.u256
       priceB = 0.u256
 
-    a.blocks.withValue(rootAddress, precense):
+    a.blocks.withValue(address, precense):
       priceA = precense[].price
 
-    b.blocks.withValue(rootAddress, precense):
+    b.blocks.withValue(address, precense):
       priceB = precense[].price
 
     if priceA == priceB:
@@ -94,7 +92,7 @@ func selectCheapest*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPee
       -1
 
   peers.sort(cmp)
-  trace "Selected cheapest peers", peers = peers.len
+  trace "Selected cheapest peers", address = address, peers = peers.len
   return peers
 
 proc new*(T: type PeerCtxStore): PeerCtxStore =
