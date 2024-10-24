@@ -1,3 +1,4 @@
+import std/times
 import std/sets
 import std/sequtils
 import pkg/chronos
@@ -23,6 +24,9 @@ type
     proofTimeout: UInt256
     config: ValidationConfig
 
+const
+  MaxStorageRequestDuration: times.Duration = initDuration(days = 30)
+
 logScope:
   topics = "codex validator"
 
@@ -43,7 +47,8 @@ proc getCurrentPeriod(validation: Validation): UInt256 =
 proc waitUntilNextPeriod(validation: Validation) {.async.} =
   let period = validation.getCurrentPeriod()
   let periodEnd = validation.periodicity.periodEnd(period)
-  trace "Waiting until next period", currentPeriod = period
+  trace "Waiting until next period", currentPeriod = period, groups = validation.config.groups,
+    groupIndex = validation.config.groupIndex
   await validation.clock.waitUntil(periodEnd.truncate(int64) + 1)
 
 func groupIndexForSlotId*(slotId: SlotId,
@@ -67,18 +72,22 @@ proc subscribeSlotFilled(validation: Validation) {.async.} =
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
     let slotId = slotId(requestId, slotIndex)
     if validation.shouldValidateSlot(slotId):
-      trace "Adding slot", slotId
+      trace "Adding slot", slotId, groups = validation.config.groups,
+        groupIndex = validation.config.groupIndex
       validation.slots.incl(slotId)
   let subscription = await validation.market.subscribeSlotFilled(onSlotFilled)
   validation.subscriptions.add(subscription)
 
 proc removeSlotsThatHaveEnded(validation: Validation) {.async.} =
+  logScope:
+    groups = validation.config.groups
+    groupIndex = validation.config.groupIndex
   var ended: HashSet[SlotId]
   let slots = validation.slots
   for slotId in slots:
     let state = await validation.market.slotState(slotId)
     if state != SlotState.Filled:
-      trace "Removing slot", slotId
+      trace "Removing slot", slotId, slotState = state
       ended.incl(slotId)
   validation.slots.excl(ended)
 
@@ -87,6 +96,8 @@ proc markProofAsMissing(validation: Validation,
                         period: Period) {.async.} =
   logScope:
     currentPeriod = validation.getCurrentPeriod()
+    groups = validation.config.groups
+    groupIndex = validation.config.groupIndex
 
   try:
     if await validation.market.canProofBeMarkedAsMissing(slotId, period):
@@ -107,7 +118,11 @@ proc markProofsAsMissing(validation: Validation) {.async.} =
     await validation.markProofAsMissing(slotId, previousPeriod)
 
 proc run(validation: Validation) {.async.} =
-  trace "Validation started"
+  logScope:
+    groups = validation.config.groups
+    groupIndex = validation.config.groupIndex
+  trace "Validation started", currentTime = validation.clock.now,
+    currentTime = validation.clock.now.fromUnix
   try:
     while true:
       await validation.waitUntilNextPeriod()
@@ -117,16 +132,41 @@ proc run(validation: Validation) {.async.} =
     trace "Validation stopped"
     discard
   except CatchableError as e:
-    error "Validation failed", msg = e.msg
+    error "Validation failed", msg = e.msg, groups = validation.config.groups,
+      groupIndex = validation.config.groupIndex
+
+proc epochForDurationBackFromNow(validation: Validation,
+    duration: times.Duration): SecondsSince1970 =
+  return validation.clock.now - duration.inSeconds
+
+proc restoreHistoricalState(validation: Validation) {.async} =
+  logScope:
+    groups = validation.config.groups
+    groupIndex = validation.config.groupIndex
+  trace "Restoring historical state..."
+  let startTimeEpoch = validation.epochForDurationBackFromNow(MaxStorageRequestDuration)
+  let slotFilledEvents = await validation.market.queryPastSlotFilledEvents(
+    fromTime = startTimeEpoch)
+  trace "Found slot filled events", numberOfSlots = slotFilledEvents.len
+  for event in slotFilledEvents:
+    let slotId = slotId(event.requestId, event.slotIndex)
+    if validation.shouldValidateSlot(slotId):
+      trace "Adding slot [historical]", slotId
+      validation.slots.incl(slotId)
+  trace "Removing slots that have ended..."
+  await removeSlotsThatHaveEnded(validation)
+  trace "Historical state restored", numberOfSlots = validation.slots.len
 
 proc start*(validation: Validation) {.async.} =
   validation.periodicity = await validation.market.periodicity()
   validation.proofTimeout = await validation.market.proofTimeout()
   await validation.subscribeSlotFilled()
+  await validation.restoreHistoricalState()
   validation.running = validation.run()
 
 proc stop*(validation: Validation) {.async.} =
-  await validation.running.cancelAndWait()
+  if not isNil(validation.running):
+    await validation.running.cancelAndWait()
   while validation.subscriptions.len > 0:
     let subscription = validation.subscriptions.pop()
     await subscription.unsubscribe()
