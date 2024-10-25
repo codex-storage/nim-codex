@@ -25,6 +25,7 @@ method run(state: State1, machine: Machine): Future[?State] {.async.} =
 
 method run(state: State2, machine: Machine): Future[?State] {.async.} =
   inc runs[1]
+  echo "State2 run, runs: ", $runs
   try:
     await sleepAsync(1.hours)
   except CancelledError:
@@ -36,6 +37,7 @@ method run(state: State3, machine: Machine): Future[?State] {.async.} =
 
 method run(state: State4, machine: Machine): Future[?State] {.async.} =
   inc runs[3]
+  echo "State4 run, runs: ", $runs
   raise newException(ValueError, "failed")
 
 method onMoveToNextStateEvent*(state: State): ?State {.base, upraises:[].} =
@@ -58,6 +60,7 @@ method onError(state: State3, error: ref CatchableError): ?State =
 
 method onError(state: State4, error: ref CatchableError): ?State =
   inc errors[3]
+  echo "State4 onError, errors: ", $errors
   some State(State2.new())
 
 asyncchecksuite "async state machines":
