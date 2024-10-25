@@ -90,6 +90,40 @@ components:
         cid:
           $ref: "#/components/schemas/Cid"
 
+    Node:
+      type: object
+      properties:
+        nodeId:
+          type: string
+        peerId:
+          type: string
+        record:
+          type: string
+        address:
+          type: string
+        seen:
+          type: boolean
+
+    CodexVersion:
+      type: object
+      properties:
+        version:
+          type: string
+          example: v0.1.7
+        revision:
+          type: string
+          example: 0c647d8
+
+    PeersTable:
+      type: object
+      properties:
+        localNode:
+          $ref: "#/components/schemas/Node"
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Node"
+
     DebugInfo:
       type: object
       properties:
@@ -104,6 +138,10 @@ components:
           description: Path of the data repository where all nodes data are stored
         spr:
           $ref: "#/components/schemas/SPR"
+        table:
+          $ref: "#/components/schemas/PeersTable"
+        codex:
+          $ref: "#/components/schemas/CodexVersion"
 
     SalesAvailability:
       type: object
