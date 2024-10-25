@@ -590,20 +590,13 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       ## tolerance        - allowed number of nodes that can be lost before content is lost
       ## colateral        - requested collateral from hosts when they fill slot
       try:
-        echo "without contracts"
         without contracts =? node.contracts.client:
           return RestApiResponse.error(Http503, "Persistence is not enabled", headers = headers)
         
-        echo "without cid"
-
         without cid =? cid.tryGet.catch, error:
           return RestApiResponse.error(Http400, error.msg, headers = headers)
 
-        echo "body"
-
         let body = await request.getBody()
-
-        echo "without params"
 
         without params =? StorageRequestParams.fromJson(body), error:
           return RestApiResponse.error(Http400, error.msg, headers = headers)
@@ -630,8 +623,6 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
 
         if expiry <= 0 or expiry >= params.duration:
           return RestApiResponse.error(Http400, "Expiry needs value bigger then zero and smaller then the request's duration", headers = headers)
-
-        echo "request storage"
 
         without purchaseId =? await node.requestStorage(
           cid,
