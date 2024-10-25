@@ -1,5 +1,5 @@
 import pkg/ethers
-import pkg/serde
+import pkg/serde/json
 
 proc currentTime*(provider: Provider): Future[UInt256] {.async.} =
   return (!await provider.getBlock(BlockTag.pending)).timestamp
