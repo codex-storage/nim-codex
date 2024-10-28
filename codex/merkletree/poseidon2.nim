@@ -11,6 +11,7 @@
 
 import std/sequtils
 
+import pkg/chronos
 import pkg/poseidon2
 import pkg/constantine/math/io/io_fields
 import pkg/constantine/platforms/abstractions
@@ -67,9 +68,9 @@ converter toKey*(key: PoseidonKeysEnum): Poseidon2Hash =
   of KeyOdd: KeyOddF
   of KeyOddAndBottomLayer: KeyOddAndBottomLayerF
 
-func init*(
+proc init*(
   _: type Poseidon2Tree,
-  leaves: openArray[Poseidon2Hash]): ?!Poseidon2Tree =
+  leaves: seq[Poseidon2Hash]): Future[?!Poseidon2Tree] {.async.} =
 
   if leaves.len == 0:
     return failure "Empty leaves"
@@ -83,12 +84,14 @@ func init*(
   var
     self = Poseidon2Tree(compress: compressor, zero: Poseidon2Zero)
 
-  self.layers = ? merkleTreeWorker(self, leaves, isBottomLayer = true)
+  without l =? (await merkleTreeWorker(self, leaves, isBottomLayer = true)), err:
+    return failure err
+  self.layers = l
   success self
 
-func init*(
+proc init*(
   _: type Poseidon2Tree,
-  leaves: openArray[array[31, byte]]): ?!Poseidon2Tree =
+  leaves: seq[array[31, byte]]): Future[?!Poseidon2Tree] {.async.} =
   Poseidon2Tree.init(
     leaves.mapIt( Poseidon2Hash.fromBytes(it) ))
 
