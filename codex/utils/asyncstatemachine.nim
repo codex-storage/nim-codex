@@ -59,11 +59,8 @@ proc onError(machine: Machine, error: ref CatchableError): Event =
     state.onError(error)
 
 proc run(machine: Machine, state: State) {.async.} =
-  try:
-    if next =? await state.run(machine):
-      machine.schedule(Event.transition(state, next))
-  except CancelledError:
-    discard
+  if next =? await state.run(machine):
+    machine.schedule(Event.transition(state, next))
 
 proc scheduler(machine: Machine) {.async.} =
   var running: Future[void]
@@ -76,12 +73,14 @@ proc scheduler(machine: Machine) {.async.} =
       let fromState = if machine.state.isNil: "<none>" else: $machine.state
       machine.state = next
       debug "enter state", state = fromState & " => " & $machine.state
-      try:
-        running = machine.run(machine.state).track(machine)
-      except CancelledError as e:
-        trace("run cancelled in state, swallowing", state = $machine.state)
-      except CatchableError as e:
-        machine.schedule(machine.onError(e))
+      running = machine.run(machine.state)
+      running
+        .track(machine)
+        .cancelled(proc() = trace "state.run cancelled, swallowing", state = $machine.state)
+        .catch(proc(err: ref CatchableError) =
+          trace "error caught in state.run, calling state.onError", state = $machine.state
+          machine.schedule(machine.onError(err))
+        )
 
 proc start*(machine: Machine, initialState: State) =
   if machine.started:
