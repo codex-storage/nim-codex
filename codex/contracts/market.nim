@@ -56,7 +56,7 @@ proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
     discard await token.increaseAllowance(market.contract.address(), amount).confirm(0)
 
 method getZkeyHash*(market: OnChainMarket): Future[?string] {.async.} =
-  let config = await market.contract.config()
+  let config = await market.contract.configuration()
   return some config.proofs.zkeyHash
 
 method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
@@ -65,18 +65,18 @@ method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
 
 method periodicity*(market: OnChainMarket): Future[Periodicity] {.async.} =
   convertEthersError:
-    let config = await market.contract.config()
+    let config = await market.contract.configuration()
     let period = config.proofs.period
     return Periodicity(seconds: period)
 
 method proofTimeout*(market: OnChainMarket): Future[UInt256] {.async.} =
   convertEthersError:
-    let config = await market.contract.config()
+    let config = await market.contract.configuration()
     return config.proofs.timeout
 
 method proofDowntime*(market: OnChainMarket): Future[uint8] {.async.} =
   convertEthersError:
-    let config = await market.contract.config()
+    let config = await market.contract.configuration()
     return config.proofs.downtime
 
 method getPointer*(market: OnChainMarket, slotId: SlotId): Future[uint8] {.async.} =

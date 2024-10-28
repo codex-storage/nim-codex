@@ -1,5 +1,5 @@
 import pkg/chronos
-import pkg/ethers/erc20
+import pkg/ethers
 from pkg/libp2p import Cid
 import pkg/codex/contracts/marketplace as mp
 import pkg/codex/periods
@@ -85,7 +85,7 @@ template marketplacesuite*(name: string, body: untyped) =
       marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
       let tokenAddress = await marketplace.token()
       token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
-      let config = await mp.config(marketplace)
+      let config = await marketplace.configuration()
       period = config.proofs.period.truncate(uint64)
       periodicity = Periodicity(seconds: period.u256)
 

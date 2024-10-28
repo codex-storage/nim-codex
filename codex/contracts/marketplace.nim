@@ -17,7 +17,7 @@ export requests
 type
   Marketplace* = ref object of Contract
 
-proc config*(marketplace: Marketplace): MarketplaceConfig {.contract, view.}
+proc configuration*(marketplace: Marketplace): MarketplaceConfig {.contract, view.}
 proc token*(marketplace: Marketplace): Address {.contract, view.}
 proc slashMisses*(marketplace: Marketplace): UInt256 {.contract, view.}
 proc slashPercentage*(marketplace: Marketplace): UInt256 {.contract, view.}
