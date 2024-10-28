@@ -160,7 +160,10 @@ proc createVerifiableManifest*(
           totalDatasetSize)
 
     builder = Poseidon2Builder.new(store, protectedManifest, cellSize = cellSize).tryGet
-    verifiableManifest = (await builder.buildManifest()).tryGet
+
+  (await builder.init()).tryGet()
+
+  let verifiableManifest = (await builder.buildManifest()).tryGet
 
   # build the slots and manifest
   (manifest, protectedManifest, verifiableManifest)

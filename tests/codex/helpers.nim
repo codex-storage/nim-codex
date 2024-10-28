@@ -54,7 +54,7 @@ proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, CodexTree) =
   let
     datasetSize = blocks.mapIt(it.data.len).foldl(a + b)
     blockSize = blocks.mapIt(it.data.len).foldl(max(a, b))
-    tree = ? CodexTree.init(blocks.mapIt(it.cid))
+    tree = ? (waitFor CodexTree.init(blocks.mapIt(it.cid)))
     treeCid = ? tree.rootCid
     manifest = Manifest.new(
       treeCid = treeCid,
@@ -93,7 +93,7 @@ proc storeDataGetManifest*(store: BlockStore, chunker: Chunker): Future[Manifest
     (await store.putBlock(blk)).tryGet()
 
   let
-    tree = CodexTree.init(cids).tryGet()
+    tree = (waitFor CodexTree.init(cids)).tryGet()
     treeCid = tree.rootCid.tryGet()
     manifest = Manifest.new(
       treeCid = treeCid,

@@ -92,7 +92,7 @@ proc init*(
 proc init*(
   _: type Poseidon2Tree,
   leaves: seq[array[31, byte]]): Future[?!Poseidon2Tree] {.async.} =
-  Poseidon2Tree.init(
+  await Poseidon2Tree.init(
     leaves.mapIt( Poseidon2Hash.fromBytes(it) ))
 
 proc fromNodes*(

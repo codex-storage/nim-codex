@@ -2,6 +2,7 @@ import std/unittest
 import std/sequtils
 import std/tables
 
+import pkg/chronos
 import pkg/questionable/results
 import pkg/stew/byteutils
 import pkg/nimcrypto/sha2
@@ -18,7 +19,7 @@ import ./generictreetests
 
 const
   data =
-    [
+    @[
       "00000000000000000000000000000001".toBytes,
       "00000000000000000000000000000002".toBytes,
       "00000000000000000000000000000003".toBytes,
@@ -33,23 +34,32 @@ const
   sha256 = Sha256HashCodec
 
 suite "Test CodexTree":
+  proc CodexTreeInit(leaves: seq[MultiHash]): ?!CodexTree =
+    waitFor CodexTree.init(leaves)
+
+  proc CodexTreeInit(leaves: seq[Cid]): ?!CodexTree =
+    waitFor CodexTree.init(leaves)
+
+  proc CodexTreeInit(mcodec: MultiCodec, leaves: seq[ByteHash]): ?!CodexTree =
+    waitFor CodexTree.init(mcodec, leaves)
+
   test "Cannot init tree without any multihash leaves":
     check:
-      CodexTree.init(leaves = newSeq[MultiHash]()).isErr
+      CodexTreeInit(leaves = newSeq[MultiHash]()).isErr
 
   test "Cannot init tree without any cid leaves":
     check:
-      CodexTree.init(leaves = newSeq[Cid]()).isErr
+      CodexTreeInit(leaves = newSeq[Cid]()).isErr
 
   test "Cannot init tree without any byte leaves":
     check:
-      CodexTree.init(sha256, leaves =  newSeq[ByteHash]()).isErr
+      CodexTreeInit(sha256, leaves =  newSeq[ByteHash]()).isErr
 
   test "Should build tree from multihash leaves":
     var
       expectedLeaves = data.mapIt(  MultiHash.digest($sha256, it).tryGet() )
 
-    var tree = CodexTree.init(leaves = expectedLeaves)
+    var tree = CodexTreeInit(leaves = expectedLeaves)
     check:
       tree.isOk
       tree.get().leaves == expectedLeaves.mapIt( it.digestBytes )
@@ -65,7 +75,7 @@ suite "Test CodexTree":
       ).tryGet )
 
     let
-      tree = CodexTree.init(leaves = expectedLeaves)
+      tree = CodexTreeInit(leaves = expectedLeaves)
 
     check:
       tree.isOk
@@ -74,7 +84,7 @@ suite "Test CodexTree":
 
   test "Should build from raw digestbytes (should not hash leaves)":
     let
-      tree = CodexTree.init(sha256, leaves = data).tryGet
+      tree = CodexTreeInit(sha256, leaves = data).tryGet
 
     check:
       tree.mcodec == sha256
@@ -82,7 +92,7 @@ suite "Test CodexTree":
 
   test "Should build from nodes":
     let
-      tree = CodexTree.init(sha256, leaves = data).tryGet
+      tree = CodexTreeInit(sha256, leaves = data).tryGet
       fromNodes = CodexTree.fromNodes(
         nodes = toSeq(tree.nodes),
         nleaves = tree.leavesCount).tryGet
@@ -98,7 +108,7 @@ let
     compress(x, y, key, mhash).tryGet
 
   makeTree = proc(data: seq[seq[byte]]): CodexTree =
-    CodexTree.init(sha256, leaves = data).tryGet
+    (waitFor CodexTree.init(sha256, leaves = data)).tryGet
 
 testGenericTree(
   "CodexTree",

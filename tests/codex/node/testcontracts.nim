@@ -96,6 +96,7 @@ asyncchecksuite "Test Node - Host contracts":
       verifiable.encode().tryGet(),
       codec = ManifestCodec).tryGet()
 
+    (await builder.init()).tryGet()
     (await localStore.putBlock(verifiableBlock)).tryGet()
 
   test "onExpiryUpdate callback is set":

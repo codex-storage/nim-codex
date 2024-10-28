@@ -153,6 +153,7 @@ asyncchecksuite "Test Node - Basic":
         verifiable.encode().tryGet(),
         codec = ManifestCodec).tryGet()
 
+    (await builder.init()).tryGet()
     (await localStore.putBlock(manifestBlock)).tryGet()
 
     let
