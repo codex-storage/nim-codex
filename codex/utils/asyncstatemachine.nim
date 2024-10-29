@@ -90,13 +90,13 @@ proc start*(machine: Machine, initialState: State) =
     machine.scheduled = newAsyncQueue[Event]()
 
   machine.started = true
-  try:
-    discard machine.scheduler().track(machine)
-    machine.schedule(Event.transition(machine.state, initialState))
-  except CancelledError as e:
-    discard
-  except CatchableError as e:
-    error("Error in scheduler", error = e.msg)
+  machine.scheduler()
+    .track(machine)
+    .cancelled(proc() = trace("machine.scheduler cancelled, swallowing"))
+    .catch((err: ref CatchableError) =>
+      error("Error in scheduler", error = err.msg)
+    )
+  machine.schedule(Event.transition(machine.state, initialState))
 
 proc stop*(machine: Machine) {.async.} =
   if not machine.started:

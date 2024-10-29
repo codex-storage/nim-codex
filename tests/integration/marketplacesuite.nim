@@ -1,5 +1,5 @@
 import pkg/chronos
-import pkg/ethers
+import pkg/ethers/erc20
 from pkg/libp2p import Cid
 import pkg/codex/contracts/marketplace as mp
 import pkg/codex/periods
