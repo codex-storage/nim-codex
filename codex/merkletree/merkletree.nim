@@ -150,8 +150,7 @@ proc merkleTreeWorker*[H, K](
     without y =? self.compress( xs[a + 2 * i], xs[a + 2 * i + 1], key = key ), err:
       return failure err
     ys[i] = y
-    # yield?
-    await sleepAsync(1.millis) # cooperative scheduling (may not be necessary)
+    await sleepAsync(1.micros) # cooperative scheduling
   if isOdd:
     const key = when isBottomLayer: K.KeyOddAndBottomLayer else: K.KeyOdd
     without y =? self.compress( xs[n], self.zero, key = key ), err:

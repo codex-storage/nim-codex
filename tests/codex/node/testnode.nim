@@ -148,12 +148,15 @@ asyncchecksuite "Test Node - Basic":
         codec = ManifestCodec).tryGet()
       protected = (await erasure.encode(manifest, 3, 2)).tryGet()
       builder = Poseidon2Builder.new(localStore, protected).tryGet()
+
+    (await builder.init()).tryGet()
+
+    let
       verifiable = (await builder.buildManifest()).tryGet()
       verifiableBlock = bt.Block.new(
         verifiable.encode().tryGet(),
         codec = ManifestCodec).tryGet()
 
-    (await builder.init()).tryGet()
     (await localStore.putBlock(manifestBlock)).tryGet()
 
     let

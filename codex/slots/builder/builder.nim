@@ -325,6 +325,7 @@ proc init*[T, H](self: SlotsBuilder[T, H]): Future[?!void] {.async.} =
     self.verifiableTree = some tree
 
   trace "Slots builder initialized"
+  success()
 
 proc new*[T, H](
   _: type SlotsBuilder[T, H],

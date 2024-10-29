@@ -55,7 +55,7 @@ proc digestTree*(
       return failure err
     leaves.add(digest)
     index += chunkSize
-    await sleepAsync(1.millis) # cooperative scheduling (may not be necessary)
+    await sleepAsync(1.micros) # cooperative scheduling
   return await Poseidon2Tree.init(leaves)
 
 proc digest*(
