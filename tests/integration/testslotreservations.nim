@@ -51,10 +51,7 @@ marketplacesuite "Slot reservations":
     var slotIdxFilled: seq[UInt256] = @[]
     proc onSlotFilled(event: SlotFilled) =
       slotIdxFilled.add event.slotIndex
-    proc onSlotReservationsFull(event: SlotReservationsFull) =
-      echo "Slot reservations full for slot ", event.slotIndex
 
-    let subscriptionFull = await marketplace.subscribe(SlotReservationsFull, onSlotReservationsFull)
     let subscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
 
     # client requests storage but requires multiple slots to host the content
@@ -74,4 +71,3 @@ marketplacesuite "Slot reservations":
     check logsDoNotContain(Role.Provider, "Nonce too high")
 
     await subscription.unsubscribe()
-    await subscriptionFull.unsubscribe()
