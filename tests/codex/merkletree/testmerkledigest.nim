@@ -4,6 +4,7 @@ import std/random
 
 import pkg/constantine/math/arithmetic
 
+import pkg/chronos
 import pkg/poseidon2
 import pkg/poseidon2/io
 import pkg/poseidon2/sponge
@@ -30,9 +31,9 @@ suite "Digest - MerkleTree":
       leaves.add(digest)
 
     let
-      digest = Poseidon2Tree.digest(bytes, chunkSize = 2*KB).tryGet
+      digest = (waitFor Poseidon2Tree.digest(bytes, chunkSize = 2*KB)).tryGet
       spongeDigest = SpongeMerkle.digest(bytes, chunkSize = 2*KB)
-      codexPosTree = Poseidon2Tree.init(leaves).tryGet
+      codexPosTree = (waitFor Poseidon2Tree.init(leaves)).tryGet
       rootDigest = codexPosTree.root.tryGet
 
     check:
@@ -53,9 +54,9 @@ suite "Digest - MerkleTree":
     leaves.add(Sponge.digest(partialChunk, rate = 2))
 
     let
-      digest = Poseidon2Tree.digest(bytes, chunkSize = 2*KB).tryGet
+      digest = (waitFor Poseidon2Tree.digest(bytes, chunkSize = 2*KB)).tryGet
       spongeDigest = SpongeMerkle.digest(bytes, chunkSize = 2*KB)
-      codexPosTree = Poseidon2Tree.init(leaves).tryGet
+      codexPosTree = (waitFor Poseidon2Tree.init(leaves)).tryGet
       rootDigest = codexPosTree.root.tryGet
 
     check:

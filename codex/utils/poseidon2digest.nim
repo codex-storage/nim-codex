@@ -33,7 +33,6 @@ func spongeDigest*(
 
   success Sponge.digest(bytes, rate)
 
-# TODO: replace with poseidon2 library call plz
 proc digestTree*(
   _: type Poseidon2Tree,
   bytes: seq[byte],

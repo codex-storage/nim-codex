@@ -269,7 +269,7 @@ suite "Slot builder":
           Merkle.digest(slotHashes)
 
       expectedRoot = Merkle.digest(slotsHashes)
-      rootHash = builder.buildVerifyTree(builder.slotRoots).tryGet().root.tryGet()
+      rootHash = (await builder.buildVerifyTree(builder.slotRoots)).tryGet().root.tryGet()
 
     check:
       expectedRoot == rootHash
