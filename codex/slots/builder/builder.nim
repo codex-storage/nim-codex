@@ -368,7 +368,6 @@ proc new*[T, H](
     numBlocksTotal      = numSlotBlocksTotal * manifest.numSlots          # number of blocks per slot
 
     emptyBlock          = newSeq[byte](manifest.blockSize.int)
-    # emptyDigestTree     = ? (waitFor T.digestTree(emptyBlock, cellSize.int))
 
     strategy = ? strategy.init(
       0,
