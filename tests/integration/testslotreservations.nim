@@ -12,9 +12,7 @@ marketplacesuite "Slot reservations":
   test "nonce does not go too high when reserving slots",
     NodeConfigs(
       # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
-      hardhat: HardhatConfig()
-                .withLogFile()
-                .some,
+      hardhat: HardhatConfig.none,
 
       clients:
         CodexConfigs.init(nodes=1)
