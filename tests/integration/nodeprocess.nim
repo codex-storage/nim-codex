@@ -44,6 +44,9 @@ method outputLineEndings(node: NodeProcess): string {.base.} =
 method onOutputLineCaptured(node: NodeProcess, line: string) {.base.} =
   raiseAssert "not implemented"
 
+method logFileContains*(hardhat: NodeProcess): bool {.base.} =
+  raiseAssert "not implemented"
+
 method start*(node: NodeProcess) {.base, async.} =
   logScope:
     nodeName = node.name
