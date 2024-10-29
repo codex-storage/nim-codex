@@ -443,21 +443,6 @@ paths:
       summary: "Lists manifest CIDs stored locally in node."
       tags: [ Data ]
       operationId: listData
-      parameters:
-        - name: content-type
-          in: header
-          required: false
-          description: The content type of the file. Must be valid.
-          schema:
-            type: string
-            example: "image/png"
-        - name: content-disposition
-          in: header
-          required: false
-          description: The content disposition used to send the filename.
-          schema:
-            type: string
-            example: "attachment; filename=\"codex.png\""
       responses:
         "200":
           description: Retrieved list of content CIDs
@@ -478,6 +463,21 @@ paths:
       summary: "Upload a file in a streaming manner. Once finished, the file is stored in the node and can be retrieved by any node in the network using the returned CID."
       tags: [ Data ]
       operationId: upload
+      parameters:
+        - name: content-type
+          in: header
+          required: false
+          description: The content type of the file. Must be valid.
+          schema:
+            type: string
+            example: "image/png"
+        - name: content-disposition
+          in: header
+          required: false
+          description: The content disposition used to send the filename.
+          schema:
+            type: string
+            example: "attachment; filename=\"codex.png\""
       requestBody:
         content:
           application/octet-stream:
