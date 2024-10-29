@@ -121,7 +121,6 @@ func reconstructRoot*[H, K](proof: MerkleProof[H, K], leaf: H): ?!H =
 func verify*[H, K](proof: MerkleProof[H, K], leaf: H, root: H): ?!bool =
   success bool(root == ? proof.reconstructRoot(leaf))
 
-# TODO: replace with implementation in poseidon library plz
 proc merkleTreeWorker*[H, K](
   self: MerkleTree[H, K],
   xs: seq[H],
