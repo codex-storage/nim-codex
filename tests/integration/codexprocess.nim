@@ -46,8 +46,12 @@ method logFileContains*(node: CodexProcess, text: string): bool =
   without logFile =? config.logFile.?string:
     raiseAssert "codex node does have a --log-file option set (use .withLogFile())"
 
-  without logContents =? logFile.readAllChars, error:
-    raiseAssert "failed to open codex log file, aborting, error: " & error.msg
+  let resLogContents = logFile.readAllChars
+  if resLogContents.isErr:
+  # without logContents =? logFile.readAllChars:
+    raiseAssert "failed to open codex log file, aborting (log path: " & logFile & ")"
+
+  let logContents = resLogContents.value
 
   return logContents.contains(text)
 

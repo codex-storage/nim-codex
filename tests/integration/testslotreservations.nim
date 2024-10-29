@@ -68,6 +68,7 @@ marketplacesuite "Slot reservations":
     # wait until all slots filled
     check eventually(slotIdxFilled.len == 5, timeout=expiry.int * 1000)
 
-    check logsDoNotContain(Role.Provider, "Nonce too high")
+    teardown:
+      check logsDoNotContain(Role.Provider, "Nonce too high")
 
     await subscription.unsubscribe()
