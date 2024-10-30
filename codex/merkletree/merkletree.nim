@@ -146,16 +146,16 @@ proc merkleTreeWorker*[H, K](
 
   for i in 0..<halfn:
     const key = when isBottomLayer: K.KeyBottomLayer else: K.KeyNone
-    without y =? self.compress( xs[a + 2 * i], xs[a + 2 * i + 1], key = key ), err:
-      return failure err
+    without y =? self.compress( xs[a + 2 * i], xs[a + 2 * i + 1], key = key ), error:
+      return failure error
     ys[i] = y
     await sleepAsync(1.micros) # cooperative scheduling
   if isOdd:
     const key = when isBottomLayer: K.KeyOddAndBottomLayer else: K.KeyOdd
-    without y =? self.compress( xs[n], self.zero, key = key ), err:
-      return failure err
+    without y =? self.compress( xs[n], self.zero, key = key ), error:
+      return failure error
     ys[halfn] = y
 
-  without v =? (await self.merkleTreeWorker(ys, isBottomLayer = false)), err:
-    return failure err
+  without v =? (await self.merkleTreeWorker(ys, isBottomLayer = false)), error:
+    return failure error
   success @[ @xs ] & v
