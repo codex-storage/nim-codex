@@ -65,8 +65,8 @@ proc digest*(
   ## Hashes chunks of data with a sponge of rate 2, and combines the
   ## resulting chunk hashes in a merkle root.
   ##
-  without tree =? (await Poseidon2Tree.digestTree(bytes, chunkSize)), err:
-    return failure err
+  without tree =? (await Poseidon2Tree.digestTree(bytes, chunkSize)), error:
+    return failure error
 
   tree.root
 
