@@ -51,8 +51,8 @@ proc digestTree*(
   while index < bytes.len:
     let start = index
     let finish = min(index + chunkSize, bytes.len)
-    without digest =? Poseidon2Hash.spongeDigest(bytes.toOpenArray(start, finish - 1), 2), err:
-      return failure err
+    without digest =? Poseidon2Hash.spongeDigest(bytes.toOpenArray(start, finish - 1), 2), error:
+      return failure error
     leaves.add(digest)
     index += chunkSize
     await sleepAsync(1.nanos) # cooperative scheduling

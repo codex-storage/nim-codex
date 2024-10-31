@@ -84,8 +84,8 @@ proc init*(
   var
     self = Poseidon2Tree(compress: compressor, zero: Poseidon2Zero)
 
-  without l =? (await merkleTreeWorker(self, leaves, isBottomLayer = true)), err:
-    return failure err
+  without l =? (await merkleTreeWorker(self, leaves, isBottomLayer = true)), error:
+    return failure error
   self.layers = l
   success self
 
