@@ -45,12 +45,15 @@ fi
 
 # If marketplace is enabled from the testing environment,
 # The file has to be written before Codex starts.
-if [ -n "${PRIV_KEY}" ]; then
-  echo ${PRIV_KEY} > "private.key"
-  chmod 600 "private.key"
-  export CODEX_ETH_PRIVATE_KEY="private.key"
-  echo "Private key set"
-fi
+for key in PRIV_KEY ETH_PRIVATE_KEY; do
+  keyfile="private.key"
+  if [[ -n "${!key}" ]]; then
+    echo "${!key}" > "${keyfile}"
+    chmod 600 "${keyfile}"
+    export CODEX_ETH_PRIVATE_KEY="${keyfile}"
+    echo "Private key set"
+  fi
+done
 
 # Circuit downloader
 # cirdl [circuitPath] [rpcEndpoint] [marketplaceAddress]
