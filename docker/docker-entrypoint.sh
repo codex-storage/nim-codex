@@ -48,6 +48,7 @@ fi
 for key in PRIV_KEY ETH_PRIVATE_KEY; do
   keyfile="private.key"
   if [[ -n "${!key}" ]]; then
+    [[ "${key}" == "PRIV_KEY" ]] && echo "PRIV_KEY variable is deprecated and will be removed in the next releases, please use ETH_PRIVATE_KEY instead!"
     echo "${!key}" > "${keyfile}"
     chmod 600 "${keyfile}"
     export CODEX_ETH_PRIVATE_KEY="${keyfile}"
