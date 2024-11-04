@@ -135,8 +135,9 @@ marketplacesuite "Marketplace payouts":
     let cid = clientApi.upload(data).get
 
     var slotIdxFilled = none UInt256
-    proc onSlotFilled(event: SlotFilled) =
-      slotIdxFilled = some event.slotIndex
+    proc onSlotFilled(eventRes: ?!SlotFilled) =
+      if event =? eventRes:
+        slotIdxFilled = some event.slotIndex
 
     let subscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
 

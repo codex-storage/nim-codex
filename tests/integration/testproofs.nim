@@ -54,8 +54,8 @@ marketplacesuite "Hosts submit regular proofs":
     check eventually(client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000)
 
     var proofWasSubmitted = false
-    proc onProofSubmitted(event: ProofSubmitted) =
-      proofWasSubmitted = true
+    proc onProofSubmitted(event: ?!ProofSubmitted) =
+      proofWasSubmitted = event.isOk
 
     let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
 
@@ -120,8 +120,8 @@ marketplacesuite "Simulate invalid proofs":
     check eventually(client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000)
 
     var slotWasFreed = false
-    proc onSlotFreed(event: SlotFreed) =
-      if event.requestId == requestId:
+    proc onSlotFreed(event: ?!SlotFreed) =
+      if event.isOk and event.value.requestId == requestId:
         slotWasFreed = true
 
     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
@@ -185,8 +185,8 @@ marketplacesuite "Simulate invalid proofs":
     check eventually(slotWasFilled, timeout = expiry.int * 1000)
 
     var slotWasFreed = false
-    proc onSlotFreed(event: SlotFreed) =
-      if event.requestId == requestId:
+    proc onSlotFreed(event: ?!SlotFreed) =
+      if event.isOk and event.value.requestId == requestId:
         slotWasFreed = true
     let freedSubscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
