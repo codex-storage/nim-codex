@@ -40,6 +40,9 @@ DOCKER_IMAGE_NIM_PARAMS ?= -d:chronicles_colors:none -d:insecure
 
 LINK_PCRE := 0
 
+CXXFLAGS ?= -std=c++17 -mssse3
+export CXXFLAGS
+
 # we don't want an error here, so we can handle things later, in the ".DEFAULT" target
 -include $(BUILD_SYSTEM_DIR)/makefiles/variables.mk
 
