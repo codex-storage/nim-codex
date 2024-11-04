@@ -24,6 +24,7 @@
               git pkg-config openssl lsb-release
               # Build
               rustc cargo nimble gcc11 cmake nim-unwrapped-1
+              which
               # Libraries
               gmp llvmPackages.openmp
               # Tests
