@@ -114,8 +114,7 @@ ethersuite "On-Chain Market":
       receivedAsks.add(ask)
     let subscription = await market.subscribeRequests(onRequest)
     await market.requestStorage(request)
-    check receivedIds == @[request.id]
-    check receivedAsks == @[request.ask]
+    check eventually receivedIds == @[request.id] and receivedAsks == @[request.ask]
     await subscription.unsubscribe()
 
   test "supports filling of slots":
@@ -181,8 +180,7 @@ ethersuite "On-Chain Market":
     let subscription = await market.subscribeSlotFilled(onSlotFilled)
     await market.reserveSlot(request.id, slotIndex)
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
-    check receivedIds == @[request.id]
-    check receivedSlotIndices == @[slotIndex]
+    check eventually receivedIds == @[request.id] and receivedSlotIndices == @[slotIndex]
     await subscription.unsubscribe()
 
   test "subscribes only to a certain slot":
@@ -194,10 +192,9 @@ ethersuite "On-Chain Market":
     let subscription = await market.subscribeSlotFilled(request.id, slotIndex, onSlotFilled)
     await market.reserveSlot(request.id, otherSlot)
     await market.fillSlot(request.id, otherSlot, proof, request.ask.collateral)
-    check receivedSlotIndices.len == 0
     await market.reserveSlot(request.id, slotIndex)
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
-    check receivedSlotIndices == @[slotIndex]
+    check eventually receivedSlotIndices == @[slotIndex]
     await subscription.unsubscribe()
 
   test "supports slot freed subscriptions":
@@ -211,8 +208,7 @@ ethersuite "On-Chain Market":
       receivedIdxs.add(idx)
     let subscription = await market.subscribeSlotFreed(onSlotFreed)
     await market.freeSlot(slotId(request.id, slotIndex))
-    check receivedRequestIds == @[request.id]
-    check receivedIdxs == @[slotIndex]
+    check eventually receivedRequestIds == @[request.id] and receivedIdxs == @[slotIndex]
     await subscription.unsubscribe()
 
   test "supports slot reservations full subscriptions":
@@ -235,8 +231,7 @@ ethersuite "On-Chain Market":
     switchAccount(account3)
     await market.reserveSlot(request.id, slotIndex)
 
-    check receivedRequestIds == @[request.id]
-    check receivedIdxs == @[slotIndex]
+    check eventually receivedRequestIds == @[request.id] and receivedIdxs == @[slotIndex]
     await subscription.unsubscribe()
 
   test "support fulfillment subscriptions":
@@ -248,7 +243,7 @@ ethersuite "On-Chain Market":
     for slotIndex in 0..<request.ask.slots:
       await market.reserveSlot(request.id, slotIndex.u256)
       await market.fillSlot(request.id, slotIndex.u256, proof, request.ask.collateral)
-    check receivedIds == @[request.id]
+    check eventually receivedIds == @[request.id]
     await subscription.unsubscribe()
 
   test "subscribes only to fulfillment of a certain request":
@@ -271,7 +266,7 @@ ethersuite "On-Chain Market":
       await market.reserveSlot(otherRequest.id, slotIndex.u256)
       await market.fillSlot(otherRequest.id, slotIndex.u256, proof, otherRequest.ask.collateral)
 
-    check receivedIds == @[request.id]
+    check eventually receivedIds == @[request.id]
 
     await subscription.unsubscribe()
 
@@ -285,7 +280,7 @@ ethersuite "On-Chain Market":
 
     await advanceToCancelledRequest(request)
     await market.withdrawFunds(request.id)
-    check receivedIds == @[request.id]
+    check eventually receivedIds == @[request.id]
     await subscription.unsubscribe()
 
   test "support request failed subscriptions":
@@ -309,7 +304,7 @@ ethersuite "On-Chain Market":
         let missingPeriod = periodicity.periodOf(await ethProvider.currentTime())
         await advanceToNextPeriod()
         discard await marketplace.markProofAsMissing(slotId, missingPeriod)
-    check receivedIds == @[request.id]
+    check eventually receivedIds == @[request.id]
     await subscription.unsubscribe()
 
   test "subscribes only to a certain request cancellation":
@@ -325,9 +320,8 @@ ethersuite "On-Chain Market":
     let subscription = await market.subscribeRequestCancelled(request.id, onRequestCancelled)
     await advanceToCancelledRequest(otherRequest) # shares expiry with otherRequest
     await market.withdrawFunds(otherRequest.id)
-    check receivedIds.len == 0
     await market.withdrawFunds(request.id)
-    check receivedIds == @[request.id]
+    check eventually receivedIds == @[request.id]
     await subscription.unsubscribe()
 
   test "supports proof submission subscriptions":
@@ -340,7 +334,7 @@ ethersuite "On-Chain Market":
       receivedIds.add(id)
     let subscription = await market.subscribeProofSubmission(onProofSubmission)
     await market.submitProof(slotId(request.id, slotIndex), proof)
-    check receivedIds == @[slotId(request.id, slotIndex)]
+    check eventually receivedIds == @[slotId(request.id, slotIndex)]
     await subscription.unsubscribe()
 
   test "request is none when unknown":

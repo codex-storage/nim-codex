@@ -43,6 +43,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
         "--circom-wasm=tests/circuits/fixtures/proof_main.wasm",
         "--circom-zkey=tests/circuits/fixtures/proof_main.zkey",
+        "--eth-provider=http://localhost:8545",
         "--eth-account=" & $account1
       ]
 
@@ -67,6 +68,7 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
         "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
         "--circom-wasm=tests/circuits/fixtures/proof_main.wasm",
         "--circom-zkey=tests/circuits/fixtures/proof_main.zkey",
+        "--eth-provider=http://localhost:8545",
         "--eth-account=" & $account2
       ]
 
