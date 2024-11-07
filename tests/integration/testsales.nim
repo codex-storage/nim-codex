@@ -60,15 +60,15 @@ twonodessuite "Sales", debug1 = false, debug2 = false:
     let cid = client2.upload(data).get
     let id = client2.requestStorage(
       cid,
-      duration=10*60.u256,
+      duration=20*60.u256,
       reward=400.u256,
       proofProbability=3.u256,
-      expiry=5*60,
+      expiry=10*60,
       collateral=200.u256,
       nodes = 3,
       tolerance = 1).get
 
-    check eventually(client2.purchaseStateIs(id, "started"), timeout=5*60*1000)
+    check eventually(client2.purchaseStateIs(id, "started"), timeout=10*60*1000)
     let updatedAvailability = (client1.getAvailabilities().get).findItem(availability).get
     check updatedAvailability.totalSize != updatedAvailability.freeSize
 

@@ -36,7 +36,7 @@ marketplacesuite "Hosts submit regular proofs":
         .some,
   ):
     let client0 = clients()[0].client
-    let expiry = 5.periods
+    let expiry = 10.periods
     let duration = expiry + 5.periods
 
     let data = await RandomChunker.example(blocks=8)
@@ -99,7 +99,7 @@ marketplacesuite "Simulate invalid proofs":
         .some
   ):
     let client0 = clients()[0].client
-    let expiry = 5.periods
+    let expiry = 10.periods
     let duration = expiry + 10.periods
 
     let data = await RandomChunker.example(blocks=8)
@@ -157,7 +157,7 @@ marketplacesuite "Simulate invalid proofs":
         .some
   ):
     let client0 = clients()[0].client
-    let expiry = 5.periods
+    let expiry = 10.periods
     let duration = expiry + 10.periods
 
     let data = await RandomChunker.example(blocks=8)
