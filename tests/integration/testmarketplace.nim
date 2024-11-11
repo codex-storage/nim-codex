@@ -150,12 +150,11 @@ marketplacesuite "Marketplace payouts":
 
     # wait until one slot is filled
     check eventually(slotIdxFilled.isSome, timeout=expiry.int * 1000)
+    let slotId = slotId(!clientApi.requestId(id), !slotIdxFilled)
 
     # wait until sale is cancelled
-    without requestId =? clientApi.requestId(id):
-      fail()
-    let slotId = slotId(requestId, !slotIdxFilled)
-    check eventually(providerApi.saleStateIs(slotId, "SaleCancelled"), timeout=expiry.int * 1000)
+    await ethProvider.advanceTime(expiry.u256)
+    check eventually providerApi.saleStateIs(slotId, "SaleCancelled")
 
     check eventually (
       let endBalanceProvider = (await token.balanceOf(provider.ethAccount));
