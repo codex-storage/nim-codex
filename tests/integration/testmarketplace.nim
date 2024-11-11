@@ -85,7 +85,10 @@ twonodessuite "Marketplace", debug1 = false, debug2 = false:
     check eventually (await token.balanceOf(account2)) - startBalanceHost >= (duration-5*60)*reward*nodes.u256
 
     # Checking that client node receives some funds back that were not used for the host nodes
-    check eventually (await token.balanceOf(account1)) - clientBalanceBeforeFinished > 0
+    check eventually(
+      (await token.balanceOf(account1)) - clientBalanceBeforeFinished > 0,
+      timeout = 10*1000 # give client a bit of time to withdraw its funds
+    )
 
 marketplacesuite "Marketplace payouts":
 
@@ -161,10 +164,13 @@ marketplacesuite "Marketplace payouts":
       endBalanceProvider > startBalanceProvider and
       endBalanceProvider < startBalanceProvider + expiry.u256*reward
     )
-    check eventually (
-      let endBalanceClient = (await token.balanceOf(client.ethAccount));
-      let endBalanceProvider = (await token.balanceOf(provider.ethAccount));
-      (startBalanceClient - endBalanceClient) == (endBalanceProvider - startBalanceProvider)
+    check eventually(
+      (
+        let endBalanceClient = (await token.balanceOf(client.ethAccount));
+        let endBalanceProvider = (await token.balanceOf(provider.ethAccount));
+        (startBalanceClient - endBalanceClient) == (endBalanceProvider - startBalanceProvider)
+      ),
+      timeout = 10*1000 # give client a bit of time to withdraw its funds
     )
 
     await subscription.unsubscribe()
