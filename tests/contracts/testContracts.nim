@@ -50,8 +50,8 @@ ethersuite "Marketplace contracts":
     switchAccount(host)
     discard await token.approve(marketplace.address, request.ask.collateral).confirm(1)
     discard await marketplace.reserveSlot(request.id, 0.u256).confirm(1)
-    filledAt = await ethProvider.currentTime()
-    discard await marketplace.fillSlot(request.id, 0.u256, proof).confirm(1)
+    let receipt = await marketplace.fillSlot(request.id, 0.u256, proof).confirm(1)
+    filledAt = await ethProvider.blockTime(BlockTag.init(!receipt.blockNumber))
     slotId = request.slotId(0.u256)
 
   proc waitUntilProofRequired(slotId: SlotId) {.async.} =
