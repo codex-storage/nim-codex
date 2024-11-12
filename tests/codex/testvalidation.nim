@@ -67,7 +67,7 @@ asyncchecksuite "validation":
       check validationConfig.error.msg == "The value of the group index " &
           "must be less than validation groups! " &
           fmt"(got: {groupIndex = }, groups = {!groups})"
-  
+
   test "initializing ValidationConfig fails when maxSlots is negative":
     let maxSlots = -1
     let validationConfig = ValidationConfig.init(
@@ -75,7 +75,7 @@ asyncchecksuite "validation":
     check validationConfig.isFailure == true
     check validationConfig.error.msg == "The value of maxSlots must " &
         fmt"be greater than or equal to 0! (got: {maxSlots})"
-  
+
   test "initializing ValidationConfig fails when maxSlots is negative " &
       "(validationGroups set)":
     let maxSlots = -1
@@ -97,7 +97,7 @@ asyncchecksuite "validation":
   test "when a slot is filled on chain, it is added to the list":
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
     check validation.slots == @[slot.id]
-  
+
   test "slot should be observed if maxSlots is set to 0":
     let validationConfig = initValidationConfig(
         maxSlots = 0, ValidationGroups.none)
@@ -128,14 +128,14 @@ asyncchecksuite "validation":
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
     market.setCanProofBeMarkedAsMissing(slot.id, true)
     advanceToNextPeriod()
-    await sleepAsync(1.millis)
+    await sleepAsync(100.millis) # allow validation loop to run
     check market.markedAsMissingProofs.contains(slot.id)
 
   test "when a proof can not be marked as missing, it will not be marked":
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
     market.setCanProofBeMarkedAsMissing(slot.id, false)
     advanceToNextPeriod()
-    await sleepAsync(1.millis)
+    await sleepAsync(100.millis) # allow validation loop to run
     check market.markedAsMissingProofs.len == 0
 
   test "it does not monitor more than the maximum number of slots":
