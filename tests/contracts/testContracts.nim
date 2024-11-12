@@ -45,13 +45,13 @@ ethersuite "Marketplace contracts":
     request.client = await client.getAddress()
 
     switchAccount(client)
-    discard await token.approve(marketplace.address, request.price)
-    discard await marketplace.requestStorage(request)
+    discard await token.approve(marketplace.address, request.price).confirm(1)
+    discard await marketplace.requestStorage(request).confirm(1)
     switchAccount(host)
-    discard await token.approve(marketplace.address, request.ask.collateral)
-    discard await marketplace.reserveSlot(request.id, 0.u256)
+    discard await token.approve(marketplace.address, request.ask.collateral).confirm(1)
+    discard await marketplace.reserveSlot(request.id, 0.u256).confirm(1)
     filledAt = await ethProvider.currentTime()
-    discard await marketplace.fillSlot(request.id, 0.u256, proof)
+    discard await marketplace.fillSlot(request.id, 0.u256, proof).confirm(1)
     slotId = request.slotId(0.u256)
 
   proc waitUntilProofRequired(slotId: SlotId) {.async.} =
@@ -65,14 +65,14 @@ ethersuite "Marketplace contracts":
 
   proc startContract() {.async.} =
     for slotIndex in 1..<request.ask.slots:
-      discard await token.approve(marketplace.address, request.ask.collateral)
-      discard await marketplace.reserveSlot(request.id, slotIndex.u256)
-      discard await marketplace.fillSlot(request.id, slotIndex.u256, proof)
+      discard await token.approve(marketplace.address, request.ask.collateral).confirm(1)
+      discard await marketplace.reserveSlot(request.id, slotIndex.u256).confirm(1)
+      discard await marketplace.fillSlot(request.id, slotIndex.u256, proof).confirm(1)
 
   test "accept marketplace proofs":
     switchAccount(host)
     await waitUntilProofRequired(slotId)
-    discard await marketplace.submitProof(slotId, proof)
+    discard await marketplace.submitProof(slotId, proof).confirm(1)
 
   test "can mark missing proofs":
     switchAccount(host)
@@ -81,7 +81,7 @@ ethersuite "Marketplace contracts":
     let endOfPeriod = periodicity.periodEnd(missingPeriod)
     await ethProvider.advanceTimeTo(endOfPeriod + 1)
     switchAccount(client)
-    discard await marketplace.markProofAsMissing(slotId, missingPeriod)
+    discard await marketplace.markProofAsMissing(slotId, missingPeriod).confirm(1)
 
   test "can be paid out at the end":
     switchAccount(host)
@@ -90,7 +90,7 @@ ethersuite "Marketplace contracts":
     let requestEnd = await marketplace.requestEnd(request.id)
     await ethProvider.advanceTimeTo(requestEnd.u256 + 1)
     let startBalance = await token.balanceOf(address)
-    discard await marketplace.freeSlot(slotId)
+    discard await marketplace.freeSlot(slotId).confirm(1)
     let endBalance = await token.balanceOf(address)
     check endBalance == (startBalance + expectedPayout(requestEnd.u256) + request.ask.collateral)
 
@@ -103,7 +103,7 @@ ethersuite "Marketplace contracts":
     let startBalanceHost = await token.balanceOf(hostAddress)
     let startBalanceReward = await token.balanceOf(rewardRecipient)
     let startBalanceCollateral = await token.balanceOf(collateralRecipient)
-    discard await marketplace.freeSlot(slotId, rewardRecipient, collateralRecipient)
+    discard await marketplace.freeSlot(slotId, rewardRecipient, collateralRecipient).confirm(1)
     let endBalanceHost = await token.balanceOf(hostAddress)
     let endBalanceReward = await token.balanceOf(rewardRecipient)
     let endBalanceCollateral = await token.balanceOf(collateralRecipient)
@@ -120,4 +120,5 @@ ethersuite "Marketplace contracts":
     await ethProvider.advanceTime(periodicity.seconds)
     check await marketplace
       .markProofAsMissing(slotId, missingPeriod)
+      .confirm(1)
       .reverts("Slot not accepting proofs")
