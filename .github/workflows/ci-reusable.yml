@@ -26,7 +26,7 @@ jobs:
 
     name: '${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-${{ matrix.tests }}'
     runs-on: ${{ matrix.builder }}
-    timeout-minutes: 100
+    timeout-minutes: 120
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
