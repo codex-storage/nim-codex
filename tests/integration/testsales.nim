@@ -65,8 +65,8 @@ twonodessuite "Sales", debug1 = false, debug2 = false:
       proofProbability=3.u256,
       expiry=5*60,
       collateral=200.u256,
-      nodes = 5,
-      tolerance = 2).get
+      nodes = 3,
+      tolerance = 1).get
 
     check eventually(client2.purchaseStateIs(id, "started"), timeout=5*60*1000)
     let updatedAvailability = (client1.getAvailabilities().get).findItem(availability).get
