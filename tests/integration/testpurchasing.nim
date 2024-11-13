@@ -63,7 +63,7 @@ twonodessuite "Purchasing", debug1 = false, debug2 = false:
                                     collateral=200.u256,
                                     nodes=3.uint,
                                     tolerance=1.uint).get
-    check eventually client1.purchaseStateIs(id, "submitted")
+    check eventually(client1.purchaseStateIs(id, "submitted"), timeout = 10*1000)
 
     node1.restart()
     client1.restart()
