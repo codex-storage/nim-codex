@@ -14,7 +14,7 @@ suite "tools/cirdl":
   test "circuit download tool":
     let
       circuitPath = "testcircuitpath"
-      rpcEndpoint = "http://localhost:8545"
+      rpcEndpoint = "http://127.0.0.1:8545"
       marketplaceAddress = Marketplace.address
 
     discard existsOrCreateDir(circuitPath)

@@ -18,7 +18,7 @@ template ethersuite*(name, body) =
 
     setup:
       ethProvider = JsonRpcProvider.new(
-        "http://localhost:8545",
+        "http://127.0.0.1:8545",
         pollingInterval = chronos.milliseconds(100)
       )
       snapshot = await send(ethProvider, "evm_snapshot")
