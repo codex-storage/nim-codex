@@ -359,15 +359,18 @@ components:
           description: "Indicates if content is protected by erasure-coding"
         filename:
           type: string
+          nullable: true
           description: "The original name of the uploaded content (optional)"
           example: codex.png
         mimetype:
           type: string
+          nullable: true
           description: "The original mimetype of the uploaded content (optional)"
           example: image/png
         uploadedAt:
           type: integer
           format: int64
+          nullable: true
           description: "The UTC upload timestamp in seconds"
           example: 1729244192
 
