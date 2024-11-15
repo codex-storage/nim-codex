@@ -344,10 +344,10 @@ components:
     ManifestItem:
       type: object
       properties:
-        rootHash:
+        treeCid:
           $ref: "#/components/schemas/Cid"
-          description: "Root hash of the content"
-        originalBytes:
+          description: "Unique data identifier"
+        datasetSize:
           type: integer
           format: int64
           description: "Length of original content in bytes"
@@ -359,15 +359,18 @@ components:
           description: "Indicates if content is protected by erasure-coding"
         filename:
           type: string
+          nullable: true
           description: "The original name of the uploaded content (optional)"
           example: codex.png
         mimetype:
           type: string
+          nullable: true
           description: "The original mimetype of the uploaded content (optional)"
           example: image/png
         uploadedAt:
           type: integer
           format: int64
+          nullable: true
           description: "The UTC upload timestamp in seconds"
           example: 1729244192
 
