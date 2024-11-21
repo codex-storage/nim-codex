@@ -190,7 +190,7 @@ asyncchecksuite "Sales":
 
   proc allowRequestToStart {.async.} =
     # wait until we're in initialproving state
-    await sleepAsync(10.millis)
+    check eventually clock.isWaiting
     # it won't start proving until the next period
     await clock.advanceToNextPeriod(market)
 

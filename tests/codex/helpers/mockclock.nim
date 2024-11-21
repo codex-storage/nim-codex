@@ -40,3 +40,6 @@ method waitUntil*(clock: MockClock, time: SecondsSince1970) {.async.} =
     let future = newFuture[void]()
     clock.waiting.add(Waiting(until: time, future: future))
     await future
+
+proc isWaiting*(clock: MockClock): bool =
+  clock.waiting.len > 0
