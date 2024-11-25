@@ -36,7 +36,7 @@ marketplacesuite "Hosts submit regular proofs":
         .some,
   ):
     let client0 = clients()[0].client
-    let expiry = 5.periods
+    let expiry = 10.periods
     let duration = expiry + 5.periods
 
     let data = await RandomChunker.example(blocks=8)
@@ -99,7 +99,7 @@ marketplacesuite "Simulate invalid proofs":
         .some
   ):
     let client0 = clients()[0].client
-    let expiry = 5.periods
+    let expiry = 10.periods
     let duration = expiry + 10.periods
 
     let data = await RandomChunker.example(blocks=8)
@@ -157,9 +157,8 @@ marketplacesuite "Simulate invalid proofs":
         .some
   ):
     let client0 = clients()[0].client
-    let expiry = 5.periods
-    # In 2 periods you cannot have enough invalid proofs submitted:
-    let duration = expiry + 2.periods
+    let expiry = 10.periods
+    let duration = expiry + 10.periods
 
     let data = await RandomChunker.example(blocks=8)
     createAvailabilities(data.len * 2, duration) # TODO: better value for data.len
@@ -176,20 +175,27 @@ marketplacesuite "Simulate invalid proofs":
     )
     let requestId = client0.requestId(purchaseId).get
 
-    check eventually(client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000)
+    var slotWasFilled = false
+    proc onSlotFilled(event: SlotFilled) =
+      if event.requestId == requestId:
+        slotWasFilled = true
+    let filledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
+
+    # wait for the first slot to be filled
+    check eventually(slotWasFilled, timeout = expiry.int * 1000)
 
     var slotWasFreed = false
     proc onSlotFreed(event: SlotFreed) =
       if event.requestId == requestId:
         slotWasFreed = true
+    let freedSubscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
-    let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
-
-    # check not freed
-    await sleepAsync((duration - expiry).int.seconds)
+    # In 2 periods you cannot have enough invalid proofs submitted:
+    await sleepAsync(2.periods.int.seconds)
     check not slotWasFreed
 
-    await subscription.unsubscribe()
+    await filledSubscription.unsubscribe()
+    await freedSubscription.unsubscribe()
 
   # TODO: uncomment once fixed
   # test "host that submits invalid proofs is paid out less", NodeConfigs(

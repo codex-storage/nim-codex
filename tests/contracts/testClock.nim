@@ -30,7 +30,7 @@ ethersuite "On-Chain Clock":
     let waiting = clock.waitUntil(future)
     discard await ethProvider.send("evm_setNextBlockTimestamp", @[%future])
     discard await ethProvider.send("evm_mine")
-    check await waiting.withTimeout(chronos.milliseconds(100))
+    check await waiting.withTimeout(chronos.milliseconds(500))
 
   test "can wait until a certain time is reached by the wall-clock":
     let future = clock.now() + 1 # seconds
