@@ -14,20 +14,24 @@ type MockProvider* = ref object of Provider
 method getBlock*(
   provider: MockProvider,
   tag: BlockTag
-): Future[?Block] {.async.} =
-  if $tag == "latest":
-    if latestBlock =? provider.latest:
-      if provider.blocks.hasKey(latestBlock):
-        return provider.blocks[latestBlock].some
-  elif $tag == "earliest":
-    if earliestBlock =? provider.earliest:
-      if provider.blocks.hasKey(earliestBlock):
-        return provider.blocks[earliestBlock].some
-  else:
-    let blockNumber = parseHexInt($tag)
-    if provider.blocks.hasKey(blockNumber):
-      return provider.blocks[blockNumber].some
-  return Block.none
+): Future[?Block] {.async: (raises:[ProviderError]).} =
+  try:
+    if $tag == "latest":
+      if latestBlock =? provider.latest:
+        if provider.blocks.hasKey(latestBlock):
+          return provider.blocks[latestBlock].some
+    elif $tag == "earliest":
+      if earliestBlock =? provider.earliest:
+        if provider.blocks.hasKey(earliestBlock):
+          return provider.blocks[earliestBlock].some
+    else:
+      let blockNumber = parseHexInt($tag)
+      if provider.blocks.hasKey(blockNumber):
+        return provider.blocks[blockNumber].some
+    return Block.none
+  except:
+    return Block.none
+  
 
 proc updateEarliestAndLatest(provider: MockProvider, blockNumber: int) =
   if provider.earliest.isNone:
