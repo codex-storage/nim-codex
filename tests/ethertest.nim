@@ -1,5 +1,6 @@
 import std/json
 import pkg/ethers
+import pkg/chronos
 
 import ./asynctest
 import ./checktest
@@ -16,11 +17,15 @@ template ethersuite*(name, body) =
     var snapshot: JsonNode
 
     setup:
-      ethProvider = JsonRpcProvider.new("ws://localhost:8545")
+      ethProvider = JsonRpcProvider.new(
+        "http://127.0.0.1:8545",
+        pollingInterval = chronos.milliseconds(100)
+      )
       snapshot = await send(ethProvider, "evm_snapshot")
       accounts = await ethProvider.listAccounts()
 
     teardown:
+      await ethProvider.close()
       discard await send(ethProvider, "evm_revert", @[snapshot])
 
     body
