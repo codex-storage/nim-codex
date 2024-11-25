@@ -24,15 +24,15 @@ twonodessuite "Marketplace", debug1 = false, debug2 = false:
     let cid = client1.upload(data).get
     let id = client1.requestStorage(
       cid,
-      duration=10*60.u256,
+      duration=20*60.u256,
       reward=400.u256,
       proofProbability=3.u256,
-      expiry=5*60,
+      expiry=10*60,
       collateral=200.u256,
-      nodes = 5,
-      tolerance = 2).get
+      nodes = 3,
+      tolerance = 1).get
 
-    check eventually(client1.purchaseStateIs(id, "started"), timeout=5*60*1000)
+    check eventually(client1.purchaseStateIs(id, "started"), timeout=10*60*1000)
     let purchase = client1.getPurchase(id).get
     check purchase.error == none string
     let availabilities = client2.getAvailabilities().get
@@ -41,7 +41,7 @@ twonodessuite "Marketplace", debug1 = false, debug2 = false:
     check newSize > 0 and newSize < size
 
     let reservations = client2.getAvailabilityReservations(availability.id).get
-    check reservations.len == 5
+    check reservations.len == 3
     check reservations[0].requestId == purchase.requestId
 
   test "node slots gets paid out and rest of tokens are returned to client":
@@ -51,8 +51,8 @@ twonodessuite "Marketplace", debug1 = false, debug2 = false:
     let tokenAddress = await marketplace.token()
     let token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
     let reward = 400.u256
-    let duration = 10*60.u256
-    let nodes = 5'u
+    let duration = 20*60.u256
+    let nodes = 3'u
 
     # client 2 makes storage available
     let startBalanceHost = await token.balanceOf(account2)
@@ -65,12 +65,12 @@ twonodessuite "Marketplace", debug1 = false, debug2 = false:
       duration=duration,
       reward=reward,
       proofProbability=3.u256,
-      expiry=5*60,
+      expiry=10*60,
       collateral=200.u256,
       nodes = nodes,
-      tolerance = 2).get
+      tolerance = 1).get
 
-    check eventually(client1.purchaseStateIs(id, "started"), timeout=5*60*1000)
+    check eventually(client1.purchaseStateIs(id, "started"), timeout=10*60*1000)
     let purchase = client1.getPurchase(id).get
     check purchase.error == none string
 
@@ -85,7 +85,10 @@ twonodessuite "Marketplace", debug1 = false, debug2 = false:
     check eventually (await token.balanceOf(account2)) - startBalanceHost >= (duration-5*60)*reward*nodes.u256
 
     # Checking that client node receives some funds back that were not used for the host nodes
-    check eventually (await token.balanceOf(account1)) - clientBalanceBeforeFinished > 0
+    check eventually(
+      (await token.balanceOf(account1)) - clientBalanceBeforeFinished > 0,
+      timeout = 10*1000 # give client a bit of time to withdraw its funds
+    )
 
 marketplacesuite "Marketplace payouts":
 
@@ -109,9 +112,9 @@ marketplacesuite "Marketplace payouts":
           .some,
   ):
     let reward = 400.u256
-    let duration = 10.periods
+    let duration = 20.periods
     let collateral = 200.u256
-    let expiry = 5.periods
+    let expiry = 10.periods
     let data = await RandomChunker.example(blocks=8)
     let client = clients()[0]
     let provider = providers()[0]
@@ -150,22 +153,24 @@ marketplacesuite "Marketplace payouts":
 
     # wait until one slot is filled
     check eventually(slotIdxFilled.isSome, timeout=expiry.int * 1000)
+    let slotId = slotId(!clientApi.requestId(id), !slotIdxFilled)
 
     # wait until sale is cancelled
-    without requestId =? clientApi.requestId(id):
-      fail()
-    let slotId = slotId(requestId, !slotIdxFilled)
-    check eventually(providerApi.saleStateIs(slotId, "SaleCancelled"), timeout=expiry.int * 1000)
+    await ethProvider.advanceTime(expiry.u256)
+    check eventually providerApi.saleStateIs(slotId, "SaleCancelled")
 
     check eventually (
       let endBalanceProvider = (await token.balanceOf(provider.ethAccount));
       endBalanceProvider > startBalanceProvider and
       endBalanceProvider < startBalanceProvider + expiry.u256*reward
     )
-    check eventually (
-      let endBalanceClient = (await token.balanceOf(client.ethAccount));
-      let endBalanceProvider = (await token.balanceOf(provider.ethAccount));
-      (startBalanceClient - endBalanceClient) == (endBalanceProvider - startBalanceProvider)
+    check eventually(
+      (
+        let endBalanceClient = (await token.balanceOf(client.ethAccount));
+        let endBalanceProvider = (await token.balanceOf(provider.ethAccount));
+        (startBalanceClient - endBalanceClient) == (endBalanceProvider - startBalanceProvider)
+      ),
+      timeout = 10*1000 # give client a bit of time to withdraw its funds
     )
 
     await subscription.unsubscribe()

@@ -56,24 +56,24 @@ twonodessuite "Purchasing", debug1 = false, debug2 = false:
     let data = await RandomChunker.example(blocks=2)
     let cid = client1.upload(data).get
     let id = client1.requestStorage(cid,
-                                    duration=100.u256,
+                                    duration=10*60.u256,
                                     reward=2.u256,
                                     proofProbability=3.u256,
-                                    expiry=30,
+                                    expiry=5*60,
                                     collateral=200.u256,
                                     nodes=3.uint,
                                     tolerance=1.uint).get
-    check eventually client1.purchaseStateIs(id, "submitted")
+    check eventually(client1.purchaseStateIs(id, "submitted"), timeout = 3*60*1000)
 
     node1.restart()
     client1.restart()
 
-    check eventually client1.purchaseStateIs(id, "submitted")
+    check eventually(client1.purchaseStateIs(id, "submitted"), timeout = 3*60*1000)
     let request = client1.getPurchase(id).get.request.get
-    check request.ask.duration == 100.u256
+    check request.ask.duration == (10*60).u256
     check request.ask.reward == 2.u256
     check request.ask.proofProbability == 3.u256
-    check request.expiry == 30
+    check request.expiry == (5*60).u256
     check request.ask.collateral == 200.u256
     check request.ask.slots == 3'u64
     check request.ask.maxSlotLoss == 1'u64

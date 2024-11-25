@@ -23,9 +23,9 @@ marketplacesuite "Bug #821 - node crashes during erasure coding":
           .some,
   ):
     let reward = 400.u256
-    let duration = 10.periods
+    let duration = 20.periods
     let collateral = 200.u256
-    let expiry = 5.periods
+    let expiry = 10.periods
     let data = await RandomChunker.example(blocks=8)
     let client = clients()[0]
     let clientApi = client.client

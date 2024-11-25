@@ -53,7 +53,7 @@ proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
   convertEthersError:
     let tokenAddress = await market.contract.token()
     let token = Erc20Token.new(tokenAddress, market.signer)
-    discard await token.increaseAllowance(market.contract.address(), amount).confirm(0)
+    discard await token.increaseAllowance(market.contract.address(), amount).confirm(1)
 
 method getZkeyHash*(market: OnChainMarket): Future[?string] {.async.} =
   let config = await market.contract.configuration()
@@ -99,7 +99,7 @@ method requestStorage(market: OnChainMarket, request: StorageRequest){.async.} =
   convertEthersError:
     debug "Requesting storage"
     await market.approveFunds(request.price())
-    discard await market.contract.requestStorage(request).confirm(0)
+    discard await market.contract.requestStorage(request).confirm(1)
 
 method getRequest(market: OnChainMarket,
                   id: RequestId): Future[?StorageRequest] {.async.} =
@@ -171,7 +171,7 @@ method fillSlot(market: OnChainMarket,
 
     await market.approveFunds(collateral)
     trace "calling fillSlot on contract"
-    discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(0)
+    discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(1)
     trace "fillSlot transaction completed"
 
 method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
@@ -191,13 +191,13 @@ method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
       # recipient (the contract will use msg.sender for both)
       freeSlot = market.contract.freeSlot(slotId)
 
-    discard await freeSlot.confirm(0)
+    discard await freeSlot.confirm(1)
 
 
 method withdrawFunds(market: OnChainMarket,
                      requestId: RequestId) {.async.} =
   convertEthersError:
-    discard await market.contract.withdrawFunds(requestId).confirm(0)
+    discard await market.contract.withdrawFunds(requestId).confirm(1)
 
 method isProofRequired*(market: OnChainMarket,
                         id: SlotId): Future[bool] {.async.} =
@@ -230,13 +230,13 @@ method submitProof*(market: OnChainMarket,
                     id: SlotId,
                     proof: Groth16Proof) {.async.} =
   convertEthersError:
-    discard await market.contract.submitProof(id, proof).confirm(0)
+    discard await market.contract.submitProof(id, proof).confirm(1)
 
 method markProofAsMissing*(market: OnChainMarket,
                            id: SlotId,
                            period: Period) {.async.} =
   convertEthersError:
-    discard await market.contract.markProofAsMissing(id, period).confirm(0)
+    discard await market.contract.markProofAsMissing(id, period).confirm(1)
 
 method canProofBeMarkedAsMissing*(
     market: OnChainMarket,
@@ -264,7 +264,7 @@ method reserveSlot*(
       slotIndex,
       # reserveSlot runs out of gas for unknown reason, but 100k gas covers it
       TransactionOverrides(gasLimit: some 100000.u256)
-    ).confirm(0)
+    ).confirm(1)
 
 method canReserveSlot*(
   market: OnChainMarket,
