@@ -26,11 +26,11 @@ template eventuallyS(expression: untyped, timeout=10, step = 5,
     var secondsElapsed = 0
     while not expression:
       inc i
-      secondsElapsed = i*step
-      # echo secondsElapsed.seconds
-      if secondsElapsed mod 180 == 0:
-        await stopTrackingEvents()
-        await marketplace.startTrackingEvents()
+      # secondsElapsed = i*step
+      # # echo secondsElapsed.seconds
+      # if secondsElapsed mod 180 == 0:
+      #   await stopTrackingEvents()
+      #   await marketplace.startTrackingEvents()
       if endTime < Moment.now():
         return false
       if cancelExpression:
