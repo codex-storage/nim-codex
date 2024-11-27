@@ -224,6 +224,7 @@ template multinodesuiteWithProviderUrl*(name: string, jsonRpcProviderUrl: string
     proc startClientNode(conf: CodexConfig): Future[NodeProcess] {.async.} =
       let clientIdx = clients().len
       var config = conf
+      config.addCliOption(StartUpCmd.persistence, "--eth-provider", jsonRpcProviderUrl)
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
       return await newCodexProcess(clientIdx, config, Role.Client)
 
@@ -231,6 +232,7 @@ template multinodesuiteWithProviderUrl*(name: string, jsonRpcProviderUrl: string
       let providerIdx = providers().len
       var config = conf
       config.addCliOption("--bootstrap-node", bootstrap)
+      config.addCliOption(StartUpCmd.persistence, "--eth-provider", jsonRpcProviderUrl)
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
       config.addCliOption(PersistenceCmd.prover, "--circom-r1cs",
         "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs")
@@ -245,6 +247,7 @@ template multinodesuiteWithProviderUrl*(name: string, jsonRpcProviderUrl: string
       let validatorIdx = validators().len
       var config = conf
       config.addCliOption("--bootstrap-node", bootstrap)
+      config.addCliOption(StartUpCmd.persistence, "--eth-provider", jsonRpcProviderUrl)
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
       config.addCliOption(StartUpCmd.persistence, "--validator")
 
