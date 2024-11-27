@@ -13,6 +13,7 @@ import pkg/codex/sales/slotqueue
 import pkg/codex/stores/repostore
 import pkg/codex/blocktype as bt
 import pkg/codex/node
+import pkg/codex/utils/asyncstatemachine
 import ../../asynctest
 import ../helpers
 import ../helpers/mockmarket
@@ -188,9 +189,14 @@ asyncchecksuite "Sales":
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
 
+  proc isInState(idx: int, state: string): Future[bool] {.async.} =
+    proc description(state: State): string =
+      $state
+    check eventually sales.agents.len > idx
+    sales.agents[idx].query(description) == state.some
+
   proc allowRequestToStart {.async.} =
-    # wait until we're in initialproving state
-    await sleepAsync(10.millis)
+    check eventually (await isInState(0, "SaleInitialProving"))
     # it won't start proving until the next period
     await clock.advanceToNextPeriod(market)
 
@@ -291,7 +297,7 @@ asyncchecksuite "Sales":
   test "items in queue are readded (and marked seen) once ignored":
     await market.requestStorage(request)
     let items = SlotQueueItem.init(request)
-    await sleepAsync(10.millis) # queue starts paused, allow items to be added to the queue
+    check eventually queue.len > 0 # queue starts paused, allow items to be added to the queue
     check eventually queue.paused
     # The first processed item will be will have been re-pushed with `seen =
     # true`. Then, once this item is processed by the queue, its 'seen' flag
@@ -311,7 +317,7 @@ asyncchecksuite "Sales":
     createAvailability() # enough to fill a single slot
     await market.requestStorage(request)
     let items = SlotQueueItem.init(request)
-    await sleepAsync(10.millis) # queue starts paused, allow items to be added to the queue
+    check eventually queue.len > 0 # queue starts paused, allow items to be added to the queue
     check eventually queue.paused
     # The first processed item/slot will be filled (eventually). Subsequent
     # items will be processed and eventually re-pushed with `seen = true`. Once

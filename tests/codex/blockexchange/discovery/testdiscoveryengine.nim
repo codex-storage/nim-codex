@@ -111,10 +111,11 @@ asyncchecksuite "Test Discovery Engine":
         minPeersPerBlock = minPeers)
       want = newAsyncEvent()
 
+    var pendingCids = newSeq[Cid]()
     blockDiscovery.findBlockProvidersHandler =
       proc(d: MockDiscovery, cid: Cid): Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
-
-        check cid == blocks[0].cid
+        check cid in pendingCids
+        pendingCids.keepItIf(it != cid)
         check peerStore.len < minPeers
         var
           peerCtx = BlockExcPeerCtx(id: PeerId.example)
@@ -126,8 +127,12 @@ asyncchecksuite "Test Discovery Engine":
         want.fire()
 
     await discoveryEngine.start()
+    var idx = 0
     while peerStore.len < minPeers:
-      discoveryEngine.queueFindBlocksReq(@[blocks[0].cid])
+      let cid = blocks[idx].cid
+      inc idx
+      pendingCids.add(cid)
+      discoveryEngine.queueFindBlocksReq(@[cid])
       await want.wait()
       want.clear()
 

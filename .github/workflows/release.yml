@@ -9,7 +9,7 @@ on:
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
   nim_version: pinned
-  rust_version: 1.78.0
+  rust_version: 1.79.0
   codex_binary_base: codex
   cirdl_binary_base: cirdl
   build_dir: build
