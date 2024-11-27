@@ -40,7 +40,7 @@ template eventuallyS(expression: untyped, timeout=10, step = 5,
 
   await eventuallyS()
 
-marketplacesuiteWithProviderUrl "Validation", "ws://localhost:8545":
+marketplacesuiteWithProviderUrl "Validation", "http://127.0.0.1:8545":
   let nodes = 3
   let tolerance = 1
   let proofProbability = 1
