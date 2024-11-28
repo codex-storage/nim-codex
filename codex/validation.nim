@@ -139,7 +139,7 @@ proc epochForDurationBackFromNow(validation: Validation,
     duration: times.Duration): SecondsSince1970 =
   return validation.clock.now - duration.inSeconds
 
-proc restoreHistoricalState(validation: Validation) {.async} =
+proc restoreHistoricalState(validation: Validation) {.async.} =
   logScope:
     groups = validation.config.groups
     groupIndex = validation.config.groupIndex

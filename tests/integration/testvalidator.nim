@@ -195,7 +195,7 @@ marketplacesuiteWithProviderUrl "Validation", "http://127.0.0.1:8545":
     debug "validation suite", secondsTillRequestEnd = secondsTillRequestEnd.seconds
     
     # Because of erasure coding, after (tolerance + 1) slots are freed, the
-    # remaining nodes are be freed but marked as "Failed" as the whole
+    # remaining nodes will not be freed but marked as "Failed" as the whole
     # request fails. A couple of checks to capture this:
     let expectedSlotsFreed = tolerance + 1
     check eventuallyS(checkSlotsFreed(requestId, expectedSlotsFreed),
