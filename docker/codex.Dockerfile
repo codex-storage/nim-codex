@@ -14,6 +14,7 @@ ARG RUST_VERSION
 ARG BUILD_HOME
 ARG MAKE_PARALLEL
 ARG NIMFLAGS
+ARG USE_LIBBACKTRACE=1
 
 RUN apt-get update && apt-get install -y git cmake curl make bash lcov build-essential
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs/ | sh -s -- --default-toolchain=${RUST_VERSION} -y
