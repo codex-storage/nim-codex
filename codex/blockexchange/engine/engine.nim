@@ -127,28 +127,35 @@ proc stop*(b: BlockExcEngine) {.async.} =
 
   trace "NetworkStore stopped"
 
+proc `$`*(blkAddrs: seq[BlockAddress]): string =
+  result &= "["
+  for addr in blkAddrs:
+    result &= ($addr & " ")
+  result &= "]"
+
 proc sendWantHave(
   b: BlockExcEngine,
-  address: BlockAddress, # pluralize this entire call chain, please
+  addresses: seq[BlockAddress],
   excluded: seq[BlockExcPeerCtx],
   peers: seq[BlockExcPeerCtx]): Future[void] {.async.} =
-  trace "Sending wantHave request to peers", address
+  trace "Sending wantHave request to peers", numBlkAddrs = addresses.len, numPeers = peers.len - excluded.len
   for p in peers:
     if p notin excluded:
-      if address notin p.peerHave:
-        await b.network.request.sendWantList(
-          p.id,
-          @[address],
-          wantType = WantType.WantHave) # we only want to know if the peer has the block
+      let toAsk = addresses.filterIt(it notin p.peerHave)
+      trace "Sending wantHave request", toAsk, peer = p.id
+      await b.network.request.sendWantList(
+        p.id,
+        toAsk,
+        wantType = WantType.WantHave)
 
 proc sendWantBlock(
   b: BlockExcEngine,
-  address: BlockAddress, # pluralize this entire call chain, please
+  addresses: seq[BlockAddress],
   blockPeer: BlockExcPeerCtx): Future[void] {.async.} =
-  trace "Sending wantBlock request to", peer = blockPeer.id, address
+  trace "Sending wantBlock request to", addresses, peer = blockPeer.id
   await b.network.request.sendWantList(
     blockPeer.id,
-    @[address],
+    addresses,
     wantType = WantType.WantBlock) # we want this remote to send us a block
 
 proc monitorBlockHandle(
@@ -197,9 +204,10 @@ proc requestBlock*(
     if peer =? maybePeer:
       asyncSpawn b.monitorBlockHandle(blockFuture, address, peer.id)
       b.pendingBlocks.setInFlight(address)
-      await b.sendWantBlock(address, peer)
+      # TODO: Send more block addresses if at all sensible.
+      await b.sendWantBlock(@[address], peer)
       codex_block_exchange_want_block_lists_sent.inc()
-      await b.sendWantHave(address, @[peer], toSeq(b.peers))
+      await b.sendWantHave(@[address], @[peer], toSeq(b.peers))
       codex_block_exchange_want_have_lists_sent.inc()
 
   # Don't let timeouts bubble up. We can't be too broad here or we break
@@ -246,8 +254,7 @@ proc blockPresenceHandler*(
 
   if wantCids.len > 0:
     trace "Peer has blocks in our wantList", peer, wantCount = wantCids.len
-    discard await allFinished(
-      wantCids.mapIt(b.sendWantBlock(it, peerCtx)))
+    await b.sendWantBlock(wantCids, peerCtx)
 
   # if none of the connected peers report our wants in their have list,
   # fire up discovery
