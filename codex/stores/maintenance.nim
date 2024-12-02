@@ -58,7 +58,7 @@ proc deleteExpiredBlock(self: BlockMaintainer, cid: Cid): Future[void] {.async.}
   if isErr (await self.repoStore.delBlock(cid)):
     trace "Unable to delete block from repoStore"
 
-proc processBlockExpiration(self: BlockMaintainer, be: BlockExpiration): Future[void] {.async} =
+proc processBlockExpiration(self: BlockMaintainer, be: BlockExpiration): Future[void] {.async.} =
   if be.expiry < self.clock.now:
     await self.deleteExpiredBlock(be.cid)
   else:
