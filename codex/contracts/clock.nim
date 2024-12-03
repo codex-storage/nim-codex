@@ -1,5 +1,6 @@
 import std/times
 import pkg/ethers
+import pkg/questionable
 import pkg/chronos
 import pkg/stint
 import ../clock
@@ -45,7 +46,11 @@ method start*(clock: OnChainClock) {.async.} =
   if clock.started:
     return
 
-  proc onBlock(_: Block) =
+  proc onBlock(blckResult: ?!Block) =
+    if eventError =? blckResult.errorOption:
+      error "There was an error in block subscription", msg=eventError.msg
+      return
+
     # ignore block parameter; hardhat may call this with pending blocks
     asyncSpawn clock.update()
 
