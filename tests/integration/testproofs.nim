@@ -1,4 +1,5 @@
 from std/times import inMilliseconds
+import pkg/questionable
 import pkg/codex/logutils
 import pkg/stew/byteutils
 import ../contracts/time
@@ -176,7 +177,10 @@ marketplacesuite "Simulate invalid proofs":
     let requestId = client0.requestId(purchaseId).get
 
     var slotWasFilled = false
-    proc onSlotFilled(event: SlotFilled) =
+    proc onSlotFilled(eventResult: ?!SlotFilled) =
+      assert not eventResult.isErr
+      let event = !eventResult
+
       if event.requestId == requestId:
         slotWasFilled = true
     let filledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
