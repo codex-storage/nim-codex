@@ -220,7 +220,7 @@ template formatIt*(format: LogFormat, T: typedesc, body: untyped) =
       let v = opts.map(opt => opt.formatTextLineOption)
       setProperty(r, key, v.formatTextLineSeq)
 
-    proc setProperty*(r: var TextLineRecord, key: string, val: seq[T]) =
+    proc setProperty*(r: var TextLineRecord, key: string, val: seq[T]) {.upraises:[ValueError, IOError].} =
       var it {.inject, used.}: T
       let v = val.map(it => body)
       setProperty(r, key, v.formatTextLineSeq)
