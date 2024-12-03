@@ -33,8 +33,9 @@ marketplacesuite "Bug #821 - node crashes during erasure coding":
     let cid = clientApi.upload(data).get
 
     var requestId = none RequestId
-    proc onStorageRequested(event: StorageRequested) {.raises:[].} =
-      requestId = event.requestId.some
+    proc onStorageRequested(eventResult: ?!StorageRequested)=
+      assert not eventResult.isErr
+      requestId = some (!eventResult).requestId
 
     let subscription = await marketplace.subscribe(StorageRequested, onStorageRequested)
 

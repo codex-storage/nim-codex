@@ -1,4 +1,5 @@
 from std/times import inMilliseconds
+import pkg/questionable
 import pkg/codex/logutils
 import pkg/stew/byteutils
 import ../contracts/time
@@ -54,8 +55,8 @@ marketplacesuite "Hosts submit regular proofs":
     check eventually(client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000)
 
     var proofWasSubmitted = false
-    proc onProofSubmitted(event: ProofSubmitted) =
-      proofWasSubmitted = true
+    proc onProofSubmitted(event: ?!ProofSubmitted) =
+      proofWasSubmitted = event.isOk
 
     let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
 
@@ -120,8 +121,8 @@ marketplacesuite "Simulate invalid proofs":
     check eventually(client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000)
 
     var slotWasFreed = false
-    proc onSlotFreed(event: SlotFreed) =
-      if event.requestId == requestId:
+    proc onSlotFreed(event: ?!SlotFreed) =
+      if event.isOk and event.value.requestId == requestId:
         slotWasFreed = true
 
     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
@@ -176,7 +177,10 @@ marketplacesuite "Simulate invalid proofs":
     let requestId = client0.requestId(purchaseId).get
 
     var slotWasFilled = false
-    proc onSlotFilled(event: SlotFilled) =
+    proc onSlotFilled(eventResult: ?!SlotFilled) =
+      assert not eventResult.isErr
+      let event = !eventResult
+
       if event.requestId == requestId:
         slotWasFilled = true
     let filledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
@@ -185,8 +189,8 @@ marketplacesuite "Simulate invalid proofs":
     check eventually(slotWasFilled, timeout = expiry.int * 1000)
 
     var slotWasFreed = false
-    proc onSlotFreed(event: SlotFreed) =
-      if event.requestId == requestId:
+    proc onSlotFreed(event: ?!SlotFreed) =
+      if event.isOk and event.value.requestId == requestId:
         slotWasFreed = true
     let freedSubscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
