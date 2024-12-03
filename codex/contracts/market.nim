@@ -277,7 +277,11 @@ method canReserveSlot*(
 method subscribeRequests*(market: OnChainMarket,
                          callback: OnRequest):
                         Future[MarketSubscription] {.async.} =
-  proc onEvent(event: StorageRequested) {.upraises:[].} =
+  proc onEvent(eventResult: ?!StorageRequested) {.upraises:[].} =
+    without event =? eventResult, eventErr:
+      error "There was an error in Request subscription", msg = eventErr.msg
+      return
+
     callback(event.requestId,
              event.ask,
              event.expiry)
@@ -289,7 +293,11 @@ method subscribeRequests*(market: OnChainMarket,
 method subscribeSlotFilled*(market: OnChainMarket,
                             callback: OnSlotFilled):
                            Future[MarketSubscription] {.async.} =
-  proc onEvent(event: SlotFilled) {.upraises:[].} =
+  proc onEvent(eventResult: ?!SlotFilled) {.upraises:[].} =
+    without event =? eventResult, eventErr:
+      error "There was an error in SlotFilled subscription", msg = eventErr.msg
+      return
+
     callback(event.requestId, event.slotIndex)
 
   convertEthersError:
@@ -311,7 +319,11 @@ method subscribeSlotFilled*(market: OnChainMarket,
 method subscribeSlotFreed*(market: OnChainMarket,
                            callback: OnSlotFreed):
                           Future[MarketSubscription] {.async.} =
-  proc onEvent(event: SlotFreed) {.upraises:[].} =
+  proc onEvent(eventResult: ?!SlotFreed) {.upraises:[].} =
+    without event =? eventResult, eventErr:
+      error "There was an error in SlotFreed subscription", msg = eventErr.msg
+      return
+
     callback(event.requestId, event.slotIndex)
 
   convertEthersError:
@@ -322,7 +334,11 @@ method subscribeSlotReservationsFull*(
   market: OnChainMarket,
   callback: OnSlotReservationsFull): Future[MarketSubscription] {.async.} =
 
-  proc onEvent(event: SlotReservationsFull) {.upraises:[].} =
+  proc onEvent(eventResult: ?!SlotReservationsFull) {.upraises:[].} =
+    without event =? eventResult, eventErr:
+      error "There was an error in SlotReservationsFull subscription", msg = eventErr.msg
+      return
+
     callback(event.requestId, event.slotIndex)
 
   convertEthersError:
@@ -332,7 +348,11 @@ method subscribeSlotReservationsFull*(
 method subscribeFulfillment(market: OnChainMarket,
                             callback: OnFulfillment):
                            Future[MarketSubscription] {.async.} =
-  proc onEvent(event: RequestFulfilled) {.upraises:[].} =
+  proc onEvent(eventResult: ?!RequestFulfilled) {.upraises:[].} =
+    without event =? eventResult, eventErr:
+      error "There was an error in RequestFulfillment subscription", msg = eventErr.msg
+      return
+
     callback(event.requestId)
 
   convertEthersError:
@@ -343,7 +363,11 @@ method subscribeFulfillment(market: OnChainMarket,
                             requestId: RequestId,
                             callback: OnFulfillment):
                            Future[MarketSubscription] {.async.} =
-  proc onEvent(event: RequestFulfilled) {.upraises:[].} =
+  proc onEvent(eventResult: ?!RequestFulfilled) {.upraises:[].} =
+    without event =? eventResult, eventErr:
+      error "There was an error in RequestFulfillment subscription", msg = eventErr.msg
+      return
+
     if event.requestId == requestId:
       callback(event.requestId)
 
@@ -354,7 +378,11 @@ method subscribeFulfillment(market: OnChainMarket,
 method subscribeRequestCancelled*(market: OnChainMarket,
                                   callback: OnRequestCancelled):
                                 Future[MarketSubscription] {.async.} =
-  proc onEvent(event: RequestCancelled) {.upraises:[].} =
+  proc onEvent(eventResult: ?!RequestCancelled) {.upraises:[].} =
+    without event =? eventResult, eventErr:
+      error "There was an error in RequestCancelled subscription", msg = eventErr.msg
+      return
+
     callback(event.requestId)
 
   convertEthersError:
@@ -365,7 +393,11 @@ method subscribeRequestCancelled*(market: OnChainMarket,
                                   requestId: RequestId,
                                   callback: OnRequestCancelled):
                                 Future[MarketSubscription] {.async.} =
-  proc onEvent(event: RequestCancelled) {.upraises:[].} =
+  proc onEvent(eventResult: ?!RequestCancelled) {.upraises:[].} =
+    without event =? eventResult, eventErr:
+      error "There was an error in RequestCancelled subscription", msg = eventErr.msg
+      return
+
     if event.requestId == requestId:
       callback(event.requestId)
 
@@ -376,7 +408,11 @@ method subscribeRequestCancelled*(market: OnChainMarket,
 method subscribeRequestFailed*(market: OnChainMarket,
                               callback: OnRequestFailed):
                             Future[MarketSubscription] {.async.} =
-  proc onEvent(event: RequestFailed) {.upraises:[]} =
+  proc onEvent(eventResult: ?!RequestFailed) {.upraises:[]} =
+    without event =? eventResult, eventErr:
+      error "There was an error in RequestFailed subscription", msg = eventErr.msg
+      return
+
     callback(event.requestId)
 
   convertEthersError:
@@ -387,7 +423,11 @@ method subscribeRequestFailed*(market: OnChainMarket,
                               requestId: RequestId,
                               callback: OnRequestFailed):
                             Future[MarketSubscription] {.async.} =
-  proc onEvent(event: RequestFailed) {.upraises:[]} =
+  proc onEvent(eventResult: ?!RequestFailed) {.upraises:[]} =
+    without event =? eventResult, eventErr:
+      error "There was an error in RequestFailed subscription", msg = eventErr.msg
+      return
+
     if event.requestId == requestId:
       callback(event.requestId)
 
@@ -398,7 +438,11 @@ method subscribeRequestFailed*(market: OnChainMarket,
 method subscribeProofSubmission*(market: OnChainMarket,
                                  callback: OnProofSubmitted):
                                 Future[MarketSubscription] {.async.} =
-  proc onEvent(event: ProofSubmitted) {.upraises: [].} =
+  proc onEvent(eventResult: ?!ProofSubmitted) {.upraises: [].} =
+    without event =? eventResult, eventErr:
+      error "There was an error in ProofSubmitted subscription", msg = eventErr.msg
+      return
+
     callback(event.id)
 
   convertEthersError:
