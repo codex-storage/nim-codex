@@ -127,12 +127,6 @@ proc stop*(b: BlockExcEngine) {.async.} =
 
   trace "NetworkStore stopped"
 
-proc formatAddrs(blkAddrs: seq[BlockAddress]): string =
-  result &= "["
-  for addr in blkAddrs:
-    result &= ($addr & " ")
-  result &= "]"
-
 proc sendWantHave(
   b: BlockExcEngine,
   addresses: seq[BlockAddress],
@@ -142,7 +136,7 @@ proc sendWantHave(
   for p in peers:
     if p notin excluded:
       let toAsk = addresses.filterIt(it notin p.peerHave)
-      trace "Sending wantHave request", toAsk = formatAddrs(toAsk), peer = p.id
+      trace "Sending wantHave request", toAsk, peer = p.id
       await b.network.request.sendWantList(
         p.id,
         toAsk,
@@ -152,7 +146,7 @@ proc sendWantBlock(
   b: BlockExcEngine,
   addresses: seq[BlockAddress],
   blockPeer: BlockExcPeerCtx): Future[void] {.async.} =
-  trace "Sending wantBlock request to", addrs = formatAddrs(addresses), peer = blockPeer.id
+  trace "Sending wantBlock request to", addresses, peer = blockPeer.id
   await b.network.request.sendWantList(
     blockPeer.id,
     addresses,

@@ -184,7 +184,7 @@ template formatIt*(format: LogFormat, T: typedesc, body: untyped) =
       let v = opts.map(opt => opt.formatJsonOption)
       setProperty(r, key, json.`%`(v))
 
-    proc setProperty*(r: var JsonRecord, key: string, val: seq[T]) =
+    proc setProperty*(r: var JsonRecord, key: string, val: seq[T]) {.upraises:[ValueError, IOError].} =
       var it {.inject, used.}: T
       let v = val.map(it => body)
       setProperty(r, key, json.`%`(v))
