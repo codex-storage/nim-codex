@@ -132,7 +132,6 @@ proc sendWantHave(
   addresses: seq[BlockAddress],
   excluded: seq[BlockExcPeerCtx],
   peers: seq[BlockExcPeerCtx]): Future[void] {.async.} =
-  trace "Sending wantHave request to peers", numBlkAddrs = addresses.len, numPeers = peers.len - excluded.len
   for p in peers:
     if p notin excluded:
       let toAsk = addresses.filterIt(it notin p.peerHave)
