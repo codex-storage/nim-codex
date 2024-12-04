@@ -399,7 +399,9 @@ proc wantListHandler*(
       address   = e.address
       wantType  = $e.wantType
 
-    if idx < 0: # updating entry
+    if idx < 0: # new entry
+      peerCtx.peerWants.add(e)
+
       let
         have = await e.address in b.localStore
         price = @(
@@ -408,6 +410,8 @@ proc wantListHandler*(
 
       if e.wantType == WantType.WantHave:
         codex_block_exchange_want_have_lists_received.inc()
+      elif e.wantType == WantType.WantBlock:
+        codex_block_exchange_want_block_lists_received.inc()
 
       if not have and e.sendDontHave:
         presence.add(
@@ -421,10 +425,8 @@ proc wantListHandler*(
           address: e.address,
           `type`: BlockPresenceType.Have,
           price: price))
-      elif e.wantType == WantType.WantBlock:
-        peerCtx.peerWants.add(e)
-        codex_block_exchange_want_block_lists_received.inc()
-    else:
+      
+    else: # update existing entry
       # peer doesn't want this block anymore
       if e.cancel:
         peerCtx.peerWants.del(idx)
