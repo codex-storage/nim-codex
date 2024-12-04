@@ -98,7 +98,6 @@ import pkg/questionable/results
 import ./utils/json except formatIt # TODO: remove exception?
 import pkg/stew/byteutils
 import pkg/stint
-import pkg/upraises
 
 export byteutils
 export chronicles except toJson, formatIt, `%`
@@ -107,7 +106,6 @@ export sequtils
 export json except formatIt
 export strutils
 export sugar
-export upraises
 export results
 
 func shortLog*(long: string, ellipses = "*", start = 3, stop = 6): string =
@@ -184,12 +182,12 @@ template formatIt*(format: LogFormat, T: typedesc, body: untyped) =
       let v = opts.map(opt => opt.formatJsonOption)
       setProperty(r, key, json.`%`(v))
 
-    proc setProperty*(r: var JsonRecord, key: string, val: seq[T]) {.upraises:[ValueError, IOError].} =
+    proc setProperty*(r: var JsonRecord, key: string, val: seq[T]) {.raises:[ValueError, IOError].} =
       var it {.inject, used.}: T
       let v = val.map(it => body)
       setProperty(r, key, json.`%`(v))
 
-    proc setProperty*(r: var JsonRecord, key: string, val: T) {.upraises:[ValueError, IOError].} =
+    proc setProperty*(r: var JsonRecord, key: string, val: T) {.raises:[ValueError, IOError].} =
       var it {.inject, used.}: T = val
       let v = body
       setProperty(r, key, json.`%`(v))
@@ -220,12 +218,12 @@ template formatIt*(format: LogFormat, T: typedesc, body: untyped) =
       let v = opts.map(opt => opt.formatTextLineOption)
       setProperty(r, key, v.formatTextLineSeq)
 
-    proc setProperty*(r: var TextLineRecord, key: string, val: seq[T]) {.upraises:[ValueError, IOError].} =
+    proc setProperty*(r: var TextLineRecord, key: string, val: seq[T]) {.raises:[ValueError, IOError].} =
       var it {.inject, used.}: T
       let v = val.map(it => body)
       setProperty(r, key, v.formatTextLineSeq)
 
-    proc setProperty*(r: var TextLineRecord, key: string, val: T) {.upraises:[ValueError, IOError].} =
+    proc setProperty*(r: var TextLineRecord, key: string, val: T) {.raises:[ValueError, IOError].} =
       var it {.inject, used.}: T = val
       let v = body
       setProperty(r, key, v)
