@@ -82,33 +82,6 @@ proc getPeersForBlock*(self: PeerCtxStore, address: BlockAddress): PeersForBlock
       res.without.add(peer)
   res
 
-func selectCheapest*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
-  # assume that the price for all leaves in a tree is the same
-  let rootAddress = BlockAddress(leaf: false, cid: address.cidOrTreeCid)
-  var peers = self.peersHave(rootAddress)
-
-  func cmp(a, b: BlockExcPeerCtx): int =
-    var
-      priceA = 0.u256
-      priceB = 0.u256
-
-    a.blocks.withValue(rootAddress, precense):
-      priceA = precense[].price
-
-    b.blocks.withValue(rootAddress, precense):
-      priceB = precense[].price
-
-    if priceA == priceB:
-      0
-    elif priceA > priceB:
-      1
-    else:
-      -1
-
-  peers.sort(cmp)
-  trace "Selected cheapest peers", peers = peers.len
-  return peers
-
 proc new*(T: type PeerCtxStore): PeerCtxStore =
   ## create new instance of a peer context store
   PeerCtxStore(peers: initOrderedTable[PeerId, BlockExcPeerCtx]())
