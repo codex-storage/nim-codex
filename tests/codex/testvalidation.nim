@@ -156,68 +156,66 @@ asyncchecksuite "validation":
       await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
     check validation.slots.len == maxSlots
   
-  test "[restoring historical state] it retrieves the historical state " &
-      "for max 30 days in the past":
-    let earlySlot = Slot.example
-    await market.fillSlot(earlySlot.request.id, earlySlot.slotIndex, proof, collateral)
-    let fromTime = clock.now()
-    clock.set(fromTime + 1)
-    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    
-    let duration: times.Duration = initDuration(days = 30)
-    clock.set(fromTime + duration.inSeconds + 1)
-
-    validation = newValidation(clock, market, maxSlots = 0,
-      ValidationGroups.none)
-    await validation.start()
-    
-    check validation.slots == @[slot.id]
-
-  for state in [SlotState.Finished, SlotState.Failed]:
-    test "[restoring historical state] when restoring historical state, " &
-        fmt"it excludes slots in {state} state":
-      let slot1 = Slot.example
-      let slot2 = Slot.example
-      await market.fillSlot(slot1.request.id, slot1.slotIndex,
-        proof, collateral)
-      await market.fillSlot(slot2.request.id, slot2.slotIndex,
-        proof, collateral)
+  suite "restoring historical state":
+    test "it retrieves the historical state " &
+        "for max 30 days in the past":
+      let earlySlot = Slot.example
+      await market.fillSlot(earlySlot.request.id, earlySlot.slotIndex, proof, collateral)
+      let fromTime = clock.now()
+      clock.set(fromTime + 1)
+      await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
       
-      market.slotState[slot1.id] = state
+      let duration: times.Duration = initDuration(days = 30)
+      clock.set(fromTime + duration.inSeconds + 1)
 
       validation = newValidation(clock, market, maxSlots = 0,
         ValidationGroups.none)
       await validation.start()
+      
+      check validation.slots == @[slot.id]
 
-      check validation.slots == @[slot2.id]
+    for state in [SlotState.Finished, SlotState.Failed]:
+      test "when restoring historical state, " &
+          fmt"it excludes slots in {state} state":
+        let slot1 = Slot.example
+        let slot2 = Slot.example
+        await market.fillSlot(slot1.request.id, slot1.slotIndex,
+          proof, collateral)
+        await market.fillSlot(slot2.request.id, slot2.slotIndex,
+          proof, collateral)
+        
+        market.slotState[slot1.id] = state
 
-  test "[restoring historical state] it does not monitor more than the " &
-      "maximum number of slots ":
-    for _ in 0..<maxSlots + 1:
-      let slot = Slot.example
+        validation = newValidation(clock, market, maxSlots = 0,
+          ValidationGroups.none)
+        await validation.start()
+
+        check validation.slots == @[slot2.id]
+
+    test "it does not monitor more than the maximum number of slots ":
+      for _ in 0..<maxSlots + 1:
+        let slot = Slot.example
+        await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+      validation = newValidation(clock, market, maxSlots, ValidationGroups.none)
+      await validation.start()
+      check validation.slots.len == maxSlots
+
+    test "slot is not observed if it is not in the validation group":
       await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    validation = newValidation(clock, market, maxSlots, ValidationGroups.none)
-    await validation.start()
-    check validation.slots.len == maxSlots
+      validation = newValidation(clock, market, maxSlots, validationGroups,
+        (groupIndex + 1) mod uint16(!validationGroups))
+      await validation.start()
+      check validation.slots.len == 0
+    
+    test "slot should be observed if maxSlots is set to 0":
+      await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+      validation = newValidation(clock, market, maxSlots = 0, ValidationGroups.none)
+      await validation.start()
+      check validation.slots == @[slot.id]
 
-  test "[restoring historical state] slot is not observed if it is not " &
-      "in the validation group":
-    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    validation = newValidation(clock, market, maxSlots, validationGroups,
-      (groupIndex + 1) mod uint16(!validationGroups))
-    await validation.start()
-    check validation.slots.len == 0
-  
-  test "[restoring historical state] slot should be observed if maxSlots " &
-      "is set to 0":
-    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    validation = newValidation(clock, market, maxSlots = 0, ValidationGroups.none)
-    await validation.start()
-    check validation.slots == @[slot.id]
-
-  test "[restoring historical state] slot should be observed if validation " &
-      "group is not set (and maxSlots is not 0)":
-    await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    validation = newValidation(clock, market, maxSlots, ValidationGroups.none)
-    await validation.start()
-    check validation.slots == @[slot.id]
+    test "slot should be observed if validation " &
+        "group is not set (and maxSlots is not 0)":
+      await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
+      validation = newValidation(clock, market, maxSlots, ValidationGroups.none)
+      await validation.start()
+      check validation.slots == @[slot.id]
