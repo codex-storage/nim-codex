@@ -73,7 +73,7 @@ env:
   TAG_SUFFIX: ${{ inputs.tag_suffix }}
   # Tests
   TESTS_SOURCE: codex-storage/cs-codex-dist-tests
-  CONTINUOUS_TESTS_BRANCH: master
+  TESTS_BRANCH: master
   CONTINUOUS_TESTS_LIST: ${{ inputs.continuous_tests_list }}
   CONTINUOUS_TESTS_DURATION: ${{ inputs.continuous_tests_duration }}
   CONTINUOUS_TESTS_NAMEPREFIX: c-tests-ci
@@ -231,12 +231,15 @@ jobs:
     runs-on: ubuntu-latest
     needs: publish
     outputs:
-      codexdockerimage: ${{ steps.compute.outputs.codexdockerimage }}
+      source: ${{ steps.compute.outputs.source }}
+      branch: ${{ env.TESTS_BRANCH }}
       workflow_source: ${{ env.TESTS_SOURCE }}
+      codexdockerimage: ${{ steps.compute.outputs.codexdockerimage }}
     steps:
       - name: Compute Tests inputs
         id: compute
         run: |
+          echo "source=${{ format('{0}/{1}', github.server_url, env.TESTS_SOURCE) }}" >> "$GITHUB_OUTPUT"
           echo "codexdockerimage=${{ inputs.docker_repo }}:${{ needs.publish.outputs.version }}" >> "$GITHUB_OUTPUT"
 
 
@@ -247,8 +250,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: compute-tests-inputs
     outputs:
-      source: ${{ steps.compute.outputs.source }}
-      branch: ${{ env.CONTINUOUS_TESTS_BRANCH }}
       nameprefix: ${{ steps.compute.outputs.nameprefix }}
       continuous_tests_list: ${{ steps.compute.outputs.continuous_tests_list }}
       continuous_tests_duration: ${{ env.CONTINUOUS_TESTS_DURATION }}
@@ -257,7 +258,6 @@ jobs:
       - name: Compute Continuous Tests inputs
         id: compute
         run: |
-          echo "source=${{ format('{0}/{1}', github.server_url, env.TESTS_SOURCE) }}" >> "$GITHUB_OUTPUT"
           echo "nameprefix=$(awk '{ print tolower($0) }' <<< ${{ env.CONTINUOUS_TESTS_NAMEPREFIX }})" >> "$GITHUB_OUTPUT"
           echo "continuous_tests_list=$(jq -cR 'split(" ")' <<< '${{ env.CONTINUOUS_TESTS_LIST }}')" >> "$GITHUB_OUTPUT"
 
@@ -272,8 +272,8 @@ jobs:
         tests: ${{ fromJSON(needs.compute-continuous-tests-inputs.outputs.continuous_tests_list) }}
     uses: codex-storage/cs-codex-dist-tests/.github/workflows/run-continuous-tests.yaml@master
     with:
-      source: ${{ needs.compute-continuous-tests-inputs.outputs.source }}
-      branch: ${{ needs.compute-continuous-tests-inputs.outputs.branch }}
+      source: ${{ needs.compute-tests-inputs.outputs.source }}
+      branch: ${{ needs.compute-tests-inputs.outputs.branch }}
       codexdockerimage: ${{ needs.compute-tests-inputs.outputs.codexdockerimage }}
       nameprefix: ${{ needs.compute-continuous-tests-inputs.outputs.nameprefix }}-${{ matrix.tests }}-${{ needs.compute-continuous-tests-inputs.outputs.continuous_tests_duration }}
       tests_filter: ${{ matrix.tests }}
@@ -289,6 +289,8 @@ jobs:
     if: ${{ inputs.run_release_tests == 'true' }}
     uses: codex-storage/cs-codex-dist-tests/.github/workflows/run-release-tests.yaml@master
     with:
+      source: ${{ needs.compute-tests-inputs.outputs.source }}
+      branch: ${{ needs.compute-tests-inputs.outputs.branch }}
       codexdockerimage: ${{ needs.compute-tests-inputs.outputs.codexdockerimage }}
       workflow_source: ${{ needs.compute-tests-inputs.outputs.workflow_source }}
     secrets: inherit
