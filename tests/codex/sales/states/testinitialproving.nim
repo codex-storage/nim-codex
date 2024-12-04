@@ -44,8 +44,6 @@ asyncchecksuite "sales state 'initialproving'":
     state = SaleInitialProving.new()
 
   proc allowProofToStart {.async.} =
-    # wait until we're in initialproving state
-    await sleepAsync(10.millis)
     # it won't start proving until the next period
     await clock.advanceToNextPeriod(market)
 
@@ -59,7 +57,7 @@ asyncchecksuite "sales state 'initialproving'":
 
   test "waits for the beginning of the period to get the challenge":
     let future = state.run(agent)
-    await sleepAsync(10.millis)
+    check eventually clock.isWaiting
     check not future.finished
     await allowProofToStart()
     discard await future
@@ -68,7 +66,7 @@ asyncchecksuite "sales state 'initialproving'":
     market.proofPointer = 250
     let future = state.run(agent)
     await allowProofToStart()
-    await sleepAsync(10.millis)
+    check eventually clock.isWaiting
     check not future.finished
     market.proofPointer = 100
     await allowProofToStart()
