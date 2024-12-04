@@ -32,6 +32,9 @@ logScope:
 type
   PeerCtxStore* = ref object of RootObj
     peers*: OrderedTable[PeerId, BlockExcPeerCtx]
+  PeersForBlock* = ref object of RootObj
+    with*: seq[BlockExcPeerCtx]
+    without*: seq[BlockExcPeerCtx]
 
 iterator items*(self: PeerCtxStore): BlockExcPeerCtx =
   for p in self.peers.values:
@@ -69,6 +72,15 @@ func peersWant*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx]
 
 func peersWant*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
   toSeq(self.peers.values).filterIt( it.peerWants.anyIt( it.address.cidOrTreeCid == cid ) )
+
+proc getPeersForBlock*(self: PeerCtxStore, address: BlockAddress): PeersForBlock =
+  var res = PeersForBlock()
+  for peer in self:
+    if peer.peerHave.anyIt( it == address ):
+      res.with.add(peer)
+    else:
+      res.without.add(peer)
+  res
 
 func selectCheapest*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
   # assume that the price for all leaves in a tree is the same
