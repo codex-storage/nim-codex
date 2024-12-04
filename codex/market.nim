@@ -256,6 +256,11 @@ method queryPastSlotFilledEvents*(
     blocksAgo: int): Future[seq[SlotFilled]] {.base, async.} =
   raiseAssert("not implemented")
 
+method queryPastSlotFilledEvents*(
+    market: Market,
+    fromTime: SecondsSince1970): Future[seq[SlotFilled]] {.base, async.} =
+  raiseAssert("not implemented")
+
 method queryPastStorageRequestedEvents*(
     market: Market,
     fromBlock: BlockTag): Future[seq[StorageRequested]] {.base, async.} =
@@ -264,9 +269,4 @@ method queryPastStorageRequestedEvents*(
 method queryPastStorageRequestedEvents*(
     market: Market,
     blocksAgo: int): Future[seq[StorageRequested]] {.base, async.} =
-  raiseAssert("not implemented")
-
-method queryPastSlotFilledEvents*(
-    market: Market,
-    fromTime: SecondsSince1970): Future[seq[SlotFilled]] {.base, async.} =
   raiseAssert("not implemented")
