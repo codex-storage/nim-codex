@@ -37,7 +37,7 @@ marketplacesuite "Validation":
   let tolerance = 1
   let proofProbability = 1
 
-  proc waitForRequestFailed(
+  proc waitForRequestToFail(
       marketplace: Marketplace,
       requestId: RequestId, 
       timeout=10, 
@@ -126,7 +126,7 @@ marketplacesuite "Validation":
 
     debug "validation suite", secondsTillRequestEnd = secondsTillRequestEnd.seconds
 
-    check await marketplace.waitForRequestFailed(
+    check await marketplace.waitForRequestToFail(
       requestId,
       timeout = secondsTillRequestEnd + 60,
       step = 5
@@ -213,7 +213,7 @@ marketplacesuite "Validation":
 
     debug "validation suite", secondsTillRequestEnd = secondsTillRequestEnd.seconds
 
-    check await marketplace.waitForRequestFailed(
+    check await marketplace.waitForRequestToFail(
       requestId,
       timeout = secondsTillRequestEnd + 60,
       step = 5
