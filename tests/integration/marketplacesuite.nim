@@ -13,15 +13,8 @@ export multinodes
 
 template marketplacesuite*(name: string,
     body: untyped) =
-  marketplacesuiteWithProviderUrl name, "http://localhost:8545":
-    body
 
-# we can't just overload the name and use marketplacesuite here
-# see: https://github.com/nim-lang/Nim/issues/14827
-template marketplacesuiteWithProviderUrl*(name: string,
-    jsonRpcProviderUrl: string, body: untyped) =
-
-  multinodesuiteWithProviderUrl name, jsonRpcProviderUrl:
+  multinodesuite name:
 
     var marketplace {.inject, used.}: Marketplace
     var period: uint64
