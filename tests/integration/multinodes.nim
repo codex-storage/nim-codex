@@ -58,38 +58,31 @@ proc nextFreePort(startPort: int): Future[int] {.async.} =
       trace "port is not free", port
       inc port
 
-# Following the problem described here:
-# https://github.com/NomicFoundation/hardhat/issues/2053
-# It may be desireable to use http RPC provider.
-# This turns out to be equally important in tests where
-# subscriptions get wiped out after 5mins even when
-# a new block is mined.
-# For this reason, we are using http provider here as the default.
-# To use a different provider in your test, you may use
-# multinodesuiteWithProviderUrl template in your tests.
-# The nodes are still using the default provider (which is ws://localhost:8545).
-# If you want to use http provider url in the nodes, you can
-# use withEthProvider config modifiers in the node configs
-# to set the desired provider url. E.g.:
-#   NodeConfigs(    
-#     hardhat:
-#       HardhatConfig.none,
-#     clients:
-#       CodexConfigs.init(nodes=1)
-#         .withEthProvider("http://localhost:8545")
-#         .some,
-#     ...
 template multinodesuite*(name: string, body: untyped) =
-  multinodesuiteWithProviderUrl name, "http://127.0.0.1:8545":
-    body
-
-# we can't just overload the name and use multinodesuite here
-# see: https://github.com/nim-lang/Nim/issues/14827
-template multinodesuiteWithProviderUrl*(name: string, jsonRpcProviderUrl: string,
- body: untyped) =
 
   asyncchecksuite name:
-
+    # Following the problem described here:
+    # https://github.com/NomicFoundation/hardhat/issues/2053
+    # It may be desirable to use http RPC provider.
+    # This turns out to be equally important in tests where
+    # subscriptions get wiped out after 5mins even when
+    # a new block is mined.
+    # For this reason, we are using http provider here as the default.
+    # To use a different provider in your test, you may use
+    # multinodesuiteWithProviderUrl template in your tests.
+    # The nodes are still using the default provider (which is ws://localhost:8545).
+    # If you want to use http provider url in the nodes, you can
+    # use withEthProvider config modifiers in the node configs
+    # to set the desired provider url. E.g.:
+    #   NodeConfigs(    
+    #     hardhat:
+    #       HardhatConfig.none,
+    #     clients:
+    #       CodexConfigs.init(nodes=1)
+    #         .withEthProvider("http://localhost:8545")
+    #         .some,
+    #     ...
+    let jsonRpcProviderUrl = "http://127.0.0.1:8545"
     var running {.inject, used.}: seq[RunningNode]
     var bootstrap: string
     let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
