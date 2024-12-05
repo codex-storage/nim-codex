@@ -48,7 +48,7 @@ ifeq ($(OS),Windows_NT)
         ARCH = arm64
     endif
 else
-    UNAME_P := $(shell uname -p)
+    UNAME_P := $(shell uname -m)
     ifneq ($(filter $(UNAME_P), i686 i386 x86_64),)
         ARCH = x86_64
     endif
