@@ -32,7 +32,7 @@ logScope:
 type
   PeerCtxStore* = ref object of RootObj
     peers*: OrderedTable[PeerId, BlockExcPeerCtx]
-  PeersForBlock* = ref object of RootObj
+  PeersForBlock* = object of RootObj
     with*: seq[BlockExcPeerCtx]
     without*: seq[BlockExcPeerCtx]
 

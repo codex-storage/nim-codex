@@ -194,7 +194,7 @@ proc requestBlock*(
       asyncSpawn b.monitorBlockHandle(blockFuture, address, selected.id)
       b.pendingBlocks.setInFlight(address)
       await b.sendWantBlock(@[address], selected)
-      
+
     await b.sendWantHave(@[address], peers.without)
 
   # Don't let timeouts bubble up. We can't be too broad here or we break
@@ -399,33 +399,15 @@ proc wantListHandler*(
       address   = e.address
       wantType  = $e.wantType
 
+    # Update metrics
+    if e.wantType == WantType.WantHave:
+      codex_block_exchange_want_have_lists_received.inc()
+    elif e.wantType == WantType.WantBlock:
+      codex_block_exchange_want_block_lists_received.inc()
+
+    # Update peerCtx
     if idx < 0: # new entry
       peerCtx.peerWants.add(e)
-
-      let
-        have = await e.address in b.localStore
-        price = @(
-          b.pricing.get(Pricing(price: 0.u256))
-          .price.toBytesBE)
-
-      if e.wantType == WantType.WantHave:
-        codex_block_exchange_want_have_lists_received.inc()
-      elif e.wantType == WantType.WantBlock:
-        codex_block_exchange_want_block_lists_received.inc()
-
-      if not have and e.sendDontHave:
-        presence.add(
-          BlockPresence(
-          address: e.address,
-          `type`: BlockPresenceType.DontHave,
-          price: price))
-      elif have and e.wantType == WantType.WantHave:
-        presence.add(
-          BlockPresence(
-          address: e.address,
-          `type`: BlockPresenceType.Have,
-          price: price))
-      
     else: # update existing entry
       # peer doesn't want this block anymore
       if e.cancel:
@@ -435,12 +417,36 @@ proc wantListHandler*(
         # different want params
         peerCtx.peerWants[idx] = e # update entry
 
+    if not e.cancel:
+      # Respond to wantHaves immediately
+      if e.wantType == WantType.WantHave:
+        let
+          have = await e.address in b.localStore
+          price = @(
+            b.pricing.get(Pricing(price: 0.u256))
+            .price.toBytesBE)
+
+        if not have and e.sendDontHave:
+          presence.add(
+            BlockPresence(
+            address: e.address,
+            `type`: BlockPresenceType.DontHave,
+            price: price))
+        elif have:
+          presence.add(
+            BlockPresence(
+            address: e.address,
+            `type`: BlockPresenceType.Have,
+            price: price))
+
+      # Schedule handling of wantBlocks
+      if e.wantType == WantType.WantBlock:
+        if not b.scheduleTask(peerCtx):
+          warn "Unable to schedule task for peer", peer
+
   if presence.len > 0:
     trace "Sending presence to remote", items = presence.mapIt($it).join(",")
     await b.network.request.sendPresence(peer, presence)
-
-  if not b.scheduleTask(peerCtx):
-    warn "Unable to schedule task for peer", peer
 
 proc accountHandler*(
   engine: BlockExcEngine,
