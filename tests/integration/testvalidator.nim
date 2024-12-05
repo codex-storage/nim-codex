@@ -46,7 +46,6 @@ marketplacesuite "Validation":
     let endTime = Moment.now() + timeout.seconds
 
     var requestState = await marketplace.requestState(requestId)
-    debug "waitForRequestFailed", requestId = requestId, requestState = requestState
     while requestState != RequestState.Failed:
       if endTime < Moment.now():
         return false
@@ -54,7 +53,6 @@ marketplacesuite "Validation":
         return false
       await sleepAsync(step.seconds)
       requestState = await marketplace.requestState(requestId)
-      debug "waitForRequestFailed", requestId = requestId, requestState = requestState
     return true
 
   test "validator marks proofs as missing when using validation groups", NodeConfigs(
