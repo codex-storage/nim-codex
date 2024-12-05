@@ -49,7 +49,7 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
 
   let slotId = slotId(data.requestId, data.slotIndex)
   let state = await market.slotState(slotId)
-  if state != SlotState.Free:
+  if state != SlotState.Free and state != SlotState.Repair:
     return some State(SaleIgnored(reprocessSlot: false, returnBytes: false))
 
   # TODO: Once implemented, check to ensure the host is allowed to fill the slot,
