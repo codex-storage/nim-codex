@@ -240,7 +240,7 @@ proc blockPresenceHandler*(
     )
 
   if wantCids.len > 0:
-    trace "Peer has blocks in our wantList", peer, wantCount = wantCids.len
+    trace "Peer has blocks in our wantList", peer, wants = wantCids
     await b.sendWantBlock(wantCids, peerCtx)
 
   # if none of the connected peers report our wants in their have list,
@@ -336,7 +336,7 @@ proc blocksDeliveryHandler*(
   b: BlockExcEngine,
   peer: PeerId,
   blocksDelivery: seq[BlockDelivery]) {.async.} =
-  trace "Received blocks from peer", peer, blocks = (blocksDelivery.mapIt($it.address)).join(",")
+  trace "Received blocks from peer", peer, blocks = (blocksDelivery.mapIt(it.address))
 
   var validatedBlocksDelivery: seq[BlockDelivery]
   for bd in blocksDelivery:
@@ -557,7 +557,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
     updateInFlight(failedAddresses, false)
 
     if blocksDelivery.len > 0:
-      trace "Sending blocks to peer", peer = task.id, blocks = (blocksDelivery.mapIt($it.address)).join(",")
+      trace "Sending blocks to peer", peer = task.id, blocks = (blocksDelivery.mapIt(it.address))
       await b.network.request.sendBlocksDelivery(
         task.id,
         blocksDelivery
