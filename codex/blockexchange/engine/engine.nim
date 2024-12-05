@@ -270,7 +270,7 @@ proc scheduleTasks(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.asyn
 
 proc cancelBlocks(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
   ## Tells neighboring peers that we're no longer interested in a block.
-  trace "Sending block request cancellations to peers", addrs = addrs.len
+  trace "Sending block request cancellations to peers", addrs, peers = b.peers.mapIt($it.id)
 
   let failed = (await allFinished(
     b.peers.mapIt(
@@ -389,6 +389,7 @@ proc wantListHandler*(
 
   var
     presence: seq[BlockPresence]
+    schedulePeer = false
 
   for e in wantList.entries:
     let
@@ -398,16 +399,19 @@ proc wantListHandler*(
       peer      = peerCtx.id
       address   = e.address
       wantType  = $e.wantType
+      isCancel  = $e.cancel
 
     # Update metrics
     if e.wantType == WantType.WantHave:
       codex_block_exchange_want_have_lists_received.inc()
     elif e.wantType == WantType.WantBlock:
+      schedulePeer = true
       codex_block_exchange_want_block_lists_received.inc()
 
     # Update peerCtx
     if idx < 0: # new entry
-      peerCtx.peerWants.add(e)
+      if not e.cancel:
+        peerCtx.peerWants.add(e)
     else: # update existing entry
       # peer doesn't want this block anymore
       if e.cancel:
@@ -439,14 +443,13 @@ proc wantListHandler*(
             `type`: BlockPresenceType.Have,
             price: price))
 
-      # Schedule handling of wantBlocks
-      if e.wantType == WantType.WantBlock:
-        if not b.scheduleTask(peerCtx):
-          warn "Unable to schedule task for peer", peer
-
   if presence.len > 0:
     trace "Sending presence to remote", items = presence.mapIt($it).join(",")
     await b.network.request.sendPresence(peer, presence)
+
+  if schedulePeer:
+    if not b.scheduleTask(peerCtx):
+      warn "Unable to schedule task for peer", peer
 
 proc accountHandler*(
   engine: BlockExcEngine,
