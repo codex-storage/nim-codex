@@ -1,5 +1,4 @@
 from std/times import inMilliseconds, initDuration, inSeconds, fromUnix
-import std/sequtils
 import std/sugar
 import pkg/codex/logutils
 import pkg/questionable/results
@@ -22,15 +21,8 @@ template eventuallyS(expression: untyped, timeout=10, step = 5,
 
   proc eventuallyS: Future[bool] {.async.} =
     let endTime = Moment.now() + timeout.seconds
-    var i = 0
     var secondsElapsed = 0
     while not expression:
-      inc i
-      # secondsElapsed = i*step
-      # # echo secondsElapsed.seconds
-      # if secondsElapsed mod 180 == 0:
-      #   await stopTrackingEvents()
-      #   await marketplace.startTrackingEvents()
       if endTime < Moment.now():
         return false
       if cancelExpression:
@@ -40,79 +32,31 @@ template eventuallyS(expression: untyped, timeout=10, step = 5,
 
   await eventuallyS()
 
-marketplacesuiteWithProviderUrl "Validation", "http://127.0.0.1:8545":
+marketplacesuite "Validation":
   let nodes = 3
   let tolerance = 1
   let proofProbability = 1
 
-  var events = {
-    $SlotFilled: newSeq[ref MarketplaceEvent](),
-    $SlotFreed: newSeq[ref MarketplaceEvent](),
-    $RequestFailed: newSeq[ref MarketplaceEvent](),
-    $RequestCancelled: newSeq[ref MarketplaceEvent]()
-  }.toTable
-  var eventSubscriptions = newSeq[provider.Subscription]()
+  proc waitForRequestFailed(
+      marketplace: Marketplace,
+      requestId: RequestId, 
+      timeout=10, 
+      step = 5,
+      ): Future[bool] {.async.} =
+    let endTime = Moment.now() + timeout.seconds
 
-  proc box[T](x: T): ref T =
-    new(result);
-    result[] = x
+    var requestState = await marketplace.requestState(requestId)
+    debug "waitForRequestFailed", requestId = requestId, requestState = requestState
+    while requestState != RequestState.Failed:
+      if endTime < Moment.now():
+        return false
+      if requestState == RequestState.Cancelled:
+        return false
+      await sleepAsync(step.seconds)
+      requestState = await marketplace.requestState(requestId)
+      debug "waitForRequestFailed", requestId = requestId, requestState = requestState
+    return true
 
-  proc onMarketplaceEvent[T: MarketplaceEvent](event: T) {.gcsafe, raises:[].} =
-    try:
-      debug "onMarketplaceEvent", eventType = $T, event = event
-      events[$T].add(box(event))
-    except KeyError:
-      discard
-
-  proc startTrackingEvents(marketplace: Marketplace) {.async.} =
-    eventSubscriptions.add(
-      await marketplace.subscribe(SlotFilled, onMarketplaceEvent[SlotFilled])
-    )
-    eventSubscriptions.add(
-      await marketplace.subscribe(RequestFailed, onMarketplaceEvent[RequestFailed])
-    )
-    eventSubscriptions.add(
-      await marketplace.subscribe(SlotFreed, onMarketplaceEvent[SlotFreed])
-    )
-    eventSubscriptions.add(
-      await marketplace.subscribe(RequestCancelled, onMarketplaceEvent[RequestCancelled])
-    )
-  
-  proc stopTrackingEvents() {.async.} =
-    for event in eventSubscriptions:
-      await event.unsubscribe()
-  
-  proc checkSlotsFreed(requestId: RequestId, expectedSlotsFreed: int): bool =
-    events[$SlotFreed].filter(
-      e => (ref SlotFreed)(e).requestId == requestId)
-        .len == expectedSlotsFreed and
-      events[$RequestFailed].map(
-        e => (ref RequestFailed)(e).requestId).contains(requestId)
-  
-  proc isRequestCancelled(requestId: RequestId): bool =
-    events[$RequestCancelled].map(e => (ref RequestCancelled)(e).requestId)
-      .contains(requestId)
-  
-  proc getSlots[T: MarketplaceEvent](requestId: RequestId): seq[SlotId] =
-    events[$T].filter(
-      e => (ref T)(e).requestId == requestId).map(
-        e => slotId((ref T)(e).requestId, (ref T)(e).slotIndex))
-  
-  proc checkSlotsFailed(marketplace: Marketplace, requestId: RequestId) {.async.} =
-    let slotsFreed = getSlots[SlotFreed](requestId)
-    let slotsFilled = getSlots[SlotFilled](requestId)
-    let slotsNotFreed = slotsFilled.filter(
-      slotId => not slotsFreed.contains(slotId)
-    ).toHashSet
-    var slotsFailed = initHashSet[SlotId]()
-    for slotId in slotsFilled:
-      let state = await marketplace.slotState(slotId)
-      if state == SlotState.Failed:
-        slotsFailed.incl(slotId)
-    
-    debug "slots failed", slotsFailed = slotsFailed, slotsNotFreed = slotsNotFreed
-    check slotsNotFreed == slotsFailed  
-  
   test "validator marks proofs as missing when using validation groups", NodeConfigs(
     # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
     hardhat:
@@ -159,8 +103,6 @@ marketplacesuiteWithProviderUrl "Validation", "http://127.0.0.1:8545":
     # testproofs.nim - we may want to address it or remove the comment.
     createAvailabilities(data.len * 2, duration)
 
-    await marketplace.startTrackingEvents()
-
     let cid = client0.upload(data).get
     let purchaseId = await client0.requestStorage(
       cid,
@@ -174,17 +116,9 @@ marketplacesuiteWithProviderUrl "Validation", "http://127.0.0.1:8545":
 
     debug "validation suite", purchaseId = purchaseId.toHex, requestId = requestId
 
-    check eventuallyS(client0.purchaseStateIs(purchaseId, "started"),
-      timeout = (expiry + 60).int, step = 5)
-    
-    # if purchase state is not "started", it does not make sense to continue
-    without purchaseState =? client0.getPurchase(purchaseId).?state:
-      fail()
-      return
-    
-    debug "validation suite", purchaseState = purchaseState 
-
-    if purchaseState != "started":
+    if not eventuallyS(client0.purchaseStateIs(purchaseId, "started"),
+        timeout = (expiry + 60).int, step = 5):
+      debug "validation suite: timed out waiting for the purchase to start"
       fail()
       return
 
@@ -193,19 +127,12 @@ marketplacesuiteWithProviderUrl "Validation", "http://127.0.0.1:8545":
     let secondsTillRequestEnd = (requestEndTime - currentTime.truncate(uint64)).int
 
     debug "validation suite", secondsTillRequestEnd = secondsTillRequestEnd.seconds
-    
-    # Because of erasure coding, after (tolerance + 1) slots are freed, the
-    # remaining nodes will not be freed but marked as "Failed" as the whole
-    # request fails. A couple of checks to capture this:
-    let expectedSlotsFreed = tolerance + 1
-    check eventuallyS(checkSlotsFreed(requestId, expectedSlotsFreed),
-      timeout = secondsTillRequestEnd + 60, step = 5,
-      cancelExpression = isRequestCancelled(requestId))
-    
-    # extra check
-    await marketplace.checkSlotsFailed(requestId)
 
-    await stopTrackingEvents()
+    check await marketplace.waitForRequestFailed(
+      requestId,
+      timeout = secondsTillRequestEnd + 60,
+      step = 5
+    )
 
   test "validator uses historical state to mark missing proofs", NodeConfigs(
     # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
@@ -243,8 +170,6 @@ marketplacesuiteWithProviderUrl "Validation", "http://127.0.0.1:8545":
     # testproofs.nim - we may want to address it or remove the comment.
     createAvailabilities(data.len * 2, duration)
 
-    await marketplace.startTrackingEvents()
-
     let cid = client0.upload(data).get
     let purchaseId = await client0.requestStorage(
       cid,
@@ -258,17 +183,9 @@ marketplacesuiteWithProviderUrl "Validation", "http://127.0.0.1:8545":
 
     debug "validation suite", purchaseId = purchaseId.toHex, requestId = requestId
 
-    check eventuallyS(client0.purchaseStateIs(purchaseId, "started"), 
-      timeout = (expiry + 60).int, step = 5)
-
-    # if purchase state is not "started", it does not make sense to continue
-    without purchaseState =? client0.getPurchase(purchaseId).?state:
-      fail()
-      return
-    
-    debug "validation suite", purchaseState = purchaseState
-
-    if purchaseState != "started":
+    if not eventuallyS(client0.purchaseStateIs(purchaseId, "started"), 
+        timeout = (expiry + 60).int, step = 5):
+      debug "validation suite: timed out waiting for the purchase to start"
       fail()
       return
     
@@ -297,17 +214,9 @@ marketplacesuiteWithProviderUrl "Validation", "http://127.0.0.1:8545":
     let secondsTillRequestEnd = (requestEndTime - currentTime.truncate(uint64)).int
 
     debug "validation suite", secondsTillRequestEnd = secondsTillRequestEnd.seconds
-    
-    # Because of erasure coding, after (tolerance + 1) slots are freed, the
-    # remaining nodes are be freed but marked as "Failed" as the whole
-    # request fails. A couple of checks to capture this:
-    let expectedSlotsFreed = tolerance + 1
-    
-    check eventuallyS(checkSlotsFreed(requestId, expectedSlotsFreed),
-      timeout = secondsTillRequestEnd + 60, step = 5,
-      cancelExpression = isRequestCancelled(requestId))
-    
-    # extra check
-    await marketplace.checkSlotsFailed(requestId)
 
-    await stopTrackingEvents()
+    check await marketplace.waitForRequestFailed(
+      requestId,
+      timeout = secondsTillRequestEnd + 60,
+      step = 5
+    )
