@@ -399,7 +399,6 @@ proc wantListHandler*(
       peer      = peerCtx.id
       address   = e.address
       wantType  = $e.wantType
-      isCancel  = $e.cancel
 
     # Update metrics
     if e.wantType == WantType.WantHave:
@@ -412,18 +411,9 @@ proc wantListHandler*(
     if idx < 0: # new entry
       if not e.cancel:
         peerCtx.peerWants.add(e)
-    else: # update existing entry
-      # peer doesn't want this block anymore
-      if e.cancel:
-        peerCtx.peerWants.del(idx)
-      else:
-        # peer might want to ask for the same cid with
-        # different want params
-        peerCtx.peerWants[idx] = e # update entry
 
-    if not e.cancel:
-      # Respond to wantHaves immediately
       if e.wantType == WantType.WantHave:
+        # does this happen for cancels?!
         let
           have = await e.address in b.localStore
           price = @(
@@ -442,6 +432,15 @@ proc wantListHandler*(
             address: e.address,
             `type`: BlockPresenceType.Have,
             price: price))
+
+    else: # update existing entry
+      # peer doesn't want this block anymore
+      if e.cancel:
+        peerCtx.peerWants.del(idx)
+      else:
+        # peer might want to ask for the same cid with
+        # different want params
+        peerCtx.peerWants[idx] = e # update entry
 
   if presence.len > 0:
     trace "Sending presence to remote", items = presence.mapIt($it).join(",")
