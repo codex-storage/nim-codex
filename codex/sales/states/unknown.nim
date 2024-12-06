@@ -50,3 +50,8 @@ method run*(state: SaleUnknown, machine: Machine): Future[?State] {.async.} =
     return some State(SaleFailed())
   of SlotState.Cancelled:
     return some State(SaleCancelled())
+  of SlotState.Repair:
+    # TODO: What to do? It could really mean that he was offline for that long that he was kicked out
+    # from the slot and lost all the collateral. Should we simply "give up" on the slot? Or try
+    # to "repair" (there is some chance that the dataset is still locally saved) the slot?
+    discard
