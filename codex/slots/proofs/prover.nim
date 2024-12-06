@@ -66,6 +66,10 @@ proc prove*(
     error "Unable to create slots builder", err = err.msg
     return failure(err)
 
+  if err =? (await builder.init()).errorOption:
+    error "Failed to initialize builder", err = err.msg
+    return failure(err)
+
   without sampler =? AnySampler.new(slotIdx, self.store, builder), err:
     error "Unable to create data sampler", err = err.msg
     return failure(err)

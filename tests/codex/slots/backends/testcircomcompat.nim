@@ -99,6 +99,7 @@ suite "Test Circom Compat Backend":
           cellSize)
 
     builder = Poseidon2Builder.new(store, verifiable).tryGet
+    (await builder.init()).tryGet()
     sampler = Poseidon2Sampler.new(slotId, store, builder).tryGet
 
     circom = CircomCompat.init(r1cs, wasm, zkey)

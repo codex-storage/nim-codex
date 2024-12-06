@@ -32,7 +32,7 @@ checksuite "Manifest":
       strategy = SteppedStrategy
     )
 
-    leaves = [
+    leaves = @[
       0.toF.Poseidon2Hash,
       1.toF.Poseidon2Hash,
       2.toF.Poseidon2Hash,
@@ -40,7 +40,7 @@ checksuite "Manifest":
 
     slotLeavesCids = leaves.toSlotCids().tryGet
 
-    tree = Poseidon2Tree.init(leaves).tryGet
+    tree = (waitFor Poseidon2Tree.init(leaves)).tryGet
     verifyCid = tree.root.tryGet.toVerifyCid().tryGet
 
     verifiableManifest = Manifest.new(
