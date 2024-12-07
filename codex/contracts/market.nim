@@ -489,8 +489,6 @@ proc binarySearchFindClosestBlock*(provider: Provider,
     await provider.blockNumberAndTimestamp(BlockTag.init(low))
   let (_, highTimestamp) =
     await provider.blockNumberAndTimestamp(BlockTag.init(high))
-  debug "[binarySearchFindClosestBlock]:", epochTime = epochTime,
-    lowTimestamp = lowTimestamp, highTimestamp = highTimestamp, low = low, high = high
   if abs(lowTimestamp.truncate(int) - epochTime) <
       abs(highTimestamp.truncate(int) - epochTime):
     return low
@@ -505,12 +503,10 @@ proc binarySearchBlockNumberForEpoch*(provider: Provider,
   var low = earliestBlockNumber
   var high = latestBlockNumber
 
-  debug "[binarySearchBlockNumberForEpoch]:", low = low, high = high
   while low <= high:
     if low == 0 and high == 0:
       return low
     let mid = (low + high) div 2
-    debug "[binarySearchBlockNumberForEpoch]:", low = low, mid = mid, high = high
     let (midBlockNumber, midBlockTimestamp) =
       await provider.blockNumberAndTimestamp(BlockTag.init(mid))
     
@@ -528,17 +524,11 @@ proc binarySearchBlockNumberForEpoch*(provider: Provider,
 
 proc blockNumberForEpoch*(provider: Provider,
     epochTime: SecondsSince1970): Future[UInt256] {.async.} =
-  debug "[blockNumberForEpoch]:", epochTime = epochTime
   let epochTimeUInt256 = epochTime.u256
   let (latestBlockNumber, latestBlockTimestamp) = 
     await provider.blockNumberAndTimestamp(BlockTag.latest)
   let (earliestBlockNumber, earliestBlockTimestamp) = 
     await provider.blockNumberAndTimestamp(BlockTag.earliest)
-  
-  debug "[blockNumberForEpoch]:", latestBlockNumber = latestBlockNumber,
-    latestBlockTimestamp = latestBlockTimestamp
-  debug "[blockNumberForEpoch]:", earliestBlockNumber = earliestBlockNumber,
-    earliestBlockTimestamp = earliestBlockTimestamp
 
   # Initially we used the average block time to predict
   # the number of blocks we need to look back in order to find
@@ -610,7 +600,6 @@ method queryPastSlotFilledEvents*(
   convertEthersError:
     let fromBlock = 
       await market.contract.provider.blockNumberForEpoch(fromTime)
-    debug "[queryPastSlotFilledEvents]", fromTime=fromTime, fromBlock=parseHexInt($fromBlock)
     return await market.queryPastSlotFilledEvents(BlockTag.init(fromBlock))
 
 method queryPastStorageRequestedEvents*(
