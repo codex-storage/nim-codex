@@ -466,7 +466,7 @@ method subscribeProofSubmission*(market: OnChainMarket,
 method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =
   await subscription.eventSubscription.unsubscribe()
 
-proc blockNumberForBlocksAgo*(provider: Provider,
+proc pastBlockTag(provider: Provider,
                              blocksAgo: int): Future[BlockTag] {.async.} =
   let head = await provider.getBlockNumber()
   return BlockTag.init(head - blocksAgo.abs.u256)
@@ -599,7 +599,7 @@ method queryPastSlotFilledEvents*(
 
   convertEthersError:
     let fromBlock =
-      await blockNumberForBlocksAgo(market.contract.provider, blocksAgo)
+      await pastBlockTag(market.contract.provider, blocksAgo)
 
     return await market.queryPastSlotFilledEvents(fromBlock)
 
@@ -628,6 +628,6 @@ method queryPastStorageRequestedEvents*(
 
   convertEthersError:
     let fromBlock =
-      await blockNumberForBlocksAgo(market.contract.provider, blocksAgo)
+      await pastBlockTag(market.contract.provider, blocksAgo)
 
     return await market.queryPastStorageRequestedEvents(fromBlock)
