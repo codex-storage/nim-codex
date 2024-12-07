@@ -130,16 +130,15 @@ proc stop*(b: BlockExcEngine) {.async.} =
 proc sendWantHave(
   b: BlockExcEngine,
   addresses: seq[BlockAddress],
-  excluded: seq[BlockExcPeerCtx],
   peers: seq[BlockExcPeerCtx]): Future[void] {.async.} =
   for p in peers:
-    if p notin excluded:
-      let toAsk = addresses.filterIt(it notin p.peerHave)
-      trace "Sending wantHave request", toAsk, peer = p.id
-      await b.network.request.sendWantList(
-        p.id,
-        toAsk,
-        wantType = WantType.WantHave)
+    let toAsk = addresses.filterIt(it notin p.peerHave)
+    trace "Sending wantHave request", toAsk, peer = p.id
+    await b.network.request.sendWantList(
+      p.id,
+      toAsk,
+      wantType = WantType.WantHave)
+    codex_block_exchange_want_have_lists_sent.inc()
 
 proc sendWantBlock(
   b: BlockExcEngine,
@@ -150,6 +149,7 @@ proc sendWantBlock(
     blockPeer.id,
     addresses,
     wantType = WantType.WantBlock) # we want this remote to send us a block
+  codex_block_exchange_want_block_lists_sent.inc()
 
 proc monitorBlockHandle(
   b: BlockExcEngine,
@@ -175,6 +175,9 @@ proc monitorBlockHandle(
     await b.network.switch.disconnect(peerId)
     b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
 
+proc pickPseudoRandom(address: BlockAddress, peers: seq[BlockExcPeerCtx]): BlockExcPeerCtx =
+  return peers[hash(address) mod peers.len]
+
 proc requestBlock*(
   b: BlockExcEngine,
   address: BlockAddress,
@@ -182,26 +185,17 @@ proc requestBlock*(
   let blockFuture = b.pendingBlocks.getWantHandle(address, b.blockFetchTimeout)
 
   if not b.pendingBlocks.isInFlight(address):
-    let peers = b.peers.selectCheapest(address)
-    if peers.len == 0:
+    let peers = b.peers.getPeersForBlock(address)
+
+    if peers.with.len == 0:
       b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
-
-    let maybePeer =
-      if peers.len > 0:
-        peers[hash(address) mod peers.len].some
-      elif b.peers.len > 0:
-        toSeq(b.peers)[hash(address) mod b.peers.len].some
-      else:
-        BlockExcPeerCtx.none
-
-    if peer =? maybePeer:
-      asyncSpawn b.monitorBlockHandle(blockFuture, address, peer.id)
+    else:
+      let selected = pickPseudoRandom(address, peers.with)
+      asyncSpawn b.monitorBlockHandle(blockFuture, address, selected.id)
       b.pendingBlocks.setInFlight(address)
-      # TODO: Send more block addresses if at all sensible.
-      await b.sendWantBlock(@[address], peer)
-      codex_block_exchange_want_block_lists_sent.inc()
-      await b.sendWantHave(@[address], @[peer], toSeq(b.peers))
-      codex_block_exchange_want_have_lists_sent.inc()
+      await b.sendWantBlock(@[address], selected)
+
+    await b.sendWantHave(@[address], peers.without)
 
   # Don't let timeouts bubble up. We can't be too broad here or we break
   # cancellations.
@@ -246,7 +240,7 @@ proc blockPresenceHandler*(
     )
 
   if wantCids.len > 0:
-    trace "Peer has blocks in our wantList", peer, wantCount = wantCids.len
+    trace "Peer has blocks in our wantList", peer, wants = wantCids
     await b.sendWantBlock(wantCids, peerCtx)
 
   # if none of the connected peers report our wants in their have list,
@@ -276,7 +270,7 @@ proc scheduleTasks(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.asyn
 
 proc cancelBlocks(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
   ## Tells neighboring peers that we're no longer interested in a block.
-  trace "Sending block request cancellations to peers", addrs = addrs.len
+  trace "Sending block request cancellations to peers", addrs, peers = b.peers.mapIt($it.id)
 
   let failed = (await allFinished(
     b.peers.mapIt(
@@ -342,7 +336,7 @@ proc blocksDeliveryHandler*(
   b: BlockExcEngine,
   peer: PeerId,
   blocksDelivery: seq[BlockDelivery]) {.async.} =
-  trace "Received blocks from peer", peer, blocks = (blocksDelivery.mapIt($it.address)).join(",")
+  trace "Received blocks from peer", peer, blocks = (blocksDelivery.mapIt(it.address))
 
   var validatedBlocksDelivery: seq[BlockDelivery]
   for bd in blocksDelivery:
@@ -395,6 +389,7 @@ proc wantListHandler*(
 
   var
     presence: seq[BlockPresence]
+    schedulePeer = false
 
   for e in wantList.entries:
     let
@@ -405,32 +400,40 @@ proc wantListHandler*(
       address   = e.address
       wantType  = $e.wantType
 
-    if idx < 0: # updating entry
-      let
-        have = await e.address in b.localStore
-        price = @(
-          b.pricing.get(Pricing(price: 0.u256))
-          .price.toBytesBE)
+    # Update metrics
+    if e.wantType == WantType.WantHave:
+      codex_block_exchange_want_have_lists_received.inc()
+    elif e.wantType == WantType.WantBlock:
+      schedulePeer = true
+      codex_block_exchange_want_block_lists_received.inc()
+
+    # Update peerCtx
+    if idx < 0: # new entry
+      if not e.cancel:
+        peerCtx.peerWants.add(e)
 
       if e.wantType == WantType.WantHave:
-        codex_block_exchange_want_have_lists_received.inc()
+        # does this happen for cancels?!
+        let
+          have = await e.address in b.localStore
+          price = @(
+            b.pricing.get(Pricing(price: 0.u256))
+            .price.toBytesBE)
 
-      if not have and e.sendDontHave:
-        presence.add(
-          BlockPresence(
-          address: e.address,
-          `type`: BlockPresenceType.DontHave,
-          price: price))
-      elif have and e.wantType == WantType.WantHave:
-        presence.add(
-          BlockPresence(
-          address: e.address,
-          `type`: BlockPresenceType.Have,
-          price: price))
-      elif e.wantType == WantType.WantBlock:
-        peerCtx.peerWants.add(e)
-        codex_block_exchange_want_block_lists_received.inc()
-    else:
+        if not have and e.sendDontHave:
+          presence.add(
+            BlockPresence(
+            address: e.address,
+            `type`: BlockPresenceType.DontHave,
+            price: price))
+        elif have:
+          presence.add(
+            BlockPresence(
+            address: e.address,
+            `type`: BlockPresenceType.Have,
+            price: price))
+
+    else: # update existing entry
       # peer doesn't want this block anymore
       if e.cancel:
         peerCtx.peerWants.del(idx)
@@ -443,8 +446,9 @@ proc wantListHandler*(
     trace "Sending presence to remote", items = presence.mapIt($it).join(",")
     await b.network.request.sendPresence(peer, presence)
 
-  if not b.scheduleTask(peerCtx):
-    warn "Unable to schedule task for peer", peer
+  if schedulePeer:
+    if not b.scheduleTask(peerCtx):
+      warn "Unable to schedule task for peer", peer
 
 proc accountHandler*(
   engine: BlockExcEngine,
@@ -555,7 +559,7 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
     updateInFlight(failedAddresses, false)
 
     if blocksDelivery.len > 0:
-      trace "Sending blocks to peer", peer = task.id, blocks = (blocksDelivery.mapIt($it.address)).join(",")
+      trace "Sending blocks to peer", peer = task.id, blocks = (blocksDelivery.mapIt(it.address))
       await b.network.request.sendBlocksDelivery(
         task.id,
         blocksDelivery
