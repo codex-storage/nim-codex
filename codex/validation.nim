@@ -1,4 +1,3 @@
-import std/times
 import std/sets
 import std/sequtils
 import pkg/chronos
@@ -25,7 +24,7 @@ type
     config: ValidationConfig
 
 const
-  MaxStorageRequestDuration: times.Duration = initDuration(days = 30)
+  MaxStorageRequestDuration = 30.days
 
 logScope:
   topics = "codex validator"
@@ -135,8 +134,8 @@ proc run(validation: Validation) {.async.} =
     error "Validation failed", msg = e.msg
 
 proc epochForDurationBackFromNow(validation: Validation,
-    duration: times.Duration): SecondsSince1970 =
-  return validation.clock.now - duration.inSeconds
+    duration: Duration): SecondsSince1970 =
+  return validation.clock.now - duration.secs
 
 proc restoreHistoricalState(validation: Validation) {.async.} =
   logScope:
