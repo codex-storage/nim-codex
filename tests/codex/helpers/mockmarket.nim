@@ -518,12 +518,8 @@ method queryPastSlotFilledEvents*(
 method queryPastSlotFilledEvents*(
     market: MockMarket,
     fromTime: SecondsSince1970): Future[seq[SlotFilled]] {.async.} =
-  debug "queryPastSlotFilledEvents:market.filled",
-    numOfFilledSlots = market.filled.len
   let filtered = market.filled.filter(
     proc (slot: MockSlot): bool =
-      debug "queryPastSlotFilledEvents:fromTime", timestamp = slot.timestamp,
-        fromTime = fromTime
       if timestamp =? slot.timestamp:
         return timestamp >= fromTime
       else:
