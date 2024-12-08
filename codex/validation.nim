@@ -46,7 +46,8 @@ proc getCurrentPeriod(validation: Validation): UInt256 =
 proc waitUntilNextPeriod(validation: Validation) {.async.} =
   let period = validation.getCurrentPeriod()
   let periodEnd = validation.periodicity.periodEnd(period)
-  trace "Waiting until next period", currentPeriod = period, groups = validation.config.groups,
+  trace "Waiting until next period", currentPeriod = period,
+    groups = validation.config.groups,
     groupIndex = validation.config.groupIndex
   await validation.clock.waitUntil(periodEnd.truncate(int64) + 1)
 
@@ -120,8 +121,7 @@ proc run(validation: Validation) {.async.} =
   logScope:
     groups = validation.config.groups
     groupIndex = validation.config.groupIndex
-  trace "Validation started", currentTime = validation.clock.now,
-    currentTime = validation.clock.now.fromUnix
+  trace "Validation started"
   try:
     while true:
       await validation.waitUntilNextPeriod()
