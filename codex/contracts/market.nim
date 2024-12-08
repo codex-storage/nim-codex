@@ -467,24 +467,27 @@ method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =
   await subscription.eventSubscription.unsubscribe()
 
 proc pastBlockTag(provider: Provider,
-                             blocksAgo: int): Future[BlockTag] {.async.} =
+                  blocksAgo: int):
+                    Future[BlockTag] {.async: (raises: [ProviderError]).} =
   let head = await provider.getBlockNumber()
   return BlockTag.init(head - blocksAgo.abs.u256)
 
 proc blockNumberAndTimestamp*(provider: Provider, blockTag: BlockTag):
-    Future[(UInt256, UInt256)] {.async.} =
-  without latestBlock =? await provider.getBlock(blockTag), error:
-    raise error
+    Future[(UInt256, UInt256)] {.async: (raises: [ProviderError, MarketError]).} =
+  without latestBlock =? await provider.getBlock(blockTag):
+    raiseMarketError("Could not get latest block")
 
   without latestBlockNumber =? latestBlock.number:
-    raise newException(EthersError, "Could not get latest block number")
+    raiseMarketError("Could not get latest block number")
 
-  (latestBlockNumber, latestBlock.timestamp)
+  return (latestBlockNumber, latestBlock.timestamp)
 
-proc binarySearchFindClosestBlock*(provider: Provider,
-                                  epochTime: int,
-                                  low: UInt256,
-                                  high: UInt256): Future[UInt256] {.async.} =
+proc binarySearchFindClosestBlock(
+    provider: Provider,
+    epochTime: int,
+    low: UInt256,
+    high: UInt256):
+      Future[UInt256] {.async: (raises: [ProviderError, MarketError]).} =
   let (_, lowTimestamp) =
     await provider.blockNumberAndTimestamp(BlockTag.init(low))
   let (_, highTimestamp) =
@@ -495,11 +498,12 @@ proc binarySearchFindClosestBlock*(provider: Provider,
   else:
     return high
 
-proc binarySearchBlockNumberForEpoch*(provider: Provider,
-                                     epochTime: UInt256,
-                                     latestBlockNumber: UInt256,
-                                     earliestBlockNumber: UInt256):
-                                      Future[UInt256] {.async.} =
+proc binarySearchBlockNumberForEpoch(
+    provider: Provider,
+    epochTime: UInt256,
+    latestBlockNumber: UInt256,
+    earliestBlockNumber: UInt256):
+      Future[UInt256] {.async: (raises: [ProviderError, MarketError]).} =
   var low = earliestBlockNumber
   var high = latestBlockNumber
 
@@ -522,8 +526,10 @@ proc binarySearchBlockNumberForEpoch*(provider: Provider,
   await provider.binarySearchFindClosestBlock(
     epochTime.truncate(int), low=high, high=low)
 
-proc blockNumberForEpoch*(provider: Provider,
-    epochTime: SecondsSince1970): Future[UInt256] {.async.} =
+proc blockNumberForEpoch*(
+    provider: Provider,
+    epochTime: SecondsSince1970):
+      Future[UInt256] {.async: (raises: [ProviderError, MarketError]).} =
   let epochTimeUInt256 = epochTime.u256
   let (latestBlockNumber, latestBlockTimestamp) = 
     await provider.blockNumberAndTimestamp(BlockTag.latest)
