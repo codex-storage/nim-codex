@@ -132,8 +132,7 @@ proc run(validation: Validation) {.async.} =
     trace "Validation stopped"
     discard
   except CatchableError as e:
-    error "Validation failed", msg = e.msg, groups = validation.config.groups,
-      groupIndex = validation.config.groupIndex
+    error "Validation failed", msg = e.msg
 
 proc epochForDurationBackFromNow(validation: Validation,
     duration: times.Duration): SecondsSince1970 =
@@ -147,7 +146,7 @@ proc restoreHistoricalState(validation: Validation) {.async.} =
   let startTimeEpoch = validation.epochForDurationBackFromNow(MaxStorageRequestDuration)
   let slotFilledEvents = await validation.market.queryPastSlotFilledEvents(
     fromTime = startTimeEpoch)
-  trace "Found slot filled events", numberOfSlots = slotFilledEvents.len
+  trace "Found filled slots", numberOfSlots = slotFilledEvents.len
   for event in slotFilledEvents:
     let slotId = slotId(event.requestId, event.slotIndex)
     if validation.shouldValidateSlot(slotId):
