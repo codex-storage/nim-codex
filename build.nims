@@ -41,6 +41,9 @@ task testContracts, "Build & run Codex Contract tests":
 task testIntegration, "Run integration tests":
   buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_enable_proof_failures=true"
   test "testIntegration"
+  # use params to enable logging from the integration test executable
+  # test "testIntegration", params = "-d:chronicles_sinks=textlines[notimestamps,stdout],textlines[dynamic] " &
+  #   "-d:chronicles_enabled_topics:integration:TRACE"  
 
 task build, "build codex binary":
   codexTask()

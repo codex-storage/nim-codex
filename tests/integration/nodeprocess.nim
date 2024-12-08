@@ -156,7 +156,8 @@ proc waitUntilStarted*(node: NodeProcess) {.async.} =
   let started = newFuture[void]()
   try:
     discard node.captureOutput(node.startedOutput, started).track(node)
-    await started.wait(35.seconds) # allow enough time for proof generation
+    await started.wait(60.seconds) # allow enough time for proof generation
+    trace "node started"
   except AsyncTimeoutError:
     # attempt graceful shutdown in case node was partially started, prevent
     # zombies
