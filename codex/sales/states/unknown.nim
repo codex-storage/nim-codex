@@ -51,7 +51,7 @@ method run*(state: SaleUnknown, machine: Machine): Future[?State] {.async.} =
   of SlotState.Cancelled:
     return some State(SaleCancelled())
   of SlotState.Repair:
-    # TODO: What to do? It could really mean that he was offline for that long that he was kicked out
-    # from the slot and lost all the collateral. Should we simply "give up" on the slot? Or try
-    # to "repair" (there is some chance that the dataset is still locally saved) the slot?
+    # This should never really happen as the Slot is removed from the node's onchain slots tracking
+    # upon freeing the slot. Hence upon node's restart the slot with the Repair state should not
+    # be loaded from the onchain.
     discard
