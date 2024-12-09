@@ -11,7 +11,8 @@ import ../contracts/deployment
 export mp
 export multinodes
 
-template marketplacesuite*(name: string, body: untyped) =
+template marketplacesuite*(name: string,
+    body: untyped) =
 
   multinodesuite name:
 
