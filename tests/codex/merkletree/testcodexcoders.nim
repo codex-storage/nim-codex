@@ -1,6 +1,7 @@
 import std/unittest
 import std/sequtils
 
+import pkg/chronos
 import pkg/questionable/results
 import pkg/stew/byteutils
 
@@ -8,7 +9,7 @@ import pkg/codex/merkletree
 import ./helpers
 
 const data =
-  [
+  @[
     "00000000000000000000000000000001".toBytes,
     "00000000000000000000000000000002".toBytes,
     "00000000000000000000000000000003".toBytes,
@@ -25,7 +26,7 @@ checksuite "merkletree - coders":
 
   test "encoding and decoding a tree yields the same tree":
     let
-      tree = CodexTree.init(Sha256HashCodec, data).tryGet()
+      tree = (waitFor CodexTree.init(Sha256HashCodec, data)).tryGet()
       encodedBytes = tree.encode()
       decodedTree = CodexTree.decode(encodedBytes).tryGet()
 
@@ -34,7 +35,7 @@ checksuite "merkletree - coders":
 
   test "encoding and decoding a proof yields the same proof":
     let
-      tree = CodexTree.init(Sha256HashCodec, data).tryGet()
+      tree = (waitFor CodexTree.init(Sha256HashCodec, data)).tryGet()
       proof = tree.getProof(4).tryGet()
 
     check:
