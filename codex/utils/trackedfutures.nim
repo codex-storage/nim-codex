@@ -1,9 +1,9 @@
-import std/sugar
 import std/tables
 import pkg/chronos
 
 import ../logutils
-import ../utils/then
+
+{.push raises: [].}
 
 type
   TrackedFutures* = ref object
@@ -25,10 +25,10 @@ proc track*[T](self: TrackedFutures, fut: Future[T]): Future[T] =
 
   self.futures[fut.id] = FutureBase(fut)
 
-  fut
-    .then((val: T) => self.removeFuture(fut))
-    .cancelled(() => self.removeFuture(fut))
-    .catch((e: ref CatchableError) => self.removeFuture(fut))
+  proc cb(udata: pointer) =
+    self.removeFuture(fut)
+
+  fut.addCallback(cb)
 
   return fut
 
@@ -38,15 +38,17 @@ proc track*[T, U](future: Future[T], self: U): Future[T] =
   ## `trackedFutures` property.
   self.trackedFutures.track(future)
 
-proc cancelTracked*(self: TrackedFutures) {.async.} =
+proc cancelTracked*(self: TrackedFutures) {.async: (raises: []).} =
   self.cancelling = true
 
   trace "cancelling tracked futures"
 
+  var cancellations: seq[FutureBase]
   for future in self.futures.values:
     if not future.isNil and not future.finished:
-      trace "cancelling tracked future", id = future.id
-      await future.cancelAndWait()
+      cancellations.add future.cancelAndWait()
+
+  await noCancel allFutures cancellations
 
   self.futures.clear()
   self.cancelling = false
