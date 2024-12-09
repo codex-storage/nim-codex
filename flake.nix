@@ -3,32 +3,40 @@
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
+    circom-compat.url = "github:codex-storage/circom-compat-ffi";
   };
 
-  outputs = { self, nixpkgs }:
+  outputs = { self, nixpkgs, circom-compat}:
     let
-      supportedSystems = [
+      stableSystems = [
         "x86_64-linux" "aarch64-linux"
         "x86_64-darwin" "aarch64-darwin"
       ];
-      forAllSystems = f: nixpkgs.lib.genAttrs supportedSystems (system: f system);
+      forAllSystems = f: nixpkgs.lib.genAttrs stableSystems (system: f system);
       pkgsFor = forAllSystems (system: import nixpkgs { inherit system; });
     in rec {
+      packages = forAllSystems (system: let
+        circomCompatPkg = circom-compat.packages.${system}.default;
+        buildTarget = pkgsFor.${system}.callPackage ./nix/default.nix {
+          inherit stableSystems circomCompatPkg;
+          src = self;
+        };
+        build = targets: buildTarget.override { inherit targets; };
+      in rec {
+        codex   = build ["all"];
+        default = codex;
+      });
+
       devShells = forAllSystems (system: let
         pkgs = pkgsFor.${system};
-        inherit (pkgs) lib stdenv mkShell;
       in {
-        default = mkShell.override { stdenv = pkgs.gcc11Stdenv; } {
-          buildInputs = with pkgs; [
-              # General
-              git pkg-config openssl lsb-release
-              # Build
-              rustc cargo nimble gcc11 cmake nim-unwrapped-1
-              # Libraries
-              gmp llvmPackages.openmp
-              # Tests
-              nodejs_18
+        default = pkgs.mkShell {
+          inputsFrom = [
+            packages.${system}.codex
+            circom-compat.packages.${system}.default
           ];
+          # Not using buildInputs to override fakeGit and fakeCargo.
+          nativeBuildInputs = with pkgs; [ git cargo nodejs_18 ];
         };
       });
     };
