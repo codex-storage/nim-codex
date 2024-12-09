@@ -412,8 +412,15 @@ proc wantListHandler*(
       if not e.cancel:
         peerCtx.peerWants.add(e)
 
+      # Important TODO! (See https://github.com/codex-storage/nim-codex/pull/1019#issuecomment-2525089803 )
+      # The if type==WantHave (below) is NOT nested behind the if not cancel (above) on purpose!
+      # This means we send presence-lists in response to cancel messages.
+      # Not doing so will degrade the performance by more than an order of magnitude.
+      # TODO: Investigate WHY the presence list has such a performance impact.
+      # (Sending a presence-list in response to a cancel is not according to spec and should be removed
+      # once the performance impact mystery is understood and solved.)
       if e.wantType == WantType.WantHave:
-        # does this happen for cancels?!
+        # Respond to wantHaves immediately.
         let
           have = await e.address in b.localStore
           price = @(
