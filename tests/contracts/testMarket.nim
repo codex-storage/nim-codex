@@ -303,7 +303,7 @@ ethersuite "On-Chain Market":
       let slotId = request.slotId(slotIndex.u256)
       while true:
         let slotState = await marketplace.slotState(slotId)
-        if slotState == SlotState.Free:
+        if slotState == SlotState.Repair or slotState == SlotState.Failed:
           break
         await waitUntilProofRequired(slotId)
         let missingPeriod = periodicity.periodOf(await ethProvider.currentTime())
