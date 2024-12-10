@@ -69,27 +69,6 @@ checksuite "Peer Context Store Peer Selection":
     check peerCtxs[0] in peers
     check peerCtxs[5] in peers
 
-  test "Should select cheapest peers for Cid":
-    peerCtxs[0].blocks = collect(initTable):
-      for i, a in addresses:
-        { a: Presence(address: a, price: (5 + i).u256) }
-
-    peerCtxs[5].blocks = collect(initTable):
-      for i, a in addresses:
-        { a: Presence(address: a, price: (2 + i).u256) }
-
-    peerCtxs[9].blocks = collect(initTable):
-      for i, a in addresses:
-        { a: Presence(address: a, price: i.u256) }
-
-    let
-      peers = store.selectCheapest(addresses[0])
-
-    check peers.len == 3
-    check peers[0] == peerCtxs[9]
-    check peers[1] == peerCtxs[5]
-    check peers[2] == peerCtxs[0]
-
   test "Should select peers that want Cid":
     let
       entries = addresses.mapIt(
@@ -109,3 +88,19 @@ checksuite "Peer Context Store Peer Selection":
     check peers.len == 2
     check peerCtxs[0] in peers
     check peerCtxs[5] in peers
+
+  test "Should return peers with and without block":
+    let address = addresses[2]
+
+    peerCtxs[1].blocks[address] = Presence(address: address, price: 0.u256)
+    peerCtxs[2].blocks[address] = Presence(address: address, price: 0.u256)
+
+    let peers = store.getPeersForBlock(address)
+
+    for i, pc in peerCtxs:
+      if i == 1 or i == 2:
+        check pc in peers.with
+        check pc notin peers.without
+      else:
+        check pc notin peers.with
+        check pc in peers.without

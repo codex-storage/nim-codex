@@ -11,7 +11,7 @@ proc findItem[T](items: seq[T], item: T): ?!T =
 
   return failure("Not found")
 
-twonodessuite "Sales", debug1 = false, debug2 = false:
+twonodessuite "Sales", debug1 = "TRACE", debug2 = "TRACE":
 
   test "node handles new storage availability":
     let availability1 = client1.postAvailability(totalSize=1.u256, duration=2.u256, minPrice=3.u256, maxCollateral=4.u256).get
