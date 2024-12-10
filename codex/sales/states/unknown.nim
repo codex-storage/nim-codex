@@ -50,3 +50,8 @@ method run*(state: SaleUnknown, machine: Machine): Future[?State] {.async.} =
     return some State(SaleFailed())
   of SlotState.Cancelled:
     return some State(SaleCancelled())
+  of SlotState.Repair:
+    # This should never really happen as the Slot is removed from the node's onchain slots tracking
+    # upon freeing the slot. Hence upon node's restart the slot with the Repair state should not
+    # be loaded from the onchain.
+    discard

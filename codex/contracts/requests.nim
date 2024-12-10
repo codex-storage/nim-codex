@@ -49,6 +49,7 @@ type
     Failed
     Paid
     Cancelled
+    Repair
 
 proc `==`*(x, y: Nonce): bool {.borrow.}
 proc `==`*(x, y: RequestId): bool {.borrow.}
