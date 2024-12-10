@@ -20,6 +20,8 @@ type
     contract: Marketplace
     signer: Signer
     rewardRecipient: ?Address
+    configuration: ?MarketplaceConfig
+
   MarketSubscription = market.Subscription
   EventSubscription = ethers.Subscription
   OnChainMarketSubscription = ref object of MarketSubscription
@@ -48,6 +50,14 @@ template convertEthersError(body) =
   except EthersError as error:
     raiseMarketError(error.msgDetail)
 
+proc config(market: OnChainMarket): Future[MarketplaceConfig] {.async.} =
+  without resolvedConfig =? market.configuration:
+    let fetchedConfig = await market.contract.configuration()
+    market.configuration = some fetchedConfig
+    return fetchedConfig
+
+  return resolvedConfig
+
 proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
   debug "Approving tokens", amount
   convertEthersError:
@@ -56,7 +66,7 @@ proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
     discard await token.increaseAllowance(market.contract.address(), amount).confirm(1)
 
 method getZkeyHash*(market: OnChainMarket): Future[?string] {.async.} =
-  let config = await market.contract.configuration()
+  let config = await market.config()
   return some config.proofs.zkeyHash
 
 method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
@@ -65,18 +75,18 @@ method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
 
 method periodicity*(market: OnChainMarket): Future[Periodicity] {.async.} =
   convertEthersError:
-    let config = await market.contract.configuration()
+    let config = await market.config()
     let period = config.proofs.period
     return Periodicity(seconds: period)
 
 method proofTimeout*(market: OnChainMarket): Future[UInt256] {.async.} =
   convertEthersError:
-    let config = await market.contract.configuration()
+    let config = await market.config()
     return config.proofs.timeout
 
 method proofDowntime*(market: OnChainMarket): Future[uint8] {.async.} =
   convertEthersError:
-    let config = await market.contract.configuration()
+    let config = await market.config()
     return config.proofs.downtime
 
 method getPointer*(market: OnChainMarket, slotId: SlotId): Future[uint8] {.async.} =
