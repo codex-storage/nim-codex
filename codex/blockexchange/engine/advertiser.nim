@@ -26,7 +26,7 @@ import ../../manifest
 logScope:
   topics = "codex discoveryengine advertiser"
 
-declareGauge(codexInflightAdvertise, "inflight advertise requests")
+declareGauge(codex_inflight_advertise, "inflight advertise requests")
 
 const
   DefaultConcurrentAdvertRequests = 10
@@ -97,12 +97,12 @@ proc processQueueLoop(b: Advertiser) {.async.} =
           request = b.discovery.provide(cid)
 
         b.inFlightAdvReqs[cid] = request
-        codexInflightAdvertise.set(b.inFlightAdvReqs.len.int64)
+        codex_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
         await request
 
       finally:
         b.inFlightAdvReqs.del(cid)
-        codexInflightAdvertise.set(b.inFlightAdvReqs.len.int64)
+        codex_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
     except CancelledError:
       trace "Advertise task cancelled"
       return

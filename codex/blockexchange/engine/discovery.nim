@@ -31,7 +31,7 @@ import ../../manifest
 logScope:
   topics = "codex discoveryengine"
 
-declareGauge(codexInflightDiscovery, "inflight discovery requests")
+declareGauge(codex_inflight_discovery, "inflight discovery requests")
 
 const
   DefaultConcurrentDiscRequests = 10
@@ -96,7 +96,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
               .wait(DefaultDiscoveryTimeout)
 
           b.inFlightDiscReqs[cid] = request
-          codexInflightDiscovery.set(b.inFlightDiscReqs.len.int64)
+          codex_inflight_discovery.set(b.inFlightDiscReqs.len.int64)
           let
             peers = await request
 
@@ -110,7 +110,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
 
         finally:
           b.inFlightDiscReqs.del(cid)
-          codexInflightDiscovery.set(b.inFlightDiscReqs.len.int64)
+          codex_inflight_discovery.set(b.inFlightDiscReqs.len.int64)
     except CancelledError:
       trace "Discovery task cancelled"
       return
