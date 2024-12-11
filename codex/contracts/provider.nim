@@ -4,25 +4,21 @@ import pkg/questionable
 
 import ../logutils
 
-from ../errors import CodexError
 from ../clock import SecondsSince1970
 
 logScope:
   topics = "marketplace onchain provider"
 
-type CodexProviderError* = object of CodexError
-
-proc raiseCodexProviderError(message: string) {.raises: [CodexProviderError].} =
-  raise newException(CodexProviderError, message)
+proc raiseProviderError(message: string) {.raises: [ProviderError].} =
+  raise newException(ProviderError, message)
 
 proc blockNumberAndTimestamp*(provider: Provider, blockTag: BlockTag):
-    Future[(UInt256, UInt256)]
-      {.async: (raises: [ProviderError, CodexProviderError]).} =
+    Future[(UInt256, UInt256)] {.async: (raises: [ProviderError]).} =
   without latestBlock =? await provider.getBlock(blockTag):
-    raiseCodexProviderError("Could not get latest block")
+    raiseProviderError("Could not get latest block")
 
   without latestBlockNumber =? latestBlock.number:
-    raiseCodexProviderError("Could not get latest block number")
+    raiseProviderError("Could not get latest block number")
 
   return (latestBlockNumber, latestBlock.timestamp)
 
@@ -30,8 +26,7 @@ proc binarySearchFindClosestBlock(
     provider: Provider,
     epochTime: int,
     low: UInt256,
-    high: UInt256): Future[UInt256]
-      {.async: (raises: [ProviderError, CodexProviderError]).} =
+    high: UInt256): Future[UInt256] {.async: (raises: [ProviderError]).} =
   let (_, lowTimestamp) =
     await provider.blockNumberAndTimestamp(BlockTag.init(low))
   let (_, highTimestamp) =
@@ -47,7 +42,7 @@ proc binarySearchBlockNumberForEpoch(
     epochTime: UInt256,
     latestBlockNumber: UInt256,
     earliestBlockNumber: UInt256): Future[UInt256]
-      {.async: (raises: [ProviderError, CodexProviderError]).} =
+      {.async: (raises: [ProviderError]).} =
   var low = earliestBlockNumber
   var high = latestBlockNumber
 
@@ -73,7 +68,7 @@ proc binarySearchBlockNumberForEpoch(
 proc blockNumberForEpoch*(
     provider: Provider,
     epochTime: SecondsSince1970): Future[UInt256]
-      {.async: (raises: [ProviderError, CodexProviderError]).} =
+      {.async: (raises: [ProviderError]).} =
   let epochTimeUInt256 = epochTime.u256
   let (latestBlockNumber, latestBlockTimestamp) = 
     await provider.blockNumberAndTimestamp(BlockTag.latest)
