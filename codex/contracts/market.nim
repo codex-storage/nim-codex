@@ -481,7 +481,7 @@ method queryPastSlotFilledEvents*(
 
   convertEthersError:
     let fromBlock =
-      await pastBlockTag(market.contract.provider, blocksAgo)
+      await market.contract.provider.pastBlockTag(blocksAgo)
 
     return await market.queryPastSlotFilledEvents(fromBlock)
 
@@ -509,6 +509,6 @@ method queryPastStorageRequestedEvents*(
 
   convertEthersError:
     let fromBlock =
-      await pastBlockTag(market.contract.provider, blocksAgo)
+      await market.contract.provider.pastBlockTag(blocksAgo)
 
     return await market.queryPastStorageRequestedEvents(fromBlock)
