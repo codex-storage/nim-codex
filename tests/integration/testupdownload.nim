@@ -82,15 +82,15 @@ twonodessuite "Uploads and downloads", debug1 = false, debug2 = false:
     check:
       content1 == resp2
 
-  # test "reliable transfer test":
-  #   proc transferTest(a: CodexClient, b: CodexClient) {.async.} =
-  #     let data = await RandomChunker.example(blocks=8)
-  #     let cid = a.upload(data).get
-  #     let response = b.download(cid).get
-  #     check:
-  #       response == data
+  test "reliable transfer test":
+    proc transferTest(a: CodexClient, b: CodexClient) {.async.} =
+      let data = await RandomChunker.example(blocks=8)
+      let cid = a.upload(data).get
+      let response = b.download(cid).get
+      check:
+        response == data
 
-  #   for run in 0..20:
-  #     echo "Run: " & $run
-  #     await transferTest(client1, client2)
-  #     await transferTest(client2, client1)
+    for run in 0..20:
+      echo "Run: " & $run
+      await transferTest(client1, client2)
+      await transferTest(client2, client1)
