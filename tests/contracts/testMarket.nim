@@ -66,6 +66,11 @@ ethersuite "On-Chain Market":
     ):
       await advanceToNextPeriod()
 
+  test "caches marketplace configuration":
+    check isNone market.configuration
+    discard await market.periodicity()
+    check isSome market.configuration
+
   test "fails to instantiate when contract does not have a signer":
     let storageWithoutSigner = marketplace.connect(ethProvider)
     expect AssertionDefect:
