@@ -1,5 +1,6 @@
 import pkg/chronos
 import codex/contracts
+import ../asynctest
 import ../ethertest
 import ./time
 import ./helpers/mockprovider
@@ -10,11 +11,7 @@ import ./helpers/mockprovider
 logScope:
   topics = "testProvider"
 
-ethersuite "Provider":
-  proc mineNBlocks(provider: JsonRpcProvider, n: int) {.async.} =
-    for _ in 0..<n:
-      discard await provider.send("evm_mine")
-  
+suite "Provider (Mock)":
   test "blockNumberForEpoch returns the earliest block when its timestamp " &
        "is greater than the given epoch time and the earliest block is not " &
        "block number 0 (genesis block)":
@@ -73,6 +70,11 @@ ethersuite "Provider":
       epochTime.truncate(SecondsSince1970))
 
     check actual == latestBlockNumber
+
+ethersuite "Provider":
+  proc mineNBlocks(provider: JsonRpcProvider, n: int) {.async.} =
+    for _ in 0..<n:
+      discard await provider.send("evm_mine")
   
   test "blockNumberForEpoch finds closest blockNumber for given epoch time":
     proc createBlockHistory(n: int, blockTime: int):
