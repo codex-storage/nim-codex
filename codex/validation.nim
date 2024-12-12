@@ -61,15 +61,15 @@ func maxSlotsConstraintRespected(validation: Validation): bool =
     validation.slots.len < validation.config.maxSlots
 
 func shouldValidateSlot(validation: Validation, slotId: SlotId): bool =
-  if (validationGroups =? validation.config.groups):
-    (groupIndexForSlotId(slotId, validationGroups) ==
-    validation.config.groupIndex) and
-    validation.maxSlotsConstraintRespected
-  else:
-    validation.maxSlotsConstraintRespected
+  without validationGroups =? validation.config.groups:
+    return true
+  groupIndexForSlotId(slotId, validationGroups) ==
+    validation.config.groupIndex
 
 proc subscribeSlotFilled(validation: Validation) {.async.} =
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
+    if not validation.maxSlotsConstraintRespected:
+      return
     let slotId = slotId(requestId, slotIndex)
     if validation.shouldValidateSlot(slotId):
       trace "Adding slot", slotId, groups = validation.config.groups,
@@ -145,14 +145,14 @@ proc restoreHistoricalState(validation: Validation) {.async.} =
   let startTimeEpoch = validation.epochForDurationBackFromNow(MaxStorageRequestDuration)
   let slotFilledEvents = await validation.market.queryPastSlotFilledEvents(
     fromTime = startTimeEpoch)
-  trace "Found filled slots", numberOfSlots = slotFilledEvents.len
   for event in slotFilledEvents:
+    if not validation.maxSlotsConstraintRespected:
+      break
     let slotId = slotId(event.requestId, event.slotIndex)
-    if validation.shouldValidateSlot(slotId):
+    let slotState = await validation.market.slotState(slotId)
+    if slotState == SlotState.Filled and validation.shouldValidateSlot(slotId):
       trace "Adding slot [historical]", slotId
       validation.slots.incl(slotId)
-  trace "Removing slots that have ended..."
-  await removeSlotsThatHaveEnded(validation)
   trace "Historical state restored", numberOfSlots = validation.slots.len
 
 proc start*(validation: Validation) {.async.} =
