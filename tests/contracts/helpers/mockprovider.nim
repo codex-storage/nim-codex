@@ -16,14 +16,16 @@ method getBlock*(
   tag: BlockTag
 ): Future[?Block] {.async: (raises:[ProviderError]).} =
   try:
-    if $tag == "latest":
+    if tag == BlockTag.latest:
       if latestBlock =? provider.latest:
         if provider.blocks.hasKey(latestBlock):
           return provider.blocks[latestBlock].some
-    elif $tag == "earliest":
+    elif tag == BlockTag.earliest:
       if earliestBlock =? provider.earliest:
         if provider.blocks.hasKey(earliestBlock):
           return provider.blocks[earliestBlock].some
+    elif tag == BlockTag.pending:
+      raiseAssert "MockProvider does not yet support BlockTag.pending"
     else:
       let blockNumber = parseHexInt($tag)
       if provider.blocks.hasKey(blockNumber):
