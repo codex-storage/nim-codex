@@ -70,16 +70,15 @@ template multinodesuite*(name: string, body: untyped) =
     # For this reason, we are using http provider here as the default.
     # To use a different provider in your test, you may use
     # multinodesuiteWithProviderUrl template in your tests.
-    # The nodes are still using the default provider (which is ws://localhost:8545).
-    # If you want to use http provider url in the nodes, you can
-    # use withEthProvider config modifiers in the node configs
+    # If you want to use a different provider url in the nodes, you can
+    # use withEthProvider config modifier in the node config
     # to set the desired provider url. E.g.:
     #   NodeConfigs(    
     #     hardhat:
     #       HardhatConfig.none,
     #     clients:
     #       CodexConfigs.init(nodes=1)
-    #         .withEthProvider("http://localhost:8545")
+    #         .withEthProvider("ws://localhost:8545")
     #         .some,
     #     ...
     let jsonRpcProviderUrl = "http://127.0.0.1:8545"
