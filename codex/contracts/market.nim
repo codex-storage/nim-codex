@@ -84,6 +84,11 @@ method proofTimeout*(market: OnChainMarket): Future[UInt256] {.async.} =
     let config = await market.config()
     return config.proofs.timeout
 
+method repairRewardPercentage*(market: OnChainMarket): Future[uint8] {.async.} =
+  convertEthersError:
+    let config = await market.contract.configuration()
+    return config.collateral.repairRewardPercentage
+
 method proofDowntime*(market: OnChainMarket): Future[uint8] {.async.} =
   convertEthersError:
     let config = await market.config()
