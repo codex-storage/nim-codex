@@ -116,7 +116,7 @@ method requestStorage(market: OnChainMarket, request: StorageRequest){.async.} =
     await market.approveFunds(request.price())
     discard await market.contract.requestStorage(request).confirm(1)
 
-method getRequest(market: OnChainMarket,
+method getRequest*(market: OnChainMarket,
                   id: RequestId): Future[?StorageRequest] {.async.} =
   convertEthersError:
     try:

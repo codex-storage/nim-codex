@@ -145,7 +145,7 @@ method myRequests*(market: MockMarket): Future[seq[RequestId]] {.async.} =
 method mySlots*(market: MockMarket): Future[seq[SlotId]] {.async.} =
   return market.activeSlots[market.signer]
 
-method getRequest(market: MockMarket,
+method getRequest*(market: MockMarket,
                   id: RequestId): Future[?StorageRequest] {.async.} =
   for request in market.requested:
     if request.id == id:
