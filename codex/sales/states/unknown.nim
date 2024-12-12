@@ -5,6 +5,7 @@ import ./filled
 import ./finished
 import ./failed
 import ./errored
+import ./proving
 import ./cancelled
 import ./payout
 
@@ -38,7 +39,7 @@ method run*(state: SaleUnknown, machine: Machine): Future[?State] {.async.} =
   case slotState
   of SlotState.Free:
     let error = newException(UnexpectedSlotError,
-      "slot state on chain should not be 'free'")
+      "Slot state on chain should not be 'free'")
     return some State(SaleErrored(error: error))
   of SlotState.Filled:
     return some State(SaleFilled())
@@ -51,7 +52,6 @@ method run*(state: SaleUnknown, machine: Machine): Future[?State] {.async.} =
   of SlotState.Cancelled:
     return some State(SaleCancelled())
   of SlotState.Repair:
-    # This should never really happen as the Slot is removed from the node's onchain slots tracking
-    # upon freeing the slot. Hence upon node's restart the slot with the Repair state should not
-    # be loaded from the onchain.
-    discard
+    let error = newException(SlotFreedError,
+      "Slot was forcible freed and host was removed from its hosting")
+    return some State(SaleErrored(error: error))
