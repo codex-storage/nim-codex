@@ -49,7 +49,7 @@ marketplacesuite "Validation":
     while requestState != RequestState.Failed:
       if endTime < Moment.now():
         return false
-      if requestState == RequestState.Cancelled:
+      if requestState != RequestState.Started:
         return false
       await sleepAsync(step.seconds)
       requestState = await marketplace.requestState(requestId)
