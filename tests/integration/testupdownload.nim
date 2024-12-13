@@ -4,7 +4,7 @@ import ../codex/examples
 import json
 from pkg/libp2p import Cid, `$`
 
-
+twonodessuite "Uploads and downloads", debug1 = false, debug2 = false:
   test "node allows local file downloads":
     let content1 = "some file contents"
     let content2 = "some other contents"
@@ -81,7 +81,7 @@ from pkg/libp2p import Cid, `$`
     check:
       content1 == resp2
 
-twonodessuite "Uploads and downloads", debug1 = "false", debug2 = "false", logfile = true:
+twonodessuite "Uploads and downloads - logfile", debug1 = "false", debug2 = "false", logfile = true:
   test "reliable transfer test":
     proc transferTest(a: CodexClient, b: CodexClient) {.async.} =
       let data = await RandomChunker.example(blocks=8)
