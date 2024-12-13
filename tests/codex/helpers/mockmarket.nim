@@ -125,6 +125,9 @@ method proofTimeout*(market: MockMarket): Future[UInt256] {.async.} =
 method proofDowntime*(market: MockMarket): Future[uint8] {.async.} =
   return market.config.proofs.downtime
 
+method repairRewardPercentage*(market: MockMarket): Future[uint8] {.async.} =
+  return market.config.collateral.repairRewardPercentage
+
 method getPointer*(market: MockMarket, slotId: SlotId): Future[uint8] {.async.} =
   return market.proofPointer
 

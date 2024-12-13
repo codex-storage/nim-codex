@@ -16,6 +16,7 @@ logScope:
   topics = "marketplace sales proving"
 
 type
+  SlotFreedError* = object of CatchableError
   SlotNotFilledError* = object of CatchableError
   SaleProving* = ref object of ErrorHandlingState
     loop: Future[void]
@@ -82,6 +83,10 @@ proc proveLoop(
     of SlotState.Cancelled:
       debug "Slot reached cancelled state"
       # do nothing, let onCancelled callback take care of it
+    of SlotState.Repair:
+      warn "Slot was forcible freed"
+      let message = "Slot was forcible freed and host was removed from its hosting"
+      raise newException(SlotFreedError, message)
     of SlotState.Failed:
       debug "Slot reached failed state"
       # do nothing, let onFailed callback take care of it
