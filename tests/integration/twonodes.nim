@@ -10,9 +10,9 @@ export codexclient
 export nodes
 
 template twonodessuite*(name: string, debug1, debug2: bool | string, body) =
-  twonodessuite(name, $debug1, $debug2, body)
+  twonodessuite(name, $debug1, $debug2, false, body)
 
-template twonodessuite*(name: string, debug1, debug2: string, body) =
+template twonodessuite*(name: string, debug1, debug2: string, logfile: bool, body) =
   ethersuite name:
 
     var node1 {.inject, used.}: NodeProcess
@@ -49,6 +49,8 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
 
       if debug1 != "true" and debug1 != "false":
         node1Args.add("--log-level=" & debug1)
+      if logfile:
+        node1Args.add("--log-file=tests/integration/logs/node1.log")
 
       node1 = startNode(node1Args, debug = debug1)
       node1.waitUntilStarted()
@@ -74,6 +76,8 @@ template twonodessuite*(name: string, debug1, debug2: string, body) =
 
       if debug2 != "true" and debug2 != "false":
         node2Args.add("--log-level=" & debug2)
+      if logfile:
+        node2Args.add("--log-file=tests/integration/logs/node2.log")
 
       node2 = startNode(node2Args, debug = debug2)
       node2.waitUntilStarted()
