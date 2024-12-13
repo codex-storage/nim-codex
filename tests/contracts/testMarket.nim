@@ -66,6 +66,11 @@ ethersuite "On-Chain Market":
     ):
       await advanceToNextPeriod()
 
+  test "caches marketplace configuration":
+    check isNone market.configuration
+    discard await market.periodicity()
+    check isSome market.configuration
+
   test "fails to instantiate when contract does not have a signer":
     let storageWithoutSigner = marketplace.connect(ethProvider)
     expect AssertionDefect:
@@ -298,7 +303,7 @@ ethersuite "On-Chain Market":
       let slotId = request.slotId(slotIndex.u256)
       while true:
         let slotState = await marketplace.slotState(slotId)
-        if slotState == SlotState.Free:
+        if slotState == SlotState.Repair or slotState == SlotState.Failed:
           break
         await waitUntilProofRequired(slotId)
         let missingPeriod = periodicity.periodOf(await ethProvider.currentTime())
