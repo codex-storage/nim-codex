@@ -491,7 +491,7 @@ proc startSlotQueue(sales: Sales) {.async.} =
       trace "processing slot queue item", reqId = item.requestId, slotIdx = item.slotIndex
       sales.processSlot(item, done)
 
-  asyncSpawn slotQueue.start()
+  slotQueue.start()
 
   proc onAvailabilityAdded(availability: Availability) {.async.} =
     await sales.onAvailabilityAdded(availability)

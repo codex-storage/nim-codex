@@ -27,8 +27,8 @@ suite "Slot queue start/stop":
     check not queue.running
 
   test "can call start multiple times, and when already running":
-    asyncSpawn queue.start()
-    asyncSpawn queue.start()
+    queue.start()
+    queue.start()
     check queue.running
 
   test "can call stop when alrady stopped":
@@ -36,12 +36,12 @@ suite "Slot queue start/stop":
     check not queue.running
 
   test "can call stop when running":
-    asyncSpawn queue.start()
+    queue.start()
     await queue.stop()
     check not queue.running
 
   test "can call stop multiple times":
-    asyncSpawn queue.start()
+    queue.start()
     await queue.stop()
     await queue.stop()
     check not queue.running
@@ -62,8 +62,6 @@ suite "Slot queue workers":
     queue = SlotQueue.new(maxSize = 5, maxWorkers = 3)
     queue.onProcessSlot = onProcessSlot
 
-  proc startQueue = asyncSpawn queue.start()
-
   teardown:
     await queue.stop()
 
@@ -79,7 +77,7 @@ suite "Slot queue workers":
       discard SlotQueue.new(maxSize = 1, maxWorkers = 2)
 
   test "does not surpass max workers":
-    startQueue()
+    queue.start()
     let item1 = SlotQueueItem.example
     let item2 = SlotQueueItem.example
     let item3 = SlotQueueItem.example
@@ -97,7 +95,7 @@ suite "Slot queue workers":
 
     queue.onProcessSlot = processSlot
 
-    startQueue()
+    queue.start()
     let item1 = SlotQueueItem.example
     let item2 = SlotQueueItem.example
     let item3 = SlotQueueItem.example
@@ -122,7 +120,7 @@ suite "Slot queue":
       onProcessSlotCalled = true
       onProcessSlotCalledWith.add (item.requestId, item.slotIndex)
       done.complete()
-    asyncSpawn queue.start()
+    queue.start()
 
   setup:
     onProcessSlotCalled = false
