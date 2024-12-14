@@ -1,6 +1,4 @@
-import std/sequtils
 import std/strutils
-import std/sugar
 import pkg/ethers
 import pkg/upraises
 import pkg/questionable
@@ -9,6 +7,7 @@ import ../logutils
 import ../market
 import ./marketplace
 import ./proofs
+import ./provider
 
 export market
 
@@ -467,18 +466,49 @@ method subscribeProofSubmission*(market: OnChainMarket,
 method unsubscribe*(subscription: OnChainMarketSubscription) {.async.} =
   await subscription.eventSubscription.unsubscribe()
 
-method queryPastEvents*[T: MarketplaceEvent](
+method queryPastSlotFilledEvents*(
   market: OnChainMarket,
-  _: type T,
-  blocksAgo: int): Future[seq[T]] {.async.} =
+  fromBlock: BlockTag): Future[seq[SlotFilled]] {.async.} =
 
   convertEthersError:
-    let contract = market.contract
-    let provider = contract.provider
+    return await market.contract.queryFilter(SlotFilled,
+                                             fromBlock,
+                                             BlockTag.latest)
 
-    let head = await provider.getBlockNumber()
-    let fromBlock = BlockTag.init(head - blocksAgo.abs.u256)
+method queryPastSlotFilledEvents*(
+  market: OnChainMarket,
+  blocksAgo: int): Future[seq[SlotFilled]] {.async.} =
 
-    return await contract.queryFilter(T,
-                                      fromBlock,
-                                      BlockTag.latest)
+  convertEthersError:
+    let fromBlock =
+      await market.contract.provider.pastBlockTag(blocksAgo)
+
+    return await market.queryPastSlotFilledEvents(fromBlock)
+
+method queryPastSlotFilledEvents*(
+  market: OnChainMarket,
+  fromTime: SecondsSince1970): Future[seq[SlotFilled]] {.async.} =
+
+  convertEthersError:
+    let fromBlock = 
+      await market.contract.provider.blockNumberForEpoch(fromTime)
+    return await market.queryPastSlotFilledEvents(BlockTag.init(fromBlock))
+
+method queryPastStorageRequestedEvents*(
+  market: OnChainMarket,
+  fromBlock: BlockTag): Future[seq[StorageRequested]] {.async.} =
+
+  convertEthersError:
+    return await market.contract.queryFilter(StorageRequested,
+                                             fromBlock,
+                                             BlockTag.latest)
+
+method queryPastStorageRequestedEvents*(
+  market: OnChainMarket,
+  blocksAgo: int): Future[seq[StorageRequested]] {.async.} =
+
+  convertEthersError:
+    let fromBlock =
+      await market.contract.provider.pastBlockTag(blocksAgo)
+
+    return await market.queryPastStorageRequestedEvents(fromBlock)

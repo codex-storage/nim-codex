@@ -10,6 +10,12 @@ import ./deployment
 
 privateAccess(OnChainMarket) # enable access to private fields
 
+# to see supportive information in the test output
+# use `-d:"chronicles_enabled_topics:testMarket:DEBUG` option
+# when compiling the test file
+logScope:
+  topics = "testMarket"
+
 ethersuite "On-Chain Market":
   let proof = Groth16Proof.example
 
@@ -412,7 +418,8 @@ ethersuite "On-Chain Market":
     # ago".
 
     proc getsPastRequest(): Future[bool] {.async.} =
-      let reqs = await market.queryPastEvents(StorageRequested, 5)
+      let reqs =
+        await market.queryPastStorageRequestedEvents(blocksAgo = 5)
       reqs.mapIt(it.requestId) == @[request.id, request1.id, request2.id]
 
     check eventually await getsPastRequest()
@@ -431,19 +438,68 @@ ethersuite "On-Chain Market":
     # two PoA blocks per `fillSlot` call (6 blocks for 3 calls). We don't need
     # to check the `approve` for the first `fillSlot` call, so we only need to
     # check 5 "blocks ago".
-    let events = await market.queryPastEvents(SlotFilled, 5)
+    let events =
+      await market.queryPastSlotFilledEvents(blocksAgo = 5)
     check events == @[
       SlotFilled(requestId: request.id, slotIndex: 0.u256),
       SlotFilled(requestId: request.id, slotIndex: 1.u256),
       SlotFilled(requestId: request.id, slotIndex: 2.u256),
     ]
+  
+  test "can query past SlotFilled events since given timestamp":
+    await market.requestStorage(request)
+    await market.reserveSlot(request.id, 0.u256)
+    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
+    
+    # The SlotFilled event will be included in the same block as
+    # the fillSlot transaction. If we want to ignore the SlotFilled event
+    # for this first slot, we need to jump to the next block and use the
+    # timestamp of that block as our "fromTime" parameter to the
+    # queryPastSlotFilledEvents function.
+    await ethProvider.advanceTime(10.u256)
+
+    let (_, fromTime) =
+      await ethProvider.blockNumberAndTimestamp(BlockTag.latest)
+
+    await market.reserveSlot(request.id, 1.u256)
+    await market.reserveSlot(request.id, 2.u256)
+    await market.fillSlot(request.id, 1.u256, proof, request.ask.collateral)
+    await market.fillSlot(request.id, 2.u256, proof, request.ask.collateral)
+
+    let events = await market.queryPastSlotFilledEvents(
+      fromTime = fromTime.truncate(SecondsSince1970))
+    
+    check events == @[
+      SlotFilled(requestId: request.id, slotIndex: 1.u256),
+      SlotFilled(requestId: request.id, slotIndex: 2.u256)
+    ]
+  
+  test "queryPastSlotFilledEvents returns empty sequence of events when " &
+       "no SlotFilled events have occurred since given timestamp":
+    await market.requestStorage(request)
+    await market.reserveSlot(request.id, 0.u256)
+    await market.reserveSlot(request.id, 1.u256)
+    await market.reserveSlot(request.id, 2.u256)
+    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
+    await market.fillSlot(request.id, 1.u256, proof, request.ask.collateral)
+    await market.fillSlot(request.id, 2.u256, proof, request.ask.collateral)
+    
+    await ethProvider.advanceTime(10.u256)
+
+    let (_, fromTime) =
+      await ethProvider.blockNumberAndTimestamp(BlockTag.latest)
+
+    let events = await market.queryPastSlotFilledEvents(
+      fromTime = fromTime.truncate(SecondsSince1970))
+    
+    check events.len == 0
 
   test "past event query can specify negative `blocksAgo` parameter":
     await market.requestStorage(request)
 
     check eventually (
-      (await market.queryPastEvents(StorageRequested, blocksAgo = -2)) ==
-      (await market.queryPastEvents(StorageRequested, blocksAgo = 2))
+      (await market.queryPastStorageRequestedEvents(blocksAgo = -2)) ==
+      (await market.queryPastStorageRequestedEvents(blocksAgo = 2))
     )
 
   test "pays rewards and collateral to host":
