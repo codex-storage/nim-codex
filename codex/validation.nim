@@ -109,7 +109,7 @@ proc markProofsAsMissing(validation: Validation) {.async.} =
     let previousPeriod = validation.getCurrentPeriod() - 1
     await validation.markProofAsMissing(slotId, previousPeriod)
 
-proc run(validation: Validation) {.async.} =
+proc run(validation: Validation) {.async: (raises: []).} =
   trace "Validation started"
   try:
     while true:
@@ -118,7 +118,7 @@ proc run(validation: Validation) {.async.} =
       await validation.markProofsAsMissing()
   except CancelledError:
     trace "Validation stopped"
-    discard
+    discard # do not propagate as run is asyncSpawned
   except CatchableError as e:
     error "Validation failed", msg = e.msg
 
@@ -149,9 +149,10 @@ proc start*(validation: Validation) {.async.} =
   await validation.subscribeSlotFilled()
   await validation.restoreHistoricalState()
   validation.running = validation.run()
+  asyncSpawn validation.running
 
 proc stop*(validation: Validation) {.async.} =
-  if not isNil(validation.running):
+  if not validation.running.isNil and not validation.running.finished:
     await validation.running.cancelAndWait()
   while validation.subscriptions.len > 0:
     let subscription = validation.subscriptions.pop()
