@@ -13,7 +13,7 @@ template twonodessuite*(name: string, debug1, debug2: bool | string, body) =
   twonodessuite(name, $debug1, $debug2, false, body)
 
 template twonodessuite*(name: string, debug1, debug2: string, logfile: bool, body) =
-  ethersuite name:
+
 
     var node1 {.inject, used.}: NodeProcess
     var node2 {.inject, used.}: NodeProcess
