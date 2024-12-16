@@ -745,13 +745,6 @@ proc start*(self: CodexNodeRef) {.async.} =
       error "Unable to start validator contract interactions: ", error=error.msg
       self.contracts.validator = ValidatorInteractions.none
 
-  proc heartbeat() {.async.} =
-    while true:
-      await sleepAsync(1000.millis)
-      warn "a"
-
-  asyncSpawn heartbeat()
-
   self.networkId = self.switch.peerInfo.peerId
   notice "Started codex node", id = self.networkId, addrs = self.switch.peerInfo.addrs
 
