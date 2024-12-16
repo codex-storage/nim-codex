@@ -61,8 +61,28 @@ proc nextFreePort(startPort: int): Future[int] {.async.} =
 template multinodesuite*(name: string, body: untyped) =
 
   asyncchecksuite name:
-
-    var running: seq[RunningNode]
+    # Following the problem described here:
+    # https://github.com/NomicFoundation/hardhat/issues/2053
+    # It may be desirable to use http RPC provider.
+    # This turns out to be equally important in tests where
+    # subscriptions get wiped out after 5mins even when
+    # a new block is mined.
+    # For this reason, we are using http provider here as the default.
+    # To use a different provider in your test, you may use
+    # multinodesuiteWithProviderUrl template in your tests.
+    # If you want to use a different provider url in the nodes, you can
+    # use withEthProvider config modifier in the node config
+    # to set the desired provider url. E.g.:
+    #   NodeConfigs(    
+    #     hardhat:
+    #       HardhatConfig.none,
+    #     clients:
+    #       CodexConfigs.init(nodes=1)
+    #         .withEthProvider("ws://localhost:8545")
+    #         .some,
+    #     ...
+    let jsonRpcProviderUrl = "http://127.0.0.1:8545"
+    var running {.inject, used.}: seq[RunningNode]
     var bootstrap: string
     let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
     var currentTestName = ""
@@ -198,14 +218,14 @@ template multinodesuite*(name: string, body: untyped) =
     proc startClientNode(conf: CodexConfig): Future[NodeProcess] {.async.} =
       let clientIdx = clients().len
       var config = conf
-      config.addCliOption(StartUpCmd.persistence, "--eth-provider", "http://127.0.0.1:8545")
+      config.addCliOption(StartUpCmd.persistence, "--eth-provider", jsonRpcProviderUrl)
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
       return await newCodexProcess(clientIdx, config, Role.Client)
 
     proc startProviderNode(conf: CodexConfig): Future[NodeProcess] {.async.} =
       let providerIdx = providers().len
       var config = conf
-      config.addCliOption(StartUpCmd.persistence, "--eth-provider", "http://127.0.0.1:8545")
+      config.addCliOption(StartUpCmd.persistence, "--eth-provider", jsonRpcProviderUrl)
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
       config.addCliOption(PersistenceCmd.prover, "--circom-r1cs",
         "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs")
@@ -219,7 +239,7 @@ template multinodesuite*(name: string, body: untyped) =
     proc startValidatorNode(conf: CodexConfig): Future[NodeProcess] {.async.} =
       let validatorIdx = validators().len
       var config = conf
-      config.addCliOption(StartUpCmd.persistence, "--eth-provider", "http://127.0.0.1:8545")
+      config.addCliOption(StartUpCmd.persistence, "--eth-provider", jsonRpcProviderUrl)
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
       config.addCliOption(StartUpCmd.persistence, "--validator")
 
@@ -268,7 +288,7 @@ template multinodesuite*(name: string, body: untyped) =
         # Do not use websockets, but use http and polling to stop subscriptions
         # from being removed after 5 minutes
         ethProvider = JsonRpcProvider.new(
-          "http://127.0.0.1:8545",
+          jsonRpcProviderUrl,
           pollingInterval = chronos.milliseconds(100)
         )
         # if hardhat was NOT started by the test, take a snapshot so it can be
