@@ -23,6 +23,9 @@ type
     proofTimeout: UInt256
     config: ValidationConfig
 
+const
+  MaxStorageRequestDuration = 30.days
+
 logScope:
   topics = "codex validator"
 
@@ -56,15 +59,15 @@ func maxSlotsConstraintRespected(validation: Validation): bool =
     validation.slots.len < validation.config.maxSlots
 
 func shouldValidateSlot(validation: Validation, slotId: SlotId): bool =
-  if (validationGroups =? validation.config.groups):
-    (groupIndexForSlotId(slotId, validationGroups) ==
-    validation.config.groupIndex) and
-    validation.maxSlotsConstraintRespected
-  else:
-    validation.maxSlotsConstraintRespected
+  without validationGroups =? validation.config.groups:
+    return true
+  groupIndexForSlotId(slotId, validationGroups) ==
+    validation.config.groupIndex
 
 proc subscribeSlotFilled(validation: Validation) {.async.} =
   proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
+    if not validation.maxSlotsConstraintRespected:
+      return
     let slotId = slotId(requestId, slotIndex)
     if validation.shouldValidateSlot(slotId):
       trace "Adding slot", slotId
@@ -78,7 +81,7 @@ proc removeSlotsThatHaveEnded(validation: Validation) {.async.} =
   for slotId in slots:
     let state = await validation.market.slotState(slotId)
     if state != SlotState.Filled:
-      trace "Removing slot", slotId
+      trace "Removing slot", slotId, slotState = state
       ended.incl(slotId)
   validation.slots.excl(ended)
 
@@ -106,7 +109,7 @@ proc markProofsAsMissing(validation: Validation) {.async.} =
     let previousPeriod = validation.getCurrentPeriod() - 1
     await validation.markProofAsMissing(slotId, previousPeriod)
 
-proc run(validation: Validation) {.async.} =
+proc run(validation: Validation) {.async: (raises: []).} =
   trace "Validation started"
   try:
     while true:
@@ -115,18 +118,42 @@ proc run(validation: Validation) {.async.} =
       await validation.markProofsAsMissing()
   except CancelledError:
     trace "Validation stopped"
-    discard
+    discard # do not propagate as run is asyncSpawned
   except CatchableError as e:
     error "Validation failed", msg = e.msg
 
+proc epochForDurationBackFromNow(validation: Validation,
+    duration: Duration): SecondsSince1970 =
+  return validation.clock.now - duration.secs
+
+proc restoreHistoricalState(validation: Validation) {.async.} =
+  trace "Restoring historical state..."
+  let startTimeEpoch = validation.epochForDurationBackFromNow(MaxStorageRequestDuration)
+  let slotFilledEvents = await validation.market.queryPastSlotFilledEvents(
+    fromTime = startTimeEpoch)
+  for event in slotFilledEvents:
+    if not validation.maxSlotsConstraintRespected:
+      break
+    let slotId = slotId(event.requestId, event.slotIndex)
+    let slotState = await validation.market.slotState(slotId)
+    if slotState == SlotState.Filled and validation.shouldValidateSlot(slotId):
+      trace "Adding slot [historical]", slotId
+      validation.slots.incl(slotId)
+  trace "Historical state restored", numberOfSlots = validation.slots.len
+
 proc start*(validation: Validation) {.async.} =
+  trace "Starting validator", groups = validation.config.groups,
+    groupIndex = validation.config.groupIndex
   validation.periodicity = await validation.market.periodicity()
   validation.proofTimeout = await validation.market.proofTimeout()
   await validation.subscribeSlotFilled()
+  await validation.restoreHistoricalState()
   validation.running = validation.run()
+  asyncSpawn validation.running
 
 proc stop*(validation: Validation) {.async.} =
-  await validation.running.cancelAndWait()
+  if not validation.running.isNil and not validation.running.finished:
+    await validation.running.cancelAndWait()
   while validation.subscriptions.len > 0:
     let subscription = validation.subscriptions.pop()
     await subscription.unsubscribe()
