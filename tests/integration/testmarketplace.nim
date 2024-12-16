@@ -173,6 +173,8 @@ marketplacesuite "Marketplace payouts":
     await ethProvider.advanceTime(expiry.u256)
     check eventually providerApi.saleStateIs(slotId, "SaleCancelled")
 
+    await advanceToNextPeriod()
+
     check eventually (
       let endBalanceProvider = (await token.balanceOf(provider.ethAccount));
       endBalanceProvider > startBalanceProvider and
