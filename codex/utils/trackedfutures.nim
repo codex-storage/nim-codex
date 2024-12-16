@@ -19,9 +19,9 @@ proc removeFuture(self: TrackedFutures, future: FutureBase) =
   if not self.cancelling and not future.isNil:
     self.futures.del(future.id)
 
-proc track*[T](self: TrackedFutures, fut: Future[T]): Future[T] =
+proc track*[T](self: TrackedFutures, fut: Future[T]) =
   if self.cancelling:
-    return fut
+    return
 
   self.futures[fut.id] = FutureBase(fut)
 
@@ -29,14 +29,6 @@ proc track*[T](self: TrackedFutures, fut: Future[T]): Future[T] =
     self.removeFuture(fut)
 
   fut.addCallback(cb)
-
-  return fut
-
-proc track*[T, U](future: Future[T], self: U): Future[T] =
-  ## Convenience method that allows chaining future, eg:
-  ## `await someFut().track(sales)`, where `sales` has declared a
-  ## `trackedFutures` property.
-  self.trackedFutures.track(future)
 
 proc cancelTracked*(self: TrackedFutures) {.async: (raises: []).} =
   self.cancelling = true

@@ -137,10 +137,12 @@ proc start*(b: Advertiser) {.async.} =
 
   b.advertiserRunning = true
   for i in 0..<b.concurrentAdvReqs:
-    let fut = b.processQueueLoop().track(b)
+    let fut = b.processQueueLoop()
+    b.trackedFutures.track(fut)
     asyncSpawn fut
 
-  b.advertiseLocalStoreLoop = advertiseLocalStoreLoop(b).track(b)
+  b.advertiseLocalStoreLoop = advertiseLocalStoreLoop(b)
+  b.trackedFutures.track(b.advertiseLocalStoreLoop)
   asyncSpawn b.advertiseLocalStoreLoop
 
 proc stop*(b: Advertiser) {.async.} =

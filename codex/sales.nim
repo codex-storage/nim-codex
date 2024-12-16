@@ -351,7 +351,9 @@ proc onSlotFreed(sales: Sales,
     if err =? queue.push(found).errorOption:
       error "failed to push slot items to queue", error = err.msgDetail
 
-  asyncSpawn addSlotToQueue().track(sales)
+  let fut = addSlotToQueue()
+  sales.trackedFutures.track(fut)
+  asyncSpawn fut
 
 proc subscribeRequested(sales: Sales) {.async.} =
   let context = sales.context
