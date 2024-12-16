@@ -147,16 +147,20 @@ method stop*(node: NodeProcess) {.base, async.} =
 
     trace "node stopped"
 
-proc waitUntilStarted*(node: NodeProcess) {.async.} =
+proc waitUntilOutput*(node: NodeProcess, output: string) {.async.} =
   logScope:
     nodeName = node.name
 
-  trace "waiting until node started"
+  trace "waiting until", output
 
   let started = newFuture[void]()
+  discard node.captureOutput(output, started).track(node)
+  await started.wait(35.seconds) # allow enough time for proof generation
+  
+proc waitUntilStarted*(node: NodeProcess) {.async.} =
+  let started = newFuture[void]()
   try:
-    discard node.captureOutput(node.startedOutput, started).track(node)
-    await started.wait(35.seconds) # allow enough time for proof generation
+    await node.waitUntilOutput(node.startedOutput)
   except AsyncTimeoutError:
     # attempt graceful shutdown in case node was partially started, prevent
     # zombies

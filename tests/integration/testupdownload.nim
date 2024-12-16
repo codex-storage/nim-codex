@@ -1,10 +1,10 @@
 import pkg/codex/rest/json
-import ./atwonodes
+import ./twonodes
 import ../codex/examples
 import json
 from pkg/libp2p import Cid, `$`
 
-atwonodessuite "Uploads and downloads":
+twonodessuite "Uploads and downloads":
   test "node allows local file downloads", twoNodesConfig:
     let content1 = "some file contents"
     let content2 = "some other contents"

@@ -7,14 +7,14 @@ import ./marketplacesuite
 import ./twonodes
 import ./nodeconfigs
 
-twonodessuite "Marketplace", debug1 = false, debug2 = false:
+twonodessuite "Marketplace":
   setup:
     # Our Hardhat configuration does use automine, which means that time tracked by `ethProvider.currentTime()` is not
     # advanced until blocks are mined and that happens only when transaction is submitted.
     # As we use in tests ethProvider.currentTime() which uses block timestamp this can lead to synchronization issues.
     await ethProvider.advanceTime(1.u256)
 
-  test "nodes negotiate contracts on the marketplace":
+  test "nodes negotiate contracts on the marketplace", twoNodesConfig:
     let size = 0xFFFFFF.u256
     let data = await RandomChunker.example(blocks=8)
     # client 2 makes storage available
@@ -44,7 +44,7 @@ twonodessuite "Marketplace", debug1 = false, debug2 = false:
     check reservations.len == 3
     check reservations[0].requestId == purchase.requestId
 
-  test "node slots gets paid out and rest of tokens are returned to client":
+  test "node slots gets paid out and rest of tokens are returned to client", twoNodesConfig:
     let size = 0xFFFFFF.u256
     let data = await RandomChunker.example(blocks = 8)
     let marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())

@@ -11,22 +11,22 @@ proc findItem[T](items: seq[T], item: T): ?!T =
 
   return failure("Not found")
 
-twonodessuite "Sales", debug1 = false, debug2 = false:
+twonodessuite "Sales":
 
-  test "node handles new storage availability":
+  test "node handles new storage availability", twoNodesConfig:
     let availability1 = client1.postAvailability(totalSize=1.u256, duration=2.u256, minPrice=3.u256, maxCollateral=4.u256).get
     let availability2 = client1.postAvailability(totalSize=4.u256, duration=5.u256, minPrice=6.u256, maxCollateral=7.u256).get
     check availability1 != availability2
 
-  test "node lists storage that is for sale":
+  test "node lists storage that is for sale", twoNodesConfig:
     let availability = client1.postAvailability(totalSize=1.u256, duration=2.u256, minPrice=3.u256, maxCollateral=4.u256).get
     check availability in client1.getAvailabilities().get
 
-  test "updating non-existing availability":
+  test "updating non-existing availability", twoNodesConfig:
     let nonExistingResponse = client1.patchAvailabilityRaw(AvailabilityId.example, duration=100.u256.some, minPrice=200.u256.some, maxCollateral=200.u256.some)
     check nonExistingResponse.status == "404 Not Found"
 
-  test "updating availability":
+  test "updating availability", twoNodesConfig:
     let availability = client1.postAvailability(totalSize=140000.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
 
     client1.patchAvailability(availability.id, duration=100.u256.some, minPrice=200.u256.some, maxCollateral=200.u256.some)
@@ -38,20 +38,20 @@ twonodessuite "Sales", debug1 = false, debug2 = false:
     check updatedAvailability.totalSize == 140000
     check updatedAvailability.freeSize == 140000
 
-  test "updating availability - freeSize is not allowed to be changed":
+  test "updating availability - freeSize is not allowed to be changed", twoNodesConfig:
     let availability = client1.postAvailability(totalSize=140000.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
     let freeSizeResponse = client1.patchAvailabilityRaw(availability.id, freeSize=110000.u256.some)
     check freeSizeResponse.status == "400 Bad Request"
     check "not allowed" in  freeSizeResponse.body
 
-  test "updating availability - updating totalSize":
+  test "updating availability - updating totalSize", twoNodesConfig:
     let availability = client1.postAvailability(totalSize=140000.u256, duration=200.u256, minPrice=300.u256, maxCollateral=300.u256).get
     client1.patchAvailability(availability.id, totalSize=100000.u256.some)
     let updatedAvailability = (client1.getAvailabilities().get).findItem(availability).get
     check updatedAvailability.totalSize == 100000
     check updatedAvailability.freeSize == 100000
 
-  test "updating availability - updating totalSize does not allow bellow utilized":
+  test "updating availability - updating totalSize does not allow bellow utilized", twoNodesConfig:
     let originalSize = 0xFFFFFF.u256
     let data = await RandomChunker.example(blocks=8)
     let availability = client1.postAvailability(totalSize=originalSize, duration=20*60.u256, minPrice=300.u256, maxCollateral=300.u256).get
