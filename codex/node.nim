@@ -763,11 +763,11 @@ proc stop*(self: CodexNodeRef) {.async.} =
   if hostContracts =? self.contracts.host:
     await hostContracts.stop()
 
-  if not self.clock.isNil:
-    await self.clock.stop()
-
   if validatorContracts =? self.contracts.validator:
     await validatorContracts.stop()
+
+  if not self.clock.isNil:
+    await self.clock.stop()
 
   if not self.networkStore.isNil:
     await self.networkStore.close
