@@ -18,9 +18,9 @@ multinodesuite "Marketplace":
 
   setup:
     host = providers()[0].client
-    hostAccount = accounts[1]
+    hostAccount = providers()[0].ethAccount
     client = clients()[0].client
-    clientAccount = accounts[0] # Account indices determined by order in which multinodesuite starts nodes.
+    clientAccount = clients()[0].ethAccount
 
     # Our Hardhat configuration does use automine, which means that time tracked by `ethProvider.currentTime()` is not
     # advanced until blocks are mined and that happens only when transaction is submitted.
