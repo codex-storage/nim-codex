@@ -65,12 +65,7 @@ func peersHave*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx]
   toSeq(self.peers.values).filterIt( it.peerHave.anyIt( it == address ) )
 
 func countPeersWhoHave*(self: PeerCtxStore, cid: Cid): int =
-  proc getCid(address: BlockAddress): Cid =
-    if address.leaf:
-      address.treeCid
-    else:
-      address.cid
-  self.peers.values.countIt(it.peerHave.anyIt( it.getCid() == cid ) )
+  self.peers.values.countIt(it.peerHave.anyIt( it.cidOrTreeCid == cid ) )
 
 func peersWant*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
   toSeq(self.peers.values).filterIt( it.peerWants.anyIt( it == address ) )

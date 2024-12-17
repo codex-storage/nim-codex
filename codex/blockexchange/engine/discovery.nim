@@ -56,19 +56,10 @@ type
     discoveryLoopSleep: Duration                                 # Discovery loop sleep
     inFlightDiscReqs*: Table[Cid, Future[seq[SignedPeerRecord]]] # Inflight discovery requests
 
-proc getCid(address: BlockAddress): Cid =
-  # We advertise and discover only the CID part of a block address.
-  # Indices are ignored. This means that multiple blocks of the same tree will
-  # have a single DHT entry.
-  if address.leaf:
-    address.treeCid
-  else:
-    address.cid
-
 proc discoveryQueueLoop(b: DiscoveryEngine) {.async: (raises: []).} =
   while b.discEngineRunning:
     for address in toSeq(b.pendingBlocks.wantList):
-      let cid = address.getCid()
+      let cid = address.cidOrTreeCid
       try:
         await b.discoveryQueue.put(cid)
       except CancelledError:
@@ -134,14 +125,16 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async: (raises: []).} =
 
   info "Exiting discovery task runner"
 
-proc queueFindBlocksReq*(b: DiscoveryEngine, addresses: seq[BlockAddress]) {.inline.} =
-  for address in addresses:
-    let cid = address.getCid()
+proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
+  for cid in cids:
     if cid notin b.discoveryQueue:
       try:
         b.discoveryQueue.putNoWait(cid)
       except CatchableError as exc:
         warn "Exception queueing discovery request", exc = exc.msg
+
+proc queueFindBlocksReq*(b: DiscoveryEngine, addresses: seq[BlockAddress]) {.inline.} =
+  b.queueFindBlocksReq(addresses.mapIt(it.cidOrTreeCid))
 
 proc start*(b: DiscoveryEngine) {.async.} =
   ## Start the discengine task

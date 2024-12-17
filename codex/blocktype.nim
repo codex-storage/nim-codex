@@ -66,6 +66,12 @@ proc `$`*(a: BlockAddress): string =
   else:
     "cid: " & $a.cid
 
+proc cidOrTreeCid*(a: BlockAddress): Cid =
+  if a.leaf:
+    a.treeCid
+  else:
+    a.cid
+
 proc address*(b: Block): BlockAddress =
   BlockAddress(leaf: false, cid: b.cid)
 
