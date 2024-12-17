@@ -5,16 +5,16 @@ import ./twonodes
 import ../contracts/time
 import ../examples
 
-twonodessuite "Purchasing", debug1 = false, debug2 = false:
+twonodessuite "Purchasing":
 
-  test "node handles storage request":
+  test "node handles storage request", twoNodesConfig:
     let data = await RandomChunker.example(blocks=2)
     let cid = client1.upload(data).get
     let id1 = client1.requestStorage(cid, duration=100.u256, reward=2.u256, proofProbability=3.u256, expiry=10, collateral=200.u256).get
     let id2 = client1.requestStorage(cid, duration=400.u256, reward=5.u256, proofProbability=6.u256, expiry=10, collateral=201.u256).get
     check id1 != id2
 
-  test "node retrieves purchase status":
+  test "node retrieves purchase status", twoNodesConfig:
     # get one contiguous chunk
     let rng = rng.Rng.instance()
     let chunker = RandomChunker.new(rng, size = DefaultBlockSize * 2, chunkSize = DefaultBlockSize * 2)
@@ -40,7 +40,7 @@ twonodessuite "Purchasing", debug1 = false, debug2 = false:
     check request.ask.maxSlotLoss == 1'u64
 
   # TODO: We currently do not support encoding single chunks
-  # test "node retrieves purchase status with 1 chunk":
+  # test "node retrieves purchase status with 1 chunk", twoNodesConfig:
   #   let cid = client1.upload("some file contents").get
   #   let id = client1.requestStorage(cid, duration=1.u256, reward=2.u256, proofProbability=3.u256, expiry=30, collateral=200.u256, nodes=2, tolerance=1).get
   #   let request = client1.getPurchase(id).get.request.get
@@ -52,7 +52,7 @@ twonodessuite "Purchasing", debug1 = false, debug2 = false:
   #   check request.ask.slots == 3'u64
   #   check request.ask.maxSlotLoss == 1'u64
 
-  test "node remembers purchase status after restart":
+  test "node remembers purchase status after restart", twoNodesConfig:
     let data = await RandomChunker.example(blocks=2)
     let cid = client1.upload(data).get
     let id = client1.requestStorage(cid,
@@ -65,7 +65,7 @@ twonodessuite "Purchasing", debug1 = false, debug2 = false:
                                     tolerance=1.uint).get
     check eventually(client1.purchaseStateIs(id, "submitted"), timeout = 3*60*1000)
 
-    node1.restart()
+    await node1.restart()
     client1.restart()
 
     check eventually(client1.purchaseStateIs(id, "submitted"), timeout = 3*60*1000)
@@ -78,7 +78,7 @@ twonodessuite "Purchasing", debug1 = false, debug2 = false:
     check request.ask.slots == 3'u64
     check request.ask.maxSlotLoss == 1'u64
 
-  test "node requires expiry and its value to be in future":
+  test "node requires expiry and its value to be in future", twoNodesConfig:
     let data = await RandomChunker.example(blocks=2)
     let cid = client1.upload(data).get
 

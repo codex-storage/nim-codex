@@ -162,6 +162,8 @@ template multinodesuite*(name: string, body: untyped) =
           let updatedLogFile = getLogFile(role, some roleIdx)
           config.withLogFile(updatedLogFile)
 
+        if bootstrap.len > 0:
+          config.addCliOption("--bootstrap-node", bootstrap)
         config.addCliOption("--api-port", $ await nextFreePort(8080 + nodeIdx))
         config.addCliOption("--data-dir", datadir)
         config.addCliOption("--nat", "127.0.0.1")
@@ -223,7 +225,6 @@ template multinodesuite*(name: string, body: untyped) =
     proc startProviderNode(conf: CodexConfig): Future[NodeProcess] {.async.} =
       let providerIdx = providers().len
       var config = conf
-      config.addCliOption("--bootstrap-node", bootstrap)
       config.addCliOption(StartUpCmd.persistence, "--eth-provider", jsonRpcProviderUrl)
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
       config.addCliOption(PersistenceCmd.prover, "--circom-r1cs",
@@ -238,7 +239,6 @@ template multinodesuite*(name: string, body: untyped) =
     proc startValidatorNode(conf: CodexConfig): Future[NodeProcess] {.async.} =
       let validatorIdx = validators().len
       var config = conf
-      config.addCliOption("--bootstrap-node", bootstrap)
       config.addCliOption(StartUpCmd.persistence, "--eth-provider", jsonRpcProviderUrl)
       config.addCliOption(StartUpCmd.persistence, "--eth-account", $accounts[running.len])
       config.addCliOption(StartUpCmd.persistence, "--validator")
@@ -311,7 +311,7 @@ template multinodesuite*(name: string, body: untyped) =
                           role: Role.Client,
                           node: node
                         )
-            if clients().len == 1:
+            if running.len == 1:
               without ninfo =? CodexProcess(node).client.info():
                 # raise CatchableError instead of Defect (with .get or !) so we
                 # can gracefully shutdown and prevent zombies
