@@ -2,7 +2,6 @@ import std/sugar
 import pkg/questionable
 import pkg/chronos
 import ../logutils
-import ./then
 import ./trackedfutures
 
 {.push raises:[].}
