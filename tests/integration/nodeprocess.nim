@@ -38,10 +38,10 @@ method startedOutput(node: NodeProcess): string {.base.} =
 method processOptions(node: NodeProcess): set[AsyncProcessOption] {.base.} =
   raiseAssert "not implemented"
 
-method outputLineEndings(node: NodeProcess): string {.base.} =
+method outputLineEndings(node: NodeProcess): string {.base, raises: [].} =
   raiseAssert "not implemented"
 
-method onOutputLineCaptured(node: NodeProcess, line: string) {.base.} =
+method onOutputLineCaptured(node: NodeProcess, line: string) {.base, raises: [].} =
   raiseAssert "not implemented"
 
 method start*(node: NodeProcess) {.base, async.} =
@@ -74,7 +74,7 @@ proc captureOutput(
   node: NodeProcess,
   output: string,
   started: Future[void]
-) {.async.} =
+) {.async: (raises: []).} =
 
   logScope:
     nodeName = node.name
@@ -98,7 +98,10 @@ proc captureOutput(
         await sleepAsync(1.millis)
       await sleepAsync(1.millis)
 
-  except AsyncStreamReadError as e:
+  except CancelledError:
+    discard # do not propagate as captureOutput was asyncSpawned
+
+  except AsyncStreamError as e:
     error "error reading output stream", error = e.msgDetail
 
 proc startNode*[T: NodeProcess](
@@ -155,7 +158,8 @@ proc waitUntilStarted*(node: NodeProcess) {.async.} =
 
   let started = newFuture[void]()
   try:
-    discard node.captureOutput(node.startedOutput, started).track(node)
+    let fut = node.captureOutput(node.startedOutput, started).track(node)
+    asyncSpawn fut
     await started.wait(60.seconds) # allow enough time for proof generation
     trace "node started"
   except AsyncTimeoutError:
