@@ -5,7 +5,7 @@ import ./marketplacesuite
 import ./twonodes
 import ./nodeconfigs
 
-multinodesuite "Marketplace":
+marketplacesuite "Marketplace":
   let marketplaceConfig = NodeConfigs(
     clients: CodexConfigs.init(nodes=1).some,
     providers: CodexConfigs.init(nodes=1).some,
