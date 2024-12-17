@@ -5,22 +5,37 @@ import ./marketplacesuite
 import ./twonodes
 import ./nodeconfigs
 
-twonodessuite "Marketplace", debug1 = false, debug2 = false:
+marketplacesuite "Marketplace":
+  let marketplaceConfig = NodeConfigs(
+    clients: CodexConfigs.init(nodes=1).some,
+    providers: CodexConfigs.init(nodes=1).some,
+  )
+  
+  var host: CodexClient
+  var hostAccount: Address
+  var client: CodexClient
+  var clientAccount: Address
+
   setup:
+    host = providers()[0].client
+    hostAccount = providers()[0].ethAccount
+    client = clients()[0].client
+    clientAccount = clients()[0].ethAccount
+
     # Our Hardhat configuration does use automine, which means that time tracked by `ethProvider.currentTime()` is not
     # advanced until blocks are mined and that happens only when transaction is submitted.
     # As we use in tests ethProvider.currentTime() which uses block timestamp this can lead to synchronization issues.
     await ethProvider.advanceTime(1.u256)
 
-  test "nodes negotiate contracts on the marketplace":
+  test "nodes negotiate contracts on the marketplace", marketplaceConfig:
     let size = 0xFFFFFF.u256
     let data = await RandomChunker.example(blocks=8)
-    # client 2 makes storage available
-    let availability = client2.postAvailability(totalSize=size, duration=20*60.u256, minPrice=300.u256, maxCollateral=300.u256).get
+    # host makes storage available
+    let availability = host.postAvailability(totalSize=size, duration=20*60.u256, minPrice=300.u256, maxCollateral=300.u256).get
 
-    # client 1 requests storage
-    let cid = client1.upload(data).get
-    let id = client1.requestStorage(
+    # client requests storage
+    let cid = client.upload(data).get
+    let id = client.requestStorage(
       cid,
       duration=20*60.u256,
       reward=400.u256,
@@ -30,19 +45,19 @@ twonodessuite "Marketplace", debug1 = false, debug2 = false:
       nodes = 3,
       tolerance = 1).get
 
-    check eventually(client1.purchaseStateIs(id, "started"), timeout=10*60*1000)
-    let purchase = client1.getPurchase(id).get
+    check eventually(client.purchaseStateIs(id, "started"), timeout=10*60*1000)
+    let purchase = client.getPurchase(id).get
     check purchase.error == none string
-    let availabilities = client2.getAvailabilities().get
+    let availabilities = host.getAvailabilities().get
     check availabilities.len == 1
     let newSize = availabilities[0].freeSize
     check newSize > 0 and newSize < size
 
-    let reservations = client2.getAvailabilityReservations(availability.id).get
+    let reservations = host.getAvailabilityReservations(availability.id).get
     check reservations.len == 3
     check reservations[0].requestId == purchase.requestId
 
-  test "node slots gets paid out and rest of tokens are returned to client":
+  test "node slots gets paid out and rest of tokens are returned to client", marketplaceConfig:
     let size = 0xFFFFFF.u256
     let data = await RandomChunker.example(blocks = 8)
     let marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
@@ -52,13 +67,13 @@ twonodessuite "Marketplace", debug1 = false, debug2 = false:
     let duration = 20*60.u256
     let nodes = 3'u
 
-    # client 2 makes storage available
-    let startBalanceHost = await token.balanceOf(account2)
-    discard client2.postAvailability(totalSize=size, duration=20*60.u256, minPrice=300.u256, maxCollateral=300.u256).get
+    # host makes storage available
+    let startBalanceHost = await token.balanceOf(hostAccount)
+    discard host.postAvailability(totalSize=size, duration=20*60.u256, minPrice=300.u256, maxCollateral=300.u256).get
 
-    # client 1 requests storage
-    let cid = client1.upload(data).get
-    let id = client1.requestStorage(
+    # client requests storage
+    let cid = client.upload(data).get
+    let id = client.requestStorage(
       cid,
       duration=duration,
       reward=reward,
@@ -68,11 +83,11 @@ twonodessuite "Marketplace", debug1 = false, debug2 = false:
       nodes = nodes,
       tolerance = 1).get
 
-    check eventually(client1.purchaseStateIs(id, "started"), timeout=10*60*1000)
-    let purchase = client1.getPurchase(id).get
+    check eventually(client.purchaseStateIs(id, "started"), timeout=10*60*1000)
+    let purchase = client.getPurchase(id).get
     check purchase.error == none string
 
-    let clientBalanceBeforeFinished = await token.balanceOf(account1)
+    let clientBalanceBeforeFinished = await token.balanceOf(clientAccount)
 
     # Proving mechanism uses blockchain clock to do proving/collect/cleanup round
     # hence we must use `advanceTime` over `sleepAsync` as Hardhat does mine new blocks
@@ -80,11 +95,11 @@ twonodessuite "Marketplace", debug1 = false, debug2 = false:
     await ethProvider.advanceTime(duration)
 
     # Checking that the hosting node received reward for at least the time between <expiry;end>
-    check eventually (await token.balanceOf(account2)) - startBalanceHost >= (duration-5*60)*reward*nodes.u256
+    check eventually (await token.balanceOf(hostAccount)) - startBalanceHost >= (duration-5*60)*reward*nodes.u256
 
     # Checking that client node receives some funds back that were not used for the host nodes
     check eventually(
-      (await token.balanceOf(account1)) - clientBalanceBeforeFinished > 0,
+      (await token.balanceOf(clientAccount)) - clientBalanceBeforeFinished > 0,
       timeout = 10*1000 # give client a bit of time to withdraw its funds
     )
 
@@ -157,6 +172,8 @@ marketplacesuite "Marketplace payouts":
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
     check eventually providerApi.saleStateIs(slotId, "SaleCancelled")
+
+    await advanceToNextPeriod()
 
     check eventually (
       let endBalanceProvider = (await token.balanceOf(provider.ethAccount));
