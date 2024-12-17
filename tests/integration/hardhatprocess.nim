@@ -37,7 +37,7 @@ method startedOutput(node: HardhatProcess): string =
 method processOptions(node: HardhatProcess): set[AsyncProcessOption] =
   return {}
 
-method outputLineEndings(node: HardhatProcess): string =
+method outputLineEndings(node: HardhatProcess): string {.raises: [].} =
   return "\n"
 
 proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
