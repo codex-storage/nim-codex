@@ -78,7 +78,8 @@ proc scheduler(machine: Machine) {.async: (raises: []).} =
         machine.state = next
         debug "enter state", state = fromState & " => " & $machine.state
         running = machine.run(machine.state)
-        asyncSpawn running.track(machine)
+        machine.trackedFutures.track(running)
+        asyncSpawn running
     except CancelledError:
       break # do not propagate bc it is asyncSpawned
 
@@ -90,7 +91,9 @@ proc start*(machine: Machine, initialState: State) =
     machine.scheduled = newAsyncQueue[Event]()
 
   machine.started = true
-  asyncSpawn machine.scheduler().track(machine)
+  let fut = machine.scheduler()
+  machine.trackedFutures.track(fut)
+  asyncSpawn fut
   machine.schedule(Event.transition(machine.state, initialState))
 
 proc stop*(machine: Machine) {.async.} =

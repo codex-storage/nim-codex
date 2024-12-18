@@ -323,7 +323,7 @@ proc addWorker(self: SlotQueue): ?!void =
 
   let worker = SlotQueueWorker.init()
   try:
-    discard worker.doneProcessing.track(self)
+    self.trackedFutures.track(worker.doneProcessing)
     self.workers.addLastNoWait(worker)
   except AsyncQueueFullError:
     return failure("failed to add worker, worker queue full")
@@ -343,7 +343,7 @@ proc dispatch(self: SlotQueue,
 
   if onProcessSlot =? self.onProcessSlot:
     try:
-      discard worker.doneProcessing.track(self)
+      self.trackedFutures.track(worker.doneProcessing)
       await onProcessSlot(item, worker.doneProcessing)
       await worker.doneProcessing
 
@@ -418,7 +418,9 @@ proc run(self: SlotQueue) {.async: (raises: []).} =
 
       trace "processing item"
 
-      asyncSpawn self.dispatch(worker, item).track(self)
+      let fut = self.dispatch(worker, item)
+      self.trackedFutures.track(fut)
+      asyncSpawn fut
 
       await sleepAsync(1.millis) # poll
     except CancelledError:
@@ -444,7 +446,9 @@ proc start*(self: SlotQueue) =
     if err =? self.addWorker().errorOption:
       error "start: error adding new worker", error = err.msg
 
-  asyncSpawn self.run().track(self)
+  let fut = self.run()
+  self.trackedFutures.track(fut)
+  asyncSpawn fut
 
 proc stop*(self: SlotQueue) {.async.} =
   if not self.running:
