@@ -41,9 +41,10 @@ import ./logutils
 import ./stores
 import ./units
 import ./utils
+import ./nat
 from ./validationconfig import MaxSlots, ValidationGroups
 
-export units, net, codextypes, logutils
+export units, net, codextypes, logutils,completeCmdArg,parseCmdArg,NatConfig
 export ValidationGroups, MaxSlots
 
 export
@@ -143,19 +144,13 @@ type
       name: "listen-addrs" }: seq[MultiAddress]
 
     # TODO: change this once we integrate nat support
+  
     nat* {.
-      desc: "IP Addresses to announce behind a NAT"
-      defaultValue: ValidIpAddress.init("127.0.0.1")
-      defaultValueDesc: "127.0.0.1"
-      abbr: "a"
-      name: "nat" }: ValidIpAddress
-
-    discoveryIp* {.
-      desc: "Discovery listen address"
-      defaultValue: ValidIpAddress.init(IPv4_any())
-      defaultValueDesc: "0.0.0.0"
-      abbr: "e"
-      name: "disc-ip" }: ValidIpAddress
+      desc: "Specify method to use for determining public address. " &
+            "Must be one of: any, none, upnp, pmp, extip:<IP>"
+      defaultValue: NatConfig(hasExtIp: false, nat: NatAny)
+      defaultValueDesc: "any"
+      name: "nat" }: NatConfig
 
     discoveryPort* {.
       desc: "Discovery (UDP) port"
@@ -530,6 +525,12 @@ proc readValue*(r: var TomlReader, val: var Duration)
     error "Invalid duration parse", value = str
     quit QuitFailure
   val = dur
+
+proc readValue*(r: var TomlReader, val: var NatConfig)
+               {.raises: [SerializationError].} =
+  val = try: parseCmdArg(NatConfig, r.readValue(string))
+        except CatchableError as err:
+          raise newException(SerializationError, err.msg)
 
 # no idea why confutils needs this:
 proc completeCmdArg*(T: type EthAddress; val: string): seq[string] =
