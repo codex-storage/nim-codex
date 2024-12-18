@@ -45,7 +45,7 @@ method start*(clock: OnChainClock) {.async.} =
   if clock.started:
     return
 
-  proc onBlock(_: Block) =
+  proc onBlock(_: ?!Block) =
     # ignore block parameter; hardhat may call this with pending blocks
     asyncSpawn clock.update()
 

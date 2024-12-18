@@ -277,10 +277,14 @@ method canReserveSlot*(
 method subscribeRequests*(market: OnChainMarket,
                          callback: OnRequest):
                         Future[MarketSubscription] {.async.} =
-  proc onEvent(event: StorageRequested) {.upraises:[].} =
-    callback(event.requestId,
-             event.ask,
-             event.expiry)
+  proc onEvent(event: ?!StorageRequested) {.upraises:[].} =
+    without value =? event:
+      error "The event object is not defined"
+      return
+
+    callback(value.requestId,
+             value.ask,
+             value.expiry)
 
   convertEthersError:
     let subscription = await market.contract.subscribe(StorageRequested, onEvent)
@@ -289,8 +293,12 @@ method subscribeRequests*(market: OnChainMarket,
 method subscribeSlotFilled*(market: OnChainMarket,
                             callback: OnSlotFilled):
                            Future[MarketSubscription] {.async.} =
-  proc onEvent(event: SlotFilled) {.upraises:[].} =
-    callback(event.requestId, event.slotIndex)
+  proc onEvent(event: ?!SlotFilled) {.upraises:[].} =
+    without value =? event:
+      error "The event object is not defined"
+      return
+
+    callback(value.requestId, value.slotIndex)
 
   convertEthersError:
     let subscription = await market.contract.subscribe(SlotFilled, onEvent)
@@ -311,8 +319,12 @@ method subscribeSlotFilled*(market: OnChainMarket,
 method subscribeSlotFreed*(market: OnChainMarket,
                            callback: OnSlotFreed):
                           Future[MarketSubscription] {.async.} =
-  proc onEvent(event: SlotFreed) {.upraises:[].} =
-    callback(event.requestId, event.slotIndex)
+  proc onEvent(event: ?!SlotFreed) {.upraises:[].} =
+    without value =? event:
+      error "The event object is not defined"
+      return
+
+    callback(value.requestId, value.slotIndex)
 
   convertEthersError:
     let subscription = await market.contract.subscribe(SlotFreed, onEvent)
@@ -322,8 +334,12 @@ method subscribeSlotReservationsFull*(
   market: OnChainMarket,
   callback: OnSlotReservationsFull): Future[MarketSubscription] {.async.} =
 
-  proc onEvent(event: SlotReservationsFull) {.upraises:[].} =
-    callback(event.requestId, event.slotIndex)
+  proc onEvent(event: ?!SlotReservationsFull) {.upraises:[].} =
+    without value =? event:
+      error "The event object is not defined"
+      return
+
+    callback(value.requestId, value.slotIndex)
 
   convertEthersError:
     let subscription = await market.contract.subscribe(SlotReservationsFull, onEvent)
@@ -332,8 +348,12 @@ method subscribeSlotReservationsFull*(
 method subscribeFulfillment(market: OnChainMarket,
                             callback: OnFulfillment):
                            Future[MarketSubscription] {.async.} =
-  proc onEvent(event: RequestFulfilled) {.upraises:[].} =
-    callback(event.requestId)
+  proc onEvent(event: ?!RequestFulfilled) {.upraises:[].} =
+    without value =? event:
+      error "The event object is not defined"
+      return
+
+    callback(value.requestId)
 
   convertEthersError:
     let subscription = await market.contract.subscribe(RequestFulfilled, onEvent)
@@ -343,9 +363,13 @@ method subscribeFulfillment(market: OnChainMarket,
                             requestId: RequestId,
                             callback: OnFulfillment):
                            Future[MarketSubscription] {.async.} =
-  proc onEvent(event: RequestFulfilled) {.upraises:[].} =
-    if event.requestId == requestId:
-      callback(event.requestId)
+  proc onEvent(event: ?!RequestFulfilled) {.upraises:[].} =
+    without value =? event:
+      error "The event object is not defined"
+      return
+
+    if value.requestId == requestId:
+      callback(value.requestId)
 
   convertEthersError:
     let subscription = await market.contract.subscribe(RequestFulfilled, onEvent)
@@ -354,8 +378,12 @@ method subscribeFulfillment(market: OnChainMarket,
 method subscribeRequestCancelled*(market: OnChainMarket,
                                   callback: OnRequestCancelled):
                                 Future[MarketSubscription] {.async.} =
-  proc onEvent(event: RequestCancelled) {.upraises:[].} =
-    callback(event.requestId)
+  proc onEvent(event: ?!RequestCancelled) {.upraises:[].} =
+    without value =? event:
+      error "The event object is not defined"
+      return
+
+    callback(value.requestId)
 
   convertEthersError:
     let subscription = await market.contract.subscribe(RequestCancelled, onEvent)
@@ -365,9 +393,13 @@ method subscribeRequestCancelled*(market: OnChainMarket,
                                   requestId: RequestId,
                                   callback: OnRequestCancelled):
                                 Future[MarketSubscription] {.async.} =
-  proc onEvent(event: RequestCancelled) {.upraises:[].} =
-    if event.requestId == requestId:
-      callback(event.requestId)
+  proc onEvent(event: ?!RequestCancelled) {.upraises:[].} =
+    without value =? event:
+      error "The event object is not defined"
+      return
+
+    if value.requestId == requestId:
+      callback(value.requestId)
 
   convertEthersError:
     let subscription = await market.contract.subscribe(RequestCancelled, onEvent)
@@ -376,8 +408,12 @@ method subscribeRequestCancelled*(market: OnChainMarket,
 method subscribeRequestFailed*(market: OnChainMarket,
                               callback: OnRequestFailed):
                             Future[MarketSubscription] {.async.} =
-  proc onEvent(event: RequestFailed) {.upraises:[]} =
-    callback(event.requestId)
+  proc onEvent(event: ?!RequestFailed) {.upraises:[]} =
+    without value =? event:
+      error "The event object is not defined"
+      return
+
+    callback(value.requestId)
 
   convertEthersError:
     let subscription = await market.contract.subscribe(RequestFailed, onEvent)
@@ -387,9 +423,13 @@ method subscribeRequestFailed*(market: OnChainMarket,
                               requestId: RequestId,
                               callback: OnRequestFailed):
                             Future[MarketSubscription] {.async.} =
-  proc onEvent(event: RequestFailed) {.upraises:[]} =
-    if event.requestId == requestId:
-      callback(event.requestId)
+  proc onEvent(event: ?!RequestFailed) {.upraises:[]} =
+    without value =? event:
+      error "The event object is not defined"
+      return
+
+    if value.requestId == requestId:
+      callback(value.requestId)
 
   convertEthersError:
     let subscription = await market.contract.subscribe(RequestFailed, onEvent)
@@ -398,8 +438,12 @@ method subscribeRequestFailed*(market: OnChainMarket,
 method subscribeProofSubmission*(market: OnChainMarket,
                                  callback: OnProofSubmitted):
                                 Future[MarketSubscription] {.async.} =
-  proc onEvent(event: ProofSubmitted) {.upraises: [].} =
-    callback(event.id)
+  proc onEvent(event: ?!ProofSubmitted) {.upraises: [].} =
+    without value =? event:
+      error "The event object is not defined"
+      return
+
+    callback(value.id)
 
   convertEthersError:
     let subscription = await market.contract.subscribe(ProofSubmitted, onEvent)
