@@ -106,7 +106,8 @@ proc start*(b: BlockExcEngine) {.async.} =
 
   b.blockexcRunning = true
   for i in 0..<b.concurrentTasks:
-    let fut = b.blockexcTaskRunner().track(b)
+    let fut = b.blockexcTaskRunner()
+    b.trackedFutures.track(fut)
     asyncSpawn fut
 
 proc stop*(b: BlockExcEngine) {.async.} =

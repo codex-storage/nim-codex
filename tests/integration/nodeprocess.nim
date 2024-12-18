@@ -157,10 +157,11 @@ proc waitUntilOutput*(node: NodeProcess, output: string) {.async.} =
   trace "waiting until", output
 
   let started = newFuture[void]()
-  let fut = node.captureOutput(output, started).track(node)
+  let fut = node.captureOutput(output, started)
+  node.trackedFutures.track(fut)
   asyncSpawn fut
   await started.wait(60.seconds) # allow enough time for proof generation
-  
+
 proc waitUntilStarted*(node: NodeProcess) {.async.} =
   try:
     await node.waitUntilOutput(node.startedOutput)
