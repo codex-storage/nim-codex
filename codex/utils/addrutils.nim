@@ -15,6 +15,7 @@ import std/options
 
 import pkg/libp2p
 import pkg/stew/shims/net
+import pkg/stew/endians2
 
 func remapAddr*(
     address: MultiAddress,
@@ -39,3 +40,59 @@ func remapAddr*(
 
   MultiAddress.init(parts.join("/"))
     .expect("Should construct multiaddress")
+
+proc getMultiAddrWithIPAndUDPPort*(ip: ValidIpAddress, port: Port): MultiAddress =
+  ## Creates a MultiAddress with the specified IP address and UDP port
+  ## 
+  ## Parameters:
+  ##   - ip: A valid IP address (IPv4 or IPv6)
+  ##   - port: The UDP port number
+  ##
+  ## Returns:
+  ##   A MultiAddress in the format "/ip4/<address>/udp/<port>" or "/ip6/<address>/udp/<port>"
+  
+  let ipFamily = ip.family
+  if ipFamily == IpAddressFamily.IPv4:
+    # Construct IPv4 multiaddress
+    return MultiAddress.init("/ip4/" & $ip & "/udp/" & $port).expect("valid multiaddr")
+  else:
+    # Construct IPv6 multiaddress
+    return MultiAddress.init("/ip6/" & $ip & "/udp/" & $port).expect("valid multiaddr")
+
+proc getAddressAndPort*(ma: MultiAddress): tuple[ip: Option[ValidIpAddress], port: Option[Port]] =
+  try:
+    # Try IPv4 first
+    let ipv4Result = ma[multiCodec("ip4")]
+    let ip = if ipv4Result.isOk:
+      let ipBytes = ipv4Result.get()
+        .protoArgument()
+        .expect("Invalid IPv4 format")
+      let ipArray = [ipBytes[0], ipBytes[1], ipBytes[2], ipBytes[3]]
+      some(ipv4(ipArray))
+    else:
+      # Try IPv6 if IPv4 not found
+      let ipv6Result = ma[multiCodec("ip6")]
+      if ipv6Result.isOk:
+        let ipBytes = ipv6Result.get()
+          .protoArgument()
+          .expect("Invalid IPv6 format")
+        var ipArray: array[16, byte]
+        for i in 0..15:
+          ipArray[i] = ipBytes[i]
+        some(ipv6(ipArray))
+      else:
+        none(ValidIpAddress)
+
+    # Get TCP Port
+    let portResult = ma[multiCodec("tcp")]
+    let port = if portResult.isOk:
+      let portBytes = portResult.get()
+        .protoArgument()
+        .expect("Invalid port format")
+      some(Port(fromBytesBE(uint16, portBytes)))
+    else:
+      none(Port)
+
+    result = (ip: ip, port: port)
+  except Exception:
+    result = (ip: none(ValidIpAddress), port: none(Port))

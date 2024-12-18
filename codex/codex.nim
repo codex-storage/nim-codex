@@ -44,6 +44,7 @@ import ./utils/addrutils
 import ./namespaces
 import ./codextypes
 import ./logutils
+import ./nat
 
 logScope:
   topics = "codex node"
@@ -158,30 +159,13 @@ proc start*(s: CodexServer) {.async.} =
 
   await s.codexNode.switch.start()
 
-  let
-    # TODO: Can't define these as constants, pity
-    natIpPart = MultiAddress.init("/ip4/" & $s.config.nat & "/")
-      .expect("Should create multiaddress")
-    anyAddrIp = MultiAddress.init("/ip4/0.0.0.0/")
-      .expect("Should create multiaddress")
-    loopBackAddrIp = MultiAddress.init("/ip4/127.0.0.1/")
-      .expect("Should create multiaddress")
-
-    # announce addresses should be set to bound addresses,
-    # but the IP should be mapped to the provided nat ip
-    announceAddrs = s.codexNode.switch.peerInfo.addrs.mapIt:
-      block:
-        let
-          listenIPPart = it[multiCodec("ip4")].expect("Should get IP")
-
-        if listenIPPart == anyAddrIp or
-          (listenIPPart == loopBackAddrIp and natIpPart != loopBackAddrIp):
-          it.remapAddr(s.config.nat.some)
-        else:
-          it
+  let (announceAddrs,discoveryAddrs)= natedAddress(
+    s.config.nat,
+    s.config.listenAddrs,
+    s.config.discoveryPort)
 
   s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
-  s.codexNode.discovery.updateDhtRecord(s.config.nat, s.config.discoveryPort)
+  s.codexNode.discovery.updateDhtRecord(discoveryAddrs)
 
   await s.bootstrapInteractions()
   await s.codexNode.start()
@@ -243,7 +227,6 @@ proc new*(
     discovery = Discovery.new(
       switch.peerInfo.privateKey,
       announceAddrs = config.listenAddrs,
-      bindIp = config.discoveryIp,
       bindPort = config.discoveryPort,
       bootstrapNodes = config.bootstrapNodes,
       store = discoveryStore)
