@@ -83,7 +83,7 @@ template multinodesuite*(name: string, body: untyped) =
     #     ...
     let jsonRpcProviderUrl = "http://127.0.0.1:8545"
     var running {.inject, used.}: seq[RunningNode]
-    var bootstrap: string
+    var bootstrapNodes: seq[string]
     let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
     var currentTestName = ""
     var nodeConfigs: NodeConfigs
@@ -162,8 +162,8 @@ template multinodesuite*(name: string, body: untyped) =
           let updatedLogFile = getLogFile(role, some roleIdx)
           config.withLogFile(updatedLogFile)
 
-        if bootstrap.len > 0:
-          config.addCliOption("--bootstrap-node", bootstrap)
+        for bootstrapNode in bootstrapNodes:
+          config.addCliOption("--bootstrap-node", bootstrapNode)
         config.addCliOption("--api-port", $ await nextFreePort(8080 + nodeIdx))
         config.addCliOption("--data-dir", datadir)
         config.addCliOption("--nat", "127.0.0.1")
@@ -273,6 +273,13 @@ template multinodesuite*(name: string, body: untyped) =
         fail()
         quit(1)
 
+    proc updateBootstrapNodes(node: CodexProcess) =
+      without ninfo =? node.client.info():
+        # raise CatchableError instead of Defect (with .get or !) so we
+        # can gracefully shutdown and prevent zombies
+        raiseMultiNodeSuiteError "Failed to get node info"
+      bootstrapNodes.add ninfo["spr"].getStr()
+
     setup:
       if var conf =? nodeConfigs.hardhat:
         try:
@@ -311,12 +318,7 @@ template multinodesuite*(name: string, body: untyped) =
                           role: Role.Client,
                           node: node
                         )
-            if running.len == 1:
-              without ninfo =? CodexProcess(node).client.info():
-                # raise CatchableError instead of Defect (with .get or !) so we
-                # can gracefully shutdown and prevent zombies
-                raiseMultiNodeSuiteError "Failed to get node info"
-              bootstrap = ninfo["spr"].getStr()
+            CodexProcess(node).updateBootstrapNodes()
 
       if var providers =? nodeConfigs.providers:
         failAndTeardownOnError "failed to start provider nodes":
@@ -326,6 +328,7 @@ template multinodesuite*(name: string, body: untyped) =
                           role: Role.Provider,
                           node: node
                         )
+            CodexProcess(node).updateBootstrapNodes()
 
       if var validators =? nodeConfigs.validators:
         failAndTeardownOnError "failed to start validator nodes":
