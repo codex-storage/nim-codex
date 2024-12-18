@@ -1,6 +1,5 @@
 import std/sequtils
 import std/sugar
-import std/cpuinfo
 
 import pkg/chronos
 import pkg/datastore
@@ -13,7 +12,6 @@ import pkg/codex/blocktype as bt
 import pkg/codex/rng
 import pkg/codex/utils
 import pkg/codex/indexingstrategy
-import pkg/taskpools
 
 import ../asynctest
 import ./helpers
@@ -28,7 +26,6 @@ suite "Erasure encode/decode":
   var manifest: Manifest
   var store: BlockStore
   var erasure: Erasure
-  var taskpool: Taskpool
   let repoTmp = TempLevelDb.new()
   let metaTmp = TempLevelDb.new()
 
@@ -39,8 +36,7 @@ suite "Erasure encode/decode":
     rng = Rng.instance()
     chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = BlockSize)
     store = RepoStore.new(repoDs, metaDs)
-    taskpool = Taskpool.new(num_threads = countProcessors())
-    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     manifest = await storeDataGetManifest(store, chunker)
 
   teardown:

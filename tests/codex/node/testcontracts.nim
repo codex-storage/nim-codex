@@ -4,7 +4,6 @@ import std/math
 import std/times
 import std/sequtils
 import std/importutils
-import std/cpuinfo
 
 import pkg/chronos
 import pkg/stew/byteutils
@@ -15,7 +14,6 @@ import pkg/questionable/results
 import pkg/stint
 import pkg/poseidon2
 import pkg/poseidon2/io
-import pkg/taskpools
 
 import pkg/nitro
 import pkg/codexdht/discv5/protocol as discv5
@@ -82,7 +80,7 @@ asyncchecksuite "Test Node - Host contracts":
       manifestBlock = bt.Block.new(
         manifest.encode().tryGet(),
         codec = ManifestCodec).tryGet()
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
+      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
 
     manifestCid = manifestBlock.cid
     manifestCidStr = $(manifestCid)
