@@ -124,7 +124,7 @@ method provide*(d: Discovery, host: ca.Address) {.async, base.} =
 
 method removeProvider*(
   d: Discovery,
-  peerId: PeerId): Future[void] {.base.} =
+  peerId: PeerId): Future[void] {.base, gcsafe.} =
   ## Remove provider from providers table
   ##
 
