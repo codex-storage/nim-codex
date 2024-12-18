@@ -166,9 +166,8 @@ template multinodesuite*(name: string, body: untyped) =
           config.addCliOption("--bootstrap-node", bootstrapNode)
         config.addCliOption("--api-port", $ await nextFreePort(8080 + nodeIdx))
         config.addCliOption("--data-dir", datadir)
-        config.addCliOption("--nat", "127.0.0.1")
+        config.addCliOption("--nat", "none")
         config.addCliOption("--listen-addrs", "/ip4/127.0.0.1/tcp/0")
-        config.addCliOption("--disc-ip", "127.0.0.1")
         config.addCliOption("--disc-port", $ await nextFreePort(8090 + nodeIdx))
 
       except CodexConfigError as e:

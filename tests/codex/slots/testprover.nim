@@ -19,7 +19,7 @@ import pkg/codex/conf
 import pkg/confutils/defs
 import pkg/poseidon2/io
 import pkg/codex/utils/poseidon2digest
-
+import pkg/codex/nat
 import ./helpers
 import ../helpers
 import ./backends/helpers
@@ -43,8 +43,9 @@ suite "Test Prover":
       metaDs = metaTmp.newDb()
       config = CodexConf(
         cmd: StartUpCmd.persistence,
-        nat: ValidIpAddress.init("127.0.0.1"),
-        discoveryIp: ValidIpAddress.init(IPv4_any()),
+        nat: NatConfig(
+          hasExtIp: false,
+          nat: NatNone),
         metricsAddress: ValidIpAddress.init("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         circomR1cs: InputFile("tests/circuits/fixtures/proof_main.r1cs"),
