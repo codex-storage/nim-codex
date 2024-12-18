@@ -17,6 +17,7 @@ import pkg/questionable/results
 import pkg/stew/shims/net
 import pkg/contractabi/address as ca
 import pkg/codexdht/discv5/[routing_table, protocol as discv5]
+from pkg/nimcrypto import keccak256
 
 import ./rng
 import ./errors
