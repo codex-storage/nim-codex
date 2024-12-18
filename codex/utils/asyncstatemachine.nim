@@ -25,7 +25,7 @@ logScope:
 proc new*[T: Machine](_: type T): T =
   T(trackedFutures: TrackedFutures.new())
 
-method `$`*(state: State): string {.base.} =
+method `$`*(state: State): string {.base, gcsafe.} =
   raiseAssert "not implemented"
 
 proc transition(_: type Event, previous, next: State): Event =
@@ -62,7 +62,7 @@ proc run(machine: Machine, state: State) {.async.} =
   if next =? await state.run(machine):
     machine.schedule(Event.transition(state, next))
 
-proc scheduler(machine: Machine) {.async.} =
+proc scheduler(machine: Machine) {.async, gcsafe.} =
   var running: Future[void]
   while machine.started:
     let event = await machine.scheduled.get().track(machine)
@@ -74,13 +74,15 @@ proc scheduler(machine: Machine) {.async.} =
       machine.state = next
       debug "enter state", state = fromState & " => " & $machine.state
       running = machine.run(machine.state)
+
+      proc catchError(err: ref CatchableError) {.gcsafe.} =
+          trace "error caught in state.run, calling state.onError", state = $machine.state
+          machine.schedule(machine.onError(err))
+
       running
         .track(machine)
         .cancelled(proc() = trace "state.run cancelled, swallowing", state = $machine.state)
-        .catch(proc(err: ref CatchableError) =
-          trace "error caught in state.run, calling state.onError", state = $machine.state
-          machine.schedule(machine.onError(err))
-        )
+        .catch(catchError)
 
 proc start*(machine: Machine, initialState: State) =
   if machine.started:
