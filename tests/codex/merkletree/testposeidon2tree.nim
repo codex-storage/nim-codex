@@ -2,6 +2,7 @@ import std/unittest
 import std/sequtils
 import std/sugar
 
+import pkg/chronos
 import pkg/poseidon2
 import pkg/poseidon2/io
 import pkg/questionable/results
@@ -20,7 +21,7 @@ import ./helpers
 
 const
   data =
-    [
+    @[
       "0000000000000000000000000000001".toBytes,
       "0000000000000000000000000000002".toBytes,
       "0000000000000000000000000000003".toBytes,
@@ -33,6 +34,12 @@ const
     ]
 
 suite "Test Poseidon2Tree":
+  proc Poseidon2TreeInit(leaves: seq[Poseidon2Hash]): ?!Poseidon2Tree =
+    waitFor Poseidon2Tree.init(leaves)
+
+  proc Poseidon2TreeInit(leaves: seq[array[31, byte]]): ?!Poseidon2Tree =
+    waitFor Poseidon2Tree.init(leaves)
+
   var
     expectedLeaves: seq[Poseidon2Hash]
 
@@ -41,18 +48,18 @@ suite "Test Poseidon2Tree":
 
   test "Should fail init tree from empty leaves":
     check:
-      Poseidon2Tree.init( leaves = newSeq[Poseidon2Hash](0) ).isErr
+      Poseidon2TreeInit( leaves = newSeq[Poseidon2Hash](0) ).isErr
 
   test "Init tree from poseidon2 leaves":
     let
-      tree = Poseidon2Tree.init( leaves = expectedLeaves ).tryGet
+      tree = Poseidon2TreeInit( leaves = expectedLeaves ).tryGet
 
     check:
       tree.leaves == expectedLeaves
 
   test "Init tree from byte leaves":
     let
-      tree = Poseidon2Tree.init(
+      tree = Poseidon2TreeInit(
         leaves = expectedLeaves.mapIt(
           array[31, byte].initCopyFrom( it.toBytes )
         )).tryGet
@@ -62,7 +69,7 @@ suite "Test Poseidon2Tree":
 
   test "Should build from nodes":
     let
-      tree = Poseidon2Tree.init(leaves = expectedLeaves).tryGet
+      tree = Poseidon2TreeInit(leaves = expectedLeaves).tryGet
       fromNodes = Poseidon2Tree.fromNodes(
         nodes = toSeq(tree.nodes),
         nleaves = tree.leavesCount).tryGet
@@ -77,7 +84,7 @@ let
     compress(x, y, key.toKey)
 
   makeTree = proc(data: seq[Poseidon2Hash]): Poseidon2Tree =
-    Poseidon2Tree.init(leaves = data).tryGet
+    (waitFor Poseidon2Tree.init(leaves = data)).tryGet
 
 testGenericTree(
   "Poseidon2Tree",

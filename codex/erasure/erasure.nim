@@ -322,7 +322,7 @@ proc encodeData(
           return failure("Unable to store block!")
         idx.inc(params.steps)
 
-    without tree =? CodexTree.init(cids[]), err:
+    without tree =? (await CodexTree.init(cids[])), err:
       return failure(err)
 
     without treeCid =? tree.rootCid, err:
@@ -441,7 +441,7 @@ proc decode*(
   finally:
     decoder.release()
 
-  without tree =? CodexTree.init(cids[0..<encoded.originalBlocksCount]), err:
+  without tree =? (await CodexTree.init(cids[0..<encoded.originalBlocksCount])), err:
     return failure(err)
 
   without treeCid =? tree.rootCid, err:

@@ -161,8 +161,7 @@ proc buildBlockTree*[T, H](
   if blk.isEmpty:
     success (self.emptyBlock, self.emptyDigestTree)
   else:
-    without tree =?
-      T.digestTree(blk.data, self.cellSize.int), err:
+    without tree =? (await T.digestTree(blk.data, self.cellSize.int)), err:
       error "Failed to create digest for block", err = err.msg
       return failure(err)
 
@@ -213,7 +212,7 @@ proc buildSlotTree*[T, H](
     error "Failed to select slot blocks", err = err.msg
     return failure(err)
 
-  T.init(cellHashes)
+  await T.init(cellHashes)
 
 proc buildSlot*[T, H](
   self: SlotsBuilder[T, H],
@@ -251,8 +250,8 @@ proc buildSlot*[T, H](
 
   tree.root()
 
-func buildVerifyTree*[T, H](self: SlotsBuilder[T, H], slotRoots: openArray[H]): ?!T =
-  T.init(@slotRoots)
+proc buildVerifyTree*[T, H](self: SlotsBuilder[T, H], slotRoots: seq[H]): Future[?!T] {.async.} =
+  await T.init(@slotRoots)
 
 proc buildSlots*[T, H](self: SlotsBuilder[T, H]): Future[?!void] {.async.} =
   ## Build all slot trees and store them in the block store.
@@ -272,7 +271,7 @@ proc buildSlots*[T, H](self: SlotsBuilder[T, H]): Future[?!void] {.async.} =
           return failure(err)
         slotRoot
 
-  without tree =? self.buildVerifyTree(self.slotRoots) and root =? tree.root, err:
+  without tree =? (await self.buildVerifyTree(self.slotRoots)) and root =? tree.root, err:
     error "Failed to build slot roots tree", err = err.msg
     return failure(err)
 
@@ -304,6 +303,29 @@ proc buildManifest*[T, H](self: SlotsBuilder[T, H]): Future[?!Manifest] {.async.
     rootCids,
     self.cellSize,
     self.strategy.strategyType)
+
+proc init*[T, H](self: SlotsBuilder[T, H]): Future[?!void] {.async.} =
+  without emptyTree =? (await T.digestTree(self.emptyBlock, self.cellSize.int)), err:
+    return failure err
+  self.emptyDigestTree = emptyTree
+
+  if self.manifest.verifiable:
+    without tree =? (await self.buildVerifyTree(self.slotRoots)), err:
+      return failure err
+
+    without verifyRoot =? tree.root, err:
+      return failure err
+
+    without expectedRoot =? self.manifest.verifyRoot.fromVerifyCid(), err:
+      return failure err
+
+    if verifyRoot != expectedRoot:
+      return failure "Existing slots root doesn't match reconstructed root."
+
+    self.verifiableTree = some tree
+
+  trace "Slots builder initialized"
+  success()
 
 proc new*[T, H](
   _: type SlotsBuilder[T, H],
@@ -346,7 +368,6 @@ proc new*[T, H](
     numBlocksTotal      = numSlotBlocksTotal * manifest.numSlots          # number of blocks per slot
 
     emptyBlock          = newSeq[byte](manifest.blockSize.int)
-    emptyDigestTree     = ? T.digestTree(emptyBlock, cellSize.int)
 
     strategy = ? strategy.init(
       0,
@@ -372,24 +393,13 @@ proc new*[T, H](
       strategy: strategy,
       cellSize: cellSize,
       emptyBlock: emptyBlock,
-      numSlotBlocks: numSlotBlocksTotal,
-      emptyDigestTree: emptyDigestTree)
+      numSlotBlocks: numSlotBlocksTotal)
 
   if manifest.verifiable:
     if manifest.slotRoots.len == 0 or
       manifest.slotRoots.len != manifest.numSlots:
       return failure "Manifest is verifiable but slot roots are missing or invalid."
 
-    let
-      slotRoots = manifest.slotRoots.mapIt( (? it.fromSlotCid() ))
-      tree = ? self.buildVerifyTree(slotRoots)
-      expectedRoot = ? manifest.verifyRoot.fromVerifyCid()
-      verifyRoot = ? tree.root
-
-    if verifyRoot != expectedRoot:
-      return failure "Existing slots root doesn't match reconstructed root."
-
-    self.slotRoots = slotRoots
-    self.verifiableTree = some tree
+    self.slotRoots = self.manifest.slotRoots.mapIt( (? it.fromSlotCid() ))
 
   success self

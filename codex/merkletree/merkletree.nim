@@ -11,6 +11,7 @@
 
 import std/bitops
 
+import pkg/chronos
 import pkg/questionable/results
 
 import ../errors
@@ -120,10 +121,10 @@ func reconstructRoot*[H, K](proof: MerkleProof[H, K], leaf: H): ?!H =
 func verify*[H, K](proof: MerkleProof[H, K], leaf: H, root: H): ?!bool =
   success bool(root == ? proof.reconstructRoot(leaf))
 
-func merkleTreeWorker*[H, K](
+proc merkleTreeWorker*[H, K](
   self: MerkleTree[H, K],
-  xs: openArray[H],
-  isBottomLayer: static bool): ?!seq[seq[H]] =
+  xs: seq[H],
+  isBottomLayer: static bool): Future[?!seq[seq[H]]] {.async.} =
 
   let a = low(xs)
   let b = high(xs)
@@ -145,9 +146,16 @@ func merkleTreeWorker*[H, K](
 
   for i in 0..<halfn:
     const key = when isBottomLayer: K.KeyBottomLayer else: K.KeyNone
-    ys[i] = ? self.compress( xs[a + 2 * i], xs[a + 2 * i + 1], key = key )
+    without y =? self.compress( xs[a + 2 * i], xs[a + 2 * i + 1], key = key ), error:
+      return failure error
+    ys[i] = y
+    await sleepAsync(1.micros) # cooperative scheduling
   if isOdd:
     const key = when isBottomLayer: K.KeyOddAndBottomLayer else: K.KeyOdd
-    ys[halfn] = ? self.compress( xs[n], self.zero, key = key )
+    without y =? self.compress( xs[n], self.zero, key = key ), error:
+      return failure error
+    ys[halfn] = y
 
-  success @[ @xs ] & ? self.merkleTreeWorker(ys, isBottomLayer = false)
+  without v =? (await self.merkleTreeWorker(ys, isBottomLayer = false)), error:
+    return failure error
+  success @[ @xs ] & v
