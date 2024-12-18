@@ -18,7 +18,7 @@ import pkg/stew/shims/net
 
 func remapAddr*(
     address: MultiAddress,
-    ip: Option[ValidIpAddress] = ValidIpAddress.none,
+    ip: Option[IpAddress] = IpAddress.none,
     port: Option[Port] = Port.none
 ): MultiAddress =
   ## Remap addresses to new IP and/or Port

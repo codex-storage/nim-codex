@@ -114,9 +114,9 @@ type
 
     metricsAddress* {.
       desc: "Listening address of the metrics server"
-      defaultValue: ValidIpAddress.init("127.0.0.1")
+      defaultValue: defaultAddress(config)
       defaultValueDesc: "127.0.0.1"
-      name: "metrics-address" }: ValidIpAddress
+      name: "metrics-address" }: IpAddress
 
     metricsPort* {.
       desc: "Listening HTTP port of the metrics server"
@@ -142,17 +142,17 @@ type
     # TODO: change this once we integrate nat support
     nat* {.
       desc: "IP Addresses to announce behind a NAT"
-      defaultValue: ValidIpAddress.init("127.0.0.1")
+      defaultValue: defaultAddress(config)
       defaultValueDesc: "127.0.0.1"
       abbr: "a"
-      name: "nat" }: ValidIpAddress
+      name: "nat" }: IpAddress
 
     discoveryIp* {.
       desc: "Discovery listen address"
-      defaultValue: ValidIpAddress.init(IPv4_any())
+      defaultValue: IPv4_any()
       defaultValueDesc: "0.0.0.0"
       abbr: "e"
-      name: "disc-ip" }: ValidIpAddress
+      name: "disc-ip" }: IpAddress
 
     discoveryPort* {.
       desc: "Discovery (UDP) port"
@@ -413,6 +413,9 @@ type
 logutils.formatIt(LogFormat.textLines, EthAddress): it.short0xHexLog
 logutils.formatIt(LogFormat.json, EthAddress): %it
 
+func defaultAddress*(conf: CodexConf): IpAddress =
+  result = static parseIpAddress("127.0.0.1")
+
 func persistence*(self: CodexConf): bool =
   self.cmd == StartUpCmd.persistence
 
@@ -445,13 +448,17 @@ const
 
 proc parseCmdArg*(T: typedesc[MultiAddress],
                   input: string): MultiAddress
-                 {.upraises: [ValueError, LPError].} =
+                 {.upraises: [ValueError] .} =
   var ma: MultiAddress
-  let res = MultiAddress.init(input)
-  if res.isOk:
-    ma = res.get()
-  else:
-    warn "Invalid MultiAddress", input=input, error = res.error()
+  try:
+    let res = MultiAddress.init(input)
+    if res.isOk:
+      ma = res.get()
+    else:
+      warn "Invalid MultiAddress", input=input, error = res.error()
+      quit QuitFailure
+  except LPError as exc:
+    warn "Invalid MultiAddress uri", uri = input, error = exc.msg
     quit QuitFailure
   ma
 
@@ -461,6 +468,9 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
     if not res.fromURI(uri):
       warn "Invalid SignedPeerRecord uri", uri = uri
       quit QuitFailure
+  except LPError as exc:
+    warn "Invalid SignedPeerRecord uri", uri = uri, error = exc.msg
+    quit QuitFailure
   except CatchableError as exc:
     warn "Invalid SignedPeerRecord uri", uri = uri, error = exc.msg
     quit QuitFailure
@@ -494,7 +504,11 @@ proc readValue*(r: var TomlReader, val: var SignedPeerRecord) =
     error "invalid SignedPeerRecord configuration value", error = err.msg
     quit QuitFailure
 
-  val = SignedPeerRecord.parseCmdArg(uri)
+  try:
+    val = SignedPeerRecord.parseCmdArg(uri)
+  except LPError as err:
+    warn "Invalid SignedPeerRecord uri", uri = uri, error = err.msg
+    quit QuitFailure
 
 proc readValue*(r: var TomlReader, val: var MultiAddress) =
   without input =? r.readValue(string).catch, err:

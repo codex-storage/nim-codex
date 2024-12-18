@@ -147,7 +147,7 @@ proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
     d.protocol.updateRecord(d.providerRecord)
       .expect("Should update SPR")
 
-proc updateDhtRecord*(d: Discovery, ip: ValidIpAddress, port: Port) =
+proc updateDhtRecord*(d: Discovery, ip: IpAddress, port: Port) =
   ## Update providers record
   ##
 
@@ -173,7 +173,7 @@ proc stop*(d: Discovery) {.async.} =
 proc new*(
     T: type Discovery,
     key: PrivateKey,
-    bindIp = ValidIpAddress.init(IPv4_any()),
+    bindIp = IPv4_any(),
     bindPort = 0.Port,
     announceAddrs: openArray[MultiAddress],
     bootstrapNodes: openArray[SignedPeerRecord] = [],
@@ -203,7 +203,7 @@ proc new*(
 
   self.protocol = newProtocol(
     key,
-    bindIp = bindIp.toNormalIp,
+    bindIp = bindIp,
     bindPort = bindPort,
     record = self.providerRecord.get,
     bootstrapRecords = bootstrapNodes,
