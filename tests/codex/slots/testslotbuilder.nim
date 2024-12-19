@@ -158,11 +158,16 @@ suite "Slot builder":
       Poseidon2Builder.new(localStore, mismatchManifest, cellSize = cellSize)
         .error.msg == "Block size must be divisable by cell size."
 
+  proc createPoseidon2Builder(): Future[Poseidon2Builder] {.async.} =
+    let builder = Poseidon2Builder.new(
+        localStore,
+        protectedManifest,
+        cellSize = cellSize).tryGet()
+    (await builder.init()).tryGet()
+    builder
+
   test "Should build correct slot builder":
-    builder = Poseidon2Builder.new(
-      localStore,
-      protectedManifest,
-      cellSize = cellSize).tryGet()
+    builder = await createPoseidon2Builder()
 
     check:
       builder.cellSize == cellSize
@@ -177,10 +182,7 @@ suite "Slot builder":
       steppedStrategy = Strategy.init(
         0, numBlocksTotal - 1, numSlots)
 
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
+      builder = await createPoseidon2Builder()
 
     for i in 0..<numSlots:
       let
@@ -202,10 +204,7 @@ suite "Slot builder":
       steppedStrategy = Strategy.init(
         0, numBlocksTotal - 1, numSlots)
 
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
+      builder = await createPoseidon2Builder()
 
     for i in 0..<numSlots:
       let
@@ -224,10 +223,7 @@ suite "Slot builder":
 
   test "Should persist trees for all slots":
     let
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
+      builder = await createPoseidon2Builder()
 
     for i in 0..<numSlots:
       let
@@ -249,10 +245,7 @@ suite "Slot builder":
   test "Should build correct verification root":
     let
       steppedStrategy = Strategy.init(0, numBlocksTotal - 1, numSlots)
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
+      builder = await createPoseidon2Builder()
 
     (await builder.buildSlots()).tryGet
     let
@@ -269,7 +262,7 @@ suite "Slot builder":
           Merkle.digest(slotHashes)
 
       expectedRoot = Merkle.digest(slotsHashes)
-      rootHash = builder.buildVerifyTree(builder.slotRoots).tryGet().root.tryGet()
+      rootHash = (await builder.buildVerifyTree(builder.slotRoots)).tryGet().root.tryGet()
 
     check:
       expectedRoot == rootHash
@@ -277,11 +270,7 @@ suite "Slot builder":
   test "Should build correct verification root manifest":
     let
       steppedStrategy = Strategy.init(0, numBlocksTotal - 1, numSlots)
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
-
+      builder = await createPoseidon2Builder()
       slotsHashes = collect(newSeq):
         for i in 0..<numSlots:
           let
@@ -305,10 +294,7 @@ suite "Slot builder":
 
   test "Should not build from verifiable manifest with 0 slots":
     var
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
+      builder = await createPoseidon2Builder()
       verifyManifest = (await builder.buildManifest()).tryGet()
 
     verifyManifest.slotRoots = @[]
@@ -319,11 +305,7 @@ suite "Slot builder":
 
   test "Should not build from verifiable manifest with incorrect number of slots":
     var
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
-
+      builder = await createPoseidon2Builder()
       verifyManifest = (await builder.buildManifest()).tryGet()
 
     verifyManifest.slotRoots.del(
@@ -337,10 +319,7 @@ suite "Slot builder":
 
   test "Should not build from verifiable manifest with invalid verify root":
     let
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
+      builder = await createPoseidon2Builder()
 
     var
       verifyManifest = (await builder.buildManifest()).tryGet()
@@ -349,25 +328,24 @@ suite "Slot builder":
       Rng.instance,
       verifyManifest.verifyRoot.data.buffer)
 
-    check Poseidon2Builder.new(
+    let invalidBuilder = Poseidon2Builder.new(
         localStore,
         verifyManifest,
-        cellSize = cellSize).isErr
+        cellSize = cellSize).tryGet()
+
+    check (await invalidBuilder.init()).isErr
 
   test "Should build from verifiable manifest":
     let
-      builder = Poseidon2Builder.new(
-        localStore,
-        protectedManifest,
-        cellSize = cellSize).tryGet()
-
+      builder = await createPoseidon2Builder()
       verifyManifest = (await builder.buildManifest()).tryGet()
-
       verificationBuilder = Poseidon2Builder.new(
         localStore,
         verifyManifest,
         cellSize = cellSize).tryGet()
 
+    (await verificationBuilder.init()).tryGet()
+    
     check:
       builder.slotRoots == verificationBuilder.slotRoots
       builder.verifyRoot == verificationBuilder.verifyRoot
