@@ -88,7 +88,9 @@ type
 
 # attach task scheduler to engine
 proc scheduleTask(b: BlockExcEngine, task: BlockExcPeerCtx): bool {.gcsafe} =
-  b.taskQueue.pushOrUpdateNoWait(task).isOk()
+  let val = b.taskQueue.pushOrUpdateNoWait(task).isOk()
+  trace "Task scheduled", peerId = task.id
+  val
 
 proc blockexcTaskRunner(b: BlockExcEngine) {.async: (raises: []).}
 
@@ -221,6 +223,7 @@ proc blockPresenceHandler*(
   if peerCtx.isNil:
     return
 
+  trace "Handling blockPresences", addrs = blocks.mapIt(it.address)
   for blk in blocks:
     if presence =? Presence.init(blk):
       peerCtx.setPresence(presence)
@@ -283,6 +286,7 @@ proc cancelBlocks(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
     warn "Failed to send block request cancellations to peers", peers = failed.len
 
 proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
+  trace "Resolving blocks", addrs = blocksDelivery.mapIt(it.address)
   b.pendingBlocks.resolve(blocksDelivery)
   await b.scheduleTasks(blocksDelivery)
   await b.cancelBlocks(blocksDelivery.mapIt(it.address))
@@ -399,11 +403,14 @@ proc wantListHandler*(
       peer      = peerCtx.id
       address   = e.address
       wantType  = $e.wantType
+      isCancel  = $e.cancel
 
     # Update metrics
     if e.wantType == WantType.WantHave:
+      trace "Received wantHave"
       codex_block_exchange_want_have_lists_received.inc()
     elif e.wantType == WantType.WantBlock:
+      trace "Received wantBlock"
       schedulePeer = true
       codex_block_exchange_want_block_lists_received.inc()
 
@@ -451,7 +458,7 @@ proc wantListHandler*(
         peerCtx.peerWants[idx] = e # update entry
 
   if presence.len > 0:
-    trace "Sending presence to remote", items = presence.mapIt($it).join(",")
+    trace "Sending presence", addrs = presence.mapIt(it.address)
     await b.network.request.sendPresence(peer, presence)
 
   if schedulePeer:
@@ -543,6 +550,8 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
     updateInFlight(wantAddresses, true)
     wantsBlocks.sort(SortOrder.Descending)
 
+    trace "Begin sending blocks", addrs = wantAddresses
+
     proc localLookup(e: WantListEntry): Future[?!BlockDelivery] {.async.} =
       if e.address.leaf:
         (await b.localStore.getBlockAndProof(e.address.treeCid, e.address.index)).map(
@@ -574,8 +583,9 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
       )
 
       codex_block_exchange_blocks_sent.inc(blocksDelivery.len.int64)
-
       task.peerWants.keepItIf(it.address notin successAddresses)
+      trace "Finished sending blocks", addrs = wantAddresses
+
 
 proc blockexcTaskRunner(b: BlockExcEngine) {.async: (raises: []).} =
   ## process tasks
