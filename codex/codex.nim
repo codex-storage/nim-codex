@@ -161,7 +161,7 @@ proc start*(s: CodexServer) {.async.} =
 
   let (announceAddrs,discoveryAddrs)= natedAddress(
     s.config.nat,
-    s.config.listenAddrs,
+    s.codexNode.switch.peerInfo.addrs,
     s.config.discoveryPort)
 
   s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
