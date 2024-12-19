@@ -20,6 +20,8 @@ import ./utils/asynciter
 
 export asyncheapqueue, fileutils, asynciter, chronos
 
+when defined(posix):
+  import os, posix
 
 func divUp*[T: SomeInteger](a, b : T): T =
   ## Division with result rounded up (rather than truncated as in 'div')
@@ -94,3 +96,31 @@ when not declared(parseDuration): # Odd code formatting to minimize diff v. main
       result = start                    #..is no unit to the end of `s`.
     var sizeF = number * scale + 0.5    # Saturate to int64.high when too big
     size = seconds(int(sizeF))
+
+# Block all/most signals in the current thread, so we don't interfere with regular signal
+# handling elsewhere.
+proc ignoreSignalsInThread*() =
+  when defined(posix):
+    var signalMask, oldSignalMask: Sigset
+
+    # sigprocmask() doesn't work on macOS, for multithreaded programs
+    if sigfillset(signalMask) != 0:
+      echo osErrorMsg(osLastError())
+      quit(QuitFailure)
+    when defined(boehmgc):
+      # Turns out Boehm GC needs some signals to deal with threads:
+      # https://www.hboehm.info/gc/debugging.html
+      const
+        SIGPWR = 30
+        SIGXCPU = 24
+        SIGSEGV = 11
+        SIGBUS = 7
+      if sigdelset(signalMask, SIGPWR) != 0 or
+        sigdelset(signalMask, SIGXCPU) != 0 or
+        sigdelset(signalMask, SIGSEGV) != 0 or
+        sigdelset(signalMask, SIGBUS) != 0:
+        echo osErrorMsg(osLastError())
+        quit(QuitFailure)
+    if pthread_sigmask(SIG_BLOCK, signalMask, oldSignalMask) != 0:
+      echo osErrorMsg(osLastError())
+      quit(QuitFailure)

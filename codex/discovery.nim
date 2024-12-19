@@ -146,17 +146,14 @@ proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
     d.protocol.updateRecord(d.providerRecord)
       .expect("Should update SPR")
 
-proc updateDhtRecord*(d: Discovery, ip: ValidIpAddress, port: Port) =
+proc updateDhtRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
   ## Update providers record
   ##
 
-  trace "Updating Dht record", ip, port = $port
+  trace "Updating Dht record", addrs = addrs
   d.dhtRecord = SignedPeerRecord.init(
-    d.key, PeerRecord.init(d.peerId, @[
-      MultiAddress.init(
-        ip,
-        IpTransportProtocol.udpProtocol,
-        port)])).expect("Should construct signed record").some
+    d.key, PeerRecord.init(d.peerId, @addrs))
+      .expect("Should construct signed record").some
 
   if not d.protocol.isNil:
     d.protocol.updateRecord(d.dhtRecord)
