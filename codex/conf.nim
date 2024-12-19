@@ -100,7 +100,6 @@ type
       name: "log-level" }: string
 
     logFormat* {.
-      hidden
       desc: "Specifies what kind of logs should be written to stdout (auto, " &
         "colors, nocolors, json)"
       defaultValueDesc: "auto"
@@ -316,7 +315,7 @@ type
         defaultValue: ValidationGroups.none
         name: "validator-groups"
       .}: Option[ValidationGroups]
-      
+
       validatorGroupIndex* {.
         desc: "Slot validation group index"
         longDesc: "The value provided must be in the range " &
