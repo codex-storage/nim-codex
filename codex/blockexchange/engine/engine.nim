@@ -341,8 +341,8 @@ proc blocksDeliveryHandler*(
   var validatedBlocksDelivery: seq[BlockDelivery]
   for bd in blocksDelivery:
     logScope:
-      peer      = peer
-      address   = bd.address
+      peer    = peer
+      address = bd.address
 
     if err =? b.validateBlockDelivery(bd).errorOption:
       warn "Block validation failed", msg = err.msg
@@ -384,7 +384,8 @@ proc wantListHandler*(
   wantList: WantList) {.async.} =
   let
     peerCtx = b.peers.get(peer)
-  if isNil(peerCtx):
+
+  if peerCtx.isNil:
     return
 
   var
@@ -400,48 +401,35 @@ proc wantListHandler*(
       address   = e.address
       wantType  = $e.wantType
 
-    # Update metrics
-    if e.wantType == WantType.WantHave:
-      codex_block_exchange_want_have_lists_received.inc()
-    elif e.wantType == WantType.WantBlock:
-      schedulePeer = true
-      codex_block_exchange_want_block_lists_received.inc()
+    if idx < 0: # Adding new entry to peer wants
+      let
+        have = await e.address in b.localStore
+        price = @(
+          b.pricing.get(Pricing(price: 0.u256))
+          .price.toBytesBE)
 
-    # Update peerCtx
-    if idx < 0: # new entry
       if e.wantType == WantType.WantHave:
-        # Respond to wantHaves immediately.
-        let
-          have = await e.address in b.localStore
-          price = @(
-            b.pricing.get(Pricing(price: 0.u256))
-            .price.toBytesBE)
-
-        if not have and not e.cancel:
-          # Remember the want only if we don't have it and it's not a cancel.
-          peerCtx.peerWants.add(e)
+        if have:
+          presence.add(
+            BlockPresence(
+            address: e.address,
+            `type`: BlockPresenceType.Have,
+            price: price))
+        else:
           if e.sendDontHave:
             presence.add(
               BlockPresence(
               address: e.address,
               `type`: BlockPresenceType.DontHave,
               price: price))
-        elif have:
-          # Important todo: This presence can be added in response to a cancel message.
-          # This is ignored by the receiving peer. But not doing so degrades performance.
-          # See: https://github.com/codex-storage/nim-codex/pull/1019#issuecomment-2525089803
-          # See: https://hackmd.io/40xdtOBbR4GAKp-JWu-IlA
-          presence.add(
-            BlockPresence(
-            address: e.address,
-            `type`: BlockPresenceType.Have,
-            price: price))
+          peerCtx.peerWants.add(e)
 
-      elif e.wantType == WantType.WantBlock and not e.cancel:
-        # cancels are always of type wantHave, but just in case
+        codex_block_exchange_want_have_lists_received.inc()
+      elif e.wantType == WantType.WantBlock:
         peerCtx.peerWants.add(e)
-
-    else: # update existing entry
+        schedulePeer = true
+        codex_block_exchange_want_block_lists_received.inc()
+    else: # Updating existing entry in peer wants
       # peer doesn't want this block anymore
       if e.cancel:
         peerCtx.peerWants.del(idx)
