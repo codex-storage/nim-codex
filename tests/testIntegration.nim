@@ -1,17 +1,53 @@
-import std/os
-import std/strutils
-import ./imports
+# import ./integration/testcli
+# import ./integration/testrestapi
+# import ./integration/testrestapivalidation
+# import ./integration/testupdownload
+# import ./integration/testsales
+# import ./integration/testpurchasing
+# import ./integration/testblockexpiration
+# import ./integration/testmarketplace
+# import ./integration/testproofs
+# import ./integration/testvalidator
+# import ./integration/testecbug
 
-## Limit which integration tests to run by setting the
-## environment variable during compilation. For example:
-## CODEX_INTEGRATION_TEST_INCLUDES="testFoo.nim,testBar.nim"
-const includes = getEnv("CODEX_INTEGRATION_TEST_INCLUDES")
-
-when includes != "":
-  # import only the specified tests
-  importAll(includes.split(","))
-else:
-  # import all tests in the integration/ directory
-  importTests(currentSourcePath().parentDir() / "integration")
+import pkg/chronos
+import pkg/codex/logutils
+import ./integration/testmanager
 
 {.warning[UnusedImport]: off.}
+
+const TestConfigs =
+  @[
+    # IntegrationTestConfig(testFile: "./integration/testcli", startHardhat: true),
+    # IntegrationTestConfig(testFile: "./integration/testrestapi", startHardhat: true),
+    # IntegrationTestConfig(testFile: "./integration/testupdownload", startHardhat: true),
+    # IntegrationTestConfig(testFile: "./integration/testsales", startHardhat: true),
+    # IntegrationTestConfig(testFile: "./integration/testpurchasing", startHardhat: true),
+    # IntegrationTestConfig(testFile: "./integration/testblockexpiration", startHardhat: true),
+    IntegrationTestConfig(
+      name: "Basic Marketplace and payout tests",
+      testFile: "./integration/testmarketplace",
+      startHardhat: true,
+    ),
+    # IntegrationTestConfig(testFile: "./integration/testproofs", startHardhat: true),
+    # IntegrationTestConfig(testFile: "./integration/testvalidator", startHardhat: true),
+    IntegrationTestConfig(
+      name: "Erasure Coding Bug",
+      testFile: "./integration/testecbug",
+      startHardhat: true,
+    )
+    IntegrationTestConfig(testFile: "./integration/testrestapivalidation", startHardhat: true)
+  ]
+
+proc run() {.async.} =
+  let manager = TestManager.new(
+    configs = TestConfigs, debugTestHarness = true, debugHardhat = false
+  )
+  try:
+    trace "starting test manager"
+    await manager.start()
+  finally:
+    trace "stopping test manager"
+    await manager.stop()
+
+waitFor run()
