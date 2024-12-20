@@ -4,6 +4,16 @@ import std/os except commandLineParams
 
 ### Helper functions
 proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
+  when defined(macosx):
+    # temporary fix for teh conflicting "VERSION" file in
+    # https://github.com/miniupnp/libnatpmp that causes a conflict
+    # with "#include <VERSION>" from the std library:
+    proc deleteVersionFile() =
+      let versionFilePath = "vendor/nim-nat-traversal/vendor/libnatpmp-upstream/VERSION"
+      echo "deleting " & versionFilePath
+      if fileExists(versionFilePath):
+        rmFile(versionFilePath)
+    deleteVersionFile()
   if not dirExists "build":
     mkDir "build"
   # allow something like "nim nimbus --verbosity:0 --hints:off nimbus.nims"
