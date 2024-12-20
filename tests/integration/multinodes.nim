@@ -13,6 +13,7 @@ import ./codexprocess
 import ./hardhatconfig
 import ./hardhatprocess
 import ./nodeconfigs
+import ./utils
 import ../asynctest
 import ../checktest
 
@@ -37,39 +38,15 @@ type
 
   MultiNodeSuiteError = object of CatchableError
 
-const jsonRpcProviderUrl* = "ws://localhost:8545"
+const HardhatPort {.intdefine.}: int = 8545
+const CodexApiPort {.intdefine.}: int = 8080
+const CodexDiscPort {.intdefine.}: int = 8090
+const TestId {.strdefine.}: string = "TestId"
 
 proc raiseMultiNodeSuiteError(msg: string) =
   raise newException(MultiNodeSuiteError, msg)
 
-proc nextFreePort*(startPort: int): Future[int] {.async.} =
-  proc client(server: StreamServer, transp: StreamTransport) {.async.} =
-    await transp.closeWait()
 
-  var port = startPort
-  while true:
-    trace "checking if port is free", port
-    try:
-      let host = initTAddress("127.0.0.1", port)
-      # We use ReuseAddr here only to be able to reuse the same IP/Port when
-      # there's a TIME_WAIT socket. It's useful when running the test multiple
-      # times or if a test ran previously using the same port.
-      var server = createStreamServer(host, client, {ReuseAddr})
-      trace "port is free", port
-      await server.closeWait()
-      return port
-    except TransportOsError:
-      trace "port is not free", port
-      inc port
-
-proc sanitize(pathSegment: string): string =
-  var sanitized = pathSegment
-  for invalid in invalidFilenameChars.items:
-    sanitized = sanitized.replace(invalid, '_').replace(' ', '_')
-  sanitized
-
-proc getTempDirName*(starttime: string, role: Role, roleIdx: int): string =
-  getTempDir() / "Codex" / sanitize($starttime) / sanitize($role & "_" & $roleIdx)
 
 template multinodesuite*(name: string, body: untyped) =
   asyncchecksuite name:
@@ -85,7 +62,7 @@ template multinodesuite*(name: string, body: untyped) =
     # If you want to use a different provider url in the nodes, you can
     # use withEthProvider config modifier in the node config
     # to set the desired provider url. E.g.:
-    #   NodeConfigs(    
+    #   NodeConfigs(
     #     hardhat:
     #       HardhatConfig.none,
     #     clients:
@@ -93,6 +70,7 @@ template multinodesuite*(name: string, body: untyped) =
     #         .withEthProvider("ws://localhost:8545")
     #         .some,
     #     ...
+    var jsonRpcProviderUrl = "http://127.0.0.1:" & $HardhatPort
     var running {.inject, used.}: seq[RunningNode]
     var bootstrapNodes: seq[string]
     let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
@@ -131,6 +109,10 @@ template multinodesuite*(name: string, body: untyped) =
       let fileName = logDir / fn
       return fileName
 
+    proc updatePort(url: var string, port: int) =
+      let parts = url.split(':')
+      url = @[parts[0], parts[1], $port].join(":")
+
     proc newHardhatProcess(
         config: HardhatConfig, role: Role
     ): Future[NodeProcess] {.async.} =
@@ -138,6 +120,12 @@ template multinodesuite*(name: string, body: untyped) =
       if config.logFile:
         let updatedLogFile = getLogFile(role, none int)
         args.add "--log-file=" & updatedLogFile
+
+      let port = await nextFreePort(HardhatPort)
+      jsonRpcProviderUrl.updatePort(port)
+      trace "updated jsonRpcProviderUrl", jsonRpcProviderUrl
+      args.add("--port")
+      args.add($port)
 
       let node = await HardhatProcess.startNode(args, config.debugEnabled, "hardhat")
       try:
@@ -167,11 +155,11 @@ template multinodesuite*(name: string, body: untyped) =
 
         for bootstrapNode in bootstrapNodes:
           config.addCliOption("--bootstrap-node", bootstrapNode)
-        config.addCliOption("--api-port", $await nextFreePort(8080 + nodeIdx))
+        config.addCliOption("--api-port", $await nextFreePort(CodexApiPort + nodeIdx))
         config.addCliOption("--data-dir", datadir)
         config.addCliOption("--nat", "none")
         config.addCliOption("--listen-addrs", "/ip4/127.0.0.1/tcp/0")
-        config.addCliOption("--disc-port", $await nextFreePort(8090 + nodeIdx))
+        config.addCliOption("--disc-port", $await nextFreePort(CodexDiscPort + nodeIdx))
       except CodexConfigError as e:
         raiseMultiNodeSuiteError "invalid cli option, error: " & e.msg
 
@@ -232,15 +220,15 @@ template multinodesuite*(name: string, body: untyped) =
       )
       config.addCliOption(
         PersistenceCmd.prover, "--circom-r1cs",
-        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs",
+        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs"
       )
       config.addCliOption(
         PersistenceCmd.prover, "--circom-wasm",
-        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm",
+        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm"
       )
       config.addCliOption(
         PersistenceCmd.prover, "--circom-zkey",
-        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.zkey",
+        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.zkey"
       )
 
       return await newCodexProcess(providerIdx, config, Role.Provider)
