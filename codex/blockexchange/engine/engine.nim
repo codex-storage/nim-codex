@@ -409,16 +409,6 @@ proc wantListHandler*(
 
     # Update peerCtx
     if idx < 0: # new entry
-      if not e.cancel:
-        peerCtx.peerWants.add(e)
-
-      # Important TODO! (See https://github.com/codex-storage/nim-codex/pull/1019#issuecomment-2525089803 )
-      # The if type==WantHave (below) is NOT nested behind the if not cancel (above) on purpose!
-      # This means we send presence-lists in response to cancel messages.
-      # Not doing so will degrade the performance by more than an order of magnitude.
-      # TODO: Investigate WHY the presence list has such a performance impact.
-      # (Sending a presence-list in response to a cancel is not according to spec and should be removed
-      # once the performance impact mystery is understood and solved.)
       if e.wantType == WantType.WantHave:
         # Respond to wantHaves immediately.
         let
@@ -427,18 +417,29 @@ proc wantListHandler*(
             b.pricing.get(Pricing(price: 0.u256))
             .price.toBytesBE)
 
-        if not have and e.sendDontHave:
-          presence.add(
-            BlockPresence(
-            address: e.address,
-            `type`: BlockPresenceType.DontHave,
-            price: price))
+        if not have and not e.cancel:
+          # Remember the want only if we don't have it and it's not a cancel.
+          peerCtx.peerWants.add(e)
+          if e.sendDontHave:
+            presence.add(
+              BlockPresence(
+              address: e.address,
+              `type`: BlockPresenceType.DontHave,
+              price: price))
         elif have:
+          # Important todo: This presence can be added in response to a cancel message.
+          # This is ignored by the receiving peer. But not doing so degrades performance.
+          # See: https://github.com/codex-storage/nim-codex/pull/1019#issuecomment-2525089803
+          # See: https://hackmd.io/40xdtOBbR4GAKp-JWu-IlA
           presence.add(
             BlockPresence(
             address: e.address,
             `type`: BlockPresenceType.Have,
             price: price))
+
+      elif e.wantType == WantType.WantBlock and not e.cancel:
+        # cancels are always of type wantHave, but just in case
+        peerCtx.peerWants.add(e)
 
     else: # update existing entry
       # peer doesn't want this block anymore
