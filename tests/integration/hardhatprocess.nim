@@ -16,10 +16,10 @@ import ./nodeprocess
 
 export codexclient
 export chronicles
+export nodeprocess
 
 logScope:
   topics = "integration testing hardhat process"
-  nodeName = "hardhat"
 
 type HardhatProcess* = ref object of NodeProcess
   logFile: ?IoHandle
@@ -78,6 +78,9 @@ proc startNode*(
     debug: string | bool = false,
     name: string,
 ): Future[HardhatProcess] {.async.} =
+  logScope:
+    nodeName = name
+
   var logFilePath = ""
 
   var arguments = newSeq[string]()
@@ -94,7 +97,7 @@ proc startNode*(
     arguments: arguments,
     debug: ($debug != "false"),
     trackedFutures: TrackedFutures.new(),
-    name: "hardhat",
+    name: name,
   )
 
   await hardhat.start()
@@ -105,6 +108,9 @@ proc startNode*(
   return hardhat
 
 method onOutputLineCaptured(node: HardhatProcess, line: string) =
+  logScope:
+    nodeName = node.name
+
   without logFile =? node.logFile:
     return
 
