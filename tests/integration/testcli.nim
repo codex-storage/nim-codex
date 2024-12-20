@@ -5,13 +5,26 @@ import ../asynctest
 import ../checktest
 import ./codexprocess
 import ./nodeprocess
+import ./utils
 import ../examples
 
 asyncchecksuite "Command line interface":
   let key = "4242424242424242424242424242424242424242424242424242424242424242"
 
+  var nodeCount = -1
   proc startCodex(args: seq[string]): Future[CodexProcess] {.async.} =
     return await CodexProcess.startNode(args, false, "cli-test-node")
+    inc nodeCount
+    return await CodexProcess.startNode(
+      args.concat(
+        @[
+          "--api-port=" & $(await nextFreePort(8080 + nodeCount)),
+          "--disc-port=" & $(await nextFreePort(8090 + nodeCount))
+        ]
+      ),
+      true,
+      "cli-test-node",
+    )
 
   test "complains when persistence is enabled without ethereum account":
     let node = await startCodex(@["persistence"])
@@ -42,7 +55,7 @@ asyncchecksuite "Command line interface":
     let node = await startCodex(
       @[
         "persistence", "prover", marketplaceArg,
-        "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
+        "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs"
       ]
     )
     await node.waitUntilOutput(expectedDownloadInstruction)
@@ -53,7 +66,7 @@ asyncchecksuite "Command line interface":
       @[
         "persistence", "prover", marketplaceArg,
         "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
-        "--circom-wasm=tests/circuits/fixtures/proof_main.wasm",
+        "--circom-wasm=tests/circuits/fixtures/proof_main.wasm"
       ]
     )
     await node.waitUntilOutput(expectedDownloadInstruction)
