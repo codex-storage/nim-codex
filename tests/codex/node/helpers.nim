@@ -71,8 +71,8 @@ template setupAndTearDown*() {.dirty.} =
     network: BlockExcNetwork
     clock: Clock
     localStore: RepoStore
-    localStoreRepoDs: DataStore
-    localStoreMetaDs: DataStore
+    localStoreRepoDs: Datastore
+    localStoreMetaDs: Datastore
     engine: BlockExcEngine
     store: NetworkStore
     node: CodexNodeRef
