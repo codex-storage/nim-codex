@@ -101,7 +101,7 @@ asyncchecksuite "Sales agent":
     clock.set(market.requestExpiry[request.id] + 1)
     check eventually onCancelCalled
 
-  for requestState in {RequestState.New, Started, Finished, Failed}:
+  for requestState in {RequestState.New, RequestState.Started, RequestState.Finished, RequestState.Failed}:
     test "onCancelled is not called when request state is " & $requestState:
       agent.start(MockState.new())
       await agent.subscribe()
@@ -110,7 +110,7 @@ asyncchecksuite "Sales agent":
       await sleepAsync(100.millis)
       check not onCancelCalled
 
-  for requestState in {RequestState.Started, Finished, Failed}:
+  for requestState in {RequestState.Started, RequestState.Finished, RequestState.Failed}:
     test "cancelled future is finished when request state is " & $requestState:
       agent.start(MockState.new())
       await agent.subscribe()
