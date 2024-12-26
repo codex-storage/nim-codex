@@ -6,16 +6,23 @@ import pkg/chronos
 import ../asynctest
 import ./helpers
 
+# Trying to use a CancelledError or LPStreamError value for toRaise
+# will produce a compilation error;
+# Error: only a 'ref object' can be raised
+# This is because they are not ref object but plain object.
+# CancelledError* = object of FutureError
+# LPStreamError* = object of LPError
+
 type
   CrashingStreamWrapper* = ref object of LPStream
-    toRaise*: ref CatchableError
+    toRaise*: proc(): void {.gcsafe, raises: [CancelledError, LPStreamError].}
 
 method readOnce*(
   self: CrashingStreamWrapper,
   pbytes: pointer,
   nbytes: int
-): Future[int] {.async.} =
-  raise self.toRaise
+): Future[int] {.gcsafe, async: (raises: [CancelledError, LPStreamError]).} =
+  self.toRaise()
 
 asyncchecksuite "Chunking":
   test "should return proper size chunks":
@@ -88,13 +95,14 @@ asyncchecksuite "Chunking":
       string.fromBytes(data) == readFile(path)
       fileChunker.offset == data.len
 
-  proc raiseStreamException(exc: ref CatchableError) {.async.} =
+  proc raiseStreamException(exc: ref CancelledError | ref LPStreamError) {.async.} =
     let stream = CrashingStreamWrapper.new()
     let chunker = LPStreamChunker.new(
       stream = stream,
       chunkSize = 2'nb)
 
-    stream.toRaise = exc
+    stream.toRaise = proc(): void {.raises: [CancelledError, LPStreamError].} =
+      raise exc
     discard (await chunker.getBytes())
 
   test "stream should forward LPStreamError":
@@ -112,6 +120,11 @@ asyncchecksuite "Chunking":
     expect LPStreamError:
       await raiseStreamException(newException(LPStreamError, "test error"))
 
-  test "stream should convert other exceptions to defect":
-    expect Defect:
-      await raiseStreamException(newException(CatchableError, "test error"))
+  # This test cannot exist anymore.
+  # The signature of the method readOnce is explicitly listing the error raised:
+  # LPStreamError and CancelledError.
+  # So trying to raise CatchableError will not compile because CatchableError is
+  # not in the pragma array amd Nim 2 looks stricter for this rule.
+  # test "stream should convert other exceptions to defect":
+  #   expect Defect:
+  #     await raiseStreamException(newException(CatchableError, "test error"))

@@ -54,7 +54,7 @@ marketplacesuite "Hosts submit regular proofs":
     check eventually(client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000)
 
     var proofWasSubmitted = false
-    proc onProofSubmitted(event: ProofSubmitted) =
+    proc onProofSubmitted(event: ?!ProofSubmitted) =
       proofWasSubmitted = true
 
     let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
@@ -120,8 +120,12 @@ marketplacesuite "Simulate invalid proofs":
     check eventually(client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000)
 
     var slotWasFreed = false
-    proc onSlotFreed(event: SlotFreed) =
-      if event.requestId == requestId:
+    proc onSlotFreed(event: ?!SlotFreed) =
+      without value =? event:
+        trace "The onSlotFreed event is not defined."
+        discard
+
+      if value.requestId == requestId:
         slotWasFreed = true
 
     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
@@ -176,8 +180,12 @@ marketplacesuite "Simulate invalid proofs":
     let requestId = client0.requestId(purchaseId).get
 
     var slotWasFilled = false
-    proc onSlotFilled(event: SlotFilled) =
-      if event.requestId == requestId:
+    proc onSlotFilled(event: ?!SlotFilled) =
+      without value =? event:
+        trace "The onSlotFilled event is not defined."
+        discard
+
+      if value.requestId == requestId:
         slotWasFilled = true
     let filledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
 
@@ -185,8 +193,12 @@ marketplacesuite "Simulate invalid proofs":
     check eventually(slotWasFilled, timeout = expiry.int * 1000)
 
     var slotWasFreed = false
-    proc onSlotFreed(event: SlotFreed) =
-      if event.requestId == requestId:
+    proc onSlotFreed(event: ?!SlotFreed) =
+      without value =? event:
+        trace "The onSlotFreed event is not defined."
+        discard
+
+      if value.requestId == requestId:
         slotWasFreed = true
     let freedSubscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
