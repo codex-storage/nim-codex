@@ -8,5 +8,5 @@ method initializeCircomBackend*(
   r1csFile: string,
   wasmFile: string,
   zKeyFile: string
-): AnyBackend {.base.} =
+): AnyBackend {.base, gcsafe.}=
   CircomCompat.init(r1csFile, wasmFile, zKeyFile)

@@ -43,7 +43,7 @@ proc zkeyFilePath(config: CodexConf): string =
 
 proc initializeFromCircuitDirFiles(
   config: CodexConf,
-  utils: BackendUtils): ?!AnyBackend =
+  utils: BackendUtils): ?!AnyBackend {.gcsafe.} =
   if fileExists(config.r1csFilePath) and
     fileExists(config.wasmFilePath) and
     fileExists(config.zkeyFilePath):

@@ -112,13 +112,13 @@ method ensureExpiry*(
 
   raiseAssert("Not implemented!")
 
-method delBlock*(self: BlockStore, cid: Cid): Future[?!void] {.base.} =
+method delBlock*(self: BlockStore, cid: Cid): Future[?!void] {.base, gcsafe.} =
   ## Delete a block from the blockstore
   ##
 
   raiseAssert("delBlock not implemented!")
 
-method delBlock*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!void] {.base.} =
+method delBlock*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!void] {.base, gcsafe.} =
   ## Delete a block from the blockstore
   ##
 
