@@ -296,4 +296,5 @@ proc new*(
     config: config,
     codexNode: codexNode,
     restServer: restServer,
-    repoStore: repoStore)
+    repoStore: repoStore,
+    maintenance: maintenance)
