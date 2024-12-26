@@ -15,16 +15,17 @@ method getChainId*(provider: MockProvider): Future[UInt256] {.async: (raises:[Pr
 proc configFactory(): CodexConf =
   CodexConf(
     cmd: StartUpCmd.persistence,
-    nat: ValidIpAddress.init("127.0.0.1"),
-    discoveryIp: ValidIpAddress.init(IPv4_any()),
-    metricsAddress: ValidIpAddress.init("127.0.0.1"))
+    nat: static parseIpAddress("127.0.0.1"),
+    discoveryIp: IPv4_any(),
+    metricsAddress: static parseIpAddress("127.0.0.1")
+  )
 
 proc configFactory(marketplace: Option[EthAddress]): CodexConf =
   CodexConf(
     cmd: StartUpCmd.persistence,
-    nat: ValidIpAddress.init("127.0.0.1"),
-    discoveryIp: ValidIpAddress.init(IPv4_any()),
-    metricsAddress: ValidIpAddress.init("127.0.0.1"),
+    nat: static parseIpAddress("127.0.0.1"),
+    discoveryIp: IPv4_any(),
+    metricsAddress: static parseIpAddress("127.0.0.1"),
     marketplaceAddress: marketplace)
 
 asyncchecksuite "Deployment":

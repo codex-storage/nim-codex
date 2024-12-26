@@ -47,9 +47,9 @@ suite "Test BackendFactory":
     let
       config = CodexConf(
         cmd: StartUpCmd.persistence,
-        nat: ValidIpAddress.init("127.0.0.1"),
-        discoveryIp: ValidIpAddress.init(IPv4_any()),
-        metricsAddress: ValidIpAddress.init("127.0.0.1"),
+        nat: static parseIpAddress("127.0.0.1"),
+        discoveryIp: IPv4_any(),
+        metricsAddress: parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         marketplaceAddress: EthAddress.example.some,
         circomR1cs: InputFile("tests/circuits/fixtures/proof_main.r1cs"),
@@ -68,9 +68,9 @@ suite "Test BackendFactory":
     let
       config = CodexConf(
         cmd: StartUpCmd.persistence,
-        nat: ValidIpAddress.init("127.0.0.1"),
-        discoveryIp: ValidIpAddress.init(IPv4_any()),
-        metricsAddress: ValidIpAddress.init("127.0.0.1"),
+        nat: static parseIpAddress("127.0.0.1"),
+        discoveryIp: IPv4_any(),
+        metricsAddress: static parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         marketplaceAddress: EthAddress.example.some,
 
@@ -90,9 +90,9 @@ suite "Test BackendFactory":
     let
       config = CodexConf(
         cmd: StartUpCmd.persistence,
-        nat: ValidIpAddress.init("127.0.0.1"),
-        discoveryIp: ValidIpAddress.init(IPv4_any()),
-        metricsAddress: ValidIpAddress.init("127.0.0.1"),
+        nat: static parseIpAddress("127.0.0.1"),
+        discoveryIp: IPv4_any(),
+        metricsAddress: static parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         marketplaceAddress: EthAddress.example.some,
         circuitDir: OutDir(circuitDir)
