@@ -1,6 +1,5 @@
 import std/sequtils
 import pkg/chronos
-import pkg/datastore
 import pkg/questionable
 import pkg/questionable/results
 

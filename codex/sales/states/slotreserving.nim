@@ -1,5 +1,4 @@
 import pkg/questionable
-import pkg/questionable/results
 import pkg/metrics
 
 import ../../logutils
@@ -9,7 +8,6 @@ import ../statemachine
 import ./errorhandling
 import ./cancelled
 import ./failed
-import ./filled
 import ./ignored
 import ./downloading
 import ./errored

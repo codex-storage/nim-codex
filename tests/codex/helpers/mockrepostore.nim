@@ -8,7 +8,6 @@
 ## those terms.
 
 import std/sequtils
-import std/sugar
 import pkg/chronos
 import pkg/libp2p
 import pkg/questionable

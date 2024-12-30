@@ -34,8 +34,8 @@ method run*(state: PurchaseStarted, machine: Machine): Future[?State] {.async.} 
   let fut = await one(ended, failed)
   await subscription.unsubscribe()
   if fut.id == failed.id:
-    ended.cancel()
+    ended.cancelSoon()
     return some State(PurchaseFailed())
   else:
-    failed.cancel()
+    failed.cancelSoon()
     return some State(PurchaseFinished())

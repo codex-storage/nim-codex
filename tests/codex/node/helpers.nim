@@ -1,14 +1,11 @@
 import std/tables
 import std/times
-import std/cpuinfo
 
 import pkg/libp2p
 import pkg/chronos
-import pkg/taskpools
 import pkg/codex/codextypes
 import pkg/codex/chunker
 import pkg/codex/stores
-import pkg/codex/slots
 
 import ../../asynctest
 

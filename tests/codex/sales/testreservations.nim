@@ -1,5 +1,4 @@
 import std/random
-import std/sequtils
 
 import pkg/questionable
 import pkg/questionable/results

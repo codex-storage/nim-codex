@@ -1,4 +1,3 @@
-import std/sugar
 import pkg/questionable
 import pkg/chronos
 import ../logutils

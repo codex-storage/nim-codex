@@ -8,7 +8,6 @@ import pkg/codex/sales/salescontext
 import pkg/codex/sales/states/filled
 import pkg/codex/sales/states/errored
 import pkg/codex/sales/states/proving
-import pkg/codex/sales/states/finished
 
 import ../../../asynctest
 import ../../helpers/mockmarket

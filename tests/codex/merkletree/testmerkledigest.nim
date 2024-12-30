@@ -2,16 +2,12 @@ import std/unittest
 import std/sequtils
 import std/random
 
-import pkg/constantine/math/arithmetic
-
 import pkg/poseidon2
-import pkg/poseidon2/io
 import pkg/poseidon2/sponge
 
 import pkg/questionable/results
 
 import pkg/codex/merkletree
-import pkg/codex/utils/digest
 import pkg/codex/utils/poseidon2digest
 
 import ./helpers

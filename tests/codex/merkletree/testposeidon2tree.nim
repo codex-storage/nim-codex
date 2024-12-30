@@ -1,6 +1,5 @@
 import std/unittest
 import std/sequtils
-import std/sugar
 
 import pkg/poseidon2
 import pkg/poseidon2/io
@@ -8,10 +7,6 @@ import pkg/questionable/results
 import pkg/results
 import pkg/stew/byteutils
 import pkg/stew/arrayops
-import constantine/math/arithmetic
-import constantine/math/io/io_bigints
-import pkg/constantine/math/io/io_fields
-import pkg/constantine/platforms/abstractions
 
 import pkg/codex/merkletree
 

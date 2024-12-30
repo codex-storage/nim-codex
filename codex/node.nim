@@ -45,7 +45,6 @@ import ./indexingstrategy
 import ./utils
 import ./errors
 import ./logutils
-import ./utils/poseidon2digest
 import ./utils/asynciter
 
 export logutils

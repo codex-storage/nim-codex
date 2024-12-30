@@ -5,7 +5,6 @@ import pkg/codex/sales/states/slotreserving
 import pkg/codex/sales/states/downloading
 import pkg/codex/sales/states/cancelled
 import pkg/codex/sales/states/failed
-import pkg/codex/sales/states/filled
 import pkg/codex/sales/states/ignored
 import pkg/codex/sales/states/errored
 import pkg/codex/sales/salesagent
@@ -16,7 +15,6 @@ import ../../../asynctest
 import ../../helpers
 import ../../examples
 import ../../helpers/mockmarket
-import ../../helpers/mockreservations
 import ../../helpers/mockclock
 
 asyncchecksuite "sales state 'SlotReserving'":

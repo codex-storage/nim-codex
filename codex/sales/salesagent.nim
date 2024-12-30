@@ -100,7 +100,7 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
 method onFulfilled*(agent: SalesAgent, requestId: RequestId) {.base, gcsafe, upraises: [].} =
   if agent.data.requestId == requestId and
      not agent.data.cancelled.isNil:
-    agent.data.cancelled.cancel()
+    agent.data.cancelled.cancelSoon()
 
 method onFailed*(agent: SalesAgent, requestId: RequestId) {.base, gcsafe, upraises: [].} =
   without request =? agent.data.request:

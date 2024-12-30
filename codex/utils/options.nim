@@ -1,5 +1,4 @@
-import macros
-import strutils
+import std/macros
 import pkg/questionable
 import pkg/questionable/operators
 

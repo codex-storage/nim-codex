@@ -3,7 +3,6 @@ when codex_enable_proof_failures:
   import std/strutils
   import pkg/stint
   import pkg/ethers
-  import pkg/ethers/testing
 
   import ../../contracts/requests
   import ../../logutils

@@ -11,8 +11,6 @@
 import std/hashes
 import std/strutils
 
-import pkg/upraises
-
 import ./logutils
 
 type

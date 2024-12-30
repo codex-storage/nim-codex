@@ -3,7 +3,6 @@ import std/sugar
 import std/cpuinfo
 
 import pkg/chronos
-import pkg/datastore
 import pkg/questionable/results
 
 import pkg/codex/erasure
