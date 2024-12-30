@@ -67,6 +67,9 @@ method periodicity*(market: Market): Future[Periodicity] {.base, async.} =
 method proofTimeout*(market: Market): Future[UInt256] {.base, async.} =
   raiseAssert("not implemented")
 
+method repairRewardPercentage*(market: Market): Future[uint8] {.base, async.} =
+  raiseAssert("not implemented")
+
 method proofDowntime*(market: Market): Future[uint8] {.base, async.} =
   raiseAssert("not implemented")
 
@@ -243,8 +246,27 @@ method subscribeProofSubmission*(market: Market,
 method unsubscribe*(subscription: Subscription) {.base, async, upraises:[].} =
   raiseAssert("not implemented")
 
-method queryPastEvents*[T: MarketplaceEvent](
-  market: Market,
-  _: type T,
-  blocksAgo: int): Future[seq[T]] {.base, async.} =
+method queryPastSlotFilledEvents*(
+    market: Market,
+    fromBlock: BlockTag): Future[seq[SlotFilled]] {.base, async.} =
+  raiseAssert("not implemented")
+
+method queryPastSlotFilledEvents*(
+    market: Market,
+    blocksAgo: int): Future[seq[SlotFilled]] {.base, async.} =
+  raiseAssert("not implemented")
+
+method queryPastSlotFilledEvents*(
+    market: Market,
+    fromTime: SecondsSince1970): Future[seq[SlotFilled]] {.base, async.} =
+  raiseAssert("not implemented")
+
+method queryPastStorageRequestedEvents*(
+    market: Market,
+    fromBlock: BlockTag): Future[seq[StorageRequested]] {.base, async.} =
+  raiseAssert("not implemented")
+
+method queryPastStorageRequestedEvents*(
+    market: Market,
+    blocksAgo: int): Future[seq[StorageRequested]] {.base, async.} =
   raiseAssert("not implemented")

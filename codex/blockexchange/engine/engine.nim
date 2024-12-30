@@ -22,6 +22,8 @@ import pkg/questionable
 import ../../stores/blockstore
 import ../../blocktype
 import ../../utils
+import ../../utils/exceptions
+import ../../utils/trackedfutures
 import ../../merkletree
 import ../../logutils
 import ../../manifest
@@ -70,7 +72,7 @@ type
     peers*: PeerCtxStore                          # Peers we're currently actively exchanging with
     taskQueue*: AsyncHeapQueue[BlockExcPeerCtx]   # Peers we're currently processing tasks for
     concurrentTasks: int                          # Number of concurrent peers we're serving at any given time
-    blockexcTasks: seq[Future[void]]              # Future to control blockexc task
+    trackedFutures: TrackedFutures                # Tracks futures of blockexc tasks
     blockexcRunning: bool                         # Indicates if the blockexc task is running
     pendingBlocks*: PendingBlocksManager          # Blocks we're awaiting to be resolved
     peersPerRequest: int                          # Max number of peers to request from
@@ -88,7 +90,7 @@ type
 proc scheduleTask(b: BlockExcEngine, task: BlockExcPeerCtx): bool {.gcsafe} =
   b.taskQueue.pushOrUpdateNoWait(task).isOk()
 
-proc blockexcTaskRunner(b: BlockExcEngine): Future[void] {.gcsafe.}
+proc blockexcTaskRunner(b: BlockExcEngine) {.async: (raises: []).}
 
 proc start*(b: BlockExcEngine) {.async.} =
   ## Start the blockexc task
@@ -104,7 +106,9 @@ proc start*(b: BlockExcEngine) {.async.} =
 
   b.blockexcRunning = true
   for i in 0..<b.concurrentTasks:
-    b.blockexcTasks.add(blockexcTaskRunner(b))
+    let fut = b.blockexcTaskRunner()
+    b.trackedFutures.track(fut)
+    asyncSpawn fut
 
 proc stop*(b: BlockExcEngine) {.async.} =
   ## Stop the blockexc blockexc
@@ -119,36 +123,32 @@ proc stop*(b: BlockExcEngine) {.async.} =
     return
 
   b.blockexcRunning = false
-  for task in b.blockexcTasks:
-    if not task.finished:
-      trace "Awaiting task to stop"
-      await task.cancelAndWait()
-      trace "Task stopped"
+  await b.trackedFutures.cancelTracked()
 
   trace "NetworkStore stopped"
 
 proc sendWantHave(
   b: BlockExcEngine,
-  address: BlockAddress, # pluralize this entire call chain, please
+  addresses: seq[BlockAddress],
   excluded: seq[BlockExcPeerCtx],
   peers: seq[BlockExcPeerCtx]): Future[void] {.async.} =
-  trace "Sending wantHave request to peers", address
   for p in peers:
     if p notin excluded:
-      if address notin p.peerHave:
-        await b.network.request.sendWantList(
-          p.id,
-          @[address],
-          wantType = WantType.WantHave) # we only want to know if the peer has the block
+      let toAsk = addresses.filterIt(it notin p.peerHave)
+      trace "Sending wantHave request", toAsk, peer = p.id
+      await b.network.request.sendWantList(
+        p.id,
+        toAsk,
+        wantType = WantType.WantHave)
 
 proc sendWantBlock(
   b: BlockExcEngine,
-  address: BlockAddress, # pluralize this entire call chain, please
+  addresses: seq[BlockAddress],
   blockPeer: BlockExcPeerCtx): Future[void] {.async.} =
-  trace "Sending wantBlock request to", peer = blockPeer.id, address
+  trace "Sending wantBlock request to", addresses, peer = blockPeer.id
   await b.network.request.sendWantList(
     blockPeer.id,
-    @[address],
+    addresses,
     wantType = WantType.WantBlock) # we want this remote to send us a block
 
 proc monitorBlockHandle(
@@ -197,9 +197,10 @@ proc requestBlock*(
     if peer =? maybePeer:
       asyncSpawn b.monitorBlockHandle(blockFuture, address, peer.id)
       b.pendingBlocks.setInFlight(address)
-      await b.sendWantBlock(address, peer)
+      # TODO: Send more block addresses if at all sensible.
+      await b.sendWantBlock(@[address], peer)
       codex_block_exchange_want_block_lists_sent.inc()
-      await b.sendWantHave(address, @[peer], toSeq(b.peers))
+      await b.sendWantHave(@[address], @[peer], toSeq(b.peers))
       codex_block_exchange_want_have_lists_sent.inc()
 
   # Don't let timeouts bubble up. We can't be too broad here or we break
@@ -246,8 +247,7 @@ proc blockPresenceHandler*(
 
   if wantCids.len > 0:
     trace "Peer has blocks in our wantList", peer, wantCount = wantCids.len
-    discard await allFinished(
-      wantCids.mapIt(b.sendWantBlock(it, peerCtx)))
+    await b.sendWantBlock(wantCids, peerCtx)
 
   # if none of the connected peers report our wants in their have list,
   # fire up discovery
@@ -565,16 +565,21 @@ proc taskHandler*(b: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
 
       task.peerWants.keepItIf(it.address notin successAddresses)
 
-proc blockexcTaskRunner(b: BlockExcEngine) {.async.} =
+proc blockexcTaskRunner(b: BlockExcEngine) {.async: (raises: []).} =
   ## process tasks
   ##
 
   trace "Starting blockexc task runner"
   while b.blockexcRunning:
-    let
-      peerCtx = await b.taskQueue.pop()
+    try:
+      let
+        peerCtx = await b.taskQueue.pop()
 
-    await b.taskHandler(peerCtx)
+      await b.taskHandler(peerCtx)
+    except CancelledError:
+      break # do not propagate as blockexcTaskRunner was asyncSpawned
+    except CatchableError as e:
+      error "error running block exchange task", error = e.msgDetail
 
   info "Exiting blockexc task runner"
 
@@ -603,6 +608,7 @@ proc new*(
       network: network,
       wallet: wallet,
       concurrentTasks: concurrentTasks,
+      trackedFutures: TrackedFutures.new(),
       taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize),
       discovery: discovery,
       advertiser: advertiser,

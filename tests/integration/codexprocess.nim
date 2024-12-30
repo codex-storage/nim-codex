@@ -34,10 +34,10 @@ method startedOutput(node: CodexProcess): string =
 method processOptions(node: CodexProcess): set[AsyncProcessOption] =
   return {AsyncProcessOption.StdErrToStdOut}
 
-method outputLineEndings(node: CodexProcess): string =
+method outputLineEndings(node: CodexProcess): string {.raises: [].} =
   return "\n"
 
-method onOutputLineCaptured(node: CodexProcess, line: string) =
+method onOutputLineCaptured(node: CodexProcess, line: string) {.raises: [].} =
   discard
 
 proc dataDir(node: CodexProcess): string =

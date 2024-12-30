@@ -1,11 +1,11 @@
 import pkg/codex/rest/json
 import ./twonodes
+import ../codex/examples
 import json
 from pkg/libp2p import Cid, `$`
 
-twonodessuite "Uploads and downloads", debug1 = false, debug2 = false:
-
-  test "node allows local file downloads":
+twonodessuite "Uploads and downloads":
+  test "node allows local file downloads", twoNodesConfig:
     let content1 = "some file contents"
     let content2 = "some other contents"
 
@@ -19,7 +19,7 @@ twonodessuite "Uploads and downloads", debug1 = false, debug2 = false:
       content1 == resp1
       content2 == resp2
 
-  test "node allows remote file downloads":
+  test "node allows remote file downloads", twoNodesConfig:
     let content1 = "some file contents"
     let content2 = "some other contents"
 
@@ -33,7 +33,7 @@ twonodessuite "Uploads and downloads", debug1 = false, debug2 = false:
       content1 == resp1
       content2 == resp2
 
-  test "node fails retrieving non-existing local file":
+  test "node fails retrieving non-existing local file", twoNodesConfig:
     let content1 = "some file contents"
     let cid1 = client1.upload(content1).get # upload to first node
     let resp2 = client2.download(cid1, local = true) # try retrieving from second node
@@ -64,14 +64,14 @@ twonodessuite "Uploads and downloads", debug1 = false, debug2 = false:
     check manifest.hasKey("protected") == true
     check manifest["protected"].getBool() == false
 
-  test "node allows downloading only manifest":
+  test "node allows downloading only manifest", twoNodesConfig:
     let content1 = "some file contents"
     let cid1 = client1.upload(content1).get
 
     let resp2 = client1.downloadManifestOnly(cid1)
     checkRestContent(cid1, resp2)
 
-  test "node allows downloading content without stream":
+  test "node allows downloading content without stream", twoNodesConfig:
     let content1 = "some file contents"
     let cid1 = client1.upload(content1).get
 
@@ -80,3 +80,15 @@ twonodessuite "Uploads and downloads", debug1 = false, debug2 = false:
     let resp2 = client2.download(cid1, local = true).get
     check:
       content1 == resp2
+
+  test "reliable transfer test", twoNodesConfig:
+    proc transferTest(a: CodexClient, b: CodexClient) {.async.} =
+      let data = await RandomChunker.example(blocks=8)
+      let cid = a.upload(data).get
+      let response = b.download(cid).get
+      check:
+        response == data
+
+    for run in 0..10:
+      await transferTest(client1, client2)
+      await transferTest(client2, client1)

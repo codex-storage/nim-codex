@@ -8,10 +8,17 @@ import pkg/codex/market
 import pkg/codex/contracts/requests
 import pkg/codex/contracts/proofs
 import pkg/codex/contracts/config
+
+from pkg/ethers import BlockTag
+import codex/clock
+
 import ../examples
 
 export market
 export tables
+
+logScope:
+  topics = "mockMarket"
 
 type
   MockMarket* = ref object of Market
@@ -40,6 +47,7 @@ type
     config*: MarketplaceConfig
     canReserveSlot*: bool
     reserveSlotThrowError*: ?(ref MarketError)
+    clock: ?Clock
   Fulfillment* = object
     requestId*: RequestId
     proof*: Groth16Proof
@@ -49,6 +57,7 @@ type
     host*: Address
     slotIndex*: UInt256
     proof*: Groth16Proof
+    timestamp: ?SecondsSince1970
   Subscriptions = object
     onRequest: seq[RequestSubscription]
     onFulfillment: seq[FulfillmentSubscription]
@@ -94,7 +103,7 @@ proc hash*(address: Address): Hash =
 proc hash*(requestId: RequestId): Hash =
   hash(requestId.toArray)
 
-proc new*(_: type MockMarket): MockMarket =
+proc new*(_: type MockMarket, clock: ?Clock = Clock.none): MockMarket =
   ## Create a new mocked Market instance
   ##
   let config = MarketplaceConfig(
@@ -111,7 +120,8 @@ proc new*(_: type MockMarket): MockMarket =
       downtimeProduct: 67.uint8
     )
   )
-  MockMarket(signer: Address.example, config: config, canReserveSlot: true)
+  MockMarket(signer: Address.example, config: config,
+    canReserveSlot: true, clock: clock)
 
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
@@ -124,6 +134,9 @@ method proofTimeout*(market: MockMarket): Future[UInt256] {.async.} =
 
 method proofDowntime*(market: MockMarket): Future[uint8] {.async.} =
   return market.config.proofs.downtime
+
+method repairRewardPercentage*(market: MockMarket): Future[uint8] {.async.} =
+  return market.config.collateral.repairRewardPercentage
 
 method getPointer*(market: MockMarket, slotId: SlotId): Future[uint8] {.async.} =
   return market.proofPointer
@@ -142,7 +155,7 @@ method myRequests*(market: MockMarket): Future[seq[RequestId]] {.async.} =
 method mySlots*(market: MockMarket): Future[seq[SlotId]] {.async.} =
   return market.activeSlots[market.signer]
 
-method getRequest(market: MockMarket,
+method getRequest*(market: MockMarket,
                   id: RequestId): Future[?StorageRequest] {.async.} =
   for request in market.requested:
     if request.id == id:
@@ -245,7 +258,8 @@ proc fillSlot*(market: MockMarket,
     requestId: requestId,
     slotIndex: slotIndex,
     proof: proof,
-    host: host
+    host: host,
+    timestamp: market.clock.?now
   )
   market.filled.add(slot)
   market.slotState[slotId(slot.requestId, slot.slotIndex)] = SlotState.Filled
@@ -469,21 +483,51 @@ method subscribeProofSubmission*(mock: MockMarket,
   mock.subscriptions.onProofSubmitted.add(subscription)
   return subscription
 
-method queryPastEvents*[T: MarketplaceEvent](
-  market: MockMarket,
-  _: type T,
-  blocksAgo: int): Future[seq[T]] {.async.} =
+method queryPastStorageRequestedEvents*(
+    market: MockMarket,
+    fromBlock: BlockTag): Future[seq[StorageRequested]] {.async.} =
+  return market.requested.map(request =>
+    StorageRequested(requestId: request.id,
+                     ask: request.ask,
+                     expiry: request.expiry)
+  )
 
-  if T of StorageRequested:
-    return market.requested.map(request =>
-      StorageRequested(requestId: request.id,
-                       ask: request.ask,
-                       expiry: request.expiry)
-    )
-  elif T of SlotFilled:
-    return market.filled.map(slot =>
-      SlotFilled(requestId: slot.requestId, slotIndex: slot.slotIndex)
-    )
+method queryPastStorageRequestedEvents*(
+    market: MockMarket,
+    blocksAgo: int): Future[seq[StorageRequested]] {.async.} =
+  return market.requested.map(request =>
+    StorageRequested(requestId: request.id,
+                     ask: request.ask,
+                     expiry: request.expiry)
+  )
+
+method queryPastSlotFilledEvents*(
+    market: MockMarket,
+    fromBlock: BlockTag): Future[seq[SlotFilled]] {.async.} =
+  return market.filled.map(slot =>
+    SlotFilled(requestId: slot.requestId, slotIndex: slot.slotIndex)
+  )
+
+method queryPastSlotFilledEvents*(
+    market: MockMarket,
+    blocksAgo: int): Future[seq[SlotFilled]] {.async.} =
+  return market.filled.map(slot =>
+    SlotFilled(requestId: slot.requestId, slotIndex: slot.slotIndex)
+  )
+
+method queryPastSlotFilledEvents*(
+    market: MockMarket,
+    fromTime: SecondsSince1970): Future[seq[SlotFilled]] {.async.} =
+  let filtered = market.filled.filter(
+    proc (slot: MockSlot): bool =
+      if timestamp =? slot.timestamp:
+        return timestamp >= fromTime
+      else:
+        true
+  )
+  return filtered.map(slot =>
+    SlotFilled(requestId: slot.requestId, slotIndex: slot.slotIndex)
+  )
 
 method unsubscribe*(subscription: RequestSubscription) {.async.} =
   subscription.market.subscriptions.onRequest.keepItIf(it != subscription)

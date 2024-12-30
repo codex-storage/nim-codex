@@ -1,4 +1,5 @@
 from std/times import inMilliseconds
+import pkg/questionable
 import pkg/codex/logutils
 import pkg/stew/byteutils
 import ../contracts/time
@@ -55,7 +56,7 @@ marketplacesuite "Hosts submit regular proofs":
 
     var proofWasSubmitted = false
     proc onProofSubmitted(event: ?!ProofSubmitted) =
-      proofWasSubmitted = true
+      proofWasSubmitted = event.isOk
 
     let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
 
@@ -121,11 +122,7 @@ marketplacesuite "Simulate invalid proofs":
 
     var slotWasFreed = false
     proc onSlotFreed(event: ?!SlotFreed) =
-      without value =? event:
-        trace "The onSlotFreed event is not defined."
-        discard
-
-      if value.requestId == requestId:
+      if event.isOk and event.value.requestId == requestId:
         slotWasFreed = true
 
     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
@@ -180,12 +177,11 @@ marketplacesuite "Simulate invalid proofs":
     let requestId = client0.requestId(purchaseId).get
 
     var slotWasFilled = false
-    proc onSlotFilled(event: ?!SlotFilled) =
-      without value =? event:
-        trace "The onSlotFilled event is not defined."
-        discard
+    proc onSlotFilled(eventResult: ?!SlotFilled) =
+      assert not eventResult.isErr
+      let event = !eventResult
 
-      if value.requestId == requestId:
+      if event.requestId == requestId:
         slotWasFilled = true
     let filledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
 
@@ -194,11 +190,7 @@ marketplacesuite "Simulate invalid proofs":
 
     var slotWasFreed = false
     proc onSlotFreed(event: ?!SlotFreed) =
-      without value =? event:
-        trace "The onSlotFreed event is not defined."
-        discard
-
-      if value.requestId == requestId:
+      if event.isOk and event.value.requestId == requestId:
         slotWasFreed = true
     let freedSubscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 

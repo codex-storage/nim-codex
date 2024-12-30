@@ -1,3 +1,4 @@
+import pkg/stint
 import ../../logutils
 import ../../market
 import ../statemachine
@@ -27,12 +28,22 @@ method onFailed*(state: SaleFilling, request: StorageRequest): ?State =
 method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
   let market = SalesAgent(machine).context.market
-  without (collateral =? data.request.?ask.?collateral):
+  without (fullCollateral =? data.request.?ask.?collateral):
     raiseAssert "Request not set"
 
   logScope:
     requestId = data.requestId
     slotIndex = data.slotIndex
+
+  let slotState = await market.slotState(slotId(data.requestId, data.slotIndex))
+  var collateral: UInt256
+
+  if slotState == SlotState.Repair:
+    # When repairing the node gets "discount" on the collateral that it needs to
+    let repairRewardPercentage = (await market.repairRewardPercentage).u256
+    collateral = fullCollateral - ((fullCollateral * repairRewardPercentage)).div(100.u256)
+  else:
+    collateral = fullCollateral
 
   debug "Filling slot"
   try:

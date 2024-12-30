@@ -38,10 +38,10 @@ method startedOutput(node: NodeProcess): string {.base, gcsafe.} =
 method processOptions(node: NodeProcess): set[AsyncProcessOption] {.base, gcsafe.} =
   raiseAssert "not implemented"
 
-method outputLineEndings(node: NodeProcess): string {.base, gcsafe.} =
+method outputLineEndings(node: NodeProcess): string {.base, gcsafe raises: [].} =
   raiseAssert "not implemented"
 
-method onOutputLineCaptured(node: NodeProcess, line: string) {.base, gcsafe.} =
+method onOutputLineCaptured(node: NodeProcess, line: string) {.base, gcsafe, raises: [].} =
   raiseAssert "not implemented"
 
 method start*(node: NodeProcess) {.base, async.} =
@@ -74,7 +74,7 @@ proc captureOutput(
   node: NodeProcess,
   output: string,
   started: Future[void]
-) {.async.} =
+) {.async: (raises: []).} =
 
   logScope:
     nodeName = node.name
@@ -98,7 +98,10 @@ proc captureOutput(
         await sleepAsync(1.millis)
       await sleepAsync(1.millis)
 
-  except AsyncStreamReadError as e:
+  except CancelledError:
+    discard # do not propagate as captureOutput was asyncSpawned
+
+  except AsyncStreamError as e:
     error "error reading output stream", error = e.msgDetail
 
 proc startNode*[T: NodeProcess](
@@ -147,16 +150,22 @@ method stop*(node: NodeProcess) {.base, async.} =
 
     trace "node stopped"
 
-proc waitUntilStarted*(node: NodeProcess) {.async.} =
+proc waitUntilOutput*(node: NodeProcess, output: string) {.async.} =
   logScope:
     nodeName = node.name
 
-  trace "waiting until node started"
+  trace "waiting until", output
 
   let started = newFuture[void]()
+  let fut = node.captureOutput(output, started)
+  node.trackedFutures.track(fut)
+  asyncSpawn fut
+  await started.wait(60.seconds) # allow enough time for proof generation
+
+proc waitUntilStarted*(node: NodeProcess) {.async.} =
   try:
-    discard node.captureOutput(node.startedOutput, started).track(node)
-    await started.wait(35.seconds) # allow enough time for proof generation
+    await node.waitUntilOutput(node.startedOutput)
+    trace "node started"
   except AsyncTimeoutError:
     # attempt graceful shutdown in case node was partially started, prevent
     # zombies

@@ -22,6 +22,7 @@ asyncchecksuite "Advertiser":
     blockDiscovery: MockDiscovery
     localStore: BlockStore
     advertiser: Advertiser
+    advertised: seq[Cid]
   let
     manifest = Manifest.new(
       treeCid = Cid.example,
@@ -33,6 +34,11 @@ asyncchecksuite "Advertiser":
     blockDiscovery = MockDiscovery.new()
     localStore = CacheStore.new()
 
+    advertised = newSeq[Cid]()
+    blockDiscovery.publishBlockProvideHandler =
+      proc(d: MockDiscovery, cid: Cid) {.async, gcsafe.} =
+        advertised.add(cid)
+
     advertiser = Advertiser.new(
       localStore,
       blockDiscovery
@@ -43,47 +49,44 @@ asyncchecksuite "Advertiser":
   teardown:
     await advertiser.stop()
 
+  proc waitTillQueueEmpty() {.async.} = 
+    check eventually advertiser.advertiseQueue.len == 0
+
   test "blockStored should queue manifest Cid for advertising":
     (await localStore.putBlock(manifestBlk)).tryGet()
 
+    await waitTillQueueEmpty()
+
     check:
-      manifestBlk.cid in advertiser.advertiseQueue
+      manifestBlk.cid in advertised
 
   test "blockStored should queue tree Cid for advertising":
     (await localStore.putBlock(manifestBlk)).tryGet()
 
+    await waitTillQueueEmpty()
+
     check:
-      manifest.treeCid in advertiser.advertiseQueue
+      manifest.treeCid in advertised
 
   test "blockStored should not queue non-manifest non-tree CIDs for discovery":
     let blk = bt.Block.example
       
     (await localStore.putBlock(blk)).tryGet()
 
+    await waitTillQueueEmpty()
+
     check:
-      blk.cid notin advertiser.advertiseQueue
+      blk.cid notin advertised
 
   test "Should not queue if there is already an inflight advertise request":
-    var
-      reqs = newFuture[void]()
-      manifestCount = 0
-      treeCount = 0
-
-    blockDiscovery.publishBlockProvideHandler =
-      proc(d: MockDiscovery, cid: Cid) {.async, gcsafe.} =
-        if cid == manifestBlk.cid:
-          inc manifestCount
-        if cid == manifest.treeCid:
-          inc treeCount
-
-        await reqs # queue the request
-
     (await localStore.putBlock(manifestBlk)).tryGet()
     (await localStore.putBlock(manifestBlk)).tryGet()
 
-    reqs.complete()
-    check eventually manifestCount == 1
-    check eventually treeCount == 1
+    await waitTillQueueEmpty()
+
+    check eventually advertised.len == 2
+    check manifestBlk.cid in advertised
+    check manifest.treeCid in advertised
 
   test "Should advertise existing manifests and their trees":
     let
@@ -96,8 +99,8 @@ asyncchecksuite "Advertiser":
     )
     await advertiser.start()
 
-    check eventually manifestBlk.cid in advertiser.advertiseQueue
-    check eventually manifest.treeCid in advertiser.advertiseQueue
+    check eventually manifestBlk.cid in advertised
+    check eventually manifest.treeCid in advertised
 
   test "Stop should clear onBlockStored callback":
     await advertiser.stop()

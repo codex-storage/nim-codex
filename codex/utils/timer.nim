@@ -30,13 +30,13 @@ proc new*(T: type Timer, timerName = "Unnamed Timer"): Timer =
   ## Create a new Timer intance with the given name
   Timer(name: timerName)
 
-proc timerLoop(timer: Timer) {.async.} =
+proc timerLoop(timer: Timer) {.async: (raises: []).} =
   try:
     while true:
       await timer.callback()
       await sleepAsync(timer.interval)
   except CancelledError:
-    raise
+    discard # do not propagate as timerLoop is asyncSpawned
   except CatchableError as exc:
     error "Timer caught unhandled exception: ", name=timer.name, msg=exc.msg
 
@@ -47,9 +47,10 @@ method start*(timer: Timer, callback: TimerCallback, interval: Duration) {.gcsaf
   timer.callback = callback
   timer.interval = interval
   timer.loopFuture = timerLoop(timer)
+  asyncSpawn timer.loopFuture
 
 method stop*(timer: Timer) {.async, base.} =
-  if timer.loopFuture != nil:
+  if timer.loopFuture != nil and not timer.loopFuture.finished:
     trace "Timer stopping: ", name=timer.name
     await timer.loopFuture.cancelAndWait()
     timer.loopFuture = nil

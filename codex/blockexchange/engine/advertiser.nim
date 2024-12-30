@@ -18,6 +18,8 @@ import ../protobuf/presence
 import ../peers
 
 import ../../utils
+import ../../utils/exceptions
+import ../../utils/trackedfutures
 import ../../discovery
 import ../../stores/blockstore
 import ../../logutils
@@ -26,7 +28,7 @@ import ../../manifest
 logScope:
   topics = "codex discoveryengine advertiser"
 
-declareGauge(codexInflightAdvertise, "inflight advertise requests")
+declareGauge(codex_inflight_advertise, "inflight advertise requests")
 
 const
   DefaultConcurrentAdvertRequests = 10
@@ -42,7 +44,7 @@ type
 
     advertiseLocalStoreLoop*: Future[void]                                 # Advertise loop task handle
     advertiseQueue*: AsyncQueue[Cid]                             # Advertise queue
-    advertiseTasks*: seq[Future[void]]                           # Advertise tasks
+    trackedFutures*: TrackedFutures                              # Advertise tasks futures
 
     advertiseLocalStoreLoopSleep: Duration                                 # Advertise loop sleep
     inFlightAdvReqs*: Table[Cid, Future[void]]                   # Inflight advertise requests
@@ -70,20 +72,26 @@ proc advertiseBlock(b: Advertiser, cid: Cid) {.async.} =
     await b.addCidToQueue(cid)
     await b.addCidToQueue(manifest.treeCid)
 
-proc advertiseLocalStoreLoop(b: Advertiser) {.async.} =
+proc advertiseLocalStoreLoop(b: Advertiser) {.async: (raises: []).} =
   while b.advertiserRunning:
-    if cids =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
-      trace "Advertiser begins iterating blocks..."
-      for c in cids:
-        if cid =? await c:
-          await b.advertiseBlock(cid)
-      trace "Advertiser iterating blocks finished."
+    try:
+      if cids =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
+        trace "Advertiser begins iterating blocks..."
+        for c in cids:
+          if cid =? await c:
+            await b.advertiseBlock(cid)
+        trace "Advertiser iterating blocks finished."
 
-    await sleepAsync(b.advertiseLocalStoreLoopSleep)
+      await sleepAsync(b.advertiseLocalStoreLoopSleep)
+
+    except CancelledError:
+      break # do not propagate as advertiseLocalStoreLoop was asyncSpawned
+    except CatchableError as e:
+      error "failed to advertise blocks in local store", error = e.msgDetail
 
   info "Exiting advertise task loop"
 
-proc processQueueLoop(b: Advertiser) {.async.} =
+proc processQueueLoop(b: Advertiser) {.async: (raises: []).} =
   while b.advertiserRunning:
     try:
       let
@@ -97,12 +105,12 @@ proc processQueueLoop(b: Advertiser) {.async.} =
           request = b.discovery.provide(cid)
 
         b.inFlightAdvReqs[cid] = request
-        codexInflightAdvertise.set(b.inFlightAdvReqs.len.int64)
+        codex_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
         await request
 
       finally:
         b.inFlightAdvReqs.del(cid)
-        codexInflightAdvertise.set(b.inFlightAdvReqs.len.int64)
+        codex_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
     except CancelledError:
       trace "Advertise task cancelled"
       return
@@ -129,9 +137,13 @@ proc start*(b: Advertiser) {.async.} =
 
   b.advertiserRunning = true
   for i in 0..<b.concurrentAdvReqs:
-    b.advertiseTasks.add(processQueueLoop(b))
+    let fut = b.processQueueLoop()
+    b.trackedFutures.track(fut)
+    asyncSpawn fut
 
   b.advertiseLocalStoreLoop = advertiseLocalStoreLoop(b)
+  b.trackedFutures.track(b.advertiseLocalStoreLoop)
+  asyncSpawn b.advertiseLocalStoreLoop
 
 proc stop*(b: Advertiser) {.async.} =
   ## Stop the advertiser
@@ -145,19 +157,9 @@ proc stop*(b: Advertiser) {.async.} =
   b.advertiserRunning = false
   # Stop incoming tasks from callback and localStore loop
   b.localStore.onBlockStored = CidCallback.none
-  if not b.advertiseLocalStoreLoop.isNil and not b.advertiseLocalStoreLoop.finished:
-    trace "Awaiting advertise loop to stop"
-    await b.advertiseLocalStoreLoop.cancelAndWait()
-    trace "Advertise loop stopped"
-
-  # Clear up remaining tasks
-  for task in b.advertiseTasks:
-    if not task.finished:
-      trace "Awaiting advertise task to stop"
-      await task.cancelAndWait()
-      trace "Advertise task stopped"
-
-  trace "Advertiser stopped"
+  trace "Stopping advertise loop and tasks"
+  await b.trackedFutures.cancelTracked()
+  trace "Advertiser loop and tasks stopped"
 
 proc new*(
     T: type Advertiser,
@@ -173,5 +175,6 @@ proc new*(
     discovery: discovery,
     concurrentAdvReqs: concurrentAdvReqs,
     advertiseQueue: newAsyncQueue[Cid](concurrentAdvReqs),
+    trackedFutures: TrackedFutures.new(),
     inFlightAdvReqs: initTable[Cid, Future[void]](),
     advertiseLocalStoreLoopSleep: advertiseLocalStoreLoopSleep)

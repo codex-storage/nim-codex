@@ -10,7 +10,6 @@ import ../rng
 import ../utils
 import ../contracts/requests
 import ../utils/asyncheapqueue
-import ../utils/then
 import ../utils/trackedfutures
 
 logScope:
@@ -324,7 +323,7 @@ proc addWorker(self: SlotQueue): ?!void =
 
   let worker = SlotQueueWorker.init()
   try:
-    discard worker.doneProcessing.track(self)
+    self.trackedFutures.track(worker.doneProcessing)
     self.workers.addLastNoWait(worker)
   except AsyncQueueFullError:
     return failure("failed to add worker, worker queue full")
@@ -333,7 +332,7 @@ proc addWorker(self: SlotQueue): ?!void =
 
 proc dispatch(self: SlotQueue,
               worker: SlotQueueWorker,
-              item: SlotQueueItem) {.async.} =
+              item: SlotQueueItem) {.async: (raises: []).} =
   logScope:
     requestId = item.requestId
     slotIndex = item.slotIndex
@@ -344,7 +343,7 @@ proc dispatch(self: SlotQueue,
 
   if onProcessSlot =? self.onProcessSlot:
     try:
-      discard worker.doneProcessing.track(self)
+      self.trackedFutures.track(worker.doneProcessing)
       await onProcessSlot(item, worker.doneProcessing)
       await worker.doneProcessing
 
@@ -380,22 +379,7 @@ proc clearSeenFlags*(self: SlotQueue) =
 
   trace "all 'seen' flags cleared"
 
-proc start*(self: SlotQueue) {.async.} =
-  if self.running:
-    return
-
-  trace "starting slot queue"
-
-  self.running = true
-
-  # must be called in `start` to avoid sideeffects in `new`
-  self.workers = newAsyncQueue[SlotQueueWorker](self.maxWorkers)
-
-  # Add initial workers to the `AsyncHeapQueue`. Once a worker has completed its
-  # task, a new worker will be pushed to the queue
-  for i in 0..<self.maxWorkers:
-    if err =? self.addWorker().errorOption:
-      error "start: error adding new worker", error = err.msg
+proc run(self: SlotQueue) {.async: (raises: []).} =
 
   while self.running:
     try:
@@ -405,8 +389,8 @@ proc start*(self: SlotQueue) {.async.} =
       # block until unpaused is true/fired, ie wait for queue to be unpaused
       await self.unpaused.wait()
 
-      let worker = await self.workers.popFirst().track(self) # if workers saturated, wait here for new workers
-      let item = await self.queue.pop().track(self) # if queue empty, wait here for new items
+      let worker = await self.workers.popFirst() # if workers saturated, wait here for new workers
+      let item = await self.queue.pop() # if queue empty, wait here for new items
 
       logScope:
         reqId = item.requestId
@@ -434,18 +418,37 @@ proc start*(self: SlotQueue) {.async.} =
 
       trace "processing item"
 
-      self.dispatch(worker, item)
-        .track(self)
-        .catch(proc (e: ref CatchableError) =
-          error "Unknown error dispatching worker", error = e.msg
-        )
+      let fut = self.dispatch(worker, item)
+      self.trackedFutures.track(fut)
+      asyncSpawn fut
 
       await sleepAsync(1.millis) # poll
     except CancelledError:
       trace "slot queue cancelled"
-      return
+      break
     except CatchableError as e: # raised from self.queue.pop() or self.workers.pop()
       warn "slot queue error encountered during processing", error = e.msg
+
+proc start*(self: SlotQueue) =
+  if self.running:
+    return
+
+  trace "starting slot queue"
+
+  self.running = true
+
+  # must be called in `start` to avoid sideeffects in `new`
+  self.workers = newAsyncQueue[SlotQueueWorker](self.maxWorkers)
+
+  # Add initial workers to the `AsyncHeapQueue`. Once a worker has completed its
+  # task, a new worker will be pushed to the queue
+  for i in 0..<self.maxWorkers:
+    if err =? self.addWorker().errorOption:
+      error "start: error adding new worker", error = err.msg
+
+  let fut = self.run()
+  self.trackedFutures.track(fut)
+  asyncSpawn fut
 
 proc stop*(self: SlotQueue) {.async.} =
   if not self.running:

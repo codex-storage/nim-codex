@@ -20,9 +20,11 @@ type CodexClient* = ref object
 
 type CodexClientError* = object of CatchableError
 
+const HttpClientTimeoutMs = 60 * 1000
+
 proc new*(_: type CodexClient, baseurl: string): CodexClient =
   CodexClient(
-    http: newHttpClient(),
+    http: newHttpClient(timeout=HttpClientTimeoutMs),
     baseurl: baseurl,
     session: HttpSessionRef.new({HttpClientFlag.Http11Pipeline})
   )
@@ -247,7 +249,7 @@ proc close*(client: CodexClient) =
 
 proc restart*(client: CodexClient) =
   client.http.close()
-  client.http = newHttpClient()
+  client.http = newHttpClient(timeout=HttpClientTimeoutMs)
 
 proc purchaseStateIs*(client: CodexClient, id: PurchaseId, state: string): bool =
   client.getPurchase(id).option.?state == some state

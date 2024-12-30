@@ -5,10 +5,11 @@ from std/net import TimeoutError
 
 import pkg/chronos
 import ../ethertest
-import ./nodes
+import ./codexprocess
+import ./nodeprocess
 
 ethersuite "Node block expiration tests":
-  var node: NodeProcess
+  var node: CodexProcess
   var baseurl: string
 
   let dataDir = getTempDir() / "Codex1"
@@ -18,12 +19,12 @@ ethersuite "Node block expiration tests":
     baseurl = "http://localhost:8080/api/codex/v1"
 
   teardown:
-    node.stop()
+    await node.stop()
 
     dataDir.removeDir()
 
-  proc startTestNode(blockTtlSeconds: int) =
-    node = startNode([
+  proc startTestNode(blockTtlSeconds: int) {.async.} =
+    node = await CodexProcess.startNode(@[
       "--api-port=8080",
       "--data-dir=" & dataDir,
       "--nat=127.0.0.1",
@@ -32,9 +33,11 @@ ethersuite "Node block expiration tests":
       "--disc-port=8090",
       "--block-ttl=" & $blockTtlSeconds,
       "--block-mi=1",
-      "--block-mn=10"
-    ], debug = false)
-    node.waitUntilStarted()
+      "--block-mn=10"],
+      false,
+      "cli-test-node"
+    )
+    await node.waitUntilStarted()
 
   proc uploadTestFile(): string =
     let client = newHttpClient()
@@ -61,7 +64,7 @@ ethersuite "Node block expiration tests":
     content.code == Http200
 
   test "node retains not-expired file":
-    startTestNode(blockTtlSeconds = 10)
+    await startTestNode(blockTtlSeconds = 10)
 
     let contentId = uploadTestFile()
 
@@ -74,7 +77,7 @@ ethersuite "Node block expiration tests":
       response.body == content
 
   test "node deletes expired file":
-    startTestNode(blockTtlSeconds = 1)
+    await startTestNode(blockTtlSeconds = 1)
 
     let contentId = uploadTestFile()
 

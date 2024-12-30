@@ -23,6 +23,7 @@ import ../network
 import ../peers
 
 import ../../utils
+import ../../utils/trackedfutures
 import ../../discovery
 import ../../stores/blockstore
 import ../../logutils
@@ -31,7 +32,7 @@ import ../../manifest
 logScope:
   topics = "codex discoveryengine"
 
-declareGauge(codexInflightDiscovery, "inflight discovery requests")
+declareGauge(codex_inflight_discovery, "inflight discovery requests")
 
 const
   DefaultConcurrentDiscRequests = 10
@@ -50,12 +51,12 @@ type
     concurrentDiscReqs: int                                      # Concurrent discovery requests
     discoveryLoop*: Future[void]                                 # Discovery loop task handle
     discoveryQueue*: AsyncQueue[Cid]                             # Discovery queue
-    discoveryTasks*: seq[Future[void]]                           # Discovery tasks
+    trackedFutures*: TrackedFutures                              # Tracked Discovery tasks futures
     minPeersPerBlock*: int                                       # Max number of peers with block
     discoveryLoopSleep: Duration                                 # Discovery loop sleep
     inFlightDiscReqs*: Table[Cid, Future[seq[SignedPeerRecord]]] # Inflight discovery requests
 
-proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
+proc discoveryQueueLoop(b: DiscoveryEngine) {.async: (raises: []).} =
   while b.discEngineRunning:
     for cid in toSeq(b.pendingBlocks.wantListBlockCids):
       try:
@@ -66,13 +67,15 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async.} =
       except CatchableError as exc:
         warn "Exception in discovery loop", exc = exc.msg
 
-    logScope:
-      sleep = b.discoveryLoopSleep
-      wanted = b.pendingBlocks.len
+    try:
+      logScope:
+        sleep = b.discoveryLoopSleep
+        wanted = b.pendingBlocks.len
+      await sleepAsync(b.discoveryLoopSleep)
+    except CancelledError:
+      discard # do not propagate as discoveryQueueLoop was asyncSpawned
 
-    await sleepAsync(b.discoveryLoopSleep)
-
-proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
+proc discoveryTaskLoop(b: DiscoveryEngine) {.async: (raises: []).} =
   ## Run discovery tasks
   ##
 
@@ -96,7 +99,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
               .wait(DefaultDiscoveryTimeout)
 
           b.inFlightDiscReqs[cid] = request
-          codexInflightDiscovery.set(b.inFlightDiscReqs.len.int64)
+          codex_inflight_discovery.set(b.inFlightDiscReqs.len.int64)
           let
             peers = await request
 
@@ -110,12 +113,17 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async.} =
 
         finally:
           b.inFlightDiscReqs.del(cid)
-          codexInflightDiscovery.set(b.inFlightDiscReqs.len.int64)
+          codex_inflight_discovery.set(b.inFlightDiscReqs.len.int64)
     except CancelledError:
       trace "Discovery task cancelled"
       return
     except CatchableError as exc:
       warn "Exception in discovery task runner", exc = exc.msg
+    except Exception as e:
+      # Raised by b.discovery.removeProvider somehow...
+      # This should not be catchable, and we should never get here. Therefore,
+      # raise a Defect.
+      raiseAssert "Exception when removing provider"
 
   info "Exiting discovery task runner"
 
@@ -139,9 +147,13 @@ proc start*(b: DiscoveryEngine) {.async.} =
 
   b.discEngineRunning = true
   for i in 0..<b.concurrentDiscReqs:
-    b.discoveryTasks.add(discoveryTaskLoop(b))
+    let fut = b.discoveryTaskLoop()
+    b.trackedFutures.track(fut)
+    asyncSpawn fut
 
-  b.discoveryLoop = discoveryQueueLoop(b)
+  b.discoveryLoop = b.discoveryQueueLoop()
+  b.trackedFutures.track(b.discoveryLoop)
+  asyncSpawn b.discoveryLoop
 
 proc stop*(b: DiscoveryEngine) {.async.} =
   ## Stop the discovery engine
@@ -153,16 +165,9 @@ proc stop*(b: DiscoveryEngine) {.async.} =
     return
 
   b.discEngineRunning = false
-  for task in b.discoveryTasks:
-    if not task.finished:
-      trace "Awaiting discovery task to stop"
-      await task.cancelAndWait()
-      trace "Discovery task stopped"
-
-  if not b.discoveryLoop.isNil and not b.discoveryLoop.finished:
-    trace "Awaiting discovery loop to stop"
-    await b.discoveryLoop.cancelAndWait()
-    trace "Discovery loop stopped"
+  trace "Stopping discovery loop and tasks"
+  await b.trackedFutures.cancelTracked()
+  trace "Discovery loop and tasks stopped"
 
   trace "Discovery engine stopped"
 
@@ -187,6 +192,7 @@ proc new*(
     pendingBlocks: pendingBlocks,
     concurrentDiscReqs: concurrentDiscReqs,
     discoveryQueue: newAsyncQueue[Cid](concurrentDiscReqs),
+    trackedFutures: TrackedFutures.new(),
     inFlightDiscReqs: initTable[Cid, Future[seq[SignedPeerRecord]]](),
     discoveryLoopSleep: discoveryLoopSleep,
     minPeersPerBlock: minPeersPerBlock)

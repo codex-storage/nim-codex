@@ -1,9 +1,9 @@
-import std/sugar
 import std/tables
 import pkg/chronos
 
 import ../logutils
-import ../utils/then
+
+{.push raises: [].}
 
 type
   TrackedFutures* = ref object
@@ -19,34 +19,28 @@ proc removeFuture(self: TrackedFutures, future: FutureBase) =
   if not self.cancelling and not future.isNil:
     self.futures.del(future.id)
 
-proc track*[T](self: TrackedFutures, fut: Future[T]): Future[T] =
+proc track*[T](self: TrackedFutures, fut: Future[T]) =
   if self.cancelling:
-    return fut
+    return
 
   self.futures[fut.id] = FutureBase(fut)
 
-  fut
-    .then((val: T) => self.removeFuture(fut))
-    .cancelled(() => self.removeFuture(fut))
-    .catch((e: ref CatchableError) => self.removeFuture(fut))
+  proc cb(udata: pointer) =
+    self.removeFuture(fut)
 
-  return fut
+  fut.addCallback(cb)
 
-proc track*[T, U](future: Future[T], self: U): Future[T] =
-  ## Convenience method that allows chaining future, eg:
-  ## `await someFut().track(sales)`, where `sales` has declared a
-  ## `trackedFutures` property.
-  self.trackedFutures.track(future)
-
-proc cancelTracked*(self: TrackedFutures) {.async.} =
+proc cancelTracked*(self: TrackedFutures) {.async: (raises: []).} =
   self.cancelling = true
 
   trace "cancelling tracked futures"
 
+  var cancellations: seq[FutureBase]
   for future in self.futures.values:
     if not future.isNil and not future.finished:
-      trace "cancelling tracked future", id = future.id
-      await future.cancelAndWait()
+      cancellations.add future.cancelAndWait()
+
+  await noCancel allFutures cancellations
 
   self.futures.clear()
   self.cancelling = false

@@ -16,8 +16,8 @@ import ./sales/statemachine
 import ./sales/slotqueue
 import ./sales/states/preparing
 import ./sales/states/unknown
-import ./utils/then
 import ./utils/trackedfutures
+import ./utils/exceptions
 
 ## Sales holds a list of available storage that it may sell.
 ##
@@ -325,7 +325,7 @@ proc onSlotFreed(sales: Sales,
 
   trace "slot freed, adding to queue"
 
-  proc addSlotToQueue() {.async.} =
+  proc addSlotToQueue() {.async: (raises: []).} =
     let context = sales.context
     let market = context.market
     let queue = context.slotQueue
@@ -336,25 +336,24 @@ proc onSlotFreed(sales: Sales,
       trace "no existing request metadata, getting request info from contract"
       # if there's no existing slot for that request, retrieve the request
       # from the contract.
-      without request =? await market.getRequest(requestId):
-        error "unknown request in contract"
-        return
+      try:
+        without request =? await market.getRequest(requestId):
+          error "unknown request in contract"
+          return
 
-      found = SlotQueueItem.init(request, slotIndex.truncate(uint16))
+        found = SlotQueueItem.init(request, slotIndex.truncate(uint16))
+      except CancelledError:
+        discard # do not propagate as addSlotToQueue was asyncSpawned
+      except CatchableError as e:
+        error "failed to get request from contract and add slots to queue",
+          error = e.msgDetail
 
     if err =? queue.push(found).errorOption:
-      raise err
+      error "failed to push slot items to queue", error = err.msgDetail
 
-  addSlotToQueue()
-    .track(sales)
-    .catch(proc(err: ref CatchableError) =
-      if err of SlotQueueItemExistsError:
-        error "Failed to push item to queue becaue it already exists"
-      elif err of QueueNotRunningError:
-        warn "Failed to push item to queue becaue queue is not running"
-      else:
-        warn "Error adding request to SlotQueue", error = err.msg
-    )
+  let fut = addSlotToQueue()
+  sales.trackedFutures.track(fut)
+  asyncSpawn fut
 
 proc subscribeRequested(sales: Sales) {.async.} =
   let context = sales.context
@@ -482,7 +481,7 @@ proc subscribeSlotReservationsFull(sales: Sales) {.async.} =
   except CatchableError as e:
     error "Unable to subscribe to slot filled events", msg = e.msg
 
-proc startSlotQueue(sales: Sales) {.async.} =
+proc startSlotQueue(sales: Sales) =
   let slotQueue = sales.context.slotQueue
   let reservations = sales.context.reservations
 
@@ -491,7 +490,7 @@ proc startSlotQueue(sales: Sales) {.async.} =
       trace "processing slot queue item", reqId = item.requestId, slotIdx = item.slotIndex
       sales.processSlot(item, done)
 
-  asyncSpawn slotQueue.start()
+  slotQueue.start()
 
   proc onAvailabilityAdded(availability: Availability) {.async.} =
     await sales.onAvailabilityAdded(availability)
@@ -518,7 +517,7 @@ proc unsubscribe(sales: Sales) {.async.} =
 
 proc start*(sales: Sales) {.async.} =
   await sales.load()
-  await sales.startSlotQueue()
+  sales.startSlotQueue()
   await sales.subscribe()
   sales.running = true
 

@@ -189,14 +189,16 @@ asyncchecksuite "Sales":
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
 
-  proc isInState(idx: int, state: string): Future[bool] {.async.} =
+  proc isInState(idx: int, state: string): bool =
     proc description(state: State): string =
       $state
-    check eventually sales.agents.len > idx
+
+    if idx >= sales.agents.len:
+      return false
     sales.agents[idx].query(description) == state.some
 
   proc allowRequestToStart {.async.} =
-    check eventually (await isInState(0, "SaleInitialProving"))
+    check eventually isInState(0, "SaleInitialProving")
     # it won't start proving until the next period
     await clock.advanceToNextPeriod(market)
 
@@ -564,6 +566,7 @@ asyncchecksuite "Sales":
     request.ask.slots = 2
     market.requested = @[request]
     market.requestState[request.id] = RequestState.New
+    market.requestEnds[request.id] = request.expiry.toSecondsSince1970
 
     proc fillSlot(slotIdx: UInt256 = 0.u256) {.async.} =
       let address = await market.getSigner()
