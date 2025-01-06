@@ -168,6 +168,12 @@ runs:
       shell: ${{ inputs.shell }} {0}
       run: echo "NIM_COMMIT=${{ inputs.nim_version }}" >> ${GITHUB_ENV}
 
+    - name: MSYS2 (Windows All) - Disable git symbolic links (since miniupnp 2.2.5)
+      if: inputs.os == 'windows'
+      shell: ${{ inputs.shell }} {0}
+      run: |
+        git config --global core.symlinks false
+
     - name: Build Nim and Codex dependencies
       shell: ${{ inputs.shell }} {0}
       run: |
