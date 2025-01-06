@@ -53,6 +53,7 @@ proc getWantHandle*(
 
   try:
     if address notin p.blocks:
+      trace "BlockRequest created", address
       p.blocks[address] = BlockReq(
         handle: newFuture[Block]("pendingBlocks.getWantHandle"),
         inFlight: inFlight,

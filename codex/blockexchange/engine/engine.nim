@@ -433,7 +433,7 @@ proc wantListHandler*(
               address: e.address,
               `type`: BlockPresenceType.DontHave,
               price: price))
-        elif have:
+        elif have: # and not e.cancel: # Uncomment this for slow mode.
           # Important todo: This presence can be added in response to a cancel message.
           # This is ignored by the receiving peer. But not doing so degrades performance.
           # See: https://github.com/codex-storage/nim-codex/pull/1019#issuecomment-2525089803
