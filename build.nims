@@ -40,9 +40,8 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
   try:
     exec(cmd)
   finally:
-     if defined(macosx):
+    if defined(macosx):
       renameFile(newVersionFile, oldVersionFile)
-
 
 proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
   buildBinary name, srcDir, params
