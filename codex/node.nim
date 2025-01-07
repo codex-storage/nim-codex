@@ -260,7 +260,7 @@ proc streamEntireDataset(
         error "Unable to erasure decode manifest", manifestCid, exc = error.msg
         return failure(error)
 
-        return success()
+      return success()
 
     if err =? (await erasureJob()).errorOption:
       return failure(err)
