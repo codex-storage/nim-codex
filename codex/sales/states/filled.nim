@@ -10,8 +10,10 @@ import ./errored
 import ./cancelled
 import ./failed
 import ./proving
-import ./provingsimulated # used in tests
+
 {.push warning[UnusedImport]:off.}
+import ./provingsimulated # used in tests
+{.pop.}
 
 logScope:
   topics = "marketplace sales filled"
