@@ -11,9 +11,8 @@ import ./cancelled
 import ./failed
 import ./proving
 
-{.push warning[UnusedImport]:off.}
-import ./provingsimulated # used in tests
-{.pop.}
+when codex_enable_proof_failures:
+  import ./provingsimulated
 
 logScope:
   topics = "marketplace sales filled"
