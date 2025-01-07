@@ -143,8 +143,6 @@ type
       abbr: "i"
       name: "listen-addrs" }: seq[MultiAddress]
 
-    # TODO: change this once we integrate nat support
-  
     nat* {.
       desc: "Specify method to use for determining public address. " &
             "Must be one of: any, none, upnp, pmp, extip:<IP>"
