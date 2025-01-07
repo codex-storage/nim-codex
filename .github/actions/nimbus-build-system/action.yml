@@ -11,7 +11,7 @@ inputs:
     default: "amd64"
   nim_version:
     description: "Nim version"
-    default: "v2.0.12"
+    default: "v2.0.14"
   rust_version:
     description: "Rust version"
     default: "1.79.0"
