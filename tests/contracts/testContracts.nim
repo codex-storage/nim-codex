@@ -1,5 +1,4 @@
 import pkg/chronos
-import pkg/ethers/testing
 import pkg/ethers/erc20
 import codex/contracts
 import ../ethertest
@@ -118,7 +117,13 @@ ethersuite "Marketplace contracts":
     switchAccount(client)
     let missingPeriod = periodicity.periodOf(await ethProvider.currentTime())
     await ethProvider.advanceTime(periodicity.seconds)
-    check await marketplace
-      .markProofAsMissing(slotId, missingPeriod)
-      .confirm(1)
-      .reverts("Slot not accepting proofs")
+    try:
+      discard await marketplace
+        .markProofAsMissing(slotId, missingPeriod)
+        .confirm(1)
+
+      raise newException(CatchableError, "Should have failed")
+    except Marketplace_SlotNotAcceptingProofs:
+      discard
+    except CatchableError:
+      assert false
