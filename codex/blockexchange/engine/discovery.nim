@@ -131,6 +131,7 @@ proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
   for cid in cids:
     if cid notin b.discoveryQueue:
       try:
+        trace "Discovery Started", cid
         b.discoveryQueue.putNoWait(cid)
       except CatchableError as exc:
         warn "Exception queueing discovery request", exc = exc.msg

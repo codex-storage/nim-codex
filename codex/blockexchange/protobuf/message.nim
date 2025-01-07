@@ -48,6 +48,7 @@ type
     address*: BlockAddress
     `type`*: BlockPresenceType
     price*: seq[byte]       # Amount of assets to pay for the block (UInt256)
+    isCancel*: bool
 
   AccountMessage* = object
     address*: seq[byte]     # Ethereum address to which payments should be made
@@ -112,6 +113,7 @@ proc write*(pb: var ProtoBuffer, field: int, value: BlockPresence) =
   ipb.write(1, value.address)
   ipb.write(2, value.`type`.uint)
   ipb.write(3, value.price)
+  ipb.write(4, value.isCancel.uint)
   ipb.finish()
   pb.write(field, ipb)
 
@@ -237,6 +239,8 @@ proc decode*(_: type BlockPresence, pb: ProtoBuffer): ProtoResult[BlockPresence]
   if ? pb.getField(2, field):
     value.`type` = BlockPresenceType(field)
   discard ? pb.getField(3, value.price)
+  if ? pb.getField(4, field):
+    value.isCancel = bool(field)
   ok(value)
 
 proc decode*(_: type AccountMessage, pb: ProtoBuffer): ProtoResult[AccountMessage] =

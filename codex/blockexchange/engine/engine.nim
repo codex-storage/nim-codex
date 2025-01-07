@@ -223,7 +223,7 @@ proc blockPresenceHandler*(
   if peerCtx.isNil:
     return
 
-  trace "Handling blockPresences", addrs = blocks.mapIt(it.address)
+  trace "Handling blockPresences", addrs = blocks.mapIt(it.address), anyCancel = blocks.anyIt(it.isCancel)
   for blk in blocks:
     if presence =? Presence.init(blk):
       peerCtx.setPresence(presence)
@@ -432,7 +432,8 @@ proc wantListHandler*(
               BlockPresence(
               address: e.address,
               `type`: BlockPresenceType.DontHave,
-              price: price))
+              price: price,
+              isCancel: e.cancel))
         elif have: # and not e.cancel: # Uncomment this for slow mode.
           # Important todo: This presence can be added in response to a cancel message.
           # This is ignored by the receiving peer. But not doing so degrades performance.
@@ -442,7 +443,8 @@ proc wantListHandler*(
             BlockPresence(
             address: e.address,
             `type`: BlockPresenceType.Have,
-            price: price))
+            price: price,
+            isCancel: e.cancel))
 
       elif e.wantType == WantType.WantBlock and not e.cancel:
         # cancels are always of type wantHave, but just in case
@@ -458,7 +460,7 @@ proc wantListHandler*(
         peerCtx.peerWants[idx] = e # update entry
 
   if presence.len > 0:
-    trace "Sending presence", addrs = presence.mapIt(it.address)
+    trace "Sending presence", addrs = presence.mapIt(it.address), anyCancel = presence.anyIt(it.isCancel)
     await b.network.request.sendPresence(peer, presence)
 
   if schedulePeer:
