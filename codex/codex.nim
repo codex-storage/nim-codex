@@ -159,7 +159,7 @@ proc start*(s: CodexServer) {.async.} =
 
   await s.codexNode.switch.start()
 
-  let (announceAddrs,discoveryAddrs)= natedAddress(
+  let (announceAddrs,discoveryAddrs)= nattedAddress(
     s.config.nat,
     s.codexNode.switch.peerInfo.addrs,
     s.config.discoveryPort)

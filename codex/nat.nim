@@ -386,7 +386,7 @@ proc setupAddress*(natConfig: NatConfig, bindIp: ValidIpAddress,
     of NatStrategy.NatUpnp, NatStrategy.NatPmp:
       return setupNat(natConfig.nat, tcpPort, udpPort, clientId)
 
-proc natedAddress*(natConfig: NatConfig, addrs: seq[MultiAddress], udpPort: Port): tuple[libp2p, discovery: seq[MultiAddress]] =
+proc nattedAddress*(natConfig: NatConfig, addrs: seq[MultiAddress], udpPort: Port): tuple[libp2p, discovery: seq[MultiAddress]] =
   ## Takes a NAT configuration, sequence of multiaddresses and UDP port and returns:
   ## - Modified multiaddresses with NAT-mapped addresses for libp2p 
   ## - Discovery addresses with NAT-mapped UDP ports

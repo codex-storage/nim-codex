@@ -9,7 +9,7 @@ import ../../codex/utils
 
 
 suite "NAT Address Tests":
-  test "natedAddress with local addresses":
+  test "nattedAddress with local addresses":
     # Setup test data
     let
       udpPort = Port(1234)
@@ -39,7 +39,7 @@ suite "NAT Address Tests":
       addrs = @[localAddr, anyAddr, publicAddr]
     
     # Test address remapping
-    let (libp2pAddrs,discoveryAddrs) = natedAddress(natConfig, addrs, udpPort)
+    let (libp2pAddrs,discoveryAddrs) = nattedAddress(natConfig, addrs, udpPort)
     
     # Verify results
     check(discoveryAddrs == expectedDiscoveryAddrs)

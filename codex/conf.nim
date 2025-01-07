@@ -44,7 +44,7 @@ import ./utils
 import ./nat
 from ./validationconfig import MaxSlots, ValidationGroups
 
-export units, net, codextypes, logutils,completeCmdArg,parseCmdArg,NatConfig
+export units, net, codextypes, logutils, completeCmdArg, parseCmdArg, NatConfig
 export ValidationGroups, MaxSlots
 
 export
