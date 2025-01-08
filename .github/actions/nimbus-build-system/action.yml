@@ -31,8 +31,8 @@ runs:
       if: inputs.os == 'linux' && (inputs.cpu == 'amd64' || inputs.cpu == 'arm64')
       shell: ${{ inputs.shell }} {0}
       run: |
-        sudo apt-fast update -qq
-        sudo DEBIAN_FRONTEND='noninteractive' apt-fast install \
+        sudo apt-get update -qq
+        sudo DEBIAN_FRONTEND='noninteractive' apt-get install \
           --no-install-recommends -yq lcov
 
     - name: APT (Linux i386)
@@ -40,8 +40,8 @@ runs:
       shell: ${{ inputs.shell }} {0}
       run: |
         sudo dpkg --add-architecture i386
-        sudo apt-fast update -qq
-        sudo DEBIAN_FRONTEND='noninteractive' apt-fast install \
+        sudo apt-get update -qq
+        sudo DEBIAN_FRONTEND='noninteractive' apt-get install \
           --no-install-recommends -yq gcc-multilib g++-multilib
 
     - name: Homebrew (macOS)
