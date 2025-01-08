@@ -4,7 +4,6 @@ import pkg/codex/contracts/requests
 import pkg/codex/sales/states/filling
 import pkg/codex/sales/states/cancelled
 import pkg/codex/sales/states/failed
-import pkg/codex/sales/states/filled
 import ../../examples
 import ../../helpers
 

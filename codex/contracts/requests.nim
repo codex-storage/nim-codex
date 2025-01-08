@@ -6,7 +6,6 @@ import pkg/nimcrypto
 import pkg/ethers/fields
 import pkg/questionable/results
 import pkg/stew/byteutils
-import pkg/upraises
 import ../logutils
 import ../utils/json
 

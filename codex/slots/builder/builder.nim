@@ -24,7 +24,6 @@ import ../../utils
 import ../../stores
 import ../../manifest
 import ../../merkletree
-import ../../utils/digest
 import ../../utils/asynciter
 import ../../indexingstrategy
 

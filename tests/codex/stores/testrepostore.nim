@@ -7,7 +7,6 @@ import pkg/questionable/results
 
 import pkg/chronos
 import pkg/stew/byteutils
-import pkg/stew/endians2
 import pkg/datastore
 
 import pkg/codex/stores/cachestore
@@ -22,8 +21,6 @@ import ../helpers
 import ../helpers/mockclock
 import ../examples
 import ./commonstoretests
-
-import ./repostore/testcoders
 
 checksuite "Test RepoStore start/stop":
 

@@ -10,7 +10,11 @@
 {.push raises: [].}
 
 import std/os
-import std/terminal
+
+{.push warning[UnusedImport]: on.}
+import std/terminal # Is not used in tests
+{.pop.}
+
 import std/options
 import std/strutils
 import std/typetraits

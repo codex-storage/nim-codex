@@ -8,7 +8,6 @@
 ## those terms.
 
 import pkg/chronos
-import pkg/questionable/results
 import pkg/codex/blocktype as bt
 import pkg/codex/stores/repostore
 import pkg/codex/clock
