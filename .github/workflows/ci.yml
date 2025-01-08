@@ -48,7 +48,7 @@ jobs:
       cache_nonce: ${{ needs.matrix.outputs.cache_nonce }}
 
   coverage:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
