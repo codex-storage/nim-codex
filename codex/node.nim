@@ -331,7 +331,7 @@ proc store*(
   finally:
     await stream.close()
 
-  without tree =? CodexTree.init(cids), err:
+  without tree =? (await CodexTree.init(cids)), err:
     return failure(err)
 
   without treeCid =? tree.rootCid(CIDv1, dataCodec), err:
@@ -429,19 +429,23 @@ proc setupRequest(
       self.taskpool)
 
   without encoded =? (await erasure.encode(manifest, ecK, ecM)), error:
-    trace "Unable to erasure code dataset"
+    error "Unable to erasure code dataset"
     return failure(error)
 
   without builder =? Poseidon2Builder.new(self.networkStore.localStore, encoded), err:
-    trace "Unable to create slot builder"
+    error "Unable to create slot builder"
+    return failure(err)
+
+  if err =? (await builder.init()).errorOption:
+    error "Failed to initialize slot builder"
     return failure(err)
 
   without verifiable =? (await builder.buildManifest()), err:
-    trace "Unable to build verifiable manifest"
+    error "Unable to build verifiable manifest"
     return failure(err)
 
   without manifestBlk =? await self.storeManifest(verifiable), err:
-    trace "Unable to store verifiable manifest"
+    error "Unable to store verifiable manifest"
     return failure(err)
 
   let
@@ -533,17 +537,21 @@ proc onStore(
   trace "Received a request to store a slot"
 
   without cid =? Cid.init(request.content.cid).mapFailure, err:
-    trace "Unable to parse Cid", cid
+    error "Unable to parse Cid", cid
     return failure(err)
 
   without manifest =? (await self.fetchManifest(cid)), err:
-    trace "Unable to fetch manifest for cid", cid, err = err.msg
+    error "Unable to fetch manifest for cid", cid, err = err.msg
     return failure(err)
 
   without builder =? Poseidon2Builder.new(
     self.networkStore, manifest, manifest.verifiableStrategy
   ), err:
-    trace "Unable to create slots builder", err = err.msg
+    error "Unable to create slots builder", err = err.msg
+    return failure(err)
+
+  if err =? (await builder.init()).errorOption:
+    error "Failed to initialize slot builder"
     return failure(err)
 
   let

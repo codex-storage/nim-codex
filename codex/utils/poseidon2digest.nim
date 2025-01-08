@@ -7,6 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import pkg/chronos
 import pkg/poseidon2
 import pkg/questionable/results
 import pkg/libp2p/multihash
@@ -32,10 +33,10 @@ func spongeDigest*(
 
   success Sponge.digest(bytes, rate)
 
-func digestTree*(
+proc digestTree*(
   _: type Poseidon2Tree,
-  bytes: openArray[byte],
-  chunkSize: int): ?!Poseidon2Tree =
+  bytes: seq[byte],
+  chunkSize: int): Future[?!Poseidon2Tree] {.async.} =
   ## Hashes chunks of data with a sponge of rate 2, and combines the
   ## resulting chunk hashes in a merkle root.
   ##
@@ -50,30 +51,34 @@ func digestTree*(
   while index < bytes.len:
     let start = index
     let finish = min(index + chunkSize, bytes.len)
-    let digest = ? Poseidon2Hash.spongeDigest(bytes.toOpenArray(start, finish - 1), 2)
+    without digest =? Poseidon2Hash.spongeDigest(bytes.toOpenArray(start, finish - 1), 2), error:
+      return failure error
     leaves.add(digest)
     index += chunkSize
-  return Poseidon2Tree.init(leaves)
+    await sleepAsync(1.nanos) # cooperative scheduling
+  return await Poseidon2Tree.init(leaves)
 
-func digest*(
+proc digest*(
   _: type Poseidon2Tree,
-  bytes: openArray[byte],
-  chunkSize: int): ?!Poseidon2Hash =
+  bytes: seq[byte],
+  chunkSize: int): Future[?!Poseidon2Hash] {.async.} =
   ## Hashes chunks of data with a sponge of rate 2, and combines the
   ## resulting chunk hashes in a merkle root.
   ##
+  without tree =? (await Poseidon2Tree.digestTree(bytes, chunkSize)), error:
+    return failure error
 
-  (? Poseidon2Tree.digestTree(bytes, chunkSize)).root
+  tree.root
 
-func digestMhash*(
+proc digestMhash*(
   _: type Poseidon2Tree,
   bytes: openArray[byte],
-  chunkSize: int): ?!MultiHash =
+  chunkSize: int): Future[?!MultiHash] {.async.} =
   ## Hashes chunks of data with a sponge of rate 2 and
   ## returns the multihash of the root
   ##
 
-  let
-    hash = ? Poseidon2Tree.digest(bytes, chunkSize)
+  without hash =? (await Poseidon2Tree.digest(bytes, chunkSize)), err:
+    return failure err
 
   ? MultiHash.init(Pos2Bn128MrklCodec, hash).mapFailure

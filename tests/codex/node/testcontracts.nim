@@ -91,6 +91,8 @@ asyncchecksuite "Test Node - Host contracts":
 
     protected = (await erasure.encode(manifest, 3, 2)).tryGet()
     builder = Poseidon2Builder.new(localStore, protected).tryGet()
+    (await builder.init()).tryGet()
+
     verifiable = (await builder.buildManifest()).tryGet()
     verifiableBlock = bt.Block.new(
       verifiable.encode().tryGet(),

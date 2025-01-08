@@ -39,7 +39,7 @@ proc makeManifest*(
   store: BlockStore,
   hcodec = Sha256HashCodec,
   dataCodec = BlockCodec): Future[?!Manifest] {.async.} =
-  without tree =? CodexTree.init(cids), err:
+  without tree =? (await CodexTree.init(cids)), err:
     return failure(err)
 
   without treeCid =? tree.rootCid(CIDv1, dataCodec), err:
@@ -90,10 +90,10 @@ proc createProtectedManifest*(
 
   let
     cids = datasetBlocks.mapIt(it.cid)
-    datasetTree = CodexTree.init(cids[0..<numDatasetBlocks]).tryGet()
+    datasetTree = (await CodexTree.init(cids[0..<numDatasetBlocks])).tryGet()
     datasetTreeCid = datasetTree.rootCid().tryGet()
 
-    protectedTree = CodexTree.init(cids).tryGet()
+    protectedTree = (await CodexTree.init(cids)).tryGet()
     protectedTreeCid = protectedTree.rootCid().tryGet()
 
   for index, cid in cids[0..<numDatasetBlocks]:
@@ -160,7 +160,10 @@ proc createVerifiableManifest*(
           totalDatasetSize)
 
     builder = Poseidon2Builder.new(store, protectedManifest, cellSize = cellSize).tryGet
-    verifiableManifest = (await builder.buildManifest()).tryGet
+
+  (await builder.init()).tryGet()
+
+  let verifiableManifest = (await builder.buildManifest()).tryGet
 
   # build the slots and manifest
   (manifest, protectedManifest, verifiableManifest)

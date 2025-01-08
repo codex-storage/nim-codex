@@ -145,16 +145,18 @@ func compress*(
   mhash.coder(@x & @y & @[ key.byte ], digest)
   success digest
 
-func init*(
+proc init*(
   _: type CodexTree,
   mcodec: MultiCodec = Sha256HashCodec,
-  leaves: openArray[ByteHash]): ?!CodexTree =
+  leaves: seq[ByteHash]): Future[?!CodexTree] {.async.} =
 
   if leaves.len == 0:
     return failure "Empty leaves"
 
+  without mhash =? mcodec.mhash(), error:
+    return failure error
+
   let
-    mhash = ? mcodec.mhash()
     compressor = proc(x, y: seq[byte], key: ByteTreeKey): ?!ByteHash {.noSideEffect.} =
       compress(x, y, key, mhash)
     Zero: ByteHash = newSeq[byte](mhash.size)
@@ -165,33 +167,42 @@ func init*(
   var
     self = CodexTree(mcodec: mcodec, compress: compressor, zero: Zero)
 
-  self.layers = ? merkleTreeWorker(self, leaves, isBottomLayer = true)
+  without layers =? (await merkleTreeWorker(self, leaves, isBottomLayer = true)), error:
+    return failure error
+
+  self.layers = layers
   success self
 
-func init*(
+proc init*(
   _: type CodexTree,
-  leaves: openArray[MultiHash]): ?!CodexTree =
+  leaves: seq[MultiHash]): Future[?!CodexTree] {.async.} =
 
   if leaves.len == 0:
     return failure "Empty leaves"
 
   let
     mcodec = leaves[0].mcodec
-    leaves = leaves.mapIt( it.digestBytes )
+    leafBytes = leaves.mapIt( it.digestBytes )
 
-  CodexTree.init(mcodec, leaves)
+  await CodexTree.init(mcodec, leafBytes)
 
-func init*(
+proc init*(
   _: type CodexTree,
-  leaves: openArray[Cid]): ?!CodexTree =
+  leaves: seq[Cid]): Future[?!CodexTree] {.async.} =
+
   if leaves.len == 0:
     return failure "Empty leaves"
 
-  let
-    mcodec = (? leaves[0].mhash.mapFailure).mcodec
-    leaves = leaves.mapIt( (? it.mhash.mapFailure).digestBytes )
+  without mhash =? leaves[0].mhash.mapFailure, error:
+    return failure error
 
-  CodexTree.init(mcodec, leaves)
+  var hashes = newSeq[seq[byte]]()
+  for leaf in leaves:
+    without hash =? leaf.mhash.mapFailure, error:
+      return failure error
+    hashes.add(hash.digestBytes)
+
+  await CodexTree.init(mhash.mcodec, hashes)
 
 proc fromNodes*(
   _: type CodexTree,

@@ -111,6 +111,7 @@ suite "Test Sampler":
 
     # create sampler
     builder = Poseidon2Builder.new(store, verifiable).tryGet
+    (await builder.init()).tryGet()
 
   teardown:
     await store.close()
