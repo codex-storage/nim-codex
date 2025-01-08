@@ -63,6 +63,7 @@ type
     pendingBytes*: uint
     account*: AccountMessage
     payment*: StateChannelUpdate
+    num*: int32
 
 #
 # Encoding Message into seq[byte] in Protobuf format
@@ -139,6 +140,7 @@ proc protobufEncode*(value: Message): seq[byte] =
   ipb.write(5, value.pendingBytes)
   ipb.write(6, value.account)
   ipb.write(7, value.payment)
+  ipb.write(8, value.num.uint64)
   ipb.finish()
   ipb.buffer
 
@@ -260,6 +262,7 @@ proc protobufDecode*(_: type Message, msg: seq[byte]): ProtoResult[Message] =
     value = Message()
     pb = initProtoBuffer(msg, maxSize = MaxMessageSize)
     ipb: ProtoBuffer
+    field: uint64
     sublist: seq[seq[byte]]
   if ? pb.getField(1, ipb):
     value.wantList = ? WantList.decode(ipb)
@@ -274,4 +277,6 @@ proc protobufDecode*(_: type Message, msg: seq[byte]): ProtoResult[Message] =
     value.account = ? AccountMessage.decode(ipb)
   if ? pb.getField(7, ipb):
     value.payment = ? StateChannelUpdate.decode(ipb)
+  if ? pb.getField(8, field):
+    value.num = int32(field)
   ok(value)

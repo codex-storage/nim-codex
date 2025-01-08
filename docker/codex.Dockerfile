@@ -28,7 +28,6 @@ WORKDIR ${BUILD_HOME}
 COPY . .
 RUN make -j ${MAKE_PARALLEL} update
 RUN make -j ${MAKE_PARALLEL}
-RUN make -j ${MAKE_PARALLEL} cirdl
 
 # Create
 FROM ${IMAGE}

@@ -31,6 +31,7 @@ type
     handler*: RPCHandler
     sendConn: Connection
     getConn: ConnProvider
+    num: int32
 
 proc connected*(b: NetworkPeer): bool =
   not(isNil(b.sendConn)) and
@@ -45,6 +46,7 @@ proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
       let
         data = await conn.readLp(MaxMessageSize.int)
         msg = Message.protobufDecode(data).mapFailure().tryGet()
+      trace "MsgReceived", num = msg.num
       await b.handler(b, msg)
   except CancelledError:
     trace "Read loop cancelled"
@@ -61,14 +63,23 @@ proc connect*(b: NetworkPeer): Future[Connection] {.async.} =
   asyncSpawn b.readLoop(b.sendConn)
   return b.sendConn
 
-proc send*(b: NetworkPeer, msg: Message) {.async.} =
+proc send*(b: NetworkPeer, msga: Message) {.async.} =
   let conn = await b.connect()
+
+  inc b.num
+  if b.num > 9:
+    b.num = 1
+
+  var msg = msga
+  msg.num = b.num
 
   if isNil(conn):
     warn "Unable to get send connection for peer message not sent", peer = b.id
     return
 
+  trace "MsgSending", num = msg.num
   await conn.writeLp(protobufEncode(msg))
+  trace "MsgSent", num = msg.num
 
 proc broadcast*(b: NetworkPeer, msg: Message) =
   proc sendAwaiter() {.async.} =
