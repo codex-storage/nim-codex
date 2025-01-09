@@ -21,8 +21,7 @@ suite "Taiko L2 Integration Tests":
     node1 = startNode([
       "--data-dir=" & createTempDir("", ""),
       "--api-port=8080",
-      "--nat=127.0.0.1",
-      "--disc-ip=127.0.0.1",
+      "--nat=none",
       "--disc-port=8090",
       "--persistence",
       "--eth-provider=https://rpc.test.taiko.xyz"
@@ -34,8 +33,7 @@ suite "Taiko L2 Integration Tests":
     node2 = startNode([
       "--data-dir=" & createTempDir("", ""),
       "--api-port=8081",
-      "--nat=127.0.0.1",
-      "--disc-ip=127.0.0.1",
+      "--nat=none",
       "--disc-port=8091",
       "--bootstrap-node=" & bootstrap,
       "--persistence",

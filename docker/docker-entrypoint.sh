@@ -12,7 +12,7 @@ fi
 # Parameters
 if [[ -z "${CODEX_NAT}" ]]; then
   if [[ "${NAT_IP_AUTO}" == "true" && -z "${NAT_PUBLIC_IP_AUTO}" ]]; then
-    export CODEX_NAT=$(hostname --ip-address)
+    export CODEX_NAT="extip:$(hostname --ip-address)"
     echo "Private: CODEX_NAT=${CODEX_NAT}"
   elif [[ -n "${NAT_PUBLIC_IP_AUTO}" ]]; then
     # Run for 60 seconds if fail
@@ -20,9 +20,10 @@ if [[ -z "${CODEX_NAT}" ]]; then
     SECONDS=0
     SLEEP=5
     while (( SECONDS < WAIT )); do
-      export CODEX_NAT=$(curl -s -f -m 5 "${NAT_PUBLIC_IP_AUTO}")
+      IP=$(curl -s -f -m 5 "${NAT_PUBLIC_IP_AUTO}")
       # Check if exit code is 0 and returned value is not empty
-      if [[ $? -eq 0 && -n "${CODEX_NAT}" ]]; then
+      if [[ $? -eq 0 && -n "${IP}" ]]; then
+        export CODEX_NAT="extip:${IP}"
         echo "Public: CODEX_NAT=${CODEX_NAT}"
         break
       else
