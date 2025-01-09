@@ -119,12 +119,3 @@ asyncchecksuite "Chunking":
   test "stream should forward LPStreamError":
     expect LPStreamError:
       await raiseStreamException(newException(LPStreamError, "test error"))
-
-  # This test cannot exist anymore.
-  # The signature of the method readOnce is explicitly listing the error raised:
-  # LPStreamError and CancelledError.
-  # So trying to raise CatchableError will not compile because CatchableError is
-  # not in the pragma array amd Nim 2 looks stricter for this rule.
-  # test "stream should convert other exceptions to defect":
-  #   expect Defect:
-  #     await raiseStreamException(newException(CatchableError, "test error"))
