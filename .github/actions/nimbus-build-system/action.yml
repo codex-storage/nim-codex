@@ -18,6 +18,9 @@ inputs:
   shell:
     description: "Shell to run commands in"
     default: "bash --noprofile --norc -e -o pipefail"
+  coverage:
+    description: "True if the process is used for coverage"
+    default: false
 runs:
   using: "composite"
   steps:
