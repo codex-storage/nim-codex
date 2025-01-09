@@ -30,6 +30,8 @@
         default = codex;
       });
 
+      nixosModules.codex = import ./nix/codex.nix;
+
       devShells = forAllSystems (system: let
         pkgs = pkgsFor.${system};
       in {

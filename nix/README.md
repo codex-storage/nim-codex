@@ -19,11 +19,11 @@ https://github.com/NixOS/nix/issues/4423
 
 It can be also done without even cloning the repo:
 ```sh
-nix build 'github:codex-storage/nim-codex?submodules=1'
+nix build 'git+https://github.com/codex-storage/nim-codex?submodules=1#'
 ```
 
 ## Running
 
 ```sh
-nix run 'github:codex-storage/nim-codex?submodules=1'
+nix run 'git+https://github.com/codex-storage/nim-codex?submodules=1#''
 ```
