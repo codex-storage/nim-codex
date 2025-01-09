@@ -85,8 +85,8 @@ runs:
         pacman -U --noconfirm https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gcc-14.2.0-2-any.pkg.tar.zst https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gcc-libs-14.2.0-2-any.pkg.tar.zst
 
     - name: Install gcc 14 on Linux
-      # Should be removed when ubuntu-latest is 26.04
-      if : ${{ inputs.os == 'linux' }}
+      # We don't want to install gcc 14 for coverage (Ubuntu 20.04)
+      if : ${{ inputs.os == 'linux' && !inputs.coverage }}
       shell: ${{ inputs.shell }} {0}
       run: |
         # Add GCC-14 to alternatives

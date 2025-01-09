@@ -40,6 +40,7 @@ jobs:
           os: ${{ matrix.os }}
           shell: ${{ matrix.shell }}
           nim_version: ${{ matrix.nim_version }}
+          coverage: false
 
       ## Part 1 Tests ##
       - name: Unit tests

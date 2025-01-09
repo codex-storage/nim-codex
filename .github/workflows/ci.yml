@@ -48,7 +48,11 @@ jobs:
       cache_nonce: ${{ needs.matrix.outputs.cache_nonce }}
 
   coverage:
-    runs-on: ubuntu-latest
+    # Force to stick to ubuntu 20.04 for coverage because
+    # lcov was updated to 2.x version in ubuntu-latest
+    # and cause a lot of issues.
+    # See https://github.com/linux-test-project/lcov/issues/238
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -61,6 +65,7 @@ jobs:
         with:
           os: linux
           nim_version: ${{ env.nim_version }}
+          coverage: true
 
       - name: Generate coverage data
         run: |
