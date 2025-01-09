@@ -42,6 +42,7 @@ import ./stores
 import ./units
 import ./utils
 import ./nat
+import ./utils/natutils
 from ./validationconfig import MaxSlots, ValidationGroups
 
 export units, net, codextypes, logutils, completeCmdArg, parseCmdArg, NatConfig
@@ -461,6 +462,31 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
     warn "Invalid SignedPeerRecord uri", uri = uri, error = exc.msg
     quit QuitFailure
   res
+
+func parseCmdArg*(T: type NatConfig, p: string): T {.raises: [ValueError].} =
+  case p.toLowerAscii:
+    of "any":
+      NatConfig(hasExtIp: false, nat: NatStrategy.NatAny)
+    of "none":
+      NatConfig(hasExtIp: false, nat: NatStrategy.NatNone)
+    of "upnp":
+      NatConfig(hasExtIp: false, nat: NatStrategy.NatUpnp)
+    of "pmp":
+      NatConfig(hasExtIp: false, nat: NatStrategy.NatPmp)
+    else:
+      if p.startsWith("extip:"):
+        try:
+          let ip = ValidIpAddress.init(p[6..^1])
+          NatConfig(hasExtIp: true, extIp: ip)
+        except ValueError:
+          let error = "Not a valid IP address: " & p[6..^1]
+          raise newException(ValueError, error)
+      else:
+        let error = "Not a valid NAT option: " & p
+        raise newException(ValueError, error)
+
+proc completeCmdArg*(T: type NatConfig; val: string): seq[string] =
+  return @[]
 
 proc parseCmdArg*(T: type EthAddress, address: string): T =
   EthAddress.init($address).get()

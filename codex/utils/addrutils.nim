@@ -87,7 +87,6 @@ proc getAddressAndPort*(ma: MultiAddress): tuple[ip: Option[ValidIpAddress], por
       some(Port(fromBytesBE(uint16, portBytes)))
     else:
       none(Port)
-
-    result = (ip: ip, port: port)
+    (ip: ip, port: port)
   except Exception:
-    result = (ip: none(ValidIpAddress), port: none(Port))
+    (ip: none(ValidIpAddress), port: none(Port))

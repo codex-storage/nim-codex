@@ -322,32 +322,6 @@ type
       of true: extIp*: ValidIpAddress
       of false: nat*: NatStrategy
 
-func parseCmdArg*(T: type NatConfig, p: string): T {.raises: [ValueError].} =
-  case p.toLowerAscii:
-    of "any":
-      NatConfig(hasExtIp: false, nat: NatStrategy.NatAny)
-    of "none":
-      NatConfig(hasExtIp: false, nat: NatStrategy.NatNone)
-    of "upnp":
-      NatConfig(hasExtIp: false, nat: NatStrategy.NatUpnp)
-    of "pmp":
-      NatConfig(hasExtIp: false, nat: NatStrategy.NatPmp)
-    else:
-      if p.startsWith("extip:"):
-        try:
-          let ip = ValidIpAddress.init(p[6..^1])
-          NatConfig(hasExtIp: true, extIp: ip)
-        except ValueError:
-          let error = "Not a valid IP address: " & p[6..^1]
-          raise newException(ValueError, error)
-      else:
-        let error = "Not a valid NAT option: " & p
-        raise newException(ValueError, error)
-
-proc completeCmdArg*(T: type NatConfig; val: string): seq[string] =
-  return @[]
-
-
 proc setupAddress*(natConfig: NatConfig, bindIp: ValidIpAddress,
     tcpPort, udpPort: Port, clientId: string):
     tuple[ip: Option[ValidIpAddress], tcpPort, udpPort: Option[Port]]
