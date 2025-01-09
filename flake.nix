@@ -2,8 +2,11 @@
   description = "Codex build flake";
   
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
-    circom-compat.url = "github:codex-storage/circom-compat-ffi";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    circom-compat = {
+      url = "github:codex-storage/circom-compat-ffi/afadf4d9a411ce0589f6b4c1858a9a5a4e7f4661";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = { self, nixpkgs, circom-compat}:
