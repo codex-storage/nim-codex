@@ -250,8 +250,7 @@ proc streamEntireDataset(
         erasure = Erasure.new(
           self.networkStore,
           leoEncoderProvider,
-          leoDecoderProvider,
-          self.taskpool)
+          leoDecoderProvider)
       without _ =? (await erasure.decode(manifest)), error:
         error "Unable to erasure decode manifest", manifestCid, exc = error.msg
         return failure(error)
