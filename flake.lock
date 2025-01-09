@@ -7,17 +7,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1736348751,
+        "lastModified": 1736521871,
         "narHash": "sha256-d34XNLg9NGPEOARHW+BIOAWalkHdEUAwsv3mpLZQxds=",
         "owner": "codex-storage",
         "repo": "circom-compat-ffi",
-        "rev": "afadf4d9a411ce0589f6b4c1858a9a5a4e7f4661",
+        "rev": "8cd4ed44fdafe59d4ec1184420639cae4c4dbab9",
         "type": "github"
       },
       "original": {
         "owner": "codex-storage",
         "repo": "circom-compat-ffi",
-        "rev": "afadf4d9a411ce0589f6b4c1858a9a5a4e7f4661",
         "type": "github"
       }
     },

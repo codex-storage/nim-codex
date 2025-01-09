@@ -17,18 +17,21 @@
   ).packages.${builtins.currentSystem}.default
 }:
 
+assert pkgs.lib.assertMsg ((src.submodules or true) == true)
+  "Unable to build without submodules. Append '?submodules=1#' to the URI.";
+
 let
   inherit (pkgs) stdenv lib writeScriptBin callPackage;
-  
+
   revision = lib.substring 0 8 (src.rev or "dirty");
 
   tools = callPackage ./tools.nix {};
 in pkgs.gcc11Stdenv.mkDerivation rec {
-  
+
   pname = "codex";
 
   version = "${tools.findKeyValue "version = \"([0-9]+\.[0-9]+\.[0-9]+)\"" ../codex.nimble}-${revision}";
-  
+
   inherit src;
 
   # Dependencies that should exist in the runtime environment.
@@ -69,14 +72,14 @@ in pkgs.gcc11Stdenv.mkDerivation rec {
   configurePhase = ''
     patchShebangs . > /dev/null
   '';
- 
+
   installPhase = ''
     mkdir -p $out/bin
     cp build/codex $out/bin/
   '';
 
   meta = with pkgs.lib; {
-    description = "Codex storage system";
+    description = "Nim Codex storage system";
     homepage = "https://github.com/codex-storage/nim-codex";
     license = licenses.mit;
     platforms = stableSystems;
