@@ -27,6 +27,8 @@ RUN echo "export PATH=$PATH:$HOME/.cargo/bin" >> $BASH_ENV
 WORKDIR ${BUILD_HOME}
 COPY . .
 RUN make -j ${MAKE_PARALLEL} update
+COPY ./docker/lpchannel.nim ./vendor/nim-libp2p/libp2p/muxers/mplex/lpchannel.nim
+COPY ./docker/chronosstream.nim ./vendor/nim-libp2p/libp2p/stream/chronosstream.nim
 RUN make -j ${MAKE_PARALLEL}
 
 # Create
