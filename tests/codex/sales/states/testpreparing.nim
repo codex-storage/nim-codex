@@ -1,7 +1,6 @@
 import pkg/chronos
 import pkg/questionable
 import pkg/datastore
-import pkg/stew/byteutils
 import pkg/codex/contracts/requests
 import pkg/codex/sales/states/preparing
 import pkg/codex/sales/states/slotreserving

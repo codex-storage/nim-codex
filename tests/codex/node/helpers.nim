@@ -6,7 +6,6 @@ import pkg/chronos
 import pkg/codex/codextypes
 import pkg/codex/chunker
 import pkg/codex/stores
-import pkg/codex/slots
 
 import ../../asynctest
 

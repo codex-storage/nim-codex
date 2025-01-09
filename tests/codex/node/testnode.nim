@@ -1,8 +1,6 @@
 import std/os
 import std/options
 import std/math
-import std/times
-import std/sequtils
 import std/importutils
 
 import pkg/chronos

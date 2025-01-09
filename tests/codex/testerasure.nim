@@ -2,7 +2,6 @@ import std/sequtils
 import std/sugar
 
 import pkg/chronos
-import pkg/datastore
 import pkg/questionable/results
 
 import pkg/codex/erasure

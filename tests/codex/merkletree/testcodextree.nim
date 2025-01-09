@@ -1,10 +1,8 @@
 import std/unittest
 import std/sequtils
-import std/tables
 
 import pkg/questionable/results
 import pkg/stew/byteutils
-import pkg/nimcrypto/sha2
 import pkg/libp2p
 
 import pkg/codex/codextypes

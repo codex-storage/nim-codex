@@ -1,5 +1,4 @@
 import std/hashes
-import pkg/nimcrypto
 import ../logutils
 
 type PurchaseId* = distinct array[32, byte]

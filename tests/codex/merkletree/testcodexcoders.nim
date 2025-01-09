@@ -1,5 +1,4 @@
 import std/unittest
-import std/sequtils
 
 import pkg/questionable/results
 import pkg/stew/byteutils

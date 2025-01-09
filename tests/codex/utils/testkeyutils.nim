@@ -1,6 +1,5 @@
 import std/unittest
 import std/os
-import pkg/questionable
 import codex/utils/keyutils
 import ../helpers
 

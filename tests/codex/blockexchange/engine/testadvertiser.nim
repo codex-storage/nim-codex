@@ -1,6 +1,3 @@
-import std/sequtils
-import std/random
-
 import pkg/chronos
 import pkg/libp2p/routing_record
 import pkg/codexdht/discv5/protocol as discv5
@@ -49,7 +46,7 @@ asyncchecksuite "Advertiser":
   teardown:
     await advertiser.stop()
 
-  proc waitTillQueueEmpty() {.async.} = 
+  proc waitTillQueueEmpty() {.async.} =
     check eventually advertiser.advertiseQueue.len == 0
 
   test "blockStored should queue manifest Cid for advertising":
@@ -70,7 +67,7 @@ asyncchecksuite "Advertiser":
 
   test "blockStored should not queue non-manifest non-tree CIDs for discovery":
     let blk = bt.Block.example
-      
+
     (await localStore.putBlock(blk)).tryGet()
 
     await waitTillQueueEmpty()

@@ -1,19 +1,15 @@
 import std/os
 import std/options
-import std/math
 import std/times
-import std/sequtils
 import std/importutils
 
 import pkg/chronos
-import pkg/stew/byteutils
 import pkg/datastore
 import pkg/datastore/typedds
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
-import pkg/poseidon2
-import pkg/poseidon2/io
+import pkg/taskpools
 
 import pkg/nitro
 import pkg/codexdht/discv5/protocol as discv5
@@ -29,7 +25,6 @@ import pkg/codex/slots
 import pkg/codex/manifest
 import pkg/codex/discovery
 import pkg/codex/erasure
-import pkg/codex/merkletree
 import pkg/codex/blocktype as bt
 import pkg/codex/stores/repostore/coders
 import pkg/codex/utils/asynciter

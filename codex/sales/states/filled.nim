@@ -10,7 +10,9 @@ import ./errored
 import ./cancelled
 import ./failed
 import ./proving
-import ./provingsimulated
+
+when codex_enable_proof_failures:
+  import ./provingsimulated
 
 logScope:
   topics = "marketplace sales filled"

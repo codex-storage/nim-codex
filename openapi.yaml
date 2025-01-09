@@ -138,6 +138,10 @@ components:
           description: Path of the data repository where all nodes data are stored
         spr:
           $ref: "#/components/schemas/SPR"
+        announceAddresses:
+          type: array
+          items:
+            $ref: "#/components/schemas/MultiAddress"
         table:
           $ref: "#/components/schemas/PeersTable"
         codex:

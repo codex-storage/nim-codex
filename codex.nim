@@ -28,7 +28,6 @@ import ./codex/codextypes
 export codex, conf, libp2p, chronos, logutils
 
 when isMainModule:
-  import std/sequtils
   import std/os
   import pkg/confutils/defs
   import ./codex/utils/fileutils

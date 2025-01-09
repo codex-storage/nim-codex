@@ -27,7 +27,6 @@ import ../builder
 import ../sampler
 
 import ./backends
-import ./backendfactory
 import ../types
 
 export backends

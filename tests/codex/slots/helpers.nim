@@ -13,7 +13,6 @@ import pkg/codex/chunker
 import pkg/codex/indexingstrategy
 import pkg/codex/slots
 import pkg/codex/rng
-import pkg/codex/utils/poseidon2digest
 
 import ../helpers
 

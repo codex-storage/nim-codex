@@ -1,7 +1,4 @@
-import std/sequtils
 import std/sugar
-import std/random
-import std/strutils
 
 import ../../../asynctest
 

@@ -1,12 +1,9 @@
-import std/sequtils
-import std/sugar
 import std/options
 
 import ../../../asynctest
 
 import pkg/chronos
 import pkg/poseidon2
-import pkg/datastore
 import pkg/serde/json
 
 import pkg/codex/slots {.all.}
