@@ -169,6 +169,7 @@ runs:
     - name: Restore Nim toolchain binaries from cache
       id: nim-cache
       uses: actions/cache@v4
+      if : ${{ !inputs.coverage  }}
       with:
         path: NimBinaries
         key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_version }}-cache-${{ env.cache_nonce }}-${{ github.run_id }}
