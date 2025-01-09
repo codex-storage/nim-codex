@@ -90,7 +90,7 @@ proc init*(_: type RestNode, node: dn.Node): RestNode =
     peerId: node.record.data.peerId,
     record: node.record,
     address: node.address,
-    seen: node.alreadySeen()
+    seen: node.seen > 0.5
   )
 
 proc init*(_: type RestRoutingTable, routingTable: rt.RoutingTable): RestRoutingTable =
