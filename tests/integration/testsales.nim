@@ -19,7 +19,7 @@ multinodesuite "Sales":
     clients: CodexConfigs.init(nodes=1).some,
     providers: CodexConfigs.init(nodes=1).some,
   )
-  
+
   var host: CodexClient
   var client: CodexClient
 
