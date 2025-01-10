@@ -33,6 +33,7 @@
       nixosModules.nim-codex = { config, lib, pkgs, ... }: import ./nix/service.nix {
         inherit config lib pkgs;
         self = pkgs.lib.traceValFn (v: "submodules: ${toString v.submodules)}") self;
+        circomCompatPkg = circom-compat.packages.${pkgs.system}.default;
       };
 
       devShells = forAllSystems (system: let

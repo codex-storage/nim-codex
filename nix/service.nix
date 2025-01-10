@@ -1,10 +1,10 @@
- { self, config, lib, pkgs, ... }:
+ { self, config, lib, pkgs, circomCompatPkg, ... }:
 
 let
   inherit (lib)
     types mkEnableOption mkOption mkIf literalExpression
     mdDoc;
-  
+
   toml = pkgs.formats.toml { };
 
   cfg = config.services.nim-codex;
@@ -16,7 +16,7 @@ in
 
       package = mkOption {
         type = types.package;
-        default = pkgs.callPackage ./default.nix { src = self; };
+        default = pkgs.callPackage ./default.nix { src = self; inherit circomCompatPkg; };
         defaultText = literalExpression "pkgs.codex";
         description = mdDoc "Package to use as Nim Codex node.";
       };
