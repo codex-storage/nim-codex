@@ -20,9 +20,9 @@
     in rec {
       packages = forAllSystems (system: let
         circomCompatPkg = circom-compat.packages.${system}.default;
-        buildTarget = pkgsFor.${system}.callPackage ./nix/default.nix {
+        buildTarget = pkgsFor.${system}.callPackage ./nix/default.nix rec {
           inherit stableSystems circomCompatPkg;
-          src = pkgsFor.${system}.lib.traceValFn (v: "submodules: ${toString v.submodules)}") self;
+          src = pkgsFor.${system}.lib.traceValFn (v: "self.submodules: ${toString v.submodules}") self;
         };
         build = targets: buildTarget.override { inherit targets; };
       in rec {
@@ -32,7 +32,7 @@
 
       nixosModules.nim-codex = { config, lib, pkgs, ... }: import ./nix/service.nix {
         inherit config lib pkgs;
-        self = pkgs.lib.traceValFn (v: "submodules: ${toString v.submodules)}") self;
+        self = pkgs.lib.traceValFn (v: "self.submodules: ${toString v.submodules}") self;
         circomCompatPkg = circom-compat.packages.${pkgs.system}.default;
       };
 
