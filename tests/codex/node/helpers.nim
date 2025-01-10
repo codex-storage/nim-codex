@@ -70,8 +70,8 @@ template setupAndTearDown*() {.dirty.} =
     network: BlockExcNetwork
     clock: Clock
     localStore: RepoStore
-    localStoreRepoDs: DataStore
-    localStoreMetaDs: DataStore
+    localStoreRepoDs: Datastore
+    localStoreMetaDs: Datastore
     engine: BlockExcEngine
     store: NetworkStore
     node: CodexNodeRef
@@ -80,7 +80,6 @@ template setupAndTearDown*() {.dirty.} =
     pendingBlocks: PendingBlocksManager
     discovery: DiscoveryEngine
     advertiser: Advertiser
-    taskpool: Taskpool
 
   let
     path = currentSourcePath().parentDir
@@ -110,14 +109,12 @@ template setupAndTearDown*() {.dirty.} =
     advertiser = Advertiser.new(localStore, blockDiscovery)
     engine = BlockExcEngine.new(localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks)
     store = NetworkStore.new(engine, localStore)
-    taskpool = Taskpool.new(num_threads = countProcessors())
     node = CodexNodeRef.new(
       switch = switch,
       networkStore = store,
       engine = engine,
       prover = Prover.none,
-      discovery = blockDiscovery,
-      taskpool = taskpool)
+      discovery = blockDiscovery)
 
   teardown:
     close(file)

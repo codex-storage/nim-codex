@@ -8,6 +8,14 @@ proc `as`*[T](value: T, U: type): ?U =
   ## Casts a value to another type, returns an Option.
   ## When the cast succeeds, the option will contain the casted value.
   ## When the cast fails, the option will have no value.
+
+  # In Nim 2.0.x, check 42.some as int == none(int)
+  # Maybe because some 42.some looks like Option[Option[int]]
+  # So we check first that the value is an option of the expected type.
+  # In that case, we do not need to do anything, just return the value as it is.
+  when value is Option[U]:
+    return value
+
   when value is U:
     return some value
   elif value is ref object:

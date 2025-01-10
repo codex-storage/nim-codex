@@ -46,7 +46,8 @@ proc generateNodes*(
       networkStore = NetworkStore.new(engine, localStore)
 
     switch.mount(network)
-    result.add((
+
+    let nc : NodesComponents = (
       switch,
       discovery,
       wallet,
@@ -56,7 +57,9 @@ proc generateNodes*(
       pendingBlocks,
       blockDiscovery,
       engine,
-      networkStore))
+      networkStore)
+
+    result.add(nc)
 
 proc connectNodes*(nodes: seq[Switch]) {.async.} =
   for dialer in nodes:

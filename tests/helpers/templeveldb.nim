@@ -14,9 +14,9 @@ var number = 0
 proc newDb*(self: TempLevelDb): Datastore =
   if self.currentPath.len > 0:
     raiseAssert("TempLevelDb already active.")
-  self.currentPath = getTempDir() / "templeveldb" / $number / $getmonotime()
+  self.currentPath = getTempDir() / "templeveldb" / $number / $getMonoTime()
   inc number
-  createdir(self.currentPath)
+  createDir(self.currentPath)
   self.ds = LevelDbDatastore.new(self.currentPath).tryGet()
   return self.ds
 
@@ -26,5 +26,5 @@ proc destroyDb*(self: TempLevelDb): Future[void] {.async.} =
   try:
     (await self.ds.close()).tryGet()
   finally:
-    removedir(self.currentPath)
+    removeDir(self.currentPath)
     self.currentPath = ""

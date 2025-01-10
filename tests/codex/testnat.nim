@@ -15,7 +15,7 @@ suite "NAT Address Tests":
       udpPort = Port(1234)
       natConfig = NatConfig(
         hasExtIp: true, 
-        extIp:ValidIpAddress.init("8.8.8.8"))
+        extIp: parseIpAddress("8.8.8.8"))
       
       # Create test addresses
       localAddr = MultiAddress.init("/ip4/127.0.0.1/tcp/5000").expect("valid multiaddr")

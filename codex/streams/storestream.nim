@@ -73,11 +73,20 @@ proc `size=`*(self: StoreStream, size: int)
 method atEof*(self: StoreStream): bool =
   self.offset >= self.size
 
+type LPStreamReadError* = object of LPStreamError
+    par*: ref CatchableError
+
+proc newLPStreamReadError*(p: ref CatchableError): ref LPStreamReadError =
+  var w = newException(LPStreamReadError, "Read stream failed")
+  w.msg = w.msg & ", originated from [" & $p.name & "] " & p.msg
+  w.par = p
+  result = w
+
 method readOnce*(
     self: StoreStream,
     pbytes: pointer,
     nbytes: int
-): Future[int] {.async.} =
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   ## Read `nbytes` from current position in the StoreStream into output buffer pointed by `pbytes`.
   ## Return how many bytes were actually read before EOF was encountered.
   ## Raise exception if we are already at EOF.
@@ -100,8 +109,9 @@ method readOnce*(
                          self.manifest.blockSize.int - blockOffset])
       address     = BlockAddress(leaf: true, treeCid: self.manifest.treeCid, index: blockNum)
 
+
     # Read contents of block `blockNum`
-    without blk =? await self.store.getBlock(address), error:
+    without blk =? (await self.store.getBlock(address)).tryGet.catch, error:
       raise newLPStreamReadError(error)
 
     trace "Reading bytes from store stream", manifestCid = self.manifest.cid.get(), numBlocks = self.manifest.blocksCount, blockNum, blkCid = blk.cid, bytes = readBytes, blockOffset

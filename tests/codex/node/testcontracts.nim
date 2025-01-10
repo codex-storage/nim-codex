@@ -2,7 +2,6 @@ import std/os
 import std/options
 import std/times
 import std/importutils
-import std/cpuinfo
 
 import pkg/chronos
 import pkg/datastore
@@ -76,7 +75,7 @@ asyncchecksuite "Test Node - Host contracts":
       manifestBlock = bt.Block.new(
         manifest.encode().tryGet(),
         codec = ManifestCodec).tryGet()
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
+      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
 
     manifestCid = manifestBlock.cid
     manifestCidStr = $(manifestCid)

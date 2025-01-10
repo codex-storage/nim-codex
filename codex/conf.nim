@@ -43,6 +43,7 @@ import ./units
 import ./utils
 import ./nat
 import ./utils/natutils
+
 from ./validationconfig import MaxSlots, ValidationGroups
 
 export units, net, codextypes, logutils, completeCmdArg, parseCmdArg, NatConfig
@@ -119,9 +120,9 @@ type
 
     metricsAddress* {.
       desc: "Listening address of the metrics server"
-      defaultValue: ValidIpAddress.init("127.0.0.1")
+      defaultValue: defaultAddress(config)
       defaultValueDesc: "127.0.0.1"
-      name: "metrics-address" }: ValidIpAddress
+      name: "metrics-address" }: IpAddress
 
     metricsPort* {.
       desc: "Listening HTTP port of the metrics server"
@@ -147,7 +148,7 @@ type
     nat* {.
       desc: "Specify method to use for determining public address. " &
             "Must be one of: any, none, upnp, pmp, extip:<IP>"
-      defaultValue: NatConfig(hasExtIp: false, nat: NatAny)
+      defaultValue: defaultNatConfig()
       defaultValueDesc: "any"
       name: "nat" }: NatConfig
 
@@ -410,6 +411,12 @@ type
 logutils.formatIt(LogFormat.textLines, EthAddress): it.short0xHexLog
 logutils.formatIt(LogFormat.json, EthAddress): %it
 
+func defaultAddress*(conf: CodexConf): IpAddress =
+  result = static parseIpAddress("127.0.0.1")
+
+func defaultNatConfig*(): NatConfig =
+  result = NatConfig(hasExtIp: false, nat: NatStrategy.NatAny)
+
 func persistence*(self: CodexConf): bool =
   self.cmd == StartUpCmd.persistence
 
@@ -442,13 +449,17 @@ const
 
 proc parseCmdArg*(T: typedesc[MultiAddress],
                   input: string): MultiAddress
-                 {.upraises: [ValueError, LPError].} =
+                 {.upraises: [ValueError] .} =
   var ma: MultiAddress
-  let res = MultiAddress.init(input)
-  if res.isOk:
-    ma = res.get()
-  else:
-    warn "Invalid MultiAddress", input=input, error = res.error()
+  try:
+    let res = MultiAddress.init(input)
+    if res.isOk:
+      ma = res.get()
+    else:
+      warn "Invalid MultiAddress", input=input, error = res.error()
+      quit QuitFailure
+  except LPError as exc:
+    warn "Invalid MultiAddress uri", uri = input, error = exc.msg
     quit QuitFailure
   ma
 
@@ -458,6 +469,9 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
     if not res.fromURI(uri):
       warn "Invalid SignedPeerRecord uri", uri = uri
       quit QuitFailure
+  except LPError as exc:
+    warn "Invalid SignedPeerRecord uri", uri = uri, error = exc.msg
+    quit QuitFailure
   except CatchableError as exc:
     warn "Invalid SignedPeerRecord uri", uri = uri, error = exc.msg
     quit QuitFailure
@@ -476,7 +490,7 @@ func parseCmdArg*(T: type NatConfig, p: string): T {.raises: [ValueError].} =
     else:
       if p.startsWith("extip:"):
         try:
-          let ip = ValidIpAddress.init(p[6..^1])
+          let ip = parseIpAddress(p[6..^1])
           NatConfig(hasExtIp: true, extIp: ip)
         except ValueError:
           let error = "Not a valid IP address: " & p[6..^1]
@@ -516,7 +530,11 @@ proc readValue*(r: var TomlReader, val: var SignedPeerRecord) =
     error "invalid SignedPeerRecord configuration value", error = err.msg
     quit QuitFailure
 
-  val = SignedPeerRecord.parseCmdArg(uri)
+  try:
+    val = SignedPeerRecord.parseCmdArg(uri)
+  except LPError as err:
+    warn "Invalid SignedPeerRecord uri", uri = uri, error = err.msg
+    quit QuitFailure
 
 proc readValue*(r: var TomlReader, val: var MultiAddress) =
   without input =? r.readValue(string).catch, err:

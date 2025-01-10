@@ -47,6 +47,14 @@ type
   CodexProof* = ref object of ByteProof
     mcodec*: MultiCodec
 
+# CodeHashes is not exported from libp2p
+# So we need to recreate it instead of 
+proc initMultiHashCodeTable(): Table[MultiCodec, MHash] {.compileTime.} =
+  for item in HashesList:
+    result[item.mcodec] = item
+
+const CodeHashes = initMultiHashCodeTable()
+
 func mhash*(mcodec: MultiCodec): ?!MHash =
   let
     mhash = CodeHashes.getOrDefault(mcodec)

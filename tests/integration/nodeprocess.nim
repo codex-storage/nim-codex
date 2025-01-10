@@ -26,22 +26,22 @@ type
     name*: string
   NodeProcessError* = object of CatchableError
 
-method workingDir(node: NodeProcess): string {.base.} =
+method workingDir(node: NodeProcess): string {.base, gcsafe.} =
   raiseAssert "not implemented"
 
-method executable(node: NodeProcess): string {.base.} =
+method executable(node: NodeProcess): string {.base, gcsafe.} =
   raiseAssert "not implemented"
 
-method startedOutput(node: NodeProcess): string {.base.} =
+method startedOutput(node: NodeProcess): string {.base, gcsafe.} =
   raiseAssert "not implemented"
 
-method processOptions(node: NodeProcess): set[AsyncProcessOption] {.base.} =
+method processOptions(node: NodeProcess): set[AsyncProcessOption] {.base, gcsafe.} =
   raiseAssert "not implemented"
 
-method outputLineEndings(node: NodeProcess): string {.base, raises: [].} =
+method outputLineEndings(node: NodeProcess): string {.base, gcsafe raises: [].} =
   raiseAssert "not implemented"
 
-method onOutputLineCaptured(node: NodeProcess, line: string) {.base, raises: [].} =
+method onOutputLineCaptured(node: NodeProcess, line: string) {.base, gcsafe, raises: [].} =
   raiseAssert "not implemented"
 
 method start*(node: NodeProcess) {.base, async.} =

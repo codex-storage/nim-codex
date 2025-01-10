@@ -13,7 +13,6 @@ import std/options
 import std/sequtils
 import std/strformat
 import std/sugar
-import std/cpuinfo
 import times
 
 import pkg/questionable
@@ -27,7 +26,6 @@ import pkg/libp2p/stream/bufferstream
 # TODO: remove once exported by libp2p
 import pkg/libp2p/routing_record
 import pkg/libp2p/signed_envelope
-import pkg/taskpools
 
 import ./chunker
 import ./slots
@@ -71,7 +69,6 @@ type
     contracts*: Contracts
     clock*: Clock
     storage*: Contracts
-    taskpool*: Taskpool
 
   CodexNodeRef* = ref CodexNode
 
@@ -213,7 +210,7 @@ proc fetchBatched*(
 proc streamSingleBlock(
   self: CodexNodeRef,
   cid: Cid
-): Future[?!LPstream] {.async.} =
+): Future[?!LPStream] {.async.} =
   ## Streams the contents of a single block.
   ##
   trace "Streaming single block", cid = cid
@@ -253,8 +250,7 @@ proc streamEntireDataset(
         erasure = Erasure.new(
           self.networkStore,
           leoEncoderProvider,
-          leoDecoderProvider,
-          self.taskpool)
+          leoDecoderProvider)
       without _ =? (await erasure.decode(manifest)), error:
         error "Unable to erasure decode manifest", manifestCid, exc = error.msg
         return failure(error)
@@ -424,8 +420,7 @@ proc setupRequest(
     erasure = Erasure.new(
       self.networkStore.localStore,
       leoEncoderProvider,
-      leoDecoderProvider,
-      self.taskpool)
+      leoDecoderProvider)
 
   without encoded =? (await erasure.encode(manifest, ecK, ecM)), error:
     trace "Unable to erasure code dataset"
@@ -761,8 +756,7 @@ proc new*(
   engine: BlockExcEngine,
   discovery: Discovery,
   prover = Prover.none,
-  contracts = Contracts.default,
-  taskpool = Taskpool.new(num_threads = countProcessors())): CodexNodeRef =
+  contracts = Contracts.default): CodexNodeRef =
   ## Create new instance of a Codex self, call `start` to run it
   ##
 
@@ -772,5 +766,4 @@ proc new*(
     engine: engine,
     prover: prover,
     discovery: discovery,
-    contracts: contracts,
-    taskpool: taskpool)
+    contracts: contracts)
