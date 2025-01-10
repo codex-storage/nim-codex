@@ -25,17 +25,19 @@ let
   tools = callPackage ./tools.nix {};
 in pkgs.gcc11Stdenv.mkDerivation rec {
   
-  pname = "nim-codex";
+  pname = "codex";
 
   version = "${tools.findKeyValue "version = \"([0-9]+\.[0-9]+\.[0-9]+)\"" ../codex.nimble}-${revision}";
   
-  src = pkgs.fetchFromGitHub {
-    owner = "codex-storage";
-    repo = "nim-codex";
-    rev = "HEAD";
-    sha256 = "sha256-cPQDV46Z9z27Hd32eW726fC3J1dAhXyljbhAgFXVEXQ=";
-    fetchSubmodules = true;
-  };
+  #src = pkgs.fetchFromGitHub {
+  #  owner = "codex-storage";
+  #  repo = "nim-codex";
+  #  rev = "HEAD";
+  #  sha256 = "sha256-dncPKKj5W17AvRrK4AndtGm/MdwphPHUJj36tcU2XTU=";
+  #  fetchSubmodules = true;
+  #};
+
+  inherit src;
 
   # Dependencies that should exist in the runtime environment.
   buildInputs = with pkgs; [

@@ -30,29 +30,9 @@
         default = nim-codex;
       });
 
-      nixosModules.nim-codex = import ./nix/service.nix;
-
-      checks = forAllSystems (system: let
-        pkgs = pkgsFor.${system};
-      in {
-        nim-codex-test = pkgs.nixosTest {
-          name = "nim-codex-test";
-          nodes = {
-            server = { config, pkgs, ... }: {
-              imports = [ self.nixosModules.nim-codex ];
-              services.nim-codex.enable = true;
-              services.nim-codex.dataDir = "/var/lib/nim-codex-test";
-            };
-          };
-          testScript = ''
-            print("Starting test: nim-codex-test")
-            machine.start()
-            machine.wait_for_unit("nim-codex.service")
-            machine.succeed("test -d /var/lib/nim-codex-test")
-            machine.wait_until_succeeds("journalctl -u nim-codex.service | grep 'Started codex node'", 10)
-          '';
-        };
-      });
+      nixosModules.nim-codex = { config, lib, pkgs, ... }: import ./nix/service.nix {
+        inherit self config lib pkgs;
+      };
 
       devShells = forAllSystems (system: let
         pkgs = pkgsFor.${system};
@@ -64,6 +44,31 @@
           ];
           # Not using buildInputs to override fakeGit and fakeCargo.
           nativeBuildInputs = with pkgs; [ git cargo nodejs_18 ];
+        };
+      });
+
+      checks = forAllSystems (system: let
+        pkgs = pkgsFor.${system};
+      in {
+        nim-codex-test = pkgs.nixosTest {
+          name = "nim-codex-test";
+          nodes = {
+            server = { config, pkgs, ... }: {
+              imports = [ self.nixosModules.nim-codex ];
+              services.nim-codex.enable = true;
+              services.nim-codex.settings = {
+                data-dir = "/var/lib/nim-codex-test";
+              };
+              systemd.services.nim-codex.serviceConfig.StateDirectory = "nim-codex-test";
+            };
+          };
+          testScript = ''
+            print("Starting test: nim-codex-test")
+            machine.start()
+            machine.wait_for_unit("nim-codex.service")
+            machine.succeed("test -d /var/lib/nim-codex-test")
+            machine.wait_until_succeeds("journalctl -u nim-codex.service | grep 'Started codex node'", 10)
+          '';
         };
       });
     };

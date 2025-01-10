@@ -1,8 +1,9 @@
-{ config, lib, pkgs, ... }:
+ { self, config, lib, pkgs, ... }:
 
 let
   inherit (lib)
-    types mkEnableOption mkOption mkIf literalExpression;
+    types mkEnableOption mkOption mkIf literalExpression
+    mdDoc;
   
   toml = pkgs.formats.toml { };
 
@@ -15,12 +16,12 @@ in
 
       package = mkOption {
         type = types.package;
-        default = pkgs.callPackage ./default.nix { };
-        defaultText = literalExpression "pkgs.nim-codex";
-        description = lib.mdDoc "Package to use as Nim Codex node.";
+        default = pkgs.callPackage ./default.nix { src = self; };
+        defaultText = literalExpression "pkgs.codex";
+        description = mdDoc "Package to use as Nim Codex node.";
       };
 
-      settings = lib.mkOption {
+      settings = mkOption {
         default = { };
         type = toml.type;
         description = ''Structured settings object that will be used to generate a TOML config file.'';
@@ -44,7 +45,7 @@ in
         NoNewPrivileges = true;
         PrivateDevices = true;
         MemoryDenyWriteExecute = true;
-        ExecStart = "${cfg.package}/bin/nim-codex --config-file=/etc/nim-codex/config.toml";
+        ExecStart = "${cfg.package}/bin/codex --config-file=/etc/nim-codex/config.toml";
         Restart = "on-failure";
       };
       restartIfChanged = true;
