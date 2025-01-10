@@ -39,7 +39,7 @@ suite "Test Prover":
         nat: NatConfig(
           hasExtIp: false,
           nat: NatNone),
-        metricsAddress: static parseIpAddress("127.0.0.1"),
+        metricsAddress: parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         circomR1cs: InputFile("tests/circuits/fixtures/proof_main.r1cs"),
         circomWasm: InputFile("tests/circuits/fixtures/proof_main.wasm"),

@@ -2,6 +2,7 @@ import pkg/ethers
 import codex/contracts/deployment
 import codex/conf
 import codex/contracts
+import pkg/codex/utils/natutils
 
 import ../asynctest
 import ../checktest
@@ -18,7 +19,7 @@ proc configFactory(): CodexConf =
     nat: NatConfig(
           hasExtIp: false,
           nat: NatNone),
-    metricsAddress: IpAddress("127.0.0.1"))
+    metricsAddress: parseIpAddress("127.0.0.1"))
 
 proc configFactory(marketplace: Option[EthAddress]): CodexConf =
   CodexConf(
@@ -26,7 +27,7 @@ proc configFactory(marketplace: Option[EthAddress]): CodexConf =
     nat: NatConfig(
           hasExtIp: false,
           nat: NatNone),
-    metricsAddress: static parseIpAddress("127.0.0.1"),
+    metricsAddress: parseIpAddress("127.0.0.1"),
     marketplaceAddress: marketplace)
 
 asyncchecksuite "Deployment":

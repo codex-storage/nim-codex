@@ -51,7 +51,7 @@ suite "Test BackendFactory":
         nat: NatConfig(
           hasExtIp: false,
           nat: NatNone),
-        metricsAddress: static parseIpAddress("127.0.0.1"),
+        metricsAddress: parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         marketplaceAddress: EthAddress.example.some,
         circomR1cs: InputFile("tests/circuits/fixtures/proof_main.r1cs"),
@@ -73,7 +73,7 @@ suite "Test BackendFactory":
         nat: NatConfig(
           hasExtIp: false,
           nat: NatNone),
-        metricsAddress: static parseIpAddress("127.0.0.1"),
+        metricsAddress: parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         marketplaceAddress: EthAddress.example.some,
 
@@ -96,7 +96,7 @@ suite "Test BackendFactory":
         nat: NatConfig(
           hasExtIp: false,
           nat: NatNone),
-        metricsAddress: static parseIpAddress("127.0.0.1"),
+        metricsAddress: parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         marketplaceAddress: EthAddress.example.some,
         circuitDir: OutDir(circuitDir)
