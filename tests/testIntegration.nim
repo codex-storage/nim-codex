@@ -41,7 +41,11 @@ const TestConfigs =
 
 proc run() {.async.} =
   let manager = TestManager.new(
-    configs = TestConfigs, debugTestHarness = true, debugHardhat = false
+    configs = TestConfigs,
+    debugTestHarness = true,
+    debugCodexNodes = false,
+      # requires CodexConfig.debug to be enabled in the test file (on the marketplacesuite)
+    debugHardhat = false,
   )
   try:
     trace "starting test manager"
