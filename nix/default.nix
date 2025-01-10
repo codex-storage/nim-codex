@@ -17,7 +17,7 @@
   ).packages.${builtins.currentSystem}.default
 }:
 
-assert pkgs.lib.assertMsg ((src.submodules or 1) == 1)
+assert pkgs.lib.assertMsg ((src.submodules or true) == true)
   "Unable to build without submodules. Append '?submodules=1#' to the URI.";
 
 let
