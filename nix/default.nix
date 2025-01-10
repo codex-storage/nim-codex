@@ -29,7 +29,15 @@ in pkgs.gcc11Stdenv.mkDerivation rec {
 
   version = "${tools.findKeyValue "version = \"([0-9]+\.[0-9]+\.[0-9]+)\"" ../codex.nimble}-${revision}";
   
-  inherit src;
+  #inherit src;
+
+  src = pkgs.fetchFromGitHub {
+    owner = "codex-storage";
+    repo = "nim-codex";
+    rev = "HEAD";
+    sha256 = "sha256-cPQDV46Z9z27Hd32eW726fC3J1dAhXyljbhAgFXVEXQ=";
+    fetchSubmodules = true;
+  };
 
   # Dependencies that should exist in the runtime environment.
   buildInputs = with pkgs; [
