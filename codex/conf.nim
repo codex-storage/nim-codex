@@ -41,9 +41,11 @@ import ./logutils
 import ./stores
 import ./units
 import ./utils
+import ./nat
+import ./utils/natutils
 from ./validationconfig import MaxSlots, ValidationGroups
 
-export units, net, codextypes, logutils
+export units, net, codextypes, logutils, completeCmdArg, parseCmdArg, NatConfig
 export ValidationGroups, MaxSlots
 
 export
@@ -142,20 +144,12 @@ type
       abbr: "i"
       name: "listen-addrs" }: seq[MultiAddress]
 
-    # TODO: change this once we integrate nat support
     nat* {.
-      desc: "IP Addresses to announce behind a NAT"
-      defaultValue: defaultAddress(config)
-      defaultValueDesc: "127.0.0.1"
-      abbr: "a"
-      name: "nat" }: IpAddress
-
-    discoveryIp* {.
-      desc: "Discovery listen address"
-      defaultValue: IPv4_any()
-      defaultValueDesc: "0.0.0.0"
-      abbr: "e"
-      name: "disc-ip" }: IpAddress
+      desc: "Specify method to use for determining public address. " &
+            "Must be one of: any, none, upnp, pmp, extip:<IP>"
+      defaultValue: NatConfig(hasExtIp: false, nat: NatAny)
+      defaultValueDesc: "any"
+      name: "nat" }: NatConfig
 
     discoveryPort* {.
       desc: "Discovery (UDP) port"
@@ -479,6 +473,31 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
     quit QuitFailure
   res
 
+func parseCmdArg*(T: type NatConfig, p: string): T {.raises: [ValueError].} =
+  case p.toLowerAscii:
+    of "any":
+      NatConfig(hasExtIp: false, nat: NatStrategy.NatAny)
+    of "none":
+      NatConfig(hasExtIp: false, nat: NatStrategy.NatNone)
+    of "upnp":
+      NatConfig(hasExtIp: false, nat: NatStrategy.NatUpnp)
+    of "pmp":
+      NatConfig(hasExtIp: false, nat: NatStrategy.NatPmp)
+    else:
+      if p.startsWith("extip:"):
+        try:
+          let ip = ValidIpAddress.init(p[6..^1])
+          NatConfig(hasExtIp: true, extIp: ip)
+        except ValueError:
+          let error = "Not a valid IP address: " & p[6..^1]
+          raise newException(ValueError, error)
+      else:
+        let error = "Not a valid NAT option: " & p
+        raise newException(ValueError, error)
+
+proc completeCmdArg*(T: type NatConfig; val: string): seq[string] =
+  return @[]
+
 proc parseCmdArg*(T: type EthAddress, address: string): T =
   EthAddress.init($address).get()
 
@@ -544,6 +563,12 @@ proc readValue*(r: var TomlReader, val: var Duration)
     error "Invalid duration parse", value = str
     quit QuitFailure
   val = dur
+
+proc readValue*(r: var TomlReader, val: var NatConfig)
+               {.raises: [SerializationError].} =
+  val = try: parseCmdArg(NatConfig, r.readValue(string))
+        except CatchableError as err:
+          raise newException(SerializationError, err.msg)
 
 # no idea why confutils needs this:
 proc completeCmdArg*(T: type EthAddress; val: string): seq[string] =

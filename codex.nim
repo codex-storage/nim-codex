@@ -54,13 +54,6 @@ when isMainModule:
   config.setupLogging()
   config.setupMetrics()
 
-  if config.nat == IPv4_any():
-    error "`--nat` cannot be set to the any (`0.0.0.0`) address"
-    quit QuitFailure
-
-  if config.nat == static parseIpAddress("127.0.0.1"):
-    warn "`--nat` is set to loopback, your node wont properly announce over the DHT"
-
   if not(checkAndCreateDataDir((config.dataDir).string)):
     # We are unable to access/create data folder or data folder's
     # permissions are insecure.
