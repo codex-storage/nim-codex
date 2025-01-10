@@ -43,6 +43,7 @@ import ./units
 import ./utils
 import ./nat
 import ./utils/natutils
+
 from ./validationconfig import MaxSlots, ValidationGroups
 
 export units, net, codextypes, logutils, completeCmdArg, parseCmdArg, NatConfig
@@ -147,7 +148,7 @@ type
     nat* {.
       desc: "Specify method to use for determining public address. " &
             "Must be one of: any, none, upnp, pmp, extip:<IP>"
-      defaultValue: NatConfig(hasExtIp: false, nat: NatAny)
+      defaultValue: defaultNatConfig()
       defaultValueDesc: "any"
       name: "nat" }: NatConfig
 
@@ -413,6 +414,9 @@ logutils.formatIt(LogFormat.json, EthAddress): %it
 func defaultAddress*(conf: CodexConf): IpAddress =
   result = static parseIpAddress("127.0.0.1")
 
+func defaultNatConfig*(): NatConfig =
+  result = NatConfig(hasExtIp: false, nat: NatStrategy.NatAny)
+
 func persistence*(self: CodexConf): bool =
   self.cmd == StartUpCmd.persistence
 
@@ -486,7 +490,7 @@ func parseCmdArg*(T: type NatConfig, p: string): T {.raises: [ValueError].} =
     else:
       if p.startsWith("extip:"):
         try:
-          let ip = ValidIpAddress.init(p[6..^1])
+          let ip = parseIpAddress(p[6..^1])
           NatConfig(hasExtIp: true, extIp: ip)
         except ValueError:
           let error = "Not a valid IP address: " & p[6..^1]
