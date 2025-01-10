@@ -18,10 +18,9 @@ import pkg/stew/shims/net
 import pkg/stew/endians2
 
 func remapAddr*(
-    address: MultiAddress,
-    ip: Option[ValidIpAddress] = ValidIpAddress.none,
-    port: Option[Port] = Port.none
-): MultiAddress =
+  address: MultiAddress,
+  ip: Option[ValidIpAddress] = ValidIpAddress.none,
+  port: Option[Port] = Port.none): MultiAddress =
   ## Remap addresses to new IP and/or Port
   ##
 

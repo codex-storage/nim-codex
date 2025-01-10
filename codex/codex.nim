@@ -16,6 +16,10 @@ import std/cpuinfo
 import pkg/chronos
 import pkg/presto
 import pkg/libp2p
+import pkg/libp2p/protocols/connectivity/autonat/client
+import pkg/libp2p/protocols/connectivity/autonat/service
+import pkg/libp2p/protocols/connectivity/relay/client
+import pkg/libp2p/services/[autorelayservice, hpservice]
 import pkg/confutils
 import pkg/confutils/defs
 import pkg/nitro
@@ -185,24 +189,73 @@ proc stop*(s: CodexServer) {.async.} =
     s.repoStore.stop(),
     s.maintenance.stop())
 
+proc getAutonatService*(rng: ref HmacDrbgContext): AutonatService =
+  ## AutonatService request other peers to dial us back
+  ## flagging us as Reachable or NotReachable.
+  ## minConfidence is used as threshold to determine the state.
+  ## If maxQueueSize > numPeersToAsk past samples are considered
+  ## in the calculation.
+  ##
+
+  let
+    autonatService = AutonatService.new(
+      autonatClient = AutonatClient.new(),
+      rng = rng,
+      scheduleInterval = Opt.some(chronos.seconds(120)),
+      askNewConnectedPeers = false,
+      numPeersToAsk = 3,
+      maxQueueSize = 3,
+      minConfidence = 0.7)
+
+  proc statusAndConfidenceHandler(
+    networkReachability: NetworkReachability,
+    confidence: Opt[float]): Future[void] {.gcsafe, async.} =
+    if confidence.isSome():
+      info "Peer reachability status",
+        networkReachability = networkReachability, confidence = confidence.get()
+
+  autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+
+  return autonatService
+
 proc new*(
   T: type CodexServer,
   config: CodexConf,
   privateKey: CodexPrivateKey): CodexServer =
   ## create CodexServer including setting up datastore, repostore, etc
+  ##
+
+  var
+    builder = SwitchBuilder.new()
+      .withPrivateKey(privateKey)
+      .withAddresses(config.listenAddrs)
+      .withRng(Rng.instance())
+      .withNoise()
+      .withYamux()
+      .withMplex(5.minutes, 5.minutes)
+      .withMaxConnections(config.maxPeers)
+      .withAgentVersion(config.agentString)
+      .withSignedPeerRecord(true)
+      .withTcpTransport({ServerFlags.ReuseAddr})
+      .withAutonat()
+      .withRendezVous()
+      # .withObservedAddrManager()
+
+  builder = if config.lpRelay:
+      builder.withCircuitRelay()
+    else:
+      let
+        relayClient = RelayClient.new()
+        autoRelayService = AutoRelayService.new(1, relayClient, nil, Rng.instance())
+        autonatService = getAutonatService(Rng.instance())
+        hpservice = HPService.new(autonatService, autoRelayService)
+
+      builder
+        .withCircuitRelay(relayClient)
+        .withServices(@[Service(hpservice)])
+
   let
-    switch = SwitchBuilder
-    .new()
-    .withPrivateKey(privateKey)
-    .withAddresses(config.listenAddrs)
-    .withRng(Rng.instance())
-    .withNoise()
-    .withMplex(5.minutes, 5.minutes)
-    .withMaxConnections(config.maxPeers)
-    .withAgentVersion(config.agentString)
-    .withSignedPeerRecord(true)
-    .withTcpTransport({ServerFlags.ReuseAddr})
-    .build()
+    switch = builder.build
 
   var
     cache: CacheStore = nil
