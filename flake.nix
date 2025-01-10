@@ -1,5 +1,5 @@
 {
-  description = "Codex build flake";
+  description = "Nim Codex build flake";
   
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
@@ -26,18 +26,40 @@
         };
         build = targets: buildTarget.override { inherit targets; };
       in rec {
-        codex   = build ["all"];
-        default = codex;
+        nim-codex   = build ["all"];
+        default = nim-codex;
       });
 
-      nixosModules.codex = import ./nix/codex.nix;
+      nixosModules.nim-codex = import ./nix/service.nix;
+
+      checks = forAllSystems (system: let
+        pkgs = pkgsFor.${system};
+      in {
+        nim-codex-test = pkgs.nixosTest {
+          name = "nim-codex-test";
+          nodes = {
+            server = { config, pkgs, ... }: {
+              imports = [ self.nixosModules.nim-codex ];
+              services.nim-codex.enable = true;
+              services.nim-codex.dataDir = "/var/lib/nim-codex-test";
+            };
+          };
+          testScript = ''
+            print("Starting test: nim-codex-test")
+            machine.start()
+            machine.wait_for_unit("nim-codex.service")
+            machine.succeed("test -d /var/lib/nim-codex-test")
+            machine.wait_until_succeeds("journalctl -u nim-codex.service | grep 'Started codex node'", 10)
+          '';
+        };
+      });
 
       devShells = forAllSystems (system: let
         pkgs = pkgsFor.${system};
       in {
         default = pkgs.mkShell {
           inputsFrom = [
-            packages.${system}.codex
+            packages.${system}.nim-codex
             circom-compat.packages.${system}.default
           ];
           # Not using buildInputs to override fakeGit and fakeCargo.
