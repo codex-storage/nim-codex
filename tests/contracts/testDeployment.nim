@@ -18,7 +18,7 @@ proc configFactory(): CodexConf =
     nat: NatConfig(
           hasExtIp: false,
           nat: NatNone),
-    metricsAddress: ValidIpAddress.init("127.0.0.1"))
+    metricsAddress: IpAddress("127.0.0.1"))
 
 proc configFactory(marketplace: Option[EthAddress]): CodexConf =
   CodexConf(
@@ -26,7 +26,7 @@ proc configFactory(marketplace: Option[EthAddress]): CodexConf =
     nat: NatConfig(
           hasExtIp: false,
           nat: NatNone),
-    metricsAddress: ValidIpAddress.init("127.0.0.1"),
+    metricsAddress: static parseIpAddress("127.0.0.1"),
     marketplaceAddress: marketplace)
 
 asyncchecksuite "Deployment":

@@ -7,6 +7,7 @@ import pkg/codex/conf
 import pkg/codex/slots/proofs/backends
 import pkg/codex/slots/proofs/backendfactory
 import pkg/codex/slots/proofs/backendutils
+import pkg/codex/utils/natutils
 
 import ../helpers
 import ../examples
@@ -50,7 +51,7 @@ suite "Test BackendFactory":
         nat: NatConfig(
           hasExtIp: false,
           nat: NatNone),
-        metricsAddress: ValidIpAddress.init("127.0.0.1"),
+        metricsAddress: static parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         marketplaceAddress: EthAddress.example.some,
         circomR1cs: InputFile("tests/circuits/fixtures/proof_main.r1cs"),
@@ -72,7 +73,7 @@ suite "Test BackendFactory":
         nat: NatConfig(
           hasExtIp: false,
           nat: NatNone),
-        metricsAddress: ValidIpAddress.init("127.0.0.1"),
+        metricsAddress: static parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         marketplaceAddress: EthAddress.example.some,
 
@@ -95,7 +96,7 @@ suite "Test BackendFactory":
         nat: NatConfig(
           hasExtIp: false,
           nat: NatNone),
-        metricsAddress: ValidIpAddress.init("127.0.0.1"),
+        metricsAddress: static parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         marketplaceAddress: EthAddress.example.some,
         circuitDir: OutDir(circuitDir)
