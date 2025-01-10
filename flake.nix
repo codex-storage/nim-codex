@@ -1,6 +1,6 @@
 {
   description = "Nim Codex build flake";
-  
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
     circom-compat = {
@@ -22,7 +22,7 @@
         circomCompatPkg = circom-compat.packages.${system}.default;
         buildTarget = pkgsFor.${system}.callPackage ./nix/default.nix {
           inherit stableSystems circomCompatPkg;
-          src = self;
+          src = pkgsFor.${system}.lib.traceValFn (v: "submodules: ${toString v.submodules)}") self;
         };
         build = targets: buildTarget.override { inherit targets; };
       in rec {
@@ -31,7 +31,8 @@
       });
 
       nixosModules.nim-codex = { config, lib, pkgs, ... }: import ./nix/service.nix {
-        inherit self config lib pkgs;
+        inherit config lib pkgs;
+        self = pkgs.lib.traceValFn (v: "submodules: ${toString v.submodules)}") self;
       };
 
       devShells = forAllSystems (system: let
