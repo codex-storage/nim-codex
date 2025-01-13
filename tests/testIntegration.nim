@@ -43,8 +43,9 @@ proc run() {.async.} =
   let manager = TestManager.new(
     configs = TestConfigs,
     debugTestHarness = true,
-    debugCodexNodes = false,
-      # requires CodexConfig.debug to be enabled in the test file (on the marketplacesuite)
+      # Echos stderr if there's a test failure or error (error in running the test)
+    debugCodexNodes = true,
+      # Echos stdout from the Codex process (chronicles logs). If test uses a multinodesuite, requires CodexConfig.debug to be enabled
     debugHardhat = false,
   )
   try:
