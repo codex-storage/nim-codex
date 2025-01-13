@@ -27,6 +27,12 @@ import ../../logutils
 import ../../merkletree
 import ../../utils
 
+const
+  codex_enable_repostore_timinglogs* {.booldefine.} = false
+
+when codex_enable_repostore_timinglogs:
+  import std/monotimes
+
 export blocktype, cid
 
 logScope:
@@ -51,6 +57,9 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
     trace "Error getting key from provider", err = err.msg
     return failure(err)
 
+  when codex_enable_repostore_timinglogs:
+    let startTime = getMonoTime().ticks
+
   without data =? await self.repoDs.get(key), err:
     if not (err of DatastoreKeyNotFound):
       trace "Error getting block from datastore", err = err.msg, key
@@ -58,7 +67,12 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
 
     return failure(newException(BlockNotFoundError, err.msg))
 
-  trace "Got block for cid", cid
+  when codex_enable_repostore_timinglogs:
+    let durationUs = (getMonoTime().ticks - startTime) div 1000
+    trace "Got block for cid", cid, durationUs
+  else:
+    trace "Got block for cid", cid
+
   return Block.new(cid, data, verify = true)
 
 method getBlockAndProof*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!(Block, CodexProof)] {.async.} =
@@ -176,6 +190,9 @@ method putBlock*(
 
   let expiry = self.clock.now() + (ttl |? self.blockTtl).seconds
 
+  when codex_enable_repostore_timinglogs:
+    let startTime = getMonoTime().ticks
+
   without res =? await self.storeBlock(blk, expiry), err:
     return failure(err)
 
@@ -194,6 +211,10 @@ method putBlock*(
       await onBlock(blk.cid)
   else:
     trace "Block already exists"
+
+  when codex_enable_repostore_timinglogs:
+    let durationUs = (getMonoTime().ticks - startTime) div 1000
+    trace "putBlock", durationUs
 
   return success()
 
