@@ -64,7 +64,7 @@ method readOnce*(
     self: AsyncStreamWrapper,
     pbytes: pointer,
     nbytes: int
-): Future[int] {.async.} =
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
 
   trace "Reading bytes from reader", bytes = nbytes
   if isNil(self.reader):
@@ -118,7 +118,7 @@ method closed*(self: AsyncStreamWrapper): bool =
 method atEof*(self: AsyncStreamWrapper): bool =
   self.reader.atEof()
 
-method closeImpl*(self: AsyncStreamWrapper) {.async.} =
+method closeImpl*(self: AsyncStreamWrapper) {.async: (raises: []).} =
   try:
     trace "Shutting down async chronos stream"
     if not self.closed():
@@ -130,7 +130,7 @@ method closeImpl*(self: AsyncStreamWrapper) {.async.} =
 
     trace "Shutdown async chronos stream"
   except CancelledError as exc:
-    raise exc
+    error "Error received cancelled error when closing chronos stream", msg = exc.msg
   except CatchableError as exc:
     trace "Error closing async chronos stream", msg = exc.msg
 

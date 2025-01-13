@@ -22,7 +22,7 @@ logScope:
 proc new*[T: Machine](_: type T): T =
   T(trackedFutures: TrackedFutures.new())
 
-method `$`*(state: State): string {.base.} =
+method `$`*(state: State): string {.base, gcsafe.} =
   raiseAssert "not implemented"
 
 proc transition(_: type Event, previous, next: State): Event =

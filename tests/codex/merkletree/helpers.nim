@@ -5,7 +5,7 @@ import ../helpers
 
 export merkletree, helpers
 
-converter toBool*(x: CtBool): bool =
+converter toBool*(x: CTBool): bool =
   bool(x)
 
 proc `==`*(a, b: Poseidon2Tree): bool =

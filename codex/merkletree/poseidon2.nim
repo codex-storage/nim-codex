@@ -24,10 +24,10 @@ import ./merkletree
 export merkletree, poseidon2
 
 const
-  KeyNoneF              = F.fromhex("0x0")
-  KeyBottomLayerF       = F.fromhex("0x1")
-  KeyOddF               = F.fromhex("0x2")
-  KeyOddAndBottomLayerF = F.fromhex("0x3")
+  KeyNoneF              = F.fromHex("0x0")
+  KeyBottomLayerF       = F.fromHex("0x1")
+  KeyOddF               = F.fromHex("0x2")
+  KeyOddAndBottomLayerF = F.fromHex("0x3")
 
   Poseidon2Zero* = zero
 

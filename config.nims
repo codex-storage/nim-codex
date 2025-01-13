@@ -41,7 +41,7 @@ when defined(windows):
 
   # The dynamic Chronicles output currently prevents us from using colors on Windows
   # because these require direct manipulations of the stdout File object.
-  switch("define", "chronicles_colors=off")
+  switch("define", "chronicles_colors=NoColors")
 
 # This helps especially for 32-bit x86, which sans SSE2 and newer instructions
 # requires quite roundabout code generation for cryptography, and other 64-bit
@@ -85,6 +85,8 @@ when (NimMajor, NimMinor) >= (1, 6):
   --warning:"DotLikeOps:off"
 when (NimMajor, NimMinor, NimPatch) >= (1, 6, 11):
   --warning:"BareExcept:off"
+when (NimMajor, NimMinor) >= (2, 0):
+  --mm:refc
 
 switch("define", "withoutPCRE")
 

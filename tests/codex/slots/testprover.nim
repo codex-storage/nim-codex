@@ -13,6 +13,7 @@ import pkg/confutils/defs
 import pkg/poseidon2/io
 import pkg/codex/utils/poseidon2digest
 import pkg/codex/nat
+import pkg/codex/utils/natutils
 import ./helpers
 import ../helpers
 
@@ -38,7 +39,7 @@ suite "Test Prover":
         nat: NatConfig(
           hasExtIp: false,
           nat: NatNone),
-        metricsAddress: ValidIpAddress.init("127.0.0.1"),
+        metricsAddress: parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         circomR1cs: InputFile("tests/circuits/fixtures/proof_main.r1cs"),
         circomWasm: InputFile("tests/circuits/fixtures/proof_main.wasm"),

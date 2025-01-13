@@ -22,7 +22,7 @@ type
   EncoderBackend* = ref object of ErasureBackend
   DecoderBackend* = ref object of ErasureBackend
 
-method release*(self: ErasureBackend) {.base.} =
+method release*(self: ErasureBackend) {.base, gcsafe.} =
   ## release the backend
   ##
   raiseAssert("not implemented!")
@@ -31,7 +31,7 @@ method encode*(
     self: EncoderBackend,
     buffers,
     parity: var openArray[seq[byte]]
-): Result[void, cstring] {.base.} =
+): Result[void, cstring] {.base, gcsafe.} =
   ## encode buffers using a backend
   ##
   raiseAssert("not implemented!")
@@ -41,7 +41,7 @@ method decode*(
     buffers,
     parity,
     recovered: var openArray[seq[byte]]
-): Result[void, cstring] {.base.} =
+): Result[void, cstring] {.base, gcsafe.} =
   ## decode buffers using a backend
   ##
   raiseAssert("not implemented!")

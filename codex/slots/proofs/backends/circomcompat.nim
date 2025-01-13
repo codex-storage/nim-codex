@@ -76,7 +76,7 @@ proc release*(self: CircomCompat) =
   ##
 
   if not isNil(self.backendCfg):
-    self.backendCfg.unsafeAddr.releaseCfg()
+    self.backendCfg.unsafeAddr.release_cfg()
 
   if not isNil(self.vkp):
     self.vkp.unsafeAddr.release_key()
@@ -102,9 +102,9 @@ proc prove[H](
 
   defer:
     if ctx != nil:
-      ctx.addr.releaseCircomCompat()
+      ctx.addr.release_circom_compat()
 
-  if initCircomCompat(
+  if init_circom_compat(
     self.backendCfg,
     addr ctx) != ERR_OK or ctx == nil:
     raiseAssert("failed to initialize CircomCompat ctx")
@@ -114,27 +114,27 @@ proc prove[H](
     dataSetRoot = input.datasetRoot.toBytes
     slotRoot = input.slotRoot.toBytes
 
-  if ctx.pushInputU256Array(
+  if ctx.push_input_u256_array(
     "entropy".cstring, entropy[0].addr, entropy.len.uint32) != ERR_OK:
     return failure("Failed to push entropy")
 
-  if ctx.pushInputU256Array(
+  if ctx.push_input_u256_array(
     "dataSetRoot".cstring, dataSetRoot[0].addr, dataSetRoot.len.uint32) != ERR_OK:
     return failure("Failed to push data set root")
 
-  if ctx.pushInputU256Array(
+  if ctx.push_input_u256_array(
     "slotRoot".cstring, slotRoot[0].addr, slotRoot.len.uint32) != ERR_OK:
     return failure("Failed to push data set root")
 
-  if ctx.pushInputU32(
+  if ctx.push_input_u32(
     "nCellsPerSlot".cstring, input.nCellsPerSlot.uint32) != ERR_OK:
     return failure("Failed to push nCellsPerSlot")
 
-  if ctx.pushInputU32(
+  if ctx.push_input_u32(
     "nSlotsPerDataSet".cstring, input.nSlotsPerDataSet.uint32) != ERR_OK:
     return failure("Failed to push nSlotsPerDataSet")
 
-  if ctx.pushInputU32(
+  if ctx.push_input_u32(
     "slotIndex".cstring, input.slotIndex.uint32) != ERR_OK:
     return failure("Failed to push slotIndex")
 
@@ -143,7 +143,7 @@ proc prove[H](
 
   doAssert(slotProof.len == self.datasetDepth)
   # arrays are always flattened
-  if ctx.pushInputU256Array(
+  if ctx.push_input_u256_array(
     "slotProof".cstring,
     slotProof[0].addr,
     uint (slotProof[0].len * slotProof.len)) != ERR_OK:
@@ -154,13 +154,13 @@ proc prove[H](
       merklePaths = s.merklePaths.mapIt( it.toBytes )
       data = s.cellData.mapIt( @(it.toBytes) ).concat
 
-    if ctx.pushInputU256Array(
+    if ctx.push_input_u256_array(
       "merklePaths".cstring,
       merklePaths[0].addr,
       uint (merklePaths[0].len * merklePaths.len)) != ERR_OK:
         return failure("Failed to push merkle paths")
 
-    if ctx.pushInputU256Array(
+    if ctx.push_input_u256_array(
       "cellData".cstring,
       data[0].addr,
       data.len.uint) != ERR_OK:
@@ -172,7 +172,7 @@ proc prove[H](
   let proof =
     try:
       if (
-        let res = self.backendCfg.proveCircuit(ctx, proofPtr.addr);
+        let res = self.backendCfg.prove_circuit(ctx, proofPtr.addr);
         res != ERR_OK) or
         proofPtr == nil:
         return failure("Failed to prove - err code: " & $res)
@@ -180,7 +180,7 @@ proc prove[H](
       proofPtr[]
     finally:
       if proofPtr != nil:
-        proofPtr.addr.releaseProof()
+        proofPtr.addr.release_proof()
 
   success proof
 
@@ -202,7 +202,7 @@ proc verify*[H](
     inputs = inputs.toCircomInputs()
 
   try:
-    let res = verifyCircuit(proofPtr, inputs.addr, self.vkp)
+    let res = verify_circuit(proofPtr, inputs.addr, self.vkp)
     if res == ERR_OK:
       success true
     elif res == ERR_FAILED_TO_VERIFY_PROOF:
@@ -228,18 +228,18 @@ proc init*(
   var cfg: ptr CircomBn254Cfg
   var zkey = if zkeyPath.len > 0: zkeyPath.cstring else: nil
 
-  if initCircomConfig(
+  if init_circom_config(
     r1csPath.cstring,
     wasmPath.cstring,
     zkey, cfg.addr) != ERR_OK or cfg == nil:
-      if cfg != nil: cfg.addr.releaseCfg()
+      if cfg != nil: cfg.addr.release_cfg()
       raiseAssert("failed to initialize circom compat config")
 
   var
     vkpPtr: ptr VerifyingKey = nil
 
-  if cfg.getVerifyingKey(vkpPtr.addr) != ERR_OK or vkpPtr == nil:
-    if vkpPtr != nil: vkpPtr.addr.releaseKey()
+  if cfg.get_verifying_key(vkpPtr.addr) != ERR_OK or vkpPtr == nil:
+    if vkpPtr != nil: vkpPtr.addr.release_key()
     raiseAssert("Failed to get verifying key")
 
   CircomCompat(

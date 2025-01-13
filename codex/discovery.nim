@@ -17,6 +17,7 @@ import pkg/questionable/results
 import pkg/stew/shims/net
 import pkg/contractabi/address as ca
 import pkg/codexdht/discv5/[routing_table, protocol as discv5]
+from pkg/nimcrypto import keccak256
 
 import ./rng
 import ./errors
@@ -124,7 +125,7 @@ method provide*(d: Discovery, host: ca.Address) {.async, base.} =
 
 method removeProvider*(
   d: Discovery,
-  peerId: PeerId): Future[void] {.base.} =
+  peerId: PeerId): Future[void] {.base, gcsafe.} =
   ## Remove provider from providers table
   ##
 
@@ -169,7 +170,7 @@ proc stop*(d: Discovery) {.async.} =
 proc new*(
     T: type Discovery,
     key: PrivateKey,
-    bindIp = ValidIpAddress.init(IPv4_any()),
+    bindIp = IPv4_any(),
     bindPort = 0.Port,
     announceAddrs: openArray[MultiAddress],
     bootstrapNodes: openArray[SignedPeerRecord] = [],
@@ -199,7 +200,7 @@ proc new*(
 
   self.protocol = newProtocol(
     key,
-    bindIp = bindIp.toNormalIp,
+    bindIp = bindIp,
     bindPort = bindPort,
     record = self.providerRecord.get,
     bootstrapRecords = bootstrapNodes,

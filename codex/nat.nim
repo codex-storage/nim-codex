@@ -73,6 +73,8 @@ proc getExternalIP*(natStrategy: NatStrategy, quiet = false): Option[IpAddress] 
           msg = "Internet Gateway Device found but it's not connected. Trying anyway."
         of NotAnIGD:
           msg = "Some device found, but it's not recognised as an Internet Gateway Device. Trying anyway."
+        of IGDIpNotRoutable:
+          msg = "Internet Gateway Device found and is connected, but with a reserved or non-routable IP. Trying anyway."
       if not quiet:
         debug "UPnP", msg
       if canContinue:
@@ -115,7 +117,7 @@ proc getExternalIP*(natStrategy: NatStrategy, quiet = false): Option[IpAddress] 
 # default) is a public IP. That's a long shot, because code paths involving a
 # user-provided bind address are not supposed to get here.
 proc getRoutePrefSrc(
-    bindIp: ValidIpAddress): (Option[ValidIpAddress], PrefSrcStatus) =
+    bindIp: IpAddress): (Option[IpAddress], PrefSrcStatus) =
   let bindAddress = initTAddress(bindIp, Port(0))
 
   if bindAddress.isAnyLocal():
@@ -124,18 +126,18 @@ proc getRoutePrefSrc(
       # No route was found, log error and continue without IP.
       error "No routable IP address found, check your network connection",
         error = ip.error
-      return (none(ValidIpAddress), NoRoutingInfo)
+      return (none(IpAddress), NoRoutingInfo)
     elif ip.get().isGlobalUnicast():
       return (some(ip.get()), PrefSrcIsPublic)
     else:
-      return (none(ValidIpAddress), PrefSrcIsPrivate)
+      return (none(IpAddress), PrefSrcIsPrivate)
   elif bindAddress.isGlobalUnicast():
-    return (some(ValidIpAddress.init(bindIp)), BindAddressIsPublic)
+    return (some(bindIp), BindAddressIsPublic)
   else:
-    return (none(ValidIpAddress), BindAddressIsPrivate)
+    return (none(IpAddress), BindAddressIsPrivate)
 
 # Try to detect a public IP assigned to this host, before trying NAT traversal.
-proc getPublicRoutePrefSrcOrExternalIP*(natStrategy: NatStrategy, bindIp: ValidIpAddress, quiet = true): Option[ValidIpAddress] =
+proc getPublicRoutePrefSrcOrExternalIP*(natStrategy: NatStrategy, bindIp: IpAddress, quiet = true): Option[IpAddress] =
   let (prefSrcIp, prefSrcStatus) = getRoutePrefSrc(bindIp)
 
   case prefSrcStatus:
@@ -144,7 +146,7 @@ proc getPublicRoutePrefSrcOrExternalIP*(natStrategy: NatStrategy, bindIp: ValidI
     of PrefSrcIsPrivate, BindAddressIsPrivate:
       let extIp = getExternalIP(natStrategy, quiet)
       if extIp.isSome:
-        return some(ValidIpAddress.init(extIp.get))
+        return some(extIp.get)
 
 proc doPortMapping(tcpPort, udpPort: Port, description: string): Option[(Port, Port)] {.gcsafe.} =
   var
@@ -294,14 +296,14 @@ proc redirectPorts*(tcpPort, udpPort: Port, description: string): Option[(Port, 
 
 proc setupNat*(natStrategy: NatStrategy, tcpPort, udpPort: Port,
     clientId: string):
-    tuple[ip: Option[ValidIpAddress], tcpPort, udpPort: Option[Port]] =
+    tuple[ip: Option[IpAddress], tcpPort, udpPort: Option[Port]] =
   ## Setup NAT port mapping and get external IP address.
   ## If any of this fails, we don't return any IP address but do return the
   ## original ports as best effort.
   ## TODO: Allow for tcp or udp port mapping to be optional.
   let extIp = getExternalIP(natStrategy)
   if extIp.isSome:
-    let ip = ValidIpAddress.init(extIp.get)
+    let ip = extIp.get
     let extPorts = ({.gcsafe.}:
       redirectPorts(tcpPort = tcpPort,
                     udpPort = udpPort,
@@ -311,20 +313,20 @@ proc setupNat*(natStrategy: NatStrategy, tcpPort, udpPort: Port,
       (ip: some(ip), tcpPort: some(extTcpPort), udpPort: some(extUdpPort))
     else:
       warn "UPnP/NAT-PMP available but port forwarding failed"
-      (ip: none(ValidIpAddress), tcpPort: some(tcpPort), udpPort: some(udpPort))
+      (ip: none(IpAddress), tcpPort: some(tcpPort), udpPort: some(udpPort))
   else:
     warn "UPnP/NAT-PMP not available"
-    (ip: none(ValidIpAddress), tcpPort: some(tcpPort), udpPort: some(udpPort))
+    (ip: none(IpAddress), tcpPort: some(tcpPort), udpPort: some(udpPort))
 
 type
   NatConfig* = object
     case hasExtIp*: bool
-      of true: extIp*: ValidIpAddress
+      of true: extIp*: IpAddress
       of false: nat*: NatStrategy
 
-proc setupAddress*(natConfig: NatConfig, bindIp: ValidIpAddress,
+proc setupAddress*(natConfig: NatConfig, bindIp: IpAddress,
     tcpPort, udpPort: Port, clientId: string):
-    tuple[ip: Option[ValidIpAddress], tcpPort, udpPort: Option[Port]]
+    tuple[ip: Option[IpAddress], tcpPort, udpPort: Option[Port]]
     {.gcsafe.} =
   ## Set-up of the external address via any of the ways as configured in
   ## `NatConfig`. In case all fails an error is logged and the bind ports are
@@ -353,10 +355,10 @@ proc setupAddress*(natConfig: NatConfig, bindIp: ValidIpAddress,
           return (prefSrcIp, some(tcpPort), some(udpPort))
         of PrefSrcIsPrivate:
           error "No public IP address found. Should not use --nat:none option"
-          return (none(ValidIpAddress), some(tcpPort), some(udpPort))
+          return (none(IpAddress), some(tcpPort), some(udpPort))
         of BindAddressIsPrivate:
           error "Bind IP is not a public IP address. Should not use --nat:none option"
-          return (none(ValidIpAddress), some(tcpPort), some(udpPort))
+          return (none(IpAddress), some(tcpPort), some(udpPort))
     of NatStrategy.NatUpnp, NatStrategy.NatPmp:
       return setupNat(natConfig.nat, tcpPort, udpPort, clientId)
 

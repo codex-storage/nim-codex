@@ -40,7 +40,7 @@ proc timerLoop(timer: Timer) {.async: (raises: []).} =
   except CatchableError as exc:
     error "Timer caught unhandled exception: ", name=timer.name, msg=exc.msg
 
-method start*(timer: Timer, callback: TimerCallback, interval: Duration) {.base.} =
+method start*(timer: Timer, callback: TimerCallback, interval: Duration) {.gcsafe, base.} =
   if timer.loopFuture != nil:
     return
   trace "Timer starting: ", name=timer.name

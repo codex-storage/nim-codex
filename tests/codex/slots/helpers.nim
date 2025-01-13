@@ -96,11 +96,11 @@ proc createProtectedManifest*(
     protectedTreeCid = protectedTree.rootCid().tryGet()
 
   for index, cid in cids[0..<numDatasetBlocks]:
-    let proof = datasetTree.getProof(index).tryget()
+    let proof = datasetTree.getProof(index).tryGet()
     (await store.putCidAndProof(datasetTreeCid, index, cid, proof)).tryGet
 
   for index, cid in cids:
-    let proof = protectedTree.getProof(index).tryget()
+    let proof = protectedTree.getProof(index).tryGet()
     (await store.putCidAndProof(protectedTreeCid, index, cid, proof)).tryGet
 
   let

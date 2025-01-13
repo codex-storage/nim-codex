@@ -47,7 +47,7 @@ when isMainModule:
   let config = CodexConf.load(
     version = codexFullVersion,
     envVarsPrefix = "codex",
-    secondarySources = proc (config: CodexConf, sources: auto) =
+    secondarySources = proc (config: CodexConf, sources: auto) {.gcsafe, raises: [ConfigurationError].} =
             if configFile =? config.configFile:
               sources.addConfigFile(Toml, configFile)
   )

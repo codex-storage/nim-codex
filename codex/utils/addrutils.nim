@@ -19,7 +19,7 @@ import pkg/stew/endians2
 
 func remapAddr*(
     address: MultiAddress,
-    ip: Option[ValidIpAddress] = ValidIpAddress.none,
+    ip: Option[IpAddress] = IpAddress.none,
     port: Option[Port] = Port.none
 ): MultiAddress =
   ## Remap addresses to new IP and/or Port
@@ -41,7 +41,7 @@ func remapAddr*(
   MultiAddress.init(parts.join("/"))
     .expect("Should construct multiaddress")
 
-proc getMultiAddrWithIPAndUDPPort*(ip: ValidIpAddress, port: Port): MultiAddress =
+proc getMultiAddrWithIPAndUDPPort*(ip: IpAddress, port: Port): MultiAddress =
   ## Creates a MultiAddress with the specified IP address and UDP port
   ## 
   ## Parameters:
@@ -54,7 +54,7 @@ proc getMultiAddrWithIPAndUDPPort*(ip: ValidIpAddress, port: Port): MultiAddress
   let ipFamily = if ip.family == IpAddressFamily.IPv4: "/ip4/" else: "/ip6/"
   return MultiAddress.init(ipFamily & $ip & "/udp/" & $port).expect("valid multiaddr")
 
-proc getAddressAndPort*(ma: MultiAddress): tuple[ip: Option[ValidIpAddress], port: Option[Port]] =
+proc getAddressAndPort*(ma: MultiAddress): tuple[ip: Option[IpAddress], port: Option[Port]] =
   try:
     # Try IPv4 first
     let ipv4Result = ma[multiCodec("ip4")]
@@ -63,7 +63,7 @@ proc getAddressAndPort*(ma: MultiAddress): tuple[ip: Option[ValidIpAddress], por
         .protoArgument()
         .expect("Invalid IPv4 format")
       let ipArray = [ipBytes[0], ipBytes[1], ipBytes[2], ipBytes[3]]
-      some(ipv4(ipArray))
+      some(IpAddress(family: IPv4, address_v4: ipArray))
     else:
       # Try IPv6 if IPv4 not found
       let ipv6Result = ma[multiCodec("ip6")]
@@ -74,9 +74,9 @@ proc getAddressAndPort*(ma: MultiAddress): tuple[ip: Option[ValidIpAddress], por
         var ipArray: array[16, byte]
         for i in 0..15:
           ipArray[i] = ipBytes[i]
-        some(ipv6(ipArray))
+        some(IpAddress(family: IPv6, address_v6: ipArray))
       else:
-        none(ValidIpAddress)
+        none(IpAddress)
 
     # Get TCP Port
     let portResult = ma[multiCodec("tcp")]
@@ -89,4 +89,4 @@ proc getAddressAndPort*(ma: MultiAddress): tuple[ip: Option[ValidIpAddress], por
       none(Port)
     (ip: ip, port: port)
   except Exception:
-    (ip: none(ValidIpAddress), port: none(Port))
+    (ip: none(IpAddress), port: none(Port))

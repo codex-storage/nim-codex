@@ -11,13 +11,16 @@ inputs:
     default: "amd64"
   nim_version:
     description: "Nim version"
-    default: "version-1-6"
+    default: "v2.0.14"
   rust_version:
     description: "Rust version"
     default: "1.79.0"
   shell:
     description: "Shell to run commands in"
     default: "bash --noprofile --norc -e -o pipefail"
+  coverage:
+    description: "True if the process is used for coverage"
+    default: false
 runs:
   using: "composite"
   steps:
@@ -31,8 +34,8 @@ runs:
       if: inputs.os == 'linux' && (inputs.cpu == 'amd64' || inputs.cpu == 'arm64')
       shell: ${{ inputs.shell }} {0}
       run: |
-        sudo apt-fast update -qq
-        sudo DEBIAN_FRONTEND='noninteractive' apt-fast install \
+        sudo apt-get update -qq
+        sudo DEBIAN_FRONTEND='noninteractive' apt-get install \
           --no-install-recommends -yq lcov
 
     - name: APT (Linux i386)
@@ -40,8 +43,8 @@ runs:
       shell: ${{ inputs.shell }} {0}
       run: |
         sudo dpkg --add-architecture i386
-        sudo apt-fast update -qq
-        sudo DEBIAN_FRONTEND='noninteractive' apt-fast install \
+        sudo apt-get update -qq
+        sudo DEBIAN_FRONTEND='noninteractive' apt-get install \
           --no-install-recommends -yq gcc-multilib g++-multilib
 
     - name: Homebrew (macOS)
@@ -78,11 +81,21 @@ runs:
           mingw-w64-i686-ntldd-git
           mingw-w64-i686-rust
 
-    - name: MSYS2 (Windows All) - Downgrade to gcc 13
+    - name: MSYS2 (Windows All) - Update to gcc 14
       if: inputs.os == 'windows'
       shell: ${{ inputs.shell }} {0}
       run: |
-        pacman -U --noconfirm https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gcc-13.2.0-6-any.pkg.tar.zst https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gcc-libs-13.2.0-6-any.pkg.tar.zst
+        pacman -U --noconfirm https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gcc-14.2.0-2-any.pkg.tar.zst https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gcc-libs-14.2.0-2-any.pkg.tar.zst
+
+    - name: Install gcc 14 on Linux
+      # We don't want to install gcc 14 for coverage (Ubuntu 20.04)
+      if : ${{ inputs.os == 'linux' && !inputs.coverage }}
+      shell: ${{ inputs.shell }} {0}
+      run: |
+        # Add GCC-14 to alternatives
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
+        # Set GCC-14 as the default
+        sudo update-alternatives --set gcc /usr/bin/gcc-14
 
     - name: Derive environment variables
       shell: ${{ inputs.shell }} {0}
@@ -159,6 +172,7 @@ runs:
     - name: Restore Nim toolchain binaries from cache
       id: nim-cache
       uses: actions/cache@v4
+      if : ${{ !inputs.coverage  }}
       with:
         path: NimBinaries
         key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_version }}-cache-${{ env.cache_nonce }}-${{ github.run_id }}
@@ -168,9 +182,16 @@ runs:
       shell: ${{ inputs.shell }} {0}
       run: echo "NIM_COMMIT=${{ inputs.nim_version }}" >> ${GITHUB_ENV}
 
+    - name: MSYS2 (Windows All) - Disable git symbolic links (since miniupnp 2.2.5)
+      if: inputs.os == 'windows'
+      shell: ${{ inputs.shell }} {0}
+      run: |
+        git config --global core.symlinks false
+
     - name: Build Nim and Codex dependencies
       shell: ${{ inputs.shell }} {0}
       run: |
+        gcc --version
         make -j${ncpu} CI_CACHE=NimBinaries ${ARCH_OVERRIDE} QUICK_AND_DIRTY_COMPILER=1 update
         echo
         ./env.sh nim --version

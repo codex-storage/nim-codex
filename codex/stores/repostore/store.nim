@@ -323,15 +323,16 @@ method getBlockExpirations*(
     return failure(err)
 
   let
-    filteredIter = await asyncQueryIter.filterSuccess()
-    blockExpIter = await mapFilter[KeyVal[BlockMetadata], BlockExpiration](filteredIter,
-      proc (kv: KeyVal[BlockMetadata]): Future[?BlockExpiration] {.async.} =
-        without cid =? Cid.init(kv.key.value).mapFailure, err:
-          error "Failed decoding cid", err = err.msg
-          return BlockExpiration.none
+    filteredIter: AsyncIter[KeyVal[BlockMetadata]] = await asyncQueryIter.filterSuccess()
 
-        BlockExpiration(cid: cid, expiry: kv.value.expiry).some
-    )
+  proc mapping (kv: KeyVal[BlockMetadata]): Future[?BlockExpiration] {.async.} =
+    without cid =? Cid.init(kv.key.value).mapFailure, err:
+      error "Failed decoding cid", err = err.msg
+      return BlockExpiration.none
+
+    BlockExpiration(cid: cid, expiry: kv.value.expiry).some
+
+  let blockExpIter = await mapFilter[KeyVal[BlockMetadata], BlockExpiration](filteredIter, mapping)
 
   success(blockExpIter)
 
