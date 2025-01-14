@@ -24,6 +24,12 @@ logScope:
 type HardhatProcess* = ref object of NodeProcess
   logFile: ?IoHandle
 
+type
+  OnOutputLineCaptured = proc(line: string) {.raises: [].}
+  HardhatProcess* = ref object of NodeProcess
+    logFile: ?IoHandle
+    onOutputLine: OnOutputLineCaptured
+
 method workingDir(node: HardhatProcess): string =
   return currentSourcePath() / ".." / ".." / ".." / "vendor" / "codex-contracts-eth"
 
@@ -110,6 +116,9 @@ proc startNode*(
 method onOutputLineCaptured(node: HardhatProcess, line: string) =
   logScope:
     nodeName = node.name
+
+  if not node.onOutputLine.isNil:
+    node.onOutputLine(line)
 
   without logFile =? node.logFile:
     return
