@@ -24,7 +24,7 @@ asyncchecksuite "Command line interface":
           "--disc-port=" & $(await nextFreePort(8090 + nodeCount))
         ]
       ),
-      true,
+      debug = false,
       "cli-test-node",
     )
 
