@@ -2,11 +2,15 @@ import pkg/metrics
 
 when defined(metrics):
   type StatSummary* = ref object of Collector
+    hasValues: bool
     min: float64
     max: float64
     ravg: float64
 
   method collect(st: StatSummary, output: MetricHandler) =
+    if not st.hasValues:
+      return
+
     let timestamp = st.now()
     output(
       name = st.name & "_min",
@@ -27,17 +31,22 @@ when defined(metrics):
 proc declareStatSummary*(name: string, help: string = ""): StatSummary =
   when defined(metrics):
     result = StatSummary.newCollector(name, help)
-    result.min = high(float64)
-    result.max = low(float64)
+    result.hasValues = false
   else:
     return IgnoredCollector
 
 proc observeStatSummary(st: StatSummary, value: float64) =
-  if value < st.min:
+  if st.hasValues:
+    if value < st.min:
+      st.min = value
+    if value > st.max:
+      st.max = value
+    st.ravg = (st.ravg + value) / float64(2)
+  else:
+    st.hasValues = true
     st.min = value
-  if value > st.max:
     st.max = value
-  st.ravg = (st.ravg + value) / 2.0
+    st.ravg = value
 
 template observe*(statSummary: StatSummary | type IgnoredCollector, amount: int64 | float64 = 1) =
   when defined(metrics) and statSummary is not IgnoredCollector:
