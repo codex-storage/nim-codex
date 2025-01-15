@@ -74,7 +74,6 @@ type
     size* {.serialize.}: UInt256
     requestId* {.serialize.}: RequestId
     slotIndex* {.serialize.}: UInt256
-    collateralPerByte* {.serialize.}: UInt256
 
   Reservations* = ref object of RootObj
     availabilityLock: AsyncLock
@@ -144,7 +143,6 @@ proc init*(
     size: UInt256,
     requestId: RequestId,
     slotIndex: UInt256,
-    collateralPerByte: UInt256,
 ): Reservation =
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
@@ -154,7 +152,6 @@ proc init*(
     size: size,
     requestId: requestId,
     slotIndex: slotIndex,
-    collateralPerByte: collateralPerByte,
   )
 
 func toArray(id: SomeStorableId): array[32, byte] =
@@ -333,7 +330,10 @@ proc delete(self: Reservations, key: Key): Future[?!void] {.async.} =
   return success()
 
 proc deleteReservation*(
-    self: Reservations, reservationId: ReservationId, availabilityId: AvailabilityId
+    self: Reservations,
+    reservationId: ReservationId,
+    availabilityId: AvailabilityId,
+    currentCollateral: ?UInt256 = UInt256.none,
 ): Future[?!void] {.async.} =
   logScope:
     reservationId
@@ -362,8 +362,8 @@ proc deleteReservation*(
 
       availability.freeSize += reservation.size
 
-      # MC2: shall we return the collateral to the availability?
-      availability.totalCollateral += reservation.size * reservation.collateralPerByte
+      if returnedCollateral =? currentCollateral:
+        availability.totalCollateral += returnedCollateral
 
       if updateErr =? (await self.updateAvailability(availability)).errorOption:
         return failure(updateErr)
@@ -428,9 +428,7 @@ method createReservation*(
 
     trace "Creating reservation", availabilityId, slotSize, requestId, slotIndex
 
-    let reservation = Reservation.init(
-      availabilityId, slotSize, requestId, slotIndex, collateralPerByte
-    )
+    let reservation = Reservation.init(availabilityId, slotSize, requestId, slotIndex)
 
     if createResErr =? (await self.update(reservation)).errorOption:
       return failure(createResErr)

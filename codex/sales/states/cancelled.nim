@@ -23,12 +23,13 @@ method run*(state: SaleCancelled, machine: Machine): Future[?State] {.async.} =
   debug "Collecting collateral and partial payout",
     requestId = data.requestId, slotIndex = data.slotIndex
   await market.freeSlot(slot.id)
+  let currentCollateral = await market.currentCollateral(slot.id)
 
   if onClear =? agent.context.onClear and request =? data.request:
     onClear(request, data.slotIndex)
 
   if onCleanUp =? agent.onCleanUp:
-    await onCleanUp(returnBytes = true, reprocessSlot = false)
+    await onCleanUp(returnBytes = true, reprocessSlot = false, currentCollateral = some currentCollateral)
 
   warn "Sale cancelled due to timeout",
     requestId = data.requestId, slotIndex = data.slotIndex
