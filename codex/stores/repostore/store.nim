@@ -32,6 +32,11 @@ const
 
 when codex_enable_repostore_timinglogs:
   import std/monotimes
+  import ../../utils/statsummary
+
+  let
+    getBlockSummary = declareStatSummary("getBlock")
+    putBlockSummary = declareStatSummary("putBlock")
 
 export blocktype, cid
 
@@ -70,6 +75,7 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
   when codex_enable_repostore_timinglogs:
     let durationUs = (getMonoTime().ticks - startTime) div 1000
     trace "Got block for cid", cid, durationUs
+    getBlockSummary.observe(durationUs)
   else:
     trace "Got block for cid", cid
 
@@ -215,6 +221,7 @@ method putBlock*(
   when codex_enable_repostore_timinglogs:
     let durationUs = (getMonoTime().ticks - startTime) div 1000
     trace "putBlock", durationUs
+    putBlockSummary.observe(durationUs)
 
   return success()
 
