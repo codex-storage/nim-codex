@@ -11,6 +11,7 @@ logScope:
   topics = "marketplace sales finished"
 
 type SaleFinished* = ref object of ErrorHandlingState
+  currentCollateral*: ?UInt256
 
 method `$`*(state: SaleFinished): string =
   "SaleFinished"
@@ -24,7 +25,6 @@ method onFailed*(state: SaleFinished, request: StorageRequest): ?State =
 method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
   let agent = SalesAgent(machine)
   let data = agent.data
-  let market = agent.context.market
 
   without request =? data.request:
     raiseAssert "no sale request"
@@ -32,8 +32,5 @@ method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
   info "Slot finished and paid out",
     requestId = data.requestId, slotIndex = data.slotIndex
 
-  let slot = Slot(request: request, slotIndex: data.slotIndex)
-  let currentCollateral = await market.currentCollateral(slot.id)
-
   if onCleanUp =? agent.onCleanUp:
-    await onCleanUp(currentCollateral = some currentCollateral)
+    await onCleanUp(currentCollateral = state.currentCollateral)
