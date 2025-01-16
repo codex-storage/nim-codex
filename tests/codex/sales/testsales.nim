@@ -46,7 +46,7 @@ asyncchecksuite "Sales - start":
         pricePerBytePerSecond: 1.u256,
         collateralPerByte: 1.u256,
       ),
-      content: StorageContent(cid: "some cid"),
+      content: StorageContent(cid: "some cid".toBytes),
       expiry: (getTime() + initDuration(hours = 1)).toUnix.u256,
     )
 
@@ -64,7 +64,7 @@ asyncchecksuite "Sales - start":
       return success()
 
     sales.onExpiryUpdate = proc(
-        rootCid: string, expiry: SecondsSince1970
+        rootCid: seq[byte], expiry: SecondsSince1970
     ): Future[?!void] {.async.} =
       return success()
 
@@ -158,7 +158,7 @@ asyncchecksuite "Sales":
         pricePerBytePerSecond: minPricePerBytePerSecond,
         collateralPerByte: 1.u256,
       ),
-      content: StorageContent(cid: "some cid"),
+      content: StorageContent(cid: "some cid".toBytes),
       expiry: (getTime() + initDuration(hours = 1)).toUnix.u256,
     )
 
@@ -181,7 +181,7 @@ asyncchecksuite "Sales":
       return success()
 
     sales.onExpiryUpdate = proc(
-        rootCid: string, expiry: SecondsSince1970
+        rootCid: seq[byte], expiry: SecondsSince1970
     ): Future[?!void] {.async.} =
       return success()
 
