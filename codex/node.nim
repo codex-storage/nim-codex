@@ -373,7 +373,7 @@ proc setupRequest(
     proofProbability: UInt256,
     nodes: uint,
     tolerance: uint,
-    pricePerByte: UInt256,
+    pricePerBytePerSecond: UInt256,
     collateralPerByte: UInt256,
     expiry: UInt256,
 ): Future[?!StorageRequest] {.async.} =
@@ -389,7 +389,7 @@ proc setupRequest(
     duration = duration
     nodes = nodes
     tolerance = tolerance
-    pricePerByte = pricePerByte
+    pricePerBytePerSecond = pricePerByteSecond
     proofProbability = proofProbability
     collateralPerByte = collateralPerByte
     expiry = expiry
@@ -435,7 +435,7 @@ proc setupRequest(
         slotSize: builder.slotBytes.uint.u256,
         duration: duration,
         proofProbability: proofProbability,
-        pricePerByte: pricePerByte,
+        pricePerBytePerSecond: pricePerBytePerSecond,
         collateralPerByte: collateralPerByte,
         maxSlotLoss: tolerance,
       ),
@@ -456,7 +456,7 @@ proc requestStorage*(
     proofProbability: UInt256,
     nodes: uint,
     tolerance: uint,
-    pricePerByte: UInt256,
+    pricePerBytePerSecond: UInt256,
     collateralPerByte: UInt256,
     expiry: UInt256,
 ): Future[?!PurchaseId] {.async.} =

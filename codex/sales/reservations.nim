@@ -22,7 +22,7 @@
 ## |--------------------------------------------|
 ## | UInt256          | minPricePerByte   |     |
 ## |--------------------------------------------|
-## | UInt256          | totalCollateral   |     |
+## | UInt256          | totalRemainingCollateral|     |
 ## +--------------------------------------------+
 
 import pkg/upraises
@@ -65,8 +65,8 @@ type
     totalSize* {.serialize.}: UInt256
     freeSize* {.serialize.}: UInt256
     duration* {.serialize.}: UInt256
-    minPricePerByte* {.serialize.}: UInt256
-    totalCollateral* {.serialize.}: UInt256
+    minPricePerBytePerSecond* {.serialize.}: UInt256
+    totalRemainingCollateral* {.serialize.}: UInt256
 
   Reservation* = ref object
     id* {.serialize.}: ReservationId
@@ -123,8 +123,8 @@ proc init*(
     totalSize: UInt256,
     freeSize: UInt256,
     duration: UInt256,
-    minPricePerByte: UInt256,
-    totalCollateral: UInt256,
+    minPricePerBytePerSecond: UInt256,
+    totalRemainingCollateral: UInt256,
 ): Availability =
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
@@ -133,8 +133,8 @@ proc init*(
     totalSize: totalSize,
     freeSize: freeSize,
     duration: duration,
-    minPricePerByte: minPricePerByte,
-    totalCollateral: totalCollateral,
+    minPricePerBytePerSecond: minPricePerBytePerSecond,
+    totalRemainingCollateral: totalRemainingCollateral,
   )
 
 proc init*(
@@ -195,7 +195,7 @@ func key*(availability: Availability): ?!Key =
   return availability.id.key
 
 func maxCollateralPerByte*(availability: Availability): UInt256 =
-  return availability.totalCollateral.div(availability.freeSize)
+  return availability.totalRemainingCollateral.div(availability.freeSize)
 
 func key*(reservation: Reservation): ?!Key =
   return key(reservation.id, reservation.availabilityId)
@@ -363,7 +363,7 @@ proc deleteReservation*(
       availability.freeSize += reservation.size
 
       if returnedCollateral =? currentCollateral:
-        availability.totalCollateral += returnedCollateral
+        availability.totalRemainingCollateral += returnedCollateral
 
       if updateErr =? (await self.updateAvailability(availability)).errorOption:
         return failure(updateErr)
@@ -381,12 +381,13 @@ proc createAvailability*(
     size: UInt256,
     duration: UInt256,
     minPricePerByte: UInt256,
-    totalCollateral: UInt256,
+    totalRemainingCollateral: UInt256,
 ): Future[?!Availability] {.async.} =
-  trace "creating availability", size, duration, minPricePerByte, totalCollateral
+  trace "creating availability",
+    size, duration, minPricePerByte, totalRemainingCollateral
 
   let availability =
-    Availability.init(size, size, duration, minPricePerByte, totalCollateral)
+    Availability.init(size, size, duration, minPricePerByte, totalRemainingCollateral)
   let bytes = availability.freeSize.truncate(uint)
 
   if reserveErr =? (await self.repo.reserve(bytes.NBytes)).errorOption:
@@ -437,8 +438,8 @@ method createReservation*(
     # the newly created Reservation
     availability.freeSize -= slotSize
 
-    # adjust the remaining totalCollateral
-    availability.totalCollateral -= slotSize * collateralPerByte
+    # adjust the remaining totalRemainingCollateral
+    availability.totalRemainingCollateral -= slotSize * collateralPerByte
 
     # update availability with reduced size
     trace "Updating availability with reduced size"
@@ -630,7 +631,8 @@ proc all*(
   return await self.allImpl(T, key)
 
 proc findAvailability*(
-    self: Reservations, size, duration, pricePerByte, collateralPerByte: UInt256
+    self: Reservations,
+    size, duration, pricePerBytePerSecond, collateralPerByte: UInt256,
 ): Future[?Availability] {.async.} =
   without storables =? (await self.storables(Availability)), e:
     error "failed to get all storables", error = e.msg
@@ -640,15 +642,15 @@ proc findAvailability*(
     if bytes =? (await item) and availability =? Availability.fromJson(bytes):
       if size <= availability.freeSize and duration <= availability.duration and
           collateralPerByte <= availability.maxCollateralPerByte and
-          pricePerByte >= availability.minPricePerByte:
+          pricePerBytePerSecond >= availability.minPricePerBytePerSecond:
         trace "availability matched",
           id = availability.id,
           size,
           availFreeSize = availability.freeSize,
           duration,
           availDuration = availability.duration,
-          pricePerByte,
-          availMinPricePerByte = availability.minPricePerByte,
+          pricePerBytePerSecond,
+          availMinPricePerBytePerSecond = availability.minPricePerBytePerSecond,
           collateralPerByte,
           availMaxCollateralPerByte = availability.maxCollateralPerByte
 
@@ -666,7 +668,7 @@ proc findAvailability*(
         availFreeSize = availability.freeSize,
         duration,
         availDuration = availability.duration,
-        pricePerByte,
-        availMinPricePerByte = availability.minPricePerByte,
+        pricePerBytePerSecond,
+        availMinPricePerBytePerSecond = availability.minPricePerBytePerSecond,
         collateralPerByte,
         availMaxCollateralPerByte = availability.maxCollateralPerByte

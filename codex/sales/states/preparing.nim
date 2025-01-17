@@ -62,7 +62,7 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
     slotIndex = data.slotIndex
     slotSize = request.ask.slotSize
     duration = request.ask.duration
-    pricePerByte = request.ask.pricePerByte
+    pricePerBytePerSecond = request.ask.pricePerBytePerSecond
     collateralPerByte = request.ask.collateralPerByte
 
   # MC2: IS THIS COMMENT CORRECT? I do not see any availability matching done
@@ -72,7 +72,7 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
   # changed since being added (other slots may have been processed in that time)
   without availability =?
     await reservations.findAvailability(
-      request.ask.slotSize, request.ask.duration, request.ask.pricePerByte,
+      request.ask.slotSize, request.ask.duration, request.ask.pricePerBytePerSecond,
       request.ask.collateralPerByte,
     ):
     debug "No availability found for request, ignoring"

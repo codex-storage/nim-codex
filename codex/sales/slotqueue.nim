@@ -32,7 +32,7 @@ type
     slotIndex: uint16
     slotSize: UInt256
     duration: UInt256
-    pricePerByte: UInt256
+    pricePerBytePerSecond: UInt256
     collateralPerByte: UInt256
     expiry: UInt256
     seen: bool
@@ -72,7 +72,7 @@ proc profitability(item: SlotQueueItem): UInt256 =
   StorageAsk(
     collateralPerByte: item.collateralPerByte,
     duration: item.duration,
-    pricePerByte: item.pricePerByte,
+    pricePerBytePerSecond: item.pricePerBytePerSecond,
     slotSize: item.slotSize,
   ).pricePerSlot
 
@@ -144,7 +144,7 @@ proc init*(
     slotIndex: slotIndex,
     slotSize: ask.slotSize,
     duration: ask.duration,
-    pricePerByte: ask.pricePerByte,
+    pricePerBytePerSecond: ask.pricePerBytePerSecond,
     collateralPerByte: ask.collateralPerByte,
     expiry: expiry,
     seen: seen,
@@ -189,8 +189,8 @@ proc slotSize*(self: SlotQueueItem): UInt256 =
 proc duration*(self: SlotQueueItem): UInt256 =
   self.duration
 
-proc pricePerByte*(self: SlotQueueItem): UInt256 =
-  self.pricePerByte
+proc pricePerBytePerSecond*(self: SlotQueueItem): UInt256 =
+  self.pricePerBytePerSecond
 
 proc collateralPerByte*(self: SlotQueueItem): UInt256 =
   self.collateralPerByte
@@ -246,7 +246,7 @@ proc populateItem*(
         slotIndex: slotIndex,
         slotSize: item.slotSize,
         duration: item.duration,
-        pricePerByte: item.pricePerByte,
+        pricePerBytePerSecond: item.pricePerBytePerSecond,
         collateralPerByte: item.collateralPerByte,
         expiry: item.expiry,
       )
