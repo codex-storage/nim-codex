@@ -97,6 +97,31 @@ runs:
         # Set GCC-14 as the default
         sudo update-alternatives --set gcc /usr/bin/gcc-14
 
+    - name: Install ccache on Linux/Mac
+      if: inputs.os == 'linux' || inputs.os == 'macos'
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        create-symlink: true
+        key: ${{ matrix.os }}-${{ matrix.builder }}-${{ matrix.cpu }}-${{ matrix.tests }}-${{ matrix.nim_version }}
+
+    - name: Install ccache on Windows
+      if: inputs.os == 'windows'
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ${{ matrix.os }}-${{ matrix.builder }}-${{ matrix.cpu }}-${{ matrix.tests }}-${{ matrix.nim_version }}
+
+    - name: Enable ccache on Windows
+      if: inputs.os == 'windows'
+      shell: ${{ inputs.shell }} {0}
+      run: |
+        CCACHE_DIR=$(dirname $(which ccache))/ccached
+        mkdir ${CCACHE_DIR}
+        ln -s $(which ccache) ${CCACHE_DIR}/gcc.exe
+        ln -s $(which ccache) ${CCACHE_DIR}/g++.exe
+        ln -s $(which ccache) ${CCACHE_DIR}/cc.exe
+        ln -s $(which ccache) ${CCACHE_DIR}/c++.exe
+        echo "export PATH=${CCACHE_DIR}:\$PATH" >> $HOME/.bash_profile # prefix path in MSYS2
+
     - name: Derive environment variables
       shell: ${{ inputs.shell }} {0}
       run: |
@@ -194,6 +219,7 @@ runs:
     - name: Build Nim and Codex dependencies
       shell: ${{ inputs.shell }} {0}
       run: |
+        which gcc
         gcc --version
         make -j${ncpu} CI_CACHE=NimBinaries ${ARCH_OVERRIDE} QUICK_AND_DIRTY_COMPILER=1 update
         echo
