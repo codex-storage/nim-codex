@@ -24,7 +24,9 @@ asyncchecksuite "sales state 'errored'":
   var reprocessSlotWas = false
 
   setup:
-    let onCleanUp = proc(returnBytes = false, reprocessSlot = false) {.async.} =
+    let onCleanUp = proc(
+        returnBytes = false, reprocessSlot = false, currentCollateral = UInt256.none
+    ) {.async.} =
       returnBytesWas = returnBytes
       reprocessSlotWas = reprocessSlot
 

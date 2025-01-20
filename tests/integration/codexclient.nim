@@ -105,9 +105,9 @@ proc requestStorageRaw*(
     client: CodexClient,
     cid: Cid,
     duration: UInt256,
-    reward: UInt256,
+    pricePerBytePerSecond: UInt256,
     proofProbability: UInt256,
-    collateral: UInt256,
+    collateralPerByte: UInt256,
     expiry: uint = 0,
     nodes: uint = 3,
     tolerance: uint = 1,
@@ -118,9 +118,9 @@ proc requestStorageRaw*(
   let json =
     %*{
       "duration": duration,
-      "reward": reward,
+      "pricePerBytePerSecond": pricePerBytePerSecond,
       "proofProbability": proofProbability,
-      "collateral": collateral,
+      "collateralPerByte": collateralPerByte,
       "nodes": nodes,
       "tolerance": tolerance,
     }
@@ -134,17 +134,18 @@ proc requestStorage*(
     client: CodexClient,
     cid: Cid,
     duration: UInt256,
-    reward: UInt256,
+    pricePerBytePerSecond: UInt256,
     proofProbability: UInt256,
     expiry: uint,
-    collateral: UInt256,
+    collateralPerByte: UInt256,
     nodes: uint = 3,
     tolerance: uint = 1,
 ): ?!PurchaseId =
   ## Call request storage REST endpoint
   ##
   let response = client.requestStorageRaw(
-    cid, duration, reward, proofProbability, collateral, expiry, nodes, tolerance
+    cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,
+    nodes, tolerance,
   )
   if response.status != "200 OK":
     doAssert(false, response.body)

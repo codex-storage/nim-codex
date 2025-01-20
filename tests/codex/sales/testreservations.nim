@@ -39,16 +39,19 @@ asyncchecksuite "Reservations module":
 
   proc createAvailability(): Availability =
     let example = Availability.example
-    let totalSize = rand(100000 .. 200000)
+    let totalSize = rand(100000 .. 200000).u256
+    let collateralPerByte = 1.u256
+    let totalRemainingCollateral = totalSize * collateralPerByte
     let availability = waitFor reservations.createAvailability(
-      totalSize.u256, example.duration, example.minPrice, example.maxCollateral
+      totalSize, example.duration, example.minPricePerBytePerSecond,
+      totalRemainingCollateral,
     )
     return availability.get
 
   proc createReservation(availability: Availability): Reservation =
     let size = rand(1 ..< availability.freeSize.truncate(int))
     let reservation = waitFor reservations.createReservation(
-      availability.id, size.u256, RequestId.example, UInt256.example
+      availability.id, size.u256, RequestId.example, UInt256.example, 1.u256
     )
     return reservation.get
 
@@ -126,7 +129,7 @@ asyncchecksuite "Reservations module":
   test "cannot create reservation with non-existant availability":
     let availability = Availability.example
     let created = await reservations.createReservation(
-      availability.id, UInt256.example, RequestId.example, UInt256.example
+      availability.id, UInt256.example, RequestId.example, UInt256.example, 1.u256
     )
     check created.isErr
     check created.error of NotExistsError
@@ -134,7 +137,11 @@ asyncchecksuite "Reservations module":
   test "cannot create reservation larger than availability size":
     let availability = createAvailability()
     let created = await reservations.createReservation(
-      availability.id, availability.totalSize + 1, RequestId.example, UInt256.example
+      availability.id,
+      availability.totalSize + 1,
+      RequestId.example,
+      UInt256.example,
+      1.u256,
     )
     check created.isErr
     check created.error of BytesOutOfBoundsError
@@ -143,11 +150,16 @@ asyncchecksuite "Reservations module":
     proc concurrencyTest(): Future[void] {.async.} =
       let availability = createAvailability()
       let one = reservations.createReservation(
-        availability.id, availability.totalSize - 1, RequestId.example, UInt256.example
+        availability.id,
+        availability.totalSize - 1,
+        RequestId.example,
+        UInt256.example,
+        1.u256,
       )
 
       let two = reservations.createReservation(
-        availability.id, availability.totalSize, RequestId.example, UInt256.example
+        availability.id, availability.totalSize, RequestId.example, UInt256.example,
+        1.u256,
       )
 
       let oneResult = await one
@@ -302,10 +314,11 @@ asyncchecksuite "Reservations module":
 
   test "availabilities can be found":
     let availability = createAvailability()
+    let collateralPerByte = 1.u256
 
     let found = await reservations.findAvailability(
-      availability.freeSize, availability.duration, availability.minPrice,
-      availability.maxCollateral,
+      availability.freeSize, availability.duration,
+      availability.minPricePerBytePerSecond, collateralPerByte,
     )
 
     check found.isSome
@@ -313,27 +326,28 @@ asyncchecksuite "Reservations module":
 
   test "non-matching availabilities are not found":
     let availability = createAvailability()
+    let collateralPerByte = 1.u256
 
     let found = await reservations.findAvailability(
       availability.freeSize + 1,
       availability.duration,
-      availability.minPrice,
-      availability.maxCollateral,
+      availability.minPricePerBytePerSecond,
+      collateralPerByte,
     )
 
     check found.isNone
 
-  test "non-existant availability cannot be found":
+  test "non-existent availability cannot be found":
     let availability = Availability.example
-    let found = (
-      await reservations.findAvailability(
-        availability.freeSize, availability.duration, availability.minPrice,
-        availability.maxCollateral,
-      )
+    let collateralPerByte = 1.u256
+    let found = await reservations.findAvailability(
+      availability.freeSize, availability.duration,
+      availability.minPricePerBytePerSecond, collateralPerByte,
     )
+
     check found.isNone
 
-  test "non-existant availability cannot be retrieved":
+  test "non-existent availability cannot be retrieved":
     let key = AvailabilityId.example.key.get
     let got = await reservations.get(key, Availability)
     check got.error of NotExistsError

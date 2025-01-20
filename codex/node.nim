@@ -389,7 +389,7 @@ proc setupRequest(
     duration = duration
     nodes = nodes
     tolerance = tolerance
-    pricePerBytePerSecond = pricePerByteSecond
+    pricePerBytePerSecond = pricePerBytePerSecond
     proofProbability = proofProbability
     collateralPerByte = collateralPerByte
     expiry = expiry
@@ -469,7 +469,7 @@ proc requestStorage*(
     duration = duration
     nodes = nodes
     tolerance = tolerance
-    pricePerByte = pricePerByte
+    pricePerBytePerSecond = pricePerBytePerSecond
     proofProbability = proofProbability
     collateralPerByte = collateralPerByte
     expiry = expiry.truncate(int64)
@@ -483,7 +483,7 @@ proc requestStorage*(
 
   without request =? (
     await self.setupRequest(
-      cid, duration, proofProbability, nodes, tolerance, pricePerByte,
+      cid, duration, proofProbability, nodes, tolerance, pricePerBytePerSecond,
       collateralPerByte, expiry,
     )
   ), err:

@@ -70,7 +70,6 @@ const DefaultMaxSize = 128'u16
 
 proc profitability(item: SlotQueueItem): UInt256 =
   StorageAsk(
-    collateralPerByte: item.collateralPerByte,
     duration: item.duration,
     pricePerBytePerSecond: item.pricePerBytePerSecond,
     slotSize: item.slotSize,
