@@ -25,7 +25,7 @@ jobs:
     steps:
     - name: Compute matrix
       id: matrix
-      uses: fabiocaccamo/create-matrix-action@v4
+      uses: fabiocaccamo/create-matrix-action@v5
       with:
         matrix: |
           os {linux},   cpu {amd64}, builder {ubuntu-20.04},     nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
