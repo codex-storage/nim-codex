@@ -25,7 +25,7 @@ type HardhatProcess* = ref object of NodeProcess
   logFile: ?IoHandle
 
 type
-  OnOutputLineCaptured = proc(line: string) {.raises: [].}
+  OnOutputLineCaptured = proc(line: string) {.gcsafe, raises: [].}
   HardhatProcess* = ref object of NodeProcess
     logFile: ?IoHandle
     onOutputLine: OnOutputLineCaptured
