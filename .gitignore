@@ -9,6 +9,9 @@
 
 nimcache/
 
+# Executables when using nix will be stored in result/ directory
+result/
+
 # Executables shall be put in an ignored build/ directory
 build/
 
