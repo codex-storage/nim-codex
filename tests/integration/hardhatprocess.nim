@@ -62,10 +62,10 @@ method start*(node: HardhatProcess) {.async.} =
   logScope:
     nodeName = node.name
 
-  if not fileExists(node.executable):
+  let binary = absolutePath(node.workingDir / node.executable)
+  if not fileExists(binary):
     raiseAssert "cannot start hardhat, binary doesn't exist (looking for " &
-      &"{absolutePath(node.workingDir / node.executable)}). Try running " &
-      &"`npm install` in {node.workingDir}."
+      &"{binary}). Try running `npm install` in {node.workingDir}."
 
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
   trace "starting node",
