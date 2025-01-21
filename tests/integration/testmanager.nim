@@ -138,7 +138,6 @@ template withLock*(lock: AsyncLock, body: untyped) =
   await lock.acquire()
   try:
     body
-    await sleepAsync(1.millis)
   finally:
     try:
       lock.release()
