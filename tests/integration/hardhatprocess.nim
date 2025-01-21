@@ -8,6 +8,7 @@ import pkg/stew/io2
 import std/os
 import std/sets
 import std/sequtils
+import std/strformat
 import std/strutils
 import pkg/codex/conf
 import pkg/codex/utils/trackedfutures
@@ -58,6 +59,14 @@ proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
   return fileHandle
 
 method start*(node: HardhatProcess) {.async.} =
+  logScope:
+    nodeName = node.name
+
+  if not fileExists(node.executable):
+    raiseAssert "cannot start hardhat, binary doesn't exist (looking for " &
+      &"{absolutePath(node.workingDir / node.executable)}). Try running " &
+      &"`npm install` in {node.workingDir}."
+
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
   trace "starting node",
     args = node.arguments,
