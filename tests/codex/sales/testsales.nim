@@ -62,7 +62,8 @@ asyncchecksuite "Sales - start":
     reservations = sales.context.reservations
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         onBatch: BatchProc): Future[?!void] {.async.} =
+                         onBatch: BatchProc,
+                         isRepairing = false): Future[?!void] {.async.} =
       return success()
 
     sales.onExpiryUpdate = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.async.} =
@@ -171,7 +172,8 @@ asyncchecksuite "Sales":
     reservations = sales.context.reservations
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         onBatch: BatchProc): Future[?!void] {.async.} =
+                         onBatch: BatchProc,
+                         isRepairing = false): Future[?!void] {.async.} =
       return success()
 
     sales.onExpiryUpdate = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.async.} =
@@ -335,7 +337,8 @@ asyncchecksuite "Sales":
   test "availability size is reduced by request slot size when fully downloaded":
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         onBatch: BatchProc): Future[?!void] {.async.} =
+                         onBatch: BatchProc,
+                         isRepairing = false): Future[?!void] {.async.} =
       let blk = bt.Block.new( @[1.byte] ).get
       await onBatch( blk.repeat(request.ask.slotSize.truncate(int)) )
 
@@ -347,7 +350,8 @@ asyncchecksuite "Sales":
     var slotIndex = 0.u256
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         onBatch: BatchProc): Future[?!void] {.async.} =
+                         onBatch: BatchProc,
+                         isRepairing = false): Future[?!void] {.async.} =
       slotIndex = slot
       let blk = bt.Block.new( @[1.byte] ).get
       await onBatch(@[ blk ])
@@ -407,7 +411,8 @@ asyncchecksuite "Sales":
     var storingSlot: UInt256
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         onBatch: BatchProc): Future[?!void] {.async.} =
+                         onBatch: BatchProc,
+                         isRepairing = false): Future[?!void] {.async.} =
       storingRequest = request
       storingSlot = slot
       return success()
@@ -436,7 +441,8 @@ asyncchecksuite "Sales":
     let error = newException(IOError, "data retrieval failed")
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         onBatch: BatchProc): Future[?!void] {.async.} =
+                         onBatch: BatchProc,
+                         isRepairing = false): Future[?!void] {.async.} =
       return failure(error)
     createAvailability()
     await market.requestStorage(request)
@@ -503,7 +509,8 @@ asyncchecksuite "Sales":
     let otherHost = Address.example
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         onBatch: BatchProc): Future[?!void] {.async.} =
+                         onBatch: BatchProc,
+                         isRepairing = false): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
     createAvailability()
@@ -519,7 +526,8 @@ asyncchecksuite "Sales":
     let origSize = availability.freeSize
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         onBatch: BatchProc): Future[?!void] {.async.} =
+                         onBatch: BatchProc,
+                         isRepairing = false): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
     createAvailability()
@@ -544,7 +552,8 @@ asyncchecksuite "Sales":
     let origSize = availability.freeSize
     sales.onStore = proc(request: StorageRequest,
                          slot: UInt256,
-                         onBatch: BatchProc): Future[?!void] {.async.} =
+                         onBatch: BatchProc,
+                         isRepairing = false): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
     createAvailability()

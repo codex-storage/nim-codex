@@ -126,7 +126,7 @@ asyncchecksuite "Test Node - Host contracts":
         fetchedBytes += blk.data.len.uint
       return success()
 
-    (await onStore(request, 1.u256, onBlocks)).tryGet()
+    (await onStore(request, 1.u256, onBlocks, isRepairing = false)).tryGet()
     check fetchedBytes == 12 * DefaultBlockSize.uint
 
     let indexer = verifiable.protectedStrategy.init(
