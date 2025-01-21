@@ -103,12 +103,14 @@ runs:
       with:
         create-symlink: true
         key: ${{ matrix.os }}-${{ matrix.builder }}-${{ matrix.cpu }}-${{ matrix.tests }}-${{ matrix.nim_version }}
+        evict-old-files: 7d
 
     - name: Install ccache on Windows
       if: inputs.os == 'windows'
       uses: hendrikmuhs/ccache-action@v1.2
       with:
         key: ${{ matrix.os }}-${{ matrix.builder }}-${{ matrix.cpu }}-${{ matrix.tests }}-${{ matrix.nim_version }}
+        evict-old-files: 7d
 
     - name: Enable ccache on Windows
       if: inputs.os == 'windows'
