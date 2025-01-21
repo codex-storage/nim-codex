@@ -65,10 +65,14 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
                                        reservation.availabilityId,
                                        bytes)
 
+  let slotId = slotId(request.id, data.slotIndex)
+  let isRepairing = (await context.market.slotState(slotId)) == SlotState.Repair
+
   trace "Starting download"
   if err =? (await onStore(request,
                            data.slotIndex,
-                           onBlocks)).errorOption:
+                           onBlocks,
+                           isRepairing)).errorOption:
     return some State(SaleErrored(error: err, reprocessSlot: false))
 
   trace "Download complete"

@@ -139,6 +139,20 @@ suite "Slot queue":
     newSlotQueue(maxSize = 2, maxWorkers = 2)
     check queue.size == 2
 
+  test "returns the collateral when the slot is not being repaired":
+    var requestA = StorageRequest.example
+    let itemA = SlotQueueItem.init(requestA, 0, isRepairing = false)
+    check itemA.effectiveCollateral == requestA.ask.collateral
+
+  test "correctly calculates the collateral when the slot is being repaired":
+    var requestA = StorageRequest.example
+    requestA.ask.collateral = 100000.u256
+    let itemA = SlotQueueItem.init(requestA,
+                                   slotIndex = 0.uint16,
+                                   isRepairing = true,
+                                   repairRewardPercentage = 10.u256)
+    check itemA.effectiveCollateral == 90000.u256
+
   test "correctly compares SlotQueueItems":
     var requestA = StorageRequest.example
     requestA.ask.duration = 1.u256
@@ -280,6 +294,33 @@ suite "Slot queue":
       collateral: 1.u256,
       expiry: 1.u256,
       seen: false
+    )
+
+    check itemB.toSlotQueueItem < itemA.toSlotQueueItem # < indicates higher priority
+
+  test "correct prioritizes SlotQueueItems when a slot is being repaired":
+    let request = StorageRequest.example
+    let itemA = MockSlotQueueItem(
+      requestId: request.id,
+      slotIndex: 0,
+      slotSize: 1.u256,
+      duration: 1.u256,
+      reward: 1.u256,
+      collateral: 2.u256,
+      expiry: 1.u256,
+      seen: false
+    )
+    let itemB = MockSlotQueueItem(
+      requestId: request.id,
+      slotIndex: 0,
+      slotSize: 1.u256,
+      duration: 1.u256,
+      reward: 1.u256,
+      collateral: 2.u256,
+      expiry: 1.u256,
+      seen: false,
+      isRepairing: true,
+      repairRewardPercentage: 50.u256
     )
 
     check itemB.toSlotQueueItem < itemA.toSlotQueueItem # < indicates higher priority

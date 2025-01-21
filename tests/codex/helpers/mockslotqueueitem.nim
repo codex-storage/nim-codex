@@ -10,6 +10,8 @@ type MockSlotQueueItem* = object
   collateral*: UInt256
   expiry*: UInt256
   seen*: bool
+  isRepairing*: bool
+  repairRewardPercentage*: UInt256
 
 proc toSlotQueueItem*(item: MockSlotQueueItem): SlotQueueItem =
   SlotQueueItem.init(
@@ -22,5 +24,7 @@ proc toSlotQueueItem*(item: MockSlotQueueItem): SlotQueueItem =
             collateral: item.collateral
           ),
     expiry = item.expiry,
-    seen = item.seen
+    seen = item.seen,
+    isRepairing = item.isRepairing,
+    repairRewardPercentage = item.repairRewardPercentage
   )

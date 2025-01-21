@@ -146,6 +146,10 @@ proc cleanUp(sales: Sales,
                   )).errorOption:
       error "failure deleting reservation", error = deleteErr.msg
 
+  let repairRewardPercentage = (await sales.context.market.repairRewardPercentage).u256
+  let slotId = slotId(data.requestId, data.slotIndex)
+  let isRepairing = (await sales.context.market.slotState(slotId)) == SlotState.Repair
+
   # Re-add items back into the queue to prevent small availabilities from
   # draining the queue. Seen items will be ordered last.
   if reprocessSlot and request =? data.request:
@@ -154,7 +158,9 @@ proc cleanUp(sales: Sales,
                                       data.slotIndex.truncate(uint16),
                                       data.ask,
                                       request.expiry,
-                                      seen = true)
+                                      seen = true,
+                                      isRepairing = isRepairing,
+                                      repairRewardPercentage = repairRewardPercentage)
     trace "pushing ignored item to queue, marked as seen"
     if err =? queue.push(seenItem).errorOption:
       error "failed to readd slot to queue",
@@ -341,7 +347,12 @@ proc onSlotFreed(sales: Sales,
           error "unknown request in contract"
           return
 
-        found = SlotQueueItem.init(request, slotIndex.truncate(uint16))
+        let repairRewardPercentage = (await sales.context.market.repairRewardPercentage).u256
+
+        found = SlotQueueItem.init(request,
+                                   slotIndex.truncate(uint16),
+                                   isRepairing = true,
+                                   repairRewardPercentage = repairRewardPercentage)
       except CancelledError:
         discard # do not propagate as addSlotToQueue was asyncSpawned
       except CatchableError as e:

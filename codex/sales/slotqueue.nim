@@ -36,6 +36,8 @@ type
     collateral: UInt256
     expiry: UInt256
     seen: bool
+    isRepairing: bool
+    repairRewardPercentage: UInt256
 
   # don't need to -1 to prevent overflow when adding 1 (to always allow push)
   # because AsyncHeapQueue size is of type `int`, which is larger than `uint16`
@@ -74,6 +76,17 @@ proc profitability(item: SlotQueueItem): UInt256 =
              reward: item.reward,
              slotSize: item.slotSize).pricePerSlot
 
+# Take the repairing state into consideration to calculate the collateral.
+# This is particularly needed because it will affect the priority in the queue
+# and we want to give the user the ability to tweak the parameters.
+# Adding the repairing state directly in the queue priority calculation
+# would not allow this flexibility.
+proc effectiveCollateral*(a: SlotQueueItem): UInt256 =
+    if a.isRepairing:
+      return a.collateral - (a.collateral * a.repairRewardPercentage).div(100.u256)
+    else:
+      return a.collateral
+
 proc `<`*(a, b: SlotQueueItem): bool =
   # for A to have a higher priority than B (in a min queue), A must be less than
   # B.
@@ -90,8 +103,8 @@ proc `<`*(a, b: SlotQueueItem): bool =
   scoreA.addIf(a.profitability > b.profitability, 3)
   scoreB.addIf(a.profitability < b.profitability, 3)
 
-  scoreA.addIf(a.collateral < b.collateral, 2)
-  scoreB.addIf(a.collateral > b.collateral, 2)
+  scoreA.addIf(a.effectiveCollateral < b.effectiveCollateral, 2)
+  scoreB.addIf(a.effectiveCollateral > b.effectiveCollateral, 2)
 
   scoreA.addIf(a.expiry > b.expiry, 1)
   scoreB.addIf(a.expiry < b.expiry, 1)
@@ -136,7 +149,9 @@ proc init*(_: type SlotQueueItem,
           slotIndex: uint16,
           ask: StorageAsk,
           expiry: UInt256,
-          seen = false): SlotQueueItem =
+          seen = false,
+          isRepairing = false,
+          repairRewardPercentage = 0.u256): SlotQueueItem =
 
   SlotQueueItem(
     requestId: requestId,
@@ -146,17 +161,23 @@ proc init*(_: type SlotQueueItem,
     reward: ask.reward,
     collateral: ask.collateral,
     expiry: expiry,
-    seen: seen
+    seen: seen,
+    isRepairing: isRepairing,
+    repairRewardPercentage: repairRewardPercentage
   )
 
 proc init*(_: type SlotQueueItem,
            request: StorageRequest,
-           slotIndex: uint16): SlotQueueItem =
+           slotIndex: uint16,
+           isRepairing = false,
+           repairRewardPercentage = 0.u256): SlotQueueItem =
 
   SlotQueueItem.init(request.id,
                      slotIndex,
                      request.ask,
-                     request.expiry)
+                     request.expiry,
+                     isRepairing = isRepairing,
+                     repairRewardPercentage = repairRewardPercentage)
 
 proc init*(_: type SlotQueueItem,
           requestId: RequestId,
