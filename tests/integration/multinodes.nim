@@ -123,7 +123,6 @@ template multinodesuite*(name: string, body: untyped) =
 
       let port = await nextFreePort(HardhatPort)
       jsonRpcProviderUrl.updatePort(port)
-      trace "updated jsonRpcProviderUrl", jsonRpcProviderUrl
       args.add("--port")
       args.add($port)
 
