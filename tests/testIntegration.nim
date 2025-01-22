@@ -49,7 +49,8 @@ proc run() {.async.} =
   when DebugTestHarness and enabledLogLevel != LogLevel.TRACE:
     styledEcho bgWhite,
       fgBlack, styleBright, "\n\n  ", styleUnderscore,
-      "ADDITIONAL LOGGING AVAILABILE\n\n", resetStyle, bgWhite, fgBlack, styleBright,
+      "ℹ️  ADDITIONAL LOGGING AVAILABLE ℹ️\n\n", resetStyle, bgWhite, fgBlack,
+      styleBright,
       """
   More integration test harness logs available by running with
   -d:chronicles_log_level=TRACE, eg:""",
@@ -58,8 +59,9 @@ proc run() {.async.} =
 
   when DebugCodexNodes:
     styledEcho bgWhite,
-      fgBlack, styleBright, "\n\n  ", styleUnderscore, "ENABLE CODEX LOGGING\n\n",
-      resetStyle, bgWhite, fgBlack, styleBright,
+      fgBlack, styleBright, "\n\n  ", styleUnderscore,
+      "⚠️ ENABLE CODEX LOGGING ⚠️\n\n", resetStyle, bgWhite, fgBlack,
+      styleBright,
       """
   For integration test suites that are multinodesuites, or for
   tests launching a CodexProcess, ensure that CodexConfig.debug
