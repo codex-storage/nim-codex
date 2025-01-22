@@ -130,11 +130,9 @@ method stop*(node: NodeProcess, expectedErrCode: int = -1) {.base, async.} =
       trace "waiting for node process to exit"
       let exitCode = await node.process.waitForExit(3.seconds)
 
-      if exitCode > 0 and
-         exitCode != 143 and # 143 = SIGTERM (initiated above)
-         exitCode != expectedErrCode:
+      if exitCode > 0 and exitCode != 143 and # 143 = SIGTERM (initiated above)
+      exitCode != expectedErrCode:
         error "failed to exit process, check for zombies", exitCode
-
     except CancelledError as error:
       raise error
     except CatchableError as e:
