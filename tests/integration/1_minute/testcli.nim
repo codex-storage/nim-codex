@@ -21,7 +21,7 @@ asyncchecksuite "Command line interface":
       args.concat(
         @[
           "--api-port=" & $(await nextFreePort(8080 + nodeCount)),
-          "--disc-port=" & $(await nextFreePort(8090 + nodeCount))
+          "--disc-port=" & $(await nextFreePort(8090 + nodeCount)),
         ]
       ),
       debug = false,
@@ -40,7 +40,7 @@ asyncchecksuite "Command line interface":
       @[
         "persistence",
         "--eth-provider=" & "http://127.0.0.1:" & $HardhatPort,
-        "--eth-private-key=" & unsafeKeyFile
+        "--eth-private-key=" & unsafeKeyFile,
       ]
     )
     await node.waitUntilOutput(
@@ -66,7 +66,7 @@ asyncchecksuite "Command line interface":
         "--eth-provider=" & "http://127.0.0.1:" & $HardhatPort,
         "prover",
         marketplaceArg,
-        "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs"
+        "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
       ]
     )
     await node.waitUntilOutput(expectedDownloadInstruction)
@@ -80,7 +80,7 @@ asyncchecksuite "Command line interface":
         "prover",
         marketplaceArg,
         "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
-        "--circom-wasm=tests/circuits/fixtures/proof_main.wasm"
+        "--circom-wasm=tests/circuits/fixtures/proof_main.wasm",
       ]
     )
     await node.waitUntilOutput(expectedDownloadInstruction)
