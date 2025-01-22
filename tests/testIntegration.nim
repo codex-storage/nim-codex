@@ -43,7 +43,7 @@ proc run() {.async.} =
   # Echoes stdout from the integration test file process. Codex process logs can
   # also be output if a test uses a multinodesuite, requires CodexConfig.debug
   # to be enabled
-  const debugCodexNodes = false
+  const debugCodexNodes = true
   # Shows test status updates at time intervals. Useful for running locally with
   # active terminal interaction. Set to false for unattended runs, eg CI.
   const showContinuousStatusUpdates = true
@@ -55,8 +55,8 @@ proc run() {.async.} =
       fgBlack, styleBright, "\n\n  ", styleUnderscore,
       "ADDITIONAL LOGGING AVAILABILE\n\n", resetStyle, bgWhite, fgBlack, styleBright,
       """
-More integration test harness logs available by running with
--d:chronicles_log_level=TRACE, eg:""",
+  More integration test harness logs available by running with
+  -d:chronicles_log_level=TRACE, eg:""",
       resetStyle, bgWhite, fgBlack,
       "\n\n  nim c -d:chronicles_log_level=TRACE -r ./testIntegration.nim\n\n"
 
@@ -67,7 +67,7 @@ More integration test harness logs available by running with
       """
   For integration test suites that are multinodesuites, or for
   tests launching a CodexProcess, ensure that CodexConfig.debug
-  is enabled.
+  is enabled to see chronicles logs.
   """
 
   let manager = TestManager.new(
