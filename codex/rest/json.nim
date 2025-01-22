@@ -31,7 +31,7 @@ type
     totalSize* {.serialize.}: UInt256
     duration* {.serialize.}: UInt256
     minPricePerBytePerSecond* {.serialize.}: UInt256
-    totalRemainingCollateral* {.serialize.}: UInt256
+    totalCollateral* {.serialize.}: UInt256
     freeSize* {.serialize.}: ?UInt256
 
   RestSalesAgent* = object

@@ -22,6 +22,8 @@
 ## |---------------------------------------------------|
 ## | UInt256          | minPricePerBytePerSecond |     |
 ## |---------------------------------------------------|
+## | UInt256          | totalCollateral          |     |
+## |---------------------------------------------------|
 ## | UInt256          | totalRemainingCollateral |     |
 ## +---------------------------------------------------+
 
@@ -66,6 +68,7 @@ type
     freeSize* {.serialize.}: UInt256
     duration* {.serialize.}: UInt256
     minPricePerBytePerSecond* {.serialize.}: UInt256
+    totalCollateral {.serialize.}: UInt256
     totalRemainingCollateral* {.serialize.}: UInt256
 
   Reservation* = ref object
@@ -124,7 +127,7 @@ proc init*(
     freeSize: UInt256,
     duration: UInt256,
     minPricePerBytePerSecond: UInt256,
-    totalRemainingCollateral: UInt256,
+    totalCollateral: UInt256,
 ): Availability =
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
@@ -134,8 +137,16 @@ proc init*(
     freeSize: freeSize,
     duration: duration,
     minPricePerBytePerSecond: minPricePerBytePerSecond,
-    totalRemainingCollateral: totalRemainingCollateral,
+    totalCollateral: totalCollateral,
+    totalRemainingCollateral: totalCollateral,
   )
+
+func totalCollateral*(self: Availability): UInt256 {.inline.} =
+  return self.totalCollateral
+
+proc `totalCollateral=`*(self: Availability, value: UInt256) {.inline.} =
+  self.totalCollateral = value
+  self.totalRemainingCollateral = value
 
 proc init*(
     _: type Reservation,
@@ -381,14 +392,13 @@ proc createAvailability*(
     size: UInt256,
     duration: UInt256,
     minPricePerBytePerSecond: UInt256,
-    totalRemainingCollateral: UInt256,
+    totalCollateral: UInt256,
 ): Future[?!Availability] {.async.} =
   trace "creating availability",
-    size, duration, minPricePerBytePerSecond, totalRemainingCollateral
+    size, duration, minPricePerBytePerSecond, totalCollateral
 
-  let availability = Availability.init(
-    size, size, duration, minPricePerBytePerSecond, totalRemainingCollateral
-  )
+  let availability =
+    Availability.init(size, size, duration, minPricePerBytePerSecond, totalCollateral)
   let bytes = availability.freeSize.truncate(uint)
 
   if reserveErr =? (await self.repo.reserve(bytes.NBytes)).errorOption:

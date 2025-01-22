@@ -53,7 +53,7 @@ suite "Taiko L2 Integration Tests":
       size = size,
       duration = 200.u256,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalRemainingCollateral = totalCollateral,
+      totalCollateral = totalCollateral,
     )
     let cid = !node1.client.upload("some file contents")
 

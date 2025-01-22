@@ -33,12 +33,12 @@ asyncchecksuite "sales state 'preparing'":
   var reservations: MockReservations
 
   setup:
-    availability = Availability(
-      totalSize: request.ask.slotSize + 100.u256,
-      freeSize: request.ask.slotSize + 100.u256,
-      duration: request.ask.duration + 60.u256,
-      minPricePerBytePerSecond: request.ask.pricePerBytePerSecond,
-      totalRemainingCollateral: request.ask.collateralPerSlot * request.ask.slots.u256,
+    availability = Availability.init(
+      totalSize = request.ask.slotSize + 100.u256,
+      freeSize = request.ask.slotSize + 100.u256,
+      duration = request.ask.duration + 60.u256,
+      minPricePerBytePerSecond = request.ask.pricePerBytePerSecond,
+      totalCollateral = request.ask.collateralPerSlot * request.ask.slots.u256,
     )
     let repoDs = SQLiteDatastore.new(Memory).tryGet()
     let metaDs = SQLiteDatastore.new(Memory).tryGet()
@@ -70,7 +70,7 @@ asyncchecksuite "sales state 'preparing'":
   proc createAvailability() {.async.} =
     let a = await reservations.createAvailability(
       availability.totalSize, availability.duration,
-      availability.minPricePerBytePerSecond, availability.totalRemainingCollateral,
+      availability.minPricePerBytePerSecond, availability.totalCollateral,
     )
     availability = a.get
 

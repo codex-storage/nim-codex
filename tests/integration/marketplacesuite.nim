@@ -45,7 +45,9 @@ template marketplacesuite*(name: string, body: untyped) =
     proc periods(p: int): uint64 =
       p.uint64 * period
 
-    proc createAvailabilities(datasetSize: int, duration: uint64) =
+    proc createAvailabilities(
+        datasetSize: int, duration: uint64, totalCollateral: UInt256
+    ) =
       # post availability to each provider
       for i in 0 ..< providers().len:
         let provider = providers()[i].client
@@ -54,7 +56,7 @@ template marketplacesuite*(name: string, body: untyped) =
           totalSize = datasetSize.u256, # should match 1 slot only
           duration = duration.u256,
           minPricePerBytePerSecond = 1.u256,
-          totalRemainingCollateral = 200.u256,
+          totalCollateral = totalCollateral,
         )
 
     proc requestStorage(

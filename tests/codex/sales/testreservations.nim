@@ -41,10 +41,9 @@ asyncchecksuite "Reservations module":
     let example = Availability.example
     let totalSize = rand(100000 .. 200000).u256
     let collateralPerByte = 1.u256
-    let totalRemainingCollateral = totalSize * collateralPerByte
+    let totalCollateral = totalSize * collateralPerByte
     let availability = waitFor reservations.createAvailability(
-      totalSize, example.duration, example.minPricePerBytePerSecond,
-      totalRemainingCollateral,
+      totalSize, example.duration, example.minPricePerBytePerSecond, totalCollateral
     )
     return availability.get
 

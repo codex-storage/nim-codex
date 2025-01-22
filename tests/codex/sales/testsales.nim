@@ -143,12 +143,12 @@ asyncchecksuite "Sales":
     minPricePerBytePerSecond = 1.u256
     requestedCollateralPerByte = 1.u256
     totalCollateral = requestedCollateralPerByte * totalAvailabilitySize
-    availability = Availability(
-      totalSize: totalAvailabilitySize,
-      freeSize: totalAvailabilitySize,
-      duration: 60.u256,
-      minPricePerBytePerSecond: minPricePerBytePerSecond,
-      totalRemainingCollateral: totalCollateral,
+    availability = Availability.init(
+      totalSize = totalAvailabilitySize,
+      freeSize = totalAvailabilitySize,
+      duration = 60.u256,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = totalCollateral,
     )
     request = StorageRequest(
       ask: StorageAsk(
@@ -219,7 +219,7 @@ asyncchecksuite "Sales":
   proc createAvailability() =
     let a = waitFor reservations.createAvailability(
       availability.totalSize, availability.duration,
-      availability.minPricePerBytePerSecond, availability.totalRemainingCollateral,
+      availability.minPricePerBytePerSecond, availability.totalCollateral,
     )
     availability = a.get # update id
 

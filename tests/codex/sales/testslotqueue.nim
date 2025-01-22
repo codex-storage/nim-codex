@@ -203,7 +203,8 @@ suite "Slot queue":
       slotIndex: 0,
       slotSize: 1.u256,
       duration: 1.u256,
-      pricePerBytePerSecond: 2.u256, # reward is higher (good), more weight than collateral
+      pricePerBytePerSecond: 2.u256,
+        # reward is higher (good), more weight than collateral
       collateralPerByte: 2.u256, # collateral is higher (bad)
       expiry: 1.u256,
       seen: false,

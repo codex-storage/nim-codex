@@ -156,7 +156,7 @@ marketplacesuite "Marketplace payouts":
       totalSize = totalAvailabilitySize,
       duration = duration.u256,
       minPricePerBytePerSecond = pricePerBytePerSecond,
-      totalRemainingCollateral = collateralPerByte * totalAvailabilitySize,
+      totalCollateral = collateralPerByte * totalAvailabilitySize,
     )
 
     let cid = clientApi.upload(data).get
