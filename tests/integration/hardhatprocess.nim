@@ -22,9 +22,6 @@ export nodeprocess
 logScope:
   topics = "integration testing hardhat process"
 
-type HardhatProcess* = ref object of NodeProcess
-  logFile: ?IoHandle
-
 type
   OnOutputLineCaptured = proc(line: string) {.gcsafe, raises: [].}
   HardhatProcess* = ref object of NodeProcess
@@ -111,6 +108,7 @@ proc startNode*(
     args: seq[string],
     debug: string | bool = false,
     name: string,
+    onOutputLineCaptured: OnOutputLineCaptured = nil,
 ): Future[HardhatProcess] {.async.} =
   logScope:
     nodeName = name
@@ -132,6 +130,7 @@ proc startNode*(
     debug: ($debug != "false"),
     trackedFutures: TrackedFutures.new(),
     name: name,
+    onOutputLine: onOutputLineCaptured,
   )
 
   await hardhat.start()
@@ -141,7 +140,7 @@ proc startNode*(
 
   return hardhat
 
-method onOutputLineCaptured(node: HardhatProcess, line: string) =
+method onOutputLineCaptured(node: HardhatProcess, line: string) {.raises: [].} =
   logScope:
     nodeName = node.name
 
