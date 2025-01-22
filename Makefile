@@ -141,10 +141,28 @@ testContracts: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testContracts $(NIM_PARAMS) build.nims
 
+TEST_PARAMS :=
+ifdef DEBUG_TESTHARNESS
+	TEST_PARAMS := $(TEST_PARAMS) -d:DebugTestHarness=$(DEBUG_TESTHARNESS)
+endif
+ifdef DEBUG_HARDHAT
+  TEST_PARAMS := $(TEST_PARAMS) -d:DebugHardhat=$(DEBUG_HARDHAT)
+endif
+ifdef DEBUG_CODEXNODES
+  TEST_PARAMS := $(TEST_PARAMS) -d:DebugCodexNodes=$(DEBUG_CODEXNODES)
+endif
+ifdef DEBUG_UPDATES
+  TEST_PARAMS := $(TEST_PARAMS) -d:ShowContinuousStatusUpdates=$(DEBUG_UPDATES)
+endif
+ifdef TEST_TIMEOUT
+  TEST_PARAMS := $(TEST_PARAMS) -d:TestTimeout=$(TEST_TIMEOUT)
+endif
+
 # Builds and runs the integration tests
 testIntegration: | build deps
+	echo TEST PARAMS: $(TEST_PARAMS)
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testIntegration $(NIM_PARAMS) build.nims
+		$(ENV_SCRIPT) nim testIntegration $(TEST_PARAMS) $(NIM_PARAMS) build.nims
 
 # Builds and runs all tests (except for Taiko L2 tests)
 testAll: | build deps
