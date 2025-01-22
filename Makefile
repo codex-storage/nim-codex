@@ -148,7 +148,7 @@ endif
 ifdef DEBUG_HARDHAT
   TEST_PARAMS := $(TEST_PARAMS) -d:DebugHardhat=$(DEBUG_HARDHAT)
 endif
-ifdef DEBUG_CODEXNODES
+ifdef DEBUG_CODEXNODES # true by default
   TEST_PARAMS := $(TEST_PARAMS) -d:DebugCodexNodes=$(DEBUG_CODEXNODES)
 endif
 ifdef DEBUG_UPDATES
