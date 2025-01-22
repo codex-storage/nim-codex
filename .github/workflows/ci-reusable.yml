@@ -54,13 +54,20 @@ jobs:
         with:
           node-version: 22
 
-      - name: Start Ethereum node with Codex contracts
+      - name: Install Ethereum node dependencies
+        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'tools' || matrix.tests == 'all'
+        working-directory: vendor/codex-contracts-eth
+        env:
+          MSYS2_PATH_TYPE: inherit
+        run: |
+          npm install
+
+      - name: Run Ethereum node with Codex contracts
         if: matrix.tests == 'contract' || matrix.tests == 'tools' || matrix.tests == 'all'
         working-directory: vendor/codex-contracts-eth
         env:
           MSYS2_PATH_TYPE: inherit
         run: |
-          npm ci
           npm start &
           # Wait for the contracts to be deployed
           sleep 5
