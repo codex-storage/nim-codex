@@ -50,33 +50,40 @@ type
     name: string
 
   IntegrationTestStatus = enum ## The status of a test when it is done.
-    New,      # Test not yet run
-    Running,  # Test currently running
-    Ok,       # Test file launched, and exited with 0. Indicates all tests completed and passed.
-    Failed,   # Test file launched, but exited with a non-zero exit code. Indicates either the test file did not compile, or one or more of the tests in the file failed
-    Timeout,  # Test file launched, but the tests did not complete before the timeout.
-    Error     # Test file did not launch correctly. Indicates an error occurred running the tests (usually an error in the harness).
+    New # Test not yet run
+    Running # Test currently running
+    Ok # Test file launched, and exited with 0. Indicates all tests completed and passed.
+    Failed
+      # Test file launched, but exited with a non-zero exit code. Indicates either the test file did not compile, or one or more of the tests in the file failed
+    Timeout # Test file launched, but the tests did not complete before the timeout.
+    Error
+      # Test file did not launch correctly. Indicates an error occurred running the tests (usually an error in the harness).
 
   IntegrationTest = ref object
     manager: TestManager
     config: IntegrationTestConfig
-    process: Future[CommandExResponse].Raising([AsyncProcessError, AsyncProcessTimeoutError, CancelledError])
+    process: Future[CommandExResponse].Raising(
+      [AsyncProcessError, AsyncProcessTimeoutError, CancelledError]
+    )
     timeStart: ?Moment
     timeEnd: ?Moment
     output: ?!CommandExResponse
-    testId: string    # when used in datadir path, prevents data dir clashes
+    testId: string # when used in datadir path, prevents data dir clashes
     status: IntegrationTestStatus
     command: string
 
   TestManagerError* = object of CatchableError
 
   Border {.pure.} = enum
-    Left, Right
+    Left
+    Right
+
   Align {.pure.} = enum
-    Left, Right
+    Left
+    Right
 
   MarkerPosition {.pure.} = enum
-    Start,
+    Start
     Finish
 
 {.push raises: [].}
@@ -84,9 +91,13 @@ type
 logScope:
   topics = "testing integration testmanager"
 
-proc printOutputMarker(test: IntegrationTest, position: MarkerPosition, msg: string) {.gcsafe, raises: [].}
+proc printOutputMarker(
+  test: IntegrationTest, position: MarkerPosition, msg: string
+) {.gcsafe, raises: [].}
 
-proc raiseTestManagerError(msg: string, parent: ref CatchableError = nil) {.raises: [TestManagerError].} =
+proc raiseTestManagerError(
+    msg: string, parent: ref CatchableError = nil
+) {.raises: [TestManagerError].} =
   raise newException(TestManagerError, msg, parent)
 
 template echoStyled(args: varargs[untyped]) =
@@ -97,14 +108,14 @@ template echoStyled(args: varargs[untyped]) =
     error "failed to print to terminal", error = parent.msg
 
 proc new*(
-  _: type TestManager,
-  configs: seq[IntegrationTestConfig],
-  debugTestHarness = false,
-  debugHardhat = false,
-  debugCodexNodes = false,
-  showContinuousStatusUpdates = false,
-  testTimeout = 60.minutes): TestManager =
-
+    _: type TestManager,
+    configs: seq[IntegrationTestConfig],
+    debugTestHarness = false,
+    debugHardhat = false,
+    debugCodexNodes = false,
+    showContinuousStatusUpdates = false,
+    testTimeout = 60.minutes,
+): TestManager =
   TestManager(
     configs: configs,
     lastHardhatPort: 8545,
@@ -117,18 +128,12 @@ proc new*(
   )
 
 func init*(
-  _: type IntegrationTestConfig,
-  testFile: string,
-  startHardhat: bool,
-  name = ""): IntegrationTestConfig =
-
+    _: type IntegrationTestConfig, testFile: string, startHardhat: bool, name = ""
+): IntegrationTestConfig =
   IntegrationTestConfig(
     testFile: testFile,
-    name: if name == "":
-            testFile.extractFilename
-          else:
-            name,
-    startHardhat: startHardhat
+    name: if name == "": testFile.extractFilename else: name,
+    startHardhat: startHardhat,
   )
 
 template withLock*(lock: AsyncLock, body: untyped) =
@@ -144,7 +149,6 @@ template withLock*(lock: AsyncLock, body: untyped) =
     except AsyncLockError as parent:
       raiseTestManagerError "lock error", parent
 
-
 proc duration(manager: TestManager): Duration =
   let now = Moment.now()
   (manager.timeEnd |? now) - (manager.timeStart |? now)
@@ -154,8 +158,8 @@ proc duration(test: IntegrationTest): Duration =
   (test.timeEnd |? now) - (test.timeStart |? now)
 
 proc startHardhat(
-  test: IntegrationTest): Future[Hardhat] {.async: (raises: [CancelledError, TestManagerError]).} =
-
+    test: IntegrationTest
+): Future[Hardhat] {.async: (raises: [CancelledError, TestManagerError]).} =
   var args: seq[string] = @[]
   var port: int
 
@@ -175,10 +179,8 @@ proc startHardhat(
   try:
     withLock(test.manager.hardhatProcessLock):
       let node = await HardhatProcess.startNode(
-        args,
-        false,
-        "hardhat for '" & test.config.name & "'",
-        onOutputLineCaptured)
+        args, false, "hardhat for '" & test.config.name & "'", onOutputLineCaptured
+      )
       hardhat.process = node
       hardhat.port = port
       await node.waitUntilStarted()
@@ -193,40 +195,36 @@ proc startHardhat(
       test.printOutputMarker(MarkerPosition.Finish, "hardhat stdout")
     raiseTestManagerError "hardhat node failed to start: " & e.msg, e
 
-proc printResult(
-  test: IntegrationTest,
-  colour: ForegroundColor) =
+proc printResult(test: IntegrationTest, colour: ForegroundColor) =
+  echoStyled styleBright,
+    colour,
+    &"[{toUpper $test.status}] ",
+    resetStyle,
+    test.config.name,
+    resetStyle,
+    styleDim,
+    &" ({test.duration})"
 
-  echoStyled styleBright, colour, &"[{toUpper $test.status}] ",
-            resetStyle, test.config.name,
-            resetStyle, styleDim, &" ({test.duration})"
-
-proc printOutputMarker(
-  test: IntegrationTest,
-  position: MarkerPosition,
-  msg: string) =
-
+proc printOutputMarker(test: IntegrationTest, position: MarkerPosition, msg: string) =
   if position == MarkerPosition.Start:
     echo ""
 
-  echoStyled styleBright, bgWhite, fgBlack,
-    &"----- {toUpper $position} {test.config.name} {msg} -----"
+  echoStyled styleBright,
+    bgWhite, fgBlack, &"----- {toUpper $position} {test.config.name} {msg} -----"
 
   if position == MarkerPosition.Finish:
     echo ""
 
 proc printResult(
-  test: IntegrationTest,
-  printStdOut = test.manager.debugCodexNodes,
-  printStdErr = test.manager.debugTestHarness) =
-
-  case test.status:
+    test: IntegrationTest,
+    printStdOut = test.manager.debugCodexNodes,
+    printStdErr = test.manager.debugTestHarness,
+) =
+  case test.status
   of IntegrationTestStatus.New:
     test.printResult(fgBlue)
-
   of IntegrationTestStatus.Running:
     test.printResult(fgCyan)
-
   of IntegrationTestStatus.Error:
     if error =? test.output.errorOption:
       test.printResult(fgRed)
@@ -234,61 +232,51 @@ proc printResult(
       echo "Error during test execution: ", error.msg
       echo "Stacktrace: ", error.getStackTrace()
       test.printOutputMarker(MarkerPosition.Finish, "test harness errors")
-
   of IntegrationTestStatus.Failed:
     if output =? test.output:
       if printStdErr: #manager.debugTestHarness
-        test.printOutputMarker(MarkerPosition.Start,
-                                 "test harness errors (stderr)")
+        test.printOutputMarker(MarkerPosition.Start, "test harness errors (stderr)")
         echo output.stdError
-        test.printOutputMarker(MarkerPosition.Finish,
-                                 "test harness errors (stderr)")
+        test.printOutputMarker(MarkerPosition.Finish, "test harness errors (stderr)")
       if printStdOut:
-        test.printOutputMarker(MarkerPosition.Start,
-                                 "codex node output (stdout)")
+        test.printOutputMarker(MarkerPosition.Start, "codex node output (stdout)")
         echo output.stdOutput
-        test.printOutputMarker(MarkerPosition.Finish,
-                                 "codex node output (stdout)")
+        test.printOutputMarker(MarkerPosition.Finish, "codex node output (stdout)")
     test.printResult(fgRed)
-
   of IntegrationTestStatus.Timeout:
-    if printStdOut and
-       output =? test.output:
-      test.printOutputMarker(MarkerPosition.Start,
-                               "codex node output (stdout)")
+    if printStdOut and output =? test.output:
+      test.printOutputMarker(MarkerPosition.Start, "codex node output (stdout)")
       echo output.stdOutput
-      test.printOutputMarker(MarkerPosition.Finish,
-                               "codex node output (stdout)")
+      test.printOutputMarker(MarkerPosition.Finish, "codex node output (stdout)")
     test.printResult(fgYellow)
-
   of IntegrationTestStatus.Ok:
-    if printStdOut and
-       output =? test.output:
-      test.printOutputMarker(MarkerPosition.Start,
-                               "codex node output (stdout)")
+    if printStdOut and output =? test.output:
+      test.printOutputMarker(MarkerPosition.Start, "codex node output (stdout)")
       echo output.stdOutput
-      test.printOutputMarker(MarkerPosition.Finish,
-                               "codex node output (stdout)")
+      test.printOutputMarker(MarkerPosition.Finish, "codex node output (stdout)")
     test.printResult(fgGreen)
 
 proc printSummary(test: IntegrationTest) =
   test.printResult(printStdOut = false, printStdErr = false)
 
 proc printStart(test: IntegrationTest) =
-  echoStyled styleBright, fgMagenta, &"[Integration test started] ", resetStyle, test.config.name
+  echoStyled styleBright,
+    fgMagenta, &"[Integration test started] ", resetStyle, test.config.name
 
 proc buildCommand(
-  test: IntegrationTest,
-  hardhatPort: ?int): Future[string] {.async: (raises:[CancelledError, TestManagerError]).} =
-
-  let logging = if not test.manager.debugTestHarness: ""
-                else: "-d:chronicles_log_level=TRACE " &
-                      "-d:chronicles_disabled_topics=websock,JSONRPC-HTTP-CLIENT,JSONRPC-WS-CLIENT " &
-                      "-d:chronicles_default_output_device=stdout " &
-                      "-d:chronicles_sinks=textlines"
+    test: IntegrationTest, hardhatPort: ?int
+): Future[string] {.async: (raises: [CancelledError, TestManagerError]).} =
+  let logging =
+    if not test.manager.debugTestHarness:
+      ""
+    else:
+      "-d:chronicles_log_level=TRACE " &
+        "-d:chronicles_disabled_topics=websock,JSONRPC-HTTP-CLIENT,JSONRPC-WS-CLIENT " &
+        "-d:chronicles_default_output_device=stdout " & "-d:chronicles_sinks=textlines"
 
   let strHardhatPort =
-    if not test.config.startHardhat: ""
+    if not test.config.startHardhat:
+      ""
     else:
       without port =? hardhatPort:
         raiseTestManagerError "hardhatPort required when 'config.startHardhat' is true"
@@ -297,8 +285,8 @@ proc buildCommand(
   var testFile: string
   try:
     testFile = absolutePath(
-                test.config.testFile,
-                root = currentSourcePath().parentDir().parentDir())
+      test.config.testFile, root = currentSourcePath().parentDir().parentDir()
+    )
   except ValueError as parent:
     raiseTestManagerError "bad file name, testFile: " & test.config.testFile, parent
 
@@ -315,28 +303,18 @@ proc buildCommand(
 
     withLock(test.manager.hardhatPortLock):
       try:
-        return  "nim c " &
-                &"-d:CodexApiPort={apiPort} " &
-                &"-d:CodexDiscPort={discPort} " &
-                &"{strHardhatPort} " &
-                &"-d:TestId={test.testId} " &
-                &"{logging} " &
-                  "--verbosity:0 " &
-                  "--hints:off " &
-                  "-d:release " &
-                  "-r " &
-                &"{testFile}"
+        return
+          "nim c " & &"-d:CodexApiPort={apiPort} " & &"-d:CodexDiscPort={discPort} " &
+          &"{strHardhatPort} " & &"-d:TestId={test.testId} " & &"{logging} " &
+          "--verbosity:0 " & "--hints:off " & "-d:release " & "-r " & &"{testFile}"
       except ValueError as parent:
-        raiseTestManagerError "bad command --\n" &
-                                ", apiPort: " & $apiPort &
-                                ", discPort: " & $discPort &
-                                ", logging: " & logging &
-                                ", testFile: " & testFile &
-                                ", error: " & parent.msg,
-                                parent
-proc setup(
-  test: IntegrationTest): Future[?Hardhat] {.async: (raises: [CancelledError, TestManagerError]).} =
+        raiseTestManagerError "bad command --\n" & ", apiPort: " & $apiPort &
+          ", discPort: " & $discPort & ", logging: " & logging & ", testFile: " &
+          testFile & ", error: " & parent.msg, parent
 
+proc setup(
+    test: IntegrationTest
+): Future[?Hardhat] {.async: (raises: [CancelledError, TestManagerError]).} =
   var hardhat = Hardhat.none
   var hardhatPort = int.none
 
@@ -351,9 +329,8 @@ proc setup(
   return hardhat
 
 proc teardown(
-  test: IntegrationTest,
-  hardhat: ?Hardhat) {.async: (raises: [CancelledError]).} =
-
+    test: IntegrationTest, hardhat: ?Hardhat
+) {.async: (raises: [CancelledError]).} =
   if test.config.startHardhat and hardhat =? hardhat:
     try:
       trace "Stopping hardhat", name = test.config.name
@@ -368,15 +345,13 @@ proc teardown(
         echo line
       test.printOutputMarker(MarkerPosition.Finish, "Hardhat stdout")
 
-    test.manager.hardhats.keepItIf( it != hardhat )
+    test.manager.hardhats.keepItIf(it != hardhat)
 
 proc start(test: IntegrationTest) {.async: (raises: []).} =
-
   logScope:
     config = test.config
 
   trace "Running test"
-
 
   test.timeStart = some Moment.now()
   test.status = IntegrationTestStatus.Running
@@ -384,7 +359,6 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
   var hardhat = none Hardhat
 
   try:
-
     try:
       hardhat = await test.setup()
     except TestManagerError as e:
@@ -397,10 +371,8 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
     try:
       trace "Starting parallel integration test", command = test.command
       test.printStart()
-      test.process = execCommandEx(
-        command = test.command,
-        timeout = test.manager.testTimeout
-      )
+      test.process =
+        execCommandEx(command = test.command, timeout = test.manager.testTimeout)
 
       let output = await test.process # waits on waitForExit
       test.output = success(output)
@@ -409,13 +381,11 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
         test.status = IntegrationTestStatus.Failed
       else:
         test.status = IntegrationTestStatus.Ok
-
     except AsyncProcessTimeoutError as e:
       test.timeEnd = some Moment.now()
       error "Test timed out", name = test.config.name, duration = test.duration
       test.output = CommandExResponse.failure(e)
       test.status = IntegrationTestStatus.Timeout
-
     except AsyncProcessError as e:
       test.timeEnd = some Moment.now()
       error "Test failed to complete", name = test.config.name, duration = test.duration
@@ -423,7 +393,6 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
       test.status = IntegrationTestStatus.Error
 
     await test.teardown(hardhat)
-
   except CancelledError:
     discard # start is asyncSpawned, do not propagate
 
@@ -433,17 +402,13 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
 
 proc continuallyShowUpdates(manager: TestManager) {.async: (raises: []).} =
   try:
-
     while true:
-      let sleepDuration = if manager.duration < 5.minutes:
-                            30.seconds
-                          else:
-                            1.minutes
+      let sleepDuration = if manager.duration < 5.minutes: 30.seconds else: 1.minutes
 
       if manager.tests.len > 0:
         echo ""
-        echoStyled styleBright, bgWhite, fgBlack,
-          &"Integration tests status after {manager.duration}"
+        echoStyled styleBright,
+          bgWhite, fgBlack, &"Integration tests status after {manager.duration}"
 
       for test in manager.tests:
         test.printResult(false, false)
@@ -452,11 +417,12 @@ proc continuallyShowUpdates(manager: TestManager) {.async: (raises: []).} =
         echo ""
 
       await sleepAsync(sleepDuration)
-
   except CancelledError as e:
     discard
 
-proc untilTimeout(fut: Future[void], timeout: Duration): Future[bool] {.async: (raises: [CancelledError]).} =
+proc untilTimeout(
+    fut: Future[void], timeout: Duration
+): Future[bool] {.async: (raises: [CancelledError]).} =
   # workaround for withTimeout, which did not work correctly
   try:
     let timer = sleepAsync(timeout)
@@ -471,8 +437,9 @@ proc run(test: IntegrationTest) {.async: (raises: []).} =
     if not completedBeforeTimeout:
       test.timeEnd = some Moment.now()
       error "Test timed out", name = test.config.name, duration = test.duration
-      let e = newException(AsyncProcessTimeoutError,
-        "Test did not complete before elapsed timeout")
+      let e = newException(
+        AsyncProcessTimeoutError, "Test did not complete before elapsed timeout"
+      )
       test.output = CommandExResponse.failure(e)
       test.status = IntegrationTestStatus.Timeout
 
@@ -480,8 +447,6 @@ proc run(test: IntegrationTest) {.async: (raises: []).} =
         await futStart.cancelAndWait()
 
     test.printResult()
-
-
   except CancelledError:
     discard # do not propagate due to asyncSpawn
 
@@ -490,16 +455,12 @@ proc runTests(manager: TestManager) {.async: (raises: [CancelledError]).} =
 
   manager.timeStart = some Moment.now()
 
-  echoStyled styleBright, bgWhite, fgBlack,
-             "\n[Integration Test Manager] Starting parallel integration tests"
+  echoStyled styleBright,
+    bgWhite, fgBlack, "\n[Integration Test Manager] Starting parallel integration tests"
 
   for config in manager.configs:
-
-    var test = IntegrationTest(
-      manager: manager,
-      config: config,
-      testId: $ uint16.example
-    )
+    var test =
+      IntegrationTest(manager: manager, config: config, testId: $uint16.example)
     manager.tests.add test
 
     let futRun = test.run()
@@ -511,11 +472,8 @@ proc runTests(manager: TestManager) {.async: (raises: [CancelledError]).} =
   manager.timeEnd = some Moment.now()
 
 proc withBorder(
-  msg: string,
-  align = Align.Left,
-  width = 67,
-  borders = {Border.Left, Border.Right}): string =
-
+    msg: string, align = Align.Left, width = 67, borders = {Border.Left, Border.Right}
+): string =
   if borders.contains(Border.Left):
     result &= "| "
   if align == Align.Left:
@@ -525,15 +483,16 @@ proc withBorder(
   if borders.contains(Border.Right):
     result &= " |"
 
-proc printResult(manager: TestManager) {.raises: [TestManagerError].}=
+proc printResult(manager: TestManager) {.raises: [TestManagerError].} =
   var successes = 0
   var totalDurationSerial: Duration
-  let showSummary = manager.debugCodexNodes or manager.debugHardhat or manager.debugTestHarness
+  let showSummary =
+    manager.debugCodexNodes or manager.debugHardhat or manager.debugTestHarness
 
   if showSummary:
     echo ""
-    echoStyled styleBright, styleUnderscore, bgWhite, fgBlack,
-      &"INTEGRATION TESTS RESULT"
+    echoStyled styleBright,
+      styleUnderscore, bgWhite, fgBlack, &"INTEGRATION TESTS RESULT"
 
   for test in manager.tests:
     totalDurationSerial += test.duration
@@ -546,28 +505,47 @@ proc printResult(manager: TestManager) {.raises: [TestManagerError].}=
 
   # estimated time saved as serial execution with a single hardhat instance
   # incurs less overhead
-  let relativeTimeSaved = ((totalDurationSerial - manager.duration).nanos * 100) div
-                          (totalDurationSerial.nanos)
-  let passingStyle = if successes < manager.tests.len:
-                       fgRed
-                     else:
-                       fgGreen
-
+  let relativeTimeSaved =
+    ((totalDurationSerial - manager.duration).nanos * 100) div
+    (totalDurationSerial.nanos)
+  let passingStyle = if successes < manager.tests.len: fgRed else: fgGreen
 
   echo "\n▢=====================================================================▢"
-  echoStyled "| ", styleBright, styleUnderscore, "INTEGRATION TEST SUMMARY", resetStyle, "".withBorder(Align.Right, 43, {Border.Right})
+  echoStyled "| ",
+    styleBright,
+    styleUnderscore,
+    "INTEGRATION TEST SUMMARY",
+    resetStyle,
+    "".withBorder(Align.Right, 43, {Border.Right})
   echo "".withBorder()
-  echoStyled styleBright, "| TOTAL TIME      : ", resetStyle, ($manager.duration).withBorder(Align.Right, 49, {Border.Right})
-  echoStyled styleBright, "| TIME SAVED (EST): ", resetStyle, (&"{relativeTimeSaved}%").withBorder(Align.Right, 49, {Border.Right})
-  echoStyled "| ", styleBright, passingStyle, "PASSING         : ", resetStyle, passingStyle, (&"{successes} / {manager.tests.len}").align(49), resetStyle, " |"
+  echoStyled styleBright,
+    "| TOTAL TIME      : ",
+    resetStyle,
+    ($manager.duration).withBorder(Align.Right, 49, {Border.Right})
+  echoStyled styleBright,
+    "| TIME SAVED (EST): ",
+    resetStyle,
+    (&"{relativeTimeSaved}%").withBorder(Align.Right, 49, {Border.Right})
+  echoStyled "| ",
+    styleBright,
+    passingStyle,
+    "PASSING         : ",
+    resetStyle,
+    passingStyle,
+    (&"{successes} / {manager.tests.len}").align(49),
+    resetStyle,
+    " |"
   echo "▢=====================================================================▢"
 
-proc start*(manager: TestManager) {.async: (raises: [CancelledError, TestManagerError]).} =
-  let futContinuousUpdates = manager.continuallyShowUpdates()
-  asyncSpawn futContinuousUpdates
+proc start*(
+    manager: TestManager
+) {.async: (raises: [CancelledError, TestManagerError]).} =
+  if manager.showContinuousStatusUpdates:
+    let fut = manager.continuallyShowUpdates()
+    manager.trackedFutures.track fut
+    asyncSpawn fut
 
   await manager.runTests()
-  await futContinuousUpdates.cancelAndWait()
 
   manager.printResult()
 
