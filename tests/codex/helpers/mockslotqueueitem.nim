@@ -18,13 +18,13 @@ proc toSlotQueueItem*(item: MockSlotQueueItem): SlotQueueItem =
     requestId = item.requestId,
     slotIndex = item.slotIndex,
     ask = StorageAsk(
-            slotSize: item.slotSize,
-            duration: item.duration,
-            reward: item.reward,
-            collateral: item.collateral
-          ),
+      slotSize: item.slotSize,
+      duration: item.duration,
+      reward: item.reward,
+      collateral: item.collateral,
+    ),
     expiry = item.expiry,
     seen = item.seen,
     isRepairing = item.isRepairing,
-    repairRewardPercentage = item.repairRewardPercentage
+    repairRewardPercentage = item.repairRewardPercentage,
   )

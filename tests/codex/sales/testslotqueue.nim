@@ -13,7 +13,6 @@ import ../helpers/mockslotqueueitem
 import ../examples
 
 suite "Slot queue start/stop":
-
   var queue: SlotQueue
 
   setup:
@@ -46,7 +45,6 @@ suite "Slot queue start/stop":
     check not queue.running
 
 suite "Slot queue workers":
-
   var queue: SlotQueue
 
   proc onProcessSlot(item: SlotQueueItem, doneProcessing: Future[void]) {.async.} =
@@ -106,7 +104,6 @@ suite "Slot queue workers":
     check eventually queue.activeWorkers == 1
 
 suite "Slot queue":
-
   var onProcessSlotCalled = false
   var onProcessSlotCalledWith: seq[(RequestId, uint16)]
   var queue: SlotQueue
@@ -147,10 +144,12 @@ suite "Slot queue":
   test "correctly calculates the collateral when the slot is being repaired":
     var requestA = StorageRequest.example
     requestA.ask.collateral = 100000.u256
-    let itemA = SlotQueueItem.init(requestA,
-                                   slotIndex = 0.uint16,
-                                   isRepairing = true,
-                                   repairRewardPercentage = 10.u256)
+    let itemA = SlotQueueItem.init(
+      requestA,
+      slotIndex = 0.uint16,
+      isRepairing = true,
+      repairRewardPercentage = 10.u256,
+    )
     check itemA.effectiveCollateral == 90000.u256
 
   test "correctly compares SlotQueueItems":
@@ -183,7 +182,7 @@ suite "Slot queue":
       reward: 2.u256, # profitability is higher (good)
       collateral: 1.u256,
       expiry: 1.u256,
-      seen: true # seen (bad), more weight than profitability
+      seen: true, # seen (bad), more weight than profitability
     )
     let itemB = MockSlotQueueItem(
       requestId: request.id,
@@ -193,7 +192,7 @@ suite "Slot queue":
       reward: 1.u256, # profitability is lower (bad)
       collateral: 1.u256,
       expiry: 1.u256,
-      seen: false # not seen (good)
+      seen: false, # not seen (good)
     )
     check itemB.toSlotQueueItem < itemA.toSlotQueueItem # B higher priority than A
     check itemA.toSlotQueueItem > itemB.toSlotQueueItem
@@ -208,7 +207,7 @@ suite "Slot queue":
       reward: 1.u256, # reward is lower (bad)
       collateral: 1.u256, # collateral is lower (good)
       expiry: 1.u256,
-      seen: false
+      seen: false,
     )
     let itemB = MockSlotQueueItem(
       requestId: request.id,
@@ -218,7 +217,7 @@ suite "Slot queue":
       reward: 2.u256, # reward is higher (good), more weight than collateral
       collateral: 2.u256, # collateral is higher (bad)
       expiry: 1.u256,
-      seen: false
+      seen: false,
     )
 
     check itemB.toSlotQueueItem < itemA.toSlotQueueItem # < indicates higher priority
@@ -233,7 +232,7 @@ suite "Slot queue":
       reward: 1.u256,
       collateral: 2.u256, # collateral is higher (bad)
       expiry: 2.u256, # expiry is longer (good)
-      seen: false
+      seen: false,
     )
     let itemB = MockSlotQueueItem(
       requestId: request.id,
@@ -243,7 +242,7 @@ suite "Slot queue":
       reward: 1.u256,
       collateral: 1.u256, # collateral is lower (good), more weight than expiry
       expiry: 1.u256, # expiry is shorter (bad)
-      seen: false
+      seen: false,
     )
 
     check itemB.toSlotQueueItem < itemA.toSlotQueueItem # < indicates higher priority
@@ -258,7 +257,7 @@ suite "Slot queue":
       reward: 1.u256,
       collateral: 1.u256,
       expiry: 1.u256, # expiry is shorter (bad)
-      seen: false
+      seen: false,
     )
     let itemB = MockSlotQueueItem(
       requestId: request.id,
@@ -268,7 +267,7 @@ suite "Slot queue":
       reward: 1.u256,
       collateral: 1.u256,
       expiry: 2.u256, # expiry is longer (good), more weight than slotSize
-      seen: false
+      seen: false,
     )
 
     check itemB.toSlotQueueItem < itemA.toSlotQueueItem # < indicates higher priority
@@ -283,7 +282,7 @@ suite "Slot queue":
       reward: 1.u256,
       collateral: 1.u256,
       expiry: 1.u256, # expiry is shorter (bad)
-      seen: false
+      seen: false,
     )
     let itemB = MockSlotQueueItem(
       requestId: request.id,
@@ -293,7 +292,7 @@ suite "Slot queue":
       reward: 1.u256,
       collateral: 1.u256,
       expiry: 1.u256,
-      seen: false
+      seen: false,
     )
 
     check itemB.toSlotQueueItem < itemA.toSlotQueueItem # < indicates higher priority
@@ -308,7 +307,7 @@ suite "Slot queue":
       reward: 1.u256,
       collateral: 2.u256,
       expiry: 1.u256,
-      seen: false
+      seen: false,
     )
     let itemB = MockSlotQueueItem(
       requestId: request.id,
@@ -320,7 +319,7 @@ suite "Slot queue":
       expiry: 1.u256,
       seen: false,
       isRepairing: true,
-      repairRewardPercentage: 50.u256
+      repairRewardPercentage: 50.u256,
     )
 
     check itemB.toSlotQueueItem < itemA.toSlotQueueItem # < indicates higher priority
@@ -330,7 +329,7 @@ suite "Slot queue":
     let items = SlotQueueItem.init(request)
     check items.len.uint64 == request.ask.slots
     var checked = 0
-    for slotIndex in 0'u16..<request.ask.slots.uint16:
+    for slotIndex in 0'u16 ..< request.ask.slots.uint16:
       check items.anyIt(it == SlotQueueItem.init(request, slotIndex))
       inc checked
     check checked == items.len
@@ -341,10 +340,8 @@ suite "Slot queue":
     let item2 = SlotQueueItem.example
     check queue.push(item1).isOk
     check queue.push(item2).isOk
-    check eventually onProcessSlotCalledWith == @[
-      (item1.requestId, item1.slotIndex),
-      (item2.requestId, item2.slotIndex)
-    ]
+    check eventually onProcessSlotCalledWith ==
+      @[(item1.requestId, item1.slotIndex), (item2.requestId, item2.slotIndex)]
 
   test "can push items past number of maxWorkers":
     newSlotQueue(maxSize = 2, maxWorkers = 2)
@@ -443,9 +440,7 @@ suite "Slot queue":
     let last = items1[items1.high]
     check eventually queue.contains(last)
     queue.delete(last.requestId, last.slotIndex)
-    check not onProcessSlotCalledWith.anyIt(
-      it == (last.requestId, last.slotIndex)
-    )
+    check not onProcessSlotCalledWith.anyIt(it == (last.requestId, last.slotIndex))
 
   test "can delete all items by request id":
     newSlotQueue(maxSize = 8, maxWorkers = 1, processSlotDelay = 10.millis)
@@ -521,9 +516,7 @@ suite "Slot queue":
     newSlotQueue(maxSize = 2, maxWorkers = 2)
     let item = SlotQueueItem.example
     check queue.push(item).isOk
-    check eventually onProcessSlotCalledWith == @[
-      (item.requestId, item.slotIndex)
-    ]
+    check eventually onProcessSlotCalledWith == @[(item.requestId, item.slotIndex)]
 
   test "should process items in correct order":
     newSlotQueue(maxSize = 2, maxWorkers = 2)
@@ -547,7 +540,8 @@ suite "Slot queue":
     check queue.push(item3).isOk
 
     check eventually (
-      onProcessSlotCalledWith == @[
+      onProcessSlotCalledWith ==
+      @[
         (item0.requestId, item0.slotIndex),
         (item1.requestId, item1.slotIndex),
         (item2.requestId, item2.slotIndex),
@@ -558,10 +552,8 @@ suite "Slot queue":
   test "processing a 'seen' item pauses the queue":
     newSlotQueue(maxSize = 4, maxWorkers = 4)
     let request = StorageRequest.example
-    let item = SlotQueueItem.init(request.id, 0'u16,
-                                  request.ask,
-                                  request.expiry,
-                                  seen = true)
+    let item =
+      SlotQueueItem.init(request.id, 0'u16, request.ask, request.expiry, seen = true)
     check queue.push(item).isOk
     check eventually queue.paused
     check onProcessSlotCalledWith.len == 0
@@ -579,10 +571,8 @@ suite "Slot queue":
   test "pushing seen item does not unpause queue":
     newSlotQueue(maxSize = 4, maxWorkers = 4)
     let request = StorageRequest.example
-    let item0 = SlotQueueItem.init(request.id, 0'u16,
-                                  request.ask,
-                                  request.expiry,
-                                  seen = true)
+    let item0 =
+      SlotQueueItem.init(request.id, 0'u16, request.ask, request.expiry, seen = true)
     check queue.paused
     check queue.push(item0).isOk
     check queue.paused
@@ -590,30 +580,22 @@ suite "Slot queue":
   test "paused queue waits for unpause before continuing processing":
     newSlotQueue(maxSize = 4, maxWorkers = 4)
     let request = StorageRequest.example
-    let item = SlotQueueItem.init(request.id, 1'u16,
-                                  request.ask,
-                                  request.expiry,
-                                  seen = false)
+    let item =
+      SlotQueueItem.init(request.id, 1'u16, request.ask, request.expiry, seen = false)
     check queue.paused
     # push causes unpause
     check queue.push(item).isOk
     # check all items processed
-    check eventually onProcessSlotCalledWith == @[
-      (item.requestId, item.slotIndex),
-    ]
+    check eventually onProcessSlotCalledWith == @[(item.requestId, item.slotIndex)]
     check eventually queue.len == 0
 
   test "item 'seen' flags can be cleared":
     newSlotQueue(maxSize = 4, maxWorkers = 1)
     let request = StorageRequest.example
-    let item0 = SlotQueueItem.init(request.id, 0'u16,
-                                  request.ask,
-                                  request.expiry,
-                                  seen = true)
-    let item1 = SlotQueueItem.init(request.id, 1'u16,
-                                  request.ask,
-                                  request.expiry,
-                                  seen = true)
+    let item0 =
+      SlotQueueItem.init(request.id, 0'u16, request.ask, request.expiry, seen = true)
+    let item1 =
+      SlotQueueItem.init(request.id, 1'u16, request.ask, request.expiry, seen = true)
     check queue.push(item0).isOk
     check queue.push(item1).isOk
     check queue[0].seen
