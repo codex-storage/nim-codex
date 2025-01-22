@@ -511,6 +511,10 @@ suite "Slot queue":
       ]
     )
 
+  test "queue starts paused":
+    newSlotQueue(maxSize = 4, maxWorkers = 4)
+    check queue.paused
+
   test "pushing items to queue unpauses queue":
     newSlotQueue(maxSize = 4, maxWorkers = 4)
     queue.pause
@@ -581,13 +585,17 @@ suite "Slot queue":
       request.expiry,
       seen = true
     )
-    # push seen item
+    # push seen item to ensure that queue is pausing
     check queue.push(seen).isSuccess
     # unpause and pause a number of times
     for _ in 0..<10:
+      # push unseen item to unpause the queue
       check queue.push(unseen).isSuccess
+      # wait for unseen item to be processed
       check eventually queue.len == 1
+      # wait for queue to pause because of seen item
       check eventually queue.paused
+      # check that the number of workers equals maximimum workers
       check eventually queue.activeWorkers == 0
 
   test "item 'seen' flags can be cleared":
