@@ -77,15 +77,13 @@ asyncchecksuite "Test proof sampler utils":
       )
 
     proc getExpectedIndices(n: int): seq[Natural] =
-      return collect(
-        newSeq,
+      return collect(newSeq):
         (;
           for i in 1 .. n:
             cellIndex(
               proofInput.entropy, proofInput.slotRoot, proofInput.nCellsPerSlot, i
             )
-        ),
-      )
+        )
 
     check:
       slotCellIndices(3) == getExpectedIndices(3)
