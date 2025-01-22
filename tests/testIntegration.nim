@@ -46,7 +46,7 @@ proc run() {.async.} =
   const debugCodexNodes = true
   # Shows test status updates at time intervals. Useful for running locally with
   # active terminal interaction. Set to false for unattended runs, eg CI.
-  const showContinuousStatusUpdates = true
+  const showContinuousStatusUpdates = false
   # Timeout duration for EACH integration test file.
   const testTimeout = 60.minutes
 
