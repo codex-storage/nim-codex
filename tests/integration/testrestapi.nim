@@ -233,7 +233,7 @@ twonodessuite "REST API":
     let headers = newHttpHeaders(
       {
         "Content-Type": "text/plain",
-        "Content-Disposition": "attachment; filename=\"example.txt\"",
+        "Content-Disposition": "attachment; filename=\"example.txt\""
       }
     )
     let uploadResponse = client1.uploadRaw("some file contents", headers)
@@ -259,7 +259,7 @@ twonodessuite "REST API":
     let headers = newHttpHeaders(
       {
         "Content-Disposition": "attachment; filename=\"example.txt\"",
-        "Content-Type": "text/plain",
+        "Content-Type": "text/plain"
       }
     )
 
