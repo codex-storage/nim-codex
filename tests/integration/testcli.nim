@@ -60,24 +60,28 @@ asyncchecksuite "Command line interface":
     await node.stop(expectedErrCode = 1)
 
   test "suggests downloading of circuit files when persistence is enabled without accessible wasm file":
-  let node = await startCodex(@[
-    "persistence",ß
-    "--eth-provider=" & "http://127.0.0.1:" & $HardhatPort,
-    "prover",
-    marketplaceArg,
-    "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs"
-  ])
+    let node = await startCodex(
+      @[
+        "persistence",
+        "--eth-provider=" & "http://127.0.0.1:" & $HardhatPort,
+        "prover",
+        marketplaceArg,
+        "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs"
+      ]
+    )
     await node.waitUntilOutput(expectedDownloadInstruction)
     await node.stop(expectedErrCode = 1)
 
   test "suggests downloading of circuit files when persistence is enabled without accessible zkey file":
-    let node = await startCodex(@[
-      "persistence",
-      "--eth-provider=" & "http://127.0.0.1:" & $HardhatPort,
-      "prover",
-      marketplaceArg,
-      "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
-      "--circom-wasm=tests/circuits/fixtures/proof_main.wasm"
-    ])
+    let node = await startCodex(
+      @[
+        "persistence",
+        "--eth-provider=" & "http://127.0.0.1:" & $HardhatPort,
+        "prover",
+        marketplaceArg,
+        "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
+        "--circom-wasm=tests/circuits/fixtures/proof_main.wasm"
+      ]
+    )
     await node.waitUntilOutput(expectedDownloadInstruction)
     await node.stop(expectedErrCode = 1)
