@@ -1,8 +1,7 @@
 import pkg/chronos
 import pkg/codex/logutils
 
-proc nextFreePort*(startPort: int): Future[int] {.async: (raises:[CancelledError]).} =
-
+proc nextFreePort*(startPort: int): Future[int] {.async: (raises: [CancelledError]).} =
   proc client(server: StreamServer, transp: StreamTransport) {.async.} =
     await transp.closeWait()
 
