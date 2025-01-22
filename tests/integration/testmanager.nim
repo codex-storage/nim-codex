@@ -6,6 +6,7 @@ import std/unittest
 import pkg/chronos
 import pkg/chronos/asyncproc
 import pkg/codex/logutils
+import pkg/codex/utils/trackedfutures
 import pkg/questionable
 import pkg/questionable/results
 import ./hardhatprocess
@@ -43,6 +44,7 @@ type
     hardhatPortLock: AsyncLock
     hardhatProcessLock: AsyncLock
     testTimeout: Duration # individual test timeout
+    trackedFutures: TrackedFutures
 
   IntegrationTestConfig* = object
     startHardhat: bool
@@ -124,7 +126,8 @@ proc new*(
     debugTestHarness: debugTestHarness,
     debugHardhat: debugHardhat,
     debugCodexNodes: debugCodexNodes,
-    testTimeout: testTimeout
+    testTimeout: testTimeout,
+    trackedFutures: TrackedFutures.new(),
   )
 
 func init*(
@@ -550,6 +553,8 @@ proc start*(
   manager.printResult()
 
 proc stop*(manager: TestManager) {.async: (raises: [CancelledError]).} =
+  await manager.trackedFutures.cancelTracked()
+
   for test in manager.tests:
     if not test.process.isNil and not test.process.finished:
       await test.process.cancelAndWait()
