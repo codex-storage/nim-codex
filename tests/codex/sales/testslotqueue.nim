@@ -549,18 +549,10 @@ suite "Slot queue":
   test "processing a 'seen' item pauses the queue":
     newSlotQueue(maxSize = 4, maxWorkers = 4)
     let request = StorageRequest.example
-    let unseen = SlotQueueItem.init(
-      request.id, 0'u16,
-      request.ask,
-      request.expiry,
-      seen = false
-    )
-    let seen = SlotQueueItem.init(
-      request.id, 1'u16,
-      request.ask,
-      request.expiry,
-      seen = true
-    )
+    let unseen =
+      SlotQueueItem.init(request.id, 0'u16, request.ask, request.expiry, seen = false)
+    let seen =
+      SlotQueueItem.init(request.id, 1'u16, request.ask, request.expiry, seen = true)
     # push causes unpause
     check queue.push(unseen).isSuccess
     # check all items processed
@@ -573,22 +565,14 @@ suite "Slot queue":
   test "processing a 'seen' item does not decrease the number of workers":
     newSlotQueue(maxSize = 4, maxWorkers = 4)
     let request = StorageRequest.example
-    let unseen = SlotQueueItem.init(
-      request.id, 0'u16,
-      request.ask,
-      request.expiry,
-      seen = false
-    )
-    let seen = SlotQueueItem.init(
-      request.id, 1'u16,
-      request.ask,
-      request.expiry,
-      seen = true
-    )
+    let unseen =
+      SlotQueueItem.init(request.id, 0'u16, request.ask, request.expiry, seen = false)
+    let seen =
+      SlotQueueItem.init(request.id, 1'u16, request.ask, request.expiry, seen = true)
     # push seen item to ensure that queue is pausing
     check queue.push(seen).isSuccess
     # unpause and pause a number of times
-    for _ in 0..<10:
+    for _ in 0 ..< 10:
       # push unseen item to unpause the queue
       check queue.push(unseen).isSuccess
       # wait for unseen item to be processed
