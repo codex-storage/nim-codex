@@ -1,8 +1,13 @@
 mode = ScriptMode.Verbose
 
 import std/os except commandLineParams
+import std/strutils
 
 ### Helper functions
+proc truthy(val: string): bool =
+  const truthySwitches = @["yes", "1", "on", "true"]
+  return val in truthySwitches
+
 proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
   if not dirExists "build":
     mkDir "build"
@@ -46,7 +51,11 @@ task testIntegration, "Run integration tests":
   buildBinary "codex",
     params =
       "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_enable_proof_failures=true"
-  test "testIntegration"
+  var testParams = ""
+  for i in 2 ..< paramCount():
+    if "DebugTestHarness" in paramStr(i) and truthy paramStr(i).split('=')[1]:
+      testParams = "-d:chronicles_log_level=TRACE -d:chronicles_sinks=textlines[stdout]"
+  test "testIntegration", params = testParams
   # use params to enable logging from the integration test executable
   # test "testIntegration", params = "-d:chronicles_sinks=textlines[notimestamps,stdout],textlines[dynamic] " &
   #   "-d:chronicles_enabled_topics:integration:TRACE"  
