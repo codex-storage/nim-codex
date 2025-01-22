@@ -34,23 +34,23 @@ const TestConfigs =
     ),
   ]
 
-proc run() {.async.} =
-  # Echoes stderr if there's a test failure (eg test failed, compilation error)
-  # or error (eg test manager error)
-  const debugTestHarness = false
-  # Echoes stdout from Hardhat process
-  const debugHardhat = false
-  # Echoes stdout from the integration test file process. Codex process logs can
-  # also be output if a test uses a multinodesuite, requires CodexConfig.debug
-  # to be enabled
-  const debugCodexNodes = true
-  # Shows test status updates at time intervals. Useful for running locally with
-  # active terminal interaction. Set to false for unattended runs, eg CI.
-  const showContinuousStatusUpdates = false
-  # Timeout duration for EACH integration test file.
-  const testTimeout = 60.minutes
+# Echoes stderr if there's a test failure (eg test failed, compilation error)
+# or error (eg test manager error)
+const DebugTestHarness {.booldefine.} = false
+# Echoes stdout from Hardhat process
+const DebugHardhat {.booldefine.} = false
+# Echoes stdout from the integration test file process. Codex process logs can
+# also be output if a test uses a multinodesuite, requires CodexConfig.debug
+# to be enabled
+const DebugCodexNodes {.booldefine.} = true
+# Shows test status updates at time intervals. Useful for running locally with
+# active terminal interaction. Set to false for unattended runs, eg CI.
+const ShowContinuousStatusUpdates {.booldefine.} = false
+# Timeout duration (in mimutes) for EACH integration test file.
+const TestTimeout {.intdefine.} = 60
 
-  when debugTestHarness and enabledLogLevel != LogLevel.TRACE:
+proc run() {.async.} =
+  when DebugTestHarness and enabledLogLevel != LogLevel.TRACE:
     styledEcho bgWhite,
       fgBlack, styleBright, "\n\n  ", styleUnderscore,
       "ADDITIONAL LOGGING AVAILABILE\n\n", resetStyle, bgWhite, fgBlack, styleBright,
@@ -60,7 +60,7 @@ proc run() {.async.} =
       resetStyle, bgWhite, fgBlack,
       "\n\n  nim c -d:chronicles_log_level=TRACE -r ./testIntegration.nim\n\n"
 
-  when debugCodexNodes:
+  when DebugCodexNodes:
     styledEcho bgWhite,
       fgBlack, styleBright, "\n\n  ", styleUnderscore, "ENABLE CODEX LOGGING\n\n",
       resetStyle, bgWhite, fgBlack, styleBright,
@@ -72,11 +72,11 @@ proc run() {.async.} =
 
   let manager = TestManager.new(
     configs = TestConfigs,
-    debugTestHarness,
-    debugHardhat,
-    debugCodexNodes,
-    showContinuousStatusUpdates,
-    testTimeout,
+    DebugTestHarness,
+    DebugHardhat,
+    DebugCodexNodes,
+    ShowContinuousStatusUpdates,
+    TestTimeout.minutes,
   )
   try:
     trace "starting test manager"
