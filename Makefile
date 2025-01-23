@@ -159,7 +159,6 @@ endif
 
 # Builds and runs the integration tests
 testIntegration: | build deps
-	echo TEST PARAMS: $(TEST_PARAMS)
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testIntegration $(TEST_PARAMS) $(NIM_PARAMS) --define:ws_resubscribe=240 build.nims
 
