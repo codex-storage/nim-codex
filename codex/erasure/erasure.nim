@@ -93,10 +93,16 @@ type
   EncodeTask = object
     result: Atomic[bool]
     encoder: EncoderBackend
-    decoder: DecoderBackend
     blocks: ref seq[seq[byte]]
     parity: ptr seq[seq[byte]]
-    recovered: ptr seq
+    signal: ThreadSignalPtr
+
+  DecodeTask = object
+    result: Atomic[bool]
+    decoder: DecoderBackend
+    data: ref seq[seq[byte]]
+    parity: ref seq[seq[byte]]
+    recovered: ptr seq[seq[byte]]
     signal: ThreadSignalPtr
 
 func indexToPos(steps, idx, step: int): int {.inline.} =
@@ -251,52 +257,6 @@ proc prepareDecodingData(
 
   return success (dataPieces.Natural, parityPieces.Natural)
 
-proc leopardEncodeTask(tp: Taskpool, task: ptr EncodeTask) =
-  # Task suitable for running in taskpools - look, no GC!
-  if (let res = task[].encoder.encode(task[].blocks[], task[].parity[]); res.isErr):
-    warn "Unable to encode manifest!", error = $res.error
-    task[].result.store(false)
-  else:
-    task[].result.store(true)
-
-  discard task[].signal.fireSync()
-
-proc spwanTask(tp: Taskpool, task: ptr EncodeTask) =
-  ## Spwan a task
-  tp.spawn leopardEncodeTask(tp, task)
-
-proc asyncEncode(
-    self: Erasure,
-    blockSize, ecK, ecM: int,
-    data: ref seq[seq[byte]],
-    parity: ptr seq[seq[byte]],
-): Future[Result[void, string]] {.async.} =
-  ## Create an encoder backend instance
-  let encoder = self.encoderProvider(blockSize, ecK, ecM)
-  without threadPtr =? ThreadSignalPtr.new():
-    return err("Unable to create thread signal")
-
-  ## Create an ecode task with block data 
-  var task =
-    EncodeTask(encoder: encoder, blocks: data, parity: parity, signal: threadPtr)
-
-  let t = addr task
-  self.taskPool.spwanTask(t)
-
-  try:
-    await threadPtr.wait()
-  except AsyncError as exc:
-    warn "async thread error", err = exc.msg
-    return err(exc.msg)
-  finally:
-    # release the encoder
-    encoder.release()
-
-  if not task.result.load():
-    return err("Leopard encoding failed")
-
-  ok()
-
 proc init*(
     _: type EncodingParams,
     manifest: Manifest,
@@ -327,6 +287,50 @@ proc init*(
     strategy: strategy,
   )
 
+proc leopardEncodeTask(tp: Taskpool, task: ptr EncodeTask) =
+  # Task suitable for running in taskpools - look, no GC!
+  if (let res = task[].encoder.encode(task[].blocks[], task[].parity[]); res.isErr):
+    warn "Error from leopard encoder backend!", error = $res.error
+    task[].result.store(false)
+  else:
+    task[].result.store(true)
+
+  discard task[].signal.fireSync()
+
+proc asyncEncode(
+    self: Erasure,
+    blockSize, ecK, ecM: int,
+    data: ref seq[seq[byte]],
+    parity: ptr seq[seq[byte]],
+): Future[Result[void, string]] {.async.} =
+  ## Create an encoder backend instance
+  let encoder = self.encoderProvider(blockSize, ecK, ecM)
+  without threadPtr =? ThreadSignalPtr.new():
+    return err("Unable to create thread signal")
+
+  ## Create an ecode task with block data 
+  var task =
+    EncodeTask(encoder: encoder, blocks: data, parity: parity, signal: threadPtr)
+
+  let t = addr task
+  doAssert self.taskPool.numThreads > 1,
+    "Must have at least one separate thread or signal will never be fired"
+  self.taskPool.spawn leopardEncodeTask(self.taskPool, t)
+
+  try:
+    await threadPtr.wait()
+  except AsyncError as exc:
+    warn "Async thread error", err = exc.msg
+    return err(exc.msg)
+  finally:
+    # release the encoder
+    t.encoder.release()
+
+  if not t.result.load():
+    return err("Leopard encoding failed")
+
+  ok()
+
 proc encodeData(
     self: Erasure, manifest: Manifest, params: EncodingParams
 ): Future[?!Manifest] {.async.} =
@@ -344,6 +348,7 @@ proc encodeData(
 
   var
     cids = seq[Cid].new()
+    encoder = self.encoderProvider(manifest.blockSize.int, params.ecK, params.ecM)
     emptyBlock = newSeq[byte](manifest.blockSize.int)
 
   cids[].setLen(params.blocksCount)
@@ -369,7 +374,6 @@ proc encodeData(
         return failure(err)
 
       trace "Erasure coding data", data = data[].len, parity = parityData.len
-
       let encodeResult = await self.asyncEncode(
         manifest.blockSize.int, params.ecK, params.ecM, data, addr parityData
       )
@@ -438,6 +442,57 @@ proc encode*(
 
   return success encodedManifest
 
+proc leopardDecodeTask(tp: Taskpool, task: ptr DecodeTask) =
+  # Task suitable for running in taskpools - look, no GC!
+  if (
+    let res = task[].decoder.decode(task[].data[], task[].parity[], task[].recovered[])
+    res.isErr
+  ):
+    warn "Error from leopard decoder backend!", error = $res.error
+    task[].result.store(false)
+  else:
+    task[].result.store(true)
+
+  discard task[].signal.fireSync()
+
+proc decodeAsync(
+    self: Erasure,
+    blockSize, ecK, ecM: int,
+    data, parity: ref seq[seq[byte]],
+    recovered: ptr seq[seq[byte]],
+): Future[Result[void, string]] {.async.} =
+  let decoder = self.decoderProvider(blockSize, ecK, ecM)
+  without threadPtr =? ThreadSignalPtr.new():
+    return err("Unable to create thread signal")
+
+  ## Create an decode task with block data 
+  var task = DecodeTask(
+    decoder: decoder,
+    data: data,
+    parity: parity,
+    recovered: recovered,
+    signal: threadPtr,
+  )
+
+  let t = addr task
+  doAssert self.taskPool.numThreads > 1,
+    "Must have at least one separate thread or signal will never be fired"
+  self.taskPool.spawn leopardDecodeTask(self.taskPool, t)
+
+  try:
+    await threadPtr.wait()
+  except AsyncError as exc:
+    warn "Async thread error", err = exc.msg
+    return err(exc.msg)
+  finally:
+    # release the encoder
+    t.decoder.release()
+
+  if not t.result.load():
+    return err("Leopard decoding failed")
+
+  ok()
+
 proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
   ## Decode a protected manifest into it's original
   ## manifest
@@ -488,9 +543,16 @@ proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
 
       trace "Erasure decoding data"
 
-      if (let err = decoder.decode(data[], parityData[], recovered); err.isErr):
-        trace "Unable to decode data!", err = $err.error
-        return failure($err.error)
+      let err = await self.decodeAsync(
+        encoded.blockSize.int,
+        encoded.ecK,
+        encoded.ecM,
+        data,
+        parityData,
+        addr recovered,
+      )
+      if err.isErr:
+        return failure(err.error)
 
       for i in 0 ..< encoded.ecK:
         let idx = i * encoded.steps + step
