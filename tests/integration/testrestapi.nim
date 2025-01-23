@@ -21,8 +21,14 @@ twonodessuite "REST API":
 
   test "node shows used and available space", twoNodesConfig:
     discard client1.upload("some file contents").get
+    let totalSize = 12.u256
+    let minPricePerBytePerSecond = 1.u256
+    let totalCollateral = totalSize * minPricePerBytePerSecond
     discard client1.postAvailability(
-      totalSize = 12.u256, duration = 2.u256, minPrice = 3.u256, maxCollateral = 4.u256
+      totalSize = totalSize,
+      duration = 2.u256,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = totalCollateral,
     ).get
     let space = client1.space().tryGet()
     check:

@@ -16,6 +16,9 @@ marketplacesuite "Marketplace":
   var client: CodexClient
   var clientAccount: Address
 
+  const minPricePerBytePerSecond = 1.u256
+  const collateralPerByte = 1.u256
+
   setup:
     host = providers()[0].client
     hostAccount = providers()[0].ethAccount
@@ -34,8 +37,8 @@ marketplacesuite "Marketplace":
     let availability = host.postAvailability(
       totalSize = size,
       duration = 20 * 60.u256,
-      minPrice = 300.u256,
-      maxCollateral = 300.u256,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = size * minPricePerBytePerSecond,
     ).get
 
     # client requests storage
@@ -43,10 +46,10 @@ marketplacesuite "Marketplace":
     let id = client.requestStorage(
       cid,
       duration = 20 * 60.u256,
-      pricePerBytePerSecond = 1.u256,
+      pricePerBytePerSecond = minPricePerBytePerSecond,
       proofProbability = 3.u256,
       expiry = 10 * 60,
-      collateralPerByte = 1.u256,
+      collateralPerByte = collateralPerByte,
       nodes = 3,
       tolerance = 1,
     ).get
@@ -70,7 +73,6 @@ marketplacesuite "Marketplace":
     let marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
     let tokenAddress = await marketplace.token()
     let token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
-    let pricePerBytePerSecond = 1.u256
     let duration = 20 * 60.u256
     let nodes = 3'u
 
@@ -79,8 +81,8 @@ marketplacesuite "Marketplace":
     discard host.postAvailability(
       totalSize = size,
       duration = 20 * 60.u256,
-      minPrice = 300.u256,
-      maxCollateral = 300.u256,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = size * minPricePerBytePerSecond,
     ).get
 
     # client requests storage
@@ -88,10 +90,10 @@ marketplacesuite "Marketplace":
     let id = client.requestStorage(
       cid,
       duration = duration,
-      pricePerBytePerSecond = pricePerBytePerSecond,
+      pricePerBytePerSecond = minPricePerBytePerSecond,
       proofProbability = 3.u256,
       expiry = 10 * 60,
-      collateralPerByte = 1.u256,
+      collateralPerByte = collateralPerByte,
       nodes = nodes,
       tolerance = 1,
     ).get
@@ -99,6 +101,9 @@ marketplacesuite "Marketplace":
     check eventually(client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000)
     let purchase = client.getPurchase(id).get
     check purchase.error == none string
+
+    let request = purchase.request.get
+    let slotSize = request.ask.slotSize
 
     let clientBalanceBeforeFinished = await token.balanceOf(clientAccount)
 
@@ -108,9 +113,7 @@ marketplacesuite "Marketplace":
     await ethProvider.advanceTime(duration)
 
     # Checking that the hosting node received reward for at least the time between <expiry;end>
-    # MC2: TODO: find out the slot size based on CID
-    const slotSize = 1.u256
-    const pricePerSlotPerSecond = pricePerBytePerSecond * slotSize
+    let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
     check eventually (await token.balanceOf(hostAccount)) - startBalanceHost >=
       (duration - 5 * 60) * pricePerSlotPerSecond * nodes.u256
 
@@ -121,6 +124,9 @@ marketplacesuite "Marketplace":
     )
 
 marketplacesuite "Marketplace payouts":
+  const minPricePerBytePerSecond = 1.u256
+  const collateralPerByte = 1.u256
+
   test "expired request partially pays out for stored time",
     NodeConfigs(
       # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
@@ -136,9 +142,7 @@ marketplacesuite "Marketplace payouts":
       # .withLogTopics("node", "marketplace", "sales", "reservations", "node", "proving", "clock")
       .some,
     ):
-    let pricePerBytePerSecond = 1.u256
     let duration = 20.periods
-    let collateralPerByte = 1.u256
     let expiry = 10.periods
     let data = await RandomChunker.example(blocks = 8)
     let client = clients()[0]
@@ -155,7 +159,7 @@ marketplacesuite "Marketplace payouts":
       # thus causing a cancellation
       totalSize = totalAvailabilitySize,
       duration = duration.u256,
-      minPricePerBytePerSecond = pricePerBytePerSecond,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
       totalCollateral = collateralPerByte * totalAvailabilitySize,
     )
 
@@ -172,7 +176,7 @@ marketplacesuite "Marketplace payouts":
     let id = await clientApi.requestStorage(
       cid,
       duration = duration,
-      pricePerBytePerSecond = pricePerBytePerSecond,
+      pricePerBytePerSecond = minPricePerBytePerSecond,
       expiry = expiry,
       collateralPerByte = collateralPerByte,
       nodes = 3,
@@ -183,15 +187,18 @@ marketplacesuite "Marketplace payouts":
     check eventually(slotIdxFilled.isSome, timeout = expiry.int * 1000)
     let slotId = slotId(!clientApi.requestId(id), !slotIdxFilled)
 
+    let purchase = clientApi.getPurchase(id).get
+    check purchase.error == none string
+    let request = purchase.request.get
+    let slotSize = request.ask.slotSize
+
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
     check eventually providerApi.saleStateIs(slotId, "SaleCancelled")
 
     await advanceToNextPeriod()
 
-    # MC2: TODO: find out the slot size based on CID
-    const slotSize = 1.u256
-    const pricePerSlotPerSecond = pricePerBytePerSecond * slotSize
+    let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
 
     check eventually (
       let endBalanceProvider = (await token.balanceOf(provider.ethAccount))

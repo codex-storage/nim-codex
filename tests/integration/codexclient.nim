@@ -173,7 +173,8 @@ proc getSlots*(client: CodexClient): ?!seq[Slot] =
   seq[Slot].fromJson(body)
 
 proc postAvailability*(
-    client: CodexClient, totalSize, duration, minPrice, maxCollateral: UInt256
+    client: CodexClient,
+    totalSize, duration, minPricePerBytePerSecond, totalCollateral: UInt256,
 ): ?!Availability =
   ## Post sales availability endpoint
   ##
@@ -182,8 +183,8 @@ proc postAvailability*(
     %*{
       "totalSize": totalSize,
       "duration": duration,
-      "minPrice": minPrice,
-      "maxCollateral": maxCollateral,
+      "minPricePerBytePerSecond": minPricePerBytePerSecond,
+      "totalCollateral": totalCollateral,
     }
   let response = client.http.post(url, $json)
   doAssert response.status == "201 Created",
@@ -193,7 +194,8 @@ proc postAvailability*(
 proc patchAvailabilityRaw*(
     client: CodexClient,
     availabilityId: AvailabilityId,
-    totalSize, freeSize, duration, minPrice, maxCollateral: ?UInt256 = UInt256.none,
+    totalSize, freeSize, duration, minPricePerBytePerSecond, totalCollateral: ?UInt256 =
+      UInt256.none,
 ): Response =
   ## Updates availability
   ##
@@ -211,25 +213,26 @@ proc patchAvailabilityRaw*(
   if duration =? duration:
     json["duration"] = %duration
 
-  if minPrice =? minPrice:
-    json["minPrice"] = %minPrice
+  if minPricePerBytePerSecond =? minPricePerBytePerSecond:
+    json["minPricePerBytePerSecond"] = %minPricePerBytePerSecond
 
-  if maxCollateral =? maxCollateral:
-    json["maxCollateral"] = %maxCollateral
+  if totalCollateral =? totalCollateral:
+    json["totalCollateral"] = %totalCollateral
 
   client.http.patch(url, $json)
 
 proc patchAvailability*(
     client: CodexClient,
     availabilityId: AvailabilityId,
-    totalSize, duration, minPrice, maxCollateral: ?UInt256 = UInt256.none,
+    totalSize, duration, minPricePerBytePerSecond, totalCollateral: ?UInt256 =
+      UInt256.none,
 ): void =
   let response = client.patchAvailabilityRaw(
     availabilityId,
     totalSize = totalSize,
     duration = duration,
-    minPrice = minPrice,
-    maxCollateral = maxCollateral,
+    minPricePerBytePerSecond = minPricePerBytePerSecond,
+    totalCollateral = totalCollateral,
   )
   doAssert response.status == "200 OK", "expected 200 OK, got " & response.status
 

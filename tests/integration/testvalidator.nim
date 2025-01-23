@@ -34,9 +34,11 @@ template eventuallyS(
   await eventuallyS()
 
 marketplacesuite "Validation":
-  let nodes = 3
-  let tolerance = 1
-  let proofProbability = 1
+  const nodes = 3
+  const tolerance = 1
+  const proofProbability = 1
+
+  const minPricePerBytePerSecond = 1.u256
 
   proc waitForRequestToFail(
       marketplace: Marketplace, requestId: RequestId, timeout = 10, step = 5
@@ -94,9 +96,7 @@ marketplacesuite "Validation":
 
     let data = await RandomChunker.example(blocks = 8)
 
-    # TODO: better value for data.len below. This TODO is also present in
-    # testproofs.nim - we may want to address it or remove the comment.
-    createAvailabilities(data.len * 2, duration)
+    createAvailabilitiesForData(data, duration, minPricePerBytePerSecond)
 
     let cid = client0.upload(data).get
     let purchaseId = await client0.requestStorage(
@@ -160,9 +160,7 @@ marketplacesuite "Validation":
 
     let data = await RandomChunker.example(blocks = 8)
 
-    # TODO: better value for data.len below. This TODO is also present in
-    # testproofs.nim - we may want to address it or remove the comment.
-    createAvailabilities(data.len * 2, duration)
+    createAvailabilitiesForData(data, duration, minPricePerBytePerSecond)
 
     let cid = client0.upload(data).get
     let purchaseId = await client0.requestStorage(

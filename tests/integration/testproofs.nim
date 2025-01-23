@@ -15,6 +15,9 @@ logScope:
   topics = "integration test proofs"
 
 marketplacesuite "Hosts submit regular proofs":
+  const minPricePerBytePerSecond = 1.u256
+  const collateralPerByte = 1.u256
+
   test "hosts submit periodic proofs for slots they fill",
     NodeConfigs(
       # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
@@ -35,7 +38,7 @@ marketplacesuite "Hosts submit regular proofs":
     let duration = expiry + 5.periods
 
     let data = await RandomChunker.example(blocks = 8)
-    createAvailabilities(data.len * 2, duration) # TODO: better value for data.len
+    createAvailabilitiesForData(data, duration, minPricePerBytePerSecond)
 
     let cid = client0.upload(data).get
 
@@ -61,6 +64,9 @@ marketplacesuite "Simulate invalid proofs":
   # proofs were marked as missed by the validator. These tests should be
   # tightened so that they are showing, as an integration test, that specific
   # proofs are being marked as missed by the validator.
+
+  const minPricePerBytePerSecond = 1.u256
+  const collateralPerByte = 1.u256
 
   test "slot is freed after too many invalid proofs submitted",
     NodeConfigs(
@@ -89,7 +95,7 @@ marketplacesuite "Simulate invalid proofs":
     let duration = expiry + 10.periods
 
     let data = await RandomChunker.example(blocks = 8)
-    createAvailabilities(data.len * 2, duration) # TODO: better value for data.len
+    createAvailabilitiesForData(data, duration, minPricePerBytePerSecond)
 
     let cid = client0.upload(data).get
 
@@ -145,7 +151,7 @@ marketplacesuite "Simulate invalid proofs":
     let duration = expiry + 10.periods
 
     let data = await RandomChunker.example(blocks = 8)
-    createAvailabilities(data.len * 2, duration) # TODO: better value for data.len
+    createAvailabilitiesForData(data, duration, minPricePerBytePerSecond)
 
     let cid = client0.upload(data).get
 
@@ -187,6 +193,9 @@ marketplacesuite "Simulate invalid proofs":
     await freedSubscription.unsubscribe()
 
   # TODO: uncomment once fixed
+  # WARNING: in the meantime minPrice has changed to minPricePerBytePerSecond
+  #          and maxCollateral has changed to totalCollateral - double check if
+  #          it is set correctly below
   # test "host that submits invalid proofs is paid out less", NodeConfigs(
   #   # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
   #   # hardhat: HardhatConfig().withLogFile(),
@@ -227,8 +236,8 @@ marketplacesuite "Simulate invalid proofs":
   #   discard provider0.client.postAvailability(
   #     totalSize=slotSize, # should match 1 slot only
   #     duration=totalPeriods.periods.u256,
-  #     minPrice=300.u256,
-  #     maxCollateral=200.u256
+  #     minPricePerBytePerSecond=minPricePerBytePerSecond,
+  #     totalCollateral=slotSize * minPricePerBytePerSecond
   #   )
 
   #   let cid = client0.upload(data).get
@@ -260,8 +269,8 @@ marketplacesuite "Simulate invalid proofs":
   #   discard provider1.client.postAvailability(
   #     totalSize=slotSize, # should match 1 slot only
   #     duration=totalPeriods.periods.u256,
-  #     minPrice=300.u256,
-  #     maxCollateral=200.u256
+  #     minPricePerBytePerSecond=minPricePerBytePerSecond,
+  #     totalCollateral=slotSize * minPricePerBytePerSecond
   #   )
 
   #   check eventually filledSlotIds.len > 1
@@ -269,8 +278,8 @@ marketplacesuite "Simulate invalid proofs":
   #   discard provider2.client.postAvailability(
   #     totalSize=slotSize, # should match 1 slot only
   #     duration=totalPeriods.periods.u256,
-  #     minPrice=300.u256,
-  #     maxCollateral=200.u256
+  #     minPricePerBytePerSecond=minPricePerBytePerSecond,
+  #     totalCollateral=slotSize * minPricePerBytePerSecond
   #   )
 
   #   check eventually filledSlotIds.len > 2
