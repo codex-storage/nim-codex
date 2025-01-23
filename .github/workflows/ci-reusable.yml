@@ -77,7 +77,7 @@ jobs:
       ## Part 3 Tests ##
       - name: Integration tests
         if: matrix.tests == 'integration' || matrix.tests == 'all'
-        run: make -j${ncpu} testIntegration
+        run: make -j${ncpu} DEBUG_CODEXNODES=1 DEBUG_TESTHARNESS=1 DEBUG_UPDATES=1 testIntegration
 
       - name: Upload integration tests log files
         uses: actions/upload-artifact@v4
