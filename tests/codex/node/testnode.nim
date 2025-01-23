@@ -12,6 +12,7 @@ import pkg/questionable/results
 import pkg/stint
 import pkg/poseidon2
 import pkg/poseidon2/io
+import pkg/taskpools
 
 import pkg/nitro
 import pkg/codexdht/discv5/protocol as discv5
@@ -137,7 +138,8 @@ asyncchecksuite "Test Node - Basic":
 
   test "Setup purchase request":
     let
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+      erasure =
+        Erasure.new(store, leoEncoderProvider, leoDecoderProvider, Taskpool.new())
       manifest = await storeDataGetManifest(localStore, chunker)
       manifestBlock =
         bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()

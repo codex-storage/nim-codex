@@ -12,12 +12,14 @@ import pkg/upraises
 push:
   {.upraises: [].}
 
-import std/sequtils
-import std/sugar
+import std/[sugar, atomics, sequtils]
 
 import pkg/chronos
+import pkg/chronos/threadsync
+import pkg/chronicles
 import pkg/libp2p/[multicodec, cid, multihash]
 import pkg/libp2p/protobuf/minprotobuf
+import pkg/taskpools
 
 import ../logutils
 import ../manifest
@@ -68,6 +70,7 @@ type
     proc(size, blocks, parity: int): DecoderBackend {.raises: [Defect], noSideEffect.}
 
   Erasure* = ref object
+    taskPool: Taskpool
     encoderProvider*: EncoderProvider
     decoderProvider*: DecoderProvider
     store*: BlockStore
@@ -86,6 +89,15 @@ type
     # for the encoding request to have succeeded with the parameters
     # provided.
     minSize*: NBytes
+
+  EncodeTask = object
+    result: Atomic[bool]
+    encoder: EncoderBackend
+    decoder: DecoderBackend
+    blocks: ref seq[seq[byte]]
+    parity: ptr seq[seq[byte]]
+    recovered: ptr seq
+    signal: ThreadSignalPtr
 
 func indexToPos(steps, idx, step: int): int {.inline.} =
   ## Convert an index to a position in the encoded
@@ -239,6 +251,52 @@ proc prepareDecodingData(
 
   return success (dataPieces.Natural, parityPieces.Natural)
 
+proc leopardEncodeTask(tp: Taskpool, task: ptr EncodeTask) =
+  # Task suitable for running in taskpools - look, no GC!
+  if (let res = task[].encoder.encode(task[].blocks[], task[].parity[]); res.isErr):
+    warn "Unable to encode manifest!", error = $res.error
+    task[].result.store(false)
+  else:
+    task[].result.store(true)
+
+  discard task[].signal.fireSync()
+
+proc spwanTask(tp: Taskpool, task: ptr EncodeTask) =
+  ## Spwan a task
+  tp.spawn leopardEncodeTask(tp, task)
+
+proc asyncEncode(
+    self: Erasure,
+    blockSize, ecK, ecM: int,
+    data: ref seq[seq[byte]],
+    parity: ptr seq[seq[byte]],
+): Future[Result[void, string]] {.async.} =
+  ## Create an encoder backend instance
+  let encoder = self.encoderProvider(blockSize, ecK, ecM)
+  without threadPtr =? ThreadSignalPtr.new():
+    return err("Unable to create thread signal")
+
+  ## Create an ecode task with block data 
+  var task =
+    EncodeTask(encoder: encoder, blocks: data, parity: parity, signal: threadPtr)
+
+  let t = addr task
+  self.taskPool.spwanTask(t)
+
+  try:
+    await threadPtr.wait()
+  except AsyncError as exc:
+    warn "async thread error", err = exc.msg
+    return err(exc.msg)
+  finally:
+    # release the encoder
+    encoder.release()
+
+  if not task.result.load():
+    return err("Leopard encoding failed")
+
+  ok()
+
 proc init*(
     _: type EncodingParams,
     manifest: Manifest,
@@ -286,7 +344,6 @@ proc encodeData(
 
   var
     cids = seq[Cid].new()
-    encoder = self.encoderProvider(manifest.blockSize.int, params.ecK, params.ecM)
     emptyBlock = newSeq[byte](manifest.blockSize.int)
 
   cids[].setLen(params.blocksCount)
@@ -313,9 +370,11 @@ proc encodeData(
 
       trace "Erasure coding data", data = data[].len, parity = parityData.len
 
-      if (let res = encoder.encode(data[], parityData); res.isErr):
-        trace "Unable to encode manifest!", error = $res.error
-        return failure($res.error)
+      let encodeResult = await self.asyncEncode(
+        manifest.blockSize.int, params.ecK, params.ecM, data, addr parityData
+      )
+      if encodeResult.isErr:
+        return failure(encodeResult.error)
 
       var idx = params.rounded + step
       for j in 0 ..< params.ecM:
@@ -356,8 +415,6 @@ proc encodeData(
   except CatchableError as exc:
     trace "Erasure coding encoding error", exc = exc.msg
     return failure(exc)
-  finally:
-    encoder.release()
 
 proc encode*(
     self: Erasure,
@@ -490,10 +547,14 @@ proc new*(
     store: BlockStore,
     encoderProvider: EncoderProvider,
     decoderProvider: DecoderProvider,
+    taskPool: Taskpool,
 ): Erasure =
   ## Create a new Erasure instance for encoding and decoding manifests
   ##
 
   Erasure(
-    store: store, encoderProvider: encoderProvider, decoderProvider: decoderProvider
+    store: store,
+    encoderProvider: encoderProvider,
+    decoderProvider: decoderProvider,
+    taskPool: taskPool,
   )

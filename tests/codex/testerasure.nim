@@ -1,5 +1,6 @@
 import std/sequtils
 import std/sugar
+import std/times
 
 import pkg/chronos
 import pkg/questionable/results
@@ -11,6 +12,7 @@ import pkg/codex/blocktype as bt
 import pkg/codex/rng
 import pkg/codex/utils
 import pkg/codex/indexingstrategy
+import pkg/taskpools
 
 import ../asynctest
 import ./helpers
@@ -35,7 +37,8 @@ suite "Erasure encode/decode":
     rng = Rng.instance()
     chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = BlockSize)
     store = RepoStore.new(repoDs, metaDs)
-    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+    var taskPool = Taskpool.new()
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskPool)
     manifest = await storeDataGetManifest(store, chunker)
 
   teardown:
@@ -240,7 +243,6 @@ suite "Erasure encode/decode":
       decoded.treeCid == manifest.treeCid
       decoded.treeCid == verifiable.originalTreeCid
       decoded.blocksCount == verifiable.originalBlocksCount
-
   for i in 1 .. 5:
     test "Should encode/decode using various parameters " & $i & "/5":
       let
