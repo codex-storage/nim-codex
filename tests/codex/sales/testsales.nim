@@ -612,3 +612,7 @@ asyncchecksuite "Sales":
     await sales.load()
     check (await reservations.all(Reservation)).get.len == 0
     check getAvailability().freeSize == availability.freeSize # was restored
+
+  test "calculates correctly the collateral when the slot is being repaired":
+    let collateral = await market.calculateRepairCollateral(collateral = 100.u256)
+    check collateral == 90.u256

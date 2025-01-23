@@ -149,22 +149,29 @@ proc cleanUp(
       ).errorOption:
     error "failure deleting reservation", error = deleteErr.msg
 
-  let repairRewardPercentage = (await sales.context.market.repairRewardPercentage).u256
-  let slotId = slotId(data.requestId, data.slotIndex)
-  let isRepairing = (await sales.context.market.slotState(slotId)) == SlotState.Repair
-
   # Re-add items back into the queue to prevent small availabilities from
   # draining the queue. Seen items will be ordered last.
   if reprocessSlot and request =? data.request:
+    let slotId = slotId(data.requestId, data.slotIndex)
+    let slotState = await sales.context.market.slotState(slotId)
+    let collateral =
+      if slotState == SlotState.Repair:
+        await sales.context.market.calculateRepairCollateral(data.ask.collateral)
+      else:
+        data.ask.collateral
+
     let queue = sales.context.slotQueue
     var seenItem = SlotQueueItem.init(
       data.requestId,
       data.slotIndex.truncate(uint16),
-      data.ask,
+      StorageAsk(
+        collateral: collateral,
+        duration: request.ask.duration,
+        reward: request.ask.reward,
+        slotSize: request.ask.slotSize,
+      ),
       request.expiry,
       seen = true,
-      isRepairing = isRepairing,
-      repairRewardPercentage = repairRewardPercentage,
     )
     trace "pushing ignored item to queue, marked as seen"
     if err =? queue.push(seenItem).errorOption:
@@ -336,14 +343,23 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: UInt256) =
           error "unknown request in contract"
           return
 
-        let repairRewardPercentage =
-          (await sales.context.market.repairRewardPercentage).u256
+        # Take the repairing state into consideration to calculate the collateral.
+        # This is particularly needed because it will affect the priority in the queue
+        # and we want to give the user the ability to tweak the parameters.
+        # Adding the repairing state directly in the queue priority calculation
+        # would not allow this flexibility.
+        let collateral = await market.calculateRepairCollateral(request.ask.collateral)
 
         found = SlotQueueItem.init(
-          request,
+          request.id,
           slotIndex.truncate(uint16),
-          isRepairing = true,
-          repairRewardPercentage = repairRewardPercentage,
+          StorageAsk(
+            collateral: collateral,
+            duration: request.ask.duration,
+            reward: request.ask.reward,
+            slotSize: request.ask.slotSize,
+          ),
+          request.expiry,
         )
       except CancelledError:
         discard # do not propagate as addSlotToQueue was asyncSpawned

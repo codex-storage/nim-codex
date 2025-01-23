@@ -515,3 +515,9 @@ method unsubscribe*(subscription: ProofSubmittedSubscription) {.async.} =
 
 method unsubscribe*(subscription: SlotReservationsFullSubscription) {.async.} =
   subscription.market.subscriptions.onSlotReservationsFull.keepItIf(it != subscription)
+
+method calculateRepairCollateral*(
+    market: MockMarket, collateral: UInt256
+): Future[UInt256] {.async.} =
+  let repairRewardPercentage = market.config.collateral.repairRewardPercentage.u256
+  return collateral - ((collateral * repairRewardPercentage)).div(100.u256)

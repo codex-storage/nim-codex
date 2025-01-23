@@ -35,16 +35,13 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
     requestId = data.requestId
     slotIndex = data.slotIndex
 
-  let slotState = await market.slotState(slotId(data.requestId, data.slotIndex))
-  var collateral: UInt256
-
-  if slotState == SlotState.Repair:
-    # When repairing the node gets "discount" on the collateral that it needs to
-    let repairRewardPercentage = (await market.repairRewardPercentage).u256
-    collateral =
-      fullCollateral - ((fullCollateral * repairRewardPercentage)).div(100.u256)
-  else:
-    collateral = fullCollateral
+  let slotId = slotId(data.requestId, data.slotIndex)
+  let slotState = await market.slotState(slotId)
+  let collateral =
+    if slotState == SlotState.Repair:
+      await market.calculateRepairCollateral(fullCollateral)
+    else:
+      fullCollateral
 
   debug "Filling slot"
   try:

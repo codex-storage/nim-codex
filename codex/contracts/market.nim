@@ -477,3 +477,10 @@ method queryPastStorageRequestedEvents*(
     let fromBlock = await market.contract.provider.pastBlockTag(blocksAgo)
 
     return await market.queryPastStorageRequestedEvents(fromBlock)
+
+method calculateRepairCollateral*(
+    market: Market, collateral: UInt256
+): Future[UInt256] {.async.} =
+  convertEthersError:
+    let repairRewardPercentage = (await market.repairRewardPercentage).u256
+    return collateral - (collateral * repairRewardPercentage).div(100.u256)

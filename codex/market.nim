@@ -263,3 +263,8 @@ method queryPastStorageRequestedEvents*(
     market: Market, blocksAgo: int
 ): Future[seq[StorageRequested]] {.base, async.} =
   raiseAssert("not implemented")
+
+method calculateRepairCollateral*(
+    market: Market, collateral: UInt256
+): Future[UInt256] {.base, async.} =
+  raiseAssert("not implemented")
