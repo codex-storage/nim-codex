@@ -520,11 +520,11 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       if duration =? restAv.duration:
         availability.duration = duration
 
-        if minPricePerBytePerSecond =? restAv.minPricePerBytePerSecond:
-          availability.minPricePerBytePerSecond = minPricePerBytePerSecond
+      if minPricePerBytePerSecond =? restAv.minPricePerBytePerSecond:
+        availability.minPricePerBytePerSecond = minPricePerBytePerSecond
 
-        if totalCollateral =? restAv.totalCollateral:
-          availability.totalCollateral = totalCollateral
+      if totalCollateral =? restAv.totalCollateral:
+        availability.totalCollateral = totalCollateral
 
       if err =? (await reservations.update(availability)).errorOption:
         return RestApiResponse.error(Http500, err.msg)

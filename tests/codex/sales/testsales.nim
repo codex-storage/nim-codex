@@ -614,7 +614,7 @@ asyncchecksuite "Sales":
   test "deletes inactive reservations on load":
     createAvailability()
     discard await reservations.createReservation(
-      availability.id, 100.u256, RequestId.example, UInt256.example, 1.u256
+      availability.id, 100.u256, RequestId.example, UInt256.example, UInt256.example
     )
     check (await reservations.all(Reservation)).get.len == 1
     await sales.load()

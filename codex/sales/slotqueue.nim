@@ -75,6 +75,9 @@ proc profitability(item: SlotQueueItem): UInt256 =
     slotSize: item.slotSize,
   ).pricePerSlot
 
+proc collateralPerSlot(item: SlotQueueItem): UInt256 =
+  StorageAsk(collateralPerByte: item.collateralPerByte, slotSize: item.slotSize).collateralPerSlot
+
 proc `<`*(a, b: SlotQueueItem): bool =
   # for A to have a higher priority than B (in a min queue), A must be less than
   # B.
@@ -91,14 +94,11 @@ proc `<`*(a, b: SlotQueueItem): bool =
   scoreA.addIf(a.profitability > b.profitability, 3)
   scoreB.addIf(a.profitability < b.profitability, 3)
 
-  scoreA.addIf(a.collateralPerByte < b.collateralPerByte, 2)
-  scoreB.addIf(a.collateralPerByte > b.collateralPerByte, 2)
+  scoreA.addIf(a.collateralPerSlot < b.collateralPerSlot, 2)
+  scoreB.addIf(a.collateralPerSlot > b.collateralPerSlot, 2)
 
   scoreA.addIf(a.expiry > b.expiry, 1)
   scoreB.addIf(a.expiry < b.expiry, 1)
-
-  scoreA.addIf(a.slotSize < b.slotSize, 0)
-  scoreB.addIf(a.slotSize > b.slotSize, 0)
 
   return scoreA > scoreB
 

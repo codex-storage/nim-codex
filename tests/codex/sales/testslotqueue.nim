@@ -24,12 +24,15 @@ suite "Slot queue start/stop":
   test "starts out not running":
     check not queue.running
 
+  test "queue starts paused":
+    check queue.paused
+
   test "can call start multiple times, and when already running":
     queue.start()
     queue.start()
     check queue.running
 
-  test "can call stop when alrady stopped":
+  test "can call stop when already stopped":
     await queue.stop()
     check not queue.running
 
@@ -285,9 +288,6 @@ suite "Slot queue":
       seen: false,
     )
 
-    # now slotSize impact profitability - larger slotSize means higher 
-    # profitability which has higher priority than slotSize alone
-    # check itemB.toSlotQueueItem < itemA.toSlotQueueItem # < indicates higher priority
     check itemA.toSlotQueueItem < itemB.toSlotQueueItem # < indicates higher priority
 
   test "expands available all possible slot indices on init":
@@ -443,19 +443,19 @@ suite "Slot queue":
     check queue.push(@[item0, item1, item2, item3, item4, item5]).isOk
     check queue.contains(item5)
 
-  test "sorts items by profitability ascending (higher pricePerBytePerSecond = higher priority)":
+  test "sorts items by profitability descending (higher pricePerBytePerSecond == higher priority == goes first in the list)":
     var request = StorageRequest.example
     let item0 = SlotQueueItem.init(request, 0)
     request.ask.pricePerBytePerSecond += 1.u256
     let item1 = SlotQueueItem.init(request, 1)
     check item1 < item0
 
-  test "sorts items by collateral ascending (less required collateralPerByte = higher priority)":
+  test "sorts items by collateral ascending (higher required collateralPerByte = lower priority == comes later in the list)":
     var request = StorageRequest.example
     let item0 = SlotQueueItem.init(request, 0)
-    request.ask.collateralPerByte -= 1.u256
+    request.ask.collateralPerByte += 1.u256
     let item1 = SlotQueueItem.init(request, 1)
-    check item1 < item0
+    check item1 > item0
 
   test "sorts items by expiry descending (longer expiry = higher priority)":
     var request = StorageRequest.example
@@ -464,12 +464,12 @@ suite "Slot queue":
     let item1 = SlotQueueItem.init(request, 1)
     check item1 < item0
 
-  # test "sorts items by slot size ascending (smaller dataset = higher priority)":
-  #   var request = StorageRequest.example
-  #   let item0 = SlotQueueItem.init(request, 0)
-  #   request.ask.slotSize -= 1.u256
-  #   let item1 = SlotQueueItem.init(request, 1)
-  #   check item1 < item0
+  test "sorts items by slot size descending (bigger dataset = higher profitability = higher priority)":
+    var request = StorageRequest.example
+    let item0 = SlotQueueItem.init(request, 0)
+    request.ask.slotSize += 1.u256
+    let item1 = SlotQueueItem.init(request, 1)
+    check item1 < item0
 
   test "should call callback once an item is added":
     newSlotQueue(maxSize = 2, maxWorkers = 2)
@@ -484,7 +484,7 @@ suite "Slot queue":
     check queue.push(item).isOk
     check eventually onProcessSlotCalledWith == @[(item.requestId, item.slotIndex)]
 
-  test "should process items in correct order":
+  test "processes items in order of addition when only one item is added at a time":
     newSlotQueue(maxSize = 2, maxWorkers = 2)
     # sleeping after push allows the slotqueue loop to iterate,
     # calling the callback for each pushed/updated item
@@ -515,9 +515,35 @@ suite "Slot queue":
       ]
     )
 
-  test "queue starts paused":
-    newSlotQueue(maxSize = 4, maxWorkers = 4)
-    check queue.paused
+  test "should process items in correct order according to the queue invariant when more than one item is added at a time":
+    newSlotQueue(maxSize = 4, maxWorkers = 2)
+    # sleeping after push allows the slotqueue loop to iterate,
+    # calling the callback for each pushed/updated item
+    var request = StorageRequest.example
+    let item0 = SlotQueueItem.init(request, 0)
+    request.ask.pricePerBytePerSecond += 1.u256
+    let item1 = SlotQueueItem.init(request, 1)
+    request.ask.pricePerBytePerSecond += 1.u256
+    let item2 = SlotQueueItem.init(request, 2)
+    request.ask.pricePerBytePerSecond += 1.u256
+    let item3 = SlotQueueItem.init(request, 3)
+
+    check queue.push(item0).isOk
+    check queue.push(item1).isOk
+    check queue.push(item2).isOk
+    check queue.push(item3).isOk
+
+    await sleepAsync(1.millis)
+
+    check eventually (
+      onProcessSlotCalledWith ==
+      @[
+        (item3.requestId, item3.slotIndex),
+        (item2.requestId, item2.slotIndex),
+        (item1.requestId, item1.slotIndex),
+        (item0.requestId, item0.slotIndex),
+      ]
+    )
 
   test "pushing items to queue unpauses queue":
     newSlotQueue(maxSize = 4, maxWorkers = 4)

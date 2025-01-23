@@ -34,10 +34,12 @@ template eventuallyS(
   await eventuallyS()
 
 marketplacesuite "Validation":
-  const nodes = 3
-  const tolerance = 1
+  const blocks = 8
+  const ecNodes = 3
+  const ecTolerance = 1
   const proofProbability = 1
 
+  const collateralPerByte = 1.u256
   const minPricePerBytePerSecond = 1.u256
 
   proc waitForRequestToFail(
@@ -94,17 +96,20 @@ marketplacesuite "Validation":
     var currentTime = await ethProvider.currentTime()
     let requestEndTime = currentTime.truncate(uint64) + duration
 
-    let data = await RandomChunker.example(blocks = 8)
-
-    createAvailabilitiesForData(data, duration, minPricePerBytePerSecond)
+    let data = await RandomChunker.example(blocks = blocks)
+    let datasetSize =
+      datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
+    createAvailabilities(
+      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
+    )
 
     let cid = client0.upload(data).get
     let purchaseId = await client0.requestStorage(
       cid,
       expiry = expiry,
       duration = duration,
-      nodes = nodes,
-      tolerance = tolerance,
+      nodes = ecNodes,
+      tolerance = ecTolerance,
       proofProbability = proofProbability,
     )
     let requestId = client0.requestId(purchaseId).get
@@ -158,17 +163,20 @@ marketplacesuite "Validation":
     var currentTime = await ethProvider.currentTime()
     let requestEndTime = currentTime.truncate(uint64) + duration
 
-    let data = await RandomChunker.example(blocks = 8)
-
-    createAvailabilitiesForData(data, duration, minPricePerBytePerSecond)
+    let data = await RandomChunker.example(blocks = blocks)
+    let datasetSize =
+      datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
+    createAvailabilities(
+      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
+    )
 
     let cid = client0.upload(data).get
     let purchaseId = await client0.requestStorage(
       cid,
       expiry = expiry,
       duration = duration,
-      nodes = nodes,
-      tolerance = tolerance,
+      nodes = ecNodes,
+      tolerance = ecTolerance,
       proofProbability = proofProbability,
     )
     let requestId = client0.requestId(purchaseId).get

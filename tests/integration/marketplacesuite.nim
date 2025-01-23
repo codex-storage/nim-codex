@@ -45,28 +45,25 @@ template marketplacesuite*(name: string, body: untyped) =
     proc periods(p: int): uint64 =
       p.uint64 * period
 
-    # Purposely overshooting
-    # TODO: find a better way to compute slot size for the given
-    # dataset size
-    # I found this snippet in tests/integration/testproofs.nim:
-    # let datasetSizeInBlocks = 3
-    # let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
-    # # original data = 3 blocks so slot size will be 4 blocks
-    # let slotSize = (DefaultBlockSize * 4.NBytes).Natural.u256
-    proc availabilityTotalSizeForDataSize(dataSize: int): UInt256 =
-      (dataSize * 2).u256
+    proc slotSize(blocks: int): UInt256 =
+      (DefaultBlockSize * blocks.NBytes).Natural.u256
 
-    proc createAvailabilitiesForData(
-        data: string, duration: uint64, minPricePerBytePerSecond: UInt256
+    proc datasetSize(blocks, nodes, tolerance: int): UInt256 =
+      (nodes + tolerance).u256 * slotSize(blocks)
+
+    proc createAvailabilities(
+        datasetSize: UInt256,
+        duration: uint64,
+        collateralPerByte: UInt256,
+        minPricePerBytePerSecond: UInt256,
     ) =
-      let availabilityTotalSize = availabilityTotalSizeForDataSize(data.len)
-      let totalCollateral = availabilityTotalSize * minPricePerBytePerSecond
+      let totalCollateral = datasetSize * collateralPerByte
       # post availability to each provider
       for i in 0 ..< providers().len:
         let provider = providers()[i].client
 
         discard provider.postAvailability(
-          totalSize = availabilityTotalSize,
+          totalSize = datasetSize,
           duration = duration.u256,
           minPricePerBytePerSecond = minPricePerBytePerSecond,
           totalCollateral = totalCollateral,

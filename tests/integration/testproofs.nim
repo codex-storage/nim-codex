@@ -17,6 +17,9 @@ logScope:
 marketplacesuite "Hosts submit regular proofs":
   const minPricePerBytePerSecond = 1.u256
   const collateralPerByte = 1.u256
+  const blocks = 8
+  const ecNodes = 3
+  const ecTolerance = 1
 
   test "hosts submit periodic proofs for slots they fill",
     NodeConfigs(
@@ -37,14 +40,29 @@ marketplacesuite "Hosts submit regular proofs":
     let expiry = 10.periods
     let duration = expiry + 5.periods
 
-    let data = await RandomChunker.example(blocks = 8)
-    createAvailabilitiesForData(data, duration, minPricePerBytePerSecond)
+    let data = await RandomChunker.example(blocks = blocks)
+    let datasetSize =
+      datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
+    createAvailabilities(
+      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
+    )
 
     let cid = client0.upload(data).get
 
     let purchaseId = await client0.requestStorage(
-      cid, expiry = expiry, duration = duration, nodes = 3, tolerance = 1
+      cid,
+      expiry = expiry,
+      duration = duration,
+      nodes = ecNodes,
+      tolerance = ecTolerance,
     )
+
+    let purchase = client0.getPurchase(purchaseId).get
+    check purchase.error == none string
+
+    let request = purchase.request.get
+    let slotSize = request.ask.slotSize
+
     check eventually(
       client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
     )
@@ -67,6 +85,9 @@ marketplacesuite "Simulate invalid proofs":
 
   const minPricePerBytePerSecond = 1.u256
   const collateralPerByte = 1.u256
+  const blocks = 8
+  const ecNodes = 3
+  const ecTolerance = 1
 
   test "slot is freed after too many invalid proofs submitted",
     NodeConfigs(
@@ -94,8 +115,12 @@ marketplacesuite "Simulate invalid proofs":
     let expiry = 10.periods
     let duration = expiry + 10.periods
 
-    let data = await RandomChunker.example(blocks = 8)
-    createAvailabilitiesForData(data, duration, minPricePerBytePerSecond)
+    let data = await RandomChunker.example(blocks = blocks)
+    let datasetSize =
+      datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
+    createAvailabilities(
+      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
+    )
 
     let cid = client0.upload(data).get
 
@@ -103,8 +128,8 @@ marketplacesuite "Simulate invalid proofs":
       cid,
       expiry = expiry,
       duration = duration,
-      nodes = 3,
-      tolerance = 1,
+      nodes = ecNodes,
+      tolerance = ecTolerance,
       proofProbability = 1,
     )
     let requestId = client0.requestId(purchaseId).get
@@ -150,8 +175,12 @@ marketplacesuite "Simulate invalid proofs":
     let expiry = 10.periods
     let duration = expiry + 10.periods
 
-    let data = await RandomChunker.example(blocks = 8)
-    createAvailabilitiesForData(data, duration, minPricePerBytePerSecond)
+    let data = await RandomChunker.example(blocks = blocks)
+    let datasetSize =
+      datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
+    createAvailabilities(
+      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
+    )
 
     let cid = client0.upload(data).get
 
@@ -159,8 +188,8 @@ marketplacesuite "Simulate invalid proofs":
       cid,
       expiry = expiry,
       duration = duration,
-      nodes = 3,
-      tolerance = 1,
+      nodes = ecNodes,
+      tolerance = ecTolerance,
       proofProbability = 1,
     )
     let requestId = client0.requestId(purchaseId).get

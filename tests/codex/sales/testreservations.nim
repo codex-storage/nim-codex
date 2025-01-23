@@ -22,6 +22,7 @@ asyncchecksuite "Reservations module":
     repoDs: Datastore
     metaDs: Datastore
     reservations: Reservations
+    collateralPerByte: UInt256
   let
     repoTmp = TempLevelDb.new()
     metaTmp = TempLevelDb.new()
@@ -32,15 +33,15 @@ asyncchecksuite "Reservations module":
     metaDs = metaTmp.newDb()
     repo = RepoStore.new(repoDs, metaDs)
     reservations = Reservations.new(repo)
+    collateralPerByte = uint8.example.u256
 
   teardown:
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
 
   proc createAvailability(): Availability =
-    let example = Availability.example
+    let example = Availability.example(collateralPerByte)
     let totalSize = rand(100000 .. 200000).u256
-    let collateralPerByte = 1.u256
     let totalCollateral = totalSize * collateralPerByte
     let availability = waitFor reservations.createAvailability(
       totalSize, example.duration, example.minPricePerBytePerSecond, totalCollateral
@@ -140,7 +141,7 @@ asyncchecksuite "Reservations module":
       availability.totalSize + 1,
       RequestId.example,
       UInt256.example,
-      1.u256,
+      UInt256.example,
     )
     check created.isErr
     check created.error of BytesOutOfBoundsError
@@ -153,12 +154,12 @@ asyncchecksuite "Reservations module":
         availability.totalSize - 1,
         RequestId.example,
         UInt256.example,
-        1.u256,
+        UInt256.example,
       )
 
       let two = reservations.createReservation(
         availability.id, availability.totalSize, RequestId.example, UInt256.example,
-        1.u256,
+        UInt256.example,
       )
 
       let oneResult = await one
@@ -313,7 +314,6 @@ asyncchecksuite "Reservations module":
 
   test "availabilities can be found":
     let availability = createAvailability()
-    let collateralPerByte = 1.u256
 
     let found = await reservations.findAvailability(
       availability.freeSize, availability.duration,
@@ -325,7 +325,6 @@ asyncchecksuite "Reservations module":
 
   test "non-matching availabilities are not found":
     let availability = createAvailability()
-    let collateralPerByte = 1.u256
 
     let found = await reservations.findAvailability(
       availability.freeSize + 1,
@@ -338,7 +337,6 @@ asyncchecksuite "Reservations module":
 
   test "non-existent availability cannot be found":
     let availability = Availability.example
-    let collateralPerByte = 1.u256
     let found = await reservations.findAvailability(
       availability.freeSize, availability.duration,
       availability.minPricePerBytePerSecond, collateralPerByte,

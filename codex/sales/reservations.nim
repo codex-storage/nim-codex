@@ -344,7 +344,7 @@ proc deleteReservation*(
     self: Reservations,
     reservationId: ReservationId,
     availabilityId: AvailabilityId,
-    currentCollateral: ?UInt256 = UInt256.none,
+    returnedCollateral: ?UInt256 = UInt256.none,
 ): Future[?!void] {.async.} =
   logScope:
     reservationId
@@ -373,8 +373,8 @@ proc deleteReservation*(
 
       availability.freeSize += reservation.size
 
-      if returnedCollateral =? currentCollateral:
-        availability.totalRemainingCollateral += returnedCollateral
+      if collateral =? returnedCollateral:
+        availability.totalRemainingCollateral += collateral
 
       if updateErr =? (await self.updateAvailability(availability)).errorOption:
         return failure(updateErr)

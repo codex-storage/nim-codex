@@ -18,6 +18,9 @@ marketplacesuite "Marketplace":
 
   const minPricePerBytePerSecond = 1.u256
   const collateralPerByte = 1.u256
+  const blocks = 8
+  const ecNodes = 3
+  const ecTolerance = 1
 
   setup:
     host = providers()[0].client
@@ -32,7 +35,7 @@ marketplacesuite "Marketplace":
 
   test "nodes negotiate contracts on the marketplace", marketplaceConfig:
     let size = 0xFFFFFF.u256
-    let data = await RandomChunker.example(blocks = 8)
+    let data = await RandomChunker.example(blocks = blocks)
     # host makes storage available
     let availability = host.postAvailability(
       totalSize = size,
@@ -50,8 +53,8 @@ marketplacesuite "Marketplace":
       proofProbability = 3.u256,
       expiry = 10 * 60,
       collateralPerByte = collateralPerByte,
-      nodes = 3,
-      tolerance = 1,
+      nodes = ecNodes,
+      tolerance = ecTolerance,
     ).get
 
     check eventually(client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000)
@@ -69,12 +72,11 @@ marketplacesuite "Marketplace":
   test "node slots gets paid out and rest of tokens are returned to client",
     marketplaceConfig:
     let size = 0xFFFFFF.u256
-    let data = await RandomChunker.example(blocks = 8)
+    let data = await RandomChunker.example(blocks = blocks)
     let marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
     let tokenAddress = await marketplace.token()
     let token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
     let duration = 20 * 60.u256
-    let nodes = 3'u
 
     # host makes storage available
     let startBalanceHost = await token.balanceOf(hostAccount)
@@ -94,16 +96,13 @@ marketplacesuite "Marketplace":
       proofProbability = 3.u256,
       expiry = 10 * 60,
       collateralPerByte = collateralPerByte,
-      nodes = nodes,
-      tolerance = 1,
+      nodes = ecNodes,
+      tolerance = ecTolerance,
     ).get
 
     check eventually(client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000)
     let purchase = client.getPurchase(id).get
     check purchase.error == none string
-
-    let request = purchase.request.get
-    let slotSize = request.ask.slotSize
 
     let clientBalanceBeforeFinished = await token.balanceOf(clientAccount)
 
@@ -113,9 +112,10 @@ marketplacesuite "Marketplace":
     await ethProvider.advanceTime(duration)
 
     # Checking that the hosting node received reward for at least the time between <expiry;end>
+    let slotSize = slotSize(blocks)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
     check eventually (await token.balanceOf(hostAccount)) - startBalanceHost >=
-      (duration - 5 * 60) * pricePerSlotPerSecond * nodes.u256
+      (duration - 5 * 60) * pricePerSlotPerSecond * ecNodes.u256
 
     # Checking that client node receives some funds back that were not used for the host nodes
     check eventually(
@@ -126,6 +126,9 @@ marketplacesuite "Marketplace":
 marketplacesuite "Marketplace payouts":
   const minPricePerBytePerSecond = 1.u256
   const collateralPerByte = 1.u256
+  const blocks = 8
+  const ecNodes = 3
+  const ecTolerance = 1
 
   test "expired request partially pays out for stored time",
     NodeConfigs(
@@ -144,7 +147,7 @@ marketplacesuite "Marketplace payouts":
     ):
     let duration = 20.periods
     let expiry = 10.periods
-    let data = await RandomChunker.example(blocks = 8)
+    let data = await RandomChunker.example(blocks = blocks)
     let client = clients()[0]
     let provider = providers()[0]
     let clientApi = client.client
@@ -153,7 +156,8 @@ marketplacesuite "Marketplace payouts":
     let startBalanceClient = await token.balanceOf(client.ethAccount)
 
     # provider makes storage available
-    let totalAvailabilitySize = (data.len div 2).u256
+    let datasetSize = datasetSize(blocks, ecNodes, ecTolerance)
+    let totalAvailabilitySize = datasetSize div 2
     discard providerApi.postAvailability(
       # make availability size small enough that we can't fill all the slots,
       # thus causing a cancellation
@@ -179,18 +183,13 @@ marketplacesuite "Marketplace payouts":
       pricePerBytePerSecond = minPricePerBytePerSecond,
       expiry = expiry,
       collateralPerByte = collateralPerByte,
-      nodes = 3,
-      tolerance = 1,
+      nodes = ecNodes,
+      tolerance = ecTolerance,
     )
 
     # wait until one slot is filled
     check eventually(slotIdxFilled.isSome, timeout = expiry.int * 1000)
     let slotId = slotId(!clientApi.requestId(id), !slotIdxFilled)
-
-    let purchase = clientApi.getPurchase(id).get
-    check purchase.error == none string
-    let request = purchase.request.get
-    let slotSize = request.ask.slotSize
 
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
@@ -198,6 +197,7 @@ marketplacesuite "Marketplace payouts":
 
     await advanceToNextPeriod()
 
+    let slotSize = slotSize(blocks)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
 
     check eventually (

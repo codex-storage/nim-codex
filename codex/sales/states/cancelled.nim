@@ -32,7 +32,7 @@ method run*(state: SaleCancelled, machine: Machine): Future[?State] {.async.} =
     await onCleanUp(
       returnBytes = true,
       reprocessSlot = false,
-      currentCollateral = some currentCollateral,
+      returnedCollateral = some currentCollateral,
     )
 
   warn "Sale cancelled due to timeout",

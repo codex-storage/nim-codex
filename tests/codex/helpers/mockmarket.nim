@@ -60,7 +60,7 @@ type
     slotIndex*: UInt256
     proof*: Groth16Proof
     timestamp: ?SecondsSince1970
-    collateral: UInt256
+    collateral*: UInt256
 
   Subscriptions = object
     onRequest: seq[RequestSubscription]
