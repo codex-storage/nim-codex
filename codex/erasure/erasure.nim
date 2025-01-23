@@ -613,7 +613,6 @@ proc new*(
 ): Erasure =
   ## Create a new Erasure instance for encoding and decoding manifests
   ##
-
   Erasure(
     store: store,
     encoderProvider: encoderProvider,
