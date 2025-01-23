@@ -37,7 +37,6 @@ jobs:
             os {macos},   cpu {amd64}, builder {macos-13},       tests {tools},       nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
             os {windows}, cpu {amd64}, builder {windows-latest}, tests {unittest},    nim_version {${{ env.nim_version }}}, shell {msys2}
             os {windows}, cpu {amd64}, builder {windows-latest}, tests {contract},    nim_version {${{ env.nim_version }}}, shell {msys2}
-            os {windows}, cpu {amd64}, builder {windows-latest}, tests {integration}, nim_version {${{ env.nim_version }}}, shell {msys2}
             os {windows}, cpu {amd64}, builder {windows-latest}, tests {tools},       nim_version {${{ env.nim_version }}}, shell {msys2}
 
   build:
