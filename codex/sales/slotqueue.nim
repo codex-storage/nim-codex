@@ -421,6 +421,8 @@ proc run(self: SlotQueue) {.async: (raises: []).} =
         trace "readding seen item back into the queue"
         discard self.push(item) # on error, drop the item and continue
         worker.doneProcessing.complete()
+        if err =? self.addWorker().errorOption:
+          error "error adding new worker", error = err.msg
         await sleepAsync(1.millis) # poll
         continue
 
