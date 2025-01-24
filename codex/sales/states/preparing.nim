@@ -62,15 +62,13 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
     slotIndex = data.slotIndex
     slotSize = request.ask.slotSize
     duration = request.ask.duration
-    pricePerSlot = request.ask.pricePerSlot
+    pricePerBytePerSecond = request.ask.pricePerBytePerSecond
+    collateralPerByte = request.ask.collateralPerByte
 
-  # availability was checked for this slot when it entered the queue, however
-  # check to the ensure that there is still availability as they may have
-  # changed since being added (other slots may have been processed in that time)
   without availability =?
     await reservations.findAvailability(
-      request.ask.slotSize, request.ask.duration, request.ask.pricePerSlot,
-      request.ask.collateral,
+      request.ask.slotSize, request.ask.duration, request.ask.pricePerBytePerSecond,
+      request.ask.collateralPerByte,
     ):
     debug "No availability found for request, ignoring"
 
@@ -80,7 +78,8 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
 
   without reservation =?
     await reservations.createReservation(
-      availability.id, request.ask.slotSize, request.id, data.slotIndex
+      availability.id, request.ask.slotSize, request.id, data.slotIndex,
+      request.ask.collateralPerByte,
     ), error:
     trace "Creation of reservation failed"
     # Race condition:

@@ -126,6 +126,11 @@ method getHost*(
 ): Future[?Address] {.base, async.} =
   raiseAssert("not implemented")
 
+method currentCollateral*(
+    market: Market, slotId: SlotId
+): Future[UInt256] {.base, async.} =
+  raiseAssert("not implemented")
+
 method getActiveSlot*(market: Market, slotId: SlotId): Future[?Slot] {.base, async.} =
   raiseAssert("not implemented")
 
