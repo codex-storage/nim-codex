@@ -71,6 +71,7 @@ type
     contracts*: Contracts
     clock*: Clock
     storage*: Contracts
+    taskpool: Taskpool
 
   CodexNodeRef* = ref CodexNode
 
@@ -237,7 +238,7 @@ proc streamEntireDataset(
     proc erasureJob(): Future[?!void] {.async.} =
       # Spawn an erasure decoding job
       let erasure = Erasure.new(
-        self.networkStore, leoEncoderProvider, leoDecoderProvider, Taskpool.new()
+        self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
       )
       without _ =? (await erasure.decode(manifest)), error:
         error "Unable to erasure decode manifest", manifestCid, exc = error.msg
@@ -406,7 +407,7 @@ proc setupRequest(
 
   # Erasure code the dataset according to provided parameters
   let erasure = Erasure.new(
-    self.networkStore.localStore, leoEncoderProvider, leoDecoderProvider, Taskpool.new()
+    self.networkStore.localStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
   )
 
   without encoded =? (await erasure.encode(manifest, ecK, ecM)), error:
@@ -733,6 +734,7 @@ proc new*(
     networkStore: NetworkStore,
     engine: BlockExcEngine,
     discovery: Discovery,
+    taskpool: Taskpool,
     prover = Prover.none,
     contracts = Contracts.default,
 ): CodexNodeRef =
@@ -745,5 +747,6 @@ proc new*(
     engine: engine,
     prover: prover,
     discovery: discovery,
+    taskPool: taskpool,
     contracts: contracts,
   )

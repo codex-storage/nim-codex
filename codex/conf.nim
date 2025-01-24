@@ -184,6 +184,13 @@ type
       name: "max-peers"
     .}: int
 
+    numThreads* {.
+      desc:
+        "Number of worker threads (\"0\" = use as many threads as there are CPU cores available)",
+      defaultValue: 0,
+      name: "num-threads"
+    .}: int
+
     agentString* {.
       defaultValue: "Codex",
       desc: "Node agent string which is used as identifier in network",
