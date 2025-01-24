@@ -162,7 +162,7 @@ components:
           description: Minimal price per byte per second paid (in amount of tokens) for the hosted request's slot for the request's duration as decimal string
         totalCollateral:
           type: string
-          description: Total remaining collateral (in amount of tokens) that can still be used for matching requests
+          description: Total collateral (in amount of tokens) that can be used for matching requests
 
     SalesAvailabilityREAD:
       allOf:
