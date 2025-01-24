@@ -67,7 +67,7 @@ asyncchecksuite "Test Node - Basic":
     # https://github.com/codex-storage/nim-codex/issues/699
     let
       cstore = CountingStore.new(engine, localStore)
-      node = CodexNodeRef.new(switch, cstore, engine, blockDiscovery)
+      node = CodexNodeRef.new(switch, cstore, engine, blockDiscovery, Taskpool.new())
       missingCid =
         Cid.init("zDvZRwzmCvtiyubW9AecnxgLnXK8GrBvpQJBDzToxmzDN6Nrc2CZ").get()
 
