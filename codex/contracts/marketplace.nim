@@ -37,6 +37,11 @@ type
   Marketplace_SlotIsFree* = object of SolidityError
   Marketplace_ReservationRequired* = object of SolidityError
   Marketplace_NothingToWithdraw* = object of SolidityError
+  Marketplace_InsufficientDuration* = object of SolidityError
+  Marketplace_InsufficientProofProbability* = object of SolidityError
+  Marketplace_InsufficientCollateral* = object of SolidityError
+  Marketplace_InsufficientReward* = object of SolidityError
+  Marketplace_InvalidCid* = object of SolidityError
   Proofs_InsufficientBlockHeight* = object of SolidityError
   Proofs_InvalidProof* = object of SolidityError
   Proofs_ProofAlreadySubmitted* = object of SolidityError
@@ -45,6 +50,8 @@ type
   Proofs_ProofNotMissing* = object of SolidityError
   Proofs_ProofNotRequired* = object of SolidityError
   Proofs_ProofAlreadyMarkedMissing* = object of SolidityError
+  Proofs_InvalidProbability* = object of SolidityError
+  Periods_InvalidSecondsPerPeriod* = object of SolidityError
 
 proc configuration*(marketplace: Marketplace): MarketplaceConfig {.contract, view.}
 proc token*(marketplace: Marketplace): Address {.contract, view.}
