@@ -37,8 +37,7 @@ suite "Erasure encode/decode":
     rng = Rng.instance()
     chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = BlockSize)
     store = RepoStore.new(repoDs, metaDs)
-    var taskPool = Taskpool.new()
-    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskPool)
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, Taskpool.new())
     manifest = await storeDataGetManifest(store, chunker)
 
   teardown:
@@ -243,6 +242,7 @@ suite "Erasure encode/decode":
       decoded.treeCid == manifest.treeCid
       decoded.treeCid == verifiable.originalTreeCid
       decoded.blocksCount == verifiable.originalBlocksCount
+
   for i in 1 .. 5:
     test "Should encode/decode using various parameters " & $i & "/5":
       let

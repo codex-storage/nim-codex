@@ -199,6 +199,7 @@ proc new*(
   var
     cache: CacheStore = nil
     taskpool: Taskpool
+
   try:
     if config.numThreads < 0:
       fatal "The number of threads --numThreads cannot be negative."
@@ -207,8 +208,7 @@ proc new*(
       taskpool = Taskpool.new(numThreads = min(countProcessors(), 16))
     else:
       taskpool = Taskpool.new(numThreads = config.numThreads)
-
-      info "Threadpool started", numThreads = taskpool.numThreads
+    info "Threadpool started", numThreads = taskpool.numThreads
   except Exception:
     raise newException(Defect, "Failure in taskpool initialization.")
 
